@@ -146,6 +146,7 @@ class RobotRuntime:
     def _execute(self, name, args=None, *, expected_generation=None, deadline_monotonic_s=None):
         args = {} if args is None else args
         descriptor = None
+        task_id = None
         try:
             if not isinstance(name, str):
                 raise ValueError("tool name must be a string")
@@ -222,6 +223,14 @@ class RobotRuntime:
                     return {"ok": False, "execution_ok": False, "error": "operation superseded by stop",
                             "domain_result": result}
                 return result
+            except BaseException:
+                # Cancellation must propagate, but first retain uncertainty
+                # while this task still owns admission. A finally-only release
+                # otherwise lets global completion forget an interrupted write.
+                if descriptor.effect == "motion":
+                    with self._gate:
+                        self._unverified.add(name)
+                raise
             finally:
                 with self._gate:
                     self._active = False
@@ -229,7 +238,11 @@ class RobotRuntime:
         except Exception as exc:
             if descriptor is not None and descriptor.effect == "motion":
                 with self._gate:
-                    self._unverified.add(name)
+                    # Admitted failures were recorded before releasing ownership.
+                    # A trusted host may have begun another task since then;
+                    # the old exception cannot attach its debt to that task.
+                    if task_id is None or task_id == self._task_id:
+                        self._unverified.add(name)
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
 
     def _stop_worker(self, name):

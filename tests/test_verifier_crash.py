@@ -48,7 +48,7 @@ def test_mutation_guard_verifier_result_is_not_a_plain_pass():
 
     from cascade.skills import runtime as rt
 
-    src = inspect.getsource(rt.SkillRuntime.execute)
+    src = inspect.getsource(rt.SkillRuntime._execute_skill)
     i = src.index("self.effects.verify(")
     window = src[i : i + 900]
     assert "except Exception:\n                pass" not in window

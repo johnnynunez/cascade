@@ -1,0 +1,65 @@
+{
+  "schema": 1,
+  "base_commit": "1ac1923585a2626d7bc659d7300ea39f44d1eaff",
+  "scope": "Cancellation fences for retained MuJoCo withdrawal and explicit reset; CPU/static geometry only",
+  "source_sha256": {
+    "src/cascade/skills/mujoco_withdrawal.py": "2faf7f92e62e211cde42a2bf5dd370a45cd81ea835f0090c1f821e6311ff6a9d",
+    "src/cascade/skills/runtime.py": "8533f2284a0129ee0a3c7ad8d1c45bd237aafac0a0f4c06175a232279df600c2",
+    "tests/test_withdrawal_cancel_contract.py": "4850bc9465068cf9a3487d3d38e4c1c2213db5159a5ad9244385ccf344692847"
+  },
+  "original_reproduction": {
+    "failed": 2,
+    "passed": 4,
+    "external_test_sha256": "1b4d17cd7b4468dc4c744f668c3c916a7feceb90708692d4e25b448ea85545af"
+  },
+  "final": {
+    "passed": 151,
+    "skipped": 0,
+    "deselected": 1,
+    "pytest_s": 12.76,
+    "new_cancellation_controls": 20,
+    "sources_unchanged": true,
+    "protected_stores_unchanged": true,
+    "static_so101_assets_verified": 26,
+    "lfs_meshes_verified_against_pointer_oids": 2
+  },
+  "preserved_intermediate_failures": [
+    "Three newly added fixture failures used __dict__.update and bypassed SkillRuntime.arm setter; corrected fixture, no production guard change.",
+    "Initial focused run: 150 pass, 1 fail from an LFS pointer in an RS gripper mesh; expanded both meshes against committed OIDs, no source change.",
+    "Initial small selection: 9 pass, 43 skip before static SO101 assets were materialized."
+  ],
+  "contract": {
+    "consumer_token": "Original home/withdraw cancellation context passed through existing SafeArm gates",
+    "explicit_reset": "Successful recovery registers its exact generation and cancellation token; normal retries cannot renew it",
+    "completion": "Original postrelease epoch check unless registered reset recovery; token/latch/owner validation and debt clear under one short lock",
+    "lock_scope": "No geometry, driver IO or callbacks under observation lock",
+    "verification": "Reset physical read and final observation remain fenced; stale context retains pending debt"
+  },
+  "limitations": [
+    "No new physics episode, GPU run or physical success/stop admission.",
+    "The original physical reset test was deliberately deselected; unchanged original two-pick episode was not rerun."
+  ],
+  "external_artifact_root": "/home/johnny/Projects/demo/cascade-lab/WITHDRAWAL_CANCEL_FIX_20261003",
+  "raw_sha256": {
+    "baseline-01.log": "d27fee70813a14a7277db1bcbfb318e8c23c90ce0e2e774fc704e2725a432869",
+    "baseline-01.xml": "6e16879235be0a478d84d41187c6c4e34ec40a4cbe8861483f28225fd45e4b41",
+    "original-review-test.py": "1b4d17cd7b4468dc4c744f668c3c916a7feceb90708692d4e25b448ea85545af",
+    "fixed-01.log": "d85c0f0e7cca17d3d1d1b4e590bede6c7c17b25797cfb24313f61af63974de6a",
+    "fixed-04.log": "bfcf5b89cd3cd9f0267d29acba5e587b5c502aa05c68184f4a1242dd24628d42",
+    "focused-01/result.json": "09c863e793c9ebd5126a39ccbb7bf1611db7888a7765f1c02706f04a630c8bee",
+    "focused-01/pytest.log": "c83dba598e846a096c96d9ff5ad552b6f9f32ed653d0401a83e8aedcff5768d3",
+    "focused-02/result.json": "9d3ace37b6edfe2fcc6cbaa06748e0441eb7b3abc8788b1fe556a0430e39ce5f",
+    "focused-02/pytest.log": "28f2d0ffb6edf5370ecd2a81d709b3f46434cbdcc63517c25e0279fe24b33cfe",
+    "focused-02/junit.xml": "abb6da314ebc2167d603b0691a7f97181d70b0e544470cfa68ab442757526a38",
+    "focused-02/before.json": "7ad45a40a63ddc9c4b1ebc088a0d4a332773808609b4c49c8e8dde9b0bf4ff42",
+    "focused-02/after.json": "7ad45a40a63ddc9c4b1ebc088a0d4a332773808609b4c49c8e8dde9b0bf4ff42",
+    "asset-materialization.json": "9f871c8d85b065280e9884a521bdaea47066f3e3a577794f81d9f35fa9c52bb4",
+    "lfs-materialization.json": "cdab4835f1550f90924974ad0c563c028bc9cb603a027b583c0555f6721643f0",
+    "run_checks.py": "3e22e4298fdf870a85ae1e1d103bc0687c4b6c4c049acb3ec006be63dc894356"
+  },
+  "independent_review": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/WITHDRAWAL_CANCEL_FIX_REVIEW_20261003/review-02.json",
+    "sha256": "113cf3b85f20ab15648a1e2fe764a97f01ae94bd3fba6ed22ef4d378d208ca8f",
+    "verdict": "no_material_blocker_found"
+  }
+}

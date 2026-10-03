@@ -81,7 +81,10 @@ class SpatialDomain:
         return {"ok": True, "actuation": False}
 
 
-def build_spatial_domain(domain_id, profile):
+def build_spatial_domain(domain_id, profile, *, sensor_domains=None):
+    if isinstance(profile, dict) and profile.get("kind") == "spatial" and "rgbd" in profile:
+        from .rgbd import build_rgbd_spatial_domain
+        return build_rgbd_spatial_domain(domain_id, profile, sensor_domains or {})
     allowed = {"kind", "robot_id", "replay"}
     if not isinstance(profile, dict) or set(profile) != allowed or profile["kind"] != "spatial":
         raise ValueError("spatial domain requires only kind, robot_id, replay")

@@ -130,8 +130,9 @@ class AgentOrchestrator:
         # One persistence budget for the WHOLE task, across tiers: the reflex
         # tier's pick_and_place, then the LLM tier's retry of the same call,
         # share it instead of each bringing a fresh `persist_seconds`.
-        if self._mobile:
-            self.runtime.begin_task()
+        begin_task = getattr(self.runtime, "begin_task", None)
+        if begin_task is not None:
+            begin_task()
         begin = getattr(self.runtime, "begin_task_budget", None)
         if begin is not None:
             begin()
@@ -149,8 +150,9 @@ class AgentOrchestrator:
     def _run_task(self, task: str) -> TaskReport:
         t_start = time.monotonic()
         fast_note = None
+        tool_log: list[dict] = []
         if self.fast_planner is not None:
-            report, fast_note = self._try_fast_path(task, t_start)
+            report, fast_note = self._try_fast_path(task, t_start, tool_log=tool_log)
             if report is not None:
                 return report
 
@@ -164,7 +166,6 @@ class AgentOrchestrator:
         except AttributeError:
             pass
         messages: list[dict] = []
-        tool_log: list[dict] = []
 
         intro = f"Task: {task}\n"
         if milestones:
@@ -234,31 +235,16 @@ class AgentOrchestrator:
                 result = self.runtime.execute(call.name, call.arguments)
             finally:
                 self.runtime.current_tier = None
-            tool_log.append({"step": step, "tool": call.name, "args": call.arguments, "result": result})
+            tool_log.append({"step": step, "tier": "llm", "tool": call.name,
+                             "args": call.arguments, "result": result})
 
             if call.name == "task_done" and result.get("task_complete"):
                 summary = str(call.arguments.get("summary", ""))
                 success = _as_bool(call.arguments.get("success", False))
-                # Pigey: a success claim is checked against the world model
-                # before it is accepted. Unverified milestones downgrade the
-                # claim rather than riding along with it.
-                status, unverified = self._final_check(success)
-                if self._mobile:
-                    unverified = self.runtime.unverified_actions()
-                    success = success and result.get("success") is True and not unverified
-                if unverified and (success or self._mobile):
-                    summary += (
-                        "\n[verification] could not confirm: "
-                        + "; ".join(unverified)
-                    )
-                self.runtime.trace.finish(
-                    f"task: {task}\nsuccess: {success}\nsteps: {step}\n{summary}"
-                )
-                return TaskReport(
-                    task, success, summary, step, milestones, tool_log,
-                    duration_s=round(time.monotonic() - t_start, 2),
-                    milestone_status=status, unverified=unverified,
-                )
+                task_verifier = getattr(self.runtime, "unverified_actions", None)
+                if task_verifier is not None:
+                    success = success and result.get("success") is True
+                return self._finish_report(task, success, summary, step, milestones, tool_log, t_start)
 
             ok = bool(result.get("ok"))
             consecutive_failures = 0 if ok else consecutive_failures + 1
@@ -359,12 +345,27 @@ class AgentOrchestrator:
                     }
                 )
 
-        self.runtime.trace.finish(f"task: {task}\nsuccess: false\nran out of steps ({self.max_steps})")
-        status, unverified = self._final_check(False)
+        return self._finish_report(task, False, "step budget exhausted", self.max_steps,
+                                   milestones, tool_log, t_start)
+
+    def _finish_report(self, task, success, summary, steps, milestones, tool_log,
+                       t_start, *, path="llm", verify_milestones=True):
+        """Every normal exit retains the task's unresolved effects and history."""
+        status, unverified = self._final_check(success) if verify_milestones else ([], [])
+        task_verifier = getattr(self.runtime, "unverified_actions", None)
+        if task_verifier is not None:
+            unverified = list(dict.fromkeys([*unverified, *task_verifier()]))
+            success = success and not unverified
+        if unverified:
+            summary += "\n[verification] could not confirm: " + "; ".join(unverified)
+        duration = round(time.monotonic() - t_start, 2)
+        self.runtime.trace.finish(
+            f"task: {task}\nsuccess: {success}\nsteps: {steps}\npath: {path}\n"
+            f"duration_s: {duration}\n{summary}"
+        )
         return TaskReport(
-            task, False, "step budget exhausted", self.max_steps, milestones, tool_log,
-            duration_s=round(time.monotonic() - t_start, 2),
-            milestone_status=status, unverified=unverified,
+            task, success, summary, steps, milestones, tool_log, path=path,
+            duration_s=duration, milestone_status=status, unverified=unverified,
         )
 
     # ── Pigey: outcome tracking ──────────────────────────────────────────
@@ -404,28 +405,32 @@ class AgentOrchestrator:
         except Exception:
             return [], []
 
-    def _try_fast_path(self, task: str, t_start: float) -> tuple[TaskReport | None, str | None]:
+    def _try_fast_path(self, task: str, t_start: float, *, tool_log=None) -> tuple[TaskReport | None, str | None]:
         """Reflex/experience execution; (report, None) on success, or
         (None, note-for-the-LLM) when the fast attempt failed or no fast
         plan exists."""
         plan = self.fast_planner.plan(task)
         if plan is None:
             return None, None
-        tool_log: list[dict] = []
+        if tool_log is None:
+            tool_log = []
         for i, (name, args) in enumerate(plan.calls, start=1):
             self.runtime.current_tier = str(plan.source)  # reflex | experience
             try:
                 result = self.runtime.execute(name, args)
             finally:
                 self.runtime.current_tier = None
-            tool_log.append({"step": i, "tool": name, "args": args, "result": result})
-            if not result.get("ok", False):
+            tool_log.append({"step": i, "tier": str(plan.source), "tool": name,
+                             "args": args, "result": result})
+            task_verifier = getattr(self.runtime, "unverified_actions", None)
+            unverified = task_verifier() if task_verifier is not None else []
+            if not result.get("ok", False) or unverified:
                 self.fast_planner.note_outcome(
                     task, plan.calls, False, time.monotonic() - t_start
                 )
                 note = (
                     f"(A fast {plan.source} plan was tried first and FAILED at "
-                    f"{name}({json.dumps(args)}): {str(result.get('error', ''))[:200]}. "
+                    f"{name}({json.dumps(args)}): {str(result.get('error') or '; '.join(unverified))[:200]}. "
                     "Diagnose before retrying the same thing.)"
                 )
                 return None, note
@@ -446,14 +451,9 @@ class AgentOrchestrator:
             f"done via {plan.source} path in {duration}s: "
             + "; ".join(f"{n}({_short_args(a)})" for n, a in plan.calls)
         )
-        self.runtime.trace.finish(
-            f"task: {task}\nsuccess: true\npath: {plan.source}\nduration_s: {duration}\n{summary}"
-        )
         return (
-            TaskReport(
-                task, True, summary, len(plan.calls), [], tool_log,
-                path=plan.source, duration_s=duration,
-            ),
+            self._finish_report(task, True, summary, len(plan.calls), [], tool_log, t_start,
+                                path=plan.source, verify_milestones=False),
             None,
         )
 

@@ -478,6 +478,8 @@ class MobileBridgeServer:
                 hello = self.controller.hello()
                 if self._frame is not None:
                     hello["capabilities"].append("frame")
+                    if getattr(self._frame, 'rgbd_enabled', False) is True:
+                        hello["capabilities"].append("rgbd")
                 return hello
             if op == "state":
                 return self.controller.state()

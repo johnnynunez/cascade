@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "base": "af0165c6deacb19e0846268c861acb37cf5b1c8f",
+  "changed_test_sha256": "1cea46984d31983ac1201f9253a27d9f26e51a9653ba8bf875f0722e76da1d3e",
+  "cause": "macOS retained the required reader_timeout verdict but the test rejected a second read-only TCP connection. A delayed caller can resume after the original socket deadline expires and the existing sampler reconnects.",
+  "controlled_reproduction": "Real first Event wait, socket and checker clocks/deadlines unchanged; delay only caller resumption until a second state request. Baseline fails the same exact-one-connection assertion. This schedule demonstrates the failure without claiming a trace of the historical OS scheduler.",
+  "fix": "Cover ordinary and delayed caller schedules. Keep all timeout, support, verdict and no-ownership assertions; permit repeated read-only hello/state requests.",
+  "validation": {
+    "causal_baseline": "1 failed in0.31s",
+    "focal": "2 passed in0.34s",
+    "affected": "389 passed in40.24s",
+    "source_files": 1599,
+    "source_and_four_stores_unchanged": true,
+    "ruff_F_E9": "PASS",
+    "diff_check": "PASS"
+  },
+  "production_changes": false,
+  "macos_native_execution_here": false,
+  "physical_admission": false,
+  "references": {
+    "/home/johnny/Projects/demo/cascade-lab/MACOS_SUPPORT_TCP_20261003/original-macos-ci.log": "5e95e97df09cdac7ee68e6d46adc71f4a5124d97e39d4ae5525974c6d9195b6e",
+    "/home/johnny/Projects/demo/cascade-lab/MACOS_SUPPORT_TCP_20261003/schedule_probe.py": "96b14dc0452416d1c5e89c21bf56f1edf236ebbaaf9dee6b6e4f72e20a34a8fb",
+    "/home/johnny/Projects/demo/cascade-lab/MACOS_SUPPORT_TCP_20261003/baseline-schedule.log": "1c2d00e60aa8cdb55fcdf6f32a4054dbe990ef73aa1eda21523c4c086f0e990d",
+    "/home/johnny/Projects/demo/cascade-lab/MACOS_SUPPORT_TCP_20261003/baseline-schedule.xml": "9276ad367b4be2af36b5e6c8d50cd5067fb8ffe149c5eece959c002e8c8dd0a2",
+    "/home/johnny/Projects/demo/cascade-lab/MACOS_SUPPORT_TCP_20261003/fixed-schedule.log": "7d8791a9bb72e65283b3c0e607dd407e50bce3050f811bc7cf9b37f38c330fda",
+    "/home/johnny/Projects/demo/cascade-lab/MACOS_SUPPORT_TCP_20261003/fixed-schedule.xml": "99fae99a76a1f4efca6a0c025c8b0fc0971dd0bbfc492b98db44e00d34ef48de",
+    "/home/johnny/Projects/demo/cascade-lab/MACOS_SUPPORT_TCP_20261003/run_verification.py": "2e4ba6d34e8f9700f6ea2a614d03cdb9c84e1f64639c5d5a537b181c24723ff9",
+    "/home/johnny/Projects/demo/cascade-lab/MACOS_SUPPORT_TCP_20261003/verification-01/receipt.json": "9a023985a6aba37a8bb6ee8a689fe5b9954ae699dc9fb3f7608e068bb56aff15",
+    "/home/johnny/Projects/demo/cascade-lab/MACOS_SUPPORT_TCP_20261003/verification-01/before.json": "12381d2748d6e3c1bfce65f26d51adbf051566854a1e8fd90da25d2a5e727fdd",
+    "/home/johnny/Projects/demo/cascade-lab/MACOS_SUPPORT_TCP_20261003/verification-01/after.json": "12381d2748d6e3c1bfce65f26d51adbf051566854a1e8fd90da25d2a5e727fdd",
+    "/home/johnny/Projects/demo/cascade-lab/MACOS_SUPPORT_TCP_20261003/verification-01/pytest.log": "3c584a7559d84e4f8990a280e6fc1673b408f7e9ada2c4587fdc6947de5ec8a5",
+    "/home/johnny/Projects/demo/cascade-lab/MACOS_SUPPORT_TCP_20261003/verification-01/junit.xml": "fbd0d593ab230d50e04b08dea755b55e0144980067104fcef9bec215cdb5b110"
+  }
+}

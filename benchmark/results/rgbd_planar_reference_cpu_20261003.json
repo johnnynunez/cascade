@@ -1,0 +1,92 @@
+{
+  "schema": 1,
+  "base": "baab480d79460f8139290f1a2d689e409f79cffb",
+  "scope": "CPU raster and independent planar reference; no native rendering or physical admission",
+  "source_sha256": {
+    "benchmark/rgbd/__init__.py": "a6f1a432cda87af50447781ca8e9277c07524e0dd65f420e1573b5b14298e510",
+    "benchmark/rgbd/planar_reference.py": "33989d0d1a2415e0c8773e38f3bbabbaa9f46e502fc86aafd0aafc9d64acc67d",
+    "tests/test_rgbd_planar_reference.py": "fccd1c208760cbbd175fa9718697422771069eb24e3b5c83bf7958842fd8b3de",
+    "docs/RGBD_PLANAR_REFERENCE.md": "7516a906fd7c9b51503061b0327ff8ca56d56b75018437ea7034aae8bb8d90c5"
+  },
+  "tests": {
+    "passed": 36,
+    "skipped": 1,
+    "seconds": 10.34,
+    "skip_reason": "pxr unavailable in regular test environment",
+    "normal_conftest": true,
+    "source_count": 1596,
+    "source_and_protected_unchanged": true
+  },
+  "usd_cpu": {
+    "passed": true,
+    "scope": "CPU OpenUSD authored visual fixture only; no rendering/new native identity/admission",
+    "usd_version": [
+      0,
+      25,
+      5
+    ],
+    "script_sha256": "247167fa4fbd4782a7c36bb2aa551308852520aa51e1c60a7b9be7fa981afc62",
+    "source_sha256": "33989d0d1a2415e0c8773e38f3bbabbaa9f46e502fc86aafd0aafc9d64acc67d",
+    "original_stage_sha256": "fccd83b7a8757b840bbc56e66dfc3df23778bf09ceb32a2ab59905c8556dfbae",
+    "output_sha256": "310ef31e5a6b85cdea9fe9027d5830a72534ef03a9135b2389717d7888f0286e",
+    "existing_prims_unchanged": 239,
+    "visual_meshes": 53,
+    "no_added_physics_schemas": true,
+    "fixture": {
+      "board_sha256": "f12dd21373259fa57ac4711c33f9e58b85c2db963eca613efa47346d33274cd4",
+      "geometry_sha256": "b66be5fa935249bb6da190c66258a470a30f4566d15b3b1c88d603c25cecbf4f",
+      "path": "/World/RgbdMetricBoard",
+      "physical_admission": false
+    }
+  },
+  "artifacts_sha256": {
+    "run_checks.py": "b15044524957ac4d150cfcbf4098a95158b2b26ad31550be851b51782d8d854c",
+    "evidence/final-01/receipt.json": "28ea8fd79c2ebf044367e79d317d4cfeaa4f07b53da444aef28ba9a09f805927",
+    "evidence/final-01/pytest.log": "eaea3206c3510cb96ba992ad3d1da2eb85bd2588b1ae96664b0a705aa3e09ab9",
+    "evidence/final-01/junit.xml": "84cccfb955a12ee853e7e36fc81f55f22d69c3bfae8070dd443973e59a1a0d29",
+    "evidence/final-01/before.json": "eb9934c5002ebb88172a25a20c97f036986d7f4ad26dea084d551145e9ded240",
+    "evidence/final-01/after.json": "eb9934c5002ebb88172a25a20c97f036986d7f4ad26dea084d551145e9ded240",
+    "usd_cpu_probe.py": "247167fa4fbd4782a7c36bb2aa551308852520aa51e1c60a7b9be7fa981afc62",
+    "evidence/usd-cpu.json": "109f001453ab7bd641229d9ccf4bb777ccbe495154416de307bc58b772dbae4e",
+    "usd-cpu/visual-fixture.usda": "310ef31e5a6b85cdea9fe9027d5830a72534ef03a9135b2389717d7888f0286e"
+  },
+  "static": {
+    "ruff_F_E9": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "effective_prior_native_limits": {
+    "max_age_s": 2.0,
+    "read_timeout_s": 2.0
+  },
+  "reference": {
+    "inputs": [
+      "RGB bytes or explicit recorded corner coordinates",
+      "authored metric board coordinates"
+    ],
+    "excluded_inputs": [
+      "camera K",
+      "world_from_camera",
+      "depth",
+      "producer pixel center offset",
+      "raycasts"
+    ],
+    "fixed_fit_corners": 18,
+    "fixed_held_out_corners": 17,
+    "synthetic_mutants_refuted": [
+      "fx +2%",
+      "fy +2%",
+      "world X +5mm",
+      "world Y +5mm",
+      "depth units x1000",
+      "offset zero",
+      "axes swapped"
+    ]
+  },
+  "limits": [
+    "CPU-generated raster is not an RTX capture",
+    "Global marker uniqueness can reject naturally colored robots or scenes",
+    "Native board visibility/material/collision-registry preservation/live latency remain unvalidated",
+    "Only planar XY/Z diagnostic; no independent dynamic AOV timing or general3D/hardware calibration",
+    "No native runner changes or old-model admission reuse"
+  ]
+}

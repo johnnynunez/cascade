@@ -1,0 +1,898 @@
+{
+  "schema_version": 1,
+  "base": "1e9c8902d668cc9c4c884addd5684f167e79dbcb",
+  "kind": "test_only_measured_distance_fixture",
+  "ci": {
+    "head": "1e9c8902d668cc9c4c884addd5684f167e79dbcb",
+    "run": 37123580369,
+    "job": 111204335628,
+    "url": "https://github.com/johnnynunez/cascade/actions/runs/37123580369/job/111204335628",
+    "node": "tests/test_walk_distance_control.py::test_distance_stops_on_measured_travel_and_never_claims_mock_physics[0.02]",
+    "passed": 5667,
+    "failed": 1,
+    "skipped": 303,
+    "deselected": 4,
+    "seconds": 998.08,
+    "observed": "execution_ok false; full error and producer cadence not retained in truncated assertion",
+    "cause_established": false,
+    "checkout_merge_sha": "cc8f693fcf2d14089e6600d638769f59a7fecf47",
+    "merge_base_sha": "67f0b61c490f1a83529ecd9143b0361737b3897b"
+  },
+  "fix": "Only the positive geometry fixture uses ten explicit original .002 kinematic advance calls per read, auto_step=False. Production MockMobileBase and SafeBase unchanged. Existing preadmission inert geometry fixture remains unchanged.",
+  "unchanged_contract": {
+    "distance_m": [
+      0.02,
+      -0.02
+    ],
+    "speed_m_s": 0.1,
+    "distance_tolerance_m": 0.002,
+    "simulation_duration_s": 0.4,
+    "simulation_dt_s": 0.002,
+    "wall_budget_s": 2.0,
+    "wall_lease_s": 2.0,
+    "max_state_age_s": 0.5,
+    "max_no_progress_s": 0.5,
+    "poll_interval_s": 0.002,
+    "physical_outcome": "unverified; mock cannot certify gait"
+  },
+  "controls": {
+    "slow_worker": "Injected .026 real wall wait per original .002 kinematic producer step, no clock changes: old pair fails wall deadline; new pair passes with measured travel. This demonstrates a test vulnerability, not original CI causation.",
+    "blocked_read": "Held original first postACK snapshot for2.1s in external control: both directions still refuse wall deadline; late row has no distance credit. New normal regression uses events to keep the reader blocked until actual watchdog stop, then returns the unchanged snapshot.",
+    "assertions": "Zero preadmission travel; original individual steps; observed postACK baseline; every observed step increment10; measured displacement equals endpoint minus baseline; original deadline/ACK and stop generation; no physical confirmation."
+  },
+  "runs": {
+    "baseline-observe": {
+      "exit_code": 0,
+      "elapsed_s": 1.018965052033309,
+      "source_unchanged": true,
+      "protected_stores_unchanged": true,
+      "pytest": {
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.601"
+      },
+      "results": [
+        {
+          "execution_ok": true,
+          "ok": false,
+          "outcome": "unverified",
+          "error": null,
+          "measured_distance_m": 0.018000000000000002,
+          "distance_baseline": {
+            "robot_id": "microduck-mock",
+            "source": "mock-kinematic",
+            "epoch": "d5e3800e38c44b7d80b24c506df43490",
+            "step": 2,
+            "sim_time_s": 0.004,
+            "received_monotonic_s": 277615.353958652,
+            "producer_age_s": 0.0008499730029143393,
+            "position_world": [
+              0.0002,
+              0.0,
+              0.2
+            ],
+            "orientation_wxyz": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "linear_velocity_world": [
+              0.1,
+              0.0,
+              0.0
+            ],
+            "angular_velocity_body": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "joint_names": [],
+            "joint_positions": [],
+            "joint_velocities": [],
+            "controller_status": "active",
+            "generation": 1,
+            "contacts": [],
+            "fallen": false,
+            "latched": false,
+            "measurement_kind": "kinematic_mock",
+            "model_identity_sha256": null,
+            "support": null
+          },
+          "last_observed_state": {
+            "robot_id": "microduck-mock",
+            "source": "mock-kinematic",
+            "epoch": "d5e3800e38c44b7d80b24c506df43490",
+            "step": 92,
+            "sim_time_s": 0.18400000000000014,
+            "received_monotonic_s": 277615.544279615,
+            "producer_age_s": 0.0020507879671640694,
+            "position_world": [
+              0.0182,
+              0.0,
+              0.2
+            ],
+            "orientation_wxyz": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "linear_velocity_world": [
+              0.1,
+              0.0,
+              0.0
+            ],
+            "angular_velocity_body": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "joint_names": [],
+            "joint_positions": [],
+            "joint_velocities": [],
+            "controller_status": "active",
+            "generation": 1,
+            "contacts": [],
+            "fallen": false,
+            "latched": false,
+            "measurement_kind": "kinematic_mock",
+            "model_identity_sha256": null,
+            "support": null
+          }
+        },
+        {
+          "execution_ok": true,
+          "ok": false,
+          "outcome": "unverified",
+          "error": null,
+          "measured_distance_m": -0.018000000000000002,
+          "distance_baseline": {
+            "robot_id": "microduck-mock",
+            "source": "mock-kinematic",
+            "epoch": "c5407374f09d4324815f705ff5960e94",
+            "step": 2,
+            "sim_time_s": 0.004,
+            "received_monotonic_s": 277615.554280911,
+            "producer_age_s": 0.0004311049706302583,
+            "position_world": [
+              -0.0002,
+              0.0,
+              0.2
+            ],
+            "orientation_wxyz": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "linear_velocity_world": [
+              -0.1,
+              0.0,
+              0.0
+            ],
+            "angular_velocity_body": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "joint_names": [],
+            "joint_positions": [],
+            "joint_velocities": [],
+            "controller_status": "active",
+            "generation": 1,
+            "contacts": [],
+            "fallen": false,
+            "latched": false,
+            "measurement_kind": "kinematic_mock",
+            "model_identity_sha256": null,
+            "support": null
+          },
+          "last_observed_state": {
+            "robot_id": "microduck-mock",
+            "source": "mock-kinematic",
+            "epoch": "c5407374f09d4324815f705ff5960e94",
+            "step": 92,
+            "sim_time_s": 0.18400000000000014,
+            "received_monotonic_s": 277615.746754057,
+            "producer_age_s": 0.0020447989809326828,
+            "position_world": [
+              -0.0182,
+              0.0,
+              0.2
+            ],
+            "orientation_wxyz": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "linear_velocity_world": [
+              -0.1,
+              0.0,
+              0.0
+            ],
+            "angular_velocity_body": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "joint_names": [],
+            "joint_positions": [],
+            "joint_velocities": [],
+            "controller_status": "active",
+            "generation": 1,
+            "contacts": [],
+            "fallen": false,
+            "latched": false,
+            "measurement_kind": "kinematic_mock",
+            "model_identity_sha256": null,
+            "support": null
+          }
+        }
+      ]
+    },
+    "baseline-slow": {
+      "exit_code": 1,
+      "elapsed_s": 4.67712185299024,
+      "source_unchanged": true,
+      "protected_stores_unchanged": true,
+      "pytest": {
+        "tests": "2",
+        "failures": "2",
+        "errors": "0",
+        "skipped": "0",
+        "time": "4.200"
+      },
+      "results": [
+        {
+          "execution_ok": false,
+          "ok": false,
+          "outcome": "unverified",
+          "error": "wall deadline expired",
+          "measured_distance_m": 0.014800000000000013,
+          "distance_baseline": {
+            "robot_id": "microduck-mock",
+            "source": "mock-kinematic",
+            "epoch": "0ff5509854d64791b062877ba9d76ce1",
+            "step": 2,
+            "sim_time_s": 0.004,
+            "received_monotonic_s": 277616.644911943,
+            "producer_age_s": 0.0006561370100826025,
+            "position_world": [
+              0.0002,
+              0.0,
+              0.2
+            ],
+            "orientation_wxyz": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "linear_velocity_world": [
+              0.1,
+              0.0,
+              0.0
+            ],
+            "angular_velocity_body": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "joint_names": [],
+            "joint_positions": [],
+            "joint_velocities": [],
+            "controller_status": "active",
+            "generation": 1,
+            "contacts": [],
+            "fallen": false,
+            "latched": false,
+            "measurement_kind": "kinematic_mock",
+            "model_identity_sha256": null,
+            "support": null
+          },
+          "last_observed_state": {
+            "robot_id": "microduck-mock",
+            "source": "mock-kinematic",
+            "epoch": "0ff5509854d64791b062877ba9d76ce1",
+            "step": 76,
+            "sim_time_s": 0.1520000000000001,
+            "received_monotonic_s": 277618.575777055,
+            "producer_age_s": 0.0009636449976824224,
+            "position_world": [
+              0.015000000000000013,
+              0.0,
+              0.2
+            ],
+            "orientation_wxyz": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "linear_velocity_world": [
+              0.1,
+              0.0,
+              0.0
+            ],
+            "angular_velocity_body": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "joint_names": [],
+            "joint_positions": [],
+            "joint_velocities": [],
+            "controller_status": "active",
+            "generation": 1,
+            "contacts": [],
+            "fallen": false,
+            "latched": false,
+            "measurement_kind": "kinematic_mock",
+            "model_identity_sha256": null,
+            "support": null
+          }
+        },
+        {
+          "execution_ok": false,
+          "ok": false,
+          "outcome": "unverified",
+          "error": "wall deadline expired",
+          "measured_distance_m": -0.014800000000000013,
+          "distance_baseline": {
+            "robot_id": "microduck-mock",
+            "source": "mock-kinematic",
+            "epoch": "9862c18ccc534f2086662f30b1c522b1",
+            "step": 2,
+            "sim_time_s": 0.004,
+            "received_monotonic_s": 277618.664070797,
+            "producer_age_s": 2.515799133107066e-05,
+            "position_world": [
+              -0.0002,
+              0.0,
+              0.2
+            ],
+            "orientation_wxyz": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "linear_velocity_world": [
+              -0.1,
+              0.0,
+              0.0
+            ],
+            "angular_velocity_body": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "joint_names": [],
+            "joint_positions": [],
+            "joint_velocities": [],
+            "controller_status": "active",
+            "generation": 1,
+            "contacts": [],
+            "fallen": false,
+            "latched": false,
+            "measurement_kind": "kinematic_mock",
+            "model_identity_sha256": null,
+            "support": null
+          },
+          "last_observed_state": {
+            "robot_id": "microduck-mock",
+            "source": "mock-kinematic",
+            "epoch": "9862c18ccc534f2086662f30b1c522b1",
+            "step": 76,
+            "sim_time_s": 0.1520000000000001,
+            "received_monotonic_s": 277620.594572326,
+            "producer_age_s": 0.001004336983896792,
+            "position_world": [
+              -0.015000000000000013,
+              0.0,
+              0.2
+            ],
+            "orientation_wxyz": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "linear_velocity_world": [
+              -0.1,
+              0.0,
+              0.0
+            ],
+            "angular_velocity_body": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "joint_names": [],
+            "joint_positions": [],
+            "joint_velocities": [],
+            "controller_status": "active",
+            "generation": 1,
+            "contacts": [],
+            "fallen": false,
+            "latched": false,
+            "measurement_kind": "kinematic_mock",
+            "model_identity_sha256": null,
+            "support": null
+          }
+        }
+      ]
+    },
+    "candidate-slow": {
+      "exit_code": 0,
+      "elapsed_s": 0.6704211559845135,
+      "source_unchanged": true,
+      "protected_stores_unchanged": true,
+      "pytest": {
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.234"
+      },
+      "results": [
+        {
+          "execution_ok": true,
+          "ok": false,
+          "outcome": "unverified",
+          "error": null,
+          "measured_distance_m": 0.019999999999999976,
+          "distance_baseline": {
+            "robot_id": "microduck-mock",
+            "source": "mock-kinematic",
+            "epoch": "f222ce2ef27242efa53a555bd5d1db6f",
+            "step": 30,
+            "sim_time_s": 0.06000000000000004,
+            "received_monotonic_s": 277714.515882983,
+            "producer_age_s": 9.41974576562643e-07,
+            "position_world": [
+              0.0020000000000000005,
+              0.0,
+              0.2
+            ],
+            "orientation_wxyz": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "linear_velocity_world": [
+              0.1,
+              0.0,
+              0.0
+            ],
+            "angular_velocity_body": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "joint_names": [],
+            "joint_positions": [],
+            "joint_velocities": [],
+            "controller_status": "active",
+            "generation": 1,
+            "contacts": [],
+            "fallen": false,
+            "latched": false,
+            "measurement_kind": "kinematic_mock",
+            "model_identity_sha256": null,
+            "support": null
+          },
+          "last_observed_state": {
+            "robot_id": "microduck-mock",
+            "source": "mock-kinematic",
+            "epoch": "f222ce2ef27242efa53a555bd5d1db6f",
+            "step": 130,
+            "sim_time_s": 0.2600000000000002,
+            "received_monotonic_s": 277714.537641254,
+            "producer_age_s": 1.0320218279957771e-06,
+            "position_world": [
+              0.021999999999999978,
+              0.0,
+              0.2
+            ],
+            "orientation_wxyz": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "linear_velocity_world": [
+              0.1,
+              0.0,
+              0.0
+            ],
+            "angular_velocity_body": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "joint_names": [],
+            "joint_positions": [],
+            "joint_velocities": [],
+            "controller_status": "active",
+            "generation": 1,
+            "contacts": [],
+            "fallen": false,
+            "latched": false,
+            "measurement_kind": "kinematic_mock",
+            "model_identity_sha256": null,
+            "support": null
+          }
+        },
+        {
+          "execution_ok": true,
+          "ok": false,
+          "outcome": "unverified",
+          "error": null,
+          "measured_distance_m": -0.019999999999999976,
+          "distance_baseline": {
+            "robot_id": "microduck-mock",
+            "source": "mock-kinematic",
+            "epoch": "ab5d7a74013e4165a03cc37d68323d98",
+            "step": 30,
+            "sim_time_s": 0.06000000000000004,
+            "received_monotonic_s": 277714.5463209,
+            "producer_age_s": 9.209616109728813e-07,
+            "position_world": [
+              -0.0020000000000000005,
+              0.0,
+              0.2
+            ],
+            "orientation_wxyz": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "linear_velocity_world": [
+              -0.1,
+              0.0,
+              0.0
+            ],
+            "angular_velocity_body": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "joint_names": [],
+            "joint_positions": [],
+            "joint_velocities": [],
+            "controller_status": "active",
+            "generation": 1,
+            "contacts": [],
+            "fallen": false,
+            "latched": false,
+            "measurement_kind": "kinematic_mock",
+            "model_identity_sha256": null,
+            "support": null
+          },
+          "last_observed_state": {
+            "robot_id": "microduck-mock",
+            "source": "mock-kinematic",
+            "epoch": "ab5d7a74013e4165a03cc37d68323d98",
+            "step": 130,
+            "sim_time_s": 0.2600000000000002,
+            "received_monotonic_s": 277714.568115367,
+            "producer_age_s": 1.101987436413765e-06,
+            "position_world": [
+              -0.021999999999999978,
+              0.0,
+              0.2
+            ],
+            "orientation_wxyz": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "linear_velocity_world": [
+              -0.1,
+              0.0,
+              0.0
+            ],
+            "angular_velocity_body": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "joint_names": [],
+            "joint_positions": [],
+            "joint_velocities": [],
+            "controller_status": "active",
+            "generation": 1,
+            "contacts": [],
+            "fallen": false,
+            "latched": false,
+            "measurement_kind": "kinematic_mock",
+            "model_identity_sha256": null,
+            "support": null
+          }
+        }
+      ]
+    },
+    "candidate-blocked": {
+      "exit_code": 1,
+      "elapsed_s": 4.825403129972983,
+      "source_unchanged": true,
+      "protected_stores_unchanged": true,
+      "pytest": {
+        "tests": "2",
+        "failures": "2",
+        "errors": "0",
+        "skipped": "0",
+        "time": "4.416"
+      },
+      "results": [
+        {
+          "execution_ok": false,
+          "ok": false,
+          "outcome": "unverified",
+          "error": "wall deadline expired",
+          "measured_distance_m": null,
+          "distance_baseline": null,
+          "last_observed_state": {
+            "robot_id": "microduck-mock",
+            "source": "mock-kinematic",
+            "epoch": "7133e80a753542428e3f93d1bcdbac5e",
+            "step": 20,
+            "sim_time_s": 0.04000000000000002,
+            "received_monotonic_s": 277715.456278818,
+            "producer_age_s": 1.392036210745573e-06,
+            "position_world": [
+              0.0,
+              0.0,
+              0.2
+            ],
+            "orientation_wxyz": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "linear_velocity_world": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "angular_velocity_body": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "joint_names": [],
+            "joint_positions": [],
+            "joint_velocities": [],
+            "controller_status": "ready",
+            "generation": 0,
+            "contacts": [],
+            "fallen": false,
+            "latched": false,
+            "measurement_kind": "kinematic_mock",
+            "model_identity_sha256": null,
+            "support": null
+          }
+        },
+        {
+          "execution_ok": false,
+          "ok": false,
+          "outcome": "unverified",
+          "error": "wall deadline expired",
+          "measured_distance_m": null,
+          "distance_baseline": null,
+          "last_observed_state": {
+            "robot_id": "microduck-mock",
+            "source": "mock-kinematic",
+            "epoch": "77a506c52a1f40e1a20f9158de00d31b",
+            "step": 20,
+            "sim_time_s": 0.04000000000000002,
+            "received_monotonic_s": 277717.581745902,
+            "producer_age_s": 8.610077202320099e-07,
+            "position_world": [
+              0.0,
+              0.0,
+              0.2
+            ],
+            "orientation_wxyz": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "linear_velocity_world": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "angular_velocity_body": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "joint_names": [],
+            "joint_positions": [],
+            "joint_velocities": [],
+            "controller_status": "ready",
+            "generation": 0,
+            "contacts": [],
+            "fallen": false,
+            "latched": false,
+            "measurement_kind": "kinematic_mock",
+            "model_identity_sha256": null,
+            "support": null
+          }
+        }
+      ]
+    },
+    "final-focused": {
+      "exit_code": 0,
+      "elapsed_s": 3.577157419989817,
+      "source_unchanged": true,
+      "protected_stores_unchanged": true,
+      "pytest": {
+        "tests": "106",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "3.159"
+      }
+    }
+  },
+  "production_unchanged": true,
+  "native_gpu_or_hardware_run": false,
+  "references": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/baseline-observe/result.json",
+      "sha256": "e554e590c972a566c3c74aad7b42556818f65a3ff50950a2f9c33733f2b49f23"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/baseline-observe/before.json",
+      "sha256": "c69bd6b502a5ddaf5f232655e84f79743b30ddffdbf7276cc81636ee209fc7db"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/baseline-observe/after.json",
+      "sha256": "c69bd6b502a5ddaf5f232655e84f79743b30ddffdbf7276cc81636ee209fc7db"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/baseline-observe/junit.xml",
+      "sha256": "26c372a27c8cbae7bc33e6b77acd80b242306aeb75454241cdfc48425cd46166"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/baseline-observe/pytest.log",
+      "sha256": "e310cdd63a8c70c913b47759eb9ee7c1db83be874db234095ac21000c3912e0d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/baseline-observe/probe.json",
+      "sha256": "e13a4ff26988435f9108c8ca7c512b55886197d7140d4b1b413ab3fd58d0656a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/baseline-slow/result.json",
+      "sha256": "cd7b083b6e2985f3c5125543f43beec2c6c4b133666575cfb5e3fa12ca54fbd5"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/baseline-slow/before.json",
+      "sha256": "c69bd6b502a5ddaf5f232655e84f79743b30ddffdbf7276cc81636ee209fc7db"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/baseline-slow/after.json",
+      "sha256": "c69bd6b502a5ddaf5f232655e84f79743b30ddffdbf7276cc81636ee209fc7db"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/baseline-slow/junit.xml",
+      "sha256": "86be5d784282754daef36c32d67f88ef27d77f3c9b1010c8de9184790f185fbf"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/baseline-slow/pytest.log",
+      "sha256": "2ebba1c585893f4780cac5fe494e891984770250edac67f926d1d73e77d397df"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/baseline-slow/probe.json",
+      "sha256": "388fb6f7d30eb443c070b32a20e5788e7e24c5de03f12571c595ac1ac34ea92f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/candidate-slow/result.json",
+      "sha256": "efb997576c2c59d1da245ccc213cbf0991e1f3377dc75a42c9e5b0107e8faf6d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/candidate-slow/before.json",
+      "sha256": "1ae1cf7444b485edb8fc80567a17dd7a50e653ba5d8d77745198a48525963ef1"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/candidate-slow/after.json",
+      "sha256": "1ae1cf7444b485edb8fc80567a17dd7a50e653ba5d8d77745198a48525963ef1"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/candidate-slow/junit.xml",
+      "sha256": "67bc0b2d4c41b109d88a1169a4b5d720cce52e4731eaadb6cba7aaf05d383502"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/candidate-slow/pytest.log",
+      "sha256": "3c82e1d3305214e6527e81a3191d87bd710aba47bc834df9a486aeefacb40faf"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/candidate-slow/probe.json",
+      "sha256": "97ea1a670cea8747e5517d43d5fe377167cc59c01e395ef4a250160a7d57d730"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/candidate-blocked/result.json",
+      "sha256": "169e83052a5d47342c402deaced3f359b05fd71f5fcfc2c703831adcf9292c0d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/candidate-blocked/before.json",
+      "sha256": "1ae1cf7444b485edb8fc80567a17dd7a50e653ba5d8d77745198a48525963ef1"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/candidate-blocked/after.json",
+      "sha256": "1ae1cf7444b485edb8fc80567a17dd7a50e653ba5d8d77745198a48525963ef1"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/candidate-blocked/junit.xml",
+      "sha256": "b58e1266d9557e2e4b58301eb15900a1088574f9cb31f82031df88cd3ca310f3"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/candidate-blocked/pytest.log",
+      "sha256": "71d902c3af60f53cef4e66ddbcff02f86a17f6d8ba4b709c325cd0987d0a14a5"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/candidate-blocked/probe.json",
+      "sha256": "c26a4498ac3277332896c30051f75d8ff4f5095ba86622827b60acad18c090e7"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/final-focused/result.json",
+      "sha256": "51c247efb2ba44fcf74d715ad1b55565a69db3c599a08577f808e54036ce55b7"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/final-focused/before.json",
+      "sha256": "1ae1cf7444b485edb8fc80567a17dd7a50e653ba5d8d77745198a48525963ef1"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/final-focused/after.json",
+      "sha256": "1ae1cf7444b485edb8fc80567a17dd7a50e653ba5d8d77745198a48525963ef1"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/final-focused/junit.xml",
+      "sha256": "32f2754aa1d52d34c626b8a51f6e2b3fa7a88432bc16e0f81a89edc29d3068ae"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/final-focused/pytest.log",
+      "sha256": "faeae6bc894a0cd9c2b78b940ce10d93f3a4f476accb790d6ab05bbc6380a9cf"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/distance_probe.py",
+      "sha256": "d6f26a77d29f0b46d7e6801f42a51bd7ed61fb315eb711843240d8a640792aad"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/run_probe.py",
+      "sha256": "136fe6e15988a3f614dbd538f1c65e189f58b672e81c0e91db1b2801b23baa88"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/run_cpu.py",
+      "sha256": "66c1b96f4040e2bd929405f274ed20d3c61f9a15f9d84d1dcbd43d0bf98923bd"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/evidence/ci-macos-111204335628.log",
+      "sha256": "bb0248489d3d0afe1c04fde12ae5ce650995cc18d7f3eda9968d561fd03b7366"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/cascade/tests/test_walk_distance_control.py",
+      "sha256": "936149d2b59b225166dcca40494156008345cf00cc83fe248a3cf063d8187521"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/cascade/src/cascade/control/mock_base.py",
+      "sha256": "cd2e6ed78de75522a5ec5eb0be96d790dfc68316be548eecfc18b7a955352fae"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/cascade/src/cascade/safety/base_harness.py",
+      "sha256": "ba0d0371879de0025726899b7d3405355aa909eb92dd70432fc7e5cfe0e57c48"
+    }
+  ]
+}

@@ -1,0 +1,124 @@
+{
+  "artifacts": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SHARED_PREP_V4/native-prepare-01/terminal-summary.json",
+      "sha256": "ef8aaab38378c1ad9a1444dca93c0105bc947bab02df4fa8c630c5f8884390f3"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SHARED_PREP_V4/native-prepare-01/receipt.json",
+      "sha256": "1b462142d592d86d09e9c214a923ef392e818bc2a0859e874b1e683f8383ad10"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SHARED_PREP_V4/native-prepare-01/native/native-result.json",
+      "sha256": "f86b3883dd361d23438c1da007dfbf3e43b1bed9c09dde8e4955c49a71c77197"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SHARED_PREP_V4/native-prepare-01/scope/closure.json",
+      "sha256": "273b57d0c9954fdc95cea1b4404f82958306c370696d068706acc7fce756a48e"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SHARED_PREP_V4/native-prepare-01/scope/service.log",
+      "sha256": "4c921347739034e62d1a680950c3d3461de6e878fe12b1cc31e32d1736972b0f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SHARED_PREP_V4/native-prepare-01/inputs-before.json",
+      "sha256": "88b4451b7ea6bacf950737b977befb3982f66f2cdefa49ef2828fb4c5ff06134"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SHARED_PREP_V4/native-prepare-01/inputs-after.json",
+      "sha256": "88b4451b7ea6bacf950737b977befb3982f66f2cdefa49ef2828fb4c5ff06134"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/binding-scalars-old-01/result.json",
+      "sha256": "e3281ba13c16d10385ebb4a29e3f395d67359602f16a8212349664177afcc654"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/binding-scalars-old-01/before.json",
+      "sha256": "b0574b5f8011a20e677dd2b5329e802e707d2b87f931326e927ed53a1b6a285a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/binding-scalars-old-01/after.json",
+      "sha256": "b0574b5f8011a20e677dd2b5329e802e707d2b87f931326e927ed53a1b6a285a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/binding-scalars-old-01/pytest.log",
+      "sha256": "a0bbd1a2e05d39da79b5ba46c8f4e0288ec23443d8a1fb06223d6f8631341080"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/binding-scalars-old-01/junit.xml",
+      "sha256": "e2b5694b702ecc4fab25555972077d737eb576cf995fb7bfac8a85fa4214884c"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/binding-scalars-new-01/result.json",
+      "sha256": "81d1ab9a3657bcdfd8dea324e51de3da491e0a2e7f69997bba275f6e59fbdc21"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/binding-scalars-new-01/before.json",
+      "sha256": "ba18530d24d46a73131de2f075ea3ae2b07c9ef8aaeb49e0b303ba45faebefb0"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/binding-scalars-new-01/after.json",
+      "sha256": "ba18530d24d46a73131de2f075ea3ae2b07c9ef8aaeb49e0b303ba45faebefb0"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/binding-scalars-new-01/pytest.log",
+      "sha256": "22ee0dbe2d053107d1432f52ac2f5dca6ca096dd201c7596636968587fa0f98d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/binding-scalars-new-01/junit.xml",
+      "sha256": "33461a6aaec1b3d1bd92b56ff5c5e9f9a971572ddbd25db69405cd5090d0a58b"
+    }
+  ],
+  "base_head": "96ecdb59650f9943a4e3c09c030c443af4d88b92",
+  "causal_control": {
+    "fixed": {
+      "files": 5,
+      "passed": 362,
+      "pytest_seconds": 1.48
+    },
+    "method": "Execute the exact self.binding=FasteningBinding constructor AST with real numpy ndarray input and the real authoring_descriptor check; no duplicate handwritten binding call or SDK construction.",
+    "old": {
+      "failed": 2,
+      "passed": 7,
+      "production_source_exact_base": true,
+      "pytest_seconds": 0.33
+    },
+    "protected_stores_unchanged_each_run": true,
+    "source_count": 670,
+    "source_unchanged_each_run": true
+  },
+  "cause": "tuple(np.ndarray(float64)) retains numpy.float64 elements; FasteningBinding._number requires exact Python int/float.",
+  "change": "Convert already-authoring-validated fixture coordinates with tuple(float(v) for v in scene.fixture_position) only at the real constructor boundary.",
+  "date": "2026-10-03",
+  "limits": [
+    "No native retry, SDK solver construction, readiness, owner, dynamics, motion or reset in this correction.",
+    "CPU controls establish conversion/contract behavior, not successful native preparation or physical admission.",
+    "V4 source and original failure receipts remain frozen.",
+    "Shared GPU co-existence observations do not prove timing isolation or causality."
+  ],
+  "native_v4": {
+    "closure_ok": true,
+    "epoch": "0d7121db968f47f88a03f99c3f8f73df",
+    "error": "ValueError: invalid fixture origin",
+    "foreign_original_births_same": 6,
+    "inputs_unchanged": true,
+    "model_pin": null,
+    "native_step": 0,
+    "native_time_s": [
+      0.0
+    ],
+    "natural_exit": 1,
+    "scene_step": 0,
+    "scene_time_s": 0.0,
+    "signals": [],
+    "status": "FAIL"
+  },
+  "schema_version": 1,
+  "scope": "strict native scalar binding conversion; CPU only",
+  "sources": {
+    "docs/FACTORY_FASTENING_RUNTIME.md": "6918a970d3738854df6153cbfe7ee499a263052f61d1fc63bd2b820d002102ca",
+    "src/cascade/control/fastening.py": "ad0796e6a49ed00e0217fc37d2d2589b46aca230c25a589a3ec5428332bbaeba",
+    "src/cascade/sim/factory_model.py": "0a5f486f70e1abd8cb8e7d652b55915f345a36715e071151a82d827e05b1b6dd",
+    "tests/test_factory_binding_scalars.py": "5b3bc0d530da7240af1bf48f33c0898872df147dc5a0d36da500758917ba4064"
+  }
+}

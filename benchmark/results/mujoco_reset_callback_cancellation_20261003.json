@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "base_commit": "fe0a49ee66e382de5865de46d483b271ac868c82",
+  "scope": "Stop/reset between explicit recovery callbacks prevents the next perception or memory side effect",
+  "source_sha256": {
+    "src/cascade/skills/runtime.py": "9fd4a2d207b0286d85e8f3f77a7a4cb2997e624126f6cf12f0d4189690822fc6",
+    "tests/test_mujoco_withdrawal_reset_boundaries.py": "7810208b21afabdc1fe327119f723b9a05aa65a2b62db60b7af0d7cdcde1b545"
+  },
+  "independent_baseline": {
+    "passed": 38,
+    "failed": 9,
+    "receipt_path": "/home/johnny/Projects/demo/cascade-lab/PRIVATE_FIX_COMPARISON_20261003/pr93-01/result.json",
+    "receipt_sha256": "b945811f19647e06479f80218a02363201ccd7b742c4a232db1284a72118ade5",
+    "interpretation": "All 9 already returned failure and retained debt; only the next-callback assertions failed."
+  },
+  "final": {
+    "exact_private_controls_passed": 47,
+    "selection_passed": 183,
+    "skipped": 0,
+    "deselected_original_physical_reset": 1,
+    "pytest_s": 17.24,
+    "sources_unchanged": true,
+    "protected_stores_unchanged": true
+  },
+  "additional_controls": "Stop/reset during beliefs.clear, memory.reset_frames and memory.add in original/fresh/e-stop-reset/halt-cleared contexts. Report actual forgotten count once clear has already returned.",
+  "preserved_intermediate_failure": "Six added assertions assumed beliefs_forgotten exists in earlier reset_verification failures; test now uses default zero when absent. No production change for that correction.",
+  "limitations": [
+    "CPU synthetic admitted geometry and existing mock runtime; no device writes, SDK solver or GPU episode.",
+    "Does not revoke or replay already-completed explicit reset side effects.",
+    "No new physical admission or placement/rest/task success claim."
+  ],
+  "external_artifact_root": "/home/johnny/Projects/demo/cascade-lab/WITHDRAWAL_RESET_BOUNDARIES_20261003",
+  "raw_sha256": {
+    "original-private-regression.py": "93702c824a367c47a06abd64d85fd3856d27bc40b48702c28889fb9428a8c015",
+    "private-01/result.json": "d1c3a9fb12b5d64ee260620825a4961269f71a9d5504dc573c85dcf597a194ea",
+    "private-01/pytest.log": "73b5a46a5103e72e87f8fa6ac810ba77e657f662517235f7900e483fd9065db7",
+    "focused-01/result.json": "3e42b60ecd70d6c0b7708b747e22bce55e9def942f71798ae7052515cb38a67e",
+    "focused-01/pytest.log": "5f9483085d3e1abbb64569205d9eceacb50a4a90893b63448787945046aca645",
+    "focused-02/result.json": "92559e6108c7c5ef3ea895941e739d111c1d4fba604d6b6879d262fc3949d501",
+    "focused-02/pytest.log": "1868419dbb59619993abe9e171f7c5877bb0598fe59a3011e4323503e5095dce",
+    "focused-02/junit.xml": "64d6256c635f4672764ad4eae5155bee8a4cd04c86d8c3584123cc66ee46736f",
+    "focused-02/before.json": "54da43497235d431696222e98200bc08c3a076bc9d61bb0ba1a631e190ec1428",
+    "focused-02/after.json": "54da43497235d431696222e98200bc08c3a076bc9d61bb0ba1a631e190ec1428",
+    "run_checks.py": "3e22e4298fdf870a85ae1e1d103bc0687c4b6c4c049acb3ec006be63dc894356"
+  }
+}

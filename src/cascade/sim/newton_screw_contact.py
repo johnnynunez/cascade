@@ -25,6 +25,9 @@ class ThreadingScene:
     requested_speed_rad_s = 1.5
     arm_joints = ('shoulder_pan', 'shoulder_lift', 'elbow_flex', 'wrist_flex', 'wrist_roll')
     socket_offset = np.array([0.012, 0.0, -0.110])
+    fixture_center_xy_m = (.24, 0.)
+    ik_margin_rad = .001
+    intersect_position_control_range = False
 
     def __init__(self, assets, robot_asset, cache, *, device='cuda:0', drive=True,
                  thread_friction=0.01, socket_clearance_m=0.0003,
@@ -57,15 +60,11 @@ class ThreadingScene:
         self._unwrapped = self._last_angle = 0.
         self._started_angle = None
         self._initial_nut_z = .069
-        self._center_xy = np.array([.24, 0.])
+        self._center_xy = np.array(self.fixture_center_xy_m)
         tool_xy = self._center_xy + (np.array([0., .06]) if misaligned else 0.)
         wp.init()
         wp.set_device(device)
-        self.ik_model = mujoco.MjModel.from_xml_path(str(self.robot_asset))
-        self.ik_data = mujoco.MjData(self.ik_model)
-        self.ik_gripper = self.ik_model.body('gripper').id
-        self.ik_indices = np.array([int(self.ik_model.joint(n).qposadr[0]) for n in self.arm_joints])
-        self.ik_ranges = np.array([self.ik_model.joint(n).range for n in self.arm_joints])
+        self._setup_ik()
         self.entry = self._ik(np.r_[tool_xy, self._initial_nut_z], [0., 0., 0., 1.6, .17])
         self.bottom = self._ik(np.r_[tool_xy, .045], self.entry)
         self.ik_data.qpos[self.ik_indices] = self.entry
@@ -143,6 +142,25 @@ class ThreadingScene:
     def _names(labels):
         return {label.rsplit('/', 1)[-1]:i for i, label in enumerate(labels)}
 
+    def _setup_ik(self):
+        """CPU authoring only, also usable without constructing a native scene."""
+        self.ik_model = self.mujoco.MjModel.from_xml_path(str(self.robot_asset))
+        self.ik_data = self.mujoco.MjData(self.ik_model)
+        self.ik_gripper = self.ik_model.body('gripper').id
+        self.ik_indices = np.array([int(self.ik_model.joint(n).qposadr[0]) for n in self.arm_joints])
+        self.ik_ranges = np.array([self.ik_model.joint(n).range for n in self.arm_joints])
+        if self.intersect_position_control_range:
+            # Newton initial q is assigned directly below. This recipe supports
+            # the reviewed zero-reference SO-101, not guessed ref conversion.
+            if np.any(self.ik_model.qpos0[self.ik_indices]):
+                raise ValueError('mounted margin recipe requires zero arm joint references')
+            for i, name in enumerate(self.arm_joints):
+                actuator = self.ik_model.actuator(name)
+                if not actuator.ctrllimited[0] or not self.ik_model.joint(name).limited[0]:
+                    raise ValueError('mounted margin recipe requires bounded joint and control ranges')
+                self.ik_ranges[i, 0] = max(self.ik_ranges[i, 0], actuator.ctrlrange[0])
+                self.ik_ranges[i, 1] = min(self.ik_ranges[i, 1], actuator.ctrlrange[1])
+
     def _ik(self, target, seed):
         def residual(q):
             self.ik_data.qpos[self.ik_indices] = q
@@ -150,8 +168,8 @@ class ThreadingScene:
             r = self.ik_data.xmat[self.ik_gripper].reshape(3, 3)
             p = self.ik_data.xpos[self.ik_gripper] + r @ self.socket_offset
             return np.r_[p-target, .15 * (r @ np.array([0., 0., -1.]) - [0., 0., -1.])]
-        result = self.least_squares(residual, seed, bounds=(self.ik_ranges[:, 0]+.001,
-            self.ik_ranges[:, 1]-.001), max_nfev=250, ftol=1e-10, xtol=1e-10, gtol=1e-10)
+        result = self.least_squares(residual, seed, bounds=(self.ik_ranges[:, 0]+self.ik_margin_rad,
+            self.ik_ranges[:, 1]-self.ik_margin_rad), max_nfev=250, ftol=1e-10, xtol=1e-10, gtol=1e-10)
         if np.linalg.norm(residual(result.x)) > 1e-5:
             raise ValueError('Socket center is not reachable with vertical SO-101 tool axis')
         return result.x

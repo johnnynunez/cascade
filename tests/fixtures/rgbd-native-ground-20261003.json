@@ -1,0 +1,81 @@
+{
+  "calibration_v1_as_captured": {
+    "camera": "overview",
+    "depth_convention": "optical_z_m_zero_invalid",
+    "frame_id": "camera:overview",
+    "height": 480,
+    "intrinsics": [
+      549.7494651368435,
+      0.0,
+      320.0,
+      0.0,
+      549.7494484572306,
+      240.0,
+      0.0,
+      0.0,
+      1.0
+    ],
+    "version": 1,
+    "width": 640,
+    "world_frame_id": "world",
+    "world_from_camera": [
+      -0.7150066493027298,
+      0.2306943989907678,
+      -0.6599587757785872,
+      0.5,
+      0.6991176520821676,
+      0.23593746522544112,
+      -0.6749577920508149,
+      0.44999998807907104,
+      1.8529186796012453e-08,
+      -0.9439881391083694,
+      -0.32997938302675434,
+      0.3199999928474426,
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  },
+  "native_calibration_sha256": "c6da2b4321cd15593b7e7a2bf89a02e95752ec561626572f671117ad5fb66623",
+  "native_model_identity_sha256": "5a4e62c987b48cc98bb5bf60a2da7922225eebf121153d25eda3cf1b2b124aed",
+  "native_packet_sha256": "3c00687e30592c39b0842ef6901f39fcce3198c8e0f9febb91fa1c0a2d768848",
+  "samples": [
+    {
+      "depth_m": 0.48446258902549744,
+      "pixel": [
+        64,
+        432
+      ]
+    },
+    {
+      "depth_m": 0.4844626188278198,
+      "pixel": [
+        320,
+        432
+      ]
+    },
+    {
+      "depth_m": 0.48446258902549744,
+      "pixel": [
+        575,
+        432
+      ]
+    },
+    {
+      "depth_m": 0.5960221886634827,
+      "pixel": [
+        64,
+        360
+      ]
+    },
+    {
+      "depth_m": 0.5960220098495483,
+      "pixel": [
+        575,
+        360
+      ]
+    }
+  ],
+  "scope": "Retained native measurements on predeclared ground pixels; no new capture. Ground z=0 independently checked in retained USD."
+}

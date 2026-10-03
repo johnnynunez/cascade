@@ -1,0 +1,1141 @@
+{
+  "version": 1,
+  "pass": true,
+  "episode": "mcp300-06",
+  "date_utc": "2026-10-02",
+  "pick_started_utc": "2026-10-02T22:36:23.617074+00:00",
+  "source_head": "c12c64185a3ad7da21587611629e379aabb76437",
+  "scope": "One native PhysX640 kitchen orange-to-open-box episode via ordinary stdio MCP JSON-RPC, with independent same-episode physical observation and fully sequenced closure. No LLM host participated.",
+  "not_claimed": [
+    "Original 1280px recipe parity",
+    "LLM-host campaign",
+    "isolated-machine speedup",
+    "general kitchen reliability",
+    "hardware acceptance",
+    "cuMotion or OVRTX execution in this episode"
+  ],
+  "configuration": {
+    "profile": "isaac_kitchen_gpu",
+    "engine": "physx",
+    "renderer": "existing Isaac renderer",
+    "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+    "width": 640,
+    "height": 360,
+    "physics_dt_s": 0.008333333333333333,
+    "cam_every": 6,
+    "cameras": [
+      "cam0",
+      "side",
+      "proof"
+    ],
+    "task": {
+      "object": "orange",
+      "destination": "open box"
+    },
+    "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+    "observed_finger_gate": true,
+    "occupancy_enabled": false,
+    "occupancy_scope": "Unchanged explicit isolated Spark tabletop policy, not NVB payload acceptance.",
+    "bridge_port": 8748,
+    "ggx_port": 5598,
+    "difference": "Only private bridge/GGX ports in copied config; paths and learned stores are private. Same frozen profile, scene and task budgets."
+  },
+  "limits": {
+    "planning_s": 8,
+    "complete_mcp_call_s": 300,
+    "camera_max_age_s": 2,
+    "startup_readiness_s": 10,
+    "witness_interval_s": 0.15,
+    "witness_settle_sim_s": 0.65,
+    "witness_settle_wall_s": 40
+  },
+  "calls": {
+    "pick": {
+      "wall_s": 241.53053253499093,
+      "timely": true,
+      "started_monotonic": 225685.887499926,
+      "received_monotonic": 225927.417815561,
+      "finished_monotonic": 225927.418032461,
+      "deadline_monotonic": 225985.887499926,
+      "timeout_s": 300,
+      "wire_arrival_timely": true,
+      "ok": true
+    },
+    "reset": {
+      "wall_s": 29.34056813499774,
+      "timely": true,
+      "started_monotonic": 225930.866056063,
+      "received_monotonic": 225960.206489273,
+      "finished_monotonic": 225960.206624198,
+      "deadline_monotonic": 226230.866056063,
+      "timeout_s": 300,
+      "wire_arrival_timely": true,
+      "ok": true
+    }
+  },
+  "pick": {
+    "grasp_attempts": 1,
+    "place_attempts": 1,
+    "grip_verified": true,
+    "return_home": {
+      "attempted": true,
+      "ok": true,
+      "at": "home"
+    },
+    "production_postcondition_scope": "post-placement containment, support, release and settling only; lift, transport, cameras and reset unverified",
+    "independent_metrics": {
+      "samples": 1631,
+      "final_samples": 17,
+      "simulation_elapsed_s": 56.06666666666667,
+      "final_window_sim_s": 0.5,
+      "lift_m": 0.11193484999239443,
+      "xy_displacement_m": 0.28744594892089886,
+      "final_xy_error_m": 0.004833491411635524,
+      "max_final_xy_error_m": 0.004833491411635524,
+      "max_final_support_z_error_m": 1.2393220670189886e-07,
+      "max_final_linear_speed_m_s": 0.0003331521122573029,
+      "max_final_angular_speed_rad_s": 0.016991458296189067,
+      "max_final_position_spread_m": 3.118192598742099e-07,
+      "max_final_tilt_deg": 24.666777479214065,
+      "min_final_actual_open_fraction": 0.9999992549419514,
+      "max_frame_age_s": 0.724515314999735,
+      "unique_jpeg_hashes": 577
+    }
+  },
+  "all_physical_checks": {
+    "complete_observation": true,
+    "all_phase_boundaries": true,
+    "live_prop_names_match_expected": true,
+    "spawn_prop_names_match_expected": true,
+    "spawn_positions_finite_and_unchanged": true,
+    "all_props_physically_reset_and_settled": true,
+    "scene_config_sha256_matches": true,
+    "prop_dimensions_match": true,
+    "cube_collider_geometry_matches": true,
+    "green_square_geometry_matches": true,
+    "scene_name_matches": true,
+    "scene_assets_sha256_matches": true,
+    "scene_content_sha256_matches": true,
+    "open_box_geometry_matches": true,
+    "convex_body_identity": true,
+    "authored_convex_vertices_match": true,
+    "convex_topology_matches": true,
+    "convex_body_and_collider_enabled": true,
+    "convex_body_and_child_transforms_match": true,
+    "convex_tensor_mass_and_com_match": true,
+    "convex_tensor_inertia_valid": true,
+    "physx_support_live_identity": true,
+    "physx_support_source_matches": true,
+    "physx_support_solid_subset": true,
+    "physx_support_geometry_unchanged": true,
+    "ordered_phases": true,
+    "strict_pick_place_and_cameras": true,
+    "whole_convex_collider_inside_open_box_and_supported": true,
+    "all_physics_tensors_cuda": true,
+    "single_supported_engine": true,
+    "gpu_backend_no_fallback": true,
+    "contact_sensor_and_actual_jaws_bound": true,
+    "two_jaw_contacts_during_real_lift": true,
+    "reset_settle_window": true,
+    "whole_footprint_enters_destination_with_bilateral_support": true,
+    "all_event_cameras_advance": true
+  },
+  "independent_witness": {
+    "all_samples": 1817,
+    "pick_samples": 1631,
+    "first_sample_sequence": 0,
+    "contiguous_sequences": true,
+    "no_samples_discarded": true,
+    "bilateral_lift_rows": 660,
+    "supported_inside_distinct_steps": 186,
+    "contact_scope": "Positive sampled grip at full destination entry; no continuous retention or commanded-release timing assertion",
+    "convex_footprint": {
+      "geometry_pass": true,
+      "checks": {
+        "settle_window_complete": true,
+        "bounded_sample_gaps": true,
+        "whole_collider_inside_square_at_every_recorded_pose": true,
+        "actual_lowest_vertex_supported_at_every_recorded_pose": true
+      },
+      "scope": "geometry only, at recorded settle poses; not a campaign pass",
+      "geometry_source_verified_by_this_function": false,
+      "method": "all authored vertices for XY; minimum transformed support vertex for Z",
+      "object_name": "orange",
+      "vertex_count": 266,
+      "support_vertex_count": 34,
+      "inner_bounds_xy_m": [
+        [
+          0.236,
+          -0.204
+        ],
+        [
+          0.364,
+          -0.076
+        ]
+      ],
+      "support_top_z_m": 0.004,
+      "settle_window_sim_s": 0.5,
+      "final_samples": 17,
+      "max_sample_gap_sim_s": 0.04999999999999716,
+      "min_inside_margin_m": 0.0,
+      "boundary_outward_tolerance_m": 0.0,
+      "max_support_gap_m": 0.001,
+      "max_penetration_m": 0.001,
+      "min_inside_clearance_m": 0.03447527114370613,
+      "max_abs_support_gap_m": 1.2393220670189886e-07
+    },
+    "event_cameras": {
+      "pass": true,
+      "cameras": {
+        "cam0": {
+          "pass": true,
+          "phase_advancement": {
+            "pick": true,
+            "reset": true
+          },
+          "unique_jpeg_hashes": 642
+        },
+        "side": {
+          "pass": true,
+          "phase_advancement": {
+            "pick": true,
+            "reset": true
+          },
+          "unique_jpeg_hashes": 642
+        },
+        "proof": {
+          "pass": true,
+          "phase_advancement": {
+            "pick": true,
+            "reset": true
+          },
+          "unique_jpeg_hashes": 642
+        }
+      }
+    },
+    "camera_age_all_rows": {
+      "cam0": {
+        "first_s": 0.21890958797303028,
+        "maximum_s": 0.724515314999735
+      },
+      "side": {
+        "first_s": 0.21890958797303028,
+        "maximum_s": 0.724515314999735
+      },
+      "proof": {
+        "first_s": 0.21890958797303028,
+        "maximum_s": 0.724515314999735
+      }
+    },
+    "reset_all_props": {
+      "pink_cube": {
+        "max_spawn_error_m": 4.305546243245479e-08,
+        "max_speed_m_s": 2.7020421157566858e-05,
+        "max_spin_rad_s": 0.00043576638445864236,
+        "max_spread_m": 3.077594869184923e-08,
+        "pass": true
+      },
+      "green_cube": {
+        "max_spawn_error_m": 1.4537489213722366e-08,
+        "max_speed_m_s": 1.5213501752930638e-05,
+        "max_spin_rad_s": 0.00045069485462368326,
+        "max_spread_m": 1.501712528671799e-08,
+        "pass": true
+      },
+      "tomato_can": {
+        "max_spawn_error_m": 7.395330407078263e-08,
+        "max_speed_m_s": 0.00012017170480233592,
+        "max_spin_rad_s": 0.000934149738027061,
+        "max_spread_m": 6.705522537231445e-08,
+        "pass": true
+      },
+      "lemon": {
+        "max_spawn_error_m": 7.176201959695758e-09,
+        "max_speed_m_s": 2.641669105685196e-10,
+        "max_spin_rad_s": 0.0,
+        "max_spread_m": 0.0,
+        "pass": true
+      },
+      "orange": {
+        "max_spawn_error_m": 7.638942475269053e-09,
+        "max_speed_m_s": 1.2222169942788241e-09,
+        "max_spin_rad_s": 0.0,
+        "max_spread_m": 0.0,
+        "pass": true
+      }
+    }
+  },
+  "preparation": {
+    "normal_graspgenx_readiness": {
+      "ok": true,
+      "learned": true,
+      "health": {
+        "status": "ok",
+        "learned": true,
+        "device": "cuda:0",
+        "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+        "capability": [
+          12,
+          0
+        ],
+        "torch": "2.7.0+cu128",
+        "cuda": "12.8",
+        "architecture": "x86_64"
+      },
+      "metadata": {
+        "default_gripper": null,
+        "loaded_grippers": [],
+        "model": {
+          "generator_backbone": "ptv3vanilla",
+          "discriminator_backbone": "ptv3vanilla",
+          "grasp_repr": "r3_so3",
+          "num_diffusion_iters_eval": 20
+        },
+        "assets_dir": "/home/johnny/Projects/demo/GraspGenX/ext/gripper_descriptions",
+        "actions": [
+          "health",
+          "metadata",
+          "infer",
+          "infer_object",
+          "infer_scene_depth",
+          "infer_scene_pc"
+        ],
+        "precision": {
+          "weights": "fp32",
+          "tensorrt": false,
+          "tensorrt_precision": null
+        }
+      },
+      "diffusion_grasps": 100,
+      "score_max": 0.9576975703239441,
+      "wall_seconds": 15.767,
+      "timing": {
+        "infer_ms": 15765.582136984449
+      }
+    },
+    "cold_inference_server_s": 15.763022899627686,
+    "real_pick_inference_server_s": 0.6269280910491943,
+    "verification_readiness": {
+      "pass": true,
+      "scope": "Startup availability only; no task evidence; no actuator constructed",
+      "configured_cameras": [
+        {
+          "type": "isaac",
+          "bridge_host": "127.0.0.1",
+          "bridge_port": 8748,
+          "sim_camera": "cam0",
+          "depth": true,
+          "fps": 4.0,
+          "warmup_frames": 3,
+          "extrinsics": {
+            "mode": "eye_to_hand",
+            "T": [
+              [
+                0.573462,
+                0.57432,
+                -0.584206,
+                0.78
+              ],
+              [
+                0.819232,
+                -0.402024,
+                0.408944,
+                -0.35
+              ],
+              [
+                -0.0,
+                -0.713115,
+                -0.701047,
+                0.6
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ]
+            ]
+          },
+          "name": "isaac"
+        },
+        {
+          "type": "isaac",
+          "bridge_host": "127.0.0.1",
+          "bridge_port": 8748,
+          "sim_camera": "side",
+          "depth": true,
+          "fps": 4.0,
+          "warmup_frames": 2,
+          "fuse_beliefs": true,
+          "extrinsics": {
+            "T": [
+              [
+                -0.745761,
+                0.218975,
+                -0.629198,
+                0.95
+              ],
+              [
+                0.666213,
+                0.245121,
+                -0.704326,
+                0.75
+              ],
+              [
+                0.0,
+                -0.944439,
+                -0.328686,
+                0.45
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ]
+            ]
+          },
+          "name": "isaac_side"
+        },
+        {
+          "type": "isaac",
+          "bridge_host": "127.0.0.1",
+          "bridge_port": 8748,
+          "sim_camera": "proof",
+          "depth": true,
+          "fps": 4.0,
+          "warmup_frames": 3,
+          "extrinsics": {
+            "mode": "eye_to_hand",
+            "T": [
+              [
+                0.779509,
+                0.241376,
+                -0.578017,
+                1.1
+              ],
+              [
+                0.626391,
+                -0.300379,
+                0.71931,
+                -1.1
+              ],
+              [
+                0.0,
+                -0.922773,
+                -0.385344,
+                0.9
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ]
+            ]
+          },
+          "name": "kitchen",
+          "fuse_beliefs": false
+        }
+      ],
+      "helper_path": "/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/cascade/src/cascade/sim/startup_readiness.py",
+      "helper_sha256": "8aaaa771ba3d14c9eed3752f9a4ea49ca38b1fe3101f3a8fc18c99c716da5676",
+      "admission": {
+        "pass": true,
+        "source": [
+          "127.0.0.1",
+          8748
+        ],
+        "producer_epoch": "8a1855e5ef4c4cad887f02766ca17b72",
+        "physical_paths": [
+          "/World_Props/tomato_can",
+          "/World_Props/lemon",
+          "/World_Props/orange",
+          "/World_Props/pink_cube",
+          "/World_Props/green_cube"
+        ],
+        "probe_finished_server_monotonic": 225681.67187128,
+        "camera_packets": [
+          {
+            "camera": "cam0",
+            "capture_t": 225681.833092271,
+            "age_server_s": 0.28734298300696537,
+            "render_reference": {
+              "version": 1,
+              "source": "rpFabricTime",
+              "product": "/Render/OmniverseKit/HydraTextures/camera_sensor_7735431682743",
+              "numerator": 12750000000,
+              "denominator": 1000000000,
+              "producer_epoch": "8a1855e5ef4c4cad887f02766ca17b72",
+              "history_physics_step": 1530,
+              "history_simulation_time": 12.75,
+              "render_simulation_time": 12.75,
+              "snapshot_started_monotonic": 225681.833092271,
+              "snapshot_finished_monotonic": 225681.877868625
+            },
+            "age_upper_bound_s": 0.3198125129856635
+          },
+          {
+            "camera": "side",
+            "capture_t": 225681.833092271,
+            "age_server_s": 0.28734298300696537,
+            "render_reference": {
+              "version": 1,
+              "source": "rpFabricTime",
+              "product": "/Render/OmniverseKit/HydraTextures/camera_sensor_7735432370141",
+              "numerator": 12750000000,
+              "denominator": 1000000000,
+              "producer_epoch": "8a1855e5ef4c4cad887f02766ca17b72",
+              "history_physics_step": 1530,
+              "history_simulation_time": 12.75,
+              "render_simulation_time": 12.75,
+              "snapshot_started_monotonic": 225681.833092271,
+              "snapshot_finished_monotonic": 225681.877868625
+            },
+            "age_upper_bound_s": 0.3198125129856635
+          },
+          {
+            "camera": "proof",
+            "capture_t": 225681.833092271,
+            "age_server_s": 0.28734298300696537,
+            "render_reference": {
+              "version": 1,
+              "source": "rpFabricTime",
+              "product": "/Render/OmniverseKit/HydraTextures/camera_sensor_7735429513725",
+              "numerator": 12750000000,
+              "denominator": 1000000000,
+              "producer_epoch": "8a1855e5ef4c4cad887f02766ca17b72",
+              "history_physics_step": 1530,
+              "history_simulation_time": 12.75,
+              "render_simulation_time": 12.75,
+              "snapshot_started_monotonic": 225681.833092271,
+              "snapshot_finished_monotonic": 225681.877868625
+            },
+            "age_upper_bound_s": 0.3198125129856635
+          }
+        ],
+        "elapsed_s": 2.103878733003512,
+        "scope": "startup availability only; later truth reads remain fresh"
+      },
+      "closure": [
+        {
+          "camera": "isaac",
+          "error": null,
+          "thread_ended": true,
+          "socket_closed": true
+        },
+        {
+          "camera": "isaac_side",
+          "error": null,
+          "thread_ended": true,
+          "socket_closed": true
+        },
+        {
+          "camera": "kitchen",
+          "error": null,
+          "thread_ended": true,
+          "socket_closed": true
+        }
+      ],
+      "wall_s_including_open_close": 2.2593998670054134
+    },
+    "scope": "Existing normal startup readiness and perception happen before the complete300s task call. They supply no positive task evidence."
+  },
+  "final_checks": {
+    "local_episode_pass": true,
+    "services_resources_absent": true,
+    "both_owned_services_closed": true,
+    "bridge_clean_exit": true,
+    "ggx_expected_supervised_stop": true,
+    "external_sources_still_unchanged": true,
+    "ggx_sources_unchanged": true,
+    "models_unchanged": true,
+    "mcp_consumed_config_bound": true,
+    "client_finished_and_reaped_before_service_close": true,
+    "supervised_service_close_succeeded": true
+  },
+  "mcp_close": {
+    "exit_code": 0,
+    "forced": [],
+    "reader_joined": true,
+    "protocol_errors": [],
+    "group_members_before_reap": [
+      {
+        "pid": 373023,
+        "start_ticks": "22565561",
+        "boot_id": "8fee0744-f7b5-43de-b87b-b40045e98c2d",
+        "cmdline": "",
+        "state": "Z"
+      }
+    ],
+    "group_members_after_reap": [],
+    "scope": "Owned POSIX process group; no daemonized process supported. Leader held unreaped through group inspection.",
+    "birth_absent": true,
+    "clean": true
+  },
+  "service_closure": {
+    "services": {
+      "bridge": {
+        "before": {
+          "LoadState": "loaded",
+          "ActiveState": "active",
+          "SubState": "running",
+          "InvocationID": "85fb2b1eff6643ee85ce889513643d7b",
+          "MainPID": "371128",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/cascade-trial12-mcp300-06-bridge.service"
+        },
+        "target_identity": {
+          "pid": 371139,
+          "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:22560873",
+          "state": "S"
+        },
+        "fallback_group_stop": false,
+        "pidfd_birth_checked": {
+          "pid": 371139,
+          "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:22560873",
+          "state": "S"
+        },
+        "after": {
+          "LoadState": "loaded",
+          "ActiveState": "active",
+          "SubState": "exited",
+          "InvocationID": "85fb2b1eff6643ee85ce889513643d7b",
+          "MainPID": "0",
+          "Result": "success",
+          "ExecMainCode": "1",
+          "ExecMainStatus": "0",
+          "ControlGroup": ""
+        },
+        "target_after": null,
+        "main_after": null,
+        "port_closed": true,
+        "wall_s": 1.58383202899131,
+        "remaining_cgroup_pids": [],
+        "target_gpu_absent": true,
+        "resources_absent": true,
+        "unit_retired_after_record": true
+      },
+      "ggx": {
+        "before": {
+          "LoadState": "loaded",
+          "ActiveState": "active",
+          "SubState": "running",
+          "InvocationID": "420f5bccf03149c385bc03c1776c731b",
+          "MainPID": "370688",
+          "Result": "success",
+          "ExecMainCode": "0",
+          "ExecMainStatus": "0",
+          "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/cascade-trial12-mcp300-06-ggx.service"
+        },
+        "target_identity": {
+          "pid": 370688,
+          "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:22558238",
+          "state": "S"
+        },
+        "fallback_group_stop": false,
+        "pidfd_birth_checked": {
+          "pid": 370688,
+          "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:22558238",
+          "state": "S"
+        },
+        "after": {
+          "LoadState": "loaded",
+          "ActiveState": "active",
+          "SubState": "exited",
+          "InvocationID": "420f5bccf03149c385bc03c1776c731b",
+          "MainPID": "0",
+          "Result": "success",
+          "ExecMainCode": "2",
+          "ExecMainStatus": "15",
+          "ControlGroup": ""
+        },
+        "target_after": null,
+        "main_after": null,
+        "port_closed": true,
+        "wall_s": 0.2200567330000922,
+        "remaining_cgroup_pids": [],
+        "target_gpu_absent": true,
+        "resources_absent": true,
+        "unit_retired_after_record": true
+      }
+    },
+    "resource_absence": true,
+    "scope": "Stop only birth/invocation-bound own service processes. GGX default SIGTERM status retained, not described as clean zero exit."
+  },
+  "orchestration": {
+    "pass": true,
+    "events_monotonic": {
+      "begin": 225582.228766362,
+      "services_start_begin": 225582.228857801,
+      "services_started": 225655.191216109,
+      "client_launch_intent": 225655.196522828,
+      "client_started": 225655.208725693,
+      "client_terminal": 225983.512507614,
+      "client_receipt_accepted": 225983.536995999,
+      "client_unit_retire": 225983.542185781,
+      "services_close_begin": 225983.553945441,
+      "services_close_end": 225985.52036831,
+      "end": 225987.737682946
+    },
+    "client_completion_accepted_before_service_close": true,
+    "client": {
+      "ordinary_completion": true,
+      "contained": true,
+      "unit": "cascade-trial12-mcp300-06-client",
+      "before": {
+        "Description": "cascade-trial12-mcp300-06-client.service",
+        "LoadState": "not-found",
+        "ActiveState": "inactive",
+        "SubState": "dead",
+        "InvocationID": "",
+        "MainPID": "0",
+        "Result": "success",
+        "ExecMainCode": "0",
+        "ExecMainStatus": "0",
+        "ControlGroup": ""
+      },
+      "ownership_description": "CASCADE owned trial12 client 759f7c45ea8c49249a2f14d6429d20d7",
+      "errors": [],
+      "invocation": "7f36d704ddc049b9b01ebbf86fb703a8",
+      "launch": [
+        "systemd-run",
+        "--user",
+        "--unit=cascade-trial12-mcp300-06-client",
+        "--property=RemainAfterExit=yes",
+        "--property=KillMode=control-group",
+        "--property=TimeoutStopSec=10",
+        "--property=RuntimeMaxSec=900.0s",
+        "--property=MemoryMax=24G",
+        "--property=Description=CASCADE owned trial12 client 759f7c45ea8c49249a2f14d6429d20d7",
+        "--property=WorkingDirectory=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/cascade",
+        "--property=StandardOutput=append:/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300-06/client.log",
+        "--property=StandardError=append:/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300-06/client.log",
+        "--setenv=CUDA_VISIBLE_DEVICES=GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+        "--setenv=CASCADE_REQUIRE_CUDA=1",
+        "--setenv=PYTHONPYCACHEPREFIX=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300-06/cache/pycache",
+        "--setenv=XDG_CACHE_HOME=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300-06/cache/xdg",
+        "--setenv=XDG_CONFIG_HOME=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300-06/cache/config",
+        "--setenv=TMPDIR=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300-06/cache/tmp",
+        "--setenv=CUDA_CACHE_PATH=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300-06/cache/cuda",
+        "--setenv=WARP_CACHE_PATH=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300-06/cache/warp",
+        "--setenv=__GL_SHADER_DISK_CACHE_PATH=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300-06/cache/gl",
+        "--setenv=TORCH_EXTENSIONS_DIR=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300-06/cache/torch-extensions",
+        "--setenv=TORCH_HOME=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300-06/cache/torch",
+        "--setenv=YOLO_CONFIG_DIR=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300-06/cache/yolo",
+        "--setenv=HF_HOME=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300-06/cache/hf",
+        "--setenv=YOLO_OFFLINE=True",
+        "--setenv=ULTRALYTICS_OFFLINE=True",
+        "--setenv=HF_HUB_OFFLINE=1",
+        "--setenv=TRANSFORMERS_OFFLINE=1",
+        "--setenv=PYTHONPATH=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/cascade/src",
+        "--setenv=CASCADE_ARM=isaac_kitchen_gpu",
+        "--setenv=CASCADE_CAMERAS=isaac,isaac_side,isaac_proof",
+        "--setenv=CASCADE_OCCUPANCY=0",
+        "--setenv=CASCADE_BELIEFS=0",
+        "--setenv=CASCADE_OBSERVED_FINGER_GATE=1",
+        "--setenv=CASCADE_VIEW=0",
+        "--setenv=CASCADE_STREAM=0",
+        "--setenv=CASCADE_PREWARM=0",
+        "--setenv=CASCADE_MCP300_OUT=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300-06",
+        "--setenv=CASCADE_RUN_DIR=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/cascade/runs/mcp300-06/runtime",
+        "--setenv=CASCADE_GRASP_EVIDENCE_DIR=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/cascade/runs/mcp300-06/grasp-evidence",
+        "--setenv=CASCADE_GRASP_MEMORY_PATH=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300-06/state/grasp-memory.json",
+        "--setenv=CASCADE_ENVELOPE_PATH=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300-06/state/envelope.json",
+        "--setenv=CASCADE_BELIEFS_PATH=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300-06/state/beliefs.json",
+        "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+        "/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300_06_client.py",
+        "--plan",
+        "/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300-06/plan.json"
+      ],
+      "initial": {
+        "Description": "CASCADE owned trial12 client 759f7c45ea8c49249a2f14d6429d20d7",
+        "LoadState": "loaded",
+        "ActiveState": "active",
+        "SubState": "running",
+        "InvocationID": "7f36d704ddc049b9b01ebbf86fb703a8",
+        "MainPID": "372952",
+        "Result": "success",
+        "ExecMainCode": "0",
+        "ExecMainStatus": "0",
+        "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/cascade-trial12-mcp300-06-client.service"
+      },
+      "terminal": {
+        "Description": "CASCADE owned trial12 client 759f7c45ea8c49249a2f14d6429d20d7",
+        "LoadState": "loaded",
+        "ActiveState": "active",
+        "SubState": "exited",
+        "InvocationID": "7f36d704ddc049b9b01ebbf86fb703a8",
+        "MainPID": "0",
+        "Result": "success",
+        "ExecMainCode": "1",
+        "ExecMainStatus": "0",
+        "ControlGroup": ""
+      },
+      "cgroup_members_at_terminal": [],
+      "mcp_pgid_members_after_terminal": [],
+      "before_stop": {
+        "Description": "CASCADE owned trial12 client 759f7c45ea8c49249a2f14d6429d20d7",
+        "LoadState": "loaded",
+        "ActiveState": "active",
+        "SubState": "exited",
+        "InvocationID": "7f36d704ddc049b9b01ebbf86fb703a8",
+        "MainPID": "0",
+        "Result": "success",
+        "ExecMainCode": "1",
+        "ExecMainStatus": "0",
+        "ControlGroup": ""
+      },
+      "cgroup_members_after_stop": [],
+      "after_stop": {
+        "Description": "cascade-trial12-mcp300-06-client.service",
+        "LoadState": "not-found",
+        "ActiveState": "inactive",
+        "SubState": "dead",
+        "InvocationID": "",
+        "MainPID": "0",
+        "Result": "success",
+        "ExecMainCode": "0",
+        "ExecMainStatus": "0",
+        "ControlGroup": ""
+      },
+      "after_retire": {
+        "Description": "cascade-trial12-mcp300-06-client.service",
+        "LoadState": "not-found",
+        "ActiveState": "inactive",
+        "SubState": "dead",
+        "InvocationID": "",
+        "MainPID": "0",
+        "Result": "success",
+        "ExecMainCode": "0",
+        "ExecMainStatus": "0",
+        "ControlGroup": ""
+      }
+    },
+    "script_sha256": "106a440f365bd7e20a295e665e5b607447f8e353bd2b589147e34a3f86d084ea",
+    "receipt_sha256": "01e2ac69334dd3c52c576a723955e968e4d708fd19281a4694e99ef6a70f1b73"
+  },
+  "binding_checks": {
+    "source_unchanged": true,
+    "external_sources_unchanged": true,
+    "protected_stores_unchanged": true,
+    "all_cascade_imports_owned": true
+  },
+  "retained_negative05": {
+    "pass": false,
+    "status": "incomplete",
+    "reason": "Physical task and reset passed, but operator started service closure before the MCP client completed its final park/cleanup. Numeric finalizer lacked this ordering gate and is not authoritative for05 campaign acceptance.",
+    "adjudication": "mcp300-05/lifecycle-adjudication.json",
+    "preserved": "All original05 scripts/receipts retained unchanged.06 uses a single sequential owner, waits/reaps the client plus empty cgroup/PGID before normal service closure, and preserves failure on uncertain launch ACK."
+  },
+  "prior_failures": [
+    {
+      "episode": 1,
+      "pass": false,
+      "reason": "Health protocol mismatch; no task attempted."
+    },
+    {
+      "episode": 2,
+      "pass": false,
+      "reason": "Cold inference exceeded unchanged8s planning budget; no actuation."
+    },
+    {
+      "episode": 3,
+      "pass": false,
+      "reason": "Initial camera sample age2.134897s exceeded2s; physical subresults did not override failure."
+    }
+  ],
+  "reproduction": {
+    "command": "PYTHONPATH=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/cascade/src /usr/bin/python3 /home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300_06_orchestrator.py --plan /home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300-06/plan.json",
+    "rule": "Archived invocation, not safe to rerun in its used episode. Prepare fresh unoccupied owned names/ports/directories and verify exact hashes first. Never manually start a parallel closure while the owner runs.",
+    "software_controls": {
+      "sequential_lifecycle": "10 CPU controls pass5.50s, including created-unit/lost-ACK containment and foreign-nonce refusal.",
+      "full_readiness": "4 actualTCP/CameraRig/helper CPU controls pass11.73s; synthetic server, no physical claim."
+    }
+  },
+  "artifact_root": "/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY",
+  "artifacts": {
+    "mcp300-06/bridge.log": {
+      "sha256": "b332337a3b58636b3ab069f80de8ac0cfd67123ca1cdcfeed270f43ca17b94a7",
+      "size_bytes": 38978
+    },
+    "mcp300-06/client-imports-after.json": {
+      "sha256": "574682f2dea2c768669cc1ce36f4caeeafdd99c20ff020519547d5f41ad4bdf1",
+      "size_bytes": 13157
+    },
+    "mcp300-06/client-supervision.json": {
+      "sha256": "5cdd812b6b62d340ed5c62ff54e5a027ed039f4c9089f5648e18fae7f3bd31ff",
+      "size_bytes": 6078
+    },
+    "mcp300-06/client.log": {
+      "sha256": "82b0f890e2d8e869f5e795c7a8d19a761bcf5fab8e0b09f0c80f6ec606922be6",
+      "size_bytes": 242
+    },
+    "mcp300-06/config-diff.json": {
+      "sha256": "94b327d28775b1fe8c7a659b9de37f170a1d365d9d4c81215699c2d489ea6bf2",
+      "size_bytes": 2712
+    },
+    "mcp300-06/external-source-after.json": {
+      "sha256": "d1dbc1bb53a624f2df8d562b6d3afab174c897f22a26574ef400ad4b1ce71bc2",
+      "size_bytes": 11708
+    },
+    "mcp300-06/external-source-before.json": {
+      "sha256": "d1dbc1bb53a624f2df8d562b6d3afab174c897f22a26574ef400ad4b1ce71bc2",
+      "size_bytes": 11708
+    },
+    "mcp300-06/final-summary.json": {
+      "sha256": "31cea921a0d59498587acdd6101756cefc244544f6d8d952bb57cc510caebe11",
+      "size_bytes": 22194
+    },
+    "mcp300-06/ggx.log": {
+      "sha256": "0a1737931d77194e2c731b45b67f08ee840b68c205c6f6d5c06340b6ca681701",
+      "size_bytes": 4995
+    },
+    "mcp300-06/gpu-before.json": {
+      "sha256": "ffdc2506d369bbd3edd940a9cf422bc8bba0caf88e5b7bae945f40b003b9dd08",
+      "size_bytes": 142
+    },
+    "mcp300-06/gpu-ready.json": {
+      "sha256": "7ae2df72dd05a2c0fb61f7cb9b150695074bce36420f8f55deabe6c24dc7340b",
+      "size_bytes": 142
+    },
+    "mcp300-06/graspgenx-readiness.json": {
+      "sha256": "064b18cd0fdb5ec36a94e0f6737527705fb06efdcb0792e766e5d02eeb380277",
+      "size_bytes": 1040
+    },
+    "mcp300-06/graspgenx-readiness.log": {
+      "sha256": "064b18cd0fdb5ec36a94e0f6737527705fb06efdcb0792e766e5d02eeb380277",
+      "size_bytes": 1040
+    },
+    "mcp300-06/mcp-effective-config-at-startup.json": {
+      "sha256": "c946ce3694a64f1235c0bf7b2be00abf95ed4f4f48b3695697ca82c179be9f88",
+      "size_bytes": 28024
+    },
+    "mcp300-06/mcp-imports-after.json": {
+      "sha256": "b0178343a67abb4bac84a08839e9cd949972157365e3258f88162362543ecfbe",
+      "size_bytes": 17569
+    },
+    "mcp300-06/mcp-imports-before.json": {
+      "sha256": "3f93e07eb1798f4c905c1678d1ebaaa2b9d18593fe20097f1a2287f716a094a0",
+      "size_bytes": 853
+    },
+    "mcp300-06/mcp-owner.json": {
+      "sha256": "f366491b569b7b72901051958a7467ffbc28f178d1a946fb7832f145847ae30e",
+      "size_bytes": 267
+    },
+    "mcp300-06/mcp-stderr.log": {
+      "sha256": "328716c483049f61bc15716872ac4d0d610facfd7710dcc46475a8df143bd403",
+      "size_bytes": 2890
+    },
+    "mcp300-06/mcp-wire.jsonl": {
+      "sha256": "ceae2b956ef1579f3efde962c833e7983a125400b83f97866f3f6f0e0430a4b2",
+      "size_bytes": 92056
+    },
+    "mcp300-06/model-source-provenance.json": {
+      "sha256": "1105e1a2b0f361890e3683b2ad6baaa8f726cbcfb8618bbeeb3c35db76e295d2",
+      "size_bytes": 359123
+    },
+    "mcp300-06/orchestrator-close.log": {
+      "sha256": "a089df6635c9eb57898e79a35aece563f82ff2b390341e83808560648ed82cd4",
+      "size_bytes": 2259
+    },
+    "mcp300-06/orchestrator-finalize.log": {
+      "sha256": "9257350397bb18b2cc2f940c665e05f569062691044e8403b30e21e1fc5936df",
+      "size_bytes": 426
+    },
+    "mcp300-06/orchestrator-start.log": {
+      "sha256": "209d45400eae8b633f339eba957a0c3ed2ccc00ed267ddec3b869bed8bc8e49b",
+      "size_bytes": 264
+    },
+    "mcp300-06/orchestrator.json": {
+      "sha256": "01e2ac69334dd3c52c576a723955e968e4d708fd19281a4694e99ef6a70f1b73",
+      "size_bytes": 12994
+    },
+    "mcp300-06/orchestrator.log": {
+      "sha256": "ad5ca95b73b5cf58ed5bfd2b78bc2b4b48788f9114ff77989456be9cc79fa681",
+      "size_bytes": 29
+    },
+    "mcp300-06/plan.json": {
+      "sha256": "d2bee8df565e101e854309181a1aaef7ac284e844398f814b544002a85d885d4",
+      "size_bytes": 8370
+    },
+    "mcp300-06/protected-after.json": {
+      "sha256": "637e76028a773d7a47ca4936664ece73d96d826b145fb9e6fc5aee0bb5d82c0f",
+      "size_bytes": 209
+    },
+    "mcp300-06/protected-before.json": {
+      "sha256": "637e76028a773d7a47ca4936664ece73d96d826b145fb9e6fc5aee0bb5d82c0f",
+      "size_bytes": 209
+    },
+    "mcp300-06/provenance.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0
+    },
+    "mcp300-06/receipt-progress.json": {
+      "sha256": "9755bb2d09800d2ff933a0af69e1a7cc103b3b20fb855e199e25c51409a8ca9c",
+      "size_bytes": 118302
+    },
+    "mcp300-06/receipt.json": {
+      "sha256": "22960262778a1478e4db0a1b0174c515b3ff743dd6b9ffd17fb90d7740f0dd6c",
+      "size_bytes": 645096
+    },
+    "mcp300-06/resolved-effective.json": {
+      "sha256": "c946ce3694a64f1235c0bf7b2be00abf95ed4f4f48b3695697ca82c179be9f88",
+      "size_bytes": 28024
+    },
+    "mcp300-06/resolved-original.json": {
+      "sha256": "e76abd679b4fca32c8c774a5ff5d0fe1f8635a425cbfb5c5bdd93228384aca72",
+      "size_bytes": 28024
+    },
+    "mcp300-06/services-closure.json": {
+      "sha256": "8ac139a224ffc7c20ce90808f8d0ce1dd029610ae29a94e09466a157581b34d5",
+      "size_bytes": 2895
+    },
+    "mcp300-06/services-owner.json": {
+      "sha256": "ad67f33922a8116ebfe4c26a9ede1863c54b2f94bdd198133517ea6cc595607a",
+      "size_bytes": 10770
+    },
+    "mcp300-06/source-after.json": {
+      "sha256": "d6b07b16352b0d1296b296f79a8226e975f01e95b86d70ec35d01e8baf9d45d5",
+      "size_bytes": 171488
+    },
+    "mcp300-06/source-before.json": {
+      "sha256": "d6b07b16352b0d1296b296f79a8226e975f01e95b86d70ec35d01e8baf9d45d5",
+      "size_bytes": 171488
+    },
+    "mcp300-06/verification-readiness.json": {
+      "sha256": "127cf874f869d70beef1f8c35258f86e598e0317f0745e8ed763c3842608a0cf",
+      "size_bytes": 5695
+    },
+    "cascade/runs/mcp300-06/witness/first-scene-geometry.json": {
+      "sha256": "c940633d89865fe4625dca7afd372e8ad998fe16847c27e97c7cf2ec6cc0eb3e",
+      "size_bytes": 2583
+    },
+    "cascade/runs/mcp300-06/witness/gpu-physical-audit.json": {
+      "sha256": "a4519d2daf5820787b9e8a8886a932ff28c308663c769f5f086e66a3c4f5d0df",
+      "size_bytes": 476825
+    },
+    "cascade/runs/mcp300-06/witness/metadata.json": {
+      "sha256": "64131444023a2c649264fe8e6e63a5b96371b5b6f490a6fc906ead09966b4bd2",
+      "size_bytes": 2910
+    },
+    "cascade/runs/mcp300-06/witness/phases.json": {
+      "sha256": "71a750c84dfc089ea0e1c54d22160f4c3c076342fe0f9102bbb0d549fdce6995",
+      "size_bytes": 353
+    },
+    "cascade/runs/mcp300-06/witness/ping-after.json": {
+      "sha256": "672cf58b5f7ba92e907740a417948ae23c7d75fe66321e89e6783801a79ecd3a",
+      "size_bytes": 1168
+    },
+    "cascade/runs/mcp300-06/witness/ping-before.json": {
+      "sha256": "672cf58b5f7ba92e907740a417948ae23c7d75fe66321e89e6783801a79ecd3a",
+      "size_bytes": 1168
+    },
+    "cascade/runs/mcp300-06/witness/placed-cam0.jpg": {
+      "sha256": "a4157840c3d1d91ef96df33c0c075e61ad2a8d498a6ba8f2d753cbfd5e31e012",
+      "size_bytes": 47937
+    },
+    "cascade/runs/mcp300-06/witness/placed-frames.json": {
+      "sha256": "e8c4b4d161a27edbed134579665d4981c8896a3acf23cb2ed4818f3cefa0807d",
+      "size_bytes": 3218
+    },
+    "cascade/runs/mcp300-06/witness/placed-proof.jpg": {
+      "sha256": "160ec2191ec03deb0e2a6167595a70617158d29db22cce7da43b120f0d2cc9a4",
+      "size_bytes": 44763
+    },
+    "cascade/runs/mcp300-06/witness/placed-side.jpg": {
+      "sha256": "348bfe9adef02e8f70ca005bdd413b9d481297bd889b92f8caac36a6042d652d",
+      "size_bytes": 37262
+    },
+    "cascade/runs/mcp300-06/witness/reset-cam0.jpg": {
+      "sha256": "24f8a410033eb426b9055197befc014928faf5556d5db3cda3070da13fbbb824",
+      "size_bytes": 48385
+    },
+    "cascade/runs/mcp300-06/witness/reset-frames.json": {
+      "sha256": "4167ca0fd6f4abc4845853d50900838af249f93ed4f68f472ba63b89c67027db",
+      "size_bytes": 3224
+    },
+    "cascade/runs/mcp300-06/witness/reset-proof.jpg": {
+      "sha256": "dd75b3bb1ef43a1a632e53ca9278b5efee5c916c26b3a040ec1c983f7c3f55e0",
+      "size_bytes": 45380
+    },
+    "cascade/runs/mcp300-06/witness/reset-side.jpg": {
+      "sha256": "968470ffd67dc8c4885e5dfa76fe9c7cf043d9a755b9583feea6dea9bfcf992e",
+      "size_bytes": 37432
+    },
+    "cascade/runs/mcp300-06/witness/samples.jsonl": {
+      "sha256": "ba599f41292b47d5565838def83820cd677f0e76810b6980ecdf4efbc238ea54",
+      "size_bytes": 61085099
+    },
+    "cascade/runs/mcp300-06/witness/snapshot-code.py": {
+      "sha256": "1d1db6a767a322cea3de557b124c09c374da5baf5a73efa5e6e59d72cebae8b0",
+      "size_bytes": 26432
+    },
+    "cascade/runs/mcp300-06/witness/wire.jsonl": {
+      "sha256": "152ed6c68f972a63422d0e4b024ef631f021fd3fd3780c07b5301d0446b91576",
+      "size_bytes": 11263102
+    },
+    "mcp300_06_client.py": {
+      "sha256": "d676058ec4c78ecc658b87b54f59fc237bc3529d5ba91502d54ef1e2e54d1ffd",
+      "size_bytes": 21517
+    },
+    "mcp300_06_wrapper.py": {
+      "sha256": "12c9e6d7ca1a4ed8bea57aed9022f741028382383979badd523203b6e31d0657",
+      "size_bytes": 1308
+    },
+    "mcp300_06_services.py": {
+      "sha256": "4e1522b1f5b9d6630c16338d8f3971f378cbc13a233724d6a4920c3389459d2a",
+      "size_bytes": 11322
+    },
+    "mcp300_06_finalize.py": {
+      "sha256": "3e9acd750e5b12658307cbceaf34c65d67a136e5534d16950630b1b2d67d35a1",
+      "size_bytes": 2715
+    },
+    "mcp300_06_orchestrator.py": {
+      "sha256": "106a440f365bd7e20a295e665e5b607447f8e353bd2b589147e34a3f86d084ea",
+      "size_bytes": 12722
+    },
+    "prepare_mcp300_06.py": {
+      "sha256": "7e9f4d4ce9d3a76632aaf9699de3e63cc0fb6b90a25bf42450fa8e6409ec730c",
+      "size_bytes": 6173
+    },
+    "summarize_mcp300_06.py": {
+      "sha256": "25920d3dc123696a614e42e00b685f56bc15667e943704ebd139dd9a4f29df2e",
+      "size_bytes": 9333
+    },
+    "cascade/runs/mcp300-06/runtime/trace.jsonl": {
+      "sha256": "4526b0549d0b246b647f17e6f3e31394a5f9cef1c0f0a799fc7e6aa88ab39e93",
+      "size_bytes": 10875
+    },
+    "cascade/runs/mcp300-06/grasp-evidence/1790980583731615235-373023-1f1ac662ea89424ea2a78342b168175e.json": {
+      "sha256": "d5199330d951c003d7404b8218c9b030eb57d00435526d6945d1d4436f2edc9c",
+      "size_bytes": 4842878
+    },
+    "cascade/runs/mcp300-06/runtime/placement/b650763f0609497fac7c59e5a5eb9e7f.json": {
+      "sha256": "236c979df3fcbb7527013da4cf19763a5c948043f136b83157424f4bf0fa1e6f",
+      "size_bytes": 665645
+    },
+    "mcp300-sequential-control/receipt.json": {
+      "sha256": "f0f88c1911dd9f8feb4177204ac7e7a2dd401927fb0976471fd2f3e13b1440c1",
+      "size_bytes": 8657
+    },
+    "mcp300-readiness-control/receipt.json": {
+      "sha256": "74e2d263b3e93955ec962ed307c799450ead289c7030ee6684590cfcaea4afa6",
+      "size_bytes": 3035
+    },
+    "mcp300-05/lifecycle-adjudication.json": {
+      "sha256": "4139e49f9f0e70dd53b67d4af27d2e98f3b11150cd82e94196a41abe7f99459c",
+      "size_bytes": 4048
+    },
+    "mcp300-05/final-summary.json": {
+      "sha256": "74d50a7a4fbadd76efb1b05ecef5a6acbc1bde3467023410ae62e5ce412e0381",
+      "size_bytes": 21790
+    },
+    "evidence/kitchen_mcp300_orange_incomplete_20261002.json": {
+      "sha256": "99e5e9d5b922681c34bc9b695d7c65503fd9fd728f65b4fd254a0b321d0a9ad1",
+      "size_bytes": 13289
+    }
+  }
+}

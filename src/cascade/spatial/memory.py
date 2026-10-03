@@ -1,8 +1,9 @@
 """Remember observations with their capture frame; retrieval never admits motion."""
 from dataclasses import dataclass
 import threading
+import json
 
-from ..robotics.contracts import identifier
+from ..robotics.contracts import identifier, freeze_json, plain_json
 from ..sensing.models import number, vector
 from .frames import SpatialStamp, sha256
 
@@ -14,17 +15,23 @@ class LandmarkObservation:
     frame_id: str
     point_m: tuple
     stamp: SpatialStamp
-    confidence: float
+    confidence: float | None
+    provenance: object = None
 
     def __post_init__(self):
         identifier(self.observation_id, "observation_id"); identifier(self.frame_id, "frame_id")
         if not isinstance(self.label, str) or not 1 <= len(self.label) <= 256:
             raise ValueError("bounded label required")
         object.__setattr__(self, "point_m", vector(self.point_m, 3, "point_m"))
-        value = number(self.confidence, "confidence", minimum=0)
-        if value > 1 or not isinstance(self.stamp, SpatialStamp):
+        value = None if self.confidence is None else number(self.confidence, "confidence", minimum=0)
+        if (value is not None and value > 1) or not isinstance(self.stamp, SpatialStamp):
             raise ValueError("confidence or stamp invalid")
         object.__setattr__(self, "confidence", value)
+        if self.provenance is not None:
+            value = freeze_json(self.provenance)
+            if not isinstance(plain_json(value), dict) or len(json.dumps(plain_json(value))) > 8192:
+                raise ValueError("landmark provenance must be a bounded object")
+            object.__setattr__(self, "provenance", value)
 
 
 class SpatialMemory:
@@ -35,13 +42,19 @@ class SpatialMemory:
         self._entries = {}
         self._lock = threading.Lock()
 
-    def observe(self, observation, *, max_transform_age_s=.2):
+    def observe(self, observation, *, max_transform_age_s=.2, capture_frames=None):
         if not isinstance(observation, LandmarkObservation) or observation.stamp.context != self.frames.context:
             raise ValueError("observation context mismatch")
+        # A retained capture can carry its own measured transform rather than
+        # using the mutable latest frame history. The map context/root must be
+        # identical; the ordinary calibration and age checks still apply.
+        frames = self.frames if capture_frames is None else capture_frames
+        from .frames import FrameTree
+        if not isinstance(frames, FrameTree) or frames.context != self.frames.context or frames.root != self.frames.root:
+            raise ValueError("capture frame context mismatch")
         s = observation.stamp
-        result = self.frames.lookup(self.frames.root, observation.frame_id,
-                                   time_s=s.time_s, epoch=s.epoch, clock_id=s.clock_id,
-                                   max_age_s=max_transform_age_s)
+        result = frames.lookup(frames.root, observation.frame_id, time_s=s.time_s,
+                               epoch=s.epoch, clock_id=s.clock_id, max_age_s=max_transform_age_s)
         # The camera's extrinsic calibration must match the observation; other
         # edges can legitimately carry different odometry calibrations.
         child_edge = next((v for v in result.samples if v.child == observation.frame_id), None)
@@ -52,6 +65,8 @@ class SpatialMemory:
                  "point_map_m": list(result.point(observation.point_m)), "stamp": s.as_dict(),
                  "confidence": observation.confidence, "transform": result.as_dict(),
                  "use": "search_hint_requires_fresh_observation", "physical_admission": False}
+        if observation.provenance is not None:
+            entry["provenance"] = plain_json(observation.provenance)
         entry["sha256"] = sha256(entry)
         with self._lock:
             if observation.observation_id in self._entries:
@@ -69,3 +84,13 @@ class SpatialMemory:
         with self._lock:
             return [copy.deepcopy(v) for v in self._entries.values() if v["label"] == label
                     and 0 <= now - v["stamp"]["time_s"] <= age]
+
+    def history(self, label, *, epoch, clock_id):
+        """Original entries, explicitly historical; no supplied 'now' or freshness."""
+        if (epoch, clock_id) != self.frames.context[1:]:
+            raise ValueError("memory context mismatch")
+        if not isinstance(label, str) or not 1 <= len(label) <= 256:
+            raise ValueError("bounded label required")
+        import copy
+        with self._lock:
+            return [copy.deepcopy(v) for v in self._entries.values() if v["label"] == label]

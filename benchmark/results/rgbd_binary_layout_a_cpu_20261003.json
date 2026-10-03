@@ -1,0 +1,151 @@
+{
+  "base_commit": "5ca71a5ceec6cc35acb537f3e4978ed725b12fcd",
+  "causal_control": {
+    "scope": "Explicit ArUco output double isolates geometry admission. Historical edge gate accepts shear; new whole-tag gate rejects. No bit decoding/native success fabricated.",
+    "test": "tests/test_rgbd_layout_a.py::test_legacy_edge_admission_and_new_whole_tag_gate_have_causal_difference"
+  },
+  "compatibility": {
+    "all_native_fields_compared_without_filter": true,
+    "legacy_detector_unchanged": true,
+    "metric_thresholds_unchanged": true,
+    "new_schema4_png_sha256": "2cc54a33ea46e6486353fd057519f93f5fc194443f0ac89e6f22c2a230a3d583",
+    "old_schema3_png_sha256": "1debc536631b0a9701c82d27db51129bc826bbc23e549f45d8b6ef56f1dbc0eb"
+  },
+  "limits": [
+    "OpenUSD runs are CPU authoring checks, not Kit/renderer/solver validation.",
+    "New native source/scene/model identity and actual visibility/geometry admission remain pending.",
+    "The whole-tag bound certifies the represented observed-corner homography only.",
+    "Actual USD float32 ST quantization is explicit; no zero-error placement is claimed.",
+    "The seven legacy OpenUSD cases skipped in the broad suite were not rerun in the separate five-case candidate check."
+  ],
+  "local_evidence_root": "RGBD_BINARY_LAYOUT_A/",
+  "native_run": false,
+  "physical_acceptance": false,
+  "retained_exploration": {
+    "path": "evidence/exploratory/raster-rescale-failure.txt",
+    "scope": "80 percent resize rejected unchanged held-out pixel gates; sampled acceptance at75 percent is not a general resampling guarantee.",
+    "sha256": "7a7e7581e6b075916899fc9a2a58c2bbd88c032a642079246b29f25366a552e3"
+  },
+  "schema": 1,
+  "scope": "CPU candidate for explicit schema4 Ground binary layout A; no native rendering or physical admission",
+  "source_sha256": {
+    "benchmark/rgbd/assets/binary_layout_a_consumer.json": "76ea3f1766798fa4b46809af4842aafd600754d64e6ba31468aac8cd0b4ee6d8",
+    "benchmark/rgbd/assets/ground_binary_layout_a.png": "2cc54a33ea46e6486353fd057519f93f5fc194443f0ac89e6f22c2a230a3d583",
+    "benchmark/rgbd/binary_layout_a.py": "d0934f5a1957adb27cda3243f35a8142301c7da84c6bbfdbe0cc072526b65947",
+    "benchmark/rgbd/ground_texture.py": "826041b51519b67806690ab212ebc5eb9726cb731216cbd5338e6ecf79b207c8",
+    "benchmark/rgbd/homography_support.py": "928b83fda32af1d64b6f0f0217f2da2a9423d73af39d13c6790da6d92b47239a",
+    "benchmark/rgbd/layout_a_native_bridge.py": "62f08c4f3a5b2b69a42ef0c39bbba98124f38cc339f7e6d02e4e71197334c73e",
+    "benchmark/rgbd/planar_reference.py": "c55b7acd76edc50fb5df8c0e6e7c492bbe9d889a853c2c8ab2486bb47aee3d92",
+    "docs/RGBD_BINARY_LAYOUT_A.md": "2d2c1009e85f7067648a314e779f45f4c75fa453272cfa0e96795df2fcb79d18",
+    "tests/test_rgbd_layout_a.py": "f997f21531b907cef876dec93a42b1691726307671d4cea1e05b0d914f577f97",
+    "tests/test_rgbd_layout_a_native.py": "5e789cbe1dc808dbc29a640df46d11443b925986b8dcb6911e5be4b22d6d12b8"
+  },
+  "source_snapshot_sha256": "e32c959f79c63e708f8809f60ed6b87a75d9c2f1a48125940ca2a1202b6e3153",
+  "validation": {
+    "focused": {
+      "artifacts": {
+        "evidence/focused-final/after.json": "5591a1fcaa342ea5984cb8bd217eb43ccaf356ee8738e3590c5cd2808b12bc5d",
+        "evidence/focused-final/before.json": "5591a1fcaa342ea5984cb8bd217eb43ccaf356ee8738e3590c5cd2808b12bc5d",
+        "evidence/focused-final/command.py": "a1ff020fa6bb2701c47cda101371f83f05449a81d1afac3c67be68abff286b41",
+        "evidence/focused-final/junit.xml": "4769fa1b524d8745f1b7e99c9266fa72fcbff4431296d1edde5646d1f0259b5e",
+        "evidence/focused-final/pytest.log": "63dcb66c0116457fc51cc4ffff89624b4c395c65a68dff00519751781d00c913",
+        "evidence/focused-final/receipt.json": "4f90b0058bb2a554eecea9e3ff47d50a3028b79d090843bb9337a72e39817c44"
+      },
+      "passed_tests": 217,
+      "runner_receipt": {
+        "after_sha256": "5591a1fcaa342ea5984cb8bd217eb43ccaf356ee8738e3590c5cd2808b12bc5d",
+        "before_sha256": "5591a1fcaa342ea5984cb8bd217eb43ccaf356ee8738e3590c5cd2808b12bc5d",
+        "command_sha256": "a1ff020fa6bb2701c47cda101371f83f05449a81d1afac3c67be68abff286b41",
+        "elapsed_s": 34.2495784110215,
+        "error": null,
+        "exit_code": 0,
+        "junit_sha256": "4769fa1b524d8745f1b7e99c9266fa72fcbff4431296d1edde5646d1f0259b5e",
+        "log_sha256": "63dcb66c0116457fc51cc4ffff89624b4c395c65a68dff00519751781d00c913",
+        "mode": "focused",
+        "native_run": false,
+        "passed": true,
+        "physical_acceptance": false,
+        "source_count": 1634,
+        "unchanged": true
+      },
+      "skipped_tests": [
+        {
+          "reason": "OpenUSD unavailable; CPU SDK authoring checked separately when available",
+          "test": "tests.test_rgbd_planar_reference::test_real_usd_visual_fixture_has_no_collision_or_body_schema"
+        },
+        {
+          "reason": "OpenUSD SDK unavailable in ordinary CPU environment",
+          "test": "tests.test_rgbd_ground_texture::test_cpu_usd_authoring_preserves_physics_purpose_and_adds_no_geometry[board0]"
+        },
+        {
+          "reason": "OpenUSD SDK unavailable in ordinary CPU environment",
+          "test": "tests.test_rgbd_ground_texture::test_cpu_usd_authoring_preserves_physics_purpose_and_adds_no_geometry[board1]"
+        },
+        {
+          "reason": "OpenUSD unavailable in ordinary CPU environment",
+          "test": "tests.test_rgbd_ground_native_bridge::test_cpu_usd_metadata_is_in_consumed_scene_and_keeps_physics_binding"
+        },
+        {
+          "reason": "OpenUSD unavailable in ordinary CPU environment",
+          "test": "tests.test_rgbd_ground_native_bridge::test_cpu_usd_stronger_ancestor_material_changes_effective_binding_and_is_rejected"
+        },
+        {
+          "reason": "OpenUSD absent in ordinary CPU environment",
+          "test": "tests.test_rgbd_binary_native_bridge::test_cpu_usd_consumes_exact_consumer_and_actual_authoring_environment"
+        },
+        {
+          "reason": "OpenUSD SDK unavailable in ordinary CPU environment",
+          "test": "tests.test_rgbd_native_bridge::test_usd_existing_values_time_samples_and_collision_gate"
+        },
+        {
+          "reason": "OpenUSD SDK unavailable in ordinary CPU environment",
+          "test": "tests.test_rgbd_layout_a_native::test_cpu_usd_actual_rotated_st_preserves_geometry_and_physics_binding"
+        },
+        {
+          "reason": "OpenUSD SDK unavailable in ordinary CPU environment",
+          "test": "tests.test_rgbd_layout_a_native::test_cpu_usd_postbootstrap_changes_refuse_without_masking_ancestor_binding[st]"
+        },
+        {
+          "reason": "OpenUSD SDK unavailable in ordinary CPU environment",
+          "test": "tests.test_rgbd_layout_a_native::test_cpu_usd_postbootstrap_changes_refuse_without_masking_ancestor_binding[shader]"
+        },
+        {
+          "reason": "OpenUSD SDK unavailable in ordinary CPU environment",
+          "test": "tests.test_rgbd_layout_a_native::test_cpu_usd_postbootstrap_changes_refuse_without_masking_ancestor_binding[metadata]"
+        },
+        {
+          "reason": "OpenUSD SDK unavailable in ordinary CPU environment",
+          "test": "tests.test_rgbd_layout_a_native::test_cpu_usd_postbootstrap_changes_refuse_without_masking_ancestor_binding[ancestor]"
+        }
+      ]
+    },
+    "openusd": {
+      "artifacts": {
+        "evidence/openusd-final/after.json": "5591a1fcaa342ea5984cb8bd217eb43ccaf356ee8738e3590c5cd2808b12bc5d",
+        "evidence/openusd-final/before.json": "5591a1fcaa342ea5984cb8bd217eb43ccaf356ee8738e3590c5cd2808b12bc5d",
+        "evidence/openusd-final/command.py": "97834de43e17ca038955b2897b150fe2a522f23e9156844a48adec103dd02bf9",
+        "evidence/openusd-final/junit.xml": "f32487097f3f332eb46552b7608371497baba96de89575bd9029da763570c47d",
+        "evidence/openusd-final/pytest.log": "b70f0adb07a4ab50c46669d4c86ac2e4e4abc8d8a8153e2dadbe65b6ebff48a1",
+        "evidence/openusd-final/receipt.json": "b8606f01460952f8a6479fff6e804d040b67cc762a1b8c26b592a506d1b03cbd"
+      },
+      "passed_tests": 5,
+      "runner_receipt": {
+        "after_sha256": "5591a1fcaa342ea5984cb8bd217eb43ccaf356ee8738e3590c5cd2808b12bc5d",
+        "before_sha256": "5591a1fcaa342ea5984cb8bd217eb43ccaf356ee8738e3590c5cd2808b12bc5d",
+        "command_sha256": "97834de43e17ca038955b2897b150fe2a522f23e9156844a48adec103dd02bf9",
+        "elapsed_s": 5.776399613998365,
+        "error": null,
+        "exit_code": 0,
+        "junit_sha256": "f32487097f3f332eb46552b7608371497baba96de89575bd9029da763570c47d",
+        "log_sha256": "b70f0adb07a4ab50c46669d4c86ac2e4e4abc8d8a8153e2dadbe65b6ebff48a1",
+        "mode": "openusd",
+        "native_run": false,
+        "passed": true,
+        "physical_acceptance": false,
+        "source_count": 1634,
+        "unchanged": true
+      },
+      "skipped_tests": []
+    }
+  }
+}

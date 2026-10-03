@@ -1,10 +1,10 @@
 """Telemetry must explain attempts without adding robot reads or commands."""
+import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 from pathlib import Path
-import subprocess
-import sys
 from types import SimpleNamespace
 
 import numpy as np
@@ -73,6 +73,8 @@ def runtime(monkeypatch, fail=False):
     harness._check_halt_generation = SafetyHarness._check_halt_generation.__get__(harness)
     harness._pending_release_episode = None
     harness.check_release_episode = SafetyHarness.check_release_episode.__get__(harness)
+    harness._pending_model_withdrawal = None
+    harness.check_model_withdrawal = SafetyHarness.check_model_withdrawal.__get__(harness)
     rt = SkillRuntime.__new__(SkillRuntime)
     rt.arm, rt.kin = SafeArm(raw, harness), Kin()
     rt.cfg = Cfg({'arm': {'home_q': [.2, 0, .2], 'gripper': {}},
@@ -135,25 +137,40 @@ def synthetic_git_metadata(monkeypatch):
     return state
 
 
-def test_enabled_and_disabled_have_identical_actuator_commands_reads_and_result(
-        monkeypatch, tmp_path, synthetic_git_metadata):
+@pytest.mark.parametrize('source_status', ['healthy', 'git_timeout'])
+def test_enabled_and_disabled_have_identical_actuator_commands_reads_and_result(monkeypatch, tmp_path, source_status):
+    # The semantic A/B needs a controlled diagnostic subprocess, not a promise
+    # that a loaded CI host completes real git status within the 2 s budget.
+    # Source-file hashes and the actual telemetry/actuator paths remain real.
+    import subprocess
+    git_calls = []
+    def git(args, **kwargs):
+        git_calls.append(args[3:])
+        assert args[:2] == ['git', '-C'] and kwargs['timeout'] == 2.
+        if args[3:] == ['status', '--porcelain', '--untracked-files=no']:
+            if source_status == 'git_timeout':
+                raise subprocess.TimeoutExpired(args, kwargs['timeout'])
+            return subprocess.CompletedProcess(args, 0, stdout='')
+        assert args[3:] == ['rev-parse', 'HEAD']
+        return subprocess.CompletedProcess(args, 0, stdout='software-fixture-head\n')
+    monkeypatch.setattr(evidence, 'subprocess', SimpleNamespace(run=git))
     monkeypatch.delenv('CASCADE_GRASP_EVIDENCE_DIR', raising=False)
     rt, calls, fix, frame = runtime(monkeypatch)
     before = rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
     expected = calls.copy()
-    assert not list(tmp_path.glob('*.json'))
+    assert not list(tmp_path.glob('*.json')) and not git_calls
     monkeypatch.setenv('CASCADE_GRASP_EVIDENCE_DIR', str(tmp_path))
     rt, calls, fix, frame = runtime(monkeypatch)
     result = rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
     assert result == before
     assert calls == expected  # includes EVERY bridge read, joint command, gripper command
     doc = receipt(tmp_path)
-    assert doc['logging_ok'] is True
-    assert doc['source']['git_head'] == 'synthetic-grasp-evidence-test-head'
-    assert synthetic_git_metadata.calls == [
-        ['rev-parse', 'HEAD'], ['status', '--porcelain', '--untracked-files=no']]
-    assert doc['source']['sha256']['src/cascade/skills/runtime.py'] == hashlib.sha256(
-        (Path(__file__).parents[1] / 'src/cascade/skills/runtime.py').read_bytes()).hexdigest()
+    assert git_calls == [['rev-parse', 'HEAD'], ['status', '--porcelain', '--untracked-files=no']]
+    assert doc['logging_ok'] is (source_status == 'healthy')
+    if source_status == 'git_timeout':
+        assert [(e['operation'], e['type']) for e in doc['logging_errors']] == [('source_at_flush', 'TimeoutExpired')]
+    else:
+        assert doc['logging_errors'] == []
     assert doc['started_unix_ns'] <= doc['finished_unix_ns']
     assert doc['started_monotonic_s'] == 0.
     assert {'selected', 'jaw_datum', 'localized', 'isaac_feedback', 'ik_targets',
@@ -166,41 +183,6 @@ def test_enabled_and_disabled_have_identical_actuator_commands_reads_and_result(
     loc = next(e['data'] for e in doc['events'] if e['kind'] == 'localized')
     assert loc['frame_id'] == 42 and loc['capture']['t'] == 15.
     assert loc['position_base_m'] == fix.position.tolist()
-
-
-@pytest.mark.parametrize('actor_fails', [False, True])
-def test_git_metadata_timeout_preserves_commands_result_and_actor_exception(
-        monkeypatch, tmp_path, synthetic_git_metadata, actor_fails):
-    synthetic_git_metadata.status_timeout = True
-    traces, outcomes = [], []
-    for enabled in (False, True):
-        monkeypatch.setenv('CASCADE_GRASP_EVIDENCE_DIR', str(tmp_path) if enabled else '')
-        rt, calls, fix, frame = runtime(monkeypatch, fail=actor_fails)
-        if actor_fails:
-            with pytest.raises(SkillError, match='original descent transport failure') as error:
-                rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
-            outcomes.append((type(error.value), str(error.value)))
-        else:
-            outcomes.append(rt.skill_grasp_object('orange', _fix=fix, _frame=frame))
-        traces.append(calls.copy())
-    assert outcomes[0] == outcomes[1]
-    assert traces[0] == traces[1]
-    assert synthetic_git_metadata.timeouts == [2.0]
-    doc = receipt(tmp_path)
-    assert doc['logging_ok'] is False
-    assert doc['dropped_events'] == 0
-    assert len(doc['logging_errors']) == 1
-    error = doc['logging_errors'][0]
-    assert error['operation'] == 'source_at_flush' and error['type'] == 'TimeoutExpired'
-    assert "'status', '--porcelain', '--untracked-files=no'" in error['message']
-    assert 'timed out after 2.0 seconds' in error['message']
-    assert 'git_tracked_status_porcelain' not in doc['source']
-    assert doc['source']['sha256']['src/cascade/skills/runtime.py'] == hashlib.sha256(
-        (Path(__file__).parents[1] / 'src/cascade/skills/runtime.py').read_bytes()).hexdigest()
-    arrays = tmp_path / doc['arrays']['path']
-    assert hashlib.sha256(arrays.read_bytes()).hexdigest() == doc['arrays']['sha256']
-    assert doc['events'][-1]['kind'] == ('attempt_exception' if actor_fails else 'result')
-    assert evidence._ACTIVE.get() is None
 
 
 def test_cached_aim_uses_close_pose_not_postlift_tcp(monkeypatch):
@@ -458,3 +440,38 @@ def test_existing_memory_prior_and_nudge_are_captured_before_candidate_mutation(
         relative = 'assets/grasp_geometry/' + name
         assert doc['source']['sha256'][relative] == hashlib.sha256(
             (Path(__file__).parents[1] / relative).read_bytes()).hexdigest()
+
+
+@pytest.mark.parametrize('actor_fails', [False, True])
+def test_git_metadata_timeout_preserves_commands_result_and_actor_exception(
+        monkeypatch, tmp_path, synthetic_git_metadata, actor_fails):
+    synthetic_git_metadata.status_timeout = True
+    traces, outcomes = [], []
+    for enabled in (False, True):
+        monkeypatch.setenv('CASCADE_GRASP_EVIDENCE_DIR', str(tmp_path) if enabled else '')
+        rt, calls, fix, frame = runtime(monkeypatch, fail=actor_fails)
+        if actor_fails:
+            with pytest.raises(SkillError, match='original descent transport failure') as error:
+                rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
+            outcomes.append((type(error.value), str(error.value)))
+        else:
+            outcomes.append(rt.skill_grasp_object('orange', _fix=fix, _frame=frame))
+        traces.append(calls.copy())
+    assert outcomes[0] == outcomes[1]
+    assert traces[0] == traces[1]
+    assert synthetic_git_metadata.timeouts == [2.0]
+    doc = receipt(tmp_path)
+    assert doc['logging_ok'] is False
+    assert doc['dropped_events'] == 0
+    assert len(doc['logging_errors']) == 1
+    error = doc['logging_errors'][0]
+    assert error['operation'] == 'source_at_flush' and error['type'] == 'TimeoutExpired'
+    assert "'status', '--porcelain', '--untracked-files=no'" in error['message']
+    assert 'timed out after 2.0 seconds' in error['message']
+    assert 'git_tracked_status_porcelain' not in doc['source']
+    assert doc['source']['sha256']['src/cascade/skills/runtime.py'] == hashlib.sha256(
+        (Path(__file__).parents[1] / 'src/cascade/skills/runtime.py').read_bytes()).hexdigest()
+    arrays = tmp_path / doc['arrays']['path']
+    assert hashlib.sha256(arrays.read_bytes()).hexdigest() == doc['arrays']['sha256']
+    assert doc['events'][-1]['kind'] == ('attempt_exception' if actor_fails else 'result')
+    assert evidence._ACTIVE.get() is None

@@ -93,7 +93,7 @@ def rig(tmp_path):
 def test_turn_screw_tighten_e2e(rig):
     runtime, arm = rig
     res = runtime.execute("turn_screw", {"label": "red object", "turns": 1.0})
-    assert res["ok"], res
+    assert res["execution_ok"] is True and res["ok"] is False, res
     assert res["turns_applied"] > 0.0
     assert res["strokes"] >= 1
     assert res["direction"] == "tighten"
@@ -105,7 +105,7 @@ def test_turn_screw_loosen_e2e(rig):
     res = runtime.execute(
         "turn_screw", {"label": "red object", "direction": "loosen", "turns": 0.5}
     )
-    assert res["ok"], res
+    assert res["execution_ok"] is True and res["ok"] is False, res
     assert res["turns_applied"] > 0.0
 
 
@@ -130,7 +130,7 @@ def test_turn_screw_strokes_actually_rotate_the_roll_joint(rig):
         res = runtime.execute("turn_screw", {"label": "red object", "turns": 0.5})
     finally:
         arm.send_joint_target = orig
-    assert res["ok"], res
+    assert res["execution_ok"] is True and res["ok"] is False, res
     assert samples, "skill never streamed a waypoint"
     arr = np.asarray(samples)
     span = arr.max() - arr.min()
@@ -187,7 +187,9 @@ def test_unreachable_engagement_never_closes_or_spins_at_hover(rig, monkeypatch)
 def test_wrist_rotation_does_not_claim_measured_threading(rig):
     runtime, _ = rig
     result = runtime.execute("turn_screw", {"label": "red object", "turns": 0.5})
-    assert result["ok"], result
+    assert result["execution_ok"] is True and result["ok"] is False, result
+    assert result["verified"] is False
+    assert result["postcondition"]["status"] == "unverified"
     assert result["turns_commanded"] >= 0.5
     assert result["physical_verification"] == {
         "status": "unverified", "fastener_turns": None,

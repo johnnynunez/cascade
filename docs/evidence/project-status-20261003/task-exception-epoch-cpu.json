@@ -1,0 +1,28 @@
+{
+  "base": "3e696d492f76cb45ad752637d7ff8895748b3cfd",
+  "baseline": "1 failed (new-task contamination), 2 passed",
+  "candidate": "78 passed,0 skipped,1.88s pytest; four targeted files",
+  "control": "Two threads hand off the actual coordinator lock after failing dispatch releases admission and before its ordinary exception handler resumes. No timing sleeps or production clocks replaced.",
+  "defect": "An admitted ordinary exception could add an old task motion name after a concurrent trusted begin_task cleared that task; the new task then falsely failed completion.",
+  "fix": "Bind the outer exception accounting to the existing admitted task ID. Inner cancellation accounting remains under admission before release. Pre-admission error handling is unchanged.",
+  "native_or_gpu_run": false,
+  "physical_admission": false,
+  "refs": {
+    "/home/johnny/Projects/demo/cascade-lab/TASK_EXCEPTION_EPOCH_20261003/baseline-01/junit.xml": "2c6f6db55cc62d034e371f50955160f8d82365809138a6bba432b7fd962b30f3",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_EXCEPTION_EPOCH_20261003/baseline-01/pytest.log": "c14cfc2ce4b983a279dfdc4b0921d7f1be26c43bd45f3c4c7ed94d18f5517571",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_EXCEPTION_EPOCH_20261003/baseline-01/result.json": "7879060b559e771ae40070c9533c9616997f58119d65468bb137584dbaea7f82",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_EXCEPTION_EPOCH_20261003/candidate-01/junit.xml": "e4fd0148240bd36171ecb12d4cd86f8db59235a00953992bcf3122b902e97c34",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_EXCEPTION_EPOCH_20261003/candidate-01/pytest.log": "39c411597542883d35554cd48cab517e83b367f31b067ffe5af1ac698176b96e",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_EXCEPTION_EPOCH_20261003/candidate-01/result.json": "8171d091bbc1fe3a779fe9f6982aeba693667175f22fe8d5550ff46fe52a6eeb",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_EXCEPTION_EPOCH_20261003/candidate-02/junit.xml": "cc53adced8953cb344076193575df4a5a060ca41f91d507334a1a0c4391ed22f",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_EXCEPTION_EPOCH_20261003/candidate-02/pytest.log": "d4de42b672acc589321580cb542f4cdea48d43e06c74f18d0cc1202b4fa4f3c0",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_EXCEPTION_EPOCH_20261003/candidate-02/result.json": "c79829df4174bebe5e1196fa3c7be6f5584ae718bfbf6e962218c67dfd34d142"
+  },
+  "retained_invalid_test_invocation": "candidate-01 named an absent file; exit4 and no tests executed; source/store snapshots unchanged",
+  "schema_version": 1,
+  "source_sha256": {
+    "src/cascade/robotics/runtime.py": "d27c4a18c78c589a1a7a149adbe3eb2921bbea24c0adcf2a1a2c99f43182f1eb",
+    "tests/test_robot_exception_task_epoch.py": "336078733191c8412853e97fb22079216a4144500c60cfe50b000ba4cae8fd29"
+  },
+  "sources_and_protected_stores_unchanged_during_tests": true
+}

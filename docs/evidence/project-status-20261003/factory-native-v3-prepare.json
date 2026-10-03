@@ -1,0 +1,71 @@
+{
+  "date_utc": "2026-10-03T09:56:42.692162+00:00",
+  "status": "PASS_CLOSED_ZERO_SOLVE_PREPARATION",
+  "source": "1f0d194f815489c634049f6571adda39ca131e14",
+  "model_identity_sha256": "e712ac6cca8f341409e76e49de221136596a4e84d0687fb7c7c1b619ff2248ca",
+  "epoch": "de51977a9613433283288a413a09fd2e",
+  "loaded_variants": 39,
+  "admission_predicates": 22,
+  "owned_processes_absent": true,
+  "foreign_births_retained": true,
+  "scene_and_native_steps": 0,
+  "readiness_admitted": false,
+  "physical_task_admitted": false,
+  "source_sdk_assets_and_stores_unchanged": true,
+  "input_and_constructor_compilation_wall_s": 82.51229982398218,
+  "performance_claim": false,
+  "verified_references": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_CONTACT_WRITER_PREP/native-prepare-01/inputs-after.json",
+      "sha256": "7729399587326af162948343a50b43796f36443718e250e1e097ddf5982dcf31"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_CONTACT_WRITER_PREP/native-prepare-01/inputs-before.json",
+      "sha256": "7729399587326af162948343a50b43796f36443718e250e1e097ddf5982dcf31"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_CONTACT_WRITER_PREP/native-prepare-01/native/binding.json",
+      "sha256": "b714b6bf65a92ae6ed6b4f45663d730e732fca884486291bbe98011d12df718a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_CONTACT_WRITER_PREP/native-prepare-01/native/model.json",
+      "sha256": "cc3d02b1b87d66a6ed79a279201cc8380239347fdf07a4ae3050f3a3cf77f692"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_CONTACT_WRITER_PREP/native-prepare-01/native/native-result.json",
+      "sha256": "ef296a5ffb7adbb133a38fdfeb50c0e1f79b5eb3c92496e37d399ab47ed1cd0a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_CONTACT_WRITER_PREP/native-prepare-01/native/precompile.json",
+      "sha256": "1d07a2db7154956cd02f97342bf89d387914877d8249cb4ae096dce7925d9cd0"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_CONTACT_WRITER_PREP/native-prepare-01/native/sdf-cache/185af971d49b0c411c1e858f8785d4ec.sdf.npz",
+      "sha256": "fc6c3c9691faab386a5ebe57f0f947035ee644eeab9ecb043ea678d1becc0eab"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_CONTACT_WRITER_PREP/native-prepare-01/native/sdf-cache/3105187c42ff49ff0cb3e861b6756fd5.sdf.npz",
+      "sha256": "fb7b9db67443c4c5e51064eaca638ca2be0ecebe83f6f0284a431b23f8635155"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_CONTACT_WRITER_PREP/native-prepare-01/native/sdf-cache/fec43a5f0ac63d387a0456adac9ebd52.sdf.npz",
+      "sha256": "e6c5c88c98e3d8513cd3f24ce84a4ee69b74a00101740f2080e61095036a1942"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_CONTACT_WRITER_PREP/native-prepare-01/scope/closure.json",
+      "sha256": "c4743777f53c2010c0e0dfb8106d313872713a38328bf511751fac6bb4f46cad"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_CONTACT_WRITER_PREP/native-prepare-01/scope/owner.json",
+      "sha256": "7c09e5e52c46dca3a966167024fdc892b06931673e9fcfcfb61b806d1affebb8"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_CONTACT_WRITER_PREP/native-prepare-01/scope/service.log",
+      "sha256": "0dd443f08ade76c45bd518b39c1f99b9f86836943397931dfcd4f9e03bb7b6cb"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_CONTACT_WRITER_PREP/native-prepare-01/receipt.json",
+      "sha256": "dd7980f344de57eceed499120947f67ce8c09a236f879574c12585192c21e17c"
+    }
+  ]
+}

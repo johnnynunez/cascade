@@ -1,0 +1,97 @@
+# Historical region1 profile: retained geometric refusal recipe, not task admission.
+# SO-101 in MuJoCo: real rigid-body physics, no robot and no GPU.
+#
+#   python scripts/fetch_robot_assets.py so101      # one-off: MJCF + meshes
+#   pip install mujoco
+#   python -m cascade.apps.demo --arm so101_mujoco --task "pick up the cube"
+#
+# Why this exists alongside the Isaac backend: Isaac Sim is a multi-GB install
+# that needs an NVIDIA GPU, so on a laptop, a Jetson or a CPU-only booth box it
+# is not an option. MuJoCo runs anywhere Python does, which makes "can I try
+# this framework without the robot" answerable on any machine.
+#
+# Contact-rich grasping in MuJoCo is not free of tuning -- the Menagerie model
+# ships gripper solver parameters chosen for manipulation, which is why the
+# MJCF comes from there rather than from the SO-ARM100 repo's own XML.
+extends: so101
+
+type: mujoco
+
+# Fetched by scripts/fetch_robot_assets.py; NOT vendored (it needs the ~20 MB
+# mesh set to load). `scene.xml` wraps so101.xml with a floor and a light.
+mjcf: ${assets}/mjcf/so101/scene.xml
+
+# scene.xml has NO prop -- so pairing it with a synthetic camera (mock,
+# mock_small) makes the demo perceive a cube that does not exist in physics:
+# IK solves, the arm descends, and the jaws close on air, reported as
+# "air grasp: gripper closed fully, object not held" on every attempt.
+#
+# This puts a matching prop in the scene, with its pose DERIVED from whichever
+# camera profile the run opens (box_px + extrinsics), so the physics and the
+# pixels cannot drift apart. Harmless with a real camera on a real rig: point
+# `mjcf:` at that scene and set this to false.
+#
+# NOT the shipped scene_box.xml: its box sits at x = 0.50, well outside this
+# arm's envelope (drop zone r = 0.233, grasp ceiling z = 0.05).
+mj_prop_from_camera: true
+
+# MuJoCo joint names, in the order this profile's q vector uses. Named rather
+# than indexed because the scene wrapper can add joints (a free-floating prop)
+# and any index would then silently shift.
+mj_joints: [shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll]
+mj_gripper_joint: gripper
+
+# Position actuators, matching the <actuator> block in the Menagerie MJCF.
+mj_actuators: [shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll]
+mj_gripper_actuator: gripper
+
+# Physical collision subtree used to plan an actual post-release withdrawal.
+# This names model geometry, not a new grasp/carry height or actuator setting.
+mj_release_tool_body: gripper
+mj_release_articulation_root: base
+mj_release_support_plane:
+  # The generated demo wrapper includes scene.xml AND its own coincident plane.
+  # Both existing colliders are declared; no physics is removed or merged.
+  geoms: [floor]
+  optional_geoms: [demo_floor]  # Absent in the unwrapped scene.xml / scene_box.xml.
+  position_m: [0.0, 0.0, 0.0]
+  quaternion_wxyz: [1.0, 0.0, 0.0, 0.0]
+
+# Physics steps advanced per streamed waypoint. The waypoint stream runs at
+# 50 Hz (20 ms) and this MJCF sets timestep="0.005", so 4 steps is exactly one
+# real-time tick -- and exactly zero margin for a joint that cannot track its
+# setpoint in one tick.
+#
+# MEASURED: at the grasp pose (arm extended to r = 0.20) `elbow_flex` pins its
+# actuator at 2.94 N.m, the whole forcerange the Menagerie model gives it, and
+# lands 0.143 rad short while the other four joints settle to ~0.002. Gravity
+# alone only asks 0.37 N.m there; the rest goes into the position servo's own
+# spring. With 4 substeps the sim gives up before the joint arrives and the
+# skill reports "did not settle at grasp pose".
+#
+# 12 substeps (60 ms simulated per waypoint) lets the saturated joint converge.
+# The run is then slower than wall clock during motion, which is the right
+# trade for a physics rehearsal: the alternative is editing the vendored MJCF's
+# force limits, i.e. simulating a stronger robot than the real SO-101.
+substeps: 12
+
+# MuJoCo tracks a position setpoint with a finite-gain actuator, so unlike the
+# kinematic mock it does NOT arrive exactly. Same reason the Isaac profile
+# loosens these.
+settle_tol: 0.03
+settle_timeout_s: 4.0
+
+# Set to open a MuJoCo viewer window alongside the run. Off by default: it
+# needs a display, and the framework's own dashboard already shows the cameras.
+view: false
+
+# Semantic drop area on the explicitly declared horizontal support, within
+# this profile's workspace. Reachability is checked for each measured payload;
+# the rectangle does not promise that every point has a feasible 5-DoF pose.
+# Boundary erosion uses payload footprint only; 20 mm safety separation is
+# between physical objects/robot, not an additional semantic-border margin.
+mj_delivery_area:
+  version: 1
+  name: drop zone
+  frame: robot_base
+  bounds_xy_m: [[0.15, -0.16], [0.24, -0.08]]

@@ -1,0 +1,58 @@
+{
+  "capture_timestamp_renewed": false,
+  "causality_attributed": false,
+  "diagnostic_status": "complete_bound_fault",
+  "faults": [
+    {
+      "diagnostic": {
+        "age_s": 0.44135662098415196,
+        "binding_sha256": "4684f0a8f60f390d294b7b836f0269edca24d6dc36812c0a0a7cb7df337e62b7",
+        "captured_monotonic_s": 276405.733614597,
+        "checked_monotonic_s": 276406.174971218,
+        "epoch": "17817f0741da4303bebed4da366f82d5",
+        "generation": 0,
+        "max_observation_age_s": 0.2,
+        "model_identity_sha256": "69d9a46aaba9304df44828cbca1460a1a4166b9d58c9625b3b6f6bdacf07ed00",
+        "reason": "stale",
+        "simulation_time_s": 0.5150000124704093,
+        "stage": "controller_accept_solve",
+        "step": 309
+      },
+      "locations": [
+        "$.traceback",
+        "$.owner_drain.owner_error",
+        "$.error"
+      ],
+      "matches_native_identity": true,
+      "matching_raw_solve_records": [
+        {
+          "line": 309,
+          "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_PHASE_DIAGNOSTIC_20261003/native-diagnostic-01/native/runtime/domains/fastening/solves.jsonl",
+          "raw_journal_proves_controller_acceptance": false,
+          "raw_line_sha256": "0eae877e497113203d5c97b33cd91d5f0dd1114f16125b0690fd652e584583b9"
+        }
+      ]
+    }
+  ],
+  "journal_inputs": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_PHASE_DIAGNOSTIC_20261003/native-diagnostic-01/native/runtime/domains/fastening/solves.jsonl",
+      "sha256": "bfebb5d9126c4f63e10002b8302b118a3a944e613ee0f38de241f4a0febdb16b"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_PHASE_DIAGNOSTIC_20261003/native-diagnostic-01/native/post-close-solves.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "kind": "offline_age_diagnostic",
+  "malformed": [],
+  "native_ok_unchanged": false,
+  "native_result": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_PHASE_DIAGNOSTIC_20261003/native-diagnostic-01/native/native-result.json",
+    "sha256": "3170fd3fbafc58e6bbeb131c4ddfd1e1ef17df34280cc8587df63c9481b356de"
+  },
+  "physical_task_admission": false,
+  "raw_error": "FasteningFault: stale or future solved state; observation_age={\"age_s\":0.44135662098415196,\"binding_sha256\":\"4684f0a8f60f390d294b7b836f0269edca24d6dc36812c0a0a7cb7df337e62b7\",\"captured_monotonic_s\":276405.733614597,\"checked_monotonic_s\":276406.174971218,\"epoch\":\"17817f0741da4303bebed4da366f82d5\",\"generation\":0,\"max_observation_age_s\":0.2,\"model_identity_sha256\":\"69d9a46aaba9304df44828cbca1460a1a4166b9d58c9625b3b6f6bdacf07ed00\",\"reason\":\"stale\",\"simulation_time_s\":0.5150000124704093,\"stage\":\"controller_accept_solve\",\"step\":309}",
+  "readiness_admission": false,
+  "schema_version": 1
+}

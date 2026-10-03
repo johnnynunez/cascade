@@ -1,0 +1,76 @@
+{
+  "repository": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/cascade",
+  "head": "72d28027512c9fc94f66b313bfdfc646591b2f09",
+  "command": [
+    "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+    "-m",
+    "pytest",
+    "tests/test_fastening_runtime.py",
+    "tests/test_threading_verification.py",
+    "tests/test_robot_runtime.py",
+    "-q",
+    "--basetemp=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage1-reviewed/tmp",
+    "--junitxml=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage1-reviewed/junit.xml",
+    "-o",
+    "cache_dir=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage1-reviewed/pytest-cache"
+  ],
+  "environment": {
+    "PYTHONPATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/cascade/src",
+    "CUDA_VISIBLE_DEVICES": "-1",
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "NUMEXPR_NUM_THREADS": "1",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "CASCADE_ENVELOPE_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage1-reviewed/envelope.json",
+    "CASCADE_GRASP_MEMORY_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage1-reviewed/grasp-memory.json",
+    "CASCADE_BELIEFS_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage1-reviewed/beliefs.json",
+    "XDG_CACHE_HOME": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage1-reviewed/cache"
+  },
+  "exit_code": 0,
+  "elapsed_s": 2.4550450070237275,
+  "source_count": 658,
+  "source_unchanged": true,
+  "protected_before": {
+    "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+    "/home/johnny/.cascade/grasp_memory.json": null
+  },
+  "protected_after": {
+    "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+    "/home/johnny/.cascade/grasp_memory.json": null
+  },
+  "protected_unchanged": true,
+  "artifacts": {
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage1-reviewed/before.json": "7a7c1cd6a8bcc8903aabc716869eda0d961f1bebd1404f0d174c5d546aa64fca",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage1-reviewed/after.json": "7a7c1cd6a8bcc8903aabc716869eda0d961f1bebd1404f0d174c5d546aa64fca",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage1-reviewed/pytest.log": "d89ffe32c2d856eca9e2ca00ebb897da3f2a4a9c7c2bdc137a267da1297bedc2",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage1-reviewed/junit.xml": "055a56b58286a129b0cc10ed4952a9ac73846b809ea38183e59beea877180335"
+  },
+  "scope": "CPU contracts, per-write fencing and ordinary RobotRuntime domain; no native admission",
+  "physical_admission": false,
+  "pytest": {
+    "passed": 115,
+    "skipped": 0,
+    "duration_s": 2.19,
+    "new_synthetic_cases": 56
+  },
+  "prior_runs": {
+    "stage1-first": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage1-first/result.json",
+      "sha256": "49c8fe589d20d0ed2ecf4b77ff641845abe2fa040568f9ba7ce3ded2ea214267"
+    },
+    "stage1-final": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage1-final/result.json",
+      "sha256": "d8bc54cbd6065f59e6f8869d7e7bce61acd46bffaa61f37bab7fd3d4c8cb1249"
+    },
+    "stage1-time-regressions": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage1-time-regressions/result.json",
+      "sha256": "b75569af276f84d1ef8cf0a0e162d8d8e58f0deeec019e2af3dc9ab9d937f537"
+    }
+  },
+  "source_sha256": {
+    "src/cascade/control/fastening.py": "73c8f7ebce5212ca36f48b19c1243565bed191205c3bf9fefc7a326e2bd1e1b9",
+    "src/cascade/skills/fastening_runtime.py": "5d90ffe40eb6d84842ecf106e3be0c35cddcd8be8ef84571666b39cc0650a61f",
+    "tests/test_fastening_runtime.py": "7ffedb507f29013a7cb51a0e6bf39a21434e8e1da0bf51e3e27d671f990bdc50"
+  }
+}

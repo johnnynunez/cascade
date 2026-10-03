@@ -1,5 +1,11 @@
 # Composable robots, observations and validation
 
+For current implementation, measured results and pending physical admission, see
+the [3 October capability index](PROJECT_STATUS_20261003.md). This architecture
+document retains its original research/source context. Passive multi-DoF
+observations do not admit a whole-body controller; mixed physical actuation
+remains refused.
+
 Research and implementation review: 2 October 2026. Based on merged MicroDuck
 and stop-lifecycle fixes, commit `0a65887c14605186dc1bc6a4b4084d0582418076`.
 This adds an opt-in composed
@@ -83,6 +89,12 @@ actor connection or advancing the simulation.
 
 The registry and generic payloads are implemented; a humanoid tactile device
 driver, calibration procedure and task-specific tactile verifier are not.
+
+The opt-in [camera-only RGB-D path](OBSERVED_RGBD.md) connects the native mobile
+producer to passive sensing/runtime/MCP without constructing an arm. It retains
+capture clocks, model/calibration pins, RGB8, metric optical-axis depth and the
+static overview camera's optical-to-world transform. It is software-tested;
+the new native recipe requires separate admission and GPU validation.
 An injected provider is trusted integration code, not sandboxed untrusted code.
 Production providers must demonstrate passive behavior and independent clocks.
 

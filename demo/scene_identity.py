@@ -16,6 +16,7 @@ MAX_BUNDLE_BYTES = 512 * 1024 * 1024
 BUNDLE_REQUIRED_FILES = frozenset({"cocina_asier.usdc", "geometry-audit.json", "NOTICE.md", "sources.json"})
 SOURCE_FILES = (
     "scripts/isaac_bridge.py",
+    "src/cascade/sim/target_receipts.py",
     "scripts/isaac_ovrtx.py",
     "src/cascade/sim/ovrtx_renderer.py",
     "src/cascade/sim/ovrtx_masks.py",

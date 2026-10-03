@@ -8,6 +8,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from conftest import REPO, needs_pin
+from mujoco_gl_probe import probe_offscreen_gl
 
 from cascade.agent.reflex import parse_command
 from cascade.config import load_demo_config
@@ -15,20 +16,13 @@ from cascade.config import load_demo_config
 MJCF = REPO / "assets" / "mjcf" / "so101" / "scene.xml"
 
 
-def _has_gl() -> bool:
-    try:
-        import mujoco
-
-        if not MJCF.exists():
-            return False
-        r = mujoco.Renderer(mujoco.MjModel.from_xml_path(str(MJCF)), height=16, width=16)
-        r.close()
-        return True
-    except Exception:  # noqa: BLE001
-        return False
+_offscreen_gl = probe_offscreen_gl(MJCF)
 
 
-needs_gl = pytest.mark.skipif(not _has_gl(), reason="needs mujoco + SO-101 assets + offscreen GL")
+needs_gl = pytest.mark.skipif(
+    not _offscreen_gl.available,
+    reason=f"needs mujoco + SO-101 assets + offscreen GL: {_offscreen_gl.reason}",
+)
 
 
 def test_reset_phrases_are_reflexes_and_nothing_else_matches():

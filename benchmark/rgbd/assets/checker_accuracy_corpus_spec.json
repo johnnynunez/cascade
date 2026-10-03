@@ -1,0 +1,132 @@
+{
+  "schema": 2,
+  "status": "frozen before rasterization or detector results",
+  "source_geometry": "BinaryLayoutABoard schema4 geometry from917a98c; prospective checker variant schema5",
+  "native_capture_inputs_allowed": false,
+  "seed": null,
+  "image_size_wh": [
+    640,
+    480
+  ],
+  "local_center_m": [
+    0.07,
+    0.083
+  ],
+  "projection_formula": "For d=local_xy-local_center: image_xy=image_center+R(angle)*([[sx,shear],[0,-sy]]*d)/(1+p*d.x+q*d.y)+phase. H is constructed analytically.",
+  "projections": [
+    {
+      "id": "fronto",
+      "angle_deg": 0,
+      "sx": 1000,
+      "sy": 1000,
+      "shear": 0,
+      "p": 0,
+      "q": 0
+    },
+    {
+      "id": "oblique23",
+      "angle_deg": 23,
+      "sx": 950,
+      "sy": 650,
+      "shear": 0,
+      "p": 0.25,
+      "q": -0.18
+    },
+    {
+      "id": "shear_minus41",
+      "angle_deg": -41,
+      "sx": 765,
+      "sy": 468,
+      "shear": 315,
+      "p": -0.22,
+      "q": 0.16
+    },
+    {
+      "id": "foreshortened70",
+      "angle_deg": 70,
+      "sx": 740,
+      "sy": 500,
+      "shear": 120,
+      "p": 0.2,
+      "q": 0.25
+    }
+  ],
+  "phases_px": [
+    [
+      0,
+      0
+    ],
+    [
+      0.25,
+      0.75
+    ],
+    [
+      0.5,
+      0.5
+    ],
+    [
+      0.75,
+      0.25
+    ]
+  ],
+  "raster": {
+    "algorithm": "analytic planar membership and16x16 regular area samples per output pixel",
+    "pixel_centers": "integer OpenCV coordinates",
+    "sample_offsets": "(i+.5)/16-.5 for i0..15",
+    "luminance_rounding": "nearest integer, ties to even, uint8; identical RGB channels",
+    "convergence_control_samples": 32
+  },
+  "filters": [
+    {
+      "id": "area",
+      "gaussian_sigma_px": 0
+    },
+    {
+      "id": "area_gauss035",
+      "gaussian_sigma_px": 0.35,
+      "kernel": 5,
+      "border": "constant white"
+    },
+    {
+      "id": "area_gauss065",
+      "gaussian_sigma_px": 0.65,
+      "kernel": 7,
+      "border": "constant white"
+    }
+  ],
+  "nominal_cases": 48,
+  "ground_truth": "analytic projection of every declared corner; no native K/T/depth, fitted detector transform or selected points",
+  "baseline_flags": 2,
+  "candidate_flags": 34,
+  "flag_search_allowed": false,
+  "split": "existing parity18 fit and17 heldout in declared row-major corner order",
+  "threshold_changes_allowed": false,
+  "negative_base_case": "fronto/phase0/area",
+  "negative_cases": [
+    "reflect_x",
+    "duplicate_tag",
+    "foreign_tag",
+    "missing_tag",
+    "one_payload_bit_corruption",
+    "missing_checker_corner",
+    "half_board_occlusion",
+    "gaussian_sigma2_kernel13",
+    "downscale_one_eighth"
+  ],
+  "mutation_tests": [
+    "rows_reversed",
+    "columns_reversed",
+    "both_reversed",
+    "fabricated_corners_without_contrast",
+    "descriptor_flags_changed",
+    "descriptor_version_changed",
+    "descriptor_digest_changed",
+    "descriptor_codebook_changed",
+    "descriptor_missing"
+  ],
+  "supersedes_sha256": "62416ab78b8d25dee00541f2499d4ac8027438e282f1b8ff3952d26bc63e6631",
+  "image_center_uv": [
+    320,
+    240
+  ]
+}

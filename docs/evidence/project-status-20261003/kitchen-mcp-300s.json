@@ -1,0 +1,866 @@
+{
+  "scope": "Documentation index; exact externally measured recipe and unchanged source described by the original receipt. No native execution on this documentation branch.",
+  "measured_source": "c12c64185a3ad7da21587611629e379aabb76437",
+  "original_receipt": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/evidence/kitchen_mcp300_green_20261002.json",
+    "sha256": "a28f48d402f20f509253960bde3a43954101c607676a2ced70f0c16b2fa3d492"
+  },
+  "episode_receipt": {
+    "version": 1,
+    "pass": true,
+    "date": "2026-10-02",
+    "source_head": "c12c64185a3ad7da21587611629e379aabb76437",
+    "scope": "One native PhysX640 kitchen green cube\u2192green square via ordinary stdio MCP JSON-RPC, independently observed. No LLM host, hardware, cuMotion or OVRTX integration claim for this episode. Orange\u2192open box remains separately pending.",
+    "not_claimed": [
+      "Benchmark score",
+      "isolated-machine speedup",
+      "general kitchen task success",
+      "orange latency closure",
+      "end-to-end voice/LLM campaign"
+    ],
+    "configuration": {
+      "profile": "isaac_kitchen_gpu",
+      "renderer": "existing Isaac renderer",
+      "engine": "physx",
+      "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+      "width": 640,
+      "height": 360,
+      "physics_dt_s": 0.008333333333333333,
+      "cam_every": 6,
+      "cameras": [
+        "cam0",
+        "side",
+        "proof"
+      ],
+      "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+      "observed_finger_gate": true,
+      "occupancy_enabled": false,
+      "occupancy_scope": "same explicit isolated Spark tabletop policy, not NVB payload acceptance",
+      "bridge_port": 8746,
+      "ggx_port": 5596,
+      "config_difference": "Only private bridge/GGX ports; fixed profile settings and scene unchanged. State/cache paths private."
+    },
+    "limits": {
+      "planning_s": 8,
+      "mcp_complete_call_s": 300,
+      "camera_max_age_s": 2,
+      "readiness_s": 10,
+      "witness_interval_s": 0.15,
+      "settle_sim_s": 0.65,
+      "settle_wall_s": 40
+    },
+    "calls": {
+      "pick": {
+        "wall_s": 199.45539333697525,
+        "timely": true,
+        "ok": true,
+        "started_monotonic": 222652.481122652,
+        "finished_monotonic": 222851.936515989,
+        "deadline_monotonic": 222952.481122652
+      },
+      "reset": {
+        "wall_s": 27.256574316998012,
+        "timely": true,
+        "ok": true,
+        "started_monotonic": 222855.183224515,
+        "finished_monotonic": 222882.439798832,
+        "deadline_monotonic": 223155.183224515
+      }
+    },
+    "pick": {
+      "grasp_attempts": 1,
+      "place_attempts": 1,
+      "grip_verified": true,
+      "return_home": {
+        "attempted": true,
+        "ok": true,
+        "at": "home"
+      },
+      "production_postcondition_scope": "post-placement containment, support, release and settling only; lift, transport, cameras and reset unverified",
+      "independent_metrics": {
+        "samples": 1350,
+        "final_samples": 16,
+        "simulation_elapsed_s": 48.5,
+        "final_window_sim_s": 0.5,
+        "lift_m": 0.09795591421425341,
+        "xy_displacement_m": 0.30046288130176935,
+        "final_xy_error_m": 0.004250417558258712,
+        "max_final_xy_error_m": 0.004250417558258712,
+        "max_final_support_z_error_m": 3.243264823371561e-10,
+        "max_final_linear_speed_m_s": 1.3994379658194136e-05,
+        "max_final_angular_speed_rad_s": 0.0004439853325973862,
+        "max_final_position_spread_m": 0.0,
+        "max_final_tilt_deg": 0.00011053319106787941,
+        "min_final_actual_open_fraction": 0.9999992549419514,
+        "max_frame_age_s": 0.7511248259979766,
+        "unique_jpeg_hashes": 490
+      }
+    },
+    "all_physical_checks": {
+      "complete_observation": true,
+      "all_phase_boundaries": true,
+      "live_prop_names_match_expected": true,
+      "spawn_prop_names_match_expected": true,
+      "spawn_positions_finite_and_unchanged": true,
+      "all_props_physically_reset_and_settled": true,
+      "scene_config_sha256_matches": true,
+      "prop_dimensions_match": true,
+      "cube_collider_geometry_matches": true,
+      "green_square_geometry_matches": true,
+      "scene_name_matches": true,
+      "scene_assets_sha256_matches": true,
+      "scene_content_sha256_matches": true,
+      "open_box_geometry_matches": true,
+      "ordered_phases": true,
+      "strict_pick_place_and_cameras": true,
+      "whole_cube_inside_green_square_throughout_settle": true,
+      "all_physics_tensors_cuda": true,
+      "single_supported_engine": true,
+      "gpu_backend_no_fallback": true,
+      "contact_sensor_and_actual_jaws_bound": true,
+      "two_jaw_contacts_during_real_lift": true,
+      "reset_settle_window": true,
+      "whole_footprint_enters_destination_with_bilateral_support": true,
+      "all_event_cameras_advance": true
+    },
+    "independent_witness": {
+      "all_samples": 1518,
+      "pick_samples": 1350,
+      "first_sample_sequence": 0,
+      "no_samples_discarded": true,
+      "bilateral_lift_rows": 592,
+      "supported_inside_distinct_steps": 205,
+      "footprint": {
+        "pass": true,
+        "destination_name": "green square",
+        "method": "all eight rotated cuboid corners",
+        "dimensions_m": [
+          0.0375,
+          0.0375,
+          0.06
+        ],
+        "final_samples": 16,
+        "final_window_sim_s": 0.5,
+        "settle_window_complete": true,
+        "inner_bounds_xy_m": [
+          [
+            0.07,
+            -0.34
+          ],
+          [
+            0.21000000000000002,
+            -0.2
+          ]
+        ],
+        "observed_footprint_bounds_xy_m": [
+          [
+            0.11680066334476655,
+            -0.2914144190512096
+          ],
+          [
+            0.15567454946765716,
+            -0.252540549401244
+          ]
+        ],
+        "min_final_bottom_z_m": -5.171495709097029e-08,
+        "max_final_bottom_z_m": -4.36221551172733e-08,
+        "min_inner_clearance_m": 0.04680066334476654,
+        "max_final_center_error_m": 0.004250417558258712,
+        "center_tolerance_m": 0.04,
+        "boundary_tolerance_m": 0.0
+      },
+      "event_cameras": {
+        "pass": true,
+        "cameras": {
+          "cam0": {
+            "pass": true,
+            "phase_advancement": {
+              "pick": true,
+              "reset": true
+            },
+            "unique_jpeg_hashes": 554
+          },
+          "side": {
+            "pass": true,
+            "phase_advancement": {
+              "pick": true,
+              "reset": true
+            },
+            "unique_jpeg_hashes": 554
+          },
+          "proof": {
+            "pass": true,
+            "phase_advancement": {
+              "pick": true,
+              "reset": true
+            },
+            "unique_jpeg_hashes": 554
+          }
+        }
+      },
+      "camera_age_all_rows": {
+        "cam0": {
+          "first_s": 0.5111028460087255,
+          "maximum_s": 0.7511248259979766
+        },
+        "side": {
+          "first_s": 0.5111028460087255,
+          "maximum_s": 0.7511248259979766
+        },
+        "proof": {
+          "first_s": 0.5111028460087255,
+          "maximum_s": 0.7511248259979766
+        }
+      }
+    },
+    "preparation": {
+      "normal_graspgenx_readiness": {
+        "ok": true,
+        "learned": true,
+        "health": {
+          "status": "ok",
+          "learned": true,
+          "device": "cuda:0",
+          "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+          "capability": [
+            12,
+            0
+          ],
+          "torch": "2.7.0+cu128",
+          "cuda": "12.8",
+          "architecture": "x86_64"
+        },
+        "metadata": {
+          "default_gripper": null,
+          "loaded_grippers": [],
+          "model": {
+            "generator_backbone": "ptv3vanilla",
+            "discriminator_backbone": "ptv3vanilla",
+            "grasp_repr": "r3_so3",
+            "num_diffusion_iters_eval": 20
+          },
+          "assets_dir": "/home/johnny/Projects/demo/GraspGenX/ext/gripper_descriptions",
+          "actions": [
+            "health",
+            "metadata",
+            "infer",
+            "infer_object",
+            "infer_scene_depth",
+            "infer_scene_pc"
+          ],
+          "precision": {
+            "weights": "fp32",
+            "tensorrt": false,
+            "tensorrt_precision": null
+          }
+        },
+        "diffusion_grasps": 100,
+        "score_max": 0.954594612121582,
+        "wall_seconds": 15.966,
+        "timing": {
+          "infer_ms": 15964.73810900352
+        }
+      },
+      "real_pick_inference_s": 0.7529463768005371,
+      "verification_readiness": {
+        "pass": true,
+        "scope": "Startup availability only; no task evidence; no actuator constructed",
+        "configured_cameras": [
+          {
+            "type": "isaac",
+            "bridge_host": "127.0.0.1",
+            "bridge_port": 8746,
+            "sim_camera": "cam0",
+            "depth": true,
+            "fps": 4.0,
+            "warmup_frames": 3,
+            "extrinsics": {
+              "mode": "eye_to_hand",
+              "T": [
+                [
+                  0.573462,
+                  0.57432,
+                  -0.584206,
+                  0.78
+                ],
+                [
+                  0.819232,
+                  -0.402024,
+                  0.408944,
+                  -0.35
+                ],
+                [
+                  -0.0,
+                  -0.713115,
+                  -0.701047,
+                  0.6
+                ],
+                [
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              ]
+            },
+            "name": "isaac"
+          },
+          {
+            "type": "isaac",
+            "bridge_host": "127.0.0.1",
+            "bridge_port": 8746,
+            "sim_camera": "side",
+            "depth": true,
+            "fps": 4.0,
+            "warmup_frames": 2,
+            "fuse_beliefs": true,
+            "extrinsics": {
+              "T": [
+                [
+                  -0.745761,
+                  0.218975,
+                  -0.629198,
+                  0.95
+                ],
+                [
+                  0.666213,
+                  0.245121,
+                  -0.704326,
+                  0.75
+                ],
+                [
+                  0.0,
+                  -0.944439,
+                  -0.328686,
+                  0.45
+                ],
+                [
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              ]
+            },
+            "name": "isaac_side"
+          },
+          {
+            "type": "isaac",
+            "bridge_host": "127.0.0.1",
+            "bridge_port": 8746,
+            "sim_camera": "proof",
+            "depth": true,
+            "fps": 4.0,
+            "warmup_frames": 3,
+            "extrinsics": {
+              "mode": "eye_to_hand",
+              "T": [
+                [
+                  0.779509,
+                  0.241376,
+                  -0.578017,
+                  1.1
+                ],
+                [
+                  0.626391,
+                  -0.300379,
+                  0.71931,
+                  -1.1
+                ],
+                [
+                  0.0,
+                  -0.922773,
+                  -0.385344,
+                  0.9
+                ],
+                [
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              ]
+            },
+            "name": "kitchen",
+            "fuse_beliefs": false
+          }
+        ],
+        "helper_path": "/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/cascade/src/cascade/sim/startup_readiness.py",
+        "helper_sha256": "8aaaa771ba3d14c9eed3752f9a4ea49ca38b1fe3101f3a8fc18c99c716da5676",
+        "admission": {
+          "pass": true,
+          "source": [
+            "127.0.0.1",
+            8746
+          ],
+          "producer_epoch": "af835af2ef1f46598fadef051f690e66",
+          "physical_paths": [
+            "/World_Props/tomato_can",
+            "/World_Props/lemon",
+            "/World_Props/orange",
+            "/World_Props/pink_cube",
+            "/World_Props/green_cube"
+          ],
+          "probe_finished_server_monotonic": 222648.413755683,
+          "camera_packets": [
+            {
+              "camera": "cam0",
+              "capture_t": 222648.536088283,
+              "age_server_s": 0.5291806030145381,
+              "render_reference": {
+                "version": 1,
+                "source": "rpFabricTime",
+                "product": "/Render/OmniverseKit/HydraTextures/camera_sensor_7882897107960",
+                "numerator": 16800000000,
+                "denominator": 1000000000,
+                "producer_epoch": "af835af2ef1f46598fadef051f690e66",
+                "history_physics_step": 2016,
+                "history_simulation_time": 16.8,
+                "render_simulation_time": 16.8,
+                "snapshot_started_monotonic": 222648.536088283,
+                "snapshot_finished_monotonic": 222648.561382203
+              },
+              "age_upper_bound_s": 0.561551413993584
+            },
+            {
+              "camera": "side",
+              "capture_t": 222648.536088283,
+              "age_server_s": 0.5291806030145381,
+              "render_reference": {
+                "version": 1,
+                "source": "rpFabricTime",
+                "product": "/Render/OmniverseKit/HydraTextures/camera_sensor_7882897230138",
+                "numerator": 16800000000,
+                "denominator": 1000000000,
+                "producer_epoch": "af835af2ef1f46598fadef051f690e66",
+                "history_physics_step": 2016,
+                "history_simulation_time": 16.8,
+                "render_simulation_time": 16.8,
+                "snapshot_started_monotonic": 222648.536088283,
+                "snapshot_finished_monotonic": 222648.561382203
+              },
+              "age_upper_bound_s": 0.561551413993584
+            },
+            {
+              "camera": "proof",
+              "capture_t": 222648.536088283,
+              "age_server_s": 0.5291806030145381,
+              "render_reference": {
+                "version": 1,
+                "source": "rpFabricTime",
+                "product": "/Render/OmniverseKit/HydraTextures/camera_sensor_7882897230351",
+                "numerator": 16800000000,
+                "denominator": 1000000000,
+                "producer_epoch": "af835af2ef1f46598fadef051f690e66",
+                "history_physics_step": 2016,
+                "history_simulation_time": 16.8,
+                "render_simulation_time": 16.8,
+                "snapshot_started_monotonic": 222648.536088283,
+                "snapshot_finished_monotonic": 222648.561382203
+              },
+              "age_upper_bound_s": 0.561551413993584
+            }
+          ],
+          "elapsed_s": 2.383473284979118,
+          "scope": "startup availability only; later truth reads remain fresh"
+        },
+        "closure": [
+          {
+            "camera": "isaac",
+            "error": null,
+            "thread_ended": true,
+            "socket_closed": true
+          },
+          {
+            "camera": "isaac_side",
+            "error": null,
+            "thread_ended": true,
+            "socket_closed": true
+          },
+          {
+            "camera": "kitchen",
+            "error": null,
+            "thread_ended": true,
+            "socket_closed": true
+          }
+        ],
+        "wall_s_including_open_close": 2.511320549994707
+      },
+      "warmup_scope": "Perception and existing normal startup readiness before task; excluded from300s call and never borrowed as physical task evidence."
+    },
+    "final_checks": {
+      "local_episode_pass": true,
+      "services_resources_absent": true,
+      "both_owned_services_closed": true,
+      "bridge_clean_exit": true,
+      "ggx_expected_supervised_stop": true,
+      "external_sources_still_unchanged": true,
+      "ggx_sources_unchanged": true,
+      "models_unchanged": true,
+      "mcp_consumed_config_bound": true
+    },
+    "mcp_close": {
+      "exit_code": 0,
+      "forced": [],
+      "reader_joined": true,
+      "protocol_errors": [],
+      "group_members_before_reap": [
+        {
+          "pid": 336868,
+          "start_ticks": "22262243",
+          "boot_id": "8fee0744-f7b5-43de-b87b-b40045e98c2d",
+          "cmdline": "",
+          "state": "Z"
+        }
+      ],
+      "group_members_after_reap": [],
+      "scope": "Owned POSIX process group; no daemonized process supported. Leader held unreaped through group inspection.",
+      "birth_absent": true,
+      "clean": true
+    },
+    "service_closure": {
+      "services": {
+        "bridge": {
+          "before": {
+            "LoadState": "loaded",
+            "ActiveState": "active",
+            "SubState": "running",
+            "InvocationID": "634e8b8fc1c941d59db2d10d41dcd4a5",
+            "MainPID": "335628",
+            "Result": "success",
+            "ExecMainCode": "0",
+            "ExecMainStatus": "0",
+            "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/cascade-trial12-mcp300-04-bridge.service"
+          },
+          "target_identity": {
+            "pid": 335639,
+            "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:22256414",
+            "state": "R"
+          },
+          "fallback_group_stop": false,
+          "pidfd_birth_checked": {
+            "pid": 335639,
+            "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:22256414",
+            "state": "R"
+          },
+          "after": {
+            "LoadState": "loaded",
+            "ActiveState": "active",
+            "SubState": "exited",
+            "InvocationID": "634e8b8fc1c941d59db2d10d41dcd4a5",
+            "MainPID": "0",
+            "Result": "success",
+            "ExecMainCode": "1",
+            "ExecMainStatus": "0",
+            "ControlGroup": ""
+          },
+          "target_after": null,
+          "main_after": null,
+          "port_closed": true,
+          "wall_s": 1.3797474530001637,
+          "remaining_cgroup_pids": [],
+          "target_gpu_absent": true,
+          "resources_absent": true,
+          "unit_retired_after_record": true
+        },
+        "ggx": {
+          "before": {
+            "LoadState": "loaded",
+            "ActiveState": "active",
+            "SubState": "running",
+            "InvocationID": "dceb6df98c1b471fa64a39847bdb6495",
+            "MainPID": "335011",
+            "Result": "success",
+            "ExecMainCode": "0",
+            "ExecMainStatus": "0",
+            "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/cascade-trial12-mcp300-04-ggx.service"
+          },
+          "target_identity": {
+            "pid": 335011,
+            "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:22253746",
+            "state": "S"
+          },
+          "fallback_group_stop": false,
+          "pidfd_birth_checked": {
+            "pid": 335011,
+            "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:22253746",
+            "state": "S"
+          },
+          "after": {
+            "LoadState": "loaded",
+            "ActiveState": "active",
+            "SubState": "exited",
+            "InvocationID": "dceb6df98c1b471fa64a39847bdb6495",
+            "MainPID": "0",
+            "Result": "success",
+            "ExecMainCode": "2",
+            "ExecMainStatus": "15",
+            "ControlGroup": ""
+          },
+          "target_after": null,
+          "main_after": null,
+          "port_closed": true,
+          "wall_s": 0.22422851499868557,
+          "remaining_cgroup_pids": [],
+          "target_gpu_absent": true,
+          "resources_absent": true,
+          "unit_retired_after_record": true
+        }
+      },
+      "resource_absence": true,
+      "scope": "Stop only birth/invocation-bound own service processes. GGX default SIGTERM status retained, not described as clean zero exit."
+    },
+    "source_unchanged": true,
+    "external_sources_unchanged": true,
+    "protected_stores_unchanged": true,
+    "all_cascade_imports_owned": true,
+    "prior_failures": [
+      {
+        "episode": 1,
+        "pass": false,
+        "reason": "Wrong health encoding: readiness failed before Isaac and any action; fixed msgpack only in next episode.",
+        "receipts": [
+          "mcp300-01/startup-failure-and-closure.json"
+        ]
+      },
+      {
+        "episode": 2,
+        "pass": false,
+        "reason": "First400-grasp inference16.476s exceeded unchanged8s before any actuation; independent motion refuted. Added existing normal launcher diffusion readiness before Isaac in next episode.",
+        "receipts": [
+          "mcp300-02/final-summary.json",
+          "mcp300-02/failure-analysis.json"
+        ]
+      },
+      {
+        "episode": 3,
+        "pass": false,
+        "reason": "Pick198.487741s and reset26.972930s succeeded physically, but all-event camera audit correctly refused initial sample0: all3camera ages2.134897s>2s. Kept FAIL; next episode calls full existing startup readiness, not partial physics probe.",
+        "receipts": [
+          "mcp300-03/final-summary.json",
+          "mcp300-03/failure-analysis.json",
+          "mcp300-03/camera-failure-audit.json"
+        ]
+      }
+    ],
+    "software_checks": {
+      "observer_targeted": {
+        "passed": 62,
+        "seconds": 15.54
+      },
+      "full_readiness_tcp_control": {
+        "passed": 4,
+        "seconds": 11.73,
+        "scope": "CPU synthetic server; actualTCP/CameraRig/helper; no physics evidence"
+      }
+    },
+    "reproduction": {
+      "cwd": "/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/cascade",
+      "source": "c12c641; review all pinned hashes and use fresh unoccupied units/ports/run directories. Do not reuse this episode.",
+      "prepare": "PYTHONPATH=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/cascade/src /home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python /home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/prepare_mcp300_04.py",
+      "start": "PYTHONPATH=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/cascade/src /home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python /home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300_04_services.py provenance; then start",
+      "client": "PYTHONPATH=/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/cascade/src /home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python /home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300_04_client.py --plan /home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300-04/plan.json",
+      "close": "/usr/bin/python3 /home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300_04_services.py close",
+      "finalize": "/usr/bin/python3 /home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/mcp300_04_finalize.py"
+    },
+    "artifact_root": "/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY",
+    "artifacts": {
+      "mcp300-04/plan.json": {
+        "sha256": "eb7451ad738182a2d4d962a1d7e22e48d495cb6a505029b682a4adb82c9b5919",
+        "size_bytes": 8378
+      },
+      "mcp300-04/receipt.json": {
+        "sha256": "d6e73e91d8e2e2420851bea51bf647e85fb82942b2bada4a77e941caca9e1d48",
+        "size_bytes": 594179
+      },
+      "mcp300-04/final-summary.json": {
+        "sha256": "975a2e1708e6725f7ec2777e41432633b1bd8afb7e7e6668942988f8a2e9cdcd",
+        "size_bytes": 21741
+      },
+      "mcp300-04/services-owner.json": {
+        "sha256": "27123db7e658470e2269c9f2cf8fa47ff4eb456717c204d250d9aeb27c62ebf4",
+        "size_bytes": 10767
+      },
+      "mcp300-04/services-closure.json": {
+        "sha256": "d7c83ad624b4b96f73953563afc3e86a8fd5341a539f32859fe08aae08ed8482",
+        "size_bytes": 2898
+      },
+      "mcp300-04/verification-readiness.json": {
+        "sha256": "c20bd54d4d660f6a3f7afdb21d40a2f3e548fe2e0021ff6e33a149b8b98d2cdd",
+        "size_bytes": 5683
+      },
+      "mcp300-04/graspgenx-readiness.json": {
+        "sha256": "ba73f21f93be3b3c1c1edb9626cbbec0fd41453cde2c80d19dd444a019685a7f",
+        "size_bytes": 1038
+      },
+      "mcp300-04/config-diff.json": {
+        "sha256": "8eb657f15248fdf98078185fdf4c66ce3e5c2df6f38b6785248462ce28dca2e7",
+        "size_bytes": 2712
+      },
+      "mcp300-04/resolved-original.json": {
+        "sha256": "e76abd679b4fca32c8c774a5ff5d0fe1f8635a425cbfb5c5bdd93228384aca72",
+        "size_bytes": 28024
+      },
+      "mcp300-04/resolved-effective.json": {
+        "sha256": "6a194211a5a55147dcc517133594fc6915aedd68ee019e5230bb4defd3c372cb",
+        "size_bytes": 28024
+      },
+      "mcp300-04/source-before.json": {
+        "sha256": "d6b07b16352b0d1296b296f79a8226e975f01e95b86d70ec35d01e8baf9d45d5",
+        "size_bytes": 171488
+      },
+      "mcp300-04/source-after.json": {
+        "sha256": "d6b07b16352b0d1296b296f79a8226e975f01e95b86d70ec35d01e8baf9d45d5",
+        "size_bytes": 171488
+      },
+      "mcp300-04/external-source-before.json": {
+        "sha256": "e8960de1de9bb88f022455cffff2a173ea41af98bbd1d5d7cd8bc65664a652b0",
+        "size_bytes": 11554
+      },
+      "mcp300-04/external-source-after.json": {
+        "sha256": "e8960de1de9bb88f022455cffff2a173ea41af98bbd1d5d7cd8bc65664a652b0",
+        "size_bytes": 11554
+      },
+      "mcp300-04/model-source-provenance.json": {
+        "sha256": "2bcfedfd2ef86c80e225fe27c57dbf70e7951a17c46b86ccc69033d0da479bec",
+        "size_bytes": 359123
+      },
+      "mcp300-04/mcp-effective-config-at-startup.json": {
+        "sha256": "6a194211a5a55147dcc517133594fc6915aedd68ee019e5230bb4defd3c372cb",
+        "size_bytes": 28024
+      },
+      "mcp300-04/mcp-imports-after.json": {
+        "sha256": "b0178343a67abb4bac84a08839e9cd949972157365e3258f88162362543ecfbe",
+        "size_bytes": 17569
+      },
+      "mcp300-04/client-imports-after.json": {
+        "sha256": "574682f2dea2c768669cc1ce36f4caeeafdd99c20ff020519547d5f41ad4bdf1",
+        "size_bytes": 13157
+      },
+      "mcp300-04/protected-before.json": {
+        "sha256": "637e76028a773d7a47ca4936664ece73d96d826b145fb9e6fc5aee0bb5d82c0f",
+        "size_bytes": 209
+      },
+      "mcp300-04/protected-after.json": {
+        "sha256": "637e76028a773d7a47ca4936664ece73d96d826b145fb9e6fc5aee0bb5d82c0f",
+        "size_bytes": 209
+      },
+      "mcp300-04/mcp-wire.jsonl": {
+        "sha256": "0f8d1a57f1752e45739a908ee6e49fbe7c8da73eab18d84982b2c8da31cadc88",
+        "size_bytes": 92131
+      },
+      "mcp300-04/ggx.log": {
+        "sha256": "b0b4a6c3ec12f49dff05fc2065c5ae5416edb83f13ea0748631d3b1b886b2ca8",
+        "size_bytes": 4995
+      },
+      "mcp300-04/bridge.log": {
+        "sha256": "a83bd9a9933539c898666e4f811c82b139f62377ec28e904a820c2fe98f292e4",
+        "size_bytes": 38997
+      },
+      "cascade/runs/mcp300-04/witness/samples.jsonl": {
+        "sha256": "0887865009fcb558203c9de7f8942b24d1a45ec60d4b60881b947c773c207291",
+        "size_bytes": 12665530
+      },
+      "cascade/runs/mcp300-04/witness/wire.jsonl": {
+        "sha256": "0eae1edbc43844f6af9bc66f3830e8b5e82861d2b81b4abdb35b564e8c454f88",
+        "size_bytes": 5741446
+      },
+      "cascade/runs/mcp300-04/witness/phases.json": {
+        "sha256": "da7fde88efc16a23c0214b7921072a7b4b24e359577f8368b149684ed7e9d60a",
+        "size_bytes": 355
+      },
+      "cascade/runs/mcp300-04/witness/gpu-physical-audit.json": {
+        "sha256": "461849f399ea12595c7a684f5ee0caa71b5cbe26cf2b4cecdce0945ac656890e",
+        "size_bytes": 430154
+      },
+      "cascade/runs/mcp300-04/witness/snapshot-code.py": {
+        "sha256": "25a7551f4745725f7cf660f475247c6aa8d1ed13ef21ca8ca2f2ad868e685e62",
+        "size_bytes": 16845
+      },
+      "cascade/runs/mcp300-04/witness/metadata.json": {
+        "sha256": "42ee0b1c68792dc429618de2d200ac72f77a3d5bf69554cb29a1b503143e4e23",
+        "size_bytes": 2920
+      },
+      "cascade/runs/mcp300-04/witness/placed-frames.json": {
+        "sha256": "fea76766b976e3253b1ac4513c5c3559463683eca50ca9e2fb46f2fb7901a651",
+        "size_bytes": 3227
+      },
+      "cascade/runs/mcp300-04/witness/placed-side.jpg": {
+        "sha256": "9c57f1236c8f7105d82d3673a6738c6a7f9492d1cea8f7a8342be70cf0658dfc",
+        "size_bytes": 37157
+      },
+      "cascade/runs/mcp300-04/witness/placed-proof.jpg": {
+        "sha256": "968d7a3ee5d9d35ead2beab345af230a561019cd5d36a3290d0932eac6223bbe",
+        "size_bytes": 44680
+      },
+      "cascade/runs/mcp300-04/witness/reset-frames.json": {
+        "sha256": "5a2c20979d565efa64d224480b59332e9f1fc7c0e7ce7c59f171ca1c9dafe65a",
+        "size_bytes": 3218
+      },
+      "cascade/runs/mcp300-04/witness/reset-proof.jpg": {
+        "sha256": "e564701390824dc0c2f65753ad019add27dcccd1af38751edb8be7dfa318a5bd",
+        "size_bytes": 45083
+      },
+      "mcp300_04_client.py": {
+        "sha256": "2b59dc65783074da5e9fd66412ffb38bac4b9f69f62950fe70477db91e49847b",
+        "size_bytes": 21439
+      },
+      "mcp300_04_wrapper.py": {
+        "sha256": "12c9e6d7ca1a4ed8bea57aed9022f741028382383979badd523203b6e31d0657",
+        "size_bytes": 1308
+      },
+      "mcp300_04_services.py": {
+        "sha256": "11cfac636b9e65fa4e6335ba5deb015923ae61f2acd4cccc7ca515a8606627b6",
+        "size_bytes": 11322
+      },
+      "mcp300_04_finalize.py": {
+        "sha256": "d143e707b5443b22b47e0bee91900092464299b301dd7974c0b658254340b429",
+        "size_bytes": 2385
+      },
+      "prepare_mcp300_04.py": {
+        "sha256": "4baa522eedcc07397a19225b597a2a4b34c014aed6ba1c800453c9db5de3e806",
+        "size_bytes": 6181
+      },
+      "mcp300-readiness-control/receipt.json": {
+        "sha256": "74e2d263b3e93955ec962ed307c799450ead289c7030ee6684590cfcaea4afa6",
+        "size_bytes": 3035
+      },
+      "mcp300-readiness-control/client-functional.diff": {
+        "sha256": "15c151dfcfab988a18e3b8453df06330b2195c29f4011cdf6d75b8e632b2faec",
+        "size_bytes": 5976
+      },
+      "cascade/runs/mcp300-04/runtime/trace.jsonl": {
+        "sha256": "e6cbc99c6686b9a2f44cf9fed77bcf0487f127ca6bd7785201b468bb7ca62b5c",
+        "size_bytes": 10484
+      },
+      "cascade/runs/mcp300-04/grasp-evidence/1790977550238603361-336868-fc48e64c189c47718b7d97242e8b174e.json": {
+        "sha256": "bcb00c0e4d0a4ce6392dbd4e581b2eff76ca643fc206776cd5bd029b5b86e3ca",
+        "size_bytes": 4349415
+      },
+      "mcp300-01/startup-failure-and-closure.json": {
+        "sha256": "d020ad289c9775045f84827b900add1fca444b06bfda43f53231487e1206ece0",
+        "size_bytes": 1084
+      },
+      "mcp300-02/final-summary.json": {
+        "sha256": "e475c2fd037853bb5f80fc8f3adc9549fe7b3fdc2e8f1eedc498d6a1d94cee2b",
+        "size_bytes": 7986
+      },
+      "mcp300-02/failure-analysis.json": {
+        "sha256": "6a5e7cc34fc4988c29738ef69b289f1587c644b55339693bc71a346c00273ba3",
+        "size_bytes": 6108
+      },
+      "mcp300-03/final-summary.json": {
+        "sha256": "879c63957d9b922fc29d600937aeade0dd7767714a0c8d511dd4e4f571ea2805",
+        "size_bytes": 21780
+      },
+      "mcp300-03/failure-analysis.json": {
+        "sha256": "486b4d05f72579b6ecd55ccebf70f8c1794560710161eb94c1f684556e05db67",
+        "size_bytes": 5532
+      },
+      "mcp300-03/camera-failure-audit.json": {
+        "sha256": "6bfe7ce206ca7e88b73aa18a1dc590d5a97f47cfbb8ef0d58d0a0bd2a0e4fd9d",
+        "size_bytes": 2242
+      }
+    }
+  }
+}

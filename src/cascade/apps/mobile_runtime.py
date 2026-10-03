@@ -30,7 +30,9 @@ def build_mobile_runtime(cfg, run_dir, *, checkers=None):
     from ..sim.mobile_frames import MobileFrameReader, camera_profiles
 
     frame_readers = {p["name"]: MobileFrameReader(p) for p in profiles if camera_profiles(p)}
-    bases = [SafeBase(make_base(p), p["resolved"]["safety"]) for p in profiles]
+    bases = [SafeBase(make_base(p), p["resolved"]["safety"],
+                      distance_control=p.get("distance_control"),
+                      support_contract=p.get("support_contract")) for p in profiles]
     rig = MobileRig(bases, [p["name"] for p in profiles])
     memory_cfg = cfg.memory
     memory = EpisodicMemory(horizon_s=memory_cfg.get("horizon_s", 15.0),

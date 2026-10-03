@@ -656,7 +656,8 @@ def test_render_does_not_tick_physics_and_stale_render_rejected():
         capture_bound_rgb(ns, app, readback, updates=3)
 
 
-def test_native_property_replacement_is_explicit_and_only_startup():
+@pytest.mark.parametrize('effort_cap', [None, 7.4*.36601349688984386/2.8113923539223227])
+def test_native_property_replacement_is_explicit_and_only_startup(effort_cap):
     from types import SimpleNamespace as NS
     from cascade.sim.microduck_newton import prepare_native_model
     model = NS()
@@ -667,15 +668,22 @@ def test_native_property_replacement_is_explicit_and_only_startup():
     notifications = []
     ns = NS(model=model, solver=NS(notify_model_changed=notifications.append))
     newton = NS(ModelFlags=NS(JOINT_DOF_PROPERTIES='properties'))
-    result = prepare_native_model(ns, np.arange(6, 20), source_cap=.96, newton=newton)
+    result = prepare_native_model(ns, np.arange(6, 20), source_cap=.96, newton=newton, effort_cap=effort_cap)
     assert notifications == ['properties']
     assert result['before']['joint_effort_limit'] == [1e6]*14
-    np.testing.assert_allclose(result['after']['joint_effort_limit'], [.96]*14)
+    np.testing.assert_allclose(result['after']['joint_effort_limit'], [effort_cap or .96]*14)
     np.testing.assert_allclose(result['after']['joint_damping'], [.005359668274599504]*14)
     np.testing.assert_allclose(result['after']['joint_armature'], [.0018077432831600838]*14)
     assert model.joint_damping.numpy()[0] == np.float32(.053)  # never edit free-root properties
     with pytest.raises(ValueError):
         prepare_native_model(ns, np.arange(6, 20), source_cap=.96, newton=newton)
+
+
+@pytest.mark.parametrize('effort_cap', [True, float('nan'), float('inf'), -1., .95, 2.])
+def test_unpinned_effort_cap_rejected_before_model_access(effort_cap):
+    from cascade.sim.microduck_newton import prepare_native_model
+    with pytest.raises(ValueError, match='effort cap'):
+        prepare_native_model(None, (), source_cap=.96, newton=None, effort_cap=effort_cap)
 
 
 @pytest.mark.parametrize('wrong', ['joint_damping', 'joint_armature', 'joint_effort_limit', 'joint_target_ke'])

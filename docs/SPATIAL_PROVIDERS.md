@@ -5,6 +5,11 @@ landmark memory and planar route planning. The `spatial_replay` robot profile
 exercises the real composed runtime and MCP with synthetic observations. It has
 no actuator resources and exposes no navigation execution tool.
 
+The separate [retained RGB-D path](RGBD_SPATIAL_OBSERVATIONS.md) now connects an
+explicit `SensorHub` to these same transform and memory contracts. It records
+selected surface pixels as caller annotations, using capture-bound calibration
+and provenance. It does not construct a grid or expose route planning.
+
 This is the first implementation of the replay increment proposed in
 [the HomeBody comparison](HOMEBODY_COMPARISON.md). It is not a HomeBody port,
 SLAM system, physical localization source or admitted mobile-manipulation stack.

@@ -1,0 +1,374 @@
+{
+  "artifacts": {
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_READINESS_V1/READINESS01_RESULT.json": "ed1f256f0ef749285d28a98f4ecd96beae0f93acb14587f19029c980cc486c7a",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_PRECOMPILE/cpu_factories_probe_scene.py": "fe154942f441390d3bb90d93c1af298d74d302a318f0931575d618661997d093",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_PRECOMPILE/validation/cpu-factories-01.log": "27724bad99b8a74e7cd3436579f5c46267c17ddb7bcc79cbe2f1877d479af57c",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_PRECOMPILE/validation/cpu-factories-02.log": "5ec8059f8890e30212ff2e3a950ee9a60cfaac0be61d37a8eb2f78e22b8496e8",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_PRECOMPILE/validation/cpu-factories-final.log": "1e16ca0c12463cefeda0f3b8dd437d098147d8f9e0c08a955920609f9111e4b0",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_PRECOMPILE/validation/cpu-factories-scene.json": "4f3f27113170c9954dfac0da489dbbb0fbd1073be84048a1b3913332ecd3f95f",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_PRECOMPILE/validation/cpu-factories-scene.log": "e49e85a8e29f5343d202e0563719dec090fa1d35fb2da7014bad3a62597239fe",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_PRECOMPILE/validation/cpu-representation-01.log": "270991cf10e063b7d7a3b49bb8c13adaf1eaf60a9a09b9f3b2036b7cf961ee34",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_PRECOMPILE/validation/cpu-representation-02.log": "c9bf8b58c6a3bdeeff5d24a6588a633e3ce42dcae34d5fcf9ef3340346f1cba3",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_PRECOMPILE/validation/cpu-representation-03.log": "bc8e1c83eeeb77bde2fabb1aa8b3bfad2cec4add251e87627188f9eb26671bb5",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_PRECOMPILE/validation/cpu-representation-04.log": "5281037b884a34a33142841fccaa3b036801ece6a820e6c64ec9ee8f1e63d1b7",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_PRECOMPILE/validation/focused-scene-final/after.json": "19d534fded6239a67aed15c09cecd6dc79a32ed053a4d96610009665fd67beab",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_PRECOMPILE/validation/focused-scene-final/before.json": "19d534fded6239a67aed15c09cecd6dc79a32ed053a4d96610009665fd67beab",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_PRECOMPILE/validation/focused-scene-final/junit.xml": "9eb0aec154fbad7814ef785d0905a4eec36be3ae55a697b0cc73800345c5884c",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_PRECOMPILE/validation/focused-scene-final/pytest.log": "c64d14b0c84b409867a63d3483a433891df263ec4e965115dd07c81cfeb91614",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_PRECOMPILE/validation/focused-scene-final/result.json": "c3328ca8b9c10f92d7711bc6464beacfe664c41f9e934ebb9fdb093e2f8b8f46",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_PRECOMPILE_REVIEW/MJW_COVERAGE.json": "e2475ececc1380a0b1f2a7ac856040637b5310b088b70e1af5bffa3f54c2190b"
+  },
+  "base_commit": "7851e47424a7fc7d00900e5ae99027f6b778aa3c",
+  "cpu_tests": {
+    "inputs_unchanged": true,
+    "normal_conftest": true,
+    "passed": 448,
+    "protected_stores_unchanged": true,
+    "skip_scope": "missing local SO101 assets in authoring tests; no new tests skipped",
+    "skipped": 4,
+    "wall_s_pytest": 1.62
+  },
+  "finite_inventory": {
+    "mjw_pure_factories": 20,
+    "mjw_static_variants": 8,
+    "newton_variants": 11,
+    "total": 39
+  },
+  "limitations": [
+    "Native module log records only7hex prefixes, so comparison is not full cryptographic equality",
+    "39 CUDA executable loads and exact Factory allocation traversal remain unvalidated",
+    "No new model identity prepared or admitted",
+    "No GPU/simulator/Factory solver/owner constructed in these controls",
+    "Cold readiness, future branches and performance remain unvalidated;10s/120s/240s unchanged",
+    "Private CPU cache was reused for source-bound load; no cold GPU PASS claim"
+  ],
+  "precompile_recipe": "factory_nv19_dense_compile_v1",
+  "prefix_comparison": [
+    {
+      "block_dim": 256,
+      "cpu_module_hash": "8d4d5139ae22259351f81ed5689ed9f9969cb94006f87a161f644b8e1d5affa8",
+      "label": "mujoco_warp._src.constraint",
+      "parameters_from_cpu_model": [],
+      "prefix_equal": true,
+      "retained_native_prefix": "8d4d513"
+    },
+    {
+      "block_dim": 32,
+      "cpu_module_hash": "4b557892caa0dba17599fd04c69433f8e14c023ff0243f0dbed1647fe2511576",
+      "label": "mujoco_warp._src.forward",
+      "parameters_from_cpu_model": [],
+      "prefix_equal": true,
+      "retained_native_prefix": "4b55789"
+    },
+    {
+      "block_dim": 256,
+      "cpu_module_hash": "80f3681a301acca56c63f5253f429ae2a1059df9b5fe22609008f6e867a6ce42",
+      "label": "mujoco_warp._src.passive",
+      "parameters_from_cpu_model": [],
+      "prefix_equal": true,
+      "retained_native_prefix": "80f3681"
+    },
+    {
+      "block_dim": 256,
+      "cpu_module_hash": "a1745d1f3073c4c444b85affe8810f4caaa2c381de5b809a9b757ea4066954ff",
+      "label": "mujoco_warp._src.forward",
+      "parameters_from_cpu_model": [],
+      "prefix_equal": true,
+      "retained_native_prefix": "a1745d1"
+    },
+    {
+      "block_dim": 256,
+      "cpu_module_hash": "a59a7bc676fd41d2f4d0de4e25f4221d929ea7a2d85c8c3015f4037e4db2802e",
+      "label": "mujoco_warp._src.support",
+      "parameters_from_cpu_model": [],
+      "prefix_equal": true,
+      "retained_native_prefix": "a59a7bc"
+    },
+    {
+      "block_dim": 256,
+      "cpu_module_hash": "357f443deb009a0c034c5a90117101f5ea7e70dd1eccb31c9b5c838466aa2296",
+      "label": "mujoco_warp._src.solver",
+      "parameters_from_cpu_model": [],
+      "prefix_equal": true,
+      "retained_native_prefix": "357f443"
+    },
+    {
+      "block_dim": 256,
+      "cpu_module_hash": "830d16a68f41516333a2a84ae57e96a9a43ebb02ad78c6864f9e481edb9c5fe7",
+      "label": "mujoco_warp._src.sensor",
+      "parameters_from_cpu_model": [],
+      "prefix_equal": true,
+      "retained_native_prefix": "830d16a"
+    },
+    {
+      "block_dim": 256,
+      "cpu_module_hash": "8222a58d5092f45170a44096dfbe0782397094129c506a41406542fe520ffeb9",
+      "label": "mujoco_warp._src.derivative",
+      "parameters_from_cpu_model": [],
+      "prefix_equal": true,
+      "retained_native_prefix": "8222a58"
+    },
+    {
+      "block_dim": 256,
+      "cpu_module_hash": "22ded5f6e3f70ccdc98d36c3d563fec453880a6c89c066728843ca4ec756d92d",
+      "label": "constraint._friction_dof",
+      "parameters_from_cpu_model": [
+        false,
+        true
+      ],
+      "prefix_equal": true,
+      "retained_native_prefix": "22ded5f"
+    },
+    {
+      "block_dim": 256,
+      "cpu_module_hash": "24a318de9a5612b864273c07dba5d4873253def47bba24e2fd8833906a9cde44",
+      "label": "constraint._limit_slide_hinge",
+      "parameters_from_cpu_model": [
+        false,
+        true
+      ],
+      "prefix_equal": true,
+      "retained_native_prefix": "24a318d"
+    },
+    {
+      "block_dim": 256,
+      "cpu_module_hash": "54f1cc8c71366c7f3ec3fee675fd10bdfc949c5c19842d9f8102e723c5de9387",
+      "label": "constraint._efc_contact_init",
+      "parameters_from_cpu_model": [
+        1,
+        false,
+        true
+      ],
+      "prefix_equal": true,
+      "retained_native_prefix": "54f1cc8"
+    },
+    {
+      "block_dim": 32,
+      "cpu_module_hash": "747ee663be96106689b96fdff7453054fbf20db8cdf4d0f2085f4d5453da1099",
+      "label": "constraint._efc_contact_jac_dense",
+      "parameters_from_cpu_model": [
+        32,
+        1
+      ],
+      "prefix_equal": true,
+      "retained_native_prefix": "747ee66"
+    },
+    {
+      "block_dim": 256,
+      "cpu_module_hash": "212e1c0ac7e20d110fd2e3944ea2e5000a3d08f70f4fbde1deeff984a9ccd8c7",
+      "label": "constraint._efc_contact_update",
+      "parameters_from_cpu_model": [
+        1
+      ],
+      "prefix_equal": true,
+      "retained_native_prefix": "212e1c0"
+    },
+    {
+      "block_dim": 256,
+      "cpu_module_hash": "8b8239800028c3347cbdec671bc7236bda0c1c4e51c234890e905f80a4431342",
+      "label": "forward._qfrc_smooth",
+      "parameters_from_cpu_model": [
+        false
+      ],
+      "prefix_equal": true,
+      "retained_native_prefix": "8b82398"
+    },
+    {
+      "block_dim": 64,
+      "cpu_module_hash": "a5c25216ded69fa4f40de21098e0fc93075384091321391d90fb9127bc26417c",
+      "label": "smooth._small_cholesky_factorize_solve_block",
+      "parameters_from_cpu_model": [
+        6
+      ],
+      "prefix_equal": true,
+      "retained_native_prefix": "a5c2521"
+    },
+    {
+      "block_dim": 32,
+      "cpu_module_hash": "3050df1a1fa78a39e1c5cb92b3729de880a5ec934ca239b5f62c42663cbe29ac",
+      "label": "smooth._tile_cholesky_factorize_solve_block",
+      "parameters_from_cpu_model": [
+        13
+      ],
+      "prefix_equal": true,
+      "retained_native_prefix": "3050df1"
+    },
+    {
+      "block_dim": 256,
+      "cpu_module_hash": "021c7a0e32df52334e90fc051f6c062a53f3da6ca4bdc7892ee3871d792dcdaf",
+      "label": "solver._solve_init_dof",
+      "parameters_from_cpu_model": [
+        true,
+        false
+      ],
+      "prefix_equal": true,
+      "retained_native_prefix": "021c7a0"
+    },
+    {
+      "block_dim": 256,
+      "cpu_module_hash": "69d8b18edb73448ec278796e8ee1507707afa08d0fd981ec4d8f6274e3631cff",
+      "label": "solver._solve_init_jaref_kernel",
+      "parameters_from_cpu_model": [
+        false,
+        19,
+        50,
+        false
+      ],
+      "prefix_equal": true,
+      "retained_native_prefix": "69d8b18"
+    },
+    {
+      "block_dim": 256,
+      "cpu_module_hash": "f3de1cc761e7b4e27906c7b72537713f3be8b3fe5ccc73b960b3c1c54ee339ff",
+      "label": "support.mul_m_kernel",
+      "parameters_from_cpu_model": [
+        true
+      ],
+      "prefix_equal": true,
+      "retained_native_prefix": "f3de1cc"
+    },
+    {
+      "block_dim": 256,
+      "cpu_module_hash": "0539aa50fe80318c205c100c146cc6bf5df19f7dac0ab2aaa2c9751ba9c06a5d",
+      "label": "solver._update_constraint_efc",
+      "parameters_from_cpu_model": [
+        false
+      ],
+      "prefix_equal": true,
+      "retained_native_prefix": "0539aa5"
+    },
+    {
+      "block_dim": 256,
+      "cpu_module_hash": "bd7ca2ec31dcb9ee8679456c3dacaab4422d5c2b3062af48e92b25c2bc648da8",
+      "label": "solver._update_constraint_init_qfrc_constraint_dense",
+      "parameters_from_cpu_model": [
+        false
+      ],
+      "prefix_equal": true,
+      "retained_native_prefix": "bd7ca2e"
+    },
+    {
+      "block_dim": 256,
+      "cpu_module_hash": "b20934d7ae4b8e5b37fdb02478132b88b3a442631b6750781b29e6190c34121c",
+      "label": "solver._update_gradient_zero_grad_dot",
+      "parameters_from_cpu_model": [
+        false
+      ],
+      "prefix_equal": true,
+      "retained_native_prefix": "b20934d"
+    },
+    {
+      "block_dim": 256,
+      "cpu_module_hash": "c876081d220c2cee966bc92907772c4e7e6747b4abb8300005c89de4757973fc",
+      "label": "solver._update_gradient_grad",
+      "parameters_from_cpu_model": [
+        false
+      ],
+      "prefix_equal": true,
+      "retained_native_prefix": "c876081"
+    },
+    {
+      "block_dim": 128,
+      "cpu_module_hash": "8bc6142cc085bfdde033d340ae813250989b851c7061c56316d984b005080aec",
+      "label": "solver._update_gradient_JTDAJ_dense_tiled",
+      "parameters_from_cpu_model": [
+        20,
+        16,
+        4096,
+        97
+      ],
+      "prefix_equal": false,
+      "retained_native_prefix": "f33ed94"
+    },
+    {
+      "block_dim": 64,
+      "cpu_module_hash": "7da6856bbae30488adcb7b0af2679a7cb7517539e04aa0d37653a71a5be09658",
+      "label": "solver._update_gradient_cholesky",
+      "parameters_from_cpu_model": [
+        19,
+        false
+      ],
+      "prefix_equal": true,
+      "retained_native_prefix": "7da6856"
+    },
+    {
+      "block_dim": 32,
+      "cpu_module_hash": "9a56c33d16959c1377f0000a4480ea04106f4c3fc3f0d1a7e212e16a50967314",
+      "label": "solver._linesearch_iterative_kernel",
+      "parameters_from_cpu_model": [
+        100,
+        1,
+        true,
+        false,
+        false,
+        true
+      ],
+      "prefix_equal": true,
+      "retained_native_prefix": "9a56c33"
+    },
+    {
+      "block_dim": 256,
+      "cpu_module_hash": "0c4a4b4d0ffd16f4a8d3a22f92593c79a18da172d5b897c48fedaa699b2ac81a",
+      "label": "solver._solve_done",
+      "parameters_from_cpu_model": [
+        true
+      ],
+      "prefix_equal": true,
+      "retained_native_prefix": "0c4a4b4"
+    },
+    {
+      "block_dim": 256,
+      "cpu_module_hash": "f604e0b377ac06018b5e3c487f4a480da5aea3310f6efba390cdcc4476b83f4b",
+      "label": "forward._next_time_builder",
+      "parameters_from_cpu_model": [
+        true
+      ],
+      "prefix_equal": true,
+      "retained_native_prefix": "f604e0b"
+    }
+  ],
+  "real_sdk_cpu": {
+    "CPU_block_dim": 1,
+    "CUDA_devices": [],
+    "arrays_unchanged": 1627,
+    "load_s": 0.0004402490158099681,
+    "loaded_kernel": "solver._solve_done",
+    "model": "minimal nv19 tree, not Factory geometry",
+    "physics_steps": 0,
+    "scope": "one generated CPU module loaded; zero launches; scene IK/authoring and class constants also observed",
+    "snapshot_sha256": "9b4cce6ed9fc10a438fe9b0e204aad78bb6b7958871353a766b7e03ecd913c67",
+    "solver_constructed": false
+  },
+  "retained_failures": [
+    "CPU probe01 missing PyYAML; loaded only explicit read-only PyYAML package in later probes",
+    "CPU probe02 unsupported set field; added exact set traversal",
+    "CPU probe03 followed Warp global Runtime lock; excluded compiler/device infrastructure from physical traversal",
+    "Class-field mutation controls initially exposed temporary dictionary id reuse; snapshot now retains object references",
+    "Python3.10 missing add_note control preserves original exception when persistence also fails",
+    "Original native readiness01 remains failed at10s; no repeated native episode"
+  ],
+  "schema_version": 1,
+  "scope": "CPU software and real pinned SDK definition/readback controls only",
+  "separate_retained_parameter_control": {
+    "args": [
+      20,
+      16,
+      4096,
+      90
+    ],
+    "factory": "_update_gradient_JTDAJ_dense_tiled",
+    "hash": "f33ed94a2c98ea3c2dd3c2c9e294e43841dd6f8bda0817a3923828fcbff3228e",
+    "model_mutated": false,
+    "native_prefix": "f33ed94",
+    "note": "CPU minimal model CSR width97 differs; this is a pure definition call using width90 retained in native generated source"
+  },
+  "source_sha256": {
+    "configs/robots/factory_m20_precompile_v1.yaml": "09e1e55e715193a4b2502a73d8698380dbbcaf4d75dd738de0397cf061e753b5",
+    "pyproject.toml": "71b84b2ad37f9aca576aaaedf710243e7335494e45bb3a61307ea9d1402c8510",
+    "src/cascade/apps/factory_runtime.py": "0a6ba7b5ccfbdff8e9022141c88b61278f7e470633cf0f7d05bea4ef9be04174",
+    "src/cascade/sim/factory_model.py": "b8648db1e810af321f477595df87ea1193b6d16803dc607b85bbce07b001295b",
+    "src/cascade/sim/factory_precompile.py": "06e2789ef76f1b62e251aec774abae73825a8ae08de9fb5f1af4214050b6850a",
+    "src/cascade/sim/factory_precompile_pins.json": "db2630be817dad00546671e4f00253c4b1efd82fe4508ce6a40dfbd1a893d4ab",
+    "tests/test_factory_precompile.py": "11204730c1ddc95e334a256a79c4dd7fe1df50981f115f669c2f33b03149707b"
+  }
+}

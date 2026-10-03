@@ -1,0 +1,91 @@
+{
+  "copies": {
+    "arena-native.json": {
+      "bytes": 29963,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/PROJECT_STATUS_NEXT/cascade/docs/evidence/arena-native/20261002.json",
+      "sha256": "5e32a7a9b90f419c605ae5b4072ef6f4475ef68ade727b9910dce9bd03a32a80"
+    },
+    "factory-contact-writer-cpu.json": {
+      "bytes": 4097,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/PROJECT_STATUS_NEXT/cascade/docs/evidence/robot-modularity/factory-contact-writer-cpu.json",
+      "sha256": "988d66d446be1da13848fa77e0fb89cdc78383e62aa984a0c5eaea2e7a939a57"
+    },
+    "factory-native-v3-prepare.json": {
+      "bytes": 3637,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/FACTORY_CONTACT_WRITER_PREP/ROOT_NATIVE01_REVIEW.json",
+      "sha256": "f5cc3c404edabdd2b0ef4115704b905086123777a59455d9592e42cd97c74296"
+    },
+    "factory-readiness-v2-review.json": {
+      "bytes": 90318,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/PROJECT_STATUS_NEXT/cascade/docs/evidence/robot-modularity/factory-readiness-v2-review.json",
+      "sha256": "9b614b8276602b4ccef30cbe2f78d68a381930f0165ce5ed2f912226d5922719"
+    },
+    "github-publication.json": {
+      "bytes": 7542,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/PUBLISH_STATUS_20261003/github-publication-03.json",
+      "sha256": "e4a0fde7a4343728c99e4fb8a8074000701e789c91c8cde5de5dd2b67278982d"
+    },
+    "kitchen-mcp-300s.json": {
+      "bytes": 31544,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/PROJECT_STATUS_NEXT/cascade/docs/evidence/robot-modularity/kitchen-mcp-300s.json",
+      "sha256": "8d7a5f607097a25b40df07339c7831523676a11b8fa03912a091db0e7fa387f9"
+    },
+    "kitchen-mcp-orange-complete.json": {
+      "bytes": 42010,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/PROJECT_STATUS_NEXT/cascade/docs/evidence/robot-modularity/kitchen-mcp-orange-complete.json",
+      "sha256": "be63f6a9457e48dd4320c648998144efa3b9a3eb5d3f2f0792d4a7e2f11cc4cf"
+    },
+    "microduck-distance-candidate.json": {
+      "bytes": 109722,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_PUBLISH_20261003/cascade/docs/evidence/robot-modularity/microduck-distance-candidate.json",
+      "sha256": "c9f410cd95cf9c5f805865ecdb5d246321384be81595d05bf37d41bf1b37f60b"
+    },
+    "microduck-video-delivery.json": {
+      "bytes": 1356,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/PROJECT_STATUS_NEXT/cascade/docs/evidence/robot-modularity/microduck-video-delivery.json",
+      "sha256": "0f2abef4ba89075f94a155db5bdb98a64bd39348dc6c49a6da772d2068cd831e"
+    },
+    "microduck-video-root-review.json": {
+      "bytes": 19509,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/PROJECT_STATUS_NEXT/cascade/docs/evidence/robot-modularity/microduck-video-root-review.json",
+      "sha256": "b0d2a139ebdf35686066bf7c60c0db7ef964739178be20d2489bd8707e410d25"
+    },
+    "mujoco-two-pick.json": {
+      "bytes": 22703,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/ATTACHMENT_PHYSICAL01_AUDIT.json",
+      "sha256": "865f53e565a02f6f3b02d31b2abc6a64fc54ed9671fbbfa7b147b6794d6e4782"
+    },
+    "realhost-trial12-observer.json": {
+      "bytes": 37185,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_OBSERVER/EPISODE01_RESULT.json",
+      "sha256": "97e0f697a42a268fb1b763e5594a3b372b9b64d1961a1e041333b87447ee238e"
+    },
+    "rgbd-checker-accuracy-cpu.json": {
+      "bytes": 4760,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/PROJECT_STATUS_NEXT/cascade/docs/evidence/robot-modularity/rgbd-checker-accuracy-cpu.json",
+      "sha256": "96fe5e60af6b5f2df284cb6429286f42596956e7ae55944f158da5478eff7172"
+    },
+    "rgbd-layout-a-native-summary.json": {
+      "bytes": 1128,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/RGBD_LAYOUT_A_NATIVE/native-result-summary.json",
+      "sha256": "7c5fdc10178b52130b61f82cd493dd6c09c6e8c1e61d5af645f8b9689404e8c2"
+    },
+    "rgbd-native02-review.json": {
+      "bytes": 1450,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/PROJECT_STATUS_NEXT/cascade/docs/evidence/robot-modularity/rgbd-native02-review.json",
+      "sha256": "c035f6249391e1dafcce65c5da269df242770b923a7bd42e2b41412e573319e5"
+    },
+    "vab-native-preflight-20261002.json": {
+      "bytes": 45676,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/PROJECT_STATUS_NEXT/cascade/docs/evidence/robot-modularity/vab-native-preflight-20261002.json",
+      "sha256": "a2ccae20accc246c082aba6874b4e8f9424522f28dd7ea72ae7769da93950137"
+    }
+  },
+  "documentation_base": "70d22deab7f4abb5e5e691386b4b5f952647abca",
+  "historical_status_source": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/PROJECT_STATUS_NEXT/cascade/docs/PROJECT_STATUS_20261002.md",
+    "sha256": "c0f956d425e661eabb4ee2f39b408c89018cdc8b8c837ae27ae106cd497ba8c0"
+  },
+  "schema_version": 1,
+  "scope": "Documentation-only byte-exact receipt copies; raw local artifacts are not relocated or re-executed. Paths in copied receipts identify their original evidence roots."
+}

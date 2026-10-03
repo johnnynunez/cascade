@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "status": "FAIL_CLOSED",
+  "producer_passed": true,
+  "live_reader_passed": true,
+  "live_planar_geometry_passed": false,
+  "global_pass": false,
+  "physical_admission": false,
+  "source_head": "917a98cd1b3ec498321b2d4a8e4c221285bcebb2",
+  "model_identity_sha256": "c9804c85dc7af8f0f04dd25da6d1504f1d6eab7ae991b0832bc4884b0ef59ca5",
+  "epoch": "8a37ea96853f434da8cac258fb28f8bb",
+  "steps": 80,
+  "policy_commits": 20,
+  "captures": 5,
+  "reader_accepted": 4,
+  "reader_attempts": 43,
+  "annotations": 0,
+  "heldout_rms_px": [
+    0.1715573007062286,
+    0.1726805908434511,
+    0.17687706307005682,
+    0.1776179157850096,
+    0.16482960934581503
+  ],
+  "heldout_max_px": [
+    0.3059948026736747,
+    0.2828364261560867,
+    0.3275677546257027,
+    0.3132752703774897,
+    0.31560930690212896
+  ],
+  "closure_ok": true,
+  "native_exit_code": 0,
+  "scope_exit_code": 0,
+  "signals": [],
+  "forced": false,
+  "inputs_unchanged": true,
+  "private_cache_unchanged_after_close": true,
+  "independent_audit_integrity_pass": true,
+  "balanced_rest_verified": false,
+  "new_native_executions_in_audit": 0
+}

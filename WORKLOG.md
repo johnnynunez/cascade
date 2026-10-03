@@ -617,3 +617,12 @@ Evidence: eight baseline causal tests fail in0.17s; final eight-file selection16
 Independent review of cfff2f2 reproduced a real composed owner whose read outlasted the unchanged five-second drain budget. After the reader returned, shutdown_runtime and MCP caches prevented its close from running. Explicit repeat calls now resume only incomplete delegated cleanup; legacy park/disconnect and the first MCP stop are not repeated. RobotRuntime propagates current complete separately from sticky historical ok, preserves direct and nested attempts, and never recasts a cached failed receipt as successful. Composed domains still require dictionary receipts; legacy synchronous drivers keep None.
 
 Causal baseline: 3 failures/1 passing no-repeat control in10.16s; a separate source export adds2 causal failures/.19s for direct history and nested completion. Final six-file selection139PASS/45.74s,568source/test/config hashes and protected stores unchanged. Added explicit persistence-error history controls; intermediate74PASS/30.53s retained as earlier limited evidence. Ruff F/E9 and diff checks pass. No native model, GPU, service, host campaign, publication or shared environment writes. Receipt: benchmark/results/runtime_teardown_retry_20261003.json. Earlier lifecycle failure remains failed even after cleanup becomes complete.
+
+### 2026-10-03 — Current capability and evidence index
+
+Added a documentation-only status index separating implementation, source-bound
+measurements, retained failures and pending admission. Updated README and the
+historical index/architecture entry points. Portable receipts retain original
+bytes and hashes; GitHub publication state is a dated read-only API snapshot.
+No current publication freeze or old video-resource reservation is introduced.
+No code, unit test, benchmark, model, SDK, physical scene or learned store changed.

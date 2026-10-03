@@ -1,0 +1,98 @@
+{
+  "schema": 1,
+  "date": "2026-10-03",
+  "base_head": "917a98cd1b3ec498321b2d4a8e4c221285bcebb2",
+  "scope": "CPU-only image localizer candidate; native failures excluded from admission; no native retry",
+  "software_tests": {
+    "passed": 185,
+    "skipped": 9,
+    "skip_reason": "Existing tests requiring unavailable pxr:5layoutA-native+1binary-native+1planar+2ground-texture",
+    "pytest_s": 26.71,
+    "inputs_unchanged": 1644
+  },
+  "corpus": {
+    "cases_per_variant": 48,
+    "baseline_flags": 2,
+    "candidate_flags": 34,
+    "paired_admission": {
+      "both_pass": 17,
+      "both_reject": 29,
+      "gain": 2,
+      "loss": 0
+    },
+    "variants": {
+      "baseline": {
+        "accepted": 17,
+        "all_outcomes": {
+          "accepted": 17,
+          "independent held-out reference error exceeds frozen pixel gates": 15,
+          "all checkerboard corners required": 16
+        },
+        "common_detection_cases": 32,
+        "common_truth_points": 1120,
+        "pooled_truth_rms_px": 0.37489843038170884,
+        "mean_case_truth_rms_px": 0.30214796350478795,
+        "max_case_truth_rms_px": 0.7748058429301784,
+        "max_point_truth_error_px": 1.688119839453264,
+        "mean_truth_bias_xy_px": [
+          -0.03228236036962819,
+          0.0018668770448769833
+        ],
+        "common_pooled_held_rms_px": 0.4176937651386394
+      },
+      "accuracy": {
+        "accepted": 19,
+        "all_outcomes": {
+          "accepted": 19,
+          "independent held-out reference error exceeds frozen pixel gates": 13,
+          "all checkerboard corners required": 16
+        },
+        "common_detection_cases": 32,
+        "common_truth_points": 1120,
+        "pooled_truth_rms_px": 0.2997563107432141,
+        "mean_case_truth_rms_px": 0.2398069390871991,
+        "max_case_truth_rms_px": 0.5637467200692167,
+        "max_point_truth_error_px": 1.1588466285223995,
+        "mean_truth_bias_xy_px": [
+          -0.016869975246511563,
+          -0.004421079192915986
+        ],
+        "common_pooled_held_rms_px": 0.25935775320401866
+      }
+    },
+    "negative_rejected": 9,
+    "negative_total": 9,
+    "common_truth_rms_improved": 30,
+    "common_truth_rms_worsened": 2,
+    "candidate_accepted_max_truth_rms_px": 0.35025830479250436,
+    "historical_accepted_max_truth_rms_px": 0.36432449086841445
+  },
+  "source_sha256": {
+    "benchmark/rgbd/binary_layout_a.py": "2a6a5d7f921effea8f2d3e56109e25b3ad0aafdd7bfa5a822b969ce03ed8362c",
+    "benchmark/rgbd/planar_reference.py": "88a68032140e199a57c993417af9044de77509d9169e603c580033000dd74eb9",
+    "benchmark/rgbd/checker_accuracy.py": "4b2ec16583350cb45182474f81dd2faac4a5c2a37a1cf483aa89c43076807936",
+    "benchmark/rgbd/checker_corpus.py": "4d86bcc013a329a70c893e5e95307f9a466cb554c31a7a1992a510377e160ef4",
+    "benchmark/rgbd/checker_accuracy_campaign.py": "ae5414fd4525253e164807f47cf60e8a185b21d8e4ceae16c193ab192ada9344",
+    "benchmark/rgbd/assets/checker_accuracy_corpus_spec.json": "dd062605ed97a30a6fcab49ee9fd1b25e5d237509898c199f35b9e203942280e",
+    "benchmark/rgbd/assets/checker_accuracy_corpus_truth.json": "758f187caee602f3422af47b7fa04414a274de049bfec3778d6554f8a34d8f10",
+    "tests/test_rgbd_checker_accuracy.py": "c70b775cd6566d22f89aa9cb8abdeacb3c69c55a631d563da0bb5b055d1d78d1",
+    "tests/fixtures/rgbd_layout_a_reference_917.json": "398e0eba6d4258b171c2af55850b10c5e6624e5f5672f1d4bc29c6299c4d9bd1"
+  },
+  "raw_artifact_root": "External sibling RGBD_CHECKER_ACCURACY",
+  "artifact_sha256": {
+    "corpus-prepare-01/receipt.json": "56bd7716c7b6bd7551119de0296c6288ff3277979ba24717eb020e313b48824e",
+    "corpus-evaluation-01/receipt.json": "00645f5d91536c611f796738721da1e6325e9b4d47f13766366d12e738d9795d",
+    "corpus-negatives-01/receipt.json": "142da1ffa421498e116685727510bc75ecfc627e3b74315e37f36264db821854",
+    "focused-final-01/receipt.json": "63b65fc0d35a18f5438829a3fc8c400e7b778835732a0a5a3888bc11fe3e3291",
+    "paired-summary.json": "127078165b3adb4e8b8307070395e9b7f52548530fcd8c6a7ef6ae7445ee57e9",
+    "analyze_saved.py": "31086f8ff0005dedb02fa498fca2f616dfa942fe4efba015cbf03ccddf030ee7",
+    "corpus-01/observations.jsonl": "062b621d9be1581db740c0db28e5033bdde5d935ed792cc3cc296e8a68fb20a6",
+    "corpus-01/negatives.jsonl": "2b33e8783d9647a5a9e6864f0e5db2a5e32ca9225a622d753a8aca42b3f00029",
+    "corpus-01/convergence.json": "7ecc18dbe79083674d10b565072e61b31b0b0e8f07eeff0112b0ee6f487902d3",
+    "corpus-01/evaluation.json": "a8343bea611023936707ed2ac8e7b01c3ceb32a217088bd4f67e04b79dc2c44f",
+    "corpus-01/prepared.json": "1d4fa1f6a47cb0993acb1569cd58b1d448a8b85a7c733941e977bbed257236eb"
+  },
+  "physical_admission": false,
+  "all_nominal_conditions_supported": false,
+  "retained_native_failures_reinterpreted": false
+}

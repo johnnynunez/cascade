@@ -44,6 +44,7 @@ def source_release(tmp_path, *, version="6.1.0"):
     release = tmp_path / "Isaac source release"
     (release / "apps").mkdir(parents=True)
     (release / "apps/isaacsim.exp.full.newton.kit").write_text(f'[package]\nversion="{version}"\n')
+    (release / "apps/isaacsim.exp.full.kit").write_text(f'[package]\nversion="{version}"\n')
     runner = release / "metadata_runner.py"
     runner.write_text(
         "import runpy,sys\n"
@@ -55,9 +56,10 @@ def source_release(tmp_path, *, version="6.1.0"):
 
 
 @pytest.mark.parametrize("check", [True, False])
-def test_source_isaac_install_reuses_release_without_any_package_install(tmp_path, check):
+@pytest.mark.parametrize("version", ["6.1.0", "6.2.0"])
+def test_source_isaac_install_reuses_release_without_any_package_install(tmp_path, check, version):
     env, log = boundary_env(tmp_path)
-    release = source_release(tmp_path)
+    release = source_release(tmp_path, version=version)
     env["ISAACSIM_PATH"] = str(release)
     repo = Path(env["BOUNDARY_SOURCE"])
     shutil.copy2(REPO / "scripts/isaac_runtime.py", repo / "scripts/isaac_runtime.py")
@@ -65,6 +67,7 @@ def test_source_isaac_install_reuses_release_without_any_package_install(tmp_pat
     result = run_stdin(tmp_path, *args, entry="install_isaac.sh", env=env)
     assert result.returncode == 0, result.stdout + result.stderr
     assert '"layout": "source"' in result.stdout, result.stdout
+    assert f'"version": "{version}"' in result.stdout
     assert not any(c[0] == "uv" for c in commands(log)), "must NEVER pip-install into Kit Python"
 
 

@@ -28,7 +28,7 @@ elif [[ -n "${ISAACSIM_PATH:-}" ]]; then
     PY="$ISAACSIM_PATH/python.sh"; REUSE=1
 fi
 if [[ "$REUSE" == 1 ]]; then
-    printf '[install-isaac] Reuse existing Isaac Sim 6.1.0 without package writes: %s\n' "$PY"
+    printf '[install-isaac] Reuse selected Isaac Sim release without package writes: %s\n' "$PY"
     [[ "$DRY" != 1 ]] || exit 0
     [[ "$CHECK" == 1 || "$ACCEPT" == 1 ]] || die 'requires --accept-eula; environment variables alone are not consent'
     [[ -x "$PY" ]] || die "selected Isaac Python is missing: $PY"

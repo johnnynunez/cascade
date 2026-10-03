@@ -391,7 +391,7 @@ log "plan: sim=$SIM arm=$ARM cameras=$CAMERAS brain=$BRAIN python=$PY"
 [[ $DRY == 1 ]] && log "(dry run: commands are printed, nothing is executed)"
 if [[ $DRY == 1 ]]; then
     log "would install missing extras/assets, start $SIM and sidecars, register OpenClaw, verify brain + motion + reset, then open chat"
-    log "Isaac target: 6.1.0 (package 6.1.0.0); profile=${CASCADE_OPENCLAW_PROFILE:-default}; no commands executed"
+    log "Isaac target: selected source 6.1/6.2 or managed wheel 6.1.0.0; metadata not checked; profile=${CASCADE_OPENCLAW_PROFILE:-default}; no commands executed"
     exit 0
 fi
 if [[ $CHECK == 0 ]]; then
@@ -558,7 +558,7 @@ fi
 
 # ── 3. simulator ────────────────────────────────────────────────────────────
 if [[ "$SIM" == "isaac" ]]; then
-    isaac_metadata_check || die "Isaac Sim 6.1.0.0 installation is incomplete"
+    isaac_metadata_check || die "selected Isaac Sim installation is incomplete or incompatible"
     isaac_started_s=$SECONDS
     bridge_pid=""
     if [[ "$(uname -s)" == Linux && "$(uname -m)" == aarch64 && -f /lib/aarch64-linux-gnu/libgomp.so.1 ]]; then

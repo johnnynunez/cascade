@@ -44,20 +44,24 @@ _loaded: NativeBamSources | None = None
 _load_lock = threading.RLock()
 
 
-def _runtime():
+def _runtime(*, sdk_recipe=None):
     try:
         import newton
         import warp as wp
     except ImportError as exc:
         raise RuntimeError("native BAM requires Newton >=1.6 and Warp; no PD fallback") from exc
     version = str(getattr(newton, "__version__", ""))
+    if sdk_recipe is not None:
+        from cascade.sim.microduck_sdk import verify_runtime_recipe
+        verify_runtime_recipe(sdk_recipe, newton_version=version)
+        return wp, newton
     match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:\+[^ ]+)?", version)
     if match is None or tuple(map(int, match.groups())) < (1, 6, 0):
         raise RuntimeError(f"native BAM requires stable Newton >=1.6; found {version!r}")
     return wp, newton
 
 
-def load_pinned_bam(source_root) -> NativeBamSources:
+def load_pinned_bam(source_root, *, sdk_recipe=None) -> NativeBamSources:
     """Verify every file before executing only allowlisted source bytes.
 
     ``source_root`` is an external checkout/archive root containing ``source/``.
@@ -67,7 +71,7 @@ def load_pinned_bam(source_root) -> NativeBamSources:
     subsequent calls still verify their requested tree, then reuse that class.
     """
     global _loaded
-    _runtime()
+    _runtime(sdk_recipe=sdk_recipe)
     root = Path(source_root).expanduser().resolve(strict=True)
     sources = {}
     for relative, expected in SOURCE_SHA256.items():
@@ -170,13 +174,13 @@ class NewtonBamAdapter:
     ticks. A new adapter is required after a model/solver rebuild.
     """
 
-    def __init__(self, stage, *, source_root, q_indices, dof_indices, params: dict):
+    def __init__(self, stage, *, source_root, q_indices, dof_indices, params: dict, sdk_recipe=None):
         import numpy as np
         from .microduck_actuator import M6_PARAMETERS
 
-        self._wp, self._newton = _runtime()
+        self._wp, self._newton = _runtime(sdk_recipe=sdk_recipe)
         wp = self._wp
-        self._sources = load_pinned_bam(source_root)
+        self._sources = load_pinned_bam(source_root, sdk_recipe=sdk_recipe)
         self._params = _validated_params(params)
         self._stage = stage
         self._model, self._solver = getattr(stage, "model", None), getattr(stage, "solver", None)

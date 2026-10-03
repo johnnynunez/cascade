@@ -23,6 +23,16 @@ and BAM parameters to match; failure prevents identity/cache/listener admission.
 The new sources and scene must produce a new model identity. An older identity
 is a comparison reference, never permission to reuse its physical admission.
 
+The benchmark also retains the authored USD surface snapshot and checks it
+after the ordinary camera method returns, before export, and again after
+bootstrap. Ground geometry, ST, shader connections/values, descriptor metadata,
+physics-material binding, ancestor transforms and units must remain identical.
+These checks permit the unrelated camera/Render prims and stage time range that
+the ordinary parent adds; they do not filter the separate native comparison.
+Each phase writes its observed/authored hashes and verdict. Divergence raises
+before model identity or listener creation; the earlier authored hash is never
+substituted for the live observed state.
+
 The external campaign in the sibling `RGBD_GROUND_NATIVE/` directory passes
 only the producer's checked Ground descriptor to the ordinary `annotate_capture`
 consumer. It preserves 18 RGB-only fit corners, 17 fixed holdouts, integer-pixel

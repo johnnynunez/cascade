@@ -78,6 +78,7 @@ def backend_fixture(monkeypatch, tmp_path):
         events.append('texture')
         return descriptor
     monkeypatch.setattr(module, 'author_checked_ground', author)
+    monkeypatch.setattr(module, 'ground_snapshot', lambda stage: {'surface': 'unchanged'})
     return module.reference_backend(Parent)(), events
 
 
@@ -85,12 +86,35 @@ def test_native_camera_order_unchanged_and_complete_invariance_has_no_label_exem
     backend, events = backend_fixture(monkeypatch, tmp_path)
     backend.open()
     assert events == ['checkpoint', 'texture', 'checkpoint', 'ordinary-camera',
-                      'export', 'ordinary-bootstrap', 'checkpoint']
+                      'checkpoint', 'export', 'ordinary-bootstrap', 'checkpoint']
     assert backend.receipt['ground_reference_fixture'] == module.texture_descriptor()
     backend.receipt['native_labels'].append('/World/RgbdMetricBoard/extra')
     with pytest.raises(ValueError, match='native.native_labels'):
         backend.open()
     assert not json.loads((tmp_path / 'planar-physics-invariance.json').read_text())['passed']
+
+
+@pytest.mark.parametrize('phase', ['after_camera', 'after_bootstrap'])
+@pytest.mark.parametrize('field', ['shader', 'st', 'descriptor', 'geometry'])
+def test_parent_change_refuses_before_model_listener_boundary(monkeypatch, tmp_path, phase, field):
+    backend, events = backend_fixture(monkeypatch, tmp_path)
+    calls = []
+    initial = {k: 'authored' for k in ('shader', 'st', 'descriptor', 'geometry')}
+    def observed(stage):
+        calls.append(stage)
+        value = initial.copy()
+        if len(calls) >= (2 if phase == 'after_camera' else 3):
+            value[field] = 'changed-by-parent'
+        return value
+    monkeypatch.setattr(module, 'ground_snapshot', observed)
+    with pytest.raises(ValueError, match='appearance/geometry changed'):
+        backend.open()
+        pytest.fail('model/listener admission was reached after changed appearance')
+    check = json.loads((tmp_path / f'ground-appearance-{phase}.json').read_text())
+    assert check['passed'] is False and check['differences'] == [field]
+    assert check['authored_sha256'] != check['observed_sha256']
+    if phase == 'after_camera':
+        assert 'export' not in events
 
 
 def test_check_only_is_passive_and_requires_rgbd(monkeypatch, tmp_path, capsys):

@@ -599,6 +599,10 @@ class MobileBridgeServer:
                     elif op in {"command_velocity", "renew"} and request.get("owner") != owner:
                         result = {"ok": False, "error": "request owner differs from channel owner"}
                     else:
+                        if op == "reset_stop":
+                            # A queued reset must retain its control-channel
+                            # owner even when the wire request omits it.
+                            request["owner"] = owner
                         result = self.dispatch(request)
                 self._send(conn, result)
                 buffer.clear()

@@ -82,6 +82,9 @@ class SpatialDomain:
 
 
 def build_spatial_domain(domain_id, profile, *, sensor_domains=None):
+    if isinstance(profile, dict) and profile.get("kind") == "spatial" and "cuvslam" in profile:
+        from .cuvslam import build_cuvslam_domain
+        return build_cuvslam_domain(domain_id, profile, sensor_domains or {})
     if isinstance(profile, dict) and profile.get("kind") == "spatial" and "rgbd" in profile:
         from .rgbd import build_rgbd_spatial_domain
         return build_rgbd_spatial_domain(domain_id, profile, sensor_domains or {})

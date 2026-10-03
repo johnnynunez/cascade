@@ -163,24 +163,35 @@ def test_every_channel_requires_identity_attestation(bridge, monkeypatch, field,
 @pytest.mark.usefixtures("healthy_episode_gc")
 def test_safe_base_uses_real_socket_renewal_and_two_advancing_preflight_reads(
         bridge, monkeypatch, wall_tick_s):
+    from types import SimpleNamespace
+    from cascade.control import isaac_base
     from cascade.control.isaac_base import IsaacBase
+    from cascade.safety import base_harness
     from cascade.safety.base_harness import SafeBase
-    from mobile_tick_fixture import scheduled_tick_steps
     c, server = bridge
-    # Execute each synthetic 5 ms solve on an absolute wall schedule. Relative
-    # waits accumulate publish/scheduler overhead; on macOS, gaps between
-    # publications were 141--182 ms with 30 ms requested waits. Coalesced
-    # wakeups must execute every due solve, not lengthen the 90-solve command.
-    # Lease, freshness, physical duration and wall budgets stay unchanged.
-    # This positive transport contract needs a healthy software publisher and
-    # reader; unrelated cyclic collection is kept outside that bounded episode.
+    # This is a protocol/ownership test, not a host scheduling benchmark. Each
+    # requested synthetic solve completes before its passive TCP observation;
+    # the fixture clock advances by the normal/slow producer interval. Real
+    # socket timeouts, renewal worker and 5 s emergency timer remain in place.
+    # The real-wall delayed-state test below separately pins the .2 s veto.
     c.max_action_wall_s = 5.
+    now, renew_due = [1.], [None]
+    clock = SimpleNamespace(monotonic=lambda: now[0])
+    monkeypatch.setattr(isaac_base, "time", clock)
+    monkeypatch.setattr(base_harness, "time", clock)
+    monkeypatch.setattr(c, "_clock", clock.monotonic)
+    renewed = threading.Condition()
     renewals = []
     dispatch = server.dispatch
     def record(request):
         response = dispatch(request)
-        if request["op"] == "renew" and response.get("ok"):
-            renewals.append(response)
+        with renewed:
+            if request["op"] == "command_velocity" and response.get("ok"):
+                renew_due[0] = now[0] + c.lease_s / 3
+            if request["op"] == "renew" and response.get("ok"):
+                renewals.append(response)
+                renew_due[0] = now[0] + c.lease_s / 3
+                renewed.notify_all()
         return response
     monkeypatch.setattr(server, "dispatch", record)
     raw = IsaacBase(profile(server.address[1]))
@@ -190,22 +201,44 @@ def test_safe_base_uses_real_socket_renewal_and_two_advancing_preflight_reads(
               "max_turn_angle_rad": 1.}
     safe = SafeBase(raw, limits)
     halt = threading.Event()
+    requested, published = threading.Event(), threading.Event()
     errors = []
     completed = []
     def completed_steps():
         try:
-            for step in scheduled_tick_steps(halt, first_step=1, wall_interval_s=wall_tick_s):
+            step = 0
+            while not halt.is_set():
+                if not requested.wait(.05):
+                    continue
+                requested.clear()
+                # Advance only after the actual background worker has renewed
+                # over its own TCP channel. No forged ACK or repeated solve.
+                with renewed:
+                    assert renewed.wait_for(lambda: renew_due[0] is None or
+                        now[0] + wall_tick_s < renew_due[0], timeout=2.), "renewal worker stalled"
+                    now[0] += wall_tick_s
+                step += 1
                 c.control_at(step * .005)
                 publish(c, step=step, sim_time=step * .005)
                 completed.append((step, step * .005))
+                published.set()
         except Exception as e:
             errors.append(e)
+            published.set()
+    get_state = raw.get_state
+    def after_completed_solve():
+        published.clear()
+        requested.set()
+        assert published.wait(2.), "synthetic producer stalled"
+        assert not errors, errors
+        return get_state()
+    monkeypatch.setattr(raw, "get_state", after_completed_solve)
     producer = threading.Thread(target=completed_steps)
     try:
         safe.connect()
         producer.start()
-        wait_until(lambda: c.state()["feedback_available"])
-        result = safe.walk_velocity(.1, 0., 0., .45)  # exceeds server's .3s wall lease
+        # Both fixture wall cadences span the .3 s lease during .45 s simulated.
+        result = safe.walk_velocity(.1, 0., 0., .45)
         assert result["execution_ok"], (
             f"error={result.get('error')}; successful renewals={len(renewals)}; "
             f"wall tick={wall_tick_s}; "
@@ -218,6 +251,7 @@ def test_safe_base_uses_real_socket_renewal_and_two_advancing_preflight_reads(
         assert len(renewals) >= 2
         assert sum(ack["active"] for ack in renewals) >= 2
         assert all(ack["generation"] == result["ack"]["generation"] for ack in renewals)
+        assert samples[-1]["received_monotonic_s"] - samples[1]["received_monotonic_s"] > c.lease_s
         solves = tuple(completed)
         assert len(solves) >= 90
         assert solves == tuple((step, step * .005) for step in range(1, len(solves) + 1))

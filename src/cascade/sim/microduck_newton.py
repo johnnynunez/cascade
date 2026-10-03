@@ -137,7 +137,8 @@ def experience_text(release, *, sdk_recipe=None):
     return template + '\n[settings.app.exts.folders]\n\'++\' = ' + json.dumps(folders) + '\n'
 
 
-def read_native_state(ns, *, q_indices, dof_indices, root_index, max_contacts, max_constraints):
+def read_native_state(ns, *, q_indices, dof_indices, root_index, max_contacts, max_constraints,
+                      q_count=21, dof_count=20):
     """Read current state_0, never an experimental persistent swapped tensor."""
     import numpy as np
     from cascade.control.microduck_policy import POLICY_JOINTS
@@ -151,7 +152,7 @@ def read_native_state(ns, *, q_indices, dof_indices, root_index, max_contacts, m
     bodies = tuple(model.body_label)
     if arrays['body_q'].shape != (len(bodies), 7) or arrays['body_qd'].shape != (len(bodies), 6):
         raise ValueError('native body layout changed')
-    if arrays['joint_q'].shape != (21,) or arrays['joint_qd'].shape != (20,):
+    if arrays['joint_q'].shape != (q_count,) or arrays['joint_qd'].shape != (dof_count,):
         raise ValueError('native free root + fourteen hinges required')
     pose, vel = arrays['body_q'][root_index], arrays['body_qd'][root_index]
     quat = np.array([pose[6], *pose[3:6]])
@@ -215,7 +216,7 @@ def read_native_state(ns, *, q_indices, dof_indices, root_index, max_contacts, m
                 contact_pairs=[[shapes[int(pairs[0][i])], shapes[int(pairs[1][i])]] for i in active])
 
 
-def prepare_native_model(ns, dof_indices, *, source_cap, newton, effort_cap=None):
+def prepare_native_model(ns, dof_indices, *, source_cap, newton, effort_cap=None, dof_count=20):
     """Explicit startup-only XML -> BAM replacements, with fail-closed readback."""
     import math
     import numpy as np
@@ -238,7 +239,7 @@ def prepare_native_model(ns, dof_indices, *, source_cap, newton, effort_cap=None
     for name, value in expected.items():
         a = getattr(ns.model, name).numpy()
         dtype = np.int32 if name == 'joint_target_mode' else np.float32
-        if a.dtype != dtype or a.shape != (20,) or not np.isfinite(a[dof_indices]).all():
+        if a.dtype != dtype or a.shape != (dof_count,) or not np.isfinite(a[dof_indices]).all():
             raise ValueError(f'unexpected native property layout: {name}')
         if not np.array_equal(a[dof_indices], np.full(14, value, dtype=dtype)):
             raise ValueError(f'unexpected native source property: {name}')
@@ -256,7 +257,7 @@ def prepare_native_model(ns, dof_indices, *, source_cap, newton, effort_cap=None
     return {'before': before, 'overrides': overrides, 'after': after}
 
 
-def read_native_body_properties(ns):
+def read_native_body_properties(ns, *, root_path="/World/MicroDuck"):
     """Startup-only measurements for model identity and load diagnostics."""
     import numpy as np
     labels = list(ns.model.body_label)
@@ -273,7 +274,7 @@ def read_native_body_properties(ns):
             or not np.array_equal(gravity, np.repeat(solver_gravity, len(gravity), axis=0))
             or not np.array_equal(solver_gravity[0], np.array([0., 0., -9.81], np.float32))):
         raise ValueError('native Newton/MJWarp gravity differs from the declared single-world scene')
-    robot = [i for i, label in enumerate(labels) if label.startswith('/World/MicroDuck/')]
+    robot = [i for i, label in enumerate(labels) if label.startswith(root_path + '/')]
     if not robot or float(np.sum(masses[robot], dtype=np.float64)) <= 0:
         raise ValueError('native MicroDuck mass unavailable')
     return dict(body_labels=labels, body_mass_kg=masses.astype(float).tolist(),
@@ -347,13 +348,14 @@ def capture_bound_rgb(ns, app, readback, *, updates, checkpoint=lambda: None, ca
     return dict(rgb=rgb, step=before[0], sim_time_s=before[1], captured_at=captured_at, render_times=times, **extra)
 
 
-def disable_source_actuators(stage):
+def disable_source_actuators(stage, *, root_path=None):
     import math
     from cascade.control.microduck_policy import POLICY_JOINTS
     layer = stage.GetRootLayer()
     if not layer.anonymous or stage.GetEditTarget().GetLayer() != layer:
         raise ValueError('source actuator removal requires our anonymous runtime layer')
-    prims = [p for p in stage.Traverse() if p.GetTypeName() == 'MjcActuator']
+    prims = [p for p in stage.Traverse() if p.GetTypeName() == 'MjcActuator'
+             and (root_path is None or str(p.GetPath()).startswith(root_path + '/'))]
     if len(prims) != 14 or {p.GetName() for p in prims} != set(POLICY_JOINTS):
         raise ValueError('unexpected source MjcActuator names/count')
     records = []
@@ -503,10 +505,6 @@ class KitNewtonBackend:
         from isaacsim.physics.newton import acquire_stage, get_newton_config, configure_newton, MuJoCoSolverConfig
         from isaac_runtime import setup_physics, ensure_time_code_range, physics_device_identity, physics_timestep_identity
         from convert_microduck import bind_ground
-        from cascade.control.microduck_policy import HOME_Q
-        from cascade.control.newton_bam import NewtonBamAdapter
-        from cascade.sim.microduck_state import newton_joint_indices
-        from cascade.sim.microduck_contact_support import extraction_provenance, support_contract
         from cascade.sim.microduck_sdk import admit_release, configure_outputs, verify_runtime_recipe
 
         if self._sdk_recipe is not None:
@@ -531,9 +529,7 @@ class KitNewtonBackend:
         UsdGeom.SetStageMetersPerUnit(stage, 1.)
         UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
         UsdGeom.Xform.Define(stage, '/World')
-        root = UsdGeom.Xform.Define(stage, '/World/MicroDuck').GetPrim()
-        root.GetReferences().AddReference(self.admission['asset'])
-        self.receipt['disabled_source_actuators'] = disable_source_actuators(stage)
+        roots = self._author_robots(stage)
         ground = UsdGeom.Plane.Define(stage, '/World/Ground')
         ground.CreateAxisAttr('Z')
         UsdPhysics.CollisionAPI.Apply(ground.GetPrim())
@@ -543,7 +539,8 @@ class KitNewtonBackend:
         mat.CreateDynamicFrictionAttr(1.)
         mat.CreateRestitutionAttr(0.)
         UsdShade.MaterialBindingAPI.Apply(ground.GetPrim()).Bind(material, materialPurpose='physics')
-        bind_ground(stage, [ground.GetPath()], root_path='/World/MicroDuck')
+        for root_path in roots:
+            bind_ground(stage, [ground.GetPath()], root_path=root_path)
         scene = UsdPhysics.Scene.Define(stage, '/World/PhysicsScene')
         scene.CreateGravityDirectionAttr(Gf.Vec3f(0., 0., -1.))
         scene.CreateGravityMagnitudeAttr(9.81)
@@ -601,6 +598,31 @@ class KitNewtonBackend:
                             bootstrap_step=ns.simulation_step_count, bootstrap_time_s=float(ns.sim_time))
         self.receipt['runtime_versions'] = dict(isaac_sim=list(get_version()),
                                                mujoco=mujoco.__version__, mujoco_warp=mujoco_warp.__version__)
+        self._bind_native_model(ns)
+        self._checkpoint()
+        import inspect
+        from cascade.sim.microduck_solver_graph import SolverGraphContract
+        self._solver_graph = SolverGraphContract(ns,
+            enabled=getattr(self.args, 'solver_cuda_graph', False), wp=wp, dt=self._dt,
+            source_path=inspect.getfile(type(ns)), sdk_recipe=self._sdk_recipe)
+        self.receipt['configuration']['use_cuda_graph'] = self._solver_graph.enabled
+        self.receipt['configuration']['solver_graph_stage_sha256'] = self._solver_graph.source_sha256
+        self.receipt['configuration']['reuse_solved_read'] = self._reuse_solved_read
+
+    def _author_robots(self, stage):
+        from pxr import UsdGeom
+        root = UsdGeom.Xform.Define(stage, '/World/MicroDuck').GetPrim()
+        root.GetReferences().AddReference(self.admission['asset'])
+        self.receipt['disabled_source_actuators'] = disable_source_actuators(stage)
+        return ('/World/MicroDuck',)
+
+    def _bind_native_model(self, ns):
+        import numpy as np
+        import newton
+        from cascade.control.microduck_policy import HOME_Q
+        from cascade.control.newton_bam import NewtonBamAdapter
+        from cascade.sim.microduck_state import newton_joint_indices
+        from cascade.sim.microduck_contact_support import extraction_provenance, support_contract
         qs, ds = newton_joint_indices(ns.model.joint_label, ns.model.joint_q_start.numpy(), ns.model.joint_qd_start.numpy())
         self.q_indices, self.dof_indices = qs, ds
         self.root_index = list(ns.model.body_label).index('/World/MicroDuck/Geometry/trunk_base')
@@ -636,15 +658,9 @@ class KitNewtonBackend:
         self.bam.reset()  # no armed target until successful ONNX inference
         self.receipt['initialization'] = {'root_z_m': .125, 'home_q': HOME_Q.tolist(), 'pose_writes_in_episode': False}
         self.receipt['bam'] = self.bam.telemetry()
-        self._checkpoint()
-        import inspect
-        from cascade.sim.microduck_solver_graph import SolverGraphContract
-        self._solver_graph = SolverGraphContract(ns,
-            enabled=getattr(self.args, 'solver_cuda_graph', False), wp=wp, dt=self._dt,
-            source_path=inspect.getfile(type(ns)), sdk_recipe=self._sdk_recipe)
-        self.receipt['configuration']['use_cuda_graph'] = self._solver_graph.enabled
-        self.receipt['configuration']['solver_graph_stage_sha256'] = self._solver_graph.source_sha256
-        self.receipt['configuration']['reuse_solved_read'] = self._reuse_solved_read
+
+    def _camera_pose(self):
+        return (.50, .45, .32), (.06, 0., .10)
 
     def _create_camera(self, stage):
         self._checkpoint()
@@ -657,7 +673,7 @@ class KitNewtonBackend:
         sun = UsdLux.DistantLight.Define(stage, '/World/Sun')
         sun.CreateIntensityAttr(1200.)
         sun.AddRotateXYZOp().Set(Gf.Vec3f(-50., 20., 0.))
-        eye, target = Gf.Vec3d(.50, .45, .32), Gf.Vec3d(.06, 0., .10)
+        eye, target = (Gf.Vec3d(*v) for v in self._camera_pose())
         quat = Gf.Matrix4d().SetLookAt(eye, target, Gf.Vec3d(0., 0., 1.)).GetInverse().ExtractRotationQuat()
         camera = RtxCamera(OVERVIEW_CAMERA, tick_rate=0., translations=list(eye),
                            orientations=[quat.GetReal(), *quat.GetImaginary()])

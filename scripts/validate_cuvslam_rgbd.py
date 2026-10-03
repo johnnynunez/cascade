@@ -26,11 +26,24 @@ def file_hash(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def close_owners(report, domain, hub):
+    """Attempt both cleanups and retain a failed close as a failed exercise."""
+    for name, close in (("domain_close", domain.close), ("hub_close", lambda: hub.close(2.))):
+        try:
+            report[name] = close()
+        except Exception as exc:
+            report[name] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    report["ok"] = bool(report["ok"] and report["domain_close"].get("ok") is True
+                        and report["hub_close"].get("ok") is True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sdk-checkout", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     options = parser.parse_args()
+    if options.output.exists():
+        parser.error("output already exists; preserve the previous receipt")
     import cuvslam
     sys.path.insert(0, str(options.sdk_checkout.resolve() / "python/test"))
     import data_gen
@@ -103,12 +116,12 @@ def main():
         report["error"] = f"{type(exc).__name__}: {exc}"
         raise
     finally:
-        report["domain_close"] = domain.close()
-        report["hub_close"] = hub.close(2.)
-        report["ok"] = report["ok"] and report["domain_close"]["ok"] and report["hub_close"]["ok"]
-        options.output.write_text(json.dumps(report, indent=2) + "\n")
+        close_owners(report, domain, hub)
+        with options.output.open("x") as output:
+            output.write(json.dumps(report, indent=2) + "\n")
         print(json.dumps({key: report[key] for key in ("ok", "domain_close", "hub_close")}))
+    return 0 if report["ok"] else 1
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

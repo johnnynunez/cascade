@@ -811,3 +811,21 @@ launcher fails both explicit endpoint controls while the candidate passes; the
 unset-default control passes for both. Independent source review, Ruff F/E9,
 Bash syntax and diff checks pass. No model, host, robot or GPU was launched, and
 this change does not validate trial12 or authenticate model weights.
+
+### 2026-10-03 — align pytest console and module imports
+
+PR91's Ubuntu collection fails in eleven RGB-D modules importing repository-only
+benchmark helpers. The unchanged source reproduces all eleven errors with the
+actual pytest console script and no PYTHONPATH. Add pytest's built-in
+pythonpath=["."] configuration; conftest continues selecting the checkout src.
+Package discovery remains src-only and production dependencies are unchanged.
+
+Console and module collection now select the same 6,110 node IDs in the same
+order (6,114 total, four hardware deselections). The affected console selection
+passes 325 tests with 13 optional OpenUSD skips. Its first execution retained
+17 failures from missing jsonschema in the old shared interpreter; the same
+console-script body with the existing complete read-only interpreter resolves
+that environment issue. No shared environment install, verifier change, new
+physics/GPU run or store mutation. Original failure logs and hashes remain in
+benchmark/results/pytest_root_path_20261003.json. This validates local collection
+and the affected tests; it does not assert a remote CI pass or full-suite run.

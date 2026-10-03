@@ -1,0 +1,186 @@
+{
+  "version": 1,
+  "base": "9704e8968241ed25cb00141a6755e9546e07b879",
+  "change": "Add pytest-native pythonpath=[\".\"] to align console-script and python-m collection; benchmark remains repository-only.",
+  "configuration": {
+    "base": "9704e8968241ed25cb00141a6755e9546e07b879",
+    "before_sha256": "050ec0709685c46c8ac02166a9ca0a278408a6642f4c708f68ce9cd637698197",
+    "after_sha256": "a5058f06c31ea5417e20f70caeb560aeccdcdc2d573c97a78a54e553e3a53c0b",
+    "sole_semantic_delta": {
+      "tool.pytest.ini_options.pythonpath": [
+        "."
+      ]
+    },
+    "project_dependencies_unchanged": true,
+    "package_discovery_unchanged": true,
+    "setuptools_packages_find": {
+      "where": [
+        "src"
+      ]
+    },
+    "no_runtime_or_verifier_changes": true
+  },
+  "remote_failure": "PR91 Ubuntu CI had11 ModuleNotFoundError benchmark collection errors. Local unchanged source reproduces the same11 modules with the real pytest executable and PYTHONPATH absent.",
+  "collection": {
+    "baseline_errors": 11,
+    "baseline_selected_before_error": 5851,
+    "fixed_selected": 6110,
+    "fixed_total": 6114,
+    "deselected": 4,
+    "exact_console_module_nodeid_parity": {
+      "node_count": 6110,
+      "exact_order_and_nodeids_equal": true,
+      "nodeids_sha256": "2ead3c42ef4a4b4ee11b9f0a207cfce14df5ac9c409fc0bfaa1e780e3e91a9fb",
+      "console_log_sha256": "15f4b8656a4fb1a4061b14e878c157e83f8984a4ebbdf1459d69477ca58a0f78",
+      "module_log_sha256": "3c9d57a7220d8bf21ecb3959743f3c17a798d1d5f6e18626c288d132d23ef81e",
+      "PYTHONPATH_present": false
+    }
+  },
+  "affected_validation": {
+    "command_form": "pytest console script, no PYTHONPATH",
+    "passed": 325,
+    "skipped": 13,
+    "failed": 0,
+    "pytest_time_s": 37.5,
+    "skip_reasons": [
+      "OpenUSD SDK unavailable in ordinary CPU environment",
+      "OpenUSD absent in ordinary CPU environment",
+      "OpenUSD unavailable in ordinary CPU environment",
+      "OpenUSD unavailable; CPU SDK authoring checked separately when available",
+      "could not import 'pxr.Usd': No module named 'pxr'"
+    ],
+    "entrypoint": {
+      "source": "/home/johnny/Projects/demo/cascade/.venv/bin/pytest",
+      "source_sha256": "3bd92e0e7c95347ebcffdd81c683ceff46df6635819a213e184810e7d0e389fa",
+      "target": "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/private-bin/pytest",
+      "target_sha256": "15b1bea5f3b9992050774bfc98b11df82107f74d13a95bf80e1cc06084da4074",
+      "body_identical_except_shebang": true,
+      "reason": "Existing base console interpreter lacks declared jsonschema dependency; use existing complete read-only task interpreter without installing or altering environments. Both execute the installed pytest.console_main."
+    },
+    "pytest_version": "9.1.1",
+    "jsonschema_version": "4.26.0"
+  },
+  "retained_environment_failure": "The first console-script RGB-D execution uses the old shared interpreter and records308pass/13skip/17fail; all17 failures report missing jsonschema. The complete existing read-only interpreter uses the identical pytest console script body via a task-private shebang. No environment or dependency was installed/mutated.",
+  "limits": [
+    "Full suite collection only; full execution was not repeated.",
+    "No runtime, verifier, dependency, native SDK or package discovery changes.",
+    "No physics campaign, native bridge, model inference or GPU launch.",
+    "No shared store restoration/deletion; all4 protected store states are unchanged."
+  ],
+  "runs": {
+    "baseline-collection": {
+      "exit_code": 2,
+      "elapsed_s": 6.422677300986834,
+      "source_unchanged": true,
+      "protected_stores_unchanged": true,
+      "protected_stores": {
+        "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "/home/johnny/.cascade/grasp_memory.json": null,
+        "/home/johnny/.cascade/beliefs.json": null,
+        "/home/johnny/Projects/demo/cascade/runs/beliefs.json": "0d52ae24a16671beca8907d1000e2d256c1ab541533968075dd0ca31556cfb27"
+      },
+      "artifacts": {
+        "pytest.log": "f4b174f25b5968c0efb24b4a484dee0f4c556068e4ca8f017336217a1d5c4a62",
+        "junit.xml": "570b4208808314f289e2c5e3a3c112235cb1e5b2748ed5198389a2cb41d9a384",
+        "inputs.json": "1e347182c4430df33d1a2ad7e2f8bba3d33d5fbf07f04680fb5ab8c9addb97d2"
+      }
+    },
+    "fixed-console-collection": {
+      "exit_code": 0,
+      "elapsed_s": 6.422611151007004,
+      "source_unchanged": true,
+      "protected_stores_unchanged": true,
+      "protected_stores": {
+        "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "/home/johnny/.cascade/grasp_memory.json": null,
+        "/home/johnny/.cascade/beliefs.json": null,
+        "/home/johnny/Projects/demo/cascade/runs/beliefs.json": "0d52ae24a16671beca8907d1000e2d256c1ab541533968075dd0ca31556cfb27"
+      },
+      "artifacts": {
+        "pytest.log": "15f4b8656a4fb1a4061b14e878c157e83f8984a4ebbdf1459d69477ca58a0f78",
+        "junit.xml": "e2f1095f38165c5c237b1803dcc2c9a3662c2233a552216c10817fbd99b891c4",
+        "inputs.json": "3e5f30a0a78700bdf2203530d6d695e2cbd8aca8a2240fba6d79e10ef8734aae"
+      }
+    },
+    "fixed-module-collection": {
+      "exit_code": 0,
+      "elapsed_s": 6.672707560996059,
+      "source_unchanged": true,
+      "protected_stores_unchanged": true,
+      "protected_stores": {
+        "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "/home/johnny/.cascade/grasp_memory.json": null,
+        "/home/johnny/.cascade/beliefs.json": null,
+        "/home/johnny/Projects/demo/cascade/runs/beliefs.json": "0d52ae24a16671beca8907d1000e2d256c1ab541533968075dd0ca31556cfb27"
+      },
+      "artifacts": {
+        "pytest.log": "3c9d57a7220d8bf21ecb3959743f3c17a798d1d5f6e18626c288d132d23ef81e",
+        "junit.xml": "d078e54d5cb374189b96c27c2d10b0f0fac4fab7b1b6257a9cb58bba881e7c06",
+        "inputs.json": "063bada5c4dd9b589540672993e1048bac55755ce8f23e8f38af5588768b330b"
+      }
+    },
+    "rgbd-console": {
+      "exit_code": 1,
+      "elapsed_s": 32.653344890044536,
+      "source_unchanged": true,
+      "protected_stores_unchanged": true,
+      "protected_stores": {
+        "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "/home/johnny/.cascade/grasp_memory.json": null,
+        "/home/johnny/.cascade/beliefs.json": null,
+        "/home/johnny/Projects/demo/cascade/runs/beliefs.json": "0d52ae24a16671beca8907d1000e2d256c1ab541533968075dd0ca31556cfb27"
+      },
+      "artifacts": {
+        "pytest.log": "42b816792ca8acee96e241cbaa00637f73a16e96ffe51f5e70306bd3b505ed6b",
+        "junit.xml": "59bc51a4103a85955771914098928326c25a7cb74190b7dbd01c06088d91e227",
+        "inputs.json": "610402aa6bb9628bfd26409a403536540fefd237a67930e87d089ad996711d3c"
+      }
+    },
+    "rgbd-console-complete-env": {
+      "exit_code": 0,
+      "elapsed_s": 37.81811025197385,
+      "source_unchanged": true,
+      "protected_stores_unchanged": true,
+      "protected_stores": {
+        "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "/home/johnny/.cascade/grasp_memory.json": null,
+        "/home/johnny/.cascade/beliefs.json": null,
+        "/home/johnny/Projects/demo/cascade/runs/beliefs.json": "0d52ae24a16671beca8907d1000e2d256c1ab541533968075dd0ca31556cfb27"
+      },
+      "artifacts": {
+        "pytest.log": "8b992b1e6536c868faf8f7819fb075a7e030d95c976a9128b16e1ae56af55408",
+        "junit.xml": "fa8f8f895e91bff96236dcfb7623b47097a1b2cc5ddc40fcff3fbfc8b7f03fd4",
+        "inputs.json": "159170d2acaa101b77be0f14c2f37e1b4ac504dd8aa4bec3cc82b59d23abe965"
+      }
+    }
+  },
+  "artifacts": {
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/run_check.py": "786db5b604a7b9099f54fdf361891b6ad59f3429fd7bc6ea28cc3ce362374ba3",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/run_check_complete.py": "91f97402f5d417c17e7722f75ccd8dfa024e2069dcb32d67f358b2d1aa5123bb",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/console-entrypoint.json": "55c43ce133650f1acd6d447b35c02ac531d5b80538df519a0c01d2572bc83763",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/collection-parity.json": "24ef185806b89ae181a7e089197176fa803c3bea2e85710d4994a03d6642df3a",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/configuration-delta.json": "f8f6983e2563d65417fb90df1e9350303093b154e1e1a403379b29727c0e50df",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/private-bin/pytest": "15b1bea5f3b9992050774bfc98b11df82107f74d13a95bf80e1cc06084da4074",
+    "/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/ci-ubuntu-01.log": "0b912685f30361fd698fb1012bf067a4d1b244f66ba2ec433464ff8096301a28",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/baseline-collection/inputs.json": "1e347182c4430df33d1a2ad7e2f8bba3d33d5fbf07f04680fb5ab8c9addb97d2",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/baseline-collection/result.json": "c283b6749f9ac227175f2492030977c4ab59b708d823b77276a8661edc8d4360",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/baseline-collection/pytest.log": "f4b174f25b5968c0efb24b4a484dee0f4c556068e4ca8f017336217a1d5c4a62",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/baseline-collection/junit.xml": "570b4208808314f289e2c5e3a3c112235cb1e5b2748ed5198389a2cb41d9a384",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/fixed-console-collection/inputs.json": "3e5f30a0a78700bdf2203530d6d695e2cbd8aca8a2240fba6d79e10ef8734aae",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/fixed-console-collection/result.json": "47e8d754e007249b6d7e263f4b0888a1117df42004966b14f94e696c331e4623",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/fixed-console-collection/pytest.log": "15f4b8656a4fb1a4061b14e878c157e83f8984a4ebbdf1459d69477ca58a0f78",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/fixed-console-collection/junit.xml": "e2f1095f38165c5c237b1803dcc2c9a3662c2233a552216c10817fbd99b891c4",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/fixed-module-collection/inputs.json": "063bada5c4dd9b589540672993e1048bac55755ce8f23e8f38af5588768b330b",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/fixed-module-collection/result.json": "30cfade9fb9d9c37d5ff0d5dda9c06ed0ad462ac4bddce044d8a3a19e2b7b343",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/fixed-module-collection/pytest.log": "3c9d57a7220d8bf21ecb3959743f3c17a798d1d5f6e18626c288d132d23ef81e",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/fixed-module-collection/junit.xml": "d078e54d5cb374189b96c27c2d10b0f0fac4fab7b1b6257a9cb58bba881e7c06",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/rgbd-console/inputs.json": "610402aa6bb9628bfd26409a403536540fefd237a67930e87d089ad996711d3c",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/rgbd-console/result.json": "2001a1edf5f22153b073fb03ccb4120a033ad5ad16ffc1d53b1fb0fb63ade758",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/rgbd-console/pytest.log": "42b816792ca8acee96e241cbaa00637f73a16e96ffe51f5e70306bd3b505ed6b",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/rgbd-console/junit.xml": "59bc51a4103a85955771914098928326c25a7cb74190b7dbd01c06088d91e227",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/rgbd-console-complete-env/inputs.json": "159170d2acaa101b77be0f14c2f37e1b4ac504dd8aa4bec3cc82b59d23abe965",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/rgbd-console-complete-env/result.json": "219616b8d32eff2f400178c6dc29f2023748ce74f7d88a828bea93eaa39b0f7e",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/rgbd-console-complete-env/pytest.log": "8b992b1e6536c868faf8f7819fb075a7e030d95c976a9128b16e1ae56af55408",
+    "/home/johnny/Projects/demo/cascade-lab/PYTEST_ROOT_PATH/rgbd-console-complete-env/junit.xml": "fa8f8f895e91bff96236dcfb7623b47097a1b2cc5ddc40fcff3fbfc8b7f03fd4"
+  }
+}

@@ -75,6 +75,8 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Keep repository-only benchmark helpers importable with either pytest entry point.
+pythonpath = ["."]
 markers = [
     "hardware: tests that need a live camera/arm (deselected by default)",
 ]

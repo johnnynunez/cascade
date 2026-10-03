@@ -10,6 +10,24 @@
       "origin": "/home/johnny/Projects/demo/cascade-lab/PROJECT_STATUS_NEXT/cascade/docs/evidence/robot-modularity/factory-contact-writer-cpu.json",
       "sha256": "988d66d446be1da13848fa77e0fb89cdc78383e62aa984a0c5eaea2e7a939a57"
     },
+    "factory-current-age-diagnostic.json": {
+      "bytes": 2859,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/age-diagnostic-01.json",
+      "sha256": "4aba7757c02218570059729838915da07d997074171ccec73fef45258e2d7abe",
+      "source_commit": "cce88808d4bded97a84c02a562cb3ceb997de954"
+    },
+    "factory-current-preparation-review.json": {
+      "bytes": 3747,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/FACTORY_PR85_PLAN_REVIEW_20261003/preparation-native01-review.json",
+      "sha256": "5e72adb120ed62db069572e1a4b933a1687da53551194529858eb504eeacddae",
+      "source_commit": "cce88808d4bded97a84c02a562cb3ceb997de954"
+    },
+    "factory-current-readiness-review.json": {
+      "bytes": 8650,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/FACTORY_PR85_PLAN_REVIEW_20261003/readiness-native01-review.json",
+      "sha256": "72c3562cd1ca27f9b31a8bca4234ba8e5a562f344c1ff71c3b0695e1b5f4f53b",
+      "source_commit": "cce88808d4bded97a84c02a562cb3ceb997de954"
+    },
     "factory-final-outcome-cpu.json": {
       "bytes": 3654,
       "origin": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FINAL_OUTCOME/cascade/benchmark/results/factory_final_outcome_20261003.json",

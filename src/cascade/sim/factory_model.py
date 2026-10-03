@@ -179,7 +179,7 @@ def check_authored_joint(name, position, lower, upper, margin):
 class FactoryBoundModel:
     """Constructed scene plus immutable identity; not physical task admission."""
 
-    def __init__(self, scene, *, clock=time.monotonic):
+    def __init__(self, scene, *, clock=time.monotonic, precompile=None):
         from .newton_screw_seating import SeatingScene
         if type(scene) is not SeatingScene or scene.step_id != 0 or scene.time_s != 0:
             raise FasteningFault("binding requires the exact fresh mounted SeatingScene")
@@ -210,6 +210,10 @@ class FactoryBoundModel:
             for target in (scene.entry, scene.bottom, *scene._targets):
                 for i, position in enumerate(target):
                     check_authored_joint(self.joints[i].name, float(position), lower[i], upper[i], scene.ik_margin_rad)
+        compilation = None
+        if precompile is not None:
+            from .factory_precompile import precompile_factory
+            compilation = precompile_factory(scene, recipe=precompile)
         self._fingerprint = model_fingerprint(scene)
         source_names = ("factory_model.py", "factory_owner.py", "factory_observation.py",
             "factory_recipe.py",
@@ -217,6 +221,10 @@ class FactoryBoundModel:
             "microduck_contact_support.py")
         sources = {str(Path(__file__).with_name(n).resolve()): hashlib.sha256(Path(__file__).with_name(n).read_bytes()).hexdigest()
                    for n in source_names}
+        if compilation is not None:
+            for name in ("factory_precompile.py", "factory_precompile_pins.json"):
+                path = Path(__file__).with_name(name).resolve()
+                sources[str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
         package = Path(__file__).resolve().parents[1]
         for relative in ("control/fastening.py", "skills/fastening_runtime.py", "config.py",
                          "apps/factory_runtime.py", "apps/robot_runtime.py"):
@@ -235,6 +243,8 @@ class FactoryBoundModel:
             "requested_spindle_cap_nm": .05,
             "native_float32_spindle_cap_nm": float(np.float32(.05)),
             "lifecycle": "single private solve owner; no mutation between solves"}
+        if compilation is not None:
+            self.document["precompilation"] = compilation
         labels = scene._names(scene.model.shape_label)
         label = lambda name: scene.model.shape_label[labels[name]]
         thread = (label("nut"), label("bolt"))

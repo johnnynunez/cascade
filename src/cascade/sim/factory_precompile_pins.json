@@ -1,0 +1,21 @@
+{
+  "mujoco_warp._src.constraint": "001a2e7630ca05a61b406daf0bca2f769f8a580f7134629d5b45f37bd8f473d1",
+  "mujoco_warp._src.derivative": "35e5406ff89cabe9d5d6651eb016411347e6b7ab2b76962f069cc2d9220d9c85",
+  "mujoco_warp._src.forward": "7b7ffa3d914b6adf65f228261e207998d5bed1e59d4fb17f5bc6ac796aacf490",
+  "mujoco_warp._src.passive": "0529a92fa4904ff20a7e2a5dc5a0a9ae35e3f86c3a337d4216c7b9b6307bc29c",
+  "mujoco_warp._src.sensor": "f5c0793d97374c7c58e1b8f065ab1386069875a8fd39c1aebdd4ce861b3526d3",
+  "mujoco_warp._src.smooth": "f2993c13ba76c85d9d948eda316de76c987dbecb765b34f31df8e8c9d3d99554",
+  "mujoco_warp._src.solver": "509b43da297dc6e49efeacdbb59df675213e84afbdb26770471a5ba1855a24b3",
+  "mujoco_warp._src.support": "1a08ef15f149d1cf3c9ec5df6c688669fe86aa237ee2512a7463caf1b74e3d54",
+  "mujoco_warp._src.types": "a49625a8994db0d3b52dd34f98adac7f70882d473108c4e4793e4830e81ea71c",
+  "mujoco_warp._src.warp_util": "6759883baef16fc9a5222bf0e5c858700d0847392138a8c0d2ae78a2c9a5780a",
+  "newton._src.geometry.broad_phase_nxn": "26d820380af8b4542c040b3cb9e79ea8c0b20d4c281873adaf8b117b9d72e40f",
+  "newton._src.geometry.contact_reduction_global": "09ccc3c5a8b807fc9780900d0ebd95dc7cdb19f51592b0014e8fe4fd01379251",
+  "newton._src.geometry.narrow_phase": "c13ac4b76d6a128a9f73cb44d8ed10f5e51224340606b2eb0b90bceb7f2cba22",
+  "newton._src.geometry.sdf_contact": "3ae93d6fca86e5d6abf6e209e1fd6a88b8bba9cd2235980f7f6edd0c8888e5a7",
+  "newton._src.sim.collide": "dcc29f631d22dbf4c689e7424e1be67a22b5cc147e4b728a0845c92db760a44b",
+  "newton._src.solvers.mujoco.solver_mujoco": "981568ab792dbc9e82392d57da3cbb507ef1c0d8c88e3b8b7cafe5065945c3cf",
+  "warp._src.context": "22641ad0b95746a72a68c06d583d311efb63a048e9e1f4e22311389b24b17a66",
+  "warp._src.texture": "09ea823af5e33813e32fd4b8a29a22a608f82f1abadcba07faed4f3c17a44d62",
+  "warp._src.types": "64a233a69e8351d424afbf060688baca27bd90e001398aaba33631989c7b67f8"
+}

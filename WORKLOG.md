@@ -755,3 +755,39 @@ occurs. Both runs preserve all 670 source inputs and protected stores. Ruff F/E9
 and diffcheck pass. Native V4 remains FAIL with zero measured counters, no pin,
 natural exit 1 and all owned processes absent; six original foreign births
 were observed unchanged. No native retry or physical admission is claimed.
+
+## 2026-10-03 — Finite Factory precompilation (in progress)
+
+Base 7851e474, separate feat/factory-finite-precompile worktree. Readiness01
+remains FAIL: its first cold solve returned after the unchanged 10 s readiness
+deadline. This opt-in preparation loads a finite pinned Newton/MuJoCoWarp module
+inventory without executing kernels or advancing physics. It will require a new
+model identity and separate native review; CPU controls cannot establish quiet
+readiness. No shared caches, model files, SDKs, or learned stores are modified.
+
+The implementation is now ready for independent review. The seven-file focused
+selection passed 433 tests with 4 existing SO101-asset skips in 1.75 s, using
+normal conftest/private stores; 556 source/config/test inputs and protected stores
+were unchanged. A separate exact SDK CPU probe traversed 1,463 arrays, built
+20 lazy kernel definitions and loaded one generated CPU module without a kernel
+launch, solver or physics step. Before/after physical digests match. It exposed
+and corrected two host representation assumptions (sets and Warp runtime
+infrastructure); all failed probes are retained outside the checkout. The
+recipe now checks the actual nv_pad20 and native tile/CSR dimensions. Comparing
+native01's seven-hex module prefixes gives27 direct matches and one match with
+the separately retained native CSR width90 (minimal CPU fixture width97).
+Full CUDA hashes/loads, Factory native buffers and readiness remain unvalidated.
+No native launch is authorized by this checkpoint. See FACTORY_PRECOMPILATION.md
+and benchmark/results/factory_precompile_cpu_20261003.json.
+
+Independent review found scene-level operation/authoring state outside the seven
+original snapshot roots. Snapshot now covers all scene fields (except its prior
+evidence receipt) and effective class constants, including IK data, targets,
+epoch and drive flags. New controls also found temporary-dictionary ID reuse;
+retaining the referenced objects prevents a false alias. Python3.10-compatible
+error notes preserve the primary failure if receipt persistence also fails.
+Final selection: 448 PASS / 4 existing asset SKIP in1.62s, same556inputs/stores.
+Real SDK CPU control now observes1,627arrays including IK data plus authoring
+and class fields; both physical digests are identical. Earlier receipts and
+byte-matching pre-review helper/runtime sources are retained under external
+validation/review-source-01-retained. No new native process or solve.

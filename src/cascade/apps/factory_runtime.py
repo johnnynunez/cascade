@@ -7,6 +7,7 @@ not physical admission; fresh solved measurements still decide every action.
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 import re
 import threading
@@ -21,11 +22,31 @@ ROBOT_ID = "so101_factory_m20"
 CONTROLLER_ID = "factory_newton:private_m20"
 
 
+def _retain_error_note(error, message):
+    """Evidence must not replace the primary exception on Python 3.10 either."""
+    note = getattr(error, "add_note", None)
+    try:
+        if callable(note):
+            note(message)
+            return
+    except Exception:
+        pass
+    try:
+        logging.getLogger(__name__).error(message)
+    except Exception:
+        pass  # A broken logging sink cannot replace the original failure.
+
+
 def validate_factory_profile(profile):
     required = {"kind", "recipe", "assets", "robot_asset", "device", "model_identity_sha256"}
-    if not isinstance(profile, dict) or set(profile)-required-{"robot_id"} or required-set(profile):
+    if not isinstance(profile, dict) or set(profile)-required-{"robot_id", "precompile"} or required-set(profile):
         raise ValueError("fastening requires the explicit fixed Factory profile fields")
     seating_recipe(profile["recipe"])
+    if "precompile" in profile:
+        from ..sim.factory_precompile import PRECOMPILE_RECIPE
+        from ..sim.factory_recipe import MARGIN_RECIPE
+        if profile["precompile"] != PRECOMPILE_RECIPE or profile["recipe"] != MARGIN_RECIPE:
+            raise ValueError("unreviewed Factory precompile recipe")
     if (profile["kind"] != "fastening"
             or profile.get("robot_id", ROBOT_ID) != ROBOT_ID):
         raise ValueError("only the mounted fixed-axis SO-101 Factory M20 recipe is implemented")
@@ -69,6 +90,18 @@ def prepare_factory_model(profile, cache_dir):
                          recipe=profile["recipe"])
     if not scene.model.device.is_cuda:
         raise FasteningFault("requested CUDA Factory model did not resolve to a CUDA device")
+    if "precompile" in profile:
+        try:
+            model = FactoryBoundModel(scene, precompile=profile["precompile"])
+        except BaseException as error:
+            try:
+                if hasattr(scene, "precompile_receipt"):
+                    _write(Path(cache_dir).parent/"precompile.json", scene.precompile_receipt)
+            except Exception as persist_error:
+                _retain_error_note(error, f"precompile receipt persistence also failed: {persist_error!r}")
+            raise
+        _write(Path(cache_dir).parent/"precompile.json", scene.precompile_receipt)
+        return model
     return FactoryBoundModel(scene)
 
 
@@ -210,5 +243,5 @@ def build_factory_runtime(profile, directory, *, domain_id):
             failure["persistence_error"] = f"{type(persistence).__name__}: {persistence}"
             # Preserve the causal startup exception even if the output device
             # is gone. The owning process's stderr/trace can retain this note.
-            exc.add_note("Factory startup failure receipt: " + json.dumps(failure, sort_keys=True))
+            _retain_error_note(exc, "Factory startup failure receipt: " + json.dumps(failure, sort_keys=True))
         raise

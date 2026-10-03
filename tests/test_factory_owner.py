@@ -294,9 +294,57 @@ def model_fixture():
     native = NS(**{n: Array([1.]) for n in STATIC_MJW_ARRAYS})
     native.opt = NS(**{n: Array([1.]) for n in NATIVE_OPTION_ARRAYS},
                     **{n: 1 for n in NATIVE_OPTION_SCALARS})
-    solver = NS(mj_model=model, mjw_model=native,
+    native.opt.run_collision_detection = False
+    solver = NS(mj_model=model, mjw_model=native, use_mujoco_cpu=False, _use_mujoco_contacts=False,
                 **{n: Array([[0]], np.int32) for n in MAPPING_ARRAYS})
     return NS(mujoco=mj, model=NS(**arrays), solver=solver)
+
+
+def binding_interface_fixture():
+    from cascade.sim.newton_screw_seating import SeatingScene
+    # Construction is bypassed only in this synthetic contract test. There is
+    # deliberately no invented solver.use_mujoco_contacts compatibility alias.
+    scene = object.__new__(SeatingScene)
+    scene.step_id, scene.time_s = 0, 0.
+    scene.solver = NS(use_mujoco_cpu=False, _use_mujoco_contacts=False,
+                      mjw_model=NS(opt=NS(run_collision_detection=False)))
+    return scene
+
+
+def test_binding_accepts_only_the_pinned_sdk_collision_interface(monkeypatch):
+    scene = binding_interface_fixture()
+    class MappingReached(Exception):
+        pass
+    def mapping(*_):
+        raise MappingReached
+    monkeypatch.setattr("cascade.sim.factory_model.joint_mapping", mapping)
+    with pytest.raises(MappingReached):
+        FactoryBoundModel(scene)
+    assert not hasattr(scene.solver, "use_mujoco_contacts")
+
+
+@pytest.mark.parametrize("field", ["use_mujoco_cpu", "_use_mujoco_contacts", "run_collision_detection"])
+@pytest.mark.parametrize("value", [True, None, 0, "missing"])
+def test_binding_rejects_unavailable_or_wrong_effective_collision_mode(field, value):
+    scene = binding_interface_fixture()
+    owner = scene.solver.mjw_model.opt if field == "run_collision_detection" else scene.solver
+    if value == "missing":
+        delattr(owner, field)
+    else:
+        setattr(owner, field, value)
+    with pytest.raises(FasteningFault, match="collision"):
+        FactoryBoundModel(scene)
+
+
+@pytest.mark.parametrize("field", ["use_mujoco_cpu", "_use_mujoco_contacts", "run_collision_detection"])
+def test_bound_identity_rechecks_the_actual_collision_route(field):
+    scene = model_fixture()
+    bound = object.__new__(FactoryBoundModel)
+    bound.scene, bound._fingerprint = scene, model_fingerprint(scene)
+    owner = scene.solver.mjw_model.opt if field == "run_collision_detection" else scene.solver
+    setattr(owner, field, True)
+    with pytest.raises(FasteningFault, match="collision"):
+        bound.check_immutable()
 
 
 @pytest.mark.parametrize("mutation", ["compiled_gain", "native_gain", "native_mass", "shape_transform", "dof_map", "labels", "gravity", "integrator"])

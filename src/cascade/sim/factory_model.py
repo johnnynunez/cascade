@@ -62,12 +62,32 @@ NATIVE_OPTION_SCALARS = ("integrator", "cone", "solver", "iterations", "ls_itera
                          "disableflags", "enableflags", "run_collision_detection", "graph_conditional")
 
 
+def _collision_route(solver):
+    """Require Newton 1.6's stored mode and the effective MJWarp solve branch.
+
+    The pinned solver stores the constructor option in `_use_mujoco_contacts`
+    and copies it into `mjw_model.opt.run_collision_detection`. Its step method
+    consumes the latter. Neither a missing field nor a contradictory mode is
+    evidence that the Newton contact stream is used.
+    """
+    try:
+        route = {"use_mujoco_cpu": solver.use_mujoco_cpu,
+                 "_use_mujoco_contacts": solver._use_mujoco_contacts,
+                 "run_collision_detection": solver.mjw_model.opt.run_collision_detection}
+    except AttributeError as exc:
+        raise FasteningFault("pinned collision mode interface is unavailable") from exc
+    if any(value is not False for value in route.values()):
+        raise FasteningFault("only explicit Newton collision + MJWarp modes are implemented")
+    return route
+
+
 def model_fingerprint(scene):
     """Compiled MuJoCo geometry/actuation plus actual Newton collision/FK arrays.
 
     Mesh/SDF construction is additionally source/asset-bound at creation. This
     fixture has one private owner and exposes no model/SDF mutation API.
     """
+    route = _collision_route(scene.solver)
     mj = scene.mujoco
     binary = np.zeros(mj.mj_sizeModel(scene.solver.mj_model), np.uint8)
     mj.mj_saveModel(scene.solver.mj_model, buffer=binary)
@@ -82,6 +102,7 @@ def model_fingerprint(scene):
     options.update({name: int(getattr(scene.solver.mjw_model.opt, name))
                     for name in NATIVE_OPTION_SCALARS})
     return {"mujoco_binary_sha256": hashlib.sha256(binary.tobytes()).hexdigest(),
+        "collision_route": route,
         "newton_arrays": arrays, "maps": maps, "native_solve_arrays": native, "native_options": options,
         "shape_labels": list(scene.model.shape_label), "body_labels": list(scene.model.body_label),
         "joint_labels": list(scene.model.joint_label)}
@@ -100,8 +121,7 @@ class FactoryBoundModel:
         if type(scene) is not SeatingScene or scene.step_id != 0 or scene.time_s != 0:
             raise FasteningFault("binding requires the exact fresh mounted SeatingScene")
         self.scene, self.clock = scene, clock
-        if scene.solver.use_mujoco_cpu or scene.solver.use_mujoco_contacts:
-            raise FasteningFault("only the existing Newton collision + MJWarp fixture is implemented")
+        _collision_route(scene.solver)
         names = (*scene.arm_joints, "gripper", "socket_spin")
         self.joints = joint_mapping(scene, names)
         self.geometry = FactoryGeometry(scene, self.joints)

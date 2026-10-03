@@ -301,3 +301,30 @@ explicitly. Fifty CPU tests passed in 0.44 s, including the unchanged global
 policy test and refusal before SDK/output creation. The first local edit's YAML
 indentation failure is retained separately. No CPU fallback or physical limit
 change was introduced. See the [device-selection receipt](../benchmark/results/factory_device_selection_20261003.json).
+
+### First construction and pinned SDK interface correction
+
+Source `4e53a8a` reached scene construction in a single prepare-only process on
+an explicitly shared GPU, then failed before binding: Newton 1.6 exposes
+`SolverMuJoCo._use_mujoco_contacts`, not the public attribute used by the new
+adapter. The process exited naturally with code 1; its owned scope and births
+were absent afterward, all source/SDK/assets/store hashes were unchanged, and
+the six pre-existing GPU process identities were unchanged. No owner, readiness,
+reset or motion was requested. The failed return supplies neither a model pin
+nor measured zero-solve counters. The 31.876 s construction interval under shared
+load is a diagnostic duration, not a performance result.
+
+The adapter now requires the pinned stored mode and the effective MJWarp
+`opt.run_collision_detection` branch to be explicitly false, together with
+`use_mujoco_cpu`. Missing fields, wrong types, contradictions and later changes
+reject; there is no alternate-field fallback. The fingerprint binds these modes.
+The native failure remains intact; this correction has not been run natively.
+
+Sixteen new CPU controls produced 15 failures and one pass on the old code;
+the corrected five-file suite passed 274 tests in 1.36 s. A separate 163-test
+owner/readback run passed with the exact MuJoCo 3.12 package in 0.45 s. Static
+inspection found the fingerprint's 33 Newton arrays, six maps, 43 MJWarp arrays
+and 16 option fields declared in the pinned SDK, and checked the owner method
+signatures and step counter. These checks do not establish native buffer
+coverage, readiness, physical task success or a valid model pin. See the
+[SDK-interface receipt](../benchmark/results/factory_sdk_interface_20261003.json).

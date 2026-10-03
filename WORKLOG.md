@@ -661,3 +661,27 @@ policy test and preparation/build refusals before SDK or output creation. All
 YAML indentation error caused 23 parser failures (27 passes); it is retained,
 and fixing indentation alone resolved it. No runtime physics limit changed.
 See benchmark/results/factory_device_selection_20261003.json.
+
+### 2026-10-03 — repair the pinned Factory SDK collision-mode interface
+
+The first shared-GPU prepare-only process exited naturally with an AttributeError
+before model binding: Newton 1.6 stores `_use_mujoco_contacts`, whereas the new
+adapter accessed a nonexistent public attribute. Preserve that source-bound
+failure and both original harnesses. Read the pinned SDK declarations and solve
+branch, require its actual private mode and effective MJWarp collision option
+to be explicitly false, and reject missing/contradictory values without fallback.
+Add synthetic regression controls that expose only the real interface, plus a
+static inventory of the remaining model/owner/observer APIs. No verifier limit,
+SDK package, native process, or physical admission changes in this checkpoint.
+
+Final controls: the old source failed 15/16 new adversarial cases (one existing
+CPU-route refusal already passed); the corrected targeted suite passed 274 tests
+in 1.36 s, and exact MuJoCo 3.12 CPU owner/readback controls passed 163 in 0.45 s.
+Each preserved all 666 tracked test inputs and protected stores. The fingerprint
+inventory and owner signatures match the pinned source declarations. Independent
+read-only inspection found no other concrete observer API mismatch; neither that
+review nor the tests establish native instantiation or contact coverage. The
+failed prepare receipt and six unchanged foreign process identities are retained
+in benchmark/results/factory_sdk_interface_20261003.json. A new external harness
+variant will inspect the exact failed preparation traceback frame for original
+scene counters without replacing the scene class or granting a valid model pin.

@@ -351,6 +351,12 @@ homography is not proof of absolute accuracy. No pixel gate was relaxed.
 [Native result](evidence/project-status-20261003/rgbd-layout-a-native-summary.json),
 [CPU comparison](evidence/project-status-20261003/rgbd-checker-accuracy-cpu.json).
 
+The 2026-10-04 CPU follow-up reproduced those five failures exactly and added
+explicit schema-5 producer/consumer binding with the same geometry and gates.
+All 286 RGB-D tests passed; consumer/SDK check-only descriptors matched. No new
+native render or accepted annotation is claimed.
+[Producer selection and diagnostic limits](RGBD_CHECKER_ACCURACY.md#explicit-producer-selection-2026-10-04).
+
 The delivered **61.056 s** continuous video retains 915 frames. Labelled
 synthetic speech entered the actual browser/Whisper-base/Qwen3-1.7B route and
 selected `locomotion.walk_distance(0.03)`. Controller displacement was 25.249 mm;

@@ -8,10 +8,11 @@ API, flags, pattern, grayscale conversion and actual OpenCV package, separately
 from its ArUco declaration. A changed/missing declaration is refused before
 image inspection. Declaring another SDK's consumer does not claim it ran there.
 
-This remains a CPU benchmark candidate. It is not connected to a native producer
-by this change, has no new physical model admission, and does not establish that
-the earlier native failure is corrected. Neither retained native images nor
-camera K/T/depth were inputs to candidate selection or synthetic evaluation.
+This remains a candidate with CPU validation. The layout-A producer now offers
+explicit schema5 selection, but it has no new native episode or physical model
+admission and does not establish that the earlier native failure is corrected.
+Neither retained native images nor camera K/T/depth were inputs to candidate
+selection or synthetic evaluation.
 
 The [implementation](../benchmark/rgbd/checker_accuracy.py) returns the upstream
 coordinates unchanged. OpenCV documents ACCURACY as internal upsampling to
@@ -103,3 +104,41 @@ The original design and primary-source copies remain under
 `RGBD_CHECKER_ACCURACY_RESEARCH`. All1644 snapshotted inputs/protected-store
 entries matched before/after each recorded run. This evidence does not close
 native XY accuracy, general3D calibration or per-AOV synchronization.
+
+## Explicit producer selection, 2026-10-04
+
+The existing `benchmark/rgbd/layout_a_native_bridge.py` accepts
+`--checker-accuracy` together with the authenticated
+`benchmark/rgbd/assets/checker_accuracy_consumer.json` and its SHA-256 through
+`--consumer-detector` / `--consumer-detector-sha256`. The combined declaration
+binds both checker and ArUco implementations. Without that explicit flag the
+entrypoint remains schema4; either mode rejects the other mode's consumer path
+and fixture. The reader must also select
+`board_from_fixture(fixture, consumer_json, accuracy=True)`, which checks its
+actual implementation before returning `AccuracyBoard`. The ordinary live
+annotation route already dispatches that board to the existing image-only
+schema5 localizer.
+
+Schema5 authoring delegates only rectangle geometry and stored ST to layout A.
+The PNG and rectangle hashes are unchanged; board, consumer, source and composed
+scene identities bind the selected checker. The producer records its actual
+bitmap-authoring OpenCV separately and does not claim to execute the consumer.
+The complete physics/calibration comparator, Ground guards after camera creation
+and bootstrap, 18/17 fitting split and 0.15/0.35 px gates remain unchanged.
+
+The complete RGB-D CPU suite passed 286 tests, including OpenUSD authoring,
+physics-material preservation, changed ST/shader/metadata/ancestor rejection,
+cross-schema refusal and source rebinding. Real check-only executions under
+consumer OpenCV 5.0.0 and SDK author OpenCV 4.14.0 produced equal schema5 descriptors
+without creating a native run directory. These are CPU checks, not rendering.
+
+A fresh schema4-only replay on main `e5ac96f` reproduced all five historical
+corner arrays exactly and retained all five refusals. Analytically projected
+controls have held-out errors below 2.1e-13 px; a uniform half-pixel shift does not
+remove the observed residual. The saved images identify repeatable corner
+inconsistency, but cannot separate native sampling/filtering from localization
+bias. Changing camera calibration or fitting corrections to these failed
+held-outs is not justified. The schema5 candidate was not evaluated on them.
+Local recovery/check-only artifacts are under
+`RGBD_LAYOUT_A_ACCURACY_20261004`; a separately frozen, new native episode is
+still required, retaining every capture and all failures.

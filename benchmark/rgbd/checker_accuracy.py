@@ -97,6 +97,9 @@ class AccuracyBoard:
     def corners_xy(self):
         return self.geometry.corners_xy()
 
+    def texture_st(self):
+        return self.geometry.texture_st()
+
     def description(self):
         value = self.geometry.description()
         value.update(

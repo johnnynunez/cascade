@@ -728,13 +728,17 @@ def shutdown_runtime(runtime, arm) -> dict:
     runtime check at interpreter exit.
     """
     import copy
-    from ..lifecycle import teardown_receipt, teardown_step
+    from ..lifecycle import retain_teardown_attempt, teardown_receipt, teardown_step
 
     previous = getattr(runtime, "_shutdown_receipt", None)
-    if isinstance(previous, dict):
+    delegated = getattr(runtime, "robot_mode", None) in {"mobile", "composed"}
+    if isinstance(previous, dict) and (not delegated or previous.get("complete") is True):
         return copy.deepcopy(previous)
-    if getattr(runtime, "robot_mode", None) in {"mobile", "composed"}:
-        receipt = teardown_receipt([teardown_step("runtime", runtime.close)])
+    if delegated:
+        # Delegated owners track unfinished IO and already-closed domains. Let
+        # them finish cleanup after a pending call; never repeat legacy parking.
+        receipt = retain_teardown_attempt(previous,
+            teardown_receipt([teardown_step("runtime", runtime.close)]))
         runtime._shutdown_receipt = copy.deepcopy(receipt)
         return receipt
 

@@ -170,3 +170,199 @@ def test_composed_arm_adapter_preserves_failed_close(monkeypatch):
     adapter.owner = SimpleNamespace(disconnect=lambda: None)
     receipt = adapter.close()
     assert receipt['ok'] is False and 'worker failure' in str(receipt)
+
+
+@pytest.mark.parametrize('through_mcp', [False, True])
+def test_pending_composed_shutdown_can_finish_cleanup_without_erasing_failure(
+        through_mcp, tmp_path, monkeypatch):
+    from cascade.robotics.contracts import ResourceDescriptor, ToolDescriptor
+    from cascade.robotics.runtime import RobotRuntime
+
+    class HeldRead:
+        domain_id = 'fixture'
+        resources = (ResourceDescriptor('fixture/sensor', 'sensor', 'fixture', synthetic=True),)
+        tool_descriptors = (ToolDescriptor('fixture.read', 'held CPU read',
+            {'type': 'object', 'properties': {}, 'additionalProperties': False},
+            'fixture', 'read', effect='read'),)
+
+        def __init__(self):
+            self.entered, self.release = threading.Event(), threading.Event()
+            self.close_calls = 0
+
+        def execute(self, *_):
+            self.entered.set()
+            assert self.release.wait(15), 'test did not release the owned reader'
+            return {'ok': True}
+
+        def stop(self):
+            return {'ok': True}  # a blocked reader must finish its own IO
+
+        def close(self):
+            self.close_calls += 1
+            return {'ok': True}
+
+    domain = HeldRead()
+    rt = RobotRuntime({'fixture': domain})
+    if through_mcp:
+        monkeypatch.setenv('CASCADE_ROBOT', 'mixed_mock')
+        monkeypatch.delenv('CASCADE_BASE', raising=False)
+        monkeypatch.setenv('CASCADE_RUN_DIR', str(tmp_path))
+        server = mcp_server.McpSkillServer()
+        server._runtime, server._arm = rt, rt
+        server._request_composed_shutdown = Mock(wraps=server._request_composed_shutdown)
+        shutdown = server.shutdown
+    else:
+        shutdown = lambda: demo.shutdown_runtime(rt, None)
+    results = []
+    worker = threading.Thread(target=lambda: results.append(rt.execute('fixture.read', {})))
+    worker.start()
+    try:
+        assert domain.entered.wait(2)
+        first = shutdown()  # actual five-second drain budget, no fake clock
+        assert first['ok'] is False and first['complete'] is False
+        assert domain.close_calls == 0
+        domain.release.set()
+        worker.join(2)
+        assert not worker.is_alive() and results
+        recovered = shutdown()
+        assert domain.close_calls == 1, 'pending wrapper prevented the actual owner from closing'
+        assert recovered['ok'] is False and recovered['complete'] is True
+        assert recovered['attempts'][0] == first
+        assert 'shutdown pending' in str(recovered['attempts'][0])
+        assert not any(s['thread'] and s['thread'].is_alive() for s in rt._stop_slots.values())
+        assert shutdown() == recovered and domain.close_calls == 1
+        if through_mcp:
+            server._request_composed_shutdown.assert_called_once()
+            assert json.loads((tmp_path / 'teardown.json').read_text()) == recovered
+    finally:
+        domain.release.set()
+        worker.join(2)
+        rt.close()  # cleanup also runs if a baseline regression assertion fails
+
+
+def test_mobile_delegated_close_retains_both_failed_attempts():
+    close = Mock(side_effect=[RuntimeError('first close'), RuntimeError('second close'),
+                              {'ok': True}])
+    rt = SimpleNamespace(robot_mode='mobile', close=close)
+    first = demo.shutdown_runtime(rt, None)
+    second = demo.shutdown_runtime(rt, None)
+    assert close.call_count == 2
+    assert not second['ok'] and not second['complete']
+    assert second['attempts'][0] == first
+    assert 'first close' in str(second['attempts'][0])
+    assert 'second close' in str(second['attempts'][1])
+    final = demo.shutdown_runtime(rt, None)
+    assert not final['ok'] and final['complete']
+    assert len(final['attempts']) == 3
+    assert demo.shutdown_runtime(rt, None) == final and close.call_count == 3
+
+
+def test_failed_legacy_shutdown_never_repeats_park_or_disconnect(monkeypatch):
+    park = Mock(side_effect=RuntimeError('park failed'))
+    monkeypatch.setattr(demo, '_park_arm', park)
+    arm = SimpleNamespace(disconnect=Mock(return_value=None))
+    rt = runtime()
+    first = demo.shutdown_runtime(rt, arm)
+    assert not first['ok']
+    assert demo.shutdown_runtime(rt, arm) == first
+    park.assert_called_once()
+    arm.disconnect.assert_called_once()
+
+
+def test_completed_but_failed_domain_receipt_survives_adapter_composition_and_mcp(
+        tmp_path, monkeypatch):
+    from cascade.apps.robot_runtime import DomainAdapter
+    from cascade.robotics.contracts import ResourceDescriptor
+    from cascade.robotics.runtime import RobotRuntime
+
+    monkeypatch.setenv('CASCADE_ROBOT', 'mixed_mock')
+    monkeypatch.delenv('CASCADE_BASE', raising=False)
+    monkeypatch.setenv('CASCADE_RUN_DIR', str(tmp_path))
+    original = {'ok': False, 'complete': True,
+                'attempts': [{'ok': False, 'complete': False, 'error': 'earlier pending IO'},
+                             {'ok': True, 'complete': True}]}
+    backend = SimpleNamespace(close=Mock(return_value=original), stop=lambda: {'ok': True})
+    domain = DomainAdapter('sensing', {'kind': 'sensors'},
+        (ResourceDescriptor('sensing/camera', 'sensor', 'fixture', synthetic=True),),
+        [], (), runtime=backend)
+    rt = RobotRuntime({'sensing': domain})
+    server = mcp_server.McpSkillServer()
+    server._runtime, server._arm = rt, rt
+    result = server.shutdown()
+    assert result['ok'] is False and result['complete'] is True
+    assert 'earlier pending IO' in str(result)
+    assert server.shutdown() == result
+    backend.close.assert_called_once()
+    direct = rt.close()
+    assert direct['ok'] is False and direct['complete'] is True and direct['already_closed']
+    assert direct['domains']['sensing'] == original
+    assert json.loads((tmp_path / 'teardown.json').read_text()) == result
+
+
+@pytest.mark.parametrize('invalid', [None, True, []])
+def test_composed_domain_close_requires_its_structured_contract(invalid):
+    from cascade.apps.robot_runtime import DomainAdapter
+    from cascade.robotics.contracts import ResourceDescriptor
+    from cascade.robotics.runtime import RobotRuntime
+
+    backend = SimpleNamespace(close=lambda: invalid)
+    domain = DomainAdapter('sensing', {'kind': 'sensors'},
+        (ResourceDescriptor('sensing/camera', 'sensor', 'fixture', synthetic=True),),
+        [], (), runtime=backend)
+    rt = RobotRuntime({'sensing': domain})
+    result = rt.close()
+    assert not result['ok'] and not result['complete']
+    assert 'structured receipt' in result['domains']['sensing']['error']
+
+
+def test_mcp_retry_keeps_persistence_errors_from_every_pending_attempt(tmp_path, monkeypatch):
+    from cascade.apps import process_owner
+
+    monkeypatch.setenv('CASCADE_RUN_DIR', str(tmp_path))
+    server = mcp_server.McpSkillServer()
+    server._mobile = True
+    server.stop_now = Mock(return_value={})
+    server._runtime = SimpleNamespace(robot_mode='mobile', close=Mock(side_effect=[
+        {'ok': False, 'pending': True}, {'ok': False, 'pending': True}, {'ok': True}]))
+    write = process_owner._write_json
+    writes = []
+
+    def interrupted_write(path, value):
+        writes.append(path)
+        if len(writes) < 3:
+            raise OSError(f'disk failure {len(writes)}')
+        return write(path, value)
+
+    monkeypatch.setattr(process_owner, '_write_json', interrupted_write)
+    first = server.shutdown()
+    second = server.shutdown()
+    final = server.shutdown()
+    assert not first['ok'] and not second['ok'] and not final['ok']
+    assert final['complete'] and len(final['attempts']) == 3
+    assert 'disk failure 1' in str(final['attempts'][0])
+    assert 'disk failure 2' in str(final['attempts'][1])
+    assert all(attempt['pid'] == final['pid'] for attempt in final['attempts'])
+    assert server.shutdown() == final and len(writes) == 3
+    server.stop_now.assert_called_once()
+    assert json.loads((tmp_path / 'teardown.json').read_text()) == final
+
+
+def test_direct_composed_close_retains_failed_owner_after_cleanup_completes():
+    from cascade.apps.robot_runtime import DomainAdapter
+    from cascade.robotics.contracts import ResourceDescriptor
+    from cascade.robotics.runtime import RobotRuntime
+
+    backend = SimpleNamespace(close=Mock(side_effect=[RuntimeError('owner failed'), {'ok': True}]))
+    domain = DomainAdapter('sensing', {'kind': 'sensors'},
+        (ResourceDescriptor('sensing/camera', 'sensor', 'fixture', synthetic=True),),
+        [], (), runtime=backend)
+    rt = RobotRuntime({'sensing': domain})
+    first = rt.close()
+    recovered = rt.close()
+    assert not first['ok'] and 'owner failed' in str(first)
+    assert recovered['ok'] is False and recovered['complete'] is True
+    assert recovered['attempts'][0] == first
+    cached = rt.close()
+    assert cached['ok'] is False and cached['complete'] is True and cached['already_closed']
+    assert cached['attempts'] == recovered['attempts']
+    assert backend.close.call_count == 2

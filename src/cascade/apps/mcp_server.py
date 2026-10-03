@@ -370,12 +370,17 @@ class McpSkillServer:
         threading.Thread(target=_warm, daemon=True, name="wrc-prewarm").start()
 
     def shutdown(self):
-        from ..lifecycle import teardown_receipt, teardown_step
+        from ..lifecycle import retain_teardown_attempt, teardown_receipt, teardown_step
 
         previous = getattr(self, "_shutdown_receipt", None)
-        if isinstance(previous, dict):
+        retry = (isinstance(previous, dict)
+                 and getattr(self._runtime, "robot_mode", None) in {"mobile", "composed"}
+                 and any(stage.get("stage") == "runtime" and stage.get("complete") is not True
+                         for stage in previous.get("stages", ())))
+        if isinstance(previous, dict) and not retry:
             return copy.deepcopy(previous)
-        stages = []
+        stages = ([copy.deepcopy(stage) for stage in previous["stages"]
+                   if stage.get("stage") == "stop"] if retry else [])
 
         def stop():
             if self._composed:
@@ -385,7 +390,8 @@ class McpSkillServer:
                 # semantics stay intact; runtime.close owns the final receipt.
                 self.stop_now()
 
-        stages.append(teardown_step("stop", stop))
+        if not retry:
+            stages.append(teardown_step("stop", stop))
         # taking _init_lock waits out an in-flight prewarm build, so a
         # runtime that finishes building after EOF is still torn down
         with self._init_lock, contextlib.redirect_stdout(sys.stderr):
@@ -395,6 +401,7 @@ class McpSkillServer:
                 stages.append(teardown_step("runtime", lambda: shutdown_runtime(self._runtime, self._arm)))
         receipt = teardown_receipt(stages)
         receipt.update(pid=os.getpid(), runtime_built=self._runtime is not None)
+        receipt = retain_teardown_attempt(previous, receipt)
         try:
             from .process_owner import _write_json
             from ..config import PACKAGE_ROOT

@@ -33,7 +33,8 @@ flowchart TD
   Graph[Bounded skill graph] --> Runtime
   MCP --> Runtime[RobotRuntime: one robot's dispatch and cancellation]
   Conversation --> Runtime
-  MCP -. multi-agent app wiring pending .-> Fleet[FleetRuntime: multi-robot routing]
+  FleetCLI[Fleet CLI / independent agent episodes] --> Fleet[FleetRuntime: multi-robot routing]
+  MCP -. fleet MCP frontend pending .-> Fleet
   Fleet --> Runtime
   Structure[Embodiment declaration and resource catalog] --> Runtime
   Runtime --> Arm[Manipulation]
@@ -75,7 +76,7 @@ There is no measured twelve-robot episode or real-time performance guarantee.
 | `control/microduck_policy.py`, `sim/microduck_stepper.py` | Pinned ONNX contract and physics-clock policy application | Robot-specific implementation; no generic humanoid policy loader or second writer to head joints |
 | `robotics/graph.py` | Immutable bounded DAG of registered skills, outcome and data edges | No graph-generated code, online self-editing or automatic stop reset |
 | `eval/vab.py`, `eval/arena.py`, `eval/trials.py` | Optional external API adapters and bound independent verdicts | Upstream success alone does not grant physical admission |
-| `robotics/fleet.py` | Concurrent task routing to independent robot runtimes, with per-robot and global stop | A multi-agent application and shared-scene physics still require implementation and native validation |
+| `robotics/fleet.py`, `apps/fleet.py` | Concurrent task routing and an independent agent episode per robot, with per-robot and global stop | Fleet MCP frontend, shared-space coordination and shared-scene physics remain pending |
 
 ## Capability boundaries
 
@@ -88,7 +89,7 @@ There is no measured twelve-robot episode or real-time performance guarantee.
 | Perceive and remember space | Passive sensors, measured-frame contracts and retained RGB-D surface annotations | Physical SLAM/localization, metric reconstruction admission and execution of planned routes |
 | Describe different bodies | Fixed/floating roots, links, transmissions and typed scalar/generalized joint observations | Drivers and control mappings for each mechanism; dynamic whole-body control |
 | Sense touch | Contact, estimated-force and tactile-image contracts | Calibrated tactile device drivers and task-specific tactile verification |
-| Coordinate twelve robots | Concurrent fleet runtime with independent robot identities, ownership and stop state | Multi-agent application, shared native scene, collision interaction and measured fleet stop/reset |
+| Coordinate twelve robots | Concurrent fleet runtime and agent CLI with independent robot identities, ownership and stop state; twelve-member mock diagnostic | Fleet MCP frontend, shared native scene, collision interaction and measured fleet stop/reset |
 
 `ResourceDescriptor.admission` is declared metadata (for example `unvalidated`
 or `software_only`), not an automatic certificate state

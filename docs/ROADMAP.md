@@ -1,11 +1,30 @@
 # Roadmap
 
-This file is a dated log: each "Landed <date>" section records what shipped,
-the work that motivated it, and what was deliberately not adopted.
-The [current capability index](PROJECT_STATUS_20261003.md) and
-[modular architecture](ROBOT_MODULARITY.md) distinguish implemented interfaces,
-source-bound results and remaining fleet, SLAM and whole-body work. The dated
-sections below preserve their original scope.
+The active scope covers the capabilities below. The
+[capability index](PROJECT_STATUS_20261003.md) records measured results and the
+[architecture](ROBOT_MODULARITY.md) describes shared interfaces. Dated entries
+below this table preserve historical decisions; they are not the current backlog.
+
+## Remaining capabilities
+
+A row closes when its implemented path passes the stated end-to-end checks.
+An interface, mock episode or successful dependency import alone does not close it.
+Robot-specific policies, drivers and limits implement shared contracts; the
+architecture does not depend on a particular Isaac Sim build or robot shape.
+
+| Capability | Remaining implementation and completion criteria |
+| --- | --- |
+| Manipulation | Complete the ordinary kitchen task within its deadline, including release, support, rest and return home; validate cuMotion/OVRTX and observed collision/carry protection through the agent route. Extend beyond the reference objects and robot only with measured results. |
+| Fastening | Complete the configured turn-and-rest task; add tool acquisition, engagement, calibrated torque/preload and withdrawal with independent contact and thread measurements. |
+| Locomotion | Demonstrate visible longer routes, turns, balance-preserving stop, disconnect and reset; integrate and validate additional actuator/physics combinations and humanoid policies. Running requires its own controller and evidence. |
+| Perception and spatial understanding | Validate metric RGB-D geometry, moving-camera calibration, IMU/proprioception fusion and time alignment; preserve missing, stale and uncertain observations. |
+| Mapping and navigation | Complete optional SLAM integration and native replay, then collision-map construction, base localization, route execution, replanning and arrival/rest verification, including tracking loss and changed map epochs. |
+| Speech and interaction | Complete spoken request → agent decision → verified action → spoken response; exercise interruption, recovery, camera context, microphone/speaker hardware and an independently deployable conversation service. |
+| Whole-body humanoids | Bind dynamic frames and a whole-body controller to explicit embodiments; validate balance, self/environment collision and coordinated base/arm/head actions. Separate domain controllers must not compete for the same command endpoint. |
+| Hands and touch | Add articulated-hand drivers/controllers, calibrated tactile observations, contact/slip estimation and grasp/force skills; validate dexterous object interaction for each supported hand and sensor. |
+| Multiple robots | Validate the independent agent application beyond its twelve-member mock diagnostic; add the fleet MCP surface, one shared-scene physics owner, shared-space coordination and a measured 12-MicroDuck episode with individual/global stop. |
+| Agent intelligence and evaluation | Validate perception-guided planning, bounded skill graphs, memory-assisted recovery and multimodal feedback across tasks; complete Arena/VAB task episodes and held-out failures. Learned policy adaptation needs separate implementation and evaluation. |
+| Hardware and deployment | Connect selected robots and sensors through explicit adapters; verify calibration, transport loss, controller ownership, stop/restart and task outcomes before each physical deployment. Keep installation and service configuration portable. |
 
 ## Delivery plan recorded on 2026-10-02
 

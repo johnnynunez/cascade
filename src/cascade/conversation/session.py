@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 
 from .domain import ToolIntent
 from .media import decode_pcm
+from .receipts import speech_tool_output
 
 
 @dataclass(frozen=True)
@@ -271,9 +272,13 @@ class ConversationSession:
                 for output_request, output_name, output_result in pending_outputs:
                     if self.closed or not context.valid or context.origin.turn != self.turn:
                         return
-                    output = json.dumps(output_result, allow_nan=False)
-                    if len(output.encode()) > 32768:
-                        output = json.dumps({"ok": False, "error": "tool receipt exceeds speech transport bound; inspect runtime trace"})
+                    # Large observed-motion receipts retain detailed samples in
+                    # the trace. Encoding their speech view must not block the
+                    # event loop handling operator stop or microphone events.
+                    output = await asyncio.to_thread(speech_tool_output, output_result,
+                                                     recorded=self.domain.runtime.trace is not None)
+                    if self.closed or not context.valid or context.origin.turn != self.turn:
+                        return
                     await self.provider.send({"type": "conversation.item.create", "item": {
                         "type": "function_call_output", "call_id": output_request, "output": output}})
                     await self.media.emit({"type": "tool_result", "tool": output_name, "request_id": output_request,

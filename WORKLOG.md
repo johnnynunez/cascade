@@ -554,3 +554,22 @@ whitespace checks pass. Source/store snapshots and causal logs are retained
 outside the repo in CONVERSATION_STOP_ORDER/evidence. No model inference, browser,
 simulator, physical actuation or publication was performed. Demo snapshots remain
 unchanged; this is a software dispatch-order correction, not physical stop proof.
+
+### 2026-10-03 — Bounded speech view of observed tool outcomes
+
+A retained native movement result is 1,836,087 JSON bytes: the prior conversation
+path replaced it with a 92-byte transport error. Added a bounded view for traced
+results, omitting only known image/sample/evidence attachments with SHA256
+references. Retained verdicts, metrics, IDs, bindings and ACKs are unchanged.
+Small outputs keep exact serialization; absent trace or oversized remaining
+fields keep the explicit failure. Encoding runs outside the audio event loop,
+with cancellation rechecked before send and adjacent stop already dispatched.
+
+115 CPU checks passed in 1.26 s; 1,611 source inputs and protected stores were
+unchanged. Same-input causal replay through the actual session and synthetic
+owner fails on the original source and passes with a 20,495-byte view; full
+traces remain exact and the synthetic task stays unverified. Independent
+read-only review and a separate formatter control passed; Ruff F/E9 and diff
+checks are clean. No LLM, TTS, native motion or audio was executed. This does
+not repair or explain the video's absent output speech; supervisor stop can
+independently revoke that session. Publication/merge freeze remains active.

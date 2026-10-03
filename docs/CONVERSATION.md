@@ -137,6 +137,18 @@ pending rather than falsely reported as cancelled.
   This dispatch contract does
   not make the speech session execute concurrent response streams: response
   ordering, interruption and the independent HTTP stop remain unchanged.
+- Tool output to the speech provider remains bounded to 32,768 UTF-8 bytes.
+  Small results retain their exact JSON representation. For an oversized result
+  recorded by the runtime trace, the speech view may omit only image attachments,
+  `measured.samples` and `postcondition.evidence`. It wraps the retained fields
+  under `result` and lists each omitted path, size and canonical JSON SHA256
+  under `speech_transport`. Verdicts, errors, metrics, limits, model/epoch
+  bindings, ACKs and task/receipt IDs are not rewritten. Digests reference the
+  full trace; they do not prove a physical outcome. If unrecognized or retained
+  fields still exceed the bound, or no trace is configured, the existing explicit
+  transport error is returned. Projection runs outside the audio event loop,
+  after any adjacent staged stop, and cancellation is checked again before send.
+  It never changes the task ledger, command deadline or stop latch.
 - Default barge-in invalidates pending speech/tool contexts and stops active or
   pending robot work. Initial idle speech does not latch a stop. Optional
   `speech_only` interruption is available only without motion authority.

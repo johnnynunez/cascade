@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-03",
+  "base_head": "cfff2f2f85d8f8ec4f83f8415b28f52d52edcc69",
+  "scope": "CPU software lifecycle recovery; no native or physical validation",
+  "source_sha256": {
+    "src/cascade/apps/demo.py": "2d52b576c68c71260811b51f6dbb6f3687c2a5a0fedb1bee21e7ade1f31683b2",
+    "src/cascade/apps/mcp_server.py": "bff04f1fd05491cf75be9e262c61c19be11f377f3c09e151d38fe48916d43217",
+    "src/cascade/lifecycle.py": "db5623671b18ac650de53bf05db9b08e324c1fcc3ecb0bf3a6ef5249a9e6dcd8",
+    "src/cascade/robotics/runtime.py": "65e2dd22961a093da30ac70044d7f89b926658dc6c7dc859fed0ebca800c7ecc",
+    "tests/test_robot_runtime.py": "8e8795908f1dc981af6af4c37c9acc96a1bb918b443e5c476f6ca1011c9188ef",
+    "tests/test_runtime_teardown_receipt.py": "f245dc61f11eb9602bacbe73ed17f984d01fbf4ef82a36a534dd8a051c33e04d"
+  },
+  "evidence_root": "/home/johnny/Projects/demo/cascade-lab/RUNTIME_TEARDOWN_RECEIPT",
+  "evidence_sha256": {
+    "review/pending_retry_probe.py": "c37e38e113dfe270be6bf7f93f9b1a9997839453c998220db330c6ef8b266b68",
+    "review/pending-retry-control.json": "0a149c88cd2ba32a8a0822e58b162b90a5e566c0224b005e519c847314d69dcd",
+    "evidence/retry-base/pytest.log": "8d18a1f596ed5b90f9e7b7c305f775b5da7da0e99964f609b802c5451fbaf6b5",
+    "evidence/retry-core-baseline/pytest.log": "8cdaa1861520fc329a1022cc90f81faa33806754ed446c7e995d5fade866e3fc",
+    "evidence/retry-focused/pytest.log": "55846cf5565d9e978ebfba8b8e248996d9a18689b95fccc2f8d537211bf81ce1",
+    "evidence/retry-final/pytest.log": "f2965579c733f24a707512b7fd56735a65b826fc6acfcb1366daffaf47a516f1",
+    "evidence/retry-final/before.json": "f900a4a0938195c3cbd86ce06127a31834db201d2e9edcdfcf0a6bc1ed28ebc6",
+    "evidence/retry-final/after.json": "f900a4a0938195c3cbd86ce06127a31834db201d2e9edcdfcf0a6bc1ed28ebc6"
+  },
+  "independent_reproduction": {
+    "actual_drain_s": 5.001199003017973,
+    "wrapper_before_fix": "pending receipt cached; domain close count 0 and stop worker alive after read returned",
+    "direct_close_cleanup": "closed remaining resources; no process/service/GPU"
+  },
+  "causal_baseline": {
+    "source": "cfff2f2f85d8f8ec4f83f8415b28f52d52edcc69",
+    "held_and_mobile_tests": {
+      "failed": 3,
+      "passed": 1,
+      "duration_s": 10.16
+    },
+    "direct_and_nested_contracts": {
+      "failed": 2,
+      "duration_s": 0.19,
+      "method": "git archive source/config/conftest plus same new test file; normal conftest"
+    }
+  },
+  "intermediate_selection": {
+    "passed": 74,
+    "duration_s": 30.53,
+    "limits": "before direct-owner historical retention and persistence-history follow-up"
+  },
+  "final_selection": {
+    "passed": 139,
+    "failed": 0,
+    "skipped": 0,
+    "duration_s": 45.74,
+    "tests": [
+      "test_runtime_teardown_receipt.py",
+      "test_robot_runtime.py",
+      "test_mcp_server.py",
+      "test_robot_mcp.py",
+      "test_shutdown_drive_state.py",
+      "test_mobile_signal_stop.py"
+    ],
+    "source_inputs": 568,
+    "inputs_unchanged": true,
+    "protected_stores_unchanged": true,
+    "normal_conftest": true,
+    "CUDA_VISIBLE_DEVICES": "-1",
+    "thread_limits": {
+      "OMP_NUM_THREADS": 1,
+      "OPENBLAS_NUM_THREADS": 1,
+      "MKL_NUM_THREADS": 1
+    }
+  },
+  "static": {
+    "ruff_F_E9": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "semantics": {
+    "ok": "sticky historical success flag; a failed attempt never later becomes successful",
+    "complete": "Latest aggregate of observed stage completion; an unresolved initial stop may remain incomplete after owner cleanup. Neither process absence nor this field establishes physical rest.",
+    "retry": "explicit call only, delegated mobile/composed incomplete owners; no repeated legacy parking/disconnect or MCP initial stop",
+    "history": "nonrecursive per-owner attempt receipts, including early pending and persistence errors",
+    "domain_close": "structured dictionary required; None remains only legacy synchronous driver convention"
+  },
+  "physical_rest_verified": false,
+  "sdk_import_or_gpu_run": false,
+  "service_or_llm_host_launch": false,
+  "publication": false
+}

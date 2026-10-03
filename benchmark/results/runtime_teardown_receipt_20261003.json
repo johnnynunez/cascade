@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "base": "125e248e406181f66c1f871ece8de3d150374db5",
+  "scope": "CPU software teardown; no physical rest or backend torque-state validation",
+  "tests": {
+    "passed": 165,
+    "failed": 0,
+    "skipped": 0,
+    "wall_s": 45.11,
+    "command": "pytest tests/test_runtime_teardown_receipt.py tests/test_arm_rig.py tests/test_shutdown_threads.py tests/test_shutdown_drive_state.py tests/test_mcp_server.py tests/test_robot_runtime.py tests/test_robot_mcp.py tests/test_mobile_signal_stop.py -q",
+    "normal_conftest": true,
+    "gpu_disabled": true,
+    "omp_blas_threads": 1,
+    "log_sha256": "04e4bc46028f9794296270f6d1213eb0e3c86ed734657f62f429d70fda07bd9b"
+  },
+  "causal_baseline": {
+    "failed": 8,
+    "passed": 0,
+    "wall_s": 0.17,
+    "log_sha256": "29ae34dc85ce002cfe3d3dc15d46ef99b6584c9fe356d731980efd95aa330b29"
+  },
+  "retained_nonfinal": [
+    {
+      "file": "evidence/first.log",
+      "passed": 121,
+      "failed": 1,
+      "cause": "Mock close returned Mock instead of None; fixture corrected to reflect synchronous contract. Exploratory run not used as final source-bound proof."
+    },
+    {
+      "file": "evidence/final.log",
+      "tests_ran": 0,
+      "cause": "Typo referred to nonexistent test_signal_stop.py; replaced by existing test_mobile_signal_stop.py."
+    }
+  ],
+  "source_files": {
+    "src/cascade/apps/demo.py": "97a58e16621771012ed460ca18b05c076b4379dbb25bfbadcc13ec540bfe2045",
+    "src/cascade/apps/mcp_server.py": "58f942bc5a6d618a02bb489931b0d3317cc2696e284518a4f01d1349cb9c1117",
+    "src/cascade/apps/robot_runtime.py": "91a1fd89b69b00ec9b4488ba67bc6c0b6a4b73adbe742b86cf3f23fcbb353e7c",
+    "src/cascade/control/arm_rig.py": "2f09a7e7491650c3fb43c4e9f6ebd92d507cbb8c17e7e9d69326d2389fd819e2",
+    "src/cascade/lifecycle.py": "2d479fc544ee3543d5caeb91cab55159911d327c7f711e97641fe01b2a1915db",
+    "src/cascade/perception/stream.py": "d3fd19e728b4fed4c8246dcc6df91522728cde8deff96ce374efb39e60a73511",
+    "tests/test_runtime_teardown_receipt.py": "fe95a2a7a9c6297e4d94318c4dda27b44076894d05118ecb157c85dd78f5c3e0"
+  },
+  "binding": {
+    "source_count": 655,
+    "protected_count": 1,
+    "source_and_protected_unchanged": true,
+    "before_sha256": "fdb5ac09433da2135b9a008f73bc9d3361726b2f67e14224c9a817645bea9241",
+    "after_sha256": "fdb5ac09433da2135b9a008f73bc9d3361726b2f67e14224c9a817645bea9241"
+  },
+  "static": {
+    "ast_parsed": 7,
+    "git_diff_check": true,
+    "ruff": "unavailable in reused interpreter; no install"
+  },
+  "limits": [
+    "Existing synchronous None close methods credit only software return without observed error",
+    "No physical rest/torque/release proof",
+    "First failure/pending receipt retained; no automatic retry or park repeat",
+    "No changes to driver disconnect, stop, lease, motion or hardware/simulation policy",
+    "Other legacy callers may ignore return; MCP and composed manipulation consume it"
+  ]
+}

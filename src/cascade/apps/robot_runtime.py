@@ -148,8 +148,7 @@ class DomainAdapter:
     def close(self):
         if self.profile["kind"] == "manipulation":
             from .demo import shutdown_runtime
-            shutdown_runtime(self.runtime, self.owner)
-            return {"ok": True}
+            return shutdown_runtime(self.runtime, self.owner)
         return self.runtime.close()
 
 

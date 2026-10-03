@@ -153,6 +153,29 @@ cannot count as ground. Model identities and command epochs remain per robot.
 
 CPU tests cover 1, 2 and 12 synthetic participants, including index permutations,
 command isolation, cancellation and contact vetoes. The ordinary one-robot
-entrypoint retains its control cadence. Constructing the native shared scene,
-binding its cameras and exposing its robot endpoints remain pending; this module
-is not a native twelve-robot admission or a real-time performance result.
+entrypoint retains its control cadence.
+
+`scripts/isaac_microduck_shared.py` now supplies a bounded native foundation:
+one shared scene, separate ONNX/BAM histories, disjoint robot views, a common
+completed-step overview and per-robot content identities. It takes the native
+bridge's explicit input flags plus `--robots 1..12 --spacing 2`. Use `--port 0`,
+`--solver-cuda-graph --reuse-solved-read` and the explicit SDK recipe; this
+foundation opens no command sockets. Every run needs a fresh output directory
+and an outer process deadline. Shared solver storage scales with robot count;
+contact observations retain every solved row.
+
+The [retained native evidence](evidence/microduck-shared-20261004/foundation.json)
+records separate source-bound runs with **1, 2 and 12 robots**. Each completed
+800 global physics steps (4 simulation seconds), 200 policy evaluations per
+robot, and 9 overview/force-probe pairs. Commands stayed zero, no robot fell,
+clocks and identities matched, and owned processes closed with native exit 0.
+The twelve-robot run retained measured sole support for every robot, with
+maximum XY drift below 2.8 mm and maximum tilt below 0.014 rad. These are
+initialization/balance results, not walking, fleet task or real-time acceptance.
+The earlier twelve-robot attempt failed closed on insufficient contact storage
+and is retained alongside its corrected retry.
+
+Command-capable endpoints, boundary admission of asynchronous commands,
+shared-space interactions and measured individual/global motion stops remain
+pending. The overview uses a widely separated grid; its small floor display
+rectangle does not describe the extent of the physical infinite plane.

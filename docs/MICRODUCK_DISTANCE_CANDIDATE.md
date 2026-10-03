@@ -22,6 +22,26 @@ reassigned to that source.
 
 ## Implemented contract
 
+The 2026-10-03 [distance-outcome regression receipt](../benchmark/results/mobile_distance_outcome_20261003.json)
+records a software defect reproduced on `cbe9873`: 30 mm of admitted motion,
+followed by 50 mm of coasting and a quiet suffix, could confirm an 80 mm final
+displacement for a 30 mm request. Positive credit was correctly clipped at
+completion, but that also hid the intervening excessive motion from the goal
+check. The corrected `walk_distance` verifier keeps that positive interval and
+separately checks every valid observed prefix from completion through the last
+observation, using the same baseline, heading integration and existing limits.
+Overshoot, retreat and lateral/heading drift retain a veto even after returning
+to the goal. Valid late or cancelled in-flight observations can veto; they cannot
+complete a missing objective or establish rest. Existing channel, support,
+execution and cancellation failures remain failures.
+
+The exact review probe changes only the excessive-coast case from confirmed to
+refuted; its healthy, inert, late-only and forbidden-contact controls retain
+their verdicts. The seven-file CPU selection passed 566 tests in 48.88 seconds,
+including 27 new synthetic regressions. No policy, profile limit, actuator or
+native recipe changed. No new physical episode was run and the historical
+native results below were not re-admitted by this software check.
+
 `walk_distance(distance_m=...)` is a geometric objective exposed only by a
 configured mobile profile. SafeBase uses a first completed post-ACK observation
 as its baseline and integrates measured displacement in the body heading frame.

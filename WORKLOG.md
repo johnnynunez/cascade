@@ -1,5 +1,29 @@
 # Manipulation and assembly integration
 
+## 2026-10-03 — distance outcome after command completion
+
+Plan: reproduce the PR87 review counterexample on cbe9873 (30 mm admitted
+travel followed by 50 mm coasting and quiet rest), then retain post-completion
+geometry as veto-only independent evidence. Positive credit remains bounded
+by the admission/completion interval. Keep the existing geometry, support,
+freshness, stop and cancellation limits; no new physics or GPU run. Validate
+signed goals, late-only travel, terminal overshoot/retreat/drift, bad support,
+cancelled reads and execution failure with synthetic CPU records. Changes
+belong to the independent verifier and regressions, not the policy/driver.
+
+Result: the exact inspected review probe reproduced the 30+50 mm false
+confirmation on cbe9873 and refutes it after the fix. Its four other verdicts
+are unchanged. Eight signed/rotated overshoot controls fail on the original
+source; the final seven-file selection passes 566 cases in 48.88 seconds with
+source and four protected stores unchanged. An intermediate 64-pass/1-fail
+run retained an overly specific test reason assertion: the existing settle
+veto legitimately won reason precedence. Only that assertion was corrected;
+it now checks both refusal and the retained geometric veto. Ruff F/E9 and diff
+checks pass. No SDK, simulator, GPU, service or shared environment mutation.
+Positive credit and all limits are unchanged; the added O(n) outcome pass is
+veto-only and limited to walk_distance. Receipt:
+`benchmark/results/mobile_distance_outcome_20261003.json`.
+
 Base: `1271d52d09feaa0edb4652d39a9ab21d69e4a686`.
 
 User priority (2026-10-02): implement OVRTX/cuMotion in manipulation and

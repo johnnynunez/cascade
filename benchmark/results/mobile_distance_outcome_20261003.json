@@ -1,0 +1,326 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-03",
+  "scope": "CPU synthetic independent-verifier regression; no physics or native admission",
+  "base_commit": "cbe9873a97a7471e30485712b7f24b802651bb87",
+  "source_files": {
+    "src/cascade/agent/base_effects.py": "a8f87237574b2ab30e5e71b8ccfa8d8064f635e9ff64cf852e16e251063d0101",
+    "tests/test_walk_distance_terminal.py": "0398963dbe925334696fac777f19c275579a50cade7121c097f3773ea38a7af1",
+    "configs/bases/microduck_distance_native_slow.yaml": "85886fd05af7d2ae5f917052f0520ab4d1408f297d62417853cda89b684bc47d",
+    "configs/bases/microduck_distance_candidate.yaml": "b5fc4f984bedb441a9bb5a9f778d1a7fe80c927546f643d07cbc052409b3e39a",
+    "docs/MICRODUCK_DISTANCE_CANDIDATE.md": "1bd00a17d3b188c5a4dd9ecb58393cb62015db2066dfe3b9ad541059e96257bd",
+    "WORKLOG.md": "03ccdb615a3f85d99b44525bcc88585e0cbd6ccd18dc93a1b53dcf85406292d8"
+  },
+  "defect": "Positive evidence clipped at completion and quiet suffix omitted excessive motion between completion and quiet rest.",
+  "fix": "Same baseline and midpoint-heading integration; unchanged walk_distance bounds checked on each observed prefix from completion onward. First violation persists. Valid late or cancelled in-flight readings can veto, never supply positive credit.",
+  "comparison": {
+    "healthy_no_coast": {
+      "before_status": "confirmed",
+      "before_reason": "independent measured motion matches caller intent",
+      "after_status": "confirmed",
+      "after_reason": "independent measured motion matches caller intent",
+      "requested_distance_m": 0.03,
+      "terminal_displacement_m": 0.03,
+      "positive_credit_body_displacement_m": [
+        0.03,
+        0.0
+      ],
+      "valid_observed_state_count": 61
+    },
+    "overshoot_after_completion": {
+      "before_status": "confirmed",
+      "before_reason": "independent measured motion matches caller intent",
+      "after_status": "refuted",
+      "after_reason": "post-completion distance outcome: excess progress on vx",
+      "requested_distance_m": 0.03,
+      "terminal_displacement_m": 0.08,
+      "positive_credit_body_displacement_m": [
+        0.03,
+        0.0
+      ],
+      "valid_observed_state_count": 61
+    },
+    "no_op": {
+      "before_status": "refuted",
+      "before_reason": "no effect or wrong sign on vx",
+      "after_status": "refuted",
+      "after_reason": "no effect or wrong sign on vx",
+      "requested_distance_m": 0.03,
+      "terminal_displacement_m": 0.0,
+      "positive_credit_body_displacement_m": [
+        0.0,
+        0.0
+      ],
+      "valid_observed_state_count": 61
+    },
+    "late_only_goal": {
+      "before_status": "refuted",
+      "before_reason": "no effect or wrong sign on vx",
+      "after_status": "refuted",
+      "after_reason": "no effect or wrong sign on vx",
+      "requested_distance_m": 0.03,
+      "terminal_displacement_m": 0.03,
+      "positive_credit_body_displacement_m": [
+        0.0,
+        0.0
+      ],
+      "valid_observed_state_count": 61
+    },
+    "forbidden_contact_during_coast": {
+      "before_status": "refuted",
+      "before_reason": "forbidden external robot contact in independent support evidence",
+      "after_status": "refuted",
+      "after_reason": "forbidden external robot contact in independent support evidence",
+      "requested_distance_m": 0.03,
+      "terminal_displacement_m": 0.08,
+      "positive_credit_body_displacement_m": [
+        0.03,
+        0.0
+      ],
+      "valid_observed_state_count": 61
+    }
+  },
+  "original_probe_unchanged": true,
+  "baseline": {
+    "counts": {
+      "tests": 18,
+      "failures": 8,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 10
+    },
+    "pytest_duration_s": 0.353,
+    "command": [
+      "/home/johnny/Projects/demo/cascade-lab/ROBOT_INTEGRATION/venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-o",
+      "cache_dir=/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/baseline-01/pytest-cache",
+      "--junitxml=/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/baseline-01/junit.xml",
+      "tests/test_walk_distance_terminal.py",
+      "-k",
+      "overshoot or missing_admitted or channel_failures or failed_or_uncertain or old_stop",
+      "--tb=no"
+    ],
+    "exit_code": 1,
+    "elapsed_s": 0.8231776540051214,
+    "source_unchanged": true,
+    "protected_unchanged": true,
+    "before_sha256": "6c24bf1b2ce7dfab5549d514aa631180fccfc759f6a7df74a0985c54fc96cd4c",
+    "after_sha256": "6c24bf1b2ce7dfab5549d514aa631180fccfc759f6a7df74a0985c54fc96cd4c",
+    "pytest_log_sha256": "c9cf3b023d3d0e16053b0b264f648fbf94d47ae68fd6fa7232ad7fbc90508093",
+    "junit_sha256": "a8dfac43603ce3b5ade7d791316466e2a196763936e2e634dab0ef0f6319a86d",
+    "scope": "CPU independent mobile verifier with synthetic states; no simulator or GPU launch"
+  },
+  "intermediate": {
+    "counts": {
+      "tests": 65,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 64
+    },
+    "pytest_duration_s": 0.974,
+    "command": [
+      "/home/johnny/Projects/demo/cascade-lab/ROBOT_INTEGRATION/venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-o",
+      "cache_dir=/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/focused-01/pytest-cache",
+      "--junitxml=/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/focused-01/junit.xml",
+      "tests/test_walk_distance_terminal.py",
+      "tests/test_walk_distance_effects.py",
+      "--tb=short"
+    ],
+    "exit_code": 1,
+    "elapsed_s": 1.3789562730235048,
+    "source_unchanged": true,
+    "protected_unchanged": true,
+    "before_sha256": "e2e1743b2c168600eea99734590d7b72120e274632fc0ab6511e29ce12437ba9",
+    "after_sha256": "e2e1743b2c168600eea99734590d7b72120e274632fc0ab6511e29ce12437ba9",
+    "pytest_log_sha256": "7a10d859941d137c42438a1c599f92603d40ade952ecca6117e0ef569369d21e",
+    "junit_sha256": "d422b8fe6d0c787f900c9b5b95d74169c3cc087347e93a6370462c9879042cd6",
+    "scope": "CPU independent mobile verifier with synthetic states; no simulator or GPU launch"
+  },
+  "final": {
+    "counts": {
+      "tests": 566,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 566
+    },
+    "pytest_duration_s": 48.88,
+    "command": [
+      "/home/johnny/Projects/demo/cascade-lab/ROBOT_INTEGRATION/venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-o",
+      "cache_dir=/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/focused-02/pytest-cache",
+      "--junitxml=/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/focused-02/junit.xml",
+      "tests/test_walk_distance_terminal.py",
+      "tests/test_walk_distance_effects.py",
+      "tests/test_mobile_late_read_regressions.py",
+      "tests/test_mobile_support.py",
+      "tests/test_mobile_effects.py",
+      "tests/test_mobile_stop_temporal.py",
+      "tests/test_walk_distance_control.py",
+      "--tb=short"
+    ],
+    "exit_code": 0,
+    "elapsed_s": 49.38994523801375,
+    "source_unchanged": true,
+    "protected_unchanged": true,
+    "before_sha256": "713ae0aba8899d827df4434d2084222ddac075f17e3d1174944d19387f07ba07",
+    "after_sha256": "713ae0aba8899d827df4434d2084222ddac075f17e3d1174944d19387f07ba07",
+    "pytest_log_sha256": "912670b576aed9fa24a6dd138cb1b49cfaa2bb3cc81535c4d8a5c09301788eaf",
+    "junit_sha256": "60eca01c752060e5a45c90a6df2e74a6b4779cadc197f130b1a484b24439d04f",
+    "scope": "CPU independent mobile verifier with synthetic states; no simulator or GPU launch"
+  },
+  "intermediate_failure": "Test-only reason precedence expectation was too specific: existing settle veto already refuted a cancelled late read. Assertion now requires refusal and separately the retained geometric excess-progress veto; production source unchanged.",
+  "validation": {
+    "ruff_F_E9": "pass",
+    "diff_check": "pass",
+    "new_synthetic_cases": 27,
+    "source_unchanged_during_final_suite": true,
+    "protected_stores_unchanged": true
+  },
+  "limits": [
+    "No GPU/SDK/simulator/actuator/process launch.",
+    "No profile, tolerance, policy, driver, freshness, support or stop-budget change.",
+    "Only walk_distance gains this post-completion geometric veto; turn and walk_velocity acceptance is unchanged.",
+    "Invalid/missing channels remain unverified; earlier refutations retain their reasons.",
+    "Historical native episodes retain their original source and verdicts; no new native admission is inferred.",
+    "Documentation and this derivative receipt were written after the frozen source-bound tests."
+  ],
+  "artifacts": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/probe_distance_stop_original.py",
+      "sha256": "d7aa43769c86cc8a93f8ad37c281912d1e31a66d8f10d95cde052b42781665c6",
+      "size_bytes": 4154
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/replay_review_probe.py",
+      "sha256": "47dda5712a0694ebd8955796db5656d91c02b87bb401c55eb042b513ddcdd6a7",
+      "size_bytes": 1966
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/run_cpu.py",
+      "sha256": "2e4fc6a4026cf97437c50b51b6059401d9b5cd46762759c9cd45e72948e044c0",
+      "size_bytes": 2263
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/ruff.log",
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "size_bytes": 19
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/original-review-baseline/receipt.json",
+      "sha256": "9ee2e868c59f8924c299d23af3fa615ccf692924ebc9a11453a79d060b68a748",
+      "size_bytes": 725910
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/original-review-fixed/receipt.json",
+      "sha256": "09616e0d28c5ef8dd6d3cf97ae65259fc72d8eaeafd39c391d1f0bdb2c3c306f",
+      "size_bytes": 727032
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/baseline-01/result.json",
+      "sha256": "56a1285c8dd701dcf1850b4f931bee61d8f3ced57826b4261f82a14d08bc33fe",
+      "size_bytes": 1081
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/baseline-01/before.json",
+      "sha256": "6c24bf1b2ce7dfab5549d514aa631180fccfc759f6a7df74a0985c54fc96cd4c",
+      "size_bytes": 188502
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/baseline-01/after.json",
+      "sha256": "6c24bf1b2ce7dfab5549d514aa631180fccfc759f6a7df74a0985c54fc96cd4c",
+      "size_bytes": 188502
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/baseline-01/pytest.log",
+      "sha256": "c9cf3b023d3d0e16053b0b264f648fbf94d47ae68fd6fa7232ad7fbc90508093",
+      "size_bytes": 1212
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/baseline-01/junit.xml",
+      "sha256": "a8dfac43603ce3b5ade7d791316466e2a196763936e2e634dab0ef0f6319a86d",
+      "size_bytes": 7226
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/focused-01/result.json",
+      "sha256": "3334d1487807e29dcefe63af1b29b7f28ec829ae2dbafd4cb798d9b83685a1f4",
+      "size_bytes": 1023
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/focused-01/before.json",
+      "sha256": "e2e1743b2c168600eea99734590d7b72120e274632fc0ab6511e29ce12437ba9",
+      "size_bytes": 188502
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/focused-01/after.json",
+      "sha256": "e2e1743b2c168600eea99734590d7b72120e274632fc0ab6511e29ce12437ba9",
+      "size_bytes": 188502
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/focused-01/pytest.log",
+      "sha256": "7a10d859941d137c42438a1c599f92603d40ade952ecca6117e0ef569369d21e",
+      "size_bytes": 810
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/focused-01/junit.xml",
+      "sha256": "d422b8fe6d0c787f900c9b5b95d74169c3cc087347e93a6370462c9879042cd6",
+      "size_bytes": 10966
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/focused-02/result.json",
+      "sha256": "500cab394186633fb29507fdc4b2bc39486f0bad580a1d670cef6c910bbcec7b",
+      "size_bytes": 1229
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/focused-02/before.json",
+      "sha256": "713ae0aba8899d827df4434d2084222ddac075f17e3d1174944d19387f07ba07",
+      "size_bytes": 188502
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/focused-02/after.json",
+      "sha256": "713ae0aba8899d827df4434d2084222ddac075f17e3d1174944d19387f07ba07",
+      "size_bytes": 188502
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/focused-02/pytest.log",
+      "sha256": "912670b576aed9fa24a6dd138cb1b49cfaa2bb3cc81535c4d8a5c09301788eaf",
+      "size_bytes": 661
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/focused-02/junit.xml",
+      "sha256": "60eca01c752060e5a45c90a6df2e74a6b4779cadc197f130b1a484b24439d04f",
+      "size_bytes": 86955
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_MARKETING_20261003/REVIEW_FINDINGS.md",
+      "sha256": "8b0727e23758bf789019410c30dfca8847e48fe7bf2f0262d3aaa95aee1cb5db",
+      "size_bytes": 3190
+    },
+    {
+      "path": "/home/johnny/.hermes/cache/scratch/marketing-review-87/probe_distance_stop.py",
+      "sha256": "d7aa43769c86cc8a93f8ad37c281912d1e31a66d8f10d95cde052b42781665c6",
+      "size_bytes": 4154
+    },
+    {
+      "path": "/home/johnny/.hermes/cache/scratch/marketing-review-87/report.json",
+      "sha256": "a5d782450965fd522c98251e910c7ea4afb1a8953423bcecfb4ac777eb4aa1f5",
+      "size_bytes": 18588
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_REVIEW_20261003/review.json",
+      "sha256": "4fdbe51b2c74c990ab27c4e2e07fcec4ed7f3f4aa30da75998e3daa4a0daaa76",
+      "size_bytes": 1596
+    }
+  ]
+}

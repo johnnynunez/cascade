@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 from dataclasses import replace
+import math
 from pathlib import Path
 import threading
 import time
@@ -120,38 +121,66 @@ class FleetRuntime:
         return {"robot_id": robot_id, "ok": result.get("ok") is True, "result": result}
 
     def stop(self, robot_id=None):
-        selected = self.robots if robot_id is None else {robot_id: self._member(robot_id)}
-        requests, results = {}, {}
+        return self.stop_robots(self.robots if robot_id is None else (robot_id,))
+
+    def stop_robots(self, robot_ids):
+        """Fence an exact subset before waiting on any member's stop transport."""
         deadline = time.monotonic() + .5
+        queued = self.request_stop_robots(robot_ids)
+        results = {}
+        for name, receipt in queued["robots"].items():
+            results[name] = (self.robots[name].wait_for_stop(receipt["generation"], deadline_monotonic_s=deadline)
+                             if receipt.get("ok") else receipt)
+        return {"ok": all(r.get("ok") is True for r in results.values()), "robots": results,
+                "physical_stop_verified": False}
+
+    def request_stop_robots(self, robot_ids):
+        """Queue cancellation for exact members without waiting on stop RPCs.
+
+        These receipts establish generation fences only, never actuator ACKs.
+        Existing owned stop workers retain and execute every latest request.
+        """
+        if isinstance(robot_ids, (str, bytes)):
+            raise ValueError("stop_robots requires a collection of exact robot IDs")
+        selected = {name: self._member(name) for name in robot_ids}
+        if not selected:
+            raise ValueError("stop_robots requires at least one robot")
+        results = {}
         with self._gate:
             for name in selected:
                 self._blocked.add(name)
                 self._stop_serial[name] += 1
             for name, runtime in selected.items():
                 try:
-                    requests[name] = runtime.request_stop()
+                    results[name] = {"ok": True, "generation": runtime.request_stop(),
+                                     "pending": True, "physical_stop_verified": False}
                 except Exception as exc:
                     results[name] = {"ok": False, "error": str(exc)}
-        # All robots are fenced before waiting for any RPC. Existing bounded
-        # per-domain workers isolate a stuck endpoint; no thread per stop call.
-        for name, generation in requests.items():
-            results[name] = selected[name].wait_for_stop(generation, deadline_monotonic_s=deadline)
         return {"ok": all(r.get("ok") is True for r in results.values()), "robots": results,
                 "physical_stop_verified": False}
 
-    def reset_stop(self, robot_id, *, expected_generation=None):
+    def reset_stop(self, robot_id, *, expected_generation=None, deadline_monotonic_s=None):
+        if deadline_monotonic_s is not None and (type(deadline_monotonic_s) not in (float, int)
+                or not math.isfinite(deadline_monotonic_s)):
+            raise ValueError("reset deadline must be a finite local monotonic value")
         runtime = self._member(robot_id)
         with self._gate:
             if self._closed:
                 raise ValueError("fleet closed")
             serial = self._stop_serial[robot_id]
             generation = runtime.cancellation_token if expected_generation is None else expected_generation
-        result = runtime.reset_stop(expected_generation=generation)
+        reset_args = {"expected_generation": generation}
+        if deadline_monotonic_s is not None:
+            reset_args["deadline_monotonic_s"] = deadline_monotonic_s
+        result = runtime.reset_stop(**reset_args)
         with self._gate:
-            if serial == self._stop_serial[robot_id] and not self._closed and result.get("ok") is True:
+            expired = deadline_monotonic_s is not None and time.monotonic() >= deadline_monotonic_s
+            if serial == self._stop_serial[robot_id] and not self._closed and not expired and result.get("ok") is True:
                 self._blocked.discard(robot_id)
             elif result.get("ok") is True:
-                result = {"ok": False, "error": "reset superseded by fleet stop or close"}
+                result = {"ok": False, "error": "reset superseded by fleet stop, close or deadline"}
+        if expired:
+            self.request_stop_robots((robot_id,))
         return {"robot_id": robot_id, "ok": result.get("ok") is True, "result": result}
 
     def unverified_actions(self):

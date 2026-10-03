@@ -34,7 +34,7 @@ flowchart TD
   MCP --> Runtime[RobotRuntime: one robot's dispatch and cancellation]
   Conversation --> Runtime
   FleetCLI[Fleet CLI / independent agent episodes] --> Fleet[FleetRuntime: multi-robot routing]
-  MCP -. fleet MCP frontend pending .-> Fleet
+  MCP -->|explicit fleet frontend| Fleet
   Fleet --> Runtime
   Structure[Embodiment declaration and resource catalog] --> Runtime
   Runtime --> Arm[Manipulation]
@@ -76,7 +76,7 @@ There is no measured twelve-robot episode or real-time performance guarantee.
 | `control/microduck_policy.py`, `sim/microduck_stepper.py` | Pinned ONNX contract and physics-clock policy application | Robot-specific implementation; no generic humanoid policy loader or second writer to head joints |
 | `robotics/graph.py` | Immutable bounded DAG of registered skills, outcome and data edges | No graph-generated code, online self-editing or automatic stop reset |
 | `eval/vab.py`, `eval/arena.py`, `eval/trials.py` | Optional external API adapters and bound independent verdicts | Upstream success alone does not grant physical admission |
-| `robotics/fleet.py`, `apps/fleet.py` | Concurrent task routing and an independent agent episode per robot, with per-robot and global stop | Fleet MCP frontend, shared-space coordination and shared-scene physics remain pending |
+| `robotics/fleet.py`, `apps/fleet.py`, `apps/fleet_mcp.py` | Concurrent task routing, an independent agent episode per robot, and bounded fleet MCP with per-robot/global stop | Shared-space coordination and shared-scene physics remain pending |
 
 ## Capability boundaries
 
@@ -89,7 +89,7 @@ There is no measured twelve-robot episode or real-time performance guarantee.
 | Perceive and remember space | Passive sensors, measured-frame contracts and retained RGB-D surface annotations | Physical SLAM/localization, metric reconstruction admission and execution of planned routes |
 | Describe different bodies | Fixed/floating roots, links, transmissions and typed scalar/generalized joint observations | Drivers and control mappings for each mechanism; dynamic whole-body control |
 | Sense touch | Contact, estimated-force and tactile-image contracts | Calibrated tactile device drivers and task-specific tactile verification |
-| Coordinate twelve robots | Concurrent fleet runtime and agent CLI with independent robot identities, ownership and stop state; twelve-member mock diagnostic | Fleet MCP frontend, shared native scene, collision interaction and measured fleet stop/reset |
+| Coordinate twelve robots | Concurrent fleet runtime, agent CLI and MCP with independent robot identities, ownership and stop state; twelve-member mock diagnostics | Shared native scene, collision interaction and measured physical fleet stop/reset |
 
 `ResourceDescriptor.admission` is declared metadata (for example `unvalidated`
 or `software_only`), not an automatic certificate state
@@ -178,7 +178,46 @@ inference result. HTTP already in flight may remain pending; the report records
 that instead of claiming cancellation. `catalog.json`, per-robot trace directories
 and `report.json` retain assignments, outcomes, unresolved actions and shutdown.
 Use a new run directory for each episode. Shared-world collision coordination,
-physical fleet admission and a fleet MCP frontend remain separate work.
+physical fleet admission remain separate work.
+
+The fleet MCP frontend lets an external agent host use these independent robot
+episodes directly:
+
+```bash
+python -m cascade.apps.fleet_mcp --fleet microduck_mock12 \
+  --run-dir runs/fleet-mcp-example --max-pending 64
+```
+
+The installed CLI is `cascade-fleet-mcp`. It speaks newline-delimited JSON-RPC
+on stdio; stdout is reserved for protocol frames. `fleet.catalog` returns exact
+robot IDs, distinct episode IDs and the local namespaced tool schemas.
+`fleet.execute` requires `{robot_id, episode_id, tool, arguments}`; for example,
+`tool: locomotion.get_base_state` selects that member's locomotion domain.
+The MCP host owns conversations and agent inference. No LLM, simulator or model
+server is started by this frontend, and no task-history reset is exposed.
+
+`fleet.stop({robot_id})` stops one robot; `fleet.stop({})` stops all. Stops,
+cancellation notifications and keepalive requests bypass ordinary work.
+Cancellation of queued/running motion or control invalidates that robot's
+generation and latches its existing stop path. `fleet.reset_stop({robot_id})`
+requires a new explicit operator request; `CASCADE_HIDE_TOOLS=reset_stop` hides
+and rejects it. Stops remain available even if a hiding list names them.
+
+The existing profile's `max_workers` bounds concurrent requests; `--max-pending`
+bounds queued plus running work (default 64, maximum 128). Over-capacity requests
+are rejected without actuation. One robot still admits one ordinary operation.
+Each request retains the server-received generation and original `deadline_s`
+budget. Expiry cancels motion/control; delayed results cannot become success.
+A blocked domain retains its slot until it returns, and incomplete shutdown is
+reported rather than spawning replacement workers. Input frames are capped at
+256 KiB. EOF and signals fence the whole fleet and use existing domain teardown
+policies; `mcp-report.json` records closure and pending workers.
+
+Software tests exercise actual child-process stdio, twelve synthetic robots with
+separate traces, per-robot stop/cancel during blocked work with an unaffected
+peer, capacity refusal, queued-request cancellation, stale reset rejection and
+SIGTERM with stdin still open. These do not establish shared-scene physics or
+physical collision/stop performance.
 
 ## Observation and policy contracts
 

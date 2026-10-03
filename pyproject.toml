@@ -60,6 +60,7 @@ dev = ["pytest>=8.0"]
 cascade = "cascade.apps.demo:main"
 cascade-record = "cascade.apps.record:main"
 cascade-mcp = "cascade.apps.mcp_server:main"
+cascade-fleet-mcp = "cascade.apps.fleet_mcp:main"
 cascade-view = "cascade.apps.viewer:main"
 cascade-conversation = "cascade.apps.conversation:main"
 cascade-fleet = "cascade.apps.fleet:main"

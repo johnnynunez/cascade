@@ -161,12 +161,17 @@ def camera_age_summary(records, *, host, port, robot_id, complete, errors):
     return json_evidence(result)
 
 
-def frozen_sources(scene_config):
+def frozen_sources(scene_config, arm_profile="isaac_kitchen_gpu"):
     paths = {Path(__file__), Path(scene_config),
+             ROOT / "benchmark/diagnostics/kitchen_backends.py",
              ROOT / "benchmark/diagnostics/nvblox_camera_recovery.py",
              ROOT / "benchmark/diagnostics/nvblox_postclose_recovery.py",
              ROOT / "benchmark/diagnostics/nvblox_contact_recovery.py",
              ROOT / "assets/newton/rebot_gripper_hulls.usda"}
+    if arm_profile == "isaac_kitchen_cumotion":
+        from cascade.config import load_profile
+        config = load_profile("arms", arm_profile).motion_planner
+        paths.update(Path(config.get(key)) for key in ("urdf", "xrdf"))
     for folder in ("src/cascade", "scripts", "demo"):
         paths.update((ROOT / folder).rglob("*.py"))
     for suffix in ("*.yaml", "*.yml", "*.json"):
@@ -181,10 +186,13 @@ def check_frozen_sources(source_hashes):
         raise RuntimeError("campaign source changed before requested physical phase")
 
 
-def phase(observer, runtime, skill, arguments, phase_name, receipt):
+def phase(observer, runtime, skill, arguments, phase_name, receipt, backend_evidence=None):
     observer.mark(phase_name + "_begin")
     started = time.monotonic()
     try:
+        if backend_evidence is not None:
+            backend_evidence.phase = phase_name
+            backend_evidence.check()
         receipt[phase_name + "_result"] = runtime.execute(skill, arguments)
         occupancy = runtime.arm.harness.occupancy
         if occupancy is not None:
@@ -272,9 +280,12 @@ def run_case(args, proof, case_dir, object_name, source_hashes):
     os.environ["CASCADE_GRASP_MEMORY_PATH"] = str(case_dir / "grasp-memory.json")
     runtime = None
     observer = None
+    backend_evidence = None
     try:
         cfg = load_demo_config(cameras=["isaac", "isaac_side", "isaac_proof"],
-                               arm="isaac_kitchen_gpu", llm="mock")
+                               arm=args.arm_profile, llm="mock")
+        receipt["selected_backends"] = {"arm_profile": args.arm_profile,
+                                        "expected_renderer": args.camera_renderer}
         if not retarget_ports(cfg._data, args.port):
             raise RuntimeError("No bridge_port found in resolved runtime configuration")
         if args.occupancy == "nvblox":
@@ -310,6 +321,10 @@ def run_case(args, proof, case_dir, object_name, source_hashes):
         install_command_trace(runtime, case_dir / "commands.jsonl")
         from nvblox_postclose_recovery import require_simulation_clock
         receipt["simulation_clock"] = require_simulation_clock(runtime)
+        if args.arm_profile == "isaac_kitchen_cumotion" or args.camera_renderer is not None:
+            from kitchen_backends import BackendEvidence
+            backend_evidence = BackendEvidence(runtime, cfg, arm_profile=args.arm_profile,
+                                                renderer=args.camera_renderer)
         if args.occupancy == "nvblox":
             occ = runtime.arm.harness.occupancy
             status = occ.probe(timeout_ms=2000) if occ is not None else None
@@ -341,11 +356,11 @@ def run_case(args, proof, case_dir, object_name, source_hashes):
             try:
                 phase(observer, runtime, "pick_and_place",
                       {"object": object_name.replace("_", " "), "destination": destination},
-                      "pick", receipt)
+                      "pick", receipt, backend_evidence)
             finally:
                 # Reset is an explicit real skill, including after a failed pick.
                 check_frozen_sources(source_hashes)
-                phase(observer, runtime, "reset_scene", {}, "reset", receipt)
+                phase(observer, runtime, "reset_scene", {}, "reset", receipt, backend_evidence)
         receipt["physical_audit"] = observer.audit()
         receipt["camera_age_summary"] = camera_age_summary(observer.records,
             host=observer.host, port=observer.port, robot_id=cfg.arm.bridge_robot_id,
@@ -358,6 +373,8 @@ def run_case(args, proof, case_dir, object_name, source_hashes):
         checks["home_after_place_completed"] = receipt.get("pick_result", {}).get("return_home", {}).get("ok") is True
         checks["reset_skill_completed"] = receipt.get("reset_result", {}).get("ok") is True
         checks["harness_has_no_errors"] = not receipt["errors"]
+        if backend_evidence is not None:
+            checks["selected_backends_have_execution_evidence"] = backend_evidence.report()["pass"]
         if args.occupancy == "nvblox":
             occ = runtime.arm.harness.occupancy
             checks["nvblox_has_fresh_distance_grid"] = occ._grid is not None and not occ.is_stale()
@@ -382,6 +399,10 @@ def run_case(args, proof, case_dir, object_name, source_hashes):
         if observer is not None:
             receipt["observer_errors"] = list(observer.errors)
     finally:
+        if backend_evidence is not None:
+            receipt["backend_evidence"] = backend_evidence.report()
+            if not receipt["backend_evidence"]["pass"]:
+                receipt["pass"] = False
         if observer is not None and "camera_age_summary" not in receipt:
             with observer._lock:
                 records = list(observer.records)
@@ -425,6 +446,10 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--engine", choices=("newton", "physx"), required=True)
+    parser.add_argument("--arm-profile", choices=("isaac_kitchen_gpu", "isaac_kitchen_cumotion"),
+                        default="isaac_kitchen_gpu")
+    parser.add_argument("--camera-renderer", choices=("isaac", "ovrtx"),
+                        help="Require this renderer in actual cached captures; does not launch or configure it")
     parser.add_argument("--occupancy", choices=("none", "nvblox"), default="none")
     parser.add_argument("--occupancy-port", type=int, default=5557)
     parser.add_argument("--query-region-min", type=float, nargs=3, metavar=("X", "Y", "Z"),
@@ -441,6 +466,8 @@ def main(argv=None):
     parser.add_argument("--objects", nargs="+", choices=tuple(CASES), default=list(CASES))
     parser.add_argument("--scene-config", type=Path, default=ROOT / "demo/scene/kitchen_config.json")
     args = parser.parse_args(argv)
+    if args.arm_profile == "isaac_kitchen_cumotion" and args.camera_renderer is None:
+        parser.error("cuMotion kitchen selection requires an explicit --camera-renderer")
     args.output = args.output.resolve()
     args.scene_config = args.scene_config.resolve()
     if not 1 <= args.rounds <= 100 or not 1 <= args.port <= 65535:
@@ -474,9 +501,10 @@ def main(argv=None):
         proof.shared.load_expected_scene_geometry(args.scene_config)
         args.output.mkdir(parents=True)
         os.chdir(ROOT / "models")
-        source_hashes = frozen_sources(args.scene_config)
+        source_hashes = frozen_sources(args.scene_config, args.arm_profile)
         campaign = {"pass": False, "source_sha256": source_hashes, "engine": args.engine, "port": args.port,
                     "rounds": args.rounds, "objects": args.objects,
+                    "arm_profile": args.arm_profile, "expected_renderer": args.camera_renderer,
                     "argv": list(sys.argv[1:] if argv is None else argv),
                     "experimental_query_region": {"min": args.query_region_min, "max": args.query_region_max},
                     "stop_policy": "--fail-fast stops after the first failed case and its one explicit reset; cleanup sends no commands",

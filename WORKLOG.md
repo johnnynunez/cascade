@@ -1594,3 +1594,26 @@ historical index/architecture entry points. Portable receipts retain original
 bytes and hashes; GitHub publication state is a dated read-only API snapshot.
 No current publication freeze or old video-resource reservation is introduced.
 No code, unit test, benchmark, model, SDK, physical scene or learned store changed.
+## 2026-10-03 — Optional kitchen cuMotion selection (CPU implementation)
+
+Scope: add an explicit `isaac_kitchen_cumotion` profile and campaign backend
+selection checks while preserving the existing kitchen profile, physical
+verifiers, occupancy behavior and motion/planning budgets. Main base is
+`67f0b61c490f1a83529ecd9143b0361737b3897b`. The `manipulation-ik` skill's
+contact-only/object-state acceptance applies; this checkpoint runs no SDK,
+GPU, simulator or native task. No physical admission is implied.
+
+Plan: reuse the existing planner and exact-curve stream, inspect already
+captured camera bindings, retain per-curve candidate and execution outcomes,
+and reject selected-backend mismatches or missing evidence. CPU controls cover
+profile inheritance, unchanged default, admission/refusal and terminal evidence.
+No generic runtime instrumentation, new safety thresholds or planner fallback.
+
+Validation: 206 CPU tests passed in 1.46 s across seven affected files; Ruff
+F/E9 and diff checks pass. Source inventories and four protected store states
+are unchanged during each run. The initial 73-pass/one-failure check caught
+a `Cfg[key]` access in the selected-model manifest; its failure is retained,
+and the correction uses the existing `Cfg.get` API. Camera selection reuses
+the ordinary readiness packet validator, including native render tokens and
+actual RGB-D presence. No SDK, GPU, simulator or physical task was run.
+Evidence: `benchmark/results/kitchen-cumotion-selection-20261003.json`.

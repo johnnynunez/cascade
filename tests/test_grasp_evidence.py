@@ -220,7 +220,7 @@ def test_failed_attempt_preserves_original_exception_and_exact_command_read_trac
     assert not any(e['phase'] == 'close' for e in doc['events'])
 
 
-def test_unwritable_directory_is_visible_without_masking_robot_exception(monkeypatch, tmp_path, capsys):
+def test_unwritable_directory_is_visible_without_masking_robot_exception(monkeypatch, tmp_path, capsys, synthetic_git_metadata):
     blocked = tmp_path / 'not-a-directory'
     blocked.write_text('occupied')
     monkeypatch.setenv('CASCADE_GRASP_EVIDENCE_DIR', str(blocked))

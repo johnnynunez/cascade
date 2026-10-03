@@ -144,6 +144,13 @@ pending rather than falsely reported as cancelled.
   This dispatch contract does
   not make the speech session execute concurrent response streams: response
   ordering, interruption and the independent HTTP stop remain unchanged.
+  An actually completed response may stage a motion followed by an adjacent
+  stop. The stop is dispatched before either result is sent to a slow provider.
+  Its correlated continuation can speak about the returned evidence while
+  retaining the original input deadline and generation; it cannot renew motion
+  authority after that stop. An operator interrupt still revokes the origin and
+  suppresses its remaining audio. CPU protocol controls cover both paths; they
+  are not model inference, physical motion or a recorded spoken robot reply.
 - Tool output to the speech provider remains bounded to 32,768 UTF-8 bytes.
   Small results retain their exact JSON representation. For an oversized result
   recorded by the runtime trace, the speech view may omit only image attachments,

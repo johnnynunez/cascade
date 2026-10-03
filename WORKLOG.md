@@ -731,3 +731,12 @@ On PR93 base `f06837ce`, all eight feedback cases reproduced the missing-harness
 - 151 CPU/static-geometry tests pass, 0 skip; one original physical reset test deselected. Twenty cancellation controls include the real SafeArm/ArmBase boundary with intercepted writes.
 - Preserved the initial fixture errors and missing-LFS-mesh failure; 26 SO101 assets and two gripper meshes verified against hashes/OIDs, sources and protected stores unchanged. No GPU, new native physics episode or physical admission.
 - Receipt: `benchmark/results/mujoco_withdrawal_cancellation_20261003.json`.
+
+
+### PR93 cancellation between reset callbacks — 2026-10-03
+
+- Independent controls on fe0a49ee: 38 pass / 9 fail because verification, capture or depth returned after stop/reset and the next callback still ran; failure and pending debt already remained correct.
+- Fence verification→memory→capture→depth→describe boundaries and preserve actual forgotten-belief count if clearing finished before cancellation. No replay or rollback of completed work.
+- Exact supplied 47 controls pass; expanded seven-file selection 183 pass, 0 skip, one original physical reset test deselected. Source snapshots and protected stores unchanged; no native/GPU/physical acceptance.
+- Preserve initial six new-test KeyErrors from assuming an optional earlier-failure counter; fixture assertion corrected without changing production.
+- Receipt: `benchmark/results/mujoco_reset_callback_cancellation_20261003.json`.

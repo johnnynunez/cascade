@@ -3800,7 +3800,8 @@ class SkillRuntime:
                     raise SafetyViolation("e-stop latched during scene recovery")
             except SafetyViolation as exc:
                 out.update(ok=False, stage="reset_recovery", recovery_error=str(exc),
-                           beliefs_forgotten=0, error=f"Scene recovery cancelled: {exc}")
+                           error=f"Scene recovery cancelled: {exc}")
+                out.setdefault("beliefs_forgotten", 0)
                 return True
             return False
         if getattr(self, "_release_episode", None) is not None:
@@ -3912,10 +3913,19 @@ class SkillRuntime:
                 out["world_error"] = str(e)
                 out["error"] = f"Isaac prop reset failed: {e}"
                 home_ok = False  # do not let the final home result mask a reset failure
+        if recovery_cancelled():
+            return out
         dropped = self.beliefs.clear()
+        out["beliefs_forgotten"] = dropped
+        if recovery_cancelled():
+            return out
         self.memory.reset_frames()
+        if recovery_cancelled():
+            return out
         self.memory.add("note", f"scene reset: {len(out['props_reset'])} prop(s) respawned, "
                                 f"{dropped} belief(s) forgotten")
+        if recovery_cancelled():
+            return out
         try:
             # A cached Isaac image can be delivered repeatedly with NEW local
             # frame IDs and receipt times. Fence by the carried producer clock,
@@ -3924,10 +3934,16 @@ class SkillRuntime:
                 from ..perception.freshness import capture_marker
 
                 observed = self._reset_camera_frames()
+                if recovery_cancelled():
+                    return out
                 frame = self.depth.ensure_depth(observed[0][2])
+                if recovery_cancelled():
+                    return out
                 self.last_frame = frame
                 self.arm.harness.heartbeat()
                 obs = self._describe_observation(frame)
+                if recovery_cancelled():
+                    return out
                 out["observation_freshness"] = [
                     {"camera": getattr(camera, "name", None),
                      "floor": capture_marker(floor), "observed": capture_marker(fresh)}
@@ -3935,6 +3951,8 @@ class SkillRuntime:
                 ]
             else:
                 obs = self.skill_get_observation()
+                if recovery_cancelled():
+                    return out
             out["objects_visible"] = obs.get("objects_visible", [])
             out["observation_refreshed"] = True
         except Exception as e:  # noqa: BLE001

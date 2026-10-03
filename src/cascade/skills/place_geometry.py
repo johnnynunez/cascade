@@ -18,14 +18,21 @@ class PlaceGeometry:
     retreat_target: object
     rotation: np.ndarray
     hover: np.ndarray
+    target: np.ndarray | None = None
 
 
-def plan(runtime, q_now, target, *, x, y, release_z, z_cap):
+def plan(runtime, q_now, target, *, x, y, release_z, z_cap,
+         attachment_translation_tool=None):
     # Error classes remain those of the ordinary skill: refusal has exactly
     # the same terminal carry/retreat semantics for point and area requests.
     from .runtime import _PostPlaceRetreatPlanError, _PreCarryLiftError
 
     gcfg = runtime.cfg.grasp
+    attachment = None
+    if attachment_translation_tool is not None:
+        attachment = np.asarray(attachment_translation_tool, dtype=float)
+        if attachment.shape != (3,) or not np.isfinite(attachment).all():
+            raise SkillError("placement attachment translation must be a finite tool-frame vector")
     table_z = float(runtime.cfg.safety.get("table_z", 0.0))
     tcp_now = runtime.kin.fk(q_now)
     hover = target + np.array([0.0, 0.0, float(gcfg.get("pregrasp_offset_m", 0.12))])
@@ -85,23 +92,35 @@ def plan(runtime, q_now, target, *, x, y, release_z, z_cap):
     pre = low = retreat = None
     for yaw in yaws:
         R = _yaw_rotation(yaw, axis_order=runtime._tool_axis_order)
-        cand_pre = runtime.kin.ik(make_transform(R, hover), carry_start)
+        # The observed attachment is geometric aiming evidence only. Rotate
+        # its translation into the destination frame; z keeps its existing
+        # release-height meaning. The legacy world-offset path is unchanged.
+        candidate_target = target.copy()
+        candidate_hover = hover.copy()
+        candidate_retreat = None if retreat_target is None else retreat_target.copy()
+        if attachment is not None:
+            candidate_target[:2] = np.array([x, y]) - (R @ attachment)[:2]
+            candidate_hover[:2] = candidate_target[:2]
+            if candidate_retreat is not None:
+                candidate_retreat[:2] = candidate_target[:2]
+        cand_pre = runtime.kin.ik(make_transform(R, candidate_hover), carry_start)
         if (not cand_pre.success
                 or np.max(np.abs(cand_pre.q - carry_start)) > np.pi):
             continue
-        cand_low = runtime.kin.ik(make_transform(R, target), cand_pre.q)
+        cand_low = runtime.kin.ik(make_transform(R, candidate_target), cand_pre.q)
         if (cand_low.success
                 and np.max(np.abs(cand_low.q - cand_pre.q)) <= np.pi):
             cand_retreat = None
             if retreat_target is not None:
                 # Reuse the existing pose exactly when the hover already
                 # provides this clearance (e.g. the kitchen pink cube).
-                cand_retreat = (cand_pre if np.array_equal(retreat_target, hover)
-                                else runtime.kin.ik(make_transform(R, retreat_target), cand_low.q))
+                cand_retreat = (cand_pre if np.array_equal(candidate_retreat, candidate_hover)
+                                else runtime.kin.ik(make_transform(R, candidate_retreat), cand_low.q))
                 if (not cand_retreat.success
                         or np.max(np.abs(cand_retreat.q - cand_low.q)) > np.pi):
                     continue
             pre, low, retreat = cand_pre, cand_low, cand_retreat
+            target, hover, retreat_target = candidate_target, candidate_hover, candidate_retreat
             break
     if pre is None or low is None:
         retreat_detail = (f", post-place retreat {retreat_target.round(3).tolist()}"
@@ -112,4 +131,4 @@ def plan(runtime, q_now, target, *, x, y, release_z, z_cap):
             f"(hover {hover.round(3).tolist()}{retreat_detail}, all yaws tried)"
         )
 
-    return PlaceGeometry(lift, pre, low, retreat, retreat_target, R, hover)
+    return PlaceGeometry(lift, pre, low, retreat, retreat_target, R, hover, target)

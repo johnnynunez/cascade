@@ -2477,7 +2477,12 @@ class SkillRuntime:
             raise SkillError("placement support clearance must be finite and nonnegative")
         return float(support_z) + float(offset) + clearance
 
-    def skill_place_at(self, x: float, y: float, z: float | None = None) -> dict:
+    def skill_place_at(self, x: float, y: float, z: float | None = None, *, _model_plan=None) -> dict:
+        from .mujoco_placement_aim import RegionPlan
+        if _model_plan is not None:
+            if type(_model_plan) is not RegionPlan:
+                raise SkillError('placement requires its private bound region plan')
+            _model_plan.aim.guard(self)
         carry_attachment.check(self)
         self._adopt_unknown_held()
         if not self.held_object:
@@ -2497,6 +2502,10 @@ class SkillRuntime:
                 f"top-down ceiling; releasing from {z_cap:.2f} m instead",
             )
             release_z = z_cap
+        if _model_plan is not None:
+            # Reject a replayed/changed internal handoff before an observation
+            # could take another path (including the legacy slip handler).
+            _model_plan.consume(self, x, y, release_z, _model_plan.aim.q)
         target = np.array([x, y, release_z])
         # Aim the OBJECT at the target, not the TCP. The IK below drives the
         # TCP, so the requested point has to be shifted by wherever the object
@@ -2576,15 +2585,24 @@ class SkillRuntime:
             target[1] -= float(held_offset[1])
             self.memory.add(
                 "note",
-                f"object sits {np.linalg.norm(held_offset[:2])*100:.1f} cm off "
-                f"the gripper centre; aiming the TCP at "
-                f"[{target[0]:.3f}, {target[1]:.3f}] so the OBJECT lands on "
-                f"[{x:.3f}, {y:.3f}]",
+                f"current object offset estimate is {np.linalg.norm(held_offset[:2])*100:.1f} cm "
+                "from the gripper centre; final TCP aim is resolved with the placement pose",
             )
         q_now = (carry_state if carry_state is not None else self.arm.get_state()).q
         from .place_geometry import plan as plan_geometry
-        geometry = plan_geometry(self, q_now, target, x=x, y=y,
-                                 release_z=release_z, z_cap=z_cap)
+        from .mujoco_placement_aim import capture as capture_aim
+        aim = _model_plan.aim if _model_plan is not None else capture_aim(self, q_now)
+        if _model_plan is not None:
+            geometry = _model_plan.consume(self, x, y, release_z, q_now)
+        else:
+            geometry = plan_geometry(self, q_now, target, x=x, y=y,
+                                     release_z=release_z, z_cap=z_cap,
+                                     **({} if aim is None else {'attachment_translation_tool': aim.translation}))
+        if aim is not None:
+            aim.guard(self, q_now)
+            target = geometry.target.copy()
+        self.memory.add('note', f"planned TCP aim [{target[0]:.3f}, {target[1]:.3f}, {target[2]:.3f}] "
+                        f"for requested OBJECT XY [{x:.3f}, {y:.3f}]")
         lift, pre, low = geometry.lift, geometry.pre, geometry.low
         retreat, retreat_target = geometry.retreat, geometry.retreat_target
         R, hover = geometry.rotation, geometry.hover
@@ -2602,7 +2620,10 @@ class SkillRuntime:
         from . import mujoco_withdrawal
         try:
             mujoco_withdrawal.prepare(self, make_transform(R, target),
-                carry_goals=([lift.q] if lift is not None else []) + [pre.q, low.q])
+                carry_goals=([lift.q] if lift is not None else []) + [pre.q, low.q],
+                **({} if aim is None else {'deadline': aim.deadline}))
+            if aim is not None:
+                aim.guard(self, q_now)
         except (SkillError, SafetyViolation, ValueError) as exc:
             raise _PostPlaceRetreatPlanError(str(exc)) from exc
         if lift is not None:
@@ -2737,6 +2758,9 @@ class SkillRuntime:
         # so returning the offset-compensated TCP point would grade the place
         # against the wrong thing and quietly forgive the compensation error.
         result = {}
+        if aim is not None:
+            result['placement_aim'] = {**aim.receipt(), 'requested_object_xy_m': [x, y],
+                                       'target_tcp_m': target.tolist()}
         if model_withdrawal is not None:
             result["release_clearance"] = model_withdrawal.receipt()
             retreat_target = model_withdrawal.target[:3, 3].copy()
@@ -3096,10 +3120,12 @@ class SkillRuntime:
                         res = self.skill_place_on_object(destination)
                     else:
                         from .mujoco_region import select as select_region
-                        region_selection = select_region(self)
+                        region_plan = select_region(self, retain_aim=True)
+                        region_selection = None if region_plan is None else region_plan.report
                         dz = (region_selection["target"] if region_selection is not None
                               else gcfg.get("drop_zone", [0.30, -0.20]))
-                        res = self.skill_place_at(float(dz[0]), float(dz[1]))
+                        res = self.skill_place_at(float(dz[0]), float(dz[1]),
+                            **({} if region_plan is None else {'_model_plan': region_plan}))
                         if region_selection is not None:
                             res.update(destination=region_selection["destination"],
                                        destination_kind="configured_region", region_selection=region_selection)
@@ -3211,6 +3237,8 @@ class SkillRuntime:
             result["post_place_retreat"] = placed["post_place_retreat"]
         if "release_clearance" in placed:
             result["release_clearance"] = placed["release_clearance"]
+        if "placement_aim" in placed:
+            result["placement_aim"] = placed["placement_aim"]
         if placed.get("ok") is False:
             result.update(ok=False, stage=placed.get("stage", "place"),
                           error=placed.get("error", "place failed"),

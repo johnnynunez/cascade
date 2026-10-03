@@ -634,3 +634,26 @@ cleanup passes all 14 new regressions. Sources and protected stores remain
 unchanged during each check; the rounded retained trace is not a new physical
 run. See docs/PLACEMENT_REFUSAL_VERIFICATION.md and its source-bound receipt.
 The separate two-cube physical failure remains open. No push or merge.
+
+### 2026-10-03 — measured attachment frames in placement aiming (in progress)
+
+Apply `manipulation-ik` to the optional MuJoCo region adapter: bind the measured
+tool-to-object transform and use the destination orientation when aiming XY.
+Share the resulting pose between geometric preview and ordinary `place_at`,
+rejecting snapshot drift before consumption. Preserve the release height,
+three-second planning budget, IK candidates, collision paths and physical
+verifiers. The 7a52 physical episode and scratch diagnosis remain frozen outside
+this worktree. CPU contract/causal controls precede review; no new dynamics,
+renderer, GPU run, physical attachment or publication is authorized here.
+
+The completed candidate passes 313 targeted checks in 38.35 s, including 44 new
+frame/binding/ordinary-skill controls. Tracked inputs and protected stores stayed
+unchanged during validation. The first combined check retained 308 PASS and one
+incorrect test assertion: it compared the selector deadline against a timestamp
+before function entry (17.8 microseconds difference). The corrected control
+records the selector's actual first clock read; the three-second production
+budget did not change. Existing no-attachment pose vectors remain covered.
+The ordinary point path consumes the same measured pose as region preview,
+and its private handoff is an in-call guard, not single-use actuation authority.
+No physical episode, GPU, renderer or publication was launched for this change.
+See docs/MUJOCO_PLACEMENT_ATTACHMENT.md and the source-bound benchmark receipt.

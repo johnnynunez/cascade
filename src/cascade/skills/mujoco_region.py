@@ -11,7 +11,7 @@ from . import mujoco_withdrawal
 from .place_geometry import plan as plan_geometry
 
 
-def select(runtime):
+def select(runtime, *, retain_aim=False):
     from .runtime import _PostPlaceRetreatPlanError
     from ..sim.mujoco_placement import Region, state_digest
     from ..sim.truth import _match_label
@@ -59,6 +59,10 @@ def select(runtime):
         lo, hi = lower[geoms].min(axis=0), upper[geoms].max(axis=0)
         offsets = np.array([lo[:2]-center[:2], hi[:2]-center[:2]])
         q = world.data.qpos[raw._qadr].copy()
+        from .mujoco_placement_aim import capture, RegionPlan
+        aim = capture(runtime, q, deadline=deadline)
+        if aim is None:
+            raise _PostPlaceRetreatPlanError('region requires a bound measured attachment')
         tcp = runtime.kin.fk(q)
         offset = center-tcp[:3, 3]
         clearance = float(runtime.arm.harness.limits.table_clearance)
@@ -96,7 +100,10 @@ def select(runtime):
             guard()
             target = np.array([x-offset[0], y-offset[1], release_z])
             try:
-                geometry = plan_geometry(runtime, q, target, x=x, y=y, release_z=release_z, z_cap=z_cap)
+                aim.guard(runtime, q)
+                geometry = plan_geometry(runtime, q, target, x=x, y=y, release_z=release_z, z_cap=z_cap,
+                                         attachment_translation_tool=aim.translation)
+                target = geometry.target
                 preview = mujoco_withdrawal.prepare(runtime, make_transform(geometry.rotation, target),
                     carry_goals=([geometry.lift.q] if geometry.lift is not None else [])
                                 + [geometry.pre.q, geometry.low.q], deadline=deadline)
@@ -134,16 +141,19 @@ def select(runtime):
                     if gap < clearance:
                         raise SkillError('destination does not preserve physical object separation')
                 guard()
+                aim.guard(runtime, q)
                 history.guard()
                 if history.epoch != epoch or state_digest(world.data) != snapshot or time.monotonic() >= deadline:
                     raise SkillError('region preview changed identity/state or exceeded its deadline')
-                return {'destination': region.name, 'destination_kind': 'configured_region',
+                report = {'destination': region.name, 'destination_kind': 'configured_region',
                         'region': region.as_dict(), 'target': [x, y], 'model_sha256': history.identity,
                         'epoch': epoch, 'generation': generation, 'physical_task_verdict': False,
                         'planning_method': ('interior row capacity and existing full carry/release/home checks'
                             if region.version == 2 else 'measured footprint edge packing and existing full carry/release/home checks'),
                         'capacity': final_capacity,
-                        'object_separation_m': clearance, 'rejected_candidates': rejected}
+                        'object_separation_m': clearance, 'rejected_candidates': rejected,
+                        'placement_aim': aim.receipt(), 'target_tcp_m': target.tolist()}
+                return RegionPlan(aim, geometry, report) if retain_aim else report
             except SkillError as exc:
                 rejected.append({'target': [x, y], 'reason': str(exc)})
     raise _PostPlaceRetreatPlanError('no feasible unoccupied destination in region: '+repr(rejected))

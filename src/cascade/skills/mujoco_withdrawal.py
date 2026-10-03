@@ -18,6 +18,15 @@ from ..safety.trajectory import PLAN_BUDGET_S, motion_duration, plan_route, vet_
 from ..types import SafetyViolation, SkillError
 
 
+def coordinate_binding(runtime, raw):
+    """The actual driver coordinates consumed by planning and actuation."""
+    return (raw.n_joints, tuple(raw._qadr), tuple(raw._dadr), tuple(raw._aidx),
+            tuple(raw._joint_names), tuple(raw._act_names),
+            raw._grip_qadr, raw._grip_aidx, raw._grip_joint, raw._grip_act,
+            raw._grip_open, raw._grip_closed, raw._grip_ctrl_scale, raw._grip_ctrl_offset,
+            runtime._grip_open, runtime._grip_closed, raw._ctrl.dtype.str)
+
+
 def prepare(runtime, release_pose, *, carry_goals=None, deadline=None):
     raw = getattr(runtime.arm, "raw", None)
     name = getattr(raw, "_cfg", {}).get("mj_release_tool_body")
@@ -362,12 +371,7 @@ class Withdrawal:
             raise SkillError("postrelease data/history epoch binding changed")
 
     def _coordinates(self):
-        raw = self.raw
-        return (raw.n_joints, tuple(raw._qadr), tuple(raw._dadr), tuple(raw._aidx),
-                tuple(raw._joint_names), tuple(raw._act_names),
-                raw._grip_qadr, raw._grip_aidx, raw._grip_joint, raw._grip_act,
-                raw._grip_open, raw._grip_closed, raw._grip_ctrl_scale, raw._grip_ctrl_offset,
-                self.runtime._grip_open, self.runtime._grip_closed, raw._ctrl.dtype.str)
+        return coordinate_binding(self.runtime, self.raw)
 
     def _check_model_identity(self):
         from ..sim.mujoco_placement import model_digest

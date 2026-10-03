@@ -162,7 +162,7 @@ def scene_geometry_snapshot_code(*, include_open_box=False, convex_object_name=N
     expected_props = validate_expected_props(expected_props)
     if convex_object_name is not None and convex_object_name not in expected_props:
         raise ValueError("Convex target is absent from the independently expected scene")
-    code = '''from pxr import UsdGeom as _gpu_UG, Gf as _gpu_GF, UsdShade as _gpu_US
+    code = '''from pxr import UsdGeom as _gpu_UG, UsdShade as _gpu_US
 def _gpu_scene_geometry_snapshot():
     if not isinstance(_PROP_DIMENSIONS, dict) or set(_PROP_DIMENSIONS) != set(EXPECTED_PROPS_LITERAL):
         raise RuntimeError("Live prop dimension names differ from the independently expected scene")
@@ -180,8 +180,14 @@ def _gpu_scene_geometry_snapshot():
             raise RuntimeError("Invalid geometry vertices: " + path)
         return prim, mesh, points
     def _world(prim, points):
-        transform = _cache.GetLocalToWorldTransform(prim)
-        world = _obs_np.asarray([transform.Transform(_gpu_GF.Vec3d(*p)) for p in points], dtype=float)
+        # Gf matrices use row vectors: translation is the last row. Read the
+        # live transform every sample, but avoid one Python/Gf conversion per
+        # vertex. Scene Xforms are affine; refuse malformed/projective input.
+        transform = _obs_np.asarray(_cache.GetLocalToWorldTransform(prim), dtype=float)
+        if (transform.shape != (4, 4) or not _obs_np.isfinite(transform).all()
+                or not _obs_np.array_equal(transform[:, 3], [0., 0., 0., 1.])):
+            raise RuntimeError("Observer requires a finite affine world transform")
+        world = points @ transform[:3, :3] + transform[3, :3]
         world[:,2] -= float(BASE_Z)
         return world
     border, bm, bp = _mesh("/World_Props/green_square/border", 8)

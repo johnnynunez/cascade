@@ -16,29 +16,19 @@ import time
 import numpy as np
 import pytest
 from conftest import REPO, needs_pin
+from mujoco_gl_probe import probe_offscreen_gl
 
 from cascade.config import load_demo_config
 
 MJCF = REPO / "assets" / "mjcf" / "so101" / "scene.xml"
 
 
-def _has_gl() -> bool:
-    try:
-        import mujoco
-
-        if not MJCF.exists():
-            return False
-        m = mujoco.MjModel.from_xml_path(str(MJCF))
-        r = mujoco.Renderer(m, height=16, width=16)
-        r.close()
-        return True
-    except Exception:  # noqa: BLE001
-        return False
+_offscreen_gl = probe_offscreen_gl(MJCF)
 
 
 needs_gl = pytest.mark.skipif(
-    not _has_gl(), reason="needs mujoco + fetched SO-101 assets + offscreen GL "
-    "(python scripts/fetch_robot_assets.py so101)"
+    not _offscreen_gl.available, reason="needs mujoco + fetched SO-101 assets + offscreen GL "
+    f"(python scripts/fetch_robot_assets.py so101): {_offscreen_gl.reason}"
 )
 
 

@@ -136,6 +136,33 @@ or the registered base pose.
 The [source-bound CPU receipt](evidence/spatial/cuvslam-covariance-cpu-20261004.json)
 records 143 passing focused tests, including actual spawned IPC with a CPU
 fixture, different odometry/SLAM poses, missing/invalid/singular covariance and
-stale/stop rejection. No SDK tracker or native model was constructed for this
-change. The earlier native stream did not retain these covariance values; a new
-source-bound capture and independent calibration are still required.
+stale/stop rejection. These CPU checks constructed no SDK tracker or native
+model. The earlier native stream did not retain these covariance values and
+gains no retrospective covariance evidence.
+
+### Native covariance transport
+
+The [new native record](evidence/spatial/cuvslam-covariance-native-20261004.json)
+exercised source `ade76f9` with the same pinned SDK and unchanged twelve-frame,
+640 × 480 seeded planar fixture. All twelve original 36-value odometry matrices
+arrived unchanged through the worker IPC, with separate odometry and SLAM
+frames and matching capture timestamps. Every matrix passed the existing
+numerical checks. The first matrix was zero; this remains a reported diagnostic,
+not evidence of zero physical error.
+
+Maximum translation differences from the analytic trajectory were 13.332 mm
+for both odometry and SLAM; final SLAM error was 12.030 mm against the unchanged
+100 mm smoke-test gate. Warmup took 0.407 s and the slowest tracking call took
+0.0394 s. These timings include passive observation and do not establish an
+isolated performance result. This single synthetic plane does not calibrate
+covariance coverage, physical error bounds or navigation accuracy.
+
+Stop invalidated the map and the subsequent read rejected that invalidated
+epoch. The outer process exited normally with no supervisor signals or forced
+cleanup. The production worker received two SIGTERM requests and exited −15;
+its IPC thread closed, with no SIGKILL. All four observed births disappeared,
+79 explicit inputs and 6,778 runtime entries stayed unchanged, and all 28
+observed worker libraries matched bound files. Normal garbage collection was
+preserved. No simulator, actuator, route or hardware ran. The native harness
+also passed 21 CPU regressions; the separately bound first preparation was
+never launched.

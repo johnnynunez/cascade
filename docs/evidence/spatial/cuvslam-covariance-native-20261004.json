@@ -1,0 +1,235 @@
+{
+  "schema": "cascade.cuvslam-covariance-native.v1",
+  "date": "2026-10-04",
+  "source_head": "ade76f95f1da489b3649d318e80ac03cdb1dbc99",
+  "sdk_revision": "b405f132b8fb1d861a570f3aea64c2c5d4b59525",
+  "sdk_version": [
+    "17.0.0+b405f13",
+    17,
+    0,
+    0
+  ],
+  "diagnostic_pass": true,
+  "physical_admission": false,
+  "calibrated_error_bound": false,
+  "actuator_commands": 0,
+  "recipe": {
+    "frames": 12,
+    "width": 640,
+    "height": 480,
+    "sdk_call_timeout_s": 30,
+    "capture_max_age_s": 5,
+    "max_frame_gap_s": 0.1,
+    "generator_seed": 42,
+    "smoke_final_translation_error_m": 0.1
+  },
+  "cuda_gpu_uuid": "GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3",
+  "source_artifacts": {
+    "binding_sha256": "ecf0ebcaff0fb9183cd9ae2938cd4231720317630df3edc69892cb406b2e6e30",
+    "library_sha256": "0d79b0322c3d4e754768d84902decb8d9770ea65a9c63a6819ad48ffbe9e4479",
+    "generator_sha256": "2fefc69e0eff5c02be02fc0185ccce390534e7d61a116da0d8d1ed8390bac4a7",
+    "script_sha256": "b48fddbb8808267116b7ac70b5cd1f9380c08f1515b8f6378b835a0190f470e6",
+    "calibration_sha256": "637462873a79ffdcb9e9cbaddb1a424de970a62138ad823657a4ee6a8cd54cff"
+  },
+  "observations": {
+    "track_calls": 12,
+    "raw_covariance_value_count": 432,
+    "raw_covariance_preserved": true,
+    "distinct_odometry_and_slam_frames": true,
+    "zero_covariance_frames": 1,
+    "maximum_slam_translation_error_m": 0.013331927908490113,
+    "maximum_odometry_translation_error_m": 0.01333193992317653,
+    "final_slam_translation_error_m": 0.01203041699863506,
+    "maximum_normalized_covariance_asymmetry": 2.2456698611783565e-07,
+    "minimum_normalized_covariance_eigenvalue": 0.0,
+    "warmup_seconds": 0.40735266999399755,
+    "maximum_tracking_call_seconds": 0.03943999299372081,
+    "outer_wall_seconds": 9.690526140009752
+  },
+  "stop": {
+    "ok": true,
+    "actuation": false,
+    "map_epoch_invalidated": true
+  },
+  "post_stop": {
+    "ok": false,
+    "error": "localization stopped; new map epoch required",
+    "map_epoch_invalidated": true,
+    "physical_admission": false
+  },
+  "closure": {
+    "outer_exit": 0,
+    "ordinary_outer_closure": true,
+    "outer_signals": [],
+    "outer_forced": false,
+    "remaining_births": 0,
+    "root_observed_births_absent": 4,
+    "internal_worker_exits": [
+      {
+        "pid": 1563583,
+        "exit_code": -15,
+        "alive": false,
+        "ipc_thread_alive": false
+      }
+    ],
+    "internal_signal_requests": [
+      {
+        "pid": 1563583,
+        "signal": 15,
+        "monotonic_s": 79659.110140238,
+        "observation": "requested, delivery not inferred"
+      },
+      {
+        "pid": 1563583,
+        "signal": 15,
+        "monotonic_s": 79659.110169843,
+        "observation": "requested, delivery not inferred"
+      }
+    ],
+    "internal_sigkill": false,
+    "normal_gc": true
+  },
+  "integrity": {
+    "explicit_input_files": 79,
+    "runtime_membership_entries": 6778,
+    "runtime_membership_roots": 7,
+    "worker_mapped_libraries": 28,
+    "unchanged": true
+  },
+  "software_checks": {
+    "production_cpu_tests": 143,
+    "native_harness_cpu_tests": 21
+  },
+  "frames": [
+    {
+      "frame": 0,
+      "raw_covariance_preserved": true,
+      "normalized_asymmetry": 0.0,
+      "normalized_min_eigenvalue": 0.0,
+      "odometry_translation_error_m": 0.0,
+      "slam_translation_error_m": 0.0
+    },
+    {
+      "frame": 1,
+      "raw_covariance_preserved": true,
+      "normalized_asymmetry": 8.091896375184149e-09,
+      "normalized_min_eigenvalue": 0.026907989476742812,
+      "odometry_translation_error_m": 0.011934418857240623,
+      "slam_translation_error_m": 0.011934418857240623
+    },
+    {
+      "frame": 2,
+      "raw_covariance_preserved": true,
+      "normalized_asymmetry": 9.112517929121822e-08,
+      "normalized_min_eigenvalue": 0.026567573797132992,
+      "odometry_translation_error_m": 0.012893548870429095,
+      "slam_translation_error_m": 0.012893552820397166
+    },
+    {
+      "frame": 3,
+      "raw_covariance_preserved": true,
+      "normalized_asymmetry": 1.8673343082920013e-07,
+      "normalized_min_eigenvalue": 0.03165998156576244,
+      "odometry_translation_error_m": 0.01333193992317653,
+      "slam_translation_error_m": 0.013331927908490113
+    },
+    {
+      "frame": 4,
+      "raw_covariance_preserved": true,
+      "normalized_asymmetry": 1.0699871176578224e-08,
+      "normalized_min_eigenvalue": 0.026646730347160204,
+      "odometry_translation_error_m": 0.010443002524242306,
+      "slam_translation_error_m": 0.010442955013389817
+    },
+    {
+      "frame": 5,
+      "raw_covariance_preserved": true,
+      "normalized_asymmetry": 1.0899757574289737e-07,
+      "normalized_min_eigenvalue": 0.028303127190832316,
+      "odometry_translation_error_m": 0.0014290529079809603,
+      "slam_translation_error_m": 0.0014291147055317886
+    },
+    {
+      "frame": 6,
+      "raw_covariance_preserved": true,
+      "normalized_asymmetry": 8.295309372741144e-08,
+      "normalized_min_eigenvalue": 0.02360909281475756,
+      "odometry_translation_error_m": 0.009072063595979543,
+      "slam_translation_error_m": 0.009071937882055316
+    },
+    {
+      "frame": 7,
+      "raw_covariance_preserved": true,
+      "normalized_asymmetry": 1.7171972821472536e-07,
+      "normalized_min_eigenvalue": 0.023391541805526023,
+      "odometry_translation_error_m": 0.011162225751943483,
+      "slam_translation_error_m": 0.011162277989845017
+    },
+    {
+      "frame": 8,
+      "raw_covariance_preserved": true,
+      "normalized_asymmetry": 8.515850880019826e-08,
+      "normalized_min_eigenvalue": 0.027847928733461726,
+      "odometry_translation_error_m": 0.012867929115177658,
+      "slam_translation_error_m": 0.012868003498396181
+    },
+    {
+      "frame": 9,
+      "raw_covariance_preserved": true,
+      "normalized_asymmetry": 2.2456698611783565e-07,
+      "normalized_min_eigenvalue": 0.02865729031342643,
+      "odometry_translation_error_m": 0.010418576469246849,
+      "slam_translation_error_m": 0.010418338640467371
+    },
+    {
+      "frame": 10,
+      "raw_covariance_preserved": true,
+      "normalized_asymmetry": 9.515937915427486e-08,
+      "normalized_min_eigenvalue": 0.022967317707634605,
+      "odometry_translation_error_m": 0.0016741864000343232,
+      "slam_translation_error_m": 0.0016738603569392296
+    },
+    {
+      "frame": 11,
+      "raw_covariance_preserved": true,
+      "normalized_asymmetry": 8.430217446342425e-08,
+      "normalized_min_eigenvalue": 0.023027150116192045,
+      "odometry_translation_error_m": 0.012030753356175261,
+      "slam_translation_error_m": 0.01203041699863506
+    }
+  ],
+  "limits_of_evidence": [
+    "Synthetic planar fixture only; no calibrated bounds or navigation.",
+    "VO covariance retained without assigning it to SLAM or registered base.",
+    "Parent passive observation may affect local timings; no isolated performance claim.",
+    "Production stop may TERM/KILL its own worker; retain actual signals and exit separately.",
+    "One model/one attempt; preserve any refusal without retry or changed tolerances.",
+    "One zero covariance matrix is a reported diagnostic, not proof of zero physical error.",
+    "The earlier native stream did not retain covariance and gains no retrospective evidence.",
+    "Preparation01 was never launched; peer findings were corrected in separately bound harness02.",
+    "The first offline audit invocation rejected a relative plan path before analysis; the unchanged auditor passed with its bound absolute path."
+  ],
+  "artifact_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_UNCERTAINTY_20261004/native-covariance-proposal-01.json": "85c7537d6b5a312b9d211b896666dcda9261ee30ef7f44f95e351a3ac20aa3d4",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_UNCERTAINTY_20261004/native-plan-02.json": "f2bb619f8e394bfae4097d3129de8febbd6f820fcb01dce874de823a4a106248",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_UNCERTAINTY_20261004/native-binding-02.json": "3b782ba8ea3501f713381176f50cc57046613d05916cce0abad49fa024084d6a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_UNCERTAINTY_20261004/native-check-only-02.json": "d1ce7d3ab862ab02c45adf87deeb84b293cacf4ee6458dd7fc999cb616a19e92",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_UNCERTAINTY_20261004/native-audit-02.json": "b0d02e0fefb8cb393dd07a80f389f5007618523f926f617ccd150b5b696273b3",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_UNCERTAINTY_20261004/native-attempt-02/receipt.json": "7e677549867b2939740b0aa1068b561e29bfc534125fd1b8f85a6c33a0d88fb5",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_UNCERTAINTY_20261004/native-attempt-02/scope/owner.json": "33bf51e64d1b4e9e0f1452037d1c18b23b69b78205d745b846d37452ec39f57b",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_UNCERTAINTY_20261004/native-attempt-02/scope/closure.json": "992af0eb35dfd009debd1f9e1b2e3f193a73d1d456a935aade68d652f06f96c5",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_UNCERTAINTY_20261004/native-attempt-02/scope/service.log": "7ad0b386cf096c31979bd8c984c5529f08e3730213aa8cbea2bef95b9db35b68",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_UNCERTAINTY_20261004/native-02/native.json": "0172210b282de749be8bbcc8fd8f61ad68cc26dc71a41e42a5ec1216dfab3752",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_UNCERTAINTY_20261004/native-02/observation.json": "6a79ec83e00c922b3cab56b24f07cf66199d3d43c151232c90d9fd5b50232982",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_UNCERTAINTY_20261004/native-root-post-close-02.json": "feb3e7f2c8e777fcd80aac458a9ec67525a51318289c4a56d2ee781f742b3747",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_UNCERTAINTY_20261004/native-tests-02.log": "1ec840be86d2f3ce43fb882050d57ebc3c230073592856de71ae211ffb005568",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_UNCERTAINTY_20261004/native-prepare-refusal-01.json": "ad3ef15959d2d15a2b164a1345df31eac71e26e6c7db77a0b574d356054d258a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_UNCERTAINTY_20261004/native-review-refusal-01.json": "ad006489fc5f7ea8d26000d689fa7735f7edffe72a3f28033bf6bf6023d441fd",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_UNCERTAINTY_20261004/summarize_native.py": "ae107b4784c19938d0f83e5279ae0fe34a82968b731a54b8c01e2e79d8b42028",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_UNCERTAINTY_20261004/native_harness_v2/audit.py": "2f6105bba1610f071bfc551793e7e534577c1db3523dbf3fefcfbc8f8e6f2601",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_UNCERTAINTY_20261004/native_harness_v2/execute.py": "471bc5b9c755e649972157a6b0edebfead50ead745a28e87abc5ba753ed5fda6",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_UNCERTAINTY_20261004/native_harness_v2/observe.py": "82bd8344d08f78d5d550e4a21374f91a21306fb4f1032243ba233c2ee2f47fd8",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_UNCERTAINTY_20261004/native_harness_v2/prepare.py": "950a5cca0314c4faf6d8c7453614367a2515215f44081951c1af0aba5d7a2a78",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_UNCERTAINTY_20261004/native_harness_v2/test_native.py": "823b2195441b2160769d5db3412fe6e1b8f266d40e1fb0521ce4f0626c4bcad5"
+  }
+}

@@ -1,0 +1,269 @@
+{
+  "artifact_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/native-options-02/kit/model-identity.json": "281acbc5b2789260b86d9391636dd75676e44eae6e38a19b7332c6415ddeb80e",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/native-options-02/kit/options-before.json": "49fdb3253cea367f4ecdb81359b32de86236fb3275dff5aa288f9bd5df619517",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/native-options-02/kit/runtime-scene.usda": "bc1b3c8f3bfeffbdeb6c5a408be74f8bbe0c503781ff9631546f6a171435984a",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/euler-audit-01.json": "5474ebfd3da7fcca1ee193d20c3092ec5a7a5af736d388a1a20be1ddbab50711",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/euler-audit-01.log": "1249d735890c16c9e9c81c74ef14003a6898e5440d99bdd98077a9f416e9d8a3",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/euler-fixture-tests-02.log": "66a189f80b33cd1ebd07eb602419f7d0a79b7fa027d5cc3a3b4f2a955b26c64f",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/euler-focused-tests-01.log": "6a73851d49658803fc4d7ea268fcf9478da7b5c5b85c20aeca330255aac827f1",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/euler-lint-02.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/euler-root-audit-01.json": "5474ebfd3da7fcca1ee193d20c3092ec5a7a5af736d388a1a20be1ddbab50711",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/euler-source-diff-01.patch": "a9c4e58bacd14515babedd4451a13096a907a0b984b42ae757d705f082158eb2",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/euler-source-freeze-01.json": "497ad5d85873a210cf1cd789611d47417738ccf8fb9a012cf5fe90e58f1ef593",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/euler-source-review-01.json": "de122b9c105d8d53364a4ba71c6f456395220f0a1dc7ec90a299ed9cecbd9535",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/harness-ruff-01.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/harness-tests-01.log": "ed1c75fda3b4ed3509c39f7e15c80bec75c42dd122fa03c579be7d496cd8747a",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/native-euler-01/kit/imported-sources.json": "78118c3a051d72300909dd6a69399e966a10a6df800c20eff7da95b25ae727bf",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/native-euler-01/kit/model-identity.json": "d792a70351dea3546bfda88d2c1338f64326d757f60fa1108c60717e88bfecef",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/native-euler-01/kit/options-after.json": "97d0f79268aa8d6bdbeb94c2c1cfce1272d132801fd7ce17653c365f2bc26745",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/native-euler-01/kit/options-before.json": "97d0f79268aa8d6bdbeb94c2c1cfce1272d132801fd7ce17653c365f2bc26745",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/native-euler-01/kit/receipt.json": "847d10b6fdb79956c0bd2df6c98c8aa71decea9039c9c98614d0b64464c9b0d9",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/native-euler-01/kit/runtime-scene.usda": "d64d11f4edb2d7c444b03de914b528c87cb2ffffa27d449ab93f401edd473fed",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/native-euler-01/native-exit.json": "d24219f6de94b955cf36d25bd2aca88e2d35eef45b9317b7083f55ec8fe9653c",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/native-euler-01/root-receipt.json": "342f9087f30fe54bafe5d5e9a58c375e9c2305711f8006e0e88cb7327e5a4ccb",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/native-euler-01/scope/closure.json": "1dd12f25e74c0fb6ddbc87b0482f5ead2f7774f28cc3866143ac4c9d075f8d40",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/post-close-01.json": "49bff2e15fa97de138d88a4c3270c784c4179d6012edf474e0c8dd23f1183cb5",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/preparation-01/binding.json": "4385a1baecca8df3c7a0009a2c2e2cb60d440fb19e8538e2426278d5303b3e45",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/preparation-01/plan.json": "e54967a9a69f9b7cc42f19060aaedd685ca6f18ba00dfd10f88070432752fb5c",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/preparation-root-review-01.json": "58af0b33814b03f1278529caffe29a5aa6e71cb469209b3bd35b0aaf09e1ad91",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/root-post-close-01.json": "0aaafe3b62dd0747af1ab4cb11379ca4d633e97166ae785265bfa67e165c1eaf",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/supplemental-closure-guard-01.json": "23f9c472da822c9300c3ab55d86fa12560f6986113337eeb804acabed48b6eb8"
+  },
+  "closure": {
+    "errors": [],
+    "forced": false,
+    "independent_post_close_verified": true,
+    "inputs_unchanged": true,
+    "native_exit": 0,
+    "observed_births": 6,
+    "ok": true,
+    "protected_stores_unchanged": true,
+    "remaining_births": [],
+    "remaining_members": [],
+    "scope_client_exit": 0,
+    "sdk_close_returned": null,
+    "signals": []
+  },
+  "comparison": {
+    "baseline": "Retained options02 preparation, not retrospective observation of gait03",
+    "bootstrap_order": "Original play performs two native solves before HOME/FK and BAM binding/reset; no policy or episode solve follows in this preparation.",
+    "options": {
+      "all_other_effective_options_exact": true,
+      "cpu_warp_integrator_agreement_only": true,
+      "property_stack_retained_not_physics_normalized": true
+    },
+    "recipe": {
+      "all_remaining_recipe_fields_equal": true,
+      "allowed_differences": [
+        "source_sha256 exact planned map",
+        "runtime_scene_sha256 single authored Euler token",
+        "native.integrator exact observed contract"
+      ],
+      "baseline_scene_model_sha256": "3de21017f59fb9f85e1909b1e462a52f919cb28f0c2da547dc4135710551c3ed",
+      "path_normalizations": [
+        "existing admitted bundle prefix only"
+      ],
+      "retrospective_effective_options_claim": false
+    }
+  },
+  "effective_options": {
+    "cpu": {
+      "cone": 0,
+      "integrator": 0,
+      "integrator_name": "Euler",
+      "iterations": 100,
+      "jacobian": 2,
+      "solver": 2,
+      "timestep": 0.002,
+      "tolerance": 9.99999993922529e-09
+    },
+    "cpu_warp_integrator_agreement_only": true,
+    "imported_model_integrator": 0,
+    "integrator_profile": "euler-v1",
+    "solver_graph": {
+      "captured": false,
+      "captured_dt_s": null,
+      "enabled": true,
+      "host_bam_and_admission": true,
+      "stage_source_sha256": "a9d4e95305b23e6cea8e4e8e5fb63dc8b6c5c5917ad5c3ba48e2ba29df84d958"
+    },
+    "usd": {
+      "attribute": "mjc:option:integrator",
+      "authored": true,
+      "present": true,
+      "prim": "/World/PhysicsScene",
+      "value": "euler"
+    },
+    "use_mujoco_cpu": false,
+    "warp": {
+      "cone": 0,
+      "integrator": 0,
+      "integrator_name": "Euler",
+      "iterations": 100,
+      "solver": 2,
+      "timestep": {
+        "dtype": "float32",
+        "shape": [
+          1
+        ],
+        "value": 0.004999999888241291
+      },
+      "tolerance": {
+        "dtype": "float32",
+        "shape": [
+          1
+        ],
+        "value": 9.999999974752427e-07
+      }
+    }
+  },
+  "harness_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/README.md": "a6d6c617b2eb02fdac9cacd098545f3dbdcf3db4c8c9c6c274dfaaee3f16aa33",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/harness_v1/audit.py": "15b74f90ed707583e2588a92bdd4a40a932c88a11e434d483239a9ea4dab7c8c",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/harness_v1/gpu_guard.py": "416e94112b7dcfc9cc11cde56196aad8be628db6d63e620ecf8cc7a1fb0f280b",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/harness_v1/launch.py": "d1d0f804604a7bd7890fe20fa398e893b7d7ea9e58200f70138c96694911083f",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/harness_v1/options.py": "4c06bf875d5ee3ef68d7c28bf5e99e24aa58fa7f480d0da490203541ef169324",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/harness_v1/owned_services.py": "44f1f98f4760f31a7c6dd89acddb1ed073523b8c2520f322abe2c5eae8000473",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/harness_v1/prepare.py": "2392897529590be904b32628557b11ea59bbefa37a84db592dc4fd46228015c5",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/harness_v1/resource_guards.py": "4ce11e4409bed182e9396677632d1fe522d50f17a893177e695d93edecac5d9f",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/harness_v1/run.py": "baad96b83eae387596646b941777d29090d2db398d010cfa88ccc859602999b7",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/harness_v1/test_audit.py": "2807c974b771066052843d9eccc04839fbe48210d5e43ad57eb4c5cc82173b1c",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/harness_v1/test_launch.py": "7d972b4922fb15a4990911a0cf54dc61f60974f50f86c7dcf1d4c49b191dd9a6",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/harness_v1/test_options.py": "564b7b7ea976d5b3caef75ca964687362372328d1bf9baa9cec6759d565f4855",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/preparation-01/check-only.json": "6f1ec026859596bd9e0da1dfd8ebf7b389af43ef5af8ec746dbb210cf6ebfa44"
+  },
+  "limitations": [
+    "No gait, control, stop/rest, solver-equivalence or causal claim.",
+    "Current effective options do not retrospectively observe the old episode.",
+    "HF checkpoint training run/config remains unresolved.",
+    "The source change selects the integrator used by the official inference script; the HF checkpoint training run/config is unresolved.",
+    "The changed preparation identity does not admit walking, braking, stopping or hardware operation. A separately reviewed motion episode is required.",
+    "CPU and Warp timesteps and tolerances differ and are retained separately; integrator agreement is not solver/backend equivalence.",
+    "Foreign services could restart under the recorded empty-cohort admission; no timing isolation or performance claim.",
+    "All earlier failed episodes and the default solver profile remain unchanged."
+  ],
+  "result": {
+    "bootstrap_clocks": {
+      "manager_nominal_dt_s": 0.005,
+      "native_interface_dt_s": 0.004999999888241291,
+      "native_step": 2,
+      "native_time_s": 0.009999999776482582
+    },
+    "bootstrap_solves": 2,
+    "command_endpoints": 0,
+    "diagnostic_epoch": "684c132aa4c04ed7b803090a3d1c9ece",
+    "extra_episode_solves": 0,
+    "locomotion_or_stop_admission": false,
+    "motion_commands": 0,
+    "physical_admission": false,
+    "policy_constructors": 0,
+    "policy_inferences": 0,
+    "pre_post_snapshots_identical": true,
+    "scene_model_sha256": "a74083e70868b096b87237ffe0082a9310f1bdc7317250bb2624cbec96f05f52",
+    "verified": true
+  },
+  "schema": "cascade.microduck.euler-preparation-evidence.v1",
+  "scope": "Explicit Euler opt-in native preparation; original two bootstrap solves only; no policy or command endpoint.",
+  "source": {
+    "commit": "f7b1bd1a7e91bbb08bdb82d6f9cd91e158be230c",
+    "default": "sdk-default, unchanged; no solver authoring or readback",
+    "native_checkout": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade",
+    "opt_in": "euler-v1",
+    "publication_base": "2487f0ed419349a23cd24fe416c6e504fff3df82",
+    "runtime_sha256": {
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/assets/microduck/manifest.json": "56678bc8dbbc4aba6ca99944a37d495badb1157093b728348700739896383faa",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/assets/microduck/newton-bam.json": "d04d0281eb2f581ab738a95ddf6983f09bbfa8dbabef4087271e61e384fd5b4b",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/assets/microduck/policy-candidates.json": "6357372fd8f1aba6c64de5d95ba28a6f2f08a825fc4352642d20c152f776c11f",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/configs/isaac/microduck.newton.kit": "22ad2a0f66a14863c482a6fd74785475001d5b6aa2bd2f5879d31cb3440a7794",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/scripts/convert_microduck.py": "11e5df9e99b03cd0e3479a3dee94da17b685e49c04c32f364a895ab38c6751a2",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/scripts/isaac_camera_readback.py": "28c4523b08410db254c83e70f52c36f0f34488e6964dd6aebb561b638df8b9cd",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/scripts/isaac_microduck_bridge.py": "840bdd4fca0ff2d8f18f76a3dbf89ede897a4a6fe22c7d655ddc202ccfca4c7f",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/scripts/isaac_microduck_shared.py": "db959008b9a0cdf7f67b5c7d95c8535f0c63d66b076778e7bf3e11114de3a7d0",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/scripts/isaac_runtime.py": "8d40bc13b50d86f6c671628486142b6ee2cfa61ea762ea7867e66cf1447c935a",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/apps/signal_stop.py": "1a94a391c25d856299d899e633aaa777215e4ef1dc1fc819bee492c44019b9bd",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/control/microduck_actuator.py": "77216426cefc311237fa6854f06aa98a90d4f9f53b080a93c886d67f14961a0e",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/control/microduck_policy.py": "1d4ac287c1ff20c4363a81db24a9638643f683c04eb6647bb26b465a861af540",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/control/mobile_base.py": "d31f5ba67fbf24979c17193d453af3e8ec7bbc98987a926d5f8eb580770619a6",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/control/mobile_support.py": "08a8c57898871d677c46de9aa34c3e59977e8b85a1039d49b5b241810fd328c4",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/control/mobile_telemetry.py": "7f2e4dab7f0162fb25fc80d0eb9851d56773396c85cd4646de59a7c9d6bce6d2",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/control/newton_bam.py": "1972ac0b4d6bbf06138ef550b530142c820cf03d6d3d4ce4aba5d68ffb00e64c",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/sensing/models.py": "ba66e6e1d7c0bfa4c3210810269e936f35bd00d058614a36fce10e3c0a1dc7f1",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/sim/microduck_admission.py": "dddf5ebced53b1f5b2d0fcffe508cfc28f6d02b84a2492d62837b98d87d3f483",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/sim/microduck_contact_support.py": "19807691a9ddfd2693dac82ad51aa22524110ecb7f20b1cf0e03ac10e167a442",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/sim/microduck_integrator.py": "50109701cfafd29819075ca5e4ac038e82f773bec5ecee061b935ebb2c8c5450",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/sim/microduck_newton.py": "62ff8ffa6f7e4ec5e7e420a64f571cfadf399a3717efdf19593a96bd535fda5d",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/sim/microduck_policy_admission.py": "0e5b9063bbcc8439c7b0a71ef2da4399deef798cb100d43a906736a883cfa6f2",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/sim/microduck_sdk.py": "dd3502263048e483ebbc3f393ebc505c0fe8fad23b0fb4b7837fa5cef314bf56",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/sim/microduck_shared.py": "d71e9e6082ac6a1ceabd4592813a74959f678b28ac9ad57e1b04435467048f34",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/sim/microduck_shared_native.py": "c1c21800bf8d559ab5d4ddf395b37711a3f3a34cae13a1122ce1913f4ce93739",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/sim/microduck_solver_graph.py": "9f990fc96daaa91e849444acfd302d4c6da9a7c62a42adc1f3e445cf65858772",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/sim/microduck_state.py": "495f3062274b620890448d6b3958c7481108a265321a616f64da1ec06a972971",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/sim/microduck_stepper.py": "4f44e143659ccfbfb790db0f904b7c45c0c0cb71e4a4bbf83e8cd80ad7ddc293",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/sim/microduck_timing.py": "adee3bae4444546f3527b07dbe8238bd2147c9acd7b6d60e89779f1b8fdd5d52",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/sim/mobile_bridge.py": "fbef12e332af3a08295c092b57862a5f9a044c77b0eccfff3c9f6dba84d29d91",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/sim/mobile_camera_encoding.py": "f2783cf9d7aa576e82dc2a25d879d920a4d68c441a5945572ee3c16404d3bc57",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/sim/mobile_camera_pose.py": "a2dfe3ee5bd807047fe2e6aa943d32bdf98d3de2280bce2071255e61bdcb85b4",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/sim/mobile_identity.py": "0042b151d78c0629decba03c4ae03db302f223e6e1a394695c61959279d476cd",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/sim/mobile_rgbd.py": "f7102d9610b2f1d3aa2123d6841cc0915cec0f0475971c5d87852bfdd4a01559",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/cascade/src/cascade/sim/private_rtx_cache.py": "ab7b9e06a930cb29254f0537875f4a497954f0355055d0e6e891ea215d9b8eb4"
+    }
+  },
+  "validation": {
+    "consumed_runtime_files": 35,
+    "frozen_auditor_verified": true,
+    "frozen_files": 13,
+    "harness_cpu": {
+      "models": 0,
+      "native_solves": 0,
+      "passed": 41
+    },
+    "imported_modules": 31,
+    "independent_root_rerun_verified": true,
+    "resource_limits": {
+      "cpu": "400%",
+      "memory": "32G",
+      "native_wall_s": 450,
+      "nice": 19,
+      "outer_wall_s": 510
+    },
+    "source_cpu": {
+      "diff_check": "PASS",
+      "env": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONOPTIMIZE": "0",
+        "PYTHONPATH": "src:scripts:tests"
+      },
+      "final_fixture_and_import_cleanup": {
+        "duration_s": 0.13,
+        "passed": 31
+      },
+      "focused": {
+        "duration_s": 1.09,
+        "files": [
+          "test_microduck_integrator.py",
+          "test_microduck_initialization_signal_fence.py",
+          "test_microduck_bridge_cli.py",
+          "test_mobile_identity.py",
+          "test_microduck_shared_native.py",
+          "test_microduck_shared_staging.py",
+          "test_microduck_receipt_finalization.py"
+        ],
+        "passed": 128
+      },
+      "initial_lint_note": "Unrestricted Ruff reported 57 findings including existing broad style diagnostics and new fixture F811; fixture alias/imports corrected; repository required F,E9 passes. No broad formatting of existing files.",
+      "logs": {
+        "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/euler-fixture-tests-02.log": "66a189f80b33cd1ebd07eb602419f7d0a79b7fa027d5cc3a3b4f2a955b26c64f",
+        "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/euler-focused-tests-01.log": "6a73851d49658803fc4d7ea268fcf9478da7b5c5b85c20aeca330255aac827f1",
+        "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EULER_PROFILE_20261005/euler-lint-02.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+      },
+      "models": 0,
+      "native_solves": 0,
+      "python": "/home/johnny/Projects/demo/.demo/bin/python",
+      "ruff_select": [
+        "F",
+        "E9"
+      ]
+    }
+  }
+}

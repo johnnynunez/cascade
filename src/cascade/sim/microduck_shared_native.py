@@ -142,6 +142,7 @@ class SharedKitNewtonBackend(KitNewtonBackend):
         self.layout = self._layout_for(digest)
         self._support_layout = self.layout
         self._bound_identity = True
+        self.verify_integrator_identity()
         return {'scene_model_sha256': digest, 'recipe': recipe,
                 'robots': {b.robot_id: {'model_identity_sha256': b.model_identity_sha256,
                                        'support_contract': b.support_contract()}

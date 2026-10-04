@@ -209,6 +209,38 @@ physics world or prove a new scene epoch.
 
 ## Running the candidate
 
+The single and shared launchers accept `--integrator-profile euler-v1` as an
+explicit experimental selection. The default, `sdk-default`, leaves solver
+selection untouched. Euler authors the existing `mjc:option:integrator` token
+after physics setup and before scene export and the original two bootstrap
+solves. Preparation rejects an absent attribute or any disagreement between
+the authored value, imported model and effective CPU/Warp integrators.
+The model identity includes this contract and the observed options; a second
+read after identity binding must match before policy or episode work starts.
+CPU and Warp timesteps and tolerances are retained separately, not equated.
+This permits a bounded comparison with the official inference script's Euler
+setting. It does not establish the checkpoint's training configuration, explain
+the earlier distance failure, or admit a new gait. Each selected recipe requires
+its own native preparation, model pin and reviewed motion episode; gains,
+cadence, bootstrap forces and physical acceptance limits are unchanged.
+
+The [Euler preparation](evidence/robot-modularity/microduck-euler-preparation-20261005.json)
+at source `f7b1bd1a` retained the two original bootstrap solves and no policy
+construction, ONNX inference, episode solve or command endpoint. Those bootstrap
+solves precede the existing HOME/FK writes and BAM binding/reset. The imported
+model and effective CPU/Warp options reported Euler (`0`); snapshots before and
+after identity binding were byte-identical. The new model digest is `a74083e7…`.
+Against the retained default preparation, the auditor found only the declared
+source map, authored USD Euler token and integrator identity record changed.
+All other effective options matched that baseline. CPU timestep/tolerance remain
+0.002 s/about 1e-8, while Warp retains float32 0.005 s/about 1e-6; agreement here
+concerns the integrator only. Native and owned scope exited zero, all six observed
+process births disappeared, and no signal or forced cleanup was needed. The frozen
+auditor passed, and an independent rerun reproduced its result. This preparation
+does not establish successful
+walking, braking, physical stopping, solver equivalence or hardware operation;
+the previous distance failures remain retained.
+
 Offline smoke with the kinematic mock:
 
 ```sh

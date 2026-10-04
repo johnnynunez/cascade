@@ -78,7 +78,9 @@ def run(args, admission, signals):
     from cascade.sim.microduck_shared import SharedMicroduckStepper
     from cascade.sim.microduck_shared_native import SharedKitNewtonBackend, SharedRobotView
     from cascade.sim.microduck_stepper import MicroduckStepper
+    from cascade.sim.microduck_integrator import selected as selected_integrator
     selected_target_contract(args, admission)
+    selected_integrator(args, admission)
     out = args.out
     out.mkdir(parents=True, exist_ok=False)
     (out / 'frames').mkdir()
@@ -273,7 +275,8 @@ def main(argv=None):
         admission['source_sha256'][path] = hashlib.sha256((REPO / path).read_bytes()).hexdigest()
     if args.check_only:
         print(json.dumps({'ok': True, 'robots': args.robots, 'physical_acceptance': False,
-                          'target_contract': admission['target_contract']}))
+                          'target_contract': admission['target_contract'],
+                          'integrator_contract': admission['integrator_contract']}))
         return 0
     with StopSignals(protect_registration=True) as signals:
         result = run(args, admission, signals)

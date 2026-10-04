@@ -32,7 +32,8 @@ def test_authoring_update_unwinds_before_sensor_attachment(signum):
 
 @pytest.mark.parametrize('signum', [signal.SIGINT, signal.SIGTERM])
 @pytest.mark.parametrize('site', ['camera', 'export', 'play'])
-def test_initialize_fences_camera_and_play_callbacks(tmp_path, monkeypatch, signum, site):
+@pytest.mark.parametrize('integrator_profile', ['sdk-default', 'euler-v1'])
+def test_initialize_fences_camera_and_play_callbacks(tmp_path, monkeypatch, signum, site, integrator_profile):
     """Execute _initialize itself; a consumed callback cannot reach the next phase."""
     import cascade.sim.microduck_newton as native
     modules = {}
@@ -51,11 +52,31 @@ def test_initialize_fences_camera_and_play_callbacks(tmp_path, monkeypatch, sign
     stage.GetUsedLayers.return_value = []
     monkeypatch.setattr(native, 'disable_source_actuators', lambda stage: [])
     events = []
-    backend = KitNewtonBackend(NS(out=tmp_path, device='cuda:0'),
-                              {'asset': 'inert.usda', 'bundle': str(tmp_path), 'receipt': {'outputs': []}}, None)
+    from cascade.sim.microduck_integrator import contract
+    prim = modules['pxr'].UsdPhysics.Scene.Define.return_value.GetPrim.return_value
+    prim.GetPath.return_value = '/World/PhysicsScene'
+    attr = prim.GetAttribute.return_value
+    attr.GetTypeName.return_value = 'token'
+    attr.Get.return_value = 'euler'
+    schema_ready = False
+    def setup_physics(*args, **kwargs):
+        nonlocal schema_ready
+        schema_ready = True  # The pinned SimulationManager attaches MjcSceneAPI here.
+    def get_attribute(name):
+        assert schema_ready and name == 'mjc:option:integrator'
+        return attr
+    modules['isaac_runtime'].setup_physics.side_effect = setup_physics
+    prim.GetAttribute.side_effect = get_attribute
+    backend = KitNewtonBackend(NS(out=tmp_path, device='cuda:0', integrator_profile=integrator_profile),
+                              {'asset': 'inert.usda', 'bundle': str(tmp_path), 'receipt': {'outputs': []},
+                               'integrator_contract':contract(integrator_profile)}, None)
     backend.app = MagicMock()
     backend.app._app.get_extension_manager.return_value.is_extension_enabled.return_value = False
     def callback(name):
+        if integrator_profile == 'euler-v1':
+            attr.Set.assert_called_once_with('euler')
+        else:
+            attr.Set.assert_not_called()
         events.append(name)
         if site == name:
             try:

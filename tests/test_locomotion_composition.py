@@ -47,8 +47,20 @@ def test_stdio_distance_uses_opt_in_profile_and_never_promotes_mock_motion(dista
     assert client.proc.returncode == 0
 
 
-def test_composed_distance_keeps_writer_claim_and_task_debt(distance_config, tmp_path):
+def test_composed_distance_keeps_writer_claim_and_task_debt(distance_config, tmp_path, monkeypatch):
     from cascade.apps.robot_runtime import build_robot_runtime, robot_tool_descriptors
+    from cascade.control.mock_base import MockMobileBase
+
+    class SampledMock(MockMobileBase):
+        def get_state(self):
+            # This test concerns composition/debt, not scheduling a 33 ms toy
+            # target window. Advance the explicit kinematic fixture per read.
+            self.advance()
+            return super().get_state()
+
+    monkeypatch.setattr("cascade.apps.mobile_runtime.make_base", lambda profile: SampledMock(
+        wall_lease_s=profile["wall_lease_s"], robot_id=profile["robot_id"],
+        source=profile["source"], dt_s=profile["dt_s"], auto_step=False))
 
     cfg = load_robot_config("distance_fixture")
     descriptor = robot_tool_descriptors(cfg)["locomotion.walk_distance"]

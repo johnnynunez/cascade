@@ -379,8 +379,18 @@ optionally records private bounded decoded chunks after upstream warmup;
 it does not record prompts or media, and chunks are not token boundaries.
 Cancellation can produce interrupted spans. Lost events, observation errors or
 in-flight spans make diagnostic accounting incomplete; a complete trace is
-not proof of a tool result or physical action. Fresh installation and the full
-voice-to-hand chain on this packaged source still require separate validation.
+not proof of a tool result or physical action.
+
+A [fresh installation](evidence/robot-modularity/private-speech-provider-install-20261004.json)
+on source `586fdb6` completed with Python 3.12.13 and a new private environment.
+All 116 installed provider runtime files matched the pinned candidate; 234
+model/resource files and 132 dependency versions matched the retained recipe.
+The owned scope closed ordinarily with no signals, forced cleanup or remaining
+births. Preparation imported package classes and libraries but constructed no
+speech handler or pipeline and ran no warmup, inference or service. The host's
+configured thread count is distinct from the earlier LLM-only measurement;
+effective serving threads must be observed after pipeline construction.
+The full voice-to-hand chain on this installed environment remains unvalidated.
 
 Run the speech stack in a separate environment. Its `speech-to-speech serve`
 command exposes `/v1/realtime` and supports selecting STT, LLM and TTS backends.

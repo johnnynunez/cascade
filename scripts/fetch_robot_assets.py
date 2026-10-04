@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import shutil
 import sys
 import time
@@ -201,9 +202,24 @@ class Robot:
     extra_meshes: list[tuple[str, str]] = field(default_factory=list)
     #: optional step after fetching (e.g. compose a scene from the pieces)
     post: "Callable[[Path], object] | None" = None
+    #: optional content pins, indexed by destination relative to assets/
+    content_pins: dict[str, str] = field(default_factory=dict)
+
+
+_LEAP = json.loads((REPO / "src/cascade/sim/leap_hand_assets.json").read_text())
 
 
 ROBOTS: dict[str, Robot] = {
+    "leap_hand": Robot(
+        name="leap_hand",
+        description="Fixed right LEAP hand, 16 joints; source-pinned free-motion recipe",
+        repo="google-deepmind/mujoco_menagerie",
+        commit=_LEAP["commit"],
+        license="MIT",
+        files=[("leap_hand/"+name, "mjcf/leap_hand/"+name) for name in _LEAP["files"]],
+        mesh_dest="mjcf/leap_hand/assets",
+        content_pins={"mjcf/leap_hand/"+name: value for name, value in _LEAP["files"].items()},
+    ),
     "so101": Robot(
         name="so101",
         description="The Robot Studio SO-101 — MuJoCo MJCF + STL meshes "
@@ -295,7 +311,7 @@ ROBOTS: dict[str, Robot] = {
 
 
 def fetch(url: str, dest: Path, force: bool = False,
-          attempts: int = 4) -> bool:
+          attempts: int = 4, expected_sha256: str | None = None) -> bool:
     """-> True if downloaded, False if skipped. Writes atomically.
 
     VERIFIES the byte count against Content-Length and retries: a dropped
@@ -306,6 +322,8 @@ def fetch(url: str, dest: Path, force: bool = False,
     sends Content-Length, so a missing header is not treated as failure.
     """
     if dest.exists() and not force:
+        if expected_sha256 is not None and sha256(dest) != expected_sha256:
+            raise SystemExit(f"existing asset differs from its content pin: {dest}")
         return False
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(dest.suffix + ".part")
@@ -320,6 +338,9 @@ def fetch(url: str, dest: Path, force: bool = False,
                 raise OSError(
                     f"truncated read: {got} of {expect} bytes"
                 )
+            if expected_sha256 is not None and sha256(tmp) != expected_sha256:
+                tmp.unlink(missing_ok=True)
+                raise SystemExit(f"download differs from its content pin: {dest}")
             # Replace only after a VERIFIED-complete download, so an
             # interrupted run leaves no half-file that the next run would
             # skip as "already there".
@@ -359,7 +380,8 @@ def fetch_robot(robot: Robot, assets: Path, force: bool, urdf_meshes: bool) -> N
     print(f"{robot.name}: {robot.repo} @ {robot.commit[:12]} ({robot.license})")
     got = skipped = 0
     for src, dest in robot.files:
-        if fetch(f"{base}/{src}", assets / dest, force):
+        if fetch(f"{base}/{src}", assets / dest, force,
+                 expected_sha256=robot.content_pins.get(dest)):
             got += 1
             print(f"  + {dest}")
         else:

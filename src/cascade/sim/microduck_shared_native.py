@@ -15,7 +15,7 @@ import numpy as np
 from .microduck_newton import (KitNewtonBackend, disable_source_actuators,
                               prepare_native_model, read_native_body_properties,
                               read_native_states)
-from .microduck_shared import bind_scene
+from .microduck_shared import _SharedSupport, bind_scene
 
 
 def placements(count, spacing):
@@ -37,6 +37,7 @@ class SharedKitNewtonBackend(KitNewtonBackend):
         self.placements = placements(args.robots, args.spacing)
         self._shared_read = None
         self._bound_identity = False
+        self._support_layout = None
 
     def _app_config(self):
         if self._sdk_recipe is None:
@@ -137,6 +138,7 @@ class SharedKitNewtonBackend(KitNewtonBackend):
             'native_model_properties': self.receipt['shared_model_properties']})
         digest = hashlib.sha256(canonical_bytes(recipe)).hexdigest()
         self.layout = self._layout_for(digest)
+        self._support_layout = self.layout
         self._bound_identity = True
         return {'scene_model_sha256': digest, 'recipe': recipe,
                 'robots': {b.robot_id: {'model_identity_sha256': b.model_identity_sha256,
@@ -148,12 +150,18 @@ class SharedKitNewtonBackend(KitNewtonBackend):
         self._guard()
         if not self._bound_identity:
             raise RuntimeError('bind the shared model identity before observations')
+        if self.layout is not self._support_layout:
+            raise RuntimeError('shared support layout changed after identity binding')
         clock = self.physics_clock
-        key = clock, self._last_support_solve
+        source_admitted = self.receipt['support_extraction']['source_admitted']
+        if type(source_admitted) is not bool:
+            raise ValueError('support source admission must be boolean')
+        key = clock, self._last_support_solve, source_admitted
         if self._shared_read is not None and self._shared_read[0] == key:
             return self._shared_read[1]
         support = read_support(self.ns, last_solved_clock=self._last_support_solve,
-                              source_admitted=self.receipt['support_extraction']['source_admitted'])
+                              source_admitted=source_admitted)
+        support = self.layout.capture_support(support, clock=clock)
         result = read_native_states(self.ns, robots={
             binding.robot_id: dict(q_indices=np.array(binding.q_indices),
                 dof_indices=np.array(binding.dof_indices), root_index=binding.root_body_index)
@@ -169,10 +177,23 @@ class SharedKitNewtonBackend(KitNewtonBackend):
         return self._shared_read[1]
 
     def read_robots(self):
-        return copy.deepcopy(self._read_completed_scene())
+        result = copy.deepcopy(self._read_completed_scene())
+        for sample in result.values():
+            if type(sample.get('support')) is _SharedSupport:
+                sample['support'] = sample['support'].as_observation_dict()
+        return result
 
     def read_robot(self, robot_id):
-        return copy.deepcopy(self._read_completed_scene()[robot_id])
+        sample = copy.deepcopy(self._read_completed_scene()[robot_id])
+        if type(sample.get('support')) is _SharedSupport:
+            sample['support'] = sample['support'].as_observation_dict()
+        return sample
+
+    def read_bound_robot(self, binding, epoch):
+        sample = copy.deepcopy(self._read_completed_scene()[binding.robot_id])
+        sample['support'] = self.layout.robot_support(sample['support'], binding,
+            epoch=epoch, clock=(sample['step'], sample['sim_time']))
+        return sample
 
     def step(self):
         self._shared_read = None
@@ -197,11 +218,14 @@ class SharedRobotView:
         return self.owner.physics_clock
 
     def read(self):
-        sample = self.owner.read_robot(self.binding.robot_id)
+        bound = getattr(self.owner, 'read_bound_robot', None)
+        sample = (bound(self.binding, self.epoch) if bound is not None
+                  else self.owner.read_robot(self.binding.robot_id))
         sample.update(robot_id=self.binding.robot_id, epoch=self.epoch,
                       model_identity_sha256=self.binding.model_identity_sha256)
-        sample['support'] = self.owner.layout.robot_support(sample['support'], self.binding,
-            epoch=self.epoch, clock=(sample['step'], sample['sim_time']))
+        if bound is None:
+            sample['support'] = self.owner.layout.robot_support(sample['support'], self.binding,
+                epoch=self.epoch, clock=(sample['step'], sample['sim_time']))
         return sample
 
     def contain(self, reason):

@@ -167,6 +167,15 @@ No snapshot is reused across solves, and each robot still receives the complete
 contact evidence. CPU tests check channel read counts and exact data equivalence;
 they do not establish a native speedup.
 
+Within that completed scene, support is decoded once into immutable contacts
+and rebound to each robot's model and epoch without reconstructing every
+contact. Only transitively immutable records can be shared; mutable legacy
+values retain copy isolation. Public observations and physics logs preserve the
+complete dictionary schema, while each reply remains detached. Layout, shape,
+clock and source-admission checks still gate reuse; permission and age remain
+live on every controller read. This reduces repeated CPU work and does not
+establish a control deadline or physical-stop result for twelve robots.
+
 CPU tests cover 1, 2 and 12 synthetic participants, including index permutations,
 command isolation, cancellation and contact vetoes. The ordinary one-robot
 entrypoint retains its control cadence.

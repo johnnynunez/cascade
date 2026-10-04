@@ -11,7 +11,7 @@ import json
 import re
 from contextlib import ExitStack
 from copy import deepcopy
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields, replace
 
 import numpy as np
 
@@ -70,6 +70,17 @@ class SceneLayout:
     dof_count: int
     shape_labels: tuple[str, ...]
 
+    def capture_support(self, observed, *, clock):
+        """One immutable full-scene decode; robot provenance is attached later."""
+        from cascade.control.mobile_support import SupportObservation
+        if (not isinstance(observed, dict) or 'epoch' in observed or 'model_identity_sha256' in observed
+                or (observed.get('step'), observed.get('sim_time_s')) != clock):
+            raise ValueError('unbound completed scene support required')
+        data = deepcopy(observed)
+        data.update(epoch='shared-scene-support', model_identity_sha256=self.robots[0].scene_model_sha256)
+        parsed = SupportObservation.from_dict(data)
+        return _SharedSupport(self, parsed)
+
     def robot_support(self, observed, binding, *, epoch, clock):
         """Keep the full shared contact set: another robot is never ground.
 
@@ -77,6 +88,13 @@ class SceneLayout:
         method binds/copies that result; it cannot turn unavailable into known.
         """
         from cascade.control.mobile_support import SupportObservation
+        if type(observed) is _SharedSupport:
+            if (observed.layout is not self or binding not in self.robots
+                    or (observed.observation.step, observed.observation.sim_time_s) != clock
+                    or observed.observation.model_identity_sha256 != binding.scene_model_sha256):
+                raise ValueError('support scene/robot/clock binding mismatch')
+            return replace(observed.observation, epoch=epoch,
+                           model_identity_sha256=binding.model_identity_sha256)
         if binding not in self.robots or (observed['step'], observed['sim_time_s']) != clock:
             raise ValueError('support robot/clock binding mismatch')
         result = deepcopy(observed)
@@ -89,6 +107,44 @@ class SceneLayout:
             for sid, name in ((contact.shape_a_id, contact.shape_a), (contact.shape_b_id, contact.shape_b)):
                 if sid >= len(self.shape_labels) or self.shape_labels[sid] != name:
                     raise ValueError('support shape differs from shared model')
+        return result
+
+
+@dataclass(frozen=True)
+class _SharedSupport:
+    layout: SceneLayout
+    observation: object
+
+    def __post_init__(self):
+        from cascade.control.mobile_support import immutable_support
+        def immutable(value):
+            if type(value) in (str, int):
+                return True
+            if type(value) is tuple:
+                return all(immutable(item) for item in value)
+            if type(value) in (SceneLayout, RobotBinding):
+                return all(immutable(getattr(value, f.name)) for f in fields(value))
+            return False
+
+        if (type(self.layout) is not SceneLayout or not immutable(self.layout)
+                or not self.layout.robots or type(self.layout.shape_labels) is not tuple
+                or not immutable_support(self.observation)
+                or self.observation.epoch != 'shared-scene-support'
+                or any(b.scene_model_sha256 != self.observation.model_identity_sha256 for b in self.layout.robots)):
+            raise ValueError('immutable shared support/model binding required')
+        for contact in self.observation.contacts:
+            for sid, name in ((contact.shape_a_id, contact.shape_a), (contact.shape_b_id, contact.shape_b)):
+                if sid >= len(self.layout.shape_labels) or self.layout.shape_labels[sid] != name:
+                    raise ValueError('support shape differs from shared model')
+
+    def __deepcopy__(self, memo):
+        # Created only by capture_support after strict schema/shape validation;
+        # every reachable field is frozen, including all contact vectors.
+        return self
+
+    def as_observation_dict(self):
+        result = self.observation.as_observation_dict()
+        del result['epoch'], result['model_identity_sha256']
         return result
 
 

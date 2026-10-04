@@ -106,6 +106,8 @@ def verify_contained_placement_window(rows, policy, inventory, cavity, *,
         lower, upper = {}, {}
         for row in rows:
             for gid, vertices in inventory.object_hulls(row, policy).items():
+                if not np.isfinite(vertices).all():
+                    raise ValueError('support-frame corner reconstruction is not finite')
                 lo, hi = vertices.min(axis=0), vertices.max(axis=0)
                 lower[gid] = np.minimum(lower[gid], lo) if gid in lower else lo
                 upper[gid] = np.maximum(upper[gid], hi) if gid in upper else hi

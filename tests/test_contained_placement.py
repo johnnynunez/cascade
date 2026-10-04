@@ -184,3 +184,29 @@ def test_every_component_is_required_even_a_thin_protruding_secondary_box():
     assert result['checks']['released_supported_rest'] == 'confirmed'
     assert result['geometry_components_per_sample'] == 2
     assert result['status'] == 'unverified'
+
+
+def test_finite_world_poses_that_overflow_relative_math_leave_a_json_safe_refusal():
+    rows, policy, inventory, cavity = window()
+    # A large but finite common translation preserves the recorded local
+    # geometry, vertical separation and force channels. Rotating before the
+    # support-frame inversion overflows its derived translation. These are
+    # synthetic malformed measurements, never a physically admitted scene.
+    c = np.sqrt(.5)
+    rotation = np.array([[c, -c, 0.], [c, c, 0.], [0., 0., 1.]])
+    offset = np.array([1.4e308, 1.4e308, 0.])
+    for row in rows:
+        capture = row['box_geometry']
+        for name, body in row['bodies'].items():
+            body['position_m'] = (rotation @ body['position_m'] + offset).tolist()
+            capture['body_rotations_world'][name] = (rotation @ np.asarray(
+                capture['body_rotations_world'][name]).reshape(3, 3)).ravel().tolist()
+        for geom in row['geometries']:
+            geom['position_m'] = (rotation @ geom['position_m'] + offset).tolist()
+        for geom in capture['rotations_world']:
+            geom['rotation'] = (rotation @ np.asarray(geom['rotation']).reshape(3, 3)).ravel().tolist()
+    with np.errstate(over='ignore', invalid='ignore'):
+        result = verify(rows, policy, inventory, cavity, error=None)
+    assert result['status'] == 'unverified'
+    assert result['reason'] == 'support-frame corner reconstruction is not finite'
+    json.dumps(result, allow_nan=False)

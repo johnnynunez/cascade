@@ -344,6 +344,8 @@ def capture_bound_rgb(ns, app, readback, *, updates, checkpoint=lambda: None, ca
         if (ns.simulation_step_count, float(ns.sim_time)) != before:
             raise RuntimeError('render advanced uncontrolled physics')
     before_render_times = None
+    capture_objects = getattr(pose_reader,'capture_objects',None)
+    pose_objects = capture_objects() if capture_objects is not None else None
     before_pose = pose_reader(camera_calibration, checkpoint) if pose_reader is not None else None
     if calibration is not None:
         data, _, before_render_times = readback.get_data_bound('rgb', checkpoint=checkpoint)
@@ -394,6 +396,8 @@ def capture_bound_rgb(ns, app, readback, *, updates, checkpoint=lambda: None, ca
         raise RuntimeError('RGB-D render product changed during readback')
     if (ns.simulation_step_count, float(ns.sim_time)) != before:
         raise RuntimeError('camera read advanced physics')
+    if pose_objects is not None and any(a is not b for a,b in zip(pose_objects,capture_objects(),strict=True)):
+        raise RuntimeError('RGB-D capture changed registered native pose objects')
     return dict(rgb=rgb, step=before[0], sim_time_s=before[1], captured_at=captured_at, render_times=times, **extra)
 
 
@@ -677,9 +681,14 @@ class KitNewtonBackend:
         self._checkpoint()
         if self.admission.get('camera_mount') is not None:
             from .mobile_camera_pose import FabricRigReader
+            from .mobile_camera_encoding import verify_encoding_sources
+            encoding = verify_encoding_sources(self.args.release,self._sdk_recipe)
+            if encoding != self.admission['camera_pose_encoding']:
+                raise ValueError('actual camera encoding differs from source admission')
             self._pose_reader = FabricRigReader(ns, self.admission['camera_mount']['definition'],
                                                self.readback, self._pose_annotator)
             self.receipt['rgbd_camera']['fabric_body_index'] = self._pose_reader.index
+            self.receipt['rgbd_camera']['pose_encoding'] = encoding
         import inspect
         from cascade.sim.microduck_solver_graph import SolverGraphContract
         self._solver_graph = SolverGraphContract(ns,

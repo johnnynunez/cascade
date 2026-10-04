@@ -174,6 +174,26 @@ mount. The first mounted reference stopped before publishing a capture with
 `RGB-D transform must be rigid`; it did not retain the rejected matrix, so the
 reproduction does not establish that episode's exact failing component.
 
+A second reference retained a different failure at completed solve 22: its
+Fabric rotation had maximum orthogonality residual `1.066902515e-7` and determinant
+`1.000000121540579`. The captured quaternion and SDK48's float32 Warp expression
+reproduce that matrix bit for bit. It remains a failed reference (20 episode
+solves, five policy rows, one frame), with ordinary closure and no admission.
+
+The opt-in `cascade.fabric-quaternion-encoding.v1` descriptor therefore binds
+the actual normalization, conversion and Fabric SDK sources. It reads the
+registered body's float32 `state_0.body_q` beside its Fabric matrix, requires
+unit body/scene scales, and fences the native buffers, clocks and render reference
+through both AOV reads. It accepts only quaternions within the error bound of
+the pinned float32 dot/square-root/reciprocal/multiply normalization with
+`fast_math=False`; directed arithmetic intervals must reproduce the raw Fabric
+entries. The adapter builds SE3 from that same quaternion normalized in float64,
+then applies the unchanged rigid-transform gate. It never estimates a quaternion
+from a nonrigid matrix. Evidence retains the raw quaternion/matrix, arithmetic
+intervals and encoding displacement per metre about the rig origin. This numeric
+representation bound is separate from physical pose uncertainty, which remains
+unknown. CPU regression coverage is not native synchronization or metric admission.
+
 ## Packet semantics and failure behavior
 
 - Color is lossless RGB8. The legacy JPEG/BGR camera path keeps its existing wire

@@ -110,7 +110,16 @@ def fabric_fixture():
     prim=NS(IsValid=lambda:True, GetAttribute=lambda name:attr(
         (lambda:index[0]) if name=='newton:index' else (lambda:rig.T.copy())))
     stage=NS(GetPrimAtPath=lambda path:prim)
-    native=NS(model=NS(body_label=[mount()['rig_prim_path']]),fabric_manager=NS(stage=stage))
+    body=np.array([[0,0,0,0,0,0,1]],dtype=np.float32)
+    scales=np.ones((1,3),dtype=np.float32)
+    # The fixture explicitly supplies the co-captured native pose; Fabric is
+    # never allowed to synthesize a missing quaternion from its matrix.
+    def bodies():
+        body[0,:3]=rig[:3,3]
+        return body.copy()
+    native=NS(model=NS(body_label=[mount()['rig_prim_path']]),
+        fabric_manager=NS(stage=stage,_body_scales=NS(numpy=lambda:scales.copy())),
+        state_0=NS(body_q=NS(numpy=bodies)),simulation_step_count=10,sim_time=.05,scene_scale=1.)
     raw=params(cal,rig)
     reader=FabricRigReader(native,mount(),NS(get_render_times=lambda:reference[0]),NS(get_data=lambda:raw))
     return NS(**locals())
@@ -120,12 +129,12 @@ def test_fabric_registration_and_same_render_are_rechecked_and_detached():
     f=fabric_fixture(); first=f.reader(f.cal,lambda:None)
     assert first['position_error_m'] is first['angular_error_rad'] is None
     assert first['world_from_rig'] == list(np.eye(4).flat)
-    f.rig[0,3]=.3
+    f.rig[0,3]=float(np.float32(.3))
     with pytest.raises(RuntimeError,match='differs'):
         f.reader(f.cal,lambda:None)
     f.raw.update(params(f.cal,f.rig))
     second=f.reader(f.cal,lambda:None)
-    assert second['world_from_rig'][3] == .3 and first['world_from_rig'][3] == 0
+    assert second['world_from_rig'][3] == float(np.float32(.3)) and first['world_from_rig'][3] == 0
     f.index[0]=1
     with pytest.raises(ValueError,match='index'):
         f.reader(f.cal,lambda:None)
@@ -141,7 +150,7 @@ def test_fabric_registration_and_same_render_are_rechecked_and_detached():
 def test_mid_read_change_or_checkpoint_failure_rejects_capture(what):
     f=fabric_fixture()
     def during():
-        if what=='rig': f.rig[0,3]=.001
+        if what=='rig': f.rig[0,3]=float(np.float32(.001))
         if what=='render': f.reference[0]=render_times(.055)
         if what=='cancel': raise RuntimeError('cancelled')
         return f.raw
@@ -158,25 +167,29 @@ def test_mount_sha_and_unknown_bounds_are_explicit(tmp_path):
     with pytest.raises(ValueError,match='SHA256'): admit_mount(path,digest)
 
 
-@pytest.mark.parametrize('change', [None,'pose_between_channels','reference_between_channels'])
+@pytest.mark.parametrize('change', [None,'pose_between_channels','reference_between_channels','buffer_between_channels'])
 def test_native_capture_keeps_pose_and_both_aovs_at_one_render_completion(change):
     from cascade.sim.microduck_newton import capture_bound_rgb
     cal=mount_calibration(); cal.update(width=640,height=480)
     pose=dict(world_from_rig=list(np.eye(4).flat),position_error_m=None,angular_error_rad=None,
               render_reference=render_times(.05),evidence={'source':'fixture'})
     ns=NS(simulation_step_count=10,sim_time=.05,update_fabric=lambda:None)
+    captured_objects=[object()]
     def data(name,checkpoint):
         if name=='distance_to_image_plane':
             if change=='pose_between_channels': pose['world_from_rig'][3]=1.
             if change=='reference_between_channels': pose['render_reference']=render_times(.055)
+            if change=='buffer_between_channels':captured_objects[0]=object()
             return np.ones((480,640),np.float32),{},render_times(.05)
         return np.zeros((480,640,3),np.uint8),{},render_times(.05)
     reader=NS(get_render_times=lambda:render_times(.05),get_data_bound=data)
+    def pose_reader(cal,check):return copy.deepcopy(pose)
+    pose_reader.capture_objects=lambda:tuple(captured_objects)
     def capture():
         return capture_bound_rgb(ns,NS(update=lambda:None),reader,updates=1,
-            calibration=lambda:copy.deepcopy(cal),pose_reader=lambda cal,check:copy.deepcopy(pose))
+            calibration=lambda:copy.deepcopy(cal),pose_reader=pose_reader)
     if change:
-        with pytest.raises(RuntimeError,match='one render completion'): capture()
+        with pytest.raises(RuntimeError,match='one render completion|native pose objects'): capture()
     else:
         value=capture()
         assert value['capture_pose']['render_reference']==value['render_times']
@@ -195,8 +208,18 @@ def test_model_identity_rehashes_mount_and_refuses_unadmitted_native_mount(recip
         'mount':{k:v for k,v in admitted.items() if k!='path'}}
     with pytest.raises(ValueError,match='lacks explicit'): build_model_identity(admission,native,**paths)
     admission['camera_mount']=admitted
+    from cascade.sim.mobile_camera_encoding import encoding_descriptor
+    admission['camera_pose_encoding']=encoding_descriptor()
+    native['rgbd_camera']['pose_encoding']=encoding_descriptor()
     before=build_model_identity(admission,native,**paths)
     assert str(path) not in json.dumps(before)
+    changed=copy.deepcopy(native)
+    changed['rgbd_camera']['pose_encoding']['fast_math']=True
+    with pytest.raises(ValueError,match='encoding'):build_model_identity(admission,changed,**paths)
+    bad_admission=copy.deepcopy(admission)
+    bad_admission['camera_pose_encoding']=changed['rgbd_camera']['pose_encoding']
+    with pytest.raises(ValueError,match='encoding'):build_model_identity(bad_admission,changed,**paths)
+    assert before['recipe']['native']['rgbd_camera']['pose_encoding']==encoding_descriptor()
     path.write_text(json.dumps(mount() | {'rig_frame_id':'other'}))
     with pytest.raises(ValueError,match='SHA256'): build_model_identity(admission,native,**paths)
 

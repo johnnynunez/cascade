@@ -132,18 +132,31 @@ class FabricRigReader:
     def __init__(self, native, mount, readback, annotator):
         self.native, self.mount, self.readback, self.annotator = native, copy.deepcopy(mount), readback, annotator
         labels = list(native.model.body_label)
-        self.model, self.labels, self.stage = native.model, tuple(labels), native.fabric_manager.stage
+        self.model, self.labels, self.manager = native.model, tuple(labels), native.fabric_manager
+        self.stage = self.manager.stage
         path = mount['rig_prim_path']
         if labels.count(path) != 1:
             raise ValueError('camera rig is not one exact registered native body')
         self.index = labels.index(path)
         self.prim = native.fabric_manager.stage.GetPrimAtPath(path)
-        self._matrix()
+        self._snapshot(lambda: None)
 
-    def _matrix(self):
+    def capture_objects(self):
+        """Private references for the caller's complete RGB/depth read fence."""
+        native = self.native
+        return (native.model,native.fabric_manager,native.fabric_manager.stage,
+                native.state_0,native.state_0.body_q,native.fabric_manager._body_scales)
+
+    def _snapshot(self, checkpoint):
         import numpy as np
+        from .mobile_camera_encoding import canonical_rig
+        checkpoint()
+        clock = (self.native.simulation_step_count, float(self.native.sim_time))
+        state = self.native.state_0  # Never retain a buffer from a prior solve.
+        body_buffer = state.body_q
+        scale_buffer = self.native.fabric_manager._body_scales
         if (self.native.model is not self.model or tuple(self.model.body_label) != self.labels
-                or self.native.fabric_manager.stage is not self.stage):
+                or self.native.fabric_manager is not self.manager or self.manager.stage is not self.stage):
             raise ValueError('registered camera rig model or Fabric stage changed')
         if not self.prim or not self.prim.IsValid():
             raise ValueError('registered camera rig disappeared from Fabric')
@@ -156,21 +169,41 @@ class FabricRigReader:
         value = np.asarray(matrix.Get(), dtype=float)
         if value.shape != (4,4):
             raise ValueError('camera rig Fabric world matrix unavailable')
-        return _checked_transform(value.T, 'Fabric world-from-rig')
+        checkpoint()
+        body = body_buffer.numpy()
+        scales = scale_buffer.numpy()
+        checkpoint()
+        if (body.dtype != np.float32 or body.shape != (len(self.labels),7)
+                or scales.dtype != np.float32 or scales.shape != (len(self.labels),3)
+                or self.native.scene_scale != 1.):
+            raise ValueError('registered native rig pose/scale layout or metric units changed')
+        pose, scale = body[self.index].copy(), scales[self.index].copy()
+        if (self.native.state_0 is not state
+                or state.body_q is not body_buffer or self.native.fabric_manager._body_scales is not scale_buffer
+                or self.native.model is not self.model or tuple(self.model.body_label) != self.labels
+                or self.native.fabric_manager is not self.manager or self.manager.stage is not self.stage
+                or (self.native.simulation_step_count,float(self.native.sim_time)) != clock):
+            raise RuntimeError('native rig capture changed solve or state buffer')
+        rigid, evidence = canonical_rig(value.T,pose,scale)
+        evidence['native_clock'] = {'step':clock[0],'simulation_time_s':clock[1]}
+        return rigid,evidence,(state,body_buffer,scale_buffer)
 
     def __call__(self, calibration, checkpoint):
         import numpy as np
         checkpoint()
         before = copy.deepcopy(self.readback.get_render_times())
         checkpoint()
-        rig = self._matrix()
+        rig, encoding, objects = self._snapshot(checkpoint)
+        from .microduck_stepper import validate_render_times
+        validate_render_times(before,encoding['native_clock']['simulation_time_s'])
         checkpoint()
         params, camera = camera_params_record(copy.deepcopy(self.annotator.get_data()), calibration)
         checkpoint()
-        after_rig = self._matrix()
+        after_rig, after_encoding, after_objects = self._snapshot(checkpoint)
         after = copy.deepcopy(self.readback.get_render_times())
         checkpoint()
-        if before != after or rig != after_rig:
+        if (before != after or rig != after_rig or encoding != after_encoding
+                or any(a is not b for a,b in zip(objects,after_objects))):
             raise RuntimeError('rig or render reference changed during camera pose readback')
         expected = np.asarray(rig).reshape(4,4) @ np.asarray(calibration['rig_from_camera']).reshape(4,4)
         if not np.allclose(expected, np.asarray(camera).reshape(4,4), rtol=0, atol=1e-5):
@@ -179,4 +212,5 @@ class FabricRigReader:
                 'render_reference': after,
                 'evidence': {'rig_prim_path': self.mount['rig_prim_path'], 'native_body_index': self.index,
                     'fabric_attribute': FABRIC_MATRIX, 'camera_params': params,
+                    'quaternion_encoding': encoding,
                     'consistency_tolerance': 1e-5, 'physical_uncertainty_estimated': False}}

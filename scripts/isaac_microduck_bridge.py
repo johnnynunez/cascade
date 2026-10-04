@@ -496,6 +496,7 @@ def admit(args):
              'src/cascade/sim/mobile_bridge.py', 'src/cascade/sim/mobile_identity.py',
              'src/cascade/sim/mobile_rgbd.py',
              'src/cascade/sim/mobile_camera_pose.py',
+             'src/cascade/sim/mobile_camera_encoding.py',
              'src/cascade/sensing/models.py',
              'src/cascade/sim/microduck_contact_support.py', 'src/cascade/control/mobile_base.py',
              'src/cascade/control/mobile_support.py', 'src/cascade/control/mobile_telemetry.py',
@@ -515,7 +516,9 @@ def admit(args):
     if sdk_recipe is not None:
         admitted['sdk_recipe'] = sdk_recipe
     if camera_mount is not None:
+        from cascade.sim.mobile_camera_encoding import encoding_policy
         admitted['camera_mount'] = camera_mount
+        admitted['camera_pose_encoding'] = encoding_policy(args.release,args.sdk_recipe)
     if rtx_cache is not None:
         admitted['private_rtx_cache'] = rtx_cache
     return admitted

@@ -114,6 +114,34 @@ def adapter():
     return module
 
 
+@pytest.mark.parametrize("rows,live", [
+    ("424242 424242 Z\n7593 919 ?<\n", False),
+    ("424242 424242 Z\n424243 424242 ?<\n", True),
+    ("424242 424242 ?<\n", True),
+    ("424242 424242 Z\n424243 424242 S\n", True),
+    ("424242 424242 Z\n424243 424242 Z\n", False),
+])
+def test_source_group_unknown_status_never_proves_owned_exit(monkeypatch, rows, live):
+    module = adapter()
+    monkeypatch.setattr(module.subprocess, "run", lambda *a, **kw:
+                        SimpleNamespace(returncode=0, stdout=rows, stderr=""))
+    assert module.source_group_live(424242) is live
+
+
+@pytest.mark.parametrize("rows", [
+    "7593 919 ?<\n",  # no reserved shell identity
+    "424242 424242 Z\nmalformed\n",
+    "424242 424242 Z\n-1 919 ?<\n",
+    "424242 424242 Z",  # incomplete snapshot
+])
+def test_source_group_keeps_identity_and_snapshot_guards(monkeypatch, rows):
+    module = adapter()
+    monkeypatch.setattr(module.subprocess, "run", lambda *a, **kw:
+                        SimpleNamespace(returncode=0, stdout=rows, stderr=""))
+    with pytest.raises((ValueError, RuntimeError)):
+        module.source_group_live(424242)
+
+
 def test_isaac_environment_does_not_inherit_agent_python_or_profiler(tmp_path):
     module = adapter()
     source = tmp_path / "source"
@@ -215,8 +243,10 @@ def test_source_wrapper_waits_for_delayed_child_cleanup(tmp_path, escaped):
     # Like Isaac's python.sh: it spawns Python, it does NOT exec it.
     shell.write_text(f'#!/bin/bash\n"{sys.executable}" "$@"\n')
     shell.chmod(0o755)
-    process = subprocess.Popen([sys.executable, str(ROOT / "scripts/isaac_launch.py"), "--python", str(shell), "--", str(worker)],
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    stderr_path = tmp_path / "adapter.stderr"
+    with stderr_path.open("wb") as stderr:
+        process = subprocess.Popen([sys.executable, str(ROOT / "scripts/isaac_launch.py"), "--python", str(shell), "--", str(worker)],
+                                   stdout=subprocess.DEVNULL, stderr=stderr)
     pid = None
     try:
         deadline = time.monotonic() + 10
@@ -233,7 +263,7 @@ def test_source_wrapper_waits_for_delayed_child_cleanup(tmp_path, escaped):
         assert process.poll() is None, "adapter exited before the child finished cleanup"
         assert not closed.exists()
         release.touch()
-        assert process.wait(timeout=10) == 128 + signal.SIGTERM
+        assert process.wait(timeout=10) == 128 + signal.SIGTERM, stderr_path.read_text()
         assert closed.exists(), "adapter reported exit before actual cleanup"
         status = subprocess.run(["ps", "-p", str(pid), "-o", "stat="], capture_output=True, text=True).stdout.strip()
         assert not status or "Z" in status, "stopping source wrapper left its Kit child alive"

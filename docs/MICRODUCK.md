@@ -365,6 +365,18 @@ median; ten attempts exceeded 400 ms, with a maximum attempt of 615 ms. This
 reader-only diagnostic did not test control recovery, change collector settings
 or alter the three retained twelve-robot control failures.
 
+The [legacy-contact sharing reader](evidence/microduck-shared-20261004/legacy-contacts.json)
+completed the same 800 solves, 2,400 commits, 24 reader events and 9 capture/probe
+pairs with normal closure. Attempt durations were 83.40 ms median, 91.54 ms p95
+and 595.44 ms maximum. One attempt exceeded 400 ms, overlapping a 508.06 ms
+generation-2 interval; the preceding trigger reader retained ten such attempts.
+Its thirteen-frame stack points to `dataclasses.fields` during private physics
+JSON projection. This observed trigger does not identify the heap scanned.
+The integrated source includes the optional RTX-cache feature at its inactive
+default. Both GPU admission cohorts were empty, but host load was uncontrolled;
+these separate episodes establish neither causal speedup nor a control deadline
+guarantee. The original control limits and earlier failures remain intact.
+
 Two [reader-only GC profiles](evidence/microduck-shared-20261004/gc-serialization.json)
 each completed 800 solves, 2,400 policy commits, 24 reader events and 9
 overview/support-probe pairs, with normal native and client closure. The second

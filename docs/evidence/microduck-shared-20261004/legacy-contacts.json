@@ -1,0 +1,615 @@
+{
+  "schema": 1,
+  "run": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_LEGACY_20261004/legacy-contact-probe-twelve-01",
+  "source": "ba8c37996bce631bd351aafb66e8e1f7304597ad",
+  "scene_model_sha256": "dbee909c2171532f74f834c09c00d7734c527d77aa3d1d31d34bc5681872a98f",
+  "model_identity_file_sha256": "85107a4485c6f0a20353f26d1058f5196efe4509af7fefd5f16f5c95a4a10df4",
+  "native_completed": true,
+  "control_attempted": false,
+  "physical_acceptance": false,
+  "pin_reused": false,
+  "global_solves": 800,
+  "policy_commits": 2400,
+  "overview_support_probe_pairs": 9,
+  "reader_events": 24,
+  "withheld_ticks": 0,
+  "discarded_previews": 0,
+  "native_wall_s": 101.21514183199906,
+  "attempt_duration": {
+    "calls": 800,
+    "median_ms": 83.39676850000001,
+    "p95_ms": 91.53624,
+    "max_ms": 595.443678
+  },
+  "attempts_over_400ms": 1,
+  "phases_inclusive": {
+    "bam.before_step": {
+      "calls": 9600,
+      "median_ms": 1.659165,
+      "p95_ms": 2.087086,
+      "max_ms": 3.788626
+    },
+    "bam.targets": {
+      "calls": 2400,
+      "median_ms": 0.030837,
+      "p95_ms": 0.060743,
+      "max_ms": 0.206724
+    },
+    "camera.capture": {
+      "calls": 9,
+      "median_ms": 53.559668,
+      "p95_ms": 59.038525,
+      "max_ms": 59.038525
+    },
+    "camera.overview": {
+      "calls": 9,
+      "median_ms": 80.764237,
+      "p95_ms": 112.191293,
+      "max_ms": 112.191293
+    },
+    "completed.read": {
+      "calls": 19200,
+      "median_ms": 0.040472,
+      "p95_ms": 0.074764,
+      "max_ms": 31.368957
+    },
+    "completed.validate": {
+      "calls": 9600,
+      "median_ms": 0.575601,
+      "p95_ms": 16.88768,
+      "max_ms": 32.219932
+    },
+    "native.capture": {
+      "calls": 800,
+      "median_ms": 1.8514325,
+      "p95_ms": 2.496029,
+      "max_ms": 3.369538
+    },
+    "policy.prepare": {
+      "calls": 9600,
+      "median_ms": 0.634656,
+      "p95_ms": 0.918728,
+      "max_ms": 4.058186
+    },
+    "publication": {
+      "calls": 9600,
+      "median_ms": 0.4004845,
+      "p95_ms": 0.547604,
+      "max_ms": 1.903256
+    },
+    "record.physics": {
+      "calls": 800,
+      "median_ms": 24.4428325,
+      "p95_ms": 27.003384,
+      "max_ms": 532.845906
+    },
+    "solve": {
+      "calls": 800,
+      "median_ms": 0.20361,
+      "p95_ms": 0.267997,
+      "max_ms": 33.366657
+    },
+    "support.decode": {
+      "calls": 800,
+      "median_ms": 8.2734755,
+      "p95_ms": 10.696288,
+      "max_ms": 13.307882
+    },
+    "support.probe": {
+      "calls": 9,
+      "median_ms": 0.708508,
+      "p95_ms": 1.000112,
+      "max_ms": 1.000112
+    },
+    "write.frames.jsonl": {
+      "calls": 9,
+      "median_ms": 0.031208,
+      "p95_ms": 0.072771,
+      "max_ms": 0.072771
+    },
+    "write.physics.jsonl": {
+      "calls": 800,
+      "median_ms": 15.774125,
+      "p95_ms": 17.836624,
+      "max_ms": 524.346582
+    },
+    "write.policy.jsonl": {
+      "calls": 2400,
+      "median_ms": 0.036806,
+      "p95_ms": 0.05908,
+      "max_ms": 10.705922
+    },
+    "write.support-probe.jsonl": {
+      "calls": 9,
+      "median_ms": 0.570188,
+      "p95_ms": 0.59118,
+      "max_ms": 0.59118
+    }
+  },
+  "profile_write_flush": {
+    "calls": 800,
+    "median_ms": 0.0825005,
+    "p95_ms": 0.133212,
+    "max_ms": 10.960549
+  },
+  "bounds": {
+    "application_wall_s": 450,
+    "owned_scope_wall_s": 510,
+    "memory": "32G",
+    "cpu": "400%",
+    "nice": 19
+  },
+  "gc": {
+    "accounting_verified": true,
+    "events": 3276,
+    "complete_intervals": 1638,
+    "unmatched_events": 0,
+    "dropped_or_pending": 0,
+    "errors": 0,
+    "settings": {
+      "enabled": true,
+      "thresholds": [
+        700,
+        10,
+        10
+      ]
+    },
+    "interval_duration": {
+      "0": {
+        "count": 1501,
+        "median_ms": 0.07858,
+        "p95_ms": 0.103958,
+        "max_ms": 0.253035
+      },
+      "1": {
+        "count": 136,
+        "median_ms": 0.096512,
+        "p95_ms": 0.187766,
+        "max_ms": 0.818706
+      },
+      "2": {
+        "count": 1,
+        "median_ms": 508.058275,
+        "p95_ms": 508.058275,
+        "max_ms": 508.058275
+      }
+    },
+    "all_slow_attempts_overlap_generation2": true,
+    "trigger_capture_duration": {
+      "count": 1,
+      "median_ms": 0.02609,
+      "p95_ms": 0.02609,
+      "max_ms": 0.02609
+    },
+    "boundary_counter_capture_duration": {
+      "count": 2,
+      "median_ms": 0.2435755,
+      "p95_ms": 0.272955,
+      "max_ms": 0.272955
+    },
+    "collector_counters": {
+      "initial": {
+        "count": [
+          26,
+          3,
+          61
+        ],
+        "stats": [
+          {
+            "collections": 993,
+            "collected": 43672,
+            "uncollectable": 0
+          },
+          {
+            "collections": 90,
+            "collected": 1679,
+            "uncollectable": 0
+          },
+          {
+            "collections": 2,
+            "collected": 6,
+            "uncollectable": 0
+          }
+        ],
+        "allocated_blocks": 3275249
+      },
+      "final": {
+        "count": [
+          3,
+          8,
+          35
+        ],
+        "stats": [
+          {
+            "collections": 2494,
+            "collected": 67700,
+            "uncollectable": 0
+          },
+          {
+            "collections": 226,
+            "collected": 3904,
+            "uncollectable": 0
+          },
+          {
+            "collections": 3,
+            "collected": 6261,
+            "uncollectable": 0
+          }
+        ],
+        "allocated_blocks": 3274946
+      }
+    },
+    "observer_overhead_complete": false
+  },
+  "slow_attempts": [
+    {
+      "attempt": 591,
+      "clock_after": [
+        594,
+        2.969999933615327
+      ],
+      "duration_ms": 595.443678,
+      "gc_overlap_union_ms": 508.250097,
+      "gc_intervals": [
+        {
+          "start_id": 3007,
+          "stop_id": 3008,
+          "generation": 1,
+          "thread_id": 129502120257472
+        },
+        {
+          "start_id": 3009,
+          "stop_id": 3010,
+          "generation": 2,
+          "thread_id": 129502120257472
+        }
+      ]
+    }
+  ],
+  "trigger_sites": {
+    "dataclasses.fields during private physics JSON projection": 1
+  },
+  "trigger_frame_table": [
+    {
+      "path": "<sdk>/kit/python/lib/python3.12/dataclasses.py",
+      "function": "<genexpr>",
+      "line": 1293
+    },
+    {
+      "path": "<sdk>/kit/python/lib/python3.12/dataclasses.py",
+      "function": "fields",
+      "line": 1293
+    },
+    {
+      "path": "<repo>/src/cascade/control/mobile_base.py",
+      "function": "_plain_record",
+      "line": 24
+    },
+    {
+      "path": "<repo>/src/cascade/control/mobile_base.py",
+      "function": "as_dict",
+      "line": 174
+    },
+    {
+      "path": "<repo>/scripts/isaac_microduck_shared.py",
+      "function": "default",
+      "line": 52
+    },
+    {
+      "path": "<sdk>/kit/python/lib/python3.12/json/encoder.py",
+      "function": "iterencode",
+      "line": 258
+    },
+    {
+      "path": "<sdk>/kit/python/lib/python3.12/json/encoder.py",
+      "function": "encode",
+      "line": 200
+    },
+    {
+      "path": "<sdk>/kit/python/lib/python3.12/json/__init__.py",
+      "function": "dumps",
+      "line": 238
+    },
+    {
+      "path": "<repo>/scripts/isaac_microduck_shared.py",
+      "function": "_physics_json",
+      "line": 71
+    },
+    {
+      "path": "<repo>/scripts/isaac_microduck_shared.py",
+      "function": "row",
+      "line": 136
+    },
+    {
+      "path": "<repo>/scripts/isaac_microduck_shared.py",
+      "function": "run",
+      "line": 169
+    },
+    {
+      "path": "<repo>/scripts/isaac_microduck_shared.py",
+      "function": "main",
+      "line": 277
+    },
+    {
+      "path": "<repo>/scripts/isaac_microduck_shared.py",
+      "function": "<module>",
+      "line": 282
+    }
+  ],
+  "trigger_stacks": [
+    {
+      "event_id": 3009,
+      "thread_id": 129502120257472,
+      "start_monotonic_ns": 31428165626483,
+      "end_monotonic_ns": 31428165652573,
+      "duration_ns": 26090,
+      "python_caller_present": true,
+      "truncated": false,
+      "strings_truncated": false,
+      "frame_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "observed_trigger_group": "dataclasses.fields during private physics JSON projection"
+    }
+  ],
+  "stack_path_roots": {
+    "<repo>": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_LEGACY_20261004/cascade",
+    "<sdk>": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release"
+  },
+  "recipe_changes_from_prior_reader": {
+    "scripts/isaac_microduck_bridge.py": {
+      "old": "5237c61cbc79c40dd48fd9fa0344cf255bd376bc2a29add3b60948b97b0bcb59",
+      "new": "0187726e0f3bcc232d60c0c7beb6579f530a10765f612bc3fffffda5c2435085"
+    },
+    "src/cascade/control/mobile_base.py": {
+      "old": "eba69775ad6f881aa8ab421bdbb56af2117101a141ef831d15873bb855343fe8",
+      "new": "d31f5ba67fbf24979c17193d453af3e8ec7bbc98987a926d5f8eb580770619a6"
+    },
+    "src/cascade/control/mobile_telemetry.py": {
+      "old": null,
+      "new": "7f2e4dab7f0162fb25fc80d0eb9851d56773396c85cd4646de59a7c9d6bce6d2"
+    },
+    "src/cascade/sim/microduck_newton.py": {
+      "old": "c4c6bfe5117d9fc45dfd96f76348ea8928ed479926220236ea3a3f401724e8ec",
+      "new": "12501f358175baa43f7b868cb817855f5e8aeafb92940b816c76de16c4395268"
+    },
+    "src/cascade/sim/microduck_shared_native.py": {
+      "old": "8701ac20e1283611d2f6d375b5bc245f29410a3b8b87b4cc3b132773ea5ea439",
+      "new": "c03ef4286003abfeb6dcb3d4db405fce27e2b1b030901b4532d75643ea77448c"
+    },
+    "src/cascade/sim/microduck_stepper.py": {
+      "old": "fdd2ba66376c6535a784d275bc957646e6e3bdb17100bc4a565f4fe095597ae0",
+      "new": "7d862f24399e435545587feb74303a40a69def509b879168f3a94a5799a7824d"
+    },
+    "src/cascade/sim/microduck_timing.py": {
+      "old": "c80274ad605c91c54cfcc1f301bb80a77b9ede6b5dadab3eaf6c348443a97a14",
+      "new": "adee3bae4444546f3527b07dbe8238bd2147c9acd7b6d60e89779f1b8fdd5d52"
+    },
+    "src/cascade/sim/mobile_bridge.py": {
+      "old": "f168bd7d315ed9ad36ffa4846079c4d5997f59dbb2dafb72be0175c23b00ec6d",
+      "new": "14913ed93fc2d432d46a4378d643b1cdd96e142e176b74dfe730f9821ea2931b"
+    },
+    "src/cascade/sim/mobile_identity.py": {
+      "old": "eb7b29754243f5ab8f3ebf6bb8524175698b96250f55796a0135273fdb6cf21a",
+      "new": "b90b10fcf2d077d2f83bed898041ff1effb597341df0b8433489913e14582004"
+    },
+    "src/cascade/sim/private_rtx_cache.py": {
+      "old": null,
+      "new": "ab7b9e06a930cb29254f0537875f4a497954f0355055d0e6e891ea215d9b8eb4"
+    }
+  },
+  "prior_reader_reference": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_GC_TRIGGER_20261004/gc-trigger-probe-twelve-01",
+    "source": "58cd2e617773e3bdea34ddc0319e0068397551b1",
+    "attempt_duration": {
+      "calls": 800,
+      "median_ms": 101.4469155,
+      "p95_ms": 118.534084,
+      "max_ms": 615.198792
+    },
+    "native_wall_s": 119.78134513899931,
+    "attempts_over_400ms": 10,
+    "gc_events": 14948,
+    "gc_complete_intervals": 7474,
+    "generation2": {
+      "count": 10,
+      "median_ms": 475.2475465,
+      "p95_ms": 496.33034,
+      "max_ms": 496.33034
+    },
+    "runtime_source_sha256": {
+      "assets/microduck/manifest.json": "56678bc8dbbc4aba6ca99944a37d495badb1157093b728348700739896383faa",
+      "assets/microduck/newton-bam.json": "d04d0281eb2f581ab738a95ddf6983f09bbfa8dbabef4087271e61e384fd5b4b",
+      "assets/microduck/policy-candidates.json": "6357372fd8f1aba6c64de5d95ba28a6f2f08a825fc4352642d20c152f776c11f",
+      "configs/isaac/microduck.newton.kit": "22ad2a0f66a14863c482a6fd74785475001d5b6aa2bd2f5879d31cb3440a7794",
+      "scripts/convert_microduck.py": "11e5df9e99b03cd0e3479a3dee94da17b685e49c04c32f364a895ab38c6751a2",
+      "scripts/isaac_camera_readback.py": "28c4523b08410db254c83e70f52c36f0f34488e6964dd6aebb561b638df8b9cd",
+      "scripts/isaac_microduck_bridge.py": "5237c61cbc79c40dd48fd9fa0344cf255bd376bc2a29add3b60948b97b0bcb59",
+      "scripts/isaac_microduck_shared.py": "fa0e9965123da3018918cfc4dbc92d8d8c00edec30b25146a4393c6843a947cd",
+      "scripts/isaac_runtime.py": "8d40bc13b50d86f6c671628486142b6ee2cfa61ea762ea7867e66cf1447c935a",
+      "src/cascade/apps/signal_stop.py": "1a94a391c25d856299d899e633aaa777215e4ef1dc1fc819bee492c44019b9bd",
+      "src/cascade/control/microduck_actuator.py": "77216426cefc311237fa6854f06aa98a90d4f9f53b080a93c886d67f14961a0e",
+      "src/cascade/control/microduck_policy.py": "4a3df35ac4eccafdbd94cb99be8ff2d80320a509a5494b8f0bd0c9c22059479c",
+      "src/cascade/control/mobile_base.py": "eba69775ad6f881aa8ab421bdbb56af2117101a141ef831d15873bb855343fe8",
+      "src/cascade/control/mobile_support.py": "08a8c57898871d677c46de9aa34c3e59977e8b85a1039d49b5b241810fd328c4",
+      "src/cascade/control/newton_bam.py": "1972ac0b4d6bbf06138ef550b530142c820cf03d6d3d4ce4aba5d68ffb00e64c",
+      "src/cascade/sim/microduck_admission.py": "dddf5ebced53b1f5b2d0fcffe508cfc28f6d02b84a2492d62837b98d87d3f483",
+      "src/cascade/sim/microduck_contact_support.py": "ddbcefaf1f95aa407cd669514f00fd5811ba89967faa87b68d78d576cd8b752e",
+      "src/cascade/sim/microduck_newton.py": "c4c6bfe5117d9fc45dfd96f76348ea8928ed479926220236ea3a3f401724e8ec",
+      "src/cascade/sim/microduck_policy_admission.py": "199fb0683fffeae9e93a99f22ed595c29cad4e36508ab5c7888b0fba9bf551d9",
+      "src/cascade/sim/microduck_sdk.py": "dd3502263048e483ebbc3f393ebc505c0fe8fad23b0fb4b7837fa5cef314bf56",
+      "src/cascade/sim/microduck_shared.py": "d71e9e6082ac6a1ceabd4592813a74959f678b28ac9ad57e1b04435467048f34",
+      "src/cascade/sim/microduck_shared_native.py": "8701ac20e1283611d2f6d375b5bc245f29410a3b8b87b4cc3b132773ea5ea439",
+      "src/cascade/sim/microduck_solver_graph.py": "9f990fc96daaa91e849444acfd302d4c6da9a7c62a42adc1f3e445cf65858772",
+      "src/cascade/sim/microduck_state.py": "495f3062274b620890448d6b3958c7481108a265321a616f64da1ec06a972971",
+      "src/cascade/sim/microduck_stepper.py": "fdd2ba66376c6535a784d275bc957646e6e3bdb17100bc4a565f4fe095597ae0",
+      "src/cascade/sim/microduck_timing.py": "c80274ad605c91c54cfcc1f301bb80a77b9ede6b5dadab3eaf6c348443a97a14",
+      "src/cascade/sim/mobile_bridge.py": "f168bd7d315ed9ad36ffa4846079c4d5997f59dbb2dafb72be0175c23b00ec6d",
+      "src/cascade/sim/mobile_identity.py": "eb7b29754243f5ab8f3ebf6bb8524175698b96250f55796a0135273fdb6cf21a",
+      "src/cascade/sim/mobile_rgbd.py": "8bfc3219e21373eccaed55f92452d66820182cba12faa63f6a2c99d2fb3ab861"
+    },
+    "artifact_sha256": {
+      "plan.json": "302ed5327ee4c04e741a817a6480c91c13701348fa02a8d96a7ed591dc7b6694",
+      "root-receipt.json": "c705257bce1e15def4669688ca7fb5a4235ce314282234d320b99a235ad852cf",
+      "independent-audit.json": "e98d8019c7ec11df4e9edb3f8563c8a7a27bd6ad1c1b6a6f3d4c5b27eac5329a",
+      "phase-audit.json": "5a4af679d58c2e7ef42fe9bc4bd6aceb380ec46dcf8d097c694a331ca7640321",
+      "gc-trigger-audit.json": "0447b315addbc0561d747161c2790f8500f93133dfcaeb087b3e7a7e1b83d8a5",
+      "kit/model-identity.json": "d11b7cf948bb63f272fc760b016294740cb915493d3bdf5c69b5a47742f91c92",
+      "kit/timing.jsonl": "af064d293e38b55070d13c0eb1ee9d0c4af4df308df5bf7a999c1cf3e971a855"
+    }
+  },
+  "gpu_admission": {
+    "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+    "foreign_at_three_checks": [
+      [],
+      [],
+      []
+    ],
+    "free_mib_at_three_checks": [
+      97218,
+      97218,
+      97218
+    ]
+  },
+  "cache": {
+    "private_copied_roots": [
+      "cuda",
+      "warp",
+      "xdg"
+    ],
+    "seed": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_GC_TRIGGER_20261004/gc-trigger-probe-twelve-01/cache",
+    "initial_files": 556,
+    "exclusive_inodes": true,
+    "renderer_cache": "Shared selection retained from the preceding recipe; not an audited exclusive RTX seed."
+  },
+  "private_rtx_cache_enabled": false,
+  "closure": {
+    "native_exit": 0,
+    "scope_exit": 0,
+    "client_closed": true,
+    "forced": false,
+    "signals": [],
+    "remaining_members": [],
+    "remaining_births": [],
+    "inputs_unchanged": true,
+    "protected_stores_unchanged": true
+  },
+  "sdk": {
+    "recipe": "isaac62_48b2d951",
+    "newton_version": "1.6.1rc1",
+    "release_version_sha256": "59a6d16d8f3f247b73fa68a837867dafc0f568e491ae593f0ab1c2cb2fa62786",
+    "source_sha256": {
+      "mujoco_warp._src.support": "1a08ef15f149d1cf3c9ec5df6c688669fe86aa237ee2512a7463caf1b74e3d54",
+      "newton._src.solvers.mujoco.kernels": "bd770d39d20c208e980477e0186799f531364b03f16d76968ee69bacdc490a3d",
+      "newton._src.solvers.mujoco.solver_mujoco": "a2f2466ad9d35e32f6e87f12bbaa0e08d18295f4e95b1c059c805d2ff4091178",
+      "isaacsim.physics.newton.impl.newton_stage": "a9d4e95305b23e6cea8e4e8e5fb63dc8b6c5c5917ad5c3ba48e2ba29df84d958",
+      "isaacsim.physics.newton.impl.newton_config": "b1212639ebf22448a1da36b272b36da02eb340dcc1ad2312da075a66dadf1de0",
+      "isaacsim.physics.newton.impl.solver_config": "e6c17f958cbd2534ac71743e62f56b79c4e8d86147ee676a6e80ee0d7ea9fe03"
+    },
+    "physical_acceptance": false
+  },
+  "runtime_source_sha256": {
+    "assets/microduck/manifest.json": "56678bc8dbbc4aba6ca99944a37d495badb1157093b728348700739896383faa",
+    "assets/microduck/newton-bam.json": "d04d0281eb2f581ab738a95ddf6983f09bbfa8dbabef4087271e61e384fd5b4b",
+    "assets/microduck/policy-candidates.json": "6357372fd8f1aba6c64de5d95ba28a6f2f08a825fc4352642d20c152f776c11f",
+    "configs/isaac/microduck.newton.kit": "22ad2a0f66a14863c482a6fd74785475001d5b6aa2bd2f5879d31cb3440a7794",
+    "scripts/convert_microduck.py": "11e5df9e99b03cd0e3479a3dee94da17b685e49c04c32f364a895ab38c6751a2",
+    "scripts/isaac_camera_readback.py": "28c4523b08410db254c83e70f52c36f0f34488e6964dd6aebb561b638df8b9cd",
+    "scripts/isaac_microduck_bridge.py": "0187726e0f3bcc232d60c0c7beb6579f530a10765f612bc3fffffda5c2435085",
+    "scripts/isaac_microduck_shared.py": "fa0e9965123da3018918cfc4dbc92d8d8c00edec30b25146a4393c6843a947cd",
+    "scripts/isaac_runtime.py": "8d40bc13b50d86f6c671628486142b6ee2cfa61ea762ea7867e66cf1447c935a",
+    "src/cascade/apps/signal_stop.py": "1a94a391c25d856299d899e633aaa777215e4ef1dc1fc819bee492c44019b9bd",
+    "src/cascade/control/microduck_actuator.py": "77216426cefc311237fa6854f06aa98a90d4f9f53b080a93c886d67f14961a0e",
+    "src/cascade/control/microduck_policy.py": "4a3df35ac4eccafdbd94cb99be8ff2d80320a509a5494b8f0bd0c9c22059479c",
+    "src/cascade/control/mobile_base.py": "d31f5ba67fbf24979c17193d453af3e8ec7bbc98987a926d5f8eb580770619a6",
+    "src/cascade/control/mobile_support.py": "08a8c57898871d677c46de9aa34c3e59977e8b85a1039d49b5b241810fd328c4",
+    "src/cascade/control/mobile_telemetry.py": "7f2e4dab7f0162fb25fc80d0eb9851d56773396c85cd4646de59a7c9d6bce6d2",
+    "src/cascade/control/newton_bam.py": "1972ac0b4d6bbf06138ef550b530142c820cf03d6d3d4ce4aba5d68ffb00e64c",
+    "src/cascade/sim/microduck_admission.py": "dddf5ebced53b1f5b2d0fcffe508cfc28f6d02b84a2492d62837b98d87d3f483",
+    "src/cascade/sim/microduck_contact_support.py": "ddbcefaf1f95aa407cd669514f00fd5811ba89967faa87b68d78d576cd8b752e",
+    "src/cascade/sim/microduck_newton.py": "12501f358175baa43f7b868cb817855f5e8aeafb92940b816c76de16c4395268",
+    "src/cascade/sim/microduck_policy_admission.py": "199fb0683fffeae9e93a99f22ed595c29cad4e36508ab5c7888b0fba9bf551d9",
+    "src/cascade/sim/microduck_sdk.py": "dd3502263048e483ebbc3f393ebc505c0fe8fad23b0fb4b7837fa5cef314bf56",
+    "src/cascade/sim/microduck_shared.py": "d71e9e6082ac6a1ceabd4592813a74959f678b28ac9ad57e1b04435467048f34",
+    "src/cascade/sim/microduck_shared_native.py": "c03ef4286003abfeb6dcb3d4db405fce27e2b1b030901b4532d75643ea77448c",
+    "src/cascade/sim/microduck_solver_graph.py": "9f990fc96daaa91e849444acfd302d4c6da9a7c62a42adc1f3e445cf65858772",
+    "src/cascade/sim/microduck_state.py": "495f3062274b620890448d6b3958c7481108a265321a616f64da1ec06a972971",
+    "src/cascade/sim/microduck_stepper.py": "7d862f24399e435545587feb74303a40a69def509b879168f3a94a5799a7824d",
+    "src/cascade/sim/microduck_timing.py": "adee3bae4444546f3527b07dbe8238bd2147c9acd7b6d60e89779f1b8fdd5d52",
+    "src/cascade/sim/mobile_bridge.py": "14913ed93fc2d432d46a4378d643b1cdd96e142e176b74dfe730f9821ea2931b",
+    "src/cascade/sim/mobile_identity.py": "b90b10fcf2d077d2f83bed898041ff1effb597341df0b8433489913e14582004",
+    "src/cascade/sim/mobile_rgbd.py": "8bfc3219e21373eccaed55f92452d66820182cba12faa63f6a2c99d2fb3ab861",
+    "src/cascade/sim/private_rtx_cache.py": "ab7b9e06a930cb29254f0537875f4a497954f0355055d0e6e891ea215d9b8eb4"
+  },
+  "artifact_sha256": {
+    "kit/physics.jsonl": "7522eefb82d81266068e0bdfa0e7003484712e81f8eddc54dfa295e457c93dd8",
+    "kit/policy.jsonl": "3851cc092203d32cf2f8bd9492b1b702beabb5fa337381e248d28136900891c6",
+    "kit/frames.jsonl": "282981bcfb6bb6bb54e3f918ae6ebdbe4f8b698830b7f640ecdc2e3086c13f40",
+    "kit/support-probe.jsonl": "c84757012889a2e15e9cfb2d636dc867cd222333472d1d3fae13a46dfcd602bc",
+    "kit/model-identity.json": "85107a4485c6f0a20353f26d1058f5196efe4509af7fefd5f16f5c95a4a10df4",
+    "kit/receipt.json": "649e5661ae769084146c37f5c37718c44d24bdb420a23e131137b4d52f2227c5",
+    "plan.json": "600445031449ba9a28c990c2999451f3310497105bcee6bcce43bacb6d802ecc",
+    "inputs.json": "e96d07edb573ece00f932a29ab339c88b2855ce3c63462ebd3e04ed3675093b9",
+    "root-receipt.json": "0def5c9bff3028ec28e434c78515275fb94cca90e8fd228f52f3439545725d32",
+    "launch-binding.json": "6c5e3aaa5cf82f726a5e5ac5c8341b360b8999478d98afffdd2cd35b3f454457",
+    "independent-audit.json": "8041f2337389dab7e681752ec257373833f186d2a06fdb48ec42a08860c5d178",
+    "phase-audit.json": "89aa47232affc5783a812b7d27d1cc285a1be8d6af8693a4b7902ee3c735c3e8",
+    "gc-trigger-audit.json": "af82e01d5e3902f11749985f879a5953fc27d2e6d1ed15a9be69701e7d3cbecd",
+    "kit/timing.jsonl": "a51819868f210d3c124b4ad218ba43e40a3167db7f16692247855f5a4e3c1976",
+    "client-events.json": "2eaa874a40ca5b31ed0dec788de5baec0577b962f3fd77b8a7b1d08c2e4c7a82",
+    "client-close.json": "5a64d66d27ece1db8ef4ff6d817ab78b463afde6bd4a591ba0f8a4397b536a55",
+    "native-exit.json": "d24219f6de94b955cf36d25bd2aca88e2d35eef45b9317b7083f55ec8fe9653c",
+    "scope/owner.json": "bda06f5be5260ade4a8aeeb67d4769844f33c7ddce1134d67924d5f2b23ee300",
+    "gpu-planning-admission.json": "055d482015114b2830b1b47da7f4eb0464adda96574b954a78c3f4f4883da8a8",
+    "gpu-recheck-01.json": "055d482015114b2830b1b47da7f4eb0464adda96574b954a78c3f4f4883da8a8",
+    "gpu-recheck-02.json": "055d482015114b2830b1b47da7f4eb0464adda96574b954a78c3f4f4883da8a8",
+    "cache-provenance.json": "ead5024ebc09f4166c7714df481c42d51e153b85dc351b22532600aaffb5d0d1",
+    "comparison-reference.json": "23653fabe4735f700c4597329bde40d0d29d02b7bece2cdcb6c86fc71cfe494e",
+    "source-freeze.json": "aa3b0516c533e44564e3f2d2057d4cd4670559bb23f086da26678f4d27870757",
+    "plan-diff.json": "811636fc7e205ed0a4972c1d0b368be3790993db87649afcfc959016f5b86ecb"
+  },
+  "integrated_cpu_differential": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/CAPABILITY_INTEGRATION_20261003/contacts-integration-differential-01.json",
+    "sha256": "0023173f661f42f0ed10205f2d493738782c36b896c0f9498eee0fa4043e3f0b",
+    "script": "/home/johnny/Projects/demo/cascade-lab/CAPABILITY_INTEGRATION_20261003/compare_contacts_integration.py",
+    "script_sha256": "dc0889efe810bd45d96145428b45f75fb16ff37dd259df5273b7a1224e5797f2",
+    "baseline_source": "86b9654dff64f54a677a83711c5f3c058bea1394",
+    "public_states": 456,
+    "private_states_json": 456,
+    "complete_physics_json": 10
+  },
+  "auditors_sha256": {
+    "audit_endpoint_native.py": "783abe77eaa2eefb02ed0537df6bb289631acfe197263b25fc5989bec71a3c0d",
+    "audit_phases_trigger.py": "b0e1129e6fd178bb38f96be68cf7edeca9f968c545ae368608c94b78b3ddcec8",
+    "audit_gc_v2.py": "26d6dde090deacfa92a854eed34f4b251eb29a6459d94014c38d85656b69146f",
+    "audit_gc_v3.py": "bf63eeccb69efabe051913e328021f8535908a5e7a1995389265a4baa8a21cef"
+  },
+  "retained_negative_evidence": [
+    "endpoints.json",
+    "support-control.json",
+    "row-control.json"
+  ],
+  "limitations": [
+    "Trigger frames show the observed call site, not the heap or objects traversed and not a causal attribution.",
+    "The single trigger stack has thirteen frames and is not truncated; no locals, source lines or Python frame references were retained.",
+    "Stack/counter capture timings exclude callback dispatch, queue and encoding overhead and must not be subtracted as a causal correction.",
+    "Allocated-block counters are not a heap-object census. Counter snapshots bracket callback registration, not SDK startup.",
+    "One attempt still exceeds the original 0.4 s progress and 0.5 s RPC limits. No control or deadline recovery was tested.",
+    "The preceding source observed ten slow attempts and this source observed one; separate runs do not establish causal speedup, worst-case latency, or repeatability.",
+    "Phase durations are inclusive, not additive. Both GPU admission cohorts were empty; other host load was not experimentally controlled.",
+    "The integrated source also includes the private RTX cache feature at its inactive default; only source hashes differ in the effective native recipe.",
+    "The three earlier twelve-robot control failures and all frozen episodes remain unchanged."
+  ]
+}

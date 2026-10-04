@@ -464,15 +464,23 @@ class KitNewtonBackend:
             self.signals.checkpoint(persistent=True)
 
     def _app_config(self):
-        return {'headless': True, 'disable_viewport_updates': True,
+        config = {'headless': True, 'disable_viewport_updates': True,
                 'multi_gpu': False, 'width': 320, 'height': 240, 'renderer': 'RayTracedLighting',
                 'physics_gpu': int(self.args.device.split(':')[1])}
+        if 'private_rtx_cache' in self.admission:
+            from .private_rtx_cache import extra_args
+            config['extra_args'] = extra_args(self.admission['private_rtx_cache'])
+        return config
 
     def _solver_capacity(self):
         return 512, 2400
 
     def open(self):
         import sys
+        rtx_cache = self.admission.get('private_rtx_cache')
+        if rtx_cache is not None:
+            from .private_rtx_cache import prepare
+            self.receipt['private_rtx_cache'] = prepare(self.args, rtx_cache)
         from isaacsim import SimulationApp
         saved = sys.argv
         sys.argv = [saved[0], '--/exts/isaacsim.physics.newton/auto_switch_on_startup=false',
@@ -484,6 +492,13 @@ class KitNewtonBackend:
             with defer():
                 # Acquire the handle so cleanup can find it even if interrupted.
                 self.app = SimulationApp(self._app_config(), experience=str(self.experience))
+            if rtx_cache is not None:
+                import importlib
+                import carb.settings
+                from .private_rtx_cache import IMPORTED_SOURCES, verify_effective
+                imported = {name: importlib.import_module(name).__file__ for name in IMPORTED_SOURCES}
+                self.receipt['private_rtx_cache_effective'] = verify_effective(
+                    rtx_cache, carb.settings.get_settings(), imported)
             self._checkpoint()
             self._initialize()
         except BaseException:
@@ -564,6 +579,8 @@ class KitNewtonBackend:
         self.receipt['configuration'] = dict(num_substeps=1, use_cuda_graph=False, time_step_app=False,
                                              nconmax=contacts, njmax=constraints,
                                              rigid_contact_max=contacts, use_mujoco_contacts=True)
+        if 'private_rtx_cache' in self.admission:
+            self.receipt['configuration']['private_rtx_cache'] = self.admission['private_rtx_cache']['policy']
         if self._sdk_recipe is not None:
             self.receipt['configuration'].update(sdk_recipe=self.admission['sdk_recipe'],
                                                 contact_forces=True, link_incoming_joint_force=False)

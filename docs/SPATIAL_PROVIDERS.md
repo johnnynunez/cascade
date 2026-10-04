@@ -111,6 +111,34 @@ both the current body and the selected corridor. Expired captures, map/volume
 revision changes, unknown uncertainty and localization jumps stop the route;
 new observations cannot renew its original wall deadline.
 
+Physical navigation also requires `settings.robot_volume`, parsed by
+`spatial.robot_volume.RobotVolume.from_dict`; the older cylinder-only fixture is
+restricted to mock bases. This record binds the robot/model, source geometry
+hash, embodiment, complete collider inventory, local bounding boxes with known
+error, and the permitted base-relative origin range of every link. Each link
+and collider must be covered, including body, limbs and attached payloads. The
+configuration's `geometry_sha256` must equal the canonical record digest, and
+its cylinder must enclose every local box through the entire declared reach
+range and all rotations. The adapter cannot infer these ranges or mesh bounds
+from one pose. A model adapter must establish their coverage before native use;
+the configuration and an embodiment description alone do not attest it.
+
+Every registered `NavigationSample.robot_volume` carries a `RobotVolumeSample`
+with complete base-relative link transforms at the same capture time, sequence,
+sensor epoch, map epoch and clock as the base pose. The separate link-pose
+source and calibration are pinned by the volume record. Unknown error, stale
+captures, omitted links, static substitutions and uncertainty extending beyond
+a declared reach bound refuse the route. Clearance revalidates the retained
+sample and binds its digest into the query. Origin ranges include pose error,
+not just nominal joint origins. Both base and geometry ages are rechecked after
+geometry work, around clearance, before publication and during motion authority
+checks; a fresh base cannot renew an older limb capture. The swept cylinder continues to
+cover the full articulation range even when all limbs currently lie close to
+the base. Instantaneous boxes include angular uncertainty about each link
+origin, including its lever arm; they are diagnostic and never replace that
+full swept envelope. These additions provide software geometry guards, not a
+new collision-map provider or calibrated native reach evidence.
+
 `SafeBase` rechecks the passive route authority around feedback reads and before
 dispatch; revocation delivers a latched stop. Final arrival requires a complete
 fresh settling window, bounded translation and full-orientation speed and drift.

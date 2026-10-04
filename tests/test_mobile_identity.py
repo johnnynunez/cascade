@@ -87,6 +87,7 @@ def test_recipe_relocation_and_incidental_counters_do_not_change_identity(recipe
     ('device', lambda a,n: (n.update(physics_device='cuda:1'), n['bam'].update(device='cuda:1'))),
     ('GPU', lambda a,n: n['gpu_attestation'].update(uuid='other-GPU')),
     ('contact_support', lambda a,n: n['support_contract'].update(foot_shapes=['other-foot'])),
+    ('phase_profile', lambda a,n: n['configuration'].update(phase_profile='owner-thread-inclusive-v1')),
 ])
 def test_effective_recipe_changes_cannot_reuse_identity(recipe_inputs, field, change):
     admission, native, paths = recipe_inputs

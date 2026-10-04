@@ -10,6 +10,7 @@ Use an outer process-group deadline for native startup/teardown hangs.
 from __future__ import annotations
 
 import argparse
+from contextlib import nullcontext
 import hashlib
 import json
 import sys
@@ -33,7 +34,7 @@ def run(args, admission, signals):
     started = time.monotonic()
     result = {'completed': False, 'physical_acceptance': False, 'steps': 0,
               'scope': 'shared-scene zero-command foundation', 'teardown_errors': []}
-    owner = fleet = endpoints = None
+    owner = fleet = endpoints = profile = None
     steppers = []
     previous_path = list(sys.path)
     try:
@@ -45,6 +46,8 @@ def run(args, admission, signals):
         owner = SharedKitNewtonBackend(args, admission, experience)
         owner.signals = signals
         owner.open()
+        if getattr(args, 'profile_phases', False):
+            owner.receipt['configuration']['phase_profile'] = 'owner-thread-inclusive-v1'
         identity = owner.bind_identity(repo=REPO, runtime_scene=out / 'runtime-scene.usda')
         write_json(out / 'model-identity.json', identity)
         remaining = args.max_wall_s - (time.monotonic() - started)
@@ -62,6 +65,10 @@ def run(args, admission, signals):
                 checkpoint=lambda: signals.checkpoint(persistent=True),
                 **{k: admission['limits'][k] for k in FALL_LIMITS}))
         fleet = SharedMicroduckStepper(owner, steppers, layout=owner.layout)
+        if getattr(args, 'profile_phases', False):
+            from cascade.sim.microduck_timing import PhaseProfile, instrument_owner
+            profile = PhaseProfile(out / 'timing.jsonl')
+            instrument_owner(profile, owner, steppers)
         fleet.start()
         if args.serve_base_port is not None:
             from cascade.sim.microduck_admission import SharedEndpoints
@@ -75,8 +82,9 @@ def run(args, admission, signals):
         write_json(out / 'runtime.json', {'backend': owner.receipt,
             'robots': {s.identity['robot_id']: s.controller.hello() for s in steppers}})
         def row(stream, value):
-            stream.write(json.dumps(value, allow_nan=False, default=json_default) + '\n')
-            stream.flush()
+            with profile.span('write.' + Path(stream.name).name) if profile else nullcontext():
+                stream.write(json.dumps(value, allow_nan=False, default=json_default) + '\n')
+                stream.flush()
         with ((out / 'physics.jsonl').open('x') as physics,
               (out / 'policy.jsonl').open('x') as policies,
               (out / 'frames.jsonl').open('x') as frames,
@@ -87,54 +95,59 @@ def run(args, admission, signals):
                 signals.checkpoint(persistent=True)
                 if time.monotonic() - started >= args.max_wall_s:
                     raise RuntimeError('shared episode wall deadline expired')
-                try:
-                    if endpoints is not None:
-                        endpoints.admission.drain()
-                    samples = fleet.tick()
-                finally:
-                    for stepper in steppers:
-                        for record in stepper.policy_records:
-                            robot = stepper.identity['robot_id']
-                            if record['attempt'] > attempts[robot]:
-                                row(policies, record)
-                                attempts[robot] = record['attempt']
-                if samples is None:
-                    result['withheld_ticks'] = fleet.withheld_ticks
-                    continue
-                result['steps'] = i + 1
-                row(physics, {'step': owner.physics_clock[0], 'sim_time_s': owner.physics_clock[1],
-                    'robots': {s.identity['robot_id']: {**samples[s.identity['robot_id']],
-                        'bam': s.actuator.telemetry(), 'controller': s.controller.state()}
-                        for s in steppers}})
-                if i == 0 or (i+1) % args.camera_every == 0 or i+1 == args.max_steps:
-                    probe = owner.support_probe()
-                    row(probes, probe)
-                    if probe.get('passed') is not True:
-                        raise RuntimeError('shared native contact-force probe failed')
-                    capture = owner.capture()
-                    if (capture['step'], capture['sim_time_s']) != owner.physics_clock:
-                        raise RuntimeError('overview capture does not match shared solve')
-                    if endpoints is not None:
-                        endpoints.publish_capture(capture)
-                    import cv2
-                    ok, jpeg = cv2.imencode('.jpg', cv2.cvtColor(capture['rgb'], cv2.COLOR_RGB2BGR))
-                    if not ok:
-                        raise RuntimeError('overview JPEG encoding failed')
-                    path = out / 'frames' / f'overview_{capture["step"]:09d}.jpg'
-                    with path.open('xb') as image:
-                        image.write(jpeg.tobytes())
-                    row(frames, {k:v for k,v in capture.items() if k != 'rgb'} | {
-                        'file': path.relative_to(out).as_posix(), 'sha256': hashlib.sha256(jpeg).hexdigest(),
-                        'scene_model_sha256': identity['scene_model_sha256'],
-                        'physics_ticks_during_capture': 0})
-                    if endpoints is not None and not endpoints.started:
-                        marker = {'robots': endpoints.start(), 'physical_acceptance': False,
-                                  'scene_model_sha256': identity['scene_model_sha256']}
-                        write_json(out / 'BRIDGE_LISTENING.json', marker)
-                        print('BRIDGE_LISTENING ' + json.dumps(marker), flush=True)
-                if (i+1) % 100 == 0:
-                    print(json.dumps({'robots': args.robots, 'completed_steps': i+1}), flush=True)
-                i += 1
+                with profile.attempt(owner) if profile else nullcontext() as timing:
+                    try:
+                        if endpoints is not None:
+                            endpoints.admission.drain()
+                        samples = fleet.tick()
+                        if timing is not None:
+                            timing['outcome'] = 'withheld' if samples is None else 'solved'
+                    finally:
+                        for stepper in steppers:
+                            for record in stepper.policy_records:
+                                robot = stepper.identity['robot_id']
+                                if record['attempt'] > attempts[robot]:
+                                    row(policies, record)
+                                    attempts[robot] = record['attempt']
+                    if samples is None:
+                        result['withheld_ticks'] = fleet.withheld_ticks
+                        continue
+                    result['steps'] = i + 1
+                    with profile.span('record.physics') if profile else nullcontext():
+                        row(physics, {'step': owner.physics_clock[0], 'sim_time_s': owner.physics_clock[1],
+                            'robots': {s.identity['robot_id']: {**samples[s.identity['robot_id']],
+                                'bam': s.actuator.telemetry(), 'controller': s.controller.state()}
+                                for s in steppers}})
+                    if i == 0 or (i+1) % args.camera_every == 0 or i+1 == args.max_steps:
+                        with profile.span('camera.overview') if profile else nullcontext():
+                            probe = owner.support_probe()
+                            row(probes, probe)
+                            if probe.get('passed') is not True:
+                                raise RuntimeError('shared native contact-force probe failed')
+                            capture = owner.capture()
+                            if (capture['step'], capture['sim_time_s']) != owner.physics_clock:
+                                raise RuntimeError('overview capture does not match shared solve')
+                            if endpoints is not None:
+                                endpoints.publish_capture(capture)
+                            import cv2
+                            ok, jpeg = cv2.imencode('.jpg', cv2.cvtColor(capture['rgb'], cv2.COLOR_RGB2BGR))
+                            if not ok:
+                                raise RuntimeError('overview JPEG encoding failed')
+                            path = out / 'frames' / f'overview_{capture["step"]:09d}.jpg'
+                            with path.open('xb') as image:
+                                image.write(jpeg.tobytes())
+                            row(frames, {k:v for k,v in capture.items() if k != 'rgb'} | {
+                                'file': path.relative_to(out).as_posix(), 'sha256': hashlib.sha256(jpeg).hexdigest(),
+                                'scene_model_sha256': identity['scene_model_sha256'],
+                                'physics_ticks_during_capture': 0})
+                            if endpoints is not None and not endpoints.started:
+                                marker = {'robots': endpoints.start(), 'physical_acceptance': False,
+                                          'scene_model_sha256': identity['scene_model_sha256']}
+                                write_json(out / 'BRIDGE_LISTENING.json', marker)
+                                print('BRIDGE_LISTENING ' + json.dumps(marker), flush=True)
+                    if (i+1) % 100 == 0:
+                        print(json.dumps({'robots': args.robots, 'completed_steps': i+1}), flush=True)
+                    i += 1
         result['completed'] = True
     except SignalRequest as exc:
         result.update(signal=exc.signum, error='signal/lifecycle shutdown')
@@ -142,7 +155,7 @@ def run(args, admission, signals):
         result['error'] = f'{type(exc).__name__}: {exc}'
     finally:
         with signals.defer():
-            for resource in (endpoints, fleet if fleet is not None else owner):
+            for resource in (endpoints, profile, fleet if fleet is not None else owner):
                 if resource is not None:
                     try:
                         resource.close()
@@ -153,6 +166,9 @@ def run(args, admission, signals):
                 for s in steppers if s.started}
             result['backend'] = owner.receipt if owner else None
             result['withheld_ticks'] = fleet.withheld_ticks if fleet else 0
+            if profile is not None:
+                result['phase_profile'] = {'file': 'timing.jsonl', 'attempts': profile.attempts,
+                                          'errors': list(profile.errors)}
             result['wall_duration_s'] = time.monotonic() - started
             if result['teardown_errors'] or signals.signum is not None:
                 result['completed'] = False
@@ -179,10 +195,12 @@ def main(argv=None):
     extra.add_argument('--robots', type=int, required=True)
     extra.add_argument('--spacing', type=float, required=True)
     extra.add_argument('--serve-base-port', type=int, default=None)
+    extra.add_argument('--profile-phases', action='store_true')
     options, rest = extra.parse_known_args(argv)
     args = parse_args(rest)
     args.robots, args.spacing = options.robots, options.spacing
     args.serve_base_port = options.serve_base_port
+    args.profile_phases = options.profile_phases
     bind_repo()
     from cascade.apps.signal_stop import StopSignals
     from cascade.sim.microduck_shared_native import placements
@@ -197,7 +215,8 @@ def main(argv=None):
         raise ValueError('shared foundation requires graph/read reuse and RGB overview only')
     admission = admit(args)
     for path in ('scripts/isaac_microduck_shared.py', 'src/cascade/sim/microduck_shared.py',
-                 'src/cascade/sim/microduck_shared_native.py', 'src/cascade/sim/microduck_admission.py'):
+                 'src/cascade/sim/microduck_shared_native.py', 'src/cascade/sim/microduck_admission.py',
+                 'src/cascade/sim/microduck_timing.py'):
         admission['source_sha256'][path] = hashlib.sha256((REPO / path).read_bytes()).hexdigest()
     if args.check_only:
         print(json.dumps({'ok': True, 'robots': args.robots, 'physical_acceptance': False}))

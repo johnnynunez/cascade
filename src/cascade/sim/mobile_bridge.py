@@ -7,6 +7,7 @@ state readers only receive copies of the last completed physics observation.
 from __future__ import annotations
 
 import copy
+from dataclasses import replace
 import math
 import ipaddress
 import json
@@ -92,6 +93,7 @@ class MobileBridgeController:
         self._generation = 0
         self._epoch = uuid.uuid4().hex
         self._state: dict | None = None
+        self._completed_snapshot: BaseState | None = None
         self._state_wall: float | None = None
         self._active: dict | None = None
         self._latched = False
@@ -138,7 +140,7 @@ class MobileBridgeController:
                 "generation": self._generation, "latched": self._latched,
                 "model_identity_sha256": self._identity["model_identity_sha256"]}
 
-    def _snapshot(self, state: dict, age: float) -> dict:
+    def _snapshot(self, state: dict, age: float) -> BaseState:
         support = copy.deepcopy(state.get("support"))
         if support is not None:
             # Native step/time are measurement fields; only controller-owned
@@ -160,12 +162,19 @@ class MobileBridgeController:
             generation=self._generation, contacts=state["contacts"], fallen=state["fallen"],
             latched=self._latched, measurement_kind="physics",
             model_identity_sha256=self._identity["model_identity_sha256"], support=support,
-        ).as_dict()
+        )
 
     def state(self) -> dict:
         """Return history, not a refresh or an assertion that physics advanced."""
         with self._lock:
             age = None if self._state_wall is None else max(0.0, self._clock() - self._state_wall)
+            # Completed measurement/support is immutable and validated at publish.
+            # Permission and freshness remain live; replace revalidates those
+            # fields without reparsing every solved contact on every reader poll.
+            snapshot = None if self._completed_snapshot is None else replace(
+                self._completed_snapshot, received_monotonic_s=self._state_wall or 0.,
+                producer_age_s=age, controller_status=self._mobile_status(),
+                generation=self._generation, latched=self._latched).as_dict()
             return {
                 **copy.deepcopy(self._state or {}), **self.hello(),
                 "controller": self._status(), "latched": self._latched,
@@ -173,7 +182,7 @@ class MobileBridgeController:
                 "command_id": self._active["command_id"] if self._active else None,
                 "last_completed_command_id": self._last_completed,
                 "feedback_available": self._state is not None,
-                "state": self._snapshot(self._state, age) if self._state is not None else None,
+                "state": snapshot,
             }
 
     def publish(self, state: dict) -> None:
@@ -216,11 +225,12 @@ class MobileBridgeController:
                 validated["step"], validated["sim_time"] = step, sim_time
                 if len(state.get("joint_names", ())) != 14:
                     raise ValueError("joint_names must name all 14 observed joints")
-                self._snapshot(validated, 0.)  # same strict schema as all MOBILE readers
+                snapshot = self._snapshot(validated, 0.)  # same strict MOBILE schema
             except (ValueError, TypeError, KeyError) as exc:
                 self.fault(str(exc))
                 raise ValueError(str(exc)) from exc
             self._state = validated
+            self._completed_snapshot = snapshot
             self._state_wall = self._clock()
             if validated["fallen"]:
                 self.fault("physics state is fallen")
@@ -387,6 +397,7 @@ class MobileBridgeController:
             self._generation += 1
             self._active = None
             self._state = None
+            self._completed_snapshot = None
             self._state_wall = None
             self._last_control_time = None
             self._last_completed = None

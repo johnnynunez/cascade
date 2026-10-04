@@ -21,6 +21,56 @@ from isaac_microduck_bridge import (CONTROLLER_LIMITS, FALL_LIMITS, REPO, admit,
     bind_repo, json_default, parse_args, write_json, _persist, _refresh_receipt, _resolve_outcome)
 
 
+def _physics_json(value):
+    """Share contact conversion only while encoding this private log row."""
+    from cascade.control.mobile_base import BaseState, _plain_record
+    from cascade.control.mobile_support import SupportObservation, immutable_support
+    from cascade.sim.mobile_bridge import _RecordSnapshot
+    contacts = {}
+
+    def cached_contacts(observed, style):
+        # Per-robot bindings contain distinct tuples of the same exact frozen
+        # contacts. Keep their references alive and verify the entire sequence;
+        # the first contact alone never establishes equivalence.
+        rows = observed.contacts
+        key = style, len(rows), id(rows[0]) if rows else None
+        cached = contacts.get(key)
+        if cached is not None and not all(a is b for a, b in zip(rows, cached[0])):
+            cached = None
+        return key, cached
+
+    def default(observed):
+        if type(observed) is _RecordSnapshot:
+            observed = observed.value
+            snapshot = _plain_record(observed, BaseState, ('support',))
+            support = observed.support
+            if snapshot is None or (support is not None and not immutable_support(support)):
+                return observed.as_dict()
+            if support is not None:
+                key, cached = cached_contacts(support, 'snapshot')
+                if cached is None:
+                    result = observed.as_dict()
+                    contacts[key] = support.contacts, result['support']['contacts']
+                    return result
+                snapshot['support'] = _plain_record(support, SupportObservation, ('contacts',))
+                snapshot['support']['contacts'] = cached[1]
+            return {key: list(item) if type(item) is tuple else item for key, item in snapshot.items()}
+        if not immutable_support(observed):
+            return json_default(observed)
+        key, cached = cached_contacts(observed, 'raw')
+        if cached is None:
+            result = observed.as_observation_dict()
+            contacts[key] = observed.contacts, result['contacts']
+            return result
+        # Preserve as_observation_dict's field order, with this robot's own
+        # identity/status/clock. The shared mutable list never leaves dumps.
+        return dict(version=observed.version, status=observed.status, reason=observed.reason,
+            step=observed.step, sim_time_s=observed.sim_time_s, contacts=cached[1],
+            epoch=observed.epoch, model_identity_sha256=observed.model_identity_sha256)
+
+    return json.dumps(value, allow_nan=False, default=default)
+
+
 def run(args, admission, signals):
     from cascade.apps.signal_stop import SignalRequest
     from cascade.control.microduck_policy import MicroduckPolicy
@@ -81,9 +131,11 @@ def run(args, admission, signals):
             raise RuntimeError('camera warmup changed shared physics clock')
         write_json(out / 'runtime.json', {'backend': owner.receipt,
             'robots': {s.identity['robot_id']: s.controller.hello() for s in steppers}})
-        def row(stream, value):
+        def row(stream, value, *, physics_row=False):
             with profile.span('write.' + Path(stream.name).name) if profile else nullcontext():
-                stream.write(json.dumps(value, allow_nan=False, default=json_default) + '\n')
+                encoded = _physics_json(value) if physics_row else json.dumps(
+                    value, allow_nan=False, default=json_default)
+                stream.write(encoded + '\n')
                 stream.flush()
         with ((out / 'physics.jsonl').open('x') as physics,
               (out / 'policy.jsonl').open('x') as policies,
@@ -116,8 +168,8 @@ def run(args, admission, signals):
                     with profile.span('record.physics') if profile else nullcontext():
                         row(physics, {'step': owner.physics_clock[0], 'sim_time_s': owner.physics_clock[1],
                             'robots': {s.identity['robot_id']: {**samples[s.identity['robot_id']],
-                                'bam': s.actuator.telemetry(), 'controller': s.controller.state()}
-                                for s in steppers}})
+                                'bam': s.actuator.telemetry(), 'controller': s.controller._state_for_record()}
+                                for s in steppers}}, physics_row=True)
                     if i == 0 or (i+1) % args.camera_every == 0 or i+1 == args.max_steps:
                         with profile.span('camera.overview') if profile else nullcontext():
                             probe = owner.support_probe()

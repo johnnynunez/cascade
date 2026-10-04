@@ -308,6 +308,12 @@ occurred in several phases; their cause remains unresolved. The first 160
 attempts overlapped the recorded scope of a separate RTX probe on GPU0. This
 diagnostic neither admits twelve-robot control nor establishes a native speedup.
 
+Physics rows share only private contact projections during one JSON encoding;
+public controller responses remain detached. This moves projection work into
+`write.physics.jsonl`, within the inclusive `record.physics` and attempt spans.
+Compare those enclosing spans for total work: the write span includes encoding,
+so its change alone does not measure file I/O or GC cost.
+
 The phase profile also retains passive Python GC callbacks from all threads,
 with absolute timestamps, event IDs, generation and collection counts. Each
 attempt and the footer drain a persistent queue bounded to 4096 events, including

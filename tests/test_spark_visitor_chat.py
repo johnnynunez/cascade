@@ -336,6 +336,12 @@ def test_authenticated_chat_accepts_only_a_natural_english_message(chat, monkeyp
 
 
 def test_completed_request_is_available_after_another_visitor_submits(chat, monkeypatch):
+    # This checks durable result retention. The Event-based tests above keep
+    # real workers for order admission and concurrent status snapshots.
+    def synchronous_thread(*, target, args, daemon):
+        assert daemon is True
+        return SimpleNamespace(start=lambda: target(*args))
+    monkeypatch.setattr(chat_module.threading, "Thread", synchronous_thread)
     monkeypatch.setattr(chat_module.subprocess, "run", lambda *a, **kw: SimpleNamespace(returncode=0, stdout=json.dumps(answer(chat))))
     first = chat.submit("Describe the scene")
     finished(chat)

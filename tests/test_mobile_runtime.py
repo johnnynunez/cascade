@@ -921,23 +921,32 @@ def test_stop_rejects_malformed_receipt_before_independent_confirmation(tmp_path
         ticks.close()
 
 
-def test_reset_revokes_current_stop_confirmation_without_rewriting_ack(tmp_path, frame_endpoint):
+def test_reset_revokes_current_stop_confirmation_without_rewriting_ack(tmp_path, frame_endpoint, monkeypatch):
+    import copy
     from cascade.apps.mobile_runtime import build_mobile_runtime
-    c, _, profile, _, _, _ = frame_endpoint
+    _, _, profile, _, _, _ = frame_endpoint
     profile.update(timeout_s=.2, verifier=verifier_limits())
-    ticks = SyntheticTicks(c)
     rt, _ = build_mobile_runtime(camera_cfg(profile), tmp_path)
+    # This tests revocation of a completed verdict, not rest-window sampling.
+    # The asynchronous RPC tests above exercise the real independent checker.
+    observer = rt.stop_observers["microduck_isaac"]
+    monkeypatch.setattr(observer, "_observe", lambda job: {
+        "status": "confirmed", "reason": "synthetic completed verdict for reset test"})
     try:
         assert rt.reset_stop()["ok"]
         ack = rt.stop()
-        assert await_stop(rt, ack["receipt_id"])["physical_stop_verified"]
+        original = copy.deepcopy(ack)
+        completed = await_stop(rt, ack["receipt_id"])
+        assert completed["physical_stop_verified"], completed
+        assert completed["ack"] == ack["bases"]["microduck_isaac"]
         assert rt.reset_stop()["ok"]
         proof = rt.execute("verify_last_action", {})["stop_verifications"][-1]
         assert proof["superseded"] and not proof["physical_stop_verified"]
+        assert proof["receipt_id"] == ack["receipt_id"]
+        assert ack == original
         assert ack["physical_stop_verified"] is False
     finally:
         rt.close()
-        ticks.close()
 
 
 def test_camera_motion_frames_keep_failed_action_and_source_steps(tmp_path, frame_endpoint):

@@ -13,32 +13,38 @@ from test_factory_owner import model_fixture
 from test_fastening_runtime import binding, limits
 
 
-def constructor_binding(scene):
+def constructor_binding(scene, *, seating=False):
     # Full constructor doubles would conceal SDK drift. Execute its exact AST
-    # binding statement, after the real authoring check, with synthetic labels.
+    # contact-pair and binding assignments, after the real authoring check,
+    # with synthetic labels. Include the registry expressions consumed below.
     tree = ast.parse(inspect.getsource(model))
     cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "FactoryBoundModel")
     init = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == "__init__")
-    statements = [n for n in init.body if isinstance(n, ast.Assign)
-        and any(isinstance(t, ast.Attribute) and isinstance(t.value, ast.Name)
-                and t.value.id == "self" and t.attr == "binding" for t in n.targets)]
-    assert len(statements) == 1
-    assert isinstance(statements[0].value, ast.Call)
-    assert statements[0].value.func.id == "FasteningBinding"
+    statements = [n for n in init.body if isinstance(n, ast.Assign) and any(
+        isinstance(t, ast.Name) and t.id in {"seat_pair", "allowed"}
+        or isinstance(t, ast.Attribute) and isinstance(t.value, ast.Name)
+            and t.value.id == "self" and t.attr == "binding" for t in n.targets)]
+    assert len(statements) == 3
+    assert isinstance(statements[-1].value, ast.Call)
+    assert statements[-1].value.func.id == "FasteningBinding"
     result = NS(document={"dt_s": float(np.float32(1/600)),
         "authoring": model.authoring_descriptor(scene)}, limits=limits())
+    if seating:
+        from cascade.control.fastening_seat import SeatingLimits
+        result.limits = replace(result.limits, seating=SeatingLimits())
     thread = ("nut", "bolt")
     tools = tuple(("nut", "socket_wall_"+str(i)) for i in range(6))
-    scene.model.shape_label = ["nut", "bolt", *(p[1] for p in tools)]
+    scene.model.shape_label = ["nut", "bolt", *(p[1] for p in tools), "seat_ring"]
     names = ("joint", "socket_spin")
-    namespace = dict(vars(model), self=result, scene=scene, thread=thread, tools=tools, names=names)
+    namespace = dict(vars(model), self=result, scene=scene, thread=thread, tools=tools, names=names,
+                     seat_limits=result.limits.seating, label=lambda name: name)
     code = compile(ast.Module(body=statements, type_ignores=[]), inspect.getfile(model), "exec")
     exec(code, namespace)
     return result.binding
 
 
-@pytest.mark.parametrize("recipe", [LEGACY_RECIPE, MARGIN_RECIPE])
-def test_constructor_binding_converts_validated_native_origin_without_changing_values(recipe):
+@pytest.mark.parametrize("recipe,seating", [(LEGACY_RECIPE, False), (MARGIN_RECIPE, False), (MARGIN_RECIPE, True)])
+def test_constructor_binding_converts_validated_native_origin_without_changing_values(recipe, seating):
     scene = model_fixture()
     r = seating_recipe(recipe)
     scene.fixture_recipe = recipe
@@ -49,12 +55,14 @@ def test_constructor_binding_converts_validated_native_origin_without_changing_v
     scene.intersect_position_control_range = r.intersect_position_control_range
     original = scene.fixture_position.copy()
     assert all(type(v) is np.float64 for v in original)
-    result = constructor_binding(scene)
+    result = constructor_binding(scene, seating=seating)
     assert all(type(v) is float for v in result.fixture_origin_m)
     assert result.fixture_origin_m == (*r.center_xy_m, 0.)
     assert result.fixture_recipe == recipe
     assert result.thread_pitch_m == .0025
     assert result.dt_s == float(np.float32(1/600))
+    assert result.seat_contact_pair == (("nut", "seat_ring") if seating else None)
+    assert (("nut", "seat_ring") in result.allowed_contact_pairs) is seating
     np.testing.assert_array_equal(scene.fixture_position, original)
     assert scene.fixture_position.dtype == np.float64
 

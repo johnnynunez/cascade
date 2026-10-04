@@ -26,7 +26,7 @@ def _plain_record(record, cls, nested=()):
         if field.name in nested or type(value) in scalar_types:
             result[field.name] = value
         elif type(value) is tuple and all(type(item) in scalar_types for item in value):
-            result[field.name] = tuple(item for item in value)
+            result[field.name] = value
         else:
             return None
     return result

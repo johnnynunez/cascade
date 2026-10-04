@@ -12,9 +12,11 @@ import math
 
 import numpy as np
 
+from cascade.control.mobile_telemetry import _public_contacts
+
 from .microduck_newton import (KitNewtonBackend, disable_source_actuators,
                               prepare_native_model, read_native_body_properties,
-                              read_native_states)
+                              _read_native_states)
 from .microduck_shared import _SharedSupport, bind_scene
 
 
@@ -162,7 +164,7 @@ class SharedKitNewtonBackend(KitNewtonBackend):
         support = read_support(self.ns, last_solved_clock=self._last_support_solve,
                               source_admitted=source_admitted)
         support = self.layout.capture_support(support, clock=clock)
-        result = read_native_states(self.ns, robots={
+        result = _read_native_states(self.ns, robots={
             binding.robot_id: dict(q_indices=np.array(binding.q_indices),
                 dof_indices=np.array(binding.dof_indices), root_index=binding.root_body_index)
             for binding in self.layout.robots},
@@ -179,17 +181,21 @@ class SharedKitNewtonBackend(KitNewtonBackend):
     def read_robots(self):
         result = copy.deepcopy(self._read_completed_scene())
         for sample in result.values():
+            _public_contacts(sample)
             if type(sample.get('support')) is _SharedSupport:
                 sample['support'] = sample['support'].as_observation_dict()
         return result
 
     def read_robot(self, robot_id):
-        sample = copy.deepcopy(self._read_completed_scene()[robot_id])
+        sample = _public_contacts(copy.deepcopy(self._read_completed_scene()[robot_id]))
         if type(sample.get('support')) is _SharedSupport:
             sample['support'] = sample['support'].as_observation_dict()
         return sample
 
     def read_bound_robot(self, binding, epoch):
+        return _public_contacts(self._read_bound_robot(binding, epoch))
+
+    def _read_bound_robot(self, binding, epoch):
         sample = copy.deepcopy(self._read_completed_scene()[binding.robot_id])
         sample['support'] = self.layout.robot_support(sample['support'], binding,
             epoch=epoch, clock=(sample['step'], sample['sim_time']))
@@ -218,7 +224,15 @@ class SharedRobotView:
         return self.owner.physics_clock
 
     def read(self):
+        return self._read(private=False)
+
+    def _read_for_stepper(self):
+        return self._read(private=True)
+
+    def _read(self, *, private):
         bound = getattr(self.owner, 'read_bound_robot', None)
+        if private:
+            bound = getattr(self.owner, '_read_bound_robot', bound)
         sample = (bound(self.binding, self.epoch) if bound is not None
                   else self.owner.read_robot(self.binding.robot_id))
         sample.update(robot_id=self.binding.robot_id, epoch=self.epoch,

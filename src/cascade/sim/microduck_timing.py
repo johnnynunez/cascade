@@ -238,7 +238,7 @@ def instrument_owner(profile, owner, steppers):
     from . import microduck_contact_support as support, microduck_shared_native as native
 
     profile.wrap(support, 'read_support', 'support.decode')
-    profile.wrap(native, 'read_native_states', 'native.capture')
+    profile.wrap(native, '_read_native_states', 'native.capture')
     for name, phase in (('_read_completed_scene', 'completed.read'), ('step', 'solve'),
                         ('capture', 'camera.capture'), ('support_probe', 'support.probe')):
         profile.wrap(owner, name, phase)

@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 from test_microduck_stepper import Array, native_fixture
 
-from cascade.sim.microduck_newton import read_native_states
+from cascade.sim.microduck_newton import _read_native_states, read_native_states
 
 
 def scene(count):
@@ -70,7 +70,8 @@ def test_one_global_download_per_channel_keeps_distinct_robot_slices_and_all_con
 
 @pytest.mark.parametrize('fault', ['clock', 'state', 'model', 'contacts', 'solver', 'solver_data'])
 @pytest.mark.parametrize('channel', ['body_q', 'nefc', 'worldid'])
-def test_capture_rejects_a_changed_world_before_any_robot_result(fault, channel):
+@pytest.mark.parametrize('reader', [read_native_states, _read_native_states])
+def test_capture_rejects_a_changed_world_before_any_robot_result(fault, channel, reader):
     ns, kwargs = scene(2)
     owner = (ns.state_0 if channel == 'body_q' else ns.solver.mjw_data
              if channel == 'nefc' else ns.solver.mjw_data.contact)
@@ -90,26 +91,28 @@ def test_capture_rejects_a_changed_world_before_any_robot_result(fault, channel)
 
     setattr(owner, channel, Crossed(original.value, original.value.dtype))
     with pytest.raises(RuntimeError, match='scene changed'):
-        read_native_states(ns, **kwargs)
+        reader(ns, **kwargs)
 
 
-def test_next_call_reacquires_swapped_state_and_rejects_invalid_peer_data():
+@pytest.mark.parametrize('reader', [read_native_states, _read_native_states])
+def test_next_call_reacquires_swapped_state_and_rejects_invalid_peer_data(reader):
     ns, kwargs = scene(2)
-    first = read_native_states(ns, **kwargs)
+    first = reader(ns, **kwargs)
     old = ns.state_0
     ns.state_0 = NS(**{k: Array(v.value, v.value.dtype) for k, v in vars(old).items()})
     ns.state_0.body_q.value[2, 0] = 3.
     ns.simulation_step_count, ns.sim_time = 3, .015
-    second = read_native_states(ns, **kwargs)
+    second = reader(ns, **kwargs)
     assert first['robot1']['position'][0] == 2.
     assert second['robot1']['position'][0] == 3. and second['robot0']['step'] == 3
     ns.state_0.joint_q.value[-1] = np.nan
     with pytest.raises(ValueError, match='nonfinite'):
-        read_native_states(ns, **kwargs)
+        reader(ns, **kwargs)
 
 
 @pytest.mark.parametrize('fault', ['capacity', 'world', 'address', 'constraint_type', 'shape'])
-def test_global_contact_vetoes_still_reject_every_robot(fault):
+@pytest.mark.parametrize('reader', [read_native_states, _read_native_states])
+def test_global_contact_vetoes_still_reject_every_robot(fault, reader):
     ns, kwargs = scene(2)
     data = ns.solver.mjw_data
     if fault == 'capacity':
@@ -123,4 +126,4 @@ def test_global_contact_vetoes_still_reject_every_robot(fault):
     else:
         ns.contacts.rigid_contact_shape0.value[0] = -1
     with pytest.raises((RuntimeError, ValueError)):
-        read_native_states(ns, **kwargs)
+        reader(ns, **kwargs)

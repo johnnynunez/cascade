@@ -19,6 +19,7 @@ import uuid
 
 from cascade.control.mobile_base import BaseState, _plain_record, _RecordSnapshot
 from cascade.control.mobile_support import SupportObservation, immutable_support
+from cascade.control.mobile_telemetry import _public_contacts
 
 
 def _copy_observation(state):
@@ -205,6 +206,8 @@ class MobileBridgeController:
             elif snapshot is not None:
                 snapshot = _RecordSnapshot(snapshot)
             observed = _copy_observation(self._state or {})
+            if not typed:
+                _public_contacts(observed)
             if type(observed.get('support')) is SupportObservation and (
                     not typed or not immutable_support(observed['support'])):
                 observed['support'] = observed['support'].as_observation_dict()

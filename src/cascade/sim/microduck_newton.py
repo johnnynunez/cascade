@@ -243,8 +243,18 @@ def read_native_states(ns, *, robots, max_contacts, max_constraints, q_count, do
     The snapshot is local to this call; no array, contact row or binding is
     cached across completed physics states. Each result retains all contacts.
     """
+    return _read_native_states(ns, robots=robots, max_contacts=max_contacts,
+        max_constraints=max_constraints, q_count=q_count, dof_count=dof_count,
+        private_contacts=False)
+
+
+def _read_native_states(ns, *, robots, max_contacts, max_constraints, q_count, dof_count,
+                        private_contacts=True):
     scene = _read_native_scene(ns, max_contacts=max_contacts, max_constraints=max_constraints,
                                q_count=q_count, dof_count=dof_count)
+    if private_contacts:
+        from cascade.control.mobile_telemetry import _freeze_contacts
+        _freeze_contacts(scene['common'])
     return {robot: _native_robot_slice(scene, **indices) for robot, indices in robots.items()}
 
 

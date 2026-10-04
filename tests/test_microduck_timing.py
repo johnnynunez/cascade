@@ -68,6 +68,23 @@ def test_reader_thread_is_not_instrumented_or_blocked_by_owner_attempt(tmp_path)
     assert owner.physics_clock == (2, .01)
 
 
+def test_private_native_capture_retains_profile_span_and_restores_function(tmp_path):
+    from cascade.sim import microduck_shared_native as native
+    from test_microduck_scene_read import scene
+    ns, kwargs = scene(2)
+    original = native._read_native_states
+    owner = SimpleNamespace(physics_clock=(2, .01), _read_completed_scene=lambda: None,
+        step=lambda: None, capture=lambda: None, support_probe=lambda: None)
+    profile = PhaseProfile(tmp_path/'timing.jsonl')
+    timing.instrument_owner(profile, owner, [])
+    with profile.attempt(owner) as attempt:
+        assert len(native._read_native_states(ns, **kwargs)) == 2
+        attempt['outcome'] = 'withheld'
+    profile.close()
+    assert native._read_native_states is original
+    assert [s['phase'] for s in rows(tmp_path/'timing.jsonl')[0]['spans']] == ['native.capture']
+
+
 def test_native_failure_is_recorded_without_changing_exception_or_clock(tmp_path):
     class Owner:
         physics_clock = (2, .01)

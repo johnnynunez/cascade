@@ -235,6 +235,13 @@ All physical outcomes remain unverified. The original 0.5-second RPC and
 0.4-second no-progress limits were retained; a 691 ms publication gap crossed
 the failure window. The timing evidence does not establish the cause.
 
+The shared stepper also retains immutable copies of the full legacy contact
+pairs and constraint addresses for that solve. Public native, robot-view and
+controller reads still return fresh lists; the private recording path keeps
+the same JSON arrays, order and bytes. Nonplain legacy values retain ordinary
+deep-copy isolation. This removes repeated list construction within a solve,
+without changing GC settings, validity checks or the public state contract.
+
 CPU tests cover 1, 2 and 12 synthetic participants, including index permutations,
 command isolation, cancellation and contact vetoes. The ordinary one-robot
 entrypoint retains its control cadence.
@@ -357,6 +364,33 @@ observer costs described above. Generation-2 intervals remained about 475 ms
 median; ten attempts exceeded 400 ms, with a maximum attempt of 615 ms. This
 reader-only diagnostic did not test control recovery, change collector settings
 or alter the three retained twelve-robot control failures.
+
+The [legacy-contact sharing reader](evidence/microduck-shared-20261004/legacy-contacts.json)
+completed the same 800 solves, 2,400 commits, 24 reader events and 9 capture/probe
+pairs with normal closure. Attempt durations were 83.40 ms median, 91.54 ms p95
+and 595.44 ms maximum. One attempt exceeded 400 ms, overlapping a 508.06 ms
+generation-2 interval; the preceding trigger reader retained ten such attempts.
+Its thirteen-frame stack points to `dataclasses.fields` during private physics
+JSON projection. This observed trigger does not identify the heap scanned.
+The integrated source includes the optional RTX-cache feature at its inactive
+default. Both GPU admission cohorts were empty, but host load was uncontrolled;
+these separate episodes establish neither causal speedup nor a control deadline
+guarantee. The original control limits and earlier failures remain intact.
+
+The [subsequent fixed twelve-robot zero episode](
+evidence/microduck-shared-20261004/legacy-control.json) completed all 72 client
+events: stop, reset and one zero command per robot, with `execution_ok=true`
+and physical outcomes `unverified`. It completed 800 solves, 2,400 policy
+commits and 9 capture/probe pairs, then closed normally. Two naturally
+invalidated preview cohorts discarded 24 evaluations and retried against the
+same completed state; there were no withheld solves or extra history commits.
+
+Its only generation-2 interval started 31.84 s after the final command result
+and 31.72 s after the final cleanup stop ACK. The longest attempt was still
+575.06 ms, so this protocol pass did not exercise control through that pause or
+establish worst-case deadlines, physical rest or gait. The episode kept the
+original 0.5 s RPC, 0.4 s progress and 0.5 s state-age limits, with no favorable
+retry. The three earlier twelve-robot control failures remain retained.
 
 Two [reader-only GC profiles](evidence/microduck-shared-20261004/gc-serialization.json)
 each completed 800 solves, 2,400 policy commits, 24 reader events and 9

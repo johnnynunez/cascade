@@ -55,7 +55,7 @@ def owner_fixture(monkeypatch, count):
         return {robot: copy.deepcopy(sample) for robot in robots}
 
     monkeypatch.setattr(support_module, 'read_support', decode)
-    monkeypatch.setattr(native, 'read_native_states', capture)
+    monkeypatch.setattr(native, '_read_native_states', capture)
     return owner, calls
 
 

@@ -1,8 +1,8 @@
 # Fixed LEAP hand runtime
 
 `leap_hand_right_mujoco` exposes a fixed right hand with sixteen independently
-actuated joints through the ordinary robot/MCP runtime. Its two tools are
-`hand.get_hand_state` and `hand.move_fingers`. Discovery reads the profile
+actuated joints through the ordinary robot/MCP runtime. Its tools are
+`hand.get_hand_state`, `hand.move_fingers` and `hand.set_hand_posture`. Discovery reads the profile
 without importing MuJoCo, constructing a model or moving a joint.
 
 This first recipe supports bounded free finger motion. Grasp acquisition,
@@ -35,6 +35,16 @@ controller/observer sources and limits. Changing any of these requires a new
 preparation. Private runtime output directories must be empty. Starting the
 runtime establishes 0.2 simulated seconds of observed rest with the stop latch
 set; an explicit `reset_stop` is required before a motion command.
+
+`hand.set_hand_posture(posture=...)` selects a fixed recipe target: `neutral`
+means zero radians on all sixteen joints; `index_flex` means 0.1 rad on the
+index MCP and zero elsewhere. It uses the same controller, motion budgets,
+contact vetoes, stop latch and measured-rest verifier as `move_fingers`.
+The conversation gateway permits this named operation only when explicitly
+listed with motion enabled; raw `move_fingers` vectors remain excluded.
+Changing the recipe's source requires a new model preparation and identity.
+The earlier raw-vector index-flex captures do not validate this new semantic
+route or a return to neutral; those physical checks remain pending.
 
 Joint order is index, middle and ring fingers (`mcp`, `rot`, `pip`, `dip` for
 each), followed by thumb (`cmc`, `axl`, `mcp`, `ipl`). `move_fingers` requires all

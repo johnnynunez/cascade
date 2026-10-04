@@ -53,8 +53,9 @@ def _describe_domain(domain_id, profile, *, embodiment=None, sensor_domains=None
     kind = profile["kind"]
     if kind == "hand":
         from .hand_runtime import hand_description
+        from ..skills.hand_runtime import HandDomain
         resources, specs = hand_description(domain_id, profile)
-        return DomainAdapter(domain_id, profile, resources, specs, {"move_fingers"})
+        return DomainAdapter(domain_id, profile, resources, specs, HandDomain.motion_skills)
     if kind == "fastening":
         from .factory_runtime import factory_description
         resources, specs = factory_description(domain_id, profile)

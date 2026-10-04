@@ -14,7 +14,7 @@ from ..robotics.contracts import freeze_json, plain_json
 # These curated semantic skills delegate all movement to existing domain owners.
 # Raw pose/joint commands and permission/reset controls are intentionally absent.
 SEMANTIC_MOTION_SKILLS = frozenset({"walk_velocity", "walk_distance", "turn", "navigate_to", "pick_and_place",
-                                    "grasp_object", "place_at", "handover", "wave", "go_home"})
+                                    "grasp_object", "place_at", "handover", "wave", "go_home", "set_hand_posture"})
 
 
 @dataclass(frozen=True)

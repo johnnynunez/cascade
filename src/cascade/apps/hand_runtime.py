@@ -27,7 +27,7 @@ def hand_description(domain_id, profile):
     validate_hand_profile(profile)
     resource = domain_id+"/fingers"
     return (ResourceDescriptor(resource, "articulated_hand", "leap_hand_right",
-        capabilities=("bounded_finger_motion", "solved_contact_observation"),
+        capabilities=("bounded_finger_motion", "named_hand_postures", "solved_contact_observation"),
         controller_id="mujoco-hand:"+str(Path(profile["asset_root"]).resolve()), writer_id=resource,
         synthetic=False, admission="unvalidated", metadata={"model_identity_sha256": profile["model_identity_sha256"],
             "joint_names": JOINTS, "root": "fixed", "grasping": False, "tactile_calibration": None}),), HAND_SPECS

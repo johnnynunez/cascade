@@ -372,6 +372,10 @@ serving checks the complete effective source and the normal installation's
 origin and runtime files before constructing models. A recipe mismatch refuses
 an old state directory; no existing environment or weights are migrated.
 Model selection, provider lifetime and robot deadlines remain separate.
+After the upstream builder and warmups, the host restores the recipe's declared
+Torch intra-op thread count and records the before/after values. It verifies
+inter-op configuration without changing it after construction; an unexpected
+value refuses serving. This configuration check does not establish response latency.
 
 Serving binds unauthenticated loopback only, owns its child process group,
 and records closure in the exclusive run directory. `--trace-generation`

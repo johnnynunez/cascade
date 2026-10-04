@@ -270,6 +270,25 @@ def provider_argv(state, port):
             "--num_pipelines", "1", "--chat_size", "6", "--log_transcripts", "False"]
 
 
+def build_with_declared_threads(builder, torch, threads, *args, **kwargs):
+    """Restore the host recipe after a pipeline dependency changes global Torch state."""
+    if type(threads) is not int or threads < 1:
+        raise ValueError("provider thread count must be a positive integer")
+    manager = builder(*args, **kwargs)
+    before = torch.get_num_threads()
+    # Inter-op can only be configured before parallel work begins. A changed
+    # value is a refusal, never an attempted late reconfiguration.
+    if torch.get_num_interop_threads() != threads:
+        raise ValueError("provider inter-op thread configuration changed during construction")
+    if before != threads:
+        torch.set_num_threads(threads)
+    after = torch.get_num_threads()
+    if after != threads:
+        raise ValueError("provider intra-op thread configuration was not restored")
+    return manager, {"declared": threads, "intra_op_before_restore": before,
+                     "intra_op_after_restore": after, "inter_op": torch.get_num_interop_threads()}
+
+
 def child(state, port, run_dir, *, trace_generation=False):
     prepared = verify(state)
     if sys.version_info[:2] != (3, 12):
@@ -279,8 +298,11 @@ def child(state, port, run_dir, *, trace_generation=False):
     source_record = verify_source(state, recipe(), RECIPE.parent)
     installed = verify_installed(state, source_record)
     import torch
-    torch.set_num_threads(2)
-    torch.set_num_interop_threads(2)
+    threads = recipe()["threads"]
+    if type(threads) is not int or threads < 1:
+        raise ValueError("provider thread count must be a positive integer")
+    torch.set_num_threads(threads)
+    torch.set_num_interop_threads(threads)
     torch.manual_seed(recipe()["seed"])
     sys.argv = provider_argv(state, port)
     write_json(run_dir / "admission.json", {"argv": sys.argv, "versions": versions(),
@@ -295,18 +317,19 @@ def child(state, port, run_dir, *, trace_generation=False):
     observation = []
 
     def observed_builder(*args, **kwargs):
-        manager = original_builder(*args, **kwargs)
+        manager, thread_configuration = build_with_declared_threads(original_builder, torch, threads, *args, **kwargs)
         llms = [h for h in manager.handlers if isinstance(h, LanguageModelHandler)]
         if len(llms) != 1:
             raise ValueError("expected one actual text-model handler for attestation")
         parameters = tuple(llms[0].model.parameters())
         write_json(run_dir / "model-runtime.json", {
-            "observation": "read-only inspection after upstream pipeline construction and warmup",
+            "observation": "inspection after upstream warmup and declared thread restoration",
             "parameter_dtypes": sorted({str(p.dtype) for p in parameters}),
             "parameter_devices": sorted({str(p.device) for p in parameters}),
             "parameter_count": sum(p.numel() for p in parameters),
             "torch_num_threads": torch.get_num_threads(),
             "torch_num_interop_threads": torch.get_num_interop_threads(),
+            "thread_configuration": thread_configuration,
             "configured_dtype": recipe()["llm_torch_dtype"],
         })
         if trace_generation:
@@ -317,8 +340,8 @@ def child(state, port, run_dir, *, trace_generation=False):
             observation.append((llms[0], previous, observer))
         return manager
 
-    # Read-only observation hook: original factory builds/warms the unchanged
-    # pipeline; no model state, generation, action or audio buffer is changed.
+    # Original factory builds/warms the pipeline. Reapply the declared global
+    # thread configuration (Silero imports can change it), then attest it.
     s2s_pipeline.build_pipeline = observed_builder
     primary = None
     try:

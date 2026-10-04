@@ -528,6 +528,8 @@ class MobileBridgeServer:
                     hello["capabilities"].append("frame")
                     if getattr(self._frame, 'rgbd_enabled', False) is True:
                         hello["capabilities"].append("rgbd")
+                        if getattr(self._frame, 'rgbd_wait_next', False) is True:
+                            hello["capabilities"].append("rgbd_wait_next")
                 return hello
             if op == "state":
                 return self.controller.state()
@@ -576,11 +578,14 @@ class MobileBridgeServer:
             raise ValueError(f"non-finite JSON number: {value}")
         return json.loads(line, object_pairs_hook=pairs, parse_constant=bad_constant)
 
-    def _send(self, conn, result):
+    def _send(self, conn, result, *, deadline=None):
         wire = json.dumps(result, allow_nan=False, separators=(",", ":")).encode() + b"\n"
         if len(wire) > self.MAX_RESPONSE_BYTES:
             raise ValueError("response too large")
-        conn.settimeout(self.IO_TIMEOUT_S)
+        left = self.IO_TIMEOUT_S if deadline is None else min(self.IO_TIMEOUT_S, deadline-time.monotonic())
+        if left <= 0:
+            raise ValueError('frame reply deadline expired')
+        conn.settimeout(left)
         conn.sendall(wire)
 
     def _owner_alive(self, owner, conn):
@@ -671,8 +676,15 @@ class MobileBridgeServer:
                             # A queued reset must retain its control-channel
                             # owner even when the wire request omits it.
                             request["owner"] = owner
+                        if op == 'frame':
+                            # Transport-owned fields overwrite any wire values.
+                            request['_frame_deadline'] = deadline
+                            request['_frame_cancelled'] = self._halt.is_set
                         result = self.dispatch(request)
-                self._send(conn, result)
+                if op == 'frame' and 'wait_next' in request:
+                    self._send(conn, result, deadline=deadline)
+                else:
+                    self._send(conn, result)
                 buffer.clear()
                 deadline = None
         except (OSError, ValueError, TypeError, RecursionError):

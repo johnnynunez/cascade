@@ -276,3 +276,22 @@ explicit collection. Twelve generation-2 callback intervals still occurred in
 each replay. This establishes reduced retained Python graphs, not the cause of
 the native pause, a latency remedy, physical rest or seating success. The first
 replay's census-helper failure remains recorded separately in the compact receipt.
+
+The separate native pin for `75c9c89` completed zero-solve preparation, then
+retained 22,511 solves and all 7,347,832 contact candidates in one seating
+episode. Acceptance rejected the last archived row: its original capture was
+320.738 ms old against the unchanged 200 ms limit. A 311.961 ms generation-2
+callback interval occurred on the owner thread inside `raw_record.pack`, after
+the solve returned and before acceptance. A separate 272.443 ms generation-2
+interval preceded the action; ten more occurred after the refusal. GC settings
+were unchanged, and these intervals do not identify the retained heap responsible.
+
+Closed-record reconstruction found 15.4317 turns and 38.3272 mm axial travel in
+the admitted active generation, followed by a complete 0.5 s loaded window.
+After the stop ACK, only 374 accepted zero-effort rows covered 0.621667 s of the
+required 2 s; the rejected final row supplies no completion credit. The original
+task, physical rest, seating and preload remain unverified. The owner thread and
+process scope closed ordinarily with no signals or remaining children, while
+runtime closure preserved the freshness fault. The compact receipt retains the
+distinct pin, epoch, all twelve generation-2 intervals and original artifacts;
+the larger accepted prefix does not establish a latency remedy.

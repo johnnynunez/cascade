@@ -18,7 +18,7 @@ import numpy as np
 
 from ..robotics.contracts import ResourceDescriptor, identifier
 from ..sensing.hub import SensorHub
-from ..sensing.models import RgbdPayload, digest, number, wire
+from ..sensing.models import MAX_PIXELS, RgbdPayload, digest, integer, number, vector, wire
 from .frames import SpatialStamp, TransformSample
 from .cuvslam_worker import CuVslamProcess
 from .registration import CameraBaseRegistration
@@ -26,6 +26,31 @@ from .registration import CameraBaseRegistration
 
 API_REVISION = "b405f132b8fb1d861a570f3aea64c2c5d4b59525"
 DEPTH_SCALE = 1000.0  # The Python binding accepts uint16, not metric float32.
+
+
+def _declared_intrinsics(value, descriptor):
+    """Initialization data only; actual capture calibration must match before tracking."""
+    keys = {"schema", "width", "height", "intrinsics", "pixel_center_offset_uv",
+            "frame_id", "calibration_id", "model_identity_sha256"}
+    if (not isinstance(value, dict) or set(value) != keys
+            or value["schema"] != "cascade.rgbd-localization-intrinsics.v1"):
+        raise ValueError("explicit localization intrinsics schema required")
+    if (value["frame_id"] != descriptor.frame_id
+            or value["calibration_id"] != descriptor.calibration_id
+            or value["model_identity_sha256"] != descriptor.model_identity_sha256):
+        raise ValueError("preparation intrinsics must bind the declared sensor frame/calibration/model")
+    width, height = (integer(value[k], k, maximum=MAX_PIXELS) for k in ("width", "height"))
+    if not 0 < width * height <= MAX_PIXELS:
+        raise ValueError("preparation intrinsics exceed the RGB-D pixel bound")
+    k = vector(value["intrinsics"], 9, "intrinsics")
+    if k[0] <= 0 or k[4] <= 0 or k[1] != 0 or k[3] != 0 or k[6:] != (0., 0., 1.):
+        raise ValueError("invalid zero-skew pinhole intrinsics")
+    offset = value["pixel_center_offset_uv"]
+    if offset is not None:
+        offset = vector(offset, 2, "pixel_center_offset_uv")
+        if offset not in ((0., 0.), (.5, .5)):
+            raise ValueError("unsupported RGB-D pixel-center convention")
+    return width, height, k, offset, descriptor.frame_id, descriptor.calibration_id
 
 
 def _load_sdk(binding_sha256):
@@ -90,7 +115,8 @@ class CuVslamSpatialDomain:
 
     def __init__(self, domain_id, robot_id, hub, *, sensor_domain, sensor_id,
                  map_id, map_epoch, map_frame_id, binding_sha256, max_gap_s,
-                 max_poses=256, timeout_s=5., base_registration=None, clock=time.monotonic):
+                 max_poses=256, timeout_s=5., base_registration=None,
+                 preparation_intrinsics=None, clock=time.monotonic):
         self.domain_id, self.robot_id = identifier(domain_id), identifier(robot_id)
         self.sensor_domain, self.sensor_id = identifier(sensor_domain), identifier(sensor_id)
         self.map_id, self.map_epoch_label = identifier(map_id), identifier(map_epoch)
@@ -117,6 +143,8 @@ class CuVslamSpatialDomain:
         if not 0 < self.timeout_s <= 60:
             raise ValueError("timeout_s must be in (0, 60]")
         self.hub, self.descriptor = hub, descriptor
+        self._declared = (None if preparation_intrinsics is None else
+                          _declared_intrinsics(preparation_intrinsics, descriptor))
         self.binding_sha256, self.max_poses, self._clock = binding_sha256, max_poses, clock
         self._lock, self._work = threading.RLock(), threading.Lock()
         self._tracker = self._calibration = self._watermark = self._latest = None
@@ -153,6 +181,10 @@ class CuVslamSpatialDomain:
             {"name": "get_localization", "description": "Read the last still-fresh estimate. No occupancy or motion authorization.",
              "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
         ]
+        if self._declared is not None:
+            self.tool_specs.append({"name": "prepare_localization",
+                "description": "Initialize the isolated SDK from declared intrinsics before acquisition. No capture or pose admission; fresh tracking inputs must match exactly.",
+                "parameters": {"type": "object", "properties": {}, "additionalProperties": False}})
 
     def _invalidate(self, reason):
         with self._lock:
@@ -193,12 +225,17 @@ class CuVslamSpatialDomain:
         return observation, calibration, timestamp
 
     def _warmup(self, args):
+        observation, calibration, timestamp = self._capture(args)
+        if self._declared is not None and calibration != self._declared:
+            raise ValueError("capture differs from declared preparation intrinsics")
+        return self._prepare(calibration, (observation.epoch, observation.sequence, timestamp))
+
+    def _prepare(self, calibration, prepared_capture=None):
         if self._tracker is not None:
             raise ValueError("localization already prepared")
-        observation, calibration, timestamp = self._capture(args)
-        p = observation.payload
-        settings = ({"width": p.width, "height": p.height, "intrinsics": p.intrinsics,
-                     "pixel_center_offset_uv": p.pixel_center_offset_uv},
+        width, height, intrinsics, offset, _, _ = calibration
+        settings = ({"width": width, "height": height, "intrinsics": intrinsics,
+                     "pixel_center_offset_uv": offset},
                     self.binding_sha256, self.max_gap_s, self.max_poses)
         self._calibration = calibration
         with self._lock:
@@ -211,20 +248,22 @@ class CuVslamSpatialDomain:
         self._tracker.warmup()
         with self._lock:
             self._admitted()
-            self._prepared_capture = (observation.epoch, observation.sequence, timestamp)
+            self._prepared_capture = prepared_capture
             self._prepared_at = self._clock()
         return {"ok": True, "tracking_state": "ready", "map_epoch": self.map_epoch,
                 "map_epoch_label": self.map_epoch_label, "physical_admission": False}
 
     def _track(self, args):
-        if self._prepared_capture is None:
-            raise ValueError("warmup_localization must complete before tracking captures")
+        if self._prepared_at is None:
+            raise ValueError("localization preparation must complete before tracking captures")
         observation, _, timestamp = self._capture(args)
         p = observation.payload
-        epoch, sequence, prepared_timestamp = self._prepared_capture
-        if (observation.epoch != epoch or observation.sequence <= sequence or timestamp <= prepared_timestamp
-                or observation.received_monotonic_s - observation.producer_age_s < self._prepared_at):
+        if observation.received_monotonic_s - observation.producer_age_s < self._prepared_at:
             raise ValueError("tracking capture must follow warmup in the same sensor epoch")
+        if self._prepared_capture is not None:
+            epoch, sequence, prepared_timestamp = self._prepared_capture
+            if observation.epoch != epoch or observation.sequence <= sequence or timestamp <= prepared_timestamp:
+                raise ValueError("tracking capture must follow warmup in the same sensor epoch")
         if self._watermark is not None:
             epoch, seq, previous = self._watermark
             if (observation.epoch != epoch or observation.sequence <= seq or timestamp <= previous
@@ -272,7 +311,10 @@ class CuVslamSpatialDomain:
         return result
 
     def execute(self, name, args):
-        if name not in {"warmup_localization", "track_capture", "get_localization"} or not isinstance(args, dict):
+        names = {"warmup_localization", "track_capture", "get_localization"}
+        if self._declared is not None:
+            names.add("prepare_localization")
+        if name not in names or not isinstance(args, dict):
             return {"ok": False, "error": "unknown localization tool or arguments", "physical_admission": False}
         if not self._work.acquire(blocking=False):
             return {"ok": False, "error": "localization call in flight", "physical_admission": False}
@@ -281,6 +323,10 @@ class CuVslamSpatialDomain:
                 self._admitted()
             if name == "warmup_localization":
                 return self._warmup(args)
+            if name == "prepare_localization":
+                if args:
+                    raise ValueError("prepare_localization takes no arguments")
+                return self._prepare(self._declared)
             if name == "track_capture":
                 return self._track(args)
             if args:
@@ -336,7 +382,7 @@ def build_cuvslam_domain(domain_id, profile, sensor_domains):
     required = {"sensor_domain", "sensor_id", "map_id", "map_epoch", "map_frame_id",
                 "binding_sha256", "max_gap_s"}
     if (not isinstance(settings, dict) or not required <= set(settings)
-            or set(settings) - (required | {"max_poses", "timeout_s", "base_registration"})):
+            or set(settings) - (required | {"max_poses", "timeout_s", "base_registration", "preparation_intrinsics"})):
         raise ValueError("explicit cuVSLAM capture/map/binary configuration required")
     source = sensor_domains.get(settings["sensor_domain"])
     if source is None:

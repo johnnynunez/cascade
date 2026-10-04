@@ -276,3 +276,45 @@ explicit collection. Twelve generation-2 callback intervals still occurred in
 each replay. This establishes reduced retained Python graphs, not the cause of
 the native pause, a latency remedy, physical rest or seating success. The first
 replay's census-helper failure remains recorded separately in the compact receipt.
+
+The separate native pin for `75c9c89` completed zero-solve preparation, then
+retained 22,511 solves and all 7,347,832 contact candidates in one seating
+episode. Acceptance rejected the last archived row: its original capture was
+320.738 ms old against the unchanged 200 ms limit. A 311.961 ms generation-2
+callback interval occurred on the owner thread inside `raw_record.pack`, after
+the solve returned and before acceptance. A separate 272.443 ms generation-2
+interval preceded the action; ten more occurred after the refusal. GC settings
+were unchanged, and these intervals do not identify the retained heap responsible.
+
+Closed-record reconstruction found 15.4317 turns and 38.3272 mm axial travel in
+the admitted active generation, followed by a complete 0.5 s loaded window.
+After the stop ACK, only 374 accepted zero-effort rows covered 0.621667 s of the
+required 2 s; the rejected final row supplies no completion credit. The original
+task, physical rest, seating and preload remain unverified. The owner thread and
+process scope closed ordinarily with no signals or remaining children, while
+runtime closure preserved the freshness fault. The compact receipt retains the
+distinct pin, epoch, all twelve generation-2 intervals and original artifacts;
+the larger accepted prefix does not establish a latency remedy.
+
+The next private retention implementation stores exact byte payloads without
+per-row Python wrappers. Journal and threading-history slots are allocated up
+front; separate scalar metadata preserves the captured epoch, step and time.
+Cursor snapshots remain immutable across ring reuse. Only the exact native
+Factory owner streams raw rows to JSON, bounded to the queue prefix present
+when draining begins; `records()` keeps its public detached-list contract.
+A later decoding or persistence failure leaves partial evidence and a sticky
+fault, never a complete task result. These changes preserve capture deadlines
+and normal GC. The 248 passing CPU checks exercise wraparound, mutation, fault
+priority, overflow and streaming; 112 optional SDK checks were skipped.
+
+A separate replay of the closed `75c9c89` episode preserved all 22,511 archived
+rows, 22,510 accepted solves, 7,347,832 contact candidates and 21,768 threading
+samples, including exact raw JSON and typed float bits. It retains the original
+320.738 ms freshness refusal and only 374 accepted motor-off samples / 0.622 s,
+short of the required 2 s. Retained per-row wrappers fell from 64,279 to zero
+(one ring object remains); selected types disappeared after release without
+explicit collection. Generation-2 callback counts increased from 183 to 318.
+Both CPU scopes closed ordinarily. The baseline raw archive was expanded one
+row at a time for content comparison, so this does not measure its former
+eager-drain peak. All callbacks and pack/publish timings remain in the linked
+compact receipt; no native latency remedy, physical rest or seating is admitted.

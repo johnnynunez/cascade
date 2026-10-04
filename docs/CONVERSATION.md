@@ -73,6 +73,20 @@ closed normally. This new stochastic response does not replay the historical
 RNG state, prove the cause of VOICE-HAND05, establish repeatability, or show that
 speech, hand motion and spoken confirmation fit the unchanged 30-second owner.
 
+The subsequent [EOF component rerun](evidence/robot-modularity/voice-hand-llm-eof-20261004.json)
+used provider source `66b7233` with the same 581-token prompt, weights, generation
+settings and recorded pre-response RNG state. Nine real streamer/queue/thread
+regressions cover natural EOF, cancellation, consumer close, parser errors and
+worker finalization; the related focused suite passed 43 tests. The real model
+again emitted the same single `index_flex` call. Evaluated generation took
+16.363 seconds; the interval from the last decoded chunk to response completion
+was 0.007607 seconds, versus 10.002136 seconds in the retained earlier component.
+Construction and two ordinary warmups took 53.153 seconds. The bounded trace,
+source/assets and ordinary owned closure passed, with no dispatched tool.
+This is one component rerun, without ASR, TTS, hand or browser. It does not
+establish the complete voice chain, repeated response latency or its 30-second
+hand-owner budget; VOICE-HAND02 and VOICE-HAND05 remain negative.
+
 ## Run the gateway
 
 From a checkout, install the optional transport and start a new private run:
@@ -383,8 +397,18 @@ optionally records private bounded decoded chunks after upstream warmup;
 it does not record prompts or media, and chunks are not token boundaries.
 Cancellation can produce interrupted spans. Lost events, observation errors or
 in-flight spans make diagnostic accounting incomplete; a complete trace is
-not proof of a tool result or physical action. Fresh installation and the full
-voice-to-hand chain on this packaged source still require separate validation.
+not proof of a tool result or physical action.
+
+A [fresh installation](evidence/robot-modularity/private-speech-provider-install-20261004.json)
+on source `586fdb6` completed with Python 3.12.13 and a new private environment.
+All 116 installed provider runtime files matched the pinned candidate; 234
+model/resource files and 132 dependency versions matched the retained recipe.
+The owned scope closed ordinarily with no signals, forced cleanup or remaining
+births. Preparation imported package classes and libraries but constructed no
+speech handler or pipeline and ran no warmup, inference or service. The host's
+configured thread count is distinct from the earlier LLM-only measurement;
+effective serving threads must be observed after pipeline construction.
+The full voice-to-hand chain on this installed environment remains unvalidated.
 
 Run the speech stack in a separate environment. Its `speech-to-speech serve`
 command exposes `/v1/realtime` and supports selecting STT, LLM and TTS backends.

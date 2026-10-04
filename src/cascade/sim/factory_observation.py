@@ -82,7 +82,7 @@ class _FactoryReadback:
     """Trusted in-process envelope, never a wire or external pickle format.
 
     Live safety still receives the unchanged typed solve. Only the raw archive
-    defers public dict/list construction. `_RawRecord` snapshots this envelope
+    defers public dict/list construction. The private archive snapshots this envelope
     before acceptance, and its expansion remains a sticky failure boundary.
     """
     entries: tuple

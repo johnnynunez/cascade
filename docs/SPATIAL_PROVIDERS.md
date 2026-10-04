@@ -36,6 +36,25 @@ frame or steps physics. CPU contracts and a 12-frame native synthetic RGB-D
 replay pass; [the native validation record](CUVSLAM_NATIVE_VALIDATION.md) binds
 the build, inputs, estimates and cleanup. Physical localization remains pending.
 
+An explicit `preparation_intrinsics` configuration additionally exposes
+`prepare_localization({})` for applications that must initialize the SDK before
+starting image acquisition. Construction and tool discovery remain passive.
+The configuration uses schema `cascade.rgbd-localization-intrinsics.v1` and
+requires `width`, `height`, `intrinsics` (nine values),
+`pixel_center_offset_uv` (`null`, `[0, 0]` or `[0.5, 0.5]`), `frame_id`,
+`calibration_id` and `model_identity_sha256`. The three identity fields must
+equal the existing sensor descriptor; the intrinsics remain a declaration,
+not a calibration measurement. Preparation passes only size and intrinsics
+to the same bounded worker and supplies no image, timestamp, pose or map origin.
+
+The first real retained capture must match the declared intrinsics and sensor
+identity exactly and must have been captured after preparation completed.
+It establishes the sensor epoch and sequence for the usual continuity checks.
+Replay, epoch changes, stale captures, tracking loss and stop retain their
+existing invalidation behavior; no capture age is renewed. A changed declaration
+requires a new domain and map epoch. This preparation path has CPU contract
+tests only; it does not admit native stream localization or navigation.
+
 The estimator uses synchronous odometry/SLAM with an in-memory pose graph and
 reports an estimated optical-camera pose in a new local map frame, with unknown
 uncertainty and possible loop-closure jumps. It ignores simulated

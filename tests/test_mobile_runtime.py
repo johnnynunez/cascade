@@ -303,6 +303,7 @@ def test_failed_admission_cannot_be_erased_by_task_done(tmp_path):
         rt.close()
 
 
+@pytest.mark.usefixtures("healthy_episode_gc")
 def test_new_task_boundary_cannot_adopt_an_old_stop_worker(tmp_path, frame_endpoint, monkeypatch):
     import threading
     from cascade.apps.mobile_runtime import build_mobile_runtime
@@ -329,7 +330,7 @@ def test_new_task_boundary_cannot_adopt_an_old_stop_worker(tmp_path, frame_endpo
         assert not rt.execute("task_done", {"success": True, "summary": "pending"})["success"]
         release.set()
         proof = await_stop(rt, new["receipt_id"])
-        assert proof["status"] == "confirmed" and proof["task_id"] == new["task_id"]
+        assert proof["status"] == "confirmed" and proof["task_id"] == new["task_id"], proof
         rows = [json.loads(line) for line in (tmp_path / "trace.jsonl").read_text().splitlines()]
         prior = next(r["result"] for r in rows if r["skill"] == "stop_verification"
                      and r["result"]["receipt_id"] == old["receipt_id"])

@@ -109,13 +109,14 @@ def build_sensor_domain(domain_id, profile, *, providers=None, embodiment=None):
             provider = SyntheticSensorProvider(name, robot_id, payload,
                                                period_s=entry.get("period_s", .02), **options)
         elif kind == 'mobile_rgbd':
-            if set(entry) - ((common - {'calibration_id'}) | {'profile', 'camera', 'calibration_sha256', 'max_pixels'}):
+            if set(entry) - ((common - {'calibration_id'}) | {'profile', 'camera', 'calibration_sha256', 'max_pixels', 'wait_next'}):
                 raise ValueError('unknown RGB-D sensor setting; calibration requires a producer-checked SHA')
             native = entry['profile']
             if native['robot_id'] != robot_id:
                 raise ValueError('RGB-D sensor robot identity mismatch')
             provider = MobileRgbdSensorProvider(name, native, entry['camera'],
-                calibration_sha256=entry['calibration_sha256'], max_pixels=entry.get('max_pixels', 640*480), **options)
+                calibration_sha256=entry['calibration_sha256'], max_pixels=entry.get('max_pixels', 640*480),
+                wait_next=entry.get('wait_next', False), **options)
         elif kind in ("mobile_state", "mobile_rgb"):
             extra = {"profile", "modality"} if kind == "mobile_state" else {"profile", "camera"}
             if set(entry) - (common | extra):

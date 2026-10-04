@@ -52,6 +52,27 @@ class _RawRecord:
         return value.materialize() if type(value) is _FactoryReadback else value
 
 
+def _pack_native_record(value):
+    """Exact native readback to owned bytes, without a retained row wrapper.
+
+    The backend has already validated the complete snapshot. This private path
+    accepts no encoded input or user-selected reducer; custom backends retain
+    their existing _RawRecord behavior.
+    """
+    if type(value) is not _FactoryReadback:
+        raise TypeError("exact native Factory readback required")
+    return pickle.dumps(value, protocol=5)
+
+
+def _expand_native_record(payload):
+    if type(payload) is not bytes:
+        raise TypeError("exact private Factory raw bytes required")
+    value = pickle.loads(payload)
+    if type(value) is not _FactoryReadback:
+        raise TypeError("invalid private Factory raw snapshot")
+    return value.materialize()
+
+
 class NativeSolveClock:
     """Pinned MJWarp float32 recurrence plus Python step; no CUDA graph replay."""
 
@@ -237,7 +258,8 @@ class FactorySolveOwner:
         row, raw = advance(upload)
         # Archive before acceptance, retaining the original capture and even a
         # later-rejected solve. Full queue/encoding errors remain owner faults.
-        self._records.put_nowait(_RawRecord(raw))
+        self._records.put_nowait(_pack_native_record(raw) if type(self.backend) is FactoryNewtonBackend
+                                else _RawRecord(raw))
         self.controller.accept_solve(row)
         self._row = row
 
@@ -269,16 +291,31 @@ class FactorySolveOwner:
 
     def records(self):
         """Drain detached raw records; never read or advance live SDK arrays."""
+        return list(self._iter_records(_snapshot=False))
+
+    def _iter_records(self, *, _snapshot=True):
+        """Private one-row drain; public records() still returns a detached list.
+
+        IO consumers may persist a prefix before a later decode/write failure.
+        Such a failure remains sticky and cannot establish complete evidence.
+        The bounded queue and archive-before-accept ordering remain unchanged.
+        The private writer captures a finite prefix under Queue's qsize lock:
+        newly produced rows cannot extend this flush through slow disk IO.
+        Public records() keeps its original drain-until-empty behavior.
+        """
         if self._record_error is not None:
             raise FasteningFault(self._record_error)
-        result = []
-        while True:
+        remaining = self._records.qsize() if _snapshot else None
+        while remaining is None or remaining > 0:
             try:
                 record = self._records.get_nowait()
             except queue.Empty:
-                return result
+                return
+            if remaining is not None:
+                remaining -= 1
             try:
-                result.append(record.expand())
+                value = (_expand_native_record(record) if type(self.backend) is FactoryNewtonBackend
+                         else record.expand())
             except BaseException as exc:
                 # The popped row (and any preceding rows in this drain) cannot
                 # be credited as complete evidence. Preserve the original
@@ -287,6 +324,7 @@ class FactorySolveOwner:
                 self._record_error = "raw record expansion failed: " + _exception_text(exc)
                 self.journal.fail(self._retain_error(self._record_error))
                 raise
+            yield value
 
     def close(self, timeout_s=2.):
         if not 0 < timeout_s <= 2.:

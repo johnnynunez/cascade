@@ -412,6 +412,9 @@ class SolveJournal:
         self._error = None
         self._compact = _compact
         self._latest_row = None
+        if _compact:
+            from ._fastening_retention import _RetainedRing
+            self._rows = _RetainedRing(capacity)
 
     def _check_error(self):
         with self._condition:
@@ -427,21 +430,22 @@ class SolveJournal:
         with self._condition:
             if self._error:
                 raise FasteningFault(self._error)
-            previous = self._rows[-1] if self._rows else None
+            previous = self._latest_row
             if (not isinstance(row, FasteningSolve) or row.binding_sha256 != self.binding.sha256 or
-                    previous is not None and (row.epoch != previous.epoch or row.step != previous.step + 1 or
+                    previous is not None and (not self._rows.follows(row, self.binding.dt_s) if self._compact else
+                    row.epoch != previous.epoch or row.step != previous.step + 1 or
                     not math.isclose(row.simulation_time_s - previous.simulation_time_s,
                                      self.binding.dt_s, rel_tol=1e-6, abs_tol=1e-9))):
                 self.fail("invalid identity/epoch/clock in producer stream")
                 raise FasteningFault(self._error)
-            stored = row
             if self._compact:
-                from ._fastening_retention import _PackedRecord, _failure
+                from ._fastening_retention import _failure
                 try:
-                    stored = _PackedRecord(row)
+                    self._rows.append(row)
                 except Exception as error:
                     _failure(self.fail, error)
-            self._rows.append(stored)
+            else:
+                self._rows.append(row)
             self._latest_row = row
             self._condition.notify_all()
 
@@ -451,7 +455,8 @@ class SolveJournal:
             raise ValueError("negative read timeout")
         with self._condition:
             self._condition.wait_for(lambda: self._error or bool(self._rows) and
-                (after_step is None or self._rows[-1].step > after_step), timeout=timeout_s)
+                (after_step is None or (self._rows.last_step if self._compact else self._latest_row.step)
+                 > after_step), timeout=timeout_s)
             if self._error:
                 raise FasteningFault(self._error)
             if not self._rows:
@@ -459,9 +464,11 @@ class SolveJournal:
             if after_step is None:
                 return (self._latest_row,)
             _index(after_step, "reader cursor")
-            if after_step < self._rows[0].step - 1:
+            first_step = self._rows.first_step if self._compact else self._rows[0].step
+            if after_step < first_step - 1:
                 raise FasteningFault("reader lost solves to journal capacity")
-            rows = tuple(row for row in self._rows if row.step > after_step)
+            rows = (self._rows.after(after_step) if self._compact else
+                    tuple(row for row in self._rows if row.step > after_step))
         if self._compact:
             from ._fastening_retention import _RetainedBatch
             return _RetainedBatch(rows, self._check_error, self.fail)

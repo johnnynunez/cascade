@@ -92,7 +92,26 @@ closing also fails. Thread closure alone does not certify physical rest.
 
 Synthetic control tests cover normal retained rest, write ownership, in-flight
 stop/reset, stale and malformed observations, loaded contact, terminal target
-loss, stream gaps, late verification, revocation and cleanup failures. Native
-model preparation and motion evidence must be recorded separately; the source
-adapter and a passing software suite alone do not establish a native grasp or
-hardware capability.
+loss, stream gaps, late verification, revocation and cleanup failures.
+
+On 2026-10-04, source `788b56620ab5425ff9764f924e4edc17f3d41973` passed
+zero-step preparation and one ordinary in-process production MCP episode using
+MuJoCo 3.10.0 on CPU. It commanded index MCP to 0.1 rad and the other fifteen
+joints to zero. Of 490 completed solves, 227 carried the motion generation and
+101 carried the post-ACK hold generation (steps 390–490, 0.2 simulated seconds).
+Maximum final target error was 0.012958 rad; maximum observed effort was
+0.109979 Nm and speed 0.743115 rad/s. All enabled contact ledgers were empty.
+The runtime owner and exact process scope closed normally, with no signals or
+remaining processes, and the 7,637 pinned inputs remained unchanged.
+
+The [compact evidence](evidence/robot-modularity/leap-hand-free-motion-native-20261004.json)
+binds source, model, plans, full solve journals, MCP responses and an independent
+JSON-only replay of joint limits, target slew, servo effort and retained rest.
+It also retains the source-gain negative and both setup failures (missing
+OpenCV dependency and missing isolated mock profile, before their respective
+native task construction). The positive model pin is
+`cf8cbc1599fe954d5ddf3422f4a0f078b13eaeb724883a10f46a25e0f7d4d358`.
+
+This is one bounded free-motion episode; repeated trajectories, grasps,
+calibrated tactile measurements and hardware acceptance remain pending. The
+MCP handler was exercised in process, without an LLM or stdio transport.

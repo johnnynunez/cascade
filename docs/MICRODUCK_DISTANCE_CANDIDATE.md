@@ -27,6 +27,39 @@ the complete implementation on the modular/RGB-D runtime. It has CPU integration
 evidence and requires a new native identity; these earlier results are not
 reassigned to that source.
 
+## CPU response and braking diagnostics (2026-10-04)
+
+The [compact CPU evidence](evidence/robot-modularity/microduck-braking-cpu-20261004.json)
+retains 24 fixed-command cases, eight geometric-feedback cases and eight
+instrumented repeats: **none met the combined CPU outcome criteria**. All used
+the same rough-walk-e weights and MuJoCo/BAM reference plant, with signed 30 mm
+objectives and four preregistered command onset times, not measured gait phases.
+The constant commands were ±0.1, ±0.2 and ±0.3; quiet final windows did not repair
+insufficient progress, heading drift or forbidden contacts. These CPU results
+do not transfer to Newton/MJWarp or hardware admission.
+
+The single geometric controller added heading feedback and a braking interval
+within the original eight-wall-second / three-simulated-second action budget;
+the diagnostic tail remained three wall and three simulated seconds. It retained
+two heading failures and six external non-sole contact failures, with no HOLD
+window reached. Its instrumented repeat preserved all eight retained qpos/qvel
+arrays, policy records, contacts, transitions and outcomes exactly; solve records
+differed only in wall timestamps. All three owned captures closed normally with
+unchanged inputs. No gain sweep, gate change or favorable-case selection followed.
+
+The 8,155 actuator records separate standing, action and tail. None showed PWM
+clipping or a difference between the BAM torque request and MuJoCo actuator-force
+buffer. Across the 475 action solves, peak requested PWM duty was 0.530453 against
+±1; peak motor torque was 0.461624 Nm against ±0.963402 Nm. Simulated effective
+supply reached 7.248935 V, above its 6 V floor: supply sag occurred, but that floor
+did not activate. The current limiter was disabled; no direct current or pre-PWM
+torque was exposed. The geometric yaw-command bound did clip in one policy slot
+per forward case, separately from those motor limits. Post-step force buffers
+describe the last dynamics evaluation, not net joint torque or a sample
+co-temporal with integrated q/dq. These observations exclude activation of the
+recorded motor clamps in these captures; they do not establish the cause of the
+remaining transient or validate another controller.
+
 ## Implemented contract
 
 The 2026-10-03 [distance-outcome regression receipt](../benchmark/results/mobile_distance_outcome_20261003.json)

@@ -1,0 +1,192 @@
+{
+  "schema": "cascade.voice-startup-and-negative.v1",
+  "date": "2026-10-04",
+  "overall_voice_verified": false,
+  "sources": {
+    "host": "498930f94bb7a857c67ef527685cded1c01c22b5",
+    "provider": "4306614134cdb09ddbc00d2bed15422927ebf39b",
+    "hand": "a2bcf04a182cb84f12bedfcda14d85f473759d01",
+    "hand_model": "43bb8067967c88b7b9a261a82cf98240f701c747e2ea0427808a08ae631eaee2"
+  },
+  "software_checks": {
+    "provider": {
+      "passed": 53,
+      "final_fixture_alias_cases": 15
+    },
+    "host": {
+      "passed": 120
+    },
+    "voice_harness": {
+      "passed": 105,
+      "models": 0
+    }
+  },
+  "normal_install_04": {
+    "state": "provider-state-04",
+    "runtime_files": 116,
+    "declared_runtime_paths_changed": 2,
+    "assets_equal": 234,
+    "dependency_versions_unchanged": 153,
+    "new_dependencies": 0,
+    "models": 0,
+    "gpu_admitted": false,
+    "child_exit": 0,
+    "scope_exit": 0,
+    "signals": [],
+    "force": false,
+    "births_absent": 11
+  },
+  "voice10": {
+    "plan_sha256": "c8b2a0cc1564c21b3db5d0ef2e09140403a82fd3b89d69833ef98f421bedaa46",
+    "binding_sha256": "b55ee8e1a25ddfaed70ad1662701c21a95cea5fe380ef7a4ef13b00cd7bc7336",
+    "input_files_unchanged": 40514,
+    "limits": {
+      "shared_startup_s": 150,
+      "warmup_cleanup_reserve_s": 5,
+      "conversation_streamer_wait_s": 10,
+      "case_wall_s": 30,
+      "provider_rss_bytes": 12884901888
+    },
+    "actual_startup": {
+      "clock": "time.monotonic",
+      "started": 77273.722048909,
+      "deadline": 77423.722048909,
+      "work_deadline": 77418.722048909,
+      "warmup_intervals": [
+        [
+          77303.941021951,
+          77314.573619271
+        ],
+        [
+          77314.573751092,
+          77315.70033507
+        ]
+      ],
+      "warmup_completed": [
+        true,
+        true
+      ],
+      "warmup_producer_alive": [
+        false,
+        false
+      ],
+      "llm_device": "cuda:0",
+      "llm_dtype": "float32",
+      "audio_device": "cpu",
+      "direct_cuda_load": true
+    },
+    "first_case": {
+      "local_ok": true,
+      "full_case_verified": false,
+      "missing_observed_asset": "capture.js",
+      "physical_action_verified": true,
+      "solves": 9256,
+      "physical_window": {
+        "approach_first_step": 3141,
+        "approach_last_step": 3367,
+        "approach_quiet_sim_s": 0.19999999999997797,
+        "rest_first_step": 3368,
+        "rest_last_step": 3468,
+        "rest_window_sim_s": 0.19999999999997797,
+        "retained_through_step": 9256
+      }
+    },
+    "second_case": {
+      "ok": false,
+      "solves": 703,
+      "dispatches": 0,
+      "microphone_started": false,
+      "http_status": 502,
+      "mime_type": "text/plain; charset=utf-8",
+      "body": "provider session unavailable",
+      "harness_error": "JSONDecodeError",
+      "provider_log_order": [
+        "old session disconnected",
+        "reconnect refused: one slot still occupied",
+        "old session released"
+      ],
+      "software_stop_generation": 3,
+      "reset_generations": [
+        2,
+        4
+      ],
+      "physical_stop_verified": false,
+      "playback_after_stop": {
+        "sources": 0,
+        "pending_seconds": 0
+      }
+    },
+    "closure": {
+      "outer_exit": 1,
+      "scope_count": 4,
+      "births_absent": 24,
+      "port_absent": 18973,
+      "force": false,
+      "remaining_members": 0,
+      "signals": {
+        "outer_owner": [],
+        "provider_scope": [
+          "SIGTERM"
+        ],
+        "first_hand_scope": [],
+        "second_hand_scope": [
+          "SIGTERM"
+        ]
+      },
+      "provider_internal_exit": 0,
+      "provider_internal_signals": [
+        "SIGTERM"
+      ],
+      "provider_sigkill": false
+    }
+  },
+  "limits_of_evidence": [
+    "Original global verdict remains false; no automatic retry.",
+    "First-case physics/rest is independently verified; its complete speech audit fails missing served capture.js observation.",
+    "The second reconnect failed before microphone or dispatch; no model-error attribution follows from HTTP502.",
+    "Startup records do not calibrate latency or demonstrate repeatability; no later source or installed state inherits this result.",
+    "All earlier VOICE08/09 failures and original artifacts are preserved."
+  ],
+  "artifact_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-hand-plan-10.json": "c8b2a0cc1564c21b3db5d0ef2e09140403a82fd3b89d69833ef98f421bedaa46",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice_harness_v10/audit_voice_hand.py": "90af481ff43e03a99fad7d4a68ae9614bb3aec5d43f385b23e14d4da58d65d71",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-hand-audit-10.json": "3d83a19667eb0b16d3dffd6d99d00dc7ebf3d83c5fa25e74744e5dc0b6af0dc9",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-hand-10/receipt.json": "947c082b5550be5ef89fcfb7b5c73515ab5174544dc98e0d6300b1398e84dee0",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-hand-10/episode/receipt.json": "fd8b8c11766b863fa980dba67081fa46e1ae4994f1ea030283b31fd4a42f5e04",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-hand-10/episode/spoken_index_flex/receipt.json": "7057367b27adfd974f73e47f6e43871279b42ccff3bbdcdc1f6218bd6e641682",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-hand-10/episode/stop_reset_reconnect/receipt.json": "49965a64c349dedbafbcb707655e05af97e714915c031504ea848acc455460f1",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-hand-10/episode/stop_reset_reconnect/service/receipt.json": "fe79d033f029dfb948946329c9e1a8e0fb398646cb1349c34e085279927515f0",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-hand-10/episode/stop_reset_reconnect/service/wire/wire.json": "ef3b555f79d26383ec53442e09f88fda3f8e4f3b96a28db4098708f4b7e3e3c9",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-hand-10/episode/provider/model-runtime.json": "7c55ffe1b84679ba9d35e4f74731099e46d4c4c010d8481d41fd18cd9643b437",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-hand-10/episode/provider/closure.json": "6ac5d3fbcd6d187133b52ccc163897aab073e319f3c1edfa9993d7bd9148599d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-post-close-10.json": "d68f8587f96690dd53dbfbbe5d0bb9f1d7538780fb5cc356fc37d2c397db7b90",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice10-root-post-close-01.json": "c2ca77e922c2f439088b9882a45fbf3c8e1cafcba6a58392988a5a441fa0a865",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-hand-10/episode/stop_reset_reconnect/browser-trace.zip": "f6ad9e7e0362f853bf6e5086f1b3800c6162bf5ea3fe24ae7ac710b5eb7bb7fd",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-hand-10/episode/provider/provider.log": "c7344945dcd5ca32d18d2b7d8697126bd3e6a0bc8a1c47b53a272d842a1e6182",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice_harness_v10/browser_case.py": "07fa8f60b5d05f9af60d7814d064c997b4b08003e42b3902308776701e828763",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/conversation/gateway.py": "712bd8a02cd5d427de200f994768fc0dd6d03c795af10c3c326f731b89f5580f",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/provider-state-04/venv/lib/python3.12/site-packages/speech_to_speech/api/openai_realtime/websocket_router.py": "aaf7202d86c2278d39046fd15d4a66b6e79d7655f3c9f075a7ff5192df94129f",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/diagnose_voice10.py": "641058f3d28835e2c753ad6cc30eefbf10f212a4becf6c23f15661fd3cc645ae",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-diagnosis-10.json": "64d37d332d64293e5e7fe2cb2322894f6f59e07cd83acf39a9486031165b6cdd",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-hand-binding-10.json": "b55ee8e1a25ddfaed70ad1662701c21a95cea5fe380ef7a4ef13b00cd7bc7336",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-hand-check-10.json": "dee0c30231c298041175294dc5da065540e89e809a04de85b8927846fdb718c7",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-harness-tests-10.log": "f5430491fb860ed16c9ccffe50657ae3d01600a47f2b1d57e4d676bdb728ba26",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/provider-install-plan-04.json": "d84f3ff913206e7dae852328851c7566b4ad0b9b9a487d8fd64ac0a9f32f6911",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/provider-install-binding-04.json": "c26ea54f7dec29b785f96c19c073f0c52b7163b2b2ad1647adedc5cdf179f135",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/provider-install-04/receipt.json": "8161b3a658ef126837c564c51a7160e51d21aefb5568e5b827a1ebeba11e3a7c",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/provider-install-04/installed-audit.json": "eab953d1ca9405d497d4f86f6d24eee3e7e79642d11dad1a1d3c8c1982efec67",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/provider-state-04/prepared.json": "a38fd162dd5131268d79d26d7ae99a73593775b73ed6abd160446606fc4b6f2e",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/provider-state-04/source-patch.json": "76bcd2a4d5e42e3211624971a651350e4bbe8cadf48a33bea9f69bd0f3c2e01e",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/startup-final-host-tests-01.log": "59bf8913614a35e493d6af047a29bdb9a2cfbd360fdc869ec388cd6a2d1a520e",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/startup-deadline-source-freeze-01.json": "b514b67a24ac8add0f6d04fc4c0eba27a0972256c04eee42dd2967091a7ffce8",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/startup-deadline-reproduction-01.json": "6c7e96eab1e671ad448b7e842306a3a5537bdc95f091b0afc043ac73eba94e4c",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/startup-deadline-cascade/scripts/conversation_provider.py": "b54ce450d03cc27a79f541ec66e726cee16ae33a33520e0ce3cc9778690fa749",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/startup-deadline-cascade/scripts/conversation_provider_acceleration.py": "a37fb658339f492781e911ed7f501154636adbf8cd143e3ba689cc6a176812bc",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/startup-deadline-cascade/tests/test_conversation_provider_startup.py": "0fb7a714c38af2dd9533d14ee1b1efc1bb88305a2c2d1a47f1219ed7a524210c",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/startup-deadline-cascade/configs/conversation/hf_kokoro_cuda_llm_fp32.json": "d3e18db837787e132ffc39c1d25f5bfeed4d5dcb49eedc22fb07b2a59fa80b9e",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/startup-deadline-cascade/configs/conversation/provider/startup-cuda-manifest.json": "23157c755fb5e068b0152701dd14558569b2dbf327839fb1fbb742f743f047e9",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/startup-deadline-cascade/configs/conversation/provider/startup-cuda.patch": "9c5a4b4ee19f23bb956e44520977dc249889aa472c63fd7a50144a90d9b63d65",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/provider-install04-post-close-01.json": "df2855ddfcf437088d4600d134c118f06d3635adc5d43fc750627cd678214919",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/provider-install04-root-post-close-01.json": "a32fffb69eab17e3d8c792a3b1b04a9602038a70e45f11e1f26df6d6a80dcb2b"
+  }
+}

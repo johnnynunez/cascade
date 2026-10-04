@@ -115,6 +115,27 @@ admission. Per-joint target/tracking/torque statistics are diagnostic only.
 Neither episode exercised generation-2 GC, establishes causality for the
 target transformation, or admits locomotion or a verified physical stop.
 
+The separate [headless MuJoCo prefix](evidence/robot-modularity/microduck-mujoco-prefix-negative-20261004.json)
+retains one negative with the same VelStand weights and target transformation.
+It stopped at solve 10 (0.05 simulated seconds), after three policy commits,
+before any forward command. The frozen preparation gate rejected constraint
+contacts between the floor and both foot housings; each had zero normal force,
+while the soles carried 23.4769 N. This gate applied throughout preparation,
+whereas the historical CPU corpus checked support at its end and native
+geometric control began later. The same housing pairs, also at zero normal
+force, occur at the corresponding retained native step 12. This result therefore
+identifies a difference in preparation criteria, not a demonstrated fall or
+backend cause of the earlier walking failure.
+
+The first 61-element observation, raw actions, float64 filtered targets and actual
+float32 BAM uploads matched the native prefix exactly; the next two policy
+commits differed. Source XML/meshes and primary physical fields were bound,
+but compiled mesh equivalence and solver equivalence were not established.
+The episode exited with code 1 and both observed process births absent,
+unchanged inputs, and no signals or forced closure. The original negative and
+all contacts remain retained. No active-motion, tail, rest or verified-stop
+window was reached, and no retry or parameter adjustment followed.
+
 ## Evidence and identity
 
 A SHA-256 digest binds the complete admitted bundle, consumed USD layers,

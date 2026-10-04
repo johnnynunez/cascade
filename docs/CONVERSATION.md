@@ -489,8 +489,8 @@ the actual parameters and buffers: all LLM floating tensors must be FP32 on
 `cuda:0`, and all STT/TTS tensors must remain on CPU. Admission failures refuse
 serving; there is no automatic device fallback. The admission and runtime
 receipts record these observations when their respective stages complete.
-The startup trials below have not established GPU serving, response latency or
-a spoken reply within a robot trial deadline. Provider lifetime and the existing
+The two historical startup trials below did not establish GPU serving, response
+latency or a spoken reply within a robot trial deadline. Provider lifetime and the existing
 voice/actuator deadlines remain separate and unchanged.
 
 The CUDA recipe loads the FP32 LLM directly with the explicit single-device map
@@ -526,6 +526,27 @@ provider cleanup recorded SIGTERM without SIGKILL, and all observed births
 disappeared. Input and asset integrity held. The 150 s readiness deadline,
 30 s case budget, model weights, FP32 policy and speech/physical gates were
 preserved; successful CUDA speech service and complete voice execution remain open.
+
+CUDA startup uses one absolute `time.monotonic` deadline, with at most 150
+seconds remaining. A coordinating owner passes it through
+`--startup-deadline-monotonic-s` before starting the provider scope; standalone
+`serve` creates it before state verification. The serving child inherits the
+same value. Imports, loading and both original dummy warmups consume that
+allowance; neither a new warmup nor another chunk renews it. Warmup production
+stops admitting work five seconds before the deadline, reserving that interval
+for cancellation and join. Producer errors and uncertain closure fail startup.
+Conversation streaming still uses its original ten-second queue wait, and
+the voice trial's thirty-second deadline is unchanged.
+
+After construction, the host verifies both actual warmup records, their
+monotonic times, the inherited deadline and the actual conversational streamer
+timeout before publishing model readiness. The records contain timing, counts
+and error types, without generated text. Deadline checks reject late work;
+they do not make native loading interruptible. An external owner still bounds
+the process and readiness wait. The changed startup contract requires a fresh normal installation. The
+CPU recipe and existing states are unchanged; previous failed trials remain
+failed. The source-bound installation and VOICE10 observations below are separate
+from the earlier startup results.
 
 Run the speech stack in a separate environment. Its `speech-to-speech serve`
 command exposes `/v1/realtime` and supports selecting STT, LLM and TTS backends.
@@ -571,6 +592,37 @@ the actual domain/runtime rejects a separately injected expired readonly tool.
 The archived pre-fix source instead executes that injected tool in both cases.
 Those original native greetings requested no tool and establish no native tool
 admission result. Their speech input/output evidence remains unchanged.
+
+### Shared startup deadline: retained VOICE10 outcome
+
+The [startup and VOICE10 record](evidence/robot-modularity/voice-startup-and-negative-20261004.json)
+binds host `498930f`, provider `4306614` and a fresh normal installation.
+Installation preserved all 234 assets and 153 dependency versions; exactly two
+of the 116 provider runtime files changed. It constructed no models. In the
+subsequent episode, both real CUDA warmups completed within the same original
+150 s startup window, taking 10.633 s and 1.127 s. The postwarmup receipt observed
+FP32 LLM tensors on CUDA, audio models on CPU and the unchanged ten-second
+conversation streamer wait. This is one startup observation, not a latency or
+repeatability guarantee.
+
+**VOICE10 remains failed.** The first case's physical `index_flex` action and
+post-ACK rest passed the frozen physics auditor, with 9,256 solves retained.
+Its complete speech audit still rejects a missing browser response observation
+for `capture.js`; the on-disk source hash does not replace that missing witness.
+The second case retained 703 solves and no microphone input or dispatched
+motion. Its reconnect returned HTTP 502 with a plain-text provider-unavailable
+body while the provider's sole pipeline slot was still draining. The harness
+parsed that error as JSON and raised `JSONDecodeError`. The trace and provider
+log establish this closure boundary; they do not establish a model failure.
+Playback was flushed and a software stop acknowledged, without second-case
+physical-stop credit.
+
+All four scopes closed and all 24 observed births disappeared. Owned SIGTERM
+was recorded for the provider and second hand scope, with no forced kill; the
+outer episode exited 1. The original 30 s case and 12 GiB provider RSS limits,
+weights, prompts and physical gates were preserved. The first physical result
+does not upgrade either the failed complete speech audit or the two-case result.
+Earlier negatives and all original receipts remain intact.
 
 ### Waiting for a provider pipeline to be released
 

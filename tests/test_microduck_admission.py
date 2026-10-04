@@ -79,7 +79,7 @@ def test_immediate_stop_withdraws_pending_command_without_waiting_for_boundary()
     assert steppers[1].controller.hello()['generation'] == 0
 
 
-def test_stop_crossing_native_preparation_still_withholds_whole_shared_solve():
+def test_stop_after_cohort_fence_during_native_preparation_preserves_admitted_solve():
     fleet, owner, steppers, admission = setup()
     original = steppers[1].actuator.before_step
     def crossed(dt):
@@ -87,10 +87,11 @@ def test_stop_crossing_native_preparation_still_withholds_whole_shared_solve():
         original(dt)
     steppers[1].actuator.before_step = crossed
     before = owner.step_count
-    with pytest.raises(RuntimeError, match='shared preparation'):
-        fleet.tick()
-    assert owner.step_count == before
-    assert all(s.failure for s in steppers)
+    result = fleet.tick()
+    assert owner.step_count == before + 1
+    assert result['duck0']['permission_generation_at_sample'] == 0
+    assert steppers[0].controller.state()['latched']
+    assert all(not s.failure for s in steppers)
 
 
 def test_post_ack_stop_revokes_motion_and_old_generation_cannot_reenter_queue():

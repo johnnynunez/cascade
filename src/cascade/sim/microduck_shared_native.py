@@ -14,7 +14,7 @@ import numpy as np
 
 from .microduck_newton import (KitNewtonBackend, disable_source_actuators,
                               prepare_native_model, read_native_body_properties,
-                              read_native_state)
+                              read_native_states)
 from .microduck_shared import bind_scene
 
 
@@ -154,15 +154,15 @@ class SharedKitNewtonBackend(KitNewtonBackend):
             return self._shared_read[1]
         support = read_support(self.ns, last_solved_clock=self._last_support_solve,
                               source_admitted=self.receipt['support_extraction']['source_admitted'])
-        result = {}
-        for binding in self.layout.robots:
-            sample = read_native_state(self.ns, q_indices=np.array(binding.q_indices),
-                dof_indices=np.array(binding.dof_indices), root_index=binding.root_body_index,
-                max_contacts=self.admission['limits']['max_contacts'] * len(self.layout.robots),
-                max_constraints=self.admission['limits']['max_constraints'] * len(self.layout.robots),
-                q_count=self.layout.q_count, dof_count=self.layout.dof_count)
+        result = read_native_states(self.ns, robots={
+            binding.robot_id: dict(q_indices=np.array(binding.q_indices),
+                dof_indices=np.array(binding.dof_indices), root_index=binding.root_body_index)
+            for binding in self.layout.robots},
+            max_contacts=self.admission['limits']['max_contacts'] * len(self.layout.robots),
+            max_constraints=self.admission['limits']['max_constraints'] * len(self.layout.robots),
+            q_count=self.layout.q_count, dof_count=self.layout.dof_count)
+        for sample in result.values():
             sample.update(support=support, solver_graph=self._solver_graph.telemetry())
-            result[binding.robot_id] = sample
         if self.physics_clock != clock:
             raise RuntimeError('physics advanced during shared native state/support read')
         self._shared_read = key, copy.deepcopy(result)

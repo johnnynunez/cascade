@@ -137,14 +137,13 @@ def experience_text(release, *, sdk_recipe=None):
     return template + '\n[settings.app.exts.folders]\n\'++\' = ' + json.dumps(folders) + '\n'
 
 
-def read_native_state(ns, *, q_indices, dof_indices, root_index, max_contacts, max_constraints,
-                      q_count=21, dof_count=20):
-    """Read current state_0, never an experimental persistent swapped tensor."""
+def _read_native_scene(ns, *, max_contacts, max_constraints, q_count, dof_count):
+    """Capture and validate one completed scene; never retain swapped tensors."""
     import numpy as np
-    from cascade.control.microduck_policy import POLICY_JOINTS
-    from cascade.sim.microduck_state import body_frame_vectors
-
     model, state = ns.model, ns.state_0  # reacquire each time
+    contacts, solver = ns.contacts, ns.solver
+    data = solver.mjw_data
+    clock = ns.simulation_step_count, float(ns.sim_time)
     arrays = {k: getattr(state, k).numpy() for k in ('body_q', 'body_qd', 'joint_q', 'joint_qd')}
     for name, a in arrays.items():
         if a.dtype != np.float32 or not np.isfinite(a).all():
@@ -154,12 +153,9 @@ def read_native_state(ns, *, q_indices, dof_indices, root_index, max_contacts, m
         raise ValueError('native body layout changed')
     if arrays['joint_q'].shape != (q_count,) or arrays['joint_qd'].shape != (dof_count,):
         raise ValueError('native free root + fourteen hinges required')
-    pose, vel = arrays['body_q'][root_index], arrays['body_qd'][root_index]
-    quat = np.array([pose[6], *pose[3:6]])
-    vectors = body_frame_vectors(quat, vel[3:], vel[:3], model.body_com.numpy()[root_index])
-    contacts = ns.contacts
+    body_com = model.body_com.numpy()
     counts = contacts.rigid_contact_count.numpy()
-    nefc = ns.solver.mjw_data.nefc.numpy()
+    nefc = data.nefc.numpy()
     for count, limit in ((counts, max_contacts), (nefc, max_constraints)):
         if count.shape != (1,) or count.dtype != np.int32 or not 0 <= count[0] < limit:
             raise RuntimeError('contact/constraint capacity or configured solver safety limit reached')
@@ -172,7 +168,6 @@ def read_native_state(ns, *, q_indices, dof_indices, root_index, max_contacts, m
     for a in pairs:
         if a.ndim != 1 or a.dtype != np.int32 or len(a) < ncon or (a[:ncon] < 0).any() or (a[:ncon] >= len(shapes)).any():
             raise ValueError('unidentified native contact shape')
-    data = ns.solver.mjw_data
     types = data.efc.type.numpy()
     if types.ndim != 2 or types.shape[0] != 1 or types.shape[1] < nconstraints or types.dtype != np.int32:
         raise ValueError('invalid constraint storage')
@@ -203,17 +198,54 @@ def read_native_state(ns, *, q_indices, dof_indices, root_index, max_contacts, m
             if body < -1 or body >= len(bodies):
                 raise ValueError('unidentified contact body')
             names.add(shapes[index] if body == -1 else bodies[body])
-    return dict(step=ns.simulation_step_count, sim_time=float(ns.sim_time),
+    if (ns.model is not model or ns.state_0 is not state or ns.contacts is not contacts
+            or ns.solver is not solver or ns.solver.mjw_data is not data
+            or (ns.simulation_step_count, float(ns.sim_time)) != clock):
+        raise RuntimeError('native scene changed during completed state capture')
+    return dict(arrays=arrays, body_com=body_com, common=dict(
+        step=clock[0], sim_time=clock[1], contacts=tuple(sorted(names)),
+        contact_count=len(active), contact_candidate_count=ncon, constraint_count=nconstraints,
+        contact_semantics='active_solver_contact_constraints_not_support_force',
+        contact_constraint_addresses=first_rows[active].tolist(),
+        contact_pairs=[[shapes[int(pairs[0][i])], shapes[int(pairs[1][i])]] for i in active]))
+
+
+def _native_robot_slice(scene, *, q_indices, dof_indices, root_index):
+    import copy
+    import numpy as np
+    from cascade.control.microduck_policy import POLICY_JOINTS
+    from cascade.sim.microduck_state import body_frame_vectors
+
+    arrays = scene['arrays']
+    pose, vel = arrays['body_q'][root_index], arrays['body_qd'][root_index]
+    quat = np.array([pose[6], *pose[3:6]])
+    vectors = body_frame_vectors(quat, vel[3:], vel[:3], scene['body_com'][root_index])
+    return dict(copy.deepcopy(scene['common']),
                 position=pose[:3].astype(float).tolist(), orientation_wxyz=quat.astype(float).tolist(),
                 linear_velocity=vectors['linear_velocity_origin_world'].tolist(),
                 angular_velocity=vectors['angular_velocity_body'].tolist(),
                 gravity_body=vectors['gravity_body'].tolist(),
                 q=arrays['joint_q'][q_indices].copy(), dq=arrays['joint_qd'][dof_indices].copy(),
-                joint_names=POLICY_JOINTS, contacts=tuple(sorted(names)),
-                contact_count=len(active), contact_candidate_count=ncon, constraint_count=nconstraints,
-                contact_semantics='active_solver_contact_constraints_not_support_force',
-                contact_constraint_addresses=first_rows[active].tolist(),
-                contact_pairs=[[shapes[int(pairs[0][i])], shapes[int(pairs[1][i])]] for i in active])
+                joint_names=POLICY_JOINTS)
+
+
+def read_native_state(ns, *, q_indices, dof_indices, root_index, max_contacts, max_constraints,
+                      q_count=21, dof_count=20):
+    """Read current state_0, never an experimental persistent swapped tensor."""
+    scene = _read_native_scene(ns, max_contacts=max_contacts, max_constraints=max_constraints,
+                               q_count=q_count, dof_count=dof_count)
+    return _native_robot_slice(scene, q_indices=q_indices, dof_indices=dof_indices, root_index=root_index)
+
+
+def read_native_states(ns, *, robots, max_contacts, max_constraints, q_count, dof_count):
+    """One global read and validation, detached slices for every declared robot.
+
+    The snapshot is local to this call; no array, contact row or binding is
+    cached across completed physics states. Each result retains all contacts.
+    """
+    scene = _read_native_scene(ns, max_contacts=max_contacts, max_constraints=max_constraints,
+                               q_count=q_count, dof_count=dof_count)
+    return {robot: _native_robot_slice(scene, **indices) for robot, indices in robots.items()}
 
 
 def prepare_native_model(ns, dof_indices, *, source_cap, newton, effort_cap=None, dof_count=20):

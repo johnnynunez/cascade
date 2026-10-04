@@ -1,0 +1,215 @@
+"""Speculation is reversible; an admitted shared solve is not rolled back."""
+from concurrent.futures import ThreadPoolExecutor
+
+import numpy as np
+import pytest
+from test_microduck_shared_scene import shared
+from test_microduck_stepper import command
+
+
+def ready(count=2):
+    fleet, owner, steppers = shared(count)
+    fleet.start()
+    fleet.tick()
+    for s in steppers:
+        command(s.controller)
+        s.policy.preview = lambda obs: np.full(14, obs[0, 48], np.float32)
+    for _ in range(3):
+        fleet.tick()
+    return fleet, owner, steppers
+
+
+@pytest.mark.parametrize('count, interrupted', [(1,0), (2,0), (2,1), (12,0), (12,5), (12,11)])
+def test_stop_crossing_each_preview_discards_whole_cohort_without_advancing_histories(count, interrupted):
+    fleet, owner, steppers = ready(count)
+    native_step = owner.step_count
+    before = len(owner.events)
+    original = steppers[interrupted].policy.preview
+    crossed = False
+    with ThreadPoolExecutor(1) as pool:
+        def preview(obs):
+            nonlocal crossed
+            # Every speculative attempt sees only last committed history.
+            assert all(s.policy_commits == 1 and s.steps == 4 for s in steppers)
+            assert all(len(s.actuator.targets) == 1 for s in steppers)
+            assert len(owner.events) == before
+            assert not obs[0, 34:48].any()
+            if not crossed:
+                crossed = True
+                # Stop must not wait for peer ONNX under permission locks.
+                assert pool.submit(steppers[0].controller.stop).result(timeout=1)['cancelled']
+            return original(obs)
+        steppers[interrupted].policy.preview = preview
+        result = fleet.tick()
+    assert owner.step_count == native_step + 1 and not fleet.failure
+    assert len(owner.events) == before + count + 1  # one BAM per robot, one solve
+    for i, s in enumerate(steppers):
+        assert s.policy_commits == 2 and s.policy_attempts == 3 and s.policy_evaluations == 3
+        assert [record['status'] for record in s.policy_records] == ['discarded', 'evaluated']
+        assert [record['retry'] for record in s.policy_records] == [0, 1]
+        assert {record['policy_slot'] for record in s.policy_records} == {1}
+        assert not s.policy_records[0]['committed'] and s.policy_records[1]['committed']
+        assert s.policy_records[1]['first_step_after_commit'] == native_step + 1
+        np.testing.assert_array_equal(s.policy.previous_action, np.full(14, 0. if i == 0 else .2, np.float32))
+        assert result[s.identity['robot_id']]['permission_generation_at_sample'] == (2 if i == 0 else 1)
+
+
+@pytest.mark.parametrize('interrupted', [0, 1])
+def test_stop_during_bam_is_after_fence_and_never_rewinds_native_delay(interrupted):
+    fleet, owner, steppers = ready()
+    original = steppers[interrupted].actuator.before_step
+    crossed = False
+    before = owner.step_count
+    with ThreadPoolExecutor(1) as pool:
+        def bam(dt):
+            nonlocal crossed
+            assert all(s.policy_commits == 2 for s in steppers)
+            if not crossed:
+                crossed = True
+                assert pool.submit(steppers[0].controller.stop).result(timeout=1)['cancelled']
+            original(dt)
+        steppers[interrupted].actuator.before_step = bam
+        result = fleet.tick()
+    steppers[interrupted].actuator.before_step = original
+    assert owner.step_count == before + 1 and not fleet.failure
+    assert result['duck0']['permission_generation_at_sample'] == 1
+    assert result['duck0']['policy_target_generation'] == 1
+    assert steppers[0].controller.hello()['generation'] == 2
+    for _ in range(3):
+        held = fleet.tick()['duck0']
+        assert held['policy_target_held'] and held['policy_target_generation'] == 1
+        np.testing.assert_array_equal(steppers[0].policy.previous_action, np.full(14, .2, np.float32))
+    refreshed = fleet.tick()['duck0']
+    assert not refreshed['policy_target_held'] and refreshed['policy_target_generation'] == 2
+    assert not steppers[0].policy.previous_action.any()
+    np.testing.assert_array_equal(steppers[1].policy.previous_action, np.full(14, .2, np.float32))
+    assert all(s.policy_commits == 3 for s in steppers)
+    assert len([e for e in owner.events if e == ('before', before)]) == 2
+
+
+def test_withheld_non_policy_tick_changes_no_target_delay_state_or_publication():
+    fleet, owner, steppers = shared()
+    fleet.start(); fleet.tick()
+    original = steppers[1]._stage_tick
+    def stage(**kwargs):
+        result = original(**kwargs)
+        steppers[0].controller.stop()
+        return result
+    steppers[1]._stage_tick = stage
+    before = owner.step_count, list(owner.events)
+    assert fleet.tick() is None and fleet.withheld_ticks == 1
+    assert (owner.step_count, owner.events) == before
+    assert all(s.steps == 1 and s.policy_commits == 1 and len(s.actuator.targets) == 1 for s in steppers)
+    assert all(s.controller.state()['state']['step'] == before[0] for s in steppers)
+    assert all(s.policy_records == [] for s in steppers)
+    steppers[1]._stage_tick = original
+    assert fleet.tick()['duck0']['step'] == before[0] + 1
+
+
+def test_irreversible_partial_history_commit_faults_every_robot_without_native_retry():
+    fleet, owner, steppers = ready()
+    before = owner.step_count
+    original = steppers[1].policy.commit
+    def failed_copy(action):
+        original(action)
+        raise RuntimeError('interrupted history copy')
+    steppers[1].policy.commit = failed_copy
+    with pytest.raises(RuntimeError, match='history copy'):
+        fleet.tick()
+    assert owner.step_count == before and all(s.failure for s in steppers)
+    assert steppers[0].policy_records[-1]['committed'] is True
+    assert steppers[1].policy_records[-1]['committed'] is None
+    assert all(len(s.actuator.targets) == 1 for s in steppers)
+    with pytest.raises(RuntimeError, match='not running'):
+        fleet.tick()
+
+
+def test_shared_clock_is_rechecked_after_last_preview_before_any_history_copy():
+    fleet, owner, steppers = ready()
+    original = steppers[-1]._stage_tick
+    def changed(**kwargs):
+        result = original(**kwargs)
+        owner.step_count += 1  # an unowned native clock advance, after valid preview
+        return result
+    steppers[-1]._stage_tick = changed
+    with pytest.raises(RuntimeError, match='clock changed before cohort'):
+        fleet.tick()
+    assert all(s.policy_commits == 1 and len(s.actuator.targets) == 1 for s in steppers)
+    assert all(s.policy_records[-1]['status'] == 'discarded' for s in steppers)
+
+
+def test_retry_still_checks_episode_wall_budget_and_never_commits_late_policy():
+    fleet, owner, steppers = ready()
+    original = steppers[1].policy.preview
+    def delayed(obs):
+        action = original(obs)
+        steppers[0].controller.stop()
+        steppers[1].clock = lambda: 200.
+        return action
+    steppers[1].policy.preview = delayed
+    before = owner.step_count
+    with pytest.raises(RuntimeError, match='wall duration'):
+        fleet.tick()
+    assert owner.step_count == before and all(s.policy_commits == 1 for s in steppers)
+    assert all(len(s.actuator.targets) == 1 for s in steppers)
+
+
+def test_launcher_withheld_attempt_preserves_step_budget_and_only_emits_completed_frames(tmp_path, monkeypatch):
+    import importlib
+    import json
+    from contextlib import nullcontext
+    from types import SimpleNamespace as NS
+    from test_microduck_bridge_cli import software_limits
+    from test_microduck_shared_scene import View, layout_fixture
+    from test_microduck_stepper import SoftwareActuator, SoftwareBackend, SoftwarePolicy, render_times
+    from cascade.sim import microduck_shared as shared_module, microduck_shared_native as native
+    from cascade.control import microduck_policy
+
+    runner = importlib.import_module('isaac_microduck_shared')
+    created = []
+    class Backend(SoftwareBackend):
+        def __init__(self, *unused):
+            super().__init__()
+            self.layout = shared_module.bind_scene(**layout_fixture(1))
+            self.actuators = [SoftwareActuator(self)]
+            binding = self.layout.robots[0]
+            self.actuators[0].coordinate_indices = binding.q_indices, binding.dof_indices
+            self.receipt = {'software_fixture': True}
+            created.append(self)
+        def open(self): pass
+        def bind_identity(self, **unused): return {'scene_model_sha256': 'a'*64}
+        def capture(self):
+            return dict(rgb=np.zeros((8, 8, 3), np.uint8), step=self.step_count,
+                        sim_time_s=self.sim_time, captured_at=0., render_times=render_times(self.sim_time))
+        def support_probe(self):
+            return dict(passed=True, step=self.step_count, sim_time_s=self.sim_time)
+        def shutdown(self, code):
+            self.shutdown_code = code
+            return True
+    class Interrupted(shared_module.SharedMicroduckStepper):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            s = self.steppers[0]
+            def preview(obs):
+                if s.policy_evaluations < 2:
+                    s.controller.stop()
+                return np.zeros(14, np.float32)
+            s.policy.preview = preview
+    monkeypatch.setattr(native, 'SharedKitNewtonBackend', Backend)
+    monkeypatch.setattr(native, 'SharedRobotView', View)
+    monkeypatch.setattr(microduck_policy, 'MicroduckPolicy', lambda *args: SoftwarePolicy(created[0]))
+    monkeypatch.setattr(shared_module, 'SharedMicroduckStepper', Interrupted)
+    out = tmp_path / 'run'
+    args = NS(out=out, device='cuda:0', source='software-test-not-physics', max_wall_s=3.,
+              max_steps=2, camera_every=1, max_jpeg_bytes=100000, policy=tmp_path / 'fixture.onnx',
+              policy_sha256='b'*64, python_extra_path=[], robots=1, serve_base_port=None)
+    signals = NS(signum=None, registration_attempts=0, checkpoint=lambda **kwargs: None, defer=nullcontext)
+    admission = dict(asset_sha256='a'*64, limits=software_limits(), experience_text='software fixture\n')
+    result = runner.run(args, admission, signals)
+    assert result['completed'] and result['steps'] == 2 and result['withheld_ticks'] == 1, result
+    assert created[0].closed == 1 and created[0].shutdown_code == 0
+    def rows(name): return [json.loads(line) for line in (out / name).read_text().splitlines()]
+    for name in ('physics.jsonl', 'frames.jsonl', 'support-probe.jsonl'):
+        assert [row['step'] for row in rows(name)] == [3, 4]
+    assert [row['status'] for row in rows('policy.jsonl')] == ['discarded', 'discarded', 'evaluated']
+    assert result['robots']['duck0']['policy_commits'] == 1

@@ -5,6 +5,7 @@ emit unavailable, never known with an empty list. World force acts ON shape B;
 the unit normal points from A towards B. Pair reversal negates both vectors.
 """
 from dataclasses import dataclass, fields
+from copy import deepcopy
 import math
 import re
 
@@ -16,7 +17,7 @@ def digest(value):
 
 
 def _record(cls, value):
-    if isinstance(value, cls):
+    if type(value) is cls:
         return value
     if not isinstance(value, dict) or set(value) != {f.name for f in fields(cls)}:
         raise ValueError(f"{cls.__name__} requires the exact versioned schema")
@@ -102,6 +103,29 @@ class SupportObservation:
     @classmethod
     def from_dict(cls, data):
         return _record(cls, data)
+
+    def as_observation_dict(self):
+        """Detached native observation; keep its existing list types and order."""
+        result = dict(version=self.version, status=self.status, reason=self.reason,
+            step=self.step, sim_time_s=self.sim_time_s,
+            contacts=[dict(shape_a=c.shape_a, shape_b=c.shape_b,
+                shape_a_id=c.shape_a_id, shape_b_id=c.shape_b_id,
+                force_on_b_world_n=list(c.force_on_b_world_n), normal_force_n=c.normal_force_n,
+                point_world_m=list(c.point_world_m), normal_a_to_b_world=list(c.normal_a_to_b_world))
+                for c in self.contacts], epoch=self.epoch, model_identity_sha256=self.model_identity_sha256)
+        return result if immutable_support(self) else deepcopy(result)
+
+
+def immutable_support(value):
+    """Exact records with plain strings; numeric/vector fields normalize on init.
+
+    A str subclass may carry mutable attributes. Such records remain valid
+    legacy values, but cannot enter a shared-reference copy fast path.
+    """
+    return (type(value) is SupportObservation
+        and all(type(getattr(value, k)) is str for k in ('status', 'reason', 'epoch', 'model_identity_sha256'))
+        and all(type(c) is SolvedContact and type(c.shape_a) is str and type(c.shape_b) is str
+                for c in value.contacts))
 
 
 def support_contract(value):

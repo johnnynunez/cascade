@@ -1,0 +1,179 @@
+{
+  "schema": 1,
+  "run": "MICRODUCK_SHARED_SUPPORT_20261004/support-phase-probe-twelve-02",
+  "source": "1ebe73927bcd1e18663db6e651c229f24d9ad7bf",
+  "model_identity_file_sha256": "4daa848af3e07e3e0b56a3b72cb885e28aa5e0245c153fa170078a3ba54c50be",
+  "scene_model_sha256": "0899d6f3a58b3f547a8f4d5f34ec24d08a82de0fe7e97c931a70dd31bf30fb10",
+  "model_pin_approved": false,
+  "scope": "Twelve-robot reader-only owner-thread diagnostic. No control actions, gait, physical-stop or causal performance acceptance.",
+  "global_solves": 800,
+  "policy_commits": 2400,
+  "discarded_previews": 0,
+  "withheld_ticks": 0,
+  "overview_and_support_probe_pairs": 9,
+  "reader_events": 24,
+  "bounds": {
+    "global_solves": 800,
+    "application_wall_s": 450,
+    "owned_scope_wall_s": 510
+  },
+  "observed_application_wall_s": 133.8698519319987,
+  "closure": {
+    "native_exit": 0,
+    "scope_exit": 0,
+    "owned_processes_closed_naturally": true,
+    "client_closed": true,
+    "inputs_and_protected_stores_unchanged": true
+  },
+  "attempt_duration": {
+    "calls": 800,
+    "median_ms": 114.91097400000001,
+    "p95_ms": 130.477843,
+    "max_ms": 655.532772
+  },
+  "inclusive_phase_totals_per_attempt_ms": {
+    "policy.prepare": {
+      "median": 11.5583195,
+      "p95": 13.804043,
+      "maximum": 17.345414
+    },
+    "completed.validate": {
+      "median": 32.916523999999995,
+      "p95": 36.046525,
+      "maximum": 515.606298
+    },
+    "publication": {
+      "median": 7.98498,
+      "p95": 9.036252,
+      "maximum": 13.253142
+    },
+    "record.physics": {
+      "median": 36.8604955,
+      "p95": 41.908387,
+      "maximum": 553.321135
+    },
+    "native.capture": {
+      "median": 4.9446995000000005,
+      "p95": 5.984558,
+      "maximum": 8.97597
+    },
+    "support.decode": {
+      "median": 7.593695,
+      "p95": 10.076324,
+      "maximum": 13.144077
+    },
+    "solve": {
+      "median": 0.3466125,
+      "p95": 0.410145,
+      "maximum": 30.193871
+    },
+    "bam.before_step": {
+      "median": 23.076117500000002,
+      "p95": 24.793513,
+      "maximum": 35.736724
+    }
+  },
+  "profile_write_and_flush": {
+    "calls": 800,
+    "median_ms": 0.0980045,
+    "p95_ms": 0.167024,
+    "max_ms": 10.462392
+  },
+  "timing_interpretation": [
+    "A category includes all of its robot calls in one attempt; nested categories overlap and must not be added.",
+    "p95 is the sorted sample at floor(0.95*n), capped at n-1; no interpolation.",
+    "The solve span measures the owner call, not isolated synchronized GPU execution.",
+    "Large pauses occur in several phases; the profile does not identify their cause.",
+    "No reader-thread/RPC latency or footer/close-overhead measurement.",
+    "GPU0 RTX scope closed 10.621974 seconds before this scope started; no overlapping attempts. Foreign GPU1 workload activity was uncontrolled.",
+    "This run does not resolve the original 0.4-second control no-progress deadline; no control actions were attempted.",
+    "Observed wall/cycle times are descriptive; differing workload/cache state prevents causal comparison to earlier episodes."
+  ],
+  "coexistence": {
+    "microduck_gpu1": {
+      "scope": "cascade-voice-shared-endpoints-support-phase-probe-twelve-02-909c6c3ed5f948208af922de51d5b14a.scope",
+      "launch_monotonic_s": 19908.834814733,
+      "systemd_started_monotonic_ns": 19908850060000,
+      "systemd_resource_accounting_monotonic_ns": 20043620682000,
+      "cpu_usage_ns": 316294080000,
+      "memory_peak_bytes": 7134343168,
+      "journal_sha256": "5e6dc7ce3929afce4a815e79fc3c57a7555decf868d03f1cbdef044a64eb98fa"
+    },
+    "rtx_gpu0": {
+      "scope": "cascade-voice-private-rtx-probe-3937e10c58a747c198b9a7f7f64e5e13.scope",
+      "launch_monotonic_s": 19879.153965249,
+      "systemd_started_monotonic_ns": 19879170037000,
+      "systemd_resource_accounting_monotonic_ns": 19898228086000,
+      "cpu_usage_ns": 59528438000,
+      "memory_peak_bytes": 5199798272,
+      "journal_sha256": "95699c81cf0d92543ebcd48033e55b58492cdf130f91ea58b78668c46621d90d"
+    },
+    "scope": "Observed systemd scope windows; accounting end is an upper bound on process closure, not a GPU-busy trace or causal performance comparison.",
+    "rtx_overlapping_attempts": {
+      "count": 0,
+      "first_last": null
+    },
+    "rtx_native_exit": 0,
+    "rtx_native_solves": 800,
+    "rtx_closed_before_shared_scope_s": 10.621974,
+    "foreign_gpu1_baseline": "PID540619/birth1984456 retained at prelaunch; foreign workload activity/duration not controlled"
+  },
+  "residual_latency": {
+    "attempts_over_400_ms": 22,
+    "original_control_no_progress_s": 0.4,
+    "control_latency_resolved": false
+  },
+  "prior_attempt": {
+    "run": "MICRODUCK_SHARED_SUPPORT_20261004/support-phase-probe-twelve-01",
+    "reason": "foreign GPU cohort changed before native launch",
+    "receipt_sha256": "5ab360427072efeeaff58dcb27736dbfec97add61e1e88b80d6af38802cf4264",
+    "native_started": false
+  },
+  "runtime_source_sha256": {
+    "assets/microduck/manifest.json": "56678bc8dbbc4aba6ca99944a37d495badb1157093b728348700739896383faa",
+    "assets/microduck/newton-bam.json": "d04d0281eb2f581ab738a95ddf6983f09bbfa8dbabef4087271e61e384fd5b4b",
+    "assets/microduck/policy-candidates.json": "6357372fd8f1aba6c64de5d95ba28a6f2f08a825fc4352642d20c152f776c11f",
+    "configs/isaac/microduck.newton.kit": "22ad2a0f66a14863c482a6fd74785475001d5b6aa2bd2f5879d31cb3440a7794",
+    "scripts/convert_microduck.py": "11e5df9e99b03cd0e3479a3dee94da17b685e49c04c32f364a895ab38c6751a2",
+    "scripts/isaac_camera_readback.py": "28c4523b08410db254c83e70f52c36f0f34488e6964dd6aebb561b638df8b9cd",
+    "scripts/isaac_microduck_bridge.py": "5237c61cbc79c40dd48fd9fa0344cf255bd376bc2a29add3b60948b97b0bcb59",
+    "scripts/isaac_microduck_shared.py": "67b743a1859c362b57c193bf5176b4e329de1b81015ee6a29fd6fa6fe17adf24",
+    "scripts/isaac_runtime.py": "8d40bc13b50d86f6c671628486142b6ee2cfa61ea762ea7867e66cf1447c935a",
+    "src/cascade/apps/signal_stop.py": "1a94a391c25d856299d899e633aaa777215e4ef1dc1fc819bee492c44019b9bd",
+    "src/cascade/control/microduck_actuator.py": "77216426cefc311237fa6854f06aa98a90d4f9f53b080a93c886d67f14961a0e",
+    "src/cascade/control/microduck_policy.py": "4a3df35ac4eccafdbd94cb99be8ff2d80320a509a5494b8f0bd0c9c22059479c",
+    "src/cascade/control/mobile_base.py": "480f9c1c3e00fa3a73a139c9aa4d941504c9bc0f9d160055f2a9bc5958c0b2b2",
+    "src/cascade/control/mobile_support.py": "08a8c57898871d677c46de9aa34c3e59977e8b85a1039d49b5b241810fd328c4",
+    "src/cascade/control/newton_bam.py": "1972ac0b4d6bbf06138ef550b530142c820cf03d6d3d4ce4aba5d68ffb00e64c",
+    "src/cascade/sim/microduck_admission.py": "dddf5ebced53b1f5b2d0fcffe508cfc28f6d02b84a2492d62837b98d87d3f483",
+    "src/cascade/sim/microduck_contact_support.py": "ddbcefaf1f95aa407cd669514f00fd5811ba89967faa87b68d78d576cd8b752e",
+    "src/cascade/sim/microduck_newton.py": "c4c6bfe5117d9fc45dfd96f76348ea8928ed479926220236ea3a3f401724e8ec",
+    "src/cascade/sim/microduck_policy_admission.py": "199fb0683fffeae9e93a99f22ed595c29cad4e36508ab5c7888b0fba9bf551d9",
+    "src/cascade/sim/microduck_sdk.py": "dd3502263048e483ebbc3f393ebc505c0fe8fad23b0fb4b7837fa5cef314bf56",
+    "src/cascade/sim/microduck_shared.py": "d71e9e6082ac6a1ceabd4592813a74959f678b28ac9ad57e1b04435467048f34",
+    "src/cascade/sim/microduck_shared_native.py": "8701ac20e1283611d2f6d375b5bc245f29410a3b8b87b4cc3b132773ea5ea439",
+    "src/cascade/sim/microduck_solver_graph.py": "9f990fc96daaa91e849444acfd302d4c6da9a7c62a42adc1f3e445cf65858772",
+    "src/cascade/sim/microduck_state.py": "495f3062274b620890448d6b3958c7481108a265321a616f64da1ec06a972971",
+    "src/cascade/sim/microduck_stepper.py": "fdd2ba66376c6535a784d275bc957646e6e3bdb17100bc4a565f4fe095597ae0",
+    "src/cascade/sim/microduck_timing.py": "8f764e58f108db249ca83b712d44a2e59486840724b740a7c3e26373f7438292",
+    "src/cascade/sim/mobile_bridge.py": "6bf4739389b4df8339aaa2b71b92007bd0665548825ba8e3b9adaaa7b4a8ac72",
+    "src/cascade/sim/mobile_identity.py": "eb7b29754243f5ab8f3ebf6bb8524175698b96250f55796a0135273fdb6cf21a",
+    "src/cascade/sim/mobile_rgbd.py": "8bfc3219e21373eccaed55f92452d66820182cba12faa63f6a2c99d2fb3ab861"
+  },
+  "next_scope": "Separately reviewed bounded zero-command lifecycle with original limits; any failure must remain visible. Fresh identity review required before control.",
+  "sha256": {
+    "plan.json": "ce98d0a4c9dfa9c14600682a17a705a534b7c070bbb55b440c6ddd1957c18623",
+    "inputs.json": "b37ff58a078714efc9653a99ce944fdeca0ff58b5981a58f37cfdcc3082cb927",
+    "root-receipt.json": "8c849dcf43953ded5df5e7637e98810802967d888cdd1452403a44e619b61a57",
+    "independent-audit.json": "ebf6dee50e8e9457322bcd0007842c84340e386e9ba329916d25fd0eb2a139ea",
+    "phase-audit.json": "51cfc5b00ea0f04016f4e5f46dc853b069875038c85ca5d7512df3c7a860fdb0",
+    "kit/timing.jsonl": "a0d275452a10fbade40a3cf070223b70519172a6ed599e0714e3f0518e6736dc",
+    "kit/receipt.json": "be29e63e5b11a4a47dc51e40e7fa6a437e56a1988a9a20ca2e803295f462bd3e",
+    "client-events.json": "b96d890bbf5689b5b3e4c3b03cfbb93225f0f1eb32d00a5a0d6c1bba4fa1450f",
+    "gpu-admission.json": "740bc2433587c53930df8fe5a840a8447f43f33f34c9a20e121d00b1a1349630",
+    "coexistence-window.json": "d9c0a95e086a6151983272220da37d5cf71e0fb6a1390e1555df799342a87750",
+    "launch-binding-02.json": "ec43fa0b6f1b842f3984039eabdf4711615eb25f9b8699b651e455824cb6958e",
+    "cache-provenance.json": "a4d56e371f195858819d257253aa1768628970c69ac727dcfb7601c7635b1deb"
+  },
+  "phase_auditor_sha256": "620bbad18aff54cc993a602175d826b652388a450023a5cebc45b83c52f2131c"
+}

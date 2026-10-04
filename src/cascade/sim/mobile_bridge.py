@@ -18,6 +18,15 @@ import time
 import uuid
 
 from cascade.control.mobile_base import BaseState
+from cascade.control.mobile_support import SupportObservation, immutable_support
+
+
+def _copy_observation(state):
+    support = state.get('support')
+    # Share only transitively plain frozen records. Legacy values and string
+    # subclasses with mutable attributes retain full copy isolation.
+    memo = {id(support): support} if immutable_support(support) else None
+    return copy.deepcopy(state, memo)
 
 
 def _number(value, name: str) -> float:
@@ -141,15 +150,22 @@ class MobileBridgeController:
                 "model_identity_sha256": self._identity["model_identity_sha256"]}
 
     def _snapshot(self, state: dict, age: float) -> BaseState:
-        support = copy.deepcopy(state.get("support"))
+        support = state.get("support")
+        typed = type(support) is SupportObservation
+        if not immutable_support(support):
+            support = copy.deepcopy(support)
         if support is not None:
             # Native step/time are measurement fields; only controller-owned
             # provenance is attached here. Never restamp a stale solve.
             for key, expected in (("epoch", self._epoch),
                                   ("model_identity_sha256", self._identity["model_identity_sha256"])):
-                if key in support and support[key] != expected:
+                if typed:
+                    if getattr(support, key) != expected:
+                        raise ValueError("support " + key + " mismatch")
+                elif key in support and support[key] != expected:
                     raise ValueError("support " + key + " mismatch")
-                support[key] = expected
+                else:
+                    support[key] = expected
         return BaseState(
             robot_id=self._identity["robot_id"], source=self._identity["source"],
             epoch=self._epoch, step=state["step"], sim_time_s=state["sim_time"],
@@ -175,8 +191,11 @@ class MobileBridgeController:
                 self._completed_snapshot, received_monotonic_s=self._state_wall or 0.,
                 producer_age_s=age, controller_status=self._mobile_status(),
                 generation=self._generation, latched=self._latched).as_dict()
+            observed = _copy_observation(self._state or {})
+            if type(observed.get('support')) is SupportObservation:
+                observed['support'] = observed['support'].as_observation_dict()
             return {
-                **copy.deepcopy(self._state or {}), **self.hello(),
+                **observed, **self.hello(),
                 "controller": self._status(), "latched": self._latched,
                 "fault": self._fault, "state_age_s": age,
                 "command_id": self._active["command_id"] if self._active else None,
@@ -205,7 +224,7 @@ class MobileBridgeController:
                     step <= self._state["step"] or sim_time <= self._state["sim_time"]
                 ):
                     raise ValueError("physics step and time must advance within an epoch")
-                validated = copy.deepcopy(state)
+                validated = _copy_observation(state)
                 for key, size in (("position", 3), ("orientation_wxyz", 4),
                                   ("linear_velocity", 3), ("angular_velocity", 3),
                                   ("q", 14), ("dq", 14)):

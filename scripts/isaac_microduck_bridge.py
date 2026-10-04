@@ -101,6 +101,9 @@ def validate_extra_paths(paths):
 
 
 def json_default(value):
+    from cascade.control.mobile_support import SupportObservation
+    if type(value) is SupportObservation:
+        return value.as_observation_dict()
     if isinstance(value, Path):
         return str(value)
     if hasattr(value, 'tolist'):

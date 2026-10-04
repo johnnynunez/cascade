@@ -78,7 +78,7 @@ def calibration_record(value):
     """Canonical pinhole calibration, static v2 or explicitly mounted v3."""
     import numpy as np
     if not isinstance(value, dict) or type(value.get('version')) is not int or value['version'] not in (2, 3):
-        raise ValueError('unsupported RGB-D calibration version')
+        raise ValueError('unsupported RGB-D calibration schema version')
     mounted = value['version'] == 3
     if set(value) != (MOUNT_CALIBRATION_KEYS if mounted else CALIBRATION_KEYS):
         raise ValueError('invalid RGB-D calibration schema')

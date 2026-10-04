@@ -209,17 +209,23 @@ def test_priority_stop_does_not_wait_for_blocked_host_archive(tmp_path):
 
 def test_file_archive_wired_to_subprocess_is_complete_and_exclusive(tmp_path):
     archive = _FileArchive(tmp_path/"archive", byte_capacity=8*1024**2)
-    process, session, _, _, receipt = _start(tmp_path, raw_sink=archive.raw, outcome_sink=archive.outcome)
+    persisted_rows = threading.Event()
+    def persist_outcome(sequence, outcome):
+        archive.outcome(sequence, outcome)
+        if sequence >= 8:
+            persisted_rows.set()
+    process, session, _, _, receipt = _start(tmp_path, raw_sink=archive.raw, outcome_sink=persist_outcome)
     try:
-        domain = _ProcessDomain(session, controller_id="synthetic-process")
-        assert domain.ready(timeout_s=2.)["ready"]
+        # Wait for actual outcome persistence before closing the subprocess.
+        # Physical readiness and stale-row rejection have separate tests.
+        assert persisted_rows.wait(2.)
     finally:
         closed = _finish(process, session)
         persisted = archive.close()
     assert closed["ok"] and persisted["ok"]
     solves = [json.loads(line) for line in (tmp_path/"archive/solves.jsonl").read_text().splitlines()]
     outcomes = [json.loads(line) for line in (tmp_path/"archive/outcomes.jsonl").read_text().splitlines()]
-    assert len(solves) == len(outcomes) == persisted["raw"]
+    assert len(solves) == len(outcomes) == persisted["raw"] >= 8
     assert [item["solve"]["step"] for item in solves] == list(range(1, len(solves)+1))
     assert all(item["outcome"] == RawOutbox.ACCEPTED for item in outcomes)
     with pytest.raises(FileExistsError):

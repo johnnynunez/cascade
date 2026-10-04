@@ -189,6 +189,19 @@ registry. A client must explicitly pin this digest in
 State, camera, and independent truth channels enforce the same binding.
 Changing the recipe requires a new identity and physical evaluation.
 
+Collision meshes carry their MJCF hull vertex limit explicitly
+(`newton:maxHullVertices`, `-1` for MuJoCo's unlimited default). Newton's USD
+importer resolves only authored limits; an unauthored mesh falls back to its own
+64-vertex hull, and the partial hulls of the mirrored soles came out 2.3 mm
+apart. The converter validator refutes a missing, different or competing
+(`mjc:maxhullvert`, PhysX `hullVertexLimit`) limit, and the bridge refuses any
+bundle converted by an earlier adapter, so older bundles must be reconverted.
+The [live comparison](evidence/microduck-hull-limits-20261004/live-gate.json)
+shows Newton building the complete, symmetric source hulls from the new bundle
+and the 20 s open-loop straight command curling +1.3..+1.7 rad instead of +3.5.
+That remaining curl is larger than the official MuJoCo reference (+0.5 rad for
+the same complete-hull model) and is not explained or admitted by this fix.
+
 Support uses versioned, complete post-solve contact records: exact shape
 pairs, points, normals and reaction forces in world coordinates, bound to
 the same epoch, step, time and model identity as pose. The independent checker

@@ -1,14 +1,14 @@
 {
   "schema": "cascade.speech-provider-source.v1",
   "upstream_revision": "411399d34555b2169823a6eaeb7f8ff192db89db",
-  "candidate_revision": "66b7233f23582999f424e77c4b765251316fa5b9",
+  "candidate_revision": "eee2937d7616a7258a14b59257b659620824f0db",
   "archive_sha256": "2a344e59ad73110e263a731bc38fef001286b29a5e58f60b9cdf2491dfd9efb1",
   "patch": "speech-provider.patch",
-  "patch_sha256": "b884840525522aab151e3fefd6c4ed0dca696d668a4612f524ae300f642be71f",
+  "patch_sha256": "1474182f50492d1cc4b339939795e2d3c3f1ed9174788939d7e6977e2efae802",
   "files": {
     "src/speech_to_speech/LLM/language_model.py": {
       "before_sha256": "ab54d87351d1ba57ae7ed69c7ed92552ab5b08e10b8cbb0c0f5c3e650b696026",
-      "after_sha256": "7a7bb12d3cd50ca6915fd94d4c9c52ce4a9a1a70083b3f1339562118ce7a1e5f"
+      "after_sha256": "96871921d8ff602eee26ac1b025ec93453b0de132b897180621ec30b2ab1a343"
     },
     "src/speech_to_speech/LLM/tool_call/tool_prompt.py": {
       "before_sha256": "743e341e95810de38a42f41922876ec6b32b359c74e18f16c445b6b099cb5fc2",
@@ -23,7 +23,8 @@
     "Historical text streamer timeout 10s; voice/robot deadlines unchanged.",
     "Prompt names tools from the actual catalogue; no invented call.",
     "Optional bounded decoded-output observation after warmup.",
-    "Natural streamer EOF is not drained a second time; cancellation/join retained."
+    "Natural streamer EOF is not drained a second time; cancellation/join retained.",
+    "Cancellable queue waits; drain/join share 5s; failed cleanup makes the handler terminal."
   ],
   "patch_format": "git unified diff with zero context; full before/after hashes are mandatory"
 }

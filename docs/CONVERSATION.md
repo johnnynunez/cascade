@@ -371,9 +371,9 @@ speech dependencies in Cascade's environment. With Python 3.12+, `uv` and `git`
 available, use a **new**, private state directory:
 
 ```bash
-python3.12 scripts/conversation_provider.py prepare --state-dir ~/.cascade-speech-schema-eof
-python3.12 scripts/conversation_provider.py verify --state-dir ~/.cascade-speech-schema-eof
-python3.12 scripts/conversation_provider.py serve --state-dir ~/.cascade-speech-schema-eof \
+python3.12 scripts/conversation_provider.py prepare --state-dir ~/.cascade-speech-schema-eof-cancel
+python3.12 scripts/conversation_provider.py verify --state-dir ~/.cascade-speech-schema-eof-cancel
+python3.12 scripts/conversation_provider.py serve --state-dir ~/.cascade-speech-schema-eof-cancel \
   --run-dir runs/speech-provider-01 --port 18878 --timeout-s 900
 ```
 
@@ -381,9 +381,14 @@ Preparation downloads the pinned CPU dependencies, Whisper, Qwen and Kokoro.
 The [source manifest](../configs/conversation/provider/manifest.json) binds the
 upstream archive and exact patch bytes: schema-derived tool names, optional
 bounded decoded-output observation, and EOF finalization that retains
-cancellation and the worker join. Preparation checks every changed source file;
-serving checks the complete effective source and the normal installation's
-origin and runtime files before constructing models. A recipe mismatch refuses
+cancellation and the worker join. Queue polling uses waits capped at 50 ms
+while retaining the live response's original timeout; scheduling can delay
+cancellation observation. Cleanup drain and join share five seconds. If the producer
+remains alive, that handler rejects every subsequent generation before resetting
+cancellation or reusing its queue; this does not make native model work interruptible.
+Preparation checks every changed source file; serving checks the complete
+effective source and the normal installation's origin and runtime files before
+constructing models. A recipe mismatch refuses
 an old state directory; no existing environment or weights are migrated.
 Model selection, provider lifetime and robot deadlines remain separate.
 After the upstream builder and warmups, the host restores the recipe's declared

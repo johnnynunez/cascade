@@ -79,6 +79,20 @@ contact records were retained; the owned scope closed normally with unchanged
 inputs. This single CPU success does not establish repeatability, ordinary MCP
 execution, Newton equivalence or general locomotion admission.
 
+The next [predictive-transition corpus](evidence/robot-modularity/microduck-predictive-transition-cpu-20261004.json)
+used only the last four completed pose observations to extrapolate signed
+progress over one unchanged 20 ms policy interval. It selected full-zero BRAKE
+before predicted tolerance entry, while retaining separate actual-entry and
+rest requirements. The eight cases, standing preparation, policy pair and all
+limits stayed fixed. **The accepted set changed without broadening: still one
+of eight.** Reverse-start340 passed a 0.205-second HOLD at steps 497–538; the
+previously passing reverse-start420 failed on forbidden contact. All four
+forward cases selected standing before their subsequent heading veto and still
+failed; reverse-start380 also failed on heading, and reverse-start300 on contact.
+All 8,388 solves, 2,099 policy records and 37,468 contact records were retained,
+with normal owned closure and unchanged inputs. No repeated or native braking
+capability follows from either single positive CPU trajectory.
+
 ## Implemented contract
 
 The 2026-10-03 [distance-outcome regression receipt](../benchmark/results/mobile_distance_outcome_20261003.json)

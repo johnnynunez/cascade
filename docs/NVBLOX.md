@@ -158,6 +158,21 @@ the app interpreter and a bridge providing validated robot pixel masks.
 
 ## Integration and limitations
 
+An opt-in `occupancy.required: true` profile requires a reachable bridge at
+runtime construction. Missing wire dependencies, `enabled: false` or
+`CASCADE_OCCUPANCY=0` then fail startup. During motion, an absent or expired
+grid or a failed refresh raises `SafetyViolation`; a later probe alone cannot
+clear that failure. A successful depth refresh is needed. Queries outside the
+grid or with unknown interpolation support reject arm waypoints and pose
+candidates outside the existing local contact exemption. That exemption cannot
+override a missing/stale/failed map. The age bound must be finite and positive.
+
+The default remains `required: false`. Payload and body-mask guards retain
+their existing stricter contracts in either mode. Requiring an observed map
+does not establish complete geometric coverage, calibrated uncertainty or a
+successful mapped manipulation campaign; native validation of this opt-in
+policy remains pending. It does not enable mapping in the Spark presenter.
+
 In the current camera profiles, `isaac` and `isaac_side` feed geometric
 fusion, while `isaac_proof` has `fuse_beliefs: false`. Three viewer streams
 therefore do not automatically mean three map inputs. The replay above

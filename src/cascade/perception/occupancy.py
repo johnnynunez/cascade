@@ -26,21 +26,20 @@ robot/payload rays with an inactive surface mask: front free space survives,
 while the excluded surface and space behind it receive no observations.
 Other backends receive zero depth for excluded pixels. It runs off the motion hot path (WorldWatcher._tick, at
 the perception rate); SafetyHarness.approve() at 50 Hz only ever reads the
-cache. Past `max_age_s` the cache is treated as absent (skip the check),
-the same fallback shape as the perception watchdog.
+cache. By default, past `max_age_s` the cache is treated as absent (skip
+the check). With `required: true`, missing/stale/failed observations block
+motion, and unknown distance-grid support is not free space.
 
 An unavailable registered ROBOT BODY POSE is different from an absent
 bridge: no frame may be integrated without its mask, and clearance raises
 SafetyViolation until a masked depth refresh succeeds. It must not age into
 "no data, skip"; the arm is known to be in the image but cannot be removed.
 
-WHAT IS AND IS NOT DEGRADED. A bridge that is down degrades to "no
-occupancy check" -- the arm keeps every geometric gate it always had -- but
-it must never degrade SILENTLY: `probe()` at startup records which backend
-answered (or that none did) in `status`, the demo prints it and writes it
-to the run summary, and the launcher refuses `--require-occupancy` runs
-without a live bridge. A default that nobody runs looks exactly like one
-that works; the status line is what makes the difference visible.
+An optional bridge that is down degrades to "no occupancy check", with its
+startup status visible in the demo and run summary. The opt-in
+`occupancy.required` policy instead refuses startup without a live bridge
+and refuses motion without a fresh observed grid. A successful probe alone
+does not provide observed geometry or admit a robot trajectory.
 """
 
 from __future__ import annotations
@@ -144,11 +143,13 @@ class OccupancyMap:
     """Cached distance grid, refreshed off the motion hot path.
 
     `clearance()` trilinearly reads the cached grid -- cheap enough for
-    `SafetyHarness.approve()` per waypoint. It returns None (meaning "skip
+    `SafetyHarness.approve()` per waypoint. By default it returns None (meaning "skip
     the check") whenever there is no fresh cache, so a dead/slow bridge
     degrades exactly like running with no occupancy map at all rather than
     freezing the arm. A missing registered robot pose instead fails closed;
     its frame cannot safely be integrated and is not an empty scene.
+    `required=True` also rejects unavailable maps and reports unobserved
+    grid support as unknown for the harness to reject outside contact exemptions.
     """
 
     def __init__(
@@ -159,11 +160,17 @@ class OccupancyMap:
         max_age_s: float = 10.0,
         stride: int = 8,
         depth_stride: int = 2,
+        required: bool = False,
     ):
+        if type(required) is not bool:
+            raise OccupancyError("occupancy.required must be a boolean")
+        self.required = required
         self._client = client
         self._region_min = None if region_min is None else np.asarray(region_min, dtype=float)
         self._region_max = None if region_max is None else np.asarray(region_max, dtype=float)
         self.max_age_s = float(max_age_s)
+        if required and (not np.isfinite(self.max_age_s) or self.max_age_s <= 0):
+            raise OccupancyError("required occupancy max_age_s must be finite and positive")
         self.stride = max(int(stride), 1)            # legacy cloud subsampling
         self.depth_stride = max(int(depth_stride), 1)  # depth frame subsampling on the wire
         self._occupied: np.ndarray | None = None      # (M, 3), last query's occupied centres
@@ -440,30 +447,41 @@ class OccupancyMap:
             distance = self._clearance(points)
             if distance is None or self._grid is None:
                 return None
-            fractional = (np.asarray(points) - self._grid_origin) / self._grid_voxel
-            shape = np.asarray(self._grid.shape)
-            inside = ((fractional >= 0) & (fractional <= shape - 1)).all(axis=1)
-            low = np.floor(np.clip(fractional, 0, shape - 1)).astype(int)
-            high = np.minimum(low + 1, shape - 1)
-            blend = np.clip(fractional, 0, shape - 1) - low
-            known = inside.copy()
-            for dx in (0, 1):
-                for dy in (0, 1):
-                    for dz in (0, 1):
-                        index = np.column_stack((
-                            (low if dx == 0 else high)[:, 0],
-                            (low if dy == 0 else high)[:, 1],
-                            (low if dz == 0 else high)[:, 2]))
-                        weight = ((blend[:, 0] if dx else 1-blend[:, 0])
-                                  * (blend[:, 1] if dy else 1-blend[:, 1])
-                                  * (blend[:, 2] if dz else 1-blend[:, 2]))
-                        known &= np.isfinite(self._grid[tuple(index.T)]) | (weight <= 1e-9)
+            known = self._observed_grid_support(points)
             self.last_payload_query = {
                 "samples": len(points), "unobserved_samples": int((~known).sum()),
                 "minimum_observed_clearance_m": float(distance[known].min()) if known.any() else None,
                 "surfaces_by_camera": {name: len(p) for name, p in self._payload_samples.items()},
             }
-            return np.where(known, distance, np.nan)
+            result = np.where(known, distance, np.nan)
+            self._check_required_age()
+            return result
+
+    def _observed_grid_support(self, points: np.ndarray) -> np.ndarray:
+        """Require every contributing interpolation corner to be observed.
+
+        Called under the cache lock by both carried-surface queries and the
+        opt-in required-map policy. Outside the grid is always unknown.
+        """
+        fractional = (np.atleast_2d(points) - self._grid_origin) / self._grid_voxel
+        shape = np.asarray(self._grid.shape)
+        inside = ((fractional >= 0) & (fractional <= shape - 1)).all(axis=1)
+        low = np.floor(np.clip(fractional, 0, shape - 1)).astype(int)
+        high = np.minimum(low + 1, shape - 1)
+        blend = np.clip(fractional, 0, shape - 1) - low
+        known = inside.copy()
+        for dx in (0, 1):
+            for dy in (0, 1):
+                for dz in (0, 1):
+                    index = np.column_stack((
+                        (low if dx == 0 else high)[:, 0],
+                        (low if dy == 0 else high)[:, 1],
+                        (low if dz == 0 else high)[:, 2]))
+                    weight = ((blend[:, 0] if dx else 1-blend[:, 0])
+                              * (blend[:, 1] if dy else 1-blend[:, 1])
+                              * (blend[:, 2] if dz else 1-blend[:, 2]))
+                    known &= np.isfinite(self._grid[tuple(index.T)]) | (weight <= 1e-9)
+        return known
 
     def add_robot_body(self, link_points_fn, radius_m: float = 0.06, *, frame_link_points_fn=None) -> None:
         """Register an arm to mask out of the depth before integration.
@@ -516,12 +534,21 @@ class OccupancyMap:
         The map PROBES the bridge once here (300 ms). No answer = the map is
         still built (the bridge may come up later; refresh() keeps trying)
         but `status` is None and `probe_error` says why, so callers can show
-        "occupancy: none" instead of implying a clearance gate exists."""
+        "occupancy: none" instead of implying a clearance gate exists.
+        With `required: true`, disabling the map, missing client dependencies
+        or a failed probe raises instead of constructing an optional runtime."""
         import os
 
+        required = False if cfg is None else cfg.get("required", False)
+        if type(required) is not bool:
+            raise OccupancyError("occupancy.required must be a boolean")
+        if required and cfg.get("enabled", True) is not True:
+            raise OccupancyError("required occupancy cannot be disabled in configuration")
         env = os.environ.get("CASCADE_OCCUPANCY", "").strip().lower()
         if env:
             if env in ("0", "false", "no", "off"):
+                if required:
+                    raise OccupancyError("required occupancy conflicts with CASCADE_OCCUPANCY=off")
                 return None
             enabled = True
         else:
@@ -535,6 +562,8 @@ class OccupancyMap:
                 timeout_ms=int(cfg.get("timeout_ms", 500)),
             )
         except OccupancyError as e:
+            if required:
+                raise OccupancyError(f"required occupancy client unavailable: {e}") from e
             logger.warning(
                 "occupancy map disabled: %s (install the `grasping` extra "
                 "to enable the clearance gate)", e,
@@ -549,9 +578,13 @@ class OccupancyMap:
             max_age_s=float(cfg.get("max_age_s", 10.0)),
             stride=int(cfg.get("stride", 8)),
             depth_stride=int(cfg.get("depth_stride", 2)),
+            required=required,
         )
         m.allowed_contact_paths = set(cfg.get("allowed_contact_paths", []))
         m.probe(timeout_ms=int(cfg.get("probe_timeout_ms", 300)))
+        if required and m.status is None:
+            client.close()
+            raise OccupancyError(f"required occupancy bridge unavailable: {m.probe_error}")
         return m
 
     def probe(self, timeout_ms: int = 300) -> dict | None:
@@ -567,7 +600,8 @@ class OccupancyMap:
         except OccupancyError as e:
             self.status = None
             self.probe_error = str(e)
-            logger.warning("occupancy bridge NOT reachable -- clearance gate is OFF until it is: %s", e)
+            logger.warning("occupancy bridge NOT reachable (%s): %s",
+                           "required map blocks motion" if self.required else "optional gate unavailable", e)
         return self.status
 
     def describe(self) -> str:
@@ -621,6 +655,13 @@ class OccupancyMap:
                 return  # newer evidence of the SAME state also supersedes an old transition
         try:
             prepared = None
+            if self.required:
+                capture_t = float(frame.t)
+                age = time.monotonic() - capture_t
+                if (not frame.has_depth or not np.isfinite(age)
+                        or age < 0 or age > self.max_age_s
+                        or not np.any(np.isfinite(frame.depth_m) & (frame.depth_m > 0))):
+                    raise OccupancyError("required occupancy needs a fresh nonempty depth frame")
             if frame.has_depth:
                 if self._depth_supported is not False:
                     try:
@@ -660,7 +701,7 @@ class OccupancyMap:
                 grid, origin, voxel = None, None, 0.
             self._occupied, self._grid = occupied, grid
             self._grid_origin, self._grid_voxel = origin, voxel
-            self._last_refresh = time.monotonic()
+            self._last_refresh = capture_t if self.required else time.monotonic()
             self.last_error = None
             if frame.has_depth:
                 self._body_error = None
@@ -972,21 +1013,46 @@ class OccupancyMap:
         point far outside the map inherit an obstacle distance it has no
         relation to, or hide a real one. Unknown (inf) voxels read as far.
         Without a grid (old bridge): brute-force distance to the occupied cloud.
-        A pending/failed robot-body mask raises SafetyViolation even when
+        Required maps raise SafetyViolation if missing, stale or failed, and
+        return NaN for points without observed grid support. A pending/failed robot-body mask raises SafetyViolation even when
         the cache has aged out; this known fault must never become a bypass.
         """
         with self._refresh_lock:
-            return self._clearance(points)
+            distance = self._clearance(points)
+            if self.required:
+                distance = np.where(self._observed_grid_support(points), distance, np.nan)
+                self._check_required_age()
+            return distance
+
+    def _check_required_age(self) -> None:
+        """Interpolation must finish inside the same observation lifetime."""
+        if self.required and self.is_stale():
+            from ..types import SafetyViolation
+
+            raise SafetyViolation("required occupancy unavailable: distance grid is stale")
 
     def _clearance(self, points: np.ndarray) -> np.ndarray | None:
         if self._body_error is not None:
             from ..types import SafetyViolation
 
             raise SafetyViolation(f"occupancy unsafe: {self._body_error}")
-        if self.is_stale():
+        stale = self.is_stale()
+        usable_grid = (not stale and self._grid is not None and self._grid.size
+                       and np.isfinite(self._grid).any())
+        if self.required:
+            from ..types import SafetyViolation
+
+            reason = None if self.last_error is None else f"refresh failed: {self.last_error}"
+            if stale:
+                reason = reason or "distance grid is missing or stale"
+            if not usable_grid:
+                reason = reason or "fresh observed distance grid required"
+            if reason:
+                raise SafetyViolation(f"required occupancy unavailable: {reason}")
+        if stale:
             return None
         pts = np.atleast_2d(np.asarray(points, dtype=float))
-        if self._grid is not None and self._grid.size and np.isfinite(self._grid).any():
+        if usable_grid:
             return self._sample_grid(pts)
         if self._occupied is None or self._occupied.shape[0] == 0:
             return None
@@ -999,7 +1065,9 @@ class OccupancyMap:
         f = (pts - self._grid_origin) / self._grid_voxel
         # half a voxel of slack: the grid's cells extend +-voxel/2 around centres
         inside = np.all((f >= -0.5) & (f <= shape - 0.5), axis=1)
-        f = np.clip(f, 0, shape - 1 - 1e-6)
+        # i1 is already capped at the last centre. An epsilon here would
+        # mix an unobserved neighbour into an exactly observed border cell.
+        f = np.clip(f, 0, shape - 1)
         i0 = np.floor(f).astype(int)
         i1 = np.minimum(i0 + 1, shape - 1)
         t = f - i0

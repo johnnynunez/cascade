@@ -302,8 +302,11 @@ its existing 50 Hz default. This is sampled coverage, not continuous collision
 certification. Settling and bounded state/command RPCs are described in
 [Isaac motion clock](ISAAC_MOTION_CLOCK.md).
 
-Ordinary non-payload occupancy may report no data for an absent/stale cache;
-that is not evidence of free space. A known body-mask fault raises even when
+Optional non-payload occupancy may report no data for an absent/stale cache;
+that is not evidence of free space. Profiles opting into `occupancy.required`
+refuse startup if the bridge cannot be probed and refuse motion on missing,
+stale or failed map observations. Their ordinary arm samples also need observed
+interpolation support outside the existing local contact exemption. A known body-mask fault raises even when
 the map is stale. Payload/recovery modes additionally require observed geometry,
 correct source/epoch/contact binding and successful fresh commits from all
 required cameras. Unknown payload samples and the configured 30 mm clearance

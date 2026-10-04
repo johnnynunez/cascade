@@ -642,17 +642,18 @@ class SafetyHarness:
 
         `points.clearance()` returns None when the map has no fresh data
         (never refreshed, stale, or the bridge is down) -- that is
-        indistinguishable from "not configured" on purpose: a stalled
-        occupancy bridge must degrade the same way a missing one does, never
-        freeze the arm.
+        unavailable optional map skips this check. Required maps and carried
+        surfaces instead need observed distance-grid support; their missing
+        or unknown observations must not admit motion.
         """
         query = self.occupancy.payload_clearance if attached else self.occupancy.clearance
+        observed_required = attached or getattr(self.occupancy, "required", False)
         dist = query(points)
         if dist is None:
-            return "clearance unavailable (fresh observed distance grid required)" if attached else None
+            return "clearance unavailable (fresh observed distance grid required)" if observed_required else None
         min_c = self.limits.min_clearance_m
         for i, (p, d) in enumerate(zip(points, dist)):
-            if not np.isfinite(d) and attached and not self._in_cylinder(p, exempt):
+            if not np.isfinite(d) and observed_required and not self._in_cylinder(p, exempt):
                 return (f"point {i} has unobserved clearance (occupancy map)"
                         f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]")
             if d < min_c and not self._in_cylinder(p, exempt):

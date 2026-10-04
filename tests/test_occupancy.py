@@ -176,6 +176,198 @@ def test_vet_pose_reports_occupancy_violation():
     assert reason is not None and "occupancy" in reason
 
 
+class GridClient(FakeClient):
+    """Observed grid reply through the same refresh path as the bridge."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.grid = np.full((3, 3, 3), .25, dtype=np.float32)
+        self.closed = False
+
+    def request(self, payload):
+        response = super().request(payload)
+        if payload["action"] == "query":
+            response.update(grid=self.grid, origin=np.full(3, -.5), voxel=.5)
+        return response
+
+    def close(self):
+        self.closed = True
+
+
+def _required_grid():
+    m = OccupancyMap(client=GridClient(), region_min=np.full(3, -.5),
+                     region_max=np.full(3, .5), required=True)
+    m.refresh(_frame(), np.eye(4))
+    assert m.last_error is None
+    return m
+
+
+@pytest.mark.parametrize("config,env", [
+    ({"required": True, "enabled": False}, "1"),
+    ({"required": True}, "0"),
+    ({"required": "false"}, ""),
+])
+def test_required_map_rejects_disabled_or_nonboolean_config(monkeypatch, config, env):
+    monkeypatch.setenv("CASCADE_OCCUPANCY", env)
+    with pytest.raises(OccupancyError, match="required|boolean"):
+        OccupancyMap.from_config(config)
+
+
+def test_required_map_refuses_missing_client_and_failed_probe(monkeypatch):
+    from cascade.perception import occupancy
+
+    monkeypatch.delenv("CASCADE_OCCUPANCY", raising=False)
+
+    def missing_client(**kwargs):
+        raise OccupancyError("wire dependencies unavailable")
+
+    monkeypatch.setattr(occupancy, "OccupancyClient", missing_client)
+    with pytest.raises(OccupancyError, match="required occupancy client"):
+        OccupancyMap.from_config({"required": True})
+
+    client = GridClient(fail=True)
+    monkeypatch.setattr(occupancy, "OccupancyClient", lambda **kwargs: client)
+    with pytest.raises(OccupancyError, match="required occupancy bridge.*bridge down"):
+        OccupancyMap.from_config({"required": True})
+    assert client.closed
+
+    client = GridClient()
+    m = OccupancyMap.from_config({"required": True})
+    assert m.required and m.status["ok"]
+    with pytest.raises(SafetyViolation, match="required occupancy"):
+        m.clearance(np.zeros((1, 3)))  # a live probe is not a depth observation
+
+
+@pytest.mark.parametrize("state", ["stale", "refresh_failed", "no_grid", "all_unknown"])
+def test_required_map_fault_blocks_motion_even_with_a_grasp_exemption(state):
+    m = _required_grid()
+    h = SafetyHarness(limits(), kinematics=FakeKin(), occupancy=m)
+    q = np.array([.25, 0, .25, 0, 0, 0])
+    h.approve(q, q, dt=1e9)
+    if state == "stale":
+        m._last_refresh -= m.max_age_s + 1
+    elif state == "refresh_failed":
+        m._client.fail = True
+        m.refresh(_frame(), np.eye(4))
+    elif state == "no_grid":
+        m._client = FakeClient(occupied=np.zeros((1, 3)))
+        m.refresh(_frame(), np.eye(4))
+    else:
+        m._client.grid[:] = np.inf
+        m.refresh(_frame(), np.eye(4))
+    h.allow_grasp_descent(np.zeros(2), radius_m=1.0, z_min=-1.0)
+    with pytest.raises(SafetyViolation, match="required occupancy"):
+        h.approve(q, q, dt=1e9)
+
+
+@pytest.mark.parametrize("outside", [False, True])
+def test_required_map_unknown_support_blocks_waypoints_and_pose_ranking(outside):
+    m = _required_grid()
+    h = SafetyHarness(limits(), kinematics=FakeKin(), occupancy=m)
+    q = np.array([.75 if outside else .25, 0, .25, 0, 0, 0])
+    if not outside:
+        m._client.grid[2, 1, 2] = np.inf
+        m.refresh(_frame(), np.eye(4))
+    with pytest.raises(SafetyViolation, match="unobserved clearance"):
+        h.approve(q, q, dt=1e9)
+    assert "unobserved clearance" in h.vet_pose(q)
+    # The existing local contact exemption stays local; it does not erase a
+    # stale-map or failed-refresh fault (tested separately above).
+    h.allow_grasp_descent(q[:2], radius_m=.1, z_min=-1.0)
+    h.approve(q, q, dt=1e9)
+
+
+def test_required_map_recovers_only_after_a_successful_depth_refresh():
+    m = _required_grid()
+    m._client.fail = True
+    m.refresh(_frame(), np.eye(4))
+    with pytest.raises(SafetyViolation, match="refresh failed"):
+        m.clearance(np.zeros((1, 3)))
+    m._client.fail = False
+    assert m.probe()["ok"]
+    with pytest.raises(SafetyViolation, match="refresh failed"):
+        m.clearance(np.zeros((1, 3)))
+    m.refresh(_frame(), np.eye(4))
+    np.testing.assert_allclose(m.clearance(np.zeros((1, 3))), [.25])
+
+
+@pytest.mark.parametrize("invalid", ["no_depth", "empty_depth", "old_capture", "future_capture"])
+def test_required_map_cannot_refresh_from_unusable_capture(invalid):
+    m = _required_grid()
+    frame = _frame()
+    if invalid == "no_depth":
+        frame.depth_m = None
+    elif invalid == "empty_depth":
+        frame.depth_m[:] = 0
+    elif invalid == "old_capture":
+        frame.t -= m.max_age_s + 1
+    else:
+        frame.t += m.max_age_s + 1
+    m.refresh(frame, np.eye(4))
+    with pytest.raises(SafetyViolation, match="fresh nonempty depth frame"):
+        m.clearance(np.zeros((1, 3)))
+
+
+def test_required_map_does_not_renew_observation_age_when_query_returns(monkeypatch):
+    from cascade.perception import occupancy
+
+    m = _required_grid()
+    frame = _frame()
+    # A slow bridge may finish successfully after the capture's validity
+    # window; receiving its reply must not renew that window.
+    clock = frame.t
+    monkeypatch.setattr(occupancy.time, "monotonic", lambda: clock)
+    original = m._client.request
+
+    def delayed_query(packet):
+        nonlocal clock
+        result = original(packet)
+        if packet["action"] == "query":
+            clock += m.max_age_s + 1
+        return result
+
+    m._client.request = delayed_query
+    m.refresh(frame, np.eye(4))
+    with pytest.raises(SafetyViolation, match="stale"):
+        m.clearance(np.zeros((1, 3)))
+
+
+@pytest.mark.parametrize("attached", [False, True])
+def test_required_map_rechecks_age_after_interpolation(monkeypatch, attached):
+    from cascade.perception import occupancy
+
+    m = _required_grid()
+    clock = m._last_refresh + .1
+    monkeypatch.setattr(occupancy.time, "monotonic", lambda: clock)
+    original = m._sample_grid
+
+    def sample(points):
+        nonlocal clock
+        result = original(points)
+        clock += m.max_age_s
+        return result
+
+    monkeypatch.setattr(m, "_sample_grid", sample)
+    query = m.payload_clearance if attached else m.clearance
+    with pytest.raises(SafetyViolation, match="stale"):
+        query(np.zeros((1, 3)))
+
+
+@pytest.mark.parametrize("required", [False, True])
+def test_observed_border_cell_does_not_borrow_clearance_from_unknown_neighbor(required):
+    m = _required_grid()
+    m.required = required
+    m._client.grid[:] = np.inf
+    m._client.grid[-1, -1, -1] = .0295
+    m.refresh(_frame(), np.eye(4))
+    # At the last voxel centre, only that cell has nonzero interpolation
+    # weight. Mixing a 1e-6 sliver of unknown-as-1000 would cross the 30 mm
+    # threshold despite the actual observed clearance being below it.
+    point = np.full((1, 3), .5)
+    np.testing.assert_allclose(m.clearance(point), [.0295])
+    np.testing.assert_allclose(m.payload_clearance(point), [.0295])
+
+
 # ─────────────────────────────────────────────────────────────────────────
 # REAL WIRE. Everything above uses FakeClient, so it verifies cache rules
 # and harness behaviour but never the ZMQ/msgpack protocol itself: a bridge

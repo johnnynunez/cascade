@@ -90,7 +90,7 @@ The same admitted capture can feed the [spatial observation domain](RGBD_SPATIAL
 through its exact returned `capture_sha256`, epoch and sequence. Sharing it does
 not acquire another frame or refresh its original age.
 
-The initial native producer requires its fixed world camera. Do not label its output as
+The default native producer requires its fixed world camera. Do not label its output as
 a robot-mounted sensor: `world_from_camera` maps the optical frame to `world`,
 not to a head, torso or robot base. A moving mount requires a new producer
 contract for its measured pose and a distinct calibration policy.
@@ -117,13 +117,52 @@ capture. Unknown bounds stay unknown; known bounds include the rotating lever
 arm. Neither a new pose nor a new receipt can rejuvenate old pixels.
 
 The existing static calibration version 2 / packet version 1 remains unchanged
-and refuses an injected dynamic pose. The shipped Newton launcher still uses
-that static producer. The new moving path has CPU transport/geometry evidence
-only; no Fabric pose adapter, moving native camera, articulated mount or physical
-calibration has been admitted. Such an adapter must observe the actual rig pose
-at the same render completion, not read USD defaults or interpolate an unrelated
-controller sample. No camera, depth, map or navigation acceptance transfers
-from the earlier static captures.
+and refuses an injected dynamic pose. The moving path has CPU transport/geometry
+evidence only; no moving native camera, articulated mount or physical calibration
+has been admitted. No camera, depth, map or navigation acceptance transfers from
+the earlier static captures.
+
+### Registered Fabric rig adapter (opt-in, not yet natively validated)
+
+On the explicit `isaac62_48b2d951` recipe, the Newton bridge accepts
+`--camera-rgbd --camera-mount /absolute/mount.json --camera-mount-sha256 SHA256`.
+The mount file has exactly these fields:
+
+```json
+{
+  "schema": "cascade.rigid-render-camera.v1",
+  "rig_prim_path": "/World/MicroDuck/base",
+  "rig_frame_id": "camera_rig",
+  "rig_from_camera": [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1],
+  "position_error_m": null,
+  "angular_error_rad": null
+}
+```
+
+This illustrates the schema, not an admitted robot mount or useful view. The
+path must name one existing rigid body with an exact Newton body label and
+Fabric `newton:index`. The camera is a direct child with a fixed local optical
+transform, authored only at startup. USD world transforms and controller poses
+are not capture-pose inputs. The mount bytes, observed local calibration, body
+index and adapter source become part of the effective model identity.
+
+At capture, the adapter reads that body's `omni:fabric:worldMatrix` and the
+`camera_params` annotator attached to the same render product. SDK48's view
+matrix uses row vectors and maps world to camera view; the optical transform is
+`inverse(view.T) @ diag(1,-1,-1,1)`. It must match
+`world_from_rig @ rig_from_camera` within a fixed `1e-5` matrix-component
+consistency tolerance. Intrinsics, centered pinhole projection, meters and
+resolution are checked against calibration. Rig/pose/render references must
+remain unchanged around both RGB and depth reads; all physical clocks and
+signal checkpoints remain enforced. Each saved frame records a hashed
+`.pose.json` with the selected raw camera parameters and registered body index.
+
+The numeric agreement check is not an uncertainty estimate: dynamic position
+and angular bounds remain `null`, and missing mount bounds stay `null`. Public
+render references bracket the AOV readbacks; CPU tests cannot establish native
+pixel/pose synchronization or metric accuracy. Those require a separately
+reviewed native episode and a new model identity. This path supplies simulation
+pose provenance, not calibrated localization or navigation admission.
 
 ## Packet semantics and failure behavior
 

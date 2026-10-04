@@ -324,7 +324,7 @@ def read_native_body_properties(ns, *, root_path="/World/MicroDuck"):
                 newton_gravity_vectors_m_s2=gravity.astype(float).tolist())
 
 
-def capture_bound_rgb(ns, app, readback, *, updates, checkpoint=lambda: None, calibration=None):
+def capture_bound_rgb(ns, app, readback, *, updates, checkpoint=lambda: None, calibration=None, pose_reader=None):
     """Main-thread capture with both physical clocks held fixed during render."""
     import time
     import numpy as np
@@ -344,6 +344,7 @@ def capture_bound_rgb(ns, app, readback, *, updates, checkpoint=lambda: None, ca
         if (ns.simulation_step_count, float(ns.sim_time)) != before:
             raise RuntimeError('render advanced uncontrolled physics')
     before_render_times = None
+    before_pose = pose_reader(camera_calibration, checkpoint) if pose_reader is not None else None
     if calibration is not None:
         data, _, before_render_times = readback.get_data_bound('rgb', checkpoint=checkpoint)
     else:
@@ -379,6 +380,12 @@ def capture_bound_rgb(ns, app, readback, *, updates, checkpoint=lambda: None, ca
             raise RuntimeError('camera calibration changed during RGB-D capture')
         extra = dict(depth_m=depth, calibration=camera_calibration,
                      rgbd_render_times={'rgb': before_render_times, 'depth': depth_times})
+        if pose_reader is not None:
+            after_pose = pose_reader(camera_calibration, checkpoint)
+            if before_pose != after_pose or after_pose['render_reference'] != before_render_times:
+                raise RuntimeError('RGB-D rig pose and channels do not share one render completion')
+            extra['capture_pose'] = {k:v for k,v in after_pose.items() if k != 'evidence'}
+            extra['pose_evidence'] = after_pose['evidence']
     checkpoint()
     times = readback.get_render_times()
     checkpoint()
@@ -434,7 +441,7 @@ def synchronize_camera_authoring(app, timeline, manager, native_stage, *, checkp
     return dict(app_updates=1, before=before, after=after)
 
 
-def create_overview_sensor(stage, camera, sensor_factory, *, sync_renderer, rgbd=False):
+def create_overview_sensor(stage, camera, sensor_factory, *, sync_renderer, rgbd=False, camera_path=OVERVIEW_CAMERA):
     """Author a stable product for CameraSensor's supported asset-RP path.
 
     Isaac Sim 6.1 SensorRuntime._find_asset_render_product discovers a
@@ -449,11 +456,11 @@ def create_overview_sensor(stage, camera, sensor_factory, *, sync_renderer, rgbd
     from pxr import Gf, Sdf
     if stage.GetPrimAtPath(OVERVIEW_RENDER_PRODUCT).IsValid():
         raise ValueError('overview render product path is already occupied')
-    if (tuple(camera.paths) != (OVERVIEW_CAMERA,)
-            or stage.GetPrimAtPath(OVERVIEW_CAMERA).GetTypeName() != 'Camera'):
+    if (tuple(camera.paths) != (camera_path,)
+            or stage.GetPrimAtPath(camera_path).GetTypeName() != 'Camera'):
         raise ValueError('overview requires the exact owned camera prim')
     product = stage.DefinePrim(OVERVIEW_RENDER_PRODUCT, 'RenderProduct')
-    product.CreateRelationship('camera', custom=False).SetTargets([Sdf.Path(OVERVIEW_CAMERA)])
+    product.CreateRelationship('camera', custom=False).SetTargets([Sdf.Path(camera_path)])
     product.CreateAttribute('resolution', Sdf.ValueTypeNames.Int2, custom=False,
                             variability=Sdf.VariabilityUniform).Set(Gf.Vec2i(640, 480))
     color_path = Sdf.Path(OVERVIEW_RENDER_PRODUCT + '/LdrColor')
@@ -471,7 +478,7 @@ def create_overview_sensor(stage, camera, sensor_factory, *, sync_renderer, rgbd
                     render_resolution=None if resolution is None else list(resolution),
                     sensor_resolution=None if sensor.resolution is None else list(sensor.resolution),
                     ordered_vars=[str(p) for p in actual.GetRelationship('orderedVars').GetTargets()])
-    if (observed['path'] != OVERVIEW_RENDER_PRODUCT or observed['camera_targets'] != [OVERVIEW_CAMERA]
+    if (observed['path'] != OVERVIEW_RENDER_PRODUCT or observed['camera_targets'] != [camera_path]
             or observed['render_resolution'] != [640, 480] or observed['sensor_resolution'] != [480, 640]):
         raise RuntimeError('CameraSensor did not adopt the exact authored overview render product: '
                            + json.dumps(observed, sort_keys=True))
@@ -492,6 +499,7 @@ class KitNewtonBackend:
         self._captures = 0
         self._last_support_solve = None
         self._calibration_reader = None
+        self._pose_reader = self._pose_annotator = self._capture_identity = None
         self.signals = None
         self._solver_graph = None
         self._sdk_recipe = getattr(args, 'sdk_recipe', None)
@@ -667,6 +675,11 @@ class KitNewtonBackend:
                                                mujoco=mujoco.__version__, mujoco_warp=mujoco_warp.__version__)
         self._bind_native_model(ns)
         self._checkpoint()
+        if self.admission.get('camera_mount') is not None:
+            from .mobile_camera_pose import FabricRigReader
+            self._pose_reader = FabricRigReader(ns, self.admission['camera_mount']['definition'],
+                                               self.readback, self._pose_annotator)
+            self.receipt['rgbd_camera']['fabric_body_index'] = self._pose_reader.index
         import inspect
         from cascade.sim.microduck_solver_graph import SolverGraphContract
         self._solver_graph = SolverGraphContract(ns,
@@ -740,12 +753,29 @@ class KitNewtonBackend:
         sun = UsdLux.DistantLight.Define(stage, '/World/Sun')
         sun.CreateIntensityAttr(1200.)
         sun.AddRotateXYZOp().Set(Gf.Vec3f(-50., 20., 0.))
-        eye, target = (Gf.Vec3d(*v) for v in self._camera_pose())
-        quat = Gf.Matrix4d().SetLookAt(eye, target, Gf.Vec3d(0., 0., 1.)).GetInverse().ExtractRotationQuat()
-        camera = RtxCamera(OVERVIEW_CAMERA, tick_rate=0., translations=list(eye),
+        mount = self.admission.get('camera_mount')
+        path = OVERVIEW_CAMERA
+        if mount is None:
+            eye, target = (Gf.Vec3d(*v) for v in self._camera_pose())
+            quat = Gf.Matrix4d().SetLookAt(eye, target, Gf.Vec3d(0., 0., 1.)).GetInverse().ExtractRotationQuat()
+        else:
+            import numpy as np
+            from pxr import UsdPhysics
+            from .mobile_camera_pose import camera_path
+            definition = mount['definition']
+            rig = stage.GetPrimAtPath(definition['rig_prim_path'])
+            if not rig or not rig.HasAPI(UsdPhysics.RigidBodyAPI):
+                raise ValueError('camera mount must name an existing physical rigid body')
+            path = camera_path(definition)
+            if stage.GetPrimAtPath(path).IsValid():
+                raise ValueError('owned mounted camera path already exists')
+            local = np.array(definition['rig_from_camera']).reshape(4,4) @ np.diag([1.,-1.,-1.,1.])
+            eye = local[:3,3].tolist()
+            quat = Gf.Matrix4d(tuple(tuple(float(v) for v in row) for row in local.T)).ExtractRotationQuat()
+        camera = RtxCamera(path, tick_rate=0., translations=list(eye),
                            orientations=[quat.GetReal(), *quat.GetImaginary()])
         camera.camera.set_clipping_ranges(.005, 20.)
-        optics = UsdGeom.Camera(stage.GetPrimAtPath(OVERVIEW_CAMERA))
+        optics = UsdGeom.Camera(stage.GetPrimAtPath(path))
         optics.GetFocalLengthAttr().Set(18.)
         optics.GetHorizontalApertureAttr().Set(20.955)
         optics.GetVerticalApertureAttr().Set(20.955 * 480 / 640)
@@ -753,7 +783,8 @@ class KitNewtonBackend:
             self.receipt['camera_authoring_sync'] = synchronize_camera_authoring(
                 self.app, self.timeline, self.SM, acquire_stage(), checkpoint=self._checkpoint)
         rgbd = getattr(self.args, 'camera_rgbd', False)
-        sensor = create_overview_sensor(stage, camera, CameraSensor, sync_renderer=sync_renderer, rgbd=rgbd)
+        sensor = create_overview_sensor(stage, camera, CameraSensor, sync_renderer=sync_renderer,
+                                        rgbd=rgbd, camera_path=path)
         self._checkpoint()
         product = str(sensor.render_product.GetPath())
         self.readback = CpuCameraReadback(sensor, render_product_id=product)
@@ -765,11 +796,17 @@ class KitNewtonBackend:
         self.receipt['camera'] = dict(name='overview', render_product=product, resolution=[480, 640])
         self._calibration_reader = None
         if rgbd:
-            from cascade.sim.mobile_rgbd import calibration_record, read_static_calibration
-            self._calibration_reader = lambda: read_static_calibration(stage, OVERVIEW_CAMERA)
+            from cascade.sim.mobile_rgbd import calibration_record, read_static_calibration, read_mount_calibration
+            self._calibration_reader = (lambda: read_static_calibration(stage, path)) if mount is None else (
+                lambda: read_mount_calibration(stage, path, mount['definition']))
             observed, digest = calibration_record(self._calibration_reader())
             self.receipt['rgbd_camera'] = {'calibration': observed, 'calibration_sha256': digest,
                                          'render_product': product, 'annotator': 'distance_to_image_plane'}
+            if mount is not None:
+                self._pose_annotator = rep.AnnotatorRegistry.get_annotator('camera_params')
+                self._pose_annotator.attach([product])
+                self.receipt['rgbd_camera'].update(mount={k:v for k,v in mount.items() if k != 'path'},
+                    pose_source='registered Fabric body and same-render camera_params', camera_prim_path=path)
 
     @property
     def physics_clock(self):
@@ -849,12 +886,25 @@ class KitNewtonBackend:
             raise RuntimeError('support diagnostic requires a completed physical solve')
         return compare_native_force_api(self.ns)
 
+    def bind_capture_identity(self, identity):
+        """Bind only producer identity, never a controller pose or receipt clock."""
+        from ..robotics.contracts import identifier
+        if self._capture_identity is not None:
+            raise ValueError('capture identity already bound')
+        self._capture_identity = {'epoch': identifier(identity['epoch']),
+                                  'model_identity_sha256': digest_token(identity['model_identity_sha256'])}
+
     def capture(self):
         self._checkpoint()
         self._guard()
         result = capture_bound_rgb(self.ns, self.app, self.readback,
             updates=16 if self._captures == 0 else 3, checkpoint=self._checkpoint,
-            calibration=self._calibration_reader)
+            calibration=self._calibration_reader, pose_reader=self._pose_reader)
+        if self._pose_reader is not None:
+            if self._capture_identity is None:
+                raise RuntimeError('mounted capture requires its opened model/epoch identity')
+            result['capture_pose'].update(self._capture_identity, step=result['step'], sim_time_s=result['sim_time_s'],
+                                          world_frame_id='world')
         self._captures += 1
         return result
 
@@ -873,6 +923,12 @@ class KitNewtonBackend:
             self.contain('lifecycle teardown; not physical stop acceptance')
         except Exception as exc:
             errors.append(str(exc))
+        if self._pose_annotator is not None:
+            try:
+                self._pose_annotator.detach()
+            except Exception as exc:
+                errors.append(str(exc))
+            self._pose_annotator = None
         if self.readback is not None:
             for cleanup in (self.readback.detach_render_times,
                             lambda: self.readback.detach_annotators(

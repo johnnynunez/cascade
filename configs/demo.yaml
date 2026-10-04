@@ -27,14 +27,16 @@ safety:
 # cpu (1.0 cm voxels, ESDF)" or "none (...)"): a bridge nobody started is
 # visible, not silent. Booth rule still applies at every layer -- missing
 # client deps (`grasping` extra), a down/slow bridge or a stale cache degrade
-# to "no occupancy check", never to blocking motion. CASCADE_OCCUPANCY=0 is
-# the kill switch (the test suite pins it off).
+# to "no occupancy check" by default. Set required: true for a profile that
+# must reject startup/motion without a fresh observed distance map; disabling
+# that required map with CASCADE_OCCUPANCY=0 is a configuration error.
 occupancy:
   enabled: true
+  required: false
   host: 127.0.0.1
   port: 5557
   timeout_ms: 500          # per ZMQ round trip; refreshed at perception_loop.rate_hz, not per waypoint
-  max_age_s: 10.0          # cached obstacle cloud older than this is treated as absent
+  max_age_s: 10.0          # expiry skips an optional map and blocks a required map
   stride: 8                # legacy cloud-protocol subsampling (old bridges)
   depth_stride: 2          # depth-frame subsampling shipped to the bridge (640x480 -> 320x240)
   probe_timeout_ms: 300    # startup probe; a bridge that is up answers in < 5 ms

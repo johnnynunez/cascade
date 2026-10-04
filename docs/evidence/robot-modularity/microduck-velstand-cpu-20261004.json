@@ -1,0 +1,893 @@
+{
+  "schema": "cascade.microduck.velstand-cpu-evidence.v1",
+  "scope": "One preregistered eight-case MuJoCo/BAM unified-policy experiment. Retained negative motion outcomes; not Newton, ordinary MCP or hardware admission.",
+  "physical_admission": false,
+  "status": {
+    "capture_and_audits": "PASS",
+    "all_cpu_criteria_met": 0,
+    "cases": 8,
+    "failed_cases": 8,
+    "native_admission": false
+  },
+  "previous_evidence": {
+    "microduck-predictive-transition-cpu-20261004.json": "e57707e1b881ef26cbe39e9019e6ee3d7ae9aee058e4f84f5e7da91c54cc396f",
+    "microduck-standing-transition-cpu-20261004.json": "bdbc723a47bb98dc3129e146fd6183bc5bd354c6ec4db84ee0e9413c1918916b"
+  },
+  "source_scope": "Standalone CPU harness with exact upstream PolicyInference and one VelStand session; no production locomotion policy or runtime behavior changed.",
+  "lab": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate",
+  "plan_sha256": "19e253b39468fe891e0172c568a0f8e1b6092c6368790aa6d5714d43322160ce",
+  "launch_binding_sha256": "49548928537e91b90a93dc272725c57b7d308b2c66e0b6332d90ab2c592176f7",
+  "frozen_input_count": 10920,
+  "sources_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/actuator_telemetry.py": "247d7cfc49c2fc7268b10f7547f698ae48ddd64a8a1125971fccf15323e3b834",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/audit_actuators.py": "ca2576affaf3dc0959e7060175895715053c7db717b34c2cb46e52f93c8bf368",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/audit_control.py": "97709166c21b75d064762dbeb80e5e519e08dc8a33158b31ca413531fc6d8bc7",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/audit_lifecycle.py": "7e6abc828b06e4d34bdf99d3ac7bcb0e21be66e5613c317b2c5d93842bc954d9",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/geometric_control.py": "a9424978938cf53b78cc9294d6a50a3071a9ecdc8f95c86a9559c816881912dc",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/launch_corpus.py": "d8be370a87608af2e295c8e1dff4cc10279eeb3f08d43022a196afc67fd11c69",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/policy_contract.py": "e576967501c72c7a9b5202bf9a142d5f1e59c77397d5ec3478fbe15f54b0de9e",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/prepare_corpus.py": "df3a04cba750c74ee60580287d5b58d81ac6315cf8f2bd32a072a9cf02eea1cc",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/run_corpus.py": "db8917237f5ef03b252e5aa119f2909d63d70d1001ae1f0a1abb30eee2942d69",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/test_actuator_telemetry.py": "abc7a2938a695512a3fb6ab8c27a7dbc744b6dc6a12a2217ab388107c6ded0c6",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/test_audit.py": "4a1f511859e47050212e71ad8cd31003bdb5b667645b4b93f7885e57aca0d2a5",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/test_controller.py": "eca11353218d7bf58e9e9b2825a35819d23dcda9456927d4f6ffbb2c5d5bfbec",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/test_policy_switch.py": "ea05c8f5ee02362637f6841c8c6f63700b3b5068181f0f5fa3500b5218ea18e4"
+  },
+  "reference_script": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck_rl/scripts/infer_policy.py",
+    "sha256": "03bfd0642a880cd379e057536ee819bd1377d4af7b5206a57907d10afd1d4270",
+    "functions": [
+      "PolicyInference._update_command",
+      "PolicyInference._update_policy_session",
+      "PolicyInference.set_vel_cmd",
+      "PolicyInference.get_observations"
+    ],
+    "indices": {
+      "48:51": [
+        "vx",
+        "vy",
+        "wz"
+      ],
+      "51:55": [
+        "neck_pitch",
+        "head_pitch",
+        "head_yaw",
+        "head_roll"
+      ],
+      "55:61": [
+        "body_x",
+        "body_y",
+        "body_z",
+        "body_roll",
+        "body_pitch",
+        "body_yaw"
+      ]
+    },
+    "selector": "Single walking_session, no standing_session: no switch. walking maps vel_cmd to twist slots.",
+    "modes": "No sitstand posture flag, ground_pick phase, behavior, head or body mode active.",
+    "observation": "Raw gyro, projected gravity, q-HOME, dq, previous committed raw14, raw command13; graph owns normalization."
+  },
+  "single_policy": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/policy-admitted/microduck-policies/velstand.onnx",
+    "sha256": "1c659be55da94bc5753b707de5c6a3e7c49931e05ca3b6991615cef1a8ba9a45",
+    "size": 793705,
+    "input": {
+      "name": "obs",
+      "dtype": "float32",
+      "shape": [
+        1,
+        61
+      ]
+    },
+    "output": {
+      "name": "actions",
+      "dtype": "float32",
+      "shape": [
+        1,
+        14
+      ]
+    },
+    "normalization": "embedded Sub/Div; raw observations supplied once",
+    "normalizer_mean_sha256": "a389acfef664c1ccd01a166a2f283736f7fed0bc40d66234f2cae8ba85240261",
+    "normalizer_divisor_sha256": "171e74ceef6667f3752515b9f88e65c3e4bd0c5f80be7d10c77bccd6645deecb",
+    "node_types": [
+      "Sub",
+      "Div",
+      "Gemm",
+      "Elu",
+      "Gemm",
+      "Elu",
+      "Gemm",
+      "Elu",
+      "Gemm"
+    ],
+    "opsets": {
+      "": 18
+    }
+  },
+  "contract": {
+    "selection": "VelStand during preparation, DRIVE and full-zero terminal tail. Only one walking_session exists; no standing_session, reset or blend.",
+    "preparation": "Changing the preparation policy changes the state before the first command. The experiment evaluates the whole candidate, not an isolated change to braking.",
+    "command": "Original geometric controller: vx +/-0.3 while DRIVE, completed-observation heading feedback, zero head/body channels. Full zero outside DRIVE; no predictive cutoff or case-specific phase selection.",
+    "history": "Previous committed raw14 remains continuous. Original pre/post-inference cancellation/deadline fences; one history/target commit per admitted policy slot.",
+    "vetos": "Original distance, lateral/heading, pose, contact, deadline and rest criteria. Quiet tails do not repair failed travel.",
+    "geometry_rest_limits": {
+      "sample_interval_s": 0.02,
+      "read_timeout_s": 0.5,
+      "max_wall_duration_s": 29.0,
+      "settle_timeout_s": 3.0,
+      "settle_window_s": 0.2,
+      "min_motion_samples": 5,
+      "min_settle_samples": 3,
+      "max_samples": 1451,
+      "max_history": 30,
+      "max_state_age_s": 0.5,
+      "max_sample_gap_s": 0.15,
+      "max_position_abs_m": 2.0,
+      "max_linear_speed_m_s": 1.0,
+      "max_angular_speed_rad_s": 6.0,
+      "min_height_m": 0.06,
+      "max_tilt_rad": 0.5,
+      "min_progress_ratio": 0.8,
+      "max_progress_ratio": 1.25,
+      "translation_tolerance_m": 0.015,
+      "rotation_tolerance_rad": 0.04,
+      "max_lateral_drift_m": 0.02,
+      "max_heading_drift_rad": 0.08,
+      "stop_linear_speed_m_s": 0.02,
+      "stop_angular_speed_rad_s": 0.1,
+      "stop_drift_m": 0.005,
+      "stop_drift_rad": 0.03
+    },
+    "budgets": {
+      "action_wall_s": 8.0,
+      "action_steps_cap": 600,
+      "tail_wall_s": 3.0,
+      "tail_steps": 600,
+      "corpus_wall_s": 120.0,
+      "scope_wall_s": 150.0
+    },
+    "cadence": {
+      "physics_dt_s": 0.005,
+      "policy_every_solves": 4,
+      "policy_hz": 50,
+      "baseline": "First completed solve after commanded onset; no pre-command positive credit",
+      "stop": "Decision after a completed solve; exact zero at next unchanged 50Hz policy slot"
+    }
+  },
+  "totals": {
+    "solves": 12480,
+    "policy_rows": 3120,
+    "contact_rows": 53593,
+    "control_failures": 8,
+    "geometric_completions": 0
+  },
+  "cases": [
+    {
+      "id": "forward-geometric-start300",
+      "receipt_sha256": "2673bccf6a0698c7dd29a2e383ce29aa883cbae05761e642b10976ac461941ff",
+      "baseline_step": 301,
+      "distance_entry_step": null,
+      "terminal_step": 900,
+      "first_terminal_zero_step": 901,
+      "solves": 1500,
+      "policy_rows": 375,
+      "contact_rows": 6787,
+      "action_wall_s": 0.1564181590001681,
+      "control_failure": "action deadline before geometric completion",
+      "geometric_completion": false,
+      "first_active_veto": null,
+      "outcome_vetos": {
+        "analysis": {
+          "step": 914,
+          "reason": "insufficient progress on vx"
+        }
+      },
+      "first_pose_veto": null,
+      "first_forbidden_contact": null,
+      "hold_windows": [],
+      "terminal_window": {
+        "first_step": 1459,
+        "last_step": 1500,
+        "samples": 42,
+        "duration_s": 0.20499999999999563,
+        "max_linear_speed_m_s": 0.001080350236186086,
+        "max_angular_speed_rad_s": 0.010915112368602162,
+        "drift_m": 8.459821814432517e-05,
+        "rotation_rad": 0.0008644660410133975,
+        "numeric_limits_met": true,
+        "sole_floor_positive_normal_every_step": true
+      },
+      "final_body_displacement_m": [
+        -0.0008749307708225666,
+        -0.000584438975754346
+      ],
+      "final_yaw_rad": -0.0024476105542518304,
+      "all_cpu_criteria_met": false,
+      "motion_before_terminal": {
+        "completed_action_samples": 600,
+        "elapsed_action_observation_s": 2.994999999999936,
+        "final_active_body_xy_m": [
+          0.011116226106679252,
+          0.001965516799289035
+        ],
+        "final_active_yaw_rad": -0.012026896492123806,
+        "signed_progress_min_m": 0.0,
+        "signed_progress_max_m": 0.011376329581688095,
+        "max_abs_lateral_m": 0.0025048197865302907,
+        "max_abs_yaw_rad": 0.015729570973206947,
+        "max_linear_speed_m_s": 0.05962968823278,
+        "max_angular_speed_rad_s": 0.25532583351460136,
+        "phase_counts": {
+          "STANDING": 75,
+          "DRIVE": 150,
+          "FAILED": 150
+        },
+        "head_body_slots_zero_every_row": true,
+        "drive_action_delta_l2_median": 0.009505427341777959,
+        "drive_action_delta_l2_max": 0.09097721676158688
+      }
+    },
+    {
+      "id": "reverse-geometric-start300",
+      "receipt_sha256": "814cd07d08689ee5f7ce36797354d71df34ec32017c5b256ece951f4941720b7",
+      "baseline_step": 301,
+      "distance_entry_step": null,
+      "terminal_step": 900,
+      "first_terminal_zero_step": 901,
+      "solves": 1500,
+      "policy_rows": 375,
+      "contact_rows": 6051,
+      "action_wall_s": 0.14425505999679444,
+      "control_failure": "action deadline before geometric completion",
+      "geometric_completion": false,
+      "first_active_veto": null,
+      "outcome_vetos": {
+        "analysis": {
+          "step": 900,
+          "reason": "insufficient progress on vx"
+        }
+      },
+      "first_pose_veto": null,
+      "first_forbidden_contact": null,
+      "hold_windows": [],
+      "terminal_window": {
+        "first_step": 1459,
+        "last_step": 1500,
+        "samples": 42,
+        "duration_s": 0.20499999999999563,
+        "max_linear_speed_m_s": 0.001489727610247796,
+        "max_angular_speed_rad_s": 0.014572427353094894,
+        "drift_m": 8.812148820050828e-05,
+        "rotation_rad": 0.0008856294540351969,
+        "numeric_limits_met": true,
+        "sole_floor_positive_normal_every_step": true
+      },
+      "final_body_displacement_m": [
+        -6.45649373191664e-05,
+        0.0008873418010698367
+      ],
+      "final_yaw_rad": -0.02280997596633131,
+      "all_cpu_criteria_met": false,
+      "motion_before_terminal": {
+        "completed_action_samples": 600,
+        "elapsed_action_observation_s": 2.994999999999936,
+        "final_active_body_xy_m": [
+          -0.0024677273310366897,
+          0.003731774747457512
+        ],
+        "final_active_yaw_rad": -0.03908879820151507,
+        "signed_progress_min_m": -0.0,
+        "signed_progress_max_m": 0.0026362621629522913,
+        "max_abs_lateral_m": 0.003731774747457512,
+        "max_abs_yaw_rad": 0.03908879820151507,
+        "max_linear_speed_m_s": 0.024665427388389147,
+        "max_angular_speed_rad_s": 0.281527975357733,
+        "phase_counts": {
+          "STANDING": 75,
+          "DRIVE": 150,
+          "FAILED": 150
+        },
+        "head_body_slots_zero_every_row": true,
+        "drive_action_delta_l2_median": 0.0015698375793038457,
+        "drive_action_delta_l2_max": 0.12314385953140078
+      }
+    },
+    {
+      "id": "forward-geometric-start340",
+      "receipt_sha256": "ca1c7ada6b2413ece78a85fd5cdc534bda9ebee12a4c23109f120c0f14e66087",
+      "baseline_step": 341,
+      "distance_entry_step": null,
+      "terminal_step": 940,
+      "first_terminal_zero_step": 941,
+      "solves": 1540,
+      "policy_rows": 385,
+      "contact_rows": 6952,
+      "action_wall_s": 0.14714453700435115,
+      "control_failure": "action deadline before geometric completion",
+      "geometric_completion": false,
+      "first_active_veto": null,
+      "outcome_vetos": {
+        "analysis": {
+          "step": 954,
+          "reason": "insufficient progress on vx"
+        }
+      },
+      "first_pose_veto": null,
+      "first_forbidden_contact": null,
+      "hold_windows": [],
+      "terminal_window": {
+        "first_step": 1499,
+        "last_step": 1540,
+        "samples": 42,
+        "duration_s": 0.20499999999999563,
+        "max_linear_speed_m_s": 0.0007666379047885359,
+        "max_angular_speed_rad_s": 0.00779245714472887,
+        "drift_m": 6.437668516807861e-05,
+        "rotation_rad": 0.0006712608767447596,
+        "numeric_limits_met": true,
+        "sole_floor_positive_normal_every_step": true
+      },
+      "final_body_displacement_m": [
+        -0.0009221168697919162,
+        -0.0006274980789148982
+      ],
+      "final_yaw_rad": -0.0036624831851334474,
+      "all_cpu_criteria_met": false,
+      "motion_before_terminal": {
+        "completed_action_samples": 600,
+        "elapsed_action_observation_s": 2.994999999999936,
+        "final_active_body_xy_m": [
+          0.011099716007471623,
+          0.002003739090120131
+        ],
+        "final_active_yaw_rad": -0.011213769207342027,
+        "signed_progress_min_m": 0.0,
+        "signed_progress_max_m": 0.011395350570214402,
+        "max_abs_lateral_m": 0.0024982238941041184,
+        "max_abs_yaw_rad": 0.016319183232609377,
+        "max_linear_speed_m_s": 0.06027927682927285,
+        "max_angular_speed_rad_s": 0.2401057966032456,
+        "phase_counts": {
+          "STANDING": 85,
+          "DRIVE": 150,
+          "FAILED": 150
+        },
+        "head_body_slots_zero_every_row": true,
+        "drive_action_delta_l2_median": 0.009006786240229978,
+        "drive_action_delta_l2_max": 0.09106268940036062
+      }
+    },
+    {
+      "id": "reverse-geometric-start340",
+      "receipt_sha256": "b018b05af562a21689b2f091101788384fe8471e42bd3b79164f03277efa491a",
+      "baseline_step": 341,
+      "distance_entry_step": null,
+      "terminal_step": 940,
+      "first_terminal_zero_step": 941,
+      "solves": 1540,
+      "policy_rows": 385,
+      "contact_rows": 6238,
+      "action_wall_s": 0.14010212999710348,
+      "control_failure": "action deadline before geometric completion",
+      "geometric_completion": false,
+      "first_active_veto": null,
+      "outcome_vetos": {
+        "analysis": {
+          "step": 940,
+          "reason": "insufficient progress on vx"
+        }
+      },
+      "first_pose_veto": null,
+      "first_forbidden_contact": null,
+      "hold_windows": [],
+      "terminal_window": {
+        "first_step": 1499,
+        "last_step": 1540,
+        "samples": 42,
+        "duration_s": 0.20499999999999563,
+        "max_linear_speed_m_s": 0.0009234030651741091,
+        "max_angular_speed_rad_s": 0.00901764573331506,
+        "drift_m": 6.762106625836489e-05,
+        "rotation_rad": 0.0007601656823598944,
+        "numeric_limits_met": true,
+        "sole_floor_positive_normal_every_step": true
+      },
+      "final_body_displacement_m": [
+        -6.283290735522074e-05,
+        0.0008731181308213995
+      ],
+      "final_yaw_rad": -0.022955185227953288,
+      "all_cpu_criteria_met": false,
+      "motion_before_terminal": {
+        "completed_action_samples": 600,
+        "elapsed_action_observation_s": 2.994999999999936,
+        "final_active_body_xy_m": [
+          -0.002461894044036184,
+          0.0037444295098338462
+        ],
+        "final_active_yaw_rad": -0.03906778667487124,
+        "signed_progress_min_m": -0.0,
+        "signed_progress_max_m": 0.0026607117820764154,
+        "max_abs_lateral_m": 0.0037466527927410105,
+        "max_abs_yaw_rad": 0.039073205173450795,
+        "max_linear_speed_m_s": 0.02635540341474062,
+        "max_angular_speed_rad_s": 0.2811271956992547,
+        "phase_counts": {
+          "STANDING": 85,
+          "DRIVE": 150,
+          "FAILED": 150
+        },
+        "head_body_slots_zero_every_row": true,
+        "drive_action_delta_l2_median": 0.0014675485784922178,
+        "drive_action_delta_l2_max": 0.12208982416862293
+      }
+    },
+    {
+      "id": "forward-geometric-start380",
+      "receipt_sha256": "b1a60544b325313888667b7dad9784ff3d962383eadba59aac3e3dd947fe9fe0",
+      "baseline_step": 381,
+      "distance_entry_step": null,
+      "terminal_step": 980,
+      "first_terminal_zero_step": 981,
+      "solves": 1580,
+      "policy_rows": 395,
+      "contact_rows": 7175,
+      "action_wall_s": 0.1420948730010423,
+      "control_failure": "action deadline before geometric completion",
+      "geometric_completion": false,
+      "first_active_veto": null,
+      "outcome_vetos": {
+        "analysis": {
+          "step": 994,
+          "reason": "insufficient progress on vx"
+        }
+      },
+      "first_pose_veto": null,
+      "first_forbidden_contact": null,
+      "hold_windows": [],
+      "terminal_window": {
+        "first_step": 1539,
+        "last_step": 1580,
+        "samples": 42,
+        "duration_s": 0.20499999999999563,
+        "max_linear_speed_m_s": 0.0011007037803950593,
+        "max_angular_speed_rad_s": 0.012560949653706603,
+        "drift_m": 7.763548994760482e-05,
+        "rotation_rad": 0.0007655843024246576,
+        "numeric_limits_met": true,
+        "sole_floor_positive_normal_every_step": true
+      },
+      "final_body_displacement_m": [
+        -0.0008440694697705316,
+        -0.0006147184792779349
+      ],
+      "final_yaw_rad": -0.0037138684134562744,
+      "all_cpu_criteria_met": false,
+      "motion_before_terminal": {
+        "completed_action_samples": 600,
+        "elapsed_action_observation_s": 2.994999999999936,
+        "final_active_body_xy_m": [
+          0.011284501334785061,
+          0.0021483033801878012
+        ],
+        "final_active_yaw_rad": -0.011228272505613802,
+        "signed_progress_min_m": 0.0,
+        "signed_progress_max_m": 0.011378279731438807,
+        "max_abs_lateral_m": 0.0025164684178587246,
+        "max_abs_yaw_rad": 0.016317718880656966,
+        "max_linear_speed_m_s": 0.06020530324341524,
+        "max_angular_speed_rad_s": 0.2422920073816152,
+        "phase_counts": {
+          "STANDING": 95,
+          "DRIVE": 150,
+          "FAILED": 150
+        },
+        "head_body_slots_zero_every_row": true,
+        "drive_action_delta_l2_median": 0.006253696181919508,
+        "drive_action_delta_l2_max": 0.09145652146345706
+      }
+    },
+    {
+      "id": "reverse-geometric-start380",
+      "receipt_sha256": "85c536b8db1459b293c828677202027e757973441dde5a4a72fc03d6817bff9b",
+      "baseline_step": 381,
+      "distance_entry_step": null,
+      "terminal_step": 980,
+      "first_terminal_zero_step": 981,
+      "solves": 1580,
+      "policy_rows": 395,
+      "contact_rows": 6431,
+      "action_wall_s": 0.13972663900494808,
+      "control_failure": "action deadline before geometric completion",
+      "geometric_completion": false,
+      "first_active_veto": null,
+      "outcome_vetos": {
+        "analysis": {
+          "step": 980,
+          "reason": "insufficient progress on vx"
+        }
+      },
+      "first_pose_veto": null,
+      "first_forbidden_contact": null,
+      "hold_windows": [],
+      "terminal_window": {
+        "first_step": 1539,
+        "last_step": 1580,
+        "samples": 42,
+        "duration_s": 0.20499999999999563,
+        "max_linear_speed_m_s": 0.0007699323017737599,
+        "max_angular_speed_rad_s": 0.007724325243920636,
+        "drift_m": 6.355766577353926e-05,
+        "rotation_rad": 0.0007005453851519677,
+        "numeric_limits_met": true,
+        "sole_floor_positive_normal_every_step": true
+      },
+      "final_body_displacement_m": [
+        -4.0456904591795344e-05,
+        0.0009045330396810931
+      ],
+      "final_yaw_rad": -0.02299485365262359,
+      "all_cpu_criteria_met": false,
+      "motion_before_terminal": {
+        "completed_action_samples": 600,
+        "elapsed_action_observation_s": 2.994999999999936,
+        "final_active_body_xy_m": [
+          -0.002450824788735843,
+          0.0037514758300835503
+        ],
+        "final_active_yaw_rad": -0.039011807585850676,
+        "signed_progress_min_m": -0.0,
+        "signed_progress_max_m": 0.0026788524798316334,
+        "max_abs_lateral_m": 0.003753656710175734,
+        "max_abs_yaw_rad": 0.03903258581095451,
+        "max_linear_speed_m_s": 0.028259163256394753,
+        "max_angular_speed_rad_s": 0.3045917578143253,
+        "phase_counts": {
+          "STANDING": 95,
+          "DRIVE": 150,
+          "FAILED": 150
+        },
+        "head_body_slots_zero_every_row": true,
+        "drive_action_delta_l2_median": 0.0013116028291244226,
+        "drive_action_delta_l2_max": 0.12173995601734326
+      }
+    },
+    {
+      "id": "forward-geometric-start420",
+      "receipt_sha256": "d63a23b8446c9793882e0fe61684c7357bfd759ee38b92e69807e9e7df1e36d9",
+      "baseline_step": 421,
+      "distance_entry_step": null,
+      "terminal_step": 1020,
+      "first_terminal_zero_step": 1021,
+      "solves": 1620,
+      "policy_rows": 405,
+      "contact_rows": 7339,
+      "action_wall_s": 0.16477455499989446,
+      "control_failure": "action deadline before geometric completion",
+      "geometric_completion": false,
+      "first_active_veto": null,
+      "outcome_vetos": {
+        "analysis": {
+          "step": 1034,
+          "reason": "insufficient progress on vx"
+        }
+      },
+      "first_pose_veto": null,
+      "first_forbidden_contact": null,
+      "hold_windows": [],
+      "terminal_window": {
+        "first_step": 1580,
+        "last_step": 1620,
+        "samples": 41,
+        "duration_s": 0.2000000000000126,
+        "max_linear_speed_m_s": 0.0010115788984105315,
+        "max_angular_speed_rad_s": 0.010755591411607007,
+        "drift_m": 7.474400389492333e-05,
+        "rotation_rad": 0.0007624133020275775,
+        "numeric_limits_met": true,
+        "sole_floor_positive_normal_every_step": true
+      },
+      "final_body_displacement_m": [
+        -0.0008603361949522029,
+        -0.0005514264697566505
+      ],
+      "final_yaw_rad": -0.005502154803265064,
+      "all_cpu_criteria_met": false,
+      "motion_before_terminal": {
+        "completed_action_samples": 600,
+        "elapsed_action_observation_s": 2.994999999999936,
+        "final_active_body_xy_m": [
+          0.011099976359329916,
+          0.0020647679816050844
+        ],
+        "final_active_yaw_rad": -0.013181758193840053,
+        "signed_progress_min_m": 0.0,
+        "signed_progress_max_m": 0.01129121459194835,
+        "max_abs_lateral_m": 0.0025289197750211446,
+        "max_abs_yaw_rad": 0.015693673402289006,
+        "max_linear_speed_m_s": 0.05838048246550206,
+        "max_angular_speed_rad_s": 0.24032903877455022,
+        "phase_counts": {
+          "STANDING": 105,
+          "DRIVE": 150,
+          "FAILED": 150
+        },
+        "head_body_slots_zero_every_row": true,
+        "drive_action_delta_l2_median": 0.008488000226915154,
+        "drive_action_delta_l2_max": 0.09189856950182325
+      }
+    },
+    {
+      "id": "reverse-geometric-start420",
+      "receipt_sha256": "ea3d51f5e999266c6bec7c67a94f1a0c238a941cdf720815d73bf7ac7bcb6352",
+      "baseline_step": 421,
+      "distance_entry_step": null,
+      "terminal_step": 1020,
+      "first_terminal_zero_step": 1021,
+      "solves": 1620,
+      "policy_rows": 405,
+      "contact_rows": 6620,
+      "action_wall_s": 0.16758060600113822,
+      "control_failure": "action deadline before geometric completion",
+      "geometric_completion": false,
+      "first_active_veto": null,
+      "outcome_vetos": {
+        "analysis": {
+          "step": 1020,
+          "reason": "insufficient progress on vx"
+        }
+      },
+      "first_pose_veto": null,
+      "first_forbidden_contact": null,
+      "hold_windows": [],
+      "terminal_window": {
+        "first_step": 1580,
+        "last_step": 1620,
+        "samples": 41,
+        "duration_s": 0.2000000000000126,
+        "max_linear_speed_m_s": 0.0007980419782739513,
+        "max_angular_speed_rad_s": 0.00803032379616116,
+        "drift_m": 6.013850874458892e-05,
+        "rotation_rad": 0.0006484259393097358,
+        "numeric_limits_met": true,
+        "sole_floor_positive_normal_every_step": true
+      },
+      "final_body_displacement_m": [
+        -3.279465774842298e-05,
+        0.0008744055928490605
+      ],
+      "final_yaw_rad": -0.02306017157648749,
+      "all_cpu_criteria_met": false,
+      "motion_before_terminal": {
+        "completed_action_samples": 600,
+        "elapsed_action_observation_s": 2.994999999999936,
+        "final_active_body_xy_m": [
+          -0.0024420078704659723,
+          0.00373659630896396
+        ],
+        "final_active_yaw_rad": -0.03906974095585625,
+        "signed_progress_min_m": -0.0,
+        "signed_progress_max_m": 0.0026438194882877964,
+        "max_abs_lateral_m": 0.00373659630896396,
+        "max_abs_yaw_rad": 0.03907032029480506,
+        "max_linear_speed_m_s": 0.027325197670362636,
+        "max_angular_speed_rad_s": 0.2928357517405747,
+        "phase_counts": {
+          "STANDING": 105,
+          "DRIVE": 150,
+          "FAILED": 150
+        },
+        "head_body_slots_zero_every_row": true,
+        "drive_action_delta_l2_median": 0.0012726222591393774,
+        "drive_action_delta_l2_max": 0.12354020098427086
+      }
+    }
+  ],
+  "actuators_by_fixed_interval": {
+    "standing": {
+      "solves": 2880,
+      "minimum_bam_effective_vin_v": 7.3513694059469294,
+      "max_abs_requested_pwm_duty": 0.11181603646053469,
+      "max_abs_requested_motor_torque_nm": 0.10772374783468548,
+      "max_abs_actuator_force_buffer": 0.10772374783468548,
+      "any_pwm_clipped_solves": 0,
+      "any_ctrl_force_difference_solves": 0
+    },
+    "action": {
+      "solves": 4800,
+      "minimum_bam_effective_vin_v": 7.318311872935004,
+      "max_abs_requested_pwm_duty": 0.2438437037385259,
+      "max_abs_requested_motor_torque_nm": 0.232778068724585,
+      "max_abs_actuator_force_buffer": 0.232778068724585,
+      "any_pwm_clipped_solves": 0,
+      "any_ctrl_force_difference_solves": 0
+    },
+    "tail": {
+      "solves": 4800,
+      "minimum_bam_effective_vin_v": 7.278904739876243,
+      "max_abs_requested_pwm_duty": 0.24807535111759377,
+      "max_abs_requested_motor_torque_nm": 0.23713214568728297,
+      "max_abs_actuator_force_buffer": 0.23713214568728297,
+      "any_pwm_clipped_solves": 0,
+      "any_ctrl_force_difference_solves": 0
+    }
+  },
+  "actuator_scope": {
+    "telemetry": {
+      "source": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/actuator_telemetry.py",
+      "source_sha256": "247d7cfc49c2fc7268b10f7547f698ae48ddd64a8a1125971fccf15323e3b834",
+      "purpose": "Preserve all actuator observations for one unified-policy candidate; no BAM gains, poses or limits change.",
+      "call_order": [
+        "compute_control.entry",
+        "pwm_clamp.entry",
+        "pwm_clamp.return",
+        "compute_control.return",
+        "compute_torque.entry",
+        "compute_torque.return"
+      ],
+      "pre_update": "Existing q_target/q/dq, data.time, last_ts, nominal vin and previous motor torque used by the sag model.",
+      "inside_update": "Observe actual clamp requested/limited duty, effective BAM vin, returned volts and returned motor torque; original methods called once.",
+      "post_update_pre_solve": "ctrl is BAM torque requested from MuJoCo; restored vin and new friction/damping coefficients.",
+      "post_mj_step": "Copy actuator_force and generalized actuator/passive/constraint/bias buffers after the original step, plus advanced q/dq. Force buffers belong to the last dynamics evaluation and are not claimed co-temporal with integrated q/dq.",
+      "metadata": "Exact actuator/joint/dof mapping, gear/gain/bias/dynamics, ctrl and force limits, integration/enable flags, and geom-body map.",
+      "unavailable": {
+        "current_a": "No direct current field; max_current=None stays unchanged.",
+        "torque_before_pwm_limit_nm": "Original voltage control computes raw PWM duty, not pre-limit torque."
+      },
+      "inference_limits": "No torque/kt current synthesis, hypothetical unclipped torque, hardware measurement or saturation claim from proximity alone. Separate actual PWM clipping from ctrl/force differences and from net joint load.",
+      "lifecycle": "Instance-only wrappers return original objects, detach capture arrays, restore original attribute state on close/error. Capture failures fail the case and retain partial calls; no duplicate motor law/forward/step/inference.",
+      "numerical_comparison": "Array-law tests prove wrappers preserve original results and single-call behavior. Future captures may be compared to retained previous arrays; no invariance is claimed before execution."
+    },
+    "limitations": [
+      "BAM vin is a simulated internal supply parameter; no measured current or pre-PWM torque is exposed.",
+      "PWM clipping is counted from observed requested and limited duty; it does not alone establish a cause of drift.",
+      "ctrl is the torque request; force buffers are the last dynamics evaluation and are not co-temporal with integrated q/dq.",
+      "Generalized actuator force is not net joint torque. Proximity to a force bound alone does not establish clipping.",
+      "Force-buffer equality to clipped ctrl is checked only for the recorded fixed-gain motor, unit gear, disabled joint-force clamp and Euler recipe.",
+      "Policy phase is the command held for this solve, including slots still held when a later per-solve veto fires."
+    ],
+    "interpretation": "No recorded PWM clamp or ctrl/actuator-force difference; effective voltage remains above 6V. This does not identify the physical or training cause of insufficient travel."
+  },
+  "closure": {
+    "unit": "cascade-voice-microduck-braking-corpus-0d6a1a7a44f246409580d41627da498f.scope",
+    "process_exit": 0,
+    "scope_exit": 0,
+    "signals": [],
+    "forced": false,
+    "members": [],
+    "births": [],
+    "old_births_absent": [
+      {
+        "pid": 946684,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "start_ticks": 4448602
+      },
+      {
+        "pid": 946686,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "start_ticks": 4448604
+      },
+      {
+        "pid": 946688,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "start_ticks": 4448637
+      }
+    ],
+    "current_unit_state": {
+      "LoadState": "not-found",
+      "ActiveState": "inactive",
+      "SubState": "dead"
+    }
+  },
+  "administrative": {
+    "frozen_inputs_unchanged": true,
+    "capture_exit": 0,
+    "audits": [
+      "control",
+      "actuators",
+      "global-lifecycle"
+    ],
+    "signals": [],
+    "forced": false,
+    "errors": []
+  },
+  "interpretation": [
+    "Both datasets use the same controller and plant, but different policy during preparation and DRIVE. This is not a matched-state causal policy-response comparison.",
+    "Velstand keeps all 150 DRIVE slots in each case and never enters the target tolerance. Failure is insufficient travel before the unchanged solve budget; it is not failed rest after attaining the target.",
+    "Recorded twist reaches obs[48:51] with all ten head/body slots zero. No missing mode bit or accidental zero-command routing was found in the exact inference source.",
+    "Observed action changes do not identify training provenance, command sensitivity at a matched state, or the physical cause of insufficient travel. No new inference or simulator call is performed.",
+    "All eight terminate at the original 600-action-solve bound with no geometric tolerance entry and no active pose/contact/lateral/heading veto. None enters BRAKE or HOLD.",
+    "At the deadline, forward body displacement is about 11.1mm and reverse about -2.45mm. The later full-zero tail returns close to the starting pose; the final tail displacement is distinct from displacement at the motion deadline.",
+    "Raw-action phase distributions and their changes are retained in the analysis artifact. Different preparation states and action interval lengths prohibit a matched-state causal comparison with the previous expert pair.",
+    "The same VelStand hash already failed historical native velocity-tracking objectives. This CPU capture does not supersede those negatives or establish a newly trained policy.",
+    "The ONNX contract is 61 observations and 14 actions, feed-forward with embedded normalization. Release asset provenance is pinned; no exact training checkpoint/commit is recovered from its run_path=None metadata."
+  ],
+  "artifacts_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/analyze_handoffs.py": "74e492054fec376aad3312246bd71e75aedb9ec1269e754e851f8385732ff2d8",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/analyze_velstand_retained.py": "4997ffe321c56f9fecf827a0c030acc64f36a1b78b28a65d61ea60fb8db4d14b",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/build_velstand_evidence.py": "b2f3343747223c7e56a0f4ed35d9e8f50ae4e20ce29fb2c8531426d30be9626b",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/handoff-static-analysis-01.json": "8d7156298f40867a3e764f06c778973e424bf43e510c1936cd3fd8a868a2c31e",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/actuator-audit-01.json": "3ad3ec8fcd0193eb5dffe5e8af72c4e1f67a9f54787e5ae381c1aa4ac3cb1d6f",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/check-only-01.json": "468097eba228c723bf0987bec8bc6364eae18afed25a2cf2582dee598a924730",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/control-audit-01.json": "8085a04063297dabc2add2b3365eba45624aeef9b90430adcba14b157a40f1df",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start300/actuator-model.json": "3b028d6d1d526c63a7d5f2520b94e4bd7d1d88750af19f5a21062455ab3f171d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start300/actuators.jsonl": "edc11d05c66a5143d7b4ee53a538fc70058fc0eb30b7b988d8abc6d3c1ada869",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start300/contacts.jsonl": "59d1e631192f96712d363015bed2f9d021d0b0fab4166214c1e313f88043fa27",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start300/full-state.npz": "07e62409ee9b5e23bc8eca12306d3aacbf07b0f5f7b0dc5fa149cbf3c8f06275",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start300/model.json": "96bc53aa6ac2c77503d69a27af40d479fa4ab7e77804c97c1cf748be7308393a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start300/policy.jsonl": "d5a28e8cb195258758676d9ffa94cdb1af8181269a231d1e87bfe8ab58afde2d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start300/receipt.json": "2673bccf6a0698c7dd29a2e383ce29aa883cbae05761e642b10976ac461941ff",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start300/solves.jsonl": "12b848877df6cb29f0232e8f0d56a8bdc7b4191b4e122d872016dc56d2d6b5b9",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start340/actuator-model.json": "3b028d6d1d526c63a7d5f2520b94e4bd7d1d88750af19f5a21062455ab3f171d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start340/actuators.jsonl": "746f84b00cc18ffe9cceca968203fa2df41824b6f711d18d72afce9344ee913f",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start340/contacts.jsonl": "451e13456bda2d68b2f56268b77792ae4fd75cec4bde420f2427cf145e1828f5",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start340/full-state.npz": "62eddb750205106621cb5461372ca2b1aed9739e1dbabd0001d706a12074cbea",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start340/model.json": "96bc53aa6ac2c77503d69a27af40d479fa4ab7e77804c97c1cf748be7308393a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start340/policy.jsonl": "3815a713324a343b23fda60d04a612bbdaa4098b66182e830d717fa59d762add",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start340/receipt.json": "ca1c7ada6b2413ece78a85fd5cdc534bda9ebee12a4c23109f120c0f14e66087",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start340/solves.jsonl": "ecbf171216e3c8964074efa59f7af02492faf07a99d49237300247bad544b297",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start380/actuator-model.json": "3b028d6d1d526c63a7d5f2520b94e4bd7d1d88750af19f5a21062455ab3f171d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start380/actuators.jsonl": "aba2df9a665958ba71161fd2178e573758aebbcac842de65522f982e2143b7c0",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start380/contacts.jsonl": "1a358be4b972d3aba5729f35f50c71bf21d7c1887b9e9268bf49211b56b6f053",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start380/full-state.npz": "d5ad3f5f0af432bcaa05fa1b040779f55e322997aaa8886195f48feb24840206",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start380/model.json": "96bc53aa6ac2c77503d69a27af40d479fa4ab7e77804c97c1cf748be7308393a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start380/policy.jsonl": "30dd1c128097d3a1029fb607960ac2674da9c76e5492003b366f605ee30103dc",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start380/receipt.json": "b1a60544b325313888667b7dad9784ff3d962383eadba59aac3e3dd947fe9fe0",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start380/solves.jsonl": "daa1bdd14c798e13fd233547749d6e91b2192817efee6b03b6fb1d06ff1d0dd9",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start420/actuator-model.json": "3b028d6d1d526c63a7d5f2520b94e4bd7d1d88750af19f5a21062455ab3f171d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start420/actuators.jsonl": "e9869eae6e0ab19146a63f2e3d90646215f0e37063ddb19ce8a664c808085228",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start420/contacts.jsonl": "f426b88bdb3fd33f4f62de8fccfaf334f5ae99964892f7830726d43e6b2c72b0",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start420/full-state.npz": "d1e12cc0e539ff73b6dfdc24ce194c076cc718e84233c663efe9816b3ab96fd5",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start420/model.json": "96bc53aa6ac2c77503d69a27af40d479fa4ab7e77804c97c1cf748be7308393a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start420/policy.jsonl": "3e36e7245b90c49a8930edd8ca55ccdba70c130f3a5623978185a73e7a1d38ed",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start420/receipt.json": "d63a23b8446c9793882e0fe61684c7357bfd759ee38b92e69807e9e7df1e36d9",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/forward-geometric-start420/solves.jsonl": "02ca3566a8fc8a2cc55666eda9a8aaf137cb0a7a748d687dc4ad89cfa8ea42d8",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/receipt.json": "69f3cebaedffb401995d80130ffca2b450bf3b36e6418c44d896dac27cfdabc6",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start300/actuator-model.json": "3b028d6d1d526c63a7d5f2520b94e4bd7d1d88750af19f5a21062455ab3f171d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start300/actuators.jsonl": "0f6d8b88e2aba5120360afe9d00455b3686d6ce43b575d5d4385747bf3c697aa",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start300/contacts.jsonl": "365d37d0ab49c5eaa20648383662dfe7f31f39848f77ddd20e135d91fec9a0e8",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start300/full-state.npz": "70e05c182797b9923816356c83b652948db9fbd1778f0f1f718b0cbd949173d9",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start300/model.json": "96bc53aa6ac2c77503d69a27af40d479fa4ab7e77804c97c1cf748be7308393a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start300/policy.jsonl": "aa09d178cf8be7f734b2bf8e56b2e78f24b5cc7232aa59c7d082dcae35aec41e",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start300/receipt.json": "814cd07d08689ee5f7ce36797354d71df34ec32017c5b256ece951f4941720b7",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start300/solves.jsonl": "fdcfd6230eb1837e49a55dd67ff73fa91aa656027b4b1320e911eda8555632b9",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start340/actuator-model.json": "3b028d6d1d526c63a7d5f2520b94e4bd7d1d88750af19f5a21062455ab3f171d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start340/actuators.jsonl": "f15d4297fd36baeca7bfc8a5ec1dc2ad2407d286d162f75ddf98cccd0fb7be06",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start340/contacts.jsonl": "17e60ee6203aedcca0d418589a84c4d9d2bfc3aa94070eba6e956053ed0c2933",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start340/full-state.npz": "d1ab5fbff015bdd3135da4b9539e56fc17ad0b33dbf1c388a77a419ca0928bc6",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start340/model.json": "96bc53aa6ac2c77503d69a27af40d479fa4ab7e77804c97c1cf748be7308393a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start340/policy.jsonl": "fc6581046f2dc738e857d7af43192f19a5d6871dc8c9d028960592762111dfca",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start340/receipt.json": "b018b05af562a21689b2f091101788384fe8471e42bd3b79164f03277efa491a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start340/solves.jsonl": "7d451eeea5c1b922f7d0e4a00f9e8f8060e76837c7957886de9ea286c5f4d634",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start380/actuator-model.json": "3b028d6d1d526c63a7d5f2520b94e4bd7d1d88750af19f5a21062455ab3f171d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start380/actuators.jsonl": "3d1c7e57bef149248e1f24c689db51ba4a1feed7c7a586ec71581dd645c1ea30",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start380/contacts.jsonl": "719a74dc7be39c3a72cb825ce6b7601263932913698f66f450152f2bca512a31",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start380/full-state.npz": "e2f70f7765aec3801396d1c38438960873166de06385217ab1c238fc3ebcc7c0",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start380/model.json": "96bc53aa6ac2c77503d69a27af40d479fa4ab7e77804c97c1cf748be7308393a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start380/policy.jsonl": "ebecd8e94f2cf1817ae85deef027bfc139138bf9da2c56b679880761353d1de8",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start380/receipt.json": "85c536b8db1459b293c828677202027e757973441dde5a4a72fc03d6817bff9b",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start380/solves.jsonl": "626a287c012234b006389f94915ac6ffa30e433df8244bb15253d2eb9536eed8",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start420/actuator-model.json": "3b028d6d1d526c63a7d5f2520b94e4bd7d1d88750af19f5a21062455ab3f171d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start420/actuators.jsonl": "f20c7aef92eaedb972db1e1c21e3fbeca232ab3d0de3ce4ad3bece0aa2f27550",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start420/contacts.jsonl": "92898a65a674de670bb35ef646ae8756ce2ff8a2f7ae6d9852a188ece535aded",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start420/full-state.npz": "249c9b608cc512394203f8b201079db1ca9954d0641172679597f74c7befb61d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start420/model.json": "96bc53aa6ac2c77503d69a27af40d479fa4ab7e77804c97c1cf748be7308393a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start420/policy.jsonl": "054017e89356ba8f7564802dc2af2913576d9e6ff59fb85848b90b047fe90f1d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start420/receipt.json": "ea3d51f5e999266c6bec7c67a94f1a0c238a941cdf720815d73bf7ac7bcb6352",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/corpus-01/reverse-geometric-start420/solves.jsonl": "71833f04c6b606fa57b26d96f834f74623c152d179ca8709b5bc5b82ccc5afd7",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/global-lifecycle-audit.json": "662ce00a92ab68ac6e4993c80db633bf7c90d0ecb1dad18384e7884eef0597ec",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/launch-admission-01.json": "072341722b61d0076aa771a0b1edabd86daf87bbd33112c18c3bb6ade1c5548c",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/launch-binding-01.json": "49548928537e91b90a93dc272725c57b7d308b2c66e0b6332d90ab2c592176f7",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/launch.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/owner-01/closure.json": "c9c12786ee165f71415a5faa3e7482547393b5c5bcbb6b5bf77dba8e4836aa68",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/owner-01/owner.json": "75e1be0ce16d7ba4fd4d213043d5ca09da444ccbfcbc9ed13f9e610d92a7f767",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/owner-01/service.log": "f1f16654cacb9b04f8fb0e8cc759fc3ae8525b97c8008cdc3cee228bddbe7147",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/owner-receipt.json": "877ba58ffa748ff4fa7a273661312ed28d1facf37e1867558b0547f0f46ce9aa",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/plan-01.json": "19e253b39468fe891e0172c568a0f8e1b6092c6368790aa6d5714d43322160ce",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/plan-diff-01.json": "7631ac6677ee25d338beada84f42b01e52eb94dec7b2c062a19803417c1910fe",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/source-diff-01.patch": "9fba257820e7f41dbf1375d87b9481e11428226f1740965b114ead525c3fbffe",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/validation-01.json": "27d74199c7595b8489e6f8694f7aec3560141fbf707cbcb498905a9652ebc9b3",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-static-analysis-01.json": "809eed46c44b64e72eea8e1d3fe1af0eed1af8e5c4c0d376986e934e4f3b175f"
+  }
+}

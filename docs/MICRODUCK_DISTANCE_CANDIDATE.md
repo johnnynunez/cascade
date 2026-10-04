@@ -93,6 +93,29 @@ All 8,388 solves, 2,099 policy records and 37,468 contact records were retained,
 with normal owned closure and unchanged inputs. No repeated or native braking
 capability follows from either single positive CPU trajectory.
 
+The subsequent [single-policy VelStand corpus](evidence/robot-modularity/microduck-velstand-cpu-20261004.json)
+retained all eight direction/onset cases, the original geometric cutoff and the
+same limits. One exact VelStand network handled preparation, DRIVE and the
+full-zero tail with continuous action history. **None of eight completed the
+objective.** Each retained all 150 DRIVE policy slots and exhausted the original
+600-solve action budget without reaching the 25 mm tolerance-entry boundary.
+Maximum signed progress was 11.29–11.40 mm forward and 2.64–2.68 mm reverse;
+maximum lateral displacement was 3.75 mm and heading change 0.0391 rad, with no
+active pose or contact veto. The later quiet tails did not repair these failures.
+
+The recorded observations match the exact upstream command layout: twist in
+slots 48–50, followed by four head and six body channels, all ten zero here.
+There was no separate standing session or mode flag suppressing the travel
+command. During DRIVE, peak PWM duty was 0.243844, motor torque 0.232778 Nm and minimum
+effective supply 7.318312 V; no recorded motor clamp activated. These findings
+locate the failed criterion at insufficient travel before braking; they do not
+identify its training or physical cause. The preparation policy changes the
+initial state, so differences from the two-expert corpus are not an isolated
+braking comparison. All 12,480 solves, 3,120 policy rows and 53,593 contacts,
+the three successful integrity audits and normal owned closure are retained.
+The same-weight historical native failures remain, and no further motion
+capability is admitted by this CPU experiment.
+
 ## Implemented contract
 
 The 2026-10-03 [distance-outcome regression receipt](../benchmark/results/mobile_distance_outcome_20261003.json)

@@ -20,7 +20,8 @@ def read_json(path, maximum):
     return json.loads(raw), hashlib.sha256(raw).hexdigest()
 
 
-def reconstruct(directory, *, policy=TriangulationPolicy(), max_features=512, ratio=.7):
+def read_archive(directory):
+    """Read and validate all public views before image analysis or model loading."""
     directory = Path(directory)
     calibration, calibration_hash = read_json(directory/'calibration.json', 65536)
     calculated = hashlib.sha256(json.dumps(calibration['recipe'], sort_keys=True,
@@ -86,17 +87,37 @@ def reconstruct(directory, *, policy=TriangulationPolicy(), max_features=512, ra
         if previous is not None and (left.solver_step <= previous[0] or left.simulation_time_s <= previous[1]):
             raise ValueError('RGB archive replays or rewinds capture clock')
         binding, previous = current, (left.solver_step, left.simulation_time_s)
-        triangulate_pairs(left, right, [], policy=policy)  # Admission before optional image processing.
-        pairs = match_rgb_features(left, right, max_features=max_features, ratio=ratio)
-        result = triangulate_pairs(left, right, pairs, policy=policy)
-        results.append({'file': path.name, 'status': 'analyzed', 'capture_step': left.solver_step,
-                        'capture_time_s': left.simulation_time_s, 'reconstruction': result})
+        triangulate_pairs(left, right, [])  # Pair provenance only; no feature analysis.
+        results.append({'file': path.name, 'status': 'observed', 'views': tuple(views)})
+    verify_archive(directory, artifacts)
+    return tuple(results), artifacts
+
+
+def verify_archive(directory, artifacts):
+    directory = Path(directory)
+    files = sorted(Path(path) for path in artifacts if Path(path).name != 'calibration.json')
     if sorted(directory.glob('[0-9][0-9][0-9][0-9].json')) != files:
         raise ValueError('RGB archive membership changed during reconstruction')
     for path, expected in artifacts.items():
         maximum = 65536 if Path(path).name == 'calibration.json' else 256*1024
         if read_json(Path(path), maximum)[1] != expected:
             raise ValueError('RGB archive changed during reconstruction')
+
+
+def reconstruct(directory, *, policy=TriangulationPolicy(), max_features=512, ratio=.7):
+    captures, artifacts = read_archive(directory)
+    results = []
+    for capture in captures:
+        if capture['status'] == 'unverified':
+            results.append(dict(capture))
+            continue
+        left, right = capture['views']
+        triangulate_pairs(left, right, [], policy=policy)
+        pairs = match_rgb_features(left, right, max_features=max_features, ratio=ratio)
+        result = triangulate_pairs(left, right, pairs, policy=policy)
+        results.append({'file': capture['file'], 'status': 'analyzed', 'capture_step': left.solver_step,
+                        'capture_time_s': left.simulation_time_s, 'reconstruction': result})
+    verify_archive(directory, artifacts)
     return {'schema': 'cascade.vab-offline-rgb-reconstruction.v1', 'captures': results,
             'artifact_sha256': artifacts, 'feature_recipe': {'method': 'SIFT mutual ratio',
             'max_features': max_features, 'ratio': ratio}, 'models_constructed': 0,

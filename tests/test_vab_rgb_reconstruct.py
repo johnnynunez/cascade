@@ -48,6 +48,16 @@ def test_saved_rgb_produces_only_unknown_uncertainty_sparse_estimates(tmp_path):
     json.dumps(result, allow_nan=False)
 
 
+def test_invalid_policy_is_refused_before_feature_processing(tmp_path, monkeypatch):
+    import benchmark.vab.reconstruct_rgb as implementation
+    directory = archive(tmp_path)
+    def unexpected(*args, **kwargs):
+        pytest.fail('feature processing before policy admission')
+    monkeypatch.setattr(implementation, 'match_rgb_features', unexpected)
+    with pytest.raises(ValueError, match='policy'):
+        reconstruct(directory, policy=object())
+
+
 @pytest.mark.parametrize('fault', ['pixels', 'digest', 'calibration', 'missing', 'unexpected_initial'])
 def test_changed_or_incomplete_archive_is_refused(tmp_path, fault):
     directory = archive(tmp_path)

@@ -38,7 +38,8 @@ def execute_seating(domain, args):
                 or not 0 < permit.end_simulation_time_s-permit.admission_time_s <= task.max_command_sim_s+1e-9):
             raise FasteningFault("invalid seating admission receipt")
         result["admission"] = asdict(permit)
-        samples, previous, cursor = [], None, permit.admission_step
+        history = getattr(actuator, "_new_thread_history", list)
+        samples, previous, cursor = history(), None, permit.admission_step
         loaded_since = loaded_at = None
         while clock() < permit.deadline_monotonic_s and loaded_at is None:
             batch = domain.reader(cursor, timeout_s=min(.05, max(0., permit.deadline_monotonic_s-clock())))

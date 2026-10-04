@@ -258,3 +258,21 @@ remaining children, while runtime closure correctly retained the freshness
 fault. The same compact evidence preserves this second negative, its distinct
 pin and epoch, the resource refusal before preparation, and all original
 artifacts. More completed solves do not establish a pause remedy or task success.
+
+Validated native solve and seating histories now retain private packed records
+(`75c9c89`) instead of every decoded contact tree. The latest solve stays typed;
+cursor reads decode one row at a time outside the journal lock and recheck sticky
+faults afterward. Only the exact Factory backend uses this path. Public values,
+original capture times, archive-before-accept ordering and deadlines are unchanged;
+these trusted in-process records are not an external pickle input format.
+
+A closed-record CPU replay preserved all 3,093 solves, 861,506 contact candidates
+and 2,731 eligible threading samples, including typed float bits and the original
+358.675 ms freshness refusal. Before any cursor decoding, retained `SeatingSolve` /
+`SolvedPair` / `ThreadSample` counts changed from 3,093 / 126,972 / 2,731 to
+1 / 75 / 0, plus 5,824 compact records. Both processes closed ordinarily, with
+normal GC settings; all selected types disappeared after release without an
+explicit collection. Twelve generation-2 callback intervals still occurred in
+each replay. This establishes reduced retained Python graphs, not the cause of
+the native pause, a latency remedy, physical rest or seating success. The first
+replay's census-helper failure remains recorded separately in the compact receipt.

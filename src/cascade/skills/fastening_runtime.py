@@ -1,8 +1,8 @@
 """Optional mounted-fastener domain for ordinary RobotRuntime dispatch.
 
 The injected actuator owns guarded writes/lifecycle. The separate passive reader
-supplies solved states, never the actuator's completion claim. No ArmBase, pickup,
-automatic engagement, seating or preload capability is implied by this domain.
+supplies solved states, never the actuator's completion claim. Shoulder seating
+is a separate opt-in task; no ArmBase, pickup, engagement or preload is implied.
 """
 from __future__ import annotations
 
@@ -33,14 +33,22 @@ class FasteningDomain:
         if type(actuator.synthetic) is not bool:
             raise ValueError("actuator must explicitly declare synthetic status")
         resource = domain_id + "/mounted_arm_spindle"
+        seating = self.limits.seating is not None
         self.resources = (ResourceDescriptor(resource, "mounted_fastening", self.binding.robot_id,
-            capabilities=("preengaged_thread_turn",), controller_id=controller_id, writer_id=resource,
+            capabilities=("preengaged_thread_turn",) + (("shoulder_seating",) if seating else ()),
+            controller_id=controller_id, writer_id=resource,
             synthetic=actuator.synthetic, admission="software_only" if actuator.synthetic else "unvalidated",
             metadata={"binding_sha256": self.binding.sha256, "mounted_tool": True,
-                      "preengaged_fastener": True, "seating": False, "pickup": False}),)
+                      "preengaged_fastener": True, "seating": seating, "pickup": False}),)
         self.tool_descriptors = (ToolDescriptor(domain_id + ".turn_screw",
             TURN_SPEC["description"], TURN_SPEC["parameters"], domain_id, "turn_screw",
             effect="motion", requires=(resource,), writes=(resource,)),)
+        if seating:
+            from .seating_runtime import SEAT_SPEC
+            self.motion_skills = self.motion_skills | {"seat_fastener"}
+            self.tool_descriptors += (ToolDescriptor(domain_id+".seat_fastener",
+                SEAT_SPEC["description"], SEAT_SPEC["parameters"], domain_id, "seat_fastener",
+                effect="motion", requires=(resource,), writes=(resource,)),)
         self.tool_specs = [t.as_spec() for t in self.tool_descriptors]
 
     def begin_task(self):
@@ -56,6 +64,9 @@ class FasteningDomain:
         return self.actuator.close()
 
     def execute(self, name, args):
+        if name == "seat_fastener":
+            from .seating_runtime import execute_seating
+            return execute_seating(self, args)
         result = {"ok": False, "execution_ok": False, "verified": False,
                   "synthetic": self.actuator.synthetic, "seating_verified": False,
                   "preload_verified": False, "physical_stop_verified": False,
@@ -71,7 +82,7 @@ class FasteningDomain:
             delivery_attempted = True
             admission_started = self.clock()
             permit = self.actuator.request_turn(expected_generation=generation, **args)
-            if (not isinstance(permit, FasteningPermit) or permit.binding_sha256 != self.binding.sha256 or
+            if (not isinstance(permit, FasteningPermit) or permit.operation != "turn" or permit.binding_sha256 != self.binding.sha256 or
                     type(permit.generation) is not int or permit.generation != generation + 1 or
                     type(permit.admission_step) is not int or permit.admission_step < 0 or
                     not isinstance(permit.epoch, str) or not permit.epoch or

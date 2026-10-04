@@ -53,6 +53,29 @@ def test_unpinned_ordinary_build_refuses_before_sdk_or_any_controller(monkeypatc
     assert not list(tmp_path.rglob("solves.jsonl"))
 
 
+def test_shoulder_seating_is_opt_in_and_discovery_cannot_start_native_runtime(monkeypatch, tmp_path):
+    no_sdk(monkeypatch)
+    cfg = load_robot_config("factory_m20_shoulder_seating")
+    tools = robot_tool_descriptors(cfg)
+    assert "fastening.seat_fastener" in tools
+    assert tools["fastening.seat_fastener"].writes == tools["fastening.turn_screw"].writes
+    assert tools["fastening.seat_fastener"].effect == "motion"
+    assert "fastening.seat_fastener" not in robot_tool_descriptors(load_robot_config("factory_m20_mounted"))
+    resource = describe_robot(cfg)["fastening"].resources[0]
+    assert resource.admission == "unvalidated" and resource.metadata["seating"] is True
+    with pytest.raises(FasteningFault, match="unprepared"):
+        build_robot_runtime(cfg, tmp_path)
+    assert not list(tmp_path.rglob("solves.jsonl"))
+
+
+@pytest.mark.parametrize("change", [{"seating": None}, {"seating": "automatic"},
+    {"recipe": "factory_m20_fixed_axis_v1"}])
+def test_seating_requires_its_explicit_margin_recipe(change):
+    cfg = load_robot_config("factory_m20_shoulder_seating")
+    with pytest.raises(ValueError, match="seating recipe"):
+        validate_factory_profile(cfg.domains.fastening.as_dict() | change)
+
+
 @pytest.mark.parametrize("entrypoint", ["prepare", "build"])
 def test_unresolved_device_refuses_before_sdk_and_output_creation(monkeypatch, tmp_path, entrypoint):
     no_sdk(monkeypatch)

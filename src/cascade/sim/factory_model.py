@@ -179,9 +179,15 @@ def check_authored_joint(name, position, lower, upper, margin):
 class FactoryBoundModel:
     """Constructed scene plus immutable identity; not physical task admission."""
 
-    def __init__(self, scene, *, clock=time.monotonic, precompile=None, sdk_recipe=None):
+    def __init__(self, scene, *, clock=time.monotonic, precompile=None, sdk_recipe=None, seating=None):
         from .factory_sdk import INTERNAL_PINS, validate_sdk_recipe
         validate_sdk_recipe(sdk_recipe)
+        seat_limits = None
+        if seating is not None:
+            from ..control.fastening_seat import SEATING_RECIPE, SeatingLimits
+            if seating != SEATING_RECIPE or scene.fixture_recipe != MARGIN_RECIPE:
+                raise FasteningFault("seating requires the explicit mounted margin fixture")
+            seat_limits = SeatingLimits()
         from .newton_screw_seating import SeatingScene
         if type(scene) is not SeatingScene or scene.step_id != 0 or scene.time_s != 0:
             raise FasteningFault("binding requires the exact fresh mounted SeatingScene")
@@ -204,7 +210,7 @@ class FactoryBoundModel:
                 raise FasteningFault("invalid imported actuator effort cap")
             caps.append(float(min(abs(force[0]), abs(force[1]))))
         self.limits = FasteningLimits(tuple(lower), tuple(upper), tuple(caps),
-            (-.15, -.36, -.02), (.4, .36, .4), 0.)
+            (-.15, -.36, -.02), (.4, .36, .4), 0., seating=seat_limits)
         self._authoring = authoring_descriptor(scene)
         if scene.fixture_recipe == MARGIN_RECIPE:
             if any(row.reference_rad != 0 for row in self.joints[:-1]):
@@ -232,7 +238,8 @@ class FactoryBoundModel:
                 sources[str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
         package = Path(__file__).resolve().parents[1]
         for relative in ("control/fastening.py", "skills/fastening_runtime.py", "config.py",
-                         "apps/factory_runtime.py", "apps/robot_runtime.py"):
+                         "apps/factory_runtime.py", "apps/robot_runtime.py",
+                         "control/fastening_seat.py", "skills/seating_runtime.py"):
             p = package/relative
             sources[str(p)] = hashlib.sha256(p.read_bytes()).hexdigest()
         self.document = {"schema_version": 1, "recipe": scene.fixture_recipe,
@@ -249,17 +256,23 @@ class FactoryBoundModel:
             "requested_spindle_cap_nm": .05,
             "native_float32_spindle_cap_nm": float(np.float32(.05)),
             "lifecycle": "single private solve owner; no mutation between solves"}
+        if seat_limits is not None:
+            self.document["seating_recipe"] = seating
+            self.document["seating_task"] = asdict(seat_limits)
         if compilation is not None:
             self.document["precompilation"] = compilation
         labels = scene._names(scene.model.shape_label)
         label = lambda name: scene.model.shape_label[labels[name]]
         thread = (label("nut"), label("bolt"))
         tools = tuple((label("nut"), label("socket_wall_"+str(i))) for i in range(6))
+        seat_pair = (label("nut"), label("seat_ring")) if seat_limits is not None else None
+        allowed = (thread, *tools) + ((seat_pair,) if seat_pair is not None else ())
         self.binding = FasteningBinding(_digest(self.document), self.limits.sha256,
             "so101_factory_m20", "fixed_factory_bolt_m20_loose", "factory_nut_m20_loose",
             "mounted_spring_socket", names[:-1], tuple(scene.model.shape_label),
-            (thread, *tools), thread, tools, self.document["dt_s"],
-            fixture_origin_m=tuple(float(v) for v in scene.fixture_position), fixture_recipe=scene.fixture_recipe)
+            allowed, thread, tools, self.document["dt_s"],
+            fixture_origin_m=tuple(float(v) for v in scene.fixture_position), fixture_recipe=scene.fixture_recipe,
+            seat_contact_pair=seat_pair)
         # Initial-condition conversion only, BEFORE the first solve. It copies
         # the already-authored state, introduces no extra force or FK pose write.
         scene.solver._update_mjc_data(scene.solver.mjw_data, scene.model, scene.state)

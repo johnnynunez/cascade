@@ -416,6 +416,9 @@ class FactoryObserver:
             sum(p in self.binding.tool_contact_pairs for p in loaded),
             collision_receipt["contacts"]["capacity"], collision_receipt["contacts"]["count"],
             int(d.naconmax), len(pairs))
+        if self.limits.seating is not None:
+            from ..control.fastening_seat import seating_solve
+            value = seating_solve(value, raw_contacts, self.binding)
         self._last_step = s.step_id
         return value, {"solve": asdict(value), "upload": asdict(stamp),
             "effort_time": "applied during interval (step-1,step); not reevaluated at final pose",

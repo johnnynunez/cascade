@@ -54,7 +54,7 @@ def _describe_domain(domain_id, profile, *, embodiment=None, sensor_domains=None
     if kind == "fastening":
         from .factory_runtime import factory_description
         resources, specs = factory_description(domain_id, profile)
-        return DomainAdapter(domain_id, profile, resources, specs, {"turn_screw"})
+        return DomainAdapter(domain_id, profile, resources, specs, {spec["name"] for spec in specs})
     if kind == "spatial":
         from ..spatial.domain import build_spatial_domain
         spatial = build_spatial_domain(domain_id, profile, sensor_domains=sensor_domains)

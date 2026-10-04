@@ -180,6 +180,29 @@ def owner_fixture(*, active=True):
     return now, backend, owner
 
 
+@pytest.mark.parametrize("revoked", [False, True])
+def test_seating_admission_uses_owner_queue_and_cannot_cross_a_stop(revoked):
+    from test_fastening_seating import configuration, observed
+    now = [10.]
+    backend = SyntheticBackend(now)
+    backend.binding, backend.limits = configuration()
+    owner = FactorySolveOwner(backend, clock=lambda: now[0])
+    initial = observed(bind=backend.binding)
+    owner.controller.guard.reset_stop(initial)
+    owner.controller.accept_solve(replace(initial, generation=1))
+    future = Future()
+    owner._requests.put(_Request("seat", {"expected_generation": 1}, 1, 11., future))
+    if revoked:
+        owner.controller.stop()
+    owner._admit_one()
+    if revoked:
+        with pytest.raises(FasteningFault, match="revoked"):
+            future.result()
+    else:
+        assert future.result().operation == "seat"
+    assert not backend.uploads and backend.step == 0
+
+
 @pytest.mark.parametrize("phase", ["plan", "prepare"])
 def test_stop_during_preparation_only_uploads_zero_in_the_same_stop_ack_generation(phase):
     _, backend, owner = owner_fixture()

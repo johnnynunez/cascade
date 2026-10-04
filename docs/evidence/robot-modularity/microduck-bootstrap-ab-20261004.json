@@ -1,0 +1,206 @@
+{
+  "schema": "cascade.microduck-bootstrap-ab-evidence.v1",
+  "status": "completed_controlled_two_solve_diagnostic",
+  "physical_admission": false,
+  "model_constructors": 1,
+  "independent_mjdata": 2,
+  "completed_solves": 2,
+  "policy_constructors": 0,
+  "policy_inferences": 0,
+  "explicit_initialization_forwards": 2,
+  "baseline_reproduced_exactly": true,
+  "intervention": "B supplies zeros_like(external) only to the first BAM compute_frictions external-force argument. MjData force buffers, other BAM inputs, retained target, model, initialization, controller, solver and dt are unchanged.",
+  "comparison": {
+    "qpos": 2.688216291193979e-05,
+    "qvel": 0.0053764325823878745,
+    "q_actual": 2.688216291193979e-05,
+    "dq_actual": 0.0053764325823878745,
+    "friction_budget_max_abs_nm": 0.0024689220637476566
+  },
+  "against_retained_native_first_row": {
+    "A": {
+      "q_max_abs_rad": 2.6885067436754895e-05,
+      "dq_max_abs_rad_s": 0.005376424891484391,
+      "friction_budget_max_abs_nm": 0.0024689220481279132
+    },
+    "B": {
+      "q_max_abs_rad": 1.3708375379284377e-08,
+      "dq_max_abs_rad_s": 3.0101178480346213e-08,
+      "friction_budget_max_abs_nm": 1.561974334596261e-11
+    }
+  },
+  "right_hip_roll_example": {
+    "external_observed_nm": 0.030560578339012406,
+    "A_external_supplied_nm": 0.030560578339012406,
+    "B_external_supplied_nm": 0.0,
+    "A_friction_nm": 0.011916451028800273,
+    "B_friction_nm": 0.009447528965052616,
+    "native_friction_nm": 0.00944752898067236
+  },
+  "closure": {
+    "native_child_exit": 0,
+    "outer_exit": 0,
+    "ordinary": true,
+    "signals": [],
+    "forced": false,
+    "errors": [],
+    "observed_births": 2,
+    "remaining_births": 0,
+    "remaining_members": 0
+  },
+  "interpretation": [
+    "The original CPU first row is reproduced exactly by A, including actuator telemetry and the completed state.",
+    "Within this fixed CPU model and initial state, the single external-input substitution causes the measured friction and q/dq change.",
+    "B nearly removes the numerical difference to the retained Newton first row. This is a descriptive comparison, not evidence of full backend, integrator or compiled-mesh equivalence.",
+    "The previously back-solved first external magnitude is now directly observed at the CPU BAM boundary; no force was inferred from a later state in this experiment.",
+    "Neither case ran DRIVE, a policy session, locomotion, a rest/stop window or a second sequential solve. The prior failed walk and failed preparation gate remain unchanged."
+  ],
+  "next_step": {
+    "implementation_authorized": false,
+    "production_fix_established": false,
+    "proposal": "Keep production parameters unchanged. Treat bootstrap force-history convention as an explicit diagnostic contract, separate from the remaining IMU/sensor-phase and integrator differences. Any follow-on policy/trajectory discrimination requires a separately reviewed fixed-input or bounded experiment; this result does not justify gain tuning or a gait retry."
+  },
+  "limitations": [
+    "Two solves total from two independent MjData states and one shared compiled model; no policy session/inference.",
+    "Shared model damping/frictionloss restored before each case, with full retained model comparison; two independent BAM/controllers.",
+    "Two explicit initialization mj_forward calls, one per MjData. Controller constructors also call original mj_setConst.",
+    "Retained target is source-bound observed output, not a new policy action or command.",
+    "A/B is an experiment within MuJoCo. It isolates the first external-input argument to BAM, not Newton equivalence or locomotion cause.",
+    "Native ordinal3/float32 dt and CPU ordinal1/float64 dt remain distinct; integrator, compiled geometry and phases remain confounded across backends.",
+    "Model snapshot comparison is against retained CPU model, not independent native mesh equivalence. Original negatives/gates unchanged."
+  ],
+  "reference_prefixes": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/counterpart-02/solves.jsonl",
+      "bytes": 4916,
+      "sha256": "8809123d723e82b50b763a9f6113358f6e80091544976d46044659e9e2c9a3fc"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/counterpart-02/actuators.jsonl",
+      "bytes": 6953,
+      "sha256": "6907684ea90984493c5df53a90184296e8377c65c600fe3a1d85fd02cf6648c2"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/counterpart-02/policy.jsonl",
+      "bytes": 1802,
+      "sha256": "da73f029890d8fec79367355bdbc4cdaf3e48e4c358663aea417c40e3ee4fdc1"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-forward-one-03/kit/physics.jsonl",
+      "bytes": 10698,
+      "sha256": "4b1c00c27c86095c15ad6b3902111e319dba4b7277fa4c68f80dd021d6bcf038"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/plan-01.json",
+      "sha256": "539c7d73b03ce66e47cb0b8c7ff0b0f3e81f34f9ca917446d6dee500a0f6214e"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/binding-01.json",
+      "sha256": "9c2997e6cd6ebfff527e36e3e551c061a2e7adecfadf57525b2259d9c901493f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/retained-reference-01.json",
+      "sha256": "e18bd68490422d5dd629d5d1e1613a200f25ffc9df8afdb70611b3f41f482937"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/check-only-01.json",
+      "sha256": "1679674c467a030c9a085ccba1597d42ba2d4a1e290217a8e1d9c909394f5a6a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/cpu-tests-03.log",
+      "sha256": "854be6b5f038a885da628bd4b089fcd4e10a1c1288488c7b13fd5363f0ce3251"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/supplemental-guard-01.json",
+      "sha256": "651f353c92c43aae291f3e75f8bd944064263f79fdc9f966d20394fba29af6bf"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/attempt-01/receipt.json",
+      "sha256": "3a9a6de8132d4b022f9d43dcb189b3c75c013e750e44d99999d261c1e4152951"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/attempt-01/scope/closure.json",
+      "sha256": "9a1c6eb747c628ce7c8186f9c4e29dde813ee2de5575239d48e37e8f2ce81458"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/bootstrap-ab-01/receipt.json",
+      "sha256": "5f204a0f13c36e1d4b7aa272fe53babfefefec9a6124ac00cc765fc058ad7969"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/bootstrap-ab-01/model.json",
+      "sha256": "a0cadc3d08342e3f0bb55e77d8f3d9a649133c3ab31422854ef64fde23b54c44"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/bootstrap-ab-01/model-validation.json",
+      "sha256": "cd96ae8db79e40e919ec0af843d64d91af62253988bb7a0e5c8e04a90eb17c61"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/bootstrap-ab-01/scene.xml",
+      "sha256": "4e17071d4a2550c70103e474042a02ca58b4b7fac1f1b4143acd20785d93078d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/audit-01.json",
+      "sha256": "bd8a06d7faa210436f8b83b21fd0afe8f73b47dd4aa7373141dc73ef43b7d15f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/post-close-01.json",
+      "sha256": "ef391d60e5c8ac185fd7fe48abe3344494a40e29daf0c6803abbe074d3a014aa"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/root-post-close-01.json",
+      "sha256": "9e4505349a3113fef0a1e703996a9894334267f636a22d94e0d161185ae68886"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/launch-01.stdout",
+      "sha256": "274ec0ca38f2c274ceae9c5401b56a74e93dd606afd1fea662e78ef664346b4d"
+    }
+  ],
+  "harness_sources": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/harness/actuator_telemetry.py",
+      "sha256": "247d7cfc49c2fc7268b10f7547f698ae48ddd64a8a1125971fccf15323e3b834"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/harness/audit.py",
+      "sha256": "0024f3ebd04532089d6a8b63b48a5a71bda58ab0c045ab779de88b804d4dd3a9"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/harness/baseline.py",
+      "sha256": "baeb7a435a6511f7586b4ec89084724a974b03b621d1fc3d0f374a7573862acf"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/harness/contract.py",
+      "sha256": "6cac2203ed96ad2569b9d5f5cb1f86112ef4180ea21f8e5031a83d7b41ff455d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/harness/experiment.py",
+      "sha256": "14321d6b144548b2ff88c4106ff764004d26ded77f32ab5d7b7b969431cbdf2e"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/harness/inventory.py",
+      "sha256": "bae2ad1bf6824a1fcf3cf74f6d2caf1697117c32880ff6bc10edddafd1ebdcc9"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/harness/launch.py",
+      "sha256": "985a59c1fd884b24e8e97f1efece8ac1ed7006718456c94b308d2f713695152e"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/harness/prepare.py",
+      "sha256": "ba43fbada8e80c771a5cbd77ed6cdaf546c33f99f5165fa5986bf926e2b56e84"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/harness/run.py",
+      "sha256": "6b27565155badae7c72bd54427f9c1748f6299f4d9d17392b61dd5f0b5abe102"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/harness/test_audit.py",
+      "sha256": "92238905bdd261022e8cda42d8a61e58b8d56924656150435ad01221e0eb474c"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BOOTSTRAP_AB_20261004/harness/test_experiment.py",
+      "sha256": "d171dddf32bdbc4623915fb3325aa75298be47af4ee5efce4426babd474c5e50"
+    }
+  ]
+}

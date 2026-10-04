@@ -337,6 +337,20 @@ queue and encoding overhead. They do not measure the observer's entire cost or
 justify subtracting that cost from GC intervals. The recipe uses a distinct
 profile identity, and counter/capture errors prevent complete attribution.
 
+The [retained trigger diagnostic](evidence/microduck-shared-20261004/gc-trigger.json)
+completed 800 shared solves, 2,400 policy commits, 24 reader events and 9
+overview/support-probe pairs, with normal closure and complete callback
+accounting. All ten generation-2 starts had stacks: eight in deep-copy paths,
+one in plain-record tuple construction and one in support validation. Eight
+stacks reached the 16-frame limit. These are observed trigger sites, not evidence
+of which objects were scanned or what caused the pause.
+
+Stack extraction took 0.020 ms median and 0.024 ms maximum, excluding the other
+observer costs described above. Generation-2 intervals remained about 475 ms
+median; ten attempts exceeded 400 ms, with a maximum attempt of 615 ms. This
+reader-only diagnostic did not test control recovery, change collector settings
+or alter the three retained twelve-robot control failures.
+
 Two [reader-only GC profiles](evidence/microduck-shared-20261004/gc-serialization.json)
 each completed 800 solves, 2,400 policy commits, 24 reader events and 9
 overview/support-probe pairs, with normal native and client closure. The second

@@ -114,6 +114,34 @@ def adapter():
     return module
 
 
+@pytest.mark.parametrize("rows,live", [
+    ("424242 424242 Z\n7593 919 ?<\n", False),
+    ("424242 424242 Z\n424243 424242 ?<\n", True),
+    ("424242 424242 ?<\n", True),
+    ("424242 424242 Z\n424243 424242 S\n", True),
+    ("424242 424242 Z\n424243 424242 Z\n", False),
+])
+def test_source_group_unknown_status_never_proves_owned_exit(monkeypatch, rows, live):
+    module = adapter()
+    monkeypatch.setattr(module.subprocess, "run", lambda *a, **kw:
+                        SimpleNamespace(returncode=0, stdout=rows, stderr=""))
+    assert module.source_group_live(424242) is live
+
+
+@pytest.mark.parametrize("rows", [
+    "7593 919 ?<\n",  # no reserved shell identity
+    "424242 424242 Z\nmalformed\n",
+    "424242 424242 Z\n-1 919 ?<\n",
+    "424242 424242 Z",  # incomplete snapshot
+])
+def test_source_group_keeps_identity_and_snapshot_guards(monkeypatch, rows):
+    module = adapter()
+    monkeypatch.setattr(module.subprocess, "run", lambda *a, **kw:
+                        SimpleNamespace(returncode=0, stdout=rows, stderr=""))
+    with pytest.raises((ValueError, RuntimeError)):
+        module.source_group_live(424242)
+
+
 def test_isaac_environment_does_not_inherit_agent_python_or_profiler(tmp_path):
     module = adapter()
     source = tmp_path / "source"

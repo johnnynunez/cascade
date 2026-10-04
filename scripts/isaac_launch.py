@@ -144,8 +144,11 @@ def source_group_live(pgid: int) -> bool:
     live = anchor = False
     for line in result.stdout.splitlines():
         pid, group, state = line.split()
-        if int(pid) <= 0 or int(group) < 0 or not state[0].isalpha():
+        if int(pid) <= 0 or int(group) < 0:
             raise RuntimeError(f"invalid source process-group snapshot: {line!r}")
+        # Darwin can report a transient '?<' status, including for unrelated
+        # processes. Only a terminal state in our group proves a member exited;
+        # every other status keeps that group live until a later observation.
         if int(group) == pgid and state[0] not in ("Z", "X"):
             live = True
         anchor |= int(pid) == pgid and int(group) == pgid

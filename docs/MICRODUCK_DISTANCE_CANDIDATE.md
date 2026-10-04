@@ -88,6 +88,10 @@ as its baseline and integrates measured displacement in the body heading frame.
 The independent checker separately compares that signed displacement with the
 caller’s distance. Neither layer derives success from policy command × time.
 Progress after the physical deadline cannot complete the controller objective.
+Measured turns use the same first completed post-ACK baseline and physical
+deadline: delivery drift and rotation first observed after expiry cannot
+complete the requested angle. Late observations remain in the result for
+independent safety checks. This control correction does not admit a turn policy.
 
 The optional [distance profile](../configs/bases/microduck_distance_candidate.yaml)
 uses internal policy commands ±0.3 with a 5 mm controller stopping tolerance.

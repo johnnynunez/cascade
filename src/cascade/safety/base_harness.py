@@ -402,6 +402,7 @@ class SafeBase:
         measured_distance = None
         lateral = 0.
         distance_baseline = None
+        turn_baseline = None
         try:
             with self._gate:
                 if self._latched or self._control_ops:
@@ -476,6 +477,15 @@ class SafeBase:
                     if error * distance < 0:
                         raise ValueError("measured distance overshot target tolerance")
                 if angle is not None:
+                    # Match distance admission: delivery/preflight rotation is
+                    # not task progress, and a late sample cannot complete it.
+                    if state.sim_time_s > end:
+                        break
+                    if turn_baseline is None:
+                        if state.sim_time_s <= begin:
+                            continue
+                        turn_baseline = state
+                        continue
                     delta = self._yaw(state) - self._yaw(previous)
                     # Unwrap MEASURED yaw, not command.wz * elapsed time.
                     measured_angle += math.atan2(math.sin(delta), math.cos(delta))

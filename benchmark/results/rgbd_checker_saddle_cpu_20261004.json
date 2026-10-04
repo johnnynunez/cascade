@@ -1,0 +1,247 @@
+{
+  "schema": 1,
+  "date": "2026-10-04",
+  "base_head": "862bd0b6be426ff1703c76d4fa83f108f8a6099e",
+  "scope": "CPU-only explicit schema6 local RGB saddle candidate; all frozen outcomes retained",
+  "software_tests": {
+    "passed": 312,
+    "skipped": 0,
+    "output": "........................................................................ [ 23%]\n........................................................................ [ 46%]\n........................................................................ [ 69%]\n........................................................................ [ 92%]\n........................                                                 [100%]\n312 passed in 51.45s"
+  },
+  "held_out": {
+    "cases": 48,
+    "variants": {
+      "accuracy": {
+        "all_outcomes": {
+          "accepted": 28,
+          "independent held-out reference error exceeds frozen pixel gates": 8,
+          "all checkerboard corners required": 10,
+          "binary checker orientation is ambiguous": 2
+        },
+        "accepted_max_truth_rms_px": 0.41521175674507577,
+        "accepted_max_truth_point_error_px": 0.4532531051583294,
+        "common_pooled_truth_rms_px": 0.2709623703784443
+      },
+      "saddle": {
+        "all_outcomes": {
+          "accepted": 29,
+          "saddle center exceeds fixed seed neighborhood": 7,
+          "all checkerboard corners required": 10,
+          "binary checker orientation is ambiguous": 2
+        },
+        "accepted_max_truth_rms_px": 0.07246762144593803,
+        "accepted_max_truth_point_error_px": 0.216078658893184,
+        "common_pooled_truth_rms_px": 0.04073161746434387
+      }
+    },
+    "complete_paired_cases": 29,
+    "complete_paired_points": 1015,
+    "paired_truth_rms_improved": 29,
+    "paired_truth_rms_worsened": 0,
+    "paired_admission": {
+      "both_pass": 28,
+      "gain": 1,
+      "both_reject": 19
+    }
+  },
+  "known_regression": {
+    "cases": 3,
+    "variants": {
+      "accuracy": {
+        "all_outcomes": {
+          "accepted": 3
+        },
+        "accepted_max_truth_rms_px": 0.048648172930347434,
+        "accepted_max_truth_point_error_px": 0.09241243194069065,
+        "common_pooled_truth_rms_px": 0.0382591810808027
+      },
+      "saddle": {
+        "all_outcomes": {
+          "accepted": 3
+        },
+        "accepted_max_truth_rms_px": 0.1136925229049138,
+        "accepted_max_truth_point_error_px": 0.11369252290491381,
+        "common_pooled_truth_rms_px": 0.10495481450226865
+      }
+    },
+    "complete_paired_cases": 3,
+    "complete_paired_points": 105,
+    "paired_truth_rms_improved": 0,
+    "paired_truth_rms_worsened": 3,
+    "paired_admission": {
+      "both_pass": 3
+    }
+  },
+  "regression_details": [
+    {
+      "case": "fronto/phase2/area",
+      "accuracy_truth_rms_px": 0.03029682721531427,
+      "saddle_truth_rms_px": 0.1136925229049138,
+      "saddle_held_rms_px": 0.05942023807572414,
+      "both_reference_passed": true,
+      "complete_window_image_margin_px": 176.0,
+      "maximum_seed_offset_px": 0.15924622647696166,
+      "absolute_error_components_px": [
+        0.08039275391627143,
+        0.08039275391627143
+      ],
+      "all_truth_coordinates_half_pixel_phase": true,
+      "all_error_signs_oppose_integer_center_minus_truth": true
+    },
+    {
+      "case": "fronto/phase2/area_gauss035",
+      "accuracy_truth_rms_px": 0.03326788755159182,
+      "saddle_truth_rms_px": 0.11165285740321686,
+      "saddle_held_rms_px": 0.04756059002254425,
+      "both_reference_passed": true,
+      "complete_window_image_margin_px": 176.0,
+      "maximum_seed_offset_px": 0.17979334301679462,
+      "absolute_error_components_px": [
+        0.07895049260866926,
+        0.07895049260866926
+      ],
+      "all_truth_coordinates_half_pixel_phase": true,
+      "all_error_signs_oppose_integer_center_minus_truth": true
+    },
+    {
+      "case": "fronto/phase2/area_gauss065",
+      "accuracy_truth_rms_px": 0.048648172930347434,
+      "saddle_truth_rms_px": 0.0874882216691449,
+      "saddle_held_rms_px": 0.09173681036612764,
+      "both_reference_passed": true,
+      "complete_window_image_margin_px": 176.0,
+      "maximum_seed_offset_px": 0.1798221405598114,
+      "absolute_error_components_px": [
+        0.061863514816195675,
+        0.06186351481621273
+      ],
+      "all_truth_coordinates_half_pixel_phase": true,
+      "all_error_signs_oppose_integer_center_minus_truth": true
+    }
+  ],
+  "boundary_checks": {
+    "minimum_complete_window_image_margin_px": 164.0,
+    "minimum_returned_point_window_margin_px": 1.9008549959372942,
+    "padding_or_extrapolation": false
+  },
+  "quadrature_diagnostic": {
+    "detector_calls": 0,
+    "maximum_mean_absolute_rgb8": 0.006614583333333333,
+    "maximum_absolute_rgb8": 6.0,
+    "new_acceptance_threshold": false
+  },
+  "negatives": [
+    {
+      "case": "reflect_x",
+      "rgb_sha256": "891f0105f6cb1ef4da1ee4975f27d42df38de2cd38678856b529692b35c31ff7",
+      "reference_passed": false,
+      "expected_rejection": true,
+      "error_type": "ValueError",
+      "error": "exactly one of each declared binary ID required; missing/duplicate/foreign IDs rejected"
+    },
+    {
+      "case": "duplicate_tag",
+      "rgb_sha256": "59e89da6bcd70521c6d1620593b985da1a4d9123df701a837094860ddb9097c5",
+      "reference_passed": false,
+      "expected_rejection": true,
+      "error_type": "ValueError",
+      "error": "exactly one of each declared binary ID required; missing/duplicate/foreign IDs rejected"
+    },
+    {
+      "case": "foreign_tag",
+      "rgb_sha256": "5a263e153f0aa09c7f838e6ad518dc7306e6886c6182268cd8de70b371779935",
+      "reference_passed": false,
+      "expected_rejection": true,
+      "error_type": "ValueError",
+      "error": "exactly one of each declared binary ID required; missing/duplicate/foreign IDs rejected"
+    },
+    {
+      "case": "missing_tag",
+      "rgb_sha256": "2235465fc5c8a67fc214b40d299def5686f3307e8ac276397867c01b6a0c9736",
+      "reference_passed": false,
+      "expected_rejection": true,
+      "error_type": "ValueError",
+      "error": "exactly one of each declared binary ID required; missing/duplicate/foreign IDs rejected"
+    },
+    {
+      "case": "one_payload_bit_corruption",
+      "rgb_sha256": "5806238079143e4179f0a09041e4ffd8ba810f606d87a2f1ac6fa7d7ed992ab4",
+      "reference_passed": false,
+      "expected_rejection": true,
+      "error_type": "ValueError",
+      "error": "exactly one of each declared binary ID required; missing/duplicate/foreign IDs rejected"
+    },
+    {
+      "case": "missing_checker_corner",
+      "rgb_sha256": "9be8bbab7da5c72fd989c2eb4593aefac3f3b7930425b642b3e364940a7f576e",
+      "reference_passed": false,
+      "expected_rejection": true,
+      "error_type": "ValueError",
+      "error": "all checkerboard corners required"
+    },
+    {
+      "case": "half_board_occlusion",
+      "rgb_sha256": "9ed1a745c5e6c53bbf537ee98aca332b09ef2f157708cde77e5638e608c1bc1b",
+      "reference_passed": false,
+      "expected_rejection": true,
+      "error_type": "ValueError",
+      "error": "all checkerboard corners required"
+    },
+    {
+      "case": "gaussian_sigma2_kernel13",
+      "rgb_sha256": "986289d87ddd418d8618dbd1561036cb3769623415b87fecdf2d4221947ae280",
+      "reference_passed": false,
+      "expected_rejection": true,
+      "error_type": "ValueError",
+      "error": "checker corner lacks observed quadrant contrast"
+    },
+    {
+      "case": "downscale_one_eighth",
+      "rgb_sha256": "c874dfc509b0e59de68ef4fc949a5ee21d8dad4b34fc28f5faed86cb2c859f63",
+      "reference_passed": false,
+      "expected_rejection": true,
+      "error_type": "ValueError",
+      "error": "exactly one of each declared binary ID required; missing/duplicate/foreign IDs rejected"
+    }
+  ],
+  "source_sha256": {
+    "benchmark/rgbd/__init__.py": "a6f1a432cda87af50447781ca8e9277c07524e0dd65f420e1573b5b14298e510",
+    "benchmark/rgbd/binary_layout_a.py": "2a6a5d7f921effea8f2d3e56109e25b3ad0aafdd7bfa5a822b969ce03ed8362c",
+    "benchmark/rgbd/binary_native_bridge.py": "ac04fb72ca2aa747f8fcd34f06a8069f44417dad2b78e39fc83bb1fea53efa27",
+    "benchmark/rgbd/binary_reference.py": "abd91224482708488e278cd0a366160f1cfdf27f18049ea8cc4417e4473bb7c0",
+    "benchmark/rgbd/checker_accuracy.py": "126af948eee9526c5d0324e0be8186b49ed698d81381792e51fd01eae73f69d1",
+    "benchmark/rgbd/checker_accuracy_campaign.py": "871625bec78d9da710aace4b9a2a20285a2906df4893b58d22ad2d29da95d650",
+    "benchmark/rgbd/checker_corpus.py": "4d86bcc013a329a70c893e5e95307f9a466cb554c31a7a1992a510377e160ef4",
+    "benchmark/rgbd/checker_saddle.py": "b46065c1acd9e7adff495716893eed3bb12ab7086feca04d070ec05e118bd752",
+    "benchmark/rgbd/ground_native_bridge.py": "2f6e644df08d2422a08f9a85eb0ddf084314106b2c29631f3b1077a4273f01a3",
+    "benchmark/rgbd/ground_texture.py": "5b5412cb211268ff28aa2f906f5880b81184bbc6e2cb8e7126f0ade294fef02c",
+    "benchmark/rgbd/homography_support.py": "928b83fda32af1d64b6f0f0217f2da2a9423d73af39d13c6790da6d92b47239a",
+    "benchmark/rgbd/layout_a_native_bridge.py": "3db9501e513d4828ec6b200a73b5ee683593416e32516bbbdcb6043c1b29fd4f",
+    "benchmark/rgbd/live_reference.py": "15bebd99882cb5d3eb7e8cd367a37055615961a719076b5063ec3ca75f233f76",
+    "benchmark/rgbd/native_bridge.py": "f69c22fb0afd60c9b60445d75bc997b1adf3a25d431ef28142353dde076df448",
+    "benchmark/rgbd/observation_health.py": "a0877c9e4a2425b18d6b3b7f8fc71d773e9c1a40e50392c0bd5f45caac890eff",
+    "benchmark/rgbd/planar_reference.py": "f6c3920c629beb7a085125e9641e349dcad1999c854f83d3f7a6f5c6c2ddbc6e",
+    "benchmark/rgbd/assets/checker_saddle_consumer.json": "65dc87e130e24ee40461939fed0ffd7cf7b472b1e280e74a7484e80e89ce3aae"
+  },
+  "spec_sha256": "842b79d2c37c173eead2b263bf71daa67383136bda8fcf41f01efe9bb6b83599",
+  "truth_sha256": "192f0779e51bcc4697a82af1ce77a38eb8afa615523ba80553e982d3121fd2a7",
+  "artifact_sha256": {
+    "corpus-01/prepared.json": "9235777eee63620e7377db0e9113667e12d85c95d74fc026b8997884174750d4",
+    "corpus-02/prepared.json": "3f996e8e20677ee56be1321e884441245c9bcea92532dd68ef37896b2962fee8",
+    "corpus-02/evaluation.json": "5bbd54dadd2e396058e5d23e5e12643c13f951831749d2fc9cbd5285f35fd5d0",
+    "corpus-02/observations.jsonl": "2de43e8303ea506ef38dda529032cbfad0bbe64d6e4cb7b08433af5d4d8c4c88",
+    "corpus-02/negatives.jsonl": "75ef11f83c901b5ce5cf2032a9f4800ee9f46de03bdb3b6fd3e73a6834aee42b",
+    "corpus-02/convergence.json": "4d96ad7dd0c41fbcf4e9499081f960f1efe574483483dca89b88d3461b5e4898",
+    "tests-final/stdout.log": "3abdd36d85a182cc1b56361ff239f066cc11059b56020b0a9148d4d16f3f086d",
+    "tests-final/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "summarize_saved.py": "c0913f5533fe7077e5b825436c60feff2bc991dde2dba13ac2462db094005d78",
+    "freeze_corpus.py": "9e0f398d13ddd3bd9e173a0d84a18baedec0a79cdc3a189c8756812966ff72a8"
+  },
+  "raw_artifact_root": "External sibling RGBD_CHECKER_PATCH_20261004",
+  "preparation_01": "Retained, zero detector calls; repeated before first evaluation after adding macOS dylib library hashing and source formatting. Identical frozen specification, truth and images.",
+  "physical_admission": false,
+  "native_images_read": 0,
+  "all_nominal_conditions_supported": false,
+  "universal_accuracy_improvement": false,
+  "historical_failures_reinterpreted": false
+}

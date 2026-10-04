@@ -179,3 +179,124 @@ passes that CPU preflight. Neither check retries or changes the native result.
 Further localizer or rendering work needs a separately declared variant,
 independent CPU validation and a fresh native episode; the pixel gates remain
 unchanged.
+
+## Explicit local RGB refinement, schema6
+
+The opt-in `--checker-saddle` variant adds a fixed local observation after the
+unchanged schema5 seed detector. Each corner uses its complete 7×7 RGB window,
+Gaussian weights with sigma 1.5 px, and one quadratic stationary-saddle solve.
+The estimator receives neither calibration nor depth, projected corners or a
+homography. Degenerate patches, incomplete windows and shifts greater than
+1.5 px reject the capture; there is no fallback, padding or extrapolation.
+The original tag/contrast checks, 18/17 split and 0.15/0.35 px gates remain.
+
+The separate `checker_saddle_consumer.json` binds OpenCV, the NumPy package and
+the fixed refinement policy. Producer selection and
+`board_from_fixture(..., saddle=True)` require that explicit schema6 declaration.
+Geometry, texture rectangles and ST remain unchanged; source and model identity
+bind the new module and consumer. Schema4 and schema5 keep their own selection.
+In the descriptor, `checker.returned_coordinates` describes the unchanged
+OpenCV **seed** coordinates. `checker.post_refinement` describes the subsequent
+local solve; schema6's final coordinates are its refined output. The consumer
+JSON also separates `seed` and `refinement`. This clarifies the existing contract
+without changing its descriptor or hash.
+
+The [new frozen specification](../benchmark/rgbd/assets/checker_saddle_corpus_spec.json)
+declares 48 held-out images: four published analytic projections, four new
+subpixel phases and three fixed filters. Three previously observed frontal
+regressions are separate known cases. Specification and analytic truth were
+hashed before rasterization or detector evaluation. Native captures were not
+inputs. Every case and refusal is retained in the
+[CPU receipt](../benchmark/results/rgbd_checker_saddle_cpu_20261004.json).
+
+| Held-out outcome, all 48 cases | Schema5 | Schema6 |
+|---|---:|---:|
+| Reference gates pass | 28 | 29 |
+| Missing checker detection | 10 | 10 |
+| Ambiguous orientation | 2 | 2 |
+| Held-out residual rejection | 8 | 0 |
+| Fixed local offset rejection | 0 | 7 |
+
+There is one admission gain and no loss. Across the 29 complete paired cases
+(1,015 points), truth RMS improves in all 29: pooled RMS is 0.270962 →
+0.040732 px. This comparison excludes rejected incomplete estimates explicitly;
+it does not establish all-condition performance. The maximum truth RMS among
+schema6's 29 accepted cases is 0.072468 px, with maximum point error 0.216079 px.
+All nine predeclared adversaries reject.
+
+**All three known regressions worsen**, although both variants pass their
+original reference gates. Truth RMS changes 0.030297 → 0.113693 px,
+0.033268 → 0.111653 px and 0.048648 → 0.087488 px. Their analytic corners are at
+half-pixel phase. The quadratic estimates have component errors of ±0.080393,
+±0.078950 and ±0.061864 px; their signs follow which integer window the seed
+selects. Complete windows are 176 px from the nearest image boundary, so this
+is local approximation bias, not border extrapolation. No parameter, correction
+or gate was changed after observing it. Internal homography consistency remains
+insufficient to prove absolute accuracy or universal improvement.
+
+The 16×16 versus 32×32 raster control has maximum mean absolute difference
+0.006615 RGB8 levels and maximum channel difference 6; no detector or new
+threshold is used for that control. All 312 RGB-D software tests pass, including
+OpenUSD authoring and cross-schema/consumer rejection. Independent code and
+saved-artifact reviews found no blocking issue. These CPU results preceded the
+native episode below. The previous schema4 and schema5 native failures keep
+their original verdicts; no physical admission is claimed.
+
+Reproduce in the declared consumer environment with `--variant saddle` added
+to each `checker_accuracy_campaign` prepare/evaluate/negatives command above.
+Raw files are under the external sibling `RGBD_CHECKER_PATCH_20261004/corpus-02`.
+The retained `corpus-01` was never evaluated: preparation was repeated before
+the first detector call after adding macOS `.dylib` package hashing and source
+formatting, with identical specification, truth and all 51 images.
+
+## Static planar native result, 2026-10-04
+
+The new schema6 episode **passes** on frozen source `5062648` and current SDK
+`48b2d951` (`isaac62_48b2d951`). Its new model is `2a489f7e…`, epoch
+`974ee571…`. A new baseline on that same source produced model `e331fad1…`;
+one of the prior baseline's 24 bridge sources had changed, so its identity was
+not reused. The first preparation was refused before Kit because a recorded
+foreign GPU process had exited. That refusal remains saved; only the resource
+inventory and output/cache paths changed for the subsequent baseline.
+[Bound native receipt](../benchmark/results/rgbd_checker_saddle_native_20261004.json).
+
+All five retained RGB images pass the unchanged 18/17 reference gates:
+held-out RMS is **0.075429–0.093954 px** against 0.15 px, and maximum error is
+**0.182673 px** against 0.35 px. This fixed image-only evaluation covers steps
+3, 22, 42, 62 and 82; its post-close analysis is not a new sensor observation.
+
+The ordinary in-process MCP reader admitted three fresh captures (steps 3, 42
+and 62) and created **51/51 accepted annotations**, 17 per capture. All three
+retained-receipt comparisons pass: maximum axis error is **0.152868 mm** against
+1 mm, maximum pixel RMS is 0.047245 against 0.35, and maximum pixel error is
+0.088824 against 0.7. Recorded capture age stays at or below 0.862644 s against
+2 s. Annotation fan-out issues zero additional reader RPCs. All 12 read attempts
+are retained: the three successes are followed by **one EOF rejection and eight
+connection-refused rejections**, which earn no annotations.
+
+Both reference and candidate complete the original 80 solves, 20 policy
+evaluations and five captures. The candidate takes 129.896 s within the original
+180 s native / 240 s outer limits. Full native physics/calibration invariance,
+state health, post-camera/bootstrap appearance guards and before/after input
+hashes pass. Both native/scope exits are zero; ordinary closure leaves no owned
+members or births and uses no signals or forced cleanup. The foreign GPU
+occupant remains unchanged. The native balance policy is active, with zero
+semantic commands; this was not a locomotion/rest test.
+
+CUDA/Warp/XDG cache paths were isolated, and the native log confirms the Warp
+path. RTX shader caches retained the SDK's shared defaults. No private RTX
+cache, cold-cache timing, timing isolation or reliability claim follows.
+
+This result covers one static simulated plane, the declared board and these
+three live captures. It does not establish general 3D calibration, moving-camera
+accuracy, per-AOV synchronization, hardware admission or universal improvement.
+The three CPU regressions and all historical native/dependency failures remain
+failures. Neither native calibration nor analytic ground truth was supplied to
+the local refinement.
+
+The [original step-42 JPEG](../benchmark/results/rgbd_checker_saddle_native_step42_20261004.jpg)
+is copied byte-for-byte (SHA-256 `d3b364997c6c7ae949390882ab10e87a48c4acc01aeead7699ee731708696329`).
+It illustrates the scene; metric evaluation uses the separate retained lossless
+RGB bytes. Raw packets, all reader/annotation receipts, source manifests and
+ordinary closure remain under `RGBD_CHECKER_PATCH_20261004/native-01`; its
+118-file manifest and the baseline audit are linked by the compact receipt.

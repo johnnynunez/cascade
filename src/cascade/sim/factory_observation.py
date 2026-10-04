@@ -16,8 +16,132 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from ..control.fastening import FasteningFault, FasteningSolve, SolvedPair
-from .microduck_contact_support import SOURCE_SHA256, solved_contacts
+from ..control.fastening import FasteningFault, FasteningSolve, FasteningUpload, SolvedPair
+from .microduck_contact_support import SOURCE_SHA256, _ContactSnapshot, _solved_contact_snapshot, solved_contacts
+
+
+@dataclass(frozen=True)
+class _Float32Snapshot:
+    """Owned raw channel bytes; no retained writable NumPy/SDK storage."""
+    shape: tuple
+    data: bytes
+
+    def __post_init__(self):
+        if (type(self.shape) is not tuple or any(type(x) is not int or x < 0 for x in self.shape)
+                or type(self.data) is not bytes or math.prod(self.shape) * 4 != len(self.data)):
+            raise ValueError("invalid private raw channel layout")
+        if not np.isfinite(np.frombuffer(self.data, dtype=np.float32)).all():
+            raise ValueError("non-finite private raw channel")
+
+    @classmethod
+    def capture(cls, value):
+        if type(value) is not np.ndarray or value.dtype != np.float32 or not np.isfinite(value).all():
+            raise ValueError("invalid private raw float32 channel")
+        return cls(value.shape, value.tobytes())
+
+    def materialize(self):
+        return np.frombuffer(self.data, dtype=np.float32).reshape(self.shape).tolist()
+
+
+@dataclass(frozen=True)
+class _RawMetadata:
+    """Small scalar-only metadata maps, with original insertion order."""
+    entries: tuple
+
+    def __post_init__(self):
+        if (type(self.entries) is not tuple or any(type(item) is not tuple or len(item) != 2
+                or type(item[0]) is not str for item in self.entries)
+                or len({key for key, _ in self.entries}) != len(self.entries)):
+            raise ValueError("invalid private raw metadata fields")
+        for _, value in self.entries:
+            if type(value) not in (_RawMetadata, str, int, float, bool, type(None)):
+                raise ValueError("mutable private raw metadata")
+            if type(value) is float and not math.isfinite(value):
+                raise ValueError("non-finite private raw metadata")
+
+    @classmethod
+    def capture(cls, value):
+        if type(value) is not dict or any(type(k) is not str for k in value):
+            raise ValueError("invalid private raw metadata")
+        entries = []
+        for key, item in value.items():
+            if type(item) is dict:
+                item = cls.capture(item)
+            elif type(item) not in (str, int, float, bool, type(None)):
+                raise ValueError("non-scalar private raw metadata")
+            entries.append((key, item))
+        return cls(tuple(entries))
+
+    def materialize(self):
+        return {key: value.materialize() if type(value) is _RawMetadata else value
+                for key, value in self.entries}
+
+
+@dataclass(frozen=True)
+class _FactoryReadback:
+    """Trusted in-process envelope, never a wire or external pickle format.
+
+    Live safety still receives the unchanged typed solve. Only the raw archive
+    defers public dict/list construction. `_RawRecord` snapshots this envelope
+    before acceptance, and its expansion remains a sticky failure boundary.
+    """
+    entries: tuple
+
+    def __post_init__(self):
+        if (type(self.entries) is not tuple or any(type(item) is not tuple or len(item) != 2
+                or type(item[0]) is not str for item in self.entries)
+                or len({key for key, _ in self.entries}) != len(self.entries)):
+            raise ValueError("invalid private readback fields")
+        for key, value in self.entries:
+            if key == "solve":
+                from ..control.fastening_seat import SeatingSolve
+                valid = type(value) in (FasteningSolve, SeatingSolve)
+            elif key == "upload":
+                valid = type(value) is FasteningUpload
+            elif key == "contacts":
+                valid = type(value) is _ContactSnapshot and all(type(x) is str for x in value.labels)
+            else:
+                valid = type(value) in (_Float32Snapshot, _RawMetadata, str, int, float, bool, type(None))
+            if not valid:
+                raise ValueError("untrusted private readback field: " + key)
+        if not {"solve", "upload", "contacts"} <= {key for key, _ in self.entries}:
+            raise ValueError("incomplete private readback")
+        values = dict(self.entries)
+        solve, upload, contacts = (values[key] for key in ("solve", "upload", "contacts"))
+        if (solve.step != upload.before_step + 1 or solve.generation != upload.generation
+                or solve.solver_count != contacts.count):
+            raise ValueError("private readback solve/upload/contact mismatch")
+        shapes, indices, forces, _ = contacts._arrays()
+        active = 0
+        for index, (pair, shape) in enumerate(zip(solve.contacts, shapes, strict=True)):
+            force = 0.
+            if active < len(indices) and indices[active] == index:
+                force = float(forces[active])
+                active += 1
+            if (pair.collider_a != contacts.labels[shape[0]] or pair.collider_b != contacts.labels[shape[1]]
+                    or pair.normal_force_n != force
+                    or force == 0. and math.copysign(1., pair.normal_force_n) != math.copysign(1., force)):
+                raise ValueError("private raw ledger differs from live solve")
+
+    @classmethod
+    def capture(cls, value):
+        return cls(tuple((key, _RawMetadata.capture(item) if type(item) is dict else item)
+                         for key, item in value.items()))
+
+    def extended(self, **values):
+        return type(self)(self.entries + tuple((key, _RawMetadata.capture(value)) for key, value in values.items()))
+
+    def materialize(self):
+        result = {}
+        for key, value in self.entries:
+            if key in ("solve", "upload"):
+                value = asdict(value)
+            elif key == "contacts":
+                value = value.factory_records()
+            elif type(value) in (_Float32Snapshot, _RawMetadata):
+                value = value.materialize()
+            result[key] = value
+        return result
 
 
 SDK_SOURCES = {name: digest for name, digest in SOURCE_SHA256.items()
@@ -345,6 +469,41 @@ def contact_records(scene, output, *, _zero_pairs=None):
     return tuple(pairs), records
 
 
+def _contact_snapshot(scene, output, zero_pairs):
+    """Full validated candidate ledger without materializing public raw rows."""
+    solver = scene.solver
+    if _integer(solver.mjw_data.overflow, "solver overflow"):
+        raise FasteningFault("native constraint/contact overflow")
+    solver.update_contacts(output)
+    snapshot = _solved_contact_snapshot(SimpleNamespace(model=scene.model, solver=solver, contacts=output))
+    shapes, indices, forces, _ = snapshot._arrays()
+    active, pairs = 0, []
+    for index, (a, b) in enumerate(shapes):
+        force = 0.
+        if active < len(indices) and indices[active] == index:
+            force = float(forces[active])
+            active += 1
+        pairs.append(zero_pairs.pair(snapshot.labels[a], snapshot.labels[b], force))
+    return tuple(pairs), snapshot
+
+
+def _seating_from_snapshot(solve, snapshot, binding):
+    from ..control.fastening_seat import SeatingSolve, ShoulderContact
+    from dataclasses import fields
+    shapes, indices, forces, vectors = snapshot._arrays()
+    seat_pair = binding.seat_contact_pair
+    fastener = next(iter(set(seat_pair).intersection(binding.thread_contact_pair)))
+    witnesses = []
+    for index, force, vector in zip(indices, forces, vectors, strict=True):
+        a, b = (snapshot.labels[k] for k in shapes[index])
+        if force > 0 and tuple(sorted((a, b))) == seat_pair:
+            witnesses.append(ShoulderContact(int(index), tuple(map(float, vector[1])),
+                tuple(map(float, vector[2])), float(force),
+                tuple(float(value) if b == fastener else -float(value) for value in vector[0])))
+    return SeatingSolve(**{field.name: getattr(solve, field.name) for field in fields(FasteningSolve)},
+                        shoulder_contacts=tuple(witnesses))
+
+
 class FactoryObserver:
     """Exactly one call after each solver step; caller retains immutable stamp.
 
@@ -365,6 +524,12 @@ class FactoryObserver:
         self._zero_pairs = _ZeroLoadPairs()
 
     def read(self, stamp, captured_monotonic_s, collision_receipt):
+        return self._read(stamp, captured_monotonic_s, collision_receipt, private=False)
+
+    def _read_for_owner(self, stamp, captured_monotonic_s, collision_receipt):
+        return self._read(stamp, captured_monotonic_s, collision_receipt, private=True)
+
+    def _read(self, stamp, captured_monotonic_s, collision_receipt, *, private):
         s = self.scene
         if s.step_id != self._last_step + 1 or stamp.before_step != self._last_step:
             raise FasteningFault("observer skipped or repeated a solve")
@@ -388,7 +553,10 @@ class FactoryObserver:
                     or not np.isclose(qd[row.newton_dof], nv[0, row.native_dof], atol=2e-6, rtol=1e-6)):
                 raise FasteningFault("native/Newton joint readback mapping disagrees")
         bounds = self.geometry.evaluate(nq[0], body_poses=poses)
-        pairs, raw_contacts = contact_records(s, self.output, _zero_pairs=self._zero_pairs)
+        if private:
+            pairs, raw_contacts = _contact_snapshot(s, self.output, self._zero_pairs)
+        else:
+            pairs, raw_contacts = contact_records(s, self.output, _zero_pairs=self._zero_pairs)
         # Static bolt transform is bound at construction and checked by owner
         # model fingerprint; no fabricated moving fixture body is introduced.
         nut = poses[s.nut_body]
@@ -418,13 +586,16 @@ class FactoryObserver:
             int(d.naconmax), len(pairs))
         if self.limits.seating is not None:
             from ..control.fastening_seat import seating_solve
-            value = seating_solve(value, raw_contacts, self.binding)
+            value = (_seating_from_snapshot(value, raw_contacts, self.binding) if private else
+                     seating_solve(value, raw_contacts, self.binding))
         self._last_step = s.step_id
-        return value, {"solve": asdict(value), "upload": asdict(stamp),
+        channel = _Float32Snapshot.capture if private else lambda value: value.tolist()
+        raw = {"solve": value if private else asdict(value), "upload": stamp if private else asdict(stamp),
             "effort_time": "applied during interval (step-1,step); not reevaluated at final pose",
             "collision_buffers": collision_receipt, "contacts": raw_contacts,
             "constraint_count": _integer(d.nefc, "constraints"), "constraint_capacity": int(d.njmax),
-            "native_ctrl": native_ctrl[0].tolist(), "actuator_force": scalar_forces[0].tolist(),
-            "qfrc_actuator": effort[0].tolist(), "qfrc_applied": applied[0].tolist(),
-            "qfrc_constraint": constraint[0].tolist(), "qfrc_passive": passive[0].tolist(),
-            "body_poses_xyzw": poses.tolist()}
+            "native_ctrl": channel(native_ctrl[0]), "actuator_force": channel(scalar_forces[0]),
+            "qfrc_actuator": channel(effort[0]), "qfrc_applied": channel(applied[0]),
+            "qfrc_constraint": channel(constraint[0]), "qfrc_passive": channel(passive[0]),
+            "body_poses_xyzw": channel(poses)}
+        return value, _FactoryReadback.capture(raw) if private else raw

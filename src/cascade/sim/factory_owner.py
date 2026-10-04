@@ -19,7 +19,7 @@ import numpy as np
 from ..control.fastening import (
     FasteningController, FasteningFault, FasteningRevoked, SolveJournal,
 )
-from .factory_observation import _floats, collision_coverage
+from .factory_observation import _FactoryReadback, _floats, collision_coverage
 
 
 def _exception_text(error):
@@ -43,10 +43,13 @@ class _RawRecord:
     __slots__ = ("__payload",)
 
     def __init__(self, value):
+        if isinstance(value, _FactoryReadback) and type(value) is not _FactoryReadback:
+            raise ValueError("untrusted private readback subclass")
         self.__payload = pickle.dumps(value, protocol=5)
 
     def expand(self):
-        return pickle.loads(self.__payload)
+        value = pickle.loads(self.__payload)
+        return value.materialize() if type(value) is _FactoryReadback else value
 
 
 class NativeSolveClock:
@@ -220,7 +223,11 @@ class FactorySolveOwner:
                     # Same stop ACK generation; no stale proposal or invented
                     # producer fault when stop arrives during preparation.
                     return self._zero()
-        row, raw = self.backend.advance(upload)
+        # Only our exact native backend supplies the private immutable envelope.
+        # Existing synthetic/custom backends retain their public advance API.
+        advance = (self.backend._advance_for_owner if type(self.backend) is FactoryNewtonBackend
+                   else self.backend.advance)
+        row, raw = advance(upload)
         # Archive before acceptance, retaining the original capture and even a
         # later-rejected solve. Full queue/encoding errors remain owner faults.
         self._records.put_nowait(_RawRecord(raw))
@@ -350,6 +357,12 @@ class FactoryNewtonBackend:
         return tuple(map(float, target)), bounds, effort
 
     def advance(self, final_upload):
+        return self._advance(final_upload, private=False)
+
+    def _advance_for_owner(self, final_upload):
+        return self._advance(final_upload, private=True)
+
+    def _advance(self, final_upload, *, private):
         self.native_clock.before()
         self.bound_model.check_immutable()
         s = self.scene
@@ -370,11 +383,17 @@ class FactoryNewtonBackend:
         s.step_id = self.step
         s.time_s = self.step*self.binding.dt_s
         captured = self.bound_model.clock()
-        row, raw = self.observer.read(stamp, captured, coverage)
+        read = self.observer._read_for_owner if private else self.observer.read
+        row, raw = read(stamp, captured, coverage)
         self.native_clock.stable()
-        raw["native_clock"] = {"step": self.step, "time_s": float(self.native_clock.native_time),
+        native_clock = {"step": self.step, "time_s": float(self.native_clock.native_time),
             "timestep_s": float(self.native_clock.native_dt),
             "interval_clock_s": s.time_s, "cuda_graph": False}
-        raw["collision_interval"] = {"before_step": stamp.before_step,
+        collision_interval = {"before_step": stamp.before_step,
             "generation": stamp.generation, "after_step": self.step}
+        if private:
+            raw = raw.extended(native_clock=native_clock, collision_interval=collision_interval)
+        else:
+            raw["native_clock"] = native_clock
+            raw["collision_interval"] = collision_interval
         return row, raw

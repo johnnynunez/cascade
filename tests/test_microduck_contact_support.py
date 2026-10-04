@@ -95,6 +95,64 @@ def test_many_contact_frames_retain_order_force_and_inactive_slots(cone, dim):
                and r['normal_a_to_b_world'] == [0., 0., 1.] for r in rows)
 
 
+def _reorder_constraint_blocks(ns, width):
+    """Row storage order need not match contact-candidate order."""
+    d = ns.solver.mjw_data
+    count = int(d.nacon.value[0])
+    for i in range(count):
+        start = (count - i - 1) * width
+        d.contact.efc_address.value[i, :width] = np.arange(start, start + width)
+        d.efc.id.value[0, start:start + width] = i
+
+
+@pytest.mark.parametrize('cone,dim', [(0, 1), (0, 3), (0, 4), (0, 6), (1, 1), (1, 3), (1, 4), (1, 6)])
+def test_constraint_coverage_keeps_nonmonotonic_complete_blocks_and_strided_channels(cone, dim):
+    ns = contact_population(5, cone=cone, dim=dim)
+    width = 2 * (dim - 1) if cone == 0 and dim > 1 else dim
+    expected = solved_contacts(ns)
+    _reorder_constraint_blocks(ns, width)
+    d = ns.solver.mjw_data
+    # Buffer.numpy copies in ordinary tests. Return actual non-contiguous
+    # views here so the diagnostic-input reduction takes its copy fallback.
+    for channel in (d.efc.type, d.efc.id, d.efc.force):
+        backing = np.repeat(channel.value, 2, axis=1)
+        channel.value = backing[:, ::2]
+        channel.numpy = lambda channel=channel: channel.value
+    assert solved_contacts(ns) == expected
+
+
+@pytest.mark.parametrize('bad', ['overlap', 'hole', 'outside', 'negative', 'noncontiguous', 'short_address'])
+@pytest.mark.parametrize('index', [0, 2, 4])
+def test_constraint_mask_rejects_every_incomplete_or_aliased_block(bad, index):
+    ns = contact_population(5)
+    d = ns.solver.mjw_data
+    if bad == 'overlap':
+        peer = (index + 1) % 5
+        d.contact.efc_address.value[index] = d.contact.efc_address.value[peer]
+    elif bad == 'hole':
+        d.contact.efc_address.value[index, 0] = -1
+    elif bad == 'outside':
+        d.contact.efc_address.value[index, :4] = np.arange(19, 23)
+    elif bad == 'negative':
+        d.contact.efc_address.value[index, 0] = -2
+    elif bad == 'noncontiguous':
+        d.contact.efc_address.value[index, 2] += 1
+    else:
+        d.contact.efc_address.value = d.contact.efc_address.value[:, :3]
+    result = read(ns)
+    assert result['status'] == 'unavailable' and result['contacts'] == []
+
+
+def test_constraint_coverage_is_local_to_each_completed_observation():
+    ns = contact_population(5, inactive=(2,))
+    before = solved_contacts(ns)
+    assert len(before) == 4
+    ns.solver.mjw_data.contact.efc_address.value[4, 0] = -1
+    with pytest.raises(ValueError, match='does not cover all solved contact rows'):
+        solved_contacts(ns)
+    assert len(before) == 4  # no mutation of already published rows
+
+
 @pytest.mark.parametrize('index', [0, 3, 31])
 @pytest.mark.parametrize('channel', ['frame', 'point', 'force', 'normal', 'handedness'])
 def test_invalid_contact_in_a_batch_cannot_be_hidden_by_valid_neighbors(index, channel):

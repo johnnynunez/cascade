@@ -202,3 +202,41 @@ streams, stop revocation, late results and lost retention. They do not admit
 native seating on this runtime. The standalone measurements above remain bound
 to their original source and episode. Tool acquisition, engagement, withdrawal,
 calibrated preload and hardware validation remain separate work.
+
+The first configured native seating episode on source `54ba9a9` was rejected
+at solve 391: the observation was 353.581 ms old against the unchanged 200 ms
+limit. All 107,193 contact candidates remain recorded. A 347.699 ms generation-2
+GC callback interval occurred on the same thread inside contact extraction;
+the responsible heap allocations were not measured. No loaded shoulder window
+was reached. The owner uploaded zero and acknowledged stop, but no later solve
+established physical rest. The process scope closed ordinarily with no signals
+or remaining children; the runtime retained its freshness fault.
+
+A separate CPU decoder change (`6525ce0`) replaces per-contact constraint index
+copies and row-list/set construction with contiguous views and local coverage.
+Its 398 differential cases preserve outputs and refusals, plus two complete
+Factory public API comparisons. For synthetic 293-candidate buffers, 32 paired
+samples measured median 4.601 to 4.193 ms, but the candidate maximum was worse:
+11.023 versus 5.226 ms, including an observed 6.796 ms gen-2 interval. All samples
+are retained with normal GC settings. This does not establish a remedy for the
+native pause or admit seating; a changed decoder requires a new native pin.
+The [compact receipt](evidence/factory-seating-20261004.json) binds both scopes
+and preserves the negative native result separately from CPU equivalence.
+
+The following private archive change (`33b8fd4`) keeps completed contact columns
+and raw float channels in owned immutable bytes until public records are read.
+The live verifier still receives every typed contact, and the owner archives
+each solve before acceptance, including later refusals. Only the exact native
+backend uses this path; public readers and custom backends retain their ordinary
+dict/list contract. Private envelopes are trusted in-process values, not an
+external pickle format. All 391 retained rows and 107,193 contacts round-trip to
+identical JSON bytes; the 398 decoder cases and two public API comparisons also
+remain equal. The original freshness refusal is unchanged.
+
+In 32 paired CPU archive samples, median archive time fell from 0.704 to
+0.110 ms, while expansion rose from 0.105 to 0.731 ms (private maximum 1.151 ms).
+These timings start from already captured rows and exclude native extraction.
+All samples and normal-GC callbacks are retained in the same compact receipt.
+Materialization during journal draining can still hold the GIL or trigger GC;
+neither this measurement nor the 354 selected passing CPU tests establish a
+remedy for the native pause, physical rest or seating admission.

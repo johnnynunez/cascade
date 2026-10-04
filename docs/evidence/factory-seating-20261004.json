@@ -1,0 +1,321 @@
+{
+  "schema": "cascade.factory-seating-negative-and-contact-cpu.v1",
+  "native": {
+    "artifact_root": "cascade-lab/ROADMAP_FASTENING_20261004",
+    "source_head": "54ba9a99c261b237f8c99320930659b6430e5a6a",
+    "model_pin": "e7d358aa3a4199178e93cc2cc0bd02a50943c0530e19a2d33b6b1239a146931f",
+    "epoch": "b2316c45571c4254bffe738c81a68244",
+    "plan_sha256": "8f2f5ef309152732afd3f2fada1df55f65fb588a1e8f9c0f009d243c105ea49f",
+    "preparation": {
+      "admission_predicates": 22,
+      "admission_sha256": "c9adf546d1c7ce22db7780d750def78f63e646cd2957bf735eca6f91a32d7cd3",
+      "loaded_variants": 39,
+      "model_identity_sha256": "e7d358aa3a4199178e93cc2cc0bd02a50943c0530e19a2d33b6b1239a146931f",
+      "ok": true,
+      "physical_snapshot_sha256": "2bbd582bc54ba493d4c6e0096eeefab08ce97c92e1b37d22f3f5d2d59fc411f8",
+      "physics_admission": false,
+      "readiness_admission": false,
+      "scene_and_native_solves": 0
+    },
+    "unused_preparation": "seating-plan-01 was not launched; plan-02 fixes only absolute preparation references",
+    "original_task_ok": false,
+    "native_exit": 1,
+    "scope_ordinary_closed": true,
+    "owner_thread_closed": true,
+    "runtime_closure_ok": false,
+    "signals": [],
+    "forced": false,
+    "remaining_members": [],
+    "remaining_births": [],
+    "inputs_unchanged": true,
+    "readiness": {
+      "captured_monotonic_s": 43130.429689613,
+      "first_step": 1,
+      "generation": 0,
+      "last_step": 361,
+      "limits_sha256": "1c47a8b0cb0488d3f11789a70ff312d7089d19e2469c149e2406027c52ddc4a8",
+      "new_observation": false,
+      "quiet_interval_sim_s": 0.5000000121071935
+    },
+    "solves": 391,
+    "generations": {
+      "0": 363,
+      "1": 1,
+      "2": 27
+    },
+    "nonzero_spindle_command_rows": 27,
+    "complete_contact_records": 107193,
+    "contact_counts": {
+      "solved": 25732,
+      "solved_positive": 22540,
+      "inactive_candidate": 81461,
+      "solved_zero": 3192
+    },
+    "freshness_rejection": {
+      "age_s": 0.35358107200590894,
+      "binding_sha256": "c1ccdbc917d174125edf873fc86dc2cd434db767e7049d9d05327c3ac4268209",
+      "captured_monotonic_s": 43131.868625355,
+      "checked_monotonic_s": 43132.222206427,
+      "epoch": "b2316c45571c4254bffe738c81a68244",
+      "generation": 2,
+      "max_observation_age_s": 0.2,
+      "model_identity_sha256": "e7d358aa3a4199178e93cc2cc0bd02a50943c0530e19a2d33b6b1239a146931f",
+      "reason": "stale",
+      "simulation_time_s": 0.6516666824463755,
+      "stage": "controller_accept_solve",
+      "step": 391
+    },
+    "overlap": [
+      {
+        "phase": "gc",
+        "scene_step": -1,
+        "start_monotonic_ns": 43131873042707,
+        "end_monotonic_ns": 43132220741648,
+        "wall_ms": 347.698941,
+        "thread_cpu_ms": 347.493079,
+        "thread_id": 134714557839040
+      },
+      {
+        "phase": "contact_records",
+        "scene_step": 391,
+        "start_monotonic_ns": 43131869710907,
+        "end_monotonic_ns": 43132220964357,
+        "wall_ms": 351.25345,
+        "thread_cpu_ms": 351.046979,
+        "thread_id": 134714557839040
+      },
+      {
+        "phase": "observer.read",
+        "scene_step": 391,
+        "start_monotonic_ns": 43131868629111,
+        "end_monotonic_ns": 43132221937608,
+        "wall_ms": 353.308497,
+        "thread_cpu_ms": 353.101041,
+        "thread_id": 134714557839040
+      },
+      {
+        "phase": "controller.accept_solve",
+        "scene_step": 391,
+        "start_monotonic_ns": 43132222203813,
+        "end_monotonic_ns": 43132222325798,
+        "wall_ms": 0.121985,
+        "thread_cpu_ms": 0.122003,
+        "thread_id": 134714557839040
+      }
+    ],
+    "gc_interpretation": "same-thread gen2 callback interval nested within contact_records; heap cause not measured",
+    "zero_upload": {
+      "before_step": 391,
+      "completed_monotonic_s": 43132.222451269,
+      "generation": 4,
+      "physical_stop_verified": false,
+      "uploaded": true
+    },
+    "fallback_stop": {
+      "accepted_monotonic_s": 43132.222541507,
+      "generation": 5,
+      "latched": true,
+      "ok": true,
+      "physical_stop_verified": false
+    },
+    "loaded_shoulder_rows": 0,
+    "retained_shoulder_rows": 0,
+    "seating_verified": false,
+    "physical_stop_verified": false,
+    "preload_verified": false,
+    "artifact_sha256": {
+      "seating-01/inputs-after.json": "89a0527f0158e75d7a4bc8ded892e6fdb6f0ac1b5eee3c39f92767ac3da89c82",
+      "seating-01/inputs-before.json": "89a0527f0158e75d7a4bc8ded892e6fdb6f0ac1b5eee3c39f92767ac3da89c82",
+      "seating-01/native/constructed-binding.json": "53535f7043b5442aab9eef6a6a3cd8b9a98cd6ff6d215d08e0fe7b8714f10d59",
+      "seating-01/native/constructed-model.json": "25b1a096f2a4db5d47647321f2751db5d0ebdf4f89d00ffe67ab4ab66e905c02",
+      "seating-01/native/native-result.json": "116d69004e876398b4a18f942e88405997861c340d4a91d2255f12cd51b82a27",
+      "seating-01/native/phase-trace.json": "c6a8cf3975b6cd3203abd34239edc45238e94f56853fc95a51d16dff683ed80e",
+      "seating-01/native/post-close-solves.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "seating-01/native/runtime/domains/fastening/last-action.json": "1f34916389020fdae0562250860fd96c1d4764bbce219d2d2c2a4c6b8e8ac399",
+      "seating-01/native/runtime/domains/fastening/precompile.json": "83785ab07028b58cc96c391649ab369bdf7ba43638274c8001f626beef0b43fc",
+      "seating-01/native/runtime/domains/fastening/solves.jsonl": "605a6ed32c85672c182b18d6ef2d09662aab13dc4207e3ff004e7fe7e297c013",
+      "seating-01/private-inventories.json": "9a0bd2ca8d5928cbb50947f120765941e33533be2d5306b9c2ceb357645276f3",
+      "seating-01/receipt.json": "a3d35a1c349576aba3d935585bbb26e6017fa9fe9f206bb13f3bd0ef7404d46f",
+      "seating-01/scope/closure.json": "2c6c754f8115ebbee9fa7cbb3a3e0c283d54002515ad9d853826121b70c3bd52",
+      "audit_seating_failure.py": "59cfb4aaf534684770a5e7e184aa7b797a0e97a2e85345255dd104c2de23fbbc",
+      "seating-negative-audit-01.json": "07571ae22e7ef18bac53660dc93a7c4533bfc7ee987e4f6835538ca809176e99",
+      "audit_preparation.py": "dbbdeb0382810342e2b9d7604d5ca16dc3aa845bf39ec847dbc2110a2b1a272a",
+      "preparation-audit-01.json": "964fc53b35c2b707f9fab868b3558571c83b6f66de177ec7d4bf645b72b8a1b2",
+      "prepare-plan-01.json": "7729948551130555a02b636382fd4f9ef143ae605a6a078ffa5d58eaae294593",
+      "prepare-binding-01.json": "7ba98ba7745cf0da2b668213b90061f26657da1ad2e00c2a38fd1fde9f255e4a",
+      "seating-plan-01.json": "ccd8042f0f21d35ea4dd394275451ade227444dcc6dab1574a10fbcc8c4af1f0",
+      "seating-plan-02.json": "8f2f5ef309152732afd3f2fada1df55f65fb588a1e8f9c0f009d243c105ea49f",
+      "seating-binding-02.json": "88f3f08b6184d0f2a61b092de132ba2c5964913249ce63daba6afa72a7b19802"
+    }
+  },
+  "cpu_decoder": {
+    "artifact_root": "cascade-lab/ROADMAP_FACTORY_CONTACTS_20261004",
+    "source_head": "6525ce03b920068fb1f7aa72acdaf48adad1cd7e",
+    "scope": "host-buffer synthetic CPU decode only; observer partial cost; no native GC remedy proved",
+    "differential_counts": {
+      "accepted": 136,
+      "rejected": 262,
+      "factory_public": 2
+    },
+    "summary": [
+      {
+        "count": 32,
+        "source": "baseline",
+        "samples": 32,
+        "median_ms": 0.5801780000000001,
+        "min_ms": 0.566292,
+        "max_ms": 0.677581
+      },
+      {
+        "count": 32,
+        "source": "candidate",
+        "samples": 32,
+        "median_ms": 0.535445,
+        "min_ms": 0.527403,
+        "max_ms": 0.55842
+      },
+      {
+        "count": 293,
+        "source": "baseline",
+        "samples": 32,
+        "median_ms": 4.601347499999999,
+        "min_ms": 4.521862,
+        "max_ms": 5.225652
+      },
+      {
+        "count": 293,
+        "source": "candidate",
+        "samples": 32,
+        "median_ms": 4.1933015000000005,
+        "min_ms": 4.149946,
+        "max_ms": 11.022694
+      }
+    ],
+    "gc_enabled": true,
+    "gc_thresholds": [
+      700,
+      10,
+      10
+    ],
+    "all_128_samples_and_128_gc_callbacks_retained": true,
+    "candidate_largest_sample_gen2_ms": 6.795541,
+    "native_pause_remedy_established": false,
+    "fresh_native_pin_required": true,
+    "tests": {
+      "passed": 374,
+      "optional_skipped": 122,
+      "ruff_F_E9": "PASS"
+    },
+    "artifact_sha256": {
+      "compare_decoder.py": "170a813dae1684a3b9f715742dde84a41c5797d5906ef87cbd68ef331f11d61d",
+      "decoder-differential-01.json": "98c7cb41fc74de57bacf56bf18ea3663df637beb179bcbfc1b5fd242dd8fbcd1"
+    },
+    "source_sha256": {
+      "src/cascade/sim/microduck_contact_support.py": "6c80501abed7ca02b42fcff977eae069391cc0772d40c5c1ffdc501fdf071582",
+      "tests/test_microduck_contact_support.py": "d50c58dfd0f2d0be95383b15ff5daa48137458d3515fe603ef64e5ee5f2b113b"
+    }
+  },
+  "claims": {
+    "new_native_execution": false,
+    "all_prior_results_retained": true,
+    "recorded_contacts_are_not_complete_SDK_channels_for_native_decoder_replay": true
+  },
+  "columnar_cpu": {
+    "artifact_root": "cascade-lab/ROADMAP_FACTORY_COLUMNAR_20261004",
+    "source_head": "33b8fd4ecfa9ee53f9980fcef4af3425471e84c4",
+    "scope": "CPU arrays plus replay of already decoded raw evidence; no SDK/model execution.",
+    "exact_decoder_cases": 398,
+    "accepted": 136,
+    "rejected": 262,
+    "exact_factory_public_api_cases": 2,
+    "byte_exact_retained_rows": 391,
+    "complete_contact_records": 107193,
+    "exact_jsonl_sha256": "605a6ed32c85672c182b18d6ef2d09662aab13dc4207e3ff004e7fe7e297c013",
+    "original_freshness_refusal_reproduced": true,
+    "archive_timing_scope": "Paired archive/expansion of last32 already-captured retained rows; extraction excluded; no native performance claim.",
+    "paired_samples_per_mode": 32,
+    "archive_and_expansion_ms": {
+      "public": {
+        "archive_ms": {
+          "median": 0.7041664999999999,
+          "maximum": 0.832697
+        },
+        "expand_ms": {
+          "median": 0.10533999999999999,
+          "maximum": 0.1314
+        }
+      },
+      "private": {
+        "archive_ms": {
+          "median": 0.1098875,
+          "maximum": 0.165442
+        },
+        "expand_ms": {
+          "median": 0.7310875,
+          "maximum": 1.151122
+        }
+      }
+    },
+    "public_decoder_timing": [
+      {
+        "count": 32,
+        "source": "baseline",
+        "samples": 32,
+        "median_ms": 0.576813,
+        "min_ms": 0.567784,
+        "max_ms": 0.654065
+      },
+      {
+        "count": 32,
+        "source": "candidate",
+        "samples": 32,
+        "median_ms": 0.580293,
+        "min_ms": 0.573102,
+        "max_ms": 0.609056
+      },
+      {
+        "count": 293,
+        "source": "baseline",
+        "samples": 32,
+        "median_ms": 4.5576805,
+        "min_ms": 4.507069,
+        "max_ms": 4.683377
+      },
+      {
+        "count": 293,
+        "source": "candidate",
+        "samples": 32,
+        "median_ms": 4.3662545,
+        "min_ms": 4.321667,
+        "max_ms": 5.496965
+      }
+    ],
+    "gc_enabled": true,
+    "gc_thresholds": [
+      700,
+      10,
+      10
+    ],
+    "gc_callbacks_retained": 200,
+    "all_samples_and_outliers_retained": true,
+    "native_pause_remedy_established": false,
+    "fresh_native_pin_required": true,
+    "tests": {
+      "passed": 354,
+      "optional_skipped": 122,
+      "ruff_F_E9": "PASS"
+    },
+    "artifact_sha256": {
+      "compare_decoder.py": "170a813dae1684a3b9f715742dde84a41c5797d5906ef87cbd68ef331f11d61d",
+      "decoder-differential-01.json": "4aa8be150bd208278e9308c38f42588b60b25e22251da568ed40325f72a55411",
+      "replay_raw.py": "39c1745d6e972213ad3b6cb23c5d3719a1999624cb5b627520905e79b31dd9a5",
+      "raw-replay-01.json": "261b539faea3068353f9fe7e563283a7ab838bfa9d7d5ef855525a147f9a2ba5"
+    },
+    "source_sha256": {
+      "src/cascade/sim/microduck_contact_support.py": "19807691a9ddfd2693dac82ad51aa22524110ecb7f20b1cf0e03ac10e167a442",
+      "src/cascade/sim/factory_observation.py": "72896c933daefbff05471f518eec36056b277661f88c7d2010e150f4d407756b",
+      "src/cascade/sim/factory_owner.py": "364af23a31f5dc15f4e474e42b67b9c7f0ff675e895c8b2d8ae156182b0a583c",
+      "tests/test_factory_private_readback.py": "b28c09d4793eb23b4004ed04b142b3fca076d045461422633c83711b9670eb27"
+    }
+  }
+}

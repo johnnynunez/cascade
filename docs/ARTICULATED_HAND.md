@@ -43,8 +43,16 @@ contact vetoes, stop latch and measured-rest verifier as `move_fingers`.
 The conversation gateway permits this named operation only when explicitly
 listed with motion enabled; raw `move_fingers` vectors remain excluded.
 Changing the recipe's source requires a new model preparation and identity.
-The earlier raw-vector index-flex captures do not validate this new semantic
-route or a return to neutral; those physical checks remain pending.
+The [separate semantic validation](evidence/robot-modularity/hand-semantic-postures-20261004.json)
+used source `a2bcf04` and fresh model identity `43bb8067…eaee2`. One ordinary
+MCP episode completed `index_flex`, an explicit reset, and return to `neutral`.
+Both postures established the original 0.2-second approach-rest window and a
+further 0.2 seconds after their stop ACKs. Independent audit retained all 823
+solves, zero contacts and normal owned closure with unchanged inputs. The first
+posture remained within target/rest limits until the next admission; neutral
+remained within them through the final closing solve. This paired sequence is
+separate from the earlier raw-vector captures and does not establish semantic
+repeatability or a completed physical voice chain.
 
 Joint order is index, middle and ring fingers (`mcp`, `rot`, `pip`, `dip` for
 each), followed by thumb (`cmc`, `axl`, `mcp`, `ipl`). `move_fingers` requires all

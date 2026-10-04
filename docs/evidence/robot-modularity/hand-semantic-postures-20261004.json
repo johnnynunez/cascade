@@ -1,0 +1,393 @@
+{
+  "schema": "cascade.semantic-hand-native-evidence.v1",
+  "scope": "One exact-source MuJoCo CPU ordinary MCP sequence index_flex then neutral, each with explicit reset and independently audited retained rest. Not speech, grasp or hardware admission.",
+  "source_head": "a2bcf04a182cb84f12bedfcda14d85f473759d01",
+  "model_identity_sha256": "43bb8067967c88b7b9a261a82cf98240f701c747e2ea0427808a08ae631eaee2",
+  "hardware_admission": false,
+  "voice_admission": false,
+  "status": {
+    "preparation": "PASS",
+    "semantic_motion": "PASS",
+    "case_count": 2,
+    "repeated_semantic_episodes": false,
+    "native_exit": 0,
+    "audit_ok": true
+  },
+  "plan_sha256": "496e50fbaed1e0d3dadf0589bbdc552f6b8651a6f980dc341bee2b5c11e22cc5",
+  "binding_sha256": "59525dd2b52c9f63b396dd10f8a94afeca0ffacd7e44da8f6a73b236029c4918",
+  "frozen_inputs": 8061,
+  "source_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/apps/hand_runtime.py": "8f02c133cd63cfde5f559c58d21f975a3c5422484f9c5c3b10b6558f8f3e5756",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/control/hand.py": "49b531c3ccd91938c7fca47e5fb3cd39b7b1734967cf7ae6f6fde59b2ae427f8",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/robotics/contracts.py": "62effa67a985ae11d4e51416ce3be779ea51be21dcb8df64c0bf9a606cb6397d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/sensing/models.py": "3f4e47df5f07a487ab2028243acee2f8fc8e8646982d3ea28ba45a63d831ab8d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/sim/leap_hand.py": "447946b3008316491dc5bcf5b428429aeefa2f5f9e36e0b826c8eff4552c7124",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/skills/hand_runtime.py": "73ad88f3d5a060da68640ebabf6528c32d82256cd67cce697cc767d775ae58d6",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/apps/robot_runtime.py": "51dd577ea205219a88d9b95de4a94c712e091745b173b163701eb60b685813c5",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/robotics/runtime.py": "1c57d3a53ae1fe5ff9f7ea610b247d1de4567162f382279527a808d9982d95b2",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/conversation/domain.py": "a3f8a97bc32e6b17d6ec39bcc057816db8846d5e9f6e26c2a0b37c9b05e644cc"
+  },
+  "preparation": {
+    "schema": "cascade.semantic-hand-preparation-audit.v1",
+    "audit_ok": true,
+    "source_head": "a2bcf04a182cb84f12bedfcda14d85f473759d01",
+    "model_sha256": "43bb8067967c88b7b9a261a82cf98240f701c747e2ea0427808a08ae631eaee2",
+    "previous_model_sha256": "cf8cbc1599fe954d5ddf3422f4a0f078b13eaeb724883a10f46a25e0f7d4d358",
+    "epoch": "9d80b0c128c045ca80646a60917c99ac",
+    "physics_steps": 0,
+    "owner_started": false,
+    "hardware_admission": false,
+    "canonical_content_equal_except_sources": true,
+    "changed_sources": {
+      "apps/hand_runtime.py": {
+        "old": "22d1f1fa1191ba8b69a50428e9e97dc8b8b083875c93780a62327c76bb5613c9",
+        "new": "8f02c133cd63cfde5f559c58d21f975a3c5422484f9c5c3b10b6558f8f3e5756"
+      },
+      "skills/hand_runtime.py": {
+        "old": "c8facf44b67ec7c8945f1c315c889ed783e786c5ee9cc5ca1e0362b1495f5b66",
+        "new": "73ad88f3d5a060da68640ebabf6528c32d82256cd67cce697cc767d775ae58d6"
+      }
+    },
+    "native_exit": 0,
+    "scope_exit": 0,
+    "forced": false,
+    "signals": [],
+    "members": [],
+    "births": [],
+    "inputs_unchanged": true
+  },
+  "postures": {
+    "index_flex": [
+      0.1,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "neutral": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "cases": [
+    {
+      "approach_first_step": 165,
+      "approach_last_step": 391,
+      "longest_approach_rest_sim_s": 0.20000000000000018,
+      "posture": "index_flex",
+      "rest_first_step": 392,
+      "rest_last_step": 492,
+      "rest_window_sim_s": 0.20000000000000018,
+      "result": {
+        "admission": {
+          "accepted": 46269.051741976,
+          "deadline": 46279.051741976,
+          "end_step": 1164,
+          "generation": 2,
+          "step": 164
+        },
+        "execution_ok": true,
+        "ok": true,
+        "physical_stop_verified": true,
+        "postcondition": {
+          "reason": "observed bounded finger targets retained through servo-hold rest",
+          "rest": {
+            "generation": 3,
+            "hold": "last position-servo targets",
+            "last_step": 492,
+            "motor_power_off": false,
+            "status": "confirmed",
+            "target_error_rad": 0.012957262384842322,
+            "window_sim_s": 0.20000000000000018
+          },
+          "status": "confirmed",
+          "target_error_rad": 0.012957262384842322
+        },
+        "rest": {
+          "generation": 3,
+          "hold": "last position-servo targets",
+          "last_step": 492,
+          "motor_power_off": false,
+          "status": "confirmed",
+          "target_error_rad": 0.012957262384842322,
+          "window_sim_s": 0.20000000000000018
+        },
+        "stop": {
+          "accepted_monotonic_s": 46269.548167795,
+          "generation": 3,
+          "hold": "last position-servo targets",
+          "latched": true,
+          "ok": true,
+          "physical_stop_verified": false,
+          "targets_rad": [
+            0.1,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "synthetic": false,
+        "verified": true
+      },
+      "retained_through_step": 494,
+      "verified": true
+    },
+    {
+      "approach_first_step": 495,
+      "approach_last_step": 721,
+      "longest_approach_rest_sim_s": 0.20000000000000018,
+      "posture": "neutral",
+      "rest_first_step": 722,
+      "rest_last_step": 822,
+      "rest_window_sim_s": 0.20000000000000018,
+      "result": {
+        "admission": {
+          "accepted": 46269.775665485,
+          "deadline": 46279.775665485,
+          "end_step": 1494,
+          "generation": 5,
+          "step": 494
+        },
+        "execution_ok": true,
+        "ok": true,
+        "physical_stop_verified": true,
+        "postcondition": {
+          "reason": "observed bounded finger targets retained through servo-hold rest",
+          "rest": {
+            "generation": 6,
+            "hold": "last position-servo targets",
+            "last_step": 822,
+            "motor_power_off": false,
+            "status": "confirmed",
+            "target_error_rad": 0.012812310720450039,
+            "window_sim_s": 0.20000000000000018
+          },
+          "status": "confirmed",
+          "target_error_rad": 0.012812310720450039
+        },
+        "rest": {
+          "generation": 6,
+          "hold": "last position-servo targets",
+          "last_step": 822,
+          "motor_power_off": false,
+          "status": "confirmed",
+          "target_error_rad": 0.012812310720450039,
+          "window_sim_s": 0.20000000000000018
+        },
+        "stop": {
+          "accepted_monotonic_s": 46270.273447518,
+          "generation": 6,
+          "hold": "last position-servo targets",
+          "latched": true,
+          "ok": true,
+          "physical_stop_verified": false,
+          "targets_rad": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "synthetic": false,
+        "verified": true
+      },
+      "retained_through_step": 823,
+      "verified": true
+    }
+  ],
+  "physics": {
+    "solves": 823,
+    "contacts": 0,
+    "servo_equation_error_nm": 1.5265566588595902e-16,
+    "dt_s": 0.002,
+    "servo": {
+      "kp_nm_per_rad": 6.0,
+      "kv_nm_s_per_rad": 0.01
+    },
+    "limits": {
+      "command_sim_s": 2.0,
+      "command_wall_s": 10.0,
+      "dt_s": 0.002,
+      "joint_lower_rad": [
+        -0.314,
+        -1.047,
+        -0.506,
+        -0.366,
+        -0.314,
+        -1.047,
+        -0.506,
+        -0.366,
+        -0.314,
+        -1.047,
+        -0.506,
+        -0.366,
+        -0.349,
+        -0.349,
+        -0.47,
+        -1.34
+      ],
+      "joint_margin_rad": 0.02,
+      "joint_upper_rad": [
+        2.23,
+        1.047,
+        1.885,
+        2.042,
+        2.23,
+        1.047,
+        1.885,
+        2.042,
+        2.23,
+        1.047,
+        1.885,
+        2.042,
+        2.094,
+        2.094,
+        2.443,
+        1.88
+      ],
+      "maximum_effort_nm": 0.5,
+      "maximum_motion_rad": 0.4,
+      "maximum_observed_speed_rad_s": 2.0,
+      "maximum_target_speed_rad_s": 0.5,
+      "observation_age_s": 0.2,
+      "quiet_window_sim_s": 0.2,
+      "rest_sim_s": 1.0,
+      "rest_speed_rad_s": 0.05,
+      "rest_wall_s": 3.0,
+      "target_tolerance_rad": 0.02
+    }
+  },
+  "route": "initialize \u2192 tools/list \u2192 construct source-pinned runtime \u2192 reset_stop \u2192 hand.set_hand_posture(index_flex) \u2192 hand.get_hand_state \u2192 reset_stop \u2192 hand.set_hand_posture(neutral) \u2192 hand.get_hand_state \u2192 runtime.close",
+  "closure": {
+    "ok": true,
+    "forced": false,
+    "signals": [],
+    "errors": [],
+    "scope_client_exit": 0,
+    "remaining_births": [],
+    "remaining_members": []
+  },
+  "observed_births_after_close": [
+    {
+      "pid": 1003729,
+      "original_start_ticks": 4626777,
+      "original_absent": true
+    },
+    {
+      "pid": 1003731,
+      "original_start_ticks": 4626779,
+      "original_absent": true
+    }
+  ],
+  "inputs_unchanged": true,
+  "interpretation": [
+    "The solver-owned controller, contact/clock/effort/target guards, 30s owner lifetime and approach/rest deadlines were unchanged. Only named target resolution and semantic routing were added.",
+    "The first posture retained target/rest through the next admission; the neutral posture retained them through the final closing solve. Stop holds last servo targets, not motor power off.",
+    "Fresh preparation matched historical compiled model/XML/assets/SDK/servo/limits exactly; source hashes changed and required a new pin.",
+    "Historical raw-vector repetitions on source788 and earlier failures are separate evidence. This is one paired semantic sequence and no repeatability or physical voice chain is inferred.",
+    "No ASR, language model, TTS or browser was run in this episode."
+  ],
+  "frozen_harness_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/harness_prepare/common.py": "e270d2a743b2ca736ddbec962f6f01890f3778024e7712c22e8e4df8f4442ce3",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/harness_prepare/launch.py": "7396dc0327dc792bf8df19a68b13980ec9d2d1277b22307129e59077ecbed58f",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/harness_prepare/native.py": "1dad6f4141675b824a937151103a77b53eb95820aabc98a8c7ace9967513c340",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/harness_prepare/owned_services.py": "44f1f98f4760f31a7c6dd89acddb1ed073523b8c2520f322abe2c5eae8000473",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/harness_semantic/common.py": "e270d2a743b2ca736ddbec962f6f01890f3778024e7712c22e8e4df8f4442ce3",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/harness_semantic/launch.py": "7396dc0327dc792bf8df19a68b13980ec9d2d1277b22307129e59077ecbed58f",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/harness_semantic/native.py": "40b68e877318191311b2ac66c243b6aaddb86172e903213955d26930f4c760b0",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/harness_semantic/owned_services.py": "44f1f98f4760f31a7c6dd89acddb1ed073523b8c2520f322abe2c5eae8000473"
+  },
+  "artifacts_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/audit_semantic_hand.py": "ca534054e03ac27e5f63424996ece44fa642ca129d2d6758be5b1b0df01f11df",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-01/native/configs/llm/mock.yaml": "237784c3d74e6b0c6a5d8b38525ee5119b202fbbf3c43b66c6e0313d5ef040b2",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-01/native/configs/robots/hand_trial.yaml": "f5cc07d15069f0fb2ec9a8da243b8e2dbb12b7ab8ecd8e51f872e251912a0d7f",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-01/native/message-01.json": "598180c8c240005b03c451d84074d0cf9d7a1a4f34c71048929d838574236cd0",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-01/native/message-02.json": "9fd8f39940d739b70f078bd40df1de5f1188bce2be48c65e44f4b734faa391c4",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-01/native/message-03.json": "4768881873d0b3fec3a76108a43723c4a4022fa43766b6bbbbf43f2a133e4699",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-01/native/message-04.json": "d76df9798fe2b1df540a193cce9755fea612d7da1dc021c30bbfd1fc0b134eed",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-01/native/message-05.json": "ed02d45b5c841c4fc8d806fd024bb3d36102fe7a48c40deb73a852d487cab5e8",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-01/native/message-06.json": "82fd1ea998bdf22f744c55f73219f22433b6c373b4908e8ca91abed2e3d632db",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-01/native/message-07.json": "3ff4b5a641d784dbf3d55139adda84e830caac4d56f88634861995c2397f1a85",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-01/native/message-08.json": "a0c1e6e969d0d2f0d98a6cabbed605e74006b852c8c6d7f2c7d840996213ad5a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-01/native/result.json": "250697bbcfa5bd9b5cbfffa179487d9594f3ba7f778bcd5ab123d6282e36d5d5",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-01/native/runtime/domains/hand/closure.json": "e8e04359d73944a656326cc7950ea387e74ba4647cbc64b6c15666a09fa67480",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-01/native/runtime/domains/hand/model.json": "e0eff51b479823bd9cbf32ebc643a20207f952fae9dde800cecba18549642419",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-01/native/runtime/domains/hand/readiness.json": "575b7442cffd508b4fea0a226fa8203447e84c759819a24503f21dd1976d1f2a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-01/native/runtime/domains/hand/solves.jsonl": "0383133e7694e7e235f73db283351272c5c6b052d954c3828794dcaee48dde12",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-01/native/runtime/trace.jsonl": "cf07cda327fb1c5bdaa5b0fe4b2ad928db536c5d74124838654c7126053fd91f",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-01/receipt.json": "d67bb03b0814b7cc7a83dca9a3fa1ec5d450c1c72a9d6840c49ae8e0d178a5b3",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-01/scope/closure.json": "7483070efc3031df05b9fdccb7846fab357bfb506092fdcd51b2e25664940910",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-01/scope/owner.json": "b3e7ae4ca6ac532953ff1abcb3b16ead83f5b26fd8668445b489c0c519b147b1",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-01/scope/service.log": "9bc589a3b91afb42f2b310e6615e28550c9e5fbf3c6098c3b90055b286df530c",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-admission-01.json": "20ecc63cbc9093d853c9956324ae26a9231460bd7af38b2d68518c5fcbfbc3f3",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-audit-01.json": "a332fc538926df1580299eced8f7f57ff5afbd0e3afa3a56092fc55ac93e1e68",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-binding-01.json": "59525dd2b52c9f63b396dd10f8a94afeca0ffacd7e44da8f6a73b236029c4918",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-births-01.json": "87eda034c4889bff8e96869b5090a78f0ab06746704dc4b01309700794c14ef7",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-check-only-01.log": "b56cce163acc1153648626ce4a3d78686b44a006b6ace6b83f42da54c93972fa",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-launch-01.log": "c1e93f945e987d4c68757933515d6704563387965b55a837f7f4d1935bd6b334",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-motion-plan-01.json": "496e50fbaed1e0d3dadf0589bbdc552f6b8651a6f980dc341bee2b5c11e22cc5",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-preparation-audit-01.json": "5f8e3dae06c317af4b54baaae54a90fdd0a11f687875244ae0a905ebd3f4c5c2",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-prepare-01/native/model.json": "e0eff51b479823bd9cbf32ebc643a20207f952fae9dde800cecba18549642419",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-prepare-01/native/prepared-profile.json": "9b9712bd984726e11e9724bbd4d992dbd555386dcd788849260f253124977129",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-prepare-01/native/result.json": "e75dac86f36a575833f5a9cfb8b8a6c7715512a23b059cd2a1bb1980b013a27d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-prepare-01/receipt.json": "b73c99e971af63fc457f0cd7ee666f5c585c31e15c811cb513fe5f2e8915b81b",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-prepare-01/scope/closure.json": "fe3c83cd13f716b1096c7cae709202e0f8610c2cc95695d25a1c90d1832881aa",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-prepare-01/scope/owner.json": "c153af63c0142874528c5d7f7b2033e8057a0d143a39865c9888fab1955d1d6f",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-prepare-01/scope/service.log": "fe2cba453526454face5e9248519e8f3f4b75223b58b3ad5bdb98f8bd0367e8f",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-prepare-admission-01.json": "3fccdd433b2ee5a7b6fca916a87b68a57c25fb00f2961b9dc125e946419a6812",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-prepare-binding-01.json": "6de8998f3218b358b22825a4865634773fff8a8d022fe8d291650a4ba95aa433",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-prepare-check-only-01.log": "1f5c7bdf5c03ab2d1d181abdf36dd739c65ae103fa4ec89619cb9b287ea73f5f",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-prepare-launch-01.log": "6763b07ea2e5a4712d77ec1914b96d9b73584a5713db372e5d0fa7d74b7c7c67",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/semantic-prepare-plan-01.json": "dfb0b084550df07d172aa46cf35d281df6891def7571c84843fe29de727c22ac",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/test_semantic_audit.py": "9eba53439e0ec867715348c3202aa39ab496fe81318483122e34747acb7a2c97"
+  }
+}

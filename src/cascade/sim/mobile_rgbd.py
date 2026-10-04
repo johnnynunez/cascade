@@ -2,7 +2,8 @@
 
 RGB bytes are RGB8 (not OpenCV BGR). Depth is optical-axis distance in meters,
 float32 little endian, with zero for invalid pixels. Calibration is content
-addressed and includes the world-from-optical-camera transform of this capture.
+addressed. Legacy v2 calibration is static; v3 separates a rigid optical mount
+from an explicit pose tied to the RGB/depth render capture.
 """
 from __future__ import annotations
 
@@ -26,6 +27,8 @@ IDENTITY_KEYS = ('robot_id', 'source', 'epoch', 'engine', 'device', 'asset_sha25
                  'policy_sha256', 'model_identity_sha256')
 CALIBRATION_KEYS = {'version', 'camera', 'frame_id', 'world_frame_id', 'width', 'height',
                     'intrinsics', 'world_from_camera', 'depth_convention', 'pixel_center_offset_uv'}
+MOUNT_CALIBRATION_KEYS = CALIBRATION_KEYS - {'world_from_camera'} | {
+    'rig_frame_id', 'rig_from_camera', 'mount_position_error_m', 'mount_angular_error_rad'}
 FRAME_KEYS = set(IDENTITY_KEYS) | {'version', 'camera', 'step', 'sim_time_s', 'width', 'height',
     'rgb8_z_b64', 'depth_m_f32le_z_b64', 'calibration', 'calibration_sha256', 'producer_age_s', 'render_reference'}
 
@@ -72,16 +75,25 @@ def read_static_calibration(stage, path, *, width=640, height=480):
 
 
 def calibration_record(value):
-    """Canonical static pinhole calibration; reject unsupported geometry."""
+    """Canonical pinhole calibration, static v2 or explicitly mounted v3."""
     import numpy as np
-    if not isinstance(value, dict) or set(value) != CALIBRATION_KEYS:
-        raise ValueError('invalid RGB-D calibration schema')
-    if type(value['version']) is not int or value['version'] != 2:
+    if not isinstance(value, dict) or type(value.get('version')) is not int or value['version'] not in (2, 3):
         raise ValueError('unsupported RGB-D calibration version')
+    mounted = value['version'] == 3
+    if set(value) != (MOUNT_CALIBRATION_KEYS if mounted else CALIBRATION_KEYS):
+        raise ValueError('invalid RGB-D calibration schema')
     if (value['camera'] != 'overview' or value['frame_id'] != 'camera:overview'
-            or value['world_frame_id'] != 'world'
+            or (not mounted and value['world_frame_id'] != 'world')
             or value['depth_convention'] != 'optical_z_m_zero_invalid'):
         raise ValueError('unsupported RGB-D calibration frame/convention')
+    if mounted:
+        from ..robotics.contracts import identifier
+        if len({identifier(value['rig_frame_id']), identifier(value['world_frame_id']), value['frame_id']}) != 3:
+            raise ValueError('world, rig and optical frame must differ')
+        for key in ('mount_position_error_m', 'mount_angular_error_rad'):
+            error = value[key]
+            if error is not None and (finite_real(error, key) < 0 or (key.endswith('rad') and error > math.pi)):
+                raise ValueError('invalid rigid mount error bound')
     offset = value['pixel_center_offset_uv']
     if (not isinstance(offset, (tuple, list)) or len(offset) != 2
             or [finite_real(v, 'pixel center offset') for v in offset] != [.5, .5]):
@@ -89,7 +101,8 @@ def calibration_record(value):
     w, h = (nonnegative_int(value[k], k) for k in ('width', 'height'))
     if not 0 < w * h <= MAX_PIXELS:
         raise ValueError('RGB-D calibration exceeds pixel bound')
-    k, transform = value['intrinsics'], value['world_from_camera']
+    transform_key = 'rig_from_camera' if mounted else 'world_from_camera'
+    k, transform = value['intrinsics'], value[transform_key]
     if not isinstance(k, (tuple, list)) or len(k) != 9 or not isinstance(transform, (tuple, list)) or len(transform) != 16:
         raise ValueError('RGB-D calibration matrix shape mismatch')
     k = [finite_real(v, 'intrinsics') for v in k]
@@ -101,7 +114,7 @@ def calibration_record(value):
             or not np.allclose(t[:3, :3].T @ t[:3, :3], np.eye(3), rtol=0, atol=1e-7)
             or not math.isclose(np.linalg.det(t[:3, :3]), 1., abs_tol=1e-7)):
         raise ValueError('world_from_camera must be a rigid optical-frame transform')
-    result = {**copy.deepcopy(value), 'intrinsics': k, 'world_from_camera': transform,
+    result = {**copy.deepcopy(value), 'intrinsics': k, transform_key: transform,
               'pixel_center_offset_uv': [.5, .5]}
     encoded = json.dumps(result, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()
     return result, hashlib.sha256(encoded).hexdigest()
@@ -126,6 +139,29 @@ def render_reference_record(value, sim_time_s):
     if 'execOut' in simulation:
         result['IsaacReadSimulationTime']['execOut'] = exact_integer(simulation['execOut'])
     return result
+
+
+def capture_pose_record(value, calibration, identity, step, sim_time_s, reference):
+    """Bind an explicit pose to this exact model/epoch and render completion."""
+    from ..sensing.models import RgbdCapturePose
+    keys = {'epoch', 'step', 'sim_time_s', 'model_identity_sha256', 'world_frame_id',
+            'world_from_rig', 'position_error_m', 'angular_error_rad', 'render_reference'}
+    if not isinstance(value, dict) or set(value) != keys or calibration['version'] != 3:
+        raise ValueError('explicit capture pose requires mounted RGB-D calibration')
+    pose = RgbdCapturePose(value['epoch'], value['step'], 'simulation', value['sim_time_s'],
+        value['model_identity_sha256'], value['world_frame_id'], calibration['rig_frame_id'],
+        value['world_from_rig'], calibration['rig_from_camera'], value['position_error_m'],
+        value['angular_error_rad'], calibration['mount_position_error_m'], calibration['mount_angular_error_rad'])
+    if (pose.epoch != identity['epoch'] or pose.model_identity_sha256 != identity['model_identity_sha256']
+            or pose.sequence != step or pose.capture_time_s != sim_time_s
+            or pose.world_frame_id != calibration['world_frame_id']
+            or render_reference_record(value['render_reference'], sim_time_s) != reference):
+        raise ValueError('RGB-D pose model/epoch/capture/render mismatch')
+    return {'epoch': pose.epoch, 'step': pose.sequence, 'sim_time_s': pose.capture_time_s,
+            'model_identity_sha256': pose.model_identity_sha256, 'world_frame_id': pose.world_frame_id,
+            'world_from_rig': list(pose.world_from_rig),
+            'position_error_m': pose.position_error_m, 'angular_error_rad': pose.angular_error_rad,
+            'render_reference': copy.deepcopy(reference)}
 
 
 def _encode(raw):
@@ -160,7 +196,8 @@ class RgbdFrameCache:
         self._rgb = FrameCache(identity, max_jpeg_bytes=max_jpeg_bytes, max_pixels=max_pixels, clock=clock)
         self._clock, self._lock, self._frame, self._closed = clock, threading.Lock(), None, False
 
-    def publish(self, rgb, *, depth_m, calibration, step, sim_time_s, captured_at, render_times, rgbd_render_times):
+    def publish(self, rgb, *, depth_m, calibration, step, sim_time_s, captured_at, render_times,
+                rgbd_render_times, capture_pose=None):
         import numpy as np
         if not isinstance(rgbd_render_times, dict) or set(rgbd_render_times) != {'rgb', 'depth'}:
             raise ValueError('RGB-D requires both product readback references')
@@ -172,18 +209,25 @@ class RgbdFrameCache:
         record, digest = calibration_record(calibration)
         if digest != self.calibration_sha256 or record != self._calibration:
             raise ValueError('RGB-D calibration changed after model admission')
+        mounted = record['version'] == 3
+        if mounted:
+            capture_pose = capture_pose_record(capture_pose, record, self._rgb.identity, step, sim_time_s, reference)
+        elif capture_pose is not None:
+            raise ValueError('static RGB-D calibration cannot accept a dynamic pose')
         h, w = record['height'], record['width']
         if not isinstance(rgb, np.ndarray) or rgb.dtype != np.uint8 or rgb.shape != (h, w, 3):
             raise ValueError('RGB-D requires registered RGB8')
         if (not isinstance(depth_m, np.ndarray) or depth_m.dtype != np.float32 or depth_m.shape != (h, w)
                 or not np.isfinite(depth_m).all() or (depth_m < 0).any()):
             raise ValueError('RGB-D requires aligned finite nonnegative metric depth')
-        packet = {**self._rgb.identity, 'version': 1, 'camera': record['camera'],
+        packet = {**self._rgb.identity, 'version': 2 if mounted else 1, 'camera': record['camera'],
                   'step': step, 'sim_time_s': sim_time_s, 'width': w, 'height': h,
                   'rgb8_z_b64': _encode(rgb.tobytes()),
                   'depth_m_f32le_z_b64': _encode(depth_m.astype('<f4', copy=False).tobytes()),
                   'calibration': record, 'calibration_sha256': digest,
                   'render_reference': channel_refs}
+        if mounted:
+            packet['capture_pose'] = capture_pose
         with self._lock:
             if self._closed:
                 raise RuntimeError('RGB-D cache closed')
@@ -250,14 +294,19 @@ class MobileRgbdReader:
 
     def _decode(self, response, received, rtt):
         import numpy as np
-        if set(response) != {'ok', 'rgbd'} or not isinstance(response['rgbd'], dict) or set(response['rgbd']) != FRAME_KEYS:
+        if set(response) != {'ok', 'rgbd'} or not isinstance(response['rgbd'], dict):
             raise ValueError('invalid RGB-D packet schema')
         m = copy.deepcopy(response['rgbd'])
+        if type(m.get('version')) is not int or m['version'] not in (1, 2):
+            raise ValueError('RGB-D version/camera mismatch')
+        mounted = m['version'] == 2
+        if set(m) != FRAME_KEYS | ({'capture_pose'} if mounted else set()):
+            raise ValueError('invalid RGB-D packet schema')
         for key in IDENTITY_KEYS:
             expected = self._identity._epoch if key == 'epoch' else self._profile[key]
             if m[key] != expected:
                 raise ValueError('RGB-D ' + key + ' mismatch')
-        if type(m['version']) is not int or m['version'] != 1 or m['camera'] != self.camera:
+        if m['camera'] != self.camera:
             raise ValueError('RGB-D version/camera mismatch')
         nonnegative_int(m['step'], 'step')
         w, h = (nonnegative_int(m[k], k) for k in ('width', 'height'))
@@ -272,8 +321,11 @@ class MobileRgbdReader:
         m['render_reference'] = {key: render_reference_record(times, m['sim_time_s']) for key, times in refs.items()}
         cal, digest = calibration_record(m['calibration'])
         if (digest != m['calibration_sha256'] or digest != self.calibration_sha256
-                or (cal['width'], cal['height']) != (w, h)):
+                or (cal['width'], cal['height']) != (w, h) or cal['version'] != (3 if mounted else 2)):
             raise ValueError('RGB-D calibration identity/dimensions mismatch')
+        if mounted:
+            m['capture_pose'] = capture_pose_record(m['capture_pose'], cal, m, m['step'], m['sim_time_s'],
+                                                   m['render_reference']['rgb'])
         rgb = _decode(m.pop('rgb8_z_b64'), w*h*3)
         depth = _decode(m.pop('depth_m_f32le_z_b64'), w*h*4)
         d = np.frombuffer(depth, dtype='<f4')

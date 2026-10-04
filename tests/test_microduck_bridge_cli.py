@@ -381,8 +381,8 @@ def test_check_only_admits_without_kit_network_or_outdir(software_bundle, tmp_pa
     assert result['physical_acceptance'] is False and result['output_count'] == 134
     assert not output.exists()
     default_admission = cli().admit(cli().parse_args(argv))
-    cache_source = 'src/cascade/sim/private_rtx_cache.py'
-    assert default_admission['source_sha256'][cache_source] == digest((REPO / cache_source).read_bytes())
+    for source in ('src/cascade/sim/private_rtx_cache.py', 'src/cascade/sensing/models.py'):
+        assert default_admission['source_sha256'][source] == digest((REPO / source).read_bytes())
     assert 'private_rtx_cache' not in default_admission
     # The opt-in is still an offline check, including the internal extension
     # root; all bytes below are explicitly synthetic SDK fixtures.

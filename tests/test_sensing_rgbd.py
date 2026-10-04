@@ -105,6 +105,7 @@ def test_camera_only_mcp_retains_capture_and_never_constructs_arm(endpoint, monk
         assert payload['world_from_camera'] == calibration()['world_from_camera']
         assert payload['world_frame_id'] == 'world'
         assert payload['pixel_center_offset_uv'] == [.5, .5]
+        assert 'capture_pose' not in payload
         assert 'replay' in call('sensing.read_sensor', {'sensor_id': 'overview'})['error']
         assert not bridge._owners and c.hello()['generation'] == 0
         assert {op['op'] for op in operations} == {'hello', 'frame'}

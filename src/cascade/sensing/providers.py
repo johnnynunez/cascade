@@ -9,7 +9,7 @@ import uuid
 from .hub import SensorDescriptor, SensorError
 from .models import (ImuPayload, MeasurementMetadata, ObservationEnvelope,
                      ProprioceptionPayload, JointStatePayload, GeneralizedJointStatePayload,
-                     RgbPayload, RgbdPayload, SolvedContactPayload, number)
+                     RgbPayload, RgbdPayload, RgbdCapturePose, SolvedContactPayload, number)
 
 
 class BufferedSensorProvider:
@@ -202,9 +202,17 @@ class MobileRgbdSensorProvider:
             raise SensorError(f'RGB-D unavailable: {self._reader.last_error}')
         m = frame.metadata
         c = m['calibration']
+        pose = None
+        if c['version'] == 3:
+            p = m['capture_pose']
+            pose = RgbdCapturePose(p['epoch'], p['step'], 'simulation', p['sim_time_s'],
+                p['model_identity_sha256'], p['world_frame_id'], c['rig_frame_id'],
+                p['world_from_rig'], c['rig_from_camera'], p['position_error_m'], p['angular_error_rad'],
+                c['mount_position_error_m'], c['mount_angular_error_rad'])
         payload = RgbdPayload(MeasurementMetadata(c['frame_id'], m['calibration_sha256']),
             m['width'], m['height'], frame.rgb8, frame.depth_m_f32le, c['intrinsics'],
-            c['world_from_camera'], c['world_frame_id'], c['pixel_center_offset_uv'])
+            c['world_from_camera'] if pose is None else pose.world_from_camera,
+            c['world_frame_id'] if pose is None else pose.world_frame_id, c['pixel_center_offset_uv'], pose)
         return ObservationEnvelope(source=m['source'], sensor_id=self.descriptor.sensor_id,
             epoch=m['epoch'], sequence=m['step'], clock_domain='simulation',
             capture_time_s=m['sim_time_s'], received_monotonic_s=frame.received_monotonic_s,

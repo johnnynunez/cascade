@@ -3,7 +3,7 @@ from .domain import SensorDomain, build_sensor_domain
 from .hub import SensorDescriptor, SensorError, SensorHub, SensorProvider
 from .models import (EstimatedTactilePayload, ImuPayload, MeasurementMetadata,
                      GeneralizedJointMeasurement, GeneralizedJointStatePayload,
-                     ObservationEnvelope, ProprioceptionPayload, JointMeasurement, JointStatePayload, RgbdPayload,
+                     ObservationEnvelope, ProprioceptionPayload, JointMeasurement, JointStatePayload, RgbdPayload, RgbdCapturePose,
                      RgbPayload, SolvedContactPayload, TactileImagePayload)
 from .providers import (BufferedSensorProvider, MobileRgbSensorProvider, MobileRgbdSensorProvider,
                         MobileStateSensorProvider, SyntheticSensorProvider)
@@ -12,6 +12,6 @@ __all__ = ["SensorDomain", "build_sensor_domain", "SensorDescriptor", "SensorErr
            "SensorHub", "SensorProvider", "EstimatedTactilePayload", "ImuPayload",
            "MeasurementMetadata", "ObservationEnvelope", "ProprioceptionPayload", "JointMeasurement", "JointStatePayload",
            "GeneralizedJointMeasurement", "GeneralizedJointStatePayload",
-           "RgbdPayload", "RgbPayload", "SolvedContactPayload", "TactileImagePayload",
+           "RgbdPayload", "RgbdCapturePose", "RgbPayload", "SolvedContactPayload", "TactileImagePayload",
            "BufferedSensorProvider", "MobileRgbSensorProvider", "MobileRgbdSensorProvider", "MobileStateSensorProvider",
            "SyntheticSensorProvider"]

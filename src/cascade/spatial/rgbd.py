@@ -1,7 +1,8 @@
 """Annotate measured surface pixels from an explicitly shared SensorHub.
 
 No acquisition, segmentation, free-space inference or actuator access occurs
-here. The first capture pins the epoch and static world-camera calibration.
+here. The first capture pins the epoch and calibration. Dynamic poses require
+the explicit capture-aligned rigid-mount extension; legacy poses remain static.
 """
 from __future__ import annotations
 
@@ -13,7 +14,7 @@ import numpy as np
 
 from ..robotics.contracts import ResourceDescriptor, identifier
 from ..sensing.hub import SensorHub
-from ..sensing.models import RgbdPayload, digest, integer
+from ..sensing.models import RgbdPayload, digest, integer, wire
 from .frames import FrameTree, SpatialStamp, TransformSample
 from .memory import LandmarkObservation, SpatialMemory
 
@@ -113,7 +114,10 @@ class RgbdSpatialDomain:
                                 [u + offset[0], v + offset[1], 1.]) * z
         if not np.isfinite(point).all():
             raise ValueError("invalid calibrated projection")
-        calibration = (p.width, p.height, p.intrinsics, p.world_from_camera, p.world_frame_id,
+        pose = p.capture_pose
+        mount = p.world_from_camera if pose is None else (
+            pose.rig_frame_id, pose.rig_from_camera, pose.mount_position_error_m, pose.mount_angular_error_rad)
+        calibration = (p.width, p.height, p.intrinsics, pose is not None, mount, p.world_frame_id,
                        p.metadata.frame_id, p.metadata.calibration_id, p.pixel_center_offset_uv)
         kind = "measured" if obs.measurement_kind == "hardware" else obs.measurement_kind
         stamp = SpatialStamp(self.map_id, obs.epoch, obs.clock_domain, obs.capture_time_s,
@@ -121,8 +125,10 @@ class RgbdSpatialDomain:
                              p.metadata.calibration_id, kind)
         frames = FrameTree(self.map_id, obs.epoch, obs.clock_domain, self.world_frame_id)
         t = np.asarray(p.world_from_camera).reshape(4, 4)
+        position_error, angular_error = (None, None) if pose is None else pose.camera_error_bounds
         frames.add(TransformSample(self.world_frame_id, p.metadata.frame_id, tuple(t[:3, 3]),
-            _quaternion(t[:3, :3]), stamp, static=True, position_error_m=None, angular_error_rad=None))
+            _quaternion(t[:3, :3]), stamp, static=pose is None,
+            position_error_m=position_error, angular_error_rad=angular_error))
         if self.frames is not None:
             if self._calibration != calibration or stamp.context != self.frames.context:
                 raise ValueError("spatial calibration or epoch changed; rebuild domain")
@@ -138,6 +144,8 @@ class RgbdSpatialDomain:
             "world_from_camera": list(p.world_from_camera), "world_frame_id": self.world_frame_id,
             "geometry": "observed_surface_point", "label_kind": "caller_annotation",
             "uncertainty": "not_estimated"}
+        if pose is not None:
+            provenance['capture_pose'] = wire(pose)
         annotation = LandmarkObservation(args["observation_id"], args["label"], p.metadata.frame_id,
                                         tuple(point), stamp, None, provenance)
         # Math/serialization must not make a capture fresh. Recheck the exact

@@ -1,9 +1,12 @@
 """Bounded free finger motion verified from passive completed-solve samples."""
 from dataclasses import asdict
+from types import MappingProxyType
 
 from ..control.hand import HandFault, check_hand_sample, quiet
 from ..robotics.contracts import ToolDescriptor
 
+
+HAND_POSTURES = MappingProxyType({"neutral": (0.,)*16, "index_flex": (.1,)+(0.,)*15})
 
 HAND_SPECS = [
     {"name": "get_hand_state", "description": "Read the latest completed joint state and enabled contact ledger; does not step physics.",
@@ -11,11 +14,14 @@ HAND_SPECS = [
     {"name": "move_fingers", "description": "Move all 16 configured finger joints within the fixed free-motion envelope and verify retained rest. Any enabled loaded contact vetoes this task; no grasp or tactile calibration is implied.",
      "parameters": {"type": "object", "properties": {"positions_rad": {"type": "array", "minItems": 16,
          "maxItems": 16, "items": {"type": "number"}}}, "required": ["positions_rad"], "additionalProperties": False}},
+    {"name": "set_hand_posture", "description": "Set a named free-motion posture and verify retained rest. neutral targets zero on all 16 joints; index_flex targets 0.1 rad on the index MCP and zero elsewhere. Existing motion, contact and rest limits remain required; this is not a grasp.",
+     "parameters": {"type": "object", "properties": {"posture": {"type": "string", "enum": list(HAND_POSTURES)}},
+                    "required": ["posture"], "additionalProperties": False}},
 ]
 
 
 class HandDomain:
-    motion_skills = frozenset({"move_fingers"})
+    motion_skills = frozenset({"move_fingers", "set_hand_posture"})
 
     def __init__(self, controller, resources, *, domain_id="hand"):
         self.controller, self.resources, self.domain_id = controller, resources, domain_id
@@ -57,8 +63,8 @@ class HandDomain:
                     "measurement_kind": "synthetic" if c.backend.synthetic else "physics",
                     "tactile_calibration": None}
             attempted = True
-            permit = c.admit(args["positions_rad"])
-            target = tuple(args["positions_rad"])
+            target = HAND_POSTURES[args["posture"]] if name == "set_hand_posture" else tuple(args["positions_rad"])
+            permit = c.admit(target)
             result["admission"] = permit
             cursor, previous, since = permit["step"], None, None
             new_generation_seen = False

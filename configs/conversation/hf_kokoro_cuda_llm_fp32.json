@@ -1,6 +1,6 @@
 {
-  "version": 4,
-  "recipe": "hf-kokoro-direct-llm-cuda-float32-schema-eof-cancel-20261004",
+  "version": 5,
+  "recipe": "hf-kokoro-direct-cuda-shared-startup-20261004",
   "python": "3.12",
   "platform": "linux",
   "architecture": "x86_64",
@@ -76,8 +76,8 @@
   "streamer_timeout_s": 10.0,
   "max_runtime_s": 900,
   "llm_torch_dtype": "float32",
-  "source_manifest": "provider/direct-cuda-manifest.json",
-  "source_manifest_sha256": "afdec647c99a1fd9b0ef2698188ddc66539b59bd654c29c22d06c3767eb4a660",
+  "source_manifest": "provider/startup-cuda-manifest.json",
+  "source_manifest_sha256": "23157c755fb5e068b0152701dd14558569b2dbf327839fb1fbb742f743f047e9",
   "acceleration": {
     "profile": "cuda-llm-fp32",
     "llm_device": "cuda",

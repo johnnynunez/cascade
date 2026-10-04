@@ -315,7 +315,7 @@ def prepare(state):
                     "--profile", PROFILE], env=env, check=True)
 
 
-def provider_argv(state, port):
+def provider_argv(state, port, *, startup_deadline=None):
     cfg = recipe()
     selected = acceleration.configuration(cfg)
     argv = ["speech-to-speech", "serve", "--host", "127.0.0.1", "--port", str(port),
@@ -330,7 +330,20 @@ def provider_argv(state, port):
             "--num_pipelines", "1", "--chat_size", "6", "--log_transcripts", "False"]
     if selected is not None:
         argv += ["--llm_direct_cuda_load", "True"]
+        if startup_deadline is not None:
+            argv += ["--llm_startup_deadline_monotonic_s",
+                     repr(acceleration.startup_deadline(startup_deadline))]
+    elif startup_deadline is not None:
+        raise ValueError("startup deadline belongs only to the explicit CUDA profile")
     return argv
+
+
+def selected_startup_deadline(value, *, create=False):
+    if acceleration.configuration(recipe()) is None:
+        if value is not None:
+            raise ValueError("startup deadline belongs only to the explicit CUDA profile")
+        return None
+    return acceleration.startup_deadline(value, create=create)
 
 
 def build_with_declared_threads(builder, torch, threads, *args, **kwargs):
@@ -352,8 +365,9 @@ def build_with_declared_threads(builder, torch, threads, *args, **kwargs):
                      "intra_op_after_restore": after, "inter_op": torch.get_num_interop_threads()}
 
 
-def child(state, port, run_dir, *, trace_generation=False, cuda_device_uuid=None):
+def child(state, port, run_dir, *, trace_generation=False, cuda_device_uuid=None, startup_deadline=None):
     cuda_device_uuid = selected_gpu(cuda_device_uuid)
+    startup_deadline = selected_startup_deadline(startup_deadline)
     prepared = verify(state)
     if sys.version_info[:2] != (3, 12):
         raise ValueError("provider recipe requires Python 3.12")
@@ -370,7 +384,8 @@ def child(state, port, run_dir, *, trace_generation=False, cuda_device_uuid=None
     torch.set_num_threads(threads)
     torch.set_num_interop_threads(threads)
     torch.manual_seed(recipe()["seed"])
-    sys.argv = provider_argv(state, port)
+    selected_startup_deadline(startup_deadline)
+    sys.argv = provider_argv(state, port, startup_deadline=startup_deadline)
     admission = {"argv": sys.argv, "versions": versions(),
                "python_version": platform.python_version(),
                "prepared_sha256": digest(state / "prepared.json"), "script_sha256": digest(__file__),
@@ -379,6 +394,8 @@ def child(state, port, run_dir, *, trace_generation=False, cuda_device_uuid=None
     if gpu_admission is not None:
         admission["acceleration"] = gpu_admission
         admission["acceleration_helper_sha256"] = digest(acceleration.__file__)
+        admission["startup"] = {"clock": "time.monotonic",
+                                "deadline_monotonic_s": startup_deadline}
     write_json(run_dir / "admission.json", admission)
     from speech_to_speech import s2s_pipeline
     from speech_to_speech.cli import main
@@ -387,7 +404,9 @@ def child(state, port, run_dir, *, trace_generation=False, cuda_device_uuid=None
     observation = []
 
     def observed_builder(*args, **kwargs):
+        selected_startup_deadline(startup_deadline)
         manager, thread_configuration = build_with_declared_threads(original_builder, torch, threads, *args, **kwargs)
+        selected_startup_deadline(startup_deadline)
         llms = [h for h in manager.handlers if isinstance(h, LanguageModelHandler)]
         if len(llms) != 1:
             raise ValueError("expected one actual text-model handler for attestation")
@@ -413,7 +432,10 @@ def child(state, port, run_dir, *, trace_generation=False, cuda_device_uuid=None
             runtime["models"] = acceleration.attest_pipeline(
                 torch, recipe(), cuda_device_uuid, llm=llms[0], stt=stts[0], tts=ttss[0])
             runtime["loader"] = acceleration.attest_direct_loader(llms[0])
+            runtime["startup"] = acceleration.attest_startup(llms[0], startup_deadline)
+        selected_startup_deadline(startup_deadline)
         write_json(run_dir / "model-runtime.json", runtime)
+        selected_startup_deadline(startup_deadline)
         if trace_generation:
             from speech_to_speech.LLM.generation_trace import GenerationTrace
             observer = GenerationTrace(run_dir / "generation.jsonl")
@@ -591,8 +613,10 @@ def supervise(command, *, env, run_dir, timeout_s, stop_event=None, max_rss_byte
     return process.returncode if process is not None and process.returncode not in (None, 0) else 1
 
 
-def serve(state, run_dir, *, port, timeout_s, trace_generation=False, cuda_device_uuid=None):
+def serve(state, run_dir, *, port, timeout_s, trace_generation=False, cuda_device_uuid=None,
+          startup_deadline=None):
     cuda_device_uuid = selected_gpu(cuda_device_uuid)
+    startup_deadline = selected_startup_deadline(startup_deadline, create=True)
     verify(state)
     # Occupied endpoints are an error, never an invitation to stop their owner.
     with socket.socket() as check:
@@ -604,10 +628,12 @@ def serve(state, run_dir, *, port, timeout_s, trace_generation=False, cuda_devic
                "--profile", PROFILE]
     if cuda_device_uuid is not None:
         command.extend(["--cuda-device-uuid", cuda_device_uuid])
+        command.extend(["--startup-deadline-monotonic-s", repr(startup_deadline)])
     if trace_generation:
         command.append("--trace-generation")
     env = environment(state, offline=True, cuda_device_uuid=cuda_device_uuid)
     env["PYTHONPYCACHEPREFIX"] = str(run_dir / "bytecode")
+    selected_startup_deadline(startup_deadline)
     return supervise(command, env=env, run_dir=run_dir, timeout_s=timeout_s)
 
 
@@ -617,6 +643,8 @@ def main():
     parser.add_argument("--state-dir", required=True, type=Path)
     parser.add_argument("--profile", choices=["cpu", acceleration.PROFILE], default="cpu")
     parser.add_argument("--cuda-device-uuid", help="full GPU UUID; required only for CUDA serve")
+    parser.add_argument("--startup-deadline-monotonic-s", type=float,
+                        help="inherited same-host monotonic deadline for CUDA startup only; never renewed")
     parser.add_argument("--run-dir", type=Path)
     parser.add_argument("--port", type=int, default=18878)
     parser.add_argument("--timeout-s", type=float, default=900)
@@ -628,6 +656,8 @@ def main():
         selected_gpu(args.cuda_device_uuid)
     elif args.cuda_device_uuid is not None:
         parser.error("GPU selection belongs to serve, not passive preparation/verification")
+    if args.startup_deadline_monotonic_s is not None and args.action not in ("serve", "_child"):
+        parser.error("startup deadline belongs to serving, not passive preparation/verification")
     if not 1024 <= args.port <= 65535 or not 0 < args.timeout_s <= 900:
         parser.error("port must be [1024,65535], timeout finite and in (0,900]")
     state = private_state(args.state_dir, create=args.action == "prepare")
@@ -637,7 +667,7 @@ def main():
         prepare_assets(state)
     elif args.action == "_child":
         child(state, args.port, args.run_dir, trace_generation=args.trace_generation,
-              cuda_device_uuid=args.cuda_device_uuid)
+              cuda_device_uuid=args.cuda_device_uuid, startup_deadline=args.startup_deadline_monotonic_s)
     else:
         with state_lock(state):
             if args.action == "prepare":
@@ -650,7 +680,8 @@ def main():
                 if args.run_dir is None:
                     parser.error("serve requires a new --run-dir")
                 code = serve(state, args.run_dir, port=args.port, timeout_s=args.timeout_s,
-                             trace_generation=args.trace_generation, cuda_device_uuid=args.cuda_device_uuid)
+                             trace_generation=args.trace_generation, cuda_device_uuid=args.cuda_device_uuid,
+                             startup_deadline=args.startup_deadline_monotonic_s)
                 raise SystemExit(0 if code == 0 else 1)
 
 

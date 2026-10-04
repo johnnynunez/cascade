@@ -527,6 +527,27 @@ disappeared. Input and asset integrity held. The 150 s readiness deadline,
 30 s case budget, model weights, FP32 policy and speech/physical gates were
 preserved; successful CUDA speech service and complete voice execution remain open.
 
+CUDA startup uses one absolute `time.monotonic` deadline, with at most 150
+seconds remaining. A coordinating owner passes it through
+`--startup-deadline-monotonic-s` before starting the provider scope; standalone
+`serve` creates it before state verification. The serving child inherits the
+same value. Imports, loading and both original dummy warmups consume that
+allowance; neither a new warmup nor another chunk renews it. Warmup production
+stops admitting work five seconds before the deadline, reserving that interval
+for cancellation and join. Producer errors and uncertain closure fail startup.
+Conversation streaming still uses its original ten-second queue wait, and
+the voice trial's thirty-second deadline is unchanged.
+
+After construction, the host verifies both actual warmup records, their
+monotonic times, the inherited deadline and the actual conversational streamer
+timeout before publishing model readiness. The records contain timing, counts
+and error types, without generated text. Deadline checks reject late work;
+they do not make native loading interruptible. An external owner still bounds
+the process and readiness wait. The changed startup contract requires a fresh normal installation. The
+CPU recipe and existing states are unchanged; previous failed trials remain
+failed. The source-bound installation and VOICE10 observations below are separate
+from the earlier startup results.
+
 Run the speech stack in a separate environment. Its `speech-to-speech serve`
 command exposes `/v1/realtime` and supports selecting STT, LLM and TTS backends.
 Use `speech-to-speech serve -h` at the pinned revision and explicitly choose

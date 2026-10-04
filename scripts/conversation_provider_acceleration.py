@@ -6,11 +6,79 @@ from __future__ import annotations
 
 import os
 import re
+import math
+from time import monotonic
 
 
 PROFILE = "cuda-llm-fp32"
 TORCH_VERSION = "2.11.0+cu130"
 CUDA_VERSION = "13.0"
+STARTUP_MAX_S = 150.0
+
+
+def startup_deadline(value, *, create=False, clock=None):
+    """Validate one same-host monotonic deadline; never renew an inherited one."""
+    clock = monotonic if clock is None else clock
+    now = clock()
+    if value is None and create:
+        value = now + STARTUP_MAX_S
+    if type(value) not in (int, float) or not math.isfinite(value):
+        raise ValueError("startup requires a finite monotonic deadline")
+    if not 0 < value - now <= STARTUP_MAX_S:
+        raise ValueError("startup deadline expired or exceeds the original 150 seconds")
+    return float(value)
+
+
+def attest_startup(llm, deadline):
+    """Admit the actual two completed warmups against the inherited deadline."""
+    deadline = startup_deadline(deadline)
+    if getattr(llm, "startup_deadline_monotonic_s", None) != deadline:
+        raise ValueError("handler startup deadline differs from its owner")
+    timeout = getattr(getattr(llm, "streamer", None), "timeout", None)
+    if type(timeout) not in (int, float) or timeout != 10.0:
+        raise ValueError("actual conversational streamer timeout must remain 10 seconds")
+    rows = getattr(llm, "warmup_diagnostics", None)
+    if type(rows) is not list or len(rows) != 2:
+        raise ValueError("two actual completed warmup records are required")
+    observed = []
+    previous_end = None
+    for index, row in enumerate(rows):
+        if type(row) is not dict or type(row.get("index")) is not int or row["index"] != index:
+            raise ValueError("warmup record sequence changed")
+        if (row.get("startup_deadline_monotonic_s") != deadline
+                or row.get("completed") is not True or row.get("stream_exhausted") is not True
+                or row.get("producer_started") is not True or row.get("producer_alive") is not False
+                or row.get("producer_start_uncertain") is not False
+                or any(row.get(key) is not None for key in (
+                    "error_type", "producer_error_type", "cleanup_error_type", "observation_error_type"))):
+            raise ValueError("warmup did not complete under the original startup deadline")
+        times = {}
+        for key in ("start_monotonic_s", "end_monotonic_s", "work_deadline_monotonic_s",
+                    "cleanup_deadline_monotonic_s"):
+            value = row.get(key)
+            if type(value) not in (int, float) or not math.isfinite(value):
+                raise ValueError("warmup needs actual finite monotonic phase times")
+            times[key] = float(value)
+        start, end = times["start_monotonic_s"], times["end_monotonic_s"]
+        if (not deadline - STARTUP_MAX_S <= start < deadline - 5.0
+                or not start <= end <= min(deadline, monotonic())
+                or (previous_end is not None and start < previous_end)
+                or times["work_deadline_monotonic_s"] != deadline - 5.0
+                or not end <= times["cleanup_deadline_monotonic_s"] <= deadline):
+            raise ValueError("warmup phase timing exceeds the original startup allowance")
+        counts = {}
+        for key in ("decoded_chunks", "decoded_characters"):
+            value = row.get(key)
+            if type(value) is not int or value < 0:
+                raise ValueError("invalid actual warmup decoded count")
+            counts[key] = value
+        observed.append({"index": index, **times, **counts, "completed": True,
+                         "stream_exhausted": True, "producer_alive": False})
+        previous_end = end
+    startup_deadline(deadline)
+    return {"clock": "time.monotonic", "deadline_monotonic_s": deadline,
+            "warmup_rows": observed, "conversation_streamer_wait_s": float(timeout),
+            "scope": "Startup-only allowance; not a speech or physical task deadline."}
 
 
 def uuid_value(value):

@@ -152,14 +152,21 @@ class FactorySolveOwner:
     """
 
     def __init__(self, backend, *, clock=time.monotonic, max_wall_s=120., request_timeout_s=1.,
-                 record_capacity=20000):
+                 record_capacity=20000, _process_transport=None):
         if (type(backend.synthetic) is not bool or not math.isfinite(max_wall_s) or max_wall_s <= 0
                 or not math.isfinite(request_timeout_s) or not 0 < request_timeout_s <= 1.
                 or type(record_capacity) is not int or record_capacity < 3):
             raise ValueError("explicit backend and bounded owner budgets required")
         self.backend, self.clock = backend, clock
         self.max_wall_s, self.request_timeout_s = max_wall_s, request_timeout_s
-        self.journal = SolveJournal(backend.binding, _compact=type(backend) is FactoryNewtonBackend)
+        self._process_transport = _process_transport
+        if _process_transport is None:
+            self.journal = SolveJournal(backend.binding, _compact=type(backend) is FactoryNewtonBackend)
+        else:
+            from .factory_process_adapter import _OwnerTransport
+            if type(_process_transport) is not _OwnerTransport:
+                raise TypeError("exact private process transport required")
+            self.journal = _process_transport.attach(self)
         self.controller = _OwnerController(self)
         self._requests = queue.Queue(maxsize=2)
         self._records = queue.Queue(maxsize=record_capacity)
@@ -188,16 +195,25 @@ class FactorySolveOwner:
         self._thread.start()
 
     def request(self, kind, arguments):
+        return self._request_before(kind, arguments, self.controller.generation,
+                                    self.clock()+self.request_timeout_s)
+
+    def _request_before(self, kind, arguments, generation, deadline):
+        """IPC carries the caller's original deadline; receiving never renews it."""
         if self._thread is None or not self._thread.is_alive() or self._exit.is_set():
             raise FasteningFault("native solve owner is not running")
-        ticket = _Request(kind, dict(arguments), self.controller.generation,
-                          self.clock()+self.request_timeout_s, Future())
+        remaining = deadline - self.clock()
+        if (type(deadline) is not float or not math.isfinite(deadline)
+                or not 0 < remaining <= self.request_timeout_s
+                or type(generation) is not int or generation < 0):
+            raise FasteningFault("invalid or expired original admission deadline")
+        ticket = _Request(kind, dict(arguments), generation, deadline, Future())
         try:
             self._requests.put_nowait(ticket)
         except queue.Full as exc:
             raise FasteningFault("bounded admission queue is full") from exc
         try:
-            return ticket.result.result(timeout=self.request_timeout_s)
+            return ticket.result.result(timeout=max(0., deadline-self.clock()))
         except FutureTimeout as exc:
             ticket.result.cancel()
             self.controller.stop()  # Delivery uncertain: revoke even if admission just happened.
@@ -237,6 +253,8 @@ class FactorySolveOwner:
 
     def cycle(self):
         """One owner-thread cycle, also usable by deterministic synthetic tests."""
+        if self._process_transport is not None:
+            self._process_transport.fault.check()
         self._admit_one()
         permit = self.controller.guard.current_permit
         if permit is None:
@@ -258,9 +276,12 @@ class FactorySolveOwner:
         row, raw = advance(upload)
         # Archive before acceptance, retaining the original capture and even a
         # later-rejected solve. Full queue/encoding errors remain owner faults.
-        self._records.put_nowait(_pack_native_record(raw) if type(self.backend) is FactoryNewtonBackend
-                                else _RawRecord(raw))
-        self.controller.accept_solve(row)
+        if self._process_transport is None:
+            self._records.put_nowait(_pack_native_record(raw) if type(self.backend) is FactoryNewtonBackend
+                                    else _RawRecord(raw))
+            self.controller.accept_solve(row)
+        else:
+            self._process_transport.capture(row, raw, lambda: self.controller.accept_solve(row))
         self._row = row
 
     def _run(self):
@@ -281,13 +302,23 @@ class FactorySolveOwner:
                                       "physical_stop_verified": False}
                 self.journal.fail(self._retain_error(self._zero_receipt["error"]))
             self._exit.set()
-            while True:
-                try:
-                    ticket = self._requests.get_nowait()
-                except queue.Empty:
-                    break
-                if not ticket.result.done():
-                    ticket.result.set_exception(FasteningFault("owner closed before admission"))
+            try:
+                if self._process_transport is not None:
+                    try:
+                        self._process_transport.end()
+                    except BaseException as exc:
+                        # Incomplete RAW/outcome remains a closure fault. Keep
+                        # the first owner error; EOF cannot hide it or leave
+                        # admission callers waiting for their timeout.
+                        self.journal.fail(self._retain_error(_exception_text(exc)))
+            finally:
+                while True:
+                    try:
+                        ticket = self._requests.get_nowait()
+                    except queue.Empty:
+                        break
+                    if not ticket.result.done() and ticket.result.set_running_or_notify_cancel():
+                        ticket.result.set_exception(FasteningFault("owner closed before admission"))
 
     def records(self):
         """Drain detached raw records; never read or advance live SDK arrays."""
@@ -303,6 +334,8 @@ class FactorySolveOwner:
         newly produced rows cannot extend this flush through slow disk IO.
         Public records() keeps its original drain-until-empty behavior.
         """
+        if self._process_transport is not None:
+            raise FasteningFault("process RAW records must be drained by the host archive")
         if self._record_error is not None:
             raise FasteningFault(self._record_error)
         remaining = self._records.qsize() if _snapshot else None
@@ -339,7 +372,9 @@ class FactorySolveOwner:
         return {"ok": closed and self._error is None and bool(self._zero_receipt)
                 and self._zero_receipt.get("uploaded") is True,
                 "owner_thread_closed": closed, "error": self._error,
-                "zero_spindle": self._zero_receipt, "pending_records": self._records.qsize(),
+                "zero_spindle": self._zero_receipt, "pending_records": (
+                    self._records.qsize() if self._process_transport is None
+                    else self._process_transport.outbox.pending_records),
                 "physical_stop_verified": False}
 
 

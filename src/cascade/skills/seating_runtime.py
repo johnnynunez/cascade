@@ -4,7 +4,7 @@ import math
 
 from ..control.fastening import FasteningFault, FasteningPermit, check_solve
 from ..control.fastening_seat import loaded_seat, retained_seat
-from ..sim.threading_verification import ThreadContract, verify_threading
+from ..sim.threading_verification import ThreadContract
 
 
 SEAT_SPEC = {"name": "seat_fastener",
@@ -42,7 +42,7 @@ def execute_seating(domain, args):
         samples, previous, cursor = history(), None, permit.admission_step
         loaded_since = loaded_at = None
         while clock() < permit.deadline_monotonic_s and loaded_at is None:
-            batch = domain.reader(cursor, timeout_s=min(.05, max(0., permit.deadline_monotonic_s-clock())))
+            batch = domain._read(cursor, permit.deadline_monotonic_s)
             for row in batch:
                 check_solve(row, binding, limits, clock(), epoch=permit.epoch,
                             previous=previous, stage="seating_observation")
@@ -82,8 +82,8 @@ def execute_seating(domain, args):
         admitted_count = len(samples)
         rest = _observe_seated_rest(domain, permit, stop, previous, cursor, samples)
         contract = ThreadContract(pitch_m=binding.thread_pitch_m, requested_turns=task.minimum_turns)
-        approach = verify_threading(samples[:admitted_count], contract)
-        terminal = verify_threading(samples, contract)
+        approach = domain._verify_threading(samples, contract, stop=admitted_count)
+        terminal = domain._verify_threading(samples, contract)
         result.update(pre_stop_threading=approach, final_threading=terminal, rest=rest,
             loaded_window_sim_s=loaded_at-loaded_since)
         if clock() >= accepted+task.rest_timeout_wall_s:
@@ -120,7 +120,7 @@ def _observe_seated_rest(domain, permit, stop, previous, cursor, samples):
     zero_since = None
     count = 0
     while clock() < deadline:
-        batch = domain.reader(cursor, timeout_s=min(.05, max(0., deadline-clock())))
+        batch = domain._read(cursor, deadline)
         for row in batch:
             check_solve(row, binding, limits, clock(), epoch=permit.epoch,
                         previous=previous, stage="seating_rest_observation")

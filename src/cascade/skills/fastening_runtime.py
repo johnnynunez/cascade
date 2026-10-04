@@ -63,6 +63,15 @@ class FasteningDomain:
     def close(self):
         return self.actuator.close()
 
+    def _read(self, cursor, deadline):
+        return self.reader(cursor, timeout_s=min(.05, max(0., deadline-self.clock())))
+
+    def _new_samples(self):
+        return []
+
+    def _verify_threading(self, samples, contract, *, stop=None):
+        return verify_threading(samples if stop is None else samples[:stop], contract)
+
     def execute(self, name, args):
         if name == "seat_fastener":
             from .seating_runtime import execute_seating
@@ -91,12 +100,12 @@ class FasteningDomain:
                     not 0 < permit.end_simulation_time_s-permit.admission_time_s <= self.limits.max_command_sim_s+1e-9):
                 raise FasteningFault("invalid controller admission receipt")
             result["admission"] = asdict(permit)
-            samples, previous, cursor = [], None, permit.admission_step
+            samples, previous, cursor = self._new_samples(), None, permit.admission_step
             angle, last_angle = 0., None
             contract = ThreadContract(pitch_m=self.binding.thread_pitch_m, requested_turns=1., direction="tighten")
             threading = None
             while self.clock() < permit.deadline_monotonic_s:
-                batch = self.reader(cursor, timeout_s=min(.05, max(0., permit.deadline_monotonic_s-self.clock())))
+                batch = self._read(cursor, permit.deadline_monotonic_s)
                 if not batch:
                     continue
                 for row in batch:
@@ -124,15 +133,15 @@ class FasteningDomain:
                         angle += math.atan2(math.sin(current_angle-last_angle), math.cos(current_angle-last_angle))
                     last_angle = current_angle
                     if len(samples) >= 3 and -angle >= 2*math.pi*(1-contract.turn_tolerance):
-                        threading = verify_threading(samples, contract)
+                        threading = self._verify_threading(samples, contract)
                         break
                     if row.simulation_time_s >= permit.end_simulation_time_s:
-                        threading = verify_threading(samples, contract)
+                        threading = self._verify_threading(samples, contract)
                         break
                 if threading is not None:
                     break
             if threading is None:
-                threading = verify_threading(samples, contract)
+                threading = self._verify_threading(samples, contract)
                 result["postcondition"] = threading
                 result["error"] = "one measured turn not completed within the admitted deadline"
                 return result
@@ -151,7 +160,7 @@ class FasteningDomain:
             # Quiet does not imply the requested threading outcome survived:
             # passive backdrive can remove rotation/advance before rest. Keep
             # the original baseline and check the whole observed interval.
-            final_threading = verify_threading(samples, contract)
+            final_threading = self._verify_threading(samples, contract)
             result["final_threading"] = final_threading
             if threading["status"] != "confirmed":
                 # Post-stop motion cannot supply missing admitted turn credit.
@@ -190,7 +199,7 @@ class FasteningDomain:
         start_rest = None
         count = 0
         while self.clock() < deadline:
-            batch = self.reader(cursor, timeout_s=min(.05, max(0., deadline-self.clock())))
+            batch = self._read(cursor, deadline)
             for row in batch:
                 check_solve(row, self.binding, self.limits, self.clock(), epoch=permit.epoch,
                             previous=previous, stage="rest_observation")

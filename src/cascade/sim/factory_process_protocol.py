@@ -181,6 +181,11 @@ class RawOutbox:
             if not self._ended or self._head != self._next or self._bytes:
                 self._refuse("raw stream closed without all consumer acknowledgments")
 
+    @property
+    def pending_records(self):
+        with self._lock:
+            return self._next - self._head
+
 
 class FencedDecoder:
     """Decode between authoritative nonce replies within one original deadline.

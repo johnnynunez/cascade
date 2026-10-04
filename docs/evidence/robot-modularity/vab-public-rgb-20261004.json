@@ -378,7 +378,15 @@
     "position_error_m": null,
     "physical_admission": false,
     "object_identity_verified": false,
-    "complete_geometry_verified": false
+    "complete_geometry_verified": false,
+    "distinct_left_image_coordinates": 1,
+    "accepted_left_image_coordinates": [
+      [
+        48.1204719543457,
+        82.57550048828125
+      ]
+    ],
+    "coverage_scope": "All six estimates reuse one fixed-camera pixel location across different wrist views. This does not certify point identity or six independent surface landmarks."
   },
   "original_movements": [
     {
@@ -493,6 +501,7 @@
     "The first reset pair predates the render observer and retains no invented pose or capture clock.",
     "All 42 observed pairs precede control return by one native solve (2ms); current return-time camera poses must not replace their render poses.",
     "Only six sparse estimates survived 18 mutual feature proposals. No object identity, extent, complete surface, free-space or grasp claim follows.",
+    "Six estimates are repeated observations at one fixed-camera pixel location, not six independent landmarks or an object surface.",
     "Reprojection agreement does not certify matching or calibration. Native declarations and estimated points retain unknown physical uncertainty.",
     "Original empty-space up/down40mm controls are unchanged. The object remains unsupported by the basket; this is not a pick/place task."
   ],
@@ -514,7 +523,8 @@
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-rgb-reader-01/native/public-rgb/calibration.json": "97fc405cca4c94053b72e0745c85a3714dd64904c379ac7f1c9041929974b20e",
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-rgb-reader-01/native/0021-agentview.png": "8ca352408c689bef3e2469877065654f29c1c440cb2187c67e9ad40468d8fb79",
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-rgb-reader-01/native/0021-robot0_eye_in_hand.png": "1c478f6325146fa7c00cfc7b52a32052c9a6d1f303d5c0475978ae5d5854b72e",
-    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/compact_rgb_reader.py": "1e3d26a9789acf9d4387d37f088914827f145ce2482c3e28cd8993e2010c1767"
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/compact_rgb_reader.py": "1e3d26a9789acf9d4387d37f088914827f145ce2482c3e28cd8993e2010c1767",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/clarify_rgb_estimate_coverage.py": "e015e2d7f89fb9adc72fd35b6c591d6ada0ee8e7a80245f6a1a55e72024a5a6a"
   },
   "runtime_sha256": {
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/rgb-geometry-cascade/benchmark/vab/native_preflight.py": "0083cad585a931e757b855acd56167dccef89a3e3e1e244754a37faf8fb10fac",
@@ -531,5 +541,6 @@
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/audit_box_reader.py": "dc291079a64da8857e8ac4e6e3e4d168196514d164b5d4906473e5766581f5e6",
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/audit_native_reader.py": "93961c4ed2eb17ac935ca563fe90507416c21bef76538d788963aa2afb0c08c0",
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/audit_calibration.py": "b0e2217a47cd6fd730670fe41a1e72b6aa9c053cd5f0bef7d5b7442b9cd4372a"
-  }
+  },
+  "prior_compact_sha256": "509b4987c638c6206ecbbc128a44b8cb50b370467acaa976043ab1d7e306d2b8"
 }

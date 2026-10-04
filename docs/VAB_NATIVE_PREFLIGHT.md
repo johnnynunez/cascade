@@ -329,8 +329,10 @@ on source `2170eaf4` retained all 42 original controls / 1,050 solves and
 observed pairs. All 86 PNG images matched their retained public RGB bytes.
 Every observed pair preceded control return by one solve, or 2 ms. The
 offline matcher proposed 18 correspondences; six passed the declared ray
-gates and twelve were refused. These sparse estimates provide neither an
-object identity nor enough coverage to guide a grasp.
+gates and twelve were refused. All six estimates reuse one fixed-camera
+pixel location across different wrist views; they are not six independent
+surface landmarks. They provide neither object identity nor enough coverage
+to guide a grasp.
 
 The native process and owned scope exited ordinarily, with no signals,
 forced cleanup or remaining births; all 12,609 inputs remained unchanged.

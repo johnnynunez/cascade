@@ -248,3 +248,31 @@ Support in the basket remains refuted and benchmark/task success remains
 unverified. The first geometry preparation was retained unexecuted after review
 found malformed position vectors could broadcast through NumPy; the tested
 source requires exact numeric position and rotation lengths.
+
+### Joining containment with the complete rest window
+
+`cascade.eval.contained_placement.verify_contained_placement_window` evaluates
+release, support, rest and complete box containment over the same explicitly
+selected interval. It takes a private, bounded copy of the sealed JSON rows
+before either predicate, preventing caller mutations between the checks from
+joining evidence from different windows. Missing steps, source/epoch changes,
+incomplete collider geometry and a shorter quiet suffix remain unverified.
+
+For each object collider, it accumulates the smallest axis-aligned box enclosing
+all of that collider's observed corners in the support frame throughout the
+interval. Every such box must fit inside the calibrated convex cavity after
+subtracting the declared error bound. This is conservative: an enclosing box
+can fail even when the individual shapes fit. That failure remains unverified;
+it does not prove a physical escape. A force, release or rest violation still
+refutes the conjunction even when the geometry fits.
+The geometric claim covers every retained solver sample; no continuous path
+between samples is reconstructed or certified.
+
+The caller must supply an independently justified bound for the complete
+support-frame corner error; unknown uncertainty remains unknown. Numerical
+pose consistency residuals are not that bound. The result preserves both
+component verdicts, the complete window digest and the declared uncertainty.
+It does not infer perception, grasp acquisition, episode closure, benchmark
+success or actuator admission. The native movement capture above remains a
+negative task example, and its evidence does not validate this additional
+source revision as a native producer.

@@ -1,0 +1,282 @@
+diff --git a/src/speech_to_speech/LLM/generation_trace.py b/src/speech_to_speech/LLM/generation_trace.py
+new file mode 100644
+index 0000000..e6ab27c
+--- /dev/null
++++ b/src/speech_to_speech/LLM/generation_trace.py
+@@ -0,0 +1,147 @@
++"""Opt-in, bounded private observation of decoded LLM output.
++
++No prompts, request objects, media or credentials are accepted. Decoded chunks
++are not token boundaries; first-chunk latency is not isolated prefill time.
++The caller owns close() and must reject incomplete/error diagnostics. The
++observer does not alter model output, generation settings or tool admission.
++"""
++from __future__ import annotations
++
++import json
++import os
++from pathlib import Path
++from threading import RLock
++from time import monotonic_ns
++
++
++class GenerationTrace:
++    def __init__(self, path: Path, *, max_events=2048, max_bytes=1024*1024,
++                 max_text_chars=32768, clock=monotonic_ns):
++        limits = ((max_events, 1, 65536), (max_bytes, 4096, 16*1024*1024),
++                  (max_text_chars, 1, 1024*1024))
++        if any(type(value) is not int or not low <= value <= high for value, low, high in limits):
++            raise ValueError("trace bounds must be exact integers within documented limits")
++        self.clock, self.max_events, self.max_bytes = clock, max_events, max_bytes
++        self.max_text_chars = max_text_chars
++        self.lock = RLock()
++        self.events = self.bytes = self.text_chars = self.dropped = self.spans = self.interrupted = 0
++        self.errors = []
++        self.active = set()
++        self.closed = False
++        self.write_ns = 0
++        self.stream = open(path, "x", opener=lambda name, flags: os.open(name, flags | os.O_NOFOLLOW, 0o600))
++
++    def _write(self, row, *, footer=False):
++        encoded = json.dumps(row, ensure_ascii=True, allow_nan=False, separators=(",", ":")) + "\n"
++        if not footer and (self.events >= self.max_events or self.bytes+len(encoded) > self.max_bytes-2048):
++            self.dropped += 1
++            return
++        started = self.clock()
++        try:
++            self.stream.write(encoded)
++            self.stream.flush()
++            self.bytes += len(encoded)
++            self.events += not footer
++        except OSError as exc:
++            if not self.errors:
++                self.errors.append(type(exc).__name__)
++        finally:
++            self.write_ns += max(0, self.clock()-started)
++
++    def _event(self, span, kind, **fields):
++        with self.lock:
++            if self.closed:
++                self.dropped += 1
++                return
++            self._write({"span": span, "kind": kind, "monotonic_ns": self.clock(), **fields})
++
++    def begin(self, *, turn_id, turn_revision, response_key):
++        # Invalid admission remains visible even when no span could be created.
++        with self.lock:
++            try:
++                for value in (turn_id, response_key):
++                    if value is not None and (type(value) is not str or len(value) > 256):
++                        raise ValueError("bounded string identifier required")
++                if turn_revision is not None and (type(turn_revision) is not int or turn_revision < 0):
++                    raise ValueError("nonnegative turn revision required")
++                if self.closed:
++                    raise RuntimeError("generation trace is closed")
++            except (ValueError, RuntimeError) as exc:
++                if not self.errors:
++                    self.errors.append(type(exc).__name__)
++                raise
++            self.spans += 1
++            span = self.spans
++            if len(self.active) >= self.max_events:
++                self.dropped += 1
++                return _GenerationSpan(self, None)
++            self.active.add(span)
++            self._event(span, "begin", turn_id=turn_id, turn_revision=turn_revision, response_key=response_key)
++        return _GenerationSpan(self, span)
++
++    def close(self):
++        with self.lock:
++            if not self.closed:
++                self.closed = True
++                # Footer reports prior write cost; returned status also includes
++                # footer write/flush. In-flight spans make this incomplete.
++                self._write({"kind": "footer", "monotonic_ns": self.clock(), **self.status()}, footer=True)
++                try:
++                    self.stream.close()
++                except OSError as exc:
++                    if not self.errors:
++                        self.errors.append(type(exc).__name__)
++            return self.status()
++
++    def status(self):
++        with self.lock:
++            accounting = self.closed and not self.dropped and not self.errors and not self.active
++            return {"complete": accounting and not self.interrupted, "accounting_complete": accounting,
++                    "in_flight": len(self.active), "interrupted": self.interrupted,
++                    "events": self.events, "bytes": self.bytes, "text_chars": self.text_chars,
++                    "dropped": self.dropped, "errors": list(self.errors), "spans": self.spans,
++                    "write_ns": self.write_ns,
++                    "bounds": {"events": self.max_events, "bytes": self.max_bytes,
++                               "text_chars": self.max_text_chars}}
++
++
++class _GenerationSpan:
++    def __init__(self, owner, identifier):
++        self.owner, self.identifier = owner, identifier
++
++    def text(self, text):
++        if self.identifier is None:
++            return
++        with self.owner.lock:
++            left = max(0, self.owner.max_text_chars-self.owner.text_chars)
++            kept = text[:left]
++            if len(kept) != len(text):
++                self.owner.dropped += 1
++            self.owner.text_chars += len(kept)
++            self.owner._event(self.identifier, "decoded_chunk", text=kept,
++                              original_chars=len(text), truncated=len(kept) != len(text))
++
++    def rejected_tool(self, name):
++        if self.identifier is None:
++            return
++        self.owner._event(self.identifier, "rejected_tool", name=name[:256], truncated=len(name)>256)
++        if len(name)>256:
++            with self.owner.lock:
++                self.owner.dropped += 1
++
++    def usage(self, input_tokens, output_tokens):
++        if self.identifier is None:
++            return
++        self.owner._event(self.identifier, "reported_token_usage",
++                          input_tokens=input_tokens, output_tokens=output_tokens)
++
++    def finish(self, *, cancelled, stopped, error, source_completed=True):
++        if self.identifier is None:
++            return
++        with self.owner.lock:
++            if self.identifier not in self.owner.active:
++                self.owner.dropped += 1
++                return
++            self.owner._event(self.identifier, "end", cancelled=cancelled, stopped=stopped, error=error, source_completed=source_completed)
++            self.owner.interrupted += bool(cancelled or stopped or error or not source_completed)
++            self.owner.active.remove(self.identifier)
+diff --git a/src/speech_to_speech/LLM/language_model.py b/src/speech_to_speech/LLM/language_model.py
+index dd3e5b3..9471237 100644
+--- a/src/speech_to_speech/LLM/language_model.py
++++ b/src/speech_to_speech/LLM/language_model.py
+@@ -139,0 +140 @@ class StreamContext(BaseModel):
++    stream_exhausted: bool = False
+@@ -140,0 +142 @@ class StreamContext(BaseModel):
++    generation_trace: Any = Field(default=None, exclude=True)
+@@ -260,2 +262,6 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
+-    def _finish_transformers_generation(self, thread: Thread) -> None:
+-        """Signal the stopping criteria, drain the streamer, and join the thread."""
++    def _finish_transformers_generation(self, thread: Thread, *, stream_exhausted: bool = False) -> None:
++        """Cancel, consume any outstanding stream, and join the producer.
++
++        TextIteratorStreamer consumes its stop sentinel once. Reading it again
++        after natural EOF waits for the queue timeout rather than another EOF.
++        """
+@@ -264,5 +270,32 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
+-            for _ in self.streamer:
+-                pass
+-        except Empty:
+-            pass
+-        thread.join(timeout=5.0)
++            if not stream_exhausted:
++                try:
++                    for _ in self.streamer:
++                        pass
++                except Empty:
++                    pass
++        finally:
++            thread.join(timeout=5.0)
++            if thread.is_alive():
++                raise TimeoutError("model producer did not finish within its cleanup deadline")
++
++    def _stream_transformers_generation(
++        self, thread: Thread, gen: int | None, language_code: Optional[str], ctx: StreamContext,
++        runtime_config: RuntimeConfig | None = None, response: RealtimeResponseCreateParams | None = None,
++    ) -> Iterator[LLMResponseChunk]:
++        """Finalize the actual producer on EOF, cancellation, error or consumer close."""
++        thread.start()
++        primary = None
++        try:
++            yield from self._stream_tokens(self.streamer, gen, language_code, ctx, runtime_config, response)
++        except BaseException as exc:
++            primary = exc
++            raise
++        finally:
++            try:
++                self._finish_transformers_generation(thread, stream_exhausted=ctx.stream_exhausted)
++            except BaseException as cleanup:
++                if primary is None or isinstance(primary, GeneratorExit):
++                    raise
++                add_note = getattr(primary, "add_note", None)
++                if add_note is not None:
++                    add_note(f"model producer cleanup also failed: {type(cleanup).__name__}: {cleanup}")
+@@ -375,0 +409,2 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
++                    if ctx.generation_trace is not None:
++                        ctx.generation_trace.rejected_tool(fc.function_name)
+@@ -519,0 +555 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
++        ctx.stream_exhausted = False
+@@ -523,0 +560 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
++                ctx.stream_exhausted = True
+@@ -533,0 +571,2 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
++            if ctx.generation_trace is not None:
++                ctx.generation_trace.text(raw_text)
+@@ -671,0 +711,2 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
++        observation_error = False
++        observation_completed = False
+@@ -672,0 +714,5 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
++            observer = getattr(self, "generation_observer", None)
++            if observer is not None:
++                ctx.generation_trace = observer.begin(
++                    turn_id=ctx.turn_id, turn_revision=ctx.turn_revision, response_key=request.response_key
++                )
+@@ -765,0 +812,2 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
++                if ctx.generation_trace is not None:
++                    ctx.generation_trace.usage(ctx.input_tokens, output_tokens)
+@@ -773,0 +822 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
++            observation_completed = turn_output_allowed
+@@ -774,0 +824 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
++            observation_error = True
+@@ -793,5 +843,13 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
+-            rollback_history()
+-            if request.prefetch_transaction is not None and not history_committed:
+-                # Make failed hidden work unclaimable before its asynchronous
+-                # logical-done notification reaches the realtime service.
+-                request.prefetch_transaction.discard()
++            try:
++                rollback_history()
++                if request.prefetch_transaction is not None and not history_committed:
++                    # Make failed hidden work unclaimable before its asynchronous
++                    # logical-done notification reaches the realtime service.
++                    request.prefetch_transaction.discard()
++            except BaseException:
++                observation_error = True
++                raise
++            finally:
++                if ctx.generation_trace is not None:
++                    ctx.generation_trace.finish(cancelled=ctx.cancelled, stopped=ctx.stopped,
++                        error=observation_error, source_completed=observation_completed)
+@@ -851 +909 @@ class LanguageModelHandler(BaseLanguageModelHandler):
+-                timeout=1.0,
++                timeout=10.0,
+@@ -917,3 +975 @@ class LanguageModelHandler(BaseLanguageModelHandler):
+-            thread.start()
+-            yield from self._stream_tokens(self.streamer, gen, language_code, ctx, runtime_config, response)
+-            self._finish_transformers_generation(thread)
++            yield from self._stream_transformers_generation(thread, gen, language_code, ctx, runtime_config, response)
+@@ -1112,3 +1168 @@ class VisionLanguageModelHandler(BaseLanguageModelHandler):
+-            thread.start()
+-            yield from self._stream_tokens(self.streamer, gen, language_code, ctx, runtime_config, response)
+-            self._finish_transformers_generation(thread)
++            yield from self._stream_transformers_generation(thread, gen, language_code, ctx, runtime_config, response)
+diff --git a/src/speech_to_speech/LLM/tool_call/tool_prompt.py b/src/speech_to_speech/LLM/tool_call/tool_prompt.py
+index 2e9c6e8..af855ac 100644
+--- a/src/speech_to_speech/LLM/tool_call/tool_prompt.py
++++ b/src/speech_to_speech/LLM/tool_call/tool_prompt.py
+@@ -37,2 +37,3 @@ Available tools:
+-To call tools, put each named-argument function call inside its own {{ enter_code }}...{{ end_code }} block:
+-{{ enter_code }}function_name(required_arg='value'){{ end_code }}
++Allowed function names: {{ tools | map(attribute='name') | join(', ') }}.
++Use only a function name and named arguments from the definitions above, respecting their Literal choices and types.
++To call tools, put each named-argument function call inside its own {{ enter_code }}...{{ end_code }} block. The tags are delimiters, not function names.
+@@ -58,2 +59,3 @@ Available tools:
+-To call tools, put each named-argument function call inside its own {{ enter_code }}...{{ end_code }} block:
+-{{ enter_code }}function_name(required_arg='value'){{ end_code }}
++Allowed function names: {{ tools | map(attribute='name') | join(', ') }}.
++Use only a function name and named arguments from the definitions above, respecting their Literal choices and types.
++To call tools, put each named-argument function call inside its own {{ enter_code }}...{{ end_code }} block. The tags are delimiters, not function names.

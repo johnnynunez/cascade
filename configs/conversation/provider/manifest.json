@@ -1,0 +1,29 @@
+{
+  "schema": "cascade.speech-provider-source.v1",
+  "upstream_revision": "411399d34555b2169823a6eaeb7f8ff192db89db",
+  "candidate_revision": "66b7233f23582999f424e77c4b765251316fa5b9",
+  "archive_sha256": "2a344e59ad73110e263a731bc38fef001286b29a5e58f60b9cdf2491dfd9efb1",
+  "patch": "speech-provider.patch",
+  "patch_sha256": "b884840525522aab151e3fefd6c4ed0dca696d668a4612f524ae300f642be71f",
+  "files": {
+    "src/speech_to_speech/LLM/language_model.py": {
+      "before_sha256": "ab54d87351d1ba57ae7ed69c7ed92552ab5b08e10b8cbb0c0f5c3e650b696026",
+      "after_sha256": "7a7bb12d3cd50ca6915fd94d4c9c52ce4a9a1a70083b3f1339562118ce7a1e5f"
+    },
+    "src/speech_to_speech/LLM/tool_call/tool_prompt.py": {
+      "before_sha256": "743e341e95810de38a42f41922876ec6b32b359c74e18f16c445b6b099cb5fc2",
+      "after_sha256": "0d937afdef1846f96ea5e11b5d052634b7486c7cadaa5791ef15a90e0f4c7015"
+    },
+    "src/speech_to_speech/LLM/generation_trace.py": {
+      "before_sha256": null,
+      "after_sha256": "f7b35b924b4d9fc3e2b24a6507377d6864036cd46cb60bbfb3cd12ea7ba06680"
+    }
+  },
+  "changes": [
+    "Historical text streamer timeout 10s; voice/robot deadlines unchanged.",
+    "Prompt names tools from the actual catalogue; no invented call.",
+    "Optional bounded decoded-output observation after warmup.",
+    "Natural streamer EOF is not drained a second time; cancellation/join retained."
+  ],
+  "patch_format": "git unified diff with zero context; full before/after hashes are mandatory"
+}

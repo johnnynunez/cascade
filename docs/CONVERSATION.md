@@ -364,6 +364,38 @@ while ambiguous responses after interruption require reconnection. The local
 onset deadline does not establish microphone capture age: a provider could
 itself delay `speech_started`; no provider-to-capture clock mapping is claimed.
 
+The optional CPU provider has a reproducible Linux x86_64 recipe in
+[`scripts/conversation_provider.py`](../scripts/conversation_provider.py).
+It creates its own Python environment and model copies; it does not install
+speech dependencies in Cascade's environment. With Python 3.12+, `uv` and `git`
+available, use a **new**, private state directory:
+
+```bash
+python3.12 scripts/conversation_provider.py prepare --state-dir ~/.cascade-speech-schema-eof
+python3.12 scripts/conversation_provider.py verify --state-dir ~/.cascade-speech-schema-eof
+python3.12 scripts/conversation_provider.py serve --state-dir ~/.cascade-speech-schema-eof \
+  --run-dir runs/speech-provider-01 --port 18878 --timeout-s 900
+```
+
+Preparation downloads the pinned CPU dependencies, Whisper, Qwen and Kokoro.
+The [source manifest](../configs/conversation/provider/manifest.json) binds the
+upstream archive and exact patch bytes: schema-derived tool names, optional
+bounded decoded-output observation, and EOF finalization that retains
+cancellation and the worker join. Preparation checks every changed source file;
+serving checks the complete effective source and the normal installation's
+origin and runtime files before constructing models. A recipe mismatch refuses
+an old state directory; no existing environment or weights are migrated.
+Model selection, provider lifetime and robot deadlines remain separate.
+
+Serving binds unauthenticated loopback only, owns its child process group,
+and records closure in the exclusive run directory. `--trace-generation`
+optionally records private bounded decoded chunks after upstream warmup;
+it does not record prompts or media, and chunks are not token boundaries.
+Cancellation can produce interrupted spans. Lost events, observation errors or
+in-flight spans make diagnostic accounting incomplete; a complete trace is
+not proof of a tool result or physical action. Fresh installation and the full
+voice-to-hand chain on this packaged source still require separate validation.
+
 Run the speech stack in a separate environment. Its `speech-to-speech serve`
 command exposes `/v1/realtime` and supports selecting STT, LLM and TTS backends.
 Use `speech-to-speech serve -h` at the pinned revision and explicitly choose

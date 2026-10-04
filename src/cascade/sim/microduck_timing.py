@@ -1,9 +1,73 @@
 """Opt-in owner-thread spans; diagnostic clocks never advance physics."""
 from contextlib import contextmanager
+from collections import deque
 from functools import wraps
+import gc
+from itertools import count
 import json
 import threading
 import time
+
+
+class _GCEvents:
+    """Bounded passive callbacks, including collections outside owner attempts.
+
+    Absolute times and event IDs survive batch boundaries; starts/stops are not
+    paired here. Callback intervals include scheduling and other callbacks, not
+    isolated CPU time. No locks, I/O or collector settings change in callbacks.
+    """
+    def __init__(self, clock, limit=4096):
+        self.clock, self.limit = clock, limit
+        self.pending, self.tickets = deque(maxlen=limit), count()
+        self.active, self.registered = True, True
+        self.drains = self.recorded = self.errors = 0
+        self.initial = dict(enabled=gc.isenabled(), thresholds=gc.get_threshold())
+        self.callback = self._record  # retain this exact bound method for removal
+        gc.callbacks.append(self.callback)
+
+    def _record(self, phase, info):
+        ticket = next(self.tickets)
+        if not self.active:
+            return
+        try:
+            event = dict(id=ticket, phase=phase, error_type=None,
+                monotonic_ns=self.clock(), thread_id=threading.get_ident(),
+                generation=info['generation'], collected=info.get('collected'),
+                uncollectable=info.get('uncollectable'))
+        except BaseException as exc:
+            event = dict(id=ticket, phase=phase, error_type=type(exc).__name__)
+        # This queue is never replaced. A suspended callback cannot retain an
+        # already serialized batch. CPython deque append/popleft and count next
+        # are atomic; callbacks never acquire a lock or wait for the owner.
+        self.pending.append(event)
+
+    def drain(self):
+        events = [self.pending.popleft() for _ in range(len(self.pending))]
+        # The owner also consumes one ticket per drain. Everything issued before
+        # this fence must be recorded, dropped by the bound, or still in flight.
+        fence = next(self.tickets)
+        observed = fence - self.drains
+        self.drains += 1
+        self.recorded += len(events)
+        self.errors += sum(event['error_type'] is not None for event in events)
+        self.registered &= any(item is self.callback for item in gc.callbacks)
+        return dict(events=events, fence_id=fence, observed=observed,
+            recorded=self.recorded, dropped_or_pending=observed-self.recorded,
+            errors=self.errors, callback_registered=self.registered)
+
+    def close(self):
+        self.active = False
+        try:
+            batch = self.drain()
+        finally:
+            for index in range(len(gc.callbacks)-1, -1, -1):
+                if gc.callbacks[index] is self.callback:
+                    del gc.callbacks[index]
+        return batch, dict((key, value) for key, value in batch.items() if key != 'events') | dict(
+            event_limit=self.limit,
+            accounting_complete=not batch['dropped_or_pending'] and not self.errors and self.registered,
+            initial=self.initial, final=dict(enabled=gc.isenabled(), thresholds=gc.get_threshold()),
+            scope='process callbacks; absolute clocks; intervals are not isolated CPU time')
 
 
 class PhaseProfile:
@@ -21,6 +85,7 @@ class PhaseProfile:
         self.previous_write = None
         self.restores, self.errors = [], []
         self.closed = False
+        self.gc = _GCEvents(clock)
 
     @contextmanager
     def span(self, phase, robot=None):
@@ -75,6 +140,7 @@ class PhaseProfile:
                 current['clock_after'] = owner.physics_clock
                 current.pop('stack')
                 current['previous_profile_write'] = self.previous_write
+                current['gc'] = self.gc.drain()
                 started = self.clock()
                 self.stream.write(json.dumps(current, allow_nan=False) + '\n')
                 self.stream.flush()
@@ -99,8 +165,10 @@ class PhaseProfile:
                 self.errors.append(type(exc).__name__)
                 first = first or exc
         try:
+            gc_batch, gc_summary = self.gc.close()
             self.stream.write(json.dumps(dict(kind='footer', attempts=self.attempts,
                 last_profile_write=self.previous_write, errors=self.errors,
+                gc=gc_batch, gc_summary=gc_summary,
                 scope='owner-thread inclusive spans; not additive; footer/close cost excluded')) + '\n')
             self.stream.flush()
         except BaseException as exc:

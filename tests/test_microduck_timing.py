@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from cascade.sim import microduck_timing as timing
 from cascade.sim.microduck_timing import PhaseProfile
 
 
@@ -116,3 +117,176 @@ def test_profile_write_failure_without_native_failure_is_not_a_success(tmp_path)
     assert profile.errors == ['ValueError']
     with pytest.raises(ValueError, match='closed'):
         profile.close()
+
+
+@pytest.fixture(autouse=True)
+def fake_gc(monkeypatch):
+    def forbidden(*args):
+        pytest.fail('passive profiling must not control or enumerate the collector')
+    collector = SimpleNamespace(callbacks=[], enabled=True, thresholds=(700, 10, 10),
+        isenabled=lambda: collector.enabled, get_threshold=lambda: collector.thresholds,
+        enable=forbidden, disable=forbidden, collect=forbidden, freeze=forbidden,
+        unfreeze=forbidden, set_threshold=forbidden, get_objects=forbidden)
+    monkeypatch.setattr(timing, 'gc', collector)
+    return collector
+
+
+INFO = dict(generation=2, collected=4, uncollectable=0)
+
+
+def test_gc_events_cross_attempts_and_threads_without_forcing_pairs(tmp_path, fake_gc):
+    path = tmp_path/'timing.jsonl'
+    foreign = lambda *args: None
+    fake_gc.callbacks.append(foreign)
+    profile = PhaseProfile(path, clock=Clock())
+    callback = profile.gc.callback
+    callback('start', INFO)  # before the owner starts its first attempt
+    owner = SimpleNamespace(physics_clock=(2, .01))
+    with profile.attempt(owner) as attempt:
+        attempt['outcome'] = 'withheld'
+    with ThreadPoolExecutor(1) as pool:
+        pool.submit(callback, 'stop', INFO).result(timeout=1)
+    with profile.attempt(owner) as attempt:
+        attempt['outcome'] = 'withheld'
+    callback('start', INFO)  # deliberately no stop before closure
+    later_foreign = lambda *args: None
+    fake_gc.callbacks.append(later_foreign)
+    fake_gc.enabled, fake_gc.thresholds = False, (600, 9, 9)  # external changes
+    profile.close()
+    profile.close()
+    assert fake_gc.callbacks == [foreign, later_foreign]
+    assert not fake_gc.enabled and fake_gc.thresholds == (600, 9, 9)
+    first, second, footer = rows(path)
+    events = [row['gc']['events'][0] for row in (first, second, footer)]
+    assert [event['id'] for event in events] == [0, 2, 4]
+    assert [row['gc']['fence_id'] for row in (first, second, footer)] == [1, 3, 5]
+    assert [event['phase'] for event in events] == ['start', 'stop', 'start']
+    assert events[0]['monotonic_ns'] < first['start_monotonic_ns']
+    assert first['end_monotonic_ns'] < events[1]['monotonic_ns'] < second['start_monotonic_ns']
+    assert events[1]['thread_id'] != events[0]['thread_id'] == events[2]['thread_id']
+    assert all(event['generation'] == 2 and event['collected'] == 4 for event in events)
+    summary = footer['gc_summary']
+    assert summary['observed'] == summary['recorded'] == 3
+    assert summary['dropped_or_pending'] == summary['errors'] == 0
+    assert summary['accounting_complete']
+    assert summary['initial'] == {'enabled': True, 'thresholds': [700, 10, 10]}
+    assert summary['final'] == {'enabled': False, 'thresholds': [600, 9, 9]}
+    callback('stop', INFO)  # a saved callback cannot write after close
+    assert not profile.gc.active and not profile.gc.pending
+
+
+def test_gc_bound_and_errors_remain_explicit_across_drains(fake_gc):
+    clock = Clock()
+    capture = timing._GCEvents(clock, limit=2)
+    capture.callback('start', INFO)
+    capture.callback('stop', INFO)
+    capture.callback('start', INFO)  # bounded loss is explicit, with an ID gap
+    capture.callback('stop', INFO)
+    first = capture.drain()
+    assert first['observed'] == 4 and first['dropped_or_pending'] == 2 and first['errors'] == 0
+    assert [event['id'] for event in first['events']] == [2, 3]
+    capture.callback('start', {})  # diagnostic callback failure must not escape
+    capture.callback('stop', INFO)
+    last, summary = capture.close()
+    assert last['observed'] == 6 and last['errors'] == 1 and last['dropped_or_pending'] == 2
+    assert [event['id'] for event in last['events']] == [5, 6]
+    assert last['events'][0]['error_type'] == 'KeyError'
+    assert summary['observed'] == 6 and summary['recorded'] == 4
+    assert summary['dropped_or_pending'] == 2 and summary['errors'] == 1
+    assert not summary['accounting_complete']
+    assert fake_gc.callbacks == []
+
+
+def test_gc_callback_clock_failure_and_profile_io_keep_primary_error_and_cleanup(tmp_path, fake_gc):
+    profile = PhaseProfile(tmp_path/'timing.jsonl')
+    foreign = lambda *args: None
+    fake_gc.callbacks.append(foreign)
+    def broken_clock():
+        raise RuntimeError('diagnostic clock')
+    profile.gc.clock = broken_clock
+    profile.gc.callback('start', INFO)
+    assert profile.gc.pending[0]['error_type'] == 'RuntimeError'
+    profile.stream.close()
+    primary = RuntimeError('native failure')
+    with pytest.raises(RuntimeError) as caught, profile.attempt(SimpleNamespace(physics_clock=(2, .01))):
+        raise primary
+    assert caught.value is primary
+    with pytest.raises(ValueError):
+        profile.close()
+    assert fake_gc.callbacks == [foreign] and not profile.gc.active
+
+
+def test_gc_empty_profile_and_external_callback_removal_are_visible(tmp_path, fake_gc):
+    path = tmp_path/'timing.jsonl'
+    profile = PhaseProfile(path)
+    fake_gc.callbacks.remove(profile.gc.callback)
+    profile.close()
+    footer, = rows(path)
+    assert footer['attempts'] == 0 and footer['gc']['events'] == []
+    assert footer['gc']['callback_registered'] is False
+    assert footer['gc_summary']['observed'] == 0
+    assert not footer['gc_summary']['accounting_complete']
+
+
+@pytest.mark.parametrize('close_in_flight', [False, True])
+def test_gc_callback_resuming_after_owner_drain_is_retained_or_explicitly_incomplete(fake_gc, close_in_flight):
+    from threading import Event
+    entered, release = Event(), Event()
+    def suspended_clock():
+        entered.set()
+        assert release.wait(timeout=2)
+        return 123
+    capture = timing._GCEvents(suspended_clock)
+    with ThreadPoolExecutor(1) as pool:
+        pending = pool.submit(capture.callback, 'start', INFO)
+        try:
+            assert entered.wait(timeout=2)
+            if close_in_flight:
+                first, summary = capture.close()
+            else:
+                first = capture.drain()
+            serialized = json.dumps(first)
+        finally:
+            release.set()
+        pending.result(timeout=2)
+    assert json.dumps(first) == serialized  # callbacks cannot mutate a drained row
+    assert first['observed'] == first['dropped_or_pending'] == 1 and first['events'] == []
+    if close_in_flight:
+        assert not summary['accounting_complete'] and summary['recorded'] == 0
+    else:
+        last, summary = capture.close()
+        assert last['events'][0]['monotonic_ns'] == 123
+        assert summary['observed'] == summary['recorded'] == 1
+        assert summary['accounting_complete']
+
+
+def test_gc_callback_entering_after_final_fence_cannot_append_unaccounted_events(fake_gc):
+    import inspect
+    import sys
+    from threading import Event
+    entered, release = Event(), Event()
+    capture = timing._GCEvents(Clock())
+    source, start = inspect.getsourcelines(capture._record)
+    line = start + next(i for i, text in enumerate(source) if 'ticket = next' in text)
+    def trace(frame, event, arg):
+        if frame.f_code is capture._record.__code__ and event == 'line' and frame.f_lineno == line:
+            entered.set()
+            assert release.wait(timeout=2)
+        return trace
+    def late_callback():
+        sys.settrace(trace)
+        try:
+            capture.callback('start', INFO)
+        finally:
+            sys.settrace(None)
+    with ThreadPoolExecutor(1) as pool:
+        pending = pool.submit(late_callback)
+        try:
+            assert entered.wait(timeout=2)
+            batch, summary = capture.close()
+            serialized = json.dumps(batch)
+        finally:
+            release.set()
+        pending.result(timeout=2)
+    assert not capture.pending and json.dumps(batch) == serialized
+    assert summary['observed'] == 0 and summary['accounting_complete']

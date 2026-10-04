@@ -292,7 +292,7 @@ owner-thread spans in `timing.jsonl`: completed reads, support/native capture,
 policy preparation, BAM, solve, publication, recording and camera/probe work.
 Rows retain the attempt's completed clocks and solved/withheld/error outcome,
 plus the preceding profile write/flush cost; the footer retains the final cost.
-Nested durations overlap and must not be summed. Reader threads are not profiled.
+Nested durations overlap and must not be summed. Reader calls are not wrapped.
 The flag installs no wrappers when disabled and is bound in the effective model,
 so enabling it requires a fresh identity probe and pin. Profiling keeps the
 existing control gates, cadence, contact evidence and physical records.
@@ -307,6 +307,18 @@ physics record. These overlapping categories are not additive. Large pauses
 occurred in several phases; their cause remains unresolved. The first 160
 attempts overlapped the recorded scope of a separate RTX probe on GPU0. This
 diagnostic neither admits twelve-robot control nor establishes a native speedup.
+
+The phase profile also retains passive Python GC callbacks from all threads,
+with absolute timestamps, event IDs, generation and collection counts. Each
+attempt and the footer drain a persistent queue bounded to 4096 events, including
+events outside owner attempts; starts and stops may cross rows. Cumulative ticket
+counts expose overflow or callbacks still in flight, without waiting for them.
+Missing/error events or a removed callback prevent complete correlation claims.
+Draining callback metadata is outside the attempt and write/flush durations.
+GC settings are only observed, and closing the profile removes only its own
+callback. Callback intervals include scheduling
+and other callbacks; they do not measure isolated CPU cost or establish a cause
+for a control timeout. Profiling does not disable or force collections.
 
 These endpoint outcomes remain physically unverified. Walking, fleet tasks,
 shared-space interactions and measured individual/global motion stops still need

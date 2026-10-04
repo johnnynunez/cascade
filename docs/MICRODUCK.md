@@ -92,6 +92,29 @@ The separate [Newton BAM proposal](https://github.com/newton-physics/newton/issu
 motivates reviewing actuator contracts; this episode retains its pinned BAM
 plant and does not test a new friction, backlash or delay implementation.
 
+The subsequent [single-robot forward attempts](evidence/robot-modularity/microduck-robotd-forward-failures-20261004.json)
+retain two failures with this same source and model. The first omitted the
+composed-runtime tag and failed its initial MCP observation before reset or
+motion. After a passive composition regression and a separately reviewed
+harness correction, the second reached the real `walk_distance(0.025)` path.
+It reported 10.6337 mm before its configured three-second simulation deadline,
+below the original 25 mm target with 5 mm tolerance. The full-rate journal
+never entered that tolerance, including the retained tail: maximum forward
+travel was 10.6421 mm, with no heading/lateral or forbidden-support veto.
+The client therefore withheld the scored stop/rest phase; containment ACKs
+do not establish physical stopping.
+
+Each episode retained 2,000 solves, 500 policy commits and 21 camera/support
+samples, with ordinary native/scope exits and closed clients. In the second,
+150 policy rows carried the observed forward command and every raw-history,
+filtered-target and float32 upload was reproduced. The failure envelope and
+both traces omitted the admission ACK; the original auditor failures remain
+preserved. A separate supplement joins the actual command, controller and
+physical records without reconstructing that missing receipt or granting
+admission. Per-joint target/tracking/torque statistics are diagnostic only.
+Neither episode exercised generation-2 GC, establishes causality for the
+target transformation, or admits locomotion or a verified physical stop.
+
 ## Evidence and identity
 
 A SHA-256 digest binds the complete admitted bundle, consumed USD layers,

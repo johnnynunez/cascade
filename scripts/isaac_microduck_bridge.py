@@ -478,7 +478,7 @@ def admit(args):
              'src/cascade/sim/mobile_bridge.py', 'src/cascade/sim/mobile_identity.py',
              'src/cascade/sim/mobile_rgbd.py',
              'src/cascade/sim/microduck_contact_support.py', 'src/cascade/control/mobile_base.py',
-             'src/cascade/control/mobile_support.py',
+             'src/cascade/control/mobile_support.py', 'src/cascade/control/mobile_telemetry.py',
              'src/cascade/apps/signal_stop.py',
              'src/cascade/control/newton_bam.py', 'src/cascade/control/microduck_policy.py',
              'src/cascade/sim/microduck_policy_admission.py', 'assets/microduck/policy-candidates.json',

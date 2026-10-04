@@ -228,6 +228,13 @@ All physical outcomes remain unverified. The original 0.5-second RPC and
 0.4-second no-progress limits were retained; a 691 ms publication gap crossed
 the failure window. The timing evidence does not establish the cause.
 
+The shared stepper also retains immutable copies of the full legacy contact
+pairs and constraint addresses for that solve. Public native, robot-view and
+controller reads still return fresh lists; the private recording path keeps
+the same JSON arrays, order and bytes. Nonplain legacy values retain ordinary
+deep-copy isolation. This removes repeated list construction within a solve,
+without changing GC settings, validity checks or the public state contract.
+
 CPU tests cover 1, 2 and 12 synthetic participants, including index permutations,
 command isolation, cancellation and contact vetoes. The ordinary one-robot
 entrypoint retains its control cadence.

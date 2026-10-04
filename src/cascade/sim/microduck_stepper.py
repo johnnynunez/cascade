@@ -106,7 +106,8 @@ class MicroduckStepper:
         self.failure = ''
 
     def _read(self):
-        return validated_sample(self.backend.read(), **self.fall_limits)
+        read = getattr(self.backend, '_read_for_stepper', self.backend.read)
+        return validated_sample(read(), **self.fall_limits)
 
     def _publish(self, sample, balance):
         value = {k: v for k, v in sample.items() if k != 'gravity_body'}

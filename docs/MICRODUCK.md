@@ -132,8 +132,19 @@ then verifies the seed and copy again. The two absolute paths and input inventor
 are retained in `rtx-cache.json`; measured settings go in `rtx-cache-effective.json`.
 Only the relative cache policy and implementation hashes enter model identity,
 allowing independently admitted probe/episode paths to differ. Seed bytes remain
-separately bound deployment inputs. CPU tests establish these contracts; native
-cache routing, warm-up and any startup improvement still require validation.
+separately bound deployment inputs.
+
+The [native cache validation](evidence/microduck-private-rtx-20261004/native.json)
+retains the failed SDK-origin import and the separate one-step readiness timeout.
+A renderer-only preparation subsequently closed normally in 166 seconds. Its
+verified cache copy admitted source `eac66e6` to an 800-step zero-command run:
+200 policy commits, 41 captures, bridge readiness at 10.7 seconds and native
+duration 18.4 seconds, within the original 180/240-second limits. Both writable
+destinations and loaded SDK origins matched their admissions; native and scope
+exits were zero, with no shutdown signals or changed inputs. This supplies a
+new source-bound model identity for the next episode. Balanced rest, commanded
+locomotion and the spoken reply still require their own verification; one run
+does not establish general startup reliability or a causal speed improvement.
 
 ## Remaining admission work
 

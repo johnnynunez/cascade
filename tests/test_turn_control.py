@@ -7,6 +7,7 @@ import pytest
 from cascade.control.mock_base import MockMobileBase
 from cascade.safety.base_harness import SafeBase
 from mobile_support_fixture import support, support_contract
+from mobile_tick_fixture import healthy_episode_gc as healthy_episode_gc
 from test_mobile_safety import limits
 
 
@@ -103,6 +104,7 @@ def test_turn_counts_returning_3d_path_and_stops_before_yaw_goal(axis):
 
 @pytest.mark.parametrize('fault', ['height', 'tilt', 'missing', 'unavailable', 'identity', 'nonsole'])
 @pytest.mark.parametrize('during', [False, True])
+@pytest.mark.usefixtures('healthy_episode_gc')
 def test_turn_posture_and_support_veto_before_or_during_command(fault, during):
     def change(state, index):
         if during and index != 2:
@@ -131,7 +133,7 @@ def test_turn_posture_and_support_veto_before_or_during_command(fault, during):
         result = safe.turn(.1)
         assert not result['execution_ok']
         assert ('posture' if fault in ('height', 'tilt') else
-                'identity' if fault == 'identity' else 'contact') in result['error']
+                'identity' if fault == 'identity' else 'contact') in result['error'], result
         assert raw.commands == int(during) and safe.latched
         if during:
             assert raw.index == 2

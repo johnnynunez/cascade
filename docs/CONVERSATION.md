@@ -432,6 +432,27 @@ The configured intra-op count was two, while post-construction attestation
 observed one. No deadline, physical gate, fixed reply or synthetic tool result
 was changed to obtain this partial result. Full voice completion remains open.
 
+
+A later [voice07 episode](evidence/robot-modularity/voice-hand-cancellation-negative-20261004.json)
+used the separately installed cancellation fix and the host correction that
+restores its declared two intra-op threads after pipeline construction. The
+same spoken request produced one real hand action and 13,005 native solves;
+the 0.2 s post-ACK rest window remained valid through the final solve. The
+actual result returned 18.939 s after hand startup and reached its original
+provider session before the spoken continuation was requested at 18.941 s.
+
+This voice case also exhausted the unchanged 30 s owner budget with zero reply
+PCM; stop/reset/reconnect remained unexecuted. Its first generation took
+11.584 s. The second produced no decoded chunks and was explicitly cancelled
+after 14.125 s, ending during cleanup at 33.068 s after hand startup. That
+cleanup timestamp grants no late task credit. The provider closed with owned
+SIGTERM and exit zero, without SIGKILL; both generation endings, footer and
+status were retained with complete accounting and no dropped events. Complete
+accounting does not make the interrupted response successful. The hand also
+used owned TERM; all owned births disappeared. Cancellation handling and thread
+restoration both changed from voice06, so this run does not isolate their
+latency effects or establish repeatability. Earlier failures remain intact.
+
 Run the speech stack in a separate environment. Its `speech-to-speech serve`
 command exposes `/v1/realtime` and supports selecting STT, LLM and TTS backends.
 Use `speech-to-speech serve -h` at the pinned revision and explicitly choose

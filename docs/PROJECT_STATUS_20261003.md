@@ -23,7 +23,7 @@ The [1–2 October index](PROJECT_STATUS_20261001.md) preserves earlier history.
 | Locomotion | Optional measured `walk_distance`, cancellation and independent support/rest checks; historical fresh-start ±30 mm episodes passed. | Published candidate profiles have no new model/support admission. The 0.1 m software ceiling is not measured 0.1 m capability or general gait acceptance. |
 | Sensing and spatial memory | Passive, bounded sensor providers; identity/epoch/age checks; observed calibrated RGB-D and retained pixel-to-surface annotations. The optional cuVSLAM provider passed a [twelve-frame synthetic RGB-D native replay](CUVSLAM_NATIVE_VALIDATION.md), including worker/hub closure. Optional navigation enforces registered base pose, complete swept volume, uncertainty and arrival/rest contracts in CPU tests. | Independent metric XY/general-3D accuracy, moving-camera calibration and per-AOV synchronization. No physical SLAM or `go_to` execution is admitted. |
 | Speech | Browser/media gateway, real speech-provider path, original-intent deadlines, priority stop and bounded observed-result views. One continuous synthetic-input/native-motion recording exists. Same-origin narration after a model-staged stop has protocol tests. | That motion video contains no spoken robot reply. A [new guarded candidate](CONVERSATION.md) stopped at the unchanged native startup deadline before microphone/task inference; the forced closure and separate later cleanup audit remain recorded. General dialogue/action reliability, microphone/speaker hardware and public hosted service remain unvalidated. |
-| Fleet coordination | Concurrent `FleetRuntime`, independent agent CLI and bounded fleet MCP are implemented. One shared native scene passed [zero-command foundation checks with 1, 2 and 12 MicroDucks](evidence/microduck-shared-20261004/foundation.json), with 800 global solves and 200 policy evaluations per robot. | Native independent agent tasks, endpoint actuation/stop/reset and collision coordination remain pending. Shared tick cancellation currently contains the whole scene; this does not prove peer continuation or real-time operation. |
+| Fleet coordination | Concurrent `FleetRuntime`, independent agent CLI and bounded fleet MCP are implemented. The [shared-scene candidate](MICRODUCK.md#shared-scene-implementation-boundary) stages policies before cohort admission and captures native channels once per solve. Fresh 1/2/12-robot probes completed 800 solves; 1/2-robot zero-command endpoint lifecycle also passed. | Twelve-robot command execution failed the unchanged 0.4 s feedback progress limit, while the scene completed and closed normally. Independent native agent tasks, collision coordination, physical stop and peer motion remain pending. |
 | Structure and whole-body control | Typed embodiment and passive generalized-joint observations; domains expose only registered resources/tools. | Mixed physical mobile manipulation is refused. No admitted humanoid balance, dexterous-hand or generic whole-body controller. |
 | Evaluation | Source-bound VAB and Arena integration/cancellation preflights ran real simulation. | Neither is a completed benchmark task or a predictor of general deployment success. |
 
@@ -51,11 +51,14 @@ post-release joint-stability behavior from
 [PR #107](https://github.com/johnnynunez/cascade/pull/107).
 
 MicroDuck's BAM, support extraction and graph guards bind an explicit Newton
-configuration. The new shared-scene foundation passed native zero-command
-checks for one, two and twelve robots, including observed support and ordinary
-owned closure. Those episodes do not admit locomotion or agent tasks through
-later endpoint code. No model or source hash is automatically treated as
-physically admitted.
+configuration. Both the retained shared-scene foundation and the later channel
+capture candidate completed native zero-command probes with one, two and twelve
+robots, including observed support and ordinary owned closure. The later
+candidate also passed one- and two-robot endpoint lifecycle checks. A natural
+command change during two-robot policy preparation discarded both previews and
+retried the same observation before the next solve. The twelve-robot command
+case failed feedback progress; no gait or independent agent task is admitted.
+No model or source hash is automatically treated as physically admitted.
 
 ## Published software corrections
 

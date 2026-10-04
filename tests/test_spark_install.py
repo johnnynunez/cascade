@@ -38,6 +38,11 @@ def boundary_env(tmp_path):
             shutil.copy2(ROOT / "scripts" / name, source / "scripts" / name)
     (source / "demo").mkdir()
     shutil.copy2(ROOT / "demo/scene_identity.py", source / "demo/scene_identity.py")
+    # The real asset catalog reads its checked-in LEAP content pins. Keep the
+    # data dependency in this deliberately minimal upstream source fixture.
+    (source / "src/cascade/sim").mkdir(parents=True)
+    shutil.copy2(ROOT / "src/cascade/sim/leap_hand_assets.json",
+                 source / "src/cascade/sim/leap_hand_assets.json")
     (source / "pyproject.toml").write_text(
         '[project]\nname="boundary-double"\nversion="0.0.0"\n'
     )

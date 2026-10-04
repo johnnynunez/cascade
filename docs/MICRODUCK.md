@@ -159,6 +159,14 @@ still contains the scene; stop acknowledgements do not prove physical rest. All 
 rows remain visible to each robot's existing support checker, so another robot
 cannot count as ground. Model identities and command epochs remain per robot.
 
+The shared owner captures and validates global state/contact channels once for
+each completed scene, then detaches each robot's joint and body observations.
+The capture binds the model, current state, contact buffer, solver data and
+completed clock before reading; a changed binding rejects the entire capture.
+No snapshot is reused across solves, and each robot still receives the complete
+contact evidence. CPU tests check channel read counts and exact data equivalence;
+they do not establish a native speedup.
+
 CPU tests cover 1, 2 and 12 synthetic participants, including index permutations,
 command isolation, cancellation and contact vetoes. The ordinary one-robot
 entrypoint retains its control cadence.

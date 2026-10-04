@@ -1,8 +1,15 @@
 # MicroDuck: bounded native distance candidate
 
-Four fresh-start native episodes confirmed signed 30 mm objectives: two forward
-and two reverse. A separate priority stop interrupted an independently observed
-moving robot and subsequently confirmed physical rest. These are local Newton
+Four fresh-start native episodes originally recorded confirmed signed 30 mm
+objectives: two forward and two reverse. A later
+[retained-observation audit](evidence/voice-reply-recovery-20261004/guarded-continuation.json)
+finds post-completion heading drift of −0.18149 and −0.18552 rad in the two
+forward cases, beyond their unchanged 0.08 rad bound. Their original receipts
+predate the post-completion veto described below and remain unmodified;
+they do not admit the current contract. The two reverse traces do not violate
+that heading bound, which alone does not re-admit them. A separate priority
+stop interrupted an independently observed moving robot and subsequently
+confirmed physical rest. These are local Newton
 results on flat ground, not general locomotion admission. A subsequent single
 fresh −0.1-rad turn also confirmed; the larger measured ±0.2-rad turns still fail
 the translation-path criterion, and reverse motion after a forward episode produced
@@ -53,9 +60,10 @@ The optional [distance profile](../configs/bases/microduck_distance_candidate.ya
 uses internal policy commands ±0.3 with a 5 mm controller stopping tolerance.
 That input is not a claim of ±0.3 m/s measured velocity. It bounds distance,
 lateral/heading drift, posture, support, freshness, cancellation and duration.
-Its 100 mm configuration ceiling is a software bound; only the repeated 30 mm
-cases below have this physical evidence. Ordinary `walk_velocity`, the official
-VelStand default and the original diagnostic profile remain unchanged.
+Its 100 mm configuration ceiling is a software bound; the repeated 30 mm
+cases below retain their original source and verifier scope. Ordinary
+`walk_velocity`, the official VelStand default and the original diagnostic
+profile remain unchanged.
 
 The separate [slow native profile](../configs/bases/microduck_distance_native_slow.yaml)
 sets a 25-second host action budget from measured compute cost: approximately

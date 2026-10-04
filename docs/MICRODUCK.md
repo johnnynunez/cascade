@@ -320,6 +320,26 @@ callback. Callback intervals include scheduling
 and other callbacks; they do not measure isolated CPU cost or establish a cause
 for a control timeout. Profiling does not disable or force collections.
 
+Two [reader-only GC profiles](evidence/microduck-shared-20261004/gc-serialization.json)
+each completed 800 solves, 2,400 policy commits, 24 reader events and 9
+overview/support-probe pairs, with normal native and client closure. The second
+used the plain-record serializer; its effective recipe changed only that source
+file. The recorded attempt durations were:
+
+| Profile | Median | p95 | Maximum | Attempts over 400 ms |
+| --- | ---: | ---: | ---: | ---: |
+| GC baseline | 117.15 ms | 161.18 ms | 646.41 ms | 22 |
+| GC with plain-record serialization | 110.75 ms | 127.60 ms | 655.07 ms | 22 |
+
+Both traces had complete callback accounting. Generation-2 GC intervals
+overlapped all 22 slow attempts in each run; this establishes temporal overlap,
+not an isolated CPU cost or a causal speedup. The comparison started after the
+separate voice scopes closed. Both launch admissions recorded the same foreign
+GPU process identity.
+The original 0.5 s RPC and 0.4 s progress limits remain unchanged and unresolved
+for twelve-robot control. No new control episode was run, and the earlier control
+failures remain retained.
+
 These endpoint outcomes remain physically unverified. Walking, fleet tasks,
 shared-space interactions and measured individual/global motion stops still need
 their own acceptance evidence. The [original twelve-robot overview](

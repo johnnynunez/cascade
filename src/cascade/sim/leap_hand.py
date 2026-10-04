@@ -1,6 +1,7 @@
 """Explicit CPU MuJoCo adapter for the source-pinned right LEAP hand.
 
-The authored experiment adds a 0.5 Nm effort cap and a 2 ms timestep. Those
+The authored experiment uses 6 Nm/rad position gain, a 0.5 Nm effort cap and
+a 2 ms timestep. Those
 are simulation limits, not a hardware calibration or Dynamixel motor model.
 """
 from __future__ import annotations
@@ -16,7 +17,7 @@ import xml.etree.ElementTree as ET
 from ..control.hand import HandContact, HandFault, HandLimits, HandSample
 
 
-RECIPE = "leap_right_bounded_free_motion_v1"
+RECIPE = "leap_right_bounded_free_motion_v2"
 JOINTS = tuple(f"{finger}_{joint}" for finger in ("if", "mf", "rf")
     for joint in ("mcp", "rot", "pip", "dip")) + ("th_cmc", "th_axl", "th_mcp", "th_ipl")
 
@@ -57,6 +58,7 @@ class LeapHandBackend:
         xml = ET.fromstring(assets["right_hand.xml"])
         xml.find("option").set("timestep", ".002")
         for actuator in xml.findall("./actuator/position"):
+            actuator.set("kp", "6")
             actuator.set("forcelimited", "true")
             actuator.set("forcerange", "-.5 .5")
         authored = ET.tostring(xml)
@@ -73,6 +75,9 @@ class LeapHandBackend:
                 or not np.all(model.actuator_gear == [1., 0., 0., 0., 0., 0.])
                 or not np.all(model.actuator_forcelimited)
                 or not np.all(model.actuator_forcerange == [-.5, .5])
+                or not np.all(model.actuator_gainprm[:, 0] == 6.)
+                or not np.all(model.actuator_biasprm[:, 1] == -6.)
+                or not np.all(model.actuator_biasprm[:, 2] == -.01)
                 or not np.all(model.actuator_ctrllimited) or not np.all(model.jnt_limited)):
             raise HandFault("compiled hand transmission or bounded-actuator inventory differs")
         self.joint_names = JOINTS
@@ -97,6 +102,7 @@ class LeapHandBackend:
                 ("control/hand.py", "sim/leap_hand.py", "skills/hand_runtime.py", "apps/hand_runtime.py",
                  "sensing/models.py", "robotics/contracts.py")},
             "limits": asdict(self.limits), "joint_names": JOINTS, "geom_names": self.geom_names,
+            "position_servo": {"kp_nm_per_rad": 6., "kv_nm_s_per_rad": .01},
             "root": "fixed", "stop": "hold last position-servo targets",
             "contact_scope": "all enabled collision pairs of the pinned model",
             "constraint_phase": "dynamics evaluation before integration; separate from advanced joint state",

@@ -38,10 +38,19 @@ set; an explicit `reset_stop` is required before a motion command.
 
 Joint order is index, middle and ring fingers (`mcp`, `rot`, `pip`, `dip` for
 each), followed by thumb (`cmc`, `axl`, `mcp`, `ipl`). `move_fingers` requires all
-sixteen absolute target angles in radians. The recipe retains source geometry,
-inertia, contacts and position-servo gains; it adds a 2 ms timestep and a
-±0.5 Nm actuator effort cap. This is a simulation recipe, not a calibrated
-Dynamixel motor model.
+sixteen absolute target angles in radians. Recipe `leap_right_bounded_free_motion_v2`
+retains source geometry, inertia, contacts and velocity gain (0.01 Nm·s/rad);
+it uses a 6 Nm/rad position gain, a 2 ms timestep and a ±0.5 Nm actuator effort
+cap. This is a simulation recipe, not a calibrated Dynamixel motor model.
+
+The first native motion with source position gain 3 Nm/rad failed its unchanged
+2-second approach budget: gravity left several joints 0.022–0.026 rad from their
+targets, beyond the 0.02 rad tolerance, despite observed rest. All 1,164 solves
+are retained, with 1,000 command-generation solves, no contacts, maximum effort
+0.101305 Nm and maximum speed 0.927493 rad/s. Recorded effort reproduces the
+source servo equation within 5.6e-17 Nm. Version 2 doubles only the position gain
+to reduce that steady offset; it does not change any verification threshold or
+deadline. Its native outcome requires separate evidence.
 
 ## Authority and verification
 

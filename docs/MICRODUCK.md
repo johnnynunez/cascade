@@ -236,6 +236,17 @@ The flag installs no wrappers when disabled and is bound in the effective model,
 so enabling it requires a fresh identity probe and pin. Profiling keeps the
 existing control gates, cadence, contact evidence and physical records.
 
+The [retained twelve-robot phase diagnostic](
+evidence/microduck-shared-20261004/phase-profile.json) completed 800 solves,
+2,400 policy commits, 24 reader events and 9 overview/support-probe pairs, then
+closed naturally with exit 0. Median attempt duration was 343 ms (p95 831 ms).
+Inclusive per-attempt medians were 82 ms for preparation, 101 ms for completed
+state validation, 79 ms for publication and 55 ms for constructing/writing the
+physics record. These overlapping categories are not additive. Large pauses
+occurred in several phases; their cause remains unresolved. The first 160
+attempts overlapped the recorded scope of a separate RTX probe on GPU0. This
+diagnostic neither admits twelve-robot control nor establishes a native speedup.
+
 These endpoint outcomes remain physically unverified. Walking, fleet tasks,
 shared-space interactions and measured individual/global motion stops still need
 their own acceptance evidence. The [original twelve-robot overview](

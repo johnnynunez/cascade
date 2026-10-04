@@ -1,5 +1,6 @@
 """Same-host startup deadline contracts; no provider/model/CUDA imports."""
 import copy
+import math
 import socket
 from types import SimpleNamespace as NS
 
@@ -34,6 +35,27 @@ def test_created_deadline_and_each_hop_keep_one_original_date(selected, tmp_path
     monkeypatch.setattr(selected.acceleration, "monotonic", lambda: 250.0)
     with pytest.raises(ValueError):
         selected.provider_argv(tmp_path, 18878, startup_deadline=deadline)
+
+
+@pytest.mark.parametrize("now", [127.1, 255.1, 491.253167666])
+def test_created_deadline_survives_subtraction_roundoff(selected, monkeypatch, now):
+    monkeypatch.setattr(selected.acceleration, "monotonic", lambda: now)
+    expected = now + 150.0
+    # These clocks reproduce the macOS CI failure: subtraction rounds upward
+    # even though the deadline is exactly the one created by this function.
+    assert expected - now > 150.0
+    deadline = selected.selected_startup_deadline(None, create=True)
+    assert deadline == expected
+    assert selected.selected_startup_deadline(deadline) == deadline
+
+
+@pytest.mark.parametrize("now", [127.1, 255.1, 491.253167666])
+def test_deadline_roundoff_fix_adds_no_tolerance(selected, monkeypatch, now):
+    monkeypatch.setattr(selected.acceleration, "monotonic", lambda: now)
+    for refused in (now, math.nextafter(now, -math.inf),
+                    math.nextafter(now + 150.0, math.inf)):
+        with pytest.raises(ValueError, match="expired or exceeds"):
+            selected.selected_startup_deadline(refused, create=True)
 
 
 def test_cpu_default_omits_and_refuses_startup_override(host, tmp_path):  # noqa: F811

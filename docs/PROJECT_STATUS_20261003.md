@@ -362,9 +362,21 @@ synthetic cases versus 28/48 for schema5; 19 cases still reject. In the 29
 complete pairs, absolute truth RMS improves in each, but all three separately
 retained known regressions worsen despite passing the original homography
 gates. No parameters or gates changed. All nine adversaries reject and 312
-RGB-D tests pass. This is an opt-in CPU candidate with no new native result.
+RGB-D tests pass. This CPU result preceded the native follow-up below.
 [Full outcomes and limits](RGBD_CHECKER_ACCURACY.md#explicit-local-rgb-refinement-schema6),
 [bound CPU receipt](../benchmark/results/rgbd_checker_saddle_cpu_20261004.json).
+
+The new static planar schema6 episode on frozen `5062648` / SDK `48b2d951`
+**passes**: all five retained images meet the original 0.15/0.35 px gates, and
+three fresh MCP captures yield 51/51 accepted annotations. Maximum axis error
+is 0.152868 mm against 1 mm; nine later read refusals (one EOF, eight refused
+connections) remain recorded. Source/physics/appearance checks and ordinary
+closure pass, with no signals or forced cleanup. A new exact-source baseline
+was measured; its first resource-preflight rejection is preserved. This is
+one simulated static scene, not general metric/3D calibration or physical
+admission. RTX shader cache remained shared.
+[Native evidence and limits](RGBD_CHECKER_ACCURACY.md#static-planar-native-result-2026-10-04),
+[compact receipt](../benchmark/results/rgbd_checker_saddle_native_20261004.json).
 
 The delivered **61.056 s** continuous video retains 915 frames. Labelled
 synthetic speech entered the actual browser/Whisper-base/Qwen3-1.7B route and

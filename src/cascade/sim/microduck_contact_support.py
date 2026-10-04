@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -93,7 +94,82 @@ def _contact_frame_validity(adr, pos, frames, normal, force_on_a, ncon):
     return frame64, valid, finite_frame
 
 
+@dataclass(frozen=True)
+class _ContactSnapshot:
+    """Private completed-contact columns, owned bytes rather than SDK views.
+
+    Only the in-process decoder creates these values. This is not a transport
+    schema or an API for loading caller-provided serialized objects. Array views
+    returned internally are backed by immutable bytes, including after pickle.
+    """
+    labels: tuple
+    count: int
+    shape_ids: bytes
+    active_indices: bytes
+    normal_forces: bytes
+    vectors: bytes  # active rows: force-on-B, point, normal; each world xyz
+
+    def __post_init__(self):
+        if (type(self.labels) is not tuple or type(self.count) is not int or self.count < 0
+                or any(type(v) is not bytes for v in
+                       (self.shape_ids, self.active_indices, self.normal_forces, self.vectors))
+                or len(self.shape_ids) != self.count * 2 * 4
+                or len(self.active_indices) % 4):
+            raise ValueError('invalid private contact snapshot layout')
+        size = len(self.active_indices) // 4
+        if len(self.normal_forces) != size * 8 or len(self.vectors) != size * 9 * 8:
+            raise ValueError('invalid private active contact layout')
+        shapes, indices, forces, vectors = self._arrays()
+        if (size > self.count or (shapes < 0).any() or (shapes >= len(self.labels)).any()
+                or (shapes[:, 0] == shapes[:, 1]).any()
+                or size and (indices[0] < 0 or indices[-1] >= self.count
+                             or (indices[1:] <= indices[:-1]).any())
+                or not np.isfinite(forces).all() or (forces < 0).any()
+                or not np.isfinite(vectors).all()):
+            raise ValueError('invalid private contact snapshot values')
+
+    def _arrays(self):
+        size = len(self.active_indices) // 4
+        return (np.frombuffer(self.shape_ids, dtype=np.int32).reshape(self.count, 2),
+                np.frombuffer(self.active_indices, dtype=np.int32),
+                np.frombuffer(self.normal_forces, dtype=np.float64),
+                np.frombuffer(self.vectors, dtype=np.float64).reshape(size, 3, 3))
+
+    def _solved_record(self, shapes, index, force, vectors):
+        a, b = map(int, shapes[index])
+        # Preserve the public insertion order and Python scalar/list types.
+        return dict(shape_a=self.labels[a], shape_b=self.labels[b], shape_a_id=a, shape_b_id=b,
+                    force_on_b_world_n=vectors[0].tolist(), normal_force_n=float(force),
+                    point_world_m=vectors[1].tolist(), normal_a_to_b_world=vectors[2].tolist())
+
+    def solved_records(self):
+        shapes, indices, forces, vectors = self._arrays()
+        return [self._solved_record(shapes, int(index), force, vector)
+                for index, force, vector in zip(indices, forces, vectors, strict=True)]
+
+    def factory_records(self):
+        shapes, indices, forces, vectors = self._arrays()
+        result, active = [], 0
+        for index in range(self.count):
+            if active < len(indices) and indices[active] == index:
+                record = self._solved_record(shapes, index, forces[active], vectors[active])
+                record.update(candidate=index, status='solved')
+                active += 1
+            else:
+                a, b = map(int, shapes[index])
+                record = dict(candidate=index, status='inactive_candidate',
+                    shape_a=self.labels[a], shape_b=self.labels[b], normal_force_n=0.,
+                    point_world_m=None, normal_a_to_b_world=None, force_on_b_world_n=None)
+            result.append(record)
+        return result
+
+
 def solved_contacts(ns):
+    """Public detached rows; private owners can retain validated columns."""
+    return _solved_contact_snapshot(ns).solved_records()
+
+
+def _solved_contact_snapshot(ns):
     """Decode identities and read forces from ONE completed native solve.
 
     Validate coverage of every contact-constraint row. Zero normal force is a
@@ -145,7 +221,11 @@ def solved_contacts(ns):
     # index vector per observation instead of allocating index arrays, gathered
     # channel copies and Python row lists/sets for every solved contact.
     row_indices = np.arange(nefc)
-    covered, records = np.zeros(nefc, dtype=bool), []
+    covered = np.zeros(nefc, dtype=bool)
+    active_indices = np.empty(ncon, dtype=np.int32)
+    normal_forces = np.empty(ncon, dtype=np.float64)
+    vectors = np.empty((ncon, 3, 3), dtype=np.float64)
+    active_count = 0
     for i in range(ncon):
         pair = (int(pairs[0][i]), int(pairs[1][i]))
         if (min(pair) < 0 or max(pair) >= len(labels) or pair[0] == pair[1]
@@ -195,15 +275,18 @@ def solved_contacts(ns):
                 or not np.isclose(force_b @ frame[0], normal_force,
                                   rtol=1e-5, atol=1e-7)):
             raise ValueError('solved normal/force disagreement')
-        records.append(dict(shape_a=labels[pair[0]], shape_b=labels[pair[1]],
-                            shape_a_id=pair[0], shape_b_id=pair[1],
-                            force_on_b_world_n=force_b.tolist(), normal_force_n=normal_force,
-                            point_world_m=pos[i].astype(float).tolist(),
-                            normal_a_to_b_world=frame[0].tolist()))
+        active_indices[active_count] = i
+        normal_forces[active_count] = normal_force
+        vectors[active_count, 0] = force_b
+        vectors[active_count, 1] = pos[i]
+        vectors[active_count, 2] = frame[0]
+        active_count += 1
     required = np.isin(types[0, :nefc], (5, 6, 7))
     if not np.array_equal(covered, required):
         raise ValueError('contact observation does not cover all solved contact rows')
-    return records
+    return _ContactSnapshot(labels, ncon, np.column_stack((pairs[0][:ncon], pairs[1][:ncon])).tobytes(),
+                            active_indices[:active_count].tobytes(), normal_forces[:active_count].tobytes(),
+                            vectors[:active_count].tobytes())
 
 
 def extraction_provenance(*, sdk_recipe=None):

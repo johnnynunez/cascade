@@ -1,0 +1,151 @@
+--- a/owned_services.py
++++ b/owned_services.py
+@@ -50,10 +50,10 @@
+         os.close(fd)
+ 
+ 
+-def unit_state(unit):
++def unit_state(unit, *, timeout_s=5):
+     props = ('LoadState', 'ActiveState', 'SubState', 'Result', 'InvocationID', 'ControlGroup', 'Description')
+     command = ['systemctl', '--user', 'show', unit, *('--property=' + p for p in props)]
+-    proc = subprocess.run(command, capture_output=True, text=True, timeout=5)
++    proc = subprocess.run(command, capture_output=True, text=True, timeout=timeout_s)
+     return dict(line.split('=', 1) for line in proc.stdout.splitlines() if '=' in line)
+ 
+ 
+@@ -103,8 +103,8 @@
+             time.sleep(.05)
+         raise TimeoutError('owned scope did not register')
+ 
+-    def same_scope(self):
+-        current = unit_state(self.unit)
++    def same_scope(self, *, timeout_s=5):
++        current = unit_state(self.unit, timeout_s=timeout_s)
+         if current.get('ActiveState') == 'inactive' and not current.get('InvocationID'):
+             return current
+         if not self.invocation or current.get('InvocationID') != self.invocation or current.get('Description') != self.description:
+@@ -212,17 +212,33 @@
+                     while self.members() and time.monotonic() < end:
+                         time.sleep(.05)
+             record['scope_client_exit'] = self.process.wait(timeout=10)
+-            record['state'] = unit_state(self.unit)
+-            record['remaining_members'] = self.members()
+-            record['observed_births'] = list(self.observed.values())
+-            record['remaining_births'] = []
+-            for member in record['observed_births']:
+-                try:
+-                    expected = {k: member[k] for k in ('pid', 'start_ticks', 'boot_id')}
+-                    if birth(member['pid']) == expected:
+-                        record['remaining_births'].append(expected)
+-                except FileNotFoundError:
+-                    pass
++            # A cgroup can become empty before its unit becomes inactive and
++            # before an exited descendant's final birth disappears. Joining
++            # the launcher alone does not establish complete lifecycle closure.
++            # This final wait only observes already-owned identities; it never
++            # signals or reaps an unrelated process or changes forced failure.
++            final_wait_started = time.monotonic()
++            final_deadline = final_wait_started + 10
++            while True:
++                remaining = max(.001, final_deadline - time.monotonic())
++                record['state'] = self.same_scope(timeout_s=min(5, remaining))
++                record['remaining_members'] = self.members()
++                record['observed_births'] = list(self.observed.values())
++                record['remaining_births'] = []
++                for member in record['observed_births']:
++                    try:
++                        expected = {k: member[k] for k in ('pid', 'start_ticks', 'boot_id')}
++                        if birth(member['pid']) == expected:
++                            record['remaining_births'].append(expected)
++                    except (FileNotFoundError, ProcessLookupError):
++                        pass
++                settled = (not record['remaining_members'] and not record['remaining_births']
++                           and record['state'].get('ActiveState') == 'inactive')
++                if settled or time.monotonic() >= final_deadline:
++                    break
++                time.sleep(.05)
++            record['final_drain'] = {'settled': settled, 'budget_s': 10,
++                                    'waited_s': time.monotonic() - final_wait_started}
+             record['ok'] = not record['forced'] and not record['remaining_members'] and not record['remaining_births'] and record['state'].get('ActiveState') == 'inactive'
+         except BaseException as error:
+             record['errors'].append(repr(error))
+--- /dev/null
++++ b/test_final_drain.py
+@@ -0,0 +1,77 @@
++"""CPU lifecycle regression: empty cgroup/launcher exit precedes final reap."""
++from pathlib import Path
++from types import SimpleNamespace
++from unittest.mock import patch
++import importlib.util
++import os
++import signal
++import subprocess
++import sys
++import threading
++import time
++
++HERE = Path(__file__).resolve().parent
++spec = importlib.util.spec_from_file_location('recovered_owned_services', HERE / 'owned_services.py')
++owned = importlib.util.module_from_spec(spec)
++spec.loader.exec_module(owned)
++
++
++def test_final_observed_birth_is_joined_after_scope_members_disappear(tmp_path):
++    child = subprocess.Popen([sys.executable, '-c', 'pass'])
++    peer = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(20)'])
++    expected = owned.birth(child.pid)
++    reaped = threading.Event()
++    scope = owned.OwnedScope('test', ['unused'], cwd=tmp_path, env=os.environ,
++        out=tmp_path / 'scope', timeout_s=10, target='unused')
++    scope.out.mkdir()
++    scope.process = SimpleNamespace(wait=lambda **_: 0)
++    scope.invocation, scope.cgroup = 'ours', '/fixture-empty'
++    scope.observed[(child.pid, expected['start_ticks'])] = expected
++    active = {'ActiveState': 'active', 'InvocationID': 'ours',
++              'Description': scope.description, 'ControlGroup': scope.cgroup}
++    def state(_, **unused):
++        return {'ActiveState': 'inactive'} if reaped.is_set() else active
++    def finish_reaping():
++        # Keep a genuine observed process birth alive after the fake cgroup is
++        # empty. No PID/clock mocking hides the lifecycle race being checked.
++        time.sleep(.2)
++        child.wait(timeout=2)
++        reaped.set()
++    thread = threading.Thread(target=finish_reaping)
++    thread.start()
++    try:
++        with patch.object(scope, 'members', return_value=[]), patch.object(owned, 'unit_state', side_effect=state), patch.object(owned, 'signal_birth') as send:
++            result = scope.close()
++        assert result['ok'] and result['final_drain']['settled']
++        assert result['final_drain']['waited_s'] >= .15
++        assert result['remaining_births'] == [] and result['state']['ActiveState'] == 'inactive'
++        assert not result['forced'] and not result['signals']
++        send.assert_not_called()
++        assert peer.poll() is None
++    finally:
++        thread.join(3)
++        if child.poll() is None:
++            child.terminate()
++        child.wait(2)
++        owned.signal_birth(owned.birth(peer.pid), signal.SIGTERM)
++        peer.wait(2)
++
++
++def test_final_drain_remains_bounded_when_unit_never_closes(tmp_path):
++    scope = owned.OwnedScope('test', ['unused'], cwd=tmp_path, env=os.environ,
++        out=tmp_path / 'scope', timeout_s=10, target='unused')
++    scope.out.mkdir()
++    scope.process = SimpleNamespace(wait=lambda **_: 0)
++    scope.invocation, scope.cgroup = 'ours', '/fixture-empty'
++    active = {'ActiveState': 'active', 'InvocationID': 'ours',
++              'Description': scope.description, 'ControlGroup': scope.cgroup}
++    calls = 0
++    def clock():
++        nonlocal calls
++        calls += 1
++        return 0. if calls < 4 else 11.
++    with patch.object(scope, 'members', return_value=[]), patch.object(owned, 'unit_state', return_value=active), patch.object(owned.time, 'monotonic', side_effect=clock), patch.object(owned, 'signal_birth') as send:
++        result = scope.close()
++    assert not result['ok'] and not result['final_drain']['settled']
++    assert result['state']['ActiveState'] == 'active'
++    send.assert_not_called()

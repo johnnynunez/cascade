@@ -195,6 +195,28 @@ Missing pins fail before connecting. The profile adds no gait admission and does
 not use speech to circumvent the mobile verifier. Start with observation-only
 tools; no speech-initiated native movement was validated in this increment.
 
+The [2026-10-04 recovery receipt](evidence/voice-reply-recovery-20261004/receipt.json)
+retains an attempted spoken-reply candidate on source `a8714b8`. Its guard
+requires the real completed model response to contain the 30 mm walk and its
+adjacent stop before motion, followed by independently observed rest and a
+completed same-origin spoken reply. It preserves the original 60 s intent and
+30 s execution limits. Protocol tests exercise that narration authority and
+operator revocation; they do not establish a native spoken reply.
+
+A separate zero-command probe recorded 800 solves, 200 policy commits and 41
+frames with ordinary closure. Its original harness result remains failed because
+an RGB-D diagnostic expected 80 rows; a separate audit checked all 800 against
+the frozen budget and admitted only the model/recording identity. The speech
+candidate first refused a changed foreign GPU baseline, then reached the
+unchanged 65 s startup deadline before the microphone or any task response.
+Its forced native closure remains failed; a later audit found all owned births
+gone without additional signals. A separate
+[external-owner correction](evidence/voice-reply-recovery-20261004/external-owner-final-drain.patch)
+waits for unit, members and observed births together, with seven CPU ownership
+and drain cases passing. It has not been rerun natively. The historical motion
+recording still has no spoken robot reply, and startup's underlying cause is
+not established by the retained log.
+
 ## Provider contract and self-hosting
 
 The target is the HF speech-to-speech GA WebSocket subset at revision

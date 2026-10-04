@@ -276,3 +276,11 @@ It does not infer perception, grasp acquisition, episode closure, benchmark
 success or actuator admission. The native movement capture above remains a
 negative task example, and its evidence does not validate this additional
 source revision as a native producer.
+
+The joined verifier at `6cd7c969` passed 160 focused CPU checks, including 26
+composition cases. An [offline replay](evidence/robot-modularity/vab-contained-window-20261004.json)
+then evaluated all 1,050 retained native samples and all 21 object colliders.
+It preserved the negative support/rest verdict and unknown containment error:
+the conjunction is refuted and containment remains unverified. No simulator
+was constructed and no physics step advanced. This exercises the join on real
+retained measurements; it is not a positive containment or completed-task run.

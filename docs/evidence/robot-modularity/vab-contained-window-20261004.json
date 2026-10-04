@@ -1,0 +1,55 @@
+{
+  "schema": "cascade.complete_box_placement_window.v1",
+  "scope": "Offline verification of one previously closed native movement capture; no new simulator, controller or task completion.",
+  "verifier_source": "6cd7c969318353b41b193fa3e69cf86e09ee21ee",
+  "native_producer_source": "e59bb6d029e3e86c5da392625365e97bb7b32d50",
+  "model_identity_sha256": "a0a87de4be60d1a5250d5b3b4d9c0bb22276f5a8e4abf624f6fb4afc72d63d57",
+  "epoch": "907d2f3b29a44b96941268c322464f2b",
+  "window_sha256": "eb36e5f80ef4db2e9de91044a4df13f08f2e0ee917ae5e4c6e0c29216932ee0f",
+  "first_solver_step": 1,
+  "last_solver_step": 1050,
+  "status": "refuted",
+  "checks": {
+    "released_supported_rest": "refuted",
+    "whole_object_containment": "unverified"
+  },
+  "geometry_recipe": "support_frame_component_window_aabbs_v1",
+  "geometry_samples": 1050,
+  "geometry_components_per_sample": 21,
+  "support_frame_error_m": null,
+  "uncertainty_source": "unknown",
+  "physical_admission": false,
+  "task_success": "unverified",
+  "benchmark_success": null,
+  "models_constructed": 0,
+  "solves_advanced": 0,
+  "tests": {
+    "focused_passed": 160,
+    "new_composition_cases": 26,
+    "scope": "Synthetic contract tests, including complete-window coverage and mutation between predicates; not physical success."
+  },
+  "limits": {
+    "max_rows": 16000,
+    "private_json_bytes": 268435456
+  },
+  "limitations": [
+    "Geometry inclusion is checked at retained solver samples; no continuous path between samples is certified.",
+    "Component window AABBs are conservative; a failed envelope is inconclusive.",
+    "Unknown calibration/pose/shape error is not replaced by numeric consistency residuals.",
+    "The trusted native reader can supply measurements; hashes do not prove that physics was not fabricated.",
+    "Publication does not transfer native admission from the producer to the verifier or a later head."
+  ],
+  "artifact_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/contained-window-replay-01.json": "fc8493532bd83b8f09af7b9eee9398e76f2bb26aaa6257dcb151a225381d1d2f",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/replay_contained_window.py": "faa290c0133700f204b78ed73592654e6718e210aed28f92363c2a5a32a7528a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-box-reader-audit-02.json": "a70b8c5eb15e2545c60700baf6a35c62cf83fff3790f1c7b1d1aa6c79ec83e05",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/contained-window-tests-01.log": "c99f382ddebaf0fbb5a0a94fe0ca708b4b0fda4d414c5ad4dcc0cfb1c3c64ecc",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/placement-window-cascade/src/cascade/eval/contained_placement.py": "c182d898bbbee843857c705619bc0d5665b2650c740542cfc5ae9b0468c065f3",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/placement-window-cascade/tests/test_contained_placement.py": "344e9a6183641baaead0bc9e8814c2c51c3cf7cdaf0feecbde3fd6510595902a"
+  },
+  "native_input_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-box-reader-02/native/placement/policy.json": "2e3a8ac943ed9bbe1a9208a7b7cfca8de91f6632d99a7b62c2b5b940c924fa55",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-box-reader-02/native/placement/box-geometry.json": "c43bfd235a4c20a52d28863b4ca6171ae4ecab5f75a51ba5145b29d04a2c38e3",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-box-reader-02/native/placement/solves.jsonl": "ac4cc57a73f8a8f9117eb5f1ad5d5c00461a770b7bddf782e379df3199a2b21e"
+  }
+}

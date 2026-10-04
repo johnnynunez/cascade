@@ -164,6 +164,16 @@ pixel/pose synchronization or metric accuracy. Those require a separately
 reviewed native episode and a new model identity. This path supplies simulation
 pose provenance, not calibrated localization or navigation admission.
 
+The renderer's affine view matrix may carry a homogeneous scalar within eight
+times the float64 spacing at one. The adapter requires its three perspective entries to be
+exactly zero, divides the entire matrix by that scalar, and applies the unchanged
+rigidity checks. Block inversion retains an exact affine output row; no rotation
+is reorthogonalized. Original `camera_params` values remain in capture evidence.
+This handles a CPU reproduction with Gf's actual matrix inverse and the retained
+mount. The first mounted reference stopped before publishing a capture with
+`RGB-D transform must be rigid`; it did not retain the rejected matrix, so the
+reproduction does not establish that episode's exact failing component.
+
 ## Packet semantics and failure behavior
 
 - Color is lossless RGB8. The legacy JPEG/BGR camera path keeps its existing wire

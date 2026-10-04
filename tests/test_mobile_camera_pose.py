@@ -48,6 +48,50 @@ def test_render_view_convention_matches_nontrivial_rig_rotation_and_lever_arm():
     assert np.array(camera_params_record(raw,cal)[1]).reshape(4,4)[0,3] == 100
 
 
+@pytest.mark.parametrize('w', [1. - 8*np.spacing(1.), 1. + 8*np.spacing(1.)])
+def test_render_homogeneous_roundoff_normalizes_all_entries_and_preserves_raw(w):
+    cal=mount_calibration(); rig=np.eye(4); rig[:3,3]=[.5,.45,.125]
+    raw=params(cal,rig); raw['cameraViewTransform']*=w
+    saved=raw['cameraViewTransform'].copy()
+    record,optical=camera_params_record(raw,cal)
+    assert np.array_equal(raw['cameraViewTransform'],saved)
+    assert record['cameraViewTransform']==saved.tolist()
+    result=np.array(optical).reshape(4,4)
+    assert np.array_equal(result[3],[0.,0.,0.,1.])
+    assert result == pytest.approx(rig@np.array(cal['rig_from_camera']).reshape(4,4),abs=1e-14)
+
+
+def test_actual_gf_affine_inverse_with_retained_bootstrap_mount():
+    Gf=pytest.importorskip('pxr.Gf')
+    # Authored local optics from failed Fabric reference02. Gf's affine inverse
+    # reproduces homogeneous roundoff; no native rejected matrix was retained.
+    mount=np.array([
+        [-.7150066493027298,.2306943989907678,-.6599587757785872,.5],
+        [.6991176520821676,.23593746522544112,-.6749577920508149,.44999998807907104],
+        [1.8529186796012453e-8,-.9439881391083694,-.32997938302675434,.19499999284744263],
+        [0.,0.,0.,1.]])
+    rig=np.eye(4);rig[2,3]=.125
+    usd=rig@mount@np.diag([1.,-1.,-1.,1.])
+    raw=params(mount_calibration(),rig)
+    raw['cameraViewTransform']=np.array(Gf.Matrix4d(tuple(map(tuple,usd.T))).GetInverse()).reshape(-1)
+    record,optical=camera_params_record(raw,mount_calibration())
+    assert record['cameraViewTransform']==raw['cameraViewTransform'].tolist()
+    assert np.array(optical).reshape(4,4)==pytest.approx(rig@mount,abs=1e-14)
+
+
+@pytest.mark.parametrize('kind',['perspective','w','scale','shear','reflection'])
+def test_homogeneous_canonicalization_cannot_repair_nonrigid_or_projective_view(kind):
+    cal=mount_calibration();raw=params(cal,np.eye(4))
+    view=raw['cameraViewTransform'].reshape(4,4)
+    if kind=='perspective': view[0,3]=np.spacing(1.)
+    if kind=='w': view[3,3]=1.+9*np.spacing(1.)
+    if kind=='scale': view[:3,:3]*=1.001
+    if kind=='shear': view[0,1]+=.001
+    if kind=='reflection': view[0,:3]*=-1.
+    with pytest.raises(ValueError,match='render world-to-view'):
+        camera_params_record(raw,cal)
+
+
 @pytest.mark.parametrize('change', [
     {'cameraModel':'fisheyePolynomial'}, {'metersPerSceneUnit':.01},
     {'cameraApertureOffset':[.1,0]}, {'renderProductResolution':[480,640]},

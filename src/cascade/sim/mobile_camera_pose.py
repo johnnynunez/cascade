@@ -17,6 +17,39 @@ FABRIC_MATRIX = 'omni:fabric:worldMatrix'
 FABRIC_INDEX = 'newton:index'
 
 
+def _checked_transform(matrix, name):
+    try:
+        return rigid_transform(tuple(matrix.flat), name)
+    except ValueError as error:
+        # Keep the offending source and all 16 values when startup fails before
+        # any capture is published. This changes diagnostics, not admission.
+        raise ValueError(f'{name}: {error}; matrix={matrix.tolist()}') from error
+
+
+def _render_optical_pose(view):
+    """Canonicalize only the homogeneous scalar of an affine SDK view.
+
+    Gf's double matrix inverse can return w=1 +/- a few ULP even for an
+    exactly affine input. Divide the entire homogeneous matrix by w; never
+    repair its rotation, perspective terms, or metric translation.
+    """
+    import numpy as np
+    transform = view.T
+    w = transform[3, 3]
+    if (not np.array_equal(transform[3, :3], [0., 0., 0.])
+            or abs(w - 1.) > 8 * np.spacing(1.)):
+        raise ValueError(f'render world-to-view is not an affine homogeneous matrix: {transform.tolist()}')
+    transform = transform / w
+    _checked_transform(transform, 'render world-to-view')
+    # Invert the affine blocks rather than a general 4x4 matrix: the latter
+    # can itself introduce roundoff in the exact homogeneous output row.
+    optical = np.eye(4)
+    optical[:3, :3] = np.linalg.inv(transform[:3, :3])
+    optical[:3, 3] = -optical[:3, :3] @ transform[:3, 3]
+    optical = optical @ np.diag([1., -1., -1., 1.])
+    return _checked_transform(optical, 'render world-from-optical')
+
+
 def mount_record(value):
     fields = {'schema', 'rig_prim_path', 'rig_frame_id', 'rig_from_camera',
               'position_error_m', 'angular_error_rad'}
@@ -91,9 +124,7 @@ def camera_params_record(value, calibration):
             or not np.allclose(projection[:,3], [0.,0.,-1.,0.], rtol=0, atol=1e-7)):
         raise ValueError('render projection differs from centered pinhole calibration')
     view = np.asarray(record['cameraViewTransform']).reshape(4,4)
-    rigid_transform(tuple(view.T.flat), 'render world-to-view')
-    optical = np.linalg.inv(view.T) @ np.diag([1.,-1.,-1.,1.])
-    return record, tuple(optical.flat)
+    return record, _render_optical_pose(view)
 
 
 class FabricRigReader:
@@ -125,7 +156,7 @@ class FabricRigReader:
         value = np.asarray(matrix.Get(), dtype=float)
         if value.shape != (4,4):
             raise ValueError('camera rig Fabric world matrix unavailable')
-        return rigid_transform(tuple(value.T.flat), 'Fabric world-from-rig')
+        return _checked_transform(value.T, 'Fabric world-from-rig')
 
     def __call__(self, calibration, checkpoint):
         import numpy as np

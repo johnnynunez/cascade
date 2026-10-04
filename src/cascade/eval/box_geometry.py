@@ -11,16 +11,14 @@ import numpy as np
 
 from .cavity import BoxCavity, BoxWall
 from .trials import digest_json, require_digest
-from ..sensing.models import rigid_transform
+from ..sensing.models import rigid_transform, vector
 
 
 def _pose(rotation, position):
-    rotation = np.asarray(rotation, dtype=float)
-    if rotation.shape != (9,):
-        raise ValueError('complete row-major rotation required')
+    rotation = np.asarray(vector(rotation, 9, 'complete row-major rotation'))
     transform = np.eye(4)
     transform[:3, :3] = rotation.reshape(3, 3)
-    transform[:3, 3] = position
+    transform[:3, 3] = vector(position, 3, 'complete box geometry position')
     return np.asarray(rigid_transform(tuple(transform.flat), 'box geometry pose')).reshape(4, 4)
 
 

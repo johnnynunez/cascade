@@ -110,3 +110,21 @@ def test_complete_geometry_that_protrudes_is_unverified_even_when_its_center_is_
     row['box_geometry']['inventory_sha256'] = inventory.sha256
     calibration = inventory.cavity(interior_point_m=(0.,0.,.5),top_z_m=1.)
     assert inventory.verify_snapshot(seal_placement_row(row),policy,calibration,support_frame_error_m=0.)['status'] == 'unverified'
+
+
+@pytest.mark.parametrize('value',[0.,[0.],[0.,0.],[0.,0.,0.,0.],[False,0.,0.],['0',0.,0.]])
+@pytest.mark.parametrize('target',['body','geometry'])
+def test_malformed_position_is_not_broadcast_or_coerced_to_invented_coordinates(value,target):
+    inventory, policy, calibration, row = fixture()
+    if target == 'body': row['bodies']['object']['position_m'] = value
+    else: row['geometries'][0]['position_m'] = value
+    result = inventory.verify_snapshot(seal_placement_row(row),policy,calibration,support_frame_error_m=0.)
+    assert result['status'] == 'unverified' and 'position' in result['reason']
+
+
+@pytest.mark.parametrize('value',[0.,[1.],['1',0.,0.,0.,1.,0.,0.,0.,1.],[True,0.,0.,0.,1.,0.,0.,0.,1.]])
+def test_malformed_rotation_is_not_broadcast_or_numerically_coerced(value):
+    inventory, policy, calibration, row = fixture()
+    row['box_geometry']['body_rotations_world']['object'] = value
+    result = inventory.verify_snapshot(seal_placement_row(row),policy,calibration,support_frame_error_m=0.)
+    assert result['status'] == 'unverified' and 'rotation' in result['reason']

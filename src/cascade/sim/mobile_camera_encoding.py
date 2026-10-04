@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib
+import json
 from pathlib import Path
 
 from ..sensing.models import rigid_transform
@@ -29,6 +30,25 @@ GAMMA7 = 7*U32/(1-7*U32)
 # reciprocal and component multiply. FMA contraction only reduces this bound.
 NORM2_MIN = (1-U32)**4 / ((1+GAMMA7)*(1+U32)**2)
 NORM2_MAX = (1+U32)**4 / ((1-GAMMA7)*(1-U32)**2)
+
+
+class FabricEncodingError(ValueError):
+    """Bounded raw refusal evidence, also persisted by ordinary error receipts."""
+
+    def __init__(self, reason, matrix, body_pose, body_scale):
+        import numpy as np
+        self.reason = reason
+        self.diagnostic = {}
+        for name,value,limit in (('matrix',matrix,16),('body_pose',body_pose,7),('body_scale',body_scale,3)):
+            values = []
+            if value.dtype.kind in 'biuf':
+                values = [float(v) if np.isfinite(v) else str(v) for v in value.flat[:limit]]
+            self.diagnostic[name] = {'shape':list(value.shape),'dtype':str(value.dtype)[:64],
+                                     'values':values,'truncated':value.size>limit}
+        super().__init__(reason)
+
+    def __str__(self):
+        return self.reason+'; encoding_diagnostic='+json.dumps(self.diagnostic,allow_nan=False,separators=(',',':'))
 
 
 def encoding_descriptor():
@@ -107,6 +127,8 @@ def canonical_rig(matrix, body_pose, body_scale):
     """Decode one co-captured native pose; never infer a pose from a matrix."""
     import numpy as np
     matrix,body_pose,body_scale = map(np.asarray,(matrix,body_pose,body_scale))
+    def reject(reason):
+        raise FabricEncodingError(reason,matrix,body_pose,body_scale)
     if (matrix.shape!=(4,4) or not np.isfinite(matrix).all()
             or np.max(abs(matrix))>np.finfo(np.float32).max
             or not np.array_equal(matrix,matrix.astype(np.float32).astype(float))
@@ -114,20 +136,23 @@ def canonical_rig(matrix, body_pose, body_scale):
             or body_scale.dtype!=np.float32 or body_scale.shape!=(3,) or not np.array_equal(body_scale,[1,1,1])
             or not np.array_equal(matrix[3],[0,0,0,1])
             or not np.array_equal(matrix[:3,3],body_pose[:3])):
-        raise ValueError('Fabric encoding requires exact float32 pose, translation and unit scale')
+        reject('Fabric encoding requires exact float32 pose, translation and unit scale')
     q = body_pose[3:].astype(float)
     norm2 = float(q@q)
     if not NORM2_MIN<=norm2<=NORM2_MAX:
-        raise ValueError('quaternion exceeds derived float32 normalization bound')
+        reject('quaternion exceeds derived float32 normalization bound')
     intervals = np.asarray(_rotation_intervals(q))
     if not ((intervals[:,:,0]<=matrix[:3,:3]).all() and (matrix[:3,:3]<=intervals[:,:,1]).all()):
-        raise ValueError('Fabric matrix is not the captured quaternion encoding')
+        reject('Fabric matrix is not the captured quaternion encoding')
     x,y,z,w = q/np.sqrt(norm2)
     rotation = np.array([[1-2*(y*y+z*z),2*(x*y-z*w),2*(x*z+y*w)],
         [2*(x*y+z*w),1-2*(x*x+z*z),2*(y*z-x*w)],
         [2*(x*z-y*w),2*(y*z+x*w),1-2*(x*x+y*y)]])
     result = np.eye(4);result[:3,:3]=rotation;result[:3,3]=body_pose[:3]
-    rigid = rigid_transform(tuple(result.flat),'decoded Fabric quaternion')
+    try:
+        rigid = rigid_transform(tuple(result.flat),'decoded Fabric quaternion')
+    except ValueError as error:
+        reject(str(error))
     # This bounds coordinate differences per metre about the rig origin,
     # not rotation uncertainty, sensor accuracy or physical localization.
     bound = np.nextafter(np.maximum(abs(rotation-intervals[:,:,0]),abs(rotation-intervals[:,:,1])),np.inf)

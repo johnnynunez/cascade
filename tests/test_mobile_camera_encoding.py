@@ -1,6 +1,7 @@
 """Float32 source encoding and capture fences; no Kit or model construction."""
 import copy
 import hashlib
+import json
 from types import SimpleNamespace
 
 import numpy as np
@@ -89,7 +90,7 @@ def test_same_values_do_not_hide_capture_object_or_clock_swap(changed):
 
 
 @pytest.mark.parametrize('changed',['body_buffer','scale_buffer'])
-def test_constructor_rejects_buffer_swap_inside_first_fabric_read(changed):
+def test_first_capture_rejects_buffer_swap_inside_first_fabric_read(changed):
     from cascade.sim.mobile_camera_pose import FABRIC_MATRIX, FabricRigReader
     from test_mobile_camera_pose import fabric_fixture
     f=fabric_fixture(); original=f.prim.GetAttribute
@@ -102,8 +103,47 @@ def test_constructor_rejects_buffer_swap_inside_first_fabric_read(changed):
             return found.Get()
         return SimpleNamespace(Get=read)
     f.prim.GetAttribute=attribute
+    reader=FabricRigReader(f.native,f.reader.mount,f.reader.readback,f.reader.annotator)
     with pytest.raises(RuntimeError,match='state buffer'):
-        FabricRigReader(f.native,f.reader.mount,f.reader.readback,f.reader.annotator)
+        reader(f.cal,lambda:None)
+
+
+def test_constructor_registers_but_only_same_solve_capture_admits_encoding():
+    from cascade.sim.mobile_camera_pose import FABRIC_MATRIX, FabricRigReader
+    from cascade.sim.mobile_camera_encoding import FabricEncodingError
+    from test_mobile_camera_pose import fabric_fixture, params
+    f=fabric_fixture(); original=f.prim.GetAttribute; reads=[]
+    pose=np.array([[.125,0,0,0,0,0,1]],np.float32)
+    f.native.state_0.body_q.numpy=lambda:pose.copy()
+    def attribute(name):
+        found=original(name)
+        if name!=FABRIC_MATRIX:return found
+        def read():reads.append(1);return found.Get()
+        return SimpleNamespace(Get=read)
+    f.prim.GetAttribute=attribute
+    reader=FabricRigReader(f.native,f.reader.mount,f.reader.readback,f.reader.annotator)
+    assert not reads
+    with pytest.raises(FabricEncodingError) as rejected:reader(f.cal,lambda:None)
+    diagnostic=json.loads(str(rejected.value).split('encoding_diagnostic=',1)[1])
+    assert diagnostic['native_clock']=={'step':10,'simulation_time_s':.05}
+    assert diagnostic['body_pose']['values']==pose[0].tolist()
+    assert diagnostic['matrix']['values']==np.eye(4).ravel().tolist()
+    # A render synchronization may update Fabric without advancing physics.
+    f.rig[0,3]=.125; f.raw.update(params(f.cal,f.rig))
+    assert reader(f.cal,lambda:None)['world_from_rig'][3]==.125
+    assert (f.native.simulation_step_count,f.native.sim_time)==(10,.05)
+
+
+def test_refusal_diagnostics_are_bounded_detached_and_json_safe():
+    from cascade.sim.mobile_camera_encoding import FabricEncodingError
+    matrix=np.zeros((100,100));pose=np.full(30,np.nan,np.float32);scale=np.ones(12,np.float32)
+    with pytest.raises(FabricEncodingError) as rejected:canonical_rig(matrix,pose,scale)
+    saved=str(rejected.value);matrix[:]=1;pose[:]=1;scale[:]=2
+    assert str(rejected.value)==saved
+    diagnostic=json.loads(saved.split('encoding_diagnostic=',1)[1])
+    assert [len(diagnostic[k]['values']) for k in ('matrix','body_pose','body_scale')]==[16,7,3]
+    assert all(v['truncated'] for v in diagnostic.values())
+    assert diagnostic['body_pose']['dtype']=='float32' and diagnostic['body_pose']['values']==['nan']*7
 
 
 @pytest.mark.parametrize('fault',[None,'source','origin','fast_math'])

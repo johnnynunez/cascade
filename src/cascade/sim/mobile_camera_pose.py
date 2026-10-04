@@ -139,7 +139,9 @@ class FabricRigReader:
             raise ValueError('camera rig is not one exact registered native body')
         self.index = labels.index(path)
         self.prim = native.fabric_manager.stage.GetPrimAtPath(path)
-        self._snapshot(lambda: None)
+        # Registration is available after bootstrap; Fabric pose synchronization
+        # is established only by capture_bound_rgb's update/render boundary.
+        self._registered_matrix()
 
     def capture_objects(self):
         """Private references for the caller's complete RGB/depth read fence."""
@@ -147,14 +149,7 @@ class FabricRigReader:
         return (native.model,native.fabric_manager,native.fabric_manager.stage,
                 native.state_0,native.state_0.body_q,native.fabric_manager._body_scales)
 
-    def _snapshot(self, checkpoint):
-        import numpy as np
-        from .mobile_camera_encoding import canonical_rig
-        checkpoint()
-        clock = (self.native.simulation_step_count, float(self.native.sim_time))
-        state = self.native.state_0  # Never retain a buffer from a prior solve.
-        body_buffer = state.body_q
-        scale_buffer = self.native.fabric_manager._body_scales
+    def _registered_matrix(self):
         if (self.native.model is not self.model or tuple(self.model.body_label) != self.labels
                 or self.native.fabric_manager is not self.manager or self.manager.stage is not self.stage):
             raise ValueError('registered camera rig model or Fabric stage changed')
@@ -166,6 +161,17 @@ class FabricRigReader:
         if (not matrix or isinstance(observed_index, bool) or not isinstance(observed_index, Integral)
                 or observed_index != self.index):
             raise ValueError('camera rig Fabric/native index mismatch')
+        return matrix
+
+    def _snapshot(self, checkpoint):
+        import numpy as np
+        from .mobile_camera_encoding import canonical_rig, FabricEncodingError
+        checkpoint()
+        clock = (self.native.simulation_step_count, float(self.native.sim_time))
+        state = self.native.state_0  # Never retain a buffer from a prior solve.
+        body_buffer = state.body_q
+        scale_buffer = self.native.fabric_manager._body_scales
+        matrix = self._registered_matrix()
         value = np.asarray(matrix.Get(), dtype=float)
         if value.shape != (4,4):
             raise ValueError('camera rig Fabric world matrix unavailable')
@@ -184,7 +190,11 @@ class FabricRigReader:
                 or self.native.fabric_manager is not self.manager or self.manager.stage is not self.stage
                 or (self.native.simulation_step_count,float(self.native.sim_time)) != clock):
             raise RuntimeError('native rig capture changed solve or state buffer')
-        rigid, evidence = canonical_rig(value.T,pose,scale)
+        try:
+            rigid, evidence = canonical_rig(value.T,pose,scale)
+        except FabricEncodingError as error:
+            error.diagnostic['native_clock'] = {'step':clock[0],'simulation_time_s':clock[1]}
+            raise
         evidence['native_clock'] = {'step':clock[0],'simulation_time_s':clock[1]}
         return rigid,evidence,(state,body_buffer,scale_buffer)
 

@@ -194,6 +194,16 @@ intervals and encoding displacement per metre about the rig origin. This numeric
 representation bound is separate from physical pose uncertainty, which remains
 unknown. CPU regression coverage is not native synchronization or metric admission.
 
+The first encoding reference then refused its constructor after two SDK bootstrap
+solves, before any episode solve or capture. Its generic error did not retain the
+rejected values. SDK stepping and Fabric synchronization are separate operations;
+a CPU fixture reproduces the refusal with an unsynchronized initial matrix, but
+does not identify that native episode's exact mismatch. The reader now validates
+registration during construction and admits encoded poses only after the existing
+capture/render synchronization. Capture checks are unchanged. Encoding refusals
+retain at most 16 matrix, seven pose and three scale values, their shapes/dtypes,
+and the native clock, including before a successful capture exists.
+
 ## Packet semantics and failure behavior
 
 - Color is lossless RGB8. The legacy JPEG/BGR camera path keeps its existing wire

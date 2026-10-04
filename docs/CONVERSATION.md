@@ -646,6 +646,36 @@ exercise delayed release, timeout, identity/schema mismatch and redirect refusal
 The final idle observation also rejects a clock at or beyond the original close
 deadline. These tests do not constitute a successful speech or physical episode.
 
+### Terminal authority after browser disconnect
+
+The closed VOICE12 attempt used source `8e705c3` and the existing CUDA provider
+and hand limits. Both local case receipts succeeded and all four scopes closed,
+but the unchanged full auditor rejected the second case: its first conversation
+was closed with all responses invalid while `authority_revoked` remained false.
+The original failure is retained. A separate diagnostic reruns that same auditor
+without changing any assertion: the first spoken index-flex case passes with
+9,657 solves and a 0.2 s observed rest window. The second case reaches verified
+index-flex motion, rest and reply checks over 9,505 solves before the terminal
+authority assertion fails. Its earlier operator-stop ACK is not a physical rest
+proof. Browser worklet loading and provider pool release are retained in these
+checks; this does not establish general conversation reliability.
+
+The shipped UI closes its media WebSocket before posting the operator stop.
+The retained first-session closure stop was accepted before the HTTP stop request;
+the gateway then followed its already-closed-session path. Terminal `close()` had
+invalidated response contexts without setting the authority flag or discarding a
+pending input. The correction sets both fields before releasing the session or
+awaiting teardown. It preserves UI ordering, stop delivery, provider teardown and
+all deadlines. Five loopback regressions cover both orders, pending input and
+playing audio, blocked provider closure, late events and failed teardown. Three
+fail on the retained source; the corrected source passes all five and 87 related
+tests. Those source checks preceded the separate VOICE13 rerun below.
+
+The [source-bound evidence](evidence/robot-modularity/voice-terminal-authority-20261004.json)
+keeps the global VOICE12 rejection, the separately checked first case and the
+second case's limited component evidence. The provider-owned SIGTERM request is
+explicit even though the four supervisor scopes closed without forced cleanup.
+
 ### Two complete native speech cases — VOICE13
 
 The [closed VOICE13 record](evidence/robot-modularity/voice-complete-two-case-20261004.json)

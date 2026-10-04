@@ -21,6 +21,7 @@ from ..sensing.hub import SensorHub
 from ..sensing.models import MAX_PIXELS, RgbdPayload, digest, integer, number, vector, wire
 from .frames import SpatialStamp, TransformSample
 from .cuvslam_worker import CuVslamProcess
+from .cuvslam_uncertainty import OdometryDiagnostic
 from .registration import CameraBaseRegistration
 
 
@@ -123,6 +124,7 @@ class CuVslamSpatialDomain:
         # Reusing a profile must never alias two independently initialized maps.
         self.map_epoch = uuid.uuid4().hex
         self.map_frame_id = identifier(map_frame_id)
+        self.odometry_frame_id = 'cuvslam-odometry-' + self.map_epoch
         if not isinstance(hub, SensorHub):
             raise ValueError("explicit SensorHub required")
         descriptor = next((d for d in hub.descriptors if d.sensor_id == sensor_id), None)
@@ -159,6 +161,7 @@ class CuVslamSpatialDomain:
             metadata={"sensor_resource": self.required_resources[0], "map_id": map_id,
                 "map_epoch": self.map_epoch, "map_epoch_label": self.map_epoch_label,
                 "map_frame_id": map_frame_id,
+                "odometry_frame_id": self.odometry_frame_id,
                 "calibration_sha256": descriptor.calibration_id,
                 "model_identity_sha256": descriptor.model_identity_sha256,
                 "reviewed_api_revision": API_REVISION, "binding_sha256": binding_sha256,
@@ -198,11 +201,11 @@ class CuVslamSpatialDomain:
     def _retained(self, args):
         return self.hub.retained(self.sensor_id, **args)
 
-    def _pose(self, pose, stamp):
+    def _pose(self, pose, stamp, *, parent=None):
         q = tuple(float(v) for v in pose.rotation)
         if len(q) != 4:
             raise ValueError("invalid SDK quaternion")
-        return TransformSample(self.map_frame_id, self.descriptor.frame_id,
+        return TransformSample(self.map_frame_id if parent is None else parent, self.descriptor.frame_id,
             tuple(float(v) for v in pose.translation), (q[3], *q[:3]), stamp,
             position_error_m=None, angular_error_rad=None)
 
@@ -280,22 +283,25 @@ class CuVslamSpatialDomain:
         stamp = SpatialStamp(self.map_id, self.map_epoch, observation.clock_domain,
             observation.capture_time_s, self.required_resources[0], args["capture_sha256"],
             p.metadata.calibration_id, "estimated")
-        self._pose(odometry.world_from_rig.pose, stamp)  # Validate both returned poses.
+        odometry_diagnostic = OdometryDiagnostic(
+            self._pose(odometry.world_from_rig.pose, stamp, parent=self.odometry_frame_id),
+            getattr(odometry.world_from_rig, 'covariance_xyz_rpy', None))
         pose = self._pose(slam, stamp)
         if self._retained(args) is not observation:
             raise ValueError("capture changed during estimation")
         with self._lock:
             self._admitted()
-            self._latest = (pose, observation, dict(args))
+            self._latest = (pose, observation, dict(args), odometry_diagnostic)
             return self._read()
 
     def _read(self):
         self._admitted()
         if self._latest is None:
             return {"ok": False, "tracking_state": "uninitialized", "physical_admission": False}
-        pose, observation, args = self._latest
+        pose, observation, args, odometry_diagnostic = self._latest
         self._retained(args)  # A delayed call/result must never rejuvenate its input.
         result = {"ok": True, "pose": wire(pose), "robot_id": self.robot_id,
+            "odometry_diagnostic": odometry_diagnostic.as_dict(),
             "sensor_epoch": observation.epoch, "sequence": observation.sequence,
             "map_epoch_label": self.map_epoch_label,
             "source": observation.source, "model_identity_sha256": observation.model_identity_sha256,

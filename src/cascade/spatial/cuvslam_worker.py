@@ -29,8 +29,10 @@ def _run(connection, settings):
             request = pickle.loads(connection.recv_bytes(8 * 1024 * 1024))
             odom, slam = tracker.track(request["timestamp"], images=[request["rgb"]],
                                        depths=[request["depth"]])
+            covariance = getattr(odom.world_from_rig, "covariance_xyz_rpy", None)
             connection.send({"ok": True, "timestamp_ns": odom.timestamp_ns,
                 "odometry": pose(odom.world_from_rig.pose) if odom.world_from_rig is not None else None,
+                "odometry_covariance_xyz_rpy": None if covariance is None else tuple(covariance),
                 "slam": pose(slam)})
     except (EOFError, BrokenPipeError):
         pass
@@ -121,7 +123,8 @@ class CuVslamProcess:
             return None if value is None else SimpleNamespace(**value)
         odometry = pose(result["odometry"])
         return (SimpleNamespace(timestamp_ns=result["timestamp_ns"],
-                    world_from_rig=None if odometry is None else SimpleNamespace(pose=odometry)),
+                    world_from_rig=None if odometry is None else SimpleNamespace(pose=odometry,
+                        covariance_xyz_rpy=result.get("odometry_covariance_xyz_rpy"))),
                 pose(result["slam"]))
 
     def request_stop(self):

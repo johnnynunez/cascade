@@ -112,3 +112,30 @@ stream07. The compact receipt retains these and the earlier harness negatives.
 This result does not establish metric SLAM accuracy, collision mapping, physical
 rest, route execution, replanning, arrival or task completion. Those remain
 open, including native tests of tracking loss and map-epoch changes.
+
+
+## Odometry covariance diagnostics — 4 October 2026
+
+The provider now retains the SDK's 36-value odometry covariance through the
+owned worker IPC. A typed diagnostic binds those original values to the
+odometry pose and the same capture stamp, using a separate session-specific
+odometry world frame. The matrix uses row-major xyz and fixed-axis XYZ
+rotations, with variable units meters and radians, as specified by SDK `b405f13`.
+The published SLAM pose remains separate: that SDK result has no covariance.
+
+Finite values, nonnegative variances, zero-variance cross terms, symmetry and
+positive semidefiniteness are checked. Dimensionless diagonal scaling conditions
+the float32 numerical checks; reported values are retained without clipping or
+projection. Missing covariance remains unknown. Malformed covariance follows
+the existing sample rejection and map-invalidation path. Staleness and stop
+invalidate the diagnostic together with its source capture. Neither a zero
+matrix nor a valid matrix creates a calibrated position/angular error bound or
+physical navigation admission, and no odometry covariance is assigned to SLAM
+or the registered base pose.
+
+The [source-bound CPU receipt](evidence/spatial/cuvslam-covariance-cpu-20261004.json)
+records 143 passing focused tests, including actual spawned IPC with a CPU
+fixture, different odometry/SLAM poses, missing/invalid/singular covariance and
+stale/stop rejection. No SDK tracker or native model was constructed for this
+change. The earlier native stream did not retain these covariance values; a new
+source-bound capture and independent calibration are still required.

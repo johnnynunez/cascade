@@ -21,6 +21,7 @@ from ..sensing.hub import SensorHub
 from ..sensing.models import RgbdPayload, digest, number, wire
 from .frames import SpatialStamp, TransformSample
 from .cuvslam_worker import CuVslamProcess
+from .registration import CameraBaseRegistration
 
 
 API_REVISION = "b405f132b8fb1d861a570f3aea64c2c5d4b59525"
@@ -89,7 +90,7 @@ class CuVslamSpatialDomain:
 
     def __init__(self, domain_id, robot_id, hub, *, sensor_domain, sensor_id,
                  map_id, map_epoch, map_frame_id, binding_sha256, max_gap_s,
-                 max_poses=256, timeout_s=5., clock=time.monotonic):
+                 max_poses=256, timeout_s=5., base_registration=None, clock=time.monotonic):
         self.domain_id, self.robot_id = identifier(domain_id), identifier(robot_id)
         self.sensor_domain, self.sensor_id = identifier(sensor_domain), identifier(sensor_id)
         self.map_id, self.map_epoch_label = identifier(map_id), identifier(map_epoch)
@@ -105,6 +106,8 @@ class CuVslamSpatialDomain:
             raise ValueError("calibration and installed binding SHA256 required")
         if map_frame_id == descriptor.frame_id:
             raise ValueError("local map frame must differ from camera frame")
+        self._base_registration = None if base_registration is None else CameraBaseRegistration(
+            base_registration, robot_id=robot_id, descriptor=descriptor, map_frame_id=map_frame_id)
         self.max_gap_s = number(max_gap_s, "max_gap_s", minimum=0)
         if not 0 < self.max_gap_s <= 5:
             raise ValueError("max_gap_s must be in (0, 5]")
@@ -132,6 +135,12 @@ class CuVslamSpatialDomain:
                 "model_identity_sha256": descriptor.model_identity_sha256,
                 "reviewed_api_revision": API_REVISION, "binding_sha256": binding_sha256,
                 "measurement_kind": "estimated", "physical_admission": False}),)
+        if self._base_registration is not None:
+            from dataclasses import replace
+            resource = self.resources[0]
+            self.resources = (replace(resource,
+                capabilities=(*resource.capabilities, "registered_base_localization"),
+                metadata={**resource.metadata, "base_registration": self._base_registration.as_dict()}),)
         capture = {"epoch": {"type": "string"}, "sequence": {"type": "integer", "minimum": 0},
                    "capture_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
         self.tool_specs = [
@@ -247,13 +256,20 @@ class CuVslamSpatialDomain:
             return {"ok": False, "tracking_state": "uninitialized", "physical_admission": False}
         pose, observation, args = self._latest
         self._retained(args)  # A delayed call/result must never rejuvenate its input.
-        return {"ok": True, "pose": wire(pose), "robot_id": self.robot_id,
+        result = {"ok": True, "pose": wire(pose), "robot_id": self.robot_id,
             "sensor_epoch": observation.epoch, "sequence": observation.sequence,
             "map_epoch_label": self.map_epoch_label,
             "source": observation.source, "model_identity_sha256": observation.model_identity_sha256,
             "capture_age_s": observation.age_s(self._clock()), "physical_admission": False,
             "reviewed_api_revision": API_REVISION, "binding_sha256": self.binding_sha256,
             "depth_quantization_m": 1 / DEPTH_SCALE, "loop_closure_jumps_possible": True}
+        if self._base_registration is not None:
+            result.update(base_pose=wire(self._base_registration.pose(pose)),
+                          base_registration_sha256=self._base_registration.sha256)
+            if self._retained(args) is not observation:
+                raise ValueError("capture changed during base registration")
+            result["capture_age_s"] = observation.age_s(self._clock())
+        return result
 
     def execute(self, name, args):
         if name not in {"warmup_localization", "track_capture", "get_localization"} or not isinstance(args, dict):
@@ -320,7 +336,7 @@ def build_cuvslam_domain(domain_id, profile, sensor_domains):
     required = {"sensor_domain", "sensor_id", "map_id", "map_epoch", "map_frame_id",
                 "binding_sha256", "max_gap_s"}
     if (not isinstance(settings, dict) or not required <= set(settings)
-            or set(settings) - (required | {"max_poses", "timeout_s"})):
+            or set(settings) - (required | {"max_poses", "timeout_s", "base_registration"})):
         raise ValueError("explicit cuVSLAM capture/map/binary configuration required")
     source = sensor_domains.get(settings["sensor_domain"])
     if source is None:

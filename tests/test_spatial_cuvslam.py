@@ -82,7 +82,7 @@ class SdkContract:
 
 
 @pytest.fixture
-def rig(monkeypatch):
+def rig(monkeypatch, request):
     now = [10.]
     descriptor = SensorDescriptor("rgbd", "duck", "camera", "rgbd", "optical", "simulation",
         "physics", "e"*64, calibration_id="c"*64, max_age_s=.5, read_timeout_s=1.)
@@ -111,6 +111,7 @@ def rig(monkeypatch):
     monkeypatch.setattr(cuvslam, "CuVslamProcess", CpuProcess)
     config = dict(sensor_domain="sensors", sensor_id="rgbd", map_id="room", map_epoch="map1",
                   map_frame_id="local-map", binding_sha256="b"*64, max_gap_s=.1)
+    config.update(getattr(request, "param", {}))
     domain = cuvslam.CuVslamSpatialDomain("space", "duck", hub, clock=lambda: now[0], **config)
     payload = RgbdPayload(MeasurementMetadata("optical", "c"*64), 4, 3, bytes(range(36)),
         np.full((3, 4), 1.234, dtype="<f4").tobytes(), (2., 0., 1.5, 0., 2., 1.5, 0., 0., 1.),

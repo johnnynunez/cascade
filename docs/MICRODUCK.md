@@ -113,6 +113,39 @@ The selected dependencies and solver outputs enter the effective model
 identity. A supported installation does not establish balance or locomotion:
 each new combination still requires its own single-robot native validation.
 
+`--private-rtx-cache` optionally redirects only the two writable RTX shader/PSO
+caches to `rtx-cache/` inside the new output directory. It requires the exact
+`isaac62_48b2d951` recipe and checks the cache-routing SDK sources. The default
+keeps SDK cache selection. Bundled application caches, rendering, physics and
+deadlines are unchanged. Kit receives the paths before initialization; effective
+settings and loaded sources are checked before the bridge can publish.
+
+An optional `--rtx-cache-seed DIR --rtx-cache-seed-sha256 SHA` requires a separately
+reviewed manifest from a successfully closed warming probe. `DIR` contains only
+`manifest.json` and `data/`; the manifest binds the exact cache policy and the
+complete file/directory inventory returned by
+[`private_rtx_cache.inventory`](../src/cascade/sim/private_rtx_cache.py).
+Its schema is `cascade.private-rtx-cache-seed.v1`, with `policy` and `inventory`
+fields. Admission rejects extra, missing or changed members, symlinks and special
+files. Bootstrap rechecks and copies the seed into an exclusive writable directory,
+then verifies the seed and copy again. The two absolute paths and input inventory
+are retained in `rtx-cache.json`; measured settings go in `rtx-cache-effective.json`.
+Only the relative cache policy and implementation hashes enter model identity,
+allowing independently admitted probe/episode paths to differ. Seed bytes remain
+separately bound deployment inputs.
+
+The [native cache validation](evidence/microduck-private-rtx-20261004/native.json)
+retains the failed SDK-origin import and the separate one-step readiness timeout.
+A renderer-only preparation subsequently closed normally in 166 seconds. Its
+verified cache copy admitted source `eac66e6` to an 800-step zero-command run:
+200 policy commits, 41 captures, bridge readiness at 10.7 seconds and native
+duration 18.4 seconds, within the original 180/240-second limits. Both writable
+destinations and loaded SDK origins matched their admissions; native and scope
+exits were zero, with no shutdown signals or changed inputs. This supplies a
+new source-bound model identity for the next episode. Balanced rest, commanded
+locomotion and the spoken reply still require their own verification; one run
+does not establish general startup reliability or a causal speed improvement.
+
 ## Remaining admission work
 
 The current real MCP campaign confirms supported standing and a separately

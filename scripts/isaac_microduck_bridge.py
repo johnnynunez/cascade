@@ -47,6 +47,11 @@ def parse_args(argv=None):
                    help='explicit reviewed SDK solver graph; BAM/checkpoints stay outside capture')
     p.add_argument('--reuse-solved-read', action='store_true',
                    help='reuse detached same-solve state/support; requires bound solver graph buffers')
+    p.add_argument('--private-rtx-cache', action='store_true',
+                   help='exact SDK recipe only: exclusive writable RTX/PSO cache under --out')
+    p.add_argument('--rtx-cache-seed', type=Path,
+                   help='optional closed, independently frozen manifest.json + data seed directory')
+    p.add_argument('--rtx-cache-seed-sha256', help='independently pinned seed manifest SHA-256')
     p.add_argument('--check-only', action='store_true', help='offline admission only; no Kit, socket or writes')
     return p.parse_args(argv)
 
@@ -443,6 +448,8 @@ def admit(args):
         sdk_recipe = admit_release(args.release, args.sdk_recipe)
     if args.out.exists():
         raise ValueError('--out already exists; preserve previous receipts')
+    from cascade.sim.private_rtx_cache import admit as admit_rtx_cache
+    rtx_cache = admit_rtx_cache(args)
     extras = validate_extra_paths(args.python_extra_path)
     args.python_extra_path = [Path(p) for p in extras]
     bundle = args.bundle or args.asset.parent.parent
@@ -474,6 +481,7 @@ def admit(args):
              'src/cascade/sim/microduck_policy_admission.py', 'assets/microduck/policy-candidates.json',
              'src/cascade/sim/microduck_solver_graph.py',
              'src/cascade/sim/microduck_sdk.py',
+             'src/cascade/sim/private_rtx_cache.py',
              'src/cascade/control/microduck_actuator.py', 'assets/microduck/manifest.json',
              'assets/microduck/newton-bam.json', 'configs/isaac/microduck.newton.kit')
     admitted.update(limits=load_limits(args.limits), limits_sha256=sha256(args.limits),
@@ -483,6 +491,8 @@ def admit(args):
                     experience_text=experience_text(args.release, sdk_recipe=args.sdk_recipe))
     if sdk_recipe is not None:
         admitted['sdk_recipe'] = sdk_recipe
+    if rtx_cache is not None:
+        admitted['private_rtx_cache'] = rtx_cache
     return admitted
 
 
@@ -495,7 +505,8 @@ def main(argv=None):
         if args.check_only:
             print(json.dumps({'ok': True, 'physical_acceptance': False,
                 'asset_sha256': admission['asset_sha256'], 'asset_receipt_sha256': admission['asset_receipt_sha256'],
-                'output_count': len(admission['receipt']['outputs']), 'bam_config_sha256': admission['bam_config_sha256']}))
+                'output_count': len(admission['receipt']['outputs']), 'bam_config_sha256': admission['bam_config_sha256'],
+                **({'private_rtx_cache': admission['private_rtx_cache']} if 'private_rtx_cache' in admission else {})}))
             return 0
         from cascade.apps.signal_stop import SignalRequest, StopSignals
         with StopSignals(protect_registration=True) as signals:

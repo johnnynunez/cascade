@@ -219,5 +219,103 @@
     "new_native_execution": false,
     "all_prior_results_retained": true,
     "recorded_contacts_are_not_complete_SDK_channels_for_native_decoder_replay": true
+  },
+  "columnar_cpu": {
+    "artifact_root": "cascade-lab/ROADMAP_FACTORY_COLUMNAR_20261004",
+    "source_head": "33b8fd4ecfa9ee53f9980fcef4af3425471e84c4",
+    "scope": "CPU arrays plus replay of already decoded raw evidence; no SDK/model execution.",
+    "exact_decoder_cases": 398,
+    "accepted": 136,
+    "rejected": 262,
+    "exact_factory_public_api_cases": 2,
+    "byte_exact_retained_rows": 391,
+    "complete_contact_records": 107193,
+    "exact_jsonl_sha256": "605a6ed32c85672c182b18d6ef2d09662aab13dc4207e3ff004e7fe7e297c013",
+    "original_freshness_refusal_reproduced": true,
+    "archive_timing_scope": "Paired archive/expansion of last32 already-captured retained rows; extraction excluded; no native performance claim.",
+    "paired_samples_per_mode": 32,
+    "archive_and_expansion_ms": {
+      "public": {
+        "archive_ms": {
+          "median": 0.7041664999999999,
+          "maximum": 0.832697
+        },
+        "expand_ms": {
+          "median": 0.10533999999999999,
+          "maximum": 0.1314
+        }
+      },
+      "private": {
+        "archive_ms": {
+          "median": 0.1098875,
+          "maximum": 0.165442
+        },
+        "expand_ms": {
+          "median": 0.7310875,
+          "maximum": 1.151122
+        }
+      }
+    },
+    "public_decoder_timing": [
+      {
+        "count": 32,
+        "source": "baseline",
+        "samples": 32,
+        "median_ms": 0.576813,
+        "min_ms": 0.567784,
+        "max_ms": 0.654065
+      },
+      {
+        "count": 32,
+        "source": "candidate",
+        "samples": 32,
+        "median_ms": 0.580293,
+        "min_ms": 0.573102,
+        "max_ms": 0.609056
+      },
+      {
+        "count": 293,
+        "source": "baseline",
+        "samples": 32,
+        "median_ms": 4.5576805,
+        "min_ms": 4.507069,
+        "max_ms": 4.683377
+      },
+      {
+        "count": 293,
+        "source": "candidate",
+        "samples": 32,
+        "median_ms": 4.3662545,
+        "min_ms": 4.321667,
+        "max_ms": 5.496965
+      }
+    ],
+    "gc_enabled": true,
+    "gc_thresholds": [
+      700,
+      10,
+      10
+    ],
+    "gc_callbacks_retained": 200,
+    "all_samples_and_outliers_retained": true,
+    "native_pause_remedy_established": false,
+    "fresh_native_pin_required": true,
+    "tests": {
+      "passed": 354,
+      "optional_skipped": 122,
+      "ruff_F_E9": "PASS"
+    },
+    "artifact_sha256": {
+      "compare_decoder.py": "170a813dae1684a3b9f715742dde84a41c5797d5906ef87cbd68ef331f11d61d",
+      "decoder-differential-01.json": "4aa8be150bd208278e9308c38f42588b60b25e22251da568ed40325f72a55411",
+      "replay_raw.py": "39c1745d6e972213ad3b6cb23c5d3719a1999624cb5b627520905e79b31dd9a5",
+      "raw-replay-01.json": "261b539faea3068353f9fe7e563283a7ab838bfa9d7d5ef855525a147f9a2ba5"
+    },
+    "source_sha256": {
+      "src/cascade/sim/microduck_contact_support.py": "19807691a9ddfd2693dac82ad51aa22524110ecb7f20b1cf0e03ac10e167a442",
+      "src/cascade/sim/factory_observation.py": "72896c933daefbff05471f518eec36056b277661f88c7d2010e150f4d407756b",
+      "src/cascade/sim/factory_owner.py": "364af23a31f5dc15f4e474e42b67b9c7f0ff675e895c8b2d8ae156182b0a583c",
+      "tests/test_factory_private_readback.py": "b28c09d4793eb23b4004ed04b142b3fca076d045461422633c83711b9670eb27"
+    }
   }
 }

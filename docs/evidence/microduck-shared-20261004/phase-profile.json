@@ -1,0 +1,134 @@
+{
+  "schema": 1,
+  "run": "MICRODUCK_SHARED_PROFILE_20261004/phase-probe-twelve-01",
+  "source": "fcdd41a96d542ba2957b3e41416ef5087a4a26b3",
+  "model_identity_file_sha256": "dfa743a6e864d726bfcda4ecbb53aacba5ab55074feaf38bed6a4798fa9f3914",
+  "scene_model_sha256": "be8e44b70ffbb412d5cc5564afa37286b7c58cf84d20f5d15dedf97fd2899c04",
+  "model_pin_approved": false,
+  "scope": "Twelve-robot reader-only owner-thread diagnostic. No control actions, gait, physical-stop or causal performance acceptance.",
+  "global_solves": 800,
+  "policy_commits": 2400,
+  "discarded_previews": 0,
+  "withheld_ticks": 0,
+  "overview_and_support_probe_pairs": 9,
+  "reader_events": 24,
+  "bounds": {
+    "global_solves": 800,
+    "application_wall_s": 450,
+    "owned_scope_wall_s": 510
+  },
+  "observed_application_wall_s": 340.0912614850022,
+  "closure": {
+    "native_exit": 0,
+    "scope_exit": 0,
+    "owned_processes_closed_naturally": true,
+    "client_closed": true,
+    "inputs_and_protected_stores_unchanged": true
+  },
+  "attempt_duration": {
+    "calls": 800,
+    "median_ms": 343.114604,
+    "p95_ms": 830.943768,
+    "max_ms": 1281.760956
+  },
+  "inclusive_phase_totals_per_attempt_ms": {
+    "policy.prepare": {
+      "median": 82.27744799999999,
+      "p95": 95.655735,
+      "maximum": 713.820442
+    },
+    "completed.validate": {
+      "median": 101.26511350000001,
+      "p95": 117.050379,
+      "maximum": 625.910589
+    },
+    "publication": {
+      "median": 79.2544345,
+      "p95": 95.679541,
+      "maximum": 625.861507
+    },
+    "record.physics": {
+      "median": 55.229865000000004,
+      "p95": 66.99148,
+      "maximum": 596.587525
+    },
+    "native.capture": {
+      "median": 5.1357045,
+      "p95": 6.146653,
+      "maximum": 524.360488
+    },
+    "support.decode": {
+      "median": 8.5129175,
+      "p95": 10.932614,
+      "maximum": 14.185474
+    },
+    "solve": {
+      "median": 0.397575,
+      "p95": 0.669038,
+      "maximum": 29.520927
+    },
+    "bam.before_step": {
+      "median": 21.332224,
+      "p95": 23.825282,
+      "maximum": 33.949444
+    }
+  },
+  "profile_write_and_flush": {
+    "calls": 800,
+    "median_ms": 0.108926,
+    "p95_ms": 0.178131,
+    "max_ms": 10.626108
+  },
+  "timing_interpretation": [
+    "A category includes all of its robot calls in one attempt; nested categories overlap and must not be added.",
+    "p95 is the sorted sample at floor(0.95*n), capped at n-1; no interpolation.",
+    "The solve span measures the owner call, not isolated synchronized GPU execution.",
+    "Large pauses occur in several phases; the profile does not identify their cause.",
+    "No reader-thread/RPC latency or footer/close-overhead measurement.",
+    "GPU0 RTX shared CPU during the recorded scope window; no speed comparison to earlier episodes."
+  ],
+  "coexistence": {
+    "rtx_gpu0": {
+      "scope": "cascade-voice-private-rtx-probe-796ff5686b4e4df8850d4f0e040847d5.scope",
+      "launch_monotonic_s": 16465.538187322,
+      "systemd_started_monotonic_ns": 16465558102000,
+      "systemd_resource_accounting_monotonic_ns": 16629287202000,
+      "cpu_usage_ns": 635234557000,
+      "memory_peak_bytes": 8936677376,
+      "journal_sha256": "0881f7a99df16da0ffd16dfb7e2b7971eff7042cfee3b79b10f5b6ccb4111723"
+    },
+    "microduck_gpu1": {
+      "scope": "cascade-voice-shared-endpoints-phase-probe-twelve-01-705db40dda894479ba5d2125e27abc82.scope",
+      "launch_monotonic_s": 16530.246998063,
+      "systemd_started_monotonic_ns": 16530270181000,
+      "systemd_resource_accounting_monotonic_ns": 16871200709000,
+      "cpu_usage_ns": 767005920000,
+      "memory_peak_bytes": 7129788416,
+      "journal_sha256": "0b1e309a1973ec6e9d0926b76763c78b6b5d8616ab9f81aed970d1a5ce66f646"
+    },
+    "scope": "Observed systemd scope window; accounting message is an upper bound on process closure, not a GPU-busy trace or causal performance comparison.",
+    "rtx_overlapping_attempts": {
+      "count": 160,
+      "first_last": [
+        0,
+        159
+      ]
+    },
+    "rtx_native_exit": 1,
+    "rtx_native_solves": 0
+  },
+  "next_scope": "Reduce repeated copies and validation of complete global support while retaining strict per-robot identity/shape checks; fresh review and evidence required.",
+  "sha256": {
+    "plan.json": "dc8b031b873bef663f96c662265dc234751569d1047408e2c16f5124475f3562",
+    "inputs.json": "6b0a34cdd19419ba3571658ae0a7a800e7cddee181e3facf2c10bfc8e926a25b",
+    "root-receipt.json": "d1a709b8b06f14f9f5061f22ffa210913ff68a88938ed7ddf91d10ef594617ec",
+    "independent-audit.json": "3726ee7eda69a1804cfef48e5f7cb80d67ffb7896220b84c427410ff80607f63",
+    "phase-audit.json": "bd7438369edfa36968722e636f71634002607401251d782fba3f96529ac7abd0",
+    "kit/timing.jsonl": "5518bd38ed5300496e8f9826adffe12534ce4a45c23f8bfe02f73f81a28516b8",
+    "kit/receipt.json": "d2b45148478db9943de7eb5860265613c2d3207fb933771774041d1c7ebb8db7",
+    "client-events.json": "720ad8f5139c5b24f3f3d4bef61622329060880e670e908e4199b46e0ce5a4a0",
+    "gpu-admission.json": "6da3ed26c9e9c7066b7fd423f0ba3b606f8716ca9e26798a0e12460bd0ae7757",
+    "coexistence-window.json": "188895a8fa3bfaa943fd8574f561a90ecf1d626f12ae8caff3294211958b1b1f"
+  },
+  "phase_auditor_sha256": "620bbad18aff54cc993a602175d826b652388a450023a5cebc45b83c52f2131c"
+}

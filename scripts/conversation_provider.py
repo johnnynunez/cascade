@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare, verify and supervise one private, CPU-only HF speech provider.
+"""Prepare, verify and supervise one private HF speech provider (CPU by default).
 
 No robot or audio device is opened here. Preparation explicitly downloads
 dependencies/models; serving requires their recorded bytes and runs offline.
@@ -25,6 +25,7 @@ import urllib.request
 import zipfile
 
 from conversation_provider_source import apply_patch, verify_source, verify_installed
+import conversation_provider_acceleration as acceleration
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -32,6 +33,28 @@ ROOT = Path(__file__).resolve().parents[1]
 RECIPE = ROOT / "configs/conversation/hf_kokoro_cpu.json"
 REQUIREMENTS = ROOT / "configs/conversation/hf_kokoro_cpu.requirements.txt"
 OWNER = {"owner": "cascade-conversation-provider", "version": 1}
+PROFILE = "cpu"
+
+
+def select_profile(profile):
+    """CLI selection is passive and precedes all state or model access."""
+    global RECIPE, REQUIREMENTS, PROFILE
+    if profile not in ("cpu", acceleration.PROFILE):
+        raise ValueError("unknown provider profile")
+    PROFILE = profile
+    stem = "hf_kokoro_cpu" if profile == "cpu" else "hf_kokoro_cuda_llm_fp32"
+    RECIPE = ROOT / "configs/conversation" / (stem + ".json")
+    REQUIREMENTS = RECIPE.with_suffix(".requirements.txt")
+    acceleration.configuration(recipe())
+
+
+def selected_gpu(value):
+    selected = acceleration.configuration(recipe())
+    if selected is None:
+        if value is not None:
+            raise ValueError("CPU profile cannot select a CUDA GPU")
+        return None
+    return acceleration.uuid_value(value)
 
 
 def digest(path):
@@ -81,7 +104,7 @@ def state_lock(state):
             fcntl.flock(lock, fcntl.LOCK_UN)
 
 
-def environment(state, *, offline):
+def environment(state, *, offline, cuda_device_uuid=None):
     env = os.environ.copy()
     for key in tuple(env):
         if key.startswith(("HF_", "HUGGINGFACE_", "HUGGING_FACE_", "OPENAI_", "ANTHROPIC_")):
@@ -100,6 +123,11 @@ def environment(state, *, offline):
         "PYTHONNOUSERSITE": "1", "PYTHONDONTWRITEBYTECODE": "1",
         "PYTHONPYCACHEPREFIX": str(state / "bytecode"),
     })
+    if cuda_device_uuid is not None:
+        env["CUDA_VISIBLE_DEVICES"] = selected_gpu(cuda_device_uuid)
+        # Use the selected wheel's libraries, not a foreign CUDA environment.
+        env.pop("LD_LIBRARY_PATH", None)
+        env.pop("NVIDIA_TF32_OVERRIDE", None)
     return env
 
 
@@ -157,6 +185,11 @@ def prepare_assets(state):
     if sys.version_info[:2] != (3, 12):
         raise ValueError("provider recipe requires Python 3.12")
     cfg = recipe()
+    selected = acceleration.configuration(cfg)
+    if selected is not None:
+        actual = versions()
+        if any(actual.get(name) != selected[name + "_version"] for name in ("torch", "torchaudio")):
+            raise ValueError("installed CUDA wheel versions differ from the recipe")
     models = []
     (state / "models").mkdir(exist_ok=True)
     for spec in cfg["models"]:
@@ -176,14 +209,18 @@ def prepare_assets(state):
     cache_files = {str(p.relative_to(state)): digest(p) for p in snapshot.rglob("*") if p.is_file()}
     files = inventory(state)
     files.update(cache_files)
-    write_json(state / "prepared.json", {
+    prepared = {
         "version": 2, "recipe_sha256": digest(RECIPE),
         "source_patch_sha256": digest(state / "source-patch.json"), "installed_provider": installed,
         "requirements_sha256": digest(REQUIREMENTS), "models": models,
         "files_sha256": files, "versions": versions(),
         "python_version": platform.python_version(),
         "source_patch": json.loads((state / "source-patch.json").read_text()),
-    })
+    }
+    if selected is not None:
+        prepared["acceleration_helper_sha256"] = digest(acceleration.__file__)
+        prepared["acceleration"] = selected
+    write_json(state / "prepared.json", prepared)
 
 
 def verify(state):
@@ -193,6 +230,11 @@ def verify(state):
         raise ValueError("recipe/requirements changed; prepare a new private directory")
     if digest(state / "source-patch.json") != prepared["source_patch_sha256"]:
         raise ValueError("effective source record changed")
+    selected = acceleration.configuration(recipe())
+    if selected is not None and (
+            prepared.get("acceleration") != selected
+            or prepared.get("acceleration_helper_sha256") != digest(acceleration.__file__)):
+        raise ValueError("prepared CUDA admission changed")
     verify_source(state, recipe(), RECIPE.parent)
     if not prepared["files_sha256"]:
         raise ValueError("empty prepared inventory")
@@ -208,8 +250,24 @@ def verify(state):
     return prepared
 
 
+def install_torch(uv, python, downloads, env):
+    """Install the selected binaries normally; CUDA wheels are hash verified first."""
+    cfg = recipe()
+    if acceleration.configuration(cfg) is None:
+        subprocess.run([uv, "pip", "install", "--python", str(python), "--index-url",
+                        "https://download.pytorch.org/whl/cpu", "torch==2.11.0+cpu", "torchaudio==2.11.0+cpu"], env=env, check=True)
+    else:
+        wheels = []
+        for name, pin in cfg["torch_wheels"].items():
+            download(pin["url"], downloads / name, pin["sha256"])
+            wheels.append(str(downloads / name))
+        subprocess.run([uv, "pip", "install", "--python", str(python),
+                        "--constraint", str(REQUIREMENTS), *wheels], env=env, check=True)
+
+
 def prepare(state):
     cfg = recipe()
+    acceleration.configuration(cfg)
     if platform.system().lower() != cfg["platform"] or platform.machine() != cfg["architecture"]:
         raise ValueError("this validated dependency recipe is Linux x86_64; other platforms need a separate lock")
     if sys.version_info < (3, 12):
@@ -229,8 +287,7 @@ def prepare(state):
     python = state / "venv/bin/python"
     if not python.exists():
         subprocess.run([uv, "venv", "--python", cfg["python"], str(state / "venv")], env=env, check=True)
-    subprocess.run([uv, "pip", "install", "--python", str(python), "--index-url",
-                    "https://download.pytorch.org/whl/cpu", "torch==2.11.0+cpu", "torchaudio==2.11.0+cpu"], env=env, check=True)
+    install_torch(uv, python, downloads, env)
     subprocess.run([uv, "pip", "install", "--python", str(python), "--no-deps", "-r", str(REQUIREMENTS),
                     str(downloads / "en_core_web_sm-3.8.0-py3-none-any.whl")], env=env, check=True)
     source = extract_tar(downloads / "speech-to-speech.tar.gz", state / "source-unpack")
@@ -253,15 +310,17 @@ def prepare(state):
             bundle.extractall(target)
     subprocess.run([uv, "pip", "install", "--python", str(python), "--no-deps",
                     "--no-build-isolation", str(state / "source")], env=env, check=True)
-    subprocess.run([str(python), str(Path(__file__).resolve()), "_assets", "--state-dir", str(state)], env=env, check=True)
+    subprocess.run([str(python), str(Path(__file__).resolve()), "_assets", "--state-dir", str(state),
+                    "--profile", PROFILE], env=env, check=True)
 
 
 def provider_argv(state, port):
     cfg = recipe()
+    selected = acceleration.configuration(cfg)
     return ["speech-to-speech", "serve", "--host", "127.0.0.1", "--port", str(port),
             "--stt", "whisper", "--stt_model_name", str(state / "models/stt"), "--stt_device", "cpu",
             "--stt_gen_max_new_tokens", "64", "--llm_backend", "transformers",
-            "--model_name", str(state / "models/llm"), "--llm_device", "cpu",
+            "--model_name", str(state / "models/llm"), "--llm_device", "cpu" if selected is None else "cuda",
             "--llm_torch_dtype", cfg["llm_torch_dtype"],
             "--llm_gen_max_new_tokens", "128", "--llm_gen_temperature", "0.7",
             "--llm_gen_do_sample", "True", "--tts", "kokoro", "--kokoro_device", "cpu",
@@ -289,7 +348,8 @@ def build_with_declared_threads(builder, torch, threads, *args, **kwargs):
                      "intra_op_after_restore": after, "inter_op": torch.get_num_interop_threads()}
 
 
-def child(state, port, run_dir, *, trace_generation=False):
+def child(state, port, run_dir, *, trace_generation=False, cuda_device_uuid=None):
+    cuda_device_uuid = selected_gpu(cuda_device_uuid)
     prepared = verify(state)
     if sys.version_info[:2] != (3, 12):
         raise ValueError("provider recipe requires Python 3.12")
@@ -298,6 +358,8 @@ def child(state, port, run_dir, *, trace_generation=False):
     source_record = verify_source(state, recipe(), RECIPE.parent)
     installed = verify_installed(state, source_record)
     import torch
+    gpu_admission = (None if cuda_device_uuid is None
+                     else acceleration.admit_cuda(torch, recipe(), cuda_device_uuid))
     threads = recipe()["threads"]
     if type(threads) is not int or threads < 1:
         raise ValueError("provider thread count must be a positive integer")
@@ -305,11 +367,15 @@ def child(state, port, run_dir, *, trace_generation=False):
     torch.set_num_interop_threads(threads)
     torch.manual_seed(recipe()["seed"])
     sys.argv = provider_argv(state, port)
-    write_json(run_dir / "admission.json", {"argv": sys.argv, "versions": versions(),
+    admission = {"argv": sys.argv, "versions": versions(),
                "python_version": platform.python_version(),
                "prepared_sha256": digest(state / "prepared.json"), "script_sha256": digest(__file__),
                "installed_provider": installed, "source_patch_sha256": digest(state / "source-patch.json"),
-               "cpu_only": True, "audio_format": "PCM16 mono 24000 Hz", "provider_authentication": False})
+               "cpu_only": gpu_admission is None, "audio_format": "PCM16 mono 24000 Hz", "provider_authentication": False}
+    if gpu_admission is not None:
+        admission["acceleration"] = gpu_admission
+        admission["acceleration_helper_sha256"] = digest(acceleration.__file__)
+    write_json(run_dir / "admission.json", admission)
     from speech_to_speech import s2s_pipeline
     from speech_to_speech.cli import main
     from speech_to_speech.LLM.language_model import LanguageModelHandler
@@ -322,7 +388,7 @@ def child(state, port, run_dir, *, trace_generation=False):
         if len(llms) != 1:
             raise ValueError("expected one actual text-model handler for attestation")
         parameters = tuple(llms[0].model.parameters())
-        write_json(run_dir / "model-runtime.json", {
+        runtime = {
             "observation": "inspection after upstream warmup and declared thread restoration",
             "parameter_dtypes": sorted({str(p.dtype) for p in parameters}),
             "parameter_devices": sorted({str(p.device) for p in parameters}),
@@ -331,7 +397,18 @@ def child(state, port, run_dir, *, trace_generation=False):
             "torch_num_interop_threads": torch.get_num_interop_threads(),
             "thread_configuration": thread_configuration,
             "configured_dtype": recipe()["llm_torch_dtype"],
-        })
+        }
+        if gpu_admission is not None:
+            from speech_to_speech.STT.whisper_stt_handler import WhisperSTTHandler
+            from speech_to_speech.TTS.kokoro_handler import KokoroTTSHandler
+            stts = [h for h in manager.handlers if isinstance(h, WhisperSTTHandler)]
+            ttss = [h for h in manager.handlers if isinstance(h, KokoroTTSHandler)]
+            if len(stts) != 1 or len(ttss) != 1:
+                raise ValueError("expected one actual STT and TTS handler for CUDA isolation")
+            runtime["acceleration"] = gpu_admission
+            runtime["models"] = acceleration.attest_pipeline(
+                torch, recipe(), cuda_device_uuid, llm=llms[0], stt=stts[0], tts=ttss[0])
+        write_json(run_dir / "model-runtime.json", runtime)
         if trace_generation:
             from speech_to_speech.LLM.generation_trace import GenerationTrace
             observer = GenerationTrace(run_dir / "generation.jsonl")
@@ -509,7 +586,8 @@ def supervise(command, *, env, run_dir, timeout_s, stop_event=None, max_rss_byte
     return process.returncode if process is not None and process.returncode not in (None, 0) else 1
 
 
-def serve(state, run_dir, *, port, timeout_s, trace_generation=False):
+def serve(state, run_dir, *, port, timeout_s, trace_generation=False, cuda_device_uuid=None):
+    cuda_device_uuid = selected_gpu(cuda_device_uuid)
     verify(state)
     # Occupied endpoints are an error, never an invitation to stop their owner.
     with socket.socket() as check:
@@ -517,10 +595,13 @@ def serve(state, run_dir, *, port, timeout_s, trace_generation=False):
     run_dir = run_dir.resolve()
     run_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
     command = [str(state / "venv/bin/python"), str(Path(__file__).resolve()),
-               "_child", "--state-dir", str(state), "--run-dir", str(run_dir), "--port", str(port)]
+               "_child", "--state-dir", str(state), "--run-dir", str(run_dir), "--port", str(port),
+               "--profile", PROFILE]
+    if cuda_device_uuid is not None:
+        command.extend(["--cuda-device-uuid", cuda_device_uuid])
     if trace_generation:
         command.append("--trace-generation")
-    env = environment(state, offline=True)
+    env = environment(state, offline=True, cuda_device_uuid=cuda_device_uuid)
     env["PYTHONPYCACHEPREFIX"] = str(run_dir / "bytecode")
     return supervise(command, env=env, run_dir=run_dir, timeout_s=timeout_s)
 
@@ -529,12 +610,19 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["prepare", "verify", "serve", "_assets", "_child"])
     parser.add_argument("--state-dir", required=True, type=Path)
+    parser.add_argument("--profile", choices=["cpu", acceleration.PROFILE], default="cpu")
+    parser.add_argument("--cuda-device-uuid", help="full GPU UUID; required only for CUDA serve")
     parser.add_argument("--run-dir", type=Path)
     parser.add_argument("--port", type=int, default=18878)
     parser.add_argument("--timeout-s", type=float, default=900)
     parser.add_argument("--trace-generation", action="store_true",
                         help="private bounded decoded-output diagnostics, attached after model warmup")
     args = parser.parse_args()
+    select_profile(args.profile)
+    if args.action in ("serve", "_child"):
+        selected_gpu(args.cuda_device_uuid)
+    elif args.cuda_device_uuid is not None:
+        parser.error("GPU selection belongs to serve, not passive preparation/verification")
     if not 1024 <= args.port <= 65535 or not 0 < args.timeout_s <= 900:
         parser.error("port must be [1024,65535], timeout finite and in (0,900]")
     state = private_state(args.state_dir, create=args.action == "prepare")
@@ -543,7 +631,8 @@ def main():
     if args.action == "_assets":
         prepare_assets(state)
     elif args.action == "_child":
-        child(state, args.port, args.run_dir, trace_generation=args.trace_generation)
+        child(state, args.port, args.run_dir, trace_generation=args.trace_generation,
+              cuda_device_uuid=args.cuda_device_uuid)
     else:
         with state_lock(state):
             if args.action == "prepare":
@@ -556,7 +645,7 @@ def main():
                 if args.run_dir is None:
                     parser.error("serve requires a new --run-dir")
                 code = serve(state, args.run_dir, port=args.port, timeout_s=args.timeout_s,
-                             trace_generation=args.trace_generation)
+                             trace_generation=args.trace_generation, cuda_device_uuid=args.cuda_device_uuid)
                 raise SystemExit(0 if code == 0 else 1)
 
 

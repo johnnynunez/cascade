@@ -117,12 +117,13 @@ capture. Unknown bounds stay unknown; known bounds include the rotating lever
 arm. Neither a new pose nor a new receipt can rejuvenate old pixels.
 
 The existing static calibration version 2 / packet version 1 remains unchanged
-and refuses an injected dynamic pose. The moving path has CPU transport/geometry
-evidence only; no moving native camera, articulated mount or physical calibration
-has been admitted. No camera, depth, map or navigation acceptance transfers from
-the earlier static captures.
+and refuses an injected dynamic pose. The moving transport/geometry contract
+has CPU coverage. The registered Fabric reference below additionally exercises
+native capture bindings; it does not admit physical calibration, an articulated
+mount, metric geometry or navigation. No acceptance transfers from the earlier
+static captures.
 
-### Registered Fabric rig adapter (opt-in, not yet natively validated)
+### Registered Fabric rig adapter (opt-in)
 
 On the explicit `isaac62_48b2d951` recipe, the Newton bridge accepts
 `--camera-rgbd --camera-mount /absolute/mount.json --camera-mount-sha256 SHA256`.
@@ -203,6 +204,19 @@ registration during construction and admits encoded poses only after the existin
 capture/render synchronization. Capture checks are unchanged. Encoding refusals
 retain at most 16 matrix, seven pose and three scale values, their shapes/dtypes,
 and the native clock, including before a successful capture exists.
+
+The corrected source `18150c6` completed one native reference on SDK `48b2d951`:
+80 episode solves, 20 all-zero policy rows and five RGB-D captures at native
+steps 3/22/42/62/82. All five raw quaternion, Fabric, render, optical and depth
+bindings replay exactly against their completed physics rows. The recorded rig
+varied by up to 8.6723 mm and 0.0170489 rad relative to the first capture; numeric
+encoding bounds remain distinct from unknown physical uncertainty. The canonical
+model is `d218140c…`; the producer and scope exited 0 without signals, force or
+remaining process births, and all 201,094 inputs remained unchanged. The
+[compact reference receipt](evidence/registered-fabric-rgbd-20261004.json) binds
+the source, artifacts and three earlier native failures. This validates this
+episode's capture provenance and structure, not planar accuracy, balanced rest,
+general 3D geometry or `go_to`. A separate schema6 metric episode is still required.
 
 ## Packet semantics and failure behavior
 

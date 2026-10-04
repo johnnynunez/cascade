@@ -90,10 +90,40 @@ The same admitted capture can feed the [spatial observation domain](RGBD_SPATIAL
 through its exact returned `capture_sha256`, epoch and sequence. Sharing it does
 not acquire another frame or refresh its original age.
 
-The initial provider requires its fixed world camera. Do not label its output as
+The initial native producer requires its fixed world camera. Do not label its output as
 a robot-mounted sensor: `world_from_camera` maps the optical frame to `world`,
 not to a head, torso or robot base. A moving mount requires a new producer
 contract for its measured pose and a distinct calibration policy.
+
+## Opt-in moving-capture contract
+
+`RgbdFrameCache` and the passive reader also support calibration **version 3**,
+which replaces `world_from_camera` with `rig_frame_id`, `rig_from_camera`,
+`mount_position_error_m` and `mount_angular_error_rad`. All other calibration
+fields, including the named world frame, remain explicit. `rig_from_camera` is
+a rigid column-vector transform from optical coordinates into the named rig;
+the two error bounds are nonnegative meters/radians or `null` when unknown.
+The calibration hash and effective model bind this fixed mount. It is not a
+changing joint transform.
+
+For this calibration, `publish(..., capture_pose=...)` requires a pose record
+with exactly `epoch`, `step`, `sim_time_s`, `model_identity_sha256`,
+`world_frame_id`, `world_from_rig`, `position_error_m`, `angular_error_rad` and
+`render_reference`. The identity and render reference must match the completed
+RGB/depth capture. This emits packet version 2. The reader checks these bindings
+again and the sensor envelope retains a typed `capture_pose`; its computed
+`world_from_camera = world_from_rig @ rig_from_camera` belongs only to that
+capture. Unknown bounds stay unknown; known bounds include the rotating lever
+arm. Neither a new pose nor a new receipt can rejuvenate old pixels.
+
+The existing static calibration version 2 / packet version 1 remains unchanged
+and refuses an injected dynamic pose. The shipped Newton launcher still uses
+that static producer. The new moving path has CPU transport/geometry evidence
+only; no Fabric pose adapter, moving native camera, articulated mount or physical
+calibration has been admitted. Such an adapter must observe the actual rig pose
+at the same render completion, not read USD defaults or interpolate an unrelated
+controller sample. No camera, depth, map or navigation acceptance transfers
+from the earlier static captures.
 
 ## Packet semantics and failure behavior
 

@@ -62,6 +62,8 @@ def wire(value):
             result.pop('world_frame_id')
         if isinstance(value, RgbdPayload) and value.pixel_center_offset_uv is None:
             result.pop('pixel_center_offset_uv')
+        if isinstance(value, RgbdPayload) and value.capture_pose is None:
+            result.pop('capture_pose')
         return result
     if is_dataclass(value):
         return {f.name: wire(getattr(value, f.name)) for f in fields(value)}
@@ -341,6 +343,70 @@ class TactileImagePayload(Payload):
         _image(self.width, self.height, self.encoding, self.data)
 
 
+def rigid_transform(value, name):
+    """Finite proper SE(3), column vectors; never repair a malformed transform."""
+    import numpy as np
+    values = vector(value, 16, name)
+    t = np.array(values).reshape(4, 4)
+    if (not np.array_equal(t[3], [0, 0, 0, 1])
+            or not np.allclose(t[:3, :3].T @ t[:3, :3], np.eye(3), rtol=0, atol=1e-7)
+            or not math.isclose(np.linalg.det(t[:3, :3]), 1., abs_tol=1e-7)):
+        raise ValueError("RGB-D transform must be rigid")
+    return values
+
+
+@dataclass(frozen=True)
+class RgbdCapturePose:
+    """Capture-aligned rig pose plus a fixed optical mount; no interpolation."""
+    epoch: str
+    sequence: int
+    clock_domain: str
+    capture_time_s: float
+    model_identity_sha256: str
+    world_frame_id: str
+    rig_frame_id: str
+    world_from_rig: tuple
+    rig_from_camera: tuple
+    position_error_m: float | None
+    angular_error_rad: float | None
+    mount_position_error_m: float | None
+    mount_angular_error_rad: float | None
+
+    def __post_init__(self):
+        for name in ('epoch', 'clock_domain', 'world_frame_id', 'rig_frame_id'):
+            object.__setattr__(self, name, str(token(getattr(self, name), name)))
+        if self.world_frame_id == self.rig_frame_id or digest(self.model_identity_sha256) is None:
+            raise ValueError('distinct pose frames and explicit model identity required')
+        object.__setattr__(self, 'model_identity_sha256', str(self.model_identity_sha256))
+        integer(self.sequence, 'pose sequence', maximum=2**63-1)
+        object.__setattr__(self, 'capture_time_s', number(self.capture_time_s, 'pose time', minimum=0))
+        for name in ('world_from_rig', 'rig_from_camera'):
+            object.__setattr__(self, name, rigid_transform(getattr(self, name), name))
+        for name in ('position_error_m', 'angular_error_rad', 'mount_position_error_m', 'mount_angular_error_rad'):
+            value = getattr(self, name)
+            if value is not None:
+                value = number(value, name, minimum=0)
+                if name.endswith('rad') and value > math.pi:
+                    raise ValueError('pose angular bound exceeds pi')
+                object.__setattr__(self, name, value)
+
+    @property
+    def world_from_camera(self):
+        import numpy as np
+        result = np.array(self.world_from_rig).reshape(4, 4) @ np.array(self.rig_from_camera).reshape(4, 4)
+        return tuple(float(v) for v in result.flat)
+
+    @property
+    def camera_error_bounds(self):
+        position = None
+        if all(v is not None for v in (self.position_error_m, self.angular_error_rad, self.mount_position_error_m)):
+            lever = math.sqrt(sum(self.rig_from_camera[i]**2 for i in (3, 7, 11)))
+            position = self.position_error_m + self.mount_position_error_m + 2*lever*math.sin(self.angular_error_rad/2)
+        angle = None if self.angular_error_rad is None or self.mount_angular_error_rad is None else min(
+            math.pi, self.angular_error_rad + self.mount_angular_error_rad)
+        return position, angle
+
+
 @dataclass(frozen=True)
 class RgbdPayload(Payload):
     """One registered capture; zero depth explicitly denotes an invalid pixel.
@@ -357,6 +423,7 @@ class RgbdPayload(Payload):
     world_from_camera: tuple | None = None
     world_frame_id: str | None = None
     pixel_center_offset_uv: tuple | None = None
+    capture_pose: RgbdCapturePose | None = None
     modality: ClassVar[str] = "rgbd"
     units: ClassVar[tuple] = (("rgb8", "uint8"), ("depth_m_f32le", "m"), ("intrinsics", "pixel"))
 
@@ -383,15 +450,15 @@ class RgbdPayload(Payload):
         if (self.world_from_camera is None) != (self.world_frame_id is None):
             raise ValueError("RGB-D transform and target frame must be supplied together")
         if self.world_from_camera is not None:
-            import numpy as np
             token(self.world_frame_id, "world_frame_id")
-            values = vector(self.world_from_camera, 16, "world_from_camera")
-            t = np.array(values).reshape(4, 4)
-            if (not np.array_equal(t[3], [0, 0, 0, 1])
-                    or not np.allclose(t[:3, :3].T @ t[:3, :3], np.eye(3), rtol=0, atol=1e-7)
-                    or not math.isclose(np.linalg.det(t[:3, :3]), 1., abs_tol=1e-7)):
-                raise ValueError("RGB-D transform must be rigid")
+            values = rigid_transform(self.world_from_camera, 'world_from_camera')
             object.__setattr__(self, "world_from_camera", values)
+        if self.capture_pose is not None:
+            pose = self.capture_pose
+            if (type(pose) is not RgbdCapturePose or self.world_frame_id != pose.world_frame_id
+                    or self.metadata.frame_id in {pose.rig_frame_id, pose.world_frame_id}
+                    or self.world_from_camera != pose.world_from_camera):
+                raise ValueError('RGB-D capture pose/frame/composition mismatch')
 
 
 PAYLOAD_TYPES = (ImuPayload, ProprioceptionPayload, JointStatePayload, GeneralizedJointStatePayload, SolvedContactPayload, EstimatedTactilePayload,
@@ -435,6 +502,12 @@ class ObservationEnvelope:
                     or support.model_identity_sha256 != self.model_identity_sha256
                     or self.clock_domain != "simulation"):
                 raise ValueError("solved contact identity/clock differs from envelope")
+        if isinstance(self.payload, RgbdPayload) and self.payload.capture_pose is not None:
+            pose = self.payload.capture_pose
+            if (pose.epoch != self.epoch or pose.sequence != self.sequence
+                    or pose.capture_time_s != self.capture_time_s or pose.clock_domain != self.clock_domain
+                    or pose.model_identity_sha256 != self.model_identity_sha256):
+                raise ValueError('RGB-D pose identity/clock differs from envelope')
 
     def age_s(self, now):
         now = number(now, "local monotonic clock", minimum=0)

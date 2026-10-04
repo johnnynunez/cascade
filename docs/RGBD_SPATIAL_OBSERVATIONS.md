@@ -93,10 +93,16 @@ annotation resolves its own capture-bound `FrameTree`, so two retained captures
 may be consumed in reverse order without using a later transform for the older
 image. The original capture time is preserved in both observation and transform.
 
-This first consumer requires a fixed world camera: dimensions, K, frame IDs,
-pixel-center convention and extrinsics must remain equal throughout the domain's epoch. A changed calibration
-or epoch requires a new domain. A camera attached to a moving robot needs a
-separate measured-pose contract; these points do not provide that contract.
+Legacy captures require a fixed world camera: dimensions, K, frame IDs,
+pixel-center convention and extrinsics must remain equal throughout the domain's
+epoch. The explicit [moving-capture extension](OBSERVED_RGBD.md#opt-in-moving-capture-contract)
+instead pins the rigid camera mount and uses each capture's own dynamic rig
+pose. The pose's model, epoch, clock, sequence and time must match the envelope;
+the transform in each annotation remains bound to that original capture.
+Changing the mount, calibration, world frame or epoch requires a new domain.
+Pose bounds propagate into the transform, including its lever arm, while point
+confidence and depth/semantic uncertainty remain unknown. These CPU contracts
+do not establish a physical moving-camera or navigation result.
 
 The memory stores at most `capacity` annotations (1–1024) and rejects duplicate
 observation IDs or a full store. Returned dictionaries are defensive copies.

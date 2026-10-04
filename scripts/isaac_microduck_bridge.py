@@ -477,6 +477,7 @@ def admit(args):
              'src/cascade/sim/microduck_stepper.py', 'src/cascade/sim/microduck_state.py',
              'src/cascade/sim/mobile_bridge.py', 'src/cascade/sim/mobile_identity.py',
              'src/cascade/sim/mobile_rgbd.py',
+             'src/cascade/sensing/models.py',
              'src/cascade/sim/microduck_contact_support.py', 'src/cascade/control/mobile_base.py',
              'src/cascade/control/mobile_support.py', 'src/cascade/control/mobile_telemetry.py',
              'src/cascade/apps/signal_stop.py',

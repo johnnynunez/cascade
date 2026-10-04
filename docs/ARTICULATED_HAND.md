@@ -140,3 +140,9 @@ different targets, objects or disturbances.
 
 Grasps, calibrated tactile measurements and hardware acceptance remain pending.
 The MCP handler was exercised in process, without an LLM or stdio transport.
+
+The subsequent [bounded voice-to-hand attempts](evidence/robot-modularity/voice-hand-negative-20261004.json)
+dispatched no hand action: one hit a harness file-opening error and one reached
+the original owner deadline after correct internal ASR and an invalid provider
+tool name. They do not extend the named-posture motion evidence to speech or
+spoken confirmation of rest.

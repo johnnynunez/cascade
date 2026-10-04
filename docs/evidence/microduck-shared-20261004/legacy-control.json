@@ -1,0 +1,945 @@
+{
+  "schema": 1,
+  "run": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_LEGACY_20261004/legacy-contact-zero-twelve-01",
+  "source": "ba8c37996bce631bd351aafb66e8e1f7304597ad",
+  "scene_model_sha256": "dbee909c2171532f74f834c09c00d7734c527d77aa3d1d31d34bc5681872a98f",
+  "model_identity_file_sha256": "85107a4485c6f0a20353f26d1058f5196efe4509af7fefd5f16f5c95a4a10df4",
+  "reader_pin": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_LEGACY_20261004/legacy-contact-probe-twelve-01/kit/model-identity.json",
+  "reader_pin_reproduced_exactly": true,
+  "native_completed": true,
+  "control_sequence_completed": true,
+  "physical_acceptance": false,
+  "physical_outcome": "unverified",
+  "global_solves": 800,
+  "policy_commits": 2400,
+  "policy_evaluations": 2424,
+  "discarded_previews": 24,
+  "discarded_cohorts": [
+    {
+      "completed_step": 6,
+      "discarded_previews": 12,
+      "committed_retries": 12
+    },
+    {
+      "completed_step": 46,
+      "discarded_previews": 12,
+      "committed_retries": 12
+    }
+  ],
+  "withheld_ticks": 0,
+  "overview_support_probe_pairs": 9,
+  "client_events": 72,
+  "robots": {
+    "duck00": {
+      "model_identity_sha256": "fb74b22fa8e915c03b926000bae8dd3c4de8aab35b6de22e7658cf1a43cf9c9f",
+      "epoch": "4696b2538bd646b194608463bb0f2470",
+      "execution_ok": true,
+      "physical_outcome": "unverified",
+      "command": {
+        "vx": 0.0,
+        "vy": 0.0,
+        "wz": 0.0,
+        "duration_s": 0.02
+      },
+      "command_id": "3b5443020b8d44b3aa0a1e5f8624db39",
+      "command_ack_generation": 3,
+      "ordinary_stop_ack_generation": 4,
+      "initial_latched_stop_generation": 1,
+      "reset_generation": 2,
+      "cleanup_latched_stop_generation": 6,
+      "native_final_generation": 8,
+      "command_start_sim_time_s": 0.03999999910593033,
+      "command_end_sim_time_s": 0.05999999910593033,
+      "measured_steps": [
+        7,
+        13
+      ],
+      "measured_sample_count": 7,
+      "command_result_monotonic_s": 32431.333368691,
+      "cleanup_stop_ack_monotonic_s": 32442.045746023,
+      "policy_commits": 200,
+      "policy_evaluations": 202,
+      "discarded_previews": 2
+    },
+    "duck01": {
+      "model_identity_sha256": "966d3c8d7796010ea9a92da0f36a8a47f2d92e69423a5a9dfe0410a91a3324d1",
+      "epoch": "fbd0e2765ded4f5698baa708e62a15d2",
+      "execution_ok": true,
+      "physical_outcome": "unverified",
+      "command": {
+        "vx": 0.0,
+        "vy": 0.0,
+        "wz": 0.0,
+        "duration_s": 0.02
+      },
+      "command_id": "0d78e2e87ea44ba0a98fe7d529589af6",
+      "command_ack_generation": 3,
+      "ordinary_stop_ack_generation": 4,
+      "initial_latched_stop_generation": 1,
+      "reset_generation": 2,
+      "cleanup_latched_stop_generation": 6,
+      "native_final_generation": 8,
+      "command_start_sim_time_s": 0.07499999832361937,
+      "command_end_sim_time_s": 0.09499999832361937,
+      "measured_steps": [
+        14,
+        20
+      ],
+      "measured_sample_count": 7,
+      "command_result_monotonic_s": 32432.343878144,
+      "cleanup_stop_ack_monotonic_s": 32442.047115417,
+      "policy_commits": 200,
+      "policy_evaluations": 202,
+      "discarded_previews": 2
+    },
+    "duck02": {
+      "model_identity_sha256": "d72dd2123697a53c76aa748520dd78ad88b7c1760f661e4a433f920990f40cb5",
+      "epoch": "1b1e2a0cfafd4b90ac135ffd517a6ad4",
+      "execution_ok": true,
+      "physical_outcome": "unverified",
+      "command": {
+        "vx": 0.0,
+        "vy": 0.0,
+        "wz": 0.0,
+        "duration_s": 0.02
+      },
+      "command_id": "e56431ed443d4003beaeac752a2ff9bd",
+      "command_ack_generation": 3,
+      "ordinary_stop_ack_generation": 4,
+      "initial_latched_stop_generation": 1,
+      "reset_generation": 2,
+      "cleanup_latched_stop_generation": 6,
+      "native_final_generation": 8,
+      "command_start_sim_time_s": 0.1149999974295497,
+      "command_end_sim_time_s": 0.13499999742954968,
+      "measured_steps": [
+        22,
+        28
+      ],
+      "measured_sample_count": 7,
+      "command_result_monotonic_s": 32433.244347705,
+      "cleanup_stop_ack_monotonic_s": 32442.048395395,
+      "policy_commits": 200,
+      "policy_evaluations": 202,
+      "discarded_previews": 2
+    },
+    "duck03": {
+      "model_identity_sha256": "8486052f571737f5530cff67aac480ee092b32c2233470860c7f7dd05d8ed967",
+      "epoch": "6d47dde3681f4f64ae29ea614c84c99b",
+      "execution_ok": true,
+      "physical_outcome": "unverified",
+      "command": {
+        "vx": 0.0,
+        "vy": 0.0,
+        "wz": 0.0,
+        "duration_s": 0.02
+      },
+      "command_id": "61cea0cfccfd4fea841e7c29b3c2db75",
+      "command_ack_generation": 3,
+      "ordinary_stop_ack_generation": 4,
+      "initial_latched_stop_generation": 1,
+      "reset_generation": 2,
+      "cleanup_latched_stop_generation": 6,
+      "native_final_generation": 8,
+      "command_start_sim_time_s": 0.15499999653548002,
+      "command_end_sim_time_s": 0.17499999653548,
+      "measured_steps": [
+        30,
+        36
+      ],
+      "measured_sample_count": 7,
+      "command_result_monotonic_s": 32433.984169167,
+      "cleanup_stop_ack_monotonic_s": 32442.049146518,
+      "policy_commits": 200,
+      "policy_evaluations": 202,
+      "discarded_previews": 2
+    },
+    "duck04": {
+      "model_identity_sha256": "87b23e33bddac4a5e5e1a1dae7528c2bf70361e5d84482adfdf161424c98ce0d",
+      "epoch": "10a20c9fae2f4c91b898aab7c1792177",
+      "execution_ok": true,
+      "physical_outcome": "unverified",
+      "command": {
+        "vx": 0.0,
+        "vy": 0.0,
+        "wz": 0.0,
+        "duration_s": 0.02
+      },
+      "command_id": "a09fc9361c00464aa9128df31c2a1ab0",
+      "command_ack_generation": 3,
+      "ordinary_stop_ack_generation": 4,
+      "initial_latched_stop_generation": 1,
+      "reset_generation": 2,
+      "cleanup_latched_stop_generation": 6,
+      "native_final_generation": 8,
+      "command_start_sim_time_s": 0.19999999552965164,
+      "command_end_sim_time_s": 0.21999999552965163,
+      "measured_steps": [
+        39,
+        45
+      ],
+      "measured_sample_count": 7,
+      "command_result_monotonic_s": 32434.782094544,
+      "cleanup_stop_ack_monotonic_s": 32442.050554581,
+      "policy_commits": 200,
+      "policy_evaluations": 202,
+      "discarded_previews": 2
+    },
+    "duck05": {
+      "model_identity_sha256": "62a889939fea3c6640a96baac2e1f52d22d73c48ac444330b344b3ccce90e154",
+      "epoch": "c39e0bd81e2c4490bd4ef985fbf7ae26",
+      "execution_ok": true,
+      "physical_outcome": "unverified",
+      "command": {
+        "vx": 0.0,
+        "vy": 0.0,
+        "wz": 0.0,
+        "duration_s": 0.02
+      },
+      "command_id": "7c4e35978ae24ebba0a5516f1072ef02",
+      "command_ack_generation": 3,
+      "ordinary_stop_ack_generation": 4,
+      "initial_latched_stop_generation": 1,
+      "reset_generation": 2,
+      "cleanup_latched_stop_generation": 6,
+      "native_final_generation": 8,
+      "command_start_sim_time_s": 0.24999999441206455,
+      "command_end_sim_time_s": 0.26999999441206457,
+      "measured_steps": [
+        49,
+        55
+      ],
+      "measured_sample_count": 7,
+      "command_result_monotonic_s": 32435.67945246,
+      "cleanup_stop_ack_monotonic_s": 32442.051213754,
+      "policy_commits": 200,
+      "policy_evaluations": 202,
+      "discarded_previews": 2
+    },
+    "duck06": {
+      "model_identity_sha256": "c221e59f52a0a827f91590c1a12a356e95d98479598023a836da2873a37f57c6",
+      "epoch": "79479b0868314551829f2ea278844b58",
+      "execution_ok": true,
+      "physical_outcome": "unverified",
+      "command": {
+        "vx": 0.0,
+        "vy": 0.0,
+        "wz": 0.0,
+        "duration_s": 0.02
+      },
+      "command_id": "53cb37d16ea1462f993d4b8b97282bcf",
+      "command_ack_generation": 3,
+      "ordinary_stop_ack_generation": 4,
+      "initial_latched_stop_generation": 1,
+      "reset_generation": 2,
+      "cleanup_latched_stop_generation": 6,
+      "native_final_generation": 8,
+      "command_start_sim_time_s": 0.29999999329447746,
+      "command_end_sim_time_s": 0.3199999932944775,
+      "measured_steps": [
+        59,
+        65
+      ],
+      "measured_sample_count": 7,
+      "command_result_monotonic_s": 32436.617552107,
+      "cleanup_stop_ack_monotonic_s": 32442.052217121,
+      "policy_commits": 200,
+      "policy_evaluations": 202,
+      "discarded_previews": 2
+    },
+    "duck07": {
+      "model_identity_sha256": "58b040b2420e5a2b7b5595dbaf3b5046470e9dc4c4c06809ecfa94d4c1386ffa",
+      "epoch": "1f6eaadb81b845969781469b4ba0c5e9",
+      "execution_ok": true,
+      "physical_outcome": "unverified",
+      "command": {
+        "vx": 0.0,
+        "vy": 0.0,
+        "wz": 0.0,
+        "duration_s": 0.02
+      },
+      "command_id": "053df5ba088547098e39229da9d63a68",
+      "command_ack_generation": 3,
+      "ordinary_stop_ack_generation": 4,
+      "initial_latched_stop_generation": 1,
+      "reset_generation": 2,
+      "cleanup_latched_stop_generation": 6,
+      "native_final_generation": 8,
+      "command_start_sim_time_s": 0.35499999206513166,
+      "command_end_sim_time_s": 0.3749999920651317,
+      "measured_steps": [
+        70,
+        76
+      ],
+      "measured_sample_count": 7,
+      "command_result_monotonic_s": 32437.589926145,
+      "cleanup_stop_ack_monotonic_s": 32442.05364255,
+      "policy_commits": 200,
+      "policy_evaluations": 202,
+      "discarded_previews": 2
+    },
+    "duck08": {
+      "model_identity_sha256": "6d6adec97cf645acf9e4e1bacbac7539d2c1f6b123fd830fbddb8a47fd6b86b9",
+      "epoch": "e4cfd013900a495488e36cde6f041b15",
+      "execution_ok": true,
+      "physical_outcome": "unverified",
+      "command": {
+        "vx": 0.0,
+        "vy": 0.0,
+        "wz": 0.0,
+        "duration_s": 0.02
+      },
+      "command_id": "8d39f77bd86d4386b66aa16b79394e27",
+      "command_ack_generation": 3,
+      "ordinary_stop_ack_generation": 4,
+      "initial_latched_stop_generation": 1,
+      "reset_generation": 2,
+      "cleanup_latched_stop_generation": 6,
+      "native_final_generation": 8,
+      "command_start_sim_time_s": 0.40999999083578587,
+      "command_end_sim_time_s": 0.4299999908357859,
+      "measured_steps": [
+        81,
+        87
+      ],
+      "measured_sample_count": 7,
+      "command_result_monotonic_s": 32438.624646963,
+      "cleanup_stop_ack_monotonic_s": 32442.054591084,
+      "policy_commits": 200,
+      "policy_evaluations": 202,
+      "discarded_previews": 2
+    },
+    "duck09": {
+      "model_identity_sha256": "85a201bd00468e10c420d11c62194f2891e81ba99c7e1fc772b2a0c4e3981982",
+      "epoch": "bb150f66167f4863ab69981e1029dc9d",
+      "execution_ok": true,
+      "physical_outcome": "unverified",
+      "command": {
+        "vx": 0.0,
+        "vy": 0.0,
+        "wz": 0.0,
+        "duration_s": 0.02
+      },
+      "command_id": "ccaff8a5e9b9486db0aa78f02ad003f2",
+      "command_ack_generation": 3,
+      "ordinary_stop_ack_generation": 4,
+      "initial_latched_stop_generation": 1,
+      "reset_generation": 2,
+      "cleanup_latched_stop_generation": 6,
+      "native_final_generation": 8,
+      "command_start_sim_time_s": 0.46499998960644007,
+      "command_end_sim_time_s": 0.4849999896064401,
+      "measured_steps": [
+        92,
+        98
+      ],
+      "measured_sample_count": 7,
+      "command_result_monotonic_s": 32439.657832536,
+      "cleanup_stop_ack_monotonic_s": 32442.05565958,
+      "policy_commits": 200,
+      "policy_evaluations": 202,
+      "discarded_previews": 2
+    },
+    "duck10": {
+      "model_identity_sha256": "19e8cc2af149044be313cd859e4311ae7380dae89f0349ca75a140b70a0fc79f",
+      "epoch": "78e1c87db65447da9f1d0e769b6fded8",
+      "execution_ok": true,
+      "physical_outcome": "unverified",
+      "command": {
+        "vx": 0.0,
+        "vy": 0.0,
+        "wz": 0.0,
+        "duration_s": 0.02
+      },
+      "command_id": "1632629651834f9dae2d21af28fadc37",
+      "command_ack_generation": 3,
+      "ordinary_stop_ack_generation": 4,
+      "initial_latched_stop_generation": 1,
+      "reset_generation": 2,
+      "cleanup_latched_stop_generation": 6,
+      "native_final_generation": 8,
+      "command_start_sim_time_s": 0.5199999883770943,
+      "command_end_sim_time_s": 0.5399999883770943,
+      "measured_steps": [
+        103,
+        109
+      ],
+      "measured_sample_count": 7,
+      "command_result_monotonic_s": 32440.814393615,
+      "cleanup_stop_ack_monotonic_s": 32442.056470544,
+      "policy_commits": 200,
+      "policy_evaluations": 202,
+      "discarded_previews": 2
+    },
+    "duck11": {
+      "model_identity_sha256": "ee20bcdf6a1c74b339db6981f95c1227490c129d27ed13ceefc7640ff85992d2",
+      "epoch": "51c892e3f4264f4185a8355bc9f34bb8",
+      "execution_ok": true,
+      "physical_outcome": "unverified",
+      "command": {
+        "vx": 0.0,
+        "vy": 0.0,
+        "wz": 0.0,
+        "duration_s": 0.02
+      },
+      "command_id": "da6bc55848d4400faeb88c5aad357c91",
+      "command_ack_generation": 3,
+      "ordinary_stop_ack_generation": 4,
+      "initial_latched_stop_generation": 1,
+      "reset_generation": 2,
+      "cleanup_latched_stop_generation": 6,
+      "native_final_generation": 8,
+      "command_start_sim_time_s": 0.5799999870359898,
+      "command_end_sim_time_s": 0.5999999870359898,
+      "measured_steps": [
+        115,
+        121
+      ],
+      "measured_sample_count": 7,
+      "command_result_monotonic_s": 32441.931542525,
+      "cleanup_stop_ack_monotonic_s": 32442.057533141,
+      "policy_commits": 200,
+      "policy_evaluations": 202,
+      "discarded_previews": 2
+    }
+  },
+  "native_wall_s": 103.1275569970021,
+  "attempt_duration": {
+    "calls": 800,
+    "median_ms": 85.94305550000001,
+    "p95_ms": 99.944909,
+    "max_ms": 575.060123
+  },
+  "attempts_over_400ms": 1,
+  "phases_inclusive": {
+    "bam.before_step": {
+      "calls": 9600,
+      "median_ms": 1.6764865,
+      "p95_ms": 2.227049,
+      "max_ms": 7.925301
+    },
+    "bam.targets": {
+      "calls": 2400,
+      "median_ms": 0.031067,
+      "p95_ms": 0.064598,
+      "max_ms": 0.521543
+    },
+    "camera.capture": {
+      "calls": 9,
+      "median_ms": 53.164347,
+      "p95_ms": 54.550827,
+      "max_ms": 54.550827
+    },
+    "camera.overview": {
+      "calls": 9,
+      "median_ms": 80.778331,
+      "p95_ms": 119.57275,
+      "max_ms": 119.57275
+    },
+    "completed.read": {
+      "calls": 19248,
+      "median_ms": 0.041373,
+      "p95_ms": 0.080513,
+      "max_ms": 507.340135
+    },
+    "completed.validate": {
+      "calls": 9600,
+      "median_ms": 0.5898525,
+      "p95_ms": 17.545982,
+      "max_ms": 507.976284
+    },
+    "native.capture": {
+      "calls": 800,
+      "median_ms": 1.9219249999999999,
+      "p95_ms": 3.958164,
+      "max_ms": 7.895375
+    },
+    "policy.prepare": {
+      "calls": 9648,
+      "median_ms": 0.6559485,
+      "p95_ms": 0.963426,
+      "max_ms": 9.578677
+    },
+    "publication": {
+      "calls": 9600,
+      "median_ms": 0.4085515,
+      "p95_ms": 0.552891,
+      "max_ms": 4.263728
+    },
+    "record.physics": {
+      "calls": 800,
+      "median_ms": 24.940765499999998,
+      "p95_ms": 29.064381,
+      "max_ms": 57.487426
+    },
+    "solve": {
+      "calls": 800,
+      "median_ms": 0.2107405,
+      "p95_ms": 0.281098,
+      "max_ms": 25.69266
+    },
+    "support.decode": {
+      "calls": 800,
+      "median_ms": 8.724437,
+      "p95_ms": 11.076156,
+      "max_ms": 18.967435
+    },
+    "support.probe": {
+      "calls": 9,
+      "median_ms": 0.762461,
+      "p95_ms": 0.935694,
+      "max_ms": 0.935694
+    },
+    "write.frames.jsonl": {
+      "calls": 9,
+      "median_ms": 0.033421,
+      "p95_ms": 0.065871,
+      "max_ms": 0.065871
+    },
+    "write.physics.jsonl": {
+      "calls": 800,
+      "median_ms": 15.9948065,
+      "p95_ms": 18.538763,
+      "max_ms": 40.719128
+    },
+    "write.policy.jsonl": {
+      "calls": 2424,
+      "median_ms": 0.0384385,
+      "p95_ms": 0.065369,
+      "max_ms": 5.426698
+    },
+    "write.support-probe.jsonl": {
+      "calls": 9,
+      "median_ms": 0.580333,
+      "p95_ms": 0.941032,
+      "max_ms": 0.941032
+    }
+  },
+  "profile_write_flush": {
+    "calls": 800,
+    "median_ms": 0.08607100000000001,
+    "p95_ms": 0.142207,
+    "max_ms": 10.889983
+  },
+  "original_contract": {
+    "template_sha256": "557e7cfd2476bd5b7e4ac5d99112d2758dbd074121eaa200a9657fe26d7c4775",
+    "unchanged_from_prior_negative": true,
+    "safety": {
+      "max_state_age_s": 0.5,
+      "max_no_progress_s": 0.4,
+      "max_wall_duration_s": 8.0,
+      "poll_interval_s": 0.01
+    },
+    "transport_timeout_s": 0.5,
+    "command": {
+      "vx": 0.0,
+      "vy": 0.0,
+      "wz": 0.0,
+      "duration_s": 0.02
+    },
+    "expected_client_events": 72,
+    "sequence_per_robot": [
+      "emergency_stop",
+      "get_base_state",
+      "reset_stop",
+      "walk_velocity_zero"
+    ],
+    "physical_outcome": "unverified",
+    "no_threshold_relaxation": true
+  },
+  "bounds": {
+    "application_wall_s": 450,
+    "owned_scope_wall_s": 510,
+    "memory": "32G",
+    "cpu": "400%",
+    "nice": 19
+  },
+  "gc": {
+    "accounting_verified": true,
+    "events": 3432,
+    "complete_intervals": 1716,
+    "unmatched_events": 0,
+    "dropped_or_pending": 0,
+    "errors": 0,
+    "settings": {
+      "enabled": true,
+      "thresholds": [
+        700,
+        10,
+        10
+      ]
+    },
+    "interval_duration": {
+      "0": {
+        "count": 1572,
+        "median_ms": 0.081564,
+        "p95_ms": 0.125591,
+        "max_ms": 2.693329
+      },
+      "1": {
+        "count": 143,
+        "median_ms": 0.110499,
+        "p95_ms": 0.276401,
+        "max_ms": 0.821871
+      },
+      "2": {
+        "count": 1,
+        "median_ms": 487.490527,
+        "p95_ms": 487.490527,
+        "max_ms": 487.490527
+      }
+    },
+    "trigger_capture_duration": {
+      "count": 1,
+      "median_ms": 0.028343,
+      "p95_ms": 0.028343,
+      "max_ms": 0.028343
+    },
+    "boundary_counter_capture_duration": {
+      "count": 2,
+      "median_ms": 0.2398455,
+      "p95_ms": 0.277172,
+      "max_ms": 0.277172
+    },
+    "collector_counters": {
+      "initial": {
+        "count": [
+          26,
+          2,
+          60
+        ],
+        "stats": [
+          {
+            "collections": 992,
+            "collected": 43733,
+            "uncollectable": 0
+          },
+          {
+            "collections": 90,
+            "collected": 1651,
+            "uncollectable": 0
+          },
+          {
+            "collections": 2,
+            "collected": 12,
+            "uncollectable": 0
+          }
+        ],
+        "allocated_blocks": 3275328
+      },
+      "final": {
+        "count": [
+          3,
+          1,
+          52
+        ],
+        "stats": [
+          {
+            "collections": 2564,
+            "collected": 65465,
+            "uncollectable": 0
+          },
+          {
+            "collections": 233,
+            "collected": 3329,
+            "uncollectable": 0
+          },
+          {
+            "collections": 3,
+            "collected": 6296,
+            "uncollectable": 0
+          }
+        ],
+        "allocated_blocks": 3275009
+      }
+    },
+    "observer_overhead_complete": false,
+    "trigger_stacks": [
+      {
+        "event_id": 2674,
+        "thread_id": 125176441739200,
+        "start_monotonic_ns": 32473773469358,
+        "end_monotonic_ns": 32473773497701,
+        "duration_ns": 28343,
+        "frames": [
+          {
+            "path": "<frozen abc>",
+            "function": "__subclasscheck__",
+            "line": 123
+          },
+          {
+            "path": "<frozen abc>",
+            "function": "__instancecheck__",
+            "line": 119
+          },
+          {
+            "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_LEGACY_20261004/cascade/src/cascade/control/mobile_base.py",
+            "function": "nonnegative_int",
+            "line": 46
+          },
+          {
+            "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_LEGACY_20261004/cascade/src/cascade/control/mobile_support.py",
+            "function": "__post_init__",
+            "line": 41
+          },
+          {
+            "path": "<string>",
+            "function": "__init__",
+            "line": 11
+          },
+          {
+            "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_LEGACY_20261004/cascade/src/cascade/control/mobile_support.py",
+            "function": "_record",
+            "line": 24
+          },
+          {
+            "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_LEGACY_20261004/cascade/src/cascade/control/mobile_support.py",
+            "function": "<genexpr>",
+            "line": 91
+          },
+          {
+            "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_LEGACY_20261004/cascade/src/cascade/control/mobile_support.py",
+            "function": "__post_init__",
+            "line": 91
+          },
+          {
+            "path": "<string>",
+            "function": "__init__",
+            "line": 11
+          },
+          {
+            "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_LEGACY_20261004/cascade/src/cascade/control/mobile_support.py",
+            "function": "_record",
+            "line": 24
+          },
+          {
+            "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_LEGACY_20261004/cascade/src/cascade/control/mobile_support.py",
+            "function": "from_dict",
+            "line": 105
+          },
+          {
+            "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_LEGACY_20261004/cascade/src/cascade/sim/microduck_shared.py",
+            "function": "capture_support",
+            "line": 81
+          },
+          {
+            "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_LEGACY_20261004/cascade/src/cascade/sim/microduck_shared_native.py",
+            "function": "_read_completed_scene",
+            "line": 166
+          },
+          {
+            "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_LEGACY_20261004/cascade/src/cascade/sim/microduck_timing.py",
+            "function": "timed",
+            "line": 165
+          },
+          {
+            "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_LEGACY_20261004/cascade/src/cascade/sim/microduck_shared_native.py",
+            "function": "_read_bound_robot",
+            "line": 199
+          },
+          {
+            "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_LEGACY_20261004/cascade/src/cascade/sim/microduck_shared_native.py",
+            "function": "_read",
+            "line": 236
+          }
+        ],
+        "python_caller_present": true,
+        "truncated": true,
+        "strings_truncated": false
+      }
+    ]
+  },
+  "slow_attempts": [
+    {
+      "attempt": 494,
+      "clock_after": [
+        497,
+        2.4849999444559216
+      ],
+      "duration_ms": 575.060123,
+      "gc_overlap_union_ms": 487.586423,
+      "gc_intervals": [
+        {
+          "start_id": 2674,
+          "stop_id": 2675,
+          "generation": 2,
+          "thread_id": 125176441739200
+        },
+        {
+          "start_id": 2676,
+          "stop_id": 2677,
+          "generation": 0,
+          "thread_id": 125176441739200
+        },
+        {
+          "start_id": 2678,
+          "stop_id": 2679,
+          "generation": 0,
+          "thread_id": 125176441739200
+        }
+      ]
+    }
+  ],
+  "control_gc_timing": {
+    "last_command_result_monotonic_s": 32441.931542525,
+    "last_cleanup_stop_ack_monotonic_s": 32442.057533141,
+    "generation2_start_monotonic_s": 32473.773467135,
+    "generation2_stop_monotonic_s": 32474.260957662,
+    "gap_from_last_command_result_s": 31.841924610002025,
+    "gap_from_last_cleanup_stop_ack_s": 31.715933994000807,
+    "generation2_overlapped_control_sequence": false,
+    "clock_scope": "Host monotonic timestamps: client journal records replies, cleanup records stop ACK time, GC uses callback core time. No exact request-send timestamp inferred."
+  },
+  "gpu_admission": {
+    "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+    "foreign_at_three_checks": [
+      [],
+      [],
+      []
+    ],
+    "free_mib_at_three_checks": [
+      97218,
+      97218,
+      97218
+    ]
+  },
+  "cache": {
+    "seed": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_LEGACY_20261004/legacy-contact-probe-twelve-01/cache",
+    "initial_files": 557,
+    "exclusive_inodes": true,
+    "private_copied_roots": [
+      "cuda",
+      "warp",
+      "xdg"
+    ],
+    "renderer_cache": "Shared selection; privateRTX disabled."
+  },
+  "closure": {
+    "native_exit": 0,
+    "scope_exit": 0,
+    "client_closed": true,
+    "forced": false,
+    "signals": [],
+    "remaining_members": [],
+    "remaining_births": [],
+    "inputs_unchanged": true,
+    "protected_stores_unchanged": true
+  },
+  "sdk": {
+    "recipe": "isaac62_48b2d951",
+    "newton_version": "1.6.1rc1",
+    "release_version_sha256": "59a6d16d8f3f247b73fa68a837867dafc0f568e491ae593f0ab1c2cb2fa62786",
+    "source_sha256": {
+      "mujoco_warp._src.support": "1a08ef15f149d1cf3c9ec5df6c688669fe86aa237ee2512a7463caf1b74e3d54",
+      "newton._src.solvers.mujoco.kernels": "bd770d39d20c208e980477e0186799f531364b03f16d76968ee69bacdc490a3d",
+      "newton._src.solvers.mujoco.solver_mujoco": "a2f2466ad9d35e32f6e87f12bbaa0e08d18295f4e95b1c059c805d2ff4091178",
+      "isaacsim.physics.newton.impl.newton_stage": "a9d4e95305b23e6cea8e4e8e5fb63dc8b6c5c5917ad5c3ba48e2ba29df84d958",
+      "isaacsim.physics.newton.impl.newton_config": "b1212639ebf22448a1da36b272b36da02eb340dcc1ad2312da075a66dadf1de0",
+      "isaacsim.physics.newton.impl.solver_config": "e6c17f958cbd2534ac71743e62f56b79c4e8d86147ee676a6e80ee0d7ea9fe03"
+    },
+    "physical_acceptance": false
+  },
+  "runtime_source_sha256": {
+    "assets/microduck/manifest.json": "56678bc8dbbc4aba6ca99944a37d495badb1157093b728348700739896383faa",
+    "assets/microduck/newton-bam.json": "d04d0281eb2f581ab738a95ddf6983f09bbfa8dbabef4087271e61e384fd5b4b",
+    "assets/microduck/policy-candidates.json": "6357372fd8f1aba6c64de5d95ba28a6f2f08a825fc4352642d20c152f776c11f",
+    "configs/isaac/microduck.newton.kit": "22ad2a0f66a14863c482a6fd74785475001d5b6aa2bd2f5879d31cb3440a7794",
+    "scripts/convert_microduck.py": "11e5df9e99b03cd0e3479a3dee94da17b685e49c04c32f364a895ab38c6751a2",
+    "scripts/isaac_camera_readback.py": "28c4523b08410db254c83e70f52c36f0f34488e6964dd6aebb561b638df8b9cd",
+    "scripts/isaac_microduck_bridge.py": "0187726e0f3bcc232d60c0c7beb6579f530a10765f612bc3fffffda5c2435085",
+    "scripts/isaac_microduck_shared.py": "fa0e9965123da3018918cfc4dbc92d8d8c00edec30b25146a4393c6843a947cd",
+    "scripts/isaac_runtime.py": "8d40bc13b50d86f6c671628486142b6ee2cfa61ea762ea7867e66cf1447c935a",
+    "src/cascade/apps/signal_stop.py": "1a94a391c25d856299d899e633aaa777215e4ef1dc1fc819bee492c44019b9bd",
+    "src/cascade/control/microduck_actuator.py": "77216426cefc311237fa6854f06aa98a90d4f9f53b080a93c886d67f14961a0e",
+    "src/cascade/control/microduck_policy.py": "4a3df35ac4eccafdbd94cb99be8ff2d80320a509a5494b8f0bd0c9c22059479c",
+    "src/cascade/control/mobile_base.py": "d31f5ba67fbf24979c17193d453af3e8ec7bbc98987a926d5f8eb580770619a6",
+    "src/cascade/control/mobile_support.py": "08a8c57898871d677c46de9aa34c3e59977e8b85a1039d49b5b241810fd328c4",
+    "src/cascade/control/mobile_telemetry.py": "7f2e4dab7f0162fb25fc80d0eb9851d56773396c85cd4646de59a7c9d6bce6d2",
+    "src/cascade/control/newton_bam.py": "1972ac0b4d6bbf06138ef550b530142c820cf03d6d3d4ce4aba5d68ffb00e64c",
+    "src/cascade/sim/microduck_admission.py": "dddf5ebced53b1f5b2d0fcffe508cfc28f6d02b84a2492d62837b98d87d3f483",
+    "src/cascade/sim/microduck_contact_support.py": "ddbcefaf1f95aa407cd669514f00fd5811ba89967faa87b68d78d576cd8b752e",
+    "src/cascade/sim/microduck_newton.py": "12501f358175baa43f7b868cb817855f5e8aeafb92940b816c76de16c4395268",
+    "src/cascade/sim/microduck_policy_admission.py": "199fb0683fffeae9e93a99f22ed595c29cad4e36508ab5c7888b0fba9bf551d9",
+    "src/cascade/sim/microduck_sdk.py": "dd3502263048e483ebbc3f393ebc505c0fe8fad23b0fb4b7837fa5cef314bf56",
+    "src/cascade/sim/microduck_shared.py": "d71e9e6082ac6a1ceabd4592813a74959f678b28ac9ad57e1b04435467048f34",
+    "src/cascade/sim/microduck_shared_native.py": "c03ef4286003abfeb6dcb3d4db405fce27e2b1b030901b4532d75643ea77448c",
+    "src/cascade/sim/microduck_solver_graph.py": "9f990fc96daaa91e849444acfd302d4c6da9a7c62a42adc1f3e445cf65858772",
+    "src/cascade/sim/microduck_state.py": "495f3062274b620890448d6b3958c7481108a265321a616f64da1ec06a972971",
+    "src/cascade/sim/microduck_stepper.py": "7d862f24399e435545587feb74303a40a69def509b879168f3a94a5799a7824d",
+    "src/cascade/sim/microduck_timing.py": "adee3bae4444546f3527b07dbe8238bd2147c9acd7b6d60e89779f1b8fdd5d52",
+    "src/cascade/sim/mobile_bridge.py": "14913ed93fc2d432d46a4378d643b1cdd96e142e176b74dfe730f9821ea2931b",
+    "src/cascade/sim/mobile_identity.py": "b90b10fcf2d077d2f83bed898041ff1effb597341df0b8433489913e14582004",
+    "src/cascade/sim/mobile_rgbd.py": "8bfc3219e21373eccaed55f92452d66820182cba12faa63f6a2c99d2fb3ab861",
+    "src/cascade/sim/private_rtx_cache.py": "ab7b9e06a930cb29254f0537875f4a497954f0355055d0e6e891ea215d9b8eb4"
+  },
+  "artifact_sha256": {
+    "kit/physics.jsonl": "4d8f2fe1d2a82592537ac98eac7337de01234cc609999e9bad5d1ce1887af4c4",
+    "kit/policy.jsonl": "40b558f52664b579dcaa41cb5087e062a3ea70cd8280174207b73e34d6306b94",
+    "kit/frames.jsonl": "62a579f6fb15d7c07d27c28694bcbcecbada01fb4296958350f299b4f16dd7fd",
+    "kit/support-probe.jsonl": "428f9c482d2378ef104f22083f312f2acc1ea1452d8ea8cfeb10f705173158df",
+    "kit/model-identity.json": "85107a4485c6f0a20353f26d1058f5196efe4509af7fefd5f16f5c95a4a10df4",
+    "kit/receipt.json": "7e5db30b52dbe86f886f0d53e0d1a66cc3e389b29049d0cae53648f87b506103",
+    "plan.json": "8afa23996c36564cf1db5d73484f553837e2b949798f5e2f7564c24dccaf4aac",
+    "inputs.json": "2e9088b6315e7472fe8e1c0e89c0d81f1c015cbbb3569173bdf71884711cf025",
+    "root-receipt.json": "64acea15be41bcd66a833556fe23a57c5cff528f3c9816a7285f1b1b12c4e0dc",
+    "launch-binding.json": "0474b2081cfaf2c2767932cd48c1a8c41aedf6122db65b32aa3b933dca15dca6",
+    "independent-audit.json": "992a0aa046eef1526fa67396e54023919231d1b27dbc076944f06beca7895703",
+    "phase-audit.json": "e86445db238ad5055237ec610d210f7be7fd2bd5e5274146cc0f600641d3b5d0",
+    "gc-trigger-audit.json": "f0d1a8c64fd5a5b4f4ddb77c9945012fc367439194a1a5e81f184bad4917653d",
+    "kit/timing.jsonl": "088407a8eae3683ca8cfaeb951b126307621200411a03e0ad9c94f028e18bf25",
+    "client-events.json": "1a4106b68cc932792850da072460d4e97d428d1fc7c91069031ff6e684bc07bd",
+    "client-close.json": "d223f8443b4877ebac563ff8a632f78ee287b2d6984a682e82a811497cb43b86",
+    "native-exit.json": "d24219f6de94b955cf36d25bd2aca88e2d35eef45b9317b7083f55ec8fe9653c",
+    "scope/owner.json": "e56208cf39f832afd40548f4d55fcd726184c9b6cb46308d32c8b19bd7ccfd26",
+    "gpu-planning-admission.json": "055d482015114b2830b1b47da7f4eb0464adda96574b954a78c3f4f4883da8a8",
+    "gpu-recheck-01.json": "055d482015114b2830b1b47da7f4eb0464adda96574b954a78c3f4f4883da8a8",
+    "gpu-recheck-02.json": "055d482015114b2830b1b47da7f4eb0464adda96574b954a78c3f4f4883da8a8",
+    "cache-provenance.json": "39063aad0b6dd2f37b165ebe656504369147b71cb06c01ee09052fe2de1e2de3",
+    "reviewed-pin-reference.json": "1a77485d82d63b3bfc31047b94d12ef0f6a92cd8e8e5ab3e564e23530c6ddbbb",
+    "source-freeze.json": "288f7fbcecf6d15dcb379db131cf8f1d4a1732260fc439fea7be44666863d12b",
+    "plan-diff.json": "e2d9a9a42255f7b83176fb6dda159b0edb0f79699ea78a4c3fe5ca4696043647"
+  },
+  "auditors_sha256": {
+    "audit_endpoint_native.py": "783abe77eaa2eefb02ed0537df6bb289631acfe197263b25fc5989bec71a3c0d",
+    "audit_phases_trigger.py": "b0e1129e6fd178bb38f96be68cf7edeca9f968c545ae368608c94b78b3ddcec8",
+    "audit_gc_v2.py": "26d6dde090deacfa92a854eed34f4b251eb29a6459d94014c38d85656b69146f",
+    "audit_gc_v3.py": "bf63eeccb69efabe051913e328021f8535908a5e7a1995389265a4baa8a21cef"
+  },
+  "reader_reference": {
+    "source": "ba8c37996bce631bd351aafb66e8e1f7304597ad",
+    "scene_model_sha256": "dbee909c2171532f74f834c09c00d7734c527d77aa3d1d31d34bc5681872a98f",
+    "model_identity_file_sha256": "85107a4485c6f0a20353f26d1058f5196efe4509af7fefd5f16f5c95a4a10df4",
+    "probe_artifacts": {
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_LEGACY_20261004/legacy-contact-probe-twelve-01/root-receipt.json": "0def5c9bff3028ec28e434c78515275fb94cca90e8fd228f52f3439545725d32",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_LEGACY_20261004/legacy-contact-probe-twelve-01/independent-audit.json": "8041f2337389dab7e681752ec257373833f186d2a06fdb48ec42a08860c5d178",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_LEGACY_20261004/legacy-contact-probe-twelve-01/phase-audit.json": "89aa47232affc5783a812b7d27d1cc285a1be8d6af8693a4b7902ee3c735c3e8",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_LEGACY_20261004/legacy-contact-probe-twelve-01/gc-trigger-audit.json": "af82e01d5e3902f11749985f879a5953fc27d2e6d1ed15a9be69701e7d3cbecd",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_LEGACY_20261004/legacy-contact-probe-twelve-01/kit/model-identity.json": "85107a4485c6f0a20353f26d1058f5196efe4509af7fefd5f16f5c95a4a10df4"
+    },
+    "prior_control_failure_artifacts": {
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_ROW_20261004/row-zero-twelve-01/plan.json": "54d980352cc2bb0f9d6ace5219053b62bb91ae3c10cafe21f3a4fdedf7d1b2e8",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_ROW_20261004/row-zero-twelve-01/control-failure-audit.json": "a8c0e536b8cffe4dddb69983ca86611b86e86ec9c9bcd9357238b12eec9729e5",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_ROW_20261004/row-zero-twelve-01/phase-audit.json": "bcf2595d77befa8c0953219064078de47a05e7bf6036b24a2bf2b13bb1189447",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_ROW_20261004/row-zero-twelve-01/gc-audit.json": "61c8ab4c55d34d4e3d2f392c5c31c0e5749ad517b29e72f5bc63752a31a55f22",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_ROW_20261004/row-zero-twelve-01/client-events.json": "5de0313fcb5db525de4395a2ebbb03837e03dd1624273113bad8a5770a9455f0"
+    },
+    "reader_only_probe_passed": true,
+    "independent_identity_review": "root and find_astra_log; explicit root acceptance before preparation",
+    "control_admitted_by_reader_probe": false,
+    "tail_deadlines_resolved": false,
+    "fixed_episode_rationale": "New source and observed reader10-to-1 slow-attempt change; retain original windows and any outcome, no phase selection."
+  },
+  "retained_negative_evidence": [
+    "endpoints.json",
+    "support-control.json",
+    "row-control.json"
+  ],
+  "limitations": [
+    "This fixed episode completed protocol stop/reset/zero commands on twelve robots, not gait or an independently verified physical stop.",
+    "The only generation-2 pause began after all command results and cleanup stop ACKs. Control during such a pause was not exercised; worst-case deadlines remain unresolved.",
+    "Two naturally invalidated preview cohorts retried against the same completed state without extra native solves or policy-history commits. No adversarial timing was scheduled.",
+    "The sixteen-frame stack is truncated and shows support validation as an observed trigger, not the heap scanned or a causal attribution.",
+    "GC settings, original RPC/progress/freshness/wall gates, logging and all earlier negative episodes remain unchanged.",
+    "Phase spans overlap and are not additive. Callback overhead is partial; separate runs do not establish causal performance or repeatability."
+  ]
+}

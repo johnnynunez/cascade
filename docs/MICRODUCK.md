@@ -377,6 +377,21 @@ default. Both GPU admission cohorts were empty, but host load was uncontrolled;
 these separate episodes establish neither causal speedup nor a control deadline
 guarantee. The original control limits and earlier failures remain intact.
 
+The [subsequent fixed twelve-robot zero episode](
+evidence/microduck-shared-20261004/legacy-control.json) completed all 72 client
+events: stop, reset and one zero command per robot, with `execution_ok=true`
+and physical outcomes `unverified`. It completed 800 solves, 2,400 policy
+commits and 9 capture/probe pairs, then closed normally. Two naturally
+invalidated preview cohorts discarded 24 evaluations and retried against the
+same completed state; there were no withheld solves or extra history commits.
+
+Its only generation-2 interval started 31.84 s after the final command result
+and 31.72 s after the final cleanup stop ACK. The longest attempt was still
+575.06 ms, so this protocol pass did not exercise control through that pause or
+establish worst-case deadlines, physical rest or gait. The episode kept the
+original 0.5 s RPC, 0.4 s progress and 0.5 s state-age limits, with no favorable
+retry. The three earlier twelve-robot control failures remain retained.
+
 Two [reader-only GC profiles](evidence/microduck-shared-20261004/gc-serialization.json)
 each completed 800 solves, 2,400 policy commits, 24 reader events and 9
 overview/support-probe pairs, with normal native and client closure. The second

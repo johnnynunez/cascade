@@ -83,7 +83,7 @@ runpy.run_path(sys.argv[0], run_name='__main__')
     assert "cuda-llm-fp32" in result.stdout
 
 
-def test_cuda_recipe_changes_only_device_environment_and_pinned_torch(host, tmp_path, monkeypatch):  # noqa: F811
+def test_cuda_recipe_preserves_models_sampling_and_deadlines(host, tmp_path, monkeypatch):  # noqa: F811
     cfg = host.recipe()
     cpu = host.provider_argv(tmp_path, 18878)
     monkeypatch.setenv("CUDA_VISIBLE_DEVICES", OTHER)
@@ -95,8 +95,12 @@ def test_cuda_recipe_changes_only_device_environment_and_pinned_torch(host, tmp_
     differences = [(i, a, b) for i, (a, b) in enumerate(zip(cpu, gpu)) if a != b]
     assert differences == [(cpu.index("--llm_device") + 1, "cpu", "cuda")]
     new = host.recipe()
-    assert {k: v for k, v in new.items() if k not in {"recipe", "acceleration", "torch_wheels"}} == {
-        k: v for k, v in cfg.items() if k != "recipe"}
+    changed = {"version", "recipe", "acceleration", "torch_wheels", "loader_wheels",
+               "source_manifest", "source_manifest_sha256"}
+    assert {k: v for k, v in new.items() if k not in changed} == {
+        k: v for k, v in cfg.items() if k not in changed}
+    assert new["acceleration"]["llm_load_strategy"] == "direct-single-cuda"
+    assert gpu[len(cpu):] == ["--llm_direct_cuda_load", "True"]
     assert host.environment(tmp_path, offline=False)["CUDA_VISIBLE_DEVICES"] == ""
     env = host.environment(tmp_path, offline=True, cuda_device_uuid=GPU)
     assert env["CUDA_VISIBLE_DEVICES"] == GPU
@@ -238,12 +242,12 @@ def test_torch_uuid_boundary_rejects_unexpected_format(selected, bare):
         selected.acceleration.torch_uuid(CUuuid(bare))
 
 
-@pytest.mark.parametrize("corrupt", [False, True])
-def test_installation_hashes_both_wheels_before_invoking_package_manager(selected, tmp_path, monkeypatch, corrupt):
+@pytest.mark.parametrize("corrupt", [None, 1, 2, 3, 4])
+def test_installation_hashes_all_wheels_before_invoking_package_manager(selected, tmp_path, monkeypatch, corrupt):
     calls = []
     def download(url, path, expected):
         calls.append((url, path.name, expected))
-        if corrupt and len(calls) == 2:
+        if corrupt == len(calls):
             raise ValueError("download hash mismatch")
     monkeypatch.setattr(selected, "download", download)
     monkeypatch.setattr(selected.subprocess, "run", lambda cmd, **kwargs: calls.append((cmd, kwargs)))
@@ -251,13 +255,44 @@ def test_installation_hashes_both_wheels_before_invoking_package_manager(selecte
     if corrupt:
         with pytest.raises(ValueError, match="hash mismatch"):
             selected.install_torch("uv", tmp_path / "python", tmp_path, env)
-        assert len(calls) == 2  # No partial environment install.
+        assert len(calls) == corrupt  # No partial environment install.
     else:
         selected.install_torch("uv", tmp_path / "python", tmp_path, env)
-        assert calls[:2] == [(pin["url"], name, pin["sha256"])
-                            for name, pin in selected.recipe()["torch_wheels"].items()]
-        cmd, kwargs = calls[2]
+        pins = selected.recipe()["torch_wheels"] | selected.recipe()["loader_wheels"]
+        assert calls[:4] == [(pin["url"], name, pin["sha256"]) for name, pin in pins.items()]
+        cmd, kwargs = calls[4]
         assert cmd[:5] == ["uv", "pip", "install", "--python", str(tmp_path / "python")]
         assert cmd[5:7] == ["--constraint", str(selected.REQUIREMENTS)]
-        assert cmd[7:] == [str(tmp_path / name) for name in selected.recipe()["torch_wheels"]]
+        assert cmd[7:] == [str(tmp_path / name) for name in pins]
         assert kwargs["env"]["CUDA_VISIBLE_DEVICES"] == "" and kwargs["check"] is True
+
+
+def test_direct_loader_flag_is_only_in_cuda_recipe(host, tmp_path):  # noqa: F811
+    cpu = host.provider_argv(tmp_path, 18878)
+    assert "--llm_direct_cuda_load" not in cpu
+    host.select_profile("cuda-llm-fp32")
+    cuda = host.provider_argv(tmp_path, 18878)
+    assert cuda[-2:] == ["--llm_direct_cuda_load", "True"]
+    assert dict(zip(cpu[2::2], cpu[3::2])).get("--llm_device") == "cpu"
+    assert cuda[:-2] == ["cuda" if i == cpu.index("--llm_device") + 1 else v
+                        for i, v in enumerate(cpu)]
+
+
+@pytest.mark.parametrize("mapping", [None, {"": "cuda:0"}])
+def test_actual_direct_loader_is_observed_after_warmup(selected, mapping):
+    llm = NS(direct_cuda_load=True, pipe=NS(device="cuda:0"), model=NS(hf_device_map=mapping))
+    observed = selected.acceleration.attest_direct_loader(llm)
+    assert observed["direct_cuda_load"] is True and observed["hf_device_map"] == mapping
+
+
+@pytest.mark.parametrize("bad", ["flag", "truthy", "pipeline_cpu", "map_cpu", "map_auto", "map_split"])
+def test_direct_loader_refuses_strategy_or_placement_drift(selected, bad):
+    llm = NS(direct_cuda_load=True, pipe=NS(device="cuda:0"), model=NS(hf_device_map=None))
+    if bad == "flag": llm.direct_cuda_load = False
+    elif bad == "truthy": llm.direct_cuda_load = 1
+    elif bad == "pipeline_cpu": llm.pipe.device = "cpu"
+    elif bad == "map_cpu": llm.model.hf_device_map = {"": "cpu"}
+    elif bad == "map_auto": llm.model.hf_device_map = "auto"
+    elif bad == "map_split": llm.model.hf_device_map = {"": "cuda:0", "layer": "cpu"}
+    with pytest.raises(ValueError):
+        selected.acceleration.attest_direct_loader(llm)

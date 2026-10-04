@@ -362,3 +362,22 @@ Predicted labels and pixel masks supply no verified object identity, depth,
 complete geometry, clearance or grasp authorization. Archive analysis carries
 the original capture clock and makes no claim that the images are currently
 fresh for a live robot.
+
+One [closed detector episode](evidence/robot-modularity/vab-rgb-detections-20261004.json)
+on source `39fd352a` processed all 84 observed views with one CPU detector and
+the local prompt-free checkpoint `292bdf15…`. It returned 761 regions with
+boolean masks: 357 from the fixed camera and 404 from the wrist camera, spanning
+65 predicted labels. Every region retains the original pixels and capture
+identity. The labels include unrelated scene descriptions; no independent
+identity or accuracy check establishes which region is the requested object.
+This supplies a tested image-to-prediction path, not a perception-guided grasp.
+
+The detector and owned scope exited zero without signals, forced cleanup,
+errors or surviving births. All 5,633 selected inputs remained unchanged;
+99 source tests and 12 launcher/auditor cases passed, with one optional SDK
+test skipped. The inventory covers the repository and six selected installed
+distributions, not the whole environment. Ultralytics used
+`/tmp/Ultralytics/settings.json` because the requested configuration parent
+directory did not exist; private settings were not established. Future isolated
+runs must create that directory before import. This limitation and the original
+execution remain recorded; no detector rerun was used to replace them.

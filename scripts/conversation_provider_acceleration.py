@@ -24,7 +24,9 @@ def startup_deadline(value, *, create=False, clock=None):
         value = now + STARTUP_MAX_S
     if type(value) not in (int, float) or not math.isfinite(value):
         raise ValueError("startup requires a finite monotonic deadline")
-    if not 0 < value - now <= STARTUP_MAX_S:
+    # Subtracting a rounded absolute deadline can exceed the very duration
+    # used to create it. Compare clock readings without adding a tolerance.
+    if not now < value <= now + STARTUP_MAX_S:
         raise ValueError("startup deadline expired or exceeds the original 150 seconds")
     return float(value)
 

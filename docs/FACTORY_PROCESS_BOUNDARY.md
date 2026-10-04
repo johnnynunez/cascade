@@ -98,8 +98,8 @@ by serializing domain operations and decoding one row at a time; these private
 stores retain no cache of reconstructed records.
 
 Native integration still requires canonical model/source admission, an owned
-process launcher, measured memory headroom and a separately reviewed retained
-corpus replay. The CPU adapter binds its model/epoch/layout handshake but does
+process launcher and measured memory headroom. The closed-record replay below
+does not provide those native checks. The CPU adapter binds its model/epoch/layout handshake but does
 not construct or authenticate a native producer. Primitive decoding alone is
 not a Factory observation validator. Transport faults reach the actual child
 controller stop path; an acknowledgment alone never establishes physical rest.
@@ -170,6 +170,28 @@ over explicitly synthetic rows. They cover readiness, reset, turn, stop/rest,
 stale rejection with RAW retained, exclusive persistence, and stop while archive
 IO is blocked. These are software contract tests, not robot motion evidence.
 The aggregate memory table remains a planning reservation: a native launcher,
-model/source admission, measured SDK/host headroom, bounded disk admission and a
-new retained-corpus replay are still required. No native profile or CLI selects
+model/source admission, measured SDK/host headroom and bounded disk admission
+are still required. No native profile or CLI selects
 this adapter, and no prior native result transfers to it.
+
+## Closed-record replay
+
+The [compact CPU receipt](evidence/robot-modularity/factory-process-cpu-20261004.json)
+binds the frozen adapter source, test stages and one replay of the preserved
+bytes-retention episode. It round-tripped all 21,712 RAW rows, 6,965,290 contact
+candidates and 21,339 threading samples, preserving exact public JSON, typed
+float bits and the 21,711 historical acceptance labels. The last row remains
+rejected at 298.100 ms against the original 200 ms gate. These labels come from
+the earlier audit; replay does not call a new physical controller or authorize
+an action. The prior native task and physical-rest negatives remain unchanged.
+
+The streaming replay completed in 416.372 s within its 600/630 s, 12 GiB,
+100% CPU bounds, with no SDK, models or solves. RAW plus outcome persistence
+wrote 3,126,586,477 bytes. Both observed process births were absent after
+ordinary exit zero, and all leases and threading views were released. Normal
+GC and its thresholds were unchanged; 257 generation-2 collections occurred.
+The peak charged payload was 242,219,683 bytes, which is neither process RSS nor
+a native memory or latency measurement. This establishes bounded codec,
+persistence and retention equivalence. The separate synthetic subprocess tests
+exercise the socket, owner and domain contracts; native process integration
+and its aggregate memory admission remain pending.

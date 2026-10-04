@@ -1,0 +1,218 @@
+{
+  "schema": "cascade.factory-process-cpu-evidence.v1",
+  "scope": "Private CPU process adapter and closed-record codec/durable archive/retention replay. No native adapter entry point, new controller acceptance, physical admission or latency claim.",
+  "lab_root": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_PROCESS_20261004",
+  "source_head": "723211c2a4b6d7c4fb2b54198fdf0e1bdf581bd3",
+  "primitive_checkpoint": "79a27f26cdcca0b4da320505388548355976dff7",
+  "publication_files_equal_frozen_source": {
+    "src/cascade/apps/factory_runtime.py": "51099747db827ed0a457cc9ca82d4216e6447eed1d8488f17e92cff0be27654f",
+    "src/cascade/sim/factory_owner.py": "21148fd3f2e049f7209f97ffb945f3ff616be58afbf4fed856e8bd8f7f6839d9",
+    "src/cascade/sim/factory_process_adapter.py": "40c3d4e33020c60885c272acc59d1adbe6e279982dbe0a0341fc66aafdeb7097",
+    "src/cascade/sim/factory_process_history.py": "f034ea357ebd144e7c3a2ab4aadb05957d0b0e4e04d71ed1403eddcc1a7e6e30",
+    "src/cascade/sim/factory_process_protocol.py": "e00abcd6cbd44df13938147bba52e6c5e1de8bf5aeab1e237947edffc3fb8d1f",
+    "src/cascade/sim/factory_process_snapshot.py": "b013bf35d1490e2c890f86fbc93e150adbc7751ac0c1c497e1914ce7b54de75b",
+    "src/cascade/sim/factory_process_threading.py": "79771db09b7cf6e632436e1fd8bd625695949b13d6c97ddb54f96f7fa67dfd29",
+    "src/cascade/sim/factory_process_wire.py": "43276fcfb957938e74cc565ef8d635a7a2b8c18a88e58b4b5f69783f0b1e2e83",
+    "src/cascade/skills/fastening_runtime.py": "b47f68672b51e87bd352c6ef3be6cf0314157e85e7ae7325ec6771ee005959bb",
+    "src/cascade/skills/seating_runtime.py": "6c91e5d348040b688cd4ac9239d8a14000dc9921fa79bf60fd1af9fbf46c5f34",
+    "tests/test_factory_process_adapter.py": "4ad8ac5c559d0b4d72ce0ab0e346e180d24290e43b87c1e8bd4eef35be607227",
+    "tests/test_factory_process_history.py": "4d89c84157ba23e3c2cec17186d75d53ecf81b8eab1e3aeb1516f90dfef251db",
+    "tests/test_factory_process_snapshot.py": "2a3dbed2090d190a065b3d38a2d4833d13fef5e4626d457b3aeff8634c779d61",
+    "tests/test_factory_process_threading.py": "3857c07ff6698dacc36b826c0d046639f891a7360d38f96d4ae3619da6628e4f",
+    "tests/test_factory_process_transport.py": "54f99dfaf601087f7cd2f2bde2f84c26457c888065f79351d0f8b58675519bd1"
+  },
+  "software_checks": {
+    "stages_not_additive": [
+      {
+        "selection": "transport/history/snapshot/threading",
+        "passed": 102,
+        "skipped": 0,
+        "wall_s": 1.24,
+        "stage": "pre-adapter frozen primitive checkpoint"
+      },
+      {
+        "selection": "adapter plus primitives, owner, fastening runtime and seating",
+        "passed": 239,
+        "skipped": 112,
+        "wall_s": 8.06,
+        "stage": "initial wiring before added archive/cleanup regressions"
+      },
+      {
+        "selection": "adapter and owner",
+        "passed": 66,
+        "skipped": 112,
+        "wall_s": 2.92,
+        "stage": "final cleanup/EOF/fault-before-cycle changes; includes14 adapter cases"
+      }
+    ],
+    "optional_skips": "Optional native SDK/backend tests absent in the CPU interpreter; no native admission implied.",
+    "publication_integration": {
+      "passed": 250,
+      "optional_SDK_skipped": 112,
+      "wall_s": 8.6,
+      "base": "94415c582fd11dc41b32cd67e1d799e384abe743"
+    },
+    "private_replay_tests_passed": 3,
+    "private_synthetic_replay": {
+      "rows": 12,
+      "accepted_labels": 11,
+      "models": 0
+    },
+    "earlier_environment_refusals_retained": [
+      "view01 missing yaml",
+      "view02 missing cv2"
+    ]
+  },
+  "closed_replay": {
+    "bounds": {
+      "child_s": 600,
+      "cpu": "100%",
+      "memory": "12G",
+      "outer_s": 630
+    },
+    "elapsed_loop_s": 416.3723202590045,
+    "rows": 21712,
+    "historical_acceptance_labels": 21711,
+    "contact_candidates": 6965290,
+    "thread_samples": 21339,
+    "accepted_prefix_before_ring_wrap": 1711,
+    "history_ring_rows": 20000,
+    "public_raw_bytes": 3125859375,
+    "public_raw_sha256": "7ade7258de0d7f3fbb4627f6cab7a036fb8311721089238a8f1fdbf83c86b1ca",
+    "typed_rows_sha256": "b8e948e99f434cf8c65d9805eee44898ed73d8643b9ce0a0eeab37a86e571c50",
+    "typed_thread_sha256": "f973429b8fa5f48acb6cfc09812fd927c2a3e7a04657d1c0c28f91fe944a1618",
+    "persisted_raw_plus_outcome_bytes": 3126586477,
+    "maximum_packet_bytes": 28075,
+    "maximum_frame_bound_bytes": 440294,
+    "peak_charged_host_payload_bytes_not_RSS": 242219683,
+    "final_rejection_sticky": true,
+    "original_freshness_rejection": {
+      "age_s": 0.2980996269980096,
+      "binding_sha256": "3a17a6f051fca87dcb5d09a005007c021e27f90b02ecb91db43b4cc610abd1ac",
+      "captured_monotonic_s": 61860.426192998,
+      "checked_monotonic_s": 61860.724292625,
+      "epoch": "7f564dce4395400dbffd70406ecf4fb5",
+      "generation": 2,
+      "max_observation_age_s": 0.2,
+      "model_identity_sha256": "3be29420b156c9981e03ff1be1305b4bb2bb17ffb02d2105ef0667f7d0bd369a",
+      "reason": "stale",
+      "simulation_time_s": 36.186667542904615,
+      "stage": "controller_accept_solve",
+      "step": 21712
+    },
+    "offline_threading_verdict": {
+      "checks": {
+        "axial_advance": true,
+        "axis_alignment": true,
+        "fixed_fixture": true,
+        "requested_fastener_rotation": true,
+        "thread_and_tool_contact": true,
+        "thread_pitch": true
+      },
+      "measured": {
+        "axial_advance_m": 0.03831431269645691,
+        "contact_rotation_fraction": 0.9941991145139654,
+        "elapsed_s": 35.56333419447765,
+        "max_axis_tilt_rad": 0.006747474176992825,
+        "max_fixture_rotation_rad": 0.0,
+        "max_fixture_translation_m": 0.0,
+        "max_pitch_error_m": 0.0002459357488841657,
+        "max_radial_offset_m": 0.0001470879097480771,
+        "samples": 21339,
+        "turns": 15.42409937813643
+      },
+      "reason": "measured fastener advancement follows thread pitch",
+      "seating_verified": false,
+      "status": "confirmed",
+      "threading_verified": true
+    },
+    "models": 0,
+    "solves": 0,
+    "physical_admission": false,
+    "inputs_unchanged": true,
+    "full_corpus_hash_before_inside_after": true,
+    "source_files": 231,
+    "small_inputs": 1140,
+    "gc_enabled": true,
+    "gc_thresholds_unchanged": [
+      700,
+      10,
+      10
+    ],
+    "generation2_collection_delta": 257,
+    "closure": {
+      "child_exit": 0,
+      "scope_exit": 0,
+      "signals": [],
+      "forced": false,
+      "errors": [],
+      "final_drain_settled": true,
+      "observed_births": 2,
+      "same_births_remaining": 0,
+      "remaining_members": []
+    },
+    "cleanup": {
+      "archive": {
+        "bytes": 3126586477,
+        "close_errors": [],
+        "error": null,
+        "ok": true,
+        "outcomes": 21712,
+        "raw": 21712
+      },
+      "errors": [],
+      "host_retained_bytes": 0,
+      "thread_retained": {
+        "active_readers": 0,
+        "bytes": 0,
+        "rows": 0,
+        "views": 0
+      }
+    }
+  },
+  "original_native_corpus": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_BYTES_20261004/seating-01/native/runtime/domains/fastening/solves.jsonl",
+    "bytes": 3125859375,
+    "sha256": "7ade7258de0d7f3fbb4627f6cab7a036fb8311721089238a8f1fdbf83c86b1ca",
+    "audit_path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_BYTES_20261004/seating-failure-audit-01.json",
+    "audit_sha256": "76b2a2f19647d81ee44a5c7cc0ea87bed3b9510f78702b4c25cadb04c5a3f622",
+    "source_head": "6858456de5b76c6d3c9db22e0133695d473900f1",
+    "seating_verified": false,
+    "physical_rest_verified": false,
+    "unchanged": true
+  },
+  "limitations": [
+    "Replay reuses recorded acceptance labels; CPU subprocess owner/domain tests use synthetic rows separately.",
+    "Exact public JSON, typed values and retained rejection establish content equivalence, not new physical evidence.",
+    "Measured payload charge is not RSS, SDK memory or native timing; normal-GC collection counts are not heap attribution.",
+    "The native 24 GiB aggregate table remains a planning reservation; source/model admission and measured headroom are pending.",
+    "Preparation documents retain their original UNLAUNCHED state; closed receipts record the subsequent single authorized replay."
+  ],
+  "selected_small_artifact_sha256": {
+    "closed-replay-01/receipt.json": "1c63b2e537dec561306ed705fbbe01fe77a0ea36af32d47bb6ee09b52d7d4437",
+    "closed-replay-01/replay/replay-cleanup.json": "547f942fd4f446109abe878ce3be76a41ba915f9cc662c969a2e49c76c0baeb2",
+    "closed-replay-01/replay/result.json": "d8a7f2af57a20f91ac34df0d7357d671691a1f12b0ee99d856f3f178dab7773f",
+    "closed-replay-01/scope/closure.json": "49e71937054ed194b5bfa59e75888730f596c2d6e6f2692935750e9a980fe5dc",
+    "closed-replay-binding-01.json": "eab707ef48e3620e9ae20a5cc8ebe61e38b5b54c6027bf22f6f2ace54c4dab6e",
+    "closed-replay-check-only-01.json": "23c9897fdee2ab5c58a2b8df158171df5a7b2dfea193a465c56ea0708c8d2459",
+    "closed-replay-plan-01.json": "a76dc6cb184c43f3a5ada472347be29c341af863e2bb2423f316934fb2b79af7",
+    "closed-replay-post-close-01.json": "fbcde2dc994e60a2022325626dab914ef6dcc2b0572d10d43f2280327b288316",
+    "closed-replay-prepare-01.log": "e8d02563c63d06339db9ba6c37412f437aeb9c5ef2ea5aca57436b860d4bff22",
+    "closed-replay-prepare-02.log": "8c5ee743907426afbebf28f38fd2c1ed356bfa83e3178a4d455d5e4ac3fdd125",
+    "closed-replay-private-tiny-01.log": "af7b9679c37c4df3ade6dd0bb59f48abcafa765b756ff30dc25d3495441cc140",
+    "closed-replay-review-01.json": "17706f707053ef4cbaf33c006801e4937387d3db4689a2784c959eddf5a150db",
+    "closed-replay-tests-03.log": "d7e4ad4c69bf37e691129daa48aca98483bae4729f72c38e48a1bd111dffb734",
+    "cpu-wiring-validation-01.json": "635f0e67e7d8e27d667456e5d1ccdfcc33a2ef868a20f319d425bf23435e55f8",
+    "launch_closed_replay.py": "00e6ead941d2706f18314b2abe948dc1345c4eee8ec272faa4a402555ebce031",
+    "owned_services.py": "44f1f98f4760f31a7c6dd89acddb1ed073523b8c2520f322abe2c5eae8000473",
+    "prepare_closed_replay.py": "fb1ae786933e73285b7a681f06079590ffcc4fda9ec76742e2776c58969b5a28",
+    "publication-tests-01.log": "d8a230a743b8226ff0b33d58d6552eed853b5449b047bfb94bef74598f3d2709",
+    "replay-import-preflight-01.json": "87236b2f8cbdde80f6320f29f3649f6866ab7ac6cab09e4f765d90641eb275d9",
+    "replay-import-refusal-02.json": "c315184deaccb080b2f3e116471d3b943cc4d3b231860daff0a9301c8452817c",
+    "replay_closed.py": "46d7e9e874f69fc23bf448cb35c7aa558d69fa9d88241d1b6dfd7a55f5f76bba",
+    "replay_source_guard.py": "f2fa015e10b7f9a4eeace6ce59dd37f7a72e3241e0f782fc48bd28ca5cbd9f59",
+    "snapshot-sample-01.json": "1bdf03479c62d6dc9c9f0a410e796694a243b6dafb29ee5e328e697ce67e60d7",
+    "test_closed_replay.py": "9901119fef6747fe79aa603bd9970cd083671bf9ea6e79723ae5fa8fcd715f5a",
+    "tiny-private-replay-01/result.json": "14b7293617860469422dad9c54a143794d001aee24eaed7b120bac6f647948d0"
+  }
+}

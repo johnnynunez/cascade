@@ -339,3 +339,10 @@ absent after ordinary scope exit, with no signals or forced closure; runtime
 closure correctly retained the freshness fault. The existing compact receipt
 preserves this negative, its separate model and epoch, and the full raw/phase
 artifact hashes. No retry was performed.
+
+A private [Factory process adapter](FACTORY_PROCESS_BOUNDARY.md) now separates
+the solver's authority from host archive and verification work in CPU contract
+tests. A closed-record replay preserves this episode's full RAW data and original
+refusal through the bounded codec and durable archive. No native entry point
+selects the adapter yet; process isolation, memory headroom and native latency
+still require their own source-bound validation.

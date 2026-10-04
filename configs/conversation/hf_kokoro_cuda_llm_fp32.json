@@ -1,0 +1,108 @@
+{
+  "version": 3,
+  "recipe": "hf-kokoro-llm-cuda-float32-schema-eof-cancel-20261004",
+  "python": "3.12",
+  "platform": "linux",
+  "architecture": "x86_64",
+  "threads": 2,
+  "seed": 42,
+  "source_revision": "411399d34555b2169823a6eaeb7f8ff192db89db",
+  "silero_revision": "1e261b036686cd0017d500ee96acd1c4ba572a9d",
+  "nltk_data_revision": "550b6625bcef1f2abff2ff770a5a0d272c9c6b2a",
+  "archives": {
+    "silero.tar.gz": {
+      "url": "https://codeload.github.com/snakers4/silero-vad/tar.gz/1e261b036686cd0017d500ee96acd1c4ba572a9d",
+      "sha256": "9cf15c718a686282c05126d0221866b10aa27b364fbd7fe47a53c29ef01f146b",
+      "bytes": 29325774
+    },
+    "punkt_tab.zip": {
+      "url": "https://raw.githubusercontent.com/nltk/nltk_data/550b6625bcef1f2abff2ff770a5a0d272c9c6b2a/packages/tokenizers/punkt_tab.zip",
+      "sha256": "e57f64187974277726a3417ca6f181ec5403676c717672eef6a748a7b20e0106",
+      "bytes": 4319076
+    },
+    "averaged_perceptron_tagger_eng.zip": {
+      "url": "https://raw.githubusercontent.com/nltk/nltk_data/550b6625bcef1f2abff2ff770a5a0d272c9c6b2a/packages/taggers/averaged_perceptron_tagger_eng.zip",
+      "sha256": "6025f530624335c67d6547d44757b357b4e79bae030a0383e9887a92c1718f0b",
+      "bytes": 1539115
+    },
+    "en_core_web_sm-3.8.0-py3-none-any.whl": {
+      "url": "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
+      "sha256": "1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85",
+      "bytes": 12806118
+    },
+    "speech-to-speech.tar.gz": {
+      "url": "https://codeload.github.com/huggingface/speech-to-speech/tar.gz/411399d34555b2169823a6eaeb7f8ff192db89db",
+      "sha256": "2a344e59ad73110e263a731bc38fef001286b29a5e58f60b9cdf2491dfd9efb1"
+    }
+  },
+  "models": [
+    {
+      "role": "stt",
+      "repo": "openai/whisper-base",
+      "revision": "e37978b90ca9030d5170a5c07aadb050351a65bb",
+      "files": [
+        "*.json",
+        "*.safetensors",
+        "*.txt",
+        "README.md"
+      ]
+    },
+    {
+      "role": "llm",
+      "repo": "Qwen/Qwen3-1.7B",
+      "revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+      "files": [
+        "*.json",
+        "*.safetensors",
+        "*.txt",
+        "README.md"
+      ]
+    },
+    {
+      "role": "tts",
+      "repo": "hexgrad/Kokoro-82M",
+      "revision": "f3ff3571791e39611d31c381e3a41a3af07b4987",
+      "files": [
+        "config.json",
+        "kokoro-v1_0.pth",
+        "voices/bm_fable.pt",
+        "README.md",
+        "VOICES.md"
+      ]
+    }
+  ],
+  "voice": "bm_fable",
+  "language": "b",
+  "streamer_timeout_s": 10.0,
+  "max_runtime_s": 900,
+  "llm_torch_dtype": "float32",
+  "source_manifest": "provider/manifest.json",
+  "source_manifest_sha256": "6e1f9251f9d98a318ae5171b7bbc0f66cd455709eb3971a85874ae36440d21a9",
+  "acceleration": {
+    "profile": "cuda-llm-fp32",
+    "llm_device": "cuda",
+    "stt_device": "cpu",
+    "tts_device": "cpu",
+    "torch_version": "2.11.0+cu130",
+    "torchaudio_version": "2.11.0+cu130",
+    "cuda_version": "13.0",
+    "compute_capability": [
+      12,
+      0
+    ],
+    "required_arch": "sm_120",
+    "minimum_free_bytes": 17179869184,
+    "float32_matmul_precision": "highest",
+    "allow_tf32": false
+  },
+  "torch_wheels": {
+    "torch-2.11.0+cu130-cp312-cp312-manylinux_2_28_x86_64.whl": {
+      "url": "https://download.pytorch.org/whl/cu130/torch-2.11.0%2Bcu130-cp312-cp312-manylinux_2_28_x86_64.whl",
+      "sha256": "96911323dcfcd42028c7e8edde7bdf25bb187753234e8775f0f3f112e86a22db"
+    },
+    "torchaudio-2.11.0+cu130-cp312-cp312-manylinux_2_28_x86_64.whl": {
+      "url": "https://download.pytorch.org/whl/cu130/torchaudio-2.11.0%2Bcu130-cp312-cp312-manylinux_2_28_x86_64.whl",
+      "sha256": "3fba988f4301fe13547fe5e99c76d9ae36a27e19ded82eeffed9d2456e12edef"
+    }
+  }
+}

@@ -463,6 +463,36 @@ used owned TERM; all owned births disappeared. Cancellation handling and thread
 restoration both changed from voice06, so this run does not isolate their
 latency effects or establish repeatability. Earlier failures remain intact.
 
+The separate `--profile cuda-llm-fp32` recipe prepares a **new** Linux x86_64 /
+Python 3.12 state with hash-pinned official PyTorch 2.11.0 CUDA 13.0 wheels.
+The installed speech-provider source, model revisions, prompt handling,
+sampling, two CPU threads and FP32 LLM parameters remain the same. Only the
+LLM moves to CUDA; Whisper and Kokoro stay on CPU. Preparation imports classes
+with CUDA hidden and does not construct models or establish GPU compatibility.
+
+```bash
+python3.12 scripts/conversation_provider.py prepare --profile cuda-llm-fp32 \
+  --state-dir ~/.cascade-speech-cuda-fp32
+python3.12 scripts/conversation_provider.py verify --profile cuda-llm-fp32 \
+  --state-dir ~/.cascade-speech-cuda-fp32
+python3.12 scripts/conversation_provider.py serve --profile cuda-llm-fp32 \
+  --state-dir ~/.cascade-speech-cuda-fp32 --cuda-device-uuid "$GPU_UUID" \
+  --run-dir runs/speech-cuda-01 --port 18878 --timeout-s 900
+```
+
+Set `GPU_UUID` to the complete `GPU-…` UUID reported by `nvidia-smi`.
+Before constructing models, serving requires that UUID as the sole visible
+logical device zero, capability 12.0, a compiled `sm_120` binary, the exact
+Torch/CUDA versions and at least 16 GiB free GPU memory. It selects highest
+FP32 matmul precision with TF32 disabled. After upstream warmup it inspects
+the actual parameters and buffers: all LLM floating tensors must be FP32 on
+`cuda:0`, and all STT/TTS tensors must remain on CPU. Admission failures refuse
+serving; there is no automatic device fallback. The admission and runtime
+receipts record these observations. This opt-in profile has CPU contract
+tests only; it has not established GPU serving, response latency or a spoken
+reply within any robot trial deadline. Provider lifetime and the existing
+voice/actuator deadlines remain separate and unchanged.
+
 Run the speech stack in a separate environment. Its `speech-to-speech serve`
 command exposes `/v1/realtime` and supports selecting STT, LLM and TTS backends.
 Use `speech-to-speech serve -h` at the pinned revision and explicitly choose

@@ -544,6 +544,7 @@ class SafeBase:
             # Backend generation handles a command crossing the stop boundary.
             return self._result(samples=samples, command=command.as_dict(), error=error,
                                 delivery_uncertain=dispatched and not ack_validated,
+                                **({"ack": ack} if ack_validated else {}),
                                 **({"measured_distance_m": measured_distance,
                                     "distance_baseline": distance_baseline.as_dict() if distance_baseline else None}
                                    if distance is not None else {}),
@@ -553,6 +554,7 @@ class SafeBase:
             stop_ack = self.stop(latch=True)
             return self._result(samples=samples, command=command.as_dict(), error=error,
                                 delivery_uncertain=dispatched and not ack_validated, stop_ack=stop_ack,
+                                **({"ack": ack} if ack_validated else {}),
                                 **({"measured_distance_m": measured_distance,
                                     "distance_baseline": distance_baseline.as_dict() if distance_baseline else None}
                                    if distance is not None else {}),

@@ -10,6 +10,7 @@ from benchmark.rgbd import layout_a_native_bridge as module
 from benchmark.rgbd.binary_layout_a import BinaryLayoutABoard
 from benchmark.rgbd.binary_reference import detector_recipe
 from benchmark.rgbd.checker_accuracy import AccuracyBoard, consumer_recipe
+from benchmark.rgbd.checker_saddle import SaddleBoard, consumer_recipe as saddle_recipe
 from benchmark.rgbd.ground_texture import MATERIAL, validate_ground_texture
 from cascade.sim.mobile_identity import build_model_identity
 from test_mobile_identity import recipe_inputs as recipe_inputs
@@ -21,7 +22,7 @@ SOURCE = module.REPO
 def current_cpu_consumer(monkeypatch, tmp_path):
     """Bind the test interpreter, never require Linux bytes on macOS/ARM."""
     root = tmp_path / "recipe"
-    for name in module.source_inputs(True):
+    for name in set(module.source_inputs(True)) | set(module.source_inputs(saddle=True)):
         p = root / name
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes((SOURCE / name).read_bytes())
@@ -31,22 +32,27 @@ def current_cpu_consumer(monkeypatch, tmp_path):
     (root / module.ACCURACY_CONSUMER_SOURCE).write_bytes(
         module.common.canonical(consumer_recipe())
     )
+    (root / module.SADDLE_CONSUMER_SOURCE).write_bytes(module.common.canonical(saddle_recipe()))
     monkeypatch.setattr(module, "REPO", root)
 
 
-def declaration(accuracy=False):
-    path = module.REPO / (module.ACCURACY_CONSUMER_SOURCE if accuracy else module.CONSUMER_SOURCE)
+def selection(variant):
+    return dict(accuracy=variant == "accuracy", saddle=variant == "saddle")
+
+
+def declaration(variant=None):
+    path = module.REPO / module._consumer_source(**selection(variant))
     sha = module.common.sha(path)
-    return path, sha, module.load_consumer(path, sha, accuracy=accuracy)
+    return path, sha, module.load_consumer(path, sha, **selection(variant))
 
 
-@pytest.mark.parametrize("accuracy", [False, True])
-def test_fixture_identifies_rotated_geometry_and_new_asset_only(accuracy):
-    _, _, text = declaration(accuracy)
-    descriptor = module.texture_descriptor(text, accuracy=accuracy)
-    board = module.board_from_fixture(descriptor, text, accuracy=accuracy)
-    assert type(board) is (AccuracyBoard if accuracy else BinaryLayoutABoard)
-    assert descriptor["board"]["schema"] == (5 if accuracy else 4)
+@pytest.mark.parametrize("variant", [None, "accuracy", "saddle"])
+def test_fixture_identifies_rotated_geometry_and_new_asset_only(variant):
+    _, _, text = declaration(variant)
+    descriptor = module.texture_descriptor(text, **selection(variant))
+    board = module.board_from_fixture(descriptor, text, **selection(variant))
+    assert type(board) is {None: BinaryLayoutABoard, "accuracy": AccuracyBoard, "saddle": SaddleBoard}[variant]
+    assert descriptor["board"]["schema"] == {None: 4, "accuracy": 5, "saddle": 6}[variant]
     assert (
         descriptor["texture_sha256"]
         == "2cc54a33ea46e6486353fd057519f93f5fc194443f0ac89e6f22c2a230a3d583"
@@ -62,12 +68,12 @@ def test_fixture_identifies_rotated_geometry_and_new_asset_only(accuracy):
         changed = copy.deepcopy(descriptor)
         changed["board"].pop(key)
         with pytest.raises(ValueError, match="consumer declaration"):
-            module.board_from_fixture(changed, text, accuracy=accuracy)
+            module.board_from_fixture(changed, text, **selection(variant))
 
 
 def test_accuracy_selection_rejects_legacy_fixture_and_binds_separate_consumer():
     old_path, old_sha, old = declaration()
-    path, sha, text = declaration(True)
+    path, sha, text = declaration("accuracy")
     for p, h, accuracy in ((old_path, old_sha, True), (path, sha, False)):
         with pytest.raises(ValueError, match="source/hash"):
             module.load_consumer(p, h, accuracy=accuracy)
@@ -119,33 +125,33 @@ def test_cross_sdk_author_can_generate_same_bits_without_claiming_detection():
         module.board_from_fixture(authored, foreign)
 
 
-@pytest.mark.parametrize("accuracy", [False, True])
+@pytest.mark.parametrize("variant", [None, "accuracy", "saddle"])
 def test_new_model_rehashes_bound_support_geometry_bitmap_and_entrypoint(
-    recipe_inputs, monkeypatch, accuracy
+    recipe_inputs, monkeypatch, variant
 ):
     admission, native, paths = recipe_inputs
     original = build_model_identity(admission, native, **paths)
-    for name in module.source_inputs(accuracy):
+    for name in module.source_inputs(**selection(variant)):
         p = paths["repo"] / name
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes((module.REPO / name).read_bytes())
     monkeypatch.setattr(module, "REPO", paths["repo"])
-    _, _, text = declaration(accuracy)
-    module.extend_admission(admission, original, text, accuracy=accuracy)
+    _, _, text = declaration(variant)
+    module.extend_admission(admission, original, text, **selection(variant))
     current = build_model_identity(admission, native, **paths)
     assert current["model_identity_sha256"] != original["model_identity_sha256"]
-    assert set(module.source_inputs(accuracy)) <= set(current["recipe"]["source_sha256"])
-    p = paths["repo"] / ("benchmark/rgbd/checker_accuracy.py" if accuracy else "benchmark/rgbd/homography_support.py")
+    assert set(module.source_inputs(**selection(variant))) <= set(current["recipe"]["source_sha256"])
+    p = paths["repo"] / ("benchmark/rgbd/checker_saddle.py" if variant == "saddle" else "benchmark/rgbd/checker_accuracy.py")
     p.write_bytes(p.read_bytes() + b"\n")
     with pytest.raises(ValueError, match="source changed"):
         build_model_identity(admission, native, **paths)
 
 
-@pytest.mark.parametrize("accuracy", [False, True])
+@pytest.mark.parametrize("variant", [None, "accuracy", "saddle"])
 def test_check_only_does_not_construct_native_or_write_output(
-    monkeypatch, tmp_path, capsys, accuracy
+    monkeypatch, tmp_path, capsys, variant
 ):
-    path, sha, _ = declaration(accuracy)
+    path, sha, _ = declaration(variant)
     args = NS(camera_rgbd=True, check_only=True, out=tmp_path / "absent")
     bridge = NS(
         parse_args=lambda _: args,
@@ -171,8 +177,8 @@ def test_check_only_does_not_construct_native_or_write_output(
         "--consumer-detector-sha256",
         sha,
     ]
-    if accuracy:
-        argv.append("--checker-accuracy")
+    if variant:
+        argv.append("--checker-"+variant)
     assert module.main(argv) == 0
     receipt = json.loads(capsys.readouterr().out)
     assert (
@@ -180,18 +186,18 @@ def test_check_only_does_not_construct_native_or_write_output(
         and not receipt["physical_acceptance"]
         and not args.out.exists()
     )
-    assert receipt["ground_reference_descriptor"]["board"]["schema"] == (5 if accuracy else 4)
+    assert receipt["ground_reference_descriptor"]["board"]["schema"] == {None: 4, "accuracy": 5, "saddle": 6}[variant]
     assert (
         receipt["generator"]["role"] == "bitmap_authoring_only_not_consumer_detection"
     )
 
 
-@pytest.mark.parametrize("accuracy", [False, True])
+@pytest.mark.parametrize("variant", [None, "accuracy", "saddle"])
 def test_variant_preserves_full_native_comparison_and_parent_camera_order(
-    monkeypatch, tmp_path, accuracy
+    monkeypatch, tmp_path, variant
 ):
-    path, sha, text = declaration(accuracy)
-    descriptor = module.texture_descriptor(text, accuracy=accuracy)
+    path, sha, text = declaration(variant)
+    descriptor = module.texture_descriptor(text, **selection(variant))
     events = []
     reference = {
         "recipe": {
@@ -228,7 +234,7 @@ def test_variant_preserves_full_native_comparison_and_parent_camera_order(
     monkeypatch.setattr(
         module.ground, "ground_snapshot", lambda stage: {"appearance": "same"}
     )
-    backend = module.reference_backend(Parent, path, sha, accuracy=accuracy)()
+    backend = module.reference_backend(Parent, path, sha, **selection(variant))()
     backend.open()
     assert events == [
         "checkpoint",
@@ -270,17 +276,17 @@ def usd_stage():
     return stage
 
 
-@pytest.mark.parametrize("accuracy", [False, True])
-def test_cpu_usd_actual_rotated_st_preserves_geometry_and_physics_binding(accuracy):
+@pytest.mark.parametrize("variant", [None, "accuracy", "saddle"])
+def test_cpu_usd_actual_rotated_st_preserves_geometry_and_physics_binding(variant):
     stage = usd_stage()
     from pxr import UsdGeom, UsdShade
 
     before = module.scene_bindings(stage)["original_stage_sha256"]
-    _, _, text = declaration(accuracy)
-    expected = module.texture_descriptor(text, accuracy=accuracy)
-    result = module.author_checked_layout(stage, expected, text, accuracy=accuracy)
+    _, _, text = declaration(variant)
+    expected = module.texture_descriptor(text, **selection(variant))
+    result = module.author_checked_layout(stage, expected, text, **selection(variant))
     assert result["original_stage_sha256"] == before
-    board = module.board_from_fixture(result, text, accuracy=accuracy)
+    board = module.board_from_fixture(result, text, **selection(variant))
     actual = (
         UsdGeom.PrimvarsAPI(stage.GetPrimAtPath("/World/Ground")).GetPrimvar("st").Get()
     )
@@ -303,16 +309,16 @@ def test_cpu_usd_actual_rotated_st_preserves_geometry_and_physics_binding(accura
 
 
 @pytest.mark.parametrize("mutation", ["st", "shader", "metadata", "ancestor"])
-@pytest.mark.parametrize("accuracy", [False, True])
+@pytest.mark.parametrize("variant", [None, "accuracy", "saddle"])
 def test_cpu_usd_postbootstrap_changes_refuse_without_masking_ancestor_binding(
-    tmp_path, mutation, accuracy
+    tmp_path, mutation, variant
 ):
     stage = usd_stage()
     from pxr import Gf, Sdf, UsdGeom, UsdShade
 
-    _, _, text = declaration(accuracy)
-    expected = module.texture_descriptor(text, accuracy=accuracy)
-    fixture = module.author_checked_layout(stage, expected, text, accuracy=accuracy)
+    _, _, text = declaration(variant)
+    expected = module.texture_descriptor(text, **selection(variant))
+    fixture = module.author_checked_layout(stage, expected, text, **selection(variant))
     before = module.ground.ground_snapshot(stage)
     if mutation == "st":
         st = UsdGeom.PrimvarsAPI(stage.GetPrimAtPath("/World/Ground")).GetPrimvar("st")
@@ -352,7 +358,7 @@ def test_cpu_usd_postbootstrap_changes_refuse_without_masking_ancestor_binding(
         validate_ground_texture(
             stage,
             module.REPO / module.TEXTURE,
-            board=module.declared_board(text, accuracy=accuracy),
+            board=module.declared_board(text, **selection(variant)),
             receipt=fixture,
         )
     backend = module.ground.reference_backend(object)()
@@ -362,3 +368,25 @@ def test_cpu_usd_postbootstrap_changes_refuse_without_masking_ancestor_binding(
     backend.receipt = {}
     with pytest.raises(ValueError, match="appearance/geometry changed"):
         backend._check_ground("after_bootstrap")
+
+
+@pytest.mark.parametrize("other", [None, "accuracy"])
+def test_saddle_selection_refuses_other_fixtures_and_consumer_files(other):
+    path, checksum, text = declaration("saddle")
+    old_path, old_checksum, old = declaration(other)
+    with pytest.raises(ValueError, match="source/hash"):
+        module.load_consumer(old_path, old_checksum, saddle=True)
+    with pytest.raises(ValueError, match="source/hash"):
+        module.load_consumer(path, checksum, **selection(other))
+    legacy = module.texture_descriptor(old, **selection(other))
+    with pytest.raises(ValueError, match="consumer declaration"):
+        module.board_from_fixture(legacy, text, saddle=True)
+    with pytest.raises(ValueError, match="exactly one"):
+        module.load_consumer(path, checksum, accuracy=True, saddle=True)
+    foreign = json.loads(text)
+    foreign["refinement"]["numpy_version"] = "99.0.0"
+    foreign = module.common.canonical(foreign).decode()
+    authored = module.texture_descriptor(foreign, saddle=True)
+    assert authored["texture_sha256"] == legacy["texture_sha256"]
+    with pytest.raises(ValueError, match="active implementation"):
+        module.board_from_fixture(authored, foreign, saddle=True)

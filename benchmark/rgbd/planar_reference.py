@@ -320,6 +320,9 @@ class Reference:
 
 
 def reference_from_rgb(rgb, board=Board()):
+    from .checker_saddle import SaddleBoard, saddle_reference_from_rgb
+    if type(board) is SaddleBoard:
+        return saddle_reference_from_rgb(rgb, board)
     from .checker_accuracy import AccuracyBoard, accuracy_reference_from_rgb
     if type(board) is AccuracyBoard:
         return accuracy_reference_from_rgb(rgb, board)

@@ -1,0 +1,37 @@
+{
+  "schema": "cascade.speech-provider-source.v1",
+  "upstream_revision": "411399d34555b2169823a6eaeb7f8ff192db89db",
+  "candidate_revision": "4306614134cdb09ddbc00d2bed15422927ebf39b",
+  "archive_sha256": "2a344e59ad73110e263a731bc38fef001286b29a5e58f60b9cdf2491dfd9efb1",
+  "patch": "startup-cuda.patch",
+  "patch_sha256": "9c5a4b4ee19f23bb956e44520977dc249889aa472c63fd7a50144a90d9b63d65",
+  "files": {
+    "src/speech_to_speech/LLM/generation_trace.py": {
+      "before_sha256": null,
+      "after_sha256": "f7b35b924b4d9fc3e2b24a6507377d6864036cd46cb60bbfb3cd12ea7ba06680"
+    },
+    "src/speech_to_speech/LLM/language_model.py": {
+      "before_sha256": "ab54d87351d1ba57ae7ed69c7ed92552ab5b08e10b8cbb0c0f5c3e650b696026",
+      "after_sha256": "3cf47a6c44e33cffa17bf254a2f1bc59728d893b8501112ce1b552edcf6a44cc"
+    },
+    "src/speech_to_speech/LLM/tool_call/tool_prompt.py": {
+      "before_sha256": "743e341e95810de38a42f41922876ec6b32b359c74e18f16c445b6b099cb5fc2",
+      "after_sha256": "0d937afdef1846f96ea5e11b5d052634b7486c7cadaa5791ef15a90e0f4c7015"
+    },
+    "src/speech_to_speech/arguments_classes/language_model_arguments.py": {
+      "before_sha256": "b1660d32151268f767a21ae30893006880e469f2242c1edd10f5f049df037260",
+      "after_sha256": "de26ed4811087dae38b57c9fab94eee2667fff1b1d948e5226b024c5ff23dee3"
+    }
+  },
+  "changes": [
+    "Historical text streamer timeout 10s; voice/robot deadlines unchanged.",
+    "Prompt names tools from the actual catalogue; no invented call.",
+    "Optional bounded decoded-output observation after warmup.",
+    "Natural streamer EOF is not drained a second time; cancellation/join retained.",
+    "Cancellable queue waits; drain/join share 5s; failed cleanup makes the handler terminal.",
+    "Explicit direct_cuda_load opt-in for transformers FP32 on one CUDA device. CPU/MLX/VLM defaults unchanged; no automatic map or offload.",
+    "Both original Transformers warmups retain producer exceptions, cancellation, bounded join and bounded diagnostics; a failed or uncertain producer is terminal.",
+    "Optional direct-CUDA startup uses one inherited same-host time.monotonic deadline, at most 150 seconds remaining, shared by loading and both warmups with five seconds reserved for cleanup. Conversational streamer timeout remains 10 seconds."
+  ],
+  "patch_format": "git unified diff with zero context; full before/after hashes are mandatory"
+}

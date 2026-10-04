@@ -1,0 +1,252 @@
+{
+  "schema": "microduck-mujoco-prefix-negative-evidence-v1",
+  "date": "2026-10-04",
+  "scope": "One headless MuJoCo counterpart of a retained target-profile prefix, not a literal upstream inference run or a locomotion admission.",
+  "result": {
+    "structural_audit_pass": true,
+    "episode_completed": false,
+    "physical_admission": false,
+    "error": "RuntimeError: nonsole solved floor contact",
+    "solves": 10,
+    "policy_records": 3,
+    "committed": 3,
+    "active_command_solves": 0,
+    "model_constructors": 1,
+    "policy_constructors": 1,
+    "wall_s": 2.279959997002152,
+    "no_additional_policy_or_solve_after_failure": true,
+    "terminal_rest_available": false,
+    "mcp_commands": 0
+  },
+  "recipe": {
+    "versions": {
+      "numpy": "2.4.1",
+      "mujoco": "3.10.0",
+      "onnxruntime": "1.24.4",
+      "better-actuator-models": "1.0.1"
+    },
+    "schedule": {
+      "preparation": 340,
+      "active": 600,
+      "tail": 600,
+      "total": 1540,
+      "cadence": 4
+    },
+    "budgets_s": {
+      "corpus_s": 120.0,
+      "scope_s": 150.0,
+      "action_s": 8.0,
+      "tail_s": 3.0
+    },
+    "resource": {
+      "cpu_quota": "100%",
+      "memory_max": "4G",
+      "nice": 19,
+      "minimum_available_ram_bytes": 4294967296,
+      "minimum_free_disk_bytes": 4294967296
+    },
+    "native_ordinal_offset": 2,
+    "policy_sha256": "1c659be55da94bc5753b707de5c6a3e7c49931e05ca3b6991615cef1a8ba9a45",
+    "scene_sha256": "4e17071d4a2550c70103e474042a02ca58b4b7fac1f1b4143acd20785d93078d",
+    "target_profile": "robotd-targets-v1",
+    "target_transform": "float64 HOME + 0.9*float32 raw14, EMA alpha .5 head/.7 legs after first commit; float32 BAM upload; raw14 observation history.",
+    "initialization": {
+      "cpu_root_xyz": [
+        0.0,
+        0.0,
+        0.125
+      ],
+      "cpu_quaternion": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "native_root_xyz": [
+        0.0,
+        0.0,
+        0.125
+      ],
+      "cpu_history_zero": true,
+      "target_transform_fields_exact": true,
+      "native_additional_target_contract_fields": {
+        "policy_sha256": "1c659be55da94bc5753b707de5c6a3e7c49931e05ca3b6991615cef1a8ba9a45"
+      },
+      "bundle_receipt_exact": true
+    },
+    "cpu_physics_dt_s": 0.005,
+    "native_clock": "Separate retained native float32 timestep/clock; ordinal n+2 is not a time-equivalence claim.",
+    "compiled_mesh_arrays_independently_compared": false,
+    "mesh_admission": "Source XML and all mesh bytes bound; available primary physical arrays checked, compiled mesh arrays retained without independent equivalence proof."
+  },
+  "failure": {
+    "phase": "zero-command preparation",
+    "cpu_step": 10,
+    "cpu_sim_time_s": 0.049999999999999996,
+    "criterion": "Any nonsole floor contact with efc_address>=0, regardless of force.",
+    "contacts": [
+      {
+        "source_geometry": {
+          "body": "ankle_left",
+          "id": 49,
+          "mesh": "foot_left",
+          "source_name": "",
+          "usd_name": "cascade_geom_0049"
+        },
+        "cpu_geom_id": 50,
+        "constraint_address": 22,
+        "distance_m": -0.00030619709582039786,
+        "normal_force_n": 0.0,
+        "contact_dim": 3,
+        "native_step12_matching_contacts": 4,
+        "native_matching_normal_force_n": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "source_geometry": {
+          "body": "ankle_right",
+          "id": 139,
+          "mesh": "foot_right",
+          "source_name": "",
+          "usd_name": "cascade_geom_0139"
+        },
+        "cpu_geom_id": 140,
+        "constraint_address": 30,
+        "distance_m": -0.00043963331163194685,
+        "normal_force_n": 0.0,
+        "contact_dim": 3,
+        "native_step12_matching_contacts": 3,
+        "native_matching_normal_force_n": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "sole_load_n": 23.476856517152683,
+    "positive_nonsole_normal_load_n": 0.0,
+    "cpu_position_m": [
+      4.672455206765633e-05,
+      -2.5605906127276626e-05,
+      0.11483962542241351
+    ],
+    "cpu_quaternion_wxyz": [
+      0.9999996288057297,
+      -0.00029412497452245095,
+      -0.0007867717279649879,
+      0.00019201341235196797
+    ],
+    "native_same_ordinal_step": 12,
+    "cpu_minus_native_z_m": -1.0329421107610481e-05
+  },
+  "policy_prefix_comparison": [
+    {
+      "cpu_first_solve": 1,
+      "native_first_solve": 3,
+      "both_commands_zero": true,
+      "observation_max_abs_difference": 0.0,
+      "raw_action_max_abs_difference": 0.0,
+      "calculated_float64_target_max_abs_difference_rad": 0.0,
+      "actual_bam_target_max_abs_difference_rad": 0.0
+    },
+    {
+      "cpu_first_solve": 5,
+      "native_first_solve": 7,
+      "both_commands_zero": true,
+      "observation_max_abs_difference": 0.023280948400497437,
+      "raw_action_max_abs_difference": 0.003200531005859375,
+      "calculated_float64_target_max_abs_difference_rad": 0.002016334533691433,
+      "actual_bam_target_max_abs_difference_rad": 0.0020163357257843018
+    },
+    {
+      "cpu_first_solve": 9,
+      "native_first_solve": 11,
+      "both_commands_zero": true,
+      "observation_max_abs_difference": 0.04380035400390625,
+      "raw_action_max_abs_difference": 0.0020835548639297485,
+      "calculated_float64_target_max_abs_difference_rad": 0.001227506920695308,
+      "actual_bam_target_max_abs_difference_rad": 0.0012275055050849915
+    }
+  ],
+  "scope_diagnosis": "This new frozen harness vetoed nonsole contacts throughout preparation. The older CPU corpus checked preparation support at its end, and native03 geometric control began after preparation. The same zero-normal-force foot-housing contacts exist at native step12; this negative therefore does not establish policy or backend locomotion incapacity.",
+  "closure": {
+    "scope_exit_code": 1,
+    "ok": true,
+    "forced": false,
+    "signals": [],
+    "errors": [],
+    "remaining_members": [],
+    "remaining_births": [],
+    "observed_birth_count": 2,
+    "all_observed_births_absent": true,
+    "inputs_unchanged": true,
+    "runtime_inventory_exact": true
+  },
+  "limitations": [
+    "All 10 solves preceded the active command; no DRIVE, tail, geometric entry, rest or stop window was reached.",
+    "Zero caller commands still caused policy/actuator postural work.",
+    "The frozen nonsole criterion rejects constraint contacts regardless of normal force; zero-force contacts were not retrospectively removed.",
+    "Historical preparation gate scope differs; the same foot-housing pairs at native step12 prevent this negative establishing a backend or policy failure.",
+    "Only the first observation/action/target/upload matched exactly; later two committed policy rows differ, without causal attribution.",
+    "An empty foreign auto-restart service was documented without ownership or timing-isolation claims.",
+    "Plan01 remained unlaunched; the single authorized02 negative, all sources and retained traces remain unchanged. No retry or changed gain/deadline/GC/geometry."
+  ],
+  "artifact_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/diagnose_prefix_03.py": "51df0f72bf72e7b5660b0fce486ce32052db3bf5f371927d1288d8ec3ae0df43",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/plan-02.json": "09cb1572c487b3a81eab67745cd99cd902f5558f4264a6eec26cb46bccfc0a5a",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/binding-02.json": "7d50fb87952c7decde45beeb2cc19b9c862e74c6410c9ce58bb1445732d777fe",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/audit-02.json": "15bfa3d767a3e8e0e0296a09d1ec2d29c9660eb655d0d3c08449e78bb6e6d685",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/post-close-02.json": "960cbffbcce572d56dc1395f58b3a5e3d8e63c61a54b802b042ebb4084960140",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/attempt-02/receipt.json": "59a2e1b33fc6996ca51dbb9f8d32bdbaed8f09dd3ff874cd0d21a73a85067164",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/attempt-02/scope/closure.json": "fe0cdd744c489167aedb2dede558e8e85905751fb020d3c517e8c5ee0bf1afdb",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/counterpart-02/receipt.json": "2f50a73a14f3712fb0abda8634c7913c721ded656d5f59c555c9e8c05ebfe26e",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/counterpart-02/initial-state.json": "814018dc1edfac082eb6971c1328f22bc8bf8025f66209a4c48fb9f1476855f9",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/counterpart-02/model.json": "a0cadc3d08342e3f0bb55e77d8f3d9a649133c3ab31422854ef64fde23b54c44",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/counterpart-02/model-validation.json": "cd96ae8db79e40e919ec0af843d64d91af62253988bb7a0e5c8e04a90eb17c61",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/counterpart-02/solves.jsonl": "5932642c4051b8e743650a9f2a8570d7344983cd85660f09f97636743b1d30bc",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/counterpart-02/policy.jsonl": "655b63f74f77aac8340d90ecebf7b9b68b743456a1adfddfa31a56a0bc246372",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/counterpart-02/actuators.jsonl": "729fe01288518919d39da815f067cee9c5e768086415acb71c62865453f19052",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-forward-one-03/kit/physics.jsonl": "87afba68280138df2725921857b04539411e4716799f23941e7cd86ae45476ad",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-forward-one-03/kit/policy.jsonl": "05f2e9f1fdee92bbfb9f27c5368a3051e9b2c1a4b8af2391e72e5bdf6dc3bc78",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-forward-one-03/kit/model-identity.json": "a465617ad2478768e1c3fd0ecbe4645f766b3f79aa29baf989ee845e92fdbf6e",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/usd-allcollisions-velstand-v4/receipt.json": "910c4ddb7e25122f808888f01e97227af0344bdabbb26572e3f021384584490d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/velstand-candidate/run_corpus.py": "db8917237f5ef03b252e5aa119f2909d63d70d1001ae1f0a1abb30eee2942d69",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/cascade/src/cascade/safety/base_harness.py": "74b67dee40cfb6a097369a9cfd9d8602a262b585418cbc6acb1cb847fae3d79a",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/harness_v2/contract.py": "088177be64754c0c10a14040a554d7e2dc2a88dd7fe3388d6a63a1b1bb2bbe78",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/binding-01.json": "462d395a510d5ae0acb57ea8d4aac2c96b576f0fdb3230faeb8ed39d16515bfb",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/plan-01.json": "e101c69e1482528300d5a06df5026f3f3dd739894e5230849a639336969527be",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/root-input-review-02.json": "e968e42aba034ecb4e7c9a5b00d37842e9893d74fde40c781e601071ee6818a0",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/root-post-close-02.json": "aaaea673b9a854c661933a1f1d91d8fdbf7da40136ae08138f8f4853c36f7014",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/scope-clarification-01.json": "1756a814e3de028a59c233fc6bc8fbd045ef9b5063c1fe1156899c55780c9b26",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/diagnostic-prefix-03.json": "1eb479d61c2467b6d356c169d57a8d07cd13d9b685e24dfc367b5223bfe3b451",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/check-only-02.json": "6850e68a5aec74ffb2c4f4ba5f5cce27ce61dd002cb686792de7e2ac96328f37",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/cpu-tests-02.log": "d71d1035e6fc83b217e180a96d01ea9e677dd7376bebf21ac427a6959c03ff10",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/cpu-lifecycle-v2-01.log": "e91c1c5a8fb57a43edfde636642293fbf633d475d53327a9b3edf4cdb0bdb834",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/counterpart-02/runtime.json": "84f17c55da6f5d9dc81415f4b2fb6636832ede5030b12f14a182369686d4d53b",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/counterpart-02/scene.xml": "4e17071d4a2550c70103e474042a02ca58b4b7fac1f1b4143acd20785d93078d",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/counterpart-02/actuator-model.json": "3b028d6d1d526c63a7d5f2520b94e4bd7d1d88750af19f5a21062455ab3f171d"
+  },
+  "harness_and_selected_source_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/harness_v2/actuator_telemetry.py": "247d7cfc49c2fc7268b10f7547f698ae48ddd64a8a1125971fccf15323e3b834",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/harness_v2/audit.py": "17d00bc9a1f25cd4b56eeaf3bf3efa748434b48f124572c5211737f47d9f2183",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/harness_v2/contract.py": "088177be64754c0c10a14040a554d7e2dc2a88dd7fe3388d6a63a1b1bb2bbe78",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/harness_v2/inventory.py": "bae2ad1bf6824a1fcf3cf74f6d2caf1697117c32880ff6bc10edddafd1ebdcc9",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/harness_v2/launch.py": "87daceb7069827f657ed60c36706078b1d0f4883c9ca3fcbf8cf72867df48e9b",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/harness_v2/prepare.py": "b740dec08233ee516dec602260d95809a136b8cfc20f0015864008a44e64019e",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/harness_v2/run.py": "baeb7a435a6511f7586b4ec89084724a974b03b621d1fc3d0f374a7573862acf",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/harness_v2/test_audit.py": "756f2b34ac1ac946cec5d8b51dcd2872ae319e9ec2d0e052cc09c3ecb01a5c1e",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/harness_v2/test_contract.py": "a6f561c7bb842befcaaac2aa895f752a447858c094239db5d95d862b44a58324",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BACKEND_COMPARISON_20261004/harness_v2/test_lifecycle.py": "d986355f98c38687d9d76f1191004b521aa240441119a2817fdee7c71907be94",
+    "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck_rl/scripts/infer_policy.py": "03bfd0642a880cd379e057536ee819bd1377d4af7b5206a57907d10afd1d4270",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/cascade/src/cascade/control/microduck_policy.py": "1d4ac287c1ff20c4363a81db24a9638643f683c04eb6647bb26b465a861af540",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/usd-allcollisions-velstand-v4/receipt.json": "910c4ddb7e25122f808888f01e97227af0344bdabbb26572e3f021384584490d",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/usd-allcollisions-velstand-v4/effective-contract.json": "62a30f3a3312144b09c24cd1ac280c78aa9c8f7c271c4f77d60d8dd5c027a962",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/usd-allcollisions-velstand-v4/source/cascade_effective.xml": "0e28bed0025557cd852c3a6db798f811b89bed14254ffea315b489eeb6424d7d",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/policy-admitted/microduck-policies/velstand.onnx": "1c659be55da94bc5753b707de5c6a3e7c49931e05ca3b6991615cef1a8ba9a45",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/full-env-startup-20261002/venv/lib/python3.12/site-packages/bam/params/xl330/m6.json": "61c699362fb3fabdde93eeba5e1ad3bf4ef9ca2f71d03e316b1924ff005b20d3"
+  }
+}

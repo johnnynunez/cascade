@@ -34,9 +34,12 @@ class PlacementPolicy:
     drift_m: float = .003
     force_fraction_min: float = .8
     force_fraction_max: float = 1.2
+    constraint_recipe: str = "uncoupled_free_rigid_objects_v1"
 
     def __post_init__(self):
         require_digest(self.model_identity_sha256)
+        if self.constraint_recipe != "uncoupled_free_rigid_objects_v1":
+            raise ValueError("unsupported placement constraint recipe")
         if not isinstance(self.epoch, str) or not self.epoch:
             raise ValueError("placement epoch is required")
         groups = (self.object_geoms, self.support_geoms, self.robot_geoms)
@@ -140,6 +143,7 @@ def verify_placement_window(rows, policy, *, first_solver_step, last_solver_step
             if (_integer(row["solver_step"], "solver step", 1) != expected
                     or _integer(row["native_ngeom"], "native geometry count", 1) != policy.native_ngeom
                     or row["phase"] != "euler_constraint_before_integration"
+                    or row["coupling_admission"] != policy.constraint_recipe
                     or row["coverage"] != "all_native_contact_candidates"):
                 raise ValueError("placement step, phase, or coverage is inconsistent")
             t = _number(row["constraint_time_s"], "constraint time")

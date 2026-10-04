@@ -24,6 +24,26 @@ def _descendants(model, root):
     return result
 
 
+def _unconstrained_bodies(model, mj, groups, roots):
+    """Free joints alone do not exclude a hidden weld, spring, or actuator."""
+    if any(int(getattr(model, name)) != 0 for name in ("neq", "ntendon", "nplugin")):
+        raise ValueError("placement recipe excludes equalities, tendons, and plugins")
+    for callback in ("control", "passive", "sensor", "contactfilter", "act_dyn", "act_gain", "act_bias", "time"):
+        if getattr(mj, "get_mjcb_"+callback)() is not None:
+            raise ValueError("placement recipe excludes native callbacks")
+    for actuator in range(model.nu):
+        joint = int(model.actuator_trnid[actuator, 0])
+        if (int(model.actuator_trntype[actuator]) != int(mj.mjtTrn.mjTRN_JOINT)
+                or not 0 <= joint < model.njnt or int(model.jnt_bodyid[joint]) not in groups["robot"]):
+            raise ValueError("placement actuators must drive only robot joints")
+    for name in ("object", "support"):
+        joint = int(model.body_jntadr[roots[name]])
+        dof = int(model.jnt_dofadr[joint])
+        if (model.jnt_stiffness[joint] != 0 or np.any(model.dof_frictionloss[dof:dof+6] != 0)
+                or any(model.body_gravcomp[body] != 0 for body in groups[name])):
+            raise ValueError("placement object/support has passive constraints or gravity compensation")
+
+
 class PlacementRecorder:
     """Complete candidate ledger, constraint-phase poses, and release bounds.
 
@@ -62,6 +82,8 @@ class PlacementRecorder:
                 raise ValueError("placement body root is not free-jointed")
             if any(self.model.body_jntnum[body] for body in groups[name]-{root}):
                 raise ValueError("articulated objects/support need a separate placement recipe")
+        _unconstrained_bodies(self.model, self.mj, groups, self.body_ids)
+        self._groups = groups
         explicit_pairs = set(map(int, self.model.pair_geom1)) | set(map(int, self.model.pair_geom2))
         geoms = {name: tuple(i for i in range(self.model.ngeom)
                             if int(self.model.geom_bodyid[i]) in bodies
@@ -77,17 +99,28 @@ class PlacementRecorder:
             int(self.body_ids["object"]), int(self.body_ids["support"]), int(self.model.ngeom))
         self._bound_fields = {name: np.asarray(getattr(self.model, name)).copy() for name in (
             "geom_rbound", "geom_bodyid", "geom_contype", "geom_conaffinity", "body_mass",
-            "body_parentid", "body_jntnum", "body_jntadr", "jnt_type", "pair_geom1", "pair_geom2")}
+            "body_parentid", "body_jntnum", "body_jntadr", "jnt_type", "pair_geom1", "pair_geom2",
+            "actuator_trntype", "actuator_trnid", "jnt_bodyid", "jnt_dofadr", "jnt_stiffness",
+            "dof_frictionloss", "body_gravcomp")}
         if np.any(self.data.warning.number):
             raise ValueError("placement cannot start after native warnings")
         self.out.mkdir(parents=True)
         (self.out/"policy.json").write_text(json.dumps(asdict(self.policy), indent=2, allow_nan=False)+"\n")
         self.steps, self.bytes, self.fault = 0, 0, None
         self._warning_counts = np.asarray(self.data.warning.number).copy()
+        self._last_time = float(self.data.time)
         self._original_step = self.sim.step
         self._wrapper = self._step
         self._closed = False
         self.sim.step = self._wrapper
+
+    def _check_model(self):
+        _unconstrained_bodies(self.model, self.mj, self._groups, self.body_ids)
+        if (float(self.model.opt.timestep) != self.policy.solver_dt_s
+                or int(self.model.opt.integrator) != int(self.mj.mjtIntegrator.mjINT_EULER)
+                or not np.array_equal(self.model.opt.gravity, self.policy.gravity_world_m_s2)
+                or any(not np.array_equal(getattr(self.model, key), saved) for key, saved in self._bound_fields.items())):
+            raise RuntimeError("placement solver configuration or geometry changed")
 
     def _step(self, *args, **kwargs):
         if self._closed or self.fault is not None:
@@ -97,14 +130,14 @@ class PlacementRecorder:
             raise RuntimeError(self.fault)
         before = float(self.data.time)
         try:
+            self._check_model()
+            if before != self._last_time:
+                raise RuntimeError("placement clock advanced outside its ordinary step owner")
             result = self._original_step(*args, **kwargs)
             self.steps += 1
-            if (float(self.model.opt.timestep) != self.policy.solver_dt_s
-                    or int(self.model.opt.integrator) != int(self.mj.mjtIntegrator.mjINT_EULER)
-                    or not np.array_equal(self.model.opt.gravity, self.policy.gravity_world_m_s2)
-                    or any(not np.array_equal(getattr(self.model, key), saved) for key, saved in self._bound_fields.items())
-                    or not math.isclose(float(self.data.time)-before, self.policy.solver_dt_s, rel_tol=0, abs_tol=1e-9)):
-                raise RuntimeError("placement solver configuration or clock changed")
+            self._check_model()
+            if not math.isclose(float(self.data.time)-before, self.policy.solver_dt_s, rel_tol=0, abs_tol=1e-9):
+                raise RuntimeError("placement solver clock changed")
             row = self._capture(before)
             encoded = (json.dumps(row, separators=(",", ":"), allow_nan=False)+"\n").encode()
             if self.bytes+len(encoded) > self.max_bytes:
@@ -112,6 +145,9 @@ class PlacementRecorder:
             with (self.out/"solves.jsonl").open("ab") as stream:
                 stream.write(encoded)
             self.bytes += len(encoded)
+            self._last_time = float(self.data.time)
+            if row["native_warnings"] or not row["external_forces_zero"]:
+                raise RuntimeError("placement retained a rejected warning or external-force sample")
             return result
         except BaseException as exc:
             self.fault = type(exc).__name__+": "+str(exc)
@@ -142,6 +178,7 @@ class PlacementRecorder:
             "solver_step": self.steps, "constraint_time_s": constraint_time,
             "advanced_time_s": float(d.time), "phase": "euler_constraint_before_integration",
             "coverage": "all_native_contact_candidates", "native_ngeom": int(m.ngeom), "ncon": int(d.ncon),
+            "coupling_admission": self.policy.constraint_recipe,
             "nefc": int(d.nefc),
             "native_warnings": np.flatnonzero(np.asarray(d.warning.number) != self._warning_counts).tolist(),
             "external_forces_zero": bool(np.all(d.xfrc_applied == 0) and np.all(d.qfrc_applied == 0)),

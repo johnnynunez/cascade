@@ -127,6 +127,11 @@ groups include explicitly declared pairs even when their masks are zero. The
 reader requires rigid free-jointed objects and Euler integration, labels the
 pre-integration constraint state separately from the advanced simulation clock,
 and refuses warnings, missing bounds, changed geometry, or archive exhaustion.
+Its first constraint recipe excludes all equalities, tendons, SDK callbacks and
+plugins; actuators may drive only joints inside the robot subtree. Object and
+support joints cannot carry springs, friction-loss constraints, or gravity
+compensation. These checks run before and after every step: a free joint alone
+does not prove that an object was detached from the robot.
 The contact-frame convention follows the pinned
 [MuJoCo 2.3.7 API](https://mujoco.readthedocs.io/en/2.3.7/APIreference/APIfunctions.html#mj-contactforce);
 its force sign and phase still require a source-bound native calibration.

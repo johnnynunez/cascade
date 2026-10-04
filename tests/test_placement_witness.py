@@ -19,6 +19,7 @@ def row(step, p):
     return {"model_identity_sha256": p.model_identity_sha256, "epoch": p.epoch, "policy_sha256": p.sha256,
         "solver_step": step, "constraint_time_s": (step-1)*.002, "advanced_time_s": step*.002,
         "phase": "euler_constraint_before_integration", "coverage": "all_native_contact_candidates",
+        "coupling_admission": p.constraint_recipe,
         "native_ngeom": 4, "ncon": 1, "nefc": 3, "native_warnings": [], "external_forces_zero": True,
         "bodies": {name: {"body_id": getattr(p, name+"_body_id"), "position_m": pos, "linear_velocity_m_s": [0., 0., 0.],
                            "angular_velocity_rad_s": [0., 0., 0.]}
@@ -140,10 +141,13 @@ def recorder_fixture(tmp_path, monkeypatch, **budgets):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from benchmark.vab.placement_witness import PlacementRecorder
     contact = row(1, policy())["contacts"][0]
-    m = SimpleNamespace(nbody=4, ngeom=4,
+    m = SimpleNamespace(nbody=4, ngeom=4, njnt=2, nu=0, neq=0, ntendon=0, nplugin=0,
         opt=SimpleNamespace(integrator=0, gravity=np.array([0., 0., -9.81]), timestep=.002),
         body_parentid=np.array([0, 0, 0, 0]), body_jntnum=np.array([0, 1, 1, 0]),
         body_jntadr=np.array([-1, 0, 1, -1]), jnt_type=np.array([0, 0]),
+        jnt_dofadr=np.array([0, 6]), jnt_stiffness=np.zeros(2), dof_frictionloss=np.zeros(12),
+        body_gravcomp=np.zeros(4), jnt_bodyid=np.array([1, 2]),
+        actuator_trntype=np.zeros(0, dtype=int), actuator_trnid=np.zeros((0, 2), dtype=int),
         body_mass=np.array([0., .1, 1., 1.]), geom_bodyid=np.array([1, 2, 3, 0]),
         pair_geom1=np.zeros(0, dtype=int), pair_geom2=np.zeros(0, dtype=int),
         geom_contype=np.array([1, 1, 1, 0]), geom_conaffinity=np.array([1, 1, 1, 0]),
@@ -158,8 +162,11 @@ def recorder_fixture(tmp_path, monkeypatch, **budgets):
     def wrench(_m, _d, _i, out): out[:] = contact["wrench_on_b_contact"]
     mj = SimpleNamespace(mjtIntegrator=SimpleNamespace(mjINT_EULER=0),
         mjtJoint=SimpleNamespace(mjJNT_FREE=0), mjtObj=SimpleNamespace(mjOBJ_BODY=1),
+        mjtTrn=SimpleNamespace(mjTRN_JOINT=0),
         mj_name2id=lambda *_: 3, mj_contactForce=wrench,
         mj_objectVelocity=lambda *_: None)
+    for callback in ("control", "passive", "sensor", "contactfilter", "act_dyn", "act_gain", "act_bias", "time"):
+        setattr(mj, "get_mjcb_"+callback, lambda: None)
     monkeypatch.setitem(sys.modules, "mujoco", mj)
     class Sim:
         calls = 0
@@ -209,7 +216,28 @@ def test_recorder_faults_preserve_failed_closure_and_do_not_replay_steps(tmp_pat
         assert sim.calls == 0
         return
     with pytest.raises(RuntimeError): sim.step()
-    assert sim.calls == 1
+    expected_calls = 0 if fault in ("model_change", "clock_change") else 1
+    assert sim.calls == expected_calls
     with pytest.raises(RuntimeError): sim.step()
-    assert sim.calls == 1
+    assert sim.calls == expected_calls
+    assert not recorder.close()["ok"] and sim.step == original
+
+
+@pytest.mark.parametrize("fault", ["equality", "tendon", "plugin", "object_actuator", "site_actuator",
+    "spring", "frictionloss", "gravitycomp", "callback", "unowned_advance"])
+def test_hidden_couplings_or_unowned_advances_refuse_before_another_solve(tmp_path, monkeypatch, fault):
+    recorder, sim, original, m, d = recorder_fixture(tmp_path, monkeypatch)
+    if fault in ("equality", "tendon", "plugin"):
+        setattr(m, {"equality": "neq", "tendon": "ntendon", "plugin": "nplugin"}[fault], 1)
+    elif fault in ("object_actuator", "site_actuator"):
+        m.nu = 1
+        m.actuator_trntype = np.array([0 if fault == "object_actuator" else 4])
+        m.actuator_trnid = np.array([[0, -1]])
+    elif fault == "spring": m.jnt_stiffness[0] = 1.
+    elif fault == "frictionloss": m.dof_frictionloss[0] = 1.
+    elif fault == "gravitycomp": m.body_gravcomp[1] = 1.
+    elif fault == "callback": recorder.mj.get_mjcb_passive = lambda: (lambda: None)
+    elif fault == "unowned_advance": d.time = .002
+    with pytest.raises((ValueError, RuntimeError)): sim.step()
+    assert sim.calls == 0
     assert not recorder.close()["ok"] and sim.step == original

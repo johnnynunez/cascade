@@ -334,6 +334,8 @@ class ConversationSession:
                 return self.closure_receipt
             self.closed = True
             self.ready = False
+            self.authority_revoked = True
+            self._pending = None
             self.terminal_reason = reason
             self.domain.release(self.session_id)
             for context in self.responses.values():

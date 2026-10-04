@@ -476,10 +476,11 @@ python3.12 scripts/conversation_provider.py prepare --profile cuda-llm-fp32 \
 python3.12 scripts/conversation_provider.py verify --profile cuda-llm-fp32 \
   --state-dir ~/.cascade-speech-cuda-fp32
 python3.12 scripts/conversation_provider.py serve --profile cuda-llm-fp32 \
-  --state-dir ~/.cascade-speech-cuda-fp32 --cuda-device-uuid GPU-<full-UUID> \
+  --state-dir ~/.cascade-speech-cuda-fp32 --cuda-device-uuid "$GPU_UUID" \
   --run-dir runs/speech-cuda-01 --port 18878 --timeout-s 900
 ```
 
+Set `GPU_UUID` to the complete `GPU-…` UUID reported by `nvidia-smi`.
 Before constructing models, serving requires that UUID as the sole visible
 logical device zero, capability 12.0, a compiled `sm_120` binary, the exact
 Torch/CUDA versions and at least 16 GiB free GPU memory. It selects highest

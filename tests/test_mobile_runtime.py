@@ -972,6 +972,7 @@ def test_camera_motion_frames_keep_failed_action_and_source_steps(tmp_path, fram
         ticks.close()
 
 
+@pytest.mark.usefixtures("healthy_episode_gc")
 def test_stop_prebaseline_sampling_has_an_attempt_budget(tmp_path, frame_endpoint, monkeypatch):
     from cascade.apps.mobile_runtime import build_mobile_runtime
     _, server, profile, _, _, _ = frame_endpoint
@@ -995,7 +996,7 @@ def test_stop_prebaseline_sampling_has_an_attempt_budget(tmp_path, frame_endpoin
         # No publisher: genuinely pre-ACK captures, not None/channel outages.
         ack = rt.stop()
         proof = await_stop(rt, ack["receipt_id"])
-        assert proof["status"] == "unverified" and "sample_limit" in proof["reason"]
+        assert proof["status"] == "unverified" and "sample_limit" in proof["reason"], proof
         evidence = proof["postcondition"]["evidence"]
         assert evidence["samples"] == []
         assert len(evidence["temporal_pending"]) == evidence["attempts"] == len(calls) == 8

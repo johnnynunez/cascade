@@ -1,0 +1,9 @@
+# Source-pinned, fixed-wrist free finger motion. No hardware/tactile admission.
+version: 1
+robot_id: leap_hand_right
+domains:
+  hand:
+    kind: hand
+    recipe: leap_right_bounded_free_motion_v2
+    asset_root: ${assets}/mjcf/leap_hand
+    model_identity_sha256: null

@@ -1,0 +1,19 @@
+{
+  "commit": "c1a4eeb85694ae1dffe33ff1797d4e528928a133",
+  "directory": "leap_hand",
+  "files": {
+    "LICENSE": "5a91c3d709c2ee3a71f166b46e3208cebd83c0c7a870746c729b31a01f156984",
+    "assets/base.obj": "3d7194a6a33626ffcdfce78a0ca854e67b6b49f2e09a3bd62656f94515fdfbec",
+    "assets/distal.obj": "6bfa2afb2a06557ce0c54b03baec13522bfe561aabb576bd4701d4704f93ec0f",
+    "assets/medial.obj": "472e054348c5a0e987829e721d5ba8486ddd47d867e416bb45d8d2a2ff917acf",
+    "assets/palm_right.obj": "839b2e58e69ce57e0feaa2f565f8124101a2ed81d99fb2c5d00372b245634ab8",
+    "assets/proximal.obj": "3fff19dc1f0100bb5f34eaf8a40fcf3db40f96fd7179bb7336e538b21ff8e067",
+    "assets/thumb_base.obj": "d28876cc3b674323aa7d8a628a4240cda2757c61263b05e86a66280035a2689d",
+    "assets/thumb_distal.obj": "4695d72a70285e8a0132ed4de49876cf99c813182e3a24b172b53631224890de",
+    "assets/thumb_proximal.obj": "5b402876601f2b0b36631e6a54ad20588f88e74f52320b6c902a8bc694578689",
+    "assets/thumb_tip.obj": "7987f2599efaa73a6d7ccf0dd26d9f9e06949c7c66c268c9f8989aac345822e0",
+    "assets/tip.obj": "eb2f5157e29ace1e45c4bf2bd0cacb03cc276458b1c4a21c217e73d0bc4e95c7",
+    "right_hand.xml": "9d8f25c38bdb60617f378c07b7e71f97306471353c81bf281eb9943f3f2340d8"
+  },
+  "repository": "https://github.com/google-deepmind/mujoco_menagerie"
+}

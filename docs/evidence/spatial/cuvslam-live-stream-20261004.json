@@ -1,0 +1,172 @@
+{
+  "schema": "cascade.cuvslam-live-native-stream-evidence.v1",
+  "scope": "One closed live RGB-D stream with twelve SDK tracks and map invalidation; no physical, metric-accuracy, collision-map or navigation admission.",
+  "artifact_root": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_STREAM_20261004",
+  "result": "PASS: original stream07 supervisor and frozen auditor",
+  "source": {
+    "producer_head": "4995822516523782466c8c6f004073a79be7a3e0",
+    "consumer_head": "0cf086e62461f8516d3fa017baf68d7edce59ffc",
+    "isaac_sdk_head": "48b2d951919bbb7330de3c2aad54e15369fa0183",
+    "cuvslam_version": "17.0.0+b405f13",
+    "cuvslam_binding_sha256": "ecf0ebcaff0fb9183cd9ae2938cd4231720317630df3edc69892cb406b2e6e30",
+    "reference_model_sha256": "63afc2cd43106d1b6a2df88296e43bd35e341ff769c64a9feef056db8657d568",
+    "reference_identity_file_sha256": "342362623671e74c9c94f1f1a7825dc576dee803a1a558b6207e029cf9fe10f8",
+    "base_registration_sha256": "e526aeeca9043f210f01206ec53ade92371d89d312cf31870f0eedd48de80528",
+    "camera_calibration_sha256": "cbe63a5b8929f63b0de73cef579398c92540b7da6a786d2b1eb365e0c45f5617",
+    "publication_does_not_transfer_source_or_model_admission": true
+  },
+  "inputs": {
+    "count": 208076,
+    "manifest": "stream-inputs-07.json",
+    "manifest_sha256": "2c341fa05bea8ee0e24a990c2f0ce60d5b74cf5566c66e96bea66fc5f144be99",
+    "unchanged": true,
+    "protected_stores_unchanged": true
+  },
+  "producer": {
+    "schedule": {
+      "solves": 320,
+      "policies": 80,
+      "frames": 17
+    },
+    "epoch": "bae00a548e764a1ea03d9c8dbc10a2ef",
+    "health_passed": true,
+    "producer_ready_wall_s": 12.701221408999118,
+    "motion": {
+      "maximum_translation_m": 0.008672308884165137,
+      "maximum_angle_rad": 0.017048906816720298,
+      "distinct_poses": 17,
+      "observed": true
+    },
+    "motion_scope": "Observed motion under zero policy commands, not a commanded route or accuracy measurement."
+  },
+  "consumer": {
+    "tracks": 12,
+    "map_epoch": "7018170bcebe49f1adc9157ae4507db0",
+    "rpc_frame_acquisitions": 12,
+    "wait_next_requests": 11,
+    "actuator_commands": 0,
+    "preparation_before_producer": true,
+    "first_capture_after_preparation": true,
+    "capture_and_sdk_timestamp_joins_verified": true,
+    "maximum_age_at_return_s": 0.5658681960048852,
+    "position_error_m": null,
+    "angular_error_rad": null,
+    "ground_truth_passed_to_sdk": false,
+    "terminal_tool": "emergency_stop",
+    "latched": true,
+    "stop_map_epoch_invalidated": true,
+    "post_stop_ok": false,
+    "post_stop_map_epoch_invalidated": true
+  },
+  "unchanged_budgets_s": {
+    "consumer_prepare": 30,
+    "consumer_tracking": 30,
+    "consumer_total": 270,
+    "producer_readiness": 180,
+    "producer_native": 180,
+    "producer_owner": 240,
+    "supervisor": 300,
+    "reader_rpc": 1,
+    "sensor_read": 2,
+    "capture_age": 2,
+    "sdk_call": 5,
+    "capture_gap_sim": 0.1
+  },
+  "relative_pose_diagnostics": {
+    "method": "Offline first-pose alignment to retained simulation poses; no fit supplied to SDK and no accuracy acceptance gate.",
+    "maximum_camera_translation_m": 0.017697754224254892,
+    "maximum_base_translation_m": 0.009460211805372567,
+    "maximum_camera_angle_rad": 0.01854879418159492
+  },
+  "lifecycle": {
+    "producer_native_exit": 0,
+    "producer_scope_exit": 0,
+    "consumer_scope_exit": 0,
+    "scope_signals": [],
+    "scope_forced": false,
+    "scope_errors": [],
+    "scope_final_drain_settled": true,
+    "surviving_members_or_births": 0,
+    "observed_births_absent": 11,
+    "worker_exitcode": -15,
+    "worker_alive": false,
+    "worker_ipc_thread_alive": false,
+    "worker_close_scope": "Owned worker terminated by SIGTERM during normal reader teardown; no SIGKILL. Scope exit zero does not mean the worker exited without a signal.",
+    "reader_close_ok": true,
+    "port_closed": true
+  },
+  "retained_prior_outcomes": {
+    "02": "FAIL before SDK/Kit: composition lacked robot_id; secondary missing producer-exit receipt.",
+    "03": "FAIL: observer could not serialize np.float32; partial JSON retained, map invalidated.",
+    "04": "UNLAUNCHED: producer Kit-log discovery path corrected in a new harness.",
+    "05": "FAIL: twelve tracks and full producer independently audited, but unsupported stop_robot did not invalidate the map at the terminal tool boundary. Later shutdown does not repair it.",
+    "06": "UNLAUNCHED: explicit latched/map-invalidated evidence was missing from the live and audit predicates; corrected only in07."
+  },
+  "validation": {
+    "cpu_tests": 46,
+    "check_only": "208076 inputs; zero constructors, inference or solves",
+    "native_executions_under_plan07": 1
+  },
+  "admission": {
+    "physical": false,
+    "metric_accuracy": false,
+    "collision_mapping": false,
+    "task": false,
+    "navigation": false,
+    "arrival_or_rest": false
+  },
+  "track_columns": [
+    "step",
+    "capture_time_s",
+    "age_at_return_s",
+    "capture_json_sha256",
+    "estimate_json_sha256",
+    "sdk_json_sha256"
+  ],
+  "track_rows": [
+    [3, 0.014999999664723873, 0.25442998499784153, "39338b16d2ca898cedcf6a7213f364677df47e84cb3dd894e6541f4052583fbd", "b714d5b9acf41bae5983ba0b010ddea98be0d6b225fe21889495965b199e3f0b", "57fa5f5b2b26c458efb92bd49078a44288457b7008b3929cbfa689cf2d46ec23"],
+    [22, 0.1099999975413084, 0.5506790409999667, "7c359fe4aed2c3bceb0e86260aeda19aa2027b66f02eefed94d159cabb143fdf", "c728df57fdb4133b1f8d4041ecd653afd76e332d32c4c004b729dfb313456c63", "4b5fa31100be4d396934a204b10141cbc5168c1ae7b9b6eb658b1ab08c9b786a"],
+    [42, 0.20999999530613422, 0.5658681960048852, "7be3746147de16292aa04496f9ee1b0569be3384e34981a15436f177528a1ac7", "6f3a9c4e455fe2c9a08e6763ffd312859f29b2a907273a7e3550b92483410518", "d02b0b0c72d35615972f6be4b73486b893e0777656c8ae31229f84d515691885"],
+    [62, 0.30999999307096004, 0.49960213099984685, "6920155d6e9d5b32b0d198d4feee04a327088d954d205b6b0e5ba8f528581422", "fdf8277f5243af76f86530eb097543f6f5530761e0ffbe43f5c262a768c8de25", "ae5590b435e3eb2305c11731fe0dc6e749caa6f98da498cfa154df7736597af9"],
+    [82, 0.40999999083578587, 0.5174497519983561, "665185643b02a7ac7e2e16b1c4bbcabcf12d071f09ef212560b441fc2fcdfe87", "6a53067f23ed3e39184eedf8fb2e6b228cea09e01a4cc99d4dc9977184cf30b9", "0daa0db4aec0951360ab76bd0ee8c6742f99e3cb1ddb246ed82cfc7eb1dc323e"],
+    [102, 0.5099999886006117, 0.55517045599845, "f940268a9bada2446b0ee3344cbf3624c7538ac3e8f12b14cbb6ac1adbd7fb3f", "f2652166f9594fd94afdd6ce8612673db776174a37c3516b21789554e0ae5bce", "4bd350e9e34a5612845aae7d32dcff0bc6860431a2ac759a3ed02973ce4e7ee8"],
+    [122, 0.6099999863654375, 0.5029986299923621, "e7b7577f7d42b4aedf0bbb89dbcb902eb4ba905a35039134d2029607b2fea525", "b5e2034938596a9b9492d1936fc7326de306df803bd60bb0702598f72d61fd6b", "136eac5765af0e6356b4cf6e241fdb66e84eba16257243277dd7c4d99935b602"],
+    [142, 0.7099999841302633, 0.48582545499812113, "31b564606dab20ddcfbbab828318f90a7d04b47b061967c5f3bf8bb1441b83dc", "ec22c172f75a494c68f703200eeb3212e450c30e6367d7724b3b30cc5c3a0754", "3beb284cfe24f2b6c50a0349e6f97710ba3e257aedcc11d0b18635ad35188baf"],
+    [162, 0.8099999818950891, 0.5177947570045944, "9ae8d78c22d6a12c374b5a34797231890841c787fbc4dfb13d3615394296a2b4", "71004ae449d414c159efae3a30d60cd21c0afc2f8159c8627a626204092a7298", "9063de3298d16ba4bdc8ae33d825e846d80c218541da2b4a445a5ef8fee7dfd8"],
+    [182, 0.909999979659915, 0.5112214329928975, "dd1d6556a9113a455fcca9e54c44a223f3454bb5d4850794162b4b13a71f7ad2", "39b5ced97e8a0f6f3cc2bc9bbb89619455ef84cf20e15676e41dc06738ec8678", "df9440fddd4e6afdec9fc80fd91820208b7fb16cb3e87d81f42f87dcfec3824d"],
+    [202, 1.0099999774247408, 0.5023331080010394, "30ab2993e326453f4cd1c675dd1165f5183bc7729a4bf4c7aab00a54013ae746", "52577f9f7c1f63528e4ceec234293337dc4e725228265fa9266aef9f55f74a6a", "70cf83c07e6c218ac418de4d32261d0b5bb314ad77dd77818132251980b7c2f4"],
+    [222, 1.1099999751895666, 0.5110969739980646, "78f2f1558e2a97c0209237aa7e8fbc7d1d991a1eef623d25fde4e333539e7c68", "6c61c1ca6e28a980a7810cd28fbaf98a75baf599aaeaae20478411f97912ac12", "bcd806898b621f3971b03ae641333faa0f1e4b2e465c955653b827921ad0e9bb"]
+  ],
+  "harness_sha256": {
+    "audit_producer.py": "9173ef4faaa3e675191e6e68cb4e0cac2d4c9629b9abe99ff1e5a1e08850edd5",
+    "audit_stream.py": "8fd7bcaf58badf6f4f54ec82f4befdae3945da13645302440b722f197cb7f04f",
+    "consume_stream.py": "73d540ad60b230f6d241338a41405f8d7b6ef2722af2e3e3eeaf26fca6ff822b",
+    "prepare_stream.py": "c0f42b827659dbb69c1e9aead17b4ec47b00e56ad695ea107c1cabedc5eadb62",
+    "run_stream.py": "e60db3f5b3e9fb74195d84c596394c284dfc10eb02a6968e46b9c67772c9bd91",
+    "stream_health.py": "12caaeaccc33d67e59872046bc5f7604183e7d3bc99aba969197a057cfb39372",
+    "test_stream_harness.py": "0314125572305ebbf2893c380be2204b21cce7e7077f7ee85159c81eeb790d43"
+  },
+  "artifacts_sha256": {
+    "stream-plan-07.json": "020714f5227fac6fe94b3b18aa6a5071607304fa45389a08aafcdfe6616be794",
+    "stream-binding-07.json": "80e719bfeeb1e3b339e7708e6d50cc5353481c2884bb66e72c2196e4983e011f",
+    "stream-review-07.json": "4db61aad65a4cf7275a0afa7bdd49b59f34b12b830b5de84cf15fa08d2aab256",
+    "stream-launch-admission-07.json": "665ef5e3fa880337a4fc7083c35bdb93e7b4bb6a3311849b3813c692147b8126",
+    "stream-check-only-07.log": "cc494b03663b6dfaba0478f6686896914f6f339609da869bf9e37f156e8d9556",
+    "stream-tests-07.log": "2a2cb6b150788663e7d0c79d0cc463f8e8267c3ea45ca4977cdb7061255ebbdb",
+    "stream-native-07/receipt.json": "b1c1bfe63a3ccfc04dd386d1fce37b8b30d4ccfec4886a0ae4d48289bb27a138",
+    "stream-native-07/consumer/receipt.json": "e717d0d3f1a72714657ec3c783effe42c82efe5853a6d76eb4a1c4804a80c1d6",
+    "stream-native-07/consumer/PREPARED.json": "2d2b4acd7e2a922b019464a9a1089bb0caf47d213a05215bc0eab337a56794bb",
+    "stream-native-07/consumer/catalog.json": "6db0ca7aec8396847589c7797f5d366fffe805e89030993387649749719e813b",
+    "stream-native-07/consumer-scope/closure.json": "2cfcc97ea48ac432ac9742eb0d8203169b3cf75bccd2e3cc29c3487c203cfb16",
+    "stream-native-07/producer-scope/closure.json": "eb1738e8a7ec83071c60e20abc135ddb8221d086b3d9377a613f66d9d9e480f4",
+    "stream-native-07/native-exit.json": "d24219f6de94b955cf36d25bd2aca88e2d35eef45b9317b7083f55ec8fe9653c",
+    "stream-native-07/kit/model-identity.json": "342362623671e74c9c94f1f1a7825dc576dee803a1a558b6207e029cf9fe10f8",
+    "stream-native-05/receipt.json": "fbcb84d15f1c66f3587248fe1be34d7ea63b67dc2f4d9311dbfeaba1d83baeee",
+    "stream-native-05/consumer/receipt.json": "e22ff2e8d8921796c27708772bf1ac2847ca7e84c2dc55879d0aaf85d8139823",
+    "stream-prefix-audit-05.json": "5d839a043afa53531f0c194f367095fd3c2f9e870e6aaebe985d9cb53eab2b26",
+    "audit_stream_prefix_05.py": "8724715f7ace9b5b44bfdea7102b6b667e633a11b649a56ece047e817f94e82f",
+    "stream-plan-06.json": "afa8bcb2f55e12a2c1a6d261843f9477075ccace9fd3688492b39709f76d30b4",
+    "stream-binding-06.json": "0bbb9357f8c62b1ac8f56563d4a88960b9b5853d865fe6988259934c2b02b756",
+    "stream-plan-06-unlaunched.json": "02e90d1ca1e2406a4ac673aef0b336a8ffcc4d8aaaca61e19c2b0cf0bdcfd0c4"
+  }
+}

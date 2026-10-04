@@ -1,0 +1,192 @@
+{
+  "schema": "cascade.kitchen-fixed-recipe-repetitions.v1",
+  "campaigns": [
+    {
+      "index": 0,
+      "source_head": "47de1fbe7a53eadd55023c5f39dcc17fbcb1fb91",
+      "campaign_pass": true,
+      "receipt": "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMPLETE_LIFECYCLE_20261004/attempts/f229ee9d06134bee80bd0a275c8ca1ac/final.json",
+      "receipt_sha256": "268d8609b36d9974a3183abadc52fd069d2dae18b47c0f04680fa93c7cc77374",
+      "session_id": "cascade-proof-3c1908c0dfc84ea0b66235284b4c9a3a",
+      "ordinary_owned_closures": 6,
+      "campaign_elapsed_s": 767.7595285339994,
+      "cases": [
+        {
+          "object": "green cube",
+          "destination": "green square",
+          "physical_pass": true,
+          "event_cameras_pass": true,
+          "reset_props": [
+            "pink_cube",
+            "green_cube",
+            "tomato_can",
+            "lemon",
+            "orange"
+          ],
+          "final_xy_error_m": 0.003814528524948018,
+          "rest_sim_s": 0.5,
+          "lift_m": 0.10656209476292132,
+          "max_frame_age_s": 0.9856234400012909,
+          "pick_agent_metadata_duration_ms": 176342
+        },
+        {
+          "object": "orange",
+          "destination": "open box",
+          "physical_pass": true,
+          "event_cameras_pass": true,
+          "reset_props": [
+            "pink_cube",
+            "green_cube",
+            "tomato_can",
+            "lemon",
+            "orange"
+          ],
+          "final_xy_error_m": 0.006803047124887731,
+          "rest_sim_s": 0.5166666666666515,
+          "lift_m": 0.1152577046304941,
+          "max_frame_age_s": 1.0507618350002303,
+          "pick_agent_metadata_duration_ms": 238664
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "source_head": "47de1fbe7a53eadd55023c5f39dcc17fbcb1fb91",
+      "campaign_pass": true,
+      "receipt": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/repetition-01/attempts/5e06bdea5bba4c19804962dd6097360d/final.json",
+      "receipt_sha256": "76c09cda3e1532d4020b4fc953964168b035d5bb4e216bca1aa1f6945f9ed119",
+      "session_id": "cascade-proof-3893cf913eab4952ace5156bf388342f",
+      "ordinary_owned_closures": 6,
+      "campaign_elapsed_s": 444.53014886200253,
+      "cases": [
+        {
+          "object": "green cube",
+          "destination": "green square",
+          "physical_pass": true,
+          "event_cameras_pass": true,
+          "reset_props": [
+            "pink_cube",
+            "green_cube",
+            "tomato_can",
+            "lemon",
+            "orange"
+          ],
+          "final_xy_error_m": 0.0009056201303290567,
+          "rest_sim_s": 0.5333333333333314,
+          "lift_m": 0.10097046382725237,
+          "max_frame_age_s": 0.7304837190022226,
+          "pick_agent_metadata_duration_ms": 98305
+        },
+        {
+          "object": "orange",
+          "destination": "open box",
+          "physical_pass": true,
+          "event_cameras_pass": true,
+          "reset_props": [
+            "pink_cube",
+            "green_cube",
+            "tomato_can",
+            "lemon",
+            "orange"
+          ],
+          "final_xy_error_m": 0.0018966244718437596,
+          "rest_sim_s": 0.5333333333333314,
+          "lift_m": 0.11733479239046572,
+          "max_frame_age_s": 0.8136895009956788,
+          "pick_agent_metadata_duration_ms": 103462
+        }
+      ],
+      "independently_observed_births_absent": 11
+    },
+    {
+      "index": 2,
+      "source_head": "47de1fbe7a53eadd55023c5f39dcc17fbcb1fb91",
+      "campaign_pass": true,
+      "receipt": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/repetition-02/attempts/eaaaa037ce254f7d900452a6a721d4ed/final.json",
+      "receipt_sha256": "b2fa003120b1379815f1d831149dc91491a236380e7c3dfc3bb52c3f4fdeed00",
+      "session_id": "cascade-proof-bcbeb724f2a84b1d9dc174046f6a34be",
+      "ordinary_owned_closures": 6,
+      "campaign_elapsed_s": 443.8994965090096,
+      "cases": [
+        {
+          "object": "green cube",
+          "destination": "green square",
+          "physical_pass": true,
+          "event_cameras_pass": true,
+          "reset_props": [
+            "pink_cube",
+            "green_cube",
+            "tomato_can",
+            "lemon",
+            "orange"
+          ],
+          "final_xy_error_m": 0.004505797118833737,
+          "rest_sim_s": 0.5,
+          "lift_m": 0.10034774430096148,
+          "max_frame_age_s": 0.7170631959888851,
+          "pick_agent_metadata_duration_ms": 95584
+        },
+        {
+          "object": "orange",
+          "destination": "open box",
+          "physical_pass": true,
+          "event_cameras_pass": true,
+          "reset_props": [
+            "pink_cube",
+            "green_cube",
+            "tomato_can",
+            "lemon",
+            "orange"
+          ],
+          "final_xy_error_m": 0.011972755873987438,
+          "rest_sim_s": 0.5166666666666515,
+          "lift_m": 0.0995680335909128,
+          "max_frame_age_s": 0.6498492420068942,
+          "pick_agent_metadata_duration_ms": 110470
+        }
+      ],
+      "independently_observed_births_absent": 11
+    }
+  ],
+  "completed_campaigns": 3,
+  "completed_physical_placements_and_resets": 6,
+  "scope": "Original successful campaign plus two independently owned additional campaigns, same green cube/orange recipe.",
+  "limits": [
+    "Three observed campaigns are a small sample, not a reliability estimate.",
+    "Additional props, scenes, recovery, hardware and the full manipulation roadmap remain open.",
+    "Original campaign shared the GPU with other processes; elapsed times are not an isolated performance comparison.",
+    "Pick duration is agent result metadata, not complete campaign time.",
+    "Original gateway helper may send group SIGKILL; gateway-child exit codes are not exported.",
+    "The existing truth-assisted held-object compensation remains; this is not perception-only evaluation."
+  ],
+  "artifact_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMPLETE_LIFECYCLE_20261004/attempts/f229ee9d06134bee80bd0a275c8ca1ac/final.json": "268d8609b36d9974a3183abadc52fd069d2dae18b47c0f04680fa93c7cc77374",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMPLETE_LIFECYCLE_20261004/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-3c1908c0dfc84ea0b66235284b4c9a3a/case-1/physics/gpu-physical-audit.json": "6a8b5d062474878c46a32c098c0d5e135e5cef50f002d60c89538c93c195fe47",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMPLETE_LIFECYCLE_20261004/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-3c1908c0dfc84ea0b66235284b4c9a3a/case-1/02-pick.json": "c96895d5fed47cf1d07e4ee352359ae34c478c45066d89c95b370f307f8aaebe",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMPLETE_LIFECYCLE_20261004/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-3c1908c0dfc84ea0b66235284b4c9a3a/case-1/03-reset.json": "1a4020b9561b9647da42cfdb3996e55564c2761aaa1085afa5a7cc4356dd4762",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMPLETE_LIFECYCLE_20261004/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-3c1908c0dfc84ea0b66235284b4c9a3a/case-2/physics/gpu-physical-audit.json": "90e55cd15c2a68589f7174c329be568efb4c49d977f2ba15ed24e9b5422ebe71",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMPLETE_LIFECYCLE_20261004/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-3c1908c0dfc84ea0b66235284b4c9a3a/case-2/02-pick.json": "fdaa97903f3f089ffe98067ce61c937230108cef80d02576bcec76d34e3d7a52",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMPLETE_LIFECYCLE_20261004/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-3c1908c0dfc84ea0b66235284b4c9a3a/case-2/03-reset.json": "1c81dd1a67b33ab295725f05d92af57af153959d6ad562f3491cf219c4cf49bb",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/repetition-01/attempts/5e06bdea5bba4c19804962dd6097360d/final.json": "76c09cda3e1532d4020b4fc953964168b035d5bb4e216bca1aa1f6945f9ed119",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/repetition-01/guard-result.json": "a19b9e65a6fd9111a4d52d0a5b715b365dcdabbdd9373261d288463e0eac27c2",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/repetition-01/root-post-close.json": "4140a649cc4e55602554957aebcb323669d9679abc4225499436707123faca86",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/repetition-01/review-binding.json": "72630bb1f5ca5fd6e5fbba25454cba6e2c1d565e9925361ae632d6c8152e0efb",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/repetition-01/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-3893cf913eab4952ace5156bf388342f/case-1/physics/gpu-physical-audit.json": "1e3d748d209616c5693e7d48b2004b55346ba0dbc5668adc17cbce8939e4f946",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/repetition-01/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-3893cf913eab4952ace5156bf388342f/case-1/02-pick.json": "9d1544f07ac99b62d2fa6a5a92737678e2e1dd7dd6e7deeb4e1c9d8391817ca1",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/repetition-01/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-3893cf913eab4952ace5156bf388342f/case-1/03-reset.json": "cd0a8067da2139cea426b6270988a3f780879fb2eb993d6d5dea4f6afb73ebe4",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/repetition-01/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-3893cf913eab4952ace5156bf388342f/case-2/physics/gpu-physical-audit.json": "cd89a91e081bb5d88ad76bcdd3dcafeac87aceb8b0074b5a37cd5bacc529fe3a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/repetition-01/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-3893cf913eab4952ace5156bf388342f/case-2/02-pick.json": "3d6828786f7e7389932852f8c3e1c85b3b8fac0d15edb9d50603b5c469473205",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/repetition-01/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-3893cf913eab4952ace5156bf388342f/case-2/03-reset.json": "3236f77c47238db571bb9132493053270465f770880a8091a74687cdf57e52d3",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/repetition-02/attempts/eaaaa037ce254f7d900452a6a721d4ed/final.json": "b2fa003120b1379815f1d831149dc91491a236380e7c3dfc3bb52c3f4fdeed00",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/repetition-02/guard-result.json": "06a66b8ff0211a5c6428d165acb01c24e139ed9ec8faf1efd3df011c80283f9b",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/repetition-02/root-post-close.json": "c9f1bd3461ac4e94d3f7ad4fb54a7d89609ba5c6969fe9d20c919edf6c42270b",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/repetition-02/review-binding.json": "42df2388e64d65da0184b83a4d41ddb32b09c8618d28b5f3f5fb8341aa316169",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/repetition-02/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-bcbeb724f2a84b1d9dc174046f6a34be/case-1/physics/gpu-physical-audit.json": "819fb6a2c5e5767b6e70fcdebd7d6c0d652e6f4cc0b7425ca3acf178595dbe36",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/repetition-02/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-bcbeb724f2a84b1d9dc174046f6a34be/case-1/02-pick.json": "678f8f850d1baa57dc6cea1f42637752b60232ce76d5600ed3eb92cd789ec858",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/repetition-02/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-bcbeb724f2a84b1d9dc174046f6a34be/case-1/03-reset.json": "5051ad842b98d98f318ec99db2262edbfb7cb95973637b0f48de58e09dca38c8",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/repetition-02/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-bcbeb724f2a84b1d9dc174046f6a34be/case-2/physics/gpu-physical-audit.json": "4d680ae9e204dfde889578b7f96d62820f85d0b566f81e1ec03625c860e61938",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/repetition-02/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-bcbeb724f2a84b1d9dc174046f6a34be/case-2/02-pick.json": "b036f872d3ee3abd1b91153673e86455440079d8070b6d1053d3d8227aa082cf",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/repetition-02/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-bcbeb724f2a84b1d9dc174046f6a34be/case-2/03-reset.json": "9f47127230659dd04a28d9fcf72ba1192223f9b36c85290b53c4962f3d8ef179",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_REPEAT_20261004/summarize_repeatability.py": "06cb9cb7d76a6e1a13040ffe09f1f47dee6115e4e8fc7aa580eeab9834c13cdf"
+  }
+}

@@ -17,12 +17,16 @@ def spark_boundary(host_boundary, monkeypatch):
     h.update(turns=[], prompts=[], timeouts=[], audits=[], witnesses=[], audit_fail=None, duplicate_call=False,
              reset_failure=False, wrong_object=False, extra_inspection=False)
     monkeypatch.setenv("CASCADE_INSTALL_PROFILE", "spark")
+    monkeypatch.delenv("CASCADE_SPARK_PROOF_CASES", raising=False)
 
     def turn(session, model, message, output, timeout, required_tool=None):
         legacy = re.search(r"with arguments (\{.*?\})\.", message)
         arguments = json.loads(legacy.group(1)) if legacy else {
             "Could you put the green cube in the green square?": {"object": "green cube", "destination": "green square"},
             "Please put the orange in the open box.": {"object": "orange", "destination": "open box"},
+            "Please put the pink cube in the green square.": {"object": "pink cube", "destination": "green square"},
+            "Please put the lemon in the open box.": {"object": "lemon", "destination": "open box"},
+            "Please put the tomato can in the green square.": {"object": "tomato can", "destination": "green square"},
         }.get(message, {})
         h["prompts"].append(message)
         h["turns"].append((required_tool, arguments, session))
@@ -140,3 +144,53 @@ def test_natural_pick_allows_an_inspection_before_its_single_motion(spark_bounda
     h = spark_boundary
     h["extra_inspection"] = True
     assert demo_proof.run_proof(h["repo"], h["state"], "isaac", True)["verified"] is True
+
+
+def test_all_kitchen_cases_keep_one_world_and_every_reset(spark_boundary, monkeypatch):
+    h = spark_boundary
+    monkeypatch.setenv("CASCADE_SPARK_PROOF_CASES", "all")
+    report = demo_proof.run_proof(h["repo"], h["state"], "isaac", True)
+    assert report["verified"] is True and report["case_set"] == "all"
+    assert [case["object"] for case in report["cases"]] == [
+        "green cube", "orange", "pink cube", "lemon", "tomato can"]
+    assert report["expected_cases"] == [
+        {"object": case["object"], "destination": case["destination"]} for case in report["cases"]]
+    assert len(h["children"]) == 1
+    assert len({session for _, _, session in h["turns"]}) == 1
+    assert [tool for tool, _, _ in h["turns"]] == [
+        "describe_scene", *(["pick_and_place", "reset_scene", "world_state", "describe_scene"] * 5)]
+    assert [timeout for tool, timeout in h["timeouts"] if tool == "pick_and_place"] == [360] * 5
+    assert all(w.frames == ["placed", "reset"] and
+               w.marks == ["pick_begin", "pick_end", "reset_begin", "reset_end"] for w in h["witnesses"])
+
+
+def test_explicit_standard_cases_override_environment(spark_boundary, monkeypatch):
+    h = spark_boundary
+    monkeypatch.setenv("CASCADE_SPARK_PROOF_CASES", "all")
+    report = demo_proof.run_proof(h["repo"], h["state"], "isaac", True, spark_case_set="standard")
+    assert report["case_set"] == "standard" and len(report["cases"]) == 2
+    assert h["audits"] == ["green_cube", "orange"]
+
+
+@pytest.mark.parametrize("failed_object,completed", [("pink_cube", 2), ("lemon", 3), ("tomato_can", 4)])
+def test_extended_physical_failure_cannot_publish_ready_or_continue(spark_boundary, failed_object, completed):
+    h = spark_boundary
+    h["audit_fail"] = failed_object
+    with pytest.raises(demo_proof.ProofError):
+        demo_proof.run_proof(h["repo"], h["state"], "isaac", True, spark_case_set="all")
+    receipt = json.loads((h["state"] / "proof.json").read_text())
+    assert receipt["verified"] is False
+    assert len(receipt["cases"]) == completed
+    assert len(h["witnesses"]) == completed + 1
+    assert h["audits"][-1] == failed_object
+
+
+@pytest.mark.parametrize("sim,robot_turn,case_set", [
+    ("isaac", True, "unknown"), ("mujoco", True, "all"), ("isaac", False, "all")])
+def test_invalid_case_selection_invalidates_receipt_before_any_agent_turn(spark_boundary, sim, robot_turn, case_set):
+    h = spark_boundary
+    (h["state"] / "proof.json").write_text(json.dumps({"verified": True}))
+    with pytest.raises(demo_proof.ProofError):
+        demo_proof.run_proof(h["repo"], h["state"], sim, robot_turn, spark_case_set=case_set)
+    assert not h["turns"] and not h["witnesses"]
+    assert json.loads((h["state"] / "proof.json").read_text())["verified"] is False

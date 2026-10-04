@@ -305,12 +305,24 @@ def make_spark_witness(repo, evidence, *, object_name, destination_name):
 
 
 def _run_spark_cases(repo, state_dir, evidence, report, owner, baseline):
-    """Two native OpenClaw orders, each followed by an observed same-world reset."""
+    """Native OpenClaw orders, each followed by an observed same-world reset."""
     from pathlib import Path
     import time
 
     model, session = report["model"], report["session_id"]
     prefix = os.environ.get("CASCADE_MCP_NAME", "cascade") + "__"
+    orders = (
+        ("green cube", "green square", "Could you put the green cube in the green square?"),
+        ("orange", "open box", "Please put the orange in the open box."),
+    )
+    if report["case_set"] == "all":
+        orders += (
+            ("pink cube", "green square", "Please put the pink cube in the green square."),
+            ("lemon", "open box", "Please put the lemon in the open box."),
+            ("tomato can", "green square", "Please put the tomato can in the green square."),
+        )
+    report["expected_cases"] = [{"object": target, "destination": destination}
+                                for target, destination, _ in orders]
 
     def turn(message, tool, output, timeout=150):
         # Expected tools validate the completed result; they never alter the
@@ -329,8 +341,7 @@ def _run_spark_cases(repo, state_dir, evidence, report, owner, baseline):
     process = _bound_world(state_dir, owner, baseline, report["started_at"])
     trace = Path(process["run_dir"]) / "trace.jsonl"
     report.update(process=process, trace=str(trace), cases=[])
-    for number, (target, destination) in enumerate(
-            (("green cube", "green square"), ("orange", "open box")), 1):
+    for number, (target, destination, message) in enumerate(orders, 1):
         case_dir = evidence / f"case-{number}"
         case_dir.mkdir()
         witness = make_spark_witness(repo, case_dir,
@@ -338,8 +349,6 @@ def _run_spark_cases(repo, state_dir, evidence, report, owner, baseline):
         with witness:
             witness.mark("pick_begin")
             started = time.time()
-            message = ("Could you put the green cube in the green square?" if number == 1
-                       else "Please put the orange in the open box.")
             turn(message, "pick_and_place", case_dir / "02-pick.json", NATIVE_TURN_TIMEOUT_S)
             _bound_world(state_dir, owner, baseline, report["started_at"], process)
             witness.settle(wall_timeout=90)
@@ -365,7 +374,7 @@ def _run_spark_cases(repo, state_dir, evidence, report, owner, baseline):
     report.update(verified=True, props_reset=report["cases"][-1]["props_reset"])
 
 
-def run_proof(repo, state_dir, sim: str, robot_turn: bool = True) -> dict:
+def run_proof(repo, state_dir, sim: str, robot_turn: bool = True, *, spark_case_set: str | None = None) -> dict:
     """Run the REAL host, keeping pick and reset in one persistent session."""
     from pathlib import Path
     import time
@@ -379,6 +388,14 @@ def run_proof(repo, state_dir, sim: str, robot_turn: bool = True) -> dict:
               "started_at": time.time(), "evidence_dir": str(evidence),
               "profile": os.environ.get("CASCADE_OPENCLAW_PROFILE", "")}
     _write_receipt(report, state_dir)  # invalidate the previous success BEFORE any failing probe
+    case_set = spark_case_set if spark_case_set is not None else os.environ.get("CASCADE_SPARK_PROOF_CASES", "standard")
+    if case_set not in ("standard", "all"):
+        raise ProofError("Spark proof cases must be 'standard' or 'all'")
+    spark = robot_turn and sim == "isaac" and os.environ.get("CASCADE_INSTALL_PROFILE") == "spark"
+    if case_set != "standard" and not spark:
+        raise ProofError("All kitchen cases require the Spark Isaac robot proof")
+    if spark:
+        report["case_set"] = case_set
     owner, baseline = None, set()
     if robot_turn and sim != "none":
         from cascade.apps.process_owner import load_owner, records
@@ -390,7 +407,7 @@ def run_proof(repo, state_dir, sim: str, robot_turn: bool = True) -> dict:
     model = check_brain("keep")["model"]
     report["model"] = model
     print(f"[proof] brain={model} session={session}", file=sys.stderr, flush=True)
-    if robot_turn and sim == "isaac" and os.environ.get("CASCADE_INSTALL_PROFILE") == "spark":
+    if spark:
         _run_spark_cases(repo, state_dir, evidence, report, owner, baseline)
         (evidence / "proof.json").write_text(json.dumps(report, indent=2) + "\n")
         _write_receipt(report, state_dir)
@@ -444,6 +461,8 @@ def main() -> int:
     p.add_argument("--state-dir", type=Path)
     p.add_argument("--sim", choices=["isaac", "mujoco", "none"], default="mujoco")
     p.add_argument("--no-robot-turn", action="store_true")
+    p.add_argument("--spark-cases", choices=("standard", "all"),
+                   help="Kitchen coverage; defaults to CASCADE_SPARK_PROOF_CASES or standard (two objects)")
     args = p.parse_args()
     try:
         if args.check_brain:
@@ -459,7 +478,8 @@ def main() -> int:
                 os.environ.get("CASCADE_LAUNCH_STATE", args.repo / "runs/.launch"),
                 os.environ.get("CASCADE_OPENCLAW_PROFILE", ""),
             )
-            result = run_proof(args.repo, state_dir, args.sim, not args.no_robot_turn)
+            result = run_proof(args.repo, state_dir, args.sim, not args.no_robot_turn,
+                               spark_case_set=args.spark_cases)
         print(json.dumps(result))
     except (ProofError, OSError, subprocess.TimeoutExpired) as exc:
         print(str(exc), file=sys.stderr)

@@ -14,7 +14,7 @@ architecture does not depend on a particular Isaac Sim build or robot shape.
 
 | Capability | Remaining implementation and completion criteria |
 | --- | --- |
-| Manipulation | Establish repeatability beyond the completed ordinary kitchen campaign, including release, support, rest, reset and owned closure. Expand object/scene coverage and measured collision/carry protection through the agent route; validate each new robot and hardware setup. |
+| Manipulation | Extend the three retained green-cube/orange campaigns to broader object/scene coverage and measured collision/carry protection through the agent route. Each case must retain release, support, rest, reset and owned closure; validate each new robot and hardware setup. The opt-in five-object proof still needs native acceptance. |
 | Fastening | Establish repeatability of the measured mounted turn-and-rest task; add tool acquisition, engagement, calibrated torque/preload and withdrawal with independent contact and thread measurements. |
 | Locomotion | Demonstrate visible longer routes, turns, balance-preserving stop, disconnect and reset; integrate and validate additional actuator/physics combinations and humanoid policies. Running requires its own controller and evidence. |
 | Perception and spatial understanding | Extend the measured static planar RGB-D result to broader metric geometry and moving cameras; validate IMU/proprioception fusion and time alignment while preserving missing, stale and uncertain observations. |

@@ -22,11 +22,11 @@ MARKS = {name: {"monotonic": t} for name, t in zip(
     ("pick_begin", "pick_end", "reset_begin", "reset_end"), (99.9, 102.55, 102.59, 104.1))}
 
 
-def support_fixture(vertices, counts, indices, selected=None):
+def support_fixture(vertices, counts, indices, selected=None, *, object_name="orange"):
     selected = list(range(len(vertices))) if selected is None else list(selected)
     digest = lambda v: hashlib.sha256(np.ascontiguousarray(v, dtype='<f4').tobytes()).hexdigest()
     return {"method": "physx_collision_representation", "engine": "physx", "stage_id": 7,
-        "collider_path": "/World_Props/orange/Collision", "physics_step": 0,
+        "collider_path": f"/World_Props/{object_name}/Collision", "physics_step": 0,
         "result": "RESULT_VALID", "convex_count": 1, "frame": "body_local", "units": "m",
         "source_vertices_f32_sha256": digest(vertices),
         "source_topology_sha256": hashlib.sha256(json.dumps([counts, indices], separators=(',', ':')).encode()).hexdigest(),
@@ -56,11 +56,11 @@ def trajectory(object_name="orange", destination_name="open box"):
                      "five_static_colliders": True, "axis_aligned": True, "visible": True}}
     geometry.update({key: expected[key] for key in
                      ("scene_name", "scene_assets_sha256", "scene_content_sha256") if key in expected})
-    if object_name == "orange":
+    if object_name in expected["convex_colliders"]:
         spec = expected["convex_colliders"][object_name]
         vertices, counts, indices = gpu.convex.expected_hull(spec)
-        geometry["convex_collider"] = {"body_name": object_name, "collider_path": "/World_Props/orange/Collision",
-            "stage_id": 7, "physx_support": support_fixture(vertices, counts, indices),
+        geometry["convex_collider"] = {"body_name": object_name, "collider_path": f"/World_Props/{object_name}/Collision",
+            "stage_id": 7, "physx_support": support_fixture(vertices, counts, indices, object_name=object_name),
             "frame": "body_local", "units": "m", "vertices_m": vertices.tolist(),
             "face_vertex_counts": counts, "face_vertex_indices": indices, "subdivision_none": True,
             "collision_approximation": "convexHull", "collision_enabled": True, "one_collider_one_body": True,
@@ -92,7 +92,7 @@ def trajectory(object_name="orange", destination_name="open box"):
                 "filter_paths": [[jaw_root + "/gripper_left", jaw_root + "/gripper_right"]],
                 "physics_step": i * 12, "jaw_forces_n": [[.2, 0., 0.], [-.2, 0., 0.]] if lifting else [[0.] * 3] * 2,
                 "jaw_contact_counts": [1, 1] if lifting else [0, 0]}, "scene_geometry": deepcopy(geometry)}
-        if object_name == "orange":
+        if object_name in expected["convex_colliders"]:
             sample["scene_geometry"]["convex_collider"]["physx_support"]["physics_step"] = i * 12
         for name, spawn in spawns.items():
             xyz = list(spawn)
@@ -116,7 +116,7 @@ def audit(records, expected, object_name="orange", destination_name="open box"):
 
 
 @pytest.mark.parametrize("object_name,destination", proof.CASES)
-def test_both_cases_keep_contact_destination_release_and_reset_requirements(object_name, destination):
+def test_all_supported_cases_keep_contact_destination_release_and_reset_requirements(object_name, destination):
     rows, expected = trajectory(object_name, destination)
     result = audit(rows, expected, object_name, destination)
     assert result["pass"], result
@@ -124,8 +124,6 @@ def test_both_cases_keep_contact_destination_release_and_reset_requirements(obje
     assert result["checks"]["whole_footprint_enters_destination_with_bilateral_support"]
     assert result["checks"]["all_props_physically_reset_and_settled"]
     assert proof.audit_cameras(rows, MARKS)["pass"]
-
-
 @pytest.mark.parametrize("fault", ["counter_under_box", "outside_wall", "held", "no_contacts", "reset",
                                   "wrong_scene", "cpu", "no_lift", "wrong_hull", "missing_prop"])
 def test_orange_box_proof_rejects_incomplete_or_wrong_physical_evidence(fault):
@@ -183,6 +181,8 @@ def test_snapshot_is_read_only_and_keeps_exact_convex_codec(object_name, destina
     forbidden = {"update", "play", "stop", "simulate", "step", "Set", "Apply", "reset"}
     for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
         assert call.func.attr not in forbidden and not call.func.attr.startswith("set_")
+
+
     assert '_gpu_contact_snapshot' in code and '"cameras"' in code and 'KITCHEN_OBSERVER_ZLIB' in code
     rows, _ = trajectory(object_name, destination)
     sample = rows[0]["physics"]
@@ -192,6 +192,37 @@ def test_snapshot_is_read_only_and_keeps_exact_convex_codec(object_name, destina
     with contextlib.redirect_stdout(output):
         exec('import zlib as _obs_zlib' + code.split('import zlib as _obs_zlib', 1)[1], namespace)
     assert gpu.original.parse_snapshot_reply({"ok": True, "stdout": output.getvalue()}) == sample
+
+
+@pytest.mark.parametrize("object_name,destination", [
+    ("lemon", "green square"), ("tomato_can", "open box"),
+    ("unknown", "green square"), ("pink_cube", "drop zone")])
+def test_witness_rejects_unreviewed_placements_before_scene_access(object_name, destination, tmp_path):
+    with pytest.raises(ValueError, match="Unsupported kitchen"):
+        proof.SparkKitchenWitness(tmp_path / "unused", scene_config=tmp_path / "absent.json",
+                                  object_name=object_name, destination_name=destination)
+
+
+def test_can_still_requires_upright_rest():
+    rows, expected = trajectory("tomato_can", "green square")
+    angle = np.deg2rad(10)
+    for i in range(12, 26):
+        rows[i]["physics"]["props"]["tomato_can"]["orientation_wxyz"] = [
+            np.cos(angle / 2), np.sin(angle / 2), 0., 0.]
+    result = audit(rows, expected, "tomato_can", "green square")
+    assert result["checks"]["two_jaw_contacts_during_real_lift"]
+    assert result["checks"]["tomato_can_settles_upright"] is False
+    assert result["pass"] is False
+
+
+def test_lemon_still_requires_complete_hull_inside_box():
+    rows, expected = trajectory("lemon", "open box")
+    for i in range(12, 26):
+        rows[i]["physics"]["props"]["lemon"]["position_m"][0] += .04
+    result = audit(rows, expected, "lemon", "open box")
+    assert result["checks"]["two_jaw_contacts_during_real_lift"]
+    assert result["checks"]["whole_convex_collider_inside_open_box_and_supported"] is False
+    assert result["pass"] is False
 
 
 @pytest.mark.parametrize("key", ["scene_name", "scene_assets_sha256", "scene_content_sha256"])

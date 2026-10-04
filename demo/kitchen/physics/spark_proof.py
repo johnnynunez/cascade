@@ -1,4 +1,4 @@
-"""Passive event acceptance for the two shipped Spark kitchen orders.
+"""Passive event acceptance for the five supported kitchen placements.
 
 The existing GPU auditor supplies actual contacts, lift, release, destination
 geometry and reset checks. This adapter also checks all three event cameras.
@@ -19,7 +19,9 @@ shared = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(shared)
 
 CAMERAS = ("cam0", "side", "proof")
-CASES = (("green_cube", "green square"), ("orange", "open box"))
+CASES = (("green_cube", "green square"), ("orange", "open box"),
+         ("pink_cube", "green square"), ("lemon", "open box"),
+         ("tomato_can", "green square"))
 
 
 def audit_cameras(records, marks):
@@ -62,7 +64,7 @@ def audit_cameras(records, marks):
 class SparkKitchenWitness(shared.GpuProofObserver):
     def __init__(self, out, *, scene_config, object_name, destination_name, port=8611):
         if (object_name, destination_name) not in CASES:
-            raise ValueError("Expected green cube to green square or orange to open box")
+            raise ValueError("Unsupported kitchen object/destination pair")
         expected = shared.load_expected_scene_geometry(scene_config)
         super().__init__(out, port=port, interval_s=.15, budget_s=900,
                          object_name=object_name, destination_name=destination_name,

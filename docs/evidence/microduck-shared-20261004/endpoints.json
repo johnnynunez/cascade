@@ -1,0 +1,228 @@
+{
+  "scope": "Native shared balance with 1/2/12 robots; endpoint stop/reset/zero completion with 1/2. Twelve-robot control failed its feedback deadline.",
+  "source": "dee9828348ff6f80ca53e5d593d810900c814ace",
+  "sdk_recipe": "isaac62_48b2d951",
+  "raw_artifact_location": "cascade-lab/MICRODUCK_SHARED_CAPTURE_20261004/<run>",
+  "route": "FleetRuntime -> RobotRuntime -> locomotion -> SafeBase -> IsaacBase",
+  "control_sequence_per_robot": [
+    "state",
+    "camera",
+    "stop",
+    "latched state",
+    "reset_stop",
+    "zero velocity for 0.02 simulation seconds"
+  ],
+  "physical_outcomes": "unverified; endpoint execution does not establish gait or rest",
+  "all_completed_cases": {
+    "native_exit_code": 0,
+    "owned_scopes_closed_naturally": true,
+    "inputs_and_protected_stores_unchanged": true,
+    "frames_and_force_probes": 9,
+    "commands": "all thirteen policy command values zero",
+    "bounds": {
+      "global_solves": 800,
+      "application_wall_s": 450,
+      "owned_scope_wall_s": 510
+    }
+  },
+  "performance_claim": "None; GPU occupancy changed between episodes and every baseline is retained.",
+  "adversarial_races": "CPU regressions; native episodes did not inject timing barriers. Discarded preview counts report naturally observed revocations.",
+  "cases": [
+    {
+      "run": "capture-probe-one-01",
+      "robots": 1,
+      "mode": "probe",
+      "global_solves": 800,
+      "policy_commits": 200,
+      "policy_evaluations": 200,
+      "discarded_previews": 0,
+      "withheld_ticks": 0,
+      "client_events": 2,
+      "max_xy_displacement_from_first_solve_m": 0.0027590058573110188,
+      "max_tilt_rad": 0.013795744543663363,
+      "min_last_2s_sole_support_n": 7.226449839770794,
+      "gpu_foreign_pids_before_launch": [
+        298124
+      ],
+      "sha256": {
+        "plan.json": "d4e292805746a1e7b88747716ae7b80f25b655c27831b7aef42202e05c225b9f",
+        "root-receipt.json": "3b2888e135716a3ce2be23bafbff2ce7c6b3a2b883d89aa8706b25a21f323bf4",
+        "independent-audit.json": "085e9a0106c249a2389ce3a0ae29bbfa66d8b0f6daf802f451cd012c589d76d1",
+        "kit/model-identity.json": "2a5d7a02c8a0e5a9788dd0cc62c6e7fef822b323dfa6dfc67a48ddc221bb36f8",
+        "client-events.json": "4f57593d2b1fa9f076e4094202c328086821e3e55b3e1403b1326f1a611d1675",
+        "gpu-admission.json": "c078ac9f29d1c066f74f4a410f0872c8da9f3b100517d22b60ed183903881bb5"
+      }
+    },
+    {
+      "run": "capture-zero-one-01",
+      "robots": 1,
+      "mode": "zero",
+      "global_solves": 800,
+      "policy_commits": 200,
+      "policy_evaluations": 200,
+      "discarded_previews": 0,
+      "withheld_ticks": 0,
+      "client_events": 6,
+      "max_xy_displacement_from_first_solve_m": 0.002758991750086654,
+      "max_tilt_rad": 0.013795556132595286,
+      "min_last_2s_sole_support_n": 7.226474799215794,
+      "gpu_foreign_pids_before_launch": [
+        298124
+      ],
+      "sha256": {
+        "plan.json": "c51ca5e885ffa082e612d87d71e9b8208479b1687b16ee36ca45eb3df2b15ae1",
+        "root-receipt.json": "54ea3e2af017bdd1b28e7e82dc1ae8a3a13edbb14de887b7fc1433da8e8ba221",
+        "independent-audit.json": "1b8fa13d09f5d6431bd161236ccfb74599c0579a1a125a6f88ffd0c12a8b7a04",
+        "kit/model-identity.json": "2a5d7a02c8a0e5a9788dd0cc62c6e7fef822b323dfa6dfc67a48ddc221bb36f8",
+        "client-events.json": "ef567611b8cdf2a40200edbd35a60d4e0c879f9d7e14874c43bcbb9cc0a3c517",
+        "gpu-admission.json": "c078ac9f29d1c066f74f4a410f0872c8da9f3b100517d22b60ed183903881bb5"
+      }
+    },
+    {
+      "run": "capture-probe-two-01",
+      "robots": 2,
+      "mode": "probe",
+      "global_solves": 800,
+      "policy_commits": 400,
+      "policy_evaluations": 400,
+      "discarded_previews": 0,
+      "withheld_ticks": 0,
+      "client_events": 4,
+      "max_xy_displacement_from_first_solve_m": 0.0027592827048932497,
+      "max_tilt_rad": 0.01379563087932841,
+      "min_last_2s_sole_support_n": 7.22639986872673,
+      "gpu_foreign_pids_before_launch": [
+        298124
+      ],
+      "sha256": {
+        "plan.json": "5f4897d53ffd0d911508ccd72d1074a35e0519cb94c66acabd2e175ae8dd5dbe",
+        "root-receipt.json": "5a70d1443908a004c1b6a01111dc1e7fa6979da94b79c41b2dce855302158510",
+        "independent-audit.json": "2d5beb7b48e6c1f4bce750850ccc4da004b84d9c6494d465d9b1e3d2bfa9fa62",
+        "kit/model-identity.json": "8b82f40b68fa590dc377c1362b5af5d7e18e70a267accadf5fb9bf72d9868645",
+        "client-events.json": "fa32a81d55230f161036f283ba5206a100e374b2ed74d66d0d40194def294aa3",
+        "gpu-admission.json": "c078ac9f29d1c066f74f4a410f0872c8da9f3b100517d22b60ed183903881bb5"
+      }
+    },
+    {
+      "run": "capture-zero-two-02",
+      "robots": 2,
+      "mode": "zero",
+      "global_solves": 800,
+      "policy_commits": 400,
+      "policy_evaluations": 402,
+      "discarded_previews": 2,
+      "withheld_ticks": 0,
+      "client_events": 12,
+      "max_xy_displacement_from_first_solve_m": 0.0027592801972500854,
+      "max_tilt_rad": 0.013795462130004404,
+      "min_last_2s_sole_support_n": 7.226397022604942,
+      "gpu_foreign_pids_before_launch": [],
+      "sha256": {
+        "plan.json": "673d088e2697b936b737d02969169b9217b89028907d33abfb57339d05e40427",
+        "root-receipt.json": "18725880c4c97cb4c879c88da7873073ef28a37c89d34dba4fbb451a0fd73aef",
+        "independent-audit.json": "63e8dc056885f29ea1e2103893cc22d4a9b0a044f3f84ab07ffbf449b1346da9",
+        "kit/model-identity.json": "8b82f40b68fa590dc377c1362b5af5d7e18e70a267accadf5fb9bf72d9868645",
+        "client-events.json": "15188f2d3b679fbbf2c142a17de4f21b05ca819d847d541a12cabcceb07dde83",
+        "gpu-admission.json": "055d482015114b2830b1b47da7f4eb0464adda96574b954a78c3f4f4883da8a8"
+      }
+    },
+    {
+      "run": "capture-probe-twelve-01",
+      "robots": 12,
+      "mode": "probe",
+      "global_solves": 800,
+      "policy_commits": 2400,
+      "policy_evaluations": 2400,
+      "discarded_previews": 0,
+      "withheld_ticks": 0,
+      "client_events": 24,
+      "max_xy_displacement_from_first_solve_m": 0.0027592959640665273,
+      "max_tilt_rad": 0.013795576086380603,
+      "min_last_2s_sole_support_n": 7.225818768143654,
+      "gpu_foreign_pids_before_launch": [],
+      "sha256": {
+        "plan.json": "58fbe9078f5592bf001d7f055d909b894891c03b3695ab538fabed4a6c8c6fb0",
+        "root-receipt.json": "5b61a1e8b3973801a3b7fc8ade9d7412e0cb180292d26f6f27da2a04fe1c1c4a",
+        "independent-audit.json": "78d4c55b34a9efa07fb04235e7ea1d1b7565c5597e357e9ccb7c14bdeed14520",
+        "kit/model-identity.json": "02403a97dd054589428d013f6f11b1cf62e49a3ee9f19218d643538402c089cd",
+        "client-events.json": "5df8bce811635e68a6bfcba75ceb3af1b214fe6a02c944f734fc5f376d805585",
+        "gpu-admission.json": "055d482015114b2830b1b47da7f4eb0464adda96574b954a78c3f4f4883da8a8"
+      }
+    }
+  ],
+  "retained_incomplete_or_refused_attempts": [
+    {
+      "run": "MICRODUCK_SHARED_SCENE_20261003/endpoints-probe-one-01",
+      "native_started": false,
+      "reason": "Independent actual-TCP review found queued disconnected control could be admitted before the socket worker observed EOF. Preserve this offline plan; use a fresh source-bound plan after the fix and regression tests.",
+      "artifact": "not-launched.json",
+      "sha256": "bef3e10215b75abc84ca725f5fe6e116e70128e12be449df83841473290bbd2f"
+    },
+    {
+      "run": "MICRODUCK_SHARED_SCENE_20261003/endpoints-zero-one-01",
+      "native_started": true,
+      "completed": false,
+      "global_solves": 9,
+      "error": "RuntimeError: command changed during shared preparation; solve withheld",
+      "native_exit": 1,
+      "artifact": "root-receipt.json",
+      "sha256": "b2eca47d336f740ee46474812b3dce644ac189e4314e4c6a706856f13ad430d9"
+    },
+    {
+      "run": "MICRODUCK_SHARED_SCENE_20261003/endpoints-staged-zero-one-01",
+      "native_started": false,
+      "reason": "exact foreign baseline changed before zero launch; wrapper assertion refused",
+      "artifact": "not-launched.json",
+      "sha256": "50901b34df39fb936788a59435a17ccf8e69922f3e21f2a5ecbd7336bdf86650"
+    },
+    {
+      "run": "MICRODUCK_SHARED_SCENE_20261003/endpoints-staged-probe-twelve-01",
+      "native_started": true,
+      "completed": false,
+      "global_solves": 794,
+      "error": "RuntimeError: shared episode wall deadline expired",
+      "native_exit": 1,
+      "artifact": "root-receipt.json",
+      "sha256": "b78f542cf9d6dd8447b7b0c103eb1f1a1f7e231596862d0b30a5f28e792d6f28"
+    },
+    {
+      "run": "MICRODUCK_SHARED_CAPTURE_20261004/capture-zero-two-01",
+      "native_started": false,
+      "reason": "foreign GPU baseline changed before launch",
+      "artifact": "not-launched.json",
+      "sha256": "f281ebecc23b8e57b4d6049549bd527f47082353bc9b6cf2d0eff7f15f865788"
+    },
+    {
+      "run": "MICRODUCK_SHARED_CAPTURE_20261004/capture-zero-twelve-01",
+      "native_started": true,
+      "control_completed": false,
+      "native_completed": true,
+      "global_solves": 800,
+      "error": "feedback clock did not advance",
+      "native_exit": 0,
+      "client_events": 28,
+      "admitted_zero_command_observed_at_steps": [
+        8,
+        9,
+        10,
+        11
+      ],
+      "stop_ack_generation": 4,
+      "max_no_progress_s": 0.4,
+      "max_state_age_s": 0.5,
+      "measured_publication_gap_steps_11_to_12_s": 0.7051574069992057,
+      "audit_sha256": "9b6380f0338b8a80f9c377b84c423ab698753ec8bf78d420a71ddb40dbafe062",
+      "client_events_sha256": "34b7acb69782db1dea9e783e5db8931a07f92595cee18791e53b9731440a0fcf",
+      "artifact": "root-receipt.json",
+      "sha256": "33b17f09388b945ff00938295a308fdb5dec73c27cb4ba869e11b1cdc0706571"
+    }
+  ],
+  "overview": {
+    "file": "endpoints-twelve-zero.jpg",
+    "run": "capture-probe-twelve-01",
+    "step": 802,
+    "sha256": "df1706137718fe207e2f2245ca810766b41d399760e81fb9652b9ee7cbdbba5c",
+    "caption": "Read-only twelve-robot probe after 800 completed shared solves; every velocity command remained zero.",
+    "original_bytes_unchanged": true
+  }
+}

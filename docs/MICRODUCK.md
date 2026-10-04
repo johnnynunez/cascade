@@ -30,7 +30,7 @@ episodic memory. The MCP reader handles stop and cancellation while the worker
 is inside a motion call.
 
 The native bridge runs a floating-root articulation in a separate Isaac Sim
-6.1 arena. The current executable backend is Newton 1.6 / MJWarp, using the
+arena. The current executable backend is Newton / MJWarp, using the
 pinned native BAM implementation. The official `velstand.onnx` consumes 61
 observations and emits 14 actions. Physics advances nominally every 5 ms and
 the policy runs every four completed solves; the actual native timestep is
@@ -204,9 +204,33 @@ discarding an admitted reset restores its latch. Stop bypasses the queue and
 withdraws pending commands immediately; a stop crossing pure preview invalidates
 that group without faulting healthy peers. Stop ACKs do not
 prove physical rest. CPU/TCP regressions cover these contracts, partial listener
-startup rollback and shutdown with pending commands. Native command execution,
-shared-space interactions and measured individual/global motion stops remain
-pending; the retained native foundation runs opened no endpoints.
+startup rollback and shutdown with pending commands.
+
+The [endpoint evidence](evidence/microduck-shared-20261004/endpoints.json) records
+fresh identity probes with **1, 2 and 12 robots**, each completing 800 shared
+solves, 200 policy commits per robot and 9 overview/force-probe pairs. Separate
+1- and 2-robot episodes completed state/camera reads, stop, reset and a zero
+velocity command through `FleetRuntime -> RobotRuntime -> locomotion -> SafeBase
+-> IsaacBase`. The two-robot run recorded two naturally discarded previews at
+one permission change; the retry committed against the same completed state.
+Adversarial timing barriers were exercised only in CPU tests.
+
+The twelve-robot control episode also completed all 800 native solves with known
+support and no falls, but **its control sequence failed** on the first robot:
+the admitted zero command received feedback through step 11, then exceeded the
+unchanged 0.4 s progress deadline. The measured publication gap to step 12 was
+0.705 s; the stop latch was acknowledged and the remaining eleven commands were
+not attempted. Native completion does not make this a control pass. The evidence
+retains this failure, the earlier preparation-race failure, the earlier
+794-step wall timeout and all prelaunch refusals. Completed native scopes closed
+naturally; input files and protected stores remained intact. No performance
+comparison is claimed across changing GPU occupancy.
+
+These endpoint outcomes remain physically unverified. Walking, fleet tasks,
+shared-space interactions and measured individual/global motion stops still need
+their own acceptance evidence. The [original twelve-robot overview](
+evidence/microduck-shared-20261004/endpoints-twelve-zero.jpg) comes from the
+read-only probe at completed step 802; every velocity command stayed zero.
 
 The overview uses a widely separated grid; its small floor display
 rectangle does not describe the extent of the physical infinite plane.

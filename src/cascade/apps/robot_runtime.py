@@ -207,6 +207,14 @@ def build_robot_runtime(cfg, run_dir, *, navigation_bindings=None, **_kwargs):
             or not isinstance(value, dict) or set(value) != {"source", "settings"}
             for name, value in navigation_bindings.items())):
         raise ValueError("navigation bindings require an exact locomotion domain, source and settings")
+    body = cfg.as_dict().get("embodiment")
+    if body is not None:
+        from ..robotics.embodiment import EmbodimentDescriptor
+        from ..spatial.robot_volume import RobotVolume
+        for binding in navigation_bindings.values():
+            volume = binding["settings"].get("robot_volume")
+            if volume is not None and RobotVolume.from_dict(volume).embodiment.sha256 != EmbodimentDescriptor.from_dict(body).sha256:
+                raise ValueError("navigation volume differs from composed robot embodiment")
     built = []
     try:
         for name, domain in domains.items():

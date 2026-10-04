@@ -18,6 +18,7 @@ from ..sensing.models import digest, number, vector
 from ..skills.mobile_runtime import MOTION_SKILLS, _spec
 from .frames import TransformSample, sha256
 from .grid import GridSnapshot, plan_route
+from .robot_volume import RobotVolume, RobotVolumeSample
 
 
 @dataclass(frozen=True)
@@ -37,6 +38,7 @@ class NavigationSample:
     sequence: int
     received_monotonic_s: float
     producer_age_s: float
+    robot_volume: RobotVolumeSample | None = None
 
     def __post_init__(self):
         identifier(self.robot_id); identifier(self.sensor_epoch)
@@ -45,6 +47,8 @@ class NavigationSample:
             raise ValueError("body geometry and collision volume hashes required")
         if not isinstance(self.pose, TransformSample) or not isinstance(self.grid, GridSnapshot):
             raise ValueError("typed independent pose and grid required")
+        if self.robot_volume is not None and type(self.robot_volume) is not RobotVolumeSample:
+            raise ValueError("typed articulated geometry capture required")
         if type(self.sequence) is not int or self.sequence < 0:
             raise ValueError("capture sequence must be nonnegative integer")
         for key in ("received_monotonic_s", "producer_age_s"):
@@ -74,7 +78,7 @@ def navigation_settings(settings, profiles):
         "body_radius_m", "body_z_min_m", "body_z_max_m", "clearance_m", "stop_margin_m",
         "position_error_bound_m", "heading_error_bound_rad", "goal_tolerance_m",
         "max_route_m", "max_commands", "wall_timeout_s", "map_max_age_s"}
-    if not isinstance(settings, dict) or set(settings) != required:
+    if not isinstance(settings, dict) or set(settings)-{"robot_volume"} != required:
         raise ValueError("navigation requires explicit geometry, calibration and route bounds")
     result = dict(settings)
     identifier(result["base"]); identifier(result["base_frame_id"])
@@ -94,6 +98,19 @@ def navigation_settings(settings, profiles):
     profile = next((p for p in profiles if p["name"] == result["base"]), None)
     if profile is None or not {"turn", "walk_distance"} <= set(profile["capabilities"]):
         raise ValueError("navigation requires an exact base with turn and measured walk_distance")
+    if "robot_volume" in result:
+        volume = RobotVolume.from_dict(result["robot_volume"])
+        if (volume.sha256 != result["geometry_sha256"] or volume.robot_id != profile["robot_id"]
+                or volume.model_identity_sha256 != profile.get("model_identity_sha256")
+                or volume.base_frame_id != result["base_frame_id"]):
+            raise ValueError("registered whole-robot geometry identity mismatch")
+        radius, low, high = volume.cylinder()
+        if (result["body_radius_m"] < radius or result["body_z_min_m"] > low
+                or result["body_z_max_m"] < high):
+            raise ValueError("navigation cylinder omits declared whole-robot reach")
+        result["robot_volume"] = volume.as_dict()
+    elif profile["type"] != "mock":
+        raise ValueError("physical navigation requires registered whole-robot volume")
     limits = _validate_limits(profile["verifier"])
     distance = profile.get("distance_control")
     if not isinstance(distance, dict):
@@ -151,6 +168,8 @@ No arm, gripper or whole-body manipulation is supplied by this domain.
     def __init__(self, mobile, source, settings):
         self.mobile, self.source = mobile, source
         self.settings, self.profile, self.limits = navigation_settings(settings, mobile.cfg.bases)
+        self.robot_volume = (RobotVolume.from_dict(self.settings["robot_volume"])
+                             if "robot_volume" in self.settings else None)
         if not callable(getattr(source, "read", None)) or not callable(getattr(source, "swept_clearance", None)):
             raise ValueError("independent localization and whole-volume clearance provider required")
         self.tool_specs = navigation_tools(mobile.tool_specs)
@@ -185,10 +204,21 @@ No arm, gripper or whole-body manipulation is supplied by this domain.
 
     def _current(self, op):
         with self._condition:
+            now = time.monotonic()
             if (op["cancel"].is_set() or self._serial != op["serial"] or self._closed
-                    or time.monotonic() >= op["deadline"]):
+                    or now >= op["deadline"]):
                 return False
-            return not op["samples"] or self._age(op["samples"][-1]) <= self.limits["max_state_age_s"]
+            return not op["samples"] or self._fresh(op["samples"][-1], now)
+
+    def _fresh(self, sample, now):
+        captures = (sample,) if self.robot_volume is None else (sample, sample.robot_volume)
+        return all(capture is not None and capture.received_monotonic_s <= now
+                   and 0 <= now-capture.received_monotonic_s+capture.producer_age_s
+                   <= self.limits["max_state_age_s"] for capture in captures)
+
+    def _require_fresh(self, sample):
+        if not self._fresh(sample, time.monotonic()):
+            raise ValueError("stale or future navigation/articulated geometry observation")
 
     @staticmethod
     def _age(sample):
@@ -234,6 +264,9 @@ No arm, gripper or whole-body manipulation is supplied by this domain.
         if (sample.received_monotonic_s > now or
                 not 0 <= self._age(sample) <= limits["max_state_age_s"]):
             raise ValueError("stale or future navigation observation")
+        if self.robot_volume is not None:
+            self.robot_volume.validate(sample.robot_volume, sample, now=now,
+                                       max_age_s=limits["max_state_age_s"])
         if (pose.stamp.time_s < grid.stamp.time_s or
                 not 0 <= pose.stamp.time_s - grid.oldest_capture_time_s <= c["map_max_age_s"]):
             raise ValueError("stale/future collision map")
@@ -254,6 +287,7 @@ No arm, gripper or whole-body manipulation is supplied by this domain.
                 raise ValueError("localization jump or excessive translation")
             if _rotation_distance(pose, previous.pose) > limits["max_angular_speed_rad_s"]*dt + 2*c["heading_error_bound_rad"]:
                 raise ValueError("localization jump or excessive rotation")
+        self._require_fresh(sample)
 
     def _clearance(self, sample, target, deadline):
         c = self.settings
@@ -265,9 +299,18 @@ No arm, gripper or whole-body manipulation is supplied by this domain.
             "radius_m": self._radius(),
             "z_min_m": sample.pose.translation_m[2] + min(0., c["body_z_min_m"]) - self._vertical_margin(),
             "z_max_m": sample.pose.translation_m[2] + max(0., c["body_z_max_m"]) + self._vertical_margin()}
+        if self.robot_volume is not None:
+            # Revalidate retained geometry at this final query boundary, not
+            # just when the sampler first received it. The sweep always keeps
+            # the complete permitted articulation envelope.
+            geometry = self.robot_volume.validate(sample.robot_volume, sample, now=time.monotonic(),
+                                                   max_age_s=self.limits["max_state_age_s"])
+            query["geometry_sample_sha256"] = geometry["geometry_sample_sha256"]
+        self._require_fresh(sample)
         if time.monotonic() >= deadline:
             raise ValueError("clearance query deadline expired")
         result = self.source.swept_clearance(query, deadline_monotonic_s=deadline)
+        self._require_fresh(sample)
         if (not isinstance(result, VolumeClearance) or result.query_sha256 != sha256(query)
                 or result.volume_sha256 != sample.volume_sha256 or result.distance_m is None
                 or result.distance_m <= c["clearance_m"]):
@@ -301,6 +344,7 @@ No arm, gripper or whole-body manipulation is supplied by this domain.
                     raise ValueError("navigation source returned after deadline")
                 with self._condition:
                     self._check(op)
+                    self._require_fresh(sample)
                     op["samples"].append(sample)
                     op["reading_since"] = None
                     if request is not None and op["query"] is request:

@@ -88,7 +88,12 @@ def test_sdk_fallback_or_mismatched_product_fails_instead_of_hiding_identity_cha
     assert set(observed) == {'path', 'camera_targets', 'render_resolution', 'sensor_resolution', 'ordered_vars'}
     if bad == 'fallback':
         assert observed['path'] == '/Render/camera_sensor_123456789'
-        assert observed['render_resolution'] is None
+        # USD can supply a schema fallback (for example 2048x1080) even though
+        # neither the sensor double nor our authoring path set this attribute.
+        attr = scene.GetPrimAtPath(observed['path']).GetAttribute('resolution')
+        assert not attr.HasAuthoredValueOpinion()
+        value = attr.Get()
+        assert observed['render_resolution'] == (None if value is None else list(value))
     elif bad == 'wrong_resolution':
         assert observed['render_resolution'] == [320, 240]
     else:

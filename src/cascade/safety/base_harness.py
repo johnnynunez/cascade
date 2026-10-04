@@ -106,12 +106,14 @@ class SafeBase:
     lease. Client cancellation alone cannot prevent a late server delivery.
     """
 
-    def __init__(self, raw: MobileBase, limits: dict, *, distance_control=None, support_contract=None):
+    def __init__(self, raw: MobileBase, limits: dict, *, distance_control=None,
+                 turn_control=None, support_contract=None):
         self.harness = BaseSafetyHarness(limits)
         self.raw = raw
         self.distance_control = self._distance_config(distance_control)
+        self.turn_control = self._turn_config(turn_control)
         self._support_contract = None
-        if self.distance_control is not None and support_contract is not None:
+        if (self.distance_control is not None or self.turn_control is not None) and support_contract is not None:
             from ..control.mobile_support import support_contract as validate_support_contract
             self._support_contract = validate_support_contract(support_contract)
         metadata = raw.metadata
@@ -156,20 +158,34 @@ class SafeBase:
             raise ValueError("distance control attitude bounds must be unambiguous and upright")
         return MappingProxyType(result)
 
+    @staticmethod
+    def _turn_config(value):
+        if value is None:
+            return None
+        keys = {"max_translation_path_m", "min_height_m", "max_tilt_rad"}
+        if not isinstance(value, dict) or set(value) != keys:
+            raise ValueError("turn_control requires the exact explicit contract")
+        result = {k: finite_real(v, k) for k, v in value.items()}
+        if any(v <= 0 for v in result.values()) or result["max_tilt_rad"] >= math.pi / 2:
+            raise ValueError("turn control bounds must be positive and upright")
+        return MappingProxyType(result)
+
     def _distance_state(self, state, *, require_load=False):
+        self._geometric_state(state, self.distance_control, "distance", require_load=require_load)
+
+    def _geometric_state(self, state, limits, label, *, require_load=False):
         """Control-side veto only; independent observation still judges success."""
-        limits = self.distance_control
         _, x, y, _ = state.orientation_wxyz
         tilt = math.acos(max(-1., min(1., 1 - 2 * (x*x + y*y))))
         if state.position_world[2] < limits["min_height_m"] or tilt > limits["max_tilt_rad"]:
-            raise ValueError("distance control posture bound exceeded")
+            raise ValueError(f"{label} control posture bound exceeded")
         if state.measurement_kind == "kinematic_mock":
             return  # Software fixture, never independently confirmed physics.
         contract, support = self._support_contract, state.support
         if contract is None or support is None or support.status != "known":
-            raise ValueError("distance control requires known solved contact evidence")
+            raise ValueError(f"{label} control requires known solved contact evidence")
         if state.model_identity_sha256 != contract["model_identity_sha256"]:
-            raise ValueError("distance control support identity mismatch")
+            raise ValueError(f"{label} control support identity mismatch")
         robot = set(contract["robot_shapes"])
         feet, ground = set(contract["foot_shapes"]), set(contract["ground_shapes"])
         gravity = contract["gravity_world_m_s2"]
@@ -182,13 +198,13 @@ class SafeBase:
                 continue
             body, external = (a, b) if a in robot else (b, a)
             if body not in feet or external not in ground:
-                raise ValueError("distance control forbidden external robot contact")
+                raise ValueError(f"{label} control forbidden external robot contact")
             sign = -1 if a in robot else 1
             upward = sign * sum(f * u for f, u in zip(contact.force_on_b_world_n, up))
             normal_up = sign * sum(n * u for n, u in zip(contact.normal_a_to_b_world, up))
             loaded |= contact.normal_force_n > 0 and upward > 0 and normal_up > 0
         if require_load and not loaded:
-            raise ValueError("distance control preflight requires positive solved sole support")
+            raise ValueError(f"{label} control preflight requires positive solved sole support")
 
     @property
     def latched(self):
@@ -403,6 +419,7 @@ class SafeBase:
         lateral = 0.
         distance_baseline = None
         turn_baseline = None
+        translation_path = 0.
         try:
             with self._gate:
                 if self._latched or self._control_ops:
@@ -421,6 +438,8 @@ class SafeBase:
             samples.append(start)
             if distance is not None:
                 self._distance_state(start, require_load=True)
+            if angle is not None and self.turn_control is not None:
+                self._geometric_state(start, self.turn_control, "turn", require_load=True)
             if start.controller_status != "ready":
                 raise ValueError("another command/controller is already active")
             with self._gate:
@@ -477,6 +496,13 @@ class SafeBase:
                     if error * distance < 0:
                         raise ValueError("measured distance overshot target tolerance")
                 if angle is not None:
+                    # Retain every observed 3D segment, including delivery and
+                    # late motion. Returning to the origin cannot erase travel.
+                    translation_path += math.dist(previous.position_world, state.position_world)
+                    if self.turn_control is not None:
+                        self._geometric_state(state, self.turn_control, "turn")
+                        if translation_path > self.turn_control["max_translation_path_m"]:
+                            raise ValueError("turn control translation path exceeded")
                     # Match distance admission: delivery/preflight rotation is
                     # not task progress, and a late sample cannot complete it.
                     if state.sim_time_s > end:
@@ -511,7 +537,8 @@ class SafeBase:
                                     "distance_baseline": distance_baseline.as_dict(),
                                     "measured_lateral_m": lateral, "measured_heading_rad": measured_angle}
                                    if distance is not None else {}),
-                                **({"requested_angle_rad": angle, "measured_angle_rad": measured_angle}
+                                **({"requested_angle_rad": angle, "measured_angle_rad": measured_angle,
+                                    "measured_translation_path_m": translation_path}
                                    if angle is not None else {}))
         except _Cancelled as error:
             # Backend generation handles a command crossing the stop boundary.
@@ -520,7 +547,8 @@ class SafeBase:
                                 **({"measured_distance_m": measured_distance,
                                     "distance_baseline": distance_baseline.as_dict() if distance_baseline else None}
                                    if distance is not None else {}),
-                                **({"measured_angle_rad": measured_angle} if angle is not None else {}))
+                                **({"measured_angle_rad": measured_angle,
+                                    "measured_translation_path_m": translation_path} if angle is not None else {}))
         except Exception as error:
             stop_ack = self.stop(latch=True)
             return self._result(samples=samples, command=command.as_dict(), error=error,
@@ -528,7 +556,8 @@ class SafeBase:
                                 **({"measured_distance_m": measured_distance,
                                     "distance_baseline": distance_baseline.as_dict() if distance_baseline else None}
                                    if distance is not None else {}),
-                                **({"measured_angle_rad": measured_angle} if angle is not None else {}))
+                                **({"measured_angle_rad": measured_angle,
+                                    "measured_translation_path_m": translation_path} if angle is not None else {}))
         except BaseException:
             # SIGINT/SystemExit must not leave an admitted command running;
             # invalidate it first, but never swallow process cancellation.

@@ -93,6 +93,15 @@ deadline: delivery drift and rotation first observed after expiry cannot
 complete the requested angle. Late observations remain in the result for
 independent safety checks. This control correction does not admit a turn policy.
 
+The distance candidate also enables an explicit turn guard. Before dispatch it
+requires an upright measured state and known, positively loaded sole support;
+during the command it checks posture, forbidden contacts and the accumulated
+three-dimensional translation path at each advancing observation. The original
+20 mm path bound includes delivery and late samples, and returning to the start
+does not erase travelled distance. Known flight remains permitted during motion.
+This is a priority-stop veto, not a balance controller or physical stop proof;
+independent angle, complete-path and rest verification remain required.
+
 The optional [distance profile](../configs/bases/microduck_distance_candidate.yaml)
 uses internal policy commands ±0.3 with a 5 mm controller stopping tolerance.
 That input is not a claim of ±0.3 m/s measured velocity. It bounds distance,

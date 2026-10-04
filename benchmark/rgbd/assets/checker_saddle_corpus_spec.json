@@ -1,0 +1,100 @@
+{
+  "schema": 1,
+  "status": "frozen before new image rasterization or detector results",
+  "source_geometry": "unchanged layout-A schema4 geometry; prospective schema6 local-saddle consumer",
+  "native_capture_inputs_allowed": false,
+  "parent_spec_sha256": "dd062605ed97a30a6fcab49ee9fd1b25e5d237509898c199f35b9e203942280e",
+  "parent_truth_sha256": "758f187caee602f3422af47b7fa04414a274de049bfec3778d6554f8a34d8f10",
+  "image_size_wh": [
+    640,
+    480
+  ],
+  "projection_source": "Four published analytic phase0 homographies; only new declared subpixel translations applied, no native K/T/depth",
+  "phases_px": [
+    [
+      0.125,
+      0.375
+    ],
+    [
+      0.375,
+      0.875
+    ],
+    [
+      0.625,
+      0.125
+    ],
+    [
+      0.875,
+      0.625
+    ]
+  ],
+  "filters": [
+    {
+      "id": "area",
+      "gaussian_sigma_px": 0
+    },
+    {
+      "id": "area_gauss020",
+      "gaussian_sigma_px": 0.2,
+      "kernel": 5,
+      "border": "constant white"
+    },
+    {
+      "id": "area_gauss050",
+      "gaussian_sigma_px": 0.5,
+      "kernel": 7,
+      "border": "constant white"
+    }
+  ],
+  "held_out_cases": 48,
+  "regression_cases": [
+    "fronto/phase2/area",
+    "fronto/phase2/area_gauss035",
+    "fronto/phase2/area_gauss065"
+  ],
+  "nominal_cases": 51,
+  "raster": {
+    "algorithm": "analytic planar membership and16x16 regular area samples per output pixel",
+    "pixel_centers": "integer OpenCV coordinates",
+    "sample_offsets": "(i+.5)/16-.5 for i0..15",
+    "luminance_rounding": "nearest integer, ties to even, uint8; identical RGB channels",
+    "convergence_control_samples": 32
+  },
+  "split": "existing parity18 fit and17 heldout in declared row-major corner order",
+  "threshold_changes_allowed": false,
+  "parameter_search_allowed": false,
+  "localizer": {
+    "seed": "unchanged schema5 RGB-only flags34",
+    "window_radius_px": 3,
+    "gaussian_sigma_px": 1.5,
+    "grayscale_rgb_weights": [
+      0.299,
+      0.587,
+      0.114
+    ],
+    "rounding": "floor(seed+.5)",
+    "basis": [
+      "1",
+      "x",
+      "y",
+      "x*x",
+      "x*y",
+      "y*y"
+    ],
+    "solver": "numpy.linalg.lstsq weighted by sqrt(gaussian), rcond=None; one Hessian solve",
+    "max_seed_offset_px": 1.5,
+    "reject": "rank<6, nonfinite, determinant>=0, offset>1.5px, incomplete image window; no extrapolation or fallback"
+  },
+  "negative_cases": [
+    "reflect_x",
+    "duplicate_tag",
+    "foreign_tag",
+    "missing_tag",
+    "one_payload_bit_corruption",
+    "missing_checker_corner",
+    "half_board_occlusion",
+    "gaussian_sigma2_kernel13",
+    "downscale_one_eighth"
+  ],
+  "evaluation": "Preserve every case and missing SB detection. Analytic truth only evaluates already-returned image estimates. Regression3 reported separately from48heldout."
+}

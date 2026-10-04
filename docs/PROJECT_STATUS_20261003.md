@@ -21,9 +21,9 @@ The [1–2 October index](PROJECT_STATUS_20261001.md) preserves earlier history.
 | Manipulation | SafeArm control, observed grasp/release guards, task-effect accounting and measured withdrawal. A complete ordinary OpenClaw/Qwen Isaac kitchen episode passed on 4 October, including both placements, resets and ordinary process closure; [source-bound recovery receipts](evidence/project-status-20261003/kitchen-recovery-20261004.json). Historical OVRTX/cuMotion PhysX pick/place/home passed. The original two-object MuJoCo delivery test also passed in one new episode on integrated main `274fa3a9`, including release, support, rest, both home returns and retention of the first object. | Broader task/campaign reliability, hardware and acceptance of later source compositions. |
 | Fastening | The explicit optional SDK recipe passed a native ordinary reset/one-turn/rest episode on 2026-10-04: final 0.958650 turns within the existing 0.05-turn tolerance, 2.398416 mm advance, 0.5 simulated seconds of rest, all 2,047 solves retained and owned closure complete. [Bound result](FACTORY_FASTENING_RUNTIME.md#native-mounted-turn-and-rest-2026-10-04). | One shared-GPU episode with only 0.151804 s command deadline margin; repeatability remains unproved. Tool pickup, initial engagement, seating, withdrawal and calibrated preload remain unproved by this configured domain. |
 | Locomotion | Optional measured `walk_distance`, cancellation and independent support/rest checks; historical fresh-start ±30 mm episodes passed. | Published candidate profiles have no new model/support admission. The 0.1 m software ceiling is not measured 0.1 m capability or general gait acceptance. |
-| Sensing and spatial memory | Passive, bounded sensor providers; identity/epoch/age checks; observed calibrated RGB-D and retained pixel-to-surface annotations. The optional cuVSLAM provider passed a [twelve-frame synthetic RGB-D native replay](CUVSLAM_NATIVE_VALIDATION.md), including worker/hub closure. Optional navigation enforces registered base pose, complete swept volume, uncertainty and arrival/rest contracts in CPU tests. | Independent metric XY/general-3D accuracy, moving-camera calibration and per-AOV synchronization. No physical SLAM or `go_to` execution is admitted. |
+| Sensing and spatial memory | Bounded sensor providers and source/epoch/age checks. The optional [RGB-D local refinement](RGBD_CHECKER_ACCURACY.md#static-planar-native-result-2026-10-04) passed one static simulated plane: five image geometry checks and 51 annotations from three fresh captures, with maximum axis error 0.152868 mm against 1 mm. The optional cuVSLAM provider passed a [twelve-frame synthetic RGB-D native replay](CUVSLAM_NATIVE_VALIDATION.md). Navigation enforces registered base pose, complete swept volume, uncertainty and arrival/rest contracts in CPU tests. | Broader metric coverage, general 3D geometry, moving-camera calibration and per-AOV synchronization. No physical SLAM or `go_to` execution is admitted. |
 | Speech | Browser/media gateway, real speech-provider path, original-intent deadlines, priority stop and bounded observed-result views. One continuous synthetic-input/native-motion recording exists. Same-origin narration after a model-staged stop has protocol tests. | That motion video contains no spoken robot reply. A [new guarded candidate](CONVERSATION.md) stopped at the unchanged native startup deadline before microphone/task inference; the forced closure and separate later cleanup audit remain recorded. General dialogue/action reliability, microphone/speaker hardware and public hosted service remain unvalidated. |
-| Fleet coordination | Concurrent `FleetRuntime`, independent agent CLI and bounded fleet MCP are implemented. One shared native scene passed [zero-command foundation checks with 1, 2 and 12 MicroDucks](evidence/microduck-shared-20261004/foundation.json), with 800 global solves and 200 policy evaluations per robot. | Native independent agent tasks, endpoint actuation/stop/reset and collision coordination remain pending. Shared tick cancellation currently contains the whole scene; this does not prove peer continuation or real-time operation. |
+| Fleet coordination | Concurrent `FleetRuntime`, independent agent CLI and bounded fleet MCP are implemented. The [shared-scene candidate](MICRODUCK.md#shared-scene-implementation-boundary) stages policies before cohort admission and captures native channels once per solve. Fresh 1/2/12-robot probes completed 800 solves; 1/2-robot zero-command endpoint lifecycle also passed. | Twelve-robot command execution failed the unchanged 0.4 s feedback progress limit, while the scene completed and closed normally. Independent native agent tasks, collision coordination, physical stop and peer motion remain pending. |
 | Structure and whole-body control | Typed embodiment and passive generalized-joint observations; domains expose only registered resources/tools. | Mixed physical mobile manipulation is refused. No admitted humanoid balance, dexterous-hand or generic whole-body controller. |
 | Evaluation | Source-bound VAB and Arena integration/cancellation preflights ran real simulation. | Neither is a completed benchmark task or a predictor of general deployment success. |
 
@@ -51,11 +51,14 @@ post-release joint-stability behavior from
 [PR #107](https://github.com/johnnynunez/cascade/pull/107).
 
 MicroDuck's BAM, support extraction and graph guards bind an explicit Newton
-configuration. The new shared-scene foundation passed native zero-command
-checks for one, two and twelve robots, including observed support and ordinary
-owned closure. Those episodes do not admit locomotion or agent tasks through
-later endpoint code. No model or source hash is automatically treated as
-physically admitted.
+configuration. Both the retained shared-scene foundation and the later channel
+capture candidate completed native zero-command probes with one, two and twelve
+robots, including observed support and ordinary owned closure. The later
+candidate also passed one- and two-robot endpoint lifecycle checks. A natural
+command change during two-robot policy preparation discarded both previews and
+retried the same observation before the next solve. The twelve-robot command
+case failed feedback progress; no gait or independent agent task is admitted.
+No model or source hash is automatically treated as physically admitted.
 
 ## Published software corrections
 
@@ -403,6 +406,27 @@ environment before launching Kit. No cross-SDK causal comparison, physical
 admission or threshold change is claimed.
 [Fresh native result and artifact hashes](../benchmark/results/rgbd_checker_accuracy_native_20261004.json).
 [Producer selection and diagnostic limits](RGBD_CHECKER_ACCURACY.md#explicit-producer-selection-2026-10-04).
+
+The explicit schema6 RGB-only local saddle candidate passes 29/48 new frozen
+synthetic cases versus 28/48 for schema5; 19 cases still reject. In the 29
+complete pairs, absolute truth RMS improves in each, but all three separately
+retained known regressions worsen despite passing the original homography
+gates. No parameters or gates changed. All nine adversaries reject and 312
+RGB-D tests pass. This CPU result preceded the native follow-up below.
+[Full outcomes and limits](RGBD_CHECKER_ACCURACY.md#explicit-local-rgb-refinement-schema6),
+[bound CPU receipt](../benchmark/results/rgbd_checker_saddle_cpu_20261004.json).
+
+The new static planar schema6 episode on frozen `5062648` / SDK `48b2d951`
+**passes**: all five retained images meet the original 0.15/0.35 px gates, and
+three fresh MCP captures yield 51/51 accepted annotations. Maximum axis error
+is 0.152868 mm against 1 mm; nine later read refusals (one EOF, eight refused
+connections) remain recorded. Source/physics/appearance checks and ordinary
+closure pass, with no signals or forced cleanup. A new exact-source baseline
+was measured; its first resource-preflight rejection is preserved. This is
+one simulated static scene, not general metric/3D calibration or physical
+admission. RTX shader cache remained shared.
+[Native evidence and limits](RGBD_CHECKER_ACCURACY.md#static-planar-native-result-2026-10-04),
+[compact receipt](../benchmark/results/rgbd_checker_saddle_native_20261004.json).
 
 The delivered **61.056 s** continuous video retains 915 frames. Labelled
 synthetic speech entered the actual browser/Whisper-base/Qwen3-1.7B route and

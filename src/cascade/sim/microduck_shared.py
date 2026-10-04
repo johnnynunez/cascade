@@ -197,11 +197,11 @@ def bind_scene(*, robots, scene_model_sha256, joint_labels, joint_q_start, joint
 class SharedMicroduckStepper:
     """One physics owner; independent policy/history/controller per robot.
 
-    All preparations finish before the one solve. A late stop/lease change
-    during a peer's preparation vetoes the whole pending solve. After the final
-    memory-only fence, that solve is admitted; a concurrent stop cannot abort
-    SDK work, and the next slot uses its new intent. Faults contain the entire
-    scene, without asserting physical rest. Readers must not step physics.
+    All policy previews finish before a memory-only cohort fence. A crossing
+    stop discards pure staging and retries once; repeated revocation returns
+    None without a solve or publication. After the fence, that solve is in
+    flight: a stop cannot abort SDK work, and the next regular policy slot uses
+    its new intent. Native/partial commit faults contain the entire scene.
     """
     def __init__(self, owner, steppers, *, layout):
         self.owner, self.steppers, self.layout = owner, tuple(steppers), layout
@@ -221,6 +221,7 @@ class SharedMicroduckStepper:
                 raise ValueError('shared robot view/controller/model binding mismatch')
         self._members = tuple((s.backend, s.controller, s.policy, s.actuator) for s in self.steppers)
         self.started = self.closed = False
+        self.withheld_ticks = 0
         self.failure = ''
         self.containment_errors = []
 
@@ -272,41 +273,79 @@ class SharedMicroduckStepper:
     def tick(self):
         if not self.started or self.closed or self.failure:
             raise RuntimeError('shared stepper not running; lifecycle restart required')
+        staged = []
         try:
             self._check_bindings()
-            prepared = []
-            for s in self.steppers:
-                item = s._prepare_tick(prepare_actuator=False)
-                self._identity(s, item[0])
-                prepared.append(item)
-            # Every policy has completed before any group writes its owned
-            # effort/friction. No adapter may clear the global control array.
-            for s, item in zip(self.steppers, prepared):
-                s._prepare_actuator(item)
-            for s in self.steppers:
-                s._check_wall()
-            # No inference, device writes, reads or callbacks while these locks
-            # are held. Stop can always interrupt expensive peer preparation.
-            with ExitStack() as locks:
+            for retry in range(2):
+                staged = []
                 for s in self.steppers:
-                    locks.enter_context(s.controller._lock)
-                for s, (sample, identity, _) in zip(self.steppers, prepared):
-                    _, current = s._control_snapshot(sample['sim_time'])
-                    if current['generation'] != identity['generation']:
-                        raise RuntimeError('command changed during shared preparation; solve withheld')
+                    item = s._stage_tick(retry=retry)
+                    self._identity(s, item.sample)
+                    staged.append(item)
+                for s in self.steppers:
+                    s._check_wall()
+                self._check_bindings()
+                completed = self.owner.physics_clock
+                if any(completed != (item.sample['step'], item.sample['sim_time']) for item in staged):
+                    raise RuntimeError('shared physics clock changed before cohort admission')
+                # Only bounded memory checks/copies under permission locks.
+                # ONNX, target uploads and BAM/device work remain outside.
+                with ExitStack() as locks:
+                    for s in self.steppers:
+                        locks.enter_context(s.controller._lock)
+                    valid = True
+                    for s, item in zip(self.steppers, staged):
+                        command, current = s._control_snapshot(item.sample['sim_time'])
+                        s._check_wall(checkpoint=False)
+                        valid &= (current['generation'] == item.identity['generation']
+                                  and np.array_equal(command, item.command))
+                    if valid:
+                        for s, item in zip(self.steppers, staged):
+                            if item.candidate is not None:
+                                action, _, record = item.candidate
+                                record['commit_outcome'] = 'in_progress'
+                                s.policy.commit(action)
+                                s.policy_commits += 1
+                                s.policy_target_generation = item.identity['generation']
+                                record.update(status='evaluated', committed=True, commit_outcome='returned',
+                                              commit_generation=item.identity['generation'])
+                if valid:
+                    break
+                self._discard(staged, 'cohort invalidated before shared fence')
+            else:
+                self.withheld_ticks += 1
+                return None
+            # The cohort is admitted. Do not re-veto or rewind a partially
+            # applied BAM history if stop arrives after this linearization.
+            for s, item in zip(self.steppers, staged):
+                if item.candidate is not None:
+                    s.actuator.set_targets(item.candidate[1])
+                s._prepare_actuator(item.prepared)
             self.owner.step()
             results = []
-            for s, item in zip(self.steppers, prepared):
-                result = s._validate_tick(item)
+            for s, item in zip(self.steppers, staged):
+                result = s._validate_tick(item.prepared)
                 self._identity(s, result)
                 results.append(result)
             # All observations must validate before any controller publication.
-            for s, item, result in zip(self.steppers, prepared, results):
-                s._commit_tick(item, result)
+            for s, item, result in zip(self.steppers, staged, results):
+                s._commit_tick(item.prepared, result)
             return {s.identity['robot_id']: result for s, result in zip(self.steppers, results)}
         except BaseException as exc:
+            self._discard(staged, 'shared episode failed before solve completion')
             self._fail(exc)
             raise
+
+    @staticmethod
+    def _discard(staged, reason):
+        for item in staged:
+            if item.candidate is None:
+                continue
+            record = item.candidate[2]
+            if record.get('commit_outcome') == 'in_progress':
+                record.update(status='failed', committed=None, commit_outcome='unknown_due_to_failure')
+            elif record['committed'] is False:
+                record.update(status='discarded', reason=reason)
 
     def stop(self, robot_id=None):
         """Revoke selected intent; neither this ACK nor close proves rest."""

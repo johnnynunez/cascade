@@ -82,7 +82,8 @@ def run(args, admission, signals):
               (out / 'frames.jsonl').open('x') as frames,
               (out / 'support-probe.jsonl').open('x') as probes):
             attempts = {s.identity['robot_id']: -1 for s in steppers}
-            for i in range(args.max_steps):
+            i = 0
+            while i < args.max_steps:
                 signals.checkpoint(persistent=True)
                 if time.monotonic() - started >= args.max_wall_s:
                     raise RuntimeError('shared episode wall deadline expired')
@@ -97,6 +98,9 @@ def run(args, admission, signals):
                             if record['attempt'] > attempts[robot]:
                                 row(policies, record)
                                 attempts[robot] = record['attempt']
+                if samples is None:
+                    result['withheld_ticks'] = fleet.withheld_ticks
+                    continue
                 result['steps'] = i + 1
                 row(physics, {'step': owner.physics_clock[0], 'sim_time_s': owner.physics_clock[1],
                     'robots': {s.identity['robot_id']: {**samples[s.identity['robot_id']],
@@ -130,6 +134,7 @@ def run(args, admission, signals):
                         print('BRIDGE_LISTENING ' + json.dumps(marker), flush=True)
                 if (i+1) % 100 == 0:
                     print(json.dumps({'robots': args.robots, 'completed_steps': i+1}), flush=True)
+                i += 1
         result['completed'] = True
     except SignalRequest as exc:
         result.update(signal=exc.signum, error='signal/lifecycle shutdown')
@@ -147,6 +152,7 @@ def run(args, admission, signals):
                 'policy_commits': s.policy_commits, 'last_state': s.controller.state()}
                 for s in steppers if s.started}
             result['backend'] = owner.receipt if owner else None
+            result['withheld_ticks'] = fleet.withheld_ticks if fleet else 0
             result['wall_duration_s'] = time.monotonic() - started
             if result['teardown_errors'] or signals.signum is not None:
                 result['completed'] = False

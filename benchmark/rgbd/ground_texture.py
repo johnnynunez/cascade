@@ -57,7 +57,8 @@ def texture_rectangles(board):
     from .binary_reference import BinaryGroundBoard, binary_rectangles
     from .binary_layout_a import BinaryLayoutABoard, layout_rectangles
     from .checker_accuracy import AccuracyBoard
-    if type(board) is AccuracyBoard:
+    from .checker_saddle import SaddleBoard
+    if type(board) in (AccuracyBoard, SaddleBoard):
         return layout_rectangles(board.geometry)
     if type(board) is BinaryLayoutABoard:
         return layout_rectangles(board)
@@ -228,7 +229,8 @@ def author_ground_texture(stage, texture_path, *, board):
     material.CreateSurfaceOutput().ConnectToSource(surface.ConnectableAPI(), 'surface')
     from .binary_layout_a import BinaryLayoutABoard
     from .checker_accuracy import AccuracyBoard
-    mapping = board.texture_st() if type(board) in (BinaryLayoutABoard, AccuracyBoard) else ST
+    from .checker_saddle import SaddleBoard
+    mapping = board.texture_st() if type(board) in (BinaryLayoutABoard, AccuracyBoard, SaddleBoard) else ST
     UsdGeom.PrimvarsAPI(ground).CreatePrimvar('st', Sdf.ValueTypeNames.TexCoord2fArray, 'vertex').Set(mapping)
     bindings.Bind(material)
     current, current_rel = bindings.ComputeBoundMaterial('physics')

@@ -63,10 +63,16 @@ It reads one physical step, evaluates each robot's policy/BAM, performs one
 scene solve and publishes observations with separate robot identities. Native
 zero-command episodes with one, two and twelve robots passed the
 [foundation checks](evidence/microduck-shared-20261004/foundation.json).
-Independent agent motion, collision coordination and physical per-robot/global
-stop still require native validation. A stop during shared tick preparation
-currently contains the whole scene; this does not establish continued motion of
-unaffected peers. No real-time performance guarantee is claimed.
+The [endpoint candidate](MICRODUCK.md#shared-scene-implementation-boundary)
+stages policy results without mutating their histories. A command change before
+cohort admission discards all previews and permits one retry from the same
+completed observation. The owner captures native state channels once per solve
+and returns detached robot views. One- and two-robot native endpoint episodes
+passed; the twelve-robot zero-command execution failed its unchanged feedback
+progress limit even though all 800 scene solves completed and ownership closed
+normally. Independent agent motion, collision coordination and physical
+per-robot/global stop still require native validation. No real-time performance
+guarantee or continued motion of unaffected peers is established.
 
 | Module | Implemented responsibility | Deliberate boundary |
 | --- | --- | --- |
@@ -80,7 +86,7 @@ unaffected peers. No real-time performance guarantee is claimed.
 | `robotics/graph.py` | Immutable bounded DAG of registered skills, outcome and data edges | No graph-generated code, online self-editing or automatic stop reset |
 | `eval/vab.py`, `eval/arena.py`, `eval/trials.py` | Optional external API adapters and bound independent verdicts | Upstream success alone does not grant physical admission |
 | `robotics/fleet.py`, `apps/fleet.py`, `apps/fleet_mcp.py` | Concurrent task routing, an independent agent episode per robot, and bounded fleet MCP with per-robot/global stop | Native independent agent motion and shared-space collision coordination remain pending |
-| `sim/microduck_shared.py`, `sim/microduck_shared_native.py`, `sim/microduck_admission.py` | One scene solve for separate policy histories, robot observations and opt-in TCP endpoints | Native zero-command foundation is measured; endpoint actuation/stop validation and peer continuation remain pending |
+| `sim/microduck_shared.py`, `sim/microduck_shared_native.py`, `sim/microduck_admission.py` | One scene solve and native channel capture, staged independent policies, detached robot observations and opt-in TCP endpoints | Native 1/2-robot zero-command endpoint lifecycle passed; 12-robot execution hit its feedback progress limit. Gait, physical stop and peer motion remain pending |
 
 ## Capability boundaries
 
@@ -93,7 +99,7 @@ unaffected peers. No real-time performance guarantee is claimed.
 | Perceive and remember space | Passive sensors, measured-frame contracts and retained RGB-D surface annotations | Physical SLAM/localization, metric reconstruction admission and execution of planned routes |
 | Describe different bodies | Fixed/floating roots, links, transmissions and typed scalar/generalized joint observations | Drivers and control mappings for each mechanism; dynamic whole-body control |
 | Sense touch | Contact, estimated-force and tactile-image contracts | Calibrated tactile device drivers and task-specific tactile verification |
-| Coordinate twelve robots | Concurrent fleet runtime, agent CLI/MCP and one shared native scene; separate identities and zero-command support measured for twelve robots | Independent native agent tasks, collision interaction and measured physical fleet stop/reset |
+| Coordinate twelve robots | Concurrent fleet runtime, agent CLI/MCP and one shared native scene; separate identities and zero-command support measured for twelve robots | Resolve measured feedback latency, then validate independent native agent tasks, collision interaction and physical fleet stop/reset |
 
 `ResourceDescriptor.admission` is declared metadata (for example `unvalidated`
 or `software_only`), not an automatic certificate state

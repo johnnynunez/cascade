@@ -1,0 +1,231 @@
+{
+  "schema": 1,
+  "passed": true,
+  "physical_admission": false,
+  "scope": "One static simulated planar RGB-D episode; image-only reference and retained ordinary MCP annotations, no general calibration or physical admission",
+  "source_head": "50626483491cc5ee8283ef7237886d2155eb608e",
+  "sdk_head": "48b2d951919bbb7330de3c2aad54e15369fa0183",
+  "sdk_recipe": "isaac62_48b2d951",
+  "local_artifact_root": "/home/johnny/Projects/demo/cascade-lab/RGBD_CHECKER_PATCH_20261004",
+  "baseline": {
+    "source": "50626483491cc5ee8283ef7237886d2155eb608e",
+    "model_identity_sha256": "e331fad141eddd7b00ee794be3b3acba061edfc53b8bfad4747f5234114499a3",
+    "epoch": "e72d7c9d41f248c08722a4e6ba24bfe0",
+    "campaign_passed": true,
+    "audit_passed": true,
+    "original_closure_passed": true,
+    "physical_admission": false
+  },
+  "rejected_baseline_preflight": {
+    "path": "baseline-native-01",
+    "passed": false,
+    "cause": "Previously recorded foreign process ended; exact GPU occupant guard rejected before Kit",
+    "native_started": false,
+    "native_solves": 0,
+    "inputs_unchanged": true,
+    "refresh_changes_only": [
+      "cache",
+      "plan_file",
+      "resource_observation_contract"
+    ]
+  },
+  "candidate": {
+    "model_identity_sha256": "2a489f7e9aad58dc20b14256e59b5e2c877ea36891b41fb784f418efde20c1fd",
+    "epoch": "974ee5716cea4ef3b12161c44bbe674b",
+    "producer_passed": true,
+    "solves": 80,
+    "policy_evaluations": 20,
+    "captures": 5,
+    "native_wall_duration_s": 129.89630498000042,
+    "native_exit": 0,
+    "scope_exit": 0,
+    "full_native_invariance_passed": true,
+    "post_camera_and_bootstrap_ground_guards_passed": true,
+    "recorded_state_health_passed": true,
+    "zero_semantic_commands": true,
+    "native_balance_policy_active": true
+  },
+  "live_consumer": {
+    "python": "/home/johnny/Projects/demo/.demo/bin/python",
+    "dependency_preflight_passed": true,
+    "read_attempts": 12,
+    "fresh_read_successes": 3,
+    "reader_rpc_calls": 5,
+    "geometry_evaluations": 3,
+    "annotation_attempts": 51,
+    "annotation_successes": 51,
+    "all_read_rejections": {
+      "SensorError: SensorError: RGB-D unavailable: OSError: camera RPC EOF": 1,
+      "SensorError: SensorError: RGB-D unavailable: ConnectionRefusedError: [Errno 111] Connection refused": 8
+    },
+    "added_reader_rpcs_by_annotation_fanout": 0,
+    "scope": "Three admitted captures at sequences3,42,62; nine later EOF/refused reads retained. No external stdio/LLM host.",
+    "sets": [
+      {
+        "sequence": 3,
+        "passed": true,
+        "reference_held_rms_px": 0.09095955748164201,
+        "reference_held_max_px": 0.16198340345794376,
+        "max_abs_error_xyz_m": [
+          4.576147573322198e-05,
+          0.00013550597171738815,
+          1.1524635085136126e-07
+        ],
+        "reference_pixel_rms": 0.04079752185420997,
+        "reference_pixel_max": 0.08560831306257191,
+        "max_recorded_capture_age_s": 0.8626433139997971,
+        "limits": {
+          "max_abs_axis_error_m": 0.001,
+          "pixel_rms": 0.35,
+          "pixel_max": 0.7
+        }
+      },
+      {
+        "sequence": 42,
+        "passed": true,
+        "reference_held_rms_px": 0.07542891409237287,
+        "reference_held_max_px": 0.15354790070012142,
+        "max_abs_error_xyz_m": [
+          7.231875642989272e-05,
+          0.00012548709148826886,
+          1.1524635085136126e-07
+        ],
+        "reference_pixel_rms": 0.03871474923780379,
+        "reference_pixel_max": 0.06972202881940527,
+        "max_recorded_capture_age_s": 0.44648076400153514,
+        "limits": {
+          "max_abs_axis_error_m": 0.001,
+          "pixel_rms": 0.35,
+          "pixel_max": 0.7
+        }
+      },
+      {
+        "sequence": 62,
+        "passed": true,
+        "reference_held_rms_px": 0.07832386611891211,
+        "reference_held_max_px": 0.182672643052508,
+        "max_abs_error_xyz_m": [
+          9.323821293515111e-05,
+          0.00015286810753048496,
+          1.1524635085136126e-07
+        ],
+        "reference_pixel_rms": 0.04724478773292511,
+        "reference_pixel_max": 0.08882378620423757,
+        "max_recorded_capture_age_s": 0.4892634170009842,
+        "limits": {
+          "max_abs_axis_error_m": 0.001,
+          "pixel_rms": 0.35,
+          "pixel_max": 0.7
+        }
+      }
+    ]
+  },
+  "saved_image_only_geometry": {
+    "board_schema": 6,
+    "board_sha256": "9dd98dee2e17efa8a40871dd35091d42750edf5c526299a1eca57dcfac23b74c",
+    "opencv_version": "5.0.0",
+    "checker_flags": 34,
+    "fit_count": 18,
+    "held_count": 17,
+    "limits": {
+      "held_rms_px": 0.15,
+      "held_max_px": 0.35
+    },
+    "all_five_retained": true,
+    "fresh_sensor_observation": false,
+    "rows": [
+      {
+        "step": 3,
+        "packet_sha256": "b75a62a3c7b18f526790f27ec3726b1c06e3a72267368d049518ff19d746be0c",
+        "rgb_sha256": "c854d0da2466161fd3fe5c0dc8f5aaa5fe104c4b9aa6a6d2bfceb7bb7a32c149",
+        "reference_passed": true,
+        "held_rms_px": 0.09095955748164201,
+        "held_max_px": 0.16198340345794376
+      },
+      {
+        "step": 22,
+        "packet_sha256": "84bd3d53830b99a2c96bcdc7940b53c2cdd9000798c8a0e3a9062adf33856fb4",
+        "rgb_sha256": "57a73ada88cfe9a3d0451a0e544f054e60fc8220345742b188d1fe08c947ecb7",
+        "reference_passed": true,
+        "held_rms_px": 0.09395398721204454,
+        "held_max_px": 0.1772990895806954
+      },
+      {
+        "step": 42,
+        "packet_sha256": "4f2becbe425015cd397b257f1c5ccc630cf34a9f7fb35ded749ea6f8b2256ab2",
+        "rgb_sha256": "3f9a6b40f915217a537905c63fc217ccaa2623d14a819c8ecd693ce3938cbad3",
+        "reference_passed": true,
+        "held_rms_px": 0.07542891409237287,
+        "held_max_px": 0.15354790070012142
+      },
+      {
+        "step": 62,
+        "packet_sha256": "ab9e1d743885624c24bf4680cdcd4c4f9d6c7fe9e4174b092467ac07655d230f",
+        "rgb_sha256": "105c68f95c3c1ada170e10311abf151980e125c4d114282e887252961bb1156d",
+        "reference_passed": true,
+        "held_rms_px": 0.07832386611891211,
+        "held_max_px": 0.182672643052508
+      },
+      {
+        "step": 82,
+        "packet_sha256": "08e7b5a3fc35506c256551935d0b86f4dd4f770e7f0ca47e6ff4cd8dd8e025e1",
+        "rgb_sha256": "07c741c0e8b122e4983c8520414db626da3cf0ab787a5db1e8b7dd053a23ff18",
+        "reference_passed": true,
+        "held_rms_px": 0.08048420194380841,
+        "held_max_px": 0.15803816383208114
+      }
+    ]
+  },
+  "closure": {
+    "ok": true,
+    "forced": false,
+    "signals": [],
+    "remaining_members": [],
+    "remaining_births": []
+  },
+  "integrity": {
+    "inputs_unchanged": true,
+    "private_warp_cache_confirmed": true,
+    "cache_scope": "CUDA/Warp/XDG paths are isolated. Native observed Kernel cache attests Warp only. RTX shader cache retains shared SDK defaults; no private RTX cache or cold-cache timing claim.",
+    "port_closed": true,
+    "foreign_gpu_processes_signalled": false,
+    "foreign_births_observed_before": 1,
+    "foreign_births_still_present_after": true,
+    "timing_isolation_or_cold_rtx_claim": false
+  },
+  "scene_preview": {
+    "file": "benchmark/results/rgbd_checker_saddle_native_step42_20261004.jpg",
+    "source": "native-01/kit/frames/overview_000000042.jpg",
+    "sha256": "d3b364997c6c7ae949390882ab10e87a48c4acc01aeead7699ee731708696329",
+    "scope": "Unmodified original JPEG, illustrative only; geometry uses retained lossless RGB bytes"
+  },
+  "historical_failures_preserved": true,
+  "cross_sdk_causal_comparison": false,
+  "general_3d_calibration_or_hardware_admission": false,
+  "artifact_sha256": {
+    "plan-02.json": "3e6c181cb074e8fc2a874775ad633eb65871dcf0dbe307be3d0bfa6f7d42bd92",
+    "consumer.json": "6b8e380fa49bbe85955f55cdcd65c6d7395083fc98162c5ac68865d54fc4c963",
+    "generator.json": "7679874d557679f546618f96b35ceafae97e69289b58f23bfe4292a4896fc23f",
+    "consumer-dependency-preflight-02.json": "14ac04e4f49dfc5c1eb94f80ecb60930ac9db069348d3aae7c76202632cad328",
+    "current-sdk-check-only-02/receipt.json": "69ef10f23eda6d2abfff15f02bc8cd8265034b0274b7df2599450e4754f31369",
+    "native-01/receipt.json": "ff9bc5da3dfe9e68feb0cba465069ce8749981b8036b944cca3fae38dac6fd59",
+    "native-01/artifact-manifest.json": "7b1e9af594f9230cf04d55ed0ec16d2d1c04b097ccc45dde37fc09ea3278c54d",
+    "native-01/all-capture-geometry.json": "c72bbb29b4648c5ecab868f5cac99aa3344187a63a21e78f42abcea76048f3a9",
+    "native-01/kit/model-identity.json": "aa7912ad46251d2aa2263eb96df862a9ead7060949556b61bead2830d4e1a6bd",
+    "native-01/kit/planar-physics-invariance.json": "4049ff45af51da18f020fb14d470d2a54db89b6dcde2918ffe162d136c70ba47",
+    "native-01/kit/ground-appearance-after_camera.json": "adf3ee24514472c5ee469ffaecb51e7ded58eae0b65f000b2b0616594b15aaae",
+    "native-01/kit/ground-appearance-after_bootstrap.json": "6e9fea93726a0fed5ef9356dc61bf00c914faef9b44281b9a58ce4e1a2927c5b",
+    "native-01/resource-preflight.json": "e9f78d989615cdf90f4cb6a6b4c739554f97723991c0583ea26f81aadc24b209",
+    "native-01/resource-after-close.json": "b2eb26bb9098f2cc4186dcf5b70d92a2b921722c09b52221ced215a829052bd3",
+    "baseline-native-01/receipt.json": "a18bc362789b6b815eca2ddf5edf525623563a4b4443db2c57a315bf18b44822",
+    "baseline-native-01/resource-preflight.json": "b238ed3b1d4b53c0815a3e615f01f4b22faf0ea360943a33e5c02ac0ab618ff2",
+    "baseline-native-02/receipt.json": "406212a825271826a9d5b7d3b34b19b93a851c1bc03cc08cbb8712d482979c26",
+    "baseline-native-02/baseline-audit.json": "0ae46c3491a83f7a8d7f6f81586260d61229b86cd7ee082b1441bff303c52be0",
+    "baseline-native-02/kit/model-identity.json": "3a23992f388022aa840b35c4880c52374ea606d7ce37002498f0d5373d17583b",
+    "baseline-plan-02.json": "c2825a4b64767c87470e1885c3038a87865dff34a86c9bb7da5b4a430c541b26",
+    "baseline-plan-03.json": "2f9414f4555478303fae2e3e9666a9a97a19bf154f9face1cc707ece6fedb091",
+    "baseline-resource-preparation-03.json": "24c4c2df39053d569f69a171ff88d8ba184432a71c5d13e30394c58164cf3f6c",
+    "baseline-source-comparison.json": "e8fcf95a22aefcce0ffffefb9fc252ed2d905cf21c19390c8cf0ac8dddc4cf34",
+    "compact_native_result.py": "8082f9286a03872ee17e933c440447ba7f70102c0c5af88cc9371e57175666f5"
+  }
+}

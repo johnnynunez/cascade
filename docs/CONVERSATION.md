@@ -59,6 +59,20 @@ retain full PCM. These results establish neither voice-controlled hand motion
 nor spoken acknowledgement of physical rest; prior motion and voice negatives
 remain separate evidence.
 
+A subsequent [isolated LLM component](evidence/robot-modularity/voice-hand-llm-component-20261004.json)
+used the retained transcription and actual tool schema with a separate provider
+candidate. Its prompt names the available functions instead of presenting the
+unavailable `function_name` example. One real CPU generation produced exactly
+`robot_tool_0(posture="index_flex")` and a successful terminal; it had no
+dispatcher, supplied tool result, ASR, TTS or robot. The original two model
+warmups and loading took 53.276 s; the evaluated response took 26.344 s. Its
+47 decoded characters arrived by 16.341 s, followed by a measured 10.002 s gap
+before generation finalization. The bounded private trace retained all decoded
+chunks and reported token counts without dropped events, and the owned scope
+closed normally. This new stochastic response does not replay the historical
+RNG state, prove the cause of VOICE-HAND05, establish repeatability, or show that
+speech, hand motion and spoken confirmation fit the unchanged 30-second owner.
+
 ## Run the gateway
 
 From a checkout, install the optional transport and start a new private run:

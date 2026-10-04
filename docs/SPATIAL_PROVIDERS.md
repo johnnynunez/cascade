@@ -52,6 +52,33 @@ incomplete cleanup if still busy. The installed
 extension hash and library version are checked, while the upstream source pin
 documents the reviewed API rather than certifying all linked SDK libraries.
 
+An optional `cuvslam.base_registration` binds a **rigid** optical-camera mount
+to a robot base. Its exact fields are `schema: cascade.rigid-camera-base.v1`,
+`robot_id`, `model_identity_sha256`, `camera_calibration_sha256`,
+`camera_frame_id`, `base_frame_id`, `translation_m`, `rotation_wxyz`,
+`position_error_m`, `angular_error_rad` and `sha256`. The robot, non-null model,
+camera calibration and optical frame must match the configured sensor descriptor.
+Translation and unit wxyz rotation describe **T_camera_base**, mapping base
+coordinates into the optical camera frame; obtain these from an independently
+established mount calibration. Error bounds are nonnegative meters/radians or
+explicitly `null` when unknown. Hash the complete record excluding `sha256` with
+`cascade.spatial.frames.sha256(record)`; that hash binds the declaration, not its
+physical accuracy. A moving head or joint-mounted camera needs capture-aligned
+kinematics and cannot use this static registration.
+
+When configured, `track_capture` and `get_localization` retain their optical
+`pose` and additionally return `base_pose` and `base_registration_sha256`.
+Both poses use the same capture timestamp/hash and map session. The base stamp's
+calibration hash binds the whole mount record, which includes the original
+camera calibration. Rotation moves the base origin through the mount's lever
+arm; its positional error bound includes this effect and both translation error
+bounds. Angular errors add conservatively; unknown terms remain unknown.
+Freshness is checked again after composition. Tracking loss, replay, calibration
+change and stop invalidate both poses together. CPU composition and composed
+runtime tests exercise this optional path; no physical mount or base trajectory
+has been admitted. cuVSLAM still supplies unknown error bounds, so registration
+alone cannot enable navigation.
+
 ## Opt-in observed route execution
 
 `build_mobile_runtime(..., navigation_source=source, navigation_settings=settings)`

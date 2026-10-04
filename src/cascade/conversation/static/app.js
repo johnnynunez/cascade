@@ -4,6 +4,7 @@ let socket, session, context, stream, capture, captureSource, playback;
 let sequence = 0, generation = 0, playbackRevision = 0, playbackAllowed = false;
 let captureRevision = 0, capturePending = false;
 let connectionRevision = 0, pendingOperations = 0;
+let robotEpisode, preparedCaptureId, robotStarting = false, resumePrepared;
 const transcripts = new Map();
 function log(message) { $('log').textContent = ($('log').textContent + message + '\n').slice(-24000); }
 function status(message) { $('status').textContent = message; }
@@ -15,6 +16,7 @@ async function api(path, method = 'POST', body) {
 }
 function flush() { playbackRevision++; if (playback) playback.flush(generation); }
 function mute() { captureRevision++; capturePending = false;
+  preparedCaptureId = undefined; resumePrepared = undefined; $('start-robot').disabled = true;
   if (captureSource) { captureSource.disconnect(); captureSource = undefined; }
   if (capture) { capture.disconnect(); capture = undefined; }
   if (stream) { stream.getTracks().forEach(track => track.stop()); stream = undefined; }
@@ -61,6 +63,8 @@ $('connect').onclick = async () => {
   let attemptedSession = false;
   try {
     const info = await api('status', 'GET');
+    robotEpisode = info.robot_episode;
+    $('robot-session').hidden = !robotEpisode;
     if (revision !== connectionRevision) return;
     attemptedSession = true;
     const binding = await api('session', 'POST', {robot_id: info.robot_id});
@@ -71,7 +75,14 @@ $('connect').onclick = async () => {
     socket = transport;
     const current = () => revision === connectionRevision && socket === transport && session === binding;
     transport.onopen = () => { if (!current()) { transport.close(); return; }
-      status('Connected · ' + info.robot_id); $('mic').disabled = $('send').disabled = $('disconnect').disabled = false; };
+      status('Connected · ' + info.robot_id); $('mic').disabled = $('disconnect').disabled = false;
+      $('send').disabled = Boolean(robotEpisode && !robotEpisode.active);
+      if (resumePrepared && stream === resumePrepared && robotEpisode?.active) {
+        const acquired = resumePrepared; resumePrepared = undefined;
+        try { attachCapture(context, acquired, binding, transport, ++captureRevision); }
+        catch (error) { fail(error); }
+      }
+    };
     transport.onmessage = async ({data}) => {
       if (!current()) return;
       try {
@@ -94,10 +105,19 @@ $('connect').onclick = async () => {
           status('Conversation interrupted. Disconnect and reconnect; reset a latched stop explicitly.');
         }
         else if (event.type === 'tool_result') log(event.tool + ': ' + JSON.stringify(event.result));
+        else if (event.type === 'robot_episode_ended') {
+          robotEpisode = {...robotEpisode, active: false, terminal: true};
+          mute(); status('Robot session ended. Start a new service run.');
+        }
+        else if (event.type === 'microphone_prepared' && event.capture_id === preparedCaptureId && stream) {
+          $('start-robot').disabled = false;
+          status('Microphone prepared without transmission. Start robot session explicitly when ready.');
+        }
       } catch (error) { if (current()) await fail(error); }
     };
-    transport.onclose = () => { if (!current()) return; dropConnection();
-      status('Disconnected. Robot stop requested; reset requires your explicit action.'); };
+    transport.onclose = () => { if (!current() || robotStarting) return; dropConnection();
+      status(robotEpisode?.terminal ? 'Robot session ended. Start a new service run.' :
+        'Disconnected. Robot stop requested; reset requires your explicit action.'); };
     transport.onerror = () => { if (current()) return fail(new Error('Media socket failed')); };
   } catch (error) {
     if (revision === connectionRevision) { dropConnection(); status(error.message); }
@@ -105,6 +125,19 @@ $('connect').onclick = async () => {
     if (attemptedSession) { try { await api('session', 'DELETE'); } catch {} }
   } finally { endOperation(); }
 };
+function attachCapture(ctx, acquired, owner, transport, revision) {
+  const current = () => revision === captureRevision && session === owner && socket === transport &&
+    transport?.readyState === WebSocket.OPEN && playbackAllowed && stream === acquired;
+  capture = new AudioWorkletNode(ctx, 'pcm-capture');
+  capture.port.onmessage = ({data}) => { try {
+    if (!current()) return;
+    const bytes = new Uint8Array(data); let raw = ''; for (const byte of bytes) raw += String.fromCharCode(byte);
+    send({type: 'audio', sequence: sequence++, audio: btoa(raw)});
+  } catch (error) { fail(error); } };
+  captureSource = ctx.createMediaStreamSource(acquired);
+  captureSource.connect(capture); capture.connect(ctx.destination);
+  $('mic').textContent = 'Mute microphone';
+}
 $('mic').onclick = async () => {
   if (stream || capturePending) { mute(); return; }
   const revision = ++captureRevision, owner = session, transport = socket;
@@ -120,18 +153,44 @@ $('mic').onclick = async () => {
     const acquired = await navigator.mediaDevices.getUserMedia({audio: {channelCount: 1, echoCancellation: true, noiseSuppression: true}});
     if (!current()) { acquired.getTracks().forEach(track => track.stop()); return; }
     stream = acquired;
-    capture = new AudioWorkletNode(ctx, 'pcm-capture');
-    capture.port.onmessage = ({data}) => { try {
-      if (!current() || stream !== acquired) return;
-      const bytes = new Uint8Array(data); let raw = ''; for (const byte of bytes) raw += String.fromCharCode(byte);
-      send({type: 'audio', sequence: sequence++, audio: btoa(raw)});
-    } catch (error) { fail(error); } };
-    captureSource = ctx.createMediaStreamSource(stream);
-    captureSource.connect(capture); capture.connect(ctx.destination);
-    $('mic').textContent = 'Mute microphone';
+    if (robotEpisode) {
+      const tracks = acquired.getAudioTracks();
+      if (tracks.length !== 1 || tracks[0].readyState !== 'live') throw new Error('One live microphone track is required');
+      tracks[0].addEventListener('ended', () => {
+        if (stream === acquired) fail(new Error('Microphone ended; robot stop requested'));
+      }, {once: true});
+    }
+    if (robotEpisode && !robotEpisode.active) {
+      preparedCaptureId = crypto.randomUUID().replaceAll('-', '');
+      send({type: 'microphone_prepared', capture_id: preparedCaptureId});
+      $('mic').textContent = 'Release prepared microphone';
+    } else attachCapture(ctx, acquired, owner, transport, revision);
   } catch (error) { if (current()) await fail(error); }
   finally { if (revision === captureRevision) { capturePending = false;
     if (!stream) $('mic').textContent = 'Start microphone'; } }
+};
+$('start-robot').onclick = async () => {
+  if (pendingOperations || !preparedCaptureId || !stream || !session || robotEpisode?.attempted) return;
+  const acquired = stream, owner = session, revision = connectionRevision;
+  const tracksLive = () => acquired.getAudioTracks().length === 1 &&
+    acquired.getAudioTracks()[0].readyState === 'live';
+  beginOperation(); robotStarting = true; $('start-robot').disabled = true;
+  let reconnect = false;
+  try {
+    if (!tracksLive()) throw new Error('Prepared microphone is no longer live');
+    const observed = await api('status', 'GET');
+    if (revision !== connectionRevision || session !== owner || stream !== acquired) return;
+    const result = await api('robot/start', 'POST', {session_id: owner.session_id,
+      generation: observed.generation, capture_id: preparedCaptureId});
+    if (revision !== connectionRevision || session !== owner || stream !== acquired) return;
+    if (result.ok !== true || !result.active || !tracksLive()) throw new Error('Robot session did not start');
+    log('Robot session started. About ' + Math.floor(result.remaining_s) + ' seconds remain.');
+    const previous = socket; socket = undefined; session = undefined;
+    ++connectionRevision; playbackAllowed = false; flush(); if (previous) previous.close();
+    resumePrepared = acquired; preparedCaptureId = undefined; reconnect = true;
+  } catch (error) { await fail(error); }
+  finally { robotStarting = false; endOperation(); }
+  if (reconnect) await $('connect').onclick();
 };
 $('text-form').onsubmit = event => { event.preventDefault(); try { send({type: 'text', text: $('text').value}); $('text').value = ''; } catch (error) { fail(error); } };
 async function operatorAction(action) {
@@ -154,4 +213,7 @@ async function operatorAction(action) {
 $('stop').onclick = () => operatorAction('stop');
 $('reset').onclick = () => operatorAction('reset');
 $('disconnect').onclick = () => operatorAction('disconnect');
-api('status', 'GET').then(info => { if (!connectionRevision) status('Ready · ' + info.robot_id + ' · ' + info.tools.length + ' allowed tools'); }).catch(error => { if (!connectionRevision) status(error.message); });
+api('status', 'GET').then(info => { if (!connectionRevision) {
+  robotEpisode = info.robot_episode; $('robot-session').hidden = !robotEpisode;
+  status('Ready · ' + info.robot_id + ' · ' + info.tools.length + ' allowed tools');
+}}).catch(error => { if (!connectionRevision) status(error.message); });

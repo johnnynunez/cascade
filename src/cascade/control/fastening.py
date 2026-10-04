@@ -121,6 +121,7 @@ class FasteningBinding:
     fixture_origin_m: tuple[float, float, float] = (.24, 0., 0.)
     fixture_recipe: str = "factory_m20_fixed_axis_v1"
     thread_pitch_m: float = .0025
+    seat_contact_pair: tuple[str, str] | None = None
 
     def __post_init__(self):
         for digest in (self.model_sha256, self.limits_sha256):
@@ -149,6 +150,13 @@ class FasteningBinding:
             raise ValueError("thread/tool witnesses must name disjoint admitted collider pairs")
         object.__setattr__(self, "thread_contact_pair", thread)
         object.__setattr__(self, "tool_contact_pairs", tools)
+        if self.seat_contact_pair is not None:
+            seat = tuple(sorted(self.seat_contact_pair))
+            if (seat not in pairs or seat == thread or seat in tools
+                    or len(set(seat).intersection(thread)) != 1
+                    or any(set(seat).intersection(pair) != set(seat).intersection(thread) for pair in tools)):
+                raise ValueError("seat witness must be a distinct admitted collider pair")
+            object.__setattr__(self, "seat_contact_pair", seat)
         _number(self.dt_s, "dt_s", positive=True)
         object.__setattr__(self, "fixture_origin_m", _vector(self.fixture_origin_m, 3, "fixture origin"))
         if self.fixture_recipe not in {"factory_m20_fixed_axis_v1", "factory_m20_fixed_axis_margin_v2"} or self.thread_pitch_m != .0025:
@@ -192,6 +200,7 @@ class FasteningLimits:
     rest_linear_speed_m_s: float = .001
     rest_angular_speed_rad_s: float = .02
     contact_load_threshold_n: float = 1e-6
+    seating: object | None = None
 
     def __post_init__(self):
         n = len(self.joint_lower_rad)
@@ -204,8 +213,14 @@ class FasteningLimits:
         _number(self.table_z_m, "table_z_m")
         for key, value in asdict(self).items():
             if key not in {"joint_lower_rad", "joint_upper_rad", "joint_effort_nm",
-                           "workspace_min_m", "workspace_max_m", "table_z_m"}:
+                           "workspace_min_m", "workspace_max_m", "table_z_m", "seating"}:
                 _number(value, key, positive=True)
+        if self.seating is not None:
+            from .fastening_seat import SeatingLimits
+            if (type(self.seating) is not SeatingLimits
+                    or self.seating.minimum_loaded_effort_nm > self.spindle_effort_nm
+                    or self.seating.motor_off_window_sim_s > self.rest_timeout_sim_s):
+                raise ValueError("invalid distinct seating task limits")
         if any(lo + 2*self.joint_margin_rad >= hi for lo, hi in zip(
                 self.joint_lower_rad, self.joint_upper_rad, strict=True)):
             raise ValueError("joint limits have no interior")
@@ -364,6 +379,9 @@ def check_solve(row, binding, limits, now, *, epoch=None, previous=None, stage="
             tool_count += pair in binding.tool_contact_pairs
     if (row.thread_contacts, row.tool_contacts) != (thread_count, tool_count):
         raise FasteningFault("thread/tool witnesses differ from solved collider pairs")
+    if limits.seating is not None:
+        from .fastening_seat import check_seating_solve
+        check_seating_solve(row, binding)
 
 
 def check_geometry(minimum, maximum, limits):
@@ -438,6 +456,7 @@ class FasteningPermit:
     admitted_monotonic_s: float
     deadline_monotonic_s: float
     end_simulation_time_s: float
+    operation: str = "turn"
 
     def __post_init__(self):
         if not isinstance(self.binding_sha256, str) or not re.fullmatch("[0-9a-f]{64}", self.binding_sha256):
@@ -450,6 +469,8 @@ class FasteningPermit:
                 raise ValueError("negative permit clock")
         if self.deadline_monotonic_s <= self.admitted_monotonic_s or self.end_simulation_time_s <= self.admission_time_s:
             raise ValueError("permit has no remaining time")
+        if self.operation not in ("turn", "seat"):
+            raise ValueError("unknown fastening permit operation")
 
 
 @dataclass(frozen=True)
@@ -485,6 +506,8 @@ class FasteningWriteGuard:
     def __init__(self, binding, limits, *, clock=time.monotonic):
         if len(binding.joint_names) != len(limits.joint_lower_rad) or binding.limits_sha256 != limits.sha256:
             raise ValueError("joint or limits binding mismatch")
+        if (limits.seating is None) != (binding.seat_contact_pair is None):
+            raise ValueError("seating task and shoulder registry must be bound together")
         self.binding, self.limits, self.clock = binding, limits, clock
         self._lock = threading.RLock()
         self._generation, self._latched, self._closed = 0, True, False
@@ -547,17 +570,36 @@ class FasteningWriteGuard:
                 raise FasteningFault("another fastening command owns the controller")
             if type(turns) not in (float, int) or turns != 1. or direction != "tighten":
                 raise FasteningFault("this mounted fixture admits exactly one tightening turn")
-            now = self.clock()
-            check_solve(row, self.binding, self.limits, now, stage="turn_admission")
-            if row.generation != self._generation or not row.thread_contacts or not row.tool_contacts:
-                raise FasteningFault("fresh same-generation pre-engaged contacts required")
-            self._generation += 1
-            self._permit = FasteningPermit(self.binding.sha256, row.epoch, self._generation,
-                row.step, row.simulation_time_s, now, now + self.limits.max_command_wall_s,
-                row.simulation_time_s + self.limits.max_command_sim_s)
-            self._previous_target = row.joint_position_rad
-            self._last_write_step = None
-            return self._permit
+            return self._admit_interval(row, self.limits, "turn")
+
+    def admit_seating(self, row, *, expected_generation):
+        with self._lock:
+            if self._closed or self._latched or expected_generation != self._generation:
+                raise FasteningFault("controller stopped or generation invalidated")
+            if self._permit is not None:
+                raise FasteningFault("another fastening command owns the controller")
+            if self.limits.seating is None:
+                raise FasteningFault("shoulder seating is not configured")
+            task = self.limits.seating
+            available = (row.fastener_position_m[2]-row.fixture_position_m[2]
+                -task.nut_half_height_m-task.shoulder_height_m)
+            if available < task.minimum_turns*self.binding.thread_pitch_m:
+                raise FasteningFault("fixed seating approach requires the initial pre-engaged nut height")
+            return self._admit_interval(row, self.limits.seating, "seat")
+
+    def _admit_interval(self, row, task_limits, operation):
+        # Caller holds the same single-writer lock for the complete admission.
+        now = self.clock()
+        check_solve(row, self.binding, self.limits, now, stage=operation+"_admission")
+        if row.generation != self._generation or not row.thread_contacts or not row.tool_contacts:
+            raise FasteningFault("fresh same-generation pre-engaged contacts required")
+        self._generation += 1
+        self._permit = FasteningPermit(self.binding.sha256, row.epoch, self._generation,
+            row.step, row.simulation_time_s, now, now + task_limits.max_command_wall_s,
+            row.simulation_time_s + task_limits.max_command_sim_s, operation)
+        self._previous_target = row.joint_position_rad
+        self._last_write_step = None
+        return self._permit
 
     def stop(self):
         with self._lock:
@@ -668,6 +710,9 @@ class FasteningController:
 
     def request_turn(self, **arguments):
         return self.guard.admit(self._latest(), **arguments)
+
+    def request_seating(self, **arguments):
+        return self.guard.admit_seating(self._latest(), **arguments)
 
     def stop(self):
         return self.guard.stop()

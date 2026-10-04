@@ -39,11 +39,16 @@ def _retain_error_note(error, message):
 
 def validate_factory_profile(profile):
     required = {"kind", "recipe", "assets", "robot_asset", "device", "model_identity_sha256"}
-    if not isinstance(profile, dict) or set(profile)-required-{"robot_id", "precompile", "sdk_recipe"} or required-set(profile):
+    if not isinstance(profile, dict) or set(profile)-required-{"robot_id", "precompile", "sdk_recipe", "seating"} or required-set(profile):
         raise ValueError("fastening requires the explicit fixed Factory profile fields")
     from ..sim.factory_sdk import validate_sdk_recipe
     validate_sdk_recipe(profile.get("sdk_recipe"))
     seating_recipe(profile["recipe"])
+    if "seating" in profile:
+        from ..control.fastening_seat import SEATING_RECIPE
+        from ..sim.factory_recipe import MARGIN_RECIPE
+        if profile["seating"] != SEATING_RECIPE or profile["recipe"] != MARGIN_RECIPE:
+            raise ValueError("unreviewed Factory shoulder seating recipe")
     if "precompile" in profile:
         from ..sim.factory_precompile import PRECOMPILE_RECIPE
         from ..sim.factory_recipe import MARGIN_RECIPE
@@ -66,11 +71,16 @@ def validate_factory_profile(profile):
 def factory_description(domain_id, profile):
     validate_factory_profile(profile)
     resource = domain_id + "/mounted_arm_spindle"
+    seating = "seating" in profile
+    specs = [TURN_SPEC]
+    if seating:
+        from ..skills.seating_runtime import SEAT_SPEC
+        specs.append(SEAT_SPEC)
     return (ResourceDescriptor(resource, "mounted_fastening", ROBOT_ID,
-        capabilities=("preengaged_thread_turn",), controller_id=CONTROLLER_ID,
+        capabilities=("preengaged_thread_turn",) + (("shoulder_seating",) if seating else ()), controller_id=CONTROLLER_ID,
         writer_id=resource, synthetic=False, admission="unvalidated",
         metadata={"model_identity_sha256": profile["model_identity_sha256"],
-            "mounted_tool": True, "preengaged_fastener": True, "seating": False, "pickup": False}),), [TURN_SPEC]
+            "mounted_tool": True, "preengaged_fastener": True, "seating": seating, "pickup": False}),), specs
 
 
 def prepare_factory_model(profile, cache_dir):
@@ -89,6 +99,7 @@ def prepare_factory_model(profile, cache_dir):
     sdk_sources(**sdk_options)  # Refuse an unreviewed implementation before model construction.
     from ..sim.newton_screw_seating import SeatingScene
     from ..sim.factory_model import FactoryBoundModel
+    model_options = sdk_options | ({"seating": profile["seating"]} if "seating" in profile else {})
     scene = SeatingScene(profile["assets"], profile["robot_asset"], Path(cache_dir),
                          device=profile["device"], drive=False, substeps=10,
                          recipe=profile["recipe"])
@@ -96,7 +107,7 @@ def prepare_factory_model(profile, cache_dir):
         raise FasteningFault("requested CUDA Factory model did not resolve to a CUDA device")
     if "precompile" in profile:
         try:
-            model = FactoryBoundModel(scene, precompile=profile["precompile"], **sdk_options)
+            model = FactoryBoundModel(scene, precompile=profile["precompile"], **model_options)
         except BaseException as error:
             try:
                 if hasattr(scene, "precompile_receipt"):
@@ -106,11 +117,16 @@ def prepare_factory_model(profile, cache_dir):
             raise
         _write(Path(cache_dir).parent/"precompile.json", scene.precompile_receipt)
         return model
-    return FactoryBoundModel(scene, **sdk_options)
+    return FactoryBoundModel(scene, **model_options)
 
 
 def _new_owner(model):
     from ..sim.factory_owner import FactoryNewtonBackend, FactorySolveOwner
+    if model.limits.seating is not None:
+        task = model.limits.seating
+        # Fixed longer task; the existing one-turn lease stays at 4 sim / 40 wall seconds.
+        return FactorySolveOwner(FactoryNewtonBackend(model),
+            max_wall_s=task.max_command_wall_s+task.rest_timeout_wall_s+15., record_capacity=32768)
     return FactorySolveOwner(FactoryNewtonBackend(model))
 
 

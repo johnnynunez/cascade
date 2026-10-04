@@ -172,3 +172,33 @@ animated demonstration. Their hashes are recorded in the
 | Start (frame 0) | Middle (frame 1170) | Seated (frame 2339) |
 | --- | --- | --- |
 | ![Initial nut engagement](../benchmark/results/images/factory-threading-start-20261002.png) | ![Nut advancing along bolt](../benchmark/results/images/factory-threading-middle-20261002.png) | ![Nut retained at spacer seat](../benchmark/results/images/factory-threading-end-20261002.png) |
+
+## Configured shoulder-seating task
+
+The opt-in `factory_m20_shoulder_seating` profile exposes
+`fastening.seat_fastener({})` through the ordinary robot/MCP runtime. Its initial
+state is the mounted socket and pre-engaged nut at the declared initial height;
+it refuses reuse after a prior turn has consumed the required approach. The
+shipped profile has no device or model pin, so discovery cannot start an owner.
+An exact model must be prepared against the selected SDK before execution.
+
+This distinct task admits at most 45 simulated seconds / 1,200 wall seconds.
+It requires the measured 15-turn threading approach, then a continuous 0.5
+simulated seconds of shoulder support under spindle effort. Positive support
+comes from the fastener side of the complete solved contact ledger, with the
+declared annulus, surface normal and gap checks. Motor stall alone is insufficient.
+The same single writer and stop generation guard every upload; the existing
+one-turn task retains its 4 simulated / 40 wall-second limits.
+
+After the stop ACK, spindle effort must be exactly zero for two observed
+simulated seconds. The last second must retain shoulder support and quiet arm,
+socket and nut measurements; a lost support sample cannot be repaired by a
+later quiet frame. Threading is rechecked from the original post-ACK baseline,
+and post-stop travel cannot supply missing approach credit. The rest deadline
+is 3 simulated / 90 wall seconds, including final verification.
+
+CPU fixtures exercise ordinary dispatch, contact-vector identity, interrupted
+streams, stop revocation, late results and lost retention. They do not admit
+native seating on this runtime. The standalone measurements above remain bound
+to their original source and episode. Tool acquisition, engagement, withdrawal,
+calibrated preload and hardware validation remain separate work.

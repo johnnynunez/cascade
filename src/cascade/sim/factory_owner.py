@@ -104,6 +104,9 @@ class _OwnerController(FasteningController):
     def request_turn(self, **arguments):
         return self.owner.request("turn", arguments)
 
+    def request_seating(self, **arguments):
+        return self.owner.request("seat", arguments)
+
     def reset_stop(self):
         return self.owner.request("reset", {})
 
@@ -181,6 +184,8 @@ class FactorySolveOwner:
                 raise FasteningFault("queued admission expired or was revoked")
             if request.kind == "turn":
                 result = FasteningController.request_turn(self.controller, **request.arguments)
+            elif request.kind == "seat":
+                result = FasteningController.request_seating(self.controller, **request.arguments)
             elif request.kind == "reset":
                 result = FasteningController.reset_stop(self.controller)
             else:

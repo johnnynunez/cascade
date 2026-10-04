@@ -295,3 +295,14 @@ process scope closed ordinarily with no signals or remaining children, while
 runtime closure preserved the freshness fault. The compact receipt retains the
 distinct pin, epoch, all twelve generation-2 intervals and original artifacts;
 the larger accepted prefix does not establish a latency remedy.
+
+The next private retention implementation stores exact byte payloads without
+per-row Python wrappers. Journal and threading-history slots are allocated up
+front; separate scalar metadata preserves the captured epoch, step and time.
+Cursor snapshots remain immutable across ring reuse. Only the exact native
+Factory owner streams raw rows to JSON, bounded to the queue prefix present
+when draining begins; `records()` keeps its public detached-list contract.
+A later decoding or persistence failure leaves partial evidence and a sticky
+fault, never a complete task result. These changes preserve capture deadlines
+and normal GC. CPU boundary tests exercise wraparound, mutation, fault priority,
+overflow and streaming; new native validation and a latency remedy remain pending.

@@ -1,5 +1,6 @@
 """Compact retention preserves evidence and fences; no SDK or model execution."""
 from dataclasses import asdict, FrozenInstanceError, replace
+import gc
 import json
 import threading
 import weakref
@@ -23,13 +24,13 @@ def encoded(value):
 @pytest.mark.parametrize('seating', [False, True])
 def test_roundtrip_exact_types_values_order_signed_zero_and_no_row_cache(seating):
     original = observed(1, loaded=True) if seating else row(1, spindle_effort_nm=-0.)
-    packed = compact._PackedRecord(original)
-    restored = packed.expand()
+    packed = compact._pack(original)
+    restored = compact._unpack(packed)
     assert type(restored) is type(original)
     assert encoded(restored) == encoded(original)
     assert all(type(a) is type(b) for a, b in zip(restored.contacts, original.contacts, strict=True))
-    with pytest.raises(FrozenInstanceError): packed.step = 99
-    assert packed.expand() is not restored
+    assert type(packed) is bytes and not gc.is_tracked(packed)
+    assert compact._unpack(packed) is not restored
 
 
 def test_journal_retains_only_latest_typed_row_and_cursor_batch_is_lazy(monkeypatch):
@@ -41,11 +42,12 @@ def test_journal_retains_only_latest_typed_row_and_cursor_batch_is_lazy(monkeypa
     del first
     assert ref() is None  # No explicit collection or GC configuration change.
     calls = []
-    real = compact._PackedRecord.expand
+    real = compact._unpack
     def tracked(self):
-        calls.append(self.step)
-        return real(self)
-    monkeypatch.setattr(compact._PackedRecord, 'expand', tracked)
+        value = real(self)
+        calls.append(value.step)
+        return value
+    monkeypatch.setattr(compact, '_unpack', tracked)
     assert journal.read()[0].step == 1
     batch = journal.read(0)
     assert len(batch) == 1 and not calls
@@ -71,6 +73,67 @@ def test_capacity_gap_cursor_order_and_first_invalid_identity_error(enabled):
         journal.read()
 
 
+def test_ring_wrap_does_not_rewrite_already_captured_cursor_or_retain_wrappers():
+    journal = SolveJournal(binding(), capacity=3, _compact=True)
+    for step in range(3):
+        journal.publish(row(step))
+    held = journal.read(0)
+    slots = journal._rows._payloads
+    for step in range(3, 12):
+        journal.publish(row(step))
+    assert journal._rows._payloads is slots and len(slots) == 3
+    assert all(type(value) is bytes and not gc.is_tracked(value) for value in slots)
+    assert all(type(value) is int for value in journal._rows._steps)
+    assert [value.step for value in held] == [1, 2]
+    assert [value.step for value in journal.read(8)] == [9, 10, 11]
+    assert not journal.read(999)
+
+
+def test_thread_history_preallocated_prefix_and_negative_slices():
+    journal = SolveJournal(binding(), _compact=True)
+    history = compact._ThreadHistory(5, journal._check_error, journal.fail)
+    slots = history._records
+    for step in range(3):
+        history.append(row(step).thread_sample(binding()))
+    assert slots is history._records and len(slots) == 5
+    assert all(type(v) is bytes and not gc.is_tracked(v) for v in slots[:3])
+    assert slots[3:] == [None, None]
+    assert history[-1].step == 2
+    assert [v.step for v in history[::-1]] == [2, 1, 0]
+    assert [v.step for v in history[-2:99]] == [1, 2]
+    for index in (3, 4, -4):
+        with pytest.raises(IndexError):
+            history[index]
+    with pytest.raises(TypeError):
+        history[1.0]
+
+
+def test_failed_pack_preserves_full_ring_and_last_typed_row(monkeypatch):
+    journal = SolveJournal(binding(), capacity=3, _compact=True)
+    for step in range(3):
+        journal.publish(row(step))
+    before = tuple(journal._rows._payloads)
+    monkeypatch.setattr(compact, '_pack', lambda value: (_ for _ in ()).throw(MemoryError('encode')))
+    with pytest.raises(FasteningFault, match='MemoryError'):
+        journal.publish(row(3))
+    assert tuple(journal._rows._payloads) == before
+    assert journal._rows.first_step == 0 and journal._latest_row.step == 2
+
+
+def test_captured_metadata_does_not_alias_latest_public_object():
+    journal = SolveJournal(binding(), capacity=3, _compact=True)
+    first = row(0)
+    journal.publish(first)
+    # Even deliberate mutation outside the frozen dataclass API cannot rewrite
+    # the metadata captured by the old packed-record contract.
+    object.__setattr__(first, 'step', 900)
+    object.__setattr__(first, 'epoch', 'different')
+    object.__setattr__(first, 'simulation_time_s', 900.)
+    assert journal._rows.last_step == 0
+    journal.publish(row(1))
+    assert [value.step for value in journal.read(0)] == [1]
+
+
 @pytest.mark.parametrize('fault', ['encode', 'decode'])
 def test_codec_fault_is_sticky_and_never_returns_partial_evidence(monkeypatch, fault):
     journal = SolveJournal(binding(), _compact=True)
@@ -83,7 +146,7 @@ def test_codec_fault_is_sticky_and_never_returns_partial_evidence(monkeypatch, f
         batch = journal.read(0)
         journal.publish(row(1))
         batch = journal.read(0)
-        monkeypatch.setattr(compact._PackedRecord, 'expand', broken)
+        monkeypatch.setattr(compact, '_unpack', broken)
         operation = lambda: batch[0]
     with pytest.raises(FasteningFault, match='retention failed'): operation()
     with pytest.raises(FasteningFault, match='retention failed'): journal.read()
@@ -96,13 +159,13 @@ def test_stop_and_publish_do_not_wait_for_reader_decode_and_fault_is_rechecked(m
         close_owner=lambda: {'ok': True}, clock=lambda: 10.)
     journal.publish(row(0)); journal.publish(row(1))
     entered, release = threading.Event(), threading.Event()
-    real = compact._PackedRecord.expand
+    real = compact._unpack
     errors = []
     def blocked(self):
         entered.set()
         assert release.wait(2)
         return real(self)
-    monkeypatch.setattr(compact._PackedRecord, 'expand', blocked)
+    monkeypatch.setattr(compact, '_unpack', blocked)
     batch = journal.read(0)
     def read():
         try: batch[0]
@@ -124,11 +187,11 @@ def test_decoding_does_not_refresh_capture_or_hide_expiry(monkeypatch):
     journal = SolveJournal(binding(), _compact=True)
     journal.publish(row(0)); journal.publish(row(1, captured=10.))
     now = [10.]
-    real = compact._PackedRecord.expand
+    real = compact._unpack
     def delayed(self):
         now[0] = 10.201
         return real(self)
-    monkeypatch.setattr(compact._PackedRecord, 'expand', delayed)
+    monkeypatch.setattr(compact, '_unpack', delayed)
     decoded = journal.read(0)[0]
     assert decoded.captured_monotonic_s == 10.
     with pytest.raises(FasteningObservationAgeFault) as error:
@@ -154,9 +217,9 @@ def test_unknown_nested_object_or_subclass_is_refused_before_pickle(monkeypatch)
         def __reduce__(self): raise AssertionError('must not execute')
     value = row(1)
     object.__setattr__(value, 'contacts', (Unexpected(),))
-    with pytest.raises(TypeError): compact._PackedRecord(value)
+    with pytest.raises(TypeError): compact._pack(value)
     class Subclass(type(row())): pass
-    with pytest.raises(TypeError): compact._PackedRecord(Subclass(**vars(row())))
+    with pytest.raises(TypeError): compact._pack(Subclass(**vars(row())))
     assert not calls
 
 

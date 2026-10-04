@@ -74,6 +74,24 @@ published provenance names `protective_fall` and a September 14 export but
 does not identify the exact training run. CPU formula replay cannot predict
 the new closed-loop actions or establish improved gait or stopping.
 
+The [native target-transform foundation](evidence/robot-modularity/microduck-robotd-target-foundation-20261004.json)
+retains one robot at source `2c27f846`, with 800 completed solves, 200 policy
+commits, nine camera/support samples and two reader events. The independent
+auditor reproduced every raw-action history and float64 target, then checked
+all 800 float32 BAM uploads. No preview was discarded. Maximum displacement
+from the first solve was 2.6421 mm, maximum tilt 0.0206804 rad, and minimum
+sole support over the final two simulated seconds was 7.2072 N. These zero
+caller commands still caused real postural actuation; they do not admit walking,
+turning, braking or a verified stop. Both weights and target transformation
+differ from the prior rough/direct reader. Native and owned scope exited zero,
+all seven observed process births disappeared, and inputs and protected stores
+were unchanged. Owner-thread attempt duration was 11.580 ms median and 109.550 ms maximum;
+no generation-2 GC occurred, so this is neither a sustained deadline guarantee
+nor a causal speed comparison under the recorded foreign GPU occupancy.
+The separate [Newton BAM proposal](https://github.com/newton-physics/newton/issues/4397)
+motivates reviewing actuator contracts; this episode retains its pinned BAM
+plant and does not test a new friction, backlash or delay implementation.
+
 ## Evidence and identity
 
 A SHA-256 digest binds the complete admitted bundle, consumed USD layers,

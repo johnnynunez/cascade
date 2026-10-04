@@ -28,6 +28,7 @@ class RealtimeConfig:
     connect_timeout_s: float = 10
     io_timeout_s: float = 5
     max_event_bytes: int = 262144
+    release_contract: str | None = None
 
     def __post_init__(self):
         url = urlsplit(self.url)
@@ -41,6 +42,12 @@ class RealtimeConfig:
             raise ValueError("invalid event bound")
         if self.token_env is not None and (not self.token_env.isidentifier() or len(self.token_env) > 128):
             raise ValueError("invalid credential environment variable")
+        if self.release_contract is not None and (type(self.release_contract) is not str
+                                                  or self.release_contract != "hf_pool"):
+            raise ValueError("unknown provider release contract")
+        if self.release_contract == "hf_pool":
+            from .provider_pool import pool_url
+            pool_url(self.url)
 
 
 class RealtimeWebSocket:
@@ -54,6 +61,12 @@ class RealtimeWebSocket:
         self._client = self._ws = None
         self._send_lock = asyncio.Lock()
         self._closure_receipt = None
+        self._pool_binding = None
+        self._pool_claimed = False
+        self._pool_released = False
+        self._pool_close_deadline = None
+        self._headers = {}
+        self._close_lock = asyncio.Lock()
 
     async def connect(self, session):
         import aiohttp
@@ -63,16 +76,55 @@ class RealtimeWebSocket:
             if not token:
                 raise ValueError("configured provider credential is unavailable")
             headers["Authorization"] = "Bearer " + token
-        self._client = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None))
+        client_options = {}
+        if self.config.release_contract == "hf_pool":
+            trace = aiohttp.TraceConfig()
+            async def reject_redirect(*_):
+                raise ValueError("HF pool WebSocket handshake must not redirect")
+            trace.on_request_redirect.append(reject_redirect)
+            client_options["trace_configs"] = [trace]
+        self._client = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None), **client_options)
+        self._headers = headers
+        connect_deadline = asyncio.get_running_loop().time() + self.config.connect_timeout_s
+        def connect_remaining():
+            if self.config.release_contract is None:
+                return self.config.connect_timeout_s  # Existing generic transport contract.
+            from .provider_pool import remaining
+            return remaining(connect_deadline)
         try:
+            timeout = connect_remaining()
+            if self.config.release_contract == "hf_pool":
+                # Even an interrupted upgrade can have reached the peer. Until
+                # session.created is bound, release remains unproved.
+                self._pool_claimed = True
             self._ws = await asyncio.wait_for(self._client.ws_connect(
                 self.config.url, headers=headers, heartbeat=20,
-                max_msg_size=self.config.max_event_bytes), self.config.connect_timeout_s)
-            event = await asyncio.wait_for(self.receive(), self.config.connect_timeout_s)
+                max_msg_size=self.config.max_event_bytes), timeout)
+            timeout = connect_remaining()
+            event = await asyncio.wait_for(self.receive(), timeout)
             if event.get("type") != "session.created":
                 raise ValueError("provider did not create a Realtime session")
-            await self.send({"type": "session.update", "session": session})
-            event = await asyncio.wait_for(self.receive(), self.config.connect_timeout_s)
+            if self.config.release_contract == "hf_pool":
+                from .provider_pool import pool_url, read_pool
+                identity = event.get("session", {}).get("id")
+                if type(identity) is not str or not 0 < len(identity) <= 256:
+                    raise ValueError("provider did not expose a bound pool session identity")
+                snapshot = await read_pool(self._client, pool_url(self.config.url), headers,
+                                           connect_deadline, self.config.max_event_bytes)
+                matches = [u for u in snapshot["units"] if u["session_id"] == identity]
+                if len(matches) != 1 or matches[0]["state"] != "active":
+                    raise ValueError("provider session does not identify an active pool unit")
+                self._pool_binding = {"size": snapshot["size"], "index": matches[0]["index"],
+                                      "indices": sorted(u["index"] for u in snapshot["units"]),
+                                      "session_id": identity}
+            update = {"type": "session.update", "session": session}
+            if self.config.release_contract is None:
+                await self.send(update)
+            else:
+                timeout = connect_remaining()
+                await asyncio.wait_for(self.send(update), timeout)
+            timeout = connect_remaining()
+            event = await asyncio.wait_for(self.receive(), timeout)
             if event.get("type") != "session.updated":
                 raise ValueError("provider did not acknowledge session configuration")
             actual = event.get("session", {})
@@ -80,6 +132,7 @@ class RealtimeWebSocket:
                 fmt = actual.get("audio", {}).get(direction, {}).get("format", {})
                 if fmt.get("type") != "audio/pcm" or fmt.get("rate") != 24000:
                     raise ValueError("provider did not admit requested PCM format")
+            connect_remaining()
         except BaseException:
             await self.close()
             raise
@@ -108,11 +161,32 @@ class RealtimeWebSocket:
         return event
 
     async def close(self):
+        async with self._close_lock:
+            return await self._close()
+
+    async def _close(self):
         stages = []
+        if self._pool_close_deadline is None:
+            self._pool_close_deadline = asyncio.get_running_loop().time() + self.config.io_timeout_s
+        deadline = self._pool_close_deadline
         if self._ws is not None:
             async def close_socket():
-                await asyncio.wait_for(self._ws.close(), 1)
+                timeout = 1
+                if self.config.release_contract is not None:
+                    from .provider_pool import remaining
+                    timeout = min(timeout, remaining(deadline))
+                await asyncio.wait_for(self._ws.close(), timeout)
             stages.append(await close_stage("websocket", close_socket))
+        if self._pool_claimed and not self._pool_released:
+            async def release_pool():
+                from .provider_pool import pool_url, wait_released
+                if self._pool_binding is None or self._client is None:
+                    raise ValueError("provider pool session was not bound before close")
+                result = await wait_released(self._client, pool_url(self.config.url), self._headers,
+                                             self._pool_binding, deadline, self.config.max_event_bytes)
+                self._pool_released = True
+                return result
+            stages.append(await close_stage("pool_release", release_pool))
         if self._client is not None:
             stages.append(await close_stage("client", self._client.close))
             if stages[-1]["ok"]:

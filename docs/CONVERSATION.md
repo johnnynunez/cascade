@@ -571,3 +571,22 @@ the actual domain/runtime rejects a separately injected expired readonly tool.
 The archived pre-fix source instead executes that injected tool in both cases.
 Those original native greetings requested no tool and establish no native tool
 admission result. Their speech input/output evidence remains unchanged.
+
+### Waiting for a provider pipeline to be released
+
+The optional service setting `provider_release_contract: "hf_pool"` (CLI
+`--provider-release-contract hf_pool`) binds the Realtime `session.created.id`
+to the same authority's `/v1/pool` response. It supports the pinned HF provider's
+`active`/`draining`/`stuck`/`idle` pool schema. A closed WebSocket alone does not
+prove that `SESSION_END` has drained through that provider's handlers.
+
+With this setting, disconnect succeeds only after the bound unit is observed
+idle. Socket closure and every pool observation consume one original I/O deadline
+(default five seconds), starting before socket close. A missing, changed, stuck,
+or late observation keeps closure failed and blocks a replacement gateway
+session. Connection admission also includes its pool binding within the existing
+connection deadline. No unit is forcibly released, and no connection is retried.
+The generic transport remains the default and makes no pool-release claim.
+Loopback HTTP/WebSocket tests reproduce the old immediate-reconnect HTTP 502 and
+exercise delayed release, timeout, identity/schema mismatch and redirect refusal;
+these tests do not constitute a successful speech or physical episode.

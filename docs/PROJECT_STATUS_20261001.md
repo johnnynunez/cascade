@@ -582,3 +582,29 @@ proof, run the saved-evidence [strict checker](SPARK_DELIVERY.md#native-confirma
 Run a five-object native campaign in that same verified session, fail fast on a
 failed case, and preserve its receipts before considering restart acceptance.
 Never delete outcome memory to make a new test look like a clean success.
+
+
+## Fixed-recipe kitchen repetitions — 2026-10-04
+
+The [retained campaign summary](evidence/robot-modularity/kitchen-repeatability-20261004.json)
+binds the original successful campaign and two additional independently owned
+campaigns on source `47de1fb`. All three completed green-cube placement in the
+green square, orange placement in the open box, release, support, rest and
+same-world reset: six physically verified placements/resets in total. Both new
+campaigns closed six owned units ordinarily; independent post-close checks found
+all eleven recorded process births absent in each. Inputs remained unchanged.
+The additional final XY errors were 0.91/1.90 mm and 4.51/11.97 mm for cube/orange,
+respectively; these passed the existing full-footprint and rest criteria.
+
+This small sample does not establish a reliability rate, wider object or scene
+coverage, hardware readiness, or isolated performance. The original campaign had
+other GPU occupants. The existing truth-assisted held-object compensation and
+gateway-helper closure limitation remain explicit in the linked record.
+
+An optional `CASCADE_SPARK_PROOF_CASES=all` on the existing Spark Isaac launcher
+(or `demo_proof.py --run --spark-cases all` against its launch owner) adds pink
+cube to green square, lemon to open box and tomato can to green square. It retains
+the same agent route, passive contact/geometry/camera checks and observed reset
+after every object; a failure stops the remaining cases. The standard startup
+still uses its two original orders. Five-object native acceptance on this new
+source remains pending; CPU boundary fixtures are not physical evidence.

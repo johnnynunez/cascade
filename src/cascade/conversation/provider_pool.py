@@ -100,10 +100,13 @@ async def wait_released(client, url, headers, binding, deadline, max_bytes):
                for u in snapshot["units"]):
             raise ValueError("bound HF pool session moved to another unit")
         if unit["state"] == "idle":
+            released = asyncio.get_running_loop().time()
+            if released >= deadline:
+                raise TimeoutError("provider pool release completed after its original deadline")
             return {"ok": True, "complete": True, "contract": "hf_pool",
                     "unit_index": binding["index"], "session_id": binding["session_id"],
                     "observations": observations, "deadline_monotonic_s": deadline,
-                    "released_monotonic_s": asyncio.get_running_loop().time()}
+                    "released_monotonic_s": released}
         if unit["session_id"] != binding["session_id"] or unit["state"] == "stuck":
             raise ValueError("bound HF pool session changed or became stuck")
         # Observation cadence, not a delay chosen to admit a reconnect. Every

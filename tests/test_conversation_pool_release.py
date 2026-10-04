@@ -252,3 +252,33 @@ def test_opt_in_websocket_upgrade_redirect_is_refused_before_following():
             await runner.cleanup()
             await foreign_runner.cleanup()
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('after_read', [24.9, 25., 25.1])
+def test_release_final_clock_cannot_cross_deadline_after_read_pool(monkeypatch, after_read):
+    from types import SimpleNamespace
+    from cascade.conversation import provider_pool
+    clock = [24.]
+    calls = []
+    async def read(*args):
+        assert clock[0] < 25.  # The existing read_pool boundary was satisfied.
+        calls.append(1)
+        clock[0] = after_read
+        return {'size': 1, 'in_use': 0, 'units': [
+            {'index': 0, 'state': 'idle', 'session_id': None}]}
+    async def scenario():
+        with monkeypatch.context() as patch:
+            patch.setattr(provider_pool, 'read_pool', read)
+            patch.setattr(provider_pool.asyncio, 'get_running_loop',
+                          lambda: SimpleNamespace(time=lambda: clock[0]))
+            operation = provider_pool.wait_released(None, '', {},
+                {'size': 1, 'indices': [0], 'index': 0, 'session_id': 'same'}, 25., 262144)
+            if after_read >= 25.:
+                with pytest.raises(TimeoutError, match='original deadline'):
+                    await operation
+            else:
+                result = await operation
+                assert result['released_monotonic_s'] == after_read
+                assert result['deadline_monotonic_s'] == 25.
+    asyncio.run(scenario())
+    assert calls == [1]

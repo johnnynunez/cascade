@@ -3,7 +3,7 @@ import hashlib
 import json
 from pathlib import Path
 import sys
-from types import SimpleNamespace as NS
+from types import ModuleType, SimpleNamespace as NS
 
 import pytest
 
@@ -202,36 +202,79 @@ def test_mutation_of_an_already_hashed_member_invalidates_inventory(args, monkey
     assert not args.out.exists()
 
 
-@pytest.mark.parametrize('failure', [None, 'effective_path', 'imported_source'])
+@pytest.mark.parametrize('failure', [None, 'effective_path', 'imported_source',
+    'app_origin', 'constructor_origin', 'foundation_origin', 'foundation_code', 'foundation_missing'])
 def test_settings_passed_before_constructor_and_checked_before_native_init(args, monkeypatch, failure):
+    # Match SDK48's expose_api: a class loaded from the implementation is exported
+    # through an alias module that is not a package. No native imports or launch.
+    import importlib.util
+    source = args.release / cache.SIMULATION_APP_SOURCE
+    source.write_text('class SimulationApp:\n'
+        '    def __init__(self, config, experience):\n'
+        '        constructor(config, experience)\n'
+        '    def close(self, **kwargs):\n'
+        '        closed()\n')
+    monkeypatch.setitem(cache.SDK_SOURCES, cache.SIMULATION_APP_SOURCE, digest(source))
+    foundation_file = args.release / cache.GPU_FOUNDATION_SOURCE
+    foundation_file.write_text('class ShaderCacheConfig:\n'
+        '    def setup_shadercache_locations(self, *args): pass\n')
+    monkeypatch.setitem(cache.SDK_SOURCES, cache.GPU_FOUNDATION_SOURCE, digest(foundation_file))
     admission = cache.admit(args)
     args.out.mkdir()
     backend = KitNewtonBackend(args, {'private_rtx_cache': admission}, 'fixture.kit')
     events = []
     settings = {key: str(Path(admission['root']) / relative) for key, relative in cache.LAYOUT.items()}
-    class App:
-        def __init__(self, config, experience):
-            events.append('constructor')
-            assert (args.out / 'rtx-cache.json').is_file()
-            assert config['extra_args'] == [f'--{k}={v}' for k, v in settings.items()]
-            assert config['renderer'] == 'RayTracedLighting'
-            if failure == 'effective_path':
-                settings[next(iter(settings))] = str(args.release)
-            if failure == 'imported_source':
-                (args.release / next(iter(cache.SDK_SOURCES))).write_text('loaded source mutated')
-        def close(self, **kwargs):
-            events.append('closed')
-    monkeypatch.setitem(sys.modules, 'isaacsim', NS(SimulationApp=App))
+    def constructor(config, experience):
+        events.append('constructor')
+        assert (args.out / 'rtx-cache.json').is_file()
+        assert config['extra_args'] == [f'--{k}={v}' for k, v in settings.items()]
+        assert config['renderer'] == 'RayTracedLighting'
+        if failure == 'effective_path':
+            settings[next(iter(settings))] = str(args.release)
+        if failure == 'imported_source':
+            source.write_text('loaded source mutated')
+    loaded_source = source
+    if failure == 'app_origin':
+        loaded_source = args.out / 'same-bytes-wrong-origin.py'
+        loaded_source.write_bytes(source.read_bytes())
+    spec = importlib.util.spec_from_file_location('simulation_app.simulation_app', loaded_source)
+    implementation = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, spec.name, implementation)
+    spec.loader.exec_module(implementation)
+    implementation.constructor = constructor
+    implementation.closed = lambda: events.append('closed')
+    if failure == 'constructor_origin':
+        # A plausible __file__ is insufficient when executable code is elsewhere.
+        def replaced_constructor(self, config, experience):
+            constructor(config, experience)
+        implementation.SimulationApp.__init__ = replaced_constructor
+    public = ModuleType('isaacsim.simulation_app')
+    public.SimulationApp = implementation.SimulationApp
+    monkeypatch.setitem(sys.modules, 'isaacsim', NS(SimulationApp=public.SimulationApp))
+    monkeypatch.setitem(sys.modules, public.__name__, public)
+    monkeypatch.delitem(sys.modules, 'isaacsim.simulation_app.simulation_app', raising=False)
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module('isaacsim.simulation_app.simulation_app')
     carb_settings = NS(get_settings=lambda: settings)
     monkeypatch.setitem(sys.modules, 'carb', NS(settings=carb_settings))
     monkeypatch.setitem(sys.modules, 'carb.settings', carb_settings)
-    for module, relative in cache.IMPORTED_SOURCES.items():
-        monkeypatch.setitem(sys.modules, module, NS(__file__=str(args.release / relative)))
+    if failure == 'foundation_origin':
+        wrong = args.out / 'same-bytes-wrong-foundation.py'
+        wrong.write_bytes(foundation_file.read_bytes())
+        foundation_file = wrong
+    spec = importlib.util.spec_from_file_location(cache.GPU_FOUNDATION_MODULE, foundation_file)
+    foundation = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, spec.name, foundation)
+    spec.loader.exec_module(foundation)
+    if failure == 'foundation_code':
+        foundation.ShaderCacheConfig.setup_shadercache_locations = lambda *args: None
+    if failure == 'foundation_missing':
+        monkeypatch.delitem(sys.modules, cache.GPU_FOUNDATION_MODULE)
     monkeypatch.setattr(backend, '_initialize', lambda: events.append('native_init'))
     argv = sys.argv
     try:
         if failure:
-            with pytest.raises(ValueError, match='mismatch'):
+            with pytest.raises(ValueError, match='mismatch|unavailable'):
                 backend.open()
             assert events == ['constructor']
             assert not (args.out / 'rtx-cache-effective.json').exists()

@@ -525,12 +525,12 @@ class KitNewtonBackend:
                 # Acquire the handle so cleanup can find it even if interrupted.
                 self.app = SimulationApp(self._app_config(), experience=str(self.experience))
             if rtx_cache is not None:
-                import importlib
                 import carb.settings
-                from .private_rtx_cache import IMPORTED_SOURCES, verify_effective
-                imported = {name: importlib.import_module(name).__file__ for name in IMPORTED_SOURCES}
+                from .private_rtx_cache import verify_effective
+                if type(self.app) is not SimulationApp:
+                    raise ValueError('private RTX cache constructed SDK class mismatch')
                 self.receipt['private_rtx_cache_effective'] = verify_effective(
-                    rtx_cache, carb.settings.get_settings(), imported)
+                    rtx_cache, carb.settings.get_settings(), type(self.app), self.args.release)
             self._checkpoint()
             self._initialize()
         except BaseException:

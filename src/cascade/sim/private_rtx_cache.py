@@ -22,9 +22,8 @@ SDK_SOURCES = {
     'extscache/omni.gpu_foundation-0.0.0+1066600b.lx64.r.cp312/omni/gpu_foundation_factory/impl/foundation_extension.py':
         'd03d1f584ab8153ed796b040b15b7ef8caf37f6454e540434db5c674273720e4',
 }
-IMPORTED_SOURCES = dict(zip((
-    'isaacsim.simulation_app.simulation_app',
-    'omni.gpu_foundation_factory.impl.foundation_extension'), SDK_SOURCES))
+SIMULATION_APP_SOURCE, GPU_FOUNDATION_SOURCE = SDK_SOURCES
+GPU_FOUNDATION_MODULE = 'omni.gpu_foundation_factory.impl.foundation_extension'
 LAYOUT = {
     '/rtx/shaderDb/shaderCachePath': 'shadercache',
     '/rtx/shaderDb/driverShaderCachePath': 'nv_shadercache',
@@ -199,10 +198,32 @@ def extra_args(admitted):
     return [f'--{key}={Path(admitted["root"]) / relative}' for key, relative in LAYOUT.items()]
 
 
-def verify_effective(admitted, settings, imported_files):
+def verify_effective(admitted, settings, simulation_app, release):
     """Verify effective settings and actual loaded implementations, not defaults."""
-    actual_sources = {relative: _sha(imported_files[module])
-                      for module, relative in IMPORTED_SOURCES.items()}
+    import inspect
+    import sys
+    # Isaac's public bootstrap can redirect this class through a non-package
+    # module. Inspect the class that was constructed, without importing a guessed
+    # dotted name or loading another implementation merely for this check.
+    try:
+        foundation = sys.modules[GPU_FOUNDATION_MODULE]
+        imported_files = {
+            SIMULATION_APP_SOURCE: inspect.getfile(simulation_app),
+            GPU_FOUNDATION_SOURCE: foundation.__file__,
+        }
+        implementation_files = {
+            SIMULATION_APP_SOURCE: inspect.getfile(simulation_app.__init__),
+            GPU_FOUNDATION_SOURCE: inspect.getfile(foundation.ShaderCacheConfig.setup_shadercache_locations),
+        }
+    except (AttributeError, KeyError, TypeError) as error:
+        raise ValueError('private RTX cache loaded SDK source origin unavailable') from error
+    actual_sources = {}
+    for relative, loaded in imported_files.items():
+        expected = (Path(release) / relative).resolve()
+        if (not isinstance(loaded, str) or Path(loaded).resolve() != expected
+                or Path(implementation_files[relative]).resolve() != expected):
+            raise ValueError('private RTX cache loaded SDK source origin mismatch')
+        actual_sources[relative] = _sha(expected)
     if actual_sources != admitted['policy']['sdk_source_sha256']:
         raise ValueError('private RTX cache loaded SDK source mismatch')
     measured = {}

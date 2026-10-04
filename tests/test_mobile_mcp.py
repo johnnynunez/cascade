@@ -101,6 +101,27 @@ def payload(response):
     return json.loads(response["result"]["content"][-1]["text"])
 
 
+def admission_diagnostic(response):
+    """Only typed flags and known categories; never opaque errors/credentials."""
+    try:
+        result = json.loads(response['result']['content'][-1]['text'])
+        diagnostic = {k: result.get(k) if type(result.get(k)) is bool else None
+                      for k in ('ok', 'execution_ok', 'delivery_uncertain')}
+        error = str(result.get('error', '')).lower()
+        diagnostic['error_categories'] = [k for k in ('timeout', 'timed out', 'stale', 'preflight', 'cancel', 'latched') if k in error]
+        return diagnostic
+    except (KeyError, TypeError, IndexError, ValueError, AttributeError):
+        return {'invalid_motion_response': True}
+
+
+def test_admission_diagnostic_omits_opaque_response_text():
+    response = {'result': {'content': [{'text': json.dumps(dict(ok=False, execution_ok=False,
+        error='TimeoutError: wss://secret:password@host/private?token=secret', token='secret'))}]}}
+    assert admission_diagnostic(response) == dict(ok=False, execution_ok=False,
+        delivery_uncertain=None, error_categories=['timeout'])
+    assert admission_diagnostic({'error': {'message': 'secret'}}) == {'invalid_motion_response': True}
+
+
 @pytest.fixture
 def mobile_client(tmp_path):
     client = MobileClient(tmp_path / "mcp")
@@ -420,6 +441,7 @@ def test_real_mcp_stop_post_ack_evidence_never_repairs_failed_motion(
 
 
 @pytest.mark.parametrize("kind", ["cancel", "eof"])
+@pytest.mark.usefixtures("healthy_episode_gc")
 def test_real_mobile_mcp_cancels_admitted_motion_with_both_checkers(tmp_path, frame_endpoint, kind):
     from test_mobile_runtime import SyntheticTicks, verifier_limits
     c, server, profile, _, _, operations = frame_endpoint
@@ -434,6 +456,8 @@ def test_real_mobile_mcp_cancels_admitted_motion_with_both_checkers(tmp_path, fr
             "vx": .05, "vy": 0., "wz": 0., "duration_s": 3.}})
         deadline = time.monotonic() + 2
         while not any(op["op"] == "command_velocity" for op in operations):
+            if not client.lines.empty():
+                pytest.fail("Motion terminated before admission: " + json.dumps(admission_diagnostic(client.recv()), sort_keys=True))
             assert time.monotonic() < deadline
             time.sleep(.005)
         started = time.monotonic()

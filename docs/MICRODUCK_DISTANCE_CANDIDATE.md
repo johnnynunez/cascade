@@ -60,6 +60,25 @@ co-temporal with integrated q/dq. These observations exclude activation of the
 recorded motor clamps in these captures; they do not establish the cause of the
 remaining transient or validate another controller.
 
+A subsequent [standing-transition corpus](evidence/robot-modularity/microduck-standing-transition-cpu-20261004.json)
+retained all eight original direction/onset cases and limits. It used the
+upstream command selector with `rough-walk-e` during DRIVE and `alpha_stand`
+during preparation, full-zero BRAKE, HOLD and terminal tail. Both models kept
+one continuous raw action history. Standing preparation changes the initial
+state, so this tests the complete candidate rather than isolating braking.
+
+**One of eight cases met every CPU criterion.** Reverse motion after 420
+preparation solves entered the distance tolerance at step 511 and completed a
+0.205-second rest window at step 630; an earlier HOLD was correctly rejected
+when angular speed exceeded 0.1 rad/s. Its final displacement was −32.988 mm,
+with −6.893 mm lateral displacement and −0.027797 rad heading change. The final
+0.205-second tail window remained quiet and supported, with no intervening
+outcome veto. Four other cases failed on heading, two on forbidden contact and
+one on the action deadline. All 8,879 solves, 2,221 policy records and 38,901
+contact records were retained; the owned scope closed normally with unchanged
+inputs. This single CPU success does not establish repeatability, ordinary MCP
+execution, Newton equivalence or general locomotion admission.
+
 ## Implemented contract
 
 The 2026-10-03 [distance-outcome regression receipt](../benchmark/results/mobile_distance_outcome_20261003.json)

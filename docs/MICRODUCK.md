@@ -176,6 +176,16 @@ clock and source-admission checks still gate reuse; permission and age remain
 live on every controller read. This reduces repeated CPU work and does not
 establish a control deadline or physical-stop result for twelve robots.
 
+The [retained support diagnostic](evidence/microduck-shared-20261004/support-profile.json)
+completed 800 solves, 2,400 policy commits, nine overview/support-probe pairs and
+24 reader calls with twelve robots; all owned processes and clients closed
+naturally. Owner-attempt durations had a median of 114.911 ms, p95 of 130.478 ms
+and maximum of 655.533 ms. **22 attempts exceeded 400 ms**, so the original
+control deadline remains unresolved. This run sent no stop, reset or motion
+commands and does not supersede the retained twelve-robot control failure.
+These times describe this episode; they do not establish a causal speedup.
+The earlier prelaunch refusal remains recorded alongside the completed run.
+
 CPU tests cover 1, 2 and 12 synthetic participants, including index permutations,
 command isolation, cancellation and contact vetoes. The ordinary one-robot
 entrypoint retains its control cadence.

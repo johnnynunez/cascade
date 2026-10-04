@@ -493,6 +493,17 @@ tests only; it has not established GPU serving, response latency or a spoken
 reply within any robot trial deadline. Provider lifetime and the existing
 voice/actuator deadlines remain separate and unchanged.
 
+The CUDA recipe loads the FP32 LLM directly with the explicit single-device map
+`{"": "cuda:0"}`; it does not request automatic placement, CPU/disk offload or a
+second model-wide transfer. Its normally installed provider patch enables this
+path explicitly, while the CPU loader stays unchanged. Hash-pinned Accelerate
+1.15.0 and psutil 7.2.2 wheels are additional CUDA-profile dependencies. The
+post-warmup receipt also checks the actual handler flag and pipeline device.
+Direct loading avoids a complete FP32 CPU destination in the loader; it does
+not establish a peak RSS bound or guarantee that the existing 12 GiB watchdog
+will admit serving. Model, warmup, sampling and voice deadlines are unchanged.
+The full voice-to-hand chain on this installed environment remains unvalidated.
+
 Run the speech stack in a separate environment. Its `speech-to-speech serve`
 command exposes `/v1/realtime` and supports selecting STT, LLM and TTS backends.
 Use `speech-to-speech serve -h` at the pinned revision and explicitly choose

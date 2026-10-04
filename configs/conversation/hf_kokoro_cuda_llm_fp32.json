@@ -1,6 +1,6 @@
 {
-  "version": 3,
-  "recipe": "hf-kokoro-llm-cuda-float32-schema-eof-cancel-20261004",
+  "version": 4,
+  "recipe": "hf-kokoro-direct-llm-cuda-float32-schema-eof-cancel-20261004",
   "python": "3.12",
   "platform": "linux",
   "architecture": "x86_64",
@@ -76,8 +76,8 @@
   "streamer_timeout_s": 10.0,
   "max_runtime_s": 900,
   "llm_torch_dtype": "float32",
-  "source_manifest": "provider/manifest.json",
-  "source_manifest_sha256": "6e1f9251f9d98a318ae5171b7bbc0f66cd455709eb3971a85874ae36440d21a9",
+  "source_manifest": "provider/direct-cuda-manifest.json",
+  "source_manifest_sha256": "afdec647c99a1fd9b0ef2698188ddc66539b59bd654c29c22d06c3767eb4a660",
   "acceleration": {
     "profile": "cuda-llm-fp32",
     "llm_device": "cuda",
@@ -93,7 +93,10 @@
     "required_arch": "sm_120",
     "minimum_free_bytes": 17179869184,
     "float32_matmul_precision": "highest",
-    "allow_tf32": false
+    "allow_tf32": false,
+    "llm_load_strategy": "direct-single-cuda",
+    "accelerate_version": "1.15.0",
+    "psutil_version": "7.2.2"
   },
   "torch_wheels": {
     "torch-2.11.0+cu130-cp312-cp312-manylinux_2_28_x86_64.whl": {
@@ -103,6 +106,16 @@
     "torchaudio-2.11.0+cu130-cp312-cp312-manylinux_2_28_x86_64.whl": {
       "url": "https://download.pytorch.org/whl/cu130/torchaudio-2.11.0%2Bcu130-cp312-cp312-manylinux_2_28_x86_64.whl",
       "sha256": "3fba988f4301fe13547fe5e99c76d9ae36a27e19ded82eeffed9d2456e12edef"
+    }
+  },
+  "loader_wheels": {
+    "accelerate-1.15.0-py3-none-any.whl": {
+      "url": "https://files.pythonhosted.org/packages/8a/4c/34f0450479d01195027260da68d8a3880683f1640c3ca5adf64acb3185f1/accelerate-1.15.0-py3-none-any.whl",
+      "sha256": "97eacca0b73e45cb867dbf8c5d5d4dc32219544300e0c8992c7334dc2ef33cec"
+    },
+    "psutil-7.2.2-cp36-abi3-manylinux2010_x86_64.manylinux_2_12_x86_64.manylinux_2_28_x86_64.whl": {
+      "url": "https://files.pythonhosted.org/packages/b5/70/5d8df3b09e25bce090399cf48e452d25c935ab72dad19406c77f4e828045/psutil-7.2.2-cp36-abi3-manylinux2010_x86_64.manylinux_2_12_x86_64.manylinux_2_28_x86_64.whl",
+      "sha256": "076a2d2f923fd4821644f5ba89f059523da90dc9014e85f8e45a5774ca5bc6f9"
     }
   }
 }

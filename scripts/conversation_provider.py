@@ -188,7 +188,8 @@ def prepare_assets(state):
     selected = acceleration.configuration(cfg)
     if selected is not None:
         actual = versions()
-        if any(actual.get(name) != selected[name + "_version"] for name in ("torch", "torchaudio")):
+        if any(actual.get(name) != selected[name + "_version"]
+               for name in ("torch", "torchaudio", "accelerate", "psutil")):
             raise ValueError("installed CUDA wheel versions differ from the recipe")
     models = []
     (state / "models").mkdir(exist_ok=True)
@@ -258,7 +259,7 @@ def install_torch(uv, python, downloads, env):
                         "https://download.pytorch.org/whl/cpu", "torch==2.11.0+cpu", "torchaudio==2.11.0+cpu"], env=env, check=True)
     else:
         wheels = []
-        for name, pin in cfg["torch_wheels"].items():
+        for name, pin in (cfg["torch_wheels"] | cfg["loader_wheels"]).items():
             download(pin["url"], downloads / name, pin["sha256"])
             wheels.append(str(downloads / name))
         subprocess.run([uv, "pip", "install", "--python", str(python),
@@ -317,7 +318,7 @@ def prepare(state):
 def provider_argv(state, port):
     cfg = recipe()
     selected = acceleration.configuration(cfg)
-    return ["speech-to-speech", "serve", "--host", "127.0.0.1", "--port", str(port),
+    argv = ["speech-to-speech", "serve", "--host", "127.0.0.1", "--port", str(port),
             "--stt", "whisper", "--stt_model_name", str(state / "models/stt"), "--stt_device", "cpu",
             "--stt_gen_max_new_tokens", "64", "--llm_backend", "transformers",
             "--model_name", str(state / "models/llm"), "--llm_device", "cpu" if selected is None else "cuda",
@@ -327,6 +328,9 @@ def provider_argv(state, port):
             "--kokoro_voice", cfg["voice"], "--kokoro_lang_code", cfg["language"],
             "--enable_live_transcription", "False", "--smart_turn", "False",
             "--num_pipelines", "1", "--chat_size", "6", "--log_transcripts", "False"]
+    if selected is not None:
+        argv += ["--llm_direct_cuda_load", "True"]
+    return argv
 
 
 def build_with_declared_threads(builder, torch, threads, *args, **kwargs):
@@ -408,6 +412,7 @@ def child(state, port, run_dir, *, trace_generation=False, cuda_device_uuid=None
             runtime["acceleration"] = gpu_admission
             runtime["models"] = acceleration.attest_pipeline(
                 torch, recipe(), cuda_device_uuid, llm=llms[0], stt=stts[0], tts=ttss[0])
+            runtime["loader"] = acceleration.attest_direct_loader(llms[0])
         write_json(run_dir / "model-runtime.json", runtime)
         if trace_generation:
             from speech_to_speech.LLM.generation_trace import GenerationTrace

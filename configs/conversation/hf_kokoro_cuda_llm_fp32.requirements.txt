@@ -133,3 +133,7 @@ pillow==12.3.0
 # Narrow the CUDA Torch wheel's declared binding range; other CUDA dependencies
 # are exact requirements of torch 2.11.0+cu130 / cuda-toolkit 13.0.2.
 cuda-bindings==13.0.3
+
+# Direct single-GPU loading; wheel bytes are hash-pinned by the CUDA recipe.
+accelerate==1.15.0
+psutil==7.2.2

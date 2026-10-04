@@ -45,6 +45,8 @@ def configuration(cfg):
         "cuda_version": CUDA_VERSION, "compute_capability": [12, 0],
         "required_arch": "sm_120", "minimum_free_bytes": 16 * 1024**3,
         "float32_matmul_precision": "highest", "allow_tf32": False,
+        "llm_load_strategy": "direct-single-cuda",
+        "accelerate_version": "1.15.0", "psutil_version": "7.2.2",
     }
     if value != expected or cfg.get("llm_torch_dtype") != "float32":
         raise ValueError("unreviewed CUDA acceleration recipe")
@@ -113,6 +115,19 @@ def model_observation(model, *, device, float32=False):
             "buffer_devices": sorted({str(value.device) for value in buffers}),
             "parameter_count": sum(value.numel() for value in parameters),
             "buffer_count": sum(value.numel() for value in buffers)}
+
+
+def attest_direct_loader(llm):
+    """Report the bound handler's opt-in and actual pipeline placement after warmup."""
+    if getattr(llm, "direct_cuda_load", None) is not True or str(llm.pipe.device) != "cuda:0":
+        raise ValueError("direct CUDA handler or pipeline placement was not retained")
+    mapping = getattr(llm.model, "hf_device_map", None)
+    if mapping is not None:
+        if type(mapping) is not dict or set(mapping) != {""} or str(mapping[""]) != "cuda:0":
+            raise ValueError("direct CUDA model gained offload or a different device map")
+        mapping = {"": "cuda:0"}
+    return {"direct_cuda_load": True, "pipeline_device": "cuda:0", "hf_device_map": mapping,
+            "scope": "Bound source requests one device; no automatic dispatch or CPU/disk offload."}
 
 
 def attest_pipeline(torch, cfg, expected_uuid, *, llm, stt, tts):

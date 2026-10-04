@@ -1,0 +1,131 @@
+{
+  "schema": "cascade.vab-placement-calibration-audit.v1",
+  "ok": true,
+  "source_head": "64fd8605a72e246131e1d864b5b2cff85cf21aa5",
+  "plan_sha256": "0238e45b212c73010b93925be71247b0d5c603361a463170a34cab07608296fd",
+  "inputs_unchanged_count": 11487,
+  "cases": [
+    {
+      "case": "support_first",
+      "status": "confirmed",
+      "solves": 751,
+      "contacts": 6008,
+      "object_contact_orders": [
+        "object_b"
+      ],
+      "window_first_solver_step": 501,
+      "window_last_solver_step": 751,
+      "window_sim_s": 0.5,
+      "minimum_support_weight_fraction": 0.9999999992665434,
+      "maximum_support_weight_fraction": 0.999999999999309,
+      "minimum_foreign_weight_fraction": 0.0,
+      "minimum_robot_clearance_m": 0.5024400753183027,
+      "maximum_linear_speed_m_s": 5.235865777968647e-10,
+      "maximum_angular_speed_rad_s": 1.031635449675139e-15,
+      "maximum_drift_m": 3.701858264371385e-11,
+      "phase_error_m": 0.0,
+      "maximum_advanced_position_difference_m": 7.848000000000577e-05
+    },
+    {
+      "case": "object_first",
+      "status": "confirmed",
+      "solves": 751,
+      "contacts": 6011,
+      "object_contact_orders": [
+        "object_a"
+      ],
+      "window_first_solver_step": 501,
+      "window_last_solver_step": 751,
+      "window_sim_s": 0.5,
+      "minimum_support_weight_fraction": 0.9999999992674734,
+      "maximum_support_weight_fraction": 0.9999999999993104,
+      "minimum_foreign_weight_fraction": 0.0,
+      "minimum_robot_clearance_m": 0.5024400753349814,
+      "maximum_linear_speed_m_s": 5.230198079711278e-10,
+      "maximum_angular_speed_rad_s": 3.3621345755346323e-10,
+      "maximum_drift_m": 3.697857955763012e-11,
+      "phase_error_m": 0.0,
+      "maximum_advanced_position_difference_m": 7.848000000000577e-05
+    },
+    {
+      "case": "wrong_support",
+      "status": "refuted",
+      "solves": 751,
+      "contacts": 6008,
+      "object_contact_orders": [],
+      "window_first_solver_step": 501,
+      "window_last_solver_step": 751,
+      "window_sim_s": 0.5,
+      "minimum_support_weight_fraction": 0.0,
+      "maximum_support_weight_fraction": 0.0,
+      "minimum_foreign_weight_fraction": 0.9999999999999998,
+      "minimum_robot_clearance_m": 0.3895804690726337,
+      "maximum_linear_speed_m_s": 4.592433785979627e-16,
+      "maximum_angular_speed_rad_s": 1.1520299784014386e-17,
+      "maximum_drift_m": 2.3853197660656212e-20,
+      "phase_error_m": 0.0,
+      "maximum_advanced_position_difference_m": 3.9239999999999414e-05
+    }
+  ],
+  "closure": "ordinary exit 0; no signals, remaining members, births, or forced termination",
+  "scope": "Native MuJoCo2.3.7 analytic calibration only; no VAB task, controller, containment or hardware admission",
+  "artifacts": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/object_first/model-identity.json": "a54840e80ec2b6e92347f71fa25ab52bc0f13666e2c9d4ee145066df628d63e9",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/object_first/model.mjb": "d5dc5d93fd53c07beeef6ca7be2d4a85848def7a6dd8767c9b56b0052c1f1266",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/object_first/phase-states.json": "3baa7eeb9d2b0d2f45584e6c147dea2cd0b2e810f5dc470ffae91bfb2e144da6",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/object_first/result.json": "d9d0fd1bd0bee81006a367f42edd71bb36a55acf72b6d0e248e000aac2062776",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/object_first/source.xml": "3490103933df9e01fbf3cbe9e5994c14e99cf8fd5593500b134acc9ad5ae586c",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/object_first/witness/closure.json": "d04f19bfa3c05c48220854dbae149590106239ac3f32f6e27ae294821391475c",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/object_first/witness/policy.json": "65adaa6a9fdf4d66a3c949693e8e3bfa1d54e2eb207867d67ac45ba4b8bbd551",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/object_first/witness/solves.jsonl": "b734e96e33a859541220e0870b10acda77a1ec6bd970c9f49a4ab74925a56c51",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/result.json": "5cb1c0642b0491437872cd72ae33424a62bd73ba018e43ea4b37728104126016",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/support_first/model-identity.json": "58fd247704ed632a21360330764cce560b61dffc155891d9c47bc8cb83b454b6",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/support_first/model.mjb": "564c0c127d05a6358d15a3ee76f744bbda7fe81f0621610c90387c8d8d0f5c98",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/support_first/phase-states.json": "0ffe387c915a72890090feec8e7604f4bd6aa02cfb254e108bc5b20b7bb8dff5",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/support_first/result.json": "8c599ced6b3e5e1a1646eef78461d7ab51325a3842423e0a967a18b44404042c",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/support_first/source.xml": "bcf5e3d0f986046550095c101c8fe30f9c93a4114bfee414554e7002b49984e8",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/support_first/witness/closure.json": "e6472e6b177881e89b66cad99813915acc8eb8846ca52fe5486fd568308a0af2",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/support_first/witness/policy.json": "c799fa069433d9d5f541d28e6a20497919c2c480d156bd1043a0bcfb15bb4232",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/support_first/witness/solves.jsonl": "8ee512ca2e7370d9a3788d853f8ca387347c1d813cb4c84ae209699695ba701e",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/wrong_support/model-identity.json": "37b1835dad3111a6fc5a8908475524e2b0ef4f7e462f14531a454bdd933855ee",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/wrong_support/model.mjb": "23b13f392172095d7f2e693d1ef6eaeb55ae1c777bb0d8aec843f9531627eabb",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/wrong_support/phase-states.json": "00b5ecd2921a83cfcc53c177591847c5d7efdc1215751e7e7df1f6f3bba9456a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/wrong_support/result.json": "028e35bf033300836f4bdaae8d630e042a28943b5e49e9e042c83ce7c73d43e5",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/wrong_support/source.xml": "c817e9e5c469f502c64d861aaaaf90f8e3d2ecb5f8ba50ef442303d0ce532c1b",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/wrong_support/witness/closure.json": "f014f784e7db3f534294beebe46cb6d0d6f031f3ac6f685f9e8c74d2be83a8c8",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/wrong_support/witness/policy.json": "672ce8e04b5ab90524d79cf31036521f58f5d6f83d86b68c120ce7f21c5d4bce",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/native/wrong_support/witness/solves.jsonl": "1212e7102766cdea1b253e39363fdf07b30780cb7b94ec1af66e579cb2e55a4f",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/receipt.json": "9c925d4fab0f742abf3022f92fd561073b19d16944704414197db3d2b74822b9",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/scope/closure.json": "16def83a8155cb6dbccec0de39956c76db09eb2f3ebb94c555cf70de28b497a2",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/scope/owner.json": "d807613cca274c830a2cb529a26fd55bc2ee9f708a5d2bb39eb953f7b25b831b",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03/scope/service.log": "b2f542de5b53f9a56a8100bed00df67ee9b102cdaf5f8353ff5ef34a05dcee61"
+  },
+  "auditor_sha256": "b0e2217a47cd6fd730670fe41a1e72b6aa9c053cd5f0bef7d5b7442b9cd4372a",
+  "evidence_root": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-03",
+  "source_sha256": {
+    "src/cascade/eval/placement.py": "4ee04b0d3efd4806fa8a587645a35f852647f71a6740fdd85854a00d30a96a8c",
+    "benchmark/vab/placement_witness.py": "5ffe8aa09fb31118049a4bfbad34945606da8cbc9472b2fa113082389beb664a",
+    "benchmark/vab/native_preflight.py": "a3d258fa55a48e3f6210feeb0f4b093df100d59b9d0753216dec4b9887f3284c"
+  },
+  "review_artifacts": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-plan-03.json": "0238e45b212c73010b93925be71247b0d5c603361a463170a34cab07608296fd",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-binding-03.json": "e6d49e942f8f7c91d3d4f4ee7e5005d2b41e7d2ae9fecdb467a41229e7418449",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-admission-03.json": "b2e9fefcadf173791de80fccaf9588920a4d37736fd1e30c2a0f249a7c3f5c85",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-audit-03.json": "03a23c1ea82e7a9735b580df553440725d5c791ed43c6e1df0292ac948567aed",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/audit_calibration.py": "b0e2217a47cd6fd730670fe41a1e72b6aa9c053cd5f0bef7d5b7442b9cd4372a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/test_audit_calibration.py": "5b4e0a8131529f5099fbd83ac105e10a3311c104a1d6ed5fd6dd4520f996ce40"
+  },
+  "software_validation": "81 passed, 1 optional dependency skipped; 6 offline audit tests passed including five corrupted-evidence rejections",
+  "retained_unlaunched_plans": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-plan-01.json",
+      "sha256": "8a84ec8b1f0af68dcc015c8ca94c2de24f58520c8910699b1dfdb7ec01efc9ce",
+      "reason": "review found hidden coupling omission"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/calibration-plan-02.json",
+      "sha256": "0a2802f3e38c6ed996f40269a8c486f54350975d5bd091dc8f29194193a6b130",
+      "reason": "added independent nonvacuous phase measurement before launch"
+    }
+  ]
+}

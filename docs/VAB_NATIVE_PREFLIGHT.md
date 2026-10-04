@@ -116,7 +116,7 @@ upstream Panda controller is not an SO-101 driver. Full benchmark task success
 still requires real object perception, a reviewed task-specific manipulation
 configuration, and independent release/support evidence.
 
-## Per-solve placement witness (software implemented; native validation pending)
+## Per-solve placement witness and native calibration (4 October 2026)
 
 The optional `--record-placement` reader attaches after reset and records every
 ordinary `env.sim.step()` in a private file. It does not give the actor object
@@ -134,7 +134,7 @@ compensation. These checks run before and after every step: a free joint alone
 does not prove that an object was detached from the robot.
 The contact-frame convention follows the pinned
 [MuJoCo 2.3.7 API](https://mujoco.readthedocs.io/en/2.3.7/APIreference/APIfunctions.html#mj-contactforce);
-its force sign and phase still require a source-bound native calibration.
+its force sign and phase passed the source-bound native calibration below.
 
 `cascade.eval.placement.verify_placement_window` checks every solve in an
 explicit interval. Its default policy requires 0.5 simulated seconds of quiet
@@ -150,5 +150,30 @@ recorder closure and bind its artifact to the exact external episode.
 This predicate leaves containment unverified. It cannot prove that a body fits
 inside a container, that perception found the correct object, or that a task
 was executed safely. The existing preflight still exposes only its two relative
-motions, and still reports placement unverified. The new tests use synthetic
-records and an instance-local step double; no VAB pick/place result is claimed.
+motions, and still reports placement unverified. Software tests use synthetic records and an instance-local step double. The
+separate native calibration below adds force/phase evidence, not a VAB pick/place result.
+
+
+Source `64fd8605a72e246131e1d864b5b2cff85cf21aa5` completed three analytic
+MuJoCo 2.3.7 CPU fixtures, each with exactly 751 ordinary solves. Two boxes-on-support
+fixtures reverse the native geometry ordering and confirm the force-on-B sign
+in both directions. A third fixture places the object on the floor outside the
+declared support and is refuted. The test window was fixed before launch at
+steps 501–751 (0.5 simulated seconds); settling rows were retained as well.
+
+Across 2,253 solves and 18,027 contact candidates, the reader's body positions
+match pre-step free-joint positions exactly. Advanced positions differ by up to
+78.48 micrometres, so this phase check is not vacuous. Positive support fractions
+remain between 0.9999999992 and 1.0000000000 of object weight, with at least
+0.5024 m conservative robot separation. The negative has zero declared-support
+load while floor contacts carry its weight. An offline audit recalculates signs,
+loads, rest, separation and phase from the retained rows, verifies 11,487 input
+hashes, and checks complete recorder and process closure. No termination signals
+or remaining owned processes were recorded.
+
+The [compact calibration evidence](evidence/robot-modularity/vab-placement-calibration-20261004.json)
+binds the native source, plans, three compiled models, all traces and the offline
+auditor. Initial preparation plans are retained unlaunched with their review
+findings. This calibrates the reader and predicate on these fixtures. Integration
+with the full native VAB task, perception-guided grasping and geometric
+containment remain unverified.

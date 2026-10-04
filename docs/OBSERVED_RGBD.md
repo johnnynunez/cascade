@@ -90,6 +90,23 @@ The same admitted capture can feed the [spatial observation domain](RGBD_SPATIAL
 through its exact returned `capture_sha256`, epoch and sequence. Sharing it does
 not acquire another frame or refresh its original age.
 
+An explicit `wait_next: true` on a `mobile_rgbd` provider opts into the producer's
+`rgbd_wait_next` capability. The first read returns the latest completed capture;
+later requests carry that reader's exact epoch and previous step, and wait for
+a strictly newer completed RGB-D publication. An older producer without this
+capability is refused. Legacy reads remain immediate and reject repeated frames.
+
+Waiting releases the cache lock and neither steps physics nor calls the SDK.
+Its budget is at most one second and consumes the reader's existing outer
+deadline and the transport's original request deadline, including reply
+encoding/sending. Future steps, changed epochs, expiry and cache/transport
+closure refuse the request. Cache closure wakes waiting readers; transport
+shutdown remains within its existing worker-join budget and connection limit.
+The returned age still includes original producer age, the full RPC duration
+and local elapsed time, so waiting can conservatively reject a late capture;
+it never refreshes an old image. This opt-in transport has CPU/TCP evidence,
+not a new native camera, SLAM or navigation admission.
+
 The default native producer requires its fixed world camera. Do not label its output as
 a robot-mounted sensor: `world_from_camera` maps the optical frame to `world`,
 not to a head, torso or robot base. A moving mount requires a new producer

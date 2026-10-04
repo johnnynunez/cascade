@@ -215,6 +215,7 @@ def _decode(encoded, expected):
 class RgbdFrameCache:
     """One completed registered capture; legacy RGB replies remain unchanged."""
     rgbd_enabled = True
+    rgbd_wait_next = True
 
     def __init__(self, identity, *, calibration, max_jpeg_bytes, max_pixels, clock=time.monotonic):
         from .microduck_stepper import FrameCache
@@ -223,6 +224,7 @@ class RgbdFrameCache:
             raise ValueError('calibration exceeds configured pixel bound')
         self._rgb = FrameCache(identity, max_jpeg_bytes=max_jpeg_bytes, max_pixels=max_pixels, clock=clock)
         self._clock, self._lock, self._frame, self._closed = clock, threading.Lock(), None, False
+        self._published = threading.Condition(self._lock)
 
     def publish(self, rgb, *, depth_m, calibration, step, sim_time_s, captured_at, render_times,
                 rgbd_render_times, capture_pose=None):
@@ -261,17 +263,54 @@ class RgbdFrameCache:
                 raise RuntimeError('RGB-D cache closed')
             self._rgb.publish(rgb, step=step, sim_time_s=sim_time_s, captured_at=captured_at, render_times=render_times)
             self._frame, self._captured_at = packet, captured_at
+            self._published.notify_all()
+
+    def _wait_next(self, request):
+        selection = request['wait_next']
+        if not isinstance(selection, dict) or set(selection) != {'epoch', 'after_step', 'timeout_s'}:
+            raise ValueError('wait_next requires exact epoch, after_step and timeout_s')
+        step = nonnegative_int(selection['after_step'], 'after_step')
+        timeout = finite_real(selection['timeout_s'], 'wait_next timeout_s')
+        if not 0 < timeout <= 1.:
+            raise ValueError('wait_next timeout_s must be in (0, 1]')
+        if selection['epoch'] != self._rgb.identity['epoch']:
+            raise ValueError('wait_next epoch mismatch')
+        if self._frame is None or step > self._frame['step']:
+            raise ValueError('wait_next cannot request a future or unobserved step')
+        # The transport supplies its original request deadline, never a
+        # wire-supplied timestamp. Direct cache callers still have a bounded wait.
+        deadline = time.monotonic() + timeout
+        if '_frame_deadline' in request:
+            deadline = min(deadline, finite_real(request['_frame_deadline'], 'frame deadline'))
+        cancelled = request.get('_frame_cancelled', lambda: False)
+        while True:
+            if self._closed or cancelled():
+                raise RuntimeError('RGB-D wait closed')
+            if self._frame['epoch'] != selection['epoch']:
+                raise ValueError('RGB-D epoch changed while waiting')
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise RuntimeError('RGB-D next capture deadline expired')
+            if self._frame['step'] > step:
+                return
+            # Publication/close notify the condition. The bounded wake interval
+            # only observes transport shutdown; it never selects a physics phase.
+            self._published.wait(min(remaining, .05))
 
     def __call__(self, request):
         with self._lock:
             if self._closed:
                 raise RuntimeError('RGB-D cache closed')
             if request.get('modality', 'rgb') == 'rgb':
+                if 'wait_next' in request:
+                    raise ValueError('wait_next requires RGB-D')
                 return self._rgb(request)
             if request.get('modality') != 'rgbd' or request.get('camera') != 'overview':
                 raise ValueError('unknown RGB-D camera/modality')
             if self._frame is None:
                 raise RuntimeError('no completed RGB-D capture')
+            if 'wait_next' in request:
+                self._wait_next(request)
             age = self._clock() - self._captured_at
             if not math.isfinite(age) or age < 0:
                 raise RuntimeError('RGB-D producer clock regressed')
@@ -280,6 +319,7 @@ class RgbdFrameCache:
     def close(self):
         with self._lock:
             self._closed, self._frame = True, None
+            self._published.notify_all()
             self._rgb.close()
 
 
@@ -304,7 +344,8 @@ class MobileRgbdFrame:
 
 class MobileRgbdReader:
     """Independent reader with pinned source/model/epoch/calibration, no owner."""
-    def __init__(self, profile, camera, *, calibration_sha256, max_pixels=640*480, max_age_s=.5):
+    def __init__(self, profile, camera, *, calibration_sha256, max_pixels=640*480, max_age_s=.5,
+                 wait_next=False):
         from .microduck_newton import digest_token
         if camera != 'overview':
             raise ValueError('RGB-D currently supports the explicit overview camera')
@@ -318,6 +359,9 @@ class MobileRgbdReader:
         self._profile, self.camera, self._pixels = copy.deepcopy(profile), camera, max_pixels
         self._client, self._lock = _FrameRPC(profile), threading.Lock()
         self._closed, self._ready, self._seen = False, False, None
+        if type(wait_next) is not bool:
+            raise ValueError('wait_next must be an explicit boolean')
+        self._wait_for_next = wait_next
         self.last_error = None
 
     def _decode(self, response, received, rtt):
@@ -394,10 +438,17 @@ class MobileRgbdReader:
                 self._identity._hello(hello)
                 if 'rgbd' not in hello['capabilities']:
                     raise ValueError('producer does not advertise RGB-D')
+                if self._wait_for_next and 'rgbd_wait_next' not in hello['capabilities']:
+                    raise ValueError('producer does not advertise bounded RGB-D wait_next')
                 self._ready = True
             self._client.max_reply = 16384 + 4*((7*self._pixels + 2*65536 + 2)//3)
             started = time.monotonic()
-            reply = self._client.request({'op': 'frame', 'camera': self.camera, 'modality': 'rgbd'}, timeout_s=remaining())
+            request = {'op': 'frame', 'camera': self.camera, 'modality': 'rgbd'}
+            if self._wait_for_next and self._seen is not None:
+                previous = self._seen.metadata
+                request['wait_next'] = {'epoch': previous['epoch'], 'after_step': previous['step'],
+                                        'timeout_s': min(1., remaining())}
+            reply = self._client.request(request, timeout_s=remaining())
             received = time.monotonic()
             frame = self._decode(reply, received, received-started)
             remaining()

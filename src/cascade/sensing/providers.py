@@ -183,10 +183,10 @@ class MobileRgbdSensorProvider:
     calibration on every capture. Reading opens only a reader-role socket.
     """
     def __init__(self, sensor_id, profile, camera, *, calibration_sha256,
-                 max_pixels=640*480, max_age_s=.5, read_timeout_s=.25):
+                 max_pixels=640*480, max_age_s=.5, read_timeout_s=.25, wait_next=False):
         from ..sim.mobile_rgbd import MobileRgbdReader
         self._reader = MobileRgbdReader(profile, camera, calibration_sha256=calibration_sha256,
-                                        max_pixels=max_pixels, max_age_s=max_age_s)
+                                        max_pixels=max_pixels, max_age_s=max_age_s, wait_next=wait_next)
         self.descriptor = SensorDescriptor(
             sensor_id=sensor_id, robot_id=profile['robot_id'], source=profile['source'],
             modality='rgbd', frame_id=f'camera:{camera}', clock_domain='simulation',

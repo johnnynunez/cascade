@@ -12,7 +12,24 @@ import math
 from numbers import Integral, Real
 from typing import Mapping
 
-from .mobile_support import SupportObservation, digest
+from .mobile_support import SolvedContact, SupportObservation, digest
+
+
+def _plain_record(record, cls, nested=()):
+    """Copy only exact records with plain scalar/tuple leaves, in field order."""
+    if type(record) is not cls:
+        return None
+    result = {}
+    scalar_types = (str, int, float, bool, type(None))
+    for field in fields(cls):
+        value = getattr(record, field.name)
+        if field.name in nested or type(value) in scalar_types:
+            result[field.name] = value
+        elif type(value) is tuple and all(type(item) in scalar_types for item in value):
+            result[field.name] = tuple(item for item in value)
+        else:
+            return None
+    return result
 
 
 def finite_real(value, name: str) -> float:
@@ -145,8 +162,31 @@ class BaseState:
             object.__setattr__(self, "support", support)
 
     def as_dict(self) -> dict:
+        # Validated plain records need fresh containers, not recursive deepcopy
+        # of every solved-contact scalar. Keep asdict's types and field order;
+        # subclasses/legacy leaves retain its full copy semantics.
+        snapshot = _plain_record(self, BaseState, ('support',))
+        if snapshot is not None and self.support is not None:
+            support = _plain_record(self.support, SupportObservation, ('contacts',))
+            contacts = []
+            if support is not None and type(self.support.contacts) is tuple:
+                for contact in self.support.contacts:
+                    copied = _plain_record(contact, SolvedContact)
+                    if copied is None:
+                        support = None
+                        break
+                    contacts.append(copied)
+            else:
+                support = None
+            if support is None:
+                snapshot = None
+            else:
+                support['contacts'] = tuple(contacts)
+                snapshot['support'] = support
+        if snapshot is None:
+            snapshot = asdict(self)
         return {key: list(value) if isinstance(value, tuple) else value
-                for key, value in asdict(self).items()}
+                for key, value in snapshot.items()}
 
     @classmethod
     def from_dict(cls, data: Mapping) -> BaseState:

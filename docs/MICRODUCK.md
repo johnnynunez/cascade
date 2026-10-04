@@ -292,7 +292,7 @@ owner-thread spans in `timing.jsonl`: completed reads, support/native capture,
 policy preparation, BAM, solve, publication, recording and camera/probe work.
 Rows retain the attempt's completed clocks and solved/withheld/error outcome,
 plus the preceding profile write/flush cost; the footer retains the final cost.
-Nested durations overlap and must not be summed. Reader threads are not profiled.
+Nested durations overlap and must not be summed. Reader calls are not wrapped.
 The flag installs no wrappers when disabled and is bound in the effective model,
 so enabling it requires a fresh identity probe and pin. Profiling keeps the
 existing control gates, cadence, contact evidence and physical records.
@@ -307,6 +307,38 @@ physics record. These overlapping categories are not additive. Large pauses
 occurred in several phases; their cause remains unresolved. The first 160
 attempts overlapped the recorded scope of a separate RTX probe on GPU0. This
 diagnostic neither admits twelve-robot control nor establishes a native speedup.
+
+The phase profile also retains passive Python GC callbacks from all threads,
+with absolute timestamps, event IDs, generation and collection counts. Each
+attempt and the footer drain a persistent queue bounded to 4096 events, including
+events outside owner attempts; starts and stops may cross rows. Cumulative ticket
+counts expose overflow or callbacks still in flight, without waiting for them.
+Missing/error events or a removed callback prevent complete correlation claims.
+Draining callback metadata is outside the attempt and write/flush durations.
+GC settings are only observed, and closing the profile removes only its own
+callback. Callback intervals include scheduling
+and other callbacks; they do not measure isolated CPU cost or establish a cause
+for a control timeout. Profiling does not disable or force collections.
+
+Two [reader-only GC profiles](evidence/microduck-shared-20261004/gc-serialization.json)
+each completed 800 solves, 2,400 policy commits, 24 reader events and 9
+overview/support-probe pairs, with normal native and client closure. The second
+used the plain-record serializer; its effective recipe changed only that source
+file. The recorded attempt durations were:
+
+| Profile | Median | p95 | Maximum | Attempts over 400 ms |
+| --- | ---: | ---: | ---: | ---: |
+| GC baseline | 117.15 ms | 161.18 ms | 646.41 ms | 22 |
+| GC with plain-record serialization | 110.75 ms | 127.60 ms | 655.07 ms | 22 |
+
+Both traces had complete callback accounting. Generation-2 GC intervals
+overlapped all 22 slow attempts in each run; this establishes temporal overlap,
+not an isolated CPU cost or a causal speedup. The comparison started after the
+separate voice scopes closed. Both launch admissions recorded the same foreign
+GPU process identity.
+The original 0.5 s RPC and 0.4 s progress limits remain unchanged and unresolved
+for twelve-robot control. No new control episode was run, and the earlier control
+failures remain retained.
 
 These endpoint outcomes remain physically unverified. Walking, fleet tasks,
 shared-space interactions and measured individual/global motion stops still need

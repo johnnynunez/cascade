@@ -156,6 +156,7 @@ def test_retry_still_checks_episode_wall_budget_and_never_commits_late_policy():
 
 @pytest.mark.parametrize('profile_phases', [False, True])
 def test_launcher_withheld_attempt_preserves_step_budget_and_only_emits_completed_frames(tmp_path, monkeypatch, profile_phases):
+    import gc
     import importlib
     import json
     from contextlib import nullcontext
@@ -167,6 +168,8 @@ def test_launcher_withheld_attempt_preserves_step_budget_and_only_emits_complete
     from cascade.control import microduck_policy
 
     runner = importlib.import_module('isaac_microduck_shared')
+    callbacks_before = tuple(gc.callbacks)
+    gc_settings = gc.isenabled(), gc.get_threshold()
     created = []
     class Backend(SoftwareBackend):
         def __init__(self, *unused):
@@ -183,6 +186,7 @@ def test_launcher_withheld_attempt_preserves_step_budget_and_only_emits_complete
             assert ('phase_profile' in self.receipt['configuration']) == profile_phases
             return {'scene_model_sha256': 'a'*64}
         def capture(self):
+            assert len(gc.callbacks) == len(callbacks_before) + int(profile_phases)
             return dict(rgb=np.zeros((8, 8, 3), np.uint8), step=self.step_count,
                         sim_time_s=self.sim_time, captured_at=0., render_times=render_times(self.sim_time))
         def support_probe(self):
@@ -211,6 +215,8 @@ def test_launcher_withheld_attempt_preserves_step_budget_and_only_emits_complete
     signals = NS(signum=None, registration_attempts=0, checkpoint=lambda **kwargs: None, defer=nullcontext)
     admission = dict(asset_sha256='a'*64, limits=software_limits(), experience_text='software fixture\n')
     result = runner.run(args, admission, signals)
+    assert tuple(gc.callbacks) == callbacks_before
+    assert (gc.isenabled(), gc.get_threshold()) == gc_settings
     assert result['completed'] and result['steps'] == 2 and result['withheld_ticks'] == 1, result
     assert created[0].closed == 1 and created[0].shutdown_code == 0
     def rows(name): return [json.loads(line) for line in (out / name).read_text().splitlines()]
@@ -228,7 +234,7 @@ def test_launcher_withheld_attempt_preserves_step_budget_and_only_emits_complete
         assert {'policy.prepare', 'bam.before_step', 'solve', 'publication', 'record.physics',
                 'write.physics.jsonl', 'camera.overview', 'camera.capture', 'support.probe'} <= phases
         assert not any(s['phase'] in ('solve', 'publication') for s in attempts[0]['spans'])
-        assert created[0].receipt['configuration']['phase_profile'] == 'owner-thread-inclusive-v1'
+        assert created[0].receipt['configuration']['phase_profile'] == 'owner-thread-inclusive-gc-v1'
     else:
         assert not (out/'timing.jsonl').exists() and 'phase_profile' not in result
         assert 'step' not in vars(created[0]) and 'capture' not in vars(created[0])

@@ -228,6 +228,23 @@ and benchmark success. In particular, penetration from soft solver contacts
 can fail a strict interior test at the floor; the geometry verifier does not
 hide that penetration or relax the floor to obtain a passing task. The source
 has CPU coverage for finite-wall clipping, transformed whole-object geometry,
-complete inventory and the optional reader lifecycle. Native box recording,
-calibration against its compiled geometry and complete VAB placement remain
-unverified for this new source.
+complete inventory and the optional reader lifecycle.
+
+Frozen source `e59bb6d` then passed the same native movement preflight with
+both recording options. It retained 1,050 solves, 21 object collision boxes,
+five support collision boxes and all 168 object corners per solve. The trace
+contains 27,746,187 bytes. An offline audit checked every compiled local shape
+against the observed body/collider poses and independently reconstructed each
+corner; the largest reconstruction difference was 3.331e-16 m. The compiled
+basket geometry admitted the conservative finite-face region. Its nominal
+whole-object margin remained negative in every sample, consistent with the
+object remaining outside the basket. No physical uncertainty bound was
+estimated and no containment credit was granted.
+
+The [compact native box evidence](evidence/robot-modularity/vab-box-geometry-20261004.json)
+binds this distinct model, epoch, source, plan and closed trace. All 12,583 inputs
+remained intact; reader, runtime, environment and process scope closed normally.
+Support in the basket remains refuted and benchmark/task success remains
+unverified. The first geometry preparation was retained unexecuted after review
+found malformed position vectors could broadcast through NumPy; the tested
+source requires exact numeric position and rotation lengths.

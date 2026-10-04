@@ -21,6 +21,20 @@ def uuid_value(value):
     return "GPU-" + value[4:].lower()
 
 
+def torch_uuid(value):
+    """Torch 2.11 exposes CUuuid, whose __str__ is the bare UUID (no GPU-).
+
+    Keep this conversion at the trusted Torch property boundary. CLI and
+    environment values still require full GPU-prefixed strings via uuid_value.
+    """
+    bare = str(value)
+    if re.fullmatch(
+        r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", bare
+    ) is None:
+        raise ValueError("unexpected Torch CUuuid representation")
+    return uuid_value("GPU-" + bare)
+
+
 def configuration(cfg):
     value = cfg.get("acceleration")
     if value is None:
@@ -52,7 +66,7 @@ def admit_cuda(torch, cfg, expected_uuid):
     if torch.cuda.current_device() != 0:
         raise ValueError("selected GPU must be logical CUDA device zero")
     properties = torch.cuda.get_device_properties(0)
-    if uuid_value(properties.uuid) != expected_uuid:
+    if torch_uuid(properties.uuid) != expected_uuid:
         raise ValueError("actual Torch GPU UUID differs from admission")
     capability = tuple(torch.cuda.get_device_capability(0))
     architectures = list(torch.cuda.get_arch_list())
@@ -106,7 +120,7 @@ def attest_pipeline(torch, cfg, expected_uuid, *, llm, stt, tts):
     if configuration(cfg) is None:
         raise ValueError("explicit CUDA recipe required")
     if (torch.cuda.device_count() != 1 or torch.cuda.current_device() != 0
-            or uuid_value(torch.cuda.get_device_properties(0).uuid) != uuid_value(expected_uuid)):
+            or torch_uuid(torch.cuda.get_device_properties(0).uuid) != uuid_value(expected_uuid)):
         raise ValueError("CUDA identity changed during pipeline construction")
     verify_precision(torch)
     return {"llm": model_observation(llm.model, device="cuda:0", float32=True),

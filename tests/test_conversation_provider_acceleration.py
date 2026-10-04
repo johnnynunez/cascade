@@ -38,8 +38,21 @@ def model(device):
     return NS(parameters=lambda: params, buffers=lambda: buffers, params=params, stored=buffers)
 
 
+class CUuuid:
+    """Real pybind API shape: object, bare __str__, bytes as 16 unsigned ints."""
+    def __init__(self, bare=GPU[4:]):
+        self.bare = bare
+
+    @property
+    def bytes(self):
+        return list(bytes.fromhex(self.bare.replace("-", "")))
+
+    def __str__(self):
+        return self.bare
+
+
 def torch_contract():
-    properties = NS(uuid=GPU, name="selected GPU")
+    properties = NS(uuid=CUuuid(), name="selected GPU")
     value = NS(__version__="2.11.0+cu130", version=NS(cuda="13.0"), precision="high")
     value.cuda = NS(is_available=lambda: True, device_count=lambda: 1,
                     current_device=lambda: 0, get_device_properties=lambda i: properties,
@@ -124,7 +137,7 @@ def test_cuda_admission_refuses_wrong_device_before_models(selected, monkeypatch
     elif failure == "logical":
         torch.cuda.current_device = lambda: 1
     elif failure == "uuid":
-        torch.cuda.get_device_properties(0).uuid = OTHER
+        torch.cuda.get_device_properties(0).uuid = CUuuid(OTHER[4:])
     elif failure == "capability":
         torch.cuda.get_device_capability = lambda i: (9, 0)
     elif failure == "arch":
@@ -158,7 +171,7 @@ def test_actual_postwarmup_models_and_precision_are_attested(selected, monkeypat
     elif failure == "tf32":
         torch.backends.cuda.matmul.allow_tf32 = True
     elif failure == "uuid":
-        torch.cuda.get_device_properties(0).uuid = OTHER
+        torch.cuda.get_device_properties(0).uuid = CUuuid(OTHER[4:])
     args = (torch, selected.recipe(), GPU)
     kwargs = dict(llm=llm, stt=stt, tts=tts)
     if failure is not None:
@@ -205,6 +218,24 @@ def test_cuda_config_cannot_change_precision_or_cpu_roles(selected):
         with pytest.raises(ValueError):
             selected.acceleration.configuration(changed)
     assert json.loads(selected.RECIPE.read_text()) == cfg
+
+
+def test_actual_torch_uuid_boundary_converts_only_the_property(selected):
+    value = CUuuid()
+    assert type(value) is not str and len(value.bytes) == 16
+    with pytest.raises(ValueError):
+        selected.acceleration.uuid_value(value)  # Original strict-string failure.
+    assert selected.acceleration.torch_uuid(value) == GPU
+    with pytest.raises(ValueError):
+        selected.selected_gpu(value)
+    with pytest.raises(ValueError):
+        selected.selected_gpu(str(value))  # CLI still requires GPU- prefix.
+
+
+@pytest.mark.parametrize("bare", [GPU, "0", "a" * 32, GPU[4:] + " ", "{" + GPU[4:] + "}"])
+def test_torch_uuid_boundary_rejects_unexpected_format(selected, bare):
+    with pytest.raises(ValueError, match="CUuuid"):
+        selected.acceleration.torch_uuid(CUuuid(bare))
 
 
 @pytest.mark.parametrize("corrupt", [False, True])

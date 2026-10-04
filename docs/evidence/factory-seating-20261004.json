@@ -318,6 +318,180 @@
       "tests/test_factory_private_readback.py": "b28c09d4793eb23b4004ed04b142b3fca076d045461422633c83711b9670eb27"
     }
   },
+  "columnar_native": {
+    "source_head": "8342cac5cb0727e9b2fef51364969f9c8a5e8809",
+    "model_pin": "8328670424e265b2f5fe753e469b0d9fbdb53ee16b66ef1b281a0fa0b2e0eea3",
+    "epoch": "c36fbeb81f55496a8346e3881d68b995",
+    "plan_sha256": "7a4f144e9fd0e8dea2d69b3b9fd02ff1a3a0c3d961333db13153580dc4249ee5",
+    "original_task_ok": false,
+    "native_exit": 1,
+    "scope_ordinary_closed": true,
+    "owner_thread_closed": true,
+    "runtime_closure_ok": false,
+    "readiness": {
+      "captured_monotonic_s": 48494.311601959,
+      "first_step": 1,
+      "generation": 0,
+      "last_step": 359,
+      "limits_sha256": "1c47a8b0cb0488d3f11789a70ff312d7089d19e2469c149e2406027c52ddc4a8",
+      "new_observation": false,
+      "quiet_interval_sim_s": 0.5000000121071935
+    },
+    "journal": {
+      "binding_sha256": "ef6c88f9d223fcd8e77a5fb6f4b138f8f5ad9574e1bcaa2ab1384049e25c3fdc",
+      "complete": true,
+      "count": 3093,
+      "epoch": "c36fbeb81f55496a8346e3881d68b995",
+      "files": {
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_COLUMNAR_20261004/seating-01/native/post-close-solves.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_COLUMNAR_20261004/seating-01/native/runtime/domains/fastening/solves.jsonl": "2604053f9bd77dda8650d6e3a7fc3531fcef0bd4b5b9ad0f1304d88a1c067a65"
+      },
+      "first_step": 1,
+      "generations": {
+        "0": 361,
+        "1": 1,
+        "2": 2731
+      },
+      "last_step": 3093,
+      "nonzero_spindle_command_rows": 2731,
+      "physical_task_admission": false,
+      "role": "persisted command/interval consistency; original live verifier supplies physical verdict"
+    },
+    "contact_records": 861506,
+    "generation_counts": {
+      "0": 361,
+      "1": 1,
+      "2": 2731
+    },
+    "loaded_rows": 0,
+    "retained_shoulder_rows": 0,
+    "freshness_rejection": {
+      "age_s": 0.35867491899989545,
+      "binding_sha256": "ef6c88f9d223fcd8e77a5fb6f4b138f8f5ad9574e1bcaa2ab1384049e25c3fdc",
+      "captured_monotonic_s": 48581.025802562,
+      "checked_monotonic_s": 48581.384477481,
+      "epoch": "c36fbeb81f55496a8346e3881d68b995",
+      "generation": 2,
+      "max_observation_age_s": 0.2,
+      "model_identity_sha256": "8328670424e265b2f5fe753e469b0d9fbdb53ee16b66ef1b281a0fa0b2e0eea3",
+      "reason": "stale",
+      "simulation_time_s": 5.155000124825165,
+      "stage": "control_upload",
+      "step": 3093
+    },
+    "zero_upload": {
+      "before_step": 3093,
+      "completed_monotonic_s": 48581.38470027,
+      "generation": 4,
+      "physical_stop_verified": false,
+      "uploaded": true
+    },
+    "fallback_stop": {
+      "accepted_monotonic_s": 48581.384773281,
+      "generation": 5,
+      "latched": true,
+      "ok": true,
+      "physical_stop_verified": false
+    },
+    "physical_stop_verified": false,
+    "seating_verified": false,
+    "preload_verified": false,
+    "all_generation_2_intervals": [
+      {
+        "end_monotonic_ns": 48494622475278,
+        "gc_generation": 2,
+        "phase": "gc",
+        "scene_step": -1,
+        "start_monotonic_ns": 48494329541981,
+        "terminal_event": "return",
+        "thread_cpu_ms": 292.851597,
+        "thread_id": 126841311705024,
+        "wall_ms": 292.933297
+      },
+      {
+        "end_monotonic_ns": 48581377681328,
+        "gc_generation": 2,
+        "phase": "gc",
+        "scene_step": -1,
+        "start_monotonic_ns": 48581045470995,
+        "terminal_event": "return",
+        "thread_cpu_ms": 331.394232,
+        "thread_id": 126831470421696,
+        "wall_ms": 332.210333
+      },
+      {
+        "end_monotonic_ns": 48582488896329,
+        "gc_generation": 2,
+        "phase": "gc",
+        "scene_step": -1,
+        "start_monotonic_ns": 48582074267337,
+        "terminal_event": "return",
+        "thread_cpu_ms": 414.607161,
+        "thread_id": 126841311705024,
+        "wall_ms": 414.628992
+      },
+      {
+        "end_monotonic_ns": 48583826930554,
+        "gc_generation": 2,
+        "phase": "gc",
+        "scene_step": -1,
+        "start_monotonic_ns": 48583355955862,
+        "terminal_event": "return",
+        "thread_cpu_ms": 470.955794,
+        "thread_id": 126841311705024,
+        "wall_ms": 470.974692
+      }
+    ],
+    "gc_diagnosis": "The final solve was accepted before a same-thread gen2 callback interval inside the next backend advance, before the rejected final control upload. The trace does not identify the allocation site, retained heap, or narrower pre-upload SDK subcall.",
+    "artifact_root": "cascade-lab/ROADMAP_FACTORY_COLUMNAR_20261004",
+    "preparation": {
+      "admission_predicates": 22,
+      "admission_sha256": "c9adf546d1c7ce22db7780d750def78f63e646cd2957bf735eca6f91a32d7cd3",
+      "loaded_variants": 39,
+      "model_identity_sha256": "8328670424e265b2f5fe753e469b0d9fbdb53ee16b66ef1b281a0fa0b2e0eea3",
+      "ok": true,
+      "physical_snapshot_sha256": "b963dfa57b64650d1aaef70015c627f7ae75a8daa428fbf6489d57614f2af177",
+      "physics_admission": false,
+      "readiness_admission": false,
+      "scene_and_native_solves": 0
+    },
+    "inputs_unchanged": true,
+    "native_pause_remedy_established": false,
+    "unlaunched_preparations": [
+      "prepare-01: fresh resource guard rejected a new foreign GPU occupant; no constructor",
+      "seating-plan-01: replaced before launch to fix hash/parse and file-descriptor copy boundaries"
+    ],
+    "artifact_sha256": {
+      "seating-01/inputs-after.json": "6efabd8f4aedbc034cc56232aff95a38c031e9159f942b5cbffdc0f5a7d16b47",
+      "seating-01/inputs-before.json": "6efabd8f4aedbc034cc56232aff95a38c031e9159f942b5cbffdc0f5a7d16b47",
+      "seating-01/native/constructed-binding.json": "436e0de44b99a4bfe906428dcb6bb2f5c0f543003e814c4368b35fa968bfcd1d",
+      "seating-01/native/constructed-model.json": "9c3f7bcdb168975227bfa97fb16bc186ae81ff411996b79f44b16ab8e9c52b63",
+      "seating-01/native/native-result.json": "5f572a2386520b257d9be713b920c64fe787cbfec47f76c417422fab9831c988",
+      "seating-01/native/phase-trace.json": "c550de86ff8443a0abab49f3bd6071b249f2b88bb1243e1a685901c6fc7e8083",
+      "seating-01/native/post-close-solves.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "seating-01/native/runtime/domains/fastening/last-action.json": "4b7e242e5aba7c5f635c601d1e367aeac7aa3ff88e44a76f0d2fecafebff2389",
+      "seating-01/native/runtime/domains/fastening/precompile.json": "80f6625de12b54f55ecd8ff1e8a9ea4957f97c08811e976eeee4a8a8c2263b49",
+      "seating-01/native/runtime/domains/fastening/solves.jsonl": "2604053f9bd77dda8650d6e3a7fc3531fcef0bd4b5b9ad0f1304d88a1c067a65",
+      "seating-01/private-inventories.json": "c2a845b420613ccf104c5cfc419e9e941dc7146643e4f111c03d606600beb096",
+      "seating-01/receipt.json": "2a8a0de16d281713cc357360c9be47f354992d822f0cd09f37d2fc9fb7b0ff00",
+      "seating-01/scope/closure.json": "2f2225f3f8240cbd31044e36e8a9978aeae821a17e998268c4ed85bbce319537",
+      "prepare-02/inputs-after.json": "5045d199af612febc7f784fe198310d678471999f5c79151ea895c202ae40109",
+      "prepare-02/inputs-before.json": "5045d199af612febc7f784fe198310d678471999f5c79151ea895c202ae40109",
+      "prepare-02/native/binding.json": "436e0de44b99a4bfe906428dcb6bb2f5c0f543003e814c4368b35fa968bfcd1d",
+      "prepare-02/native/model.json": "9c3f7bcdb168975227bfa97fb16bc186ae81ff411996b79f44b16ab8e9c52b63",
+      "prepare-02/native/native-result.json": "1e46be8a51d68c579530b0ddb90ee3c468516c0c0ac9de08d23cc7f5d99f6206",
+      "prepare-02/native/precompile.json": "be423cb2c85a0b02ff92cb8680072fa6c663d276437b068dc02c71697325054a",
+      "prepare-02/private-inventories.json": "c2a845b420613ccf104c5cfc419e9e941dc7146643e4f111c03d606600beb096",
+      "prepare-02/receipt.json": "9f8c9d355388cdfde4eae0dca5a74180d3557a8eaa9695618ae289d52938c49c",
+      "audit_seating_failure.py": "c3748d7b7c9d0a60751319cbb636e337de9631c869fa206a0015bb3ebe86bd49",
+      "seating-failure-audit-01.json": "b5a2a34cbf05bbf3a046d4a39c9c157535d18d54c500a894986de84de6f52b1a",
+      "preparation-audit-02.json": "edad5e36b759d6cd85f942597213eb1698e80b66d6f9a7a9e7b2b5f0accd11d9",
+      "seating-plan-02.json": "7a4f144e9fd0e8dea2d69b3b9fd02ff1a3a0c3d961333db13153580dc4249ee5",
+      "seating-binding-02.json": "be84a60bab94a94bf6a909d28464f4a9b6c37d113dd1e299d0204502d161e536",
+      "prepare-01/receipt.json": "4f744c423c1cb7b308ad2bd12e5aa44cab47b24d2435a97dec7ac5c6f799e6d5",
+      "prepare-02-cache-manifest.json": "867d380dd8d7a9e86520be23b66f47619b41a058d3e702b6295f5b926e60c761"
+    }
+  },
   "retention_cpu": {
     "scope": "Closed-record CPU retention replay only; no new native model, physical admission or native pause remedy.",
     "baseline_head": "8342cac5cb0727e9b2fef51364969f9c8a5e8809",

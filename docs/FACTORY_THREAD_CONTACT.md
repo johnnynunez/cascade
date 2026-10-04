@@ -241,6 +241,24 @@ Materialization during journal draining can still hold the GIL or trigger GC;
 neither this measurement nor the 354 selected passing CPU tests establish a
 remedy for the native pause, physical rest or seating admission.
 
+The new native pin for source `8342cac` then completed the same zero-solve
+preparation (39 variants / 22 admission predicates). Its single seating episode
+retained 3,093 solves and all 861,506 contact candidates, but again failed the
+unchanged freshness gate: the final control-upload check saw an observation
+358.675 ms old against 200 ms. No loaded or retained shoulder window occurred.
+The final solve had already been accepted before a 332.210 ms generation-2 GC
+callback interval on the owner thread inside the next backend advance. The
+trace does not identify the allocation site or narrower SDK call. Three other
+generation-2 intervals, including those during post-failure draining, remain
+in the receipt; GC settings were unchanged.
+
+The final zero upload and stop ACK have no subsequent solve proving physical
+rest. The owner thread and process scope closed ordinarily with no signals or
+remaining children, while runtime closure correctly retained the freshness
+fault. The same compact evidence preserves this second negative, its distinct
+pin and epoch, the resource refusal before preparation, and all original
+artifacts. More completed solves do not establish a pause remedy or task success.
+
 Validated native solve and seating histories now retain private packed records
 (`75c9c89`) instead of every decoded contact tree. The latest solve stays typed;
 cursor reads decode one row at a time outside the journal lock and recheck sticky

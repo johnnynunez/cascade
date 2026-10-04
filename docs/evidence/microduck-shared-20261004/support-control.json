@@ -1,0 +1,294 @@
+{
+  "schema": 1,
+  "run": "MICRODUCK_SHARED_SUPPORT_20261004/support-zero-twelve-01",
+  "source": "1ebe73927bcd1e18663db6e651c229f24d9ad7bf",
+  "scene_model_sha256": "0899d6f3a58b3f547a8f4d5f34ec24d08a82de0fe7e97c931a70dd31bf30fb10",
+  "model_identity_file_sha256": "4daa848af3e07e3e0b56a3b72cb885e28aa5e0245c153fa170078a3ba54c50be",
+  "reviewed_pin_file_sha256": "4daa848af3e07e3e0b56a3b72cb885e28aa5e0245c153fa170078a3ba54c50be",
+  "physical_acceptance": false,
+  "native_completed": true,
+  "control_completed": false,
+  "scope": "Bounded stop/reset/zero lifecycle through FleetRuntime/RobotRuntime/SafeBase/IsaacBase. No gait/task/physical-stop acceptance.",
+  "global_solves": 800,
+  "policy_commits": 2400,
+  "discarded_previews": 12,
+  "withheld_ticks": 0,
+  "overview_and_support_probe_pairs": 9,
+  "client_events": 32,
+  "planned_client_events": 72,
+  "successful_zero_execution": [
+    "duck00"
+  ],
+  "failed_feedback_preflight_robot": "duck01",
+  "unattempted_control_robots": [
+    "duck02",
+    "duck03",
+    "duck04",
+    "duck05",
+    "duck06",
+    "duck07",
+    "duck08",
+    "duck09",
+    "duck10",
+    "duck11"
+  ],
+  "all_physical_outcomes": "unverified",
+  "error": "bridge I/O failed: timed out",
+  "delivery_uncertain": false,
+  "command_ack_present": false,
+  "failure_stage": "Single preflight sample only: SafeBase requests the next fresh state before dispatching a command. RPC timed out there; stop acknowledged, physical rest unverified.",
+  "measured_preflight_samples": [
+    {
+      "step": 15,
+      "sim_time_s": 0.07499999832361937,
+      "received_monotonic_s": 20777.269999876,
+      "producer_age_s": 0.10096344799967483,
+      "generation": 2,
+      "latched": false,
+      "controller_status": "ready"
+    }
+  ],
+  "stop_ack": {
+    "ok": true,
+    "robot_id": "duck01",
+    "source": "isaac-microduck",
+    "epoch": "035e23ce4fcd49f09bb4cc704af84f72",
+    "generation": 3,
+    "latched": true,
+    "model_identity_sha256": "0734f40fae50e327b0bc0162dcc49a07bef148136bc06a9cb57ee8ed0e67829a",
+    "cancelled": true,
+    "physical_stop_verified": false,
+    "outcome": "unverified",
+    "reason": "stop acknowledged, physical rest unverified"
+  },
+  "cleanup_stop_acks": {
+    "duck00": {
+      "ok": true,
+      "robot_id": "duck00",
+      "source": "isaac-microduck",
+      "epoch": "6f7ea97b172b47e7bd6581ad7413b1f8",
+      "generation": 6,
+      "latched": true,
+      "model_identity_sha256": "53143749e9b79b6cf56da1f53da7e40df4b04b0de90cd000d51706bc30cb7174",
+      "cancelled": true,
+      "physical_stop_verified": false,
+      "outcome": "unverified",
+      "reason": "stop acknowledged, physical rest unverified"
+    },
+    "duck01": {
+      "ok": true,
+      "robot_id": "duck01",
+      "source": "isaac-microduck",
+      "epoch": "035e23ce4fcd49f09bb4cc704af84f72",
+      "generation": 5,
+      "latched": true,
+      "model_identity_sha256": "0734f40fae50e327b0bc0162dcc49a07bef148136bc06a9cb57ee8ed0e67829a",
+      "cancelled": true,
+      "physical_stop_verified": false,
+      "outcome": "unverified",
+      "reason": "stop acknowledged, physical rest unverified"
+    }
+  },
+  "final_recorded_generations": {
+    "duck00": 8,
+    "duck01": 7,
+    "duck02": 0,
+    "duck03": 0,
+    "duck04": 0,
+    "duck05": 0,
+    "duck06": 0,
+    "duck07": 0,
+    "duck08": 0,
+    "duck09": 0,
+    "duck10": 0,
+    "duck11": 0
+  },
+  "limits": {
+    "template_sha256": "557e7cfd2476bd5b7e4ac5d99112d2758dbd074121eaa200a9657fe26d7c4775",
+    "unchanged_from_prior_negative": true,
+    "safety": {
+      "max_state_age_s": 0.5,
+      "max_no_progress_s": 0.4,
+      "max_wall_duration_s": 8.0,
+      "poll_interval_s": 0.01
+    },
+    "transport_timeout_s": 0.5,
+    "command": {
+      "vx": 0.0,
+      "vy": 0.0,
+      "wz": 0.0,
+      "duration_s": 0.02
+    },
+    "expected_client_events": 72,
+    "sequence_per_robot": [
+      "emergency_stop",
+      "get_base_state",
+      "reset_stop",
+      "walk_velocity_zero"
+    ],
+    "physical_outcome": "unverified",
+    "no_threshold_relaxation": true
+  },
+  "bounds": {
+    "global_solves": 800,
+    "application_wall_s": 450,
+    "owned_scope_wall_s": 510
+  },
+  "observed_application_wall_s": 135.5816712929991,
+  "closure": {
+    "native_exit": 0,
+    "scope_exit": 0,
+    "diagnostic_wrapper_exit": 1,
+    "owned_processes_closed_naturally": true,
+    "client_closed": true,
+    "inputs_and_protected_stores_unchanged": true
+  },
+  "attempt_duration": {
+    "calls": 800,
+    "median_ms": 117.5443665,
+    "p95_ms": 134.741372,
+    "max_ms": 705.170693
+  },
+  "attempts_over_400_ms": 21,
+  "failure_window": {
+    "start_monotonic_s": 20777.269999876,
+    "end_monotonic_s": 20777.839513543,
+    "scope": "Last successful client sample reception through action return, not exact RPC send/receive timing.",
+    "attempts": [
+      {
+        "attempt": 13,
+        "clock_after": [
+          16,
+          0.07999999821186066
+        ],
+        "duration_ms": 705.170693,
+        "largest_inclusive_spans": [
+          {
+            "phase": "completed.validate",
+            "duration_ms": 545.584902
+          },
+          {
+            "phase": "completed.read",
+            "duration_ms": 544.333597
+          },
+          {
+            "phase": "record.physics",
+            "duration_ms": 76.799324
+          }
+        ]
+      }
+    ],
+    "nearby_publications": [
+      {
+        "step": 14,
+        "publication_monotonic_s": 20776.952326595,
+        "publication_gap_s": 0.23084905100040487,
+        "contacts": 192,
+        "contact_candidates": 553,
+        "constraints": 936,
+        "generation": 0,
+        "latched": false,
+        "controller_status": "ready"
+      },
+      {
+        "step": 15,
+        "publication_monotonic_s": 20777.17004973,
+        "publication_gap_s": 0.21772313499968732,
+        "contacts": 192,
+        "contact_candidates": 553,
+        "constraints": 936,
+        "generation": 1,
+        "latched": true,
+        "controller_status": "ready"
+      },
+      {
+        "step": 16,
+        "publication_monotonic_s": 20777.861178413,
+        "publication_gap_s": 0.6911286829999881,
+        "contacts": 186,
+        "contact_candidates": 547,
+        "constraints": 912,
+        "generation": 7,
+        "latched": true,
+        "controller_status": "ready"
+      },
+      {
+        "step": 17,
+        "publication_monotonic_s": 20778.051079578,
+        "publication_gap_s": 0.1899011649984459,
+        "contacts": 180,
+        "contact_candidates": 541,
+        "constraints": 888,
+        "generation": 7,
+        "latched": true,
+        "controller_status": "ready"
+      },
+      {
+        "step": 18,
+        "publication_monotonic_s": 20778.215695564,
+        "publication_gap_s": 0.1646159859992622,
+        "contacts": 132,
+        "contact_candidates": 493,
+        "constraints": 696,
+        "generation": 7,
+        "latched": true,
+        "controller_status": "ready"
+      }
+    ]
+  },
+  "timing_interpretation": "Pauses and failed feedback overlap in time; cause remains unproven. Inclusive spans must not be added; original RPC/progress limits were retained.",
+  "prior_negative_preserved": "MICRODUCK_SHARED_CAPTURE_20261004/capture-zero-twelve-01 failed after admission on feedback progress; this new failure is preflight before dispatch.",
+  "runtime_source_sha256": {
+    "assets/microduck/manifest.json": "56678bc8dbbc4aba6ca99944a37d495badb1157093b728348700739896383faa",
+    "assets/microduck/newton-bam.json": "d04d0281eb2f581ab738a95ddf6983f09bbfa8dbabef4087271e61e384fd5b4b",
+    "assets/microduck/policy-candidates.json": "6357372fd8f1aba6c64de5d95ba28a6f2f08a825fc4352642d20c152f776c11f",
+    "configs/isaac/microduck.newton.kit": "22ad2a0f66a14863c482a6fd74785475001d5b6aa2bd2f5879d31cb3440a7794",
+    "scripts/convert_microduck.py": "11e5df9e99b03cd0e3479a3dee94da17b685e49c04c32f364a895ab38c6751a2",
+    "scripts/isaac_camera_readback.py": "28c4523b08410db254c83e70f52c36f0f34488e6964dd6aebb561b638df8b9cd",
+    "scripts/isaac_microduck_bridge.py": "5237c61cbc79c40dd48fd9fa0344cf255bd376bc2a29add3b60948b97b0bcb59",
+    "scripts/isaac_microduck_shared.py": "67b743a1859c362b57c193bf5176b4e329de1b81015ee6a29fd6fa6fe17adf24",
+    "scripts/isaac_runtime.py": "8d40bc13b50d86f6c671628486142b6ee2cfa61ea762ea7867e66cf1447c935a",
+    "src/cascade/apps/signal_stop.py": "1a94a391c25d856299d899e633aaa777215e4ef1dc1fc819bee492c44019b9bd",
+    "src/cascade/control/microduck_actuator.py": "77216426cefc311237fa6854f06aa98a90d4f9f53b080a93c886d67f14961a0e",
+    "src/cascade/control/microduck_policy.py": "4a3df35ac4eccafdbd94cb99be8ff2d80320a509a5494b8f0bd0c9c22059479c",
+    "src/cascade/control/mobile_base.py": "480f9c1c3e00fa3a73a139c9aa4d941504c9bc0f9d160055f2a9bc5958c0b2b2",
+    "src/cascade/control/mobile_support.py": "08a8c57898871d677c46de9aa34c3e59977e8b85a1039d49b5b241810fd328c4",
+    "src/cascade/control/newton_bam.py": "1972ac0b4d6bbf06138ef550b530142c820cf03d6d3d4ce4aba5d68ffb00e64c",
+    "src/cascade/sim/microduck_admission.py": "dddf5ebced53b1f5b2d0fcffe508cfc28f6d02b84a2492d62837b98d87d3f483",
+    "src/cascade/sim/microduck_contact_support.py": "ddbcefaf1f95aa407cd669514f00fd5811ba89967faa87b68d78d576cd8b752e",
+    "src/cascade/sim/microduck_newton.py": "c4c6bfe5117d9fc45dfd96f76348ea8928ed479926220236ea3a3f401724e8ec",
+    "src/cascade/sim/microduck_policy_admission.py": "199fb0683fffeae9e93a99f22ed595c29cad4e36508ab5c7888b0fba9bf551d9",
+    "src/cascade/sim/microduck_sdk.py": "dd3502263048e483ebbc3f393ebc505c0fe8fad23b0fb4b7837fa5cef314bf56",
+    "src/cascade/sim/microduck_shared.py": "d71e9e6082ac6a1ceabd4592813a74959f678b28ac9ad57e1b04435467048f34",
+    "src/cascade/sim/microduck_shared_native.py": "8701ac20e1283611d2f6d375b5bc245f29410a3b8b87b4cc3b132773ea5ea439",
+    "src/cascade/sim/microduck_solver_graph.py": "9f990fc96daaa91e849444acfd302d4c6da9a7c62a42adc1f3e445cf65858772",
+    "src/cascade/sim/microduck_state.py": "495f3062274b620890448d6b3958c7481108a265321a616f64da1ec06a972971",
+    "src/cascade/sim/microduck_stepper.py": "fdd2ba66376c6535a784d275bc957646e6e3bdb17100bc4a565f4fe095597ae0",
+    "src/cascade/sim/microduck_timing.py": "8f764e58f108db249ca83b712d44a2e59486840724b740a7c3e26373f7438292",
+    "src/cascade/sim/mobile_bridge.py": "6bf4739389b4df8339aaa2b71b92007bd0665548825ba8e3b9adaaa7b4a8ac72",
+    "src/cascade/sim/mobile_identity.py": "eb7b29754243f5ab8f3ebf6bb8524175698b96250f55796a0135273fdb6cf21a",
+    "src/cascade/sim/mobile_rgbd.py": "8bfc3219e21373eccaed55f92452d66820182cba12faa63f6a2c99d2fb3ab861"
+  },
+  "sha256": {
+    "root-receipt.json": "08fbd57709eb36c7f0f03d2f7e446a7ed7dfa4f9ebba241ecd478f59cf19e65e",
+    "client-events.json": "5176d9c985e852e5d6bcb3b351568b1bb6225f2c157471d43b2bc878fabcc176",
+    "kit/physics.jsonl": "f7571b9054238ac81073480f8bd63f07125fb95035d27219f58a04e7f2437d64",
+    "kit/policy.jsonl": "09ef67f123301dd7ba3facbe1b57e71ae2dfdb656ac69ab61a07073608ef0270",
+    "kit/frames.jsonl": "cc57c67839a27f8433a52330257fb394eebe987ab96d1f592cbef9091455f02e",
+    "kit/support-probe.jsonl": "828aa35126a605bf5b263d7769104a63f6e4abcfe7219f03ba8e427e05b253f4",
+    "kit/model-identity.json": "4daa848af3e07e3e0b56a3b72cb885e28aa5e0245c153fa170078a3ba54c50be",
+    "kit/receipt.json": "c727bd7b4030775cde6f318012848903627a15e1238f8e68e1f88d9f9032f182",
+    "plan.json": "dbccbefe30f1d929c3d7287787ae025ff699c4aa62190b96569fcf4e7de26cb9",
+    "inputs.json": "5cc776e70dcb8a5fa8ea8086cf25bd6a9e71d0cfaae871e4dca5df3490ceea71",
+    "control-failure-audit.json": "a35fa14ec2284e84fae56c66a6f63c15b8c0b620594d6ee37361b8d2dd1a416e",
+    "phase-audit.json": "ce6c37ec73bdda469af4759bc2a52bfd2597dd2e9edf6e93ab83c41a6252c553",
+    "kit/timing.jsonl": "74e5c968e717e5d518dbcf72df54ebd5f8ad2f1c79625f6096d7c613d3580908",
+    "control-contract.json": "b61cc916a3534c03480feb0d0f481851aa846035329ec82bd0ca11f418dec230",
+    "pin-review.json": "376d5011d10901b0f292846c0cc15ae06b77e86fc3c8dff4c1537147af4b8d82",
+    "client-close.json": "30b65837990e0b7b573ce9ec587f485d42b5780325b6511d268acb77cfeebfed",
+    "launch-binding.json": "0d4aa2a681a1593e10353ebfbf11c32b1acca88542aa2ffcb6e610920208706a",
+    "gpu-admission.json": "b39d4b1f76114d9fb5f1f76cd6a057fef5e142a1143c4b3c213bb8cd5e2ca20f"
+  },
+  "negative_auditor_sha256": "1ab507848f825cabf6f758e8137f467f5e98aa68bfd9886c93c9aa00f3d4eea2",
+  "phase_auditor_sha256": "620bbad18aff54cc993a602175d826b652388a450023a5cebc45b83c52f2131c"
+}

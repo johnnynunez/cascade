@@ -186,6 +186,15 @@ commands and does not supersede the retained twelve-robot control failure.
 These times describe this episode; they do not establish a causal speedup.
 The earlier prelaunch refusal remains recorded alongside the completed run.
 
+The subsequent [pinned zero-command trial](evidence/microduck-shared-20261004/support-control.json)
+also completed 800 native solves, but **its twelve-robot control sequence failed**.
+The first robot completed its zero-command execution; the second timed out while
+requesting a fresh preflight state, before sending its command. Its stop was
+acknowledged, the client closed, and the remaining ten controls were not attempted.
+All physical outcomes remain unverified. The original 0.5-second RPC and
+0.4-second no-progress limits were retained; a 691 ms publication gap crossed
+the failure window. The timing evidence does not establish the cause.
+
 CPU tests cover 1, 2 and 12 synthetic participants, including index permutations,
 command isolation, cancellation and contact vetoes. The ordinary one-robot
 entrypoint retains its control cadence.

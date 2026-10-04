@@ -62,7 +62,7 @@ class RecordedHandDomain(HandDomain):
         return result
 
 
-def build_hand_runtime(profile, directory, *, domain_id):
+def build_hand_runtime(profile, directory, *, domain_id, start_owner=None):
     validate_hand_profile(profile)
     if profile["model_identity_sha256"] is None:
         raise HandFault("hand model is unprepared; an explicit preparation pin is required")
@@ -79,7 +79,12 @@ def build_hand_runtime(profile, directory, *, domain_id):
         controller = HandController(backend)
         resources, _ = hand_description(domain_id, profile)
         domain = RecordedHandDomain(controller, resources, directory, domain_id=domain_id)
-        controller.start()
+        if start_owner is None:
+            controller.start()
+        else:
+            # An explicit service activation can fence the start itself. The
+            # callback must start this same owner, with its unchanged lifetime.
+            start_owner(controller)
         deadline, since, cursor = time.monotonic()+3., None, 0
         while time.monotonic() < deadline:
             for row in controller.read(cursor):

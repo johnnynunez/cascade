@@ -112,6 +112,36 @@ speech at an assumed rate. PCM capture is mono, signed little-endian 16-bit,
 reads a bearer credential in the gateway process without returning it to the
 browser.
 
+For one prepared fixed LEAP hand, the opt-in `--robot-lifecycle bounded_hand`
+(JSON `robot_lifecycle: "bounded_hand"`) defers native construction until the
+operator explicitly selects **Start robot session**. Supply the existing prepared
+hand profile and its exact model pin; this option does not prepare or admit a new
+model. The ordinary service default remains unchanged.
+
+Connect the configured provider, then prepare the microphone. Permission and
+AudioWorklet preparation alone send no PCM and do not start the robot. **Start
+robot session** authorizes one construction, the existing stopped-readiness
+check, a real reset against the observed runtime generation, and a new provider
+conversation. Only that new session receives microphone PCM. No preactivation
+audio, old response or robot command is replayed. Text input is unavailable until
+the bounded episode has started.
+
+The hand retains its original 30-second lifetime from owner start, including
+readiness and reconnection. Start has its own ten-second total deadline across
+old-session release, construction and reset; neither deadline is renewed.
+Disconnect or stop during construction cancels admission, and a late constructor
+is retained until cleanup actually finishes. Unknown cleanup blocks reuse.
+Normal stop/reset/reconnect uses the same live hand and never grants another
+30 seconds. An expired or failed episode requires a new service run. Its final
+closure retains activation state and the original start/deadline.
+
+CPU regressions exercise the real runtime and loopback gateway with synthetic
+owners. An optional Chromium test uses the shipped page and AudioWorklet with a
+synthetic microphone file and a real loopback provider stub. Those checks cover
+the service's activation order; they establish neither native hand admission nor
+hardware microphone or speaker behavior. VOICE13 remains separately bound to
+its original service source and external episode harness.
+
 `conversation_mock` declares only a synthetic IMU. Its reading is labelled
 `synthetic` and `software_only`. Any configured composed robot profile can be
 selected, but provider tools default to an empty allowlist. Motion additionally

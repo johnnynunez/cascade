@@ -12,7 +12,7 @@ from cascade.eval.placement import PlacementPolicy, seal_placement_row, verify_p
 
 
 def policy():
-    return PlacementPolicy("a"*64, "episode", (0,), (1,), (2,), .1, (0., 0., -9.81), .002)
+    return PlacementPolicy("a"*64, "episode", (0,), (1,), (2,), .1, (0., 0., -9.81), .002, 1, 2, 4)
 
 
 def row(step, p):
@@ -20,7 +20,7 @@ def row(step, p):
         "solver_step": step, "constraint_time_s": (step-1)*.002, "advanced_time_s": step*.002,
         "phase": "euler_constraint_before_integration", "coverage": "all_native_contact_candidates",
         "native_ngeom": 4, "ncon": 1, "nefc": 3, "native_warnings": [], "external_forces_zero": True,
-        "bodies": {name: {"position_m": pos, "linear_velocity_m_s": [0., 0., 0.],
+        "bodies": {name: {"body_id": getattr(p, name+"_body_id"), "position_m": pos, "linear_velocity_m_s": [0., 0., 0.],
                            "angular_velocity_rad_s": [0., 0., 0.]}
                    for name, pos in (("object", [0., 0., .15]), ("support", [0., 0., 0.]))},
         "geometries": [{"id": i, "position_m": pos, "bound_radius_m": radius}
@@ -90,7 +90,8 @@ def test_one_observed_violation_refutes_whole_window_without_hunting_a_suffix(fa
 
 @pytest.mark.parametrize("fault", ["missing_solve", "duplicate_solve", "epoch", "model", "policy",
     "clock", "phase", "truncated_contacts", "contact_index", "warning", "external_force",
-    "missing_geom", "duplicate_geom", "force_frame", "inactive_force", "nan", "bool_step", "constraint"])
+    "missing_geom", "duplicate_geom", "force_frame", "inactive_force", "nan", "bool_step", "constraint",
+    "body_identity", "geometry_inventory"])
 def test_incomplete_or_inconsistent_native_evidence_is_unverified(fault):
     rows = window()
     r = rows[100]
@@ -111,6 +112,8 @@ def test_incomplete_or_inconsistent_native_evidence_is_unverified(fault):
     elif fault == "nan": r["bodies"]["object"]["position_m"][0] = "nan"
     elif fault == "bool_step": r["solver_step"] = True
     elif fault == "constraint": r["contacts"][0]["efc_address"] = r["nefc"]
+    elif fault == "body_identity": r["bodies"]["object"]["body_id"] = 3
+    elif fault == "geometry_inventory": r["native_ngeom"] += 1
     assert verify(rows)["status"] == "unverified"
 
 

@@ -24,6 +24,9 @@ class PlacementPolicy:
     object_mass_kg: float
     gravity_world_m_s2: tuple[float, float, float]
     solver_dt_s: float
+    object_body_id: int
+    support_body_id: int
+    native_ngeom: int
     rest_s: float = .5
     robot_clearance_m: float = .005
     linear_speed_m_s: float = .01
@@ -37,9 +40,14 @@ class PlacementPolicy:
         if not isinstance(self.epoch, str) or not self.epoch:
             raise ValueError("placement epoch is required")
         groups = (self.object_geoms, self.support_geoms, self.robot_geoms)
+        _integer(self.object_body_id, "object body", 1)
+        _integer(self.support_body_id, "support body", 1)
+        _integer(self.native_ngeom, "native geometry count", 1)
+        if self.object_body_id == self.support_body_id:
+            raise ValueError("placement body identities must be disjoint")
         for group in groups:
             if (type(group) is not tuple or not group
-                    or any(type(g) is not int or g < 0 for g in group)
+                    or any(type(g) is not int or not 0 <= g < self.native_ngeom for g in group)
                     or len(set(group)) != len(group)):
                 raise ValueError("placement groups require unique immutable geometry IDs")
         if len(set(sum(groups, ()))) != sum(map(len, groups)):
@@ -51,7 +59,8 @@ class PlacementPolicy:
         if self.force_fraction_min >= self.force_fraction_max or self.rest_s < self.solver_dt_s:
             raise ValueError("invalid placement force or time interval")
         gravity = _vector(self.gravity_world_m_s2, 3, "gravity")
-        if type(self.gravity_world_m_s2) is not tuple or np.linalg.norm(gravity) <= 0:
+        if (type(self.gravity_world_m_s2) is not tuple or not math.isfinite(float(np.linalg.norm(gravity)))
+                or np.linalg.norm(gravity) <= 0):
             raise ValueError("nonzero immutable gravity is required")
 
     @property
@@ -120,6 +129,8 @@ def verify_placement_window(rows, policy, *, first_solver_step, last_solver_step
         minimum_clearance, minimum_support, maximum_support = math.inf, math.inf, -math.inf
         violation = None
         for expected, row in enumerate(rows, first_solver_step):
+            if not isinstance(row, dict):
+                raise ValueError("placement row must be a record")
             require_digest(row["snapshot_sha256"])
             if digest_json({k: v for k, v in row.items() if k != "snapshot_sha256"}) != row["snapshot_sha256"]:
                 raise ValueError("placement snapshot changed")
@@ -127,6 +138,7 @@ def verify_placement_window(rows, policy, *, first_solver_step, last_solver_step
                     or row["policy_sha256"] != policy.sha256):
                 raise ValueError("placement identity or policy changed")
             if (_integer(row["solver_step"], "solver step", 1) != expected
+                    or _integer(row["native_ngeom"], "native geometry count", 1) != policy.native_ngeom
                     or row["phase"] != "euler_constraint_before_integration"
                     or row["coverage"] != "all_native_contact_candidates"):
                 raise ValueError("placement step, phase, or coverage is inconsistent")
@@ -142,6 +154,8 @@ def verify_placement_window(rows, policy, *, first_solver_step, last_solver_step
             if set(bodies) != {"object", "support"}:
                 raise ValueError("placement body coverage is incomplete")
             for name, body in bodies.items():
+                if _integer(body["body_id"], "body identity", 1) != getattr(policy, name+"_body_id"):
+                    raise ValueError("placement body identity changed")
                 xyz = _vector(body["position_m"], 3, "body position")
                 linear = _vector(body["linear_velocity_m_s"], 3, "body linear velocity")
                 angular = _vector(body["angular_velocity_rad_s"], 3, "body angular velocity")

@@ -73,7 +73,8 @@ class PlacementRecorder:
             raise ValueError("placement separation needs finite positive geometry bounds")
         self.policy = PlacementPolicy(model_identity_sha256, epoch, geoms["object"], geoms["support"],
             geoms["robot"], float(sum(self.model.body_mass[i] for i in groups["object"])),
-            tuple(map(float, self.model.opt.gravity)), float(self.model.opt.timestep))
+            tuple(map(float, self.model.opt.gravity)), float(self.model.opt.timestep),
+            int(self.body_ids["object"]), int(self.body_ids["support"]), int(self.model.ngeom))
         self._bound_fields = {name: np.asarray(getattr(self.model, name)).copy() for name in (
             "geom_rbound", "geom_bodyid", "geom_contype", "geom_conaffinity", "body_mass",
             "body_parentid", "body_jntnum", "body_jntadr", "jnt_type", "pair_geom1", "pair_geom2")}

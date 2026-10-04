@@ -346,3 +346,19 @@ This command imports no simulator, checks capture/calibration hashes and the
 complete archive, preserves the initial unverified record and every proposed
 feature match, and creates a new report. It does not replace the separate
 native closure audit or grant manipulation or benchmark success.
+
+The separate `benchmark.vab.detect_rgb` command runs the existing prompt-free
+YOLOE detector on the observed archive views. It validates every capture before
+constructing the detector, converts the retained RGB pixels to the detector's
+BGR convention once, and binds each predicted label, box and optional mask to
+the original capture hash. The two reset images remain unverified and are not
+passed to the detector. Zero detections remain a valid empty observation;
+model errors and malformed output propagate as failures.
+
+Use an absolute local `-pf.pt` checkpoint and its SHA256:
+`PYTHONPATH=src:. python -m benchmark.vab.detect_rgb RUN/public-rgb NEW_REPORT.json --weights /absolute/yoloe-11s-seg-pf.pt --weights-sha256 SHA256 --device cpu`.
+The report records the checkpoint, inference settings and library versions.
+Predicted labels and pixel masks supply no verified object identity, depth,
+complete geometry, clearance or grasp authorization. Archive analysis carries
+the original capture clock and makes no claim that the images are currently
+fresh for a live robot.

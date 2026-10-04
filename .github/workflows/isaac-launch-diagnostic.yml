@@ -1,0 +1,25 @@
+name: Source wrapper diagnostic
+on:
+  push:
+    branches: [diagnose/source-wrapper-macos]
+permissions:
+  contents: read
+jobs:
+  macos-wrapper:
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Repeat the unchanged cleanup contract with retained stderr
+        run: |
+          uv run --no-project --with pytest python - <<'PY'
+          import pathlib, runpy, tempfile
+          check = runpy.run_path('tests/test_isaac_launch_env.py')['test_source_wrapper_waits_for_delayed_child_cleanup']
+          for attempt in range(50):
+              with tempfile.TemporaryDirectory() as directory:
+                  print('cleanup attempt', attempt + 1, flush=True)
+                  check(pathlib.Path(directory), False)
+          PY

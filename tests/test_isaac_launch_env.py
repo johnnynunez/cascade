@@ -215,8 +215,10 @@ def test_source_wrapper_waits_for_delayed_child_cleanup(tmp_path, escaped):
     # Like Isaac's python.sh: it spawns Python, it does NOT exec it.
     shell.write_text(f'#!/bin/bash\n"{sys.executable}" "$@"\n')
     shell.chmod(0o755)
-    process = subprocess.Popen([sys.executable, str(ROOT / "scripts/isaac_launch.py"), "--python", str(shell), "--", str(worker)],
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    stderr_path = tmp_path / "adapter.stderr"
+    with stderr_path.open("wb") as stderr:
+        process = subprocess.Popen([sys.executable, str(ROOT / "scripts/isaac_launch.py"), "--python", str(shell), "--", str(worker)],
+                                   stdout=subprocess.DEVNULL, stderr=stderr)
     pid = None
     try:
         deadline = time.monotonic() + 10
@@ -233,7 +235,7 @@ def test_source_wrapper_waits_for_delayed_child_cleanup(tmp_path, escaped):
         assert process.poll() is None, "adapter exited before the child finished cleanup"
         assert not closed.exists()
         release.touch()
-        assert process.wait(timeout=10) == 128 + signal.SIGTERM
+        assert process.wait(timeout=10) == 128 + signal.SIGTERM, stderr_path.read_text()
         assert closed.exists(), "adapter reported exit before actual cleanup"
         status = subprocess.run(["ps", "-p", str(pid), "-o", "stat="], capture_output=True, text=True).stdout.strip()
         assert not status or "Z" in status, "stopping source wrapper left its Kit child alive"

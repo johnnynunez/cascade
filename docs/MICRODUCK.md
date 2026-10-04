@@ -47,6 +47,27 @@ inference result. Stop invalidates walking intent while allowing the policy
 and actuators to maintain balance. It does not certify an instantaneous
 physical stop or promise to undo a motor target already committed.
 
+The CPU policy API also offers the explicit `target_profile="robotd-targets-v1"`
+candidate. It reproduces the gait output transform in
+[robotd at 9136aa4](https://github.com/pollen-robotics/microduck/blob/9136aa4ee88e81edf2bcaf3527e90b65da25f1eb/robotd/src/control.rs#L607):
+float64 HOME plus `0.9 * raw_action`, then target EMA with alpha 0.5 for the
+four head joints and 0.7 for the ten leg joints. The first target after
+construction/reset is unfiltered; subsequent targets use the last committed
+filtered target. Raw float32 actions remain the observation history. Preview
+and discarded evaluations cannot move either history. After `infer()` or
+`commit()`, `committed_targets` returns the accepted target; `targets(action)`
+always previews the next slot. `target_contract` binds the profile and policy
+digest. The default `direct-v1` retains scale 1.0 and no filtering.
+
+This is a target-transform candidate, not the complete robotd pipeline or its
+separate standing/skill overrides. It does not add command smoothing, voltage
+adaptation, stale-sensor coasting or actuator delay. Native launch profiles
+continue to use the existing default. The current official VelStand LFS digest
+is the same `1c659be5…` used by the retained eight-case negative corpus; its
+published provenance names `protective_fall` and a September 14 export but
+does not identify the exact training run. CPU formula replay cannot predict
+the new closed-loop actions or establish improved gait or stopping.
+
 ## Evidence and identity
 
 A SHA-256 digest binds the complete admitted bundle, consumed USD layers,

@@ -197,8 +197,8 @@ class MicroduckStepper:
                     self._check_wall()
                     record['status'] = 'staged'
                     return action, targets, record
-                # Only a pure 14-value history copy is committed under this
-                # lock. Uploads and BAM/Kit calls happen after releasing it.
+                # Only bounded policy/target history work is committed under
+                # this lock. Uploads and BAM/Kit calls follow after releasing it.
                 with self.controller._lock:
                     current_command, current = self._control_snapshot(sample['sim_time'])
                     self._check_wall()  # also covers waiting for the permission lock

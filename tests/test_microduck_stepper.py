@@ -69,7 +69,9 @@ class SoftwareBackend:
 
 class SoftwarePolicy:
     def __init__(self, backend):
+        from cascade.sim.microduck_policy_admission import target_contract
         self.backend = backend
+        self.target_contract = target_contract('b'*64, 'direct-v1')
         self.previous_action = np.zeros(14, np.float32)
         self.inputs = []
 

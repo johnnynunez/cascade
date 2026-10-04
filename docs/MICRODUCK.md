@@ -47,7 +47,8 @@ inference result. Stop invalidates walking intent while allowing the policy
 and actuators to maintain balance. It does not certify an instantaneous
 physical stop or promise to undo a motor target already committed.
 
-The CPU policy API also offers the explicit `target_profile="robotd-targets-v1"`
+The policy API and single/shared launchers offer the explicit
+`target_profile="robotd-targets-v1"` / `--target-profile robotd-targets-v1`
 candidate. It reproduces the gait output transform in
 [robotd at 9136aa4](https://github.com/pollen-robotics/microduck/blob/9136aa4ee88e81edf2bcaf3527e90b65da25f1eb/robotd/src/control.rs#L607):
 float64 HOME plus `0.9 * raw_action`, then target EMA with alpha 0.5 for the
@@ -61,8 +62,13 @@ digest. The default `direct-v1` retains scale 1.0 and no filtering.
 
 This is a target-transform candidate, not the complete robotd pipeline or its
 separate standing/skill overrides. It does not add command smoothing, voltage
-adaptation, stale-sensor coasting or actuator delay. Native launch profiles
-continue to use the existing default. The current official VelStand LFS digest
+adaptation, stale-sensor coasting or actuator delay. Launchers keep `direct-v1`
+as the default and reject a missing, changed or silently ignored target contract.
+The effective model binds this selection separately from the policy weights.
+Its `target_upload` record distinguishes calculation precision from the existing
+BAM upload: filtered targets retain float64 history, then `set_targets` converts
+them to float32 before Warp assignment. No native result is transferred between
+profiles. The current official VelStand LFS digest
 is the same `1c659be5…` used by the retained eight-case negative corpus; its
 published provenance names `protective_fall` and a September 14 export but
 does not identify the exact training run. CPU formula replay cannot predict

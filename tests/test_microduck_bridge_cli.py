@@ -1,6 +1,8 @@
 """CPU CLI/admission tests. Synthetic artifacts never certify physics."""
 from __future__ import annotations
 
+from cascade.sim.microduck_policy_admission import target_contract
+
 import hashlib
 import importlib
 import json
@@ -208,9 +210,9 @@ def test_run_exercises_real_rpc_bounded_loop_trace_and_teardown(tmp_path, mode, 
     output = tmp_path / 'run'
     args = NS(out=output, device='cuda:0', robot_id='microduck', source='software-only',
               max_wall_s=3., max_steps=9, port=0, camera_every=4, max_jpeg_bytes=100000,
-              policy=tmp_path / 'fixture.onnx', policy_sha256='b'*64, python_extra_path=[])
+              policy=tmp_path / 'fixture.onnx', policy_sha256='b'*64, target_profile='direct-v1', python_extra_path=[])
     args.camera_rgbd = mode in ('rgbd','mounted')
-    admission = dict(asset_sha256='a'*64, asset_receipt_sha256='c'*64,
+    admission = dict(target_contract=target_contract('b'*64, 'direct-v1'), asset_sha256='a'*64, asset_receipt_sha256='c'*64,
                      bam_params={}, limits=software_limits(), experience_text='software fixture\n')
     if mode == 'mounted':
         admission['camera_mount'] = {'software_fixture':True}
@@ -261,7 +263,7 @@ def test_run_exercises_real_rpc_bounded_loop_trace_and_teardown(tmp_path, mode, 
             return dict(passed=mode != 'probe_fail', step=self.step_count - (mode == 'probe_stale'),
                         sim_time_s=self.sim_time, max_force_torque_difference=0.)
     controlled = {}
-    def policy_factory(*unused):
+    def policy_factory(*unused, **kwargs):
         p = SoftwarePolicy(created[0])
         if mode == 'inference':
             p.infer = lambda _: (_ for _ in ()).throw(RuntimeError('test failed inference'))
@@ -408,6 +410,11 @@ def test_check_only_admits_without_kit_network_or_outdir(software_bundle, tmp_pa
     assert result['physical_acceptance'] is False and result['output_count'] == 134
     assert not output.exists()
     default_admission = cli().admit(cli().parse_args(argv))
+    assert default_admission['target_contract'] == target_contract(digest(policy.read_bytes()), 'direct-v1')
+    alternate = cli().admit(cli().parse_args(argv + ['--target-profile', 'robotd-targets-v1']))
+    assert alternate['target_contract'] == target_contract(digest(policy.read_bytes()), 'robotd-targets-v1')
+    assert alternate['policy_admission'] == default_admission['policy_admission']
+    assert not output.exists()
     for source in ('src/cascade/sim/private_rtx_cache.py', 'src/cascade/sensing/models.py'):
         assert default_admission['source_sha256'][source] == digest((REPO / source).read_bytes())
     assert 'private_rtx_cache' not in default_admission

@@ -693,8 +693,10 @@ class _ReadBatch:
                 return value
         except StopIteration:
             raise
-        except BaseException:
-            self.host.abort("Factory reader delivery failed")
+        except BaseException as exc:
+            # Observation cleanup rechecks this sticky fault after the domain
+            # has caught the original exception. Retain its bounded cause.
+            self.host.abort(f"Factory reader delivery failed: {type(exc).__name__}: {exc}"[:800])
             raise
         finally:
             if active is not None:

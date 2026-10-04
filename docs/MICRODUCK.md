@@ -136,6 +136,30 @@ unchanged inputs, and no signals or forced closure. The original negative and
 all contacts remain retained. No active-motion, tail, rest or verified-stop
 window was reached, and no retry or parameter adjustment followed.
 
+The [bootstrap A/B diagnostic](evidence/robot-modularity/microduck-bootstrap-ab-20261004.json)
+completed two solves using one pinned MuJoCo model,
+two independent `MjData` states and the retained first policy target, without an
+ONNX session or inference. Case A reproduced the original first actuator and
+completed-state rows exactly. Case B changed only the external-force argument
+of the first BAM friction calculation to zero; its original force buffers,
+motor calculation, target, initial state, solver and timestep were preserved.
+
+Within this CPU setup, that substitution changed the maximum joint velocity by
+0.00537643258 rad/s and the friction budget by 0.00246892206 Nm. Against the
+retained Newton first row, the maximum q/dq/friction residual fell from
+2.68850674e-5 rad / 0.00537642489 rad/s / 0.00246892205 Nm in A to
+1.37083754e-8 rad / 3.01011785e-8 rad/s / 1.56197433e-11 Nm in B.
+The original CPU external input is now observed directly: right-hip-roll
+received 0.030560578339 Nm before the substitution. This establishes the effect
+of that input on this CPU first solve. The small residual against Newton does
+not establish equivalence of integrators, compiled geometry or later dynamics.
+
+The owned scope exited zero, without signals, forced termination or remaining
+processes; both observed births disappeared. This diagnostic exercised no
+DRIVE interval, sequential rollout, locomotion task or physical stop/rest
+window. The earlier failed walk and preparation gate remain failed. No
+production physics setting or locomotion controller changed.
+
 ## Evidence and identity
 
 A SHA-256 digest binds the complete admitted bundle, consumed USD layers,

@@ -318,3 +318,24 @@ Both CPU scopes closed ordinarily. The baseline raw archive was expanded one
 row at a time for content comparison, so this does not measure its former
 eager-drain peak. All callbacks and pack/publish timings remain in the linked
 compact receipt; no native latency remedy, physical rest or seating is admitted.
+
+The subsequent bytes-retention source (`6858456`) received its own zero-solve
+pin and one native seating episode. All 21,712 raw rows and 6,965,290 contact
+candidates were retained; acceptance rejected the final row at 298.100 ms against
+the unchanged 200 ms limit. A 289.172 ms generation-2 callback interval occurred
+on the owner thread inside the 289.428 ms `raw_record.pack`, after the solve
+returned and before acceptance. Four further generation-2 intervals followed
+the refusal. The previous source's corresponding intervals were 311.961 ms and
+312.215 ms; these distinct episodes do not establish a controlled latency
+improvement or identify the heap causing either pause. No native heap census
+was taken, and normal GC remained enabled.
+
+Offline reconstruction of the 21,339 accepted active-generation rows found
+15.4241 turns and 38.3143 mm axial travel, excluding the rejected final row.
+There were no loaded-window rows and no solved rows after either stop ACK;
+software zero upload therefore supplies no physical-rest evidence. The task,
+seating and preload remain unverified. All four observed process births were
+absent after ordinary scope exit, with no signals or forced closure; runtime
+closure correctly retained the freshness fault. The existing compact receipt
+preserves this negative, its separate model and epoch, and the full raw/phase
+artifact hashes. No retry was performed.

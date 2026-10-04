@@ -8,8 +8,10 @@ import uuid
 from dataclasses import dataclass, field
 
 from .domain import ToolIntent
+from .lifecycle import close_stage
 from .media import decode_pcm
 from .receipts import speech_tool_output
+from ..lifecycle import teardown_receipt
 
 
 @dataclass(frozen=True)
@@ -337,17 +339,22 @@ class ConversationSession:
             for context in self.responses.values():
                 context.valid = False
             # Any disconnect stops the runtime, including read-only sessions.
-            stop_receipt = await self.domain.stop()
+            stages = [await close_stage("stop", self.domain.stop)]
             current = asyncio.current_task()
             pending = [task for task in self._tasks if task is not current]
             for task in pending:
                 task.cancel()
             if pending:
-                await asyncio.gather(*pending, return_exceptions=True)
-            await self.provider.close()
-            await self.media.close()
-            self.closure_receipt = {"ok": not self.domain.action_pending and stop_receipt.get("ok") is True,
-                                    "session_closed": True, "action_pending": self.domain.action_pending,
-                                    "stop": stop_receipt, "reason": reason}
+                async def drain_tasks():
+                    await asyncio.gather(*pending, return_exceptions=True)
+                stages.append(await close_stage("tasks", drain_tasks))
+            stages.append(await close_stage("provider", self.provider.close))
+            stages.append(await close_stage("media", self.media.close))
+            self.closure_receipt = teardown_receipt(stages)
+            self.closure_receipt.update(
+                session_closed=True, action_pending=self.domain.action_pending,
+                stop=stages[0].get("result", stages[0]), reason=reason)
+            if self.domain.action_pending:
+                self.closure_receipt.update(ok=False, complete=False)
             self.done.set()
             return self.closure_receipt

@@ -10,6 +10,8 @@ from importlib.resources import files
 
 from .media import QueueMediaIO, decode_pcm
 from .session import ConversationSession
+from .lifecycle import close_stage
+from ..lifecycle import teardown_receipt
 
 
 class ConversationGateway:
@@ -26,6 +28,9 @@ class ConversationGateway:
         self._ticket_task = None
         self._origin = None
         self._runner = None
+        self._closing = False
+        self._close_lock = asyncio.Lock()
+        self.closure_receipt = None
 
     def _origin_valid(self, request):
         origin = request.headers.get("Origin")
@@ -68,6 +73,8 @@ class ConversationGateway:
 
     async def start(self, *, host="127.0.0.1", port=8780):
         from aiohttp import web
+        if self._closing or self._runner is not None:
+            raise ValueError("gateway already started or closed")
         if not ipaddress.ip_address(host).is_loopback or type(port) is not int or not 0 <= port <= 65535:
             raise ValueError("gateway binds an explicit loopback IP only")
         self._runner = web.AppRunner(self.application(), access_log=None)
@@ -88,19 +95,27 @@ class ConversationGateway:
 
     async def _create(self, request):
         from aiohttp import web
-        if self._creating or (self.session is not None and not self.session.closed):
+        if self._closing:
+            raise web.HTTPServiceUnavailable(text="gateway closing")
+        if self._creating or (self.session is not None and (not self.session.closed
+                or not self.session.closure_receipt or not self.session.closure_receipt.get("ok"))):
             raise web.HTTPConflict(text="session already exists")
         # Reserve before the first await: two slow HTTP bodies must not both
         # pass admission and overwrite the sole owned provider session.
         self._creating = True
         try:
             body = await request.json()
+            if self._closing:
+                raise web.HTTPServiceUnavailable(text="gateway closing")
             if body != {"robot_id": self.domain.robot_id}:
                 raise web.HTTPBadRequest(text="robot identity mismatch")
             media = QueueMediaIO()
             session = ConversationSession(self.domain, self.provider_factory(), media)
             self.session = session  # stop can reach even an unfinished handshake
             await session.start()
+            if self._closing or session.closed:
+                await session.close("gateway_shutdown")
+                raise web.HTTPServiceUnavailable(text="gateway closing")
             self._ticket = secrets.token_urlsafe(32)
             self._ticket_deadline = asyncio.get_running_loop().time() + 10
             async def expire_ticket():
@@ -139,6 +154,8 @@ class ConversationGateway:
 
     async def _reset(self, request):
         from aiohttp import web
+        if self._closing:
+            raise web.HTTPServiceUnavailable(text="gateway closing")
         # Explicit authenticated operator route, absent from the model tool list.
         try:
             body = await request.json()
@@ -147,6 +164,8 @@ class ConversationGateway:
         if (type(body) is not dict or set(body) != {"generation"}
                 or type(body["generation"]) is not int or body["generation"] < 0):
             raise web.HTTPBadRequest(text="reset requires an exact nonnegative integer generation")
+        if self._closing:
+            raise web.HTTPServiceUnavailable(text="gateway closing")
         return web.json_response(await asyncio.to_thread(
             self.domain.runtime.reset_stop, expected_generation=body["generation"]))
 
@@ -213,13 +232,28 @@ class ConversationGateway:
         return ws
 
     async def close(self):
-        if self._ticket_task:
-            self._ticket_task.cancel()
-            await asyncio.gather(self._ticket_task, return_exceptions=True)
-        if self.session:
-            await self.session.close("gateway_shutdown")
-        if self._socket:
-            await self._socket.close()
-        if self._runner:
-            await self._runner.cleanup()
-        return await self.domain.close()
+        async with self._close_lock:
+            if self.closure_receipt is not None:
+                return self.closure_receipt
+            self._closing = True
+            self._ticket = None
+            stages = []
+            if self._ticket_task:
+                self._ticket_task.cancel()
+                async def drain_ticket():
+                    await asyncio.gather(self._ticket_task, return_exceptions=True)
+                stages.append(await close_stage("ticket", drain_ticket))
+            if self.session:
+                stages.append(await close_stage("session", lambda: self.session.close("gateway_shutdown")))
+            if self._socket:
+                socket = self._socket
+                async def close_socket():
+                    # aiohttp's bool means "newly closed", not a close receipt.
+                    await socket.close()
+                stages.append(await close_stage("socket", close_socket))
+            if self._runner:
+                stages.append(await close_stage("http", self._runner.cleanup))
+            stages.append(await close_stage("domain", self.domain.close))
+            domain_receipt = stages[-1].get("result", {})
+            self.closure_receipt = {**domain_receipt, **teardown_receipt(stages)}
+            return self.closure_receipt

@@ -83,6 +83,48 @@ the browser or replay a command. Runtime reset refusal is preserved.
 Shutdown writes `closure.json`; a still-running action is reported as
 pending rather than falsely reported as cancelled.
 
+For an installed service, supply profiles explicitly and keep each process's
+records separate. A versioned JSON configuration can live outside the checkout:
+
+```json
+{
+  "version": 1,
+  "robot": "conversation_mock",
+  "config_dir": "profiles",
+  "provider_url": "ws://127.0.0.1:8765/v1/realtime",
+  "allow_tools": ["sensing.list_sensors", "sensing.read_sensor"],
+  "start_stopped": true,
+  "port": 8780,
+  "run_root": "runs"
+}
+```
+
+Run `cascade-conversation --config /absolute/path/service.json` with the
+conversation extra installed. Paths in the JSON are relative to that file;
+`profiles` contains the selected `robots/*.yaml` and `llm/*.yaml` configuration
+files. Explicit CLI options override matching fields. Select exactly one of
+`run_dir` and `run_root`; the latter creates a new private child on each start.
+Unknown or duplicate fields and ambiguous permission values are rejected.
+`token_env` names a credential environment variable; credentials are not expanded
+into the configuration or readiness record. The loopback bind stays unchanged.
+
+`ready.json` records when the listener was published, the process and profile
+identity, and whether the runtime started stopped. It contains no access token
+and does not establish provider readiness or a physical result; authenticated
+`/api/status` reports the current session. With `start_stopped`, explicitly reset
+the stop before connecting. A restart creates new authority and never replays
+the previous session. It does not restore a physical state or clear an external
+controller's stop.
+
+Shutdown attempts provider, media, HTTP, conversation and runtime cleanup even
+when another owner fails. `closure.json` retains partial cleanup and the process
+exits nonzero on startup, teardown or receipt-persistence failure. A failed session
+close blocks a replacement session in that gateway. External supervisors still
+own their process deadlines; these receipts do not prove physical rest or
+forcible termination of an outstanding action. CPU tests exercise real child
+HTTP/WebSocket processes, explicit reset/stop, restart, and failed cleanup using
+a protocol fixture and the synthetic sensor profile, without speech inference.
+
 ## Boundaries and lifecycle
 
 - `MediaIO` separates capture, playback, flush and close. `QueueMediaIO` bounds

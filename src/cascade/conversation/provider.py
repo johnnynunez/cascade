@@ -8,6 +8,9 @@ from dataclasses import dataclass
 from typing import Protocol
 from urllib.parse import urlsplit
 
+from .lifecycle import close_stage
+from ..lifecycle import retain_teardown_attempt, teardown_receipt
+
 HF_PROTOCOL_REVISION = "411399d34555b2169823a6eaeb7f8ff192db89db"
 
 
@@ -15,7 +18,7 @@ class RealtimeProvider(Protocol):
     async def connect(self, session: dict) -> None: ...
     async def send(self, event: dict) -> None: ...
     async def receive(self) -> dict: ...
-    async def close(self) -> None: ...
+    async def close(self) -> dict | None: ...
 
 
 @dataclass(frozen=True)
@@ -50,6 +53,7 @@ class RealtimeWebSocket:
         self.config = config
         self._client = self._ws = None
         self._send_lock = asyncio.Lock()
+        self._closure_receipt = None
 
     async def connect(self, session):
         import aiohttp
@@ -104,11 +108,17 @@ class RealtimeWebSocket:
         return event
 
     async def close(self):
+        stages = []
         if self._ws is not None:
-            try:
+            async def close_socket():
                 await asyncio.wait_for(self._ws.close(), 1)
-            except (TimeoutError, ConnectionError):
-                pass
+            stages.append(await close_stage("websocket", close_socket))
         if self._client is not None:
-            await self._client.close()
-        self._ws = self._client = None
+            stages.append(await close_stage("client", self._client.close))
+            if stages[-1]["ok"]:
+                # The client owns the WebSocket transport too.
+                self._ws = self._client = None
+        elif stages and stages[-1]["ok"]:
+            self._ws = None
+        self._closure_receipt = retain_teardown_attempt(self._closure_receipt, teardown_receipt(stages))
+        return self._closure_receipt

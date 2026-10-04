@@ -1,0 +1,916 @@
+{
+  "schema": 1,
+  "run": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_GC_TRIGGER_20261004/gc-trigger-probe-twelve-01",
+  "source": "58cd2e617773e3bdea34ddc0319e0068397551b1",
+  "scene_model_sha256": "edb857fed00c2fbd93c246d515618f266e14c2e51436e45c191f4d28c153442c",
+  "model_identity_file_sha256": "d11b7cf948bb63f272fc760b016294740cb915493d3bdf5c69b5a47742f91c92",
+  "native_completed": true,
+  "control_attempted": false,
+  "physical_acceptance": false,
+  "pin_reused": false,
+  "global_solves": 800,
+  "policy_commits": 2400,
+  "overview_support_probe_pairs": 9,
+  "reader_events": 24,
+  "withheld_ticks": 0,
+  "discarded_previews": 0,
+  "native_wall_s": 119.78134513899931,
+  "attempt_duration": {
+    "calls": 800,
+    "median_ms": 101.4469155,
+    "p95_ms": 118.534084,
+    "max_ms": 615.198792
+  },
+  "attempts_over_400ms": 10,
+  "phases_inclusive": {
+    "bam.before_step": {
+      "calls": 9600,
+      "median_ms": 1.6602715,
+      "p95_ms": 2.055788,
+      "max_ms": 3.757478
+    },
+    "bam.targets": {
+      "calls": 2400,
+      "median_ms": 0.031077,
+      "p95_ms": 0.081344,
+      "max_ms": 0.360529
+    },
+    "camera.capture": {
+      "calls": 9,
+      "median_ms": 53.393153,
+      "p95_ms": 54.070554,
+      "max_ms": 54.070554
+    },
+    "camera.overview": {
+      "calls": 9,
+      "median_ms": 81.077904,
+      "p95_ms": 126.539346,
+      "max_ms": 126.539346
+    },
+    "completed.read": {
+      "calls": 19200,
+      "median_ms": 0.041503,
+      "p95_ms": 0.075675,
+      "max_ms": 522.49056
+    },
+    "completed.validate": {
+      "calls": 9600,
+      "median_ms": 0.8331474999999999,
+      "p95_ms": 23.111521,
+      "max_ms": 523.619297
+    },
+    "native.capture": {
+      "calls": 800,
+      "median_ms": 4.7958680000000005,
+      "p95_ms": 5.999981,
+      "max_ms": 480.345304
+    },
+    "policy.prepare": {
+      "calls": 9600,
+      "median_ms": 0.9119675,
+      "p95_ms": 1.198664,
+      "max_ms": 495.991634
+    },
+    "publication": {
+      "calls": 9600,
+      "median_ms": 0.649418,
+      "p95_ms": 0.778484,
+      "max_ms": 2.135019
+    },
+    "record.physics": {
+      "calls": 800,
+      "median_ms": 27.343361,
+      "p95_ms": 30.927855,
+      "max_ms": 498.774229
+    },
+    "solve": {
+      "calls": 800,
+      "median_ms": 0.2577775,
+      "p95_ms": 0.36796,
+      "max_ms": 33.539059
+    },
+    "support.decode": {
+      "calls": 800,
+      "median_ms": 8.312149,
+      "p95_ms": 10.90153,
+      "max_ms": 12.909135
+    },
+    "support.probe": {
+      "calls": 9,
+      "median_ms": 0.736381,
+      "p95_ms": 1.275921,
+      "max_ms": 1.275921
+    },
+    "write.frames.jsonl": {
+      "calls": 9,
+      "median_ms": 0.031848,
+      "p95_ms": 0.040842,
+      "max_ms": 0.040842
+    },
+    "write.physics.jsonl": {
+      "calls": 800,
+      "median_ms": 15.2086045,
+      "p95_ms": 18.032562,
+      "max_ms": 486.490826
+    },
+    "write.policy.jsonl": {
+      "calls": 2400,
+      "median_ms": 0.038408,
+      "p95_ms": 0.063817,
+      "max_ms": 10.910112
+    },
+    "write.support-probe.jsonl": {
+      "calls": 9,
+      "median_ms": 0.576597,
+      "p95_ms": 0.600544,
+      "max_ms": 0.600544
+    }
+  },
+  "profile_write_flush": {
+    "calls": 800,
+    "median_ms": 0.0968975,
+    "p95_ms": 0.152652,
+    "max_ms": 10.972317
+  },
+  "bounds": {
+    "application_wall_s": 450,
+    "owned_scope_wall_s": 510,
+    "memory": "32G",
+    "cpu": "400%",
+    "nice": 19
+  },
+  "gc": {
+    "accounting_verified": true,
+    "events": 14948,
+    "complete_intervals": 7474,
+    "unmatched_events": 0,
+    "dropped_or_pending": 0,
+    "errors": 0,
+    "settings": {
+      "enabled": true,
+      "thresholds": [
+        700,
+        10,
+        10
+      ]
+    },
+    "interval_duration": {
+      "0": {
+        "count": 6842,
+        "median_ms": 0.034613,
+        "p95_ms": 0.092811,
+        "max_ms": 1.712035
+      },
+      "1": {
+        "count": 622,
+        "median_ms": 0.2388485,
+        "p95_ms": 0.423524,
+        "max_ms": 0.765314
+      },
+      "2": {
+        "count": 10,
+        "median_ms": 475.2475465,
+        "p95_ms": 496.33034,
+        "max_ms": 496.33034
+      }
+    },
+    "all_slow_attempts_overlap_generation2": true,
+    "trigger_capture_duration": {
+      "count": 10,
+      "median_ms": 0.0198355,
+      "p95_ms": 0.023856,
+      "max_ms": 0.023856
+    },
+    "boundary_counter_capture_duration": {
+      "count": 2,
+      "median_ms": 0.2292635,
+      "p95_ms": 0.248748,
+      "max_ms": 0.248748
+    },
+    "collector_counters": {
+      "initial": {
+        "count": [
+          662,
+          3,
+          61
+        ],
+        "stats": [
+          {
+            "collections": 993,
+            "collected": 42435,
+            "uncollectable": 0
+          },
+          {
+            "collections": 90,
+            "collected": 2794,
+            "uncollectable": 0
+          },
+          {
+            "collections": 2,
+            "collected": 34,
+            "uncollectable": 0
+          }
+        ],
+        "allocated_blocks": 3274765
+      },
+      "final": {
+        "count": [
+          3,
+          3,
+          7
+        ],
+        "stats": [
+          {
+            "collections": 7835,
+            "collected": 66659,
+            "uncollectable": 0
+          },
+          {
+            "collections": 712,
+            "collected": 4407,
+            "uncollectable": 0
+          },
+          {
+            "collections": 12,
+            "collected": 6322,
+            "uncollectable": 0
+          }
+        ],
+        "allocated_blocks": 3271383
+      }
+    },
+    "observer_overhead_complete": false
+  },
+  "trigger_sites": {
+    "copy.deepcopy": 8,
+    "mobile_base._plain_record tuple construction": 1,
+    "support observation validation": 1
+  },
+  "trigger_frame_table": [
+    {
+      "path": "<sdk>/kit/python/lib/python3.12/copy.py",
+      "function": "_deepcopy_list",
+      "line": 193
+    },
+    {
+      "path": "<sdk>/kit/python/lib/python3.12/copy.py",
+      "function": "deepcopy",
+      "line": 136
+    },
+    {
+      "path": "<sdk>/kit/python/lib/python3.12/copy.py",
+      "function": "_deepcopy_list",
+      "line": 196
+    },
+    {
+      "path": "<sdk>/kit/python/lib/python3.12/copy.py",
+      "function": "_deepcopy_dict",
+      "line": 221
+    },
+    {
+      "path": "<repo>/src/cascade/sim/microduck_shared_native.py",
+      "function": "_read_completed_scene",
+      "line": 176
+    },
+    {
+      "path": "<repo>/src/cascade/sim/microduck_timing.py",
+      "function": "timed",
+      "line": 165
+    },
+    {
+      "path": "<repo>/src/cascade/sim/microduck_shared_native.py",
+      "function": "read_bound_robot",
+      "line": 193
+    },
+    {
+      "path": "<repo>/src/cascade/sim/microduck_shared_native.py",
+      "function": "read",
+      "line": 222
+    },
+    {
+      "path": "<repo>/src/cascade/sim/microduck_stepper.py",
+      "function": "_read",
+      "line": 109
+    },
+    {
+      "path": "<repo>/src/cascade/sim/microduck_stepper.py",
+      "function": "_validate_tick",
+      "line": 282
+    },
+    {
+      "path": "<repo>/src/cascade/sim/microduck_shared.py",
+      "function": "tick",
+      "line": 383
+    },
+    {
+      "path": "<repo>/src/cascade/control/mobile_base.py",
+      "function": "<genexpr>",
+      "line": 29
+    },
+    {
+      "path": "<repo>/src/cascade/control/mobile_base.py",
+      "function": "_plain_record",
+      "line": 29
+    },
+    {
+      "path": "<repo>/scripts/isaac_microduck_shared.py",
+      "function": "default",
+      "line": 45
+    },
+    {
+      "path": "<sdk>/kit/python/lib/python3.12/json/encoder.py",
+      "function": "iterencode",
+      "line": 258
+    },
+    {
+      "path": "<sdk>/kit/python/lib/python3.12/json/encoder.py",
+      "function": "encode",
+      "line": 200
+    },
+    {
+      "path": "<sdk>/kit/python/lib/python3.12/json/__init__.py",
+      "function": "dumps",
+      "line": 238
+    },
+    {
+      "path": "<repo>/scripts/isaac_microduck_shared.py",
+      "function": "_physics_json",
+      "line": 71
+    },
+    {
+      "path": "<repo>/scripts/isaac_microduck_shared.py",
+      "function": "row",
+      "line": 136
+    },
+    {
+      "path": "<repo>/scripts/isaac_microduck_shared.py",
+      "function": "run",
+      "line": 169
+    },
+    {
+      "path": "<repo>/scripts/isaac_microduck_shared.py",
+      "function": "main",
+      "line": 277
+    },
+    {
+      "path": "<repo>/scripts/isaac_microduck_shared.py",
+      "function": "<module>",
+      "line": 282
+    },
+    {
+      "path": "<sdk>/kit/python/lib/python3.12/copy.py",
+      "function": "deepcopy",
+      "line": 128
+    },
+    {
+      "path": "<repo>/src/cascade/sim/microduck_stepper.py",
+      "function": "_tick_inputs",
+      "line": 244
+    },
+    {
+      "path": "<repo>/src/cascade/sim/microduck_stepper.py",
+      "function": "_stage_tick",
+      "line": 255
+    },
+    {
+      "path": "<repo>/src/cascade/sim/microduck_shared.py",
+      "function": "tick",
+      "line": 338
+    },
+    {
+      "path": "<repo>/scripts/isaac_microduck_shared.py",
+      "function": "run",
+      "line": 154
+    },
+    {
+      "path": "<repo>/src/cascade/sim/microduck_newton.py",
+      "function": "_native_robot_slice",
+      "line": 223
+    },
+    {
+      "path": "<repo>/src/cascade/sim/microduck_newton.py",
+      "function": "read_native_states",
+      "line": 248
+    },
+    {
+      "path": "<repo>/src/cascade/sim/microduck_shared_native.py",
+      "function": "_read_completed_scene",
+      "line": 165
+    },
+    {
+      "path": "<repo>/src/cascade/sim/mobile_bridge.py",
+      "function": "_copy_observation",
+      "line": 29
+    },
+    {
+      "path": "<repo>/src/cascade/sim/mobile_bridge.py",
+      "function": "_state_snapshot",
+      "line": 207
+    },
+    {
+      "path": "<repo>/src/cascade/sim/mobile_bridge.py",
+      "function": "_state_for_record",
+      "line": 189
+    },
+    {
+      "path": "<repo>/scripts/isaac_microduck_shared.py",
+      "function": "run",
+      "line": 171
+    },
+    {
+      "path": "<frozen abc>",
+      "function": "__subclasscheck__",
+      "line": 123
+    },
+    {
+      "path": "<frozen abc>",
+      "function": "__instancecheck__",
+      "line": 119
+    },
+    {
+      "path": "<repo>/src/cascade/control/mobile_base.py",
+      "function": "finite_real",
+      "line": 37
+    },
+    {
+      "path": "<repo>/src/cascade/control/mobile_base.py",
+      "function": "<genexpr>",
+      "line": 62
+    },
+    {
+      "path": "<repo>/src/cascade/control/mobile_base.py",
+      "function": "_vector",
+      "line": 62
+    },
+    {
+      "path": "<repo>/src/cascade/control/mobile_support.py",
+      "function": "__post_init__",
+      "line": 49
+    },
+    {
+      "path": "<string>",
+      "function": "__init__",
+      "line": 11
+    },
+    {
+      "path": "<repo>/src/cascade/control/mobile_support.py",
+      "function": "_record",
+      "line": 24
+    },
+    {
+      "path": "<repo>/src/cascade/control/mobile_support.py",
+      "function": "<genexpr>",
+      "line": 91
+    },
+    {
+      "path": "<repo>/src/cascade/control/mobile_support.py",
+      "function": "__post_init__",
+      "line": 91
+    },
+    {
+      "path": "<repo>/src/cascade/control/mobile_support.py",
+      "function": "from_dict",
+      "line": 105
+    },
+    {
+      "path": "<repo>/src/cascade/sim/microduck_shared.py",
+      "function": "capture_support",
+      "line": 81
+    },
+    {
+      "path": "<repo>/src/cascade/sim/microduck_shared_native.py",
+      "function": "_read_completed_scene",
+      "line": 164
+    }
+  ],
+  "trigger_stacks": [
+    {
+      "event_id": 596,
+      "thread_id": 138855845316544,
+      "start_monotonic_ns": 29046917698586,
+      "end_monotonic_ns": 29046917722442,
+      "duration_ns": 23856,
+      "python_caller_present": true,
+      "truncated": true,
+      "strings_truncated": false,
+      "frame_indices": [
+        0,
+        1,
+        2,
+        1,
+        3,
+        1,
+        3,
+        1,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        5,
+        10
+      ],
+      "observed_trigger_group": "copy.deepcopy"
+    },
+    {
+      "event_id": 2191,
+      "thread_id": 138855845316544,
+      "start_monotonic_ns": 29055521904487,
+      "end_monotonic_ns": 29055521924968,
+      "duration_ns": 20481,
+      "python_caller_present": true,
+      "truncated": false,
+      "strings_truncated": false,
+      "frame_indices": [
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21
+      ],
+      "observed_trigger_group": "mobile_base._plain_record tuple construction"
+    },
+    {
+      "event_id": 3939,
+      "thread_id": 138855845316544,
+      "start_monotonic_ns": 29065020939359,
+      "end_monotonic_ns": 29065020958127,
+      "duration_ns": 18768,
+      "python_caller_present": true,
+      "truncated": true,
+      "strings_truncated": false,
+      "frame_indices": [
+        22,
+        2,
+        1,
+        2,
+        1,
+        3,
+        1,
+        3,
+        1,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        5
+      ],
+      "observed_trigger_group": "copy.deepcopy"
+    },
+    {
+      "event_id": 5535,
+      "thread_id": 138855845316544,
+      "start_monotonic_ns": 29073874900895,
+      "end_monotonic_ns": 29073874921336,
+      "duration_ns": 20441,
+      "python_caller_present": true,
+      "truncated": true,
+      "strings_truncated": false,
+      "frame_indices": [
+        22,
+        2,
+        1,
+        2,
+        1,
+        3,
+        1,
+        6,
+        7,
+        8,
+        23,
+        24,
+        5,
+        25,
+        26,
+        20
+      ],
+      "observed_trigger_group": "copy.deepcopy"
+    },
+    {
+      "event_id": 7282,
+      "thread_id": 138855845316544,
+      "start_monotonic_ns": 29083381488440,
+      "end_monotonic_ns": 29083381507640,
+      "duration_ns": 19200,
+      "python_caller_present": true,
+      "truncated": true,
+      "strings_truncated": false,
+      "frame_indices": [
+        22,
+        2,
+        1,
+        2,
+        1,
+        3,
+        1,
+        3,
+        1,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        5
+      ],
+      "observed_trigger_group": "copy.deepcopy"
+    },
+    {
+      "event_id": 8903,
+      "thread_id": 138855845316544,
+      "start_monotonic_ns": 29092302459521,
+      "end_monotonic_ns": 29092302477539,
+      "duration_ns": 18018,
+      "python_caller_present": true,
+      "truncated": true,
+      "strings_truncated": false,
+      "frame_indices": [
+        22,
+        2,
+        1,
+        2,
+        1,
+        3,
+        1,
+        27,
+        28,
+        5,
+        29,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "observed_trigger_group": "copy.deepcopy"
+    },
+    {
+      "event_id": 10574,
+      "thread_id": 138855845316544,
+      "start_monotonic_ns": 29101496527097,
+      "end_monotonic_ns": 29101496546327,
+      "duration_ns": 19230,
+      "python_caller_present": true,
+      "truncated": false,
+      "strings_truncated": false,
+      "frame_indices": [
+        22,
+        2,
+        1,
+        2,
+        1,
+        3,
+        1,
+        30,
+        31,
+        32,
+        33,
+        20,
+        21
+      ],
+      "observed_trigger_group": "copy.deepcopy"
+    },
+    {
+      "event_id": 12246,
+      "thread_id": 138855845316544,
+      "start_monotonic_ns": 29111237869179,
+      "end_monotonic_ns": 29111237890822,
+      "duration_ns": 21643,
+      "python_caller_present": true,
+      "truncated": true,
+      "strings_truncated": false,
+      "frame_indices": [
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        40,
+        41,
+        44,
+        45,
+        46,
+        5
+      ],
+      "observed_trigger_group": "support observation validation"
+    },
+    {
+      "event_id": 13968,
+      "thread_id": 138855845316544,
+      "start_monotonic_ns": 29121368185918,
+      "end_monotonic_ns": 29121368204507,
+      "duration_ns": 18589,
+      "python_caller_present": true,
+      "truncated": true,
+      "strings_truncated": false,
+      "frame_indices": [
+        22,
+        2,
+        1,
+        2,
+        1,
+        3,
+        1,
+        3,
+        1,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        5
+      ],
+      "observed_trigger_group": "copy.deepcopy"
+    },
+    {
+      "event_id": 15564,
+      "thread_id": 138855845316544,
+      "start_monotonic_ns": 29130688782094,
+      "end_monotonic_ns": 29130688804538,
+      "duration_ns": 22444,
+      "python_caller_present": true,
+      "truncated": true,
+      "strings_truncated": false,
+      "frame_indices": [
+        22,
+        2,
+        1,
+        2,
+        1,
+        3,
+        1,
+        6,
+        7,
+        8,
+        23,
+        24,
+        5,
+        25,
+        26,
+        20
+      ],
+      "observed_trigger_group": "copy.deepcopy"
+    }
+  ],
+  "stack_path_roots": {
+    "<repo>": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_GC_TRIGGER_20261004/cascade",
+    "<sdk>": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release"
+  },
+  "recipe_changes_from_prior_reader": [
+    "recipe.native.configuration.phase_profile",
+    "recipe.source_sha256.scripts/isaac_microduck_shared.py",
+    "recipe.source_sha256.src/cascade/sim/microduck_timing.py"
+  ],
+  "prior_reader_reference": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_ROW_20261004/row-phase-probe-twelve-01",
+    "source": "e801d51a352973f4ac3fb5b25f50487bf49a6f23",
+    "attempt_duration": {
+      "calls": 800,
+      "median_ms": 105.587913,
+      "p95_ms": 116.028396,
+      "max_ms": 662.650867
+    }
+  },
+  "gpu_admission": {
+    "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+    "foreign_at_three_checks": [
+      [],
+      [],
+      []
+    ],
+    "free_mib_at_three_checks": [
+      97218,
+      97218,
+      97218
+    ]
+  },
+  "cache": {
+    "private_copied_roots": [
+      "cuda",
+      "warp",
+      "xdg"
+    ],
+    "seed": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_ROW_20261004/row-phase-probe-twelve-01/cache",
+    "initial_files": 555,
+    "exclusive_inodes": true,
+    "renderer_cache": "Shared selection retained from the preceding recipe; not an audited exclusive RTX seed."
+  },
+  "closure": {
+    "native_exit": 0,
+    "scope_exit": 0,
+    "client_closed": true,
+    "forced": false,
+    "signals": [],
+    "remaining_members": [],
+    "remaining_births": [],
+    "inputs_unchanged": true,
+    "protected_stores_unchanged": true
+  },
+  "sdk": {
+    "recipe": "isaac62_48b2d951",
+    "newton_version": "1.6.1rc1",
+    "release_version_sha256": "59a6d16d8f3f247b73fa68a837867dafc0f568e491ae593f0ab1c2cb2fa62786",
+    "source_sha256": {
+      "mujoco_warp._src.support": "1a08ef15f149d1cf3c9ec5df6c688669fe86aa237ee2512a7463caf1b74e3d54",
+      "newton._src.solvers.mujoco.kernels": "bd770d39d20c208e980477e0186799f531364b03f16d76968ee69bacdc490a3d",
+      "newton._src.solvers.mujoco.solver_mujoco": "a2f2466ad9d35e32f6e87f12bbaa0e08d18295f4e95b1c059c805d2ff4091178",
+      "isaacsim.physics.newton.impl.newton_stage": "a9d4e95305b23e6cea8e4e8e5fb63dc8b6c5c5917ad5c3ba48e2ba29df84d958",
+      "isaacsim.physics.newton.impl.newton_config": "b1212639ebf22448a1da36b272b36da02eb340dcc1ad2312da075a66dadf1de0",
+      "isaacsim.physics.newton.impl.solver_config": "e6c17f958cbd2534ac71743e62f56b79c4e8d86147ee676a6e80ee0d7ea9fe03"
+    },
+    "physical_acceptance": false
+  },
+  "runtime_source_sha256": {
+    "assets/microduck/manifest.json": "56678bc8dbbc4aba6ca99944a37d495badb1157093b728348700739896383faa",
+    "assets/microduck/newton-bam.json": "d04d0281eb2f581ab738a95ddf6983f09bbfa8dbabef4087271e61e384fd5b4b",
+    "assets/microduck/policy-candidates.json": "6357372fd8f1aba6c64de5d95ba28a6f2f08a825fc4352642d20c152f776c11f",
+    "configs/isaac/microduck.newton.kit": "22ad2a0f66a14863c482a6fd74785475001d5b6aa2bd2f5879d31cb3440a7794",
+    "scripts/convert_microduck.py": "11e5df9e99b03cd0e3479a3dee94da17b685e49c04c32f364a895ab38c6751a2",
+    "scripts/isaac_camera_readback.py": "28c4523b08410db254c83e70f52c36f0f34488e6964dd6aebb561b638df8b9cd",
+    "scripts/isaac_microduck_bridge.py": "5237c61cbc79c40dd48fd9fa0344cf255bd376bc2a29add3b60948b97b0bcb59",
+    "scripts/isaac_microduck_shared.py": "fa0e9965123da3018918cfc4dbc92d8d8c00edec30b25146a4393c6843a947cd",
+    "scripts/isaac_runtime.py": "8d40bc13b50d86f6c671628486142b6ee2cfa61ea762ea7867e66cf1447c935a",
+    "src/cascade/apps/signal_stop.py": "1a94a391c25d856299d899e633aaa777215e4ef1dc1fc819bee492c44019b9bd",
+    "src/cascade/control/microduck_actuator.py": "77216426cefc311237fa6854f06aa98a90d4f9f53b080a93c886d67f14961a0e",
+    "src/cascade/control/microduck_policy.py": "4a3df35ac4eccafdbd94cb99be8ff2d80320a509a5494b8f0bd0c9c22059479c",
+    "src/cascade/control/mobile_base.py": "eba69775ad6f881aa8ab421bdbb56af2117101a141ef831d15873bb855343fe8",
+    "src/cascade/control/mobile_support.py": "08a8c57898871d677c46de9aa34c3e59977e8b85a1039d49b5b241810fd328c4",
+    "src/cascade/control/newton_bam.py": "1972ac0b4d6bbf06138ef550b530142c820cf03d6d3d4ce4aba5d68ffb00e64c",
+    "src/cascade/sim/microduck_admission.py": "dddf5ebced53b1f5b2d0fcffe508cfc28f6d02b84a2492d62837b98d87d3f483",
+    "src/cascade/sim/microduck_contact_support.py": "ddbcefaf1f95aa407cd669514f00fd5811ba89967faa87b68d78d576cd8b752e",
+    "src/cascade/sim/microduck_newton.py": "c4c6bfe5117d9fc45dfd96f76348ea8928ed479926220236ea3a3f401724e8ec",
+    "src/cascade/sim/microduck_policy_admission.py": "199fb0683fffeae9e93a99f22ed595c29cad4e36508ab5c7888b0fba9bf551d9",
+    "src/cascade/sim/microduck_sdk.py": "dd3502263048e483ebbc3f393ebc505c0fe8fad23b0fb4b7837fa5cef314bf56",
+    "src/cascade/sim/microduck_shared.py": "d71e9e6082ac6a1ceabd4592813a74959f678b28ac9ad57e1b04435467048f34",
+    "src/cascade/sim/microduck_shared_native.py": "8701ac20e1283611d2f6d375b5bc245f29410a3b8b87b4cc3b132773ea5ea439",
+    "src/cascade/sim/microduck_solver_graph.py": "9f990fc96daaa91e849444acfd302d4c6da9a7c62a42adc1f3e445cf65858772",
+    "src/cascade/sim/microduck_state.py": "495f3062274b620890448d6b3958c7481108a265321a616f64da1ec06a972971",
+    "src/cascade/sim/microduck_stepper.py": "fdd2ba66376c6535a784d275bc957646e6e3bdb17100bc4a565f4fe095597ae0",
+    "src/cascade/sim/microduck_timing.py": "c80274ad605c91c54cfcc1f301bb80a77b9ede6b5dadab3eaf6c348443a97a14",
+    "src/cascade/sim/mobile_bridge.py": "f168bd7d315ed9ad36ffa4846079c4d5997f59dbb2dafb72be0175c23b00ec6d",
+    "src/cascade/sim/mobile_identity.py": "eb7b29754243f5ab8f3ebf6bb8524175698b96250f55796a0135273fdb6cf21a",
+    "src/cascade/sim/mobile_rgbd.py": "8bfc3219e21373eccaed55f92452d66820182cba12faa63f6a2c99d2fb3ab861"
+  },
+  "artifact_sha256": {
+    "kit/physics.jsonl": "dc95c08cc16854219b3697dc4d1a82b7c9023eac65369d0faf14be15f8ad2fcf",
+    "kit/policy.jsonl": "4b6e2d595cb0e18f2aab9930ff464297e90c021f1998b83cbe9769280f499ccd",
+    "kit/frames.jsonl": "a139e6194310d5ea5231926c7a61a917ed48e69f9064adc82027e7d5345fe236",
+    "kit/support-probe.jsonl": "44b902b12ad89b22119d6c2643660f7e19f26fba625e964c1cbec7a179353a23",
+    "kit/model-identity.json": "d11b7cf948bb63f272fc760b016294740cb915493d3bdf5c69b5a47742f91c92",
+    "kit/receipt.json": "2f95508be1fd5a31fd27db58712b5f86200482e71b7264c5e79e2c5eed9d28f8",
+    "plan.json": "302ed5327ee4c04e741a817a6480c91c13701348fa02a8d96a7ed591dc7b6694",
+    "inputs.json": "70fc4fbbe2ec270e370864656e894a8ea153a7cc9f4f5b321b14d1f6ab166c3f",
+    "root-receipt.json": "c705257bce1e15def4669688ca7fb5a4235ce314282234d320b99a235ad852cf",
+    "launch-binding.json": "a68ffc3b4d7a61c0e05eccf39f4984415dd7edb19882d30686482c36f16d4c4b",
+    "independent-audit.json": "e98d8019c7ec11df4e9edb3f8563c8a7a27bd6ad1c1b6a6f3d4c5b27eac5329a",
+    "phase-audit.json": "5a4af679d58c2e7ef42fe9bc4bd6aceb380ec46dcf8d097c694a331ca7640321",
+    "gc-trigger-audit.json": "0447b315addbc0561d747161c2790f8500f93133dfcaeb087b3e7a7e1b83d8a5",
+    "kit/timing.jsonl": "af064d293e38b55070d13c0eb1ee9d0c4af4df308df5bf7a999c1cf3e971a855",
+    "client-events.json": "6356d82463981c9cb56b9d4513b13219a8c55f4f0ed71ce79bbb4859169908e8",
+    "client-close.json": "9e0e34c405b6c4b8c8f3e1c84cb728abd6c168a9d271f5fbdb476edccc489857",
+    "native-exit.json": "d24219f6de94b955cf36d25bd2aca88e2d35eef45b9317b7083f55ec8fe9653c",
+    "scope/owner.json": "977b4f1107100426596ea891b0cfb6925a85c61ee0144c41e8f8b2c69c063c4c",
+    "gpu-planning-admission.json": "055d482015114b2830b1b47da7f4eb0464adda96574b954a78c3f4f4883da8a8",
+    "gpu-recheck-01.json": "055d482015114b2830b1b47da7f4eb0464adda96574b954a78c3f4f4883da8a8",
+    "gpu-recheck-02.json": "055d482015114b2830b1b47da7f4eb0464adda96574b954a78c3f4f4883da8a8",
+    "cache-provenance.json": "5b0c94480bdc24330815bad54b616a5b89abe729d5c8d36542e9da842901e544",
+    "comparison-reference.json": "ebc6dbdd61b58148c3343b659d7c31ab69982cc517adc4d1286c83dbd058c912",
+    "source-freeze.json": "edb967c7d5762f2650e9ed8b9ec600de7e1b2dbb8038ba666d43fac7afbedeb4",
+    "plan-diff.json": "3b98555bd03b90c100bb16b96d0f2358d01199099056c210b87a3e41425b913a"
+  },
+  "auditors_sha256": {
+    "audit_endpoint_native.py": "783abe77eaa2eefb02ed0537df6bb289631acfe197263b25fc5989bec71a3c0d",
+    "audit_phases_trigger.py": "b0e1129e6fd178bb38f96be68cf7edeca9f968c545ae368608c94b78b3ddcec8",
+    "audit_gc_v2.py": "26d6dde090deacfa92a854eed34f4b251eb29a6459d94014c38d85656b69146f",
+    "audit_gc_v3.py": "bf63eeccb69efabe051913e328021f8535908a5e7a1995389265a4baa8a21cef"
+  },
+  "retained_negative_evidence": [
+    "endpoints.json",
+    "support-control.json",
+    "row-control.json"
+  ],
+  "limitations": [
+    "Trigger frames show the observed call site, not the heap or objects traversed and not a causal attribution.",
+    "Eight stacks are truncated at sixteen frames; no locals, source lines or Python frame references were retained.",
+    "Stack/counter capture timings exclude callback dispatch, queue and encoding overhead and must not be subtracted as a causal correction.",
+    "Allocated-block counters are not a heap-object census. Counter snapshots bracket callback registration, not SDK startup.",
+    "Ten attempts still exceed the original 0.4 s progress limit, with a maximum above the 0.5 s RPC limit. No control or deadline recovery was tested.",
+    "Phase durations are inclusive, not additive; this separate observer recipe does not establish a native speedup.",
+    "The three earlier twelve-robot control failures and all frozen episodes remain unchanged."
+  ]
+}

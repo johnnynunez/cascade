@@ -28,7 +28,8 @@ def test_nested_inclusive_spans_restore_methods_and_report_their_own_write_cost(
     original = owner.solve
     profile = PhaseProfile(path, clock=clock)
     profile.wrap(owner, 'solve', 'solve')
-    assert owner.solve() == 'same return' and clock.now == 0  # outside an attempt
+    initial_clock = clock.now
+    assert owner.solve() == 'same return' and clock.now == initial_clock  # outside an attempt
     for expected in ('withheld', 'solved'):
         with profile.attempt(owner) as attempt:
             with profile.span('outer', 'duck'):
@@ -125,6 +126,7 @@ def fake_gc(monkeypatch):
         pytest.fail('passive profiling must not control or enumerate the collector')
     collector = SimpleNamespace(callbacks=[], enabled=True, thresholds=(700, 10, 10),
         isenabled=lambda: collector.enabled, get_threshold=lambda: collector.thresholds,
+        get_count=lambda: (1, 2, 3), get_stats=lambda: [dict(collections=1, collected=0, uncollectable=0) for _ in range(3)],
         enable=forbidden, disable=forbidden, collect=forbidden, freeze=forbidden,
         unfreeze=forbidden, set_threshold=forbidden, get_objects=forbidden)
     monkeypatch.setattr(timing, 'gc', collector)
@@ -132,6 +134,80 @@ def fake_gc(monkeypatch):
 
 
 INFO = dict(generation=2, collected=4, uncollectable=0)
+
+
+def test_gen2_trigger_copies_bounded_frames_without_retaining_locals(fake_gc):
+    import weakref
+    class Payload:
+        pass
+    capture = timing._GCEvents(Clock())
+    def emit(depth):
+        if depth:
+            return emit(depth-1)
+        payload = Payload()
+        reference = weakref.ref(payload)
+        capture.callback('start', INFO)
+        return reference
+    reference = emit(20)
+    assert reference() is None
+    capture.callback('stop', INFO)
+    capture.callback('start', dict(INFO, generation=1))
+    batch, summary = capture.close()
+    start, stop, minor = batch['events']
+    trigger = start['trigger']
+    assert len(trigger['frames']) == 16 and trigger['truncated']
+    assert not trigger['strings_truncated']
+    assert all(set(frame) == {'path', 'function', 'line'} for frame in trigger['frames'])
+    assert trigger['frames'][0]['function'] == 'emit'
+    assert start['monotonic_ns'] <= trigger['start_monotonic_ns'] < trigger['end_monotonic_ns']
+    assert trigger['duration_ns'] == trigger['end_monotonic_ns']-trigger['start_monotonic_ns']
+    assert 'trigger' not in stop and 'trigger' not in minor
+    assert summary['counters_complete']
+    for snapshot in (summary['counters_initial'], summary['counters_final']):
+        assert snapshot['values']['count'] == [1, 2, 3]
+        assert snapshot['duration_ns'] == snapshot['end_monotonic_ns']-snapshot['start_monotonic_ns'] >= 0
+
+
+def test_trigger_strings_are_bounded_and_failure_keeps_callback_accounting(monkeypatch, fake_gc):
+    capture = timing._GCEvents(Clock())
+    exec(compile("capture.callback('start', INFO)", 'x'*600, 'exec'),
+         {'capture': capture, 'INFO': INFO})
+    trigger = capture.pending[0]['trigger']
+    assert trigger['strings_truncated'] and trigger['frames'][0]['path'] == 'x'*512
+    def fail():
+        raise RuntimeError('stack unavailable')
+    monkeypatch.setattr(timing, '_trigger_stack', fail)
+    capture.callback('start', INFO)
+    batch, summary = capture.close()
+    assert batch['events'][-1]['error_type'] == 'RuntimeError'
+    assert batch['events'][-1]['generation'] == 2 and batch['events'][-1]['monotonic_ns'] > 0
+    assert summary['observed'] == summary['recorded'] == 2 and summary['errors'] == 1
+    assert not summary['accounting_complete'] and not fake_gc.callbacks
+
+
+def test_c_callback_without_python_caller_keeps_complete_event_metadata(monkeypatch, fake_gc):
+    capture = timing._GCEvents(Clock())
+    monkeypatch.setattr(timing.sys, '_getframe', lambda depth: SimpleNamespace(f_back=None))
+    capture.callback('start', INFO)
+    batch, summary = capture.close()
+    event = batch['events'][0]
+    assert event['error_type'] is None and event['generation'] == 2 and event['monotonic_ns'] > 0
+    assert event['trigger']['frames'] == [] and not event['trigger']['python_caller_present']
+    assert not event['trigger']['truncated'] and summary['accounting_complete']
+
+
+def test_counter_failure_is_explicit_and_does_not_leave_callback_installed(fake_gc):
+    foreign = lambda *args: None
+    fake_gc.callbacks.append(foreign)
+    capture = timing._GCEvents(Clock())
+    def fail():
+        raise RuntimeError('counter unavailable')
+    fake_gc.get_stats = fail
+    _, summary = capture.close()
+    assert summary['counters_initial']['error_type'] is None
+    assert summary['counters_final']['error_type'] == 'RuntimeError'
+    assert summary['counters_final']['values'] is None and not summary['counters_complete']
+    assert fake_gc.callbacks == [foreign]
 
 
 def test_gc_events_cross_attempts_and_threads_without_forcing_pairs(tmp_path, fake_gc):
@@ -230,11 +306,13 @@ def test_gc_empty_profile_and_external_callback_removal_are_visible(tmp_path, fa
 
 @pytest.mark.parametrize('close_in_flight', [False, True])
 def test_gc_callback_resuming_after_owner_drain_is_retained_or_explicitly_incomplete(fake_gc, close_in_flight):
-    from threading import Event
+    from threading import Event, get_ident
     entered, release = Event(), Event()
+    owner_thread = get_ident()
     def suspended_clock():
-        entered.set()
-        assert release.wait(timeout=2)
+        if get_ident() != owner_thread:
+            entered.set()
+            assert release.wait(timeout=2)
         return 123
     capture = timing._GCEvents(suspended_clock)
     with ThreadPoolExecutor(1) as pool:

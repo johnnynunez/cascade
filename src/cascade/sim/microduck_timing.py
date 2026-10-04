@@ -5,8 +5,42 @@ from functools import wraps
 import gc
 from itertools import count
 import json
+import sys
 import threading
 import time
+
+
+def _trigger_stack():
+    """Copy only bounded strings/line numbers; never keep frames or locals."""
+    frames, strings_truncated = [], False
+    frame = sys._getframe(1).f_back
+    caller_present = frame is not None
+    try:
+        while frame is not None and len(frames) < 16:
+            code = frame.f_code
+            strings_truncated |= len(code.co_filename) > 512 or len(code.co_name) > 512
+            frames.append(dict(path=code.co_filename[:512], function=code.co_name[:512],
+                               line=frame.f_lineno))
+            frame = frame.f_back
+        return dict(frames=frames, python_caller_present=caller_present, truncated=frame is not None,
+                    strings_truncated=strings_truncated)
+    finally:
+        del frame
+
+
+def _counter_snapshot(clock):
+    started = ended = elapsed = result = error = None
+    try:
+        started = clock()
+        blocks = getattr(sys, 'getallocatedblocks', None)
+        result = dict(count=list(gc.get_count()), stats=gc.get_stats(),
+                      allocated_blocks=None if blocks is None else blocks())
+        ended = clock()
+        elapsed = ended-started
+    except BaseException as exc:
+        error = type(exc).__name__
+    return dict(start_monotonic_ns=started, end_monotonic_ns=ended,
+                duration_ns=elapsed, values=result, error_type=error)
 
 
 class _GCEvents:
@@ -22,6 +56,7 @@ class _GCEvents:
         self.active, self.registered = True, True
         self.drains = self.recorded = self.errors = 0
         self.initial = dict(enabled=gc.isenabled(), thresholds=gc.get_threshold())
+        self.counters_initial = _counter_snapshot(self.clock)
         self.callback = self._record  # retain this exact bound method for removal
         gc.callbacks.append(self.callback)
 
@@ -29,13 +64,19 @@ class _GCEvents:
         ticket = next(self.tickets)
         if not self.active:
             return
+        event = dict(id=ticket, phase=phase, error_type=None)
         try:
-            event = dict(id=ticket, phase=phase, error_type=None,
-                monotonic_ns=self.clock(), thread_id=threading.get_ident(),
+            event.update(monotonic_ns=self.clock(), thread_id=threading.get_ident(),
                 generation=info['generation'], collected=info.get('collected'),
                 uncollectable=info.get('uncollectable'))
+            if phase == 'start' and info['generation'] == 2:
+                started = self.clock()
+                trigger = _trigger_stack()
+                ended = self.clock()
+                event['trigger'] = dict(start_monotonic_ns=started, end_monotonic_ns=ended,
+                    duration_ns=ended-started, **trigger)
         except BaseException as exc:
-            event = dict(id=ticket, phase=phase, error_type=type(exc).__name__)
+            event['error_type'] = type(exc).__name__
         # This queue is never replaced. A suspended callback cannot retain an
         # already serialized batch. CPython deque append/popleft and count next
         # are atomic; callbacks never acquire a lock or wait for the owner.
@@ -63,10 +104,18 @@ class _GCEvents:
             for index in range(len(gc.callbacks)-1, -1, -1):
                 if gc.callbacks[index] is self.callback:
                     del gc.callbacks[index]
+        counters_final = _counter_snapshot(self.clock)
         return batch, dict((key, value) for key, value in batch.items() if key != 'events') | dict(
             event_limit=self.limit,
             accounting_complete=not batch['dropped_or_pending'] and not self.errors and self.registered,
             initial=self.initial, final=dict(enabled=gc.isenabled(), thresholds=gc.get_threshold()),
+            trigger_stack=dict(frame_limit=16, string_limit=512, order='innermost-first',
+                scope='Trigger stack only; not the heap traversed or a causal attribution.'),
+            counters_initial=self.counters_initial, counters_final=counters_final,
+            counters_complete=not self.counters_initial['error_type'] and not counters_final['error_type'],
+            observer_scope='Stack and boundary-counter capture timings exclude queue/encoding overhead; '
+                'not total observer cost. Stack capture is included in GC intervals. Counters bracket '
+                'callback registration, not SDK startup; allocated blocks are not a heap-object census.',
             scope='process callbacks; absolute clocks; intervals are not isolated CPU time')
 
 

@@ -288,7 +288,8 @@ def test_broken_exception_formatting_cannot_skip_attempted_stop():
     assert "unreadable exception" in result["error"]
 
 
-def test_failed_start_preserves_original_error_and_attempts_closure(tmp_path, monkeypatch):
+@pytest.mark.parametrize("save_failure", [False, True])
+def test_failed_start_preserves_original_error_and_attempts_closure(tmp_path, monkeypatch, save_failure):
     from cascade.apps import hand_runtime as app
     backend = SyntheticBackend()
     backend.synthetic, backend.document = False, {}
@@ -303,11 +304,18 @@ def test_failed_start_preserves_original_error_and_attempts_closure(tmp_path, mo
             raise RuntimeError("secondary close failure")
     monkeypatch.setattr(app, "prepare_hand_model", lambda profile: backend)
     monkeypatch.setattr(app, "HandController", FailedOwner)
+    original_save = app._save
+    def save(path, value):
+        if save_failure and path.name == "startup-failure.json":
+            raise OSError("injected failure persistence error")
+        original_save(path, value)
+    monkeypatch.setattr(app, "_save", save)
     with pytest.raises(HandFault, match="original start failure"):
         app.build_hand_runtime(profile() | {"model_identity_sha256": backend.model_sha256},
             tmp_path, domain_id="hand")
     assert closed == [True]
-    assert '"error_type": "RuntimeError"' in (tmp_path/"startup-failure.json").read_text()
+    if not save_failure:
+        assert '"error_type": "RuntimeError"' in (tmp_path/"startup-failure.json").read_text()
 
 
 def test_asset_fetch_checks_existing_and_downloaded_content_before_promotion(tmp_path, monkeypatch):

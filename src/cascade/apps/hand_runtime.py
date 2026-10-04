@@ -109,7 +109,9 @@ def build_hand_runtime(profile, directory, *, domain_id):
         try:
             _save(directory/"startup-failure.json", {"ready": False, "error": reason, "closure": closure})
         except BaseException:
-            exc.add_note("The hand startup failure could not be persisted; closure was attempted.")
+            add_note = getattr(BaseException, "add_note", None)
+            if add_note is not None:  # Python 3.10 has no exception notes.
+                add_note(exc, "The hand startup failure could not be persisted; closure was attempted.")
         raise
 
 

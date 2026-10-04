@@ -228,6 +228,394 @@
     "servo_kp": 6.0,
     "servo_kv": 0.01
   },
+  "repeatability": {
+    "attempts": 3,
+    "audits": [
+      {
+        "approach_good_samples": 104,
+        "artifacts": {
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-01/native/message-01.json": "e93407ceae12124d610840c769bc69163bc82301feeb9c1871d15e9125b6bc6d",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-01/native/message-02.json": "412ed9fa49777722eb11280d02f3aca50cd9d820e4820b07e508c93913b58496",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-01/native/message-03.json": "cdee5edad4be647db3ad422938493cc07591765e0acd189802baf4b160b78305",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-01/native/message-04.json": "b36905d4bc6c598658dd129c2b9ae39ca99c98778a9936139a4f4280700ca604",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-01/native/message-05.json": "2301a0bfaeaf0e42e7fa94f001a967f92fa51bf1fabc15c1b31c57571d6e431b",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-01/native/result.json": "caa3ef9c6300d3e07bde6d5e18b2772b8e83c4e4bcf788cecae4f4d581416e1c",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-01/native/runtime/domains/hand/closure.json": "0535669b13eab8ed86284083dbc74fad2a23ed3a46f77f7b15051c342dd4b71c",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-01/native/runtime/domains/hand/model.json": "47de4f6b75668291dc585c539f2cd00c45565d690487ed2e30024cbf03aaf16e",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-01/native/runtime/domains/hand/readiness.json": "b7112cd9b46e3e72f20463da1410fa86ac8b7535f222bf64fe70c2f9235490f9",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-01/native/runtime/domains/hand/solves.jsonl": "ad69e67abf18c57a67602f1485c05af25559dad42b85845f1dc4e17f3ccb40a5",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-01/native/runtime/trace.jsonl": "47f4100977337229d9568e66d81f8ba33937d737ba8b49b9f063ffbddc71b73c",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-01/receipt.json": "078be3606e6fef0212f8102c720528ec658b9ffe475a28f3bcb3546c9a583e67",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-01/scope/closure.json": "bfc3f1d99342cc612562cd2b4b6b79e4eb67c7cb62bf6708099a49d2ffccecf7",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-01/scope/owner.json": "bce858480c417aba61293fa705461ed671ad99f0a8fefb8b7dae10622f6a52e7",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-01/scope/service.log": "10bf97f8f68d834242b4beef48101bdd6095d80f0d6948c1fbec986c91590715"
+        },
+        "audit_ok": true,
+        "auditor_sha256": "66c18b8e0e68d2131b74496e382dc47ef70e7c58afc827b54b8a2089328842cd",
+        "contacts": 0,
+        "count": 494,
+        "generations": {
+          "0": 164,
+          "1": 1,
+          "2": 227,
+          "3": 102
+        },
+        "hardware_admission": false,
+        "last_joint_errors_rad": [
+          -0.01295726312266307,
+          5.688112562720557e-06,
+          -0.003428091128021625,
+          -0.0007024868758371365,
+          -0.012812288271768802,
+          -8.730107576223361e-07,
+          -0.0034091154189556648,
+          -0.0007071051219932982,
+          -0.012812027347022968,
+          -8.729920185313455e-07,
+          -0.003408854041788239,
+          -0.0007071051162260915,
+          -0.011210601516370391,
+          0.00020496819755858546,
+          9.305148926724416e-07,
+          4.6571697896124953e-07
+        ],
+        "longest_approach_window_sim_s": 0.20000000000000015,
+        "maximum_effort_nm": 0.10997868994926831,
+        "maximum_speed_rad_s": 0.7431142806672169,
+        "model_sha256": "cf8cbc1599fe954d5ddf3422f4a0f078b13eaeb724883a10f46a25e0f7d4d358",
+        "native_ok": true,
+        "original_result": {
+          "admission": {
+            "accepted": 44923.076119873,
+            "deadline": 44933.076119873,
+            "end_step": 1165,
+            "generation": 2,
+            "step": 165
+          },
+          "execution_ok": true,
+          "ok": true,
+          "physical_stop_verified": true,
+          "postcondition": {
+            "reason": "observed bounded finger targets retained through servo-hold rest",
+            "rest": {
+              "generation": 3,
+              "hold": "last position-servo targets",
+              "last_step": 493,
+              "motor_power_off": false,
+              "status": "confirmed",
+              "target_error_rad": 0.01295726238484636,
+              "window_sim_s": 0.20000000000000018
+            },
+            "status": "confirmed",
+            "target_error_rad": 0.01295726238484636
+          },
+          "rest": {
+            "generation": 3,
+            "hold": "last position-servo targets",
+            "last_step": 493,
+            "motor_power_off": false,
+            "status": "confirmed",
+            "target_error_rad": 0.01295726238484636,
+            "window_sim_s": 0.20000000000000018
+          },
+          "stop": {
+            "accepted_monotonic_s": 44923.575055278,
+            "generation": 3,
+            "hold": "last position-servo targets",
+            "latched": true,
+            "ok": true,
+            "physical_stop_verified": false,
+            "targets_rad": [
+              0.1,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "synthetic": false,
+          "verified": true
+        },
+        "owned_closure_ok": true,
+        "retained_rest": {
+          "first_step": 393,
+          "last_step": 493,
+          "window_sim_s": 0.20000000000000018
+        },
+        "servo_equation_error_nm": 1.6653345369377348e-16,
+        "servo_kp": 6.0,
+        "servo_kv": 0.01
+      },
+      {
+        "approach_good_samples": 104,
+        "artifacts": {
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-02/native/message-01.json": "84cd74bad7a9ffbf641475eae1c14f584dd3de08ad9f56ea52d471bd7f7d8f4b",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-02/native/message-02.json": "3da0e729a7e5cd5f690a74c94a7e6edc3e17fa274cacd11b94f96c508b800f18",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-02/native/message-03.json": "6407e61c29c2f0e3458df48587830f7824e1f2191f6ee3ebb08127678d001b72",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-02/native/message-04.json": "5372f6210f0ab0ffc7dbad13da532130e6560abce59a7692e4294b377854f860",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-02/native/message-05.json": "ea9d627a63c1f451b7d551d011fe68ff11466d605a5a28d76386e85f70b82146",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-02/native/result.json": "e942a234df4a243b5c0b305bfcc99c6f7107f6a5be43f2a6cf4a894de69ab5f5",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-02/native/runtime/domains/hand/closure.json": "659bbfb6f072931777ffcf241d7331de051ef337f7a810bbc96f2eaf8ceffe8c",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-02/native/runtime/domains/hand/model.json": "47de4f6b75668291dc585c539f2cd00c45565d690487ed2e30024cbf03aaf16e",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-02/native/runtime/domains/hand/readiness.json": "e2ab8fa5d2d42969412a2e8f05d521abc8dca92c8d2be1bec9bbaaf5c0948184",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-02/native/runtime/domains/hand/solves.jsonl": "780d8092dd9e674f0b6ae11a99d0cd0a8a198594da8f3839b4cd8fd97c7152d4",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-02/native/runtime/trace.jsonl": "5b3dd913b201132af07aeba02f718a0d8930c5eed22cc8622d878ad3eb85f110",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-02/receipt.json": "0083d20e2ab0f9fbedd9f07e11791f49e6e7917495b9a41761febcf419f39f2a",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-02/scope/closure.json": "cb9c0d296f0cf2a2888ce1924e19d0b54dcaf7c7739c1db734031420ca1f342b",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-02/scope/owner.json": "9625090ffb3ec4f16ac01b2ff763bfb9c04cdade97f5015d80ffc4ab169b5af8",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-02/scope/service.log": "f56d4ebb72dfb37154fb5fcf96fded0e17e95706aad7c7d1777a77d7320aac6f"
+        },
+        "audit_ok": true,
+        "auditor_sha256": "66c18b8e0e68d2131b74496e382dc47ef70e7c58afc827b54b8a2089328842cd",
+        "contacts": 0,
+        "count": 493,
+        "generations": {
+          "0": 163,
+          "1": 1,
+          "2": 227,
+          "3": 102
+        },
+        "hardware_admission": false,
+        "last_joint_errors_rad": [
+          -0.012957263122661641,
+          5.688112562720738e-06,
+          -0.0034280911279980135,
+          -0.0007024868758472135,
+          -0.012812288271728041,
+          -8.730107577665079e-07,
+          -0.0034091154189255643,
+          -0.0007071051220059596,
+          -0.012812027346982252,
+          -8.729920186753712e-07,
+          -0.003408854041758108,
+          -0.0007071051162387689,
+          -0.011210601737588827,
+          0.0002049681975621776,
+          9.305149464987962e-07,
+          4.6571699880041017e-07
+        ],
+        "longest_approach_window_sim_s": 0.20000000000000015,
+        "maximum_effort_nm": 0.10997873688440107,
+        "maximum_speed_rad_s": 0.7431142806672169,
+        "model_sha256": "cf8cbc1599fe954d5ddf3422f4a0f078b13eaeb724883a10f46a25e0f7d4d358",
+        "native_ok": true,
+        "original_result": {
+          "admission": {
+            "accepted": 44926.092172534,
+            "deadline": 44936.092172534,
+            "end_step": 1164,
+            "generation": 2,
+            "step": 164
+          },
+          "execution_ok": true,
+          "ok": true,
+          "physical_stop_verified": true,
+          "postcondition": {
+            "reason": "observed bounded finger targets retained through servo-hold rest",
+            "rest": {
+              "generation": 3,
+              "hold": "last position-servo targets",
+              "last_step": 492,
+              "motor_power_off": false,
+              "status": "confirmed",
+              "target_error_rad": 0.012957262384842322,
+              "window_sim_s": 0.20000000000000018
+            },
+            "status": "confirmed",
+            "target_error_rad": 0.012957262384842322
+          },
+          "rest": {
+            "generation": 3,
+            "hold": "last position-servo targets",
+            "last_step": 492,
+            "motor_power_off": false,
+            "status": "confirmed",
+            "target_error_rad": 0.012957262384842322,
+            "window_sim_s": 0.20000000000000018
+          },
+          "stop": {
+            "accepted_monotonic_s": 44926.590557652,
+            "generation": 3,
+            "hold": "last position-servo targets",
+            "latched": true,
+            "ok": true,
+            "physical_stop_verified": false,
+            "targets_rad": [
+              0.1,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "synthetic": false,
+          "verified": true
+        },
+        "owned_closure_ok": true,
+        "retained_rest": {
+          "first_step": 392,
+          "last_step": 492,
+          "window_sim_s": 0.20000000000000018
+        },
+        "servo_equation_error_nm": 1.5265566588595902e-16,
+        "servo_kp": 6.0,
+        "servo_kv": 0.01
+      },
+      {
+        "approach_good_samples": 104,
+        "artifacts": {
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-03/native/message-01.json": "dc485681188f21fc54cbad82abe8b0f8ec690f91db3d14c889dc49cd83748cd6",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-03/native/message-02.json": "5777eb60c4548ab11ae436695fa027561e3c3488636882c7868987cf51990084",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-03/native/message-03.json": "a089952dae5e4c45c95e936262dd43a4ca6af4bf38f7e565018539c05b081336",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-03/native/message-04.json": "4dd5f8d129c636bf606be4e32c58ec1d477c267513b287b436de55bcb3574155",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-03/native/message-05.json": "ce5209ac13cca9c3c3a44a68fce326d9921a37dbe7cebdddafe1822a4fb8d463",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-03/native/result.json": "49ce3e9d9fe7a44edb0601c90ab1b1d7bd0fc8be36d9a8306adcd0669101af15",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-03/native/runtime/domains/hand/closure.json": "90ab3b3c0669d5a4679f3b4ecbeb34b353064860b8c7d7380104604306e04195",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-03/native/runtime/domains/hand/model.json": "47de4f6b75668291dc585c539f2cd00c45565d690487ed2e30024cbf03aaf16e",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-03/native/runtime/domains/hand/readiness.json": "bdff102d3166d2317c5006179068ce0d277467627a12065b21b03be03d765fad",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-03/native/runtime/domains/hand/solves.jsonl": "4b80ec1a57885d498a635d726b7348a3751ae01f76706448d00013add5ffa7e5",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-03/native/runtime/trace.jsonl": "99b59509714890e554864b5075967dc61b7cb1a65220f0cd81754fd3bd8df644",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-03/receipt.json": "d3abc99019ac79d321ab0e714c7e95ca452ba7720808f8e7d2eefd3332a059fb",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-03/scope/closure.json": "d19a49b3a2857a711b30e5770006925d431af12492e95f5a48c3756cf567bbb7",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-03/scope/owner.json": "bbca2b38918921b415e9d572b781849819ec8c4037c616790c1b937e74be141b",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-repeat-03/scope/service.log": "a2d4831f22a3e1fe5ca6aa8a1f4dcd0da247677b1400a73d0deab887fdd5f4ee"
+        },
+        "audit_ok": true,
+        "auditor_sha256": "66c18b8e0e68d2131b74496e382dc47ef70e7c58afc827b54b8a2089328842cd",
+        "contacts": 0,
+        "count": 491,
+        "generations": {
+          "0": 162,
+          "1": 1,
+          "2": 227,
+          "3": 101
+        },
+        "hardware_admission": false,
+        "last_joint_errors_rad": [
+          -0.012957262384833454,
+          5.688109165843573e-06,
+          -0.003428094222456898,
+          -0.0007024855539079956,
+          -0.012812288271638432,
+          -8.730107580884714e-07,
+          -0.00340911541888021,
+          -0.0007071051220248903,
+          -0.01281202734689272,
+          -8.729920189970867e-07,
+          -0.0034088540417126605,
+          -0.000707105116257744,
+          -0.011210602194310594,
+          0.0002049681975695894,
+          9.305150576305278e-07,
+          4.657170397594872e-07
+        ],
+        "longest_approach_window_sim_s": 0.20000000000000015,
+        "maximum_effort_nm": 0.1099787963829394,
+        "maximum_speed_rad_s": 0.7431142806672169,
+        "model_sha256": "cf8cbc1599fe954d5ddf3422f4a0f078b13eaeb724883a10f46a25e0f7d4d358",
+        "native_ok": true,
+        "original_result": {
+          "admission": {
+            "accepted": 44929.116675173,
+            "deadline": 44939.116675173,
+            "end_step": 1163,
+            "generation": 2,
+            "step": 163
+          },
+          "execution_ok": true,
+          "ok": true,
+          "physical_stop_verified": true,
+          "postcondition": {
+            "reason": "observed bounded finger targets retained through servo-hold rest",
+            "rest": {
+              "generation": 3,
+              "hold": "last position-servo targets",
+              "last_step": 491,
+              "motor_power_off": false,
+              "status": "confirmed",
+              "target_error_rad": 0.012957262384833454,
+              "window_sim_s": 0.20000000000000018
+            },
+            "status": "confirmed",
+            "target_error_rad": 0.012957262384833454
+          },
+          "rest": {
+            "generation": 3,
+            "hold": "last position-servo targets",
+            "last_step": 491,
+            "motor_power_off": false,
+            "status": "confirmed",
+            "target_error_rad": 0.012957262384833454,
+            "window_sim_s": 0.20000000000000018
+          },
+          "stop": {
+            "accepted_monotonic_s": 44929.617273079,
+            "generation": 3,
+            "hold": "last position-servo targets",
+            "latched": true,
+            "ok": true,
+            "physical_stop_verified": false,
+            "targets_rad": [
+              0.1,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "synthetic": false,
+          "verified": true
+        },
+        "owned_closure_ok": true,
+        "retained_rest": {
+          "first_step": 391,
+          "last_step": 491,
+          "window_sim_s": 0.20000000000000018
+        },
+        "servo_equation_error_nm": 1.6653345369377348e-16,
+        "servo_kp": 6.0,
+        "servo_kv": 0.01
+      }
+    ],
+    "binding_sha256": "66bfd472f076cc490ba276969cef99021c5a966dd3f33bc421de49800aee68d7",
+    "new_process_and_epoch_each_time": true,
+    "passed": 3,
+    "same_target_and_limits": true,
+    "scope": "Same index MCP target only; no trajectory/geometry/controller robustness claim"
+  },
   "runtime_source_hashes": {
     "apps/hand_runtime.py": "22d1f1fa1191ba8b69a50428e9e97dc8b8b083875c93780a62327c76bb5613c9",
     "control/hand.py": "49b531c3ccd91938c7fca47e5fb3cd39b7b1734967cf7ae6f6fde59b2ae427f8",
@@ -237,7 +625,7 @@
     "skills/hand_runtime.py": "c8facf44b67ec7c8945f1c315c889ed783e786c5ee9cc5ca1e0362b1495f5b66"
   },
   "schema_version": 1,
-  "scope": "Fixed right LEAP hand: one bounded native free-motion episode, not grasp/tactile/hardware admission",
+  "scope": "Fixed right LEAP hand: one native bounded motion plus three predeclared fresh-process repetitions; not grasp/tactile/hardware admission",
   "source_negative": "34c6bb54aa490737b99ee8e327caa8538b0df0c6",
   "source_positive": "788b56620ab5425ff9764f924e4edc17f3d41973",
   "supporting_artifacts": {
@@ -245,6 +633,9 @@
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/hand-negative-audit-01.json": "bcfd42d2fe58a05a934a085bb7c2d68fc1cc90ed3ee2766aa681eb56e0ece2b3",
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/hand-tests-05.log": "62326c745b5761532bf3de58e8944ce639aa6de987dcbd904765b77f0ebec376",
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/hand-v2-positive-audit-01.json": "4ae6e139cf39d010418a4c5a590455c72f96fa1cb4f951a99831dfa1a7b7e1b2",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/hand-v2-repeat-audit-01.json": "5d09e50deb0a8989d4774e118cea3a442f0bc8411307ed30864097a669f8db1d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/hand-v2-repeat-audit-02.json": "4656de619107da72c46641e258a503fbf19ccc8cdd1c46f1d6a6564db83cfa9c",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/hand-v2-repeat-audit-03.json": "5f698bb39f42aebce1e45d0f9b87d10ce66223a2d2a846ce433632f9dc4d3d56",
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/hand-v2-tests-01.log": "62326c745b5761532bf3de58e8944ce639aa6de987dcbd904765b77f0ebec376",
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/harness/common.py": "e270d2a743b2ca736ddbec962f6f01890f3778024e7712c22e8e4df8f4442ce3",
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/harness/launch.py": "7396dc0327dc792bf8df19a68b13980ec9d2d1277b22307129e59077ecbed58f",
@@ -264,6 +655,8 @@
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/prepare-02/receipt.json": "f8d8b0f8148f939479573abafff85791071efeb0871694bbd2b87c7b2aaa732f",
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/prepare-plan-02.json": "3c4b4f851a08a6aa8c6a4320b5f624885fa788acb8acc2e2118c96314440779e",
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/prepare-plan-03.json": "e037fbb34a5260d614d6e0482c3ec5a75975935a15c12f45730e0eac3a37f7ed",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/repeat-launch-summary.json": "f364e60ebf3269a84329f91d79122ec6cb58b5314ac00e54b94c2b1e0af575cb",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/repeatability-binding-01.json": "66bfd472f076cc490ba276969cef99021c5a966dd3f33bc421de49800aee68d7",
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-motion-plan-01.json": "9244f1f912af7a3f9a80b8652ca64b4ad159a36df19731a0ace8747184c47375",
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-prepare-01/native/result.json": "05b9b73740d4e7debafbc363e9e44bcb953884ccc35b243bf5824fb2043f0ec8",
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_HAND_20261004/v2-prepare-01/receipt.json": "b2944033e0f5e949804202728f39d23e6d2d593f94ecd28df39ce8a8da85f8de",

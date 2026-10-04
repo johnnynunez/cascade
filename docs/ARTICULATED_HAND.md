@@ -112,6 +112,13 @@ OpenCV dependency and missing isolated mock profile, before their respective
 native task construction). The positive model pin is
 `cf8cbc1599fe954d5ddf3422f4a0f078b13eaeb724883a10f46a25e0f7d4d358`.
 
-This is one bounded free-motion episode; repeated trajectories, grasps,
-calibrated tactile measurements and hardware acceptance remain pending. The
-MCP handler was exercised in process, without an LLM or stdio transport.
+Three subsequent predeclared repetitions of the same target also passed, each
+in a fresh process with a new model epoch and the same recipe, limits and
+deadlines. They retained 494, 493 and 491 solves respectively; each confirmed
+0.2 simulated seconds of post-ACK rest and normal closure. All three JSON-only
+audits passed. The compact evidence includes every attempt and their launch
+binding; the original four successful episodes do not establish robustness to
+different targets, objects or disturbances.
+
+Grasps, calibrated tactile measurements and hardware acceptance remain pending.
+The MCP handler was exercised in process, without an LLM or stdio transport.

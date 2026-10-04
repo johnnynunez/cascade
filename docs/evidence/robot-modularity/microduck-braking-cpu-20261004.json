@@ -1,0 +1,153 @@
+{
+  "schema": "cascade.microduck.cpu-braking-evidence.v1",
+  "physical_admission": false,
+  "result": "24 constant-command captures, 8 geometric-feedback captures and their 8 instrumented repeats: zero joint-criterion successes; no new native or hardware admission.",
+  "plant": {
+    "backend": "MuJoCo CPU, original infer_policy.py with BAM XL330 m6 and the retained all-collision scene",
+    "versions": {
+      "numpy": "2.4.1",
+      "mujoco": "3.10.0",
+      "onnxruntime": "1.24.4",
+      "better-actuator-models": "1.0.1"
+    },
+    "policy_sha256": "5aa423bd693e431b19e2ead77f99cbae6184e40a529eb2f7c1b4f85bb7f57040",
+    "reference_script_sha256": "03bfd0642a880cd379e057536ee819bd1377d4af7b5206a57907d10afd1d4270",
+    "bam_source_sha256": {
+      "bam/actuator.py": "6927d7b2341cbaca0e5d872fae4ddce6200056885310d9ee5acaba1f34e09c13",
+      "bam/dynamixel/actuator.py": "8d3ed39d68758981204901dd18dcce11dcb107b842067e036d2b8ac7b1411cec",
+      "bam/model.py": "fed54ebf5ccdb1e15d1094e1a1b426a93c29a7dad5944e6861ff0cd023d900ed",
+      "bam/mujoco.py": "62256992ef0d7a4d07e61aff19ff1b930b7e17deb522519f21687764ca02894d",
+      "bam/params/xl330/m6.json": "61c699362fb3fabdde93eeba5e1ad3bf4ef9ca2f71d03e316b1924ff005b20d3"
+    },
+    "scene_xml_sha256": "0d2f58227a3e1c4caae4e847a368ae83516d0f398f428c4e96737b67dd894ef1",
+    "timestep_s": 0.005,
+    "policy_every_solves": 4,
+    "differences_from_native": "CPU MuJoCo/BAM reference rather than Newton/MJWarp, no transport/ACK or independent native support channel; outcome checks remain a CPU diagnostic."
+  },
+  "preregistration": {
+    "standing_steps": [300, 340, 380, 420],
+    "terminology": "Fixed command onset times, not measured gait phases.",
+    "distance_targets_m": [0.03, -0.03],
+    "constant_command_speeds": [0.1, 0.2, 0.3],
+    "geometric_drive_command_magnitude": 0.3,
+    "geometric_controller": "One fixed DRIVE/BRAKE/HOLD design; vx never reactivates after first target entry. The single action budget includes braking. No gain sweep or favorable-case selection.",
+    "action_wall_s": 8.0,
+    "action_sim_s": 3.0,
+    "tail_wall_s": 3.0,
+    "tail_sim_s": 3.0,
+    "corpus_wall_s": 120.0,
+    "scope_wall_s": 150.0,
+    "resource": {
+      "cpu_quota": "100%",
+      "memory_max": "4G",
+      "nice": 19,
+      "minimum_available_ram_bytes": 4294967296
+    },
+    "original_geometry_rest_limits": {
+      "sample_interval_s": 0.02,
+      "read_timeout_s": 0.5,
+      "max_wall_duration_s": 29.0,
+      "settle_timeout_s": 3.0,
+      "settle_window_s": 0.2,
+      "min_motion_samples": 5,
+      "min_settle_samples": 3,
+      "max_samples": 1451,
+      "max_history": 30,
+      "max_state_age_s": 0.5,
+      "max_sample_gap_s": 0.15,
+      "max_position_abs_m": 2.0,
+      "max_linear_speed_m_s": 1.0,
+      "max_angular_speed_rad_s": 6.0,
+      "min_height_m": 0.06,
+      "max_tilt_rad": 0.5,
+      "min_progress_ratio": 0.8,
+      "max_progress_ratio": 1.25,
+      "translation_tolerance_m": 0.015,
+      "rotation_tolerance_rad": 0.04,
+      "max_lateral_drift_m": 0.02,
+      "max_heading_drift_rad": 0.08,
+      "stop_linear_speed_m_s": 0.02,
+      "stop_angular_speed_rad_s": 0.1,
+      "stop_drift_m": 0.005,
+      "stop_drift_rad": 0.03
+    }
+  },
+  "cohorts": {
+    "constant_commands": {
+      "local_root": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_BRAKING_CORPUS_20261004",
+      "captures": 24,
+      "accepted": 0,
+      "input_count": 1794,
+      "totals": {"solves": 30826, "policy_rows": 7712, "contact_rows": 149285, "control_failures": 20},
+      "per_case_payload_count": 120,
+      "canonical_payload_manifest_sha256": "63c9e2703f1e81a5a22d0b8d96e20a5679f7fc88a01ad3e220c4eebbd5a67859",
+      "sources_sha256": {"run_corpus.py": "8d4189e90c5d1927a10a6549b08a9854306379f335e7b067a81785f9cccf5c2e", "launch_corpus.py": "d8be370a87608af2e295c8e1dff4cc10279eeb3f08d43022a196afc67fd11c69", "audit_cases.py": "022cc5980c46cd5dce2f9e7c891abd746ed9aa24a1c69211105dde7cf778645c", "audit_global.py": "7a756dc4b495c7b35edc68fd5777178af2b87da0ddeccb7eeccd046d8ba40d01"},
+      "artifacts_sha256": {"plan-01.json": "2a7eda4ac55d6c2c57a96751ed40af957037d52b6d4d3acf379d45e29ae02c7d", "launch-binding-01.json": "256e5caced0412b0ced404789ab382d426bf0529df0f8869ad7977751dc523b6", "corpus-01/receipt.json": "9f30b855b1623c04e76e6b11520fd1f4d25215624cceffe1c25f2b4dedbbb245", "owner-receipt.json": "90b001c6d7e30a85d1caf7c370a6e7d69d342af4a2fc4996cea848818bc31d81", "owner-01/closure.json": "282c278df840f0fe66b74e51144790bc9f6f29616c60e9aa5e103034546425a0", "global-lifecycle-audit.json": "89e8a9b0bba555933dd3ea8e057b6b272577dc0b9bea524ab339da423116b05c", "case-audit-02.json": "7b60bbf955e12d96d4fc27089ebb1341435ef5394896f88cf200586baeb691e8"},
+      "closure": {"process_exit": 0, "scope_exit": 0, "signals": 0, "forced": false, "remaining_members": 0, "remaining_births": 0, "observed_births_absent": 2}
+    },
+    "geometric_feedback": {
+      "local_root": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_GEOMETRIC_BRAKING_20261004",
+      "captures": 8,
+      "accepted": 0,
+      "input_count": 1803,
+      "totals": {"solves": 8155, "policy_rows": 2042, "contact_rows": 42385, "control_failures": 8, "geometric_completions": 0},
+      "per_case_payload_count": 40,
+      "canonical_payload_manifest_sha256": "c32e97f8289cb9bca14e5872fe07bdcccebf4e628b36682114168bb3b06ce14d",
+      "sources_sha256": {"run_corpus.py": "82d66554c577c12d7c2f16475e30d50c9912025718a5c181f0d6e627723b6abb", "launch_corpus.py": "d8be370a87608af2e295c8e1dff4cc10279eeb3f08d43022a196afc67fd11c69", "audit_control.py": "ae994d98f65af9e005c00831b77780b833e5d2bf82d0938bf0f9aa3e3fcce934", "audit_global.py": "282f4028b5476215a18d5cb35faeb926c009a8ca1d6aad04ec9896ca5addd09a", "geometric_control.py": "1e8e14af5f5b9a21e1078743b62d278b77e907dd1d1d4e73b1a4fdc85eb77e79"},
+      "artifacts_sha256": {"plan-01.json": "ee48324bb4e56b8300cbfeed3cc1724a3bdd235c0c24543f753da8a23b94f00a", "launch-binding-01.json": "70f239d082fd42eaa6a7e4790fd146e6d638468a77ffe722fc34f568c89245f8", "corpus-01/receipt.json": "2d462cc2341e851e6384ef2ddd4765eaf61016f4f65febd13facbe7d86f103c1", "owner-receipt.json": "06b8e24e98ab3ebd8658f001de523e7344ed8e0a398650455b1d3fec4215df12", "owner-01/closure.json": "aeeefc5130f7963b8d7442477db5026550b2f7e2ba135cc40defde32901678ab", "global-lifecycle-audit.json": "ebc1b5888402bcb66519013bec692303757f1f02f9cb4a5f44576c078bcf22b6", "control-audit-01.json": "3c8725a822783007143117a33edf86dc76201344e15b7aefb8b53a3069bf3957"},
+      "closure": {"process_exit": 0, "scope_exit": 0, "signals": 0, "forced": false, "remaining_members": 0, "remaining_births": 0, "observed_births_absent": 3}
+    },
+    "actuator_observation_repeat": {
+      "local_root": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ACTUATOR_TELEMETRY_20261004",
+      "captures": 8,
+      "accepted": 0,
+      "input_count": 1816,
+      "totals": {"solves": 8155, "policy_rows": 2042, "contact_rows": 42385, "control_failures": 8, "geometric_completions": 0},
+      "per_case_payload_count": 56,
+      "canonical_payload_manifest_sha256": "f518b60573b69a6bbd5f2534e3c373fb388660139502a1fe95ded5efb4b3287c",
+      "sources_sha256": {"run_corpus.py": "b2772d4d411e2341a2c189520acb03502a691558b24dda95c677c52edb91d0f1", "launch_corpus.py": "d8be370a87608af2e295c8e1dff4cc10279eeb3f08d43022a196afc67fd11c69", "audit_actuators.py": "2d114c14f68a8d563b24010a8456cba85509dacaf7dd76917b4d100c8562a5c2", "audit_lifecycle.py": "faf6aec6a6f37d92080002ca21d3a6b069284f7271e7cf32185dd5059e910856", "geometric_control.py": "1e8e14af5f5b9a21e1078743b62d278b77e907dd1d1d4e73b1a4fdc85eb77e79", "actuator_telemetry.py": "247d7cfc49c2fc7268b10f7547f698ae48ddd64a8a1125971fccf15323e3b834"},
+      "artifacts_sha256": {"plan-01.json": "a1f34609756aa039471bdf1b26f77778df2470f5564cd7fec78baf97574fad6d", "launch-binding-01.json": "7f7f66bae05a4afbf4ba36b4fa718886d5c083d182c78e6343d59da5b0c92f20", "corpus-01/receipt.json": "6d9f3c5305f7bf1c7fc315824502cefc4ff8ce3ba468d54ad483ced46e80ff01", "owner-receipt.json": "88362eda0e66af694a48b3a402faee62f5d3ccf21a9b90f760c6d7be3b8b6b66", "owner-01/closure.json": "e20e1409e5e09629d2684c7d4051910264d256fd0436f009868ee15f6bcf87a7", "global-lifecycle-audit.json": "4fe2f303eeb4cc4598008e7c3acad12bae5e2cdd089862eafc82127d01dd6466", "actuator-audit-01.json": "90b0bfcb51e51ae3f8c365e5449f4271836f904ce948f6922758e41d2749116e"},
+      "closure": {"process_exit": 0, "scope_exit": 0, "signals": 0, "forced": false, "remaining_members": 0, "remaining_births": 0, "observed_births_absent": 3}
+    }
+  },
+  "comparison": {
+    "identical_cases": 8,
+    "exact_fields": ["qpos", "qvel", "complete policy records", "contacts", "compiled model record", "solve records except observed_monotonic_s", "outcomes and controller transitions"],
+    "interpretation": "Observed equality of these retained repeats; instrumentation added wall cost within unchanged budgets. Not proof for arbitrary workloads."
+  },
+  "actuator_observations": {
+    "frames": 8155,
+    "intervals": "standing: step <= onset; action: onset < step <= terminal veto; tail: step > terminal veto",
+    "by_interval": {
+      "standing": {"solves": 2880, "pwm_clipped_solves": 0, "ctrl_force_different_solves": 0, "maximum_abs_pwm_request": 0.10625253224100438, "minimum_bam_effective_vin_v": 7.343283317248808, "maximum_abs_motor_torque_nm": 0.10236385899769007, "maximum_abs_actuator_force_buffer": 0.10236385899769007},
+      "action": {"solves": 475, "pwm_clipped_solves": 0, "ctrl_force_different_solves": 0, "maximum_abs_pwm_request": 0.5304530932866539, "minimum_bam_effective_vin_v": 7.248935444158136, "maximum_abs_motor_torque_nm": 0.46162384045062493, "maximum_abs_actuator_force_buffer": 0.46162384045062493},
+      "tail": {"solves": 4800, "pwm_clipped_solves": 0, "ctrl_force_different_solves": 0, "maximum_abs_pwm_request": 0.37678032302697295, "minimum_bam_effective_vin_v": 7.270093669587307, "maximum_abs_motor_torque_nm": 0.2796017530505197, "maximum_abs_actuator_force_buffer": 0.2796017530505197}
+    },
+    "current_limiter": null,
+    "direct_current_available": false,
+    "pre_pwm_torque_available": false,
+    "pwm_bounds": [-1.0, 1.0],
+    "bam_voltage_floor_v": 6.0,
+    "motor_force_range_nm": [-0.9634015946604082, 0.9634015946604082],
+    "force_model": "Recorded fixed gain1, gear1, no bias/dynamics, no joint force clamp and Euler; ctrl equals actuator_force and qfrc_actuator within 1e-12 in all records.",
+    "temporal_scope": "Targets/q/dq and supply sag are observed inside the original update; post-step force buffers are the last dynamics evaluation, not co-temporal with integrated q/dq or net joint torque.",
+    "inference": "Neither observed PWM nor MuJoCo motor-force clipping nor the BAM voltage floor activated. Supply sag was present. This does not establish the cause of heading/contact failure or authority of a different controller."
+  },
+  "geometric_case_outcomes": [
+    {"id": "forward-geometric-start300", "stop_step": 357, "failure": "controller lateral/heading drift exceeded", "drive_cutoff_step": 354, "hold_entries": 0, "geometric_wz_clipped_policy_slots": [357], "action_solves": 57},
+    {"id": "reverse-geometric-start300", "stop_step": 360, "failure": "external nonsole solved contact", "drive_cutoff_step": null, "hold_entries": 0, "geometric_wz_clipped_policy_slots": [], "action_solves": 60},
+    {"id": "forward-geometric-start340", "stop_step": 399, "failure": "external nonsole solved contact", "drive_cutoff_step": 395, "hold_entries": 0, "geometric_wz_clipped_policy_slots": [397], "action_solves": 59},
+    {"id": "reverse-geometric-start340", "stop_step": 400, "failure": "external nonsole solved contact", "drive_cutoff_step": null, "hold_entries": 0, "geometric_wz_clipped_policy_slots": [], "action_solves": 60},
+    {"id": "forward-geometric-start380", "stop_step": 439, "failure": "external nonsole solved contact", "drive_cutoff_step": 435, "hold_entries": 0, "geometric_wz_clipped_policy_slots": [437], "action_solves": 59},
+    {"id": "reverse-geometric-start380", "stop_step": 441, "failure": "external nonsole solved contact", "drive_cutoff_step": null, "hold_entries": 0, "geometric_wz_clipped_policy_slots": [], "action_solves": 61},
+    {"id": "forward-geometric-start420", "stop_step": 478, "failure": "controller lateral/heading drift exceeded", "drive_cutoff_step": 474, "hold_entries": 0, "geometric_wz_clipped_policy_slots": [477], "action_solves": 58},
+    {"id": "reverse-geometric-start420", "stop_step": 481, "failure": "external nonsole solved contact", "drive_cutoff_step": null, "hold_entries": 0, "geometric_wz_clipped_policy_slots": [], "action_solves": 61}
+  ],
+  "retained_negative_scope": ["Constant-command corpus has 20 controller failures; all24 fail combined outcome criteria despite numeric final rest windows.", "Geometric controller and repeat each fail twice on heading and six times on external nonsole solved contact; no HOLD window occurred.", "Any forbidden solved contact remains a veto, including zero-normal-force rows. No threshold, policy, gain, scene or prior receipt changed.", "The geometric wz command bound clipped in one policy slot per forward case; this is distinct from the untriggered motor limits."],
+  "validation": {
+    "observer_array_tests": 5,
+    "retained_corruption_audit_tests": 5,
+    "controller_pure_tests": 12,
+    "independent_reaudit": "find_astra_log reproduced lifecycle and actuator receipts exactly with the frozen Python3.12 interpreter; no model execution by auditors."
+  }
+}

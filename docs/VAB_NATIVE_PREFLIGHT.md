@@ -290,3 +290,59 @@ when all supplied world poses are finite. Its overflow regression is included
 in 161 focused tests. A separate offline replay at verifier `0c2dbabb` preserves
 the original support/containment verdict; the earlier `6cd7c969` replay remains
 retained separately. No new native simulator was constructed.
+
+## Public RGB capture and sparse geometry
+
+The optional `--record-rgb-geometry` reader preserves simultaneous `agentview`
+and `robot0_eye_in_hand` RGB, camera intrinsics and the camera pose associated
+with each public observation. It only admits cameras fixed to the world or
+the robot tree; object-mounted and tracking-target cameras are refused. It
+reads no object position, segmentation or depth. An instance-local wrapper
+calls each original renderer exactly once and retains its camera pose, clock
+and RGB bytes. It adds no render or physics call and restores the original
+method at close. The original up/down preflight actions remain the same.
+
+Robosuite can sample RGB inside its 25-solve control interval. Consequently,
+the recorder compares the returned pixels with the observed render bytes and
+retains the render's own clock and pose, separately from the later control
+return. Two camera renders must have the same capture clock. Reset images
+precede attachment to the rebuilt simulator; they remain preserved as PNGs
+and an explicitly unverified initial record, without an invented pose.
+
+The new offline `perception.rgb_triangulation` module matches RGB features
+with mutual SIFT descriptor checks and triangulates proposed surface-point
+correspondences. Both views must share model, epoch, world frame, solver step
+and simulation time. Every proposed match retains its estimate or refusal;
+parallax, optical depth, ray separation and reprojection have explicit gates.
+The camera convention is top-down RGB with half-pixel centers. Native camera
+calibration is nominal and its physical error remains unknown.
+
+Synthetic projection and shifted-texture tests exercise metric reconstruction,
+pixel conventions, moving-camera transforms and refusal paths. Reprojection
+agreement cannot establish that a feature match or camera calibration is
+correct: a wrong rigid calibration can yield a plausible wrong 3D point. The
+results therefore carry unknown position error and no physical admission,
+object identity, complete object geometry, free-space or grasp authority.
+One [native capture](evidence/robot-modularity/vab-public-rgb-20261004.json)
+on source `2170eaf4` retained all 42 original controls / 1,050 solves and
+43 returned image pairs: one reset pair with unknown provenance and 42
+observed pairs. All 86 PNG images matched their retained public RGB bytes.
+Every observed pair preceded control return by one solve, or 2 ms. The
+offline matcher proposed 18 correspondences; six passed the declared ray
+gates and twelve were refused. All six estimates reuse one fixed-camera
+pixel location across different wrist views; they are not six independent
+surface landmarks. They provide neither object identity nor enough coverage
+to guide a grasp.
+
+The native process and owned scope exited ordinarily, with no signals,
+forced cleanup or remaining births; all 12,609 inputs remained unchanged.
+The complete placement witness still refutes basket support, and the
+benchmark task remains unverified. Source CPU checks passed 79 cases with
+one optional SDK skip; seven launcher lifecycle cases passed separately.
+
+An existing closed capture can be analyzed with
+`PYTHONPATH=src:. python -m benchmark.vab.reconstruct_rgb RUN/public-rgb NEW_REPORT.json`.
+This command imports no simulator, checks capture/calibration hashes and the
+complete archive, preserves the initial unverified record and every proposed
+feature match, and creates a new report. It does not replace the separate
+native closure audit or grant manipulation or benchmark success.

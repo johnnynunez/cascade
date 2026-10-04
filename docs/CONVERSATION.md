@@ -645,3 +645,42 @@ reproduce the old immediate-reconnect HTTP 502 and
 exercise delayed release, timeout, identity/schema mismatch and redirect refusal;
 The final idle observation also rejects a clock at or beyond the original close
 deadline. These tests do not constitute a successful speech or physical episode.
+
+### Two complete native speech cases — VOICE13
+
+The [closed VOICE13 record](evidence/robot-modularity/voice-complete-two-case-20261004.json)
+passes the unchanged full auditor in both bounded cases. Synthetic operator
+speech entered the actual Chromium microphone API, the provider transcribed it,
+and the model requested `index_flex`. The real tool route moved the native
+simulated LEAP hand and verified approach plus a 0.2 s post-ACK rest window.
+The actual tool result then produced a reply from the same input origin;
+186,624 PCM samples per case reached the browser after rest and its queue drained.
+The first case retained 9,642 solves and the second 9,433, for 19,075 total.
+
+The second case also exercised operator stop after actual queued greeting audio,
+playback flush, terminal authority revocation, reset with the observed generation,
+provider-slot release and a new microphone-authorized conversation. The original
+AudioWorklet request and resolved `addModule` promise were observed without an
+extra fetch. These checks retain the original 30 s case limit and physical gates.
+They do not turn a software stop ACK into independent physical-stop evidence.
+
+This episode used service `3879453`, host `b7aaf64`, normally installed provider
+`4306614` in state 05, and the unchanged hand model pin. The new installation
+preserved all 116 provider runtime files, 153 dependency versions and 234 assets
+from state 04. Its host binds the corrected absolute deadline comparison without
+adding tolerance or renewing the deadline. Actual pool readiness occurred
+34.716 s into the shared 150 s startup window. The LLM remained FP32 on CUDA and
+ASR/TTS on CPU; the conversation streamer's ten-second wait stayed unchanged.
+The 100 ms RSS watchdog observed a 6,448,181,248-byte group peak below its original
+12 GiB budget. That sample is not a hard memory bound or performance guarantee.
+
+All four scopes closed and all 25 observed births disappeared. Provider-owned
+SIGTERM and child-group SIGTERM are explicit; exits were zero, with no forced
+kill, remaining members or closure errors. **VOICE12 remains globally failed**
+at its terminal-authority assertion; neither its auditor nor its evidence was
+changed. VOICE13 applies the source correction in a separate new episode.
+
+This is two cases in one run, not general conversation reliability. Input came
+from a synthetic utterance, output was browser PCM scheduling/drain, and the
+hand was simulated. Hardware microphone/speaker validation, hand hardware,
+contact tasks, repeated coverage and the broader speech roadmap remain open.

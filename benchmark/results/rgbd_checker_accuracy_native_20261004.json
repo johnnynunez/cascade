@@ -1,0 +1,159 @@
+{
+  "schema": 1,
+  "passed": false,
+  "physical_admission": false,
+  "source_head": "75451f1d47baea3b380b29b954847e5333d1f57e",
+  "sdk_head": "48b2d951919bbb7330de3c2aad54e15369fa0183",
+  "sdk_recipe": "isaac62_48b2d951",
+  "local_artifact_root": "/home/johnny/Projects/demo/cascade-lab/RGBD_LAYOUT_A_ACCURACY_20261004",
+  "scope": "Fresh schema5 on current SDK; five image-only geometry refusals and separate pre-RPC consumer dependency failure. No cross-SDK causal comparison.",
+  "baseline": {
+    "model_identity_sha256": "fbcdb853ba66c0a5948bf3dec2103841a30f3553bf76285703d2b276fc4879fd",
+    "epoch": "b7b92f11072b4fac937ac38f897fdd5a",
+    "original_campaign_pass": false,
+    "original_campaign_error": "KeyError: 'port' in post-close harness: port is on marker, not hello",
+    "separate_offline_audit_passed": true,
+    "native_exit": 0,
+    "scope_exit": 0,
+    "physics_acceptance": false
+  },
+  "candidate": {
+    "model_identity_sha256": "9ce4373c8ab813a8aeb6a9ac939f2cbadb39328c0648d09f04984c7844e0f551",
+    "epoch": "64c46402fe764e0c873ef66f54d6d354",
+    "producer_passed": true,
+    "solves": 80,
+    "policy_evaluations": 20,
+    "captures": 5,
+    "native_wall_duration_s": 156.97826365100082,
+    "native_exit": 0,
+    "scope_exit": 0,
+    "full_native_invariance_passed": true,
+    "post_camera_and_bootstrap_ground_guards_passed": true,
+    "recorded_state_health_passed": true,
+    "zero_semantic_commands": true
+  },
+  "live_consumer": {
+    "python": "/home/johnny/Projects/demo/cascade/.venv/bin/python",
+    "read_attempts": 56,
+    "read_successes": 0,
+    "reader_rpcs": 0,
+    "spatial_attempts": 0,
+    "spatial_successes": 0,
+    "all_errors": "ModuleNotFoundError: No module named 'jsonschema'",
+    "geometry_evaluations": 0
+  },
+  "saved_image_only_geometry": {
+    "consumer_opencv": "5.0.0",
+    "board_schema": 5,
+    "board_sha256": "49ca59f762fe28e23295870ac77e4040374f830fc9113b535f46760affbc3bcf",
+    "checker_flags": 34,
+    "fit_count": 18,
+    "held_count": 17,
+    "limits": {
+      "held_rms_px": 0.15,
+      "held_max_px": 0.35
+    },
+    "all_captures_retained": true,
+    "rows": [
+      {
+        "step": 3,
+        "packet_sha256": "c8669ffcef3d0d25c86c53296b05de2e8629179be159956dec6dd908552478ca",
+        "rgb_sha256": "e898ac48a4d1830ddbe03704fe1e087b8a2e2512664aadb3e5266f2d3ee4d3b6",
+        "reference_passed": false,
+        "held_rms_px": 0.16062561167026734,
+        "held_max_px": 0.25691302394423926,
+        "error": "ValueError: independent held-out reference error exceeds frozen pixel gates"
+      },
+      {
+        "step": 22,
+        "packet_sha256": "93d108e5dec76ae3ba123e36ad5c94beed6d349176402e27beaf44e5b6a1155f",
+        "rgb_sha256": "1c2698a041b13ed300c3c3eb3bf55f37905c6f0e7af75b261154f2ae97af4a59",
+        "reference_passed": false,
+        "held_rms_px": 0.1598330838751787,
+        "held_max_px": 0.2546812267909227,
+        "error": "ValueError: independent held-out reference error exceeds frozen pixel gates"
+      },
+      {
+        "step": 42,
+        "packet_sha256": "c94c90c2efd64a6ec1dc6883def15e4ea5291a58565317cc53fcc3eef97f8c28",
+        "rgb_sha256": "dfe1505f8483a68c5c244ac263bf86e01126768bd1b585320f6dfd9f207e1d3e",
+        "reference_passed": false,
+        "held_rms_px": 0.15877919942327234,
+        "held_max_px": 0.2607563300967526,
+        "error": "ValueError: independent held-out reference error exceeds frozen pixel gates"
+      },
+      {
+        "step": 62,
+        "packet_sha256": "821e904a0ecb1a2f9f366ea148ae9ce1f5b5f390edf9688841666dde0f6165cb",
+        "rgb_sha256": "779967aeb915a81a578072fc6dde447ab3acc5aedc83d825baa1dbdf4c5ec3d1",
+        "reference_passed": false,
+        "held_rms_px": 0.16096969106577927,
+        "held_max_px": 0.2992710326755608,
+        "error": "ValueError: independent held-out reference error exceeds frozen pixel gates"
+      },
+      {
+        "step": 82,
+        "packet_sha256": "cd902d5311bec4bb94005b8334c20fbe5d561554c927f68cbd12c6f0d81314db",
+        "rgb_sha256": "e54e8e2b704ac1af4613ba2b77f54a76666181003b565dfae5bac573484ea29c",
+        "reference_passed": false,
+        "held_rms_px": 0.16428193467598534,
+        "held_max_px": 0.2784954629450916,
+        "error": "ValueError: independent held-out reference error exceeds frozen pixel gates"
+      }
+    ]
+  },
+  "closure": {
+    "ok": true,
+    "forced": false,
+    "signals": [],
+    "remaining_members": [],
+    "remaining_births": []
+  },
+  "integrity": {
+    "inputs_unchanged": true,
+    "private_cache_confirmed": true,
+    "port_closed": true,
+    "foreign_gpu_processes_signalled": false,
+    "foreign_births_observed_before": 12,
+    "foreign_births_still_present_after": true
+  },
+  "future_consumer_preflight": {
+    "scope": "External harness now checks actual MCP schema dependency before creating output or launching producer; no rerun or relabel of prior result",
+    "missing_dependency_environment": {
+      "passed": false,
+      "error": "No module named 'jsonschema'",
+      "native_opened": false
+    },
+    "tested_environment": {
+      "passed": true,
+      "python": "/home/johnny/Projects/demo/.demo/bin/python",
+      "python_version": "3.11.15 (main, Jun 23 2026, 15:19:43) [Clang 22.1.3 ]",
+      "jsonschema_version": "4.26.0",
+      "jsonschema_module": "/home/johnny/Projects/demo/.demo/lib/python3.11/site-packages/jsonschema/__init__.py",
+      "mcp_class": "McpSkillServer",
+      "schema_validation_exercised": true,
+      "native_opened": false
+    },
+    "future_harness_sha256": "7ec50049016a75ab307ae513cdf720bf788eb0aba23b3acc77bf7119f15ddbee",
+    "recorded_native_harness_sha256": "501344bf9aa91f54a0b15203d3e26038d0462589bd47544d611272d92ca67626"
+  },
+  "artifact_sha256": {
+    "plan.json": "6c5933a48bd9cf152c1d9ebcd0ac9efd857ed6ec4425b9784e1cec159601c797",
+    "consumer.json": "83f962275eb9328bc79300158777c3d86a0bfb2761de43a6dca20978b7b30399",
+    "generator.json": "c1dba7fd80106dc3bea6c83faea5db6c04dd583d2e8ce1c17cdc0523b3aecd10",
+    "native-01/receipt.json": "6c8f343ea905a3910b34dd7350b8727abc0db52f25d5e03cd2ae9639e9583dac",
+    "native-01/all-capture-geometry.json": "a1689d912b8f25489501dfbe0a611483ee622ff38acef2ad33c902d39d4a3abe",
+    "native-01/kit/model-identity.json": "2206fbc49c9d2e9275f09fcb89a32a8b52c27f9194111f9dc3e6768bcfae20a7",
+    "native-01/kit/planar-physics-invariance.json": "fbf9a100136fec5c03a0f1887083daa89eab2624fc4c57d894b998c51d2d865c",
+    "native-01/kit/ground-appearance-after_camera.json": "9c408db771fa9f0462a8614ce3c15af8a4f7d64b9eac291b5daa7518986ef6c8",
+    "native-01/kit/ground-appearance-after_bootstrap.json": "69f3b702283eb09e679ea229116dc3ac1ccfea4424eaee3d7bf4afb1f8400bb9",
+    "native-01/kit/physics.jsonl": "2326f2d7fc9d69694b233454c9f44abd9b105128ff1cda3f4b2e2e4d01aee35c",
+    "native-01/kit/policy.jsonl": "f0fb264477a4c0b5436168cbc59f855651c7ad23092f37c33b41505cc57dc5e7",
+    "native-01/kit/frames.jsonl": "0c2331257a2b96c5b760db54209ae106ee9a46f0b4c47f007bd7f313b061fa9d",
+    "baseline-native-01/receipt.json": "2b7b1bc48e4668e43165326475be79a79f62a9f886a1de430b701daa4ec2c733",
+    "baseline-native-01/baseline-audit.json": "9fa35e596a5383c6b9d8ad29bb43882e9e0a480a233a20014569f19e28a7b043",
+    "baseline-native-01/kit/model-identity.json": "dd4f78e3f4117836d85ea294c195d333c31f5739964ed2632a57be576e5a3360",
+    "dependency-preflight-missing.json": "cfdf06b7889fad836b0490ca48077c391af530affc0e9435af29416ef73843fd",
+    "dependency-preflight-tested.json": "14ac04e4f49dfc5c1eb94f80ecb60930ac9db069348d3aae7c76202632cad328"
+  }
+}

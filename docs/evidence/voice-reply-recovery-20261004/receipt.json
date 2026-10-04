@@ -1,0 +1,157 @@
+{
+  "schema": "cascade.voice-reply-recovery.v1",
+  "source": "a8714b857e7c0dc226a6fe50a1e2f5aafae60955",
+  "scope": "One guarded speech candidate, rejected before microphone/task inference; no new spoken-motion, stop, rest or hardware acceptance",
+  "physical_admission": false,
+  "spoken_reply_verified": false,
+  "native_motion_verified": false,
+  "semantic_attempts": 0,
+  "provider_warmup_ran": true,
+  "input": {
+    "text": "Please walk forward three centimeters, immediately stop, and then tell me what happened.",
+    "synthetic_voice": "Kokoro bm_fable",
+    "duration_s": 5.625,
+    "fixture_scope_closed": true
+  },
+  "unchanged_limits": {
+    "intent_s": 60,
+    "tool_execution_s": 30,
+    "native_startup_s": 65,
+    "native_episode_s": 180,
+    "gpu_headroom_mib": 32768
+  },
+  "admission": {
+    "require_actual_completed_response_pair": [
+      "locomotion.walk_distance(distance_m=0.03)",
+      "emergency_stop({})"
+    ],
+    "no_synthetic_stop_or_authority_renewal": true,
+    "model_identity_sha256": "ce007b2ecd605167d520beed7c520cc5e9f01445a45b85d4e8d46265b3002742",
+    "identity_file_sha256": "8542e6479645a20f2be653c56fa46f99317b1d0545c1d4cc29f317b49c999eb8",
+    "probe_original_pass": false,
+    "probe_original_failure": "RGB-D-specific diagnostic expected 80 rows instead of frozen probe budget 800",
+    "separate_post_close_structural_audit_pass": true,
+    "probe_solves": 800,
+    "probe_zero_policy_commits": 200,
+    "probe_frames": 41,
+    "probe_frozen_inputs_rechecked": 199202,
+    "probe_physical_rest_verified": false
+  },
+  "attempts": [
+    {
+      "path": "episode-01",
+      "result": "pre-native resource refusal",
+      "native_launched": false,
+      "microphone_opened": false,
+      "task_model_response": false,
+      "reason": "foreign GPU baseline changed while provider warmed",
+      "owned_provider_exit": 0,
+      "owned_provider_closed": true,
+      "source_unchanged": true,
+      "stores_unchanged": true
+    },
+    {
+      "path": "admission-02/episode",
+      "result": "native startup deadline failure",
+      "native_launched": true,
+      "microphone_opened": false,
+      "task_model_response": false,
+      "bridge_listening": false,
+      "recorded_solves": 0,
+      "last_log_marker": "Simulation App Starting",
+      "last_log_elapsed_s": 4.247,
+      "last_readiness_attempt_age_s": 64.95950490799987,
+      "original_closure_ok": false,
+      "original_closure_forced": true,
+      "original_remaining_birth_count": 1,
+      "post_close_audit_all_owned_births_gone": true,
+      "post_close_additional_signals": [],
+      "source_unchanged": true,
+      "stores_unchanged": true,
+      "provider_assets_unchanged": true
+    }
+  ],
+  "diagnosis": {
+    "startup": "Retained detailed Kit log shows RtPso asynchronous compilation waits from 14.898 s through 84.900 s during viewport startup/destruction; viewport wait reaches its 120-frame timeout at 16.452 s. This narrows the blocked phase; root cause remains unknown.",
+    "closure": "Original owner took final cgroup/unit/birth snapshots once; it returned while a known birth still existed, which disappeared before later audit",
+    "external_owner_candidate": "Separate closure-recovery module waits up to 10 s for unit inactivity, empty members and all observed births gone; bounds systemctl by remaining budget; does not erase forced failure",
+    "native_rerun": false,
+    "private_cache": {
+      "files": 422,
+      "cuda": 248,
+      "warp": 167,
+      "xdg": 7,
+      "byte_identical_to_probe": true,
+      "rtx_or_pso_included": false,
+      "writable_rtx_pso_location": "Shared portable Kit cache outside private XDG; mutable global bytes were not audited",
+      "causality_established": false
+    },
+    "comparison": {
+      "argv_differences": [
+        "--out",
+        "--max-steps (800 to 20000)"
+      ],
+      "admission_and_experience_identical": true,
+      "successful_detailed_kit_log_missing_at_audit": true,
+      "complete_child_environment_retained": false
+    },
+    "private_rtx_cache_candidate": "Offline proposal only: select both writable shaderDb paths before bootstrap, bind policy/source in model and paths/immutable seed in episode admission, then verify effective settings. New bounded probe and complete closed-cache inventory required before another voice candidate; no native launch authorized."
+  },
+  "software_validation": {
+    "same_origin_reply_and_operator_revocation": "Two parameterized cases in test_conversation_stop_order.py; synthetic PCM is protocol evidence only",
+    "external_guard_and_capture_selection": {
+      "passed": 28,
+      "subtests_passed": 16
+    },
+    "external_closure_candidate": {
+      "original_ownership_cases_passed": 5,
+      "new_drain_cases_passed": 2,
+      "real_process_case": true,
+      "native_validated": false
+    },
+    "integration_protocol_file": {
+      "passed": 10,
+      "file": "tests/test_conversation_stop_order.py",
+      "base": "862bd0b",
+      "tests_commit": "084f138"
+    }
+  },
+  "artifact_base": "/home/johnny/Projects/demo/cascade-lab",
+  "artifacts_sha256": {
+    "VOICE_REPLY_RECOVERY_20261004/cascade/tests/test_conversation_stop_order.py": "2b4e36515b001ff6d616399f8e911cb282456208d3541b9fb7444b2693ba4028",
+    "VOICE_REPLY_RECOVERY_20261004/harness-manifest.json": "f7535b9f4b2d36b345fd226374c465b47cb85037059d169d23502f4a211bf2a8",
+    "VOICE_REPLY_RECOVERY_20261004/prepared-final/plan.json": "8f6acd977091d3d6f184ce4243f259ba8f931b3c9ce30cff38a6353676adc503",
+    "VOICE_REPLY_RECOVERY_20261004/prepared-final/source-binding.json": "3d9ff6d965976f8bec53f06b5593201d37cbb0322529ff699ac38b0a7602eb65",
+    "VOICE_REPLY_RECOVERY_20261004/prepared-final/resolved-config.json": "d243fd24365f24f74462e6bc9d80341ce283cb4f314cbaaa28890acaf8634dfa",
+    "VOICE_REPLY_RECOVERY_20261004/prepare_bound_candidate.py": "248f7b3b7eaf5421394c85167c91f9ba16470b1a6fbb9e2f29ef3a892ea8df21",
+    "VOICE_REPLY_RECOVERY_20261004/audit_probe.py": "0c47b279b22af5ca81651078bbf8b8018ec0964eed3581ef14bdc9e0d59a0707",
+    "VOICE_REPLY_RECOVERY_20261004/preflight-02/native-probe-plan.json": "f9d290734724832435cf9f199aadd79e029d54e0348673098888cbe71d132003",
+    "VOICE_REPLY_RECOVERY_20261004/preflight-02/probe/receipt.json": "1fbaa4fdc074a2aba3a2dfdd327428f3a29ccc43dd88b678a1db1edee8b28b98",
+    "VOICE_REPLY_RECOVERY_20261004/preflight-02/probe/health.json": "940efb5f4fa5bde9e91c8d45e85e225b025e55567289e9112fcd9caa1fcd79e7",
+    "VOICE_REPLY_RECOVERY_20261004/preflight-02/probe/probe-audit.json": "f1a3ff4974dc40a630c338e6d6377f69ccf8f1a00a9240ceb9da52cd2d952f7d",
+    "VOICE_REPLY_RECOVERY_20261004/preflight-02/probe/kit/model-identity.json": "8542e6479645a20f2be653c56fa46f99317b1d0545c1d4cc29f317b49c999eb8",
+    "VOICE_REPLY_RECOVERY_20261004/input-01/receipt.json": "397c42d5cd316c9f5c7a61a5054d916406f1ebb3870b88a472b4031f207fcaf5",
+    "VOICE_REPLY_RECOVERY_20261004/fixture-owner.json": "76a1c0565c4e28e773ec72816df26fa0a946f74e9dfd9f239cd2b2a6d59eb4d4",
+    "VOICE_REPLY_RECOVERY_20261004/episode-01/owner-receipt.json": "1307db0af80b79f225a6d44f80f2f5883a019f5d1ca505716705d65a80baf5cf",
+    "VOICE_REPLY_RECOVERY_20261004/episode-01/gpu-after-refusal.json": "047d01967d760d7ac918a6cff7a9f0b815a843cfe1e9775f395f9fe4d4f3ed5f",
+    "VOICE_REPLY_RECOVERY_20261004/admission-02/owner.py": "89cef19f3ef27fa9ba1b6a7d535536ee999f56961d66372e85171bcf2f15de4f",
+    "VOICE_REPLY_RECOVERY_20261004/admission-02/resource-overlay.json": "0881a160c874f4e0b0ced074569fd2d2f609f32e898719dd4731e6a93cc7cb47",
+    "VOICE_REPLY_RECOVERY_20261004/admission-02/episode/owner-receipt.json": "12f1d5831f3df3f34b0ebcdfc9dbbd0a40fa0ae914fb953314f2b59d66ac3dc3",
+    "VOICE_REPLY_RECOVERY_20261004/admission-02/episode/native-scope/owner.json": "cbadae8c79f78a748f014f3340366d9c2b774014fc7c326983ec62a203235ee4",
+    "VOICE_REPLY_RECOVERY_20261004/admission-02/episode/native-scope/closure.json": "02b84477a53da6f9409906606e9608d3ec3cad05cf7721858dd9060cf1c76660",
+    "VOICE_REPLY_RECOVERY_20261004/admission-02/episode/native-scope/service.log": "1b534aa5987ea0aa314028aed56b634896873e36f7b22237b96e3f2e5712bedb",
+    "VOICE_REPLY_RECOVERY_20261004/admission-02/episode/native/kit/startup.json": "2e7ecaa8a955cf22a0081d46e556a806539196c7152b881c5b18216c99efe685",
+    "VOICE_REPLY_RECOVERY_20261004/admission-02/episode/post-closure-audit.json": "aedeb66ea21c729990d69aa3ba3f5656c02539d3ab03671752efe54c0add2c3d",
+    "VOICE_REPLY_RECOVERY_20261004/closure-recovery/owned_services.py": "44f1f98f4760f31a7c6dd89acddb1ed073523b8c2520f322abe2c5eae8000473",
+    "VOICE_REPLY_RECOVERY_20261004/closure-recovery/test_final_drain.py": "55934d50143b502e0db833d2fdbd6581fabc0cb4b0f53ef23dcd072c131c1a23",
+    "VOICE_REPLY_RECOVERY_20261004/admission-02/episode/startup-diagnostic/kit.log": "3244ef5cd47b5c513e8e53e71624e5beab0ba584aa73487f1d3ff72440b4e4dc",
+    "VOICE_REPLY_RECOVERY_20261004/admission-02/episode/startup-diagnostic/audit_startup.py": "1372847c48e2ba0319ff48e46e9b79f4ebea96c7456d6a64c9ddd0aef4ea39bc",
+    "VOICE_REPLY_RECOVERY_20261004/admission-02/episode/startup-diagnostic/audit.json": "9c764c3e471c1bc9293f59b1173d18266a7df65119098a00a6d0aef0929f6622",
+    "VOICE_REPLY_RECOVERY_20261004/admission-02/episode/startup-diagnostic/private-rtx-cache-proposal.json": "463c8e80d0fecf2bd6825a4576e20bce7d3a4d47949042e34547708cf8550526"
+  },
+  "external_owner_patch": {
+    "path": "external-owner-final-drain.patch",
+    "sha256": "1fc25064f41e97dda0468234041b33d57387bb21ba752e66db90296f390d7076",
+    "scope": "CPU-tested external harness correction; original frozen owner unchanged and no new native trial"
+  }
+}

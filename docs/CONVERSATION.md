@@ -144,6 +144,13 @@ pending rather than falsely reported as cancelled.
   This dispatch contract does
   not make the speech session execute concurrent response streams: response
   ordering, interruption and the independent HTTP stop remain unchanged.
+  An actually completed response may stage a motion followed by an adjacent
+  stop. The stop is dispatched before either result is sent to a slow provider.
+  Its correlated continuation can speak about the returned evidence while
+  retaining the original input deadline and generation; it cannot renew motion
+  authority after that stop. An operator interrupt still revokes the origin and
+  suppresses its remaining audio. CPU protocol controls cover both paths; they
+  are not model inference, physical motion or a recorded spoken robot reply.
 - Tool output to the speech provider remains bounded to 32,768 UTF-8 bytes.
   Small results retain their exact JSON representation. For an oversized result
   recorded by the runtime trace, the speech view may omit only image attachments,
@@ -187,6 +194,35 @@ support contract and verifier configuration documented in [MicroDuck](MICRODUCK.
 Missing pins fail before connecting. The profile adds no gait admission and does
 not use speech to circumvent the mobile verifier. Start with observation-only
 tools; no speech-initiated native movement was validated in this increment.
+
+The [2026-10-04 recovery receipt](evidence/voice-reply-recovery-20261004/receipt.json)
+retains an attempted spoken-reply candidate on source `a8714b8`. Its guard
+requires the real completed model response to contain the 30 mm walk and its
+adjacent stop before motion, followed by independently observed rest and a
+completed same-origin spoken reply. It preserves the original 60 s intent and
+30 s execution limits. Protocol tests exercise that narration authority and
+operator revocation; they do not establish a native spoken reply.
+
+A separate zero-command probe recorded 800 solves, 200 policy commits and 41
+frames with ordinary closure. Its original harness result remains failed because
+an RGB-D diagnostic expected 80 rows; a separate audit checked all 800 against
+the frozen budget and admitted only the model/recording identity. The speech
+candidate first refused a changed foreign GPU baseline, then reached the
+unchanged 65 s startup deadline before the microphone or any task response.
+Its forced native closure remains failed; a later audit found all owned births
+gone without additional signals. A separate
+[external-owner correction](evidence/voice-reply-recovery-20261004/external-owner-final-drain.patch)
+waits for unit, members and observed births together, with seven CPU ownership
+and drain cases passing. It has not been rerun natively. The historical motion
+recording still has no spoken robot reply. A retained detailed Kit log narrows
+the startup failure to RtPso asynchronous compilation waits, continuing through
+84.9 s around viewport initialization/destruction. It does not establish the
+underlying cause. The 422 copied cache files were CUDA, Warp and XDG data;
+writable RTX/PSO caches still used shared Kit paths and were not frozen or
+audited. An offline isolation proposal selects both writable shader cache
+settings before bootstrap and binds the policy to a new model/episode. It
+requires a separate bounded probe, verified effective paths, successful closure
+and a complete private cache inventory before another speech candidate.
 
 ## Provider contract and self-hosting
 

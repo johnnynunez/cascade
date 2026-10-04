@@ -1,0 +1,587 @@
+{
+  "scope": "Source-bound recovery episodes; resource closure and task outcomes remain separate. No speedup or general reliability claim.",
+  "episodes": [
+    {
+      "episode": "TRIAL12_RECOVERY_20261004",
+      "source_head": "7cf1704a75bb6a3231ef7601f10bb491b8aebc58",
+      "receipt": {
+        "path": "TRIAL12_RECOVERY_20261004/attempts/2e169191b3de438985c2adc5fb183cf8/final.json",
+        "sha256": "d8818a2b7facbe6f1c548e089bc3a9cbc5e572afbc97a76399b9f0ce8af50fb4"
+      },
+      "verdict": {
+        "pass": false,
+        "original_proof_verified": false,
+        "normal_shutdown": false,
+        "runtime_teardown_verified": false,
+        "error": "RuntimeError: original launcher/proof failed; no action retry",
+        "inputs_unchanged": true
+      },
+      "input_count": 238849,
+      "closures": [
+        {
+          "role": "ggx-cold-readiness",
+          "ok": true,
+          "forced": false,
+          "ordinary": true,
+          "remaining": []
+        },
+        {
+          "role": "launcher",
+          "ok": true,
+          "forced": false,
+          "ordinary": true,
+          "remaining": []
+        },
+        {
+          "role": "ggx",
+          "ok": true,
+          "forced": false,
+          "ordinary": true,
+          "remaining": []
+        },
+        {
+          "role": "qwen",
+          "ok": true,
+          "forced": false,
+          "ordinary": true,
+          "remaining": []
+        }
+      ],
+      "listeners_remaining": {},
+      "tools": [
+        {
+          "skill": "describe_scene",
+          "duration_ms": 14672.3,
+          "ok": true,
+          "error": null
+        },
+        {
+          "skill": "pick_and_place",
+          "duration_ms": 121134.5,
+          "ok": true,
+          "error": null
+        },
+        {
+          "skill": "reset_scene",
+          "duration_ms": 14031.0,
+          "ok": true,
+          "error": null
+        },
+        {
+          "skill": "describe_scene",
+          "duration_ms": 356.5,
+          "ok": true,
+          "error": null
+        },
+        {
+          "skill": "pick_and_place",
+          "duration_ms": 5540.3,
+          "ok": false,
+          "error": "unexpected PlanningError: cuMotion returned Status.INVALID_TARGET_CSPACE_POSITION"
+        }
+      ],
+      "trace": {
+        "path": "TRIAL12_RECOVERY_20261004/cascade/runs/mcp_72495_004c840c95c5488f9d484145ba662433/trace.jsonl",
+        "sha256": "be9e8db258b4e1afa2e090a6531fb52249994e7199b511044b865d5477c55345"
+      },
+      "prior_failed_pregrasp_passive_replay": null
+    },
+    {
+      "episode": "TRIAL12_GRASP_ADMISSION_20261004",
+      "source_head": "64b924b9ae8adee03be7efe66fa0e818b352b9a0",
+      "receipt": {
+        "path": "TRIAL12_GRASP_ADMISSION_20261004/attempts/ed4b3e72e8574dc49ead9d78f90db1e7/final.json",
+        "sha256": "6493c759f49fff89a4fb3cc92a2c319faec7869f0488fe95146965f233badb22"
+      },
+      "verdict": {
+        "pass": false,
+        "original_proof_verified": true,
+        "normal_shutdown": false,
+        "runtime_teardown_verified": false,
+        "error": "OwnershipError: original launcher descendants remain after original down",
+        "inputs_unchanged": true
+      },
+      "input_count": 238848,
+      "closures": [
+        {
+          "role": "ggx-cold-readiness",
+          "ok": true,
+          "forced": false,
+          "ordinary": true,
+          "remaining": []
+        },
+        {
+          "role": "gateway-close",
+          "ok": true,
+          "forced": false,
+          "ordinary": true,
+          "remaining": []
+        },
+        {
+          "role": "bridge-close",
+          "ok": true,
+          "forced": false,
+          "ordinary": true,
+          "remaining": []
+        },
+        {
+          "role": "launcher",
+          "ok": true,
+          "forced": false,
+          "ordinary": true,
+          "remaining": []
+        },
+        {
+          "role": "ggx",
+          "ok": true,
+          "forced": false,
+          "ordinary": true,
+          "remaining": []
+        },
+        {
+          "role": "qwen",
+          "ok": true,
+          "forced": false,
+          "ordinary": true,
+          "remaining": []
+        }
+      ],
+      "listeners_remaining": {},
+      "tools": [
+        {
+          "skill": "describe_scene",
+          "duration_ms": 15633.2,
+          "ok": true,
+          "error": null
+        },
+        {
+          "skill": "pick_and_place",
+          "duration_ms": 93267.4,
+          "ok": true,
+          "error": null
+        },
+        {
+          "skill": "reset_scene",
+          "duration_ms": 11887.5,
+          "ok": true,
+          "error": null
+        },
+        {
+          "skill": "describe_scene",
+          "duration_ms": 267.8,
+          "ok": true,
+          "error": null
+        },
+        {
+          "skill": "pick_and_place",
+          "duration_ms": 99010.3,
+          "ok": true,
+          "error": null
+        },
+        {
+          "skill": "reset_scene",
+          "duration_ms": 11981.8,
+          "ok": true,
+          "error": null
+        },
+        {
+          "skill": "describe_scene",
+          "duration_ms": 194.2,
+          "ok": true,
+          "error": null
+        }
+      ],
+      "trace": {
+        "path": "TRIAL12_GRASP_ADMISSION_20261004/cascade/runs/mcp_122652_559cbd2bf7904d4595b64413ef748a28/trace.jsonl",
+        "sha256": "e6f04ca28576e81571428a5a8b2fe06e7351668db26f253431474bc35d659db1"
+      },
+      "proof": {
+        "verified": true,
+        "session_id": "cascade-proof-92b19cdbb9b447dd89b97a4243ae6128",
+        "cases": [
+          {
+            "object": "green cube",
+            "destination": "green square",
+            "physics_pass": true,
+            "failed_checks": [],
+            "pick_checks": {
+              "physics_channel": true,
+              "same_robot_and_engine": true,
+              "same_observed_prop_set": true,
+              "physics_clock_advances": true,
+              "finite_all_observed_state": true,
+              "actual_joints_within_limits": true,
+              "final_window_long_enough": true,
+              "valid_final_orientations": true,
+              "upright_support_geometry": true,
+              "gripper_readback_matches_actual_q": true,
+              "released_actual_jaws": true,
+              "destination_xy": true,
+              "supported_z": true,
+              "settled_linear_speed": true,
+              "settled_angular_speed": true,
+              "stable_final_position": true,
+              "observed_lift": true,
+              "observed_xy_displacement": true
+            },
+            "pick_metrics": {
+              "samples": 659,
+              "final_samples": 7,
+              "simulation_elapsed_s": 53.61666666666667,
+              "final_window_sim_s": 0.5166666666666657,
+              "lift_m": 0.1010677833110094,
+              "xy_displacement_m": 0.30120976034122565,
+              "final_xy_error_m": 0.005612152838854145,
+              "max_final_xy_error_m": 0.005612152838854145,
+              "max_final_support_z_error_m": 3.243264823371561e-10,
+              "max_final_linear_speed_m_s": 1.3638795932918834e-05,
+              "max_final_angular_speed_rad_s": 0.0004506205019567275,
+              "max_final_position_spread_m": 1.4901161193847656e-08,
+              "max_final_tilt_deg": 0.0001007344366182257,
+              "min_final_actual_open_fraction": 0.999999478459366,
+              "max_frame_age_s": 0.751551159999508,
+              "unique_jpeg_hashes": 537
+            },
+            "reset_props": [
+              "pink_cube",
+              "green_cube",
+              "tomato_can",
+              "lemon",
+              "orange"
+            ]
+          },
+          {
+            "object": "orange",
+            "destination": "open box",
+            "physics_pass": true,
+            "failed_checks": [],
+            "pick_checks": {
+              "physics_channel": true,
+              "same_robot_and_engine": true,
+              "same_observed_prop_set": true,
+              "physics_clock_advances": true,
+              "finite_all_observed_state": true,
+              "actual_joints_within_limits": true,
+              "final_window_long_enough": true,
+              "valid_final_orientations": true,
+              "projected_support_geometry": true,
+              "gripper_readback_matches_actual_q": true,
+              "released_actual_jaws": true,
+              "destination_xy": true,
+              "supported_z": true,
+              "settled_linear_speed": true,
+              "settled_angular_speed": true,
+              "stable_final_position": true,
+              "observed_lift": true,
+              "observed_xy_displacement": true
+            },
+            "pick_metrics": {
+              "samples": 697,
+              "final_samples": 7,
+              "simulation_elapsed_s": 55.266666666666666,
+              "final_window_sim_s": 0.5166666666666799,
+              "lift_m": 0.12735562957823277,
+              "xy_displacement_m": 0.2948584261209982,
+              "final_xy_error_m": 0.009783525228680163,
+              "max_final_xy_error_m": 0.009783780279236168,
+              "max_final_support_z_error_m": 1.221162959398614e-07,
+              "max_final_linear_speed_m_s": 0.00033353423199522725,
+              "max_final_angular_speed_rad_s": 0.013761778923279943,
+              "max_final_position_spread_m": 2.673982652015754e-07,
+              "max_final_tilt_deg": 24.666679500373913,
+              "min_final_actual_open_fraction": 0.9999995529651708,
+              "max_frame_age_s": 0.7723141460000988,
+              "unique_jpeg_hashes": 557
+            },
+            "reset_props": [
+              "pink_cube",
+              "green_cube",
+              "tomato_can",
+              "lemon",
+              "orange"
+            ]
+          }
+        ]
+      },
+      "mcp_teardown_event_observed": true,
+      "prior_failed_pregrasp_passive_replay": {
+        "source": "64b924b9ae8adee03be7efe66fa0e818b352b9a0",
+        "sdk": "cuMotion 1.1.0",
+        "pregrasp_rejection": "cuMotion model self collision",
+        "grasp_rejection": null,
+        "home_rejection": null,
+        "actuation": false
+      }
+    },
+    {
+      "episode": "TRIAL12_COMPLETE_LIFECYCLE_20261004",
+      "source_head": "47de1fbe7a53eadd55023c5f39dcc17fbcb1fb91",
+      "equivalent_main_tree": "e5ac96f9f39e229d67ad104150d3d83fbaf50b3b",
+      "receipt": {
+        "path": "TRIAL12_COMPLETE_LIFECYCLE_20261004/attempts/f229ee9d06134bee80bd0a275c8ca1ac/final.json",
+        "sha256": "268d8609b36d9974a3183abadc52fd069d2dae18b47c0f04680fa93c7cc77374"
+      },
+      "proof_artifact": {
+        "path": "TRIAL12_COMPLETE_LIFECYCLE_20261004/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/proof.json",
+        "sha256": "49477a8b4a2b1a04eb163f36b270bbea6024bd25076f0271b4e7e4ee25e6aa40"
+      },
+      "source_plan": {
+        "path": "TRIAL12_COMPLETE_LIFECYCLE_20261004/plan-reviewed-02.json",
+        "sha256": "2a76638b771da4b0bf7c4e1c4aeb59b2301faca52f9ee6b9ed46a3ef0d16c8bc"
+      },
+      "verdict": {
+        "pass": true,
+        "original_proof_verified": true,
+        "normal_shutdown": true,
+        "runtime_teardown_verified": true,
+        "error": null,
+        "inputs_unchanged": true
+      },
+      "input_count": 238854,
+      "closures": [
+        {
+          "role": "ggx-cold-readiness",
+          "ok": true,
+          "forced": false,
+          "ordinary": true,
+          "remaining": []
+        },
+        {
+          "role": "gateway-close",
+          "ok": true,
+          "forced": false,
+          "ordinary": true,
+          "remaining": []
+        },
+        {
+          "role": "bridge-close",
+          "ok": true,
+          "forced": false,
+          "ordinary": true,
+          "remaining": []
+        },
+        {
+          "role": "launcher",
+          "ok": true,
+          "forced": false,
+          "ordinary": true,
+          "remaining": []
+        },
+        {
+          "role": "ggx",
+          "ok": true,
+          "forced": false,
+          "ordinary": true,
+          "remaining": []
+        },
+        {
+          "role": "qwen",
+          "ok": true,
+          "forced": false,
+          "ordinary": true,
+          "remaining": []
+        }
+      ],
+      "listeners_remaining": {},
+      "tools": [
+        {
+          "skill": "describe_scene",
+          "duration_ms": 15994.4,
+          "ok": true,
+          "error": null
+        },
+        {
+          "skill": "pick_and_place",
+          "duration_ms": 169026.1,
+          "ok": true,
+          "error": null
+        },
+        {
+          "skill": "reset_scene",
+          "duration_ms": 27500.7,
+          "ok": true,
+          "error": null
+        },
+        {
+          "skill": "describe_scene",
+          "duration_ms": 799.3,
+          "ok": true,
+          "error": null
+        },
+        {
+          "skill": "pick_and_place",
+          "duration_ms": 231163.0,
+          "ok": true,
+          "error": null
+        },
+        {
+          "skill": "reset_scene",
+          "duration_ms": 27869.9,
+          "ok": true,
+          "error": null
+        },
+        {
+          "skill": "describe_scene",
+          "duration_ms": 494.9,
+          "ok": true,
+          "error": null
+        }
+      ],
+      "trace": {
+        "path": "TRIAL12_COMPLETE_LIFECYCLE_20261004/cascade/runs/mcp_217151_de386290443e49f09ee57bbe3089d980/trace.jsonl",
+        "sha256": "f207a93bbedb865d9f774ba76a876dc395f55132442ec851755d5c41e5f5b73e"
+      },
+      "proof": {
+        "verified": true,
+        "session_id": "cascade-proof-3c1908c0dfc84ea0b66235284b4c9a3a",
+        "cases": [
+          {
+            "object": "green cube",
+            "destination": "green square",
+            "physics_pass": true,
+            "failed_checks": [],
+            "pick_checks": {
+              "physics_channel": true,
+              "same_robot_and_engine": true,
+              "same_observed_prop_set": true,
+              "physics_clock_advances": true,
+              "finite_all_observed_state": true,
+              "actual_joints_within_limits": true,
+              "final_window_long_enough": true,
+              "valid_final_orientations": true,
+              "upright_support_geometry": true,
+              "gripper_readback_matches_actual_q": true,
+              "released_actual_jaws": true,
+              "destination_xy": true,
+              "supported_z": true,
+              "settled_linear_speed": true,
+              "settled_angular_speed": true,
+              "stable_final_position": true,
+              "observed_lift": true,
+              "observed_xy_displacement": true
+            },
+            "pick_metrics": {
+              "samples": 1193,
+              "final_samples": 16,
+              "simulation_elapsed_s": 53.26666666666667,
+              "final_window_sim_s": 0.5,
+              "lift_m": 0.10656209476292132,
+              "xy_displacement_m": 0.2951401189085765,
+              "final_xy_error_m": 0.003814528524948018,
+              "max_final_xy_error_m": 0.003814528524948018,
+              "max_final_support_z_error_m": 2.186971631568113e-09,
+              "max_final_linear_speed_m_s": 2.295856519769071e-05,
+              "max_final_angular_speed_rad_s": 0.0004389473666114096,
+              "max_final_position_spread_m": 3.337203127736024e-08,
+              "max_final_tilt_deg": 0.00011975373807758595,
+              "min_final_actual_open_fraction": 0.9999993294477563,
+              "max_frame_age_s": 0.9856234400012909,
+              "unique_jpeg_hashes": 540
+            },
+            "reset_props": [
+              "pink_cube",
+              "green_cube",
+              "tomato_can",
+              "lemon",
+              "orange"
+            ]
+          },
+          {
+            "object": "orange",
+            "destination": "open box",
+            "physics_pass": true,
+            "failed_checks": [],
+            "pick_checks": {
+              "physics_channel": true,
+              "same_robot_and_engine": true,
+              "same_observed_prop_set": true,
+              "physics_clock_advances": true,
+              "finite_all_observed_state": true,
+              "actual_joints_within_limits": true,
+              "final_window_long_enough": true,
+              "valid_final_orientations": true,
+              "projected_support_geometry": true,
+              "gripper_readback_matches_actual_q": true,
+              "released_actual_jaws": true,
+              "destination_xy": true,
+              "supported_z": true,
+              "settled_linear_speed": true,
+              "settled_angular_speed": true,
+              "stable_final_position": true,
+              "observed_lift": true,
+              "observed_xy_displacement": true
+            },
+            "pick_metrics": {
+              "samples": 1605,
+              "final_samples": 17,
+              "simulation_elapsed_s": 58.53333333333333,
+              "final_window_sim_s": 0.5166666666666515,
+              "lift_m": 0.1152577046304941,
+              "xy_displacement_m": 0.2825871289972668,
+              "final_xy_error_m": 0.006803047124887731,
+              "max_final_xy_error_m": 0.006803049568714239,
+              "max_final_support_z_error_m": 8.623651922071152e-08,
+              "max_final_linear_speed_m_s": 0.0009975834123855058,
+              "max_final_angular_speed_rad_s": 0.03498829214947793,
+              "max_final_position_spread_m": 1.862645149230957e-08,
+              "max_final_tilt_deg": 24.383517422425864,
+              "min_final_actual_open_fraction": 0.9999994039535611,
+              "max_frame_age_s": 1.0507618350002303,
+              "unique_jpeg_hashes": 597
+            },
+            "reset_props": [
+              "pink_cube",
+              "green_cube",
+              "tomato_can",
+              "lemon",
+              "orange"
+            ]
+          }
+        ]
+      },
+      "preserved_budgets": {
+        "camera_freshness_s": 2,
+        "existing_host_witness_settle_wall_s": 90,
+        "ggx_feasibility_s": 8,
+        "host_motion_turn_s": 360,
+        "host_process_exit_grace_s": 30,
+        "mcp_request_ms": 300000,
+        "proof_timeout_scale": 1
+      },
+      "retained_prelaunch_refusal": {
+        "path": "TRIAL12_COMPLETE_LIFECYCLE_20261004/attempts/433c568bf28e4f2ea12a759eb25f67e2/final.json",
+        "sha256": "1c62d1b5efc91e1217091b5621fa3c3f7fa920bd4c185e5136431e64be170077"
+      },
+      "deployment_overlay": "Private bridge ports are bound in the frozen input manifest; source_head names the underlying checkout revision.",
+      "placement_images": [
+        {
+          "object": "green",
+          "image": {
+            "retained_path": "TRIAL12_COMPLETE_LIFECYCLE_20261004/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-3c1908c0dfc84ea0b66235284b4c9a3a/case-1/physics/placed-proof.jpg",
+            "published_path": "kitchen-green-20261004.jpg",
+            "sha256": "8deeada54f5a748bda03f450eccef8cb6744119ef3d885db53d49e851807ae0e"
+          },
+          "capture_metadata": {
+            "path": "TRIAL12_COMPLETE_LIFECYCLE_20261004/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-3c1908c0dfc84ea0b66235284b4c9a3a/case-1/physics/placed-frames.json",
+            "sha256": "24333e6f47f8c6bb7868c020ec69be39537d23a2128b6a07bf1bbbe717a1ea3d"
+          },
+          "scope": "Unmodified post-placement image from the same episode; physical verdict is in the separate proof."
+        },
+        {
+          "object": "orange",
+          "image": {
+            "retained_path": "TRIAL12_COMPLETE_LIFECYCLE_20261004/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-3c1908c0dfc84ea0b66235284b4c9a3a/case-2/physics/placed-proof.jpg",
+            "published_path": "kitchen-orange-20261004.jpg",
+            "sha256": "da2f64b3b53a1a7ba76c6677f2785d8dbeaa7a6f20c85afba10a77568a3868e3"
+          },
+          "capture_metadata": {
+            "path": "TRIAL12_COMPLETE_LIFECYCLE_20261004/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-3c1908c0dfc84ea0b66235284b4c9a3a/case-2/physics/placed-frames.json",
+            "sha256": "60a3e56c3103acabb3505a33ee1009c75d808b5b0b810448f3e9854210ef0a22"
+          },
+          "scope": "Unmodified post-placement image from the same episode; physical verdict is in the separate proof."
+        }
+      ]
+    }
+  ],
+  "raw_artifact_location": "Paths are relative to the retained cascade-lab directory."
+}

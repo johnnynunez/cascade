@@ -1,5 +1,6 @@
 """A staged stop must reach its owner before transport can retain prior output."""
 import asyncio
+import base64
 import json
 import threading
 from contextlib import asynccontextmanager
@@ -153,6 +154,52 @@ def test_stop_waits_for_its_preceding_operation_to_return():
             assert owner.stop_calls == 1
             provider.release.set()
             await session._action
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("operator_interrupt", [False, True])
+def test_staged_stop_allows_correlated_speech_without_renewing_motion_authority(operator_interrupt):
+    """Protocol-only PCM fixture; this is no physical result or model inference."""
+    async def scenario():
+        async with rig() as (owner, runtime, _, provider, session):
+            origin = await stage(session, ["body.walk_velocity", "emergency_stop"])
+            await complete(session, 2)
+            await asyncio.wait_for(provider.entered.wait(), 3)
+            provider.release.set()
+            await session._action
+            assert runtime.stopped and runtime.cancellation_token != origin.runtime_generation
+            assert session._pending.origin is origin
+            metadata = provider.sent[-1]["response"]["metadata"]
+            await session.handle({"type": "response.created", "response": {
+                "id": "narration", "metadata": metadata}})
+            context = session.responses["narration"]
+            assert context.origin is origin  # Deadline and generation stay original.
+            if operator_interrupt:
+                await session.interrupt("operator_stop", force_stop=True)
+            pcm = b"\x01\x00" * 48
+            await session.handle({"type": "response.output_audio.delta", "response_id": "narration",
+                                  "delta": base64.b64encode(pcm).decode()})
+            queued = []
+            while not session.media.outgoing.empty():
+                queued.append(await session.media.receive())
+            audio = [event for event in queued if event["type"] == "audio"]
+            assert bool(audio) is not operator_interrupt
+            if audio:
+                assert base64.b64decode(audio[0]["audio"]) == pcm
+            alias = next(key for key, value in session.domain.aliases.items() if value == "body.walk_velocity")
+            await session.handle({"type": "response.function_call_arguments.done", "response_id": "narration",
+                "call_id": "forbidden-second-motion", "name": alias, "output_index": 0, "arguments": "{}"})
+            await session.handle({"type": "response.done", "response": {
+                "id": "narration", "status": "completed",
+                "output": [{"type": "function_call", "call_id": "forbidden-second-motion"}]}})
+            if not operator_interrupt:
+                await session._action
+                rejection = json.loads(provider.outputs()[-1]["output"])
+                assert not rejection["ok"] and "generation" in rejection["error"]
+            else:
+                assert session.authority_revoked and not context.valid
+            assert owner.calls == [("walk_velocity", {})]
+            assert runtime.stopped
     asyncio.run(scenario())
 
 

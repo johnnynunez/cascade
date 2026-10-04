@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from pathlib import Path
 
 from .provider import RealtimeConfig
@@ -11,7 +12,7 @@ from .provider import RealtimeConfig
 DEFAULTS = {"robot": "conversation_mock", "provider_url": None, "token_env": None,
             "allow_tools": [], "allow_motion": False, "barge_in": "stop_robot",
             "port": 8780, "config_dir": None, "run_dir": None, "run_root": None,
-            "start_stopped": False}
+            "start_stopped": False, "intent_timeout_s": 10, "execution_timeout_s": 30}
 
 
 def configuration(args):
@@ -59,6 +60,10 @@ def configuration(args):
         raise ValueError("motion conversations require stop_robot interruption")
     if type(values["port"]) is not int or not 0 <= values["port"] <= 65535:
         raise ValueError("port must be an integer in 0..65535")
+    for key, maximum in (("intent_timeout_s", 60), ("execution_timeout_s", 300)):
+        value = values[key]
+        if type(value) not in (int, float) or not math.isfinite(value) or not 0 < value <= maximum:
+            raise ValueError(f"{key} must be finite and in (0, {maximum}]")
     tools = values["allow_tools"]
     if (type(tools) is not list or len(tools) > 256
             or any(type(t) is not str or not 0 < len(t) <= 128 for t in tools)

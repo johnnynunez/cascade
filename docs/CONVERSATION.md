@@ -105,6 +105,12 @@ conversation extra installed. Paths in the JSON are relative to that file;
 files. Explicit CLI options override matching fields. Select exactly one of
 `run_dir` and `run_root`; the latter creates a new private child on each start.
 Unknown or duplicate fields and ambiguous permission values are rejected.
+Optional `intent_timeout_s` and `execution_timeout_s` (also CLI options) select
+the existing domain budgets: defaults 10/30 seconds, maxima 60/300 seconds.
+The first budget starts at the input origin and is never renewed by a model
+response, a tool continuation or a configured longer execution budget. Effective
+values are recorded in `ready.json`; this configuration does not extend any
+actuator's own admission deadline.
 `token_env` names a credential environment variable; credentials are not expanded
 into the configuration or readiness record. The loopback bind stays unchanged.
 

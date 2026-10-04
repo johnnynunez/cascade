@@ -38,6 +38,9 @@ def test_portable_configuration_has_no_cwd_or_secret_substitution(tmp_path, monk
     {"token_env": 123}, {"allow_tools": ["sensing.read_sensor"] * 2},
     {"allow_motion": True, "barge_in": "speech_only"}, {"run_dir": "also"},
     {"provider_url": "ws://remote.invalid/realtime"}, {"unexpected": True},
+    {"intent_timeout_s": 60.001}, {"execution_timeout_s": 300.001},
+    {"intent_timeout_s": True}, {"execution_timeout_s": "30"},
+    {"intent_timeout_s": float("nan")}, {"execution_timeout_s": 0},
 ])
 def test_service_rejects_ambiguous_authority_or_configuration(tmp_path, values):
     with pytest.raises(ValueError):
@@ -49,6 +52,15 @@ def test_duplicate_configuration_field_is_rejected(tmp_path):
     path.write_text('{"version":1,"allow_motion":false,"allow_motion":true}')
     with pytest.raises(ValueError, match="duplicate"):
         configuration(parser().parse_args(["--config", str(path)]))
+
+
+def test_deadline_configuration_keeps_defaults_and_existing_domain_ceiling(tmp_path):
+    default = configuration(parser().parse_args(["--config", str(configured(tmp_path))]))
+    assert (default["intent_timeout_s"], default["execution_timeout_s"]) == (10, 30)
+    configured_values = configuration(parser().parse_args([
+        "--config", str(configured(tmp_path, intent_timeout_s=60, execution_timeout_s=300)),
+        "--execution-timeout-s", "30"]))
+    assert (configured_values["intent_timeout_s"], configured_values["execution_timeout_s"]) == (60, 30)
 
 
 @pytest.mark.parametrize("gateway_result", [None, {"ok": False, "complete": False}])
@@ -229,6 +241,7 @@ def test_child_service_restart_uses_new_private_run_and_requires_explicit_reset(
     async def scenario():
         async with rig(gateway=True) as (_, _, _, wire, _, _, fixture_gate, _):
             path = configured(tmp_path, config_dir="profiles", port=0, start_stopped=True,
+                              intent_timeout_s=60, execution_timeout_s=30,
                               allow_tools=["sensing.read_sensor"],
                               provider_url=fixture_gate.provider_factory().config.url)
             tokens, runs = [], []
@@ -253,6 +266,7 @@ def test_child_service_restart_uses_new_private_run_and_requires_explicit_reset(
                     ready = json.loads((run / "ready.json").read_text())
                     assert ready["origin"] == url and ready["runtime_stopped"] is True
                     assert ready["provider_connected"] is False and ready["physical_admission"] is False
+                    assert (ready["intent_timeout_s"], ready["execution_timeout_s"]) == (60, 30)
                     assert run.stat().st_mode & 0o077 == 0
                     assert token not in (run / "ready.json").read_text()
                     async with aiohttp.ClientSession(headers={"Authorization": "Bearer " + token}) as client:

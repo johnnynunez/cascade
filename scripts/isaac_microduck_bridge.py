@@ -30,6 +30,8 @@ def parse_args(argv=None):
                    help='explicit reviewed checkpoint; alternative profiles are not physical admission')
     p.add_argument('--target-profile', choices=['direct-v1', 'robotd-targets-v1'], default='direct-v1',
                    help='explicit output transform, separately bound from checkpoint; no physical admission')
+    p.add_argument('--integrator-profile', choices=['sdk-default', 'euler-v1'], default='sdk-default',
+                   help='opt-in Euler authoring with effective native readback; default leaves SDK selection untouched')
     p.add_argument('--bam-source-root', type=Path, required=True)
     p.add_argument('--bam-profile', required=True)
     p.add_argument('--python-extra-path', type=Path, action='append', default=[],
@@ -216,10 +218,12 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
     from cascade.apps.signal_stop import SignalRequest
     from cascade.sim.mobile_bridge import MobileBridgeController, MobileBridgeServer
     from cascade.sim.microduck_newton import KitNewtonBackend
+    from cascade.sim.microduck_integrator import selected as selected_integrator
     from cascade.sim.microduck_stepper import FrameCache, MicroduckStepper
 
     defer = signals.defer if signals is not None else nullcontext
     selected_target_contract(args, admission)  # Refuse drift before SDK/output ownership.
+    integrator_selection = selected_integrator(args, admission)
     def checkpoint():
         if signals is not None:
             signals.checkpoint(persistent=True)
@@ -256,6 +260,8 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
 
             model_identity = build_model_identity(admission, backend.receipt, repo=REPO,
                                                    runtime_scene=out / 'runtime-scene.usda')
+            if integrator_selection is not None:
+                backend.verify_integrator_identity()
             result['model_identity_sha256'] = model_identity['model_identity_sha256']
             write_json(out / 'model-identity.json', model_identity)
             policy = create_policy(args, admission, policy_factory)
@@ -450,6 +456,8 @@ def admit(args):
     from cascade.sim.microduck_newton import (experience_text, sha256,
                                               strict_json, verify_bundle)
     from cascade.sim.microduck_policy_admission import admit_policy, target_contract
+    from cascade.sim.microduck_integrator import contract as integrator_contract
+    integrator = integrator_contract(getattr(args, 'integrator_profile', 'sdk-default'))
     if args.engine != 'newton':
         raise ValueError('PhysX BAM unsupported; no fallback')
     mount_path, mount_sha = getattr(args, 'camera_mount', None), getattr(args, 'camera_mount_sha256', None)
@@ -526,6 +534,7 @@ def admit(args):
              'src/cascade/control/newton_bam.py', 'src/cascade/control/microduck_policy.py',
              'src/cascade/sim/microduck_policy_admission.py', 'assets/microduck/policy-candidates.json',
              'src/cascade/sim/microduck_solver_graph.py',
+             'src/cascade/sim/microduck_integrator.py',
              'src/cascade/sim/microduck_sdk.py',
              'src/cascade/sim/private_rtx_cache.py',
              'src/cascade/control/microduck_actuator.py', 'assets/microduck/manifest.json',
@@ -533,7 +542,7 @@ def admit(args):
     admitted.update(limits=load_limits(args.limits), limits_sha256=sha256(args.limits),
                     bam_params=params, bam_config_sha256=sha256(config_path), bam_source_sha256=bam_sources,
                     policy_sha256=args.policy_sha256, policy_admission=policy_admission,
-                    target_contract=targets,
+                    target_contract=targets, integrator_contract=integrator,
                     source_sha256={f: sha256(REPO/f) for f in files},
                     experience_text=experience_text(args.release, sdk_recipe=args.sdk_recipe))
     if sdk_recipe is not None:
@@ -558,6 +567,7 @@ def main(argv=None):
                 'asset_sha256': admission['asset_sha256'], 'asset_receipt_sha256': admission['asset_receipt_sha256'],
                 'output_count': len(admission['receipt']['outputs']), 'bam_config_sha256': admission['bam_config_sha256'],
                 'target_contract': admission['target_contract'],
+                'integrator_contract': admission['integrator_contract'],
                 **({'private_rtx_cache': admission['private_rtx_cache']} if 'private_rtx_cache' in admission else {})}))
             return 0
         from cascade.apps.signal_stop import SignalRequest, StopSignals

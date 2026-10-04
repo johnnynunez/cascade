@@ -126,6 +126,8 @@ locomotion, fidelity of a solver, contact support or any physical outcome.
         raise ValueError('effective private RTX cache policy differs from admission')
     from .microduck_policy_admission import verify_target_contract
     targets = verify_target_contract(admission.get('target_contract'), admission['policy_sha256'])
+    from .microduck_integrator import identity as integrator_identity
+    integrator = integrator_identity(admission, native)
     recipe = {
         "schema": "cascade.microduck.effective-model.v1", "engine": "newton",
         "bundle_receipt_sha256": receipt_hash, "bundle_outputs": [outputs[k] for k in sorted(outputs)],
@@ -142,6 +144,8 @@ locomotion, fidelity of a solver, contact support or any physical outcome.
         "bam": {k: bam[k] for k in bam_fields},
         "native": {k: native[k] for k in native_fields},
     }
+    if integrator is not None:
+        recipe['native']['integrator'] = integrator
     if 'rgbd_camera' in native:
         from .mobile_rgbd import calibration_record
         camera = native['rgbd_camera']

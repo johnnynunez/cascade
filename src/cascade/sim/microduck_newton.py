@@ -496,6 +496,8 @@ class KitNewtonBackend:
     episode. Initial HOME/FK is the only pose write; faults pause and terminate.
     """
     def __init__(self, args, admission, experience):
+        from .microduck_integrator import selected
+        self._integrator_selection = selected(args, admission)
         self.args, self.admission, self.experience = args, admission, experience
         self.app = self.ns = self.readback = self.timeline = None
         self.receipt = {}
@@ -629,6 +631,11 @@ class KitNewtonBackend:
         cfg.solver_cfg.use_mujoco_contacts = True
         configure_outputs(cfg, self._sdk_recipe)
         configure_newton(cfg)
+        if self._integrator_selection is not None:
+            # setup_physics has attached MjcSceneAPI; author its declared token
+            # before exporting/importing the scene or performing bootstrap.
+            from .microduck_integrator import author as author_integrator
+            author_integrator(scene.GetPrim(), self._integrator_selection)
         self._checkpoint()
         self.receipt['configuration'] = dict(num_substeps=1, use_cuda_graph=False, time_step_app=False,
                                              nconmax=contacts, njmax=constraints,
@@ -679,6 +686,10 @@ class KitNewtonBackend:
                                                mujoco=mujoco.__version__, mujoco_warp=mujoco_warp.__version__)
         self._bind_native_model(ns)
         self._checkpoint()
+        if self._integrator_selection is not None:
+            from .microduck_integrator import observe
+            self.receipt['integrator'] = {'contract': self._integrator_selection,
+                                          'after_bootstrap': observe(ns)}
         if self.admission.get('camera_mount') is not None:
             from .mobile_camera_pose import FabricRigReader
             from .mobile_camera_encoding import verify_encoding_sources
@@ -697,6 +708,17 @@ class KitNewtonBackend:
         self.receipt['configuration']['use_cuda_graph'] = self._solver_graph.enabled
         self.receipt['configuration']['solver_graph_stage_sha256'] = self._solver_graph.source_sha256
         self.receipt['configuration']['reuse_solved_read'] = self._reuse_solved_read
+
+    def verify_integrator_identity(self):
+        """Recheck after identity construction and before policy/episode work."""
+        if self._integrator_selection is None:
+            return
+        from .microduck_integrator import identity, observe
+        expected = identity(self.admission, self.receipt)['after_bootstrap']
+        observed = observe(self.ns)
+        if observed != expected:
+            raise ValueError('effective integrator changed while binding model identity')
+        self.receipt['integrator_after_identity'] = observed
 
     def _author_robots(self, stage):
         from pxr import UsdGeom

@@ -42,6 +42,8 @@ def parse_args(argv=None):
     p.add_argument('--max-steps', type=int, required=True)
     p.add_argument('--camera-every', type=int, default=20, help='overview capture interval in completed steps')
     p.add_argument('--camera-rgbd', action='store_true', help='opt-in registered RGB-D; changes effective model identity')
+    p.add_argument('--camera-mount', type=Path, help='explicit rigid-render-camera JSON; requires RGB-D and SDK48')
+    p.add_argument('--camera-mount-sha256', help='independent SHA256 of the exact camera mount file')
     p.add_argument('--max-jpeg-bytes', type=int, default=2*1024**2)
     p.add_argument('--solver-cuda-graph', action='store_true',
                    help='explicit reviewed SDK solver graph; BAM/checkpoints stay outside capture')
@@ -256,6 +258,8 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
                 cache = RgbdFrameCache(controller.hello(),
                     calibration=backend.receipt['rgbd_camera']['calibration'],
                     max_jpeg_bytes=args.max_jpeg_bytes, max_pixels=640*480)
+                if admission.get('camera_mount') is not None:
+                    backend.bind_capture_identity(controller.hello())
             else:
                 cache = FrameCache(controller.hello(), max_jpeg_bytes=args.max_jpeg_bytes, max_pixels=640*480)
             server = (server_factory or MobileBridgeServer)(controller, port=args.port, frame_callback=cache)
@@ -319,13 +323,19 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
                     checkpoint()
                     if capture['step'] != sample['step'] or capture['sim_time_s'] != sample['sim_time']:
                         raise RuntimeError('capture not bound to last published completed state')
+                    pose_evidence = capture.pop('pose_evidence', None)
                     cache.publish(**capture)
                     wire = cache({'camera': 'overview'})['frame']
                     jpeg = base64.b64decode(wire['rgb_jpeg_b64'], validate=True)
                     filename = f"frames/overview_{sample['step']:09d}.jpg"
                     with (out / filename).open('xb') as image:
                         image.write(jpeg)
-                    row(frames, {k: v for k, v in wire.items() if k != 'rgb_jpeg_b64'} | {
+                    frame_evidence = {}
+                    if pose_evidence is not None:
+                        pose_file = f"frames/overview_{sample['step']:09d}.pose.json"
+                        write_json(out / pose_file, pose_evidence | {'capture_pose': capture['capture_pose']})
+                        frame_evidence = {'pose_file': pose_file, 'pose_sha256': hashlib.sha256((out/pose_file).read_bytes()).hexdigest()}
+                    row(frames, {k: v for k, v in wire.items() if k != 'rgb_jpeg_b64'} | frame_evidence | {
                         'file': filename, 'sha256': hashlib.sha256(jpeg).hexdigest(),
                         'render_times': capture['render_times'], 'physics_ticks_during_capture': 0})
                     if getattr(args, 'camera_rgbd', False):
@@ -421,6 +431,14 @@ def admit(args):
     from cascade.sim.microduck_policy_admission import admit_policy
     if args.engine != 'newton':
         raise ValueError('PhysX BAM unsupported; no fallback')
+    mount_path, mount_sha = getattr(args, 'camera_mount', None), getattr(args, 'camera_mount_sha256', None)
+    camera_mount = None
+    if mount_path is not None or mount_sha is not None:
+        if (mount_path is None or mount_sha is None or not args.camera_rgbd
+                or args.sdk_recipe != 'isaac62_48b2d951'):
+            raise ValueError('camera mount requires paired file/SHA, RGB-D and exact SDK48 recipe')
+        from cascade.sim.mobile_camera_pose import admit_mount
+        camera_mount = admit_mount(mount_path, mount_sha)
     if args.reuse_solved_read and not args.solver_cuda_graph:
         raise ValueError('same-solve read reuse requires bound solver graph buffers')
     if type(args.port) is not int or not 0 <= args.port <= 65535:
@@ -477,6 +495,8 @@ def admit(args):
              'src/cascade/sim/microduck_stepper.py', 'src/cascade/sim/microduck_state.py',
              'src/cascade/sim/mobile_bridge.py', 'src/cascade/sim/mobile_identity.py',
              'src/cascade/sim/mobile_rgbd.py',
+             'src/cascade/sim/mobile_camera_pose.py',
+             'src/cascade/sim/mobile_camera_encoding.py',
              'src/cascade/sensing/models.py',
              'src/cascade/sim/microduck_contact_support.py', 'src/cascade/control/mobile_base.py',
              'src/cascade/control/mobile_support.py', 'src/cascade/control/mobile_telemetry.py',
@@ -495,6 +515,10 @@ def admit(args):
                     experience_text=experience_text(args.release, sdk_recipe=args.sdk_recipe))
     if sdk_recipe is not None:
         admitted['sdk_recipe'] = sdk_recipe
+    if camera_mount is not None:
+        from cascade.sim.mobile_camera_encoding import encoding_policy
+        admitted['camera_mount'] = camera_mount
+        admitted['camera_pose_encoding'] = encoding_policy(args.release,args.sdk_recipe)
     if rtx_cache is not None:
         admitted['private_rtx_cache'] = rtx_cache
     return admitted

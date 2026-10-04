@@ -226,6 +226,16 @@ retains this failure, the earlier preparation-race failure, the earlier
 naturally; input files and protected stores remained intact. No performance
 comparison is claimed across changing GPU occupancy.
 
+For a separately admitted diagnostic, `--profile-phases` records inclusive
+owner-thread spans in `timing.jsonl`: completed reads, support/native capture,
+policy preparation, BAM, solve, publication, recording and camera/probe work.
+Rows retain the attempt's completed clocks and solved/withheld/error outcome,
+plus the preceding profile write/flush cost; the footer retains the final cost.
+Nested durations overlap and must not be summed. Reader threads are not profiled.
+The flag installs no wrappers when disabled and is bound in the effective model,
+so enabling it requires a fresh identity probe and pin. Profiling keeps the
+existing control gates, cadence, contact evidence and physical records.
+
 These endpoint outcomes remain physically unverified. Walking, fleet tasks,
 shared-space interactions and measured individual/global motion stops still need
 their own acceptance evidence. The [original twelve-robot overview](

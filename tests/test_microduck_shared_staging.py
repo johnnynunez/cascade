@@ -154,7 +154,8 @@ def test_retry_still_checks_episode_wall_budget_and_never_commits_late_policy():
     assert all(len(s.actuator.targets) == 1 for s in steppers)
 
 
-def test_launcher_withheld_attempt_preserves_step_budget_and_only_emits_completed_frames(tmp_path, monkeypatch):
+@pytest.mark.parametrize('profile_phases', [False, True])
+def test_launcher_withheld_attempt_preserves_step_budget_and_only_emits_completed_frames(tmp_path, monkeypatch, profile_phases):
     import importlib
     import json
     from contextlib import nullcontext
@@ -174,10 +175,13 @@ def test_launcher_withheld_attempt_preserves_step_budget_and_only_emits_complete
             self.actuators = [SoftwareActuator(self)]
             binding = self.layout.robots[0]
             self.actuators[0].coordinate_indices = binding.q_indices, binding.dof_indices
-            self.receipt = {'software_fixture': True}
+            self.receipt = {'software_fixture': True, 'configuration': {}}
             created.append(self)
         def open(self): pass
-        def bind_identity(self, **unused): return {'scene_model_sha256': 'a'*64}
+        def _read_completed_scene(self): raise AssertionError('fixture does not use native capture')
+        def bind_identity(self, **unused):
+            assert ('phase_profile' in self.receipt['configuration']) == profile_phases
+            return {'scene_model_sha256': 'a'*64}
         def capture(self):
             return dict(rgb=np.zeros((8, 8, 3), np.uint8), step=self.step_count,
                         sim_time_s=self.sim_time, captured_at=0., render_times=render_times(self.sim_time))
@@ -202,7 +206,8 @@ def test_launcher_withheld_attempt_preserves_step_budget_and_only_emits_complete
     out = tmp_path / 'run'
     args = NS(out=out, device='cuda:0', source='software-test-not-physics', max_wall_s=3.,
               max_steps=2, camera_every=1, max_jpeg_bytes=100000, policy=tmp_path / 'fixture.onnx',
-              policy_sha256='b'*64, python_extra_path=[], robots=1, serve_base_port=None)
+              policy_sha256='b'*64, python_extra_path=[], robots=1, serve_base_port=None,
+              profile_phases=profile_phases)
     signals = NS(signum=None, registration_attempts=0, checkpoint=lambda **kwargs: None, defer=nullcontext)
     admission = dict(asset_sha256='a'*64, limits=software_limits(), experience_text='software fixture\n')
     result = runner.run(args, admission, signals)
@@ -213,3 +218,18 @@ def test_launcher_withheld_attempt_preserves_step_budget_and_only_emits_complete
         assert [row['step'] for row in rows(name)] == [3, 4]
     assert [row['status'] for row in rows('policy.jsonl')] == ['discarded', 'discarded', 'evaluated']
     assert result['robots']['duck0']['policy_commits'] == 1
+    if profile_phases:
+        attempts, footer = rows('timing.jsonl')[:-1], rows('timing.jsonl')[-1]
+        assert [r['outcome'] for r in attempts] == ['withheld', 'solved', 'solved']
+        assert [r['clock_after'][0] for r in attempts] == [2, 3, 4]
+        assert footer['attempts'] == 3 and not footer['errors']
+        assert result['phase_profile'] == {'file': 'timing.jsonl', 'attempts': 3, 'errors': []}
+        phases = {s['phase'] for r in attempts for s in r['spans']}
+        assert {'policy.prepare', 'bam.before_step', 'solve', 'publication', 'record.physics',
+                'write.physics.jsonl', 'camera.overview', 'camera.capture', 'support.probe'} <= phases
+        assert not any(s['phase'] in ('solve', 'publication') for s in attempts[0]['spans'])
+        assert created[0].receipt['configuration']['phase_profile'] == 'owner-thread-inclusive-v1'
+    else:
+        assert not (out/'timing.jsonl').exists() and 'phase_profile' not in result
+        assert 'step' not in vars(created[0]) and 'capture' not in vars(created[0])
+        assert 'phase_profile' not in created[0].receipt['configuration']

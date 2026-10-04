@@ -102,7 +102,8 @@ class Witness:
 
 class ObservedEnvironment:
     """Advance the real environment once, then read it before returning obs."""
-    def __init__(self, native, witness, trial, out, *, record_placement=False, record_box_geometry=False):
+    def __init__(self, native, witness, trial, out, *, record_placement=False, record_box_geometry=False,
+                 record_rgb_geometry=False):
         import mujoco
         self.native, self.witness, self.steps = native, witness, 0
         self.trial, self.out = trial, out
@@ -110,6 +111,7 @@ class ObservedEnvironment:
         self.after_step = None
         self.record_placement, self.placement = record_placement, None
         self.record_box_geometry = record_box_geometry
+        self.record_rgb_geometry, self.rgb_geometry = record_rgb_geometry, None
         if record_box_geometry and not record_placement:
             raise ValueError("box geometry recording requires the complete placement witness")
 
@@ -138,6 +140,10 @@ class ObservedEnvironment:
         self.witness.model_identity = digest_json(recipe)
         write_json(self.out / "model-identity.json", {"sha256": self.witness.model_identity, "recipe": recipe})
         self.witness.capture(self.native, 0)
+        if self.record_rgb_geometry:
+            from benchmark.vab.rgb_capture import PublicRgbRecorder
+            self.rgb_geometry = PublicRgbRecorder(self.native, self.out/'public-rgb',
+                model_identity_sha256=self.witness.model_identity, epoch=self.witness.epoch)
         self._frame(observation)
         if self.record_placement:
             import yaml
@@ -157,6 +163,9 @@ class ObservedEnvironment:
             if not name.endswith("_depth"):
                 from PIL import Image
                 Image.fromarray(np.asarray(rgb)[::-1]).save(self.out / f"{self.steps:04d}-{name}.png")
+        if self.rgb_geometry is not None:
+            stamp = self.witness.rows[-1]
+            self.rgb_geometry.capture(obs, solver_step=stamp['solver_step'], simulation_time_s=stamp['sim_time_s'])
 
     def step(self, action):
         out = self.native.step(action)
@@ -169,16 +178,25 @@ class ObservedEnvironment:
 
     def close(self):
         placement = None
+        rgb_geometry = None
         try:
             if self.placement is not None:
                 placement = self.placement.close()
         finally:
-            self.native.close()
-        write_json(self.out / "environment-close.json", {"ok": True, "steps": self.steps,
+            try:
+                if self.rgb_geometry is not None:
+                    rgb_geometry = self.rgb_geometry.close()
+            finally:
+                self.native.close()
+        recorders_ok = all(item is None or item['ok'] for item in (placement, rgb_geometry))
+        write_json(self.out / "environment-close.json", {"ok": recorders_ok, "steps": self.steps,
                    "placement": placement,
+                   "rgb_geometry": rgb_geometry,
                    "semantics": "native VAB close returned; standalone runner subsequently exits"})
         if placement is not None and not placement["ok"]:
             raise RuntimeError("placement recorder did not close completely")
+        if rgb_geometry is not None and not rgb_geometry['ok']:
+            raise RuntimeError('RGB geometry recorder did not close completely')
 
 
 class PandaArm(LiberoArm):
@@ -372,6 +390,8 @@ def main():
                         help="Record every solved contact for independent placement analysis; does not enable grasping")
     parser.add_argument("--record-box-geometry", action="store_true",
                         help="Also record complete compiled box shapes and same-solve orientations; requires --record-placement")
+    parser.add_argument("--record-rgb-geometry", action="store_true",
+                        help="Record public RGB pairs and nominal camera calibration for offline feature reconstruction")
     args = parser.parse_args()
     if args.record_box_geometry and not args.record_placement:
         parser.error("--record-box-geometry requires --record-placement")
@@ -403,7 +423,8 @@ def main():
                         output_path=out / "episode.json", binding_reader=binding_reader,
                         env_factory=lambda t: ObservedEnvironment(open_native_environment(t), witness, t, out,
                                                                  record_placement=args.record_placement,
-                                                                 record_box_geometry=args.record_box_geometry))
+                                                                 record_box_geometry=args.record_box_geometry,
+                                                                 record_rgb_geometry=args.record_rgb_geometry))
     tools = [json.loads(row) for row in (out / "runtime/trace.jsonl").read_text().splitlines()
              if json.loads(row)["skill"] == "manipulation.move_relative" and json.loads(row)["args"].get("distance_m") == .04]
     moves_ok = len(tools) == 2 and all(r["result"].get("postcondition", {}).get("status") == "confirmed" and r["result"].get("ok") is True for r in tools)

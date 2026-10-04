@@ -141,7 +141,11 @@ def solved_contacts(ns):
                  or (geoms[:ncon] >= mapping.shape[1]).any()):
         raise ValueError('invalid support contact world/geom')
     frames64, valid_frames, finite_frames = _contact_frame_validity(adr, pos, frames, normal, force_on_a, ncon)
-    covered, records = set(), []
+    # Addresses describe contiguous rows. Keep one local coverage mask and
+    # index vector per observation instead of allocating index arrays, gathered
+    # channel copies and Python row lists/sets for every solved contact.
+    row_indices = np.arange(nefc)
+    covered, records = np.zeros(nefc, dtype=bool), []
     for i in range(ncon):
         pair = (int(pairs[0][i]), int(pairs[1][i]))
         if (min(pair) < 0 or max(pair) >= len(labels) or pair[0] == pair[1]
@@ -155,13 +159,14 @@ def solved_contacts(ns):
             raise ValueError('unsupported contact dimension')
         nrows = 2 * (dim - 1) if cone == 0 and dim > 1 else dim
         expected_type = 5 if dim == 1 else (6 if cone == 0 else 7)
-        rows = np.arange(first, first + nrows)
-        if (first < 0 or first + nrows > nefc or adr.shape[1] < nrows
-                or not np.array_equal(adr[i, :nrows], rows)
+        end = first + nrows
+        rows = slice(first, end)
+        if (first < 0 or end > nefc or adr.shape[1] < nrows
+                or not np.array_equal(adr[i, :nrows], row_indices[rows])
                 or (types[0, rows] != expected_type).any() or (ids[0, rows] != i).any()
-                or covered.intersection(rows.tolist())):
+                or covered[rows].any()):
             raise ValueError('contact constraint rows are incomplete or ambiguous')
-        covered.update(rows.tolist())
+        covered[rows] = True
         if finite_frames[i]:
             frame = frames64[i]
             if not valid_frames[i]:
@@ -179,11 +184,14 @@ def solved_contacts(ns):
                 raise ValueError('invalid contact frame/normal')
         # The admitted native decoder sums the pyramid edges for the normal;
         # elliptic/frictionless contact stores its normal in the first row.
-        normal_force = float(np.sum(efc_force[0, rows], dtype=np.float64)
+        # Preserve the original contiguous reduction order even for a strided
+        # diagnostic input. Ordinary native buffers already provide this view.
+        row_forces = np.ascontiguousarray(efc_force[0, rows])
+        normal_force = float(np.sum(row_forces, dtype=np.float64)
                              if cone == 0 and dim > 1 else efc_force[0, first])
         force_b = -force_on_a[i, :3].astype(float)
         if (normal_force < 0 or force_b @ frame[0] < 0
-                or (cone == 0 and (efc_force[0, rows] < 0).any())
+                or (cone == 0 and (row_forces < 0).any())
                 or not np.isclose(force_b @ frame[0], normal_force,
                                   rtol=1e-5, atol=1e-7)):
             raise ValueError('solved normal/force disagreement')
@@ -192,8 +200,8 @@ def solved_contacts(ns):
                             force_on_b_world_n=force_b.tolist(), normal_force_n=normal_force,
                             point_world_m=pos[i].astype(float).tolist(),
                             normal_a_to_b_world=frame[0].tolist()))
-    required = set(np.flatnonzero(np.isin(types[0, :nefc], (5, 6, 7))).tolist())
-    if covered != required:
+    required = np.isin(types[0, :nefc], (5, 6, 7))
+    if not np.array_equal(covered, required):
         raise ValueError('contact observation does not cover all solved contact rows')
     return records
 

@@ -6,6 +6,10 @@
 <p id="status" role="status">Loading local session…</p>
 <div class="controls"><button id="connect">Connect</button><button id="mic" disabled>Start microphone</button>
 <button id="disconnect" disabled>Disconnect</button></div>
+<div id="robot-session" hidden><button id="start-robot" disabled>Start robot session</button>
+<p>Prepare your microphone first. Start robot session starts the stopped hand, checks readiness,
+clears its initial stop, and opens a new conversation. The hand session lasts at most
+30 seconds, including those checks. Reconnecting does not extend it.</p></div>
 <form id="text-form"><label for="text">Or send a typed message</label><div class="controls">
 <input id="text" maxlength="4000" autocomplete="off" placeholder="What sensors are available?">
 <button id="send" disabled>Send</button></div></form>

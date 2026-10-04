@@ -304,5 +304,17 @@ Factory owner streams raw rows to JSON, bounded to the queue prefix present
 when draining begins; `records()` keeps its public detached-list contract.
 A later decoding or persistence failure leaves partial evidence and a sticky
 fault, never a complete task result. These changes preserve capture deadlines
-and normal GC. CPU boundary tests exercise wraparound, mutation, fault priority,
-overflow and streaming; new native validation and a latency remedy remain pending.
+and normal GC. The 248 passing CPU checks exercise wraparound, mutation, fault
+priority, overflow and streaming; 112 optional SDK checks were skipped.
+
+A separate replay of the closed `75c9c89` episode preserved all 22,511 archived
+rows, 22,510 accepted solves, 7,347,832 contact candidates and 21,768 threading
+samples, including exact raw JSON and typed float bits. It retains the original
+320.738 ms freshness refusal and only 374 accepted motor-off samples / 0.622 s,
+short of the required 2 s. Retained per-row wrappers fell from 64,279 to zero
+(one ring object remains); selected types disappeared after release without
+explicit collection. Generation-2 callback counts increased from 183 to 318.
+Both CPU scopes closed ordinarily. The baseline raw archive was expanded one
+row at a time for content comparison, so this does not measure its former
+eager-drain peak. All callbacks and pack/publish timings remain in the linked
+compact receipt; no native latency remedy, physical rest or seating is admitted.

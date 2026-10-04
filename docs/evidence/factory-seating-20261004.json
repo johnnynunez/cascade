@@ -910,5 +910,304 @@
       "owner_pack_wall_ms": 311.961371,
       "post_refusal_count": 10
     }
+  },
+  "byte_retention_cpu": {
+    "schema": "cascade.factory-byte-retention-cpu.v1",
+    "source_head": "6858456de5b76c6d3c9db22e0133695d473900f1",
+    "baseline_head": "75c9c89dcedbd65c2ff1271f3c93e4ade8b1d022",
+    "scope": "Two sequential CPU codec/storage replays of a closed negative episode; no model, new solve, native timing claim or renewed admission.",
+    "counts": {
+      "rows": 22511,
+      "accepted_rows": 22510,
+      "contact_candidates": 7347832,
+      "thread_samples": 21768
+    },
+    "equality_sha256": {
+      "typed_rows_sha256": "47be7cb33a72a5a6e9388083b3d0e42d0a82604a11eed20bb86d2b9b5455661c",
+      "typed_history_sha256": "1ace1754439304270f7552068d654a8dec4a0ffc2b1a95dacec380892cafbe42",
+      "exact_jsonl_sha256": "ff0d405c7ab0bfb46bf8c5ad100c689129d9f02c1c8f26ac39013b4b7ac55d93"
+    },
+    "storage": {
+      "journal_capacity": 20000,
+      "prefix_read_before_wrap": 2510,
+      "raw_and_history_capacity": 32768,
+      "retained_per_row_wrappers_baseline": 64279,
+      "retained_per_row_wrappers_candidate": 0,
+      "candidate_ring_objects": 1
+    },
+    "original_freshness_rejection": {
+      "age_s": 0.32073805799882393,
+      "binding_sha256": "259c9bf4be1ec7ac3574d110becd7909c6c7cacc396302c0c96590068a3c921e",
+      "captured_monotonic_s": 54843.107095304,
+      "checked_monotonic_s": 54843.427833362,
+      "epoch": "5ec23bff79bd47d6897a56d7aef1b996",
+      "generation": 3,
+      "max_observation_age_s": 0.2,
+      "model_identity_sha256": "c6f68c8f87641d028a0983de49e2a32888a57dad45b3a19ac4438e40f1030f30",
+      "reason": "stale",
+      "simulation_time_s": 37.518334241816774,
+      "stage": "controller_accept_solve",
+      "step": 22511
+    },
+    "partial_accepted_motor_off": {
+      "accepted_samples": 374,
+      "motor_off_sim_s": 0.6216666817199439,
+      "excluded_rejected_step": 22511,
+      "physical_stop_verified": false
+    },
+    "offline_threading_verdict_equal": true,
+    "seating_admitted": false,
+    "physical_stop_verified": false,
+    "measurements": {
+      "baseline": {
+        "retained_census": {
+          "label": "after_retention_before_final_cursor_and_raw_drain",
+          "exact_types": {
+            "FasteningSolve": 0,
+            "SeatingSolve": 2,
+            "SolvedPair": 369,
+            "ShoulderContact": 86,
+            "ThreadSample": 0,
+            "_RawRecord": 22511,
+            "_PackedRecord": 41768
+          },
+          "tracked_objects": 90283,
+          "observer_ms": 7.887563
+        },
+        "after_release_without_collection": {
+          "FasteningSolve": 0,
+          "SeatingSolve": 0,
+          "SolvedPair": 0,
+          "ShoulderContact": 0,
+          "ThreadSample": 0,
+          "_RawRecord": 0,
+          "_PackedRecord": 0
+        },
+        "gc_stop_counts_by_generation": [
+          38548,
+          3505,
+          183
+        ],
+        "gc_max_callback_interval_ms_by_generation": [
+          100.090792,
+          0.415432,
+          22.50593
+        ],
+        "max_archive_pack_ms": 0.167755,
+        "max_journal_publish_ms": 0.410264
+      },
+      "candidate": {
+        "retained_census": {
+          "label": "after_retention_before_final_cursor_and_raw_drain",
+          "exact_types": {
+            "FasteningSolve": 0,
+            "SeatingSolve": 2,
+            "SolvedPair": 369,
+            "ShoulderContact": 86,
+            "ThreadSample": 0,
+            "_RawRecord": 0,
+            "_RetainedRing": 1
+          },
+          "tracked_objects": 25991,
+          "observer_ms": 1.232245
+        },
+        "after_release_without_collection": {
+          "FasteningSolve": 0,
+          "SeatingSolve": 0,
+          "SolvedPair": 0,
+          "ShoulderContact": 0,
+          "ThreadSample": 0,
+          "_RawRecord": 0,
+          "_RetainedRing": 0
+        },
+        "gc_stop_counts_by_generation": [
+          38529,
+          3503,
+          318
+        ],
+        "gc_max_callback_interval_ms_by_generation": [
+          0.785916,
+          0.52538,
+          10.11329
+        ],
+        "max_archive_pack_ms": 0.277192,
+        "max_journal_publish_ms": 0.415723
+      }
+    },
+    "closure": {
+      "baseline": {
+        "ok": true,
+        "scope_client_exit": 0,
+        "forced": false,
+        "signals": [],
+        "errors": [],
+        "remaining_members": [],
+        "remaining_births": [],
+        "final_drain": {
+          "settled": true,
+          "budget_s": 10,
+          "waited_s": 0.004421858997375239
+        },
+        "observed_births": [
+          {
+            "pid": 1205116,
+            "start_ticks": 5786682,
+            "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+            "executable": "/usr/lib/cargo/bin/coreutils/timeout",
+            "argv": [
+              "/usr/bin/timeout",
+              "--kill-after=15s",
+              "300s",
+              "nice",
+              "-n",
+              "19",
+              "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/full-env-startup-20261002/venv/bin/python",
+              "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/replay_bytes.py",
+              "--plan",
+              "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-plan-01.json",
+              "--plan-sha256",
+              "c9ed368278b8a5eb4b7761be9dd61ec5bca841977cbd3d54caa68f43699529c2",
+              "--mode",
+              "baseline",
+              "--out",
+              "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-01/baseline.json"
+            ]
+          },
+          {
+            "pid": 1205118,
+            "start_ticks": 5786684,
+            "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+            "executable": "/home/johnny/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/bin/python3.12",
+            "argv": [
+              "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/full-env-startup-20261002/venv/bin/python",
+              "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/replay_bytes.py",
+              "--plan",
+              "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-plan-01.json",
+              "--plan-sha256",
+              "c9ed368278b8a5eb4b7761be9dd61ec5bca841977cbd3d54caa68f43699529c2",
+              "--mode",
+              "baseline",
+              "--out",
+              "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-01/baseline.json"
+            ]
+          }
+        ]
+      },
+      "candidate": {
+        "ok": true,
+        "scope_client_exit": 0,
+        "forced": false,
+        "signals": [],
+        "errors": [],
+        "remaining_members": [],
+        "remaining_births": [],
+        "final_drain": {
+          "settled": true,
+          "budget_s": 10,
+          "waited_s": 0.003983621994848363
+        },
+        "observed_births": [
+          {
+            "pid": 1206051,
+            "start_ticks": 5795486,
+            "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+            "executable": "/usr/lib/cargo/bin/coreutils/timeout",
+            "argv": [
+              "/usr/bin/timeout",
+              "--kill-after=15s",
+              "300s",
+              "nice",
+              "-n",
+              "19",
+              "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/full-env-startup-20261002/venv/bin/python",
+              "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/replay_bytes.py",
+              "--plan",
+              "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-plan-01.json",
+              "--plan-sha256",
+              "c9ed368278b8a5eb4b7761be9dd61ec5bca841977cbd3d54caa68f43699529c2",
+              "--mode",
+              "candidate",
+              "--out",
+              "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-01/candidate.json"
+            ]
+          },
+          {
+            "pid": 1206053,
+            "start_ticks": 5795488,
+            "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+            "executable": "/home/johnny/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/bin/python3.12",
+            "argv": [
+              "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/full-env-startup-20261002/venv/bin/python",
+              "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/replay_bytes.py",
+              "--plan",
+              "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-plan-01.json",
+              "--plan-sha256",
+              "c9ed368278b8a5eb4b7761be9dd61ec5bca841977cbd3d54caa68f43699529c2",
+              "--mode",
+              "candidate",
+              "--out",
+              "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-01/candidate.json"
+            ]
+          }
+        ]
+      }
+    },
+    "inputs_unchanged": true,
+    "tests": {
+      "passed": 248,
+      "optional_skipped": 112,
+      "scope": "CPU retention, raw archive, journal/runtime and seating boundaries; no SDK/model run."
+    },
+    "limits": {
+      "child_s": 300,
+      "outer_per_child_s": 330,
+      "memory": "4G",
+      "cpu": "100%",
+      "gc_enabled": true,
+      "gc_thresholds": [
+        700,
+        10,
+        10
+      ]
+    },
+    "limitations": [
+      "Raw snapshot columns are reconstructed from already decoded closed JSON; unavailable SDK constraint arrays are not recreated.",
+      "Baseline raw records are expanded one at a time for content comparison, not through its prior eager public drain; no peak-memory claim.",
+      "Both typed digests preserve field/type/order/float bits. Raw SHA is identical to the complete retained JSONL, including the rejected last row.",
+      "Normal-GC callbacks and every pack/publish timing are retained. More generation-2 collections occurred in the candidate; these CPU observations do not identify or remedy native pauses.",
+      "Census captures selected exact classes and total tracked counts at three boundaries; it does not inspect referrers or establish native heap causality.",
+      "The original negative task, incomplete motor-off window and freshness deadline remain unchanged. New native source/pin/validation are still required."
+    ],
+    "runtime_sha256": {
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-cascade/src/cascade/control/_fastening_retention.py": "fe4abb88f1a6d21dd656bede0a3421f14f7c58f09339e5117bb75a5ddd678862",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-cascade/src/cascade/control/fastening.py": "2d9b57762adfffe50b3e53ae69180edbbf3fbfb0c1fdc2c62753d5f722beb866",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-cascade/src/cascade/sim/factory_owner.py": "f942b85ffa26a2b366da618bc87df980829a7916692757a59dd55ffef26822a0",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-cascade/src/cascade/sim/factory_observation.py": "fc7473ca9ae99655077a1e06e3150c0a5f42b01d3c251e033cac0b9cf2f35859",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-cascade/src/cascade/apps/factory_runtime.py": "f01db3380e713e2fb2cdbd6b4f225397ca294260baa198d6fd08efcd45af9da8"
+    },
+    "artifact_sha256": {
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-plan-01.json": "c9ed368278b8a5eb4b7761be9dd61ec5bca841977cbd3d54caa68f43699529c2",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-binding-01.json": "5e9805878e68d82cfa1475a5ea300b4a72a3a97f0ef41813d2f027b024a603b4",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-check-only-01.log": "b8765b516709148c6acb20cb164ddc3936818444176b6d039fedc70f6653179b",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-prelaunch-01.json": "5ca0fe865751943060e058996ffb8e7fd06e3bda2d2bd9d7abbd1505200117a8",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-launch-01.log": "357cfd1e1e8aeeb3fed9825918a65db4dcd298bf4d28064f32ca40654946c631",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-source-diff-01.patch": "34b96658067c1d216019b1a65d9252942b196f1d411b0cd8c292de5d5378acce",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-tests-02.log": "b5d4fc4aaec36f97a40de2c635cd9966c97f765a64ca104a5b950d5fef4578f9",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/replay_bytes.py": "ade08c9ad3012fef2a77a6a738b5d69d74b9e51751efed22f232e7374248d64f",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/launch_bytes_replay.py": "198a0fb24261e69426c0aeabd2c838a4e997906884be5e8bc0554b7f298aa16f",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/replay_retention_02.py": "43bedd50f40ed8fd9a1c2e4ee5f1a915d03694430023d2fa5bfd80306b4030fd",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/owned_services.py": "44f1f98f4760f31a7c6dd89acddb1ed073523b8c2520f322abe2c5eae8000473",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/seating-failure-audit-01.json": "9726b6cc65181e615240d8176bc65e59db980e47fca7be28366cf422df0260ba",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/compact_bytes_replay.py": "d74abfeb4daef369842c19ce8fc6e9f5c362fdc9c4429c42e502b22bfb2a838c",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-01/receipt.json": "4f42dd532575677d0f77406566169410f7c454b306cd482ee52fe7fe1dd17767",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-01/baseline.json": "7f1160d3ffa8031fc2e666477a3542c0a81706cad674592ef166c3404d15896a",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-01/candidate.json": "83cb857375ccc035815ae760f2b8f4e290390c7c7b7519a814e9c0b7e8fb3cc7",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-01/baseline-scope/owner.json": "3049b02e4c6a7538b22acdbf77b12ae4cddbd531e3b0f4e46265c0e5265dd088",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-01/baseline-scope/closure.json": "97be235118048ffecf37db19ca4ec95d944a1de003cecedcd98a724f8d0de77f",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-01/baseline-scope/service.log": "eb56c6154c899e980eb8a97a61db1177762f45faed6469aecada0c3590f8cd9b",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-01/candidate-scope/owner.json": "98cbdd244dcc49bf0a939acd0de6a3a9a57094ef077d7a447e4676fe80f244af",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-01/candidate-scope/closure.json": "7bd95631f2776c4d672f5af95786c10758d38e0233273df57ff809f6b6543185",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-01/candidate-scope/service.log": "5fe9fd00f84e881757a7d745624b928f30c555539d105a2b8d7a3845aa0769b5"
+    }
   }
 }

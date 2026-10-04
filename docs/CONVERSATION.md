@@ -73,6 +73,20 @@ closed normally. This new stochastic response does not replay the historical
 RNG state, prove the cause of VOICE-HAND05, establish repeatability, or show that
 speech, hand motion and spoken confirmation fit the unchanged 30-second owner.
 
+The subsequent [EOF component rerun](evidence/robot-modularity/voice-hand-llm-eof-20261004.json)
+used provider source `66b7233` with the same 581-token prompt, weights, generation
+settings and recorded pre-response RNG state. Nine real streamer/queue/thread
+regressions cover natural EOF, cancellation, consumer close, parser errors and
+worker finalization; the related focused suite passed 43 tests. The real model
+again emitted the same single `index_flex` call. Evaluated generation took
+16.363 seconds; the interval from the last decoded chunk to response completion
+was 0.007607 seconds, versus 10.002136 seconds in the retained earlier component.
+Construction and two ordinary warmups took 53.153 seconds. The bounded trace,
+source/assets and ordinary owned closure passed, with no dispatched tool.
+This is one component rerun, without ASR, TTS, hand or browser. It does not
+establish the complete voice chain, repeated response latency or its 30-second
+hand-owner budget; VOICE-HAND02 and VOICE-HAND05 remain negative.
+
 ## Run the gateway
 
 From a checkout, install the optional transport and start a new private run:

@@ -194,3 +194,40 @@ the reader works with the native robot and scene while retaining a negative
 placement result; it does not demonstrate a grasp, release into the basket or
 physical braking under an independently advancing simulator. The same compact
 evidence includes this integration's distinct compiled model and episode.
+
+## Complete box geometry for containment analysis
+
+The optional `--record-box-geometry` flag requires `--record-placement`. It
+adds a compiled inventory of **every** object/support collider, its local pose
+and half sizes, plus raw body and collider rotations at each existing Euler
+constraint phase. The first recipe accepts only box colliders directly on
+their free rigid roots; other shapes or body layouts are refused before the
+step hook is installed. Changes to compiled shapes, sizes or local poses
+remain sticky faults. Recording adds no simulation steps, forward calls,
+control writes or privileged actor observations.
+
+[`BoxGeometryInventory`](../src/cascade/eval/box_geometry.py) binds that complete
+inventory to the placement policy and sealed samples. It cross-checks collider
+poses against the compiled geometry and body poses, then reconstructs all eight
+corners of every object box in the same sample's support frame. Missing shapes,
+changed identities, malformed rotations and unknown support-frame uncertainty
+cannot receive containment credit.
+
+[`BoxCavity`](../src/cascade/eval/cavity.py) calibrates five finite box walls and
+an explicit top cap. `complete_faces` requires the whole inferred cavity face
+to fit its physical wall. `finite_face_intersection` conservatively intersects
+that region with the finite tangential extent of every wall, using twenty
+additional normalized planes. This smaller region never extends a short wall;
+its artificial clipping planes are not evidence of physical support. All
+vertices of all object hulls must fit every plane after the caller's explicit
+uncertainty and a numerical reserve are subtracted. Visual sites and an object
+center are insufficient.
+
+These geometry checks are separate from release/support/rest, episode closure
+and benchmark success. In particular, penetration from soft solver contacts
+can fail a strict interior test at the floor; the geometry verifier does not
+hide that penetration or relax the floor to obtain a passing task. The source
+has CPU coverage for finite-wall clipping, transformed whole-object geometry,
+complete inventory and the optional reader lifecycle. Native box recording,
+calibration against its compiled geometry and complete VAB placement remain
+unverified for this new source.

@@ -86,3 +86,54 @@ def test_thin_protruding_component_cannot_be_hidden_by_an_interior_main_body():
     main, protruding = cube(), cube(center=(1.05, 0, .5), radius=.02)
     assert value.contains_hulls({10: main}, expected_geometry_ids=(10,), position_error_m=0)['status'] == 'confirmed'
     assert value.contains_hulls({10: main, 11: protruding}, expected_geometry_ids=(10, 11), position_error_m=0)['status'] == 'unverified'
+
+
+@pytest.mark.parametrize('short_index,short_size,outside', [
+    (1, (.01, .2, .51), (0., .5, .5)),
+    (0, (.2, 1.03, .01), (.5, 0., .5)),
+])
+def test_finite_face_intersection_only_certifies_the_smaller_region(short_index, short_size, outside):
+    value = cavity()
+    walls = list(value.walls)
+    walls[short_index] = replace(walls[short_index], half_size_m=short_size)
+    # The original whole-face calibration remains refused for this geometry.
+    with pytest.raises(ValueError, match='finite wall'):
+        replace(value, walls=tuple(walls))
+    clipped = replace(value, walls=tuple(walls), calibration_recipe='finite_face_intersection')
+    planes, vertices = clipped.planes_and_vertices()
+    assert len(planes) == 26
+    for physical_wall in clipped.walls:
+        transform = np.asarray(physical_wall.body_from_geometry).reshape(4, 4)
+        local = (np.asarray(vertices)-transform[:3, 3]) @ np.linalg.inv(transform[:3, :3]).T
+        thin_axis = int(np.argmin(physical_wall.half_size_m))
+        for axis in range(3):
+            if axis != thin_axis:
+                assert np.max(abs(local[:, axis])) < physical_wall.half_size_m[axis]
+    assert clipped.contains_hulls({10: cube()}, expected_geometry_ids=(10,), position_error_m=0)['status'] == 'confirmed'
+    # This hull fits all six infinite interior planes but not the finite wall.
+    assert clipped.contains_hulls({10: cube(outside)}, expected_geometry_ids=(10,), position_error_m=0)['status'] == 'unverified'
+
+
+def test_high_visual_cap_cannot_extend_the_finite_wall_intersection():
+    value = replace(cavity(), top_z_m=2., calibration_recipe='finite_face_intersection')
+    assert max(vertex[2] for vertex in value.planes_and_vertices()[1]) < 1.01
+    assert value.contains_hulls({10: cube((0, 0, 1.5))}, expected_geometry_ids=(10,), position_error_m=0)['status'] == 'unverified'
+
+
+def test_recipe_is_explicit_hashed_and_unknown_recipe_is_refused():
+    value = cavity()
+    assert replace(value, calibration_recipe='finite_face_intersection').sha256 != value.sha256
+    with pytest.raises(ValueError, match='recipe'):
+        replace(value, calibration_recipe='visual_bounds')
+
+
+def test_auxiliary_planes_keep_metric_error_under_permitted_pose_encoding_residual():
+    value = cavity()
+    walls = list(value.walls)
+    pose = np.asarray(walls[1].body_from_geometry).reshape(4, 4).copy()
+    pose[1, 1] += 1e-8
+    walls[1] = replace(walls[1], body_from_geometry=tuple(pose.flat))
+    clipped = replace(value, walls=tuple(walls), calibration_recipe='finite_face_intersection')
+    planes, _ = clipped.planes_and_vertices()
+    assert np.max(abs(np.linalg.norm(np.asarray(planes)[:, :3], axis=1)-1)) < 1e-14
+    assert clipped.contains_hulls({10: cube()}, expected_geometry_ids=(10,), position_error_m=.5)['status'] == 'unverified'

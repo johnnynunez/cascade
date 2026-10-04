@@ -151,10 +151,13 @@ def recorder_fixture(tmp_path, monkeypatch, **budgets):
         body_mass=np.array([0., .1, 1., 1.]), geom_bodyid=np.array([1, 2, 3, 0]),
         pair_geom1=np.zeros(0, dtype=int), pair_geom2=np.zeros(0, dtype=int),
         geom_contype=np.array([1, 1, 1, 0]), geom_conaffinity=np.array([1, 1, 1, 0]),
+        geom_type=np.full(4, 6), geom_size=np.array([[.02,.02,.02],[.1,.1,.1],[.04,.04,.04],[1.,1.,1.]]),
+        geom_pos=np.zeros((4,3)), geom_quat=np.tile([1.,0.,0.,0.],(4,1)),
         geom_rbound=np.array([.05, .2, .08, 0.]))
     d = SimpleNamespace(time=0., warning=SimpleNamespace(number=np.zeros(8, dtype=int)),
         xpos=np.array([[0., 0., 0.], [0., 0., .15], [0., 0., 0.], [1., 0., 0.]]),
         geom_xpos=np.array([[0., 0., .15], [0., 0., 0.], [1., 0., 0.], [0., 0., 0.]]),
+        xmat=np.tile(np.eye(3).ravel(),(4,1)), geom_xmat=np.tile(np.eye(3).ravel(),(4,1)),
         ncon=1, nefc=3, qpos=np.zeros(14), qvel=np.zeros(12), ctrl=np.zeros(1),
         xfrc_applied=np.zeros((4, 6)), qfrc_applied=np.zeros(12),
         contact=[SimpleNamespace(geom1=1, geom2=0, efc_address=0, dim=3, dist=-.0001,
@@ -162,8 +165,10 @@ def recorder_fixture(tmp_path, monkeypatch, **budgets):
     def wrench(_m, _d, _i, out): out[:] = contact["wrench_on_b_contact"]
     mj = SimpleNamespace(mjtIntegrator=SimpleNamespace(mjINT_EULER=0),
         mjtJoint=SimpleNamespace(mjJNT_FREE=0), mjtObj=SimpleNamespace(mjOBJ_BODY=1),
+        mjtGeom=SimpleNamespace(mjGEOM_BOX=6),
         mjtTrn=SimpleNamespace(mjTRN_JOINT=0),
         mj_name2id=lambda *_: 3, mj_contactForce=wrench,
+        mju_quat2Mat=lambda out,_: out.__setitem__(slice(None),np.eye(3).ravel()),
         mj_objectVelocity=lambda *_: None)
     for callback in ("control", "passive", "sensor", "contactfilter", "act_dyn", "act_gain", "act_bias", "time"):
         setattr(mj, "get_mjcb_"+callback, lambda: None)
@@ -182,6 +187,46 @@ def recorder_fixture(tmp_path, monkeypatch, **budgets):
     recorder = PlacementRecorder(env, tmp_path/"placement", model_identity_sha256="a"*64,
         epoch="episode", object_name="can", support_name="basket", robot_root_body="robot0_link0", **budgets)
     return recorder, sim, original, m, d
+
+
+def test_optional_box_geometry_keeps_compiled_shapes_and_same_solve_raw_rotations(tmp_path, monkeypatch):
+    import json
+    recorder, sim, original, m, d = recorder_fixture(tmp_path, monkeypatch, record_box_geometry=True)
+    assert sim.calls == 0
+    manifest = json.loads((recorder.out/'box-geometry.json').read_text())
+    assert [b['geometry_id'] for b in manifest['object_boxes']] == [0]
+    assert [b['geometry_id'] for b in manifest['support_boxes']] == [1]
+    sim.step()
+    row = json.loads((recorder.out/'solves.jsonl').read_text())
+    assert row['box_geometry']['inventory_sha256'] == recorder.box_inventory.sha256
+    assert [v['id'] for v in row['box_geometry']['rotations_world']] == [0,1]
+    hulls = recorder.box_inventory.object_hulls(row, recorder.policy)
+    assert np.allclose(hulls[0].min(axis=0), [-.02,-.02,.13])
+    assert np.allclose(hulls[0].max(axis=0), [.02,.02,.17])
+    d.geom_xmat[0,0] = 2.
+    assert row['box_geometry']['rotations_world'][0]['rotation'][0] == 1.
+    assert recorder.close()['ok'] and sim.step == original and sim.calls == 1
+
+
+@pytest.mark.parametrize('field',['geom_type','geom_size','geom_pos','geom_quat'])
+def test_compiled_box_geometry_changes_refuse_before_next_solve(tmp_path, monkeypatch, field):
+    recorder, sim, original, m, _ = recorder_fixture(tmp_path, monkeypatch, record_box_geometry=True)
+    getattr(m,field).flat[0] += 1
+    with pytest.raises(RuntimeError,match='geometry changed'): sim.step()
+    assert sim.calls == 0
+    assert not recorder.close()['ok'] and sim.step == original
+
+
+def test_box_geometry_never_silently_substitutes_a_bound_for_an_unsupported_shape(tmp_path, monkeypatch):
+    from benchmark.vab.placement_witness import PlacementRecorder
+    recorder, sim, original, m, _ = recorder_fixture(tmp_path, monkeypatch)
+    assert recorder.close()['ok']
+    m.geom_type[0] = 2
+    env = SimpleNamespace(sim=sim,_obj_body_id={'can':1,'basket':2})
+    with pytest.raises(ValueError,match='all colliders to be boxes'):
+        PlacementRecorder(env,tmp_path/'unsupported',model_identity_sha256='a'*64,epoch='another',
+            object_name='can',support_name='basket',robot_root_body='robot0_link0',record_box_geometry=True)
+    assert sim.calls == 0 and sim.step == original and not (tmp_path/'unsupported').exists()
 
 
 def test_recorder_reads_only_after_exactly_one_existing_solve_and_restores_hook(tmp_path, monkeypatch):

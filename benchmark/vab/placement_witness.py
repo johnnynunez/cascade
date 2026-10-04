@@ -53,7 +53,7 @@ class PlacementRecorder:
     """
     def __init__(self, env, output, *, model_identity_sha256, epoch,
                  object_name, support_name, robot_root_body, max_solves=16000,
-                 max_bytes=256*1024*1024):
+                 max_bytes=256*1024*1024, record_box_geometry=False):
         import mujoco
         self.mj, self.sim = mujoco, env.sim
         self.model, self.data = env.sim.model._model, env.sim.data._data
@@ -61,6 +61,9 @@ class PlacementRecorder:
         if type(max_solves) is not int or max_solves < 1 or type(max_bytes) is not int or max_bytes < 1:
             raise ValueError("placement recorder budgets must be positive integers")
         self.max_solves, self.max_bytes = max_solves, max_bytes
+        if type(record_box_geometry) is not bool:
+            raise ValueError("explicit box geometry recording flag required")
+        self.box_inventory = None
         if self.out.exists():
             raise ValueError("placement recorder requires a new output directory")
         if int(self.model.opt.integrator) != int(mujoco.mjtIntegrator.mjINT_EULER):
@@ -102,10 +105,35 @@ class PlacementRecorder:
             "body_parentid", "body_jntnum", "body_jntadr", "jnt_type", "pair_geom1", "pair_geom2",
             "actuator_trntype", "actuator_trnid", "jnt_bodyid", "jnt_dofadr", "jnt_stiffness",
             "dof_frictionloss", "body_gravcomp")}
+        if record_box_geometry:
+            from cascade.eval.box_geometry import BoxGeometryInventory
+            from cascade.eval.cavity import BoxWall
+            boxes = {}
+            for name in ("object", "support"):
+                boxes[name] = []
+                for geom in geoms[name]:
+                    if (int(self.model.geom_type[geom]) != int(self.mj.mjtGeom.mjGEOM_BOX)
+                            or int(self.model.geom_bodyid[geom]) != self.body_ids[name]):
+                        raise ValueError("box geometry recipe requires all colliders to be boxes on their rigid root")
+                    rotation = np.empty(9)
+                    self.mj.mju_quat2Mat(rotation, self.model.geom_quat[geom])
+                    transform = np.eye(4)
+                    transform[:3, :3] = rotation.reshape(3, 3)
+                    transform[:3, 3] = self.model.geom_pos[geom]
+                    boxes[name].append(BoxWall(geom, tuple(transform.flat), tuple(self.model.geom_size[geom])))
+            self.box_inventory = BoxGeometryInventory(model_identity_sha256, self.policy.sha256,
+                int(self.body_ids["object"]), int(self.body_ids["support"]),
+                tuple(boxes["object"]), tuple(boxes["support"]))
+            self.box_inventory.bind(self.policy)
+            self._box_inventory_sha256 = self.box_inventory.sha256
+            self._bound_fields.update({name: np.asarray(getattr(self.model, name)).copy()
+                for name in ("geom_type", "geom_size", "geom_pos", "geom_quat")})
         if np.any(self.data.warning.number):
             raise ValueError("placement cannot start after native warnings")
         self.out.mkdir(parents=True)
         (self.out/"policy.json").write_text(json.dumps(asdict(self.policy), indent=2, allow_nan=False)+"\n")
+        if self.box_inventory is not None:
+            (self.out/"box-geometry.json").write_text(json.dumps(asdict(self.box_inventory), indent=2, allow_nan=False)+"\n")
         self.steps, self.bytes, self.fault = 0, 0, None
         self._warning_counts = np.asarray(self.data.warning.number).copy()
         self._last_time = float(self.data.time)
@@ -173,7 +201,7 @@ class PlacementRecorder:
                 "distance_m": float(contact.dist), "position_m": contact.pos.tolist(),
                 "frame_rows": frame.tolist(), "wrench_on_b_contact": wrench.tolist(),
                 "force_on_b_world_n": (frame.T @ wrench[:3]).tolist()})
-        return seal_placement_row({"model_identity_sha256": self.policy.model_identity_sha256,
+        row = {"model_identity_sha256": self.policy.model_identity_sha256,
             "epoch": self.policy.epoch, "policy_sha256": self.policy.sha256,
             "solver_step": self.steps, "constraint_time_s": constraint_time,
             "advanced_time_s": float(d.time), "phase": "euler_constraint_before_integration",
@@ -184,7 +212,13 @@ class PlacementRecorder:
             "external_forces_zero": bool(np.all(d.xfrc_applied == 0) and np.all(d.qfrc_applied == 0)),
             "bodies": bodies, "contacts": contacts,
             "geometries": [{"id": i, "position_m": d.geom_xpos[i].tolist(),
-                            "bound_radius_m": float(m.geom_rbound[i])} for i in self.geom_ids]})
+                            "bound_radius_m": float(m.geom_rbound[i])} for i in self.geom_ids]}
+        if self.box_inventory is not None:
+            row["box_geometry"] = {"inventory_sha256": self._box_inventory_sha256,
+                "body_rotations_world": {name: d.xmat[body].tolist() for name, body in self.body_ids.items()},
+                "rotations_world": [{"id": box.geometry_id, "rotation": d.geom_xmat[box.geometry_id].tolist()}
+                                    for box in self.box_inventory.object_boxes+self.box_inventory.support_boxes]}
+        return seal_placement_row(row)
 
     def close(self):
         if self._closed:

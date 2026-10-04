@@ -624,6 +624,28 @@ weights, prompts and physical gates were preserved. The first physical result
 does not upgrade either the failed complete speech audit or the two-case result.
 Earlier negatives and all original receipts remain intact.
 
+### Waiting for a provider pipeline to be released
+
+The optional service setting `provider_release_contract: "hf_pool"` (CLI
+`--provider-release-contract hf_pool`) binds the Realtime `session.created.id`
+to the same authority's `/v1/pool` response. It supports the pinned HF provider's
+`active`/`draining`/`stuck`/`idle` pool schema. A closed WebSocket alone does not
+prove that `SESSION_END` has drained through that provider's handlers.
+
+With this setting, disconnect succeeds only after the bound unit is observed
+idle. Socket closure and every pool observation consume one original I/O deadline
+(default five seconds), starting before socket close. A missing, changed, stuck,
+or late observation keeps closure failed and blocks a replacement gateway
+session. Connection admission also includes its pool binding within the existing
+connection deadline. No unit is forcibly released, and no connection is retried.
+The generic transport remains the default and makes no pool-release claim.
+The [source-bound CPU record](evidence/robot-modularity/hf-pool-reconnect-cpu-20261004.json)
+links the exact provider schema and 86 checks. Loopback HTTP/WebSocket tests
+reproduce the old immediate-reconnect HTTP 502 and
+exercise delayed release, timeout, identity/schema mismatch and redirect refusal;
+The final idle observation also rejects a clock at or beyond the original close
+deadline. These tests do not constitute a successful speech or physical episode.
+
 ### Terminal authority after browser disconnect
 
 The closed VOICE12 attempt used source `8e705c3` and the existing CUDA provider

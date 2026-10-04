@@ -12,7 +12,8 @@ from .provider import RealtimeConfig
 DEFAULTS = {"robot": "conversation_mock", "provider_url": None, "token_env": None,
             "allow_tools": [], "allow_motion": False, "barge_in": "stop_robot",
             "port": 8780, "config_dir": None, "run_dir": None, "run_root": None,
-            "start_stopped": False, "intent_timeout_s": 10, "execution_timeout_s": 30}
+            "start_stopped": False, "intent_timeout_s": 10, "execution_timeout_s": 30,
+            "provider_release_contract": None}
 
 
 def configuration(args):
@@ -77,7 +78,8 @@ def configuration(args):
             values[key] = Path(value).resolve()
     if (values["run_dir"] is None) == (values["run_root"] is None):
         raise ValueError("select exactly one of run_dir and run_root")
-    RealtimeConfig(values["provider_url"], values["token_env"])
+    RealtimeConfig(values["provider_url"], values["token_env"],
+                   release_contract=values["provider_release_contract"])
     values["allow_tool"] = values.pop("allow_tools")
     values["service_config_sha256"] = digest
     return values

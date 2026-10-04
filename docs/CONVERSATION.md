@@ -112,6 +112,36 @@ speech at an assumed rate. PCM capture is mono, signed little-endian 16-bit,
 reads a bearer credential in the gateway process without returning it to the
 browser.
 
+For one prepared fixed LEAP hand, the opt-in `--robot-lifecycle bounded_hand`
+(JSON `robot_lifecycle: "bounded_hand"`) defers native construction until the
+operator explicitly selects **Start robot session**. Supply the existing prepared
+hand profile and its exact model pin; this option does not prepare or admit a new
+model. The ordinary service default remains unchanged.
+
+Connect the configured provider, then prepare the microphone. Permission and
+AudioWorklet preparation alone send no PCM and do not start the robot. **Start
+robot session** authorizes one construction, the existing stopped-readiness
+check, a real reset against the observed runtime generation, and a new provider
+conversation. Only that new session receives microphone PCM. No preactivation
+audio, old response or robot command is replayed. Text input is unavailable until
+the bounded episode has started.
+
+The hand retains its original 30-second lifetime from owner start, including
+readiness and reconnection. Start has its own ten-second total deadline across
+old-session release, construction and reset; neither deadline is renewed.
+Disconnect or stop during construction cancels admission, and a late constructor
+is retained until cleanup actually finishes. Unknown cleanup blocks reuse.
+Normal stop/reset/reconnect uses the same live hand and never grants another
+30 seconds. An expired or failed episode requires a new service run. Its final
+closure retains activation state and the original start/deadline.
+
+CPU regressions exercise the real runtime and loopback gateway with synthetic
+owners. An optional Chromium test uses the shipped page and AudioWorklet with a
+synthetic microphone file and a real loopback provider stub. Those checks cover
+the service's activation order; they establish neither native hand admission nor
+hardware microphone or speaker behavior. VOICE13 remains separately bound to
+its original service source and external episode harness.
+
 `conversation_mock` declares only a synthetic IMU. Its reading is labelled
 `synthetic` and `software_only`. Any configured composed robot profile can be
 selected, but provider tools default to an empty allowlist. Motion additionally
@@ -645,6 +675,36 @@ reproduce the old immediate-reconnect HTTP 502 and
 exercise delayed release, timeout, identity/schema mismatch and redirect refusal;
 The final idle observation also rejects a clock at or beyond the original close
 deadline. These tests do not constitute a successful speech or physical episode.
+
+### Terminal authority after browser disconnect
+
+The closed VOICE12 attempt used source `8e705c3` and the existing CUDA provider
+and hand limits. Both local case receipts succeeded and all four scopes closed,
+but the unchanged full auditor rejected the second case: its first conversation
+was closed with all responses invalid while `authority_revoked` remained false.
+The original failure is retained. A separate diagnostic reruns that same auditor
+without changing any assertion: the first spoken index-flex case passes with
+9,657 solves and a 0.2 s observed rest window. The second case reaches verified
+index-flex motion, rest and reply checks over 9,505 solves before the terminal
+authority assertion fails. Its earlier operator-stop ACK is not a physical rest
+proof. Browser worklet loading and provider pool release are retained in these
+checks; this does not establish general conversation reliability.
+
+The shipped UI closes its media WebSocket before posting the operator stop.
+The retained first-session closure stop was accepted before the HTTP stop request;
+the gateway then followed its already-closed-session path. Terminal `close()` had
+invalidated response contexts without setting the authority flag or discarding a
+pending input. The correction sets both fields before releasing the session or
+awaiting teardown. It preserves UI ordering, stop delivery, provider teardown and
+all deadlines. Five loopback regressions cover both orders, pending input and
+playing audio, blocked provider closure, late events and failed teardown. Three
+fail on the retained source; the corrected source passes all five and 87 related
+tests. Those source checks preceded the separate VOICE13 rerun below.
+
+The [source-bound evidence](evidence/robot-modularity/voice-terminal-authority-20261004.json)
+keeps the global VOICE12 rejection, the separately checked first case and the
+second case's limited component evidence. The provider-owned SIGTERM request is
+explicit even though the four supervisor scopes closed without forced cleanup.
 
 ### Two complete native speech cases — VOICE13
 

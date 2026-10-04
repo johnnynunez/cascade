@@ -1,0 +1,153 @@
+{
+  "schema": "cascade.voice-terminal-authority-evidence.v1",
+  "scope": "Closed VOICE12 component evidence and CPU-only terminal authority correction; full episode remains rejected.",
+  "native": {
+    "service_head": "8e705c3efdc8541b932cda7addd31828dea27812",
+    "provider_host_head": "498930f94bb7a857c67ef527685cded1c01c22b5",
+    "provider_package_head": "4306614134cdb09ddbc00d2bed15422927ebf39b",
+    "provider_state": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/provider-state-04",
+    "hand_model_sha256": "43bb8067967c88b7b9a261a82cf98240f701c747e2ea0427808a08ae631eaee2",
+    "plan_sha256": "933ef3c744f07437c7c65f198649a3c39c899e6e78a5d40c80d2b1684af8c084",
+    "inputs": 40542,
+    "limits": {
+      "shared_startup_s": 150,
+      "conversation_streamer_wait_s": 10,
+      "hand_case_s": 30,
+      "provider_rss_gib": 12
+    },
+    "outer_administrative_ok": true,
+    "local_case_receipts": [
+      true,
+      true
+    ],
+    "full_frozen_audit_verified": false,
+    "frozen_failure": {
+      "type": "AssertionError",
+      "line": 260,
+      "condition": "first.authority_revoked and all(not response.valid)",
+      "operands": {
+        "authority_revoked": false,
+        "all_responses_invalid": true
+      }
+    },
+    "first_case": {
+      "case": "spoken_index_flex",
+      "verified": true,
+      "solves": 9657,
+      "epoch": "e71e1464675146b7ab9e6047b8ef173a",
+      "servo_equation_error_nm": 1.6653345369377348e-16,
+      "physical": {
+        "approach_first_step": 3170,
+        "approach_last_step": 3396,
+        "approach_quiet_sim_s": 0.19999999999997797,
+        "rest_first_step": 3397,
+        "rest_last_step": 3497,
+        "rest_window_sim_s": 0.19999999999997797,
+        "retained_through_step": 9657
+      },
+      "actual_transcript": " Set the hand to index flex.",
+      "tool_request_id": "call_77054dec0ddf4e52a80407ce63178369",
+      "same_origin_reply_ids": [
+        "resp_25f8af02c8164a73b1203912f522d52e"
+      ],
+      "post_rest_pcm_samples": 186624,
+      "closure_ok": true
+    },
+    "second_case": {
+      "frozen_case_verified": false,
+      "verified_components_before_rejection": {
+        "solves": 9505,
+        "physical": {
+          "approach_first_step": 4161,
+          "approach_last_step": 4387,
+          "approach_quiet_sim_s": 0.2000000000000668,
+          "rest_first_step": 4388,
+          "rest_last_step": 4488,
+          "rest_window_sim_s": 0.2000000000000668,
+          "retained_through_step": 9505
+        },
+        "servo_equation_error_nm": 1.6653345369377348e-16,
+        "same_origin_reply_ids": [
+          "resp_c799bb9bd68e48bba4c8467ea6b0f8b7"
+        ],
+        "post_rest_pcm_samples": 186624,
+        "worklet_and_pool_witnesses": true
+      },
+      "first_session_closed": true,
+      "first_session_pending": null,
+      "first_session_terminal_reason": "browser_media_disconnected",
+      "operator_stop_physical_rest_verified": false,
+      "timeline": {
+        "first_provider_pcm_monotonic_s": 81269.508660005,
+        "operator_stop_click_monotonic_s": 81269.527549081,
+        "closure_stop_accepted_monotonic_s": 81269.535163549,
+        "http_stop_request_monotonic_s": 81269.535874521,
+        "http_stop_accepted_monotonic_s": 81269.536192665,
+        "closure_return_observed_monotonic_s": 81270.34648258
+      }
+    },
+    "closure": {
+      "supervisor_scopes": 4,
+      "observed_births_absent": 23,
+      "provider_owned_signals": [
+        "SIGTERM"
+      ],
+      "provider_exit": 0,
+      "scope_forced_cleanup": false,
+      "remaining_members_or_births": false
+    }
+  },
+  "correction": {
+    "source_head": "dd30552285a1054580f1d36c057a685132140abf",
+    "base_head": "e9aadafc51f24eaceaa6f4c74e97d1549f83f7e2",
+    "runtime_change": "Terminal close explicitly sets authority_revoked=True and clears pending before domain release or any await.",
+    "behavior_preserved": [
+      "UI and stop ordering",
+      "teardown stages",
+      "deadlines",
+      "late-event rejection"
+    ],
+    "native_attempts": 0,
+    "checks": {
+      "corrected_tests_passed": 92,
+      "new_loopback_cases": 5,
+      "same_cases_on_baseline_failed": 3,
+      "same_cases_on_baseline_passed": 2,
+      "failed_baseline_paths": [
+        "WebSocket-first with pending input",
+        "WebSocket-first during playback",
+        "first stop await with failed teardown"
+      ],
+      "initial_fixture_failure_retained": true,
+      "ruff_FE9": "PASS"
+    }
+  },
+  "limitations": [
+    "VOICE12 global rejection and frozen auditor remain unchanged; the supplemental diagnostic is not a replacement PASS.",
+    "The first case passes its unchanged case auditor. The second has verified component evidence before its original terminal-authority failure.",
+    "The first operator-stop ACK and flushed audio queue do not prove physical rest; the later index-flex command has an independent solved-state rest window.",
+    "Session close observations are recorded after return, not at entry. Their timestamps are not substituted for stop acceptance times.",
+    "Browser queue evidence does not claim a human heard a physical speaker. No general speech, manipulation or hardware acceptance is claimed.",
+    "The candidate terminal fix has CPU-only evidence and no new native episode. Earlier VOICE10 and other negative attempts remain retained."
+  ],
+  "artifacts_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-hand-plan-12.json": "933ef3c744f07437c7c65f198649a3c39c899e6e78a5d40c80d2b1684af8c084",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-hand-binding-12.json": "76fb1712247575d8d73696da31bc860eeae58d361911b511f5ca89989549a5f0",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-hand-12/receipt.json": "c21652d03938187a4b04d0ebd41e8458952cacdb76d56ef352699562e15ff243",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-hand-12/episode/receipt.json": "89ae8000c3c09c20820f9f028dbc63fbdb344209b91b2793bbd49eb587b310e4",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-hand-12/episode/provider/closure.json": "67e9066e04eceae840ef23143d15d955f26c5589508aa30685137b23894a7b28",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-post-close-12.json": "5fe31be7b21e2dd504da811f6abbc07199904d0928896be8af33372e933beb92",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-hand-root-post-close-12.json": "f884a046b6fd4d27709a0bc7fea4329b710ff481ff03323f5ce2fb6de312e016",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-audit-run-12.log": "73a47180382dbd676d90cd3f45e052fda227736a49e9d45fe6bc1f8cc2ccaf84",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-audit-run-12-corrected-root.log": "f801974f3c194249534e5a3c6553e606b42a169b14e91a85c854c506fe028d4b",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice_harness_v11/audit_voice_hand.py": "7154e4131c0bd813ef9b12cdab21554e93c66b77338aa5979496f432334f1d24",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-hand-audit-12-negative.json": "d72f87505077901b294a54da878b816ea541ee7fd8e72df7a172857d9ca77700",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/diagnose_voice12.py": "36d4e9358a82d9dd68d0d415d156b2283079a21c7c02f376955cab4227f3a6b1",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/terminal-authority-source-freeze-01.json": "6793d4bce5c19e5405be893e7180059252188806efa535d4eba6473a0f4eff2a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/terminal-authority-tests-01.log": "bd38982cf96a42ec403a99110ec7b55a7041b0bc030af6ec7ddf977ae0dd4b62",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/terminal-authority-tests-02.log": "2034c1653dac5fda66e75c2960779eed5c4e1651101eff397216f79422006d84",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/terminal-authority-baseline-tests-01.log": "527a00bd209fee2667562e7309b65b843831e21636c600bca1a64c95c5910d88",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/terminal-authority-cascade/src/cascade/conversation/session.py": "1be578ef6fb07e810433e872de557379754eb629d9a090b0a3920ddfdcecaf9f",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/terminal-authority-cascade/tests/test_conversation_terminal_authority.py": "a3cb9424f4db2a5435603ae03571f16d702889400fc52e87e956580a09fe1af4"
+  }
+}

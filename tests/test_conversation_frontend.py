@@ -10,6 +10,79 @@ STATIC = Path(__file__).resolve().parents[1] / "src/cascade/conversation/static"
 TIMINGS = Path(__file__).parent / "fixtures/conversation_playback_timing_20261002.json"
 
 
+@pytest.mark.skipif(NODE is None, reason="Node is optional for browser activation validation")
+@pytest.mark.parametrize("outcome", ["success", "disconnect", "track_end", "worklet_failure"])
+def test_prepared_microphone_requires_explicit_start_and_new_session_without_replaying_pcm(outcome):
+    script = r"""
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const outcome=process.argv[2], elements=new Map(), sockets=[], requests=[], nodes=[], sent=[];
+let sessionCount=0, started=false, startResolve, ended, trackStops=0;
+const track={readyState:'live',stop(){trackStops++;this.readyState='ended';},
+  addEventListener(kind,cb){assert.equal(kind,'ended');ended=cb;}};
+const acquired={getTracks:()=>[track],getAudioTracks:()=>[track]};
+const response=value=>({ok:true,json:async()=>value});
+const sandbox={Uint8Array,DataView,Math,Set,Map,JSON,atob,btoa,console,
+  crypto:{randomUUID:()=> 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'},
+  location:{hash:'#private',pathname:'/',origin:'http://127.0.0.1:8780'},history:{replaceState(){}},
+  document:{getElementById:id=>{if(!elements.has(id))elements.set(id,{textContent:'',value:''});return elements.get(id);}},
+  fetch:async(url,options={})=>{
+    requests.push({url,method:options.method,body:options.body&&JSON.parse(options.body)});
+    if(url.endsWith('/status'))return response({robot_id:'fixture',tools:['hand.posture'],generation:0,
+      robot_episode:{lifecycle:'bounded_hand',attempted:started,active:started}});
+    if(url.endsWith('/robot/start')){
+      sockets.at(-1).readyState=3;sockets.at(-1).onclose();
+      return await new Promise(resolve=>{startResolve=()=>{started=true;resolve(response({ok:true,active:true,remaining_s:27}));};});
+    }
+    if(url.endsWith('/session')&&options.method==='POST')return response({session_id:'session'+(++sessionCount),ticket:'ticket'});
+    return response({ok:true});
+  },
+  AudioContext:class {constructor(){this.sampleRate=24000;this.destination={};this.audioWorklet={addModule:async()=>{}};}
+    async resume(){} createMediaStreamSource(){return {connect(){},disconnect(){}};}},
+  AudioWorkletNode:class {constructor(){if(outcome==='worklet_failure')throw Error('worklet refused');this.port={};nodes.push(this);}
+    connect(){} disconnect(){}},
+  navigator:{mediaDevices:{getUserMedia:async()=>acquired}},
+  PcmPlaybackQueue:class {flush(){}enqueue(){}},
+};
+sandbox.WebSocket=class {static OPEN=1;constructor(){this.readyState=0;sockets.push(this);}
+  send(raw){sent.push(JSON.parse(raw));}close(){this.readyState=3;this.onclose?.();}};
+vm.createContext(sandbox);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),sandbox);
+const settle=async()=>{for(let i=0;i<12;i++)await Promise.resolve();};
+async function run(){
+  await settle();await elements.get('connect').onclick();
+  const old=sockets.at(-1);old.readyState=1;old.onopen();
+  await elements.get('mic').onclick();
+  assert.equal(nodes.length,0,'preparation must not connect a capture node');
+  assert.equal(requests.filter(r=>r.url.endsWith('/robot/start')).length,0);
+  assert.equal(sent.length,1);assert.equal(sent[0].type,'microphone_prepared');
+  await old.onmessage({data:JSON.stringify({type:'microphone_prepared',capture_id:'a'.repeat(32),session_id:'session1'})});
+  assert.equal(elements.get('start-robot').disabled,false);
+  const pending=elements.get('start-robot').onclick();await settle();assert(startResolve);
+  assert.equal(trackStops,0,'expected old provider close must keep explicitly prepared mic');
+  if(outcome==='disconnect')await elements.get('disconnect').onclick();
+  if(outcome==='track_end'){track.readyState='ended';ended();await settle();}
+  startResolve();await pending;await settle();
+  if(outcome==='disconnect'||outcome==='track_end'){
+    assert.equal(sessionCount,1,'cancelled Start must not reconnect');assert(trackStops>0);assert.equal(nodes.length,0);
+    assert(requests.some(r=>r.url.endsWith('/session')&&r.method==='DELETE'));
+    return;
+  }
+  assert.equal(sessionCount,2);assert.equal(sockets.length,2);
+  const current=sockets.at(-1);current.readyState=1;current.onopen();await settle();
+  if(outcome==='worklet_failure'){
+    assert(requests.some(r=>r.url.endsWith('/stop')));assert(trackStops>0);return;
+  }
+  assert.equal(nodes.length,1);assert.equal(trackStops,0);
+  nodes[0].port.onmessage({data:new Uint8Array([0,0]).buffer});
+  assert.equal(sent.length,2);assert.equal(sent[1].type,'audio');
+  assert.equal(sent[1].session_id,'session2');assert.equal(sent[1].sequence,0);
+  assert.equal(requests.filter(r=>r.url.endsWith('/robot/start')).length,1);
+  await elements.get('disconnect').onclick();assert.equal(trackStops,1);
+}
+run().catch(error=>{console.error(error);process.exitCode=1;});
+"""
+    subprocess.run([NODE, "-e", script, str(STATIC / "app.js"), outcome], check=True, timeout=10)
+
+
 @pytest.mark.skipif(NODE is None, reason="Node is optional for browser worklet validation")
 def test_worklet_pcm_endianness_saturation_and_fixed_size_without_mic():
     script = r"""

@@ -18,6 +18,8 @@ def parser():
     result.add_argument("--config", type=Path, help="Versioned JSON service configuration")
     result.add_argument("--config-dir", type=Path, help="Explicit installed robot/LLM profile directory")
     result.add_argument("--robot")
+    result.add_argument("--robot-lifecycle", choices=["bounded_hand"],
+                        help="Start one bounded hand episode only after explicit prepared-browser activation")
     result.add_argument("--provider-url", help="Operator-owned HF GA Realtime ws(s) endpoint")
     result.add_argument("--token-env", help="Environment variable containing provider bearer token")
     result.add_argument("--provider-release-contract", choices=["hf_pool"],
@@ -63,12 +65,18 @@ async def serve(args):
         loop.add_signal_handler(sig, requested_stop, sig)
     try:
         cfg = load_robot_config(args.robot, config_dir=getattr(args, "config_dir", None))
-        runtime, _ = build_robot_runtime(cfg, run_dir)
+        activation = None
+        if getattr(args, "robot_lifecycle", None) == "bounded_hand":
+            from ..conversation.activation import build_bounded_hand_service
+            runtime, activation = build_bounded_hand_service(cfg, run_dir)
+        else:
+            runtime, _ = build_robot_runtime(cfg, run_dir)
         domain = ConversationDomain(runtime, robot_id=cfg.robot_id, allow_tools=args.allow_tool,
                                     allow_motion=args.allow_motion, barge_in=args.barge_in,
                                     intent_timeout_s=args.intent_timeout_s,
                                     execution_timeout_s=args.execution_timeout_s)
-        gateway = ConversationGateway(domain, lambda: RealtimeWebSocket(config))
+        gateway = ConversationGateway(domain, lambda: RealtimeWebSocket(config),
+                                      **({"activation": activation} if activation is not None else {}))
         if getattr(args, "start_stopped", False):
             stopped = await domain.stop()
             if stopped.get("ok") is not True:
@@ -81,6 +89,7 @@ async def serve(args):
                  "physical_admission": False,
                  "intent_timeout_s": args.intent_timeout_s,
                  "execution_timeout_s": args.execution_timeout_s,
+                 "robot_lifecycle": getattr(args, "robot_lifecycle", None),
                  "service_config_sha256": getattr(args, "service_config_sha256", None),
                  "robot_config_sha256": hashlib.sha256(json.dumps(
                      cfg.as_dict(), sort_keys=True, separators=(",", ":")).encode()).hexdigest()}

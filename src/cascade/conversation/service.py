@@ -13,7 +13,7 @@ DEFAULTS = {"robot": "conversation_mock", "provider_url": None, "token_env": Non
             "allow_tools": [], "allow_motion": False, "barge_in": "stop_robot",
             "port": 8780, "config_dir": None, "run_dir": None, "run_root": None,
             "start_stopped": False, "intent_timeout_s": 10, "execution_timeout_s": 30,
-            "provider_release_contract": None}
+            "provider_release_contract": None, "robot_lifecycle": None}
 
 
 def configuration(args):
@@ -52,6 +52,10 @@ def configuration(args):
             raise ValueError(f"{key} must be a nonempty string")
     if values["barge_in"] not in {"stop_robot", "speech_only"}:
         raise ValueError("invalid interruption policy")
+    if values["robot_lifecycle"] is not None and values["robot_lifecycle"] != "bounded_hand":
+        raise ValueError("unknown conversation robot lifecycle")
+    if values["robot_lifecycle"] is not None and values["barge_in"] != "stop_robot":
+        raise ValueError("bounded hand activation requires stop_robot interruption")
     if values["token_env"] is not None and type(values["token_env"]) is not str:
         raise ValueError("token_env must name an environment variable")
     for key in ("allow_motion", "start_stopped"):

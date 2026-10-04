@@ -489,8 +489,8 @@ the actual parameters and buffers: all LLM floating tensors must be FP32 on
 `cuda:0`, and all STT/TTS tensors must remain on CPU. Admission failures refuse
 serving; there is no automatic device fallback. The admission and runtime
 receipts record these observations when their respective stages complete.
-The startup trials below have not established GPU serving, response latency or
-a spoken reply within a robot trial deadline. Provider lifetime and the existing
+The two historical startup trials below did not establish GPU serving, response
+latency or a spoken reply within a robot trial deadline. Provider lifetime and the existing
 voice/actuator deadlines remain separate and unchanged.
 
 The CUDA recipe loads the FP32 LLM directly with the explicit single-device map
@@ -592,3 +592,34 @@ the actual domain/runtime rejects a separately injected expired readonly tool.
 The archived pre-fix source instead executes that injected tool in both cases.
 Those original native greetings requested no tool and establish no native tool
 admission result. Their speech input/output evidence remains unchanged.
+
+### Shared startup deadline: retained VOICE10 outcome
+
+The [startup and VOICE10 record](evidence/robot-modularity/voice-startup-and-negative-20261004.json)
+binds host `498930f`, provider `4306614` and a fresh normal installation.
+Installation preserved all 234 assets and 153 dependency versions; exactly two
+of the 116 provider runtime files changed. It constructed no models. In the
+subsequent episode, both real CUDA warmups completed within the same original
+150 s startup window, taking 10.633 s and 1.127 s. The postwarmup receipt observed
+FP32 LLM tensors on CUDA, audio models on CPU and the unchanged ten-second
+conversation streamer wait. This is one startup observation, not a latency or
+repeatability guarantee.
+
+**VOICE10 remains failed.** The first case's physical `index_flex` action and
+post-ACK rest passed the frozen physics auditor, with 9,256 solves retained.
+Its complete speech audit still rejects a missing browser response observation
+for `capture.js`; the on-disk source hash does not replace that missing witness.
+The second case retained 703 solves and no microphone input or dispatched
+motion. Its reconnect returned HTTP 502 with a plain-text provider-unavailable
+body while the provider's sole pipeline slot was still draining. The harness
+parsed that error as JSON and raised `JSONDecodeError`. The trace and provider
+log establish this closure boundary; they do not establish a model failure.
+Playback was flushed and a software stop acknowledged, without second-case
+physical-stop credit.
+
+All four scopes closed and all 24 observed births disappeared. Owned SIGTERM
+was recorded for the provider and second hand scope, with no forced kill; the
+outer episode exited 1. The original 30 s case and 12 GiB provider RSS limits,
+weights, prompts and physical gates were preserved. The first physical result
+does not upgrade either the failed complete speech audit or the two-case result.
+Earlier negatives and all original receipts remain intact.

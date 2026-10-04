@@ -14,7 +14,6 @@ import pytest
 from mobile_tick_fixture import healthy_episode_gc as healthy_episode_gc  # noqa: PLC0414 — shared pytest fixture
 
 from cascade.control.mobile_base import BaseState
-from mobile_tick_fixture import healthy_episode_gc as healthy_episode_gc  # noqa: PLC0414 — shared pytest fixture
 
 
 def limits(**updates):
@@ -354,11 +353,13 @@ def test_settling_window_starts_after_result_not_at_begin():
         checker.close()
 
 
-def test_walking_success_with_residual_rotation_is_refuted():
+def test_walking_success_with_residual_rotation_is_refuted(healthy_episode_gc):
+    # Exercise the rotation veto with a healthy reader, using the same bounded
+    # fixture as the progress checks. Reader timeout behavior has separate tests.
     reader = ScriptedReader(lambda n: state(n, position_world=(min(n - 1, 5) * 0.002, 0., 0.3),
                                            angular_velocity_body=(0., 0., 0.1)))
     verdict = run_window(reader)
-    assert verdict["status"] == "refuted"
+    assert verdict["status"] == "refuted", verdict["reason"]
     assert "settle" in verdict["reason"]
 
 

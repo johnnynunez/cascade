@@ -4,9 +4,12 @@ MicroDuck is an opt-in mobile base with a bounded velocity interface. It does
 not instantiate an arm, inverse kinematics, grasping, or the kitchen scene.
 The implementation is a candidate: general walking and turning have not passed
 physical admission. The optional [geometric distance candidate](MICRODUCK_DISTANCE_CANDIDATE.md)
-has four confirmed native fresh-start ±30 mm cases and a verified stop during
-movement, plus one small negative-turn case; composed reverse motion and larger
-or positive turns still have retained failures.
+retains four historically confirmed native fresh-start ±30 mm receipts. A later
+[observation audit](evidence/voice-reply-recovery-20261004/guarded-continuation.json)
+finds heading drift after completion in both forward cases, exceeding the
+unchanged 0.08 rad bound; those receipts do not admit the current contract.
+Separate evidence covers a stop during movement and one small negative turn;
+composed reverse motion and larger or positive turns still have retained failures.
 PhysX BAM, scene reset, hardware, and hosted conversation
 are not delivered by this locomotion change.
 
@@ -145,6 +148,10 @@ exits were zero, with no shutdown signals or changed inputs. This supplies a
 new source-bound model identity for the next episode. Balanced rest, commanded
 locomotion and the spoken reply still require their own verification; one run
 does not establish general startup reliability or a causal speed improvement.
+The subsequent [VOICE04 episode](CONVERSATION.md) obtained the real walk/stop
+pair but correctly refuted the walk for heading drift after completion. Its
+fallback stop acknowledgement and closed resources did not establish the
+requested rest-and-spoken-reply cycle.
 
 ## Remaining admission work
 

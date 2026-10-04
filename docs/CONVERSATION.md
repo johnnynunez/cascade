@@ -213,16 +213,37 @@ Its forced native closure remains failed; a later audit found all owned births
 gone without additional signals. A separate
 [external-owner correction](evidence/voice-reply-recovery-20261004/external-owner-final-drain.patch)
 waits for unit, members and observed births together, with seven CPU ownership
-and drain cases passing. It has not been rerun natively. The historical motion
+and drain cases passing. The historical motion
 recording still has no spoken robot reply. A retained detailed Kit log narrows
 the startup failure to RtPso asynchronous compilation waits, continuing through
 84.9 s around viewport initialization/destruction. It does not establish the
 underlying cause. The 422 copied cache files were CUDA, Warp and XDG data;
 writable RTX/PSO caches still used shared Kit paths and were not frozen or
-audited. An offline isolation proposal selects both writable shader cache
-settings before bootstrap and binds the policy to a new model/episode. It
-requires a separate bounded probe, verified effective paths, successful closure
-and a complete private cache inventory before another speech candidate.
+audited. The subsequent isolation change selects both writable shader cache
+settings before bootstrap and binds the policy to a new model/episode. The
+subsequent [private-cache probe](MICRODUCK.md#running-the-candidate) closed with
+800 solves and a separately admitted cache seed and model identity.
+
+The [guarded continuation](evidence/voice-reply-recovery-20261004/guarded-continuation.json)
+retains four failed episodes. The first two stopped before microphone input
+(missing browser dependency, then missing curated `walk_distance` admission).
+VOICE03 reached the real provider, which returned only the walk call; the
+unchanged two-call guard refused motion. Two new CPU generations then isolated
+the trial instructions: the original instructions produced one call, while an
+explicit same-response walk/stop suffix produced both. Raw text and parser
+output agree in those two cases; the historical raw output was not retained.
+
+VOICE04 used that suffix only for the trial, with its exact `session.updated`
+acknowledgement before microphone input. The real model returned both calls
+within the original 60 s intent. The walk executed but its physical outcome was
+refuted: heading drift crossed the unchanged 0.08 rad limit after command
+completion and reached −0.19063 rad. The guard therefore invoked operator
+fallback instead of forwarding the staged model stop or claiming success.
+Its stop acknowledgement remained physically unverified; no reply PCM was
+produced. The 47.482 s recording also missed the 60–90 s gate. All three owned
+scopes closed without force or remaining births, and both ports were free;
+the failed episode stays failed. Source, model, seed, freshness, 30 s execution
+and physical verification limits were unchanged.
 
 ## Provider contract and self-hosting
 

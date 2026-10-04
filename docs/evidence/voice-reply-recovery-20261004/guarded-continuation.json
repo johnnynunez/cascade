@@ -1,0 +1,247 @@
+{
+  "schema": "cascade.guarded-voice-continuation.v1",
+  "scope": "Retained failed native episodes and two new CPU-only provider generations; no speech-motion-rest-reply, hardware or general locomotion admission",
+  "original_receipts_unchanged": true,
+  "physical_admission": false,
+  "spoken_reply_verified": false,
+  "native_source": "eac66e67a89de60822550998ac25d4c16b808c91",
+  "conversation_host_source_voice03_and_voice04": "e0e3cfb0161ae16a2e7d3e5398bf38ca2c701e2c",
+  "native_model_identity_sha256": "64992495be06a11a408ae4dfb70f9d450956f7589a272765cdc7f86e2c1be8d4",
+  "native_identity_file_sha256": "2e9908a8b4428d59431fdf3d3e34579d00d1f8ba8ebc2148b70ae59d6940bc0b",
+  "seed_provenance_sha256": "2f6f2ef40b9065327797b27fef435b55a714f9677076567bc195ffe608914f36",
+  "unchanged_limits": {
+    "native_startup_s": 65,
+    "intent_s": 60,
+    "execution_s": 30,
+    "stop_observation_deadline_after_ack_s": 6,
+    "settle_timeout_s": 3,
+    "settle_window_s": 0.2,
+    "max_heading_drift_rad": 0.08,
+    "video_duration_s": [
+      60,
+      90
+    ]
+  },
+  "episodes": [
+    {
+      "id": "voice01",
+      "passed": false,
+      "failure": "Browser interpreter lacks aiohttp; before microphone",
+      "native_idle_solves": 82,
+      "model_calls": 0,
+      "original_ports_free": false
+    },
+    {
+      "id": "voice02",
+      "passed": false,
+      "failure": "Conversation curated motion set omitted walk_distance; before microphone",
+      "native_idle_solves": 420,
+      "model_calls": 0,
+      "original_ports_free": false
+    },
+    {
+      "id": "voice03",
+      "passed": false,
+      "failure": "trial requires one completed model response staging both walk and stop",
+      "completed_wire_calls": 1,
+      "forwarded_calls": 0,
+      "pcm_samples": 0,
+      "video_duration_s": 38.695800000000744,
+      "original_ports_free": false,
+      "port_diagnostic": "Exact provider readiness GET /v1/pool connection tuple retained in TIME_WAIT, inode0; original plain-bind refusal preserved, no leak inferred"
+    },
+    {
+      "id": "voice04",
+      "passed": false,
+      "failure": "post-completion distance outcome: unrequested wz drift",
+      "trial_instruction_ack_before_microphone": true,
+      "instructions_sha256": "dcd178ae55d20a90608312a31002d63f72f98f2e9d7c63c71d69a3f2cbd30488",
+      "completed_wire_calls": 2,
+      "wire_calls": [
+        {
+          "name": "robot_tool_0",
+          "arguments": {
+            "distance_m": 0.03
+          }
+        },
+        {
+          "name": "robot_tool_1",
+          "arguments": {}
+        }
+      ],
+      "forwarded_calls": 1,
+      "forward_margin_before_original_intent_deadline_s": 18.182018624997,
+      "execution_ok": true,
+      "postcondition_status": "refuted",
+      "controller_completion_distance_m": 0.02521394107316365,
+      "controller_heading_at_completion_rad": -0.04094106822411403,
+      "first_post_completion_veto": {
+        "step": 4782,
+        "sim_time_s": 23.909999465569854,
+        "reason": "unrequested wz drift",
+        "body_displacement_m": [
+          0.031398996809938004,
+          0.0043581540325540995
+        ],
+        "yaw_change_rad": -0.0829277212925039
+      },
+      "final_observed_body_displacement_m": [
+        0.026249671700589415,
+        0.004754418705794508
+      ],
+      "final_observed_yaw_rad": -0.19062974757577503,
+      "model_stop_forwarded": false,
+      "operator_fallback_acknowledged": true,
+      "fallback_physical_rest_verified": false,
+      "native_solves": 5191,
+      "policy_commits": 1298,
+      "nonzero_policy_commits": 14,
+      "pcm_samples": 0,
+      "video_duration_s": 47.48210000000149,
+      "original_ports_free": true
+    }
+  ],
+  "closure": {
+    "all_four_episodes_owned_scopes_closed_without_force": true,
+    "all_original_owned_births_absent_at_audit": true,
+    "source_provider_assets_protected_stores_and_seed_unchanged": true,
+    "original_episode_and_global_failure_flags_preserved": true,
+    "voice04_scope_exits": {
+      "browser": 1,
+      "native": 1,
+      "provider": 0
+    },
+    "voice04_native_child_exit": 143,
+    "voice04_shutdown_signals": "Owned native and provider TERM only; no foreign processes signalled"
+  },
+  "cpu_provider_contract": {
+    "scope": "two newly generated CPU-only responses; original historical raw was not retained",
+    "same_model_generation_configuration": true,
+    "same_pre_generation_rng_sha256": "2553f20b7bbda4d47a6f4636c0b14002c20f6531af1f67c6161535d3c8dc541a",
+    "changed_input": "explicit trial-only instruction suffix; production prompt unchanged",
+    "original": {
+      "raw": "<code>robot_tool_0(0.03, \"primary\")</code>",
+      "parsed_calls": 1,
+      "pair_ceiling_pass": false,
+      "input_tokens": 574,
+      "generation_wall_s": 26.939101209998626
+    },
+    "explicit_trial": {
+      "raw": "<code>robot_tool_0(distance_m=0.03)</code><code>robot_tool_1()</code>",
+      "parsed_calls": 2,
+      "pair_ceiling_pass": true,
+      "input_tokens": 708,
+      "generation_wall_s": 31.05954963899785
+    },
+    "limits": {
+      "one_generation_per_case": true,
+      "generation_wall_s": 60,
+      "owned_scope_wall_s": 180,
+      "memory": "16G",
+      "cpu": "200%"
+    },
+    "no_parser_call_loss_observed_in_these_two_cases": true,
+    "native_started": false,
+    "actuation": false,
+    "tts_started": false,
+    "physical_or_speech_admission": false
+  },
+  "interpretation": [
+    "The real completed VOICE04 response contained both calls; the guard never synthesized or accumulated calls across responses.",
+    "execution_ok records the controller reaching its 5 mm stopping tolerance, not a confirmed physical postcondition.",
+    "The post-completion heading veto correctly preserves drift through the later quiet window. Neither the 0.08 rad limit nor the original deadlines changed.",
+    "VOICE03 raw model text was not retained; the two newly generated CPU responses do not reconstruct its RNG or prove absence of historical parser loss."
+  ],
+  "artifact_paths_relative_to": "external retained cascade-lab archive; SHA-256 values identify originals",
+  "artifacts_sha256": {
+    "VOICE_PRIVATE_RTX_ORIGIN_20261004/voice01-episode01-audit.json": "771988b60ff3339cbf18a9352c504f3125d6da7e8b5475b6200fbce6ad67a056",
+    "VOICE_PRIVATE_RTX_ORIGIN_20261004/voice01/episode-01/owner-receipt.json": "b5a84d8dd9e50ef57c05cbdd2eb875d1d42406d349c1d975c57b06525b92d052",
+    "VOICE_PRIVATE_RTX_ORIGIN_20261004/voice01/episode-01/browser/receipt.json": "f5237e07e175b7e8824859c94386defb6850a42bd58108f8d7fcfb0e342a3eac",
+    "VOICE_PRIVATE_RTX_ORIGIN_20261004/voice02-episode01-audit.json": "58f152af0efa5d26a5e863163bb379881ae77df4e61a1ca0de9fafc2630c7d30",
+    "VOICE_PRIVATE_RTX_ORIGIN_20261004/voice02/episode-01/owner-receipt.json": "6a369e190dad7596a60cea97123f5bd444a6ca20bf5bd467298d6445f12a343a",
+    "VOICE_PRIVATE_RTX_ORIGIN_20261004/voice02/episode-01/browser/receipt.json": "fdb4634bb8428c04952cb0a5ab95451b3a831db8f4a7a7fe3799becbad0381f8",
+    "VOICE_PRIVATE_RTX_ORIGIN_20261004/voice03-episode01-audit.json": "34f9acca169dfe0afe6556622d9e675ff09f03ed808c8de87989eea357dedce8",
+    "VOICE_PRIVATE_RTX_ORIGIN_20261004/voice03/episode-01/owner-receipt.json": "2ff695c1939f746dfa7b6169ee375aa2d57537d8a3cde0601a98dc81c8a61315",
+    "VOICE_PRIVATE_RTX_ORIGIN_20261004/voice03/episode-01/browser/receipt.json": "6bd2d5eac39864850a19f2786bfe8c56d8a3754aed14bd2f46d42ecec4918d83",
+    "VOICE_PRIVATE_RTX_ORIGIN_20261004/voice04-episode01-audit.json": "a62daf2a6a2e01a4c391b7d2a2a50c166d9637498325c2d27bde106fb44e920b",
+    "VOICE_PRIVATE_RTX_ORIGIN_20261004/voice04/episode-01/owner-receipt.json": "abe0729b066cf678bc87a004ef5d3d0223011496192997b6e03b78703972e1bd",
+    "VOICE_PRIVATE_RTX_ORIGIN_20261004/voice04/episode-01/browser/receipt.json": "ec7ce00f63da95d1bd71290d9ef574f6ae0e54d04fe294652b481420d8d33a73",
+    "VOICE_PRIVATE_RTX_ORIGIN_20261004/audit_voice04.py": "da3612701c5416872a837897633215f6914aede0d022efd77091c85c9385c6f8",
+    "VOICE_PRIVATE_RTX_ORIGIN_20261004/audit_voice03.py": "712ad5604beff426404479c4df2fdf2beb78571e7cce6f31bc35843e4356644d",
+    "VOICE_PRIVATE_RTX_ORIGIN_20261004/voice04/prepared-01/plan.json": "900c08a2615316649a6284e1092a877a93f8a20d105d45b12f4163d6c681242c",
+    "VOICE_PRIVATE_RTX_ORIGIN_20261004/voice04/prepared-01/source-binding.json": "7832ab6c11c3fc13a1b8f6b14c2af62cf26a94d7d0b970a7a57e252580416d7d",
+    "VOICE_PRIVATE_RTX_ORIGIN_20261004/voice04/harness-manifest.json": "0abe119fa1f8dfad501af49f8298910f8fb5ff7e1c444cd92c3836c6a47e41cc",
+    "VOICE_PRIVATE_RTX_ORIGIN_20261004/voice04/episode-01/native/kit/physics.jsonl": "07395aabc79213af99a353baed37fab8228706d9ebe4d300ac857f1ec5f81dad",
+    "VOICE_PRIVATE_RTX_ORIGIN_20261004/voice04/episode-01/native/kit/policy.jsonl": "7cd7702f43cefb70bd2dbcb687c76bdc4e55282d68ca21f1363690f411592210",
+    "VOICE_PRIVATE_RTX_ORIGIN_20261004/voice04/episode-01/browser/dispatches.json": "8c1ce5c04c98327d6528ed46e246fc3ebcf8a4fb4f0d431eb82667cdc3a767c3",
+    "VOICE_PRIVATE_RTX_ORIGIN_20261004/voice04/episode-01/browser/continuous-video/continuous.webm": "bc5c22b42530127acdb7f9e13a755c793459ec9479d9c6acb09b5610c1f55fd8",
+    "VOICE_PRIVATE_RTX_ORIGIN_20261004/voice04/episode-01/browser/continuous-video/evidence.jsonl": "022d16c919d10f3b0c25cbe63e3dad806642c523362d94f01c05ee3a692ef0f2",
+    "VOICE_PROVIDER_CONTRACT_20261004/comparison.json": "63b8ce62b13b5a5978b404d01bf1665ddb1898cc593417f97fec8d0678761cdc",
+    "VOICE_PROVIDER_CONTRACT_20261004/plan-02.json": "417678865afe8d567ea2e3f76fc8709dbda0952d39fdac32ad4fa01d030a0158",
+    "VOICE_PROVIDER_CONTRACT_20261004/plan-trial-01.json": "d86a30a71935a011dc6fb2dccef11361356549c79c9ff8fd2efa03e0b88ee01b",
+    "VOICE_PROVIDER_CONTRACT_20261004/contract.py": "8314fdfe8690bb5fe3ba98837e6685dc687f429ce26d1e55f6d06b9758e799de",
+    "VOICE_PROVIDER_CONTRACT_20261004/contract_trial.py": "a7979d6fc76ddde02ccbf3beb3310fc4ebe4c4e29c3039d495349cd76baaafc4",
+    "VOICE_PROVIDER_CONTRACT_20261004/check-only-02.json": "eca9b2c6fc020174fada90cab86adebbeddefc7c0cd510d1ed5f36866e1f09eb",
+    "VOICE_PROVIDER_CONTRACT_20261004/check-only-trial-01.json": "f75f9e1909e9f8f2d248a9bca3a2be798f2bf82412f24309bbc85dc569d94cb7",
+    "VOICE_PROVIDER_CONTRACT_20261004/diagnostic-01/receipt.json": "1657d21a8a8faab72f70921170745258286a941cb124c15763826c3c6182515c",
+    "VOICE_PROVIDER_CONTRACT_20261004/diagnostic-trial-01/receipt.json": "5d936a0faf310eb0a0d6b076f191cfff32ce7f49ad7774c74b028c5f6cb7c666",
+    "VOICE_PROVIDER_CONTRACT_20261004/owner-01.json": "08dde259210d918827dbc98cd2aa274a8a6bb9c0240d63643d375b321f5aba52",
+    "VOICE_PROVIDER_CONTRACT_20261004/owner-trial-01.json": "e2d758aa1c9bd5e1f754ff270300f0bd02ae5084fd58b38eb419c50544cadd5c",
+    "MICRODUCK_BRAKING_CORPUS_20261004/historical-drift.json": "28ba02b38a54595170cccec39ba53c4d292049a8090f2ca5e68062dd894a3bae",
+    "MICRODUCK_BRAKING_CORPUS_20261004/audit_history.py": "60671bc04f2cff72fa67f5ebab553c5f0ddab56c19f7efd231fe8543af387039",
+    "VOICE_HOST_ADMISSION_20261004/cascade/src/cascade/agent/base_effects.py": "a8f87237574b2ab30e5e71b8ccfa8d8064f635e9ff64cf852e16e251063d0101",
+    "LOCOMOTION_NEXT/reference-rough-e-distance02/receipt.json": "91c4d3f3ea765e675e4e0c580355b81a1af89a3092bfd78cd42b9546c4610a75",
+    "LOCOMOTION_NEXT/native-rough-reuse-forward01/outcomes.json": "1eba6eaedabdfc90208e526ff9954f7082444abea3a394a226be197c906f1796",
+    "LOCOMOTION_NEXT/native-rough-reuse-forward03/outcomes.json": "12a24e10e79f51c1bfb178e08474732be9d029fa900098bb90e5f90ad97978ab",
+    "LOCOMOTION_NEXT/native-rough-reuse-reverse02/outcomes.json": "6c7a6fdb521d7a23d3758d461603e5e738e1837d519208c37e1c09a2bf12e879",
+    "LOCOMOTION_NEXT/native-rough-reuse-reverse04/outcomes.json": "96ad565c7bb630905e366242d1f358cc29dadd89c41f23747c2497ee3f0ae64b"
+  },
+  "retained_historical_heading": {
+    "scope": "Recomputed heading from retained observations only; original verdicts unchanged; no current-source admission or Newton/CPU equivalence",
+    "limit_rad": 0.08,
+    "cases": {
+      "native-rough-reuse-forward01": {
+        "original_status": "confirmed",
+        "recomputed_last_observed_yaw_rad": -0.1814868684001963,
+        "max_abs_observed_yaw_rad": 0.18456454382814486,
+        "first_postcompletion_heading_violation": {
+          "step": 399,
+          "sim_time_s": 1.9949999554082751,
+          "yaw_change_rad": -0.08257610740191272
+        },
+        "model_identity_sha256": "0227a46cfa2882922cbcba70b52b056b9daf0c0bb07a122e28d5adea0080e0da"
+      },
+      "native-rough-reuse-forward03": {
+        "original_status": "confirmed",
+        "recomputed_last_observed_yaw_rad": -0.18552097389788355,
+        "max_abs_observed_yaw_rad": 0.18906783145805348,
+        "first_postcompletion_heading_violation": {
+          "step": 402,
+          "sim_time_s": 2.009999955072999,
+          "yaw_change_rad": -0.08363441330140725
+        },
+        "model_identity_sha256": "0227a46cfa2882922cbcba70b52b056b9daf0c0bb07a122e28d5adea0080e0da"
+      },
+      "native-rough-reuse-reverse02": {
+        "original_status": "confirmed",
+        "recomputed_last_observed_yaw_rad": -0.027662592545209357,
+        "max_abs_observed_yaw_rad": 0.03015421633322071,
+        "first_postcompletion_heading_violation": null,
+        "model_identity_sha256": "0227a46cfa2882922cbcba70b52b056b9daf0c0bb07a122e28d5adea0080e0da"
+      },
+      "native-rough-reuse-reverse04": {
+        "original_status": "confirmed",
+        "recomputed_last_observed_yaw_rad": 0.01972191836544076,
+        "max_abs_observed_yaw_rad": 0.03842903470686369,
+        "first_postcompletion_heading_violation": null,
+        "model_identity_sha256": "0227a46cfa2882922cbcba70b52b056b9daf0c0bb07a122e28d5adea0080e0da"
+      }
+    },
+    "cpu_reference": {
+      "policy_sha256": "5aa423bd693e431b19e2ead77f99cbae6184e40a529eb2f7c1b4f85bb7f57040",
+      "forward_final_yaw_rad": -0.238999869068029,
+      "forward_controller_distance_m": 0.02541466527381205,
+      "scope": "Historical CPU MuJoCo plant; not evidence of Newton equivalence"
+    }
+  }
+}

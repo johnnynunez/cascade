@@ -1,6 +1,6 @@
 {
-  "version": 2,
-  "recipe": "hf-kokoro-cpu-float32-schema-eof-20261004",
+  "version": 3,
+  "recipe": "hf-kokoro-cpu-float32-schema-eof-cancel-20261004",
   "python": "3.12",
   "platform": "linux",
   "architecture": "x86_64",
@@ -77,5 +77,5 @@
   "max_runtime_s": 900,
   "llm_torch_dtype": "float32",
   "source_manifest": "provider/manifest.json",
-  "source_manifest_sha256": "283c600ae2ca612796247996962f8787f88c366d67f4433710a0f2d80305ca4b"
+  "source_manifest_sha256": "6e1f9251f9d98a318ae5171b7bbc0f66cd455709eb3971a85874ae36440d21a9"
 }

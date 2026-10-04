@@ -152,45 +152,104 @@ index 0000000..e6ab27c
 +            self.owner.interrupted += bool(cancelled or stopped or error or not source_completed)
 +            self.owner.active.remove(self.identifier)
 diff --git a/src/speech_to_speech/LLM/language_model.py b/src/speech_to_speech/LLM/language_model.py
-index dd3e5b3..9471237 100644
+index dd3e5b3..2c9de60 100644
 --- a/src/speech_to_speech/LLM/language_model.py
 +++ b/src/speech_to_speech/LLM/language_model.py
-@@ -139,0 +140 @@ class StreamContext(BaseModel):
+@@ -115,0 +116,8 @@ class _Processor(Protocol):
++class _StreamInterrupted(Exception):
++    """Cancellation of a queue wait is not a model-produced EOF."""
++
++
++_STREAM_POLL_S = 0.05
++_PRODUCER_CLEANUP_S = 5.0
++
++
+@@ -139,0 +148 @@ class StreamContext(BaseModel):
 +    stream_exhausted: bool = False
-@@ -140,0 +142 @@ class StreamContext(BaseModel):
+@@ -140,0 +150 @@ class StreamContext(BaseModel):
 +    generation_trace: Any = Field(default=None, exclude=True)
-@@ -260,2 +262,6 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
+@@ -260,2 +270,13 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
 -    def _finish_transformers_generation(self, thread: Thread) -> None:
 -        """Signal the stopping criteria, drain the streamer, and join the thread."""
++    def _ensure_transformers_ready(self) -> None:
++        if getattr(self, "_transformers_producer_fault", False):
++            raise RuntimeError("model handler is terminal after producer cleanup failure")
++        producer = getattr(self, "_transformers_producer", None)
++        if producer is not None:
++            raise RuntimeError("previous model producer has not been finalized")
++
 +    def _finish_transformers_generation(self, thread: Thread, *, stream_exhausted: bool = False) -> None:
 +        """Cancel, consume any outstanding stream, and join the producer.
 +
 +        TextIteratorStreamer consumes its stop sentinel once. Reading it again
 +        after natural EOF waits for the queue timeout rather than another EOF.
 +        """
-@@ -264,5 +270,32 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
+@@ -262,0 +284 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
++        deadline = perf_counter() + _PRODUCER_CLEANUP_S
+@@ -264,5 +286,73 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
 -            for _ in self.streamer:
 -                pass
 -        except Empty:
 -            pass
 -        thread.join(timeout=5.0)
 +            if not stream_exhausted:
-+                try:
-+                    for _ in self.streamer:
-+                        pass
-+                except Empty:
-+                    pass
++                while (remaining := deadline - perf_counter()) > 0:
++                    try:
++                        self._streamer_queue_token(min(_STREAM_POLL_S, remaining))
++                    except StopIteration:
++                        break
++                    except Empty:
++                        if not thread.is_alive():
++                            break
 +        finally:
-+            thread.join(timeout=5.0)
++            thread.join(timeout=max(0.0, deadline - perf_counter()))
 +            if thread.is_alive():
++                # process() emits an error terminal and can receive another
++                # request. Never reset this live producer's cancellation or
++                # let the next request reuse its model/queue.
++                self._transformers_producer = thread
++                self._transformers_producer_fault = True
 +                raise TimeoutError("model producer did not finish within its cleanup deadline")
++            if getattr(self, "_transformers_producer", None) is thread:
++                self._transformers_producer = None
++
++    def _streamer_queue_token(self, timeout: float) -> str:
++        # These are the pinned TextIteratorStreamer's own queue and sentinel;
++        # polling must never manufacture EOF or enqueue synthetic output.
++        value = self.streamer.text_queue.get(timeout=timeout)
++        if value == self.streamer.stop_signal:
++            raise StopIteration
++        return value
++
++    def _next_transformer_token(self, gen: int | None, ctx: StreamContext) -> str:
++        timeout = self.streamer.timeout
++        deadline = None if timeout is None else perf_counter() + timeout
++        while True:
++            if self._check_stop(gen, ctx):
++                self._cancel_criteria.cancel()
++                raise _StreamInterrupted
++            remaining = _STREAM_POLL_S if deadline is None else deadline - perf_counter()
++            if remaining <= 0:
++                raise Empty
++            try:
++                return self._streamer_queue_token(min(_STREAM_POLL_S, remaining))
++            except Empty:
++                # Preserve the original iterator timeout for a live response,
++                # but observe cancellation between short queue waits.
++                continue
 +
 +    def _stream_transformers_generation(
 +        self, thread: Thread, gen: int | None, language_code: Optional[str], ctx: StreamContext,
 +        runtime_config: RuntimeConfig | None = None, response: RealtimeResponseCreateParams | None = None,
 +    ) -> Iterator[LLMResponseChunk]:
 +        """Finalize the actual producer on EOF, cancellation, error or consumer close."""
-+        thread.start()
++        self._ensure_transformers_ready()
++        self._transformers_producer = thread
++        try:
++            thread.start()
++        except BaseException:
++            self._transformers_producer = None
++            raise
 +        primary = None
 +        try:
 +            yield from self._stream_tokens(self.streamer, gen, language_code, ctx, runtime_config, response)
@@ -206,33 +265,41 @@ index dd3e5b3..9471237 100644
 +                add_note = getattr(primary, "add_note", None)
 +                if add_note is not None:
 +                    add_note(f"model producer cleanup also failed: {type(cleanup).__name__}: {cleanup}")
-@@ -375,0 +409,2 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
+@@ -375,0 +466,2 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
 +                    if ctx.generation_trace is not None:
 +                        ctx.generation_trace.rejected_tool(fc.function_name)
-@@ -519,0 +555 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
+@@ -519,0 +612 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
 +        ctx.stream_exhausted = False
-@@ -523,0 +560 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
+@@ -522 +615,6 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
+-                token = next(token_iter)
++                if token_iter is getattr(self, "streamer", None) and isinstance(token_iter, TextIteratorStreamer):
++                    token = self._next_transformer_token(gen, ctx)
++                else:
++                    token = next(token_iter)
++            except _StreamInterrupted:
++                break
+@@ -523,0 +622 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
 +                ctx.stream_exhausted = True
-@@ -533,0 +571,2 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
+@@ -533,0 +633,2 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
 +            if ctx.generation_trace is not None:
 +                ctx.generation_trace.text(raw_text)
-@@ -671,0 +711,2 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
+@@ -671,0 +773,2 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
 +        observation_error = False
 +        observation_completed = False
-@@ -672,0 +714,5 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
+@@ -672,0 +776,5 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
 +            observer = getattr(self, "generation_observer", None)
 +            if observer is not None:
 +                ctx.generation_trace = observer.begin(
 +                    turn_id=ctx.turn_id, turn_revision=ctx.turn_revision, response_key=request.response_key
 +                )
-@@ -765,0 +812,2 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
+@@ -765,0 +874,2 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
 +                if ctx.generation_trace is not None:
 +                    ctx.generation_trace.usage(ctx.input_tokens, output_tokens)
-@@ -773,0 +822 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
+@@ -773,0 +884 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
 +            observation_completed = turn_output_allowed
-@@ -774,0 +824 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
+@@ -774,0 +886 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
 +            observation_error = True
-@@ -793,5 +843,13 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
+@@ -793,5 +905,13 @@ class BaseLanguageModelHandler(BaseHandler[LLMIn, LLMOut], ABC):
 -            rollback_history()
 -            if request.prefetch_transaction is not None and not history_committed:
 -                # Make failed hidden work unclaimable before its asynchronous
@@ -251,15 +318,21 @@ index dd3e5b3..9471237 100644
 +                if ctx.generation_trace is not None:
 +                    ctx.generation_trace.finish(cancelled=ctx.cancelled, stopped=ctx.stopped,
 +                        error=observation_error, source_completed=observation_completed)
-@@ -851 +909 @@ class LanguageModelHandler(BaseLanguageModelHandler):
+@@ -851 +971 @@ class LanguageModelHandler(BaseLanguageModelHandler):
 -                timeout=1.0,
 +                timeout=10.0,
-@@ -917,3 +975 @@ class LanguageModelHandler(BaseLanguageModelHandler):
+@@ -869,0 +990,2 @@ class LanguageModelHandler(BaseLanguageModelHandler):
++        if self.backend != "mlx":
++            self._ensure_transformers_ready()
+@@ -917,3 +1039 @@ class LanguageModelHandler(BaseLanguageModelHandler):
 -            thread.start()
 -            yield from self._stream_tokens(self.streamer, gen, language_code, ctx, runtime_config, response)
 -            self._finish_transformers_generation(thread)
 +            yield from self._stream_transformers_generation(thread, gen, language_code, ctx, runtime_config, response)
-@@ -1112,3 +1168 @@ class VisionLanguageModelHandler(BaseLanguageModelHandler):
+@@ -1059,0 +1180,2 @@ class VisionLanguageModelHandler(BaseLanguageModelHandler):
++        if self.backend != "mlx":
++            self._ensure_transformers_ready()
+@@ -1112,3 +1234 @@ class VisionLanguageModelHandler(BaseLanguageModelHandler):
 -            thread.start()
 -            yield from self._stream_tokens(self.streamer, gen, language_code, ctx, runtime_config, response)
 -            self._finish_transformers_generation(thread)

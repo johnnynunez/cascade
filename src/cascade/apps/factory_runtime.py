@@ -195,13 +195,15 @@ class RecordedFactoryDomain(FasteningDomain):
         return result
 
 
-def _ready(owner, *, clock=time.monotonic, timeout_s=10.):
+def _ready(owner, *, clock=time.monotonic, timeout_s=10., _reader=None):
     """Observe a real quiet interval while the initial spindle latch remains on."""
     end = clock()+timeout_s
     previous = start = None
     cursor = 0
     while clock() < end:
-        rows = owner.journal.read(cursor, timeout_s=min(.05, max(0., end-clock())))
+        timeout = min(.05, max(0., end-clock()))
+        rows = (owner.journal.read(cursor, timeout_s=timeout) if _reader is None
+                else _reader(cursor, timeout_s=timeout, deadline=end))
         for row in rows:
             check_solve(row, owner.backend.binding, owner.backend.limits, clock(),
                         previous=previous, epoch=None if previous is None else previous.epoch,

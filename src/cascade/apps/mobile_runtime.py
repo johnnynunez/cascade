@@ -34,6 +34,7 @@ def build_mobile_runtime(cfg, run_dir, *, checkers=None, navigation_source=None,
     frame_readers = {p["name"]: MobileFrameReader(p) for p in profiles if camera_profiles(p)}
     bases = [SafeBase(make_base(p), p["resolved"]["safety"],
                       distance_control=p.get("distance_control"),
+                      turn_control=p.get("turn_control"),
                       support_contract=p.get("support_contract")) for p in profiles]
     rig = MobileRig(bases, [p["name"] for p in profiles])
     memory_cfg = cfg.memory

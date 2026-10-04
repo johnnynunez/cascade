@@ -19,3 +19,7 @@ distance_control:
   max_heading_drift_rad: 0.08
   min_height_m: 0.06
   max_tilt_rad: 0.5
+turn_control:
+  max_translation_path_m: 0.02
+  min_height_m: 0.06
+  max_tilt_rad: 0.5

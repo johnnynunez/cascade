@@ -1,0 +1,44 @@
+{
+  "schema": "cascade.cuvslam-covariance.cpu.v1",
+  "base_head": "b30f1fd57552e687188144969f6df19cd4b60e18",
+  "sdk_api_revision": "b405f132b8fb1d861a570f3aea64c2c5d4b59525",
+  "source_files_sha256": {
+    "src/cascade/spatial/cuvslam.py": "6056a9c0593ca029ebe5c1091fa2776c44579edfd50d77678c4c571ad5cb09f0",
+    "src/cascade/spatial/cuvslam_worker.py": "23da8c20c5e0b62b5eb89e9c566b88d9e2175553049931302c119f4ab27346ea",
+    "src/cascade/spatial/cuvslam_uncertainty.py": "6a50a6e2b6ef03583c351017c3535ca240c33fcff8ef8a395423c11d068a4838",
+    "tests/test_spatial_cuvslam.py": "58ebe5a5b31d0e4a79143ae9b5622b0f98ed3ca0aad865888ae63a1554a68a75"
+  },
+  "tests": {
+    "passed": 143,
+    "elapsed_s": 6.79,
+    "log": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_CUVSLAM_UNCERTAINTY_20261004/tests-01.log",
+    "sha256": "4e0f236d1675904c366d585338914e7d010f7039e6a964e9602aaa1656f39b0a",
+    "suites": [
+      "test_spatial_cuvslam",
+      "test_cuvslam_preparation",
+      "test_spatial_rgbd",
+      "test_spatial_providers",
+      "test_spatial_mcp",
+      "test_spatial_navigation"
+    ],
+    "ruff": "E9,F63,F7,F82 PASS"
+  },
+  "static_peer": "recover_microduck: source/frame/math/IPC review PASS after missing covariance correction",
+  "native_tracker_constructors": 0,
+  "new_models": 0,
+  "physical_admission": false,
+  "calibrated_error_bound": false,
+  "primary_source_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/cascade/src/cascade/spatial/cuvslam.py": "3c3437795b51b9f6e816941c65c34dbe478d190a9997c499e2e05e36d047ba9b",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/cascade/src/cascade/spatial/cuvslam_worker.py": "fefe886bcefe45180a89f975af1ef586fca19847fbd79e311c911ef72b721867",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/cascade/tests/test_spatial_cuvslam.py": "658d0d33f9ccd0f326d8a054d9cf4ed6f4130b252674b75e89014dbd4ad41384",
+    "/home/johnny/Projects/demo/cascade-lab/SPATIAL_CUVSLAM_20261003/cuvslam/python/cuvslam2.cpp": "515dfdde55a5007270c94fb1b670a9ea80ecd040d7405d14eff83dcb7e66c559",
+    "/home/johnny/Projects/demo/cascade-lab/SPATIAL_CUVSLAM_20261003/cuvslam/libs/cuvslam/cuvslam2.h": "f36d55e8f0ff07db88946e31494849d80983d3c2fbe3769a92b1821fb34c179d",
+    "/home/johnny/Projects/demo/cascade-lab/SPATIAL_CUVSLAM_20261003/cuvslam/libs/cuvslam/cuvslam2.cpp": "fa61bd4d9a53cb088abbf8a3782d05b3dbe87c2076a6d16003120f7c9f37a74b"
+  },
+  "limitations": [
+    "CPU fixtures and numerical validation only; no current-source native covariance capture.",
+    "VO covariance is not SLAM covariance or an independently calibrated accuracy bound.",
+    "Earlier native episodes and their unknown uncertainty are unchanged."
+  ]
+}

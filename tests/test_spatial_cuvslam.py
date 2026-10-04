@@ -345,7 +345,8 @@ def _cpu_worker(connection, behavior):
         else:
             pose = {"translation": (1., 2., 3.), "rotation": (0., 0., 0., 1.)}
             connection.send({"ok": True, "timestamp_ns": request["timestamp"],
-                             "odometry": pose, "slam": pose})
+                             "odometry": pose, "slam": pose,
+                             "odometry_covariance_xyz_rpy": tuple((np.eye(6)*.01).flat)})
             connection.recv()  # Keep the owned process alive until close.
     except (EOFError, BrokenPipeError):
         pass
@@ -364,6 +365,7 @@ def test_owned_process_ipc_deadline_and_reaping(behavior):
         if behavior == "ok":
             odom, slam = worker.track(100, **args)
             assert odom.timestamp_ns == 100 and slam.translation == (1, 2, 3)
+            assert odom.world_from_rig.covariance_xyz_rpy == tuple((np.eye(6)*.01).flat)
         else:
             with pytest.raises((TimeoutError, RuntimeError)):
                 worker.track(100, **args)
@@ -372,6 +374,107 @@ def test_owned_process_ipc_deadline_and_reaping(behavior):
     finally:
         assert worker.close()
     assert not worker._process.is_alive() and not worker._thread.is_alive()
+
+
+def test_odometry_covariance_stays_with_its_pose_and_frame_not_slam(rig):
+    covariance = np.diag([.01, .02, .03, .04, .05, .06]).ravel().tolist()
+    def distinct(result):
+        odom, slam = result
+        odom.world_from_rig = NS(pose=NS(translation=[4., 5., 6.], rotation=[0., 0., 0., 1.]),
+                                covariance_xyz_rpy=covariance)
+        return odom, slam
+    rig.sdk.effect = distinct
+    result = rig.domain.execute('track_capture', rig.publish())
+    assert result['ok'], result
+    diagnostic = result['odometry_diagnostic']
+    assert diagnostic['covariance_xyz_rpy'] == tuple(covariance)
+    assert diagnostic['pose']['translation_m'] == [4., 5., 6.]
+    assert diagnostic['pose']['parent'] == diagnostic['covariance_frame_id'] == rig.domain.odometry_frame_id
+    assert diagnostic['pose']['parent'] != result['pose']['parent']
+    assert result['pose']['translation_m'] == [1., 2., 3.]
+    assert diagnostic['pose']['stamp'] == result['pose']['stamp']
+    assert diagnostic['variable_units'] == ('m', 'm', 'm', 'rad', 'rad', 'rad')
+    assert diagnostic['rotation_convention'] == 'fixed-axis XYZ'
+    for pose in (result['pose'], diagnostic['pose']):
+        assert pose['position_error_m'] is None and pose['angular_error_rad'] is None
+    assert diagnostic['calibrated_error_bound'] is False and diagnostic['physical_admission'] is False
+    covariance[0] = 99.
+    assert rig.domain.execute('get_localization', {})['odometry_diagnostic']['covariance_xyz_rpy'][0] == .01
+    rig.now[0] += .6
+    stale = rig.domain.execute('get_localization', {})
+    assert not stale['ok'] and stale['map_epoch_invalidated']
+    assert 'odometry_diagnostic' not in stale
+
+
+def test_missing_odometry_covariance_stays_unknown_and_stop_invalidates_it(rig):
+    result = rig.domain.execute('track_capture', rig.publish())
+    assert result['ok'] and result['odometry_diagnostic']['covariance_xyz_rpy'] is None
+    assert result['odometry_diagnostic']['covariance_status'] == 'unknown'
+    rig.domain.stop()
+    stopped = rig.domain.execute('get_localization', {})
+    assert not stopped['ok'] and 'odometry_diagnostic' not in stopped
+
+
+@pytest.mark.parametrize('bad', ['nan', 'bool', 'length', 'negative', 'asymmetric', 'indefinite', 'zero_cross'])
+def test_invalid_odometry_covariance_invalidates_map_without_error_bound(rig, bad):
+    values = np.eye(6).ravel().tolist()
+    if bad == 'nan': values[0] = float('nan')
+    elif bad == 'bool': values[0] = True
+    elif bad == 'length': values.pop()
+    elif bad == 'negative': values[0] = -1.
+    elif bad == 'asymmetric': values[1] = .5
+    elif bad == 'indefinite': values[1] = values[6] = 2.
+    else: values[0] = 0.; values[1] = values[6] = .1
+    def invalid(result):
+        result[0].world_from_rig.covariance_xyz_rpy = values
+        return result
+    rig.sdk.effect = invalid
+    result = rig.domain.execute('track_capture', rig.publish())
+    assert not result['ok'] and result['map_epoch_invalidated']
+    assert rig.domain._latest is None and 'odometry_diagnostic' not in result
+
+
+@pytest.mark.parametrize('kind', ['zero', 'singular', 'mixed_units'])
+def test_valid_singular_or_scaled_odometry_covariance_preserves_exact_values(rig, kind):
+    if kind == 'zero': matrix = np.zeros((6, 6))
+    elif kind == 'singular': matrix = np.ones((6, 6))
+    else:
+        scale = np.array([1.e-12, 1.e-9, 1.e-6, 1.e3, 1.e6, 1.e9])
+        matrix = (np.eye(6) + .1) * scale[:, None] * scale[None, :]
+    values = matrix.ravel().tolist()
+    def measured(result):
+        result[0].world_from_rig.covariance_xyz_rpy = values
+        return result
+    rig.sdk.effect = measured
+    result = rig.domain.execute('track_capture', rig.publish())
+    assert result['ok'], result
+    assert result['odometry_diagnostic']['covariance_xyz_rpy'] == tuple(values)
+    assert result['pose']['position_error_m'] is None
+
+
+@pytest.mark.parametrize('kind', ['reported', 'none', 'missing'])
+def test_sdk_child_serializes_real_covariance_member_only_for_odometry(monkeypatch, kind):
+    import pickle
+    covariance = tuple(float(v) for v in (np.eye(6)*.01).flat)
+    odom_pose = NS(translation=[4., 5., 6.], rotation=[0., 0., 0., 1.])
+    slam_pose = NS(translation=[1., 2., 3.], rotation=[0., 0., 0., 1.])
+    odom = NS(timestamp_ns=100, world_from_rig=NS(pose=odom_pose, covariance_xyz_rpy=covariance))
+    if kind == 'none': odom.world_from_rig.covariance_xyz_rpy = None
+    elif kind == 'missing': del odom.world_from_rig.covariance_xyz_rpy
+    monkeypatch.setattr(cuvslam, '_tracker', lambda *_: NS(track=lambda *a, **kw: (odom, slam_pose)))
+    sent, closed, requests = [], [], [pickle.dumps(dict(timestamp=100, rgb=None, depth=None))]
+    def receive(limit):
+        assert limit == 8*1024*1024
+        if not requests:
+            raise EOFError
+        return requests.pop()
+    connection = NS(send=sent.append, recv_bytes=receive, close=lambda: closed.append(True))
+    cuvslam_worker._run(connection, ({}, 'b'*64, .1, 256))
+    assert closed == [True] and len(sent) == 2
+    assert sent[1]['odometry_covariance_xyz_rpy'] == (covariance if kind == 'reported' else None)
+    assert sent[1]['odometry']['translation'] == (4., 5., 6.)
+    assert sent[1]['slam']['translation'] == (1., 2., 3.)
+    assert 'covariance_xyz_rpy' not in sent[1]['slam']
 
 
 def test_worker_warmup_timeout_never_leaves_owned_process_running():

@@ -413,6 +413,16 @@ births. Preparation imported package classes and libraries but constructed no
 speech handler or pipeline and ran no warmup, inference or service. The host's
 configured thread count is distinct from the earlier LLM-only measurement;
 effective serving threads must be observed after pipeline construction.
+
+A separate [cancellation-package installation](evidence/robot-modularity/private-speech-provider-cancel-install-20261004.json)
+on `106d485` prepared a new private environment with provider candidate
+`eee2937`. All 116 normal-installed runtime files matched that source; the
+234 model/resource hashes and 132 dependency versions matched the prior
+installation. The scope closed with exit zero, no signals or force, and all
+11 observed process births disappeared. This prepare/import step constructed
+no speech handler or model and ran no inference, warmup or service. Host
+thread restoration and voice episodes remain separately bound evidence.
+
 The subsequent [voice06 episode](evidence/robot-modularity/voice-hand-installed-negative-20261004.json)
 reached the real `hand.set_hand_posture(index_flex)` action from the Chromium
 microphone. Its actual tool result was returned to the same provider origin:

@@ -465,8 +465,8 @@ latency effects or establish repeatability. Earlier failures remain intact.
 
 The separate `--profile cuda-llm-fp32` recipe prepares a **new** Linux x86_64 /
 Python 3.12 state with hash-pinned official PyTorch 2.11.0 CUDA 13.0 wheels.
-The installed speech-provider source, model revisions, prompt handling,
-sampling, two CPU threads and FP32 LLM parameters remain the same. Only the
+Model revisions, prompt handling, sampling, two CPU threads and the FP32 LLM
+policy remain the same. Only the
 LLM moves to CUDA; Whisper and Kokoro stay on CPU. Preparation imports classes
 with CUDA hidden and does not construct models or establish GPU compatibility.
 
@@ -488,21 +488,44 @@ FP32 matmul precision with TF32 disabled. After upstream warmup it inspects
 the actual parameters and buffers: all LLM floating tensors must be FP32 on
 `cuda:0`, and all STT/TTS tensors must remain on CPU. Admission failures refuse
 serving; there is no automatic device fallback. The admission and runtime
-receipts record these observations. This opt-in profile has CPU contract
-tests only; it has not established GPU serving, response latency or a spoken
-reply within any robot trial deadline. Provider lifetime and the existing
+receipts record these observations when their respective stages complete.
+The startup trials below have not established GPU serving, response latency or
+a spoken reply within a robot trial deadline. Provider lifetime and the existing
 voice/actuator deadlines remain separate and unchanged.
 
 The CUDA recipe loads the FP32 LLM directly with the explicit single-device map
-`{"": "cuda:0"}`; it does not request automatic placement, CPU/disk offload or a
-second model-wide transfer. Its normally installed provider patch enables this
-path explicitly, while the CPU loader stays unchanged. Hash-pinned Accelerate
-1.15.0 and psutil 7.2.2 wheels are additional CUDA-profile dependencies. The
-post-warmup receipt also checks the actual handler flag and pipeline device.
-Direct loading avoids a complete FP32 CPU destination in the loader; it does
-not establish a peak RSS bound or guarantee that the existing 12 GiB watchdog
-will admit serving. Model, warmup, sampling and voice deadlines are unchanged.
-The full voice-to-hand chain on this installed environment remains unvalidated.
+`{"": "cuda:0"}`. Its normally installed provider patch enables this only for
+the CUDA profile; the default CPU loading path stays unchanged. It does not
+request automatic placement, CPU/disk offload or a second model-wide transfer.
+Hash-pinned Accelerate 1.15.0 and psutil 7.2.2 wheels are additional CUDA-profile
+dependencies. Readiness must attest the actual loader flag, pipeline device,
+model placement and tensor dtypes after warmup.
+
+The [installation and startup record](evidence/robot-modularity/voice-direct-cuda-negative-20261004.json)
+binds host `064a2ce` and provider `c2302a6`. A fresh normal installation reproduced
+all 116 runtime files, with exactly two declared changes from the prior provider;
+234 model/resource hashes and 151 prior dependency versions stayed identical,
+and only the two declared dependencies were added. Installation constructed no
+models or service, kept CUDA hidden, and closed with exit zero and all 12
+observed process births absent. CPU validation passed 82 host, 12 provider-stub,
+11 installer and 59 voice-harness tests; these do not establish serving readiness.
+
+Both GPU startup episodes remain failed. VOICE08 exceeded the unchanged 12 GiB
+RSS watchdog with a sampled peak of 13,418,754,048 bytes before readiness.
+VOICE09 used direct loading and reached the original LLM warmup, where
+`TextIteratorStreamer` raised `_queue.Empty` under its unchanged 10 s queue wait.
+The provider exited naturally with code 1; its sampled peak was 6,063,452,160
+bytes. That lower observation in a failed startup is neither a bound on a
+complete service nor an isolated causal comparison. The warmup producer lacked
+an observed lifecycle, so a slow producer and an unobserved producer error
+remain unresolved possibilities.
+
+Neither episode reached postwarmup model attestation, browser cases or hand
+construction. Both outer owned scopes closed ordinarily with exit 1; internal
+provider cleanup recorded SIGTERM without SIGKILL, and all observed births
+disappeared. Input and asset integrity held. The 150 s readiness deadline,
+30 s case budget, model weights, FP32 policy and speech/physical gates were
+preserved; successful CUDA speech service and complete voice execution remain open.
 
 Run the speech stack in a separate environment. Its `speech-to-speech serve`
 command exposes `/v1/realtime` and supports selecting STT, LLM and TTS backends.

@@ -1,0 +1,174 @@
+{
+  "schema": "cascade.voice-direct-cuda-negative.v1",
+  "local_evidence_root": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004",
+  "scope": "Opt-in direct CUDA loading, normal-install validation and two preserved failed startup episodes; no successful serving, speech or hand admission.",
+  "source": {
+    "host_revision": "064a2ce7614843164d6c754062a55d6aeba48d4e",
+    "provider_revision": "c2302a60ae2fc665e2b784f51fbc8de095c32e3f",
+    "predecessor_provider_revision": "eee2937d7616a7258a14b59257b659620824f0db",
+    "normal_runtime_files": 116,
+    "changed_runtime_files": [
+      "LLM/language_model.py",
+      "arguments_classes/language_model_arguments.py"
+    ],
+    "source_manifest_sha256": "afdec647c99a1fd9b0ef2698188ddc66539b59bd654c29c22d06c3767eb4a660"
+  },
+  "change": {
+    "device_map": {
+      "": "cuda:0"
+    },
+    "dtype": "float32",
+    "automatic_placement_or_offload": false,
+    "cpu_default_unchanged": true,
+    "asr_tts": "CPU",
+    "weights_sampling_prompt_seed_unchanged": true
+  },
+  "validation": {
+    "host_cpu_tests_passed": 82,
+    "provider_stub_tests_passed": 12,
+    "installer_tests_passed": 11,
+    "voice09_harness_tests_passed": 59,
+    "normal_patch_reproduced_files": 116,
+    "normal_patch_changed_files": 2,
+    "tests_establish_gpu_serving": false
+  },
+  "installation03": {
+    "completed": true,
+    "normal_runtime_files": 116,
+    "assets_identical": 234,
+    "prior_dependency_versions_unchanged": 151,
+    "total_dependency_versions": 153,
+    "added_dependencies": {
+      "accelerate": "1.15.0",
+      "psutil": "7.2.2"
+    },
+    "constructors": 0,
+    "inferences": 0,
+    "gpu_visible": false,
+    "gpu_admitted": false,
+    "child_and_scope_exit": [
+      0,
+      0
+    ],
+    "signals": [],
+    "forced": false,
+    "observed_births_absent_after_close": 12
+  },
+  "unchanged_episode_limits": {
+    "provider_readiness_s": 150,
+    "case_owner_s": 30,
+    "provider_watchdog_rss_bytes": 12884901888,
+    "streamer_wait_s": 10
+  },
+  "episodes": {
+    "08": {
+      "host_revision": "297db9247c388f243c5d8472c6b6bbf9c2bb9b97",
+      "provider_revision": "eee2937d7616a7258a14b59257b659620824f0db",
+      "verdict": "FAIL before provider readiness; hand and both cases never started",
+      "provider_exit": -15,
+      "provider_reason": "memory_budget",
+      "sampled_peak_group_rss_bytes": 13418754048,
+      "rss_budget_bytes": 12884901888,
+      "rss_measurement_scope": "100ms RSS watchdog, not a kernel hard limit; shared pages may be double counted",
+      "provider_wall_s": 21.327465055001085,
+      "preconstructor_cuda_admission_present": true,
+      "postwarmup_model_attestation_reached": false,
+      "generation_trace_present": false,
+      "outer_owned_scope_exits": [
+        1,
+        1
+      ],
+      "outer_owned_scope_signals": [],
+      "provider_internal_cleanup_signals": [
+        "SIGTERM"
+      ],
+      "forced_kill": false,
+      "observed_births_absent_after_close": 7,
+      "input_and_asset_integrity": true
+    },
+    "09": {
+      "host_revision": "064a2ce7614843164d6c754062a55d6aeba48d4e",
+      "provider_revision": "c2302a60ae2fc665e2b784f51fbc8de095c32e3f",
+      "verdict": "FAIL before provider readiness; hand and both cases never started",
+      "provider_exit": 1,
+      "provider_reason": "natural_exit",
+      "sampled_peak_group_rss_bytes": 6063452160,
+      "rss_budget_bytes": 12884901888,
+      "rss_measurement_scope": "100ms RSS watchdog, not a kernel hard limit; shared pages may be double counted",
+      "provider_wall_s": 37.91863581299549,
+      "preconstructor_cuda_admission_present": true,
+      "postwarmup_model_attestation_reached": false,
+      "generation_trace_present": false,
+      "outer_owned_scope_exits": [
+        1,
+        1
+      ],
+      "outer_owned_scope_signals": [],
+      "provider_internal_cleanup_signals": [
+        "SIGTERM"
+      ],
+      "forced_kill": false,
+      "observed_births_absent_after_close": 6,
+      "input_and_asset_integrity": true,
+      "observed_error": "_queue.Empty at LanguageModelHandler.warmup:1129, TextIteratorStreamer queue wait",
+      "warmup_scope": "Warmup started; no producer lifecycle trace was attached. Completion, thread error and cause of delay are not established."
+    }
+  },
+  "limits": [
+    "Lower sampled RSS in a failed startup is not a bound on a complete service or an isolated causal benchmark.",
+    "No postwarmup loader/device/tensor attestation, successful speech response or hand action occurred in either episode.",
+    "Queue.Empty does not distinguish a slow producer from an unobserved producer error; no CUDA/JIT cause is established.",
+    "Both original negative receipts and all original deadlines are preserved."
+  ],
+  "summary_script_sha256": "c2506d479efc4fd7cacb421ac15ebeea1935064283735875b915e73dd2feacfb",
+  "artifact_sha256": {
+    "direct-loader-reproduction-01.json": "8106ee516226705d8ede6b9b749ea1b3a7c2cca5da4ddaff89dd5ec65499a83d",
+    "reproduce_direct_loader.py": "91b3458f20f9ee895aec8a0fc8d2b69c1e0c0b1fbe900501cd82a59e179db3b0",
+    "direct-loader-diagnosis-01.json": "b3d52c2ecd28def023c43d6ff618e9cff91d8cb3c1dab001101b13fb6f5cc388",
+    "diagnose_direct_loader.py": "2a877c8b6146db94034901792119141c09ee1c65ab5d7dc1ea077d2654fc295c",
+    "direct-loader-host-tests-02.log": "f6a9e3e109fef99934b0467a7ef43601122e8ca0a04d6333ce81f7114a99d2d3",
+    "direct-loader-tests-02.log": "cf7750cad1f0cb6958e5b7e4501157da7acd677bb5bfb729683afb85db3aff20",
+    "direct-loader-installer-tests-01.log": "dd1dbb7cd11180bb13b756435c287872ccadffd13faaa006cc5600142d2c5a74",
+    "provider-install-plan-03.json": "2572fe9fb01f2d1eea853314f01c1d27fa81ed8e485a13a8e13ceca34c058483",
+    "provider-install-binding-03.json": "695580d2fb79bf620acc9990eef578517337c8219c7e8f5eb59cd56b6af1344f",
+    "provider-install-03/receipt.json": "e12aa4fd1c6afcea183143a8feebb2647493f5aa24fb82e6d0b1e336ff9b11b4",
+    "provider-install-03/installed-audit.json": "fdfb9bb8133c2c762afdf0d6532c6387d1b108f166c402564250ae3f5a166972",
+    "provider-install-03/scope/closure.json": "c29a40554484d0759f817909942dcb087842d7d9bb52af75ef74e97aac6fc7ec",
+    "provider-install03-post-close-01.json": "c49282bd78481b561eb4614bdcd65e9c260090b450292d4ba3bf97281a85a928",
+    "provider-state-03/prepared.json": "f79c19c55aa65f41797f578f85360ddf215362b29f6c7b1531d9b904bbdfa5b0",
+    "provider-state-03/source-patch.json": "03af490112433d3a6377707d0334be80cccbdbde1ab83ac7e3632f042f718e31",
+    "voice-harness-tests-09.log": "2bfa755f8856547a49a13afa2022c1ae4951395cfe159be423bada3b0e76bdda",
+    "voice-hand-plan-08.json": "8e0de304f348bc50ac2b59e9f212841f1d3fb86b92db8af1180320ac41985039",
+    "voice-hand-binding-08.json": "835f2930a7b87f4744f1e4b47170f45ee9fcff38364fdb1d57a83a93c05568dc",
+    "voice-hand-audit-08.json": "f8aa77b97f6f078e62f51f16984b87ff9391ee02cdf918ca0a4e832c71d8f6d9",
+    "voice-post-close-08.json": "17513e501b94edfa7a9fcd7a687dfbad8b5a368b60e5c7179631a44ffde20bdf",
+    "voice-hand-08/receipt.json": "2dfd1fd40a7d6dc24f449eb6a4c16c7e2ea019f0a1da66bc40cb070148f829ab",
+    "voice-hand-08/episode/receipt.json": "a6d439fdfb9209b70c004ec9623f74117cf03eaa806d422278358f6be3eaec8a",
+    "voice-hand-08/episode/provider/admission.json": "3c73e345bef152b8b75daae9c0d2f0b7dab6cd6ec656910cc4d589fc3bf889a0",
+    "voice-hand-08/episode/provider/closure.json": "a998c4700d4a31f787fc3c41db9a55d255cb12e17bc0a8ab00005b5eb9a55ca8",
+    "voice-hand-08/episode/provider/provider.log": "52b3979fc6bfeefaf7e603a7951602a17eda0343f59d6538dfbcef7baf84f613",
+    "voice-hand-08/owner-scope/closure.json": "8f80ca78fbcfc6190afdddb80e804e0cd7de75ae079d494052e9f54c2b01eef8",
+    "voice-hand-08/episode/provider-scope/closure.json": "04d9e4fc9ee9d198657241c4200f327c32fb80fb9f1817b4ec4f3b7f85a71624",
+    "voice-hand-plan-09.json": "3b8492d832f8528656ec491114159ec374612378c4a3e8aa21ac6c4c0848feda",
+    "voice-hand-binding-09.json": "c348b0ca7fa1fc43cd3280bb1991eb76c3b494c8cfc1c19611ba1500035b6b98",
+    "voice-hand-audit-09.json": "f5003efd977969803556d5df60c2b7d0c19f701afd7928a6b67ed68905ca8bf0",
+    "voice-post-close-09.json": "ded63462be18d6979328151e5fb33660cb2bdbf02f468cd0c9ce7dd8542aebfb",
+    "voice-hand-09/receipt.json": "9fcf6615b487202b43cc3ac654b3692bca0f9eab586b80a7e718c19676f2dbc2",
+    "voice-hand-09/episode/receipt.json": "e4270b59fb005db45eabf2c3ed166d140399fcbdc1f1ca9cdbf18c09989c7d89",
+    "voice-hand-09/episode/provider/admission.json": "dcf46ec6696ae897b0ca687754f03fab9ee933c03990349f05150330e230864d",
+    "voice-hand-09/episode/provider/closure.json": "a2c09fb76bf955cd3c9e3288d5ba691677548d1dc19c9f352be39f5ff2ba697c",
+    "voice-hand-09/episode/provider/provider.log": "651b33e6f1499485c4cd60af892c1dfeb86db5a13865530a90cbeb516ddcdd3c",
+    "voice-hand-09/owner-scope/closure.json": "43d6731c5864aace30ec8f8bfc23314288ceedf8ebc69f26b8b9aa9e15a7d52a",
+    "voice-hand-09/episode/provider-scope/closure.json": "e4d0f6a1a06baa638d62e6915bb4963f3e63d95120845323cc12164178a26038",
+    "direct-loader-cascade/configs/conversation/hf_kokoro_cuda_llm_fp32.json": "463fcc8796a36e7ea59f289e690cd215b54b658ed37c8efcbbd34ba86c8e5ec3",
+    "direct-loader-cascade/configs/conversation/hf_kokoro_cuda_llm_fp32.requirements.txt": "a323fbc4d44c59521d0032baecad39c82dd87c39d652d53462da35aabbe1eb56",
+    "direct-loader-cascade/configs/conversation/provider/direct-cuda.patch": "fd5abc83ef48eef50592e04f2ccc5b7c26fbfb948e41c00006c8af7d38fe5bcd",
+    "direct-loader-cascade/configs/conversation/provider/direct-cuda-manifest.json": "afdec647c99a1fd9b0ef2698188ddc66539b59bd654c29c22d06c3767eb4a660",
+    "direct-loader-cascade/scripts/conversation_provider.py": "6665dde80668079723414dc5a412a6484e5ee0c183696a414b9bfba24cb52bf3",
+    "direct-loader-cascade/scripts/conversation_provider_acceleration.py": "b8c293929f92270249ea86c8ca9b6cc7a86538efc7f3ebfb3bf8fca857cb338c",
+    "direct-loader-cascade/tests/test_conversation_provider_acceleration.py": "173dcccde79084f57cb33697ff4e54bc183cc897b7752fd9742239841d6ed6b1",
+    "direct-loader-provider/src/speech_to_speech/LLM/language_model.py": "e6b986dada654bbb2966ec0dc2bd30094d2d7909c4bebc2cd496c9ceb88a3267",
+    "direct-loader-provider/src/speech_to_speech/arguments_classes/language_model_arguments.py": "e5ffbc5cac5feb2827d9c21201a09a22a6f49c8dcb80fa0043446c8dad625272",
+    "direct-loader-provider/tests/test_direct_cuda_model_loading.py": "099a890de4f1e58d49484649e1b8165cd36f1299e2bf33d83f26002a2c89b8e3"
+  }
+}

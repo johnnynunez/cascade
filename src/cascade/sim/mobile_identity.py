@@ -142,7 +142,23 @@ locomotion, fidelity of a solver, contact support or any physical outcome.
         _, digest = calibration_record(camera['calibration'])
         if digest != camera['calibration_sha256']:
             raise ValueError('effective RGB-D calibration digest mismatch')
+        mount = admission.get('camera_mount')
+        if mount is not None:
+            from .mobile_camera_pose import admit_mount
+            from .mobile_camera_encoding import encoding_descriptor
+            if (admit_mount(mount['path'], mount['sha256']) != mount
+                    or camera.get('mount') != {k:v for k,v in mount.items() if k != 'path'}
+                    or camera['calibration']['version'] != 3):
+                raise ValueError('effective rigid camera mount differs from admission')
+            encoding = admission.get('camera_pose_encoding')
+            if (encoding != encoding_descriptor()
+                    or camera.get('pose_encoding') != encoding):
+                raise ValueError('effective camera quaternion encoding differs from admission')
+        elif camera.get('mount') is not None:
+            raise ValueError('native mounted camera lacks explicit mount admission')
         recipe['native']['rgbd_camera'] = copy.deepcopy(camera)
+    elif admission.get('camera_mount') is not None:
+        raise ValueError('admitted mount requires an effective RGB-D camera')
     # Copy by canonical serialization: callers cannot change a nested receipt
     # after its digest is published, and all values have one JSON meaning.
     payload = canonical_bytes(recipe)

@@ -491,5 +491,112 @@
       "prepare-01/receipt.json": "4f744c423c1cb7b308ad2bd12e5aa44cab47b24d2435a97dec7ac5c6f799e6d5",
       "prepare-02-cache-manifest.json": "867d380dd8d7a9e86520be23b66f47619b41a058d3e702b6295f5b926e60c761"
     }
+  },
+  "retention_cpu": {
+    "scope": "Closed-record CPU retention replay only; no new native model, physical admission or native pause remedy.",
+    "baseline_head": "8342cac5cb0727e9b2fef51364969f9c8a5e8809",
+    "candidate_head": "75c9c89dcedbd65c2ff1271f3c93e4ade8b1d022",
+    "result": "exact equality",
+    "counts": {
+      "rows": 3093,
+      "contact_candidates": 861506,
+      "thread_samples": 2731
+    },
+    "typed_rows_sha256": "345a68f2187e6e05b002fae6360f396a26bc9c83cff3e28fe51eba74ecf02ca1",
+    "typed_history_sha256": "09c08a4a635023ee9a1514b32daf314351a01b71c024d9411a7dfb001cb3856d",
+    "history_scope": "All admitted-generation eligible recorded rows; not a claim of which rows the original concurrent reader consumed.",
+    "original_refusal": {
+      "stage": "control_upload",
+      "step": 3093,
+      "age_s": 0.35867491899989545,
+      "limit_s": 0.2,
+      "threading_status": "refuted"
+    },
+    "gc_policy": {
+      "enabled": true,
+      "thresholds": [
+        700,
+        10,
+        10
+      ],
+      "explicit_collect_disable_freeze": false,
+      "heap_causality_identified": false,
+      "census_boundary": "after retention, before first cursor decode"
+    },
+    "live_exact_types": {
+      "baseline": {
+        "FasteningSolve": 0,
+        "ShoulderContact": 0,
+        "SeatingSolve": 3093,
+        "ThreadSample": 2731,
+        "_PackedRecord": 0,
+        "SolvedPair": 126972
+      },
+      "candidate": {
+        "SeatingSolve": 1,
+        "SolvedPair": 75,
+        "ShoulderContact": 0,
+        "FasteningSolve": 0,
+        "ThreadSample": 0,
+        "_PackedRecord": 5824
+      }
+    },
+    "all_tracked_objects_at_retention": {
+      "baseline": 162733,
+      "candidate": 29773
+    },
+    "selected_types_zero_after_release_without_collection": true,
+    "generation_2_callback_intervals": {
+      "baseline": 12,
+      "candidate": 12
+    },
+    "closure": {
+      "both_exit_zero": true,
+      "signals": [],
+      "forced": false,
+      "remaining_births": [],
+      "remaining_members": [],
+      "inputs_unchanged": true
+    },
+    "earlier_attempt": {
+      "result": "baseline census helper TypeError before any row; candidate not launched",
+      "source_and_receipt_preserved": true,
+      "normal_nonzero_closure": true,
+      "fix": "Exact imported class identities; no metadata access on unrelated tracked objects."
+    },
+    "validation": {
+      "source_selected_passed": 313,
+      "source_selected_optional_skipped": 126,
+      "final_retention_tests_passed": 21,
+      "publication_selected_passed": 227,
+      "publication_selected_optional_skipped": 112,
+      "census_regressions_passed": 3
+    },
+    "source_sha256": {
+      "src/cascade/control/_fastening_retention.py": "06dd6aea9475128707a70702d409b140523e6eff3ec23f4f23d559130bb419ed",
+      "src/cascade/control/fastening.py": "41b306e492d029b67d0d6e0d905d7ce228643be75061c589cb3239ce4fbd1b6b",
+      "src/cascade/sim/factory_model.py": "9e6688aed2284a486d8b7520ff92357e618de79a024f7ffba41dcd70bea6f0ff",
+      "src/cascade/sim/factory_owner.py": "400f55996de6265688d96b182bce1025ab6b85cc3e25db596755e74efb70fc7c",
+      "src/cascade/skills/seating_runtime.py": "ad710332cb336a3961ef2b2c1013a48ea3e7cc75c8b44ad1a9d65eba73329bed",
+      "tests/test_factory_retention.py": "ab81fd129709788c92c70ff87c3a4321e60e1f6a51f70e122c6e477a84ecb910"
+    },
+    "artifacts_sha256": {
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/replay-plan-01.json": "2b008ce0ee58dc3ebfa9b8984b7103c39859ce1b6c3119e3e468bf8b6ac4343e",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/replay-01/receipt.json": "7a02d8ad972a600368941b4d7c94998583f5a500ba354cf624eb80f0332231c8",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/replay-01/baseline-scope/service.log": "17c838d21e078d0b5f56273898d2ab5c0d1ed925d5182908e5382ba186874cce",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/replay_retention.py": "6d27fabac46fb7d2476ccea7a1f7443ef9c0e71cc6f17e9ca24f058d91514fc0",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/replay-plan-02.json": "a11c677a8e794161345523913f98f136acccc4491cbce37f5116bcb3dc0290d8",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/replay-binding-02.json": "f663bfa46e30c594f856ca7806d09bd747312176b2075dcc7b00b52a48a4727d",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/replay_retention_02.py": "43bedd50f40ed8fd9a1c2e4ee5f1a915d03694430023d2fa5bfd80306b4030fd",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/launch_replay_02.py": "cdf16e9714b28a61c725be4de50dcc36af0aa61cd99c71e54440d3bbe73b379a",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/owned_services.py": "44f1f98f4760f31a7c6dd89acddb1ed073523b8c2520f322abe2c5eae8000473",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/test_replay_census_02.py": "4141efa28f29da1b1e81a58b8e811b86e802f7421d84410f644b14c90bcc8e36",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/replay-02/receipt.json": "060a1020809364d9b304f48d3e84e6f92c6ff9cfe9eb2dc57b4b753fb1fff871",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/replay-02/baseline.json": "c663974a304a091fab23fcd11cc3df2ab3e1e7543b00324e35c82a616eef9444",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/replay-02/candidate.json": "13e6f6dfb8150206fe4dd3e4404cf67a3c8633de1a5beda2a073b86b06b235ce",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/replay-02/baseline-scope/closure.json": "2886a0e62754a3f532cbda1858758b539cfb6229dc0129ae75a53649b7d39973",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/replay-02/candidate-scope/closure.json": "7d193a3fc228aedc2042fcd54908a2068846cf1e88f02192b9291f2e9fef5309",
+      "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/publication-tests-01.log": "40d365bbcbb4503906e27d5d96f8935b1330087c08c924dee7b1df99dbe86b31"
+    }
   }
 }

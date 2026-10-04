@@ -36,6 +36,29 @@ establish general walking or dialogue reliability. The [architecture diagram](RO
 places this supervisor above a single robot runtime; fleet conversation routing
 remains separate work.
 
+The later [bounded LEAP voice attempts](evidence/robot-modularity/voice-hand-negative-20261004.json)
+remain negative. The named hand postures already had separate native motion and
+retained-rest evidence, but neither voice attempt dispatched an action. The
+first stopped after 154 zero-target solves because the test harness used an
+unsupported file-opening argument. After that correction and two browser-only
+regressions, the next attempt recorded 12,969 zero-target solves and exhausted
+the original 30-second owner budget, with two seconds reserved for browser
+closure. Its internal provider log contains the correct transcription, then a
+rejected call to unavailable `function_name`; that identifier also appears in
+the provider's generic prompt example. This correspondence does not establish
+causation, and full generated text or per-token timings were not retained.
+
+The provider withheld speculative speech-stop/transcription events from the
+external wire; their absence does not mean recognition or generation never ran.
+No tool call or reply PCM reached the gateway, and the stop/reset/reconnect case
+was withheld after the first failure. All owned process groups closed without
+force escalation or remaining births; the hand and provider used owned TERM15
+in the second attempt. Source/model inputs stayed intact. Captured microphone
+chunks retain hashes and byte counts, while only the original and derived WAVs
+retain full PCM. These results establish neither voice-controlled hand motion
+nor spoken acknowledgement of physical rest; prior motion and voice negatives
+remain separate evidence.
+
 ## Run the gateway
 
 From a checkout, install the optional transport and start a new private run:

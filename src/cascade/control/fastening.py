@@ -398,15 +398,25 @@ class SolveJournal:
 
     Native and synthetic producers are explicitly distinguished by their owner;
     this journal alone is not a claim that a sensor contract has been validated.
+    The exact native owner can privately retain packed history: latest reads
+    still use the original typed row; cursor reads return a lazy typed sequence.
+    Reconstructing a historical row never renews its capture clock or deadline.
     """
 
-    def __init__(self, binding, *, capacity=20000):
+    def __init__(self, binding, *, capacity=20000, _compact=False):
         if type(capacity) is not int or capacity < 3:
             raise ValueError("invalid solve journal capacity")
         self.binding, self.capacity = binding, capacity
         self._rows = deque(maxlen=capacity)
         self._condition = threading.Condition()
         self._error = None
+        self._compact = _compact
+        self._latest_row = None
+
+    def _check_error(self):
+        with self._condition:
+            if self._error:
+                raise FasteningFault(self._error)
 
     def fail(self, reason):
         with self._condition:
@@ -424,7 +434,15 @@ class SolveJournal:
                                      self.binding.dt_s, rel_tol=1e-6, abs_tol=1e-9))):
                 self.fail("invalid identity/epoch/clock in producer stream")
                 raise FasteningFault(self._error)
-            self._rows.append(row)
+            stored = row
+            if self._compact:
+                from ._fastening_retention import _PackedRecord, _failure
+                try:
+                    stored = _PackedRecord(row)
+                except Exception as error:
+                    _failure(self.fail, error)
+            self._rows.append(stored)
+            self._latest_row = row
             self._condition.notify_all()
 
     def read(self, after_step=None, *, timeout_s=0.):
@@ -439,11 +457,15 @@ class SolveJournal:
             if not self._rows:
                 return ()
             if after_step is None:
-                return (self._rows[-1],)
+                return (self._latest_row,)
             _index(after_step, "reader cursor")
             if after_step < self._rows[0].step - 1:
                 raise FasteningFault("reader lost solves to journal capacity")
-            return tuple(row for row in self._rows if row.step > after_step)
+            rows = tuple(row for row in self._rows if row.step > after_step)
+        if self._compact:
+            from ._fastening_retention import _RetainedBatch
+            return _RetainedBatch(rows, self._check_error, self.fail)
+        return rows
 
 
 @dataclass(frozen=True)

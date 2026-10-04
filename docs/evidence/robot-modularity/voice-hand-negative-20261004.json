@@ -1,0 +1,427 @@
+{
+  "compiler_sha256": "18f472db05026472579ebeaa605f9f1872a0d38c0b578d864c7432d248d982e5",
+  "date": "2026-10-04",
+  "harness_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice_harness_v5/audit_voice_hand.py": "21900b7ea1de2869a3322317c458ca04476229942b4081e47adb25034e7a1c0e",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice_harness_v5/browser_case.py": "07fa8f60b5d05f9af60d7814d064c997b4b08003e42b3902308776701e828763",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice_harness_v5/common.py": "0e888af4b953f9baa5ff88be852a8694c8563b6ca4862d87839487a20c9d8ab9",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice_harness_v5/hand_service.py": "d6e185cef02526df97b9e1f329b01fa51a83d8834c0fa3b3e88bf4690cc1b458",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice_harness_v5/intent_guard.py": "39a18274b3d372054a3c1606554d91156d43f5264922cbf9bcb09cfe33c85ea1",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice_harness_v5/launch.py": "b518fb360a7a0b09c091a6d5ee36613d9ef9b000dcc3fa4919e4bd4ecbfe6194",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice_harness_v5/observed_session.py": "943b55bd8d5939459a8d3da9f6ede92a29383d912b56f235dc25c47ca45c82f3",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice_harness_v5/owned_services.py": "44f1f98f4760f31a7c6dd89acddb1ed073523b8c2520f322abe2c5eae8000473",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice_harness_v5/owner.py": "b3b8abc61d2953a9715479d3dcb4f261e1d4f2f34f7259f16f5d72f66a93d174",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice_harness_v5/test_browser_bootstrap.py": "998fa4718777d868eb25b9ef014609e4eab9d53b90bfef623f76452fc6134d02",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice_harness_v5/test_intent_guard.py": "fc85dbf3d7e55e59692fc3e8c9d0c6ff6989423f029b508c6b08dce04aca2926",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice_harness_v5/test_observed_session.py": "56da1a558039ae49b44ca05ee31ad445a9961c8de86425e8d1273187a42b330b",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice_harness_v5/test_private_credential.py": "af7ac97c6f3066688490b95eaab16eb116c44af584f2807844b4e35dc363fb0c",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice_harness_v5/test_voice_audit.py": "ead67801c40b63849f39d8dd56f21c3706d422705708984e9c789ba7f492977a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice_harness_v5/test_wire_proxy.py": "309cd89e5f68816c12942919b01508de2a227d39330b2329a070c654c7709f18",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice_harness_v5/wire_proxy.py": "cfd3f1436f2df4dda8d2ccbd49fc6ce2ccf15f89858bb20d570ff0fc31a6cd99"
+  },
+  "original_contract": {
+    "browser_reserve_closure_s": 2,
+    "execution_timeout_s": 30,
+    "gates_or_GC_settings_changed": false,
+    "hand_owner_wall_s": 30,
+    "intent_timeout_s": 60,
+    "owner_reserve_closure_s": 1,
+    "retry": false,
+    "scope_s": 360,
+    "second_case_after_failure": false,
+    "watchdog_s": 390
+  },
+  "retained_episodes": [
+    {
+      "actual_dispatches": 0,
+      "all_joint_targets_rad": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "artifacts_sha256": {
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-02/episode/provider-scope/closure.json": "2444d73a3146224ff093401f99944e923837f1f63ce03139dae96088c272134c",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-02/episode/provider-scope/owner.json": "b44fb2a4bfd61fbac0b311b97f8305c4916c8b31fe594cc574dbd8c75ab21a6d",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-02/episode/provider/closure.json": "3b4304e096c09f609f969483450e0738d92b2fcc88e39c5c219d4f8b2dd4f4a7",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-02/episode/provider/model-runtime.json": "21cdec1f02b47d9d17cc613ed7b0d1e4350eeaa1ce0374c46edc8e099d41bb56",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-02/episode/provider/provider.log": "7b6bd02fa90db572b9baf9c7c29def4b2123d2e47887b3416ae186a0795a5c17",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-02/episode/receipt.json": "dff73cf7a5d5b59454db5bcc3eb1d0900fe463234080628ecaf16118302c05cb",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-02/episode/spoken_index_flex/browser-trace.zip": "b278c15f1e64369dc1a814689c4bdafdf072f50ea2707c293a281228fc01b0a6",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-02/episode/spoken_index_flex/hand-scope/closure.json": "8907351270b939367363fa8b9bdd71bf0e2684102e5ff6c65a5ed4456be064ff",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-02/episode/spoken_index_flex/hand-scope/owner.json": "b051dc47e6070e8c1e4a726d651be12d4a93a0179193992d628793adb2aa2811",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-02/episode/spoken_index_flex/receipt.json": "c3c16b17daf3e3444e29d57e368d74ec282b1cb7c01eaa23e58926cafbe7067e",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-02/episode/spoken_index_flex/service/receipt.json": "5e8c2b30fcaef89671a0f6f7c05480d5d21962833d15498e8c8648a32dad148e",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-02/episode/spoken_index_flex/service/runtime/domains/hand/closure.json": "541e9ed459317cb98d10eabf2c755fc0c5c8a80dcf48486c1c1d2d3da604ae54",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-02/episode/spoken_index_flex/service/runtime/domains/hand/model.json": "e0eff51b479823bd9cbf32ebc643a20207f952fae9dde800cecba18549642419",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-02/episode/spoken_index_flex/service/runtime/domains/hand/readiness.json": "ab4025ead4658099a55d8952a6e8d89e32d00088a98dd828baa67fc7f447892e",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-02/episode/spoken_index_flex/service/runtime/domains/hand/solves.jsonl": "aba782924af3bd14ae619ada76d63fed1da7dfe33f226d9fb40db6f5e68a0596",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-02/episode/spoken_index_flex/service/sessions.json": "97a4c10e24ec5aec4da3450fc6f9d8a3353ffc064e4374e0dc7bc84fbeba019c",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-02/episode/spoken_index_flex/service/wire/wire.json": "264f837b2fc79a49c52c65e1d74999438d0cf92749f741b7a92ec54d672daba1",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-02/owner-scope/closure.json": "63009acb52c8b1703ef225f0724a5bc6cec83a24e5f829a6c753df8009a82b32",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-02/owner-scope/owner.json": "7855cc43de99c080641f1ca4e4f5778bfc333c1d101d1382826e717200e4a11e",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-02/receipt.json": "ad6c12438e0a5defdb05d87912e36c9152dfb771e0360eee487bb864cbcbf442",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-audit-02.json": "80715e5c5987d2e8effb1662e10c9836fd488d7a7dfd636c331ff581bf450efc",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-binding-02.json": "7ca312392f84217f06052091359f8130cc6c55a7247952d4eacdda817bd57613",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-plan-02.json": "66e3619471283ee6af5b30a1ac806ad4908190f78b23e14114e8215ec56763ce"
+      },
+      "browser_error": {
+        "message": "hand gateway did not publish readiness",
+        "type": "TimeoutError"
+      },
+      "closures": {
+        "hand": {
+          "forced": false,
+          "ok": true,
+          "remaining_births": [],
+          "remaining_members": [],
+          "scope_client_exit": 1,
+          "signals": []
+        },
+        "outer": {
+          "forced": false,
+          "ok": true,
+          "remaining_births": [],
+          "remaining_members": [],
+          "scope_client_exit": 1,
+          "signals": []
+        },
+        "provider": {
+          "forced": false,
+          "ok": true,
+          "remaining_births": [],
+          "remaining_members": [],
+          "scope_client_exit": 0,
+          "signals": [
+            {
+              "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+              "pid": 1071728,
+              "signal": 15,
+              "start_ticks": 4940348
+            }
+          ]
+        }
+      },
+      "episode": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-02",
+      "epoch": "a9d21bb3bec944728a068a0db75fc91a",
+      "guard_rejections": 0,
+      "inputs_unchanged": true,
+      "model_pin": "43bb8067967c88b7b9a261a82cf98240f701c747e2ea0427808a08ae631eaee2",
+      "native_owner_thread_closed": true,
+      "observed_births": 13,
+      "physical_action_verified": false,
+      "provider_assets_unchanged": true,
+      "runtime_modules": {
+        "cascade.apps.hand_runtime": {
+          "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/apps/hand_runtime.py",
+          "sha256": "8f02c133cd63cfde5f559c58d21f975a3c5422484f9c5c3b10b6558f8f3e5756"
+        },
+        "cascade.apps.robot_runtime": {
+          "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/apps/robot_runtime.py",
+          "sha256": "51dd577ea205219a88d9b95de4a94c712e091745b173b163701eb60b685813c5"
+        },
+        "cascade.control.hand": {
+          "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/control/hand.py",
+          "sha256": "49b531c3ccd91938c7fca47e5fb3cd39b7b1734967cf7ae6f6fde59b2ae427f8"
+        },
+        "cascade.conversation.domain": {
+          "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/conversation/domain.py",
+          "sha256": "a3f8a97bc32e6b17d6ec39bcc057816db8846d5e9f6e26c2a0b37c9b05e644cc"
+        },
+        "cascade.conversation.gateway": {
+          "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/conversation/gateway.py",
+          "sha256": "712bd8a02cd5d427de200f994768fc0dd6d03c795af10c3c326f731b89f5580f"
+        },
+        "cascade.conversation.session": {
+          "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/conversation/session.py",
+          "sha256": "b96b31d9dafbd85f3207a2547cec610f27fce28b9f9c0a5fecca053fba6b7ee5"
+        },
+        "cascade.sim.leap_hand": {
+          "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/sim/leap_hand.py",
+          "sha256": "447946b3008316491dc5bcf5b428429aeefa2f5f9e36e0b826c8eff4552c7124"
+        },
+        "cascade.skills.hand_runtime": {
+          "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/skills/hand_runtime.py",
+          "sha256": "73ad88f3d5a060da68640ebabf6528c32d82256cd67cce697cc767d775ae58d6"
+        }
+      },
+      "runtime_source": "a2bcf04a182cb84f12bedfcda14d85f473759d01",
+      "same_births_remaining": [],
+      "second_case_started": false,
+      "service_error": {
+        "message": "Path.open() got an unexpected keyword argument 'opener'",
+        "type": "TypeError"
+      },
+      "servo_equation_error_nm": 0.0,
+      "sessions": 0,
+      "solved_contacts": 0,
+      "solves": 154,
+      "verified": false,
+      "wire": {
+        "complete": true,
+        "events": 0,
+        "input_pcm_bytes": 0,
+        "kinds": [],
+        "output_pcm_bytes": 0
+      }
+    },
+    {
+      "actual_dispatches": 0,
+      "all_joint_targets_rad": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "artifacts_sha256": {
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/episode/provider-scope/closure.json": "fe3b5350608492370b537016c529fa50de0cbe372a124e29d0f83dd914969a07",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/episode/provider-scope/owner.json": "d3335e743c48434a34517652120d77d306743cbbd2950d6baeafaaef6e45e129",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/episode/provider/closure.json": "fdb0bd19519b5df59c52ab104a99179f2d6ca078f0e1ae9896405c105aa1ac0b",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/episode/provider/model-runtime.json": "21cdec1f02b47d9d17cc613ed7b0d1e4350eeaa1ce0374c46edc8e099d41bb56",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/episode/provider/provider.log": "47e5d020e5157a99a81d83c742badbfd878f9ed4a77d97cb7ca2506f64b6c1b0",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/episode/receipt.json": "197bc05fa5b63a203acc69563873112a26ee313d07d797c8c79d635d7164be6e",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/episode/spoken_index_flex/browser-trace.zip": "2c1853dc842c3e1eadf10428cbcb7a91138b62ce752a39364506481652a83b1e",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/episode/spoken_index_flex/hand-scope/closure.json": "d3863f2ff70c28488b9850868aece550c2146fd9777b133e53f1b8e24578c4a2",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/episode/spoken_index_flex/hand-scope/owner.json": "baeb14d06231e3028f80691c714ee1a3b759787509da7d1799dd66a3f617aebd",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/episode/spoken_index_flex/receipt.json": "daa1dfded47f5b2e60798fa6618618c29418112a3ceabf6b5d1bdedcdfbbc983",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/episode/spoken_index_flex/service/receipt.json": "8b867efe4e2b51d4ea2911b78dfa978864bd054d89bd512cae0434456e93423c",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/episode/spoken_index_flex/service/runtime/domains/hand/closure.json": "a59fff825584568a82f6154f4f91ff374aada2e51a92ad47e446fb9e9a0d068e",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/episode/spoken_index_flex/service/runtime/domains/hand/model.json": "e0eff51b479823bd9cbf32ebc643a20207f952fae9dde800cecba18549642419",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/episode/spoken_index_flex/service/runtime/domains/hand/readiness.json": "5da884809a06c3c4cb4c61bfb8ae0e9520a7f3f7590aea678d1aa654418222f9",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/episode/spoken_index_flex/service/runtime/domains/hand/solves.jsonl": "21dbfa1ee48095042ba8ac6f607231efc48004dcb801d63fe915bc27430e824d",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/episode/spoken_index_flex/service/sessions.json": "402b332b24b4894e328f150d759e64a38cecb595d597b917a82f4862dfd1f646",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/episode/spoken_index_flex/service/status.json": "ef7ac972d7ac6961a26c293c4ab9926ceab0af4e47170602a430731d146a3801",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/episode/spoken_index_flex/service/wire/wire.json": "ace8a6e7624ee37348a4336725f22b1a87a000f6c984c2f9da967604a5fb6342",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/owner-scope/closure.json": "2bb04e45656ca441d714ceeffc32309cf2a9025619d1119aca31923ef72e517f",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/owner-scope/owner.json": "42e3e7e8da621ab22bea769c43701675f290cd4ff7d637737f4965065707a424",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/receipt.json": "54838b19b59ac239736c692ebab8cfceda90a91e5c62515042a6c5b7c932f9e2",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-audit-05.json": "355a70745b5d3bde4faebc57ef58b42cbcb27ff433bc12f4160ae9d6b9b485d2",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-binding-05.json": "f1dbd29f1c10146de18d5c67be31811fd25da2be5e132ba7441cc048f359d6fb",
+        "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-plan-05.json": "7118578284b2cd8da89edfe8deee2f381e2a631feb55b227d689e8e30310832d"
+      },
+      "browser_error": {
+        "message": "original hand owner budget expired",
+        "type": "TimeoutError"
+      },
+      "closures": {
+        "hand": {
+          "forced": false,
+          "ok": true,
+          "remaining_births": [],
+          "remaining_members": [],
+          "scope_client_exit": 1,
+          "signals": [
+            {
+              "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+              "pid": 1094916,
+              "signal": 15,
+              "start_ticks": 5078873
+            }
+          ]
+        },
+        "outer": {
+          "forced": false,
+          "ok": true,
+          "remaining_births": [],
+          "remaining_members": [],
+          "scope_client_exit": 1,
+          "signals": []
+        },
+        "provider": {
+          "forced": false,
+          "ok": true,
+          "remaining_births": [],
+          "remaining_members": [],
+          "scope_client_exit": 0,
+          "signals": [
+            {
+              "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+              "pid": 1093757,
+              "signal": 15,
+              "start_ticks": 5071355
+            }
+          ]
+        }
+      },
+      "episode": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05",
+      "epoch": "4318dac84d50486db5d4bd4e8dc0640d",
+      "guard_rejections": 0,
+      "inputs_unchanged": true,
+      "model_pin": "43bb8067967c88b7b9a261a82cf98240f701c747e2ea0427808a08ae631eaee2",
+      "native_owner_thread_closed": true,
+      "observed_births": 16,
+      "physical_action_verified": false,
+      "provider_assets_unchanged": true,
+      "runtime_modules": {
+        "cascade.apps.hand_runtime": {
+          "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/apps/hand_runtime.py",
+          "sha256": "8f02c133cd63cfde5f559c58d21f975a3c5422484f9c5c3b10b6558f8f3e5756"
+        },
+        "cascade.apps.robot_runtime": {
+          "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/apps/robot_runtime.py",
+          "sha256": "51dd577ea205219a88d9b95de4a94c712e091745b173b163701eb60b685813c5"
+        },
+        "cascade.control.hand": {
+          "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/control/hand.py",
+          "sha256": "49b531c3ccd91938c7fca47e5fb3cd39b7b1734967cf7ae6f6fde59b2ae427f8"
+        },
+        "cascade.conversation.domain": {
+          "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/conversation/domain.py",
+          "sha256": "a3f8a97bc32e6b17d6ec39bcc057816db8846d5e9f6e26c2a0b37c9b05e644cc"
+        },
+        "cascade.conversation.gateway": {
+          "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/conversation/gateway.py",
+          "sha256": "712bd8a02cd5d427de200f994768fc0dd6d03c795af10c3c326f731b89f5580f"
+        },
+        "cascade.conversation.session": {
+          "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/conversation/session.py",
+          "sha256": "b96b31d9dafbd85f3207a2547cec610f27fce28b9f9c0a5fecca053fba6b7ee5"
+        },
+        "cascade.sim.leap_hand": {
+          "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/sim/leap_hand.py",
+          "sha256": "447946b3008316491dc5bcf5b428429aeefa2f5f9e36e0b826c8eff4552c7124"
+        },
+        "cascade.skills.hand_runtime": {
+          "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/cascade/src/cascade/skills/hand_runtime.py",
+          "sha256": "73ad88f3d5a060da68640ebabf6528c32d82256cd67cce697cc767d775ae58d6"
+        }
+      },
+      "runtime_source": "a2bcf04a182cb84f12bedfcda14d85f473759d01",
+      "same_births_remaining": [],
+      "second_case_started": false,
+      "service_error": null,
+      "servo_equation_error_nm": 0.0,
+      "sessions": 1,
+      "solved_contacts": 0,
+      "solves": 12969,
+      "verified": false,
+      "wire": {
+        "complete": true,
+        "events": 153,
+        "input_pcm_bytes": 286080,
+        "kinds": [
+          {
+            "count": 1,
+            "direction": "provider_to_service",
+            "type": "input_audio_buffer.speech_started"
+          },
+          {
+            "count": 1,
+            "direction": "provider_to_service",
+            "type": "session.created"
+          },
+          {
+            "count": 1,
+            "direction": "provider_to_service",
+            "type": "session.updated"
+          },
+          {
+            "count": 149,
+            "direction": "service_to_provider",
+            "type": "input_audio_buffer.append"
+          },
+          {
+            "count": 1,
+            "direction": "service_to_provider",
+            "type": "session.update"
+          }
+        ],
+        "output_pcm_bytes": 0
+      }
+    }
+  ],
+  "schema": "cascade.voice-hand-negative.v1",
+  "scope": "Bounded native hand plus real Chromium and CPU HF provider. No voice action or spoken-reply success.",
+  "source_and_preparation_sha256": {
+    "/home/johnny/.cascade-conversation-host-fp32-20261002/prepared.json": "28d7b3ef19c96765490ad140432b35b1c53600385e5f0fd955cea173e434ead2",
+    "/home/johnny/.cascade-conversation-host-fp32-20261002/source-patch.json": "109b261947b2d487231fa2f4f4b652fb8b434882becf86ee233432b1b15b58e6",
+    "/home/johnny/.cascade-conversation-host-fp32-20261002/source/src/speech_to_speech/LLM/language_model.py": "c0507a7eedf029a8a867e283b69d14bb002167bf57861d67fdeb16667c3a3afc",
+    "/home/johnny/.cascade-conversation-host-fp32-20261002/source/src/speech_to_speech/LLM/tool_call/tool_prompt.py": "743e341e95810de38a42f41922876ec6b32b359c74e18f16c445b6b099cb5fc2",
+    "/home/johnny/.cascade-conversation-host-fp32-20261002/source/src/speech_to_speech/VAD/vad_handler.py": "843a4283c2a63fd950e5cf5af0f762c27f7ae7d3ec7658faa2e67984e21db7d7",
+    "/home/johnny/.cascade-conversation-host-fp32-20261002/source/src/speech_to_speech/api/openai_realtime/handlers/audio.py": "e9052a6f77317fc1664c534e60fa4f19393cbb2c618b0436e4c52e45cb64cbef",
+    "/home/johnny/.cascade-conversation-host-fp32-20261002/venv/lib/python3.12/site-packages/speech_to_speech/LLM/language_model.py": "c0507a7eedf029a8a867e283b69d14bb002167bf57861d67fdeb16667c3a3afc",
+    "/home/johnny/.cascade-conversation-host-fp32-20261002/venv/lib/python3.12/site-packages/speech_to_speech/LLM/tool_call/tool_prompt.py": "743e341e95810de38a42f41922876ec6b32b359c74e18f16c445b6b099cb5fc2",
+    "/home/johnny/.cascade-conversation-host-fp32-20261002/venv/lib/python3.12/site-packages/speech_to_speech/VAD/vad_handler.py": "843a4283c2a63fd950e5cf5af0f762c27f7ae7d3ec7658faa2e67984e21db7d7",
+    "/home/johnny/.cascade-conversation-host-fp32-20261002/venv/lib/python3.12/site-packages/speech_to_speech/api/openai_realtime/handlers/audio.py": "e9052a6f77317fc1664c534e60fa4f19393cbb2c618b0436e4c52e45cb64cbef",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-input-fixture-02/fixture/index-flex-bm_fable-24000.wav": "dbcd7a6188e0fa6b2276139a5bf2a70f799c2fadba5d3def246c96b8202a5496",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-input-fixture-02/fixture/receipt.json": "d573b4c4039580174c8987d30fc8cedbce7acea0121c26f0440281be85075951",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-microphone-02/fake-microphone.wav": "563a46083eaba4a8ca11c008683ae96c5928feaa97e853c00f71a390ae719644",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-microphone-02/receipt.json": "7d671e4299e6abec6f025078e4a052e435c7e78a2ef8ebd81dff000746c61a92"
+  },
+  "unexecuted_preparations": {
+    "01": {
+      "binding_sha256": "92c0d9bac196e1d9624ce0774c58b7c59dc588bfc9c2c01b345b9c8e6c612ff5",
+      "executed": false,
+      "plan_sha256": "6f788c7b0220d8094d6c6ec39bea4a6d941918ffcde7b22c09f6b1df078acd42"
+    },
+    "03": {
+      "binding_sha256": "26ffd4e0dc4226fb95f08cf08bbbfd3e40c7ead0416fbae3100cd9d0a9a9b5f6",
+      "executed": false,
+      "plan_sha256": "a551b3e4e5442d9ae1232f56d90d710cddbd93d7268641bbb00c610c5442962a"
+    },
+    "04": {
+      "binding_sha256": "7b091c8bd890e16ad55ac5e7a3f088443b0764acad32bf67fa8ccdbdc947bd63",
+      "executed": false,
+      "plan_sha256": "d79dc880eed96058508bd106dd4e7d8b2279200807dfc5b72c16309421d3fe91"
+    }
+  },
+  "verified": false,
+  "voice05_diagnosis": {
+    "asr_to_invalid_tool_log_s": 16.836,
+    "explanation": "Provider holds speculative speech-stop/transcription terminals until turn commitment. Their absence on wire does not imply ASR or LLM did not run.",
+    "external_output_pcm_bytes": 0,
+    "external_tool_calls": 0,
+    "external_wire_terminal_events": 0,
+    "limitations": [
+      "No complete raw generated text or per-token/prefill timing was retained.",
+      "Microphone input PCM was summarized by per-chunk hashes and byte counts, not retained as raw PCM. Original synthetic and derived WAVs remain intact; browser signal processing prevents claiming exact input replay.",
+      "Provider Tools: chars=2 was logged after disconnection; it does not establish completed output before the deadline.",
+      "Provider and hand closure used owned TERM15; no force escalation or remaining birth. Outer closure used no signal."
+    ],
+    "operator_phrase": "Set the hand to index flex.",
+    "prompt_observation": "Frozen tool_prompt.py contains literal <code>function_name(required_arg='value')</code> as a generic example. The rejected identifier matches it; causal attribution is not established.",
+    "provider_events": [
+      {
+        "local_time": "2026-10-04 13:07:11,284",
+        "observation": "Speech started; active384ms"
+      },
+      {
+        "local_time": "2026-10-04 13:07:12,798",
+        "observation": "Speech soft-ended; segment2388ms active1792ms"
+      },
+      {
+        "local_time": "2026-10-04 13:07:16,479",
+        "observation": "ASR completed; actual printed transcript matches the operator phrase after whitespace stripping; en,28chars"
+      },
+      {
+        "local_time": "2026-10-04 13:07:33,315",
+        "observation": "Invalid tool function_name rejected; available robot_tool_0"
+      }
+    ],
+    "provider_log_clock": "Local wall-clock labels in retained provider.log; not substituted for physical monotonic clocks."
+  }
+}

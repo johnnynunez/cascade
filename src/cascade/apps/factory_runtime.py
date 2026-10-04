@@ -145,9 +145,15 @@ class RecordedFactoryDomain(FasteningDomain):
     def flush_records(self):
         # Never called by the owner/write/stop path. A slow disk cannot delay
         # priority stop delivery. Overflow already fails in the native owner.
+        from ..sim.factory_owner import FactoryNewtonBackend, FactorySolveOwner
         with self._record_lock:
             try:
-                rows = self.owner.records()
+                # Keep exact native snapshots packed until each JSON row is
+                # written. Public/custom owners retain the list-returning API.
+                rows = (self.owner._iter_records()
+                        if type(self.owner) is FactorySolveOwner and
+                        type(self.owner.backend) is FactoryNewtonBackend
+                        else self.owner.records())
                 with (self.directory/"solves.jsonl").open("a") as stream:
                     for row in rows:
                         stream.write(json.dumps(row, sort_keys=True, allow_nan=False)+"\n")

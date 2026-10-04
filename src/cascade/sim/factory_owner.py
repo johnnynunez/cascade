@@ -113,6 +113,13 @@ class _OwnerController(FasteningController):
     def reset_stop(self):
         return self.owner.request("reset", {})
 
+    def _new_thread_history(self):
+        if type(self.owner.backend) is not FactoryNewtonBackend:
+            return []
+        from ..control._fastening_retention import _ThreadHistory
+        return _ThreadHistory(self.owner._records.maxsize,
+                              self.journal._check_error, self.journal.fail)
+
 
 class FactorySolveOwner:
     """Priority stop never queues behind admission, solver, reader or logging.
@@ -131,7 +138,7 @@ class FactorySolveOwner:
             raise ValueError("explicit backend and bounded owner budgets required")
         self.backend, self.clock = backend, clock
         self.max_wall_s, self.request_timeout_s = max_wall_s, request_timeout_s
-        self.journal = SolveJournal(backend.binding)
+        self.journal = SolveJournal(backend.binding, _compact=type(backend) is FactoryNewtonBackend)
         self.controller = _OwnerController(self)
         self._requests = queue.Queue(maxsize=2)
         self._records = queue.Queue(maxsize=record_capacity)

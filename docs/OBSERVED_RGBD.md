@@ -90,7 +90,7 @@ The same admitted capture can feed the [spatial observation domain](RGBD_SPATIAL
 through its exact returned `capture_sha256`, epoch and sequence. Sharing it does
 not acquire another frame or refresh its original age.
 
-The initial native producer requires its fixed world camera. Do not label its output as
+The default native producer requires its fixed world camera. Do not label its output as
 a robot-mounted sensor: `world_from_camera` maps the optical frame to `world`,
 not to a head, torso or robot base. A moving mount requires a new producer
 contract for its measured pose and a distinct calibration policy.
@@ -117,13 +117,106 @@ capture. Unknown bounds stay unknown; known bounds include the rotating lever
 arm. Neither a new pose nor a new receipt can rejuvenate old pixels.
 
 The existing static calibration version 2 / packet version 1 remains unchanged
-and refuses an injected dynamic pose. The shipped Newton launcher still uses
-that static producer. The new moving path has CPU transport/geometry evidence
-only; no Fabric pose adapter, moving native camera, articulated mount or physical
-calibration has been admitted. Such an adapter must observe the actual rig pose
-at the same render completion, not read USD defaults or interpolate an unrelated
-controller sample. No camera, depth, map or navigation acceptance transfers
-from the earlier static captures.
+and refuses an injected dynamic pose. The moving transport/geometry contract
+has CPU coverage. The registered Fabric reference below additionally exercises
+native capture bindings; it does not admit physical calibration, an articulated
+mount, metric geometry or navigation. No acceptance transfers from the earlier
+static captures.
+
+### Registered Fabric rig adapter (opt-in)
+
+On the explicit `isaac62_48b2d951` recipe, the Newton bridge accepts
+`--camera-rgbd --camera-mount /absolute/mount.json --camera-mount-sha256 SHA256`.
+The mount file has exactly these fields:
+
+```json
+{
+  "schema": "cascade.rigid-render-camera.v1",
+  "rig_prim_path": "/World/MicroDuck/base",
+  "rig_frame_id": "camera_rig",
+  "rig_from_camera": [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1],
+  "position_error_m": null,
+  "angular_error_rad": null
+}
+```
+
+This illustrates the schema, not an admitted robot mount or useful view. The
+path must name one existing rigid body with an exact Newton body label and
+Fabric `newton:index`. The camera is a direct child with a fixed local optical
+transform, authored only at startup. USD world transforms and controller poses
+are not capture-pose inputs. The mount bytes, observed local calibration, body
+index and adapter source become part of the effective model identity.
+
+At capture, the adapter reads that body's `omni:fabric:worldMatrix` and the
+`camera_params` annotator attached to the same render product. SDK48's view
+matrix uses row vectors and maps world to camera view; the optical transform is
+`inverse(view.T) @ diag(1,-1,-1,1)`. It must match
+`world_from_rig @ rig_from_camera` within a fixed `1e-5` matrix-component
+consistency tolerance. Intrinsics, centered pinhole projection, meters and
+resolution are checked against calibration. Rig/pose/render references must
+remain unchanged around both RGB and depth reads; all physical clocks and
+signal checkpoints remain enforced. Each saved frame records a hashed
+`.pose.json` with the selected raw camera parameters and registered body index.
+
+The numeric agreement check is not an uncertainty estimate: dynamic position
+and angular bounds remain `null`, and missing mount bounds stay `null`. Public
+render references bracket the AOV readbacks; CPU tests cannot establish native
+pixel/pose synchronization or metric accuracy. Those require a separately
+reviewed native episode and a new model identity. This path supplies simulation
+pose provenance, not calibrated localization or navigation admission.
+
+The renderer's affine view matrix may carry a homogeneous scalar within eight
+times the float64 spacing at one. The adapter requires its three perspective entries to be
+exactly zero, divides the entire matrix by that scalar, and applies the unchanged
+rigidity checks. Block inversion retains an exact affine output row; no rotation
+is reorthogonalized. Original `camera_params` values remain in capture evidence.
+This handles a CPU reproduction with Gf's actual matrix inverse and the retained
+mount. The first mounted reference stopped before publishing a capture with
+`RGB-D transform must be rigid`; it did not retain the rejected matrix, so the
+reproduction does not establish that episode's exact failing component.
+
+A second reference retained a different failure at completed solve 22: its
+Fabric rotation had maximum orthogonality residual `1.066902515e-7` and determinant
+`1.000000121540579`. The captured quaternion and SDK48's float32 Warp expression
+reproduce that matrix bit for bit. It remains a failed reference (20 episode
+solves, five policy rows, one frame), with ordinary closure and no admission.
+
+The opt-in `cascade.fabric-quaternion-encoding.v1` descriptor therefore binds
+the actual normalization, conversion and Fabric SDK sources. It reads the
+registered body's float32 `state_0.body_q` beside its Fabric matrix, requires
+unit body/scene scales, and fences the native buffers, clocks and render reference
+through both AOV reads. It accepts only quaternions within the error bound of
+the pinned float32 dot/square-root/reciprocal/multiply normalization with
+`fast_math=False`; directed arithmetic intervals must reproduce the raw Fabric
+entries. The adapter builds SE3 from that same quaternion normalized in float64,
+then applies the unchanged rigid-transform gate. It never estimates a quaternion
+from a nonrigid matrix. Evidence retains the raw quaternion/matrix, arithmetic
+intervals and encoding displacement per metre about the rig origin. This numeric
+representation bound is separate from physical pose uncertainty, which remains
+unknown. CPU regression coverage is not native synchronization or metric admission.
+
+The first encoding reference then refused its constructor after two SDK bootstrap
+solves, before any episode solve or capture. Its generic error did not retain the
+rejected values. SDK stepping and Fabric synchronization are separate operations;
+a CPU fixture reproduces the refusal with an unsynchronized initial matrix, but
+does not identify that native episode's exact mismatch. The reader now validates
+registration during construction and admits encoded poses only after the existing
+capture/render synchronization. Capture checks are unchanged. Encoding refusals
+retain at most 16 matrix, seven pose and three scale values, their shapes/dtypes,
+and the native clock, including before a successful capture exists.
+
+The corrected source `18150c6` completed one native reference on SDK `48b2d951`:
+80 episode solves, 20 all-zero policy rows and five RGB-D captures at native
+steps 3/22/42/62/82. All five raw quaternion, Fabric, render, optical and depth
+bindings replay exactly against their completed physics rows. The recorded rig
+varied by up to 8.6723 mm and 0.0170489 rad relative to the first capture; numeric
+encoding bounds remain distinct from unknown physical uncertainty. The canonical
+model is `d218140c…`; the producer and scope exited 0 without signals, force or
+remaining process births, and all 201,094 inputs remained unchanged. The
+[compact reference receipt](evidence/registered-fabric-rgbd-20261004.json) binds
+the source, artifacts and three earlier native failures. This validates this
+episode's capture provenance and structure, not planar accuracy, balanced rest,
+general 3D geometry or `go_to`. A separate schema6 metric episode is still required.
 
 ## Packet semantics and failure behavior
 

@@ -192,7 +192,7 @@ def test_python_extra_path_cannot_inject_foreign_numpy_usd_or_venv(tmp_path):
 
 
 @pytest.mark.parametrize('mode', ['normal', 'stop_race', 'inference', 'boot', 'capture', 'identity',
-                                'probe_fail', 'probe_stale', 'rgbd'])
+                                'probe_fail', 'probe_stale', 'rgbd', 'mounted'])
 def test_run_exercises_real_rpc_bounded_loop_trace_and_teardown(tmp_path, mode, capsys, monkeypatch):
     import numpy as np
     from types import SimpleNamespace as NS
@@ -209,18 +209,25 @@ def test_run_exercises_real_rpc_bounded_loop_trace_and_teardown(tmp_path, mode, 
     args = NS(out=output, device='cuda:0', robot_id='microduck', source='software-only',
               max_wall_s=3., max_steps=9, port=0, camera_every=4, max_jpeg_bytes=100000,
               policy=tmp_path / 'fixture.onnx', policy_sha256='b'*64, python_extra_path=[])
-    args.camera_rgbd = mode == 'rgbd'
+    args.camera_rgbd = mode in ('rgbd','mounted')
     admission = dict(asset_sha256='a'*64, asset_receipt_sha256='c'*64,
                      bam_params={}, limits=software_limits(), experience_text='software fixture\n')
+    if mode == 'mounted':
+        admission['camera_mount'] = {'software_fixture':True}
     created = []
     class Backend(SoftwareBackend):
         def __init__(self, *unused):
             super().__init__()
             self.bam = SoftwareActuator(self)
             self.receipt = {'software_fixture': True}
-            if mode == 'rgbd':
+            if args.camera_rgbd:
                 from test_sensing_rgbd import calibration
                 self.receipt['rgbd_camera'] = {'calibration': calibration(32, 24)}
+                if mode == 'mounted':
+                    from test_mobile_rgbd_pose import mount_calibration
+                    cal=mount_calibration()
+                    cal.update(width=32,height=24,intrinsics=calibration(32,24)['intrinsics'])
+                    self.receipt['rgbd_camera']['calibration']=cal
             self.shutdown_code = None
             created.append(self)
         def open(self):
@@ -229,16 +236,25 @@ def test_run_exercises_real_rpc_bounded_loop_trace_and_teardown(tmp_path, mode, 
         def shutdown(self, exit_code):
             assert (output / 'receipt.json').is_file(), 'Kit may terminate inside close; persist first'
             self.shutdown_code = exit_code
+        def bind_capture_identity(self,identity):
+            self.capture_identity = dict(identity)
         def capture(self):
             self.events.append(('capture', self.step_count))
             if mode == 'capture':
                 raise RuntimeError('test capture failure')
             value = dict(rgb=np.zeros((24, 32, 3), np.uint8), step=self.step_count,
                          sim_time_s=self.sim_time, captured_at=0., render_times=render_times(self.sim_time))
-            if mode == 'rgbd':
+            if args.camera_rgbd:
                 value.update(depth_m=np.full((24, 32), .5, np.float32),
                     calibration=self.receipt['rgbd_camera']['calibration'],
                     rgbd_render_times={'rgb': render_times(self.sim_time), 'depth': render_times(self.sim_time)})
+                if mode == 'mounted':
+                    value['capture_pose']=dict(epoch=self.capture_identity['epoch'],
+                        model_identity_sha256=self.capture_identity['model_identity_sha256'],
+                        step=self.step_count,sim_time_s=self.sim_time,world_frame_id='world',
+                        world_from_rig=list(np.eye(4).flat),position_error_m=None,angular_error_rad=None,
+                        render_reference=render_times(self.sim_time))
+                    value['pose_evidence']={'source':'software Fixture; no Fabric evidence'}
             return value
         def support_probe(self):
             # Exercise runner discrimination only; this is NOT a solver probe.
@@ -273,10 +289,13 @@ def test_run_exercises_real_rpc_bounded_loop_trace_and_teardown(tmp_path, mode, 
                 assert hello['robot_id'] == 'microduck'
                 assert state['step'] == 3
                 assert image['frame']['step'] == 3
-                if mode == 'rgbd':
+                if args.camera_rgbd:
                     assert 'rgbd' in hello['capabilities']
                     rgbd = client.request({'op': 'frame', 'camera': 'overview', 'modality': 'rgbd'})['rgbd']
                     assert rgbd['step'] == state['step'] and rgbd['epoch'] == hello['epoch']
+                    if mode == 'mounted':
+                        assert rgbd['capture_pose']['epoch']==hello['epoch']
+                        assert rgbd['capture_pose']['model_identity_sha256']==hello['model_identity_sha256']
                 with pytest.raises(BridgeError):
                     client.request({'op': 'exec', 'code': 'no'})
             finally:
@@ -289,13 +308,21 @@ def test_run_exercises_real_rpc_bounded_loop_trace_and_teardown(tmp_path, mode, 
                     command_id='cross-inference', vx=.1, vy=0., wz=0., duration_s=.1))
                 assert accepted['ok']
     result = cli().run(args, admission, backend_factory=Backend, policy_factory=policy_factory, server_factory=Server)
-    success = mode in ('normal', 'stop_race', 'rgbd')
+    success = mode in ('normal', 'stop_race', 'rgbd', 'mounted')
     assert result['completed'] is success
     assert created[0].closed == 1
     assert created[0].shutdown_code == (0 if success else 1)
     saved = json.loads((output / 'receipt.json').read_text())
     assert saved['physical_acceptance'] is False
     assert saved['teardown_errors'] == []
+    if mode == 'mounted':
+        records=[json.loads(line) for line in (output/'frames.jsonl').read_text().splitlines()]
+        assert records
+        for record in records:
+            data=(output/record['pose_file']).read_bytes()
+            assert digest(data)==record['pose_sha256']
+            pose=json.loads(data)['capture_pose']
+            assert pose['step']==record['step'] and pose['render_reference']==record['render_times']
     if success:
         # Warm graphics on unscored bootstrap state, DISCARD that frame; the
         # first RPC image above must still come from a NEW controlled solve.

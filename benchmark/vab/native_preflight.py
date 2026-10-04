@@ -102,13 +102,16 @@ class Witness:
 
 class ObservedEnvironment:
     """Advance the real environment once, then read it before returning obs."""
-    def __init__(self, native, witness, trial, out, *, record_placement=False):
+    def __init__(self, native, witness, trial, out, *, record_placement=False, record_box_geometry=False):
         import mujoco
         self.native, self.witness, self.steps = native, witness, 0
         self.trial, self.out = trial, out
         self._mujoco = mujoco
         self.after_step = None
         self.record_placement, self.placement = record_placement, None
+        self.record_box_geometry = record_box_geometry
+        if record_box_geometry and not record_placement:
+            raise ValueError("box geometry recording requires the complete placement witness")
 
     def __getattr__(self, name):
         return getattr(self.native, name)
@@ -144,7 +147,8 @@ class ObservedEnvironment:
             self.placement = PlacementRecorder(self.native, self.out/"placement",
                 model_identity_sha256=self.witness.model_identity, epoch=self.witness.epoch,
                 object_name=args["obj"], support_name=args["container"],
-                robot_root_body=self.native.robots[0].robot_model.root_body)
+                robot_root_body=self.native.robots[0].robot_model.root_body,
+                record_box_geometry=self.record_box_geometry)
         return observation
 
     def _frame(self, obs):
@@ -366,7 +370,11 @@ def main():
     parser.add_argument("--cancel-after-step", type=int)
     parser.add_argument("--record-placement", action="store_true",
                         help="Record every solved contact for independent placement analysis; does not enable grasping")
+    parser.add_argument("--record-box-geometry", action="store_true",
+                        help="Also record complete compiled box shapes and same-solve orientations; requires --record-placement")
     args = parser.parse_args()
+    if args.record_box_geometry and not args.record_placement:
+        parser.error("--record-box-geometry requires --record-placement")
     out = args.output.resolve()
     out.mkdir(parents=True, exist_ok=False)
     for key, name in (("CASCADE_GRASP_MEMORY_PATH", "grasp-memory.json"), ("CASCADE_ENVELOPE_PATH", "envelope.json"),
@@ -394,7 +402,8 @@ def main():
                                     ("manipulation.move_relative", {"direction": "down", "distance_m": 0.04})],
                         output_path=out / "episode.json", binding_reader=binding_reader,
                         env_factory=lambda t: ObservedEnvironment(open_native_environment(t), witness, t, out,
-                                                                 record_placement=args.record_placement))
+                                                                 record_placement=args.record_placement,
+                                                                 record_box_geometry=args.record_box_geometry))
     tools = [json.loads(row) for row in (out / "runtime/trace.jsonl").read_text().splitlines()
              if json.loads(row)["skill"] == "manipulation.move_relative" and json.loads(row)["args"].get("distance_m") == .04]
     moves_ok = len(tools) == 2 and all(r["result"].get("postcondition", {}).get("status") == "confirmed" and r["result"].get("ok") is True for r in tools)

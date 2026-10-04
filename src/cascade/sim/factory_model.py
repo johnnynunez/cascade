@@ -239,7 +239,8 @@ class FactoryBoundModel:
         package = Path(__file__).resolve().parents[1]
         for relative in ("control/fastening.py", "skills/fastening_runtime.py", "config.py",
                          "apps/factory_runtime.py", "apps/robot_runtime.py",
-                         "control/fastening_seat.py", "skills/seating_runtime.py"):
+                         "control/fastening_seat.py", "skills/seating_runtime.py",
+                         "control/_fastening_retention.py"):
             p = package/relative
             sources[str(p)] = hashlib.sha256(p.read_bytes()).hexdigest()
         self.document = {"schema_version": 1, "recipe": scene.fixture_recipe,

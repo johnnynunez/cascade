@@ -39,8 +39,18 @@ def read_static_calibration(stage, path, *, width=640, height=480):
     This initial producer supports a static camera only. Animated mounts/lenses
     need a separate Fabric pose contract, and must not silently use USD defaults.
     """
+    return _read_calibration(stage, path, width=width, height=height)
+
+
+def read_mount_calibration(stage, path, mount, *, width=640, height=480):
+    """Validate fixed local optics/mount; never use the rig's USD world pose."""
+    from .mobile_camera_pose import mount_record
+    return _read_calibration(stage, path, width=width, height=height, mount=mount_record(mount))
+
+
+def _read_calibration(stage, path, *, width, height, mount=None):
     import numpy as np
-    from pxr import Usd, UsdGeom
+    from pxr import Usd, UsdGeom, UsdPhysics
     prim = stage.GetPrimAtPath(path)
     camera = UsdGeom.Camera(prim)
     if not camera or UsdGeom.GetStageMetersPerUnit(stage) != 1.:
@@ -51,6 +61,10 @@ def read_static_calibration(stage, path, *, width=640, height=480):
         # ValueMightBeTimeVarying() is false. Default-time optics cannot bind it.
         if any(attr.GetNumTimeSamples() != 0 for attr in ancestor.GetAttributes()):
             raise ValueError('RGB-D overview calibration must be static')
+        if mount is not None:
+            # The camera is a direct rigid child. The body's changing Fabric
+            # world pose is supplied separately, never admitted from defaults.
+            break
         ancestor = ancestor.GetParent()
     if (camera.GetProjectionAttr().Get() != 'perspective'
             or camera.GetHorizontalApertureOffsetAttr().Get() != 0
@@ -62,7 +76,15 @@ def read_static_calibration(stage, path, *, width=640, height=480):
     if not all(math.isfinite(v) and v > 0 for v in (f, horizontal, vertical)):
         raise ValueError('invalid observed camera optics')
     # Gf uses row vectors; change USD -Z/+Y camera axes to optical +Z/-Y.
-    transform = np.array(UsdGeom.XformCache(Usd.TimeCode.Default()).GetLocalToWorldTransform(prim)).T
+    if mount is None:
+        transform = np.array(UsdGeom.XformCache(Usd.TimeCode.Default()).GetLocalToWorldTransform(prim)).T
+    else:
+        rig = stage.GetPrimAtPath(mount['rig_prim_path'])
+        local = UsdGeom.Xformable(prim)
+        if (not rig or not rig.HasAPI(UsdPhysics.RigidBodyAPI) or prim.GetParent() != rig
+                or local.GetResetXformStack()):
+            raise ValueError('RGB-D mount requires a direct non-reset child of the named rigid body')
+        transform = np.array(local.GetLocalTransformation()).T
     transform = transform @ np.diag([1., -1., -1., 1.])
     # USD K uses the image boundary as raster origin. Array element [v,u]
     # samples its center at (u+.5,v+.5); do not shift the observed USD optics.
@@ -71,6 +93,12 @@ def read_static_calibration(stage, path, *, width=640, height=480):
         intrinsics=[width*f/horizontal, 0., width/2., 0., height*f/vertical, height/2., 0., 0., 1.],
         world_from_camera=transform.flatten().tolist(), depth_convention='optical_z_m_zero_invalid',
         pixel_center_offset_uv=[.5, .5])
+    if mount is not None:
+        if not np.allclose(transform, np.array(mount['rig_from_camera']).reshape(4,4), rtol=0, atol=1e-7):
+            raise ValueError('authored local optical mount differs from explicit mount')
+        record.pop('world_from_camera')
+        record.update(version=3, rig_frame_id=mount['rig_frame_id'], rig_from_camera=transform.flatten().tolist(),
+                      mount_position_error_m=mount['position_error_m'], mount_angular_error_rad=mount['angular_error_rad'])
     return calibration_record(record)[0]
 
 

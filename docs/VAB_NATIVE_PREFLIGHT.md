@@ -174,6 +174,23 @@ or remaining owned processes were recorded.
 The [compact calibration evidence](evidence/robot-modularity/vab-placement-calibration-20261004.json)
 binds the native source, plans, three compiled models, all traces and the offline
 auditor. Initial preparation plans are retained unlaunched with their review
-findings. This calibrates the reader and predicate on these fixtures. Integration
-with the full native VAB task, perception-guided grasping and geometric
-containment remain unverified.
+findings. This calibrates the reader and predicate on these fixtures. The reader also passed the native movement integration below. Perception-guided
+grasping, geometric containment and a completed VAB task remain unverified.
+
+
+The same frozen source then ran the original pinned VAB task/init 0 with
+`--record-placement`, the existing two ordinary +40/−40 mm movements, and
+OSMesa/llvmpipe RGB. The reader retained all 1,050 solver steps / 36,817 contact
+candidates in 21,383,808 bytes, across 42 control steps. Its final row in each
+batch agrees with the existing observer's clock and object/support positions.
+Independent TCP errors are 1.513 mm upward and 1.395 mm downward; stop denies
+another command without advancing the synchronous simulation. Runtime, reader,
+environment and owned processes closed normally, with all 12,561 inputs intact.
+
+The whole recorded interval is refuted for support in the basket: the object
+remains on the floor and the declared support carries zero load. Benchmark
+success stays false and the task verdict remains unverified. This checks that
+the reader works with the native robot and scene while retaining a negative
+placement result; it does not demonstrate a grasp, release into the basket or
+physical braking under an independently advancing simulator. The same compact
+evidence includes this integration's distinct compiled model and episode.

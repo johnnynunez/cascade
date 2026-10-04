@@ -1,0 +1,535 @@
+{
+  "schema": "cascade.vab-public-rgb-evidence.v1",
+  "scope": "One original VAB movement preflight with public RGB render provenance and offline sparse triangulation. Successful capture coverage does not require positive matches or admit manipulation.",
+  "source_head": "2170eaf4389401c1461faa8ff803d646a7cf3ca6",
+  "model_identity_sha256": "ddbf6b0f97c0b0485c746b0b8de66de01345329cf3685d0ea9eba95d1d930c25",
+  "epoch": "ef5c698d0b924dbab73f76c6b2721404",
+  "plan_sha256": "043673223bf4419f7efb65549122a322b779038c1f0e936a32a0b45d2bcbe028",
+  "native": {
+    "control_steps": 42,
+    "solver_steps": 1050,
+    "contact_candidates": 36817,
+    "inputs_unchanged_count": 12609
+  },
+  "capture": {
+    "returned_pairs": 43,
+    "observed_pairs": 42,
+    "unverified_reset_pairs": 1,
+    "native_pngs_exact": 86,
+    "minimum_render_to_return_s": 0.0019999999999997797,
+    "maximum_render_to_return_s": 0.0020000000000000018,
+    "minimum_render_to_return_solves": 1,
+    "maximum_render_to_return_solves": 1,
+    "position_error_m": null,
+    "object_identity_verified": false,
+    "complete_geometry_verified": false,
+    "physical_admission": false
+  },
+  "reconstruction": {
+    "method": {
+      "method": "SIFT mutual ratio",
+      "max_features": 512,
+      "ratio": 0.7
+    },
+    "proposed_pairs": 18,
+    "estimated_points": 6,
+    "refused_pairs": 12,
+    "refusal_reasons": {
+      "ray gap or reprojection gate failed": 12
+    },
+    "per_capture": [
+      {
+        "index": 1,
+        "capture_step": 24,
+        "returned_step": 25,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 2,
+        "capture_step": 49,
+        "returned_step": 50,
+        "estimated_points": 0,
+        "proposed_pairs": 1,
+        "refused_pairs": 1
+      },
+      {
+        "index": 3,
+        "capture_step": 74,
+        "returned_step": 75,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 4,
+        "capture_step": 99,
+        "returned_step": 100,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 5,
+        "capture_step": 124,
+        "returned_step": 125,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 6,
+        "capture_step": 149,
+        "returned_step": 150,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 7,
+        "capture_step": 174,
+        "returned_step": 175,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 8,
+        "capture_step": 199,
+        "returned_step": 200,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 9,
+        "capture_step": 224,
+        "returned_step": 225,
+        "estimated_points": 1,
+        "proposed_pairs": 2,
+        "refused_pairs": 1
+      },
+      {
+        "index": 10,
+        "capture_step": 249,
+        "returned_step": 250,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 11,
+        "capture_step": 274,
+        "returned_step": 275,
+        "estimated_points": 0,
+        "proposed_pairs": 1,
+        "refused_pairs": 1
+      },
+      {
+        "index": 12,
+        "capture_step": 299,
+        "returned_step": 300,
+        "estimated_points": 0,
+        "proposed_pairs": 1,
+        "refused_pairs": 1
+      },
+      {
+        "index": 13,
+        "capture_step": 324,
+        "returned_step": 325,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 14,
+        "capture_step": 349,
+        "returned_step": 350,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 15,
+        "capture_step": 374,
+        "returned_step": 375,
+        "estimated_points": 0,
+        "proposed_pairs": 2,
+        "refused_pairs": 2
+      },
+      {
+        "index": 16,
+        "capture_step": 399,
+        "returned_step": 400,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 17,
+        "capture_step": 424,
+        "returned_step": 425,
+        "estimated_points": 1,
+        "proposed_pairs": 1,
+        "refused_pairs": 0
+      },
+      {
+        "index": 18,
+        "capture_step": 449,
+        "returned_step": 450,
+        "estimated_points": 0,
+        "proposed_pairs": 1,
+        "refused_pairs": 1
+      },
+      {
+        "index": 19,
+        "capture_step": 474,
+        "returned_step": 475,
+        "estimated_points": 0,
+        "proposed_pairs": 1,
+        "refused_pairs": 1
+      },
+      {
+        "index": 20,
+        "capture_step": 499,
+        "returned_step": 500,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 21,
+        "capture_step": 524,
+        "returned_step": 525,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 22,
+        "capture_step": 549,
+        "returned_step": 550,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 23,
+        "capture_step": 574,
+        "returned_step": 575,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 24,
+        "capture_step": 599,
+        "returned_step": 600,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 25,
+        "capture_step": 624,
+        "returned_step": 625,
+        "estimated_points": 1,
+        "proposed_pairs": 1,
+        "refused_pairs": 0
+      },
+      {
+        "index": 26,
+        "capture_step": 649,
+        "returned_step": 650,
+        "estimated_points": 0,
+        "proposed_pairs": 1,
+        "refused_pairs": 1
+      },
+      {
+        "index": 27,
+        "capture_step": 674,
+        "returned_step": 675,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 28,
+        "capture_step": 699,
+        "returned_step": 700,
+        "estimated_points": 1,
+        "proposed_pairs": 1,
+        "refused_pairs": 0
+      },
+      {
+        "index": 29,
+        "capture_step": 724,
+        "returned_step": 725,
+        "estimated_points": 0,
+        "proposed_pairs": 2,
+        "refused_pairs": 2
+      },
+      {
+        "index": 30,
+        "capture_step": 749,
+        "returned_step": 750,
+        "estimated_points": 1,
+        "proposed_pairs": 1,
+        "refused_pairs": 0
+      },
+      {
+        "index": 31,
+        "capture_step": 774,
+        "returned_step": 775,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 32,
+        "capture_step": 799,
+        "returned_step": 800,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 33,
+        "capture_step": 824,
+        "returned_step": 825,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 34,
+        "capture_step": 849,
+        "returned_step": 850,
+        "estimated_points": 0,
+        "proposed_pairs": 1,
+        "refused_pairs": 1
+      },
+      {
+        "index": 35,
+        "capture_step": 874,
+        "returned_step": 875,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 36,
+        "capture_step": 899,
+        "returned_step": 900,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 37,
+        "capture_step": 924,
+        "returned_step": 925,
+        "estimated_points": 1,
+        "proposed_pairs": 1,
+        "refused_pairs": 0
+      },
+      {
+        "index": 38,
+        "capture_step": 949,
+        "returned_step": 950,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 39,
+        "capture_step": 974,
+        "returned_step": 975,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 40,
+        "capture_step": 999,
+        "returned_step": 1000,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 41,
+        "capture_step": 1024,
+        "returned_step": 1025,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      },
+      {
+        "index": 42,
+        "capture_step": 1049,
+        "returned_step": 1050,
+        "estimated_points": 0,
+        "proposed_pairs": 0,
+        "refused_pairs": 0
+      }
+    ],
+    "position_error_m": null,
+    "physical_admission": false,
+    "object_identity_verified": false,
+    "complete_geometry_verified": false
+  },
+  "original_movements": [
+    {
+      "direction": "up",
+      "error_m": 0.001513208173002908,
+      "orientation_error_rad": 0.00017880372449392278
+    },
+    {
+      "direction": "down",
+      "error_m": 0.0013950447777608,
+      "orientation_error_rad": 0.0008309098873048087
+    }
+  ],
+  "placement": {
+    "status": "refuted",
+    "maximum_support_weight_fraction": 0.0,
+    "containment": "unverified",
+    "task": "unverified",
+    "benchmark_success": false
+  },
+  "closure": {
+    "name": "vab-public-rgb-reader",
+    "unit": "cascade-voice-vab-public-rgb-reader-71f12d7c5c764c85aacd1d1333a422e7.scope",
+    "ok": true,
+    "forced": false,
+    "signals": [],
+    "errors": [],
+    "scope_client_exit": 0,
+    "state": {
+      "Description": "cascade-voice-vab-public-rgb-reader-71f12d7c5c764c85aacd1d1333a422e7.scope",
+      "LoadState": "not-found",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "InvocationID": "",
+      "Result": "success",
+      "ControlGroup": ""
+    },
+    "remaining_members": [],
+    "observed_births": [
+      {
+        "pid": 1231363,
+        "start_ticks": 5931716,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/usr/lib/cargo/bin/coreutils/timeout",
+        "argv": [
+          "/usr/bin/timeout",
+          "--kill-after=15s",
+          "120s",
+          "nice",
+          "-n",
+          "19",
+          "/home/johnny/Projects/demo/cascade-lab/VALIDATION_NEXT/venv/bin/python",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/rgb-geometry-cascade/benchmark/vab/native_preflight.py",
+          "/home/johnny/Projects/demo/cascade-lab/VALIDATION_NEXT/VAB",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-rgb-reader-01/native",
+          "--record-placement",
+          "--record-box-geometry",
+          "--record-rgb-geometry",
+          "--task",
+          "tasks/libero_object_all_variance/pick_up_the_alphabet_soup_and_place_it_in_the_basket.yaml",
+          "--init-index",
+          "0"
+        ]
+      },
+      {
+        "pid": 1231365,
+        "start_ticks": 5931718,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/home/johnny/.local/share/uv/python/cpython-3.11.15-linux-x86_64-gnu/bin/python3.11",
+        "argv": [
+          "/home/johnny/Projects/demo/cascade-lab/VALIDATION_NEXT/venv/bin/python",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/rgb-geometry-cascade/benchmark/vab/native_preflight.py",
+          "/home/johnny/Projects/demo/cascade-lab/VALIDATION_NEXT/VAB",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-rgb-reader-01/native",
+          "--record-placement",
+          "--record-box-geometry",
+          "--record-rgb-geometry",
+          "--task",
+          "tasks/libero_object_all_variance/pick_up_the_alphabet_soup_and_place_it_in_the_basket.yaml",
+          "--init-index",
+          "0"
+        ]
+      }
+    ],
+    "remaining_births": [],
+    "final_drain": {
+      "settled": true,
+      "budget_s": 10,
+      "waited_s": 0.0047707000048831105
+    }
+  },
+  "inputs_unchanged": true,
+  "tests": {
+    "source_cpu_passed": 79,
+    "optional_sdk_skipped": 1,
+    "launcher_cpu_passed": 7
+  },
+  "limits": {
+    "native_s": 120,
+    "outer_s": 150,
+    "memory": "8G",
+    "cpu": "100%",
+    "renderer": "CPU OSMesa/llvmpipe",
+    "rgb_size": [
+      128,
+      128
+    ],
+    "depth": false,
+    "extra_render_or_solve": false
+  },
+  "limitations": [
+    "The first reset pair predates the render observer and retains no invented pose or capture clock.",
+    "All 42 observed pairs precede control return by one native solve (2ms); current return-time camera poses must not replace their render poses.",
+    "Only six sparse estimates survived 18 mutual feature proposals. No object identity, extent, complete surface, free-space or grasp claim follows.",
+    "Reprojection agreement does not certify matching or calibration. Native declarations and estimated points retain unknown physical uncertainty.",
+    "Original empty-space up/down40mm controls are unchanged. The object remains unsupported by the basket; this is not a pick/place task."
+  ],
+  "native_artifact_count": 157,
+  "artifact_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-rgb-reader-audit-01.json": "c261ae65021f7c1c269ec84e915002ab020511f4d5b7417e2efd296c943c32cd",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-rgb-reader-plan-01.json": "043673223bf4419f7efb65549122a322b779038c1f0e936a32a0b45d2bcbe028",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-rgb-reader-binding-01.json": "2d45ba0d5a561107f69de00ab1660bd15a6a974ac9c8e64c4be53a42ee38568c",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-rgb-prelaunch-01.json": "00ad501df6ef234e46cc48ddbcd82d29da50fe7fe620af8f200b4ecb97d132cf",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-rgb-launch-01.log": "cb886533ccfc99d340d113de1ff7e9e569e2958476705c3098e4ded97982bf99",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/rgb-audit-launch-01.log": "ef590c2410cc0b7f8980808ef56c72057a4bf5bf5a7ca2400eb9ddd0b0216ffe",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/rgb-check-only-01.log": "c969355b8b83c3af78f919e5ec073ff2d332a745a08ce6365f0dab7f597826da",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/rgb-geometry-tests-04.log": "9a18d4d1552c957d307d9b660917444088029a448a35a59a2190dbea24c1c7dd",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/rgb-harness-tests-01.log": "ee09f6debd9f81709cd5af75a47e8b1c6ed9a94b8e82a9b34c00f597199e9c17",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-rgb-reader-01/receipt.json": "7ecdd189e3c8c938c4cef0195321217f0c53901ee0e8ed07f1eef5bd1f523e23",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-rgb-reader-01/scope/closure.json": "8416b7e022286649e5462c7d230322e01111695ac43f2bf9f564b5fda4f80512",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-rgb-reader-01/native/model-identity.json": "d1fd30435c597e96daf284af329013a8581b7403535cdaf665b02b9c350f91de",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-rgb-reader-01/native/environment-close.json": "0d59bd1a8ddad2ecc6a4ac65055888fbd6f0eb028917d1bdf336da406f92d307",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-rgb-reader-01/native/public-rgb/calibration.json": "97fc405cca4c94053b72e0745c85a3714dd64904c379ac7f1c9041929974b20e",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-rgb-reader-01/native/0021-agentview.png": "8ca352408c689bef3e2469877065654f29c1c440cb2187c67e9ad40468d8fb79",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-rgb-reader-01/native/0021-robot0_eye_in_hand.png": "1c478f6325146fa7c00cfc7b52a32052c9a6d1f303d5c0475978ae5d5854b72e",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/compact_rgb_reader.py": "1e3d26a9789acf9d4387d37f088914827f145ce2482c3e28cd8993e2010c1767"
+  },
+  "runtime_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/rgb-geometry-cascade/benchmark/vab/native_preflight.py": "0083cad585a931e757b855acd56167dccef89a3e3e1e244754a37faf8fb10fac",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/rgb-geometry-cascade/benchmark/vab/rgb_capture.py": "bbd6fdbd9a9b3fb76c3541481d1046ef4b355fe4f9468af83114b44a8deb9612",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/rgb-geometry-cascade/benchmark/vab/reconstruct_rgb.py": "4d153f37813603fa135534e5a188bfe275a28380f380d6f6548f7589a69a5400",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/rgb-geometry-cascade/src/cascade/perception/rgb_triangulation.py": "cd31df1396c1c2a63788a5c0f596509bee4cbfbd2d1dc8b22a7ecec506daf65a"
+  },
+  "harness_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/rgb_harness01/launch.py": "8efe2eab7c7d63066c7d524b752e37de09ff09314adbdc5fdc3d010e40ad876d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/rgb_harness01/owned_services.py": "44f1f98f4760f31a7c6dd89acddb1ed073523b8c2520f322abe2c5eae8000473",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/rgb_harness01/test_launch.py": "d8a69596722fcf0016c7b011facefb6ca091ac4149aaa66c2414611cbe68200d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/prepare_rgb_reader01.py": "507476a47eaca6a58cf889d776d47e77b9819d6d25ffb958734904f967eecb35",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/audit_rgb_reader.py": "805e87126e45f42e9ae4c90b5d505160864d8ca9115b44d9326c66c09b0477df",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/audit_box_reader.py": "dc291079a64da8857e8ac4e6e3e4d168196514d164b5d4906473e5766581f5e6",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/audit_native_reader.py": "93961c4ed2eb17ac935ca563fe90507416c21bef76538d788963aa2afb0c08c0",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/audit_calibration.py": "b0e2217a47cd6fd730670fe41a1e72b6aa9c053cd5f0bef7d5b7442b9cd4372a"
+  }
+}

@@ -291,7 +291,7 @@ in 161 focused tests. A separate offline replay at verifier `0c2dbabb` preserves
 the original support/containment verdict; the earlier `6cd7c969` replay remains
 retained separately. No new native simulator was constructed.
 
-## Public RGB geometry preparation
+## Public RGB capture and sparse geometry
 
 The optional `--record-rgb-geometry` reader preserves simultaneous `agentview`
 and `robot0_eye_in_hand` RGB, camera intrinsics and the camera pose associated
@@ -323,7 +323,20 @@ agreement cannot establish that a feature match or camera calibration is
 correct: a wrong rigid calibration can yield a plausible wrong 3D point. The
 results therefore carry unknown position error and no physical admission,
 object identity, complete object geometry, free-space or grasp authority.
-This path has not yet been admitted on a native VAB capture.
+One [native capture](evidence/robot-modularity/vab-public-rgb-20261004.json)
+on source `2170eaf4` retained all 42 original controls / 1,050 solves and
+43 returned image pairs: one reset pair with unknown provenance and 42
+observed pairs. All 86 PNG images matched their retained public RGB bytes.
+Every observed pair preceded control return by one solve, or 2 ms. The
+offline matcher proposed 18 correspondences; six passed the declared ray
+gates and twelve were refused. These sparse estimates provide neither an
+object identity nor enough coverage to guide a grasp.
+
+The native process and owned scope exited ordinarily, with no signals,
+forced cleanup or remaining births; all 12,609 inputs remained unchanged.
+The complete placement witness still refutes basket support, and the
+benchmark task remains unverified. Source CPU checks passed 79 cases with
+one optional SDK skip; seven launcher lifecycle cases passed separately.
 
 An existing closed capture can be analyzed with
 `PYTHONPATH=src:. python -m benchmark.vab.reconstruct_rgb RUN/public-rgb NEW_REPORT.json`.

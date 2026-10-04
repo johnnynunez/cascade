@@ -60,6 +60,62 @@ co-temporal with integrated q/dq. These observations exclude activation of the
 recorded motor clamps in these captures; they do not establish the cause of the
 remaining transient or validate another controller.
 
+A subsequent [standing-transition corpus](evidence/robot-modularity/microduck-standing-transition-cpu-20261004.json)
+retained all eight original direction/onset cases and limits. It used the
+upstream command selector with `rough-walk-e` during DRIVE and `alpha_stand`
+during preparation, full-zero BRAKE, HOLD and terminal tail. Both models kept
+one continuous raw action history. Standing preparation changes the initial
+state, so this tests the complete candidate rather than isolating braking.
+
+**One of eight cases met every CPU criterion.** Reverse motion after 420
+preparation solves entered the distance tolerance at step 511 and completed a
+0.205-second rest window at step 630; an earlier HOLD was correctly rejected
+when angular speed exceeded 0.1 rad/s. Its final displacement was −32.988 mm,
+with −6.893 mm lateral displacement and −0.027797 rad heading change. The final
+0.205-second tail window remained quiet and supported, with no intervening
+outcome veto. Four other cases failed on heading, two on forbidden contact and
+one on the action deadline. All 8,879 solves, 2,221 policy records and 38,901
+contact records were retained; the owned scope closed normally with unchanged
+inputs. This single CPU success does not establish repeatability, ordinary MCP
+execution, Newton equivalence or general locomotion admission.
+
+The next [predictive-transition corpus](evidence/robot-modularity/microduck-predictive-transition-cpu-20261004.json)
+used only the last four completed pose observations to extrapolate signed
+progress over one unchanged 20 ms policy interval. It selected full-zero BRAKE
+before predicted tolerance entry, while retaining separate actual-entry and
+rest requirements. The eight cases, standing preparation, policy pair and all
+limits stayed fixed. **The accepted set changed without broadening: still one
+of eight.** Reverse-start340 passed a 0.205-second HOLD at steps 497–538; the
+previously passing reverse-start420 failed on forbidden contact. All four
+forward cases selected standing before their subsequent heading veto and still
+failed; reverse-start380 also failed on heading, and reverse-start300 on contact.
+All 8,388 solves, 2,099 policy records and 37,468 contact records were retained,
+with normal owned closure and unchanged inputs. No repeated or native braking
+capability follows from either single positive CPU trajectory.
+
+The subsequent [single-policy VelStand corpus](evidence/robot-modularity/microduck-velstand-cpu-20261004.json)
+retained all eight direction/onset cases, the original geometric cutoff and the
+same limits. One exact VelStand network handled preparation, DRIVE and the
+full-zero tail with continuous action history. **None of eight completed the
+objective.** Each retained all 150 DRIVE policy slots and exhausted the original
+600-solve action budget without reaching the 25 mm tolerance-entry boundary.
+Maximum signed progress was 11.29–11.40 mm forward and 2.64–2.68 mm reverse;
+maximum lateral displacement was 3.75 mm and heading change 0.0391 rad, with no
+active pose or contact veto. The later quiet tails did not repair these failures.
+
+The recorded observations match the exact upstream command layout: twist in
+slots 48–50, followed by four head and six body channels, all ten zero here.
+There was no separate standing session or mode flag suppressing the travel
+command. During DRIVE, peak PWM duty was 0.243844, motor torque 0.232778 Nm and minimum
+effective supply 7.318312 V; no recorded motor clamp activated. These findings
+locate the failed criterion at insufficient travel before braking; they do not
+identify its training or physical cause. The preparation policy changes the
+initial state, so differences from the two-expert corpus are not an isolated
+braking comparison. All 12,480 solves, 3,120 policy rows and 53,593 contacts,
+the three successful integrity audits and normal owned closure are retained.
+The same-weight historical native failures remain, and no further motion
+capability is admitted by this CPU experiment.
+
 ## Implemented contract
 
 The 2026-10-03 [distance-outcome regression receipt](../benchmark/results/mobile_distance_outcome_20261003.json)

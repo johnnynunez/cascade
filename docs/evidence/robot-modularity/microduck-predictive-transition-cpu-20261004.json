@@ -1,0 +1,772 @@
+{
+  "schema": "cascade.microduck.predictive-transition-cpu-evidence.v1",
+  "scope": "One preregistered eight-case MuJoCo/BAM predictive transition experiment. Same preparation and policy pair as preceding standing candidate; not Newton, MCP, repeatability or hardware admission.",
+  "physical_admission": false,
+  "status": {
+    "capture_and_audits": "PASS",
+    "all_cpu_criteria_met": 1,
+    "cases": 8,
+    "failed_cases": 7,
+    "native_admission": false
+  },
+  "previous_evidence": "microduck-standing-transition-cpu-20261004.json",
+  "source_scope": "Standalone CPU harness and exact upstream PolicyInference selector; independent of the production turn fixes.",
+  "lab": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate",
+  "plan_sha256": "49d06d35a43a8dd5a2cba3579205ad9799db01517236b6f451538ddb42215b63",
+  "launch_binding_sha256": "718d451c0f046cc9e3832659b6def92627caad5c941d2ee5f06b8d32ff976e58",
+  "frozen_input_count": 10917,
+  "sources_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/actuator_telemetry.py": "247d7cfc49c2fc7268b10f7547f698ae48ddd64a8a1125971fccf15323e3b834",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/audit_control.py": "48304ac00f70dc1262843330e073c92ea5384c96688c7a9e9a0e688a21236b71",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/geometric_control.py": "2fb760f3b6a1736934c2d1e260deeadb7a34613cfc59c90eb4310faf21cd4ccf",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/launch_corpus.py": "d8be370a87608af2e295c8e1dff4cc10279eeb3f08d43022a196afc67fd11c69",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/policy_contract.py": "64a99dfc6b60270acefde31e0e5643e6bd6eba58697e1edfc400411a73a45197",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/prefix_check.py": "22ef6965b553320ab26eca17391a037fad30502cc7e55907576b6197fea94ae0",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/prepare_corpus.py": "e3ea7608c004c8a8738d55be5ee0c8f5ae79d5f7f785b98913e3b6ffcb50dc18",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/run_corpus.py": "c2296edd81383bf5def3a4da7e89231a6ba5bfd08998f52b10324611246f2074",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/test_actuator_telemetry.py": "abc7a2938a695512a3fb6ab8c27a7dbc744b6dc6a12a2217ab388107c6ded0c6",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/test_controller.py": "eca11353218d7bf58e9e9b2825a35819d23dcda9456927d4f6ffbb2c5d5bfbec",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/test_policy_switch.py": "4dd288c807eaf89cb9c4c26889d457695df3a20fde14ad3de26a9f1572a2c554",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/test_prediction.py": "275975a691069685bbfe1dacf697e75fd86f8a0931dd9b86b07140f6604f76e7",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/test_prediction_audit.py": "cd43c4469f2e5c899f94b71ea4df79c84f9f917d2ae437aeb5317bac8c092fa6"
+  },
+  "reference_script": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck_rl/scripts/infer_policy.py",
+    "sha256": "03bfd0642a880cd379e057536ee819bd1377d4af7b5206a57907d10afd1d4270"
+  },
+  "policy_pair": {
+    "walking": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck-rough-walk-e/policy.onnx",
+      "sha256": "5aa423bd693e431b19e2ead77f99cbae6184e40a529eb2f7c1b4f85bb7f57040",
+      "size": 793772,
+      "input": {
+        "name": "obs",
+        "dtype": "float32",
+        "shape": [
+          1,
+          61
+        ]
+      },
+      "output": {
+        "name": "actions",
+        "dtype": "float32",
+        "shape": [
+          1,
+          14
+        ]
+      },
+      "normalization": "embedded Sub/Div; raw observations supplied once",
+      "normalizer_mean_sha256": "abaa80e45e33df709d31690d54f218469b988243e932853fd614fe65f13b0843",
+      "normalizer_divisor_sha256": "ac39d1fca1719138bcc94a6c7e650bf7df802d75cefeb6949314b5c4dde95643",
+      "node_types": [
+        "Sub",
+        "Div",
+        "Gemm",
+        "Elu",
+        "Gemm",
+        "Elu",
+        "Gemm",
+        "Elu",
+        "Gemm"
+      ],
+      "opsets": {
+        "": 18
+      }
+    },
+    "standing": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/policy-admitted/microduck-policies/alpha_stand.onnx",
+      "sha256": "1569268713e40deea795dd2922dba50d3621e15a872855408b6b1b125b1c094b",
+      "size": 793705,
+      "input": {
+        "name": "obs",
+        "dtype": "float32",
+        "shape": [
+          1,
+          61
+        ]
+      },
+      "output": {
+        "name": "actions",
+        "dtype": "float32",
+        "shape": [
+          1,
+          14
+        ]
+      },
+      "normalization": "embedded Sub/Div; raw observations supplied once",
+      "normalizer_mean_sha256": "53074ce10780fe7363dcb49b123443d899e673038986cd6770ba380154df6ab6",
+      "normalizer_divisor_sha256": "243430610fa771c2b0ef7fdc78a45a1923730648593d64eb5637bd46e28a0561",
+      "node_types": [
+        "Sub",
+        "Div",
+        "Gemm",
+        "Elu",
+        "Gemm",
+        "Elu",
+        "Gemm",
+        "Elu",
+        "Gemm"
+      ],
+      "opsets": {
+        "": 18
+      }
+    }
+  },
+  "contract": {
+    "selection": "Upstream norm threshold 0.05: rough-walk-e only during DRIVE; alpha_stand during preparation, BRAKE, HOLD and terminal tail.",
+    "changes": "Only the controller selects standing earlier from a constant-rate prediction over one policy interval. Prior standing preparation, model weights, initial poses, actuator recipe, gains, cases and all limits remain unchanged.",
+    "history": "One continuous raw 14-action history across both models; committed once after cancellation/deadline fences; no reset, blend or filtered action.",
+    "command": "At policy boundary, full zero when past measured progress + positive closing rate * exact policy interval predicts original tolerance entry. BRAKE never returns to DRIVE.",
+    "vetos": "Original pose, contact, geometry, deadline and observed rest limits retained throughout; quiet tails do not repair failures.",
+    "onsets": "Four fixed preparation lengths per direction, not selected gait phases.",
+    "geometry_rest_limits": {
+      "sample_interval_s": 0.02,
+      "read_timeout_s": 0.5,
+      "max_wall_duration_s": 29.0,
+      "settle_timeout_s": 3.0,
+      "settle_window_s": 0.2,
+      "min_motion_samples": 5,
+      "min_settle_samples": 3,
+      "max_samples": 1451,
+      "max_history": 30,
+      "max_state_age_s": 0.5,
+      "max_sample_gap_s": 0.15,
+      "max_position_abs_m": 2.0,
+      "max_linear_speed_m_s": 1.0,
+      "max_angular_speed_rad_s": 6.0,
+      "min_height_m": 0.06,
+      "max_tilt_rad": 0.5,
+      "min_progress_ratio": 0.8,
+      "max_progress_ratio": 1.25,
+      "translation_tolerance_m": 0.015,
+      "rotation_tolerance_rad": 0.04,
+      "max_lateral_drift_m": 0.02,
+      "max_heading_drift_rad": 0.08,
+      "stop_linear_speed_m_s": 0.02,
+      "stop_angular_speed_rad_s": 0.1,
+      "stop_drift_m": 0.005,
+      "stop_drift_rad": 0.03
+    },
+    "budgets": {
+      "action_wall_s": 8.0,
+      "action_steps_cap": 600,
+      "tail_wall_s": 3.0,
+      "tail_steps": 600,
+      "corpus_wall_s": 120.0,
+      "scope_wall_s": 150.0
+    },
+    "cadence": {
+      "physics_dt_s": 0.005,
+      "policy_every_solves": 4,
+      "policy_hz": 50,
+      "baseline": "First completed solve after commanded onset; no pre-command positive credit",
+      "stop": "Completed-solve vetoes remain immediate; prediction can select full-zero stand before the next unchanged 50Hz slot. No history/targets are committed after a revoked preview."
+    },
+    "prediction": "Closing rate is signed body displacement over at most four preceding completed observations; elapsed simulation time is the denominator. Horizon is exactly four physics solves (0.02s), not a fitted stop time. Only existing completed pose/time rows enter the predictor: no future samples, direct plant inspection or case-specific parameters.",
+    "positive_credit": "brake_decision_step is separate from drive_cutoff_step, which remains first actual observed target entry. Prediction cannot establish target attainment, rest or completion. A shortfall expires within the unchanged action budget."
+  },
+  "totals": {
+    "solves": 8388,
+    "policy_rows": 2099,
+    "contact_rows": 37468,
+    "control_failures": 7,
+    "geometric_completions": 1
+  },
+  "cases": [
+    {
+      "id": "forward-geometric-start300",
+      "receipt_sha256": "5cb784285618e5ed0368bc41f5733db88908a1df1b25984081faf129d3854b9a",
+      "baseline_step": 301,
+      "brake_decision_step": 353,
+      "distance_entry_step": 354,
+      "terminal_step": 355,
+      "first_terminal_zero_step": 357,
+      "solves": 955,
+      "policy_rows": 239,
+      "contact_rows": 4408,
+      "action_wall_s": 0.010036915002274327,
+      "control_failure": "controller lateral/heading drift exceeded",
+      "geometric_completion": false,
+      "first_active_veto": 355,
+      "outcome_vetos": {
+        "analysis": {
+          "step": 355,
+          "reason": "unrequested wz drift"
+        },
+        "analysis_from_original_distance_entry": {
+          "step": 355,
+          "reason": "unrequested wz drift"
+        }
+      },
+      "first_pose_veto": null,
+      "first_forbidden_contact": null,
+      "hold_windows": [],
+      "terminal_window": {
+        "first_step": 914,
+        "last_step": 955,
+        "samples": 42,
+        "duration_s": 0.20499999999999563,
+        "max_linear_speed_m_s": 0.0013176911013022703,
+        "max_angular_speed_rad_s": 0.010894475578042696,
+        "drift_m": 0.00011549850727098407,
+        "rotation_rad": 0.0009173303819289208,
+        "numeric_limits_met": true,
+        "sole_floor_positive_normal_every_step": true
+      },
+      "final_body_displacement_m": [
+        0.022555391079766656,
+        0.007033708789614064
+      ],
+      "final_yaw_rad": -0.21673630548957737,
+      "all_cpu_criteria_met": false
+    },
+    {
+      "id": "reverse-geometric-start300",
+      "receipt_sha256": "30d8b50599968c6c461c22a5ebd7f6432d2a9607d6e57e5881b9f29e87f0d103",
+      "baseline_step": 301,
+      "brake_decision_step": null,
+      "distance_entry_step": null,
+      "terminal_step": 363,
+      "first_terminal_zero_step": 365,
+      "solves": 963,
+      "policy_rows": 241,
+      "contact_rows": 3857,
+      "action_wall_s": 0.01161575700098183,
+      "control_failure": "external nonsole solved contact",
+      "geometric_completion": false,
+      "first_active_veto": 363,
+      "outcome_vetos": {
+        "analysis": null
+      },
+      "first_pose_veto": null,
+      "first_forbidden_contact": 363,
+      "hold_windows": [],
+      "terminal_window": {
+        "first_step": 922,
+        "last_step": 963,
+        "samples": 42,
+        "duration_s": 0.20499999999999563,
+        "max_linear_speed_m_s": 0.0009306185070547459,
+        "max_angular_speed_rad_s": 0.00668127683348892,
+        "drift_m": 7.70392619557709e-05,
+        "rotation_rad": 0.0006740655849677822,
+        "numeric_limits_met": true,
+        "sole_floor_positive_normal_every_step": true
+      },
+      "final_body_displacement_m": [
+        -0.019922240423087607,
+        0.010420837886945557
+      ],
+      "final_yaw_rad": 0.044669353693080976,
+      "all_cpu_criteria_met": false
+    },
+    {
+      "id": "forward-geometric-start340",
+      "receipt_sha256": "723313cf91046ab6aec3447dd29fbb85e550b0e911bc2e13c6fd09af3570d663",
+      "baseline_step": 341,
+      "brake_decision_step": 393,
+      "distance_entry_step": 394,
+      "terminal_step": 395,
+      "first_terminal_zero_step": 397,
+      "solves": 995,
+      "policy_rows": 249,
+      "contact_rows": 4577,
+      "action_wall_s": 0.015240373002598062,
+      "control_failure": "controller lateral/heading drift exceeded",
+      "geometric_completion": false,
+      "first_active_veto": 395,
+      "outcome_vetos": {
+        "analysis": {
+          "step": 395,
+          "reason": "unrequested wz drift"
+        },
+        "analysis_from_original_distance_entry": {
+          "step": 395,
+          "reason": "unrequested wz drift"
+        }
+      },
+      "first_pose_veto": null,
+      "first_forbidden_contact": null,
+      "hold_windows": [],
+      "terminal_window": {
+        "first_step": 954,
+        "last_step": 995,
+        "samples": 42,
+        "duration_s": 0.20499999999999563,
+        "max_linear_speed_m_s": 0.0012286676889649187,
+        "max_angular_speed_rad_s": 0.010163317019966738,
+        "drift_m": 0.0001220590079282782,
+        "rotation_rad": 0.0009775917061626887,
+        "numeric_limits_met": true,
+        "sole_floor_positive_normal_every_step": true
+      },
+      "final_body_displacement_m": [
+        0.022623162224183833,
+        0.007017940243972543
+      ],
+      "final_yaw_rad": -0.21784136930541986,
+      "all_cpu_criteria_met": false
+    },
+    {
+      "id": "reverse-geometric-start340",
+      "receipt_sha256": "03b4fbf09451736a38629eed63bd1ba807d5dfed5679f2c22298e9c259ce49bf",
+      "baseline_step": 341,
+      "brake_decision_step": 433,
+      "distance_entry_step": 435,
+      "terminal_step": 538,
+      "first_terminal_zero_step": 541,
+      "solves": 1138,
+      "policy_rows": 285,
+      "contact_rows": 5108,
+      "action_wall_s": 0.03805927799839992,
+      "control_failure": null,
+      "geometric_completion": true,
+      "first_active_veto": null,
+      "outcome_vetos": {
+        "analysis": null,
+        "analysis_from_original_distance_entry": null
+      },
+      "first_pose_veto": null,
+      "first_forbidden_contact": null,
+      "hold_windows": [
+        {
+          "exit": "COMPLETE",
+          "first_step": 497,
+          "last_step": 538,
+          "samples": 42,
+          "duration_s": 0.20499999999999563,
+          "max_linear_speed_m_s": 0.005124406431595009,
+          "max_angular_speed_rad_s": 0.08673886669640118,
+          "drift_m": 0.0007939171782652587,
+          "rotation_rad": 0.013546221863351448,
+          "numeric_limits_met": true,
+          "sole_floor_positive_normal_every_step": true
+        }
+      ],
+      "terminal_window": {
+        "first_step": 1097,
+        "last_step": 1138,
+        "samples": 42,
+        "duration_s": 0.20499999999999563,
+        "max_linear_speed_m_s": 0.0008304398939145767,
+        "max_angular_speed_rad_s": 0.006455355252124573,
+        "drift_m": 7.041473619309327e-05,
+        "rotation_rad": 0.0006238600168682183,
+        "numeric_limits_met": true,
+        "sole_floor_positive_normal_every_step": true
+      },
+      "final_body_displacement_m": [
+        -0.030518576253178012,
+        -0.0055105428995086865
+      ],
+      "final_yaw_rad": -0.027448461409524994,
+      "all_cpu_criteria_met": true
+    },
+    {
+      "id": "forward-geometric-start380",
+      "receipt_sha256": "0e7e3703f40193e9bd367282cd58b72356c2dd7d2029b62a5f0dfb6878b129cb",
+      "baseline_step": 381,
+      "brake_decision_step": 433,
+      "distance_entry_step": 434,
+      "terminal_step": 435,
+      "first_terminal_zero_step": 437,
+      "solves": 1035,
+      "policy_rows": 259,
+      "contact_rows": 4750,
+      "action_wall_s": 0.010703819003538229,
+      "control_failure": "controller lateral/heading drift exceeded",
+      "geometric_completion": false,
+      "first_active_veto": 435,
+      "outcome_vetos": {
+        "analysis": {
+          "step": 435,
+          "reason": "unrequested wz drift"
+        },
+        "analysis_from_original_distance_entry": {
+          "step": 435,
+          "reason": "unrequested wz drift"
+        }
+      },
+      "first_pose_veto": null,
+      "first_forbidden_contact": null,
+      "hold_windows": [],
+      "terminal_window": {
+        "first_step": 994,
+        "last_step": 1035,
+        "samples": 42,
+        "duration_s": 0.20499999999999563,
+        "max_linear_speed_m_s": 0.0011748400517078176,
+        "max_angular_speed_rad_s": 0.009686958861221171,
+        "drift_m": 0.00010012357641284752,
+        "rotation_rad": 0.0007936150206601723,
+        "numeric_limits_met": true,
+        "sole_floor_positive_normal_every_step": true
+      },
+      "final_body_displacement_m": [
+        0.022462863359631977,
+        0.006816356918066819
+      ],
+      "final_yaw_rad": -0.21274723449596405,
+      "all_cpu_criteria_met": false
+    },
+    {
+      "id": "reverse-geometric-start380",
+      "receipt_sha256": "ceac9b86ecac93825f5265f15be8a497c0301f5697ff9e032eab1dffc873d0cf",
+      "baseline_step": 381,
+      "brake_decision_step": 473,
+      "distance_entry_step": 473,
+      "terminal_step": 504,
+      "first_terminal_zero_step": 505,
+      "solves": 1104,
+      "policy_rows": 276,
+      "contact_rows": 4906,
+      "action_wall_s": 0.023139042998082004,
+      "control_failure": "controller lateral/heading drift exceeded",
+      "geometric_completion": false,
+      "first_active_veto": 504,
+      "outcome_vetos": {
+        "analysis": {
+          "step": 504,
+          "reason": "unrequested wz drift"
+        },
+        "analysis_from_original_distance_entry": {
+          "step": 504,
+          "reason": "unrequested wz drift"
+        }
+      },
+      "first_pose_veto": null,
+      "first_forbidden_contact": null,
+      "hold_windows": [],
+      "terminal_window": {
+        "first_step": 1063,
+        "last_step": 1104,
+        "samples": 42,
+        "duration_s": 0.20499999999999563,
+        "max_linear_speed_m_s": 0.0008657953287925237,
+        "max_angular_speed_rad_s": 0.006689543553025772,
+        "drift_m": 6.801960107107651e-05,
+        "rotation_rad": 0.0006202123264270978,
+        "numeric_limits_met": true,
+        "sole_floor_positive_normal_every_step": true
+      },
+      "final_body_displacement_m": [
+        -0.03002708786010137,
+        -0.006388333166113473
+      ],
+      "final_yaw_rad": -0.07504940864814025,
+      "all_cpu_criteria_met": false
+    },
+    {
+      "id": "forward-geometric-start420",
+      "receipt_sha256": "6180a5e72d31965acf933fb9438d10d3bfbd39e321c93edcdea935a8469b7065",
+      "baseline_step": 421,
+      "brake_decision_step": 473,
+      "distance_entry_step": 474,
+      "terminal_step": 475,
+      "first_terminal_zero_step": 477,
+      "solves": 1075,
+      "policy_rows": 269,
+      "contact_rows": 4912,
+      "action_wall_s": 0.010071596996567678,
+      "control_failure": "controller lateral/heading drift exceeded",
+      "geometric_completion": false,
+      "first_active_veto": 475,
+      "outcome_vetos": {
+        "analysis": {
+          "step": 475,
+          "reason": "unrequested wz drift"
+        },
+        "analysis_from_original_distance_entry": {
+          "step": 475,
+          "reason": "unrequested wz drift"
+        }
+      },
+      "first_pose_veto": null,
+      "first_forbidden_contact": null,
+      "hold_windows": [],
+      "terminal_window": {
+        "first_step": 1034,
+        "last_step": 1075,
+        "samples": 42,
+        "duration_s": 0.20499999999999563,
+        "max_linear_speed_m_s": 0.001113559998010586,
+        "max_angular_speed_rad_s": 0.009380276878209873,
+        "drift_m": 9.860994270468111e-05,
+        "rotation_rad": 0.0007864416278689909,
+        "numeric_limits_met": true,
+        "sole_floor_positive_normal_every_step": true
+      },
+      "final_body_displacement_m": [
+        0.022456494707172526,
+        0.006808815336109583
+      ],
+      "final_yaw_rad": -0.2141670026951997,
+      "all_cpu_criteria_met": false
+    },
+    {
+      "id": "reverse-geometric-start420",
+      "receipt_sha256": "399e486f9def070ee09b67eaf057b57d5fddce04042ad46a363936332a2d91cd",
+      "baseline_step": 421,
+      "brake_decision_step": 509,
+      "distance_entry_step": 511,
+      "terminal_step": 523,
+      "first_terminal_zero_step": 525,
+      "solves": 1123,
+      "policy_rows": 281,
+      "contact_rows": 4950,
+      "action_wall_s": 0.019284627996967174,
+      "control_failure": "external nonsole solved contact",
+      "geometric_completion": false,
+      "first_active_veto": 523,
+      "outcome_vetos": {
+        "analysis": {
+          "step": 543,
+          "reason": "unrequested wz drift"
+        },
+        "analysis_from_original_distance_entry": {
+          "step": 543,
+          "reason": "unrequested wz drift"
+        }
+      },
+      "first_pose_veto": null,
+      "first_forbidden_contact": 523,
+      "hold_windows": [],
+      "terminal_window": {
+        "first_step": 1082,
+        "last_step": 1123,
+        "samples": 42,
+        "duration_s": 0.20499999999999563,
+        "max_linear_speed_m_s": 0.001037074632067622,
+        "max_angular_speed_rad_s": 0.008197535459949053,
+        "drift_m": 6.509993590891331e-05,
+        "rotation_rad": 0.0005702751357050113,
+        "numeric_limits_met": true,
+        "sole_floor_positive_normal_every_step": true
+      },
+      "final_body_displacement_m": [
+        -0.02969764697212701,
+        -0.007913041511687285
+      ],
+      "final_yaw_rad": -0.07209733505256061,
+      "all_cpu_criteria_met": false
+    }
+  ],
+  "actuators_by_fixed_interval": {
+    "standing": {
+      "solves": 2880,
+      "any_pwm_clipped_solves": 0,
+      "any_ctrl_force_difference_solves": 0,
+      "max_abs_requested_pwm_duty": 0.14745638708655667,
+      "max_abs_requested_motor_torque_nm": 0.1403932543589745,
+      "minimum_bam_effective_vin_v": 7.316581869237281
+    },
+    "action": {
+      "solves": 708,
+      "any_pwm_clipped_solves": 0,
+      "any_ctrl_force_difference_solves": 0,
+      "max_abs_requested_pwm_duty": 0.5311387417065707,
+      "max_abs_requested_motor_torque_nm": 0.4230961738498526,
+      "minimum_bam_effective_vin_v": 7.243785118339683
+    },
+    "tail": {
+      "solves": 4800,
+      "any_pwm_clipped_solves": 0,
+      "any_ctrl_force_difference_solves": 0,
+      "max_abs_requested_pwm_duty": 0.34918317602015164,
+      "max_abs_requested_motor_torque_nm": 0.308744988310416,
+      "minimum_bam_effective_vin_v": 7.285239260679729
+    }
+  },
+  "actuator_scope": [
+    "BAM vin is a simulated internal supply parameter; no measured current or pre-PWM torque is exposed.",
+    "PWM clipping is counted from observed requested and limited duty; it does not alone establish a cause of drift.",
+    "ctrl is the torque request; force buffers are the last dynamics evaluation and are not co-temporal with integrated q/dq.",
+    "Generalized actuator force is not net joint torque. Proximity to a force bound alone does not establish clipping.",
+    "Force-buffer equality to clipped ctrl is checked only for the recorded fixed-gain motor, unit gear, disabled joint-force clamp and Euler recipe.",
+    "Policy phase is the command held for this solve, including slots still held when a later per-solve veto fires."
+  ],
+  "closure": {
+    "unit": "cascade-voice-microduck-braking-corpus-444896e1184e456ab758827b02f08947.scope",
+    "process_exit": 0,
+    "scope_exit": 0,
+    "signals": [],
+    "forced": false,
+    "members": [],
+    "births": [],
+    "old_births_absent": [
+      {
+        "pid": 884591,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "start_ticks": 4261996
+      },
+      {
+        "pid": 884593,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "start_ticks": 4261998
+      }
+    ],
+    "current_unit_state": {
+      "LoadState": "not-found",
+      "ActiveState": "inactive",
+      "SubState": "dead"
+    }
+  },
+  "administrative": {
+    "inputs_unchanged": true,
+    "per_case_artifacts_verified": 56,
+    "canonical_per_case_artifact_manifest_sha256": "fb6d5b550dfe93be06420cedd5022941afa6b326684cfbf147e1287b820d623c"
+  },
+  "interpretation": [
+    "The accepted set changes but does not broaden: one of eight meets all original CPU criteria in both candidates. reverse-start340 now passes; previously passing reverse-start420 now has a forbidden contact.",
+    "All four forward cases selected standing before their subsequent heading veto; earlier selection did not make these trajectories acceptable. reverse-start380 also fails on heading; reverse-start300 fails on contact before a braking decision.",
+    "Prediction changes only the command decision: actual observed entry and a complete rest window remain required. The passing reverse-start340 holds steps497..538 and completes a full retained tail.",
+    "Only measured prefixes were replayed before execution; no future samples selected actions. One authorized corpus ran with all eight cases and no favorable rerun.",
+    "These outcomes do not admit repeated braking, gait, turns, ordinary MCP, Newton or hardware operation. No further gain or timing sweep is justified by one passing case alone."
+  ],
+  "artifacts_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/plan-01.json": "49d06d35a43a8dd5a2cba3579205ad9799db01517236b6f451538ddb42215b63",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/launch-binding-01.json": "718d451c0f046cc9e3832659b6def92627caad5c941d2ee5f06b8d32ff976e58",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/owner-receipt.json": "8da93b76c4ed4baba5988d4b5d01a4c7fd2e37d4278d817c29adc0c685d24f24",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/receipt.json": "a78b1cbde219980b2db2e5fc1be56c2d8990a96b89f57938c7597f5ab94aa026",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/owner-01/closure.json": "4b481aa24b22d86dee28e94fa689a37255384f4da0260eede7d36abe116bfa33",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/owner-01/owner.json": "a1c2262d1a14e53170446b742c701b8d52d7e76647fb25e2019d5eb70145a937",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/audit_lifecycle.py": "ca9539e8b9a613ae2fe571e89e0d7cd4bd089caacf9f8a9d7f14b254c2f87c34",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/check-only-01.json": "bc892577f2d8852fed83ba79b1acd55a9ac400f8049a9bd9f2b7834429fec1a2",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/plan-diff-01.json": "e720f836e73ab49a7e01f1d04e68f901aad42c28a7a61f8f57d1c21050b63755",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/prefix-check-01.json": "ea7e8c616db94efbe5b15c409bc89d41086ad4875b2a63e96586741330267274",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/launch-admission.json": "59936377de1a243db790ab0877c73295e3beb8809c708307dfb4e73b6632424a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/control-audit-01.json": "5087a1fdf8c2e5dda48cab2fb4e69425132f56692e966feb520db5d365ec71a2",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/global-lifecycle-audit.json": "e98b8986cb66ff41647fccc1338a1f454beb5261c401fb423fb06b770de021dd",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/actuator-audit-01.json": "6abd5b509234f2b659f115167ace025bed810fa137b595cf236d98ce8ca7a952",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/audit_control.py": "48304ac00f70dc1262843330e073c92ea5384c96688c7a9e9a0e688a21236b71",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/test_prediction_audit.py": "cd43c4469f2e5c899f94b71ea4df79c84f9f917d2ae437aeb5317bac8c092fa6",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/audit_actuators.py": "ed430d5707a84fd99a0428a1d9b2acf2c0e1b55fab7ba4d9d1867d59e4dde804",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start300/receipt.json": "5cb784285618e5ed0368bc41f5733db88908a1df1b25984081faf129d3854b9a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start300/contacts.jsonl": "223ce4195e26bf577b418da57750db48ec83280da33283c7efd874ca26d4b018",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start300/model.json": "96bc53aa6ac2c77503d69a27af40d479fa4ab7e77804c97c1cf748be7308393a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start300/solves.jsonl": "46777be22936ed0d202e46d5d69ed11f0f7893ced63a6c313b594d4568c11f76",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start300/full-state.npz": "7b30160329fcb66712bad2179adafd35c8d6edcee7a31875883eda16e3f21329",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start300/policy.jsonl": "1c23b565bdaee4b9b401a789cf413b143c106dc2abe7c4494b0299a5d8ab6a26",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start300/actuators.jsonl": "7c88148b4325bbab7e037140901d99a0573378d73920fef90df359617be8dca3",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start300/actuator-model.json": "3b028d6d1d526c63a7d5f2520b94e4bd7d1d88750af19f5a21062455ab3f171d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start300/receipt.json": "30d8b50599968c6c461c22a5ebd7f6432d2a9607d6e57e5881b9f29e87f0d103",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start300/contacts.jsonl": "29a794fb676a80eb10dd5b3c9c3bf84f2599c596471c53d5ae98ebb87aaf450a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start300/model.json": "96bc53aa6ac2c77503d69a27af40d479fa4ab7e77804c97c1cf748be7308393a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start300/solves.jsonl": "38d57fff1eeb281e858e5fc01d721fe149cadcd7e0c750115264b4a0692debeb",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start300/full-state.npz": "573e217dd8ff2f8927dc699232e42155267254f822123a4f8e01904ed404b260",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start300/policy.jsonl": "fa307fd4baee7314a448fa9f40bd90b64beb7a98a672e093a9f55c94f44786c6",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start300/actuators.jsonl": "3b2fd6416be3adf485cc0ff0f0eefb0d635125279b13cf0c5c18a41da9901c77",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start300/actuator-model.json": "3b028d6d1d526c63a7d5f2520b94e4bd7d1d88750af19f5a21062455ab3f171d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start340/receipt.json": "723313cf91046ab6aec3447dd29fbb85e550b0e911bc2e13c6fd09af3570d663",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start340/contacts.jsonl": "84922c3fa9db9f4e9f76f496d66a579e4376a1890c79d2f116aaaa020278ab78",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start340/model.json": "96bc53aa6ac2c77503d69a27af40d479fa4ab7e77804c97c1cf748be7308393a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start340/solves.jsonl": "e851ba4c8a6dc3d99269b1dd14d0f7422315d89b58287cb2dec90e00419986f6",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start340/full-state.npz": "b1fa4dd83ac2cfe256228bd9537be732abb35a3fbecbafbc9f55b027d39fc063",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start340/policy.jsonl": "89309e1dd6f87e66becd5f89bab9e629d13409daaae067ed28a7ca2cc4c9ae75",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start340/actuators.jsonl": "edc5220c5b7fc8633806b4979705ceb27d2c9d5c24e6ae98d389177f4841ce11",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start340/actuator-model.json": "3b028d6d1d526c63a7d5f2520b94e4bd7d1d88750af19f5a21062455ab3f171d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start340/receipt.json": "03b4fbf09451736a38629eed63bd1ba807d5dfed5679f2c22298e9c259ce49bf",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start340/contacts.jsonl": "82d74cd14e902d259b4991e10708eb7a25ac562ea01ffa1a784980df2680b7d4",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start340/model.json": "96bc53aa6ac2c77503d69a27af40d479fa4ab7e77804c97c1cf748be7308393a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start340/solves.jsonl": "b8712527dae47fbd3e28f3ef975538feb15fd695f244593ca9f71c333520c427",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start340/full-state.npz": "0bc44dc7955889542bfd7de38536f17d207002cbbd586980fecb020fcaf242f6",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start340/policy.jsonl": "48813c718a577beac6d827e986c9a0730b990f03991d3dda1c2a3c58d370b50f",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start340/actuators.jsonl": "cc80ba733c05ffa7c17503722328e6659d4cbd9285c83c26460dc6d87182f319",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start340/actuator-model.json": "3b028d6d1d526c63a7d5f2520b94e4bd7d1d88750af19f5a21062455ab3f171d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start380/receipt.json": "0e7e3703f40193e9bd367282cd58b72356c2dd7d2029b62a5f0dfb6878b129cb",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start380/contacts.jsonl": "df4d51786254f9ca534027abf2f79bf6578140fbdee57251685626843bfa7cd0",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start380/model.json": "96bc53aa6ac2c77503d69a27af40d479fa4ab7e77804c97c1cf748be7308393a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start380/solves.jsonl": "3946ab6766fd06668a5cb8d103e7e8592c2829d45e8736d09ea69fbee83ed5ae",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start380/full-state.npz": "c151a35dc1655236ab00a696611bc1519b66bb31cbbede8c28c59d77ac126995",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start380/policy.jsonl": "29f6b7187508bdb40dc38b4dbca0fa5368f0951bfb4996c442a28f4f9aa2caa9",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start380/actuators.jsonl": "fa61f9954ed55fa00d6ac3887d2930ff06b935e02a613f034c5986d14506e139",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start380/actuator-model.json": "3b028d6d1d526c63a7d5f2520b94e4bd7d1d88750af19f5a21062455ab3f171d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start380/receipt.json": "ceac9b86ecac93825f5265f15be8a497c0301f5697ff9e032eab1dffc873d0cf",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start380/contacts.jsonl": "ecd9640d71da674f334fab735e6c851e20a1579072693215ea910c7ff764a842",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start380/model.json": "96bc53aa6ac2c77503d69a27af40d479fa4ab7e77804c97c1cf748be7308393a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start380/solves.jsonl": "f3c992f69c659c72ad29262354aebb4339d1564876e92b3d303408a4033ee170",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start380/full-state.npz": "3c55c4a2c91c7dfbc84bab8eb46feda525367b27151f0a7c67aa3f3dc1aa14b6",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start380/policy.jsonl": "a94e9df8355beaf5900123d40c76c603015d168f558a5dfebaed94625b9b883e",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start380/actuators.jsonl": "50d058ed1a1d70167efd6ff6ceb03846eb041a32daeee03723d300734cd6695d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start380/actuator-model.json": "3b028d6d1d526c63a7d5f2520b94e4bd7d1d88750af19f5a21062455ab3f171d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start420/receipt.json": "6180a5e72d31965acf933fb9438d10d3bfbd39e321c93edcdea935a8469b7065",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start420/contacts.jsonl": "c72798dffea129e665d80fd5e880b60abd283761b96ab5ccab0d5a104e0baa15",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start420/model.json": "96bc53aa6ac2c77503d69a27af40d479fa4ab7e77804c97c1cf748be7308393a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start420/solves.jsonl": "49ebf49867bdaf239e54e1b0440eb6cb333150a08d3c8edab2a2b4723ed36bb8",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start420/full-state.npz": "fb604c42dd6f98d3c65bc8f89a5363809b9e23bf67e63e2171698a18289df512",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start420/policy.jsonl": "f4320bf863666caef70c6e015b2e9d2cd762fe5f134911436d07d15ce91032b3",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start420/actuators.jsonl": "0b681f098fbdbf99e9a31437ad9b8ec470f811631e5aefbd85d369e987b92e94",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/forward-geometric-start420/actuator-model.json": "3b028d6d1d526c63a7d5f2520b94e4bd7d1d88750af19f5a21062455ab3f171d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start420/receipt.json": "399e486f9def070ee09b67eaf057b57d5fddce04042ad46a363936332a2d91cd",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start420/contacts.jsonl": "9d218005616b733dae4e5d4534c07efed9ac1b5052fc6a358ecd382000d841e0",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start420/model.json": "96bc53aa6ac2c77503d69a27af40d479fa4ab7e77804c97c1cf748be7308393a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start420/solves.jsonl": "3e1cc8e896d3541b8a3a6e53c6c60a52cc3d8f3be766ab5527b0ce722369aa11",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start420/full-state.npz": "6be81a2e7309c5229fc447ea82fca657f4d9a67e64a75ecede97e8ad2fb7c581",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start420/policy.jsonl": "6084566eed9d97b81836af81570761b2ce5940806554e546240466a9bd65b28b",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start420/actuators.jsonl": "49d11352b859da6be4f290c66f0e44756bccff72d9ec179c28f1258f0e11c937",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/predictive-candidate/corpus-01/reverse-geometric-start420/actuator-model.json": "3b028d6d1d526c63a7d5f2520b94e4bd7d1d88750af19f5a21062455ab3f171d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/standing-candidate/plan-01.json": "53b5c87b8442fa53cb1f3983b302960be17805887a48ea7fd9b8d5ca121da34e",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/standing-candidate/control-audit-01.json": "a8fd44be8936d8654b25a463276511f5757d77a2be61d712426decdc9726f6c8",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/standing-candidate/global-lifecycle-audit.json": "8e9f44c37ba961301430e41892ff1d11d68a6cbf14918f652c92bc637cac2e68",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_LOCOMOTION_20261004/standing-candidate/actuator-audit-01.json": "bb4d7b4e6cc0f2ab30c3f95666cf95a6b56d6619a5e83f0b84d75200d9cac8e7"
+  },
+  "previous_evidence_sha256": "bdbc723a47bb98dc3129e146fd6183bc5bd354c6ec4db84ee0e9413c1918916b",
+  "case_comparison": [
+    {
+      "id": "forward-geometric-start300",
+      "previous_all_cpu_criteria_met": false,
+      "current_all_cpu_criteria_met": false,
+      "previous_failure": "controller lateral/heading drift exceeded",
+      "current_failure": "controller lateral/heading drift exceeded"
+    },
+    {
+      "id": "reverse-geometric-start300",
+      "previous_all_cpu_criteria_met": false,
+      "current_all_cpu_criteria_met": false,
+      "previous_failure": "external nonsole solved contact",
+      "current_failure": "external nonsole solved contact"
+    },
+    {
+      "id": "forward-geometric-start340",
+      "previous_all_cpu_criteria_met": false,
+      "current_all_cpu_criteria_met": false,
+      "previous_failure": "controller lateral/heading drift exceeded",
+      "current_failure": "controller lateral/heading drift exceeded"
+    },
+    {
+      "id": "reverse-geometric-start340",
+      "previous_all_cpu_criteria_met": false,
+      "current_all_cpu_criteria_met": true,
+      "previous_failure": "external nonsole solved contact",
+      "current_failure": null
+    },
+    {
+      "id": "forward-geometric-start380",
+      "previous_all_cpu_criteria_met": false,
+      "current_all_cpu_criteria_met": false,
+      "previous_failure": "controller lateral/heading drift exceeded",
+      "current_failure": "controller lateral/heading drift exceeded"
+    },
+    {
+      "id": "reverse-geometric-start380",
+      "previous_all_cpu_criteria_met": false,
+      "current_all_cpu_criteria_met": false,
+      "previous_failure": "action deadline before geometric completion",
+      "current_failure": "controller lateral/heading drift exceeded"
+    },
+    {
+      "id": "forward-geometric-start420",
+      "previous_all_cpu_criteria_met": false,
+      "current_all_cpu_criteria_met": false,
+      "previous_failure": "controller lateral/heading drift exceeded",
+      "current_failure": "controller lateral/heading drift exceeded"
+    },
+    {
+      "id": "reverse-geometric-start420",
+      "previous_all_cpu_criteria_met": true,
+      "current_all_cpu_criteria_met": false,
+      "previous_failure": null,
+      "current_failure": "external nonsole solved contact"
+    }
+  ]
+}

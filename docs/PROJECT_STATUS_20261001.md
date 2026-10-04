@@ -606,5 +606,45 @@ An optional `CASCADE_SPARK_PROOF_CASES=all` on the existing Spark Isaac launcher
 cube to green square, lemon to open box and tomato can to green square. It retains
 the same agent route, passive contact/geometry/camera checks and observed reset
 after every object; a failure stops the remaining cases. The standard startup
-still uses its two original orders. Five-object native acceptance on this new
-source remains pending; CPU boundary fixtures are not physical evidence.
+still uses its two original orders. The native five-object campaign below now
+provides source-bound physical evidence for the optional case set.
+
+
+## Native five-object kitchen campaign — 2026-10-04
+
+The [closed campaign receipt](evidence/robot-modularity/kitchen-five-object-20261004.json)
+records one complete ordinary OpenClaw/Qwen campaign on source
+`d2b78586a6e2947f56fc7d254c9ffad776c33e8c`. Each of the five natural-language
+orders completed through the existing agent/MCP/skill route, followed by a
+measured reset of all five props in the same simulated world. Passive physical
+audits confirmed lift, release, full-footprint support, rest and the three
+event cameras for every case.
+
+| Object | Destination | Final horizontal error | Final observed rest |
+| --- | --- | ---: | ---: |
+| Green cube | Green square | 3.340 mm | 0.583 s |
+| Orange | Open box | 6.278 mm | 0.583 s |
+| Pink cube | Green square | 3.391 mm | 0.517 s |
+| Lemon | Open box | 5.001 mm | 0.567 s |
+| Tomato can | Green square | 2.888 mm | 0.567 s |
+
+Rest durations use simulation time. Maximum sampled camera age was 1.116181 s
+under the unchanged 2 s gate. The complete campaign took 883.887 s wall time;
+individual agent metadata durations were 95.806–109.567 s and are not complete
+case or campaign times. The original 300 s MCP, 360 s host-motion, 90 s settling
+and 4200 s aggregate campaign limits were unchanged. There was no task retry.
+
+This used the frozen Isaac Sim `48b2d951` PhysX profile, cuMotion, real required
+GraspGen-X, Qwen3.8-27B and 640 × 360 cameras on the local RTX PRO 6000 host.
+The guard checked all 240255 frozen inputs before and after execution. Six owned
+units closed ordinarily; an independent post-close observation found all eleven
+recorded process births absent and all four owned ports free. The original
+gateway helper may send a group SIGKILL and does not export gateway-child exit
+codes; ordinary unit closure does not establish a zero-signal claim for them.
+
+One five-object campaign extends object coverage, not reliability or scene
+generalization. Occupancy was disabled and the existing truth-assisted held-object
+compensation remained active. Measured occupancy/carry protection, additional
+scenes, perception-only performance, hardware and current-source Spark deployment
+remain open. All earlier failed episodes and the three two-object campaigns
+remain separate records.

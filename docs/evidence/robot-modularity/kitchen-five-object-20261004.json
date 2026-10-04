@@ -1,0 +1,173 @@
+{
+  "schema": "cascade.kitchen-five-object-campaign.v1",
+  "source_head": "d2b78586a6e2947f56fc7d254c9ffad776c33e8c",
+  "campaign_pass": true,
+  "receipt": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/campaign-01/attempts/ca348b7087d64a7e9406133cabc474b9/final.json",
+  "receipt_sha256": "6e47d6e89ce0e2ef0d19019888aff9310df1eed45db413a34ce01eed324a30bc",
+  "original_proof_verified": true,
+  "inputs_unchanged": true,
+  "normal_shutdown": true,
+  "runtime_teardown_verified": true,
+  "root_post_close_ok": true,
+  "observed_births": 11,
+  "recorded_births_absent": true,
+  "ordinary_owned_closures": 6,
+  "session_id": "cascade-proof-dd80fd2ce5914bfaa2345d99ef3372d2",
+  "campaign_elapsed_s": 883.8868576909881,
+  "planned_cases": [
+    {
+      "object": "green cube",
+      "destination": "green square"
+    },
+    {
+      "object": "orange",
+      "destination": "open box"
+    },
+    {
+      "object": "pink cube",
+      "destination": "green square"
+    },
+    {
+      "object": "lemon",
+      "destination": "open box"
+    },
+    {
+      "object": "tomato can",
+      "destination": "green square"
+    }
+  ],
+  "cases": [
+    {
+      "object": "green cube",
+      "destination": "green square",
+      "physical_pass": true,
+      "event_cameras_pass": true,
+      "reset_props": [
+        "pink_cube",
+        "green_cube",
+        "tomato_can",
+        "lemon",
+        "orange"
+      ],
+      "final_xy_error_m": 0.003339890349918514,
+      "final_window_sim_s": 0.5833333333333286,
+      "lift_m": 0.09751001186668871,
+      "max_frame_age_s": 0.7232718660088722,
+      "pick_status": "ok",
+      "pick_agent_metadata_duration_ms": 95806,
+      "reset_status": "ok"
+    },
+    {
+      "object": "orange",
+      "destination": "open box",
+      "physical_pass": true,
+      "event_cameras_pass": true,
+      "reset_props": [
+        "pink_cube",
+        "green_cube",
+        "tomato_can",
+        "lemon",
+        "orange"
+      ],
+      "final_xy_error_m": 0.006277821938221091,
+      "final_window_sim_s": 0.5833333333333428,
+      "lift_m": 0.11632956005632876,
+      "max_frame_age_s": 0.6942930270015495,
+      "pick_status": "ok",
+      "pick_agent_metadata_duration_ms": 102812,
+      "reset_status": "ok"
+    },
+    {
+      "object": "pink cube",
+      "destination": "green square",
+      "physical_pass": true,
+      "event_cameras_pass": true,
+      "reset_props": [
+        "pink_cube",
+        "green_cube",
+        "tomato_can",
+        "lemon",
+        "orange"
+      ],
+      "final_xy_error_m": 0.0033906419476479916,
+      "final_window_sim_s": 0.5166666666666799,
+      "lift_m": 0.10750408843159674,
+      "max_frame_age_s": 0.6592095679952763,
+      "pick_status": "ok",
+      "pick_agent_metadata_duration_ms": 106496,
+      "reset_status": "ok"
+    },
+    {
+      "object": "lemon",
+      "destination": "open box",
+      "physical_pass": true,
+      "event_cameras_pass": true,
+      "reset_props": [
+        "pink_cube",
+        "green_cube",
+        "tomato_can",
+        "lemon",
+        "orange"
+      ],
+      "final_xy_error_m": 0.005001360829703041,
+      "final_window_sim_s": 0.5666666666666629,
+      "lift_m": 0.10815817862749098,
+      "max_frame_age_s": 1.0933885400008876,
+      "pick_status": "ok",
+      "pick_agent_metadata_duration_ms": 102702,
+      "reset_status": "ok"
+    },
+    {
+      "object": "tomato can",
+      "destination": "green square",
+      "physical_pass": true,
+      "event_cameras_pass": true,
+      "reset_props": [
+        "pink_cube",
+        "green_cube",
+        "tomato_can",
+        "lemon",
+        "orange"
+      ],
+      "final_xy_error_m": 0.002887672433301141,
+      "final_window_sim_s": 0.5666666666666629,
+      "lift_m": 0.07556137442588806,
+      "max_frame_age_s": 1.11618025599455,
+      "pick_status": "ok",
+      "pick_agent_metadata_duration_ms": 109567,
+      "reset_status": "ok"
+    }
+  ],
+  "campaign_errors": [],
+  "scope": "One agent-driven five-object campaign, with planned resets after each case.",
+  "limits": [
+    "One campaign is not a reliability estimate or broader-scene validation.",
+    "Occupancy mapping/carry protection and hardware remain separate open work.",
+    "The existing truth-assisted held-object compensation remains; this is not perception-only evaluation.",
+    "Agent duration metadata is not whole-campaign elapsed time.",
+    "The original gateway helper may send group SIGKILL; gateway-child exit codes are not exported."
+  ],
+  "artifact_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/campaign-01/review-binding.json": "41ae9848bb0833019fb19227af6997cc35c2d944d279573d1953b354319b5ec0",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/campaign-01/plan-reviewed.json": "1f0f18e13c14d3e20463a7ed840126dc33598fc0f092c625afdc0a8be488ef91",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/campaign-01/guard-result.json": "ed1cfe0785e85b97ef5d15f5d05029755444b7d1cf3189654a75335e3c7c1131",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/campaign-01/attempts/ca348b7087d64a7e9406133cabc474b9/final.json": "6e47d6e89ce0e2ef0d19019888aff9310df1eed45db413a34ce01eed324a30bc",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/campaign-01/root-post-close.json": "690d9c65dff0787d95c4d05466c017a902ae30785c09289e8f678ca152b553f8",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/campaign-01/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-dd80fd2ce5914bfaa2345d99ef3372d2/case-1/physics/gpu-physical-audit.json": "7efe69db517e2df93ae4572883ee2f7f4d35a319412f44552ee88fe86f2ee5a6",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/campaign-01/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-dd80fd2ce5914bfaa2345d99ef3372d2/case-1/02-pick.json": "9f28df5ce0178016ed5a340c443822fbab3543b72e1d1d3ff8d773fcf122488f",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/campaign-01/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-dd80fd2ce5914bfaa2345d99ef3372d2/case-1/03-reset.json": "db604b50a9bc26e06a16c8c79a9b421c008733cb753b9366acb40bbf037dca7a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/campaign-01/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-dd80fd2ce5914bfaa2345d99ef3372d2/case-2/physics/gpu-physical-audit.json": "38da0caa0722b2523b222d035345d17d9c82128e0a43906f234e04a7cb6d3a18",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/campaign-01/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-dd80fd2ce5914bfaa2345d99ef3372d2/case-2/02-pick.json": "253c0d6b88930f493c64155c2045ea431fa04147430c3d007f6f65ab45f6b4c3",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/campaign-01/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-dd80fd2ce5914bfaa2345d99ef3372d2/case-2/03-reset.json": "450dba57d47f94895b16009c422ab8dfe5ba66ba331ee309b01a821f32d838cf",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/campaign-01/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-dd80fd2ce5914bfaa2345d99ef3372d2/case-3/physics/gpu-physical-audit.json": "6368e32323866d5c1dd92f63289e3179e9855cb1a1e73105bf6f01ce31925d2e",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/campaign-01/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-dd80fd2ce5914bfaa2345d99ef3372d2/case-3/02-pick.json": "b7c806794cb6f4033b624500c6071a39f64116d8ea87c6bfd8edc9cf391f6711",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/campaign-01/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-dd80fd2ce5914bfaa2345d99ef3372d2/case-3/03-reset.json": "6e7babb90857726b414a50fcb87129b9ba92cc7b0c2ad42d0cf4be49f5fb6188",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/campaign-01/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-dd80fd2ce5914bfaa2345d99ef3372d2/case-4/physics/gpu-physical-audit.json": "5b47479d808f83999b947cb845dafb107219b181824640b78562297a407047c4",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/campaign-01/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-dd80fd2ce5914bfaa2345d99ef3372d2/case-4/02-pick.json": "1e4cda2410d4c6c422455e3a73b14976bc66546e2dfc4585c05aaf4a572ac855",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/campaign-01/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-dd80fd2ce5914bfaa2345d99ef3372d2/case-4/03-reset.json": "eba8e9ccb6fd54a2fc149a6a12e38ff02864ac823ce1bbd3f5f11508cf6f4fab",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/campaign-01/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-dd80fd2ce5914bfaa2345d99ef3372d2/case-5/physics/gpu-physical-audit.json": "8b9a2707c2bacc5c47110875be5a3d9a724810c1a1cd728eb471447364b821d0",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/campaign-01/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-dd80fd2ce5914bfaa2345d99ef3372d2/case-5/02-pick.json": "b7b4367956795f1f2b2385e2794f29909043b2e756fa174cd87ebbf8e4dc2b83",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/campaign-01/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-dd80fd2ce5914bfaa2345d99ef3372d2/case-5/03-reset.json": "c072e1a6fd5b3ece7ebc8a4c829b3402939da2ea7694aef552a7a58794d65f88",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_KITCHEN_COVERAGE_20261004/summarize_coverage.py": "9797842b64e6946661163d9261c2884cf7e34949f6b7695ebc19a6a75fecea98"
+  }
+}

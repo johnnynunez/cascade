@@ -74,3 +74,41 @@ a failure status if either owner fails to close. Both owners are always given
 a cleanup attempt, and an existing receipt is never overwritten. The rerun
 passed with final translation error 0.01203 m and both owners closed successfully.
 The original receipt above remains unchanged.
+
+## Live native RGB-D stream
+
+The [stream07 receipt](evidence/spatial/cuvslam-live-stream-20261004.json) closes
+the live producer-to-provider path: a source-bound Isaac/Newton MicroDuck
+producer completed **320 solves, 80 zero policy commands and 17 RGB-D captures**;
+the cuVSLAM consumer tracked the first **12 real captures**. The consumer prepared
+before the producer started, then used the original capture bytes, optical
+calibration, epoch and timestamps. Eleven bounded `wait_next` requests acquired
+successive captures without advancing physics from the reader. The maximum age
+at return was **0.565868 s**, below the unchanged 2 s gate. No actuator command
+was sent by the consumer.
+
+This episode used producer `4995822`, consumer `0cf086e`, SDK `48b2d951` and
+model identity `63afc2cd…`; publication does not transfer that admission to a
+different source. Camera and registered base poses retained unknown physical
+position/angular uncertainty. Offline first-pose alignment gave maximum camera
+and base translation differences of 17.698 mm and 9.460 mm respectively; those
+are diagnostics, not calibrated accuracy or navigation acceptance. The camera
+motion was observed under zero policy commands, not a commanded route.
+
+The actual `emergency_stop` tool latched, invalidated the map epoch and caused
+the subsequent localization read to refuse with explicit invalidation evidence.
+Both outer scopes and the native producer exited zero; their closure receipts
+recorded no signals, force, errors or surviving members, and all 11 observed
+process births were absent. **The owned cuVSLAM worker itself terminated with
+SIGTERM (exit −15)** during reader teardown; it was not killed with SIGKILL and
+its IPC thread was closed. All 208,076 bound inputs and protected stores remained
+unchanged. The original supervisor and its frozen auditor both returned PASS.
+
+Earlier outcomes remain separate: stream05 completed twelve tracks but stayed
+**FAIL** because its harness requested the nonexistent `stop_robot` tool;
+later shutdown did not repair that terminal contract. Stream06 was never
+launched: review required explicit latch and map-invalidation checks before
+stream07. The compact receipt retains these and the earlier harness negatives.
+This result does not establish metric SLAM accuracy, collision mapping, physical
+rest, route execution, replanning, arrival or task completion. Those remain
+open, including native tests of tracking loss and map-epoch changes.

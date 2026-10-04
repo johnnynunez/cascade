@@ -124,6 +124,8 @@ locomotion, fidelity of a solver, contact support or any physical outcome.
     cache = admission.get('private_rtx_cache')
     if native['configuration'].get('private_rtx_cache') != (cache['policy'] if cache else None):
         raise ValueError('effective private RTX cache policy differs from admission')
+    from .microduck_policy_admission import verify_target_contract
+    targets = verify_target_contract(admission.get('target_contract'), admission['policy_sha256'])
     recipe = {
         "schema": "cascade.microduck.effective-model.v1", "engine": "newton",
         "bundle_receipt_sha256": receipt_hash, "bundle_outputs": [outputs[k] for k in sorted(outputs)],
@@ -131,6 +133,10 @@ locomotion, fidelity of a solver, contact support or any physical outcome.
         "runtime_scene_sha256": hashlib.sha256(scene).hexdigest(),
         "asset_sha256": digest_token(admission["asset_sha256"]),
         "policy_sha256": digest_token(admission["policy_sha256"]),
+        "target_contract": targets,
+        "target_upload": {"adapter": "NewtonBamActuator.set_targets", "dtype": "float32",
+                          "conversion": "numpy.astype before Warp assign",
+                          "filter_state": "policy precision before upload"},
         "policy_dt_s": .020, "limits": admission["limits"],
         "source_sha256": sources, "bam_config_sha256": digest_token(admission["bam_config_sha256"]),
         "bam": {k: bam[k] for k in bam_fields},

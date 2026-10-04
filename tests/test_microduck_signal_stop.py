@@ -1,5 +1,7 @@
 """Real OS signals through the native CLI, CPU backend only; NOT physics."""
 from pathlib import Path
+from cascade.sim.microduck_policy_admission import target_contract
+
 import json
 import os
 import signal
@@ -239,7 +241,7 @@ def _child(site, signum, directory):
                 command_id='signal-active-motion', vx=.1, vy=0., wz=0., duration_s=.1))
             assert ack['ok']
 
-    def policy_factory(*_args):
+    def policy_factory(*_args, **kwargs):
         p = SoftwarePolicy(owners['backend'])
         def infer(obs):
             if site in ('inference', 'blocked_inference', 'sdk_after_boot') and obs[0, 48] != 0:
@@ -261,8 +263,8 @@ def _child(site, signum, directory):
     args = SimpleNamespace(out=directory/'run', device='cuda:0', robot_id='microduck',
         source='signal-software-only', max_wall_s=3., max_steps=9, port=0,
         camera_every=4, max_jpeg_bytes=100000, policy=directory/'fixture.onnx',
-        policy_sha256='b'*64, python_extra_path=[], check_only=False)
-    admission = dict(asset_sha256='a'*64, asset_receipt_sha256='c'*64,
+        policy_sha256='b'*64, target_profile='direct-v1', python_extra_path=[], check_only=False)
+    admission = dict(target_contract=target_contract('b'*64, 'direct-v1'), asset_sha256='a'*64, asset_receipt_sha256='c'*64,
                      bam_params={}, limits=software_limits(), experience_text='software fixture\n')
     original_write = cli.write_json
     def checked_write(path, value):

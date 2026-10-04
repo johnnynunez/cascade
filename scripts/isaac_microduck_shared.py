@@ -18,7 +18,8 @@ import time
 from pathlib import Path
 
 from isaac_microduck_bridge import (CONTROLLER_LIMITS, FALL_LIMITS, REPO, admit,
-    bind_repo, json_default, parse_args, write_json, _persist, _refresh_receipt, _resolve_outcome)
+    bind_repo, create_policy, selected_target_contract, json_default, parse_args, write_json,
+    _persist, _refresh_receipt, _resolve_outcome)
 
 
 def _physics_json(value):
@@ -73,11 +74,11 @@ def _physics_json(value):
 
 def run(args, admission, signals):
     from cascade.apps.signal_stop import SignalRequest
-    from cascade.control.microduck_policy import MicroduckPolicy
     from cascade.sim.mobile_bridge import MobileBridgeController
     from cascade.sim.microduck_shared import SharedMicroduckStepper
     from cascade.sim.microduck_shared_native import SharedKitNewtonBackend, SharedRobotView
     from cascade.sim.microduck_stepper import MicroduckStepper
+    selected_target_contract(args, admission)
     out = args.out
     out.mkdir(parents=True, exist_ok=False)
     (out / 'frames').mkdir()
@@ -110,7 +111,7 @@ def run(args, admission, signals):
                 **{k: admission['limits'][k] for k in CONTROLLER_LIMITS})
             view = SharedRobotView(owner, binding, controller.hello()['epoch'])
             steppers.append(MicroduckStepper(view, controller,
-                MicroduckPolicy(args.policy, args.policy_sha256), actuator,
+                create_policy(args, admission), actuator,
                 max_steps=args.max_steps, max_wall_s=remaining,
                 checkpoint=lambda: signals.checkpoint(persistent=True),
                 **{k: admission['limits'][k] for k in FALL_LIMITS}))
@@ -271,7 +272,8 @@ def main(argv=None):
                  'src/cascade/sim/microduck_timing.py'):
         admission['source_sha256'][path] = hashlib.sha256((REPO / path).read_bytes()).hexdigest()
     if args.check_only:
-        print(json.dumps({'ok': True, 'robots': args.robots, 'physical_acceptance': False}))
+        print(json.dumps({'ok': True, 'robots': args.robots, 'physical_acceptance': False,
+                          'target_contract': admission['target_contract']}))
         return 0
     with StopSignals(protect_registration=True) as signals:
         result = run(args, admission, signals)

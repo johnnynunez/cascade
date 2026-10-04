@@ -30,11 +30,15 @@ POLICY_JOINTS: tuple[str, ...] = (
     "neck_pitch", "head_pitch", "head_yaw", "head_roll", "right_hip_yaw",
     "right_hip_roll", "right_hip_pitch", "right_knee", "right_ankle",
 )
-# Exact source HOME, not the rounded ONNX metadata. Immutable buffer.
-HOME_Q = np.frombuffer(np.array([
+# Exact source HOME, not the rounded ONNX metadata. Immutable buffers.
+_HOME = (
     0., -.0873, -.4579, -.0049, .4530, .3491, .3491,
     0., 0., 0., .0873, .4579, .0049, -.4530,
-], dtype=np.float32).tobytes(), dtype=np.float32)
+)
+HOME_Q = np.frombuffer(np.array(_HOME, dtype=np.float32).tobytes(), dtype=np.float32)
+_ROBOTD_HOME = np.frombuffer(np.array(_HOME, dtype=np.float64).tobytes(), dtype=np.float64)
+ROBOTD_SOURCE = '9136aa4ee88e81edf2bcaf3527e90b65da25f1eb'
+TARGET_PROFILES = ('direct-v1', 'robotd-targets-v1')
 
 
 def _vector(value, size: int, name: str) -> np.ndarray:
@@ -82,23 +86,91 @@ def observation(q, dq, angular_velocity_body, gravity_body, previous_action, com
     return result.reshape(1, 61)
 
 
+class MicroduckTargets:
+    """Output transform only; no model, command smoothing or actuator delay.
+
+    The opt-in robotd profile follows control.rs at ROBOTD_SOURCE: f64 home
+    plus 0.9 * raw f32 action, then head/leg target EMA. Its anchor advances
+    only in commit(), never in preview(). Reset removes the anchor; the first
+    target is unfiltered. Arrays use POLICY_JOINTS order (mouth excluded).
+    """
+
+    def __init__(self, profile='direct-v1', action_scale=None):
+        if profile not in TARGET_PROFILES:
+            raise ValueError('unknown MicroDuck target profile')
+        expected = .9 if profile == 'robotd-targets-v1' else 1.
+        scale = expected if action_scale is None else action_scale
+        if isinstance(scale, (bool, np.bool_)) or not np.isscalar(scale):
+            raise ValueError('action_scale must be positive and finite')
+        scale = float(scale)
+        if not np.isfinite(scale) or scale <= 0:
+            raise ValueError('action_scale must be positive and finite')
+        if profile == 'robotd-targets-v1' and scale != expected:
+            raise ValueError('robotd-targets-v1 requires action_scale=0.9')
+        self._profile, self._scale = profile, scale
+        self.reset()
+
+    @property
+    def profile(self):
+        return self._profile
+
+    @property
+    def action_scale(self):
+        return self._scale
+
+    @property
+    def contract(self):
+        robotd = self._profile == 'robotd-targets-v1'
+        return {'profile': self._profile, 'action_scale': self._scale,
+                'head_lowpass': .5 if robotd else None, 'legs_lowpass': .7 if robotd else None,
+                'target_dtype': 'float64' if robotd else 'float32',
+                'previous_action': 'raw_float32', 'first_target': 'unfiltered',
+                'upstream_commit': ROBOTD_SOURCE if robotd else None,
+                'scope': 'target_transform_only', 'physical_admission': False}
+
+    @property
+    def committed(self):
+        return None if self._previous is None else self._previous.copy()
+
+    def preview(self, action):
+        raw = _vector(action, 14, 'action')
+        with np.errstate(over='ignore', invalid='ignore'):
+            if self._profile == 'direct-v1':
+                result = HOME_Q + self._scale * raw
+                return _vector(result, 14, 'targets').copy()
+            result = _ROBOTD_HOME + self._scale * raw.astype(np.float64)
+            if self._previous is not None:
+                for i in range(14):
+                    alpha = .5 if 5 <= i < 9 else .7
+                    result[i] = alpha * result[i] + (1. - alpha) * self._previous[i]
+        if not np.isfinite(result).all():
+            raise ValueError('nonfinite targets')
+        return result
+
+    def commit(self, action):
+        target = self.preview(action)
+        self._previous = target
+        return target.copy()
+
+    def reset(self):
+        self._previous = None
+
+
 class MicroduckPolicy:
-    """Hash-bound CPU ONNX runner; no clipping, filtering or implicit history.
+    """Hash-bound CPU ONNX runner with an explicit output-transform profile.
 
     infer() keeps its immediate-commit API. A fenced host instead uses
     preview() (no history mutation), then commit() only after the command is
     still valid. Discarded speculative outputs never become previous_action.
-    reset() clears raw history, not a simulator or a command lease.
+    targets() previews the NEXT target without mutation; after infer()/commit()
+    use committed_targets for the accepted target. reset() clears raw and
+    filter history, not a simulator, physical actuator delay or command lease.
     """
 
-    def __init__(self, path, expected_sha256, action_scale=1.0):
+    def __init__(self, path, expected_sha256, action_scale=None, *, target_profile='direct-v1'):
         if not isinstance(expected_sha256, str) or re.fullmatch(r"[0-9a-f]{64}", expected_sha256) is None:
             raise ValueError("expected_sha256 must be an exact lowercase SHA-256")
-        if isinstance(action_scale, (bool, np.bool_)) or not np.isscalar(action_scale):
-            raise ValueError("action_scale must be positive and finite")
-        self.action_scale = float(action_scale)
-        if not np.isfinite(self.action_scale) or self.action_scale <= 0:
-            raise ValueError("action_scale must be positive and finite")
+        self._targets = MicroduckTargets(target_profile, action_scale)
         data = Path(path).read_bytes()
         if hashlib.sha256(data).hexdigest() != expected_sha256:
             raise ValueError("policy SHA-256 mismatch")
@@ -127,6 +199,20 @@ class MicroduckPolicy:
     def previous_action(self) -> np.ndarray:
         return self._previous_action.copy()
 
+    @property
+    def action_scale(self):
+        return self._targets.action_scale
+
+    @property
+    def target_contract(self):
+        return dict(self._targets.contract, policy_sha256=self.sha256)
+
+    @property
+    def committed_targets(self):
+        if self._targets.profile == 'direct-v1':
+            return self.targets(self._previous_action) if self._has_committed else None
+        return self._targets.committed
+
     def infer(self, obs) -> np.ndarray:
         action = self.preview(obs)
         self.commit(action)
@@ -150,12 +236,16 @@ class MicroduckPolicy:
         if (not isinstance(action, np.ndarray) or action.dtype != np.float32
                 or action.shape != (14,) or not np.isfinite(action).all()):
             raise ValueError("committed action must be finite raw float32[14]")
-        self._previous_action = action.copy()
+        raw = action.copy()
+        if self._targets.profile != 'direct-v1':
+            self._targets.commit(raw)
+        self._previous_action = raw
+        self._has_committed = True
 
     def targets(self, action) -> np.ndarray:
-        with np.errstate(over="ignore", invalid="ignore"):
-            result = HOME_Q + self.action_scale * _vector(action, 14, "action")
-        return _vector(result, 14, "targets").copy()
+        return self._targets.preview(action)
 
     def reset(self):
         self._previous_action = np.zeros(14, dtype=np.float32)
+        self._targets.reset()
+        self._has_committed = False

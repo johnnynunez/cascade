@@ -1,0 +1,1265 @@
+{
+  "artifact_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-01/not-launched.json": "b094e0c4a333617eb558b9f53678c09dfa687eb231a43d333ad6f5e4798d76b1",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/cache-provenance.json": "6cbd31dca4bdf3b08d1194c453f92862ee12ad35777d31a473bf6cc01dabc8f3",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/client-close.json": "72aec815df1670066516532816c3fd34cfac8f880b66463738fcfc5711a59eab",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/client-events.json": "39a75a59bf987c51969b0ce06944be65233c7a96ec162d831d60cc765514e744",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/client-receipt.json": "53d4fbcc8ee80761d4e195c495ffae555adeafb0b3b668c59891e6201c95ee38",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/comparison-reference.json": "dbdb59e14e33b95195b748a984a8b60378e63c348a40044b606032b52624093c",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/gc-trigger-audit.json": "d88d1a4acbdd7dc38df90466a8450ba2073d69a67a3fc191cb00e09c6a9e6843",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/gpu-planning-admission.json": "b79c7a91599f0a5fe22f3765a1b5328318d970a5dfc1e226d44fddc0fe95d91b",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/gpu-recheck-01.json": "b79c7a91599f0a5fe22f3765a1b5328318d970a5dfc1e226d44fddc0fe95d91b",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/gpu-recheck-02.json": "b79c7a91599f0a5fe22f3765a1b5328318d970a5dfc1e226d44fddc0fe95d91b",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/independent-audit.json": "b031f617c541817c83eaac6b38a685232008da556fb27b80c149486d6ee8c0bf",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/inputs.json": "65eb52c7379c911c352bafad0088bc81fafc1c5622c68b49808dc9fad4dbc4de",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/kit/frames.jsonl": "a7f7bf59150528161aeaf808de625d291ddab8fae397b79e15985ea54421dcaf",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/kit/model-identity.json": "a465617ad2478768e1c3fd0ecbe4645f766b3f79aa29baf989ee845e92fdbf6e",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/kit/physics.jsonl": "baf324d1b44a76be99fb64a61297f47dac0c5467dcb711c8333285ad3996f6f5",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/kit/policy.jsonl": "1d89240d923dfc49dda07c8f9bb108eca67bfc173c23c244186faf602f35817d",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/kit/receipt.json": "37d7afad0bdd99baaca21b6425ed0fa8ae5afba61dab2b05425a8870f43bf0ec",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/kit/runtime.json": "503de1cecaa7da2d7cc580521ef194f984b94f1b18d4858b6eba9d5bac2abd28",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/kit/startup.json": "277cddafc0248dff321e9605b6fee31c64fc4d184989ffa79dd39dd94c8f22f3",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/kit/support-probe.jsonl": "2c966e99ebd12ed988450954b8d8d5660db815563c9001ede99dbd0144e45483",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/kit/timing.jsonl": "21be2ff0c12b2d010527c2a853295c0a058ac9fb612cee028711831b8ae29b00",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/launch-binding.json": "b503193255c9009696d9c6b50c861744787b7a2d9fe1a66791e583f7ce6bcf56",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/native-exit.json": "d24219f6de94b955cf36d25bd2aca88e2d35eef45b9317b7083f55ec8fe9653c",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/phase-audit.json": "896e11d37a28686ef422b6cedec3b02802e198f9fadc9c9fe4bf8946af906ea8",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/plan-diff.json": "a57d888bf3edc6e3b5d5d6cd808c94dee6d55550ae94e7e847ca13e79a4b23c6",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/plan.json": "e732982836ae9903b90f7cc8a992e7255d3b7f413835ee23326b53905d75b6da",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/post-closure-birth-check.json": "fa87993103b87a42e1ef3650c851a13c3169e508d7f9670492726542d38e77ed",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/prelaunch-resources.json": "a674c307f7a3f2def2de6e0a32c78f1c2905996126ac510beffaf73ee299b4a9",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/root-receipt.json": "170ac7fd585273d97ba6af2270cf8ba5be50e527dc24558d92fe039f1b7d9167",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/scope/closure.json": "c50327fbaa301d758686372898bb7ea95b4ad7a99f9ca653a742d85122fe89d8",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/source-freeze.json": "2a94dee67a4b4c16a66b50f1b00ebe7d6159812160b70ac7ce2d1c9ac033bc34",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/target-audit.json": "2ffde095fdb0f67aa4c991e861e0b2778ef5f0051a938f637fa51f041f8dccb1",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_MICRODUCK_UPSTREAM_20261004/bam-kernel-comparison-01.json": "bc515251c108742c3c0269b464b31cade0737f8a739f7d2a468eaae315a2f5b0",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_MICRODUCK_UPSTREAM_20261004/newton-4397.json": "274b24c1ecb0348cf2a5649c54afc63dc3f63a03cc85b918be6381ec6d242de9",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_MICRODUCK_UPSTREAM_20261004/replay_targets.py": "f9df6c2939f322eb921484c6c290ae36abcfbc92c632d8e9147d32674951206e",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_MICRODUCK_UPSTREAM_20261004/runtime-comparison-01.json": "7a6a0f572b7a4905c7c0f5427e03754771b6495fb949b1a97bf2d1893310b8da",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_MICRODUCK_UPSTREAM_20261004/target-integration-dependent-tests-01.log": "585dc8c04f69a613838514bca8dd334cfcffcf658ca79ce2ad31b90bb4f29bab",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_MICRODUCK_UPSTREAM_20261004/target-integration-tests-01.log": "570cf36b88e413e4e1c40f2fe4910a7436f275eff8cc8dfab72cf3336c9443fd",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_MICRODUCK_UPSTREAM_20261004/target-integration-tests-02.log": "3817260cc1420f191e30ab7b7a0b24bd97633c13927e57fbb803bb0f77ce27f3",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_MICRODUCK_UPSTREAM_20261004/target-replay-01.json": "37400bb01631b4202980cdf7e764aaf97e32e6a067169e98b83f1623d49fe021",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_MICRODUCK_UPSTREAM_20261004/target-tests-01.log": "6186ee5c4363c044bbd87dfadc72a2a67ad5460e4771ff599cfc476974c76108"
+  },
+  "auditor_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/harness_v2/audit_endpoint_native.py": "783abe77eaa2eefb02ed0537df6bb289631acfe197263b25fc5989bec71a3c0d",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/harness_v2/audit_gc_v2.py": "26d6dde090deacfa92a854eed34f4b251eb29a6459d94014c38d85656b69146f",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/harness_v2/audit_gc_v3.py": "bf63eeccb69efabe051913e328021f8535908a5e7a1995389265a4baa8a21cef",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/harness_v2/audit_phases_trigger.py": "b0e1129e6fd178bb38f96be68cf7edeca9f968c545ae368608c94b78b3ddcec8",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/harness_v2/audit_targets.py": "da843eb2b5a90c374f8b6170cb25af39a7d3b99ed89686a268e1c9c4d1455cfb"
+  },
+  "closure": {
+    "birth_checks": [
+      {
+        "pid": 1333439,
+        "same_birth_present": false,
+        "start_ticks": 6610520
+      },
+      {
+        "pid": 1333441,
+        "same_birth_present": false,
+        "start_ticks": 6610523
+      },
+      {
+        "pid": 1333449,
+        "same_birth_present": false,
+        "start_ticks": 6610524
+      },
+      {
+        "pid": 1333450,
+        "same_birth_present": false,
+        "start_ticks": 6610525
+      },
+      {
+        "pid": 1333490,
+        "same_birth_present": false,
+        "start_ticks": 6610579
+      },
+      {
+        "pid": 1333491,
+        "same_birth_present": false,
+        "start_ticks": 6610584
+      },
+      {
+        "pid": 1333905,
+        "same_birth_present": false,
+        "start_ticks": 6611123
+      }
+    ],
+    "client": {
+      "closed": true,
+      "completed": true,
+      "events": 2,
+      "physical_acceptance": false
+    },
+    "closure_ok": true,
+    "errors": [],
+    "forced": false,
+    "inputs_unchanged": true,
+    "native_exit": {
+      "exit_code": 0
+    },
+    "protected_stores_unchanged": true,
+    "remaining_members": [],
+    "remaining_observed_births": [],
+    "scope_exit": 0,
+    "signals": [],
+    "state": {
+      "ActiveState": "inactive",
+      "ControlGroup": "",
+      "Description": "cascade-voice-shared-endpoints-robotd-foundation-one-02-4678944176e54c3a94fdaf1943fe2777.scope",
+      "InvocationID": "",
+      "LoadState": "not-found",
+      "Result": "success",
+      "SubState": "dead"
+    },
+    "steps": 800,
+    "wall_duration_s": 20.89857521999511,
+    "withheld_ticks": 0
+  },
+  "counts": {
+    "client_events": 2,
+    "frames": 9,
+    "global_solves": 800,
+    "support_probes": 9,
+    "withheld_ticks": 0
+  },
+  "cpu_replay": {
+    "cases": 8,
+    "inferences": 0,
+    "retained_actions": 3120,
+    "scope": "Exact target formula/default/history replay; not a closed-loop counterfactual.",
+    "solves": 0
+  },
+  "episode": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02",
+  "foreign_gpu": {
+    "admitted": true,
+    "foreign": [
+      {
+        "argv_sha256": "6d38886a07c87e09a1fefafb197aa32f3767a36d903da4e0bda643342e5825a9",
+        "birth": {
+          "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+          "pid": 1324242,
+          "start_ticks": 6545591
+        },
+        "cgroup": "0::/system.slice/docker-b81cc2428ef2eb7cc86166b527b58411ee8aff37a20cfadcc9c758de407d20eb.scope\n",
+        "cwd": null,
+        "cwd_read_error": {
+          "errno": 13,
+          "type": "PermissionError"
+        },
+        "executable": "vLLM-Omni::DiffusionWorker_TP1",
+        "memory_mib": 52986,
+        "ownership": "foreign; never signal or reconfigure",
+        "python_scripts": [],
+        "uid": 0
+      }
+    ],
+    "free_mib": 44224,
+    "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+    "required_free_mib": 16384,
+    "shared_device_no_performance_claim": true,
+    "total_mib": 97887,
+    "used_mib": 53118,
+    "utilization_percent": 100,
+    "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a"
+  },
+  "gc": {
+    "accounting_verified": true,
+    "complete_intervals": 37,
+    "events": 74,
+    "gc_interval_duration": {
+      "0": {
+        "count": 34,
+        "max_ms": 0.177761,
+        "median_ms": 0.0361855,
+        "p95_ms": 0.159633
+      },
+      "1": {
+        "count": 3,
+        "max_ms": 0.560002,
+        "median_ms": 0.047292,
+        "p95_ms": 0.560002
+      }
+    },
+    "gc_settings": {
+      "enabled": true,
+      "thresholds": [
+        700,
+        10,
+        10
+      ]
+    },
+    "observer_overhead_complete": false,
+    "slow_attempts_over_400ms": [],
+    "unmatched_boundary_events": []
+  },
+  "limitations": [
+    "Zero caller velocity commands still exercise real policy targets and BAM postural actuation.",
+    "One robot, one epoch, no motion command, turn, braking, verified stop or task admission.",
+    "Compared with the prior rough/direct native reader, both policy weights and target transform changed; this is not an isolated filter comparison.",
+    "VelStand weights equal the retained eight-case CPU negative corpus; exact training-run provenance remains unknown.",
+    "Target transform only: no robotd command EMA, voltage adaptation, stale-sensor coasting, standing overrides or actuator-delay change.",
+    "Float64 committed filter history is converted to float32 for the actual native BAM upload.",
+    "No generation-2 GC interval occurred; this run does not establish tolerance of that pause or sustained control deadlines.",
+    "Owner-thread phase spans overlap; shared foreign GPU occupancy precludes a causal performance comparison.",
+    "Foreign UID0 cwd was unreadable (PermissionError13), explicitly admitted with PID/start/boot/argv/UID/cgroup/UUID and headroom checked at both frontiers; no foreign process was changed.",
+    "Foundation01 remains unlaunched; historical failures and prior stores are retained unchanged."
+  ],
+  "model_identity_file_sha256": "a465617ad2478768e1c3fd0ecbe4645f766b3f79aa29baf989ee845e92fdbf6e",
+  "native_wall_duration_s": 20.89857521999511,
+  "original_commits": [
+    "bcce8d3fd8258f72cb9df29e07a0f43fedf28a40",
+    "2c27f846927298e7d2fcea3ca5235f6afd2c2598"
+  ],
+  "phase_attempt_duration": {
+    "calls": 800,
+    "max_ms": 109.549705,
+    "median_ms": 11.5799025,
+    "p95_ms": 14.129822
+  },
+  "recipe": {
+    "bam": {
+      "armature": 0.0018077432831600838,
+      "device": "cuda:0",
+      "dof_indices": [
+        15,
+        16,
+        17,
+        18,
+        19,
+        11,
+        12,
+        13,
+        14,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "env_dof_stride": 14,
+      "friction_reference": "bam_mjlab",
+      "implementation": "IsaacLab#8161 native DriveBam + model-bound MjWarpActuatorBridge",
+      "mechanical_damping": 0.005359668274599504,
+      "newton_version": "1.6.1rc1",
+      "params": {
+        "delay_hold_prob": 0.0,
+        "delay_seed": 17,
+        "delay_update_period": 0,
+        "joint_effort_limit": 0.9634015946604082,
+        "kp_fw": 200.0,
+        "max_current": null,
+        "max_delay": 0,
+        "max_effort": 0.9634015946604082,
+        "min_delay": 0,
+        "physics_dt": 0.005,
+        "stiff_frictionloss": true,
+        "vin": 7.4,
+        "vin_drop_gain": 0.1,
+        "vin_min": 6.0
+      },
+      "q_indices": [
+        16,
+        17,
+        18,
+        19,
+        20,
+        12,
+        13,
+        14,
+        15,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "revision": "28aa1fca5843208ff9a67935695a4d5376e44d50",
+      "source_sha256": {
+        "source/isaaclab/isaaclab/actuators/newton/bam_component.py": "0313338887f32fa36040b63768007bfb15ce050921c841b0f0a0f82ec8e7ab90",
+        "source/isaaclab/isaaclab/actuators/newton/bam_kernels.py": "cf0043556f299ee3eeaca81e98a76ecaf658137444f86a48ddce1ba2c0c1a089",
+        "source/isaaclab_newton/isaaclab_newton/physics/mjwarp_actuator_bridge.py": "ea935557a274aedf280c915f9cf24fb760e1fd75e8616327aa77b4b465a8add7"
+      }
+    },
+    "engine": "newton",
+    "limits": {
+      "lease_s": 1.0,
+      "max_action_wall_s": 25,
+      "max_angular_speed": 1.0,
+      "max_constraints": 2400,
+      "max_contacts": 512,
+      "max_duration_s": 3.0,
+      "max_height_m": 0.3,
+      "max_linear_speed": 0.3,
+      "max_state_age_s": 0.5,
+      "max_tilt_rad": 0.7,
+      "min_height_m": 0.06
+    },
+    "native": {
+      "actual_physics_dt": 0.004999999888241291,
+      "configuration": {
+        "contact_forces": true,
+        "link_incoming_joint_force": false,
+        "nconmax": 512,
+        "njmax": 2400,
+        "num_substeps": 1,
+        "phase_profile": "owner-thread-inclusive-gc-trigger-v1",
+        "reuse_solved_read": true,
+        "rigid_contact_max": 512,
+        "sdk_recipe": {
+          "newton_version": "1.6.1rc1",
+          "physical_acceptance": false,
+          "recipe": "isaac62_48b2d951",
+          "release_version_sha256": "59a6d16d8f3f247b73fa68a837867dafc0f568e491ae593f0ab1c2cb2fa62786",
+          "source_sha256": {
+            "isaacsim.physics.newton.impl.newton_config": "b1212639ebf22448a1da36b272b36da02eb340dcc1ad2312da075a66dadf1de0",
+            "isaacsim.physics.newton.impl.newton_stage": "a9d4e95305b23e6cea8e4e8e5fb63dc8b6c5c5917ad5c3ba48e2ba29df84d958",
+            "isaacsim.physics.newton.impl.solver_config": "e6c17f958cbd2534ac71743e62f56b79c4e8d86147ee676a6e80ee0d7ea9fe03",
+            "mujoco_warp._src.support": "1a08ef15f149d1cf3c9ec5df6c688669fe86aa237ee2512a7463caf1b74e3d54",
+            "newton._src.solvers.mujoco.kernels": "bd770d39d20c208e980477e0186799f531364b03f16d76968ee69bacdc490a3d",
+            "newton._src.solvers.mujoco.solver_mujoco": "a2f2466ad9d35e32f6e87f12bbaa0e08d18295f4e95b1c059c805d2ff4091178"
+          }
+        },
+        "solver_graph_stage_sha256": "a9d4e95305b23e6cea8e4e8e5fb63dc8b6c5c5917ad5c3ba48e2ba29df84d958",
+        "time_step_app": false,
+        "use_cuda_graph": true,
+        "use_mujoco_contacts": true
+      },
+      "disabled_source_actuators": [
+        {
+          "force_range": [
+            -0.96,
+            0.96
+          ],
+          "path": "/World/Duck00/Physics/left_hip_yaw"
+        },
+        {
+          "force_range": [
+            -0.96,
+            0.96
+          ],
+          "path": "/World/Duck00/Physics/left_hip_roll"
+        },
+        {
+          "force_range": [
+            -0.96,
+            0.96
+          ],
+          "path": "/World/Duck00/Physics/left_hip_pitch"
+        },
+        {
+          "force_range": [
+            -0.96,
+            0.96
+          ],
+          "path": "/World/Duck00/Physics/left_knee"
+        },
+        {
+          "force_range": [
+            -0.96,
+            0.96
+          ],
+          "path": "/World/Duck00/Physics/left_ankle"
+        },
+        {
+          "force_range": [
+            -0.96,
+            0.96
+          ],
+          "path": "/World/Duck00/Physics/neck_pitch"
+        },
+        {
+          "force_range": [
+            -0.96,
+            0.96
+          ],
+          "path": "/World/Duck00/Physics/head_pitch"
+        },
+        {
+          "force_range": [
+            -0.96,
+            0.96
+          ],
+          "path": "/World/Duck00/Physics/head_yaw"
+        },
+        {
+          "force_range": [
+            -0.96,
+            0.96
+          ],
+          "path": "/World/Duck00/Physics/head_roll"
+        },
+        {
+          "force_range": [
+            -0.96,
+            0.96
+          ],
+          "path": "/World/Duck00/Physics/right_hip_yaw"
+        },
+        {
+          "force_range": [
+            -0.96,
+            0.96
+          ],
+          "path": "/World/Duck00/Physics/right_hip_roll"
+        },
+        {
+          "force_range": [
+            -0.96,
+            0.96
+          ],
+          "path": "/World/Duck00/Physics/right_hip_pitch"
+        },
+        {
+          "force_range": [
+            -0.96,
+            0.96
+          ],
+          "path": "/World/Duck00/Physics/right_knee"
+        },
+        {
+          "force_range": [
+            -0.96,
+            0.96
+          ],
+          "path": "/World/Duck00/Physics/right_ankle"
+        }
+      ],
+      "gpu_attestation": {
+        "backend": "newton",
+        "broadphase": [],
+        "cpu_fallback_allowed": false,
+        "cuda_context_present": true,
+        "device": "cuda:0",
+        "gpu_dynamics": null,
+        "newton": {
+          "array_devices": [
+            "cuda:0"
+          ],
+          "cuda": true,
+          "cuda_context_present": true,
+          "cuda_graph": false,
+          "device": "cuda:0",
+          "mujoco_cpu": false,
+          "ordinal": 0,
+          "pci_bus_id": "00000000:C1:00",
+          "solver": "SolverMuJoCo",
+          "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a"
+        },
+        "required": true,
+        "tensor_device": "cuda:0",
+        "tensor_device_ordinal": 0
+      },
+      "initialization": {
+        "home_q": [
+          0.0,
+          -0.08730000257492065,
+          -0.4578999876976013,
+          -0.004900000058114529,
+          0.453000009059906,
+          0.3490999937057495,
+          0.3490999937057495,
+          0.0,
+          0.0,
+          0.0,
+          0.08730000257492065,
+          0.4578999876976013,
+          0.004900000058114529,
+          -0.453000009059906
+        ],
+        "placements": {
+          "duck00": [
+            "/World/Duck00",
+            [
+              0.0,
+              0.0,
+              0.125
+            ]
+          ]
+        },
+        "pose_writes_in_episode": false
+      },
+      "native_body_properties": {
+        "body_labels": [
+          "/World/Duck00/Geometry/trunk_base",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right",
+          "/World/Duck00/Geometry/trunk_base/neck",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left"
+        ],
+        "body_mass_kg": [
+          0.19922399520874023,
+          0.02304060012102127,
+          0.00618933979421854,
+          0.04820669814944267,
+          0.02158440090715885,
+          0.030025100335478783,
+          0.03684139996767044,
+          0.00571999978274107,
+          0.04859999939799309,
+          0.1887660026550293,
+          0.02304060012102127,
+          0.00618933979421854,
+          0.04820669814944267,
+          0.02158440090715885,
+          0.03002459928393364
+        ],
+        "gravity_world_m_s2": [
+          0.0,
+          0.0,
+          -9.8100004196167
+        ],
+        "newton_gravity_vectors_m_s2": [
+          [
+            0.0,
+            0.0,
+            -9.8100004196167
+          ]
+        ]
+      },
+      "native_labels": {
+        "bodies": [
+          "/World/Duck00/Geometry/trunk_base",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right",
+          "/World/Duck00/Geometry/trunk_base/neck",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left"
+        ],
+        "joints": [
+          "joint_1",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/right_hip_yaw",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/right_hip_roll",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/right_hip_pitch",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/right_knee",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/right_ankle",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/head_pitch",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/head_yaw",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/head_roll",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/left_hip_yaw",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/left_hip_roll",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/left_hip_pitch",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/left_knee",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/left_ankle"
+        ],
+        "shapes": [
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0000",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0002",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0004",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0006",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0008",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0010",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0012",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0014",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0016",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0018",
+          "/World/Duck00/Geometry/trunk_base/imu",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/cascade_geom_0106",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/cascade_geom_0108",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/cascade_geom_0110",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/cascade_geom_0112",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/cascade_geom_0114",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/cascade_geom_0116",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/cascade_geom_0118",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/cascade_geom_0120",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/cascade_geom_0122",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/cascade_geom_0124",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/cascade_geom_0126",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/cascade_geom_0128",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/cascade_geom_0130",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/cascade_geom_0132",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/cascade_geom_0134",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/cascade_geom_0136",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/cascade_geom_0138",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/right_foot",
+          "/World/Duck00/Geometry/trunk_base/neck/cascade_geom_0054",
+          "/World/Duck00/Geometry/trunk_base/neck/cascade_geom_0056",
+          "/World/Duck00/Geometry/trunk_base/neck/cascade_geom_0058",
+          "/World/Duck00/Geometry/trunk_base/neck/cascade_geom_0060",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/cascade_geom_0062",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/cascade_geom_0064",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/cascade_geom_0066",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/cascade_geom_0068",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/cascade_geom_0070",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/cascade_geom_0072",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0074",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0076",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0078",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0080",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0082",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0084",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0086",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0088",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0090",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0092",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0094",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0096",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0098",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0100",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0102",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0104",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/head_camera",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/tof",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/head_imu",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/mouth_tip",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/cascade_geom_0020",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/cascade_geom_0022",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/cascade_geom_0024",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/cascade_geom_0026",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/cascade_geom_0028",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/cascade_geom_0030",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/cascade_geom_0032",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/cascade_geom_0034",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/cascade_geom_0036",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/cascade_geom_0038",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/cascade_geom_0040",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/cascade_geom_0042",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/cascade_geom_0044",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/cascade_geom_0046",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/cascade_geom_0048",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/cascade_geom_0050",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/cascade_geom_0052",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/left_foot",
+          "/World/Ground",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0001",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0003",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0005",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0007",
+          "/World/Duck00/Geometry/trunk_base/trunk_base_0_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0011",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0013",
+          "/World/Duck00/Geometry/trunk_base/trunk_base_1_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0017",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0019",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/cascade_geom_0021",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/yaw2roll_0_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/cascade_geom_0025",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/cascade_geom_0027",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/cascade_geom_0029",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/cascade_geom_0031",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/cascade_geom_0033",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/upper_leg_left_0_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/cascade_geom_0037",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/cascade_geom_0039",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/upper_leg_left_1_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/cascade_geom_0043",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/leg_0_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/left_foot_collision",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/cascade_geom_0049",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/cascade_geom_0051",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/cascade_geom_0053",
+          "/World/Duck00/Geometry/trunk_base/neck/cascade_geom_0055",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_0_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_1_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/neck/cascade_geom_0061",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/cascade_geom_0063",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/cascade_geom_0065",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/cascade_geom_0067",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/yaw_roll_motion_0_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/cascade_geom_0071",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/cascade_geom_0073",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0075",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0077",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/jaw_soft_0_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0081",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0083",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0085",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/jaw_soft_1_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0089",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0091",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0093",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0095",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0097",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0099",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0101",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0103",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0105",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/cascade_geom_0107",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/bearing_roll_0_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/cascade_geom_0111",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/cascade_geom_0113",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/cascade_geom_0115",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/cascade_geom_0117",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/upper_leg_right_0_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/cascade_geom_0121",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/cascade_geom_0123",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/cascade_geom_0125",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/upper_leg_right_1_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/leg_2_0_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/cascade_geom_0131",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/cascade_geom_0133",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/right_foot_collision",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/cascade_geom_0137",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/cascade_geom_0139"
+        ]
+      },
+      "native_model_properties": {
+        "after": {
+          "joint_armature": [
+            0.001807743334211409,
+            0.001807743334211409,
+            0.001807743334211409,
+            0.001807743334211409,
+            0.001807743334211409,
+            0.001807743334211409,
+            0.001807743334211409,
+            0.001807743334211409,
+            0.001807743334211409,
+            0.001807743334211409,
+            0.001807743334211409,
+            0.001807743334211409,
+            0.001807743334211409,
+            0.001807743334211409
+          ],
+          "joint_damping": [
+            0.005359668284654617,
+            0.005359668284654617,
+            0.005359668284654617,
+            0.005359668284654617,
+            0.005359668284654617,
+            0.005359668284654617,
+            0.005359668284654617,
+            0.005359668284654617,
+            0.005359668284654617,
+            0.005359668284654617,
+            0.005359668284654617,
+            0.005359668284654617,
+            0.005359668284654617,
+            0.005359668284654617
+          ],
+          "joint_effort_limit": [
+            0.9634016156196594,
+            0.9634016156196594,
+            0.9634016156196594,
+            0.9634016156196594,
+            0.9634016156196594,
+            0.9634016156196594,
+            0.9634016156196594,
+            0.9634016156196594,
+            0.9634016156196594,
+            0.9634016156196594,
+            0.9634016156196594,
+            0.9634016156196594,
+            0.9634016156196594,
+            0.9634016156196594
+          ],
+          "joint_friction": [
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766
+          ],
+          "joint_target_kd": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "joint_target_ke": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "joint_target_mode": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "before": {
+          "joint_armature": [
+            0.0017999999690800905,
+            0.0017999999690800905,
+            0.0017999999690800905,
+            0.0017999999690800905,
+            0.0017999999690800905,
+            0.0017999999690800905,
+            0.0017999999690800905,
+            0.0017999999690800905,
+            0.0017999999690800905,
+            0.0017999999690800905,
+            0.0017999999690800905,
+            0.0017999999690800905,
+            0.0017999999690800905,
+            0.0017999999690800905
+          ],
+          "joint_damping": [
+            0.05299999937415123,
+            0.05299999937415123,
+            0.05299999937415123,
+            0.05299999937415123,
+            0.05299999937415123,
+            0.05299999937415123,
+            0.05299999937415123,
+            0.05299999937415123,
+            0.05299999937415123,
+            0.05299999937415123,
+            0.05299999937415123,
+            0.05299999937415123,
+            0.05299999937415123,
+            0.05299999937415123
+          ],
+          "joint_effort_limit": [
+            1000000.0,
+            1000000.0,
+            1000000.0,
+            1000000.0,
+            1000000.0,
+            1000000.0,
+            1000000.0,
+            1000000.0,
+            1000000.0,
+            1000000.0,
+            1000000.0,
+            1000000.0,
+            1000000.0,
+            1000000.0
+          ],
+          "joint_friction": [
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766,
+            0.004800000227987766
+          ],
+          "joint_target_kd": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "joint_target_ke": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "joint_target_mode": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "overrides": {
+          "joint_armature": 0.0018077432831600838,
+          "joint_damping": 0.005359668274599504,
+          "joint_effort_limit": 0.9634015946604082
+        }
+      },
+      "newton_version": "1.6.1rc1",
+      "physics_device": "cuda:0",
+      "physics_dt_s": 0.005,
+      "runtime_versions": {
+        "isaac_sim": [
+          "6.2.0",
+          "alpha.19",
+          "6",
+          "2",
+          "0",
+          "alpha",
+          "19",
+          "develop.0.48b2d951.local"
+        ],
+        "mujoco": "3.12.0",
+        "mujoco_warp": "3.12.0"
+      },
+      "solver": "SolverMuJoCo",
+      "support_contract": {
+        "foot_shapes": [
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/left_foot_collision",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/right_foot_collision"
+        ],
+        "gravity_world_m_s2": [
+          0.0,
+          0.0,
+          -9.81
+        ],
+        "ground_shapes": [
+          "/World/Ground"
+        ],
+        "robot_shapes": [
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0000",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0002",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0004",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0006",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0008",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0010",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0012",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0014",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0016",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0018",
+          "/World/Duck00/Geometry/trunk_base/imu",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/cascade_geom_0106",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/cascade_geom_0108",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/cascade_geom_0110",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/cascade_geom_0112",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/cascade_geom_0114",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/cascade_geom_0116",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/cascade_geom_0118",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/cascade_geom_0120",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/cascade_geom_0122",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/cascade_geom_0124",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/cascade_geom_0126",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/cascade_geom_0128",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/cascade_geom_0130",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/cascade_geom_0132",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/cascade_geom_0134",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/cascade_geom_0136",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/cascade_geom_0138",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/right_foot",
+          "/World/Duck00/Geometry/trunk_base/neck/cascade_geom_0054",
+          "/World/Duck00/Geometry/trunk_base/neck/cascade_geom_0056",
+          "/World/Duck00/Geometry/trunk_base/neck/cascade_geom_0058",
+          "/World/Duck00/Geometry/trunk_base/neck/cascade_geom_0060",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/cascade_geom_0062",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/cascade_geom_0064",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/cascade_geom_0066",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/cascade_geom_0068",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/cascade_geom_0070",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/cascade_geom_0072",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0074",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0076",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0078",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0080",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0082",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0084",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0086",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0088",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0090",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0092",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0094",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0096",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0098",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0100",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0102",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0104",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/head_camera",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/tof",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/head_imu",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/mouth_tip",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/cascade_geom_0020",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/cascade_geom_0022",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/cascade_geom_0024",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/cascade_geom_0026",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/cascade_geom_0028",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/cascade_geom_0030",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/cascade_geom_0032",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/cascade_geom_0034",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/cascade_geom_0036",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/cascade_geom_0038",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/cascade_geom_0040",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/cascade_geom_0042",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/cascade_geom_0044",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/cascade_geom_0046",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/cascade_geom_0048",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/cascade_geom_0050",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/cascade_geom_0052",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/left_foot",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0001",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0003",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0005",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0007",
+          "/World/Duck00/Geometry/trunk_base/trunk_base_0_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0011",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0013",
+          "/World/Duck00/Geometry/trunk_base/trunk_base_1_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0017",
+          "/World/Duck00/Geometry/trunk_base/cascade_geom_0019",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/cascade_geom_0021",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/yaw2roll_0_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/cascade_geom_0025",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/cascade_geom_0027",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/cascade_geom_0029",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/cascade_geom_0031",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/cascade_geom_0033",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/upper_leg_left_0_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/cascade_geom_0037",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/cascade_geom_0039",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/upper_leg_left_1_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/cascade_geom_0043",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/leg_0_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/left_foot_collision",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/cascade_geom_0049",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/cascade_geom_0051",
+          "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/cascade_geom_0053",
+          "/World/Duck00/Geometry/trunk_base/neck/cascade_geom_0055",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_0_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_1_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/neck/cascade_geom_0061",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/cascade_geom_0063",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/cascade_geom_0065",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/cascade_geom_0067",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/yaw_roll_motion_0_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/cascade_geom_0071",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/cascade_geom_0073",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0075",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0077",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/jaw_soft_0_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0081",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0083",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0085",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/jaw_soft_1_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0089",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0091",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0093",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0095",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0097",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0099",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0101",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0103",
+          "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/cascade_geom_0105",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/cascade_geom_0107",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/bearing_roll_0_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/cascade_geom_0111",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/cascade_geom_0113",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/cascade_geom_0115",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/cascade_geom_0117",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/upper_leg_right_0_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/cascade_geom_0121",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/cascade_geom_0123",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/cascade_geom_0125",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/upper_leg_right_1_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/leg_2_0_servo_collision",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/cascade_geom_0131",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/cascade_geom_0133",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/right_foot_collision",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/cascade_geom_0137",
+          "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/cascade_geom_0139"
+        ],
+        "version": 1
+      },
+      "support_extraction": {
+        "clock": "completed manual solve; unavailable after initialization pose writes",
+        "coverage": "all active contact constraint rows, including zero-force contacts",
+        "emitted_force_on": "shape1",
+        "force_unit": "N",
+        "frame": "world",
+        "geometry_time": "constraint evaluation of the completed solve, before integration",
+        "native_force_on": "shape0",
+        "normal": "shape0_to_shape1",
+        "position_unit": "m",
+        "sdk_recipe": "isaac62_48b2d951",
+        "source": "Newton contacts.force via MJWarp contact_force_fn",
+        "source_admitted": true,
+        "source_sha256": {
+          "isaacsim.physics.newton.impl.newton_config": "b1212639ebf22448a1da36b272b36da02eb340dcc1ad2312da075a66dadf1de0",
+          "isaacsim.physics.newton.impl.newton_stage": "a9d4e95305b23e6cea8e4e8e5fb63dc8b6c5c5917ad5c3ba48e2ba29df84d958",
+          "isaacsim.physics.newton.impl.solver_config": "e6c17f958cbd2534ac71743e62f56b79c4e8d86147ee676a6e80ee0d7ea9fe03",
+          "mujoco_warp._src.support": "1a08ef15f149d1cf3c9ec5df6c688669fe86aa237ee2512a7463caf1b74e3d54",
+          "newton._src.solvers.mujoco.kernels": "bd770d39d20c208e980477e0186799f531364b03f16d76968ee69bacdc490a3d",
+          "newton._src.solvers.mujoco.solver_mujoco": "a2f2466ad9d35e32f6e87f12bbaa0e08d18295f4e95b1c059c805d2ff4091178"
+        },
+        "version": 1
+      },
+      "warp_version": "1.17.0"
+    },
+    "policy_dt_s": 0.02,
+    "policy_sha256": "1c659be55da94bc5753b707de5c6a3e7c49931e05ca3b6991615cef1a8ba9a45",
+    "target_contract": {
+      "action_scale": 0.9,
+      "first_target": "unfiltered",
+      "head_lowpass": 0.5,
+      "legs_lowpass": 0.7,
+      "physical_admission": false,
+      "policy_sha256": "1c659be55da94bc5753b707de5c6a3e7c49931e05ca3b6991615cef1a8ba9a45",
+      "previous_action": "raw_float32",
+      "profile": "robotd-targets-v1",
+      "scope": "target_transform_only",
+      "target_dtype": "float64",
+      "upstream_commit": "9136aa4ee88e81edf2bcaf3527e90b65da25f1eb"
+    },
+    "target_upload": {
+      "adapter": "NewtonBamActuator.set_targets",
+      "conversion": "numpy.astype before Warp assign",
+      "dtype": "float32",
+      "filter_state": "policy precision before upload"
+    }
+  },
+  "robots": {
+    "duck00": {
+      "discarded_previews": 0,
+      "epoch": "a3c427b030624f28b48d17b5643a0fc6",
+      "generation_first_last": [
+        0,
+        0
+      ],
+      "last_2s_min_sole_support_n": 7.207202702760696,
+      "max_tilt_rad": 0.020680423068785345,
+      "max_xy_displacement_from_first_solve_m": 0.002642116654708801,
+      "model_identity_sha256": "57fd5712671fe1787070a55f3d1b97aa072a9e36fc0048de5304e318f8d9542a",
+      "policy_commits": 200,
+      "policy_evaluations": 200
+    }
+  },
+  "runtime_source_sha256": {
+    "assets/microduck/manifest.json": "56678bc8dbbc4aba6ca99944a37d495badb1157093b728348700739896383faa",
+    "assets/microduck/newton-bam.json": "d04d0281eb2f581ab738a95ddf6983f09bbfa8dbabef4087271e61e384fd5b4b",
+    "assets/microduck/policy-candidates.json": "6357372fd8f1aba6c64de5d95ba28a6f2f08a825fc4352642d20c152f776c11f",
+    "configs/isaac/microduck.newton.kit": "22ad2a0f66a14863c482a6fd74785475001d5b6aa2bd2f5879d31cb3440a7794",
+    "scripts/convert_microduck.py": "11e5df9e99b03cd0e3479a3dee94da17b685e49c04c32f364a895ab38c6751a2",
+    "scripts/isaac_camera_readback.py": "28c4523b08410db254c83e70f52c36f0f34488e6964dd6aebb561b638df8b9cd",
+    "scripts/isaac_microduck_bridge.py": "6e3b2350b74ad603e675387c4cc3cb880fcf099ded16437a4c5abb8c469b8aa9",
+    "scripts/isaac_microduck_shared.py": "6315a93c7e216f1e56b53caeb5c2de6e265f8752aaf57580fd437c6ad7b35655",
+    "scripts/isaac_runtime.py": "8d40bc13b50d86f6c671628486142b6ee2cfa61ea762ea7867e66cf1447c935a",
+    "src/cascade/apps/signal_stop.py": "1a94a391c25d856299d899e633aaa777215e4ef1dc1fc819bee492c44019b9bd",
+    "src/cascade/control/microduck_actuator.py": "77216426cefc311237fa6854f06aa98a90d4f9f53b080a93c886d67f14961a0e",
+    "src/cascade/control/microduck_policy.py": "1d4ac287c1ff20c4363a81db24a9638643f683c04eb6647bb26b465a861af540",
+    "src/cascade/control/mobile_base.py": "d31f5ba67fbf24979c17193d453af3e8ec7bbc98987a926d5f8eb580770619a6",
+    "src/cascade/control/mobile_support.py": "08a8c57898871d677c46de9aa34c3e59977e8b85a1039d49b5b241810fd328c4",
+    "src/cascade/control/mobile_telemetry.py": "7f2e4dab7f0162fb25fc80d0eb9851d56773396c85cd4646de59a7c9d6bce6d2",
+    "src/cascade/control/newton_bam.py": "1972ac0b4d6bbf06138ef550b530142c820cf03d6d3d4ce4aba5d68ffb00e64c",
+    "src/cascade/sensing/models.py": "ba66e6e1d7c0bfa4c3210810269e936f35bd00d058614a36fce10e3c0a1dc7f1",
+    "src/cascade/sim/microduck_admission.py": "dddf5ebced53b1f5b2d0fcffe508cfc28f6d02b84a2492d62837b98d87d3f483",
+    "src/cascade/sim/microduck_contact_support.py": "19807691a9ddfd2693dac82ad51aa22524110ecb7f20b1cf0e03ac10e167a442",
+    "src/cascade/sim/microduck_newton.py": "67d835cec97263c5cbad13f09258e79312f135fc0f766ab4dd8542795a13d920",
+    "src/cascade/sim/microduck_policy_admission.py": "0e5b9063bbcc8439c7b0a71ef2da4399deef798cb100d43a906736a883cfa6f2",
+    "src/cascade/sim/microduck_sdk.py": "dd3502263048e483ebbc3f393ebc505c0fe8fad23b0fb4b7837fa5cef314bf56",
+    "src/cascade/sim/microduck_shared.py": "d71e9e6082ac6a1ceabd4592813a74959f678b28ac9ad57e1b04435467048f34",
+    "src/cascade/sim/microduck_shared_native.py": "c03ef4286003abfeb6dcb3d4db405fce27e2b1b030901b4532d75643ea77448c",
+    "src/cascade/sim/microduck_solver_graph.py": "9f990fc96daaa91e849444acfd302d4c6da9a7c62a42adc1f3e445cf65858772",
+    "src/cascade/sim/microduck_state.py": "495f3062274b620890448d6b3958c7481108a265321a616f64da1ec06a972971",
+    "src/cascade/sim/microduck_stepper.py": "4f44e143659ccfbfb790db0f904b7c45c0c0cb71e4a4bbf83e8cd80ad7ddc293",
+    "src/cascade/sim/microduck_timing.py": "adee3bae4444546f3527b07dbe8238bd2147c9acd7b6d60e89779f1b8fdd5d52",
+    "src/cascade/sim/mobile_bridge.py": "fbef12e332af3a08295c092b57862a5f9a044c77b0eccfff3c9f6dba84d29d91",
+    "src/cascade/sim/mobile_camera_encoding.py": "f2783cf9d7aa576e82dc2a25d879d920a4d68c441a5945572ee3c16404d3bc57",
+    "src/cascade/sim/mobile_camera_pose.py": "a2dfe3ee5bd807047fe2e6aa943d32bdf98d3de2280bce2071255e61bdcb85b4",
+    "src/cascade/sim/mobile_identity.py": "15031cc6d42044c26342a46dbdfcee7c0f316fae990608b08d68b8fd6eefd637",
+    "src/cascade/sim/mobile_rgbd.py": "f7102d9610b2f1d3aa2123d6841cc0915cec0f0475971c5d87852bfdd4a01559",
+    "src/cascade/sim/private_rtx_cache.py": "ab7b9e06a930cb29254f0537875f4a497954f0355055d0e6e891ea215d9b8eb4"
+  },
+  "scene_model_sha256": "46d181ee8f9d2c359b530c66913559f9e9a185b527a8c2e88c02baba1e49ae5b",
+  "schema": "cascade.microduck-robotd-target-foundation.v1",
+  "source_commit": "2c27f846927298e7d2fcea3ca5235f6afd2c2598",
+  "target_verification": {
+    "commits": 200,
+    "discarded_previews": 0,
+    "policy_evaluations": 200,
+    "verified_uploaded_solves": 800
+  },
+  "upstream": {
+    "bam_proposal": "https://github.com/newton-physics/newton/issues/4397",
+    "robotd_commit": "9136aa4ee88e81edf2bcaf3527e90b65da25f1eb",
+    "target_source": "https://github.com/pollen-robotics/microduck/blob/9136aa4ee88e81edf2bcaf3527e90b65da25f1eb/robotd/src/control.rs#L607",
+    "weights_provenance": {
+      "url": "https://huggingface.co/pollen-robotics/microduck-policies/blob/d5a8b55033e157f1af2ed6bd5c1e435b770a8ee0/manifest.json",
+      "velstand": {
+        "description": "Walking gait that also stands still at zero command; the default walk policy since v5, with no separate standing network.",
+        "entry_pose": "standing",
+        "file": "velstand.onnx",
+        "kind": "perpetual",
+        "slot": "walk",
+        "training": {
+          "branch": "protective_fall",
+          "exported": "2026-09-14T00:00:00Z",
+          "repo": "pollen-robotics/microduck_rl",
+          "source_file": "velstand_best.onnx"
+        }
+      }
+    }
+  },
+  "verdict": "PASS: one native postural foundation; locomotion unverified"
+}

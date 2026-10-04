@@ -47,6 +47,51 @@ inference result. Stop invalidates walking intent while allowing the policy
 and actuators to maintain balance. It does not certify an instantaneous
 physical stop or promise to undo a motor target already committed.
 
+The policy API and single/shared launchers offer the explicit
+`target_profile="robotd-targets-v1"` / `--target-profile robotd-targets-v1`
+candidate. It reproduces the gait output transform in
+[robotd at 9136aa4](https://github.com/pollen-robotics/microduck/blob/9136aa4ee88e81edf2bcaf3527e90b65da25f1eb/robotd/src/control.rs#L607):
+float64 HOME plus `0.9 * raw_action`, then target EMA with alpha 0.5 for the
+four head joints and 0.7 for the ten leg joints. The first target after
+construction/reset is unfiltered; subsequent targets use the last committed
+filtered target. Raw float32 actions remain the observation history. Preview
+and discarded evaluations cannot move either history. After `infer()` or
+`commit()`, `committed_targets` returns the accepted target; `targets(action)`
+always previews the next slot. `target_contract` binds the profile and policy
+digest. The default `direct-v1` retains scale 1.0 and no filtering.
+
+This is a target-transform candidate, not the complete robotd pipeline or its
+separate standing/skill overrides. It does not add command smoothing, voltage
+adaptation, stale-sensor coasting or actuator delay. Launchers keep `direct-v1`
+as the default and reject a missing, changed or silently ignored target contract.
+The effective model binds this selection separately from the policy weights.
+Its `target_upload` record distinguishes calculation precision from the existing
+BAM upload: filtered targets retain float64 history, then `set_targets` converts
+them to float32 before Warp assignment. No native result is transferred between
+profiles. The current official VelStand LFS digest
+is the same `1c659be5…` used by the retained eight-case negative corpus; its
+published provenance names `protective_fall` and a September 14 export but
+does not identify the exact training run. CPU formula replay cannot predict
+the new closed-loop actions or establish improved gait or stopping.
+
+The [native target-transform foundation](evidence/robot-modularity/microduck-robotd-target-foundation-20261004.json)
+retains one robot at source `2c27f846`, with 800 completed solves, 200 policy
+commits, nine camera/support samples and two reader events. The independent
+auditor reproduced every raw-action history and float64 target, then checked
+all 800 float32 BAM uploads. No preview was discarded. Maximum displacement
+from the first solve was 2.6421 mm, maximum tilt 0.0206804 rad, and minimum
+sole support over the final two simulated seconds was 7.2072 N. These zero
+caller commands still caused real postural actuation; they do not admit walking,
+turning, braking or a verified stop. Both weights and target transformation
+differ from the prior rough/direct reader. Native and owned scope exited zero,
+all seven observed process births disappeared, and inputs and protected stores
+were unchanged. Owner-thread attempt duration was 11.580 ms median and 109.550 ms maximum;
+no generation-2 GC occurred, so this is neither a sustained deadline guarantee
+nor a causal speed comparison under the recorded foreign GPU occupancy.
+The separate [Newton BAM proposal](https://github.com/newton-physics/newton/issues/4397)
+motivates reviewing actuator contracts; this episode retains its pinned BAM
+plant and does not test a new friction, backlash or delay implementation.
+
 ## Evidence and identity
 
 A SHA-256 digest binds the complete admitted bundle, consumed USD layers,

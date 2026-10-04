@@ -8,12 +8,35 @@ runner separately checks the actual graph signature before inference.
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 from cascade.sim import microduck_newton as native
 from cascade.sim.microduck_newton import REPO, digest_token, safe_file, sha256, strict_json
 
 
 POLICY_PROFILES = ('velstand', 'rough_walk_e')
+
+
+def target_contract(policy_sha256, profile):
+    """Fixed output transform, separately selected from the weight profile."""
+    from cascade.control.microduck_policy import MicroduckTargets
+    digest_token(policy_sha256)
+    if type(profile) is not str:
+        raise ValueError('explicit target profile name required')
+    return dict(MicroduckTargets(profile).contract, policy_sha256=policy_sha256)
+
+
+def verify_target_contract(value, policy_sha256):
+    if type(value) is not dict:
+        raise ValueError('complete target contract required')
+    expected = target_contract(policy_sha256, value.get('profile'))
+    try:
+        equal = json.dumps(value, sort_keys=True, allow_nan=False) == json.dumps(expected, sort_keys=True)
+    except (TypeError, ValueError):
+        equal = False
+    if not equal:
+        raise ValueError('target contract differs from fixed profile/policy')
+    return expected
 
 
 def admit_policy(path, expected_sha256, profile='velstand'):

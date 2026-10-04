@@ -4,6 +4,8 @@ CPU unit seams here set the notification scalar deterministically. Separate
 owned-process replays exercise the same production path with OS signals.
 """
 
+from cascade.sim.microduck_policy_admission import target_contract
+
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -123,9 +125,11 @@ def test_constructor_cancellation_prevents_active_native_initialization(
         max_jpeg_bytes=100000,
         policy=tmp_path / "fixture.onnx",
         policy_sha256="b" * 64,
+        target_profile="direct-v1",
         python_extra_path=[],
     )
     admission = dict(
+        target_contract=target_contract("b"*64, "direct-v1"),
         asset_sha256="a" * 64,
         asset_receipt_sha256="c" * 64,
         bam_params={},
@@ -210,9 +214,11 @@ def lifecycle(
         max_jpeg_bytes=100000,
         policy=tmp_path / "fixture.onnx",
         policy_sha256="b" * 64,
+        target_profile="direct-v1",
         python_extra_path=[],
     )
     admission = dict(
+        target_contract=target_contract("b"*64, "direct-v1"),
         asset_sha256="a" * 64,
         asset_receipt_sha256="c" * 64,
         bam_params={},

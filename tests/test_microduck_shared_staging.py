@@ -1,6 +1,8 @@
 """Speculation is reversible; an admitted shared solve is not rolled back."""
 from concurrent.futures import ThreadPoolExecutor
 
+from cascade.sim.microduck_policy_admission import target_contract
+
 import numpy as np
 import pytest
 from test_microduck_shared_scene import shared
@@ -205,15 +207,15 @@ def test_launcher_withheld_attempt_preserves_step_budget_and_only_emits_complete
             s.policy.preview = preview
     monkeypatch.setattr(native, 'SharedKitNewtonBackend', Backend)
     monkeypatch.setattr(native, 'SharedRobotView', View)
-    monkeypatch.setattr(microduck_policy, 'MicroduckPolicy', lambda *args: SoftwarePolicy(created[0]))
+    monkeypatch.setattr(microduck_policy, 'MicroduckPolicy', lambda *args, **kwargs: SoftwarePolicy(created[0]))
     monkeypatch.setattr(shared_module, 'SharedMicroduckStepper', Interrupted)
     out = tmp_path / 'run'
     args = NS(out=out, device='cuda:0', source='software-test-not-physics', max_wall_s=3.,
               max_steps=2, camera_every=1, max_jpeg_bytes=100000, policy=tmp_path / 'fixture.onnx',
-              policy_sha256='b'*64, python_extra_path=[], robots=1, serve_base_port=None,
+              policy_sha256='b'*64, target_profile='direct-v1', python_extra_path=[], robots=1, serve_base_port=None,
               profile_phases=profile_phases)
     signals = NS(signum=None, registration_attempts=0, checkpoint=lambda **kwargs: None, defer=nullcontext)
-    admission = dict(asset_sha256='a'*64, limits=software_limits(), experience_text='software fixture\n')
+    admission = dict(target_contract=target_contract('b'*64, 'direct-v1'), asset_sha256='a'*64, limits=software_limits(), experience_text='software fixture\n')
     result = runner.run(args, admission, signals)
     assert tuple(gc.callbacks) == callbacks_before
     assert (gc.isenabled(), gc.get_threshold()) == gc_settings

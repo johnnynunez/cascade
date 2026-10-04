@@ -25,6 +25,7 @@ hash-pinned in `manifest.json` and preserved by the admission CLI.
 | Material | Source revision |
 |---|---|
 | Pollen Robotics runtime contract | `pollen-robotics/microduck@1fa84386f07884e27866411bc1ba166977bced95` |
+| Optional gait target transform (`robotd-targets-v1`) | `pollen-robotics/microduck@9136aa4ee88e81edf2bcaf3527e90b65da25f1eb`, `robotd/src/control.rs` and `duck-control/src/model.rs` |
 | Pollen Robotics RL / MJCF / meshes | `pollen-robotics/microduck_rl@8d0db74916a4f833d1d9b95d6a1d7f4d13b9d5ec` |
 | Rhoban BAM code and calibrated XL330 M6 parameters | `Rhoban/bam@62bd8ce12154340be97e06f7f41a0ca8f116d967` |
 | Official ONNX weight repository | `pollen-robotics/microduck-policies@d5a8b55033e157f1af2ed6bd5c1e435b770a8ee0` (Hugging Face) |

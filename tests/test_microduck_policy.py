@@ -120,6 +120,116 @@ def test_preview_does_not_commit_cancelled_raw_history(monkeypatch, tmp_path):
     np.testing.assert_array_equal(runner.previous_action, np.arange(14, dtype=np.float32))
 
 
+def test_robotd_target_profile_first_reset_and_filtered_anchor():
+    m = module()
+    pipeline = m.MicroduckTargets('robotd-targets-v1')
+    home = np.array([0., -.0873, -.4579, -.0049, .4530, .3491, .3491,
+                     0., 0., 0., .0873, .4579, .0049, -.4530], dtype=np.float64)
+    first = np.linspace(-.25, .25, 14, dtype=np.float32)
+    second = -first
+    expected_first = home + .9 * first.astype(np.float64)
+    np.testing.assert_array_equal(pipeline.preview(first), expected_first)
+    assert pipeline.committed is None
+    pipeline.commit(first)
+    expected = np.array([
+        a * (h + .9 * float(x)) + (1. - a) * prev
+        for i, (h, x, prev) in enumerate(zip(home, second, expected_first))
+        for a in [.5 if 5 <= i < 9 else .7]
+    ])
+    staged = pipeline.preview(second)
+    np.testing.assert_array_equal(staged, expected)
+    # Discarding/repeating previews cannot move the accepted filter anchor.
+    pipeline.preview(first * 100)
+    np.testing.assert_array_equal(pipeline.preview(second), expected)
+    np.testing.assert_array_equal(pipeline.committed, expected_first)
+    pipeline.commit(second)
+    staged[:] = 100
+    detached = pipeline.committed
+    detached[:] = 200
+    np.testing.assert_array_equal(pipeline.committed, expected)
+    # The anchor is the filtered result, not the previous unfiltered target.
+    expected_next = np.array([
+        a * (h + .9 * float(x)) + (1. - a) * prev
+        for i, (h, x, prev) in enumerate(zip(home, first, expected))
+        for a in [.5 if 5 <= i < 9 else .7]
+    ])
+    np.testing.assert_array_equal(pipeline.preview(first), expected_next)
+    pipeline.reset()
+    assert pipeline.committed is None
+    np.testing.assert_array_equal(pipeline.preview(first), expected_first)
+
+
+def test_filtered_policy_discard_commit_raw_observation_and_identity(monkeypatch, tmp_path):
+    m = module()
+    fake_runtime(monkeypatch)
+    runner = m.MicroduckPolicy(*model_file(tmp_path), target_profile='robotd-targets-v1')
+    obs = np.arange(61, dtype=np.float32)[None]
+    raw = runner.preview(obs)
+    staged = runner.targets(raw)
+    assert runner.committed_targets is None
+    np.testing.assert_array_equal(runner.previous_action, np.zeros(14, np.float32))
+    runner.targets(-raw)  # withdrawn candidate: no commit
+    np.testing.assert_array_equal(runner.targets(raw), staged)
+    runner.commit(raw)
+    np.testing.assert_array_equal(runner.committed_targets, staged)
+    np.testing.assert_array_equal(runner.previous_action, raw)
+    next_obs = m.observation(HOME, np.zeros(14), np.zeros(3), [0, 0, -1],
+                             runner.previous_action, np.zeros(13))
+    np.testing.assert_array_equal(next_obs[0, 34:48], raw)
+    contract = runner.target_contract
+    assert contract['policy_sha256'] == runner.sha256
+    assert contract['profile'] == 'robotd-targets-v1'
+    assert contract['upstream_commit'] == m.ROBOTD_SOURCE
+    assert contract['physical_admission'] is False
+    contract['profile'] = 'changed'
+    assert runner.target_contract['profile'] == 'robotd-targets-v1'
+    # Immediate inference returns raw output; committed_targets is its target,
+    # while targets(raw) always previews the next slot.
+    next_target = runner.targets(raw)
+    runner.infer(obs)
+    np.testing.assert_array_equal(runner.committed_targets, next_target)
+    runner.reset()
+    assert runner.committed_targets is None
+    np.testing.assert_array_equal(runner.previous_action, np.zeros(14, np.float32))
+    np.testing.assert_array_equal(runner.targets(raw), staged)
+
+
+@pytest.mark.parametrize('profile,scale', [('unknown',None), ('robotd-targets-v1',1.),
+    ('robotd-targets-v1',True), ('direct-v1',np.nan), ('direct-v1',0)])
+def test_target_profile_refuses_ambiguous_configuration_before_runtime(profile, scale):
+    with pytest.raises(ValueError):
+        module().MicroduckTargets(profile, scale)
+
+
+def test_invalid_filtered_commit_preserves_both_histories(monkeypatch, tmp_path):
+    m = module()
+    fake_runtime(monkeypatch)
+    runner = m.MicroduckPolicy(*model_file(tmp_path), target_profile='robotd-targets-v1')
+    raw = np.arange(14, dtype=np.float32)
+    runner.commit(raw)
+    target = runner.committed_targets
+    for bad in [np.full(14, np.nan, np.float32), np.zeros(14), np.zeros(15, np.float32)]:
+        with pytest.raises(ValueError):
+            runner.commit(bad)
+        np.testing.assert_array_equal(runner.previous_action, raw)
+        np.testing.assert_array_equal(runner.committed_targets, target)
+
+
+def test_direct_default_retains_raw_only_commit_and_float32_mapping(monkeypatch, tmp_path):
+    m = module()
+    fake_runtime(monkeypatch)
+    runner = m.MicroduckPolicy(*model_file(tmp_path), action_scale=1e100)
+    raw = np.full(14, np.finfo(np.float32).max, np.float32)
+    runner.commit(raw)  # Legacy raw history accepts finite action independently of targets.
+    np.testing.assert_array_equal(runner.previous_action, raw)
+    with pytest.raises(ValueError):
+        runner.targets(raw)
+    direct = m.MicroduckTargets()
+    raw = np.linspace(-.25, .25, 14, dtype=np.float32)
+    assert direct.preview(raw).dtype == np.float32
+    np.testing.assert_array_equal(direct.preview(raw), HOME + raw)
+
+
 @pytest.mark.parametrize('bad', [np.zeros(14), np.zeros(15, np.float32),
                                np.full(14, np.nan, np.float32), True])
 def test_commit_rejects_non_raw_output_without_mutating_history(monkeypatch, tmp_path, bad):

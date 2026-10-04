@@ -8,6 +8,7 @@ import json
 import pytest
 
 from cascade.sim.mobile_identity import build_model_identity, canonical_bytes
+from cascade.sim.microduck_policy_admission import target_contract
 
 
 def sha(data):
@@ -35,6 +36,7 @@ def recipe_inputs(tmp_path):
     scene.write_bytes(b'gravity = 9.81; reference=@' + str(bundle).encode() + b'/usd/microduck.usda@')
     admission = dict(bundle=str(bundle), receipt=receipt, asset_receipt_sha256=sha(receipt_bytes),
         asset_sha256=outputs[0]['sha256'], policy_sha256='b'*64,
+        target_contract=target_contract('b'*64, 'direct-v1'),
         bam_config_sha256='c'*64, bam_params={'kp_fw': 200., 'max_delay': 0},
         bam_source_sha256={'drive.py': 'd'*64}, limits={'max_linear_speed': .15, 'min_height_m': .06},
         source_sha256={'controller.py': sha(b'controller source')})
@@ -78,7 +80,9 @@ def test_recipe_relocation_and_incidental_counters_do_not_change_identity(recipe
 
 @pytest.mark.parametrize('field,change', [
     ('limits', lambda a,n: a['limits'].update(max_linear_speed=.2)),
-    ('policy', lambda a,n: a.update(policy_sha256='f'*64)),
+    ('policy', lambda a,n: a.update(policy_sha256='f'*64,
+                                   target_contract=target_contract('f'*64, 'direct-v1'))),
+    ('targets', lambda a,n: a.update(target_contract=target_contract('b'*64, 'robotd-targets-v1'))),
     ('BAM', lambda a,n: (a['bam_params'].update(max_delay=6), n['bam']['params'].update(max_delay=6))),
     ('solver', lambda a,n: n.update(solver='different-solver')),
     ('dt', lambda a,n: n.update(actual_physics_dt=.006)),
@@ -137,3 +141,18 @@ def test_recipe_is_a_defensive_snapshot(recipe_inputs):
     native['bam']['params']['kp_fw'] = 0
     assert identity['recipe']['bam']['params']['kp_fw'] == 200
     assert sha(canonical_bytes(identity['recipe'])) == identity['model_identity_sha256']
+
+
+def test_target_contract_is_mandatory_and_cannot_alias_another_profile(recipe_inputs):
+    admission, native, paths = recipe_inputs
+    identity = build_model_identity(admission, native, **paths)
+    assert identity['recipe']['target_contract'] == admission['target_contract']
+    assert identity['recipe']['target_upload']['dtype'] == 'float32'
+    assert identity['recipe']['target_upload']['filter_state'] == 'policy precision before upload'
+    admission['target_contract']['head_lowpass'] = .5
+    with pytest.raises(ValueError, match='target contract'):
+        build_model_identity(admission, native, **paths)
+    assert identity['recipe']['target_contract']['head_lowpass'] is None
+    del admission['target_contract']
+    with pytest.raises(ValueError, match='target contract'):
+        build_model_identity(admission, native, **paths)

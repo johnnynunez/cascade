@@ -28,6 +28,8 @@ def parse_args(argv=None):
     p.add_argument('--policy-sha256', required=True)
     p.add_argument('--policy-profile', choices=['velstand', 'rough_walk_e'], default='velstand',
                    help='explicit reviewed checkpoint; alternative profiles are not physical admission')
+    p.add_argument('--target-profile', choices=['direct-v1', 'robotd-targets-v1'], default='direct-v1',
+                   help='explicit output transform, separately bound from checkpoint; no physical admission')
     p.add_argument('--bam-source-root', type=Path, required=True)
     p.add_argument('--bam-profile', required=True)
     p.add_argument('--python-extra-path', type=Path, action='append', default=[],
@@ -61,6 +63,25 @@ def parse_args(argv=None):
 CONTROLLER_LIMITS = ('max_linear_speed', 'max_angular_speed', 'max_duration_s', 'lease_s',
                      'max_state_age_s', 'max_action_wall_s')
 FALL_LIMITS = ('min_height_m', 'max_height_m', 'max_tilt_rad')
+
+
+def selected_target_contract(args, admission):
+    from cascade.sim.microduck_policy_admission import target_contract, verify_target_contract
+    value = verify_target_contract(admission.get('target_contract'), args.policy_sha256)
+    if value != target_contract(args.policy_sha256, args.target_profile):
+        raise ValueError('selected target profile differs from admission')
+    return value
+
+
+def create_policy(args, admission, factory=None):
+    from cascade.control.microduck_policy import MicroduckPolicy
+    from cascade.sim.microduck_policy_admission import verify_target_contract
+    expected = selected_target_contract(args, admission)
+    policy = (factory or MicroduckPolicy)(args.policy, args.policy_sha256,
+                                         target_profile=args.target_profile)
+    if verify_target_contract(getattr(policy, 'target_contract', None), args.policy_sha256) != expected:
+        raise ValueError('constructed policy target contract differs from admission')
+    return policy
 
 
 def bind_repo():
@@ -193,12 +214,12 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
     import time
     from contextlib import nullcontext
     from cascade.apps.signal_stop import SignalRequest
-    from cascade.control.microduck_policy import MicroduckPolicy
     from cascade.sim.mobile_bridge import MobileBridgeController, MobileBridgeServer
     from cascade.sim.microduck_newton import KitNewtonBackend
     from cascade.sim.microduck_stepper import FrameCache, MicroduckStepper
 
     defer = signals.defer if signals is not None else nullcontext
+    selected_target_contract(args, admission)  # Refuse drift before SDK/output ownership.
     def checkpoint():
         if signals is not None:
             signals.checkpoint(persistent=True)
@@ -237,7 +258,7 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
                                                    runtime_scene=out / 'runtime-scene.usda')
             result['model_identity_sha256'] = model_identity['model_identity_sha256']
             write_json(out / 'model-identity.json', model_identity)
-            policy = (policy_factory or MicroduckPolicy)(args.policy, args.policy_sha256)
+            policy = create_policy(args, admission, policy_factory)
             controller = MobileBridgeController(robot_id=args.robot_id, source=args.source,
                 engine='newton', device=args.device, asset_sha256=admission['asset_sha256'],
                 policy_sha256=args.policy_sha256,
@@ -428,7 +449,7 @@ def admit(args):
     from cascade.control.newton_bam import SOURCE_SHA256, _validated_params
     from cascade.sim.microduck_newton import (experience_text, sha256,
                                               strict_json, verify_bundle)
-    from cascade.sim.microduck_policy_admission import admit_policy
+    from cascade.sim.microduck_policy_admission import admit_policy, target_contract
     if args.engine != 'newton':
         raise ValueError('PhysX BAM unsupported; no fallback')
     mount_path, mount_sha = getattr(args, 'camera_mount', None), getattr(args, 'camera_mount_sha256', None)
@@ -479,6 +500,7 @@ def admit(args):
             raise ValueError('output must not modify an input/SDK directory')
     admitted = verify_bundle(bundle, expected_sha256=args.bundle_sha256, asset=args.asset)
     policy_admission = admit_policy(args.policy, args.policy_sha256, args.policy_profile)
+    targets = target_contract(args.policy_sha256, args.target_profile)
     bam_sources = {}
     for relative, expected in SOURCE_SHA256.items():
         path = args.bam_source_root / relative
@@ -511,6 +533,7 @@ def admit(args):
     admitted.update(limits=load_limits(args.limits), limits_sha256=sha256(args.limits),
                     bam_params=params, bam_config_sha256=sha256(config_path), bam_source_sha256=bam_sources,
                     policy_sha256=args.policy_sha256, policy_admission=policy_admission,
+                    target_contract=targets,
                     source_sha256={f: sha256(REPO/f) for f in files},
                     experience_text=experience_text(args.release, sdk_recipe=args.sdk_recipe))
     if sdk_recipe is not None:
@@ -534,6 +557,7 @@ def main(argv=None):
             print(json.dumps({'ok': True, 'physical_acceptance': False,
                 'asset_sha256': admission['asset_sha256'], 'asset_receipt_sha256': admission['asset_receipt_sha256'],
                 'output_count': len(admission['receipt']['outputs']), 'bam_config_sha256': admission['bam_config_sha256'],
+                'target_contract': admission['target_contract'],
                 **({'private_rtx_cache': admission['private_rtx_cache']} if 'private_rtx_cache' in admission else {})}))
             return 0
         from cascade.apps.signal_stop import SignalRequest, StopSignals

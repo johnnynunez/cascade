@@ -1,14 +1,14 @@
 {
   "scope": "CPU software release contract; no voice/native/physical acceptance",
-  "repo": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/reconnect-cascade",
-  "head": "0bc506e3b9180019cee535a0e04a77dd372f9d56",
+  "repo": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/reconnect-deadline-cascade",
+  "head": "e9aadafc51f24eaceaa6f4c74e97d1549f83f7e2",
   "files": {
-    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/reconnect-cascade/docs/CONVERSATION.md": "6e8f472a8ea037d1c30fefbab64618f73c89dc382094737e74985685124f494c",
-    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/reconnect-cascade/src/cascade/apps/conversation.py": "a1bb4d1a845e2f3a0608fd8751139fab2ab8a35b963314ffba4beb01740ab1fc",
-    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/reconnect-cascade/src/cascade/conversation/provider.py": "6c9c0d0fb7986d2096dd98926fec3faa334cced141d3ea1e88cc87f87cd0e04f",
-    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/reconnect-cascade/src/cascade/conversation/provider_pool.py": "e056d65e8f5c00a8db5ab0cac3042b2baa3ab76c13e60f994ced83c82834c826",
-    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/reconnect-cascade/src/cascade/conversation/service.py": "65de3c20f16c37222c26002d1df4fdd13bc33318fe19f0337dd19c5e10d419d6",
-    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/reconnect-cascade/tests/test_conversation_pool_release.py": "65d0931fe743b8eca422e350d68f3b2acce32cbed79449250186d95c440e993d"
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/reconnect-deadline-cascade/docs/CONVERSATION.md": "6e8f472a8ea037d1c30fefbab64618f73c89dc382094737e74985685124f494c",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/reconnect-deadline-cascade/src/cascade/apps/conversation.py": "a1bb4d1a845e2f3a0608fd8751139fab2ab8a35b963314ffba4beb01740ab1fc",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/reconnect-deadline-cascade/src/cascade/conversation/provider.py": "6c9c0d0fb7986d2096dd98926fec3faa334cced141d3ea1e88cc87f87cd0e04f",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/reconnect-deadline-cascade/src/cascade/conversation/provider_pool.py": "bf2aa857704f35787b7cdd3403e30b917be479f12097c58339e34ce3b173a861",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/reconnect-deadline-cascade/src/cascade/conversation/service.py": "65de3c20f16c37222c26002d1df4fdd13bc33318fe19f0337dd19c5e10d419d6",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/reconnect-deadline-cascade/tests/test_conversation_pool_release.py": "6d054c82b6cebd83c848a9fb419dd3decbf137a8c2f28b420817de49250c067c"
   },
   "primary_schema": {
     "repo": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/startup-deadline-provider",
@@ -19,15 +19,11 @@
     "contract": "/v1/pool active/draining/stuck/idle; SESSION_END drain precedes unit.session=None"
   },
   "validation": {
-    "tests": 83,
-    "log": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/reconnect-runtime-tests-03.log",
-    "sha256": "8888153f616d7085f18d50858449aaee1227894eb8584799657131287b6dac58",
+    "tests": 86,
+    "log": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/reconnect-deadline-tests-01.log",
+    "sha256": "089bbb98ff2502dacc1e5c4b9278bb9d2bf5b7bfb32a0088545653f92e4d83db",
     "ruff": "PASS",
     "diff_check": "PASS"
-  },
-  "root_review": {
-    "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/reconnect-root-source-review-01.json",
-    "sha256": "dedf79f874e01fb454109f4e5b4b65680ccf6b0f9f4e4a91f8728ee83b0511b2"
   },
   "previous_negative_preserved": {
     "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/voice-diagnosis-10.json",
@@ -37,7 +33,26 @@
   "native_or_model_runs": 0,
   "retained_negative": "VOICE10 remains failed; no new episode or retrospective asset observation.",
   "source_freeze": {
-    "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/reconnect-source-freeze-01.json",
-    "sha256": "dfc30addfc91d36b3ad11bacf20fe5116eab6b2485199ee8246f6decc520381f"
-  }
+    "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/reconnect-source-freeze-02.json",
+    "sha256": "a6972464c767abaf4b350279e5ed446d90700129abc9424867ed3da8ee46e57e"
+  },
+  "previous_source": {
+    "head": "0bc506e3b9180019cee535a0e04a77dd372f9d56",
+    "validation": {
+      "tests": 83,
+      "log": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/reconnect-runtime-tests-03.log",
+      "sha256": "8888153f616d7085f18d50858449aaee1227894eb8584799657131287b6dac58",
+      "ruff": "PASS",
+      "diff_check": "PASS"
+    },
+    "source_freeze": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/reconnect-source-freeze-01.json",
+      "sha256": "dfc30addfc91d36b3ad11bacf20fe5116eab6b2485199ee8246f6decc520381f"
+    },
+    "root_review": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_CUDA_20261004/reconnect-root-source-review-01.json",
+      "sha256": "dedf79f874e01fb454109f4e5b4b65680ccf6b0f9f4e4a91f8728ee83b0511b2"
+    }
+  },
+  "deadline_regression": "read_pool succeeds before deadline; final idle clock before/equal/after deadline: only before admits, using that same sampled timestamp."
 }

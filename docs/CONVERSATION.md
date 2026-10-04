@@ -588,7 +588,8 @@ session. Connection admission also includes its pool binding within the existing
 connection deadline. No unit is forcibly released, and no connection is retried.
 The generic transport remains the default and makes no pool-release claim.
 The [source-bound CPU record](evidence/robot-modularity/hf-pool-reconnect-cpu-20261004.json)
-links the exact provider schema and 83 checks. Loopback HTTP/WebSocket tests
+links the exact provider schema and 86 checks. Loopback HTTP/WebSocket tests
 reproduce the old immediate-reconnect HTTP 502 and
 exercise delayed release, timeout, identity/schema mismatch and redirect refusal;
-these tests do not constitute a successful speech or physical episode.
+The final idle observation also rejects a clock at or beyond the original close
+deadline. These tests do not constitute a successful speech or physical episode.

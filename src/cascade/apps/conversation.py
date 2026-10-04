@@ -20,6 +20,8 @@ def parser():
     result.add_argument("--robot")
     result.add_argument("--provider-url", help="Operator-owned HF GA Realtime ws(s) endpoint")
     result.add_argument("--token-env", help="Environment variable containing provider bearer token")
+    result.add_argument("--provider-release-contract", choices=["hf_pool"],
+                        help="Require observed HF pool release before session closure succeeds")
     result.add_argument("--allow-tool", action="append")
     result.add_argument("--allow-motion", action=argparse.BooleanOptionalAction, default=None,
                         help="Enable explicitly listed curated semantic motions")
@@ -44,7 +46,8 @@ async def serve(args):
     from ..conversation.lifecycle import close_stage
     from ..lifecycle import teardown_receipt
     from .robot_runtime import build_robot_runtime
-    config = RealtimeConfig(args.provider_url, args.token_env)
+    config = RealtimeConfig(args.provider_url, args.token_env,
+                            release_contract=getattr(args, "provider_release_contract", None))
     run_dir = args.run_dir
     if getattr(args, "run_root", None) is not None:
         run_dir = args.run_root / ("conversation-" + uuid.uuid4().hex)

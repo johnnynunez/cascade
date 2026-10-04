@@ -346,6 +346,18 @@ The original 0.5 s RPC and 0.4 s progress limits remain unchanged and unresolved
 for twelve-robot control. No new control episode was run, and the earlier control
 failures remain retained.
 
+The subsequent [private-row encoding profile](
+evidence/microduck-shared-20261004/row-serialization.json) also completed
+800 solves, 2,400 policy commits, 24 reader events and 9 overview/support-probe
+pairs, with normal closure. Attempt durations were 105.59 ms median, 116.03 ms
+p95 and 662.65 ms maximum. Ten attempts exceeded 400 ms; each overlapped a
+generation-2 GC interval, with complete callback accounting. The preceding
+serializer profile retained 22 such attempts. GPU admission changed from a
+foreign process to an empty cohort, so this comparison does not establish a
+causal speedup. The projection work moved inside the write span as described
+above. The remaining long attempts still exceed the original control limits;
+this reader-only episode grants no control or physical-stop acceptance.
+
 These endpoint outcomes remain physically unverified. Walking, fleet tasks,
 shared-space interactions and measured individual/global motion stops still need
 their own acceptance evidence. The [original twelve-robot overview](

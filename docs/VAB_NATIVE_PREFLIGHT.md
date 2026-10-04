@@ -115,3 +115,35 @@ admitted action owner; no Arena episode is implied by this VAB result. The
 upstream Panda controller is not an SO-101 driver. Full benchmark task success
 still requires real object perception, a reviewed task-specific manipulation
 configuration, and independent release/support evidence.
+
+## Per-solve placement witness (software implemented; native validation pending)
+
+The optional `--record-placement` reader attaches after reset and records every
+ordinary `env.sim.step()` in a private file. It does not give the actor object
+poses or contacts, change its actions, or add a solve. Each row keeps all native
+contact candidates, contact-frame wrenches, world forces on geom B, object and
+support velocities, and conservative robot/object geometry bounds. Collision
+groups include explicitly declared pairs even when their masks are zero. The
+reader requires rigid free-jointed objects and Euler integration, labels the
+pre-integration constraint state separately from the advanced simulation clock,
+and refuses warnings, missing bounds, changed geometry, or archive exhaustion.
+The contact-frame convention follows the pinned
+[MuJoCo 2.3.7 API](https://mujoco.readthedocs.io/en/2.3.7/APIreference/APIfunctions.html#mj-contactforce);
+its force sign and phase still require a source-bound native calibration.
+
+`cascade.eval.placement.verify_placement_window` checks every solve in an
+explicit interval. Its default policy requires 0.5 simulated seconds of quiet
+object and support, at least 5 mm conservative separation from the robot,
+no robot contact, and upward support forces between 80% and 120% of the object's
+weight. The original interval is never shortened to find a successful suffix.
+Absent or inconsistent evidence is unverified; an observed violation refutes
+the window. These new policy values are declared evaluation criteria, not a
+relaxation of any existing motion or safety gate. Policy, epoch and model
+identity are bound into each record; the integration must also check the
+recorder closure and bind its artifact to the exact external episode.
+
+This predicate leaves containment unverified. It cannot prove that a body fits
+inside a container, that perception found the correct object, or that a task
+was executed safely. The existing preflight still exposes only its two relative
+motions, and still reports placement unverified. The new tests use synthetic
+records and an instance-local step double; no VAB pick/place result is claimed.

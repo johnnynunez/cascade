@@ -1209,5 +1209,275 @@
       "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-01/candidate-scope/closure.json": "7bd95631f2776c4d672f5af95786c10758d38e0233273df57ff809f6b6543185",
       "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_RETENTION_20261004/bytes-replay-01/candidate-scope/service.log": "5fe9fd00f84e881757a7d745624b928f30c555539d105a2b8d7a3845aa0769b5"
     }
+  },
+  "bytes_native": {
+    "source_head": "6858456de5b76c6d3c9db22e0133695d473900f1",
+    "model_pin": "3be29420b156c9981e03ff1be1305b4bb2bb17ffb02d2105ef0667f7d0bd369a",
+    "epoch": "7f564dce4395400dbffd70406ecf4fb5",
+    "freshness_rejection": {
+      "age_s": 0.2980996269980096,
+      "binding_sha256": "3a17a6f051fca87dcb5d09a005007c021e27f90b02ecb91db43b4cc610abd1ac",
+      "captured_monotonic_s": 61860.426192998,
+      "checked_monotonic_s": 61860.724292625,
+      "epoch": "7f564dce4395400dbffd70406ecf4fb5",
+      "generation": 2,
+      "max_observation_age_s": 0.2,
+      "model_identity_sha256": "3be29420b156c9981e03ff1be1305b4bb2bb17ffb02d2105ef0667f7d0bd369a",
+      "reason": "stale",
+      "simulation_time_s": 36.186667542904615,
+      "stage": "controller_accept_solve",
+      "step": 21712
+    },
+    "generation_counts": {
+      "0": 371,
+      "1": 1,
+      "2": 21340
+    },
+    "loaded_diagnostic": {
+      "first_complete_window": null,
+      "longest_window_sim_s": 0.0,
+      "scope": "offline ledger reconstruction; original task remains unverified"
+    },
+    "partial_accepted_motor_off": {
+      "accepted_samples": 0,
+      "excluded_rejected_step": 21712,
+      "first_step": null,
+      "last_accepted_step": null,
+      "motor_off_sim_s": 0.0,
+      "physical_stop_verified": false,
+      "required_motor_off_sim_s": 2.0,
+      "scope": "No post-stop solved row exists; zero upload and both stop ACKs followed the final rejected active solve."
+    },
+    "offline_threading_active_generation": {
+      "excluded_rejected_step": 21712,
+      "first_step": 373,
+      "last_step": 21711,
+      "samples": 21339,
+      "scope": "accepted active-generation prefix only; final preserved stale solve excluded; no new live admission",
+      "verdict": {
+        "checks": {
+          "axial_advance": true,
+          "axis_alignment": true,
+          "fixed_fixture": true,
+          "requested_fastener_rotation": true,
+          "thread_and_tool_contact": true,
+          "thread_pitch": true
+        },
+        "measured": {
+          "axial_advance_m": 0.03831431269645691,
+          "contact_rotation_fraction": 0.9941991145139654,
+          "elapsed_s": 35.56333419447765,
+          "max_axis_tilt_rad": 0.006747474176992825,
+          "max_fixture_rotation_rad": 0.0,
+          "max_fixture_translation_m": 0.0,
+          "max_pitch_error_m": 0.0002459357488841657,
+          "max_radial_offset_m": 0.0001470879097480771,
+          "samples": 21339,
+          "turns": 15.42409937813643
+        },
+        "reason": "measured fastener advancement follows thread pitch",
+        "seating_verified": false,
+        "status": "confirmed",
+        "threading_verified": true
+      }
+    },
+    "zero_upload": {
+      "before_step": 21712,
+      "completed_monotonic_s": 61860.724684892,
+      "generation": 4,
+      "physical_stop_verified": false,
+      "uploaded": true
+    },
+    "fallback_stop": {
+      "accepted_monotonic_s": 61860.724740056,
+      "generation": 5,
+      "latched": true,
+      "ok": true,
+      "physical_stop_verified": false
+    },
+    "scope": "One native bytes-retention seating refusal; closed-record analysis supplies no new live admission.",
+    "original_task_ok": false,
+    "preparation": {
+      "scene_and_native_solves": 0,
+      "loaded_variants": 39,
+      "admission_predicates": 22,
+      "cache_seed_files": 285,
+      "physical_task_admission": false
+    },
+    "counts": {
+      "raw_solves": 21712,
+      "accepted_solves": 21711,
+      "rejected_preserved_step": 21712,
+      "contact_candidates": 6965290,
+      "loaded_rows": 0,
+      "accepted_active_generation_samples": 21339
+    },
+    "limits": {
+      "observation_age_s": 0.2,
+      "command_sim_s": 45,
+      "command_wall_s": 1200,
+      "minimum_turns": 15,
+      "loaded_window_sim_s": 0.5,
+      "motor_off_window_sim_s": 2,
+      "retained_window_sim_s": 1,
+      "rest_sim_s": 3,
+      "rest_timeout_wall_s": 90,
+      "owner_wall_s": 1305,
+      "outer_wall_s": 1500,
+      "raw_capacity": 32768,
+      "phase_capacity": 1048576
+    },
+    "pause_sequence": {
+      "backend._advance_for_owner": {
+        "end_monotonic_ns": 61860434832696,
+        "gc_generation": -1,
+        "phase": "backend._advance_for_owner",
+        "scene_step": 21711,
+        "start_monotonic_ns": 61860410250175,
+        "terminal_event": "return",
+        "thread_cpu_ms": 24.581923,
+        "thread_id": 127935747831488,
+        "wall_ms": 24.582521
+      },
+      "raw_record.pack": {
+        "end_monotonic_ns": 61860724264652,
+        "gc_generation": -1,
+        "phase": "raw_record.pack",
+        "scene_step": 21712,
+        "start_monotonic_ns": 61860434836702,
+        "terminal_event": "return",
+        "thread_cpu_ms": 289.214201,
+        "thread_id": 127935747831488,
+        "wall_ms": 289.42795
+      },
+      "gc": {
+        "end_monotonic_ns": 61860724252654,
+        "gc_generation": 2,
+        "phase": "gc",
+        "scene_step": -1,
+        "start_monotonic_ns": 61860435080623,
+        "terminal_event": "return",
+        "thread_cpu_ms": 288.959188,
+        "thread_id": 127935747831488,
+        "wall_ms": 289.172031
+      },
+      "controller.accept_solve": {
+        "end_monotonic_ns": 61860724479629,
+        "gc_generation": -1,
+        "phase": "controller.accept_solve",
+        "scene_step": 21712,
+        "start_monotonic_ns": 61860724290211,
+        "terminal_event": "raise",
+        "thread_cpu_ms": 0.189474,
+        "thread_id": 127935747831488,
+        "wall_ms": 0.189418
+      }
+    },
+    "all_generation_2_intervals": [
+      {
+        "end_monotonic_ns": 61860724252654,
+        "gc_generation": 2,
+        "phase": "gc",
+        "scene_step": -1,
+        "start_monotonic_ns": 61860435080623,
+        "terminal_event": "return",
+        "thread_cpu_ms": 288.959188,
+        "thread_id": 127935747831488,
+        "wall_ms": 289.172031
+      },
+      {
+        "end_monotonic_ns": 61867964963901,
+        "gc_generation": 2,
+        "phase": "gc",
+        "scene_step": -1,
+        "start_monotonic_ns": 61867699891586,
+        "terminal_event": "return",
+        "thread_cpu_ms": 265.047781,
+        "thread_id": 127945617553344,
+        "wall_ms": 265.072315
+      },
+      {
+        "end_monotonic_ns": 61875208043332,
+        "gc_generation": 2,
+        "phase": "gc",
+        "scene_step": -1,
+        "start_monotonic_ns": 61874936486959,
+        "terminal_event": "return",
+        "thread_cpu_ms": 271.463104,
+        "thread_id": 127945617553344,
+        "wall_ms": 271.556373
+      },
+      {
+        "end_monotonic_ns": 61883114230572,
+        "gc_generation": 2,
+        "phase": "gc",
+        "scene_step": -1,
+        "start_monotonic_ns": 61882855670736,
+        "terminal_event": "return",
+        "thread_cpu_ms": 258.429884,
+        "thread_id": 127945617553344,
+        "wall_ms": 258.559836
+      },
+      {
+        "end_monotonic_ns": 61890290082919,
+        "gc_generation": 2,
+        "phase": "gc",
+        "scene_step": -1,
+        "start_monotonic_ns": 61890032500010,
+        "terminal_event": "return",
+        "thread_cpu_ms": 257.531467,
+        "thread_id": 127945617553344,
+        "wall_ms": 257.582909
+      }
+    ],
+    "comparison_scope": "Prior retention_native pack/gen2 measured 312.214506/311.961371 ms; this distinct source/model/epoch measured 289.427950/289.172031 ms. Both exceeded 200 ms. This is not a controlled latency comparison or heap-causation finding.",
+    "retention_scope": "The earlier closed CPU replay proved 64279 to zero retained wrappers; no native heap census was taken. Native GC remains enabled with thresholds [700, 10, 10].",
+    "closure": {
+      "scope_ordinary_closed": true,
+      "scope_client_exit": 1,
+      "signals": [],
+      "forced": false,
+      "errors": [],
+      "observed_births_absent": 4,
+      "final_drain_settled": true,
+      "owner_thread_closed": true,
+      "pending_records": 0,
+      "runtime_closure_ok": false,
+      "runtime_closure_reason": "original freshness fault retained",
+      "inputs_unchanged": true,
+      "plan_unchanged": true
+    },
+    "physical_stop_verified": false,
+    "seating_verified": false,
+    "preload_verified": false,
+    "artifact_root": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FACTORY_BYTES_20261004",
+    "artifact_sha256": {
+      "seating-01/inputs-after.json": "71c735e1689cc2c2a78f8eb3a4676e55b0a299ab6835370c8a8058aa02d0e749",
+      "seating-01/inputs-before.json": "71c735e1689cc2c2a78f8eb3a4676e55b0a299ab6835370c8a8058aa02d0e749",
+      "seating-01/native/constructed-binding.json": "26b550b7547d7ec842acb0e6e4bc4665515db7558fcb1cf76ab8233c7ea94214",
+      "seating-01/native/constructed-model.json": "579679a1e2b248f6f5f91f32f9e73f90d7241f15f4cd20b2c5033cc7c12bd2d5",
+      "seating-01/native/native-result.json": "e8b4d388203c50010fa78082586a05eab232393e5a7b3b4e2ebdfba235b62fab",
+      "seating-01/native/phase-trace.json": "1b8f49dd5369f0543cb73998897cb05f54d4c9780621e77fe07dd87a1bc35ced",
+      "seating-01/native/post-close-solves.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "seating-01/native/runtime/domains/fastening/last-action.json": "eb517a33d132cb1a8fd35ace8749045cf29e4239be9ed408d60feb5157786397",
+      "seating-01/native/runtime/domains/fastening/precompile.json": "fb3b6fce734cdbeb7abd471e5ef7c4a49df5c364931d19cf1dbf5f7c39e5bb32",
+      "seating-01/native/runtime/domains/fastening/solves.jsonl": "7ade7258de0d7f3fbb4627f6cab7a036fb8311721089238a8f1fdbf83c86b1ca",
+      "seating-01/private-inventories.json": "47fa4b7e87233ebb57d3cd1748c0dc87412ccf0dae87b3855b843d529e8adae1",
+      "seating-01/receipt.json": "19893be288be6f49fd3da3d00a3bbb085cf2dfd247a876f7c01f369e40796da6",
+      "seating-01/scope/closure.json": "3441d8b9ab3e300238ad8e0f80b915ca6a6e3e13a4b3ddcc10e18cf656716311",
+      "prepare-plan-01.json": "ee727efce9c30df5dd4e22c244b3771bbf6bbddf683ceeee2bea07a7953369a6",
+      "prepare-binding-01.json": "041f51e76be300c3250fe2084ca1a46df290e22063eec566fcae5c5a72781007",
+      "prepare-01/receipt.json": "5467094bb915bf696f4da0a66d81926712df99f165713b75303135c4491fda71",
+      "preparation-audit-01.json": "76f9c19048bdde107c3ecc6c392b520880fb78e91c04a0622c77f899a8e76748",
+      "audit_preparation.py": "1936674b5d820adb8578edbae766145594f173991781cc36fb67dce68ce5e4e8",
+      "prepare-01-cache-manifest.json": "a28e0c8182e6ad4d374dd511a40b73bc4fbe64395402c51d65cda162eff917a9",
+      "seating-plan-01.json": "5967e06030c7a70422990a6f666852ef942068d846f1c8bf43fa85f1ee102ab5",
+      "seating-binding-01.json": "be665dcb0de728e0fd72eef44baabe3bda81f41d06540b9873601c3c701af380",
+      "seating-check-only-01.log": "d260e3712be2883c424e197c5b4dd10605d60255b4033f9b0953defd9724bdc0",
+      "seating-diff-01.json": "4bc376af460b173684edaa27d4249b7f64bbfb1c0445803b447bdf0d90bdb5c9",
+      "seating-failure-audit-01.json": "76b2a2f19647d81ee44a5c7cc0ea87bed3b9510f78702b4c25cadb04c5a3f622",
+      "audit_seating_failure.py": "0d3eade9b43436759f9a065d4f602d4cbdf57f87fb57563653a664bfaf6cbcc7",
+      "compact_native_failure.py": "6e123b7a7785450038b5ac1442ea43d8b295f3378cc5a01ee63dc6983d5448b5"
+    }
   }
 }

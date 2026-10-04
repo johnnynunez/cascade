@@ -1,0 +1,210 @@
+{
+  "schema": "cascade.microduck.effective-options-evidence.v1",
+  "scope": "Current original native recipe after open; passive option reads, no policy or episode solves.",
+  "source": "2c27f846927298e7d2fcea3ca5235f6afd2c2598",
+  "scene_model_sha256": "3de21017f59fb9f85e1909b1e462a52f919cb28f0c2da547dc4135710551c3ed",
+  "verified": true,
+  "physical_admission": false,
+  "bootstrap_solves": 2,
+  "extra_episode_solves": 0,
+  "policy_constructors": 0,
+  "policy_inferences": 0,
+  "command_endpoints": 0,
+  "motion_commands": 0,
+  "bootstrap_order": "app_utils.play(commit=True) performs two original native bootstrap solves; _bind_native_model then initializes HOME/FK and binds/resets BAM. Both snapshots follow open.",
+  "diagnostic_epoch": "372881a0229244a8ba2d780c31c2ebcc",
+  "same_seven_native_objects": true,
+  "snapshots_identical": true,
+  "native_clock": {
+    "sim_time_s": 0.009999999776482582,
+    "step": 2
+  },
+  "effective_options": {
+    "cpu": {
+      "cone": 0,
+      "integrator": 3,
+      "integrator_name": "implicitfast",
+      "iterations": 100,
+      "jacobian": 2,
+      "solver": 2,
+      "timestep": 0.002,
+      "tolerance": 9.99999993922529e-09
+    },
+    "warp": {
+      "cone": 0,
+      "integrator": 3,
+      "integrator_name": "implicitfast",
+      "iterations": 100,
+      "solver": 2,
+      "timestep": {
+        "dtype": "float32",
+        "shape": [
+          1
+        ],
+        "value": 0.004999999888241291
+      },
+      "tolerance": {
+        "dtype": "float32",
+        "shape": [
+          1
+        ],
+        "value": 9.999999974752427e-07
+      }
+    }
+  },
+  "integrator_agreement_only": true,
+  "configuration_and_metadata": {
+    "solver_config_integrator": {
+      "present": false,
+      "value": null
+    },
+    "model_custom_integrator": {
+      "array": {
+        "dtype": "int32",
+        "shape": [
+          1
+        ],
+        "value": 3
+      },
+      "present": true
+    },
+    "usd_integrator": {
+      "attribute": "mjc:option:integrator",
+      "authored": false,
+      "present": true,
+      "prim": "/World/PhysicsScene",
+      "property_stack": [],
+      "value": "euler"
+    },
+    "solver_graph": {
+      "captured": false,
+      "captured_dt_s": null,
+      "enabled": true,
+      "host_bam_and_admission": true,
+      "stage_source_sha256": "a9d4e95305b23e6cea8e4e8e5fb63dc8b6c5c5917ad5c3ba48e2ba29df84d958"
+    }
+  },
+  "recipe_comparison": {
+    "baseline_scene_model_sha256": "46d181ee8f9d2c359b530c66913559f9e9a185b527a8c2e88c02baba1e49ae5b",
+    "all_remaining_recipe_fields_equal": true,
+    "allowed_differences": [
+      {
+        "path": "native.configuration.phase_profile",
+        "baseline": "owner-thread-inclusive-gc-trigger-v1",
+        "current": "absent",
+        "reason": "No owner-thread episode loop or phase profiler is run."
+      }
+    ],
+    "path_normalizations": [],
+    "retrospective_effective_options_claim": false
+  },
+  "closure": {
+    "native_exit": 0,
+    "scope_exit": 0,
+    "signals": [],
+    "forced": false,
+    "errors": [],
+    "owned_births_absent": 8,
+    "sdk_close_returned": null,
+    "state": "inactive",
+    "control_group": ""
+  },
+  "provenance": {
+    "bound_input_files": 2249,
+    "bound_harness_and_review_files": 13,
+    "actual_imported_cascade_modules": 30,
+    "runtime_sources_sha256": {
+      "assets/microduck/manifest.json": "56678bc8dbbc4aba6ca99944a37d495badb1157093b728348700739896383faa",
+      "assets/microduck/newton-bam.json": "d04d0281eb2f581ab738a95ddf6983f09bbfa8dbabef4087271e61e384fd5b4b",
+      "assets/microduck/policy-candidates.json": "6357372fd8f1aba6c64de5d95ba28a6f2f08a825fc4352642d20c152f776c11f",
+      "configs/isaac/microduck.newton.kit": "22ad2a0f66a14863c482a6fd74785475001d5b6aa2bd2f5879d31cb3440a7794",
+      "scripts/convert_microduck.py": "11e5df9e99b03cd0e3479a3dee94da17b685e49c04c32f364a895ab38c6751a2",
+      "scripts/isaac_camera_readback.py": "28c4523b08410db254c83e70f52c36f0f34488e6964dd6aebb561b638df8b9cd",
+      "scripts/isaac_microduck_bridge.py": "6e3b2350b74ad603e675387c4cc3cb880fcf099ded16437a4c5abb8c469b8aa9",
+      "scripts/isaac_microduck_shared.py": "6315a93c7e216f1e56b53caeb5c2de6e265f8752aaf57580fd437c6ad7b35655",
+      "scripts/isaac_runtime.py": "8d40bc13b50d86f6c671628486142b6ee2cfa61ea762ea7867e66cf1447c935a",
+      "src/cascade/apps/signal_stop.py": "1a94a391c25d856299d899e633aaa777215e4ef1dc1fc819bee492c44019b9bd",
+      "src/cascade/control/microduck_actuator.py": "77216426cefc311237fa6854f06aa98a90d4f9f53b080a93c886d67f14961a0e",
+      "src/cascade/control/microduck_policy.py": "1d4ac287c1ff20c4363a81db24a9638643f683c04eb6647bb26b465a861af540",
+      "src/cascade/control/mobile_base.py": "d31f5ba67fbf24979c17193d453af3e8ec7bbc98987a926d5f8eb580770619a6",
+      "src/cascade/control/mobile_support.py": "08a8c57898871d677c46de9aa34c3e59977e8b85a1039d49b5b241810fd328c4",
+      "src/cascade/control/mobile_telemetry.py": "7f2e4dab7f0162fb25fc80d0eb9851d56773396c85cd4646de59a7c9d6bce6d2",
+      "src/cascade/control/newton_bam.py": "1972ac0b4d6bbf06138ef550b530142c820cf03d6d3d4ce4aba5d68ffb00e64c",
+      "src/cascade/sensing/models.py": "ba66e6e1d7c0bfa4c3210810269e936f35bd00d058614a36fce10e3c0a1dc7f1",
+      "src/cascade/sim/microduck_admission.py": "dddf5ebced53b1f5b2d0fcffe508cfc28f6d02b84a2492d62837b98d87d3f483",
+      "src/cascade/sim/microduck_contact_support.py": "19807691a9ddfd2693dac82ad51aa22524110ecb7f20b1cf0e03ac10e167a442",
+      "src/cascade/sim/microduck_newton.py": "67d835cec97263c5cbad13f09258e79312f135fc0f766ab4dd8542795a13d920",
+      "src/cascade/sim/microduck_policy_admission.py": "0e5b9063bbcc8439c7b0a71ef2da4399deef798cb100d43a906736a883cfa6f2",
+      "src/cascade/sim/microduck_sdk.py": "dd3502263048e483ebbc3f393ebc505c0fe8fad23b0fb4b7837fa5cef314bf56",
+      "src/cascade/sim/microduck_shared.py": "d71e9e6082ac6a1ceabd4592813a74959f678b28ac9ad57e1b04435467048f34",
+      "src/cascade/sim/microduck_shared_native.py": "c03ef4286003abfeb6dcb3d4db405fce27e2b1b030901b4532d75643ea77448c",
+      "src/cascade/sim/microduck_solver_graph.py": "9f990fc96daaa91e849444acfd302d4c6da9a7c62a42adc1f3e445cf65858772",
+      "src/cascade/sim/microduck_state.py": "495f3062274b620890448d6b3958c7481108a265321a616f64da1ec06a972971",
+      "src/cascade/sim/microduck_stepper.py": "4f44e143659ccfbfb790db0f904b7c45c0c0cb71e4a4bbf83e8cd80ad7ddc293",
+      "src/cascade/sim/microduck_timing.py": "adee3bae4444546f3527b07dbe8238bd2147c9acd7b6d60e89779f1b8fdd5d52",
+      "src/cascade/sim/mobile_bridge.py": "fbef12e332af3a08295c092b57862a5f9a044c77b0eccfff3c9f6dba84d29d91",
+      "src/cascade/sim/mobile_camera_encoding.py": "f2783cf9d7aa576e82dc2a25d879d920a4d68c441a5945572ee3c16404d3bc57",
+      "src/cascade/sim/mobile_camera_pose.py": "a2dfe3ee5bd807047fe2e6aa943d32bdf98d3de2280bce2071255e61bdcb85b4",
+      "src/cascade/sim/mobile_identity.py": "15031cc6d42044c26342a46dbdfcee7c0f316fae990608b08d68b8fd6eefd637",
+      "src/cascade/sim/mobile_rgbd.py": "f7102d9610b2f1d3aa2123d6841cc0915cec0f0475971c5d87852bfdd4a01559",
+      "src/cascade/sim/private_rtx_cache.py": "ab7b9e06a930cb29254f0537875f4a497954f0355055d0e6e891ea215d9b8eb4"
+    },
+    "harness_sha256": {
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/harness_v2/audit.py": "c0cf8118f5c6223bbfcab8fab4ea8eda2e5924dc6ed289de4a280a345bf17284",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/harness_v2/gpu_guard.py": "416e94112b7dcfc9cc11cde56196aad8be628db6d63e620ecf8cc7a1fb0f280b",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/harness_v2/launch.py": "1bafdf709056a733e98c130d0e762b9243214318ee9d8264c33777da7a3f7dea",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/harness_v2/options.py": "980d48ee038c9fe9a9c9a5dc9f6e9412de7e6de5a00e6c69d86e43a1d5b7b1b8",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/harness_v2/owned_services.py": "44f1f98f4760f31a7c6dd89acddb1ed073523b8c2520f322abe2c5eae8000473",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/harness_v2/prepare.py": "0d769d14efd23c783a3b487a6e00c9cc05719d17d412487103aead545335376e",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/harness_v2/resource_guards.py": "4ce11e4409bed182e9396677632d1fe522d50f17a893177e695d93edecac5d9f",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/harness_v2/run.py": "d86f7210b7240544a2ceadcd666e3ed5c082471e822ef374f588bcb063430c28",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/harness_v2/test_audit.py": "2f80aab380df7efd82cd897977a7585b4cd579a7961fddb14bfc229f6c8a48b1",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/harness_v2/test_launch.py": "7d972b4922fb15a4990911a0cf54dc61f60974f50f86c7dcf1d4c49b191dd9a6",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/harness_v2/test_options.py": "bd2c11e94ce317e80a87e208bc00ffa4bcbfb3f9adeaee3ea235e333d83a31b1",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/README.md": "009060e8c5bbe946ba1ef8f675c2663cb92047629c909672016bdd604f5395ce",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/preparation-02/check-only.json": "19f5684194e877c1979d04bc83e071a3c63aa785007bc87409326ee2a138f670"
+    },
+    "artifacts_sha256": {
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/options-audit-02.json": "37f22cbc6363c5b982829aed313fe5052d4c41f2e03555264a40eb2d825e4f73",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/options-audit-02.log": "d89efe051c33bb0d9d248b935672692994d71d4df2d7f3dfc70079d9f5cda550",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/root-post-close-02.json": "d9ffc40c561c12f44dd8eb37269ff777c28fe0eba63f3695fd38bd41a97bc9a8",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/review-note-02.json": "df7b72a6772a491ce10b872d910d85c0d49468b7d951873027f51e28c70a1d47",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/tests-02.log": "e38cbd6c3cbdae2ff10c3f4e043e6084be7f839d87202c05526c1700bbe27c3f",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/ruff-02.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/preparation-01.log": "7d3c63a8f619fdf83ec0e00109cdf38eef85d44d4514451ba0dae6201a7a3764",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/preparation-01/check-only.json": "653c5898fc96536abbb4bb9630351c4858b840ca2a32586cb55bea308e21d5ad",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/preparation-02.log": "666ca8e5b72dc7b08ff6bed0f9d171c7284dfca5a43da84b248c3161bfc03543",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/preparation-02/plan.json": "ba69278c7f98eff97ffc8575d7b2b82c90aff712dbd00adb53ae54467d845b56",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/preparation-02/binding.json": "8b0858482b2ea3e5c4dca128ce1cf7296ccd1747674b5e60dcbc73d12051d3dc",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/preparation-02/check-only.json": "19f5684194e877c1979d04bc83e071a3c63aa785007bc87409326ee2a138f670",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/preparation-02/comparison.json": "d7c4798fca41dd6d0fc7ab6e9d12a61d7d0b4726f08ad50c769fcf7096d471d2",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/preparation-02/cache-provenance.json": "009b958a647081669a183e550ed1c085314d85e3fdb1ae0eb027e06b1b509567",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/preparation-02/gpu-baseline.json": "9767feb5a81ddc8b2e3d791364330bef200057d43c709d11cc82c0b0423a432c",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/native-options-02/post-close.json": "02fce070d28982d6c11af2489de333fb1a131e73d77e9ae08e7f808295bbc1ea",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/native-options-02/root-receipt.json": "2443cfce2e154b91ec49963a01a6f66da06c3585b82f7562f2ff6ec34afbef1f",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/native-options-02/LAUNCH_CLAIM.json": "d3aa00216a3a68694f2cbca8175f8ed3de23a08d06571e2a010f0ceaa19d0b50",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/native-options-02/native-exit.json": "d24219f6de94b955cf36d25bd2aca88e2d35eef45b9317b7083f55ec8fe9653c",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/native-options-02/launch.stdout": "9b54f5c010b64eb9d98303b0acc00927f56698be9755e0eb68f95d10bb376ad0",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/native-options-02/scope/closure.json": "3e2cc56ec2da12c9ec935f8eb65b0d14ebadfa2416861398cf968ad166820cb6",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/native-options-02/scope/owner.json": "762226d1989c2b5b67d28fec90a274c896f231bbdbb770d08759c7f6b4732d01",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/native-options-02/scope/service.log": "e5b3a77cb6cbc3041b34e5828692f6c6fbb261229f65b9a024fdd2cce223b640",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/native-options-02/kit/receipt.json": "d936db670d254c8c016d6ccbfe4b975363fbdc75df5abffeef5afa68e30a4005",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/native-options-02/kit/startup.json": "8fe5bb328bd80b6a63fe1ad6e68ba09bb275c137841cf375c416b8172e27ca07",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/native-options-02/kit/model-identity.json": "281acbc5b2789260b86d9391636dd75676e44eae6e38a19b7332c6415ddeb80e",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/native-options-02/kit/options-before.json": "49fdb3253cea367f4ecdb81359b32de86236fb3275dff5aa288f9bd5df619517",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/native-options-02/kit/options-after.json": "49fdb3253cea367f4ecdb81359b32de86236fb3275dff5aa288f9bd5df619517",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/native-options-02/kit/imported-sources.json": "8d4ae17496606b11bff9d9e774e2e3d528c9631960aa28209da423739108f85f",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_ROBOTD_TARGETS_20261004/robotd-foundation-one-02/kit/model-identity.json": "a465617ad2478768e1c3fd0ecbe4645f766b3f79aa29baf989ee845e92fdbf6e",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_EFFECTIVE_OPTIONS_20261004/build_evidence.py": "d0d0e4637adff054cc745b17046fcd388a7eca6a6fd9c70c798ca7b7e0164601"
+    }
+  },
+  "retained_negative": "CPU check-only01 refused before SDK because wrapper argument abbreviation confused --source with --source-repo; original files/logs remain unchanged. Separate wrapper02 disables abbreviation; 27 CPU regressions pass. No native retry occurred.",
+  "limitations": [
+    "CPU/Warp agreement describes integrator3/implicitfast only; timesteps and tolerances differ.",
+    "USD euler is an unauthored fallback with empty property stack, not the effective native integrator.",
+    "The two bootstrap solves precede HOME/BAM initialization; no BAM-controlled episode solve occurred.",
+    "This is not a retrospective observation of gait03, a gait/stop/rest success, a backend-equivalence claim or proof that integrator choice caused the failed distance.",
+    "HF exact training run/config remains unresolved; official inference and training must not be conflated.",
+    "Foreign empty auto-restart services may restart; no timing-isolation or performance claim."
+  ]
+}

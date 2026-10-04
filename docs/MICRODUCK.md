@@ -160,6 +160,25 @@ DRIVE interval, sequential rollout, locomotion task or physical stop/rest
 window. The earlier failed walk and preparation gate remain failed. No
 production physics setting or locomotion controller changed.
 
+The subsequent [effective-options capture](evidence/robot-modularity/microduck-effective-options-20261004.json)
+observed `implicitfast` (3) in both the CPU MuJoCo and Warp models under the
+original native recipe. Their other options differ: CPU timestep 0.002 s and
+tolerance approximately 1e-8, versus Warp timestep 0.004999999888241291 s and
+tolerance approximately 1e-6. Agreement applies only to the integrator. The
+solver configuration had no integrator override; the imported Newton model
+held 3. USD exposed `euler` as an unauthored fallback with no property stack,
+which did not select the effective integrator.
+
+Two identical snapshots retained the same seven native model/solver/state
+objects and step-2 clock. The original startup performed two native bootstrap
+solves, then initialized HOME/FK and bound/reset BAM; the snapshots followed
+that initialization. No policy, command endpoint or episode solve ran. The
+complete identity recipe matched foundation02 except for the absent episode
+profiler label. Native and scope exits were zero, all eight observed births
+were absent, and no signals or forced closure occurred. This measures the
+current recipe, not the historical gait's effective options, and does not
+establish an integrator cause, training alignment, locomotion or physical rest.
+
 ## Evidence and identity
 
 A SHA-256 digest binds the complete admitted bundle, consumed USD layers,

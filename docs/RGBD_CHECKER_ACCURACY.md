@@ -142,3 +142,68 @@ held-outs is not justified. The schema5 candidate was not evaluated on them.
 Local recovery/check-only artifacts are under
 `RGBD_LAYOUT_A_ACCURACY_20261004`; a separately frozen, new native episode is
 still required, retaining every capture and all failures.
+
+## Explicit local RGB refinement, schema6
+
+The opt-in `--checker-saddle` variant adds a fixed local observation after the
+unchanged schema5 seed detector. Each corner uses its complete 7×7 RGB window,
+Gaussian weights with sigma 1.5 px, and one quadratic stationary-saddle solve.
+The estimator receives neither calibration nor depth, projected corners or a
+homography. Degenerate patches, incomplete windows and shifts greater than
+1.5 px reject the capture; there is no fallback, padding or extrapolation.
+The original tag/contrast checks, 18/17 split and 0.15/0.35 px gates remain.
+
+The separate `checker_saddle_consumer.json` binds OpenCV, the NumPy package and
+the fixed refinement policy. Producer selection and
+`board_from_fixture(..., saddle=True)` require that explicit schema6 declaration.
+Geometry, texture rectangles and ST remain unchanged; source and model identity
+bind the new module and consumer. Schema4 and schema5 keep their own selection.
+
+The [new frozen specification](../benchmark/rgbd/assets/checker_saddle_corpus_spec.json)
+declares 48 held-out images: four published analytic projections, four new
+subpixel phases and three fixed filters. Three previously observed frontal
+regressions are separate known cases. Specification and analytic truth were
+hashed before rasterization or detector evaluation. Native captures were not
+inputs. Every case and refusal is retained in the
+[CPU receipt](../benchmark/results/rgbd_checker_saddle_cpu_20261004.json).
+
+| Held-out outcome, all 48 cases | Schema5 | Schema6 |
+|---|---:|---:|
+| Reference gates pass | 28 | 29 |
+| Missing checker detection | 10 | 10 |
+| Ambiguous orientation | 2 | 2 |
+| Held-out residual rejection | 8 | 0 |
+| Fixed local offset rejection | 0 | 7 |
+
+There is one admission gain and no loss. Across the 29 complete paired cases
+(1,015 points), truth RMS improves in all 29: pooled RMS is 0.270962 →
+0.040732 px. This comparison excludes rejected incomplete estimates explicitly;
+it does not establish all-condition performance. The maximum truth RMS among
+schema6's 29 accepted cases is 0.072468 px, with maximum point error 0.216079 px.
+All nine predeclared adversaries reject.
+
+**All three known regressions worsen**, although both variants pass their
+original reference gates. Truth RMS changes 0.030297 → 0.113693 px,
+0.033268 → 0.111653 px and 0.048648 → 0.087488 px. Their analytic corners are at
+half-pixel phase. The quadratic estimates have component errors of ±0.080393,
+±0.078950 and ±0.061864 px; their signs follow which integer window the seed
+selects. Complete windows are 176 px from the nearest image boundary, so this
+is local approximation bias, not border extrapolation. No parameter, correction
+or gate was changed after observing it. Internal homography consistency remains
+insufficient to prove absolute accuracy or universal improvement.
+
+The 16×16 versus 32×32 raster control has maximum mean absolute difference
+0.006615 RGB8 levels and maximum channel difference 6; no detector or new
+threshold is used for that control. All 312 RGB-D software tests pass, including
+OpenUSD authoring and cross-schema/consumer rejection. Independent code and
+saved-artifact reviews found no blocking issue. These are CPU results only;
+the previous schema4 and schema5 native failures keep their original verdicts.
+No schema6 native episode, accepted live annotation or physical admission is
+claimed.
+
+Reproduce in the declared consumer environment with `--variant saddle` added
+to each `checker_accuracy_campaign` prepare/evaluate/negatives command above.
+Raw files are under the external sibling `RGBD_CHECKER_PATCH_20261004/corpus-02`.
+The retained `corpus-01` was never evaluated: preparation was repeated before
+the first detector call after adding macOS `.dylib` package hashing and source
+formatting, with identical specification, truth and all 51 images.

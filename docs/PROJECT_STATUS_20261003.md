@@ -357,6 +357,15 @@ All 286 RGB-D tests passed; consumer/SDK check-only descriptors matched. No new
 native render or accepted annotation is claimed.
 [Producer selection and diagnostic limits](RGBD_CHECKER_ACCURACY.md#explicit-producer-selection-2026-10-04).
 
+The explicit schema6 RGB-only local saddle candidate passes 29/48 new frozen
+synthetic cases versus 28/48 for schema5; 19 cases still reject. In the 29
+complete pairs, absolute truth RMS improves in each, but all three separately
+retained known regressions worsen despite passing the original homography
+gates. No parameters or gates changed. All nine adversaries reject and 312
+RGB-D tests pass. This is an opt-in CPU candidate with no new native result.
+[Full outcomes and limits](RGBD_CHECKER_ACCURACY.md#explicit-local-rgb-refinement-schema6),
+[bound CPU receipt](../benchmark/results/rgbd_checker_saddle_cpu_20261004.json).
+
 The delivered **61.056 s** continuous video retains 915 frames. Labelled
 synthetic speech entered the actual browser/Whisper-base/Qwen3-1.7B route and
 selected `locomotion.walk_distance(0.03)`. Controller displacement was 25.249 mm;

@@ -16,12 +16,23 @@ import numpy as np
 
 from . import binary_layout_a as layout
 from .checker_accuracy import AccuracyBoard, detect_accuracy_corners
+from .checker_saddle import SaddleBoard, detect_saddle_corners
 from .checker_corpus import filtered, raster, read_bound_json
 from .planar_reference import apply_homography, fit_homography, reference_from_corners
 
 SPEC_SHA = "dd062605ed97a30a6fcab49ee9fd1b25e5d237509898c199f35b9e203942280e"
 TRUTH_SHA = "758f187caee602f3422af47b7fa04414a274de049bfec3778d6554f8a34d8f10"
 ASSETS = Path(__file__).parent / "assets"
+SADDLE_SPEC_SHA = "842b79d2c37c173eead2b263bf71daa67383136bda8fcf41f01efe9bb6b83599"
+SADDLE_TRUTH_SHA = "192f0779e51bcc4697a82af1ce77a38eb8afa615523ba80553e982d3121fd2a7"
+
+
+def profile(variant):
+    if variant == "accuracy":
+        return "checker_accuracy", SPEC_SHA, TRUTH_SHA, 48
+    if variant == "saddle":
+        return "checker_saddle", SADDLE_SPEC_SHA, SADDLE_TRUTH_SHA, 51
+    raise ValueError("explicit known checker corpus variant required")
 
 
 def sha(path):
@@ -33,31 +44,41 @@ def write(path, obj):
 
 
 def source_manifest():
-    return {p.name: sha(p) for p in sorted(Path(__file__).parent.glob("*.py"))}
+    result = {p.name: sha(p) for p in sorted(Path(__file__).parent.glob("*.py"))}
+    result["assets/checker_saddle_consumer.json"] = sha(
+        ASSETS / "checker_saddle_consumer.json"
+    )
+    return result
 
 
-def inputs():
-    spec = read_bound_json(ASSETS / "checker_accuracy_corpus_spec.json", SPEC_SHA)
-    truth = read_bound_json(ASSETS / "checker_accuracy_corpus_truth.json", TRUTH_SHA)
+def inputs(variant="accuracy"):
+    stem, spec_sha, truth_sha, count = profile(variant)
+    if variant == "saddle":
+        SaddleBoard(
+            (ASSETS / "checker_saddle_consumer.json").read_text()
+        ).require_consumer_implementation()
+    spec = read_bound_json(ASSETS / (stem + "_corpus_spec.json"), spec_sha)
+    truth = read_bound_json(ASSETS / (stem + "_corpus_truth.json"), truth_sha)
     if truth["geometry"] != layout.BinaryLayoutABoard().description():
         raise ValueError("frozen geometry/consumer code differs")
-    if truth["spec_sha256"] != SPEC_SHA or len(truth["cases"]) != 48:
+    if truth["spec_sha256"] != spec_sha or len(truth["cases"]) != count:
         raise ValueError("frozen corpus contract differs")
     return spec, truth
 
 
-def prepare(out):
-    spec, truth = inputs()
+def prepare(out, variant="accuracy"):
+    spec, truth = inputs(variant)
+    _, spec_sha, truth_sha, count = profile(variant)
     out.mkdir(parents=True, exist_ok=False)
     source = source_manifest()
     write(
         out / "inputs-before.json",
-        {"source": source, "spec_sha256": SPEC_SHA, "truth_sha256": TRUTH_SHA},
+        {"source": source, "spec_sha256": spec_sha, "truth_sha256": truth_sha},
     )
     cells = layout.layout_rectangles(layout.BinaryLayoutABoard())
     dark = [r["local_xy_bounds_m"] for r in cells if r["rgb8"] == [0, 0, 0]]
     assets, convergence = [], []
-    for p in range(0, 48, 3):
+    for p in range(0, count, 3):
         base = truth["cases"][p]
         t0 = time.monotonic()
         rgb16 = raster(base["H"], dark, samples=16)
@@ -108,8 +129,8 @@ def prepare(out):
         out / "prepared.json",
         {
             "schema": 1,
-            "spec_sha256": SPEC_SHA,
-            "truth_sha256": TRUTH_SHA,
+            "spec_sha256": spec_sha,
+            "truth_sha256": truth_sha,
             "source_before": source,
             "source_after": after,
             "source_unchanged": source == after,
@@ -122,17 +143,18 @@ def prepare(out):
         raise ValueError("source changed during raster preparation")
 
 
-def evaluate(out):
+def evaluate(out, variant="accuracy"):
     import cv2
 
     cv2.setNumThreads(1)
-    _, truth = inputs()
+    _, truth = inputs(variant)
+    _, spec_sha, truth_sha, count = profile(variant)
     prepared = json.loads((out / "prepared.json").read_text())
     if (
         not prepared["source_unchanged"]
         or source_manifest() != prepared["source_after"]
-        or prepared["spec_sha256"] != SPEC_SHA
-        or prepared["truth_sha256"] != TRUTH_SHA
+        or prepared["spec_sha256"] != spec_sha
+        or prepared["truth_sha256"] != truth_sha
     ):
         raise ValueError("prepared source/spec binding differs")
     for entry in prepared["cases"]:
@@ -142,29 +164,30 @@ def evaluate(out):
     # Exclusive creation guards against accidentally re-evaluating and replacing
     # an earlier result. Failure midway is retained; no automatic retry.
     baseline, candidate = layout.BinaryLayoutABoard(), AccuracyBoard()
-    counts = {"baseline": 0, "accuracy": 0}
+    variants = (
+        ("baseline", baseline, lambda im: layout.detect_layout_corners(im, baseline)),
+        ("accuracy", candidate, lambda im: detect_accuracy_corners(im, candidate)[0]),
+    )
+    if variant == "saddle":
+        saddle = SaddleBoard()
+        variants = (
+            variants[1],
+            ("saddle", saddle, lambda im: detect_saddle_corners(im, saddle)[0]),
+        )
+    counts = {name: 0 for name, _, _ in variants}
     with result.open("x") as stream:
         for case, asset in zip(truth["cases"], prepared["cases"], strict=True):
             if case["id"] != asset["id"]:
                 raise ValueError("prepared case ordering differs")
             with np.load(out / asset["file"], allow_pickle=False) as data:
                 rgb = data["rgb16"].copy()
-            for name, board, detect in (
-                (
-                    "baseline",
-                    baseline,
-                    lambda im: layout.detect_layout_corners(im, baseline),
-                ),
-                (
-                    "accuracy",
-                    candidate,
-                    lambda im: detect_accuracy_corners(im, candidate)[0],
-                ),
-            ):
+            for name, board, detect in variants:
                 row = {
                     "case": case["id"],
                     "variant": name,
                     "flags": 2 if name == "baseline" else 34,
+                    "board_sha256": board.sha256,
+                    "case_set": case.get("set", "original_corpus"),
                     "rgb_sha256": asset["rgb16_sha256"],
                     "reference_passed": False,
                 }
@@ -214,7 +237,8 @@ def evaluate(out):
         out / "evaluation.json",
         {
             "schema": 1,
-            "cases_per_variant": 48,
+            "cases_per_variant": count,
+            "variant": variant,
             "counts_reference_passed": counts,
             "source_before": prepared["source_after"],
             "source_after": after,
@@ -222,34 +246,37 @@ def evaluate(out):
             "observations_sha256": sha(result),
             "native_images_read": 0,
             "physical_admission": False,
-            "spec_sha256": SPEC_SHA,
-            "truth_sha256": TRUTH_SHA,
+            "spec_sha256": spec_sha,
+            "truth_sha256": truth_sha,
         },
     )
     if after != prepared["source_after"]:
         raise ValueError("source changed during evaluation")
 
 
-def negatives(out):
+def negatives(out, variant="accuracy"):
     """Predeclared synthetic adversaries; preserve even unexpected acceptance."""
     import cv2
     from . import binary_reference as binary
     from .checker_corpus import project
 
     cv2.setNumThreads(1)
-    spec, truth = inputs()
+    spec, truth = inputs(variant)
     prepared = json.loads((out / "prepared.json").read_text())
     if source_manifest() != prepared["source_after"]:
         raise ValueError("source changed before synthetic adversaries")
     case = truth["cases"][0]
-    if case["id"] != "fronto/phase0/area":
+    if case["id"] != (
+        "fronto/phase0/area" if variant == "accuracy" else "fronto/newphase0/area"
+    ):
         raise ValueError("negative base differs")
     asset = prepared["cases"][0]
     if sha(out / asset["file"]) != asset["sha256"]:
         raise ValueError("negative base image changed")
     with np.load(out / asset["file"], allow_pickle=False) as data:
         original = data["rgb16"].copy()
-    board = AccuracyBoard()
+    board = AccuracyBoard() if variant == "accuracy" else SaddleBoard()
+    detect = detect_accuracy_corners if variant == "accuracy" else detect_saddle_corners
     rows = layout.layout_rectangles(board.geometry)
     results = out / "negatives.jsonl"
     with results.open("x") as stream:
@@ -309,7 +336,7 @@ def negatives(out):
             }
             try:
                 ref = reference_from_corners(
-                    detect_accuracy_corners(rgb, board)[0],
+                    detect(rgb, board)[0],
                     board,
                     rgb_sha256=row["rgb_sha256"],
                 )
@@ -331,9 +358,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("operation", choices=("prepare", "evaluate", "negatives"))
     parser.add_argument("out", type=Path)
+    parser.add_argument("--variant", choices=("accuracy", "saddle"), default="accuracy")
     args = parser.parse_args()
     {"prepare": prepare, "evaluate": evaluate, "negatives": negatives}[args.operation](
-        args.out
+        args.out, args.variant
     )
 
 

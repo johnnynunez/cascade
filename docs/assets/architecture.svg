@@ -466,7 +466,7 @@ L 1128.96 753.84
     <text style="font-size: 15px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="39.6" y="78.357656" transform="rotate(-0 39.6 78.357656)">One robot or N robots  /  Explicit capabilities  /  Independent outcome verification</text>
    </g>
    <g id="text_4">
-    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="1170" y="42.917422" transform="rotate(-0 1170 42.917422)">STATUS: 3 OCT 2026</text>
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="1170" y="42.917422" transform="rotate(-0 1170 42.917422)">STATUS: 4 OCT 2026</text>
    </g>
    <g id="text_5">
     <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172b46" x="65.52" y="129.476484" transform="rotate(-0 65.52 129.476484)">HUMAN INTERACTION</text>
@@ -550,7 +550,7 @@ L 1128.96 753.84
     <text style="font-size: 11.7px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="414.72" y="539.530172" transform="rotate(-0 414.72 539.530172)">Frames, landmarks, planar map planning</text>
    </g>
    <g id="text_32">
-    <text style="font-size: 11.7px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="414.72" y="556.810172" transform="rotate(-0 414.72 556.810172)">Live SLAM and route execution pending</text>
+    <text style="font-size: 11.7px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="414.72" y="556.810172" transform="rotate(-0 414.72 556.810172)">cuVSLAM replay; native routes pending</text>
    </g>
    <g id="text_33">
     <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172b46" x="763.92" y="520.436484" transform="rotate(-0 763.92 520.436484)">CONVERSATION</text>
@@ -616,10 +616,10 @@ L 1128.96 753.84
     <text style="font-size: 11.7px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="1141.92" y="342.970172" transform="rotate(-0 1141.92 342.970172)">MuJoCo: two complete placements</text>
    </g>
    <g id="text_54">
-    <text style="font-size: 11.7px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="1141.92" y="360.250172" transform="rotate(-0 1141.92 360.250172)">Isaac kitchen: grasp confirmed;</text>
+    <text style="font-size: 11.7px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="1141.92" y="360.250172" transform="rotate(-0 1141.92 360.250172)">Isaac kitchen: two tasks verified;</text>
    </g>
    <g id="text_55">
-    <text style="font-size: 11.7px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="1141.92" y="377.530172" transform="rotate(-0 1141.92 377.530172)">complete task still pending</text>
+    <text style="font-size: 11.7px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="1141.92" y="377.530172" transform="rotate(-0 1141.92 377.530172)">normal shutdown and reset verified</text>
    </g>
    <g id="text_56">
     <text style="font-size: 11.7px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="1141.92" y="394.810172" transform="rotate(-0 1141.92 394.810172)">MicroDuck: short ±30 mm episodes</text>
@@ -628,16 +628,16 @@ L 1128.96 753.84
     <text style="font-size: 11.7px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="1141.92" y="412.090172" transform="rotate(-0 1141.92 412.090172)">Voice → agent → short native motion</text>
    </g>
    <g id="text_58">
-    <text style="font-size: 11.7px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="1141.92" y="429.370172" transform="rotate(-0 1141.92 429.370172)">Fastening: partial turn; task failed</text>
+    <text style="font-size: 11.7px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="1141.92" y="429.370172" transform="rotate(-0 1141.92 429.370172)">Fastening: measured turn + rest</text>
    </g>
    <g id="text_59">
-    <text style="font-size: 11.7px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="1141.92" y="446.650172" transform="rotate(-0 1141.92 446.650172)">Evidence is episode-specific</text>
+    <text style="font-size: 11.7px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="1141.92" y="446.650172" transform="rotate(-0 1141.92 446.650172)">12-robot shared scene: zero command</text>
    </g>
    <g id="text_60">
     <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172b46" x="1141.92" y="559.316484" transform="rotate(-0 1141.92 559.316484)">REMAINING CAPABILITIES</text>
    </g>
    <g id="text_61">
-    <text style="font-size: 11.7px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="1141.92" y="578.410172" transform="rotate(-0 1141.92 578.410172)">Multi-agent app + shared-scene demo</text>
+    <text style="font-size: 11.7px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="1141.92" y="578.410172" transform="rotate(-0 1141.92 578.410172)">Native fleet tasks + physical stops</text>
    </g>
    <g id="text_62">
     <text style="font-size: 11.7px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="1141.92" y="595.690172" transform="rotate(-0 1141.92 595.690172)">Longer walking / running</text>
@@ -667,7 +667,7 @@ L 1128.96 753.84
     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #ac620a" x="1123.2" y="829.158281" transform="rotate(-0 1123.2 829.158281)">Dashed cards: planned / in progress</text>
    </g>
    <g id="text_71">
-    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #ac620a" x="1123.2" y="852.198281" transform="rotate(-0 1123.2 852.198281)">Dashed arrows: app wiring pending</text>
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #ac620a" x="1123.2" y="852.198281" transform="rotate(-0 1123.2 852.198281)">Dashed arrows: task validation pending</text>
    </g>
    <g id="text_72">
     <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="39.6" y="896.878125" transform="rotate(-0 39.6 896.878125)">Module availability is not physical validation. See docs/PROJECT_STATUS_20261003.md for source-bound results.</text>

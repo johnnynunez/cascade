@@ -216,7 +216,37 @@ remaining process births, and all 201,094 inputs remained unchanged. The
 [compact reference receipt](evidence/registered-fabric-rgbd-20261004.json) binds
 the source, artifacts and three earlier native failures. This validates this
 episode's capture provenance and structure, not planar accuracy, balanced rest,
-general 3D geometry or `go_to`. A separate schema6 metric episode is still required.
+general 3D geometry or `go_to`. The separate schema6 metric episode follows.
+
+### Moving-camera planar measurement, 2026-10-04
+
+The same frozen source `18150c6` and SDK `48b2d951` then captured the schema6
+checker plane under a **new model `33e93cef…`**, distinct from reference
+`d218140c…`. All 80 solves, 20 zero-command policy rows and five RGB-D captures
+completed. Ordinary MCP sensing and spatial annotation compared **four distinct
+captured rig poses, at steps 3/22/42/62, with 17 points each**. The maximum axis
+error was 0.123281 mm against 1 mm; the largest annotation completion age was
+0.778820 s against 2 s. Annotation issued no additional reader RPC. All five
+retained images passed the unchanged RGB-only held-out fit, but step 82 has
+**only offline image evidence**, not a fifth live annotation set. Five failed
+reads (one EOF, four connection refusals) remain retained.
+
+The original supervisor receipt remains **FAIL**: its final assertion compared
+in-memory tuples from `asdict(reference)` with saved JSON arrays. A separate
+audit reproduces that inequality and exact canonical JSON equality, then passes
+the **unchanged original auditor** against the persisted observations and
+reports. No numeric tolerance or measurement gate changed. Native and scope
+exits were 0; reader/server/runtime closure completed without signals, force or
+remaining process births, and all 201,127 inputs remained unchanged. The
+[compact result](evidence/registered-fabric-metric-20261004.json) binds the
+separate audit, full artifact/source manifests and an
+[unaltered step-42 JPEG](evidence/registered-fabric-metric-20261004.jpg).
+
+This measures observed planar geometry for those four captures in this episode.
+The reference pin does not transfer acceptance, and neither native result
+validates a later publication head. Physical pose uncertainty remains unknown;
+general 3D geometry, hardware calibration, rest, SLAM and navigation remain
+unadmitted.
 
 ## Packet semantics and failure behavior
 

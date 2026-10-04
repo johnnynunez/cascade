@@ -1,0 +1,193 @@
+{
+  "schema": "cascade.registered_fabric_planar_metric.v1",
+  "scope": "Four live observed planar captures from one moving-camera simulation episode; no general 3D, physical error bound, rest, SLAM or navigation admission.",
+  "native_source": "18150c6f806156e935d4d6388eacf2a91f51eb84",
+  "sdk_source": "48b2d951919bbb7330de3c2aad54e15369fa0183",
+  "model_identity_sha256": "33e93cef05cac409f005aca52b68e83ff45a8c5f5239c6fe0f6f05bbb236b737",
+  "identity_file_sha256": "015ae7ac390349bbc8337b74f2214d724ccc4e1b257f0262d8a2fbefc6c5b11c",
+  "epoch": "ac81a6b45a934a6ea1614a6c79452f51",
+  "original_supervisor_result": "FAIL",
+  "separate_retained_metric_audit": "PASS",
+  "original_failure": "Direct equality compared in-memory asdict(reference) tuples with JSON arrays; the original failed receipt is unchanged.",
+  "diagnostic": {
+    "original_inequality_reproduced": true,
+    "canonical_json_byte_exact": true,
+    "original_auditor_unmodified": true,
+    "numeric_tolerance_added": false,
+    "regression_tests_passed": 3
+  },
+  "schedule": {
+    "solves": 80,
+    "policies": 20,
+    "frames": 5
+  },
+  "ready_wall_s": 57.37109509300353,
+  "native_wall_s": 58.487642542000685,
+  "limits": {
+    "readiness_s": 180,
+    "native_wall_s": 180,
+    "outer_wall_s": 240,
+    "max_capture_age_s": 2.0,
+    "fit_rms_px": 0.15,
+    "fit_max_px": 0.35,
+    "annotation_max_axis_error_m": 0.001,
+    "annotation_pixel_rms": 0.35,
+    "annotation_pixel_max": 0.7
+  },
+  "reader": {
+    "attempts": 9,
+    "captures": 4,
+    "annotations": 68,
+    "compared_steps": [
+      3,
+      22,
+      42,
+      62
+    ],
+    "distinct_compared_rig_poses": 4,
+    "added_reader_rpcs_during_annotation": 0,
+    "max_annotation_end_age_s": 0.7788194690001546,
+    "rejected_reads": {
+      "SensorError: SensorError: RGB-D unavailable: OSError: camera RPC EOF": 1,
+      "SensorError: SensorError: RGB-D unavailable: ConnectionRefusedError: [Errno 111] Connection refused": 4
+    }
+  },
+  "live_capture_metrics": [
+    {
+      "sequence": 3,
+      "capture_sha256": "0d11f17eb70129886f8549582ceed708ce0a0aba1915a65bf50faa8396d2e388",
+      "annotations": 17,
+      "max_annotation_end_age_s": 0.7788194690001546,
+      "max_abs_error_xyz_m": [
+        4.515119716477778e-05,
+        7.893203164574536e-05,
+        9.122175134712585e-08
+      ],
+      "pixel_rms": 0.03388032675626129,
+      "pixel_max": 0.05978095970970434
+    },
+    {
+      "sequence": 22,
+      "capture_sha256": "7b454b792eb42cd886d2864198355ada0c70e6c8786cc904f4552620bbf18da8",
+      "annotations": 17,
+      "max_annotation_end_age_s": 0.7022604609956034,
+      "max_abs_error_xyz_m": [
+        0.0001230365035811698,
+        7.69216257741831e-05,
+        9.585045215865229e-08
+      ],
+      "pixel_rms": 0.046646954867472924,
+      "pixel_max": 0.09347425284847256
+    },
+    {
+      "sequence": 42,
+      "capture_sha256": "e50664cd65599a98d61d44ec3893d6b979e4e7070110f80e698be0475385b65e",
+      "annotations": 17,
+      "max_annotation_end_age_s": 0.7002494000043953,
+      "max_abs_error_xyz_m": [
+        8.767128745734709e-05,
+        0.0001232806450638807,
+        8.293191558483848e-08
+      ],
+      "pixel_rms": 0.04924107151601128,
+      "pixel_max": 0.09078695467608637
+    },
+    {
+      "sequence": 62,
+      "capture_sha256": "ad42d9a426a1508868ec6d3235ff3b5d4e333c02ab1c4c7841225596e5ad1033",
+      "annotations": 17,
+      "max_annotation_end_age_s": 0.6715863010031171,
+      "max_abs_error_xyz_m": [
+        5.6033470541699826e-05,
+        8.781327289615962e-05,
+        1.892605913933476e-07
+      ],
+      "pixel_rms": 0.03292379692429532,
+      "pixel_max": 0.05571367281995406
+    }
+  ],
+  "offline_fit": {
+    "captured_steps": [
+      3,
+      22,
+      42,
+      62,
+      82
+    ],
+    "passed": 5,
+    "failed": 0,
+    "held_points_per_image": 17,
+    "fit_points_per_image": 18,
+    "held_rms_px": [
+      0.09258444883294721,
+      0.08738059072533212,
+      0.07693737108420742,
+      0.06853002673888905,
+      0.07183075970382186
+    ],
+    "held_max_px": [
+      0.22200292620989945,
+      0.1543456134414874,
+      0.13166910431249992,
+      0.12365688898343048,
+      0.1257552835245253
+    ],
+    "scope": "Step82 has only an offline image fit; no fresh spatial annotations or renewed age."
+  },
+  "closure": {
+    "ordinary": true,
+    "native_exit": 0,
+    "scope_exit": 0,
+    "reader_closed": true,
+    "signals": [],
+    "forced": false,
+    "remaining_members": [],
+    "remaining_births": [],
+    "observed_births_checked": 5,
+    "port_closed": true
+  },
+  "inputs_count": 201127,
+  "original_before_after_inputs_unchanged": true,
+  "protected_stores_unchanged": true,
+  "full_artifact_manifest": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FABRIC_METRIC_20261004/closed-metric-audit-01.json",
+    "sha256": "efab7c59d3247880400b604f14086779310c6fb896edc5eefa00eb11f90fc44b",
+    "artifacts": 118
+  },
+  "runtime_source_manifest": {
+    "count": 47,
+    "canonical_sha256": "5365452c5ccad4de1396d52e2ce61325067035d5918df17b09b4e281b68ac099",
+    "bound_by_model_identity": "33e93cef05cac409f005aca52b68e83ff45a8c5f5239c6fe0f6f05bbb236b737"
+  },
+  "artifact_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FABRIC_METRIC_20261004/metric-plan-02.json": "90366b01c97de3d3eca2b129814a36b02f4d39fd67dc8b38519f8d43da9bbf03",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FABRIC_METRIC_20261004/metric-binding-02.json": "d1aaaa555b0cec6c8b159fdd611227ea897c2dae4743c9d3951ddef30aa11a62",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FABRIC_METRIC_20261004/metric-inputs-02.json": "77d77fcc9d8e8d2efa7dfd0fe3436bd20da1c4981adc9e57d53104328b5b5b14",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FABRIC_METRIC_20261004/metric-lifecycle-diff-02.json": "3240ddef2e2a432c5bdc4a1ea2e90c94fae95b5cc239ae9b146ce97f06e29d21",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FABRIC_METRIC_20261004/metric-plan-01-unlaunched.json": "3496df101dccd8f0735a29e470ee68d28540d63dc245fc6876ce5acd0be1a5f3",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FABRIC_METRIC_20261004/launch-admission-02.json": "132b121dcc0b0fd7f5fb011d0d7e007b4633f22c6dd7014b4f26241b9abcbde7",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FABRIC_METRIC_20261004/audit_closed_metric.py": "e34787c6699c8d816ceb047e9a65bfa13aca821c8b6c1555f4c47a959b0284f9",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FABRIC_METRIC_20261004/test_closed_metric.py": "05ebca02dd4a3bfc219ccf2fda363dd9c4d7b024d4d5ac8e3ea5b3ca32aa5279",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FABRIC_METRIC_20261004/closed-metric-audit-01.json": "efab7c59d3247880400b604f14086779310c6fb896edc5eefa00eb11f90fc44b",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FABRIC_METRIC_20261004/metric-native-02/receipt.json": "14b9a09c2d653c73af6ed0223e12dc17e898f301e6c483ef0ec42360df59acd5",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FABRIC_METRIC_20261004/metric-native-02/native-exit.json": "d24219f6de94b955cf36d25bd2aca88e2d35eef45b9317b7083f55ec8fe9653c",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FABRIC_METRIC_20261004/metric-native-02/kit/receipt.json": "fab665c0888b7104b4211a443d4c9b04eeeb88ad0c72c04b751ee76c914a0418",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FABRIC_METRIC_20261004/metric-native-02/kit/model-identity.json": "015ae7ac390349bbc8337b74f2214d724ccc4e1b257f0262d8a2fbefc6c5b11c",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FABRIC_METRIC_20261004/metric-native-02/kit/runtime.json": "65ddbe112e1373af71091c1c65967f42adc9cf7f85be6be8eb4720030e65ad23",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FABRIC_METRIC_20261004/metric-native-02/kit/physics.jsonl": "ae524e5fbed04d47d04d530ba92b34064e5fe401ee22f728a1aaf9edecd0b4b9",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FABRIC_METRIC_20261004/metric-native-02/kit/policy.jsonl": "4fbf688d67094c25044aaf014bd3720b9b4b823e14bf05cea23914cfaff2b7f7",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FABRIC_METRIC_20261004/metric-native-02/kit/frames.jsonl": "b6470e3b641b24f7faa82d4dc83a25a13c6b64f069c440e2d38aa3f84839f156",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_FABRIC_METRIC_20261004/metric-native-02/kit/planar-physics-invariance.json": "ba724ed47320cfc2ef22872d5893c397fc3f165dec8cd6cc02a532129e403820"
+  },
+  "representative_jpeg": {
+    "path": "registered-fabric-metric-20261004.jpg",
+    "native_step": 42,
+    "sha256": "69064debd3e8e29b71c80b611e5e2ac7b269559e7e1e5f1b5aab2e78ba25f9ab",
+    "scope": "Exact retained JPEG for visual inspection; geometry used lossless RGB/depth."
+  },
+  "historical_evidence": "registered-fabric-rgbd-20261004.json",
+  "physical_admission": false,
+  "balanced_rest_verified": false,
+  "slam_verified": false,
+  "navigation_admitted": false
+}

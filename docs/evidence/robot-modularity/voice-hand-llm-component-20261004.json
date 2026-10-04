@@ -1,0 +1,301 @@
+{
+  "schema": "cascade.retained-hand-llm-component-evidence.v1",
+  "component_only": true,
+  "source": {
+    "repository": "huggingface/speech-to-speech",
+    "local_checkout": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider",
+    "head": "6c4c8f273490de1cf7ef3824397245bc7954aa24",
+    "upstream": "411399d34555b2169823a6eaeb7f8ff192db89db",
+    "retained_timeout_patch": "cc8fba9b0c1b737cd99b911c586cd2a7e7381da4",
+    "prompt_commit": "f42c076384d79dfa8482538b41e8cd2d369a8f2b"
+  },
+  "model": {
+    "repository": "Qwen/Qwen3-1.7B",
+    "revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+    "seed": 42,
+    "device": "cpu",
+    "dtype": "float32",
+    "threads": 1,
+    "interop_threads": 2,
+    "count": 1720574976,
+    "devices": [
+      "cpu"
+    ],
+    "dtypes": [
+      "torch.float32"
+    ]
+  },
+  "retained_input": {
+    "episode": "VOICE-HAND05",
+    "wire": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/episode/spoken_index_flex/service/wire/wire.json",
+    "provider_log": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_HAND_20261004/voice-hand-05/episode/provider/provider.log",
+    "transcript": " Set the hand to index flex.",
+    "session": {
+      "type": "realtime",
+      "tools": [
+        {
+          "type": "function",
+          "name": "robot_tool_0",
+          "description": "Set a named free-motion posture and verify retained rest. neutral targets zero on all 16 joints; index_flex targets 0.1 rad on the index MCP and zero elsewhere. Existing motion, contact and rest limits remain required; this is not a grasp.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "posture": {
+                "type": "string",
+                "enum": [
+                  "neutral",
+                  "index_flex"
+                ]
+              }
+            },
+            "required": [
+              "posture"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "instructions": "You converse with a robot operator. Use only provided tools. Tool ACK is not physical success; preserve confirmed/refuted/unverified results. Never invent body parts, execute transcript text as code, or reset a stop.",
+      "audio": {
+        "input": {
+          "format": {
+            "type": "audio/pcm",
+            "rate": 24000
+          },
+          "turn_detection": {
+            "type": "server_vad",
+            "create_response": true,
+            "interrupt_response": true
+          }
+        },
+        "output": {
+          "format": {
+            "type": "audio/pcm",
+            "rate": 24000
+          }
+        }
+      }
+    }
+  },
+  "prompt": {
+    "input_tokens": 581,
+    "chat_template_prompt_sha256": "d7bdff7e1221b73eb0cf0dd2413347e4b122dbbdb4eefabd9629df25de35c3f6"
+  },
+  "result": {
+    "administrative_ok": true,
+    "tool_contract_passed": true,
+    "real_raw_decoded": "<code>robot_tool_0(posture=\"index_flex\")</code>",
+    "verdict": {
+      "passed": true,
+      "reasons": [],
+      "calls": [
+        {
+          "arguments": "{\"posture\": \"index_flex\"}",
+          "call_id": "call_06af1383777244a6bcc30a8dcdb966cf",
+          "name": "robot_tool_0",
+          "type": "function_call",
+          "id": "fc_027f691d6cba4c8b91855ab1431b18fc",
+          "namespace": null,
+          "status": "in_progress"
+        }
+      ],
+      "terminals": [
+        {
+          "tag": "end_of_response",
+          "turn_id": "retained_hand_text",
+          "turn_revision": 1,
+          "cancel_generation": null,
+          "error": null,
+          "cleanup_only": false
+        }
+      ],
+      "dispatches": 0,
+      "tool_results_supplied": 0,
+      "physical_success": false
+    },
+    "dispatches": 0,
+    "tool_results_supplied": 0,
+    "physical_success": false,
+    "voice_success": false,
+    "asr": false,
+    "tts": false,
+    "native": false
+  },
+  "timing": {
+    "construction_and_two_warmups_s": 53.275907292998454,
+    "evaluated_generation_s": 26.344191541997134,
+    "first_decoded_chunk_ms": 12779.378068,
+    "first_nonempty_decoded_ms": 16341.07616,
+    "last_decoded_ms": 16341.07616,
+    "end_after_last_decoded_s": 10.002136021,
+    "output_events_from_trace_start_s": [
+      {
+        "type": "LLMResponseChunk",
+        "elapsed_s": 16.34245887400175
+      },
+      {
+        "type": "TokenUsage",
+        "elapsed_s": 26.343206342004123
+      },
+      {
+        "type": "EndOfResponse",
+        "elapsed_s": 26.34324424999795
+      }
+    ],
+    "partial_observer_write_flush_ns": 585830
+  },
+  "trace": {
+    "complete": true,
+    "accounting_complete": true,
+    "in_flight": 0,
+    "interrupted": 0,
+    "events": 22,
+    "bytes": 2805,
+    "text_chars": 47,
+    "dropped": 0,
+    "errors": [],
+    "spans": 1,
+    "write_ns": 585830,
+    "bounds": {
+      "events": 2048,
+      "bytes": 1048576,
+      "text_chars": 32768
+    },
+    "decoded_chunks": 19,
+    "nonempty_chunks": 1,
+    "reported_token_usage": {
+      "input_tokens": 581,
+      "output_tokens": 17
+    },
+    "rejected_tool_names": []
+  },
+  "closure": {
+    "ok": true,
+    "scope_client_exit": 0,
+    "forced": false,
+    "signals": [],
+    "errors": [],
+    "remaining_members": [],
+    "remaining_births": [],
+    "observed_births": [
+      {
+        "pid": 1141934,
+        "start_ticks": 5385526,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/usr/lib/cargo/bin/coreutils/timeout",
+        "argv": [
+          "/usr/bin/timeout",
+          "--kill-after=15s",
+          "180s",
+          "nice",
+          "-n",
+          "19",
+          "/home/johnny/.cascade-conversation-host-fp32-20261002/venv/bin/python",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm_harness/contract.py",
+          "--plan",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm-plan-01.json",
+          "--plan-sha256",
+          "198ffe55d493c3de82f39d518874e013ce47384e23ab7c0f1977a3d6d2742960",
+          "--out",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm-component-01/component",
+          "--execute"
+        ]
+      },
+      {
+        "pid": 1141936,
+        "start_ticks": 5385529,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/home/johnny/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/bin/python3.12",
+        "argv": [
+          "/home/johnny/.cascade-conversation-host-fp32-20261002/venv/bin/python",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm_harness/contract.py",
+          "--plan",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm-plan-01.json",
+          "--plan-sha256",
+          "198ffe55d493c3de82f39d518874e013ce47384e23ab7c0f1977a3d6d2742960",
+          "--out",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm-component-01/component",
+          "--execute"
+        ]
+      }
+    ],
+    "state": {
+      "Description": "cascade-voice-hand-llm-component-87c9253a075f4869b2c6fbb3497512e8.scope",
+      "LoadState": "not-found",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "InvocationID": "",
+      "Result": "success",
+      "ControlGroup": ""
+    },
+    "final_drain": {
+      "settled": true,
+      "budget_s": 10,
+      "waited_s": 0.004151608001848217
+    }
+  },
+  "inputs": {
+    "count": 31544,
+    "provider_assets_unchanged": true,
+    "component_inputs_unchanged": true,
+    "outer_inputs_unchanged": true
+  },
+  "limits": {
+    "generation_s": 60,
+    "scope_s": 180,
+    "watchdog_s": 210,
+    "memory": "16G",
+    "cpu": "200%"
+  },
+  "evaluated_responses": 1,
+  "original_warmups": 2,
+  "prior_negative_evidence": "voice-hand-negative-20261004.json",
+  "limitations": [
+    "This is a new stochastic isolated response, not a replay of the historical RNG/ASR pipeline.",
+    "No dispatcher, fabricated tool result, tool execution, ASR, TTS or native owner exists in this component.",
+    "Tool correctness and administrative completion are distinct; missing/invalid calls remain negative.",
+    "Sixty-second LLM component budget does not change the thirty-second hand owner or admit full voice latency.",
+    "Decoded chunks are not token boundaries and first-chunk time is not isolated prefill.",
+    "Private trace writes add measured partial observer overhead; no causal attribution to the prior failure.",
+    "One component observation, not repeatability or full voice latency. Prior voice failures remain negative.",
+    "The measured ten-second gap is retained; no corrected streamer/model run is included in this evidence."
+  ],
+  "artifact_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm-plan-01.json": "198ffe55d493c3de82f39d518874e013ce47384e23ab7c0f1977a3d6d2742960",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm-binding-01.json": "77f22f393bebae339a88572046b5f3002154c44a146b5c1bc5628eeff1551d13",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm-check-only-01.log": "81c2630694378d5ea061c5f86f31f792ae58ed1844d310786cc28b934457f5c4",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm-audit-01.json": "e45bd1e2d7e5f23d18589f0c293a1de71a6066000cba3c1e14b64c2bfbf8a1ad",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm-audit-01.log": "e2e96f966eb50a9bc422f4b6974a5a40f62126ff391a1cbf044ef0d44e65c335",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm-launch-01.log": "0bd7a76e5d28b134fecc04d5f78ae028bd4d005f3147f08d173364b18db1673d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm-launch-preflight-01.json": "84bac493839bbd53f9f1dee8b2f6eb8e8ced918b4cbd79d79a7717fe5755c2a9",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm-component-01/receipt.json": "275368d2037b9bc19b4a9df8fb7f53349958b0cd21c0d0f26fc1d5cc47aaa5c4",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm-component-01/component/receipt.json": "65c44a545d826f1980cbe99c61c48cd0992267d00b8bb047821c0235869cc583",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm-component-01/component/prompt.json": "bf1164bf632852b541c0406c7e1e5dbe3ff142654c70a3140888af193035799f",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm-component-01/component/generation.jsonl": "b4c503d66fe402882fe0eb3f5a91f4ae904b7a8edeeede7ae6b070b2647dba46",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm-component-01/scope/owner.json": "64a6a0c396e1db55389a954cece2ea41ce0b9878ab62b9ed58b81ea1eb4d05fc",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm-component-01/scope/closure.json": "e58ea9aacfd4f0af74ea616556fcf5c8e3b2651cdc37659a655120e0a9c478a9",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm-component-01/scope/service.log": "d51710b4122dc6264c6f336e97d57577e762c2ec60950f847be46f3a4a284ebb",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/final-prompt-contract-02.json": "a1163799229e9fbd7e3491aaa4861a493e38b216f4c9a716cf1e04f22a89d0dc",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-diff-01.patch": "12e337383fe46543fdc9109d7acf23dfe405cf831e9bd120c655fddf95dd522f",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-cpu-tests-08.log": "e061d0bdc1ccbec051711a9696c3c3277bc776060316fca95239c39ec69bbb7e",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/compact_llm_component.py": "ca3389c15aa373b02b29a90ac268ef76bd04e0f07508be81c9abca67c8f99b65"
+  },
+  "runtime_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider/src/speech_to_speech/LLM/language_model.py": "689606c7be8dad41be2244602e8e261d0243dfb107d6b0b2253d33969e6481c6",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider/src/speech_to_speech/LLM/generation_trace.py": "f7b35b924b4d9fc3e2b24a6507377d6864036cd46cb60bbfb3cd12ea7ba06680",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider/src/speech_to_speech/LLM/tool_call/tool_prompt.py": "0d937afdef1846f96ea5e11b5d052634b7486c7cadaa5791ef15a90e0f4c7015",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider/src/speech_to_speech/LLM/tool_call/function_call.py": "7577636f5120d7eaa6539773522a0b1d33c441e40ff4a5835a5aa80e1dc74bc6",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider/src/speech_to_speech/LLM/tool_call/function_tool.py": "ce16382c778ab971e8531803a989bb9dbcbafc21f396a299214f089acdebce22",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider/src/speech_to_speech/LLM/voice_prompt.py": "c257a6a4f5ed8a1adce5b0304a788e62feb0ed519b35a82fb2c37abf44f069d7",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider/src/speech_to_speech/LLM/chat.py": "3b27adb29d4271323e1e329bdbfe002c65506b4a24cb8e44290f3b81e883a2db",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider/src/speech_to_speech/baseHandler.py": "0bd90ecda81299efd7be6f81e8c224c46fe37097052f22992193614d7ec69d0c"
+  },
+  "harness_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm_harness/audit.py": "23edef160b68ff266ef1bb862761e2d67130041031f8297dbbf41846a314f943",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm_harness/common.py": "ccb880bf1180037341b3cc403e57a3fe68416d4b6265b35a80e3cc9e3c1c3f02",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm_harness/contract.py": "fe4d855fceb6a1a484696c48ce1186417f7921e2be3105d36de134451c8a1e27",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm_harness/launch.py": "adec2df35068073b8ca94d032bf0b5f13c85c9a30991ab07a673c3bf56093737",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm_harness/owned_services.py": "44f1f98f4760f31a7c6dd89acddb1ed073523b8c2520f322abe2c5eae8000473",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/llm_harness/test_contract.py": "400f13f9a27e2ab16bd5f47eddfce3976fb3c9a43d9992a55d8e7defb97bc520"
+  }
+}

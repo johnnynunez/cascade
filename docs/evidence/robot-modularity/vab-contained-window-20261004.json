@@ -1,7 +1,7 @@
 {
   "schema": "cascade.complete_box_placement_window.v1",
   "scope": "Offline verification of one previously closed native movement capture; no new simulator, controller or task completion.",
-  "verifier_source": "6cd7c969318353b41b193fa3e69cf86e09ee21ee",
+  "verifier_source": "0c2dbabbab1ac65c27a93c372d1f87a2d6e19713",
   "native_producer_source": "e59bb6d029e3e86c5da392625365e97bb7b32d50",
   "model_identity_sha256": "a0a87de4be60d1a5250d5b3b4d9c0bb22276f5a8e4abf624f6fb4afc72d63d57",
   "epoch": "907d2f3b29a44b96941268c322464f2b",
@@ -24,9 +24,9 @@
   "models_constructed": 0,
   "solves_advanced": 0,
   "tests": {
-    "focused_passed": 160,
-    "new_composition_cases": 26,
-    "scope": "Synthetic contract tests, including complete-window coverage and mutation between predicates; not physical success."
+    "focused_passed": 161,
+    "new_composition_cases": 27,
+    "scope": "Synthetic contract tests, including complete-window coverage, mutation between predicates and finite world poses whose derived relative geometry overflows; not physical success."
   },
   "limits": {
     "max_rows": 16000,
@@ -45,11 +45,16 @@
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-box-reader-audit-02.json": "a70b8c5eb15e2545c60700baf6a35c62cf83fff3790f1c7b1d1aa6c79ec83e05",
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/contained-window-tests-01.log": "c99f382ddebaf0fbb5a0a94fe0ca708b4b0fda4d414c5ad4dcc0cfb1c3c64ecc",
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/placement-window-cascade/src/cascade/eval/contained_placement.py": "c182d898bbbee843857c705619bc0d5665b2650c740542cfc5ae9b0468c065f3",
-    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/placement-window-cascade/tests/test_contained_placement.py": "344e9a6183641baaead0bc9e8814c2c51c3cf7cdaf0feecbde3fd6510595902a"
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/placement-window-cascade/tests/test_contained_placement.py": "344e9a6183641baaead0bc9e8814c2c51c3cf7cdaf0feecbde3fd6510595902a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/contained-window-replay-02.json": "2fe0d8cacacc42318cae53b9eb688c292d77d643b7ca5f6514d91ef060ebbe3b",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/contained-window-validation-02.json": "31b7ef0644b39f4758199e24298e72fbc470d2397cef2ff3c99a5aae328c6780",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/window-publication-cascade/src/cascade/eval/contained_placement.py": "3dce9316e939d48a2cee977cb4e4805aac92756ce2b4e5f9fbadd6a24adf5f79",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/window-publication-cascade/tests/test_contained_placement.py": "0b3bfa88aba652d8a678e170f14b5b5415ffd9cbb1970c7898c7c6bf00ed2d7d"
   },
   "native_input_sha256": {
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-box-reader-02/native/placement/policy.json": "2e3a8ac943ed9bbe1a9208a7b7cfca8de91f6632d99a7b62c2b5b940c924fa55",
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-box-reader-02/native/placement/box-geometry.json": "c43bfd235a4c20a52d28863b4ca6171ae4ecab5f75a51ba5145b29d04a2c38e3",
     "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VAB_20261004/native-box-reader-02/native/placement/solves.jsonl": "ac4cc57a73f8a8f9117eb5f1ad5d5c00461a770b7bddf782e379df3199a2b21e"
-  }
+  },
+  "prior_verifier_source": "6cd7c969318353b41b193fa3e69cf86e09ee21ee"
 }

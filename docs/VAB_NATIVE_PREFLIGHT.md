@@ -284,3 +284,9 @@ It preserved the negative support/rest verdict and unknown containment error:
 the conjunction is refuted and containment remains unverified. No simulator
 was constructed and no physics step advanced. This exercises the join on real
 retained measurements; it is not a positive containment or completed-task run.
+
+A final refusal guard rejects non-finite reconstructed support-frame corners, even
+when all supplied world poses are finite. Its overflow regression is included
+in 161 focused tests. A separate offline replay at verifier `0c2dbabb` preserves
+the original support/containment verdict; the earlier `6cd7c969` replay remains
+retained separately. No new native simulator was constructed.

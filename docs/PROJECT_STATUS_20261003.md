@@ -20,9 +20,9 @@ The [1–2 October index](PROJECT_STATUS_20261001.md) preserves earlier history.
 | --- | --- | --- |
 | Manipulation | SafeArm control, observed grasp/release guards, task-effect accounting and measured withdrawal. A complete ordinary OpenClaw/Qwen Isaac kitchen episode passed on 4 October, including both placements, resets and ordinary process closure; [source-bound recovery receipts](evidence/project-status-20261003/kitchen-recovery-20261004.json). Historical OVRTX/cuMotion PhysX pick/place/home passed. The original two-object MuJoCo delivery test also passed in one new episode on integrated main `274fa3a9`, including release, support, rest, both home returns and retention of the first object. | Broader task/campaign reliability, hardware and acceptance of later source compositions. |
 | Fastening | The explicit optional SDK recipe passed a native ordinary reset/one-turn/rest episode on 2026-10-04: final 0.958650 turns within the existing 0.05-turn tolerance, 2.398416 mm advance, 0.5 simulated seconds of rest, all 2,047 solves retained and owned closure complete. [Bound result](FACTORY_FASTENING_RUNTIME.md#native-mounted-turn-and-rest-2026-10-04). | One shared-GPU episode with only 0.151804 s command deadline margin; repeatability remains unproved. Tool pickup, initial engagement, seating, withdrawal and calibrated preload remain unproved by this configured domain. |
-| Locomotion | Optional measured `walk_distance`, cancellation and independent support/rest checks; historical fresh-start ±30 mm episodes passed. | Published candidate profiles have no new model/support admission. The 0.1 m software ceiling is not measured 0.1 m capability or general gait acceptance. |
+| Locomotion | Optional measured `walk_distance`, cancellation and independent support/rest checks; historical ±30 mm receipts remain retained. | Later observation audits find excessive post-completion heading drift in both historical forward cases and VOICE04. Locomotion under the current verification contract and the 0.1 m software ceiling remain physically unadmitted. |
 | Sensing and spatial memory | Bounded sensor providers and source/epoch/age checks. The optional [RGB-D local refinement](RGBD_CHECKER_ACCURACY.md#static-planar-native-result-2026-10-04) passed one static simulated plane: five image geometry checks and 51 annotations from three fresh captures, with maximum axis error 0.152868 mm against 1 mm. The optional cuVSLAM provider passed a [twelve-frame synthetic RGB-D native replay](CUVSLAM_NATIVE_VALIDATION.md). Navigation enforces registered base pose, complete swept volume, uncertainty and arrival/rest contracts in CPU tests. | Broader metric coverage, general 3D geometry, moving-camera calibration and per-AOV synchronization. No physical SLAM or `go_to` execution is admitted. |
-| Speech | Browser/media gateway, real speech-provider path, original-intent deadlines, priority stop and bounded observed-result views. One continuous synthetic-input/native-motion recording exists. Same-origin narration after a model-staged stop has protocol tests. | That motion video contains no spoken robot reply. A [new guarded candidate](CONVERSATION.md) stopped at the unchanged native startup deadline before microphone/task inference; the forced closure and separate later cleanup audit remain recorded. General dialogue/action reliability, microphone/speaker hardware and public hosted service remain unvalidated. |
+| Speech | Browser/media gateway, real speech-provider path, original-intent deadlines and priority stop. A guarded native episode received both real model calls after an exact instruction ACK. | Its walk was physically refuted for post-completion heading drift; fallback stop remained unverified and no reply audio was produced. [All earlier failures and CPU prompt diagnostics](CONVERSATION.md) remain retained. Same-origin spoken completion, general dialogue/action reliability and microphone/speaker hardware remain unvalidated. |
 | Fleet coordination | Concurrent `FleetRuntime`, independent agent CLI and bounded fleet MCP are implemented. The [shared-scene candidate](MICRODUCK.md#shared-scene-implementation-boundary) stages policies before cohort admission and captures native channels once per solve. Fresh 1/2/12-robot probes completed 800 solves; 1/2-robot zero-command endpoint lifecycle also passed. | Twelve-robot command execution failed the unchanged 0.4 s feedback progress limit, while the scene completed and closed normally. Independent native agent tasks, collision coordination, physical stop and peer motion remain pending. |
 | Structure and whole-body control | Typed embodiment and passive generalized-joint observations; domains expose only registered resources/tools. | Mixed physical mobile manipulation is refused. No admitted humanoid balance, dexterous-hand or generic whole-body controller. |
 | Evaluation | Source-bound VAB and Arena integration/cancellation preflights ran real simulation. | Neither is a completed benchmark task or a predictor of general deployment success. |
@@ -360,8 +360,12 @@ process births were unchanged, and source/SDK/assets/stores matched before and
 after. The complete diagnostic trace and resource closure do not promote the
 readiness or task verdict.
 
-MicroDuck has four recorded fresh-start forward/reverse **30 mm** passes, a
-separate small negative turn and priority cancellation with observed rest.
+MicroDuck retains four originally confirmed fresh-start forward/reverse
+**30 mm** receipts, a separate small negative turn and priority cancellation
+with observed rest. A later [heading audit](evidence/voice-reply-recovery-20261004/guarded-continuation.json)
+finds −0.18149/−0.18552 rad after completion in the two forward traces,
+exceeding the unchanged 0.08 rad bound. Their earlier confirmed verdicts remain
+historical and do not admit the current post-completion contract.
 Other transition/contact and larger-turn failures remain retained. New source
 composition requires a new identity: the distance profiles remain unpinned and
 reject construction before transport. Same-solve reuse does not create advancing
@@ -439,6 +443,14 @@ the later bounded audit/delivery is recorded separately. File/media/source
 consistency was independently reviewed without rerunning the physical auditor.
 [Delivery](evidence/project-status-20261003/microduck-video-delivery.json),
 [independent review](evidence/project-status-20261003/microduck-video-root-review.json).
+
+The later [guarded voice continuation](evidence/voice-reply-recovery-20261004/guarded-continuation.json)
+reached the actual two-call model response with explicit trial instructions.
+Its unchanged physical checker refuted the walk for heading drift after
+completion (−0.19063 rad versus 0.08 rad). Fallback stop was acknowledged but
+not independently verified; no spoken reply followed. Owned processes closed
+and ports were free. Neither the CPU provider diagnostic nor this failed
+episode establishes the requested speech–motion–rest–reply cycle.
 
 VAB's real Panda move/cancel and Arena's PhysX zero-action/cancel preflights
 validate limited integration. Arena ran 20 control steps/160 solves, and the

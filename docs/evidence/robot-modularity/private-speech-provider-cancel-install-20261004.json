@@ -1,0 +1,276 @@
+{
+  "schema": "cascade.private-speech-provider-install-evidence.v1",
+  "scope": "One fresh normal installation with explicit downloads and passive package imports; no speech model/pipeline constructor, warmup, inference, service listener or robot.",
+  "source": {
+    "cascade_head": "106d48574e625cf9bb964e5483df43318808de25",
+    "provider_candidate": "eee2937d7616a7258a14b59257b659620824f0db",
+    "manifest_sha256": "6e1f9251f9d98a318ae5171b7bbc0f66cd455709eb3971a85874ae36440d21a9"
+  },
+  "result": {
+    "installation_completed": true,
+    "normal_install": {
+      "package": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-02/venv/lib/python3.12/site-packages/speech_to_speech",
+      "files": 116,
+      "candidate_revision": "eee2937d7616a7258a14b59257b659620824f0db",
+      "source_manifest_sha256": "6e1f9251f9d98a318ae5171b7bbc0f66cd455709eb3971a85874ae36440d21a9"
+    },
+    "python": "3.12.13",
+    "dependency_versions": 132,
+    "dependency_versions_equal_historical": true,
+    "model_and_asset_files_equal_historical": 234,
+    "constructors": 0,
+    "inferences": 0,
+    "service_started": false,
+    "physical_admission": false
+  },
+  "inputs_unchanged": true,
+  "input_files": 19,
+  "limits": {
+    "scope_s": 1800,
+    "outer_s": 1845,
+    "memory": "16G",
+    "cpu": "200%",
+    "required_free_disk_bytes": 34359738368,
+    "required_available_ram_bytes": 17179869184
+  },
+  "closure": {
+    "ok": true,
+    "scope_client_exit": 0,
+    "forced": false,
+    "signals": [],
+    "errors": [],
+    "remaining_members": [],
+    "remaining_births": [],
+    "observed_births": [
+      {
+        "pid": 1277341,
+        "start_ticks": 6262389,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/usr/lib/cargo/bin/coreutils/timeout",
+        "argv": [
+          "/usr/bin/timeout",
+          "--kill-after=15s",
+          "1800s",
+          "nice",
+          "-n",
+          "19",
+          "/home/johnny/Projects/demo/cascade-lab/CONVERSATION_BROWSER/venv/bin/python",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/install_harness/install.py",
+          "--plan",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-install-plan-02.json",
+          "--plan-sha256",
+          "b02a9c4c408047361d85473895ef208411cbdf1312b9f4d3585bbb58f80d7cdc",
+          "--mode",
+          "prepare"
+        ]
+      },
+      {
+        "pid": 1277343,
+        "start_ticks": 6262391,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/home/johnny/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/bin/python3.12",
+        "argv": [
+          "/home/johnny/Projects/demo/cascade-lab/CONVERSATION_BROWSER/venv/bin/python",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/install_harness/install.py",
+          "--plan",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-install-plan-02.json",
+          "--plan-sha256",
+          "b02a9c4c408047361d85473895ef208411cbdf1312b9f4d3585bbb58f80d7cdc",
+          "--mode",
+          "prepare"
+        ]
+      },
+      {
+        "pid": 1277360,
+        "start_ticks": 6262417,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/home/johnny/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/bin/python3.12",
+        "argv": [
+          "/home/johnny/Projects/demo/cascade-lab/CONVERSATION_BROWSER/venv/bin/python",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-cancel-cascade/scripts/conversation_provider.py",
+          "prepare",
+          "--state-dir",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-02"
+        ]
+      },
+      {
+        "pid": 1277395,
+        "start_ticks": 6262816,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/home/johnny/.local/bin/uv",
+        "argv": [
+          "/home/johnny/.local/bin/uv",
+          "pip",
+          "install",
+          "--python",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-02/venv/bin/python",
+          "--index-url",
+          "https://download.pytorch.org/whl/cpu",
+          "torch==2.11.0+cpu",
+          "torchaudio==2.11.0+cpu"
+        ]
+      },
+      {
+        "pid": 1277419,
+        "start_ticks": 6263031,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/home/johnny/.local/bin/uv",
+        "argv": [
+          "/home/johnny/.local/bin/uv",
+          "pip",
+          "install",
+          "--python",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-02/venv/bin/python",
+          "--no-deps",
+          "-r",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-cancel-cascade/configs/conversation/hf_kokoro_cpu.requirements.txt",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-02/downloads/en_core_web_sm-3.8.0-py3-none-any.whl"
+        ]
+      },
+      {
+        "pid": 1277481,
+        "start_ticks": 6263158,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/home/johnny/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/bin/python3.12",
+        "argv": [
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-02/cache/uv/builds-v0/.tmpH9ue1T/bin/python",
+          "-c",
+          "import sys\n\nif sys.path[0] == \"\":\n    sys.path.pop(0)\n\nsys.path = [] + sys.path\n\nfrom setuptools.build_meta import __legacy__ as backend\n\nimport json\n\nget_requires_for_build = getattr(backend, \"get_requires_for_build_wheel\", None)\nif get_requires_for_build:\n    requires = get_requires_for_build({})\nelse:\n    requires = []\n\nwith open(\"/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-02/cache/uv/builds-v0/.tmpH9ue1T/get_requires_for_build_wheel.txt\", \"w\") as fp:\n    json.dump(requires, fp)\n"
+        ]
+      },
+      {
+        "pid": 1277484,
+        "start_ticks": 6263201,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/home/johnny/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/bin/python3.12",
+        "argv": [
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-02/cache/uv/builds-v0/.tmpH9ue1T/bin/python",
+          "-c",
+          "import sys\n\nif sys.path[0] == \"\":\n    sys.path.pop(0)\n\nsys.path = [] + sys.path\n\nfrom setuptools.build_meta import __legacy__ as backend\n\n\nwheel_filename = backend.build_wheel(\"/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-02/cache/uv/builds-v0/.tmpBVyF85\", {}, None)\nwith open(\"/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-02/cache/uv/builds-v0/.tmpH9ue1T/build_wheel.txt\", \"w\") as fp:\n    fp.write(wheel_filename)\n"
+        ]
+      },
+      {
+        "pid": 1277490,
+        "start_ticks": 6263382,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/home/johnny/.local/bin/uv",
+        "argv": [
+          "/home/johnny/.local/bin/uv",
+          "pip",
+          "install",
+          "--python",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-02/venv/bin/python",
+          "--no-deps",
+          "--no-build-isolation",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-02/source"
+        ]
+      },
+      {
+        "pid": 1277498,
+        "start_ticks": 6263386,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/home/johnny/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/bin/python3.12",
+        "argv": [
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-02/venv/bin/python",
+          "-c",
+          "import sys\n\nif sys.path[0] == \"\":\n    sys.path.pop(0)\n\nsys.path = [] + sys.path\n\nimport setuptools.build_meta as backend\n\n\nwheel_filename = backend.build_wheel(\"/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-02/cache/uv/builds-v0/.tmpEVF9Li\", {}, None)\nwith open(\"/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-02/cache/uv/builds-v0/.tmp1luoeD/build_wheel.txt\", \"w\") as fp:\n    fp.write(wheel_filename)\n"
+        ]
+      },
+      {
+        "pid": 1277501,
+        "start_ticks": 6263449,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/home/johnny/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/bin/python3.12",
+        "argv": [
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-02/venv/bin/python",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-cancel-cascade/scripts/conversation_provider.py",
+          "_assets",
+          "--state-dir",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-02"
+        ]
+      },
+      {
+        "pid": 1277833,
+        "start_ticks": 6267873,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/home/johnny/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/bin/python3.12",
+        "argv": [
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-02/venv/bin/python",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/install_harness/install.py",
+          "--plan",
+          "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-install-plan-02.json",
+          "--plan-sha256",
+          "b02a9c4c408047361d85473895ef208411cbdf1312b9f4d3585bbb58f80d7cdc",
+          "--mode",
+          "audit"
+        ]
+      }
+    ],
+    "state": {
+      "Description": "cascade-voice-provider-install-aef2fd7d854f43649c4bbf9030f95507.scope",
+      "LoadState": "not-found",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "InvocationID": "",
+      "Result": "success",
+      "ControlGroup": ""
+    },
+    "final_drain": {
+      "settled": true,
+      "budget_s": 10,
+      "waited_s": 0.004324540997913573
+    }
+  },
+  "state": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-02",
+  "historical_state": "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-01",
+  "candidate_scope": "Cancellation-only provider package; separately reviewed host thread restoration is not part of this installation source. No service was started.",
+  "historical_access": "Only the retained prepared manifest was read for hash comparison. Installation targets, caches and venv are new; no source overlay is used.",
+  "thread_recipe": {
+    "host_torch_num_threads": 2,
+    "host_torch_interop_threads": 2,
+    "environment_omp_mkl_openblas": 2,
+    "llm_component_measured_threads": 1,
+    "comparison": "Cancel-only source package; the separately reviewed host thread restoration is not included. Installation constructs no models. A future service must bind its own exact host source and attest effective threads; no transfer of LLM or voice latency."
+  },
+  "tests": {
+    "passed": 45,
+    "scope": "CPU provider cancellation/EOF/trace contracts, including terminal rejection after retained producer cleanup failure; no speech models."
+  },
+  "limitations": [
+    "Package imports may initialize native libraries; zero model/handler counts describe this explicit prepare path, not every internal library allocation.",
+    "Dependency package versions and source/assets were verified; an installation is not voice readiness, response latency, a tool decision or physical success.",
+    "Serving and full voice-to-hand validation on this newly installed environment are separate evidence and are not implied by installation."
+  ],
+  "artifact_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-install-plan-02.json": "b02a9c4c408047361d85473895ef208411cbdf1312b9f4d3585bbb58f80d7cdc",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-install-binding-02.json": "9b2e5f5d9eb007e816c3edcd2a643f2129d683b58566f5f2d9ea2efda079be5d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-install-check-02.log": "d0b1b5774acc61c2fc3ab5c8437368d20f7f284d06505253eaaa6cd68e3d4a3b",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-install-prelaunch-check-02.log": "f26124043996cf51e218af21679f3cc0e935b6ffc456f7326ef20fb225fc51ec",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-install-launch-02.log": "e913514a1a00fd391a9bf9c0272f0977e2f877f1cddb530a14098834a9425e82",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/cancel-source-reproduction-01.json": "0be05c48edbd2625982ab966a0ca57a1d5dcd508b9fe6f5e8db2e0c8e471e18a",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-cancel-tests-02.log": "7365f1860bc34b44110fa3d1f375caa4070bb439f64366223242a639edbf93fa",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-cancel-freeze-01.json": "126edd0a5a1a10e88155935457a47de9d1c00ccfb77d1ff4340c3bd5b48159b1",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-install-diff-02.json": "38d80e35a1ab3137b86fb70525eb20532adcab569429355ab7b79b4ee0afb6d5",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-install-02/receipt.json": "933eec396622da17b5a970993beb6676d036a8d3973a582e6352ceaa045627c0",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-install-02/installed-audit.json": "095b0719a1fc78f5b6e9772e635859df6dc08d5363e8f9760c506ee24dc6cb84",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-install-02/scope/owner.json": "6d5214571cbcf500af87bc1a347f19b14f23b0d9e12498e40e0e6f84ebd9642b",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-install-02/scope/closure.json": "214462ef0d4ab6e5c152af6cef18b4fd0a943664bae6a36c4f42a9b246e556c6",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-install-02/scope/service.log": "7b77e16219673fbb8648ea8a649c6e7f5d7a7c7882866ee5c67fc8016762aaaa",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-02/prepared.json": "3f01b151ff160fc1054c2ce1bbff51d87245ef8fc54cbd04ea9453cf5c9b39de",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-02/source-patch.json": "2acd6c75bc7e70ec45a0ee66e2c13b9087898cd69c0e2288c2fc6c697c9b8b75",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-state-01/prepared.json": "88826e5833fc3b85067caeee847f767360b9eed3f7eb2d7bd30b04c2cc770eae",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/compact_provider_cancel_install.py": "4c04a4a9b2735964c36202414584c4cf15eaa67817af35e7047eb57c0200bb81"
+  },
+  "runtime_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-cancel-cascade/scripts/conversation_provider.py": "f5e250bd84754c3834e78839609811b1d090fbdac19b38577a58e06c72d69841",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-cancel-cascade/scripts/conversation_provider_source.py": "4b83967de171f786794617ab4f125ac6ad7a22e313a8f90ab1ce765e64afe39d",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-cancel-cascade/configs/conversation/hf_kokoro_cpu.json": "fe0a1567d29b042438b3077be25c855ed4492744ed4a432f77dd99e0c1aadd46",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-cancel-cascade/configs/conversation/hf_kokoro_cpu.requirements.txt": "86ce1804b82e4e0df64b7c56eaf84d1044a64d68f5aa81ff28de501559582270",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-cancel-cascade/configs/conversation/provider/manifest.json": "6e1f9251f9d98a318ae5171b7bbc0f66cd455709eb3971a85874ae36440d21a9",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/provider-cancel-cascade/configs/conversation/provider/speech-provider.patch": "1474182f50492d1cc4b339939795e2d3c3f1ed9174788939d7e6977e2efae802"
+  },
+  "harness_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/install_harness/install.py": "e3e8532d324634933c7d0236e270a6eae142fb57456464fe2817c209b0cdde9f",
+    "/home/johnny/Projects/demo/cascade-lab/ROADMAP_VOICE_PROVIDER_20261004/install_harness/owned_services.py": "44f1f98f4760f31a7c6dd89acddb1ed073523b8c2520f322abe2c5eae8000473"
+  }
+}

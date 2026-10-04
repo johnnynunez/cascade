@@ -23,6 +23,57 @@ def host(monkeypatch):
     return module
 
 
+class _ThreadConfiguration:
+    def __init__(self, *, ignores_restore=False):
+        self.intra = self.inter = 2
+        self.restores = []
+        self.ignores_restore = ignores_restore
+
+    def get_num_threads(self):
+        return self.intra
+
+    def get_num_interop_threads(self):
+        return self.inter
+
+    def set_num_threads(self, count):
+        self.restores.append(count)
+        if not self.ignores_restore:
+            self.intra = count
+
+    def set_num_interop_threads(self, count):
+        pytest.fail("late inter-op reconfiguration is forbidden")
+
+
+def test_pipeline_dependency_cannot_silently_override_declared_threads(host):
+    torch = _ThreadConfiguration()
+    manager = object()
+    calls = []
+    def builder(*args, **kwargs):
+        calls.append((args, kwargs))
+        torch.intra = 1  # Same process-global change made by the pinned VAD import.
+        return manager
+    actual, observation = host.build_with_declared_threads(builder, torch, 2, "args", host="loopback")
+    assert actual is manager and calls == [(("args",), {"host": "loopback"})]
+    assert torch.restores == [2]
+    assert observation == {"declared": 2, "intra_op_before_restore": 1,
+                           "intra_op_after_restore": 2, "inter_op": 2}
+
+
+@pytest.mark.parametrize("failure", ["interop_changed", "restore_ignored", "builder_error"])
+def test_thread_configuration_refuses_unrestored_or_failed_pipeline(host, failure):
+    torch = _ThreadConfiguration(ignores_restore=failure == "restore_ignored")
+    def builder():
+        torch.intra = 1
+        if failure == "interop_changed":
+            torch.inter = 1
+        if failure == "builder_error":
+            raise LookupError("construction failed")
+        return object()
+    with pytest.raises(LookupError if failure == "builder_error" else ValueError):
+        host.build_with_declared_threads(builder, torch, 2)
+    assert torch.restores == ([2] if failure == "restore_ignored" else [])
+
+
 @pytest.fixture
 def prepared(host, source_bundle, monkeypatch):  # noqa: F811 (imported pytest fixture)
     from conversation_provider_source import apply_patch

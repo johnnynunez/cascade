@@ -115,3 +115,82 @@ admitted action owner; no Arena episode is implied by this VAB result. The
 upstream Panda controller is not an SO-101 driver. Full benchmark task success
 still requires real object perception, a reviewed task-specific manipulation
 configuration, and independent release/support evidence.
+
+## Per-solve placement witness and native calibration (4 October 2026)
+
+The optional `--record-placement` reader attaches after reset and records every
+ordinary `env.sim.step()` in a private file. It does not give the actor object
+poses or contacts, change its actions, or add a solve. Each row keeps all native
+contact candidates, contact-frame wrenches, world forces on geom B, object and
+support velocities, and conservative robot/object geometry bounds. Collision
+groups include explicitly declared pairs even when their masks are zero. The
+reader requires rigid free-jointed objects and Euler integration, labels the
+pre-integration constraint state separately from the advanced simulation clock,
+and refuses warnings, missing bounds, changed geometry, or archive exhaustion.
+Its first constraint recipe excludes all equalities, tendons, SDK callbacks and
+plugins; actuators may drive only joints inside the robot subtree. Object and
+support joints cannot carry springs, friction-loss constraints, or gravity
+compensation. These checks run before and after every step: a free joint alone
+does not prove that an object was detached from the robot.
+The contact-frame convention follows the pinned
+[MuJoCo 2.3.7 API](https://mujoco.readthedocs.io/en/2.3.7/APIreference/APIfunctions.html#mj-contactforce);
+its force sign and phase passed the source-bound native calibration below.
+
+`cascade.eval.placement.verify_placement_window` checks every solve in an
+explicit interval. Its default policy requires 0.5 simulated seconds of quiet
+object and support, at least 5 mm conservative separation from the robot,
+no robot contact, and upward support forces between 80% and 120% of the object's
+weight. The original interval is never shortened to find a successful suffix.
+Absent or inconsistent evidence is unverified; an observed violation refutes
+the window. These new policy values are declared evaluation criteria, not a
+relaxation of any existing motion or safety gate. Policy, epoch and model
+identity are bound into each record; the integration must also check the
+recorder closure and bind its artifact to the exact external episode.
+
+This predicate leaves containment unverified. It cannot prove that a body fits
+inside a container, that perception found the correct object, or that a task
+was executed safely. The existing preflight still exposes only its two relative
+motions, and still reports placement unverified. Software tests use synthetic records and an instance-local step double. The
+separate native calibration below adds force/phase evidence, not a VAB pick/place result.
+
+
+Source `64fd8605a72e246131e1d864b5b2cff85cf21aa5` completed three analytic
+MuJoCo 2.3.7 CPU fixtures, each with exactly 751 ordinary solves. Two boxes-on-support
+fixtures reverse the native geometry ordering and confirm the force-on-B sign
+in both directions. A third fixture places the object on the floor outside the
+declared support and is refuted. The test window was fixed before launch at
+steps 501–751 (0.5 simulated seconds); settling rows were retained as well.
+
+Across 2,253 solves and 18,027 contact candidates, the reader's body positions
+match pre-step free-joint positions exactly. Advanced positions differ by up to
+78.48 micrometres, so this phase check is not vacuous. Positive support fractions
+remain between 0.9999999992 and 1.0000000000 of object weight, with at least
+0.5024 m conservative robot separation. The negative has zero declared-support
+load while floor contacts carry its weight. An offline audit recalculates signs,
+loads, rest, separation and phase from the retained rows, verifies 11,487 input
+hashes, and checks complete recorder and process closure. No termination signals
+or remaining owned processes were recorded.
+
+The [compact calibration evidence](evidence/robot-modularity/vab-placement-calibration-20261004.json)
+binds the native source, plans, three compiled models, all traces and the offline
+auditor. Initial preparation plans are retained unlaunched with their review
+findings. This calibrates the reader and predicate on these fixtures. The reader also passed the native movement integration below. Perception-guided
+grasping, geometric containment and a completed VAB task remain unverified.
+
+
+The same frozen source then ran the original pinned VAB task/init 0 with
+`--record-placement`, the existing two ordinary +40/−40 mm movements, and
+OSMesa/llvmpipe RGB. The reader retained all 1,050 solver steps / 36,817 contact
+candidates in 21,383,808 bytes, across 42 control steps. Its final row in each
+batch agrees with the existing observer's clock and object/support positions.
+Independent TCP errors are 1.513 mm upward and 1.395 mm downward; stop denies
+another command without advancing the synchronous simulation. Runtime, reader,
+environment and owned processes closed normally, with all 12,561 inputs intact.
+
+The whole recorded interval is refuted for support in the basket: the object
+remains on the floor and the declared support carries zero load. Benchmark
+success stays false and the task verdict remains unverified. This checks that
+the reader works with the native robot and scene while retaining a negative
+placement result; it does not demonstrate a grasp, release into the basket or
+physical braking under an independently advancing simulator. The same compact
+evidence includes this integration's distinct compiled model and episode.

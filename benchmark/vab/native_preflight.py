@@ -44,7 +44,7 @@ def write_json(path, value):
 def source_inventory(checkout):
     repo = Path(__file__).resolve().parents[2]
     groups = {"cascade": (repo, [*repo.joinpath("src").rglob("*.py"), *repo.joinpath("configs").rglob("*.yaml"),
-                                *repo.joinpath("benchmark/libero").glob("*.py"), Path(__file__).resolve()]),
+                                *repo.joinpath("benchmark/libero").glob("*.py"), *repo.joinpath("benchmark/vab").glob("*.py")]),
               "vab": (checkout, list(checkout.joinpath("libero/libero").rglob("*.py")))}
     for package in ("robosuite", "mujoco"):
         root = Path(importlib.metadata.distribution(package).locate_file(package))
@@ -102,12 +102,13 @@ class Witness:
 
 class ObservedEnvironment:
     """Advance the real environment once, then read it before returning obs."""
-    def __init__(self, native, witness, trial, out):
+    def __init__(self, native, witness, trial, out, *, record_placement=False):
         import mujoco
         self.native, self.witness, self.steps = native, witness, 0
         self.trial, self.out = trial, out
         self._mujoco = mujoco
         self.after_step = None
+        self.record_placement, self.placement = record_placement, None
 
     def __getattr__(self, name):
         return getattr(self.native, name)
@@ -135,6 +136,15 @@ class ObservedEnvironment:
         write_json(self.out / "model-identity.json", {"sha256": self.witness.model_identity, "recipe": recipe})
         self.witness.capture(self.native, 0)
         self._frame(observation)
+        if self.record_placement:
+            import yaml
+            from benchmark.vab.placement_witness import PlacementRecorder
+            task = yaml.safe_load(self.trial.task_path.read_text())
+            args = task["success"]["args"]
+            self.placement = PlacementRecorder(self.native, self.out/"placement",
+                model_identity_sha256=self.witness.model_identity, epoch=self.witness.epoch,
+                object_name=args["obj"], support_name=args["container"],
+                robot_root_body=self.native.robots[0].robot_model.root_body)
         return observation
 
     def _frame(self, obs):
@@ -154,9 +164,17 @@ class ObservedEnvironment:
         return out
 
     def close(self):
-        self.native.close()
+        placement = None
+        try:
+            if self.placement is not None:
+                placement = self.placement.close()
+        finally:
+            self.native.close()
         write_json(self.out / "environment-close.json", {"ok": True, "steps": self.steps,
+                   "placement": placement,
                    "semantics": "native VAB close returned; standalone runner subsequently exits"})
+        if placement is not None and not placement["ok"]:
+            raise RuntimeError("placement recorder did not close completely")
 
 
 class PandaArm(LiberoArm):
@@ -346,6 +364,8 @@ def main():
     parser.add_argument("--task", default="tasks/libero_object_all_variance/pick_up_the_alphabet_soup_and_place_it_in_the_basket.yaml")
     parser.add_argument("--init-index", type=int, default=0)
     parser.add_argument("--cancel-after-step", type=int)
+    parser.add_argument("--record-placement", action="store_true",
+                        help="Record every solved contact for independent placement analysis; does not enable grasping")
     args = parser.parse_args()
     out = args.output.resolve()
     out.mkdir(parents=True, exist_ok=False)
@@ -373,7 +393,8 @@ def main():
                         skill_plan=[("manipulation.move_relative", {"direction": "up", "distance_m": 0.04}),
                                     ("manipulation.move_relative", {"direction": "down", "distance_m": 0.04})],
                         output_path=out / "episode.json", binding_reader=binding_reader,
-                        env_factory=lambda t: ObservedEnvironment(open_native_environment(t), witness, t, out))
+                        env_factory=lambda t: ObservedEnvironment(open_native_environment(t), witness, t, out,
+                                                                 record_placement=args.record_placement))
     tools = [json.loads(row) for row in (out / "runtime/trace.jsonl").read_text().splitlines()
              if json.loads(row)["skill"] == "manipulation.move_relative" and json.loads(row)["args"].get("distance_m") == .04]
     moves_ok = len(tools) == 2 and all(r["result"].get("postcondition", {}).get("status") == "confirmed" and r["result"].get("ok") is True for r in tools)

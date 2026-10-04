@@ -1,0 +1,192 @@
+{
+  "schema": "cascade.private-rtx-native-evidence.v1",
+  "date": "2026-10-04",
+  "sdk_head": "48b2d951919bbb7330de3c2aad54e15369fa0183",
+  "scope": "Task-private writable RTX cache admission and a bounded zero-command probe",
+  "deadlines": {
+    "warming_readiness_s": 180,
+    "native_wall_s": 180,
+    "outer_watchdog_s": 240,
+    "voice_startup_s": 65,
+    "voice_intent_s": 60,
+    "voice_execution_s": 30
+  },
+  "preserved_failures": [
+    {
+      "run": "VOICE_PRIVATE_RTX_CACHE_20261004/probe-02",
+      "source": "99c8bc4ca9c56819b388f290529d024f240732a7",
+      "passed": false,
+      "receipt_sha256": "9297b66743213edc9240149adececb43cd7331200adf98f42f983900bbae644e",
+      "plan_sha256": "77f6bd91af6f56e2e6a27dcbf7bb85089a5a1ab63770cbce263dc7ec45118f93",
+      "native_exit": {
+        "exit_code": 1
+      },
+      "scope_exit": null,
+      "closure": {
+        "ok": true,
+        "forced": false,
+        "signals": [],
+        "scope_client_exit": 1,
+        "remaining_members": [],
+        "remaining_births": []
+      },
+      "inputs_unchanged": true,
+      "protected_unchanged": true,
+      "port_closed": true,
+      "steps": 0,
+      "policy_commits": null,
+      "frames": 0,
+      "native_wall_s": 163.0192249899992,
+      "failure": "After the constructor returned, a guessed SDK module import failed before robot initialization; actual constructed class/code origins are now checked."
+    },
+    {
+      "run": "VOICE_PRIVATE_RTX_ORIGIN_20261004/cache-preparation-01",
+      "source": "eac66e67a89de60822550998ac25d4c16b808c91",
+      "passed": false,
+      "receipt_sha256": "5f25dd02a070589a80fd3b47ef35b265900630d8059745f4bd82e401c45fd7d6",
+      "plan_sha256": "0a5a938e78cb93ef8b8e5bf477e1e8d3eebf001848597bf84995baf2732084d0",
+      "native_exit": {
+        "exit_code": 143
+      },
+      "scope_exit": null,
+      "closure": {
+        "ok": true,
+        "forced": false,
+        "signals": [
+          {
+            "pid": 476267,
+            "start_ticks": 1737524,
+            "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+            "signal": 15
+          }
+        ],
+        "scope_client_exit": 1,
+        "remaining_members": [],
+        "remaining_births": []
+      },
+      "inputs_unchanged": true,
+      "protected_unchanged": true,
+      "port_closed": true,
+      "steps": 1,
+      "policy_commits": 1,
+      "frames": 0,
+      "native_wall_s": 179.9413217500005,
+      "failure": "Original 180-second readiness limit expired after one solve, one policy commit and no camera frame; owned SIGTERM retained. This output supplied no seed."
+    }
+  ],
+  "constructor_preparation": {
+    "run": "VOICE_PRIVATE_RTX_ORIGIN_20261004/constructor-cache-01",
+    "source": "eac66e67a89de60822550998ac25d4c16b808c91",
+    "passed": true,
+    "receipt_sha256": "2fd8448e27fa52299ee71f49fc5e471ec0a3681a751a7d8a8c75c4d44d15bac4",
+    "plan_sha256": "02863a1ad48a8c105fdff461f188499b1a7b37ef6b34d1707678871280706729",
+    "native_exit": {
+      "exit_code": 0
+    },
+    "scope_exit": 0,
+    "closure": {
+      "ok": true,
+      "forced": false,
+      "signals": [],
+      "scope_client_exit": 0,
+      "remaining_members": [],
+      "remaining_births": []
+    },
+    "inputs_unchanged": true,
+    "protected_unchanged": true,
+    "port_closed": true,
+    "steps": null,
+    "policy_commits": null,
+    "frames": null,
+    "native_wall_s": null,
+    "scope": "renderer constructor only; no robot, bridge, physics or model pin",
+    "constructor_elapsed_s": 165.70491062299698,
+    "ready_age_s": 165.87235593800142,
+    "artifact_sha256": {
+      "kit/constructor-receipt.json": "a1404129158c7af45301da42685a22a9c78ffb3f01da513966d233c3d2ec65ec",
+      "kit/CACHE_READY.json": "cedbf8c1c2d526f4ddb84851e3b07a6e3259a48f0300c08d70407fc7a54ba2da",
+      "kit/constructor.kit": "a08c4d995fcbeac67bca968d027618662635ae6a20f7d4646ec7b9ac502a559b",
+      "kit/rtx-cache.json": "3a825668b093668543d8b86d6730b469044ae9a4dc2f31ca419465446626c2ab",
+      "kit/rtx-cache-effective.json": "d51eb054c8e04d88022ab388012cdf915985d9fe1dce175430a1ba2e1e5377b0",
+      "kit-detailed.log": "1dea0d6d25980163fa9d7b2518c3295099ffe4adf36ae0d78d4538337afcc7d4"
+    }
+  },
+  "seed": {
+    "from": "constructor-cache-01",
+    "provenance_sha256": "1d51eec1a59e96fb12ec88b5243a71f48c1f2931f253286b5224df04f699c961",
+    "rtx_manifest_sha256": "93db8d4df3ee2e50d559ce302ced5ec507fff90cda4dfef341a429167cd17737",
+    "rtx_files": 2,
+    "compiler_files": 422,
+    "exclusive_copies": true
+  },
+  "full_probe": {
+    "run": "VOICE_PRIVATE_RTX_ORIGIN_20261004/probe800-02",
+    "source": "eac66e67a89de60822550998ac25d4c16b808c91",
+    "passed": true,
+    "receipt_sha256": "15be03565330ec7337e8bd4ba2dd8fa166f24608d65dcd06aec81f4efb86f647",
+    "plan_sha256": "2207d9f03cd89580a0149b057430fde64d4696f358cddcb66a9e5b8360d3ad64",
+    "native_exit": {
+      "exit_code": 0
+    },
+    "scope_exit": 0,
+    "closure": {
+      "ok": true,
+      "forced": false,
+      "signals": [],
+      "scope_client_exit": 0,
+      "remaining_members": [],
+      "remaining_births": []
+    },
+    "inputs_unchanged": true,
+    "protected_unchanged": true,
+    "port_closed": true,
+    "steps": 800,
+    "policy_commits": 200,
+    "frames": 41,
+    "native_wall_s": 18.396457483999257,
+    "ready_age_s": 10.664382867002132,
+    "model_identity_sha256": "64992495be06a11a408ae4dfb70f9d450956f7589a272765cdc7f86e2c1be8d4",
+    "identity_file_sha256": "2e9908a8b4428d59431fdf3d3e34579d00d1f8ba8ebc2148b70ae59d6940bc0b",
+    "epoch": "61eb1edc346d44bc93920b6545a3ff42",
+    "support_probes": 41,
+    "zero_policy_commits": 200,
+    "policy_and_graph": {
+      "raw_action_history_width": 14,
+      "history_slice": [
+        34,
+        48
+      ],
+      "graph_captured_rows": 799,
+      "same_solve_reuse_source_binding": true,
+      "substeps": 1,
+      "dt_s": 0.004999999888241291
+    },
+    "inputs_verified": 199625,
+    "artifact_sha256": {
+      "kit/receipt.json": "bbeef3b925cca8cbc13400a365827179db655d76d2f54cebe61df315b7f4bb1f",
+      "kit/model-identity.json": "2e9908a8b4428d59431fdf3d3e34579d00d1f8ba8ebc2148b70ae59d6940bc0b",
+      "kit/BRIDGE_LISTENING.json": "c3c7fb011466c4442537c343933866c9c5b9352861fbc3d43b766b9e7bd386ff",
+      "kit/physics.jsonl": "d2ef937c99772a4e2fed3d18700147722b34d3878623fd41b7a25d248b2b0089",
+      "kit/policy.jsonl": "77840b3798d6f6a4727bf4381aec986a9e08d36baea82969f4e2a23ac4aaa80c",
+      "kit/frames.jsonl": "616f10a44879c9bc0cadadc5df4313ea3874c261be01db94470d02eda2951856",
+      "kit/support-probe.jsonl": "0346fe048b378c734ad50596dae4871ffe318678ec04ae12f3cac43f4c911e43",
+      "kit/rtx-cache.json": "d51ce317cfd1c6a2ff548fd82bb4a55a345340fbdfd9143bd44ed8967d1553e2",
+      "kit/rtx-cache-effective.json": "e23a7505f15a9f52c0e442cea0e8cc48d37df2ba62658fdd1959ac70c825b239",
+      "kit-detailed.log": "fba1c3eded5fdd9bd1cdb92a4921811cbb65f90c5be522fa9e8406c968714d08"
+    },
+    "all_artifact_hashes_verified": 51,
+    "review": "Independent root and peer audits reproduced native counts, canonical identity, loaded sources, solved contact labels and ordinary process closure."
+  },
+  "pre_native_refusals": [
+    {
+      "run": "probe800-01",
+      "reason": "Foreign GPU occupant identities changed before scope.start",
+      "native_started": false
+    }
+  ],
+  "limits": [
+    "A single seeded run establishes neither general startup reliability nor a causal performance estimate.",
+    "Bundled SDK cache inputs remained unchanged; only the two writable RTX destinations were redirected.",
+    "The probe supplies a source-bound identity for a subsequent episode, not balanced rest, commanded locomotion or speech verification."
+  ]
+}

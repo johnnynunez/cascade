@@ -121,6 +121,9 @@ locomotion, fidelity of a solver, contact support or any physical outcome.
                      "physics_dt_s", "physics_device", "gpu_attestation", "configuration",
                      "native_labels", "native_model_properties", "native_body_properties", "disabled_source_actuators",
                      "initialization", "support_contract", "support_extraction", "runtime_versions")
+    cache = admission.get('private_rtx_cache')
+    if native['configuration'].get('private_rtx_cache') != (cache['policy'] if cache else None):
+        raise ValueError('effective private RTX cache policy differs from admission')
     recipe = {
         "schema": "cascade.microduck.effective-model.v1", "engine": "newton",
         "bundle_receipt_sha256": receipt_hash, "bundle_outputs": [outputs[k] for k in sorted(outputs)],

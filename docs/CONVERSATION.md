@@ -214,8 +214,15 @@ gone without additional signals. A separate
 [external-owner correction](evidence/voice-reply-recovery-20261004/external-owner-final-drain.patch)
 waits for unit, members and observed births together, with seven CPU ownership
 and drain cases passing. It has not been rerun natively. The historical motion
-recording still has no spoken robot reply, and startup's underlying cause is
-not established by the retained log.
+recording still has no spoken robot reply. A retained detailed Kit log narrows
+the startup failure to RtPso asynchronous compilation waits, continuing through
+84.9 s around viewport initialization/destruction. It does not establish the
+underlying cause. The 422 copied cache files were CUDA, Warp and XDG data;
+writable RTX/PSO caches still used shared Kit paths and were not frozen or
+audited. An offline isolation proposal selects both writable shader cache
+settings before bootstrap and binds the policy to a new model/episode. It
+requires a separate bounded probe, verified effective paths, successful closure
+and a complete private cache inventory before another speech candidate.
 
 ## Provider contract and self-hosting
 

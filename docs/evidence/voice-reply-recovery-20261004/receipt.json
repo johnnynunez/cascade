@@ -72,10 +72,30 @@
     }
   ],
   "diagnosis": {
-    "startup": "Initialization stopped between Simulation App Starting and Startup Complete, before scene/policy/bridge admission; retained log cannot distinguish renderer/update/viewport causes",
+    "startup": "Retained detailed Kit log shows RtPso asynchronous compilation waits from 14.898 s through 84.900 s during viewport startup/destruction; viewport wait reaches its 120-frame timeout at 16.452 s. This narrows the blocked phase; root cause remains unknown.",
     "closure": "Original owner took final cgroup/unit/birth snapshots once; it returned while a known birth still existed, which disappeared before later audit",
     "external_owner_candidate": "Separate closure-recovery module waits up to 10 s for unit inactivity, empty members and all observed births gone; bounds systemctl by remaining budget; does not erase forced failure",
-    "native_rerun": false
+    "native_rerun": false,
+    "private_cache": {
+      "files": 422,
+      "cuda": 248,
+      "warp": 167,
+      "xdg": 7,
+      "byte_identical_to_probe": true,
+      "rtx_or_pso_included": false,
+      "writable_rtx_pso_location": "Shared portable Kit cache outside private XDG; mutable global bytes were not audited",
+      "causality_established": false
+    },
+    "comparison": {
+      "argv_differences": [
+        "--out",
+        "--max-steps (800 to 20000)"
+      ],
+      "admission_and_experience_identical": true,
+      "successful_detailed_kit_log_missing_at_audit": true,
+      "complete_child_environment_retained": false
+    },
+    "private_rtx_cache_candidate": "Offline proposal only: select both writable shaderDb paths before bootstrap, bind policy/source in model and paths/immutable seed in episode admission, then verify effective settings. New bounded probe and complete closed-cache inventory required before another voice candidate; no native launch authorized."
   },
   "software_validation": {
     "same_origin_reply_and_operator_revocation": "Two parameterized cases in test_conversation_stop_order.py; synthetic PCM is protocol evidence only",
@@ -123,7 +143,11 @@
     "VOICE_REPLY_RECOVERY_20261004/admission-02/episode/native/kit/startup.json": "2e7ecaa8a955cf22a0081d46e556a806539196c7152b881c5b18216c99efe685",
     "VOICE_REPLY_RECOVERY_20261004/admission-02/episode/post-closure-audit.json": "aedeb66ea21c729990d69aa3ba3f5656c02539d3ab03671752efe54c0add2c3d",
     "VOICE_REPLY_RECOVERY_20261004/closure-recovery/owned_services.py": "44f1f98f4760f31a7c6dd89acddb1ed073523b8c2520f322abe2c5eae8000473",
-    "VOICE_REPLY_RECOVERY_20261004/closure-recovery/test_final_drain.py": "55934d50143b502e0db833d2fdbd6581fabc0cb4b0f53ef23dcd072c131c1a23"
+    "VOICE_REPLY_RECOVERY_20261004/closure-recovery/test_final_drain.py": "55934d50143b502e0db833d2fdbd6581fabc0cb4b0f53ef23dcd072c131c1a23",
+    "VOICE_REPLY_RECOVERY_20261004/admission-02/episode/startup-diagnostic/kit.log": "3244ef5cd47b5c513e8e53e71624e5beab0ba584aa73487f1d3ff72440b4e4dc",
+    "VOICE_REPLY_RECOVERY_20261004/admission-02/episode/startup-diagnostic/audit_startup.py": "1372847c48e2ba0319ff48e46e9b79f4ebea96c7456d6a64c9ddd0aef4ea39bc",
+    "VOICE_REPLY_RECOVERY_20261004/admission-02/episode/startup-diagnostic/audit.json": "9c764c3e471c1bc9293f59b1173d18266a7df65119098a00a6d0aef0929f6622",
+    "VOICE_REPLY_RECOVERY_20261004/admission-02/episode/startup-diagnostic/private-rtx-cache-proposal.json": "463c8e80d0fecf2bd6825a4576e20bce7d3a4d47949042e34547708cf8550526"
   },
   "external_owner_patch": {
     "path": "external-owner-final-drain.patch",

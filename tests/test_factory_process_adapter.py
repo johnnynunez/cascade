@@ -188,6 +188,36 @@ def test_archive_failure_revokes_child_without_persistence_ack(tmp_path):
     assert result["owner"]["owner"]["zero_spindle"]["uploaded"]
 
 
+@pytest.mark.parametrize("error", [TimeoutError("original reader deadline"),
+                                  WireFault("fault fence refused delivery"),
+                                  ValueError("invalid snapshot: " + "x"*1000)])
+def test_reader_failure_retains_bounded_cause_through_observation_cleanup(tmp_path, monkeypatch, error):
+    process, session, _, _, _ = _start(tmp_path)
+    expected = f"Factory reader delivery failed: {type(error).__name__}: {error}"[:800]
+    try:
+        # Allocate the real domain archive so cleanup crosses the same sticky
+        # fault check as execute(), after it has caught a reader exception.
+        history = session._new_thread_history()
+        batch = session._read_before(0, timeout_s=2., deadline=time.monotonic()+2.)
+        assert batch
+        def fail(*_args, **_kwargs):
+            raise error
+        monkeypatch.setattr(session._decoder, "read", fail)
+        with pytest.raises(type(error)) as caught:
+            next(batch)
+        assert caught.value is error
+        with pytest.raises(FasteningFault) as cleanup:
+            session.release_observations()
+        assert str(cleanup.value) == expected
+        assert history.retained == {"rows": 0, "bytes": 0, "views": 0, "active_readers": 0}
+        with pytest.raises(FasteningFault) as sticky:
+            session._check()
+        assert str(sticky.value) == expected
+    finally:
+        with pytest.raises((WireFault, FasteningFault, EOFError)):
+            _finish(process, session)
+
+
 def test_priority_stop_does_not_wait_for_blocked_host_archive(tmp_path):
     entered, release = threading.Event(), threading.Event()
     def pause(_seq, _record):

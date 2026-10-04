@@ -97,7 +97,7 @@ def run(args, admission, signals):
         owner.signals = signals
         owner.open()
         if getattr(args, 'profile_phases', False):
-            owner.receipt['configuration']['phase_profile'] = 'owner-thread-inclusive-gc-v1'
+            owner.receipt['configuration']['phase_profile'] = 'owner-thread-inclusive-gc-trigger-v1'
         identity = owner.bind_identity(repo=REPO, runtime_scene=out / 'runtime-scene.usda')
         write_json(out / 'model-identity.json', identity)
         remaining = args.max_wall_s - (time.monotonic() - started)

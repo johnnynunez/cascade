@@ -234,7 +234,7 @@ def test_launcher_withheld_attempt_preserves_step_budget_and_only_emits_complete
         assert {'policy.prepare', 'bam.before_step', 'solve', 'publication', 'record.physics',
                 'write.physics.jsonl', 'camera.overview', 'camera.capture', 'support.probe'} <= phases
         assert not any(s['phase'] in ('solve', 'publication') for s in attempts[0]['spans'])
-        assert created[0].receipt['configuration']['phase_profile'] == 'owner-thread-inclusive-gc-v1'
+        assert created[0].receipt['configuration']['phase_profile'] == 'owner-thread-inclusive-gc-trigger-v1'
     else:
         assert not (out/'timing.jsonl').exists() and 'phase_profile' not in result
         assert 'step' not in vars(created[0]) and 'capture' not in vars(created[0])

@@ -326,6 +326,17 @@ callback. Callback intervals include scheduling
 and other callbacks; they do not measure isolated CPU cost or establish a cause
 for a control timeout. Profiling does not disable or force collections.
 
+The trigger diagnostic also copies at most 16 Python frame locations on each
+generation-2 start, with paths and function names limited to 512 characters.
+It retains no frames, locals or source lines; absent Python callers and truncated
+stacks are explicit. This identifies the observed trigger, not the heap scanned.
+Collector counts/statistics and allocated-block counters bracket callback
+registration; they are not a heap-object census or SDK-startup measurement.
+Stack and counter capture durations are recorded, but exclude callback dispatch,
+queue and encoding overhead. They do not measure the observer's entire cost or
+justify subtracting that cost from GC intervals. The recipe uses a distinct
+profile identity, and counter/capture errors prevent complete attribution.
+
 Two [reader-only GC profiles](evidence/microduck-shared-20261004/gc-serialization.json)
 each completed 800 solves, 2,400 policy commits, 24 reader events and 9
 overview/support-probe pairs, with normal native and client closure. The second

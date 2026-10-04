@@ -17,7 +17,7 @@ import threading
 import time
 import uuid
 
-from cascade.control.mobile_base import BaseState
+from cascade.control.mobile_base import BaseState, _plain_record, _RecordSnapshot
 from cascade.control.mobile_support import SupportObservation, immutable_support
 
 
@@ -182,6 +182,13 @@ class MobileBridgeController:
 
     def state(self) -> dict:
         """Return history, not a refresh or an assertion that physics advanced."""
+        return self._state_snapshot(typed=False)
+
+    def _state_for_record(self) -> dict:
+        """Private log input: retain only transitively plain immutable records."""
+        return self._state_snapshot(typed=True)
+
+    def _state_snapshot(self, *, typed):
         with self._lock:
             age = None if self._state_wall is None else max(0.0, self._clock() - self._state_wall)
             # Completed measurement/support is immutable and validated at publish.
@@ -190,9 +197,16 @@ class MobileBridgeController:
             snapshot = None if self._completed_snapshot is None else replace(
                 self._completed_snapshot, received_monotonic_s=self._state_wall or 0.,
                 producer_age_s=age, controller_status=self._mobile_status(),
-                generation=self._generation, latched=self._latched).as_dict()
+                generation=self._generation, latched=self._latched)
+            if snapshot is not None and (not typed
+                    or _plain_record(snapshot, BaseState, ('support',)) is None
+                    or (snapshot.support is not None and not immutable_support(snapshot.support))):
+                snapshot = snapshot.as_dict()
+            elif snapshot is not None:
+                snapshot = _RecordSnapshot(snapshot)
             observed = _copy_observation(self._state or {})
-            if type(observed.get('support')) is SupportObservation:
+            if type(observed.get('support')) is SupportObservation and (
+                    not typed or not immutable_support(observed['support'])):
                 observed['support'] = observed['support'].as_observation_dict()
             return {
                 **observed, **self.hello(),

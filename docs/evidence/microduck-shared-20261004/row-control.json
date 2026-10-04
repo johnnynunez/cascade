@@ -1,0 +1,509 @@
+{
+  "schema": 1,
+  "run": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_ROW_20261004/row-zero-twelve-01",
+  "source": "e801d51a352973f4ac3fb5b25f50487bf49a6f23",
+  "scene_model_sha256": "06ea650335a9f9cd44fc504412b7b1686c88978f18d3c66b694b3eaf01d3a77b",
+  "model_identity_file_sha256": "488e908726f8de8e41b96f346f43ea7537f0c58cddafa9b61fc3284f004ae983",
+  "reviewed_pin_file_sha256": "488e908726f8de8e41b96f346f43ea7537f0c58cddafa9b61fc3284f004ae983",
+  "physical_acceptance": false,
+  "native_completed": true,
+  "control_completed": false,
+  "scope": "Bounded stop/reset/zero lifecycle through FleetRuntime/RobotRuntime/SafeBase/IsaacBase. No gait/task/physical-stop acceptance.",
+  "global_solves": 800,
+  "policy_commits": 2400,
+  "discarded_previews": 12,
+  "withheld_ticks": 0,
+  "overview_and_support_probe_pairs": 9,
+  "client_events": 35,
+  "planned_client_events": 72,
+  "successful_zero_execution": [
+    "duck00",
+    "duck01"
+  ],
+  "failed_reset_robot": "duck02",
+  "unattempted_control_robots": [
+    "duck03",
+    "duck04",
+    "duck05",
+    "duck06",
+    "duck07",
+    "duck08",
+    "duck09",
+    "duck10",
+    "duck11"
+  ],
+  "all_physical_outcomes": "unverified",
+  "reset_result": {
+    "ok": false,
+    "latched": true,
+    "error": "backend refused or failed: {'ok': False, 'error': 'bridge I/O failed: timed out', 'latched': True}"
+  },
+  "reset_success_ack_present": false,
+  "failed_robot_walk_dispatched": false,
+  "reset_delivery_scope": "No successful reset reply. Final generation cannot establish whether reset was executed between recorded states.",
+  "failed_robot_all_completed_states_latched_from_step": 21,
+  "cleanup_stop_results": {
+    "duck00": {
+      "ok": true,
+      "robot_id": "duck00",
+      "source": "isaac-microduck",
+      "epoch": "a2f1a54706a146f5ba26643c44b84880",
+      "generation": 6,
+      "latched": true,
+      "model_identity_sha256": "1d51ae9fdf5f0a311721bd53e300a14cc66e46b969a30bc5abc9442724f98618",
+      "cancelled": true,
+      "physical_stop_verified": false,
+      "outcome": "unverified",
+      "reason": "stop acknowledged, physical rest unverified"
+    },
+    "duck01": {
+      "ok": true,
+      "robot_id": "duck01",
+      "source": "isaac-microduck",
+      "epoch": "ba2d65f09c904b8f846bfdaf9650e602",
+      "generation": 6,
+      "latched": true,
+      "model_identity_sha256": "4c81dd97e6144da838a3c15a8e0221df0ee299fbd75db62ea9bd2388bc9991c2",
+      "cancelled": true,
+      "physical_stop_verified": false,
+      "outcome": "unverified",
+      "reason": "stop acknowledged, physical rest unverified"
+    },
+    "duck02": {
+      "ok": false,
+      "latched": true,
+      "outcome": "unverified",
+      "error": "backend refused or failed: {'ok': False, 'error': 'owner channel disconnected', 'delivery_uncertain': True, 'latched': True}",
+      "delivery_uncertain": true
+    }
+  },
+  "final_recorded_generations": {
+    "duck00": 8,
+    "duck01": 8,
+    "duck02": 4,
+    "duck03": 0,
+    "duck04": 0,
+    "duck05": 0,
+    "duck06": 0,
+    "duck07": 0,
+    "duck08": 0,
+    "duck09": 0,
+    "duck10": 0,
+    "duck11": 0
+  },
+  "limits": {
+    "template_sha256": "557e7cfd2476bd5b7e4ac5d99112d2758dbd074121eaa200a9657fe26d7c4775",
+    "unchanged_from_prior_negative": true,
+    "safety": {
+      "max_state_age_s": 0.5,
+      "max_no_progress_s": 0.4,
+      "max_wall_duration_s": 8.0,
+      "poll_interval_s": 0.01
+    },
+    "transport_timeout_s": 0.5,
+    "command": {
+      "vx": 0.0,
+      "vy": 0.0,
+      "wz": 0.0,
+      "duration_s": 0.02
+    },
+    "expected_client_events": 72,
+    "sequence_per_robot": [
+      "emergency_stop",
+      "get_base_state",
+      "reset_stop",
+      "walk_velocity_zero"
+    ],
+    "physical_outcome": "unverified",
+    "no_threshold_relaxation": true
+  },
+  "bounds": {
+    "global_solves": 800,
+    "application_wall_s": 450,
+    "owned_scope_wall_s": 510
+  },
+  "observed_application_wall_s": 120.73189989399907,
+  "closure": {
+    "native_exit": 0,
+    "scope_exit": 0,
+    "diagnostic_wrapper_exit": 1,
+    "owned_processes_closed_naturally": true,
+    "client_resources_closed": true,
+    "duck02_cleanup_stop_ack": false,
+    "duck02_cleanup_delivery_uncertain": true,
+    "inputs_and_protected_stores_unchanged": true
+  },
+  "attempt_duration": {
+    "calls": 800,
+    "median_ms": 102.6122365,
+    "p95_ms": 129.583432,
+    "max_ms": 635.357294
+  },
+  "attempts_over_400_ms": 10,
+  "gc": {
+    "accounting_verified": true,
+    "events": 15126,
+    "complete_intervals": 7563,
+    "unmatched_events": 0,
+    "dropped_or_pending": 0,
+    "errors": 0,
+    "settings": {
+      "enabled": true,
+      "thresholds": [
+        700,
+        10,
+        10
+      ]
+    },
+    "interval_duration": {
+      "0": {
+        "count": 6924,
+        "median_ms": 0.03311,
+        "p95_ms": 0.089145,
+        "max_ms": 1.673457
+      },
+      "1": {
+        "count": 629,
+        "median_ms": 0.23672,
+        "p95_ms": 0.34832,
+        "max_ms": 0.825216
+      },
+      "2": {
+        "count": 10,
+        "median_ms": 466.8328315,
+        "p95_ms": 506.62667,
+        "max_ms": 506.62667
+      }
+    },
+    "all_slow_attempts_overlap_generation2": true
+  },
+  "failure_window": {
+    "journal_bounds_monotonic_s": [
+      27121.862482978,
+      27122.387666117
+    ],
+    "scope": "Preceding successful state event through reset return; outer bounds, not an exact transport send/receive interval.",
+    "attempt": {
+      "attempt": 19,
+      "clock_before": [
+        21,
+        0.10499999765306711
+      ],
+      "clock_after": [
+        22,
+        0.1099999975413084
+      ],
+      "start_monotonic_ns": 27121857270585,
+      "end_monotonic_ns": 27122461915942,
+      "duration_ns": 604645357,
+      "outcome": "solved"
+    },
+    "gc": {
+      "attempt": 19,
+      "clock_after": [
+        22,
+        0.1099999975413084
+      ],
+      "duration_ms": 604.645357,
+      "gc_overlap_union_ms": 491.211992,
+      "gc_intervals": [
+        {
+          "start_id": 611,
+          "stop_id": 612,
+          "generation": 1,
+          "thread_id": 127680623679424
+        },
+        {
+          "start_id": 613,
+          "stop_id": 614,
+          "generation": 2,
+          "thread_id": 127581248542400
+        },
+        {
+          "start_id": 615,
+          "stop_id": 616,
+          "generation": 0,
+          "thread_id": 127680623679424
+        },
+        {
+          "start_id": 617,
+          "stop_id": 618,
+          "generation": 0,
+          "thread_id": 127680623679424
+        },
+        {
+          "start_id": 619,
+          "stop_id": 620,
+          "generation": 0,
+          "thread_id": 127680623679424
+        },
+        {
+          "start_id": 621,
+          "stop_id": 622,
+          "generation": 0,
+          "thread_id": 127680623679424
+        },
+        {
+          "start_id": 623,
+          "stop_id": 624,
+          "generation": 0,
+          "thread_id": 127680623679424
+        },
+        {
+          "start_id": 625,
+          "stop_id": 626,
+          "generation": 0,
+          "thread_id": 127680623679424
+        },
+        {
+          "start_id": 627,
+          "stop_id": 628,
+          "generation": 0,
+          "thread_id": 127680623679424
+        },
+        {
+          "start_id": 629,
+          "stop_id": 630,
+          "generation": 0,
+          "thread_id": 127680623679424
+        },
+        {
+          "start_id": 631,
+          "stop_id": 632,
+          "generation": 0,
+          "thread_id": 127680623679424
+        }
+      ]
+    },
+    "publication_gap_21_to_22_s": 0.6007980110007338,
+    "nearby_publications": [
+      {
+        "step": 15,
+        "publication_monotonic_s": 27120.933990587,
+        "publication_gap_s": 0.16742565000095055,
+        "contacts": 192,
+        "contact_candidates": 553,
+        "constraints": 936,
+        "generation": 0,
+        "latched": false,
+        "controller_status": "ready"
+      },
+      {
+        "step": 16,
+        "publication_monotonic_s": 27121.10838331,
+        "publication_gap_s": 0.17439272299816366,
+        "contacts": 185,
+        "contact_candidates": 546,
+        "constraints": 908,
+        "generation": 0,
+        "latched": false,
+        "controller_status": "ready"
+      },
+      {
+        "step": 17,
+        "publication_monotonic_s": 27121.287368532,
+        "publication_gap_s": 0.17898522200266598,
+        "contacts": 180,
+        "contact_candidates": 541,
+        "constraints": 888,
+        "generation": 0,
+        "latched": false,
+        "controller_status": "ready"
+      },
+      {
+        "step": 18,
+        "publication_monotonic_s": 27121.44566558,
+        "publication_gap_s": 0.15829704799762112,
+        "contacts": 132,
+        "contact_candidates": 493,
+        "constraints": 696,
+        "generation": 0,
+        "latched": false,
+        "controller_status": "ready"
+      },
+      {
+        "step": 19,
+        "publication_monotonic_s": 27121.582680331,
+        "publication_gap_s": 0.13701475100242533,
+        "contacts": 96,
+        "contact_candidates": 481,
+        "constraints": 552,
+        "generation": 0,
+        "latched": false,
+        "controller_status": "ready"
+      },
+      {
+        "step": 20,
+        "publication_monotonic_s": 27121.706884306,
+        "publication_gap_s": 0.12420397499954561,
+        "contacts": 96,
+        "contact_candidates": 481,
+        "constraints": 552,
+        "generation": 0,
+        "latched": false,
+        "controller_status": "ready"
+      },
+      {
+        "step": 21,
+        "publication_monotonic_s": 27121.819469309,
+        "publication_gap_s": 0.11258500300027663,
+        "contacts": 96,
+        "contact_candidates": 481,
+        "constraints": 552,
+        "generation": 1,
+        "latched": true,
+        "controller_status": "ready"
+      },
+      {
+        "step": 22,
+        "publication_monotonic_s": 27122.42026732,
+        "publication_gap_s": 0.6007980110007338,
+        "contacts": 96,
+        "contact_candidates": 481,
+        "constraints": 552,
+        "generation": 4,
+        "latched": true,
+        "controller_status": "ready"
+      },
+      {
+        "step": 23,
+        "publication_monotonic_s": 27122.534371776,
+        "publication_gap_s": 0.11410445599904051,
+        "contacts": 96,
+        "contact_candidates": 481,
+        "constraints": 552,
+        "generation": 4,
+        "latched": true,
+        "controller_status": "ready"
+      },
+      {
+        "step": 24,
+        "publication_monotonic_s": 27122.63581289,
+        "publication_gap_s": 0.10144111399858957,
+        "contacts": 96,
+        "contact_candidates": 481,
+        "constraints": 552,
+        "generation": 4,
+        "latched": true,
+        "controller_status": "ready"
+      },
+      {
+        "step": 25,
+        "publication_monotonic_s": 27122.736861637,
+        "publication_gap_s": 0.10104874700118671,
+        "contacts": 96,
+        "contact_candidates": 481,
+        "constraints": 552,
+        "generation": 4,
+        "latched": true,
+        "controller_status": "ready"
+      },
+      {
+        "step": 26,
+        "publication_monotonic_s": 27122.84006284,
+        "publication_gap_s": 0.10320120300093549,
+        "contacts": 96,
+        "contact_candidates": 481,
+        "constraints": 552,
+        "generation": 4,
+        "latched": true,
+        "controller_status": "ready"
+      },
+      {
+        "step": 27,
+        "publication_monotonic_s": 27122.943447512,
+        "publication_gap_s": 0.10338467199835577,
+        "contacts": 96,
+        "contact_candidates": 481,
+        "constraints": 552,
+        "generation": 4,
+        "latched": true,
+        "controller_status": "ready"
+      },
+      {
+        "step": 28,
+        "publication_monotonic_s": 27123.046425705,
+        "publication_gap_s": 0.10297819300103583,
+        "contacts": 96,
+        "contact_candidates": 481,
+        "constraints": 552,
+        "generation": 4,
+        "latched": true,
+        "controller_status": "ready"
+      }
+    ]
+  },
+  "timing_interpretation": "Pauses and failed reset overlap in time; no isolated GC/native CPU cost or cause is established. Inclusive spans must not be added; original RPC/progress limits were retained.",
+  "retained_negative_evidence": [
+    "endpoints.json",
+    "support-control.json"
+  ],
+  "runtime_source_sha256": {
+    "assets/microduck/manifest.json": "56678bc8dbbc4aba6ca99944a37d495badb1157093b728348700739896383faa",
+    "assets/microduck/newton-bam.json": "d04d0281eb2f581ab738a95ddf6983f09bbfa8dbabef4087271e61e384fd5b4b",
+    "assets/microduck/policy-candidates.json": "6357372fd8f1aba6c64de5d95ba28a6f2f08a825fc4352642d20c152f776c11f",
+    "configs/isaac/microduck.newton.kit": "22ad2a0f66a14863c482a6fd74785475001d5b6aa2bd2f5879d31cb3440a7794",
+    "scripts/convert_microduck.py": "11e5df9e99b03cd0e3479a3dee94da17b685e49c04c32f364a895ab38c6751a2",
+    "scripts/isaac_camera_readback.py": "28c4523b08410db254c83e70f52c36f0f34488e6964dd6aebb561b638df8b9cd",
+    "scripts/isaac_microduck_bridge.py": "5237c61cbc79c40dd48fd9fa0344cf255bd376bc2a29add3b60948b97b0bcb59",
+    "scripts/isaac_microduck_shared.py": "b60bd5b15d3645b3c1dbf1634ff2b5958a599ce419c4aca19000e752d46ce7b0",
+    "scripts/isaac_runtime.py": "8d40bc13b50d86f6c671628486142b6ee2cfa61ea762ea7867e66cf1447c935a",
+    "src/cascade/apps/signal_stop.py": "1a94a391c25d856299d899e633aaa777215e4ef1dc1fc819bee492c44019b9bd",
+    "src/cascade/control/microduck_actuator.py": "77216426cefc311237fa6854f06aa98a90d4f9f53b080a93c886d67f14961a0e",
+    "src/cascade/control/microduck_policy.py": "4a3df35ac4eccafdbd94cb99be8ff2d80320a509a5494b8f0bd0c9c22059479c",
+    "src/cascade/control/mobile_base.py": "eba69775ad6f881aa8ab421bdbb56af2117101a141ef831d15873bb855343fe8",
+    "src/cascade/control/mobile_support.py": "08a8c57898871d677c46de9aa34c3e59977e8b85a1039d49b5b241810fd328c4",
+    "src/cascade/control/newton_bam.py": "1972ac0b4d6bbf06138ef550b530142c820cf03d6d3d4ce4aba5d68ffb00e64c",
+    "src/cascade/sim/microduck_admission.py": "dddf5ebced53b1f5b2d0fcffe508cfc28f6d02b84a2492d62837b98d87d3f483",
+    "src/cascade/sim/microduck_contact_support.py": "ddbcefaf1f95aa407cd669514f00fd5811ba89967faa87b68d78d576cd8b752e",
+    "src/cascade/sim/microduck_newton.py": "c4c6bfe5117d9fc45dfd96f76348ea8928ed479926220236ea3a3f401724e8ec",
+    "src/cascade/sim/microduck_policy_admission.py": "199fb0683fffeae9e93a99f22ed595c29cad4e36508ab5c7888b0fba9bf551d9",
+    "src/cascade/sim/microduck_sdk.py": "dd3502263048e483ebbc3f393ebc505c0fe8fad23b0fb4b7837fa5cef314bf56",
+    "src/cascade/sim/microduck_shared.py": "d71e9e6082ac6a1ceabd4592813a74959f678b28ac9ad57e1b04435467048f34",
+    "src/cascade/sim/microduck_shared_native.py": "8701ac20e1283611d2f6d375b5bc245f29410a3b8b87b4cc3b132773ea5ea439",
+    "src/cascade/sim/microduck_solver_graph.py": "9f990fc96daaa91e849444acfd302d4c6da9a7c62a42adc1f3e445cf65858772",
+    "src/cascade/sim/microduck_state.py": "495f3062274b620890448d6b3958c7481108a265321a616f64da1ec06a972971",
+    "src/cascade/sim/microduck_stepper.py": "fdd2ba66376c6535a784d275bc957646e6e3bdb17100bc4a565f4fe095597ae0",
+    "src/cascade/sim/microduck_timing.py": "cfd4a01ce6f5f88eeaab2591aa9013801de29aba54d8e745e3bce82bf3205080",
+    "src/cascade/sim/mobile_bridge.py": "f168bd7d315ed9ad36ffa4846079c4d5997f59dbb2dafb72be0175c23b00ec6d",
+    "src/cascade/sim/mobile_identity.py": "eb7b29754243f5ab8f3ebf6bb8524175698b96250f55796a0135273fdb6cf21a",
+    "src/cascade/sim/mobile_rgbd.py": "8bfc3219e21373eccaed55f92452d66820182cba12faa63f6a2c99d2fb3ab861"
+  },
+  "sha256": {
+    "root-receipt.json": "a04b7fad23ee497a28cca96902bfec0881fc6bf807e8beb25355392afde24438",
+    "client-events.json": "5de0313fcb5db525de4395a2ebbb03837e03dd1624273113bad8a5770a9455f0",
+    "client-close.json": "f29f080f2db254d92bb7264b8b84409568c2ee206584d4482e503424e3b72fb7",
+    "phase-audit.json": "bcf2595d77befa8c0953219064078de47a05e7bf6036b24a2bf2b13bb1189447",
+    "gc-audit.json": "61c8ab4c55d34d4e3d2f392c5c31c0e5749ad517b29e72f5bc63752a31a55f22",
+    "kit/timing.jsonl": "a185891d06713297ac8020d092bd9c2239d085af51ceca45da71b945f06c52ca",
+    "kit/physics.jsonl": "339ff587e70c3273a98074fe7e77f9dcdd2728cf458a59ac4dbf4421f99bb98c",
+    "kit/policy.jsonl": "4f33ff8f90207686042d07e5dec8451aa8ec88fb021e207ccdbf38a6ec122fed",
+    "kit/frames.jsonl": "ee47a380d9f870e14a048780aed089e831fb785fe106826faa6c46492be27548",
+    "kit/support-probe.jsonl": "34aa1f6275f5517de19e76c891c7f3aef141cb6686e7d8e42c0f52d6f9fe9c92",
+    "kit/model-identity.json": "488e908726f8de8e41b96f346f43ea7537f0c58cddafa9b61fc3284f004ae983",
+    "kit/receipt.json": "454f87b7348566407085383d0b60faad30f59c73febc7f73567be766632270a8",
+    "plan.json": "54d980352cc2bb0f9d6ace5219053b62bb91ae3c10cafe21f3a4fdedf7d1b2e8",
+    "inputs.json": "95ee98e3060170dde4adad8779e7c911d0212923ff453da2c54a994c2bad1d97",
+    "control-failure-audit.json": "a8c0e536b8cffe4dddb69983ca86611b86e86ec9c9bcd9357238b12eec9729e5",
+    "launch-binding.json": "b6bdb526c2ac1ca88cfd308a2342ff80496faa29b90ef94107c2719c62d4bb69",
+    "gpu-planning-admission.json": "055d482015114b2830b1b47da7f4eb0464adda96574b954a78c3f4f4883da8a8",
+    "gpu-recheck-01.json": "055d482015114b2830b1b47da7f4eb0464adda96574b954a78c3f4f4883da8a8",
+    "gpu-recheck-02.json": "055d482015114b2830b1b47da7f4eb0464adda96574b954a78c3f4f4883da8a8",
+    "native-exit.json": "d24219f6de94b955cf36d25bd2aca88e2d35eef45b9317b7083f55ec8fe9653c",
+    "scope/owner.json": "ea3cd7a2aecacaa181a8c1ee6e4dc8af281de7f7c4d043a5e46213acc85598f6",
+    "reviewed-pin-reference.json": "ec72c6075437a34291218aed74557cedf216a902f9a88199fc5cff31b2681c48",
+    "plan-diff.json": "455e803f647e763bd562e45ab0682801043c6508e7886a86b0ac7e47357007bf",
+    "cache-provenance.json": "434f7b65601bcefa7d405d251426cbfa462ee7bdaae92347c988f6e3202f8503"
+  },
+  "auditors_sha256": {
+    "audit_zero_reset_failure.py": "cb64c38c3c0fb9b3e2fa082d456b1a812b8aa805e62ee6b09b5736e59dc1d620",
+    "audit_phases.py": "40b6238b2e5de5fa3292cd0f31c25bbc126da9a7867aabae47e9c79dce5e2dcd",
+    "audit_gc_v2.py": "26d6dde090deacfa92a854eed34f4b251eb29a6459d94014c38d85656b69146f"
+  },
+  "limitations": [
+    "Resource closure is distinct from a successful stop acknowledgement or measured physical rest.",
+    "duck02 reset received no successful reply. Generation 1 to 4 across completed states does not reconstruct operations between them.",
+    "Only duck00 and duck01 completed zero commands; duck02 never dispatched walk_velocity and the remaining nine control sequences were unattempted.",
+    "This failed bounded episode does not establish reliable twelve-robot control or a guarantee about latency tails."
+  ]
+}

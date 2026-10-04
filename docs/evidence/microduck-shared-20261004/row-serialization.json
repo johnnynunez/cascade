@@ -1,0 +1,585 @@
+{
+  "schema": 1,
+  "scope": "Twelve-robot reader-only private physics-row encoding diagnostic; no control, gait or physical-stop admission.",
+  "common": {
+    "robots": 12,
+    "completed_steps": 800,
+    "policy_commits": 2400,
+    "overview_support_probe_pairs": 9,
+    "app_wall_limit_s": 450,
+    "scope_wall_limit_s": 510,
+    "memory_limit": "32G",
+    "cpu_limit": "400%",
+    "nice": 19,
+    "profile": "owner-thread-inclusive-gc-v1",
+    "sdk": {
+      "recipe": "isaac62_48b2d951",
+      "newton_version": "1.6.1rc1",
+      "release_version_sha256": "59a6d16d8f3f247b73fa68a837867dafc0f568e491ae593f0ab1c2cb2fa62786",
+      "source_sha256": {
+        "mujoco_warp._src.support": "1a08ef15f149d1cf3c9ec5df6c688669fe86aa237ee2512a7463caf1b74e3d54",
+        "newton._src.solvers.mujoco.kernels": "bd770d39d20c208e980477e0186799f531364b03f16d76968ee69bacdc490a3d",
+        "newton._src.solvers.mujoco.solver_mujoco": "a2f2466ad9d35e32f6e87f12bbaa0e08d18295f4e95b1c059c805d2ff4091178",
+        "isaacsim.physics.newton.impl.newton_stage": "a9d4e95305b23e6cea8e4e8e5fb63dc8b6c5c5917ad5c3ba48e2ba29df84d958",
+        "isaacsim.physics.newton.impl.newton_config": "b1212639ebf22448a1da36b272b36da02eb340dcc1ad2312da075a66dadf1de0",
+        "isaacsim.physics.newton.impl.solver_config": "e6c17f958cbd2534ac71743e62f56b79c4e8d86147ee676a6e80ee0d7ea9fe03"
+      },
+      "physical_acceptance": false
+    },
+    "gc_settings_changed": false,
+    "rpc_timeout_s": 0.5,
+    "no_progress_limit_s": 0.4,
+    "control_limits_changed": false
+  },
+  "prior_serializer": {
+    "out": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_GC_SERIALIZATION_20261004/serialization-phase-probe-twelve-01",
+    "source": "1e594bc4e6191ed1cd7d9f85b868beee4a76c626",
+    "scene_model_sha256": "1ec699bf8cc8dbcdb19ffba6260a4e15f8813e9c1c1b286af0f359649e8dad5f",
+    "model_identity_file_sha256": "cfee64baf665310b570677c7dff6647b5b1ffe8e37d4d3a0791111d53b2f66e9",
+    "mode": "probe",
+    "pin_reused": false,
+    "native_completed": true,
+    "physical_acceptance": false,
+    "control_attempted": false,
+    "solves": 800,
+    "policy_commits": 2400,
+    "overview_support_probe_pairs": 9,
+    "reader_events": 24,
+    "discarded_previews": 0,
+    "withheld_ticks": 0,
+    "native_wall_s": 129.77411181599746,
+    "attempt_duration": {
+      "calls": 800,
+      "median_ms": 110.75069049999999,
+      "p95_ms": 127.600835,
+      "max_ms": 655.066704
+    },
+    "phases_inclusive": {
+      "bam.before_step": {
+        "calls": 9600,
+        "median_ms": 1.656441,
+        "p95_ms": 2.120998,
+        "max_ms": 3.990804
+      },
+      "bam.targets": {
+        "calls": 2400,
+        "median_ms": 0.031578,
+        "p95_ms": 0.092872,
+        "max_ms": 1.230442
+      },
+      "camera.capture": {
+        "calls": 9,
+        "median_ms": 53.378447,
+        "p95_ms": 55.084714,
+        "max_ms": 55.084714
+      },
+      "camera.overview": {
+        "calls": 9,
+        "median_ms": 81.634519,
+        "p95_ms": 98.627762,
+        "max_ms": 98.627762
+      },
+      "completed.read": {
+        "calls": 19200,
+        "median_ms": 0.041724,
+        "p95_ms": 0.078179,
+        "max_ms": 492.044651
+      },
+      "completed.validate": {
+        "calls": 9600,
+        "median_ms": 0.831766,
+        "p95_ms": 23.644825,
+        "max_ms": 493.155672
+      },
+      "native.capture": {
+        "calls": 800,
+        "median_ms": 4.8928115,
+        "p95_ms": 5.805316,
+        "max_ms": 9.065337
+      },
+      "policy.prepare": {
+        "calls": 9600,
+        "median_ms": 0.912183,
+        "p95_ms": 1.28075,
+        "max_ms": 2.880904
+      },
+      "publication": {
+        "calls": 9600,
+        "median_ms": 0.6503494999999999,
+        "p95_ms": 0.942655,
+        "max_ms": 1.945351
+      },
+      "record.physics": {
+        "calls": 800,
+        "median_ms": 34.941137,
+        "p95_ms": 39.703986,
+        "max_ms": 545.613728
+      },
+      "solve": {
+        "calls": 800,
+        "median_ms": 0.297017,
+        "p95_ms": 0.369462,
+        "max_ms": 26.675678
+      },
+      "support.decode": {
+        "calls": 800,
+        "median_ms": 8.4397795,
+        "p95_ms": 10.8351,
+        "max_ms": 13.5686
+      },
+      "support.probe": {
+        "calls": 9,
+        "median_ms": 0.782321,
+        "p95_ms": 0.909865,
+        "max_ms": 0.909865
+      },
+      "write.frames.jsonl": {
+        "calls": 9,
+        "median_ms": 0.034532,
+        "p95_ms": 0.044998,
+        "max_ms": 0.044998
+      },
+      "write.physics.jsonl": {
+        "calls": 800,
+        "median_ms": 14.885624499999999,
+        "p95_ms": 16.548035,
+        "max_ms": 490.016144
+      },
+      "write.policy.jsonl": {
+        "calls": 2400,
+        "median_ms": 0.037151500000000004,
+        "p95_ms": 0.064648,
+        "max_ms": 10.898716
+      },
+      "write.support-probe.jsonl": {
+        "calls": 9,
+        "median_ms": 0.582727,
+        "p95_ms": 0.645243,
+        "max_ms": 0.645243
+      }
+    },
+    "profile_write_flush": {
+      "calls": 800,
+      "median_ms": 0.1248195,
+      "p95_ms": 0.203169,
+      "max_ms": 10.554193
+    },
+    "attempts_over_400ms": 22,
+    "gc": {
+      "accounting_verified": true,
+      "events": 33390,
+      "complete_intervals": 16695,
+      "unmatched_events": 0,
+      "dropped_or_pending": 0,
+      "errors": 0,
+      "settings": {
+        "enabled": true,
+        "thresholds": [
+          700,
+          10,
+          10
+        ]
+      },
+      "interval_duration": {
+        "0": {
+          "count": 15284,
+          "median_ms": 0.025599,
+          "p95_ms": 0.068805,
+          "max_ms": 0.826367
+        },
+        "1": {
+          "count": 1389,
+          "median_ms": 0.24978,
+          "p95_ms": 0.40131,
+          "max_ms": 1.024379
+        },
+        "2": {
+          "count": 22,
+          "median_ms": 470.8767515,
+          "p95_ms": 483.419034,
+          "max_ms": 483.877652
+        }
+      },
+      "all_slow_attempts_overlap_generation2": true,
+      "slow_attempt_gc_overlap_union_ms": {
+        "min": 459.571391,
+        "max": 485.838432
+      }
+    },
+    "closure": {
+      "native_exit": 0,
+      "scope_exit": 0,
+      "client_closed": true,
+      "forced": false,
+      "signals": [],
+      "remaining_members": [],
+      "remaining_births": [],
+      "inputs_unchanged": true,
+      "protected_stores_unchanged": true
+    },
+    "runtime_source_sha256": {
+      "assets/microduck/manifest.json": "56678bc8dbbc4aba6ca99944a37d495badb1157093b728348700739896383faa",
+      "assets/microduck/newton-bam.json": "d04d0281eb2f581ab738a95ddf6983f09bbfa8dbabef4087271e61e384fd5b4b",
+      "assets/microduck/policy-candidates.json": "6357372fd8f1aba6c64de5d95ba28a6f2f08a825fc4352642d20c152f776c11f",
+      "configs/isaac/microduck.newton.kit": "22ad2a0f66a14863c482a6fd74785475001d5b6aa2bd2f5879d31cb3440a7794",
+      "scripts/convert_microduck.py": "11e5df9e99b03cd0e3479a3dee94da17b685e49c04c32f364a895ab38c6751a2",
+      "scripts/isaac_camera_readback.py": "28c4523b08410db254c83e70f52c36f0f34488e6964dd6aebb561b638df8b9cd",
+      "scripts/isaac_microduck_bridge.py": "5237c61cbc79c40dd48fd9fa0344cf255bd376bc2a29add3b60948b97b0bcb59",
+      "scripts/isaac_microduck_shared.py": "1903da389a384f4052ad6e31df39518d061a0692c683fdf13ce155490d69da8b",
+      "scripts/isaac_runtime.py": "8d40bc13b50d86f6c671628486142b6ee2cfa61ea762ea7867e66cf1447c935a",
+      "src/cascade/apps/signal_stop.py": "1a94a391c25d856299d899e633aaa777215e4ef1dc1fc819bee492c44019b9bd",
+      "src/cascade/control/microduck_actuator.py": "77216426cefc311237fa6854f06aa98a90d4f9f53b080a93c886d67f14961a0e",
+      "src/cascade/control/microduck_policy.py": "4a3df35ac4eccafdbd94cb99be8ff2d80320a509a5494b8f0bd0c9c22059479c",
+      "src/cascade/control/mobile_base.py": "c42fce785dea34560cfc9f8f03c2f7d97c367b0a34a678e5781c888801837ba6",
+      "src/cascade/control/mobile_support.py": "08a8c57898871d677c46de9aa34c3e59977e8b85a1039d49b5b241810fd328c4",
+      "src/cascade/control/newton_bam.py": "1972ac0b4d6bbf06138ef550b530142c820cf03d6d3d4ce4aba5d68ffb00e64c",
+      "src/cascade/sim/microduck_admission.py": "dddf5ebced53b1f5b2d0fcffe508cfc28f6d02b84a2492d62837b98d87d3f483",
+      "src/cascade/sim/microduck_contact_support.py": "ddbcefaf1f95aa407cd669514f00fd5811ba89967faa87b68d78d576cd8b752e",
+      "src/cascade/sim/microduck_newton.py": "c4c6bfe5117d9fc45dfd96f76348ea8928ed479926220236ea3a3f401724e8ec",
+      "src/cascade/sim/microduck_policy_admission.py": "199fb0683fffeae9e93a99f22ed595c29cad4e36508ab5c7888b0fba9bf551d9",
+      "src/cascade/sim/microduck_sdk.py": "dd3502263048e483ebbc3f393ebc505c0fe8fad23b0fb4b7837fa5cef314bf56",
+      "src/cascade/sim/microduck_shared.py": "d71e9e6082ac6a1ceabd4592813a74959f678b28ac9ad57e1b04435467048f34",
+      "src/cascade/sim/microduck_shared_native.py": "8701ac20e1283611d2f6d375b5bc245f29410a3b8b87b4cc3b132773ea5ea439",
+      "src/cascade/sim/microduck_solver_graph.py": "9f990fc96daaa91e849444acfd302d4c6da9a7c62a42adc1f3e445cf65858772",
+      "src/cascade/sim/microduck_state.py": "495f3062274b620890448d6b3958c7481108a265321a616f64da1ec06a972971",
+      "src/cascade/sim/microduck_stepper.py": "fdd2ba66376c6535a784d275bc957646e6e3bdb17100bc4a565f4fe095597ae0",
+      "src/cascade/sim/microduck_timing.py": "cfd4a01ce6f5f88eeaab2591aa9013801de29aba54d8e745e3bce82bf3205080",
+      "src/cascade/sim/mobile_bridge.py": "6bf4739389b4df8339aaa2b71b92007bd0665548825ba8e3b9adaaa7b4a8ac72",
+      "src/cascade/sim/mobile_identity.py": "eb7b29754243f5ab8f3ebf6bb8524175698b96250f55796a0135273fdb6cf21a",
+      "src/cascade/sim/mobile_rgbd.py": "8bfc3219e21373eccaed55f92452d66820182cba12faa63f6a2c99d2fb3ab861"
+    },
+    "artifact_sha256": {
+      "kit/physics.jsonl": "1c8410ed81004828d8d3747b58e264cd0a5d96f4349b5828acf347737bd8ac31",
+      "kit/policy.jsonl": "9c53d760cb7c0f1cfbe80158a6cd9053435548af1959133042838fda06007a25",
+      "kit/frames.jsonl": "536942f96eaff0183cbc69b4f66eeef30b5102c5e8ee9337736593cc83072966",
+      "kit/support-probe.jsonl": "d76e280bbfa5b5f61c9dc1f8d718d89d0ce7f648b9fdfdf2930afa97ad477f4f",
+      "kit/model-identity.json": "cfee64baf665310b570677c7dff6647b5b1ffe8e37d4d3a0791111d53b2f66e9",
+      "kit/receipt.json": "6a7954fff2f6bd0a2e004a64bf45f2bd19238e77a187768c19fe48aaab4396ae",
+      "plan.json": "33f65bf9cc5504382de9b785923cf758963ddcd363cfd65710f10bcdd7a3ecf4",
+      "inputs.json": "cec2d370674a904d4aeb195982e07406804ab05198ad27e66ec6b86294dec014",
+      "root-receipt.json": "2d98b4515155fc4ece7f36d10e889576058ac6ac391dd6716ea9d749d99988b0",
+      "launch-binding.json": "dc4d32cfd9fc76fda00c6a2826ef287a777b6561ea6963bb4f50161de8e26fd1",
+      "independent-audit.json": "79de83171eaa0804fee4cf8d8538a8c87bc3f37134f18c94b6b77051f1a5cbc0",
+      "phase-audit.json": "20e92de34682887bc90710c7c8af4ea870baba8e710601e169e19ec153302ba7",
+      "gc-audit.json": "69887f19d927bdac8537b0483628f3635220ea2d0ece856b2991180b45a98f6b",
+      "kit/timing.jsonl": "916810f1262aa8b392f5691ad12fede877958e731e28acf402bd3a7becad9486",
+      "client-events.json": "070a849b39ea87cd2469d5f1fe69221d988e437f40e9116d7f0f9fd7d4fe65c5",
+      "client-close.json": "357f5b3b5ac60d7cdb7bf0d82d85018038b73a5a27e818e156ac8bec6a280f7d",
+      "native-exit.json": "d24219f6de94b955cf36d25bd2aca88e2d35eef45b9317b7083f55ec8fe9653c",
+      "scope/owner.json": "46b53115846d3f3bb3a6e87607a7f41240125e6e705edfc430bb479ad41c982b",
+      "gpu-planning-admission.json": "96ae6d15c5af37e10424304c90d87a95ebd944928fc1ba678201ade7eeecbdd7",
+      "gpu-recheck-01.json": "79566c288231695104eef4422696a5e0fe8a7fab5886981bbac7bda5b3a786c9",
+      "gpu-recheck-02.json": "79566c288231695104eef4422696a5e0fe8a7fab5886981bbac7bda5b3a786c9",
+      "cache-provenance.json": "392ac9438a20cb05f0d4a5f2904e8180827c9066901c733cf5ccd99a1cf9fcb2",
+      "comparison-reference.json": "9259aa66fd12ba090d22db46a7bb916d5a46a7e159776dde8629f596a5fadfc2",
+      "plan-diff.json": "a02f637d8c1020a29162be78744e8731e1fb2505dba8b4803d08c5da7bd152cd",
+      "audit-invocation-01.json": "e4b9bdc9d65ed94fff1bd6685748135d9a37ee1fa737cc4b788541d9a158fe6f"
+    }
+  },
+  "private_row": {
+    "out": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHARED_ROW_20261004/row-phase-probe-twelve-01",
+    "source": "e801d51a352973f4ac3fb5b25f50487bf49a6f23",
+    "scene_model_sha256": "06ea650335a9f9cd44fc504412b7b1686c88978f18d3c66b694b3eaf01d3a77b",
+    "model_identity_file_sha256": "488e908726f8de8e41b96f346f43ea7537f0c58cddafa9b61fc3284f004ae983",
+    "mode": "probe",
+    "pin_reused": false,
+    "native_completed": true,
+    "physical_acceptance": false,
+    "control_attempted": false,
+    "solves": 800,
+    "policy_commits": 2400,
+    "overview_support_probe_pairs": 9,
+    "reader_events": 24,
+    "discarded_previews": 0,
+    "withheld_ticks": 0,
+    "native_wall_s": 123.03134258000136,
+    "attempt_duration": {
+      "calls": 800,
+      "median_ms": 105.587913,
+      "p95_ms": 116.028396,
+      "max_ms": 662.650867
+    },
+    "phases_inclusive": {
+      "bam.before_step": {
+        "calls": 9600,
+        "median_ms": 1.6705375,
+        "p95_ms": 2.226478,
+        "max_ms": 4.32319
+      },
+      "bam.targets": {
+        "calls": 2400,
+        "median_ms": 0.031738,
+        "p95_ms": 0.07231,
+        "max_ms": 0.892478
+      },
+      "camera.capture": {
+        "calls": 9,
+        "median_ms": 53.188537,
+        "p95_ms": 55.277336,
+        "max_ms": 55.277336
+      },
+      "camera.overview": {
+        "calls": 9,
+        "median_ms": 81.858801,
+        "p95_ms": 106.762802,
+        "max_ms": 106.762802
+      },
+      "completed.read": {
+        "calls": 19200,
+        "median_ms": 0.042705,
+        "p95_ms": 0.07902,
+        "max_ms": 515.595395
+      },
+      "completed.validate": {
+        "calls": 9600,
+        "median_ms": 0.8422165,
+        "p95_ms": 23.965203,
+        "max_ms": 516.529526
+      },
+      "native.capture": {
+        "calls": 800,
+        "median_ms": 4.9907905,
+        "p95_ms": 6.09144,
+        "max_ms": 477.689675
+      },
+      "policy.prepare": {
+        "calls": 9600,
+        "median_ms": 0.9290940000000001,
+        "p95_ms": 1.345077,
+        "max_ms": 11.595698
+      },
+      "publication": {
+        "calls": 9600,
+        "median_ms": 0.653996,
+        "p95_ms": 1.015526,
+        "max_ms": 2.685758
+      },
+      "record.physics": {
+        "calls": 800,
+        "median_ms": 28.296544500000003,
+        "p95_ms": 30.47487,
+        "max_ms": 500.052619
+      },
+      "solve": {
+        "calls": 800,
+        "median_ms": 0.2638115,
+        "p95_ms": 0.348601,
+        "max_ms": 32.615858
+      },
+      "support.decode": {
+        "calls": 800,
+        "median_ms": 8.708413,
+        "p95_ms": 11.253385,
+        "max_ms": 13.376888
+      },
+      "support.probe": {
+        "calls": 9,
+        "median_ms": 0.720747,
+        "p95_ms": 1.133736,
+        "max_ms": 1.133736
+      },
+      "write.frames.jsonl": {
+        "calls": 9,
+        "median_ms": 0.033431,
+        "p95_ms": 0.038018,
+        "max_ms": 0.038018
+      },
+      "write.physics.jsonl": {
+        "calls": 800,
+        "median_ms": 15.9866495,
+        "p95_ms": 17.762101,
+        "max_ms": 486.989969
+      },
+      "write.policy.jsonl": {
+        "calls": 2400,
+        "median_ms": 0.037677,
+        "p95_ms": 0.063146,
+        "max_ms": 10.993
+      },
+      "write.support-probe.jsonl": {
+        "calls": 9,
+        "median_ms": 0.57124,
+        "p95_ms": 0.583799,
+        "max_ms": 0.583799
+      }
+    },
+    "profile_write_flush": {
+      "calls": 800,
+      "median_ms": 0.097253,
+      "p95_ms": 0.15075,
+      "max_ms": 10.852807
+    },
+    "attempts_over_400ms": 10,
+    "gc": {
+      "accounting_verified": true,
+      "events": 14960,
+      "complete_intervals": 7480,
+      "unmatched_events": 0,
+      "dropped_or_pending": 0,
+      "errors": 0,
+      "settings": {
+        "enabled": true,
+        "thresholds": [
+          700,
+          10,
+          10
+        ]
+      },
+      "interval_duration": {
+        "0": {
+          "count": 6848,
+          "median_ms": 0.0343325,
+          "p95_ms": 0.090228,
+          "max_ms": 0.810774
+        },
+        "1": {
+          "count": 622,
+          "median_ms": 0.230576,
+          "p95_ms": 0.358126,
+          "max_ms": 0.956125
+        },
+        "2": {
+          "count": 10,
+          "median_ms": 470.9977005,
+          "p95_ms": 489.719886,
+          "max_ms": 489.719886
+        }
+      },
+      "all_slow_attempts_overlap_generation2": true,
+      "slow_attempt_gc_overlap_union_ms": {
+        "min": 461.344823,
+        "max": 490.181249
+      }
+    },
+    "closure": {
+      "native_exit": 0,
+      "scope_exit": 0,
+      "client_closed": true,
+      "forced": false,
+      "signals": [],
+      "remaining_members": [],
+      "remaining_births": [],
+      "inputs_unchanged": true,
+      "protected_stores_unchanged": true
+    },
+    "runtime_source_sha256": {
+      "assets/microduck/manifest.json": "56678bc8dbbc4aba6ca99944a37d495badb1157093b728348700739896383faa",
+      "assets/microduck/newton-bam.json": "d04d0281eb2f581ab738a95ddf6983f09bbfa8dbabef4087271e61e384fd5b4b",
+      "assets/microduck/policy-candidates.json": "6357372fd8f1aba6c64de5d95ba28a6f2f08a825fc4352642d20c152f776c11f",
+      "configs/isaac/microduck.newton.kit": "22ad2a0f66a14863c482a6fd74785475001d5b6aa2bd2f5879d31cb3440a7794",
+      "scripts/convert_microduck.py": "11e5df9e99b03cd0e3479a3dee94da17b685e49c04c32f364a895ab38c6751a2",
+      "scripts/isaac_camera_readback.py": "28c4523b08410db254c83e70f52c36f0f34488e6964dd6aebb561b638df8b9cd",
+      "scripts/isaac_microduck_bridge.py": "5237c61cbc79c40dd48fd9fa0344cf255bd376bc2a29add3b60948b97b0bcb59",
+      "scripts/isaac_microduck_shared.py": "b60bd5b15d3645b3c1dbf1634ff2b5958a599ce419c4aca19000e752d46ce7b0",
+      "scripts/isaac_runtime.py": "8d40bc13b50d86f6c671628486142b6ee2cfa61ea762ea7867e66cf1447c935a",
+      "src/cascade/apps/signal_stop.py": "1a94a391c25d856299d899e633aaa777215e4ef1dc1fc819bee492c44019b9bd",
+      "src/cascade/control/microduck_actuator.py": "77216426cefc311237fa6854f06aa98a90d4f9f53b080a93c886d67f14961a0e",
+      "src/cascade/control/microduck_policy.py": "4a3df35ac4eccafdbd94cb99be8ff2d80320a509a5494b8f0bd0c9c22059479c",
+      "src/cascade/control/mobile_base.py": "eba69775ad6f881aa8ab421bdbb56af2117101a141ef831d15873bb855343fe8",
+      "src/cascade/control/mobile_support.py": "08a8c57898871d677c46de9aa34c3e59977e8b85a1039d49b5b241810fd328c4",
+      "src/cascade/control/newton_bam.py": "1972ac0b4d6bbf06138ef550b530142c820cf03d6d3d4ce4aba5d68ffb00e64c",
+      "src/cascade/sim/microduck_admission.py": "dddf5ebced53b1f5b2d0fcffe508cfc28f6d02b84a2492d62837b98d87d3f483",
+      "src/cascade/sim/microduck_contact_support.py": "ddbcefaf1f95aa407cd669514f00fd5811ba89967faa87b68d78d576cd8b752e",
+      "src/cascade/sim/microduck_newton.py": "c4c6bfe5117d9fc45dfd96f76348ea8928ed479926220236ea3a3f401724e8ec",
+      "src/cascade/sim/microduck_policy_admission.py": "199fb0683fffeae9e93a99f22ed595c29cad4e36508ab5c7888b0fba9bf551d9",
+      "src/cascade/sim/microduck_sdk.py": "dd3502263048e483ebbc3f393ebc505c0fe8fad23b0fb4b7837fa5cef314bf56",
+      "src/cascade/sim/microduck_shared.py": "d71e9e6082ac6a1ceabd4592813a74959f678b28ac9ad57e1b04435467048f34",
+      "src/cascade/sim/microduck_shared_native.py": "8701ac20e1283611d2f6d375b5bc245f29410a3b8b87b4cc3b132773ea5ea439",
+      "src/cascade/sim/microduck_solver_graph.py": "9f990fc96daaa91e849444acfd302d4c6da9a7c62a42adc1f3e445cf65858772",
+      "src/cascade/sim/microduck_state.py": "495f3062274b620890448d6b3958c7481108a265321a616f64da1ec06a972971",
+      "src/cascade/sim/microduck_stepper.py": "fdd2ba66376c6535a784d275bc957646e6e3bdb17100bc4a565f4fe095597ae0",
+      "src/cascade/sim/microduck_timing.py": "cfd4a01ce6f5f88eeaab2591aa9013801de29aba54d8e745e3bce82bf3205080",
+      "src/cascade/sim/mobile_bridge.py": "f168bd7d315ed9ad36ffa4846079c4d5997f59dbb2dafb72be0175c23b00ec6d",
+      "src/cascade/sim/mobile_identity.py": "eb7b29754243f5ab8f3ebf6bb8524175698b96250f55796a0135273fdb6cf21a",
+      "src/cascade/sim/mobile_rgbd.py": "8bfc3219e21373eccaed55f92452d66820182cba12faa63f6a2c99d2fb3ab861"
+    },
+    "artifact_sha256": {
+      "kit/physics.jsonl": "47af4a41707be616fc16ad35863c24c102a86ce53431340be5ca4b0a7fd99a34",
+      "kit/policy.jsonl": "01333d8a3b5e069930cd95fa16cc57710481f1815cec5a43dc2332d2f5ce6271",
+      "kit/frames.jsonl": "432b7c890f9f155a43b6a84bd7f21eede23c03727973634c19c3c50853abc593",
+      "kit/support-probe.jsonl": "cde88c1eef891af62756cad1277e645a3181fd8e714a88c7c94323061f41b86d",
+      "kit/model-identity.json": "488e908726f8de8e41b96f346f43ea7537f0c58cddafa9b61fc3284f004ae983",
+      "kit/receipt.json": "bfb1a9929aa0a3602a32e33771e6276fb02e9eaef7895d8940446a4c1b8c4d3f",
+      "plan.json": "782586a9a074c1c6a4871d6f64425f2049192bc0f30df52fa8c108dfd094049c",
+      "inputs.json": "0a6474221ec49258c99cfa97a53bd93a09d8976c2572f9f3335749f3d9c2b982",
+      "root-receipt.json": "05026280e2082e2cffb60fe1995ff232042e8d6c7ac96979a0482bce54f22021",
+      "launch-binding.json": "13e51e6a8665730135a5e5ff19cf3d46586574f3da45d401da5013c6ce446a8d",
+      "independent-audit.json": "8fd7a606c2369157259b5edb0ac9a29692c993afdc32eb41bcb9b66c4c772eae",
+      "phase-audit.json": "e99ea0f6594e28652038292f5da55fe2082667ac2dc2e08733bc84ddb5943162",
+      "gc-audit.json": "1c9365a10da27b7e02f9ef228d64cfc510cd6c1edef22431fa1048fce03a4177",
+      "kit/timing.jsonl": "36b969d7411fbb01bbb223a91376ff89d7d30787093f54d6513be2272082704a",
+      "client-events.json": "c5e35cff09045fe429aa81481d2dbdbd32f21ae341e616da248452193a9019c0",
+      "client-close.json": "410de819a15521b6743e2abfa57679d3d8ea7758641a0631cb474ac2cac8bc2a",
+      "native-exit.json": "d24219f6de94b955cf36d25bd2aca88e2d35eef45b9317b7083f55ec8fe9653c",
+      "scope/owner.json": "93812c72d30697f1bcf64aa5d0bd2ade8cfd2f2cb982a456f6f31ff43b5a9ec7",
+      "gpu-planning-admission.json": "055d482015114b2830b1b47da7f4eb0464adda96574b954a78c3f4f4883da8a8",
+      "gpu-recheck-01.json": "055d482015114b2830b1b47da7f4eb0464adda96574b954a78c3f4f4883da8a8",
+      "gpu-recheck-02.json": "055d482015114b2830b1b47da7f4eb0464adda96574b954a78c3f4f4883da8a8",
+      "cache-provenance.json": "59d7c88a7a1401749e872628ddb5280333dd8d4186547f4f03ccaa84ff229b35",
+      "comparison-reference.json": "325d52db924d6b2bb56c6fff960e9723a381504d78ab3ee8711a45d90a4c876a",
+      "plan-diff.json": "38bf96c813c50d3473d0ddce35e9f0a5ab079ff9803a70cc99e8e2a704b5160e"
+    }
+  },
+  "recipe_changes": [
+    "recipe.source_sha256.scripts/isaac_microduck_shared.py",
+    "recipe.source_sha256.src/cascade/control/mobile_base.py",
+    "recipe.source_sha256.src/cascade/sim/mobile_bridge.py"
+  ],
+  "gpu_admission": {
+    "prior_serializer": {
+      "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+      "foreign_at_admission": [
+        {
+          "birth": {
+            "pid": 602336,
+            "start_ticks": 2273709,
+            "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64"
+          },
+          "executable": "/home/johnny/Projects/blog3-verification-20261003/Article_3/.venv-publication-20261004/bin/python",
+          "argv_sha256": "bb0f7d2fc13f6f9850a60b980777003ff1aa2122fc94288fd6fb0ded70ef69cd",
+          "cwd": "/home/johnny/Projects/blog3-publication-candidate-v11-20261004/replicas/cuda1/Article_3/part3/solutions",
+          "python_scripts": [
+            "clean_the_table_solution.py"
+          ],
+          "cgroup": "0::/user.slice/user-1000.slice/session-14.scope\n",
+          "uid": 1000,
+          "ownership": "foreign; never signal or reconfigure"
+        }
+      ],
+      "free_mib_at_three_checks": [
+        96482,
+        96514,
+        96514
+      ],
+      "required_free_mib": 16384
+    },
+    "private_row": {
+      "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+      "foreign_at_admission": [],
+      "free_mib_at_three_checks": [
+        97218,
+        97218,
+        97218
+      ],
+      "required_free_mib": 16384
+    }
+  },
+  "auditors_sha256": {
+    "audit_endpoint_native.py": "783abe77eaa2eefb02ed0537df6bb289631acfe197263b25fc5989bec71a3c0d",
+    "audit_phases.py": "40b6238b2e5de5fa3292cd0f31c25bbc126da9a7867aabae47e9c79dce5e2dcd",
+    "audit_gc_v2.py": "26d6dde090deacfa92a854eed34f4b251eb29a6459d94014c38d85656b69146f"
+  },
+  "retained_negative_evidence": [
+    "support-control.json",
+    "endpoints.json"
+  ],
+  "limitations": [
+    "Only state/camera reads were requested; all native velocity commands remained zero.",
+    "Ten attempts remain above 400 ms, with a maximum above 500 ms. Twelve-robot control deadlines are not resolved or guaranteed.",
+    "GC callback intervals include scheduling and other callbacks. Temporal overlap is not isolated CPU cost or proof of cause.",
+    "Inclusive phase durations overlap and cannot be summed. GC draining and footer/close costs are outside attempt/write durations.",
+    "Contact projection moved into write.physics.jsonl. Compare enclosing record.physics/attempt spans; the write span includes encoding and does not isolate file I/O or GC.",
+    "GPU admission changed from a recorded foreign process to an empty cohort; these sequential measurements do not establish causal native speedup.",
+    "The historical post-admission and preflight twelve-robot control failures remain unchanged; this evidence contains no new control episode."
+  ]
+}

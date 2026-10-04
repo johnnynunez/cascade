@@ -308,6 +308,12 @@ occurred in several phases; their cause remains unresolved. The first 160
 attempts overlapped the recorded scope of a separate RTX probe on GPU0. This
 diagnostic neither admits twelve-robot control nor establishes a native speedup.
 
+Physics rows share only private contact projections during one JSON encoding;
+public controller responses remain detached. This moves projection work into
+`write.physics.jsonl`, within the inclusive `record.physics` and attempt spans.
+Compare those enclosing spans for total work: the write span includes encoding,
+so its change alone does not measure file I/O or GC cost.
+
 The phase profile also retains passive Python GC callbacks from all threads,
 with absolute timestamps, event IDs, generation and collection counts. Each
 attempt and the footer drain a persistent queue bounded to 4096 events, including
@@ -337,8 +343,37 @@ not an isolated CPU cost or a causal speedup. The comparison started after the
 separate voice scopes closed. Both launch admissions recorded the same foreign
 GPU process identity.
 The original 0.5 s RPC and 0.4 s progress limits remain unchanged and unresolved
-for twelve-robot control. No new control episode was run, and the earlier control
-failures remain retained.
+for twelve-robot control. These profiles requested only observations; the
+earlier control failures remain retained.
+
+The subsequent [private-row encoding profile](
+evidence/microduck-shared-20261004/row-serialization.json) also completed
+800 solves, 2,400 policy commits, 24 reader events and 9 overview/support-probe
+pairs, with normal closure. Attempt durations were 105.59 ms median, 116.03 ms
+p95 and 662.65 ms maximum. Ten attempts exceeded 400 ms; each overlapped a
+generation-2 GC interval, with complete callback accounting. The preceding
+serializer profile retained 22 such attempts. GPU admission changed from a
+foreign process to an empty cohort, so this comparison does not establish a
+causal speedup. The projection work moved inside the write span as described
+above. The remaining long attempts still exceed the original control limits;
+this reader-only episode grants no control or physical-stop acceptance.
+
+The [subsequent bounded control episode](
+evidence/microduck-shared-20261004/row-control.json) **failed** during `duck02`'s
+reset of the stop latch: its reply exceeded the unchanged 0.5 s RPC limit.
+`duck00` and `duck01` completed zero commands with unverified physical outcomes;
+no walk was dispatched for `duck02`, and the remaining nine control sequences
+were not attempted. The failure window overlapped a 605 ms attempt and a
+generation-2 GC interval; the measured publication gap was 601 ms. Timing overlap
+does not establish isolated GC cost or a cause.
+
+All 800 native solves, 2,400 policy commits and 9 overview/support-probe pairs
+completed, and client resources and native processes closed normally. The
+`duck02` cleanup stop lacked an ACK because its owner channel was disconnected,
+with delivery marked uncertain. Completed states show its latch set from step
+21 onward; they do not reconstruct whether reset ran between states or establish
+physical rest. This remains a control failure despite native completion, and
+both earlier twelve-robot control failures remain retained.
 
 These endpoint outcomes remain physically unverified. Walking, fleet tasks,
 shared-space interactions and measured individual/global motion stops still need

@@ -197,6 +197,12 @@ class BaseState:
         return cls(**data)
 
 
+@dataclass(frozen=True)
+class _RecordSnapshot:
+    """Private writer marker; ordinary raw BaseState telemetry stays unsupported."""
+    value: BaseState
+
+
 class MobileBase(ABC):
     """Bounded transport with separate observation, command and stop channels.
 

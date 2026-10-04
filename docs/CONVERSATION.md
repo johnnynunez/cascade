@@ -404,7 +404,24 @@ births. Preparation imported package classes and libraries but constructed no
 speech handler or pipeline and ran no warmup, inference or service. The host's
 configured thread count is distinct from the earlier LLM-only measurement;
 effective serving threads must be observed after pipeline construction.
-The full voice-to-hand chain on this installed environment remains unvalidated.
+The subsequent [voice06 episode](evidence/robot-modularity/voice-hand-installed-negative-20261004.json)
+reached the real `hand.set_hand_posture(index_flex)` action from the Chromium
+microphone. Its actual tool result was returned to the same provider origin:
+12,944 native solves retained the approach, the 0.2 s simulated post-ACK rest
+window, and quiet targets through the final solve. This verifies one simulated
+speech-to-action execution, not repeatability or hardware behavior.
+
+The complete voice case failed. The physical result returned 24.820 s after the
+hand owner started; the real spoken continuation began, but no output PCM
+arrived before the original 30 s owner budget (including browser closure
+reserve). The second stop/reset/reconnect case was withheld. Provider shutdown
+required owned SIGTERM followed by SIGKILL; all owned processes disappeared,
+but that forced closure remains a failure. Its bounded trace retained a
+16.561 s first generation and an open second span, without final footer/status.
+The wire evidence is complete; provider diagnostic accounting is incomplete.
+The configured intra-op count was two, while post-construction attestation
+observed one. No deadline, physical gate, fixed reply or synthetic tool result
+was changed to obtain this partial result. Full voice completion remains open.
 
 Run the speech stack in a separate environment. Its `speech-to-speech serve`
 command exposes `/v1/realtime` and supports selecting STT, LLM and TTS backends.

@@ -172,14 +172,39 @@ def test_safe_base_uses_real_socket_renewal_and_two_advancing_preflight_reads(
     # This is a protocol/ownership test, not a host scheduling benchmark. Each
     # requested synthetic solve completes before its passive TCP observation;
     # the fixture clock advances by the normal/slow producer interval. Real
-    # socket timeouts, renewal worker and 5 s emergency timer remain in place.
-    # The real-wall delayed-state test below separately pins the .2 s veto.
+    # socket timeouts and the renewal worker remain in place. The operation's
+    # 5 s timer must use that same fixture clock; a separate real watchdog bounds
+    # the test. Delayed-state and blocked-distance tests retain real wall vetoes.
     c.max_action_wall_s = 5.
     now, renew_due = [1.], [None]
     clock = SimpleNamespace(monotonic=lambda: now[0])
     monkeypatch.setattr(isaac_base, "time", clock)
     monkeypatch.setattr(base_harness, "time", clock)
     monkeypatch.setattr(c, "_clock", clock.monotonic)
+    timers = []
+    class FixtureTimer:
+        def __init__(self, interval, callback):
+            self.interval, self.callback = interval, callback
+            self.deadline = None
+            self.cancelled = False
+            timers.append(self)
+
+        def start(self):
+            self.deadline = now[0] + self.interval
+
+        def cancel(self):
+            self.cancelled = True
+
+        def join(self, timeout=None):
+            assert self.cancelled  # Callbacks run synchronously on fixture ticks.
+
+        def run_due(self):
+            if not self.cancelled and self.deadline is not None and now[0] >= self.deadline:
+                self.cancelled = True
+                self.callback()
+
+    monkeypatch.setattr(base_harness, "threading", SimpleNamespace(
+        Lock=threading.Lock, Event=threading.Event, Timer=FixtureTimer))
     renewed = threading.Condition()
     renewals = []
     dispatch = server.dispatch
@@ -200,6 +225,12 @@ def test_safe_base_uses_real_socket_renewal_and_two_advancing_preflight_reads(
               "poll_interval_s": .01, "turn_speed_rad_s": .3, "turn_tolerance_rad": .02,
               "max_turn_angle_rad": 1.}
     safe = SafeBase(raw, limits)
+    timed_out = threading.Event()
+    def wall_watchdog():
+        timed_out.set()
+        safe.stop()
+    watchdog = threading.Timer(15., wall_watchdog)
+    watchdog.daemon = True
     halt = threading.Event()
     requested, published = threading.Event(), threading.Event()
     errors = []
@@ -217,6 +248,8 @@ def test_safe_base_uses_real_socket_renewal_and_two_advancing_preflight_reads(
                     assert renewed.wait_for(lambda: renew_due[0] is None or
                         now[0] + wall_tick_s < renew_due[0], timeout=2.), "renewal worker stalled"
                     now[0] += wall_tick_s
+                for timer in timers:
+                    timer.run_due()
                 step += 1
                 c.control_at(step * .005)
                 publish(c, step=step, sim_time=step * .005)
@@ -237,6 +270,7 @@ def test_safe_base_uses_real_socket_renewal_and_two_advancing_preflight_reads(
     try:
         safe.connect()
         producer.start()
+        watchdog.start()
         # Both fixture wall cadences span the .3 s lease during .45 s simulated.
         result = safe.walk_velocity(.1, 0., 0., .45)
         assert result["execution_ok"], (
@@ -258,7 +292,12 @@ def test_safe_base_uses_real_socket_renewal_and_two_advancing_preflight_reads(
         assert samples[-1]["sim_time_s"] >= result["ack"]["end_sim_time_s"]
         assert all(s["position_world"] == [0., 0., .12] for s in samples)
         assert not errors
+        assert not timed_out.is_set(), "transport fixture exceeded its real watchdog"
+        assert len(timers) == 1 and timers[0].interval == 5. and timers[0].cancelled
     finally:
+        watchdog.cancel()
+        if watchdog.ident is not None:
+            watchdog.join()
         halt.set()
         producer.join(1.)
         safe.disconnect()

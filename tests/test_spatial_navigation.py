@@ -4,6 +4,7 @@ import json
 import math
 import threading
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -23,6 +24,7 @@ class SyntheticSource:
         self.grid = GridSnapshot("map", stamp, .1, (-3.05, -3.05), 61, 61, (0,)*3721)
         self.raw = None
         self.previous = -1
+        self.clock = time.monotonic
         self.queries = []
         self.mutate = lambda sample: sample
         self.clearance = 1.
@@ -36,7 +38,7 @@ class SyntheticSource:
             state = self.raw.get_state()
             if state.step > self.previous:
                 break
-            if time.monotonic() >= deadline_monotonic_s:
+            if self.clock() >= deadline_monotonic_s:
                 raise TimeoutError("mock capture deadline")
             time.sleep(.001)
         self.previous = state.step
@@ -87,9 +89,28 @@ def arguments(source, goal=(.2, 0.)):
     return dict(goal_xy_m=list(goal), map_epoch="map-epoch", map_sha256=source.grid.sha256)
 
 
-def test_route_uses_mobile_control_and_retains_synthetic_verdict(navigation):
+def test_route_uses_mobile_control_and_retains_synthetic_verdict(navigation, monkeypatch):
+    from cascade.spatial import navigation as navigation_module
+
     runtime, source = navigation
-    result = runtime.execute("go_to", arguments(source))
+    # This proves synthetic route/control ordering, not CI host scheduling.
+    # Charge one logical observation period per completed mock capture; a host
+    # pause between capture and clearance must not consume this fixture budget.
+    # Negative blocked-provider cases below keep the actual wall clock.
+    logical = [0.]
+    source.clock = lambda: logical[0]
+    monkeypatch.setattr(navigation_module, "time", SimpleNamespace(monotonic=source.clock))
+    def captured(sample):
+        logical[0] += runtime.limits["sample_interval_s"]
+        return replace(sample, received_monotonic_s=logical[0])
+    source.mutate = captured
+    watchdog = threading.Timer(15., runtime.stop)
+    watchdog.start()
+    try:
+        result = runtime.execute("go_to", arguments(source))
+    finally:
+        watchdog.cancel()
+        watchdog.join()
     assert result.get("software_complete"), result
     assert result["execution_ok"] and not result["ok"] and not result["physical_admission"]
     assert result["commands"] and all(c["execution_ok"] for c in result["commands"])
@@ -145,12 +166,23 @@ def test_stop_interrupts_blocked_source_and_quarantines_it(navigation):
         worker.join(1.)
 
 
-def test_source_deadline_stops_without_waiting_for_reader(navigation):
+@pytest.mark.parametrize("blocked", ["read", "clearance"])
+def test_source_deadline_stops_without_waiting_for_reader(navigation, monkeypatch, blocked):
     runtime, source = navigation
-    source.hold, source.entered = threading.Event(), threading.Event()
+    source.hold, entered = threading.Event(), threading.Event()
+    if blocked == "read":
+        source.entered = entered
+    else:
+        original = source.swept_clearance
+        def held(*args, **kwargs):
+            entered.set()
+            source.hold.wait()
+            return original(*args, **kwargs)
+        monkeypatch.setattr(source, "swept_clearance", held)
     started = time.monotonic()
     result = runtime.execute("go_to", arguments(source))
     assert time.monotonic()-started < 1.
+    assert entered.is_set()
     assert result["source_quarantined"] and not result["execution_ok"]
     assert not runtime.reset_stop()["ok"]
     assert source.raw.get_state().latched

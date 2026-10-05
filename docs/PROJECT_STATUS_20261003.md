@@ -84,6 +84,21 @@ separately below.
 | [#90](https://github.com/johnnynunez/cascade/pull/90), `80035374` | The TCP timeout fixture permits read-only reconnects after a delayed caller resumes. Its real 40 ms limit, negative verdict and production code remain unchanged. | [68 passed](evidence/project-status-20261003/task-tcp-fixture-publication.json). |
 | [#93](https://github.com/johnnynunez/cascade/pull/93), `7b765a6` | Withdrawal/home consumers preserve the cancellation token; completion validates original or registered reset context and clears debt atomically. Checks between reset callbacks prevent later work after detected cancellation; completed belief clearing remains reported. | [151 passed: token/context](evidence/project-status-20261003/mujoco-withdrawal-cancellation-cpu.json); [183 passed: callback boundaries](evidence/project-status-20261003/mujoco-reset-callback-cancellation-cpu.json); [122 passed: consumer-token fixture](evidence/project-status-20261003/mujoco-withdrawal-publication.json). |
 
+**Integrated main `af66b6d` (PR #207, Euler preparation) failed CI on all three
+systems on 4 October:** seven `tests/test_microduck_stepper.py` clock-probe cases
+raised `'NoneType' object has no attribute 'get'` because the backend constructor
+began validating the selected integrator profile against an admission that a bare
+clock-probe backend does not have. The macOS job additionally failed
+`test_factory_process_adapter.py::test_real_owner_child_and_domain_start_turn_stop_rest_archive_without_physical_credit`
+with a Factory wire fault at close after a 20-minute run; that case passed on the
+previous main run and on Linux locally and is retained as a slow-runner timing
+failure, not diagnosed. The seven deterministic failures reproduce locally and are
+corrected by `fix(sim): admit the SDK-default integrator without an admission
+record`: a missing admission admits no contract, so the SDK default passes and an
+explicit Euler selection without admission still fails. The five affected test
+files pass (159 tests) on Linux x86; CI on the three systems is pending. No native
+MicroDuck result changes.
+
 The #93 head combines `fe0a49ee`, callback fix `7a6f078d` and fixture update
 `a86cfca4`. Its checks are cooperative callback boundaries, not rollback of
 already-executed reset work. Historical Trial12, Factory readiness and RGB-D

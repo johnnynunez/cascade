@@ -6,6 +6,30 @@ exploratory trace slice outside instrumented main-thread regions. It did not
 establish which Python operation caused the delay. The bridge's optional
 Python spans measure the existing operations needed to investigate that gap.
 
+## Collector accounting and the opt-in startup-heap freeze (5 October 2026)
+
+With `CASCADE_ISAAC_PYTHON_TIMINGS=1` the helper also registers one passive
+`gc.callbacks` entry and adds a bounded `gc` block to every timing summary:
+completed collections per generation with count, total and maximum interval,
+whether the longest ran on the registering thread, unmatched or pending
+boundaries, the frozen-object count and the collector settings observed at
+registration and at the summary. Intervals include scheduling and other
+callbacks and are not isolated CPU time; the helper never enables, disables,
+retunes, forces or freezes the collector and removes only its own callback at
+shutdown, after the final summary.
+
+`scripts/isaac_bridge.py --gc-policy freeze-startup-heap` (or
+`CASCADE_ISAAC_GC_POLICY`) applies `src/cascade/sim/heap_freeze.py` after every
+startup allocation, once the TCP server already answers and before the first
+main-loop step, so later automatic generation-2 collections traverse only
+objects allocated after that point. The bridge exposes a compact apply record
+in its `ping` identity (`gc_policy`) and logs `[bridge] gc policy applied`;
+at shutdown it releases after the server has stopped and before Kit closes,
+logging `[bridge] gc policy released` with the full collection measured while
+still frozen. Both engines, PhysX and Newton, run through this bridge, so the
+same flag covers both; it changes no physics setting, camera cadence, deadline
+or motion behavior and is not acceptance of anything.
+
 ## Activation and scope
 
 `CASCADE_ISAAC_PYTHON_SPANS=1` enables the spans. They are disabled by default;

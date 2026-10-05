@@ -156,23 +156,38 @@ def test_retry_still_checks_episode_wall_budget_and_never_commits_late_policy():
     assert all(len(s.actuator.targets) == 1 for s in steppers)
 
 
-@pytest.mark.parametrize('profile_phases', [False, True])
-def test_launcher_withheld_attempt_preserves_step_budget_and_only_emits_completed_frames(tmp_path, monkeypatch, profile_phases):
+def _launch_shared_runner(tmp_path, monkeypatch, *, profile_phases, gc_policy, fleet_close_error=None):
+    """Drive the real launcher with software fixtures; returns everything the asserts need."""
     import gc
     import importlib
-    import json
     from contextlib import nullcontext
     from types import SimpleNamespace as NS
+    from test_heap_freeze import fake_collector
     from test_microduck_bridge_cli import software_limits
     from test_microduck_shared_scene import View, layout_fixture
     from test_microduck_stepper import SoftwareActuator, SoftwareBackend, SoftwarePolicy, render_times
-    from cascade.sim import microduck_shared as shared_module, microduck_shared_native as native
+    from cascade.sim import heap_freeze, microduck_shared as shared_module, microduck_shared_native as native
     from cascade.control import microduck_policy
 
     runner = importlib.import_module('isaac_microduck_shared')
     callbacks_before = tuple(gc.callbacks)
     gc_settings = gc.isenabled(), gc.get_threshold()
-    created = []
+    created, policy_calls, initial_steps = [], [], []
+    collector = fake_collector(foreign_frozen=375)
+    class RecordedFreeze(heap_freeze.StartupHeapFreeze):
+        # Injected collector: the test interpreter's heap is never frozen. Absolute
+        # freeze counts are not an invariant anyway (CPython parks immortals on
+        # every full collection); record the policy's own calls against the owner's
+        # step count instead.
+        def __init__(self, **kwargs):
+            super().__init__(collector=collector, **kwargs)
+        def apply(self):
+            policy_calls.append(('apply', created[0].step_count))
+            return super().apply()
+        def release(self, **kwargs):
+            policy_calls.append(('release', created[0].step_count))
+            return super().release(**kwargs)
+    monkeypatch.setattr(heap_freeze, 'StartupHeapFreeze', RecordedFreeze)
     class Backend(SoftwareBackend):
         def __init__(self, *unused):
             super().__init__()
@@ -186,9 +201,13 @@ def test_launcher_withheld_attempt_preserves_step_budget_and_only_emits_complete
         def _read_completed_scene(self): raise AssertionError('fixture does not use native capture')
         def bind_identity(self, **unused):
             assert ('phase_profile' in self.receipt['configuration']) == profile_phases
+            assert self.receipt['configuration'].get('gc_policy') == gc_policy
+            assert policy_calls == []  # identity binds before any freeze
+            initial_steps.append(self.step_count)
             return {'scene_model_sha256': 'a'*64}
         def capture(self):
             assert len(gc.callbacks) == len(callbacks_before) + int(profile_phases)
+            assert [c[0] for c in policy_calls] == (['apply'] if gc_policy else [])
             return dict(rgb=np.zeros((8, 8, 3), np.uint8), step=self.step_count,
                         sim_time_s=self.sim_time, captured_at=0., render_times=render_times(self.sim_time))
         def support_probe(self):
@@ -205,6 +224,12 @@ def test_launcher_withheld_attempt_preserves_step_budget_and_only_emits_complete
                     s.controller.stop()
                 return np.zeros(14, np.float32)
             s.policy.preview = preview
+        def close(self):
+            try:
+                return super().close()
+            finally:
+                if fleet_close_error is not None:
+                    raise fleet_close_error
     monkeypatch.setattr(native, 'SharedKitNewtonBackend', Backend)
     monkeypatch.setattr(native, 'SharedRobotView', View)
     monkeypatch.setattr(microduck_policy, 'MicroduckPolicy', lambda *args, **kwargs: SoftwarePolicy(created[0]))
@@ -213,12 +238,22 @@ def test_launcher_withheld_attempt_preserves_step_budget_and_only_emits_complete
     args = NS(out=out, device='cuda:0', source='software-test-not-physics', max_wall_s=3.,
               max_steps=2, camera_every=1, max_jpeg_bytes=100000, policy=tmp_path / 'fixture.onnx',
               policy_sha256='b'*64, target_profile='direct-v1', python_extra_path=[], robots=1, serve_base_port=None,
-              profile_phases=profile_phases)
+              profile_phases=profile_phases, gc_policy=gc_policy)
     signals = NS(signum=None, registration_attempts=0, checkpoint=lambda **kwargs: None, defer=nullcontext)
     admission = dict(target_contract=target_contract('b'*64, 'direct-v1'), asset_sha256='a'*64, limits=software_limits(), experience_text='software fixture\n')
     result = runner.run(args, admission, signals)
     assert tuple(gc.callbacks) == callbacks_before
     assert (gc.isenabled(), gc.get_threshold()) == gc_settings
+    return NS(result=result, out=out, created=created, policy_calls=policy_calls, initial_steps=initial_steps,
+              collector=collector)
+
+
+@pytest.mark.parametrize('profile_phases, gc_policy', [(False, None), (True, None), (True, 'freeze-startup-heap'),
+                                                       (False, 'freeze-startup-heap')])
+def test_launcher_withheld_attempt_preserves_step_budget_and_only_emits_completed_frames(tmp_path, monkeypatch, profile_phases, gc_policy):
+    import json
+    run = _launch_shared_runner(tmp_path, monkeypatch, profile_phases=profile_phases, gc_policy=gc_policy)
+    result, out, created, policy_calls = run.result, run.out, run.created, run.policy_calls
     assert result['completed'] and result['steps'] == 2 and result['withheld_ticks'] == 1, result
     assert created[0].closed == 1 and created[0].shutdown_code == 0
     def rows(name): return [json.loads(line) for line in (out / name).read_text().splitlines()]
@@ -226,11 +261,27 @@ def test_launcher_withheld_attempt_preserves_step_budget_and_only_emits_complete
         assert [row['step'] for row in rows(name)] == [3, 4]
     assert [row['status'] for row in rows('policy.jsonl')] == ['discarded', 'discarded', 'evaluated']
     assert result['robots']['duck0']['policy_commits'] == 1
+    if gc_policy is None:
+        assert policy_calls == [] and run.collector.calls == [] and 'gc_policy' not in result
+        assert 'gc_policy' not in created[0].receipt and 'gc_policy' not in created[0].receipt['configuration']
+    else:
+        # Applied before this run's first solve, released after its last one; nothing in between.
+        assert created[0].step_count == run.initial_steps[0] + result['steps'] > run.initial_steps[0]
+        assert policy_calls == [('apply', run.initial_steps[0]), ('release', created[0].step_count)]
+        assert run.collector.calls == [('collect', 2), ('freeze',), ('collect', 2), ('unfreeze',), ('collect', 2)]  # incl. the measured frozen collection
+        applied, released = result['gc_policy']['applied'], result['gc_policy']['released']
+        assert applied is created[0].receipt['gc_policy'] and applied['policy'] == 'freeze-startup-heap-v1'
+        assert applied['freeze'] == dict(duration_ns=applied['freeze']['duration_ns'], frozen=1200, foreign_frozen_before=375)
+        assert released['unfrozen'] == 1575 and released['policy_frozen'] == 1200 and released['apply_receipt_complete']
+        assert created[0].receipt['configuration'] == ({'phase_profile': 'owner-thread-inclusive-gc-trigger-v1'} if profile_phases else {}) | {'gc_policy': 'freeze-startup-heap'}
+        runtime = json.loads((out / 'runtime.json').read_text())
+        assert runtime['backend']['gc_policy']['implementation_sha256'] == applied['implementation_sha256']
     if profile_phases:
         attempts, footer = rows('timing.jsonl')[:-1], rows('timing.jsonl')[-1]
         assert [r['outcome'] for r in attempts] == ['withheld', 'solved', 'solved']
         assert [r['clock_after'][0] for r in attempts] == [2, 3, 4]
         assert footer['attempts'] == 3 and not footer['errors']
+        assert footer['gc_summary']['accounting_complete']
         assert result['phase_profile'] == {'file': 'timing.jsonl', 'attempts': 3, 'errors': []}
         phases = {s['phase'] for r in attempts for s in r['spans']}
         assert {'policy.prepare', 'bam.before_step', 'solve', 'publication', 'record.physics',
@@ -241,3 +292,13 @@ def test_launcher_withheld_attempt_preserves_step_budget_and_only_emits_complete
         assert not (out/'timing.jsonl').exists() and 'phase_profile' not in result
         assert 'step' not in vars(created[0]) and 'capture' not in vars(created[0])
         assert 'phase_profile' not in created[0].receipt['configuration']
+
+
+def test_launcher_releases_the_frozen_heap_even_when_fleet_closure_fails(tmp_path, monkeypatch):
+    run = _launch_shared_runner(tmp_path, monkeypatch, profile_phases=False, gc_policy='freeze-startup-heap',
+                                fleet_close_error=RuntimeError('synthetic shared teardown fault'))
+    result = run.result
+    assert not result['completed'] and result['exit_code'] == 1 and 'RuntimeError' in result['teardown_errors']
+    assert run.collector.calls == [('collect', 2), ('freeze',), ('collect', 2), ('unfreeze',), ('collect', 2)]
+    assert [c[0] for c in run.policy_calls] == ['apply', 'release']
+    assert result['gc_policy']['released']['unfrozen'] == 1575 and result['gc_policy']['applied'] is not None

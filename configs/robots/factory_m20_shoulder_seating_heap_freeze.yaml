@@ -1,0 +1,8 @@
+# Shoulder-seating profile plus the opt-in startup-heap freeze (sim/heap_freeze.py):
+# one full collection, then gc.freeze() after model construction and the exact pin
+# check, before the owner thread starts. Host collector policy only: the physics
+# model identity is unchanged and nothing here is physical admission.
+extends: factory_m20_shoulder_seating
+domains:
+  fastening:
+    gc_policy: freeze-startup-heap

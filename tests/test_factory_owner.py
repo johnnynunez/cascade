@@ -544,3 +544,20 @@ def test_admissions_happen_between_solves_and_do_not_relabel_initial_row():
     assert permit.generation == owner._row.generation == 2
     assert [s.generation for s in backend.stamps] == [1, 2]
     assert [u[2] for u in backend.uploads] == [0., .03]
+
+
+def test_owner_whose_thread_never_started_reports_itself_closed(monkeypatch):
+    """A failed Thread.start() must not make close() raise before any closure receipt exists."""
+    import threading
+    now = [10.]
+    owner = FactorySolveOwner(SyntheticBackend(now), clock=lambda: now[0])
+    def refuse(self):
+        raise RuntimeError("can't start new thread")
+    monkeypatch.setattr(threading.Thread, "start", refuse)
+    with pytest.raises(RuntimeError, match="start new thread"):
+        owner.start()
+    closure = owner.close()
+    assert closure["owner_thread_closed"] is True and closure["ok"] is False
+    assert closure["zero_spindle"] is None and closure["physical_stop_verified"] is False
+    with pytest.raises(FasteningFault, match="restarted"):
+        owner.start()

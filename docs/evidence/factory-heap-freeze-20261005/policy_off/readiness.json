@@ -1,0 +1,11 @@
+{
+  "binding_sha256": "1e45f68fb2475f7f3d1729a9fdf618a9a22298591811fa779e446b02601b8aeb",
+  "captured_monotonic_s": 153626.104878248,
+  "epoch": "c53b7e254c5245698068869c76fe9a84",
+  "generation": 0,
+  "latched": true,
+  "physical_task_admission": false,
+  "quiet_interval_sim_s": 0.5000000121071935,
+  "ready": true,
+  "step": 357
+}

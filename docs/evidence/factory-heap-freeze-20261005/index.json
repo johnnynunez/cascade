@@ -1,0 +1,24 @@
+{
+ "schema": "cascade.factory-heap-freeze.evidence.v1",
+ "date": "2026-10-05",
+ "physical_admission": false,
+ "source_head": "6b572f770c53ced9da7376d966b0fe66b788477f",
+ "episodes": {
+  "policy_on": {
+   "prepare_dir": "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/prepare-02",
+   "turn_dir": "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/turn-01",
+   "turn_receipt_sha256": "a3d86704567b01adef2eec105712b71b162a6743e01555d8d07a2134a1cd198c",
+   "phase_trace_sha256": "9bc463cef7aadc683d9fad98ca4aac687433280cfa48c4bf1b355e29474d1982",
+   "solves_sha256": "1a12b6aff03e07f82e3e268dbcd03f5fe7260e30f9b045403ff4bb13b1bcf59d",
+   "native_result_sha256": "fa5f5b2a00cef164ab93c07d68fff4eb4d725a99fbae50805947441414d7cf5c"
+  },
+  "policy_off": {
+   "prepare_dir": "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/prepare-03",
+   "turn_dir": "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/turn-02",
+   "turn_receipt_sha256": "fa6cfbe4ea9b378841d8a787889f2f63079f7a0f3943759ff7bbbc2284d74a6e",
+   "phase_trace_sha256": "b3b8a881b6e6d10af7864146863e00e9abc2fb270c9abe9fb848303b021f4631",
+   "solves_sha256": "877f1753cbd8d83079694a7db45122966d8b59d9769537ce6089141a20025621",
+   "native_result_sha256": "35b9e300e05db7cbc4df5e23e349490b119fc50d145b7d41c8d7cc6e78c431cc"
+  }
+ }
+}

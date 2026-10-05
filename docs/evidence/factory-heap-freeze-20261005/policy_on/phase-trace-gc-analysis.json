@@ -1,0 +1,450 @@
+{
+ "candidate": {
+  "dir": "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/turn-01",
+  "ok": true,
+  "inputs_unchanged": true,
+  "scope_client_exit": 0,
+  "native_ok": true,
+  "error": null,
+  "epoch": "5a04117ab192470dbee8a3aff31331f8",
+  "model_identity_sha256": "e03bf144eedc42444e22906bbac937910af6f8943eda31de51fa6e5dde79136b",
+  "readiness_wall_s": 6.1473274510062765,
+  "readiness": {
+   "binding_sha256": "1e45f68fb2475f7f3d1729a9fdf618a9a22298591811fa779e446b02601b8aeb",
+   "captured_monotonic_s": 153391.385210921,
+   "epoch": "5a04117ab192470dbee8a3aff31331f8",
+   "gc_policy": {
+    "implementation_sha256": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec",
+    "policy": "freeze-startup-heap-v1",
+    "receipt": "gc-policy.json",
+    "selected": "freeze-startup-heap"
+   },
+   "generation": 0,
+   "latched": true,
+   "physical_task_admission": false,
+   "quiet_interval_sim_s": 0.5000000121071935,
+   "ready": true,
+   "step": 360
+  },
+  "task_verdict": {
+   "ok": true,
+   "verdict": null,
+   "status": null,
+   "threading": null,
+   "physical_stop_verified": true
+  },
+  "runtime_closure_ok": true,
+  "readiness.json": {
+   "binding_sha256": "1e45f68fb2475f7f3d1729a9fdf618a9a22298591811fa779e446b02601b8aeb",
+   "captured_monotonic_s": 153391.385210921,
+   "epoch": "5a04117ab192470dbee8a3aff31331f8",
+   "gc_policy": {
+    "implementation_sha256": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec",
+    "policy": "freeze-startup-heap-v1",
+    "receipt": "gc-policy.json",
+    "selected": "freeze-startup-heap"
+   },
+   "generation": 0,
+   "latched": true,
+   "physical_task_admission": false,
+   "quiet_interval_sim_s": 0.5000000121071935,
+   "ready": true,
+   "step": 360
+  },
+  "gc-policy.json": {
+   "apply": {
+    "after": {
+     "allocated_blocks": 2671771,
+     "count": [
+      0,
+      0,
+      0
+     ],
+     "frozen": 1085933,
+     "stats": [
+      {
+       "collected": 32866,
+       "collections": 1327,
+       "uncollectable": 0
+      },
+      {
+       "collected": 6681,
+       "collections": 120,
+       "uncollectable": 0
+      },
+      {
+       "collected": 4014,
+       "collections": 9,
+       "uncollectable": 0
+      }
+     ]
+    },
+    "applied_monotonic_ns": 153384864876331,
+    "before": {
+     "allocated_blocks": 2684689,
+     "count": [
+      536,
+      7,
+      11
+     ],
+     "frozen": 375,
+     "stats": [
+      {
+       "collected": 32866,
+       "collections": 1327,
+       "uncollectable": 0
+      },
+      {
+       "collected": 6681,
+       "collections": 120,
+       "uncollectable": 0
+      },
+      {
+       "collected": 3204,
+       "collections": 8,
+       "uncollectable": 0
+      }
+     ]
+    },
+    "collect": {
+     "duration_ns": 319546220,
+     "frozen_after_collect": 375,
+     "unreachable": 810
+    },
+    "freeze": {
+     "duration_ns": 20872,
+     "foreign_frozen_before": 375,
+     "frozen": 1085558
+    },
+    "implementation_sha256": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec",
+    "policy": "freeze-startup-heap-v1",
+    "process": {
+     "executable": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/kit/python/bin/python3",
+     "interpreter": "3.12.14",
+     "peak_rss_kib": 2151108,
+     "pid": 2380594
+    },
+    "scope": "Objects alive at apply() moved to the permanent generation; later automatic collections traverse only objects allocated afterwards. Collector enabled, thresholds and callbacks unchanged. Cyclic garbage alive at apply() stays retained until release(). Not a control-deadline, speedup or physical claim.",
+    "settings": {
+     "callbacks": 1,
+     "enabled": true,
+     "thresholds": [
+      700,
+      10,
+      10
+     ]
+    },
+    "thread_id": 133834682439616
+   },
+   "domain_id": "fastening",
+   "model_identity_sha256": "e03bf144eedc42444e22906bbac937910af6f8943eda31de51fa6e5dde79136b",
+   "profile_gc_policy": "freeze-startup-heap"
+  },
+  "closure.json": {
+   "gc_policy": {
+    "after": {
+     "allocated_blocks": 2724819,
+     "count": [
+      18,
+      0,
+      0
+     ],
+     "frozen": 375,
+     "stats": [
+      {
+       "collected": 48608,
+       "collections": 3182,
+       "uncollectable": 0
+      },
+      {
+       "collected": 9433,
+       "collections": 288,
+       "uncollectable": 0
+      },
+      {
+       "collected": 4158,
+       "collections": 11,
+       "uncollectable": 0
+      }
+     ]
+    },
+    "apply_error": null,
+    "apply_receipt_complete": true,
+    "before": {
+     "allocated_blocks": 2743389,
+     "count": [
+      0,
+      7,
+      168
+     ],
+     "frozen": 1085283,
+     "stats": [
+      {
+       "collected": 48608,
+       "collections": 3182,
+       "uncollectable": 0
+      },
+      {
+       "collected": 9433,
+       "collections": 288,
+       "uncollectable": 0
+      },
+      {
+       "collected": 4014,
+       "collections": 9,
+       "uncollectable": 0
+      }
+     ]
+    },
+    "collect": {
+     "duration_ns": 316242293,
+     "unreachable": 0
+    },
+    "frozen_changed_since_apply": -650,
+    "frozen_collect": {
+     "duration_ns": 4050695,
+     "tracked_after": 19180,
+     "unreachable": 144
+    },
+    "implementation_sha256": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec",
+    "policy": "freeze-startup-heap-v1",
+    "policy_frozen": 1085558,
+    "process": {
+     "executable": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/kit/python/bin/python3",
+     "interpreter": "3.12.14",
+     "peak_rss_kib": 2151108,
+     "pid": 2380594
+    },
+    "released_monotonic_ns": 153436210167246,
+    "settings": {
+     "callbacks": 1,
+     "enabled": true,
+     "thresholds": [
+      700,
+      10,
+      10
+     ]
+    },
+    "thread_id": 133834682439616,
+    "unfreeze": {
+     "duration_ns": 1762
+    },
+    "unfrozen": 1085283
+   },
+   "ok": true,
+   "owner": {
+    "error": null,
+    "ok": true,
+    "owner_thread_closed": true,
+    "pending_records": 6,
+    "physical_stop_verified": false,
+    "zero_spindle": {
+     "before_step": 2054,
+     "completed_monotonic_s": 153436.13781076,
+     "generation": 5,
+     "physical_stop_verified": false,
+     "uploaded": true
+    }
+   },
+   "physical_stop_verified": false,
+   "stop": {
+    "accepted_monotonic_s": 153436.12129128,
+    "generation": 4,
+    "latched": true,
+    "ok": true,
+    "physical_stop_verified": false
+   }
+  },
+  "release_summary": {
+   "released": null,
+   "reason": null,
+   "release_failures": null,
+   "release": {
+    "frozen_collect": null,
+    "unfrozen": null,
+    "policy_frozen": null,
+    "apply_receipt_complete": null,
+    "release_error": null
+   }
+  },
+  "apply_summary": {
+   "policy": "freeze-startup-heap-v1",
+   "implementation_sha256": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec",
+   "collect": {
+    "duration_ns": 319546220,
+    "frozen_after_collect": 375,
+    "unreachable": 810
+   },
+   "freeze": {
+    "duration_ns": 20872,
+    "foreign_frozen_before": 375,
+    "frozen": 1085558
+   },
+   "model_identity_sha256": "e03bf144eedc42444e22906bbac937910af6f8943eda31de51fa6e5dde79136b",
+   "profile_gc_policy": "freeze-startup-heap"
+  },
+  "gc": {
+   "gc_rows": 4052,
+   "intervals": 2026,
+   "by_generation": {
+    "0": {
+     "count": 1855,
+     "max_ms": 0.18,
+     "median_ms": 0.023,
+     "total_ms": 51.277
+    },
+    "1": {
+     "count": 168,
+     "max_ms": 2.165,
+     "median_ms": 0.037,
+     "total_ms": 9.904
+    },
+    "2": {
+     "count": 3,
+     "max_ms": 319.527,
+     "median_ms": 316.226,
+     "total_ms": 639.791
+    }
+   },
+   "generation2": [
+    {
+     "generation": 2,
+     "thread_id": 133834682439616,
+     "duration_ms": 319.527,
+     "start_monotonic_s": 153384.865,
+     "collected": 810
+    },
+    {
+     "generation": 2,
+     "thread_id": 133834682439616,
+     "duration_ms": 4.038,
+     "start_monotonic_s": 153436.206,
+     "collected": 144
+    },
+    {
+     "generation": 2,
+     "thread_id": 133834682439616,
+     "duration_ms": 316.226,
+     "start_monotonic_s": 153436.21,
+     "collected": 0
+    }
+   ],
+   "gc_enabled_at_install": true,
+   "gc_enabled_after_close": true,
+   "thresholds": [
+    [
+     700,
+     10,
+     10
+    ],
+    [
+     700,
+     10,
+     10
+    ]
+   ]
+  },
+  "command_to_stop_ack_wall_s": null
+ },
+ "baseline": {
+  "dir": "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/turn-02",
+  "ok": true,
+  "inputs_unchanged": true,
+  "scope_client_exit": 0,
+  "native_ok": true,
+  "error": null,
+  "epoch": "c53b7e254c5245698068869c76fe9a84",
+  "model_identity_sha256": "e03bf144eedc42444e22906bbac937910af6f8943eda31de51fa6e5dde79136b",
+  "readiness_wall_s": 6.335156196990283,
+  "readiness": {
+   "binding_sha256": "1e45f68fb2475f7f3d1729a9fdf618a9a22298591811fa779e446b02601b8aeb",
+   "captured_monotonic_s": 153626.104878248,
+   "epoch": "c53b7e254c5245698068869c76fe9a84",
+   "generation": 0,
+   "latched": true,
+   "physical_task_admission": false,
+   "quiet_interval_sim_s": 0.5000000121071935,
+   "ready": true,
+   "step": 357
+  },
+  "task_verdict": {
+   "ok": true,
+   "verdict": null,
+   "status": null,
+   "threading": null,
+   "physical_stop_verified": true
+  },
+  "runtime_closure_ok": true,
+  "readiness.json": {
+   "binding_sha256": "1e45f68fb2475f7f3d1729a9fdf618a9a22298591811fa779e446b02601b8aeb",
+   "captured_monotonic_s": 153626.104878248,
+   "epoch": "c53b7e254c5245698068869c76fe9a84",
+   "generation": 0,
+   "latched": true,
+   "physical_task_admission": false,
+   "quiet_interval_sim_s": 0.5000000121071935,
+   "ready": true,
+   "step": 357
+  },
+  "gc-policy.json": null,
+  "closure.json": {
+   "ok": true,
+   "owner": {
+    "error": null,
+    "ok": true,
+    "owner_thread_closed": true,
+    "pending_records": 5,
+    "physical_stop_verified": false,
+    "zero_spindle": {
+     "before_step": 2044,
+     "completed_monotonic_s": 153672.40010601,
+     "generation": 5,
+     "physical_stop_verified": false,
+     "uploaded": true
+    }
+   },
+   "physical_stop_verified": false,
+   "stop": {
+    "accepted_monotonic_s": 153672.381009999,
+    "generation": 4,
+    "latched": true,
+    "ok": true,
+    "physical_stop_verified": false
+   }
+  },
+  "gc": {
+   "gc_rows": 3954,
+   "intervals": 1977,
+   "by_generation": {
+    "0": {
+     "count": 1812,
+     "max_ms": 0.416,
+     "median_ms": 0.028,
+     "total_ms": 56.543
+    },
+    "1": {
+     "count": 165,
+     "max_ms": 0.895,
+     "median_ms": 0.045,
+     "total_ms": 10.044
+    }
+   },
+   "generation2": [],
+   "gc_enabled_at_install": true,
+   "gc_enabled_after_close": true,
+   "thresholds": [
+    [
+     700,
+     10,
+     10
+    ],
+    [
+     700,
+     10,
+     10
+    ]
+   ]
+  },
+  "command_to_stop_ack_wall_s": null
+ }
+}

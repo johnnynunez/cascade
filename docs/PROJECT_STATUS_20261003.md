@@ -463,6 +463,17 @@ mid-stride at 0.09 to 0.23 m/s and the reverse braking taking 0.7 to 0.9 s and
 drift. The handoff stays an opt-in candidate, not a remedy; the next candidates
 are a checkpoint trained with zero and decelerating commands or a distance-aware
 speed in the walk skill. No threshold changed and nothing physical is claimed.
+**The residue reproduced in Isaac Lab itself (5 October 2026):** the same ±30 mm
+protocol run directly in the fork's `IsaacContrib-Velocity-{Flat,Rough}-MicroDuck`
+environments (kit-less Lab, Newton 1.6.1rc1, native BAM, `velocity_flat.onnx` and
+`velocity_rough.onnx` through onnxruntime; 36 walk, 8 braking and 9 standing
+episodes, no fall) shows the same post-zero overrun with Lab's own randomization,
+with none, and with CASCADE's nominal BAM profile: forward +4 to +31 mm, reverse
+−11 to −46 mm, still 0.42 to 0.74 s after the zero command, no drift from rest
+over 10 s ([report](evidence/microduck-isaaclab-repro-20261005/REPORT.md),
+[section](MICRODUCK.md#the-braking-residue-reproduced-in-isaac-lab-itself-5-october-2026)).
+CASCADE's 61-value observation matches Lab's term by term; the residue is a
+property of the checkpoints, not of CASCADE's pipeline. Nothing physical is claimed.
 
 **Factory heap-freeze profile ran natively (5 October 2026, same-revision pair):**
 on merged source `6b572f77`, model pin `e03bf144…`, SDK recipe

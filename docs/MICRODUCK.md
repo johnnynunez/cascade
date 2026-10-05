@@ -526,6 +526,60 @@ a remedy. The next candidates are a checkpoint that sees zero and decelerating
 commands in training, or a distance-aware speed in the walk skill, both to be
 judged by the unchanged verifier. Nothing physical is claimed.
 
+### The braking residue reproduced in Isaac Lab itself (5 October 2026)
+
+To separate the policies from CASCADE's pipeline, the same ±30 mm protocol was
+run directly in Isaac Lab's own MicroDuck environments, outside CASCADE
+([report](evidence/microduck-isaaclab-repro-20261005/REPORT.md),
+[aggregates and per-episode table](evidence/microduck-isaaclab-repro-20261005/report.json),
+[per-step trajectories](evidence/microduck-isaaclab-repro-20261005/trajectories.csv.gz)):
+AntoineRichard/IsaacLab `antoiner/feat/microduck-rough-velocity` at
+`eafc80df` (the #8161/#8265/#8266/#8267/#8270 stack over upstream `develop`
+`4aa39c10`), installed kit-less with the fork's own `uv sync` (Newton 1.6.1rc1
+from the `release-1.6` branch, MJWarp 3.12.0, warp 1.17.0), tasks
+`IsaacContrib-Velocity-Flat-MicroDuck` and `IsaacContrib-Velocity-Rough-MicroDuck`
+built exactly as `isaaclab play` builds them (play mode: noise and pushes off),
+one environment on the local mirror of the Nucleus `microduck_walk.usd`, the
+native BAM servos, and `velocity_flat.onnx` / `velocity_rough.onnx` (iteration
+49,999, the same digests CASCADE admits) run through onnxruntime on the
+environment's own 61-value policy observation. Protocol per episode: 1 s settle
+at zero twist, (±0.3, 0, 0) until the root has moved 25 mm along its initial
+heading (closed loop; open-loop 15-step and 1 s variants too), then (0, 0, 0)
+for 3 s. Three configurations: Lab's play-mode randomization and BAM deployment
+(6.5 to 8.2 V, sag, 3 to 6 step command delay, 1.75 A limit), everything
+deterministic, and CASCADE's nominal BAM profile (7.4 V, sag 0.1, no delay, no
+current limit). 36 walk episodes, 8 steady-gait braking episodes, 9 ten-second
+standing episodes, no fall.
+
+The overrun is there in every configuration: after the zero command the robot
+keeps moving in the commanded direction, forward +4 to +31 mm (mean +20 mm flat,
++15 mm rough), reverse −11 to −46 mm (mean −25 mm flat, −29 mm rough), with a
+5 to 27 mm lateral swerve, so a "30 mm" walk ends 30 to 59 mm forward and 36 to
+71 mm in reverse; the reverse-heavier asymmetry CASCADE measured (flat
+−27.6 → −48.5 mm, rough −26.7 → −55.4 mm) sits inside that envelope. The
+mechanism is the one the braking analysis above describes: the threshold is
+crossed while the body still moves at 0.14 to 0.26 m/s forward and 0.27 to
+0.34 m/s in reverse (the policy first swerves sideways, then crosses the
+threshold at its first-stride velocity peak), and the network needs 0.3 to 0.5 s
+to brake; from a steady 0.19 to 0.21 m/s gait it stops in 0.42 to 0.68 s and
++2 to +17 mm forward, −11 to −21 mm reverse. It never drifts indefinitely: every
+episode is still (planar speed below 0.02 m/s) 0.42 to 0.74 s after the zero
+command (one outlier, 1.34 s), moves under 0.4 mm in the last second, and a
+zero command from rest holds 10 s with under 0.35 mm drift and 0.25° yaw. The
+61-value observation CASCADE assembles matches Lab's term by term (order, units,
+`HOME_Q` equal to the Lab default pose, raw previous action; verified
+numerically on the Lab logs); the one structural difference is Lab's constant
+one-step joint-velocity delay, which is part of the training recipe. The
+deployment parameters move the forward overrun (CASCADE's nominal BAM profile
+gives +4 to +11 mm, closest to CASCADE's own +1 mm) but not the reverse one.
+Conclusion: the post-completion residue is a property of these checkpoints and
+their training command distribution, not of CASCADE's observation, actuator or
+stop pipeline; the remedies stay the two named above. Not covered: Kit itself
+was not started (kit-less Lab on the same Newton release Isaac Sim 6.2 bundles),
+the rough task ran on the collision plane because MJWarp rejects an all-flat
+mesh terrain, and nothing physical is claimed. The driver, generalized, was
+offered to the fork as [AntoineRichard/IsaacLab#21](https://github.com/AntoineRichard/IsaacLab/pull/21).
+
 ## Remaining admission work
 
 The current real MCP campaign confirms supported standing and a separately

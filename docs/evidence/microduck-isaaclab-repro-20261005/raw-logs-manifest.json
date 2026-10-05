@@ -1,0 +1,450 @@
+{
+ "note": "Raw per-step logs of lab_microduck_walk_test.py (obs 61, actions 14, root pose/velocity, joint q/dq per policy step). Kept outside git (45 MB); identified by SHA-256.",
+ "files": [
+  {
+   "file": "/home/johnny/Projects/demo/cascade-lab/ISAACLAB_MICRODUCK_REPRO_20261005/results/OLD_wrongquat_flat_velocity_flat_lab_play_seed0.json",
+   "bytes": 4093666,
+   "sha256": "fe0c5b7bcd3502cd86ef1c145ae71abe828c3d2bdd86494f88aa69fd2b8c6323",
+   "policy": "velocity_flat",
+   "task": "IsaacContrib-Velocity-Flat-MicroDuck",
+   "variant": "lab_play",
+   "seed": 0,
+   "episodes": [
+    {
+     "kind": "stand",
+     "trial": 0,
+     "steps": 550
+    },
+    {
+     "kind": "fwd_cl",
+     "trial": 0,
+     "steps": 209
+    },
+    {
+     "kind": "rev_cl",
+     "trial": 0,
+     "steps": 223
+    },
+    {
+     "kind": "fwd_ol",
+     "trial": 0,
+     "steps": 215
+    },
+    {
+     "kind": "rev_ol",
+     "trial": 0,
+     "steps": 215
+    }
+   ],
+   "note": "first run; stored the xyzw quaternion under the key quat_wxyz, in-run yaw/tilt summaries wrong; superseded by flat_velocity_flat_lab_play_seed0.json; excluded from the tables"
+  },
+  {
+   "file": "/home/johnny/Projects/demo/cascade-lab/ISAACLAB_MICRODUCK_REPRO_20261005/results/flat_velocity_flat_cascade_nominal_seed0.json",
+   "bytes": 4078708,
+   "sha256": "6bbb8764a9d7d8cba31c8425d080df1cae74a04bd2f256f56efdc2860c003ca9",
+   "policy": "velocity_flat",
+   "task": "IsaacContrib-Velocity-Flat-MicroDuck",
+   "variant": "cascade_nominal",
+   "seed": 0,
+   "episodes": [
+    {
+     "kind": "stand",
+     "trial": 0,
+     "steps": 550
+    },
+    {
+     "kind": "fwd_cl",
+     "trial": 0,
+     "steps": 213
+    },
+    {
+     "kind": "rev_cl",
+     "trial": 0,
+     "steps": 214
+    },
+    {
+     "kind": "fwd_ol",
+     "trial": 0,
+     "steps": 215
+    },
+    {
+     "kind": "rev_ol",
+     "trial": 0,
+     "steps": 215
+    }
+   ]
+  },
+  {
+   "file": "/home/johnny/Projects/demo/cascade-lab/ISAACLAB_MICRODUCK_REPRO_20261005/results/flat_velocity_flat_cascade_nominal_seed0_1s.json",
+   "bytes": 1444228,
+   "sha256": "ed9e5f7a458243475cb3b36636c782b931e32ef57bbce9f91e67292378359692",
+   "policy": "velocity_flat",
+   "task": "IsaacContrib-Velocity-Flat-MicroDuck",
+   "variant": "cascade_nominal",
+   "seed": 0,
+   "episodes": [
+    {
+     "kind": "fwd_1s",
+     "trial": 0,
+     "steps": 250
+    },
+    {
+     "kind": "rev_1s",
+     "trial": 0,
+     "steps": 250
+    }
+   ]
+  },
+  {
+   "file": "/home/johnny/Projects/demo/cascade-lab/ISAACLAB_MICRODUCK_REPRO_20261005/results/flat_velocity_flat_lab_play_seed0.json",
+   "bytes": 4095067,
+   "sha256": "bbe648723fb49d2cb31d5f8934fed1228a4d201cf2d2f3d1b25a2f58807713b0",
+   "policy": "velocity_flat",
+   "task": "IsaacContrib-Velocity-Flat-MicroDuck",
+   "variant": "lab_play",
+   "seed": 0,
+   "episodes": [
+    {
+     "kind": "stand",
+     "trial": 0,
+     "steps": 550
+    },
+    {
+     "kind": "fwd_cl",
+     "trial": 0,
+     "steps": 214
+    },
+    {
+     "kind": "rev_cl",
+     "trial": 0,
+     "steps": 218
+    },
+    {
+     "kind": "fwd_ol",
+     "trial": 0,
+     "steps": 215
+    },
+    {
+     "kind": "rev_ol",
+     "trial": 0,
+     "steps": 215
+    }
+   ]
+  },
+  {
+   "file": "/home/johnny/Projects/demo/cascade-lab/ISAACLAB_MICRODUCK_REPRO_20261005/results/flat_velocity_flat_lab_play_seed0_1s.json",
+   "bytes": 1441287,
+   "sha256": "a8bb2c1e43df96f781ea79fe7d726d9379f7e0d41837cf0af260465c1b5fd522",
+   "policy": "velocity_flat",
+   "task": "IsaacContrib-Velocity-Flat-MicroDuck",
+   "variant": "lab_play",
+   "seed": 0,
+   "episodes": [
+    {
+     "kind": "fwd_1s",
+     "trial": 0,
+     "steps": 250
+    },
+    {
+     "kind": "rev_1s",
+     "trial": 0,
+     "steps": 250
+    }
+   ]
+  },
+  {
+   "file": "/home/johnny/Projects/demo/cascade-lab/ISAACLAB_MICRODUCK_REPRO_20261005/results/flat_velocity_flat_lab_play_seed1.json",
+   "bytes": 4083431,
+   "sha256": "080c0f805960302fe97b95940830603f9098b8c9774f5c2179f8d2da661192bc",
+   "policy": "velocity_flat",
+   "task": "IsaacContrib-Velocity-Flat-MicroDuck",
+   "variant": "lab_play",
+   "seed": 1,
+   "episodes": [
+    {
+     "kind": "stand",
+     "trial": 0,
+     "steps": 550
+    },
+    {
+     "kind": "fwd_cl",
+     "trial": 0,
+     "steps": 214
+    },
+    {
+     "kind": "rev_cl",
+     "trial": 0,
+     "steps": 216
+    },
+    {
+     "kind": "fwd_ol",
+     "trial": 0,
+     "steps": 215
+    },
+    {
+     "kind": "rev_ol",
+     "trial": 0,
+     "steps": 215
+    }
+   ]
+  },
+  {
+   "file": "/home/johnny/Projects/demo/cascade-lab/ISAACLAB_MICRODUCK_REPRO_20261005/results/flat_velocity_flat_norand_seed0.json",
+   "bytes": 4099110,
+   "sha256": "ec2c3458dd4c4d7e12c2c83555d3771757a792b634d1acac8839ce9b7b8df127",
+   "policy": "velocity_flat",
+   "task": "IsaacContrib-Velocity-Flat-MicroDuck",
+   "variant": "norand",
+   "seed": 0,
+   "episodes": [
+    {
+     "kind": "stand",
+     "trial": 0,
+     "steps": 550
+    },
+    {
+     "kind": "fwd_cl",
+     "trial": 0,
+     "steps": 214
+    },
+    {
+     "kind": "rev_cl",
+     "trial": 0,
+     "steps": 217
+    },
+    {
+     "kind": "fwd_ol",
+     "trial": 0,
+     "steps": 215
+    },
+    {
+     "kind": "rev_ol",
+     "trial": 0,
+     "steps": 215
+    }
+   ]
+  },
+  {
+   "file": "/home/johnny/Projects/demo/cascade-lab/ISAACLAB_MICRODUCK_REPRO_20261005/results/flat_velocity_rough_lab_play_seed0.json",
+   "bytes": 4091183,
+   "sha256": "c8e199d8bae2d70beb008e0f11643159be019f32e9608bd89e240030c568b824",
+   "policy": "velocity_rough",
+   "task": "IsaacContrib-Velocity-Flat-MicroDuck",
+   "variant": "lab_play",
+   "seed": 0,
+   "episodes": [
+    {
+     "kind": "stand",
+     "trial": 0,
+     "steps": 550
+    },
+    {
+     "kind": "fwd_cl",
+     "trial": 0,
+     "steps": 215
+    },
+    {
+     "kind": "rev_cl",
+     "trial": 0,
+     "steps": 217
+    },
+    {
+     "kind": "fwd_ol",
+     "trial": 0,
+     "steps": 215
+    },
+    {
+     "kind": "rev_ol",
+     "trial": 0,
+     "steps": 215
+    }
+   ]
+  },
+  {
+   "file": "/home/johnny/Projects/demo/cascade-lab/ISAACLAB_MICRODUCK_REPRO_20261005/results/rough_velocity_rough_cascade_nominal_seed0.json",
+   "bytes": 4087280,
+   "sha256": "8b69fdac8806fb12e2b8caba22ec09f51bdc9042590d9f1150213eef590f040c",
+   "policy": "velocity_rough",
+   "task": "IsaacContrib-Velocity-Rough-MicroDuck",
+   "variant": "cascade_nominal",
+   "seed": 0,
+   "episodes": [
+    {
+     "kind": "stand",
+     "trial": 0,
+     "steps": 550
+    },
+    {
+     "kind": "fwd_cl",
+     "trial": 0,
+     "steps": 214
+    },
+    {
+     "kind": "rev_cl",
+     "trial": 0,
+     "steps": 214
+    },
+    {
+     "kind": "fwd_ol",
+     "trial": 0,
+     "steps": 215
+    },
+    {
+     "kind": "rev_ol",
+     "trial": 0,
+     "steps": 215
+    }
+   ]
+  },
+  {
+   "file": "/home/johnny/Projects/demo/cascade-lab/ISAACLAB_MICRODUCK_REPRO_20261005/results/rough_velocity_rough_cascade_nominal_seed0_1s.json",
+   "bytes": 1442099,
+   "sha256": "0a54c32c764995769cc37a95e8993d75075b517d401eb7742c711ad1e7580d91",
+   "policy": "velocity_rough",
+   "task": "IsaacContrib-Velocity-Rough-MicroDuck",
+   "variant": "cascade_nominal",
+   "seed": 0,
+   "episodes": [
+    {
+     "kind": "fwd_1s",
+     "trial": 0,
+     "steps": 250
+    },
+    {
+     "kind": "rev_1s",
+     "trial": 0,
+     "steps": 250
+    }
+   ]
+  },
+  {
+   "file": "/home/johnny/Projects/demo/cascade-lab/ISAACLAB_MICRODUCK_REPRO_20261005/results/rough_velocity_rough_lab_play_seed0.json",
+   "bytes": 4091660,
+   "sha256": "1c44823b05fa575ae5b609e0d28a03f7a6e2bd41d963ecdac38a703cda28843c",
+   "policy": "velocity_rough",
+   "task": "IsaacContrib-Velocity-Rough-MicroDuck",
+   "variant": "lab_play",
+   "seed": 0,
+   "episodes": [
+    {
+     "kind": "stand",
+     "trial": 0,
+     "steps": 550
+    },
+    {
+     "kind": "fwd_cl",
+     "trial": 0,
+     "steps": 215
+    },
+    {
+     "kind": "rev_cl",
+     "trial": 0,
+     "steps": 217
+    },
+    {
+     "kind": "fwd_ol",
+     "trial": 0,
+     "steps": 215
+    },
+    {
+     "kind": "rev_ol",
+     "trial": 0,
+     "steps": 215
+    }
+   ]
+  },
+  {
+   "file": "/home/johnny/Projects/demo/cascade-lab/ISAACLAB_MICRODUCK_REPRO_20261005/results/rough_velocity_rough_lab_play_seed0_1s.json",
+   "bytes": 1439839,
+   "sha256": "004c91c627bdb8fc7a83f2c1fe24b82289aa0edfd21949b7f95d11857af8ce9d",
+   "policy": "velocity_rough",
+   "task": "IsaacContrib-Velocity-Rough-MicroDuck",
+   "variant": "lab_play",
+   "seed": 0,
+   "episodes": [
+    {
+     "kind": "fwd_1s",
+     "trial": 0,
+     "steps": 250
+    },
+    {
+     "kind": "rev_1s",
+     "trial": 0,
+     "steps": 250
+    }
+   ]
+  },
+  {
+   "file": "/home/johnny/Projects/demo/cascade-lab/ISAACLAB_MICRODUCK_REPRO_20261005/results/rough_velocity_rough_lab_play_seed1.json",
+   "bytes": 4090639,
+   "sha256": "9427f62146aa31b46f369ec26621d224946fd514063b80548355cae58609ae73",
+   "policy": "velocity_rough",
+   "task": "IsaacContrib-Velocity-Rough-MicroDuck",
+   "variant": "lab_play",
+   "seed": 1,
+   "episodes": [
+    {
+     "kind": "stand",
+     "trial": 0,
+     "steps": 550
+    },
+    {
+     "kind": "fwd_cl",
+     "trial": 0,
+     "steps": 215
+    },
+    {
+     "kind": "rev_cl",
+     "trial": 0,
+     "steps": 216
+    },
+    {
+     "kind": "fwd_ol",
+     "trial": 0,
+     "steps": 215
+    },
+    {
+     "kind": "rev_ol",
+     "trial": 0,
+     "steps": 215
+    }
+   ]
+  },
+  {
+   "file": "/home/johnny/Projects/demo/cascade-lab/ISAACLAB_MICRODUCK_REPRO_20261005/results/rough_velocity_rough_norand_seed0.json",
+   "bytes": 4092348,
+   "sha256": "46ded7163e1305fd6643473aad817bdd3e330b7a2b4819110fdca7814a58bfe7",
+   "policy": "velocity_rough",
+   "task": "IsaacContrib-Velocity-Rough-MicroDuck",
+   "variant": "norand",
+   "seed": 0,
+   "episodes": [
+    {
+     "kind": "stand",
+     "trial": 0,
+     "steps": 550
+    },
+    {
+     "kind": "fwd_cl",
+     "trial": 0,
+     "steps": 214
+    },
+    {
+     "kind": "rev_cl",
+     "trial": 0,
+     "steps": 216
+    },
+    {
+     "kind": "fwd_ol",
+     "trial": 0,
+     "steps": 215
+    },
+    {
+     "kind": "rev_ol",
+     "trial": 0,
+     "steps": 215
+    }
+   ]
+  }
+ ]
+}

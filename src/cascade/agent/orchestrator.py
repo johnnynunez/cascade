@@ -31,6 +31,7 @@ import json
 import time
 from dataclasses import dataclass, field
 
+from ..conversation.receipts import agent_tool_output
 from ..skills.runtime import TOOL_SPECS, SkillRuntime
 from .advisor import Advisor
 from .aspire import retrieve as retrieve_skills
@@ -251,7 +252,12 @@ class AgentOrchestrator:
             if self.advisor is not None:
                 self.advisor.note_outcome(ok)
 
-            content = json.dumps(result)
+            # Mobile/composed runtimes record the complete receipt in their trace
+            # before returning. Their motion receipts carry verifier evidence,
+            # samples and state snapshots (a native MicroDuck step is ~1.6 MB), so
+            # the model gets a bounded view: exact verdicts, metrics and bindings,
+            # named bulky attachments omitted with digests.
+            content = agent_tool_output(result, recorded=True) if self._mobile else json.dumps(result)
             messages.append(
                 {"role": "tool", "tool_call_id": call.id or "call_0", "name": call.name, "content": content}
             )

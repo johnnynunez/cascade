@@ -38,6 +38,26 @@ ASSET_SOURCE_PROPERTIES = {
 OVERVIEW_CAMERA = '/World/Overview'
 OVERVIEW_RENDER_PRODUCT = '/World/OverviewRenderProduct'
 
+OVERVIEW_SHAPE = (480, 640)
+"""Retained overview (height, width); an opt-in resolution changes the receipt and identity."""
+
+
+def overview_shape(value):
+    """Validate an overview (height, width) pair; the default is the retained 640x480."""
+    if (type(value) not in (tuple, list) or len(value) != 2 or any(type(v) is not int for v in value)
+            or not all(64 <= v <= 4096 for v in value)):
+        raise ValueError('overview resolution must be two integers (height, width) within 64..4096')
+    return int(value[0]), int(value[1])
+
+
+def parse_overview_resolution(text):
+    """``WxH`` operator text (e.g. ``1920x1080``) to the (height, width) pair."""
+    if type(text) is not str or text.count('x') != 1 or not all(part.isdigit() for part in text.split('x')):
+        raise ValueError('overview resolution must be WIDTHxHEIGHT digits, e.g. 1920x1080')
+    width, height = (int(part) for part in text.split('x'))
+    return overview_shape((height, width))
+
+
 
 def sha256(path):
     with Path(path).open('rb') as stream:
@@ -427,8 +447,12 @@ def read_native_body_properties(ns, *, root_path="/World/MicroDuck"):
                 newton_gravity_vectors_m_s2=gravity.astype(float).tolist())
 
 
-def capture_bound_rgb(ns, app, readback, *, updates, checkpoint=lambda: None, calibration=None, pose_reader=None):
-    """Main-thread capture with both physical clocks held fixed during render."""
+def capture_bound_rgb(ns, app, readback, *, updates, checkpoint=lambda: None, calibration=None, pose_reader=None,
+                      shape=OVERVIEW_SHAPE):
+    """Main-thread capture with both physical clocks held fixed during render.
+
+    ``shape`` is the authored overview (height, width); the default is the retained 640x480.
+    """
     import time
     import numpy as np
     from cascade.sim.microduck_stepper import validate_render_times
@@ -458,8 +482,8 @@ def capture_bound_rgb(ns, app, readback, *, updates, checkpoint=lambda: None, ca
     if data is None:
         raise RuntimeError('overview RGB unavailable')
     rgb = np.asarray(data.numpy() if hasattr(data, 'numpy') else data).copy()
-    if rgb.dtype != np.uint8 or rgb.shape != (480, 640, 3):
-        raise ValueError('overview must produce uint8 RGB[480,640,3]')
+    if rgb.dtype != np.uint8 or rgb.shape != (*shape, 3):
+        raise ValueError(f'overview must produce uint8 RGB[{shape[0]},{shape[1]},3]')
     extra = {}
     if calibration is not None:
         checkpoint()
@@ -472,9 +496,9 @@ def capture_bound_rgb(ns, app, readback, *, updates, checkpoint=lambda: None, ca
         checkpoint()
         depth = np.asarray(depth.numpy() if hasattr(depth, 'numpy') else depth).copy()
         checkpoint()
-        if depth.dtype != np.float32 or depth.shape not in ((480, 640), (480, 640, 1)):
-            raise ValueError('overview depth must be float32[480,640]')
-        depth = depth.reshape(480, 640)
+        if depth.dtype != np.float32 or depth.shape not in (tuple(shape), (*shape, 1)):
+            raise ValueError(f'overview depth must be float32[{shape[0]},{shape[1]}]')
+        depth = depth.reshape(*shape)
         if (depth < 0).any():
             raise ValueError('negative overview depth')
         depth[~np.isfinite(depth)] = 0.  # renderer far clip/unavailable pixels, never inferred depth
@@ -809,7 +833,8 @@ def synchronize_camera_authoring(app, timeline, manager, native_stage, *, checkp
     return dict(app_updates=1, before=before, after=after)
 
 
-def create_overview_sensor(stage, camera, sensor_factory, *, sync_renderer, rgbd=False, camera_path=OVERVIEW_CAMERA):
+def create_overview_sensor(stage, camera, sensor_factory, *, sync_renderer, rgbd=False, camera_path=OVERVIEW_CAMERA,
+                           shape=OVERVIEW_SHAPE):
     """Author a stable product for CameraSensor's supported asset-RP path.
 
     Isaac Sim 6.1 SensorRuntime._find_asset_render_product discovers a
@@ -829,15 +854,16 @@ def create_overview_sensor(stage, camera, sensor_factory, *, sync_renderer, rgbd
         raise ValueError('overview requires the exact owned camera prim')
     product = stage.DefinePrim(OVERVIEW_RENDER_PRODUCT, 'RenderProduct')
     product.CreateRelationship('camera', custom=False).SetTargets([Sdf.Path(camera_path)])
+    height, width = overview_shape(shape)
     product.CreateAttribute('resolution', Sdf.ValueTypeNames.Int2, custom=False,
-                            variability=Sdf.VariabilityUniform).Set(Gf.Vec2i(640, 480))
+                            variability=Sdf.VariabilityUniform).Set(Gf.Vec2i(width, height))
     color_path = Sdf.Path(OVERVIEW_RENDER_PRODUCT + '/LdrColor')
     color = stage.DefinePrim(color_path, 'RenderVar')
     color.CreateAttribute('sourceName', Sdf.ValueTypeNames.String, custom=False,
                           variability=Sdf.VariabilityUniform).Set('LdrColor')
     product.CreateRelationship('orderedVars', custom=False).SetTargets([color_path])
     sync_renderer()
-    sensor = sensor_factory(camera, resolution=(480, 640),
+    sensor = sensor_factory(camera, resolution=(height, width),
                             annotators=['rgb', 'distance_to_image_plane'] if rgbd else ['rgb'])
     actual = sensor.render_product.GetPrim()
     resolution = actual.GetAttribute('resolution').Get()
@@ -847,7 +873,7 @@ def create_overview_sensor(stage, camera, sensor_factory, *, sync_renderer, rgbd
                     sensor_resolution=None if sensor.resolution is None else list(sensor.resolution),
                     ordered_vars=[str(p) for p in actual.GetRelationship('orderedVars').GetTargets()])
     if (observed['path'] != OVERVIEW_RENDER_PRODUCT or observed['camera_targets'] != [camera_path]
-            or observed['render_resolution'] != [640, 480] or observed['sensor_resolution'] != [480, 640]):
+            or observed['render_resolution'] != [width, height] or observed['sensor_resolution'] != [height, width]):
         raise RuntimeError('CameraSensor did not adopt the exact authored overview render product: '
                            + json.dumps(observed, sort_keys=True))
     return sensor
@@ -878,6 +904,12 @@ class KitNewtonBackend:
         if type(self._reuse_solved_read) is not bool or (self._reuse_solved_read
                 and getattr(args, 'solver_cuda_graph', False) is not True):
             raise ValueError('same-solve read reuse requires explicit bound solver graph mode')
+        # Opt-in overview resolution (operator WxH text or a (height, width) pair); default retained.
+        selected_shape = getattr(args, 'overview_resolution', None)
+        self.overview_shape = OVERVIEW_SHAPE if selected_shape is None else (
+            parse_overview_resolution(selected_shape) if isinstance(selected_shape, str) else overview_shape(selected_shape))
+        if self.overview_shape != OVERVIEW_SHAPE:
+            self.receipt['overview_resolution'] = list(self.overview_shape)
 
     def _checkpoint(self):
         if self.signals is not None:
@@ -1195,13 +1227,14 @@ class KitNewtonBackend:
         optics = UsdGeom.Camera(stage.GetPrimAtPath(path))
         optics.GetFocalLengthAttr().Set(18.)
         optics.GetHorizontalApertureAttr().Set(20.955)
-        optics.GetVerticalApertureAttr().Set(20.955 * 480 / 640)
+        height, width = self.overview_shape
+        optics.GetVerticalApertureAttr().Set(20.955 * height / width)
         def sync_renderer():
             self.receipt['camera_authoring_sync'] = synchronize_camera_authoring(
                 self.app, self.timeline, self.SM, acquire_stage(), checkpoint=self._checkpoint)
         rgbd = getattr(self.args, 'camera_rgbd', False)
         sensor = create_overview_sensor(stage, camera, CameraSensor, sync_renderer=sync_renderer,
-                                        rgbd=rgbd, camera_path=path)
+                                        rgbd=rgbd, camera_path=path, shape=self.overview_shape)
         self._checkpoint()
         product = str(sensor.render_product.GetPath())
         self.readback = CpuCameraReadback(sensor, render_product_id=product)
@@ -1210,7 +1243,7 @@ class KitNewtonBackend:
             annotator = rep.AnnotatorRegistry.get_annotator(name)
             annotator.attach([product])
             times[name] = annotator
-        self.receipt['camera'] = dict(name='overview', render_product=product, resolution=[480, 640])
+        self.receipt['camera'] = dict(name='overview', render_product=product, resolution=[height, width])
         self._calibration_reader = None
         if rgbd:
             from cascade.sim.mobile_rgbd import calibration_record, read_static_calibration, read_mount_calibration
@@ -1316,7 +1349,7 @@ class KitNewtonBackend:
         self._guard()
         result = capture_bound_rgb(self.ns, self.app, self.readback,
             updates=16 if self._captures == 0 else 3, checkpoint=self._checkpoint,
-            calibration=self._calibration_reader, pose_reader=self._pose_reader)
+            calibration=self._calibration_reader, pose_reader=self._pose_reader, shape=self.overview_shape)
         if self._pose_reader is not None:
             if self._capture_identity is None:
                 raise RuntimeError('mounted capture requires its opened model/epoch identity')

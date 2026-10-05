@@ -1,0 +1,15 @@
+{
+  "max_linear_speed": 0.3,
+  "max_angular_speed": 1.0,
+  "max_duration_s": 60.0,
+  "lease_s": 1.0,
+  "max_state_age_s": 0.5,
+  "max_action_wall_s": 1034,
+  "min_height_m": 0.06,
+  "max_height_m": 0.3,
+  "max_tilt_rad": 0.7,
+  "max_contacts": 512,
+  "max_constraints": 2400,
+  "heading_hold_kp": 4.0,
+  "heading_hold_ki": 2.0
+}

@@ -1,0 +1,35 @@
+# Opt-in ROUTE candidate for one continuous walk of up to 6 m; NOT physical
+# admission. Never changes microduck_isaac, the distance candidate, the slow
+# native profile or the 2 m long-walk profile.
+# Built for a shared scene of up to twelve robots, one lane each (the shared
+# owner's --layout line). Requires the same separately reviewed inputs as the
+# long-walk profile (complete collision hulls, a limits JSON with heading hold)
+# plus the owner's startup-heap freeze for twelve robots, all pinned through
+# model_identity_sha256.
+# Physical deadline 60 s: rough_walk_e covers ~0.12 m/s at its 0.3 command, so
+# 6 m needs ~50 s plus its start transient. Wall budgets derive from the
+# retained twelve-robot shared episodes (85.9 ms median owner attempt per 5 ms
+# physics step = 17.2 wall seconds per physical second):
+#   action  ceil(60*17.2 + 2*.5 RPC budget + 1 host scheduling allowance) = 1034
+#   verifier 1034 + 4 = 1038, quota ceil(1038/.02)+1 = 51901 reads.
+# Drift bounds scale with distance as in the long profile (measured with hold
+# and full hulls: 0.052 m lateral and 0.114 rad over 2.43 m): 0.30 m lateral,
+# heading 0.25 rad. Position plausibility 10 m covers a twelve-lane line
+# (|y| <= 5.5 m at 1 m spacing) plus the 6 m route from a non-origin start.
+# Sampling, freshness (0.5 s state age, 0.4 s progress), settling and rest
+# limits stay those of the slow native profile; the turn guard is unchanged.
+extends: microduck_distance_long
+admission: pending_route_geometric_validation
+safety:
+  max_duration_s: 60.0
+  max_wall_duration_s: 1034.0
+distance_control:
+  max_distance_m: 6.0
+  max_lateral_drift_m: 0.30
+  max_heading_drift_rad: 0.25
+verifier:
+  max_wall_duration_s: 1038.0
+  max_samples: 51901
+  max_position_abs_m: 10.0
+  max_lateral_drift_m: 0.30
+  max_heading_drift_rad: 0.25

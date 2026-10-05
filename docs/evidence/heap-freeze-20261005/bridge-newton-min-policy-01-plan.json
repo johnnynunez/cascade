@@ -1,0 +1,74 @@
+{
+  "schema": "cascade.heap-freeze.bridge-probe.v1",
+  "argv": [
+    "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/python.sh",
+    "/home/johnny/Projects/demo/cascade/scripts/isaac_bridge.py",
+    "--engine",
+    "newton",
+    "--port",
+    "50539",
+    "--gc-policy",
+    "freeze-startup-heap"
+  ],
+  "engine": "newton",
+  "gc_policy": "freeze-startup-heap",
+  "duration_s": 90.0,
+  "ping_timeout_s": 300.0,
+  "scene_config": null,
+  "experience": "/home/johnny/Projects/demo/cascade-lab/HEAP_FREEZE_20261005/bridge.newton.minimal.kit",
+  "port": 50539,
+  "environment": {
+    "CASCADE_ISAAC_EXPERIENCE": "/home/johnny/Projects/demo/cascade-lab/HEAP_FREEZE_20261005/bridge.newton.minimal.kit",
+    "CASCADE_ISAAC_PYTHON_TIMINGS": "1",
+    "CASCADE_REQUIRE_CUDA": "1",
+    "CUDA_CACHE_PATH": "/home/johnny/Projects/demo/cascade-lab/HEAP_FREEZE_20261005/bridge-newton-min-policy-01/cache/cuda",
+    "CUDA_VISIBLE_DEVICES": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+    "ISAACSIM_PATH": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release",
+    "ISAACSIM_PYTHON_EXE": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/python.sh",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONUNBUFFERED": "1",
+    "WARP_CACHE_PATH": "/home/johnny/Projects/demo/cascade-lab/HEAP_FREEZE_20261005/bridge-newton-min-policy-01/cache/warp",
+    "PATH": "<inherited>"
+  },
+  "renderer_cache": "shared default XDG cache (warm RTX shaders); warp/cuda caches private, seeded from the MicroDuck probe",
+  "source": {
+    "branch": "perf/startup-heap-freeze",
+    "head": "93e29a37c22d17a18d9fd08445f4ab026f07b9ed",
+    "status": [
+      "M docs/ISAAC_BRIDGE_PROFILING.md"
+    ],
+    "working_tree_sha256": {
+      "scripts/isaac_bridge.py": "1a7c152969c6270680d6162fd44d35294d9cbb2aa2e61e3ba77c86a2109171f3",
+      "scripts/isaac_python_spans.py": "95f91fed5c2b3d3b3dfd4acdd0d64efed1701b061ec1a0abf03303fd4c2bd387",
+      "src/cascade/sim/heap_freeze.py": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec"
+    }
+  },
+  "control_attempted": false,
+  "physical_acceptance": false,
+  "host_load_before": {
+    "loadavg": [
+      1.99853515625,
+      2.166015625,
+      1.837890625
+    ],
+    "pytest_or_codex_running": false
+  },
+  "environment_redacted": {
+    "dropped_inherited_keys": 49,
+    "kept_prefixes": [
+      "CASCADE_",
+      "ISAACSIM_",
+      "MICRODUCK_",
+      "CUDA_",
+      "WARP_",
+      "XDG_CACHE_HOME",
+      "OMP_NUM_THREADS",
+      "OPENBLAS_NUM_THREADS",
+      "PYTHONUNBUFFERED",
+      "PYTHONDONTWRITEBYTECODE",
+      "PYTHONEXE",
+      "PATH"
+    ],
+    "note": "inherited shell variables removed before publication; recipe variables retained"
+  }
+}

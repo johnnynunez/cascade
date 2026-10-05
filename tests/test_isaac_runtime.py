@@ -177,3 +177,24 @@ def test_source_python_can_be_a_packman_symlink_but_not_an_arbitrary_python(tmp_
         raise isaac_runtime.importlib.metadata.PackageNotFoundError("isaacsim")
     monkeypatch.setattr(isaac_runtime.importlib.metadata, "version", no_package)
     assert isaac_runtime.installation_info()["layout"] == "source"
+
+
+def test_explicit_experience_override_is_validated_and_never_falls_back(tmp_path, monkeypatch):
+    import isaac_runtime
+
+    release = tmp_path / "release"
+    _kit(release)
+    override = tmp_path / "probe" / "bridge.newton.minimal.kit"
+    override.parent.mkdir()
+    override.write_text("[package]\nversion='6.2.0'\n")
+    monkeypatch.setenv("CASCADE_ISAAC_EXPERIENCE", str(override))
+    assert isaac_runtime.find_experience("newton", release=release) == override.absolute()
+    assert isaac_runtime.find_experience("physx", release=release) == override.absolute()
+    override.write_text("[package]\nversion='0.1.0'\n")
+    with pytest.raises(RuntimeError, match="package.version"):
+        isaac_runtime.find_experience("newton", release=release)
+    monkeypatch.setenv("CASCADE_ISAAC_EXPERIENCE", str(tmp_path / "missing.kit"))
+    with pytest.raises(FileNotFoundError):
+        isaac_runtime.find_experience("newton", release=release)
+    monkeypatch.delenv("CASCADE_ISAAC_EXPERIENCE")
+    assert isaac_runtime.find_experience("newton", release=release).name == "isaacsim.exp.full.newton.kit"

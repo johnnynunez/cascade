@@ -314,3 +314,206 @@ def test_action_receipt_failure_cannot_keep_success_or_reset_authority(monkeypat
         domain.reset_stop()
     later = domain.execute("turn_screw", {"turns": 1., "direction": "tighten"})
     assert not later["execution_ok"]
+
+
+def test_gc_policy_values_are_reviewed_and_the_opt_in_profile_stays_passive(monkeypatch, tmp_path):
+    no_sdk(monkeypatch)
+    validate_factory_profile(profile() | {"gc_policy": "freeze-startup-heap"})
+    validate_factory_profile(profile() | {"gc_policy": None})
+    for bad in ("disable", True, "freeze-startup-heap-v1", 1):
+        with pytest.raises(ValueError, match="GC policy"):
+            validate_factory_profile(profile() | {"gc_policy": bad})
+    cfg = load_robot_config("factory_m20_shoulder_seating_heap_freeze")
+    assert cfg.domains.fastening.gc_policy == "freeze-startup-heap"
+    base = load_robot_config("factory_m20_shoulder_seating")
+    assert cfg.domains.fastening.as_dict() | {"gc_policy": None} == base.domains.fastening.as_dict() | {"gc_policy": None}
+    assert robot_tool_descriptors(cfg).keys() == robot_tool_descriptors(base).keys()
+    with pytest.raises(FasteningFault, match="unprepared"):
+        build_robot_runtime(cfg, tmp_path)
+    assert not list(tmp_path.rglob("gc-policy.json"))
+
+
+def _synthetic_owner(events, close_receipt, *, start_error=None):
+    journal = SolveJournal(binding())
+    actuator = FasteningController(binding(), limits(), journal, synthetic=False,
+        close_owner=lambda: events.append("close") or close_receipt, clock=lambda: 10.)
+    def start():
+        events.append("start")
+        if start_error is not None:
+            raise start_error
+    return NS(backend=NS(synthetic=False), controller=actuator, journal=journal, start=start, records=lambda: [])
+
+
+def _recorded_freeze(monkeypatch, events):
+    """Injected collector (never the test interpreter's); record the policy's own calls."""
+    from test_heap_freeze import fake_collector
+    from cascade.sim import heap_freeze
+    collector = fake_collector(foreign_frozen=375)
+    class Recorded(heap_freeze.StartupHeapFreeze):
+        def __init__(self, **kwargs):
+            super().__init__(collector=collector, **kwargs)
+        def apply(self):
+            events.append("apply")
+            return super().apply()
+        def release(self, **kwargs):
+            events.append("release")
+            return super().release(**kwargs)
+    monkeypatch.setattr(heap_freeze, "StartupHeapFreeze", Recorded)
+    return collector
+
+
+def _synthetic_model(monkeypatch, module):
+    monkeypatch.setattr(module, "prepare_factory_model",
+        lambda *_: NS(binding=binding(), document={"fixture": "synthetic model document"}))
+
+
+@pytest.mark.parametrize("gc_policy", [None, "freeze-startup-heap"])
+def test_gc_policy_freezes_after_model_pin_before_owner_start_and_releases_after_owner_close(monkeypatch, tmp_path, gc_policy):
+    import cascade.apps.factory_runtime as module
+    value = profile() | {"model_identity_sha256": "a"*64} | ({} if gc_policy is None else {"gc_policy": gc_policy})
+    _synthetic_model(monkeypatch, module)
+    events = []
+    collector = _recorded_freeze(monkeypatch, events)
+    owner = _synthetic_owner(events, {"ok": True, "owner_thread_closed": True, "zero_spindle": {"uploaded": True}})
+    monkeypatch.setattr(module, "_new_owner", lambda *_: owner)
+    monkeypatch.setattr(module, "_ready", lambda _: {"ready": True, "fixture": True})
+    domain = build_factory_runtime(value, tmp_path, domain_id="fastening")
+    try:
+        readiness = json.loads((tmp_path/"readiness.json").read_text())
+        if gc_policy is None:
+            assert events == ["start"] and collector.calls == [] and "gc_policy" not in readiness
+            assert not (tmp_path/"gc-policy.json").exists()
+        else:
+            assert events == ["apply", "start"]  # frozen after the model pin check, before any solve
+            receipt = json.loads((tmp_path/"gc-policy.json").read_text())
+            assert receipt["model_identity_sha256"] == "a"*64 and receipt["profile_gc_policy"] == gc_policy
+            applied = receipt["apply"]
+            assert applied["policy"] == "freeze-startup-heap-v1" and applied["freeze"]["frozen"] == 1200
+            assert applied["freeze"]["foreign_frozen_before"] == 375
+            assert applied["settings"] == {"enabled": True, "thresholds": [700, 10, 10], "callbacks": 1}
+            assert readiness["gc_policy"] == {"selected": gc_policy, "policy": "freeze-startup-heap-v1",
+                "implementation_sha256": applied["implementation_sha256"], "receipt": "gc-policy.json"}
+            assert json.loads((tmp_path/"factory-profile.json").read_text())["gc_policy"] == gc_policy
+    finally:
+        closure = domain.close()
+    assert closure["ok"] is True
+    if gc_policy is None:
+        assert events == ["start", "close"] and "gc_policy" not in closure
+    else:
+        assert events == ["apply", "start", "close", "release"]  # released only after the owner closed
+        assert collector.calls == [("collect", 2), ("freeze",), ("collect", 2), ("unfreeze",), ("collect", 2)]
+        released = closure["gc_policy"]
+        assert released["policy_frozen"] == 1200 and released["unfrozen"] == 1575 and released["apply_receipt_complete"]
+        assert json.loads((tmp_path/"closure.json").read_text())["gc_policy"]["unfrozen"] == 1575
+        # Repeated closure reuses the recorded release and never repeats the collector call.
+        again = domain.close()  # the owner is closed again; the collector is not touched again
+        assert again["gc_policy"] == released and events == ["apply", "start", "close", "release", "close"]
+        assert collector.calls.count(("unfreeze",)) == 1
+        assert json.loads((tmp_path/"closure.json").read_text())["gc_policy"]["unfrozen"] == 1575
+
+
+def test_gc_policy_is_not_released_while_the_owner_thread_may_still_run(monkeypatch, tmp_path):
+    import cascade.apps.factory_runtime as module
+    value = profile() | {"model_identity_sha256": "a"*64, "gc_policy": "freeze-startup-heap"}
+    _synthetic_model(monkeypatch, module)
+    events = []
+    collector = _recorded_freeze(monkeypatch, events)
+    owner = _synthetic_owner(events, {"ok": False, "owner_thread_closed": False, "error": None})
+    monkeypatch.setattr(module, "_new_owner", lambda *_: owner)
+    monkeypatch.setattr(module, "_ready", lambda _: {"ready": True, "fixture": True})
+    domain = build_factory_runtime(value, tmp_path, domain_id="fastening")
+    closure = domain.close()
+    assert closure["ok"] is False and closure["gc_policy"] == {"released": False, "reason": "owner thread not confirmed closed",
+                                                                 "release_failures": []}
+    assert events == ["apply", "start", "close"] and domain.heap_freeze.frozen
+    assert collector.calls == [("collect", 2), ("freeze",)] and collector.frozen == 1575
+    assert json.loads((tmp_path/"closure.json").read_text())["gc_policy"]["released"] is False
+    assert domain.close()["gc_policy"]["released"] is False and collector.calls.count(("unfreeze",)) == 0
+
+
+@pytest.mark.parametrize("failure", ["readiness", "owner_start", "receipt_persistence"])
+def test_startup_failure_after_freeze_still_releases_through_domain_closure(monkeypatch, tmp_path, failure):
+    import cascade.apps.factory_runtime as module
+    value = profile() | {"model_identity_sha256": "a"*64, "gc_policy": "freeze-startup-heap"}
+    _synthetic_model(monkeypatch, module)
+    events = []
+    collector = _recorded_freeze(monkeypatch, events)
+    owner = _synthetic_owner(events, {"ok": False, "owner_thread_closed": True, "zero_spindle": {"uploaded": False}},
+        start_error=FasteningFault("synthetic owner start fault") if failure == "owner_start" else None)
+    monkeypatch.setattr(module, "_new_owner", lambda *_: owner)
+    def fail(_):
+        assert events == ["apply", "start"]
+        raise FasteningFault("synthetic readiness fault under the frozen heap")
+    monkeypatch.setattr(module, "_ready", fail)
+    if failure == "receipt_persistence":
+        (tmp_path/"gc-policy.json").mkdir()  # the apply receipt cannot be written
+    expected = {"readiness": "under the frozen heap", "owner_start": "owner start fault",
+                "receipt_persistence": "gc-policy.json"}[failure]
+    with pytest.raises((FasteningFault, IsADirectoryError), match=expected):
+        build_factory_runtime(value, tmp_path, domain_id="fastening")
+    assert events == (["apply", "close", "release"] if failure == "receipt_persistence" else ["apply", "start", "close", "release"])
+    assert collector.calls == [("collect", 2), ("freeze",), ("collect", 2), ("unfreeze",), ("collect", 2)]
+    failure_receipt = json.loads((tmp_path/"startup-failure.json").read_text())
+    assert failure_receipt["ready"] is False and failure_receipt["closure"]["gc_policy"]["unfrozen"] == 1575
+    if failure != "receipt_persistence":
+        assert json.loads((tmp_path/"gc-policy.json").read_text())["apply"]["policy"] == "freeze-startup-heap-v1"
+
+
+def test_policy_enabled_pin_mismatch_never_freezes(monkeypatch, tmp_path):
+    import cascade.apps.factory_runtime as module
+    value = profile() | {"model_identity_sha256": "b"*64, "gc_policy": "freeze-startup-heap"}
+    _synthetic_model(monkeypatch, module)
+    events = []
+    collector = _recorded_freeze(monkeypatch, events)
+    monkeypatch.setattr(module, "_new_owner", lambda *_: pytest.fail("mismatched model started a controller"))
+    with pytest.raises(FasteningFault, match="differs"):
+        build_factory_runtime(value, tmp_path, domain_id="fastening")
+    assert events == [] and collector.calls == [] and not (tmp_path/"gc-policy.json").exists()
+
+
+def test_release_failure_is_recorded_and_a_later_closure_retries_with_history(monkeypatch, tmp_path):
+    import cascade.apps.factory_runtime as module
+    value = profile() | {"model_identity_sha256": "a"*64, "gc_policy": "freeze-startup-heap"}
+    _synthetic_model(monkeypatch, module)
+    events = []
+    collector = _recorded_freeze(monkeypatch, events)
+    owner = _synthetic_owner(events, {"ok": True, "owner_thread_closed": True, "zero_spindle": {"uploaded": True}})
+    monkeypatch.setattr(module, "_new_owner", lambda *_: owner)
+    monkeypatch.setattr(module, "_ready", lambda _: {"ready": True, "fixture": True})
+    domain = build_factory_runtime(value, tmp_path, domain_id="fastening")
+    original = collector.unfreeze
+    def failing_unfreeze():
+        raise OSError("synthetic unfreeze failure")
+    collector.unfreeze = failing_unfreeze
+    first = domain.close()
+    assert first["ok"] is False and first["gc_policy"]["released"] is False and first["gc_policy"]["receipt"] is None
+    assert first["gc_policy"]["release_failures"] == ["OSError: synthetic unfreeze failure"]
+    assert domain.heap_freeze.state == "releasing" and collector.frozen == 1575  # still frozen, retry allowed
+    assert json.loads((tmp_path/"closure.json").read_text())["gc_policy"]["release_failures"]
+    collector.unfreeze = original
+    second = domain.close()
+    assert second["gc_policy"]["unfrozen"] == 1575 and second["gc_policy"]["release_failures"] == ["OSError: synthetic unfreeze failure"]
+    assert collector.frozen == 0 and domain.heap_freeze.state == "released"
+    assert json.loads((tmp_path/"closure.json").read_text())["gc_policy"]["release_failures"]
+    assert domain.close()["gc_policy"] == second["gc_policy"]  # retained history on every later closure
+
+
+def test_owner_closure_exception_keeps_the_heap_frozen_and_persists_the_fault(monkeypatch, tmp_path):
+    import cascade.apps.factory_runtime as module
+    value = profile() | {"model_identity_sha256": "a"*64, "gc_policy": "freeze-startup-heap"}
+    _synthetic_model(monkeypatch, module)
+    events = []
+    collector = _recorded_freeze(monkeypatch, events)
+    journal = SolveJournal(binding())
+    def raising_close():
+        raise RuntimeError("cannot join thread before it is started")
+    actuator = FasteningController(binding(), limits(), journal, synthetic=False, close_owner=raising_close, clock=lambda: 10.)
+    owner = NS(backend=NS(synthetic=False), controller=actuator, journal=journal, start=lambda: None, records=lambda: [])
+    monkeypatch.setattr(module, "_new_owner", lambda *_: owner)
+    monkeypatch.setattr(module, "_ready", lambda _: {"ready": True, "fixture": True})
+    domain = build_factory_runtime(value, tmp_path, domain_id="fastening")
+    closure = domain.close()
+    assert closure["ok"] is False and "cannot join thread" in closure["closure_error"]
+    assert closure["gc_policy"]["released"] is False and domain.heap_freeze.frozen and collector.frozen == 1575
+    assert json.loads((tmp_path/"closure.json").read_text())["closure_error"].startswith("RuntimeError")
+    domain.heap_freeze.release()  # restore the fake collector; the real path is covered by the owner test

@@ -44,6 +44,36 @@ def _unique_object(pairs):
     return result
 
 
+def _validate_folder_source(source):
+    """A downloaded folder has no commit; pin the exact file listing instead.
+
+    ``listing_sha256`` is the SHA-256 of the canonical listing (one line per
+    file: ``<name> <size> <sha256>``, sorted by name) and identifies the
+    folder's content. ``reference`` is a public URL describing the folder.
+    Nothing is ever downloaded for this kind: it is admitted only from an
+    operator-supplied local directory.
+    """
+    if set(source) != {"kind", "relative_path", "reference", "listing_sha256"}:
+        raise ValueError("folder source requires exactly kind, relative_path, reference and listing_sha256")
+    path = source["relative_path"]
+    if (not isinstance(path, str) or not path or path.startswith("/") or path.endswith("/") or "//" in path
+            or any(part in ("", ".", "..") for part in path.split("/"))
+            or any(c in path for c in "\\:%?#") or any(ord(c) < 32 for c in path)):
+        raise ValueError("folder relative_path must be a canonical relative path")
+    reference = source["reference"]
+    if not isinstance(reference, str) or not reference.startswith("https://"):
+        raise ValueError("folder reference must be a public https URL")
+    digest = source["listing_sha256"]
+    if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+        raise ValueError("folder listing_sha256 must be exact lowercase hexadecimal")
+
+
+def listing_digest(rows):
+    """Canonical listing digest for a folder source: ``<name> <size> <sha256>`` lines sorted by name."""
+    lines = sorted(f"{row['source_path']} {row['size']} {row['sha256']}" for row in rows)
+    return hashlib.sha256(("\n".join(lines) + "\n").encode()).hexdigest()
+
+
 def _validate(data):
     if not isinstance(data, dict) or type(data.get("schema_version")) is not int or data["schema_version"] != 1:
         raise ValueError("unsupported manifest schema_version")
@@ -56,6 +86,9 @@ def _validate(data):
         _path(key)
         if "/" in key or not isinstance(source, dict):
             raise ValueError("invalid source id/record")
+        if source.get("kind") == "folder":
+            _validate_folder_source(source)
+            continue
         repo = source.get("repository")
         if (source.get("kind") not in ("github", "huggingface") or not isinstance(repo, str)
                 or re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo) is None
@@ -90,6 +123,11 @@ def _validate(data):
     for path in seen:
         if any(parent.as_posix() in seen for parent in Path(path).parents):
             raise ValueError("artifact path collides with parent artifact")
+    for key, source in sources.items():
+        if source.get("kind") == "folder":
+            rows = [row for row in files if row["source"] == key]
+            if not rows or listing_digest(rows) != source["listing_sha256"]:
+                raise ValueError(f"folder listing_sha256 does not match the listed files of {key}")
     return data
 
 
@@ -161,6 +199,9 @@ def check(manifest, destination):
 
 
 def _url(source, row):
+    if source["kind"] == "folder":
+        raise ValueError("folder sources are admitted only from a local directory (--source-directory); "
+                         "this tool never downloads them")
     if source["kind"] == "github":
         base = f"https://raw.githubusercontent.com/{source['repository']}/{source['revision']}"
     else:

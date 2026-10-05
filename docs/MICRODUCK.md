@@ -317,6 +317,95 @@ pair but correctly refuted the walk for heading drift after completion. Its
 fallback stop acknowledgement and closed resources did not establish the
 requested rest-and-spoken-reply cycle.
 
+## Isaac Lab USD folder as the admitted asset (5 October 2026)
+
+The admitted MicroDuck asset is now the Isaac Lab MicroDuck USD folder
+(`Robots/PollenRobotics/MicroDuck`, the Isaac Lab
+[#8265](https://github.com/isaac-sim/IsaacLab/pull/8265)/#8266 authoring of
+2 October 2026 from `microduck_rl@d424a0c8`), supplied as a plain downloaded
+folder and pinned by content in
+[`assets/microduck/isaaclab-microduck-usd-manifest.json`](../assets/microduck/isaaclab-microduck-usd-manifest.json)
+(eight files, listing digest `0a295b65…`). `scripts/microduck_assets.py --check`
+admits that folder from a local directory only; the manifest's `folder` source
+kind has no download path. `scripts/admit_microduck_usd.py --build` turns it
+into a schema-2 bundle (`usd/microduck_allcollisions.usd`, the folder's
+`LICENSE` and `ATTRIBUTION.txt`, provenance records, `receipt.json`) and
+`verify_bundle` accepts schema 2 next to the converted schema-1 bundle; the
+bundle kind and variant enter the model identity. The launchers are unchanged:
+`--bundle <dir> --bundle-sha256 <receipt digest>`. The USD files embed the Pollen
+Robotics meshes, so they stay under the separate models notice; only the two
+text files carry the Isaac Lab Apache-2.0 label.
+
+What the owner does differently for this asset kind, all before the stage is
+parsed and all recorded in the receipt: the pinned BAM sources are loaded first,
+which registers `NewtonBamDriveAPI` with Newton's actuator registry; the fourteen
+authored `NewtonActuator` prims are parsed through
+`newton.actuators.parse_actuator_prim`, their seventeen motor/gearbox
+coefficients and flags must equal the pinned Rhoban m6 fit, their deployment attributes are recorded
+next to the admitted profile, and the prims are deactivated so Newton builds no
+second actuator pipeline; the zero-gain `PhysicsDriveAPI:angular` on the servo
+joints is removed in the runtime layer, so the joints import unactuated (target
+mode NONE, effort limit 1e6) like the converted bundle; the ground is not
+enrolled in any collision group because the asset authors none; the sole prims
+are the instance proxies `left_foot_collision/sole_left` and
+`right_foot_collision/sole_right` (`FOOT_SHAPES_BY_ASSET`); and the imported
+joint properties asserted before the explicit BAM replacements are the Isaac
+values (`ASSET_SOURCE_PROPERTIES`: damping 0.005359668 s·N·m/rad, armature
+0.0018 kg·m², friction 0.004771183 N·m) instead of the converted bundle's
+degree-based 0.053/0.0018/0.0048. The replacements themselves are unchanged:
+M6 viscous damping, M6 armature and the explicit effort cap.
+
+Differences that change the physics, stated from the USD and MJCF sources
+(CPU probes with Newton 1.6.1rc1 and Isaac Sim's `add_usd` arguments, not an
+engine comparison): the Isaac all-collisions USD enables 10 convex hulls
+(trunk, both hips, both shins, three head meshes, two soles) where the converted
+velstand bundle enables 70 with per-geom condim/priority rules; the asset authors
+the deployment distribution of Isaac Lab's training (kp 200, 7.4 V nominal, no
+sag gain, current limit 1.75 A, command delay 3 to 6 steps, maximum effort
+1.0676 N·m) while CASCADE keeps its admitted `official_infer_nominal_no_delay`
+profile (no delay, sag gain 0.1, no current limit, 0.9634 N·m); masses, joint
+limits, joint order by name, root height and the 0.96 N·m MJCF force range are
+identical. The MJCF revisions differ (`d424a0c8` versus the converted bundle's
+`8d0db749`). None of this is a locomotion result: the velstand checkpoint was
+trained against neither of these USD files, and every status in the schema-2
+receipt starts as unverified.
+
+Newton 1.6.1rc1 is the version bundled with the admitted Isaac Sim 6.2 release.
+Outside Kit it is accepted only through the explicit CPU contract recipe
+`newton161rc1_cpu` (`sim/microduck_sdk.py`), which rechecks the same three
+solver module digests the SDK recipe pins; stable Newton keeps the default
+admission and no version range admits a pre-release. With that recipe the
+pinned Isaac Lab #8161 sources (`28aa1fca`) pass `tests/test_newton_bam.py` and
+`tests/test_microduck_sdk_recipe.py` on CPU (127 cases; Newton 1.6.1rc1, Warp
+1.18.0, MuJoCo and MuJoCo Warp 3.12.0; recorded in `assets/microduck/newton-bam.json`).
+Newton's own BAM drive ([newton-physics/newton#4504](https://github.com/newton-physics/newton/pull/4504),
+towards 1.7, proposed in [#4397](https://github.com/newton-physics/newton/issues/4397))
+registers `NewtonBAMControlAPI` with the motor/firmware law only and a shared
+battery; gearbox friction stays solver-side. Its token and parameters differ
+from the `NewtonBamDriveAPI` prims in these USDs, so the pinned component
+remains the implementation until that drive ships and is re-admitted.
+
+One native probe ran the retained twelve-robot reader-only recipe with the new
+bundle on the same Isaac Sim 6.2 release (Newton 1.6.1rc1, Warp 1.17.0,
+`SolverMuJoCo`, GPU 1, SDK recipe, graph/read reuse, `rough_walk_e` policy with
+zero commands, slow limits), changing only the bundle
+([plan, root receipt, bundle receipt and native summary](evidence/microduck-isaaclab-usd-20261005/)).
+It completed 800 steps for all twelve robots and exited zero; the reader-only
+client route (state and camera per robot) completed and closed; no teardown
+error, no withheld tick. The receipt records, per robot, the fourteen parsed
+`DriveBam` prims with their authored deployment attributes, the fourteen removed
+drives, the seventeen coefficients checked against the m6 fit, the ground left
+outside any collision group, the imported Isaac joint properties before the M6
+replacements and the sole proxies in the support contract; the model identity
+carries `bundle_kind: external-usd` and `asset_variant: allcollisions` and
+consumes exactly `microduck_allcollisions.usd`. All twelve robots settled from
+the 0.125 m spawn height to 0.1172 m and held it, with 60 steady sole-ground
+contact constraints per robot and no other contact pair; the retained converted
+bundle settles to 0.117 m with 84 sole-ground constraints under the same recipe.
+This is simulation evidence that the asset admits and stands; it is not a
+control, deadline, locomotion or physical result, and the velstand standing,
+walking, braking and reset campaigns remain to be rerun against this asset.
+
 ## Remaining admission work
 
 The current real MCP campaign confirms supported standing and a separately

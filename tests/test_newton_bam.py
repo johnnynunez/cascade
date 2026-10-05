@@ -29,8 +29,19 @@ def module():
     return importlib.import_module("cascade.control.newton_bam")
 
 
+def recipe():
+    """Explicit CPU contract recipe when the lab runs the exact Isaac-bundled pre-release.
+
+    Stable Newton keeps the default admission (no recipe); the pre-release is
+    never accepted implicitly.
+    """
+    import newton
+    from cascade.sim import microduck_sdk as sdk
+    return sdk.CPU_CONTRACT_RECIPE if newton.__version__ == sdk.INTERNAL_NEWTON_VERSION else None
+
+
 def test_loads_only_pinned_native_modules(runtime, source_root):
-    loaded = module().load_pinned_bam(source_root)
+    loaded = module().load_pinned_bam(source_root, sdk_recipe=recipe())
     assert loaded.revision == "28aa1fca5843208ff9a67935695a4d5376e44d50"
     assert loaded.DriveBam.__name__ == "DriveBam"
     assert loaded.MjWarpActuatorBridge.__name__ == "MjWarpActuatorBridge"
@@ -109,7 +120,7 @@ def buffer_stage(runtime):
 def adapter_for(stage, source_root, **overrides):
     p = params()
     p.update(overrides)
-    return module().NewtonBamAdapter(stage, source_root=source_root,
+    return module().NewtonBamAdapter(stage, source_root=source_root, sdk_recipe=recipe(),
                  q_indices=stage.test_q, dof_indices=stage.test_dofs, params=p)
 
 
@@ -190,7 +201,7 @@ def test_requires_every_parameter(runtime, source_root):
     p = params()
     del p["joint_effort_limit"]
     with pytest.raises(ValueError, match="joint_effort_limit"):
-        module().NewtonBamAdapter(stage, source_root=source_root, q_indices=stage.test_q,
+        module().NewtonBamAdapter(stage, source_root=source_root, sdk_recipe=recipe(), q_indices=stage.test_q,
                                  dof_indices=stage.test_dofs, params=p)
 
 
@@ -213,7 +224,7 @@ def test_rejects_non_scalar_or_inconsistent_mapping(runtime, source_root, case):
         dofs[0], q[0] = 0, 0
     before = stage.control.joint_f.numpy()
     with pytest.raises(ValueError, match="indices|scalar|revolute"):
-        module().NewtonBamAdapter(stage, source_root=source_root, q_indices=q, dof_indices=dofs, params=params())
+        module().NewtonBamAdapter(stage, source_root=source_root, sdk_recipe=recipe(), q_indices=q, dof_indices=dofs, params=params())
     np.testing.assert_array_equal(stage.control.joint_f.numpy(), before)
 
 
@@ -505,7 +516,7 @@ def test_real_mjwarp_cpu_solver_consumes_native_bam(runtime, source_root, stiff)
 
 @pytest.mark.parametrize("filename", ["bam_component.py", "bam_kernels.py", "mjwarp_actuator_bridge.py"])
 def test_loader_rechecks_all_hashes_even_after_cache(runtime, source_root, tmp_path, filename):
-    loaded = module().load_pinned_bam(source_root)
+    loaded = module().load_pinned_bam(source_root, sdk_recipe=recipe())
     for relative in loaded.sha256:
         dst = tmp_path / relative
         dst.parent.mkdir(parents=True, exist_ok=True)
@@ -514,14 +525,14 @@ def test_loader_rechecks_all_hashes_even_after_cache(runtime, source_root, tmp_p
             content += b"\nraise AssertionError('unverified source executed')\n"
         dst.write_bytes(content)
     with pytest.raises(ValueError, match="SHA-256 mismatch"):
-        module().load_pinned_bam(tmp_path)
+        module().load_pinned_bam(tmp_path, sdk_recipe=recipe())
 
 
 @pytest.mark.parametrize("version", ["1.5.0", "1.6.0rc1", "bogus"])
 def test_old_or_unknown_newton_fails_before_source_execution(runtime, source_root, monkeypatch, version):
     monkeypatch.setattr(runtime[1], "__version__", version)
     with pytest.raises(RuntimeError, match="Newton >=1.6"):
-        module().load_pinned_bam(source_root)
+        module().load_pinned_bam(source_root, sdk_recipe=recipe())
 
 
 def test_plain_import_has_no_newton_warp_isaaclab_or_torch_import():
@@ -548,7 +559,9 @@ def test_loader_never_runs_external_init_or_unverified_bytecode(runtime, source_
         cached.write_bytes(poisoned)
         (destination.parent / "__init__.py").write_text("raise AssertionError('external init executed')\n")
     result = subprocess.run([sys.executable, "-c", "from cascade.control.newton_bam import load_pinned_bam; "
-               "import sys; s=load_pinned_bam(sys.argv[1]); assert s.DriveBam.__name__=='DriveBam'", str(tmp_path)],
+               "from cascade.sim import microduck_sdk as sdk; import newton, sys; "
+               "r = sdk.CPU_CONTRACT_RECIPE if newton.__version__ == sdk.INTERNAL_NEWTON_VERSION else None; "
+               "s=load_pinned_bam(sys.argv[1], sdk_recipe=r); assert s.DriveBam.__name__=='DriveBam'", str(tmp_path)],
                capture_output=True, text=True, timeout=30)
     assert result.returncode == 0, result.stderr
 

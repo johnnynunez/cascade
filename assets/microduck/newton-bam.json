@@ -38,7 +38,42 @@
     "mujoco": "3.12.0",
     "mujoco-warp": "3.12.0"
   },
+  "tested_cpu_versions_isaac62_prerelease": {
+    "newton": "1.6.1rc1",
+    "warp-lang": "1.18.0",
+    "mujoco": "3.12.0",
+    "mujoco-warp": "3.12.0",
+    "newton-usd-schemas": "0.5.0",
+    "python": "3.12.13",
+    "recipe": "newton161rc1_cpu",
+    "date": "2026-10-05",
+    "result": "tests/test_newton_bam.py and tests/test_microduck_sdk_recipe.py: 127 passed, CPU only (CUDA_VISIBLE_DEVICES=-1), pinned sources 28aa1fca",
+    "scope": "buffer and kernel contracts on CPU; not a physics or physical result"
+  },
+  "prerelease_admission": "Pre-release Newton is accepted only by an explicit named recipe: the SDK recipe isaac62_48b2d951 inside the admitted Isaac Sim 6.2 release, or the CPU contract recipe newton161rc1_cpu for the same solver module bytes outside Kit. There is no version-range fallback; stable Newton >=1.6.0 keeps the default admission.",
   "coefficient_contract": "cascade.control.microduck_actuator.M6_PARAMETERS from Rhoban/bam@62bd8ce12154340be97e06f7f41a0ca8f116d967 (q_offset intentionally excluded)",
+  "asset_actuator_schema": {
+    "token": "NewtonBamDriveAPI",
+    "registered_by": "cascade.control.newton_bam.load_pinned_bam through the pinned register_bam_actuator_component()",
+    "consumption": "Isaac Lab MicroDuck USDs publish fourteen NewtonActuator prims with this API. The owner parses them through newton.actuators.parse_actuator_prim, requires their motor/gearbox coefficients to equal M6_PARAMETERS, records their deployment attributes next to the admitted profile, deactivates the prims and removes the zero-gain PhysicsDriveAPI before the stage is parsed; the adapter owns every servo.",
+    "deployment_keys": [
+      "delay_hold_prob",
+      "delay_seed",
+      "delay_update_period",
+      "friction_scale",
+      "kd_scale",
+      "kp_fw",
+      "kp_scale",
+      "max_current",
+      "max_delay",
+      "max_effort",
+      "min_delay",
+      "sag_gain",
+      "vin",
+      "vin_min"
+    ],
+    "newton_native_bam": "newton-physics/newton#4504 (towards Newton 1.7) adds newton.actuators.DriveBAM under NewtonBAMControlAPI with the motor/firmware law only (kp, kt, resistance, vin, max_pwm, max_current) and a shared Battery; gearbox friction stays solver-side. That token and parameter set differ from NewtonBamDriveAPI, so these Isaac Lab prims are not parseable by it."
+  },
   "friction_reference": "bam_mjlab",
   "default_profile": null,
   "profiles": {

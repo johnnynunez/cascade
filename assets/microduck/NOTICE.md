@@ -29,6 +29,7 @@ hash-pinned in `manifest.json` and preserved by the admission CLI.
 | Pollen Robotics RL / MJCF / meshes | `pollen-robotics/microduck_rl@8d0db74916a4f833d1d9b95d6a1d7f4d13b9d5ec` |
 | Rhoban BAM code and calibrated XL330 M6 parameters | `Rhoban/bam@62bd8ce12154340be97e06f7f41a0ca8f116d967` |
 | Official ONNX weight repository | `pollen-robotics/microduck-policies@d5a8b55033e157f1af2ed6bd5c1e435b770a8ee0` (Hugging Face) |
+| Isaac Lab MicroDuck USD folder (`isaaclab-microduck-usd-manifest.json`) | downloaded folder `Robots/PollenRobotics/MicroDuck` of the Isaac Lab asset tree, listing digest `0a295b653ae303768cf3e38ae1d781ddb0b806c597997fcec0523cdb179fb31e` (eight files; Isaac Lab [#8265](https://github.com/isaac-sim/IsaacLab/pull/8265)/#8266 authoring of 2026-10-02 from `microduck_rl@d424a0c899f6b33cbd3daeb279913134349c0b63`) |
 
 ## Licenses are separate
 
@@ -38,6 +39,16 @@ hash-pinned in `manifest.json` and preserved by the admission CLI.
   from the code, or claim commercial/event permission. Conversion does not
   remove NC/SA obligations. Clarification belongs with upstream/rightsholders.
   Evidence: https://github.com/pollen-robotics/microduck_rl/blob/8d0db74916a4f833d1d9b95d6a1d7f4d13b9d5ec/README.md#L268-L271
+- **Isaac Lab USD folder:** the `LICENSE` and `ATTRIBUTION.txt` shipped in the
+  folder declare Apache-2.0 for the Isaac Lab USD authoring. The USD files
+  embed the Pollen Robotics meshes, so `isaaclab-microduck-usd-manifest.json`
+  records every `.usd` under the separate **models** notice above and only the
+  two text files under Apache-2.0. The folder is supplied as a plain local
+  download; `scripts/microduck_assets.py` admits it by content hash and never
+  downloads it. `scripts/admit_microduck_usd.py` turns that folder into a
+  schema-2 bundle (`usd/microduck_allcollisions.usd`, the two text files,
+  provenance records, receipt) whose engine, actuator, locomotion and physical
+  statuses start as unverified.
 - **Weights:** the weight repository's own model card independently declares
   `license: apache-2.0`. This is not inferred from code/model licenses.
   Evidence: https://huggingface.co/pollen-robotics/microduck-policies/blob/d5a8b55033e157f1af2ed6bd5c1e435b770a8ee0/README.md

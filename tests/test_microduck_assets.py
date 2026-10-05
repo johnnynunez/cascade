@@ -218,3 +218,83 @@ def test_default_manifest_separates_licenses_pins_all_ten_weights_and_complete_m
             raw = (root / f["source_path"]).read_bytes()
             assert len(raw) == f["size"]
             assert hashlib.sha256(raw).hexdigest() == f["sha256"]
+
+
+
+def folder_manifest():
+    rows = [{"source": "folder", "source_path": "robot.usd", "path": "folder/robot.usd", "size": 6,
+             "sha256": hashlib.sha256(b"<usd/>").hexdigest(), "license": "models"},
+            {"source": "folder", "source_path": "LICENSE", "path": "folder/LICENSE", "size": 6,
+             "sha256": hashlib.sha256(b"Apache").hexdigest(), "license": "models"}]
+    lines = sorted(f"{r['source_path']} {r['size']} {r['sha256']}" for r in rows)
+    return {
+        "schema_version": 1,
+        "sources": {"folder": {"kind": "folder", "relative_path": "Robots/Fixture/Robot",
+                               "reference": "https://example.org/robot-folder",
+                               "listing_sha256": hashlib.sha256(("\n".join(lines) + "\n").encode()).hexdigest()}},
+        "licenses": {"models": {"license": "Creative Commons BY-SA-NC", "version": None,
+                                "evidence": "https://example.org/license"}},
+        "files": rows,
+    }
+
+
+def test_folder_source_is_pinned_by_listing_digest(tmp_path):
+    m = module()
+    data = m.load_manifest(save_manifest(tmp_path, folder_manifest()))
+    assert data["sources"]["folder"]["listing_sha256"] == m.listing_digest(data["files"])
+
+
+@pytest.mark.parametrize("mutation", ["missing_listing", "revision_key", "absolute_path", "dotdot_path", "trailing_slash",
+                                      "http_reference", "listing_mismatch", "bad_digest", "unknown_kind", "no_files"])
+def test_folder_source_rejects_unpinned_or_malformed_records(tmp_path, mutation):
+    m = module()
+    data = folder_manifest()
+    source = data["sources"]["folder"]
+    if mutation == "missing_listing": del source["listing_sha256"]
+    if mutation == "revision_key": source["revision"] = "a" * 40
+    if mutation == "absolute_path": source["relative_path"] = "/Robots/Fixture"
+    if mutation == "dotdot_path": source["relative_path"] = "Robots/../Fixture"
+    if mutation == "trailing_slash": source["relative_path"] = "Robots/Fixture/"
+    if mutation == "http_reference": source["reference"] = "http://example.org/robot-folder"
+    if mutation == "listing_mismatch": data["files"][0]["size"] = 7
+    if mutation == "bad_digest": source["listing_sha256"] = "F" * 64
+    if mutation == "unknown_kind": source["kind"] = "server"
+    if mutation == "no_files":
+        data["files"] = [dict(data["files"][0], source="other", path="other/robot.usd")]
+        data["sources"]["other"] = {"kind": "github", "repository": "o/r", "revision": "a" * 40}
+    with pytest.raises(ValueError): m.load_manifest(save_manifest(tmp_path, data))
+
+
+def test_folder_source_is_never_downloaded_only_admitted_locally(tmp_path, monkeypatch):
+    m = module()
+    data = m.load_manifest(save_manifest(tmp_path, folder_manifest()))
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: pytest.fail("folder source opened a network connection"))
+    dest = tmp_path / "install"
+    with pytest.raises(ValueError, match="local directory"):
+        m.fetch(data, dest, accept_model_license=True)
+    assert not (dest / "folder/robot.usd").exists()
+    local = tmp_path / "download"
+    for row, payload in zip(data["files"], (b"<usd/>", b"Apache")):
+        path = local / row["path"]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+    assert m.fetch(data, dest, source_directory=local, accept_model_license=True)["ok"]
+    assert m.check(data, dest)["ok"] and (dest / "folder/robot.usd").read_bytes() == b"<usd/>"
+
+
+def test_default_usd_folder_manifest_pins_the_isaaclab_folder_and_keeps_models_notice():
+    m = module()
+    data = m.load_manifest(REPO / "assets/microduck/isaaclab-microduck-usd-manifest.json")
+    source = data["sources"]["isaaclab-microduck-usd"]
+    assert source == {"kind": "folder", "relative_path": "Robots/PollenRobotics/MicroDuck",
+                      "reference": "https://github.com/isaac-sim/IsaacLab/pull/8265",
+                      "listing_sha256": m.listing_digest(data["files"])}
+    names = {f["source_path"] for f in data["files"]}
+    assert names == {"microduck_walk.usd", "microduck_walk_backlash.usd", "microduck_allcollisions.usd",
+                     "microduck_allcollisions_backlash.usd", "microduck_rollers.usd", "microduck_rollers_backlash.usd",
+                     "LICENSE", "ATTRIBUTION.txt"}
+    assert all(f["license"] == ("models" if f["source_path"].endswith(".usd") else "isaaclab-assets") for f in data["files"])
+    assert data["licenses"]["models"]["license"] == "Creative Commons BY-SA-NC"
+    assert data["licenses"]["isaaclab-assets"]["license"] == "Apache-2.0"
+    base = m.load_manifest(REPO / "assets/microduck/manifest.json")
+    assert data["licenses"]["models"]["evidence"] == base["licenses"]["models"]["evidence"]

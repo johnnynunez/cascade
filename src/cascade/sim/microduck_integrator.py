@@ -34,8 +34,14 @@ def _equal(a, b):
 
 
 def selected(args, admission):
+    """Selected profile versus the admitted contract; no admission admits no contract.
+
+    A bare backend built for clock probes has neither arguments nor admission;
+    that still rejects any explicit selection, which only an admission can admit.
+    """
     expected = contract(getattr(args, 'integrator_profile', 'sdk-default'))
-    if not _equal(admission.get('integrator_contract'), expected):
+    admitted = None if admission is None else admission.get('integrator_contract')
+    if not _equal(admitted, expected):
         raise ValueError('selected integrator profile differs from admission')
     return expected
 

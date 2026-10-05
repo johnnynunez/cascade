@@ -13,6 +13,28 @@ import stat
 
 REPO = Path(__file__).resolve().parents[3]
 MODEL_PREFIX = 'microduck_rl/src/mjlab_microduck/robot/microduck/'
+USD_FOLDER_MANIFEST = REPO / 'assets/microduck/isaaclab-microduck-usd-manifest.json'
+BASE_MANIFEST = REPO / 'assets/microduck/manifest.json'
+ADMISSION_TOOL = REPO / 'scripts/admit_microduck_usd.py'
+EXTERNAL_USD_SOURCE = 'isaaclab-microduck-usd'
+# Admitted Isaac Lab USD variants (schema 2 bundles built by scripts/admit_microduck_usd.py).
+EXTERNAL_USD_VARIANTS = {'allcollisions': 'microduck_allcollisions.usd'}
+EXTERNAL_USD_REFERENCE_FILES = ('LICENSE', 'ATTRIBUTION.txt')
+CONVERTED_KIND, EXTERNAL_KIND = 'converted-mjcf', 'external-usd'
+# Joint properties Newton 1.6.1rc1 imports for each admitted asset kind with Isaac
+# Sim's add_usd arguments (Newton, Mjc, PhysX schema resolvers; forced
+# position/velocity actuation) after the runtime-layer edits below. The converted
+# bundle keeps the MJCF degree-based damping; the Isaac Lab USD authors the SI BAM
+# viscous term as mjc:damping and friction_base as newton:friction, and its
+# zero-gain drive is removed so the joints import unactuated like the converted
+# bundle. Every value is asserted before the explicit BAM replacements.
+ASSET_SOURCE_PROPERTIES = {
+    CONVERTED_KIND: {'joint_damping': .053, 'joint_armature': .0018, 'joint_effort_limit': 1e6,
+                     'joint_friction': .0048, 'joint_target_mode': 0, 'joint_target_ke': 0, 'joint_target_kd': 0},
+    EXTERNAL_KIND: {'joint_damping': .005359668284654617, 'joint_armature': .0018, 'joint_effort_limit': 1e6,
+                    'joint_friction': .004771183244884014, 'joint_target_mode': 0, 'joint_target_ke': 0,
+                    'joint_target_kd': 0},
+}
 OVERVIEW_CAMERA = '/World/Overview'
 OVERVIEW_RENDER_PRODUCT = '/World/OverviewRenderProduct'
 
@@ -61,11 +83,13 @@ def safe_file(root, relative):
 
 
 def verify_bundle(bundle, *, expected_sha256, asset=None):
-    """Verify all 134 outputs and pinned source bytes WITHOUT USD/converter imports.
+    """Verify every bundle output and pinned provenance WITHOUT USD/converter imports.
 
-    The operator supplies the offline-admitted receipt digest. This does not
-    redo offline semantic conversion validation; it refuses changed provenance,
-    source files, layers, dependencies, or a different root USD.
+    The operator supplies the offline-admitted receipt digest. Schema 1 is the
+    converted MJCF bundle (134 outputs); schema 2 is the downloaded Isaac Lab
+    USD folder admitted by ``scripts/admit_microduck_usd.py``. Neither path redoes offline
+    semantic validation; both refuse changed provenance, source files, layers,
+    dependencies, or a different root USD.
     """
     root = Path(bundle).expanduser().absolute()
     receipt_path = safe_file(root, 'receipt.json')
@@ -74,29 +98,99 @@ def verify_bundle(bundle, *, expected_sha256, asset=None):
             or safe_file(root, 'receipt.sha256').read_text().strip() != expected_sha256):
         raise ValueError('bundle receipt SHA mismatch')
     receipt = strict_json(receipt_path.read_bytes())
-    if receipt.get('schema_version') != 1 or receipt.get('collision_profile') not in ('source', 'velstand'):
-        raise ValueError('unsupported bundle schema/profile')
+    if receipt.get('schema_version') == 2:
+        return _verify_external_usd_bundle(root, receipt, expected_sha256, asset)
+    return _verify_converted_bundle(root, receipt, expected_sha256, asset)
+
+
+def _verify_outputs(root, receipt):
+    """Every listed output exists with the pinned bytes; nothing else is present."""
     outputs = receipt.get('outputs')
-    if not isinstance(outputs, list) or len(outputs) != 134:
-        raise ValueError('require the admitted 134-output bundle')
-    listed = set()
+    if not isinstance(outputs, list) or not outputs:
+        raise ValueError('bundle receipt lists no outputs')
+    listed = {}
     for row in outputs:
-        if set(row) != {'path', 'size', 'sha256'} or row['path'] in listed:
+        if not isinstance(row, dict) or set(row) != {'path', 'size', 'sha256'} or row['path'] in listed:
             raise ValueError('invalid/duplicate bundle output')
         path = safe_file(root, row['path'])
         if type(row['size']) is not int or row['size'] < 0:
             raise ValueError('invalid artifact size')
         if path.stat().st_size != row['size'] or sha256(path) != digest_token(row['sha256']):
             raise ValueError(f"bundle output hash/size mismatch: {row['path']}")
-        listed.add(row['path'])
+        listed[row['path']] = row
     actual = set()
     for path in root.rglob('*'):
         if path.is_symlink():
             raise ValueError('symlink in bundle')
         if not path.is_dir():
             actual.add(path.relative_to(root).as_posix())
-    if actual != listed | {'receipt.json', 'receipt.sha256'}:
+    if actual != set(listed) | {'receipt.json', 'receipt.sha256'}:
         raise ValueError('bundle file set mismatch')
+    return listed
+
+
+def _verify_external_usd_bundle(root, receipt, expected_sha256, asset):
+    """Schema 2: the admitted USD must be the exact folder bytes pinned in the manifest."""
+    if receipt.get('kind') != EXTERNAL_KIND:
+        raise ValueError('unsupported external bundle kind')
+    variant = receipt.get('variant')
+    if variant not in EXTERNAL_USD_VARIANTS:
+        raise ValueError('external USD variant is not an admitted candidate')
+    usd_name = EXTERNAL_USD_VARIANTS[variant]
+    origin = receipt.get('origin')
+    if (not isinstance(origin, dict) or origin.get('kind') != 'folder' or origin.get('source') != EXTERNAL_USD_SOURCE
+            or origin.get('file') != usd_name
+            or not all(isinstance(origin.get(k), str) and origin.get(k) for k in ('relative_path', 'reference', 'listing_sha256'))):
+        raise ValueError('external USD origin record is incomplete')
+    outputs = _verify_outputs(root, receipt)
+    manifest_bytes = USD_FOLDER_MANIFEST.read_bytes()
+    manifest = strict_json(manifest_bytes)
+    base_bytes = BASE_MANIFEST.read_bytes()
+    provenance = receipt.get('provenance', {})
+    if (not isinstance(provenance, dict) or provenance.get('sources') != manifest['sources']
+            or provenance.get('licenses') != manifest['licenses']
+            or provenance.get('manifest_sha256') != hashlib.sha256(manifest_bytes).hexdigest()
+            or provenance.get('base_manifest_sha256') != hashlib.sha256(base_bytes).hexdigest()
+            or safe_file(root, 'provenance/manifest.json').read_bytes() != manifest_bytes
+            or safe_file(root, 'provenance/base-manifest.json').read_bytes() != base_bytes):
+        raise ValueError('external bundle provenance mismatch')
+    source = manifest['sources'].get(EXTERNAL_USD_SOURCE)
+    if (set(manifest['sources']) != {EXTERNAL_USD_SOURCE} or not isinstance(source, dict)
+            or source.get('kind') != 'folder' or source.get('relative_path') != origin['relative_path']
+            or source.get('reference') != origin['reference']
+            or source.get('listing_sha256') != origin['listing_sha256']):
+        raise ValueError('external bundle origin differs from the pinned asset folder')
+    rows = {row['source_path']: row for row in manifest['files'] if row['source'] == EXTERNAL_USD_SOURCE}
+    expected_sources = sorted(({'path': r['source_path'], 'size': r['size'], 'sha256': r['sha256']} for r in rows.values()),
+                              key=lambda r: r['path'])
+    source_files = receipt.get('source_files')
+    if (not isinstance(source_files, list) or not all(isinstance(r, dict) and 'path' in r for r in source_files)
+            or sorted(source_files, key=lambda r: r['path']) != expected_sources):
+        raise ValueError('external bundle folder listing mismatch')
+    for name in (usd_name, *EXTERNAL_USD_REFERENCE_FILES):
+        row = rows.get(name)
+        if row is None or outputs.get(f'usd/{name}') != {'path': f'usd/{name}', 'size': row['size'], 'sha256': row['sha256']}:
+            raise ValueError(f'admitted file is not the pinned folder bytes: {name}')
+    if receipt.get('versions', {}).get('admission_tool_sha256') != sha256(ADMISSION_TOOL):
+        raise ValueError('bundle admission tool changed; re-admit explicitly')
+    statuses = receipt.get('statuses')
+    if not isinstance(statuses, dict) or statuses.get('physical_validation') != 'none':
+        raise ValueError('external bundle must not claim physical validation')
+    usd = safe_file(root, receipt['usd_path'])
+    if receipt['usd_path'] != f'usd/{usd_name}' or (asset is not None and Path(asset).absolute() != usd):
+        raise ValueError('asset must be the admitted bundle root USD')
+    return {'bundle': str(root), 'asset': str(usd), 'asset_sha256': sha256(usd),
+            'asset_receipt_sha256': expected_sha256, 'receipt': receipt, 'kind': EXTERNAL_KIND, 'variant': variant}
+
+
+def _verify_converted_bundle(root, receipt, expected_sha256, asset):
+    """Schema 1: the 134-output conversion of the pinned microduck_rl MJCF."""
+    if receipt.get('schema_version') != 1 or receipt.get('collision_profile') not in ('source', 'velstand'):
+        raise ValueError('unsupported bundle schema/profile')
+    outputs = receipt.get('outputs')
+    if not isinstance(outputs, list) or len(outputs) != 134:
+        raise ValueError('require the admitted 134-output bundle')
+    _verify_outputs(root, receipt)
     manifest, manifest_bytes = source_manifest()
     provenance = receipt.get('provenance', {})
     mh = hashlib.sha256(manifest_bytes).hexdigest()
@@ -121,7 +215,7 @@ def verify_bundle(bundle, *, expected_sha256, asset=None):
     if receipt['usd_path'] != 'usd/microduck.usda' or (asset is not None and Path(asset).absolute() != usd):
         raise ValueError('asset must be the admitted bundle root USD')
     return {'bundle': str(root), 'asset': str(usd), 'asset_sha256': sha256(usd),
-            'asset_receipt_sha256': expected_sha256, 'receipt': receipt}
+            'asset_receipt_sha256': expected_sha256, 'receipt': receipt, 'kind': CONVERTED_KIND}
 
 
 def experience_text(release, *, sdk_recipe=None):
@@ -258,11 +352,19 @@ def _read_native_states(ns, *, robots, max_contacts, max_constraints, q_count, d
     return {robot: _native_robot_slice(scene, **indices) for robot, indices in robots.items()}
 
 
-def prepare_native_model(ns, dof_indices, *, source_cap, newton, effort_cap=None, dof_count=20):
-    """Explicit startup-only XML -> BAM replacements, with fail-closed readback."""
+def prepare_native_model(ns, dof_indices, *, source_cap, newton, effort_cap=None, dof_count=20,
+                         asset_kind=CONVERTED_KIND):
+    """Explicit startup-only source -> BAM replacements, with fail-closed readback.
+
+    ``asset_kind`` selects which imported joint properties are the expected
+    source state (``ASSET_SOURCE_PROPERTIES``); the replacements are the same
+    pinned M6 coefficients for every admitted asset.
+    """
     import math
     import numpy as np
     from cascade.control.microduck_actuator import M6_PARAMETERS
+    if asset_kind not in ASSET_SOURCE_PROPERTIES:
+        raise ValueError('unknown admitted asset kind')
     if not math.isclose(source_cap, .96, rel_tol=0, abs_tol=1e-12):
         raise ValueError('verified XML effort cap must be 0.96 Nm')
     # The official inference loader explicitly replaces the XML position
@@ -275,8 +377,7 @@ def prepare_native_model(ns, dof_indices, *, source_cap, newton, effort_cap=None
             or not any(math.isclose(effort_cap, cap, rel_tol=0, abs_tol=1e-12)
                        for cap in (source_cap, official_cap))):
         raise ValueError('effort cap must match the XML or pinned official nominal inference recipe')
-    expected = {'joint_damping': .053, 'joint_armature': .0018, 'joint_effort_limit': 1e6,
-                'joint_friction': .0048, 'joint_target_mode': 0, 'joint_target_ke': 0, 'joint_target_kd': 0}
+    expected = dict(ASSET_SOURCE_PROPERTIES[asset_kind])
     before, arrays = {}, {}
     for name, value in expected.items():
         a = getattr(ns.model, name).numpy()
@@ -284,7 +385,8 @@ def prepare_native_model(ns, dof_indices, *, source_cap, newton, effort_cap=None
         if a.dtype != dtype or a.shape != (dof_count,) or not np.isfinite(a[dof_indices]).all():
             raise ValueError(f'unexpected native property layout: {name}')
         if not np.array_equal(a[dof_indices], np.full(14, value, dtype=dtype)):
-            raise ValueError(f'unexpected native source property: {name}')
+            observed = sorted(set(a[dof_indices].tolist()))
+            raise ValueError(f'unexpected native source property: {name} expected {value} for {asset_kind}, observed {observed}')
         before[name], arrays[name] = a[dof_indices].tolist(), a
     overrides = {'joint_damping': M6_PARAMETERS['friction_viscous'],
                  'joint_armature': M6_PARAMETERS['armature'], 'joint_effort_limit': effort_cap}
@@ -296,7 +398,8 @@ def prepare_native_model(ns, dof_indices, *, source_cap, newton, effort_cap=None
     for name, value in overrides.items():
         if not np.array_equal(np.array(after[name], np.float32), np.full(14, value, np.float32)):
             raise RuntimeError(f'BAM property readback mismatch: {name}')
-    return {'before': before, 'overrides': overrides, 'after': after}
+    return {'before': before, 'overrides': overrides, 'after': after,
+            'asset_kind': asset_kind, 'source_properties': expected}
 
 
 def read_native_body_properties(ns, *, root_path="/World/MicroDuck"):
@@ -399,6 +502,131 @@ def capture_bound_rgb(ns, app, readback, *, updates, checkpoint=lambda: None, ca
     if pose_objects is not None and any(a is not b for a,b in zip(pose_objects,capture_objects(),strict=True)):
         raise RuntimeError('RGB-D capture changed registered native pose objects')
     return dict(rgb=rgb, step=before[0], sim_time_s=before[1], captured_at=captured_at, render_times=times, **extra)
+
+
+def disable_asset_actuators(stage, *, root_path=None, parse_actuator_prim=None):
+    """Isaac Lab USD: verify, record and deactivate the authored BAM actuation.
+
+    The fourteen ``NewtonActuator`` prims resolve through Newton's own actuator
+    registry (``newton.actuators.parse_actuator_prim``; ``load_pinned_bam``
+    registers the pinned ``DriveBam`` under ``NewtonBamDriveAPI``). Their
+    motor/gearbox coefficients must equal the pinned Rhoban m6 fit, their
+    deployment settings are recorded next to the admitted profile, and they are
+    deactivated before the stage parse so no second actuator pipeline exists. The
+    zero-gain ``PhysicsDriveAPI:angular`` on the servo joints is removed in the
+    runtime layer so Newton imports them unactuated (target mode NONE, effort
+    limit 1e6), exactly like the converted bundle. All validation precedes any
+    mutation; the adapter still owns every servo.
+    """
+    import math
+    from pxr import UsdPhysics
+    from cascade.control.microduck_policy import POLICY_JOINTS
+    from cascade.control.newton_bam import BAM_DRIVE_API, DEPLOYMENT_KEYS, motor_coefficients
+    if parse_actuator_prim is None:
+        from newton.actuators import parse_actuator_prim
+    layer = stage.GetRootLayer()
+    if not layer.anonymous or stage.GetEditTarget().GetLayer() != layer:
+        raise ValueError('asset actuator removal requires our anonymous runtime layer')
+    prefix = None if root_path is None else root_path + '/'
+    prims = [p for p in stage.Traverse() if p.GetTypeName() == 'NewtonActuator'
+             and (prefix is None or str(p.GetPath()).startswith(prefix))]
+    if len(prims) != 14:
+        raise ValueError('unexpected asset NewtonActuator count')
+    expected = motor_coefficients()
+    allowed = set(expected) | set(DEPLOYMENT_KEYS) | {'has_backlash'}
+    actuators, targets = [], {}
+    for prim in prims:
+        parsed = parse_actuator_prim(prim)
+        if parsed is None or getattr(parsed.drive_class, '__name__', None) != 'DriveBam':
+            raise ValueError(f'asset actuator is not a {BAM_DRIVE_API} drive: {prim.GetPath()}')
+        kwargs = dict(parsed.drive_kwargs)
+        unknown = set(kwargs) - allowed
+        missing = set(expected) - set(kwargs)
+        if unknown or missing:
+            raise ValueError(f'unexpected asset BAM authoring (unknown={sorted(unknown)}, missing={sorted(missing)})')
+        if kwargs.get('has_backlash', 0) not in (0, 0.0, False):
+            raise ValueError('backlash asset variants are not admitted')
+        for key, value in expected.items():
+            authored = kwargs[key]
+            if isinstance(value, int) and not isinstance(value, bool):
+                ok = isinstance(authored, (int, float)) and float(authored) == float(value)
+            else:
+                ok = (isinstance(authored, (int, float)) and math.isfinite(authored)
+                      and math.isclose(float(authored), float(value), rel_tol=1e-6, abs_tol=0))
+            if not ok:
+                raise ValueError(f'asset BAM coefficient differs from the pinned m6 fit: {key}')
+        target = parsed.target_path
+        joint = stage.GetPrimAtPath(target)
+        name = str(target).rsplit('/', 1)[-1]
+        if (not joint or not joint.IsValid() or not joint.IsA(UsdPhysics.RevoluteJoint) or name not in POLICY_JOINTS
+                or name in targets or (prefix is not None and not str(target).startswith(prefix))):
+            raise ValueError(f'asset actuator target is not an owned policy joint: {target}')
+        targets[name] = joint
+        actuators.append({'path': str(prim.GetPath()), 'target': str(target), 'drive_class': parsed.drive_class.__name__,
+                          'deployment': {k: kwargs[k] for k in sorted(DEPLOYMENT_KEYS) if k in kwargs}})
+    if set(targets) != set(POLICY_JOINTS):
+        raise ValueError('asset actuators do not cover exactly the fourteen policy joints')
+    drives = []
+    for name in POLICY_JOINTS:
+        joint = targets[name]
+        if not joint.HasAPI(UsdPhysics.DriveAPI, 'angular'):
+            raise ValueError(f'expected an authored angular drive on {joint.GetPath()}')
+        drive = UsdPhysics.DriveAPI.Get(joint, 'angular')
+        stiffness, damping, max_force = (drive.GetStiffnessAttr().Get(), drive.GetDampingAttr().Get(),
+                                         drive.GetMaxForceAttr().Get())
+        if (not all(isinstance(v, (int, float)) for v in (stiffness, damping, max_force))
+                or stiffness != 0 or damping != 0
+                or not math.isclose(float(max_force), .96, rel_tol=0, abs_tol=1e-6)):
+            raise ValueError(f'unexpected authored drive on {joint.GetPath()}')
+        drives.append({'path': str(joint.GetPath()), 'stiffness': float(stiffness), 'damping': float(damping),
+                       'max_force': float(max_force)})
+    for prim in prims:
+        prim.SetActive(False)
+    for name in POLICY_JOINTS:
+        joint = targets[name]
+        if not joint.RemoveAPI(UsdPhysics.DriveAPI, 'angular') or joint.HasAPI(UsdPhysics.DriveAPI, 'angular'):
+            raise RuntimeError(f'could not remove the authored drive on {joint.GetPath()}')
+    return {'kind': EXTERNAL_KIND, 'schema': BAM_DRIVE_API, 'actuators': actuators,
+            'coefficients_checked': sorted(expected), 'drives_removed': drives}
+
+
+def bind_scene_ground(stage, ground_path, *, root_path, asset_kind, bind_ground=None):
+    """Enroll the scene ground the way the admitted asset expresses contact filtering.
+
+    The converted MJCF bundle filters contacts through authored collision groups,
+    so its ground must join the 1/1 mask group (``convert_microduck.bind_ground``).
+    The Isaac Lab USD authors no collision groups at all: every enabled collider
+    may touch the ground, and enrolling it anywhere would invent a filter. Any
+    group found under such a root is refused rather than guessed about.
+    """
+    from pxr import UsdPhysics
+    if asset_kind == CONVERTED_KIND:
+        if bind_ground is None:
+            from convert_microduck import bind_ground
+        bind_ground(stage, [ground_path], root_path=root_path)
+        return {'kind': asset_kind, 'root': str(root_path), 'ground': str(ground_path),
+                'enrollment': 'collision group mask_1_1'}
+    if asset_kind != EXTERNAL_KIND:
+        raise ValueError('unknown admitted asset kind')
+    prefix = str(root_path) + '/'
+    groups = [str(p.GetPath()) for p in stage.Traverse()
+              if str(p.GetPath()).startswith(prefix) and p.IsA(UsdPhysics.CollisionGroup)]
+    if groups:
+        raise ValueError(f'external USD authors collision groups; ground enrollment policy unknown: {groups[:3]}')
+    ground = stage.GetPrimAtPath(ground_path)
+    if not ground or not ground.HasAPI(UsdPhysics.CollisionAPI) or str(ground_path).startswith(prefix):
+        raise ValueError('ground must be an external CollisionAPI prim')
+    return {'kind': asset_kind, 'root': str(root_path), 'ground': str(ground_path),
+            'enrollment': 'none; the asset authors no collision groups, every enabled collider may touch the ground'}
+
+
+def neutralize_asset_actuation(stage, asset_kind, *, root_path=None):
+    """Dispatch the startup-only runtime-layer edits by admitted asset kind."""
+    if asset_kind == EXTERNAL_KIND:
+        return disable_asset_actuators(stage, root_path=root_path)
+    if asset_kind == CONVERTED_KIND:
+        return disable_source_actuators(stage, root_path=root_path)
+    raise ValueError('unknown admitted asset kind')
 
 
 def disable_source_actuators(stage, *, root_path=None):
@@ -606,6 +834,12 @@ class KitNewtonBackend:
         UsdGeom.SetStageMetersPerUnit(stage, 1.)
         UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
         UsdGeom.Xform.Define(stage, '/World')
+        # Load (and register with Newton's actuator registry) the pinned BAM sources
+        # before any asset prim is parsed: asset-authored BAM prims must resolve
+        # through that registry, and the stage parse must see no active actuator.
+        from cascade.control.newton_bam import load_pinned_bam
+        load_pinned_bam(self.args.bam_source_root, sdk_recipe=self._sdk_recipe)
+        self._checkpoint()
         roots = self._author_robots(stage)
         ground = UsdGeom.Plane.Define(stage, '/World/Ground')
         ground.CreateAxisAttr('Z')
@@ -616,8 +850,10 @@ class KitNewtonBackend:
         mat.CreateDynamicFrictionAttr(1.)
         mat.CreateRestitutionAttr(0.)
         UsdShade.MaterialBindingAPI.Apply(ground.GetPrim()).Bind(material, materialPurpose='physics')
-        for root_path in roots:
-            bind_ground(stage, [ground.GetPath()], root_path=root_path)
+        self.receipt['ground_binding'] = [
+            bind_scene_ground(stage, ground.GetPath(), root_path=root_path, asset_kind=self.asset_kind,
+                              bind_ground=bind_ground)
+            for root_path in roots]
         scene = UsdPhysics.Scene.Define(stage, '/World/PhysicsScene')
         scene.CreateGravityDirectionAttr(Gf.Vec3f(0., 0., -1.))
         scene.CreateGravityMagnitudeAttr(9.81)
@@ -724,8 +960,12 @@ class KitNewtonBackend:
         from pxr import UsdGeom
         root = UsdGeom.Xform.Define(stage, '/World/MicroDuck').GetPrim()
         root.GetReferences().AddReference(self.admission['asset'])
-        self.receipt['disabled_source_actuators'] = disable_source_actuators(stage)
+        self.receipt['disabled_source_actuators'] = neutralize_asset_actuation(stage, self.asset_kind)
         return ('/World/MicroDuck',)
+
+    @property
+    def asset_kind(self):
+        return self.admission.get('kind', CONVERTED_KIND)
 
     def _bind_native_model(self, ns):
         import numpy as np
@@ -733,7 +973,7 @@ class KitNewtonBackend:
         from cascade.control.microduck_policy import HOME_Q
         from cascade.control.newton_bam import NewtonBamAdapter
         from cascade.sim.microduck_state import newton_joint_indices
-        from cascade.sim.microduck_contact_support import extraction_provenance, support_contract
+        from cascade.sim.microduck_contact_support import extraction_provenance, foot_shapes_for, support_contract
         qs, ds = newton_joint_indices(ns.model.joint_label, ns.model.joint_q_start.numpy(), ns.model.joint_qd_start.numpy())
         self.q_indices, self.dof_indices = qs, ds
         self.root_index = list(ns.model.body_label).index('/World/MicroDuck/Geometry/trunk_base')
@@ -741,12 +981,13 @@ class KitNewtonBackend:
         self._layout = (tuple(ns.model.joint_label), tuple(ns.model.body_label), tuple(ns.model.shape_label))
         self.receipt['native_labels'] = dict(zip(('joints', 'bodies', 'shapes'), self._layout))
         self.receipt['native_body_properties'] = read_native_body_properties(ns)
-        self.receipt['support_contract'] = support_contract(ns.model.shape_label)
+        self.receipt['support_contract'] = support_contract(ns.model.shape_label,
+                                                            foot_shapes=foot_shapes_for(self.asset_kind))
         self.receipt['support_contract']['gravity_world_m_s2'] = self.receipt['native_body_properties']['gravity_world_m_s2'][:]
         self.receipt['support_extraction'] = extraction_provenance(sdk_recipe=self._sdk_recipe)
         self._checkpoint()
         self.receipt['native_model_properties'] = prepare_native_model(ns, ds, source_cap=.96, newton=newton,
-            effort_cap=self.admission['bam_params']['joint_effort_limit'])
+            effort_cap=self.admission['bam_params']['joint_effort_limit'], asset_kind=self.asset_kind)
         self._checkpoint()
         self.bam = NewtonBamAdapter(ns, source_root=self.args.bam_source_root,
                                     q_indices=qs, dof_indices=ds, params=self.admission['bam_params'],

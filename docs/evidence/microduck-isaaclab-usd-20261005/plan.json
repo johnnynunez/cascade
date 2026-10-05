@@ -1,0 +1,276 @@
+{
+  "schema": "cascade.microduck-usd.direct-probe.v1",
+  "argv": [
+    "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/python.sh",
+    "/home/johnny/Projects/demo/cascade/scripts/isaac_microduck_shared.py",
+    "--engine",
+    "newton",
+    "--release",
+    "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release",
+    "--bundle",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/isaaclab-usd-allcollisions-v1",
+    "--bundle-sha256",
+    "ba7cdd9ed68552fc83aefaf881a148970203bb08fb003e0d52715f42a8263079",
+    "--policy",
+    "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck-rough-walk-e/policy.onnx",
+    "--policy-sha256",
+    "5aa423bd693e431b19e2ead77f99cbae6184e40a529eb2f7c1b4f85bb7f57040",
+    "--bam-source-root",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/research/isaaclab-pr8161/source",
+    "--bam-profile",
+    "official_infer_nominal_no_delay",
+    "--policy-profile",
+    "rough_walk_e",
+    "--python-extra-path",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/runtime-python",
+    "--robot-id",
+    "microduck",
+    "--source",
+    "isaac-microduck",
+    "--device",
+    "cuda:0",
+    "--port",
+    "0",
+    "--limits",
+    "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/native-configuration/controller-limits-slow.json",
+    "--out",
+    "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_USD_20261005/usd-twelve-02/kit",
+    "--camera-every",
+    "100",
+    "--max-jpeg-bytes",
+    "2097152",
+    "--max-wall-s",
+    "450",
+    "--max-steps",
+    "800",
+    "--solver-cuda-graph",
+    "--reuse-solved-read",
+    "--sdk-recipe",
+    "isaac62_48b2d951",
+    "--robots",
+    "12",
+    "--spacing",
+    "2",
+    "--serve-base-port",
+    "0",
+    "--profile-phases"
+  ],
+  "environment": {
+    "CASCADE_BELIEFS_PATH": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_USD_20261005/usd-twelve-02/stores/beliefs.json",
+    "CASCADE_ENVELOPE_PATH": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_USD_20261005/usd-twelve-02/stores/envelope.json",
+    "CASCADE_GRASP_MEMORY_PATH": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_USD_20261005/usd-twelve-02/stores/grasp-memory.json",
+    "CASCADE_SPATIAL_MEMORY_PATH": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_USD_20261005/usd-twelve-02/stores/spatial-memory.json",
+    "CUDA_CACHE_PATH": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_USD_20261005/usd-twelve-02/cache/cuda",
+    "CUDA_VISIBLE_DEVICES": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+    "ISAACSIM_PATH": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release",
+    "ISAACSIM_PYTHON_EXE": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/python.sh",
+    "MICRODUCK_CHILD_EXIT_FILE": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_USD_20261005/usd-twelve-02/native-exit.json",
+    "MICRODUCK_PYTHON_REAL": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/kit/python/bin/python3",
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONEXE": "/home/johnny/Projects/demo/cascade-lab/HEAP_FREEZE_20261005/capture-exit.sh",
+    "PYTHONUNBUFFERED": "1",
+    "WARP_CACHE_PATH": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_USD_20261005/usd-twelve-02/cache/warp",
+    "XDG_CACHE_HOME": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_USD_20261005/usd-twelve-02/cache/xdg",
+    "PATH": "<inherited>"
+  },
+  "bundle": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/isaaclab-usd-allcollisions-v1",
+  "bundle_receipt_sha256": "ba7cdd9ed68552fc83aefaf881a148970203bb08fb003e0d52715f42a8263079",
+  "bundle_receipt": {
+    "authoring": {
+      "actuators": "fourteen NewtonActuator prims with NewtonBamDriveAPI are authored in the USD; the CASCADE owner deactivates them and binds its pinned BAM adapter, recording their authored coefficients as provenance",
+      "drives": "zero-gain PhysicsDriveAPI:angular on the servo joints is removed in the runtime layer"
+    },
+    "kind": "external-usd",
+    "origin": {
+      "file": "microduck_allcollisions.usd",
+      "kind": "folder",
+      "listing_sha256": "0a295b653ae303768cf3e38ae1d781ddb0b806c597997fcec0523cdb179fb31e",
+      "reference": "https://github.com/isaac-sim/IsaacLab/pull/8265",
+      "relative_path": "Robots/PollenRobotics/MicroDuck",
+      "source": "isaaclab-microduck-usd"
+    },
+    "outputs": [
+      {
+        "path": "provenance/base-manifest.json",
+        "sha256": "56678bc8dbbc4aba6ca99944a37d495badb1157093b728348700739896383faa",
+        "size": 52391
+      },
+      {
+        "path": "provenance/folder.json",
+        "sha256": "b7984a27e7aac48b2311f902e19756ca4a2ee7a669620855064a945adcd38ff0",
+        "size": 1944
+      },
+      {
+        "path": "provenance/manifest.json",
+        "sha256": "b96e5d7e1c7a27e2c88998ed098dc955d0d3bee28eec7a2c3fa45be505776272",
+        "size": 4233
+      },
+      {
+        "path": "usd/ATTRIBUTION.txt",
+        "sha256": "02f6aa7c1c60a8734b1f9e781e4b6b17752d618a3b1d249eec42ed54d137fab2",
+        "size": 1800
+      },
+      {
+        "path": "usd/LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "size": 11358
+      },
+      {
+        "path": "usd/microduck_allcollisions.usd",
+        "sha256": "e29fad565239d748086b96ba87441fb13071932ab9445d8f38dca1c176c6760c",
+        "size": 7481123
+      }
+    ],
+    "provenance": {
+      "base_manifest_sha256": "56678bc8dbbc4aba6ca99944a37d495badb1157093b728348700739896383faa",
+      "licenses": {
+        "isaaclab-assets": {
+          "evidence": "https://github.com/isaac-sim/IsaacLab/pull/8265",
+          "license": "Apache-2.0",
+          "notice": "LICENSE and ATTRIBUTION.txt shipped in the folder declare Apache-2.0 for the Isaac Lab USD authoring (BAM actuator prims, joint friction/damping, backlash variants). This record covers those two text files only."
+        },
+        "models": {
+          "evidence": "https://github.com/pollen-robotics/microduck_rl/blob/8d0db74916a4f833d1d9b95d6a1d7f4d13b9d5ec/README.md#L268-L271",
+          "license": "Creative Commons BY-SA-NC",
+          "notice": "The USD files embed the Pollen Robotics MicroDuck meshes (microduck_rl d424a0c899f6b33cbd3daeb279913134349c0b63 per ATTRIBUTION.txt). Upstream declares the 3D model files Creative Commons BY-SA-NC without a version, so the USD files are recorded under this notice regardless of the Apache-2.0 label of the USD authoring. No commercial/event-use permission is given by this manifest.",
+          "version": null
+        }
+      },
+      "manifest_sha256": "b96e5d7e1c7a27e2c88998ed098dc955d0d3bee28eec7a2c3fa45be505776272",
+      "sources": {
+        "isaaclab-microduck-usd": {
+          "kind": "folder",
+          "listing_sha256": "0a295b653ae303768cf3e38ae1d781ddb0b806c597997fcec0523cdb179fb31e",
+          "reference": "https://github.com/isaac-sim/IsaacLab/pull/8265",
+          "relative_path": "Robots/PollenRobotics/MicroDuck"
+        }
+      }
+    },
+    "schema_version": 2,
+    "source_files": [
+      {
+        "path": "ATTRIBUTION.txt",
+        "sha256": "02f6aa7c1c60a8734b1f9e781e4b6b17752d618a3b1d249eec42ed54d137fab2",
+        "size": 1800
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "size": 11358
+      },
+      {
+        "path": "microduck_allcollisions.usd",
+        "sha256": "e29fad565239d748086b96ba87441fb13071932ab9445d8f38dca1c176c6760c",
+        "size": 7481123
+      },
+      {
+        "path": "microduck_allcollisions_backlash.usd",
+        "sha256": "c1acc45caabc9c6b5845574c79e2c9cd3ae94cdcf625aeacce2e8bddd79cf516",
+        "size": 7491486
+      },
+      {
+        "path": "microduck_rollers.usd",
+        "sha256": "cd117510525c4d867b077e0b82e3fc539c1163205f127bc676cf95cb7b0ffdd4",
+        "size": 6595379
+      },
+      {
+        "path": "microduck_rollers_backlash.usd",
+        "sha256": "d9fbca7eacda896dbea8361d1bebb8d2ad1ba24c455225aa5c5f3aac9a6c7a2a",
+        "size": 6602856
+      },
+      {
+        "path": "microduck_walk.usd",
+        "sha256": "288c6696ffa0f83df89512497860801f543d72874b835bb716db342df60385d4",
+        "size": 7479847
+      },
+      {
+        "path": "microduck_walk_backlash.usd",
+        "sha256": "0fe30a47867d8f33761f3fc5537aa6983a45cb26cc536eff9c3d2a030066a97b",
+        "size": 7486953
+      }
+    ],
+    "statuses": {
+      "actuator_fidelity_status": "unverified",
+      "historical_checkpoint_training_match": "unverified",
+      "live_engine_status": "unverified",
+      "locomotion_status": "unverified",
+      "physical_validation": "none"
+    },
+    "usd_path": "usd/microduck_allcollisions.usd",
+    "variant": "allcollisions",
+    "versions": {
+      "admission_tool_sha256": "7f8f9846bea1934156709f216fa37be634a675b011359c8b45795ca6e965d613"
+    }
+  },
+  "gc_policy": null,
+  "robots": 12,
+  "mode": "probe",
+  "control_attempted": false,
+  "source": {
+    "head": "1fe7aed8340cc4f473fae534cfa8962afa06e660",
+    "branch": "feat/microduck-nucleus-asset-newton161",
+    "status": [
+      "M AGENTS.md",
+      " M assets/microduck/NOTICE.md",
+      " M assets/microduck/newton-bam.json",
+      " M scripts/isaac_microduck_bridge.py",
+      " M scripts/microduck_assets.py",
+      " M src/cascade/control/newton_bam.py",
+      " M src/cascade/sim/microduck_contact_support.py",
+      " M src/cascade/sim/microduck_newton.py",
+      " M src/cascade/sim/microduck_sdk.py",
+      " M src/cascade/sim/microduck_shared.py",
+      " M src/cascade/sim/microduck_shared_native.py",
+      " M src/cascade/sim/mobile_identity.py",
+      " M tests/test_microduck_assets.py",
+      " M tests/test_microduck_initialization_signal_fence.py",
+      " M tests/test_microduck_sdk_recipe.py",
+      " M tests/test_newton_bam.py",
+      "?? assets/microduck/isaaclab-microduck-usd-manifest.json",
+      "?? scripts/admit_microduck_usd.py",
+      "?? tests/test_microduck_external_asset.py"
+    ],
+    "working_tree_sha256": {
+      "scripts/isaac_microduck_shared.py": "147229be4c7bc9291b9749814fd8e38c233eef5fedd3726d41c2f2f951f87f29",
+      "scripts/isaac_microduck_bridge.py": "04600aa24f91ba74f70782283474c7aef2dc160cd5a2cf2dad51c37f856dcce7",
+      "scripts/admit_microduck_usd.py": "7f8f9846bea1934156709f216fa37be634a675b011359c8b45795ca6e965d613",
+      "src/cascade/sim/microduck_newton.py": "bde6a192bbaec1903abd7e95c6fcf48be5e45986701f90af89843bf081597e52",
+      "src/cascade/sim/microduck_shared.py": "7cfb3afcb4a8a2e5b85aeb2ce4b2a0c9e131bc67b79713948b0141e62d00cb98",
+      "src/cascade/sim/microduck_shared_native.py": "b080720c76fb553c4339b16890671155811e900338781eb7113e8c4a1cb83dcb",
+      "src/cascade/sim/microduck_contact_support.py": "8e0e073229ea9f8af8a5e7c02cde7294b26d85317de35924810f5eb5e692e2a6",
+      "src/cascade/sim/mobile_identity.py": "d400f8ee1baec6c82eb38d8a73918be9258d81f0ba91df314e3556d91bab677e",
+      "src/cascade/control/newton_bam.py": "17a8795b781ae1d0639360859783819d2ce95cc9cde34ac30a4109ab446c53e0",
+      "src/cascade/sim/microduck_sdk.py": "5a4a4b9ee7bbd451b981383c3aa54561eed70334eb9fefd0ca4e5a33c2f24a69",
+      "assets/microduck/isaaclab-microduck-usd-manifest.json": "b96e5d7e1c7a27e2c88998ed098dc955d0d3bee28eec7a2c3fa45be505776272",
+      "assets/microduck/manifest.json": "56678bc8dbbc4aba6ca99944a37d495badb1157093b728348700739896383faa",
+      "assets/microduck/newton-bam.json": "c21fff62e84188977f8336f41482f68a885fc06cc35022b60cbed6a43628b6bd"
+    }
+  },
+  "prior_reviewed_probe": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_GC_TRIGGER_20261004/gc-trigger-probe-twelve-01",
+  "sdk": {
+    "recipe": "isaac62_48b2d951",
+    "newton_version": "1.6.1rc1",
+    "release_version_sha256": "59a6d16d8f3f247b73fa68a837867dafc0f568e491ae593f0ab1c2cb2fa62786",
+    "source_sha256": {
+      "mujoco_warp._src.support": "1a08ef15f149d1cf3c9ec5df6c688669fe86aa237ee2512a7463caf1b74e3d54",
+      "newton._src.solvers.mujoco.kernels": "bd770d39d20c208e980477e0186799f531364b03f16d76968ee69bacdc490a3d",
+      "newton._src.solvers.mujoco.solver_mujoco": "a2f2466ad9d35e32f6e87f12bbaa0e08d18295f4e95b1c059c805d2ff4091178",
+      "isaacsim.physics.newton.impl.newton_stage": "a9d4e95305b23e6cea8e4e8e5fb63dc8b6c5c5917ad5c3ba48e2ba29df84d958",
+      "isaacsim.physics.newton.impl.newton_config": "b1212639ebf22448a1da36b272b36da02eb340dcc1ad2312da075a66dadf1de0",
+      "isaacsim.physics.newton.impl.solver_config": "e6c17f958cbd2534ac71743e62f56b79c4e8d86147ee676a6e80ee0d7ea9fe03"
+    },
+    "physical_acceptance": false
+  },
+  "native_timeout_s": 600,
+  "physical_acceptance": false,
+  "host_load_before": {
+    "loadavg": [
+      0.08935546875,
+      0.1328125,
+      0.1787109375
+    ],
+    "pytest_or_codex_running": true
+  }
+}

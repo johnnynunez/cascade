@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "scope": "Artifact admission only for the Isaac Lab MicroDuck USD folder (Robots/PollenRobotics/MicroDuck; Isaac Lab #8265/#8266 authoring of 2026-10-02), supplied as a downloaded local folder and pinned by content. Admitted CASCADE candidate: microduck_allcollisions.usd through scripts/admit_microduck_usd.py. The other variants are pinned references, not enabled assets. Policies, BAM sources and the Pollen Robotics MJCF/mesh sources stay pinned in manifest.json.",
+  "sources": {
+    "isaaclab-microduck-usd": {
+      "kind": "folder",
+      "relative_path": "Robots/PollenRobotics/MicroDuck",
+      "reference": "https://github.com/isaac-sim/IsaacLab/pull/8265",
+      "listing_sha256": "0a295b653ae303768cf3e38ae1d781ddb0b806c597997fcec0523cdb179fb31e"
+    }
+  },
+  "licenses": {
+    "models": {
+      "license": "Creative Commons BY-SA-NC",
+      "version": null,
+      "evidence": "https://github.com/pollen-robotics/microduck_rl/blob/8d0db74916a4f833d1d9b95d6a1d7f4d13b9d5ec/README.md#L268-L271",
+      "notice": "The USD files embed the Pollen Robotics MicroDuck meshes (microduck_rl d424a0c899f6b33cbd3daeb279913134349c0b63 per ATTRIBUTION.txt). Upstream declares the 3D model files Creative Commons BY-SA-NC without a version, so the USD files are recorded under this notice regardless of the Apache-2.0 label of the USD authoring. No commercial/event-use permission is given by this manifest."
+    },
+    "isaaclab-assets": {
+      "license": "Apache-2.0",
+      "evidence": "https://github.com/isaac-sim/IsaacLab/pull/8265",
+      "notice": "LICENSE and ATTRIBUTION.txt shipped in the folder declare Apache-2.0 for the Isaac Lab USD authoring (BAM actuator prims, joint friction/damping, backlash variants). This record covers those two text files only."
+    }
+  },
+  "files": [
+    {
+      "source": "isaaclab-microduck-usd",
+      "source_path": "ATTRIBUTION.txt",
+      "path": "isaaclab-microduck-usd/ATTRIBUTION.txt",
+      "size": 1800,
+      "sha256": "02f6aa7c1c60a8734b1f9e781e4b6b17752d618a3b1d249eec42ed54d137fab2",
+      "license": "isaaclab-assets"
+    },
+    {
+      "source": "isaaclab-microduck-usd",
+      "source_path": "LICENSE",
+      "path": "isaaclab-microduck-usd/LICENSE",
+      "size": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "license": "isaaclab-assets"
+    },
+    {
+      "source": "isaaclab-microduck-usd",
+      "source_path": "microduck_allcollisions.usd",
+      "path": "isaaclab-microduck-usd/microduck_allcollisions.usd",
+      "size": 7481123,
+      "sha256": "e29fad565239d748086b96ba87441fb13071932ab9445d8f38dca1c176c6760c",
+      "license": "models"
+    },
+    {
+      "source": "isaaclab-microduck-usd",
+      "source_path": "microduck_allcollisions_backlash.usd",
+      "path": "isaaclab-microduck-usd/microduck_allcollisions_backlash.usd",
+      "size": 7491486,
+      "sha256": "c1acc45caabc9c6b5845574c79e2c9cd3ae94cdcf625aeacce2e8bddd79cf516",
+      "license": "models"
+    },
+    {
+      "source": "isaaclab-microduck-usd",
+      "source_path": "microduck_rollers.usd",
+      "path": "isaaclab-microduck-usd/microduck_rollers.usd",
+      "size": 6595379,
+      "sha256": "cd117510525c4d867b077e0b82e3fc539c1163205f127bc676cf95cb7b0ffdd4",
+      "license": "models"
+    },
+    {
+      "source": "isaaclab-microduck-usd",
+      "source_path": "microduck_rollers_backlash.usd",
+      "path": "isaaclab-microduck-usd/microduck_rollers_backlash.usd",
+      "size": 6602856,
+      "sha256": "d9fbca7eacda896dbea8361d1bebb8d2ad1ba24c455225aa5c5f3aac9a6c7a2a",
+      "license": "models"
+    },
+    {
+      "source": "isaaclab-microduck-usd",
+      "source_path": "microduck_walk.usd",
+      "path": "isaaclab-microduck-usd/microduck_walk.usd",
+      "size": 7479847,
+      "sha256": "288c6696ffa0f83df89512497860801f543d72874b835bb716db342df60385d4",
+      "license": "models"
+    },
+    {
+      "source": "isaaclab-microduck-usd",
+      "source_path": "microduck_walk_backlash.usd",
+      "path": "isaaclab-microduck-usd/microduck_walk_backlash.usd",
+      "size": 7486953,
+      "sha256": "0fe30a47867d8f33761f3fc5537aa6983a45cb26cc536eff9c3d2a030066a97b",
+      "license": "models"
+    }
+  ]
+}

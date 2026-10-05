@@ -134,6 +134,8 @@ locomotion, fidelity of a solver, contact support or any physical outcome.
         "consumed_asset_layers": sorted(layers, key=lambda r: r["path"]),
         "runtime_scene_sha256": hashlib.sha256(scene).hexdigest(),
         "asset_sha256": digest_token(admission["asset_sha256"]),
+        "bundle_kind": admission.get("kind", "converted-mjcf"),
+        "asset_variant": admission.get("variant"),
         "policy_sha256": digest_token(admission["policy_sha256"]),
         "target_contract": targets,
         "target_upload": {"adapter": "NewtonBamActuator.set_targets", "dtype": "float32",

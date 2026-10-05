@@ -150,7 +150,7 @@ class _SharedSupport:
 
 def bind_scene(*, robots, scene_model_sha256, joint_labels, joint_q_start, joint_qd_start,
                joint_types, joint_parent, joint_child, body_labels, shape_labels, shape_body,
-               free_type, hinge_type, ground_shapes, world_count):
+               free_type, hinge_type, ground_shapes, world_count, foot_shapes=FOOT_SHAPES):
     """Bind one world containing only the explicit robots and static ground.
 
     Generated free-joint names have no USD namespace. Resolve them through the
@@ -175,6 +175,9 @@ def bind_scene(*, robots, scene_model_sha256, joint_labels, joint_q_start, joint
     bodies = _labels(body_labels, 'body labels')
     shapes = _labels(shape_labels, 'shape labels')
     ground = _labels(ground_shapes, 'ground shapes')
+    if (len(tuple(foot_shapes)) != 2 or any(not isinstance(p, str) or not p.startswith('/World/MicroDuck/')
+                                            for p in foot_shapes)):
+        raise ValueError('foot shapes must be two exact sole prims under the single-robot root')
     if not ground or not set(ground).issubset(shapes):
         raise ValueError('explicit ground shapes required')
     n = len(joints)
@@ -235,7 +238,7 @@ def bind_scene(*, robots, scene_model_sha256, joint_labels, joint_q_start, joint
         if selected != set(POLICY_JOINTS):
             raise ValueError('policy joints differ from robot articulation')
         qi, di = newton_joint_indices(joints, qs, ds, root_path=root)
-        feet = tuple(p.replace('/World/MicroDuck', root, 1) for p in FOOT_SHAPES)
+        feet = tuple(p.replace('/World/MicroDuck', root, 1) for p in foot_shapes)
         if not set(feet).issubset(shapes):
             raise ValueError('missing exact sole shape')
         si = tuple(i for i, value in enumerate(shape_owners) if value == robot_index)

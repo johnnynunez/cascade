@@ -1,0 +1,12 @@
+{
+  "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+  "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+  "total_mib": 97887,
+  "used_mib": 82,
+  "free_mib": 97260,
+  "utilization_percent": 0,
+  "foreign": [],
+  "required_free_mib": 16384,
+  "shared_device_no_performance_claim": true,
+  "admitted": true
+}

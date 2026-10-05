@@ -22,6 +22,12 @@ INTERNAL_SOURCE_SHA256 = MappingProxyType({
     'isaacsim.physics.newton.impl.newton_config': 'b1212639ebf22448a1da36b272b36da02eb340dcc1ad2312da075a66dadf1de0',
     'isaacsim.physics.newton.impl.solver_config': 'e6c17f958cbd2534ac71743e62f56b79c4e8d86147ee676a6e80ee0d7ea9fe03',
 })
+# CPU contract tests against the exact pre-release bundled with the admitted Isaac
+# Sim release: same Newton/MJWarp module bytes, no Kit. This is a named test
+# recipe, never an SDK admission; the native launchers do not accept it.
+CPU_CONTRACT_RECIPE = 'newton161rc1_cpu'
+CPU_CONTRACT_SOURCES = ('mujoco_warp._src.support', 'newton._src.solvers.mujoco.kernels',
+                        'newton._src.solvers.mujoco.solver_mujoco')
 INTERNAL_SOURCE_PATHS = MappingProxyType({
     name: ('exts/isaacsim.physics.newton/' if name.startswith('isaacsim.')
            else 'exts/isaacsim.pip.newton/pip_prebundle/') + name.replace('.', '/') + '.py'
@@ -60,6 +66,21 @@ def verify_runtime_recipe(recipe, *, newton_version):
         actual[name] = hashlib.sha256(path.read_bytes()).hexdigest()
         if actual[name] != expected:
             raise RuntimeError(f'MicroDuck SDK source mismatch: {name}')
+    return actual
+
+
+def verify_cpu_contract_recipe(recipe, *, newton_version):
+    """Exact pre-release and the portable solver sources of the SDK recipe, outside Kit."""
+    if recipe != CPU_CONTRACT_RECIPE:
+        raise ValueError(f'unknown MicroDuck CPU contract recipe: {recipe!r}')
+    if newton_version != INTERNAL_NEWTON_VERSION:
+        raise RuntimeError(f'MicroDuck CPU contract recipe requires exact Newton {INTERNAL_NEWTON_VERSION}')
+    actual = {}
+    for name in CPU_CONTRACT_SOURCES:
+        path = Path(importlib.import_module(name).__file__)
+        actual[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+        if actual[name] != INTERNAL_SOURCE_SHA256[name]:
+            raise RuntimeError(f'MicroDuck CPU contract source mismatch: {name}')
     return actual
 
 

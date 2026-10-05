@@ -1,0 +1,778 @@
+{
+ "asset_actuation_record_robot0": {
+  "actuators": [
+   {
+    "deployment": {
+     "delay_hold_prob": 0.0,
+     "delay_seed": 0,
+     "delay_update_period": 0,
+     "friction_scale": 1.0,
+     "kd_scale": 1.0,
+     "kp_fw": 200.0,
+     "kp_scale": 1.0,
+     "max_current": 1.75,
+     "max_delay": 6,
+     "max_effort": 1.067553162574768,
+     "min_delay": 3,
+     "sag_gain": 0.0,
+     "vin": 7.400000095367432,
+     "vin_min": 6.0
+    },
+    "drive_class": "DriveBam",
+    "path": "/World/Duck00/servos_left_hip_yaw_actuator",
+    "target": "/World/Duck00/Geometry/trunk_base/yaw2roll/left_hip_yaw"
+   },
+   {
+    "deployment": {
+     "delay_hold_prob": 0.0,
+     "delay_seed": 0,
+     "delay_update_period": 0,
+     "friction_scale": 1.0,
+     "kd_scale": 1.0,
+     "kp_fw": 200.0,
+     "kp_scale": 1.0,
+     "max_current": 1.75,
+     "max_delay": 6,
+     "max_effort": 1.067553162574768,
+     "min_delay": 3,
+     "sag_gain": 0.0,
+     "vin": 7.400000095367432,
+     "vin_min": 6.0
+    },
+    "drive_class": "DriveBam",
+    "path": "/World/Duck00/servos_left_hip_roll_actuator",
+    "target": "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/left_hip_roll"
+   },
+   {
+    "deployment": {
+     "delay_hold_prob": 0.0,
+     "delay_seed": 0,
+     "delay_update_period": 0,
+     "friction_scale": 1.0,
+     "kd_scale": 1.0,
+     "kp_fw": 200.0,
+     "kp_scale": 1.0,
+     "max_current": 1.75,
+     "max_delay": 6,
+     "max_effort": 1.067553162574768,
+     "min_delay": 3,
+     "sag_gain": 0.0,
+     "vin": 7.400000095367432,
+     "vin_min": 6.0
+    },
+    "drive_class": "DriveBam",
+    "path": "/World/Duck00/servos_left_hip_pitch_actuator",
+    "target": "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/left_hip_pitch"
+   },
+   {
+    "deployment": {
+     "delay_hold_prob": 0.0,
+     "delay_seed": 0,
+     "delay_update_period": 0,
+     "friction_scale": 1.0,
+     "kd_scale": 1.0,
+     "kp_fw": 200.0,
+     "kp_scale": 1.0,
+     "max_current": 1.75,
+     "max_delay": 6,
+     "max_effort": 1.067553162574768,
+     "min_delay": 3,
+     "sag_gain": 0.0,
+     "vin": 7.400000095367432,
+     "vin_min": 6.0
+    },
+    "drive_class": "DriveBam",
+    "path": "/World/Duck00/servos_left_knee_actuator",
+    "target": "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/left_knee"
+   },
+   {
+    "deployment": {
+     "delay_hold_prob": 0.0,
+     "delay_seed": 0,
+     "delay_update_period": 0,
+     "friction_scale": 1.0,
+     "kd_scale": 1.0,
+     "kp_fw": 200.0,
+     "kp_scale": 1.0,
+     "max_current": 1.75,
+     "max_delay": 6,
+     "max_effort": 1.067553162574768,
+     "min_delay": 3,
+     "sag_gain": 0.0,
+     "vin": 7.400000095367432,
+     "vin_min": 6.0
+    },
+    "drive_class": "DriveBam",
+    "path": "/World/Duck00/servos_left_ankle_actuator",
+    "target": "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/left_ankle"
+   },
+   {
+    "deployment": {
+     "delay_hold_prob": 0.0,
+     "delay_seed": 0,
+     "delay_update_period": 0,
+     "friction_scale": 1.0,
+     "kd_scale": 1.0,
+     "kp_fw": 200.0,
+     "kp_scale": 1.0,
+     "max_current": 1.75,
+     "max_delay": 6,
+     "max_effort": 1.067553162574768,
+     "min_delay": 3,
+     "sag_gain": 0.0,
+     "vin": 7.400000095367432,
+     "vin_min": 6.0
+    },
+    "drive_class": "DriveBam",
+    "path": "/World/Duck00/servos_neck_pitch_actuator",
+    "target": "/World/Duck00/Geometry/trunk_base/neck/neck_pitch"
+   },
+   {
+    "deployment": {
+     "delay_hold_prob": 0.0,
+     "delay_seed": 0,
+     "delay_update_period": 0,
+     "friction_scale": 1.0,
+     "kd_scale": 1.0,
+     "kp_fw": 200.0,
+     "kp_scale": 1.0,
+     "max_current": 1.75,
+     "max_delay": 6,
+     "max_effort": 1.067553162574768,
+     "min_delay": 3,
+     "sag_gain": 0.0,
+     "vin": 7.400000095367432,
+     "vin_min": 6.0
+    },
+    "drive_class": "DriveBam",
+    "path": "/World/Duck00/servos_head_pitch_actuator",
+    "target": "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/head_pitch"
+   },
+   {
+    "deployment": {
+     "delay_hold_prob": 0.0,
+     "delay_seed": 0,
+     "delay_update_period": 0,
+     "friction_scale": 1.0,
+     "kd_scale": 1.0,
+     "kp_fw": 200.0,
+     "kp_scale": 1.0,
+     "max_current": 1.75,
+     "max_delay": 6,
+     "max_effort": 1.067553162574768,
+     "min_delay": 3,
+     "sag_gain": 0.0,
+     "vin": 7.400000095367432,
+     "vin_min": 6.0
+    },
+    "drive_class": "DriveBam",
+    "path": "/World/Duck00/servos_head_yaw_actuator",
+    "target": "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/head_yaw"
+   },
+   {
+    "deployment": {
+     "delay_hold_prob": 0.0,
+     "delay_seed": 0,
+     "delay_update_period": 0,
+     "friction_scale": 1.0,
+     "kd_scale": 1.0,
+     "kp_fw": 200.0,
+     "kp_scale": 1.0,
+     "max_current": 1.75,
+     "max_delay": 6,
+     "max_effort": 1.067553162574768,
+     "min_delay": 3,
+     "sag_gain": 0.0,
+     "vin": 7.400000095367432,
+     "vin_min": 6.0
+    },
+    "drive_class": "DriveBam",
+    "path": "/World/Duck00/servos_head_roll_actuator",
+    "target": "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/head_roll"
+   },
+   {
+    "deployment": {
+     "delay_hold_prob": 0.0,
+     "delay_seed": 0,
+     "delay_update_period": 0,
+     "friction_scale": 1.0,
+     "kd_scale": 1.0,
+     "kp_fw": 200.0,
+     "kp_scale": 1.0,
+     "max_current": 1.75,
+     "max_delay": 6,
+     "max_effort": 1.067553162574768,
+     "min_delay": 3,
+     "sag_gain": 0.0,
+     "vin": 7.400000095367432,
+     "vin_min": 6.0
+    },
+    "drive_class": "DriveBam",
+    "path": "/World/Duck00/servos_right_hip_yaw_actuator",
+    "target": "/World/Duck00/Geometry/trunk_base/bearing_roll/right_hip_yaw"
+   },
+   {
+    "deployment": {
+     "delay_hold_prob": 0.0,
+     "delay_seed": 0,
+     "delay_update_period": 0,
+     "friction_scale": 1.0,
+     "kd_scale": 1.0,
+     "kp_fw": 200.0,
+     "kp_scale": 1.0,
+     "max_current": 1.75,
+     "max_delay": 6,
+     "max_effort": 1.067553162574768,
+     "min_delay": 3,
+     "sag_gain": 0.0,
+     "vin": 7.400000095367432,
+     "vin_min": 6.0
+    },
+    "drive_class": "DriveBam",
+    "path": "/World/Duck00/servos_right_hip_roll_actuator",
+    "target": "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/right_hip_roll"
+   },
+   {
+    "deployment": {
+     "delay_hold_prob": 0.0,
+     "delay_seed": 0,
+     "delay_update_period": 0,
+     "friction_scale": 1.0,
+     "kd_scale": 1.0,
+     "kp_fw": 200.0,
+     "kp_scale": 1.0,
+     "max_current": 1.75,
+     "max_delay": 6,
+     "max_effort": 1.067553162574768,
+     "min_delay": 3,
+     "sag_gain": 0.0,
+     "vin": 7.400000095367432,
+     "vin_min": 6.0
+    },
+    "drive_class": "DriveBam",
+    "path": "/World/Duck00/servos_right_hip_pitch_actuator",
+    "target": "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/right_hip_pitch"
+   },
+   {
+    "deployment": {
+     "delay_hold_prob": 0.0,
+     "delay_seed": 0,
+     "delay_update_period": 0,
+     "friction_scale": 1.0,
+     "kd_scale": 1.0,
+     "kp_fw": 200.0,
+     "kp_scale": 1.0,
+     "max_current": 1.75,
+     "max_delay": 6,
+     "max_effort": 1.067553162574768,
+     "min_delay": 3,
+     "sag_gain": 0.0,
+     "vin": 7.400000095367432,
+     "vin_min": 6.0
+    },
+    "drive_class": "DriveBam",
+    "path": "/World/Duck00/servos_right_knee_actuator",
+    "target": "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/right_knee"
+   },
+   {
+    "deployment": {
+     "delay_hold_prob": 0.0,
+     "delay_seed": 0,
+     "delay_update_period": 0,
+     "friction_scale": 1.0,
+     "kd_scale": 1.0,
+     "kp_fw": 200.0,
+     "kp_scale": 1.0,
+     "max_current": 1.75,
+     "max_delay": 6,
+     "max_effort": 1.067553162574768,
+     "min_delay": 3,
+     "sag_gain": 0.0,
+     "vin": 7.400000095367432,
+     "vin_min": 6.0
+    },
+    "drive_class": "DriveBam",
+    "path": "/World/Duck00/servos_right_ankle_actuator",
+    "target": "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/right_ankle"
+   }
+  ],
+  "coefficients_checked": [
+   "alpha",
+   "dtheta_stribeck",
+   "error_gain",
+   "friction_base",
+   "friction_stribeck",
+   "kt",
+   "load_dependent",
+   "load_friction_external",
+   "load_friction_external_quad",
+   "load_friction_external_stribeck",
+   "load_friction_motor",
+   "load_friction_motor_quad",
+   "load_friction_motor_stribeck",
+   "max_pwm",
+   "quadratic",
+   "resistance",
+   "stribeck"
+  ],
+  "drives_removed": [
+   {
+    "damping": 0.0,
+    "max_force": 0.9599999785423279,
+    "path": "/World/Duck00/Geometry/trunk_base/yaw2roll/left_hip_yaw",
+    "stiffness": 0.0
+   },
+   {
+    "damping": 0.0,
+    "max_force": 0.9599999785423279,
+    "path": "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/left_hip_roll",
+    "stiffness": 0.0
+   },
+   {
+    "damping": 0.0,
+    "max_force": 0.9599999785423279,
+    "path": "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/left_hip_pitch",
+    "stiffness": 0.0
+   },
+   {
+    "damping": 0.0,
+    "max_force": 0.9599999785423279,
+    "path": "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/left_knee",
+    "stiffness": 0.0
+   },
+   {
+    "damping": 0.0,
+    "max_force": 0.9599999785423279,
+    "path": "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/left_ankle",
+    "stiffness": 0.0
+   },
+   {
+    "damping": 0.0,
+    "max_force": 0.9599999785423279,
+    "path": "/World/Duck00/Geometry/trunk_base/neck/neck_pitch",
+    "stiffness": 0.0
+   },
+   {
+    "damping": 0.0,
+    "max_force": 0.9599999785423279,
+    "path": "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/head_pitch",
+    "stiffness": 0.0
+   },
+   {
+    "damping": 0.0,
+    "max_force": 0.9599999785423279,
+    "path": "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/head_yaw",
+    "stiffness": 0.0
+   },
+   {
+    "damping": 0.0,
+    "max_force": 0.9599999785423279,
+    "path": "/World/Duck00/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/head_roll",
+    "stiffness": 0.0
+   },
+   {
+    "damping": 0.0,
+    "max_force": 0.9599999785423279,
+    "path": "/World/Duck00/Geometry/trunk_base/bearing_roll/right_hip_yaw",
+    "stiffness": 0.0
+   },
+   {
+    "damping": 0.0,
+    "max_force": 0.9599999785423279,
+    "path": "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/right_hip_roll",
+    "stiffness": 0.0
+   },
+   {
+    "damping": 0.0,
+    "max_force": 0.9599999785423279,
+    "path": "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/right_hip_pitch",
+    "stiffness": 0.0
+   },
+   {
+    "damping": 0.0,
+    "max_force": 0.9599999785423279,
+    "path": "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/right_knee",
+    "stiffness": 0.0
+   },
+   {
+    "damping": 0.0,
+    "max_force": 0.9599999785423279,
+    "path": "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/right_ankle",
+    "stiffness": 0.0
+   }
+  ],
+  "kind": "external-usd",
+  "schema": "NewtonBamDriveAPI"
+ },
+ "bam": {
+  "armature": 0.0018077432831600838,
+  "friction_reference": "bam_mjlab",
+  "implementation": "IsaacLab#8161 native DriveBam + model-bound MjWarpActuatorBridge",
+  "mechanical_damping": 0.005359668274599504,
+  "newton_version": "1.6.1rc1",
+  "params": {
+   "delay_hold_prob": 0.0,
+   "delay_seed": 17,
+   "delay_update_period": 0,
+   "joint_effort_limit": 0.9634015946604082,
+   "kp_fw": 200.0,
+   "max_current": null,
+   "max_delay": 0,
+   "max_effort": 0.9634015946604082,
+   "min_delay": 0,
+   "physics_dt": 0.005,
+   "stiff_frictionloss": true,
+   "vin": 7.4,
+   "vin_drop_gain": 0.1,
+   "vin_min": 6.0
+  },
+  "physics_verified": false,
+  "revision": "28aa1fca5843208ff9a67935695a4d5376e44d50"
+ },
+ "bundle": {
+  "asset_sha256": "e29fad565239d748086b96ba87441fb13071932ab9445d8f38dca1c176c6760c",
+  "directory": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/isaaclab-usd-allcollisions-v1",
+  "kind": "external-usd",
+  "receipt_sha256": "ba7cdd9ed68552fc83aefaf881a148970203bb08fb003e0d52715f42a8263079",
+  "variant": "allcollisions"
+ },
+ "claim_scope": "simulation validation of asset admission and twelve-robot standing under the retained reader-only recipe; no control, deadline, locomotion or physical claim",
+ "date": "2026-10-05",
+ "ground_binding_robot0": {
+  "enrollment": "none; the asset authors no collision groups, every enabled collider may touch the ground",
+  "ground": "/World/Ground",
+  "kind": "external-usd",
+  "root": "/World/Duck00"
+ },
+ "model_identity": {
+  "bundle_receipt_sha256": "ba7cdd9ed68552fc83aefaf881a148970203bb08fb003e0d52715f42a8263079",
+  "consumed_asset_layers": [
+   {
+    "path": "usd/microduck_allcollisions.usd",
+    "sha256": "e29fad565239d748086b96ba87441fb13071932ab9445d8f38dca1c176c6760c"
+   }
+  ],
+  "runtime_scene_sha256": "5cb0d292ed74065233614cc3457a39a7a21961cdc4b451775fda46877b24b7c8",
+  "scene_model_sha256": "5e8407d2e16f858ebb20faacc2c83e4f2611538de3895bc84f79b6ad3478a65e"
+ },
+ "native_label_counts": {
+  "bodies": 180,
+  "joints": 180,
+  "shapes": 1057
+ },
+ "native_model_properties_robot0": {
+  "after": {
+   "joint_armature": [
+    0.001807743334211409,
+    0.001807743334211409,
+    0.001807743334211409,
+    0.001807743334211409,
+    0.001807743334211409,
+    0.001807743334211409,
+    0.001807743334211409,
+    0.001807743334211409,
+    0.001807743334211409,
+    0.001807743334211409,
+    0.001807743334211409,
+    0.001807743334211409,
+    0.001807743334211409,
+    0.001807743334211409
+   ],
+   "joint_damping": [
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617
+   ],
+   "joint_effort_limit": [
+    0.9634016156196594,
+    0.9634016156196594,
+    0.9634016156196594,
+    0.9634016156196594,
+    0.9634016156196594,
+    0.9634016156196594,
+    0.9634016156196594,
+    0.9634016156196594,
+    0.9634016156196594,
+    0.9634016156196594,
+    0.9634016156196594,
+    0.9634016156196594,
+    0.9634016156196594,
+    0.9634016156196594
+   ],
+   "joint_friction": [
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014
+   ],
+   "joint_target_kd": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "joint_target_ke": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "joint_target_mode": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  },
+  "asset_kind": "external-usd",
+  "before": {
+   "joint_armature": [
+    0.0017999999690800905,
+    0.0017999999690800905,
+    0.0017999999690800905,
+    0.0017999999690800905,
+    0.0017999999690800905,
+    0.0017999999690800905,
+    0.0017999999690800905,
+    0.0017999999690800905,
+    0.0017999999690800905,
+    0.0017999999690800905,
+    0.0017999999690800905,
+    0.0017999999690800905,
+    0.0017999999690800905,
+    0.0017999999690800905
+   ],
+   "joint_damping": [
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617,
+    0.005359668284654617
+   ],
+   "joint_effort_limit": [
+    1000000.0,
+    1000000.0,
+    1000000.0,
+    1000000.0,
+    1000000.0,
+    1000000.0,
+    1000000.0,
+    1000000.0,
+    1000000.0,
+    1000000.0,
+    1000000.0,
+    1000000.0,
+    1000000.0,
+    1000000.0
+   ],
+   "joint_friction": [
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014,
+    0.004771183244884014
+   ],
+   "joint_target_kd": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "joint_target_ke": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "joint_target_mode": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  },
+  "overrides": {
+   "joint_armature": 0.0018077432831600838,
+   "joint_damping": 0.005359668274599504,
+   "joint_effort_limit": 0.9634015946604082
+  },
+  "source_properties": {
+   "joint_armature": 0.0018,
+   "joint_damping": 0.005359668284654617,
+   "joint_effort_limit": 1000000.0,
+   "joint_friction": 0.004771183244884014,
+   "joint_target_kd": 0,
+   "joint_target_ke": 0,
+   "joint_target_mode": 0
+  }
+ },
+ "outcome": {
+  "completed": true,
+  "exit_code": 0,
+  "policy_rows": 2400,
+  "policy_statuses": {
+   "evaluated": 2400
+  },
+  "robots": 12,
+  "steps": 800,
+  "support_probes": 9,
+  "support_probes_passed": 9,
+  "teardown_errors": [],
+  "wall_duration_s": 87.56565204399521,
+  "withheld_ticks": 0
+ },
+ "run": {
+  "directory": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_USD_20261005/usd-twelve-02",
+  "kit_receipt_sha256": "81028a567ae68768898654dc21919d2dec89665bf7736b5faa9fa0acbbaa19e1",
+  "model_identity_sha256_file": "7faa18f26e9c2b3aef8aca7e6880f64eae5731aeb6c02d4b662c57c87f66b8ad",
+  "plan_sha256": "738e3bd3258e930ed31a124e517959066162ef6fcee5d5656bad298dd31ed0c3"
+ },
+ "schema": "cascade.microduck-isaaclab-usd.native-summary.v1",
+ "standing": {
+  "converted_velstand_baseline": {
+   "final_step": 802,
+   "last_row_contact_pairs": {
+    "Ground|left_foot_collision": 432,
+    "Ground|right_foot_collision": 576
+   },
+   "physics_rows": 800,
+   "plan": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_GC_TRIGGER_20261004/gc-trigger-probe-twelve-01/plan.json",
+   "root_z_final_max_m": 0.11702423542737961,
+   "root_z_final_min_m": 0.11702264100313187,
+   "root_z_first_m": 0.1247575432062149,
+   "root_z_min_overall_m": 0.11490634083747864,
+   "steady_contact_count_per_robot": {
+    "max": 84,
+    "median": 84.0,
+    "min": 84
+   }
+  },
+  "isaaclab_usd": {
+   "final_step": 802,
+   "last_row_contact_pairs": {
+    "Ground|sole_left": 432,
+    "Ground|sole_right": 288
+   },
+   "physics_rows": 800,
+   "root_z_final_max_m": 0.11719130724668503,
+   "root_z_final_min_m": 0.11719115823507309,
+   "root_z_first_m": 0.1247575432062149,
+   "root_z_min_overall_m": 0.11554048210382462,
+   "steady_contact_count_per_robot": {
+    "max": 60,
+    "median": 60.0,
+    "min": 60
+   }
+  }
+ },
+ "support_contract_foot_shapes": [
+  "/World/Duck00/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/left_foot_collision/sole_left",
+  "/World/Duck00/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/right_foot_collision/sole_right"
+ ],
+ "versions": {
+  "newton": "1.6.1rc1",
+  "physics_device": "cuda:0",
+  "sdk_recipe": "isaac62_48b2d951",
+  "solver": "SolverMuJoCo",
+  "warp": "1.17.0"
+ }
+}

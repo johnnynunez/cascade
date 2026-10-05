@@ -1,0 +1,127 @@
+{
+  "authoring": {
+    "actuators": "fourteen NewtonActuator prims with NewtonBamDriveAPI are authored in the USD; the CASCADE owner deactivates them and binds its pinned BAM adapter, recording their authored coefficients as provenance",
+    "drives": "zero-gain PhysicsDriveAPI:angular on the servo joints is removed in the runtime layer"
+  },
+  "kind": "external-usd",
+  "origin": {
+    "file": "microduck_allcollisions.usd",
+    "kind": "folder",
+    "listing_sha256": "0a295b653ae303768cf3e38ae1d781ddb0b806c597997fcec0523cdb179fb31e",
+    "reference": "https://github.com/isaac-sim/IsaacLab/pull/8265",
+    "relative_path": "Robots/PollenRobotics/MicroDuck",
+    "source": "isaaclab-microduck-usd"
+  },
+  "outputs": [
+    {
+      "path": "provenance/base-manifest.json",
+      "sha256": "56678bc8dbbc4aba6ca99944a37d495badb1157093b728348700739896383faa",
+      "size": 52391
+    },
+    {
+      "path": "provenance/folder.json",
+      "sha256": "b7984a27e7aac48b2311f902e19756ca4a2ee7a669620855064a945adcd38ff0",
+      "size": 1944
+    },
+    {
+      "path": "provenance/manifest.json",
+      "sha256": "b96e5d7e1c7a27e2c88998ed098dc955d0d3bee28eec7a2c3fa45be505776272",
+      "size": 4233
+    },
+    {
+      "path": "usd/ATTRIBUTION.txt",
+      "sha256": "02f6aa7c1c60a8734b1f9e781e4b6b17752d618a3b1d249eec42ed54d137fab2",
+      "size": 1800
+    },
+    {
+      "path": "usd/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "size": 11358
+    },
+    {
+      "path": "usd/microduck_allcollisions.usd",
+      "sha256": "e29fad565239d748086b96ba87441fb13071932ab9445d8f38dca1c176c6760c",
+      "size": 7481123
+    }
+  ],
+  "provenance": {
+    "base_manifest_sha256": "56678bc8dbbc4aba6ca99944a37d495badb1157093b728348700739896383faa",
+    "licenses": {
+      "isaaclab-assets": {
+        "evidence": "https://github.com/isaac-sim/IsaacLab/pull/8265",
+        "license": "Apache-2.0",
+        "notice": "LICENSE and ATTRIBUTION.txt shipped in the folder declare Apache-2.0 for the Isaac Lab USD authoring (BAM actuator prims, joint friction/damping, backlash variants). This record covers those two text files only."
+      },
+      "models": {
+        "evidence": "https://github.com/pollen-robotics/microduck_rl/blob/8d0db74916a4f833d1d9b95d6a1d7f4d13b9d5ec/README.md#L268-L271",
+        "license": "Creative Commons BY-SA-NC",
+        "notice": "The USD files embed the Pollen Robotics MicroDuck meshes (microduck_rl d424a0c899f6b33cbd3daeb279913134349c0b63 per ATTRIBUTION.txt). Upstream declares the 3D model files Creative Commons BY-SA-NC without a version, so the USD files are recorded under this notice regardless of the Apache-2.0 label of the USD authoring. No commercial/event-use permission is given by this manifest.",
+        "version": null
+      }
+    },
+    "manifest_sha256": "b96e5d7e1c7a27e2c88998ed098dc955d0d3bee28eec7a2c3fa45be505776272",
+    "sources": {
+      "isaaclab-microduck-usd": {
+        "kind": "folder",
+        "listing_sha256": "0a295b653ae303768cf3e38ae1d781ddb0b806c597997fcec0523cdb179fb31e",
+        "reference": "https://github.com/isaac-sim/IsaacLab/pull/8265",
+        "relative_path": "Robots/PollenRobotics/MicroDuck"
+      }
+    }
+  },
+  "schema_version": 2,
+  "source_files": [
+    {
+      "path": "ATTRIBUTION.txt",
+      "sha256": "02f6aa7c1c60a8734b1f9e781e4b6b17752d618a3b1d249eec42ed54d137fab2",
+      "size": 1800
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "size": 11358
+    },
+    {
+      "path": "microduck_allcollisions.usd",
+      "sha256": "e29fad565239d748086b96ba87441fb13071932ab9445d8f38dca1c176c6760c",
+      "size": 7481123
+    },
+    {
+      "path": "microduck_allcollisions_backlash.usd",
+      "sha256": "c1acc45caabc9c6b5845574c79e2c9cd3ae94cdcf625aeacce2e8bddd79cf516",
+      "size": 7491486
+    },
+    {
+      "path": "microduck_rollers.usd",
+      "sha256": "cd117510525c4d867b077e0b82e3fc539c1163205f127bc676cf95cb7b0ffdd4",
+      "size": 6595379
+    },
+    {
+      "path": "microduck_rollers_backlash.usd",
+      "sha256": "d9fbca7eacda896dbea8361d1bebb8d2ad1ba24c455225aa5c5f3aac9a6c7a2a",
+      "size": 6602856
+    },
+    {
+      "path": "microduck_walk.usd",
+      "sha256": "288c6696ffa0f83df89512497860801f543d72874b835bb716db342df60385d4",
+      "size": 7479847
+    },
+    {
+      "path": "microduck_walk_backlash.usd",
+      "sha256": "0fe30a47867d8f33761f3fc5537aa6983a45cb26cc536eff9c3d2a030066a97b",
+      "size": 7486953
+    }
+  ],
+  "statuses": {
+    "actuator_fidelity_status": "unverified",
+    "historical_checkpoint_training_match": "unverified",
+    "live_engine_status": "unverified",
+    "locomotion_status": "unverified",
+    "physical_validation": "none"
+  },
+  "usd_path": "usd/microduck_allcollisions.usd",
+  "variant": "allcollisions",
+  "versions": {
+    "admission_tool_sha256": "7f8f9846bea1934156709f216fa37be634a675b011359c8b45795ca6e965d613"
+  }
+}

@@ -28,6 +28,23 @@ FOOT_SHAPES = (
     '/World/MicroDuck/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/right_foot_collision',
 )
 GROUND_SHAPE = '/World/Ground'
+# Exact sole collision prims per admitted asset kind. The converted MJCF bundle
+# names its sole colliders directly; the Isaac Lab USD instances a prototype
+# mesh (``sole_left``/``sole_right``) under the ``*_foot_collision`` prim, and
+# Newton labels the instance proxy. The ``left_foot``/``right_foot`` spheres
+# next to them are MJCF site frames without collision and are never soles.
+FOOT_SHAPES_BY_ASSET = {
+    'converted-mjcf': FOOT_SHAPES,
+    'external-usd': (FOOT_SHAPES[0] + '/sole_left', FOOT_SHAPES[1] + '/sole_right'),
+}
+
+
+def foot_shapes_for(asset_kind):
+    """Explicit registry lookup; an unknown asset kind has no soles."""
+    try:
+        return FOOT_SHAPES_BY_ASSET[asset_kind]
+    except (KeyError, TypeError):
+        raise ValueError('no sole registry for this asset kind') from None
 SOURCE_SHA256 = {
     'mujoco_warp._src.support': '1a08ef15f149d1cf3c9ec5df6c688669fe86aa237ee2512a7463caf1b74e3d54',
     'newton._src.solvers.mujoco.kernels': 'bd770d39d20c208e980477e0186799f531364b03f16d76968ee69bacdc490a3d',
@@ -36,16 +53,18 @@ SOURCE_SHA256 = {
 }
 
 
-def support_contract(shape_labels):
+def support_contract(shape_labels, *, foot_shapes=FOOT_SHAPES):
     """Concrete collision identities; an ankle body name is never a sole."""
     labels = tuple(shape_labels)
-    if (any(not isinstance(x, str) or not x for x in labels)
+    feet = tuple(foot_shapes)
+    if (len(feet) != 2 or any(not isinstance(x, str) or not x for x in feet)
+            or any(not isinstance(x, str) or not x for x in labels)
             or len(labels) != len(set(labels))
-            or not set(FOOT_SHAPES + (GROUND_SHAPE,)).issubset(labels)):
+            or not set(feet + (GROUND_SHAPE,)).issubset(labels)):
         raise ValueError('support requires the exact admitted sole and ground shapes')
     return dict(version=1,
                 robot_shapes=sorted(x for x in labels if x.startswith('/World/MicroDuck/')),
-                foot_shapes=list(FOOT_SHAPES), ground_shapes=[GROUND_SHAPE],
+                foot_shapes=list(feet), ground_shapes=[GROUND_SHAPE],
                 gravity_world_m_s2=[0., 0., -9.81])
 
 

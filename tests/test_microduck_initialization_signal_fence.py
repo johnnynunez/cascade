@@ -50,7 +50,10 @@ def test_initialize_fences_camera_and_play_callbacks(tmp_path, monkeypatch, sign
             setattr(modules[parent], attr, module)
     stage = modules['omni.usd'].get_context.return_value.get_stage.return_value
     stage.GetUsedLayers.return_value = []
-    monkeypatch.setattr(native, 'disable_source_actuators', lambda stage: [])
+    monkeypatch.setattr(native, 'neutralize_asset_actuation', lambda stage, kind, root_path=None: [])
+    import cascade.control.newton_bam as bam
+    loaded = []
+    monkeypatch.setattr(bam, 'load_pinned_bam', lambda root, sdk_recipe=None: loaded.append((root, sdk_recipe)))
     events = []
     from cascade.sim.microduck_integrator import contract
     prim = modules['pxr'].UsdPhysics.Scene.Define.return_value.GetPrim.return_value
@@ -67,7 +70,8 @@ def test_initialize_fences_camera_and_play_callbacks(tmp_path, monkeypatch, sign
         return attr
     modules['isaac_runtime'].setup_physics.side_effect = setup_physics
     prim.GetAttribute.side_effect = get_attribute
-    backend = KitNewtonBackend(NS(out=tmp_path, device='cuda:0', integrator_profile=integrator_profile),
+    backend = KitNewtonBackend(NS(out=tmp_path, device='cuda:0', integrator_profile=integrator_profile,
+                                  bam_source_root=tmp_path / 'bam-sources'),
                               {'asset': 'inert.usda', 'bundle': str(tmp_path), 'receipt': {'outputs': []},
                                'integrator_contract':contract(integrator_profile)}, None)
     backend.app = MagicMock()

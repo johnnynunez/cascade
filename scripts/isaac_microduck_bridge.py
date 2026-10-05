@@ -538,6 +538,7 @@ def admit(args):
              'src/cascade/sim/microduck_sdk.py',
              'src/cascade/sim/private_rtx_cache.py',
              'src/cascade/control/microduck_actuator.py', 'assets/microduck/manifest.json',
+             'assets/microduck/isaaclab-microduck-usd-manifest.json', 'scripts/admit_microduck_usd.py',
              'assets/microduck/newton-bam.json', 'configs/isaac/microduck.newton.kit')
     admitted.update(limits=load_limits(args.limits), limits_sha256=sha256(args.limits),
                     bam_params=params, bam_config_sha256=sha256(config_path), bam_source_sha256=bam_sources,

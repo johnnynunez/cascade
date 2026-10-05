@@ -14,7 +14,7 @@ import numpy as np
 
 from cascade.control.mobile_telemetry import _public_contacts
 
-from .microduck_newton import (KitNewtonBackend, disable_source_actuators,
+from .microduck_newton import (KitNewtonBackend, neutralize_asset_actuation,
                               prepare_native_model, read_native_body_properties,
                               _read_native_states)
 from .microduck_shared import _SharedSupport, bind_scene
@@ -58,7 +58,10 @@ class SharedKitNewtonBackend(KitNewtonBackend):
             root = UsdGeom.Xform.Define(stage, path)
             root.GetPrim().GetReferences().AddReference(self.admission['asset'])
             root.AddTranslateOp().Set(Gf.Vec3d(position[0], position[1], 0.))
-            removed.extend(disable_source_actuators(stage, root_path=path))
+            removed.append(neutralize_asset_actuation(stage, self.asset_kind, root_path=path))
+        # One record per robot; the converted bundle keeps its flat prim list.
+        if self.asset_kind == 'converted-mjcf':
+            removed = [record for records in removed for record in records]
         self.receipt['disabled_source_actuators'] = removed
         return tuple(path for path, _ in self.placements.values())
 
@@ -70,8 +73,10 @@ class SharedKitNewtonBackend(KitNewtonBackend):
 
     def _layout_for(self, digest):
         import newton
+        from .microduck_contact_support import foot_shapes_for
         m = self.ns.model
         return bind_scene(robots={k:v[0] for k,v in self.placements.items()},
+            foot_shapes=foot_shapes_for(self.asset_kind),
             scene_model_sha256=digest, joint_labels=m.joint_label,
             joint_q_start=m.joint_q_start.numpy(), joint_qd_start=m.joint_qd_start.numpy(),
             joint_types=m.joint_type.numpy(), joint_parent=m.joint_parent.numpy(),
@@ -97,7 +102,7 @@ class SharedKitNewtonBackend(KitNewtonBackend):
         for binding in self.layout.robots:
             properties.append(prepare_native_model(ns, np.array(binding.dof_indices),
                 source_cap=.96, newton=newton, effort_cap=self.admission['bam_params']['joint_effort_limit'],
-                dof_count=self.layout.dof_count))
+                dof_count=self.layout.dof_count, asset_kind=self.asset_kind))
         for binding in self.layout.robots:
             self._checkpoint()
             self.actuators.append(NewtonBamAdapter(ns, source_root=self.args.bam_source_root,

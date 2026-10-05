@@ -99,3 +99,56 @@ def test_internal_outputs_are_explicit_and_mutations_refused():
     with pytest.raises(RuntimeError, match='solver outputs'):
         sdk.check_outputs(cfg, sdk.INTERNAL_RECIPE)
     sdk.configure_outputs(NS(), None)  # legacy SDK has no solver_outputs member
+
+
+@pytest.fixture
+def cpu_contract(tmp_path, monkeypatch):
+    """Portable solver sources only: no isaacsim module exists in this process."""
+    pins, paths = {}, {}
+    for name in sdk.INTERNAL_SOURCE_SHA256:
+        if name.startswith('isaacsim.'):
+            pins[name] = sdk.INTERNAL_SOURCE_SHA256[name]
+            monkeypatch.delitem(sys.modules, name, raising=False)
+            continue
+        path = tmp_path / (name + '.py')
+        path.write_text('# synthetic CPU contract fixture: ' + name)
+        paths[name] = path
+        pins[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+        monkeypatch.setitem(sys.modules, name, NS(__file__=str(path)))
+    monkeypatch.setattr(sdk, 'INTERNAL_SOURCE_SHA256', pins)
+    monkeypatch.setitem(sys.modules, 'newton', NS(__version__='1.6.1rc1'))
+    monkeypatch.setitem(sys.modules, 'warp', NS())
+    return paths
+
+
+def test_cpu_contract_recipe_accepts_only_the_exact_prerelease_with_portable_sources(cpu_contract):
+    assert set(sdk.CPU_CONTRACT_SOURCES) == {n for n in sdk.INTERNAL_SOURCE_SHA256 if not n.startswith('isaacsim.')}
+    wp, newton = newton_bam._runtime(sdk_recipe=sdk.CPU_CONTRACT_RECIPE)
+    assert newton.__version__ == '1.6.1rc1' and wp is sys.modules['warp']
+    # Still no implicit acceptance without a recipe, and the SDK recipe still needs Kit sources.
+    with pytest.raises(RuntimeError, match='stable Newton'):
+        newton_bam._runtime()
+    with pytest.raises((RuntimeError, ModuleNotFoundError)):
+        newton_bam._runtime(sdk_recipe=sdk.INTERNAL_RECIPE)
+
+
+@pytest.mark.parametrize('version', ['1.6.0rc1', '1.6.1rc2', '1.7.0rc1', '1.6.1', '1.6.0'])
+def test_cpu_contract_recipe_never_accepts_a_version_neighbor(cpu_contract, version):
+    sys.modules['newton'].__version__ = version
+    with pytest.raises(RuntimeError, match='exact Newton'):
+        newton_bam._runtime(sdk_recipe=sdk.CPU_CONTRACT_RECIPE)
+
+
+@pytest.mark.parametrize('name', tuple(sdk.CPU_CONTRACT_SOURCES))
+def test_cpu_contract_recipe_rechecks_every_portable_source(cpu_contract, name):
+    newton_bam._runtime(sdk_recipe=sdk.CPU_CONTRACT_RECIPE)
+    cpu_contract[name].write_text('# changed after admission')
+    with pytest.raises(RuntimeError, match='CPU contract source mismatch'):
+        newton_bam._runtime(sdk_recipe=sdk.CPU_CONTRACT_RECIPE)
+
+
+def test_cpu_contract_recipe_is_not_an_sdk_recipe(cpu_contract):
+    with pytest.raises(ValueError, match='unknown MicroDuck SDK recipe'):
+        sdk.admit_release('/nonexistent', sdk.CPU_CONTRACT_RECIPE)
+    with pytest.raises(ValueError, match='unknown MicroDuck CPU contract recipe'):
+        sdk.verify_cpu_contract_recipe(sdk.INTERNAL_RECIPE, newton_version='1.6.1rc1')

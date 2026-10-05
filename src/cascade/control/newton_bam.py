@@ -21,6 +21,15 @@ from typing import Mapping
 
 
 REVISION = "28aa1fca5843208ff9a67935695a4d5376e44d50"
+# USD schema token the pinned component registers with Newton's actuator registry
+# (``newton.actuators.register_actuator_component``). The Isaac Lab MicroDuck USDs
+# apply it to their fourteen ``NewtonActuator`` prims.
+BAM_DRIVE_API = "NewtonBamDriveAPI"
+# Deployment settings of a BAM drive; everything else the drive accepts is a motor
+# or gearbox coefficient that must equal the pinned Rhoban m6 fit.
+DEPLOYMENT_KEYS = frozenset({"kp_fw", "vin", "vin_min", "sag_gain", "max_current", "min_delay", "max_delay",
+                             "delay_hold_prob", "delay_update_period", "delay_seed", "max_effort",
+                             "kp_scale", "kd_scale", "friction_scale"})
 SOURCE_SHA256 = MappingProxyType({
     "source/isaaclab/isaaclab/actuators/newton/bam_component.py":
         "0313338887f32fa36040b63768007bfb15ce050921c841b0f0a0f82ec8e7ab90",
@@ -52,8 +61,14 @@ def _runtime(*, sdk_recipe=None):
         raise RuntimeError("native BAM requires Newton >=1.6 and Warp; no PD fallback") from exc
     version = str(getattr(newton, "__version__", ""))
     if sdk_recipe is not None:
-        from cascade.sim.microduck_sdk import verify_runtime_recipe
-        verify_runtime_recipe(sdk_recipe, newton_version=version)
+        from cascade.sim.microduck_sdk import CPU_CONTRACT_RECIPE, verify_cpu_contract_recipe, verify_runtime_recipe
+        # A pre-release is only ever accepted by an explicit named recipe: the SDK
+        # recipe inside Kit, or the CPU contract recipe for the same Newton bytes
+        # outside Kit. There is no version-range fallback for either.
+        if sdk_recipe == CPU_CONTRACT_RECIPE:
+            verify_cpu_contract_recipe(sdk_recipe, newton_version=version)
+        else:
+            verify_runtime_recipe(sdk_recipe, newton_version=version)
         return wp, newton
     match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:\+[^ ]+)?", version)
     if match is None or tuple(map(int, match.groups())) < (1, 6, 0):
@@ -101,6 +116,13 @@ def load_pinned_bam(source_root, *, sdk_recipe=None) -> NativeBamSources:
                 exec(compile(data, str(path), "exec"), native.__dict__)
                 setattr(package, stem, native)
                 modules[stem] = native
+            if modules["bam_component"].BAM_DRIVE_API != BAM_DRIVE_API:
+                raise RuntimeError("pinned BAM component registers an unexpected USD schema token")
+            # Register the token with Newton's actuator registry so USD-authored BAM
+            # prims resolve through ``newton.actuators.parse_actuator_prim`` (the
+            # pinned function is idempotent). CASCADE still deactivates such prims
+            # before the stage is parsed: the adapter below owns every servo.
+            modules["bam_component"].register_bam_actuator_component()
         except BaseException:
             for stem in sources:
                 sys.modules.pop(f"{name}.{stem}", None)
@@ -112,6 +134,22 @@ def load_pinned_bam(source_root, *, sdk_recipe=None) -> NativeBamSources:
             REVISION, SOURCE_SHA256, str(root),
         )
         return _loaded
+
+
+def motor_coefficients():
+    """Rhoban m6 motor/gearbox coefficients handed to the pinned drive.
+
+    Deployment settings (``DEPLOYMENT_KEYS``) are excluded: they come from the
+    explicit admitted profile, never from an asset or a default.
+    """
+    import numpy as np
+    from .microduck_actuator import M6_PARAMETERS
+
+    coefficients = {k: v for k, v in M6_PARAMETERS.items()
+                    if k not in ("R", "q_offset", "armature", "friction_viscous")}
+    coefficients.update(resistance=M6_PARAMETERS["R"], error_gain=(4096 / (2 * np.pi)) / (256 * 885),
+                        max_pwm=1.0, stribeck=1, load_dependent=1, quadratic=1)
+    return coefficients
 
 
 def _validated_params(params):
@@ -197,11 +235,8 @@ class NewtonBamAdapter:
         self._targets = wp.zeros(14, device=self._device)
         self._forces = wp.zeros(14, device=self._device)
         p = self._params
-        coefficients = {k: v for k, v in M6_PARAMETERS.items()
-                        if k not in ("R", "q_offset", "armature", "friction_viscous")}
-        coefficients.update(resistance=M6_PARAMETERS["R"], error_gain=(4096 / (2 * np.pi)) / (256 * 885),
-                            max_pwm=1.0, stribeck=1, load_dependent=1, quadratic=1,
-                            kp_scale=1.0, kd_scale=1.0, friction_scale=1.0,
+        coefficients = motor_coefficients()
+        coefficients.update(kp_scale=1.0, kd_scale=1.0, friction_scale=1.0,
                             sag_gain=p["vin_drop_gain"], max_current=0.0 if p["max_current"] is None else p["max_current"])
         for key in ("kp_fw", "vin", "vin_min", "min_delay", "max_delay", "delay_hold_prob",
                     "delay_update_period", "delay_seed", "max_effort"):

@@ -331,13 +331,17 @@ the retained audits predate was active.
 |---|---:|---:|---:|---:|---|
 | `usd-forward01` | +30 / +27.038 | −2.678 | −0.04530 | −0.27951 | refuted (unrequested wz drift after completion) |
 | `usd-reverse01` | −30 / −25.675 | −2.377 | −0.03277 | +0.03487 | confirmed |
+| `flat-forward01` (`isaaclab_velocity_flat`) | +30 / +25.620 | −5.828 | +0.00641 | +0.13139 | refuted (unrequested wz drift after completion) |
+| `flat-reverse01` (`isaaclab_velocity_flat`) | −30 / −27.629 | −10.090 | +0.03653 | −0.22801 (total −48.55 mm) | refuted (excess progress on vx after completion) |
 
-Neither episode fell; both subsequent emergency stops were confirmed with rest
+No episode fell; every subsequent emergency stop was confirmed with rest
 windows of about 1.6 s and heading change below 0.002 rad. The forward result
-reproduces the post-completion heading drift already recorded for the
-historical forward cases; the asset change did not remove it. Turns,
-interruption, disconnect, reset and repeated starts were not rerun, and no
-physical outcome is claimed.
+with `rough_walk_e` reproduces the post-completion heading drift already
+recorded for the historical forward cases; the asset change did not remove it,
+and the Isaac Lab Newton `velocity_flat` export (foundation identity
+`2c72c61e…`) shows the same class of post-completion motion with smaller yaw
+drift and larger reverse overrun. Turns, interruption, disconnect, reset and
+repeated starts were not rerun, and no physical outcome is claimed.
 
 ## Reproduction and validation boundary
 

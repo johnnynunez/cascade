@@ -1,0 +1,10 @@
+{
+  "kit_exit": 0,
+  "owned_pids_signalled": [],
+  "native_child_exit": 0,
+  "expected_native_child_exit": 0,
+  "closure_ok": true,
+  "unit_state": "ActiveState=inactive\nSubState=dead\n",
+  "error": null,
+  "source_unchanged": true
+}

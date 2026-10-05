@@ -474,6 +474,58 @@ handoff after completion (zero-twist walking policy, a target hold, or a switch
 to the standing policy), to be evaluated with the unchanged verifier; no
 threshold was adjusted and no physical claim is made.
 
+### Standing handoff at zero twist, measured (5 October 2026)
+
+`cascade.control.microduck_handoff.StandingHandoff` is the opt-in evaluation of
+the third option above. It presents the stepper's single-policy interface and,
+once per attempt inside the policy slot, selects the network from the twist that
+attempt observes: the admitted motion policy whenever the commanded twist is
+nonzero, the official VelStand whenever it is exactly zero (no lease, a completed
+distance, a latched stop). The previous action carried into an observation is
+the last committed raw action whichever network produced it; the bounded retry
+after a crossed stop re-selects with the latest intent; cadence, the targets
+transform, limits, stop semantics, support checks and the verifier are
+untouched. The bridge admits it only when `--handoff-profile
+stand-on-zero-twist-v1`, `--standing-policy` and `--standing-policy-sha256` are
+given together; the standing policy must match the pinned VelStand and differ
+from the motion policy; the model identity gains `recipe.handoff` (profile,
+rule, both digests) only in that case, and receipts record the switches and the
+commits per network.
+
+It was measured natively on the Isaac Lab USD asset with the same ±30 mm recipe
+(GPU 1, Newton 1.6.1rc1; [audits](evidence/microduck-isaaclab-usd-20261005/locomotion/summary.json),
+[braking analysis](evidence/microduck-isaaclab-usd-20261005/locomotion/post-completion-analysis.json)).
+`isaaclab_velocity_rough`, the export its authors recommend, was also run
+without the handoff:
+
+| Walk | Executed mm | After completion mm | Yaw after completion rad | Verdict |
+|---|---:|---:|---:|---|
+| `rough-forward01` (`isaaclab_velocity_rough`) | +25.86 | +26.94 | +0.006 | confirmed |
+| `rough-reverse01` (`isaaclab_velocity_rough`) | −26.65 | −55.39 | +0.032 | refuted (excess progress) |
+| `roughho-forward01` (rough, handoff) | +25.68 | +28.14 | +0.053 | confirmed |
+| `roughho-reverse01` (rough, handoff) | −25.64 | −46.81 | +0.008 net, 0.080 peak | refuted (wz drift; the first violation is kept) |
+| `flatho-forward01` (flat, handoff) | +26.50 | +27.57 | +0.127 | refuted (wz drift) |
+| `flatho-reverse01` (flat, handoff) | −27.33 | −41.76 | +0.107 | refuted (wz drift) |
+
+Every switch was clean: two per walk, every attempt committed, and the two
+handoff foundations, which evaluate VelStand alone, reproduce each other's
+trajectory exactly. The verdicts nevertheless match those without the handoff.
+The per-step physics logs explain why: the recipe commands 0.3 m/s for 30 mm, so
+each walk completes after 14 to 17 policy slots (0.28 to 0.34 s), mid-stride,
+with the body moving at 0.09 to 0.23 m/s. Whatever network then holds a zero
+twist needs 0.7 to 0.9 s to come to rest in reverse and is 15 to 26 mm further
+along the command two seconds later; the handoff shortens that reverse overrun
+by 4 to 7 mm (rough 25.6 to 21.3 mm, flat 22.1 to 15.2 mm) and leaves the flat
+forward yaw unchanged (0.123 rad with and without it). The standing-only
+foundations do not drift (yaw within 0.02 rad over four seconds, none of it in
+the second half), so the residue belongs to the stride in flight and the braking
+that follows, not to standing. Braking is a policy behaviour, not a fixed limit:
+`rough_walk_e` came to rest in 0.28 s and 5 mm from the same 0.22 m/s in
+`usd-reverse01`. The handoff therefore remains an opt-in software candidate, not
+a remedy. The next candidates are a checkpoint that sees zero and decelerating
+commands in training, or a distance-aware speed in the walk skill, both to be
+judged by the unchanged verifier. Nothing physical is claimed.
+
 ## Remaining admission work
 
 The current real MCP campaign confirms supported standing and a separately

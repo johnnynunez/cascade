@@ -1,0 +1,18 @@
+{
+  "physical_admission": false,
+  "identity": "d9e3f7132c7c40d88808044e93beacc0ee9e9cf5736a25acfce42099d5497736",
+  "source_frames_manifest_sha256": "af41e7672d64430c928c2e6d3fb6c90d12a0915be7886b7c7c7fc716b49d8a69",
+  "source_frames": 67,
+  "sim_time_range_s": [
+    0.014999999664723873,
+    6.609999852254987
+  ],
+  "video_sha256": "93e140931788cffeeeecc67bc7656230834832043f2dc924dc9c60657d0b3841",
+  "concat_sha256": "802613415556968eaec88f15640ba11cade99268dd2807eb4882b19307ebc4b8",
+  "timing": "actual simulation timestamps, not host wall time",
+  "visual_review_steps": [
+    3,
+    662,
+    1322
+  ]
+}

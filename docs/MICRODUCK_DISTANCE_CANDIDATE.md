@@ -333,6 +333,21 @@ the retained audits predate was active.
 | `usd-reverse01` | −30 / −25.675 | −2.377 | −0.03277 | +0.03487 | confirmed |
 | `flat-forward01` (`isaaclab_velocity_flat`) | +30 / +25.620 | −5.828 | +0.00641 | +0.13139 | refuted (unrequested wz drift after completion) |
 | `flat-reverse01` (`isaaclab_velocity_flat`) | −30 / −27.629 | −10.090 | +0.03653 | −0.22801 (total −48.55 mm) | refuted (excess progress on vx after completion) |
+| `rough-forward01` (`isaaclab_velocity_rough`) | +30 / +25.859 | −11.676 | +0.00902 | +0.00606 | confirmed |
+| `rough-reverse01` (`isaaclab_velocity_rough`) | −30 / −26.652 | −13.656 | +0.01506 | +0.03204 (total −55.39 mm) | refuted (excess progress on vx after completion) |
+| `roughho-forward01` (`isaaclab_velocity_rough`, standing handoff) | +30 / +25.676 | −3.927 | +0.01305 | +0.05339 | confirmed |
+| `roughho-reverse01` (`isaaclab_velocity_rough`, standing handoff) | −30 / −25.640 | −10.589 | +0.01410 | +0.00787 net, 0.080 peak (total −46.81 mm) | refuted (unrequested wz drift after completion) |
+| `flatho-forward01` (`isaaclab_velocity_flat`, standing handoff) | +30 / +26.504 | −1.351 | +0.00810 | +0.12741 | refuted (unrequested wz drift after completion) |
+| `flatho-reverse01` (`isaaclab_velocity_flat`, standing handoff) | −30 / −27.333 | −11.741 | +0.05836 | +0.10713 (total −41.76 mm) | refuted (unrequested wz drift after completion) |
+
+The last six rows are the [opt-in standing handoff](MICRODUCK.md#standing-handoff-at-zero-twist-measured-5-october-2026)
+measurement of the same day: `isaaclab_velocity_rough` without it, then
+`isaaclab_velocity_rough` and `isaaclab_velocity_flat` with VelStand selected
+whenever the commanded twist is zero. The switches were clean and the verdicts
+did not change; the [per-step braking analysis](evidence/microduck-isaaclab-usd-20261005/locomotion/post-completion-analysis.json)
+attributes the residue to braking from 0.09 to 0.23 m/s at completion (0.7 to
+0.9 s and 15 to 26 mm in reverse, 4 to 7 mm less with the handoff) rather than
+to standing.
 
 No episode fell; every subsequent emergency stop was confirmed with rest
 windows of about 1.6 s and heading change below 0.002 rad. The forward result

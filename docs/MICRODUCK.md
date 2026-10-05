@@ -434,6 +434,46 @@ unactuated robot collapsed from 0.100 m to 0.041 m. This shows the asset is
 PhysX-parseable; the native CLI still refuses PhysX for BAM and nothing about
 PhysX locomotion is claimed.
 
+### Isaac Lab Newton policies as opt-in candidates (5 October 2026)
+
+An operator-supplied archive of twelve Isaac Lab MicroDuck task exports trained
+on Newton (rsl_rl 5.4.1, exported 1 September 2026, each `obs float32[1,61]` to
+`actions float32[1,14]` with embedded observation normalization) was pinned by
+content: the archive, each member, its external weight file and its metadata
+digest, and the single-file merge that inlines the weights (zero output
+difference over 256 probes; CASCADE loads a policy from one verified byte string
+and cannot read external tensors). `velocity_flat` (iteration 49,999, the
+checkpoint Isaac Lab #8267 calls the original Lab checkpoint) and
+`velocity_rough` are registered in `assets/microduck/policy-candidates.json` as
+`isaaclab_velocity_flat` and `isaaclab_velocity_rough` with the same fixed
+contract as `rough_walk_e`; the other exports stay unregistered. The Isaac Lab
+task pins the MJCF joint order, the 61-wide term layout
+(angular velocity, projected gravity, joint position minus the stand pose, joint
+velocity, previous action, twist, head pose, body pose) and
+`default_joint_pos + 1.0 × action` targets, which are exactly CASCADE's
+`POLICY_JOINTS`, `observation()` and `direct-v1`; the stand pose equals
+`HOME_Q`. The license of the exports is not declared in the archive and none is
+inferred; the training actuator model is the Lab task's at export time, before
+the BAM pull requests, not the CASCADE BAM runtime.
+
+With `isaaclab_velocity_flat` on the Isaac Lab USD asset and the same ±30 mm
+recipe ([audits](evidence/microduck-isaaclab-usd-20261005/locomotion/summary.json)):
+the foundation bound identity `2c72c61e…` standing at 0.1171 m with no forbidden
+contact; forward +30 mm moved +25.62 mm with +0.006 rad heading during execution
+and only +0.13 rad after completion, better than `rough_walk_e` but still above
+the 0.08 rad limit, so refuted; reverse −30 mm moved −27.63 mm during execution
+but kept walking to −48.55 mm after completion, refuted for excess progress;
+neither fell and both emergency stops were confirmed. Across the four walks with
+two velocity policies the picture is consistent: both track the requested
+distance while commanded and both stand once the stop latches, but both keep
+stepping, drifting or advancing while the controller holds a zero twist after
+completion. The Isaac Lab task trains with two percent standing environments, so
+a zero command is barely in distribution for these policies; the standing
+checkpoint, conversely, does not track distance. The open design item is the
+handoff after completion (zero-twist walking policy, a target hold, or a switch
+to the standing policy), to be evaluated with the unchanged verifier; no
+threshold was adjusted and no physical claim is made.
+
 ## Remaining admission work
 
 The current real MCP campaign confirms supported standing and a separately

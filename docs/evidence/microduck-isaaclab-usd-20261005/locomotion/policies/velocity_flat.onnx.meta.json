@@ -1,0 +1,42 @@
+{
+  "action_dim": 14,
+  "activation": "elu",
+  "checkpoint": "/home/antoiner/Documents/IsaacLab_Newton/artifacts/microduck/osmo/results/isaaclab/velocity_flat/logs/rsl_rl/microduck_velocity_flat/2026-08-29_17-08-20/model_49999.pt",
+  "checkpoint_sha256": "07edac159ffc91b08e94f6645528d2b80f9db09be034b154b9c357b2fc32ea9d",
+  "distribution": "GaussianDistribution",
+  "experiment": "microduck_velocity_flat",
+  "exporter": "artifacts/microduck/sim2sim/export_ours.py",
+  "hidden_dims": [
+    512,
+    256,
+    128
+  ],
+  "iteration": 49999,
+  "normalizer_count": 4915200000,
+  "normalizer_eps": 0.01,
+  "obs_dim": 61,
+  "obs_normalization": true,
+  "obs_terms": [
+    "base_ang_vel",
+    "projected_gravity",
+    "joint_pos",
+    "joint_vel",
+    "actions",
+    "velocity_commands",
+    "head_pose_commands",
+    "body_pose_commands"
+  ],
+  "onnx": "/home/antoiner/Documents/IsaacLab_Newton/artifacts/microduck/onnx_deploy/isaaclab/velocity_flat.onnx",
+  "onnx_opset": 18,
+  "onnx_sha256": "6c3d02661819fdf9abe5129d75f7fb47bf3b9c73605bcca74ca410ee9d6c7779",
+  "rsl_rl_version": "5.4.1",
+  "run": "2026-08-29_17-08-20",
+  "run_dir": "/home/antoiner/Documents/IsaacLab_Newton/artifacts/microduck/osmo/results/isaaclab/velocity_flat/logs/rsl_rl/microduck_velocity_flat/2026-08-29_17-08-20",
+  "stem": "velocity_flat",
+  "task": "IsaacContrib-Velocity-Flat-MicroDuck",
+  "verify_action_absmax": 1.6214088201522827,
+  "verify_batch_drift_max_abs": 1.1920928955078125e-07,
+  "verify_probe": "in-distribution: mean + std * N(0,1), 256 samples, seed 0",
+  "verify_torch_vs_onnx_max_abs": 7.562339305877686e-07,
+  "verify_torch_vs_onnx_rel_to_action_scale": 4.664054624525498e-07
+}

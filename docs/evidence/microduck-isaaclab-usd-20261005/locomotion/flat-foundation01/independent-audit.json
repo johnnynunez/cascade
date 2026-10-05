@@ -1,0 +1,37 @@
+{
+  "physical_admission": false,
+  "status": "foundation_identity_force_channel_and_natural_closure_verified",
+  "identity": "2c72c61e297e0b2761bb0404950ccd2e8f7baeebf31ed07ff9fee435bd21b241",
+  "bundle_kind": "external-usd",
+  "asset_variant": "allcollisions",
+  "asset_sha256": "e29fad565239d748086b96ba87441fb13071932ab9445d8f38dca1c176c6760c",
+  "newton_version": "1.6.1rc1",
+  "completed_physics_records": 800,
+  "first_step": 3,
+  "last_step": 802,
+  "fallen_count": 0,
+  "root_z_first_m": 0.12475790828466415,
+  "root_z_last_m": 0.11712457984685898,
+  "root_z_min_m": 0.11550386250019073,
+  "policy_committed": 200,
+  "force_probes": 41,
+  "frames": 41,
+  "foot_shapes": [
+    "/World/MicroDuck/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/right_foot_collision/sole_right",
+    "/World/MicroDuck/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/left_foot_collision/sole_left"
+  ],
+  "forbidden_contacts": [],
+  "forbidden_contact_count": 0,
+  "last_forbidden_sim_time_s": null,
+  "lifecycle": {
+    "kit_exit": 0,
+    "owned_pids_signalled": [],
+    "native_child_exit": 0,
+    "expected_native_child_exit": 0,
+    "closure_ok": true,
+    "unit_state": "ActiveState=inactive\nSubState=dead\n",
+    "error": null,
+    "source_unchanged": true
+  },
+  "receipt_exit": 0
+}

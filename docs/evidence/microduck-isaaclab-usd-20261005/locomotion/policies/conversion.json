@@ -1,0 +1,220 @@
+{
+ "archive": "isaaclab.zip.original",
+ "archive_sha256": "b6ec421251afbc75ab5adfe69018959e66b4759d1f7542b2fce82415c2d4e7ac",
+ "tool": "onnx 1.23.1 / onnxruntime 1.30.0",
+ "method": "onnx.load(load_external_data=True) then onnx.save() with all tensors inline; no graph edit",
+ "models": {
+  "velocity_flat": {
+   "source_onnx_sha256": "6c3d02661819fdf9abe5129d75f7fb47bf3b9c73605bcca74ca410ee9d6c7779",
+   "source_data_sha256": "caab7595a54cea0fbc5f2476549e22e2ec5dbb62369c31d69282c7062af4f29e",
+   "meta_sha256": "f61a7da3babd8e3e47534d3700a654b2c2f6b03fae37e71ee8176423ae0666a0",
+   "meta_onnx_sha256_claimed": "6c3d02661819fdf9abe5129d75f7fb47bf3b9c73605bcca74ca410ee9d6c7779",
+   "meta_matches_source": true,
+   "merged_path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/isaaclab-policies-20260901/single/velocity_flat.onnx",
+   "merged_sha256": "2c88bdd80a031efce26084b5b67c3713a7e3355cd06fbb1802cef4c06150b507",
+   "merged_size": 805552,
+   "inputs": [
+    [
+     "obs",
+     [
+      1,
+      61
+     ]
+    ]
+   ],
+   "outputs": [
+    [
+     "actions",
+     [
+      1,
+      14
+     ]
+    ]
+   ],
+   "verify": {
+    "samples": 256,
+    "max_abs_diff": 0.0,
+    "probe_action_absmax": 64.92347717285156,
+    "zero_obs_action": [
+     0.0037299999967217445,
+     -0.13085000216960907,
+     0.17967000603675842,
+     0.025909999385476112,
+     0.588949978351593,
+     -0.21610000729560852,
+     0.8399500250816345,
+     1.6620800495147705,
+     0.5142199993133545,
+     -0.03316999971866608,
+     -0.1163799986243248,
+     0.031069999560713768,
+     0.04075999930500984,
+     -0.3670800030231476
+    ]
+   },
+   "task": "IsaacContrib-Velocity-Flat-MicroDuck",
+   "iteration": 49999,
+   "checkpoint_sha256": "07edac159ffc91b08e94f6645528d2b80f9db09be034b154b9c357b2fc32ea9d",
+   "run": "2026-08-29_17-08-20"
+  },
+  "velocity_rough": {
+   "source_onnx_sha256": "efdc851c50e52a550581fb93cb7d0987af10ba65e06e0447c90e4a620475cb9f",
+   "source_data_sha256": "3ccb077a15e60a7cc00b729fc75512854ffdfae4b38e392e1e57967581a36d27",
+   "meta_sha256": "09b14a29a33a8fc4ec269b1b45870ded44ac44273c03c29a2d67f97650b6035a",
+   "meta_onnx_sha256_claimed": "efdc851c50e52a550581fb93cb7d0987af10ba65e06e0447c90e4a620475cb9f",
+   "meta_matches_source": true,
+   "merged_path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/isaaclab-policies-20260901/single/velocity_rough.onnx",
+   "merged_sha256": "36bad8c2aca4c4e7293d6b989ff1d8f9993e31e532a9a9acb5cc1cc56750ade4",
+   "merged_size": 805552,
+   "inputs": [
+    [
+     "obs",
+     [
+      1,
+      61
+     ]
+    ]
+   ],
+   "outputs": [
+    [
+     "actions",
+     [
+      1,
+      14
+     ]
+    ]
+   ],
+   "verify": {
+    "samples": 256,
+    "max_abs_diff": 0.0,
+    "probe_action_absmax": 168.7953643798828,
+    "zero_obs_action": [
+     -0.037050001323223114,
+     0.34341999888420105,
+     0.690090000629425,
+     0.15094999969005585,
+     0.9243699908256531,
+     -0.5747100114822388,
+     0.4453999996185303,
+     -0.38955000042915344,
+     0.0011899999808520079,
+     -0.19220000505447388,
+     -0.35545000433921814,
+     -0.35280999541282654,
+     -0.09492000192403793,
+     -0.11884000152349472
+    ]
+   },
+   "task": "IsaacContrib-Velocity-Rough-MicroDuck",
+   "iteration": 49999,
+   "checkpoint_sha256": "ddfa83ea1daeed3d60f580e51ecaec505f84fd9aba232a1746b4dc06714fb164",
+   "run": "2026-08-29_17-08-37"
+  },
+  "velocity_backlash": {
+   "source_onnx_sha256": "6d943d9eb2d5a6513a966f43d2dbfcb0a4458a7d118e5d343f2eb178c8117e8e",
+   "source_data_sha256": "b0899e572453674e3b2668c59a8ca5b3d1653ff68bfc2e26a5145fd55516b9cf",
+   "meta_sha256": "08d942cbd70ee8d101170d1b3bb212c1a81482dd656459cb6ebe4582268ca7c0",
+   "meta_onnx_sha256_claimed": "6d943d9eb2d5a6513a966f43d2dbfcb0a4458a7d118e5d343f2eb178c8117e8e",
+   "meta_matches_source": true,
+   "merged_path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/isaaclab-policies-20260901/single/velocity_backlash.onnx",
+   "merged_sha256": "77113a5cad72c78f962017e146b7a52052a1e7fe155a644c99fb957c659ca1e5",
+   "merged_size": 805552,
+   "inputs": [
+    [
+     "obs",
+     [
+      1,
+      61
+     ]
+    ]
+   ],
+   "outputs": [
+    [
+     "actions",
+     [
+      1,
+      14
+     ]
+    ]
+   ],
+   "verify": {
+    "samples": 256,
+    "max_abs_diff": 0.0,
+    "probe_action_absmax": 179.9048614501953,
+    "zero_obs_action": [
+     0.4592199921607971,
+     0.13278000056743622,
+     0.29927000403404236,
+     0.4691399931907654,
+     0.2740600109100342,
+     0.7831699848175049,
+     1.4721800088882446,
+     1.392699956893921,
+     -0.8214600086212158,
+     0.0974700003862381,
+     -0.10283000022172928,
+     0.2896699905395508,
+     0.42517000436782837,
+     -0.24642999470233917
+    ]
+   },
+   "task": "IsaacContrib-Velocity-Flat-MicroDuck-Backlash",
+   "iteration": 49999,
+   "checkpoint_sha256": "cc5296e51be92031880115a033d89000503818e66b391297182d5377164e5c86",
+   "run": "2026-08-30_11-45-56"
+  },
+  "sitstand": {
+   "source_onnx_sha256": "0c1fe83e2e262c9fdbc82bc88ad898765bf7b40b311d0289abc3e46b231c62a2",
+   "source_data_sha256": "f6742df82ba80e6fffcf555451181154ac6901cde06b817ea3e67d0deaee2198",
+   "meta_sha256": "8238cd08b04ca639fef849c081e807ea8a64c6d1a65ad9693327a18dee1f960c",
+   "meta_onnx_sha256_claimed": "0c1fe83e2e262c9fdbc82bc88ad898765bf7b40b311d0289abc3e46b231c62a2",
+   "meta_matches_source": true,
+   "merged_path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/isaaclab-policies-20260901/single/sitstand.onnx",
+   "merged_sha256": "84f81c54295e3dc1c8cd2d9201ce40d55442244640661feae09b81d1d7319288",
+   "merged_size": 805552,
+   "inputs": [
+    [
+     "obs",
+     [
+      1,
+      61
+     ]
+    ]
+   ],
+   "outputs": [
+    [
+     "actions",
+     [
+      1,
+      14
+     ]
+    ]
+   ],
+   "verify": {
+    "samples": 256,
+    "max_abs_diff": 0.0,
+    "probe_action_absmax": 27.009185791015625,
+    "zero_obs_action": [
+     0.090549997985363,
+     -0.2646999955177307,
+     0.0709099993109703,
+     0.19749000668525696,
+     -0.5355700254440308,
+     -0.32225000858306885,
+     0.049800001084804535,
+     0.049789998680353165,
+     -0.1786700040102005,
+     0.32210999727249146,
+     0.13517999649047852,
+     0.19920000433921814,
+     -0.5275999903678894,
+     0.4312500059604645
+    ]
+   },
+   "task": "IsaacContrib-SitStand-Flat-MicroDuck",
+   "iteration": 14999,
+   "checkpoint_sha256": "15587539269a91898217abacbc3cd9ab76baffc09053bdde8c9464b5b0cfe208",
+   "run": "2026-08-29_21-30-19"
+  }
+ }
+}

@@ -15,8 +15,14 @@
       },
       "contract": {
         "model_api": 1,
-        "obs": [1, 61],
-        "actions": [1, 14],
+        "obs": [
+          1,
+          61
+        ],
+        "actions": [
+          1,
+          14
+        ],
         "dtype": "float32",
         "policy_hz": 50,
         "action_scale": 1.0,
@@ -28,6 +34,140 @@
       "status": "opt_in_research_candidate_not_native_or_hardware_admitted",
       "command_semantics": "Twist velocity command; geometric feedback may terminate before its physical deadline. Command value is not measured velocity.",
       "upstream_limit": "Model card reports simulation only, never run on hardware. Geometry license remains separate."
+    },
+    "isaaclab_velocity_flat": {
+      "source": {
+        "kind": "operator-archive",
+        "archive": "isaaclab.zip",
+        "archive_sha256": "b6ec421251afbc75ab5adfe69018959e66b4759d1f7542b2fce82415c2d4e7ac",
+        "received": "2026-10-05",
+        "member": "isaaclab/velocity_flat.onnx",
+        "member_sha256": "6c3d02661819fdf9abe5129d75f7fb47bf3b9c73605bcca74ca410ee9d6c7779",
+        "external_data_member": "isaaclab/velocity_flat.onnx.data",
+        "external_data_sha256": "caab7595a54cea0fbc5f2476549e22e2ec5dbb62369c31d69282c7062af4f29e",
+        "meta_member": "isaaclab/velocity_flat.onnx.meta.json",
+        "meta_sha256": "f61a7da3babd8e3e47534d3700a654b2c2f6b03fae37e71ee8176423ae0666a0",
+        "merged": "external weights inlined with onnx 1.23.1 load(load_external_data=True) + save; 256 random probes, max abs output difference 0.0"
+      },
+      "path": "velocity_flat.onnx",
+      "sha256": "2c88bdd80a031efce26084b5b67c3713a7e3355cd06fbb1802cef4c06150b507",
+      "size": 805552,
+      "license": "not declared in the supplied archive; no license is inferred from the task or robot licenses",
+      "training": {
+        "framework": "Isaac Lab (IsaacLab_Newton artifacts), rsl_rl 5.4.1",
+        "task": "IsaacContrib-Velocity-Flat-MicroDuck",
+        "run": "2026-08-29_17-08-20",
+        "iteration": 49999,
+        "checkpoint_sha256": "07edac159ffc91b08e94f6645528d2b80f9db09be034b154b9c357b2fc32ea9d",
+        "exporter": "artifacts/microduck/sim2sim/export_ours.py",
+        "obs_terms": [
+          "base_ang_vel",
+          "projected_gravity",
+          "joint_pos",
+          "joint_vel",
+          "actions",
+          "velocity_commands",
+          "head_pose_commands",
+          "body_pose_commands"
+        ],
+        "hidden_dims": [
+          512,
+          256,
+          128
+        ],
+        "activation": "elu",
+        "obs_normalization": true,
+        "exported": "2026-09-01",
+        "actuator_model": "the Isaac Lab MicroDuck task actuators at export time (29 August 2026, before the BAM pull requests); not the CASCADE BAM runtime"
+      },
+      "contract": {
+        "model_api": 1,
+        "obs": [
+          1,
+          61
+        ],
+        "actions": [
+          1,
+          14
+        ],
+        "dtype": "float32",
+        "policy_hz": 50,
+        "action_scale": 1.0,
+        "normalizer": "embedded",
+        "entry_pose": "standing",
+        "body_command": "zeros",
+        "mouth": "outside_policy"
+      },
+      "status": "opt_in_research_candidate_not_native_or_hardware_admitted",
+      "command_semantics": "Twist velocity command (training ranges lin_vel_x ±0.4, lin_vel_y ±0.3, ang_vel_z ±1.0 m/s, rad/s); head-pose (4) and body-pose (6) commands zero at deployment. Command value is not measured velocity.",
+      "upstream_limit": "Simulation-trained export; Isaac Lab #8267 reports this checkpoint (iteration 49,999) running stably under its BAM task without parity to its training dynamics. No hardware run is claimed. Geometry license remains separate."
+    },
+    "isaaclab_velocity_rough": {
+      "source": {
+        "kind": "operator-archive",
+        "archive": "isaaclab.zip",
+        "archive_sha256": "b6ec421251afbc75ab5adfe69018959e66b4759d1f7542b2fce82415c2d4e7ac",
+        "received": "2026-10-05",
+        "member": "isaaclab/velocity_rough.onnx",
+        "member_sha256": "efdc851c50e52a550581fb93cb7d0987af10ba65e06e0447c90e4a620475cb9f",
+        "external_data_member": "isaaclab/velocity_rough.onnx.data",
+        "external_data_sha256": "3ccb077a15e60a7cc00b729fc75512854ffdfae4b38e392e1e57967581a36d27",
+        "meta_member": "isaaclab/velocity_rough.onnx.meta.json",
+        "meta_sha256": "09b14a29a33a8fc4ec269b1b45870ded44ac44273c03c29a2d67f97650b6035a",
+        "merged": "external weights inlined with onnx 1.23.1 load(load_external_data=True) + save; 256 random probes, max abs output difference 0.0"
+      },
+      "path": "velocity_rough.onnx",
+      "sha256": "36bad8c2aca4c4e7293d6b989ff1d8f9993e31e532a9a9acb5cc1cc56750ade4",
+      "size": 805552,
+      "license": "not declared in the supplied archive; no license is inferred from the task or robot licenses",
+      "training": {
+        "framework": "Isaac Lab (IsaacLab_Newton artifacts), rsl_rl 5.4.1",
+        "task": "IsaacContrib-Velocity-Rough-MicroDuck",
+        "run": "2026-08-29_17-08-37",
+        "iteration": 49999,
+        "checkpoint_sha256": "ddfa83ea1daeed3d60f580e51ecaec505f84fd9aba232a1746b4dc06714fb164",
+        "exporter": "artifacts/microduck/sim2sim/export_ours.py",
+        "obs_terms": [
+          "base_ang_vel",
+          "projected_gravity",
+          "joint_pos",
+          "joint_vel",
+          "actions",
+          "velocity_commands",
+          "head_pose_commands",
+          "body_pose_commands"
+        ],
+        "hidden_dims": [
+          512,
+          256,
+          128
+        ],
+        "activation": "elu",
+        "obs_normalization": true,
+        "exported": "2026-09-01",
+        "actuator_model": "the Isaac Lab MicroDuck task actuators at export time (29 August 2026, before the BAM pull requests); not the CASCADE BAM runtime"
+      },
+      "contract": {
+        "model_api": 1,
+        "obs": [
+          1,
+          61
+        ],
+        "actions": [
+          1,
+          14
+        ],
+        "dtype": "float32",
+        "policy_hz": 50,
+        "action_scale": 1.0,
+        "normalizer": "embedded",
+        "entry_pose": "standing",
+        "body_command": "zeros",
+        "mouth": "outside_policy"
+      },
+      "status": "opt_in_research_candidate_not_native_or_hardware_admitted",
+      "command_semantics": "Twist velocity command as the flat task, trained on the rough-terrain mix; head-pose and body-pose commands zero at deployment. Command value is not measured velocity.",
+      "upstream_limit": "Simulation-trained export on rough terrain; no flat-ground or hardware result is claimed for it. Geometry license remains separate."
     }
   }
 }

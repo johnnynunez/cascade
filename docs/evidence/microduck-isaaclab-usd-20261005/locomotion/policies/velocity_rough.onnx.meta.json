@@ -1,0 +1,42 @@
+{
+  "action_dim": 14,
+  "activation": "elu",
+  "checkpoint": "/home/antoiner/Documents/IsaacLab_Newton/artifacts/microduck/osmo/results/isaaclab/velocity_rough/logs/rsl_rl/microduck_velocity_rough/2026-08-29_17-08-37/model_49999.pt",
+  "checkpoint_sha256": "ddfa83ea1daeed3d60f580e51ecaec505f84fd9aba232a1746b4dc06714fb164",
+  "distribution": "GaussianDistribution",
+  "experiment": "microduck_velocity_rough",
+  "exporter": "artifacts/microduck/sim2sim/export_ours.py",
+  "hidden_dims": [
+    512,
+    256,
+    128
+  ],
+  "iteration": 49999,
+  "normalizer_count": 4915200000,
+  "normalizer_eps": 0.01,
+  "obs_dim": 61,
+  "obs_normalization": true,
+  "obs_terms": [
+    "base_ang_vel",
+    "projected_gravity",
+    "joint_pos",
+    "joint_vel",
+    "actions",
+    "velocity_commands",
+    "head_pose_commands",
+    "body_pose_commands"
+  ],
+  "onnx": "/home/antoiner/Documents/IsaacLab_Newton/artifacts/microduck/onnx_deploy/isaaclab/velocity_rough.onnx",
+  "onnx_opset": 18,
+  "onnx_sha256": "efdc851c50e52a550581fb93cb7d0987af10ba65e06e0447c90e4a620475cb9f",
+  "rsl_rl_version": "5.4.1",
+  "run": "2026-08-29_17-08-37",
+  "run_dir": "/home/antoiner/Documents/IsaacLab_Newton/artifacts/microduck/osmo/results/isaaclab/velocity_rough/logs/rsl_rl/microduck_velocity_rough/2026-08-29_17-08-37",
+  "stem": "velocity_rough",
+  "task": "IsaacContrib-Velocity-Rough-MicroDuck",
+  "verify_action_absmax": 1.732326865196228,
+  "verify_batch_drift_max_abs": 1.1920928955078125e-07,
+  "verify_probe": "in-distribution: mean + std * N(0,1), 256 samples, seed 0",
+  "verify_torch_vs_onnx_max_abs": 4.76837158203125e-07,
+  "verify_torch_vs_onnx_rel_to_action_scale": 2.752581904622899e-07
+}

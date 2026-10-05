@@ -1,6 +1,155 @@
 {
  "date": "2026-10-05",
+ "diagnosis": "Both velocity policies (rough_walk_e and the Isaac Lab velocity_flat export) track the requested 30 mm during execution and stand after the emergency stop, but keep stepping, drifting or advancing while the controller holds a zero twist after completion; the post-completion distance outcome refutes three of four walks. The Isaac Lab task trains with rel_standing_envs=0.02, so standing on a zero command is barely in distribution. The handoff after completion (zero-twist walking policy versus a hold or a standing policy) is the open design item; no threshold was changed.",
  "episodes": {
+  "flat-forward01": {
+   "cases": [
+    {
+     "arguments": {
+      "distance_m": 0.03
+     },
+     "execution_ok": true,
+     "metrics": {
+      "body_displacement_m": [
+       0.02562471376892247,
+       -0.005826402900561056
+      ],
+      "distance_outcome": {
+       "body_displacement_m": [
+        0.025846074660452693,
+        -0.008840758925765595
+       ],
+       "path_length_m": 0.06216038662368028,
+       "rotation_path_rad": 0.18676084176477648,
+       "yaw_change_rad": 0.13136689722739991
+      },
+      "max_angular_speed_rad_s": 1.1252293261104382,
+      "max_linear_speed_m_s": 0.22541590654822818,
+      "max_tilt_rad": 0.039885046830027214,
+      "min_height_m": 0.11328236758708954,
+      "path_length_m": 0.043263816248257585,
+      "rotation_path_rad": 0.03640680272515326,
+      "settle_drift_m": 0.00011504608809571793,
+      "settle_drift_rad": 0.0015480183334398347,
+      "sim_duration_s": 0.31499999295920134,
+      "yaw_change_rad": 0.0064073140373534666
+     },
+     "ok": false,
+     "reason": "post-completion distance outcome: unrequested wz drift",
+     "skill": "walk_distance",
+     "verdict": "refuted"
+    }
+   ],
+   "closure_ok": true,
+   "fallen_count": 0,
+   "frames": 65,
+   "identity": "2c72c61e297e0b2761bb0404950ccd2e8f7baeebf31ed07ff9fee435bd21b241",
+   "kit_receipt_sha256": "1ec3082b491afec185efdd4eabc8c9d8a6beff8d0c312167f3404ba265f3325a",
+   "model_identity_file_sha256": "9f9c69d20c2f78ec3426bceb1841d438f107d4d35d6829d40d5fffec4fbe7105",
+   "native_steps": 1296,
+   "policy_profile": "isaaclab_velocity_flat",
+   "source_unchanged": true,
+   "subsequent_stop": {
+    "pending": false,
+    "physical_stop_verified": true,
+    "receipt_id": "dd4469a7548f45ed890cbb39846857f6",
+    "status": "confirmed"
+   },
+   "subsequent_stop_metrics": {
+    "body_displacement_m": [
+     -0.00045552578282925175,
+     -0.00011201803868297
+    ],
+    "max_angular_speed_rad_s": 0.01759062324187537,
+    "max_linear_speed_m_s": 0.00141709009148395,
+    "sim_duration_s": 1.5899999644607306,
+    "yaw_change_rad": 0.007523406807681682
+   },
+   "video_sha256": "ef16367e100294d1313930ab1bf3cd2dae2a4a9ac59b3a4d7420206aaa8e5133"
+  },
+  "flat-foundation01": {
+   "closure_ok": true,
+   "fallen_count": 0,
+   "forbidden_contact_count": 0,
+   "force_probes": 41,
+   "frames": 41,
+   "identity": "2c72c61e297e0b2761bb0404950ccd2e8f7baeebf31ed07ff9fee435bd21b241",
+   "kit_receipt_sha256": "013c0445b39024168357ee4d490b81dcc273205c6350478c32d3406e23aa75c7",
+   "model_identity_file_sha256": "9f9c69d20c2f78ec3426bceb1841d438f107d4d35d6829d40d5fffec4fbe7105",
+   "native_steps": 800,
+   "policy_committed": 200,
+   "policy_profile": "isaaclab_velocity_flat",
+   "root_z_first_m": 0.12475790828466415,
+   "root_z_last_m": 0.11712457984685898,
+   "root_z_min_m": 0.11550386250019073,
+   "source_unchanged": true,
+   "status": "foundation_identity_force_channel_and_natural_closure_verified"
+  },
+  "flat-reverse01": {
+   "cases": [
+    {
+     "arguments": {
+      "distance_m": -0.03
+     },
+     "execution_ok": true,
+     "metrics": {
+      "body_displacement_m": [
+       -0.027634138109768443,
+       -0.010085697420686459
+      ],
+      "distance_outcome": {
+       "body_displacement_m": [
+        -0.048546414745721175,
+        -0.015553543127991343
+       ],
+       "path_length_m": 0.09479092570232918,
+       "rotation_path_rad": 0.3789262775423656,
+       "yaw_change_rad": -0.22801465482342248
+      },
+      "max_angular_speed_rad_s": 0.987156531075783,
+      "max_linear_speed_m_s": 0.267326205066539,
+      "max_tilt_rad": 0.04415797881623803,
+      "min_height_m": 0.11505138874053955,
+      "path_length_m": 0.04186781550901272,
+      "rotation_path_rad": 0.06094227429923763,
+      "settle_drift_m": 0.00016829638478120905,
+      "settle_drift_rad": 0.00010952985999669511,
+      "sim_duration_s": 0.2849999936297536,
+      "yaw_change_rad": 0.03647511990474102
+     },
+     "ok": false,
+     "reason": "post-completion distance outcome: excess progress on vx",
+     "skill": "walk_distance",
+     "verdict": "refuted"
+    }
+   ],
+   "closure_ok": true,
+   "fallen_count": 0,
+   "frames": 65,
+   "identity": "2c72c61e297e0b2761bb0404950ccd2e8f7baeebf31ed07ff9fee435bd21b241",
+   "kit_receipt_sha256": "edd77ca6dafc2ae0d8e8c4edd2c166efd136c085af6080a7952f0aa837cb7abb",
+   "model_identity_file_sha256": "9f9c69d20c2f78ec3426bceb1841d438f107d4d35d6829d40d5fffec4fbe7105",
+   "native_steps": 1287,
+   "policy_profile": "isaaclab_velocity_flat",
+   "source_unchanged": true,
+   "subsequent_stop": {
+    "pending": false,
+    "physical_stop_verified": true,
+    "receipt_id": "1f504bcd6e164293903ed30d78890690",
+    "status": "confirmed"
+   },
+   "subsequent_stop_metrics": {
+    "body_displacement_m": [
+     -0.0003346028418092662,
+     0.00010387843266258318
+    ],
+    "max_angular_speed_rad_s": 0.022477098355742558,
+    "max_linear_speed_m_s": 0.002423977448593805,
+    "sim_duration_s": 1.5499999653548002,
+    "yaw_change_rad": -0.00032013763787100413
+   },
+   "video_sha256": "b6537670fd85c599d17d1870222563edec4dd97933ccf2dd1f54c84c81ee2951"
+  },
   "usd-forward01": {
    "cases": [
     {
@@ -46,6 +195,7 @@
    "kit_receipt_sha256": "337a272171fcc18e7e1a8f6c1c62760860f4a49592eba6da0743487ea99530e4",
    "model_identity_file_sha256": "d21d12e4f6bc02c0d97b240bcecc151fe6114bb9903df26f3282e421ecc305e6",
    "native_steps": 1244,
+   "policy_profile": "rough_walk_e",
    "source_unchanged": true,
    "subsequent_stop": {
     "pending": false,
@@ -76,6 +226,7 @@
    "model_identity_file_sha256": "d21d12e4f6bc02c0d97b240bcecc151fe6114bb9903df26f3282e421ecc305e6",
    "native_steps": 800,
    "policy_committed": 200,
+   "policy_profile": "rough_walk_e",
    "root_z_first_m": 0.1247575432062149,
    "root_z_last_m": 0.11719118058681488,
    "root_z_min_m": 0.11554048210382462,
@@ -127,6 +278,7 @@
    "kit_receipt_sha256": "9ac643a0a9ce0f9a8812379dac1cd59467c3bae2aa96634b0c2c6856ea2bda55",
    "model_identity_file_sha256": "d21d12e4f6bc02c0d97b240bcecc151fe6114bb9903df26f3282e421ecc305e6",
    "native_steps": 1220,
+   "policy_profile": "rough_walk_e",
    "source_unchanged": true,
    "subsequent_stop": {
     "pending": false,
@@ -149,6 +301,17 @@
  },
  "note": "The retained converted-bundle audits predate the post-completion distance-outcome observation (their distance_outcome is null); the status index already records excessive post-completion heading drift for the historical forward cases under the current contract.",
  "physical_admission": false,
+ "policies": {
+  "isaaclab_velocity_flat": {
+   "profile": "isaaclab_velocity_flat",
+   "provenance": "operator-supplied archive isaaclab.zip; see policies/conversion.json and assets/microduck/policy-candidates.json",
+   "sha256": "2c88bdd80a031efce26084b5b67c3713a7e3355cd06fbb1802cef4c06150b507"
+  },
+  "rough_walk_e": {
+   "profile": "rough_walk_e",
+   "sha256": "5aa423bd693e431b19e2ead77f99cbae6184e40a529eb2f7c1b4f85bb7f57040"
+  }
+ },
  "recipe": "LOCOMOTION_NEXT retained \u00b130 mm campaign harness (same MCP route, slow controller limits, rough_walk_e policy, official_infer_nominal_no_delay BAM profile, solver graph + solved-read reuse) on the admitted Isaac Sim 6.2 release with SDK recipe isaac62_48b2d951 (Newton 1.6.1rc1) and the schema-2 Isaac Lab USD bundle",
  "retained_converted_bundle_episodes": {
   "native-rough-reuse-forward03": {

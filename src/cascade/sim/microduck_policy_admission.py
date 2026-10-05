@@ -14,7 +14,7 @@ from cascade.sim import microduck_newton as native
 from cascade.sim.microduck_newton import REPO, digest_token, safe_file, sha256, strict_json
 
 
-POLICY_PROFILES = ('velstand', 'rough_walk_e')
+POLICY_PROFILES = ('velstand', 'rough_walk_e', 'isaaclab_velocity_flat', 'isaaclab_velocity_rough')
 
 
 def target_contract(policy_sha256, profile):

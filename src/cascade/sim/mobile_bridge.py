@@ -56,6 +56,11 @@ def _token(value, name: str) -> str:
     return value
 
 
+def _yaw_wxyz(q) -> float:
+    w, x, y, z = q
+    return math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+
+
 class MobileBridgeController:
     """Admission and a dual-clock deadman, independent of the RPC worker.
 
@@ -63,6 +68,12 @@ class MobileBridgeController:
     normal completion does not. Resetting the stop latch
     does not restore the old command; a fault requires an explicit new epoch
     after the simulator owner has repaired/reset the scene outside an episode.
+
+    Optional heading hold (``heading_hold_kp`` > 0) closes the loop on yaw for
+    straight commands only (``wz == 0`` with nonzero translation): the measured
+    heading at admission is held with ``wz = kp*e + ki*integral(e)``, clipped to
+    ``max_angular_speed``. Turn and zero commands are never rewritten, and
+    nothing is commanded after the admitted command ends or is stopped.
     """
 
     def __init__(
@@ -71,10 +82,17 @@ class MobileBridgeController:
         max_linear_speed: float, max_angular_speed: float, max_duration_s: float,
         lease_s: float, max_state_age_s: float, physics_dt: float = 0.005,
         policy_dt: float = 0.020, max_action_wall_s: float = 120.0,
-        clock=time.monotonic,
+        clock=time.monotonic, heading_hold_kp: float = 0.0, heading_hold_ki: float = 0.0,
     ):
         if engine not in {"physx", "newton"}:
             raise ValueError("engine must be physx or newton")
+        for name, value in (("heading_hold_kp", heading_hold_kp), ("heading_hold_ki", heading_hold_ki)):
+            if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
+                raise ValueError(f"{name} must be a finite nonnegative number")
+        if heading_hold_ki > 0 and heading_hold_kp <= 0:
+            raise ValueError("heading hold integral gain requires a proportional gain")
+        self.heading_hold_kp = float(heading_hold_kp)
+        self.heading_hold_ki = float(heading_hold_ki)
         for label, digest in (("asset", asset_sha256), ("policy", policy_sha256),
                               ("model_identity", model_identity_sha256)):
             if (not isinstance(digest, str) or len(digest) != 64
@@ -119,7 +137,9 @@ class MobileBridgeController:
                     "max_linear_speed": self.max_linear_speed,
                     "max_angular_speed": self.max_angular_speed,
                     "max_duration_s": self.max_duration_s,
-                    "max_action_wall_s": self.max_action_wall_s}
+                    "max_action_wall_s": self.max_action_wall_s,
+                    "heading_hold": ({"kp": self.heading_hold_kp, "ki": self.heading_hold_ki}
+                                     if self.heading_hold_kp > 0 else None)}
 
     def _status(self) -> str:
         if self._fault:
@@ -318,15 +338,20 @@ class MobileBridgeController:
             if command_id == self._last_completed:
                 raise ValueError("command_id was already completed; no motion replay")
             self._generation += 1
-            self._active = {
+            active = {
                 "owner": owner, "command_id": command_id, "twist": (vx, vy, wz),
                 "until_sim": self._state["sim_time"] + duration,
                 "lease_until_wall": received + self.lease_s,
                 "until_wall": received + self.max_action_wall_s,
             }
+            if self.heading_hold_kp > 0 and wz == 0.0 and (vx or vy):
+                # Hold the heading measured at admission: straight-line intent.
+                active.update(heading_ref=_yaw_wxyz(self._state["orientation_wxyz"]),
+                              heading_integral=0.0, heading_time=self._state["sim_time"])
+            self._active = active
             return {**self._ack(), "accepted": True, "completed": False,
                     "command_id": command_id, "start_sim_time_s": self._state["sim_time"],
-                    "end_sim_time_s": self._active["until_sim"]}
+                    "end_sim_time_s": active["until_sim"]}
 
     def renew(self, request: dict) -> dict:
         with self._lock:
@@ -393,7 +418,23 @@ class MobileBridgeController:
                 self._completed_owner = self._active["owner"]
                 self._active = None
                 return (0.0, 0.0, 0.0)
+            if "heading_ref" in self._active:
+                return self._heading_hold(self._active, self._state, sim_time)
             return self._active["twist"]
+
+    def _heading_hold(self, active: dict, state: dict, sim_time: float) -> tuple[float, float, float]:
+        vx, vy, _ = active["twist"]
+        delta = active["heading_ref"] - _yaw_wxyz(state["orientation_wxyz"])
+        error = math.atan2(math.sin(delta), math.cos(delta))
+        limit = self.max_angular_speed
+        elapsed = sim_time - active["heading_time"]
+        if elapsed > 0:  # repeated reads at one simulation time integrate once
+            active["heading_time"] = sim_time
+            if self.heading_hold_ki > 0:
+                bound = limit / self.heading_hold_ki  # anti-windup
+                active["heading_integral"] = max(-bound, min(bound, active["heading_integral"] + error * elapsed))
+        wz = self.heading_hold_kp * error + self.heading_hold_ki * active["heading_integral"]
+        return (vx, vy, max(-limit, min(limit, wz)))
 
     def stop(self, *, latch: bool = True) -> dict:
         if type(latch) is not bool:

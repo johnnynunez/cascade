@@ -186,6 +186,38 @@ drift and 0.03 rad yaw drift. Only exact registered soles may support rest;
 walking permits a known flight phase, never an unavailable force channel.
 Any solved external non-sole contact retains its veto, including a zero-force row.
 
+## Long-walk candidate
+
+Short stop-go steps cannot add up to a straight walk: on Isaac 6.2/Newton each
+30 mm command turns about −0.19 rad between its start and post-stop transients
+(−0.24 rad per segment in the official MuJoCo reference), and the independent
+window sees only part of it. The separate
+[long-walk profile](../configs/bases/microduck_distance_long.yaml) therefore
+admits one continuous walk of up to 2 m. It raises the physical command cap to
+25 s (`rough_walk_e` covers about 0.12 m/s at its 0.3 command) and derives the
+190 s action, 194 s verifier and 9,701-read budgets from the same measured
+7.512 wall seconds per physical second. Lateral and heading drift bounds become
+0.10 m and 0.25 rad and the position plausibility bound 3 m. Sampling,
+freshness, settling, rest, posture, support and the turn guard are unchanged,
+and the other profiles keep their 100 mm and 3 s ceilings.
+
+The profile also needs a bridge that holds heading. With both
+`heading_hold_kp` and `heading_hold_ki` in the operator limits JSON (they enter
+`model_identity_sha256` through the admitted limits and appear as
+`hello.heading_hold`), a straight command (`wz = 0`, nonzero translation)
+becomes `wz = kp·e + ki·∫e` around the heading measured at admission. The
+output is clipped to the bridge angular limit, the integral advances once per
+simulation time and stays within `limit/ki`, turn and zero commands are never
+rewritten, and nothing is commanded after the admitted deadline or a stop. It
+is a command-level correction around the unchanged policy, not a new policy or
+a velocity-tracking claim, and the post-stop transient still happens.
+
+Use it only with bundles that author explicit collision hull limits
+([MicroDuck identity](MICRODUCK.md#evidence-and-identity)). In a diagnostic
+Isaac run (not admission), the complete-hull model with kp 4 and ki 2 walked
+2.43 m in 20 s, ending 0.04 m off its start line with 0.05 rad yaw; the same
+command open loop curled +1.4 rad, and +3.3 rad with 64-vertex soles.
+
 ## Explicit policy and compute recipe
 
 The named `rough_walk_e` admission binds repository pin

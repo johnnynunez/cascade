@@ -1,0 +1,33 @@
+# Opt-in LONG-WALK geometric candidate; NOT physical admission. Never changes
+# microduck_isaac, the distance candidate or the slow native profile.
+# Requires (all separately reviewed, then pinned through model_identity_sha256):
+#  * a bundle converted with explicit collision hull limits: older bundles let
+#    Newton cap every hull at 64 vertices and the mirrored soles curl the walk
+#    (measured +3.3 rad yaw over 20 s of straight command on Isaac 6.2/Newton);
+#  * a bridge limits JSON with max_duration_s >= 25, max_action_wall_s >= 190
+#    and heading_hold_kp/heading_hold_ki (bridge-side hold of the admission
+#    heading for straight commands only; turns are never rewritten).
+# Physical deadline 25 s: rough_walk_e covers ~0.12 m/s at its 0.3 command, so
+# 2 m needs ~17 s. Wall 190 s keeps the slow profile's measured <=7.512 wall
+# seconds per physics second: ceil(25*7.512 + 2*.5 RPC + 1 scheduling) = 190.
+# Drift bounds scale with distance (measured with hold + full hulls: 2.43 m,
+# 0.052 m max lateral, 0.114 rad max yaw); 3 m keeps a 2 m walk from a
+# non-origin start inside the independent position plausibility bound.
+extends: microduck_distance_native_slow
+admission: pending_long_walk_geometric_validation
+safety:
+  max_duration_s: 25.0
+  max_wall_duration_s: 190.0
+distance_control:
+  max_distance_m: 2.0
+  max_lateral_drift_m: 0.10
+  max_heading_drift_rad: 0.25
+# Only wall capacity/quota, position plausibility and drift change; sampling,
+# freshness, settling and rest limits stay those of the slow native profile.
+# Quota covers ceil(194/.02)+1 reads; it is not additional motion credit.
+verifier:
+  max_wall_duration_s: 194.0
+  max_samples: 9701
+  max_position_abs_m: 3.0
+  max_lateral_drift_m: 0.10
+  max_heading_drift_rad: 0.25

@@ -16,29 +16,22 @@
 # and full hulls: 0.052 m lateral and 0.114 rad over 2.43 m): 0.30 m lateral,
 # heading 0.25 rad. Position plausibility 10 m covers a twelve-lane line
 # (|y| <= 5.5 m at 1 m spacing) plus the 6 m route from a non-origin start.
-# Client sampling: a twelve-robot shared owner publishes a new state about every
-# 0.1 wall second (85.9 ms median attempt), so the 10 ms control poll and the
-# 20 ms verifier sample of the single-robot profiles only load the owner's RPC
-# threads (12 robots x 2 channels x 150 reads/s starved the solve loop and every
-# walk failed on 'feedback clock did not advance' / stale feedback). Both poll
-# periods become 0.1 s; the 0.5 s state age, 0.4 s progress, 0.5 s read/RPC,
-# 0.15 s simulation sampling gap, settling and rest limits are unchanged, and
-# the read quota keeps the same wall capacity (ceil(1038/.1)+1 = 10381 reads).
-# The turn guard is unchanged.
+# Client sampling stays the single-robot cadence (10 ms control poll, 20 ms
+# verifier sample): this profile is for one robot per world, where the owner
+# steps 5 ms of physics in ~11 ms of wall. The shared-world variant below
+# polls slower. The turn guard is unchanged.
 extends: microduck_distance_long
 admission: pending_route_geometric_validation
 safety:
   max_duration_s: 60.0
   max_wall_duration_s: 1034.0
-  poll_interval_s: 0.1
 distance_control:
   max_distance_m: 6.0
   max_lateral_drift_m: 0.30
   max_heading_drift_rad: 0.25
 verifier:
-  sample_interval_s: 0.1
   max_wall_duration_s: 1038.0
-  max_samples: 10381
+  max_samples: 51901
   max_position_abs_m: 10.0
   max_lateral_drift_m: 0.30
   max_heading_drift_rad: 0.25

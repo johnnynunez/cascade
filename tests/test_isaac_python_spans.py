@@ -509,7 +509,9 @@ def test_timing_summary_accounts_collections_passively_and_removes_only_its_call
     summaries = [json.loads(line.split(' ', 1)[1]) for line in lines if '"timing_summary"' in line]
     gc_summary = summaries[-1]['gc']
     assert gc_summary['generations']['2'] == {'count': 1, 'total_ns': 1000, 'max_ns': 1000, 'last_ns': 1000,
-                                              'max_on_registering_thread': True}
+                                              'collected_total': 5, 'max_on_registering_thread': True}
+    assert gc_summary['recent_generation2'] == [{'offset_ms': 0.0, 'duration_ms': 0.001, 'collected': 5,
+                                                 'on_registering_thread': True}]
     assert gc_summary['generations']['0']['count'] == 1 and gc_summary['unmatched'] == 1
     assert gc_summary['errors'] == 0 and gc_summary['pending'] == 0 and gc_summary['frozen_objects'] == 375
     assert gc_summary['settings_initial'] == gc_summary['settings_now'] == {'enabled': True, 'thresholds': [700, 10, 10]}
@@ -533,6 +535,7 @@ def test_collector_callback_errors_count_and_never_propagate():
     thread.start()
     thread.join()
     assert other_thread and spans.gc.generations[2]['max_on_registering_thread'] is False
+    assert spans.gc.recent_generation2[-1]['on_registering_thread'] is False and len(spans.gc.recent_generation2) == 1
     spans.report()
     assert g.callbacks == []
 

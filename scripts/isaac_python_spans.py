@@ -79,9 +79,13 @@ class _GCAccounting:
     include scheduling and other callbacks and are not isolated CPU time.
     """
 
+    _RECENT_LIMIT = 16
+
     def __init__(self, gc_module, clock_ns, thread_id):
         self.gc, self.clock_ns, self.thread_id = gc_module, clock_ns, thread_id
         self.pending, self.generations = {}, {}
+        self.recent_generation2 = []  # bounded: the latest full collections with offset, duration, collected
+        self.started_ns = None
         self.events = self.unmatched = self.errors = 0
         self.initial = self._settings()
         self.callback = self._record  # retain this exact bound method for removal
@@ -95,6 +99,8 @@ class _GCAccounting:
             self.events += 1
             key = (threading.get_ident(), int(info['generation']))
             now = self.clock_ns()
+            if self.started_ns is None:
+                self.started_ns = now
             if phase == 'start':
                 self.pending[key] = now
                 return
@@ -103,14 +109,21 @@ class _GCAccounting:
                 self.unmatched += 1
                 return
             duration = now - started
-            row = self.generations.setdefault(key[1], {'count': 0, 'total_ns': 0, 'max_ns': 0,
-                                                       'last_ns': 0, 'max_on_registering_thread': None})
+            collected = info.get('collected')
+            row = self.generations.setdefault(key[1], {'count': 0, 'total_ns': 0, 'max_ns': 0, 'last_ns': 0,
+                                                       'collected_total': 0, 'max_on_registering_thread': None})
             row['count'] += 1
             row['total_ns'] += duration
             row['last_ns'] = duration
+            if type(collected) is int:
+                row['collected_total'] += collected
             if duration >= row['max_ns']:
                 row['max_ns'] = duration
                 row['max_on_registering_thread'] = key[0] == self.thread_id
+            if key[1] == 2:
+                self.recent_generation2.append({'offset_ms': (started - self.started_ns) / 1e6, 'duration_ms': duration / 1e6,
+                                                'collected': collected, 'on_registering_thread': key[0] == self.thread_id})
+                del self.recent_generation2[:-self._RECENT_LIMIT]
         except Exception:
             self.errors += 1  # never raise inside a collector callback
 
@@ -120,6 +133,7 @@ class _GCAccounting:
                 'pending': len(self.pending), 'settings_initial': self.initial, 'settings_now': self._settings(),
                 'frozen_objects': None if frozen is None else int(frozen()),
                 'generations': {str(k): dict(v) for k, v in sorted(self.generations.items())},
+                'recent_generation2': list(self.recent_generation2),
                 'scope': 'passive callback intervals; include scheduling and other callbacks; '
                          'not isolated CPU time; collector settings observed only'}
 

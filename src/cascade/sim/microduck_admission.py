@@ -194,11 +194,16 @@ class SharedEndpoints:
             self._rollback(exc)
             raise
 
-    def publish_capture(self, capture):
+    def publish_capture(self, capture, *, jpeg=None):
+        """One encode for every robot's cache (twelve 1080p encodes took ~180 ms per capture)."""
         if self.closed:
             raise RuntimeError('shared endpoints closed')
+        if jpeg is None:
+            from .microduck_stepper import FrameCache
+            jpeg = FrameCache.encode(capture['rgb'])
         for cache in self.caches.values():
-            cache.publish(**capture)
+            cache.publish(**capture, jpeg=jpeg)
+        return jpeg
 
     def start(self):
         if self.closed or self.started:

@@ -322,8 +322,9 @@ def test_launcher_thins_physics_rows_only_when_asked_and_keeps_first_and_last(tm
                                 physics_row_every=3, max_steps=7)
     assert run.result['completed'] and run.result['steps'] == 7
     steps = [json.loads(line)['step'] for line in (run.out / 'physics.jsonl').read_text().splitlines()]
-    # solved steps are 3..9 (the first attempt is withheld): first, every third, and the last
-    assert steps == [3, 5, 8, 9]
+    # solved steps are 3..9 (the first attempt is withheld): first, every third offset by one
+    # (i+1+1) % 3 == 0 -> i = 1, 4 -> steps 4, 7), and the last
+    assert steps == [3, 4, 7, 9]
     assert run.created[0].receipt['configuration'] == {'physics_row_every': 3}
     frames = [json.loads(line)['step'] for line in (run.out / 'frames.jsonl').read_text().splitlines()]
     assert frames == list(range(3, 10))  # camera cadence is unchanged

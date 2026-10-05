@@ -138,3 +138,35 @@ def test_shared_endpoints_frame_bound_follows_the_overview_resolution():
     for bad in (0, -1, 1.5, '640'):
         with pytest.raises(ValueError):
             SharedEndpoints([], base_port=0, max_jpeg_bytes=1000, max_pixels=bad)
+
+
+def test_shared_capture_is_encoded_once_and_served_identically_to_every_robot(monkeypatch):
+    import base64
+    from cascade.sim import microduck_stepper
+    from cascade.sim.microduck_admission import SharedEndpoints
+    from test_microduck_stepper import controller as make_controller, render_times
+    encodes = []
+    real = microduck_stepper.FrameCache.encode
+    monkeypatch.setattr(microduck_stepper.FrameCache, 'encode', staticmethod(lambda rgb, **kw: encodes.append(1) or real(rgb, **kw)))
+    steppers = []
+    for i in range(3):
+        c = make_controller()
+        c._identity = {**c._identity, 'robot_id': f'duck{i}'}
+        steppers.append(NS(identity={'robot_id': f'duck{i}'}, controller=c))
+    endpoints = SharedEndpoints(steppers, base_port=0, max_jpeg_bytes=200000, max_pixels=64*64)
+    try:
+        rgb = (np.arange(64*64*3) % 251).astype(np.uint8).reshape(64, 64, 3)
+        capture = dict(rgb=rgb, step=5, sim_time_s=.025, captured_at=0.5, render_times=render_times(.025))
+        jpeg = endpoints.publish_capture(capture)
+        assert encodes == [1] and jpeg.startswith(b'\xff\xd8')
+        frames = [cache({'camera': 'overview'})['frame'] for cache in endpoints.caches.values()]
+        assert len({f['rgb_jpeg_b64'] for f in frames}) == 1 and base64.b64decode(frames[0]['rgb_jpeg_b64']) == jpeg
+        assert {f['robot_id'] for f in frames} == {'duck0', 'duck1', 'duck2'}
+        # a caller-supplied encode is used as-is and bounded like an own encode
+        capture2 = dict(capture, step=6, sim_time_s=.03, render_times=render_times(.03))
+        assert endpoints.publish_capture(capture2, jpeg=jpeg) is jpeg and encodes == [1]
+        with pytest.raises(ValueError):
+            endpoints.publish_capture(dict(capture, step=7, sim_time_s=.035, render_times=render_times(.035)),
+                                      jpeg=b'not a jpeg')
+    finally:
+        endpoints.close()

@@ -103,8 +103,9 @@ def run(args, admission, signals):
             owner.receipt['configuration']['phase_profile'] = 'owner-thread-inclusive-gc-trigger-v1'
         physics_row_every = int(getattr(args, 'physics_row_every', 1) or 1)
         if physics_row_every != 1:
-            # Recording density of the full per-step physics rows (every Nth solved step plus the
-            # first and the last); it enters the hashed configuration like the other selections.
+            # Recording density of the full per-step physics rows (every Nth solved step, offset by
+            # N//2 so the row encode and the camera capture do not share an attempt, plus the first
+            # and the last); it enters the hashed configuration like the other selections.
             owner.receipt['configuration']['physics_row_every'] = physics_row_every
         gc_policy = getattr(args, 'gc_policy', None)
         if gc_policy is not None:
@@ -194,7 +195,7 @@ def run(args, admission, signals):
                         result['withheld_ticks'] = fleet.withheld_ticks
                         continue
                     result['steps'] = i + 1
-                    if i == 0 or (i+1) % physics_row_every == 0 or i+1 == args.max_steps:
+                    if i == 0 or (i+1 + physics_row_every // 2) % physics_row_every == 0 or i+1 == args.max_steps:
                         with profile.span('record.physics') if profile else nullcontext():
                             row(physics, {'step': owner.physics_clock[0], 'sim_time_s': owner.physics_clock[1],
                                 'robots': {s.identity['robot_id']: {**samples[s.identity['robot_id']],
@@ -209,15 +210,17 @@ def run(args, admission, signals):
                             capture = owner.capture()
                             if (capture['step'], capture['sim_time_s']) != owner.physics_clock:
                                 raise RuntimeError('overview capture does not match shared solve')
-                            if endpoints is not None:
-                                endpoints.publish_capture(capture)
                             import cv2
                             ok, jpeg = cv2.imencode('.jpg', cv2.cvtColor(capture['rgb'], cv2.COLOR_RGB2BGR))
                             if not ok:
                                 raise RuntimeError('overview JPEG encoding failed')
+                            jpeg = jpeg.tobytes()
+                            if endpoints is not None:
+                                # The same bytes serve every robot's frame channel: one encode per capture.
+                                endpoints.publish_capture(capture, jpeg=jpeg)
                             path = out / 'frames' / f'overview_{capture["step"]:09d}.jpg'
                             with path.open('xb') as image:
-                                image.write(jpeg.tobytes())
+                                image.write(jpeg)
                             row(frames, {k:v for k,v in capture.items() if k != 'rgb'} | {
                                 'file': path.relative_to(out).as_posix(), 'sha256': hashlib.sha256(jpeg).hexdigest(),
                                 'scene_model_sha256': identity['scene_model_sha256'],

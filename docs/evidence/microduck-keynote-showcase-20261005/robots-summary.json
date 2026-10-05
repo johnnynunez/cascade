@@ -8468,6 +8468,11 @@
   "assets": {
    "stage.usda": "69ba28eb4081a2146fdd64849ae3cff7d8cb30d2a6547945fed133cc475ee4fa",
    "presenter.usda": "88ec11a835f241801f0e23bc4e4861cde01d2b578e595ec45ab1b66122c35af6"
+  },
+  "full_receipt": {
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_MICRODUCK_STAGE_20261005/k1-keynote-12/owner/kit/receipt.json",
+   "sha256": "a51c6877b788debb177cc897056bdbda700376474596cd50602811b9359be7b2",
+   "bytes": 1592278
   }
  },
  "trajectory_note": "nearest recorded physics row (every 10 solved steps = 50 ms) to each 0.5 s mark"

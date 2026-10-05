@@ -28,7 +28,7 @@
   Owner dome/sun dimmed 300 → 15 and 1200 → 60 (receipted); ground display hidden under the
   stage floor (collider unchanged).
 
-## Result (`receipt.json`, `robots-summary.json`, `frames.jsonl`)
+## Result (`receipt.json` — trimmed, full receipt digest in `robots-summary.json`; `frames.jsonl`)
 
 - Completed: **13,600 solved steps = 68.0 s of simulation in 830 s of wall (61 ms per 5 ms step,
   12.2× slower than real time)**, 0 withheld ticks, 681 RTX captures (1920×1080, every 20 steps).

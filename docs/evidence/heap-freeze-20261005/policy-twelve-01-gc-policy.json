@@ -1,0 +1,171 @@
+{
+  "applied": {
+    "after": {
+      "allocated_blocks": 3230822,
+      "count": [
+        1,
+        0,
+        0
+      ],
+      "frozen": 1254451,
+      "stats": [
+        {
+          "collected": 43315,
+          "collections": 995,
+          "uncollectable": 0
+        },
+        {
+          "collected": 2160,
+          "collections": 90,
+          "uncollectable": 0
+        },
+        {
+          "collected": 6015,
+          "collections": 3,
+          "uncollectable": 0
+        }
+      ]
+    },
+    "applied_monotonic_ns": 95578728720679,
+    "before": {
+      "allocated_blocks": 3276612,
+      "count": [
+        528,
+        5,
+        61
+      ],
+      "frozen": 375,
+      "stats": [
+        {
+          "collected": 43315,
+          "collections": 995,
+          "uncollectable": 0
+        },
+        {
+          "collected": 2160,
+          "collections": 90,
+          "uncollectable": 0
+        },
+        {
+          "collected": 6,
+          "collections": 2,
+          "uncollectable": 0
+        }
+      ]
+    },
+    "collect": {
+      "duration_ns": 464767279,
+      "frozen_after_collect": 375,
+      "unreachable": 6009
+    },
+    "freeze": {
+      "duration_ns": 23435,
+      "foreign_frozen_before": 375,
+      "frozen": 1254076
+    },
+    "implementation_sha256": "4aa357cc3d7b04b5a758abed2d82b87f59c44b825d96a0ddc239b1ea72edb2b8",
+    "policy": "freeze-startup-heap-v1",
+    "process": {
+      "executable": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/kit/python/bin/python3",
+      "interpreter": "3.12.14",
+      "peak_rss_kib": 7881448,
+      "pid": 1824016
+    },
+    "scope": "Objects alive at apply() moved to the permanent generation; later automatic collections traverse only objects allocated afterwards. Collector enabled, thresholds and callbacks unchanged. Cyclic garbage alive at apply() stays retained until release(). Not a control-deadline, speedup or physical claim.",
+    "settings": {
+      "callbacks": 2,
+      "enabled": true,
+      "thresholds": [
+        700,
+        10,
+        10
+      ]
+    },
+    "thread_id": 133143393978304
+  },
+  "released": {
+    "after": {
+      "allocated_blocks": 3255659,
+      "count": [
+        16,
+        0,
+        0
+      ],
+      "frozen": 375,
+      "stats": [
+        {
+          "collected": 67364,
+          "collections": 2491,
+          "uncollectable": 0
+        },
+        {
+          "collected": 4446,
+          "collections": 226,
+          "uncollectable": 0
+        },
+        {
+          "collected": 6089,
+          "collections": 4,
+          "uncollectable": 0
+        }
+      ]
+    },
+    "apply_error": null,
+    "apply_receipt_complete": true,
+    "before": {
+      "allocated_blocks": 3276076,
+      "count": [
+        2,
+        0,
+        136
+      ],
+      "frozen": 1253778,
+      "stats": [
+        {
+          "collected": 67364,
+          "collections": 2491,
+          "uncollectable": 0
+        },
+        {
+          "collected": 4446,
+          "collections": 226,
+          "uncollectable": 0
+        },
+        {
+          "collected": 6015,
+          "collections": 3,
+          "uncollectable": 0
+        }
+      ]
+    },
+    "collect": {
+      "duration_ns": 461030742,
+      "unreachable": 74
+    },
+    "frozen_changed_since_apply": -673,
+    "implementation_sha256": "4aa357cc3d7b04b5a758abed2d82b87f59c44b825d96a0ddc239b1ea72edb2b8",
+    "policy": "freeze-startup-heap-v1",
+    "policy_frozen": 1254076,
+    "process": {
+      "executable": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/kit/python/bin/python3",
+      "interpreter": "3.12.14",
+      "peak_rss_kib": 8635960,
+      "pid": 1824016
+    },
+    "released_monotonic_ns": 95649595274999,
+    "settings": {
+      "callbacks": 1,
+      "enabled": true,
+      "thresholds": [
+        700,
+        10,
+        10
+      ]
+    },
+    "thread_id": 133143393978304,
+    "unfreeze": {
+      "duration_ns": 5048
+    },
+    "unfrozen": 1253778
+  }
+}

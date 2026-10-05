@@ -605,6 +605,62 @@ with delivery marked uncertain. Completed states show its latch set from step
 physical rest. This remains a control failure despite native completion, and
 both earlier twelve-robot control failures remain retained.
 
+**Opt-in startup-heap freeze (software candidate, 5 October 2026).** Every
+long attempt above overlapped a generation-2 collection of roughly 475 ms. A
+full CPython collection traverses every tracked container in the oldest
+generation, which an Isaac Kit process fills during SDK, scene and identity
+startup; reducing per-attempt garbage changes how often such collections start,
+while only a smaller retained tracked population shortens them, and the startup
+heap is the dominant retained population. `scripts/isaac_microduck_shared.py --gc-policy
+freeze-startup-heap` records the selected policy in the hashed configuration
+before identity binding, then, after stepper construction and before
+`fleet.start()`, runs one explicit full collection and `gc.freeze()`
+(`src/cascade/sim/heap_freeze.py`), so later automatic collections traverse only
+objects allocated after that point. The collector stays enabled with unchanged
+thresholds and callbacks, and the passive phase profile observes the explicit
+collection as an ordinary event. `runtime.json` (`backend.gc_policy`) and
+`receipt.json` (`gc_policy.applied` / `gc_policy.released`) retain counters,
+durations, the policy implementation digest, the interpreter's own frozen
+immortal objects and the policy's delta; the selection is part of the hashed
+configuration and `src/cascade/sim/heap_freeze.py` joins the bound source
+hashes. Release follows endpoint and fleet closure and precedes SDK shutdown,
+also after a teardown fault or an apply interrupted after `gc.freeze()`. The
+[CPU mechanism receipt](../benchmark/results/heap_freeze_cpu_20261005.json) on
+a synthetic 2.3-million-object heap measured a 200.3 ms median full collection
+before the freeze, 0.001 ms with nothing retained afterwards, 10.6 ms with
+100,000 retained rows and 67.9 ms with 400,000. That is a collector measurement on
+one host, not a control result: the reader-only probes below ran with the policy
+but exercised no command, the 0.5 s RPC and 0.4 s progress limits are unchanged,
+and one Factory readiness failure occurred without any generation-2 interval, so
+the policy cannot explain every retained failure. Native control evidence must
+show sustained command activity overlapping observed collections under the
+original limits.
+
+**Direct reader-only probes with and without the policy (5 October 2026).**
+Four direct launches of the retained twelve-robot reader recipe on the working
+tree ([evidence and hashes](evidence/heap-freeze-20261005/summary.json); same
+bundle, policy, limits and SDK recipe `isaac62_48b2d951`, Kit Python 3.12.14,
+GPU 1, seeded private caches, private learned stores, systemd user scope) all
+completed 800 solves, 24 reader events and ordinary closure. The baseline run had
+one 515.7 ms generation-2 collection on the owner thread during attempt 199, and
+that attempt, a camera overview, was the only one above 400 ms at 1344.8 ms
+(median 80.9 ms, p95 89.3 ms). In the three runs with `--gc-policy
+freeze-startup-heap` the explicit pre-freeze collection took 464.8, 468.4 and
+479.2 ms and froze 1,254,076 objects in 0.023–0.025 ms before `fleet.start()`; no
+generation-2 collection occurred during any of their 800 attempts, whose maxima
+were 208.4, 212.1 and 202.6 ms (medians 84.8, 79.7 and 83.3 ms). At release,
+after the owner loop had closed, a full collection over everything the episode
+retained took 2.329 and 2.134 ms while frozen in the two runs that measured it
+(6,786 tracked objects outside the frozen set, 74 unreachable), while the
+collection after unfreezing took 461.0–488.2 ms across the three runs; 673
+frozen objects had already been freed by reference counting in each. The first two policy runs used earlier revisions of the helper and the
+third the final implementation; the summary records each implementation digest.
+These are single reader-only runs on an uncommitted tree with recorded file
+hashes, not reviewed plans: no command, stop or deadline recovery was exercised,
+so the retained 0.5 s RPC control failure is untested under the policy; the
+attempt medians establish no speedup; and the 2.1–2.3 ms figures are collections
+at close, not inside an attempt.
+
 These endpoint outcomes remain physically unverified. Walking, fleet tasks,
 shared-space interactions and measured individual/global motion stops still need
 their own acceptance evidence. The [original twelve-robot overview](

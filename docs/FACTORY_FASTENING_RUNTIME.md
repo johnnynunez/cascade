@@ -516,6 +516,44 @@ The changed modules are already part of the model identity; a future native
 recipe must have a new digest. See the
 [diagnostic receipt](../benchmark/results/factory_observation_age_20261003.json).
 
+### Opt-in startup-heap freeze (software candidate, 5 October 2026)
+
+The retained readiness failures above rejected observation ages of 0.43–0.46 s
+while a same-thread generation-2 collection of 433–449 ms ran inside
+`observer.read`. A full CPython collection traverses every tracked container in
+the oldest generation, which the Kit process fills during SDK and model
+construction; reducing per-solve garbage changes how often such collections
+start, while only a smaller retained tracked population shortens them, and the
+startup heap is the dominant retained population. The `gc_policy:
+freeze-startup-heap` profile key (`configs/robots/factory_m20_shoulder_seating_heap_freeze.yaml`,
+which extends the shoulder-seating profile by that key alone) applies
+`src/cascade/sim/heap_freeze.py` after model construction and the exact pin
+check and before the owner thread starts, so readiness and every later solve run
+with the startup heap outside all later full collections. `gc-policy.json`
+binds the apply receipt (counters, durations, the implementation digest of
+`heap_freeze.py`, the interpreter's own frozen immortal objects and the policy's
+delta) to the exact model pin; `readiness.json` carries the selection and that
+digest only when the policy is selected, and `closure.json` records the release,
+which happens only after the owner reports `owner_thread_closed`, is reused
+unchanged by any repeated closure, and retains the history of any failed release
+attempt. An unconfirmed join, or an owner that cannot report its closure, leaves
+the heap frozen and the closure not ok; a never-started owner thread reports
+itself closed. Collector thresholds and callbacks stay unchanged, and the
+physics model identity is unchanged by design: this is a host-process collector
+setting bound by the profile marker and these receipts, not by
+`model_identity_sha256`. The
+[CPU mechanism receipt](../benchmark/results/heap_freeze_cpu_20261005.json)
+measured a 200.3 ms median full collection over a synthetic 2.3-million-object
+heap before the freeze and 0.001–67.9 ms afterwards depending on retained rows. The same
+interpreter mechanism was then measured natively in the
+[MicroDuck shared-scene probes](MICRODUCK.md#shared-scene-implementation-boundary)
+on Kit Python 3.12.14: post-freeze full collections of 2.1–2.3 ms against
+465–479 ms before the freeze. No native Factory preparation, readiness or one-turn episode
+has run with this profile; the
+0.2 s observation-age limit and the 10 s readiness budget are unchanged, and the
+earlier readiness failure without any generation-2 interval is not explained by
+this candidate.
+
 ## Threaded outcome must survive stopping
 
 A CPU counterexample against `b7a0deee` exposed a separate outcome bug: after

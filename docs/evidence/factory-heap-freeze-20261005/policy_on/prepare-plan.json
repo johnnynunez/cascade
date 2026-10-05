@@ -1,0 +1,157 @@
+{
+ "acceptance_contract": {
+  "command_sim_s": 4,
+  "command_wall_s": 40,
+  "complete_raw_journal_required": true,
+  "exact_reset_and_turn": {
+   "arguments": {
+    "direction": "tighten",
+    "turns": 1.0
+   },
+   "motion_calls": 1,
+   "name": "fastening.turn_screw",
+   "request_ack_wall_s": 1.0,
+   "reset_calls": 1
+  },
+  "max_observation_age_s": 0.2,
+  "natural_owned_closure_required": true,
+  "outer_watchdog_s": 240,
+  "owner_wall_s": 120,
+  "phase_diagnostic_capacity": 262144,
+  "phase_drop_is_failure": true,
+  "physical_task_result": "Original confirmed pre-stop turn, final threading, observed rest; no coast credit",
+  "pre_owner_loads": 39,
+  "pre_owner_predicates": 22,
+  "pre_owner_solves": 0,
+  "readiness_wall_s": 10,
+  "rest_sim_s": 3,
+  "rest_wall_s": 30,
+  "rest_window_sim_s": 0.5,
+  "seating_preload_hardware_claim": false,
+  "stdio_llm_claim": false
+ },
+ "compiler_sdk_pins": {
+  "mujoco_warp._src.constraint": "001a2e7630ca05a61b406daf0bca2f769f8a580f7134629d5b45f37bd8f473d1",
+  "mujoco_warp._src.derivative": "35e5406ff89cabe9d5d6651eb016411347e6b7ab2b76962f069cc2d9220d9c85",
+  "mujoco_warp._src.forward": "7b7ffa3d914b6adf65f228261e207998d5bed1e59d4fb17f5bc6ac796aacf490",
+  "mujoco_warp._src.io": "f9214e355f92a89583d85af04867403d1e8f81fcd45c907114d0baa279aa507d",
+  "mujoco_warp._src.passive": "0529a92fa4904ff20a7e2a5dc5a0a9ae35e3f86c3a337d4216c7b9b6307bc29c",
+  "mujoco_warp._src.sensor": "f5c0793d97374c7c58e1b8f065ab1386069875a8fd39c1aebdd4ce861b3526d3",
+  "mujoco_warp._src.smooth": "f2993c13ba76c85d9d948eda316de76c987dbecb765b34f31df8e8c9d3d99554",
+  "mujoco_warp._src.solver": "509b43da297dc6e49efeacdbb59df675213e84afbdb26770471a5ba1855a24b3",
+  "mujoco_warp._src.support": "1a08ef15f149d1cf3c9ec5df6c688669fe86aa237ee2512a7463caf1b74e3d54",
+  "mujoco_warp._src.types": "a49625a8994db0d3b52dd34f98adac7f70882d473108c4e4793e4830e81ea71c",
+  "mujoco_warp._src.warp_util": "6759883baef16fc9a5222bf0e5c858700d0847392138a8c0d2ae78a2c9a5780a",
+  "newton._src.geometry.broad_phase_common": "054426f3cacd4d0fcc8d2967b610781d2959625cc304f76b76a21707859884e9",
+  "newton._src.geometry.broad_phase_nxn": "2cee3e4e8bfed15c35cf88f3b0a5b1931dfc386a7e470e3b16982eb14743fd92",
+  "newton._src.geometry.contact_reduction_global": "09ccc3c5a8b807fc9780900d0ebd95dc7cdb19f51592b0014e8fe4fd01379251",
+  "newton._src.geometry.narrow_phase": "c13ac4b76d6a128a9f73cb44d8ed10f5e51224340606b2eb0b90bceb7f2cba22",
+  "newton._src.geometry.sdf_contact": "3ae93d6fca86e5d6abf6e209e1fd6a88b8bba9cd2235980f7f6edd0c8888e5a7",
+  "newton._src.sim.collide": "e7317309541ca88b8530423d5b8a2ed01a5d2719bf2280b2c93ab683bfa559fa",
+  "newton._src.solvers.mujoco.kernels": "bd770d39d20c208e980477e0186799f531364b03f16d76968ee69bacdc490a3d",
+  "newton._src.solvers.mujoco.solver_mujoco": "a2f2466ad9d35e32f6e87f12bbaa0e08d18295f4e95b1c059c805d2ff4091178",
+  "warp._src.context": "22641ad0b95746a72a68c06d583d311efb63a048e9e1f4e22311389b24b17a66",
+  "warp._src.texture": "09ea823af5e33813e32fd4b8a29a22a608f82f1abadcba07faed4f3c17a44d62",
+  "warp._src.types": "64a233a69e8351d424afbf060688baca27bd90e001398aaba33631989c7b67f8"
+ },
+ "compiler_source_pins": {
+  "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/cascade/src/cascade/apps/factory_runtime.py": "cf92b7b3e466b80a8ecf089563a9cd46a0f93c2a2cfe594812838e1fb7a1f40a",
+  "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/cascade/src/cascade/sim/factory_internal_sdk_pins.json": "cc6b22e4944856e114851c2b724c6b4667667a6b72bbf44033b32788b14c453c",
+  "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/cascade/src/cascade/sim/factory_mjdata_layout.json": "3e2ae59397218951e7b3da694c7a1938e65de291eac1027078be2cadd08442b1",
+  "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/cascade/src/cascade/sim/factory_model.py": "9e6688aed2284a486d8b7520ff92357e618de79a024f7ffba41dcd70bea6f0ff",
+  "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/cascade/src/cascade/sim/factory_precompile.py": "5c01b6be7adfde494db95eb2adad7cf4eb51a5709cd931965669881e0a9afc66",
+  "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/cascade/src/cascade/sim/factory_precompile_pins.json": "2719c48fc2768f7bfaadfa6a7c141e8fce726151f346ddbdbce5882183f3afc7",
+  "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/cascade/src/cascade/sim/factory_sdk.py": "28c3717892d07a9161bdeb411eea8ee300dc082a7203df10ab17b91363e90929"
+ },
+ "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+ "head": "6b572f770c53ced9da7376d966b0fe66b788477f",
+ "input_roots": [
+  "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/exts/isaacsim.pip.newton/pip_prebundle/newton",
+  "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/exts/isaacsim.pip.newton/pip_prebundle/mujoco",
+  "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/exts/isaacsim.pip.newton/pip_prebundle/mujoco_warp",
+  "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/extscache/omni.warp.core-1.17.0+lx64/warp",
+  "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-env/lib/python3.12/site-packages/trimesh",
+  "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-env/lib/python3.12/site-packages/numpy",
+  "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-env/lib/python3.12/site-packages/numpy.libs",
+  "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-env/lib/python3.12/site-packages/scipy",
+  "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-env/lib/python3.12/site-packages/scipy.libs"
+ ],
+ "inputs_sha256": "ef1e1a73d7d4814cc99a0108fd054a44717d475d0ce8eb01ea66f1e188ee4fe8",
+ "inputs_summary": {
+  "assets": 2,
+  "harness": 12,
+  "launcher": 3,
+  "protected": 1,
+  "sdk": 9,
+  "source": 2108
+ },
+ "isaac_build_head": "48b2d951919bbb7330de3c2aad54e15369fa0183",
+ "isaac_head": "b91212b06f228717a1928cd1a2b6f00daffb121d",
+ "isaac_source": "/home/johnny/Projects/demo/omni_isaac_sim",
+ "launcher_files": [
+  "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/python.sh",
+  "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/setup_python_env.sh",
+  "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/VERSION"
+ ],
+ "mesh_site_packages": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-env/lib/python3.12/site-packages",
+ "module_roots": {
+  "mujoco": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/exts/isaacsim.pip.newton/pip_prebundle",
+  "mujoco_warp": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/exts/isaacsim.pip.newton/pip_prebundle",
+  "newton": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/exts/isaacsim.pip.newton/pip_prebundle",
+  "warp": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/extscache/omni.warp.core-1.17.0+lx64"
+ },
+ "native_launch_authorized": true,
+ "occupant_baseline": [],
+ "one_turn_contract": {
+  "arguments": {
+   "direction": "tighten",
+   "turns": 1.0
+  },
+  "motion_calls": 1,
+  "name": "fastening.turn_screw",
+  "request_ack_wall_s": 1.0,
+  "reset_calls": 1
+ },
+ "outer_watchdog_s": 240,
+ "owner_wall_s": 120,
+ "phase": "prepare",
+ "phase_diagnostic": {
+  "additional_sdk_reads": false,
+  "capacity": 262144,
+  "disable_gc": false,
+  "export_after_owner_join": true,
+  "force_gc": false,
+  "install_after_pre_owner_audit": true,
+  "schema_version": 1
+ },
+ "prior_readiness_epoch": "",
+ "profile": {
+  "assets": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-screw-contact/assets/factory/nut_bolt",
+  "device": "cuda:0",
+  "gc_policy": "freeze-startup-heap",
+  "kind": "fastening",
+  "model_identity_sha256": null,
+  "precompile": "factory_nv19_contact_writer_compile_v3",
+  "recipe": "factory_m20_fixed_axis_margin_v2",
+  "robot_asset": "/home/johnny/newton-work/mujoco_menagerie/robotstudio_so101/so101.xml",
+  "sdk_recipe": "isaacsim_48b2d951_newton_1_6_1rc1"
+ },
+ "python": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/python.sh",
+ "python_paths": [
+  "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/cascade/src",
+  "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/exts/isaacsim.pip.newton/pip_prebundle",
+  "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/extscache/omni.warp.core-1.17.0+lx64",
+  "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/lib/python3.12/site-packages",
+  "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-env/lib/python3.12/site-packages"
+ ],
+ "readiness_wall_s": 10,
+ "repo": "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/cascade",
+ "resource_policy": {
+  "min_free_vram_mib": 32768,
+  "mode": "shared_factory_recovery",
+  "performance_claim": false,
+  "physical_admission": false
+ },
+ "schema_version": 1,
+ "sdk_site_packages": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/exts/isaacsim.pip.newton/pip_prebundle"
+}

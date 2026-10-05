@@ -1,0 +1,293 @@
+{
+  "closure": {
+    "errors": [],
+    "forced": false,
+    "name": "factory-recovery-prepare",
+    "observed_births": [
+      {
+        "argv": [
+          "/usr/bin/timeout",
+          "--kill-after=15s",
+          "240s",
+          "nice",
+          "-n",
+          "19",
+          "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/python.sh",
+          "--no-ros-env",
+          "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/harness/native_prepare.py",
+          "--plan",
+          "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/prepare-plan-03.json",
+          "--out",
+          "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/prepare-03/native",
+          "--plan-sha256",
+          "4bd9c5b99f6f783d41ef5939f5dd997d0bc97d1f0b9c1cf1b897c72aef65718e"
+        ],
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/usr/lib/cargo/bin/coreutils/timeout",
+        "pid": 2381574,
+        "start_ticks": 15348844
+      },
+      {
+        "argv": [
+          "/bin/bash",
+          "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/python.sh",
+          "--no-ros-env",
+          "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/harness/native_prepare.py",
+          "--plan",
+          "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/prepare-plan-03.json",
+          "--out",
+          "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/prepare-03/native",
+          "--plan-sha256",
+          "4bd9c5b99f6f783d41ef5939f5dd997d0bc97d1f0b9c1cf1b897c72aef65718e"
+        ],
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/usr/bin/bash",
+        "pid": 2381576,
+        "start_ticks": 15348847
+      },
+      {
+        "argv": [
+          "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/kit/python/bin/python3",
+          "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/harness/native_prepare.py",
+          "--plan",
+          "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/prepare-plan-03.json",
+          "--out",
+          "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/prepare-03/native",
+          "--plan-sha256",
+          "4bd9c5b99f6f783d41ef5939f5dd997d0bc97d1f0b9c1cf1b897c72aef65718e"
+        ],
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/home/johnny/.cache/packman/chk/kit-kernel/110.4.0+feature.384729.1066600b.gl.manylinux_2_35_x86_64.release/python/bin/python3.12",
+        "pid": 2381581,
+        "start_ticks": 15348848
+      }
+    ],
+    "ok": true,
+    "remaining_births": [],
+    "remaining_members": [],
+    "scope_client_exit": 0,
+    "signals": [],
+    "state": {
+      "ActiveState": "inactive",
+      "ControlGroup": "",
+      "Description": "cascade-voice-factory-recovery-prepare-3bfbf280dfff497f9712b9ffb56491c8.scope",
+      "InvocationID": "",
+      "LoadState": "not-found",
+      "Result": "success",
+      "SubState": "dead"
+    },
+    "unit": "cascade-voice-factory-recovery-prepare-3bfbf280dfff497f9712b9ffb56491c8.scope"
+  },
+  "compute_before": "",
+  "execute": true,
+  "gpu_after": {
+    "causality_attributed": false,
+    "ended_monotonic_s": 153553.146777408,
+    "errors": [],
+    "gpu": {
+      "free_mib": 97259.0,
+      "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+      "pci_bus_id": "00000000:C1:00.0",
+      "total_mib": 97887.0,
+      "used_mib": 82.0,
+      "utilization_percent": 0.0,
+      "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a"
+    },
+    "latency_isolation_guaranteed": false,
+    "original_births_still_present": true,
+    "original_occupants": [],
+    "owned_scope_closed": true,
+    "query_records": [
+      {
+        "query": "gpu",
+        "raw": "GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3, NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 00000000:21:00.0, 97887, 97040, 299, 0\nGPU-4c811d02-a79b-2837-425e-5f62ac3c578a, NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 00000000:C1:00.0, 97887, 97259, 82, 0\n",
+        "received_monotonic_s": 153553.112966473
+      },
+      {
+        "query": "compute-apps",
+        "raw": "",
+        "received_monotonic_s": 153553.146773872
+      }
+    ],
+    "started_monotonic_s": 153553.070822005
+  },
+  "gpu_before": "0, GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3, 97040\n1, GPU-4c811d02-a79b-2837-425e-5f62ac3c578a, 97259\n",
+  "gpu_preflight": {
+    "compute_processes_signalled": false,
+    "device_configuration_changed": false,
+    "ended_monotonic_s": 153488.435192021,
+    "exclusive_gpu": false,
+    "gpu_after": {
+      "free_mib": 97259.0,
+      "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+      "pci_bus_id": "00000000:C1:00.0",
+      "total_mib": 97887.0,
+      "used_mib": 82.0,
+      "utilization_percent": 0.0,
+      "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a"
+    },
+    "gpu_before": {
+      "free_mib": 97259.0,
+      "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+      "pci_bus_id": "00000000:C1:00.0",
+      "total_mib": 97887.0,
+      "used_mib": 82.0,
+      "utilization_percent": 0.0,
+      "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a"
+    },
+    "latency_isolation_guaranteed": false,
+    "occupants": [],
+    "ok": true,
+    "policy": {
+      "min_free_vram_mib": 32768,
+      "mode": "shared_factory_recovery",
+      "performance_claim": false,
+      "physical_admission": false
+    },
+    "reviewed_occupant_baseline_matched": true,
+    "started_monotonic_s": 153488.215244254,
+    "vram_reserved": false
+  },
+  "inputs_unchanged": true,
+  "native": {
+    "actual_modules": {
+      "mujoco": {
+        "path": "/home/johnny/Projects/demo/omni_isaac_sim/_build/target-deps/isaac_newton_prebundle/mujoco/__init__.py",
+        "sha256": "131342cd035fa2022b8ea46e1380aaa80641ee1d983d65c427a694517c3c6790",
+        "version": "3.12.0"
+      },
+      "mujoco_warp": {
+        "path": "/home/johnny/Projects/demo/omni_isaac_sim/_build/target-deps/isaac_newton_prebundle/mujoco_warp/__init__.py",
+        "sha256": "fb6a018b0a2f0bd8fcfb5227a3b96ace5a441939b051d6459d9d61bd1b5b00ad",
+        "version": "3.12.0"
+      },
+      "newton": {
+        "path": "/home/johnny/Projects/demo/omni_isaac_sim/_build/target-deps/isaac_newton_prebundle/newton/__init__.py",
+        "sha256": "035f8bbd3396504827803dae3ddbecbd6c31a7cf8cb3abc06e3f23292bd492fa",
+        "version": "1.6.1rc1"
+      },
+      "trimesh": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-env/lib/python3.12/site-packages/trimesh/__init__.py",
+        "sha256": "82ab0c6786671b7a6c0ea1d6ffda96f9df6330b72cf890ac4fc4cdce500a6b4b",
+        "version": "4.12.2"
+      },
+      "warp": {
+        "path": "/home/johnny/.local/share/ov/data/exts/v2/omni.warp.core-1.17.0+lx64/warp/__init__.py",
+        "sha256": "40e9beec31940f6ecd4812e35de692fb06f6a7f256886eee7b9bff847d9c2053",
+        "version": "1.17.0"
+      }
+    },
+    "device": {
+      "alias": "cuda:0",
+      "is_cuda": true,
+      "pci_bus_id": "00000000:C1:00",
+      "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a"
+    },
+    "ended_monotonic_s": 153551.059061975,
+    "epoch": "fd9df6ea6e0a4f96b0a3cb19b2c0c8e9",
+    "factory_module": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/cascade/src/cascade/apps/factory_runtime.py",
+      "sha256": "cf92b7b3e466b80a8ecf089563a9cd46a0f93c2a2cfe594812838e1fb7a1f40a"
+    },
+    "final_counters": {
+      "available": true,
+      "counters": {
+        "epoch": "fd9df6ea6e0a4f96b0a3cb19b2c0c8e9",
+        "native_step": 0,
+        "native_time_s": [
+          0.0
+        ],
+        "scene_step": 0,
+        "scene_time_s": 0.0
+      },
+      "end_monotonic_s": 153551.058193794,
+      "observed_zero": true,
+      "start_monotonic_s": 153551.058059219
+    },
+    "fresh_caches_before_import": true,
+    "head": "6b572f770c53ced9da7376d966b0fe66b788477f",
+    "model_identity_sha256": "e03bf144eedc42444e22906bbac937910af6f8943eda31de51fa6e5dde79136b",
+    "motion_calls": [],
+    "ok": true,
+    "owner_started": false,
+    "phase": "prepare",
+    "physical_task_admission": false,
+    "precompile_sha256": "62be9c030502e360e4b0cc17e6ca09d722839800108dd8d3c92be5d9e1c6a1eb",
+    "preparation_audit": {
+      "admission_predicates": 22,
+      "admission_sha256": "c9adf546d1c7ce22db7780d750def78f63e646cd2957bf735eca6f91a32d7cd3",
+      "loaded_variants": 39,
+      "model_identity_sha256": "e03bf144eedc42444e22906bbac937910af6f8943eda31de51fa6e5dde79136b",
+      "ok": true,
+      "physical_snapshot_sha256": "741e02f6b4bc291035169df058a8342e1855972791b17e5d8e51555cdcd4b78a",
+      "physics_admission": false,
+      "readiness_admission": false,
+      "scene_and_native_solves": 0
+    },
+    "process_birth": {
+      "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+      "pid": 2381581,
+      "start_ticks": 15348848
+    },
+    "process_exit_pending": true,
+    "python": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/kit/python/bin/python3",
+    "readiness_admission": false,
+    "reset_calls": [],
+    "resolved_warp_cache": "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/prepare-03/native/cache/warp/1.17.0",
+    "signals": [],
+    "started_monotonic_s": 153488.514725569,
+    "timings": [
+      {
+        "end_monotonic_s": 153489.454703912,
+        "phase": "import:mujoco",
+        "start_monotonic_s": 153489.386472915
+      },
+      {
+        "end_monotonic_s": 153490.162170237,
+        "phase": "import:newton",
+        "start_monotonic_s": 153489.454902183
+      },
+      {
+        "end_monotonic_s": 153490.162347256,
+        "phase": "import:warp",
+        "start_monotonic_s": 153490.162344512
+      },
+      {
+        "end_monotonic_s": 153490.748715389,
+        "phase": "import:mujoco_warp",
+        "start_monotonic_s": 153490.162470825
+      },
+      {
+        "end_monotonic_s": 153551.036403101,
+        "phase": "model_construction_and_finite_compilation",
+        "start_monotonic_s": 153491.014461273
+      }
+    ],
+    "zero_solve_counters": {
+      "available": true,
+      "counters": {
+        "epoch": "fd9df6ea6e0a4f96b0a3cb19b2c0c8e9",
+        "native_step": 0,
+        "native_time_s": [
+          0.0
+        ],
+        "scene_step": 0,
+        "scene_time_s": 0.0
+      },
+      "end_monotonic_s": 153551.038631623,
+      "observed_zero": true,
+      "start_monotonic_s": 153551.0384786
+    }
+  },
+  "native_result_sha256": "a59a701ec2390b6d45c91e4a6c54dfc271cc8286c899ed78d6ff5ad666c8a77b",
+  "ok": true,
+  "phase": "prepare",
+  "physical_task_admission": false,
+  "plan_sha256": "4bd9c5b99f6f783d41ef5939f5dd997d0bc97d1f0b9c1cf1b897c72aef65718e",
+  "preflight": {
+    "head": "6b572f770c53ced9da7376d966b0fe66b788477f",
+    "ok": true,
+    "phase": "prepare"
+  },
+  "scope_client_exit": 0
+}

@@ -1,0 +1,17 @@
+{
+  "binding_sha256": "1e45f68fb2475f7f3d1729a9fdf618a9a22298591811fa779e446b02601b8aeb",
+  "captured_monotonic_s": 153391.385210921,
+  "epoch": "5a04117ab192470dbee8a3aff31331f8",
+  "gc_policy": {
+    "implementation_sha256": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec",
+    "policy": "freeze-startup-heap-v1",
+    "receipt": "gc-policy.json",
+    "selected": "freeze-startup-heap"
+  },
+  "generation": 0,
+  "latched": true,
+  "physical_task_admission": false,
+  "quiet_interval_sim_s": 0.5000000121071935,
+  "ready": true,
+  "step": 360
+}

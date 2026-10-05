@@ -443,6 +443,22 @@ and stands once the stop latches, but moves on while a zero twist is held after
 completion; the Lab task trains with two percent standing environments. The
 post-completion handoff is the open design item; thresholds are unchanged and
 nothing physical is claimed.
+**Factory heap-freeze profile ran natively (5 October 2026, same-revision pair):**
+on merged source `6b572f77`, model pin `e03bf144…`, SDK recipe
+`isaacsim_48b2d951_newton_1_6_1rc1` and GPU 1, a preparation and one ordinary
+readiness/reset/one-turn/rest episode ran with `gc_policy: freeze-startup-heap`
+and then without it ([evidence](evidence/factory-heap-freeze-20261005/)). Both
+passed the unchanged verifier (readiness 6.147 / 6.335 s; admission to stop
+acknowledgement 35.658 / 35.600 s of 40 s; advance 2.3992 / 2.3977 mm; 0.5 s
+confirmed rest; ordinary closure). The policy's receipts are complete: explicit
+startup collection 319.5 ms, 1,085,558 objects frozen in 21 µs, release after
+the owner closed with a 4.05 ms frozen full collection and a 316.2 ms
+post-unfreeze collection. Neither episode had an automatic generation-2 pause
+between owner start and closure, so the pair establishes the native mechanism
+and its binding, not a removed pause; the 4 October episode's three pauses were
+on an older source. Observation gaps above 0.2 s remain in both episodes at the
+readiness return and in the post-stop drain (observation-drain bursts, no
+collector involvement) and are retained as a separate open item.
 
 ## RGB-D geometry, speech and evaluation
 

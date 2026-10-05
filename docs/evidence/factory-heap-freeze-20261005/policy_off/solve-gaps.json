@@ -1,0 +1,142 @@
+{
+ "marks": {
+  "owner_started": 153619.774321561,
+  "readiness_returned": 153626.109763983,
+  "turn_admitted": 153626.721300889,
+  "stop_accepted": 153662.321286912
+ },
+ "gaps": [
+  {
+   "step": 358,
+   "gap_s": 0.4858,
+   "window": "between",
+   "sim_time_s": 0.5966666811145842,
+   "gen2_inside": [],
+   "gc_rows_inside": 307,
+   "top_phases": [
+    [
+     "observation.asdict",
+     624
+    ],
+    [
+     "gc",
+     307
+    ],
+    [
+     "geometry.evaluate",
+     1
+    ]
+   ]
+  },
+  {
+   "step": 2040,
+   "gap_s": 0.6999,
+   "window": "after_stop",
+   "sim_time_s": 3.4000000823289156,
+   "gen2_inside": [],
+   "gc_rows_inside": 304,
+   "top_phases": [
+    [
+     "observation.asdict",
+     670
+    ],
+    [
+     "gc",
+     304
+    ],
+    [
+     "geometry.evaluate",
+     1
+    ]
+   ]
+  },
+  {
+   "step": 2041,
+   "gap_s": 0.759,
+   "window": "after_stop",
+   "sim_time_s": 3.4016667490359396,
+   "gen2_inside": [],
+   "gc_rows_inside": 348,
+   "top_phases": [
+    [
+     "observation.asdict",
+     788
+    ],
+    [
+     "gc",
+     348
+    ],
+    [
+     "geometry.evaluate",
+     1
+    ]
+   ]
+  },
+  {
+   "step": 2042,
+   "gap_s": 0.777,
+   "window": "after_stop",
+   "sim_time_s": 3.4033334157429636,
+   "gen2_inside": [],
+   "gc_rows_inside": 357,
+   "top_phases": [
+    [
+     "observation.asdict",
+     796
+    ],
+    [
+     "gc",
+     357
+    ],
+    [
+     "geometry.evaluate",
+     1
+    ]
+   ]
+  },
+  {
+   "step": 2043,
+   "gap_s": 0.741,
+   "window": "after_stop",
+   "sim_time_s": 3.4050000824499875,
+   "gen2_inside": [],
+   "gc_rows_inside": 350,
+   "top_phases": [
+    [
+     "observation.asdict",
+     738
+    ],
+    [
+     "gc",
+     350
+    ],
+    [
+     "geometry.evaluate",
+     1
+    ]
+   ]
+  },
+  {
+   "step": 2044,
+   "gap_s": 0.404,
+   "window": "after_stop",
+   "sim_time_s": 3.4066667491570115,
+   "gen2_inside": [],
+   "gc_rows_inside": 186,
+   "top_phases": [
+    [
+     "observation.asdict",
+     372
+    ],
+    [
+     "gc",
+     186
+    ],
+    [
+     "geometry.evaluate",
+     1
+    ]
+   ]
+  }
+ ]
+}

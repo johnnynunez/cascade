@@ -47,6 +47,10 @@ def recipe_inputs(tmp_path):
         configuration={'use_mujoco_contacts': True}, native_labels={'shapes': ['foot', 'ground']},
         native_model_properties={'joint_damping': [.005]}, native_body_properties={'body_mass_kg': [.3]},
         disabled_source_actuators=['source-drive'],
+        collision_hull_limits=[{'root': '/World/MicroDuck', 'default_limit': -1, 'collision_meshes': 1,
+                                'authored': ['/World/MicroDuck/foot'], 'kept': [], 'deinstanced': []}],
+        collision_hulls=[{'root': '/World/MicroDuck', 'total_hull_vertices': 8,
+                          'shapes': [{'label': '/World/MicroDuck/foot', 'maxhullvert': -1, 'hull_vertices': 8}]}],
         initialization={'root_z_m': .125}, runtime_versions={'mujoco': '3.12.0'},
         support_contract={'version': 1, 'robot_shapes': ['foot'], 'foot_shapes': ['foot'],
                           'ground_shapes': ['ground'], 'gravity_world_m_s2': [0., 0., -9.81]},
@@ -91,6 +95,8 @@ def test_recipe_relocation_and_incidental_counters_do_not_change_identity(recipe
     ('device', lambda a,n: (n.update(physics_device='cuda:1'), n['bam'].update(device='cuda:1'))),
     ('GPU', lambda a,n: n['gpu_attestation'].update(uuid='other-GPU')),
     ('contact_support', lambda a,n: n['support_contract'].update(foot_shapes=['other-foot'])),
+    ('hull_limits', lambda a,n: n['collision_hull_limits'][0].update(authored=[])),
+    ('built_hulls', lambda a,n: n['collision_hulls'][0]['shapes'][0].update(maxhullvert=64, hull_vertices=64)),
     ('phase_profile', lambda a,n: n['configuration'].update(phase_profile='owner-thread-inclusive-v1')),
 ])
 def test_effective_recipe_changes_cannot_reuse_identity(recipe_inputs, field, change):

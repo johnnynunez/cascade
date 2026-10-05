@@ -27,6 +27,11 @@ REPO = Path(__file__).resolve().parents[1]
 SOURCE_PIN = "8d0db74916a4f833d1d9b95d6a1d7f4d13b9d5ec"
 MODEL_PATH = Path("microduck_rl/src/mjlab_microduck/robot/microduck/robot_allcollisions.xml")
 CONSTANTS_PATH = Path("microduck_rl/src/mjlab_microduck/robot/microduck_constants.py")
+# Newton resolves only AUTHORED hull limits. Without one it substitutes its own
+# 64-vertex cap (newton.Mesh.MAX_HULL_VERTICES), not MJCF's unlimited -1 default.
+HULL_LIMIT = "newton:maxHullVertices"
+# Other schemas Newton's importer also reads for the same limit; never author them.
+COMPETING_HULL_LIMITS = ("mjc:maxhullvert", "physxConvexHullCollision:hullVertexLimit")
 
 
 @lru_cache(maxsize=1)
@@ -171,7 +176,8 @@ def validate_model(source_xml, usd_path):
     colliders = [p for p in prims if p.GetPath().HasPrefix(stage.GetDefaultPrim().GetPath())
                  and p.HasAPI(d.Physics.CollisionAPI)]
     _require(len(colliders) == int(d.np.count_nonzero(model.geom_contype | model.geom_conaffinity)), "collider count differs")
-    _validate_geoms(model, data, stage, bodies, cache)
+    hull_limits = _hull_limits(source_spec, model)
+    _validate_geoms(model, data, stage, bodies, cache, hull_limits)
     _validate_actuators(model, stage, joints, source_spec)
     _validate_masks(model, stage)
     _validate_excludes(model, stage, bodies)
@@ -190,7 +196,42 @@ def validate_model(source_xml, usd_path):
             "hinge_joints": len(joints), "colliders": len(colliders), "free_root": str(root.GetPath()),
             "site_frames": len(sites), "actuators": model.nu, "body_exclusions": model.nexclude,
             "mass_kg": float(model.body_mass.sum()), "geometries": model.ngeom,
+            "collision_meshes": len(hull_limits),
+            "unlimited_collision_hulls": sum(1 for limit in hull_limits.values() if limit == -1),
             "nq": model.nq, "nv": model.nv}
+
+
+def _hull_limits(spec, model):
+    """MJCF hull vertex limit per collision-mesh geom id; -1 means unlimited."""
+    d = _deps()
+    limits = {}
+    for i in range(model.ngeom):
+        if model.geom_type[i] != d.mj.mjtGeom.mjGEOM_MESH or not (model.geom_contype[i] or model.geom_conaffinity[i]):
+            continue
+        mesh = spec.mesh(spec.geom(model.geom(i).name).meshname)
+        _require(mesh is not None, f"collision mesh missing from source spec: {model.geom(i).name}")
+        limits[i] = int(mesh.maxhullvert)
+        _require(limits[i] == -1 or limits[i] >= 4, f"invalid source hull vertex limit: {model.geom(i).name}")
+    return limits
+
+
+def _author_hull_limits(source_xml, stage):
+    """Author each collision mesh's MJCF hull limit explicitly, -1 included.
+
+    The converter omits values equal to the schema default (-1, a complete
+    hull), but an unauthored limit is Newton's 64-vertex fallback. Partial hulls
+    depend on vertex order, so mirrored MicroDuck soles became asymmetric.
+    """
+    d = _deps()
+    spec = d.mj.MjSpec.from_file(str(source_xml))
+    model = spec.compile()
+    geoms = _geoms(model, stage)
+    for i, limit in _hull_limits(spec, model).items():
+        attr = geoms[i].GetAttribute(HULL_LIMIT)
+        _require(geoms[i].HasAPI("NewtonMeshCollisionAPI") and attr.IsValid(),
+                 f"Newton mesh collision schema missing: {geoms[i].GetPath()}")
+        attr.Set(limit)
+    stage.GetRootLayer().Save()
 
 
 def _geoms(model, stage):
@@ -203,7 +244,7 @@ def _geoms(model, stage):
     return {i: available[name] for i, name in enumerate(names)}
 
 
-def _validate_geoms(model, data, stage, bodies, cache):
+def _validate_geoms(model, data, stage, bodies, cache, hull_limits):
     d = _deps()
     for i, prim in _geoms(model, stage).items():
         label = str(prim.GetPath())
@@ -222,7 +263,7 @@ def _validate_geoms(model, data, stage, bodies, cache):
                 # or anisotropically scaled curved primitives are not admitted.
                 _near(scale / scale[0], [1, 1, 1], f"unsupported nonuniform geom scale {label}")
         if kind == d.mj.mjtGeom.mjGEOM_MESH:
-            _validate_mesh(model, data, i, prim, transform)
+            _validate_mesh(model, data, i, prim, transform, hull_limits.get(i))
         elif kind == d.mj.mjtGeom.mjGEOM_BOX:
             _require(prim.IsA(d.Geom.Cube), f"geom type {label}")
             _near(d.np.linalg.norm(transform[:3, :3], axis=0) * prim.GetAttribute("size").Get(),
@@ -267,7 +308,7 @@ def _validate_geoms(model, data, stage, bodies, cache):
             _near(material.GetPrim().GetAttribute(attr).Get(), value, f"{label} {attr}")
 
 
-def _validate_mesh(model, data, i, prim, transform):
+def _validate_mesh(model, data, i, prim, transform, hull_limit):
     # MuJoCo recenters and rotates mesh vertices into principal-inertia space.
     # Compare actual world geometry, not the differing storage-frame origins.
     from scipy.spatial import cKDTree
@@ -292,6 +333,15 @@ def _validate_mesh(model, data, i, prim, transform):
     if prim.HasAPI(d.Physics.CollisionAPI):
         _require(d.Physics.MeshCollisionAPI(prim).GetApproximationAttr().Get() == "convexHull",
                  f"mesh collision approximation {prim.GetPath()}")
+        # A schema fallback is not consumed: require the source limit to be authored.
+        limit = prim.GetAttribute(HULL_LIMIT)
+        _require(prim.HasAPI("NewtonMeshCollisionAPI") and limit.HasAuthoredValue()
+                 and limit.Get() == hull_limit, f"mesh hull vertex limit {prim.GetPath()}")
+        for name in COMPETING_HULL_LIMITS:
+            other = prim.GetAttribute(name)
+            _require(not (other and other.HasAuthoredValue()), f"competing hull vertex limit {name} {prim.GetPath()}")
+    else:
+        _require(hull_limit is None, f"collision hull limit on visual mesh {prim.GetPath()}")
 
 
 def _validate_visual(model, i, prim):
@@ -643,6 +693,7 @@ def convert_model(source_xml, destination, *, collision_profile="source", _conta
         output = _deps().converter.Converter(layer_structure=True, scene=False).convert(str(staged), str(destination / "usd"))
         usd = Path(output.path)
         _author_masks(_deps().mj.MjModel.from_xml_path(str(staged)), _deps().Usd.Stage.Open(str(usd)))
+        _author_hull_limits(staged, _deps().Usd.Stage.Open(str(usd)))
         validation = validate_model(staged, usd)
         return _receipt(destination, {
             "schema_version": 1, "usd_path": str(usd.relative_to(destination)),

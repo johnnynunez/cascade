@@ -1,0 +1,313 @@
+{
+ "asset": {
+  "authored_hull_limits_in_asset": 0,
+  "bundle": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/isaaclab-usd-allcollisions-v1",
+  "bundle_receipt_sha256": "ba7cdd9ed68552fc83aefaf881a148970203bb08fb003e0d52715f42a8263079",
+  "enabled_convex_hull_colliders": 10,
+  "kind": "external-usd",
+  "root_layer_creator": "MuJoCo USD Converter v0.2.0",
+  "root_usd_sha256": "e29fad565239d748086b96ba87441fb13071932ab9445d8f38dca1c176c6760c",
+  "variant": "allcollisions"
+ },
+ "date": "2026-10-05",
+ "files": {
+  "driver": "cascade-lab/HERMES_MICRODUCK_FLEET_20261005/hullgate/hull_gate.py",
+  "runs": [
+   "hullgate/gate-02",
+   "hullgate/gate-03"
+  ]
+ },
+ "limitations": [
+  "rough_walk_e was trained on the microduck_rl MJCF with complete hulls; this is the same policy/profile as the 2026-10-04 converted-bundle gate so the two gates are comparable, but no policy trained on this USD was tested here.",
+  "Two fresh-process replicas per arm; same model identity within an arm (deterministic recipe), trajectories differ slightly between processes.",
+  "Residual +0.2..+0.3 rad curl over 20 s is not isolated; the official MuJoCo reference of the source MJCF gives -0.38 rad.",
+  "One x86 test rig, Newton only; no PhysX, hardware or Spark measurement; no SafeBase/verifier admission."
+ ],
+ "policy": {
+  "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck-rough-walk-e/policy.onnx",
+  "profile": "rough_walk_e",
+  "sha256": "5aa423bd693e431b19e2ead77f99cbae6184e40a529eb2f7c1b4f85bb7f57040"
+ },
+ "protocol": "open-loop vx=0.3 m/s command for 20 s, then zero command; yaw unwrapped from the bridge state samples; forward/lateral in the heading frame at command start",
+ "question": "Does the owner-side authoring of newton:maxHullVertices=-1 make Newton build complete hulls from the admitted Isaac Lab USD (external-usd bundle, whose colliders author no limit), and does it change the straight-walk curl?",
+ "runs": {
+  "gate-02/fix": {
+   "arm": "fix (owner authors complete hulls)",
+   "collision_hull_limits_summary": {
+    "attribute": "newton:maxHullVertices",
+    "authored": 10,
+    "collision_meshes": 10,
+    "default_limit": -1,
+    "deinstanced": 10,
+    "engine_fallback_limit": 64,
+    "kept": 0,
+    "resolver_order": 3,
+    "root": "/World/MicroDuck"
+   },
+   "collision_hulls": {
+    "non_colliding_meshes": 71,
+    "root": "/World/MicroDuck",
+    "shapes": [
+     {
+      "hull_vertices": 4964,
+      "label": "/World/MicroDuck/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/left_foot_collision/sole_left",
+      "maxhullvert": -1
+     },
+     {
+      "hull_vertices": 1033,
+      "label": "/World/MicroDuck/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/leg_1/leg",
+      "maxhullvert": -1
+     },
+     {
+      "hull_vertices": 1350,
+      "label": "/World/MicroDuck/Geometry/trunk_base/yaw2roll/hip_l/hip_l_1/hip_l",
+      "maxhullvert": -1
+     },
+     {
+      "hull_vertices": 3809,
+      "label": "/World/MicroDuck/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/top_head_shell_1/top_head_shell",
+      "maxhullvert": -1
+     },
+     {
+      "hull_vertices": 1673,
+      "label": "/World/MicroDuck/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/jaw_1/jaw",
+      "maxhullvert": -1
+     },
+     {
+      "hull_vertices": 1616,
+      "label": "/World/MicroDuck/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/bottom_head_shell_1/bottom_head_shell",
+      "maxhullvert": -1
+     },
+     {
+      "hull_vertices": 5029,
+      "label": "/World/MicroDuck/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/right_foot_collision/sole_right",
+      "maxhullvert": -1
+     },
+     {
+      "hull_vertices": 1033,
+      "label": "/World/MicroDuck/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/leg_1/leg",
+      "maxhullvert": -1
+     },
+     {
+      "hull_vertices": 1350,
+      "label": "/World/MicroDuck/Geometry/trunk_base/bearing_roll/hip_l_2/hip_l_1/hip_l",
+      "maxhullvert": -1
+     },
+     {
+      "hull_vertices": 831,
+      "label": "/World/MicroDuck/Geometry/trunk_base/np_f970_1/np_f970",
+      "maxhullvert": -1
+     }
+    ],
+    "total_hull_vertices": 22688
+   },
+   "commanded": {
+    "duration_s": 20.0,
+    "vx": 0.3,
+    "vy": 0.0,
+    "wz": 0.0
+   },
+   "fell": false,
+   "forward_m": 2.32,
+   "lateral_end_m": 0.188,
+   "max_abs_lateral_m": 0.192,
+   "max_abs_yaw_rad": 0.441,
+   "min_root_height_m": 0.115,
+   "model_identity_sha256": "81592cd57593e191e4cbc99fa0f6ee7e993e73f7b957ec0c793d0bd7feb6aa38",
+   "observed_window_sim_s": 23.02,
+   "runtime_layer_sha256": "9899e9099024de0dd912527f997aafc0607cd95f524f93d3a3b91da068e83b01",
+   "worktree_head": "4b89058457d3d07703b1f24add5fc605beb0f59e + uncommitted owner-layer edits (committed as the PR's second commit)",
+   "yaw_change_rad": 0.337
+  },
+  "gate-02/main": {
+   "arm": "main 0fd6c51 (default import, 64-vertex hulls)",
+   "collision_hull_limits_summary": null,
+   "collision_hulls": null,
+   "commanded": {
+    "duration_s": 20.0,
+    "vx": 0.3,
+    "vy": 0.0,
+    "wz": 0.0
+   },
+   "fell": false,
+   "forward_m": 1.937,
+   "lateral_end_m": 1.839,
+   "max_abs_lateral_m": 1.852,
+   "max_abs_yaw_rad": 1.384,
+   "min_root_height_m": 0.116,
+   "model_identity_sha256": "1aa99b81fc0f4c07b3e7d7db5626424b0aa21e604b804cf503ad86cb13e34eaf",
+   "observed_window_sim_s": 23.02,
+   "runtime_layer_sha256": "045479e71076a2886ff6344054d70164caf2984007252c030c564125c4d51a6e",
+   "worktree_head": "0fd6c516680e54933afa194145aa92e8dac2fde0",
+   "yaw_change_rad": 1.267
+  },
+  "gate-03/fix": {
+   "arm": "fix (owner authors complete hulls)",
+   "collision_hull_limits_summary": {
+    "attribute": "newton:maxHullVertices",
+    "authored": 10,
+    "collision_meshes": 10,
+    "default_limit": -1,
+    "deinstanced": 10,
+    "engine_fallback_limit": 64,
+    "kept": 0,
+    "resolver_order": 3,
+    "root": "/World/MicroDuck"
+   },
+   "collision_hulls": {
+    "non_colliding_meshes": 71,
+    "root": "/World/MicroDuck",
+    "shapes": [
+     {
+      "hull_vertices": 4964,
+      "label": "/World/MicroDuck/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/left_foot_collision/sole_left",
+      "maxhullvert": -1
+     },
+     {
+      "hull_vertices": 1033,
+      "label": "/World/MicroDuck/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/leg_1/leg",
+      "maxhullvert": -1
+     },
+     {
+      "hull_vertices": 1350,
+      "label": "/World/MicroDuck/Geometry/trunk_base/yaw2roll/hip_l/hip_l_1/hip_l",
+      "maxhullvert": -1
+     },
+     {
+      "hull_vertices": 3809,
+      "label": "/World/MicroDuck/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/top_head_shell_1/top_head_shell",
+      "maxhullvert": -1
+     },
+     {
+      "hull_vertices": 1673,
+      "label": "/World/MicroDuck/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/jaw_1/jaw",
+      "maxhullvert": -1
+     },
+     {
+      "hull_vertices": 1616,
+      "label": "/World/MicroDuck/Geometry/trunk_base/neck/neck_pitch_1/yaw_roll_motion/jaw_soft/bottom_head_shell_1/bottom_head_shell",
+      "maxhullvert": -1
+     },
+     {
+      "hull_vertices": 5029,
+      "label": "/World/MicroDuck/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/ankle_right/right_foot_collision/sole_right",
+      "maxhullvert": -1
+     },
+     {
+      "hull_vertices": 1033,
+      "label": "/World/MicroDuck/Geometry/trunk_base/bearing_roll/hip_l_2/upper_leg_right/leg_2/leg_1/leg",
+      "maxhullvert": -1
+     },
+     {
+      "hull_vertices": 1350,
+      "label": "/World/MicroDuck/Geometry/trunk_base/bearing_roll/hip_l_2/hip_l_1/hip_l",
+      "maxhullvert": -1
+     },
+     {
+      "hull_vertices": 831,
+      "label": "/World/MicroDuck/Geometry/trunk_base/np_f970_1/np_f970",
+      "maxhullvert": -1
+     }
+    ],
+    "total_hull_vertices": 22688
+   },
+   "commanded": {
+    "duration_s": 20.0,
+    "vx": 0.3,
+    "vy": 0.0,
+    "wz": 0.0
+   },
+   "fell": false,
+   "forward_m": 2.308,
+   "lateral_end_m": 0.129,
+   "max_abs_lateral_m": 0.134,
+   "max_abs_yaw_rad": 0.374,
+   "min_root_height_m": 0.116,
+   "model_identity_sha256": "81592cd57593e191e4cbc99fa0f6ee7e993e73f7b957ec0c793d0bd7feb6aa38",
+   "observed_window_sim_s": 23.01,
+   "runtime_layer_sha256": "9899e9099024de0dd912527f997aafc0607cd95f524f93d3a3b91da068e83b01",
+   "worktree_head": "4b89058457d3d07703b1f24add5fc605beb0f59e + uncommitted owner-layer edits (committed as the PR's second commit)",
+   "yaw_change_rad": 0.21
+  },
+  "gate-03/main": {
+   "arm": "main 0fd6c51 (default import, 64-vertex hulls)",
+   "collision_hull_limits_summary": null,
+   "collision_hulls": null,
+   "commanded": {
+    "duration_s": 20.0,
+    "vx": 0.3,
+    "vy": 0.0,
+    "wz": 0.0
+   },
+   "fell": false,
+   "forward_m": 1.919,
+   "lateral_end_m": 1.807,
+   "max_abs_lateral_m": 1.818,
+   "max_abs_yaw_rad": 1.606,
+   "min_root_height_m": 0.116,
+   "model_identity_sha256": "1aa99b81fc0f4c07b3e7d7db5626424b0aa21e604b804cf503ad86cb13e34eaf",
+   "observed_window_sim_s": 23.02,
+   "runtime_layer_sha256": "045479e71076a2886ff6344054d70164caf2984007252c030c564125c4d51a6e",
+   "worktree_head": "0fd6c516680e54933afa194145aa92e8dac2fde0",
+   "yaw_change_rad": 1.606
+  }
+ },
+ "runtime": {
+  "actual_physics_dt": 0.004999999888241291,
+  "bam_profile": "official_infer_nominal_no_delay",
+  "configuration": {
+   "nconmax": 512,
+   "njmax": 2400,
+   "reuse_solved_read": true,
+   "use_cuda_graph": true,
+   "use_mujoco_contacts": true
+  },
+  "device": "cuda:0 (RTX PRO 6000 Blackwell, x86 test rig)",
+  "isaac_sim": "6.2.0-alpha develop 48b2d951 (sdk recipe isaac62_48b2d951)",
+  "limits_change": "controller-limits-slow.json with only max_duration_s 3->25 and max_action_wall_s 25->190",
+  "newton_version": "1.6.1rc1",
+  "physics_device": "cuda:0",
+  "runtime_versions": {
+   "isaac_sim": [
+    "6.2.0",
+    "alpha.19",
+    "6",
+    "2",
+    "0",
+    "alpha",
+    "19",
+    "develop.0.48b2d951.local"
+   ],
+   "mujoco": "3.12.0",
+   "mujoco_warp": "3.12.0"
+  },
+  "solver": "SolverMuJoCo",
+  "transport": "raw IsaacBase command after 1.5 s passive stand, no SafeBase skill bounds; two bridges per run on one GPU (cuda:0), launched 75 s apart",
+  "warp_version": "1.17.0"
+ },
+ "schema": "cascade.microduck.hull-limit-live-gate.v2",
+ "status": "diagnostic_experiment_not_physical_admission",
+ "summary": {
+  "fix_lateral_end_m": [
+   0.188,
+   0.129
+  ],
+  "fix_sole_hull_vertices": {
+   "sole_left": 4964,
+   "sole_right": 5029
+  },
+  "fix_yaw_change_rad": [
+   0.337,
+   0.21
+  ],
+  "main_lateral_end_m": [
+   1.839,
+   1.807
+  ],
+  "main_sole_hull_vertices": "64 each (Newton default import; not recorded by main, see the 2026-10-04 converted-bundle gate for the same meshes)",
+  "main_yaw_change_rad": [
+   1.267,
+   1.606
+  ]
+ }
+}

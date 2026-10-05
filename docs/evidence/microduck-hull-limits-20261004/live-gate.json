@@ -1,0 +1,173 @@
+{
+  "bundles": {
+    "v4": {
+      "receipt_sha256": "910c4ddb7e25122f808888f01e97227af0344bdabbb26572e3f021384584490d",
+      "root_usd_sha256": "f73ca2401f91a6c94a743c28614cc16e22892a5d338af8c15915c365d62c7627"
+    },
+    "v5": {
+      "changed_outputs_vs_v4": [
+        "usd/microduck.usda",
+        "provenance/NOTICE.md"
+      ],
+      "independent_reproduction_receipt_equal": true,
+      "receipt_sha256": "9b829321d81050a0b6b6e0e0a6d3d8542dd6a09045f19f9efd1e432d688ca3be",
+      "root_usd_sha256": "b94a559c34c8ff18e3099ba8302f544bafb515725ab2c3da473e306c9881706e",
+      "validation": {
+        "colliders": 70,
+        "collision_meshes": 70,
+        "unlimited_collision_hulls": 70
+      }
+    }
+  },
+  "date": "2026-10-04",
+  "isaac_open_loop_20s": {
+    "v4ctl": {
+      "asset_sha256": "f73ca2401f91a6c94a743c28614cc16e22892a5d338af8c15915c365d62c7627",
+      "commanded": {
+        "duration_s": 20.0,
+        "vx": 0.3,
+        "vy": 0.0,
+        "wz": 0.0
+      },
+      "fell": false,
+      "forward_m": -0.204,
+      "label": "v4 bundle (pre-fix), concurrent control",
+      "lateral_end_m": 1.192,
+      "max_abs_yaw_rad": 3.541,
+      "min_root_height_m": 0.114,
+      "model_identity_sha256": "9d693b8edddc9f3c0940200a799759bff5cc33e8d9adc48d90d777b364cb7966",
+      "observed_window_sim_s": 23.01,
+      "yaw_change_rad": 3.456
+    },
+    "v5a": {
+      "asset_sha256": "b94a559c34c8ff18e3099ba8302f544bafb515725ab2c3da473e306c9881706e",
+      "commanded": {
+        "duration_s": 20.0,
+        "vx": 0.3,
+        "vy": 0.0,
+        "wz": 0.0
+      },
+      "fell": false,
+      "forward_m": 1.575,
+      "label": "v5 bundle, fix branch",
+      "lateral_end_m": 1.494,
+      "max_abs_yaw_rad": 1.703,
+      "min_root_height_m": 0.115,
+      "model_identity_sha256": "4bdec24d77eec90934987ed2f29ebb5d6056c84a6219e50efe84b9845a839a82",
+      "observed_window_sim_s": 23.03,
+      "yaw_change_rad": 1.703
+    },
+    "v5b": {
+      "asset_sha256": "b94a559c34c8ff18e3099ba8302f544bafb515725ab2c3da473e306c9881706e",
+      "commanded": {
+        "duration_s": 20.0,
+        "vx": 0.3,
+        "vy": 0.0,
+        "wz": 0.0
+      },
+      "fell": false,
+      "forward_m": 1.684,
+      "label": "v5 bundle, fix branch (repeat)",
+      "lateral_end_m": 1.412,
+      "max_abs_yaw_rad": 1.46,
+      "min_root_height_m": 0.115,
+      "model_identity_sha256": "4bdec24d77eec90934987ed2f29ebb5d6056c84a6219e50efe84b9845a839a82",
+      "observed_window_sim_s": 23.03,
+      "yaw_change_rad": 1.375
+    },
+    "v5export": {
+      "asset_sha256": "b94a559c34c8ff18e3099ba8302f544bafb515725ab2c3da473e306c9881706e",
+      "commanded": {
+        "duration_s": 20.0,
+        "vx": 0.3,
+        "vy": 0.0,
+        "wz": 0.0
+      },
+      "fell": false,
+      "forward_m": 1.776,
+      "label": "v5 bundle, main runtime + solver MJCF export",
+      "lateral_end_m": 1.313,
+      "max_abs_yaw_rad": 1.398,
+      "min_root_height_m": 0.115,
+      "model_identity_sha256": "32cd64c3aced625be334f2e181605d5ad7c75848aa332c04a1f35a89b22f5790",
+      "observed_window_sim_s": 23.0,
+      "yaw_change_rad": 1.276
+    }
+  },
+  "limitations": [
+    "The v5 bundle removes the hull asymmetry but Isaac/Newton still curls +1.3..+1.7 rad in 20 s open loop; the same complete-hull model curls +0.51 rad in MuJoCo C. That residual is not isolated.",
+    "Fresh processes with the same model identity are not bit-identical (v5a vs v5b).",
+    "One x86 test rig; no hardware, no PhysX, no Spark measurement."
+  ],
+  "newton_built_hulls": {
+    "method": "MuJoCoSolverConfig.save_to_mjcf export of the model Newton built from the USD, compiled with MuJoCo 3.10",
+    "v4_default_import": {
+      "left_sole": {
+        "box_mm": [
+          14.32,
+          48.08,
+          58.1
+        ],
+        "vertices": 64
+      },
+      "right_sole": {
+        "box_mm": [
+          13.87,
+          44.38,
+          55.24
+        ],
+        "vertices": 64
+      },
+      "total_hull_vertices": 4424
+    },
+    "v5_bundle": {
+      "left_sole": {
+        "box_mm": [
+          13.89,
+          42.99,
+          54.43
+        ],
+        "vertices": 4964
+      },
+      "right_sole": {
+        "box_mm": [
+          13.89,
+          42.99,
+          54.43
+        ],
+        "vertices": 5029
+      },
+      "total_hull_vertices": 51533
+    }
+  },
+  "question": "Does authoring newton:maxHullVertices=-1 make Newton build the source collision hulls, and does it change the straight-walk curl?",
+  "reference_mujoco_c_open_loop_20s": {
+    "controller": "official infer_policy.py (sha 03bfd064) + bam.mujoco 62bd8ce, reproduces the reviewed 3 s receipt exactly",
+    "yaw_change_rad": {
+      "Newton-built MJCF from v4 USD": 2.09,
+      "Newton-built model + source soles": 0.26,
+      "Newton-built model with complete hulls": 0.51,
+      "source + Newton 64-vertex left sole only": 3.81,
+      "source + Newton 64-vertex right sole only": -2.3,
+      "source + both Newton 64-vertex soles": 0.92,
+      "source MJCF": -0.38
+    }
+  },
+  "runtime": {
+    "bam_profile": "official_infer_nominal_no_delay",
+    "device": "cuda:0 (RTX PRO 6000, x86 test rig)",
+    "isaac_sim": "6.2.0-alpha.19 develop 48b2d951 (sdk recipe isaac62_48b2d951)",
+    "limits_change": "controller-limits-slow.json with only max_duration_s 3->25 and max_action_wall_s 25->120",
+    "mujoco_warp": "3.12.0",
+    "newton": "1.6.1rc1",
+    "policy": "rough_walk_e 5aa423bd693e431b19e2ead77f99cbae6184e40a529eb2f7c1b4f85bb7f57040",
+    "transport": "raw IsaacBase command, no SafeBase skill bounds, four concurrent bridges on one GPU",
+    "warp": "1.17.0"
+  },
+  "schema": "cascade.microduck.hull-limit-live-gate.v1",
+  "source": {
+    "convert_microduck_sha256": "064293e460273affa436ba5c941587956052f7732097f727e9ab4941cd159b44",
+    "main": "43182d2"
+  },
+  "status": "diagnostic_experiment_not_physical_admission"
+}

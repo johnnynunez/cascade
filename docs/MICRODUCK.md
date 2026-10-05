@@ -189,6 +189,38 @@ registry. A client must explicitly pin this digest in
 State, camera, and independent truth channels enforce the same binding.
 Changing the recipe requires a new identity and physical evaluation.
 
+Collision meshes carry an explicit convex-hull vertex limit, on two layers.
+Newton's USD importer (Isaac Sim 6.2 / Newton 1.6.1rc1, which passes no
+`mesh_maxhullvert`) resolves only an authored `newton:maxHullVertices`,
+`mjc:maxhullvert` or `physxConvexHullCollision:hullVertexLimit`; an unauthored
+mesh falls back to Newton's own 64-vertex cap, and because qhull's partial hull
+depends on vertex order the mirrored soles came out 2.3 mm apart, which curled a
+20 s straight command by +3.3 rad. Both admitted assets are MJCF conversions
+whose meshes author no limit, which in MJCF means a complete hull (`-1`).
+First layer, the converter: `scripts/convert_microduck.py` authors each
+collision mesh's MJCF limit (`newton:maxHullVertices`, `-1` included) and its
+validator refutes a missing, different or competing limit, so bundles from the
+previous adapter must be reconverted. Second layer, the owner: before the stage
+parse, `author_collision_hull_limits` gives every enabled convex-hull collision
+mesh under each robot root an explicit limit in the anonymous runtime layer,
+keeping and recording an authored one and authoring `-1` otherwise (the Isaac
+Lab USD instances its colliders, so the enclosing instance prims are
+de-instanced first; composition only, the pinned bytes never change). After
+bootstrap, `read_native_collision_hulls` reads back the hull Newton actually
+built for every colliding mesh shape (`shape_source.maxhullvert`, hull vertex
+count) and refuses a limit that did not reach the native model. Both records
+(`collision_hull_limits`, `collision_hulls`) enter the model identity. The
+[converted-bundle comparison](evidence/microduck-hull-limits-20261004/live-gate.json)
+shows Newton building the complete, symmetric source hulls (soles 4964/5029
+vertices instead of 64) and the 20 s open-loop curl dropping from +3.5 to
++1.3..+1.7 rad; on the admitted Isaac Lab USD the
+[owner-side comparison](evidence/microduck-hull-limits-20261005/live-gate-external-usd.json)
+(two fresh-process replicas per arm, same policy and limits) drops the curl
+from +1.27/+1.61 rad to +0.34/+0.21 rad and the lateral drift from 1.84/1.81 m
+to 0.19/0.13 m over 2.3 m of forward travel. The remaining curl is larger than the official MuJoCo
+reference (+0.5 rad for the same complete-hull model) and is not explained or
+admitted by this fix.
+
 Support uses versioned, complete post-solve contact records: exact shape
 pairs, points, normals and reaction forces in world coordinates, bound to
 the same epoch, step, time and model identity as pose. The independent checker
@@ -353,7 +385,13 @@ joint properties asserted before the explicit BAM replacements are the Isaac
 values (`ASSET_SOURCE_PROPERTIES`: damping 0.005359668 s·N·m/rad, armature
 0.0018 kg·m², friction 0.004771183 N·m) instead of the converted bundle's
 degree-based 0.053/0.0018/0.0048. The replacements themselves are unchanged:
-M6 viscous damping, M6 armature and the explicit effort cap.
+M6 viscous damping, M6 armature and the explicit effort cap. The asset's ten
+enabled convex-hull colliders author no hull vertex limit either (its root layer
+was written by MuJoCo USD Converter v0.2.0), so the owner's
+`author_collision_hull_limits` de-instances their ten instance prims in the
+runtime layer and authors `newton:maxHullVertices = -1` on each; the receipt's
+`collision_hulls` then shows the complete hulls Newton built (see *Evidence and
+identity*).
 
 Differences that change the physics, stated from the USD and MJCF sources
 (CPU probes with Newton 1.6.1rc1 and Isaac Sim's `add_usd` arguments, not an

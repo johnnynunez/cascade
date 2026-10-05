@@ -51,6 +51,9 @@ def test_initialize_fences_camera_and_play_callbacks(tmp_path, monkeypatch, sign
     stage = modules['omni.usd'].get_context.return_value.get_stage.return_value
     stage.GetUsedLayers.return_value = []
     monkeypatch.setattr(native, 'neutralize_asset_actuation', lambda stage, kind, root_path=None: [])
+    # Same stage-editing startup step as above: the mocked stage has no real layers.
+    monkeypatch.setattr(native, 'author_collision_hull_limits',
+                        lambda stage, *, root_path: {'root_path': root_path, 'hulls': []})
     import cascade.control.newton_bam as bam
     loaded = []
     monkeypatch.setattr(bam, 'load_pinned_bam', lambda root, sdk_recipe=None: loaded.append((root, sdk_recipe)))

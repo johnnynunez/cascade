@@ -341,6 +341,59 @@ def test_effective_geometry_refuted_after_rehash(geometry_source, tmp_path, phys
         m.check_model(geometry_source, out)
 
 
+def test_collision_mesh_hull_limit_is_authored_not_left_to_schema_fallback(geometry_source, tmp_path, physics):
+    # Newton resolves only authored limits; unauthored meshes get its 64-vertex
+    # hull cap, which made the mirrored MicroDuck soles asymmetric.
+    m = module()
+    result = m.convert_model(geometry_source, tmp_path / "converted")
+    assert result["validation"]["collision_meshes"] == 1
+    assert result["validation"]["unlimited_collision_hulls"] == 1
+    Usd, _, _ = physics
+    stage = Usd.Stage.Open(str(tmp_path / "converted" / result["usd_path"]))
+    mesh = next(p for p in stage.Traverse() if p.GetName() == "mesh")
+    limit = mesh.GetAttribute("newton:maxHullVertices")
+    assert limit.HasAuthoredValue() and limit.Get() == -1
+    assert m.check_model(geometry_source, tmp_path / "converted")["validation"]["status"] == "confirmed"
+
+
+def test_explicit_source_hull_limit_is_preserved(geometry_source, tmp_path, physics):
+    import xml.etree.ElementTree as ET
+    tree = ET.parse(geometry_source)
+    tree.getroot().find("asset/mesh").set("maxhullvert", "16")
+    tree.write(geometry_source)
+    m = module()
+    result = m.convert_model(geometry_source, tmp_path / "converted")
+    assert result["validation"]["collision_meshes"] == 1
+    assert result["validation"]["unlimited_collision_hulls"] == 0
+    Usd, _, _ = physics
+    stage = Usd.Stage.Open(str(tmp_path / "converted" / result["usd_path"]))
+    mesh = next(p for p in stage.Traverse() if p.GetName() == "mesh")
+    assert mesh.GetAttribute("newton:maxHullVertices").Get() == 16
+
+
+@pytest.mark.parametrize("mutation", ["engine_cap", "cleared", "competing_mjc", "competing_physx"])
+def test_hull_limit_loss_refuted_after_rehash(geometry_source, tmp_path, physics, mutation):
+    from pxr import Sdf
+    m = module()
+    out = tmp_path / "converted"
+    receipt = m.convert_model(geometry_source, out)
+    Usd, _, _ = physics
+    asset = out / receipt["usd_path"]
+    stage = Usd.Stage.Open(str(asset))
+    mesh = next(p for p in stage.Traverse() if p.GetName() == "mesh")
+    if mutation == "engine_cap": mesh.GetAttribute("newton:maxHullVertices").Set(64)
+    if mutation == "cleared": mesh.GetAttribute("newton:maxHullVertices").Clear()
+    if mutation == "competing_mjc": mesh.CreateAttribute("mjc:maxhullvert", Sdf.ValueTypeNames.Int).Set(64)
+    if mutation == "competing_physx":
+        mesh.CreateAttribute("physxConvexHullCollision:hullVertexLimit", Sdf.ValueTypeNames.Int).Set(64)
+    stage.GetRootLayer().Save()
+    _rehash_bundle(m, out)
+    with pytest.raises(ValueError, match="hull vertex limit"):
+        m.validate_model(geometry_source, asset)
+    with pytest.raises(ValueError):
+        m.check_model(geometry_source, out)
+
+
 @pytest.mark.parametrize("name", ["base_collision", "tip_collision", "cylinder"])
 def test_equivalent_uniform_primitive_encoding_is_admitted(geometry_source, tmp_path, physics, name):
     m = module()
@@ -509,6 +562,8 @@ def test_official_cli_roundtrip_real_pinned_model(admitted_source, tmp_path, phy
     assert result["validation"]["colliders"] == 70
     assert result["validation"]["hinge_joints"] == 14
     assert result["validation"]["rigid_bodies"] == 15
+    assert result["validation"]["collision_meshes"] > 0
+    assert result["validation"]["unlimited_collision_hulls"] == result["validation"]["collision_meshes"]
     before = {p: p.stat().st_mtime_ns for p in output.rglob("*") if p.is_file()}
     checked = subprocess.run(cmd + ["--check"], capture_output=True, text=True, env=env, timeout=180)
     assert checked.returncode == 0, checked.stdout + checked.stderr

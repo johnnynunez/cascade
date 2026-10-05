@@ -170,9 +170,14 @@ class MicroduckStepper:
         Once the short memory-only commit has linearized, its solve is in flight;
         a later stop cannot undo it. No permission lock covers ONNX or GPU work.
         """
-        previous = self.policy.previous_action
+        # An opt-in handoff selects the network from the intent this attempt
+        # observes; a retry re-selects with the latest intent. The previous action
+        # is read after selection: it is the last committed raw action either way.
+        select = getattr(self.policy, 'select', None)
         for attempt in range(1 if stage_only else 2):
             self._check_wall()
+            selection = select(command) if select is not None else None
+            previous = self.policy.previous_action
             obs = observation(sample['q'], sample['dq'], sample['angular_velocity'],
                               sample['gravity_body'], previous, command)
             record = {k: identity[k] for k in ('robot_id', 'source', 'epoch', 'generation', 'model_identity_sha256')}
@@ -180,6 +185,8 @@ class MicroduckStepper:
                           observation=obs[0].tolist(), commands=command.tolist(), status='pending',
                           attempt=self.policy_attempts, policy_slot=self.steps // 4,
                           retry=retry+attempt, committed=False)
+            if selection is not None:
+                record.update(selection)
             self.policy_records.append(record)
             self.last_policy = record
             self.policy_attempts += 1

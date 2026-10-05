@@ -246,7 +246,8 @@ def run(args, admission, signals):
                     result['gc_policy'] = {'applied': heap.receipt, 'released': heap.released,
                                            'release_error': heap.release_error}
             result['robots'] = {s.identity['robot_id']: {'steps': s.steps,
-                'policy_commits': s.policy_commits, 'last_state': s.controller.state()}
+                'policy_commits': s.policy_commits, 'last_state': s.controller.state(),
+                **({'handoff': s.policy.telemetry()} if hasattr(s.policy, 'telemetry') else {})}
                 for s in steppers if s.started}
             result['backend'] = owner.receipt if owner else None
             result['withheld_ticks'] = fleet.withheld_ticks if fleet else 0

@@ -148,6 +148,15 @@ locomotion, fidelity of a solver, contact support or any physical outcome.
     }
     if integrator is not None:
         recipe['native']['integrator'] = integrator
+    handoff = admission.get('handoff')
+    if handoff is not None:
+        # Opt-in standing handoff: both networks and the rule enter the identity;
+        # the shape of recipes without it is unchanged.
+        if (not isinstance(handoff, dict) or handoff.get('motion_policy_sha256') != admission['policy_sha256']
+                or digest_token(handoff.get('standing_policy_sha256', '')) == admission['policy_sha256']):
+            raise ValueError('standing handoff admission must bind the motion policy and a different standing policy')
+        recipe['handoff'] = {k: handoff[k] for k in ('profile', 'rule', 'motion_policy_sha256',
+                                                     'standing_policy_sha256', 'standing_policy_profile')}
     if 'rgbd_camera' in native:
         from .mobile_rgbd import calibration_record
         camera = native['rgbd_camera']

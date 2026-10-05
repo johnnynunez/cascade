@@ -1,0 +1,21 @@
+{
+ "robot_id": "duck04",
+ "step": {
+  "confirmed": false,
+  "post_status": "unverified",
+  "post_reason": "stale independent state",
+  "measured_distance_m": 0.8248703178815572,
+  "wall_s": 301.19,
+  "error": "stale or future-dated feedback",
+  "before_pos": [
+   0.0026706941425800323,
+   -1.4996023178100586,
+   0.11744814366102219
+  ],
+  "after_pos": [
+   0.7929458022117615,
+   -1.4816100597381592,
+   0.12178891152143478
+  ]
+ }
+}

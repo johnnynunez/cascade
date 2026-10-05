@@ -1,0 +1,21 @@
+{
+ "robot_id": "duck05",
+ "step": {
+  "confirmed": false,
+  "post_status": "unverified",
+  "post_reason": "reader_timeout",
+  "measured_distance_m": 0.8270646028310643,
+  "wall_s": 295.88,
+  "error": "feedback generation changed",
+  "before_pos": [
+   0.0026750059332698584,
+   -0.499605268239975,
+   0.11744935810565948
+  ],
+  "after_pos": [
+   0.7938183546066284,
+   -0.49951502680778503,
+   0.12039795517921448
+  ]
+ }
+}

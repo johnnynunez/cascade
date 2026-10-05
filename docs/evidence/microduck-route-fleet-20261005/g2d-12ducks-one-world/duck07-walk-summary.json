@@ -1,0 +1,21 @@
+{
+ "robot_id": "duck07",
+ "step": {
+  "confirmed": false,
+  "post_status": "unverified",
+  "post_reason": "reader_timeout",
+  "measured_distance_m": 0.8257867748951749,
+  "wall_s": 293.19,
+  "error": "bridge I/O failed: bridge request wall-time deadline expired",
+  "before_pos": [
+   0.0026593285147100687,
+   1.500394344329834,
+   0.11744914203882217
+  ],
+  "after_pos": [
+   0.7930768132209778,
+   1.520018458366394,
+   0.12202692031860352
+  ]
+ }
+}

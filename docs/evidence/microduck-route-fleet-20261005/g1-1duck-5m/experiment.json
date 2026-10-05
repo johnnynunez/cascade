@@ -1,0 +1,167 @@
+{
+  "args": {
+    "base_port": 18100,
+    "camera_every": 20,
+    "distance": 5.0,
+    "distances": null,
+    "gc_policy": "freeze-startup-heap",
+    "gpu": "gpu1",
+    "layout": "line",
+    "listen_timeout": 900.0,
+    "max_steps": 14000,
+    "max_wall_s": 1800.0,
+    "physics_row_every": 10,
+    "policy": "rough_walk_e",
+    "resolution": "1920x1080",
+    "robots": 1,
+    "route_m": 5.0,
+    "run_name": "g1-rwe-1duck-5m",
+    "spacing": 1.0
+  },
+  "base_profile": "microduck_distance_route",
+  "bundle": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/isaaclab-usd-allcollisions-v1",
+  "bundle_sha256": "ba7cdd9ed68552fc83aefaf881a148970203bb08fb003e0d52715f42a8263079",
+  "distances": [
+    5.0
+  ],
+  "limits": {
+    "heading_hold_ki": 2.0,
+    "heading_hold_kp": 4.0,
+    "lease_s": 1.0,
+    "max_action_wall_s": 1034,
+    "max_angular_speed": 1.0,
+    "max_constraints": 2400,
+    "max_contacts": 512,
+    "max_duration_s": 60.0,
+    "max_height_m": 0.3,
+    "max_linear_speed": 0.3,
+    "max_state_age_s": 0.5,
+    "max_tilt_rad": 0.7,
+    "min_height_m": 0.06
+  },
+  "listening_after_s": 11.1,
+  "policy": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck-rough-walk-e/policy.onnx",
+  "policy_profile": "rough_walk_e",
+  "policy_sha256": "5aa423bd693e431b19e2ead77f99cbae6184e40a529eb2f7c1b4f85bb7f57040",
+  "repo": "/home/johnny/Projects/demo/cascade-lab/HERMES_MICRODUCK_FLEET_20261004/integ",
+  "scene_model_sha256": "7728b2523d642f01fdad034d47ae544e6a8beb4359df9af6dbd2ebdb697839af",
+  "scope": "shared-world route diagnostic, RobotRuntime, no LLM; not physical admission",
+  "summary": [
+    {
+      "after_pos": [
+        4.782744407653809,
+        0.06810251623392105,
+        0.12031292170286179
+      ],
+      "before_pos": [
+        0.0026703772600740194,
+        0.0003897486603818834,
+        0.11745110899209976
+      ],
+      "confirmed": true,
+      "distance_m": 5.0,
+      "duck": "duck00",
+      "error": null,
+      "measured_distance_m": 4.995556225977903,
+      "post_metrics": {
+        "admission": {
+          "accepted": true,
+          "delivery_uncertain": null,
+          "end_sim_time_s": 61.724999961443245,
+          "epoch": "b03afc44c83146c39a93b0d7eb3b806f",
+          "error": null,
+          "generation": 1,
+          "latched": false,
+          "model_identity_sha256": "0254b32ed8f9db0be75af950aeb9e2cd26e4385973add7b336230e66e7a929b7",
+          "ok": true,
+          "robot_id": "duck00",
+          "source": "isaac-microduck",
+          "start_sim_time_s": 1.7249999614432454
+        },
+        "args": {
+          "distance_m": 5.0
+        },
+        "completion": {
+          "delivery_uncertain": null,
+          "epoch": "b03afc44c83146c39a93b0d7eb3b806f",
+          "error": null,
+          "generation": 2,
+          "latched": false,
+          "model_identity_sha256": "0254b32ed8f9db0be75af950aeb9e2cd26e4385973add7b336230e66e7a929b7",
+          "ok": true,
+          "robot_id": "duck00",
+          "source": "isaac-microduck"
+        },
+        "execution_failed": false,
+        "limits": {
+          "max_angular_speed_rad_s": 6.0,
+          "max_heading_drift_rad": 0.25,
+          "max_history": 30,
+          "max_lateral_drift_m": 0.3,
+          "max_linear_speed_m_s": 1.0,
+          "max_position_abs_m": 10.0,
+          "max_progress_ratio": 1.25,
+          "max_sample_gap_s": 0.15,
+          "max_samples": 51901,
+          "max_state_age_s": 0.5,
+          "max_tilt_rad": 0.5,
+          "max_wall_duration_s": 1038.0,
+          "min_height_m": 0.06,
+          "min_motion_samples": 5,
+          "min_progress_ratio": 0.8,
+          "min_settle_samples": 3,
+          "read_timeout_s": 0.5,
+          "rotation_tolerance_rad": 0.04,
+          "sample_interval_s": 0.02,
+          "settle_timeout_s": 3.0,
+          "settle_window_s": 0.2,
+          "stop_angular_speed_rad_s": 0.1,
+          "stop_drift_m": 0.005,
+          "stop_drift_rad": 0.03,
+          "stop_linear_speed_m_s": 0.02,
+          "translation_tolerance_m": 0.015
+        },
+        "metrics": {
+          "body_displacement_m": [
+            4.99584809720164,
+            0.060324614233801005
+          ],
+          "distance_outcome": {
+            "body_displacement_m": [
+              4.995155789002394,
+              0.06305612450511185
+            ],
+            "path_length_m": 6.703068245623819,
+            "rotation_path_rad": 28.96835837757698,
+            "yaw_change_rad": 0.00907561971659594
+          },
+          "max_angular_speed_rad_s": 2.1760978908527053,
+          "max_linear_speed_m_s": 0.27460541148338957,
+          "max_tilt_rad": 0.06295175042542843,
+          "min_height_m": 0.11544394493103027,
+          "path_length_m": 6.667890426840057,
+          "rotation_path_rad": 28.790875676554588,
+          "settle_drift_m": 3.954126027299351e-05,
+          "settle_drift_rad": 0.0,
+          "settle_max_angular_speed_rad_s": 0.006107020258573124,
+          "settle_max_linear_speed_m_s": 0.0005109116863000772,
+          "settle_samples": 14,
+          "settle_sim_duration_s": 0.20499999541789293,
+          "settle_veto_observations": 21,
+          "sim_duration_s": 39.46499911788851,
+          "yaw_change_rad": 0.0993334538343018
+        },
+        "skill": "walk_distance"
+      },
+      "post_reason": "independent measured motion matches caller intent",
+      "post_status": "confirmed",
+      "sim_s": 39.47,
+      "wall_s": 97.68
+    }
+  ],
+  "termination": {
+    "log_tail": "{\"robots\": 1, \"completed_steps\": 9600}\n{\"robots\": 1, \"completed_steps\": 9700}\n[117.774s] Simulation App Shutting Down\nThere was an error running python\nEXIT=1",
+    "pid": 2562156,
+    "unit_active_after": false
+  }
+}

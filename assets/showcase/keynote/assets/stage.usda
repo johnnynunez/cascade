@@ -1,0 +1,544 @@
+#usda 1.0
+(
+    defaultPrim = "Stage"
+    framesPerSecond = 60
+    metersPerUnit = 1
+    timeCodesPerSecond = 60
+    upAxis = "Z"
+)
+
+def Xform "Stage"
+{
+    float3 xformOp:rotateXYZ = (0, 0, 0)
+    double3 xformOp:translate = (0, 0, 0)
+    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
+
+    def Scope "Looks"
+    {
+        def Material "Floor"
+        {
+            token outputs:surface.connect = </Stage/Looks/Floor/Surface.outputs:surface>
+
+            def Shader "Surface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.05, 0.05, 0.05)
+                float inputs:metallic = 0
+                float inputs:opacity = 1
+                float inputs:roughness = 0.45
+                color3f inputs:specularColor = (0.5, 0.5, 0.5)
+                int inputs:useSpecularWorkflow = 1
+                token outputs:surface
+            }
+        }
+
+        def Material "GreenStrip"
+        {
+            token outputs:surface.connect = </Stage/Looks/GreenStrip/Surface.outputs:surface>
+
+            def Shader "Surface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0, 0, 0)
+                color3f inputs:emissiveColor = (0.69, 1.095, 0)
+                float inputs:metallic = 0
+                float inputs:opacity = 1
+                float inputs:roughness = 0.3
+                token outputs:surface
+            }
+        }
+
+        def Material "Truss"
+        {
+            token outputs:surface.connect = </Stage/Looks/Truss/Surface.outputs:surface>
+
+            def Shader "Surface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.18, 0.18, 0.18)
+                float inputs:metallic = 0.9
+                float inputs:opacity = 1
+                float inputs:roughness = 0.4
+                token outputs:surface
+            }
+        }
+
+        def Material "LedWall"
+        {
+            token outputs:surface.connect = </Stage/Looks/LedWall/Surface.outputs:surface>
+
+            def Shader "Surface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0, 0, 0)
+                color3f inputs:emissiveColor.connect = </Stage/Looks/LedWall/Texture.outputs:rgb>
+                float inputs:metallic = 0
+                float inputs:opacity = 1
+                float inputs:roughness = 0.5
+                token outputs:surface
+            }
+
+            def Shader "UVReader"
+            {
+                uniform token info:id = "UsdPrimvarReader_float2"
+                token inputs:varname = "st"
+                float2 outputs:result
+            }
+
+            def Shader "Texture"
+            {
+                uniform token info:id = "UsdUVTexture"
+                asset inputs:file = @textures/ledwall.png@
+                float4 inputs:scale = (1.6, 1.6, 1.6, 1)
+                token inputs:sourceColorSpace = "sRGB"
+                float2 inputs:st.connect = </Stage/Looks/LedWall/UVReader.outputs:result>
+                token inputs:wrapS = "clamp"
+                token inputs:wrapT = "clamp"
+                float3 outputs:rgb
+            }
+        }
+
+        def Material "SideScreen"
+        {
+            token outputs:surface.connect = </Stage/Looks/SideScreen/Surface.outputs:surface>
+
+            def Shader "Surface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0, 0, 0)
+                color3f inputs:emissiveColor.connect = </Stage/Looks/SideScreen/Texture.outputs:rgb>
+                float inputs:metallic = 0
+                float inputs:opacity = 1
+                float inputs:roughness = 0.5
+                token outputs:surface
+            }
+
+            def Shader "UVReader"
+            {
+                uniform token info:id = "UsdPrimvarReader_float2"
+                token inputs:varname = "st"
+                float2 outputs:result
+            }
+
+            def Shader "Texture"
+            {
+                uniform token info:id = "UsdUVTexture"
+                asset inputs:file = @textures/side.png@
+                float4 inputs:scale = (1.2, 1.2, 1.2, 1)
+                token inputs:sourceColorSpace = "sRGB"
+                float2 inputs:st.connect = </Stage/Looks/SideScreen/UVReader.outputs:result>
+                token inputs:wrapS = "clamp"
+                token inputs:wrapT = "clamp"
+                float3 outputs:rgb
+            }
+        }
+    }
+
+    def Mesh "Floor" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        uniform bool doubleSided = 0
+        float3[] extent = [(-9, -6, -0.06), (9, 7, 0.0015)]
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        rel material:binding = </Stage/Looks/Floor>
+        normal3f[] normals = [(0, 0, -1), (0, 0, 1), (0, -1, 0), (1, 0, 0), (0, 1, 0), (-1, 0, 0)] (
+            interpolation = "uniform"
+        )
+        uniform token orientation = "rightHanded"
+        point3f[] points = [(-9, -6, -0.06), (9, -6, -0.06), (9, 7, -0.06), (-9, 7, -0.06), (-9, -6, 0.0015), (9, -6, 0.0015), (9, 7, 0.0015), (-9, 7, 0.0015)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "FrontEdge" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        uniform bool doubleSided = 0
+        float3[] extent = [(-9, -6, 0.0015), (9, -5.92, 0.03)]
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        rel material:binding = </Stage/Looks/GreenStrip>
+        normal3f[] normals = [(0, 0, -1), (0, 0, 1), (0, -1, 0), (1, 0, 0), (0, 1, 0), (-1, 0, 0)] (
+            interpolation = "uniform"
+        )
+        uniform token orientation = "rightHanded"
+        point3f[] points = [(-9, -6, 0.0015), (9, -6, 0.0015), (9, -5.92, 0.0015), (-9, -5.92, 0.0015), (-9, -6, 0.03), (9, -6, 0.03), (9, -5.92, 0.03), (-9, -5.92, 0.03)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "LedWall" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        uniform bool doubleSided = 0
+        float3[] extent = [(-8, 0, 0), (8, 0, 5)]
+        int[] faceVertexCounts = [4]
+        int[] faceVertexIndices = [0, 1, 2, 3]
+        rel material:binding = </Stage/Looks/LedWall>
+        normal3f[] normals = [(0, -1, 0)] (
+            interpolation = "uniform"
+        )
+        uniform token orientation = "rightHanded"
+        point3f[] points = [(-8, 0, 0), (8, 0, 0), (8, 0, 5), (-8, 0, 5)]
+        texCoord2f[] primvars:st = [(0, 0), (1, 0), (1, 1), (0, 1)] (
+            interpolation = "vertex"
+        )
+        uniform token subdivisionScheme = "none"
+        float3 xformOp:rotateXYZ = (0, 0, 0)
+        double3 xformOp:translate = (0, 7, 0.3)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
+    }
+
+    def Mesh "SideScreenL" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        uniform bool doubleSided = 0
+        float3[] extent = [(-1.25, 0, 0), (1.25, 0, 1.6)]
+        int[] faceVertexCounts = [4]
+        int[] faceVertexIndices = [0, 1, 2, 3]
+        rel material:binding = </Stage/Looks/SideScreen>
+        normal3f[] normals = [(0, -1, 0)] (
+            interpolation = "uniform"
+        )
+        uniform token orientation = "rightHanded"
+        point3f[] points = [(-1.25, 0, 0), (1.25, 0, 0), (1.25, 0, 1.6), (-1.25, 0, 1.6)]
+        texCoord2f[] primvars:st = [(0, 0), (1, 0), (1, 1), (0, 1)] (
+            interpolation = "vertex"
+        )
+        uniform token subdivisionScheme = "none"
+        float3 xformOp:rotateXYZ = (0, 0, 20)
+        double3 xformOp:translate = (-7.2, 6.2, 2)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
+    }
+
+    def Mesh "SideScreenR" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        uniform bool doubleSided = 0
+        float3[] extent = [(-1.25, 0, 0), (1.25, 0, 1.6)]
+        int[] faceVertexCounts = [4]
+        int[] faceVertexIndices = [0, 1, 2, 3]
+        rel material:binding = </Stage/Looks/SideScreen>
+        normal3f[] normals = [(0, -1, 0)] (
+            interpolation = "uniform"
+        )
+        uniform token orientation = "rightHanded"
+        point3f[] points = [(-1.25, 0, 0), (1.25, 0, 0), (1.25, 0, 1.6), (-1.25, 0, 1.6)]
+        texCoord2f[] primvars:st = [(0, 0), (1, 0), (1, 1), (0, 1)] (
+            interpolation = "vertex"
+        )
+        uniform token subdivisionScheme = "none"
+        float3 xformOp:rotateXYZ = (0, 0, -20)
+        double3 xformOp:translate = (7.2, 6.2, 2)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
+    }
+
+    def Xform "Truss"
+    {
+        def Mesh "Front" (
+            prepend apiSchemas = ["MaterialBindingAPI"]
+        )
+        {
+            uniform bool doubleSided = 0
+            float3[] extent = [(-9, -4.15, 6.35), (9, -3.85, 6.65)]
+            int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+            int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+            rel material:binding = </Stage/Looks/Truss>
+            normal3f[] normals = [(0, 0, -1), (0, 0, 1), (0, -1, 0), (1, 0, 0), (0, 1, 0), (-1, 0, 0)] (
+                interpolation = "uniform"
+            )
+            uniform token orientation = "rightHanded"
+            point3f[] points = [(-9, -4.15, 6.35), (9, -4.15, 6.35), (9, -3.85, 6.35), (-9, -3.85, 6.35), (-9, -4.15, 6.65), (9, -4.15, 6.65), (9, -3.85, 6.65), (-9, -3.85, 6.65)]
+            uniform token subdivisionScheme = "none"
+        }
+
+        def Mesh "Middle" (
+            prepend apiSchemas = ["MaterialBindingAPI"]
+        )
+        {
+            uniform bool doubleSided = 0
+            float3[] extent = [(-9, -0.15, 6.35), (9, 0.15, 6.65)]
+            int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+            int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+            rel material:binding = </Stage/Looks/Truss>
+            normal3f[] normals = [(0, 0, -1), (0, 0, 1), (0, -1, 0), (1, 0, 0), (0, 1, 0), (-1, 0, 0)] (
+                interpolation = "uniform"
+            )
+            uniform token orientation = "rightHanded"
+            point3f[] points = [(-9, -0.15, 6.35), (9, -0.15, 6.35), (9, 0.15, 6.35), (-9, 0.15, 6.35), (-9, -0.15, 6.65), (9, -0.15, 6.65), (9, 0.15, 6.65), (-9, 0.15, 6.65)]
+            uniform token subdivisionScheme = "none"
+        }
+
+        def Mesh "Back" (
+            prepend apiSchemas = ["MaterialBindingAPI"]
+        )
+        {
+            uniform bool doubleSided = 0
+            float3[] extent = [(-9, 3.85, 6.35), (9, 4.15, 6.65)]
+            int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+            int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+            rel material:binding = </Stage/Looks/Truss>
+            normal3f[] normals = [(0, 0, -1), (0, 0, 1), (0, -1, 0), (1, 0, 0), (0, 1, 0), (-1, 0, 0)] (
+                interpolation = "uniform"
+            )
+            uniform token orientation = "rightHanded"
+            point3f[] points = [(-9, 3.85, 6.35), (9, 3.85, 6.35), (9, 4.15, 6.35), (-9, 4.15, 6.35), (-9, 3.85, 6.65), (9, 3.85, 6.65), (9, 4.15, 6.65), (-9, 4.15, 6.65)]
+            uniform token subdivisionScheme = "none"
+        }
+    }
+
+    def Xform "Lights"
+    {
+        def SphereLight "Spot1" (
+            prepend apiSchemas = ["ShapingAPI"]
+        )
+        {
+            color3f inputs:color = (1, 0.95, 0.9)
+            float inputs:exposure = 0
+            float inputs:intensity = 60000
+            bool inputs:normalize = 0
+            float inputs:radius = 0.25
+            float inputs:shaping:cone:angle = 40
+            float inputs:shaping:cone:softness = 0.4
+            quatd xformOp:orient = (0.9969026400198421, 0.07864557407425597, 0, 0)
+            double3 xformOp:translate = (-6, -2.5, 6.3)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+        }
+
+        def SphereLight "Spot2" (
+            prepend apiSchemas = ["ShapingAPI"]
+        )
+        {
+            color3f inputs:color = (1, 0.95, 0.9)
+            float inputs:exposure = 0
+            float inputs:intensity = 60000
+            bool inputs:normalize = 0
+            float inputs:radius = 0.25
+            float inputs:shaping:cone:angle = 40
+            float inputs:shaping:cone:softness = 0.4
+            quatd xformOp:orient = (0.9969026400198421, 0.07864557407425597, 0, 0)
+            double3 xformOp:translate = (-3.6, -2.5, 6.3)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+        }
+
+        def SphereLight "Spot3" (
+            prepend apiSchemas = ["ShapingAPI"]
+        )
+        {
+            color3f inputs:color = (1, 0.95, 0.9)
+            float inputs:exposure = 0
+            float inputs:intensity = 60000
+            bool inputs:normalize = 0
+            float inputs:radius = 0.25
+            float inputs:shaping:cone:angle = 40
+            float inputs:shaping:cone:softness = 0.4
+            quatd xformOp:orient = (0.9969026400198421, 0.07864557407425597, 0, 0)
+            double3 xformOp:translate = (-1.2, -2.5, 6.3)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+        }
+
+        def SphereLight "Spot4" (
+            prepend apiSchemas = ["ShapingAPI"]
+        )
+        {
+            color3f inputs:color = (1, 0.95, 0.9)
+            float inputs:exposure = 0
+            float inputs:intensity = 60000
+            bool inputs:normalize = 0
+            float inputs:radius = 0.25
+            float inputs:shaping:cone:angle = 40
+            float inputs:shaping:cone:softness = 0.4
+            quatd xformOp:orient = (0.9969026400198421, 0.07864557407425597, 0, 0)
+            double3 xformOp:translate = (1.2, -2.5, 6.3)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+        }
+
+        def SphereLight "Spot5" (
+            prepend apiSchemas = ["ShapingAPI"]
+        )
+        {
+            color3f inputs:color = (1, 0.95, 0.9)
+            float inputs:exposure = 0
+            float inputs:intensity = 60000
+            bool inputs:normalize = 0
+            float inputs:radius = 0.25
+            float inputs:shaping:cone:angle = 40
+            float inputs:shaping:cone:softness = 0.4
+            quatd xformOp:orient = (0.9969026400198421, 0.07864557407425597, 0, 0)
+            double3 xformOp:translate = (3.6, -2.5, 6.3)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+        }
+
+        def SphereLight "Spot6" (
+            prepend apiSchemas = ["ShapingAPI"]
+        )
+        {
+            color3f inputs:color = (1, 0.95, 0.9)
+            float inputs:exposure = 0
+            float inputs:intensity = 60000
+            bool inputs:normalize = 0
+            float inputs:radius = 0.25
+            float inputs:shaping:cone:angle = 40
+            float inputs:shaping:cone:softness = 0.4
+            quatd xformOp:orient = (0.9969026400198421, 0.07864557407425597, 0, 0)
+            double3 xformOp:translate = (6, -2.5, 6.3)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+        }
+
+        def SphereLight "Spot7" (
+            prepend apiSchemas = ["ShapingAPI"]
+        )
+        {
+            color3f inputs:color = (1, 0.95, 0.9)
+            float inputs:exposure = 0
+            float inputs:intensity = 60000
+            bool inputs:normalize = 0
+            float inputs:radius = 0.25
+            float inputs:shaping:cone:angle = 40
+            float inputs:shaping:cone:softness = 0.4
+            quatd xformOp:orient = (0.9969026400198421, 0.07864557407425597, 0, 0)
+            double3 xformOp:translate = (-6, 1.5, 6.3)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+        }
+
+        def SphereLight "Spot8" (
+            prepend apiSchemas = ["ShapingAPI"]
+        )
+        {
+            color3f inputs:color = (1, 0.95, 0.9)
+            float inputs:exposure = 0
+            float inputs:intensity = 60000
+            bool inputs:normalize = 0
+            float inputs:radius = 0.25
+            float inputs:shaping:cone:angle = 40
+            float inputs:shaping:cone:softness = 0.4
+            quatd xformOp:orient = (0.9969026400198421, 0.07864557407425597, 0, 0)
+            double3 xformOp:translate = (-3.6, 1.5, 6.3)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+        }
+
+        def SphereLight "Spot9" (
+            prepend apiSchemas = ["ShapingAPI"]
+        )
+        {
+            color3f inputs:color = (1, 0.95, 0.9)
+            float inputs:exposure = 0
+            float inputs:intensity = 60000
+            bool inputs:normalize = 0
+            float inputs:radius = 0.25
+            float inputs:shaping:cone:angle = 40
+            float inputs:shaping:cone:softness = 0.4
+            quatd xformOp:orient = (0.9969026400198421, 0.07864557407425597, 0, 0)
+            double3 xformOp:translate = (-1.2, 1.5, 6.3)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+        }
+
+        def SphereLight "Spot10" (
+            prepend apiSchemas = ["ShapingAPI"]
+        )
+        {
+            color3f inputs:color = (1, 0.95, 0.9)
+            float inputs:exposure = 0
+            float inputs:intensity = 60000
+            bool inputs:normalize = 0
+            float inputs:radius = 0.25
+            float inputs:shaping:cone:angle = 40
+            float inputs:shaping:cone:softness = 0.4
+            quatd xformOp:orient = (0.9969026400198421, 0.07864557407425597, 0, 0)
+            double3 xformOp:translate = (1.2, 1.5, 6.3)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+        }
+
+        def SphereLight "Spot11" (
+            prepend apiSchemas = ["ShapingAPI"]
+        )
+        {
+            color3f inputs:color = (1, 0.95, 0.9)
+            float inputs:exposure = 0
+            float inputs:intensity = 60000
+            bool inputs:normalize = 0
+            float inputs:radius = 0.25
+            float inputs:shaping:cone:angle = 40
+            float inputs:shaping:cone:softness = 0.4
+            quatd xformOp:orient = (0.9969026400198421, 0.07864557407425597, 0, 0)
+            double3 xformOp:translate = (3.6, 1.5, 6.3)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+        }
+
+        def SphereLight "Spot12" (
+            prepend apiSchemas = ["ShapingAPI"]
+        )
+        {
+            color3f inputs:color = (1, 0.95, 0.9)
+            float inputs:exposure = 0
+            float inputs:intensity = 60000
+            bool inputs:normalize = 0
+            float inputs:radius = 0.25
+            float inputs:shaping:cone:angle = 40
+            float inputs:shaping:cone:softness = 0.4
+            quatd xformOp:orient = (0.9969026400198421, 0.07864557407425597, 0, 0)
+            double3 xformOp:translate = (6, 1.5, 6.3)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]
+        }
+
+        def RectLight "FillL"
+        {
+            color3f inputs:color = (0.9, 0.93, 1)
+            float inputs:exposure = 0
+            float inputs:height = 1
+            float inputs:intensity = 1500
+            bool inputs:normalize = 0
+            float inputs:width = 6
+            float3 xformOp:rotateXYZ = (70, 0, 0)
+            double3 xformOp:translate = (-4, -5.5, 3)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
+        }
+
+        def RectLight "FillR"
+        {
+            color3f inputs:color = (0.9, 0.93, 1)
+            float inputs:exposure = 0
+            float inputs:height = 1
+            float inputs:intensity = 1500
+            bool inputs:normalize = 0
+            float inputs:width = 6
+            float3 xformOp:rotateXYZ = (70, 0, 0)
+            double3 xformOp:translate = (4, -5.5, 3)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
+        }
+
+        def DomeLight "Ambient"
+        {
+            color3f inputs:color = (1, 1, 1)
+            float inputs:intensity = 60
+        }
+
+        def RectLight "EdgeWashBottom"
+        {
+            color3f inputs:color = (0.46, 0.73, 0)
+            float inputs:height = 0.4
+            float inputs:intensity = 800
+            bool inputs:normalize = 0
+            float inputs:width = 8
+            float3 xformOp:rotateXYZ = (-90, 0, 0)
+            double3 xformOp:translate = (0, 6.9, 0.3)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
+        }
+
+        def RectLight "EdgeWashTop"
+        {
+            color3f inputs:color = (0.46, 0.73, 0)
+            float inputs:height = 0.4
+            float inputs:intensity = 800
+            bool inputs:normalize = 0
+            float inputs:width = 8
+            float3 xformOp:rotateXYZ = (-90, 0, 0)
+            double3 xformOp:translate = (0, 6.9, 5.3)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
+        }
+    }
+}

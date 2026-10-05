@@ -1,0 +1,225 @@
+{
+  "after": {
+    "controller_status": "ready",
+    "fallen": false,
+    "linear_velocity_world": [
+      0.0007278043694554998,
+      0.0002782292417227895,
+      2.5383484420851926e-05
+    ],
+    "orientation_wxyz": [
+      0.9999857544898987,
+      -0.0004330752126406878,
+      -0.002148654544726014,
+      0.004872124642133713
+    ],
+    "position_world": [
+      4.783572673797607,
+      0.07365048676729202,
+      0.11794931441545486
+    ],
+    "sim_time_s": 46.109998969361186
+  },
+  "before": {
+    "controller_status": "ready",
+    "fallen": false,
+    "linear_velocity_world": [
+      -0.0013063048439691308,
+      0.00027663783907597666,
+      -0.00019040649180405972
+    ],
+    "orientation_wxyz": [
+      0.9999915361404419,
+      -0.0007767739007249475,
+      0.00396188348531723,
+      0.0007938313065096736
+    ],
+    "position_world": [
+      0.0026703772600740194,
+      0.0003897486603818834,
+      0.11745110899209976
+    ],
+    "sim_time_s": 1.7099999617785215
+  },
+  "distance_m": 5.0,
+  "model_identity_sha256": "0254b32ed8f9db0be75af950aeb9e2cd26e4385973add7b336230e66e7a929b7",
+  "passive_samples": 33,
+  "physical_admission": false,
+  "robot_id": "duck00",
+  "runtime_close": {
+    "complete": true,
+    "domains": {
+      "locomotion": {
+        "bases": {
+          "duck00_route": {
+            "ok": true
+          }
+        },
+        "errors": [],
+        "ok": true,
+        "stop": {
+          "ack_monotonic_s": 164486.802928624,
+          "bases": {
+            "duck00_route": {
+              "cancelled": true,
+              "epoch": "b03afc44c83146c39a93b0d7eb3b806f",
+              "generation": 3,
+              "latched": true,
+              "model_identity_sha256": "0254b32ed8f9db0be75af950aeb9e2cd26e4385973add7b336230e66e7a929b7",
+              "ok": true,
+              "outcome": "unverified",
+              "physical_stop_verified": false,
+              "reason": "stop acknowledged, physical rest unverified",
+              "robot_id": "duck00",
+              "source": "isaac-microduck"
+            }
+          },
+          "latched": true,
+          "note": "Zero travel intent is not a balance/physical rest attestation. Reset clears permission, never resumes commands.",
+          "ok": true,
+          "outcome": "unverified",
+          "physical_stop_verified": false,
+          "postcondition": {
+            "reason": "stop ACK invalidates commands; physical rest not independently measured",
+            "status": "unverified"
+          },
+          "receipt_id": "51ea9e60f43340d283cf485246c7cf31",
+          "serial": 2,
+          "task_id": "6bdfce623252418ab807f80bc353b7b7"
+        }
+      }
+    },
+    "ok": true
+  },
+  "steps": [
+    {
+      "after_pos": [
+        4.782744407653809,
+        0.06810251623392105,
+        0.12031292170286179
+      ],
+      "after_sim_t": 41.17999907955527,
+      "args": {
+        "distance_m": 5.0
+      },
+      "before_pos": [
+        0.0026703772600740194,
+        0.0003897486603818834,
+        0.11745110899209976
+      ],
+      "before_sim_t": 1.7099999617785215,
+      "command": {
+        "duration_s": 60.0,
+        "vx": 0.3,
+        "vy": 0.0,
+        "wz": 0.0
+      },
+      "confirmed": true,
+      "error": null,
+      "execution_ok": true,
+      "index": 0,
+      "measured_angle_rad": null,
+      "measured_distance_m": 4.995556225977903,
+      "ok": true,
+      "outcome": "confirmed",
+      "post_metrics": {
+        "admission": {
+          "accepted": true,
+          "delivery_uncertain": null,
+          "end_sim_time_s": 61.724999961443245,
+          "epoch": "b03afc44c83146c39a93b0d7eb3b806f",
+          "error": null,
+          "generation": 1,
+          "latched": false,
+          "model_identity_sha256": "0254b32ed8f9db0be75af950aeb9e2cd26e4385973add7b336230e66e7a929b7",
+          "ok": true,
+          "robot_id": "duck00",
+          "source": "isaac-microduck",
+          "start_sim_time_s": 1.7249999614432454
+        },
+        "args": {
+          "distance_m": 5.0
+        },
+        "completion": {
+          "delivery_uncertain": null,
+          "epoch": "b03afc44c83146c39a93b0d7eb3b806f",
+          "error": null,
+          "generation": 2,
+          "latched": false,
+          "model_identity_sha256": "0254b32ed8f9db0be75af950aeb9e2cd26e4385973add7b336230e66e7a929b7",
+          "ok": true,
+          "robot_id": "duck00",
+          "source": "isaac-microduck"
+        },
+        "execution_failed": false,
+        "limits": {
+          "max_angular_speed_rad_s": 6.0,
+          "max_heading_drift_rad": 0.25,
+          "max_history": 30,
+          "max_lateral_drift_m": 0.3,
+          "max_linear_speed_m_s": 1.0,
+          "max_position_abs_m": 10.0,
+          "max_progress_ratio": 1.25,
+          "max_sample_gap_s": 0.15,
+          "max_samples": 51901,
+          "max_state_age_s": 0.5,
+          "max_tilt_rad": 0.5,
+          "max_wall_duration_s": 1038.0,
+          "min_height_m": 0.06,
+          "min_motion_samples": 5,
+          "min_progress_ratio": 0.8,
+          "min_settle_samples": 3,
+          "read_timeout_s": 0.5,
+          "rotation_tolerance_rad": 0.04,
+          "sample_interval_s": 0.02,
+          "settle_timeout_s": 3.0,
+          "settle_window_s": 0.2,
+          "stop_angular_speed_rad_s": 0.1,
+          "stop_drift_m": 0.005,
+          "stop_drift_rad": 0.03,
+          "stop_linear_speed_m_s": 0.02,
+          "translation_tolerance_m": 0.015
+        },
+        "metrics": {
+          "body_displacement_m": [
+            4.99584809720164,
+            0.060324614233801005
+          ],
+          "distance_outcome": {
+            "body_displacement_m": [
+              4.995155789002394,
+              0.06305612450511185
+            ],
+            "path_length_m": 6.703068245623819,
+            "rotation_path_rad": 28.96835837757698,
+            "yaw_change_rad": 0.00907561971659594
+          },
+          "max_angular_speed_rad_s": 2.1760978908527053,
+          "max_linear_speed_m_s": 0.27460541148338957,
+          "max_tilt_rad": 0.06295175042542843,
+          "min_height_m": 0.11544394493103027,
+          "path_length_m": 6.667890426840057,
+          "rotation_path_rad": 28.790875676554588,
+          "settle_drift_m": 3.954126027299351e-05,
+          "settle_drift_rad": 0.0,
+          "settle_max_angular_speed_rad_s": 0.006107020258573124,
+          "settle_max_linear_speed_m_s": 0.0005109116863000772,
+          "settle_samples": 14,
+          "settle_sim_duration_s": 0.20499999541789293,
+          "settle_veto_observations": 21,
+          "sim_duration_s": 39.46499911788851,
+          "yaw_change_rad": 0.0993334538343018
+        },
+        "skill": "walk_distance"
+      },
+      "post_reason": "independent measured motion matches caller intent",
+      "post_status": "confirmed",
+      "reason": "independent physical postcondition required",
+      "requested_distance_m": 5.0,
+      "samples": 4564,
+      "tool": "locomotion.walk_distance",
+      "verifier_samples": 4564,
+      "wall_s": 97.68
+    }
+  ]
+}

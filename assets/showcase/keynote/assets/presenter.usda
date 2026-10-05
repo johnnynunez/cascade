@@ -1,0 +1,270 @@
+#usda 1.0
+(
+    defaultPrim = "Presenter"
+    framesPerSecond = 60
+    metersPerUnit = 1
+    timeCodesPerSecond = 60
+    upAxis = "Z"
+)
+
+def Xform "Presenter"
+{
+    float3 xformOp:rotateXYZ = (0, 0, 0)
+    double3 xformOp:translate = (0, 0, 0)
+    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
+
+    def Scope "Looks"
+    {
+        def Material "Clothing"
+        {
+            token outputs:surface.connect = </Presenter/Looks/Clothing/Surface.outputs:surface>
+
+            def Shader "Surface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.28, 0.28, 0.28)
+                float inputs:metallic = 0
+                float inputs:opacity = 1
+                float inputs:roughness = 0.7
+                token outputs:surface
+            }
+        }
+
+        def Material "Head"
+        {
+            token outputs:surface.connect = </Presenter/Looks/Head/Surface.outputs:surface>
+
+            def Shader "Surface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.55, 0.55, 0.55)
+                float inputs:metallic = 0
+                float inputs:opacity = 1
+                float inputs:roughness = 0.8
+                token outputs:surface
+            }
+        }
+    }
+
+    def Xform "Pelvis"
+    {
+        float3 xformOp:rotateXYZ = (0, 0, 0)
+        double3 xformOp:translate = (0, 0, 0.98)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
+
+        def Capsule "Torso" (
+            prepend apiSchemas = ["MaterialBindingAPI"]
+        )
+        {
+            uniform token axis = "Z"
+            float3[] extent = [(-0.16, -0.16, -0.385), (0.16, 0.16, 0.385)]
+            double height = 0.45
+            rel material:binding = </Presenter/Looks/Clothing>
+            double radius = 0.16
+            double3 xformOp:translate = (0, 0, 0.33)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Xform "Neck"
+        {
+            float3 xformOp:rotateXYZ = (0, 0, 0)
+            double3 xformOp:translate = (0, 0, 0.6)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
+
+            def Sphere "Head" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.11, -0.11, -0.11), (0.11, 0.11, 0.11)]
+                rel material:binding = </Presenter/Looks/Head>
+                double radius = 0.11
+                double3 xformOp:translate = (0, 0, 0.08)
+                uniform token[] xformOpOrder = ["xformOp:translate"]
+            }
+        }
+    }
+
+    def Xform "HipL"
+    {
+        float3 xformOp:rotateXYZ = (0, 0, 0)
+        double3 xformOp:translate = (0, 0.1, 0.98)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
+
+        def Capsule "Thigh" (
+            prepend apiSchemas = ["MaterialBindingAPI"]
+        )
+        {
+            uniform token axis = "Z"
+            float3[] extent = [(-0.075, -0.075, -0.285), (0.075, 0.075, 0.285)]
+            double height = 0.42
+            rel material:binding = </Presenter/Looks/Clothing>
+            double radius = 0.075
+            double3 xformOp:translate = (0, 0, -0.25)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Xform "Knee"
+        {
+            float3 xformOp:rotateXYZ = (0, 0, 0)
+            double3 xformOp:translate = (0, 0, -0.48)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
+
+            def Capsule "Shin" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.06, -0.06, -0.26), (0.06, 0.06, 0.26)]
+                double height = 0.4
+                rel material:binding = </Presenter/Looks/Clothing>
+                double radius = 0.06
+                double3 xformOp:translate = (0, 0, -0.24)
+                uniform token[] xformOpOrder = ["xformOp:translate"]
+            }
+
+            def Cube "Foot" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.5, -0.5, -0.5), (0.5, 0.5, 0.5)]
+                rel material:binding = </Presenter/Looks/Clothing>
+                double size = 1
+                float3 xformOp:scale = (0.26, 0.1, 0.06)
+                double3 xformOp:translate = (0.06, 0, -0.47)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+            }
+        }
+    }
+
+    def Xform "ShoulderL"
+    {
+        float3 xformOp:rotateXYZ = (0, 0, 0)
+        double3 xformOp:translate = (0, 0.24, 1.42)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
+
+        def Capsule "UpperArm" (
+            prepend apiSchemas = ["MaterialBindingAPI"]
+        )
+        {
+            uniform token axis = "Z"
+            float3[] extent = [(-0.05, -0.05, -0.2), (0.05, 0.05, 0.2)]
+            double height = 0.3
+            rel material:binding = </Presenter/Looks/Clothing>
+            double radius = 0.05
+            double3 xformOp:translate = (0, 0, -0.17)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Xform "Elbow"
+        {
+            float3 xformOp:rotateXYZ = (0, 0, 0)
+            double3 xformOp:translate = (0, 0, -0.33)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
+
+            def Capsule "Forearm" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.045, -0.045, -0.185), (0.045, 0.045, 0.185)]
+                double height = 0.28
+                rel material:binding = </Presenter/Looks/Clothing>
+                double radius = 0.045
+                double3 xformOp:translate = (0, 0, -0.16)
+                uniform token[] xformOpOrder = ["xformOp:translate"]
+            }
+        }
+    }
+
+    def Xform "HipR"
+    {
+        float3 xformOp:rotateXYZ = (0, 0, 0)
+        double3 xformOp:translate = (0, -0.1, 0.98)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
+
+        def Capsule "Thigh" (
+            prepend apiSchemas = ["MaterialBindingAPI"]
+        )
+        {
+            uniform token axis = "Z"
+            float3[] extent = [(-0.075, -0.075, -0.285), (0.075, 0.075, 0.285)]
+            double height = 0.42
+            rel material:binding = </Presenter/Looks/Clothing>
+            double radius = 0.075
+            double3 xformOp:translate = (0, 0, -0.25)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Xform "Knee"
+        {
+            float3 xformOp:rotateXYZ = (0, 0, 0)
+            double3 xformOp:translate = (0, 0, -0.48)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
+
+            def Capsule "Shin" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.06, -0.06, -0.26), (0.06, 0.06, 0.26)]
+                double height = 0.4
+                rel material:binding = </Presenter/Looks/Clothing>
+                double radius = 0.06
+                double3 xformOp:translate = (0, 0, -0.24)
+                uniform token[] xformOpOrder = ["xformOp:translate"]
+            }
+
+            def Cube "Foot" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.5, -0.5, -0.5), (0.5, 0.5, 0.5)]
+                rel material:binding = </Presenter/Looks/Clothing>
+                double size = 1
+                float3 xformOp:scale = (0.26, 0.1, 0.06)
+                double3 xformOp:translate = (0.06, 0, -0.47)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+            }
+        }
+    }
+
+    def Xform "ShoulderR"
+    {
+        float3 xformOp:rotateXYZ = (0, 0, 0)
+        double3 xformOp:translate = (0, -0.24, 1.42)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
+
+        def Capsule "UpperArm" (
+            prepend apiSchemas = ["MaterialBindingAPI"]
+        )
+        {
+            uniform token axis = "Z"
+            float3[] extent = [(-0.05, -0.05, -0.2), (0.05, 0.05, 0.2)]
+            double height = 0.3
+            rel material:binding = </Presenter/Looks/Clothing>
+            double radius = 0.05
+            double3 xformOp:translate = (0, 0, -0.17)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Xform "Elbow"
+        {
+            float3 xformOp:rotateXYZ = (0, 0, 0)
+            double3 xformOp:translate = (0, 0, -0.33)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
+
+            def Capsule "Forearm" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.045, -0.045, -0.185), (0.045, 0.045, 0.185)]
+                double height = 0.28
+                rel material:binding = </Presenter/Looks/Clothing>
+                double radius = 0.045
+                double3 xformOp:translate = (0, 0, -0.16)
+                uniform token[] xformOpOrder = ["xformOp:translate"]
+            }
+        }
+    }
+}

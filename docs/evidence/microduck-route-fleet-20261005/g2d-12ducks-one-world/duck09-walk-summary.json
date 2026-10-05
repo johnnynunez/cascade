@@ -1,0 +1,21 @@
+{
+ "robot_id": "duck09",
+ "step": {
+  "confirmed": false,
+  "post_status": "unverified",
+  "post_reason": "generation regressed or unrelated operation invalidated window",
+  "measured_distance_m": 0.8279400633580734,
+  "wall_s": 294.75,
+  "error": "feedback generation changed",
+  "before_pos": [
+   0.002672845032066107,
+   3.5003974437713623,
+   0.11744954437017441
+  ],
+  "after_pos": [
+   0.7952578663825989,
+   3.5120229721069336,
+   0.1205657571554184
+  ]
+ }
+}

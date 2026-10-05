@@ -1,0 +1,12 @@
+{
+ "attempts": 3960,
+ "median_ms": 73.9,
+ "p95_ms": 148.3,
+ "max_ms": 227.1,
+ "over_400ms": 0,
+ "outcomes": {
+  "solved": 3959,
+  "error": 1
+ },
+ "span_median_ms": {}
+}

@@ -1,0 +1,557 @@
+{
+ "physical_admission": false,
+ "episodes": {
+  "usd-forward01": {
+   "policy_profile": "rough_walk_e",
+   "handoff": false,
+   "commanded_twist": [
+    0.30000001192092896,
+    0.0,
+    0.0
+   ],
+   "commanded_phase_s": 0.3,
+   "motion_policy_slots": 15,
+   "completion_sim_time_s": 2.009999955072999,
+   "roles_around_completion": null,
+   "speed_at_completion_m_s": 0.2142,
+   "peak_speed_after_completion_m_s": 0.2142,
+   "rest_after_s": 0.185,
+   "after_0_2_s": {
+    "t_s": 0.2,
+    "along_command_mm": 16.51,
+    "lateral_mm": 6.84,
+    "speed_m_s": 0.0163,
+    "yaw_rad": -0.0812
+   },
+   "after_0_5_s": {
+    "t_s": 0.5,
+    "along_command_mm": 20.9,
+    "lateral_mm": 6.16,
+    "speed_m_s": 0.0185,
+    "yaw_rad": -0.1337
+   },
+   "after_1_0_s": {
+    "t_s": 1.0,
+    "along_command_mm": 23.37,
+    "lateral_mm": 10.31,
+    "speed_m_s": 0.0343,
+    "yaw_rad": -0.1885
+   },
+   "after_2_0_s": {
+    "t_s": 2.0,
+    "along_command_mm": 20.29,
+    "lateral_mm": 9.2,
+    "speed_m_s": 0.0001,
+    "yaw_rad": -0.2289
+   },
+   "peak_yaw_excursion": {
+    "t_s": 2.0,
+    "yaw_rad": -0.2289
+   },
+   "physics_log_sha256": "a80c38c8a0b5d1623a18323332b8b96d7b8e263b032eeba681f5cbb4cf688835",
+   "policy_log_sha256": "ec929c9aa17d40e7b1801105be629fdbb41b34ff39f6972526f2a38f99c334dc"
+  },
+  "usd-reverse01": {
+   "policy_profile": "rough_walk_e",
+   "handoff": false,
+   "commanded_twist": [
+    -0.30000001192092896,
+    0.0,
+    0.0
+   ],
+   "commanded_phase_s": 0.3,
+   "motion_policy_slots": 15,
+   "completion_sim_time_s": 2.009999955072999,
+   "roles_around_completion": null,
+   "speed_at_completion_m_s": 0.2169,
+   "peak_speed_after_completion_m_s": 0.2169,
+   "rest_after_s": 0.28,
+   "after_0_2_s": {
+    "t_s": 0.2,
+    "along_command_mm": 6.75,
+    "lateral_mm": 5.93,
+    "speed_m_s": 0.0262,
+    "yaw_rad": 0.0667
+   },
+   "after_0_5_s": {
+    "t_s": 0.5,
+    "along_command_mm": 5.29,
+    "lateral_mm": 6.1,
+    "speed_m_s": 0.0003,
+    "yaw_rad": 0.0675
+   },
+   "after_1_0_s": {
+    "t_s": 1.0,
+    "along_command_mm": 5.39,
+    "lateral_mm": 6.11,
+    "speed_m_s": 0.0,
+    "yaw_rad": 0.0675
+   },
+   "after_2_0_s": {
+    "t_s": 2.0,
+    "along_command_mm": 5.4,
+    "lateral_mm": 6.12,
+    "speed_m_s": 0.0,
+    "yaw_rad": 0.0677
+   },
+   "peak_yaw_excursion": {
+    "t_s": 0.255,
+    "yaw_rad": 0.0714
+   },
+   "physics_log_sha256": "dae2286cbc2564edf62f7c84931ea90b7fb12d0c53d3df4c7bb6316cd78dd691",
+   "policy_log_sha256": "52000e94abd33cc33ffb8e5d620138a9dca717c1b3e22d86fe731cb39d9f0272"
+  },
+  "flat-forward01": {
+   "policy_profile": "isaaclab_velocity_flat",
+   "handoff": false,
+   "commanded_twist": [
+    0.30000001192092896,
+    0.0,
+    0.0
+   ],
+   "commanded_phase_s": 0.32,
+   "motion_policy_slots": 16,
+   "completion_sim_time_s": 2.0499999541789293,
+   "roles_around_completion": null,
+   "speed_at_completion_m_s": 0.102,
+   "peak_speed_after_completion_m_s": 0.102,
+   "rest_after_s": 0.12,
+   "after_0_2_s": {
+    "t_s": 0.2,
+    "along_command_mm": 7.74,
+    "lateral_mm": -1.26,
+    "speed_m_s": 0.0137,
+    "yaw_rad": 0.0559
+   },
+   "after_0_5_s": {
+    "t_s": 0.5,
+    "along_command_mm": 0.28,
+    "lateral_mm": -2.48,
+    "speed_m_s": 0.003,
+    "yaw_rad": 0.1036
+   },
+   "after_1_0_s": {
+    "t_s": 1.0,
+    "along_command_mm": -0.04,
+    "lateral_mm": -2.7,
+    "speed_m_s": 0.0006,
+    "yaw_rad": 0.116
+   },
+   "after_2_0_s": {
+    "t_s": 2.0,
+    "along_command_mm": -0.49,
+    "lateral_mm": -2.89,
+    "speed_m_s": 0.0013,
+    "yaw_rad": 0.1234
+   },
+   "peak_yaw_excursion": {
+    "t_s": 2.0,
+    "yaw_rad": 0.1234
+   },
+   "physics_log_sha256": "6fc25cce7ede38294db93e6c52c95e3eceb2d95ea9c5dedac101ffc8592a43d6",
+   "policy_log_sha256": "e0cd5aa8e24a437e80f8487841cc64ce398449e18739e52d53f575b9f14802b0"
+  },
+  "flat-reverse01": {
+   "policy_profile": "isaaclab_velocity_flat",
+   "handoff": false,
+   "commanded_twist": [
+    -0.30000001192092896,
+    0.0,
+    0.0
+   ],
+   "commanded_phase_s": 0.28,
+   "motion_policy_slots": 14,
+   "completion_sim_time_s": 2.009999955072999,
+   "roles_around_completion": null,
+   "speed_at_completion_m_s": 0.2277,
+   "peak_speed_after_completion_m_s": 0.2277,
+   "rest_after_s": 0.88,
+   "after_0_2_s": {
+    "t_s": 0.2,
+    "along_command_mm": 18.75,
+    "lateral_mm": -0.56,
+    "speed_m_s": 0.093,
+    "yaw_rad": 0.0026
+   },
+   "after_0_5_s": {
+    "t_s": 0.5,
+    "along_command_mm": 27.53,
+    "lateral_mm": -0.87,
+    "speed_m_s": 0.045,
+    "yaw_rad": -0.1467
+   },
+   "after_1_0_s": {
+    "t_s": 1.0,
+    "along_command_mm": 21.53,
+    "lateral_mm": -8.35,
+    "speed_m_s": 0.0053,
+    "yaw_rad": -0.2617
+   },
+   "after_2_0_s": {
+    "t_s": 2.0,
+    "along_command_mm": 22.1,
+    "lateral_mm": -7.26,
+    "speed_m_s": 0.0001,
+    "yaw_rad": -0.2647
+   },
+   "peak_yaw_excursion": {
+    "t_s": 2.0,
+    "yaw_rad": -0.2647
+   },
+   "physics_log_sha256": "9a48e84c8498e7b1f4b95be884cce6a84ff72ca2f16234fa378af06f6b11f1ff",
+   "policy_log_sha256": "9019f43a32e95eb55d7ca2fdb1ba4cbd42ad2a09501fdfd8658ec0776dac8992"
+  },
+  "rough-forward01": {
+   "policy_profile": "isaaclab_velocity_rough",
+   "handoff": false,
+   "commanded_twist": [
+    0.30000001192092896,
+    0.0,
+    0.0
+   ],
+   "commanded_phase_s": 0.34,
+   "motion_policy_slots": 17,
+   "completion_sim_time_s": 2.0499999541789293,
+   "roles_around_completion": null,
+   "speed_at_completion_m_s": 0.0872,
+   "peak_speed_after_completion_m_s": 0.126,
+   "rest_after_s": 0.425,
+   "after_0_2_s": {
+    "t_s": 0.2,
+    "along_command_mm": 8.46,
+    "lateral_mm": 7.04,
+    "speed_m_s": 0.0097,
+    "yaw_rad": -0.0165
+   },
+   "after_0_5_s": {
+    "t_s": 0.5,
+    "along_command_mm": 0.99,
+    "lateral_mm": 4.19,
+    "speed_m_s": 0.0007,
+    "yaw_rad": -0.005
+   },
+   "after_1_0_s": {
+    "t_s": 1.0,
+    "along_command_mm": 1.18,
+    "lateral_mm": 4.14,
+    "speed_m_s": 0.0005,
+    "yaw_rad": -0.0034
+   },
+   "after_2_0_s": {
+    "t_s": 2.0,
+    "along_command_mm": 1.26,
+    "lateral_mm": 4.12,
+    "speed_m_s": 0.0007,
+    "yaw_rad": -0.0028
+   },
+   "peak_yaw_excursion": {
+    "t_s": 0.125,
+    "yaw_rad": -0.0344
+   },
+   "physics_log_sha256": "cbe06f2ba5225a33751f458944a1833fda8dc87317d01df7cbb249a090359a61",
+   "policy_log_sha256": "94e2d802a5a46968ac7aa44153748be03a2d391fdca8a55d4e953e234a898ec0"
+  },
+  "rough-reverse01": {
+   "policy_profile": "isaaclab_velocity_rough",
+   "handoff": false,
+   "commanded_twist": [
+    -0.30000001192092896,
+    0.0,
+    0.0
+   ],
+   "commanded_phase_s": 0.28,
+   "motion_policy_slots": 14,
+   "completion_sim_time_s": 1.9699999559670687,
+   "roles_around_completion": null,
+   "speed_at_completion_m_s": 0.2229,
+   "peak_speed_after_completion_m_s": 0.2229,
+   "rest_after_s": 0.675,
+   "after_0_2_s": {
+    "t_s": 0.2,
+    "along_command_mm": 21.43,
+    "lateral_mm": 3.68,
+    "speed_m_s": 0.1436,
+    "yaw_rad": -0.0207
+   },
+   "after_0_5_s": {
+    "t_s": 0.5,
+    "along_command_mm": 31.29,
+    "lateral_mm": 1.18,
+    "speed_m_s": 0.0318,
+    "yaw_rad": 0.0154
+   },
+   "after_1_0_s": {
+    "t_s": 1.0,
+    "along_command_mm": 25.46,
+    "lateral_mm": 2.18,
+    "speed_m_s": 0.0006,
+    "yaw_rad": 0.0194
+   },
+   "after_2_0_s": {
+    "t_s": 2.0,
+    "along_command_mm": 25.59,
+    "lateral_mm": 2.46,
+    "speed_m_s": 0.0,
+    "yaw_rad": 0.0232
+   },
+   "peak_yaw_excursion": {
+    "t_s": 0.585,
+    "yaw_rad": 0.0327
+   },
+   "physics_log_sha256": "d76a77e2325e8a9e299698abbf288fb4607f18cb2bdd189214d2bec104c77155",
+   "policy_log_sha256": "83c8b53af6f64a114a0db153cc06b9298440b6c8727f67bba92466c2bd6ca0e9"
+  },
+  "roughho-forward01": {
+   "policy_profile": "isaaclab_velocity_rough",
+   "handoff": true,
+   "commanded_twist": [
+    0.30000001192092896,
+    0.0,
+    0.0
+   ],
+   "commanded_phase_s": 0.28,
+   "motion_policy_slots": 14,
+   "completion_sim_time_s": 2.009999955072999,
+   "roles_around_completion": [
+    [
+     "motion",
+     1.9899999555200338
+    ],
+    [
+     "standing",
+     2.009999955072999
+    ],
+    [
+     "standing",
+     2.029999954625964
+    ]
+   ],
+   "speed_at_completion_m_s": 0.165,
+   "peak_speed_after_completion_m_s": 0.165,
+   "rest_after_s": 0.31,
+   "after_0_2_s": {
+    "t_s": 0.2,
+    "along_command_mm": 5.98,
+    "lateral_mm": -0.43,
+    "speed_m_s": 0.0144,
+    "yaw_rad": 0.0155
+   },
+   "after_0_5_s": {
+    "t_s": 0.5,
+    "along_command_mm": 2.96,
+    "lateral_mm": -2.42,
+    "speed_m_s": 0.0009,
+    "yaw_rad": 0.0325
+   },
+   "after_1_0_s": {
+    "t_s": 1.0,
+    "along_command_mm": 2.62,
+    "lateral_mm": -2.58,
+    "speed_m_s": 0.0003,
+    "yaw_rad": 0.0392
+   },
+   "after_2_0_s": {
+    "t_s": 2.0,
+    "along_command_mm": 2.4,
+    "lateral_mm": -2.67,
+    "speed_m_s": 0.0001,
+    "yaw_rad": 0.042
+   },
+   "peak_yaw_excursion": {
+    "t_s": 2.0,
+    "yaw_rad": 0.042
+   },
+   "physics_log_sha256": "d41f61b54632ffd50b10f3b90fd2ff6be6601c56a278cf8bb6b65c4a536dfff0",
+   "policy_log_sha256": "fbc9bc93337b821ad16fb927259fe98819b5f2bb67f46266eb170f1b7c98ae6c"
+  },
+  "roughho-reverse01": {
+   "policy_profile": "isaaclab_velocity_rough",
+   "handoff": true,
+   "commanded_twist": [
+    -0.30000001192092896,
+    0.0,
+    0.0
+   ],
+   "commanded_phase_s": 0.28,
+   "motion_policy_slots": 14,
+   "completion_sim_time_s": 2.009999955072999,
+   "roles_around_completion": [
+    [
+     "motion",
+     1.9899999555200338
+    ],
+    [
+     "standing",
+     2.009999955072999
+    ],
+    [
+     "standing",
+     2.029999954625964
+    ]
+   ],
+   "speed_at_completion_m_s": 0.2176,
+   "peak_speed_after_completion_m_s": 0.2176,
+   "rest_after_s": 0.85,
+   "after_0_2_s": {
+    "t_s": 0.2,
+    "along_command_mm": 18.5,
+    "lateral_mm": 0.38,
+    "speed_m_s": 0.0501,
+    "yaw_rad": 0.0176
+   },
+   "after_0_5_s": {
+    "t_s": 0.5,
+    "along_command_mm": 27.13,
+    "lateral_mm": 0.87,
+    "speed_m_s": 0.0708,
+    "yaw_rad": 0.0727
+   },
+   "after_1_0_s": {
+    "t_s": 1.0,
+    "along_command_mm": 20.29,
+    "lateral_mm": 1.74,
+    "speed_m_s": 0.0063,
+    "yaw_rad": 0.015
+   },
+   "after_2_0_s": {
+    "t_s": 2.0,
+    "along_command_mm": 21.28,
+    "lateral_mm": 2.45,
+    "speed_m_s": 0.0,
+    "yaw_rad": -0.0066
+   },
+   "peak_yaw_excursion": {
+    "t_s": 0.58,
+    "yaw_rad": 0.0804
+   },
+   "physics_log_sha256": "2ad588b56b102069a9a29ad6d065b91fbc4fbf5c36426aa0b5d1576a84ed1d18",
+   "policy_log_sha256": "79e93f4e7068acc785dad653ab0d5e5282dc3cec3eb7b9ff02acb140c16affa8"
+  },
+  "flatho-forward01": {
+   "policy_profile": "isaaclab_velocity_flat",
+   "handoff": true,
+   "commanded_twist": [
+    0.30000001192092896,
+    0.0,
+    0.0
+   ],
+   "commanded_phase_s": 0.28,
+   "motion_policy_slots": 14,
+   "completion_sim_time_s": 1.9699999559670687,
+   "roles_around_completion": [
+    [
+     "motion",
+     1.9499999564141035
+    ],
+    [
+     "standing",
+     1.9699999559670687
+    ],
+    [
+     "standing",
+     1.9899999555200338
+    ]
+   ],
+   "speed_at_completion_m_s": 0.2249,
+   "peak_speed_after_completion_m_s": 0.2249,
+   "rest_after_s": 0.26,
+   "after_0_2_s": {
+    "t_s": 0.2,
+    "along_command_mm": 6.02,
+    "lateral_mm": -7.84,
+    "speed_m_s": 0.0352,
+    "yaw_rad": 0.0694
+   },
+   "after_0_5_s": {
+    "t_s": 0.5,
+    "along_command_mm": 2.38,
+    "lateral_mm": -9.03,
+    "speed_m_s": 0.0041,
+    "yaw_rad": 0.1121
+   },
+   "after_1_0_s": {
+    "t_s": 1.0,
+    "along_command_mm": 1.83,
+    "lateral_mm": -9.23,
+    "speed_m_s": 0.0003,
+    "yaw_rad": 0.1216
+   },
+   "after_2_0_s": {
+    "t_s": 2.0,
+    "along_command_mm": 1.7,
+    "lateral_mm": -9.22,
+    "speed_m_s": 0.0001,
+    "yaw_rad": 0.123
+   },
+   "peak_yaw_excursion": {
+    "t_s": 2.0,
+    "yaw_rad": 0.123
+   },
+   "physics_log_sha256": "4d1e53cf36d1898444a652bd845380f1ac9b796d928d98c163b3b3fe20fd75f8",
+   "policy_log_sha256": "ee2bce3fabd0b19bc31fa1bb66ad07bafd9e1f7236ae937cd7dbe01aaca688a2"
+  },
+  "flatho-reverse01": {
+   "policy_profile": "isaaclab_velocity_flat",
+   "handoff": true,
+   "commanded_twist": [
+    -0.30000001192092896,
+    0.0,
+    0.0
+   ],
+   "commanded_phase_s": 0.3,
+   "motion_policy_slots": 15,
+   "completion_sim_time_s": 2.009999955072999,
+   "roles_around_completion": [
+    [
+     "motion",
+     1.9899999555200338
+    ],
+    [
+     "standing",
+     2.009999955072999
+    ],
+    [
+     "standing",
+     2.029999954625964
+    ]
+   ],
+   "speed_at_completion_m_s": 0.2007,
+   "peak_speed_after_completion_m_s": 0.2007,
+   "rest_after_s": 0.745,
+   "after_0_2_s": {
+    "t_s": 0.2,
+    "along_command_mm": 17.15,
+    "lateral_mm": 0.38,
+    "speed_m_s": 0.0382,
+    "yaw_rad": 0.0185
+   },
+   "after_0_5_s": {
+    "t_s": 0.5,
+    "along_command_mm": 21.51,
+    "lateral_mm": 0.89,
+    "speed_m_s": 0.0145,
+    "yaw_rad": 0.0827
+   },
+   "after_1_0_s": {
+    "t_s": 1.0,
+    "along_command_mm": 18.04,
+    "lateral_mm": 3.11,
+    "speed_m_s": 0.0527,
+    "yaw_rad": 0.1293
+   },
+   "after_2_0_s": {
+    "t_s": 2.0,
+    "along_command_mm": 15.15,
+    "lateral_mm": 5.09,
+    "speed_m_s": 0.0004,
+    "yaw_rad": 0.0458
+   },
+   "peak_yaw_excursion": {
+    "t_s": 0.845,
+    "yaw_rad": 0.139
+   },
+   "physics_log_sha256": "8caf37a03515cdd9fc6c04124210f47405b847890c3bbe52f3351b080f0993b9",
+   "policy_log_sha256": "b1337eebc349438d23b14db1851b9ca52911fad965bf27a8fc3c2002a5a35056"
+  }
+ }
+}

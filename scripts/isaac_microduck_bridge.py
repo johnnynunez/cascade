@@ -32,6 +32,10 @@ def parse_args(argv=None):
                    help='explicit output transform, separately bound from checkpoint; no physical admission')
     p.add_argument('--integrator-profile', choices=['sdk-default', 'euler-v1'], default='sdk-default',
                    help='opt-in Euler authoring with effective native readback; default leaves SDK selection untouched')
+    p.add_argument('--handoff-profile', choices=['stand-on-zero-twist-v1'], default=None,
+                   help='opt-in: evaluate the standing policy whenever the commanded twist is zero; requires --standing-policy/--standing-policy-sha256')
+    p.add_argument('--standing-policy', type=Path, help='official VelStand ONNX for the opt-in standing handoff')
+    p.add_argument('--standing-policy-sha256', help='independent SHA-256 of that standing policy file')
     p.add_argument('--bam-source-root', type=Path, required=True)
     p.add_argument('--bam-profile', required=True)
     p.add_argument('--python-extra-path', type=Path, action='append', default=[],
@@ -83,6 +87,15 @@ def create_policy(args, admission, factory=None):
                                          target_profile=args.target_profile)
     if verify_target_contract(getattr(policy, 'target_contract', None), args.policy_sha256) != expected:
         raise ValueError('constructed policy target contract differs from admission')
+    handoff = admission.get('handoff')
+    if handoff is not None:
+        from cascade.control.microduck_handoff import StandingHandoff
+        standing = (factory or MicroduckPolicy)(args.standing_policy, args.standing_policy_sha256,
+                                               target_profile=args.target_profile)
+        policy = StandingHandoff(policy, standing, profile=handoff['profile'])
+        if (policy.contract()['standing_policy_sha256'] != handoff['standing_policy_sha256']
+                or policy.target_contract != expected):
+            raise ValueError('constructed standing handoff differs from admission')
     return policy
 
 
@@ -389,6 +402,8 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
     finally:
         with defer():
             if stepper is not None:
+                if hasattr(policy, 'telemetry'):
+                    result['handoff'] = policy.telemetry()
                 result.update(steps=stepper.steps, policy_evaluations=stepper.policy_evaluations,
                               policy_attempts=stepper.policy_attempts, policy_commits=stepper.policy_commits)
             if controller is not None:
@@ -486,7 +501,7 @@ def admit(args):
         value = getattr(args, key)
         if not value or value != value.strip() or len(value) > 256 or any(ord(c) < 32 for c in value):
             raise ValueError(f'invalid {key}')
-    for key in ('release', 'asset', 'bundle', 'policy', 'bam_source_root', 'out', 'limits'):
+    for key in ('release', 'asset', 'bundle', 'policy', 'standing_policy', 'bam_source_root', 'out', 'limits'):
         path = getattr(args, key)
         if path is not None:
             setattr(args, key, path.expanduser().absolute())
@@ -509,6 +524,19 @@ def admit(args):
     admitted = verify_bundle(bundle, expected_sha256=args.bundle_sha256, asset=args.asset)
     policy_admission = admit_policy(args.policy, args.policy_sha256, args.policy_profile)
     targets = target_contract(args.policy_sha256, args.target_profile)
+    handoff = None
+    handoff_args = (getattr(args, 'handoff_profile', None), getattr(args, 'standing_policy', None),
+                    getattr(args, 'standing_policy_sha256', None))
+    if any(value is not None for value in handoff_args):
+        from cascade.control.microduck_handoff import HANDOFF_PROFILES, HANDOFF_RULE
+        if any(value is None for value in handoff_args) or args.handoff_profile not in HANDOFF_PROFILES:
+            raise ValueError('standing handoff requires --handoff-profile, --standing-policy and --standing-policy-sha256 together')
+        if args.standing_policy_sha256 == args.policy_sha256:
+            raise ValueError('standing handoff requires a standing policy different from the motion policy')
+        standing_admission = admit_policy(args.standing_policy, args.standing_policy_sha256, 'velstand')
+        handoff = {'profile': args.handoff_profile, 'rule': HANDOFF_RULE, 'motion_policy_sha256': args.policy_sha256,
+                   'standing_policy_sha256': args.standing_policy_sha256, 'standing_policy_profile': 'velstand',
+                   'standing_policy_admission': standing_admission}
     bam_sources = {}
     for relative, expected in SOURCE_SHA256.items():
         path = args.bam_source_root / relative
@@ -537,7 +565,8 @@ def admit(args):
              'src/cascade/sim/microduck_integrator.py',
              'src/cascade/sim/microduck_sdk.py',
              'src/cascade/sim/private_rtx_cache.py',
-             'src/cascade/control/microduck_actuator.py', 'assets/microduck/manifest.json',
+             'src/cascade/control/microduck_actuator.py', 'src/cascade/control/microduck_handoff.py',
+             'assets/microduck/manifest.json',
              'assets/microduck/isaaclab-microduck-usd-manifest.json', 'scripts/admit_microduck_usd.py',
              'assets/microduck/newton-bam.json', 'configs/isaac/microduck.newton.kit')
     admitted.update(limits=load_limits(args.limits), limits_sha256=sha256(args.limits),
@@ -548,6 +577,8 @@ def admit(args):
                     experience_text=experience_text(args.release, sdk_recipe=args.sdk_recipe))
     if sdk_recipe is not None:
         admitted['sdk_recipe'] = sdk_recipe
+    if handoff is not None:
+        admitted['handoff'] = handoff
     if camera_mount is not None:
         from cascade.sim.mobile_camera_encoding import encoding_policy
         admitted['camera_mount'] = camera_mount
@@ -569,6 +600,7 @@ def main(argv=None):
                 'output_count': len(admission['receipt']['outputs']), 'bam_config_sha256': admission['bam_config_sha256'],
                 'target_contract': admission['target_contract'],
                 'integrator_contract': admission['integrator_contract'],
+                **({'handoff': {k: admission['handoff'][k] for k in ('profile', 'standing_policy_sha256')}} if 'handoff' in admission else {}),
                 **({'private_rtx_cache': admission['private_rtx_cache']} if 'private_rtx_cache' in admission else {})}))
             return 0
         from cascade.apps.signal_stop import SignalRequest, StopSignals

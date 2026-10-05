@@ -1,0 +1,126 @@
+{
+  "physical_admission": false,
+  "identity": "1c6449845aa94712b0814b923ac852b99df8e3c8543f6bcc118602bd833dd3dd",
+  "native_steps": 1212,
+  "first_step": 3,
+  "last_step": 1214,
+  "fallen_count": 0,
+  "source_unchanged": true,
+  "closure_ok": true,
+  "force_probes": 61,
+  "force_max_difference": 0.0,
+  "frames": 61,
+  "cases": [
+    {
+      "skill": "walk_distance",
+      "arguments": {
+        "distance_m": -0.03
+      },
+      "ok": false,
+      "execution_ok": true,
+      "verdict": "refuted",
+      "reason": "post-completion distance outcome: unrequested wz drift",
+      "metrics": {
+        "body_displacement_m": [
+          -0.027330811037131135,
+          -0.011735900459395082
+        ],
+        "yaw_change_rad": 0.05843413958990486,
+        "path_length_m": 0.043064528813089246,
+        "rotation_path_rad": 0.0999490780166077,
+        "min_height_m": 0.11589940637350082,
+        "max_tilt_rad": 0.04354615133707487,
+        "max_linear_speed_m_s": 0.2624440282345236,
+        "max_angular_speed_rad_s": 1.177044759670126,
+        "sim_duration_s": 0.29999999329447746,
+        "settle_samples": 16,
+        "settle_sim_duration_s": 0.21499999519437551,
+        "settle_veto_observations": 20,
+        "settle_max_linear_speed_m_s": 0.0030059325468461935,
+        "settle_max_angular_speed_rad_s": 0.049713513476374184,
+        "settle_drift_m": 0.0003391922624667,
+        "settle_drift_rad": 0.0008528203197043913,
+        "distance_outcome": {
+          "body_displacement_m": [
+            -0.04175907368905977,
+            -0.006821726684791146
+          ],
+          "yaw_change_rad": 0.10708787306551829,
+          "path_length_m": 0.08793529705965995,
+          "rotation_path_rad": 0.3785860901353645
+        }
+      },
+      "admission": {
+        "ok": true,
+        "accepted": true,
+        "latched": false,
+        "error": null,
+        "delivery_uncertain": null,
+        "robot_id": "microduck",
+        "source": "isaac-microduck",
+        "epoch": "b01e34dfc2094efc92ec7e39a2fbb0ad",
+        "model_identity_sha256": "1c6449845aa94712b0814b923ac852b99df8e3c8543f6bcc118602bd833dd3dd",
+        "generation": 3,
+        "start_sim_time_s": 1.7099999617785215,
+        "end_sim_time_s": 4.7099999617785215
+      },
+      "completion": {
+        "ok": true,
+        "latched": false,
+        "error": null,
+        "delivery_uncertain": null,
+        "robot_id": "microduck",
+        "source": "isaac-microduck",
+        "epoch": "b01e34dfc2094efc92ec7e39a2fbb0ad",
+        "model_identity_sha256": "1c6449845aa94712b0814b923ac852b99df8e3c8543f6bcc118602bd833dd3dd",
+        "generation": 4
+      },
+      "sample_count": 126,
+      "raw_samples_bound_by_outcomes_sha256": true
+    }
+  ],
+  "subsequent_stop": {
+    "receipt_id": "bca67463e6b14df992a9757d8c310193",
+    "status": "confirmed",
+    "physical_stop_verified": true,
+    "pending": false
+  },
+  "subsequent_stop_metrics": {
+    "body_displacement_m": [
+      -0.00018729178330346034,
+      2.9786410133262078e-05
+    ],
+    "yaw_change_rad": -0.0025880034502636234,
+    "path_length_m": 0.00019996558923495402,
+    "rotation_path_rad": 0.0025880034502636234,
+    "min_height_m": 0.11586212366819382,
+    "max_tilt_rad": 0.031133107159756382,
+    "max_linear_speed_m_s": 0.0007030608609775792,
+    "max_angular_speed_rad_s": 0.01089534674727972,
+    "sim_duration_s": 1.5149999661371112,
+    "settle_samples": 16,
+    "settle_sim_duration_s": 0.21499999519437551,
+    "settle_veto_observations": 20,
+    "settle_max_linear_speed_m_s": 5.182116811405618e-05,
+    "settle_max_angular_speed_rad_s": 0.0011644601559805078,
+    "settle_drift_m": 1.0657267306633837e-05,
+    "settle_drift_rad": 0.0011820939607867205
+  },
+  "scope_note": "Subsequent confirmed stop does not retroactively confirm failed motion. Controller progress is separate from independent verdict.",
+  "artifacts": {
+    "campaign.json": "ca40df89b63c9b8db395aac8c43e606af306d118d9a1174a69dee0a3bdae1685",
+    "campaign-harness.py": "61495366b147296e14ae57f674e18f49db7a15665d5a145478c26754c6463f2d",
+    "lifecycle.json": "cb436a4bb954621e9cd18347becfd4d614d6d88b60f0bb1278fbb23e3166a8d2",
+    "native-exit.json": "1f31fb9d7c0d695c6c19102dbedc15ba143038f918df070bfccce009bba53a6a",
+    "kit/receipt.json": "6412054395735808589546ad4dd4829127c689aaf9e3393c9797f5aa5111f359",
+    "kit/model-identity.json": "192d95d113603701fc19babffd60087d7ae6c788d5b96e1b1e079f69db59736a",
+    "kit/physics.jsonl": "8caf37a03515cdd9fc6c04124210f47405b847890c3bbe52f3351b080f0993b9",
+    "kit/policy.jsonl": "b1337eebc349438d23b14db1851b9ca52911fad965bf27a8fc3c2002a5a35056",
+    "kit/support-probe.jsonl": "40cccb234dc7845a55b15de8f601ad88b2d14aa20ccc935eff55eac948ad5e8c",
+    "kit/frames.jsonl": "6fcac3b8e8d2c91e56db220d979e5ff1a2d54ce709dc32b7944f0a508dae8303",
+    "source-sha256.json": "358c50ec10fd621133b2421a99157d3d6c5da84ae1c5cc82577781cf28beaf46",
+    "outcomes.json": "dc8ed067881872f85d391b3e474fb47579b8687ad2a81ed3381d5921fc1b6ffe",
+    "mcp.jsonl": "17a13461c9b5c04419132f3e68515dbab5f311ad9ed6da54e125e90a462a09ab",
+    "mcp-profile.json": "88c185dc0f02f9877eef46daef3d0065f112f57fc1f20780bf5a7f730b271375"
+  }
+}

@@ -1,6 +1,7 @@
 {
  "date": "2026-10-05",
- "diagnosis": "Both velocity policies (rough_walk_e and the Isaac Lab velocity_flat export) track the requested 30 mm during execution and stand after the emergency stop, but keep stepping, drifting or advancing while the controller holds a zero twist after completion; the post-completion distance outcome refutes three of four walks. The Isaac Lab task trains with rel_standing_envs=0.02, so standing on a zero command is barely in distribution. The handoff after completion (zero-twist walking policy versus a hold or a standing policy) is the open design item; no threshold was changed.",
+ "diagnosis": "Four velocity-policy walks without a handoff and four with it: every policy tracks the requested 30 mm while commanded and stands after the emergency stop. isaaclab_velocity_rough is confirmed forward with and without the standing handoff and refuted in reverse both ways (-55.39 mm / -46.81 mm after completion); isaaclab_velocity_flat is refuted by post-completion yaw with and without it (0.123 rad peak either way). The per-step physics logs (post-completion-analysis.json) show each walk completing mid-stride at 0.09-0.23 m/s because the recipe commands 0.3 m/s for 30 mm; the network holding the zero twist afterwards needs 0.7-0.9 s and 15-26 mm to rest in reverse, 4-7 mm less with the handoff. Standing-only foundations do not drift (yaw within 0.02 rad over 4 s). The residue is braking at zero command, not standing; the handoff is an opt-in candidate, not a remedy. rough_walk_e braked in 0.28 s and 5 mm from the same speed in usd-reverse01, so braking is a policy behaviour. No threshold was changed.",
+ "diagnosis_initial_2026_10_05": "Both velocity policies (rough_walk_e and the Isaac Lab velocity_flat export) track the requested 30 mm during execution and stand after the emergency stop, but keep stepping, drifting or advancing while the controller holds a zero twist after completion; the post-completion distance outcome refutes three of four walks. The Isaac Lab task trains with rel_standing_envs=0.02, so standing on a zero command is barely in distribution. The handoff after completion (zero-twist walking policy versus a hold or a standing policy) is the open design item; no threshold was changed.",
  "episodes": {
   "flat-forward01": {
    "cases": [
@@ -149,6 +150,1018 @@
     "yaw_change_rad": -0.00032013763787100413
    },
    "video_sha256": "b6537670fd85c599d17d1870222563edec4dd97933ccf2dd1f54c84c81ee2951"
+  },
+  "flatho-forward01": {
+   "campaign_head": "9dd42503d0d886a0b8b95706dca1ffbc81b7bf4e",
+   "campaign_status_clean": true,
+   "cases": [
+    {
+     "admission": {
+      "accepted": true,
+      "delivery_uncertain": null,
+      "end_sim_time_s": 4.679999962449074,
+      "epoch": "8e8547e3faa24a54afc92df70a9f0f5b",
+      "error": null,
+      "generation": 3,
+      "latched": false,
+      "model_identity_sha256": "1c6449845aa94712b0814b923ac852b99df8e3c8543f6bcc118602bd833dd3dd",
+      "ok": true,
+      "robot_id": "microduck",
+      "source": "isaac-microduck",
+      "start_sim_time_s": 1.6799999624490738
+     },
+     "arguments": {
+      "distance_m": 0.03
+     },
+     "completion": {
+      "delivery_uncertain": null,
+      "epoch": "8e8547e3faa24a54afc92df70a9f0f5b",
+      "error": null,
+      "generation": 4,
+      "latched": false,
+      "model_identity_sha256": "1c6449845aa94712b0814b923ac852b99df8e3c8543f6bcc118602bd833dd3dd",
+      "ok": true,
+      "robot_id": "microduck",
+      "source": "isaac-microduck"
+     },
+     "execution_ok": true,
+     "metrics": {
+      "body_displacement_m": [
+       0.026495788204543652,
+       -0.00135358056152678
+      ],
+      "distance_outcome": {
+       "body_displacement_m": [
+        0.027567376339104995,
+        -0.009361810589919773
+       ],
+       "path_length_m": 0.058117467182729275,
+       "rotation_path_rad": 0.15730611089465135,
+       "yaw_change_rad": 0.12742927756277017
+      },
+      "max_angular_speed_rad_s": 1.0594060380895036,
+      "max_linear_speed_m_s": 0.22847286513232226,
+      "max_tilt_rad": 0.042541939483882546,
+      "min_height_m": 0.11411067098379135,
+      "path_length_m": 0.04031730779686647,
+      "rotation_path_rad": 0.025296226652140805,
+      "settle_drift_m": 2.3872972085006936e-05,
+      "settle_drift_rad": 0.0004970979074190494,
+      "settle_max_angular_speed_rad_s": 0.0015257288277729863,
+      "settle_max_linear_speed_m_s": 0.00011052355423372051,
+      "settle_samples": 15,
+      "settle_sim_duration_s": 0.2199999950826168,
+      "settle_veto_observations": 21,
+      "sim_duration_s": 0.2899999935179949,
+      "yaw_change_rad": 0.008058725674307772
+     },
+     "ok": false,
+     "raw_samples_bound_by_outcomes_sha256": true,
+     "reason": "post-completion distance outcome: unrequested wz drift",
+     "sample_count": 125,
+     "skill": "walk_distance",
+     "verdict": "refuted"
+    }
+   ],
+   "closure_ok": true,
+   "fallen_count": 0,
+   "frames": 64,
+   "handoff": {
+    "receipt": {
+     "active_role": "standing",
+     "commits": {
+      "motion": 14,
+      "standing": 305
+     },
+     "last_committer": "standing",
+     "last_switch": {
+      "commit_index": 98,
+      "from": "motion",
+      "to": "standing"
+     },
+     "motion_policy_sha256": "2c88bdd80a031efce26084b5b67c3713a7e3355cd06fbb1802cef4c06150b507",
+     "profile": "stand-on-zero-twist-v1",
+     "selections": 319,
+     "standing_policy_sha256": "1c659be55da94bc5753b707de5c6a3e7c49931e05ca3b6991615cef1a8ba9a45",
+     "switches": 2
+    },
+    "recipe": {
+     "motion_policy_sha256": "2c88bdd80a031efce26084b5b67c3713a7e3355cd06fbb1802cef4c06150b507",
+     "profile": "stand-on-zero-twist-v1",
+     "rule": "standing policy whenever the commanded twist is exactly zero; motion policy otherwise; the previous action is the last committed raw action across switches; nothing else changes",
+     "standing_policy_profile": "velstand",
+     "standing_policy_sha256": "1c659be55da94bc5753b707de5c6a3e7c49931e05ca3b6991615cef1a8ba9a45"
+    },
+    "role_runs": [
+     [
+      "standing",
+      84
+     ],
+     [
+      "motion",
+      14
+     ],
+     [
+      "standing",
+      221
+     ]
+    ],
+    "statuses": [
+     "evaluated"
+    ],
+    "switch_rows": [
+     {
+      "row": 84,
+      "sim_time_s": 1.6899999622255564,
+      "status": "evaluated",
+      "to": "motion"
+     },
+     {
+      "row": 98,
+      "sim_time_s": 1.9699999559670687,
+      "status": "evaluated",
+      "to": "standing"
+     }
+    ]
+   },
+   "identity": "1c6449845aa94712b0814b923ac852b99df8e3c8543f6bcc118602bd833dd3dd",
+   "kit_receipt_sha256": "c29703299d8860ff33739939a032d312e5c4cad0b2618f0d322f10db92834d7a",
+   "model_identity_file_sha256": "192d95d113603701fc19babffd60087d7ae6c788d5b96e1b1e079f69db59736a",
+   "native_steps": 1273,
+   "policy_profile": "isaaclab_velocity_flat",
+   "source_unchanged": true,
+   "subsequent_stop": {
+    "pending": false,
+    "physical_stop_verified": true,
+    "receipt_id": "f804fcc3d320430b8ac62da9724b6ddc",
+    "status": "confirmed"
+   },
+   "subsequent_stop_metrics": {
+    "body_displacement_m": [
+     -0.00014672575068450672,
+     5.142601651572949e-05
+    ],
+    "max_angular_speed_rad_s": 0.0014659848717932917,
+    "max_linear_speed_m_s": 0.00010523436617839176,
+    "max_tilt_rad": 0.017851424983416485,
+    "min_height_m": 0.1168626993894577,
+    "path_length_m": 0.00015552176212962917,
+    "rotation_path_rad": 0.0016088091254397863,
+    "settle_drift_m": 1.8794126054673447e-05,
+    "settle_drift_rad": 0.0004100824485948308,
+    "settle_max_angular_speed_rad_s": 0.0012499737144096219,
+    "settle_max_linear_speed_m_s": 8.684133573801737e-05,
+    "settle_samples": 15,
+    "settle_sim_duration_s": 0.2199999950826168,
+    "settle_veto_observations": 17,
+    "sim_duration_s": 1.6599999628961086,
+    "yaw_change_rad": 0.0016088091254397863
+   },
+   "video_sha256": "9bd5c546fd326361a453e8a34167f1136c46c47879af15beab43bf23a2ecf976"
+  },
+  "flatho-foundation01": {
+   "campaign_head": "9dd42503d0d886a0b8b95706dca1ffbc81b7bf4e",
+   "campaign_status_clean": true,
+   "fallen_count": 0,
+   "forbidden_contact_count": 0,
+   "force_probes": 41,
+   "frames": 41,
+   "handoff": {
+    "receipt": {
+     "active_role": "standing",
+     "commits": {
+      "motion": 0,
+      "standing": 200
+     },
+     "last_committer": "standing",
+     "last_switch": null,
+     "motion_policy_sha256": "2c88bdd80a031efce26084b5b67c3713a7e3355cd06fbb1802cef4c06150b507",
+     "profile": "stand-on-zero-twist-v1",
+     "selections": 200,
+     "standing_policy_sha256": "1c659be55da94bc5753b707de5c6a3e7c49931e05ca3b6991615cef1a8ba9a45",
+     "switches": 0
+    },
+    "recipe": {
+     "motion_policy_sha256": "2c88bdd80a031efce26084b5b67c3713a7e3355cd06fbb1802cef4c06150b507",
+     "profile": "stand-on-zero-twist-v1",
+     "rule": "standing policy whenever the commanded twist is exactly zero; motion policy otherwise; the previous action is the last committed raw action across switches; nothing else changes",
+     "standing_policy_profile": "velstand",
+     "standing_policy_sha256": "1c659be55da94bc5753b707de5c6a3e7c49931e05ca3b6991615cef1a8ba9a45"
+    },
+    "role_runs": [
+     [
+      "standing",
+      200
+     ]
+    ],
+    "statuses": [
+     "evaluated"
+    ],
+    "switch_rows": []
+   },
+   "identity": "1c6449845aa94712b0814b923ac852b99df8e3c8543f6bcc118602bd833dd3dd",
+   "kit_receipt_sha256": "f478ce91bbd6c02fa958d63c96199b42f63eff038b3e09c94d3b84952705a230",
+   "model_identity_file_sha256": "192d95d113603701fc19babffd60087d7ae6c788d5b96e1b1e079f69db59736a",
+   "policy_committed": 200,
+   "policy_profile": "isaaclab_velocity_flat",
+   "root_z_first_m": 0.1247570589184761,
+   "root_z_last_m": 0.11678124219179153,
+   "root_z_min_m": 0.11546483635902405,
+   "status": "foundation_identity_force_channel_and_natural_closure_verified"
+  },
+  "flatho-reverse01": {
+   "campaign_head": "9dd42503d0d886a0b8b95706dca1ffbc81b7bf4e",
+   "campaign_status_clean": true,
+   "cases": [
+    {
+     "admission": {
+      "accepted": true,
+      "delivery_uncertain": null,
+      "end_sim_time_s": 4.7099999617785215,
+      "epoch": "b01e34dfc2094efc92ec7e39a2fbb0ad",
+      "error": null,
+      "generation": 3,
+      "latched": false,
+      "model_identity_sha256": "1c6449845aa94712b0814b923ac852b99df8e3c8543f6bcc118602bd833dd3dd",
+      "ok": true,
+      "robot_id": "microduck",
+      "source": "isaac-microduck",
+      "start_sim_time_s": 1.7099999617785215
+     },
+     "arguments": {
+      "distance_m": -0.03
+     },
+     "completion": {
+      "delivery_uncertain": null,
+      "epoch": "b01e34dfc2094efc92ec7e39a2fbb0ad",
+      "error": null,
+      "generation": 4,
+      "latched": false,
+      "model_identity_sha256": "1c6449845aa94712b0814b923ac852b99df8e3c8543f6bcc118602bd833dd3dd",
+      "ok": true,
+      "robot_id": "microduck",
+      "source": "isaac-microduck"
+     },
+     "execution_ok": true,
+     "metrics": {
+      "body_displacement_m": [
+       -0.027330811037131135,
+       -0.011735900459395082
+      ],
+      "distance_outcome": {
+       "body_displacement_m": [
+        -0.04175907368905977,
+        -0.006821726684791146
+       ],
+       "path_length_m": 0.08793529705965995,
+       "rotation_path_rad": 0.3785860901353645,
+       "yaw_change_rad": 0.10708787306551829
+      },
+      "max_angular_speed_rad_s": 1.177044759670126,
+      "max_linear_speed_m_s": 0.2624440282345236,
+      "max_tilt_rad": 0.04354615133707487,
+      "min_height_m": 0.11589940637350082,
+      "path_length_m": 0.043064528813089246,
+      "rotation_path_rad": 0.0999490780166077,
+      "settle_drift_m": 0.0003391922624667,
+      "settle_drift_rad": 0.0008528203197043913,
+      "settle_max_angular_speed_rad_s": 0.049713513476374184,
+      "settle_max_linear_speed_m_s": 0.0030059325468461935,
+      "settle_samples": 16,
+      "settle_sim_duration_s": 0.21499999519437551,
+      "settle_veto_observations": 20,
+      "sim_duration_s": 0.29999999329447746,
+      "yaw_change_rad": 0.05843413958990486
+     },
+     "ok": false,
+     "raw_samples_bound_by_outcomes_sha256": true,
+     "reason": "post-completion distance outcome: unrequested wz drift",
+     "sample_count": 126,
+     "skill": "walk_distance",
+     "verdict": "refuted"
+    }
+   ],
+   "closure_ok": true,
+   "fallen_count": 0,
+   "frames": 61,
+   "handoff": {
+    "receipt": {
+     "active_role": "standing",
+     "commits": {
+      "motion": 15,
+      "standing": 289
+     },
+     "last_committer": "standing",
+     "last_switch": {
+      "commit_index": 100,
+      "from": "motion",
+      "to": "standing"
+     },
+     "motion_policy_sha256": "2c88bdd80a031efce26084b5b67c3713a7e3355cd06fbb1802cef4c06150b507",
+     "profile": "stand-on-zero-twist-v1",
+     "selections": 304,
+     "standing_policy_sha256": "1c659be55da94bc5753b707de5c6a3e7c49931e05ca3b6991615cef1a8ba9a45",
+     "switches": 2
+    },
+    "recipe": {
+     "motion_policy_sha256": "2c88bdd80a031efce26084b5b67c3713a7e3355cd06fbb1802cef4c06150b507",
+     "profile": "stand-on-zero-twist-v1",
+     "rule": "standing policy whenever the commanded twist is exactly zero; motion policy otherwise; the previous action is the last committed raw action across switches; nothing else changes",
+     "standing_policy_profile": "velstand",
+     "standing_policy_sha256": "1c659be55da94bc5753b707de5c6a3e7c49931e05ca3b6991615cef1a8ba9a45"
+    },
+    "role_runs": [
+     [
+      "standing",
+      85
+     ],
+     [
+      "motion",
+      15
+     ],
+     [
+      "standing",
+      204
+     ]
+    ],
+    "statuses": [
+     "evaluated"
+    ],
+    "switch_rows": [
+     {
+      "row": 85,
+      "sim_time_s": 1.7099999617785215,
+      "status": "evaluated",
+      "to": "motion"
+     },
+     {
+      "row": 100,
+      "sim_time_s": 2.009999955072999,
+      "status": "evaluated",
+      "to": "standing"
+     }
+    ]
+   },
+   "identity": "1c6449845aa94712b0814b923ac852b99df8e3c8543f6bcc118602bd833dd3dd",
+   "kit_receipt_sha256": "6412054395735808589546ad4dd4829127c689aaf9e3393c9797f5aa5111f359",
+   "model_identity_file_sha256": "192d95d113603701fc19babffd60087d7ae6c788d5b96e1b1e079f69db59736a",
+   "native_steps": 1212,
+   "policy_profile": "isaaclab_velocity_flat",
+   "source_unchanged": true,
+   "subsequent_stop": {
+    "pending": false,
+    "physical_stop_verified": true,
+    "receipt_id": "bca67463e6b14df992a9757d8c310193",
+    "status": "confirmed"
+   },
+   "subsequent_stop_metrics": {
+    "body_displacement_m": [
+     -0.00018729178330346034,
+     2.9786410133262078e-05
+    ],
+    "max_angular_speed_rad_s": 0.01089534674727972,
+    "max_linear_speed_m_s": 0.0007030608609775792,
+    "max_tilt_rad": 0.031133107159756382,
+    "min_height_m": 0.11586212366819382,
+    "path_length_m": 0.00019996558923495402,
+    "rotation_path_rad": 0.0025880034502636234,
+    "settle_drift_m": 1.0657267306633837e-05,
+    "settle_drift_rad": 0.0011820939607867205,
+    "settle_max_angular_speed_rad_s": 0.0011644601559805078,
+    "settle_max_linear_speed_m_s": 5.182116811405618e-05,
+    "settle_samples": 16,
+    "settle_sim_duration_s": 0.21499999519437551,
+    "settle_veto_observations": 20,
+    "sim_duration_s": 1.5149999661371112,
+    "yaw_change_rad": -0.0025880034502636234
+   },
+   "video_sha256": "12e892bc9a309355f2aa75388c7a80dad0d47cde1b51769b054e505047fad89e"
+  },
+  "rough-forward01": {
+   "campaign_head": "9dd42503d0d886a0b8b95706dca1ffbc81b7bf4e",
+   "campaign_status_clean": true,
+   "cases": [
+    {
+     "admission": {
+      "accepted": true,
+      "delivery_uncertain": null,
+      "end_sim_time_s": 4.70499996189028,
+      "epoch": "29949fbfd9a249e1925ff5d665b728f3",
+      "error": null,
+      "generation": 3,
+      "latched": false,
+      "model_identity_sha256": "d55cf9c8c5f74c54d4a281ad0c6caf759cc3568439bfc14f294cf32f2caf6c27",
+      "ok": true,
+      "robot_id": "microduck",
+      "source": "isaac-microduck",
+      "start_sim_time_s": 1.7049999618902802
+     },
+     "arguments": {
+      "distance_m": 0.03
+     },
+     "completion": {
+      "delivery_uncertain": null,
+      "epoch": "29949fbfd9a249e1925ff5d665b728f3",
+      "error": null,
+      "generation": 4,
+      "latched": false,
+      "model_identity_sha256": "d55cf9c8c5f74c54d4a281ad0c6caf759cc3568439bfc14f294cf32f2caf6c27",
+      "ok": true,
+      "robot_id": "microduck",
+      "source": "isaac-microduck"
+     },
+     "execution_ok": true,
+     "metrics": {
+      "body_displacement_m": [
+       0.02585558245318159,
+       -0.011676315341101647
+      ],
+      "distance_outcome": {
+       "body_displacement_m": [
+        0.026939138692265774,
+        -0.00754640489220979
+       ],
+       "path_length_m": 0.0655439791336427,
+       "rotation_path_rad": 0.16927344463034658,
+       "yaw_change_rad": 0.006060666307548572
+      },
+      "max_angular_speed_rad_s": 0.8583226139157316,
+      "max_linear_speed_m_s": 0.23627216949065252,
+      "max_tilt_rad": 0.03919202817984489,
+      "min_height_m": 0.11246199905872345,
+      "path_length_m": 0.04270491618120897,
+      "rotation_path_rad": 0.0511585158644174,
+      "settle_drift_m": 0.00014705158381549192,
+      "settle_drift_rad": 0.0,
+      "settle_max_angular_speed_rad_s": 0.014321751454862608,
+      "settle_max_linear_speed_m_s": 0.0012875056463174913,
+      "settle_samples": 16,
+      "settle_sim_duration_s": 0.20499999541789293,
+      "settle_veto_observations": 21,
+      "sim_duration_s": 0.3399999924004078,
+      "yaw_change_rad": 0.009023684675596963
+     },
+     "ok": true,
+     "raw_samples_bound_by_outcomes_sha256": true,
+     "reason": "independent measured motion matches caller intent",
+     "sample_count": 132,
+     "skill": "walk_distance",
+     "verdict": "confirmed"
+    }
+   ],
+   "closure_ok": true,
+   "fallen_count": 0,
+   "frames": 59,
+   "handoff": null,
+   "identity": "d55cf9c8c5f74c54d4a281ad0c6caf759cc3568439bfc14f294cf32f2caf6c27",
+   "kit_receipt_sha256": "53771e219976aa91afde2ab05f1d0d01909fcbb2a395aaebff839850a5525e1c",
+   "model_identity_file_sha256": "95875facdaa4008c3d3cf26e1fed29996da34f78247e0f462f6b70a6bec3b9a0",
+   "native_steps": 1175,
+   "policy_profile": "isaaclab_velocity_rough",
+   "source_unchanged": true,
+   "subsequent_stop": {
+    "pending": false,
+    "physical_stop_verified": true,
+    "receipt_id": "cc4e23a839b44713b97e8bb95f281abd",
+    "status": "confirmed"
+   },
+   "subsequent_stop_metrics": {
+    "body_displacement_m": [
+     -3.6765888574790385e-05,
+     -2.869051565054114e-05
+    ],
+    "max_angular_speed_rad_s": 0.023857457496316844,
+    "max_linear_speed_m_s": 0.0028635763637941524,
+    "max_tilt_rad": 0.0152494189752945,
+    "min_height_m": 0.11661995947360992,
+    "path_length_m": 0.0014667453845273587,
+    "rotation_path_rad": 0.0029691394460943377,
+    "settle_drift_m": 0.00017858475483963234,
+    "settle_drift_rad": 0.0,
+    "settle_max_angular_speed_rad_s": 0.013661889381317972,
+    "settle_max_linear_speed_m_s": 0.0015770813622781408,
+    "settle_samples": 14,
+    "settle_sim_duration_s": 0.21499999519437551,
+    "settle_veto_observations": 19,
+    "sim_duration_s": 1.5199999660253525,
+    "yaw_change_rad": 0.0004086100452322314
+   },
+   "video_sha256": "f70dec31d432f914c21032924579f4e9be78602add583953e8631f28b9cbb8c2"
+  },
+  "rough-foundation01": {
+   "campaign_head": "9dd42503d0d886a0b8b95706dca1ffbc81b7bf4e",
+   "campaign_status_clean": true,
+   "fallen_count": 0,
+   "forbidden_contact_count": 0,
+   "force_probes": 41,
+   "frames": 41,
+   "handoff": null,
+   "identity": "d55cf9c8c5f74c54d4a281ad0c6caf759cc3568439bfc14f294cf32f2caf6c27",
+   "kit_receipt_sha256": "83bb0a817f9e562582104248fe92ab3b8bf341eafbcfe0e6d0a0d73eaa5ca0b2",
+   "model_identity_file_sha256": "95875facdaa4008c3d3cf26e1fed29996da34f78247e0f462f6b70a6bec3b9a0",
+   "policy_committed": 200,
+   "policy_profile": "isaaclab_velocity_rough",
+   "root_z_first_m": 0.12475712597370148,
+   "root_z_last_m": 0.11685643345117569,
+   "root_z_min_m": 0.11542412638664246,
+   "status": "foundation_identity_force_channel_and_natural_closure_verified"
+  },
+  "rough-reverse01": {
+   "campaign_head": "9dd42503d0d886a0b8b95706dca1ffbc81b7bf4e",
+   "campaign_status_clean": true,
+   "cases": [
+    {
+     "admission": {
+      "accepted": true,
+      "delivery_uncertain": null,
+      "end_sim_time_s": 4.679999962449074,
+      "epoch": "324781bb0ab1407088ac50e14eddcb46",
+      "error": null,
+      "generation": 3,
+      "latched": false,
+      "model_identity_sha256": "d55cf9c8c5f74c54d4a281ad0c6caf759cc3568439bfc14f294cf32f2caf6c27",
+      "ok": true,
+      "robot_id": "microduck",
+      "source": "isaac-microduck",
+      "start_sim_time_s": 1.6799999624490738
+     },
+     "arguments": {
+      "distance_m": -0.03
+     },
+     "completion": {
+      "delivery_uncertain": null,
+      "epoch": "324781bb0ab1407088ac50e14eddcb46",
+      "error": null,
+      "generation": 4,
+      "latched": false,
+      "model_identity_sha256": "d55cf9c8c5f74c54d4a281ad0c6caf759cc3568439bfc14f294cf32f2caf6c27",
+      "ok": true,
+      "robot_id": "microduck",
+      "source": "isaac-microduck"
+     },
+     "execution_ok": true,
+     "metrics": {
+      "body_displacement_m": [
+       -0.02665235896189061,
+       -0.013655689129334576
+      ],
+      "distance_outcome": {
+       "body_displacement_m": [
+        -0.055394723393122326,
+        -0.013309689586845091
+       ],
+       "path_length_m": 0.0873610036289055,
+       "rotation_path_rad": 0.25650045657806564,
+       "yaw_change_rad": 0.03204130617938834
+      },
+      "max_angular_speed_rad_s": 1.261118491981131,
+      "max_linear_speed_m_s": 0.2823365504389412,
+      "max_tilt_rad": 0.038761357112578734,
+      "min_height_m": 0.11563649773597717,
+      "path_length_m": 0.037887677026256505,
+      "rotation_path_rad": 0.06446833989088317,
+      "settle_drift_m": 6.88485938056327e-05,
+      "settle_drift_rad": 0.0008634647379764279,
+      "settle_max_angular_speed_rad_s": 0.005383536017531987,
+      "settle_max_linear_speed_m_s": 0.0005239930681546768,
+      "settle_samples": 16,
+      "settle_sim_duration_s": 0.2199999950826168,
+      "settle_veto_observations": 21,
+      "sim_duration_s": 0.274999993853271,
+      "yaw_change_rad": 0.01505988392699586
+     },
+     "ok": false,
+     "raw_samples_bound_by_outcomes_sha256": true,
+     "reason": "post-completion distance outcome: excess progress on vx",
+     "sample_count": 126,
+     "skill": "walk_distance",
+     "verdict": "refuted"
+    }
+   ],
+   "closure_ok": true,
+   "fallen_count": 0,
+   "frames": 66,
+   "handoff": null,
+   "identity": "d55cf9c8c5f74c54d4a281ad0c6caf759cc3568439bfc14f294cf32f2caf6c27",
+   "kit_receipt_sha256": "e857fd46f717dd20da4613794161abc8c3c19482f23defca16bbe1403adce9d2",
+   "model_identity_file_sha256": "95875facdaa4008c3d3cf26e1fed29996da34f78247e0f462f6b70a6bec3b9a0",
+   "native_steps": 1320,
+   "policy_profile": "isaaclab_velocity_rough",
+   "source_unchanged": true,
+   "subsequent_stop": {
+    "pending": false,
+    "physical_stop_verified": true,
+    "receipt_id": "e1dc6759b7ec412d966c38219d41ff79",
+    "status": "confirmed"
+   },
+   "subsequent_stop_metrics": {
+    "body_displacement_m": [
+     -1.8116010734772806e-05,
+     6.38979531947808e-05
+    ],
+    "max_angular_speed_rad_s": 0.0015420896464036428,
+    "max_linear_speed_m_s": 0.00011860180524733997,
+    "max_tilt_rad": 0.025863187204559303,
+    "min_height_m": 0.11673387885093689,
+    "path_length_m": 7.02773587316159e-05,
+    "rotation_path_rad": 0.000722432772729719,
+    "settle_drift_m": 8.235312863484878e-06,
+    "settle_drift_rad": 0.0,
+    "settle_max_angular_speed_rad_s": 0.0008150758449161436,
+    "settle_max_linear_speed_m_s": 3.97187075122248e-05,
+    "settle_samples": 15,
+    "settle_sim_duration_s": 0.20999999530613422,
+    "settle_veto_observations": 21,
+    "sim_duration_s": 1.5599999651312828,
+    "yaw_change_rad": -0.00032223564288822934
+   },
+   "video_sha256": "060558bb82172fb6ed20ccd1f78c0e2a89bb96d27e19346f782b394db3b04fa8"
+  },
+  "roughho-forward01": {
+   "campaign_head": "9dd42503d0d886a0b8b95706dca1ffbc81b7bf4e",
+   "campaign_status_clean": true,
+   "cases": [
+    {
+     "admission": {
+      "accepted": true,
+      "delivery_uncertain": null,
+      "end_sim_time_s": 4.714999961666763,
+      "epoch": "b4e13fce0fd2467e9eb1935f6a8a8362",
+      "error": null,
+      "generation": 3,
+      "latched": false,
+      "model_identity_sha256": "d9e3f7132c7c40d88808044e93beacc0ee9e9cf5736a25acfce42099d5497736",
+      "ok": true,
+      "robot_id": "microduck",
+      "source": "isaac-microduck",
+      "start_sim_time_s": 1.7149999616667628
+     },
+     "arguments": {
+      "distance_m": 0.03
+     },
+     "completion": {
+      "delivery_uncertain": null,
+      "epoch": "b4e13fce0fd2467e9eb1935f6a8a8362",
+      "error": null,
+      "generation": 4,
+      "latched": false,
+      "model_identity_sha256": "d9e3f7132c7c40d88808044e93beacc0ee9e9cf5736a25acfce42099d5497736",
+      "ok": true,
+      "robot_id": "microduck",
+      "source": "isaac-microduck"
+     },
+     "execution_ok": true,
+     "metrics": {
+      "body_displacement_m": [
+       0.025675850087117334,
+       -0.003926657349201144
+      ],
+      "distance_outcome": {
+       "body_displacement_m": [
+        0.028141231418409036,
+        -0.006555692308390744
+       ],
+       "path_length_m": 0.05652072121598026,
+       "rotation_path_rad": 0.13384478253661042,
+       "yaw_change_rad": 0.053394651529643386
+      },
+      "max_angular_speed_rad_s": 1.0218803573591517,
+      "max_linear_speed_m_s": 0.23300329874630848,
+      "max_tilt_rad": 0.039616113905357506,
+      "min_height_m": 0.11370303481817245,
+      "path_length_m": 0.03909269542314998,
+      "rotation_path_rad": 0.050017232190985084,
+      "settle_drift_m": 7.87743606808015e-05,
+      "settle_drift_rad": 0.00035865934379040033,
+      "settle_max_angular_speed_rad_s": 0.012470767115499728,
+      "settle_max_linear_speed_m_s": 0.0012433396508918968,
+      "settle_samples": 15,
+      "settle_sim_duration_s": 0.20999999530613422,
+      "settle_veto_observations": 19,
+      "sim_duration_s": 0.29499999340623617,
+      "yaw_change_rad": 0.01304990168384518
+     },
+     "ok": true,
+     "raw_samples_bound_by_outcomes_sha256": true,
+     "reason": "independent measured motion matches caller intent",
+     "sample_count": 128,
+     "skill": "walk_distance",
+     "verdict": "confirmed"
+    }
+   ],
+   "closure_ok": true,
+   "fallen_count": 0,
+   "frames": 62,
+   "handoff": {
+    "receipt": {
+     "active_role": "standing",
+     "commits": {
+      "motion": 14,
+      "standing": 296
+     },
+     "last_committer": "standing",
+     "last_switch": {
+      "commit_index": 100,
+      "from": "motion",
+      "to": "standing"
+     },
+     "motion_policy_sha256": "36bad8c2aca4c4e7293d6b989ff1d8f9993e31e532a9a9acb5cc1cc56750ade4",
+     "profile": "stand-on-zero-twist-v1",
+     "selections": 310,
+     "standing_policy_sha256": "1c659be55da94bc5753b707de5c6a3e7c49931e05ca3b6991615cef1a8ba9a45",
+     "switches": 2
+    },
+    "recipe": {
+     "motion_policy_sha256": "36bad8c2aca4c4e7293d6b989ff1d8f9993e31e532a9a9acb5cc1cc56750ade4",
+     "profile": "stand-on-zero-twist-v1",
+     "rule": "standing policy whenever the commanded twist is exactly zero; motion policy otherwise; the previous action is the last committed raw action across switches; nothing else changes",
+     "standing_policy_profile": "velstand",
+     "standing_policy_sha256": "1c659be55da94bc5753b707de5c6a3e7c49931e05ca3b6991615cef1a8ba9a45"
+    },
+    "role_runs": [
+     [
+      "standing",
+      86
+     ],
+     [
+      "motion",
+      14
+     ],
+     [
+      "standing",
+      210
+     ]
+    ],
+    "statuses": [
+     "evaluated"
+    ],
+    "switch_rows": [
+     {
+      "row": 86,
+      "sim_time_s": 1.7299999613314867,
+      "status": "evaluated",
+      "to": "motion"
+     },
+     {
+      "row": 100,
+      "sim_time_s": 2.009999955072999,
+      "status": "evaluated",
+      "to": "standing"
+     }
+    ]
+   },
+   "identity": "d9e3f7132c7c40d88808044e93beacc0ee9e9cf5736a25acfce42099d5497736",
+   "kit_receipt_sha256": "a4852048a6bd17e6674bb853659a285a54f513c22c95318a7979b7de05596086",
+   "model_identity_file_sha256": "3aa448c55dfa5fb1cc411d620ddbbebe2ef79acc7a1fb9bceb7a2d3097287516",
+   "native_steps": 1240,
+   "policy_profile": "isaaclab_velocity_rough",
+   "source_unchanged": true,
+   "subsequent_stop": {
+    "pending": false,
+    "physical_stop_verified": true,
+    "receipt_id": "fecd8b501012447b83d69179749755fc",
+    "status": "confirmed"
+   },
+   "subsequent_stop_metrics": {
+    "body_displacement_m": [
+     -0.00016638148190953756,
+     -5.025962158366923e-05
+    ],
+    "max_angular_speed_rad_s": 0.0080911490661184,
+    "max_linear_speed_m_s": 0.0006865989073530899,
+    "max_tilt_rad": 0.01996441756132494,
+    "min_height_m": 0.11663538962602615,
+    "path_length_m": 0.0001939078618216613,
+    "rotation_path_rad": 0.0017691663901913957,
+    "settle_drift_m": 1.8930371769689906e-05,
+    "settle_drift_rad": 0.00030896485345442335,
+    "settle_max_angular_speed_rad_s": 0.0008969981193454584,
+    "settle_max_linear_speed_m_s": 8.32249431258926e-05,
+    "settle_samples": 16,
+    "settle_sim_duration_s": 0.2299999948590994,
+    "settle_veto_observations": 20,
+    "sim_duration_s": 1.5949999643489718,
+    "yaw_change_rad": 0.0016954473285181598
+   },
+   "video_sha256": "08e6c36b21399f5f750d936a73071aa48f3ceedb7211d58a9d00b2a59171a1f8"
+  },
+  "roughho-foundation01": {
+   "campaign_head": "9dd42503d0d886a0b8b95706dca1ffbc81b7bf4e",
+   "campaign_status_clean": true,
+   "fallen_count": 0,
+   "forbidden_contact_count": 0,
+   "force_probes": 41,
+   "frames": 41,
+   "handoff": {
+    "receipt": {
+     "active_role": "standing",
+     "commits": {
+      "motion": 0,
+      "standing": 200
+     },
+     "last_committer": "standing",
+     "last_switch": null,
+     "motion_policy_sha256": "36bad8c2aca4c4e7293d6b989ff1d8f9993e31e532a9a9acb5cc1cc56750ade4",
+     "profile": "stand-on-zero-twist-v1",
+     "selections": 200,
+     "standing_policy_sha256": "1c659be55da94bc5753b707de5c6a3e7c49931e05ca3b6991615cef1a8ba9a45",
+     "switches": 0
+    },
+    "recipe": {
+     "motion_policy_sha256": "36bad8c2aca4c4e7293d6b989ff1d8f9993e31e532a9a9acb5cc1cc56750ade4",
+     "profile": "stand-on-zero-twist-v1",
+     "rule": "standing policy whenever the commanded twist is exactly zero; motion policy otherwise; the previous action is the last committed raw action across switches; nothing else changes",
+     "standing_policy_profile": "velstand",
+     "standing_policy_sha256": "1c659be55da94bc5753b707de5c6a3e7c49931e05ca3b6991615cef1a8ba9a45"
+    },
+    "role_runs": [
+     [
+      "standing",
+      200
+     ]
+    ],
+    "statuses": [
+     "evaluated"
+    ],
+    "switch_rows": []
+   },
+   "identity": "d9e3f7132c7c40d88808044e93beacc0ee9e9cf5736a25acfce42099d5497736",
+   "kit_receipt_sha256": "770af13953bb20d5648951e6e8e856e64d5b052f7df0e49b9b0c7f389c56fb4e",
+   "model_identity_file_sha256": "3aa448c55dfa5fb1cc411d620ddbbebe2ef79acc7a1fb9bceb7a2d3097287516",
+   "policy_committed": 200,
+   "policy_profile": "isaaclab_velocity_rough",
+   "root_z_first_m": 0.1247570589184761,
+   "root_z_last_m": 0.11678124964237213,
+   "root_z_min_m": 0.11546483635902405,
+   "status": "foundation_identity_force_channel_and_natural_closure_verified"
+  },
+  "roughho-reverse01": {
+   "campaign_head": "9dd42503d0d886a0b8b95706dca1ffbc81b7bf4e",
+   "campaign_status_clean": true,
+   "cases": [
+    {
+     "admission": {
+      "accepted": true,
+      "delivery_uncertain": null,
+      "end_sim_time_s": 4.719999961555004,
+      "epoch": "2ebd7a66bf9f46bfa2c87c86ef22e895",
+      "error": null,
+      "generation": 3,
+      "latched": false,
+      "model_identity_sha256": "d9e3f7132c7c40d88808044e93beacc0ee9e9cf5736a25acfce42099d5497736",
+      "ok": true,
+      "robot_id": "microduck",
+      "source": "isaac-microduck",
+      "start_sim_time_s": 1.7199999615550041
+     },
+     "arguments": {
+      "distance_m": -0.03
+     },
+     "completion": {
+      "delivery_uncertain": null,
+      "epoch": "2ebd7a66bf9f46bfa2c87c86ef22e895",
+      "error": null,
+      "generation": 4,
+      "latched": false,
+      "model_identity_sha256": "d9e3f7132c7c40d88808044e93beacc0ee9e9cf5736a25acfce42099d5497736",
+      "ok": true,
+      "robot_id": "microduck",
+      "source": "isaac-microduck"
+     },
+     "execution_ok": true,
+     "metrics": {
+      "body_displacement_m": [
+       -0.025636826908429382,
+       -0.010594419499642243
+      ],
+      "distance_outcome": {
+       "body_displacement_m": [
+        -0.04680998386934966,
+        -0.00807071130043441
+       ],
+       "path_length_m": 0.08541898483854622,
+       "rotation_path_rad": 0.26791552858937845,
+       "yaw_change_rad": 0.007869365418302417
+      },
+      "max_angular_speed_rad_s": 0.9130967673497687,
+      "max_linear_speed_m_s": 0.265094202007242,
+      "max_tilt_rad": 0.039664798047617425,
+      "min_height_m": 0.11679825931787491,
+      "path_length_m": 0.03810034994842059,
+      "rotation_path_rad": 0.05753073403178846,
+      "settle_drift_m": 7.427841648785307e-05,
+      "settle_drift_rad": 0.001308084028310598,
+      "settle_max_angular_speed_rad_s": 0.008214064823076756,
+      "settle_max_linear_speed_m_s": 0.0006846874921681657,
+      "settle_samples": 16,
+      "settle_sim_duration_s": 0.2199999950826168,
+      "settle_veto_observations": 21,
+      "sim_duration_s": 0.2799999937415123,
+      "yaw_change_rad": 0.01413351238372256
+     },
+     "ok": false,
+     "raw_samples_bound_by_outcomes_sha256": true,
+     "reason": "post-completion distance outcome: unrequested wz drift",
+     "sample_count": 125,
+     "skill": "walk_distance",
+     "verdict": "refuted"
+    }
+   ],
+   "closure_ok": true,
+   "fallen_count": 0,
+   "frames": 67,
+   "handoff": {
+    "receipt": {
+     "active_role": "standing",
+     "commits": {
+      "motion": 14,
+      "standing": 321
+     },
+     "last_committer": "standing",
+     "last_switch": {
+      "commit_index": 100,
+      "from": "motion",
+      "to": "standing"
+     },
+     "motion_policy_sha256": "36bad8c2aca4c4e7293d6b989ff1d8f9993e31e532a9a9acb5cc1cc56750ade4",
+     "profile": "stand-on-zero-twist-v1",
+     "selections": 335,
+     "standing_policy_sha256": "1c659be55da94bc5753b707de5c6a3e7c49931e05ca3b6991615cef1a8ba9a45",
+     "switches": 2
+    },
+    "recipe": {
+     "motion_policy_sha256": "36bad8c2aca4c4e7293d6b989ff1d8f9993e31e532a9a9acb5cc1cc56750ade4",
+     "profile": "stand-on-zero-twist-v1",
+     "rule": "standing policy whenever the commanded twist is exactly zero; motion policy otherwise; the previous action is the last committed raw action across switches; nothing else changes",
+     "standing_policy_profile": "velstand",
+     "standing_policy_sha256": "1c659be55da94bc5753b707de5c6a3e7c49931e05ca3b6991615cef1a8ba9a45"
+    },
+    "role_runs": [
+     [
+      "standing",
+      86
+     ],
+     [
+      "motion",
+      14
+     ],
+     [
+      "standing",
+      235
+     ]
+    ],
+    "statuses": [
+     "evaluated"
+    ],
+    "switch_rows": [
+     {
+      "row": 86,
+      "sim_time_s": 1.7299999613314867,
+      "status": "evaluated",
+      "to": "motion"
+     },
+     {
+      "row": 100,
+      "sim_time_s": 2.009999955072999,
+      "status": "evaluated",
+      "to": "standing"
+     }
+    ]
+   },
+   "identity": "d9e3f7132c7c40d88808044e93beacc0ee9e9cf5736a25acfce42099d5497736",
+   "kit_receipt_sha256": "175f6e785b51556f98c134f2c232f8387d3bcb4afd43276fc53b13ce2cc50f70",
+   "model_identity_file_sha256": "3aa448c55dfa5fb1cc411d620ddbbebe2ef79acc7a1fb9bceb7a2d3097287516",
+   "native_steps": 1340,
+   "policy_profile": "isaaclab_velocity_rough",
+   "source_unchanged": true,
+   "subsequent_stop": {
+    "pending": false,
+    "physical_stop_verified": true,
+    "receipt_id": "4a0bae75c64d43479a6b599a7e511acb",
+    "status": "confirmed"
+   },
+   "subsequent_stop_metrics": {
+    "body_displacement_m": [
+     -0.00012848472092720286,
+     9.60011601069159e-07
+    ],
+    "max_angular_speed_rad_s": 0.0033598822063341865,
+    "max_linear_speed_m_s": 0.00032341685973170253,
+    "max_tilt_rad": 0.02834062190408987,
+    "min_height_m": 0.11597214639186859,
+    "path_length_m": 0.0001344675372531766,
+    "rotation_path_rad": 0.0007063100465111525,
+    "settle_drift_m": 1.6159787690478475e-05,
+    "settle_drift_rad": 0.0002080743124103558,
+    "settle_max_angular_speed_rad_s": 0.001184415307963339,
+    "settle_max_linear_speed_m_s": 7.977915311103672e-05,
+    "settle_samples": 16,
+    "settle_sim_duration_s": 0.20499999541789293,
+    "settle_veto_observations": 21,
+    "sim_duration_s": 1.5949999643489718,
+    "yaw_change_rad": -0.0007063100465111525
+   },
+   "video_sha256": "93e140931788cffeeeecc67bc7656230834832043f2dc924dc9c60657d0b3841"
   },
   "usd-forward01": {
    "cases": [
@@ -299,6 +1312,20 @@
    "video_sha256": "752a570590351f031c194ce7059183ab5b9092aa8cf4440c00ad445a0e83ad87"
   }
  },
+ "handoff": {
+  "episodes": [
+   "roughho-foundation01",
+   "roughho-forward01",
+   "roughho-reverse01",
+   "flatho-foundation01",
+   "flatho-forward01",
+   "flatho-reverse01"
+  ],
+  "module": "src/cascade/control/microduck_handoff.py",
+  "profile": "stand-on-zero-twist-v1",
+  "result": "switches clean (two per walk, every attempt committed); verdicts unchanged relative to the same policy without the handoff",
+  "rule": "standing policy whenever the commanded twist is exactly zero; motion policy otherwise; the previous action is the last committed raw action across switches; nothing else changes"
+ },
  "note": "The retained converted-bundle audits predate the post-completion distance-outcome observation (their distance_outcome is null); the status index already records excessive post-completion heading drift for the historical forward cases under the current contract.",
  "physical_admission": false,
  "policies": {
@@ -307,10 +1334,25 @@
    "provenance": "operator-supplied archive isaaclab.zip; see policies/conversion.json and assets/microduck/policy-candidates.json",
    "sha256": "2c88bdd80a031efce26084b5b67c3713a7e3355cd06fbb1802cef4c06150b507"
   },
+  "isaaclab_velocity_rough": {
+   "profile": "isaaclab_velocity_rough",
+   "provenance": "operator-supplied archive isaaclab.zip; see policies/conversion.json and assets/microduck/policy-candidates.json",
+   "sha256": "36bad8c2aca4c4e7293d6b989ff1d8f9993e31e532a9a9acb5cc1cc56750ade4"
+  },
   "rough_walk_e": {
    "profile": "rough_walk_e",
    "sha256": "5aa423bd693e431b19e2ead77f99cbae6184e40a529eb2f7c1b4f85bb7f57040"
+  },
+  "velstand": {
+   "profile": "velstand",
+   "role": "standing network of the opt-in handoff; sole network of the roughho/flatho foundations",
+   "sha256": "1c659be55da94bc5753b707de5c6a3e7c49931e05ca3b6991615cef1a8ba9a45"
   }
+ },
+ "post_completion_analysis": {
+  "file": "post-completion-analysis.json",
+  "scope": "per-step physics logs; simulation only; no physical claim",
+  "tool": "cascade-lab/MICRODUCK_USD_20261005/analyze_post_completion.py"
  },
  "recipe": "LOCOMOTION_NEXT retained \u00b130 mm campaign harness (same MCP route, slow controller limits, rough_walk_e policy, official_infer_nominal_no_delay BAM profile, solver graph + solved-read reuse) on the admitted Isaac Sim 6.2 release with SDK recipe isaac62_48b2d951 (Newton 1.6.1rc1) and the schema-2 Isaac Lab USD bundle",
  "retained_converted_bundle_episodes": {

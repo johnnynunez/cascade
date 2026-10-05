@@ -304,3 +304,47 @@ def test_worker_baseexception_stops_its_robot_and_reports_without_waiting_for_de
         assert agents.fleet.robots["duck00"].stopped
     finally:
         assert agents.close()["complete"]
+
+
+def test_model_receives_bounded_view_of_native_size_motion_receipt(tmp_path, monkeypatch):
+    """A native MicroDuck motion receipt is ~1.6 MB of verifier evidence and samples
+    (live: one 3 cm step became a 990,729-token request). The full receipt stays in
+    the trace/tool log; the model gets the bounded view with exact verdict fields."""
+    from cascade.conversation.receipts import AGENT_OUTPUT_BYTES
+    original = MobileSkillRuntime.execute
+
+    def execute(runtime, name, args=None):
+        result = original(runtime, name, args)
+        if name == "walk_velocity":
+            result = dict(result)
+            result["measured"] = {"before": {"step": 1}, "after": {"step": 2},
+                                  "samples": [{"step": i, "contacts": "x" * 2000} for i in range(200)]}
+            result["postcondition"] = {**result["postcondition"],
+                                       "evidence": {"observations": ["y" * 5000] * 200}}
+        return result
+
+    monkeypatch.setattr(MobileSkillRuntime, "execute", execute)
+    agents = prepare(tmp_path, 1)
+    try:
+        report = agents.run()
+        (robot_id, row), = report["robots"].items()
+        assert row["state"] == "completed"
+        motion, = [t for t in row["report"]["tool_log"] if t["tool"] == "locomotion.walk_velocity"]
+        assert len(json.dumps(motion["result"])) > 1_000_000  # full receipt retained
+        sent = [m for request in agents.clients[robot_id].requests for m in request["messages"]
+                if m["role"] == "tool" and m["name"] == "locomotion.walk_velocity"]
+        assert sent
+        for message in sent:
+            assert len(message["content"].encode()) <= AGENT_OUTPUT_BYTES
+            view = json.loads(message["content"])
+            retained = view["result"]
+            assert retained["postcondition"]["status"] == motion["result"]["postcondition"]["status"]
+            assert retained["execution_ok"] is motion["result"]["execution_ok"]
+            assert retained["ok"] is motion["result"]["ok"]
+            assert {o["path"] for o in view["agent_view"]["omitted"]} == {
+                "/measured/samples", "/postcondition/evidence", "/measured/before", "/measured/after"}
+        small = [m for request in agents.clients[robot_id].requests for m in request["messages"]
+                 if m["role"] == "tool" and m["name"] == "list_resources"]
+        assert small and all("agent_view" not in m["content"] for m in small)
+    finally:
+        assert agents.close()["complete"]

@@ -9,7 +9,7 @@ import pytest
 
 from cascade.agent.trace import TraceLogger
 from cascade.conversation import session as session_module
-from cascade.conversation.receipts import OUTPUT_BYTES, speech_tool_output
+from cascade.conversation.receipts import AGENT_OUTPUT_BYTES, OUTPUT_BYTES, agent_tool_output, speech_tool_output
 from test_conversation_stop_order import complete, rig, stage
 
 
@@ -61,6 +61,27 @@ def test_large_receipt_preserves_verdict_metrics_bindings_and_exact_omission_dig
     {"ok": True, "postcondition": {"status": "unverified", "evidence": [1, 2]}}])
 def test_small_receipt_serialization_is_byte_identical(value):
     assert speech_tool_output(value) == json.dumps(value, allow_nan=False)
+
+
+@pytest.mark.parametrize("status", ["confirmed", "refuted", "unverified"])
+def test_agent_view_also_omits_state_snapshots_and_keeps_verdict_exact(status):
+    original = receipt(status)
+    original["distance_baseline"] = {"step": 0, "contacts": "c"*3000}
+    saved = copy.deepcopy(original)
+    output = agent_tool_output(original, recorded=True)
+    assert len(output.encode()) <= AGENT_OUTPUT_BYTES < OUTPUT_BYTES
+    view = json.loads(output)
+    retained, details = view["result"], view["agent_view"]
+    assert details["full_result_sha256"] == digest(original) and "speech_transport" not in view
+    assert {row["path"] for row in details["omitted"]} == {
+        "/image_jpeg_b64", "/measured/samples", "/postcondition/evidence",
+        "/measured/before", "/measured/after", "/distance_baseline"}
+    expected = copy.deepcopy(original)
+    del expected["image_jpeg_b64"], expected["postcondition"]["evidence"], expected["distance_baseline"]
+    expected["measured"] = {}
+    assert retained == expected and original == saved
+    assert agent_tool_output({"ok": True}) == speech_tool_output({"ok": True}) == json.dumps({"ok": True})
+    assert "agent context bound" in json.loads(agent_tool_output(original))["error"]
 
 
 def test_large_receipt_without_trace_keeps_explicit_failure():

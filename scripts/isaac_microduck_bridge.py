@@ -69,6 +69,8 @@ def parse_args(argv=None):
 CONTROLLER_LIMITS = ('max_linear_speed', 'max_angular_speed', 'max_duration_s', 'lease_s',
                      'max_state_age_s', 'max_action_wall_s')
 FALL_LIMITS = ('min_height_m', 'max_height_m', 'max_tilt_rad')
+# Optional together: bridge-side heading hold for straight commands (absent = open loop).
+HEADING_HOLD = ('heading_hold_kp', 'heading_hold_ki')
 
 
 def selected_target_contract(args, admission):
@@ -115,10 +117,14 @@ def load_limits(path):
     import math
     from cascade.sim.microduck_newton import strict_json
     data = strict_json(Path(path).read_bytes())
-    if not isinstance(data, dict) or set(data) != set(CONTROLLER_LIMITS + FALL_LIMITS + ('max_contacts', 'max_constraints')):
-        raise ValueError('explicit complete controller/fall/solver limits required; no unknown keys')
+    required = set(CONTROLLER_LIMITS + FALL_LIMITS + ('max_contacts', 'max_constraints'))
+    if not isinstance(data, dict) or set(data) not in (required, required | set(HEADING_HOLD)):
+        raise ValueError('explicit complete controller/fall/solver limits required; no unknown keys; '
+                         'heading hold needs both gains')
     for key, value in data.items():
-        if type(value) not in (int, float) or not math.isfinite(value) or value <= 0:
+        # The heading-hold integral gain may be zero (proportional-only hold).
+        if (type(value) not in (int, float) or not math.isfinite(value)
+                or value < 0 or (value == 0 and key != 'heading_hold_ki')):
             raise ValueError(f'positive finite limit required: {key}')
     for key, cap in (('max_contacts', 512), ('max_constraints', 2400)):
         if type(data[key]) is not int or data[key] > cap:
@@ -286,7 +292,7 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
                 # Wire v1 nominal dt is retained for existing strict clients; the
                 # measured float32 dt is separately frozen in the runtime receipt.
                 physics_dt=.005, policy_dt=.020,
-                **{k: admission['limits'][k] for k in CONTROLLER_LIMITS})
+                **{k: admission['limits'][k] for k in CONTROLLER_LIMITS + HEADING_HOLD if k in admission['limits']})
             remaining = args.max_wall_s - (time.monotonic() - started)
             if remaining <= 0:
                 raise RuntimeError('wall deadline expired during bootstrap')

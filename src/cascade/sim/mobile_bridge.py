@@ -129,6 +129,8 @@ class MobileBridgeController:
         self._last_control_time: float | None = None
         self._last_completed: str | None = None
         self._completed_owner: str | None = None
+        self._script = None
+        self.script_error = None
 
     def hello(self) -> dict:
         with self._lock:
@@ -139,7 +141,25 @@ class MobileBridgeController:
                     "max_duration_s": self.max_duration_s,
                     "max_action_wall_s": self.max_action_wall_s,
                     "heading_hold": ({"kp": self.heading_hold_kp, "ki": self.heading_hold_ki}
-                                     if self.heading_hold_kp > 0 else None)}
+                                     if self.heading_hold_kp > 0 else None),
+                    "scripted_twist": self._script is not None}
+
+    def script(self, source) -> dict:
+        """Opt-in in-process twist source for a choreographed showcase (no network admission).
+
+        ``source(sim_time, state) -> (vx, vy, wz)`` is evaluated inside ``control_at`` and clipped
+        to the admitted speed limits. It never coexists with an admitted command, is dropped by
+        ``stop``/latch/fault like any intent, and is announced in ``hello`` so no client mistakes
+        a scripted robot for a free one. Clearing (``source=None``) bumps the generation.
+        """
+        with self._lock:
+            if source is not None and not callable(source):
+                raise ValueError("twist script must be callable or None")
+            if source is not None and self._active is not None:
+                raise ValueError("a scripted twist cannot coexist with an admitted command")
+            self._script = source
+            self._generation += 1
+            return self._ack()
 
     def _status(self) -> str:
         if self._fault:
@@ -318,6 +338,8 @@ class MobileBridgeController:
             self._binding(request, robot=True)
             if self._latched or self._fault:
                 raise ValueError("motion is latched; operator reset required")
+            if self._script is not None:
+                raise ValueError("robot is driven by an in-process choreography; no external command admission")
             now = self._clock()
             self._fresh(now)
             received = _number(request.get("_received_wall", now), "request receipt")
@@ -402,7 +424,11 @@ class MobileBridgeController:
                                 and sim_time < self._last_control_time)):
                 self.fault("control simulation clock regressed")
             self._last_control_time = sim_time
-            if self._latched or self._fault or self._active is None:
+            if self._latched or self._fault:
+                return (0.0, 0.0, 0.0)
+            if self._active is None and self._script is not None:
+                return self._scripted(sim_time)
+            if self._active is None:
                 return (0.0, 0.0, 0.0)
             now = self._clock()
             if now >= self._active["lease_until_wall"] or now >= self._active["until_wall"]:
@@ -421,6 +447,27 @@ class MobileBridgeController:
             if "heading_ref" in self._active:
                 return self._heading_hold(self._active, self._state, sim_time)
             return self._active["twist"]
+
+    def _scripted(self, sim_time: float) -> tuple[float, float, float]:
+        """Scripted twist: same freshness and speed bounds as an admitted command; faults clear it."""
+        if self._state is None:
+            return (0.0, 0.0, 0.0)  # nothing completed yet: stand, like a robot without a command
+        try:
+            self._fresh(self._clock())
+            twist = self._script(sim_time, self._state)
+            vx, vy, wz = (float(v) for v in twist)
+            if not all(math.isfinite(v) for v in (vx, vy, wz)):
+                raise ValueError("scripted twist is not finite")
+        except Exception as exc:  # a broken script is a controller fault, never silent motion
+            self._script = None
+            self.script_error = f"{type(exc).__name__}: {exc}"
+            self.fault("scripted twist failed")
+            return (0.0, 0.0, 0.0)
+        speed = math.hypot(vx, vy)
+        if speed > self.max_linear_speed:
+            vx, vy = vx * self.max_linear_speed / speed, vy * self.max_linear_speed / speed
+        wz = max(-self.max_angular_speed, min(self.max_angular_speed, wz))
+        return (vx, vy, wz)
 
     def _heading_hold(self, active: dict, state: dict, sim_time: float) -> tuple[float, float, float]:
         vx, vy, _ = active["twist"]
@@ -441,6 +488,7 @@ class MobileBridgeController:
             raise ValueError("latch must be a boolean")
         with self._lock:
             self._active = None
+            self._script = None  # a stop ends a choreography exactly like an admitted command
             self._generation += 1
             self._latched = self._latched or latch
             return {**self._ack(), "cancelled": True,

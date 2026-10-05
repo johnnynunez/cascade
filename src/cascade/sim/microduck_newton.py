@@ -629,6 +629,142 @@ def neutralize_asset_actuation(stage, asset_kind, *, root_path=None):
     raise ValueError('unknown admitted asset kind')
 
 
+# Newton's USD importer (Isaac Sim 6.2 / Newton 1.6.1rc1) resolves a convex-hull
+# vertex limit only from an AUTHORED attribute, in this resolver order, and
+# otherwise substitutes its own cap, newton.Mesh.MAX_HULL_VERTICES = 64. Both
+# admitted assets are MJCF conversions whose collision meshes author no limit; in
+# MJCF that means a complete hull (-1). qhull's partial 64-vertex hull depends on
+# vertex order, so the mirrored soles came out asymmetric and a straight command
+# curled (+3.3 rad in 20 s on Isaac 6.2). Isaac Sim passes no mesh_maxhullvert.
+HULL_LIMIT_ATTRIBUTES = ('newton:maxHullVertices', 'mjc:maxhullvert', 'physxConvexHullCollision:hullVertexLimit')
+HULL_LIMIT_API = 'NewtonMeshCollisionAPI'
+COMPLETE_HULL = -1
+
+
+def author_collision_hull_limits(stage, *, root_path):
+    """Give every enabled convex-hull collision mesh under ``root_path`` an explicit limit.
+
+    Startup-only runtime-layer edit, before the stage parse. An authored limit is
+    kept and recorded; conflicting authored limits are refused; an unauthored one
+    is authored as the MJCF default, a complete hull (-1). The Isaac Lab USD
+    instances its colliders, and USD refuses edits through instance proxies, so
+    the enclosing instance prims are de-instanced first (composition only: the
+    same prototype prims compose at the same paths with the same geometry).
+    """
+    from pxr import Sdf, Usd, UsdPhysics
+    layer = stage.GetRootLayer()
+    if not layer.anonymous or stage.GetEditTarget().GetLayer() != layer:
+        raise ValueError('collision hull authoring requires our anonymous runtime layer')
+    root = stage.GetPrimAtPath(root_path)
+    if not root or not root.IsValid():
+        raise ValueError(f'robot root missing: {root_path}')
+
+    def colliders():
+        found = []
+        for prim in Usd.PrimRange(root, Usd.TraverseInstanceProxies()):
+            if not (prim.HasAPI(UsdPhysics.CollisionAPI) and prim.HasAPI(UsdPhysics.MeshCollisionAPI)):
+                continue
+            enabled = prim.GetAttribute('physics:collisionEnabled')
+            if enabled and enabled.HasAuthoredValue() and not enabled.Get():
+                continue
+            approximation = UsdPhysics.MeshCollisionAPI(prim).GetApproximationAttr().Get()
+            if approximation != UsdPhysics.Tokens.convexHull:
+                raise ValueError(f'unexpected collision approximation {approximation!r}: {prim.GetPath()}')
+            found.append(prim)
+        return found
+
+    def authored_limit(prim):
+        values = {}
+        for name in HULL_LIMIT_ATTRIBUTES:
+            attr = prim.GetAttribute(name)
+            if attr and attr.HasAuthoredValue():
+                values[name] = int(attr.Get())
+        if len(set(values.values())) > 1:
+            raise ValueError(f'conflicting collision hull limits {values}: {prim.GetPath()}')
+        return values
+
+    deinstanced = []
+    for prim in colliders():
+        if not prim.IsInstanceProxy():
+            continue
+        instance = prim.GetParent()
+        while instance and instance.IsValid() and not instance.IsInstance():
+            instance = instance.GetParent()
+        if not instance or not instance.IsValid():
+            raise RuntimeError(f'instance proxy without an instance root: {prim.GetPath()}')
+        if str(instance.GetPath()) not in deinstanced:
+            if not instance.SetInstanceable(False) or instance.IsInstance():
+                raise RuntimeError(f'could not de-instance {instance.GetPath()}')
+            deinstanced.append(str(instance.GetPath()))
+    authored, kept = [], []
+    prims = colliders()
+    if not prims:
+        raise ValueError(f'no enabled convex-hull collision mesh under {root_path}')
+    schema_known = bool(Usd.SchemaRegistry.GetTypeFromSchemaTypeName(HULL_LIMIT_API))
+    for prim in prims:
+        if prim.IsInstanceProxy():
+            raise RuntimeError(f'collision mesh still an instance proxy: {prim.GetPath()}')
+        values = authored_limit(prim)
+        if values:
+            kept.append({'path': str(prim.GetPath()), 'limits': values})
+            continue
+        # Apply Newton's mesh collision schema when its plugin is registered (it is in
+        # Kit); the importer reads the attribute by name, so a bare attribute also binds.
+        if schema_known:
+            prim.ApplyAPI(HULL_LIMIT_API)
+        attr = prim.GetAttribute(HULL_LIMIT_ATTRIBUTES[0])
+        if not attr or not attr.IsValid():
+            attr = prim.CreateAttribute(HULL_LIMIT_ATTRIBUTES[0], Sdf.ValueTypeNames.Int, custom=False)
+        if not attr.Set(COMPLETE_HULL) or not attr.HasAuthoredValue() or int(attr.Get()) != COMPLETE_HULL:
+            raise RuntimeError(f'could not author {HULL_LIMIT_ATTRIBUTES[0]} on {prim.GetPath()}')
+        authored.append(str(prim.GetPath()))
+    return {'root': str(root_path), 'default_limit': COMPLETE_HULL, 'attribute': HULL_LIMIT_ATTRIBUTES[0],
+            'resolver_order': list(HULL_LIMIT_ATTRIBUTES), 'engine_fallback_limit': 64,
+            'collision_meshes': len(prims), 'authored': authored, 'kept': kept, 'deinstanced': deinstanced}
+
+
+def read_native_collision_hulls(model, *, root_path, limits, mesh_types, collide_flag):
+    """Startup-only readback: the hull Newton built for every colliding mesh shape.
+
+    ``physics:approximation = convexHull`` makes the importer replace each mesh
+    by its hull (``ModelBuilder.approximate_meshes``), so the shape source holds
+    the hull vertices and the limit it was built with. Every authored or kept
+    limit must have reached a colliding native shape; visual and
+    collision-disabled meshes are imported too but never collide, so they are
+    only counted. The vertex counts are evidence (a complete hull of a small
+    part may legitimately have few vertices).
+    """
+    expected = {path: COMPLETE_HULL for path in limits['authored']}
+    for row in limits['kept']:
+        expected[row['path']] = next(iter(row['limits'].values()))
+    labels = list(model.shape_label)
+    types = model.shape_type.numpy().tolist()
+    flags = model.shape_flags.numpy().tolist()
+    prefix = str(root_path) + '/'
+    hulls, passive = [], 0
+    for index, label in enumerate(labels):
+        if not label.startswith(prefix) or types[index] not in mesh_types:
+            continue
+        if not int(flags[index]) & int(collide_flag):
+            passive += 1
+            continue
+        source = model.shape_source[index]
+        vertices = getattr(source, 'vertices', None)
+        limit = getattr(source, 'maxhullvert', None)
+        if vertices is None or type(limit) is not int:
+            raise ValueError(f'native mesh shape without hull data: {label}')
+        if label not in expected:
+            raise ValueError(f'native collision mesh without an explicit hull limit: {label}')
+        if limit != expected[label]:
+            raise ValueError(f'native hull limit {limit} differs from the authored {expected[label]}: {label}')
+        hulls.append({'label': label, 'maxhullvert': limit, 'hull_vertices': int(len(vertices))})
+    if {row['label'] for row in hulls} != set(expected):
+        missing = sorted(set(expected) - {row['label'] for row in hulls})
+        raise ValueError(f'authored hull limits did not reach colliding native mesh shapes: {missing[:3]}')
+    return {'root': str(root_path), 'shapes': hulls, 'non_colliding_meshes': passive,
+            'total_hull_vertices': int(sum(row['hull_vertices'] for row in hulls))}
+
+
 def disable_source_actuators(stage, *, root_path=None):
     import math
     from cascade.control.microduck_policy import POLICY_JOINTS
@@ -922,6 +1058,14 @@ class KitNewtonBackend:
                                                mujoco=mujoco.__version__, mujoco_warp=mujoco_warp.__version__)
         self._bind_native_model(ns)
         self._checkpoint()
+        mesh_types = {int(newton.GeoType.MESH), int(newton.GeoType.CONVEX_MESH)}
+        self.receipt['collision_hulls'] = [
+            read_native_collision_hulls(ns.model, root_path=limits['root'], limits=limits, mesh_types=mesh_types,
+                                        collide_flag=int(newton.ShapeFlags.COLLIDE_SHAPES))
+            for limits in self.receipt['collision_hull_limits']]
+        if [row['root'] for row in self.receipt['collision_hulls']] != list(roots):
+            raise RuntimeError('collision hull records do not cover the authored robot roots')
+        self._checkpoint()
         if self._integrator_selection is not None:
             from .microduck_integrator import observe
             self.receipt['integrator'] = {'contract': self._integrator_selection,
@@ -961,6 +1105,7 @@ class KitNewtonBackend:
         root = UsdGeom.Xform.Define(stage, '/World/MicroDuck').GetPrim()
         root.GetReferences().AddReference(self.admission['asset'])
         self.receipt['disabled_source_actuators'] = neutralize_asset_actuation(stage, self.asset_kind)
+        self.receipt['collision_hull_limits'] = [author_collision_hull_limits(stage, root_path='/World/MicroDuck')]
         return ('/World/MicroDuck',)
 
     @property

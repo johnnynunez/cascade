@@ -120,6 +120,7 @@ locomotion, fidelity of a solver, contact support or any physical outcome.
     native_fields = ("solver", "newton_version", "warp_version", "actual_physics_dt",
                      "physics_dt_s", "physics_device", "gpu_attestation", "configuration",
                      "native_labels", "native_model_properties", "native_body_properties", "disabled_source_actuators",
+                     "collision_hull_limits", "collision_hulls",
                      "initialization", "support_contract", "support_extraction", "runtime_versions")
     cache = admission.get('private_rtx_cache')
     if native['configuration'].get('private_rtx_cache') != (cache['policy'] if cache else None):

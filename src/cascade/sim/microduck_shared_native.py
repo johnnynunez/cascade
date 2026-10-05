@@ -14,7 +14,7 @@ import numpy as np
 
 from cascade.control.mobile_telemetry import _public_contacts
 
-from .microduck_newton import (KitNewtonBackend, neutralize_asset_actuation,
+from .microduck_newton import (KitNewtonBackend, author_collision_hull_limits, neutralize_asset_actuation,
                               prepare_native_model, read_native_body_properties,
                               _read_native_states)
 from .microduck_shared import _SharedSupport, bind_scene
@@ -53,16 +53,18 @@ class SharedKitNewtonBackend(KitNewtonBackend):
 
     def _author_robots(self, stage):
         from pxr import Gf, UsdGeom
-        removed = []
+        removed, hulls = [], []
         for path, position in self.placements.values():
             root = UsdGeom.Xform.Define(stage, path)
             root.GetPrim().GetReferences().AddReference(self.admission['asset'])
             root.AddTranslateOp().Set(Gf.Vec3d(position[0], position[1], 0.))
             removed.append(neutralize_asset_actuation(stage, self.asset_kind, root_path=path))
+            hulls.append(author_collision_hull_limits(stage, root_path=path))
         # One record per robot; the converted bundle keeps its flat prim list.
         if self.asset_kind == 'converted-mjcf':
             removed = [record for records in removed for record in records]
         self.receipt['disabled_source_actuators'] = removed
+        self.receipt['collision_hull_limits'] = hulls
         return tuple(path for path, _ in self.placements.values())
 
     def _camera_pose(self):

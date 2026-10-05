@@ -1,0 +1,164 @@
+{
+ "marks": {
+  "owner_started": 153385.242215283,
+  "readiness_returned": 153391.38983628,
+  "turn_admitted": 153392.040055985,
+  "stop_accepted": 153427.697792085
+ },
+ "gaps": [
+  {
+   "step": 361,
+   "gap_s": 0.2369,
+   "window": "between",
+   "sim_time_s": 0.6016666812356561,
+   "gen2_inside": [],
+   "gc_rows_inside": 140,
+   "top_phases": [
+    [
+     "observation.asdict",
+     286
+    ],
+    [
+     "gc",
+     140
+    ],
+    [
+     "geometry.evaluate",
+     1
+    ]
+   ]
+  },
+  {
+   "step": 362,
+   "gap_s": 0.3706,
+   "window": "between",
+   "sim_time_s": 0.6033333479426801,
+   "gen2_inside": [],
+   "gc_rows_inside": 222,
+   "top_phases": [
+    [
+     "observation.asdict",
+     434
+    ],
+    [
+     "gc",
+     222
+    ],
+    [
+     "geometry.evaluate",
+     1
+    ]
+   ]
+  },
+  {
+   "step": 2049,
+   "gap_s": 0.5467,
+   "window": "after_stop",
+   "sim_time_s": 3.4150000826921314,
+   "gen2_inside": [],
+   "gc_rows_inside": 294,
+   "top_phases": [
+    [
+     "observation.asdict",
+     650
+    ],
+    [
+     "gc",
+     294
+    ],
+    [
+     "geometry.evaluate",
+     1
+    ]
+   ]
+  },
+  {
+   "step": 2050,
+   "gap_s": 0.687,
+   "window": "after_stop",
+   "sim_time_s": 3.4166667493991554,
+   "gen2_inside": [],
+   "gc_rows_inside": 403,
+   "top_phases": [
+    [
+     "observation.asdict",
+     914
+    ],
+    [
+     "gc",
+     403
+    ],
+    [
+     "geometry.evaluate",
+     1
+    ]
+   ]
+  },
+  {
+   "step": 2051,
+   "gap_s": 0.5842,
+   "window": "after_stop",
+   "sim_time_s": 3.4183334161061794,
+   "gen2_inside": [],
+   "gc_rows_inside": 356,
+   "top_phases": [
+    [
+     "observation.asdict",
+     774
+    ],
+    [
+     "gc",
+     356
+    ],
+    [
+     "geometry.evaluate",
+     1
+    ]
+   ]
+  },
+  {
+   "step": 2052,
+   "gap_s": 0.4172,
+   "window": "after_stop",
+   "sim_time_s": 3.4200000828132033,
+   "gen2_inside": [],
+   "gc_rows_inside": 256,
+   "top_phases": [
+    [
+     "observation.asdict",
+     532
+    ],
+    [
+     "gc",
+     256
+    ],
+    [
+     "geometry.evaluate",
+     1
+    ]
+   ]
+  },
+  {
+   "step": 2053,
+   "gap_s": 0.285,
+   "window": "after_stop",
+   "sim_time_s": 3.4216667495202273,
+   "gen2_inside": [],
+   "gc_rows_inside": 171,
+   "top_phases": [
+    [
+     "observation.asdict",
+     342
+    ],
+    [
+     "gc",
+     171
+    ],
+    [
+     "geometry.evaluate",
+     1
+    ]
+   ]
+  }
+ ]
+}

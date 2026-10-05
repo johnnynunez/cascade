@@ -1,0 +1,89 @@
+{
+  "apply": {
+    "after": {
+      "allocated_blocks": 2671771,
+      "count": [
+        0,
+        0,
+        0
+      ],
+      "frozen": 1085933,
+      "stats": [
+        {
+          "collected": 32866,
+          "collections": 1327,
+          "uncollectable": 0
+        },
+        {
+          "collected": 6681,
+          "collections": 120,
+          "uncollectable": 0
+        },
+        {
+          "collected": 4014,
+          "collections": 9,
+          "uncollectable": 0
+        }
+      ]
+    },
+    "applied_monotonic_ns": 153384864876331,
+    "before": {
+      "allocated_blocks": 2684689,
+      "count": [
+        536,
+        7,
+        11
+      ],
+      "frozen": 375,
+      "stats": [
+        {
+          "collected": 32866,
+          "collections": 1327,
+          "uncollectable": 0
+        },
+        {
+          "collected": 6681,
+          "collections": 120,
+          "uncollectable": 0
+        },
+        {
+          "collected": 3204,
+          "collections": 8,
+          "uncollectable": 0
+        }
+      ]
+    },
+    "collect": {
+      "duration_ns": 319546220,
+      "frozen_after_collect": 375,
+      "unreachable": 810
+    },
+    "freeze": {
+      "duration_ns": 20872,
+      "foreign_frozen_before": 375,
+      "frozen": 1085558
+    },
+    "implementation_sha256": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec",
+    "policy": "freeze-startup-heap-v1",
+    "process": {
+      "executable": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/kit/python/bin/python3",
+      "interpreter": "3.12.14",
+      "peak_rss_kib": 2151108,
+      "pid": 2380594
+    },
+    "scope": "Objects alive at apply() moved to the permanent generation; later automatic collections traverse only objects allocated afterwards. Collector enabled, thresholds and callbacks unchanged. Cyclic garbage alive at apply() stays retained until release(). Not a control-deadline, speedup or physical claim.",
+    "settings": {
+      "callbacks": 1,
+      "enabled": true,
+      "thresholds": [
+        700,
+        10,
+        10
+      ]
+    },
+    "thread_id": 133834682439616
+  },
+  "domain_id": "fastening",
+  "model_identity_sha256": "e03bf144eedc42444e22906bbac937910af6f8943eda31de51fa6e5dde79136b",
+  "profile_gc_policy": "freeze-startup-heap"
+}

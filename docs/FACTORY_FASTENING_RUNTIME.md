@@ -548,11 +548,39 @@ heap before the freeze and 0.001–67.9 ms afterwards depending on retained rows
 interpreter mechanism was then measured natively in the
 [MicroDuck shared-scene probes](MICRODUCK.md#shared-scene-implementation-boundary)
 on Kit Python 3.12.14: post-freeze full collections of 2.1–2.3 ms against
-465–479 ms before the freeze. No native Factory preparation, readiness or one-turn episode
-has run with this profile; the
+465–479 ms before the freeze. The
 0.2 s observation-age limit and the 10 s readiness budget are unchanged, and the
 earlier readiness failure without any generation-2 interval is not explained by
 this candidate.
+
+**Native Factory episodes, 5 October 2026.** On merged source `6b572f77` and the
+same owned harness, release, SDK recipe, model pin `e03bf144…` and GPU as the
+4 October episode, a preparation plus one ordinary readiness, reset, one-turn and
+rest episode ran with the profile key on (`turn-01`) and, immediately after,
+with it off (`turn-02`) ([plans, receipts and collector records](evidence/factory-heap-freeze-20261005/)).
+Both passed the unchanged verifier: readiness 6.147 s and 6.335 s of the 10 s
+budget, admission to stop acknowledgement 35.658 s and 35.600 s of the 40 s
+deadline, final axial advance 2.3992 mm and 2.3977 mm, 0.500000012 simulated
+seconds of confirmed rest, ordinary closure, unchanged inputs. With the policy on,
+`gc-policy.json` records the explicit startup collection (319.5 ms, 810
+unreachable) and the freeze of 1,085,558 tracked objects in 21 µs, bound to the
+model pin; `readiness.json` carries the selection and implementation digest;
+`closure.json` records the release after the owner reported itself closed: a
+4.05 ms full collection while frozen (144 unreachable), the unfreeze, and a
+316.2 ms post-unfreeze collection that finds nothing further. Between owner
+start and closure neither episode recorded any automatic generation-2
+collection (the on episode's three full collections are the policy's own, before
+the owner started and at closure), so this pair demonstrates the native
+apply/bind/release mechanism and its receipts, not a pause removed from a control
+window: on this revision the policy-off episode had no generation-2 pause to
+remove, unlike the 4 October episode on its older source. The remaining
+observation gaps above 0.2 s in both episodes sit outside the command window, at
+the readiness return (0.24–0.49 s) and in the post-stop drain (0.28–0.78 s), and
+contain hundreds of `observation.asdict` entries and only generation-0/1
+collections; they are an observation-drain cost, not a collector pause, and are
+retained as a separate open item. Repeatability and an episode in which a
+generation-2 pause would otherwise have overlapped the command window remain to be
+measured.
 
 ## Threaded outcome must survive stopping
 

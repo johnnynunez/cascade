@@ -1,0 +1,115 @@
+{
+  "gc_policy": {
+    "after": {
+      "allocated_blocks": 2724819,
+      "count": [
+        18,
+        0,
+        0
+      ],
+      "frozen": 375,
+      "stats": [
+        {
+          "collected": 48608,
+          "collections": 3182,
+          "uncollectable": 0
+        },
+        {
+          "collected": 9433,
+          "collections": 288,
+          "uncollectable": 0
+        },
+        {
+          "collected": 4158,
+          "collections": 11,
+          "uncollectable": 0
+        }
+      ]
+    },
+    "apply_error": null,
+    "apply_receipt_complete": true,
+    "before": {
+      "allocated_blocks": 2743389,
+      "count": [
+        0,
+        7,
+        168
+      ],
+      "frozen": 1085283,
+      "stats": [
+        {
+          "collected": 48608,
+          "collections": 3182,
+          "uncollectable": 0
+        },
+        {
+          "collected": 9433,
+          "collections": 288,
+          "uncollectable": 0
+        },
+        {
+          "collected": 4014,
+          "collections": 9,
+          "uncollectable": 0
+        }
+      ]
+    },
+    "collect": {
+      "duration_ns": 316242293,
+      "unreachable": 0
+    },
+    "frozen_changed_since_apply": -650,
+    "frozen_collect": {
+      "duration_ns": 4050695,
+      "tracked_after": 19180,
+      "unreachable": 144
+    },
+    "implementation_sha256": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec",
+    "policy": "freeze-startup-heap-v1",
+    "policy_frozen": 1085558,
+    "process": {
+      "executable": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/kit/python/bin/python3",
+      "interpreter": "3.12.14",
+      "peak_rss_kib": 2151108,
+      "pid": 2380594
+    },
+    "released_monotonic_ns": 153436210167246,
+    "settings": {
+      "callbacks": 1,
+      "enabled": true,
+      "thresholds": [
+        700,
+        10,
+        10
+      ]
+    },
+    "thread_id": 133834682439616,
+    "unfreeze": {
+      "duration_ns": 1762
+    },
+    "unfrozen": 1085283
+  },
+  "ok": true,
+  "owner": {
+    "error": null,
+    "ok": true,
+    "owner_thread_closed": true,
+    "pending_records": 6,
+    "physical_stop_verified": false,
+    "zero_spindle": {
+      "before_step": 2054,
+      "completed_monotonic_s": 153436.13781076,
+      "generation": 5,
+      "physical_stop_verified": false,
+      "uploaded": true
+    }
+  },
+  "physical_stop_verified": false,
+  "stop": {
+    "accepted_monotonic_s": 153436.12129128,
+    "generation": 4,
+    "latched": true,
+    "ok": true,
+    "physical_stop_verified": false
+  }
+}

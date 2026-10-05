@@ -1,0 +1,103 @@
+{
+ "candidate": {
+  "dir": "/home/johnny/Projects/demo/cascade-lab/FACTORY_HEAP_FREEZE_20261005/turn-02",
+  "ok": true,
+  "inputs_unchanged": true,
+  "scope_client_exit": 0,
+  "native_ok": true,
+  "error": null,
+  "epoch": "c53b7e254c5245698068869c76fe9a84",
+  "model_identity_sha256": "e03bf144eedc42444e22906bbac937910af6f8943eda31de51fa6e5dde79136b",
+  "readiness_wall_s": 6.335156196990283,
+  "readiness": {
+   "binding_sha256": "1e45f68fb2475f7f3d1729a9fdf618a9a22298591811fa779e446b02601b8aeb",
+   "captured_monotonic_s": 153626.104878248,
+   "epoch": "c53b7e254c5245698068869c76fe9a84",
+   "generation": 0,
+   "latched": true,
+   "physical_task_admission": false,
+   "quiet_interval_sim_s": 0.5000000121071935,
+   "ready": true,
+   "step": 357
+  },
+  "task_verdict": {
+   "ok": true,
+   "verdict": null,
+   "status": null,
+   "threading": null,
+   "physical_stop_verified": true
+  },
+  "runtime_closure_ok": true,
+  "readiness.json": {
+   "binding_sha256": "1e45f68fb2475f7f3d1729a9fdf618a9a22298591811fa779e446b02601b8aeb",
+   "captured_monotonic_s": 153626.104878248,
+   "epoch": "c53b7e254c5245698068869c76fe9a84",
+   "generation": 0,
+   "latched": true,
+   "physical_task_admission": false,
+   "quiet_interval_sim_s": 0.5000000121071935,
+   "ready": true,
+   "step": 357
+  },
+  "gc-policy.json": null,
+  "closure.json": {
+   "ok": true,
+   "owner": {
+    "error": null,
+    "ok": true,
+    "owner_thread_closed": true,
+    "pending_records": 5,
+    "physical_stop_verified": false,
+    "zero_spindle": {
+     "before_step": 2044,
+     "completed_monotonic_s": 153672.40010601,
+     "generation": 5,
+     "physical_stop_verified": false,
+     "uploaded": true
+    }
+   },
+   "physical_stop_verified": false,
+   "stop": {
+    "accepted_monotonic_s": 153672.381009999,
+    "generation": 4,
+    "latched": true,
+    "ok": true,
+    "physical_stop_verified": false
+   }
+  },
+  "gc": {
+   "gc_rows": 3954,
+   "intervals": 1977,
+   "by_generation": {
+    "0": {
+     "count": 1812,
+     "max_ms": 0.416,
+     "median_ms": 0.028,
+     "total_ms": 56.543
+    },
+    "1": {
+     "count": 165,
+     "max_ms": 0.895,
+     "median_ms": 0.045,
+     "total_ms": 10.044
+    }
+   },
+   "generation2": [],
+   "gc_enabled_at_install": true,
+   "gc_enabled_after_close": true,
+   "thresholds": [
+    [
+     700,
+     10,
+     10
+    ],
+    [
+     700,
+     10,
+     10
+    ]
+   ]
+  },
+  "command_to_stop_ack_wall_s": null
+ }
+}

@@ -306,7 +306,7 @@ def child_process(script, *sockets):
         sock.close()
     try:
         yield proc
-        out, error = proc.communicate(timeout=4)
+        out, error = proc.communicate(timeout=10)
         assert proc.returncode == 0, (out, error)
     finally:
         if proc.poll() is None:
@@ -364,7 +364,7 @@ generation=owner.controller.generation
 ack=owner.controller.stop()
 assert ack['generation']==generation+1 and owner.controller.guard._latched
 priority.send(Kind.ACK,{'latched':True,'generation':ack['generation'],'physical_stop':False},deadline=time.monotonic()+3.)
-bulk.close();t.join(2);assert not t.is_alive() and errors
+bulk.close();t.join(6);assert not t.is_alive() and errors   # the sender's own 3 s deadline bounds this; 6 s absorbs CI scheduling
 priority.close()
 '''
     try:

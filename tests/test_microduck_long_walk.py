@@ -157,14 +157,17 @@ def test_route_profile_extends_the_long_walk_to_six_metres_with_derived_wall_bud
     assert route["admission"] == "pending_route_geometric_validation"
     assert route["model_identity_sha256"] is None and route["support_contract"] is None
     # Physical command cap 60 s; wall from the retained twelve-robot owner attempt (17.2 wall s / physical s).
-    assert route["safety"] == {**long["safety"], "max_duration_s": 60.0,
+    assert route["safety"] == {**long["safety"], "max_duration_s": 60.0, "poll_interval_s": 0.1,
                                "max_wall_duration_s": float(math.ceil(60 * 17.2 + 2 * .5 + 1))}
     assert route["distance_control"] == {**long["distance_control"], "max_distance_m": 6.0,
                                          "max_lateral_drift_m": 0.30, "max_heading_drift_rad": 0.25}
     wall = route["safety"]["max_wall_duration_s"] + 4
-    assert route["verifier"] == {**long["verifier"], "max_wall_duration_s": wall,
-                                 "max_samples": math.ceil(wall / .02) + 1, "max_position_abs_m": 10.0,
+    assert route["verifier"] == {**long["verifier"], "sample_interval_s": 0.1, "max_wall_duration_s": wall,
+                                 "max_samples": math.ceil(wall / .1) + 1, "max_position_abs_m": 10.0,
                                  "max_lateral_drift_m": 0.30, "max_heading_drift_rad": 0.25}
+    # Poll periods are client sampling density; the deadline limits stay the originals.
+    assert route["verifier"]["read_timeout_s"] == 0.5 and route["verifier"]["max_sample_gap_s"] == 0.15
+    assert route["verifier"]["max_state_age_s"] == 0.5
     # Freshness and progress limits are the original ones, not relaxed for twelve robots.
     assert route["safety"]["max_state_age_s"] == 0.5 and route["safety"]["max_no_progress_s"] == 0.4
     assert route["turn_control"] == long["turn_control"]

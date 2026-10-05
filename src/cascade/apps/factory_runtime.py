@@ -39,7 +39,7 @@ def _retain_error_note(error, message):
 
 def validate_factory_profile(profile):
     required = {"kind", "recipe", "assets", "robot_asset", "device", "model_identity_sha256"}
-    if not isinstance(profile, dict) or set(profile)-required-{"robot_id", "precompile", "sdk_recipe", "seating"} or required-set(profile):
+    if not isinstance(profile, dict) or set(profile)-required-{"robot_id", "precompile", "sdk_recipe", "seating", "gc_policy"} or required-set(profile):
         raise ValueError("fastening requires the explicit fixed Factory profile fields")
     from ..sim.factory_sdk import validate_sdk_recipe
     validate_sdk_recipe(profile.get("sdk_recipe"))
@@ -54,6 +54,10 @@ def validate_factory_profile(profile):
         from ..sim.factory_recipe import MARGIN_RECIPE
         if profile["precompile"] != PRECOMPILE_RECIPE or profile["recipe"] != MARGIN_RECIPE:
             raise ValueError("unreviewed Factory precompile recipe")
+    if profile.get("gc_policy") not in (None, "freeze-startup-heap"):
+        # A host-process collector policy, bound by this profile and its receipts;
+        # it is not part of the physics model identity (see sim/heap_freeze.py).
+        raise ValueError("unreviewed Factory host GC policy")
     if (profile["kind"] != "fastening"
             or profile.get("robot_id", ROBOT_ID) != ROBOT_ID):
         raise ValueError("only the mounted fixed-axis SO-101 Factory M20 recipe is implemented")
@@ -139,6 +143,8 @@ class RecordedFactoryDomain(FasteningDomain):
         self.owner, self.directory = owner, Path(directory)
         self._record_lock = threading.Lock()
         self._record_error = None
+        self.heap_freeze = None
+        self._release_failures = []
         super().__init__(owner.controller, owner.journal.read,
                          controller_id=CONTROLLER_ID, domain_id=domain_id)
 
@@ -184,15 +190,49 @@ class RecordedFactoryDomain(FasteningDomain):
         return super().reset_stop()
 
     def close(self):
-        result = super().close()
         try:
-            self.flush_records()
+            result = super().close()
         except Exception as exc:
-            result.update(ok=False, evidence_error=str(exc))
-        if self._record_error:
-            result.update(ok=False, evidence_error=self._record_error)
-        _write(self.directory/"closure.json", result)
+            # The owner could not even report its closure; keep the fault and continue
+            # to evidence and heap handling with ownership unconfirmed.
+            result = {"ok": False, "stop": None, "owner": None, "physical_stop_verified": False,
+                      "closure_error": f"{type(exc).__name__}: {exc}"}
+        try:
+            try:
+                self.flush_records()
+            except Exception as exc:
+                result.update(ok=False, evidence_error=str(exc))
+            if self._record_error:
+                result.update(ok=False, evidence_error=self._record_error)
+            self._close_heap(result)
+        finally:
+            _write(self.directory/"closure.json", result)
         return result
+
+    def _close_heap(self, result):
+        heap = self.heap_freeze
+        if heap is None:
+            return
+        owner = result.get("owner")
+        confirmed = isinstance(owner, dict) and owner.get("owner_thread_closed") is True
+        if heap.frozen:
+            if not confirmed:
+                # A failed join means control may still run on the owner thread;
+                # never unfreeze under it. The process watchdog owns that case.
+                result.update(ok=False, gc_policy={"released": False, "reason": "owner thread not confirmed closed",
+                                                   "release_failures": list(self._release_failures)})
+                return
+            try:
+                heap.release()
+            except Exception as exc:
+                self._release_failures.append(f"{type(exc).__name__}: {exc}")
+        if heap.released is not None:
+            result["gc_policy"] = (heap.released if not self._release_failures
+                                   else {**heap.released, "release_failures": list(self._release_failures)})
+        else:
+            # Repeated closures reuse this record; the history of failed attempts is retained.
+            result.update(ok=False, gc_policy={"released": not heap.frozen, "receipt": None,
+                                               "error": heap.release_error, "release_failures": list(self._release_failures)})
 
 
 def _ready(owner, *, clock=time.monotonic, timeout_s=10., _reader=None):
@@ -254,8 +294,22 @@ def build_factory_runtime(profile, directory, *, domain_id):
         if owner.backend.synthetic is not False:
             raise FasteningFault("configured native Factory builder cannot substitute a synthetic owner")
         domain = RecordedFactoryDomain(owner, directory, domain_id=domain_id)
+        if profile.get("gc_policy") == "freeze-startup-heap":
+            # After SDK/model construction and pin verification, before the owner
+            # thread advances a solve, so readiness also runs under the policy. The
+            # receipt binds the policy implementation digest to this model pin;
+            # the physics model identity itself is unchanged by design.
+            from ..sim.heap_freeze import StartupHeapFreeze
+            domain.heap_freeze = StartupHeapFreeze()
+            applied = domain.heap_freeze.apply()
+            _write(directory/"gc-policy.json", {"model_identity_sha256": expected, "domain_id": domain_id,
+                                                 "profile_gc_policy": profile["gc_policy"], "apply": applied})
         owner.start()
         readiness = _ready(owner)
+        if domain.heap_freeze is not None:
+            readiness["gc_policy"] = {"selected": profile["gc_policy"], "policy": applied["policy"],
+                                      "implementation_sha256": applied["implementation_sha256"],
+                                      "receipt": "gc-policy.json"}
         domain.flush_records()
         _write(directory/"readiness.json", readiness)
         return domain

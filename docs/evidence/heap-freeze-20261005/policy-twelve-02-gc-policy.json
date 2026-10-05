@@ -1,0 +1,176 @@
+{
+  "applied": {
+    "after": {
+      "allocated_blocks": 3230650,
+      "count": [
+        1,
+        0,
+        0
+      ],
+      "frozen": 1254451,
+      "stats": [
+        {
+          "collected": 43335,
+          "collections": 995,
+          "uncollectable": 0
+        },
+        {
+          "collected": 2160,
+          "collections": 90,
+          "uncollectable": 0
+        },
+        {
+          "collected": 6015,
+          "collections": 3,
+          "uncollectable": 0
+        }
+      ]
+    },
+    "applied_monotonic_ns": 95836748454940,
+    "before": {
+      "allocated_blocks": 3276439,
+      "count": [
+        527,
+        5,
+        61
+      ],
+      "frozen": 375,
+      "stats": [
+        {
+          "collected": 43335,
+          "collections": 995,
+          "uncollectable": 0
+        },
+        {
+          "collected": 2160,
+          "collections": 90,
+          "uncollectable": 0
+        },
+        {
+          "collected": 6,
+          "collections": 2,
+          "uncollectable": 0
+        }
+      ]
+    },
+    "collect": {
+      "duration_ns": 468450435,
+      "frozen_after_collect": 375,
+      "unreachable": 6009
+    },
+    "freeze": {
+      "duration_ns": 22534,
+      "foreign_frozen_before": 375,
+      "frozen": 1254076
+    },
+    "implementation_sha256": "c0f1c27875cea6324ea3ba89b1aed1a9ffe4e2b942a81660b434c09711b83614",
+    "policy": "freeze-startup-heap-v1",
+    "process": {
+      "executable": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/kit/python/bin/python3",
+      "interpreter": "3.12.14",
+      "peak_rss_kib": 7897072,
+      "pid": 1826715
+    },
+    "scope": "Objects alive at apply() moved to the permanent generation; later automatic collections traverse only objects allocated afterwards. Collector enabled, thresholds and callbacks unchanged. Cyclic garbage alive at apply() stays retained until release(). Not a control-deadline, speedup or physical claim.",
+    "settings": {
+      "callbacks": 2,
+      "enabled": true,
+      "thresholds": [
+        700,
+        10,
+        10
+      ]
+    },
+    "thread_id": 124648378656704
+  },
+  "released": {
+    "after": {
+      "allocated_blocks": 3255585,
+      "count": [
+        17,
+        0,
+        0
+      ],
+      "frozen": 375,
+      "stats": [
+        {
+          "collected": 67433,
+          "collections": 2491,
+          "uncollectable": 0
+        },
+        {
+          "collected": 4440,
+          "collections": 226,
+          "uncollectable": 0
+        },
+        {
+          "collected": 6089,
+          "collections": 5,
+          "uncollectable": 0
+        }
+      ]
+    },
+    "apply_error": null,
+    "apply_receipt_complete": true,
+    "before": {
+      "allocated_blocks": 3275992,
+      "count": [
+        2,
+        0,
+        136
+      ],
+      "frozen": 1253778,
+      "stats": [
+        {
+          "collected": 67433,
+          "collections": 2491,
+          "uncollectable": 0
+        },
+        {
+          "collected": 4440,
+          "collections": 226,
+          "uncollectable": 0
+        },
+        {
+          "collected": 6015,
+          "collections": 3,
+          "uncollectable": 0
+        }
+      ]
+    },
+    "collect": {
+      "duration_ns": 488243967,
+      "unreachable": 0
+    },
+    "frozen_changed_since_apply": -673,
+    "frozen_collect": {
+      "duration_ns": 2328554,
+      "tracked_after": 6786,
+      "unreachable": 74
+    },
+    "implementation_sha256": "c0f1c27875cea6324ea3ba89b1aed1a9ffe4e2b942a81660b434c09711b83614",
+    "policy": "freeze-startup-heap-v1",
+    "policy_frozen": 1254076,
+    "process": {
+      "executable": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/kit/python/bin/python3",
+      "interpreter": "3.12.14",
+      "peak_rss_kib": 8663708,
+      "pid": 1826715
+    },
+    "released_monotonic_ns": 95904192150714,
+    "settings": {
+      "callbacks": 1,
+      "enabled": true,
+      "thresholds": [
+        700,
+        10,
+        10
+      ]
+    },
+    "thread_id": 124648378656704,
+    "unfreeze": {
+      "duration_ns": 2113
+    },
+    "unfrozen": 1253778
+  }
+}

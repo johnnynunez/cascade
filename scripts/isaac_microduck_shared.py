@@ -87,7 +87,7 @@ def run(args, admission, signals):
     started = time.monotonic()
     result = {'completed': False, 'physical_acceptance': False, 'steps': 0,
               'scope': 'shared-scene zero-command foundation', 'teardown_errors': []}
-    owner = fleet = endpoints = profile = None
+    owner = fleet = endpoints = profile = heap = None
     steppers = []
     previous_path = list(sys.path)
     try:
@@ -101,6 +101,11 @@ def run(args, admission, signals):
         owner.open()
         if getattr(args, 'profile_phases', False):
             owner.receipt['configuration']['phase_profile'] = 'owner-thread-inclusive-gc-trigger-v1'
+        gc_policy = getattr(args, 'gc_policy', None)
+        if gc_policy is not None:
+            # The selected policy is hashed into the effective recipe below; its
+            # measured counters are recorded separately and never mutate it.
+            owner.receipt['configuration']['gc_policy'] = gc_policy
         identity = owner.bind_identity(repo=REPO, runtime_scene=out / 'runtime-scene.usda')
         write_json(out / 'model-identity.json', identity)
         remaining = args.max_wall_s - (time.monotonic() - started)
@@ -122,6 +127,19 @@ def run(args, admission, signals):
             from cascade.sim.microduck_timing import PhaseProfile, instrument_owner
             profile = PhaseProfile(out / 'timing.jsonl')
             instrument_owner(profile, owner, steppers)
+        if gc_policy == 'freeze-startup-heap':
+            # After every startup allocation (SDK, scene, identity, steppers, profiler)
+            # and before any solve, endpoint or control; see cascade.sim.heap_freeze.
+            # Passive construction: a signal is deferred across the collector calls
+            # and raised at the checkpoint, so a frozen heap always has its owner.
+            from cascade.sim.heap_freeze import StartupHeapFreeze
+            heap = StartupHeapFreeze()
+            with signals.defer():
+                clock_before = owner.physics_clock
+                owner.receipt['gc_policy'] = heap.apply()
+                if owner.physics_clock != clock_before:
+                    raise RuntimeError('startup heap freeze changed the shared physics clock')
+            signals.checkpoint(persistent=True)
         fleet.start()
         if args.serve_base_port is not None:
             from cascade.sim.microduck_admission import SharedEndpoints
@@ -216,6 +234,17 @@ def run(args, admission, signals):
                         resource.close()
                     except BaseException as exc:
                         result['teardown_errors'].append(type(exc).__name__)
+            if heap is not None and heap.frozen:
+                # Endpoints and the fleet are closed above; release before receipt
+                # persistence and the possibly non-returning SDK shutdown. An apply()
+                # interrupted after freeze() still owns a frozen heap: release it and
+                # keep the incomplete apply receipt explicit.
+                try:
+                    result['gc_policy'] = {'applied': heap.receipt, 'released': heap.release()}
+                except BaseException as exc:
+                    result['teardown_errors'].append(type(exc).__name__)
+                    result['gc_policy'] = {'applied': heap.receipt, 'released': heap.released,
+                                           'release_error': heap.release_error}
             result['robots'] = {s.identity['robot_id']: {'steps': s.steps,
                 'policy_commits': s.policy_commits, 'last_state': s.controller.state()}
                 for s in steppers if s.started}
@@ -251,11 +280,14 @@ def main(argv=None):
     extra.add_argument('--spacing', type=float, required=True)
     extra.add_argument('--serve-base-port', type=int, default=None)
     extra.add_argument('--profile-phases', action='store_true')
+    extra.add_argument('--gc-policy', choices=['freeze-startup-heap'], default=None,
+                       help='opt-in: collect once and freeze the startup heap before fleet start; receipted, not admission')
     options, rest = extra.parse_known_args(argv)
     args = parse_args(rest)
     args.robots, args.spacing = options.robots, options.spacing
     args.serve_base_port = options.serve_base_port
     args.profile_phases = options.profile_phases
+    args.gc_policy = options.gc_policy
     bind_repo()
     from cascade.apps.signal_stop import StopSignals
     from cascade.sim.microduck_shared_native import placements
@@ -271,7 +303,7 @@ def main(argv=None):
     admission = admit(args)
     for path in ('scripts/isaac_microduck_shared.py', 'src/cascade/sim/microduck_shared.py',
                  'src/cascade/sim/microduck_shared_native.py', 'src/cascade/sim/microduck_admission.py',
-                 'src/cascade/sim/microduck_timing.py'):
+                 'src/cascade/sim/microduck_timing.py', 'src/cascade/sim/heap_freeze.py'):
         admission['source_sha256'][path] = hashlib.sha256((REPO / path).read_bytes()).hexdigest()
     if args.check_only:
         print(json.dumps({'ok': True, 'robots': args.robots, 'physical_acceptance': False,

@@ -63,6 +63,10 @@ p.add_argument("--usd", default=DEFAULT_USD, help="reBot RS scene USD (gain-tune
 p.add_argument("--scene-config", help="optional local kitchen scene JSON (pre-play)")
 p.add_argument("--prim", default=DEFAULT_PRIM, help="articulation root prim path")
 p.add_argument("--engine", default="newton", choices=["newton", "physx"])
+p.add_argument("--gc-policy", choices=["freeze-startup-heap"],
+               default=os.environ.get("CASCADE_ISAAC_GC_POLICY") or None,
+               help="opt-in: one full collection then gc.freeze() after startup, before the main loop; "
+                    "receipted in ping identity and the log, released at shutdown; not acceptance")
 # Diagnostic only: which collision detector feeds MJWarp under --engine newton.
 # "newton" (Isaac's default) runs Newton's CollisionPipeline; "mujoco" lets
 # MJWarp detect its own contacts, as plain MuJoCo does.
@@ -2134,6 +2138,43 @@ def _resume_scene():
 
 
 step = 0
+_heap_freeze = None
+
+
+def _gc_policy_compact(receipt, *, released=False):
+    """Bounded identity/log record of the collector policy; counters stay in the receipt."""
+    if receipt is None:
+        return None
+    row = {"policy": receipt["policy"], "implementation_sha256": receipt["implementation_sha256"],
+           "interpreter": receipt["process"]["interpreter"], "thread_id": receipt["thread_id"]}
+    if released:
+        frozen_collect = receipt.get("frozen_collect")
+        row.update(unfrozen=receipt["unfrozen"], policy_frozen=receipt["policy_frozen"],
+                   frozen_changed_since_apply=receipt["frozen_changed_since_apply"],
+                   apply_receipt_complete=receipt["apply_receipt_complete"],
+                   frozen_collect_ms=None if frozen_collect is None else frozen_collect["duration_ns"] / 1e6,
+                   frozen_collect_tracked_after=None if frozen_collect is None else frozen_collect["tracked_after"],
+                   collect_after_unfreeze_ms=None if receipt["collect"] is None else receipt["collect"]["duration_ns"] / 1e6)
+    else:
+        row.update(frozen=receipt["freeze"]["frozen"], foreign_frozen_before=receipt["freeze"]["foreign_frozen_before"],
+                   collect_ms=receipt["collect"]["duration_ns"] / 1e6, collect_unreachable=receipt["collect"]["unreachable"],
+                   freeze_ms=receipt["freeze"]["duration_ns"] / 1e6, allocated_blocks_before=receipt["before"]["allocated_blocks"],
+                   peak_rss_kib=receipt["process"]["peak_rss_kib"], settings=receipt["settings"])
+    return row
+
+
+def _release_startup_heap():
+    """After the TCP server is down and before the possibly non-returning Kit close."""
+    if _heap_freeze is None or not _heap_freeze.frozen:
+        return
+    try:
+        released = _heap_freeze.release()
+        print(f"[bridge] gc policy released: {json.dumps(_gc_policy_compact(released, released=True))}", flush=True)
+    except Exception as e:  # the collector is restored by release(); only the receipt is missing
+        print(f"[bridge] gc policy release failed: {type(e).__name__}: {e} "
+              f"(state={_heap_freeze.state}, release_error={_heap_freeze.release_error})", flush=True)
+
+
 _previous_sigterm = signal.signal(signal.SIGTERM, _request_shutdown)
 try:
     if os.environ.get("PAAI_CAMERA_VIDEO_CONFIG") and not _bridge_should_stop():
@@ -2147,6 +2188,17 @@ try:
         except Exception as _e:
             _camera_video_startup_error = f"{type(_e).__name__}: {_e}"[:500]
         print(f"[bridge] camera video: {json.dumps(_camera_video_status())}", flush=True)
+    if args.gc_policy == "freeze-startup-heap" and not _bridge_should_stop():
+        # Every startup allocation (stage, physics, cameras, annotators, streaming)
+        # is complete and the server already answers; nothing has stepped yet.
+        # The spans accounting, if enabled, observes this explicit collection.
+        if os.path.join(_REPO_ROOT, "src") not in sys.path:
+            sys.path.insert(0, os.path.join(_REPO_ROOT, "src"))
+        from cascade.sim.heap_freeze import StartupHeapFreeze
+        _heap_freeze = StartupHeapFreeze()
+        _heap_identity = _gc_policy_compact(_heap_freeze.apply())
+        Handler.scene_identity["gc_policy"] = _heap_identity
+        print(f"[bridge] gc policy applied: {json.dumps(_heap_identity)}", flush=True)
     _python_spans.anchor_once()
     while app.is_running() and not _bridge_should_stop():
         with _profile_zone("bridge.loop"):
@@ -2251,6 +2303,7 @@ finally:
         cleanup.callback(_python_spans.report)
         cleanup.callback(signal.signal, signal.SIGTERM, _previous_sigterm)
         cleanup.callback(app.close)
+        cleanup.callback(_release_startup_heap)  # LIFO: after server shutdown, before app.close
         if _ovrtx is not None:
             cleanup.callback(_ovrtx.close)
         for sensor, _ in _annotators.values():

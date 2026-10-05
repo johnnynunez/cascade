@@ -1,0 +1,545 @@
+{
+  "name": "policy-twelve-02",
+  "gc_policy": "freeze-startup-heap",
+  "physical_acceptance": false,
+  "control_attempted": false,
+  "gpu_admission": {
+    "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+    "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+    "total_mib": 97887,
+    "used_mib": 124,
+    "free_mib": 97218,
+    "utilization_percent": 0,
+    "foreign": [],
+    "required_free_mib": 16384,
+    "shared_device_no_performance_claim": true,
+    "admitted": true
+  },
+  "client": {
+    "completed": true,
+    "physical_acceptance": false,
+    "events": 24,
+    "closed": true
+  },
+  "scope_exit": 0,
+  "closure": {
+    "name": "heap-freeze-policy-twelve-02",
+    "unit": "cascade-voice-heap-freeze-policy-twelve-02-6c15fc68e3274611bccdbe6bf5f33270.scope",
+    "ok": true,
+    "forced": false,
+    "signals": [],
+    "errors": [],
+    "scope_client_exit": 0,
+    "state": {
+      "Description": "cascade-voice-heap-freeze-policy-twelve-02-6c15fc68e3274611bccdbe6bf5f33270.scope",
+      "LoadState": "not-found",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "InvocationID": "",
+      "Result": "success",
+      "ControlGroup": ""
+    },
+    "remaining_members": [],
+    "observed_births": [
+      {
+        "pid": 1826704,
+        "start_ticks": 9580641,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/usr/lib/cargo/bin/coreutils/timeout",
+        "argv": [
+          "/usr/bin/timeout",
+          "--kill-after=15s",
+          "510s",
+          "nice",
+          "-n",
+          "19",
+          "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/python.sh",
+          "/home/johnny/Projects/demo/cascade/scripts/isaac_microduck_shared.py",
+          "--engine",
+          "newton",
+          "--release",
+          "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release",
+          "--bundle",
+          "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/usd-allcollisions-velstand-v4",
+          "--bundle-sha256",
+          "910c4ddb7e25122f808888f01e97227af0344bdabbb26572e3f021384584490d",
+          "--policy",
+          "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck-rough-walk-e/policy.onnx",
+          "--policy-sha256",
+          "5aa423bd693e431b19e2ead77f99cbae6184e40a529eb2f7c1b4f85bb7f57040",
+          "--bam-source-root",
+          "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/research/isaaclab-pr8161/source",
+          "--bam-profile",
+          "official_infer_nominal_no_delay",
+          "--policy-profile",
+          "rough_walk_e",
+          "--python-extra-path",
+          "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/runtime-python",
+          "--robot-id",
+          "microduck",
+          "--source",
+          "isaac-microduck",
+          "--device",
+          "cuda:0",
+          "--port",
+          "0",
+          "--limits",
+          "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/native-configuration/controller-limits-slow.json",
+          "--out",
+          "/home/johnny/Projects/demo/cascade-lab/HEAP_FREEZE_20261005/policy-twelve-02/kit",
+          "--camera-every",
+          "100",
+          "--max-jpeg-bytes",
+          "2097152",
+          "--max-wall-s",
+          "450",
+          "--max-steps",
+          "800",
+          "--solver-cuda-graph",
+          "--reuse-solved-read",
+          "--sdk-recipe",
+          "isaac62_48b2d951",
+          "--robots",
+          "12",
+          "--spacing",
+          "2",
+          "--serve-base-port",
+          "0",
+          "--profile-phases",
+          "--gc-policy",
+          "freeze-startup-heap"
+        ]
+      },
+      {
+        "pid": 1826706,
+        "start_ticks": 9580643,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/usr/bin/bash",
+        "argv": [
+          "/bin/bash",
+          "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/python.sh",
+          "/home/johnny/Projects/demo/cascade/scripts/isaac_microduck_shared.py",
+          "--engine",
+          "newton",
+          "--release",
+          "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release",
+          "--bundle",
+          "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/usd-allcollisions-velstand-v4",
+          "--bundle-sha256",
+          "910c4ddb7e25122f808888f01e97227af0344bdabbb26572e3f021384584490d",
+          "--policy",
+          "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck-rough-walk-e/policy.onnx",
+          "--policy-sha256",
+          "5aa423bd693e431b19e2ead77f99cbae6184e40a529eb2f7c1b4f85bb7f57040",
+          "--bam-source-root",
+          "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/research/isaaclab-pr8161/source",
+          "--bam-profile",
+          "official_infer_nominal_no_delay",
+          "--policy-profile",
+          "rough_walk_e",
+          "--python-extra-path",
+          "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/runtime-python",
+          "--robot-id",
+          "microduck",
+          "--source",
+          "isaac-microduck",
+          "--device",
+          "cuda:0",
+          "--port",
+          "0",
+          "--limits",
+          "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/native-configuration/controller-limits-slow.json",
+          "--out",
+          "/home/johnny/Projects/demo/cascade-lab/HEAP_FREEZE_20261005/policy-twelve-02/kit",
+          "--camera-every",
+          "100",
+          "--max-jpeg-bytes",
+          "2097152",
+          "--max-wall-s",
+          "450",
+          "--max-steps",
+          "800",
+          "--solver-cuda-graph",
+          "--reuse-solved-read",
+          "--sdk-recipe",
+          "isaac62_48b2d951",
+          "--robots",
+          "12",
+          "--spacing",
+          "2",
+          "--serve-base-port",
+          "0",
+          "--profile-phases",
+          "--gc-policy",
+          "freeze-startup-heap"
+        ]
+      },
+      {
+        "pid": 1826714,
+        "start_ticks": 9580644,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/usr/bin/bash",
+        "argv": [
+          "bash",
+          "/home/johnny/Projects/demo/cascade-lab/HEAP_FREEZE_20261005/capture-exit.sh",
+          "/home/johnny/Projects/demo/cascade/scripts/isaac_microduck_shared.py",
+          "--engine",
+          "newton",
+          "--release",
+          "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release",
+          "--bundle",
+          "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/usd-allcollisions-velstand-v4",
+          "--bundle-sha256",
+          "910c4ddb7e25122f808888f01e97227af0344bdabbb26572e3f021384584490d",
+          "--policy",
+          "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck-rough-walk-e/policy.onnx",
+          "--policy-sha256",
+          "5aa423bd693e431b19e2ead77f99cbae6184e40a529eb2f7c1b4f85bb7f57040",
+          "--bam-source-root",
+          "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/research/isaaclab-pr8161/source",
+          "--bam-profile",
+          "official_infer_nominal_no_delay",
+          "--policy-profile",
+          "rough_walk_e",
+          "--python-extra-path",
+          "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/runtime-python",
+          "--robot-id",
+          "microduck",
+          "--source",
+          "isaac-microduck",
+          "--device",
+          "cuda:0",
+          "--port",
+          "0",
+          "--limits",
+          "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/native-configuration/controller-limits-slow.json",
+          "--out",
+          "/home/johnny/Projects/demo/cascade-lab/HEAP_FREEZE_20261005/policy-twelve-02/kit",
+          "--camera-every",
+          "100",
+          "--max-jpeg-bytes",
+          "2097152",
+          "--max-wall-s",
+          "450",
+          "--max-steps",
+          "800",
+          "--solver-cuda-graph",
+          "--reuse-solved-read",
+          "--sdk-recipe",
+          "isaac62_48b2d951",
+          "--robots",
+          "12",
+          "--spacing",
+          "2",
+          "--serve-base-port",
+          "0",
+          "--profile-phases",
+          "--gc-policy",
+          "freeze-startup-heap"
+        ]
+      },
+      {
+        "pid": 1826715,
+        "start_ticks": 9580644,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/home/johnny/.cache/packman/chk/kit-kernel/110.4.0+feature.384729.1066600b.gl.manylinux_2_35_x86_64.release/python/bin/python3.12",
+        "argv": [
+          "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/kit/python/bin/python3",
+          "/home/johnny/Projects/demo/cascade/scripts/isaac_microduck_shared.py",
+          "--engine",
+          "newton",
+          "--release",
+          "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release",
+          "--bundle",
+          "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/usd-allcollisions-velstand-v4",
+          "--bundle-sha256",
+          "910c4ddb7e25122f808888f01e97227af0344bdabbb26572e3f021384584490d",
+          "--policy",
+          "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck-rough-walk-e/policy.onnx",
+          "--policy-sha256",
+          "5aa423bd693e431b19e2ead77f99cbae6184e40a529eb2f7c1b4f85bb7f57040",
+          "--bam-source-root",
+          "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/research/isaaclab-pr8161/source",
+          "--bam-profile",
+          "official_infer_nominal_no_delay",
+          "--policy-profile",
+          "rough_walk_e",
+          "--python-extra-path",
+          "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/runtime-python",
+          "--robot-id",
+          "microduck",
+          "--source",
+          "isaac-microduck",
+          "--device",
+          "cuda:0",
+          "--port",
+          "0",
+          "--limits",
+          "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/native-configuration/controller-limits-slow.json",
+          "--out",
+          "/home/johnny/Projects/demo/cascade-lab/HEAP_FREEZE_20261005/policy-twelve-02/kit",
+          "--camera-every",
+          "100",
+          "--max-jpeg-bytes",
+          "2097152",
+          "--max-wall-s",
+          "450",
+          "--max-steps",
+          "800",
+          "--solver-cuda-graph",
+          "--reuse-solved-read",
+          "--sdk-recipe",
+          "isaac62_48b2d951",
+          "--robots",
+          "12",
+          "--spacing",
+          "2",
+          "--serve-base-port",
+          "0",
+          "--profile-phases",
+          "--gc-policy",
+          "freeze-startup-heap"
+        ]
+      },
+      {
+        "pid": 1826755,
+        "start_ticks": 9580702,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/usr/bin/lscpu",
+        "argv": [
+          "/usr/bin/lscpu"
+        ]
+      },
+      {
+        "pid": 1826756,
+        "start_ticks": 9580707,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/usr/bin/nvidia-smi",
+        "argv": [
+          "/usr/bin/nvidia-smi",
+          "-q"
+        ]
+      },
+      {
+        "pid": 1827115,
+        "start_ticks": 9580916,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/usr/lib/cargo/bin/coreutils/uname",
+        "argv": [
+          "uname",
+          "-p"
+        ]
+      },
+      {
+        "pid": 1827302,
+        "start_ticks": 9581101,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/usr/bin/nvidia-ngx-updater",
+        "argv": []
+      }
+    ],
+    "remaining_births": []
+  },
+  "native_exit": {
+    "exit_code": 0
+  },
+  "native_receipt_present": true,
+  "native": {
+    "completed": true,
+    "steps": 800,
+    "wall_duration_s": 98.10156637399632,
+    "exit_code": 0,
+    "teardown_errors": [],
+    "withheld_ticks": 0,
+    "phase_profile": {
+      "attempts": 800,
+      "errors": [],
+      "file": "timing.jsonl"
+    },
+    "gc_policy": {
+      "applied": {
+        "after": {
+          "allocated_blocks": 3230650,
+          "count": [
+            1,
+            0,
+            0
+          ],
+          "frozen": 1254451,
+          "stats": [
+            {
+              "collected": 43335,
+              "collections": 995,
+              "uncollectable": 0
+            },
+            {
+              "collected": 2160,
+              "collections": 90,
+              "uncollectable": 0
+            },
+            {
+              "collected": 6015,
+              "collections": 3,
+              "uncollectable": 0
+            }
+          ]
+        },
+        "applied_monotonic_ns": 95836748454940,
+        "before": {
+          "allocated_blocks": 3276439,
+          "count": [
+            527,
+            5,
+            61
+          ],
+          "frozen": 375,
+          "stats": [
+            {
+              "collected": 43335,
+              "collections": 995,
+              "uncollectable": 0
+            },
+            {
+              "collected": 2160,
+              "collections": 90,
+              "uncollectable": 0
+            },
+            {
+              "collected": 6,
+              "collections": 2,
+              "uncollectable": 0
+            }
+          ]
+        },
+        "collect": {
+          "duration_ns": 468450435,
+          "frozen_after_collect": 375,
+          "unreachable": 6009
+        },
+        "freeze": {
+          "duration_ns": 22534,
+          "foreign_frozen_before": 375,
+          "frozen": 1254076
+        },
+        "implementation_sha256": "c0f1c27875cea6324ea3ba89b1aed1a9ffe4e2b942a81660b434c09711b83614",
+        "policy": "freeze-startup-heap-v1",
+        "process": {
+          "executable": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/kit/python/bin/python3",
+          "interpreter": "3.12.14",
+          "peak_rss_kib": 7897072,
+          "pid": 1826715
+        },
+        "scope": "Objects alive at apply() moved to the permanent generation; later automatic collections traverse only objects allocated afterwards. Collector enabled, thresholds and callbacks unchanged. Cyclic garbage alive at apply() stays retained until release(). Not a control-deadline, speedup or physical claim.",
+        "settings": {
+          "callbacks": 2,
+          "enabled": true,
+          "thresholds": [
+            700,
+            10,
+            10
+          ]
+        },
+        "thread_id": 124648378656704
+      },
+      "released": {
+        "after": {
+          "allocated_blocks": 3255585,
+          "count": [
+            17,
+            0,
+            0
+          ],
+          "frozen": 375,
+          "stats": [
+            {
+              "collected": 67433,
+              "collections": 2491,
+              "uncollectable": 0
+            },
+            {
+              "collected": 4440,
+              "collections": 226,
+              "uncollectable": 0
+            },
+            {
+              "collected": 6089,
+              "collections": 5,
+              "uncollectable": 0
+            }
+          ]
+        },
+        "apply_error": null,
+        "apply_receipt_complete": true,
+        "before": {
+          "allocated_blocks": 3275992,
+          "count": [
+            2,
+            0,
+            136
+          ],
+          "frozen": 1253778,
+          "stats": [
+            {
+              "collected": 67433,
+              "collections": 2491,
+              "uncollectable": 0
+            },
+            {
+              "collected": 4440,
+              "collections": 226,
+              "uncollectable": 0
+            },
+            {
+              "collected": 6015,
+              "collections": 3,
+              "uncollectable": 0
+            }
+          ]
+        },
+        "collect": {
+          "duration_ns": 488243967,
+          "unreachable": 0
+        },
+        "frozen_changed_since_apply": -673,
+        "frozen_collect": {
+          "duration_ns": 2328554,
+          "tracked_after": 6786,
+          "unreachable": 74
+        },
+        "implementation_sha256": "c0f1c27875cea6324ea3ba89b1aed1a9ffe4e2b942a81660b434c09711b83614",
+        "policy": "freeze-startup-heap-v1",
+        "policy_frozen": 1254076,
+        "process": {
+          "executable": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/kit/python/bin/python3",
+          "interpreter": "3.12.14",
+          "peak_rss_kib": 8663708,
+          "pid": 1826715
+        },
+        "released_monotonic_ns": 95904192150714,
+        "settings": {
+          "callbacks": 1,
+          "enabled": true,
+          "thresholds": [
+            700,
+            10,
+            10
+          ]
+        },
+        "thread_id": 124648378656704,
+        "unfreeze": {
+          "duration_ns": 2113
+        },
+        "unfrozen": 1253778
+      }
+    }
+  },
+  "host_load_after": {
+    "loadavg": [
+      2.1435546875,
+      1.91455078125,
+      1.560546875
+    ],
+    "pytest_or_codex_running": false
+  },
+  "administrative_ok": true
+}

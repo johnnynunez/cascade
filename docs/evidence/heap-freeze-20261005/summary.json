@@ -1,0 +1,767 @@
+{
+  "schema": "cascade.heap-freeze.direct-probe-summary.v1",
+  "lab_directory": "/home/johnny/Projects/demo/cascade-lab/HEAP_FREEZE_20261005",
+  "repository_head": "38891e597d2a3566a2ec0db94a71eaf50a247773",
+  "working_tree_status": [
+    "M AGENTS.md",
+    " M docs/FACTORY_FASTENING_RUNTIME.md",
+    " M docs/MICRODUCK.md",
+    " M docs/PROJECT_STATUS_20261003.md",
+    " M docs/ROADMAP.md",
+    " M scripts/isaac_microduck_shared.py",
+    " M src/cascade/apps/factory_runtime.py",
+    " M src/cascade/sim/factory_owner.py",
+    " M tests/test_factory_config.py",
+    " M tests/test_factory_owner.py",
+    " M tests/test_microduck_shared_staging.py",
+    "?? benchmark/results/heap_freeze_cpu_20261005.json",
+    "?? configs/robots/factory_m20_shoulder_seating_heap_freeze.yaml",
+    "?? docs/evidence/heap-freeze-20261005/",
+    "?? scripts/bench_heap_freeze.py",
+    "?? src/cascade/sim/heap_freeze.py",
+    "?? tests/test_heap_freeze.py"
+  ],
+  "recipe": "Retained reviewed probe argv (12 robots, 800 solves, reader-only, --profile-phases, --serve-base-port 0) rerun on the main checkout working tree, with and without --gc-policy freeze-startup-heap; private seeded caches and private learned stores; GPU 1; systemd user scope 32G/400%/nice 19/510 s.",
+  "prior_reviewed_reference": {
+    "path": "docs/evidence/microduck-shared-20261004/gc-trigger.json",
+    "source": "58cd2e617773e3bdea34ddc0319e0068397551b1",
+    "attempt_duration": {
+      "calls": 800,
+      "median_ms": 101.4469155,
+      "p95_ms": 118.534084,
+      "max_ms": 615.198792
+    },
+    "attempts_over_400ms": 10,
+    "generation2": {
+      "count": 10,
+      "median_ms": 475.2475465,
+      "p95_ms": 496.33034,
+      "max_ms": 496.33034
+    }
+  },
+  "runs": [
+    {
+      "name": "baseline-twelve-01",
+      "gc_policy": null,
+      "source": {
+        "head": "38891e597d2a3566a2ec0db94a71eaf50a247773",
+        "status": [
+          "M AGENTS.md",
+          " M docs/FACTORY_FASTENING_RUNTIME.md",
+          " M docs/MICRODUCK.md",
+          " M docs/PROJECT_STATUS_20261003.md",
+          " M docs/ROADMAP.md",
+          " M scripts/isaac_microduck_shared.py",
+          " M src/cascade/apps/factory_runtime.py",
+          " M tests/test_factory_config.py",
+          " M tests/test_microduck_shared_staging.py",
+          "?? benchmark/results/heap_freeze_cpu_20261005.json",
+          "?? configs/robots/factory_m20_shoulder_seating_heap_freeze.yaml",
+          "?? scripts/bench_heap_freeze.py",
+          "?? src/cascade/sim/heap_freeze.py",
+          "?? tests/test_heap_freeze.py"
+        ],
+        "working_tree_sha256": {
+          "scripts/isaac_microduck_shared.py": "b79baf8a5c2132811baa228e2c431098f09df88e1bf861d064b21dd06d7e19e5",
+          "src/cascade/sim/heap_freeze.py": "4aa357cc3d7b04b5a758abed2d82b87f59c44b825d96a0ddc239b1ea72edb2b8",
+          "src/cascade/sim/microduck_timing.py": "adee3bae4444546f3527b07dbe8238bd2147c9acd7b6d60e89779f1b8fdd5d52",
+          "src/cascade/sim/microduck_shared.py": "d71e9e6082ac6a1ceabd4592813a74959f678b28ac9ad57e1b04435467048f34",
+          "src/cascade/sim/microduck_shared_native.py": "c03ef4286003abfeb6dcb3d4db405fce27e2b1b030901b4532d75643ea77448c",
+          "src/cascade/sim/microduck_admission.py": "dddf5ebced53b1f5b2d0fcffe508cfc28f6d02b84a2492d62837b98d87d3f483"
+        }
+      },
+      "scene_model_sha256": "0989476441d836ac41ae45c9335be02a35a9ea325c6fec33333b57db81474435",
+      "configuration": {
+        "contact_forces": true,
+        "link_incoming_joint_force": false,
+        "nconmax": 6144,
+        "njmax": 28800,
+        "num_substeps": 1,
+        "phase_profile": "owner-thread-inclusive-gc-trigger-v1",
+        "reuse_solved_read": true,
+        "rigid_contact_max": 6144,
+        "sdk_recipe": {
+          "newton_version": "1.6.1rc1",
+          "physical_acceptance": false,
+          "recipe": "isaac62_48b2d951",
+          "release_version_sha256": "59a6d16d8f3f247b73fa68a837867dafc0f568e491ae593f0ab1c2cb2fa62786",
+          "source_sha256": {
+            "isaacsim.physics.newton.impl.newton_config": "b1212639ebf22448a1da36b272b36da02eb340dcc1ad2312da075a66dadf1de0",
+            "isaacsim.physics.newton.impl.newton_stage": "a9d4e95305b23e6cea8e4e8e5fb63dc8b6c5c5917ad5c3ba48e2ba29df84d958",
+            "isaacsim.physics.newton.impl.solver_config": "e6c17f958cbd2534ac71743e62f56b79c4e8d86147ee676a6e80ee0d7ea9fe03",
+            "mujoco_warp._src.support": "1a08ef15f149d1cf3c9ec5df6c688669fe86aa237ee2512a7463caf1b74e3d54",
+            "newton._src.solvers.mujoco.kernels": "bd770d39d20c208e980477e0186799f531364b03f16d76968ee69bacdc490a3d",
+            "newton._src.solvers.mujoco.solver_mujoco": "a2f2466ad9d35e32f6e87f12bbaa0e08d18295f4e95b1c059c805d2ff4091178"
+          }
+        },
+        "solver_graph_stage_sha256": "a9d4e95305b23e6cea8e4e8e5fb63dc8b6c5c5917ad5c3ba48e2ba29df84d958",
+        "time_step_app": false,
+        "use_cuda_graph": true,
+        "use_mujoco_contacts": true
+      },
+      "native_completed": true,
+      "administrative_ok": true,
+      "client": {
+        "completed": true,
+        "physical_acceptance": false,
+        "events": 24,
+        "closed": true
+      },
+      "steps": 800,
+      "native_wall_s": 100.174,
+      "attempt_duration": {
+        "count": 800,
+        "median_ms": 80.8728315,
+        "p95_ms": 89.272179,
+        "max_ms": 1344.807473
+      },
+      "attempts_over_400ms": 1,
+      "attempts_over_500ms": 1,
+      "gc_settings": {
+        "enabled": true,
+        "thresholds": [
+          700,
+          10,
+          10
+        ]
+      },
+      "gc_interval_duration": {
+        "0": {
+          "count": 1696,
+          "median_ms": 0.063106,
+          "p95_ms": 0.090698,
+          "max_ms": 0.21012
+        },
+        "1": {
+          "count": 154,
+          "median_ms": 0.0988455,
+          "p95_ms": 0.333969,
+          "max_ms": 0.789462
+        },
+        "2": {
+          "count": 1,
+          "median_ms": 515.718019,
+          "p95_ms": 515.718019,
+          "max_ms": 515.718019
+        }
+      },
+      "generation2": [
+        {
+          "duration_ms": 515.718,
+          "placement": "during_attempts",
+          "collected": 6009
+        }
+      ],
+      "policy": null,
+      "gpu_admission": {
+        "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+        "free_mib": 97218,
+        "foreign": [],
+        "admitted": true
+      },
+      "host_load": {
+        "before": {
+          "loadavg": [
+            2.97998046875,
+            2.3984375,
+            1.36669921875
+          ],
+          "pytest_or_codex_running": false
+        },
+        "after": {
+          "loadavg": [
+            2.431640625,
+            2.3876953125,
+            1.47802734375
+          ],
+          "pytest_or_codex_running": false
+        }
+      },
+      "artifact_sha256": {
+        "kit/timing.jsonl": "8186b2a2e0a69646e63db53046b4038da9c689ee5b34cca126361904c787388e",
+        "kit/receipt.json": "5dc7549d63639ae55d02d5354e5aa9c657f982f4708db9363a5d63f27d3ce01d",
+        "kit/model-identity.json": "86d8591f1009bd6566fc51135a935db9e8d117f9e3ef4b0899552f6ee3551e3b",
+        "kit/physics.jsonl": "afc7122be175383fa03527c6440fc718f99b2c0a2b922925d04d05265283be1c",
+        "plan.json": "e276c127107f98b58efd39758b560290b45d6c7d63dce3bf2b530c3583628c5a",
+        "root-receipt.json": "fcb260b758c4bbe9160be3d8d01238bbdcaad101015d5dac15f6cdf98809c31c"
+      }
+    },
+    {
+      "name": "policy-twelve-01",
+      "gc_policy": "freeze-startup-heap",
+      "source": {
+        "head": "38891e597d2a3566a2ec0db94a71eaf50a247773",
+        "status": [
+          "M AGENTS.md",
+          " M docs/FACTORY_FASTENING_RUNTIME.md",
+          " M docs/MICRODUCK.md",
+          " M docs/PROJECT_STATUS_20261003.md",
+          " M docs/ROADMAP.md",
+          " M scripts/isaac_microduck_shared.py",
+          " M src/cascade/apps/factory_runtime.py",
+          " M tests/test_factory_config.py",
+          " M tests/test_microduck_shared_staging.py",
+          "?? benchmark/results/heap_freeze_cpu_20261005.json",
+          "?? configs/robots/factory_m20_shoulder_seating_heap_freeze.yaml",
+          "?? scripts/bench_heap_freeze.py",
+          "?? src/cascade/sim/heap_freeze.py",
+          "?? tests/test_heap_freeze.py"
+        ],
+        "working_tree_sha256": {
+          "scripts/isaac_microduck_shared.py": "b79baf8a5c2132811baa228e2c431098f09df88e1bf861d064b21dd06d7e19e5",
+          "src/cascade/sim/heap_freeze.py": "4aa357cc3d7b04b5a758abed2d82b87f59c44b825d96a0ddc239b1ea72edb2b8",
+          "src/cascade/sim/microduck_timing.py": "adee3bae4444546f3527b07dbe8238bd2147c9acd7b6d60e89779f1b8fdd5d52",
+          "src/cascade/sim/microduck_shared.py": "d71e9e6082ac6a1ceabd4592813a74959f678b28ac9ad57e1b04435467048f34",
+          "src/cascade/sim/microduck_shared_native.py": "c03ef4286003abfeb6dcb3d4db405fce27e2b1b030901b4532d75643ea77448c",
+          "src/cascade/sim/microduck_admission.py": "dddf5ebced53b1f5b2d0fcffe508cfc28f6d02b84a2492d62837b98d87d3f483"
+        }
+      },
+      "scene_model_sha256": "2eaec4f5c892ca2b817a61a4dc5bf815ca066e11b8b0309c08599699acf473f9",
+      "configuration": {
+        "contact_forces": true,
+        "gc_policy": "freeze-startup-heap",
+        "link_incoming_joint_force": false,
+        "nconmax": 6144,
+        "njmax": 28800,
+        "num_substeps": 1,
+        "phase_profile": "owner-thread-inclusive-gc-trigger-v1",
+        "reuse_solved_read": true,
+        "rigid_contact_max": 6144,
+        "sdk_recipe": {
+          "newton_version": "1.6.1rc1",
+          "physical_acceptance": false,
+          "recipe": "isaac62_48b2d951",
+          "release_version_sha256": "59a6d16d8f3f247b73fa68a837867dafc0f568e491ae593f0ab1c2cb2fa62786",
+          "source_sha256": {
+            "isaacsim.physics.newton.impl.newton_config": "b1212639ebf22448a1da36b272b36da02eb340dcc1ad2312da075a66dadf1de0",
+            "isaacsim.physics.newton.impl.newton_stage": "a9d4e95305b23e6cea8e4e8e5fb63dc8b6c5c5917ad5c3ba48e2ba29df84d958",
+            "isaacsim.physics.newton.impl.solver_config": "e6c17f958cbd2534ac71743e62f56b79c4e8d86147ee676a6e80ee0d7ea9fe03",
+            "mujoco_warp._src.support": "1a08ef15f149d1cf3c9ec5df6c688669fe86aa237ee2512a7463caf1b74e3d54",
+            "newton._src.solvers.mujoco.kernels": "bd770d39d20c208e980477e0186799f531364b03f16d76968ee69bacdc490a3d",
+            "newton._src.solvers.mujoco.solver_mujoco": "a2f2466ad9d35e32f6e87f12bbaa0e08d18295f4e95b1c059c805d2ff4091178"
+          }
+        },
+        "solver_graph_stage_sha256": "a9d4e95305b23e6cea8e4e8e5fb63dc8b6c5c5917ad5c3ba48e2ba29df84d958",
+        "time_step_app": false,
+        "use_cuda_graph": true,
+        "use_mujoco_contacts": true
+      },
+      "native_completed": true,
+      "administrative_ok": true,
+      "client": {
+        "completed": true,
+        "physical_acceptance": false,
+        "events": 24,
+        "closed": true
+      },
+      "steps": 800,
+      "native_wall_s": 102.003,
+      "attempt_duration": {
+        "count": 800,
+        "median_ms": 84.786358,
+        "p95_ms": 95.020288,
+        "max_ms": 208.365622
+      },
+      "attempts_over_400ms": 0,
+      "attempts_over_500ms": 0,
+      "gc_settings": {
+        "enabled": true,
+        "thresholds": [
+          700,
+          10,
+          10
+        ]
+      },
+      "gc_interval_duration": {
+        "0": {
+          "count": 1497,
+          "median_ms": 0.084889,
+          "p95_ms": 0.119501,
+          "max_ms": 0.280758
+        },
+        "1": {
+          "count": 136,
+          "median_ms": 0.1060665,
+          "p95_ms": 0.227977,
+          "max_ms": 0.944678
+        },
+        "2": {
+          "count": 1,
+          "median_ms": 464.751795,
+          "p95_ms": 464.751795,
+          "max_ms": 464.751795
+        }
+      },
+      "generation2": [
+        {
+          "duration_ms": 464.752,
+          "placement": "before_first_attempt",
+          "collected": 6009
+        }
+      ],
+      "policy": {
+        "policy": "freeze-startup-heap-v1",
+        "implementation_sha256": "4aa357cc3d7b04b5a758abed2d82b87f59c44b825d96a0ddc239b1ea72edb2b8",
+        "interpreter": "3.12.14",
+        "apply": {
+          "collect_ms": 464.767,
+          "collect_unreachable": 6009,
+          "freeze_ms": 0.023,
+          "frozen": 1254076,
+          "foreign_frozen_before": 375,
+          "allocated_blocks_before": 3276612,
+          "peak_rss_kib": 7881448,
+          "settings": {
+            "callbacks": 2,
+            "enabled": true,
+            "thresholds": [
+              700,
+              10,
+              10
+            ]
+          }
+        },
+        "release": {
+          "frozen_collect": null,
+          "unfrozen": 1253778,
+          "frozen_changed_since_apply": -673,
+          "collect_after_unfreeze_ms": 461.031,
+          "collect_after_unfreeze_unreachable": 74,
+          "apply_receipt_complete": true,
+          "settings": {
+            "callbacks": 1,
+            "enabled": true,
+            "thresholds": [
+              700,
+              10,
+              10
+            ]
+          }
+        }
+      },
+      "gpu_admission": {
+        "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+        "free_mib": 97218,
+        "foreign": [],
+        "admitted": true
+      },
+      "host_load": {
+        "before": {
+          "loadavg": [
+            1.74072265625,
+            2.23193359375,
+            1.4453125
+          ],
+          "pytest_or_codex_running": false
+        },
+        "after": {
+          "loadavg": [
+            2.6708984375,
+            2.5185546875,
+            1.64453125
+          ],
+          "pytest_or_codex_running": false
+        }
+      },
+      "artifact_sha256": {
+        "kit/timing.jsonl": "6c3455da601dae1c2f969a537860bcfe662e8fe8679e25506f15ede8def1c724",
+        "kit/receipt.json": "ea2ac73abd67f1b60553db7e6857502532d583684e1ce1795fc246ed03117b25",
+        "kit/model-identity.json": "7629dc5cc0f000eb0a5f5771f1cec4d8c8d34053e06132cac40afb4fd08fffe8",
+        "kit/physics.jsonl": "9b0b20dcdd50e995921f4df970790f0b7543e3a251be18082771807af2c44904",
+        "plan.json": "d4e47ba72ee06ad8ff8e7cf2ecc43f2b45351a6ba7fc3c04a11fcc1d4616e899",
+        "root-receipt.json": "76bcd2788af4263efdc61a07dcf1226560c56349da75e110cd0ccb6b55947ab0"
+      }
+    },
+    {
+      "name": "policy-twelve-02",
+      "gc_policy": "freeze-startup-heap",
+      "source": {
+        "head": "38891e597d2a3566a2ec0db94a71eaf50a247773",
+        "status": [
+          "M AGENTS.md",
+          " M docs/FACTORY_FASTENING_RUNTIME.md",
+          " M docs/MICRODUCK.md",
+          " M docs/PROJECT_STATUS_20261003.md",
+          " M docs/ROADMAP.md",
+          " M scripts/isaac_microduck_shared.py",
+          " M src/cascade/apps/factory_runtime.py",
+          " M tests/test_factory_config.py",
+          " M tests/test_microduck_shared_staging.py",
+          "?? benchmark/results/heap_freeze_cpu_20261005.json",
+          "?? configs/robots/factory_m20_shoulder_seating_heap_freeze.yaml",
+          "?? scripts/bench_heap_freeze.py",
+          "?? src/cascade/sim/heap_freeze.py",
+          "?? tests/test_heap_freeze.py"
+        ],
+        "working_tree_sha256": {
+          "scripts/isaac_microduck_shared.py": "b79baf8a5c2132811baa228e2c431098f09df88e1bf861d064b21dd06d7e19e5",
+          "src/cascade/sim/heap_freeze.py": "c0f1c27875cea6324ea3ba89b1aed1a9ffe4e2b942a81660b434c09711b83614",
+          "src/cascade/sim/microduck_timing.py": "adee3bae4444546f3527b07dbe8238bd2147c9acd7b6d60e89779f1b8fdd5d52",
+          "src/cascade/sim/microduck_shared.py": "d71e9e6082ac6a1ceabd4592813a74959f678b28ac9ad57e1b04435467048f34",
+          "src/cascade/sim/microduck_shared_native.py": "c03ef4286003abfeb6dcb3d4db405fce27e2b1b030901b4532d75643ea77448c",
+          "src/cascade/sim/microduck_admission.py": "dddf5ebced53b1f5b2d0fcffe508cfc28f6d02b84a2492d62837b98d87d3f483"
+        }
+      },
+      "scene_model_sha256": "6b38184e5463b03bf4ee297f2c38b7bd386477ad6776677b954c644eee30cfcd",
+      "configuration": {
+        "contact_forces": true,
+        "gc_policy": "freeze-startup-heap",
+        "link_incoming_joint_force": false,
+        "nconmax": 6144,
+        "njmax": 28800,
+        "num_substeps": 1,
+        "phase_profile": "owner-thread-inclusive-gc-trigger-v1",
+        "reuse_solved_read": true,
+        "rigid_contact_max": 6144,
+        "sdk_recipe": {
+          "newton_version": "1.6.1rc1",
+          "physical_acceptance": false,
+          "recipe": "isaac62_48b2d951",
+          "release_version_sha256": "59a6d16d8f3f247b73fa68a837867dafc0f568e491ae593f0ab1c2cb2fa62786",
+          "source_sha256": {
+            "isaacsim.physics.newton.impl.newton_config": "b1212639ebf22448a1da36b272b36da02eb340dcc1ad2312da075a66dadf1de0",
+            "isaacsim.physics.newton.impl.newton_stage": "a9d4e95305b23e6cea8e4e8e5fb63dc8b6c5c5917ad5c3ba48e2ba29df84d958",
+            "isaacsim.physics.newton.impl.solver_config": "e6c17f958cbd2534ac71743e62f56b79c4e8d86147ee676a6e80ee0d7ea9fe03",
+            "mujoco_warp._src.support": "1a08ef15f149d1cf3c9ec5df6c688669fe86aa237ee2512a7463caf1b74e3d54",
+            "newton._src.solvers.mujoco.kernels": "bd770d39d20c208e980477e0186799f531364b03f16d76968ee69bacdc490a3d",
+            "newton._src.solvers.mujoco.solver_mujoco": "a2f2466ad9d35e32f6e87f12bbaa0e08d18295f4e95b1c059c805d2ff4091178"
+          }
+        },
+        "solver_graph_stage_sha256": "a9d4e95305b23e6cea8e4e8e5fb63dc8b6c5c5917ad5c3ba48e2ba29df84d958",
+        "time_step_app": false,
+        "use_cuda_graph": true,
+        "use_mujoco_contacts": true
+      },
+      "native_completed": true,
+      "administrative_ok": true,
+      "client": {
+        "completed": true,
+        "physical_acceptance": false,
+        "events": 24,
+        "closed": true
+      },
+      "steps": 800,
+      "native_wall_s": 98.102,
+      "attempt_duration": {
+        "count": 800,
+        "median_ms": 79.698344,
+        "p95_ms": 91.603598,
+        "max_ms": 212.111033
+      },
+      "attempts_over_400ms": 0,
+      "attempts_over_500ms": 0,
+      "gc_settings": {
+        "enabled": true,
+        "thresholds": [
+          700,
+          10,
+          10
+        ]
+      },
+      "gc_interval_duration": {
+        "0": {
+          "count": 1497,
+          "median_ms": 0.083667,
+          "p95_ms": 0.100783,
+          "max_ms": 0.263381
+        },
+        "1": {
+          "count": 136,
+          "median_ms": 0.104344,
+          "p95_ms": 0.234997,
+          "max_ms": 0.90653
+        },
+        "2": {
+          "count": 1,
+          "median_ms": 468.435442,
+          "p95_ms": 468.435442,
+          "max_ms": 468.435442
+        }
+      },
+      "generation2": [
+        {
+          "duration_ms": 468.435,
+          "placement": "before_first_attempt",
+          "collected": 6009
+        }
+      ],
+      "policy": {
+        "policy": "freeze-startup-heap-v1",
+        "implementation_sha256": "c0f1c27875cea6324ea3ba89b1aed1a9ffe4e2b942a81660b434c09711b83614",
+        "interpreter": "3.12.14",
+        "apply": {
+          "collect_ms": 468.45,
+          "collect_unreachable": 6009,
+          "freeze_ms": 0.023,
+          "frozen": 1254076,
+          "foreign_frozen_before": 375,
+          "allocated_blocks_before": 3276439,
+          "peak_rss_kib": 7897072,
+          "settings": {
+            "callbacks": 2,
+            "enabled": true,
+            "thresholds": [
+              700,
+              10,
+              10
+            ]
+          }
+        },
+        "release": {
+          "frozen_collect": {
+            "duration_ms": 2.329,
+            "unreachable": 74,
+            "tracked_after": 6786
+          },
+          "unfrozen": 1253778,
+          "frozen_changed_since_apply": -673,
+          "collect_after_unfreeze_ms": 488.244,
+          "collect_after_unfreeze_unreachable": 0,
+          "apply_receipt_complete": true,
+          "settings": {
+            "callbacks": 1,
+            "enabled": true,
+            "thresholds": [
+              700,
+              10,
+              10
+            ]
+          }
+        }
+      },
+      "gpu_admission": {
+        "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+        "free_mib": 97218,
+        "foreign": [],
+        "admitted": true
+      },
+      "host_load": {
+        "before": {
+          "loadavg": [
+            0.21728515625,
+            1.51416015625,
+            1.39453125
+          ],
+          "pytest_or_codex_running": false
+        },
+        "after": {
+          "loadavg": [
+            2.1435546875,
+            1.91455078125,
+            1.560546875
+          ],
+          "pytest_or_codex_running": false
+        }
+      },
+      "artifact_sha256": {
+        "kit/timing.jsonl": "e7ebe827bc979aa1f4747906b79ea0d13c5f2be5474992824c794a82dc98f202",
+        "kit/receipt.json": "daf16dbac72e34a06d3e3a195c3030dd169fca4f0bc5566129a2993442e70d50",
+        "kit/model-identity.json": "7bea5951ad289781e4d60828ef59b9355aac63fd41779f0fe337cf21bebb8f76",
+        "kit/physics.jsonl": "c40b1ae0cbbd3412c9489a0ac3c08a5a6ba76fb96227dc354860ecdb8f0c6d71",
+        "plan.json": "48d34ca8cb5f00a6da84b93c3c035d64a42c9f9eaa8e9db1a00c66e6cae88cb2",
+        "root-receipt.json": "560b4ee0f0f75672e6a8e3ab1695381f945001fa10ba5431854f58f13e9fdade"
+      }
+    },
+    {
+      "name": "policy-twelve-03",
+      "gc_policy": "freeze-startup-heap",
+      "source": {
+        "head": "38891e597d2a3566a2ec0db94a71eaf50a247773",
+        "status": [
+          "M AGENTS.md",
+          " M docs/FACTORY_FASTENING_RUNTIME.md",
+          " M docs/MICRODUCK.md",
+          " M docs/PROJECT_STATUS_20261003.md",
+          " M docs/ROADMAP.md",
+          " M scripts/isaac_microduck_shared.py",
+          " M src/cascade/apps/factory_runtime.py",
+          " M src/cascade/sim/factory_owner.py",
+          " M tests/test_factory_config.py",
+          " M tests/test_factory_owner.py",
+          " M tests/test_microduck_shared_staging.py",
+          "?? benchmark/results/heap_freeze_cpu_20261005.json",
+          "?? configs/robots/factory_m20_shoulder_seating_heap_freeze.yaml",
+          "?? docs/evidence/heap-freeze-20261005/",
+          "?? scripts/bench_heap_freeze.py",
+          "?? src/cascade/sim/heap_freeze.py",
+          "?? tests/test_heap_freeze.py"
+        ],
+        "working_tree_sha256": {
+          "scripts/isaac_microduck_shared.py": "b79baf8a5c2132811baa228e2c431098f09df88e1bf861d064b21dd06d7e19e5",
+          "src/cascade/sim/heap_freeze.py": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec",
+          "src/cascade/sim/microduck_timing.py": "adee3bae4444546f3527b07dbe8238bd2147c9acd7b6d60e89779f1b8fdd5d52",
+          "src/cascade/sim/microduck_shared.py": "d71e9e6082ac6a1ceabd4592813a74959f678b28ac9ad57e1b04435467048f34",
+          "src/cascade/sim/microduck_shared_native.py": "c03ef4286003abfeb6dcb3d4db405fce27e2b1b030901b4532d75643ea77448c",
+          "src/cascade/sim/microduck_admission.py": "dddf5ebced53b1f5b2d0fcffe508cfc28f6d02b84a2492d62837b98d87d3f483"
+        }
+      },
+      "scene_model_sha256": "d279e2dd3150fad277392e623563eb076cc3e851b4ce48dbbf3a0537941ddc3b",
+      "configuration": {
+        "contact_forces": true,
+        "gc_policy": "freeze-startup-heap",
+        "link_incoming_joint_force": false,
+        "nconmax": 6144,
+        "njmax": 28800,
+        "num_substeps": 1,
+        "phase_profile": "owner-thread-inclusive-gc-trigger-v1",
+        "reuse_solved_read": true,
+        "rigid_contact_max": 6144,
+        "sdk_recipe": {
+          "newton_version": "1.6.1rc1",
+          "physical_acceptance": false,
+          "recipe": "isaac62_48b2d951",
+          "release_version_sha256": "59a6d16d8f3f247b73fa68a837867dafc0f568e491ae593f0ab1c2cb2fa62786",
+          "source_sha256": {
+            "isaacsim.physics.newton.impl.newton_config": "b1212639ebf22448a1da36b272b36da02eb340dcc1ad2312da075a66dadf1de0",
+            "isaacsim.physics.newton.impl.newton_stage": "a9d4e95305b23e6cea8e4e8e5fb63dc8b6c5c5917ad5c3ba48e2ba29df84d958",
+            "isaacsim.physics.newton.impl.solver_config": "e6c17f958cbd2534ac71743e62f56b79c4e8d86147ee676a6e80ee0d7ea9fe03",
+            "mujoco_warp._src.support": "1a08ef15f149d1cf3c9ec5df6c688669fe86aa237ee2512a7463caf1b74e3d54",
+            "newton._src.solvers.mujoco.kernels": "bd770d39d20c208e980477e0186799f531364b03f16d76968ee69bacdc490a3d",
+            "newton._src.solvers.mujoco.solver_mujoco": "a2f2466ad9d35e32f6e87f12bbaa0e08d18295f4e95b1c059c805d2ff4091178"
+          }
+        },
+        "solver_graph_stage_sha256": "a9d4e95305b23e6cea8e4e8e5fb63dc8b6c5c5917ad5c3ba48e2ba29df84d958",
+        "time_step_app": false,
+        "use_cuda_graph": true,
+        "use_mujoco_contacts": true
+      },
+      "native_completed": true,
+      "administrative_ok": true,
+      "client": {
+        "completed": true,
+        "physical_acceptance": false,
+        "events": 24,
+        "closed": true
+      },
+      "steps": 800,
+      "native_wall_s": 102.224,
+      "attempt_duration": {
+        "count": 800,
+        "median_ms": 83.2894385,
+        "p95_ms": 89.373753,
+        "max_ms": 202.591123
+      },
+      "attempts_over_400ms": 0,
+      "attempts_over_500ms": 0,
+      "gc_settings": {
+        "enabled": true,
+        "thresholds": [
+          700,
+          10,
+          10
+        ]
+      },
+      "gc_interval_duration": {
+        "0": {
+          "count": 1497,
+          "median_ms": 0.08528,
+          "p95_ms": 0.110108,
+          "max_ms": 1.885569
+        },
+        "1": {
+          "count": 135,
+          "median_ms": 0.107213,
+          "p95_ms": 0.235158,
+          "max_ms": 1.097691
+        },
+        "2": {
+          "count": 1,
+          "median_ms": 479.216595,
+          "p95_ms": 479.216595,
+          "max_ms": 479.216595
+        }
+      },
+      "generation2": [
+        {
+          "duration_ms": 479.217,
+          "placement": "before_first_attempt",
+          "collected": 6009
+        }
+      ],
+      "policy": {
+        "policy": "freeze-startup-heap-v1",
+        "implementation_sha256": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec",
+        "interpreter": "3.12.14",
+        "apply": {
+          "collect_ms": 479.242,
+          "collect_unreachable": 6009,
+          "freeze_ms": 0.025,
+          "frozen": 1254076,
+          "foreign_frozen_before": 375,
+          "allocated_blocks_before": 3276538,
+          "peak_rss_kib": 7861332,
+          "settings": {
+            "callbacks": 2,
+            "enabled": true,
+            "thresholds": [
+              700,
+              10,
+              10
+            ]
+          }
+        },
+        "release": {
+          "frozen_collect": {
+            "duration_ms": 2.134,
+            "unreachable": 74,
+            "tracked_after": 6786
+          },
+          "unfrozen": 1253778,
+          "frozen_changed_since_apply": -673,
+          "collect_after_unfreeze_ms": 469.859,
+          "collect_after_unfreeze_unreachable": 0,
+          "apply_receipt_complete": true,
+          "settings": {
+            "callbacks": 1,
+            "enabled": true,
+            "thresholds": [
+              700,
+              10,
+              10
+            ]
+          }
+        }
+      },
+      "gpu_admission": {
+        "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+        "free_mib": 97218,
+        "foreign": [],
+        "admitted": true
+      },
+      "host_load": {
+        "before": {
+          "loadavg": [
+            0.109375,
+            0.4755859375,
+            0.90869140625
+          ],
+          "pytest_or_codex_running": false
+        },
+        "after": {
+          "loadavg": [
+            1.900390625,
+            1.06982421875,
+            1.08447265625
+          ],
+          "pytest_or_codex_running": false
+        }
+      },
+      "artifact_sha256": {
+        "kit/timing.jsonl": "9ebdbc65479ee5117966b3fb5b940a8a8a9aebabe5497a5c251c63a61fc60aab",
+        "kit/receipt.json": "2384471d287e8859ffa2ccdeab2875fdf002433729a4f6d1222b3c64089b8157",
+        "kit/model-identity.json": "de59f0fa21ac9108443f4eedf92a8b63722571d1d24421e36b4d665e9426de9a",
+        "kit/physics.jsonl": "3cae320816ab7368ae8e744e4dcd03e5277052ef73e0f9b2fe2c98b7b97a6455",
+        "plan.json": "d93622f46969fb2f2c295daba57a3db0a0b5f483293054d4ed2452f5c4758841",
+        "root-receipt.json": "68238099d0d279acc5877530bc144931f979e6e128b6ea4211dd3b0396d9eb5a"
+      }
+    }
+  ],
+  "limitations": [
+    "Direct diagnostic launches on an uncommitted working tree (file hashes recorded), not reviewed frozen-source plans.",
+    "Reader-only: no control command, stop, deadline recovery or twelve-robot control acceptance was exercised; the retained 0.5 s RPC control failure is therefore untested under the policy.",
+    "Single runs per arm; host load uncontrolled (recorded); attempt medians are not a speedup or slowdown claim.",
+    "GC callback intervals include scheduling and other callbacks; overlap is temporal, not isolated CPU time.",
+    "An 800-solve episode did not trigger an automatic post-freeze generation-2 collection; the post-freeze cost is the measured full collection at release, after the owner loop closed, not a collection inside an attempt.",
+    "Physical acceptance: none."
+  ]
+}

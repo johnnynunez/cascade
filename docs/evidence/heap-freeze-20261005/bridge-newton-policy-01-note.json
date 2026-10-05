@@ -1,0 +1,10 @@
+{
+  "outcome": "failed startup",
+  "engine": "newton",
+  "scene_config": "kitchen",
+  "observation": "no [bridge] line was ever printed; the last startup lines were extension startups (isaacsim.ros2.bridge) at about 15 s, then silence until termination",
+  "termination": "launcher stopped by operator; scope unit stopped manually",
+  "policy_exercised": false,
+  "interpretation": "the full Newton editor experience stalls headless at ROS 2 bridge extension startup on this 6.2.0 source build, before the scene config is read; retained as a pre-existing failure, not a policy result",
+  "experience": "isaacsim.exp.full.newton.kit (bridge default for newton)"
+}

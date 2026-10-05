@@ -364,7 +364,9 @@ class FactorySolveOwner:
             raise ValueError("owner join budget must be in (0,2] seconds")
         self.controller.guard.stop()
         self._exit.set()
-        if self._thread is not None:
+        # A thread whose start() raised was never alive; joining it would raise
+        # before the closure receipt exists. is_alive() is False for it.
+        if self._thread is not None and self._thread.is_alive():
             self._thread.join(timeout_s)
         closed = self._thread is None or not self._thread.is_alive()
         # A blocked SDK operation requires the external process watchdog. Never

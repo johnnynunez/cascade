@@ -1,0 +1,79 @@
+{
+  "ping": {
+    "ok": true,
+    "engine": "newton",
+    "dofs": [
+      "joint1",
+      "joint2",
+      "joint3",
+      "joint4",
+      "joint5",
+      "joint6",
+      "joint_left",
+      "joint_right"
+    ],
+    "scene_config": null,
+    "scene_config_sha256": null,
+    "physics_dt_s": 0.016666666666666666,
+    "physics_dt_source": "SimulationManager.get_physics_dt",
+    "physics_dt_scene_count": 1,
+    "physics_device": "cuda:0",
+    "physics_tensor_device": "cuda:0",
+    "physics_gpu": true,
+    "gpu_attestation": {
+      "required": true,
+      "backend": "newton",
+      "device": "cuda:0",
+      "tensor_device": "cuda:0",
+      "tensor_device_ordinal": 0,
+      "cuda_context_present": true,
+      "gpu_dynamics": null,
+      "broadphase": [],
+      "cpu_fallback_allowed": false,
+      "newton": {
+        "device": "cuda:0",
+        "cuda": true,
+        "ordinal": 0,
+        "cuda_context_present": true,
+        "pci_bus_id": "00000000:C1:00",
+        "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+        "array_devices": [
+          "cuda:0"
+        ],
+        "solver": "SolverMuJoCo",
+        "mujoco_cpu": false,
+        "cuda_graph": true
+      },
+      "fallback_log_count": 0
+    }
+  },
+  "cameras": [],
+  "camera": "cam0",
+  "duration_s": 90.0,
+  "state": {
+    "count": 291,
+    "median_ms": 15.254,
+    "p95_ms": 44.481,
+    "max_ms": 2687.191
+  },
+  "frame": {
+    "count": 89,
+    "median_ms": 35.812,
+    "p95_ms": 42.23,
+    "max_ms": 45.295
+  },
+  "state_over_400ms": 1,
+  "frame_over_400ms": 0,
+  "slow_samples_over_200ms": [
+    {
+      "op": "state",
+      "at_s": 5.296,
+      "duration_ms": 2687.191
+    }
+  ],
+  "errors": [
+    "state: physics read timed out waiting for the main loop",
+    "frame: unknown/not-ready camera; have []"
+  ],
+  "error_count": 2
+}

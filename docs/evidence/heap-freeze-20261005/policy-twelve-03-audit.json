@@ -1,0 +1,337 @@
+{
+  "schema": "cascade.heap-freeze.direct-probe-audit.v1",
+  "run": "/home/johnny/Projects/demo/cascade-lab/HEAP_FREEZE_20261005/policy-twelve-03",
+  "gc_policy": "freeze-startup-heap",
+  "source": {
+    "head": "38891e597d2a3566a2ec0db94a71eaf50a247773",
+    "status": [
+      "M AGENTS.md",
+      " M docs/FACTORY_FASTENING_RUNTIME.md",
+      " M docs/MICRODUCK.md",
+      " M docs/PROJECT_STATUS_20261003.md",
+      " M docs/ROADMAP.md",
+      " M scripts/isaac_microduck_shared.py",
+      " M src/cascade/apps/factory_runtime.py",
+      " M src/cascade/sim/factory_owner.py",
+      " M tests/test_factory_config.py",
+      " M tests/test_factory_owner.py",
+      " M tests/test_microduck_shared_staging.py",
+      "?? benchmark/results/heap_freeze_cpu_20261005.json",
+      "?? configs/robots/factory_m20_shoulder_seating_heap_freeze.yaml",
+      "?? docs/evidence/heap-freeze-20261005/",
+      "?? scripts/bench_heap_freeze.py",
+      "?? src/cascade/sim/heap_freeze.py",
+      "?? tests/test_heap_freeze.py"
+    ],
+    "working_tree_sha256": {
+      "scripts/isaac_microduck_shared.py": "b79baf8a5c2132811baa228e2c431098f09df88e1bf861d064b21dd06d7e19e5",
+      "src/cascade/sim/heap_freeze.py": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec",
+      "src/cascade/sim/microduck_timing.py": "adee3bae4444546f3527b07dbe8238bd2147c9acd7b6d60e89779f1b8fdd5d52",
+      "src/cascade/sim/microduck_shared.py": "d71e9e6082ac6a1ceabd4592813a74959f678b28ac9ad57e1b04435467048f34",
+      "src/cascade/sim/microduck_shared_native.py": "c03ef4286003abfeb6dcb3d4db405fce27e2b1b030901b4532d75643ea77448c",
+      "src/cascade/sim/microduck_admission.py": "dddf5ebced53b1f5b2d0fcffe508cfc28f6d02b84a2492d62837b98d87d3f483"
+    }
+  },
+  "scene_model_sha256": "d279e2dd3150fad277392e623563eb076cc3e851b4ce48dbbf3a0537941ddc3b",
+  "configuration": {
+    "contact_forces": true,
+    "gc_policy": "freeze-startup-heap",
+    "link_incoming_joint_force": false,
+    "nconmax": 6144,
+    "njmax": 28800,
+    "num_substeps": 1,
+    "phase_profile": "owner-thread-inclusive-gc-trigger-v1",
+    "reuse_solved_read": true,
+    "rigid_contact_max": 6144,
+    "sdk_recipe": {
+      "newton_version": "1.6.1rc1",
+      "physical_acceptance": false,
+      "recipe": "isaac62_48b2d951",
+      "release_version_sha256": "59a6d16d8f3f247b73fa68a837867dafc0f568e491ae593f0ab1c2cb2fa62786",
+      "source_sha256": {
+        "isaacsim.physics.newton.impl.newton_config": "b1212639ebf22448a1da36b272b36da02eb340dcc1ad2312da075a66dadf1de0",
+        "isaacsim.physics.newton.impl.newton_stage": "a9d4e95305b23e6cea8e4e8e5fb63dc8b6c5c5917ad5c3ba48e2ba29df84d958",
+        "isaacsim.physics.newton.impl.solver_config": "e6c17f958cbd2534ac71743e62f56b79c4e8d86147ee676a6e80ee0d7ea9fe03",
+        "mujoco_warp._src.support": "1a08ef15f149d1cf3c9ec5df6c688669fe86aa237ee2512a7463caf1b74e3d54",
+        "newton._src.solvers.mujoco.kernels": "bd770d39d20c208e980477e0186799f531364b03f16d76968ee69bacdc490a3d",
+        "newton._src.solvers.mujoco.solver_mujoco": "a2f2466ad9d35e32f6e87f12bbaa0e08d18295f4e95b1c059c805d2ff4091178"
+      }
+    },
+    "solver_graph_stage_sha256": "a9d4e95305b23e6cea8e4e8e5fb63dc8b6c5c5917ad5c3ba48e2ba29df84d958",
+    "time_step_app": false,
+    "use_cuda_graph": true,
+    "use_mujoco_contacts": true
+  },
+  "native_completed": true,
+  "steps": 800,
+  "native_wall_s": 102.22449024498928,
+  "administrative_ok": true,
+  "client": {
+    "completed": true,
+    "physical_acceptance": false,
+    "events": 24,
+    "closed": true
+  },
+  "teardown_errors": [],
+  "attempts": 800,
+  "attempt_duration": {
+    "count": 800,
+    "median_ms": 83.2894385,
+    "p95_ms": 89.373753,
+    "max_ms": 202.591123
+  },
+  "attempts_over_400ms": 0,
+  "attempts_over_500ms": 0,
+  "slow_attempts_all_overlap_generation2": true,
+  "gc_accounting_verified": true,
+  "gc_events": 3266,
+  "gc_settings": {
+    "enabled": true,
+    "thresholds": [
+      700,
+      10,
+      10
+    ]
+  },
+  "gc_interval_duration": {
+    "0": {
+      "count": 1497,
+      "median_ms": 0.08528,
+      "p95_ms": 0.110108,
+      "max_ms": 1.885569
+    },
+    "1": {
+      "count": 135,
+      "median_ms": 0.107213,
+      "p95_ms": 0.235158,
+      "max_ms": 1.097691
+    },
+    "2": {
+      "count": 1,
+      "median_ms": 479.216595,
+      "p95_ms": 479.216595,
+      "max_ms": 479.216595
+    }
+  },
+  "generation2_intervals": 1,
+  "longest_gc_intervals_ms": [
+    479.217,
+    1.886,
+    1.098,
+    0.337,
+    0.288,
+    0.254,
+    0.254,
+    0.247,
+    0.235,
+    0.235
+  ],
+  "policy_receipt": {
+    "applied": {
+      "after": {
+        "allocated_blocks": 3230748,
+        "count": [
+          1,
+          0,
+          0
+        ],
+        "frozen": 1254451,
+        "stats": [
+          {
+            "collected": 43296,
+            "collections": 995,
+            "uncollectable": 0
+          },
+          {
+            "collected": 2149,
+            "collections": 90,
+            "uncollectable": 0
+          },
+          {
+            "collected": 6015,
+            "collections": 3,
+            "uncollectable": 0
+          }
+        ]
+      },
+      "applied_monotonic_ns": 96624002776348,
+      "before": {
+        "allocated_blocks": 3276538,
+        "count": [
+          526,
+          5,
+          61
+        ],
+        "frozen": 375,
+        "stats": [
+          {
+            "collected": 43296,
+            "collections": 995,
+            "uncollectable": 0
+          },
+          {
+            "collected": 2149,
+            "collections": 90,
+            "uncollectable": 0
+          },
+          {
+            "collected": 6,
+            "collections": 2,
+            "uncollectable": 0
+          }
+        ]
+      },
+      "collect": {
+        "duration_ns": 479242053,
+        "frozen_after_collect": 375,
+        "unreachable": 6009
+      },
+      "freeze": {
+        "duration_ns": 24798,
+        "foreign_frozen_before": 375,
+        "frozen": 1254076
+      },
+      "implementation_sha256": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec",
+      "policy": "freeze-startup-heap-v1",
+      "process": {
+        "executable": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/kit/python/bin/python3",
+        "interpreter": "3.12.14",
+        "peak_rss_kib": 7861332,
+        "pid": 1846599
+      },
+      "scope": "Objects alive at apply() moved to the permanent generation; later automatic collections traverse only objects allocated afterwards. Collector enabled, thresholds and callbacks unchanged. Cyclic garbage alive at apply() stays retained until release(). Not a control-deadline, speedup or physical claim.",
+      "settings": {
+        "callbacks": 2,
+        "enabled": true,
+        "thresholds": [
+          700,
+          10,
+          10
+        ]
+      },
+      "thread_id": 137188441667520
+    },
+    "released": {
+      "after": {
+        "allocated_blocks": 3255638,
+        "count": [
+          17,
+          0,
+          0
+        ],
+        "frozen": 375,
+        "stats": [
+          {
+            "collected": 67308,
+            "collections": 2491,
+            "uncollectable": 0
+          },
+          {
+            "collected": 4451,
+            "collections": 225,
+            "uncollectable": 0
+          },
+          {
+            "collected": 6089,
+            "collections": 5,
+            "uncollectable": 0
+          }
+        ]
+      },
+      "apply_error": null,
+      "apply_receipt_complete": true,
+      "before": {
+        "allocated_blocks": 3276049,
+        "count": [
+          2,
+          11,
+          135
+        ],
+        "frozen": 1253778,
+        "stats": [
+          {
+            "collected": 67308,
+            "collections": 2491,
+            "uncollectable": 0
+          },
+          {
+            "collected": 4451,
+            "collections": 225,
+            "uncollectable": 0
+          },
+          {
+            "collected": 6015,
+            "collections": 3,
+            "uncollectable": 0
+          }
+        ]
+      },
+      "collect": {
+        "duration_ns": 469858564,
+        "unreachable": 0
+      },
+      "frozen_changed_since_apply": -673,
+      "frozen_collect": {
+        "duration_ns": 2134027,
+        "tracked_after": 6786,
+        "unreachable": 74
+      },
+      "implementation_sha256": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec",
+      "policy": "freeze-startup-heap-v1",
+      "policy_frozen": 1254076,
+      "process": {
+        "executable": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/kit/python/bin/python3",
+        "interpreter": "3.12.14",
+        "peak_rss_kib": 8614728,
+        "pid": 1846599
+      },
+      "released_monotonic_ns": 96693881444499,
+      "settings": {
+        "callbacks": 1,
+        "enabled": true,
+        "thresholds": [
+          700,
+          10,
+          10
+        ]
+      },
+      "thread_id": 137188441667520,
+      "unfreeze": {
+        "duration_ns": 2423
+      },
+      "unfrozen": 1253778
+    }
+  },
+  "host_load": {
+    "before": {
+      "loadavg": [
+        0.109375,
+        0.4755859375,
+        0.90869140625
+      ],
+      "pytest_or_codex_running": false
+    },
+    "after": {
+      "loadavg": [
+        1.900390625,
+        1.06982421875,
+        1.08447265625
+      ],
+      "pytest_or_codex_running": false
+    }
+  },
+  "gpu_admission": {
+    "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+    "free_mib": 97218,
+    "foreign": [],
+    "admitted": true
+  },
+  "timing_sha256": "9ebdbc65479ee5117966b3fb5b940a8a8a9aebabe5497a5c251c63a61fc60aab",
+  "receipt_sha256": "2384471d287e8859ffa2ccdeab2875fdf002433729a4f6d1222b3c64089b8157",
+  "limitations": [
+    "Reader-only probe on an uncommitted working tree with recorded file hashes; not a reviewed frozen-source plan.",
+    "GC callback intervals include scheduling and other callbacks; overlap with slow attempts is temporal, not causal.",
+    "No control command, physical stop, deadline recovery or twelve-robot control acceptance was exercised.",
+    "Host load was not controlled; a shorter attempt distribution is not an isolated speedup."
+  ]
+}

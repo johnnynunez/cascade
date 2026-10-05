@@ -144,6 +144,12 @@ def _check_kit(path: Path, versions=_SOURCE_VERSIONS) -> Path:
 def find_experience(engine: str, *, release=None, package_roots=None) -> Path:
     if engine not in ("newton", "physx"):
         raise ValueError(f"unknown physics engine: {engine}")
+    override = os.environ.get("CASCADE_ISAAC_EXPERIENCE")
+    if override:
+        # An explicit experience file is an operator decision, recorded by the
+        # launcher that sets it. It must still declare a supported package
+        # version; it is not a fallback and never substitutes a wheel app.
+        return _check_kit(Path(override).expanduser())
     name = "isaacsim.exp.full.newton.kit" if engine == "newton" else "isaacsim.exp.full.kit"
     release = release or os.environ.get("ISAACSIM_PATH")
     if release:

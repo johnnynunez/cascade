@@ -1,0 +1,974 @@
+{
+  "schema": "cascade.heap-freeze.bridge-probe-summary.v1",
+  "lab_directory": "/home/johnny/Projects/demo/cascade-lab/HEAP_FREEZE_20261005",
+  "repository_head": "93e29a37c22d17a18d9fd08445f4ab026f07b9ed",
+  "branch": "perf/startup-heap-freeze",
+  "working_tree_status": [
+    "M docs/ISAAC_BRIDGE_PROFILING.md",
+    "?? docs/evidence/heap-freeze-20261005/bridge-newton-baseline-01-client-receipt.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-newton-baseline-01-gpu-admission.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-newton-baseline-01-note.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-newton-baseline-01-plan.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-newton-baseline-01-root-receipt.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-newton-min-baseline-01-client-receipt.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-newton-min-baseline-01-gpu-admission.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-newton-min-baseline-01-plan.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-newton-min-baseline-01-root-receipt.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-newton-min-policy-01-client-receipt.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-newton-min-policy-01-gpu-admission.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-newton-min-policy-01-plan.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-newton-min-policy-01-root-receipt.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-newton-policy-01-gpu-admission.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-newton-policy-01-note.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-newton-policy-01-plan.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-newton-rebot-baseline-01-client-receipt.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-newton-rebot-baseline-01-gpu-admission.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-newton-rebot-baseline-01-note.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-newton-rebot-baseline-01-plan.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-newton-rebot-baseline-01-root-receipt.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-physx-baseline-02-client-receipt.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-physx-baseline-02-gpu-admission.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-physx-baseline-02-plan.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-physx-baseline-02-root-receipt.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-physx-policy-01-client-receipt.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-physx-policy-01-gpu-admission.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-physx-policy-01-plan.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-physx-policy-01-root-receipt.json",
+    "?? docs/evidence/heap-freeze-20261005/bridge-summary.json"
+  ],
+  "recipe": "scripts/isaac_bridge.py with demo/scene/kitchen_config.json, headless, CASCADE_REQUIRE_CUDA=1, CASCADE_ISAAC_PYTHON_TIMINGS=1, GPU 1, systemd user scope 64G/800%/nice 19/900 s; read-only client (ping, state at about 4 Hz, one camera frame at about 1 Hz) for the stated duration, then SIGTERM.",
+  "runs": [
+    {
+      "name": "bridge-physx-baseline-02",
+      "engine": "physx",
+      "gc_policy": null,
+      "duration_s": 90.0,
+      "experience": null,
+      "scene_config": "kitchen",
+      "retained_failure": null,
+      "source": {
+        "branch": "perf/startup-heap-freeze",
+        "head": "ad7dae9a71077213882bd97e3af8d783c090cf10",
+        "status": [
+          "M demo/scene/own_assets.json",
+          " M docs/ISAAC_BRIDGE_PROFILING.md",
+          " M docs/PROJECT_STATUS_20261003.md"
+        ],
+        "working_tree_sha256": {
+          "scripts/isaac_bridge.py": "1a7c152969c6270680d6162fd44d35294d9cbb2aa2e61e3ba77c86a2109171f3",
+          "scripts/isaac_python_spans.py": "4bf231efd07643f5e883d49887dcafb6e7071279a98f6766e9268a9fc7b0312c",
+          "src/cascade/sim/heap_freeze.py": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec"
+        }
+      },
+      "administrative_ok": true,
+      "serving": true,
+      "scope_exit": 0,
+      "closure_ok": true,
+      "gpu_attestation": "{\"required\": true, \"backend\": \"physx\", \"device\": \"cuda:0\", \"tensor_device\": \"cuda:0\", \"tensor_device_ordinal\": 0, \"cuda_context_present\": true, \"gpu_dynamics\": true, \"broadphase\": \"GPU\", \"cpu_fallback_allowed\": false, \"fallback_log_count\": 0}",
+      "client": {
+        "ping": {
+          "ok": true,
+          "engine": "physx",
+          "dofs": [
+            "joint1",
+            "joint2",
+            "joint3",
+            "joint4",
+            "joint5",
+            "joint6",
+            "joint_left",
+            "joint_right"
+          ],
+          "scene_name": "paai-cocina-asier-v1",
+          "scene_config": "/home/johnny/Projects/demo/cascade/demo/scene/kitchen_config.json",
+          "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+          "scene_assets_sha256": "bcf2019ae6fb3a3b8d05de576658e13fc01e269292d345008fe10afd67593b6d",
+          "scene_content_sha256": "85b758883ebe2a295be49729a3c8cab7e05827faa7f6b9ec2e5942a7150abb9b",
+          "physics_dt_s": 0.016666666666666666,
+          "physics_dt_source": "SimulationManager.get_physics_dt",
+          "physics_dt_scene_count": 1,
+          "physics_device": "cuda:0",
+          "physics_tensor_device": "cuda:0",
+          "physics_gpu": true,
+          "gpu_attestation": {
+            "required": true,
+            "backend": "physx",
+            "device": "cuda:0",
+            "tensor_device": "cuda:0",
+            "tensor_device_ordinal": 0,
+            "cuda_context_present": true,
+            "gpu_dynamics": true,
+            "broadphase": "GPU",
+            "cpu_fallback_allowed": false,
+            "fallback_log_count": 0
+          }
+        },
+        "cameras": [],
+        "camera": "cam0",
+        "duration_s": 90.0,
+        "state": {
+          "count": 281,
+          "median_ms": 43.627,
+          "p95_ms": 51.911,
+          "max_ms": 3044.338
+        },
+        "frame": {
+          "count": 90,
+          "median_ms": 70.07,
+          "p95_ms": 72.403,
+          "max_ms": 77.91
+        },
+        "state_over_400ms": 1,
+        "frame_over_400ms": 0,
+        "errors": [],
+        "error_count": 0
+      },
+      "loop_zone": {
+        "count": 2838,
+        "wall_max_ms": 113.095,
+        "wall_total_ms": 85783.137
+      },
+      "gc": {
+        "generations": {
+          "0": {
+            "count": 4139,
+            "total_ns": 93741502,
+            "max_ns": 1211594,
+            "last_ns": 259184,
+            "max_on_registering_thread": true
+          },
+          "1": {
+            "count": 377,
+            "total_ns": 223146406,
+            "max_ns": 177648947,
+            "last_ns": 943355,
+            "max_on_registering_thread": true
+          },
+          "2": {
+            "count": 10,
+            "total_ns": 2007213284,
+            "max_ns": 209391699,
+            "last_ns": 209391699,
+            "max_on_registering_thread": true
+          }
+        },
+        "events": 9052,
+        "unmatched": 0,
+        "errors": 0,
+        "frozen_objects": 375,
+        "settings_initial": {
+          "enabled": true,
+          "thresholds": [
+            700,
+            10,
+            10
+          ]
+        },
+        "settings_now": {
+          "enabled": true,
+          "thresholds": [
+            700,
+            10,
+            10
+          ]
+        }
+      },
+      "diagnostic_valid": true,
+      "summaries": 9,
+      "gc_policy_applied": null,
+      "gc_policy_released": null,
+      "release_failure": [],
+      "host_load": {
+        "before": {
+          "loadavg": [
+            0.1796875,
+            0.34423828125,
+            0.263671875
+          ],
+          "pytest_or_codex_running": false
+        },
+        "after": {
+          "loadavg": [
+            1.52001953125,
+            0.85009765625,
+            0.46435546875
+          ],
+          "pytest_or_codex_running": false
+        }
+      },
+      "artifact_sha256": {
+        "scope/service.log": "a04882cc4a6fe1e928f0cbf195ac545ed158d06e00438e64a865f8155a361286",
+        "plan.json": "894200f78ae6f2f416d89176e6e8ba5578665648c5751856a9ffbe2098fc1f3a",
+        "root-receipt.json": "a00a93ab37bf8467b9bb42767329204be5d8052f1a492dc59cf792f057e7b50a"
+      }
+    },
+    {
+      "name": "bridge-physx-policy-01",
+      "engine": "physx",
+      "gc_policy": "freeze-startup-heap",
+      "duration_s": 90.0,
+      "experience": null,
+      "scene_config": "kitchen",
+      "retained_failure": null,
+      "source": {
+        "branch": "perf/startup-heap-freeze",
+        "head": "7a841490cb376e791495a4c12f2555cf8a5b2c3e",
+        "status": [],
+        "working_tree_sha256": {
+          "scripts/isaac_bridge.py": "1a7c152969c6270680d6162fd44d35294d9cbb2aa2e61e3ba77c86a2109171f3",
+          "scripts/isaac_python_spans.py": "4bf231efd07643f5e883d49887dcafb6e7071279a98f6766e9268a9fc7b0312c",
+          "src/cascade/sim/heap_freeze.py": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec"
+        }
+      },
+      "administrative_ok": true,
+      "serving": true,
+      "scope_exit": 0,
+      "closure_ok": true,
+      "gpu_attestation": "{\"required\": true, \"backend\": \"physx\", \"device\": \"cuda:0\", \"tensor_device\": \"cuda:0\", \"tensor_device_ordinal\": 0, \"cuda_context_present\": true, \"gpu_dynamics\": true, \"broadphase\": \"GPU\", \"cpu_fallback_allowed\": false, \"fallback_log_count\": 0}",
+      "client": {
+        "ping": {
+          "ok": true,
+          "engine": "physx",
+          "dofs": [
+            "joint1",
+            "joint2",
+            "joint3",
+            "joint4",
+            "joint5",
+            "joint6",
+            "joint_left",
+            "joint_right"
+          ],
+          "scene_name": "paai-cocina-asier-v1",
+          "scene_config": "/home/johnny/Projects/demo/cascade/demo/scene/kitchen_config.json",
+          "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+          "scene_assets_sha256": "bcf2019ae6fb3a3b8d05de576658e13fc01e269292d345008fe10afd67593b6d",
+          "scene_content_sha256": "85b758883ebe2a295be49729a3c8cab7e05827faa7f6b9ec2e5942a7150abb9b",
+          "physics_dt_s": 0.016666666666666666,
+          "physics_dt_source": "SimulationManager.get_physics_dt",
+          "physics_dt_scene_count": 1,
+          "physics_device": "cuda:0",
+          "physics_tensor_device": "cuda:0",
+          "physics_gpu": true,
+          "gpu_attestation": {
+            "required": true,
+            "backend": "physx",
+            "device": "cuda:0",
+            "tensor_device": "cuda:0",
+            "tensor_device_ordinal": 0,
+            "cuda_context_present": true,
+            "gpu_dynamics": true,
+            "broadphase": "GPU",
+            "cpu_fallback_allowed": false,
+            "fallback_log_count": 0
+          }
+        },
+        "cameras": [],
+        "camera": "cam0",
+        "duration_s": 90.0,
+        "state": {
+          "count": 297,
+          "median_ms": 22.007,
+          "p95_ms": 39.922,
+          "max_ms": 3504.949
+        },
+        "frame": {
+          "count": 90,
+          "median_ms": 69.609,
+          "p95_ms": 73.292,
+          "max_ms": 102.503
+        },
+        "state_over_400ms": 1,
+        "frame_over_400ms": 0,
+        "errors": [],
+        "error_count": 0
+      },
+      "loop_zone": {
+        "count": 2408,
+        "wall_max_ms": 85.484,
+        "wall_total_ms": 76584.379
+      },
+      "gc": {
+        "generations": {
+          "0": {
+            "count": 3931,
+            "total_ns": 88425528,
+            "max_ns": 1132213,
+            "last_ns": 318174,
+            "max_on_registering_thread": true
+          },
+          "1": {
+            "count": 357,
+            "total_ns": 40288567,
+            "max_ns": 1654397,
+            "last_ns": 1100745,
+            "max_on_registering_thread": true
+          },
+          "2": {
+            "count": 11,
+            "total_ns": 2228719498,
+            "max_ns": 210328174,
+            "last_ns": 209136932,
+            "max_on_registering_thread": true
+          }
+        },
+        "events": 8598,
+        "unmatched": 0,
+        "errors": 0,
+        "frozen_objects": 578779,
+        "settings_initial": {
+          "enabled": true,
+          "thresholds": [
+            700,
+            10,
+            10
+          ]
+        },
+        "settings_now": {
+          "enabled": true,
+          "thresholds": [
+            700,
+            10,
+            10
+          ]
+        }
+      },
+      "diagnostic_valid": true,
+      "summaries": 8,
+      "gc_policy_applied": {
+        "policy": "freeze-startup-heap-v1",
+        "implementation_sha256": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec",
+        "interpreter": "3.12.14",
+        "thread_id": 135824639055808,
+        "frozen": 582533,
+        "foreign_frozen_before": 375,
+        "collect_ms": 209.15577,
+        "collect_unreachable": 46,
+        "freeze_ms": 0.020611,
+        "allocated_blocks_before": 2209158,
+        "peak_rss_kib": 8443224,
+        "settings": {
+          "enabled": true,
+          "thresholds": [
+            700,
+            10,
+            10
+          ],
+          "callbacks": 2
+        }
+      },
+      "gc_policy_released": {
+        "policy": "freeze-startup-heap-v1",
+        "implementation_sha256": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec",
+        "interpreter": "3.12.14",
+        "thread_id": 135824639055808,
+        "unfrozen": 578623,
+        "policy_frozen": 582533,
+        "frozen_changed_since_apply": -4285,
+        "apply_receipt_complete": true,
+        "frozen_collect_ms": 1.994785,
+        "frozen_collect_tracked_after": 4843,
+        "collect_after_unfreeze_ms": 204.356417
+      },
+      "release_failure": [],
+      "host_load": {
+        "before": {
+          "loadavg": [
+            0.919921875,
+            0.767578125,
+            0.44775390625
+          ],
+          "pytest_or_codex_running": false
+        },
+        "after": {
+          "loadavg": [
+            2.4423828125,
+            1.373046875,
+            0.7080078125
+          ],
+          "pytest_or_codex_running": false
+        }
+      },
+      "artifact_sha256": {
+        "scope/service.log": "cd71b7ad60e874e17f36df938d12233c6a63b2e0afd955e4ec1aa7bc9b716e90",
+        "plan.json": "93ec2afeee903d8b5012ec286365ca56853c5e69de834e60275075e886c43a47",
+        "root-receipt.json": "ac15ffb9c171212fa77d5d542a417dc99399c7748580bb0d31f4192a6b8ad2a5"
+      }
+    },
+    {
+      "name": "bridge-newton-min-baseline-01",
+      "engine": "newton",
+      "gc_policy": null,
+      "duration_s": 90.0,
+      "experience": "/home/johnny/Projects/demo/cascade-lab/HEAP_FREEZE_20261005/bridge.newton.minimal.kit",
+      "scene_config": null,
+      "retained_failure": null,
+      "source": {
+        "branch": "perf/startup-heap-freeze",
+        "head": "93e29a37c22d17a18d9fd08445f4ab026f07b9ed",
+        "status": [],
+        "working_tree_sha256": {
+          "scripts/isaac_bridge.py": "1a7c152969c6270680d6162fd44d35294d9cbb2aa2e61e3ba77c86a2109171f3",
+          "scripts/isaac_python_spans.py": "95f91fed5c2b3d3b3dfd4acdd0d64efed1701b061ec1a0abf03303fd4c2bd387",
+          "src/cascade/sim/heap_freeze.py": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec"
+        }
+      },
+      "administrative_ok": true,
+      "serving": true,
+      "scope_exit": 0,
+      "closure_ok": true,
+      "gpu_attestation": "{\"required\": true, \"backend\": \"newton\", \"device\": \"cuda:0\", \"tensor_device\": \"cuda:0\", \"tensor_device_ordinal\": 0, \"cuda_context_present\": true, \"gpu_dynamics\": null, \"broadphase\": [], \"cpu_fallback_allowed\": false, \"newton\": {\"device\": \"cuda:0\", \"cuda\": true, \"ordinal\": 0, \"cuda_context_present\": true, \"pci_bus_id\": \"00000000:C1:00\", \"uuid\": \"GPU-4c811d02-a79b-2837-425e-5f62ac3c578a\", \"array_devices\": [\"cuda:0\"], \"solver\": \"SolverMuJoCo\", \"mujoco_cpu\": false, \"cuda_graph\": true}, \"fallback_log_count\": 0}",
+      "client": {
+        "ping": {
+          "ok": true,
+          "engine": "newton",
+          "dofs": [
+            "joint1",
+            "joint2",
+            "joint3",
+            "joint4",
+            "joint5",
+            "joint6",
+            "joint_left",
+            "joint_right"
+          ],
+          "scene_config": null,
+          "scene_config_sha256": null,
+          "physics_dt_s": 0.016666666666666666,
+          "physics_dt_source": "SimulationManager.get_physics_dt",
+          "physics_dt_scene_count": 1,
+          "physics_device": "cuda:0",
+          "physics_tensor_device": "cuda:0",
+          "physics_gpu": true,
+          "gpu_attestation": {
+            "required": true,
+            "backend": "newton",
+            "device": "cuda:0",
+            "tensor_device": "cuda:0",
+            "tensor_device_ordinal": 0,
+            "cuda_context_present": true,
+            "gpu_dynamics": null,
+            "broadphase": [],
+            "cpu_fallback_allowed": false,
+            "newton": {
+              "device": "cuda:0",
+              "cuda": true,
+              "ordinal": 0,
+              "cuda_context_present": true,
+              "pci_bus_id": "00000000:C1:00",
+              "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "array_devices": [
+                "cuda:0"
+              ],
+              "solver": "SolverMuJoCo",
+              "mujoco_cpu": false,
+              "cuda_graph": true
+            },
+            "fallback_log_count": 0
+          }
+        },
+        "cameras": [],
+        "camera": "cam0",
+        "duration_s": 90.0,
+        "state": {
+          "count": 294,
+          "median_ms": 15.806,
+          "p95_ms": 36.102,
+          "max_ms": 2607.745
+        },
+        "frame": {
+          "count": 90,
+          "median_ms": 35.098,
+          "p95_ms": 41.011,
+          "max_ms": 44.009
+        },
+        "state_over_400ms": 1,
+        "frame_over_400ms": 0,
+        "slow_samples_over_200ms": [
+          {
+            "op": "state",
+            "at_s": 5.295,
+            "duration_ms": 2607.745
+          }
+        ],
+        "errors": [
+          "state: physics read timed out waiting for the main loop"
+        ],
+        "error_count": 1
+      },
+      "loop_zone": {
+        "count": 2687,
+        "wall_max_ms": 73.082,
+        "wall_total_ms": 81361.841
+      },
+      "gc": {
+        "generations": {
+          "0": {
+            "count": 657,
+            "total_ns": 47306087,
+            "max_ns": 323523,
+            "last_ns": 239694,
+            "collected_total": 70318,
+            "max_on_registering_thread": true
+          },
+          "1": {
+            "count": 60,
+            "total_ns": 324400085,
+            "max_ns": 285230156,
+            "last_ns": 833759,
+            "collected_total": 7665,
+            "max_on_registering_thread": true
+          },
+          "2": {
+            "count": 2,
+            "total_ns": 773600950,
+            "max_ns": 412874708,
+            "last_ns": 412874708,
+            "collected_total": 860,
+            "max_on_registering_thread": true
+          }
+        },
+        "events": 1438,
+        "unmatched": 0,
+        "errors": 0,
+        "frozen_objects": 375,
+        "settings_initial": {
+          "enabled": true,
+          "thresholds": [
+            700,
+            10,
+            10
+          ]
+        },
+        "settings_now": {
+          "enabled": true,
+          "thresholds": [
+            700,
+            10,
+            10
+          ]
+        }
+      },
+      "diagnostic_valid": true,
+      "summaries": 9,
+      "gc_policy_applied": null,
+      "gc_policy_released": null,
+      "release_failure": [],
+      "host_load": {
+        "before": {
+          "loadavg": [
+            1.521484375,
+            2.07177734375,
+            1.7548828125
+          ],
+          "pytest_or_codex_running": false
+        },
+        "after": {
+          "loadavg": [
+            2.568359375,
+            2.2783203125,
+            1.86865234375
+          ],
+          "pytest_or_codex_running": false
+        }
+      },
+      "artifact_sha256": {
+        "scope/service.log": "987f3a8ffb60ae7681afe6bc31f7f7d23389426aa1615b8a9a68e0761191fe86",
+        "plan.json": "a9afdaa7b6fad33fa26391f390676f3caac78d77e252f873bd0598f89f1a5f88",
+        "root-receipt.json": "1de682917ba4cb7df4be5bd8472b01cf5ed66b224b3c72e78ae7efbe16b6bc07"
+      }
+    },
+    {
+      "name": "bridge-newton-min-policy-01",
+      "engine": "newton",
+      "gc_policy": "freeze-startup-heap",
+      "duration_s": 90.0,
+      "experience": "/home/johnny/Projects/demo/cascade-lab/HEAP_FREEZE_20261005/bridge.newton.minimal.kit",
+      "scene_config": null,
+      "retained_failure": null,
+      "source": {
+        "branch": "perf/startup-heap-freeze",
+        "head": "93e29a37c22d17a18d9fd08445f4ab026f07b9ed",
+        "status": [
+          "M docs/ISAAC_BRIDGE_PROFILING.md"
+        ],
+        "working_tree_sha256": {
+          "scripts/isaac_bridge.py": "1a7c152969c6270680d6162fd44d35294d9cbb2aa2e61e3ba77c86a2109171f3",
+          "scripts/isaac_python_spans.py": "95f91fed5c2b3d3b3dfd4acdd0d64efed1701b061ec1a0abf03303fd4c2bd387",
+          "src/cascade/sim/heap_freeze.py": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec"
+        }
+      },
+      "administrative_ok": true,
+      "serving": true,
+      "scope_exit": 0,
+      "closure_ok": true,
+      "gpu_attestation": "{\"required\": true, \"backend\": \"newton\", \"device\": \"cuda:0\", \"tensor_device\": \"cuda:0\", \"tensor_device_ordinal\": 0, \"cuda_context_present\": true, \"gpu_dynamics\": null, \"broadphase\": [], \"cpu_fallback_allowed\": false, \"newton\": {\"device\": \"cuda:0\", \"cuda\": true, \"ordinal\": 0, \"cuda_context_present\": true, \"pci_bus_id\": \"00000000:C1:00\", \"uuid\": \"GPU-4c811d02-a79b-2837-425e-5f62ac3c578a\", \"array_devices\": [\"cuda:0\"], \"solver\": \"SolverMuJoCo\", \"mujoco_cpu\": false, \"cuda_graph\": true}, \"fallback_log_count\": 0}",
+      "client": {
+        "ping": {
+          "ok": true,
+          "engine": "newton",
+          "dofs": [
+            "joint1",
+            "joint2",
+            "joint3",
+            "joint4",
+            "joint5",
+            "joint6",
+            "joint_left",
+            "joint_right"
+          ],
+          "scene_config": null,
+          "scene_config_sha256": null,
+          "physics_dt_s": 0.016666666666666666,
+          "physics_dt_source": "SimulationManager.get_physics_dt",
+          "physics_dt_scene_count": 1,
+          "physics_device": "cuda:0",
+          "physics_tensor_device": "cuda:0",
+          "physics_gpu": true,
+          "gpu_attestation": {
+            "required": true,
+            "backend": "newton",
+            "device": "cuda:0",
+            "tensor_device": "cuda:0",
+            "tensor_device_ordinal": 0,
+            "cuda_context_present": true,
+            "gpu_dynamics": null,
+            "broadphase": [],
+            "cpu_fallback_allowed": false,
+            "newton": {
+              "device": "cuda:0",
+              "cuda": true,
+              "ordinal": 0,
+              "cuda_context_present": true,
+              "pci_bus_id": "00000000:C1:00",
+              "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "array_devices": [
+                "cuda:0"
+              ],
+              "solver": "SolverMuJoCo",
+              "mujoco_cpu": false,
+              "cuda_graph": true
+            },
+            "fallback_log_count": 0
+          }
+        },
+        "cameras": [],
+        "camera": "cam0",
+        "duration_s": 90.0,
+        "state": {
+          "count": 291,
+          "median_ms": 15.254,
+          "p95_ms": 44.481,
+          "max_ms": 2687.191
+        },
+        "frame": {
+          "count": 89,
+          "median_ms": 35.812,
+          "p95_ms": 42.23,
+          "max_ms": 45.295
+        },
+        "state_over_400ms": 1,
+        "frame_over_400ms": 0,
+        "slow_samples_over_200ms": [
+          {
+            "op": "state",
+            "at_s": 5.296,
+            "duration_ms": 2687.191
+          }
+        ],
+        "errors": [
+          "state: physics read timed out waiting for the main loop",
+          "frame: unknown/not-ready camera; have []"
+        ],
+        "error_count": 2
+      },
+      "loop_zone": {
+        "count": 2587,
+        "wall_max_ms": 95.801,
+        "wall_total_ms": 81588.676
+      },
+      "gc": {
+        "generations": {
+          "0": {
+            "count": 461,
+            "total_ns": 38955302,
+            "max_ns": 262360,
+            "last_ns": 225744,
+            "collected_total": 70490,
+            "max_on_registering_thread": true
+          },
+          "1": {
+            "count": 41,
+            "total_ns": 314354065,
+            "max_ns": 282848091,
+            "last_ns": 845947,
+            "collected_total": 6066,
+            "max_on_registering_thread": true
+          },
+          "2": {
+            "count": 3,
+            "total_ns": 1216809757,
+            "max_ns": 453675195,
+            "last_ns": 453675195,
+            "collected_total": 1345,
+            "max_on_registering_thread": true
+          }
+        },
+        "events": 1010,
+        "unmatched": 0,
+        "errors": 0,
+        "frozen_objects": 1226107,
+        "settings_initial": {
+          "enabled": true,
+          "thresholds": [
+            700,
+            10,
+            10
+          ]
+        },
+        "settings_now": {
+          "enabled": true,
+          "thresholds": [
+            700,
+            10,
+            10
+          ]
+        }
+      },
+      "diagnostic_valid": true,
+      "summaries": 9,
+      "gc_policy_applied": {
+        "policy": "freeze-startup-heap-v1",
+        "implementation_sha256": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec",
+        "interpreter": "3.12.14",
+        "thread_id": 139767041599424,
+        "frozen": 1229864,
+        "foreign_frozen_before": 375,
+        "collect_ms": 453.707304,
+        "collect_unreachable": 297,
+        "freeze_ms": 0.020582,
+        "allocated_blocks_before": 3144409,
+        "peak_rss_kib": 7872720,
+        "settings": {
+          "enabled": true,
+          "thresholds": [
+            700,
+            10,
+            10
+          ],
+          "callbacks": 2
+        }
+      },
+      "gc_policy_released": {
+        "policy": "freeze-startup-heap-v1",
+        "implementation_sha256": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec",
+        "interpreter": "3.12.14",
+        "thread_id": 139767041599424,
+        "unfrozen": 1225981,
+        "policy_frozen": 1229864,
+        "frozen_changed_since_apply": -4258,
+        "apply_receipt_complete": true,
+        "frozen_collect_ms": 1.710824,
+        "frozen_collect_tracked_after": 5292,
+        "collect_after_unfreeze_ms": 461.580758
+      },
+      "release_failure": [],
+      "host_load": {
+        "before": {
+          "loadavg": [
+            1.99853515625,
+            2.166015625,
+            1.837890625
+          ],
+          "pytest_or_codex_running": false
+        },
+        "after": {
+          "loadavg": [
+            3.28955078125,
+            2.5390625,
+            2.009765625
+          ],
+          "pytest_or_codex_running": false
+        }
+      },
+      "artifact_sha256": {
+        "scope/service.log": "80d41c93b276557a78a8d725cd54e4b221aab2461cd73d4b0d6a721a3809462a",
+        "plan.json": "6e03eed04628cc89dbee8db0794d53ae9b044f4b53e673a1dcffc43ca59e53f4",
+        "root-receipt.json": "fa171f11dc8b823f128d6c0982d258843b3227f8b6e2a7e346b858f488510c6d"
+      }
+    },
+    {
+      "name": "bridge-newton-baseline-01",
+      "engine": "newton",
+      "gc_policy": null,
+      "duration_s": 90.0,
+      "experience": null,
+      "scene_config": "kitchen",
+      "retained_failure": {
+        "outcome": "failed startup",
+        "engine": "newton",
+        "scene_config": "kitchen",
+        "observation": "no [bridge] line was ever printed; the last startup lines were extension startups (isaacsim.ros2.bridge) at about 15 s, then silence until termination",
+        "termination": "client ping deadline (600 s) then scope close",
+        "policy_exercised": false,
+        "interpretation": "the full Newton editor experience stalls headless at ROS 2 bridge extension startup on this 6.2.0 source build, before the scene config is read; retained as a pre-existing failure, not a policy result",
+        "experience": "isaacsim.exp.full.newton.kit (bridge default for newton)"
+      },
+      "source": {
+        "branch": "perf/startup-heap-freeze",
+        "head": "7a841490cb376e791495a4c12f2555cf8a5b2c3e",
+        "status": [],
+        "working_tree_sha256": {
+          "scripts/isaac_bridge.py": "1a7c152969c6270680d6162fd44d35294d9cbb2aa2e61e3ba77c86a2109171f3",
+          "scripts/isaac_python_spans.py": "4bf231efd07643f5e883d49887dcafb6e7071279a98f6766e9268a9fc7b0312c",
+          "src/cascade/sim/heap_freeze.py": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec"
+        }
+      },
+      "administrative_ok": false,
+      "serving": false,
+      "scope_exit": 1,
+      "closure_ok": true,
+      "gpu_attestation": null,
+      "client": {
+        "error": "TimeoutError('bridge did not answer ping within 600 s')"
+      },
+      "loop_zone": null,
+      "gc": null,
+      "diagnostic_valid": null,
+      "summaries": 0,
+      "gc_policy_applied": null,
+      "gc_policy_released": null,
+      "release_failure": [],
+      "host_load": {
+        "before": {
+          "loadavg": [
+            1.97412109375,
+            1.32177734375,
+            0.7021484375
+          ],
+          "pytest_or_codex_running": false
+        },
+        "after": {
+          "loadavg": [
+            2.12939453125,
+            2.16796875,
+            1.5380859375
+          ],
+          "pytest_or_codex_running": false
+        }
+      },
+      "artifact_sha256": {
+        "scope/service.log": "2d54e10935790ca080955afc984d615cebb3b515e11660ac666083fcc5018771",
+        "plan.json": "164cf2670c7fde3c767ac63b25b3ea422da6d536a7fe470dc5fab10c34b1e99b",
+        "root-receipt.json": "d16d80744bcf89f21c3d72f1f6077152c648896798e9b47c245cf9a196abdad3"
+      }
+    },
+    {
+      "name": "bridge-newton-policy-01",
+      "engine": "newton",
+      "gc_policy": "freeze-startup-heap",
+      "duration_s": 90.0,
+      "experience": null,
+      "scene_config": "kitchen",
+      "source": {
+        "branch": "perf/startup-heap-freeze",
+        "head": "e74002ac489e4d68d694cca7b987da88e3a15f9f",
+        "status": [],
+        "working_tree_sha256": {
+          "scripts/isaac_bridge.py": "1a7c152969c6270680d6162fd44d35294d9cbb2aa2e61e3ba77c86a2109171f3",
+          "scripts/isaac_python_spans.py": "95f91fed5c2b3d3b3dfd4acdd0d64efed1701b061ec1a0abf03303fd4c2bd387",
+          "src/cascade/sim/heap_freeze.py": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec"
+        }
+      },
+      "administrative_ok": false,
+      "retained_failure": {
+        "outcome": "failed startup",
+        "engine": "newton",
+        "scene_config": "kitchen",
+        "observation": "no [bridge] line was ever printed; the last startup lines were extension startups (isaacsim.ros2.bridge) at about 15 s, then silence until termination",
+        "termination": "launcher stopped by operator; scope unit stopped manually",
+        "policy_exercised": false,
+        "interpretation": "the full Newton editor experience stalls headless at ROS 2 bridge extension startup on this 6.2.0 source build, before the scene config is read; retained as a pre-existing failure, not a policy result",
+        "experience": "isaacsim.exp.full.newton.kit (bridge default for newton)"
+      },
+      "artifact_sha256": {
+        "scope/service.log": "3dd94eec72288adce619357cb7ea3640a54dfccd3d8305092007f4c28525d6e2",
+        "plan.json": "7a3a853f71addc9f8599273170aa39d6d35984b1259e98f59e6419f4d325a730"
+      }
+    },
+    {
+      "name": "bridge-newton-rebot-baseline-01",
+      "engine": "newton",
+      "gc_policy": null,
+      "duration_s": 90.0,
+      "experience": null,
+      "scene_config": null,
+      "retained_failure": {
+        "outcome": "failed startup",
+        "engine": "newton",
+        "scene_config": null,
+        "experience": "isaacsim.exp.full.newton.kit (bridge default for newton)",
+        "observation": "no [bridge] line printed; the last startup lines were extension startups ending with isaacsim.ros2.bridge-5.1.4 at about 15.7 s, then silence until the 240 s client ping deadline",
+        "termination": "client ping deadline then scope close (SIGTERM)",
+        "policy_exercised": false,
+        "interpretation": "the full Newton editor experience stalls headless at ROS 2 bridge extension startup on this 6.2.0 source build, independent of the kitchen scene; retained as a pre-existing failure, not a policy result"
+      },
+      "source": {
+        "branch": "perf/startup-heap-freeze",
+        "head": "e74002ac489e4d68d694cca7b987da88e3a15f9f",
+        "status": [],
+        "working_tree_sha256": {
+          "scripts/isaac_bridge.py": "1a7c152969c6270680d6162fd44d35294d9cbb2aa2e61e3ba77c86a2109171f3",
+          "scripts/isaac_python_spans.py": "95f91fed5c2b3d3b3dfd4acdd0d64efed1701b061ec1a0abf03303fd4c2bd387",
+          "src/cascade/sim/heap_freeze.py": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec"
+        }
+      },
+      "administrative_ok": false,
+      "serving": false,
+      "scope_exit": 1,
+      "closure_ok": true,
+      "gpu_attestation": null,
+      "client": {
+        "error": "TimeoutError('bridge did not answer ping within 240 s')"
+      },
+      "loop_zone": null,
+      "gc": null,
+      "diagnostic_valid": null,
+      "summaries": 0,
+      "gc_policy_applied": null,
+      "gc_policy_released": null,
+      "release_failure": [],
+      "host_load": {
+        "before": {
+          "loadavg": [
+            1.7021484375,
+            1.9736328125,
+            1.5927734375
+          ],
+          "pytest_or_codex_running": false
+        },
+        "after": {
+          "loadavg": [
+            1.955078125,
+            2.17919921875,
+            1.7841796875
+          ],
+          "pytest_or_codex_running": false
+        }
+      },
+      "artifact_sha256": {
+        "scope/service.log": "879065e3960fe2a02726d7c1732aa739093b332334d81b1f3ca60852c01c33ea",
+        "plan.json": "b0b5abe528d5b8ac04d5dcbd84094b61e819fd587997a267fef79ce141311468",
+        "root-receipt.json": "c2c3ebac5fc0ae38275e99a252054bcf6dbef36dce3d740e1358eb0121a79d9d"
+      }
+    }
+  ],
+  "limitations": [
+    "Direct diagnostic launches on the feature branch working tree (file hashes recorded), not reviewed plans.",
+    "Read-only client: no motion command, grasp, placement, stop or deadline recovery; no physical acceptance.",
+    "Single runs per engine and arm; host load uncontrolled (recorded); client latencies are not a speedup claim.",
+    "GC intervals come from passive callbacks and include scheduling and other callbacks; not isolated CPU time.",
+    "A short passive window may contain no automatic generation-2 collection at all; the post-freeze cost is the full collection measured while frozen at release, after the server stopped.",
+    "Shared default renderer cache; warp/cuda caches private and seeded."
+  ]
+}

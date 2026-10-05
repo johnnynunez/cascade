@@ -6,6 +6,7 @@ Profiler failures invalidate diagnostics without changing the enclosed operation
 """
 from __future__ import annotations
 
+import gc
 import hashlib
 import importlib
 import json
@@ -67,14 +68,77 @@ class _Zone:
         return False
 
 
+class _GCAccounting:
+    """Bounded passive collector accounting for the timing summaries.
+
+    One callback aggregates completed collections per generation (count, total
+    and maximum interval, whether the longest ran on the registering thread),
+    pairing start/stop per thread and generation without storing events. It
+    observes collector settings and never enables, disables, retunes, forces or
+    freezes the collector; closing removes only its own callback. Intervals
+    include scheduling and other callbacks and are not isolated CPU time.
+    """
+
+    def __init__(self, gc_module, clock_ns, thread_id):
+        self.gc, self.clock_ns, self.thread_id = gc_module, clock_ns, thread_id
+        self.pending, self.generations = {}, {}
+        self.events = self.unmatched = self.errors = 0
+        self.initial = self._settings()
+        self.callback = self._record  # retain this exact bound method for removal
+        gc_module.callbacks.append(self.callback)
+
+    def _settings(self):
+        return {'enabled': bool(self.gc.isenabled()), 'thresholds': list(self.gc.get_threshold())}
+
+    def _record(self, phase, info):
+        try:
+            self.events += 1
+            key = (threading.get_ident(), int(info['generation']))
+            now = self.clock_ns()
+            if phase == 'start':
+                self.pending[key] = now
+                return
+            started = self.pending.pop(key, None)
+            if started is None:
+                self.unmatched += 1
+                return
+            duration = now - started
+            row = self.generations.setdefault(key[1], {'count': 0, 'total_ns': 0, 'max_ns': 0,
+                                                       'last_ns': 0, 'max_on_registering_thread': None})
+            row['count'] += 1
+            row['total_ns'] += duration
+            row['last_ns'] = duration
+            if duration >= row['max_ns']:
+                row['max_ns'] = duration
+                row['max_on_registering_thread'] = key[0] == self.thread_id
+        except Exception:
+            self.errors += 1  # never raise inside a collector callback
+
+    def summary(self):
+        frozen = getattr(self.gc, 'get_freeze_count', None)
+        return {'events': self.events, 'unmatched': self.unmatched, 'errors': self.errors,
+                'pending': len(self.pending), 'settings_initial': self.initial, 'settings_now': self._settings(),
+                'frozen_objects': None if frozen is None else int(frozen()),
+                'generations': {str(k): dict(v) for k, v in sorted(self.generations.items())},
+                'scope': 'passive callback intervals; include scheduling and other callbacks; '
+                         'not isolated CPU time; collector settings observed only'}
+
+    def close(self):
+        for index in range(len(self.gc.callbacks) - 1, -1, -1):
+            if self.gc.callbacks[index] is self.callback:
+                del self.gc.callbacks[index]
+
+
 class PythonSpans:
     """No tensor/SDK reads, global tracing hooks, or per-loop event storage."""
 
     def __init__(self, *, enabled=False, backend=None, source_path="",
                  clock_ns=time.monotonic_ns, emit=print, timings=False,
-                 cpu_clock_ns=time.thread_time_ns):
+                 cpu_clock_ns=time.thread_time_ns, gc_module=None):
         self.enabled = enabled
         self.timings, self.cpu_clock_ns = timings, cpu_clock_ns
+        self.gc = (_GCAccounting(gc_module, clock_ns, threading.get_ident())
+                   if timings and gc_module is not None else None)
         self.timing_totals = {}
         self.timing_start = self.timing_thread_id = self.last_timing_report = None
         self.backend = backend
@@ -161,6 +225,7 @@ class PythonSpans:
                 'source_path': self.source_path, 'source_sha256': self.source_sha256,
                 'helper_sha256': self.helper_sha256, 'started_monotonic_ns': self.timing_start,
                 'snapshot_monotonic_ns': now, 'zones': self.timing_totals,
+                'gc': None if self.gc is None else self.gc.summary(),
                 'scope': 'completed inclusive zones; nested totals overlap; thread CPU excludes other threads and GPU',
             }), flush=True)
         except Exception as exc:
@@ -243,6 +308,11 @@ class PythonSpans:
 
     def report(self):
         self.report_timings(final=True)
+        if self.gc is not None:
+            try:
+                self.gc.close()  # after the final summary; foreign callbacks are untouched
+            except Exception as exc:
+                self.fail('gc_close', exc)
         if not self.enabled:
             return
         try:
@@ -259,7 +329,8 @@ class PythonSpans:
 def from_environment(source_path):
     enabled = os.environ.get("CASCADE_ISAAC_PYTHON_SPANS", "0") == "1"
     timings = os.environ.get("CASCADE_ISAAC_PYTHON_TIMINGS", "0") == "1"
-    spans = PythonSpans(enabled=enabled, timings=timings, source_path=source_path)
+    spans = PythonSpans(enabled=enabled, timings=timings, source_path=source_path,
+                        gc_module=gc if timings else None)
     if enabled or timings:
         try:
             spans.source_sha256 = hashlib.sha256(Path(source_path).read_bytes()).hexdigest()

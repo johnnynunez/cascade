@@ -469,3 +469,111 @@ def test_timing_fault_only_invalidates_diagnostics(fault):
         # An invalid clock/thread cannot author a new trustworthy timestamp.
         assert final['event'] == ('diagnostic_error' if fault in ('clock', 'thread') else 'timing_summary')
         assert not final['diagnostic_valid']
+
+
+class _Ticker:
+    def __init__(self, step=1000):
+        self.now, self.step = 0, step
+
+    def __call__(self):
+        self.now += self.step
+        return self.now
+
+
+def fake_gc():
+    def forbidden(*args):
+        raise AssertionError('passive accounting must not control the collector')
+    g = SimpleNamespace(callbacks=[], enabled=True, thresholds=(700, 10, 10), frozen=375)
+    g.isenabled = lambda: g.enabled
+    g.get_threshold = lambda: g.thresholds
+    g.get_freeze_count = lambda: g.frozen
+    g.enable = g.disable = g.set_threshold = g.collect = g.freeze = g.unfreeze = forbidden
+    return g
+
+
+def test_timing_summary_accounts_collections_passively_and_removes_only_its_callback():
+    g, lines, foreign = fake_gc(), [], object()
+    g.callbacks.append(foreign)
+    spans = PythonSpans(timings=True, clock_ns=_Ticker(), cpu_clock_ns=_Ticker(1),
+                        emit=lambda line, **kw: lines.append(line), gc_module=g)
+    assert g.callbacks == [foreign, spans.gc.callback]
+    cb = spans.gc.callback
+    cb('start', {'generation': 2})
+    cb('stop', {'generation': 2, 'collected': 5, 'uncollectable': 0})
+    cb('start', {'generation': 0})
+    cb('stop', {'generation': 0, 'collected': 0, 'uncollectable': 0})
+    cb('stop', {'generation': 1, 'collected': 0, 'uncollectable': 0})  # stop without start
+    with spans.zone('bridge.loop'):
+        pass
+    spans.report()
+    summaries = [json.loads(line.split(' ', 1)[1]) for line in lines if '"timing_summary"' in line]
+    gc_summary = summaries[-1]['gc']
+    assert gc_summary['generations']['2'] == {'count': 1, 'total_ns': 1000, 'max_ns': 1000, 'last_ns': 1000,
+                                              'max_on_registering_thread': True}
+    assert gc_summary['generations']['0']['count'] == 1 and gc_summary['unmatched'] == 1
+    assert gc_summary['errors'] == 0 and gc_summary['pending'] == 0 and gc_summary['frozen_objects'] == 375
+    assert gc_summary['settings_initial'] == gc_summary['settings_now'] == {'enabled': True, 'thresholds': [700, 10, 10]}
+    assert g.callbacks == [foreign] and g.enabled and g.thresholds == (700, 10, 10)
+
+
+def test_collector_callback_errors_count_and_never_propagate():
+    g, lines = fake_gc(), []
+    spans = PythonSpans(timings=True, clock_ns=_Ticker(), cpu_clock_ns=_Ticker(1),
+                        emit=lambda line, **kw: lines.append(line), gc_module=g)
+    spans.gc.clock_ns = lambda: (_ for _ in ()).throw(RuntimeError('clock unavailable'))
+    spans.gc.callback('start', {'generation': 2})  # must not raise inside the collector
+    assert spans.gc.errors == 1 and spans.gc.pending == {}
+    other_thread = []
+    def worker():
+        spans.gc.clock_ns = _Ticker()
+        spans.gc.callback('start', {'generation': 2})
+        spans.gc.callback('stop', {'generation': 2})
+        other_thread.append(True)
+    thread = threading.Thread(target=worker)
+    thread.start()
+    thread.join()
+    assert other_thread and spans.gc.generations[2]['max_on_registering_thread'] is False
+    spans.report()
+    assert g.callbacks == []
+
+
+def test_timings_disabled_registers_no_collector_callback():
+    g = fake_gc()
+    spans = PythonSpans(timings=False, gc_module=g)
+    assert spans.gc is None and g.callbacks == []
+    spans.report()
+
+
+def test_environment_timings_register_on_the_real_collector_and_release_it(monkeypatch):
+    import gc as real_gc
+    monkeypatch.setenv('CASCADE_ISAAC_PYTHON_TIMINGS', '1')
+    monkeypatch.delenv('CASCADE_ISAAC_PYTHON_SPANS', raising=False)
+    before = tuple(real_gc.callbacks)
+    settings = real_gc.isenabled(), real_gc.get_threshold()
+    helper = runpy.run_path(str(HELPER))
+    lines = []
+    spans = helper['from_environment'](str(HELPER))
+    spans.emit = lambda line, **kw: lines.append(line)
+    try:
+        assert len(real_gc.callbacks) == len(before) + 1 and spans.gc is not None
+    finally:
+        spans.report()
+    assert tuple(real_gc.callbacks) == before and (real_gc.isenabled(), real_gc.get_threshold()) == settings
+    final = [json.loads(line.split(' ', 1)[1]) for line in lines if '"timing_summary"' in line][-1]
+    assert final['final'] is True and set(final['gc']) >= {'events', 'generations', 'settings_now', 'frozen_objects'}
+
+
+def test_bridge_gc_policy_is_applied_after_serving_before_the_loop_and_released_before_kit_close():
+    source = (REPO / 'scripts/isaac_bridge.py').read_text()
+    assert '"--gc-policy"' in source and 'CASCADE_ISAAC_GC_POLICY' in source
+    serving = source.index('[bridge] serving cascade bridge on')
+    applied = source.index('_heap_freeze.apply()')
+    anchor = source.index('_python_spans.anchor_once()')
+    loop = source.index('while app.is_running() and not _bridge_should_stop():')
+    assert serving < applied < anchor < loop
+    assert source.index('Handler.scene_identity["gc_policy"]') < loop
+    finally_block = source[source.rindex('\nfinally:'):]
+    release = finally_block.index('cleanup.callback(_release_startup_heap)')
+    # ExitStack runs callbacks last-in first-out: release after the server stopped, before Kit closes.
+    assert finally_block.index('cleanup.callback(app.close)') < release < finally_block.index('cleanup.callback(server.shutdown)')
+    assert source.index('_heap_freeze = None') < source.index('_previous_sigterm = signal.signal(')

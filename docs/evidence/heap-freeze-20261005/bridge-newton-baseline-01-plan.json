@@ -1,0 +1,68 @@
+{
+  "schema": "cascade.heap-freeze.bridge-probe.v1",
+  "argv": [
+    "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/python.sh",
+    "/home/johnny/Projects/demo/cascade/scripts/isaac_bridge.py",
+    "--engine",
+    "newton",
+    "--port",
+    "54317",
+    "--scene-config",
+    "/home/johnny/Projects/demo/cascade/demo/scene/kitchen_config.json"
+  ],
+  "engine": "newton",
+  "gc_policy": null,
+  "duration_s": 90.0,
+  "port": 54317,
+  "environment": {
+    "CASCADE_ISAAC_PYTHON_TIMINGS": "1",
+    "CASCADE_REQUIRE_CUDA": "1",
+    "CUDA_CACHE_PATH": "/home/johnny/Projects/demo/cascade-lab/HEAP_FREEZE_20261005/bridge-newton-baseline-01/cache/cuda",
+    "CUDA_VISIBLE_DEVICES": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+    "ISAACSIM_PATH": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release",
+    "ISAACSIM_PYTHON_EXE": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/python.sh",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONUNBUFFERED": "1",
+    "WARP_CACHE_PATH": "/home/johnny/Projects/demo/cascade-lab/HEAP_FREEZE_20261005/bridge-newton-baseline-01/cache/warp",
+    "PATH": "<inherited>"
+  },
+  "renderer_cache": "shared default XDG cache (warm RTX shaders); warp/cuda caches private, seeded from the MicroDuck probe",
+  "source": {
+    "branch": "perf/startup-heap-freeze",
+    "head": "7a841490cb376e791495a4c12f2555cf8a5b2c3e",
+    "status": [],
+    "working_tree_sha256": {
+      "scripts/isaac_bridge.py": "1a7c152969c6270680d6162fd44d35294d9cbb2aa2e61e3ba77c86a2109171f3",
+      "scripts/isaac_python_spans.py": "4bf231efd07643f5e883d49887dcafb6e7071279a98f6766e9268a9fc7b0312c",
+      "src/cascade/sim/heap_freeze.py": "52e352502bdf115d2226e73e7172356eee4bad0f7daf585b96f8fab6069da2ec"
+    }
+  },
+  "control_attempted": false,
+  "physical_acceptance": false,
+  "host_load_before": {
+    "loadavg": [
+      1.97412109375,
+      1.32177734375,
+      0.7021484375
+    ],
+    "pytest_or_codex_running": false
+  },
+  "environment_redacted": {
+    "dropped_inherited_keys": 48,
+    "kept_prefixes": [
+      "CASCADE_",
+      "ISAACSIM_",
+      "MICRODUCK_",
+      "CUDA_",
+      "WARP_",
+      "XDG_CACHE_HOME",
+      "OMP_NUM_THREADS",
+      "OPENBLAS_NUM_THREADS",
+      "PYTHONUNBUFFERED",
+      "PYTHONDONTWRITEBYTECODE",
+      "PYTHONEXE",
+      "PATH"
+    ],
+    "note": "inherited shell variables removed before publication; recipe variables retained"
+  }
+}

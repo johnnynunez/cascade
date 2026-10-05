@@ -1,0 +1,192 @@
+{
+  "name": "bridge-newton-baseline-01",
+  "engine": "newton",
+  "gc_policy": null,
+  "physical_acceptance": false,
+  "control_attempted": false,
+  "gpu_admission": {
+    "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+    "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+    "total_mib": 97887,
+    "used_mib": 124,
+    "free_mib": 97218,
+    "utilization_percent": 0,
+    "foreign": [],
+    "required_free_mib": 16384,
+    "shared_device_no_performance_claim": true,
+    "admitted": true
+  },
+  "client": {
+    "error": "TimeoutError('bridge did not answer ping within 600 s')"
+  },
+  "closure": {
+    "name": "bridge-probe-bridge-newton-baseline-01",
+    "unit": "cascade-voice-bridge-probe-bridge-newton-baseline-01-425e12126e3e4221ac59137d6e68ed02.scope",
+    "ok": true,
+    "forced": false,
+    "signals": [
+      {
+        "pid": 2098778,
+        "start_ticks": 11756439,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "signal": 15
+      }
+    ],
+    "errors": [],
+    "scope_client_exit": 1,
+    "state": {
+      "Description": "cascade-voice-bridge-probe-bridge-newton-baseline-01-425e12126e3e4221ac59137d6e68ed02.scope",
+      "LoadState": "not-found",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "InvocationID": "",
+      "Result": "success",
+      "ControlGroup": ""
+    },
+    "remaining_members": [],
+    "observed_births": [
+      {
+        "pid": 2098768,
+        "start_ticks": 11756435,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/usr/lib/cargo/bin/coreutils/timeout",
+        "argv": [
+          "/usr/bin/timeout",
+          "--kill-after=15s",
+          "900s",
+          "nice",
+          "-n",
+          "19",
+          "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/python.sh",
+          "/home/johnny/Projects/demo/cascade/scripts/isaac_bridge.py",
+          "--engine",
+          "newton",
+          "--port",
+          "54317",
+          "--scene-config",
+          "/home/johnny/Projects/demo/cascade/demo/scene/kitchen_config.json"
+        ]
+      },
+      {
+        "pid": 2098770,
+        "start_ticks": 11756438,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/usr/bin/bash",
+        "argv": [
+          "/bin/bash",
+          "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/python.sh",
+          "/home/johnny/Projects/demo/cascade/scripts/isaac_bridge.py",
+          "--engine",
+          "newton",
+          "--port",
+          "54317",
+          "--scene-config",
+          "/home/johnny/Projects/demo/cascade/demo/scene/kitchen_config.json"
+        ]
+      },
+      {
+        "pid": 2098778,
+        "start_ticks": 11756439,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/home/johnny/.cache/packman/chk/kit-kernel/110.4.0+feature.384729.1066600b.gl.manylinux_2_35_x86_64.release/python/bin/python3.12",
+        "argv": [
+          "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/kit/python/bin/python3",
+          "/home/johnny/Projects/demo/cascade/scripts/isaac_bridge.py",
+          "--engine",
+          "newton",
+          "--port",
+          "54317",
+          "--scene-config",
+          "/home/johnny/Projects/demo/cascade/demo/scene/kitchen_config.json"
+        ]
+      },
+      {
+        "pid": 2098915,
+        "start_ticks": 11756634,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/home/johnny/.local/share/ov/data/exts/v2/omni.kit.telemetry-19ccddfaad2f2a3b/omni.telemetry.transmitter/omni.telemetry.transmitter",
+        "argv": [
+          "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/extscache/omni.kit.telemetry-0.5.2+1066600b.lx64.r.cp312/omni.telemetry.transmitter/omni.telemetry.transmitter",
+          "--/telemetry/allowRoot=false",
+          "--/telemetry/enableAnonymousData=true",
+          "--/telemetry/useOpenEndpoint=true",
+          "--/telemetry/mode=\"\"",
+          "--/telemetry/enableAnonymousAppName=true",
+          "--/telemetry/logging/warnFilter/0=\"*\"",
+          "--/telemetry/enableNVDF=false",
+          "--/telemetry/enableSentry=false",
+          "--/telemetry/removePIISentry=false",
+          "--/telemetry/appRootPath=\"\"",
+          "--/telemetry/dsn=\"https://b61f14dfc36f4beabadf4d9dba8e492b@sentry.perflab.nvidia.com/834\"",
+          "--/telemetry/openEndpointUrl=\"https://opentelemetry.analytics.nvidiagrid.net/api/v3/topic/omniverse-team.open.omni-open-collector\"",
+          "--/telemetry/openTestEndpointUrl=\"https://opentelemetry.analytics.nvidiagrid.net/api/v3/topic/omniverse-team.open.omni-test-open-collector\"",
+          "--/telemetry/enterpriseOpenEndpointUrl=\"https://opentelemetry.analytics.nvidiagrid.net/api/v3/topic/omniverse-team.open.omni-ove-open-collector\"",
+          "--/telemetry/enterpriseOpenTestEndpointUrl=\"https://opentelemetry.analytics.nvidiagrid.net/api/v3/topic/omniverse-team.open.omni-ove-test-open-collector\"",
+          "--/log/outputStreamLevel=\"Warning\"",
+          "--/log/debugConsoleLevel=\"Warning\"",
+          "--/log/fileLogLevel=\"Info\"",
+          "--/log/fileMaxCount=30",
+          "--/log/includeTimeStamp=true",
+          "--/log/setElapsedTimeUnits=\"milliseconds\"",
+          "--/log/enabled=true",
+          "--/log/async=false",
+          "--/log/fileFlushLevel=\"verbose\"",
+          "--/log/flushStandardStreamOutput=false",
+          "--/log/enableDebugConsoleOutput=true",
+          "--/log/enableColorOutput=true",
+          "--/log/processGroupId=0",
+          "--/log/includeSource=true",
+          "--/log/includeChannel=true",
+          "--/log/includeFilename=false",
+          "--/log/includeLineNumber=false",
+          "--/log/includeFunctionName=false",
+          "--/log/includeSequenceNumber=false",
+          "--/log/includeThreadId=false",
+          "--/log/includeProcessId=false",
+          "--/log/includeTraceId=false",
+          "--/log/detail=false",
+          "--/log/fullDetail=false",
+          "--/log/forceAnsiColor=false",
+          "--/log/fileAppend=false",
+          "--/log/utcTimestamp=true",
+          "--/log/microsecondTimestamp=false",
+          "--/log/enableStandardStreamOutput=false",
+          "--/log/file=/home/johnny/.nvidia-omniverse/logs/omni.telemetry.transmitter.log",
+          "--/log/level=Info",
+          "--/log/file=/home/johnny/.cache/packman/chk/kit-kernel/110.4.0+feature.384729.1066600b.gl.manylinux_2_35_x86_64.release/logs/omni.telemetry.transmitter.log",
+          "--/log/level=Warning",
+          "--/privacy/personalization=true",
+          "--/privacy/performance=true",
+          "--/privacy/usage=true",
+          "--/privacy/userId=97ced0d24e233a02",
+          "--/telemetry/extraFieldsToAdd=schemaid",
+          "--/structuredLog/extraFields/schemaid=omniverse-team.open.omni-open-collector:1",
+          "--/telemetry/runEnvironment=Individual",
+          "--/telemetry/transmitter/0/authenticate=false",
+          "--/telemetry/transmitter/0/eventProtocol=defaultWithList",
+          "--/telemetry/transmitter/0/endpoint=https://opentelemetry.analytics.nvidiagrid.net/api/v3/topic/omniverse-team.open.omni-open-collector"
+        ]
+      }
+    ],
+    "remaining_births": []
+  },
+  "scope_exit": 1,
+  "log": {
+    "summaries": 0,
+    "final_summary": null,
+    "gc_policy_applied": null,
+    "gc_policy_released": null,
+    "release_failure": [],
+    "serving": false,
+    "gpu_attestation": null
+  },
+  "host_load_after": {
+    "loadavg": [
+      2.12939453125,
+      2.16796875,
+      1.5380859375
+    ],
+    "pytest_or_codex_running": false
+  },
+  "administrative_ok": false
+}

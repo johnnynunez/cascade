@@ -1,0 +1,469 @@
+{
+  "name": "bridge-physx-baseline-02",
+  "engine": "physx",
+  "gc_policy": null,
+  "physical_acceptance": false,
+  "control_attempted": false,
+  "gpu_admission": {
+    "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+    "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+    "total_mib": 97887,
+    "used_mib": 124,
+    "free_mib": 97218,
+    "utilization_percent": 0,
+    "foreign": [],
+    "required_free_mib": 16384,
+    "shared_device_no_performance_claim": true,
+    "admitted": true
+  },
+  "client": {
+    "ping": {
+      "ok": true,
+      "engine": "physx",
+      "dofs": [
+        "joint1",
+        "joint2",
+        "joint3",
+        "joint4",
+        "joint5",
+        "joint6",
+        "joint_left",
+        "joint_right"
+      ],
+      "scene_name": "paai-cocina-asier-v1",
+      "scene_config": "/home/johnny/Projects/demo/cascade/demo/scene/kitchen_config.json",
+      "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+      "scene_assets_sha256": "bcf2019ae6fb3a3b8d05de576658e13fc01e269292d345008fe10afd67593b6d",
+      "scene_content_sha256": "85b758883ebe2a295be49729a3c8cab7e05827faa7f6b9ec2e5942a7150abb9b",
+      "physics_dt_s": 0.016666666666666666,
+      "physics_dt_source": "SimulationManager.get_physics_dt",
+      "physics_dt_scene_count": 1,
+      "physics_device": "cuda:0",
+      "physics_tensor_device": "cuda:0",
+      "physics_gpu": true,
+      "gpu_attestation": {
+        "required": true,
+        "backend": "physx",
+        "device": "cuda:0",
+        "tensor_device": "cuda:0",
+        "tensor_device_ordinal": 0,
+        "cuda_context_present": true,
+        "gpu_dynamics": true,
+        "broadphase": "GPU",
+        "cpu_fallback_allowed": false,
+        "fallback_log_count": 0
+      }
+    },
+    "cameras": [],
+    "camera": "cam0",
+    "duration_s": 90.0,
+    "state": {
+      "count": 281,
+      "median_ms": 43.627,
+      "p95_ms": 51.911,
+      "max_ms": 3044.338
+    },
+    "frame": {
+      "count": 90,
+      "median_ms": 70.07,
+      "p95_ms": 72.403,
+      "max_ms": 77.91
+    },
+    "state_over_400ms": 1,
+    "frame_over_400ms": 0,
+    "errors": [],
+    "error_count": 0
+  },
+  "closure": {
+    "name": "bridge-probe-bridge-physx-baseline-02",
+    "unit": "cascade-voice-bridge-probe-bridge-physx-baseline-02-56f06fabeefe4e51b2b7e826e5438209.scope",
+    "ok": true,
+    "forced": false,
+    "signals": [
+      {
+        "pid": 2095550,
+        "start_ticks": 11728152,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "signal": 15
+      }
+    ],
+    "errors": [],
+    "scope_client_exit": 0,
+    "state": {
+      "Description": "cascade-voice-bridge-probe-bridge-physx-baseline-02-56f06fabeefe4e51b2b7e826e5438209.scope",
+      "LoadState": "not-found",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "InvocationID": "",
+      "Result": "success",
+      "ControlGroup": ""
+    },
+    "remaining_members": [],
+    "observed_births": [
+      {
+        "pid": 2095540,
+        "start_ticks": 11728148,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/usr/lib/cargo/bin/coreutils/timeout",
+        "argv": [
+          "/usr/bin/timeout",
+          "--kill-after=15s",
+          "900s",
+          "nice",
+          "-n",
+          "19",
+          "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/python.sh",
+          "/home/johnny/Projects/demo/cascade/scripts/isaac_bridge.py",
+          "--engine",
+          "physx",
+          "--port",
+          "45181",
+          "--scene-config",
+          "/home/johnny/Projects/demo/cascade/demo/scene/kitchen_config.json"
+        ]
+      },
+      {
+        "pid": 2095542,
+        "start_ticks": 11728150,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/usr/bin/bash",
+        "argv": [
+          "/bin/bash",
+          "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/python.sh",
+          "/home/johnny/Projects/demo/cascade/scripts/isaac_bridge.py",
+          "--engine",
+          "physx",
+          "--port",
+          "45181",
+          "--scene-config",
+          "/home/johnny/Projects/demo/cascade/demo/scene/kitchen_config.json"
+        ]
+      },
+      {
+        "pid": 2095550,
+        "start_ticks": 11728152,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/home/johnny/.cache/packman/chk/kit-kernel/110.4.0+feature.384729.1066600b.gl.manylinux_2_35_x86_64.release/python/bin/python3.12",
+        "argv": [
+          "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/kit/python/bin/python3",
+          "/home/johnny/Projects/demo/cascade/scripts/isaac_bridge.py",
+          "--engine",
+          "physx",
+          "--port",
+          "45181",
+          "--scene-config",
+          "/home/johnny/Projects/demo/cascade/demo/scene/kitchen_config.json"
+        ]
+      },
+      {
+        "pid": 2095687,
+        "start_ticks": 11728322,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/home/johnny/.local/share/ov/data/exts/v2/omni.kit.telemetry-19ccddfaad2f2a3b/omni.telemetry.transmitter/omni.telemetry.transmitter",
+        "argv": [
+          "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/extscache/omni.kit.telemetry-0.5.2+1066600b.lx64.r.cp312/omni.telemetry.transmitter/omni.telemetry.transmitter",
+          "--/telemetry/allowRoot=false",
+          "--/telemetry/enableAnonymousData=true",
+          "--/telemetry/useOpenEndpoint=true",
+          "--/telemetry/mode=\"\"",
+          "--/telemetry/enableAnonymousAppName=true",
+          "--/telemetry/logging/warnFilter/0=\"*\"",
+          "--/telemetry/enableNVDF=false",
+          "--/telemetry/enableSentry=false",
+          "--/telemetry/removePIISentry=false",
+          "--/telemetry/appRootPath=\"\"",
+          "--/telemetry/dsn=\"https://b61f14dfc36f4beabadf4d9dba8e492b@sentry.perflab.nvidia.com/834\"",
+          "--/telemetry/openEndpointUrl=\"https://opentelemetry.analytics.nvidiagrid.net/api/v3/topic/omniverse-team.open.omni-open-collector\"",
+          "--/telemetry/openTestEndpointUrl=\"https://opentelemetry.analytics.nvidiagrid.net/api/v3/topic/omniverse-team.open.omni-test-open-collector\"",
+          "--/telemetry/enterpriseOpenEndpointUrl=\"https://opentelemetry.analytics.nvidiagrid.net/api/v3/topic/omniverse-team.open.omni-ove-open-collector\"",
+          "--/telemetry/enterpriseOpenTestEndpointUrl=\"https://opentelemetry.analytics.nvidiagrid.net/api/v3/topic/omniverse-team.open.omni-ove-test-open-collector\"",
+          "--/log/outputStreamLevel=\"Warning\"",
+          "--/log/debugConsoleLevel=\"Warning\"",
+          "--/log/fileLogLevel=\"Info\"",
+          "--/log/fileMaxCount=30",
+          "--/log/includeTimeStamp=true",
+          "--/log/setElapsedTimeUnits=\"milliseconds\"",
+          "--/log/enabled=true",
+          "--/log/async=false",
+          "--/log/fileFlushLevel=\"verbose\"",
+          "--/log/flushStandardStreamOutput=false",
+          "--/log/enableDebugConsoleOutput=true",
+          "--/log/enableColorOutput=true",
+          "--/log/processGroupId=0",
+          "--/log/includeSource=true",
+          "--/log/includeChannel=true",
+          "--/log/includeFilename=false",
+          "--/log/includeLineNumber=false",
+          "--/log/includeFunctionName=false",
+          "--/log/includeSequenceNumber=false",
+          "--/log/includeThreadId=false",
+          "--/log/includeProcessId=false",
+          "--/log/includeTraceId=false",
+          "--/log/detail=false",
+          "--/log/fullDetail=false",
+          "--/log/forceAnsiColor=false",
+          "--/log/fileAppend=false",
+          "--/log/utcTimestamp=true",
+          "--/log/microsecondTimestamp=false",
+          "--/log/enableStandardStreamOutput=false",
+          "--/log/file=/home/johnny/.nvidia-omniverse/logs/omni.telemetry.transmitter.log",
+          "--/log/level=Info",
+          "--/log/file=/home/johnny/.cache/packman/chk/kit-kernel/110.4.0+feature.384729.1066600b.gl.manylinux_2_35_x86_64.release/logs/omni.telemetry.transmitter.log",
+          "--/log/level=Warning",
+          "--/privacy/personalization=true",
+          "--/privacy/performance=true",
+          "--/privacy/usage=true",
+          "--/privacy/userId=2c910923c9648de6",
+          "--/telemetry/extraFieldsToAdd=schemaid",
+          "--/structuredLog/extraFields/schemaid=omniverse-team.open.omni-open-collector:1",
+          "--/telemetry/runEnvironment=Individual",
+          "--/telemetry/transmitter/0/authenticate=false",
+          "--/telemetry/transmitter/0/eventProtocol=defaultWithList",
+          "--/telemetry/transmitter/0/endpoint=https://opentelemetry.analytics.nvidiagrid.net/api/v3/topic/omniverse-team.open.omni-open-collector"
+        ]
+      }
+    ],
+    "remaining_births": []
+  },
+  "scope_exit": 0,
+  "log": {
+    "summaries": 9,
+    "final_summary": {
+      "event": "timing_summary",
+      "final": false,
+      "diagnostic_valid": true,
+      "error_count": 0,
+      "pid": 2095550,
+      "native_thread_id": 2095550,
+      "source_path": "/home/johnny/Projects/demo/cascade/scripts/isaac_bridge.py",
+      "source_sha256": "1a7c152969c6270680d6162fd44d35294d9cbb2aa2e61e3ba77c86a2109171f3",
+      "helper_sha256": "4bf231efd07643f5e883d49887dcafb6e7071279a98f6766e9268a9fc7b0312c",
+      "started_monotonic_ns": 117306195053132,
+      "snapshot_monotonic_ns": 117396453431964,
+      "zones": {
+        "bridge.app_update": {
+          "count": 3078,
+          "exceptions": 0,
+          "wall_total_ns": 29857167987,
+          "wall_min_ns": 5248987,
+          "wall_max_ns": 1041269477,
+          "thread_cpu_total_ns": 17400147784,
+          "thread_cpu_min_ns": 1650266,
+          "thread_cpu_max_ns": 1036793501
+        },
+        "bridge.frame_state.q": {
+          "count": 3078,
+          "exceptions": 0,
+          "wall_total_ns": 12664419373,
+          "wall_min_ns": 237131,
+          "wall_max_ns": 9202012,
+          "thread_cpu_total_ns": 12633456423,
+          "thread_cpu_min_ns": 237336,
+          "thread_cpu_max_ns": 8895444
+        },
+        "bridge.history": {
+          "count": 3078,
+          "exceptions": 0,
+          "wall_total_ns": 13281652819,
+          "wall_min_ns": 370253,
+          "wall_max_ns": 9390800,
+          "thread_cpu_total_ns": 13249453668,
+          "thread_cpu_min_ns": 370245,
+          "thread_cpu_max_ns": 9085218
+        },
+        "bridge.refresh.token": {
+          "count": 4275,
+          "exceptions": 0,
+          "wall_total_ns": 470989081,
+          "wall_min_ns": 79801,
+          "wall_max_ns": 1163190,
+          "thread_cpu_total_ns": 469474945,
+          "thread_cpu_min_ns": 79809,
+          "thread_cpu_max_ns": 302965
+        },
+        "bridge.refresh.rgb": {
+          "count": 4275,
+          "exceptions": 0,
+          "wall_total_ns": 35197861860,
+          "wall_min_ns": 7588067,
+          "wall_max_ns": 14902948,
+          "thread_cpu_total_ns": 35036593629,
+          "thread_cpu_min_ns": 7588012,
+          "thread_cpu_max_ns": 12309454
+        },
+        "bridge.refresh.depth": {
+          "count": 4275,
+          "exceptions": 0,
+          "wall_total_ns": 3761572949,
+          "wall_min_ns": 737452,
+          "wall_max_ns": 5691360,
+          "thread_cpu_total_ns": 3736237133,
+          "thread_cpu_min_ns": 737627,
+          "thread_cpu_max_ns": 2460961
+        },
+        "bridge.refresh.publish": {
+          "count": 4275,
+          "exceptions": 0,
+          "wall_total_ns": 544850576,
+          "wall_min_ns": 106623,
+          "wall_max_ns": 1050298,
+          "thread_cpu_total_ns": 543974362,
+          "thread_cpu_min_ns": 106540,
+          "thread_cpu_max_ns": 315783
+        },
+        "bridge.refresh": {
+          "count": 1425,
+          "exceptions": 0,
+          "wall_total_ns": 42944034509,
+          "wall_min_ns": 27873375,
+          "wall_max_ns": 39350069,
+          "thread_cpu_total_ns": 42729678953,
+          "thread_cpu_min_ns": 27872749,
+          "thread_cpu_max_ns": 38630495
+        },
+        "bridge.targets.get": {
+          "count": 2838,
+          "exceptions": 0,
+          "wall_total_ns": 344290885,
+          "wall_min_ns": 62946,
+          "wall_max_ns": 4554270,
+          "thread_cpu_total_ns": 309055706,
+          "thread_cpu_min_ns": 63065,
+          "thread_cpu_max_ns": 331057
+        },
+        "bridge.targets.numpy": {
+          "count": 2838,
+          "exceptions": 0,
+          "wall_total_ns": 200650876,
+          "wall_min_ns": 54163,
+          "wall_max_ns": 4661243,
+          "thread_cpu_total_ns": 186462343,
+          "thread_cpu_min_ns": 54191,
+          "thread_cpu_max_ns": 240741
+        },
+        "bridge.targets.compose": {
+          "count": 2838,
+          "exceptions": 0,
+          "wall_total_ns": 44764352,
+          "wall_min_ns": 10637,
+          "wall_max_ns": 1565883,
+          "thread_cpu_total_ns": 43238136,
+          "thread_cpu_min_ns": 10636,
+          "thread_cpu_max_ns": 56293
+        },
+        "bridge.targets.set": {
+          "count": 2838,
+          "exceptions": 0,
+          "wall_total_ns": 822766818,
+          "wall_min_ns": 228047,
+          "wall_max_ns": 4759292,
+          "thread_cpu_total_ns": 793337459,
+          "thread_cpu_min_ns": 228262,
+          "thread_cpu_max_ns": 766078
+        },
+        "bridge.exec_job.callable": {
+          "count": 277,
+          "exceptions": 0,
+          "wall_total_ns": 144775414,
+          "wall_min_ns": 396623,
+          "wall_max_ns": 745805,
+          "thread_cpu_total_ns": 144823185,
+          "thread_cpu_min_ns": 396875,
+          "thread_cpu_max_ns": 746200
+        },
+        "bridge.exec_jobs": {
+          "count": 2838,
+          "exceptions": 0,
+          "wall_total_ns": 177309052,
+          "wall_min_ns": 3946,
+          "wall_max_ns": 823894,
+          "thread_cpu_total_ns": 177213064,
+          "thread_cpu_min_ns": 3946,
+          "thread_cpu_max_ns": 823936
+        },
+        "bridge.loop": {
+          "count": 2838,
+          "exceptions": 0,
+          "wall_total_ns": 85783136853,
+          "wall_min_ns": 6858947,
+          "wall_max_ns": 113095005,
+          "thread_cpu_total_ns": 73898476844,
+          "thread_cpu_min_ns": 3143144,
+          "thread_cpu_max_ns": 56489955
+        },
+        "bridge.wrist": {
+          "count": 1419,
+          "exceptions": 0,
+          "wall_total_ns": 1984014534,
+          "wall_min_ns": 1073754,
+          "wall_max_ns": 6421051,
+          "thread_cpu_total_ns": 1977601092,
+          "thread_cpu_min_ns": 1074452,
+          "thread_cpu_max_ns": 2242694
+        }
+      },
+      "gc": {
+        "events": 9052,
+        "unmatched": 0,
+        "errors": 0,
+        "pending": 0,
+        "settings_initial": {
+          "enabled": true,
+          "thresholds": [
+            700,
+            10,
+            10
+          ]
+        },
+        "settings_now": {
+          "enabled": true,
+          "thresholds": [
+            700,
+            10,
+            10
+          ]
+        },
+        "frozen_objects": 375,
+        "generations": {
+          "0": {
+            "count": 4139,
+            "total_ns": 93741502,
+            "max_ns": 1211594,
+            "last_ns": 259184,
+            "max_on_registering_thread": true
+          },
+          "1": {
+            "count": 377,
+            "total_ns": 223146406,
+            "max_ns": 177648947,
+            "last_ns": 943355,
+            "max_on_registering_thread": true
+          },
+          "2": {
+            "count": 10,
+            "total_ns": 2007213284,
+            "max_ns": 209391699,
+            "last_ns": 209391699,
+            "max_on_registering_thread": true
+          }
+        },
+        "scope": "passive callback intervals; include scheduling and other callbacks; not isolated CPU time; collector settings observed only"
+      },
+      "scope": "completed inclusive zones; nested totals overlap; thread CPU excludes other threads and GPU"
+    },
+    "gc_policy_applied": null,
+    "gc_policy_released": null,
+    "release_failure": [],
+    "serving": true,
+    "gpu_attestation": "{\"required\": true, \"backend\": \"physx\", \"device\": \"cuda:0\", \"tensor_device\": \"cuda:0\", \"tensor_device_ordinal\": 0, \"cuda_context_present\": true, \"gpu_dynamics\": true, \"broadphase\": \"GPU\", \"cpu_fallback_allowed\": false, \"fallback_log_count\": 0}"
+  },
+  "host_load_after": {
+    "loadavg": [
+      1.52001953125,
+      0.85009765625,
+      0.46435546875
+    ],
+    "pytest_or_codex_running": false
+  },
+  "administrative_ok": true
+}

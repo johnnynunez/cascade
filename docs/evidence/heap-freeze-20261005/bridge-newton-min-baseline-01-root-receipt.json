@@ -1,0 +1,433 @@
+{
+  "name": "bridge-newton-min-baseline-01",
+  "engine": "newton",
+  "gc_policy": null,
+  "physical_acceptance": false,
+  "control_attempted": false,
+  "gpu_admission": {
+    "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+    "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+    "total_mib": 97887,
+    "used_mib": 124,
+    "free_mib": 97218,
+    "utilization_percent": 0,
+    "foreign": [],
+    "required_free_mib": 16384,
+    "shared_device_no_performance_claim": true,
+    "admitted": true
+  },
+  "client": {
+    "ping": {
+      "ok": true,
+      "engine": "newton",
+      "dofs": [
+        "joint1",
+        "joint2",
+        "joint3",
+        "joint4",
+        "joint5",
+        "joint6",
+        "joint_left",
+        "joint_right"
+      ],
+      "scene_config": null,
+      "scene_config_sha256": null,
+      "physics_dt_s": 0.016666666666666666,
+      "physics_dt_source": "SimulationManager.get_physics_dt",
+      "physics_dt_scene_count": 1,
+      "physics_device": "cuda:0",
+      "physics_tensor_device": "cuda:0",
+      "physics_gpu": true,
+      "gpu_attestation": {
+        "required": true,
+        "backend": "newton",
+        "device": "cuda:0",
+        "tensor_device": "cuda:0",
+        "tensor_device_ordinal": 0,
+        "cuda_context_present": true,
+        "gpu_dynamics": null,
+        "broadphase": [],
+        "cpu_fallback_allowed": false,
+        "newton": {
+          "device": "cuda:0",
+          "cuda": true,
+          "ordinal": 0,
+          "cuda_context_present": true,
+          "pci_bus_id": "00000000:C1:00",
+          "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+          "array_devices": [
+            "cuda:0"
+          ],
+          "solver": "SolverMuJoCo",
+          "mujoco_cpu": false,
+          "cuda_graph": true
+        },
+        "fallback_log_count": 0
+      }
+    },
+    "cameras": [],
+    "camera": "cam0",
+    "duration_s": 90.0,
+    "state": {
+      "count": 294,
+      "median_ms": 15.806,
+      "p95_ms": 36.102,
+      "max_ms": 2607.745
+    },
+    "frame": {
+      "count": 90,
+      "median_ms": 35.098,
+      "p95_ms": 41.011,
+      "max_ms": 44.009
+    },
+    "state_over_400ms": 1,
+    "frame_over_400ms": 0,
+    "slow_samples_over_200ms": [
+      {
+        "op": "state",
+        "at_s": 5.295,
+        "duration_ms": 2607.745
+      }
+    ],
+    "errors": [
+      "state: physics read timed out waiting for the main loop"
+    ],
+    "error_count": 1
+  },
+  "closure": {
+    "name": "bridge-probe-bridge-newton-min-baseline-01",
+    "unit": "cascade-voice-bridge-probe-bridge-newton-min-baseline-01-824edc02ef7e471da21ad12ddcc93bd4.scope",
+    "ok": true,
+    "forced": false,
+    "signals": [
+      {
+        "pid": 2107616,
+        "start_ticks": 11864527,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "signal": 15
+      }
+    ],
+    "errors": [],
+    "scope_client_exit": 0,
+    "state": {
+      "Description": "cascade-voice-bridge-probe-bridge-newton-min-baseline-01-824edc02ef7e471da21ad12ddcc93bd4.scope",
+      "LoadState": "not-found",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "InvocationID": "",
+      "Result": "success",
+      "ControlGroup": ""
+    },
+    "remaining_members": [],
+    "observed_births": [
+      {
+        "pid": 2107606,
+        "start_ticks": 11864524,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/usr/lib/cargo/bin/coreutils/timeout",
+        "argv": [
+          "/usr/bin/timeout",
+          "--kill-after=15s",
+          "900s",
+          "nice",
+          "-n",
+          "19",
+          "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/python.sh",
+          "/home/johnny/Projects/demo/cascade/scripts/isaac_bridge.py",
+          "--engine",
+          "newton",
+          "--port",
+          "32827"
+        ]
+      },
+      {
+        "pid": 2107608,
+        "start_ticks": 11864526,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/usr/bin/bash",
+        "argv": [
+          "/bin/bash",
+          "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/python.sh",
+          "/home/johnny/Projects/demo/cascade/scripts/isaac_bridge.py",
+          "--engine",
+          "newton",
+          "--port",
+          "32827"
+        ]
+      },
+      {
+        "pid": 2107616,
+        "start_ticks": 11864527,
+        "boot_id": "b03c1dd0-7093-41ea-a4d9-d3cd6168ea64",
+        "executable": "/home/johnny/.cache/packman/chk/kit-kernel/110.4.0+feature.384729.1066600b.gl.manylinux_2_35_x86_64.release/python/bin/python3.12",
+        "argv": [
+          "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/kit/python/bin/python3",
+          "/home/johnny/Projects/demo/cascade/scripts/isaac_bridge.py",
+          "--engine",
+          "newton",
+          "--port",
+          "32827"
+        ]
+      }
+    ],
+    "remaining_births": []
+  },
+  "scope_exit": 0,
+  "log": {
+    "summaries": 9,
+    "final_summary": {
+      "event": "timing_summary",
+      "final": false,
+      "diagnostic_valid": true,
+      "error_count": 0,
+      "pid": 2107616,
+      "native_thread_id": 2107616,
+      "source_path": "/home/johnny/Projects/demo/cascade/scripts/isaac_bridge.py",
+      "source_sha256": "1a7c152969c6270680d6162fd44d35294d9cbb2aa2e61e3ba77c86a2109171f3",
+      "helper_sha256": "95f91fed5c2b3d3b3dfd4acdd0d64efed1701b061ec1a0abf03303fd4c2bd387",
+      "started_monotonic_ns": 118662540940855,
+      "snapshot_monotonic_ns": 118752634889340,
+      "zones": {
+        "bridge.app_update": {
+          "count": 2927,
+          "exceptions": 0,
+          "wall_total_ns": 50328354397,
+          "wall_min_ns": 13899452,
+          "wall_max_ns": 642973459,
+          "thread_cpu_total_ns": 49196352846,
+          "thread_cpu_min_ns": 11309232,
+          "thread_cpu_max_ns": 641997503
+        },
+        "bridge.frame_state.q": {
+          "count": 2927,
+          "exceptions": 0,
+          "wall_total_ns": 1946580909,
+          "wall_min_ns": 176028,
+          "wall_max_ns": 3268134,
+          "thread_cpu_total_ns": 1941992397,
+          "thread_cpu_min_ns": 176275,
+          "thread_cpu_max_ns": 1515283
+        },
+        "bridge.history": {
+          "count": 2927,
+          "exceptions": 0,
+          "wall_total_ns": 2437940117,
+          "wall_min_ns": 339857,
+          "wall_max_ns": 3461578,
+          "thread_cpu_total_ns": 2432580074,
+          "thread_cpu_min_ns": 339840,
+          "thread_cpu_max_ns": 1717957
+        },
+        "bridge.refresh.token": {
+          "count": 4068,
+          "exceptions": 0,
+          "wall_total_ns": 392089147,
+          "wall_min_ns": 69636,
+          "wall_max_ns": 230481,
+          "thread_cpu_total_ns": 392186997,
+          "thread_cpu_min_ns": 69644,
+          "thread_cpu_max_ns": 230576
+        },
+        "bridge.refresh.rgb": {
+          "count": 4068,
+          "exceptions": 0,
+          "wall_total_ns": 25729335563,
+          "wall_min_ns": 5880799,
+          "wall_max_ns": 11965758,
+          "thread_cpu_total_ns": 25717079584,
+          "thread_cpu_min_ns": 5881062,
+          "thread_cpu_max_ns": 11621662
+        },
+        "bridge.refresh.depth": {
+          "count": 4068,
+          "exceptions": 0,
+          "wall_total_ns": 2937895588,
+          "wall_min_ns": 649298,
+          "wall_max_ns": 1581928,
+          "thread_cpu_total_ns": 2937134282,
+          "thread_cpu_min_ns": 649434,
+          "thread_cpu_max_ns": 1582754
+        },
+        "bridge.refresh.publish": {
+          "count": 4068,
+          "exceptions": 0,
+          "wall_total_ns": 439601856,
+          "wall_min_ns": 94243,
+          "wall_max_ns": 356222,
+          "thread_cpu_total_ns": 439710445,
+          "thread_cpu_min_ns": 94252,
+          "thread_cpu_max_ns": 356405
+        },
+        "bridge.refresh": {
+          "count": 1356,
+          "exceptions": 0,
+          "wall_total_ns": 31829816610,
+          "wall_min_ns": 22255167,
+          "wall_max_ns": 37406313,
+          "thread_cpu_total_ns": 31813785289,
+          "thread_cpu_min_ns": 22254662,
+          "thread_cpu_max_ns": 36969915
+        },
+        "bridge.targets.get": {
+          "count": 2687,
+          "exceptions": 0,
+          "wall_total_ns": 242034459,
+          "wall_min_ns": 45289,
+          "wall_max_ns": 253095,
+          "thread_cpu_total_ns": 221795653,
+          "thread_cpu_min_ns": 45328,
+          "thread_cpu_max_ns": 253180
+        },
+        "bridge.targets.numpy": {
+          "count": 2687,
+          "exceptions": 0,
+          "wall_total_ns": 1406511791,
+          "wall_min_ns": 45339,
+          "wall_max_ns": 1122739,
+          "thread_cpu_total_ns": 1403309062,
+          "thread_cpu_min_ns": 45348,
+          "thread_cpu_max_ns": 1122865
+        },
+        "bridge.targets.compose": {
+          "count": 2687,
+          "exceptions": 0,
+          "wall_total_ns": 90907829,
+          "wall_min_ns": 21192,
+          "wall_max_ns": 97638,
+          "thread_cpu_total_ns": 90868814,
+          "thread_cpu_min_ns": 21222,
+          "thread_cpu_max_ns": 55042
+        },
+        "bridge.targets.set": {
+          "count": 2687,
+          "exceptions": 0,
+          "wall_total_ns": 616084109,
+          "wall_min_ns": 195177,
+          "wall_max_ns": 14849818,
+          "thread_cpu_total_ns": 603072168,
+          "thread_cpu_min_ns": 195433,
+          "thread_cpu_max_ns": 3772649
+        },
+        "bridge.exec_job.callable": {
+          "count": 292,
+          "exceptions": 0,
+          "wall_total_ns": 386193217,
+          "wall_min_ns": 400429,
+          "wall_max_ns": 2625074,
+          "thread_cpu_total_ns": 386246715,
+          "thread_cpu_min_ns": 400570,
+          "thread_cpu_max_ns": 2625198
+        },
+        "bridge.exec_jobs": {
+          "count": 2687,
+          "exceptions": 0,
+          "wall_total_ns": 412970914,
+          "wall_min_ns": 3746,
+          "wall_max_ns": 4948780,
+          "thread_cpu_total_ns": 412909930,
+          "thread_cpu_min_ns": 3746,
+          "thread_cpu_max_ns": 4948713
+        },
+        "bridge.loop": {
+          "count": 2687,
+          "exceptions": 0,
+          "wall_total_ns": 81361840883,
+          "wall_min_ns": 14911321,
+          "wall_max_ns": 73082172,
+          "thread_cpu_total_ns": 80292113135,
+          "thread_cpu_min_ns": 12683003,
+          "thread_cpu_max_ns": 60160020
+        },
+        "bridge.wrist": {
+          "count": 1343,
+          "exceptions": 0,
+          "wall_total_ns": 2131599811,
+          "wall_min_ns": 1395954,
+          "wall_max_ns": 2177514,
+          "thread_cpu_total_ns": 2132079016,
+          "thread_cpu_min_ns": 1396375,
+          "thread_cpu_max_ns": 2173310
+        }
+      },
+      "gc": {
+        "events": 1438,
+        "unmatched": 0,
+        "errors": 0,
+        "pending": 0,
+        "settings_initial": {
+          "enabled": true,
+          "thresholds": [
+            700,
+            10,
+            10
+          ]
+        },
+        "settings_now": {
+          "enabled": true,
+          "thresholds": [
+            700,
+            10,
+            10
+          ]
+        },
+        "frozen_objects": 375,
+        "generations": {
+          "0": {
+            "count": 657,
+            "total_ns": 47306087,
+            "max_ns": 323523,
+            "last_ns": 239694,
+            "collected_total": 70318,
+            "max_on_registering_thread": true
+          },
+          "1": {
+            "count": 60,
+            "total_ns": 324400085,
+            "max_ns": 285230156,
+            "last_ns": 833759,
+            "collected_total": 7665,
+            "max_on_registering_thread": true
+          },
+          "2": {
+            "count": 2,
+            "total_ns": 773600950,
+            "max_ns": 412874708,
+            "last_ns": 412874708,
+            "collected_total": 860,
+            "max_on_registering_thread": true
+          }
+        },
+        "recent_generation2": [
+          {
+            "offset_ms": 3382.187931,
+            "duration_ms": 360.726242,
+            "collected": 816,
+            "on_registering_thread": true
+          },
+          {
+            "offset_ms": 4184.316432,
+            "duration_ms": 412.874708,
+            "collected": 44,
+            "on_registering_thread": true
+          }
+        ],
+        "scope": "passive callback intervals; include scheduling and other callbacks; not isolated CPU time; collector settings observed only"
+      },
+      "scope": "completed inclusive zones; nested totals overlap; thread CPU excludes other threads and GPU"
+    },
+    "gc_policy_applied": null,
+    "gc_policy_released": null,
+    "release_failure": [],
+    "serving": true,
+    "gpu_attestation": "{\"required\": true, \"backend\": \"newton\", \"device\": \"cuda:0\", \"tensor_device\": \"cuda:0\", \"tensor_device_ordinal\": 0, \"cuda_context_present\": true, \"gpu_dynamics\": null, \"broadphase\": [], \"cpu_fallback_allowed\": false, \"newton\": {\"device\": \"cuda:0\", \"cuda\": true, \"ordinal\": 0, \"cuda_context_present\": true, \"pci_bus_id\": \"00000000:C1:00\", \"uuid\": \"GPU-4c811d02-a79b-2837-425e-5f62ac3c578a\", \"array_devices\": [\"cuda:0\"], \"solver\": \"SolverMuJoCo\", \"mujoco_cpu\": false, \"cuda_graph\": true}, \"fallback_log_count\": 0}"
+  },
+  "host_load_after": {
+    "loadavg": [
+      2.568359375,
+      2.2783203125,
+      1.86865234375
+    ],
+    "pytest_or_codex_running": false
+  },
+  "administrative_ok": true
+}

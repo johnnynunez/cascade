@@ -1,0 +1,58 @@
+{
+  "ping": {
+    "ok": true,
+    "engine": "physx",
+    "dofs": [
+      "joint1",
+      "joint2",
+      "joint3",
+      "joint4",
+      "joint5",
+      "joint6",
+      "joint_left",
+      "joint_right"
+    ],
+    "scene_name": "paai-cocina-asier-v1",
+    "scene_config": "/home/johnny/Projects/demo/cascade/demo/scene/kitchen_config.json",
+    "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+    "scene_assets_sha256": "bcf2019ae6fb3a3b8d05de576658e13fc01e269292d345008fe10afd67593b6d",
+    "scene_content_sha256": "85b758883ebe2a295be49729a3c8cab7e05827faa7f6b9ec2e5942a7150abb9b",
+    "physics_dt_s": 0.016666666666666666,
+    "physics_dt_source": "SimulationManager.get_physics_dt",
+    "physics_dt_scene_count": 1,
+    "physics_device": "cuda:0",
+    "physics_tensor_device": "cuda:0",
+    "physics_gpu": true,
+    "gpu_attestation": {
+      "required": true,
+      "backend": "physx",
+      "device": "cuda:0",
+      "tensor_device": "cuda:0",
+      "tensor_device_ordinal": 0,
+      "cuda_context_present": true,
+      "gpu_dynamics": true,
+      "broadphase": "GPU",
+      "cpu_fallback_allowed": false,
+      "fallback_log_count": 0
+    }
+  },
+  "cameras": [],
+  "camera": "cam0",
+  "duration_s": 90.0,
+  "state": {
+    "count": 281,
+    "median_ms": 43.627,
+    "p95_ms": 51.911,
+    "max_ms": 3044.338
+  },
+  "frame": {
+    "count": 90,
+    "median_ms": 70.07,
+    "p95_ms": 72.403,
+    "max_ms": 77.91
+  },
+  "state_over_400ms": 1,
+  "frame_over_400ms": 0,
+  "errors": [],
+  "error_count": 0
+}

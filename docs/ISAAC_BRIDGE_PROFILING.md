@@ -30,6 +30,61 @@ still frozen. Both engines, PhysX and Newton, run through this bridge, so the
 same flag covers both; it changes no physics setting, camera cadence, deadline
 or motion behavior and is not acceptance of anything.
 
+### Direct passive bridge probes on PhysX (5 October 2026)
+
+Two direct launches of the kitchen bridge (`demo/scene/kitchen_config.json`,
+headless, `CASCADE_REQUIRE_CUDA=1`, timing summaries on, GPU 1, systemd user
+scope) each served a read-only client for 90 s: `state` at about 4 Hz and one
+camera frame per second. [Compact evidence](evidence/heap-freeze-20261005/bridge-summary.json)
+retains the plans, receipts and log hashes. Without the policy, the collector
+ran ten generation-2 collections of up to 209.4 ms, 2.0 s in total, all on the
+main thread and all during startup before the first ten-second summary; none
+occurred during the 90 s observation window. With `--gc-policy
+freeze-startup-heap` the explicit pre-freeze collection took 209.2 ms and
+froze 582,533 objects in 0.021 ms, the window again contained no automatic
+full collection, and at release a full collection over the 4,843 tracked
+objects outside the frozen set took 1.99 ms against 204.4 ms once unfrozen;
+4,285 frozen objects had been freed by reference counting meanwhile. Client
+medians were 43.6 and 22.0 ms for `state` and about 70 ms for a frame in both
+runs, with one `state` read above 3 s in each run that overlapped no
+collection and whose timing those two runs did not record. So on PhysX the
+policy bounds the cost of a future full collection without changing a passive
+window in which none happens; it is not a kitchen-campaign or deadline result.
+
+### Newton engine selection on the local 6.2.0 source build
+
+Three direct Newton launches of the bridge with its default full Newton editor
+experience, with and without the kitchen scene, never printed a bridge line:
+startup stopped after the `isaacsim.ros2.bridge` extension at about 15.7 s and
+stayed silent until the client deadline closed each scope. The PhysX path does
+not load that experience, and the MicroDuck shared backend boots Newton through
+its own minimal experience. `CASCADE_ISAAC_EXPERIENCE` therefore selects an
+explicit `.kit` file for the bridge, validated for a supported package version
+and recorded by the launcher that sets it; a minimal Newton experience modelled
+on the MicroDuck one served the bridge with Newton on `cuda:0`. The stalled
+default remains a retained failure of this build and environment, not a
+diagnosed cause.
+
+### Direct passive bridge probes on Newton (5 October 2026)
+
+With that minimal experience and the bridge's default reBot scene, two direct
+90 s launches on Newton completed with ordinary closure (same client, same
+scope and GPU as the PhysX pair; the kitchen scene was not used on Newton).
+Without the policy the collector ran two full collections of 360.7 and 412.9 ms
+at 3.4 and 4.2 s into startup and none during the observation window; client
+`state` reads had a 15.8 ms median and one 2.6 s read 5.3 s after serving,
+which the bridge reported as a physics read that timed out waiting for the
+main loop, with frames at 35 ms. With `--gc-policy freeze-startup-heap` the
+explicit pre-freeze collection took 453.7 ms and froze 1,229,864 objects in
+0.021 ms, the window again contained no automatic full collection, `state`
+medians were 15.3 ms with the same single startup stall, and at release a full
+collection over the 5,292 tracked objects outside the frozen set took 1.71 ms
+against 461.6 ms once unfrozen; 4,258 frozen objects had been freed by
+reference counting. On both engines, therefore, a passive window contains no
+automatic generation-2 collection and the policy bounds the cost of one that
+does occur from 204 to 462 ms down to about 2 ms; neither pair is a campaign,
+deadline or physical result, and single runs establish no latency comparison.
+
 ## Activation and scope
 
 `CASCADE_ISAAC_PYTHON_SPANS=1` enables the spans. They are disabled by default;

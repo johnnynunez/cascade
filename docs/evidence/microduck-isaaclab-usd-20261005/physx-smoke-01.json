@@ -1,0 +1,135 @@
+{
+ "physical_acceptance": false,
+ "engine": "physx",
+ "bundle_receipt_sha256": "ba7cdd9ed68552fc83aefaf881a148970203bb08fb003e0d52715f42a8263079",
+ "asset": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/isaaclab-usd-allcollisions-v1/usd/microduck_allcollisions.usd",
+ "steps_requested": 400,
+ "errors": [],
+ "isaacsim_version": [
+  "6.2.0",
+  "alpha.19",
+  "6",
+  "2",
+  "0",
+  "alpha",
+  "19",
+  "develop.0.48b2d951.local"
+ ],
+ "newton_actuator_prims_deactivated": 14,
+ "revolute_joints": 14,
+ "articulation_roots": [
+  "/World/MicroDuck/Geometry/trunk_base"
+ ],
+ "drive_sample": {
+  "drive:angular:physics:stiffness": 0.0,
+  "drive:angular:physics:damping": 0.0,
+  "drive:angular:physics:maxForce": 0.9599999785423279
+ },
+ "wall_s": 4.86003431698191,
+ "articulation": {
+  "dof_count": 14,
+  "dof_names": [
+   "left_hip_yaw",
+   "neck_pitch",
+   "right_hip_yaw",
+   "left_hip_roll",
+   "head_pitch",
+   "right_hip_roll",
+   "left_hip_pitch",
+   "head_yaw",
+   "right_hip_pitch",
+   "left_knee",
+   "head_roll",
+   "right_knee",
+   "left_ankle",
+   "right_ankle"
+  ]
+ },
+ "root_trajectory": [
+  {
+   "update": 0,
+   "root_z_m": 0.09989956766366959
+  },
+  {
+   "update": 20,
+   "root_z_m": 0.07411043345928192
+  },
+  {
+   "update": 40,
+   "root_z_m": 0.05548843368887901
+  },
+  {
+   "update": 60,
+   "root_z_m": 0.046707846224308014
+  },
+  {
+   "update": 80,
+   "root_z_m": 0.04300080984830856
+  },
+  {
+   "update": 100,
+   "root_z_m": 0.041155021637678146
+  },
+  {
+   "update": 120,
+   "root_z_m": 0.04112500324845314
+  },
+  {
+   "update": 140,
+   "root_z_m": 0.04112529754638672
+  },
+  {
+   "update": 160,
+   "root_z_m": 0.04112529754638672
+  },
+  {
+   "update": 180,
+   "root_z_m": 0.04112529754638672
+  },
+  {
+   "update": 200,
+   "root_z_m": 0.04112529754638672
+  },
+  {
+   "update": 220,
+   "root_z_m": 0.04112529754638672
+  },
+  {
+   "update": 240,
+   "root_z_m": 0.04112529754638672
+  },
+  {
+   "update": 260,
+   "root_z_m": 0.04112529754638672
+  },
+  {
+   "update": 280,
+   "root_z_m": 0.04112529754638672
+  },
+  {
+   "update": 300,
+   "root_z_m": 0.04112529754638672
+  },
+  {
+   "update": 320,
+   "root_z_m": 0.04112529754638672
+  },
+  {
+   "update": 340,
+   "root_z_m": 0.04112529754638672
+  },
+  {
+   "update": 360,
+   "root_z_m": 0.04112529754638672
+  },
+  {
+   "update": 380,
+   "root_z_m": 0.04112529754638672
+  },
+  {
+   "update": 399,
+   "root_z_m": 0.04112529754638672
+  }
+ ],
+ "steps_completed": 400
+}

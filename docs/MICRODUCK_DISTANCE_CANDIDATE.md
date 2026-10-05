@@ -315,6 +315,30 @@ thresholds and native recipe bytes remained unchanged. The
 binds all three attempts, preregistrations, profile timings, exact values, raw
 samples and the inspected video. Earlier failed turns are unchanged.
 
+## Isaac Lab USD asset rerun (5 October 2026)
+
+The same campaign harness, profile, limits, policy and BAM profile were rerun
+on the [newly admitted Isaac Lab USD folder bundle](MICRODUCK.md#isaac-lab-usd-folder-as-the-admitted-asset-5-october-2026)
+on the admitted Isaac Sim 6.2 release (Newton 1.6.1rc1, SDK recipe
+`isaac62_48b2d951`), after a foundation episode bound identity `1d95b116…`
+([audits](evidence/microduck-isaaclab-usd-20261005/locomotion/summary.json)).
+The verifier limits were `max_heading_drift_rad` 0.08, `max_lateral_drift_m`
+0.02, translation tolerance 0.015 m, rotation tolerance 0.04 rad and
+`min_progress_ratio` 0.8; the post-completion distance-outcome observation that
+the retained audits predate was active.
+
+| Episode | Requested / measured forward mm | Lateral mm | Heading rad (execution) | Post-completion yaw rad | Verdict |
+|---|---:|---:|---:|---:|---|
+| `usd-forward01` | +30 / +27.038 | −2.678 | −0.04530 | −0.27951 | refuted (unrequested wz drift after completion) |
+| `usd-reverse01` | −30 / −25.675 | −2.377 | −0.03277 | +0.03487 | confirmed |
+
+Neither episode fell; both subsequent emergency stops were confirmed with rest
+windows of about 1.6 s and heading change below 0.002 rad. The forward result
+reproduces the post-completion heading drift already recorded for the
+historical forward cases; the asset change did not remove it. Turns,
+interruption, disconnect, reset and repeated starts were not rerun, and no
+physical outcome is claimed.
+
 ## Reproduction and validation boundary
 
 Use the reviewed installation, bundle and controller-limit procedure in

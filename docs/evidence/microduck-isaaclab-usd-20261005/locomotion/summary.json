@@ -1,0 +1,184 @@
+{
+ "date": "2026-10-05",
+ "episodes": {
+  "usd-forward01": {
+   "cases": [
+    {
+     "arguments": {
+      "distance_m": 0.03
+     },
+     "execution_ok": true,
+     "metrics": {
+      "body_displacement_m": [
+       0.027038298251629435,
+       -0.002677944784748207
+      ],
+      "distance_outcome": {
+       "body_displacement_m": [
+        0.04627330343263955,
+        0.009595183383666368
+       ],
+       "path_length_m": 0.09423524721061696,
+       "rotation_path_rad": 0.39095680586400633,
+       "yaw_change_rad": -0.2795064695351421
+      },
+      "max_angular_speed_rad_s": 1.9164558954060844,
+      "max_linear_speed_m_s": 0.23131205437398625,
+      "max_tilt_rad": 0.03526951462052647,
+      "min_height_m": 0.11625303328037262,
+      "path_length_m": 0.04399643159760949,
+      "rotation_path_rad": 0.0896297230611825,
+      "settle_drift_m": 0.0003030496065091914,
+      "settle_drift_rad": 0.0023906002086461135,
+      "sim_duration_s": 0.29499999340623617,
+      "yaw_change_rad": -0.04530301932850849
+     },
+     "ok": false,
+     "reason": "post-completion distance outcome: unrequested wz drift",
+     "skill": "walk_distance",
+     "verdict": "refuted"
+    }
+   ],
+   "closure_ok": true,
+   "fallen_count": 0,
+   "frames": 63,
+   "identity": "1d95b1167806f6faa934a701e2b0a7be0a06c39fc0124c4af2f5533025a4803f",
+   "kit_receipt_sha256": "337a272171fcc18e7e1a8f6c1c62760860f4a49592eba6da0743487ea99530e4",
+   "model_identity_file_sha256": "d21d12e4f6bc02c0d97b240bcecc151fe6114bb9903df26f3282e421ecc305e6",
+   "native_steps": 1244,
+   "source_unchanged": true,
+   "subsequent_stop": {
+    "pending": false,
+    "physical_stop_verified": true,
+    "receipt_id": "5dcd4639ed4b41d7974cc99f39cd7ed9",
+    "status": "confirmed"
+   },
+   "subsequent_stop_metrics": {
+    "body_displacement_m": [
+     0.00020854954890286024,
+     -8.710626149890752e-08
+    ],
+    "max_angular_speed_rad_s": 0.017214134462340394,
+    "max_linear_speed_m_s": 0.0018721897613852509,
+    "sim_duration_s": 1.6049999641254544,
+    "yaw_change_rad": -0.0017094299455311934
+   },
+   "video_sha256": "c475d379a310c19c22a1a97a2b7a38e17ca5b090b3296956c1ec9c954ea27a8f"
+  },
+  "usd-foundation01": {
+   "closure_ok": true,
+   "fallen_count": 0,
+   "forbidden_contact_count": 0,
+   "force_probes": 41,
+   "frames": 41,
+   "identity": "1d95b1167806f6faa934a701e2b0a7be0a06c39fc0124c4af2f5533025a4803f",
+   "kit_receipt_sha256": "3c9dcdcc8aa49032032601ad3bca0c01b99d35678ccd10eb0c23c3223c4de128",
+   "model_identity_file_sha256": "d21d12e4f6bc02c0d97b240bcecc151fe6114bb9903df26f3282e421ecc305e6",
+   "native_steps": 800,
+   "policy_committed": 200,
+   "root_z_first_m": 0.1247575432062149,
+   "root_z_last_m": 0.11719118058681488,
+   "root_z_min_m": 0.11554048210382462,
+   "source_unchanged": true,
+   "status": "foundation_identity_force_channel_and_natural_closure_verified"
+  },
+  "usd-reverse01": {
+   "cases": [
+    {
+     "arguments": {
+      "distance_m": -0.03
+     },
+     "execution_ok": true,
+     "metrics": {
+      "body_displacement_m": [
+       -0.025675370310148892,
+       -0.0023773929716166945
+      ],
+      "distance_outcome": {
+       "body_displacement_m": [
+        -0.03178087124107421,
+        0.003332208247535562
+       ],
+       "path_length_m": 0.05944159393021275,
+       "rotation_path_rad": 0.19307036546408704,
+       "yaw_change_rad": 0.034870460473558615
+      },
+      "max_angular_speed_rad_s": 1.3020948567424055,
+      "max_linear_speed_m_s": 0.22668443228451035,
+      "max_tilt_rad": 0.03979752737574467,
+      "min_height_m": 0.1172119602560997,
+      "path_length_m": 0.0391333965460697,
+      "rotation_path_rad": 0.08443083937151641,
+      "settle_drift_m": 6.08812563166145e-06,
+      "settle_drift_rad": 0.0024722842518063726,
+      "sim_duration_s": 0.29999999329447746,
+      "yaw_change_rad": -0.03277143634485691
+     },
+     "ok": true,
+     "reason": "independent measured motion matches caller intent",
+     "skill": "walk_distance",
+     "verdict": "confirmed"
+    }
+   ],
+   "closure_ok": true,
+   "fallen_count": 0,
+   "frames": 61,
+   "identity": "1d95b1167806f6faa934a701e2b0a7be0a06c39fc0124c4af2f5533025a4803f",
+   "kit_receipt_sha256": "9ac643a0a9ce0f9a8812379dac1cd59467c3bae2aa96634b0c2c6856ea2bda55",
+   "model_identity_file_sha256": "d21d12e4f6bc02c0d97b240bcecc151fe6114bb9903df26f3282e421ecc305e6",
+   "native_steps": 1220,
+   "source_unchanged": true,
+   "subsequent_stop": {
+    "pending": false,
+    "physical_stop_verified": true,
+    "receipt_id": "13e00bcb8f6a460c90284469459a0ab3",
+    "status": "confirmed"
+   },
+   "subsequent_stop_metrics": {
+    "body_displacement_m": [
+     5.132355797987258e-06,
+     6.53870186520198e-06
+    ],
+    "max_angular_speed_rad_s": 0.0004602127211850768,
+    "max_linear_speed_m_s": 2.558512945825068e-05,
+    "sim_duration_s": 1.6549999630078673,
+    "yaw_change_rad": 0.0003257302156529588
+   },
+   "video_sha256": "752a570590351f031c194ce7059183ab5b9092aa8cf4440c00ad445a0e83ad87"
+  }
+ },
+ "note": "The retained converted-bundle audits predate the post-completion distance-outcome observation (their distance_outcome is null); the status index already records excessive post-completion heading drift for the historical forward cases under the current contract.",
+ "physical_admission": false,
+ "recipe": "LOCOMOTION_NEXT retained \u00b130 mm campaign harness (same MCP route, slow controller limits, rough_walk_e policy, official_infer_nominal_no_delay BAM profile, solver graph + solved-read reuse) on the admitted Isaac Sim 6.2 release with SDK recipe isaac62_48b2d951 (Newton 1.6.1rc1) and the schema-2 Isaac Lab USD bundle",
+ "retained_converted_bundle_episodes": {
+  "native-rough-reuse-forward03": {
+   "identity": "0227a46cfa2882922cbcba70b52b056b9daf0c0bb07a122e28d5adea0080e0da",
+   "metrics": {
+    "body_displacement_m": [
+     0.026207901449772503,
+     -0.002461698660862225
+    ],
+    "distance_outcome": null,
+    "max_angular_speed_rad_s": 1.2822278622249612,
+    "rotation_path_rad": 0.0717760293753424,
+    "yaw_change_rad": -0.04280532880748786
+   },
+   "verdict": "confirmed"
+  },
+  "native-rough-reuse-reverse02": {
+   "identity": "0227a46cfa2882922cbcba70b52b056b9daf0c0bb07a122e28d5adea0080e0da",
+   "metrics": {
+    "body_displacement_m": [
+     -0.02595888902263205,
+     0.010067178572059259
+    ],
+    "distance_outcome": null,
+    "max_angular_speed_rad_s": 1.3845692199114863,
+    "rotation_path_rad": 0.061354397075202044,
+    "yaw_change_rad": 0.020318973694743763
+   },
+   "verdict": "confirmed"
+  }
+ },
+ "schema": "cascade.microduck-isaaclab-usd.locomotion-rerun.v1"
+}

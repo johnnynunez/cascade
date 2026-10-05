@@ -406,6 +406,34 @@ This is simulation evidence that the asset admits and stands; it is not a
 control, deadline, locomotion or physical result, and the velstand standing,
 walking, braking and reset campaigns remain to be rerun against this asset.
 
+The retained ±30 mm MCP campaign was then rerun on this asset with the same
+recipe as the retained episodes (single robot, `rough_walk_e`, slow controller
+limits, `microduck_distance_native_slow` profile, solver graph and solved-read
+reuse) on the admitted 6.2 release
+([foundation, forward and reverse audits](evidence/microduck-isaaclab-usd-20261005/locomotion/summary.json)).
+The foundation episode bound identity `1d95b116…`, kept support known on every
+record, produced no forbidden contact (the converted bundle's foundation had
+transient non-sole rows before 0.09 s) and closed naturally. Forward +30 mm
+moved +27.04 mm with −2.68 mm lateral and −0.045 rad heading during execution,
+settled, did not fall and its subsequent emergency stop was confirmed; the
+retained converted-bundle forward episode measured +26.21 mm and −0.043 rad.
+The verdict is nevertheless **refuted**: after completion the robot kept turning,
+−0.28 rad of yaw over the post-completion observation interval against the
+profile's 0.08 rad heading-drift limit, the same post-completion heading drift
+the status index records for the historical forward cases under the current
+contract. Reverse −30 mm was **confirmed** (−25.68 mm, −0.033 rad during
+execution, +0.035 rad after completion) with a confirmed stop. The asset
+therefore reproduces the known forward drift problem rather than removing it;
+turns, interruption, disconnect, reset and repeated starts were not rerun.
+
+A lab-only PhysX smoke ([record and script](evidence/microduck-isaaclab-usd-20261005/physx-smoke-01.json))
+loaded the same USD under Isaac Sim 6.2 PhysX with the fourteen Newton actuator
+prims deactivated and the authored zero-gain drives untouched: PhysX parsed one
+articulation of 14 DOFs and stepped 400 updates without error while the
+unactuated robot collapsed from 0.100 m to 0.041 m. This shows the asset is
+PhysX-parseable; the native CLI still refuses PhysX for BAM and nothing about
+PhysX locomotion is claimed.
+
 ## Remaining admission work
 
 The current real MCP campaign confirms supported standing and a separately

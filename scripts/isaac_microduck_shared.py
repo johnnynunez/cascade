@@ -150,8 +150,9 @@ def run(args, admission, signals):
         fleet.start()
         if args.serve_base_port is not None:
             from cascade.sim.microduck_admission import SharedEndpoints
+            height, width = getattr(owner, 'overview_shape', (480, 640))
             endpoints = SharedEndpoints(steppers, base_port=args.serve_base_port,
-                                        max_jpeg_bytes=args.max_jpeg_bytes)
+                                        max_jpeg_bytes=args.max_jpeg_bytes, max_pixels=height * width)
             result['scope'] = 'shared-scene bounded command candidate; physical outcomes unverified'
         before = owner.physics_clock
         warmup = owner.capture()

@@ -127,3 +127,14 @@ def test_overview_resolution_is_opt_in_and_validated():
     assert 'overview_resolution' not in SharedKitNewtonBackend(base, {}, None).receipt
     wide = SharedKitNewtonBackend(NS(**vars(base), overview_resolution='1920x1080'), {}, None)
     assert wide.overview_shape == (1080, 1920) and wide.receipt['overview_resolution'] == [1080, 1920]
+
+
+def test_shared_endpoints_frame_bound_follows_the_overview_resolution():
+    from cascade.sim.microduck_admission import SharedEndpoints
+    from test_microduck_stepper import controller as make_controller
+    import inspect
+    sig = inspect.signature(SharedEndpoints.__init__)
+    assert sig.parameters['max_pixels'].default == 640*480  # retained bound when nothing is selected
+    for bad in (0, -1, 1.5, '640'):
+        with pytest.raises(ValueError):
+            SharedEndpoints([], base_port=0, max_jpeg_bytes=1000, max_pixels=bad)

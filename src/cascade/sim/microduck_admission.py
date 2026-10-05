@@ -169,13 +169,15 @@ class BoundaryController:
 
 class SharedEndpoints:
     """Independent loopback channels over a single owner; no physics methods."""
-    def __init__(self, steppers, *, base_port, max_jpeg_bytes):
+    def __init__(self, steppers, *, base_port, max_jpeg_bytes, max_pixels=640*480):
         from .mobile_bridge import MobileBridgeServer
         from .microduck_stepper import FrameCache
         steppers = tuple(steppers)
         if (not 1 <= len(steppers) <= 12 or type(base_port) is not int
                 or not 0 <= base_port <= 65536-len(steppers)):
             raise ValueError('explicit available loopback port range required')
+        if type(max_pixels) is not int or max_pixels <= 0:
+            raise ValueError('explicit positive overview pixel bound required')
         controllers = {s.identity['robot_id']: s.controller for s in steppers}
         if len(controllers) != len(steppers):
             raise ValueError('duplicate shared endpoint robot identity')
@@ -184,7 +186,7 @@ class SharedEndpoints:
         self.closed = self.started = False
         try:
             for i, (robot_id, controller) in enumerate(controllers.items()):
-                cache = FrameCache(controller.hello(), max_jpeg_bytes=max_jpeg_bytes, max_pixels=640*480)
+                cache = FrameCache(controller.hello(), max_jpeg_bytes=max_jpeg_bytes, max_pixels=max_pixels)
                 self.caches[robot_id] = cache
                 self.servers[robot_id] = MobileBridgeServer(self.admission.endpoint(robot_id),
                     port=base_port+i if base_port else 0, frame_callback=cache)

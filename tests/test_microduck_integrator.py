@@ -158,3 +158,18 @@ def test_launch_rejects_missing_optin_admission_before_output_or_sdk(tmp_path, m
         call = lambda: cli().run(args, admission)
     with pytest.raises(ValueError, match='integrator'):call()
     assert not args.out.exists()
+
+
+def test_bare_backend_without_admission_keeps_sdk_default_and_rejects_explicit_euler():
+    """Clock-probe construction (`KitNewtonBackend(None, None, None)`) must not need an admission."""
+    from types import SimpleNamespace
+    from cascade.sim.microduck_integrator import selected
+    from cascade.sim.microduck_newton import KitNewtonBackend
+    assert selected(None, None) is None
+    assert selected(SimpleNamespace(integrator_profile='sdk-default'), None) is None
+    with pytest.raises(ValueError, match='differs from admission'):
+        selected(SimpleNamespace(integrator_profile='euler-v1'), None)
+    backend = KitNewtonBackend(None, None, None)
+    assert backend._integrator_selection is None
+    backend.SM = SimpleNamespace(get_physics_dt=lambda: .005)
+    assert backend.dt == 0.004999999888241291

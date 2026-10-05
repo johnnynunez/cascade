@@ -53,6 +53,8 @@ def parse_args(argv=None):
     p.add_argument('--camera-mount', type=Path, help='explicit rigid-render-camera JSON; requires RGB-D and SDK48')
     p.add_argument('--camera-mount-sha256', help='independent SHA256 of the exact camera mount file')
     p.add_argument('--max-jpeg-bytes', type=int, default=2*1024**2)
+    p.add_argument('--ground-visual-m', type=float, default=None,
+                   help='opt-in display size of the ground plane (metres); the collider stays infinite')
     p.add_argument('--overview-resolution', default=None,
                    help='opt-in overview WIDTHxHEIGHT (default 640x480); recorded in the receipt and identity')
     p.add_argument('--solver-cuda-graph', action='store_true',

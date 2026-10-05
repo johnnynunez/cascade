@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from pathlib import Path
 import re
 import stat
@@ -1011,6 +1012,15 @@ class KitNewtonBackend:
         roots = self._author_robots(stage)
         ground = UsdGeom.Plane.Define(stage, '/World/Ground')
         ground.CreateAxisAttr('Z')
+        ground_visual = getattr(self.args, 'ground_visual_m', None)
+        if ground_visual is not None:
+            # Display size of the ground only: Newton imports a PlaneShape collider as an
+            # infinite plane (width=0, length=0) whatever the prim's width/length say.
+            if type(ground_visual) not in (int, float) or not math.isfinite(ground_visual) or not 2. <= ground_visual <= 1000.:
+                raise ValueError('ground visual size must be a finite length in 2..1000 m')
+            ground.CreateWidthAttr(float(ground_visual))
+            ground.CreateLengthAttr(float(ground_visual))
+            self.receipt['ground_visual_m'] = float(ground_visual)
         UsdPhysics.CollisionAPI.Apply(ground.GetPrim())
         material = UsdShade.Material.Define(stage, '/World/GroundMaterial')
         mat = UsdPhysics.MaterialAPI.Apply(material.GetPrim())

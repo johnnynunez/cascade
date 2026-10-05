@@ -71,3 +71,34 @@ def test_shipped_candidate_pin_and_default_are_explicit():
     assert record['sha256'] == '5aa423bd693e431b19e2ead77f99cbae6184e40a529eb2f7c1b4f85bb7f57040'
     assert record['size'] == 793772
     assert record['status'] == 'opt_in_research_candidate_not_native_or_hardware_admitted'
+
+
+@pytest.mark.parametrize('profile,stem', [('isaaclab_velocity_flat', 'velocity_flat'), ('isaaclab_velocity_rough', 'velocity_rough')])
+def test_isaaclab_newton_candidates_are_pinned_merged_single_file_exports(tmp_path, monkeypatch, profile, stem):
+    manifest = json.loads((Path(__file__).parents[1] / 'assets/microduck/policy-candidates.json').read_text())
+    record = manifest['profiles'][profile]
+    assert record['contract'] == manifest['profiles']['rough_walk_e']['contract']
+    assert record['status'] == 'opt_in_research_candidate_not_native_or_hardware_admitted'
+    source = record['source']
+    assert source['kind'] == 'operator-archive' and source['member'] == f'isaaclab/{stem}.onnx'
+    assert all(len(source[k]) == 64 for k in ('archive_sha256', 'member_sha256', 'external_data_sha256', 'meta_sha256'))
+    assert record['training']['task'].startswith('IsaacContrib-Velocity-') and record['training']['obs_terms'] == [
+        'base_ang_vel', 'projected_gravity', 'joint_pos', 'joint_vel', 'actions', 'velocity_commands',
+        'head_pose_commands', 'body_pose_commands']
+    assert 'not declared' in record['license']
+    # Admission accepts exactly the pinned merged bytes and nothing else.
+    data = b'synthetic merged export bytes for ' + stem.encode()
+    policy = tmp_path / f'{stem}.onnx'
+    policy.write_bytes(data)
+    record.update(sha256=hashlib.sha256(data).hexdigest(), size=len(data))
+    destination = tmp_path / 'assets/microduck/policy-candidates.json'
+    destination.parent.mkdir(parents=True)
+    destination.write_text(json.dumps(manifest))
+    monkeypatch.setattr(admission, 'REPO', tmp_path)
+    monkeypatch.setattr(admission.native, 'source_manifest', lambda: ({'files': []}, b''))
+    result = admission.admit_policy(policy, record['sha256'], profile)
+    assert result == {'profile': profile, 'sha256': record['sha256'], 'size': len(data), 'physical_admission': False}
+    with pytest.raises(ValueError):
+        admission.admit_policy(policy, manifest['profiles']['rough_walk_e']['sha256'], profile)
+    with pytest.raises(ValueError, match='explicit known policy profile'):
+        admission.admit_policy(policy, record['sha256'], 'isaaclab_velocity_backlash')

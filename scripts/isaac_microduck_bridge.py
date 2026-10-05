@@ -26,7 +26,7 @@ def parse_args(argv=None):
     p.add_argument('--bundle-sha256', required=True, help='offline-admitted receipt.json SHA-256')
     p.add_argument('--policy', type=Path, required=True)
     p.add_argument('--policy-sha256', required=True)
-    p.add_argument('--policy-profile', choices=['velstand', 'rough_walk_e'], default='velstand',
+    p.add_argument('--policy-profile', choices=['velstand', 'rough_walk_e', 'isaaclab_velocity_flat', 'isaaclab_velocity_rough'], default='velstand',
                    help='explicit reviewed checkpoint; alternative profiles are not physical admission')
     p.add_argument('--target-profile', choices=['direct-v1', 'robotd-targets-v1'], default='direct-v1',
                    help='explicit output transform, separately bound from checkpoint; no physical admission')

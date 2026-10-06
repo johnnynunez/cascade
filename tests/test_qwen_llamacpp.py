@@ -35,8 +35,12 @@ else:
 """)
     server.chmod(0o755)
     env = {**os.environ, "HOME": str(tmp_path / "private-home"), "PY": sys.executable}
-    for key in ("LLAMA_DIR", "LLAMA_SERVER", "MODEL_ROOT", "PORT", "CTX", "CASCADE_QWEN_MODEL", "CASCADE_QWEN_MMPROJ", "CASCADE_INSTALL_PROFILE"):
+    for key in ("LLAMA_DIR", "LLAMA_SERVER", "MODEL_ROOT", "PORT", "CTX", "CASCADE_QWEN_MODEL", "CASCADE_QWEN_MMPROJ",
+                "CASCADE_INSTALL_PROFILE", "CUDA_VISIBLE_DEVICES"):
         env.pop(key, None)
+    # The owned build/receipt depend on the GPU's CUDA architecture; pin it so the
+    # contract tests do not depend on nvidia-smi being present on the test host.
+    env["CASCADE_LLAMA_CUDA_ARCH"] = "121"
     env["CASCADE_QWEN_MMPROJ"] = str(directory / "mmproj-Qwen3.8-27B-BF16.gguf")
     env["LLAMA_SERVER"] = str(server)
     return repo, directory, server, env
@@ -194,7 +198,8 @@ def test_explicit_missing_server_does_not_fall_back_to_a_host_binary(prepared):
     assert "Missing llama-server" in result.stderr
 
 
-def test_setup_resumes_interrupted_build_of_unchanged_pinned_checkout(prepared):
+def owned_build_fixture(prepared):
+    """Owned `.llama.cpp` layout with stubbed git/nvcc/ninja/cmake; returns (server, env)."""
     repo, _, explicit_server, env = prepared
     server_source = explicit_server.read_text()
     server = repo / ".llama.cpp/build/bin/llama-server"
@@ -213,6 +218,8 @@ elif 'status' not in a: raise SystemExit('unexpected source mutation: ' + str(a)
         "cmake": f"""import pathlib,sys
 if '--build' in sys.argv:
     path=pathlib.Path({str(server)!r}); path.write_text({server_source!r}); path.chmod(0o755)
+else:
+    pathlib.Path({str(bins / 'cmake-configure-args')!r}).write_text(' '.join(sys.argv[1:]))
 """,
     }
     for name, source in commands.items():
@@ -220,6 +227,12 @@ if '--build' in sys.argv:
         path.write_text(f"#!{sys.executable}\n" + source)
         path.chmod(0o755)
     env["PATH"] = str(bins) + os.pathsep + os.environ.get("PATH", os.defpath)
+    return server, server_source, bins, env
+
+
+def test_setup_resumes_interrupted_build_of_unchanged_pinned_checkout(prepared):
+    repo = prepared[0]
+    server, server_source, _, env = owned_build_fixture(prepared)
     result = invoke(prepared, "--setup-only")
     assert result.returncode == 0, result.stdout + result.stderr
     assert server.is_file()
@@ -231,3 +244,38 @@ if '--build' in sys.argv:
     result = invoke(prepared, "--check")
     assert result.returncode != 0
     assert "differs from its pinned build receipt" in result.stderr
+
+
+def test_owned_build_targets_this_gpu_architecture_and_the_receipt_names_it(prepared):
+    """GB10 (Spark) is sm_121 and the x86 rig's Blackwell is sm_120: never hardcode one."""
+    repo = prepared[0]
+    server, _, bins, env = owned_build_fixture(prepared)
+    env["CASCADE_LLAMA_CUDA_ARCH"] = "120"
+    result = invoke(prepared, "--setup-only")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "-DCMAKE_CUDA_ARCHITECTURES=120" in (bins / "cmake-configure-args").read_text()
+    receipt = json.loads((repo / ".llama.cpp/build/.cascade-runtime.json").read_text())
+    assert receipt["cuda_architecture"] == "120"
+    assert invoke(prepared, "--check").returncode == 0
+    # The same build checked on the other host's architecture is refused explicitly,
+    # without being mistaken for a tampered binary.
+    env["CASCADE_LLAMA_CUDA_ARCH"] = "121"
+    result = invoke(prepared, "--check")
+    assert result.returncode != 0
+    assert "built for CUDA architecture '120' but this GPU needs '121'" in result.stderr
+    env["CASCADE_LLAMA_CUDA_ARCH"] = "sm_120"
+    result = invoke(prepared, "--check")
+    assert result.returncode != 0 and "CASCADE_LLAMA_CUDA_ARCH must be" in result.stderr
+
+
+def test_unknown_gpu_architecture_fails_closed_instead_of_assuming_the_spark(prepared):
+    _, _, bins, env = owned_build_fixture(prepared)
+    env.pop("CASCADE_LLAMA_CUDA_ARCH")
+    # nvidia-smi answers nothing (no driver / no GPU): the build must not guess.
+    stub = bins / "nvidia-smi"
+    stub.write_text(f"#!{sys.executable}\nraise SystemExit(9)\n")
+    stub.chmod(0o755)
+    result = invoke(prepared, "--setup-only")
+    assert result.returncode != 0
+    assert "Cannot read the CUDA compute capability" in result.stderr
+    assert not (bins / "cmake-configure-args").exists()

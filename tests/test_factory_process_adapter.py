@@ -79,7 +79,7 @@ class _Synthetic:
 def _child(sockets, identity, caps, deadline, receipt, stale_step, close_failure):
     backend = _Synthetic(stale_step=stale_step)
     transport = _OwnerTransport(backend.layout, identity, caps)
-    owner = FactorySolveOwner(backend, max_wall_s=4., _process_transport=transport)
+    owner = FactorySolveOwner(backend, max_wall_s=owner_wall_s(backend.limits), _process_transport=transport)
     if close_failure is not None:
         def fail(*_args, **_kwargs):
             raise RuntimeError("synthetic close failure")
@@ -92,13 +92,36 @@ def _child(sockets, identity, caps, deadline, receipt, stale_step, close_failure
         json.dump(result, stream)
 
 
+# Fixture scope for the real 'spawn' child, derived from the production task
+# budgets the synthetic episode runs under: readiness (_ready's own default),
+# one turn (limits.max_command_wall_s) and retained rest
+# (limits.rest_timeout_wall_s). A slow CI host multiplies the ~200 synthetic
+# solves (each needs three host round trips) and the child's full re-import;
+# the owner lifetime and the IPC scope must outlive those production budgets
+# plus that start and the child's 2 s close interval, otherwise the FIXTURE,
+# not the unchanged per-phase production limits, decides the outcome (the
+# macOS runner expired a 4 s owner lifetime mid-episode). Scope only: no
+# motion credit, no physical acceptance.
+READINESS_WALL_S = 10.   # _ready() default
+SPAWN_WALL_S = 10.       # child interpreter start and imports before HELLO
+CLOSE_WALL_S = 2.        # _ChildService._close_owner interval
+
+
+def owner_wall_s(limits):
+    return READINESS_WALL_S + limits.max_command_wall_s + limits.rest_timeout_wall_s
+
+
+def scope_deadline(limits):
+    return time.monotonic() + SPAWN_WALL_S + owner_wall_s(limits) + CLOSE_WALL_S
+
+
 def _start(tmp_path, *, stale_step=None, raw_sink=None, outcome_sink=None, close_failure=None):
     backend = _Synthetic()
     caps = replace(_Caps(), raw_slots=512, history_slots=512)
     identity = ("a"*32, backend.layout.epoch, backend.binding.sha256)
     pairs = tuple(socket.socketpair() for _ in range(3))
     parent, child = tuple(p[0] for p in pairs), tuple(p[1] for p in pairs)
-    deadline = time.monotonic()+6.
+    deadline = scope_deadline(backend.limits)
     receipt = tmp_path/"child.json"
     process = multiprocessing.get_context("spawn").Process(target=_child,
         args=(child, identity, caps, deadline, receipt, stale_step, close_failure))
@@ -137,7 +160,7 @@ def test_real_owner_child_and_domain_start_turn_stop_rest_archive_without_physic
     process, session, raw, outcomes, receipt = _start(tmp_path)
     domain = _ProcessDomain(session, controller_id="synthetic-process")
     try:
-        ready = domain.ready(timeout_s=2.)
+        ready = domain.ready(timeout_s=READINESS_WALL_S)
         assert ready["ready"] and not ready["physical_task_admission"]
         reset = domain.reset_stop()
         assert reset["ok"]

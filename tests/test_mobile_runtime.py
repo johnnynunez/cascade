@@ -1175,14 +1175,17 @@ def test_late_stop_verifier_error_is_preserved_in_receipt(tmp_path, frame_endpoi
         assert entered.wait(1)
         assert await_stop(rt, ack["receipt_id"])["status"] == "unverified"
         release.set()
-        deadline = time.monotonic() + 1
-        while True:
-            path = tmp_path / "trace.jsonl"
-            rows = [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
-            proofs = [r for r in rows if r["skill"] == "stop_verification"]
-            if proofs or time.monotonic() >= deadline:
-                break
+        # Handshake, not a timing assumption: _publish_stop writes the
+        # stop_verification trace row and THEN adds the 'outcome' memory event
+        # under the same record lock on the observer thread, so the row is
+        # complete on disk once that event is visible. Reading trace.jsonl any
+        # earlier races a multi-page append and parses a truncated line.
+        deadline = time.monotonic() + 5
+        while not any(event.text == f"stop {ack['receipt_id']}: unverified" for event in rt.memory.events(("outcome",))):
+            assert time.monotonic() < deadline, "late stop verdict was not published"
             time.sleep(.005)
+        rows = [json.loads(line) for line in (tmp_path / "trace.jsonl").read_text().splitlines()]
+        proofs = [r for r in rows if r["skill"] == "stop_verification"]
         assert proofs
         assert "original independent channel failure" in json.dumps(proofs[-1])
         assert proofs[-1]["result"]["status"] == "unverified"

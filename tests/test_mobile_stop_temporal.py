@@ -10,7 +10,7 @@ from mobile_tick_fixture import healthy_episode_gc as healthy_episode_gc  # noqa
 from mobile_tick_fixture import scheduled_tick_steps
 from test_mobile_effects import ScriptedReader, checker_for, state
 from test_mobile_frames import frame_endpoint  # noqa: F401
-from test_mobile_runtime import SyntheticTicks, await_stop, camera_cfg, verifier_limits
+from test_mobile_runtime import SyntheticTicks, await_stop, await_stop_published, camera_cfg, verifier_limits
 
 TICK_SIM_DT_S = .005  # one completed synthetic solve, as published by every software tick fixture
 
@@ -210,7 +210,8 @@ def test_real_socket_timeout_quarantines_even_superseded_reader(tmp_path, frame_
         frozen = copy.deepcopy(first)
         assert entered.wait(1)
         second = rt.stop() if supersede else first
-        proof = await_stop(rt, second["receipt_id"])
+        # The quarantined row read below may be the one still being published.
+        proof = await_stop_published(rt, second["receipt_id"])
         assert proof["status"] == "unverified" and not proof["physical_stop_verified"]
         assert observer._quarantined and len(calls) == 1
         assert first == frozen and first["physical_stop_verified"] is False

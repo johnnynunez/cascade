@@ -15,6 +15,7 @@ the skill runtime reads.
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import threading
@@ -50,6 +51,46 @@ class ObjectBelief:
         return "visible" if (now - self.last_seen_t) <= visible_horizon_s else "remembered"
 
 
+@dataclass
+class SceneSnapshot:
+    """A named, ADVISORY record of where the confirmed objects were -- Pigey's
+    "Original positions (memorize)" list (`real/agent-system.md`), kept in
+    the world model instead of in the planner's reasoning text.
+
+    Entries are plain dicts (label, aliases, colour, centroid, extent, top_z,
+    conf, observations) copied at snapshot time, so later belief fusion
+    cannot rewrite the memorized layout. A position here is a restore
+    TARGET: nothing in a snapshot asserts where an object is now, and
+    `restore_scene` only claims a restored layout through its postcondition.
+    """
+
+    name: str
+    t: float                      # monotonic, when it was taken
+    entries: list[dict]
+    wall: float = field(default_factory=time.time)
+
+    def age_s(self, now: float | None = None) -> float:
+        now = time.monotonic() if now is None else now
+        return max(0.0, now - self.t)
+
+    def as_dict(self, now: float | None = None) -> dict:
+        return {
+            "name": self.name,
+            "age_s": round(self.age_s(now), 1),
+            "count": len(self.entries),
+            "objects": [
+                {
+                    "label": e["label"],
+                    "color": e.get("color"),
+                    "position": [round(float(v), 3) for v in e["position"]],
+                    "extent_m": (None if e.get("extent") is None
+                                 else [round(float(v), 3) for v in e["extent"]]),
+                }
+                for e in self.entries
+            ],
+        }
+
+
 class BeliefStore:
     def __init__(
         self,
@@ -68,6 +109,8 @@ class BeliefStore:
         self._forget_after = forget_after_s
         self._label_agnostic = label_agnostic
         self._lock = threading.RLock()
+        #: named advisory layouts (SceneSnapshot), see `snapshot()`
+        self._snapshots: dict[str, SceneSnapshot] = {}
 
     def update(
         self,
@@ -173,11 +216,69 @@ class BeliefStore:
             return best
 
     def clear(self) -> int:
-        """Forget every object (scene reset). Returns how many were dropped."""
+        """Forget every object (scene reset). Returns how many were dropped.
+
+        Named snapshots go too: a layout memorized for one visitor must not
+        become the next visitor's restore target.
+        """
         with self._lock:
             n = len(self._beliefs)
             self._beliefs = []
+            self._snapshots = {}
             return n
+
+    # ── named scene snapshots (Pigey memorize/restore) ──────────────────
+
+    def snapshot(
+        self,
+        name: str = "scene",
+        now: float | None = None,
+        visible_horizon_s: float = 1.5,
+        exclude_label: str | None = None,
+    ) -> SceneSnapshot:
+        """Record the CONFIRMED objects -- those currently `visible`, i.e.
+        re-observed within `visible_horizon_s` -- as the named layout.
+
+        Remembered-only beliefs are left out on purpose: a position nobody
+        has confirmed lately is a poor restore target, and a stale one would
+        send the arm to put an object where it may never have been. The
+        held object (`exclude_label`, its detector label) is not on the
+        table, so it has no layout position either. Taking a snapshot under
+        an existing name replaces it.
+        """
+        now = time.monotonic() if now is None else now
+        with self._lock:
+            entries = []
+            for b in self.all(now):
+                if b.state(now, visible_horizon_s) != "visible":
+                    continue
+                if exclude_label is not None and b.label == exclude_label:
+                    continue
+                entries.append({
+                    "label": b.label,
+                    "aliases": sorted(b.aliases),
+                    "color": b.color,
+                    "position": [float(v) for v in b.position],
+                    "extent": None if b.extent is None else [float(v) for v in b.extent],
+                    "top_z": None if b.top_z is None else float(b.top_z),
+                    "conf": float(b.conf),
+                    "observations": int(b.observations),
+                })
+            snap = SceneSnapshot(name=str(name), t=now, entries=entries)
+            self._snapshots[str(name)] = snap
+            return snap
+
+    def get_snapshot(self, name: str) -> SceneSnapshot | None:
+        with self._lock:
+            return self._snapshots.get(str(name))
+
+    def snapshots(self) -> list[str]:
+        with self._lock:
+            return sorted(self._snapshots)
+
+    def drop_snapshot(self, name: str) -> bool:
+        with self._lock:
+            return self._snapshots.pop(str(name), None) is not None
 
     def mark_removed(self, label: str, near: np.ndarray | None = None) -> bool:
         """Drop a belief after the robot itself moved the object away."""
@@ -337,10 +438,22 @@ class BeliefStore:
                     "last_seen_wall": now_wall - (now_mono - b.last_seen_t),
                     "first_seen_wall": now_wall - (now_mono - b.first_seen_t),
                 })
+            # Named layouts travel with the world model. They are advisory
+            # data (restore targets), so the only clock work they need is the
+            # same monotonic -> wall conversion; nothing about them can read
+            # as "visible" after a load.
+            snapshots = [
+                {
+                    "name": s.name,
+                    "taken_wall": now_wall - (now_mono - s.t),
+                    "entries": copy.deepcopy(s.entries),
+                }
+                for s in self._snapshots.values()
+            ]
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(path.suffix + f".tmp{os.getpid()}")
         tmp.write_text(json.dumps({"version": 1, "saved_wall": now_wall,
-                                   "beliefs": records}, indent=1))
+                                   "beliefs": records, "snapshots": snapshots}, indent=1))
         os.replace(tmp, path)
         return len(records)
 
@@ -358,6 +471,7 @@ class BeliefStore:
         try:
             blob = json.loads(path.read_text())
             records = blob["beliefs"] if isinstance(blob, dict) else blob
+            saved_snapshots = blob.get("snapshots") or [] if isinstance(blob, dict) else []
         except Exception:  # noqa: BLE001 - never block startup on a bad file
             return 0
         if max_age_s is None:
@@ -400,8 +514,23 @@ class BeliefStore:
                 ))
             except Exception:  # noqa: BLE001 - skip a bad record, keep the rest
                 continue
-        if not loaded:
+        restored_snapshots: dict[str, SceneSnapshot] = {}
+        for s in saved_snapshots:
+            try:
+                entries = [dict(e) for e in s["entries"]]
+                for e in entries:
+                    e["position"] = [float(v) for v in e["position"]]
+                    if e.get("extent") is not None:
+                        e["extent"] = [float(v) for v in e["extent"]]
+                taken_age = max(0.0, now_wall - float(s.get("taken_wall", now_wall)))
+                restored_snapshots[str(s["name"])] = SceneSnapshot(
+                    name=str(s["name"]), t=now_mono - taken_age, entries=entries,
+                    wall=float(s.get("taken_wall", now_wall)))
+            except Exception:  # noqa: BLE001 - a bad layout must not block the beliefs
+                continue
+        if not loaded and not restored_snapshots:
             return 0
         with self._lock:
             self._beliefs.extend(loaded)
+            self._snapshots.update(restored_snapshots)
         return len(loaded)

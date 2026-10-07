@@ -447,9 +447,42 @@ Open follow-ups from this work:
     distilled skill only when seen in ≥2 distinct tasks (`occurrences`,
     `source_tasks`); the scoped retry-admission gate still permits retrieval
     after one confirmed retry, without cross-task validation. (S)
-11. **Pigey snapshot/restore + occlusion search** as composite skills over
+11. ~~**Pigey snapshot/restore + occlusion search** as composite skills over
     `BeliefStore` (`snapshot_scene`/`restore_scene`, `search_for_object`):
-    the one demo beat visible from chat that no current skill covers. (M)
+    the one demo beat visible from chat that no current skill covers. (M)~~
+    **landed 2026-10-07.** `BeliefStore` keeps named ADVISORY
+    `SceneSnapshot`s (confirmed objects' label/colour/centroid/extent;
+    saved/loaded with the beliefs, dropped by `clear()`); `snapshot_scene`
+    writes one with no motion; `restore_scene` diffs it against current
+    beliefs colour-first, moves only objects displaced beyond `tolerance_m`,
+    blocker-first (a swap cycle parks one object on free, IK-reachable table
+    inside the workspace), each move `_grasp_with_persistence` +
+    `skill_place_at` like `sort_by_color`, bounded by `max_moves` and the
+    per-task persistence deadline; `search_for_object` lifts the largest
+    hollow/large occluder, parks it +0.2 m (0.15/0.12 fallbacks) on free
+    reachable table, re-perceives, and on a sighting returns
+    `task_complete: false` + "resume the ORIGINAL task", else `ok: false,
+    stuck: true`. Postconditions `restored`/`searched` (`agent/effects.py`)
+    confirm/refute only on the physics channel and stay `unverified` on the
+    belief the place itself wrote. Measured: 18 new tests in
+    `tests/test_pigey_scene_memory.py` (RED 18 failed on b5477d8 → GREEN);
+    on the rendered two-prop MuJoCo world: a physics-confirmed
+    `pick_and_place` of the red cube, `snapshot_scene` of that layout, the
+    props teleported back to spawn behind the robot's back
+    (`MujocoWorld.reset_props`, belief store not told), then
+    `restore_scene` ignored the remembered drop-zone belief, moved only the
+    red cube back to within 5 cm of its memorized spot (physics truth, blue
+    cube untouched < 1 cm) and its `restored` verdict came from the physics
+    channel; on the static mock stack the same restore drove the arm through
+    `SafeArm` and its verdict stayed `unverified`. Found on the way: the
+    MuJoCo release-escape planner refuses a plain `place_at` next to a
+    neighbour 7 cm away (the spawn layout) and at several free spots
+    (`no collision-clear release escape`), so a restore to the spawn layout
+    ends as an honest `ok: false, stage: place, holding: red cube` — the
+    harness stays the authority; nothing was relaxed.
+    Not claimed: physical acceptance on a real rig, any change to safety
+    limits, planners or physics assets, occluder recognition beyond label
+    words and footprint size.
 12. **Capability matrix → tool surface (Waddle).** Compute `_EXCLUDED_TOOLS`
     from what the rig can do (depth, sidecars, n_arms) instead of
     `CASCADE_HIDE_TOOLS` by hand. (S)

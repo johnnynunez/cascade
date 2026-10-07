@@ -368,9 +368,20 @@ class FrameCache:
         self._frame = None
         self._closed = False
 
-    def publish(self, rgb, *, step, sim_time_s, captured_at, render_times):
-        import base64
+    @staticmethod
+    def encode(rgb, *, quality=85):
+        """JPEG bytes of a uint8 RGB capture; shared endpoints encode once for every robot."""
         import cv2
+        if not isinstance(rgb, np.ndarray) or rgb.dtype != np.uint8 or rgb.ndim != 3 or rgb.shape[2] != 3:
+            raise ValueError('capture must be uint8 RGB')
+        ok, encoded = cv2.imencode('.jpg', cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, quality])
+        if not ok:
+            raise ValueError('JPEG encoding failed')
+        return encoded.tobytes()
+
+    def publish(self, rgb, *, step, sim_time_s, captured_at, render_times, jpeg=None):
+        """Publish one capture; ``jpeg`` (bytes of ``rgb``) skips this cache's own encode."""
+        import base64
         if type(step) is not int or step < 0:
             raise ValueError('invalid capture step')
         validate_render_times(render_times, sim_time_s)
@@ -379,13 +390,15 @@ class FrameCache:
         if (not isinstance(rgb, np.ndarray) or rgb.dtype != np.uint8 or rgb.ndim != 3
                 or rgb.shape[2] != 3 or not 0 < rgb.shape[0] * rgb.shape[1] <= self.max_pixels):
             raise ValueError('capture must be bounded uint8 RGB')
-        ok, encoded = cv2.imencode('.jpg', cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR),
-                                  [cv2.IMWRITE_JPEG_QUALITY, 85])
-        if not ok or len(encoded) > self.max_jpeg_bytes:
+        if jpeg is None:
+            jpeg = self.encode(rgb)
+        elif type(jpeg) is not bytes or not jpeg.startswith(b'\xff\xd8'):
+            raise ValueError('pre-encoded frame must be JPEG bytes')
+        if len(jpeg) > self.max_jpeg_bytes:
             raise ValueError('JPEG encoding failed/exceeded bound')
         frame = {**self.identity, 'camera': 'overview', 'step': step, 'sim_time_s': float(sim_time_s),
                  'width': rgb.shape[1], 'height': rgb.shape[0],
-                 'rgb_jpeg_b64': base64.b64encode(encoded).decode('ascii')}
+                 'rgb_jpeg_b64': base64.b64encode(jpeg).decode('ascii')}
         with self._lock:
             if self._closed:
                 raise RuntimeError('frame cache closed')

@@ -155,3 +155,51 @@ def test_long_profile_walks_a_measured_metre_on_the_kinematic_fixture_only():
         assert result["outcome"] != "confirmed"  # a kinematic mock never confirms physics
     finally:
         safe.disconnect()
+
+
+def test_route_profile_extends_the_long_walk_to_six_metres_with_derived_wall_budgets():
+    from cascade.agent.base_effects import _validate_limits
+    long, route = _profile("microduck_distance_long"), _profile("microduck_distance_route")
+    assert route["admission"] == "pending_route_geometric_validation"
+    assert route["model_identity_sha256"] is None and route["support_contract"] is None
+    # Physical command cap 60 s; wall from the retained twelve-robot owner attempt (17.2 wall s / physical s).
+    assert route["safety"] == {**long["safety"], "max_duration_s": 60.0,
+                               "max_wall_duration_s": float(math.ceil(60 * 17.2 + 2 * .5 + 1))}
+    assert route["distance_control"] == {**long["distance_control"], "max_distance_m": 6.0,
+                                         "max_lateral_drift_m": 0.30, "max_heading_drift_rad": 0.25}
+    wall = route["safety"]["max_wall_duration_s"] + 4
+    assert route["verifier"] == {**long["verifier"], "max_wall_duration_s": wall,
+                                 "max_samples": math.ceil(wall / .02) + 1, "max_position_abs_m": 10.0,
+                                 "max_lateral_drift_m": 0.30, "max_heading_drift_rad": 0.25}
+    # The shared-world variant changes client sampling density only; deadlines stay the originals.
+    shared = _profile("microduck_distance_route_shared")
+    assert shared["admission"] == "pending_shared_route_geometric_validation"
+    assert shared["safety"] == {**route["safety"], "poll_interval_s": 0.1}
+    assert shared["verifier"] == {**route["verifier"], "sample_interval_s": 0.1, "max_samples": math.ceil(wall / .1) + 1}
+    assert shared["distance_control"] == route["distance_control"] and shared["turn_control"] == route["turn_control"]
+    for prof in (route, shared):
+        assert prof["verifier"]["read_timeout_s"] == 0.5 and prof["verifier"]["max_sample_gap_s"] == 0.15
+        assert prof["verifier"]["max_state_age_s"] == 0.5 and prof["safety"]["max_no_progress_s"] == 0.4
+    _validate_limits(shared["verifier"])
+    # Freshness and progress limits are the original ones, not relaxed for twelve robots.
+    assert route["safety"]["max_state_age_s"] == 0.5 and route["safety"]["max_no_progress_s"] == 0.4
+    assert route["turn_control"] == long["turn_control"]
+    _validate_limits(route["verifier"])
+    assert long["distance_control"]["max_distance_m"] == 2.0 and long["safety"]["max_duration_s"] == 25.0
+
+
+def test_route_limits_file_matches_the_route_profile_and_holds_heading():
+    import json
+    import sys
+    from pathlib import Path
+    repo = Path(__file__).resolve().parents[1]
+    sys.path.insert(0, str(repo / "scripts"))
+    from isaac_microduck_bridge import load_limits
+    limits = load_limits(repo / "configs/microduck/controller-limits-route.json")
+    route = _profile("microduck_distance_route")
+    assert limits["max_duration_s"] == route["safety"]["max_duration_s"]
+    assert limits["max_action_wall_s"] == route["safety"]["max_wall_duration_s"]
+    assert limits["max_state_age_s"] == route["safety"]["max_state_age_s"]
+    assert limits["heading_hold_kp"] == 4.0 and limits["heading_hold_ki"] == 2.0
+    assert limits["max_linear_speed"] == route["safety"]["max_vx"] >= route["distance_control"]["speed_m_s"]
+    assert json.loads((repo / "configs/microduck/controller-limits-route.json").read_text()) == limits

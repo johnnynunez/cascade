@@ -1,0 +1,19 @@
+# Route candidate for a SHARED world (up to twelve robots, one owner). NOT physical admission.
+# Same geometric bounds and deadlines as microduck_distance_route; only the client
+# sampling changes: a twelve-robot owner publishes a new state about every 0.1 wall
+# second (85.9 ms median attempt), so the single-robot 10 ms control poll and 20 ms
+# verifier sample only load its RPC threads (twelve clients at those rates starved
+# the solve loop and every walk failed on 'feedback clock did not advance' / stale
+# feedback). Both poll periods become 0.1 s and the read quota keeps the same wall
+# capacity (ceil(1038/.1)+1 = 10381 reads). The 0.5 s state age, 0.4 s progress,
+# 0.5 s read/RPC, 0.15 s simulation sampling gap, settling and rest limits are
+# unchanged. Measured so far: with twelve concurrent walks the owner's RPC path
+# still exceeds the unchanged limits (runs g2d/g2e, 0.8-2.6 m), so this profile
+# records the attempt, not a pass.
+extends: microduck_distance_route
+admission: pending_shared_route_geometric_validation
+safety:
+  poll_interval_s: 0.1
+verifier:
+  sample_interval_s: 0.1
+  max_samples: 10381

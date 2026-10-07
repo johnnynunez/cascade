@@ -120,6 +120,25 @@ class SkillError(RuntimeError):
     """A skill failed in a way the agent should reason about (not a crash)."""
 
 
+class SkillStuck(SkillError):
+    """A motion skill cannot proceed for a reason a HUMAN can act on.
+
+    Third outcome next to ok/failed (RPent's ``finish(status=stuck)``): the
+    robot has exhausted what it can do on its own -- persistence budget,
+    re-scans, re-plans -- or hit a terminal condition no retry cures (object
+    never seen, wider than the jaws, destination not placeable). ``ask`` is
+    the concrete request: what to change in the scene or the instruction.
+    ``SkillRuntime.execute()`` turns it into ``{"ok": false, "outcome":
+    "stuck", "ask": ...}``; a stuck step is never a success and never claims
+    an effect. Harness refusals and the e-stop are NOT stuck: they stay
+    ``SafetyViolation`` / plain failures.
+    """
+
+    def __init__(self, message: str, ask: str):
+        super().__init__(message)
+        self.ask = str(ask)
+
+
 class SafetyViolation(RuntimeError):
     """A motion command was rejected by the safety harness."""
 

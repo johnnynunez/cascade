@@ -162,7 +162,11 @@ better policies, and it does not certify the Isaac/CUDA/OpenClaw deployment.
 
 - No changes to model weights, motion commands, IK, safety limits or the
   postcondition evaluator. Experience-memory and operating-envelope admission
-  remain separate and unchanged.
+  remain separate and unchanged by this gate. (Both grew on 2026-10-07 on
+  their own terms — tier-2 recipes that re-ground coordinates through live
+  perception, and runtime-measured envelope features — see
+  [AGENTIC_UPGRADES.md](AGENTIC_UPGRADES.md) §3/§3b; neither reads this
+  gate's receipts, and neither is a claim of learned improvement.)
 - The gate trusts historical verifier receipts structurally; it does not
   re-evaluate their measurements or establish equality of hidden state,
   scene, object instance, model revision or calibration.

@@ -843,6 +843,8 @@ class McpSkillServer:
                     return self._image_result(
                         runtime, runtime.last_annotated_frame, annotations=result,
                     )
+                if name == "recall_step" and result.get("ok"):
+                    return self._recall_result(runtime, result)
         return _text_result(result, is_error=not result.get("ok", False))
 
     def _call_mobile_tool(self, name, arguments):
@@ -980,6 +982,27 @@ class McpSkillServer:
                  " Current camera view unavailable; saved frames are history only."),
         }
         content.append({"type": "text", "text": json.dumps(summary)})
+        return {"content": content, "isError": False}
+
+    def _recall_result(self, runtime, result: dict) -> dict:
+        """`recall_step` for a chat host: the step's BEFORE/AFTER keyframes
+        as image content items, one caption each, the JSON summary LAST --
+        the same shape `task_memory` uses, so a host that renders one
+        renders the other. The bytes come from `runtime.last_recalled_frames`
+        (loaded by this very call; cleared first on a bad index, so an error
+        result never reaches here with an old frame attached)."""
+        content: list[dict] = []
+        for fr in getattr(runtime, "last_recalled_frames", None) or []:
+            jpeg = fr.get("jpeg")
+            if not jpeg:
+                continue
+            content.append({"type": "text", "text": str(fr.get("caption") or result.get("caption", ""))})
+            content.append({
+                "type": "image",
+                "data": base64.b64encode(jpeg).decode(),
+                "mimeType": "image/jpeg",
+            })
+        content.append({"type": "text", "text": json.dumps(result)})
         return {"content": content, "isError": False}
 
     def _verify_last(self, runtime) -> dict:

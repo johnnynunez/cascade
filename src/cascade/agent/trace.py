@@ -65,6 +65,27 @@ class TraceLogger:
             f.write(json.dumps(rec) + "\n")
         self._step += 1
 
+    def rows(self) -> list[dict[str, Any]]:
+        """The recorded steps, oldest first, read back from `trace.jsonl`.
+
+        The file is the authority (`recall_step` serves what a post-hoc
+        reader would see, not an in-memory shadow of it); a line that does
+        not parse is skipped rather than failing the whole recall."""
+        if not self._trace_path.exists():
+            return []
+        out: list[dict[str, Any]] = []
+        for line in self._trace_path.read_text().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(rec, dict):
+                out.append(rec)
+        return out
+
     def finish(self, summary: str) -> None:
         # The runtime registers `backends_fn` so every summary carries WHICH
         # sidecars were verifiably in the loop (grasp planner, occupancy

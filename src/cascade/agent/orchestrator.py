@@ -32,7 +32,8 @@ import time
 from dataclasses import dataclass, field
 
 from ..conversation.receipts import agent_tool_output
-from ..skills.runtime import TOOL_SPECS, SkillRuntime
+from ..memory import recipes
+from ..skills.runtime import TOOL_SPECS, SkillRuntime, _MOTION_SKILLS
 from .advisor import Advisor
 from .aspire import retrieve as retrieve_skills
 from .llm import LLMClient, LLMResponse
@@ -67,6 +68,10 @@ class TaskReport:
     #: milestones that could not be verified -- surfaced so a "success"
     #: claim can never quietly outrun the evidence
     unverified: list[str] = field(default_factory=list)
+    #: set when the task ended on a `stuck` step (RPent's third finish
+    #: status): {"skill", "args", "ask"} -- the ask is the human-actionable
+    #: request, relayed verbatim; the step was NOT retried
+    stuck: dict | None = None
 
 
 class AgentOrchestrator:
@@ -109,6 +114,9 @@ class AgentOrchestrator:
         #: ablation scores lowest: the planner over-trusts the text and keeps
         #: "continuing the current task"). Needs a vision model.
         self.memory_frames_k = int(memory_frames_k) if self.attach_images else 0
+        #: keyframes a just-executed `recall_step` loaded, shown to the planner
+        #: on its next turn only (RPent `view_env_state(step=N)`), then dropped
+        self._pending_recall: list[dict] = []
         # Existing reflexes/experience encode arm keyframes and grasps; never
         # consult that library for another morphology.
         self.fast_planner = None if self._mobile else fast_planner
@@ -218,6 +226,10 @@ class AgentOrchestrator:
 
         consecutive_failures = 0
         stalled_turns = 0
+        #: Task-Specific Memory: the scene as perceived BEFORE the first
+        #: motion, so a successful run can be stored with its coordinates
+        #: expressed relative to objects (memory/recipes.py), never raw.
+        scene0: list[dict] | None = None
         for step in range(1, self.max_steps + 1):
             resp = self.llm.chat(
                 system=self.system_prompt,
@@ -242,6 +254,8 @@ class AgentOrchestrator:
             messages.append(
                 {"role": "assistant", "content": resp.text, "tool_calls": list(resp.tool_calls)}
             )
+            if scene0 is None and call.name in _MOTION_SKILLS:
+                scene0 = self._scene_snapshot()
             # Human-CLAW pre-motion critic: judged BEFORE dispatch, acted on
             # by nobody but the planner. Whatever it says, the call below is
             # the planner's call, unchanged -- only the harness refuses motion.
@@ -268,7 +282,28 @@ class AgentOrchestrator:
                 task_verifier = getattr(self.runtime, "unverified_actions", None)
                 if task_verifier is not None:
                     success = success and result.get("success") is True
-                return self._finish_report(task, success, summary, step, milestones, tool_log, t_start)
+                report = self._finish_report(task, success, summary, step, milestones, tool_log, t_start)
+                if report.success:
+                    # Only a VERIFIED success is worth remembering: the
+                    # report's success already folds in every unverified
+                    # effect obligation, so an unconfirmed pick never
+                    # becomes a habit (same rule the fast tier applies).
+                    self._remember_recipe(task, tool_log, scene0, report)
+                return report
+
+            # RPent `finish(status=stuck)`: the skill exhausted what the robot
+            # can do on its own and named what the HUMAN should change. The
+            # task ends here -- no re-plan, no retry of the step with a fresh
+            # budget -- and the ask is relayed verbatim to whoever is reading.
+            if isinstance(result, dict) and result.get("outcome") == "stuck":
+                return self._finish_stuck(task, call.name, dict(call.arguments), result,
+                                          step, milestones, tool_log, t_start)
+
+            # The planner asked to see a past step: show it the recalled
+            # keyframes on its NEXT turn, inside the one message that carries
+            # images (the memory harness), then forget them.
+            if call.name == "recall_step" and result.get("ok"):
+                self._pending_recall = list(getattr(self.runtime, "last_recalled_frames", None) or [])
 
             ok = bool(result.get("ok"))
             consecutive_failures = 0 if ok else consecutive_failures + 1
@@ -401,7 +436,7 @@ class AgentOrchestrator:
                                    milestones, tool_log, t_start)
 
     def _finish_report(self, task, success, summary, steps, milestones, tool_log,
-                       t_start, *, path="llm", verify_milestones=True):
+                       t_start, *, path="llm", verify_milestones=True, stuck=None):
         """Every normal exit retains the task's unresolved effects and history."""
         status, unverified = self._final_check(success) if verify_milestones else ([], [])
         task_verifier = getattr(self.runtime, "unverified_actions", None)
@@ -410,15 +445,38 @@ class AgentOrchestrator:
             success = success and not unverified
         if unverified:
             summary += "\n[verification] could not confirm: " + "; ".join(unverified)
+        if stuck is not None:
+            success = False  # a stuck task is never a success, whatever was claimed
         duration = round(time.monotonic() - t_start, 2)
+        # summary.txt records the third outcome explicitly: a reader of the
+        # run directory sees `outcome: stuck` and the ask verbatim, not just
+        # `success: False`.
+        stuck_lines = (f"outcome: stuck\nask: {stuck['ask']}\n" if stuck is not None else "")
         self.runtime.trace.finish(
-            f"task: {task}\nsuccess: {success}\nsteps: {steps}\npath: {path}\n"
+            f"task: {task}\nsuccess: {success}\n{stuck_lines}steps: {steps}\npath: {path}\n"
             f"duration_s: {duration}\n{summary}"
         )
         return TaskReport(
             task, success, summary, steps, milestones, tool_log, path=path,
             duration_s=duration, milestone_status=status, unverified=unverified,
+            stuck=stuck,
         )
+
+    def _finish_stuck(self, task, skill, args, result, steps, milestones, tool_log,
+                      t_start, *, path="llm"):
+        """End the task on a `stuck` step: the ask is relayed VERBATIM (report
+        summary, memory note, summary.txt) and the step is not retried by
+        any tier. The human changes the scene or the instruction; the next
+        task starts fresh."""
+        ask = str(result.get("ask") or "")
+        stuck = {"skill": skill, "args": args, "ask": ask}
+        try:
+            self.runtime.memory.add("note", f"stuck at {skill}: {ask}")
+        except Exception:  # noqa: BLE001 -- reporting must never break the exit
+            pass
+        summary = f"stuck at {skill}({_short_args(args)}): {ask}"
+        return self._finish_report(task, False, summary, steps, milestones, tool_log,
+                                   t_start, path=path, verify_milestones=False, stuck=stuck)
 
     # ── Pigey: outcome tracking ──────────────────────────────────────────
 
@@ -498,17 +556,48 @@ class AgentOrchestrator:
             return None, None
         if tool_log is None:
             tool_log = []
-        for i, (name, args) in enumerate(plan.calls, start=1):
+        # Task-Specific Memory (Harness-VLA v4, memory/recipes.py): a
+        # recalled recipe carries perception QUERIES where the original run
+        # had coordinates. Every one of them is re-grounded through the
+        # runtime's own perception NOW, before the first motion. A query
+        # that does not resolve aborts the whole replay to the LLM tier --
+        # there is no stored coordinate to fall back to, by construction.
+        calls = plan.calls
+        n_grounded = 0
+        if plan.needs_grounding:
+            try:
+                calls, n_grounded = self._ground_recipe(plan, tool_log)
+            except recipes.GroundingError as e:
+                note = (
+                    f"(A remembered {plan.source} recipe for this command could not be "
+                    f"re-grounded on the current scene: {e}. No motion was attempted; "
+                    "observe and plan from what is actually on the table.)"
+                )
+                return None, note
+        offset = len(tool_log)
+        for i, (name, args) in enumerate(calls, start=1):
             self.runtime.current_tier = str(plan.source)  # reflex | experience
             try:
                 result = self.runtime.execute(name, args)
             finally:
                 self.runtime.current_tier = None
-            tool_log.append({"step": i, "tier": str(plan.source), "tool": name,
+            tool_log.append({"step": offset + i, "tier": str(plan.source), "tool": name,
                              "args": args, "result": result})
+            if isinstance(result, dict) and result.get("outcome") == "stuck":
+                # The fast tier's step needs a human. Escalating to the LLM
+                # would only buy the same pick a fresh persistence budget --
+                # a visitor watching minutes of retries. End here, ask.
+                self.fast_planner.note_outcome(task, plan.calls, False, time.monotonic() - t_start)
+                return (
+                    self._finish_stuck(task, name, dict(args), result, i, [], tool_log, t_start,
+                                       path=str(plan.source)),
+                    None,
+                )
             task_verifier = getattr(self.runtime, "unverified_actions", None)
             unverified = task_verifier() if task_verifier is not None else []
             if not result.get("ok", False) or unverified:
+                # plan.calls, not the grounded `calls`: a recipe's record
+                # must keep its queries.
                 self.fast_planner.note_outcome(
                     task, plan.calls, False, time.monotonic() - t_start
                 )
@@ -519,7 +608,8 @@ class AgentOrchestrator:
                 )
                 return None, note
         duration = round(time.monotonic() - t_start, 2)
-        self.fast_planner.note_outcome(task, plan.calls, True, duration)
+        meta = {"summary": plan.summary} if plan.summary else {}
+        self.fast_planner.note_outcome(task, plan.calls, True, duration, **meta)
         # Agentic-VLA curriculum: credit each sub-goal separately as well, so a
         # clause proven inside this sequence warm-starts any FUTURE task that
         # contains it -- including a different sequence. Without this the
@@ -533,13 +623,86 @@ class AgentOrchestrator:
                 )
         summary = (
             f"done via {plan.source} path in {duration}s: "
-            + "; ".join(f"{n}({_short_args(a)})" for n, a in plan.calls)
+            + "; ".join(f"{n}({_short_args(a)})" for n, a in calls)
         )
+        if n_grounded:
+            summary += (
+                f" (recipe: {n_grounded} perception quer{'y' if n_grounded == 1 else 'ies'} "
+                "re-grounded before motion)"
+            )
         return (
-            self._finish_report(task, True, summary, len(plan.calls), [], tool_log, t_start,
+            self._finish_report(task, True, summary, len(calls), [], tool_log, t_start,
                                 path=plan.source, verify_milestones=False),
             None,
         )
+
+    def _ground_recipe(self, plan, tool_log: list) -> tuple[list, int]:
+        """Resolve a recipe's symbolic targets through `localize_object`.
+
+        Perception only -- `localize_object` is not in `_MOTION_SKILLS` --
+        and every lookup is logged under the plan's tier so the trace shows
+        the replay re-grounded before it moved. Raises GroundingError.
+        """
+        def localize(label: str) -> dict:
+            self.runtime.current_tier = str(plan.source)
+            try:
+                result = self.runtime.execute("localize_object", {"label": label})
+            finally:
+                self.runtime.current_tier = None
+            tool_log.append({"step": len(tool_log) + 1, "tier": str(plan.source),
+                             "tool": "localize_object", "args": {"label": label},
+                             "result": result, "grounding": True})
+            return result
+
+        return recipes.ground(plan.calls, localize)
+
+    def _scene_snapshot(self) -> list[dict]:
+        """Objects the belief store knows right now, as recipe anchors."""
+        beliefs = getattr(self.runtime, "beliefs", None)
+        if beliefs is None:
+            return []
+        try:
+            return [
+                {"label": b.label, "position": [float(v) for v in b.position]}
+                for b in beliefs.all()
+            ]
+        except Exception:  # noqa: BLE001 -- a snapshot failure only costs the recipe
+            return []
+
+    def _remember_recipe(self, task: str, tool_log: list, scene0, report: TaskReport) -> None:
+        """Store a verified LLM-tier run as a Task-Specific Memory recipe.
+
+        Coordinates become `localize_object(label) + offset` queries anchored
+        on the scene before the first motion; a run whose coordinates cannot
+        be anchored is NOT stored (never a raw coordinate), and says so in
+        the episodic memory so the omission is visible.
+        """
+        planner = self.fast_planner
+        if planner is None or getattr(planner, "experience", None) is None:
+            return
+        try:
+            scene = recipes.anchor_scene(tool_log, scene0 or [])
+            steps = recipes.symbolize_run(tool_log, scene)
+        except recipes.RecipeError as e:
+            try:
+                self.runtime.memory.add("note", f"run not kept as a recipe: {e}")
+            except Exception:  # noqa: BLE001
+                pass
+            return
+        except Exception:  # noqa: BLE001 -- memory bookkeeping never fails a finished task
+            return
+        if not steps:
+            return  # nothing moved: an answer, not a recipe
+        first_line = (report.summary or "").strip().splitlines()
+        summary = (first_line[0] if first_line else f"completed: {task}")[:200]
+        run_dir = getattr(getattr(self.runtime, "trace", None), "run_dir", None)
+        try:
+            planner.note_outcome(
+                task, steps, True, report.duration_s,
+                summary=summary, source_run=(run_dir.name if run_dir is not None else None),
+            )
+        except Exception:  # noqa: BLE001
+            pass
 
     def _with_memory_harness(self, messages: list[dict]) -> list[dict]:
         """Messages for THIS planner turn: the conversation with all older
@@ -552,14 +715,24 @@ class AgentOrchestrator:
         Falls back to the plain pruned conversation when there is nothing to
         show (no vision model, K=0, no frames yet)."""
         pruned = self._prune_images(messages)
-        if self.memory_frames_k <= 0:
+        # A `recall_step` executed last turn: its BEFORE/AFTER keyframes ride
+        # along ONCE, inside the single message that carries images, placed
+        # before the current view so "the LAST image is the current view"
+        # stays true. Text-only planners get the JSON result alone.
+        recall = self._pending_recall if self.attach_images else []
+        self._pending_recall = []
+        if self.memory_frames_k <= 0 and not recall:
             return pruned
         try:
-            frames = self.runtime.memory.memory_frames(self.memory_frames_k)
+            frames = self.runtime.memory.memory_frames(self.memory_frames_k) if self.memory_frames_k > 0 else []
         except AttributeError:
             frames = []
         images = [f["jpeg"] for f in frames]
         lines = [self.runtime.memory.frame_caption(f) for f in frames]
+        for fr in recall:
+            if fr.get("jpeg"):
+                images.append(fr["jpeg"])
+                lines.append(f"recalled {fr.get('caption', 'step')}")
         current = self.runtime.frame_jpeg() if self.runtime.last_frame is not None else None
         if current is not None:
             images.append(current)
@@ -574,6 +747,9 @@ class AgentOrchestrator:
             "must happen next and why), then call the tool.\n"
             + "\n".join(f"{i + 1}. {ln}" for i, ln in enumerate(lines))
         )
+        if recall:
+            text += ("\nThe 'recalled' image(s) are the keyframes recorded around the past "
+                     "step you asked about, shown once; they are not the current view.")
         # Strip any image the pruned history still carries: the harness is
         # now the single place images enter the request.
         pruned = [

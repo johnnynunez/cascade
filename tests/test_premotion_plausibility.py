@@ -539,7 +539,10 @@ def test_bare_runtime_without_the_hand_off_attribute_still_dispatches(tmp_path):
     rt.skill_noop = lambda: {"ok": True}
 
     assert not hasattr(rt, "pending_plausibility")
-    assert rt.execute("noop", {}) == {"ok": True}
+    bare = rt.execute("noop", {})
+    # every result now also carries the outcome stamp (recall_step/stuck);
+    # what this test pins is that the missing hand-off attribute changes nothing
+    assert bare["ok"] is True and "plausibility" not in bare
     rt.pending_plausibility = {"verdict": UNSURE, "reasons": ["x"], "source": "vlm:t"}
     out = rt.execute("noop", {})
     assert out["plausibility"]["verdict"] == UNSURE

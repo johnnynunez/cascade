@@ -257,9 +257,22 @@ Open follow-ups from this work:
    `UNCONFIRMED` unless it is currently visible or was re-observed at least
    once (`VisualInterface.min_observations`, default 2) — pinned in
    `tests/test_visual_interface.py`.
-4. Envelope features are currently raw skill args; add derived features
+4. ~~Envelope features are currently raw skill args; add derived features
    (TCP z at grasp, object height) so the learned ranges capture the real
-   B601-RS constraint rather than a proxy.
+   B601-RS constraint rather than a proxy.~~ **landed 2026-10-07.**
+   `memory/envelope.py` `DERIVED_FEATURES`: the runtime measures
+   `tcp_z_at_grasp_m` (FK of the joint vector read back when the jaws
+   closed), `object_height_m` (fix top above the support plane),
+   `object_width_m` (narrower horizontal footprint extent) and
+   `object_tcp_lateral_offset_m` inside `skill_grasp_object` and passes them
+   through `record(..., measured=...)`; a feature the call could not measure
+   is counted in `missing` (never defaulted), both ride in the trace context
+   for `ingest_trace`, and `envelope_digest()`/`export_markdown()` show them
+   as `measured`. Measured on the mock stack: a grasp records all four
+   (height 0.050 m against the 5 cm synthetic box, lateral offset < 1 cm), a
+   grasp that dies at localization records four `missing`, confidence tiers
+   and `contradictions` unchanged (`tests/test_envelope_derived_features.py`,
+   RED 14 failed on main → GREEN). Advisory only, as before.
 5. **SGLang Omni as a second serving engine for Cosmos3-Edge**, landed
    2026-08-27: `scripts/serve_cosmos_sglang.sh` + `configs/llm/local_cosmos_sglang.yaml`
    (`local_cosmos_sglang`, :8083) alongside the existing vLLM path (`local_cosmos`,
@@ -461,9 +474,29 @@ What landed, all measured on this CUDA-less Mac (suite 623 → 639 passed,
   0.050) m"; a chat-driven `pick_and_place` executed in physics.
 
 Open follow-ups from this work:
-9. **Task-Specific Memory recipes (Harness-VLA v4).** Store successful runs
+9. ~~**Task-Specific Memory recipes (Harness-VLA v4).** Store successful runs
    with xyz replaced by `localize_object(label)+offset` queries and re-ground
-   at replay; this is the shape for #8 and fixes tier-2's text keys. (M)
+   at replay; this is the shape for #8 and fixes tier-2's text keys. (M)~~
+   **landed 2026-10-07.** `memory/recipes.py` + tier-2 `ExperienceMemory`:
+   a VERIFIED LLM-tier run is stored as a recipe (`runs/recipes.jsonl`, one
+   per line, beside `experience.json`) whose motion steps carry
+   `{"$target": {"query": "localize_object", "label", "offset_m"}}` where the
+   run had `place_at` coordinates — anchored on an object perceived before
+   the first motion, preferring a non-held anchor (the bowl) over the
+   manipulated object's own start pose; drop-zone names and labels stay
+   symbolic; a coordinate with no anchor refuses the whole recipe rather
+   than storing a raw value. At a tier-2 hit the orchestrator grounds every
+   query through the runtime's `localize_object` BEFORE any motion; a query
+   that fails aborts the replay to the LLM tier with a note and zero motion
+   (there is no stored coordinate to fall back to), and a replay outcome
+   never overwrites the stored queries with the grounded coordinates.
+   Measured on the mock stack with the cube rendered 6 cm from where the
+   recipe was learned: the replay re-grounds, places relative to the NEW
+   position, never calls the LLM; an anchor missing from the table aborts
+   with no `_MOTION_SKILLS` call executed; pre-recipe `experience.json`
+   entries load and replay unchanged (`tests/test_task_recipes.py`, RED 15
+   failed on main → GREEN). Still advisory: the harness vets every grounded
+   motion; this is not a physical acceptance of any task.
 10. ~~**ASPIRE cross-task promotion gate.** `agent/aspire.py`: promote a
     distilled skill only when seen in ≥2 distinct tasks (`occurrences`,
     `source_tasks`); the scoped retry-admission gate still permits retrieval
@@ -503,9 +536,21 @@ Open follow-ups from this work:
     default rig lists 40 of 41, `CASCADE_ARMS=so101_left,so101_right` lists
     all 41 with `list_arms` naming both arms. No skill, limit or asset
     changed; nothing here was run on a physical rig.
-13. **`recall_step(n)` + a `stuck` outcome (RPent).** Trace keyframes already
+13. ~~**`recall_step(n)` + a `stuck` outcome (RPent).** Trace keyframes already
     exist per step; expose them, and let motion skills return a human-
-    actionable ask distinct from failure. (S)
+    actionable ask distinct from failure. (S)~~ **landed 2026-10-07** —
+    `recall_step(n)` (34th skill, 42 MCP tools) reads the trace row +
+    BEFORE/AFTER keyframes back for the planner (shown once on its next
+    turn) and the chat host (image content items, one caption each, like
+    `task_memory`); every result now carries `outcome: ok | failed | stuck`,
+    where `stuck` is `ok: false` + a human-actionable `ask` from the
+    persistence loops (`pick_and_place`, `_grasp_with_persistence` →
+    `handover`/`sort_by_color`), the orchestrator ends the task on it without
+    a retry and `summary.txt` records `outcome: stuck`. Measured on the mock
+    stack (`tests/test_recall_step_stuck.py`, 12 tests): recalled bytes ==
+    the recorded keyframe files; a 2-attempt budget yields exactly 2 grasp
+    attempts, one pick, zero LLM re-plans; e-stop stays a plain failure. No
+    physics, limit or asset change; no physical acceptance.
 
 ## Landed 2026-09-09 (second pass): sidecars that tell the truth, ROS2 arms, an outcome judge
 

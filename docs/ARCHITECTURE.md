@@ -132,8 +132,8 @@ shared boundary is `RobotRuntime.execute()`, as shown in the
                  host LLM picks tools over MCP stdio                         --task / --interactive
                           │                                                          │
                           ▼                                                          ▼
-              apps/mcp_server.py  ── 41 tools ──┐                  agent/orchestrator.py
-              (34 specs − task_done              │                  tier 1 REFLEX   regex grammar      ~µs
+              apps/mcp_server.py  ── 42 tools ──┐                  agent/orchestrator.py
+              (35 specs − task_done              │                  tier 1 REFLEX   regex grammar      ~µs
                + 8 host extras: camera_snapshot, │                  tier 2 HABIT    experience memory  ~ms
                world_state, task_memory, ...;    │                  tier 3 LLM      + memory harness   2–15 s/turn
                minus what the rig's capability   │
@@ -142,7 +142,8 @@ shared boundary is `RobotRuntime.execute()`, as shown in the
                               ONE choke point: arm selection, BEFORE keyframe, watcher pause,
                               skill body, postcondition VERIFY, envelope, AFTER keyframe,
                               trace row (with tier + advisory `plausibility` hand-off),
-                              memory tuple <frame, action, verdict>
+                              memory tuple <frame, action, verdict>,
+                              outcome stamp ok | failed | stuck (+ human-facing ask)
                                                  │
         ┌──────────────┬──────────────┬──────────┼───────────────┬─────────────────┬──────────────┐
         ▼              ▼              ▼          ▼               ▼                 ▼              ▼
@@ -173,6 +174,8 @@ N cameras ──CameraStream (thread each, latest-frame slot, drop-stale; render
 chat command ("pick and place the red cube")
    ├─ tier 1 REFLEX   template grammar -> skill plan          agent/reflex.py
    ├─ tier 2 HABIT    hashed-BoW cosine ≥ 0.9, wins > losses  runs/experience.json
+   │                  + recipes (xyz -> perception queries,   runs/recipes.jsonl
+   │                    re-grounded before any motion)        memory/recipes.py
    └─ tier 3 LLM      decomposition + tool loop + advisor     agent/orchestrator.py
         all tiers execute through the same SkillRuntime; every trace row
         records `tier: reflex | experience | llm | mcp-host`
@@ -213,19 +216,36 @@ tier or host. In order:
    target object.
 3. Watcher paused for motion skills; the skill body runs; every exception
    becomes `{"ok": false, "error": ...}` -- nothing escapes by design.
+   Every result is then stamped with one of three outcomes, `outcome: ok |
+   failed | stuck`. `stuck` (`SkillStuck`, or a result that says so) is
+   RPent's third finish status: the persistence loop spent its budget, or
+   stopped for a reason no retry cures (object never seen after re-scans,
+   wider than the jaws, destination not placeable) and `ask` is the
+   concrete human-actionable request. A stuck result is forced to
+   `ok: false` and never `verified`; the e-stop and every harness refusal
+   stay plain failures. The orchestrator ends the task on it (fast path and
+   LLM tier alike), relays the ask verbatim and writes `outcome: stuck` to
+   `summary.txt`.
 4. **Postcondition verification** (`agent/effects.py`): the effect is
    measured on the strongest available channel -- `physics` (sim truth),
    `belief` (perception), `gripper` (jaw width). A refuted claim
    *downgrades* `ok` and sets `self_reported_ok`. A displacement is two
    readings of the SAME channel (`_comparable_start`); a verifier that
    itself crashes yields an UNVERIFIED verdict naming the cause, never a
-   silent pass.
+   silent pass. A confirmed verdict on a stuck step is downgraded to
+   unverified (a stuck step claims no effect); refuted stays refuted.
 5. Envelope update (`memory/envelope.py`), AFTER keyframe -- a FRESH frame
    for motion skills, taken after the arm stopped (the pre-motion
    `last_frame` graded the logger, not the robot, and an outcome judge
    scored 0% on a confirmed pick).
 6. Trace row (`trace.jsonl`, with `tier`), and the Vesta memory tuple:
-   AFTER frame + action text + independent verdict.
+   AFTER frame + action text + independent verdict. `recall_step(n)` reads
+   this evidence back for the planner/chat host (RPent
+   `view_env_state(step=N)`): skill, args, outcome/ask, verdict, tier and
+   the BEFORE/AFTER keyframes -- served over MCP as image content items
+   with one caption each, and shown to the LLM tier once on its next turn.
+   Negative `n` counts from the end; recall rows are not steps; an invalid
+   `n` is an explicit error and never an old frame.
 
 For single-arm Isaac kitchen `pick_and_place` calls that report a completed
 motion to the configured green square or open box, `sim/placement.py` adds a fresh
@@ -425,9 +445,9 @@ make that image current by assigning a new timestamp. See
 | `BeliefStore` (`memory/beliefs.py`) | objects: label, colour, 3D, freshness; visible/remembered | persisted across runs (wall-clock stamps, `LOADED_MIN_AGE_S` floor, 6 h max age) | every skill; can inform the agent, can never aim the jaws (`belief_fallback_age_s`) |
 | `EpisodicMemory` text ring | events, outcomes | ~15 s | `recall_memory`, narration |
 | `EpisodicMemory` frame ring | AFTER frame + action + verdict per motion skill | task-scale (600 s), reset per task / by `reset_scene` | `memory_frames(k)`: first frame pinned, uniform sample, newest last → LLM turn (images) and `task_memory` tool |
-| `ExperienceMemory` (`agent/reflex.py`) | command → plan habits, hashed BoW in a TurboQuant index | `runs/experience.json` | tier 2 |
+| `ExperienceMemory` (`agent/reflex.py`) | command → plan habits, hashed BoW in a TurboQuant index; plus Task-Specific Memory **recipes** (verified LLM-tier runs, coordinates replaced by `localize_object(label)+offset` queries + a summary, `memory/recipes.py`) | `runs/experience.json` (habits), `runs/recipes.jsonl` (recipes) | tier 2; a recipe is re-grounded through perception before any motion, a failed grounding aborts to the LLM tier |
 | `GraspOutcomeMemory` | per-object grasp features, wins/losses | `~/.cascade/grasp_memory.json` | grasp re-rank + z-nudge |
-| `OperatingEnvelope` (`memory/envelope.py`) | per-skill outcome statistics and failure classes | `runs/` | planner context, ROADMAP follow-ups |
+| `OperatingEnvelope` (`memory/envelope.py`) | per-skill outcome statistics and failure classes, raw args plus runtime-measured derived features (`DERIVED_FEATURES`: TCP z at close, object height/width, lateral offset; unmeasured → `missing`, never defaulted) | `~/.cascade/envelope.json` (`CASCADE_ENVELOPE_PATH`) | planner context; advisory |
 
 `skills/library.py` stores markdown guidance. Between sessions,
 `agent/aspire.py` admits a failed-then-successful retry only when its skill,
@@ -492,7 +512,8 @@ src/cascade/
 ├── memory/
 │   ├── beliefs.py      object permanence, colour-aware fusion, save/load (wall clock)
 │   ├── episodic.py     text ring (15 s) + frame ring (task-scale) + memory_frames(k)
-│   ├── envelope.py     Harness-VLA operating envelope (per-skill outcome stats)
+│   ├── envelope.py     Harness-VLA operating envelope (per-skill outcome stats + runtime-measured derived features)
+│   ├── recipes.py      Task-Specific Memory: xyz ⇄ localize_object(label)+offset queries (symbolize / ground)
 │   ├── grasp_memory.py persisted grasp-outcome prior (re-rank + z-nudge)
 │   └── turboquant.py / vector_index.py   4-bit rotation quantizer + asymmetric top-k
 ├── control/
@@ -531,7 +552,7 @@ src/cascade/
 │   ├── aspire.py       post-run diagnosis → skill-library note
 │   └── trace.py        trace.jsonl + keyframes
 ├── skills/
-│   ├── runtime.py      SkillRuntime: 33 skills + task_done, TOOL_SPECS, _MOTION_SKILLS
+│   ├── runtime.py      SkillRuntime: 34 skills + task_done, TOOL_SPECS, _MOTION_SKILLS
 │   ├── contact_episode.py / release_episode.py  scoped retained recovery
 │   ├── held_observation.py aiming estimates vs coherent release authority
 │   └── library.py      markdown repair notes; written by aspire.py, retrieved per task
@@ -546,7 +567,7 @@ src/cascade/
 ├── eval/progress_judge.py   Robo-Dopamine progress judge (GRM / VLM), off the hot path
 └── apps/
     ├── demo.py         build_runtime() = the composition root; CLI --task / --interactive
-    ├── mcp_server.py   MCP stdio front-end: 41 tools, out-of-band stop, per-call log
+    ├── mcp_server.py   MCP stdio front-end: 42 tools, out-of-band stop, per-call log
     ├── capabilities.py capability matrix from the built runtime; TOOL_REQUIREMENTS trims the MCP catalog
     ├── process_owner.py profile-owned process identity for shutdown and proof binding
     ├── stream_server.py lazy MJPEG dashboard (+ chat, STOP)     live_view.py  RigViewer

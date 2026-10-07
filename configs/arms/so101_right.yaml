@@ -5,10 +5,10 @@
 #
 # Pairs with so101_left.yaml -- read that file's header first: it carries the
 # full statement of what the inter-arm check does and does not guarantee
-# (segment-to-segment on link centrelines, so link SHAPE is what
-# `neighbor_clearance_m` stands in for; SKIPPED for a standby arm with no
-# static partition underneath; base_pose is a MEASUREMENT you must take on
-# your own table).
+# (segment-to-segment between link capsules of the measured `link_radii_m`,
+# a lower bound on the MuJoCo mesh distance, with `neighbor_clearance_m` as
+# the margin; SKIPPED for a standby arm with no static partition underneath;
+# base_pose is a MEASUREMENT you must take on your own table).
 extends: so101
 
 type: mock
@@ -29,7 +29,9 @@ overrides:
     # purpose, and the inter-arm gate is what keeps them apart.
     table_z: 0.0
     max_joint_vel: 0.8
-    neighbor_clearance_m: 0.05
+    # Same surface margin as so101_left.yaml (its comment derives the number);
+    # the two arms must agree or the gate is asymmetric.
+    neighbor_clearance_m: 0.03
   grasp:
     topdown_z_max: 0.05
     pregrasp_offset_m: 0.03

@@ -18,13 +18,22 @@
 # on both arms, each harness gates every 50 Hz waypoint on the measured
 # distance to the neighbour's links (`safety.neighbor_clearance_m`).
 #
-# THE CHECK IS SEGMENT-TO-SEGMENT, NOT MESH COLLISION. Each link is treated as
-# the straight segment between two joint origins and the true shortest distance
-# between link pairs is measured (safety/geometry.py), so the blind spot of the
-# earlier point-sampling version is gone -- it missed poses whose links were
-# 3.3 cm apart while reporting 6.6 cm. What remains unmodelled is link SHAPE:
-# a real link is not a zero-radius line, which is what `neighbor_clearance_m`
-# accounts for. A bulky end effector or a mounted camera needs a larger value.
+# THE CHECK IS SEGMENT-TO-SEGMENT WITH A PER-LINK THICKNESS, NOT MESH
+# COLLISION. Each link is the straight segment between two joint origins
+# wrapped in a capsule of radius `safety.link_radii_m[k]` (so101.yaml: measured
+# on the Menagerie SO-101 collision geometry, rounded up), and the true
+# shortest distance between link pairs minus both radii is what
+# `neighbor_clearance_m` gates (safety/geometry.py). MEASURED AGAINST MUJOCO
+# with both arms in one world (tests/test_multi_arm_physics.py): that surface
+# clearance is a LOWER BOUND on the physical distance between the two arms'
+# collision meshes -- every pose pair the gate approves is at least the margin
+# apart in physics. The earlier CENTRELINE gate at 0.05 m was not: the links
+# are up to 9 cm thick, and over 2000 random pose pairs it approved several
+# whose meshes already overlapped. What remains loose is the envelope itself:
+# one radius per segment is the FARTHEST surface along that link, so a slim
+# wrist facing the neighbour reads as thick as its gripper (the shipped
+# "yaw inward with the neighbour at home" pose is 0.13 m clear in physics and
+# reports 0.032 m). A finer sphere model would recover that workspace.
 #
 # AND IT DEGRADES TO "SKIP", NOT TO "BLOCK". If a neighbour's pose cannot be
 # read the check is silently omitted for that neighbour. The only case that
@@ -75,13 +84,18 @@ overrides:
     # fall back on and the inter-arm gate below does the work.
     table_z: 0.0
     max_joint_vel: 0.8
-    # Minimum distance between this arm's links and the other's, in the shared
-    # table frame. The check is true segment-to-segment (safety/geometry.py),
-    # so this describes link half-thickness plus margin rather than padding a
-    # sampling error. MEASURED over 6000 random pose pairs: 0.05 rejects 0.8%
-    # of joint space, 0.10 rejects 3.4% -- same coverage, a quarter of the
-    # lost workspace.
-    neighbor_clearance_m: 0.05
+    # Margin between this arm's link SURFACES and the other's (the per-link
+    # radii come from so101.yaml), in the shared table frame. It no longer
+    # has to stand in for link thickness, so it is sized for what the gate
+    # cannot see: at the 0.8 rad/s cap and 50 Hz, one tick moves the farthest
+    # link up to 7 mm, and the neighbour's pose can be one tick stale -- 1.4 cm
+    # for the pair, 1.6 cm left for backlash on a printed arm. MEASURED
+    # against MuJoCo over 2000 random pose pairs: 0.03 approves 86% of joint
+    # space (0.02: 87%, 0.05: 84%; the old centreline 0.05 approved 99% --
+    # including overlaps). The shipped inward-yaw test pose clears it by
+    # 1.6 mm (0.032 m reported, 0.13 m in physics): change home_q or the
+    # base spacing and re-measure before trusting this number.
+    neighbor_clearance_m: 0.03
   grasp:
     # Unchanged from so101.yaml: same robot, same 0.09 m top-down band.
     topdown_z_max: 0.05

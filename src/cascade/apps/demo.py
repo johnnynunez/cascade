@@ -293,7 +293,12 @@ def _wire_neighbors(arm_rig, raw_arms) -> None:
         for other_name, other_safe, other_raw in zip(names, arm_rig, raw_arms):
             if other_name == name or other_name not in posed:
                 continue
-            safe.harness.add_neighbor(other_name, reader(other_safe, other_raw))
+            # The neighbour's own thickness travels with its points: the gate
+            # subtracts both arms' radii, so each harness needs the other's.
+            safe.harness.add_neighbor(
+                other_name, reader(other_safe, other_raw),
+                link_radii_m=getattr(other_safe.harness.limits, "link_radii_m", None),
+            )
 
 
 def build_runtime(

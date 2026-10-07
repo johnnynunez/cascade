@@ -135,3 +135,61 @@ def test_the_check_is_cheap_enough_for_50hz():
         chain_distance(a, b)
     per_call = (time.perf_counter() - t0) / 2000
     assert per_call < 2e-3, f"{per_call * 1e6:.0f} us/call is too slow for 50 Hz"
+
+
+# ── link thickness ───────────────────────────────────────────────────────
+#
+# A link is not a zero-radius line. MEASURED on the Menagerie SO-101 collision
+# geometry (tests/test_multi_arm_physics.py), the farthest collision surface
+# sits up to 9 cm off the segment between two joint origins, so a centreline
+# gate approves poses whose meshes already overlap. `chain_distance` therefore
+# takes a per-SEGMENT radius for each chain and reports the clearance between
+# the capsule SURFACES: centreline distance minus both radii.
+
+
+def test_radii_turn_centreline_distance_into_surface_clearance():
+    a = np.array([[0.0, 0, 0], [1.0, 0, 0]])
+    b = np.array([[0.0, 0.5, 0], [1.0, 0.5, 0]])
+    assert chain_distance(a, b)[0] == pytest.approx(0.5)
+    dist, i, j = chain_distance(a, b, radii_a=[0.1], radii_b=[0.15])
+    assert dist == pytest.approx(0.25)
+    assert (i, j) == (0, 0)
+    # radii are per chain: one side thin, the other thick
+    assert chain_distance(a, b, radii_a=[0.1])[0] == pytest.approx(0.4)
+    assert chain_distance(a, b, radii_b=[0.1])[0] == pytest.approx(0.4)
+    # overlapping capsules report a NEGATIVE clearance rather than clamping,
+    # so "how deep" survives into the rejection message
+    assert chain_distance(a, b, radii_a=[0.3], radii_b=[0.3])[0] == pytest.approx(-0.1)
+
+
+def test_surface_clearance_picks_the_closest_surfaces_not_the_closest_centrelines():
+    """A thick link farther away can be the real near miss. The index pair
+    must follow the SURFACE minimum, or the message blames the wrong link."""
+    a = np.array([[0.0, 0, 0], [1.0, 0, 0], [2.0, 0, 0]])
+    # b's link 0 is 0.30 from a's centreline, its link 2 is 0.40 away and
+    # starts at x = 1.2 so only a's SECOND link (x in [1, 2]) is 0.40 from it
+    b = np.array([[0.0, 0.30, 0], [1.0, 0.30, 0], [1.2, 0.40, 0], [2.0, 0.40, 0]])
+    assert chain_distance(a, b)[0] == pytest.approx(0.30)
+    # thin, thin, THICK (0.25) on b's last link -> 0.40 - 0.25 = 0.15 < 0.30
+    dist, i, j = chain_distance(a, b, radii_b=[0.0, 0.0, 0.25])
+    assert dist == pytest.approx(0.15)
+    assert (i, j) == (1, 2)
+
+
+def test_radii_must_describe_every_segment_or_the_check_refuses():
+    """A radii list that does not match the chain means the operator measured
+    a different arm. That must not be silently zero-padded or truncated: refuse,
+    and let the harness turn the refusal into a blocked motion."""
+    a = np.array([[0.0, 0, 0], [1.0, 0, 0], [2.0, 0, 0]])  # 2 segments
+    b = np.array([[0.0, 1, 0], [1.0, 1, 0]])                # 1 segment
+    with pytest.raises(ValueError, match="2 segments"):
+        chain_distance(a, b, radii_a=[0.1])
+    with pytest.raises(ValueError, match="1 segment"):
+        chain_distance(a, b, radii_b=[0.1, 0.1])
+    with pytest.raises(ValueError, match="negative"):
+        chain_distance(a, b, radii_a=[0.1, -0.1])
+    # a single-point chain is one degenerate segment and takes one radius
+    dist, _, _ = chain_distance(np.array([[0.0, 0, 0]]), b, radii_a=[0.25])
+    assert dist == pytest.approx(0.75)
+    # None / empty keeps today's centreline behaviour
+    assert chain_distance(a, b, radii_a=None, radii_b=None)[0] == pytest.approx(1.0)

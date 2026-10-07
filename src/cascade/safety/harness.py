@@ -47,21 +47,30 @@ class SafetyLimits:
     watchdog_s: float = 5.0  # halt if perception heartbeat older than this
     keep_out: list = field(default_factory=list)  # list of (min(3,), max(3,))
     min_clearance_m: float = 0.03  # TCP/link distance to occupancy obstacles
-    #: minimum distance between THIS arm's links and a neighbour arm's links,
+    #: minimum clearance between THIS arm's links and a neighbour arm's links,
     #: in the shared table frame. Only used when neighbours are registered
     #: (see SafetyHarness.add_neighbor); a single-arm rig never pays for it.
     #:
-    #: 0.05 covers link half-thickness plus margin. It is deliberately not
-    #: larger: the check measures true segment-to-segment distance (see
-    #: safety/geometry.py), so this no longer has to absorb a sampling error.
-    #: MEASURED on the dual-SO-101 profiles over 6000 random pose pairs,
-    #: 0.05 rejects 0.8% of joint space against 3.4% at 0.10 -- the same
-    #: coverage for a quarter of the lost workspace.
+    #: With `link_radii_m` declared on both arms this is a margin between link
+    #: SURFACES; without radii it is a centreline distance and has to absorb
+    #: the link thickness itself. MEASURED against MuJoCo on the dual-SO-101
+    #: profiles (tests/test_multi_arm_physics.py), a 0.05 m centreline gate
+    #: approves pose pairs whose collision meshes already overlap -- the
+    #: links are up to 9 cm thick -- while the surface gate at 0.05 m keeps
+    #: every approved pair >= 0.05 m apart in physics and still approves 84%
+    #: of random joint space (0.02: 87%, centreline 0.05: 99%).
     neighbor_clearance_m: float = 0.05
+    #: per-SEGMENT link thickness, in kinematic order (one entry per segment
+    #: of `SafetyHarness.link_points_table_frame`: joint origins then TCP).
+    #: Each radius must envelope every collision surface of that segment at
+    #: every pose. None = zero-radius lines (the pre-2026-10 behaviour). A
+    #: list of the wrong length is a config error and fails closed.
+    link_radii_m: tuple[float, ...] | None = None
 
     @classmethod
     def from_config(cls, cfg) -> "SafetyLimits":
         ws = cfg.workspace
+        radii = cfg.get("link_radii_m")
         return cls(
             workspace_min=np.asarray(ws.min, dtype=float),
             workspace_max=np.asarray(ws.max, dtype=float),
@@ -76,6 +85,7 @@ class SafetyLimits:
             ],
             min_clearance_m=float(cfg.get("min_clearance_m", 0.03)),
             neighbor_clearance_m=float(cfg.get("neighbor_clearance_m", 0.10)),
+            link_radii_m=None if radii is None else tuple(float(r) for r in radii),
         )
 
 
@@ -102,6 +112,9 @@ class SafetyHarness:
         #: name -> callable returning that arm's link points in the TABLE
         #: frame, or None when it cannot be read cheaply/safely.
         self._neighbors: dict = {}
+        #: name -> that arm's per-segment link radii (or None = centrelines)
+        self._neighbor_radii: dict = {}
+        self._check_own_link_radii()
         self._estopped = False
         self._halt: str | None = None
         self._halt_generation = 0
@@ -222,7 +235,35 @@ class SafetyHarness:
 
     # ── inter-arm awareness ──────────────────────────────────────────────
 
-    def add_neighbor(self, name: str, points_in_table_frame) -> None:
+    def _check_own_link_radii(self) -> None:
+        """Fail at construction, not mid-motion, when `link_radii_m` does not
+        describe this arm's chain (one radius per segment of
+        `link_points_table_frame`). Without kinematics there is no chain and
+        no gate, so nothing to compare; a kinematics stub that cannot produce
+        a chain here is checked at the first gate instead (it blocks there)."""
+        radii = self.limits.link_radii_m
+        if radii is None or self.kin is None:
+            return
+        n = getattr(self.kin, "n", None)
+        if n is None:
+            limits = getattr(self.kin, "joint_limits", None)
+            n = None if limits is None else len(limits[0])
+        if n is None:
+            return
+        try:
+            pts = self.link_points_table_frame(np.zeros(int(n)))
+        except Exception:
+            return
+        if pts is None:
+            return
+        n_segments = max(int(pts.shape[0]) - 1, 1)
+        if len(radii) != n_segments:
+            raise ValueError(
+                f"safety.link_radii_m has {len(radii)} entries but this arm's chain has "
+                f"{n_segments} segments ({pts.shape[0]} points: joint origins then TCP)"
+            )
+
+    def add_neighbor(self, name: str, points_in_table_frame, link_radii_m=None) -> None:
         """Register another arm whose links this one must not hit.
 
         `points_in_table_frame` is a zero-argument callable returning that
@@ -231,12 +272,21 @@ class SafetyHarness:
         this layer ignorant of arm objects (and lets the caller decide what is
         safe to touch -- notably, never materializing a standby LazyArm).
 
+        `link_radii_m` is that arm's per-segment thickness (its own
+        `SafetyLimits.link_radii_m`); the gate subtracts both arms' radii so
+        the clearance it enforces is between link surfaces. None means the
+        neighbour is measured as centrelines.
+
         Returning None means "unknown", and unknown means SKIP, never
         "blocked": same booth rule as the occupancy map. An arm that cannot
         see its neighbour must not freeze mid-demo -- it falls back to the
-        static workspace/keep-out partition, which is still enforced.
+        static workspace/keep-out partition, which is still enforced. A radii
+        list that does not match the neighbour's chain is NOT unknown, it is
+        a config error, and the gate refuses the motion naming it.
         """
         self._neighbors[str(name)] = points_in_table_frame
+        self._neighbor_radii[str(name)] = (
+            None if link_radii_m is None else tuple(float(r) for r in link_radii_m))
 
     def link_points_table_frame(self, q: np.ndarray) -> np.ndarray | None:
         """This arm's link chain at pose q, in the TABLE frame.
@@ -275,9 +325,13 @@ class SafetyHarness:
         whose links are 3.3 cm apart being reported as 6.6 cm, i.e. accepted
         by a 5 cm gate that should have rejected it.
 
-        Because the segments are the real geometry, `neighbor_clearance_m` now
-        means link thickness plus margin rather than a fudge factor covering
-        the sampling gap.
+        Segments are still not the real geometry: a link has thickness. With
+        `link_radii_m` on both arms the distance compared against
+        `neighbor_clearance_m` is between link SURFACES (centreline distance
+        minus both radii), which MEASURED against MuJoCo is a lower bound on
+        the physical clearance (tests/test_multi_arm_physics.py). Without
+        radii the gate is a centreline gate and the margin must absorb the
+        thickness itself -- on the SO-101 it cannot: 0.05 m approves overlaps.
         """
         if not self._neighbors:
             return None
@@ -289,6 +343,7 @@ class SafetyHarness:
             return None
         from .geometry import chain_distance
 
+        my_radii = self.limits.link_radii_m
         for name, source in self._neighbors.items():
             try:
                 theirs = source()
@@ -299,11 +354,21 @@ class SafetyHarness:
             theirs = np.asarray(theirs, dtype=float).reshape(-1, 3)
             if theirs.size == 0:
                 continue
-            worst, i, j = chain_distance(mine, theirs)
+            their_radii = self._neighbor_radii.get(name)
+            try:
+                worst, i, j = chain_distance(mine, theirs, my_radii, their_radii)
+            except ValueError as exc:
+                # A radii list that does not describe the chain is a config
+                # error, not an unknown neighbour: refuse, do not skip.
+                return (
+                    f"inter-arm clearance to {name!r} cannot be measured: link_radii_m "
+                    f"does not describe the chain ({exc})"
+                )
             if worst < tol:
+                what = "link surfaces" if (my_radii is not None or their_radii is not None) else "link centrelines"
                 return (
                     f"inter-arm clearance {worst:.3f} m to {name!r} "
-                    f"(my link {i} vs their link {j}) below {tol:.3f} m"
+                    f"(my link {i} vs their link {j}, {what}) below {tol:.3f} m"
                 )
         return None
 

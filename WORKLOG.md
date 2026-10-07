@@ -6,6 +6,24 @@ maintain capability limits in the relevant document below. Do not append full
 command transcripts, repeated suite totals or a second copy of an evidence
 receipt here.
 
+## Inter-arm gate measured against MuJoCo (7 October 2026, ROADMAP #8)
+
+Landed: `multi_arm_scene_xml` (two prefixed SO-101s in one world at the
+profiles' `base_pose`s), `tests/test_multi_arm_physics.py` (chain = MuJoCo
+joint anchors to 1e-5 m; declared `link_radii_m` envelope every collision
+geom; the gate's surface clearance is a lower bound on `mj_geomDistance` over
+2000 random pose pairs; the centreline gate approved 12 overlapping pairs),
+per-link radii in `so101.yaml`, fail-closed radii plumbing in the harness and
+`_wire_neighbors`, margin 0.03 m on the dual profiles. Handoff, in order:
+(1) prefix-aware `MujocoArm` + `MujocoWorld` sharing so `so101_left`/`so101_right`
+can be `type: mujoco` in that scene and `test_arm_rig`'s rig test runs on
+physics (joint names `left/shoulder_pan`, one world for both arms and the
+camera); (2) the envelope is loose where a slim link faces the neighbour
+(inward-yaw pose: 0.13 m physics, 0.032 m gate) — a per-geom sphere model
+placed by Pinocchio frames would recover that workspace while keeping the
+lower-bound property; measure before changing the margin; (3) the physics
+test takes ~6 s — keep it CPU-only and seeded.
+
 ## Unitree H2 vertical — owner and first episodes (7 October 2026)
 
 Decision: Unitree H2, PhysX first (NVIDIA's public H2 USD + `Velocity-H2-History-v0`,

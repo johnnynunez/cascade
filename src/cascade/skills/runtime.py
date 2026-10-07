@@ -205,6 +205,12 @@ class SkillRuntime:
         #: calls and written into every trace row so an offline judge can
         #: score progress per tier (eval/progress_judge.py per_tier()).
         self.current_tier: str | None = None
+        #: pre-motion plausibility advisory for the CURRENT call, handed over
+        #: by the orchestrator the same way `current_tier` is (set before
+        #: execute(), cleared after) so the trace row and the result carry it
+        #: as `plausibility`. ADVISORY ONLY: nothing on the dispatch path reads
+        #: it -- it never gates, delays or alters a motion (agent/milestones.py).
+        self.pending_plausibility: dict | None = None
         #: monotonic time the current top-level MOTION skill started; while
         #: the arm moves the WorldWatcher is paused, so belief ages measured
         #: from "now" are artificially inflated -- staleness checks measure
@@ -785,6 +791,16 @@ class SkillRuntime:
         after = self.trace.save_keyframe(
             self.last_frame.rgb if self.last_frame is not None else None, f"{name}_after"
         )
+        # Pre-motion plausibility advisory (orchestrator hand-off, see
+        # __init__): attached AFTER every verdict/annotation above so it can
+        # influence none of them, and consumed here so it cannot leak onto
+        # the next call. Absent (None) -> this block is a no-op and the
+        # result is byte-identical to the pre-critic path. getattr: bare
+        # runtimes built without __init__ (unit fixtures) have no hand-off.
+        advisory = getattr(self, "pending_plausibility", None)
+        if advisory is not None:
+            self.pending_plausibility = None
+            result["plausibility"] = advisory
         self.trace.record(name, args, result, dur, before, after,
                           tier=self.current_tier, context=trace_context)
         err = str(result.get("error", "failed"))

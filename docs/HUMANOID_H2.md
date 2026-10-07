@@ -41,8 +41,25 @@ committed). Inventory with every source checked and every "not found":
   N·m/rad, feet 40/20, waist 300, arms, head), the training command ranges
   (±0.5 m/s, ±1.0 rad/s) and the training fall criteria (torso tilt > 30°,
   pelvis below 0.615 m). Every drift from the pinned export is refused.
-- **Not shown:** anything under CASCADE's own owner, RPC controller, deadlines
-  or verifier; any Newton run; anything on hardware.
+- **First CASCADE-owned episodes on PhysX**
+  ([evidence](evidence/h2-owner-first-episodes-20261007/REPORT.md), 7 October 2026):
+  `scripts/isaac_h2_bridge.py` owns one H2 in the internal 6.2 build (manual
+  `SimulationManager.step` at 200 Hz, NVIDIA's `RobotPolicyRunner` as the
+  deployment chain fed only the admitted twist, every completed state published
+  on the MOBILE wire with the solved ground reactions of every link); CASCADE's
+  `RobotRuntime → SafeBase.walk_velocity` drove five commands under the candidate
+  profile `h2_velocity_candidate` and the independent verifier **confirmed 3 of 5**
+  (forward 0.3 m/s × 3 s → 0.64 m net, turn 0.5 rad/s × 2 s, backward 0.3 m/s × 2 s)
+  and **refuted 2** (post-command settle: the policy keeps stepping briefly after the
+  twist returns to zero). No fall, no fault. The two independent validations agree at
+  open: the runner deploys the training's `DelayedDCMotor` groups as an actuator
+  model whose per-joint parameters equal the pinned contract, drives of the 14
+  policy joints at zero gain, self-collision and solver iterations as trained. Known
+  deviation (also in NVIDIA's example): the 17 held joints keep the asset's authored
+  drives, far stiffer than the training's gains.
+- **Not shown:** any Newton run; `walk_distance`/`turn` skills (no
+  `distance_control`/`turn_control` yet); anything on hardware; measured (not
+  candidate) verifier limits.
 
 ## Owner architecture (to build; mirrors the MicroDuck shared owner)
 
@@ -89,11 +106,11 @@ CASCADE's fail-closed rules; never let it become a second command path.
 
 | gate | status | next evidence |
 | --- | --- | --- |
-| 1 Binding (model, policy, endpoint, mappings, exclusive ownership, controller clock) | **open; attemptable now** — contract parsed and pinned, reference loop runs | owner opens the stage, binds joints and gains from the contract, publishes states; receipt with stage identity, active colliders, policy digest |
-| 2 Dynamic transforms with epochs/freshness | open | not before gate 1 |
+| 1 Binding (model, policy, endpoint, mappings, exclusive ownership, controller clock) | **passed in simulation (7 Oct 2026)** — the owner binds the pinned asset/policy, maps the 31 joints, verifies the deployed actuation against the contract, owns the only command path and the physics clock; receipt + `model-identity.json` | hardware binding (Unitree SDK2 `rt/lowcmd`) is a separate gate |
+| 2 Dynamic transforms with epochs/freshness | **partially shown** — states carry epoch/generation/age; the verifier's freshness and settle windows ran on the truth channel | measured limits replacing the candidate profile |
 | 3 Whole-body limits, balance, self/environment collision | open by construction (policy commands 14 of 31 joints; arms/head held) | fall detection through the training criteria; later a second owner for the arms |
 | 4 Sensors | open | none added yet |
-| 5 Rehearsal through MCP/controller/physics/verifier with bound video | open | the first `walk_velocity`/`walk_distance` episodes with the independent verifier and the route-style evidence pack |
+| 5 Rehearsal through MCP/controller/physics/verifier with bound video | **first pass through controller/physics/verifier with video** (3/5 confirmed; no MCP/LLM in the loop yet) | MCP-driven episodes, `walk_distance`, the settle behaviour after a command, measured verifier limits |
 
 ## Risks recorded
 

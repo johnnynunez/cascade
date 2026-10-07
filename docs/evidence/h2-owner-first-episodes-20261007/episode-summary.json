@@ -1,0 +1,686 @@
+{
+ "what": "First CASCADE-owned Unitree H2 episodes: scripts/isaac_h2_bridge.py (PhysX, Isaac Sim 6.2 build, GPU 0 of the x86 rig) publishes on the MOBILE wire; CASCADE RobotRuntime -> SafeBase walk_velocity drives it under configs/bases/h2_velocity_candidate.yaml; the independent BasePostconditionChecker judges each command from the truth channel with the owner's solved support contacts.",
+ "not_claimed": "No physical admission. Candidate verifier limits (not measured limits). Two of five commands REFUTED by the verifier (post-command settle: residual velocity/pose drift) and recorded as such; nothing was retried, relaxed or re-run to pass. x86 two-GPU rig numbers, not Spark numbers.",
+ "owner": {
+  "hello": {
+   "kind": "h2",
+   "robot_id": "h2",
+   "source": "isaac-h2",
+   "engine": "physx",
+   "device": "cuda:0",
+   "asset_sha256": "040d2140bb0d6d653f5423d7d76462a49d25e8470af2153518bbdce9158bb5f1",
+   "policy_sha256": "0a47182bbe203eddc2b7a9185f822c14d3799723f8b8392c7a2895d25d449c83",
+   "model_identity_sha256": "a7800af7fc571bec47288af2c587f2abba3c93d2c443c5b382ccf59e7c98339a",
+   "physics_dt": 0.005,
+   "policy_dt": 0.02,
+   "max_linear_speed": 0.5,
+   "max_angular_speed": 1.0,
+   "max_duration_s": 30.0
+  },
+  "bootstrap_clocks": {
+   "manager_dt_s": 0.005,
+   "manager_step": 6,
+   "manager_time_s": 0.03
+  },
+  "physics_device": "cuda:0",
+  "deployment_chain": {
+   "actuator_model": "ArticulationActuators",
+   "controller": "IsaacLabPolicyController",
+   "policy_sha256": "0a47182bbe203eddc2b7a9185f822c14d3799723f8b8392c7a2895d25d449c83",
+   "runner": "isaacsim.robot.policy.examples.RobotPolicyRunner",
+   "training_engine": "physx"
+  },
+  "actuator_model_left_knee": {
+   "class": "DelayedDCMotor",
+   "damping": 8.0,
+   "effort_limit": 360.0,
+   "max_delay": 4,
+   "saturation_effort": 360.0,
+   "stiffness": 300.0,
+   "velocity_limit": 20.0
+  },
+  "held_joint_example_waist_yaw": {
+   "authored_drive": {
+    "damping": 572.9578247070312,
+    "effort_limit": 120.0,
+    "stiffness": 57295.78125
+   },
+   "training": {
+    "damping": 5.0,
+    "effort_limit": 120.0,
+    "stiffness": 300.0
+   }
+  },
+  "articulation": {
+   "enabled_self_collisions": true,
+   "solver_iterations": [
+    8,
+    4
+   ]
+  },
+  "consumed_asset_layers": [
+   {
+    "bytes": 8748,
+    "identifier": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/Robots/Unitree/H2/H2.usda",
+    "sha256": "040d2140bb0d6d653f5423d7d76462a49d25e8470af2153518bbdce9158bb5f1"
+   },
+   {
+    "bytes": 62616,
+    "identifier": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/Robots/Unitree/H2/payloads/Physics/physics.usda",
+    "sha256": "4ac774d414ad30f9498603a4dd6815447551a70b071bc92367e8cda108be26f6"
+   },
+   {
+    "bytes": 16838,
+    "identifier": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/Robots/Unitree/H2/payloads/Physics/physx.usda",
+    "sha256": "c888abeeda48b8db3405bd715049d904eaf3a1fd94c75dc96a77ec5aee277d66"
+   },
+   {
+    "bytes": 53209,
+    "identifier": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/Robots/Unitree/H2/payloads/base.usda",
+    "sha256": "eb85a283ecdd57bea43afdf51255756c72bf382f09fdbfde648d99b452cfeed6"
+   },
+   {
+    "bytes": 5226231,
+    "identifier": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/Robots/Unitree/H2/payloads/geometries.usd",
+    "sha256": "e2f7332c09da7cddec072bbbe218d42efd10d8c2e5b926fd197bfc93677cd2c0"
+   },
+   {
+    "bytes": 28027,
+    "identifier": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/Robots/Unitree/H2/payloads/instances.usda",
+    "sha256": "a833824c094ec77b4d76e02b383527042f330f036a38791ca91df96285f8f1f1"
+   },
+   {
+    "bytes": 3595,
+    "identifier": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/Robots/Unitree/H2/payloads/materials.usda",
+    "sha256": "468815d5297a02e616d8133d3ec313628ccf3c1dc3cf2cf37a6c0c8b1a90dfab"
+   },
+   {
+    "bytes": 16908,
+    "identifier": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/Robots/Unitree/H2/payloads/robot.usda",
+    "sha256": "feaf3f97e27e0ae79d310015f9ac77ab1c677b56f096e71aa54ccddf0e8d3508"
+   }
+  ],
+  "steps": 5512,
+  "policy_evaluations": 1378,
+  "frames": 552,
+  "wall_s": 81.98495677699975,
+  "end_reason": "signal/lifecycle shutdown",
+  "exit_code": 143,
+  "realtime_factor_with_20fps_render": 0.336
+ },
+ "pelvis_height_m": {
+  "min": 0.909389317035675,
+  "max": 1.0211381912231445,
+  "median": 0.9216691851615906
+ },
+ "tilt_rad": {
+  "max": 0.07088931526718001,
+  "median": 0.01436074080897668
+ },
+ "physics_rows": 1379,
+ "fallen_rows": 0,
+ "steps": [
+  {
+   "index": 0,
+   "args": {
+    "duration_s": 3.0,
+    "vx": 0.3,
+    "vy": 0.0,
+    "wz": 0.0
+   },
+   "confirmed": true,
+   "post_status": "confirmed",
+   "post_reason": "independent measured motion matches caller intent",
+   "wall_s": 11.35,
+   "before_pos": [
+    0.027340978384017944,
+    0.01147403009235859,
+    0.9268470406532288
+   ],
+   "after_pos": [
+    0.6682681441307068,
+    -0.05681483820080757,
+    0.9198207855224609
+   ],
+   "before_sim_t": 1.26,
+   "after_sim_t": 4.265,
+   "samples": 450,
+   "post_metrics": {
+    "admission": {
+     "accepted": true,
+     "delivery_uncertain": null,
+     "end_sim_time_s": 4.265,
+     "epoch": "0e0a9ac879554487a32c2e76a1de527a",
+     "error": null,
+     "generation": 1,
+     "latched": false,
+     "model_identity_sha256": "a7800af7fc571bec47288af2c587f2abba3c93d2c443c5b382ccf59e7c98339a",
+     "ok": true,
+     "robot_id": "h2",
+     "source": "isaac-h2",
+     "start_sim_time_s": 1.265
+    },
+    "args": {
+     "duration_s": 3.0,
+     "vx": 0.3,
+     "vy": 0.0,
+     "wz": 0.0
+    },
+    "completion": {
+     "delivery_uncertain": null,
+     "epoch": "0e0a9ac879554487a32c2e76a1de527a",
+     "error": null,
+     "generation": 2,
+     "latched": false,
+     "model_identity_sha256": "a7800af7fc571bec47288af2c587f2abba3c93d2c443c5b382ccf59e7c98339a",
+     "ok": true,
+     "robot_id": "h2",
+     "source": "isaac-h2"
+    },
+    "execution_failed": false,
+    "limits": {
+     "max_angular_speed_rad_s": 4.0,
+     "max_heading_drift_rad": 0.2,
+     "max_history": 30,
+     "max_lateral_drift_m": 0.2,
+     "max_linear_speed_m_s": 1.5,
+     "max_position_abs_m": 8.0,
+     "max_progress_ratio": 1.4,
+     "max_sample_gap_s": 0.15,
+     "max_samples": 801,
+     "max_state_age_s": 0.5,
+     "max_tilt_rad": 0.5236,
+     "max_wall_duration_s": 14.0,
+     "min_height_m": 0.615,
+     "min_motion_samples": 5,
+     "min_progress_ratio": 0.6,
+     "min_settle_samples": 3,
+     "read_timeout_s": 0.5,
+     "rotation_tolerance_rad": 0.05,
+     "sample_interval_s": 0.02,
+     "settle_timeout_s": 4.0,
+     "settle_window_s": 0.4,
+     "stop_angular_speed_rad_s": 0.2,
+     "stop_drift_m": 0.03,
+     "stop_drift_rad": 0.05,
+     "stop_linear_speed_m_s": 0.08,
+     "translation_tolerance_m": 0.05
+    },
+    "metrics": {
+     "body_displacement_m": [
+      0.6448846752063494,
+      -0.04302072773783267
+     ],
+     "max_angular_speed_rad_s": 1.1339451804576004,
+     "max_linear_speed_m_s": 0.46389669062487404,
+     "max_tilt_rad": 0.03066794457772004,
+     "min_height_m": 0.9168949127197266,
+     "path_length_m": 0.6821497614423356,
+     "rotation_path_rad": 0.5457378101068595,
+     "settle_drift_m": 0.0057440306515382815,
+     "settle_drift_rad": 0.041344237135289647,
+     "settle_max_angular_speed_rad_s": 0.11471592923385861,
+     "settle_max_linear_speed_m_s": 0.019120998949128477,
+     "settle_samples": 36,
+     "settle_sim_duration_s": 0.41500000000000004,
+     "settle_veto_observations": 39,
+     "sim_duration_s": 2.9949999999999997,
+     "yaw_change_rad": -0.030220381090276777
+    },
+    "skill": "walk_velocity"
+   },
+   "verifier_samples": 450,
+   "net_world_displacement_m": 0.6445548862004267
+  },
+  {
+   "index": 1,
+   "args": {
+    "duration_s": 2.0,
+    "vx": 0.0,
+    "vy": 0.0,
+    "wz": 0.5
+   },
+   "confirmed": true,
+   "post_status": "confirmed",
+   "post_reason": "independent measured motion matches caller intent",
+   "wall_s": 9.14,
+   "before_pos": [
+    0.8002830743789673,
+    -0.036189883947372437,
+    0.9125940799713135
+   ],
+   "after_pos": [
+    0.6978667974472046,
+    -0.14908121526241302,
+    0.9357144832611084
+   ],
+   "before_sim_t": 7.09,
+   "after_sim_t": 9.095,
+   "samples": 304,
+   "post_metrics": {
+    "admission": {
+     "accepted": true,
+     "delivery_uncertain": null,
+     "end_sim_time_s": 9.094999999999999,
+     "epoch": "0e0a9ac879554487a32c2e76a1de527a",
+     "error": null,
+     "generation": 3,
+     "latched": false,
+     "model_identity_sha256": "a7800af7fc571bec47288af2c587f2abba3c93d2c443c5b382ccf59e7c98339a",
+     "ok": true,
+     "robot_id": "h2",
+     "source": "isaac-h2",
+     "start_sim_time_s": 7.095
+    },
+    "args": {
+     "duration_s": 2.0,
+     "vx": 0.0,
+     "vy": 0.0,
+     "wz": 0.5
+    },
+    "completion": {
+     "delivery_uncertain": null,
+     "epoch": "0e0a9ac879554487a32c2e76a1de527a",
+     "error": null,
+     "generation": 4,
+     "latched": false,
+     "model_identity_sha256": "a7800af7fc571bec47288af2c587f2abba3c93d2c443c5b382ccf59e7c98339a",
+     "ok": true,
+     "robot_id": "h2",
+     "source": "isaac-h2"
+    },
+    "execution_failed": false,
+    "limits": {
+     "max_angular_speed_rad_s": 4.0,
+     "max_heading_drift_rad": 0.2,
+     "max_history": 30,
+     "max_lateral_drift_m": 0.2,
+     "max_linear_speed_m_s": 1.5,
+     "max_position_abs_m": 8.0,
+     "max_progress_ratio": 1.4,
+     "max_sample_gap_s": 0.15,
+     "max_samples": 801,
+     "max_state_age_s": 0.5,
+     "max_tilt_rad": 0.5236,
+     "max_wall_duration_s": 14.0,
+     "min_height_m": 0.615,
+     "min_motion_samples": 5,
+     "min_progress_ratio": 0.6,
+     "min_settle_samples": 3,
+     "read_timeout_s": 0.5,
+     "rotation_tolerance_rad": 0.05,
+     "sample_interval_s": 0.02,
+     "settle_timeout_s": 4.0,
+     "settle_window_s": 0.4,
+     "stop_angular_speed_rad_s": 0.2,
+     "stop_drift_m": 0.03,
+     "stop_drift_rad": 0.05,
+     "stop_linear_speed_m_s": 0.08,
+     "translation_tolerance_m": 0.05
+    },
+    "metrics": {
+     "body_displacement_m": [
+      -0.1290417155426907,
+      -0.05838891583502423
+     ],
+     "max_angular_speed_rad_s": 1.955391582561,
+     "max_linear_speed_m_s": 0.43634566230523925,
+     "max_tilt_rad": 0.04785334480902042,
+     "min_height_m": 0.9125946760177612,
+     "path_length_m": 0.19456671848688517,
+     "rotation_path_rad": 0.8761702376838966,
+     "settle_drift_m": 0.008978620399114179,
+     "settle_drift_rad": 0.038861329917700686,
+     "settle_max_angular_speed_rad_s": 0.08558403974941936,
+     "settle_max_linear_speed_m_s": 0.030023452341400438,
+     "settle_samples": 39,
+     "settle_sim_duration_s": 0.40000000000000036,
+     "settle_veto_observations": 41,
+     "sim_duration_s": 1.9850000000000012,
+     "yaw_change_rad": 0.8753333202302588
+    },
+    "skill": "walk_velocity"
+   },
+   "verifier_samples": 304,
+   "net_world_displacement_m": 0.1524255440096763
+  },
+  {
+   "index": 2,
+   "args": {
+    "duration_s": 3.0,
+    "vx": 0.3,
+    "vy": 0.0,
+    "wz": 0.0
+   },
+   "confirmed": false,
+   "post_status": "refuted",
+   "post_reason": "did not settle: active controller, residual velocity or pose drift",
+   "wall_s": 11.44,
+   "before_pos": [
+    0.653017520904541,
+    -0.16349588334560394,
+    0.9261248707771301
+   ],
+   "after_pos": [
+    1.1525410413742065,
+    0.2769862711429596,
+    0.9224528670310974
+   ],
+   "before_sim_t": 11.88,
+   "after_sim_t": 14.89,
+   "samples": 451,
+   "post_metrics": {
+    "admission": {
+     "accepted": true,
+     "delivery_uncertain": null,
+     "end_sim_time_s": 14.885,
+     "epoch": "0e0a9ac879554487a32c2e76a1de527a",
+     "error": null,
+     "generation": 5,
+     "latched": false,
+     "model_identity_sha256": "a7800af7fc571bec47288af2c587f2abba3c93d2c443c5b382ccf59e7c98339a",
+     "ok": true,
+     "robot_id": "h2",
+     "source": "isaac-h2",
+     "start_sim_time_s": 11.885
+    },
+    "args": {
+     "duration_s": 3.0,
+     "vx": 0.3,
+     "vy": 0.0,
+     "wz": 0.0
+    },
+    "completion": {
+     "delivery_uncertain": null,
+     "epoch": "0e0a9ac879554487a32c2e76a1de527a",
+     "error": null,
+     "generation": 6,
+     "latched": false,
+     "model_identity_sha256": "a7800af7fc571bec47288af2c587f2abba3c93d2c443c5b382ccf59e7c98339a",
+     "ok": true,
+     "robot_id": "h2",
+     "source": "isaac-h2"
+    },
+    "execution_failed": false,
+    "limits": {
+     "max_angular_speed_rad_s": 4.0,
+     "max_heading_drift_rad": 0.2,
+     "max_history": 30,
+     "max_lateral_drift_m": 0.2,
+     "max_linear_speed_m_s": 1.5,
+     "max_position_abs_m": 8.0,
+     "max_progress_ratio": 1.4,
+     "max_sample_gap_s": 0.15,
+     "max_samples": 801,
+     "max_state_age_s": 0.5,
+     "max_tilt_rad": 0.5236,
+     "max_wall_duration_s": 14.0,
+     "min_height_m": 0.615,
+     "min_motion_samples": 5,
+     "min_progress_ratio": 0.6,
+     "min_settle_samples": 3,
+     "read_timeout_s": 0.5,
+     "rotation_tolerance_rad": 0.05,
+     "sample_interval_s": 0.02,
+     "settle_timeout_s": 4.0,
+     "settle_window_s": 0.4,
+     "stop_angular_speed_rad_s": 0.2,
+     "stop_drift_m": 0.03,
+     "stop_drift_rad": 0.05,
+     "stop_linear_speed_m_s": 0.08,
+     "translation_tolerance_m": 0.05
+    },
+    "metrics": {
+     "body_displacement_m": [
+      0.664958137049816,
+      0.011326391033860374
+     ],
+     "max_angular_speed_rad_s": 1.1715777731282946,
+     "max_linear_speed_m_s": 0.4701247113994661,
+     "max_tilt_rad": 0.030696985896582714,
+     "min_height_m": 0.9167317748069763,
+     "path_length_m": 0.6953624415290766,
+     "rotation_path_rad": 0.45820118064153315,
+     "settle_drift_m": 0.005558771865686101,
+     "settle_drift_rad": 0.08724209652757747,
+     "settle_max_angular_speed_rad_s": 0.29559949599650004,
+     "settle_max_linear_speed_m_s": 0.022555721770920408,
+     "settle_samples": 35,
+     "settle_sim_duration_s": 0.40000000000000213,
+     "settle_veto_observations": 37,
+     "sim_duration_s": 2.994999999999999,
+     "yaw_change_rad": -0.036870800852214065
+    },
+    "skill": "walk_velocity"
+   },
+   "verifier_samples": 451,
+   "net_world_displacement_m": 0.665994201119871
+  },
+  {
+   "index": 3,
+   "args": {
+    "duration_s": 2.0,
+    "vx": 0.0,
+    "vy": 0.2,
+    "wz": 0.0
+   },
+   "confirmed": false,
+   "post_status": "refuted",
+   "post_reason": "did not settle: active controller, residual velocity or pose drift",
+   "wall_s": 8.88,
+   "before_pos": [
+    1.1649397611618042,
+    0.27932578325271606,
+    0.9117389917373657
+   ],
+   "after_pos": [
+    0.9435881972312927,
+    0.5753526091575623,
+    0.9363161325454712
+   ],
+   "before_sim_t": 17.835,
+   "after_sim_t": 19.84,
+   "samples": 297,
+   "post_metrics": {
+    "admission": {
+     "accepted": true,
+     "delivery_uncertain": null,
+     "end_sim_time_s": 19.84,
+     "epoch": "0e0a9ac879554487a32c2e76a1de527a",
+     "error": null,
+     "generation": 7,
+     "latched": false,
+     "model_identity_sha256": "a7800af7fc571bec47288af2c587f2abba3c93d2c443c5b382ccf59e7c98339a",
+     "ok": true,
+     "robot_id": "h2",
+     "source": "isaac-h2",
+     "start_sim_time_s": 17.84
+    },
+    "args": {
+     "duration_s": 2.0,
+     "vx": 0.0,
+     "vy": 0.2,
+     "wz": 0.0
+    },
+    "completion": {
+     "delivery_uncertain": null,
+     "epoch": "0e0a9ac879554487a32c2e76a1de527a",
+     "error": null,
+     "generation": 8,
+     "latched": false,
+     "model_identity_sha256": "a7800af7fc571bec47288af2c587f2abba3c93d2c443c5b382ccf59e7c98339a",
+     "ok": true,
+     "robot_id": "h2",
+     "source": "isaac-h2"
+    },
+    "execution_failed": false,
+    "limits": {
+     "max_angular_speed_rad_s": 4.0,
+     "max_heading_drift_rad": 0.2,
+     "max_history": 30,
+     "max_lateral_drift_m": 0.2,
+     "max_linear_speed_m_s": 1.5,
+     "max_position_abs_m": 8.0,
+     "max_progress_ratio": 1.4,
+     "max_sample_gap_s": 0.15,
+     "max_samples": 801,
+     "max_state_age_s": 0.5,
+     "max_tilt_rad": 0.5236,
+     "max_wall_duration_s": 14.0,
+     "min_height_m": 0.615,
+     "min_motion_samples": 5,
+     "min_progress_ratio": 0.6,
+     "min_settle_samples": 3,
+     "read_timeout_s": 0.5,
+     "rotation_tolerance_rad": 0.05,
+     "sample_interval_s": 0.02,
+     "settle_timeout_s": 4.0,
+     "settle_window_s": 0.4,
+     "stop_angular_speed_rad_s": 0.2,
+     "stop_drift_m": 0.03,
+     "stop_drift_rad": 0.05,
+     "stop_linear_speed_m_s": 0.08,
+     "translation_tolerance_m": 0.05
+    },
+    "metrics": {
+     "body_displacement_m": [
+      -0.011567174381788522,
+      0.3693367818126259
+     ],
+     "max_angular_speed_rad_s": 1.2130908352763778,
+     "max_linear_speed_m_s": 0.41329061392097327,
+     "max_tilt_rad": 0.04332887654740413,
+     "min_height_m": 0.91009920835495,
+     "path_length_m": 0.39155762194079685,
+     "rotation_path_rad": 0.30342030412215537,
+     "settle_drift_m": 0.010157319103854747,
+     "settle_drift_rad": 0.07358483514460877,
+     "settle_max_angular_speed_rad_s": 0.26641947818544426,
+     "settle_max_linear_speed_m_s": 0.03236280793420368,
+     "settle_samples": 35,
+     "settle_sim_duration_s": 0.40500000000000114,
+     "settle_veto_observations": 39,
+     "sim_duration_s": 1.995000000000001,
+     "yaw_change_rad": -0.03603140385421166
+    },
+    "skill": "walk_velocity"
+   },
+   "verifier_samples": 297,
+   "net_world_displacement_m": 0.3696327860320042
+  },
+  {
+   "index": 4,
+   "args": {
+    "duration_s": 2.0,
+    "vx": -0.3,
+    "vy": 0.0,
+    "wz": 0.0
+   },
+   "confirmed": true,
+   "post_status": "confirmed",
+   "post_reason": "independent measured motion matches caller intent",
+   "wall_s": 9.35,
+   "before_pos": [
+    0.9197026491165161,
+    0.5737486481666565,
+    0.9214363694190979
+   ],
+   "after_pos": [
+    0.5772744417190552,
+    0.25608664751052856,
+    0.9347307085990906
+   ],
+   "before_sim_t": 22.66,
+   "after_sim_t": 24.665,
+   "samples": 307,
+   "post_metrics": {
+    "admission": {
+     "accepted": true,
+     "delivery_uncertain": null,
+     "end_sim_time_s": 24.665,
+     "epoch": "0e0a9ac879554487a32c2e76a1de527a",
+     "error": null,
+     "generation": 9,
+     "latched": false,
+     "model_identity_sha256": "a7800af7fc571bec47288af2c587f2abba3c93d2c443c5b382ccf59e7c98339a",
+     "ok": true,
+     "robot_id": "h2",
+     "source": "isaac-h2",
+     "start_sim_time_s": 22.665
+    },
+    "args": {
+     "duration_s": 2.0,
+     "vx": -0.3,
+     "vy": 0.0,
+     "wz": 0.0
+    },
+    "completion": {
+     "delivery_uncertain": null,
+     "epoch": "0e0a9ac879554487a32c2e76a1de527a",
+     "error": null,
+     "generation": 10,
+     "latched": false,
+     "model_identity_sha256": "a7800af7fc571bec47288af2c587f2abba3c93d2c443c5b382ccf59e7c98339a",
+     "ok": true,
+     "robot_id": "h2",
+     "source": "isaac-h2"
+    },
+    "execution_failed": false,
+    "limits": {
+     "max_angular_speed_rad_s": 4.0,
+     "max_heading_drift_rad": 0.2,
+     "max_history": 30,
+     "max_lateral_drift_m": 0.2,
+     "max_linear_speed_m_s": 1.5,
+     "max_position_abs_m": 8.0,
+     "max_progress_ratio": 1.4,
+     "max_sample_gap_s": 0.15,
+     "max_samples": 801,
+     "max_state_age_s": 0.5,
+     "max_tilt_rad": 0.5236,
+     "max_wall_duration_s": 14.0,
+     "min_height_m": 0.615,
+     "min_motion_samples": 5,
+     "min_progress_ratio": 0.6,
+     "min_settle_samples": 3,
+     "read_timeout_s": 0.5,
+     "rotation_tolerance_rad": 0.05,
+     "sample_interval_s": 0.02,
+     "settle_timeout_s": 4.0,
+     "settle_window_s": 0.4,
+     "stop_angular_speed_rad_s": 0.2,
+     "stop_drift_m": 0.03,
+     "stop_drift_rad": 0.05,
+     "stop_linear_speed_m_s": 0.08,
+     "translation_tolerance_m": 0.05
+    },
+    "metrics": {
+     "body_displacement_m": [
+      -0.4600382720236225,
+      -0.06998665321289589
+     ],
+     "max_angular_speed_rad_s": 1.6387103729404926,
+     "max_linear_speed_m_s": 0.653148038342352,
+     "max_tilt_rad": 0.03943188548771957,
+     "min_height_m": 0.9130069613456726,
+     "path_length_m": 0.48153486460472955,
+     "rotation_path_rad": 0.19304615518244905,
+     "settle_drift_m": 0.007510336936734516,
+     "settle_drift_rad": 0.03873533978967233,
+     "settle_max_angular_speed_rad_s": 0.0598810959389392,
+     "settle_max_linear_speed_m_s": 0.026416219885214757,
+     "settle_samples": 36,
+     "settle_sim_duration_s": 0.41499999999999915,
+     "settle_veto_observations": 39,
+     "sim_duration_s": 1.9899999999999984,
+     "yaw_change_rad": -0.014852555459271222
+    },
+    "skill": "walk_velocity"
+   },
+   "verifier_samples": 307,
+   "net_world_displacement_m": 0.46708267349827093
+  }
+ ],
+ "confirmed": 3,
+ "refuted": 2
+}

@@ -9,6 +9,7 @@
 # CASCADE_MICRODUCK_{ASSET_SHA256,MODEL_IDENTITY_SHA256,BRIDGE_PORT,ENGINE,DEVICE}
 # remain the validated overrides (shared mobile-base environment contract).
 type: isaac
+kind: h2
 robot_id: h2
 source: isaac-h2
 # The bundle's policy was trained on PhysX; Newton runs are a separate experiment

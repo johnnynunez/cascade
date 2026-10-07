@@ -63,6 +63,10 @@ def test_contract_reproduces_the_exported_layout(contract):
     assert contract.gains["waist_yaw_joint"].group == "waist" and contract.gains["head_yaw_joint"].group == "head"
     assert contract.init_root_pos[2] == pytest.approx(1.015)
     assert contract.fall_tilt_rad == pytest.approx(math.radians(30)) and contract.fall_pelvis_height_m == 0.615
+    assert contract.root_body == "pelvis" and contract.illegal_contact_bodies == ("pelvis", "torso_link")
+    assert contract.foot_bodies == ("left_ankle_pitch_link", "right_ankle_pitch_link")
+    assert contract.enabled_self_collisions is True and contract.solver_iterations == (8, 4)
+    assert len(contract.init_root_rot_wxyz) == 4
     layout = contract.observation_layout()
     assert layout[0] == ("base_ang_vel", 0, 0, 3) and layout[-1] == ("last_action", 4, 241, 255)
     assert all(b[2] == a[3] for a, b in zip(layout, layout[1:]))
@@ -107,7 +111,8 @@ def test_sample_scaling_history_order_and_action_decode_follow_isaac_sim(contrac
 
 
 @pytest.mark.parametrize("drift", ["term_order", "history", "extra_term", "action_shape", "offset", "joint_count",
-                                   "timing", "gains_missing", "manifest_width", "action_joint_order"])
+                                   "timing", "gains_missing", "manifest_width", "action_joint_order",
+                                   "no_illegal_contact_root", "feet"])
 def test_any_drift_from_the_exported_bundle_is_refused(documents, drift):
     descriptor, env, manifest = (copy.deepcopy(d) for d in documents)
     policy = descriptor["observations"]["policy"]
@@ -133,6 +138,13 @@ def test_any_drift_from_the_exported_bundle_is_refused(documents, drift):
     elif drift == "action_joint_order":
         j = action["joint_names"]
         j[0], j[1] = j[1], j[0]
+    elif drift == "no_illegal_contact_root":
+        env["terminations"]["illegal_contacts"]["params"]["sensor_cfg"]["body_names"] = ["torso_link"]
+    elif drift == "feet":
+        for term in env["rewards"].values():
+            for cfg in (term.get("params") or {}).values():
+                if isinstance(cfg, dict) and cfg.get("body_names") == ["left_ankle_pitch_link", "right_ankle_pitch_link"]:
+                    cfg["body_names"] = ["left_ankle_pitch_link"]
     with pytest.raises(ValueError):
         H2PolicyContract.from_documents(descriptor, env, manifest)
 

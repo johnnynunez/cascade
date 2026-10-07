@@ -143,8 +143,14 @@ class H2PolicyContract:
     command_ranges: dict
     gains: dict                 # joint name -> JointGains
     init_root_pos: tuple
+    init_root_rot_wxyz: tuple
     fall_tilt_rad: float        # torso tilt termination used in training
     fall_pelvis_height_m: float  # pelvis height termination used in training
+    root_body: str              # body whose height/orientation the fall criteria read
+    illegal_contact_bodies: tuple  # ground contact on these terminated a training episode
+    foot_bodies: tuple          # the two links the training rewards treat as feet
+    enabled_self_collisions: bool
+    solver_iterations: tuple    # (position, velocity) counts the policy was trained with
 
     @classmethod
     def from_bundle(cls, config_dir: Path | None = None) -> "H2PolicyContract":
@@ -240,14 +246,34 @@ class H2PolicyContract:
                 raise ValueError(f"command range {key} must be ordered")
             command_ranges[key] = (lo, hi)
 
-        gains = _resolve_gains(env["scene"]["robot"]["actuators"], joint_names)
-        init = env["scene"]["robot"]["init_state"]
+        robot_cfg = env["scene"]["robot"]
+        gains = _resolve_gains(robot_cfg["actuators"], joint_names)
+        init = robot_cfg["init_state"]
         root_pos = tuple(float(x) for x in init["pos"])
+        root_rot = tuple(float(x) for x in init["rot"])
+        if len(root_rot) != 4 or not math.isclose(sum(x * x for x in root_rot), 1.0, abs_tol=1e-6):
+            raise ValueError("init_state.rot must be a unit quaternion")
         terminations = env["terminations"]
         tilt = float(terminations["base_orientation"]["params"]["limit_angle"])
-        height = float(terminations["illegal_base_height"]["params"]["height_threshold"])
+        height_term = terminations["illegal_base_height"]["params"]
+        height = float(height_term["height_threshold"])
+        root_body = str(height_term["asset_cfg"]["body_names"])
         if not (0 < tilt < math.pi / 2) or not (0 < height < root_pos[2]):
             raise ValueError("training fall criteria are implausible")
+        illegal = terminations["illegal_contacts"]["params"]["sensor_cfg"]["body_names"]
+        illegal = tuple(str(b) for b in ([illegal] if isinstance(illegal, str) else illegal))
+        if not illegal or root_body not in illegal:
+            raise ValueError("illegal ground contact must at least name the root body")
+        feet = tuple(sorted({str(b) for term in env["rewards"].values()
+                             for b in _body_names(term) if re.search(r"ankle_(pitch|roll)_link", b)
+                             and not any(c in b for c in ".*[]()")}))
+        if len(feet) != 2:
+            raise ValueError("the training rewards must name exactly two foot links")
+        props = robot_cfg["spawn"]["articulation_props"]
+        self_collisions = props["enabled_self_collisions"]
+        iterations = (int(props["solver_position_iteration_count"]), int(props["solver_velocity_iteration_count"]))
+        if type(self_collisions) is not bool or min(iterations) <= 0:
+            raise ValueError("articulation props must state self-collision and positive solver iterations")
 
         held = tuple(j for j in joint_names if j not in set(policy_joints))
         return cls(
@@ -256,7 +282,9 @@ class H2PolicyContract:
             observation_width=width, action_scale=scale, action_offset=offset, action_clip=clip,
             default_joint_pos=default_pos, physics_dt=physics_dt, control_dt=control_dt,
             decimation=decimation, command_ranges=command_ranges, gains=gains, init_root_pos=root_pos,
-            fall_tilt_rad=tilt, fall_pelvis_height_m=height,
+            init_root_rot_wxyz=root_rot, fall_tilt_rad=tilt, fall_pelvis_height_m=height, root_body=root_body,
+            illegal_contact_bodies=illegal, foot_bodies=feet, enabled_self_collisions=self_collisions,
+            solver_iterations=iterations,
         )
 
     # ---- what the owner uses every control step -------------------------------------------
@@ -315,6 +343,17 @@ class H2PolicyContract:
         """Default positions for the joints the policy never commands."""
         index = {name: i for i, name in enumerate(self.joint_names)}
         return {name: self.default_joint_pos[index[name]] for name in self.held_joint_names}
+
+
+def _body_names(term) -> list:
+    """Body names referenced by one exported manager term (reward/termination), flattened."""
+    names = []
+    params = term.get("params") if isinstance(term, dict) else None
+    for cfg in (params or {}).values():
+        if isinstance(cfg, dict) and cfg.get("body_names") is not None:
+            value = cfg["body_names"]
+            names.extend([value] if isinstance(value, str) else list(value))
+    return names
 
 
 def _resolve_gains(actuators: dict, joint_names: tuple) -> dict:

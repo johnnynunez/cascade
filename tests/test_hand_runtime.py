@@ -28,8 +28,9 @@ class SyntheticBackend:
     model_sha256, epoch = "a"*64, "synthetic-hand"
     initial_targets = (0.,)*16
 
-    def __init__(self):
-        self.limits = HandLimits((-1.,)*16, (1.,)*16)
+    def __init__(self, *, observation_age_s=None):
+        budgets = {} if observation_age_s is None else {"observation_age_s": observation_age_s}
+        self.limits = HandLimits((-1.,)*16, (1.,)*16, **budgets)
         self.step, self.targets, self.q = 0, self.initial_targets, self.initial_targets
         self.upload_hook = self.solve_hook = None
         self.uploads = []
@@ -60,8 +61,20 @@ def profile():
     return {"kind": "hand", "recipe": RECIPE, "asset_root": "/unprepared/leap_hand", "model_identity_sha256": None}
 
 
+# A live software owner thread and its readers on a shared CI host can be
+# paused together (hypervisor steal, page-in) for longer than the physical
+# hand's .2 s observation-age bound; that pause is host latency, not a stale
+# measurement of the synthetic plant. It is the one owner fault reachable in
+# the post-ACK rest phase, and the macOS runner's failure signature (verified
+# approach, stop ACK no longer ok) is that fault. Live-owner fixtures therefore
+# declare their own host budget, as the mobile software fixtures declare
+# max_state_age_s. The production default stays .2 s (src/cascade/control/hand.py),
+# and the pure-function fixtures below keep it, so the stale gate remains pinned.
+HOST_OBSERVATION_AGE_S = 1.
+
+
 def start():
-    backend = SyntheticBackend()
+    backend = SyntheticBackend(observation_age_s=HOST_OBSERVATION_AGE_S)
     controller = HandController(backend)
     controller.start()
     deadline = time.monotonic()+2

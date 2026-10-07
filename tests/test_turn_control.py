@@ -13,6 +13,7 @@ from test_mobile_safety import limits
 
 @pytest.mark.parametrize('angle', [.2, -.2])
 @pytest.mark.parametrize('when', ['delivery', 'after_expiry'])
+@pytest.mark.usefixtures('healthy_episode_gc')
 def test_turn_cannot_complete_from_delivery_drift_or_late_rotation(angle, when):
     class RecordedTurn(MockMobileBase):
         ack = None
@@ -31,7 +32,14 @@ def test_turn_cannot_complete_from_delivery_drift_or_late_rotation(angle, when):
                            angular_velocity_body=(0., 0., 0.))
 
     raw = RecordedTurn(wall_lease_s=2., auto_step=False)
-    safe = SafeBase(raw, limits(max_duration_s=.1))
+    # This exercises the SIMULATED deadline. The synthetic feedback is stamped
+    # by the same call that reads it, so its age is only host latency between
+    # the mock's clock and the harness's; a loaded runner paused there for
+    # longer than the .1 s software budget and the wall-clock age gate fired
+    # first ("stale or future-dated feedback"). Give the mock the state-age
+    # budget of its own shipped kinematic profile (configs/bases/microduck_mock.yaml);
+    # the age gate itself stays pinned by test_isaac_base over a real RPC.
+    safe = SafeBase(raw, limits(max_duration_s=.1, max_state_age_s=.5))
     safe.connect()
     try:
         result = safe.turn(angle)

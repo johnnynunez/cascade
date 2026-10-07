@@ -1,19 +1,42 @@
 """Stop temporal contract: CPU/scripted states, NEVER physical acceptance."""
 import copy
 import json
+import math
 import threading
 import time
 
 import pytest
+from mobile_tick_fixture import healthy_episode_gc as healthy_episode_gc  # noqa: PLC0414 — shared pytest fixture
+from mobile_tick_fixture import scheduled_tick_steps
 from test_mobile_effects import ScriptedReader, checker_for, state
 from test_mobile_frames import frame_endpoint  # noqa: F401
 from test_mobile_runtime import SyntheticTicks, await_stop, camera_cfg, verifier_limits
 
+TICK_SIM_DT_S = .005  # one completed synthetic solve, as published by every software tick fixture
+
+
+def held_tick_wall_interval_s(limits):
+    """Wall seconds per synthetic solve once the held publisher resumes.
+
+    The sampler's slowest HEALTHY observation interval is one read that uses the
+    whole read budget plus one poll interval. A publisher running at 1x real
+    time would let that interval span read_timeout_s of synthetic time, so the
+    unchanged production sampling-gap limit would turn into a .1 s wall stall
+    budget on a slow CI scheduler. Same rule as SyntheticTicks: the resumed
+    cadence keeps that interval inside max_sample_gap_s of synthetic time.
+    Only the fixture's wall cadence changes; sim windows and limits do not.
+    """
+    interval = .06
+    assert (math.ceil((limits["read_timeout_s"] + limits["sample_interval_s"]) / interval) * TICK_SIM_DT_S
+            < limits["max_sample_gap_s"]), "held publisher cadence lets one healthy read exceed the sampling-gap limit"
+    return interval
+
 
 class HeldTickProducer:
-    """Hold one genuinely post-ACK capture for two reads, then resume .005s ticks."""
-    def __init__(self, controller, velocity):
+    """Hold one genuinely post-ACK capture for two reads, then resume scheduled ticks."""
+    def __init__(self, controller, velocity, *, wall_interval_s):
         self.c, self.velocity = controller, velocity
+        self.wall_interval_s = wall_interval_s
         self.ack, self.published, self.resume, self.halt = (threading.Event() for _ in range(4))
         self.job = None
         self.captured_monotonic_s = None
@@ -21,32 +44,33 @@ class HeldTickProducer:
         self.thread = threading.Thread(target=self.run, name="temporal-synthetic-ticks")
         self.thread.start()
 
-    def run(self):
+    def _publish(self, step):
         from mobile_support_fixture import support
+        self.c.control_at(step * TICK_SIM_DT_S)
+        self.c.publish({"step": step, "sim_time": step * TICK_SIM_DT_S, "position": [0., 0., .3],
+                        "orientation_wxyz": [1., 0., 0., 0.], "linear_velocity": [self.velocity, 0., 0.],
+                        "angular_velocity": [0., 0., 0.], "q": [0.] * 14, "dq": [0.] * 14,
+                        "joint_names": [f"fixture-{i}" for i in range(14)],
+                        "contacts": [], "fallen": False, "balance_active": True,
+                        "support": support(step, step * TICK_SIM_DT_S)})
+
+    def run(self):
         try:
             if not self.ack.wait(2) or self.halt.is_set():
                 return
             if self.halt.wait(max(0., self.job["ack_monotonic_s"] + .06 - time.monotonic())):
                 return
-            step = self.c.state()["state"]["step"]
-            first = True
-            while not self.halt.is_set():
-                step += 1
-                self.c.control_at(step * .005)
-                self.c.publish({"step": step, "sim_time": step * .005, "position": [0., 0., .3],
-                                "orientation_wxyz": [1., 0., 0., 0.], "linear_velocity": [self.velocity, 0., 0.],
-                                "angular_velocity": [0., 0., 0.], "q": [0.] * 14, "dq": [0.] * 14,
-                                "joint_names": [f"fixture-{i}" for i in range(14)],
-                                "contacts": [], "fallen": False, "balance_active": True,
-                                "support": support(step, step * .005)})
-                if first:
-                    first = False
-                    self.captured_monotonic_s = time.monotonic()
-                    self.published.set()
-                    if not self.resume.wait(2.):
-                        self.errors.append("two-read hold was not released")
-                        return
-                self.halt.wait(.005)
+            step = self.c.state()["state"]["step"] + 1
+            self._publish(step)
+            self.captured_monotonic_s = time.monotonic()
+            self.published.set()
+            if not self.resume.wait(2.):
+                self.errors.append("two-read hold was not released")
+                return
+            # Absolute deadlines with bounded catch-up, like SyntheticTicks: a
+            # delayed wakeup never skips or bursts more solves than wall time owes.
+            for step in scheduled_tick_steps(self.halt, first_step=step + 1, wall_interval_s=self.wall_interval_s):
+                self._publish(step)
         except Exception as exc:  # noqa: BLE001 - fail teardown for ANY producer failure
             self.errors.append(repr(exc))
 
@@ -61,6 +85,7 @@ class HeldTickProducer:
 
 @pytest.mark.parametrize("jitter_read", [1, 2], ids=["before-baseline", "after-baseline"])
 @pytest.mark.parametrize("velocity,expected", [(0., "confirmed"), (.05, "refuted")])
+@pytest.mark.usefixtures("healthy_episode_gc")
 def test_real_subtimeout_jitter_preserves_stop_discrimination(tmp_path, frame_endpoint, monkeypatch, jitter_read, velocity, expected):  # noqa: F811
     from cascade.apps.mobile_runtime import build_mobile_runtime
     c, server, profile, _, _, _ = frame_endpoint
@@ -68,11 +93,19 @@ def test_real_subtimeout_jitter_preserves_stop_discrimination(tmp_path, frame_en
     # This fixture tests healthy but temporally ambiguous reads. Keep their
     # real TCP latency/age inside an explicit budget on slower CI schedulers;
     # physical sample windows and stop discrimination thresholds are unchanged.
-    test_limits = {**verifier_limits(), "read_timeout_s": .5,
-                   "settle_timeout_s": .8, "max_wall_duration_s": 3., "max_state_age_s": 1.}
-    profile.update(timeout_s=.5, verifier=test_limits)
+    # Host budgets, not physical acceptance: the jitter read lasts >= .1 s plus
+    # host scheduling latency, so one read (and its state age) gets a 1 s host
+    # allowance on top; the sampler keeps reading for the whole settle budget,
+    # which must hold that read plus eight resumed solves at
+    # held_tick_wall_interval_s plus the same host allowance; the attempt quota
+    # is ceil(max_wall_duration_s / sample_interval_s) + 1 as the shipped
+    # profiles derive it, not additional motion credit.
+    test_limits = {**verifier_limits(), "read_timeout_s": 1.,
+                   "settle_timeout_s": 2., "max_wall_duration_s": 4., "max_state_age_s": 2., "max_samples": 801}
+    assert test_limits["max_samples"] == math.ceil(test_limits["max_wall_duration_s"] / test_limits["sample_interval_s"]) + 1
+    profile.update(timeout_s=1., verifier=test_limits)
     profile.pop("cameras")
-    ticks = HeldTickProducer(c, velocity)
+    ticks = HeldTickProducer(c, velocity, wall_interval_s=held_tick_wall_interval_s(test_limits))
     rt, _ = build_mobile_runtime(camera_cfg(profile), tmp_path)
     observer = rt.stop_observers["microduck_isaac"]
     original = observer.reader.reader

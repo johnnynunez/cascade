@@ -329,7 +329,7 @@ def test_new_task_boundary_cannot_adopt_an_old_stop_worker(tmp_path, frame_endpo
         assert old["task_id"] != new["task_id"]
         assert not rt.execute("task_done", {"success": True, "summary": "pending"})["success"]
         release.set()
-        proof = await_stop(rt, new["receipt_id"])
+        proof = await_stop_published(rt, new["receipt_id"])
         assert proof["status"] == "confirmed" and proof["task_id"] == new["task_id"], proof
         rows = [json.loads(line) for line in (tmp_path / "trace.jsonl").read_text().splitlines()]
         prior = next(r["result"] for r in rows if r["skill"] == "stop_verification"
@@ -797,6 +797,27 @@ def await_stop(rt, receipt_id, timeout=5.):
     pytest.fail(f"no completed post-ACK receipt for {receipt_id}: {snapshots}")
 
 
+def await_stop_published(rt, receipt_id, timeout=5.):
+    """await_stop, then the observer's own publication handshake.
+
+    _publish_stop publishes the completed snapshot (what await_stop polls) and
+    only THEN, under the record lock on the observer thread, writes the
+    stop_verification trace row and adds the 'outcome' memory event. The row
+    is complete on disk once that event is visible; a trace.jsonl read that
+    follows await_stop alone races the append (missing or half-written last
+    row on a slow host). Same handshake as
+    test_late_stop_verifier_error_is_preserved_in_receipt; not a timing assumption.
+    """
+    import time
+    snapshot = await_stop(rt, receipt_id, timeout)
+    deadline = time.monotonic() + timeout
+    text = f"stop {receipt_id}: {snapshot['status']}"
+    while not any(event.text == text for event in rt.memory.events(("outcome",))):
+        assert time.monotonic() < deadline, f"stop verdict {text!r} was not published to trace/memory"
+        time.sleep(.005)
+    return snapshot
+
+
 @pytest.mark.parametrize("velocity,expected", [(0., "confirmed"), (.05, "refuted")])
 @pytest.mark.parametrize("wall_interval_s", [NORMAL_WALL_INTERVAL_S, .03], ids=["normal-producer", "slow-producer"])
 def test_post_ack_stop_is_async_independent_and_preserves_original(tmp_path, frame_endpoint, velocity, expected, wall_interval_s):
@@ -1045,7 +1066,7 @@ def test_superseded_stop_read_keeps_healthy_observer_reusable(tmp_path, frame_en
         release.set()
         assert await_stop(rt, second["receipt_id"])["status"] == "confirmed"
         third = rt.stop()
-        assert await_stop(rt, third["receipt_id"])["status"] == "confirmed"
+        assert await_stop_published(rt, third["receipt_id"])["status"] == "confirmed"
         assert not observer._quarantined
         rows = [json.loads(line) for line in (tmp_path / "trace.jsonl").read_text().splitlines()]
         old = next(r["result"] for r in rows if r["skill"] == "stop_verification"

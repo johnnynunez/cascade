@@ -197,13 +197,13 @@ def test_walk_requires_measured_progress_of_correct_sign_and_size(scale, expecte
 
 
 @pytest.mark.parametrize("sign", [-1., 1.])
-def test_body_frame_walk_is_not_world_x_or_actor_q(sign):
+def test_body_frame_walk_is_not_world_x_or_actor_q(sign, healthy_episode_gc):
     # Facing +Y: body forward/reverse is world +Y/-Y, not world X.
     reader = ScriptedReader(lambda n: state(
         n, position_world=(0., min(n - 1, 5) * 0.002 * sign, 0.3),
         orientation_wxyz=(math.sqrt(0.5), 0., 0., math.sqrt(0.5))))
     verdict = run_window(reader, args=dict(vx=0.1 * sign, vy=0., wz=0., duration_s=0.1))
-    assert verdict["status"] == "confirmed"
+    assert verdict["status"] == "confirmed", verdict["reason"]
 
 
 @pytest.mark.parametrize("change,reason", [
@@ -253,11 +253,11 @@ def test_one_corrupted_sample_poisoning_provenance_cannot_be_hidden_by_final_pos
 
 
 @pytest.mark.parametrize("kind", ["kinematic_mock", "physics"])
-def test_mock_never_confirms_while_explicit_physics_fixture_exercises_positive_branch(kind):
+def test_mock_never_confirms_while_explicit_physics_fixture_exercises_positive_branch(kind, healthy_episode_gc):
     reader = ScriptedReader(lambda n: state(n, measurement_kind=kind,
                                            position_world=(min(n - 1, 5) * 0.002, 0., 0.3)))
     verdict = run_window(reader)
-    assert verdict["status"] == ("unverified" if kind == "kinematic_mock" else "confirmed")
+    assert verdict["status"] == ("unverified" if kind == "kinematic_mock" else "confirmed"), verdict["reason"]
 
 
 @pytest.mark.parametrize("invalid", [None, {"ok": True}, "raise", "zero_quaternion", "nan"])
@@ -329,10 +329,10 @@ def test_turn_uses_signed_unwrapped_measured_yaw_not_integrated_wz(angle, scale,
 
 @pytest.mark.parametrize("skill", ["stop", "stop_navigation", "emergency_stop"])
 @pytest.mark.parametrize("velocity,expected", [(0., "confirmed"), (0.1, "refuted")])
-def test_stop_ack_never_substitutes_for_advancing_low_velocity_window(skill, velocity, expected):
+def test_stop_ack_never_substitutes_for_advancing_low_velocity_window(skill, velocity, expected, healthy_episode_gc):
     reader = ScriptedReader(lambda n: state(n, linear_velocity_world=(velocity, 0., 0.)))
     verdict = run_window(reader, skill, {}, {"ok": True})
-    assert verdict["status"] == expected
+    assert verdict["status"] == expected, verdict["reason"]
     assert verdict["metrics"]["settle_samples"] >= 3
     assert verdict["metrics"]["settle_sim_duration_s"] >= limits()["settle_window_s"]
 
@@ -439,7 +439,7 @@ def test_invalid_intent_can_never_turn_into_a_positive_comparison(skill, args):
     assert "intent" in verdict["reason"]
 
 
-def test_history_limits_and_begin_args_are_defensive_snapshots():
+def test_history_limits_and_begin_args_are_defensive_snapshots(healthy_episode_gc):
     reader = ScriptedReader()
     configured = limits(max_history=2)
     from cascade.agent.base_effects import BasePostconditionChecker
@@ -451,7 +451,7 @@ def test_history_limits_and_begin_args_are_defensive_snapshots():
             args["base"] = "mutated-after-begin"
             configured["stop_drift_m"] = 999.
             verdict = checker.finish(token, {"ok": True})
-            assert verdict["status"] == "confirmed"
+            assert verdict["status"] == "confirmed", verdict["reason"]
             assert verdict["args"]["base"] == f"fixture-{index}"
             assert verdict["limits"]["stop_drift_m"] == 0.001
             verdict["reason"] = "mutated-result"
@@ -809,7 +809,7 @@ def test_close_during_sampling_is_not_a_favorable_final_state():
     assert not any(t.name == "base-postcondition-sampler" for t in threading.enumerate())
 
 
-def test_checker_crash_is_a_receipt_and_does_not_wedge_the_next_token(monkeypatch):
+def test_checker_crash_is_a_receipt_and_does_not_wedge_the_next_token(monkeypatch, healthy_episode_gc):
     from cascade.agent.base_effects import BasePostconditionChecker
     reader = ScriptedReader()
     checker = checker_for(reader)
@@ -823,7 +823,8 @@ def test_checker_crash_is_a_receipt_and_does_not_wedge_the_next_token(monkeypatc
             assert verdict["status"] == "unverified"
             assert "verifier_error" in verdict["reason"]
         token = checker.begin("stop_navigation", {})
-        assert checker.finish(token, {"ok": True})["status"] == "confirmed"
+        verdict = checker.finish(token, {"ok": True})
+        assert verdict["status"] == "confirmed", verdict["reason"]
     finally:
         checker.close()
 
@@ -970,11 +971,13 @@ def test_extra_generation_is_ambiguous_even_when_pose_matches():
     assert "generation" in verdict["reason"]
 
 
-def test_completion_and_stop_generation_changes_are_not_new_physics_evidence():
+def test_completion_and_stop_generation_changes_are_not_new_physics_evidence(healthy_episode_gc):
+    # Same bounded fixture and positive verdict as the progress checks: one
+    # suite heap collection inside a read is a reader_timeout, not evidence.
     reader = ScriptedReader(lambda n: state(n, generation=0 if n == 1 else (1 if n < 6 else 2),
                                            position_world=(min(n - 1, 5) * 0.002, 0., 0.3)))
     verdict = run_window(reader)
-    assert verdict["status"] == "confirmed"
+    assert verdict["status"] == "confirmed", verdict["reason"]
 
 
 def test_tiny_nonzero_progress_cannot_exploit_a_negative_lower_error_bound():

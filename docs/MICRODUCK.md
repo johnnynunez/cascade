@@ -1201,7 +1201,11 @@ cohort path, and skipping one stage's cohort mark fails `verify()`. The software
 (`tests/test_microduck_shared_scene.py`, `..._timing.py`, `..._staging.py`) pin one
 cohort per fleet paired with the one check, the tick order above, the per-adapter path
 for one robot or a declined cohort, containment on a cohort failure, the span wiring
-and the receipt. **Speedup not yet measured; the x86 A/B is pending** (compare
-`bam.before_step + bam.verify` against the slice-1 build with `--profile-phases`, twelve
-robots, one world, the route harness; the remaining per-step host work inside the
-cohort span is the twelve adapters' host-side binding checks on the snapshot copies).
+and the receipt. **Measured on the x86 rig the same day**
+([A/B evidence](evidence/microduck-owner-bam-cohort-20261007/REPORT.md); twelve robots,
+one world, the route harness, `--profile-phases`, arm F = `b7536cd` slice 1, arm G = this
+change): `bam.before_step` 12.11 → 6.57 ms and the step median 46.79 → 42.43 ms
+(p95 124.7 → 119.7); the other phases are unchanged within noise and all twelve client
+walks stay `unverified` on the unchanged deadlines. The remaining per-step host work
+inside the cohort span is the twelve adapters' host-side binding checks on the snapshot
+copies.

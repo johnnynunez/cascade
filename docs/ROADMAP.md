@@ -395,7 +395,8 @@ HUG). What changed upstream since 08-27, checked against the actual pages:
 - **ASPIRE code is public** (github.com/NVlabs/ASPIRE, pushed 2026-09-01).
   `skills/library.py` promotes a distilled skill only when it recurs in ≥2
   *distinct tasks*; this repo's `agent/aspire.py` dedupes by (skill, signature)
-  with no cross-task gate, so one lucky repair is retrieved as if proven.
+  with no cross-task gate, so one lucky repair is retrieved as if proven
+  (closed 2026-10-07 by follow-up #10 below).
   Its `launch_servers.py` (readiness waits, dependency order, refuse-if-
   session-exists) is the shape `scripts/launch.sh` follows.
 - **Pigey code is public** (github.com/lianegalanti/Pigey, `real/agent-
@@ -463,10 +464,20 @@ Open follow-ups from this work:
 9. **Task-Specific Memory recipes (Harness-VLA v4).** Store successful runs
    with xyz replaced by `localize_object(label)+offset` queries and re-ground
    at replay; this is the shape for #8 and fixes tier-2's text keys. (M)
-10. **ASPIRE cross-task promotion gate.** `agent/aspire.py`: promote a
+10. ~~**ASPIRE cross-task promotion gate.** `agent/aspire.py`: promote a
     distilled skill only when seen in ≥2 distinct tasks (`occurrences`,
     `source_tasks`); the scoped retry-admission gate still permits retrieval
-    after one confirmed retry, without cross-task validation. (S)
+    after one confirmed retry, without cross-task validation. (S)~~
+    **landed 2026-10-07** — `skills/library.py` front matter counts
+    `occurrences` (distinct runs, idempotent re-harvest via `source_runs`) and
+    `source_tasks` per `(skill, signature)` note; `aspire.retrieve()` injects
+    only notes promoted by ≥ 2 distinct tasks (`PROMOTION_MIN_TASKS`), single-
+    task and legacy notes stay stored candidates, `memory.skill_min_tasks: 1` /
+    `--min-tasks 1` is the explicit relaxation. Measured by
+    `tests/test_aspire_promotion.py` (11 tests RED against main's
+    `aspire.py`/`library.py`, GREEN after) plus a two-harvest CLI run
+    (`learned 1 → 0 → 1`, `status: candidate → promoted`); no physical trial,
+    no claim that promoted notes improve success.
 11. **Pigey snapshot/restore + occlusion search** as composite skills over
     `BeliefStore` (`snapshot_scene`/`restore_scene`, `search_for_object`):
     the one demo beat visible from chat that no current skill covers. (M)

@@ -437,9 +437,14 @@ record intervenes. `SkillRuntime.execute()` records that context separately
 from tool arguments, without probing a lazy backend. Legacy traces lacking
 context cannot produce new notes.
 
-`scripts/learn_from_runs.py` harvests eligible associations; `retrieve()`
-loads keyword-matched notes into the tier-3 context at task start
-(`orchestrator.run_task`, with the library supplied by `demo.main`). A note
+`scripts/learn_from_runs.py` harvests eligible associations into
+`skills_library/*.md`, one note per `(skill, signature)` whose front matter
+counts `occurrences` (distinct runs) and `source_tasks` (distinct tasks);
+`retrieve()` loads keyword-matched notes into the tier-3 context at task start
+(`orchestrator.run_task`, with the library supplied by `demo.main`) **only once
+they are promoted** — recurred in ≥ 2 distinct tasks, upstream ASPIRE's rule.
+A note seen in one task stays a stored candidate; `memory.skill_min_tasks: 1`
+is the explicit relaxation. A note
 preserves the recorded evidence, not proof of a causal repair or transfer to
 another rig.
 This gate does not change experience-memory or operating-envelope admission.
@@ -722,7 +727,8 @@ openai|local_*`) cascade runs its own loop with all three tiers.
   highgui); the MuJoCo physics window and the browser dashboard are the
   visuals there.
 - Skill-library notes are retrieved by guard-word match on the task text
-  (`aspire.retrieve`), not by embedding; a visual embedder for episodic
+  (`aspire.retrieve`), not by embedding, and only once promoted (recurred in
+  ≥ 2 distinct tasks); a visual embedder for episodic
   recall is still on the ROADMAP.
 
 ## Counts

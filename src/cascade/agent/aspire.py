@@ -8,10 +8,16 @@
 ``distil(diagnosis, library)`` / ``harvest(runs_dir, library)``
     Recheck eligibility and persist the error, context, argument delta and
     verifier receipt as guidance. A matching retry is an observed association,
-    not proof of a causal repair or a transferable control policy.
+    not proof of a causal repair or a transferable control policy. Runs with
+    the same (skill, signature) fold into ONE entry whose front matter counts
+    ``occurrences`` (distinct runs) and ``source_tasks`` (distinct tasks).
 
 ``retrieve(library, task)``
-    Load keyword-matched notes into the built-in orchestrator at task start.
+    Load keyword-matched PROMOTED notes into the built-in orchestrator at task
+    start. Upstream ASPIRE's cross-task rule (``skills/library.py``): an entry
+    is promoted only once it recurs in >= ``PROMOTION_MIN_TASKS`` (2) distinct
+    tasks; one confirmed retry in one task stays a stored candidate and is not
+    retrieved. ``SkillLibrary(root, min_tasks=1)`` is the explicit relaxation.
 
 Harvesting runs offline through ``scripts/learn_from_runs.py``. This module
 does not execute retries, change a controller or independently re-evaluate
@@ -255,37 +261,58 @@ def distil(diag: Diagnosis, library) -> Path | None:
         when=" ".join(guard_terms[:14]),
         strategy="\n".join(strategy),
         origin=f"{diag.run} (task: {diag.task or 'n/a'})",
+        # Cross-task evidence: the library counts distinct runs and tasks per
+        # (skill, signature); an unknown task adds an occurrence, not a task.
+        source_task=diag.task,
+        source_run=diag.run,
     )
 
 
+def _occurrence_index(library) -> dict[str, int]:
+    try:
+        return {e.name: e.occurrences for e in library.records()}
+    except AttributeError:
+        return {}
+
+
 def harvest(runs_dir: str | Path, library, limit: int = 100) -> dict:
-    """Diagnose selected runs and distil eligible retry associations offline."""
+    """Diagnose selected runs and distil eligible retry associations offline.
+
+    Every teachable run folds into the entry for its (skill, signature); the
+    library counts it once per run directory, so harvesting the same runs
+    again changes nothing. ``learned``/``entries`` report entries that gained
+    evidence this harvest, ``promoted``/``candidates`` their status after it.
+    """
     root = Path(runs_dir).expanduser()
     if not root.exists():
-        return {"runs": 0, "diagnosed": 0, "learned": 0, "entries": []}
+        return {"runs": 0, "diagnosed": 0, "learned": 0, "entries": [],
+                "promoted": [], "candidates": []}
     run_dirs = sorted([p for p in root.iterdir() if (p / "trace.jsonl").exists()])[-limit:]
-    diagnoses, learned = [], []
-    seen_signatures: set[str] = set()
+    before = _occurrence_index(library)
+    diagnoses = []
     for run in run_dirs:
         diag = diagnose(run)
         if diag is None:
             continue
         diagnoses.append(diag)
-        if not diag.teachable:
-            continue
-        # One entry per (skill, signature): the library is guidance, not a log.
-        key = f"{diag.failed_skill}|{diag.signature}"
-        if key in seen_signatures:
-            continue
-        seen_signatures.add(key)
-        path = distil(diag, library)
-        if path is not None:
-            learned.append(path.name)
+        if diag.teachable:
+            distil(diag, library)
+    after = _occurrence_index(library)
+    # One entry per (skill, signature): the library is guidance, not a log.
+    learned = sorted(name for name, n in after.items() if n > before.get(name, 0))
+    try:
+        status = {e.name: e.promoted for e in library.records()}
+        summary = library.summary()
+    except AttributeError:
+        status, summary = {}, {}
     return {
         "runs": len(run_dirs),
         "diagnosed": len(diagnoses),
         "learned": len(learned),
         "entries": learned,
+        "promoted": [n for n in learned if status.get(n)],
+        "candidates": [n for n in learned if not status.get(n)],
+        "library": summary,
         "failure_histogram": dict(
             Counter(d.signature for d in diagnoses if d.signature).most_common()
         ),
@@ -294,17 +321,28 @@ def harvest(runs_dir: str | Path, library, limit: int = 100) -> dict:
 
 
 def retrieve(library, task: str, max_entries: int = 2, max_chars: int = 1400) -> str:
-    """Guard-matched library entries, trimmed for the agent context."""
+    """Guard-matched PROMOTED library entries, trimmed for the agent context.
+
+    Candidates (one task, any number of runs; legacy notes without counters)
+    stay on disk and out of the prompt. A library without the promotion API
+    yields nothing rather than bypassing the gate.
+    """
     try:
-        entries = library.relevant(task, max_entries=max_entries)
+        entries = library.relevant_entries(task, max_entries=max_entries, promoted_only=True)
     except Exception:
         return ""
     if not entries:
         return ""
     out = ["Learned skills from earlier runs (ASPIRE library) -- apply if they match:"]
     budget = max_chars
-    for text in entries:
-        block = text.strip()
+    for entry in entries:
+        if entry.n_tasks >= 2:
+            tag = (f"[promoted: recurred in {entry.n_tasks} distinct tasks, "
+                   f"{entry.occurrences} confirmed runs]")
+        else:  # only reachable through an explicit min_tasks=1 library
+            tag = (f"[admitted by explicit min_tasks=1: {entry.n_tasks} known task(s), "
+                   f"{entry.occurrences} run(s); not cross-task validated]")
+        block = tag + "\n" + entry.text.strip()
         if len(block) > budget:
             block = block[:budget].rsplit("\n", 1)[0] + "\n..."
         out.append(block)

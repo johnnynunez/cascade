@@ -478,3 +478,121 @@ def test_output_check_failure_refuses_the_solve_and_contains_every_robot():
     assert owner.contained == ['shared MicroDuck containment; no physical stop verdict']
     with pytest.raises(RuntimeError, match='not running'): fleet.tick()
     assert owner.step_count == before
+
+
+class SoftwareCohort:
+    """Double of ``BamCohort``: ONE before_step for every registered actuator, marking the shared check."""
+    def __init__(self, backend, adapters, labels):
+        self.backend, self.adapters, self.labels = backend, tuple(adapters), tuple(labels)
+        self.failure = None
+        self.calls = 0
+
+    def before_step(self, dt, *, snapshot=None, output_check=None):
+        assert dt == self.backend.dt
+        # The real cohort binds the snapshot and the check per member, for exactly this step.
+        assert snapshot is not None and output_check is not None
+        assert output_check.adapters == self.adapters and output_check.step_count == self.backend.step_count
+        output_check.marked.extend(output_check.labels)
+        self.calls += 1
+        self.backend.events.append(('cohort.before', self.backend.step_count, id(snapshot), id(output_check)))
+        if self.failure is not None:
+            raise self.failure
+
+
+class CohortActuator(CheckedActuator):
+    """Software double of an adapter whose fleet is driven by one cohort ``before_step``.
+
+    ``refuse`` models a drive the real cohort cannot reproduce exactly (a stochastic command
+    delay): the builder returns None and the owner keeps the per-adapter calls.
+    """
+    cohorts = []
+    refuse = False
+
+    def cohort(self, adapters, *, labels=None, output_check=None):
+        if CohortActuator.refuse:
+            return None
+        # The owner pairs the cohort with ITS output check at construction.
+        assert output_check is CheckedActuator.checks[-1] and output_check.adapters == tuple(adapters)
+        cohort = SoftwareCohort(self.backend, adapters, labels)
+        CohortActuator.cohorts.append(cohort)
+        return cohort
+
+    def before_step(self, dt, **kwargs):
+        if CohortActuator.cohorts:
+            raise AssertionError('a cohort member must not be actuated privately')
+        super().before_step(dt, **kwargs)
+
+
+@pytest.fixture
+def cohort_doubles():
+    CohortActuator.cohorts, CheckedActuator.checks, CohortActuator.refuse = [], [], False
+    yield
+    CohortActuator.cohorts, CheckedActuator.checks, CohortActuator.refuse = [], [], False
+
+
+@pytest.mark.parametrize('count', [2, 3, 12])
+def test_shared_tick_with_a_cohort_actuates_the_fleet_once_between_the_check_reset_and_its_verify(cohort_doubles, count):
+    fleet, owner, steppers = shared(count, actuator=CohortActuator)
+    [cohort] = CohortActuator.cohorts  # built once for the whole cohort, labelled by robot id
+    [check] = CheckedActuator.checks
+    assert fleet.cohort is cohort and cohort.adapters == check.adapters == tuple(s.actuator for s in steppers)
+    assert cohort.labels == check.labels == tuple(f'duck{i}' for i in range(count))
+    assert fleet.cohort_receipt() == {'path': 'cohort', 'adapters': count, 'reason': None}
+    fleet.start()
+    for _ in range(4): fleet.tick()
+    for step in range(2, 6):
+        events = [e for e in owner.events if e[1] == step and e[0] != 'infer']
+        # Reset for exactly this admitted step, ONE actuation for the fleet (no per-adapter
+        # before_step), ONE verify as the last thing before the solve.
+        assert [e[0] for e in events] == ['check.reset', 'cohort.before', 'verify', 'solve']
+        assert events[0] == ('check.reset', step) and events[1][3] == id(check)
+        assert events[2] == ('verify', step, tuple(check.labels), step)
+    assert cohort.calls == 4 and all(s.steps == 4 for s in steppers)
+    assert all(len(s.actuator.targets) == 1 for s in steppers)  # targets still reach every member on its policy slot
+    assert all(s.controller.state()['state']['step'] == 6 for s in steppers)
+
+
+@pytest.mark.parametrize('why', ['single_robot', 'refused'])
+def test_single_robot_or_a_refused_cohort_keeps_the_per_adapter_actuation(cohort_doubles, why):
+    CohortActuator.refuse = why == 'refused'
+    fleet, owner, steppers = shared(1 if why == 'single_robot' else 2, actuator=CohortActuator)
+    assert fleet.cohort is None and CohortActuator.cohorts == []
+    receipt = fleet.cohort_receipt()
+    assert receipt['path'] == 'per-adapter' and receipt['adapters'] == len(steppers) and receipt['reason']
+    fleet.start()
+    fleet.tick()
+    events = [e[0] for e in owner.events if e[1] == 2 and e[0] != 'infer']
+    assert events == ['check.reset'] + ['checked', 'before'] * len(steppers) + ['verify', 'solve']
+
+
+def test_cohort_actuation_failure_refuses_the_solve_and_contains_every_robot(cohort_doubles):
+    fleet, owner, steppers = shared(3, actuator=CohortActuator)
+    fleet.start()
+    fleet.tick()
+    [cohort] = CohortActuator.cohorts
+    cohort.failure = RuntimeError('BAM cadence requires exactly one before_step per consecutive simulation_step_count')
+    before = owner.step_count
+    with pytest.raises(RuntimeError, match='cadence') as caught:
+        fleet.tick()
+    assert caught.value is cohort.failure
+    events = [e[0] for e in owner.events if e[1] == before and e[0] != 'infer']
+    assert events == ['check.reset', 'cohort.before']  # no verify, no solve
+    assert owner.step_count == before
+    assert all(s.failure == str(cohort.failure) and s.controller.state()['controller'] == 'fault' for s in steppers)
+    assert owner.contained == ['shared MicroDuck containment; no physical stop verdict']
+    with pytest.raises(RuntimeError, match='not running'): fleet.tick()
+    assert owner.step_count == before
+
+
+def test_cohort_path_still_refuses_the_solve_when_the_verify_fails(cohort_doubles):
+    fleet, owner, steppers = shared(2, actuator=CohortActuator)
+    fleet.start()
+    fleet.tick()
+    [check] = CheckedActuator.checks
+    check.failure = ValueError('nonfinite native BAM output; solver must not step (robot duck1, slot 1, effort)')
+    before = owner.step_count
+    with pytest.raises(ValueError, match='solver must not step'):
+        fleet.tick()
+    assert [e[0] for e in owner.events if e[1] == before and e[0] != 'infer'] == ['check.reset', 'cohort.before', 'verify']
+    assert owner.step_count == before
+    assert all(s.failure == str(check.failure) for s in steppers)

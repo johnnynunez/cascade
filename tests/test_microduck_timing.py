@@ -452,3 +452,65 @@ def test_instrument_owner_without_a_fleet_adds_no_verify_span(tmp_path):
     timing.instrument_owner(profile, owner, [])
     assert all(restore[2] != 'bam.verify' for restore in profile.restores)
     profile.close()
+
+
+def test_cohort_before_step_is_the_bam_before_step_span_instead_of_the_per_robot_wraps(tmp_path):
+    class Cohort:
+        def before_step(self, dt, **kwargs):
+            return ('cohort', dt, sorted(kwargs))
+
+    class Fleet:
+        cohort = Cohort()
+
+        def _verify_outputs(self, check, step_count):
+            return check.verify(step_count)
+
+    class Check:
+        def verify(self, step_count):
+            return ('verified', step_count)
+    fleet = Fleet()
+    actuator = SimpleNamespace(set_targets=lambda q: 'targets', before_step=lambda dt, **kwargs: 'private')
+    stepper = SimpleNamespace(backend=SimpleNamespace(binding=SimpleNamespace(robot_id='duck0')), actuator=actuator,
+                              _stage_tick=lambda **kwargs: None, _validate_tick=lambda prepared: None,
+                              _commit_tick=lambda prepared, result: None)
+    owner = SimpleNamespace(physics_clock=(2, .01), _read_completed_scene=lambda: None,
+        step=lambda: 'stepped', capture=lambda: None, support_probe=lambda: None)
+    profile = PhaseProfile(tmp_path/'timing.jsonl')
+    timing.instrument_owner(profile, owner, [stepper], fleet=fleet)
+    # The cohort's single actuation is the bam.before_step span; the per-robot before_step
+    # (never called on the cohort path) is not wrapped, bam.targets per robot stays.
+    assert 'before_step' not in vars(actuator) or actuator.before_step(.005) == 'private'
+    assert all(not (restore[0] is actuator and restore[1] == 'before_step') for restore in profile.restores)
+    with profile.attempt(owner) as attempt:
+        assert actuator.set_targets(None) == 'targets'
+        assert fleet.cohort.before_step(.005, snapshot=object(), output_check=object()) == ('cohort', .005, ['output_check', 'snapshot'])
+        assert fleet._verify_outputs(Check(), 2) == ('verified', 2)
+        assert owner.step() == 'stepped'
+        attempt['outcome'] = 'solved'
+    profile.close()
+    spans = rows(tmp_path/'timing.jsonl')[0]['spans']
+    assert [(s['phase'], s['robot_id']) for s in spans] == [('bam.targets', 'duck0'), ('bam.before_step', None),
+                                                           ('bam.verify', None), ('solve', None)]
+    assert 'before_step' not in vars(fleet.cohort)  # restored, no instance shadow
+    assert fleet.cohort.before_step(.005) == ('cohort', .005, [])
+
+
+def test_fleet_without_a_cohort_keeps_the_per_robot_before_step_spans(tmp_path):
+    class Fleet:
+        cohort = None
+
+        def _verify_outputs(self, check, step_count):
+            return None
+    actuator = SimpleNamespace(set_targets=lambda q: 'targets', before_step=lambda dt, **kwargs: 'private')
+    stepper = SimpleNamespace(backend=SimpleNamespace(binding=SimpleNamespace(robot_id='duck0')), actuator=actuator,
+                              _stage_tick=lambda **kwargs: None, _validate_tick=lambda prepared: None,
+                              _commit_tick=lambda prepared, result: None)
+    owner = SimpleNamespace(physics_clock=(2, .01), _read_completed_scene=lambda: None,
+        step=lambda: 'stepped', capture=lambda: None, support_probe=lambda: None)
+    profile = PhaseProfile(tmp_path/'timing.jsonl')
+    timing.instrument_owner(profile, owner, [stepper], fleet=Fleet())
+    with profile.attempt(owner) as attempt:
+        assert actuator.before_step(.005) == 'private'
+        attempt['outcome'] = 'solved'
+    profile.close()
+    assert [(s['phase'], s['robot_id']) for s in rows(tmp_path/'timing.jsonl')[0]['spans']] == [('bam.before_step', 'duck0')]

@@ -290,6 +290,9 @@ def run(args, admission, signals):
                 for s in steppers if s.started}
             result['backend'] = owner.receipt if owner else None
             result['withheld_ticks'] = fleet.withheld_ticks if fleet else 0
+            # Which BAM actuation the owner ran: one cohort before_step per step (one Warp launch
+            # per stage for the fleet) or the per-adapter calls, and why.
+            result['bam_cohort'] = fleet.cohort_receipt() if fleet else None
             if profile is not None:
                 result['phase_profile'] = {'file': 'timing.jsonl', 'attempts': profile.attempts,
                                           'errors': list(profile.errors)}

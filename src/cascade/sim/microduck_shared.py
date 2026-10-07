@@ -287,6 +287,7 @@ class SharedMicroduckStepper:
                 raise ValueError('shared robot view/controller/model binding mismatch')
         self._members = tuple((s.backend, s.controller, s.policy, s.actuator) for s in self.steppers)
         self._output_check = self._build_output_check()
+        self.cohort, self.cohort_reason = self._build_cohort()
         self.started = self.closed = False
         self.withheld_ticks = 0
         self.failure = ''
@@ -357,6 +358,47 @@ class SharedMicroduckStepper:
         """
         check.verify(step_count)
 
+    def _build_cohort(self):
+        """One ``BamCohort`` actuating every adapter with cohort launches, else (None, why).
+
+        Built once, at construction, by the first actuator over the whole cohort (labelled by
+        robot id, paired with the output check), for more than one robot. Per step it replaces
+        the N per-adapter ``before_step`` calls -- six Warp launches each -- by ONE call with
+        one launch per stage; every adapter's own checks still run inside it, before any device
+        write. A single robot keeps the per-adapter call; so do software doubles without
+        ``cohort`` and adapters whose drive the cohort cannot reproduce exactly (the real
+        builder returns None for a stochastic command delay). The chosen path is receipted.
+        """
+        if len(self.steppers) < 2:
+            return None, 'single robot'
+        build = getattr(self.steppers[0].actuator, 'cohort', None)
+        if not callable(build):
+            return None, 'actuator offers no cohort'
+        cohort = build([s.actuator for s in self.steppers], labels=[b.robot_id for b in self.layout.robots],
+                       output_check=self._output_check)
+        if cohort is None:
+            return None, 'actuator declined an exact cohort for these adapters'
+        return cohort, None
+
+    def cohort_receipt(self):
+        """Which actuation path this owner runs, for the run receipt."""
+        return {'path': 'cohort' if self.cohort is not None else 'per-adapter',
+                'adapters': len(self.steppers), 'reason': self.cohort_reason}
+
+    def _prepare_cohort(self, cohort, completed, *, snapshot, output_check):
+        """ONE ``before_step`` for the whole fleet, with ``_prepare_actuator``'s wall and clock checks.
+
+        ``cohort.before_step`` is the ``bam.before_step`` span under ``--profile-phases``
+        (one span for the fleet instead of one per robot), so an A/B sums like with like.
+        """
+        for s in self.steppers:
+            s._check_wall()
+        cohort.before_step(self.owner.dt, snapshot=snapshot, output_check=output_check)
+        if self.owner.physics_clock != completed:
+            raise RuntimeError('policy/actuator advanced physics clock before solve')
+        for s in self.steppers:
+            s._check_wall()
+
     def start(self):
         if self.started or self.closed or self.failure:
             raise RuntimeError('shared stepper already started/closed/faulted')
@@ -423,16 +465,23 @@ class SharedMicroduckStepper:
             # One host snapshot of the world for every adapter's checks this step:
             # captured after all policy commits, before the first actuation. One
             # output check for every adapter's drive outputs: zeroed on the device
-            # for exactly this admitted step, marked by each adapter without a host
-            # sync, read ONCE below before the solve.
+            # for exactly this admitted step, marked without a host sync (by each
+            # adapter, or once for the fleet by the cohort), read ONCE below before
+            # the solve.
             snapshot = self._host_snapshot()
             check = self._output_check
             if check is not None:
                 check.reset(completed[0])
+            cohort = self.cohort
             for s, item in zip(self.steppers, staged):
                 if item.candidate is not None:
                     s.actuator.set_targets(item.candidate[1])
-                s._prepare_actuator(item.prepared, snapshot=snapshot, output_check=check)
+                if cohort is None:
+                    s._prepare_actuator(item.prepared, snapshot=snapshot, output_check=check)
+            if cohort is not None:
+                # One actuation for the fleet (one Warp launch per stage) instead of one
+                # before_step per adapter; every adapter's checks still run inside it first.
+                self._prepare_cohort(cohort, completed, snapshot=snapshot, output_check=check)
             if check is not None:
                 # A non-finite output anywhere in the cohort refuses the solve here
                 # (ValueError naming the robot and array). Every adapter has already

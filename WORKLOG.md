@@ -94,15 +94,26 @@ Third slice: `BamOutputCheck` replaces the twelve adapters' five per-step host
 reads of their own drive outputs (60 device syncs) with device-side finiteness
 flags and ONE read per step in `SharedMicroduckStepper.tick`, right before the
 solve (`bam.verify` span); every check and its wording are preserved, the
-single-robot path is unchanged. CPU tests on the real pinned kernels and on the
-software doubles establish the mechanism; the x86 A/B is not yet measured.
+single-robot path is unchanged. Measured 13.9 → 11.9 ms
+(`docs/evidence/microduck-owner-bam-check-20261007/`).
+Fourth slice: `BamCohort` drives the twelve adapters with ONE pinned `DriveBam`
+over 14·N DOFs and ONE pinned bridge over the concatenated DOF indices (the
+adapters' arrays become live row views, so `set_targets`/`reset`/`telemetry` are
+unchanged per adapter): one Warp launch per stage for the fleet — counted on the
+real kernels, 72 → 6 launches and 108 → 9 copies per step — with every adapter's
+host-side check run first and the cohort-level marks keeping the output check's
+single read. Only delay-free profiles (every twelve-duck run so far) are exact
+under the pinned kernels' block-seeded delay RNG, so `cohort()` declines others
+and the owner keeps the per-adapter path (receipted). CPU tests on the real kernels
+and the software doubles establish the mechanism; the x86 A/B is not yet measured.
 
-Unresolved handoff: `bam.before_step` after the output check — measured 13.9 → 11.9 ms
-per step on the x86 rig (`docs/evidence/microduck-owner-bam-check-20261007/`), so the
-remaining ~11.8 ms is the per-adapter Warp launch overhead (~48 launches per step) and the
-host-side binding checks, i.e. the next slice is batching the twelve adapters' launches
-into cohort kernels; then the deep
-copies of `completed.validate` and `policy.prepare`, the sparse
+Unresolved handoff: measure the cohort build on the x86 rig (`--profile-phases`, twelve
+robots, route harness; `bam.before_step` is now the one cohort span, compare
+`bam.before_step + bam.verify` against the slice-1 build, 11.87 ms) and add the numbers to
+MICRODUCK.md / ROADMAP / an evidence dir. Inside the cohort span what remains is host
+work: the twelve adapters' `_check_live` binding/model-sync checks on the snapshot copies
+(a cohort-level check over the stacked DOFs is the next candidate, keeping every refusal).
+Then the deep copies of `completed.validate` and `policy.prepare`, the sparse
 `record.physics` / `camera.overview` writes behind the p95 tail, the physics
 budget per asset (full-vertex hulls, 7.6 ms GPU per 5 ms step) and RPC serving
 on the owner's GIL are what stand between the owner and twelve closed-loop

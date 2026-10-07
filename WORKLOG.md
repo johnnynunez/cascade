@@ -14,15 +14,20 @@ joint anchors to 1e-5 m; declared `link_radii_m` envelope every collision
 geom; the gate's surface clearance is a lower bound on `mj_geomDistance` over
 2000 random pose pairs; the centreline gate approved 12 overlapping pairs),
 per-link radii in `so101.yaml`, fail-closed radii plumbing in the harness and
-`_wire_neighbors`, margin 0.03 m on the dual profiles. Handoff, in order:
-(1) prefix-aware `MujocoArm` + `MujocoWorld` sharing so `so101_left`/`so101_right`
-can be `type: mujoco` in that scene and `test_arm_rig`'s rig test runs on
-physics (joint names `left/shoulder_pan`, one world for both arms and the
-camera); (2) the envelope is loose where a slim link faces the neighbour
-(inward-yaw pose: 0.13 m physics, 0.032 m gate) — a per-geom sphere model
-placed by Pinocchio frames would recover that workspace while keeping the
-lower-bound property; measure before changing the margin; (3) the physics
-test takes ~6 s — keep it CPU-only and seeded.
+`_wire_neighbors`, margin 0.02 m on the dual profiles (0.03 was tried: the
+physics arm settled 0.1 mm inside it and its park was refused), retreat rule
+(from inside the margin, waypoints that do not close in pass). Second half:
+`so101_left_mujoco`/`so101_right_mujoco` (`mj_prefix`, loader `mj_rig`,
+`write_rig_robot`, own-actuator ctrl pushes, one viewer per world); the
+end-to-end test stops the physics arm with 0.131 m between the meshes.
+Handoff, in order: (1) the envelope is loose where a slim link faces the
+neighbour (inward-yaw pose: 0.13 m physics, 0.032 m gate) — a per-geom
+sphere model placed by Pinocchio frames would recover that workspace while
+keeping the lower-bound property; measure before changing the margin;
+(2) rig gaps: Warp engine, wrist cameras (`mj_attach`), `mj_delivery_area` /
+`mj_release_*` observers (single-owner world state), mixed robots (one
+attached model per rig); (3) the physics tests take ~25 s together — keep
+them CPU-only and seeded.
 
 ## Unitree H2 vertical — owner and first episodes (7 October 2026)
 

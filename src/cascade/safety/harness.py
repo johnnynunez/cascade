@@ -56,9 +56,10 @@ class SafetyLimits:
     #: the link thickness itself. MEASURED against MuJoCo on the dual-SO-101
     #: profiles (tests/test_multi_arm_physics.py), a 0.05 m centreline gate
     #: approves pose pairs whose collision meshes already overlap -- the
-    #: links are up to 9 cm thick -- while the surface gate at 0.05 m keeps
-    #: every approved pair >= 0.05 m apart in physics and still approves 84%
-    #: of random joint space (0.02: 87%, centreline 0.05: 99%).
+    #: links are up to 9 cm thick -- while the surface gate keeps every
+    #: approved pair at least the margin apart in physics (the dual profiles
+    #: use 0.02 m: two 50 Hz ticks at the velocity cap; 87% of random joint
+    #: space approved, centreline 0.05 m approved 99% including overlaps).
     neighbor_clearance_m: float = 0.05
     #: per-SEGMENT link thickness, in kinematic order (one entry per segment
     #: of `SafetyHarness.link_points_table_frame`: joint origins then TCP).
@@ -312,6 +313,41 @@ class SafetyHarness:
 
         return transform_points(self.base_pose, pts)
 
+    def _neighbor_clearances(self, q: np.ndarray):
+        """Per readable neighbour: `(name, clearance, my_link, their_link,
+        what)` at pose q -- surface clearance when either arm declares
+        `link_radii_m`, centreline distance otherwise -- or a reason string
+        when a neighbour's radii do not describe its chain (a config error,
+        refused rather than skipped). Unreadable neighbours are omitted."""
+        mine = self.link_points_table_frame(q)
+        if mine is None:
+            return []
+        from .geometry import chain_distance
+
+        my_radii = self.limits.link_radii_m
+        out = []
+        for name, source in self._neighbors.items():
+            try:
+                theirs = source()
+            except Exception:
+                continue  # unreadable neighbour = unknown = skip
+            if theirs is None:
+                continue
+            theirs = np.asarray(theirs, dtype=float).reshape(-1, 3)
+            if theirs.size == 0:
+                continue
+            their_radii = self._neighbor_radii.get(name)
+            try:
+                worst, i, j = chain_distance(mine, theirs, my_radii, their_radii)
+            except ValueError as exc:
+                return (
+                    f"inter-arm clearance to {name!r} cannot be measured: link_radii_m "
+                    f"does not describe the chain ({exc})"
+                )
+            what = "link surfaces" if (my_radii is not None or their_radii is not None) else "link centrelines"
+            out.append((name, float(worst), int(i), int(j), what))
+        return out
+
     def _neighbor_violation(self, q_next: np.ndarray) -> str | None:
         """Closest approach between this arm's LINKS and each neighbour's.
 
@@ -332,45 +368,61 @@ class SafetyHarness:
         the physical clearance (tests/test_multi_arm_physics.py). Without
         radii the gate is a centreline gate and the margin must absorb the
         thickness itself -- on the SO-101 it cannot: 0.05 m approves overlaps.
+
+        This is the STRICT gate (one pose, no history): `vet_pose` uses it
+        for a candidate, and approve() calls it first for every waypoint
+        before `_neighbor_gate` applies the retreat rule.
         """
         if not self._neighbors:
-            return None
-        mine = self.link_points_table_frame(q_next)
-        if mine is None:
             return None
         tol = float(self.limits.neighbor_clearance_m)
         if tol <= 0:
             return None
-        from .geometry import chain_distance
-
-        my_radii = self.limits.link_radii_m
-        for name, source in self._neighbors.items():
-            try:
-                theirs = source()
-            except Exception:
-                continue  # unreadable neighbour = unknown = skip
-            if theirs is None:
-                continue
-            theirs = np.asarray(theirs, dtype=float).reshape(-1, 3)
-            if theirs.size == 0:
-                continue
-            their_radii = self._neighbor_radii.get(name)
-            try:
-                worst, i, j = chain_distance(mine, theirs, my_radii, their_radii)
-            except ValueError as exc:
-                # A radii list that does not describe the chain is a config
-                # error, not an unknown neighbour: refuse, do not skip.
-                return (
-                    f"inter-arm clearance to {name!r} cannot be measured: link_radii_m "
-                    f"does not describe the chain ({exc})"
-                )
+        clearances = self._neighbor_clearances(q_next)
+        if isinstance(clearances, str):
+            return clearances
+        for name, worst, i, j, what in clearances:
             if worst < tol:
-                what = "link surfaces" if (my_radii is not None or their_radii is not None) else "link centrelines"
                 return (
                     f"inter-arm clearance {worst:.3f} m to {name!r} "
                     f"(my link {i} vs their link {j}, {what}) below {tol:.3f} m"
                 )
         return None
+
+    def _neighbor_gate(self, q_prev: np.ndarray, q_next: np.ndarray) -> str | None:
+        """approve()'s inter-arm check: the strict gate, then RETREAT IS OPEN.
+
+        An arm that is ALREADY inside the margin at `q_prev` (the stream's
+        current pose) may take any waypoint that does not bring it closer to
+        that neighbour -- never one that does, and never a waypoint that
+        enters the margin from outside. Without this a gate that cannot be
+        escaped strands both robots. MEASURED on physics: the right SO-101
+        reached its approved inward pose with 0.032 m of surface clearance,
+        settled 0.1 mm closer under gravity, and was then refused its own
+        park home. `vet_pose` (a candidate, no current pose) stays strict.
+        """
+        reason = self._neighbor_violation(q_next)
+        if reason is None or q_prev is None:
+            return reason
+        tol = float(self.limits.neighbor_clearance_m)
+        before = self._neighbor_clearances(q_prev)
+        after = self._neighbor_clearances(q_next)
+        if isinstance(before, str) or isinstance(after, str):
+            return reason
+        now_by_name = {name: worst for name, worst, *_ in before}
+        for name, worst, i, j, what in after:
+            if worst >= tol:
+                continue
+            now = now_by_name.get(name)
+            if now is None or now >= tol:
+                return reason  # entering the margin from outside: refused
+            if worst < now - 1e-6:
+                return (
+                    f"inter-arm clearance {worst:.3f} m to {name!r} "
+                    f"(my link {i} vs their link {j}, {what}) below {tol:.3f} m and "
+                    f"closing from {now:.3f} m: only a retreat is allowed from here"
+                )
+        return None  # already inside, not closing in on anyone: retreat
 
     def _check_halt_generation(self, expected: int | None) -> None:
         if expected is not None and expected != self._halt_generation:
@@ -613,7 +665,7 @@ class SafetyHarness:
         # Inter-arm proximity, LAST because it is the only check that reads
         # another robot's live state. No neighbours registered = no cost, so
         # a single-arm rig runs the identical code path it always did.
-        reason = self._neighbor_violation(q_next)
+        reason = self._neighbor_gate(q_prev, q_next)
         if reason is not None:
             reject(reason)
 

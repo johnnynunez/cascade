@@ -108,11 +108,15 @@ class MujocoCamera(CameraBase):
         # deterministic content, identical to what the arm writes later.
         src = self._cfg.get("mj_scene_source")
         if src is not None and hasattr(src, "get"):
-            from ..sim.demo_scene import write_demo_scene
+            from ..sim.demo_scene import write_demo_scene, write_rig_robot
 
             try:
-                write_demo_scene(str(src.get("mjcf")), src.get("prop_cam"),
-                                 cameras=src.get("cameras"))
+                robot = str(src.get("mjcf"))
+                if src.get("rig"):
+                    # A MuJoCo rig: the scene wraps the generated N-arm robot
+                    # file, which this camera may be the first to need.
+                    robot = str(write_rig_robot(robot, src.get("rig")))
+                write_demo_scene(robot, src.get("prop_cam"), cameras=src.get("cameras"))
             except FileNotFoundError as e:
                 raise CameraError(
                     f"mujoco camera: robot MJCF directory missing ({e}); run "

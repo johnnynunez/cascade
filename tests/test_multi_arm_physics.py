@@ -259,7 +259,7 @@ def test_gate_is_a_lower_bound_on_mujoco_clearance_over_random_pose_pairs(rig):
 
     L, R = rig.arms
     tol = float(L.harness.limits.neighbor_clearance_m)
-    assert tol == pytest.approx(0.03)
+    assert tol == pytest.approx(0.02)
     other = _wire(rig, L, R)
     rng = np.random.default_rng(2026)
     rows = []
@@ -280,7 +280,9 @@ def test_gate_is_a_lower_bound_on_mujoco_clearance_over_random_pose_pairs(rig):
     # not vacuous: most of joint space is still usable, and the rejections
     # include real near misses
     assert approved.mean() > 0.7, f"gate approves only {approved.mean():.1%} of random pose pairs"
-    assert (physics[~approved] < tol).sum() > 50
+    # dozens of the rejections are genuine near misses (physics below the
+    # margin), not just envelope slack
+    assert (physics[~approved] < tol).sum() >= 20
     print(f"\nINTER_ARM_GATE_VS_PHYSICS approves={approved.mean():.1%} "
           f"min_physics_among_approved={physics[approved].min():.4f} m "
           f"rejected_with_physics_below_tol={(physics[~approved] < tol).sum()} "
@@ -338,7 +340,7 @@ def test_shipped_dual_arm_scenario_matches_physics(rig):
     assert _physics_clearance(rig, L, R) > 0.10
     # the mirror image is the tighter one: 0.032 m of surface clearance for
     # 0.13 m in physics -- the envelope is loose where the slim wrist faces
-    # the neighbour, which is why the margin is 0.03 and not 0.05
+    # the neighbour, which is why the margin is 0.02 and not 0.05
     _set_q(rig, L, L.home)
     _set_q(rig, R, inward_right)
     mujoco.mj_forward(rig.m, rig.d)
@@ -355,3 +357,164 @@ def test_shipped_dual_arm_scenario_matches_physics(rig):
     reason = L.harness._neighbor_violation(inward_left)
     assert reason is not None and "inter-arm clearance" in reason
     assert _physics_clearance(rig, L, R) < 0.0, "the shipped 'collision' pose should really collide"
+
+
+# ── two MuJoCo arms stepping ONE world ───────────────────────────────────
+#
+# Slice 2 of ROADMAP #8: the dual profiles can RUN on physics. Two `MujocoArm`s
+# attach to the same generated world (sim/mujoco_world registry, by path), each
+# addressing its own prefixed joints/actuators and writing only its own
+# actuator slots -- measured first: an arm that pushed the whole ctrl vector
+# zeroed its neighbour's targets, and the neighbour swept to q = 0.
+
+
+def _rig_arm_cfg(rig, index: int, **extra):
+    """A hand-built MuJoCo arm profile for arm `index` of the rig fixture:
+    so101_mujoco's keys on the ROBOT file, this arm's prefix, the whole rig
+    as the loader would plant it, and no prop scene (nothing to grasp here),
+    so the arm itself writes and loads the bare N-arm robot file."""
+    from cascade.config import Cfg, load_profile
+
+    base = load_profile("arms", "so101_mujoco").as_dict()
+    arm = rig.arms[index]
+    for key in ("mj_prop_from_camera", "mj_delivery_area", "mj_release_tool_body",
+                "mj_release_articulation_root", "mj_release_support_plane"):
+        base.pop(key, None)
+    base.update({
+        "mjcf": str(MJCF),
+        "mj_prefix": arm.prefix,
+        "view": False,
+        "base_pose": list(arm.cfg["base_pose"]),
+        "mj_rig": [{"prefix": a.prefix, "base_pose": list(a.cfg["base_pose"])} for a in rig.arms],
+    })
+    base.update(extra)
+    return Cfg(base)
+
+
+@needs_rig
+def test_two_mujoco_arms_share_one_world_and_only_drive_their_own_actuators(rig):
+    """Connect both arms on the generated world; move the RIGHT arm; the LEFT
+    arm must stay at home. Measured on the single-owner code: the right arm's
+    first waypoint pushed a ctrl vector with zeros in the left arm's slots and
+    the left arm swept 0.38 rad toward q = 0 while 'parked'."""
+    from cascade.control.mujoco_arm import MujocoArm
+
+    left = MujocoArm(_rig_arm_cfg(rig, 0))
+    right = MujocoArm(_rig_arm_cfg(rig, 1))
+    left.connect()
+    try:
+        right.connect()
+        try:
+            assert left.world is right.world, "the two arms must step ONE MuJoCo world"
+            home = np.asarray(left._cfg.home_q, dtype=float)
+            assert left.get_state().q == pytest.approx(home, abs=1e-6)
+            goal = home.copy()
+            goal[0] -= 0.4
+            for s in np.linspace(0.0, 1.0, 25):
+                right.send_joint_target(home + s * (goal - home))
+            assert right.wait_settled(goal, tol=0.03, timeout_s=4.0)
+            # the left arm's actuators were never overwritten: it holds home
+            assert left.get_state().q == pytest.approx(home, abs=0.01), (
+                "the parked arm moved while its neighbour was streaming: the two arms clobber "
+                "each other's actuator targets")
+            # and the reverse direction, for symmetry
+            for s in np.linspace(0.0, 1.0, 25):
+                left.send_joint_target(home + s * (goal - home))
+            assert left.wait_settled(goal, tol=0.03, timeout_s=4.0)
+            assert right.get_state().q == pytest.approx(goal, abs=0.01)
+            # each arm's gripper is its own, too
+            left.set_gripper(left._grip_closed)
+            assert right.get_state().gripper_pos == pytest.approx(right._grip_open, abs=0.02)
+        finally:
+            right.disconnect()
+    finally:
+        left.disconnect()
+
+
+@needs_rig
+def test_rig_arm_refuses_the_warp_engine_and_a_missing_prefix(rig):
+    """Fail closed at construction: MuJoCo Warp keeps device-side state nothing
+    can attach to, so two Warp arms would silently run in two worlds; and a
+    rig arm without a prefix would address the FIRST robot's joints."""
+    from cascade.control.mujoco_arm import MujocoArm
+
+    with pytest.raises(ValueError, match="engine"):
+        MujocoArm(_rig_arm_cfg(rig, 0, engine="warp"))
+    with pytest.raises(ValueError, match="mj_prefix"):
+        MujocoArm(_rig_arm_cfg(rig, 0, mj_prefix=""))
+    with pytest.raises(ValueError, match="mj_prefix"):
+        MujocoArm(_rig_arm_cfg(rig, 0, mj_prefix="stranger/"))
+    # the rig file both arms derive is the same path, outside the robot's dir
+    from cascade.sim.demo_scene import rig_robot_path
+
+    a, b = _rig_arm_cfg(rig, 0), _rig_arm_cfg(rig, 1)
+    assert rig_robot_path(a.mjcf, a.mj_rig) == rig_robot_path(b.mjcf, b.mj_rig)
+    assert rig_robot_path(a.mjcf, a.mj_rig).parent.name == "_rig_generated"
+
+
+@needs_rig
+def test_dual_mujoco_profiles_stop_a_real_arm_before_the_meshes_touch(tmp_path):
+    """The demo path end to end: `--arms so101_left_mujoco,so101_right_mujoco`
+    builds both arms in ONE generated world (loader plants the rig, the arm
+    writes it, the camera resolves the same path), the gate approves the
+    inward yaw against a parked neighbour, and against a neighbour already
+    swung inward it aborts the stream while the collision meshes are still
+    apart -- measured in that world, not inferred from the gate."""
+    import mujoco
+
+    from cascade.apps.demo import build_runtime, shutdown_runtime
+    from cascade.config import load_demo_config
+    from cascade.types import SafetyViolation
+
+    cfg = load_demo_config(arms=["so101_left_mujoco", "so101_right_mujoco"], camera="mock_small", llm="mock")
+    for acfg in cfg.arms:
+        assert acfg["type"] == "mujoco"
+        assert [r["prefix"] for r in acfg["mj_rig"]] == ["so101_left_mujoco/", "so101_right_mujoco/"]
+    runtime, arm = build_runtime(cfg, tmp_path / "run", view=False, serve=False)
+    try:
+        left = runtime.arm_rig.get("so101_left_mujoco")
+        right = runtime.arm_rig.get("so101_right_mujoco")
+        assert left.raw.world is right.raw.world is not None
+        world = left.raw.world
+        m, d = world.model, world.data
+
+        def clearance() -> float:
+            fromto = np.zeros(6)
+            best = 0.5
+            names = {g: mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_BODY, m.geom_bodyid[g]) or "" for g in range(m.ngeom)}
+            col = [g for g in range(m.ngeom) if m.geom_contype[g] or m.geom_conaffinity[g]]
+            L = [g for g in col if names[g].startswith("so101_left_mujoco/")]
+            R = [g for g in col if names[g].startswith("so101_right_mujoco/")]
+            with world.lock:
+                for gi in L:
+                    for gj in R:
+                        if np.linalg.norm(d.geom_xpos[gi] - d.geom_xpos[gj]) - m.geom_rbound[gi] - m.geom_rbound[gj] < best:
+                            best = min(best, mujoco.mj_geomDistance(m, d, gi, gj, best, fromto))
+            return float(best)
+
+        home = np.asarray(cfg.arm.home_q, dtype=float)
+        inward_left, inward_right = home.copy(), home.copy()
+        inward_left[:3] = [1.57, 0.0, 0.0]
+        inward_right[:3] = [-1.57, 0.0, 0.0]
+
+        def move(safe, q):
+            # no perception loop runs in this test: stand in for the
+            # WorldWatcher's per-frame heartbeat so the watchdog measures
+            # the gate, not the test's own wall time (two MuJoCo loads)
+            left.harness.heartbeat()
+            right.harness.heartbeat()
+            return safe.move_joints(q, duration_s=0.6)
+
+        assert clearance() > 0.25
+        assert move(left, inward_left)
+        assert clearance() > 0.10, "inward yaw against a parked neighbour is physically clear"
+        assert move(left, home)
+        assert move(right, inward_right)
+        with pytest.raises(SafetyViolation, match="inter-arm clearance"):
+            move(left, inward_left)
+        stopped = clearance()
+        assert stopped > 0.0, f"the gate let the meshes touch ({stopped:.4f} m) before aborting"
+        assert move(left, home), "retreat must stay possible"
+        print(f"\nDUAL_MUJOCO_RIG stopped_with_physics_clearance={stopped:.4f} m")
+    finally:
+        shutdown_runtime(runtime, arm)

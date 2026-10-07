@@ -260,7 +260,9 @@ last define the envelope for both.
 > capsules (`safety.link_radii_m`, measured per link on the SO-101 collision
 > geometry) with `safety.neighbor_clearance_m` as the margin between link
 > surfaces — measured against MuJoCo to be a lower bound on the mesh distance
-> ([`tests/test_multi_arm_physics.py`](tests/test_multi_arm_physics.py)). Two
+> ([`tests/test_multi_arm_physics.py`](tests/test_multi_arm_physics.py)); the
+> same pair runs on physics as `--arms so101_left_mujoco,so101_right_mujoco`
+> (two prefixed copies of the robot in one generated world). Two
 > caveats, both in that profile's header: an
 > unreadable neighbour (a standby LazyArm) degrades to SKIP, not to block, and
 > `base_pose` is a **measurement** — a wrong one makes the distance

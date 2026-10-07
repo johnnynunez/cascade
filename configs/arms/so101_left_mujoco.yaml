@@ -1,0 +1,53 @@
+# SO-101, LEFT arm of a two-arm setup, ON PHYSICS: MuJoCo, one world for
+# both arms (ROADMAP #8).
+#
+#   python -m cascade.apps.demo --arms so101_left_mujoco,so101_right_mujoco \
+#       --camera mock_small --task "pick and place the red object"
+#
+# Pairs with so101_right_mujoco.yaml. Everything the mock pair says about
+# `base_pose`, the shared workspace and the inter-arm gate (so101_left.yaml's
+# header) holds here unchanged -- this profile only swaps the transport.
+#
+# HOW TWO MUJOCO ARMS SHARE A WORLD. The loader (config.py) sees two
+# `type: mujoco` arms and plants the same `mj_rig` on both: every arm's
+# `mj_prefix` and `base_pose`. Each arm's constructor writes the same N-arm
+# robot file (sim/demo_scene.write_rig_robot: one `<attach>` of `mjcf` per
+# arm, at its base_pose, names prefixed), the usual prop/camera scene wraps
+# it, and both arms -- and a rendered camera, and the truth channel -- attach
+# to that one path (sim/mujoco_world registry). In the shared world this arm
+# addresses `so101_left_mujoco/shoulder_pan` and writes ONLY its own actuator
+# slots (measured before that fix: the neighbour's first waypoint zeroed this
+# arm's targets and it swept toward q = 0 while "parked").
+#
+# WHAT A RIG DOES NOT DO YET: the Warp engine (device-side state, refused),
+# wrist cameras (`mj_attach` needs the robot's include chain; refused by the
+# loader), the placement/withdrawal observers (`mj_delivery_area`,
+# `mj_release_*`: single-owner world state, not declared here). Physics time
+# advances inside whichever arm is streaming: two arms streaming at once
+# advance the world twice per waypoint pair, which the demo's one-arm-at-a-
+# time skills never do.
+extends: so101_left
+
+type: mujoco
+
+# The ROBOT file, not scene.xml: the rig attaches it; a scene (floor, light,
+# include) has no single top-level body to attach and is refused.
+mjcf: ${assets}/mjcf/so101/so101.xml
+
+# Name prefix of this arm's copy in the shared world; must be unique and
+# non-empty across the rig (the loader refuses otherwise).
+mj_prefix: "so101_left_mujoco/"
+
+# Scene generation: the prop is placed where the camera profile says it sees
+# one (sim/demo_scene.py), exactly as for so101_mujoco.
+mj_prop_from_camera: true
+
+mj_joints: [shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll]
+mj_gripper_joint: gripper
+mj_actuators: [shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll]
+mj_gripper_actuator: gripper
+
+substeps: 12
+settle_tol: 0.03
+settle_timeout_s: 4.0
+view: false

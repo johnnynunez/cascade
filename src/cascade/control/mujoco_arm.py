@@ -126,8 +126,15 @@ class _MjcEngine:
         # Live numpy views; the caller copies out the addresses it wants.
         return self.data.qpos, self.data.qvel
 
-    def push_ctrl(self, ctrl: np.ndarray) -> None:
-        self.data.ctrl[:] = ctrl
+    def push_ctrl(self, ctrl: np.ndarray, indices=None) -> None:
+        # `indices` = this arm's own actuator slots. In a rig several arms
+        # drive one `data.ctrl`; writing the whole vector would overwrite the
+        # neighbour's targets with this arm's zeros (measured: the parked arm
+        # swept toward q = 0 on the neighbour's first waypoint).
+        if indices is None:
+            self.data.ctrl[:] = ctrl
+        else:
+            self.data.ctrl[indices] = ctrl[indices]
 
     def step(self, n: int) -> None:
         history = getattr(self._world, "placement_history", None)
@@ -161,6 +168,12 @@ class _MjcEngine:
         return float(self.model.opt.timestep)
 
     def _open_viewer(self) -> None:
+        owner = getattr(self._world, "viewer_owner", None)
+        if owner is not None and owner is not self and owner._viewer is not None:
+            # A rig shares one world: the first arm's window already shows it.
+            self._viewer = None
+            self._view_wanted = False
+            return
         blocker = _display_unavailable_reason()
         if blocker:
             # A window is a nicety; the process hosting the visitor's session is
@@ -177,6 +190,7 @@ class _MjcEngine:
             import mujoco.viewer
 
             self._viewer = mujoco.viewer.launch_passive(self.model, self.data)
+            self._world.viewer_owner = self
             print("[mujoco] viewer window open", file=sys.stderr)
         except Exception as e:  # noqa: BLE001 - a headless box has no display
             # stderr, not logging: nothing configures the logging tree in the
@@ -313,8 +327,11 @@ class _WarpEngine:
         self._wp.synchronize()
         return self._d.qpos.numpy()[0], self._d.qvel.numpy()[0]
 
-    def push_ctrl(self, ctrl: np.ndarray) -> None:
-        # `d.ctrl` is (nworld, nu); world 0 is the only one we drive.
+    def push_ctrl(self, ctrl: np.ndarray, indices=None) -> None:
+        # `d.ctrl` is (nworld, nu); world 0 is the only one we drive. Warp
+        # keeps device-side state nothing else can attach to, so this engine
+        # is always the sole owner of its world and writes the whole vector
+        # (a rig refuses the Warp engine at construction for that reason).
         self._d.ctrl.assign(ctrl.reshape(1, -1).astype(self._ctrl_dtype))
 
     def step(self, n: int) -> None:
@@ -347,6 +364,7 @@ class _WarpEngine:
             import mujoco.viewer
 
             self._viewer = mujoco.viewer.launch_passive(self.model, self.data)
+            self._world.viewer_owner = self
             print("[mujoco] viewer window open", file=sys.stderr)
         except Exception as e:  # noqa: BLE001
             print(f"[mujoco] viewer unavailable ({e}); running headless", file=sys.stderr)
@@ -406,6 +424,40 @@ class MujocoArm(ArmBase):
         # camera to derive a prop from -- so only a mapping triggers scene
         # generation, and the bare flag means "no camera known, keep the
         # profile's own scene".
+        # `mj_prefix` is the name prefix of THIS arm's copy of the robot in a
+        # shared world (`<attach prefix=...>` in sim/demo_scene): every joint
+        # and actuator the profile names is looked up as `<prefix><name>`.
+        # Empty for a robot that owns its world.
+        prefix = str(cfg.get("mj_prefix") or "")
+        self._prefix = prefix
+        # A MuJoCo RIG: several arms in ONE world. The loader plants the same
+        # `mj_rig` (every arm's prefix and base_pose) on each MuJoCo arm; the
+        # robot file is attached once per entry into a generated N-arm file
+        # (sim/demo_scene.write_rig_robot), which then goes through the same
+        # prop/camera scene generation as a single robot. Both arms derive
+        # the same path, so they share the world (sim/mujoco_world registry).
+        # Refused up front: the Warp engine (device-side state nothing can
+        # attach to -- two Warp arms would be two worlds) and a missing or
+        # foreign prefix (the arm would silently drive the first robot).
+        rig = cfg.get("mj_rig")
+        self._rig = [dict(r) for r in rig] if rig else None
+        if self._rig is not None:
+            if len(self._rig) < 2:
+                raise ValueError("mj_rig needs at least two arms")
+            if str(cfg.get("engine", "mjc")).strip().lower() != "mjc":
+                raise ValueError(
+                    "a MuJoCo rig runs on the C engine only (engine: mjc): MuJoCo Warp keeps "
+                    "device-side state, so two Warp arms would step two separate worlds"
+                )
+            prefixes = [str(r.get("prefix")) for r in self._rig]
+            if not self._prefix or self._prefix not in prefixes:
+                raise ValueError(
+                    f"this arm's mj_prefix {self._prefix!r} is not one of the rig's {prefixes}; "
+                    "in a shared world the arm must address its own prefixed joints"
+                )
+            from ..sim.demo_scene import write_rig_robot
+
+            self._mjcf = str(write_rig_robot(self._mjcf, self._rig))
         prop_cam = cfg.get("mj_prop_from_camera")
         if prop_cam is not None and not isinstance(prop_cam, (bool,)):
             from ..sim.demo_scene import resolved_scene_path, write_demo_scene
@@ -420,10 +472,14 @@ class MujocoArm(ArmBase):
             # split the rig across two worlds silently.
             assert Path(written).resolve() == expected.resolve(), (written, expected)
             self._mjcf = str(written)
-        self._joint_names = list(cfg.get("mj_joints") or [])
-        self._act_names = list(cfg.get("mj_actuators") or self._joint_names)
+        self._joint_names = [self._prefix + str(n) for n in (cfg.get("mj_joints") or [])]
+        self._act_names = ([self._prefix + str(n) for n in cfg.get("mj_actuators")]
+                           if cfg.get("mj_actuators") else list(self._joint_names))
         self._grip_joint = cfg.get("mj_gripper_joint")
         self._grip_act = cfg.get("mj_gripper_actuator") or self._grip_joint
+        if self._grip_joint:
+            self._grip_joint = self._prefix + str(self._grip_joint)
+            self._grip_act = self._prefix + str(self._grip_act)
         self._substeps = max(1, int(cfg.get("substeps", 10)))
         # Profile `view:` is the default; CASCADE_MJ_VIEW=1|0 overrides it
         # per run. The one-click launcher sets it for sim runs: the banner
@@ -481,6 +537,7 @@ class MujocoArm(ArmBase):
         self._aidx: list[int] = []
         self._grip_qadr: int | None = None
         self._grip_aidx: int | None = None
+        self._own_aidx: list[int] | None = None
         self._connected = False
         self._stopped = False
         # One mutex over the engine: the perception loop reads state from its
@@ -530,6 +587,11 @@ class MujocoArm(ArmBase):
             self._grip_aidx = self._actuator_id(mj, str(self._grip_act))
 
         self._ctrl = np.zeros(int(self._model.nu), dtype=float)
+        # The actuator slots THIS arm owns. A sole owner pushes the whole
+        # vector (unchanged behaviour: the skills that bind `_ctrl` may set
+        # any slot); a rig member pushes only its own, see push_ctrl.
+        own = list(self._aidx) + ([self._grip_aidx] if self._grip_aidx is not None else [])
+        self._own_aidx = own if self._rig is not None else None
 
         # Start AT the home pose rather than the MJCF keyframe. Grasp IK is
         # seeded from home_q, and starting somewhere else makes the first
@@ -608,7 +670,7 @@ class MujocoArm(ArmBase):
             self._ctrl[aid] = qpos[adr]
         if self._grip_aidx is not None and self._grip_qadr is not None:
             self._ctrl[self._grip_aidx] = self._grip_ctrl(qpos[self._grip_qadr])
-        self._engine.push_ctrl(self._ctrl)
+        self._engine.push_ctrl(self._ctrl, self._own_aidx)
 
     def _grip_ctrl(self, pos: float) -> float:
         """Jaw JOINT value -> actuator ctrl (see mj_gripper_ctrl_scale)."""
@@ -623,7 +685,7 @@ class MujocoArm(ArmBase):
         with self._lock:
             for aid, v in zip(self._aidx, q[: self.n_joints]):
                 self._ctrl[aid] = float(v)
-            self._engine.push_ctrl(self._ctrl)
+            self._engine.push_ctrl(self._ctrl, self._own_aidx)
             self._engine.step(self._substeps)
 
     def set_gripper(self, pos: float, effort: float = 1.0) -> None:
@@ -631,7 +693,7 @@ class MujocoArm(ArmBase):
             return
         with self._lock:
             self._ctrl[self._grip_aidx] = self._grip_ctrl(pos)
-            self._engine.push_ctrl(self._ctrl)
+            self._engine.push_ctrl(self._ctrl, self._own_aidx)
             # Unlike a joint move, nothing else is stepping physics while the
             # jaws travel, so the command has to carry its own settle time or
             # the caller reads a gripper that never moved. Contact is what

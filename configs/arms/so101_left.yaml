@@ -89,13 +89,16 @@ overrides:
     # has to stand in for link thickness, so it is sized for what the gate
     # cannot see: at the 0.8 rad/s cap and 50 Hz, one tick moves the farthest
     # link up to 7 mm, and the neighbour's pose can be one tick stale -- 1.4 cm
-    # for the pair, 1.6 cm left for backlash on a printed arm. MEASURED
-    # against MuJoCo over 2000 random pose pairs: 0.03 approves 86% of joint
-    # space (0.02: 87%, 0.05: 84%; the old centreline 0.05 approved 99% --
-    # including overlaps). The shipped inward-yaw test pose clears it by
-    # 1.6 mm (0.032 m reported, 0.13 m in physics): change home_q or the
-    # base spacing and re-measure before trusting this number.
-    neighbor_clearance_m: 0.03
+    # for the pair, rounded up. MEASURED against MuJoCo over 2000 random pose
+    # pairs: 0.02 approves 87% of joint space with every approved pair >= 6 cm
+    # apart in physics (0.03: 86%, 0.05: 84%; the old centreline 0.05
+    # approved 99% -- including overlaps). 0.03 was tried first: the shipped
+    # inward-yaw test pose reads 0.032 m (0.13 m in physics -- the envelope
+    # is loose where the slim wrist faces the neighbour), the physics arm
+    # settled 0.1 mm inside it under gravity and its own park was refused.
+    # At 0.02 that pose keeps 1.2 cm of headroom. Change home_q or the base
+    # spacing and re-measure before trusting this number.
+    neighbor_clearance_m: 0.02
   grasp:
     # Unchanged from so101.yaml: same robot, same 0.09 m top-down band.
     topdown_z_max: 0.05

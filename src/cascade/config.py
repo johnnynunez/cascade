@@ -383,6 +383,20 @@ def load_demo_config(
             prof["mj_cameras"] = list(view_cams) if view_cams else [base.get("camera")]
     main["arms"] = arm_profiles
 
+    # Several `type: mujoco` arms are a RIG: one generated MJCF containing
+    # every arm (sim/demo_scene.write_rig_robot), one shared world. Each arm
+    # must be placeable in it -- a `base_pose` (where it is bolted, the same
+    # number the inter-arm gate uses), a unique non-empty `mj_prefix` (its
+    # joints become `<prefix>shoulder_pan`) and the same robot file as the
+    # others -- or the loader refuses, naming the arm. The alternative is two
+    # private worlds that look like one rig, with each arm frozen in the
+    # other's physics. Every rig arm receives the SAME `mj_rig` list so each
+    # derives the same file.
+    mujoco_rig = _mujoco_rig(arm_names, arm_profiles, cams)
+    for prof in arm_profiles:
+        if mujoco_rig is not None and str(prof.get("type", "")) == "mujoco":
+            prof["mj_rig"] = copy.deepcopy(mujoco_rig)
+
     # Explicit launcher selection reaches every arm, including rig runtimes.
     # "--graspgenx none" is an intentional analytic mode, never an implicit
     # downgrade after a failed learned-model request.
@@ -394,11 +408,11 @@ def load_demo_config(
             view.setdefault("grasp", {})["backend"] = backend
 
     # Rendered sim cameras look INTO a MuJoCo arm's world; tell each which.
-    # Only the primary arm can own the scene (a two-arm MuJoCo rig would need
-    # one MJCF containing both, which nothing here generates yet), so a
-    # rendered camera without a MuJoCo primary is a config error worth
-    # naming: it would otherwise open, fail to find a world and stream
-    # nothing, and the demo would report "no frames" far from the cause.
+    # The primary arm owns the scene (in a rig, the generated file holds every
+    # arm and the primary's profile decides the props), so a rendered camera
+    # without a MuJoCo primary is a config error worth naming: it would
+    # otherwise open, fail to find a world and stream nothing, and the demo
+    # would report "no frames" far from the cause.
     # `cams` here is the LIVE list under main["cameras"] (main["camera"] is
     # its first element by reference), so planting on it reaches the config.
     primary = arm_profiles[0]
@@ -415,12 +429,16 @@ def load_demo_config(
         c.setdefault("mj_arm", arm_names[0])
         # The camera attaches to the arm's world BY PATH (sim/mujoco_world.py
         # registry). The path is decided by the arm's profile (its `mjcf`,
-        # and whether scene generation rewrites it), so resolve it here with
-        # the SAME function the arm uses -- two derivations would drift.
-        from .sim.demo_scene import resolved_scene_path
+        # whether it is part of a rig, and whether scene generation rewrites
+        # it), so resolve it here with the SAME functions the arm uses -- two
+        # derivations would drift.
+        from .sim.demo_scene import resolved_scene_path, rig_robot_path
 
         prop_cam = primary.get("mj_prop_from_camera")
-        c.setdefault("mj_scene", str(resolved_scene_path(primary.get("mjcf"), prop_cam)))
+        robot_file = primary.get("mjcf")
+        if mujoco_rig is not None:
+            robot_file = str(rig_robot_path(robot_file, mujoco_rig))
+        c.setdefault("mj_scene", str(resolved_scene_path(robot_file, prop_cam)))
         # Under the MCP server the arm is a LazyArm built on the FIRST MOTION,
         # so the camera (opened at prewarm) is the first to need the generated
         # scene -- which only the arm's constructor used to write. On a fresh
@@ -433,5 +451,49 @@ def load_demo_config(
                 "mjcf": primary.get("mjcf"),
                 "prop_cam": prop_cam,
                 "cameras": primary.get("mj_cameras"),
+                "rig": copy.deepcopy(mujoco_rig),
             })
     return Cfg(main)
+
+
+def _mujoco_rig(arm_names, arm_profiles, cams):
+    """The `mj_rig` list for a run with two or more MuJoCo arms, or None.
+
+    Fails closed (ValueError naming the arm) when a MuJoCo arm lacks a
+    `base_pose` or a unique `mj_prefix`, when the arms name different robot
+    files (one `<attach>`ed model per rig for now), or when a rendered
+    camera asks for a wrist attachment (`mj_attach` reopens a body of the
+    robot's include chain; an attached model has no include chain).
+    """
+    mujoco_arms = [(n, p) for n, p in zip(arm_names, arm_profiles) if str(p.get("type", "")) == "mujoco"]
+    if len(mujoco_arms) < 2:
+        return None
+    rig, seen = [], set()
+    first_robot = str(mujoco_arms[0][1].get("mjcf"))
+    for name, prof in mujoco_arms:
+        pose = prof.get("base_pose")
+        if pose is None or len(list(pose)) != 6:
+            raise ValueError(
+                f"arm {name!r} is one of {len(mujoco_arms)} MuJoCo arms but declares no "
+                "`base_pose: [x, y, z, roll, pitch, yaw]` -- a rig cannot place it in the shared world"
+            )
+        prefix = str(prof.get("mj_prefix") or "")
+        if not prefix or prefix in seen:
+            raise ValueError(
+                f"arm {name!r} needs a unique non-empty `mj_prefix` to be part of a MuJoCo rig "
+                f"(got {prefix!r}); its joints are addressed as `<prefix><joint>` in the shared world"
+            )
+        seen.add(prefix)
+        if str(prof.get("mjcf")) != first_robot:
+            raise ValueError(
+                f"arm {name!r} names a different robot file ({prof.get('mjcf')}) than "
+                f"{mujoco_arms[0][0]!r} ({first_robot}); a MuJoCo rig attaches copies of ONE robot file"
+            )
+        rig.append({"prefix": prefix, "base_pose": [float(v) for v in pose]})
+    for c in cams:
+        if str(c.get("type", "")) == "mujoco" and c.get("mj_attach") is not None:
+            raise ValueError(
+                f"camera profile {c.get('name')!r} attaches to a robot body (`mj_attach`), which a "
+                "MuJoCo rig does not support yet; use a fixed rendered camera (mujoco_scene)"
+            )
+    return rig

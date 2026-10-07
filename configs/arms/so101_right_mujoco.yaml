@@ -1,0 +1,20 @@
+# SO-101, RIGHT arm of a two-arm setup, ON PHYSICS -- pairs with
+# so101_left_mujoco.yaml (read its header: how the rig shares one world, and
+# what a rig does not do yet). Same transport swap over so101_right.yaml.
+extends: so101_right
+
+type: mujoco
+
+mjcf: ${assets}/mjcf/so101/so101.xml
+mj_prefix: "so101_right_mujoco/"
+mj_prop_from_camera: true
+
+mj_joints: [shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll]
+mj_gripper_joint: gripper
+mj_actuators: [shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll]
+mj_gripper_actuator: gripper
+
+substeps: 12
+settle_tol: 0.03
+settle_timeout_s: 4.0
+view: false

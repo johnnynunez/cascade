@@ -31,7 +31,7 @@ overrides:
     max_joint_vel: 0.8
     # Same surface margin as so101_left.yaml (its comment derives the number);
     # the two arms must agree or the gate is asymmetric.
-    neighbor_clearance_m: 0.03
+    neighbor_clearance_m: 0.02
   grasp:
     topdown_z_max: 0.05
     pregrasp_offset_m: 0.03

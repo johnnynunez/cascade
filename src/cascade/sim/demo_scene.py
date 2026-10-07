@@ -442,12 +442,15 @@ MULTI_ARM_SCENE_TEMPLATE = """<mujoco model="{model}_x{count}">
     <model name="{model}" file="{robot_xml}"/>
   </asset>
   <worldbody>
-    <light pos="0 0 3.5" dir="0 0 -1" directional="true"/>
-    <geom name="floor" size="0 0 0.05" type="plane"/>
-    {arms}
+    {floor}{arms}
   </worldbody>
 </mujoco>
 """
+
+MULTI_ARM_FLOOR_XML = (
+    '<light pos="0 0 3.5" dir="0 0 -1" directional="true"/>\n'
+    '    <geom name="floor" size="0 0 0.05" type="plane"/>\n    '
+)
 
 MULTI_ARM_MOUNT_XML = (
     '<body name="{prefix}mount" pos="{px:.6f} {py:.6f} {pz:.6f}" xyaxes="{xyaxes}">'
@@ -455,8 +458,12 @@ MULTI_ARM_MOUNT_XML = (
 )
 
 
-def multi_arm_scene_xml(robot_mjcf, arms) -> str:
+def multi_arm_scene_xml(robot_mjcf, arms, *, floor: bool = True) -> str:
     """MJCF text with one prefixed copy of `robot_mjcf` per `(prefix, base_pose)`.
+
+    `floor=False` leaves out the light and the ground plane: that is the
+    form `write_demo_scene` includes (its template supplies both, plus the
+    props and cameras), so the compiled world has ONE floor.
 
     `base_pose` is `[x, y, z, roll, pitch, yaw]` in the shared TABLE frame,
     the same convention and the same numbers as an arm profile's `base_pose`
@@ -520,5 +527,56 @@ def multi_arm_scene_xml(robot_mjcf, arms) -> str:
         ))
     return MULTI_ARM_SCENE_TEMPLATE.format(
         model=model, count=len(arms), option=option_xml, robot_xml=str(robot),
-        arms="\n    ".join(mounts),
+        floor=MULTI_ARM_FLOOR_XML if floor else "", arms="\n    ".join(mounts),
     )
+
+
+def _rig_pairs(rig) -> list[tuple[str, list[float]]]:
+    """`mj_rig` as the loader plants it (`[{prefix, base_pose}, ...]`) or a
+    list of `(prefix, base_pose)` pairs -> pairs, in rig order."""
+    pairs = []
+    for entry in rig:
+        if hasattr(entry, "get"):
+            prefix, pose = entry.get("prefix"), entry.get("base_pose")
+        else:
+            prefix, pose = entry
+        pairs.append((str(prefix), [float(v) for v in np.asarray(pose, dtype=float).reshape(-1)]))
+    return pairs
+
+
+def rig_robot_path(robot_mjcf, rig) -> Path:
+    """Where the generated N-arm robot file for `rig` lives: a `_rig_generated`
+    directory beside the robot MJCF (gitignored with the fetched asset), named
+    by the robot, the arm count and a digest of the prefixes and base poses.
+
+    A separate directory, not a sibling file: `write_demo_scene` writes its
+    scene BESIDE the robot file it wraps, and the single-arm scene already
+    lives beside the robot. Sharing that path would make a rig run and a
+    single-arm run in one process (tests, the MCP server) resolve to one
+    registry key for two different worlds.
+    """
+    import hashlib
+
+    robot = Path(robot_mjcf).resolve()
+    pairs = _rig_pairs(rig)
+    digest = hashlib.sha1(repr(pairs).encode()).hexdigest()[:8]
+    return robot.parent / "_rig_generated" / f"{robot.stem}_x{len(pairs)}_{digest}.xml"
+
+
+def write_rig_robot(robot_mjcf, rig) -> Path:
+    """Write (idempotently) the N-arm robot file for `rig` and return its path.
+
+    Every holder of the rig -- each arm's constructor, the rendered camera
+    that may open the world first under the MCP server -- calls this with the
+    same loader-planted `mj_rig`, so they all write the same bytes to the same
+    path and attach to ONE world (sim/mujoco_world.py keys the registry by
+    resolved path). The file has no floor or light of its own: it is meant to
+    be wrapped by `write_demo_scene`, or stepped bare in a test.
+    """
+    robot = Path(robot_mjcf).resolve()
+    out = rig_robot_path(robot, rig)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    text = multi_arm_scene_xml(robot, _rig_pairs(rig), floor=False)
+    if not out.exists() or out.read_text() != text:
+        out.write_text(text)
+    return out

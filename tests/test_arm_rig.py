@@ -193,10 +193,10 @@ def test_two_arms_keep_separate_safety_envelopes():
     assert left["base_pose"][1] == pytest.approx(0.22)
     assert right["base_pose"][1] == pytest.approx(-0.22)
     # each arm's resolved view carries its OWN clearance, not a shared blob
-    assert left["resolved"]["safety"]["neighbor_clearance_m"] == pytest.approx(0.03)
-    assert right["resolved"]["safety"]["neighbor_clearance_m"] == pytest.approx(0.03)
+    assert left["resolved"]["safety"]["neighbor_clearance_m"] == pytest.approx(0.02)
+    assert right["resolved"]["safety"]["neighbor_clearance_m"] == pytest.approx(0.02)
     # the primary still defines the top level (single-arm behaviour)
-    assert cfg.safety.get("neighbor_clearance_m") == pytest.approx(0.03)
+    assert cfg.safety.get("neighbor_clearance_m") == pytest.approx(0.02)
 
 
 def test_an_arms_overrides_do_not_leak_into_its_neighbours_view():
@@ -623,3 +623,130 @@ def test_so101_profiles_declare_measured_link_radii_and_the_rig_wires_them(tmp_p
         assert right.harness._neighbor_radii["so101_left"] == left.harness.limits.link_radii_m
     finally:
         shutdown_runtime(runtime, arm)
+
+
+# ── a MuJoCo rig: several `type: mujoco` arms in ONE generated world ─────
+
+
+def _mujoco_rig_cfg(**patch):
+    """so101_left_mujoco + so101_right_mujoco with per-arm profile patches
+    applied through `arm_overrides`-free in-memory edits of the raw profiles."""
+    from cascade.config import load_demo_config
+
+    return load_demo_config(arms=["so101_left_mujoco", "so101_right_mujoco"], camera="mock_small", llm="mock", **patch)
+
+
+def test_loader_plants_the_same_mujoco_rig_on_every_mujoco_arm():
+    """Each arm's profile receives the whole rig (every arm's prefix and
+    base_pose, in rig order) and the rendered camera resolves the rig's
+    generated scene, not a single-arm one."""
+    from pathlib import Path
+
+    from cascade.sim.demo_scene import resolved_scene_path, rig_robot_path
+
+    cfg = _mujoco_rig_cfg()
+    rigs = [acfg["mj_rig"] for acfg in cfg.arms]
+    assert rigs[0] == rigs[1]
+    assert [r["prefix"] for r in rigs[0]] == ["so101_left_mujoco/", "so101_right_mujoco/"]
+    assert rigs[0][0]["base_pose"][1] == pytest.approx(0.22)
+    assert rigs[0][1]["base_pose"][1] == pytest.approx(-0.22)
+    assert cfg.arms[0]["mj_prefix"] == "so101_left_mujoco/"
+    # the two profiles name the same robot file, which the rig attaches twice
+    assert cfg.arms[0]["mjcf"] == cfg.arms[1]["mjcf"]
+    rig_file = rig_robot_path(cfg.arms[0]["mjcf"], rigs[0])
+    assert rig_file.parent != Path(cfg.arms[0]["mjcf"]).parent, "the rig scene must not shadow the single-arm one"
+    # a rendered camera on this rig looks into the RIG's world
+    cfg2 = load_demo_config_with_rendered_camera()
+    cam = [c for c in cfg2.cameras if c.get("type") == "mujoco"][0]
+    assert cam["mj_scene"] == str(resolved_scene_path(rig_file, cfg2.arms[0]["mj_prop_from_camera"]))
+    assert cam["mj_scene_source"]["rig"] == rigs[0]
+
+
+def load_demo_config_with_rendered_camera():
+    from cascade.config import load_demo_config
+
+    return load_demo_config(arms=["so101_left_mujoco", "so101_right_mujoco"], camera="mujoco_scene", llm="mock")
+
+
+@pytest.mark.parametrize("broken", ["no_base_pose", "no_prefix", "other_robot", "duplicate_prefix"])
+def test_loader_refuses_a_mujoco_rig_it_cannot_place(broken, tmp_path, monkeypatch):
+    """Two MuJoCo arms are a rig only if every one of them can be bolted into
+    one world: a `base_pose`, a unique `mj_prefix`, and the same robot file.
+    Anything less is refused with the arm named -- never two private worlds
+    that look like one."""
+    import shutil
+
+    from cascade.config import CONFIG_DIR, load_demo_config
+
+    cdir = tmp_path / "configs"
+    shutil.copytree(CONFIG_DIR, cdir)
+    right = cdir / "arms" / "so101_right_mujoco.yaml"
+    text = right.read_text()
+    if broken == "no_base_pose":
+        text = text.replace("base_pose:", "x_base_pose:")
+        # inherited from so101_right: strip it there as well
+        p = cdir / "arms" / "so101_right.yaml"
+        p.write_text(p.read_text().replace("\nbase_pose:", "\nx_base_pose:"))
+    elif broken == "no_prefix":
+        text = text.replace("mj_prefix:", "x_mj_prefix:")
+    elif broken == "other_robot":
+        text = text.replace("so101/so101.xml", "so101/scene.xml")
+    elif broken == "duplicate_prefix":
+        text = text.replace("so101_right_mujoco/", "so101_left_mujoco/")
+    right.write_text(text)
+    with pytest.raises(ValueError, match="so101_right_mujoco"):
+        load_demo_config(arms=["so101_left_mujoco", "so101_right_mujoco"], camera="mock_small", llm="mock", config_dir=cdir)
+
+
+class _SlidingKin(_StraightKin):
+    """The straight stub, slid along +y by q[0] (metres) so a 'waypoint' can
+    move toward or away from a neighbour."""
+
+    def link_positions(self, q):
+        return np.array([[0.0, q[0], 0], [0.5, q[0], 0]])
+
+    def fk(self, q):
+        T = np.eye(4)
+        T[:3, 3] = [1.0, q[0], 0.0]
+        return T
+
+
+def test_an_arm_already_inside_the_margin_may_retreat_but_not_close_in():
+    """MEASURED on physics (tests/test_multi_arm_physics.py): an arm that
+    reached its approved pose with 1.6 mm of headroom settled 0.1 mm closer
+    under gravity and was then refused its own park. From inside the margin,
+    waypoints that do not reduce the clearance pass; waypoints that close in
+    are refused, naming the direction; entering the margin from outside is
+    refused as before, and `vet_pose` (no current pose) stays strict."""
+    from cascade.safety.harness import SafetyHarness, SafetyLimits
+
+    limits = SafetyLimits(
+        workspace_min=np.array([-5.0, -5.0, -5.0]), workspace_max=np.array([5.0, 5.0, 5.0]),
+        neighbor_clearance_m=0.05, link_radii_m=(0.07, 0.07),
+    )
+    a = SafetyHarness(limits, kinematics=_SlidingKin())
+    b = _straight_harness(0.17, (0.09, 0.09))      # 0.17 - 0.07 - 0.09 = 0.010 < 0.05
+    a.add_neighbor("b", lambda: b.link_points_table_frame(np.zeros(5)), link_radii_m=b.limits.link_radii_m)
+
+    q = lambda y: np.array([y, 0.0, 0.0, 0.0, 0.0])  # noqa: E731
+    inside, hold, away, toward = q(0.0), q(0.0), q(-0.01), q(+0.01)
+    # strict (no current pose, as vet_pose asks): inside the margin is refused
+    assert "below 0.050 m" in a._neighbor_violation(hold)
+    assert a._neighbor_violation(away) is not None
+    # approve()'s gate, with the current pose already inside: holding and
+    # retreating pass, closing in is refused and says so
+    assert a._neighbor_gate(inside, hold) is None
+    assert a._neighbor_gate(inside, away) is None
+    reason = a._neighbor_gate(inside, toward)
+    assert reason is not None and "only a retreat is allowed" in reason and "closing from 0.010 m" in reason
+    # from OUTSIDE the margin (0.060 m at y = -0.05), stepping inside it
+    # (0.040 m at y = -0.03) is refused even though it is "only" 2 cm closer;
+    # stepping exactly onto the margin is still outside it
+    assert a._neighbor_gate(q(-0.05), q(-0.03)) is not None
+    assert a._neighbor_gate(q(-0.05), q(-0.04)) is None
+    # the strict one-pose gate is what approve() consults first, so a test
+    # double installed there still sees every waypoint
+    seen = []
+    a._neighbor_violation = lambda q_next: seen.append(q_next.copy())
+    assert a._neighbor_gate(inside, toward) is None
+    assert len(seen) == 1

@@ -200,11 +200,14 @@ Open, in priority order (details in the sections below):
    `mj_geomDistance` over the real collision geometry: the centreline gate
    approved overlapping meshes (12 of 2000 random pose pairs), so the gate
    now subtracts measured per-link radii (`safety.link_radii_m`) and its
-   clearance is a proven lower bound on the physical one. Still open: a
-   prefix-aware `MujocoArm` so the two profiles can *run* (`type: mujoco`)
-   in that scene with a rendered camera, and a finer sphere model to win
-   back the workspace the single-radius envelope costs (the shipped
-   inward-yaw pose is 0.13 m clear in physics, 0.032 m to the gate).
+   clearance is a proven lower bound on the physical one. **Second half
+   landed the same day**: `so101_left_mujoco`/`so101_right_mujoco` run both
+   arms in ONE generated MuJoCo world (`mj_prefix`, loader-planted
+   `mj_rig`, each arm drives only its own actuators) and the gate stops a
+   physics arm 0.13 m before the meshes touch. Still open: a finer sphere
+   model to win back the workspace the single-radius envelope costs (the
+   inward-yaw pose is 0.13 m clear in physics, 0.032 m to the gate), wrist
+   cameras and the placement observers on a rig.
 9. **Mobility + navigation (the next structural addition, approved
    2026-09-10 as design-first).** cascade has no mobile base, navigation,
    mapping or robot self-localization; ROS2 and the humanoid profiles are

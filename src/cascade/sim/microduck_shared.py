@@ -313,6 +313,16 @@ class SharedMicroduckStepper:
             if sample.get(key) != stepper.identity[key]:
                 raise RuntimeError('shared observation identity/epoch mismatch')
 
+    def _host_snapshot(self):
+        """One per-step host snapshot when the actuators support it; else None.
+
+        Every actuator is bound to the same owner stage (checked at construction
+        and by each adapter against the snapshot), so the first one captures.
+        Software test doubles without ``host_snapshot`` keep the plain call.
+        """
+        capture = getattr(self.steppers[0].actuator, 'host_snapshot', None)
+        return capture() if callable(capture) else None
+
     def start(self):
         if self.started or self.closed or self.failure:
             raise RuntimeError('shared stepper already started/closed/faulted')
@@ -376,10 +386,13 @@ class SharedMicroduckStepper:
                 return None
             # The cohort is admitted. Do not re-veto or rewind a partially
             # applied BAM history if stop arrives after this linearization.
+            # One host snapshot of the world for every adapter's checks this step:
+            # captured after all policy commits, before the first actuation.
+            snapshot = self._host_snapshot()
             for s, item in zip(self.steppers, staged):
                 if item.candidate is not None:
                     s.actuator.set_targets(item.candidate[1])
-                s._prepare_actuator(item.prepared)
+                s._prepare_actuator(item.prepared, snapshot=snapshot)
             self.owner.step()
             results = []
             for s, item in zip(self.steppers, staged):

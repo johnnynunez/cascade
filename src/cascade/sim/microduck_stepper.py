@@ -273,14 +273,19 @@ class MicroduckStepper:
             self._prepare_actuator(prepared)
         return prepared
 
-    def _prepare_actuator(self, prepared):
+    def _prepare_actuator(self, prepared, *, snapshot=None):
         sample, _, _ = prepared
         # Between 50Hz slots retain the last COMMITTED balancing target and
         # the model's physical delay, rather than cutting torque or silently
         # changing cadence. A stop immediately changes intent; it is not an
         # instantaneous physical-rest claim. Stamp the held target generation.
+        # A shared-scene cohort passes one host snapshot of the world per step so
+        # twelve adapters do not each sync the device for the same checks.
         self._check_wall()
-        self.actuator.before_step(self.dt)
+        if snapshot is None:
+            self.actuator.before_step(self.dt)
+        else:
+            self.actuator.before_step(self.dt, snapshot=snapshot)
         if self.backend.physics_clock != (sample['step'], sample['sim_time']):
             raise RuntimeError('policy/actuator advanced physics clock before solve')
         self._check_wall()

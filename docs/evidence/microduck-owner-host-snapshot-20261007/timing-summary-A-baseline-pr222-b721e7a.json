@@ -1,0 +1,65 @@
+{
+ "attempts": 1808,
+ "median_ms": 76.24,
+ "p95_ms": 167.0,
+ "mean_ms": 93.41,
+ "phases_ms": {
+  "policy.prepare": 8.66,
+  "bam.before_step": 24.31,
+  "solve": 0.3,
+  "completed.validate": 29.86,
+  "publication": 5.37
+ },
+ "sparse_phases_ms": {
+  "bam.targets": [
+   0.5,
+   452
+  ],
+  "write.policy.jsonl": [
+   0.7,
+   452
+  ],
+  "record.physics": [
+   30.3,
+   182
+  ],
+  "camera.overview": [
+   85.6,
+   91
+  ]
+ },
+ "nested_ms": {
+  "completed.read": 0.04,
+  "support.decode": 11.75,
+  "native.capture": 2.48,
+  "write.physics.jsonl": 19.0,
+  "support.probe": 0.98,
+  "write.support-probe.jsonl": 0.38,
+  "camera.capture": 66.75,
+  "write.frames.jsonl": 0.04
+ },
+ "per_robot_ms": {
+  "policy.prepare": 0.649,
+  "bam.targets": 0.036,
+  "bam.before_step": 1.872,
+  "completed.validate": 0.57,
+  "publication": 0.425
+ },
+ "scene_model_sha256": "95e49f0c6fec45cafa77097587d3047683f8e0c409c4ec7403207874b0b81771",
+ "listening_after_s": 31.2,
+ "client_outcomes": [
+  [
+   "unverified",
+   "bridge I/O failed: bridge request wall-time deadline expired"
+  ],
+  [
+   "unverified",
+   "feedback clock did not advance"
+  ],
+  [
+   "unverified",
+   "stale or future-dated feedback"
+  ]
+ ],
+ "confirmed": 0
+}

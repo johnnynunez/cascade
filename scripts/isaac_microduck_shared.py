@@ -126,7 +126,7 @@ def run(args, admission, signals):
         if getattr(args, 'profile_phases', False):
             from cascade.sim.microduck_timing import PhaseProfile, instrument_owner
             profile = PhaseProfile(out / 'timing.jsonl')
-            instrument_owner(profile, owner, steppers)
+            instrument_owner(profile, owner, steppers, sync_solve=bool(getattr(args, 'profile_sync_solve', False)))
         if gc_policy == 'freeze-startup-heap':
             # After every startup allocation (SDK, scene, identity, steppers, profiler)
             # and before any solve, endpoint or control; see cascade.sim.heap_freeze.
@@ -281,6 +281,9 @@ def main(argv=None):
     extra.add_argument('--spacing', type=float, required=True)
     extra.add_argument('--serve-base-port', type=int, default=None)
     extra.add_argument('--profile-phases', action='store_true')
+    extra.add_argument('--profile-sync-solve', action='store_true',
+                       help='diagnostic with --profile-phases: the solve span waits for the GPU, so physics time '
+                            'is attributed to solve instead of the first host read; serializes CPU/GPU')
     extra.add_argument('--gc-policy', choices=['freeze-startup-heap'], default=None,
                        help='opt-in: collect once and freeze the startup heap before fleet start; receipted, not admission')
     options, rest = extra.parse_known_args(argv)
@@ -288,6 +291,9 @@ def main(argv=None):
     args.robots, args.spacing = options.robots, options.spacing
     args.serve_base_port = options.serve_base_port
     args.profile_phases = options.profile_phases
+    args.profile_sync_solve = options.profile_sync_solve
+    if args.profile_sync_solve and not args.profile_phases:
+        raise ValueError('--profile-sync-solve requires --profile-phases')
     args.gc_policy = options.gc_policy
     bind_repo()
     from cascade.apps.signal_stop import StopSignals

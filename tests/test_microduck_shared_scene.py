@@ -358,3 +358,43 @@ def test_stop_failure_still_revokes_peers_and_close_attempts_native_cleanup(oper
         assert owner.closed == 1
     else:
         assert owner.closed == 0
+
+
+class SnapshotActuator(SoftwareActuator):
+    """Software double of an adapter that offers a per-step host snapshot."""
+    captures = []
+
+    def host_snapshot(self):
+        token = object()
+        SnapshotActuator.captures.append((self.backend.step_count, token))
+        return token
+
+    def before_step(self, dt, *, snapshot=None):
+        self.backend.events.append(('snapshot', self.backend.step_count, id(snapshot)))
+        super().before_step(dt)
+
+
+def test_shared_tick_hands_one_host_snapshot_to_every_actuator():
+    SnapshotActuator.captures = []
+    fleet, owner, steppers = shared(3)
+    for stepper in steppers:
+        actuator = SnapshotActuator(owner)
+        actuator.coordinate_indices = stepper.actuator.coordinate_indices
+        stepper.actuator = actuator
+    fleet._members = tuple((s.backend, s.controller, s.policy, s.actuator) for s in steppers)
+    fleet.start()
+    for _ in range(4): fleet.tick()
+    # Exactly one capture per solved tick, on the pre-solve step count, and the
+    # same object reached all three adapters before that tick's solve.
+    assert [step for step, _ in SnapshotActuator.captures] == [2, 3, 4, 5]
+    for step, token in SnapshotActuator.captures:
+        seen = [e[2] for e in owner.events if e[0] == 'snapshot' and e[1] == step]
+        assert seen == [id(token)] * 3
+
+
+def test_shared_tick_without_snapshot_support_keeps_the_plain_actuation_call():
+    fleet, owner, steppers = shared(2)
+    fleet.start()
+    fleet.tick()
+    assert [e for e in owner.events if e[0] == 'snapshot'] == []
+    assert [e[0] for e in owner.events if e[1] == 2].count('before') == 2

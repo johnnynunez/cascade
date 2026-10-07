@@ -36,7 +36,7 @@ from ..skills.runtime import TOOL_SPECS, SkillRuntime
 from .advisor import Advisor
 from .aspire import retrieve as retrieve_skills
 from .llm import LLMClient, LLMResponse
-from .milestones import MilestoneTracker, make_vlm_verifier
+from .milestones import IMPLAUSIBLE, SKIPPED, MilestoneTracker, PlausibilityChecker, make_vlm_verifier
 from .prompts import DECOMPOSE_PROMPT, SYSTEM_PROMPT, VERIFY_USER
 from .reflex import FastPlanner
 
@@ -82,6 +82,7 @@ class AgentOrchestrator:
         skill_library=None,
         verify_milestones: bool = True,
         memory_frames_k: int = 4,
+        plausibility: PlausibilityChecker | None = None,
     ):
         self.llm = llm
         self.runtime = runtime
@@ -126,6 +127,14 @@ class AgentOrchestrator:
             if verify_milestones and not self._mobile
             else None
         )
+        #: Human-CLAW pre-motion plausibility critic (ROADMAP follow-up #6),
+        #: consulted BEFORE a motion skill is dispatched in the LLM tier.
+        #: ADVISORY ONLY: it never refuses, delays beyond its per-task budget
+        #: or rewrites a call -- the safety harness is the sole authority
+        #: that refuses motion. `None` (agent.premotion_check: false) is the
+        #: pre-2026-10-07 path exactly: no runtime attribute is touched and
+        #: no key is added to any result. Arm skills only, like the tracker.
+        self.plausibility = None if self._mobile else plausibility
 
     def run_task(self, task: str) -> TaskReport:
         # One persistence budget for the WHOLE task, across tiers: the reflex
@@ -160,6 +169,8 @@ class AgentOrchestrator:
         milestones = self._decompose(task) if self.decompose else []
         if self.tracker is not None:
             self.tracker.reset(milestones)
+        if self.plausibility is not None:
+            self.plausibility.reset()  # the critic's VLM budget is per task
         # New episode, new visual history (Vesta: plan.ResetSession()). The
         # text ring is a rolling 15 s window and is left alone.
         try:
@@ -231,11 +242,23 @@ class AgentOrchestrator:
             messages.append(
                 {"role": "assistant", "content": resp.text, "tool_calls": list(resp.tool_calls)}
             )
+            # Human-CLAW pre-motion critic: judged BEFORE dispatch, acted on
+            # by nobody but the planner. Whatever it says, the call below is
+            # the planner's call, unchanged -- only the harness refuses motion.
+            advisory = self._premotion_check(call.name, call.arguments)
             self.runtime.current_tier = "llm"
+            if advisory is not None:
+                # Hand-off to execute() so the trace row carries the verdict
+                # (the `current_tier` pattern); cleared in the finally below.
+                self.runtime.pending_plausibility = advisory
             try:
                 result = self.runtime.execute(call.name, call.arguments)
             finally:
                 self.runtime.current_tier = None
+                if advisory is not None:
+                    self.runtime.pending_plausibility = None
+            if advisory is not None and isinstance(result, dict) and "plausibility" not in result:
+                result["plausibility"] = advisory  # untraced early return: attach here
             tool_log.append({"step": step, "tier": "llm", "tool": call.name,
                              "args": call.arguments, "result": result})
 
@@ -272,6 +295,29 @@ class AgentOrchestrator:
                         ),
                     }
                 )
+
+            # Pre-motion critic said "implausible": the planner reads a
+            # caution on its next turn, nothing else happens. Same booth
+            # rule as envelope notes -- advice, never a veto.
+            if advisory is not None and advisory.get("verdict") == IMPLAUSIBLE:
+                why = "; ".join(str(r) for r in (advisory.get("reasons") or [])) or "no reason given"
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Caution (advisory only): before {call.name}({_short_args(call.arguments)}) "
+                            f"ran, the pre-motion plausibility check judged it IMPLAUSIBLE -- {why} "
+                            "The call was executed unchanged; the safety harness alone decides what "
+                            "moves. Compare its result against the current view before building on it."
+                        ),
+                    }
+                )
+                try:
+                    self.runtime.memory.add(
+                        "note", f"plausibility: {call.name} judged implausible -- {why[:120]}"
+                    )
+                except Exception:  # noqa: BLE001 -- narration must never fail a task
+                    pass
 
             # ── Pigey closed loop: re-verify progress after every motion ──
             progress = self._check_progress(call.name)
@@ -375,6 +421,38 @@ class AgentOrchestrator:
         )
 
     # ── Pigey: outcome tracking ──────────────────────────────────────────
+
+    def _premotion_check(self, skill_name: str, args: dict) -> dict | None:
+        """Human-CLAW pre-execution interrogation of a proposed MOTION call.
+
+        Returns the advisory ``{"verdict", "reasons", "source"}`` or ``None``
+        when the critic is off or the call is not a motion.  Motions only,
+        for the same reason ``_check_progress`` is: an observation changes
+        nothing worth a VLM turn.  Mirrors the `execute()` contract -- when
+        no frame exists yet, take one (execute() would do the same a moment
+        later) so the critic judges the current view, not a blank.  Never
+        raises; a fault here is recorded as ``skipped``, never a stall.
+        """
+        if self.plausibility is None:
+            return None
+        from ..skills.runtime import _MOTION_SKILLS
+
+        if skill_name not in _MOTION_SKILLS:
+            return None
+        try:
+            if getattr(self.runtime, "last_frame", None) is None:
+                try:
+                    self.runtime.observe()
+                except Exception:  # noqa: BLE001 -- camera hiccup: judge without a frame (-> skipped)
+                    pass
+            jpeg = self.runtime.frame_jpeg()
+            return self.plausibility.check(skill_name, args, jpeg)
+        except Exception as e:  # noqa: BLE001 -- advisory code can never block a motion
+            return {
+                "verdict": SKIPPED,
+                "reasons": [f"critic failed: {type(e).__name__}: {e}"],
+                "source": "none",
+            }
 
     def _check_progress(self, skill_name: str):
         """Re-verify milestones after a world-changing call.

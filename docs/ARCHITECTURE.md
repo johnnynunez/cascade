@@ -88,7 +88,13 @@ background includes three published systems:
   `agent/advisor.py`), embedding-indexed experience memory (tier 2), and
   *adaptive reward synthesis* -- which we run at inference time as
   **checkable milestones** (`agent/milestones.py`: symbolic against the
-  world model first, VLM only when the symbolic tier abstains).
+  world model first, VLM only when the symbolic tier abstains). Since
+  2026-10-07 the same rate-limited critic also runs *before* each LLM-tier
+  motion dispatch (Human-CLAW's pre-execution verifier, ROADMAP #6):
+  `PlausibilityChecker` asks the VLM whether this call with these args is
+  plausible given the frame, beliefs and held state; the answer is attached
+  to the result/trace as `plausibility` and is **advisory only** -- the
+  harness alone refuses motion.
 - **Claude plays robotics** (Anthropic, 2026): control-interface level
   dominates model choice; one LLM turn costs 2–15 s so routine commands
   must not wait on the model; structured state beats extra image context;
@@ -134,7 +140,8 @@ shared boundary is `RobotRuntime.execute()`, as shown in the
                               skills/runtime.py  SkillRuntime.execute()  ◀────┘
                               ONE choke point: arm selection, BEFORE keyframe, watcher pause,
                               skill body, postcondition VERIFY, envelope, AFTER keyframe,
-                              trace row (with tier), memory tuple <frame, action, verdict>
+                              trace row (with tier + advisory `plausibility` hand-off),
+                              memory tuple <frame, action, verdict>
                                                  │
         ┌──────────────┬──────────────┬──────────┼───────────────┬─────────────────┬──────────────┐
         ▼              ▼              ▼          ▼               ▼                 ▼              ▼
@@ -510,7 +517,8 @@ src/cascade/
 │   ├── orchestrator.py reflex → habit → LLM loop; memory harness injection; TaskReport
 │   ├── reflex.py       tier-1 grammar (incl. reset_scene) + tier-2 ExperienceMemory
 │   ├── effects.py      PostconditionChecker + annotate_result (Pigey closed loop)
-│   ├── milestones.py   checkable milestones: symbolic first, VLM second, UNKNOWN honest
+│   ├── milestones.py   checkable milestones: symbolic first, VLM second, UNKNOWN honest;
+│   │                   + advisory pre-motion plausibility critic (never a veto)
 │   ├── llm.py          OpenAI-compat (cloud/local) / Anthropic / Cosmos3 / Mock
 │   ├── cosmos3.py      Cosmos3-Edge XML tool-call dialect
 │   ├── prompts.py / advisor.py   persona, decomposition, VLM critic

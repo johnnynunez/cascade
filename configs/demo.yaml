@@ -140,6 +140,23 @@ memory:
   beliefs_path: null        # null -> <repo>/runs/beliefs.json
   beliefs_max_age_s: 21600  # 6 h; older beliefs are dropped on load
 
+# Tier-3 planner knobs (agent/orchestrator.py).
+agent:
+  # Pre-motion plausibility critic (Human-CLAW, ROADMAP follow-up #6): before
+  # the planner's motion call is dispatched, the configured VLM is shown the
+  # current frame and the belief digest and asked a skill-specific question --
+  # is THIS call with THESE args plausible given what is visible, reachable
+  # and held? ADVISORY ONLY: the answer rides on the result and the trace row
+  # as `plausibility: {verdict, reasons, source}` and an `implausible` verdict
+  # is a caution the planner reads on its next turn. It never refuses, delays
+  # beyond its budget or alters the call -- the safety harness is the sole
+  # authority that refuses motion. Reflex/experience tiers stay LLM-free.
+  # false (or CASCADE_PREMOTION_CHECK=0) reproduces the pre-critic path
+  # exactly: no VLM turn, no extra keys.
+  premotion_check: true
+  premotion_max_checks: 3   # VLM turns per task (booth clock); beyond it the
+                            # result records `skipped` and the motion runs
+
 # Always-on perception: every rig camera feeds the belief store continuously
 # so commands resolve against an already-warm world model.
 perception_loop:

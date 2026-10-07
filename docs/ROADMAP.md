@@ -300,7 +300,8 @@ inspiration lifted from an abstract.
   verifier** that interrogates a proposed call with skill-specific questions
   before it runs — distinct from this repo's existing *post-hoc* effect
   verification (`agent/effects.py`) and *static* operating envelopes
-  (`memory/envelope.py`). Not landed yet — see open follow-up #6 below.
+  (`memory/envelope.py`). Landed 2026-10-07 as an advisory-only critic —
+  see follow-up #6 below.
 - **LaMem-VLA** (2607.07608) — dual latent-memory architecture (Curator →
   Seeker → Condenser → Weaver) that splices condensed memory tokens directly
   into a VLA policy's embedding space. Requires a trainable VLA backbone
@@ -330,20 +331,36 @@ inspiration lifted from an abstract.
   explicitly rather than citing Waddle as a safety precedent.
 
 Open follow-ups from this work:
-6. **Pre-motion plausibility check (Human-CLAW).** Extend
+6. ~~**Pre-motion plausibility check (Human-CLAW).** Extend
    `agent/milestones.py`'s existing rate-limited `VERIFY_USER` critic
    pattern to run *before* dispatch for `_MOTION_SKILLS`
    (`skills/runtime.py:31`), not just post-hoc for milestone progress: ask
    "is this specific call, with these specific args, plausible given
    current beliefs/reachability?" and let it veto/substitute, the way
    Human-CLAW's verifier does. Reuses existing rate-limiting so it does not
-   blow booth-clock budget. Deliberately not landed today: this touches the
-   safety-critical motion-dispatch choke point in `SkillRuntime.execute()`,
-   and per AGENTS.md the harness must remain the sole authority that
-   refuses motion — a verifier here has to be advisory-only (same booth
-   rule as envelopes), and that needs a live-rig or at minimum a
-   MockLLM-scripted test pass before landing, not a speculative edit to the
-   motion path from a machine that cannot run the rig.
+   blow booth-clock budget.~~ **landed 2026-10-07** —
+   `agent/milestones.py::PlausibilityChecker` (+ `VisualBudget`, the
+   tracker's per-task limiter factored out so both critics share one
+   mechanism; `prompts.PLAUSIBILITY_USER`), consulted by the orchestrator
+   before every LLM-tier motion dispatch with the current frame, a
+   skill-specific question and the belief/held/reach digest; the answer
+   rides on the result and the trace row as
+   `plausibility: {verdict, reasons, source}`, an `implausible` verdict is a
+   caution the planner reads on its next turn, and no model / no frame /
+   exhausted budget / verifier fault record `skipped` with the reason.
+   **Deliberately NOT the veto/substitute half of Human-CLAW**: the call is
+   dispatched unchanged whatever the verdict says — the harness stays the
+   sole authority that refuses motion (booth rule, same as envelopes).
+   Measured on the mock stack with the scripted planner + a scripted critic
+   (`tests/test_premotion_plausibility.py`, 12 tests, RED against main):
+   an "implausible" grasp still drives the arm and holds the cube, the
+   budget caps critic turns at `agent.premotion_max_checks` (default 3) per
+   task and resets per task, a raising verifier yields `skipped`, and
+   `agent.premotion_check: false` reproduces main's orchestrator path
+   write-for-write (runtime attribute writes, dispatches, planner messages
+   pinned against a golden taken from main). Reflex/experience tiers stay
+   LLM-free; `fleet.py` / `dashboard_runner.py` / `booth_rehearsal.py` do
+   not opt in. No live-rig run; no claim about the verdicts' accuracy.
 7. **HUG as a second grasp backend.** Add `grasp.backend: hug` alongside
    `graspgenx`, self-hosted the same way (a serve script + client mirroring
    `grasping/graspgenx_backend.py`), re-ranked by the same

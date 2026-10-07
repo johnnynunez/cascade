@@ -172,9 +172,12 @@ Open, in priority order (details in the sections below):
    hand-eye, table plane), `pytest -m hardware`, then `--arm rebot_rs` at
    low velocity. Everything above the driver has been exercised in two
    simulators; the drivers have not.
-2. **Persistence-loop leftovers** #2–#7 below (provisional held marker,
+2. ~~**Persistence-loop leftovers** #2–#7 below (provisional held marker,
    per-task budget cap across tiers, handover/sort persistence, thin-object
-   slip heuristic, fail-fast on over-width, the listed coverage gaps).
+   slip heuristic, fail-fast on over-width, the listed coverage gaps).~~
+   **landed 2026-10-07** — see the struck items in "Persistence-loop review
+   leftovers" below; `tests/test_persistence_leftovers.py` (25 tests) pins
+   each one.
 3. **Learned grasps for real**: run `serve_graspgenx.sh` (CUDA) instead of
    the protocol stub and calibrate `tip_offset_m` / the reBot sweep volume
    in Isaac; the stub only proves the wire.
@@ -845,10 +848,25 @@ are synchronous by design here, noted for long-horizon work.
      `..._on_air_is_dropped`, `..._around_the_close`,
      `test_open_gripper_discards_a_provisional_marker`,
      `test_provisional_marker_with_jaws_at_the_open_position_is_dropped`).
-  3. Budget can multiply across tiers: fast-path burns persist_seconds,
-     then a real-LLM tier can call pick_and_place again. Cap per task.
-  4. handover / sort_by_color still single-attempt (inconsistent with
-     pick_and_place persistence).
+  3. ~~Budget can multiply across tiers: fast-path burns persist_seconds,
+     then a real-LLM tier can call pick_and_place again. Cap per task.~~
+     **already landed** (`begin_task_budget` / `_task_deadline`,
+     `grasp.task_persist_seconds` = 1.5x `persist_seconds` by default,
+     opened/closed by `AgentOrchestrator.run_task`, capping pick_and_place
+     AND `_grasp_with_persistence`); pinned by
+     `test_task_budget_caps_a_second_tier_call`,
+     `test_orchestrator_opens_and_closes_the_task_budget` and (2026-10-07)
+     `test_handover_persistence_is_capped_by_the_task_budget`. The key is
+     now documented in `configs/demo.yaml`.
+  4. ~~handover / sort_by_color still single-attempt (inconsistent with
+     pick_and_place persistence).~~ **already landed** (both grasp through
+     `_grasp_with_persistence`: re-home, re-scan, fresh plan, same
+     `max_pick_attempts` / `persist_seconds`, capped by the task budget;
+     sort_by_color gives each object `sort_object_persist_seconds`);
+     pinned by `test_handover_retries_a_grasp_like_pick_and_place`,
+     `test_sort_by_color_does_not_give_up_on_the_first_miss`. Still
+     single-attempt by design: sort_by_color's PLACE (a failed place while
+     holding stops the sort instead of cascading).
   5. ~~_reconcile_held mistakes a legitimately-held VERY thin object
      (<4% jaw span ~ 3.6 mm) for a slip; booth objects are chunky.~~
      **landed 2026-10-07**: the held width is MEASURED when the object is

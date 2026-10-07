@@ -116,6 +116,10 @@ grasp:
   # grasp plan) until it succeeds or one of these budgets runs out.
   persist_seconds: 120
   max_pick_attempts: 8
+  # task_persist_seconds: 180  # whole-TASK cap shared by every dispatch tier
+  #                           # (reflex pick, then the LLM's retry of the same
+  #                           # call); default 1.5x persist_seconds. Set by the
+  #                           # orchestrator via begin_task_budget().
   min_grasp_z_m: 0.008      # learned grasp z a few mm below this above the
                             # table is clamped up (tip-offset overshoot),
                             # not aborted

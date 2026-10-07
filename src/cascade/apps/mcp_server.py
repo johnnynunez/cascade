@@ -15,6 +15,9 @@ Configuration via environment (set in the MCP server entry):
     CASCADE_CAMERAS         comma-separated camera profiles; first one is the
                         manipulation camera (overrides CASCADE_CAMERA)
     CASCADE_ARM             arm profile    (default: mock)
+    CASCADE_ARMS            comma-separated arm profiles; first one is the
+                        manipulation arm (overrides CASCADE_ARM; builds the
+                        ArmRig exactly like the CLI's --arms)
     CASCADE_RUN_DIR         trace directory (default: <repo>/runs/mcp_<pid>)
     CASCADE_GRASP_EVIDENCE_DIR  opt-in per-attempt JSON + NPZ evidence directory
     CASCADE_DETECTOR_MODEL  override detector weights (e.g. a yolo11n.pt path
@@ -33,6 +36,24 @@ Configuration via environment (set in the MCP server entry):
                         Booth/attendee sessions hide reset_stop so a latched
                         e-stop can only be cleared by staff, not by a model
                         helpfully "fixing" it. emergency_stop cannot be hidden.
+                        This is the explicit OPERATOR override; the rig's own
+                        limits are applied by the capability matrix below.
+
+Tool surface (what the model is offered): `TOOL_SPECS` + `_EXTRA_TOOLS`,
+minus `_EXCLUDED_TOOLS` (loop-internal `task_done`), minus the operator's
+`CASCADE_HIDE_TOOLS`, minus the tools whose preconditions THIS rig cannot
+meet. That last set comes from the capability matrix (`apps/capabilities.py`),
+evaluated from the BUILT runtime's probed state -- the camera streams' depth
+chain, the sidecar probes behind `runtime.backends()`, the ArmRig, the
+verifier, the memory -- never from a profile's promise: on an RGB-only
+camera the 3D tools are withheld, on a single-arm rig `list_arms` and the
+injected `arm` parameter go away, a GraspGen-X that is down is a REPORTED
+fallback (OBB), not a reason to hide anything. Before the runtime exists
+nothing is probed and nothing is withheld; once it is, a catalog that was
+already served is refreshed via `notifications/tools/list_changed`, and a
+withheld tool is rejected if called anyway. Every withheld tool carries its
+reason in `world_state.tools_withheld`, the dashboard `/state` and the
+`[cascade-mcp] tools withheld` log line -- a hidden tool is never silent.
 
 Latency contract (why this server is fast): perception pre-warms in the
 background the moment the gateway starts -- N camera streams, the detector,
@@ -133,7 +154,12 @@ _EXTRA_TOOLS = [
             "does not query simulator health, arm pose or gripper contents. "
             "tracked_holding is session history, not a current contact measurement. "
             "Object labels and positions may be remembered: use get_observation "
-            "for the visible scene and localize_object for measured positions."
+            "for the visible scene and localize_object for measured positions. "
+            "`capabilities` is what THIS rig can do as probed at startup (depth "
+            "chain per camera, sidecars, arms, verifier, memory); `tools_withheld` "
+            "names the tools not offered because a precondition is unmet, with "
+            "the reason, and `tools_hidden_by_operator` the ones the operator "
+            "removed. Do not ask for a withheld tool; work with what is listed."
         ),
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
@@ -255,6 +281,18 @@ class McpSkillServer:
         # would defeat the per-waypoint velocity gate; 2026-07-20 review,
         # critical). The worker blocks on it; the chat refuses instead.
         self._exec_lock = threading.Lock()
+        # Capability matrix -> tool surface (ROADMAP #12). The catalog served
+        # before the runtime exists is the full one (nothing probed, nothing
+        # withheld); once the build has trimmed it, a host that already
+        # listed is told via notifications/tools/list_changed (hook set by
+        # _serve_stdio; None for in-process callers) and re-fetches.
+        self._tools_changed_fn = None
+        self._catalog_served = False
+        self._published_surface: tuple | None = None
+        # list_tools (worker) and _announce_surface (build thread) publish
+        # and compare the surface under this lock, so a catalog listed
+        # while the build finishes is always either probed or notified.
+        self._surface_lock = threading.Lock()
 
     # ── runtime lifecycle ────────────────────────────────────────────────
 
@@ -274,7 +312,13 @@ class McpSkillServer:
                 ).split(",")
                 if c.strip()
             ]
-            arm = os.environ.get("CASCADE_ARM", "mock")
+            arms = [
+                a.strip()
+                for a in os.environ.get(
+                    "CASCADE_ARMS", os.environ.get("CASCADE_ARM", "mock")
+                ).split(",")
+                if a.strip()
+            ]
             run_dir = Path(
                 os.environ.get("CASCADE_RUN_DIR", PACKAGE_ROOT / "runs" / f"mcp_{os.getpid()}")
             )
@@ -282,7 +326,7 @@ class McpSkillServer:
                 # Anything the stack prints must not corrupt the protocol stream.
                 with contextlib.redirect_stdout(sys.stderr):
                     cfg = (self._get_mobile_config() if self._bounded else
-                           load_demo_config(cameras=cameras, arm=arm, llm="mock"))
+                           load_demo_config(cameras=cameras, arms=arms, llm="mock"))
                     det_model = os.environ.get("CASCADE_DETECTOR_MODEL")
                     if det_model and not self._bounded:
                         cfg._data["detector"]["model"] = det_model
@@ -341,10 +385,14 @@ class McpSkillServer:
                     print(f"[cascade-mcp] mobile runtime up: bases={names}", file=sys.stderr)
                 else:
                     print(
-                        f"[cascade-mcp] runtime up: cameras={cameras} arm={arm} (lazy) "
+                        f"[cascade-mcp] runtime up: cameras={cameras} arms={arms} (lazy) "
                         f"livestream={url}",
                         file=sys.stderr,
                     )
+                    # the matrix and the tools it withholds, next to the
+                    # `backends:` line build_runtime just printed -- and a
+                    # host that already listed tools is told to re-fetch
+                    self._announce_surface()
             except Exception as e:
                 if _poison:
                     self._init_error = f"{type(e).__name__}: {e}"
@@ -593,6 +641,74 @@ class McpSkillServer:
                              if t.effect == "stop")
         return frozenset({"emergency_stop", "stop_navigation"} if self._mobile else {"emergency_stop"})
 
+    # ── capability matrix (ROADMAP #12) ──────────────────────────────────
+
+    def capabilities(self) -> dict:
+        """What this rig can do, from the BUILT runtime's probed state; the
+        unprobed matrix while it is still building. Read-only and cheap
+        (never grabs a frame, never touches the lazy arm). Bounded modes
+        derive their catalog from the base/robot profile already and are
+        not trimmed by this."""
+        from .capabilities import capability_matrix
+
+        rt = self._runtime
+        return capability_matrix(rt if (rt is not None and not self._bounded) else None)
+
+    def withheld_tools(self) -> dict[str, str]:
+        """tool -> reason, for the tools this rig's probed state shows it
+        cannot run. Empty until the runtime exists: unprobed is not
+        unavailable."""
+        from .capabilities import withheld_tools
+
+        return withheld_tools(self.capabilities())
+
+    def _single_arm(self) -> bool:
+        """True once the built ArmRig shows exactly one arm, so the `arm`
+        parameter injected over _MOTION_SKILLS (a schema entry the chat model
+        fills with "" on every call) can be dropped from the served schemas.
+        False while unprobed: the full schema is the honest default."""
+        from .capabilities import CAP_MULTI_ARM
+
+        matrix = self.capabilities()
+        return bool(matrix.get("probed")) and (matrix.get(CAP_MULTI_ARM) or {}).get("available") is False
+
+    def _surface_signature(self) -> tuple:
+        return (tuple(sorted(self.withheld_tools())), self._single_arm())
+
+    def _announce_surface(self) -> None:
+        """Log the withheld tools (server.log + stderr) next to the
+        `[cascade] capabilities:` banner build_runtime just printed, and if a
+        catalog was already served with a different surface, tell the host
+        to re-fetch it. Reporting must never fail the build."""
+        try:
+            withheld = self.withheld_tools()
+            if withheld:
+                by_reason: dict[str, list[str]] = {}
+                for name, why in sorted(withheld.items()):
+                    by_reason.setdefault(why, []).append(name)
+                print("[cascade-mcp] tools withheld by the capability matrix: "
+                      + "; ".join(f"{', '.join(names)} ({why})" for why, names in by_reason.items()),
+                      file=sys.stderr)
+            else:
+                print("[cascade-mcp] tools withheld by the capability matrix: none",
+                      file=sys.stderr)
+            if self._single_arm():
+                print("[cascade-mcp] single-arm rig: the `arm` parameter is dropped from the "
+                      "motion tools' schemas", file=sys.stderr)
+            with self._surface_lock:
+                sig = self._surface_signature()
+                notify = self._tools_changed_fn if (
+                    self._catalog_served and sig != self._published_surface) else None
+                if notify is not None:
+                    self._published_surface = sig
+            if notify is not None:
+                print("[cascade-mcp] tool surface changed after it was listed -> "
+                      "notifications/tools/list_changed", file=sys.stderr)
+                notify()
+        except Exception as e:  # noqa: BLE001 -- a report must never poison the runtime
+            print(f"[cascade-mcp] capability report failed: {type(e).__name__}: {e}",
+                  file=sys.stderr)
+
     def list_tools(self) -> list[dict]:
         if self._composed:
             from .robot_runtime import robot_tool_descriptors
@@ -605,16 +721,46 @@ class McpSkillServer:
             from ..skills.runtime import TOOL_SPECS
 
             candidates = TOOL_SPECS + _EXTRA_TOOLS
-        dropped = _EXCLUDED_TOOLS | _hidden_tools()
+        # three independent filters: loop-internal, operator override, and
+        # what the probed rig cannot do (empty until the runtime is built).
+        # Computed and published under _surface_lock so a build finishing
+        # concurrently either shows up here or triggers list_changed.
+        with self._surface_lock:
+            withheld = self.withheld_tools()
+            single_arm = self._single_arm()
+            self._catalog_served = True
+            self._published_surface = (tuple(sorted(withheld)), single_arm)
+        dropped = _EXCLUDED_TOOLS | _hidden_tools() | set(withheld)
         specs = [t for t in candidates if t["name"] not in dropped]
-        return [
-            {
+        motion: frozenset | set = frozenset()
+        if single_arm:
+            from ..skills.runtime import _MOTION_SKILLS as motion
+        out = []
+        for t in specs:
+            schema = t["parameters"]
+            if single_arm and t["name"] in motion and "arm" in schema.get("properties", {}):
+                schema = copy.deepcopy(schema)  # TOOL_SPECS is shared; never mutate it
+                schema["properties"].pop("arm")
+            out.append({
                 "name": t["name"],
                 "description": t["description"],
-                "inputSchema": t["parameters"],
-            }
-            for t in specs
-        ]
+                "inputSchema": schema,
+            })
+        return out
+
+    def _reject_withheld(self, name: str) -> dict | None:
+        """The call-time twin of the catalog trim: a model that listed tools
+        before the build (or memorized one) gets the reason, not a motion."""
+        withheld = self.withheld_tools()
+        if name not in withheld:
+            return None
+        return _text_result(
+            {"ok": False,
+             "error": f"tool {name!r} is not available on this rig: {withheld[name]}",
+             "capabilities": self.capabilities(),
+             "tools_withheld": withheld},
+            is_error=True,
+        )
 
     def call_tool(self, name: str, arguments: dict) -> dict:
         if name in _hidden_tools():
@@ -629,6 +775,10 @@ class McpSkillServer:
         if self._bounded:
             return self._call_mobile_tool(name, arguments)
         runtime = self._ensure_runtime()
+        # after the build, never before: unprobed is not unavailable
+        rejected = self._reject_withheld(name)
+        if rejected is not None:
+            return rejected
         with contextlib.redirect_stdout(sys.stderr):
             if name == "camera_snapshot":
                 return self._camera_snapshot(runtime, (arguments or {}).get("camera"))
@@ -891,6 +1041,10 @@ class McpSkillServer:
         )
         if runtime.stream_server is not None:
             state["live_view_url"] = runtime.stream_server.url
+        # the three catalog filters, each explained (capabilities itself
+        # arrives via _runtime_state, shared with the dashboard /state)
+        state["tools_withheld"] = self.withheld_tools()
+        state["tools_hidden_by_operator"] = sorted(_hidden_tools())
         state["ok"] = True
         return state
 
@@ -1030,7 +1184,10 @@ def handle_message(server: McpSkillServer, msg: dict) -> dict | None:
                 req_id,
                 {
                     "protocolVersion": version,
-                    "capabilities": {"tools": {}},
+                    # listChanged: the catalog served before the runtime is
+                    # built is the full one; once the capability matrix has
+                    # trimmed it the host is told to re-fetch
+                    "capabilities": {"tools": {"listChanged": True}},
                     "serverInfo": SERVER_INFO,
                 },
             )
@@ -1142,6 +1299,13 @@ def _serve_stdio(server, signals):
             with out_lock:
                 protocol_out.write(json.dumps(resp) + "\n")
                 protocol_out.flush()
+
+        # The capability matrix may trim the catalog AFTER a host already
+        # listed it (prewarm finishing late, or CASCADE_PREWARM=0): the
+        # server declared listChanged, so it says so and the host re-fetches.
+        server._tools_changed_fn = lambda: _send(
+            {"jsonrpc": "2.0", "method": "notifications/tools/list_changed"}
+        )
 
         # Mirror stderr to a file. A chat host swallows an MCP child's stderr
         # (OpenClaw shows only a failure count), so on a shared machine the only

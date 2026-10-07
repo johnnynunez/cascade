@@ -46,6 +46,27 @@ class DepthProvider:
             return frame
         return frame  # stays depth-less; grounding will refuse to localize
 
+    def depth_source_for(self, frame: Frame | None, *, sensor: bool | None = None) -> str | None:
+        """What `ensure_depth` WOULD report for `frame` -- "sensor" | "mono" |
+        "plane" | "none" -- without touching the frame. The capability matrix
+        reads this per camera so the tool surface reflects the depth chain
+        that really runs, not the profile's promise. `sensor` is the camera
+        driver's own `has_depth`, consulted only when no frame has been
+        grabbed yet; with neither frame nor declaration the sensor question
+        is open (None) unless a mono/plane strategy settles it."""
+        if frame is not None:
+            if frame.has_depth and frame.depth_source == "sensor":
+                return "sensor"
+        elif sensor:
+            return "sensor"
+        if self._mono is not None:
+            return "mono"
+        if self._plane is not None:
+            return "plane"
+        if frame is None and sensor is None:
+            return None
+        return "none"
+
     def _plane_depth(self, frame: Frame) -> np.ndarray:
         h, w = frame.rgb.shape[:2]
         K = frame.K

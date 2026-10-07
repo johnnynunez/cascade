@@ -12,6 +12,7 @@ from __future__ import annotations
 from ..control import motion_evidence
 
 import logging
+import math
 import os
 import sys
 import threading
@@ -23,6 +24,7 @@ import numpy as np
 from ..agent.trace import TraceLogger
 from ..grasping import plan_grasps_from_fix, select_grasp, select_profile
 from ..grasping import evidence as grasp_evidence
+from ..grasping.selector import ALL_TOO_WIDE_MARKER
 from . import carry_attachment
 from ..memory import BeliefStore, EpisodicMemory
 from ..perception.colors import detection_color, parse_color_query
@@ -121,6 +123,27 @@ class _PreCarryLiftError(SkillError):
     """Carry clearance is unavailable; retain the grasp without a home sweep."""
 
 
+def _every_candidate_too_wide(err: str) -> bool:
+    """True when a grasp failure says EVERY candidate exceeded the jaw span.
+
+    Over-width is an object property: re-scanning cannot shrink it, so the
+    persistence loops stop on it (ROADMAP leftover #6). The selector states
+    it explicitly (`ALL_TOO_WIDE_MARKER`, with narrowest width vs jaw span).
+    Without the marker, a message is read as all-too-wide only if EVERY
+    listed reason is a width reason -- a single IK/vetting reason means a
+    fresh plan may still succeed. (The selector lists non-width reasons
+    first, so its 4-reason truncation cannot hide them.)"""
+    if ALL_TOO_WIDE_MARKER in err:
+        return True
+    if "> gripper max" not in err or "IK failed" in err:
+        return False
+    _, sep, tail = err.partition("no executable grasp: ")
+    if not sep:
+        return True  # a bare width reason from another caller
+    reasons = [r for r in tail.split("; ") if r.strip()]
+    return bool(reasons) and all("> gripper max" in r for r in reasons)
+
+
 class SkillRuntime:
     def __init__(
         self,
@@ -163,6 +186,10 @@ class SkillRuntime:
         self._object_pose = None
         self._held_det_label: str | None = None
         self._held_color: str | None = None
+        #: jaw opening MEASURED when the held object was taken (stall after
+        #: the lift, or at promotion/adoption), metres; None = unknown. It
+        #: decides whether a closed-jaw reading can mean a slip (#2.5).
+        self._held_width_m: float | None = None
         #: optional WorldWatcher (set by the app wiring); paused during motion
         self.watcher = None
         self._reset_observation_pending = False
@@ -195,6 +222,12 @@ class SkillRuntime:
         #: calls and written into every trace row so an offline judge can
         #: score progress per tier (eval/progress_judge.py per_tier()).
         self.current_tier: str | None = None
+        #: pre-motion plausibility advisory for the CURRENT call, handed over
+        #: by the orchestrator the same way `current_tier` is (set before
+        #: execute(), cleared after) so the trace row and the result carry it
+        #: as `plausibility`. ADVISORY ONLY: nothing on the dispatch path reads
+        #: it -- it never gates, delays or alters a motion (agent/milestones.py).
+        self.pending_plausibility: dict | None = None
         #: monotonic time the current top-level MOTION skill started; while
         #: the arm moves the WorldWatcher is paused, so belief ages measured
         #: from "now" are artificially inflated -- staleness checks measure
@@ -205,6 +238,16 @@ class SkillRuntime:
         #: a belief that was fresh at task start stays "fresh" through 8
         #: retries even after every re-scan failed to see the object.
         self._last_reobserve_t: float | None = None
+        #: Derived envelope features for the CURRENT top-level skill call
+        #: (memory/envelope.py DERIVED_FEATURES): a scratchpad the running
+        #: skill fills from the runtime's own measurements -- FK of the
+        #: joint vector read back when the jaws closed, the localized fix --
+        #: via `_note_measurement()`. Owned by the outermost `_execute_skill`
+        #: (same ownership pattern as `_motion_t0`), so a grasp nested inside
+        #: pick_and_place credits the call the agent actually made. None
+        #: between calls; a feature the skill never wrote is recorded by the
+        #: envelope as MISSING, never defaulted here.
+        self._call_measurements: dict | None = None
         self._graspgenx = None  # lazy GraspGenXPlanner (grasp.backend)
         #: Optional profiles use a short retry cooldown after a server error.
         #: Required profiles fail visibly and retry on the next command.
@@ -278,6 +321,7 @@ class SkillRuntime:
     _arm = None
     _arm_override = None
     arm_rig = None
+    _call_measurements = None
 
     @property
     def arm(self):
@@ -635,6 +679,14 @@ class SkillRuntime:
                 # clears a physical obligation. The original point path remains.
                 region_context_error = f"{type(exc).__name__}: {exc}"
         t0 = time.monotonic()
+        # Derived envelope features: the outermost dispatched call owns a
+        # fresh scratchpad; whatever the skill measures lands on THIS row of
+        # the envelope and the trace (see `_note_measurement`). Released
+        # unconditionally below, after every exception path has produced its
+        # result, so one call's measurements can never bleed into the next.
+        owns_measurements = self._call_measurements is None
+        if owns_measurements:
+            self._call_measurements = {}
         try:
             import contextlib
 
@@ -702,6 +754,18 @@ class SkillRuntime:
         # refuse to confirm an effect for it; a stuck result is forced to
         # ok=false (never a success) and always carries a non-empty ask.
         result = _normalize_outcome(result, name)
+        # Release the measurement scratchpad for this call. Only skills that
+        # declare derived features (DERIVED_FEATURES) get an instrumentation
+        # channel on their envelope row: for them an unmeasured feature is a
+        # MISSING count; everything else records exactly as before.
+        measured = None
+        if owns_measurements:
+            measured, self._call_measurements = self._call_measurements, None
+        from ..memory.envelope import DERIVED_FEATURES
+        if name not in DERIVED_FEATURES:
+            measured = None
+        if measured is not None:
+            trace_context["measured"] = dict(measured)
         # Pigey closed loop: was the claimed effect real? A refuted
         # postcondition DOWNGRADES a self-reported success (annotate_result).
         if (self.effects is not None or name == "turn_screw") and result.get("ok") is not None:
@@ -778,11 +842,13 @@ class SkillRuntime:
                 "or invent coordinates -- wait for the human to change the scene or the "
                 "instruction." + (f" {own}" if own else "")
             )
-        # Harness-VLA: fold the outcome into the learned operating envelope.
+        # Harness-VLA: fold the outcome into the learned operating envelope,
+        # raw args plus whatever this call measured (derived features).
         try:
             self.envelope.record(
                 name, args, ok=bool(result.get("ok")),
                 error=str(result.get("error", "")), duration_ms=dur,
+                measured=measured,
             )
         except Exception:
             pass
@@ -801,6 +867,16 @@ class SkillRuntime:
         after = self.trace.save_keyframe(
             self.last_frame.rgb if self.last_frame is not None else None, f"{name}_after"
         )
+        # Pre-motion plausibility advisory (orchestrator hand-off, see
+        # __init__): attached AFTER every verdict/annotation above so it can
+        # influence none of them, and consumed here so it cannot leak onto
+        # the next call. Absent (None) -> this block is a no-op and the
+        # result is byte-identical to the pre-critic path. getattr: bare
+        # runtimes built without __init__ (unit fixtures) have no hand-off.
+        advisory = getattr(self, "pending_plausibility", None)
+        if advisory is not None:
+            self.pending_plausibility = None
+            result["plausibility"] = advisory
         self.trace.record(name, args, result, dur, before, after,
                           tier=self.current_tier, context=trace_context)
         err = str(result.get("error", "failed"))
@@ -926,6 +1002,44 @@ class SkillRuntime:
     def _tcp(self) -> np.ndarray:
         return self.kin.fk(self.arm.get_state().q)[:3, 3]
 
+    def _note_measurement(self, **values) -> None:
+        """Record derived envelope features for the current top-level call.
+
+        Only finite numbers are kept; anything else is simply not written,
+        and the envelope then records that feature as MISSING for this call
+        (memory/envelope.py). A no-op outside a dispatched call (direct
+        `skill_*` invocation from a test or a composite), so nothing here can
+        leak one call's measurements into the next.
+        """
+        scratch = self._call_measurements
+        if scratch is None:
+            return
+        for key, value in values.items():
+            try:
+                f = float(value)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(f):
+                scratch[key] = f
+
+    @staticmethod
+    def _horizontal_footprint_m(points) -> float | None:
+        """Narrower extent of the cloud's XY footprint (its own principal
+        axes), i.e. the smallest opening a horizontal parallel jaw can take
+        it with. The 3D OBB's smallest extent is the cloud's THICKNESS for a
+        top-down camera (it only sees the lid), which is not a jaw width."""
+        try:
+            xy = np.asarray(points, dtype=float)[:, :2]
+        except (TypeError, ValueError, IndexError):
+            return None
+        if xy.shape[0] < 3 or not np.isfinite(xy).all():
+            return None
+        centred = xy - xy.mean(axis=0)
+        _, _, vt = np.linalg.svd(centred, full_matrices=False)
+        proj = centred @ vt.T
+        extents = proj.max(axis=0) - proj.min(axis=0)
+        return float(np.min(extents))
+
     def _reconcile_held(self) -> None:
         """Reconcile the held flag with the jaws, in BOTH directions.
 
@@ -938,19 +1052,38 @@ class SkillRuntime:
         e-stop, a feedback timeout). If the jaws are stalled OPEN on
         something, the object IS in the gripper -> promote the marker to the
         real held state so the next skill does not open the jaws on it.
-        Jaws closed on air -> drop the marker.
+        Jaws closed on air -> drop the marker. Jaws AT the open position
+        (the close never landed, or `open_gripper` ran since) -> drop it
+        too: open jaws are not an invented hold.
+        (c) Thin objects: the held width MEASURED when the object was taken
+        (jaw stall after the lift) decides whether a closed-jaw reading can
+        mean a slip at all; see below.
         """
         if getattr(self, "_contact_episode", None) is not None:
             return  # only explicit contact recovery may finish this failed close
+        air = float(self.cfg.grasp.get("air_grasp_frac", 0.04))
         prov = getattr(self, "_held_provisional", None)
         if prov is not None and not self.held_object:
             wf = self._gripper_width_frac()
             if wf is not None:
-                if wf >= float(self.cfg.grasp.get("air_grasp_frac", 0.04)):
+                # Jaws AT the open position (within the same tolerance that
+                # separates a closed jaw from air) cannot be stalled on
+                # anything: the close never landed (refused before its first
+                # stage) or the jaws were opened since. Promoting that read
+                # every later grasp as "already holding" -- a phantom hold.
+                if wf >= 1.0 - air:
+                    self.memory.add(
+                        "outcome",
+                        f"the jaws are open; the interrupted grasp of {prov[0]!r} "
+                        "did not land -- nothing is held",
+                    )
+                elif wf >= air:
                     label, det_label, color = prov
                     self.held_object = label
                     self._held_det_label = det_label
                     self._held_color = color
+                    # the stall width IS the measurement of what is held
+                    self._held_width_m = float(wf) * float(self._max_width)
                     self.memory.add(
                         "outcome",
                         f"the jaws are stalled on {label!r} although the grasp did not "
@@ -971,7 +1104,16 @@ class SkillRuntime:
         held_w = self._gripper_width_m()
         if thin > 0 and held_w is not None and held_w >= thin:
             return
-        if wf < float(self.cfg.grasp.get("air_grasp_frac", 0.04)):
+        # The MEASURED held width (jaw stall after the lift, or at promotion /
+        # adoption) decides what a closed-jaw reading means. An object that
+        # measured thinner than the air tolerance when it was grasped keeps
+        # the jaws below `air_grasp_frac` while HELD, so position feedback
+        # cannot tell that hold from a slip: never clear it on width alone.
+        # (A chunky known width keeps the rule below exactly as it was.)
+        known_w = getattr(self, "_held_width_m", None)
+        if known_w is not None and float(known_w) < air * float(self._max_width):
+            return
+        if wf < air:
             self.memory.add(
                 "outcome",
                 f"I no longer feel {self.held_object!r} in the gripper "
@@ -980,6 +1122,7 @@ class SkillRuntime:
             self.held_object = None
             self._held_det_label = None
             self._held_color = None
+            self._held_width_m = None
 
     def _grasp_retry_verdict(self, object: str, attempt: int, last_err: str) -> str | None:
         """Why persistence should STOP retrying a grasp, or None to keep going.
@@ -994,7 +1137,7 @@ class SkillRuntime:
             return "e-stop latched; not retrying"
         if attempt >= 2 and "no detections" in last_err and self.beliefs.find(object) is None:
             return "never seen after re-scans; giving up early"
-        if "> gripper max" in last_err and "IK failed" not in last_err:
+        if _every_candidate_too_wide(last_err):
             return "object wider than the jaws; use push_object; giving up early"
         return None
 
@@ -1896,6 +2039,21 @@ class SkillRuntime:
         else:
             frame, fix = self._localize(label, spatial_hint=spatial_hint)
         grasp_evidence.localized(frame, fix, getattr(self, "extrinsics", None))
+        # Derived envelope features from the fix (memory/envelope.py #4):
+        # the object's top above its support plane -- a top-down camera
+        # never sees the sides, so the cloud's z-span is NOT a height -- and
+        # the narrower horizontal footprint extent. Measured here, before
+        # planning, so a grasp that dies at IK still records what it saw.
+        try:
+            support = self.cfg.grasp.get("source_support_top_z_m")
+            support = (float(support) if support is not None
+                       else float(self.arm.harness.limits.table_z))
+            self._note_measurement(
+                object_height_m=float(fix.points[:, 2].max()) - support,
+                object_width_m=self._horizontal_footprint_m(fix.points),
+            )
+        except Exception:  # noqa: BLE001 -- a measurement failure is a missing feature, never a grasp failure
+            pass
         profile = select_profile(fix.detection.label or label, material)
         grasp_evidence.event("material_profile", profile=profile)
         grasp_evidence.phase("planning")
@@ -2365,6 +2523,20 @@ class SkillRuntime:
                     grasp_evidence.event("post_close_stability", **stability)
 
             tcp_close = self.kin.fk(close_state.q)[:3, 3]
+            # Derived envelope features from the jaws' own close state: the
+            # TCP height when they closed and how far the tool landed from
+            # the perceived centre. FK of MEASURED joints, not the planned
+            # grasp pose -- the planned value is what the raw args already
+            # proxied; this is where the arm actually was.
+            try:
+                self._note_measurement(
+                    tcp_z_at_grasp_m=float(tcp_close[2]),
+                    object_tcp_lateral_offset_m=float(np.hypot(
+                        float(fix.position[0]) - float(tcp_close[0]),
+                        float(fix.position[1]) - float(tcp_close[1]))),
+                )
+            except Exception:  # noqa: BLE001 -- missing feature, never a grasp failure
+                pass
             try:
                 held_offset_at_close = np.asarray(fix.position, float) - tcp_close
                 if held_offset_at_close.shape != (3,) or not np.isfinite(held_offset_at_close).all():
@@ -2457,6 +2629,11 @@ class SkillRuntime:
         self._held_det_label = fix.detection.label
         self._held_color = detection_color(frame.rgb, fix.detection)
         self._held_provisional = None  # promoted: the real flag is set now
+        # The held width as MEASURED (jaw stall after the lift); the planned
+        # width stands in when feedback was unavailable. `_reconcile_held`
+        # reads it before calling a closed jaw a slip.
+        self._held_width_m = (float(width_after_lift) * float(self._max_width)
+                              if verified else float(grasp.width_m))
         # A cached aiming estimate cannot prove a later slip. Preserve the
         # post-lift clock floor separately for newly acquired hold evidence.
         self._held_offset = held_offset_at_close
@@ -2584,6 +2761,7 @@ class SkillRuntime:
         if wf is not None and air < wf < 0.9:
             self.held_object = "object"
             self._held_det_label = None
+            self._held_width_m = float(wf) * float(self._max_width)  # measured now
             self.memory.add(
                 "note",
                 "the jaws are holding something unregistered; "
@@ -2710,6 +2888,7 @@ class SkillRuntime:
                 self._held_det_label = None
                 self._held_color = None
                 self._held_offset = None
+                self._held_width_m = None
                 self._held_support_offset_m = None
                 raise SkillError(f"{slipped!r} slipped out of the gripper during the carry")
             target[0] -= float(held_offset[0])
@@ -2875,6 +3054,7 @@ class SkillRuntime:
             self._held_offset = None
             self._held_support_offset_m = None
             self._held_color = None
+            self._held_width_m = None
             self.memory.add("action", f"placed {placed!r} at {target.round(3).tolist()}")
             try:
                 if release_error is None and release is not None:
@@ -3601,6 +3781,7 @@ class SkillRuntime:
         self.held_object = None
         self._held_det_label = None
         self._held_color = None
+        self._held_width_m = None
         # follow-through, then home so the camera view clears.
         try:
             self.skill_move_home()
@@ -3879,6 +4060,11 @@ class SkillRuntime:
             self.memory.add("action", f"released {self.held_object!r}")
             self.held_object = None
             self._held_det_label = None
+        # An explicit open after an interrupted grasp settles the question
+        # the provisional marker left open: whatever the jaws may have held
+        # is released now, so nothing remains to promote.
+        self._held_provisional = None
+        self._held_width_m = None
         return {"gripper": "open"}
 
     def skill_close_gripper(self) -> dict:
@@ -4058,6 +4244,7 @@ class SkillRuntime:
             self._held_det_label = None
             self._held_color = None
             self._held_offset = None
+            self._held_width_m = None
             self._held_support_offset_m = None
         world = None
         raw = getattr(self.arm, "raw", None)

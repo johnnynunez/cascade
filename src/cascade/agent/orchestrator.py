@@ -32,11 +32,12 @@ import time
 from dataclasses import dataclass, field
 
 from ..conversation.receipts import agent_tool_output
-from ..skills.runtime import TOOL_SPECS, SkillRuntime
+from ..memory import recipes
+from ..skills.runtime import TOOL_SPECS, SkillRuntime, _MOTION_SKILLS
 from .advisor import Advisor
 from .aspire import retrieve as retrieve_skills
 from .llm import LLMClient, LLMResponse
-from .milestones import MilestoneTracker, make_vlm_verifier
+from .milestones import IMPLAUSIBLE, SKIPPED, MilestoneTracker, PlausibilityChecker, make_vlm_verifier
 from .prompts import DECOMPOSE_PROMPT, SYSTEM_PROMPT, VERIFY_USER
 from .reflex import FastPlanner
 
@@ -86,6 +87,7 @@ class AgentOrchestrator:
         skill_library=None,
         verify_milestones: bool = True,
         memory_frames_k: int = 4,
+        plausibility: PlausibilityChecker | None = None,
     ):
         self.llm = llm
         self.runtime = runtime
@@ -133,6 +135,14 @@ class AgentOrchestrator:
             if verify_milestones and not self._mobile
             else None
         )
+        #: Human-CLAW pre-motion plausibility critic (ROADMAP follow-up #6),
+        #: consulted BEFORE a motion skill is dispatched in the LLM tier.
+        #: ADVISORY ONLY: it never refuses, delays beyond its per-task budget
+        #: or rewrites a call -- the safety harness is the sole authority
+        #: that refuses motion. `None` (agent.premotion_check: false) is the
+        #: pre-2026-10-07 path exactly: no runtime attribute is touched and
+        #: no key is added to any result. Arm skills only, like the tracker.
+        self.plausibility = None if self._mobile else plausibility
 
     def run_task(self, task: str) -> TaskReport:
         # One persistence budget for the WHOLE task, across tiers: the reflex
@@ -167,6 +177,8 @@ class AgentOrchestrator:
         milestones = self._decompose(task) if self.decompose else []
         if self.tracker is not None:
             self.tracker.reset(milestones)
+        if self.plausibility is not None:
+            self.plausibility.reset()  # the critic's VLM budget is per task
         # New episode, new visual history (Vesta: plan.ResetSession()). The
         # text ring is a rolling 15 s window and is left alone.
         try:
@@ -214,6 +226,10 @@ class AgentOrchestrator:
 
         consecutive_failures = 0
         stalled_turns = 0
+        #: Task-Specific Memory: the scene as perceived BEFORE the first
+        #: motion, so a successful run can be stored with its coordinates
+        #: expressed relative to objects (memory/recipes.py), never raw.
+        scene0: list[dict] | None = None
         for step in range(1, self.max_steps + 1):
             resp = self.llm.chat(
                 system=self.system_prompt,
@@ -238,11 +254,25 @@ class AgentOrchestrator:
             messages.append(
                 {"role": "assistant", "content": resp.text, "tool_calls": list(resp.tool_calls)}
             )
+            if scene0 is None and call.name in _MOTION_SKILLS:
+                scene0 = self._scene_snapshot()
+            # Human-CLAW pre-motion critic: judged BEFORE dispatch, acted on
+            # by nobody but the planner. Whatever it says, the call below is
+            # the planner's call, unchanged -- only the harness refuses motion.
+            advisory = self._premotion_check(call.name, call.arguments)
             self.runtime.current_tier = "llm"
+            if advisory is not None:
+                # Hand-off to execute() so the trace row carries the verdict
+                # (the `current_tier` pattern); cleared in the finally below.
+                self.runtime.pending_plausibility = advisory
             try:
                 result = self.runtime.execute(call.name, call.arguments)
             finally:
                 self.runtime.current_tier = None
+                if advisory is not None:
+                    self.runtime.pending_plausibility = None
+            if advisory is not None and isinstance(result, dict) and "plausibility" not in result:
+                result["plausibility"] = advisory  # untraced early return: attach here
             tool_log.append({"step": step, "tier": "llm", "tool": call.name,
                              "args": call.arguments, "result": result})
 
@@ -252,7 +282,14 @@ class AgentOrchestrator:
                 task_verifier = getattr(self.runtime, "unverified_actions", None)
                 if task_verifier is not None:
                     success = success and result.get("success") is True
-                return self._finish_report(task, success, summary, step, milestones, tool_log, t_start)
+                report = self._finish_report(task, success, summary, step, milestones, tool_log, t_start)
+                if report.success:
+                    # Only a VERIFIED success is worth remembering: the
+                    # report's success already folds in every unverified
+                    # effect obligation, so an unconfirmed pick never
+                    # becomes a habit (same rule the fast tier applies).
+                    self._remember_recipe(task, tool_log, scene0, report)
+                return report
 
             # RPent `finish(status=stuck)`: the skill exhausted what the robot
             # can do on its own and named what the HUMAN should change. The
@@ -293,6 +330,29 @@ class AgentOrchestrator:
                         ),
                     }
                 )
+
+            # Pre-motion critic said "implausible": the planner reads a
+            # caution on its next turn, nothing else happens. Same booth
+            # rule as envelope notes -- advice, never a veto.
+            if advisory is not None and advisory.get("verdict") == IMPLAUSIBLE:
+                why = "; ".join(str(r) for r in (advisory.get("reasons") or [])) or "no reason given"
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Caution (advisory only): before {call.name}({_short_args(call.arguments)}) "
+                            f"ran, the pre-motion plausibility check judged it IMPLAUSIBLE -- {why} "
+                            "The call was executed unchanged; the safety harness alone decides what "
+                            "moves. Compare its result against the current view before building on it."
+                        ),
+                    }
+                )
+                try:
+                    self.runtime.memory.add(
+                        "note", f"plausibility: {call.name} judged implausible -- {why[:120]}"
+                    )
+                except Exception:  # noqa: BLE001 -- narration must never fail a task
+                    pass
 
             # ── Pigey closed loop: re-verify progress after every motion ──
             progress = self._check_progress(call.name)
@@ -420,6 +480,38 @@ class AgentOrchestrator:
 
     # ── Pigey: outcome tracking ──────────────────────────────────────────
 
+    def _premotion_check(self, skill_name: str, args: dict) -> dict | None:
+        """Human-CLAW pre-execution interrogation of a proposed MOTION call.
+
+        Returns the advisory ``{"verdict", "reasons", "source"}`` or ``None``
+        when the critic is off or the call is not a motion.  Motions only,
+        for the same reason ``_check_progress`` is: an observation changes
+        nothing worth a VLM turn.  Mirrors the `execute()` contract -- when
+        no frame exists yet, take one (execute() would do the same a moment
+        later) so the critic judges the current view, not a blank.  Never
+        raises; a fault here is recorded as ``skipped``, never a stall.
+        """
+        if self.plausibility is None:
+            return None
+        from ..skills.runtime import _MOTION_SKILLS
+
+        if skill_name not in _MOTION_SKILLS:
+            return None
+        try:
+            if getattr(self.runtime, "last_frame", None) is None:
+                try:
+                    self.runtime.observe()
+                except Exception:  # noqa: BLE001 -- camera hiccup: judge without a frame (-> skipped)
+                    pass
+            jpeg = self.runtime.frame_jpeg()
+            return self.plausibility.check(skill_name, args, jpeg)
+        except Exception as e:  # noqa: BLE001 -- advisory code can never block a motion
+            return {
+                "verdict": SKIPPED,
+                "reasons": [f"critic failed: {type(e).__name__}: {e}"],
+                "source": "none",
+            }
+
     def _check_progress(self, skill_name: str):
         """Re-verify milestones after a world-changing call.
 
@@ -464,13 +556,32 @@ class AgentOrchestrator:
             return None, None
         if tool_log is None:
             tool_log = []
-        for i, (name, args) in enumerate(plan.calls, start=1):
+        # Task-Specific Memory (Harness-VLA v4, memory/recipes.py): a
+        # recalled recipe carries perception QUERIES where the original run
+        # had coordinates. Every one of them is re-grounded through the
+        # runtime's own perception NOW, before the first motion. A query
+        # that does not resolve aborts the whole replay to the LLM tier --
+        # there is no stored coordinate to fall back to, by construction.
+        calls = plan.calls
+        n_grounded = 0
+        if plan.needs_grounding:
+            try:
+                calls, n_grounded = self._ground_recipe(plan, tool_log)
+            except recipes.GroundingError as e:
+                note = (
+                    f"(A remembered {plan.source} recipe for this command could not be "
+                    f"re-grounded on the current scene: {e}. No motion was attempted; "
+                    "observe and plan from what is actually on the table.)"
+                )
+                return None, note
+        offset = len(tool_log)
+        for i, (name, args) in enumerate(calls, start=1):
             self.runtime.current_tier = str(plan.source)  # reflex | experience
             try:
                 result = self.runtime.execute(name, args)
             finally:
                 self.runtime.current_tier = None
-            tool_log.append({"step": i, "tier": str(plan.source), "tool": name,
+            tool_log.append({"step": offset + i, "tier": str(plan.source), "tool": name,
                              "args": args, "result": result})
             if isinstance(result, dict) and result.get("outcome") == "stuck":
                 # The fast tier's step needs a human. Escalating to the LLM
@@ -485,6 +596,8 @@ class AgentOrchestrator:
             task_verifier = getattr(self.runtime, "unverified_actions", None)
             unverified = task_verifier() if task_verifier is not None else []
             if not result.get("ok", False) or unverified:
+                # plan.calls, not the grounded `calls`: a recipe's record
+                # must keep its queries.
                 self.fast_planner.note_outcome(
                     task, plan.calls, False, time.monotonic() - t_start
                 )
@@ -495,7 +608,8 @@ class AgentOrchestrator:
                 )
                 return None, note
         duration = round(time.monotonic() - t_start, 2)
-        self.fast_planner.note_outcome(task, plan.calls, True, duration)
+        meta = {"summary": plan.summary} if plan.summary else {}
+        self.fast_planner.note_outcome(task, plan.calls, True, duration, **meta)
         # Agentic-VLA curriculum: credit each sub-goal separately as well, so a
         # clause proven inside this sequence warm-starts any FUTURE task that
         # contains it -- including a different sequence. Without this the
@@ -509,13 +623,86 @@ class AgentOrchestrator:
                 )
         summary = (
             f"done via {plan.source} path in {duration}s: "
-            + "; ".join(f"{n}({_short_args(a)})" for n, a in plan.calls)
+            + "; ".join(f"{n}({_short_args(a)})" for n, a in calls)
         )
+        if n_grounded:
+            summary += (
+                f" (recipe: {n_grounded} perception quer{'y' if n_grounded == 1 else 'ies'} "
+                "re-grounded before motion)"
+            )
         return (
-            self._finish_report(task, True, summary, len(plan.calls), [], tool_log, t_start,
+            self._finish_report(task, True, summary, len(calls), [], tool_log, t_start,
                                 path=plan.source, verify_milestones=False),
             None,
         )
+
+    def _ground_recipe(self, plan, tool_log: list) -> tuple[list, int]:
+        """Resolve a recipe's symbolic targets through `localize_object`.
+
+        Perception only -- `localize_object` is not in `_MOTION_SKILLS` --
+        and every lookup is logged under the plan's tier so the trace shows
+        the replay re-grounded before it moved. Raises GroundingError.
+        """
+        def localize(label: str) -> dict:
+            self.runtime.current_tier = str(plan.source)
+            try:
+                result = self.runtime.execute("localize_object", {"label": label})
+            finally:
+                self.runtime.current_tier = None
+            tool_log.append({"step": len(tool_log) + 1, "tier": str(plan.source),
+                             "tool": "localize_object", "args": {"label": label},
+                             "result": result, "grounding": True})
+            return result
+
+        return recipes.ground(plan.calls, localize)
+
+    def _scene_snapshot(self) -> list[dict]:
+        """Objects the belief store knows right now, as recipe anchors."""
+        beliefs = getattr(self.runtime, "beliefs", None)
+        if beliefs is None:
+            return []
+        try:
+            return [
+                {"label": b.label, "position": [float(v) for v in b.position]}
+                for b in beliefs.all()
+            ]
+        except Exception:  # noqa: BLE001 -- a snapshot failure only costs the recipe
+            return []
+
+    def _remember_recipe(self, task: str, tool_log: list, scene0, report: TaskReport) -> None:
+        """Store a verified LLM-tier run as a Task-Specific Memory recipe.
+
+        Coordinates become `localize_object(label) + offset` queries anchored
+        on the scene before the first motion; a run whose coordinates cannot
+        be anchored is NOT stored (never a raw coordinate), and says so in
+        the episodic memory so the omission is visible.
+        """
+        planner = self.fast_planner
+        if planner is None or getattr(planner, "experience", None) is None:
+            return
+        try:
+            scene = recipes.anchor_scene(tool_log, scene0 or [])
+            steps = recipes.symbolize_run(tool_log, scene)
+        except recipes.RecipeError as e:
+            try:
+                self.runtime.memory.add("note", f"run not kept as a recipe: {e}")
+            except Exception:  # noqa: BLE001
+                pass
+            return
+        except Exception:  # noqa: BLE001 -- memory bookkeeping never fails a finished task
+            return
+        if not steps:
+            return  # nothing moved: an answer, not a recipe
+        first_line = (report.summary or "").strip().splitlines()
+        summary = (first_line[0] if first_line else f"completed: {task}")[:200]
+        run_dir = getattr(getattr(self.runtime, "trace", None), "run_dir", None)
+        try:
+            planner.note_outcome(
+                task, steps, True, report.duration_s,
+                summary=summary, source_run=(run_dir.name if run_dir is not None else None),
+            )
+        except Exception:  # noqa: BLE001
+            pass
 
     def _with_memory_harness(self, messages: list[dict]) -> list[dict]:
         """Messages for THIS planner turn: the conversation with all older

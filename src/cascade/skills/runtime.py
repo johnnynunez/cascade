@@ -29,7 +29,7 @@ from . import carry_attachment
 from ..memory import BeliefStore, EpisodicMemory
 from ..perception.colors import detection_color, parse_color_query
 from ..perception.reference import ReferenceResolutionError, parse_reference
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ..perception.workspace import WorkspaceFilter
 
@@ -639,6 +639,11 @@ class SkillRuntime:
         before = self.trace.save_keyframe(
             self.last_frame.rgb if self.last_frame is not None else None, f"{name}_before"
         )
+        # Wrist views (ROADMAP #15): the judge's GRM prompt has two wrist
+        # slots per BEFORE/AFTER set. On a rig with a wrist stream (`role:
+        # wrist` / eye-in-hand profile) save its frame next to the front one
+        # for motion skills; without one the judge repeats the front image.
+        before_wrists = self._save_wrist_keyframes(f"{name}_before", fresh=False) if name in _MOTION_SKILLS else None
         # Pigey: snapshot the target's pose BEFORE the motion so the
         # postcondition can measure a displacement rather than guess one.
         # NOTE the arg name varies across the skill API and getting this wrong
@@ -867,6 +872,9 @@ class SkillRuntime:
         after = self.trace.save_keyframe(
             self.last_frame.rgb if self.last_frame is not None else None, f"{name}_after"
         )
+        # Same rule for the wrist AFTER frame: a FRESH grab once the arm has
+        # stopped, never the pre-motion frame re-saved.
+        after_wrists = self._save_wrist_keyframes(f"{name}_after", fresh=True) if name in _MOTION_SKILLS else None
         # Pre-motion plausibility advisory (orchestrator hand-off, see
         # __init__): attached AFTER every verdict/annotation above so it can
         # influence none of them, and consumed here so it cannot leak onto
@@ -878,7 +886,8 @@ class SkillRuntime:
             self.pending_plausibility = None
             result["plausibility"] = advisory
         self.trace.record(name, args, result, dur, before, after,
-                          tier=self.current_tier, context=trace_context)
+                          tier=self.current_tier, context=trace_context,
+                          keyframe_before_wrists=before_wrists, keyframe_after_wrists=after_wrists)
         err = str(result.get("error", "failed"))
         stuck = result.get("outcome") == OUTCOME_STUCK
         # one tail for the status line and the memory event: ok / the ask / the error
@@ -914,6 +923,58 @@ class SkillRuntime:
         self.last_frame = frame
         self.arm.harness.heartbeat()
         return frame
+
+    def _wrist_streams(self) -> list[tuple[str, Any]]:
+        """`(name, stream)` for every rig camera whose profile is a wrist view
+        (`perception.camera_base.is_wrist_view`: `role: wrist` or eye-in-hand
+        extrinsics), in rig order. Empty without a rig or without one."""
+        rig = getattr(self, "rig", None)
+        streams = getattr(rig, "streams", None)
+        if not streams:
+            return []
+        from ..perception.camera_base import is_wrist_view
+
+        cams = self.cfg.get("cameras") or [self.cfg.get("camera")]
+        out = []
+        for i, c in enumerate(cams):
+            if c is None or not hasattr(c, "get") or not is_wrist_view(c):
+                continue
+            stream_name = str(c.get("name", f"cam{i}"))
+            if stream_name in streams:
+                out.append((stream_name, streams[stream_name]))
+        return out
+
+    def _save_wrist_keyframes(self, tag: str, *, fresh: bool) -> dict[str, str] | None:
+        """One JPEG per wrist stream for a motion skill's BEFORE/AFTER pair,
+        `{stream: path}`, or None when the rig has no wrist view.
+
+        `fresh=True` (AFTER) waits for the stream's next delivery so the frame
+        postdates the motion -- the same rule the front AFTER keyframe follows
+        (a pre-motion frame re-saved is what scored 0 % on a confirmed pick).
+        BEFORE takes the latest frame without waiting. The wait is bounded at
+        1 s per stream (evidence must not make a motion skill wait on a
+        stalled camera; `CameraStream.get_frame` then degrades to its latest
+        frame). A wrist camera that fails or has no frame yet never blocks
+        the skill: that stream is simply absent from the dict, and the judge
+        falls back to repeating the front view for the step.
+        """
+        import re
+
+        out: dict[str, str] = {}
+        for stream_name, stream in self._wrist_streams():
+            try:
+                frame = stream.get_frame(timeout_s=1.0) if fresh else stream.latest()
+                if frame is None:
+                    frame = stream.get_frame(timeout_s=1.0)
+            except Exception:  # noqa: BLE001 -- evidence, never a gate
+                continue
+            if frame is None or getattr(frame, "rgb", None) is None:
+                continue
+            safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", stream_name)
+            path = self.trace.save_keyframe(frame.rgb, f"{tag}_wrist_{safe}")
+            if path:
+                out[stream_name] = path
+        return out or None
 
     def observe_fresh(self) -> Frame:
         frame = _fresh_camera_frame(self.camera, self.last_frame)

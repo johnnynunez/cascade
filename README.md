@@ -483,6 +483,14 @@ python -m cascade.apps.demo --arm so101_mock --camera mock_small \
 python scripts/fetch_robot_assets.py so101
 python -m cascade.apps.demo --arm so101_mujoco --camera mujoco_scene --interactive
 
+# ...plus a WRIST camera rendered from the gripper body (moves with the arm,
+# looks at the jaws). The runtime records its frames as wrist keyframes next
+# to the front ones for every motion skill, and the outcome judge
+# (scripts/judge_run.py) fills the GRM prompt's two wrist slots with them
+# instead of repeating the front view. Evidence only: no hand-eye
+# calibration is claimed and the view fuses no beliefs.
+python -m cascade.apps.demo --arm so101_mujoco --cameras mujoco_scene,mujoco_wrist --interactive
+
 # ONE CLICK: simulator (Isaac Sim if installed, else MuJoCo) + OpenClaw 2.0
 # chat with the robot tools registered, probed, and a trivial brain turn
 # proven before it prints the chat URL. Real hardware = OpenClaw only.

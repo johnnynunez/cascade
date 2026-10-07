@@ -1000,3 +1000,66 @@ read-only probe at completed step 802; every velocity command stayed zero.
 
 The overview uses a widely separated grid; its small floor display
 rectangle does not describe the extent of the physical infinite plane.
+
+### Shared-owner per-step cost: one host snapshot for the BAM checks (7 October 2026)
+
+Every `.numpy()` of a device array is a full device sync. In the shared owner,
+each of the twelve `NewtonBamAdapter`s re-read the same ~25 whole-model Warp
+arrays (model properties, solver DOF map, state, `nefc`) on every step to run
+its fail-closed checks: about 400 syncs per 5 ms step. `BamHostSnapshot`
+(`control/newton_bam.py`) is one per-step host copy of those arrays, captured by
+`SharedMicroduckStepper.tick` after the policy commits and before the first
+actuation and handed to every adapter's `before_step(dt, snapshot=…)`. Every
+adapter still runs every check, against the same bytes a private read would
+return; a snapshot of another stage or step is refused, and model drift, NaN
+state and DOF-map changes still fail closed through it. The single-robot path
+is unchanged (it captures its own snapshot). CPU tests assert identical efforts
+with and without the snapshot and one device read per world array per step.
+
+The [same-day A/B](evidence/microduck-owner-host-snapshot-20261007/REPORT.md)
+(twelve robots, one world, route profile, twelve closed-loop 5 m clients, x86
+rig) measured `bam.before_step` 24.3 → 13.6 ms per step (1.87 → 0.99 ms per
+robot) and the step median 76.2 → 61.3 ms, other phases unchanged. The new
+`--profile-sync-solve` diagnostic (with `--profile-phases`) attributes the GPU
+time of the physics step to the `solve` span instead of the first host read:
+**7.6 ms of GPU physics per 5 ms step** for twelve robots, previously hidden in
+`support.decode` (whose pure decode cost is 4.4 ms). All twelve client walks (one per robot) remain
+`unverified` on the unchanged deadlines; this is a measured cost reduction, not
+a control or admission result. The owner cannot reach real time while the
+physics alone takes 1.5× the step; the remaining host cost is in
+`completed.validate` (decode, native capture, per-robot validation and deep
+copies), the per-adapter output reads and Warp launches of `bam.before_step`,
+`policy.prepare` and `publication`.
+
+### Shared-owner per-step cost: cheaper per-robot binds and reader polls (7 October 2026)
+
+An in-process `cProfile` of the owner (`--profile-cprofile`, with
+`--profile-phases`; the stats are dumped before the SDK shutdown, which does not
+return) over 1000 completed steps showed pure-Python work repeated per robot or
+per reader poll on data that is immutable within a step:
+`RobotBinding.model_identity_sha256` recomputed `asdict + json + sha256` on every
+access; `SceneLayout.robot_support` rebuilt the shared `SupportObservation` with
+`dataclasses.replace` for each robot, re-running `__post_init__` over every solved
+contact; every client `state()` poll (about one per robot per step, served on the
+owner's GIL) walked the ~90 contacts again in `BaseState.as_dict`; and
+`identifier()` scanned every shape path and joint name character by character.
+Now the digest is a `cached_property` of the frozen binding (`replace` yields a
+new binding and a new digest); `SupportObservation.rebound` validates only the two
+identifiers it changes and keeps the shared, already validated contact tuple
+(non-plain records keep the `replace` path); `BaseState.as_dict` memoizes the plain
+copy of the contacts once per shared contact tuple and still hands every reader
+fresh containers; `identifier()` applies the same rule through a compiled regex.
+No check was removed and every reader reply is content-identical and isolated;
+tests count the walks and the re-validations.
+
+The [same-day A/B](evidence/microduck-owner-reader-rebind-20261007/REPORT.md)
+against the host-snapshot build (same recipe as above) measured the step median
+61.3 → 48.55 ms and p95 147.6 → 126.3: `completed.validate` 29.7 → 23.8 ms
+(0.57 → 0.28 per robot), `policy.prepare` 8.5 → 4.2, `publication` 5.4 → 3.0,
+`bam.before_step` unchanged at 13.9. All twelve client walks remain `unverified`
+on the unchanged deadlines. What remains: the GPU physics step (7.6 ms per 5 ms
+step), `bam.before_step` with ~230 Warp device→host copies per step (the twelve
+adapters' five output reads each are 60 device syncs; a cohort-level batched
+finiteness check is the next slice), the deep copies of `completed.validate` and
+`policy.prepare`, and the sparse `record.physics` / `camera.overview` writes that
+make the p95 tail.

@@ -385,3 +385,38 @@ def test_gc_callback_entering_after_final_fence_cannot_append_unaccounted_events
         pending.result(timeout=2)
     assert not capture.pending and json.dumps(batch) == serialized
     assert summary['observed'] == 0 and summary['accounting_complete']
+
+
+def test_sync_solve_diagnostic_waits_inside_the_solve_span_and_restores_step(tmp_path):
+    waited = []
+    class Owner:
+        physics_clock = (2, .01)
+        def _read_completed_scene(self): return None
+        def capture(self): return None
+        def support_probe(self): return None
+        def step(self):
+            self.physics_clock = (3, .015)
+            return 'stepped'
+    owner = Owner()
+    original = owner.step
+    profile = PhaseProfile(tmp_path/'timing.jsonl')
+    timing.instrument_owner(profile, owner, [], sync_solve=True, synchronize=lambda: waited.append(profile.clock()))
+    with profile.attempt(owner) as attempt:
+        assert owner.step() == 'stepped'
+        attempt['outcome'] = 'solved'
+    profile.close()
+    [span] = rows(tmp_path/'timing.jsonl')[0]['spans']
+    assert span['phase'] == 'solve' and len(waited) == 1
+    assert span['start_monotonic_ns'] <= waited[0] <= span['end_monotonic_ns']
+    assert owner.step.__func__ is original.__func__  # type: ignore[attr-defined]
+
+
+def test_sync_solve_is_off_by_default(tmp_path):
+    owner = SimpleNamespace(physics_clock=(2, .01), _read_completed_scene=lambda: None,
+        step=lambda: 'stepped', capture=lambda: None, support_probe=lambda: None)
+    profile = PhaseProfile(tmp_path/'timing.jsonl')
+    timing.instrument_owner(profile, owner, [], synchronize=lambda: (_ for _ in ()).throw(AssertionError('must not wait')))
+    with profile.attempt(owner) as attempt:
+        assert owner.step() == 'stepped'
+        attempt['outcome'] = 'solved'
+    profile.close()

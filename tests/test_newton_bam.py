@@ -60,13 +60,13 @@ def params(**overrides):
     return result
 
 
-def make_model(runtime):
+def make_model(runtime, hinges=16):
     wp, newton = runtime
     builder = newton.ModelBuilder()
     newton.solvers.SolverMuJoCo.register_custom_attributes(builder)
     root = builder.add_link(mass=1.0, inertia=wp.mat33(0.1, 0.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.0, 0.1))
     joints = [builder.add_joint_free(root)]
-    for i in range(16):
+    for i in range(hinges):
         body = builder.add_link(mass=0.1, inertia=wp.mat33(0.01, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.01))
         joints.append(builder.add_joint_revolute(root, body, label=f"hinge{i}",
                       effort_limit=0.96, target_ke=0.0, target_kd=0.0,
@@ -76,7 +76,7 @@ def make_model(runtime):
     return builder.finalize(device="cpu")
 
 
-def buffer_stage(runtime):
+def buffer_stage(runtime, hinges=16):
     """Channel test double: real Newton model + real Warp arrays, NO solver.
 
     Synthetic qfrc inputs exercise native bridge kernels, never a trajectory.
@@ -86,7 +86,7 @@ def buffer_stage(runtime):
     import numpy as np
 
     wp, _ = runtime
-    model = make_model(runtime)
+    model = make_model(runtime, hinges)
     n = model.joint_dof_count
     v5 = wp.types.vector(length=5, dtype=wp.float32)
     mjm = NS(nu=0, opt=NS(disableflags=0), dof_frictionloss=wp.full((1, n), 0.123, device="cpu"),
@@ -645,3 +645,108 @@ def test_manifest_matches_static_admission_and_has_no_implicit_profile():
     assert reference['kp_fw'] == 200. and reference['vin'] == 7.4
     assert reference['max_effort'] == reference['joint_effort_limit'] == 7.4*.36601349688984386/2.8113923539223227
     assert manifest['profiles']['nominal_no_current_limit_no_delay']['stiff_frictionloss'] is False
+
+
+# --- shared-scene host snapshot: one device read per world array per step ---
+
+def cohort_stage(runtime, source_root):
+    """Two adapters on ONE stage, disjoint owned DOFs (the shared-scene shape)."""
+    import numpy as np
+    stage = buffer_stage(runtime, hinges=28)
+    first = adapter_for(stage, source_root)
+    second_dofs = np.arange(20, 34, dtype=np.int64)
+    second = module().NewtonBamAdapter(stage, source_root=source_root, sdk_recipe=recipe(),
+                                       q_indices=second_dofs + 1, dof_indices=second_dofs, params=params())
+    return stage, first, second
+
+
+def counting_numpy(monkeypatch, wp):
+    calls = []
+    original = wp.array.numpy
+
+    def counted(self, *args, **kwargs):
+        calls.append(self)
+        return original(self, *args, **kwargs)
+    monkeypatch.setattr(wp.array, "numpy", counted)
+    return calls
+
+
+def test_cohort_snapshot_reads_each_world_array_once_with_identical_efforts(runtime, source_root, monkeypatch):
+    import numpy as np
+    wp, _ = runtime
+    private_stage, a1, b1 = cohort_stage(runtime, source_root)
+    shared_stage, a2, b2 = cohort_stage(runtime, source_root)
+    for adapter in (a1, b1, a2, b2):
+        adapter.set_targets(np.full(14, 0.1))
+    calls = counting_numpy(monkeypatch, wp)
+    efforts = {"private": [], "shared": []}
+    reads = {"private": [], "shared": []}
+    for step in range(3):
+        del calls[:]
+        a1.before_step(0.005)
+        b1.before_step(0.005)
+        reads["private"].append(len(calls))
+        efforts["private"].append(private_stage.control.joint_f.numpy().copy())
+        del calls[:]
+        snapshot = a2.host_snapshot()
+        a2.before_step(0.005, snapshot=snapshot)
+        b2.before_step(0.005, snapshot=snapshot)
+        reads["shared"].append(len(calls))
+        efforts["shared"].append(shared_stage.control.joint_f.numpy().copy())
+        for stage in (private_stage, shared_stage):
+            stage.simulation_step_count += 1
+        # The snapshot read each distinct world/model/solver array exactly once;
+        # only the adapters' own drive outputs (external torque + four outputs)
+        # were read privately. The private path paid for both adapters.
+        assert snapshot.device_reads >= 20
+        assert reads["shared"][-1] == snapshot.device_reads + 2 * 5
+        assert reads["private"][-1] == 2 * (snapshot.device_reads + 5)
+    for private, shared in zip(efforts["private"], efforts["shared"], strict=True):
+        np.testing.assert_array_equal(private, shared)
+        assert np.count_nonzero(private) == 28
+
+
+@pytest.mark.parametrize("case", ["other_stage", "stale_step", "not_a_snapshot"])
+def test_snapshot_must_belong_to_this_stage_and_step(runtime, source_root, case):
+    import numpy as np
+    stage, a, b = cohort_stage(runtime, source_root)
+    a.set_targets(np.full(14, 0.1))
+    if case == "other_stage":
+        other, _, _ = cohort_stage(runtime, source_root)
+        snapshot = module().BamHostSnapshot(other)
+    elif case == "stale_step":
+        snapshot = a.host_snapshot()
+        stage.simulation_step_count += 1
+    else:
+        snapshot = object()
+    with pytest.raises(RuntimeError):
+        a.before_step(0.005, snapshot=snapshot)
+    assert a.telemetry()["last_simulation_step_count"] is None
+    assert not np.any(stage.control.joint_f.numpy())
+
+
+@pytest.mark.parametrize("fault", ["damping", "nan_q", "dof_map"])
+def test_snapshot_path_keeps_every_fail_closed_check(runtime, source_root, fault):
+    import numpy as np
+    stage, a, b = cohort_stage(runtime, source_root)
+    for adapter in (a, b):
+        adapter.set_targets(np.full(14, 0.1))
+    if fault == "damping":
+        values = stage.model.joint_damping.numpy()
+        values[b.coordinate_indices[1][0]] = 0.5
+        stage.model.joint_damping.assign(values)
+    elif fault == "nan_q":
+        q = stage.state_0.joint_q.numpy()
+        q[b.coordinate_indices[0][3]] = np.nan
+        stage.state_0.joint_q.assign(q)
+    else:
+        mapping = stage.solver.mjc_dof_to_newton_dof.numpy()
+        mapping[0, b.coordinate_indices[1][0]] = -1
+        stage.solver.mjc_dof_to_newton_dof.assign(mapping)
+    snapshot = a.host_snapshot()
+    if fault == "damping":
+        # The first adapter's DOFs are untouched; it still actuates from the same snapshot.
+        a.before_step(0.005, snapshot=snapshot)
+    with pytest.raises((RuntimeError, ValueError)):
+        b.before_step(0.005, snapshot=snapshot)
+    assert b.telemetry()["last_simulation_step_count"] is None

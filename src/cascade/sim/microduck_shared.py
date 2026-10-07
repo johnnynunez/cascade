@@ -12,6 +12,7 @@ import re
 from contextlib import ExitStack
 from copy import deepcopy
 from dataclasses import asdict, dataclass, fields, replace
+from functools import cached_property
 
 import numpy as np
 
@@ -52,8 +53,12 @@ class RobotBinding:
     ground_shapes: tuple[str, ...]
     scene_model_sha256: str
 
-    @property
+    @cached_property
     def model_identity_sha256(self):
+        # A pure function of the frozen fields, so computed once per binding. The
+        # shared owner reads it twice per robot per step (support binding and the
+        # typed read); recomputing asdict + json + sha256 each time was 3.6 ms of a
+        # twelve-robot step. ``replace`` builds a new binding, hence a new digest.
         return hashlib.sha256(json.dumps(asdict(self), sort_keys=True, separators=(',', ':'),
                                          allow_nan=False).encode()).hexdigest()
 
@@ -93,8 +98,10 @@ class SceneLayout:
                     or (observed.observation.step, observed.observation.sim_time_s) != clock
                     or observed.observation.model_identity_sha256 != binding.scene_model_sha256):
                 raise ValueError('support scene/robot/clock binding mismatch')
-            return replace(observed.observation, epoch=epoch,
-                           model_identity_sha256=binding.model_identity_sha256)
+            # Metadata rebinding of the already validated immutable decode; no
+            # re-validation of every solved contact on each of the 24 reads per step.
+            return SupportObservation.rebound(observed.observation, epoch=epoch,
+                                              model_identity_sha256=binding.model_identity_sha256)
         if binding not in self.robots or (observed['step'], observed['sim_time_s']) != clock:
             raise ValueError('support robot/clock binding mismatch')
         result = deepcopy(observed)
@@ -313,6 +320,16 @@ class SharedMicroduckStepper:
             if sample.get(key) != stepper.identity[key]:
                 raise RuntimeError('shared observation identity/epoch mismatch')
 
+    def _host_snapshot(self):
+        """One per-step host snapshot when the actuators support it; else None.
+
+        Every actuator is bound to the same owner stage (checked at construction
+        and by each adapter against the snapshot), so the first one captures.
+        Software test doubles without ``host_snapshot`` keep the plain call.
+        """
+        capture = getattr(self.steppers[0].actuator, 'host_snapshot', None)
+        return capture() if callable(capture) else None
+
     def start(self):
         if self.started or self.closed or self.failure:
             raise RuntimeError('shared stepper already started/closed/faulted')
@@ -376,10 +393,13 @@ class SharedMicroduckStepper:
                 return None
             # The cohort is admitted. Do not re-veto or rewind a partially
             # applied BAM history if stop arrives after this linearization.
+            # One host snapshot of the world for every adapter's checks this step:
+            # captured after all policy commits, before the first actuation.
+            snapshot = self._host_snapshot()
             for s, item in zip(self.steppers, staged):
                 if item.candidate is not None:
                     s.actuator.set_targets(item.candidate[1])
-                s._prepare_actuator(item.prepared)
+                s._prepare_actuator(item.prepared, snapshot=snapshot)
             self.owner.step()
             results = []
             for s, item in zip(self.steppers, staged):

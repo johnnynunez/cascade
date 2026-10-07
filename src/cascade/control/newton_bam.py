@@ -194,6 +194,49 @@ def _validated_params(params):
     return p
 
 
+def _step_count_of(stage):
+    import numbers
+    count = getattr(stage, "simulation_step_count", None)
+    if isinstance(count, bool) or not isinstance(count, numbers.Integral) or count < 0:
+        raise RuntimeError("stage.simulation_step_count must be a nonnegative integer")
+    return int(count)
+
+
+class BamHostSnapshot:
+    """Host copies of the model/solver/state arrays an adapter checks, read ONCE.
+
+    Every ``.numpy()`` of a device array is a full device sync. A shared-scene
+    cohort of twelve adapters bound to the same stage re-read the same ~25
+    whole-model arrays per robot per step (~400 syncs, ~26 ms of a 5 ms step).
+    One snapshot per physics step lets each adapter run every one of its checks
+    unchanged, against the same bytes a private read would return, while the
+    device is read once per array. It is bound to the exact stage/model/solver
+    objects and to ``simulation_step_count`` at capture; an adapter refuses a
+    snapshot of another stage or step. Capture it after all model mutation for
+    the step and immediately before the cohort's ``before_step`` calls; it never
+    caches an adapter's own drive outputs.
+    """
+
+    def __init__(self, stage):
+        self.stage = stage
+        self.model, self.solver = getattr(stage, "model", None), getattr(stage, "solver", None)
+        self.step_count = _step_count_of(stage)
+        self._host = {}
+        self.device_reads = 0
+
+    def read(self, owner, name):
+        """Host copy of ``getattr(owner, name)``; one device read per (owner, array)."""
+        key = (id(owner), name)
+        try:
+            return self._host[key][1]
+        except KeyError:
+            value = getattr(owner, name).numpy()
+            self.device_reads += 1
+            # Keep the owner alive so its id() cannot be reused inside this step.
+            self._host[key] = (owner, value)
+            return value
+
+
 def _indices(values, name, limit):
     import numpy as np
 
@@ -218,6 +261,7 @@ class NewtonBamAdapter:
 
         self._wp, self._newton = _runtime(sdk_recipe=sdk_recipe)
         wp = self._wp
+        self._snapshot = None
         self._sources = load_pinned_bam(source_root, sdk_recipe=sdk_recipe)
         self._params = _validated_params(params)
         self._stage = stage
@@ -281,12 +325,31 @@ class NewtonBamAdapter:
             raise RuntimeError(f"{name}: expected contiguous, expanded Warp array shape={shape}, dtype={dtype}, device={self._device}")
         return value
 
+    def _read(self, obj, name):
+        """Host copy of a model/solver/state array: shared snapshot if bound, else a device read."""
+        if self._snapshot is not None:
+            return self._snapshot.read(obj, name)
+        return getattr(obj, name).numpy()
+
+    def _host(self, obj, name, dtype, shape):
+        self._array(obj, name, dtype, shape)
+        return self._read(obj, name)
+
+    def host_snapshot(self):
+        """Capture this stage's arrays once for a cohort's ``before_step`` calls this step."""
+        return BamHostSnapshot(self._stage)
+
+    def _bind_snapshot(self, snapshot, count):
+        if not isinstance(snapshot, BamHostSnapshot):
+            raise RuntimeError("snapshot must be a BamHostSnapshot of this stage")
+        if (snapshot.stage is not self._stage or snapshot.model is not self._model
+                or snapshot.solver is not self._solver):
+            raise RuntimeError("host snapshot belongs to another stage/model/solver")
+        if snapshot.step_count != count:
+            raise RuntimeError("host snapshot was captured on another simulation_step_count")
+
     def _step_count(self):
-        import numbers
-        count = getattr(self._stage, "simulation_step_count", None)
-        if isinstance(count, bool) or not isinstance(count, numbers.Integral) or count < 0:
-            raise RuntimeError("stage.simulation_step_count must be a nonnegative integer")
-        return int(count)
+        return _step_count_of(self._stage)
 
     def _validate_binding(self):
         import numpy as np
@@ -317,9 +380,9 @@ class NewtonBamAdapter:
         if getattr(mjm, "nu", None) != 0 or model.actuators:
             raise RuntimeError("native BAM requires no other MJWarp/Newton actuator pipeline")
         n = model.joint_dof_count
-        qs = self._array(model, "joint_q_start", wp.int32, (model.joint_count + 1,)).numpy()
-        ds = self._array(model, "joint_qd_start", wp.int32, (model.joint_count + 1,)).numpy()
-        types = self._array(model, "joint_type", wp.int32, (model.joint_count,)).numpy()
+        qs = self._host(model, "joint_q_start", wp.int32, (model.joint_count + 1,))
+        ds = self._host(model, "joint_qd_start", wp.int32, (model.joint_count + 1,))
+        types = self._host(model, "joint_type", wp.int32, (model.joint_count,))
         for q, dof in zip(self._qs, self._dofs):
             joints = np.flatnonzero(ds[:-1] == dof)
             if (len(joints) != 1 or types[joints[0]] != int(self._newton.JointType.REVOLUTE)
@@ -327,13 +390,13 @@ class NewtonBamAdapter:
                 raise ValueError("q_indices/dof_indices must identify matching scalar revolute joints")
         for field, dtype in (("joint_target_mode", wp.int32), ("joint_target_ke", wp.float32),
                              ("joint_target_kd", wp.float32)):
-            if np.any(self._array(model, field, dtype, (n,)).numpy()[self._dofs] != 0):
+            if np.any(self._host(model, field, dtype, (n,))[self._dofs] != 0):
                 raise RuntimeError(f"residual drive in {field}; disable it before binding BAM")
         for field, coefficient in (("joint_damping", "friction_viscous"), ("joint_armature", "armature")):
-            values = self._array(model, field, wp.float32, (n,)).numpy()[self._dofs]
+            values = self._host(model, field, wp.float32, (n,))[self._dofs]
             if not np.all((values == 0) | np.isclose(values, M6_PARAMETERS[coefficient], rtol=1e-6, atol=0)):
                 raise RuntimeError(f"{field} already has a different coefficient; no silent retuning")
-        limits = self._array(model, "joint_effort_limit", wp.float32, (n,)).numpy()[self._dofs]
+        limits = self._host(model, "joint_effort_limit", wp.float32, (n,))[self._dofs]
         if not np.allclose(limits, self._params["joint_effort_limit"], rtol=1e-6, atol=0):
             raise RuntimeError("model joint_effort_limit differs from explicit BAM effort contract")
         self._array(self._stage.state_0, "joint_q", wp.float32, (model.joint_coord_count,))
@@ -342,8 +405,7 @@ class NewtonBamAdapter:
         dof_map = getattr(solver, "mjc_dof_to_newton_dof", None)
         if not isinstance(dof_map, wp.array) or dof_map.ndim != 2 or min(dof_map.shape) < 1:
             raise RuntimeError("MJWarp dof map must be a nonempty 2-D array")
-        self._array(solver, "mjc_dof_to_newton_dof", wp.int32, dof_map.shape)
-        mapping = dof_map.numpy()
+        mapping = self._host(solver, "mjc_dof_to_newton_dof", wp.int32, dof_map.shape)
         if np.any(mapping < -1) or np.any(mapping >= n):
             raise RuntimeError("MJWarp dof map contains out-of-range indices")
         cells = [np.argwhere(mapping == dof) for dof in self._dofs]
@@ -361,7 +423,7 @@ class NewtonBamAdapter:
         attrs = getattr(model, "mujoco", None)
         self._array(attrs, "solreffriction", wp.vec2, (n,))
         self._array(attrs, "solimpfriction", vec5, (n,))
-        if np.any(self._array(attrs, "dof_passive_stiffness", wp.float32, (n,)).numpy()[self._dofs] != 0):
+        if np.any(self._host(attrs, "dof_passive_stiffness", wp.float32, (n,))[self._dofs] != 0):
             raise RuntimeError("owned joints have a residual passive spring")
         for field in ("qfrc_bias", "qfrc_constraint"):
             self._array(mjd, field, wp.float32, shape)
@@ -379,18 +441,18 @@ class NewtonBamAdapter:
 
         cells = tuple(self._solver_cells.T)
         for field, expected in getattr(self, "_bound_friction", {}).items():
-            if not np.array_equal(getattr(self._model.mujoco, field).numpy()[self._dofs], expected):
+            if not np.array_equal(self._read(self._model.mujoco, field)[self._dofs], expected):
                 raise RuntimeError("bound friction constraint tuning changed; rebind explicitly")
         for model_field, solver_field, coefficient in (
                 ("joint_damping", "dof_damping", "friction_viscous"),
                 ("joint_armature", "dof_armature", "armature")):
-            for values in (getattr(self._model, model_field).numpy()[self._dofs],
-                           getattr(self._solver.mjw_model, solver_field).numpy()[cells]):
+            for values in (self._read(self._model, model_field)[self._dofs],
+                           self._read(self._solver.mjw_model, solver_field)[cells]):
                 if not np.allclose(values, M6_PARAMETERS[coefficient], rtol=1e-6, atol=0):
                     raise RuntimeError(f"{model_field}/{solver_field} not synchronized to M6 before actuation")
         for model_field, solver_field in (("solreffriction", "dof_solref"), ("solimpfriction", "dof_solimp")):
-            if not np.array_equal(getattr(self._model.mujoco, model_field).numpy()[self._dofs],
-                                  getattr(self._solver.mjw_model, solver_field).numpy()[cells]):
+            if not np.array_equal(self._read(self._model.mujoco, model_field)[self._dofs],
+                                  self._read(self._solver.mjw_model, solver_field)[cells]):
                 raise RuntimeError(f"{solver_field} is not synchronized before actuation")
 
     def _check_live(self):
@@ -399,7 +461,7 @@ class NewtonBamAdapter:
             raise RuntimeError("stage model/solver changed; construct a new BAM adapter")
         if any(getattr(obj, name, None) is not reference for obj, name, reference in self._bound_channels):
             raise RuntimeError("bound solver channels replaced; construct a new BAM adapter")
-        if not np.array_equal(self._solver.mjc_dof_to_newton_dof.numpy(), self._bound_map):
+        if not np.array_equal(self._read(self._solver, "mjc_dof_to_newton_dof"), self._bound_map):
             raise RuntimeError("bound solver DOF map changed; construct a new BAM adapter")
         self._validate_binding()
         self._check_model_sync()
@@ -427,11 +489,14 @@ class NewtonBamAdapter:
         self._targets.assign(targets)
         self._armed = True
 
-    def before_step(self, dt):
+    def before_step(self, dt, *, snapshot=None):
         """Prepare effort/friction for ONE external solver step; never step it.
 
         Host-side checks are intentionally outside CUDA graph capture. A caller
         must abort the physics step on any exception, not reuse old efforts.
+        ``snapshot`` (a ``BamHostSnapshot`` of this stage, captured this step)
+        lets a shared-scene cohort run these checks against one set of host
+        copies; every check still runs for every adapter.
         """
         import numbers
         import numpy as np
@@ -441,19 +506,26 @@ class NewtonBamAdapter:
         if (isinstance(dt, bool) or not isinstance(dt, numbers.Real) or not np.isfinite(dt)
                 or not np.isclose(dt, self._params["physics_dt"], rtol=1e-7, atol=0)):
             raise ValueError("dt must match the explicit physics_dt")
-        self._check_live()
         count = self._step_count()
-        if self._last_step is not None and count != self._last_step + 1:
-            raise RuntimeError("BAM cadence requires exactly one before_step per consecutive simulation_step_count")
-        if self._steps_since_reset >= 2**31 - 1:
-            raise RuntimeError("BAM native int32 step history exhausted; reset required")
-        state = self._stage.state_0
-        if not (np.isfinite(state.joint_q.numpy()).all() and np.isfinite(state.joint_qd.numpy()).all()):
-            raise ValueError("nonfinite physics state; no BAM actuation")
-        mjd = self._solver.mjw_data
-        nefc = mjd.nefc.numpy()
-        if np.any(nefc < 0) or np.any(nefc > mjd.efc.force.shape[1]):
-            raise RuntimeError("MJWarp nefc exceeds the constraint array capacity")
+        if snapshot is None:
+            snapshot = BamHostSnapshot(self._stage)
+        self._bind_snapshot(snapshot, count)
+        self._snapshot = snapshot
+        try:
+            self._check_live()
+            if self._last_step is not None and count != self._last_step + 1:
+                raise RuntimeError("BAM cadence requires exactly one before_step per consecutive simulation_step_count")
+            if self._steps_since_reset >= 2**31 - 1:
+                raise RuntimeError("BAM native int32 step history exhausted; reset required")
+            state = self._stage.state_0
+            if not (np.isfinite(self._read(state, "joint_q")).all() and np.isfinite(self._read(state, "joint_qd")).all()):
+                raise ValueError("nonfinite physics state; no BAM actuation")
+            mjd = self._solver.mjw_data
+            nefc = self._read(mjd, "nefc")
+            if np.any(nefc < 0) or np.any(nefc > mjd.efc.force.shape[1]):
+                raise RuntimeError("MJWarp nefc exceeds the constraint array capacity")
+        finally:
+            self._snapshot = None
         if self._skip_external_once:
             self._drive.external_torque.zero_()
         else:

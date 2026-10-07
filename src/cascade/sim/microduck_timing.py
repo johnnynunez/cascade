@@ -233,12 +233,35 @@ class PhaseProfile:
             raise first
 
 
-def instrument_owner(profile, owner, steppers):
-    """Install only in the explicitly profiled shared CLI, after model binding."""
+def instrument_owner(profile, owner, steppers, *, sync_solve=False, synchronize=None):
+    """Install only in the explicitly profiled shared CLI, after model binding.
+
+    ``sync_solve`` is a diagnostic: the ``solve`` span then also waits for the
+    device to finish the step, so GPU physics time is attributed to ``solve``
+    instead of to the first host read after it (``support.decode``). It
+    serializes CPU and GPU work and is never on by default. ``synchronize``
+    overrides the device wait (tests); the default synchronizes the owner's
+    Newton model device through Warp.
+    """
     from . import microduck_contact_support as support, microduck_shared_native as native
 
     profile.wrap(support, 'read_support', 'support.decode')
     profile.wrap(native, '_read_native_states', 'native.capture')
+    if sync_solve:
+        wait = synchronize
+        if wait is None:
+            import warp as wp
+            device = owner.ns.model.device
+            def wait():
+                wp.synchronize_device(device)
+        original_step = owner.step
+        @wraps(original_step)
+        def synced_step(*args, **kwargs):
+            result = original_step(*args, **kwargs)
+            wait()
+            return result
+        owner.step = synced_step
+        profile.restores.append((owner, 'step', original_step, 'step' in vars(owner)))
     for name, phase in (('_read_completed_scene', 'completed.read'), ('step', 'solve'),
                         ('capture', 'camera.capture'), ('support_probe', 'support.probe')):
         profile.wrap(owner, name, phase)

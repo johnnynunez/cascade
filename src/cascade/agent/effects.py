@@ -720,6 +720,14 @@ def annotate_result(result: dict, pc: Postcondition | None) -> dict:
     """
     if pc is None:
         return result
+    if result.get("outcome") == "stuck" and pc.status == CONFIRMED:
+        # A stuck step claims NO effect (RPent's third outcome is "I need a
+        # human", not "it worked after all"). Independent evidence of a
+        # displacement during an exhausted pick -- the object nudged, lifted
+        # and dropped -- must not become a confirmed relocation; a refuted
+        # or unverified verdict stays exactly as measured.
+        pc.status = UNVERIFIED
+        pc.evidence += "; step is stuck: no effect is claimed"
     result["postcondition"] = pc.as_dict()
     # Replace stale/self-reported credit even when execution already failed.
     result["verified"] = pc.confirmed

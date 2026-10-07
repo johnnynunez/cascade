@@ -126,15 +126,16 @@ shared boundary is `RobotRuntime.execute()`, as shown in the
                  host LLM picks tools over MCP stdio                         --task / --interactive
                           │                                                          │
                           ▼                                                          ▼
-              apps/mcp_server.py  ── 41 tools ──┐                  agent/orchestrator.py
-              (34 specs − task_done              │                  tier 1 REFLEX   regex grammar      ~µs
+              apps/mcp_server.py  ── 42 tools ──┐                  agent/orchestrator.py
+              (35 specs − task_done              │                  tier 1 REFLEX   regex grammar      ~µs
                + 8 host extras: camera_snapshot, │                  tier 2 HABIT    experience memory  ~ms
                world_state, task_memory, ...)    │                  tier 3 LLM      + memory harness   2–15 s/turn
                                                  ▼                            │
                               skills/runtime.py  SkillRuntime.execute()  ◀────┘
                               ONE choke point: arm selection, BEFORE keyframe, watcher pause,
                               skill body, postcondition VERIFY, envelope, AFTER keyframe,
-                              trace row (with tier), memory tuple <frame, action, verdict>
+                              trace row (with tier), memory tuple <frame, action, verdict>,
+                              outcome stamp ok | failed | stuck (+ human-facing ask)
                                                  │
         ┌──────────────┬──────────────┬──────────┼───────────────┬─────────────────┬──────────────┐
         ▼              ▼              ▼          ▼               ▼                 ▼              ▼
@@ -205,19 +206,36 @@ tier or host. In order:
    target object.
 3. Watcher paused for motion skills; the skill body runs; every exception
    becomes `{"ok": false, "error": ...}` -- nothing escapes by design.
+   Every result is then stamped with one of three outcomes, `outcome: ok |
+   failed | stuck`. `stuck` (`SkillStuck`, or a result that says so) is
+   RPent's third finish status: the persistence loop spent its budget, or
+   stopped for a reason no retry cures (object never seen after re-scans,
+   wider than the jaws, destination not placeable) and `ask` is the
+   concrete human-actionable request. A stuck result is forced to
+   `ok: false` and never `verified`; the e-stop and every harness refusal
+   stay plain failures. The orchestrator ends the task on it (fast path and
+   LLM tier alike), relays the ask verbatim and writes `outcome: stuck` to
+   `summary.txt`.
 4. **Postcondition verification** (`agent/effects.py`): the effect is
    measured on the strongest available channel -- `physics` (sim truth),
    `belief` (perception), `gripper` (jaw width). A refuted claim
    *downgrades* `ok` and sets `self_reported_ok`. A displacement is two
    readings of the SAME channel (`_comparable_start`); a verifier that
    itself crashes yields an UNVERIFIED verdict naming the cause, never a
-   silent pass.
+   silent pass. A confirmed verdict on a stuck step is downgraded to
+   unverified (a stuck step claims no effect); refuted stays refuted.
 5. Envelope update (`memory/envelope.py`), AFTER keyframe -- a FRESH frame
    for motion skills, taken after the arm stopped (the pre-motion
    `last_frame` graded the logger, not the robot, and an outcome judge
    scored 0% on a confirmed pick).
 6. Trace row (`trace.jsonl`, with `tier`), and the Vesta memory tuple:
-   AFTER frame + action text + independent verdict.
+   AFTER frame + action text + independent verdict. `recall_step(n)` reads
+   this evidence back for the planner/chat host (RPent
+   `view_env_state(step=N)`): skill, args, outcome/ask, verdict, tier and
+   the BEFORE/AFTER keyframes -- served over MCP as image content items
+   with one caption each, and shown to the LLM tier once on its next turn.
+   Negative `n` counts from the end; recall rows are not steps; an invalid
+   `n` is an explicit error and never an old frame.
 
 For single-arm Isaac kitchen `pick_and_place` calls that report a completed
 motion to the configured green square or open box, `sim/placement.py` adds a fresh
@@ -517,7 +535,7 @@ src/cascade/
 │   ├── aspire.py       post-run diagnosis → skill-library note
 │   └── trace.py        trace.jsonl + keyframes
 ├── skills/
-│   ├── runtime.py      SkillRuntime: 33 skills + task_done, TOOL_SPECS, _MOTION_SKILLS
+│   ├── runtime.py      SkillRuntime: 34 skills + task_done, TOOL_SPECS, _MOTION_SKILLS
 │   ├── contact_episode.py / release_episode.py  scoped retained recovery
 │   ├── held_observation.py aiming estimates vs coherent release authority
 │   └── library.py      markdown repair notes; written by aspire.py, retrieved per task
@@ -532,7 +550,7 @@ src/cascade/
 ├── eval/progress_judge.py   Robo-Dopamine progress judge (GRM / VLM), off the hot path
 └── apps/
     ├── demo.py         build_runtime() = the composition root; CLI --task / --interactive
-    ├── mcp_server.py   MCP stdio front-end: 41 tools, out-of-band stop, per-call log
+    ├── mcp_server.py   MCP stdio front-end: 42 tools, out-of-band stop, per-call log
     ├── process_owner.py profile-owned process identity for shutdown and proof binding
     ├── stream_server.py lazy MJPEG dashboard (+ chat, STOP)     live_view.py  RigViewer
     ├── live_control.py viewer-driven control        record.py / viewer.py  capture / view

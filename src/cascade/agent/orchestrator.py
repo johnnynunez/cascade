@@ -67,6 +67,10 @@ class TaskReport:
     #: milestones that could not be verified -- surfaced so a "success"
     #: claim can never quietly outrun the evidence
     unverified: list[str] = field(default_factory=list)
+    #: set when the task ended on a `stuck` step (RPent's third finish
+    #: status): {"skill", "args", "ask"} -- the ask is the human-actionable
+    #: request, relayed verbatim; the step was NOT retried
+    stuck: dict | None = None
 
 
 class AgentOrchestrator:
@@ -108,6 +112,9 @@ class AgentOrchestrator:
         #: ablation scores lowest: the planner over-trusts the text and keeps
         #: "continuing the current task"). Needs a vision model.
         self.memory_frames_k = int(memory_frames_k) if self.attach_images else 0
+        #: keyframes a just-executed `recall_step` loaded, shown to the planner
+        #: on its next turn only (RPent `view_env_state(step=N)`), then dropped
+        self._pending_recall: list[dict] = []
         # Existing reflexes/experience encode arm keyframes and grasps; never
         # consult that library for another morphology.
         self.fast_planner = None if self._mobile else fast_planner
@@ -247,6 +254,20 @@ class AgentOrchestrator:
                     success = success and result.get("success") is True
                 return self._finish_report(task, success, summary, step, milestones, tool_log, t_start)
 
+            # RPent `finish(status=stuck)`: the skill exhausted what the robot
+            # can do on its own and named what the HUMAN should change. The
+            # task ends here -- no re-plan, no retry of the step with a fresh
+            # budget -- and the ask is relayed verbatim to whoever is reading.
+            if isinstance(result, dict) and result.get("outcome") == "stuck":
+                return self._finish_stuck(task, call.name, dict(call.arguments), result,
+                                          step, milestones, tool_log, t_start)
+
+            # The planner asked to see a past step: show it the recalled
+            # keyframes on its NEXT turn, inside the one message that carries
+            # images (the memory harness), then forget them.
+            if call.name == "recall_step" and result.get("ok"):
+                self._pending_recall = list(getattr(self.runtime, "last_recalled_frames", None) or [])
+
             ok = bool(result.get("ok"))
             consecutive_failures = 0 if ok else consecutive_failures + 1
             if self.advisor is not None:
@@ -355,7 +376,7 @@ class AgentOrchestrator:
                                    milestones, tool_log, t_start)
 
     def _finish_report(self, task, success, summary, steps, milestones, tool_log,
-                       t_start, *, path="llm", verify_milestones=True):
+                       t_start, *, path="llm", verify_milestones=True, stuck=None):
         """Every normal exit retains the task's unresolved effects and history."""
         status, unverified = self._final_check(success) if verify_milestones else ([], [])
         task_verifier = getattr(self.runtime, "unverified_actions", None)
@@ -364,15 +385,38 @@ class AgentOrchestrator:
             success = success and not unverified
         if unverified:
             summary += "\n[verification] could not confirm: " + "; ".join(unverified)
+        if stuck is not None:
+            success = False  # a stuck task is never a success, whatever was claimed
         duration = round(time.monotonic() - t_start, 2)
+        # summary.txt records the third outcome explicitly: a reader of the
+        # run directory sees `outcome: stuck` and the ask verbatim, not just
+        # `success: False`.
+        stuck_lines = (f"outcome: stuck\nask: {stuck['ask']}\n" if stuck is not None else "")
         self.runtime.trace.finish(
-            f"task: {task}\nsuccess: {success}\nsteps: {steps}\npath: {path}\n"
+            f"task: {task}\nsuccess: {success}\n{stuck_lines}steps: {steps}\npath: {path}\n"
             f"duration_s: {duration}\n{summary}"
         )
         return TaskReport(
             task, success, summary, steps, milestones, tool_log, path=path,
             duration_s=duration, milestone_status=status, unverified=unverified,
+            stuck=stuck,
         )
+
+    def _finish_stuck(self, task, skill, args, result, steps, milestones, tool_log,
+                      t_start, *, path="llm"):
+        """End the task on a `stuck` step: the ask is relayed VERBATIM (report
+        summary, memory note, summary.txt) and the step is not retried by
+        any tier. The human changes the scene or the instruction; the next
+        task starts fresh."""
+        ask = str(result.get("ask") or "")
+        stuck = {"skill": skill, "args": args, "ask": ask}
+        try:
+            self.runtime.memory.add("note", f"stuck at {skill}: {ask}")
+        except Exception:  # noqa: BLE001 -- reporting must never break the exit
+            pass
+        summary = f"stuck at {skill}({_short_args(args)}): {ask}"
+        return self._finish_report(task, False, summary, steps, milestones, tool_log,
+                                   t_start, path=path, verify_milestones=False, stuck=stuck)
 
     # ── Pigey: outcome tracking ──────────────────────────────────────────
 
@@ -428,6 +472,16 @@ class AgentOrchestrator:
                 self.runtime.current_tier = None
             tool_log.append({"step": i, "tier": str(plan.source), "tool": name,
                              "args": args, "result": result})
+            if isinstance(result, dict) and result.get("outcome") == "stuck":
+                # The fast tier's step needs a human. Escalating to the LLM
+                # would only buy the same pick a fresh persistence budget --
+                # a visitor watching minutes of retries. End here, ask.
+                self.fast_planner.note_outcome(task, plan.calls, False, time.monotonic() - t_start)
+                return (
+                    self._finish_stuck(task, name, dict(args), result, i, [], tool_log, t_start,
+                                       path=str(plan.source)),
+                    None,
+                )
             task_verifier = getattr(self.runtime, "unverified_actions", None)
             unverified = task_verifier() if task_verifier is not None else []
             if not result.get("ok", False) or unverified:
@@ -474,14 +528,24 @@ class AgentOrchestrator:
         Falls back to the plain pruned conversation when there is nothing to
         show (no vision model, K=0, no frames yet)."""
         pruned = self._prune_images(messages)
-        if self.memory_frames_k <= 0:
+        # A `recall_step` executed last turn: its BEFORE/AFTER keyframes ride
+        # along ONCE, inside the single message that carries images, placed
+        # before the current view so "the LAST image is the current view"
+        # stays true. Text-only planners get the JSON result alone.
+        recall = self._pending_recall if self.attach_images else []
+        self._pending_recall = []
+        if self.memory_frames_k <= 0 and not recall:
             return pruned
         try:
-            frames = self.runtime.memory.memory_frames(self.memory_frames_k)
+            frames = self.runtime.memory.memory_frames(self.memory_frames_k) if self.memory_frames_k > 0 else []
         except AttributeError:
             frames = []
         images = [f["jpeg"] for f in frames]
         lines = [self.runtime.memory.frame_caption(f) for f in frames]
+        for fr in recall:
+            if fr.get("jpeg"):
+                images.append(fr["jpeg"])
+                lines.append(f"recalled {fr.get('caption', 'step')}")
         current = self.runtime.frame_jpeg() if self.runtime.last_frame is not None else None
         if current is not None:
             images.append(current)
@@ -496,6 +560,9 @@ class AgentOrchestrator:
             "must happen next and why), then call the tool.\n"
             + "\n".join(f"{i + 1}. {ln}" for i, ln in enumerate(lines))
         )
+        if recall:
+            text += ("\nThe 'recalled' image(s) are the keyframes recorded around the past "
+                     "step you asked about, shown once; they are not the current view.")
         # Strip any image the pruned history still carries: the harness is
         # now the single place images enter the request.
         pruned = [

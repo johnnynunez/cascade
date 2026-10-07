@@ -453,9 +453,21 @@ Open follow-ups from this work:
 12. **Capability matrix → tool surface (Waddle).** Compute `_EXCLUDED_TOOLS`
     from what the rig can do (depth, sidecars, n_arms) instead of
     `CASCADE_HIDE_TOOLS` by hand. (S)
-13. **`recall_step(n)` + a `stuck` outcome (RPent).** Trace keyframes already
+13. ~~**`recall_step(n)` + a `stuck` outcome (RPent).** Trace keyframes already
     exist per step; expose them, and let motion skills return a human-
-    actionable ask distinct from failure. (S)
+    actionable ask distinct from failure. (S)~~ **landed 2026-10-07** —
+    `recall_step(n)` (34th skill, 42 MCP tools) reads the trace row +
+    BEFORE/AFTER keyframes back for the planner (shown once on its next
+    turn) and the chat host (image content items, one caption each, like
+    `task_memory`); every result now carries `outcome: ok | failed | stuck`,
+    where `stuck` is `ok: false` + a human-actionable `ask` from the
+    persistence loops (`pick_and_place`, `_grasp_with_persistence` →
+    `handover`/`sort_by_color`), the orchestrator ends the task on it without
+    a retry and `summary.txt` records `outcome: stuck`. Measured on the mock
+    stack (`tests/test_recall_step_stuck.py`, 12 tests): recalled bytes ==
+    the recorded keyframe files; a 2-attempt budget yields exactly 2 grasp
+    attempts, one pick, zero LLM re-plans; e-stop stays a plain failure. No
+    physics, limit or asset change; no physical acceptance.
 
 ## Landed 2026-09-09 (second pass): sidecars that tell the truth, ROS2 arms, an outcome judge
 

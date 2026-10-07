@@ -33,6 +33,26 @@ LLAMA_DIR="${LLAMA_DIR:-$REPO/.llama.cpp}"
 LLAMA_SERVER="${LLAMA_SERVER:-$LLAMA_DIR/build/bin/llama-server}"
 PORT="${PORT:-8080}"
 CTX="${CTX:-32768}"
+# CUDA architecture of the GPU that runs the brain. The DGX Spark's GB10 is
+# sm_121; the x86 test rig's RTX PRO 6000 Blackwell is sm_120. A value hardcoded
+# for one host makes the owned build (and its receipt check) wrong on the other,
+# so the architecture is read from the visible GPU unless CASCADE_LLAMA_CUDA_ARCH
+# names it explicitly. Only the owned source build and its receipt depend on it.
+cuda_arch() {
+    if [[ -n "${CASCADE_LLAMA_CUDA_ARCH:-}" ]]; then
+        [[ "$CASCADE_LLAMA_CUDA_ARCH" =~ ^[0-9]{2,3}$ ]] || {
+            printf 'CASCADE_LLAMA_CUDA_ARCH must be a CUDA architecture number such as 120 or 121.\n' >&2; return 1; }
+        printf '%s' "$CASCADE_LLAMA_CUDA_ARCH"
+        return 0
+    fi
+    local selector=() cap
+    [[ "${CUDA_VISIBLE_DEVICES:-}" == GPU-* ]] && selector=(--id="${CUDA_VISIBLE_DEVICES%%,*}")
+    cap="$(nvidia-smi "${selector[@]}" --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -n1 | tr -d ' .')"
+    [[ "$cap" =~ ^[0-9]{2,3}$ ]] || {
+        printf 'Cannot read the CUDA compute capability from nvidia-smi; set CASCADE_LLAMA_CUDA_ARCH (120 for RTX PRO 6000 Blackwell, 121 for the GB10 Spark).\n' >&2
+        return 1; }
+    printf '%s' "$cap"
+}
 MODE=serve
 case "${1:-}" in
     --check) MODE=check; shift ;;
@@ -70,7 +90,9 @@ check_source() {
 }
 
 runtime_receipt() {
-    "$PY" -B - "$LLAMA_DIR" "$LLAMA_REF" "$1" <<'PYEOF'
+    local arch
+    arch="$(cuda_arch)" || return 1
+    "$PY" -B - "$LLAMA_DIR" "$LLAMA_REF" "$1" "$arch" <<'PYEOF'
 import hashlib, json, pathlib, platform, sys
 root = pathlib.Path(sys.argv[1])
 receipt = root / "build/.cascade-runtime.json"
@@ -79,7 +101,7 @@ def digest(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 files = sorted({root / "build/bin/llama-server", *(p.resolve() for p in (root / "build/bin").glob("*.so*"))})
 data = {"source_revision": sys.argv[2], "architecture": platform.machine(),
-        "cuda_architecture": "121", "files": {str(p.relative_to(root)): digest(p) for p in files}}
+        "cuda_architecture": sys.argv[4], "files": {str(p.relative_to(root)): digest(p) for p in files}}
 if sys.argv[3] == "record":
     receipt.write_text(json.dumps(data, indent=2) + "\n")
 else:
@@ -87,6 +109,9 @@ else:
         saved = json.loads(receipt.read_text())
     except (OSError, ValueError):
         raise SystemExit("Missing llama.cpp build receipt; rerun --setup-only to build the pinned runtime.")
+    if saved.get("cuda_architecture") != data["cuda_architecture"]:
+        raise SystemExit(f"llama.cpp runtime was built for CUDA architecture {saved.get('cuda_architecture')!r} but this GPU "
+                         f"needs {data['cuda_architecture']!r}; rebuild with --setup-only on this host or set CASCADE_LLAMA_CUDA_ARCH.")
     if saved != data:
         raise SystemExit("llama.cpp runtime differs from its pinned build receipt; preserve it and repair explicitly.")
 PYEOF
@@ -134,8 +159,9 @@ if [[ ! -x "$LLAMA_SERVER" || ( "$LLAMA_DIR" == "$REPO/.llama.cpp" && "$LLAMA_SE
         git -C "$LLAMA_DIR" checkout --detach FETCH_HEAD
     fi
     check_source
+    arch="$(cuda_arch)" || exit 1
     cmake -S "$LLAMA_DIR" -B "$LLAMA_DIR/build" -G Ninja -DGGML_CUDA=ON \
-        -DCMAKE_CUDA_ARCHITECTURES=121 -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_CUDA_ARCHITECTURES="$arch" -DCMAKE_BUILD_TYPE=Release \
         -DLLAMA_BUILD_UI=OFF -DLLAMA_OPENSSL=OFF
     cmake --build "$LLAMA_DIR/build" --config Release -j"${JOBS:-4}" --target llama-server
     runtime_receipt record

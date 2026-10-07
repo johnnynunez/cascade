@@ -1,0 +1,45 @@
+# Unitree H2 whole-body locomotion candidate on PhysX; NOT physical admission.
+# Embodiment: NVIDIA's public Isaac Sim asset Isaac/Robots/Unitree/H2/H2.usda
+# (URDF-USD-Converter output of unitree_ros h2_description, 31 revolute joints)
+# driven by NVIDIA's Velocity-H2-History-v0 bundle (TorchScript 255 -> 14, 14
+# leg+waist joints, 50 Hz control / 200 Hz physics, trained on PhysX in AGILE).
+# Pins and provenance: configs/h2/bundle.json; contract: control/h2_policy_contract.py;
+# design and gates: docs/HUMANOID_H2.md. The arms, head and waist yaw are held at
+# their default positions by the owner, never by the policy.
+# CASCADE_MICRODUCK_{ASSET_SHA256,MODEL_IDENTITY_SHA256,BRIDGE_PORT,ENGINE,DEVICE}
+# remain the validated overrides (shared mobile-base environment contract).
+type: isaac
+robot_id: h2
+source: isaac-h2
+# The bundle's policy was trained on PhysX; Newton runs are a separate experiment
+# (the closed-loop Newton asset is newton-assets PR #53, no Newton-trained policy).
+engine: physx
+device: null
+# Composed stage identity is bound at open from the bridge receipt, not pre-pinned.
+asset_sha256: null
+policy_sha256: 0a47182bbe203eddc2b7a9185f822c14d3799723f8b8392c7a2895d25d449c83
+model_identity_sha256: null
+support_contract: null
+bridge_host: 127.0.0.1
+bridge_port: null
+timeout_s: 0.5
+physics_dt: 0.005
+policy_dt: 0.020
+capabilities: [walk_velocity, turn, stop_navigation]
+admission: pending_physical_admission
+# Parent must supply measured/frozen verifier limits (VERIFIER_REPORT contract).
+verifier: null
+safety:
+  # Inside the bundle's training command ranges (lin_vel_x/y +-0.5 m/s,
+  # ang_vel_z +-1.0 rad/s); the harness never commands beyond them.
+  max_vx: 0.4
+  max_vy: 0.2
+  max_wz: 0.6
+  max_duration_s: 3.0
+  max_state_age_s: 0.5
+  max_no_progress_s: 0.4
+  max_wall_duration_s: 8.0
+  poll_interval_s: 0.01
+  turn_speed_rad_s: 0.5
+  turn_tolerance_rad: 0.03
+  max_turn_angle_rad: 1.0

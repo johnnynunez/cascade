@@ -211,6 +211,7 @@ explicit construction and validate its declared capabilities.
 | `h1` | [Unitree H1](https://github.com/unitreerobotics/unitree_ros) right arm (gen 1: bare forearm, no hand) | 4 | ROS2 topics | a sourced ROS2 env — **untested on hardware** |
 | `h1_2` | [Unitree H1-2](https://github.com/unitreerobotics/unitree_ros) right arm (7-DoF wrist, flange) | 7 | ROS2 topics | a sourced ROS2 env — **untested on hardware** |
 | `h1_mock` / `h1_2_mock` | same, kinematic only | 4 / 7 | — | nothing |
+| `h2_velocity_physx` (base profile) | [Unitree H2](https://github.com/unitreerobotics/unitree_ros) whole body: NVIDIA's public H2 USD + `Velocity-H2-History-v0` walking policy (14 of 31 joints), PhysX first — **candidate, no admission gate passed**; [design](docs/HUMANOID_H2.md) | 31 (14 commanded) | Isaac Sim 6.2 bridge (to build) | `scripts/h2_assets.py` (SHA-256 pinned policy) |
 | `rebot_rs` | Seeed reBot DevArm B601 (RobStride) | 6 | RobStride over SocketCAN | `.[arm]`, `can0` up |
 | `rebot_rs_mb` | same, via MotorBridge | 6 | MotorBridge | `.[arm]` |
 | `isaac` | reBot in Isaac Sim | 6 | ZMQ bridge | Isaac Sim + NVIDIA GPU |

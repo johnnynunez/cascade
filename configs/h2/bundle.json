@@ -1,0 +1,49 @@
+{
+  "name": "unitree-h2-velocity-history-v0",
+  "description": "NVIDIA Isaac Sim public bundle for the Unitree H2: Velocity-H2-History-v0 locomotion policy (TorchScript MLP 255 -> 14, trained on PhysX in AGILE) and the URDF-USD-Converter H2 asset. The two YAML files are vendored verbatim under assets/h2/bundle/ (Apache-2.0, SPDX headers kept; outside configs/ because they are NVIDIA training exports, not CASCADE profiles); policy.pt and the USD are fetched from the public asset root and verified against these digests, never committed.",
+  "asset_root": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2",
+  "asset_root_versions_verified_identical": ["6.1", "6.2"],
+  "files": {
+    "policy.pt": {
+      "path": "Isaac/Samples/Policies/h2/policy.pt",
+      "sha256": "0a47182bbe203eddc2b7a9185f822c14d3799723f8b8392c7a2895d25d449c83",
+      "bytes": 677334,
+      "pinned_by": "isaacsim.robot.policy.examples h2_standalone.py DEFAULT_H2_POLICY_SHA256 (Isaac Sim 6.2 source)",
+      "vendored": false,
+      "license": "Isaac Sim asset terms (no licence file in the bundle)"
+    },
+    "env.yaml": {
+      "path": "Isaac/Samples/Policies/h2/env.yaml",
+      "sha256": "8782b5a76a906634b45a2a37db2c8156234801b78db86153b70f16e96a0dea83",
+      "vendored": "assets/h2/bundle/env.yaml",
+      "license": "Apache-2.0"
+    },
+    "IO_descriptors.yaml": {
+      "path": "Isaac/Samples/Policies/h2/IO_descriptors.yaml",
+      "sha256": "3d13ff6fcd7c22229501f88997e89469ec3f2f088d3d5597fc520b4bbc545374",
+      "vendored": "assets/h2/bundle/IO_descriptors.yaml",
+      "license": "Apache-2.0"
+    },
+    "H2.usda": {
+      "path": "Isaac/Robots/Unitree/H2/H2.usda",
+      "sha256": "040d2140bb0d6d653f5423d7d76462a49d25e8470af2153518bbdce9158bb5f1",
+      "vendored": false,
+      "note": "Stub stage; references ./payloads/base.usda and the Physics variant payloads (physics/physx/mujoco). The composed stage identity is bound at open by the owner, not by this digest.",
+      "source": "URDF-USD-Converter output of unitreerobotics/unitree_ros robots/h2_description (31 revolute joints, BSD-3)"
+    }
+  },
+  "model": {
+    "input_width": 255,
+    "output_width": 14,
+    "format": "TorchScript"
+  },
+  "training": {
+    "framework": "AGILE (NVIDIA), task Velocity-H2-History-v0",
+    "engine": "physx",
+    "physics_dt_s": 0.005,
+    "control_dt_s": 0.02,
+    "decimation": 4,
+    "command_ranges": {"lin_vel_x": [-0.5, 0.5], "lin_vel_y": [-0.5, 0.5], "ang_vel_z": [-1.0, 1.0]},
+    "training_usd": "Isaac/Robots/Unitree/H2/H2.usda with variants collision_profile=feet_only, hands=none (not defined by the public stub; record the active colliders at open)"
+  }
+}

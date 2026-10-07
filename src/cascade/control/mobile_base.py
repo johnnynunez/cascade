@@ -9,10 +9,11 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, fields
 import math
+import re
 from numbers import Integral, Real
 from typing import Mapping
 
-from .mobile_support import SolvedContact, SupportObservation, digest
+from .mobile_support import SolvedContact, SupportObservation, digest, plain_contacts_cell
 
 
 def _plain_record(record, cls, nested=()):
@@ -32,6 +33,29 @@ def _plain_record(record, cls, nested=()):
     return result
 
 
+def _plain_contacts(support):
+    """Plain copies of exact solved contacts, computed once per shared contact tuple.
+
+    The twelve completed states of a shared scene carry the same immutable
+    contact tuple each step and every robot is polled about once per step, so
+    the walk over ~90 contacts is memoized in a cell that
+    ``SupportObservation.rebound`` shares with its copies. ``None`` marks a
+    non-plain tuple, which keeps ``asdict``'s full copy semantics.
+    """
+    cell = plain_contacts_cell(support)
+    if not cell[1]:
+        contacts, plain = [], type(support.contacts) is tuple
+        if plain:
+            for contact in support.contacts:
+                copied = _plain_record(contact, SolvedContact)
+                if copied is None:
+                    plain = False
+                    break
+                contacts.append(copied)
+        cell[0], cell[1] = (tuple(contacts) if plain else None), True
+    return cell[0]
+
+
 def finite_real(value, name: str) -> float:
     """Reject booleans, strings, non-finite values; do not silently coerce JSON."""
     if isinstance(value, bool) or not isinstance(value, Real):
@@ -48,10 +72,16 @@ def nonnegative_int(value, name: str) -> int:
     return int(value)
 
 
+_CONTROL_CHARACTER = re.compile(r"[\x00-\x1f]")
+
+
 def identifier(value, name: str) -> str:
     if not isinstance(value, str) or not value or value != value.strip():
         raise ValueError(f"{name} must be a nonempty, unpadded string")
-    if any(ord(c) < 32 for c in value):
+    # Same rule as ``any(ord(c) < 32 for c in value)``; the shared owner validates
+    # about a million identifiers per thousand steps (shape paths of every solved
+    # contact, joint and body names), and the per-character generator was 5 % of it.
+    if _CONTROL_CHARACTER.search(value) is not None:
         raise ValueError(f"{name} contains a control character")
     return value
 
@@ -168,20 +198,12 @@ class BaseState:
         snapshot = _plain_record(self, BaseState, ('support',))
         if snapshot is not None and self.support is not None:
             support = _plain_record(self.support, SupportObservation, ('contacts',))
-            contacts = []
-            if support is not None and type(self.support.contacts) is tuple:
-                for contact in self.support.contacts:
-                    copied = _plain_record(contact, SolvedContact)
-                    if copied is None:
-                        support = None
-                        break
-                    contacts.append(copied)
-            else:
-                support = None
-            if support is None:
+            contacts = None if support is None else _plain_contacts(self.support)
+            if contacts is None:
                 snapshot = None
             else:
-                support['contacts'] = tuple(contacts)
+                # Fresh containers for the reader; the leaves are scalars and tuples.
+                support['contacts'] = tuple(dict(contact) for contact in contacts)
                 snapshot['support'] = support
         if snapshot is None:
             snapshot = asdict(self)

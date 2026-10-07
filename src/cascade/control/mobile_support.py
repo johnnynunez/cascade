@@ -16,6 +16,19 @@ def digest(value):
     return value
 
 
+def plain_contacts_cell(support):
+    """The one-slot memo ``[plain contacts or None, computed]`` of a frozen record.
+
+    Kept in the instance ``__dict__`` (not a field: equality, ``asdict`` and the
+    identity digest ignore it) so ``rebound`` copies can share one walk over the
+    same contact tuple. Filled by ``mobile_base``.
+    """
+    cell = support.__dict__.get("_plain_contacts_cell")
+    if cell is None:
+        cell = support.__dict__["_plain_contacts_cell"] = [None, False]
+    return cell
+
+
 def _record(cls, value):
     if type(value) is cls:
         return value
@@ -103,6 +116,31 @@ class SupportObservation:
     @classmethod
     def from_dict(cls, data):
         return _record(cls, data)
+
+    def rebound(self, *, epoch, model_identity_sha256):
+        """The same validated immutable observation under another epoch/model identity.
+
+        A shared-scene owner binds one decoded contact set to twelve robots on
+        every read. ``dataclasses.replace`` would re-run ``__post_init__`` and
+        re-parse every solved contact each time (about 0.4 ms for ~90 contacts,
+        24 times per step); the contacts were validated when this observation
+        was built and are immutable, so only the two identifiers are validated
+        here. Anything that is not an exact immutable record keeps the full
+        ``replace`` re-validation.
+        """
+        from dataclasses import replace
+        if not immutable_support(self):
+            return replace(self, epoch=epoch, model_identity_sha256=model_identity_sha256)
+        from .mobile_base import identifier
+        identifier(epoch, "support epoch")
+        digest(model_identity_sha256)
+        result = object.__new__(SupportObservation)
+        for field in fields(SupportObservation):
+            object.__setattr__(result, field.name, getattr(self, field.name))
+        object.__setattr__(result, "epoch", epoch)
+        object.__setattr__(result, "model_identity_sha256", model_identity_sha256)
+        result.__dict__["_plain_contacts_cell"] = plain_contacts_cell(self)  # same contacts tuple
+        return result
 
     def as_observation_dict(self):
         """Detached native observation; keep its existing list types and order."""

@@ -87,7 +87,7 @@ def run(args, admission, signals):
     started = time.monotonic()
     result = {'completed': False, 'physical_acceptance': False, 'steps': 0,
               'scope': 'shared-scene zero-command foundation', 'teardown_errors': []}
-    owner = fleet = endpoints = profile = heap = None
+    owner = fleet = endpoints = profile = heap = cprofiler = None
     steppers = []
     previous_path = list(sys.path)
     try:
@@ -158,6 +158,12 @@ def run(args, admission, signals):
                     value, allow_nan=False, default=json_default)
                 stream.write(encoded + '\n')
                 stream.flush()
+        if getattr(args, 'profile_cprofile', False):
+            # Diagnostic: in-process cProfile of the stepping loop, dumped before the
+            # SDK shutdown (which may not return, so `python -m cProfile` never writes).
+            import cProfile
+            cprofiler = cProfile.Profile()
+            cprofiler.enable()
         with ((out / 'physics.jsonl').open('x') as physics,
               (out / 'policy.jsonl').open('x') as policies,
               (out / 'frames.jsonl').open('x') as frames,
@@ -228,6 +234,13 @@ def run(args, admission, signals):
         result['error'] = f'{type(exc).__name__}: {exc}'
     finally:
         with signals.defer():
+            if cprofiler is not None:
+                try:
+                    cprofiler.disable()
+                    cprofiler.dump_stats(str(out / 'owner.prof'))
+                    result['cprofile'] = {'file': 'owner.prof'}
+                except BaseException as exc:
+                    result['teardown_errors'].append(type(exc).__name__)
             for resource in (endpoints, profile, fleet if fleet is not None else owner):
                 if resource is not None:
                     try:
@@ -281,6 +294,8 @@ def main(argv=None):
     extra.add_argument('--spacing', type=float, required=True)
     extra.add_argument('--serve-base-port', type=int, default=None)
     extra.add_argument('--profile-phases', action='store_true')
+    extra.add_argument('--profile-cprofile', action='store_true',
+                       help='diagnostic: in-process cProfile of the stepping loop, written to <out>/owner.prof before SDK shutdown')
     extra.add_argument('--profile-sync-solve', action='store_true',
                        help='diagnostic with --profile-phases: the solve span waits for the GPU, so physics time '
                             'is attributed to solve instead of the first host read; serializes CPU/GPU')
@@ -292,6 +307,7 @@ def main(argv=None):
     args.serve_base_port = options.serve_base_port
     args.profile_phases = options.profile_phases
     args.profile_sync_solve = options.profile_sync_solve
+    args.profile_cprofile = options.profile_cprofile
     if args.profile_sync_solve and not args.profile_phases:
         raise ValueError('--profile-sync-solve requires --profile-phases')
     args.gc_policy = options.gc_policy

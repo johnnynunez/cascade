@@ -156,7 +156,8 @@ def test_retry_still_checks_episode_wall_budget_and_never_commits_late_policy():
     assert all(len(s.actuator.targets) == 1 for s in steppers)
 
 
-def _launch_shared_runner(tmp_path, monkeypatch, *, profile_phases, gc_policy, fleet_close_error=None):
+def _launch_shared_runner(tmp_path, monkeypatch, *, profile_phases, gc_policy, fleet_close_error=None,
+                          profile_cprofile=False):
     """Drive the real launcher with software fixtures; returns everything the asserts need."""
     import gc
     import importlib
@@ -214,6 +215,9 @@ def _launch_shared_runner(tmp_path, monkeypatch, *, profile_phases, gc_policy, f
             return dict(passed=True, step=self.step_count, sim_time_s=self.sim_time)
         def shutdown(self, code):
             self.shutdown_code = code
+            # The cProfile diagnostic must be on disk before the SDK shutdown, which
+            # does not return in the real launcher.
+            assert (out / 'owner.prof').exists() == profile_cprofile
             return True
     class Interrupted(shared_module.SharedMicroduckStepper):
         def __init__(self, *args, **kwargs):
@@ -238,7 +242,7 @@ def _launch_shared_runner(tmp_path, monkeypatch, *, profile_phases, gc_policy, f
     args = NS(out=out, device='cuda:0', source='software-test-not-physics', max_wall_s=3.,
               max_steps=2, camera_every=1, max_jpeg_bytes=100000, policy=tmp_path / 'fixture.onnx',
               policy_sha256='b'*64, target_profile='direct-v1', python_extra_path=[], robots=1, serve_base_port=None,
-              profile_phases=profile_phases, gc_policy=gc_policy)
+              profile_phases=profile_phases, gc_policy=gc_policy, profile_cprofile=profile_cprofile)
     signals = NS(signum=None, registration_attempts=0, checkpoint=lambda **kwargs: None, defer=nullcontext)
     admission = dict(target_contract=target_contract('b'*64, 'direct-v1'), asset_sha256='a'*64, limits=software_limits(), experience_text='software fixture\n')
     result = runner.run(args, admission, signals)
@@ -302,3 +306,18 @@ def test_launcher_releases_the_frozen_heap_even_when_fleet_closure_fails(tmp_pat
     assert run.collector.calls == [('collect', 2), ('freeze',), ('collect', 2), ('unfreeze',), ('collect', 2)]
     assert [c[0] for c in run.policy_calls] == ['apply', 'release']
     assert result['gc_policy']['released']['unfrozen'] == 1575 and result['gc_policy']['applied'] is not None
+
+
+@pytest.mark.parametrize('profile_cprofile', [False, True])
+def test_launcher_cprofile_diagnostic_is_dumped_before_shutdown_and_off_by_default(tmp_path, monkeypatch, profile_cprofile):
+    import pstats
+    run = _launch_shared_runner(tmp_path, monkeypatch, profile_phases=True, gc_policy=None,
+                                profile_cprofile=profile_cprofile)
+    assert run.result['completed'] and run.created[0].shutdown_code == 0
+    if not profile_cprofile:
+        assert 'cprofile' not in run.result and not (run.out / 'owner.prof').exists()
+        return
+    assert run.result['cprofile'] == {'file': 'owner.prof'}
+    stats = pstats.Stats(str(run.out / 'owner.prof'))
+    assert stats.total_tt > 0
+    assert any(path.endswith('microduck_shared.py') and name == 'tick' for (path, _, name) in stats.stats)

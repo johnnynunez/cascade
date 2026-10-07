@@ -1,0 +1,105 @@
+{
+ "recipe": {
+  "base_port": 18300,
+  "camera_every": 20,
+  "distance": 5.0,
+  "distances": null,
+  "gc_policy": "freeze-startup-heap",
+  "gpu": "gpu1",
+  "layout": "line",
+  "listen_timeout": 900.0,
+  "max_steps": 6000,
+  "max_wall_s": 1000.0,
+  "physics_row_every": 10,
+  "policy": "rough_walk_e",
+  "profile_phases": true,
+  "resolution": "1920x1080",
+  "robots": 12,
+  "route_m": 5.0,
+  "run_name": "abA-base-12",
+  "spacing": 1.0,
+  "waves": 1
+ },
+ "raw": [
+  {
+   "arm": "A-baseline-pr222-b721e7a",
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abA-base-12/owner/kit/timing.jsonl",
+   "sha256": "8ffcb6b67d4d64c91e4b8f4fd42b66f78d41092b78d3fcfc2ea025c7b67bb29d",
+   "bytes": 29792826
+  },
+  {
+   "arm": "A-baseline-pr222-b721e7a",
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abA-base-12/experiment.json",
+   "sha256": "babe010d76706eb787d6fada00e0c250ae9061328b4f6bf2883087ed469aa177",
+   "bytes": 34293
+  },
+  {
+   "arm": "A-baseline-pr222-b721e7a",
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abA-base-12/owner/launch.json",
+   "sha256": "7240add7a57dcfb45dbdb06ac812450695027a39e2cab83a117c4c27abcd2a9a",
+   "bytes": 2735
+  },
+  {
+   "arm": "A-baseline-pr222-b721e7a",
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abA-base-12/owner/kit/receipt.json",
+   "sha256": "fcc403c1b5dcb6e5e5733f94501368ba6e0b7faa171a7c95fea97e7a2c077d73",
+   "bytes": 2720326
+  },
+  {
+   "arm": "B-host-snapshot",
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abB-snapshot-12/owner/kit/timing.jsonl",
+   "sha256": "05d46b50f92f4d25678a1100b76b3e37a1b2fae446f028f8c5de1142360fc3e6",
+   "bytes": 47459875
+  },
+  {
+   "arm": "B-host-snapshot",
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abB-snapshot-12/experiment.json",
+   "sha256": "22efb96d6ed0fd95dc8e0f841bf4aa2ab07d459624d857a0f75cf52bb01a75c5",
+   "bytes": 34309
+  },
+  {
+   "arm": "B-host-snapshot",
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abB-snapshot-12/owner/launch.json",
+   "sha256": "c62f637c4cb7493631b573c1f184f095e4f291df3e8e046323b1066c28c6e980",
+   "bytes": 2747
+  },
+  {
+   "arm": "B-host-snapshot",
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abB-snapshot-12/owner/kit/receipt.json",
+   "sha256": "8fb947f4c18b0995ac5e967f62e0834157c9c93cd7041c8b2db2f4184052f2f0",
+   "bytes": 2761910
+  },
+  {
+   "arm": "C-host-snapshot-sync-solve",
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abC-snapshot-syncsolve-12/owner/kit/timing.jsonl",
+   "sha256": "2dc129ec4cde195009f1f0be427e0f178dd19343a1f280eeb5d176b343fa25d4",
+   "bytes": 34766410
+  },
+  {
+   "arm": "C-host-snapshot-sync-solve",
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abC-snapshot-syncsolve-12/experiment.json",
+   "sha256": "53503cd8c807ffb7c1a818092646d1d6d38009d0dc06e57a8a960b02c52675b5",
+   "bytes": 34503
+  },
+  {
+   "arm": "C-host-snapshot-sync-solve",
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abC-snapshot-syncsolve-12/owner/launch.json",
+   "sha256": "75786825fbbdae4cfb2ae8a81ccc7b8477398a67fc514f9eba9178df1d6dc71b",
+   "bytes": 2834
+  },
+  {
+   "arm": "C-host-snapshot-sync-solve",
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abC-snapshot-syncsolve-12/owner/kit/receipt.json",
+   "sha256": "4b08fb5db132de7a53f82eb43340a7d47a4a351ff5e825366b0de5207f0a17d5",
+   "bytes": 2760750
+  }
+ ],
+ "worktree_under_test": {
+  "base": "origin/feat/microduck-route-fleet b721e7a (PR #222 head)",
+  "patch": "HERMES_AUDIT_20261007/snapshot.patch (newton_bam.BamHostSnapshot + shared/stepper plumbing) for arms B and C; C adds --profile-sync-solve"
+ },
+ "host": {
+  "gpu": "RTX PRO 6000 Blackwell GPU-4c811d02 (bus C1:00), x86 test rig, NOT a Spark number",
+  "isaac": "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release (6.2 alpha, Newton 1.6.1rc1)"
+ }
+}

@@ -1,0 +1,54 @@
+{
+  "experiment": "x86 A/B of PR #243 (BamCohort: one pinned DriveBam + bridge for the twelve BAM adapters)",
+  "rig": "x86 test rig, Isaac Sim 6.2 alpha (omni_isaac_sim develop _build/linux-x86_64/release), Newton 1.6.1rc1, GPU 1 (bus C1:00, shared with cascade-qwen llama-server)",
+  "arms": {
+    "F": {
+      "source": "b7536cd (main after #238, before #243)",
+      "worktree": "cascade-lab/HERMES_BACKLOG_20261008/ab-precohort/cascade"
+    },
+    "G": {
+      "source": "8703a39 (#243 head; parent b7536cd)",
+      "worktree": "cascade-lab/HERMES_BACKLOG_20261007/bam-cohort/cascade"
+    }
+  },
+  "command": "env -u PYTHONPATH CASCADE_AB_REPO=<worktree> CASCADE_AB_ARM=<F|G> .venv/bin/python route_walk.py <run> --robots 12 --policy rough_walk_e --distance 5 --max-steps 6000 --max-wall-s 1000 --profile-phases --gpu gpu1 --base-port 18300",
+  "aggregator": "cascade-lab/HERMES_AUDIT_20261007/harness/timing_summary.py",
+  "raw": [
+    {
+      "arm": "F",
+      "path": "cascade-lab/HERMES_AUDIT_20261007/harness/abF-precohort-12/owner/kit/timing.jsonl",
+      "bytes": 69387092,
+      "sha256": "dc07ce4aea04634cba7ad5bc5318cd0fd9166e84a727719c9054ea0304300ba6"
+    },
+    {
+      "arm": "F",
+      "path": "cascade-lab/HERMES_AUDIT_20261007/harness/abF-precohort-12/owner/kit/receipt.json",
+      "bytes": 2739561,
+      "sha256": "e2e427cc6d63a478d5c0d0b8133348be635a80eda570e653f27a8e6a492441cf"
+    },
+    {
+      "arm": "F",
+      "path": "cascade-lab/HERMES_AUDIT_20261007/harness/abF.driver.log",
+      "bytes": 29480,
+      "sha256": "ccd12116d383802b937f09656483783f5ecd63e733f8fa9b936437845c481aaf"
+    },
+    {
+      "arm": "G",
+      "path": "cascade-lab/HERMES_AUDIT_20261007/harness/abG-cohort-12/owner/kit/timing.jsonl",
+      "bytes": 46830444,
+      "sha256": "cdb7a5245dcc2bccc2bc9a1615da38bf6c0ee401eec089ed2f2fdd70173002e5"
+    },
+    {
+      "arm": "G",
+      "path": "cascade-lab/HERMES_AUDIT_20261007/harness/abG-cohort-12/owner/kit/receipt.json",
+      "bytes": 2761424,
+      "sha256": "5dfe71dcf3d343dfffe8c7787ef1b75df59117245ed97b661e7dd76f396c5576"
+    },
+    {
+      "arm": "G",
+      "path": "cascade-lab/HERMES_AUDIT_20261007/harness/abG.driver.log",
+      "bytes": 29500,
+      "sha256": "193bd2869a0a4e54a9206054f2caf833ddce4952b8a5f91afdbbfc9a80a8a060"
+    }
+  ]
+}

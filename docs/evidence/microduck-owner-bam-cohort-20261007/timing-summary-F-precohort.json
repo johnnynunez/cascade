@@ -1,0 +1,49 @@
+{
+ "attempts": 4130,
+ "median_ms": 46.79,
+ "p95_ms": 124.7,
+ "mean_ms": 59.9,
+ "phases_ms": {
+  "policy.prepare": 4.25,
+  "bam.before_step": 12.11,
+  "bam.verify": 0.08,
+  "solve": 0.25,
+  "completed.validate": 23.87,
+  "publication": 2.92
+ },
+ "sparse_phases_ms": {
+  "bam.targets": [
+   0.5,
+   1033
+  ],
+  "write.policy.jsonl": [
+   0.6,
+   1033
+  ],
+  "record.physics": [
+   27.5,
+   414
+  ],
+  "camera.overview": [
+   84.3,
+   207
+  ]
+ },
+ "nested_ms": {
+  "completed.read": 0.04,
+  "support.decode": 11.67,
+  "native.capture": 2.19,
+  "write.physics.jsonl": 19.58,
+  "support.probe": 0.57,
+  "write.support-probe.jsonl": 0.35,
+  "camera.capture": 66.34,
+  "write.frames.jsonl": 0.04
+ },
+ "per_robot_ms": {
+  "policy.prepare": 0.343,
+  "bam.targets": 0.035,
+  "bam.before_step": 0.863,
+  "completed.validate": 0.274,
+  "publication": 0.238
+ }
+}

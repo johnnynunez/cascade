@@ -59,6 +59,34 @@ profile was changed to make these pass; the refutations stand. The decision whet
 ~8 s wall at this rate), or the geometric skills should hand over to a standing phase before the verdict, is
 recorded as open in `docs/HUMANOID_H2.md`.
 
+## Run geo3-v2 — candidate revision 2: settle budget sized from the measurement above
+
+Decision taken: `h2_velocity_candidate` `verifier.settle_timeout_s` 4 → **8 s wall** (≈ 3.8 s sim at this
+owner's rate), `max_wall_duration_s` 14 → 20, `max_samples` 801 → 1201 (quota for command + settle at
+~100 samples/s). **Rest thresholds unchanged** (0.08 m/s, 0.20 rad/s, 0.03 m, 0.05 rad over the last 0.4 s).
+Same owner, same harness, both paths in one run:
+
+| path | command | measured | verifier (settle ω, drift) |
+| --- | --- | --- | --- |
+| RobotRuntime → SafeBase | `walk_velocity` 0.3 × 3 s | +0.684 m | **confirmed** (0.072 rad/s, 0.031 rad) |
+| RobotRuntime → SafeBase | `walk_distance` +0.5 m | **+0.452 m** | **confirmed** (0.084, 0.034) |
+| RobotRuntime → SafeBase | `turn` 0.8 rad | +0.773 rad, path 0.174 m | **refuted** (0.333 rad/s, 0.097 rad) |
+| RobotRuntime → SafeBase | `walk_distance` −0.5 m | **−0.455 m** | **confirmed** (0.059, 0.037) |
+| MCP stdio, `CASCADE_ROBOT=h2` | `reset_stop` after a first read | ok (no latch on a fresh owner) | — |
+| MCP stdio | `walk_velocity` 0.3 × 3 s | +0.650 m | **confirmed** (0.026, 0.037) |
+| MCP stdio | `turn` 0.6 rad | **+0.577 rad**, path 0.148 m | **confirmed** (0.041, 0.040) |
+| MCP stdio | `walk_velocity` −0.3 × 2 s | −0.405 m | **confirmed** (0.043, 0.031) |
+
+Owner: 12349 steps, 1235 frames, no fall (pelvis 0.917 m at the end). **6 of 7 commands confirmed**, the
+three walk_distance/turn refutations of geo1/geo2 that were settle-budget artefacts are gone, and the one
+that remains is a measurement, not an artefact: after `turn` 0.8 rad the yaw oscillation decays slowly —
+max |ω| per 0.5 s after the stop: 0.0s 0.69 / 0.5s 0.56 / 1.0s 0.49 / 1.5s 0.43 / 2.0s 0.41 / 2.5s 0.38 / 3.0s 0.34 / 3.5s 0.32 — still 0.32 rad/s at 3.75 s sim, whereas the 0.6 rad turn is
+at 0.04 rad/s by then and plain standing decays 0.34 → 0.04 in 3.5 s. The verifier is right to refuse it.
+The budget is **not** inflated further to chase it; the next candidate revision belongs on the control side
+(ramp `turn_speed_rad_s` down before the goal instead of cutting to zero mid-step, or hand over to an
+explicit standing phase), to be measured separately. Until then, turns ≥ 0.8 rad on the H2 are expected to
+come back `refuted` and the chat host must treat them as such.
+
 ## Not claimed
 
 No physical admission; no Newton run; the geometric bounds are candidates derived from one day of

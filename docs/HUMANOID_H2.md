@@ -77,9 +77,18 @@ committed). Inventory with every source checked and every "not found":
   after readiness decays 0.34 → 0.04 rad/s over 3.5 s sim, and the reader sampled ≥ 1.9 s
   sim after a stop sees ω ≤ 0.06 rad/s: the robot does come to rest; it needs ~2.5–3.5 s of
   sim to pass the candidate 0.20 rad/s. Nothing was relaxed to pass. **Open decision:** size
-  the candidate settle budget from this measurement in sim seconds (≈ 3.5 s sim, ~8 s wall
-  here, with `max_wall_duration_s` to match), or have the geometric skills hand over to an
-  explicit standing phase before the verdict; either is a new, labelled candidate revision.
+  the candidate settle budget from this measurement in sim seconds, or have the geometric
+  skills hand over to an explicit standing phase before the verdict.
+- **Candidate revision 2 (same day, run geo3-v2 in the same evidence):** decision taken —
+  `settle_timeout_s` 4 → 8 s wall (≈ 3.8 s sim here), `max_wall_duration_s` 14 → 20,
+  `max_samples` 801 → 1201; **rest thresholds unchanged**. Result on the same owner, both
+  paths in one run: **6 of 7 commands confirmed** — `walk_distance` +0.5/−0.5 → +0.452/−0.455 m
+  confirmed, `walk_velocity` ±0.3 confirmed on both paths, MCP `turn` 0.6 → 0.577 rad
+  confirmed; `turn` 0.8 rad (+0.773 rad) still **refuted**, and that one is a measurement, not
+  a budget artefact: its yaw oscillation decays 0.69 → 0.32 rad/s over 3.75 s sim (the 0.6 rad
+  turn is at 0.04 by then). The budget is not inflated further; the next revision is control-side
+  (ramp the turn rate down before the goal, or hand over to standing) and will be measured on
+  its own. Until then turns ≥ 0.8 rad on the H2 come back `refuted` and the host treats them so.
 - **Not shown:** any Newton run; anything on hardware; measured (not candidate) verifier
   limits; `walk_distance` beyond ~0.6 m (bounded by the 3 s command budget, not by the robot).
 

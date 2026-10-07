@@ -9,12 +9,20 @@ admission: pending_h2_geometric_validation
 verifier:
   sample_interval_s: 0.02
   read_timeout_s: 0.5
-  max_wall_duration_s: 14.0
-  settle_timeout_s: 4.0
+  # Candidate revision 2 (2026-10-07, docs/evidence/h2-geometric-candidate-20261007):
+  # the settle budget is spent in WALL seconds while the H2 needs ~3.5 s of SIM to come to
+  # rest after a goal-stopped command (standing decays 0.34 -> 0.04 rad/s over 3.5 s sim;
+  # the yaw oscillation after a mid-step stop lasts 2-3 s sim). At this owner's ~0.47x
+  # real time 4 s wall covered ~1.9 s sim, so the verdict was taken before the robot could
+  # physically settle. 8 s wall ~ 3.8 s sim here; the wall budget and the sample quota are
+  # sized to cover command (3 s sim ~ 6.4 s wall) + settle. The rest thresholds below
+  # (0.08 m/s, 0.20 rad/s, 0.03 m, 0.05 rad over the last 0.4 s) are unchanged.
+  max_wall_duration_s: 20.0
+  settle_timeout_s: 8.0
   settle_window_s: 0.4
   min_motion_samples: 5
   min_settle_samples: 3
-  max_samples: 801
+  max_samples: 1201
   max_history: 30
   max_state_age_s: 0.5
   max_sample_gap_s: 0.15

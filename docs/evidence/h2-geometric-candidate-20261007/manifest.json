@@ -1,5 +1,5 @@
 {
- "source": "feat/h2-geometric-candidate on origin/main 128f47b; owner scripts/isaac_h2_bridge.py, Isaac Sim 6.2 alpha build, PhysX, GPU 0 of the x86 rig (not a Spark number)",
+ "source": "feat/h2-geometric-candidate on origin/main 128f47b; owner scripts/isaac_h2_bridge.py, Isaac Sim 6.2 alpha build, PhysX, GPU 0 of the x86 rig (not a Spark number); geo3-v2 = candidate revision 2 (settle budget 8 s wall / 20 s wall max / 1201 samples), commit on feat/h2-geometric-candidate after 9c36f6a",
  "harness": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/h2_geometric.py (A standing / B walk+settle / C geometric / D MCP); geo2-mcp = --only-mcp",
  "raw": {
   "geo1": {
@@ -43,6 +43,33 @@
     "sha256": "b1e6866bed00261ff2303fa20b88399e7f6407910b84d5aa697c37548be720aa"
    },
    "frames": 352
+  },
+  "geo3-v2": {
+   "episode.json": {
+    "bytes": 55158,
+    "sha256": "f0323b71be2282631018cfe793ce8b6f8a48c0ad928d4538df97dd11a49943f2"
+   },
+   "runtime/trace.jsonl": {
+    "bytes": 32158620,
+    "sha256": "de26be169fc44610aa8ccc19a48d17e3825bb2a71f32c7f4cd99d50bdfcf6c08"
+   },
+   "kit/receipt.json": {
+    "bytes": 57546,
+    "sha256": "d051dc979ab4980bfcffc582bb514ba915fb245eab466e3c96e0b6baaf407c32"
+   },
+   "standing.jsonl": {
+    "bytes": 157104,
+    "sha256": "87aff1b43da1d302f2f2e21bd32b8639e1d7e1bef54f82480db0cb2a5a54c252"
+   },
+   "settle.jsonl": {
+    "bytes": 202550,
+    "sha256": "34262ddb5ec58f0c525140e9da176a23297436cd95873fa8f092803c1f2635ac"
+   },
+   "mcp-stderr.log": {
+    "bytes": 1869,
+    "sha256": "6842d1f7a24dde37540f19efb78dd6e783cdbbe5a94e2a649534fc3c83ae8987"
+   },
+   "frames": 1235
   }
  }
 }

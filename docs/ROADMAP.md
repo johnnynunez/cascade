@@ -849,8 +849,18 @@ are synchronous by design here, noted for long-horizon work.
      then a real-LLM tier can call pick_and_place again. Cap per task.
   4. handover / sort_by_color still single-attempt (inconsistent with
      pick_and_place persistence).
-  5. _reconcile_held mistakes a legitimately-held VERY thin object
-     (<4% jaw span ~ 3.6 mm) for a slip; booth objects are chunky.
+  5. ~~_reconcile_held mistakes a legitimately-held VERY thin object
+     (<4% jaw span ~ 3.6 mm) for a slip; booth objects are chunky.~~
+     **landed 2026-10-07**: the held width is MEASURED when the object is
+     taken (`_held_width_m` = jaw stall after the lift; planned width when
+     feedback is unavailable; stall width at promotion/adoption). An object
+     that measured thinner than `air_grasp_frac` x jaw span is never
+     cleared on width alone (position feedback cannot tell that hold from
+     air); a chunky known width keeps the 4 % rule unchanged. The older
+     `gripper.min_object_m` profile key still works. Pinned by
+     `test_grasp_records_the_measured_held_width`,
+     `test_known_thin_object_is_never_read_as_a_slip_on_width_alone`,
+     `test_thin_object_declared_in_profile_is_not_read_as_a_slip`.
   6. Fail fast when every grasp candidate exceeds jaw width (currently
      retries perception on an object-property error).
   7. Test-coverage gaps flagged: place-stage loop, deadline expiry,

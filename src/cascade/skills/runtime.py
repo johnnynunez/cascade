@@ -154,6 +154,10 @@ class SkillRuntime:
         self._object_pose = None
         self._held_det_label: str | None = None
         self._held_color: str | None = None
+        #: jaw opening MEASURED when the held object was taken (stall after
+        #: the lift, or at promotion/adoption), metres; None = unknown. It
+        #: decides whether a closed-jaw reading can mean a slip (#2.5).
+        self._held_width_m: float | None = None
         #: optional WorldWatcher (set by the app wiring); paused during motion
         self.watcher = None
         self._reset_observation_pending = False
@@ -894,6 +898,9 @@ class SkillRuntime:
         Jaws closed on air -> drop the marker. Jaws AT the open position
         (the close never landed, or `open_gripper` ran since) -> drop it
         too: open jaws are not an invented hold.
+        (c) Thin objects: the held width MEASURED when the object was taken
+        (jaw stall after the lift) decides whether a closed-jaw reading can
+        mean a slip at all; see below.
         """
         if getattr(self, "_contact_episode", None) is not None:
             return  # only explicit contact recovery may finish this failed close
@@ -918,6 +925,8 @@ class SkillRuntime:
                     self.held_object = label
                     self._held_det_label = det_label
                     self._held_color = color
+                    # the stall width IS the measurement of what is held
+                    self._held_width_m = float(wf) * float(self._max_width)
                     self.memory.add(
                         "outcome",
                         f"the jaws are stalled on {label!r} although the grasp did not "
@@ -938,6 +947,15 @@ class SkillRuntime:
         held_w = self._gripper_width_m()
         if thin > 0 and held_w is not None and held_w >= thin:
             return
+        # The MEASURED held width (jaw stall after the lift, or at promotion /
+        # adoption) decides what a closed-jaw reading means. An object that
+        # measured thinner than the air tolerance when it was grasped keeps
+        # the jaws below `air_grasp_frac` while HELD, so position feedback
+        # cannot tell that hold from a slip: never clear it on width alone.
+        # (A chunky known width keeps the rule below exactly as it was.)
+        known_w = getattr(self, "_held_width_m", None)
+        if known_w is not None and float(known_w) < air * float(self._max_width):
+            return
         if wf < air:
             self.memory.add(
                 "outcome",
@@ -947,6 +965,7 @@ class SkillRuntime:
             self.held_object = None
             self._held_det_label = None
             self._held_color = None
+            self._held_width_m = None
 
     def _grasp_retry_verdict(self, object: str, attempt: int, last_err: str) -> str | None:
         """Why persistence should STOP retrying a grasp, or None to keep going.
@@ -2415,6 +2434,11 @@ class SkillRuntime:
         self._held_det_label = fix.detection.label
         self._held_color = detection_color(frame.rgb, fix.detection)
         self._held_provisional = None  # promoted: the real flag is set now
+        # The held width as MEASURED (jaw stall after the lift); the planned
+        # width stands in when feedback was unavailable. `_reconcile_held`
+        # reads it before calling a closed jaw a slip.
+        self._held_width_m = (float(width_after_lift) * float(self._max_width)
+                              if verified else float(grasp.width_m))
         # A cached aiming estimate cannot prove a later slip. Preserve the
         # post-lift clock floor separately for newly acquired hold evidence.
         self._held_offset = held_offset_at_close
@@ -2542,6 +2566,7 @@ class SkillRuntime:
         if wf is not None and air < wf < 0.9:
             self.held_object = "object"
             self._held_det_label = None
+            self._held_width_m = float(wf) * float(self._max_width)  # measured now
             self.memory.add(
                 "note",
                 "the jaws are holding something unregistered; "
@@ -2668,6 +2693,7 @@ class SkillRuntime:
                 self._held_det_label = None
                 self._held_color = None
                 self._held_offset = None
+                self._held_width_m = None
                 self._held_support_offset_m = None
                 raise SkillError(f"{slipped!r} slipped out of the gripper during the carry")
             target[0] -= float(held_offset[0])
@@ -2833,6 +2859,7 @@ class SkillRuntime:
             self._held_offset = None
             self._held_support_offset_m = None
             self._held_color = None
+            self._held_width_m = None
             self.memory.add("action", f"placed {placed!r} at {target.round(3).tolist()}")
             try:
                 if release_error is None and release is not None:
@@ -3532,6 +3559,7 @@ class SkillRuntime:
         self.held_object = None
         self._held_det_label = None
         self._held_color = None
+        self._held_width_m = None
         # follow-through, then home so the camera view clears.
         try:
             self.skill_move_home()
@@ -3805,6 +3833,7 @@ class SkillRuntime:
         # the provisional marker left open: whatever the jaws may have held
         # is released now, so nothing remains to promote.
         self._held_provisional = None
+        self._held_width_m = None
         return {"gripper": "open"}
 
     def skill_close_gripper(self) -> dict:
@@ -3984,6 +4013,7 @@ class SkillRuntime:
             self._held_det_label = None
             self._held_color = None
             self._held_offset = None
+            self._held_width_m = None
             self._held_support_offset_m = None
         world = None
         raw = getattr(self.arm, "raw", None)

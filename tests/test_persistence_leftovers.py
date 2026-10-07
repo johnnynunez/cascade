@@ -315,3 +315,40 @@ def test_provisional_marker_with_jaws_at_the_open_position_is_dropped(rt):
     _jaws(rt, 0.95)
     rt._reconcile_held()
     assert rt.held_object == "red cube"
+
+
+# ── #5 (finish): the MEASURED held width decides, not a fixed fraction ─────
+
+def test_grasp_records_the_measured_held_width(rt):
+    """The width the jaws stalled at after the lift is the known held width;
+    it, not a profile constant, decides what a later jaw reading means."""
+    rt.observe()
+    res = rt.skill_grasp_object("red cube")
+    assert res["held"]
+    assert rt._held_width_m == pytest.approx(0.5 * rt._max_width, abs=1e-6)
+    # the promotion path measures too
+    rt.held_object = None
+    rt._held_width_m = None
+    rt._held_provisional = ("red cube", "cube", "red")
+    _jaws(rt, 0.45)
+    rt._reconcile_held()
+    assert rt.held_object == "red cube"
+    assert rt._held_width_m == pytest.approx(0.45 * rt._max_width, abs=1e-6)
+
+
+def test_known_thin_object_is_never_read_as_a_slip_on_width_alone(rt):
+    """A card measured at 2 % of the jaw span when it was grasped stalls the
+    jaws BELOW `air_grasp_frac`; position feedback cannot tell that hold from
+    air, so width alone must never clear it. A chunky known width keeps the
+    slip rule exactly as it was (jaws fully closed -> it slipped)."""
+    rt.held_object = "card"
+    rt._held_det_label = "card"
+    rt._held_width_m = 0.02 * rt._max_width  # measured at grasp: thin
+    _jaws(rt, 0.0)  # the jaws now read fully closed
+    rt._reconcile_held()
+    assert rt.held_object == "card"
+    rt.held_object = "red cube"
+    rt._held_width_m = 0.5 * rt._max_width
+    _jaws(rt, 0.0)
+    rt._reconcile_held()
+    assert rt.held_object is None and rt._held_width_m is None

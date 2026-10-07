@@ -37,6 +37,15 @@ Three products, all cheap to compute:
 
 Scene-independent by construction: only dimensionless or base-frame-local
 scalars are stored, never a specific object or scene layout.
+
+2026-10-07 (ROADMAP follow-up #4): features are no longer only the agent's
+raw arguments. ``DERIVED_FEATURES`` names, per skill, the scalars the
+RUNTIME measures at call time (TCP z when the jaws closed, object height
+and width from the fix, lateral offset from the perceived centre to the
+TCP) and passes through ``record(..., measured=...)``. A feature that was
+not measurable on a call is counted in ``_SkillStats.missing`` -- the
+absence is the record; nothing is defaulted. Still advisory: the harness
+remains the sole authority over motion.
 """
 
 from __future__ import annotations
@@ -62,6 +71,30 @@ SLACK_FRAC = 0.15
 _IGNORED_KEYS = frozenset(
     {"cycles", "max_objects", "success", "cover", "timeout_ms", "num_grasps", "topk"}
 )
+
+#: Derived features (2026-10-07, ROADMAP follow-up #4): scalars the RUNTIME
+#: measures at call time from its own state -- FK of the joint vector read
+#: back when the jaws closed, the localized object's point cloud -- never
+#: taken from the agent's arguments. The raw args were a proxy for the
+#: constraint that actually bites on the reBot B601-RS (TCP z in a narrow
+#: band, a 90 mm jaw, a top-down approach that must land ON the object);
+#: these are that constraint. Per skill: the features the runtime is
+#: expected to supply. A feature it could not measure on a call (the grasp
+#: failed before the jaws closed, the object was never localized) is counted
+#: as MISSING for that call -- never defaulted, never carried over from the
+#: previous grasp -- so the learned ranges only ever contain measurements.
+_GRASP_DERIVED: tuple[str, ...] = (
+    "tcp_z_at_grasp_m",             # TCP height when the jaws closed (FK of measured q)
+    "object_height_m",              # object top above its support plane
+    "object_width_m",               # narrower horizontal footprint extent
+    "object_tcp_lateral_offset_m",  # |xy| from the perceived centre to the TCP at close
+)
+DERIVED_FEATURES: dict[str, tuple[str, ...]] = {
+    "grasp_object": _GRASP_DERIVED,
+    "grasp_at_pixel": _GRASP_DERIVED,
+    "pick_and_place": _GRASP_DERIVED,
+    "handover": _GRASP_DERIVED,
+}
 
 #: Failure taxonomy.  Ordered: first match wins.  Keep the patterns tied to
 #: what the harness / skills actually emit (see safety/harness.py, skills/
@@ -116,6 +149,34 @@ def _numeric_features(args: dict, extra: dict | None = None) -> dict[str, float]
         if isinstance(value, (int, float)) and math.isfinite(float(value)):
             feats[key] = float(value)
     return feats
+
+
+def _split_measured(
+    skill: str, measured: dict | None
+) -> tuple[dict[str, float], list[str]]:
+    """(usable derived features, features recorded as MISSING) for one call.
+
+    ``measured=None`` means the record has no measurement channel at all (a
+    caller that predates this, an old trace replayed by ``ingest_trace``):
+    unknown is not missing, so nothing is counted. A dict is the runtime's
+    instrumentation channel: every feature ``DERIVED_FEATURES[skill]``
+    expects and the dict lacks (or carries as None / non-finite) is missing
+    for this call. Values are never invented here or anywhere downstream.
+    """
+    if measured is None:
+        return {}, []
+    present: dict[str, float] = {}
+    for key, value in measured.items():
+        if isinstance(value, bool) or value is None:
+            continue
+        try:
+            f = float(value)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(f):
+            present[key] = f
+    missing = [k for k in DERIVED_FEATURES.get(skill, ()) if k not in present]
+    return present, missing
 
 
 @dataclass
@@ -173,6 +234,12 @@ class _SkillStats:
     failures: dict[str, int] = field(default_factory=dict)
     last_error: str = ""
     duration_ms_mean: float = 0.0
+    #: names in `spans` that are runtime measurements (DERIVED_FEATURES),
+    #: not agent arguments -- shown as such in every digest
+    derived: set[str] = field(default_factory=set)
+    #: calls on which an expected derived feature could not be measured.
+    #: A count, never a value: the absence is the record.
+    missing: dict[str, int] = field(default_factory=dict)
 
     @property
     def attempts(self) -> int:
@@ -190,6 +257,8 @@ class _SkillStats:
             "failures": dict(self.failures),
             "last_error": self.last_error[:200],
             "duration_ms_mean": round(self.duration_ms_mean, 1),
+            "derived": sorted(self.derived),
+            "missing": dict(self.missing),
         }
 
     @classmethod
@@ -201,6 +270,8 @@ class _SkillStats:
             failures=dict(d.get("failures") or {}),
             last_error=str(d.get("last_error", "")),
             duration_ms_mean=float(d.get("duration_ms_mean", 0.0)),
+            derived=set(d.get("derived") or ()),
+            missing={str(k): int(v) for k, v in (d.get("missing") or {}).items()},
         )
 
 
@@ -246,12 +317,27 @@ class OperatingEnvelope:
         ok: bool,
         error: str = "",
         duration_ms: float = 0.0,
+        measured: dict | None = None,
         **extra: Any,
     ) -> None:
-        """Fold one primitive outcome into the model."""
-        feats = _numeric_features(args, extra)
+        """Fold one primitive outcome into the model.
+
+        ``measured`` is the runtime's instrumentation channel for the
+        DERIVED_FEATURES of this skill (see ``_split_measured``): present
+        values are learned like any other feature and tagged as derived,
+        absent ones are counted as missing for this call. Raw args that
+        reuse a derived feature's name are dropped -- an agent argument can
+        never pose as a measurement.
+        """
+        reserved = DERIVED_FEATURES.get(skill, ())
+        feats = {k: v for k, v in _numeric_features(args, extra).items() if k not in reserved}
+        present, missing = _split_measured(skill, measured)
+        feats.update(present)
         with self._lock:
             st = self._skills.setdefault(skill, _SkillStats())
+            st.derived.update(present)
+            for key in missing:
+                st.missing[key] = st.missing.get(key, 0) + 1
             if ok:
                 st.wins += 1
                 for key, val in feats.items():
@@ -281,11 +367,13 @@ class OperatingEnvelope:
 
     # ── pre-flight ───────────────────────────────────────────────────────
 
-    def check(self, skill: str, args: dict, **extra: Any) -> Verdict:
+    def check(self, skill: str, args: dict, measured: dict | None = None, **extra: Any) -> Verdict:
         """Would this call land where this primitive has ever worked?
 
         Advisory only.  Returns ``ok=True`` whenever we lack the evidence to
-        say otherwise, so a cold start never interferes.
+        say otherwise, so a cold start never interferes. ``measured`` carries
+        runtime measurements (same channel as ``record``); a feature that is
+        not measured is simply not checked -- silence, never a guess.
         """
         with self._lock:
             st = self._skills.get(skill)
@@ -295,7 +383,9 @@ class OperatingEnvelope:
         if not spans:
             return Verdict(ok=True)
 
-        feats = _numeric_features(args, extra)
+        reserved = DERIVED_FEATURES.get(skill, ())
+        feats = {k: v for k, v in _numeric_features(args, extra).items() if k not in reserved}
+        feats.update(_split_measured(skill, measured)[0])
         outliers = []
         notes = []
         for key, val in feats.items():
@@ -365,8 +455,23 @@ class OperatingEnvelope:
             label += f", {v.contradictions} contradiction{'s' if v.contradictions != 1 else ''}"
         return label + ")"
 
+    @staticmethod
+    def _missing_label(st: "_SkillStats") -> str:
+        """``missing: tcp_z_at_grasp_m x2, ...`` -- the calls on which an
+        expected measurement did not exist. Empty when nothing is missing."""
+        if not st.missing:
+            return ""
+        return "missing: " + ", ".join(
+            f"{k} x{n}" for k, n in sorted(st.missing.items(), key=lambda kv: (-kv[1], kv[0]))
+        )
+
     def envelope_digest(self, top: int = 4) -> str:
-        """Where each primitive is known to work (base-frame scalars)."""
+        """Where each primitive is known to work (base-frame scalars).
+
+        Derived (runtime-measured) features get their own clause, marked
+        ``measured``, so the per-skill cap on raw-arg features can never
+        crowd them out -- they ARE the rig constraint the raw args proxied.
+        """
         with self._lock:
             lines = []
             for skill, st in sorted(self._skills.items()):
@@ -375,8 +480,17 @@ class OperatingEnvelope:
                 good = [
                     f"{k} in [{self._span_label(v)}"
                     for k, v in sorted(st.spans.items())
-                    if v.n >= self.min_support
+                    if v.n >= self.min_support and k not in st.derived
                 ][:top]
+                derived = [
+                    f"{k} in [{self._span_label(v)}"
+                    for k, v in sorted(st.spans.items())
+                    if v.n >= self.min_support and k in st.derived
+                ]
+                if derived:
+                    good.append("measured: " + "; ".join(derived))
+                if good and st.missing:
+                    good.append(self._missing_label(st))
                 if good:
                     lines.append(f"- {skill} ({st.wins}W): " + "; ".join(good))
         return "\n".join(lines)
@@ -422,12 +536,19 @@ class OperatingEnvelope:
             if not skill or skill == "task_done":
                 continue
             result = rec.get("result") or {}
+            # The runtime writes its call-time measurements into the trace
+            # context (skills/runtime.py), so the OUTER loop learns the same
+            # derived features the live envelope did. A record without the
+            # key predates the channel: unknown, not missing.
+            context = rec.get("context") or {}
+            measured = context.get("measured") if isinstance(context, dict) else None
             self.record(
                 skill,
                 rec.get("args") or {},
                 ok=bool(result.get("ok")),
                 error=str(result.get("error", "")),
                 duration_ms=float(rec.get("duration_ms") or 0.0),
+                measured=measured if isinstance(measured, dict) else None,
             )
             n += 1
         return n
@@ -487,9 +608,15 @@ class OperatingEnvelope:
                         f"{'s' if span.contradictions != 1 else ''}"
                         if span.contradictions else ""
                     )
+                    origin = " (measured at call time)" if key in st.derived else ""
                     lines.append(
-                        f"- `{key}` succeeded in [{span.lo:.4f}, {span.hi:.4f}] "
+                        f"- `{key}`{origin} succeeded in [{span.lo:.4f}, {span.hi:.4f}] "
                         f"(mean {span.mean:.4f}, n={span.n}, {conf}{contra})"
+                    )
+                for key, n in sorted(st.missing.items(), key=lambda kv: (-kv[1], kv[0])):
+                    lines.append(
+                        f"- `{key}` (measured at call time) missing in {n} call"
+                        f"{'s' if n != 1 else ''} -- not measurable, not defaulted"
                     )
                 for sig, n in sorted(st.failures.items(), key=lambda kv: -kv[1]):
                     lines.append(f"- FAILURE `{sig}` x{n}")

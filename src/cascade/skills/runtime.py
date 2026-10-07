@@ -12,6 +12,7 @@ from __future__ import annotations
 from ..control import motion_evidence
 
 import logging
+import math
 import os
 import sys
 import threading
@@ -23,11 +24,12 @@ import numpy as np
 from ..agent.trace import TraceLogger
 from ..grasping import plan_grasps_from_fix, select_grasp, select_profile
 from ..grasping import evidence as grasp_evidence
+from ..grasping.selector import ALL_TOO_WIDE_MARKER
 from . import carry_attachment
 from ..memory import BeliefStore, EpisodicMemory
 from ..perception.colors import detection_color, parse_color_query
 from ..perception.reference import ReferenceResolutionError, parse_reference
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ..perception.workspace import WorkspaceFilter
 
@@ -41,9 +43,18 @@ from ..perception.grounding import (
 if TYPE_CHECKING:  # annotation only; the runtime import stays local (import cycle)
     from ..control.arm_rig import ArmRig
     from ..types import ObjectFix
-from ..types import Detection, Frame, SafetyViolation, SkillError, make_transform, transform_points
+from ..types import Detection, Frame, SafetyViolation, SkillError, SkillStuck, make_transform, transform_points
 
 logger = logging.getLogger(__name__)
+
+#: The three step outcomes `execute()` stamps on every result (`outcome`).
+#: `STUCK` (RPent's third finish status) is always `ok: false` and carries
+#: an `ask`: the concrete, human-actionable request that would unblock it.
+#: Only persistence exhaustion and terminal reasons a human can cure become
+#: stuck; harness refusals and the e-stop stay plain failures.
+OUTCOME_OK = "ok"
+OUTCOME_FAILED = "failed"
+OUTCOME_STUCK = "stuck"
 
 #: skills that move the arm: the WorldWatcher is held while they run so the
 #: held/handled object is not re-fused at a bogus mid-air position.
@@ -52,7 +63,20 @@ _MOTION_SKILLS = {
     "open_gripper", "close_gripper", "move_home", "pick_and_place",
     "point_at", "wave", "handover", "sort_by_color", "move_relative",
     "throw", "grasp_at_pixel", "turn_screw", "reset_scene",
+    # Pigey composites over the belief store: both pick and place through
+    # the same primitives every other composite uses (snapshot_scene is
+    # perception-only and deliberately absent)
+    "restore_scene", "search_for_object",
 }
+
+#: Labels that name hollow things -- what Pigey's occlusion search lifts
+#: first ("start with the largest/hollowest container (bowl, basket, box),
+#: since those hide the most; then taller objects"). Size breaks ties.
+_HOLLOW_WORDS = (
+    "bowl", "cup", "mug", "box", "basket", "bin", "container", "pot", "plate",
+    "tray", "lid", "jar", "can", "bucket", "glass", "dish", "carton", "crate",
+    "cuenco", "taza", "caja", "cesta", "bote", "plato", "bandeja", "tapa", "vaso",
+)
 
 
 def _jpeg(rgb: np.ndarray, quality: int = 85) -> bytes:
@@ -112,6 +136,27 @@ class _PreCarryLiftError(SkillError):
     """Carry clearance is unavailable; retain the grasp without a home sweep."""
 
 
+def _every_candidate_too_wide(err: str) -> bool:
+    """True when a grasp failure says EVERY candidate exceeded the jaw span.
+
+    Over-width is an object property: re-scanning cannot shrink it, so the
+    persistence loops stop on it (ROADMAP leftover #6). The selector states
+    it explicitly (`ALL_TOO_WIDE_MARKER`, with narrowest width vs jaw span).
+    Without the marker, a message is read as all-too-wide only if EVERY
+    listed reason is a width reason -- a single IK/vetting reason means a
+    fresh plan may still succeed. (The selector lists non-width reasons
+    first, so its 4-reason truncation cannot hide them.)"""
+    if ALL_TOO_WIDE_MARKER in err:
+        return True
+    if "> gripper max" not in err or "IK failed" in err:
+        return False
+    _, sep, tail = err.partition("no executable grasp: ")
+    if not sep:
+        return True  # a bare width reason from another caller
+    reasons = [r for r in tail.split("; ") if r.strip()]
+    return bool(reasons) and all("> gripper max" in r for r in reasons)
+
+
 class SkillRuntime:
     def __init__(
         self,
@@ -154,6 +199,10 @@ class SkillRuntime:
         self._object_pose = None
         self._held_det_label: str | None = None
         self._held_color: str | None = None
+        #: jaw opening MEASURED when the held object was taken (stall after
+        #: the lift, or at promotion/adoption), metres; None = unknown. It
+        #: decides whether a closed-jaw reading can mean a slip (#2.5).
+        self._held_width_m: float | None = None
         #: optional WorldWatcher (set by the app wiring); paused during motion
         self.watcher = None
         self._reset_observation_pending = False
@@ -174,11 +223,24 @@ class SkillRuntime:
         #: dispatch tier that served the last command ("reflex" |
         #: "experience" | "llm" | "mcp-host"), for the dashboard "via:" chip
         self.last_path: str | None = None
+        #: keyframe bytes loaded by the last SUCCESSFUL `recall_step` call:
+        #: [{"tag": "before"|"after", "path": <run-dir relative>, "caption",
+        #: "jpeg": bytes}]. Kept off the JSON result (the planner receives
+        #: json.dumps of it) and served as image content by the MCP server /
+        #: attached to the next planner turn by the orchestrator. Cleared at
+        #: the start of every recall so a bad index never leaves a stale frame.
+        self.last_recalled_frames: list[dict] = []
         #: which dispatch tier is issuing the CURRENT skill calls (reflex /
         #: experience / llm / mcp-host); set by the dispatcher around its
         #: calls and written into every trace row so an offline judge can
         #: score progress per tier (eval/progress_judge.py per_tier()).
         self.current_tier: str | None = None
+        #: pre-motion plausibility advisory for the CURRENT call, handed over
+        #: by the orchestrator the same way `current_tier` is (set before
+        #: execute(), cleared after) so the trace row and the result carry it
+        #: as `plausibility`. ADVISORY ONLY: nothing on the dispatch path reads
+        #: it -- it never gates, delays or alters a motion (agent/milestones.py).
+        self.pending_plausibility: dict | None = None
         #: monotonic time the current top-level MOTION skill started; while
         #: the arm moves the WorldWatcher is paused, so belief ages measured
         #: from "now" are artificially inflated -- staleness checks measure
@@ -189,6 +251,16 @@ class SkillRuntime:
         #: a belief that was fresh at task start stays "fresh" through 8
         #: retries even after every re-scan failed to see the object.
         self._last_reobserve_t: float | None = None
+        #: Derived envelope features for the CURRENT top-level skill call
+        #: (memory/envelope.py DERIVED_FEATURES): a scratchpad the running
+        #: skill fills from the runtime's own measurements -- FK of the
+        #: joint vector read back when the jaws closed, the localized fix --
+        #: via `_note_measurement()`. Owned by the outermost `_execute_skill`
+        #: (same ownership pattern as `_motion_t0`), so a grasp nested inside
+        #: pick_and_place credits the call the agent actually made. None
+        #: between calls; a feature the skill never wrote is recorded by the
+        #: envelope as MISSING, never defaulted here.
+        self._call_measurements: dict | None = None
         self._graspgenx = None  # lazy GraspGenXPlanner (grasp.backend)
         #: Optional profiles use a short retry cooldown after a server error.
         #: Required profiles fail visibly and retry on the next command.
@@ -262,6 +334,7 @@ class SkillRuntime:
     _arm = None
     _arm_override = None
     arm_rig = None
+    _call_measurements = None
 
     @property
     def arm(self):
@@ -533,7 +606,7 @@ class SkillRuntime:
         """Existing actuator/checker/trace path; completion is owned by execute()."""
         fn = getattr(self, f"skill_{name}", None)
         if fn is None:
-            return {"ok": False, "error": f"unknown skill {name!r}"}
+            return {"ok": False, "outcome": OUTCOME_FAILED, "error": f"unknown skill {name!r}"}
         # `arm` is handled HERE, not in the skills: it names which robot runs
         # this call and is stripped from the kwargs, so no skill signature had
         # to change. Resolved before anything else -- an unknown name must
@@ -544,7 +617,7 @@ class SkillRuntime:
         try:
             selected = self._select_arm(arm_name)
         except SkillError as e:
-            return {"ok": False, "error": f"SkillError: {e}"}
+            return {"ok": False, "outcome": OUTCOME_FAILED, "error": f"SkillError: {e}"}
         # Record the resolved identity, not the optional selector stripped
         # above. Consult only the rig registry: reading backend attributes
         # through a LazyArm can power hardware merely to produce a log.
@@ -579,6 +652,11 @@ class SkillRuntime:
         before = self.trace.save_keyframe(
             self.last_frame.rgb if self.last_frame is not None else None, f"{name}_before"
         )
+        # Wrist views (ROADMAP #15): the judge's GRM prompt has two wrist
+        # slots per BEFORE/AFTER set. On a rig with a wrist stream (`role:
+        # wrist` / eye-in-hand profile) save its frame next to the front one
+        # for motion skills; without one the judge repeats the front image.
+        before_wrists = self._save_wrist_keyframes(f"{name}_before", fresh=False) if name in _MOTION_SKILLS else None
         # Pigey: snapshot the target's pose BEFORE the motion so the
         # postcondition can measure a displacement rather than guess one.
         # NOTE the arg name varies across the skill API and getting this wrong
@@ -619,6 +697,14 @@ class SkillRuntime:
                 # clears a physical obligation. The original point path remains.
                 region_context_error = f"{type(exc).__name__}: {exc}"
         t0 = time.monotonic()
+        # Derived envelope features: the outermost dispatched call owns a
+        # fresh scratchpad; whatever the skill measures lands on THIS row of
+        # the envelope and the trace (see `_note_measurement`). Released
+        # unconditionally below, after every exception path has produced its
+        # result, so one call's measurements can never bleed into the next.
+        owns_measurements = self._call_measurements is None
+        if owns_measurements:
+            self._call_measurements = {}
         try:
             import contextlib
 
@@ -659,9 +745,15 @@ class SkillRuntime:
             if "ok" not in result:
                 result["ok"] = True
         except (SkillError, SafetyViolation) as e:
-            result = (carry_attachment.failure_result(self, e)
-                      if isinstance(e, carry_attachment.AttachmentInvalid)
-                      else {"ok": False, "error": f"{type(e).__name__}: {e}"})
+            if isinstance(e, SkillStuck):
+                # The skill ran out of what it can do on its own and names
+                # what the human should change. Normalised below (ok=false).
+                result = {"ok": False, "outcome": OUTCOME_STUCK, "ask": e.ask,
+                          "error": f"SkillStuck: {e}"}
+            else:
+                result = (carry_attachment.failure_result(self, e)
+                          if isinstance(e, carry_attachment.AttachmentInvalid)
+                          else {"ok": False, "error": f"{type(e).__name__}: {e}"})
         except TypeError as e:
             result = {"ok": False, "error": f"bad arguments for {name}: {e}"}
         except Exception as e:  # camera dropouts, CAN loss, ... : the agent
@@ -675,6 +767,23 @@ class SkillRuntime:
             }
             traceback.print_exc()
         dur = (time.monotonic() - t0) * 1000
+        # Every result carries one of three outcomes. Stamped BEFORE the
+        # postcondition fold so `annotate_result` can see a stuck step and
+        # refuse to confirm an effect for it; a stuck result is forced to
+        # ok=false (never a success) and always carries a non-empty ask.
+        result = _normalize_outcome(result, name)
+        # Release the measurement scratchpad for this call. Only skills that
+        # declare derived features (DERIVED_FEATURES) get an instrumentation
+        # channel on their envelope row: for them an unmeasured feature is a
+        # MISSING count; everything else records exactly as before.
+        measured = None
+        if owns_measurements:
+            measured, self._call_measurements = self._call_measurements, None
+        from ..memory.envelope import DERIVED_FEATURES
+        if name not in DERIVED_FEATURES:
+            measured = None
+        if measured is not None:
+            trace_context["measured"] = dict(measured)
         # Pigey closed loop: was the claimed effect real? A refuted
         # postcondition DOWNGRADES a self-reported success (annotate_result).
         if (self.effects is not None or name == "turn_screw") and result.get("ok") is not None:
@@ -736,11 +845,28 @@ class SkillRuntime:
                 "do not claim fastener turns, axial advancement, seating or tightening torque. "
                 "Do not repeat motion to obtain confirmation from this unsupported observer."
             )
-        # Harness-VLA: fold the outcome into the learned operating envelope.
+        # Re-stamp after the verdict fold: a self-reported ok that the world
+        # refuted is now ok=false and must read `failed`, not `ok`. A stuck
+        # outcome survives the fold and overrides any per-skill next_action:
+        # the ask goes to the human, verbatim, and this step is not retried.
+        result = _normalize_outcome(result, name)
+        if result.get("outcome") == OUTCOME_STUCK:
+            # Prepend, never replace: a skill's own guidance (pick_and_place's
+            # "if the user said 'then stop' ... do not start another pick")
+            # still applies; the relay instruction comes first.
+            own = str(result.get("next_action") or "").strip()
+            result["next_action"] = (
+                "STUCK: relay `ask` to the human verbatim and stop; do not retry this step "
+                "or invent coordinates -- wait for the human to change the scene or the "
+                "instruction." + (f" {own}" if own else "")
+            )
+        # Harness-VLA: fold the outcome into the learned operating envelope,
+        # raw args plus whatever this call measured (derived features).
         try:
             self.envelope.record(
                 name, args, ok=bool(result.get("ok")),
                 error=str(result.get("error", "")), duration_ms=dur,
+                measured=measured,
             )
         except Exception:
             pass
@@ -759,10 +885,29 @@ class SkillRuntime:
         after = self.trace.save_keyframe(
             self.last_frame.rgb if self.last_frame is not None else None, f"{name}_after"
         )
+        # Same rule for the wrist AFTER frame: a FRESH grab once the arm has
+        # stopped, never the pre-motion frame re-saved.
+        after_wrists = self._save_wrist_keyframes(f"{name}_after", fresh=True) if name in _MOTION_SKILLS else None
+        # Pre-motion plausibility advisory (orchestrator hand-off, see
+        # __init__): attached AFTER every verdict/annotation above so it can
+        # influence none of them, and consumed here so it cannot leak onto
+        # the next call. Absent (None) -> this block is a no-op and the
+        # result is byte-identical to the pre-critic path. getattr: bare
+        # runtimes built without __init__ (unit fixtures) have no hand-off.
+        advisory = getattr(self, "pending_plausibility", None)
+        if advisory is not None:
+            self.pending_plausibility = None
+            result["plausibility"] = advisory
         self.trace.record(name, args, result, dur, before, after,
-                          tier=self.current_tier, context=trace_context)
+                          tier=self.current_tier, context=trace_context,
+                          keyframe_before_wrists=before_wrists, keyframe_after_wrists=after_wrists)
         err = str(result.get("error", "failed"))
-        self._show_status(f"{name} -> " + ("ok" if result["ok"] else err[:60]))
+        stuck = result.get("outcome") == OUTCOME_STUCK
+        # one tail for the status line and the memory event: ok / the ask / the error
+        tail = ("ok" if result["ok"]
+                else f"stuck -- {str(result.get('ask', ''))}" if stuck
+                else err)
+        self._show_status(f"{name} -> {tail[:60]}")
         # Vesta memory tuple <step, time, observation, action, verdict>: the
         # action event carries the AFTER frame (what the world looked like
         # once this action was done) and the independent postcondition
@@ -774,7 +919,7 @@ class SkillRuntime:
         verdict = str((pc or {}).get("status") or "") if isinstance(pc, dict) else ""
         self.memory.add(
             "action" if result["ok"] else "outcome",
-            f"{name}({_short(args)}) -> " + ("ok" if result["ok"] else err[:120]),
+            f"{name}({_short(args)}) -> {tail[:120]}",
             data={"verdict": verdict} if verdict else None,
             rgb=(
                 self.last_frame.rgb
@@ -791,6 +936,58 @@ class SkillRuntime:
         self.last_frame = frame
         self.arm.harness.heartbeat()
         return frame
+
+    def _wrist_streams(self) -> list[tuple[str, Any]]:
+        """`(name, stream)` for every rig camera whose profile is a wrist view
+        (`perception.camera_base.is_wrist_view`: `role: wrist` or eye-in-hand
+        extrinsics), in rig order. Empty without a rig or without one."""
+        rig = getattr(self, "rig", None)
+        streams = getattr(rig, "streams", None)
+        if not streams:
+            return []
+        from ..perception.camera_base import is_wrist_view
+
+        cams = self.cfg.get("cameras") or [self.cfg.get("camera")]
+        out = []
+        for i, c in enumerate(cams):
+            if c is None or not hasattr(c, "get") or not is_wrist_view(c):
+                continue
+            stream_name = str(c.get("name", f"cam{i}"))
+            if stream_name in streams:
+                out.append((stream_name, streams[stream_name]))
+        return out
+
+    def _save_wrist_keyframes(self, tag: str, *, fresh: bool) -> dict[str, str] | None:
+        """One JPEG per wrist stream for a motion skill's BEFORE/AFTER pair,
+        `{stream: path}`, or None when the rig has no wrist view.
+
+        `fresh=True` (AFTER) waits for the stream's next delivery so the frame
+        postdates the motion -- the same rule the front AFTER keyframe follows
+        (a pre-motion frame re-saved is what scored 0 % on a confirmed pick).
+        BEFORE takes the latest frame without waiting. The wait is bounded at
+        1 s per stream (evidence must not make a motion skill wait on a
+        stalled camera; `CameraStream.get_frame` then degrades to its latest
+        frame). A wrist camera that fails or has no frame yet never blocks
+        the skill: that stream is simply absent from the dict, and the judge
+        falls back to repeating the front view for the step.
+        """
+        import re
+
+        out: dict[str, str] = {}
+        for stream_name, stream in self._wrist_streams():
+            try:
+                frame = stream.get_frame(timeout_s=1.0) if fresh else stream.latest()
+                if frame is None:
+                    frame = stream.get_frame(timeout_s=1.0)
+            except Exception:  # noqa: BLE001 -- evidence, never a gate
+                continue
+            if frame is None or getattr(frame, "rgb", None) is None:
+                continue
+            safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", stream_name)
+            path = self.trace.save_keyframe(frame.rgb, f"{tag}_wrist_{safe}")
+            if path:
+                out[stream_name] = path
+        return out or None
 
     def observe_fresh(self) -> Frame:
         frame = _fresh_camera_frame(self.camera, self.last_frame)
@@ -879,6 +1076,44 @@ class SkillRuntime:
     def _tcp(self) -> np.ndarray:
         return self.kin.fk(self.arm.get_state().q)[:3, 3]
 
+    def _note_measurement(self, **values) -> None:
+        """Record derived envelope features for the current top-level call.
+
+        Only finite numbers are kept; anything else is simply not written,
+        and the envelope then records that feature as MISSING for this call
+        (memory/envelope.py). A no-op outside a dispatched call (direct
+        `skill_*` invocation from a test or a composite), so nothing here can
+        leak one call's measurements into the next.
+        """
+        scratch = self._call_measurements
+        if scratch is None:
+            return
+        for key, value in values.items():
+            try:
+                f = float(value)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(f):
+                scratch[key] = f
+
+    @staticmethod
+    def _horizontal_footprint_m(points) -> float | None:
+        """Narrower extent of the cloud's XY footprint (its own principal
+        axes), i.e. the smallest opening a horizontal parallel jaw can take
+        it with. The 3D OBB's smallest extent is the cloud's THICKNESS for a
+        top-down camera (it only sees the lid), which is not a jaw width."""
+        try:
+            xy = np.asarray(points, dtype=float)[:, :2]
+        except (TypeError, ValueError, IndexError):
+            return None
+        if xy.shape[0] < 3 or not np.isfinite(xy).all():
+            return None
+        centred = xy - xy.mean(axis=0)
+        _, _, vt = np.linalg.svd(centred, full_matrices=False)
+        proj = centred @ vt.T
+        extents = proj.max(axis=0) - proj.min(axis=0)
+        return float(np.min(extents))
+
     def _reconcile_held(self) -> None:
         """Reconcile the held flag with the jaws, in BOTH directions.
 
@@ -891,19 +1126,38 @@ class SkillRuntime:
         e-stop, a feedback timeout). If the jaws are stalled OPEN on
         something, the object IS in the gripper -> promote the marker to the
         real held state so the next skill does not open the jaws on it.
-        Jaws closed on air -> drop the marker.
+        Jaws closed on air -> drop the marker. Jaws AT the open position
+        (the close never landed, or `open_gripper` ran since) -> drop it
+        too: open jaws are not an invented hold.
+        (c) Thin objects: the held width MEASURED when the object was taken
+        (jaw stall after the lift) decides whether a closed-jaw reading can
+        mean a slip at all; see below.
         """
         if getattr(self, "_contact_episode", None) is not None:
             return  # only explicit contact recovery may finish this failed close
+        air = float(self.cfg.grasp.get("air_grasp_frac", 0.04))
         prov = getattr(self, "_held_provisional", None)
         if prov is not None and not self.held_object:
             wf = self._gripper_width_frac()
             if wf is not None:
-                if wf >= float(self.cfg.grasp.get("air_grasp_frac", 0.04)):
+                # Jaws AT the open position (within the same tolerance that
+                # separates a closed jaw from air) cannot be stalled on
+                # anything: the close never landed (refused before its first
+                # stage) or the jaws were opened since. Promoting that read
+                # every later grasp as "already holding" -- a phantom hold.
+                if wf >= 1.0 - air:
+                    self.memory.add(
+                        "outcome",
+                        f"the jaws are open; the interrupted grasp of {prov[0]!r} "
+                        "did not land -- nothing is held",
+                    )
+                elif wf >= air:
                     label, det_label, color = prov
                     self.held_object = label
                     self._held_det_label = det_label
                     self._held_color = color
+                    # the stall width IS the measurement of what is held
+                    self._held_width_m = float(wf) * float(self._max_width)
                     self.memory.add(
                         "outcome",
                         f"the jaws are stalled on {label!r} although the grasp did not "
@@ -924,7 +1178,16 @@ class SkillRuntime:
         held_w = self._gripper_width_m()
         if thin > 0 and held_w is not None and held_w >= thin:
             return
-        if wf < float(self.cfg.grasp.get("air_grasp_frac", 0.04)):
+        # The MEASURED held width (jaw stall after the lift, or at promotion /
+        # adoption) decides what a closed-jaw reading means. An object that
+        # measured thinner than the air tolerance when it was grasped keeps
+        # the jaws below `air_grasp_frac` while HELD, so position feedback
+        # cannot tell that hold from a slip: never clear it on width alone.
+        # (A chunky known width keeps the rule below exactly as it was.)
+        known_w = getattr(self, "_held_width_m", None)
+        if known_w is not None and float(known_w) < air * float(self._max_width):
+            return
+        if wf < air:
             self.memory.add(
                 "outcome",
                 f"I no longer feel {self.held_object!r} in the gripper "
@@ -933,6 +1196,7 @@ class SkillRuntime:
             self.held_object = None
             self._held_det_label = None
             self._held_color = None
+            self._held_width_m = None
 
     def _grasp_retry_verdict(self, object: str, attempt: int, last_err: str) -> str | None:
         """Why persistence should STOP retrying a grasp, or None to keep going.
@@ -947,7 +1211,7 @@ class SkillRuntime:
             return "e-stop latched; not retrying"
         if attempt >= 2 and "no detections" in last_err and self.beliefs.find(object) is None:
             return "never seen after re-scans; giving up early"
-        if "> gripper max" in last_err and "IK failed" not in last_err:
+        if _every_candidate_too_wide(last_err):
             return "object wider than the jaws; use push_object; giving up early"
         return None
 
@@ -967,6 +1231,7 @@ class SkillRuntime:
             deadline = min(deadline, task_deadline)
         last_err = "grasp failed"
         attempt = 0
+        stop = None  # why the loop stopped early (None = budget spent)
         while attempt < max_attempts:
             attempt += 1
             if attempt > 1:
@@ -998,7 +1263,15 @@ class SkillRuntime:
             if stop:
                 last_err += f" ({stop})"
                 break
-        return {"ok": False, "held": False, "error": last_err, "grasp_attempts": attempt}
+        out = {"ok": False, "held": False, "error": last_err, "grasp_attempts": attempt}
+        # Same contract as pick_and_place: budget spent or a reason no retry
+        # cures -> STUCK with a human-actionable ask; e-stop / contact
+        # episode stay plain failures. `stop` is None when the loop ended by
+        # the attempt cap or the clock.
+        if _is_human_curable(stop):
+            out["outcome"] = OUTCOME_STUCK
+            out["ask"] = _stuck_ask(object, last_err, attempt)
+        return out
 
     def begin_task_budget(self, seconds: float | None = None) -> None:
         """Open a task-scale persistence budget shared by EVERY tier.
@@ -1840,6 +2113,21 @@ class SkillRuntime:
         else:
             frame, fix = self._localize(label, spatial_hint=spatial_hint)
         grasp_evidence.localized(frame, fix, getattr(self, "extrinsics", None))
+        # Derived envelope features from the fix (memory/envelope.py #4):
+        # the object's top above its support plane -- a top-down camera
+        # never sees the sides, so the cloud's z-span is NOT a height -- and
+        # the narrower horizontal footprint extent. Measured here, before
+        # planning, so a grasp that dies at IK still records what it saw.
+        try:
+            support = self.cfg.grasp.get("source_support_top_z_m")
+            support = (float(support) if support is not None
+                       else float(self.arm.harness.limits.table_z))
+            self._note_measurement(
+                object_height_m=float(fix.points[:, 2].max()) - support,
+                object_width_m=self._horizontal_footprint_m(fix.points),
+            )
+        except Exception:  # noqa: BLE001 -- a measurement failure is a missing feature, never a grasp failure
+            pass
         profile = select_profile(fix.detection.label or label, material)
         grasp_evidence.event("material_profile", profile=profile)
         grasp_evidence.phase("planning")
@@ -2309,6 +2597,20 @@ class SkillRuntime:
                     grasp_evidence.event("post_close_stability", **stability)
 
             tcp_close = self.kin.fk(close_state.q)[:3, 3]
+            # Derived envelope features from the jaws' own close state: the
+            # TCP height when they closed and how far the tool landed from
+            # the perceived centre. FK of MEASURED joints, not the planned
+            # grasp pose -- the planned value is what the raw args already
+            # proxied; this is where the arm actually was.
+            try:
+                self._note_measurement(
+                    tcp_z_at_grasp_m=float(tcp_close[2]),
+                    object_tcp_lateral_offset_m=float(np.hypot(
+                        float(fix.position[0]) - float(tcp_close[0]),
+                        float(fix.position[1]) - float(tcp_close[1]))),
+                )
+            except Exception:  # noqa: BLE001 -- missing feature, never a grasp failure
+                pass
             try:
                 held_offset_at_close = np.asarray(fix.position, float) - tcp_close
                 if held_offset_at_close.shape != (3,) or not np.isfinite(held_offset_at_close).all():
@@ -2401,6 +2703,11 @@ class SkillRuntime:
         self._held_det_label = fix.detection.label
         self._held_color = detection_color(frame.rgb, fix.detection)
         self._held_provisional = None  # promoted: the real flag is set now
+        # The held width as MEASURED (jaw stall after the lift); the planned
+        # width stands in when feedback was unavailable. `_reconcile_held`
+        # reads it before calling a closed jaw a slip.
+        self._held_width_m = (float(width_after_lift) * float(self._max_width)
+                              if verified else float(grasp.width_m))
         # A cached aiming estimate cannot prove a later slip. Preserve the
         # post-lift clock floor separately for newly acquired hold evidence.
         self._held_offset = held_offset_at_close
@@ -2528,6 +2835,7 @@ class SkillRuntime:
         if wf is not None and air < wf < 0.9:
             self.held_object = "object"
             self._held_det_label = None
+            self._held_width_m = float(wf) * float(self._max_width)  # measured now
             self.memory.add(
                 "note",
                 "the jaws are holding something unregistered; "
@@ -2654,6 +2962,7 @@ class SkillRuntime:
                 self._held_det_label = None
                 self._held_color = None
                 self._held_offset = None
+                self._held_width_m = None
                 self._held_support_offset_m = None
                 raise SkillError(f"{slipped!r} slipped out of the gripper during the carry")
             target[0] -= float(held_offset[0])
@@ -2819,6 +3128,7 @@ class SkillRuntime:
             self._held_offset = None
             self._held_support_offset_m = None
             self._held_color = None
+            self._held_width_m = None
             self.memory.add("action", f"placed {placed!r} at {target.round(3).tolist()}")
             try:
                 if release_error is None and release is not None:
@@ -3102,9 +3412,10 @@ class SkillRuntime:
             if time.monotonic() >= task_deadline:
                 return {
                     **failure_destination,
-                    "ok": False, "stage": "grasp",
+                    "ok": False, "stage": "grasp", "outcome": OUTCOME_STUCK,
                     "error": "task persistence budget exhausted (an earlier tier already spent it)",
                     "suggestion": "ask the visitor to reposition the object or pick a different one",
+                    "ask": _stuck_ask(object, "persistence budget exhausted", 0),
                 }
             deadline = min(deadline, task_deadline)
 
@@ -3119,6 +3430,7 @@ class SkillRuntime:
         attempt = 0
         p_attempt = 0
         tp = t0
+        stop = None  # why the grasp loop stopped early (None = budget spent)
         while placed is None:
             # ── grasp stage (skipped when re-entering after a mid-carry slip
             # left something verified in the jaws -- cannot happen today, but
@@ -3185,13 +3497,23 @@ class SkillRuntime:
                     self.skill_move_home()
                 except (SkillError, SafetyViolation):
                     pass
-                return {
+                out = {
                     **failure_destination,
                     "ok": False, "stage": "grasp",
                     "error": f"grasp failed after {attempt} attempts "
                              f"({round(time.monotonic() - t0, 1)}s): {last_err}",
                     "suggestion": "check world_state / camera_snapshot; the object may be unreachable or mis-detected",
                 }
+                # The robot did everything it can on its own: the budget is
+                # spent, or the stop reason is one no retry cures (never
+                # seen, too wide). That is STUCK -- a request to the human,
+                # not a failure for the planner to retry. An e-stop or an
+                # unfinished contact episode is a harness state and stays a
+                # plain failure.
+                if _is_human_curable(stop):
+                    out["outcome"] = OUTCOME_STUCK
+                    out["ask"] = _stuck_ask(object, last_err, attempt)
+                return out
 
             # ── place stage ────────────────────────────────────────────────
             tp = time.monotonic()
@@ -3275,7 +3597,7 @@ class SkillRuntime:
                     and attempt < max_attempts
                 )
                 if not can_regrasp:
-                    return {
+                    out = {
                         **failure_destination,
                         "ok": False, "stage": "place",
                         "error": f"place failed after {p_attempt} attempts: {place_err}",
@@ -3286,6 +3608,16 @@ class SkillRuntime:
                         ),
                         "grip_verified": grasp.get("grip_verified"),
                     }
+                    # Still holding after every place attempt (destination
+                    # blocked / not placeable) or slipped with the grasp
+                    # budget spent: the human has to change something. The
+                    # e-stop stays a plain failure.
+                    if not self.arm.harness.estopped:
+                        out["outcome"] = OUTCOME_STUCK
+                        out["ask"] = _stuck_ask(object, place_err, p_attempt, stage="place",
+                                                destination=destination_name,
+                                                holding=bool(self.held_object))
+                    return out
                 self.memory.add(
                     "note",
                     f"{object!r} slipped while I was carrying it -- starting over",
@@ -3447,11 +3779,16 @@ class SkillRuntime:
                 raise SkillError("not holding anything; say which object to hand over")
             res = self._grasp_with_persistence(label)
             if not res.get("ok", True) or not res.get("held"):
-                return {
+                out = {
                     "ok": False,
                     "error": f"could not grasp {label!r} for handover: {res.get('error')}",
                     "grasp_attempts": res.get("grasp_attempts"),
                 }
+                if res.get("outcome") == OUTCOME_STUCK:
+                    # the persistence loop asked the human; pass the ask through
+                    out["outcome"] = OUTCOME_STUCK
+                    out["ask"] = res.get("ask")
+                return out
         hand_q = self._profile_q("handover_q", "present the object to a human")
         if not self.arm.move_joints(hand_q, duration_s=2.0):
             raise SkillError("did not settle at the handover pose")
@@ -3518,6 +3855,7 @@ class SkillRuntime:
         self.held_object = None
         self._held_det_label = None
         self._held_color = None
+        self._held_width_m = None
         # follow-through, then home so the camera view clears.
         try:
             self.skill_move_home()
@@ -3736,7 +4074,10 @@ class SkillRuntime:
                 failed.append({"label": query, "error": str(e)})
                 continue
             if not res.get("ok", True) or not res.get("held"):
-                failed.append({"label": query, "error": str(res.get("error", "?"))})
+                entry = {"label": query, "error": str(res.get("error", "?"))}
+                if res.get("outcome") == OUTCOME_STUCK:
+                    entry["ask"] = str(res.get("ask") or "")
+                failed.append(entry)
                 continue
             try:
                 self.skill_place_at(zx, zy)
@@ -3756,7 +4097,565 @@ class SkillRuntime:
             out["error"] = "; ".join(
                 f"{f['label']}: {f['error'][:60]}" for f in failed[:3]
             ) or "nothing to sort"
+            asks = [f["ask"] for f in failed if f.get("ask")]
+            if asks:
+                # nothing moved and at least one object needs the human:
+                # the sort is stuck, every per-object ask relayed verbatim
+                out["outcome"] = OUTCOME_STUCK
+                out["ask"] = " ".join(asks)
         return out
+
+    # ── Pigey scene memory: composites over the belief store ────────────
+    #
+    # github.com/lianegalanti/Pigey `real/agent-system.md` keeps "Original
+    # positions (memorize)" in the planner's reasoning text and restores via
+    # absolute coordinates, blocker-first; its occlusion search lifts the
+    # largest hollow occluder, parks it ~0.2 m away in free table, re-perceives
+    # and then resumes the ORIGINAL task. Here the same protocol lives in
+    # three skills so a chat host gets it as one tool call each. All motion
+    # is `_grasp_with_persistence` + `skill_place_at`, exactly what
+    # `sort_by_color` composes: every waypoint is vetted by the harness, the
+    # per-move verdict is `place_at`'s own postcondition, and the snapshot is
+    # ADVISORY -- restored positions are targets, never asserted as achieved
+    # without the composite postcondition (`agent/effects.py::_check_restored`).
+
+    @staticmethod
+    def _belief_query(b) -> str:
+        """The phrase `_localize` resolves back to THIS belief: colour +
+        label, without doubling a colour the label already names
+        ("blue cube", not "blue blue cube")."""
+        label = str(b.label)
+        if b.color and str(b.color).lower() not in label.lower().split():
+            return f"{b.color} {label}"
+        return label
+
+    @staticmethod
+    def _footprint_m(b_or_entry) -> float:
+        """Largest horizontal-ish dimension of a belief or snapshot entry
+        (extents are eigenvalue-sorted, so [0] is the long side); 5 cm when
+        unknown -- a chunky prop, the conservative guess for clearance."""
+        ext = b_or_entry.get("extent") if isinstance(b_or_entry, dict) else getattr(b_or_entry, "extent", None)
+        if ext is None:
+            return 0.05
+        try:
+            return float(np.max(np.abs(np.asarray(ext, dtype=float))))
+        except (TypeError, ValueError):
+            return 0.05
+
+    def _workspace_contains_xy(self, xy, margin_m: float = 0.0) -> bool:
+        bounds = self._localization_workspace_bounds()
+        if bounds is None:
+            return True
+        p = np.asarray(xy, dtype=float).reshape(-1)[:2]
+        lo, hi = bounds[0][:2] + margin_m, bounds[1][:2] - margin_m
+        return bool(np.all(np.isfinite(p)) and np.all(p >= lo) and np.all(p <= hi))
+
+    def _reachable_place_xy(self, x: float, y: float) -> bool:
+        """IK pre-check for a top-down release above (x, y).
+
+        Only a filter: `place_at`'s own planner and the harness remain the
+        authority over the actual motion. Its job is to avoid grasping an
+        object whose target no top-down pose can reach -- on the SO-101 the
+        workspace box admits points the arm cannot solve (the usable region is
+        an annulus), and a grasp followed by "place pose unreachable" leaves
+        the object in the jaws. Seeded from `home_q`, like the grasp IK.
+        """
+        kin = getattr(self, "kin", None)
+        if kin is None:
+            return True  # bare runtimes/tests: nothing to pre-check with
+        gcfg = self.cfg.grasp
+        table_z = float(self.cfg.safety.get("table_z", 0.0))
+        z = table_z + float(gcfg.get("release_height_m", 0.05))
+        z = min(z, float(gcfg.get("topdown_carry_z_max", gcfg.get("topdown_z_max", 0.15))) - 0.005)
+        q_seed = self._profile_q("home_q", "pre-check a place pose")
+        from ..grasping.obb_grasp import _yaw_rotation
+
+        for yaw in (float(np.arctan2(y, x)), 0.0, np.pi / 4, -np.pi / 4):
+            try:
+                ik = kin.ik(make_transform(_yaw_rotation(yaw, axis_order=self._tool_axis_order),
+                                           [float(x), float(y), z]), q_seed)
+            except Exception:  # noqa: BLE001 -- a solver fault is "not reachable", not a crash
+                continue
+            if ik.success:
+                return True
+        return False
+
+    def _free_park_spot(self, around_xy, avoid, offsets_m=(0.20, 0.15, 0.12)):
+        """A spot `offset` away from `around_xy` that is inside the workspace,
+        clear of every (xy, radius) in `avoid`, and IK-reachable; None when
+        the table offers none. Pigey parks occluders "+0.2 m" into free
+        table; shorter offsets are fallbacks for a small workspace, never a
+        substitute for the clearance test."""
+        around = np.asarray(around_xy, dtype=float).reshape(-1)[:2]
+        r2 = 1.0 / np.sqrt(2.0)
+        directions = ((0.0, 1.0), (0.0, -1.0), (1.0, 0.0), (-1.0, 0.0),
+                      (r2, r2), (r2, -r2), (-r2, r2), (-r2, -r2))
+        for off in offsets_m:
+            for d in directions:
+                p = around + float(off) * np.asarray(d)
+                if not self._workspace_contains_xy(p, margin_m=0.03):
+                    continue
+                if any(float(np.linalg.norm(p - np.asarray(a, dtype=float)[:2])) < float(r)
+                       for a, r in avoid):
+                    continue
+                if not self._reachable_place_xy(float(p[0]), float(p[1])):
+                    continue
+                return p
+        return None
+
+    def _task_budget_exhausted(self) -> bool:
+        deadline = getattr(self, "_task_deadline", None)
+        return deadline is not None and time.monotonic() >= deadline
+
+    #: Camera frames come out of a buffered stream, so a belief refreshed by
+    #: a fresh look carries the FRAME's capture time, which can precede the
+    #: moment the look began by a frame interval or two. A belief counts as
+    #: confirmed by the look when it was seen after this much before it.
+    _FRESH_LOOK_SLACK_S = 2.0
+
+    def _fresh_look(self, frames: int = 1) -> float:
+        """Re-observe by hand (the watcher is paused during motion skills)
+        and return the timestamp floor: beliefs last seen at or after it were
+        confirmed by THIS look; older ones are remembered, not seen. The
+        composites act only on what the camera confirms now -- a remembered
+        position informs the agent, it never aims the jaws."""
+        floor = time.monotonic() - self._FRESH_LOOK_SLACK_S
+        self._reobserve(frames=frames)
+        return floor
+
+    def _estopped(self) -> bool:
+        """The latched e-stop, read without materializing a LazyArm (the
+        harness is the SafeArm's, not the backend's)."""
+        harness = getattr(self.arm, "harness", None)
+        return bool(harness is not None and getattr(harness, "estopped", False))
+
+    def _move_object_to(self, query: str, target_xy, *, budget_s: float, kind: str) -> dict:
+        """One composite move: grasp `query` with the normal persistence loop,
+        place it at `target_xy` through `skill_place_at`, verify with
+        `place_at`'s own postcondition, clear the view.
+
+        Returns the move record; a failed grasp is reported in it (the loop
+        may go on), a failed place sets `holding` (the caller must stop:
+        something is in the jaws) and `stop` marks a release/retreat failure
+        after which no further motion is safe.
+        """
+        x, y = float(target_xy[0]), float(target_xy[1])
+        rec: dict = {"label": query, "kind": kind, "to": [round(x, 3), round(y, 3)], "ok": False}
+        before = self.effects.snapshot(query) if self.effects is not None else {}
+        try:
+            res = self._grasp_with_persistence(query, budget_s=budget_s)
+        except (SkillError, SafetyViolation) as e:
+            res = {"ok": False, "held": False, "error": f"{type(e).__name__}: {e}"}
+        rec["grasp_attempts"] = res.get("grasp_attempts")
+        if not res.get("ok", True) or not res.get("held"):
+            rec["error"] = f"grasp: {res.get('error', 'grasp failed')}"
+            if not res.get("home_skipped"):
+                try:  # never leave the arm over the table after a failed attempt
+                    self.skill_move_home()
+                except (SkillError, SafetyViolation):
+                    pass
+            return rec
+        try:
+            place = self.skill_place_at(x, y)
+        except (SkillError, SafetyViolation) as e:
+            rec["error"] = f"place: {e}"
+            rec["holding"] = self.held_object
+            return rec
+        rec["placed_at"] = place.get("at")
+        if self.effects is not None:
+            pc = self.effects.verify("place_at", {"x": x, "y": y}, place, before=before)
+            if pc is not None:
+                rec["postcondition"] = pc.as_dict()  # inherited from the primitive
+        if place.get("ok") is False:
+            rec["error"] = str(place.get("error", "place failed"))
+            rec["stop"] = True  # released, but the retreat/release failed: no sweep home
+            rec["holding"] = self.held_object
+            return rec
+        rec["ok"] = True
+        if not place.get("home_skipped"):
+            try:  # clear the camera view for the re-scan that follows
+                self.skill_move_home()
+            except (SkillError, SafetyViolation):
+                pass
+        return rec
+
+    def skill_snapshot_scene(self, name: str = "scene") -> dict:
+        """Memorize the layout: the CONFIRMED objects' labels, colours and
+        centroids under a name, in the belief store. No motion. Advisory
+        data: the positions become `restore_scene`'s targets and nothing
+        here claims where an object is afterwards."""
+        name = str(name or "scene").strip().lower() or "scene"
+        # A fresh pass first, so "confirmed" means seen now, not remembered.
+        self._fresh_look(frames=1)
+        held = self._held_det_label if self.held_object else None
+        snap = self.beliefs.snapshot(name, exclude_label=held)
+        self.memory.add("note", f"memorized scene {name!r}: {len(snap.entries)} object(s)")
+        out = {"snapshot": name, **snap.as_dict()}
+        out.pop("name", None)
+        out["held_excluded"] = self.held_object
+        out["note"] = (
+            "Advisory layout memory: these positions are the targets restore_scene will "
+            "aim for, not a claim about where objects are now. Nothing moved."
+        )
+        return out
+
+    def _restore_plan(self, snap, tolerance_m: float, skip: set[str], seen_after: float | None = None) -> dict:
+        """Diff the snapshot against the beliefs CONFIRMED by the last look.
+
+        Identity is colour-first (Pigey: "match by visual identity (color,
+        shape) ... labels drift"), then label/alias, nearest first; each
+        belief answers for at most one snapshot entry. Only beliefs seen at
+        or after `seen_after` take part: a remembered position (the drop point
+        of a pick made before the world changed) would otherwise match its
+        own snapshot entry and hide the displacement, or block a target
+        nothing occupies. Returns displaced / unchanged / missing and the
+        blocker-first `next` step."""
+        beliefs = [b for b in self.beliefs.all()
+                   if seen_after is None or float(b.last_seen_t) >= seen_after]
+        pairs = []
+        for i, e in enumerate(snap.entries):
+            e_xy = np.asarray(e["position"], dtype=float)[:2]
+            names = {str(e["label"]).lower(), *(str(a).lower() for a in e.get("aliases") or [])}
+            for b in beliefs:
+                b_names = {str(b.label).lower(), *(str(a).lower() for a in b.aliases)}
+                color_known = e.get("color") is not None and b.color is not None
+                if color_known and e["color"] != b.color:
+                    continue  # two measured colours that differ are two objects
+                if not (names & b_names) and not (color_known and e["color"] == b.color):
+                    continue
+                d = float(np.linalg.norm(np.asarray(b.position, dtype=float)[:2] - e_xy))
+                # same label AND same colour beats colour-only, then distance
+                pairs.append((0 if names & b_names else 1, d, i, id(b), b))
+        pairs.sort(key=lambda p: (p[0], p[1], p[2]))
+        matched: dict = {}
+        taken: set[int] = set()
+        for _, _, i, bid, b in pairs:
+            if i in matched or bid in taken:
+                continue
+            matched[i] = b
+            taken.add(bid)
+        displaced, unchanged, missing = [], [], []
+        for i, e in enumerate(snap.entries):
+            b = matched.get(i)
+            target = [float(v) for v in e["position"][:2]]
+            if b is None:
+                missing.append(str(e["label"]))
+                continue
+            cur = np.asarray(b.position, dtype=float)[:2]
+            off = float(np.linalg.norm(cur - np.asarray(target)))
+            rec = {"label": str(b.label), "query": self._belief_query(b), "color": b.color,
+                   "from": [round(float(v), 3) for v in cur], "target": target,
+                   "offset_m": round(off, 4), "belief": b, "entry": e}
+            (displaced if off > tolerance_m else unchanged).append(rec)
+        displaced.sort(key=lambda r: (r["label"], r["color"] or ""))
+        plan = {"displaced": displaced, "unchanged": unchanged, "missing": missing, "next": None}
+        todo = [r for r in displaced if r["label"] not in skip]
+        if not todo:
+            return plan
+
+        def blockers(rec):
+            tgt = np.asarray(rec["target"], dtype=float)
+            out = []
+            for b in beliefs:
+                if b is rec["belief"]:
+                    continue
+                radius = max(tolerance_m, 0.5 * (self._footprint_m(b) + self._footprint_m(rec["entry"])) + 0.01)
+                if float(np.linalg.norm(np.asarray(b.position, dtype=float)[:2] - tgt)) < radius:
+                    out.append(b)
+            return out
+
+        free = [r for r in todo if not blockers(r)]
+        if free:
+            r = free[0]
+            plan["next"] = {"query": r["query"], "label": r["label"], "to": r["target"], "kind": "restore"}
+            return plan
+        # Every outstanding target is occupied: a swap cycle, or a foreign
+        # object on a remembered spot. Park the first blocker on free table,
+        # clear of everything on it and of every remembered position. A
+        # blocker that already failed to move (`skip`) is not retried: the
+        # plan reports it and the caller stops instead of burning the budget.
+        r = todo[0]
+        movable = [b for b in blockers(r) if str(b.label) not in skip]
+        if not movable:
+            plan["blocked_by"] = str(blockers(r)[0].label)
+            return plan
+        blk = movable[0]
+        avoid = [(np.asarray(b.position, dtype=float)[:2],
+                  0.5 * (self._footprint_m(b) + self._footprint_m(blk)) + 0.02)
+                 for b in beliefs if b is not blk]
+        avoid += [(np.asarray(e["position"], dtype=float)[:2],
+                   max(tolerance_m, 0.5 * (self._footprint_m(e) + self._footprint_m(blk)) + 0.02))
+                  for e in snap.entries]
+        spot = self._free_park_spot(np.asarray(blk.position, dtype=float)[:2], avoid)
+        if spot is None:
+            plan["blocked_by"] = str(blk.label)
+            return plan
+        plan["next"] = {"query": self._belief_query(blk), "label": str(blk.label),
+                        "to": [float(spot[0]), float(spot[1])], "kind": "park"}
+        return plan
+
+    def skill_restore_scene(self, name: str = "scene", tolerance_m: float = 0.05,
+                            max_moves: int = 6) -> dict:
+        """Put the table back the way `snapshot_scene` memorized it.
+
+        Only objects displaced beyond `tolerance_m` move; an object sitting on
+        another's remembered spot moves first (blocker-first), and a swap
+        cycle parks one object on free table before both go home. Each move
+        is grasp (with the usual persistence) + place_at through the harness;
+        the number of moves and the per-task persistence budget bound it.
+        The result lists what moved, what was left alone, what could not be
+        found and what failed -- and its postcondition says what an
+        independent channel measured, which is the only claim of success.
+        """
+        name = str(name or "scene").strip().lower() or "scene"
+        snap = self.beliefs.get_snapshot(name)
+        if snap is None:
+            known = self.beliefs.snapshots()
+            raise SkillError(
+                f"no scene snapshot named {name!r}; call snapshot_scene first"
+                + (f" (known: {known})" if known else "")
+            )
+        carry_attachment.check(self)
+        self._reconcile_held()
+        if self.held_object:
+            raise SkillError(f"already holding {self.held_object!r}; place it first")
+        tolerance_m = float(np.clip(float(tolerance_m), 0.02, 0.15))
+        max_moves = int(np.clip(int(max_moves), 1, 8))
+        budget_s = float(self.cfg.grasp.get("restore_object_persist_seconds", 40.0))
+        self.memory.add("note", f"restoring scene {name!r} ({len(snap.entries)} remembered objects, "
+                                f"tolerance {tolerance_m*100:.0f} cm)")
+        seen_after = self._fresh_look()
+        moves: list[dict] = []
+        failed: list[dict] = []
+        skip: set[str] = set()
+        error = stage = None
+        plan = self._restore_plan(snap, tolerance_m, skip, seen_after)
+        initial_displaced = [{k: v for k, v in r.items() if k not in ("belief", "entry", "query")}
+                             for r in plan["displaced"]]
+        # what was left alone: within tolerance BEFORE any motion
+        left_alone = [{"label": r["label"], "target": r["target"]} for r in plan["unchanged"]]
+        while plan["displaced"] and any(r["label"] not in skip for r in plan["displaced"]):
+            if len(moves) >= max_moves:
+                error = (f"move budget ({max_moves}) exhausted; still displaced: "
+                         f"{[r['label'] for r in plan['displaced']]}")
+                break
+            if self._task_budget_exhausted():
+                error = "task persistence budget exhausted (an earlier tier already spent it)"
+                break
+            if self._estopped():
+                error = "e-stop latched; not moving"
+                break
+            step = plan["next"]
+            if step is None:
+                error = (f"cannot clear {plan.get('blocked_by', 'the blocker')!r} off a remembered "
+                         "spot (no free, reachable park spot, or it already failed to move); "
+                         "the human may need to clear the table")
+                break
+            if not self._reachable_place_xy(step["to"][0], step["to"][1]):
+                failed.append({"label": step["label"], "kind": step["kind"], "to": step["to"],
+                               "error": "target not reachable for a top-down place; left where it is"})
+                skip.add(step["label"])
+                plan = self._restore_plan(snap, tolerance_m, skip, seen_after)
+                continue
+            rec = self._move_object_to(step["query"], step["to"], budget_s=budget_s, kind=step["kind"])
+            rec["label"] = step["label"]
+            moves.append(rec)
+            if rec.get("holding"):
+                error, stage = rec.get("error", "place failed"), "place"
+                break
+            if rec.get("stop"):
+                error, stage = rec.get("error", "release failed"), "release"
+                break
+            if not rec["ok"]:
+                failed.append({k: rec[k] for k in ("label", "kind", "to", "error") if k in rec})
+                skip.add(step["label"])
+            seen_after = self._fresh_look()
+            plan = self._restore_plan(snap, tolerance_m, skip, seen_after)
+        final = self._restore_plan(snap, tolerance_m, set(), seen_after)
+        still = [r["label"] for r in final["displaced"]]
+        result: dict = {
+            "snapshot": name,
+            "snapshot_age_s": round(snap.age_s(), 1),
+            "tolerance_m": round(tolerance_m, 3),
+            "objects_in_snapshot": len(snap.entries),
+            "displaced": initial_displaced,
+            "moves": moves,
+            "unchanged": left_alone,
+            "still_displaced": still,
+            "missing": final["missing"],
+            "failed": failed,
+            "note": ("Snapshot positions are advisory targets; the postcondition says what an "
+                     "independent channel measured. Report that, not the move count."),
+        }
+        if error is None and final["missing"]:
+            error = (f"{len(final['missing'])} remembered object(s) not visible: {final['missing']}; "
+                     "use search_for_object before restoring them")
+        if error is None and failed:
+            error = "; ".join(f"{f['label']}: {str(f.get('error', '?'))[:60]}" for f in failed[:3])
+        if error is None and still:
+            error = f"still displaced after the restore: {still}"
+        if error is not None:
+            result.update(ok=False, error=error)
+            if stage is not None:
+                result["stage"] = stage
+            if self.held_object:
+                result["holding"] = self.held_object
+                result["next_action"] = (
+                    f"Still holding {self.held_object!r}: the place to its remembered spot was "
+                    "refused by the planner/harness. Put it down with place_at at explicit free "
+                    "coordinates (or open_gripper over a safe spot), then retry; do not report "
+                    "the scene as restored."
+                )
+        self.memory.add("action", f"restore_scene {name!r}: {len(moves)} move(s), "
+                                  f"{len(still)} still displaced, {len(final['missing'])} missing")
+        return result
+
+    def _belief_is_target(self, b, query: str) -> bool:
+        """Does this belief answer to the search query? Mirrors BeliefStore.find
+        loosely: label/alias match, or a colour match with a compatible noun.
+        Used to keep the target itself OUT of the occluder list."""
+        q = str(query).strip().lower()
+        names = {str(b.label).lower(), *(str(a).lower() for a in b.aliases)}
+        if q in names:
+            return True
+        color, noun = parse_color_query(q)
+        if noun and any(noun in n or n in noun for n in names):
+            return color is None or b.color is None or b.color == color
+        return bool(color and noun is None and b.color == color)
+
+    def _seen_since(self, query: str, since: float):
+        b = self.beliefs.find(query)
+        return b if (b is not None and float(b.last_seen_t) >= since) else None
+
+    def skill_search_for_object(self, label: str, max_occluders: int = 3) -> dict:
+        """Occlusion search (Pigey): when the named object is not visible,
+        lift the largest hollow/large occluder, park it ~0.2 m away on free
+        reachable table inside the workspace, re-perceive; repeat for up to
+        `max_occluders`. Finding the object is NOT the task: the result says
+        to resume the ORIGINAL task on it (`task_complete: false`), and a
+        miss is an honest `stuck` result, never a guess."""
+        query = str(label or "").strip()
+        if not query:
+            raise SkillError("search_for_object needs the object's name")
+        carry_attachment.check(self)
+        self._reconcile_held()
+        if self.held_object:
+            raise SkillError(f"already holding {self.held_object!r}; place it first")
+        max_occluders = int(np.clip(int(max_occluders), 1, 4))
+        gcfg = self.cfg.grasp
+        budget_s = float(gcfg.get("search_occluder_persist_seconds", 40.0))
+        park_offset = float(gcfg.get("search_park_offset_m", 0.20))
+        offsets = tuple(sorted({round(park_offset, 3), 0.15, 0.12}, reverse=True))
+
+        def resume_note(b):
+            pos = [round(float(v), 3) for v in b.position]
+            return (f"The search is preparatory, not the task: resume the ORIGINAL task on "
+                    f"{query!r} (seen as {b.label!r} at {pos}). Parked occluders stay where "
+                    "they are unless the task needs them back (restore_scene).")
+
+        since = self._fresh_look(frames=1)
+        seen = self._seen_since(query, since)
+        if seen is not None:
+            self.memory.add("note", f"{query!r} is already visible; no search needed")
+            return {"found": True, "status": "already_visible", "label": query,
+                    "detected_as": seen.label, "color": seen.color,
+                    "position": [round(float(v), 3) for v in seen.position],
+                    "occluders_moved": [], "attempts": 0, "task_complete": False,
+                    "next_action": resume_note(seen)}
+        self.memory.add("note", f"{query!r} not visible: starting an occlusion search "
+                                f"(up to {max_occluders} occluder(s))")
+        moved: list[dict] = []
+        failed: list[dict] = []
+        tried: set[str] = set()
+        parked: list[tuple[np.ndarray, float]] = []
+        attempts = 0
+        found = None
+        error = stage = None
+        while attempts < max_occluders and found is None:
+            if self._task_budget_exhausted():
+                error = "task persistence budget exhausted (an earlier tier already spent it)"
+                break
+            if self._estopped():
+                error = "e-stop latched; not moving"
+                break
+            beliefs = list(self.beliefs.all())
+            # never the target itself, never a remembered-only object (the
+            # look just missed it, so a grasp would too), never something
+            # already lifted (by name, and by sitting where a park put it)
+            candidates = [
+                b for b in beliefs
+                if not self._belief_is_target(b, query) and str(b.label) not in tried
+                and float(b.last_seen_t) >= since
+                and not any(float(np.linalg.norm(np.asarray(b.position, dtype=float)[:2] - p)) < r
+                            for p, r in parked)
+            ]
+            if not candidates:
+                break
+            # hollow first, then the biggest footprint, then a stable name
+            candidates.sort(key=lambda b: (
+                0 if any(w in str(b.label).lower().split() for w in _HOLLOW_WORDS) else 1,
+                -self._footprint_m(b), str(b.label)))
+            occ = candidates[0]
+            tried.add(str(occ.label))
+            avoid = [(np.asarray(b.position, dtype=float)[:2],
+                      0.5 * (self._footprint_m(b) + self._footprint_m(occ)) + 0.02)
+                     for b in beliefs if b is not occ]
+            spot = self._free_park_spot(np.asarray(occ.position, dtype=float)[:2], avoid, offsets_m=offsets)
+            if spot is None:
+                failed.append({"label": str(occ.label), "error": "no free, reachable spot to park it"})
+                continue
+            attempts += 1
+            self.memory.add("note", f"lifting {occ.label!r} (likely occluder {attempts}/{max_occluders}) "
+                                    f"and parking it at {np.round(spot, 3).tolist()}")
+            rec = self._move_object_to(self._belief_query(occ), spot, budget_s=budget_s, kind="park")
+            rec["label"] = str(occ.label)
+            rec["from"] = [round(float(v), 3) for v in np.asarray(occ.position, dtype=float)[:2]]
+            moved.append(rec)
+            if rec.get("holding"):
+                error, stage = rec.get("error", "park failed"), "park"
+                break
+            if rec.get("stop"):
+                error, stage = rec.get("error", "release failed"), "release"
+                break
+            if not rec["ok"]:
+                failed.append({"label": rec["label"], "error": rec.get("error", "grasp failed")})
+                continue
+            parked.append((np.asarray(spot, dtype=float)[:2], max(0.05, self._footprint_m(occ))))
+            since = self._fresh_look()
+            found = self._seen_since(query, since)
+        result: dict = {"label": query, "occluders_moved": moved, "attempts": attempts,
+                        "failed": failed, "task_complete": False}
+        if found is not None:
+            self.memory.add("action", f"found {query!r} after lifting {attempts} occluder(s)")
+            result.update(found=True, status="found", detected_as=found.label, color=found.color,
+                          position=[round(float(v), 3) for v in found.position],
+                          next_action=resume_note(found))
+            return result
+        lifted = [m["label"] for m in moved if m.get("ok")]
+        if error is None:
+            if attempts == 0 and not failed:
+                error = f"{query!r} not visible and nothing on the table could be hiding it"
+            else:
+                error = (f"{query!r} not found after lifting {len(lifted)} occluder(s) "
+                         f"{lifted}; the search is exhausted")
+        result.update(
+            ok=False, found=False, status="not_found", stuck=True, error=error,
+            ask_human=f"Where is the {query}? Point to it or place it on the table, then try again.",
+            next_action=("Do not guess or grasp a look-alike. Report the search as stuck and ask "
+                         "the human; the parked occluders stay where they are (restore_scene puts "
+                         "them back if a snapshot exists)."),
+        )
+        if stage is not None:
+            result["stage"] = stage
+        if self.held_object:
+            result["holding"] = self.held_object
+            result["next_action"] = (
+                f"Still holding {self.held_object!r}: parking it was refused by the planner/harness. "
+                "Put it down with place_at at explicit free coordinates (or open_gripper over a safe "
+                "spot) before anything else; the search is stuck."
+            )
+        self.memory.add("outcome", f"search for {query!r} failed: {error[:100]}")
+        return result
 
     def skill_move_relative(self, direction: str, distance_m: float = 0.05) -> dict:
         """Nudge the TCP: fine chat-driven control ("a bit to the left")."""
@@ -3787,6 +4686,11 @@ class SkillRuntime:
             self.memory.add("action", f"released {self.held_object!r}")
             self.held_object = None
             self._held_det_label = None
+        # An explicit open after an interrupted grasp settles the question
+        # the provisional marker left open: whatever the jaws may have held
+        # is released now, so nothing remains to promote.
+        self._held_provisional = None
+        self._held_width_m = None
         return {"gripper": "open"}
 
     def skill_close_gripper(self) -> dict:
@@ -3966,6 +4870,7 @@ class SkillRuntime:
             self._held_det_label = None
             self._held_color = None
             self._held_offset = None
+            self._held_width_m = None
             self._held_support_offset_m = None
         world = None
         raw = getattr(self.arm, "raw", None)
@@ -4122,6 +5027,102 @@ class SkillRuntime:
                     "state": b.state(now),
                 }
         return out
+
+    def skill_recall_step(self, n: int = -1) -> dict:
+        """Recall ONE executed step of this run (RPent `view_env_state(step=N)`).
+
+        Read-only over the evidence `execute()` already records: the step's
+        trace row (skill, args, dispatch tier, outcome, postcondition
+        verdict) and its BEFORE/AFTER keyframes. `n` indexes the recorded
+        steps, 0 = first, negative = from the end (-1 = the last thing the
+        robot did); recall rows themselves are not steps, so -1 keeps
+        meaning "the last action" however often the planner looks back.
+        An invalid `n` is an explicit error: the recalled frames are cleared
+        FIRST, so a bad index can never leave a stale image behind for the
+        MCP layer or the next planner turn. Moves nothing, re-verifies
+        nothing; the verdict is the one recorded at the time.
+        """
+        self.last_recalled_frames = []
+        try:
+            idx = int(n)
+            if isinstance(n, bool):
+                raise ValueError
+        except (TypeError, ValueError):
+            raise SkillError(
+                f"n must be an integer step index (0 = first, negative = from the end), got {n!r}"
+            )
+        rows = [r for r in self.trace.rows() if r.get("skill") != "recall_step"]
+        total = len(rows)
+        if total == 0:
+            raise SkillError("no steps recorded yet in this run")
+        if not -total <= idx < total:
+            raise SkillError(
+                f"step {idx} does not exist: {total} step(s) recorded "
+                f"(valid n: 0..{total - 1} or -{total}..-1)"
+            )
+        row = rows[idx]
+        step = idx if idx >= 0 else total + idx
+        raw_result = row.get("result")
+        result: dict = raw_result if isinstance(raw_result, dict) else {}
+        raw_pc = result.get("postcondition")
+        pc: dict = raw_pc if isinstance(raw_pc, dict) else {}
+        verdict = str(pc.get("status") or "none")
+        outcome = str(result.get("outcome")
+                      or (OUTCOME_OK if result.get("ok") else OUTCOME_FAILED))
+        raw_args = row.get("args")
+        args: dict = raw_args if isinstance(raw_args, dict) else {}
+        tier = str(row.get("tier") or "unknown")
+        skill = str(row.get("skill") or "?")
+        head = f"step {step}: {skill}({_short(args)})"
+        tail = ("ok" if outcome == OUTCOME_OK
+                else f"stuck -- {result.get('ask', '')}" if outcome == OUTCOME_STUCK
+                else f"failed: {str(result.get('error', ''))[:120]}")
+        caption = f"{head} -> {tail} [verdict: {verdict.upper()}; via {tier}]"
+        frames: list[dict] = []
+        for tag in ("before", "after"):
+            rel = row.get(f"keyframe_{tag}")
+            if not rel:
+                continue
+            path = self.trace.run_dir / str(rel)
+            try:
+                jpeg = path.read_bytes()
+            except OSError:
+                continue  # a missing file is reported as missing, never substituted
+            if not jpeg:
+                continue
+            frames.append({
+                "tag": tag, "path": str(rel), "jpeg": jpeg,
+                "caption": (f"{head} -- {tag.upper()} the action"
+                            + (f" -> {tail} [verdict: {verdict.upper()}]" if tag == "after" else "")),
+            })
+        self.last_recalled_frames = frames
+        return {
+            "step": step,
+            "n": idx,
+            "trace_step": row.get("step"),
+            "steps_recorded": total,
+            "skill": skill,
+            "args": args,
+            "tier": tier,
+            "outcome": outcome,
+            "ok_reported": result.get("ok"),
+            "error": result.get("error"),
+            "ask": result.get("ask"),
+            "verdict": verdict,
+            "postcondition": pc or None,
+            "duration_ms": row.get("duration_ms"),
+            "t": row.get("t"),
+            "keyframes": [{"tag": f["tag"], "path": f["path"]} for f in frames],
+            "caption": caption,
+            "note": (
+                "Read-only recall of the recorded trace: it moves nothing and re-verifies "
+                "nothing; the verdict is the one measured at the time. Keyframe images are "
+                "attached when the host can show them."
+                if frames else
+                "Read-only recall of the recorded trace; no keyframe image was recorded for "
+                "this step."
+            ),
+        }
 
     def skill_annotated_view(self) -> dict:
         """VIA-style annotated interface (arXiv:2607.11119).
@@ -4378,6 +5379,80 @@ class SkillRuntime:
 
 def _short(args: dict) -> str:
     return ", ".join(f"{k}={v}" for k, v in args.items())
+
+
+def _normalize_outcome(result: dict, name: str) -> dict:
+    """Stamp `outcome` (ok | failed | stuck) on a skill result, fail-closed.
+
+    A result that says `outcome: "stuck"` is forced to `ok: false` (a stuck
+    step is never a success) and must carry a non-empty human-readable
+    `ask`; when a skill forgot the ask, one is derived from its error so the
+    human always gets a request rather than a bare status. Any `verified:
+    true` on a stuck result is a claim of effect and is withdrawn. Every
+    other result reads `ok` or `failed` from its `ok` flag.
+    """
+    if not isinstance(result, dict):
+        return result
+    if result.get("outcome") == OUTCOME_STUCK:
+        result["ok"] = False
+        ask = result.get("ask")
+        if not isinstance(ask, str) or not ask.strip():
+            why = str(result.get("error") or f"{name} could not proceed")
+            result["ask"] = (f"I am stuck on {name}: {why}. Change the scene or the "
+                             "instruction and ask again.")
+        if result.get("verified") is True:
+            result["verified"] = False
+        return result
+    result["outcome"] = OUTCOME_OK if result.get("ok") else OUTCOME_FAILED
+    return result
+
+
+def _stuck_ask(object: str, last_err: str, attempts: int, *, stage: str = "grasp",
+               destination: str | None = None, holding: bool = False) -> str:
+    """The human-actionable request for a persistence loop that gave up.
+
+    Keyed on the terminal reason the loop recorded, each ask names what to
+    change in the SCENE or the INSTRUCTION -- never "try again" to the
+    planner, which is what `error`/`suggestion` already are for. Every ask
+    ends with "ask again." so the human knows the robot is waiting.
+    """
+    err = str(last_err or "").lower()
+    obj = f"{object!r}" if object else "the object"
+    n = max(int(attempts), 1)
+    if stage == "place":
+        dest = f"on/at {destination}" if destination else "at the destination"
+        if holding:
+            return (f"I am still holding {obj} but could not place it {dest} after {n} "
+                    f"attempt(s). Clear or move the destination (or give me explicit "
+                    f"coordinates with place_at) and ask again.")
+        return (f"{obj} slipped out of my gripper while I was carrying it {dest} and my "
+                f"grasp budget is spent. Put it back upright with space around it and ask again.")
+    if "never seen" in err or "no detections" in err or "not found" in err or "cannot find" in err:
+        return (f"I cannot see {obj} on the table after {n} scan(s). Place it where the "
+                f"camera can see it, or tell me its exact colour/name, and ask again.")
+    if "> gripper max" in err or "wider than the jaws" in err or "too wide" in err:
+        return (f"{obj} is wider than my jaws can open. Replace it with a narrower object, "
+                f"or ask me to push it instead, and ask again.")
+    if "ik failed" in err or "unreachable" in err or "out of reach" in err or "outside" in err:
+        return (f"{obj} is out of my reach. Move it closer to me, towards the centre of "
+                f"the table, and ask again.")
+    if "closed on air" in err or "air grasp" in err or "slipped" in err or "not held" in err:
+        return (f"I could not hold {obj} after {n} grasp attempt(s): the jaws closed on air "
+                f"or it slipped. Stand it upright with space around it, or ask for a "
+                f"different object, and ask again.")
+    return (f"I could not pick up {obj} after {n} attempt(s) and my persistence budget is "
+            f"spent. Reposition it (upright, in view, within reach) or change the "
+            f"instruction, and ask again.")
+
+
+def _is_human_curable(stop_reason: str | None) -> bool:
+    """A persistence stop reason a HUMAN can act on. The e-stop and an
+    unfinished contact episode are harness/recovery states, not requests
+    to the human: they stay plain failures."""
+    if stop_reason is None:
+        return True  # exhausted by attempts or by the clock
+    reason = stop_reason.lower()
+    return not ("e-stop" in reason or "contact episode" in reason)
 
 
 #: Spellings of "the configured drop zone" a planner sends as `destination`.
@@ -4817,11 +5892,102 @@ TOOL_SPECS: list[dict] = [
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
     {
+        "name": "snapshot_scene",
+        "description": (
+            "Memorize the current layout under a name: the confirmed (currently "
+            "visible) objects' labels, colours and positions, kept in the world "
+            "model as ADVISORY data for restore_scene. No motion. Use before a "
+            "task that rearranges the table ('memorize the scene', then later "
+            "'put everything back'). The positions are future targets, not a "
+            "claim about where anything is afterwards."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "snapshot name (default 'scene')"},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "restore_scene",
+        "description": (
+            "Put the table back the way snapshot_scene memorized it: only objects "
+            "displaced beyond tolerance_m move, an object sitting on another's "
+            "remembered spot moves first (blocker-first; a swap parks one object "
+            "on free table), each move is a harness-vetted grasp + place_at, and "
+            "the number of moves and the task's persistence budget bound it. "
+            "Read the postcondition: the snapshot is advisory and 'restored' is "
+            "only true when an independent channel confirms it. Reports what "
+            "moved, what was left alone, what is missing (use search_for_object) "
+            "and what failed."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "snapshot name (default 'scene')"},
+                "tolerance_m": {"type": "number",
+                                "description": "displacement that counts as moved (0.02-0.15, default 0.05)"},
+                "max_moves": {"type": "integer", "minimum": 1, "maximum": 8,
+                              "description": "cap on pick-and-place moves (default 6)"},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "search_for_object",
+        "description": (
+            "Occlusion search for a named object that is not visible: lifts the "
+            "largest hollow/large thing that could be hiding it, parks it ~0.2 m "
+            "away on free table inside the workspace, re-perceives, and repeats "
+            "for up to max_occluders. If the object was visible already, nothing "
+            "moves. Finding it is NOT the task: the result has task_complete=false "
+            "and tells you to resume the ORIGINAL task on the found object. Not "
+            "found -> ok=false with stuck=true: report that and ask the human; do "
+            "not guess or grasp a look-alike."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "label": {"type": "string", "description": "the object to find, e.g. 'red cube'"},
+                "max_occluders": {"type": "integer", "minimum": 1, "maximum": 4,
+                                  "description": "how many occluders to lift at most (default 3)"},
+            },
+            "required": ["label"],
+        },
+    },
+    {
         "name": "recall_memory",
         "description": "Recall recent events (last ~15 s) and, optionally, where a named object was last seen.",
         "parameters": {
             "type": "object",
             "properties": {"query": {"type": "string", "description": "object name to look up"}},
+            "required": [],
+        },
+    },
+    {
+        "name": "recall_step",
+        "description": (
+            "Look back at ONE executed step of this run: its skill, arguments, "
+            "outcome (ok / failed / stuck with the human-facing ask), the "
+            "independent postcondition verdict recorded at the time, which "
+            "dispatch tier issued it, and its BEFORE/AFTER keyframe images "
+            "(attached as images where the host can show them). Read-only: "
+            "moves nothing and re-verifies nothing. `n` indexes the recorded "
+            "steps: 0 = the first, negative counts from the end (-1 = the last "
+            "action; recalls themselves are not steps). An index that does not "
+            "exist is an explicit error, never an old frame. Use it to check "
+            "WHAT a past step did and what the scene looked like around it "
+            "before deciding whether to redo, undo or move on."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "n": {
+                    "type": "integer",
+                    "description": "Step index: 0 = first recorded step, -1 = most recent (default).",
+                },
+            },
             "required": [],
         },
     },

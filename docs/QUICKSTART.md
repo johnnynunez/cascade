@@ -55,7 +55,7 @@ The first run creates the venv, installs the mode's extras, downloads robot
 meshes, installs or updates the OpenClaw CLI, starts the sidecars
 (occupancy :5557, GraspGen-X stub :5556), and registers the robot tools.
 It **checks the stack before reporting READY**: it builds the runtime with
-the same environment as the server, lists the 41 tools, requests a simple
+the same environment as the server, lists the 42 tools, requests a simple
 brain response, and performs pick and reset within one session.
 The `proof.json` receipt must bind the model, session, and MCP process to
 the physical result and restoration of the manipulated object. An open

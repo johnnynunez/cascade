@@ -484,6 +484,14 @@ python -m cascade.apps.demo --arm so101_mock --camera mock_small \
 python scripts/fetch_robot_assets.py so101
 python -m cascade.apps.demo --arm so101_mujoco --camera mujoco_scene --interactive
 
+# ...plus a WRIST camera rendered from the gripper body (moves with the arm,
+# looks at the jaws). The runtime records its frames as wrist keyframes next
+# to the front ones for every motion skill, and the outcome judge
+# (scripts/judge_run.py) fills the GRM prompt's two wrist slots with them
+# instead of repeating the front view. Evidence only: no hand-eye
+# calibration is claimed and the view fuses no beliefs.
+python -m cascade.apps.demo --arm so101_mujoco --cameras mujoco_scene,mujoco_wrist --interactive
+
 # ONE CLICK: simulator (Isaac Sim if installed, else MuJoCo) + OpenClaw 2.0
 # chat with the robot tools registered, probed, and a trivial brain turn
 # proven before it prints the chat URL. Real hardware = OpenClaw only.
@@ -628,7 +636,9 @@ command. Name a profile explicitly (`--llm mock`) to pin it, or set
 - **[Retry evidence](docs/DREAM_RSI_ADAPTATION.md)** gates new ASPIRE library
   notes: a later success must match the failed action's goal, resolved arm
   and held-object context, with a measured, confirmed postcondition and no
-  intervening reset or task end. This filters unsupported learning; it does
+  intervening reset or task end. A note reaches the agent only after it
+  recurs in two distinct tasks (upstream ASPIRE's promotion rule); a single
+  task's repair stays a stored candidate. This filters unsupported learning; it does
   not change robot control or establish that a retry caused an improvement.
 
 cascade works with hosted and local [LLM backends](#llm-backends) and is
@@ -658,14 +668,17 @@ MCP-capable host can drive.
 
 The whole skill runtime is also exposed as an **MCP stdio server**
 (`cascade/apps/mcp_server.py`) — so instead of the built-in loop, any
-MCP-capable agent platform can drive the arm. The agent gets the same 33
+MCP-capable agent platform can drive the arm. The agent gets the same 37
 safety-gated skills (only the loop-internal `task_done` is excluded) plus
 eight gateway extras — `camera_snapshot` (returns a live JPEG the agent can
 *see*), `world_state`, `live_view_url`, `robot_knowledge`,
 `verify_last_action`, `task_memory` (the visual memory harness, as images),
-and `emergency_stop`/`reset_stop` — 41 tools total (re-derive with
-`openclaw mcp probe cascade --json`; see [The 33 skills](#the-33-skills) below
-for what each one does). Safety harness, tracing and memory are identical —
+and `emergency_stop`/`reset_stop` — 45 tools total (re-derive with
+`openclaw mcp probe cascade --json`; see [The 37 skills](#the-37-skills) below
+for what each one does). That is the full catalog; what a given rig is
+offered is this minus the tools its capability matrix (described below)
+withholds (the default single-arm mock rig lists 44: `list_arms` needs two
+arms). Safety harness, tracing and memory are identical —
 only the brain swaps.
 
 One registrar for every host — prints what each platform needs, `--write`
@@ -703,9 +716,23 @@ out-of-band by the stdin reader, Esc/cancellation in the host mid-motion
 freezes the arm, first Ctrl+C on the server latches the e-stop (no
 free-fall), and the dashboard STOP button works from any browser on the
 LAN. For attendee-facing sessions, `CASCADE_HIDE_TOOLS=reset_stop` makes
-clearing a stop staff-only. Env knobs:
+clearing a stop staff-only. The catalog is also trimmed by a **capability
+matrix** derived from the built rig (`apps/capabilities.py`): the depth chain
+each camera really produces (sensor / mono / table-plane / none), which
+sidecars answered their startup probe, how many arms the `ArmRig` has, and
+whether the verifier and memory are attached. A tool whose precondition the
+rig cannot meet is withheld and rejected if called — on an RGB-only camera
+the 3D tools go, on a single-arm rig `list_arms` and the injected `arm`
+parameter go — with the reason in `world_state.tools_withheld`, the dashboard
+`/state` and the `[cascade] capabilities:` banner line. A fallback is
+reported, never hidden: GraspGen-X down means the grasp tools run on the
+analytic OBB planner and the matrix says so. Nothing is withheld before the
+runtime is probed; a catalog listed before that is refreshed via
+`notifications/tools/list_changed`. `CASCADE_HIDE_TOOLS` stays the explicit
+operator override on top. Env knobs:
 `CASCADE_CAMERAS` (comma list, first = manipulation camera), `CASCADE_CAMERA`
-(single-camera fallback), `CASCADE_ARM`, `CASCADE_DETECTOR_MODEL`,
+(single-camera fallback), `CASCADE_ARMS` (comma list, first = manipulation
+arm, builds the `ArmRig`), `CASCADE_ARM` (single-arm fallback), `CASCADE_DETECTOR_MODEL`,
 `CASCADE_DETECT_CLASSES`, `CASCADE_HIDE_TOOLS`, `CASCADE_VIEW` (cv2 camera window),
 `CASCADE_MJ_VIEW` (MuJoCo physics window; the launcher sets it in sim modes),
 `CASCADE_PREWARM`, `CASCADE_STREAM`, `CASCADE_STREAM_PORT`, `CASCADE_RUN_DIR`
@@ -714,14 +741,18 @@ side has its own knobs (`CASCADE_USD`, `CASCADE_PHYSICS_DEVICE` — `cpu` is the
 escape hatch for GPU-PhysX boot NaNs —, `CASCADE_BRIDGE_BIND`,
 `CASCADE_BRIDGE_NO_TARGETS`, `CASCADE_COMPANION_EXTS`); see `scripts/isaac_bridge.py`.
 
-## The 33 skills
+## The 37 skills
 
 One schema source (`TOOL_SPECS` in `src/cascade/skills/runtime.py`) feeds
 every consumer — the built-in `AgentOrchestrator`, the OpenAI/Anthropic
 LLM backends, and the MCP server — so this list is exactly what any brain,
-built-in or external, can call. "moves arm" marks the 17 skills in
+built-in or external, can call. "moves arm" marks the 19 skills in
 `_MOTION_SKILLS`, the only ones that pause `WorldWatcher` belief fusion while
 they run (and the ones that record a memory frame + verdict afterwards).
+Every result carries `outcome: ok | failed | stuck`; `stuck` (always
+`ok: false`) means the robot exhausted what it can do on its own and its
+`ask` names what the human should change in the scene or the instruction —
+the orchestrator relays it verbatim and does not retry the step.
 
 **Perception (no motion)**
 
@@ -770,7 +801,16 @@ they run (and the ones that record a memory frame + verdict afterwards).
 | skill | what it does |
 |---|---|
 | `recall_memory` | Recent events (~15 s) and, optionally, where a named object was last seen |
+| `recall_step` | Look back at one executed step by index (`n`, negative = from the end): skill, args, outcome/ask, the postcondition verdict recorded at the time, dispatch tier, and its BEFORE/AFTER keyframes (served as images over MCP). Read-only; an invalid `n` is an explicit error, never an old frame |
 | `list_arms` | Names the arms of a multi-arm rig (skills take `arm="<name>"`; `""`/`default` mean the primary) |
+| `snapshot_scene` | Memorize the layout under a name: the confirmed objects' labels, colours and centroids as ADVISORY data in the belief store (Pigey "memorize"). No motion; also the reflex phrases "memorize the scene" / "memoriza la escena" |
+
+**Scene memory (moves arm)**
+
+| skill | what it does |
+|---|---|
+| `restore_scene` | Put the table back the way a snapshot memorized it: only objects displaced beyond a tolerance move, blocker-first (an object on another's remembered spot goes first; a swap parks one on free table), each move a harness-vetted grasp + `place_at`, bounded by `max_moves` and the task budget. "Restored" is only what the postcondition confirms (physics when available; belief-only stays unverified). Reflex: "put everything back" / "restaura la escena" |
+| `search_for_object` | Pigey occlusion search: when the named object is not visible, lift the largest hollow/large occluder, park it ~0.2 m away on free reachable table inside the workspace, re-perceive, repeat up to `max_occluders`. Found → `task_complete: false`, resume the ORIGINAL task; not found → `ok: false`, `stuck: true`. Reflex: "find the red cube" / "busca el cubo rojo" |
 
 **Session (moves arm)**
 
@@ -778,7 +818,7 @@ they run (and the ones that record a memory frame + verdict afterwards).
 |---|---|
 | `reset_scene` | Between visitors: arm home, sim props back on their spawn pose, world model + task memory cleared, one fresh observation. Also the reflex phrases "reset the scene" / "start over" |
 
-`task_done` (declare success/failure with a summary) is the 34th spec but
+`task_done` (declare success/failure with a summary) is the 38th spec but
 is loop-internal — excluded from the MCP tool list, since an external host
 ends its own turns its own way. The MCP server adds eight host-side extras
 (`camera_snapshot`, `world_state`, `live_view_url`, `robot_knowledge`,

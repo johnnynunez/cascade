@@ -21,9 +21,11 @@ what was deliberately **not** built.
 > Four more sources were checked 2026-08-27 (Human-CLAW, LaMem-VLA,
 > grasping.io/HUG, a full re-read of the Waddle Labs post) — full verdicts
 > in `docs/ROADMAP.md`'s "Landed 2026-08-27" section. Only one shipped code
-> here (the envelope confidence addendum in §3 below); the rest are scoped
-> open follow-ups (#6-8 in that section), not landed mechanisms, except
-> LaMem-VLA which joined "Deliberately not built" below.
+> there (the envelope confidence addendum in §3 below); the rest were scoped
+> open follow-ups (#6-8 in that section), except LaMem-VLA which joined
+> "Deliberately not built" below. Follow-up #6 — Human-CLAW's pre-execution
+> skill verifier — landed 2026-10-07 as the advisory-only pre-motion critic
+> described in §2.
 
 ## What each source contributed
 
@@ -31,6 +33,7 @@ what was deliberately **not** built.
 |---|---|---|
 | **Pigey** (2607.21725) | Closed-loop orchestrator that *tracks and verifies outcomes from observation* and recovers | `agent/effects.py` — postconditions; `sim/truth.py` — independent truth channel |
 | **Agentic-VLA** (2605.22896) | Decompose into checkable sub-goals; use progress as signal; VLM critic on failure | `agent/milestones.py` — symbolic+visual milestone verification, stall detection |
+| **Human-CLAW** (2607.27180) | Interrogate a proposed skill call with skill-specific questions *before* it runs | `agent/milestones.py::PlausibilityChecker` — pre-motion plausibility critic, **advisory only** (no veto, no substitution) |
 | **Harness-VLA / RPent** (2607.08448) | Learn the *operating range* + failure model of a fixed primitive library instead of growing it | `memory/envelope.py` — per-primitive envelopes, failure taxonomy |
 | **ASPIRE** (NVIDIA GEAR) | Diagnose traces → repair → distil validated fixes into a retrievable skill library | `agent/aspire.py` + `scripts/learn_from_runs.py` |
 | **VIA** (2607.11119) | Give the agent an *interface it can read*, not raw pixels | `perception/visual_interface.py` — numbered marks, metric grid, reachability overlay |
@@ -105,6 +108,39 @@ success carrying unverified milestones is annotated in the final summary. Three
 motions with no milestone advance triggers a strategy change instead of a
 blind retry.
 
+**2026-10-07 addendum: the same critic pattern, *before* the motion
+(Human-CLAW, ROADMAP #6).** Effect verification (§1) and milestone checks
+are post-hoc — they tell the planner what *happened*. Human-CLAW's
+pre-execution skill verifier asks the complementary question before anything
+moves: *is this call, with these exact args, plausible given the current
+view, the beliefs, what is reachable and what is held?*
+`agent/milestones.py::PlausibilityChecker` does that for every motion skill
+the LLM tier dispatches: a skill-specific question (a grasp asks whether the
+object is visible, unoccluded, in reach and the gripper empty; a place asks
+whether something is held and the target is a free spot in the workspace),
+the current frame, and a digest of beliefs + held state + the configured
+reach box go to the configured VLM with `prompts.PLAUSIBILITY_USER`. The
+answer rides on the tool result and the trace row as
+`plausibility: {verdict, reasons, source}` (`plausible` / `implausible` /
+`unsure`, or `skipped` with the reason: no vision model, no frame, budget
+exhausted, verifier fault), and an `implausible` verdict becomes a caution
+the planner reads on its next turn.
+
+Two things it deliberately is **not**, and the tests pin both
+(`tests/test_premotion_plausibility.py`): it is not Human-CLAW's
+veto/substitute — the call is dispatched unchanged whatever the verdict
+says, because the safety harness is the sole authority that refuses motion
+(same booth rule as the envelope notes in §3); and it is not a new clock
+risk — it draws VLM turns from `VisualBudget`, the milestone tracker's own
+per-task limiter factored out so both critics share one mechanism
+(`agent.premotion_max_checks`, default 3 per task; past it the result says
+`skipped` and the motion runs). `agent.premotion_check: false` (or
+`CASCADE_PREMOTION_CHECK=0`) is the pre-critic path exactly — pinned
+write-for-write against a golden taken from the previous orchestrator. The
+reflex and experience tiers stay LLM-free by contract and are not
+interrogated. Nothing here was measured on the rig; no claim is made about
+how often the VLM's verdicts are right.
+
 ### 3. Operating envelopes (Harness-VLA)
 
 The repo learned grasp geometry per object profile (`GraspOutcomeMemory`). That
@@ -132,6 +168,68 @@ and a contradicted range on a call that's otherwise `ok` gets a non-blocking
 `Verdict.notes` caution — never a veto, same booth rule. See
 `tests/test_envelope_confidence.py`.
 
+**2026-10-07 addendum: derived features (ROADMAP #4).** The ranges were
+learned over the agent's RAW arguments — `place_at.x`, and nothing at all
+for `grasp_object`, whose only argument is a label — a proxy for the
+constraint that actually bites on the B601-RS. `DERIVED_FEATURES` now names,
+per grasping skill, four scalars the RUNTIME measures at call time and hands
+to `record(..., measured=...)`: `tcp_z_at_grasp_m` (FK of the joint vector
+read back when the jaws closed, not the planned pose), `object_height_m`
+(fix top above the support plane — a top-down camera never sees the sides,
+so the cloud's z-span is not a height), `object_width_m` (narrower
+horizontal footprint extent) and `object_tcp_lateral_offset_m`. A feature a
+call could not measure (the grasp died at IK, the object was never
+localized) is counted in `_SkillStats.missing` — the absence is the record;
+nothing is defaulted or carried over. Raw args that reuse a derived name are
+dropped, so an agent argument can never pose as a measurement. The
+measurements also ride in the trace context (`context.measured`) so
+`ingest_trace` / `learn_from_runs.py` learn the same features offline.
+`envelope_digest()` lists them in their own `measured:` clause (never
+crowded out by the raw-arg cap) with the missing counts; `export_markdown()`
+marks them `(measured at call time)`. Confidence tiers and `contradictions`
+are unchanged; still advisory. `tests/test_envelope_derived_features.py`.
+
+### 3b. Task-Specific Memory recipes (Harness-VLA v4, 2026-10-07)
+
+Tier-2 `ExperienceMemory` keyed a proven plan on its instruction text and
+stored the plan's calls verbatim. The LLM tier never fed it, and for a good
+reason that was never written down: an LLM-tier run is made of
+`place_at(x=0.20, y=-0.15)` — the coordinate where the bowl WAS — and
+replaying that on a table where the bowl has moved places the cube on bare
+table with full confidence. Harness-VLA v4's docs spell out the fix as
+*Task-Specific Memory*: serialize the run as JSONL with every concrete xyz
+replaced by a symbolic perception query plus a semantic summary, and
+re-ground at replay.
+
+`memory/recipes.py` is that transformation. After a **verified** LLM-tier
+success (the report's success already folds in every unverified effect
+obligation) the orchestrator rewrites the run's successful motion steps:
+each `place_at` coordinate becomes `{"$target": {"query": "localize_object",
+"label", "offset_m", "args"}}` anchored on an object perceived before the
+first motion — preferring an object that is NOT the one being manipulated
+(the bowl the cube went into) and falling back to the manipulated object's
+own start pose; `grasp_at_pixel` becomes `grasp_object(<what it held>)`;
+labels and destination names (`"drop zone"`) are already symbolic and stay
+so. A coordinate with no perceived object within 0.40 m refuses the whole
+recipe (`RecipeError`, noted in episodic memory): an unanchored coordinate is
+precisely what this memory exists to not remember. Recipes persist one per
+line in `runs/recipes.jsonl` beside `experience.json` (`kind: "recipe"`,
+`summary`, `source_run`); plain habits are untouched and pre-recipe files
+load as before.
+
+At a tier-2 hit the orchestrator grounds every query through the runtime's
+own `localize_object` BEFORE the first motion (each anchor once per replay,
+logged under the plan's tier so the trace shows it). A query that fails to
+ground aborts the replay to the LLM tier with a note and zero motion — by
+construction there is no stored coordinate to fall back to — and records no
+loss (the scene did not match; the plan was not tried). A successful replay
+credits the record with the SYMBOLIC calls, never the grounded ones.
+Limits, stated plainly: an offset anchored on the manipulated object itself
+generalises as "relative to where it was", which is right for "move it 10 cm
+left" and approximate for an absolute table region; the recipe is still a
+perception query re-grounded live, and every grounded motion goes through
+the harness exactly as an LLM call would. `tests/test_task_recipes.py`.
+
 ### 4. Readable interface (VIA)
 
 `annotated_view` renders a fresh camera frame with numbered badges for tracked
@@ -152,9 +250,12 @@ python scripts/learn_from_runs.py --dry-run --report
 It folds recorded outcomes into the envelope model. The separate library
 path admits only matching-goal retries with explicit arm/possession context,
 measured confirmation and no intervening reset or task end. It writes the
-recorded association into `skills_library/*.md`, deduped by `(skill, signature)`
-within a harvest; the orchestrator retrieves keyword-matched notes at task
-start. See [retry evidence admission](DREAM_RSI_ADAPTATION.md) for inspection
+recorded association into `skills_library/*.md`, one note per `(skill,
+signature)` with `occurrences`/`source_tasks` counters in its front matter; the
+orchestrator retrieves keyword-matched notes at task start only once they are
+promoted — recurred in ≥ 2 distinct tasks, upstream ASPIRE's
+`skills/library.py` rule — and a single-task note stays a stored candidate.
+See [retry evidence admission](DREAM_RSI_ADAPTATION.md) for inspection
 commands and limits. A later success is not proof of a causal repair.
 
 Harvesting deliberately does **not** happen mid-demo: it would change guidance
@@ -259,10 +360,11 @@ context. The ablation is about overlays given to the model.
 
 ```
 src/cascade/agent/effects.py             Pigey postconditions
-src/cascade/agent/milestones.py          Agentic-VLA milestone verification
+src/cascade/agent/milestones.py          Agentic-VLA milestone verification + Human-CLAW pre-motion critic (advisory)
 src/cascade/agent/aspire.py              ASPIRE diagnose / distil / retrieve
 src/cascade/agent/cosmos3.py             Cosmos3-Edge client (XML tool calls)
-src/cascade/memory/envelope.py           Harness-VLA operating envelopes
+src/cascade/memory/envelope.py           Harness-VLA operating envelopes (+ derived features 2026-10-07)
+src/cascade/memory/recipes.py            Task-Specific Memory recipes (2026-10-07)
 src/cascade/perception/visual_interface.py  VIA annotated view
 src/cascade/sim/truth.py                 physics-truth verification channel
 src/cascade/apps/live_control.py         on-demand live-view lifecycle
@@ -277,6 +379,8 @@ tests/test_live_view.py                   20 tests
 tests/test_probe.py                       21 tests
 tests/test_visual_interface.py            5 tests  (2026-08-27, phantom-belief fix)
 tests/test_envelope_confidence.py         8 tests  (2026-08-27, RPent confidence port)
+tests/test_envelope_derived_features.py   14 tests (2026-10-07, runtime-measured features, missing never defaulted)
+tests/test_task_recipes.py                17 tests (2026-10-07, recipes: symbolize / JSONL / re-ground / abort)
 ```
 
 ## The UI: headless-first, cameras on demand

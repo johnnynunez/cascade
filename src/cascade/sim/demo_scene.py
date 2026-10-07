@@ -42,6 +42,19 @@ profile's `extrinsics.T` (OpenCV axes -> MuJoCo's right/up/back, the trap-2
 conversion) and with `fovy` derived from the profile's `fx`/`height`. The
 extrinsic the perception stack backprojects with and the pose the renderer
 draws from are then the SAME matrix, by construction.
+
+WRIST CAMERA (2026-10-07, ROADMAP #15). A rendered profile with an
+`mj_attach: {body, T}` block (`configs/cameras/mujoco_wrist.yaml`) rides on
+a ROBOT BODY instead of the worldbody, so it moves with the arm and looks at
+the jaws -- the eye-in-hand view the outcome judge's GRM prompt reserves two
+slots for. `<include>` cannot reopen a body of the included robot file, so
+`write_demo_scene` copies the robot's include chain beside the original
+through ElementTree (text verbatim) with the `<camera>` inserted into that
+body and points the scene at the copy; the fetched asset is never edited
+and the compiled physics is the original plus one camera, exactly (see
+`robot_xml_with_attached_cameras`). `T` is a render pose in an MJCF body
+frame, deliberately not an `extrinsics` block: the wrist view fuses no
+beliefs and claims no hand-eye calibration.
 """
 
 from __future__ import annotations
@@ -75,16 +88,21 @@ def camera_xml_from_extrinsic(name: str, T_cam2base, fx: float, height: int) -> 
 
 
 def cameras_xml(cam_cfgs) -> str:
-    """`<camera>` elements for every `type: mujoco` profile in `cam_cfgs`.
+    """`<camera>` elements for every FIXED `type: mujoco` profile in `cam_cfgs`.
 
     Non-rendered profiles (mock, realsense, ...) are skipped: they do not
-    look into this world. A rendered profile without `extrinsics.T` is an
-    authoring error, not something to default -- a camera at the origin
-    looking nowhere useful would silently produce all-floor frames.
+    look into this world. Profiles with an `mj_attach` block ride on a robot
+    body and are declared by `attached_cameras()` inside that body instead
+    (a `<camera>` in the worldbody cannot move with the arm). A rendered
+    profile with neither `extrinsics.T` nor `mj_attach` is an authoring
+    error, not something to default -- a camera at the origin looking
+    nowhere useful would silently produce all-floor frames.
     """
     out = []
     for c in cam_cfgs or []:
         if str(c.get("type", "")) != "mujoco":
+            continue
+        if c.get("mj_attach") is not None:
             continue
         extr = c.get("extrinsics") or {}
         T = extr.get("T") if hasattr(extr, "get") else None
@@ -98,6 +116,115 @@ def cameras_xml(cam_cfgs) -> str:
             fx=float(c.get("fx", 600.0)), height=int(c.get("height", 480)),
         ))
     return "\n    ".join(out)
+
+
+def attached_cameras(cam_cfgs) -> list[dict]:
+    """Rendered profiles that ride on a ROBOT BODY (`mj_attach: {body, T}`),
+    as `[{"body": <mjcf body name>, "xml": "<camera .../>"}]`.
+
+    `T` is T_cam2body in the OpenCV camera convention, in the named body's
+    frame -- the same convention and the same conversion as the fixed
+    cameras' `extrinsics.T`, so one function poses every rendered camera.
+    It is deliberately NOT `extrinsics`: the perception stack composes
+    eye-in-hand extrinsics with the URDF TCP frame (`Extrinsics.cam_to_base`),
+    and a pose in an MJCF body frame is not that calibration. A profile with
+    half a block (body without T, or T without body) is refused.
+    """
+    out = []
+    for c in cam_cfgs or []:
+        if str(c.get("type", "")) != "mujoco":
+            continue
+        att = c.get("mj_attach")
+        if att is None:
+            continue
+        body = att.get("body") if hasattr(att, "get") else None
+        T = att.get("T") if hasattr(att, "get") else None
+        if not body or T is None:
+            raise ValueError(
+                f"camera profile {c.get('name', '?')!r}: mj_attach needs both `body` "
+                "(the MJCF body the camera is fixed to) and `T` (T_cam2body, OpenCV axes)"
+            )
+        out.append({
+            "body": str(body),
+            "xml": camera_xml_from_extrinsic(
+                str(c.get("mj_camera", c.get("name", "cam"))), T,
+                fx=float(c.get("fx", 600.0)), height=int(c.get("height", 480)),
+            ),
+        })
+    return out
+
+
+def robot_xml_with_attached_cameras(robot_mjcf, scene_stem: str, attachments: list[dict]) -> str:
+    """Copy the robot's include chain beside `robot_mjcf` with each attached
+    `<camera>` inserted into its body; return the file NAME the generated
+    scene should include instead of `robot_mjcf.name`.
+
+    WHY A COPY. MJCF `<include>` pastes a file's elements; it cannot reopen
+    a `<body>` declared in the included file, so a camera rigid to the
+    gripper must be written INSIDE the gripper body -- which lives in the
+    fetched (gitignored, pinned) robot asset. Editing that asset is out of
+    the question, so the files on the include path to the body are copied
+    through ElementTree with the camera added: attribute text is carried
+    VERBATIM (no float re-printing), comments drop, and every other
+    `<include>` keeps pointing at the original file in the same directory.
+    The compiled model is therefore the original plus the cameras, exactly
+    (pinned by tests/test_wrist_camera.py); MjSpec's `to_xml()` was measured
+    to re-print joint ranges at 6 significant digits (up to 3e-6 rad off)
+    and rejected for that reason.
+
+    Copies are named `<scene_stem>.<original name>` so a reader can tell the
+    generated chain from the asset at a glance. A body no file in the chain
+    declares is a config error naming the body and the file searched.
+    """
+    import xml.etree.ElementTree as ET
+
+    robot_mjcf = Path(robot_mjcf)
+    by_body: dict[str, list[str]] = {}
+    for a in attachments:
+        by_body.setdefault(a["body"], []).append(a["xml"])
+    pending = set(by_body)
+
+    def copy_name(path: Path) -> str:
+        return f"{scene_stem}.{path.name}"
+
+    def visit(path: Path) -> str | None:
+        """Copy `path` if it (or a file it includes) declares a pending body;
+        return the copy's name, else None."""
+        tree = ET.parse(path)
+        root = tree.getroot()
+        changed = False
+        for body_name in sorted(pending):
+            body = root.find(f".//body[@name='{body_name}']")
+            if body is None:
+                continue
+            for xml in by_body[body_name]:
+                body.append(ET.fromstring(xml))
+            pending.discard(body_name)
+            changed = True
+        for inc in root.iter("include"):
+            if not pending:
+                break
+            target = inc.get("file")
+            if not target:
+                continue
+            sub = visit(path.parent / target)
+            if sub is not None:
+                inc.set("file", sub)
+                changed = True
+        if not changed:
+            return None
+        out = path.parent / copy_name(path)
+        out.write_text(ET.tostring(root, encoding="unicode"))
+        return out.name
+
+    name = visit(robot_mjcf)
+    if pending:
+        raise ValueError(
+            f"mj_attach: no <body name={sorted(pending)[0]!r}> in {robot_mjcf.name} or the files "
+            "it includes -- the camera profile names a body this robot MJCF does not have"
+        )
+    assert name is not None
+    return name
 
 #: Scene template: the robot's own MJCF plus a floor, a light and one prop.
 #: Deliberately close to `scene.xml` so switching between them changes only
@@ -262,10 +389,14 @@ def write_demo_scene(robot_mjcf, cam_cfg, prop_name: str = "red_cube",
                      cameras=None) -> Path:
     """Write a scene beside `robot_mjcf` whose prop matches `cam_cfg`.
 
-    `cameras` is the run's full camera-profile list; every `type: mujoco`
-    entry gets a `<camera>` declared at its `extrinsics.T` (see
-    `cameras_xml`). When omitted, `cam_cfg` alone is considered, so a run
-    whose only camera is the rendered one still gets its `<camera>`.
+    `cameras` is the run's full camera-profile list; every FIXED `type:
+    mujoco` entry gets a `<camera>` declared at its `extrinsics.T` (see
+    `cameras_xml`), and every `mj_attach` entry (a wrist view) is declared
+    inside its robot body through a verbatim copy of the robot's include
+    chain (see `robot_xml_with_attached_cameras`) -- without one, the scene
+    includes `robot_mjcf` itself, byte for byte as before. When omitted,
+    `cam_cfg` alone is considered, so a run whose only camera is the
+    rendered one still gets its `<camera>`.
 
     Returns the scene path. Written next to the robot MJCF so `meshdir`
     resolves (see this module's docstring).
@@ -273,6 +404,9 @@ def write_demo_scene(robot_mjcf, cam_cfg, prop_name: str = "red_cube",
     robot_mjcf = Path(robot_mjcf)
     cams = list(cameras) if cameras is not None else [cam_cfg]
     scene = resolved_scene_path(robot_mjcf, cam_cfg)
+    attachments = attached_cameras(cams)
+    robot_xml = (robot_xml_with_attached_cameras(robot_mjcf, scene.stem, attachments)
+                 if attachments else robot_mjcf.name)
     bodies = []
     for i, spec in enumerate(prop_specs(cam_cfg)):
         centre, half = prop_pose_from_camera(cam_cfg, box_px=spec["box_px"])
@@ -284,7 +418,7 @@ def write_demo_scene(robot_mjcf, cam_cfg, prop_name: str = "red_cube",
             rgba=PROP_RGBA[spec["color"]],
         ))
     scene.write_text(DEMO_SCENE_TEMPLATE.format(
-        robot_xml=robot_mjcf.name,
+        robot_xml=robot_xml,
         props="\n    ".join(bodies),
         cameras=cameras_xml(cams),
     ))

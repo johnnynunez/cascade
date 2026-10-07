@@ -25,6 +25,20 @@ The tracker deliberately reports ``UNKNOWN`` rather than guessing: an
 unverifiable milestone must not be silently counted as done.  That is the
 same discipline the system prompt demands of the agent ("Never claim success
 you did not verify").
+
+2026-10-07 -- the same rate-limited critic pattern now also runs BEFORE a
+motion is dispatched (ROADMAP follow-up #6, Human-CLAW's pre-execution skill
+verifier): ``PlausibilityChecker`` asks the VLM a skill-specific question
+about the proposed call -- "is this call, with these args, plausible given
+the current view, the beliefs, reachability and what is held?" -- and the
+answer rides along on the result and the trace row as ``plausibility``.
+Unlike Human-CLAW's verifier it may NOT veto or substitute: the safety
+harness is the sole authority that refuses motion (AGENTS.md), so the
+verdict is a non-blocking caution to the planner, the same booth rule as
+``memory/envelope.py``.  It draws VLM turns from a ``VisualBudget`` -- the
+tracker's own per-task limiter, factored out so both critics share one
+mechanism -- and anything that would otherwise stall or raise (no vision
+model, no frame, budget gone, verifier fault) is recorded as ``skipped``.
 """
 
 from __future__ import annotations
@@ -38,6 +52,12 @@ from typing import Callable
 DONE = "done"
 PENDING = "pending"
 UNKNOWN = "unknown"
+
+#: pre-motion plausibility verdicts (advisory only -- never a veto)
+PLAUSIBLE = "plausible"
+IMPLAUSIBLE = "implausible"
+UNSURE = "unsure"
+SKIPPED = "skipped"
 
 #: containment relations we can decide from 3D beliefs alone
 _IN_WORDS = r"(?:in|inside|into|within|en|dentro de)"
@@ -106,13 +126,44 @@ class Progress:
         }
 
 
+class VisualBudget:
+    """Per-task cap on VLM turns spent on verification.
+
+    One visual check costs a whole model turn (2-15 s on the booth rig), so
+    every critic that can ask the VLM draws from a budget that resets with
+    the task.  Factored out of ``MilestoneTracker`` so the pre-motion
+    plausibility critic rate-limits with the SAME mechanism; pass one
+    instance to both to make them share one pool of turns.
+    """
+
+    def __init__(self, max_checks: int = 3):
+        self.max_checks = int(max_checks)
+        self.used = 0
+
+    def reset(self) -> None:
+        self.used = 0
+
+    @property
+    def exhausted(self) -> bool:
+        return self.used >= self.max_checks
+
+    def take(self) -> bool:
+        """Consume one turn; False (and nothing consumed) once exhausted."""
+        if self.exhausted:
+            return False
+        self.used += 1
+        return True
+
+
 class MilestoneTracker:
     """Checks decomposed milestones against the world model, then the VLM.
 
     ``beliefs`` is a ``BeliefStore``; ``held_getter`` returns the label of the
     currently held object (or None).  ``vlm_verify`` is an optional
     ``(milestone, jpeg) -> (bool | None, str)`` callable; returning ``None``
-    means "cannot tell", which maps to UNKNOWN.
+    means "cannot tell", which maps to UNKNOWN.  ``budget`` lets the visual
+    tier share its per-task VLM turns with another critic; by default it
+    owns a ``VisualBudget(max_visual_checks)``.
     """
 
     def __init__(
@@ -122,20 +173,24 @@ class MilestoneTracker:
         vlm_verify: Callable[[str, bytes], tuple[bool | None, str]] | None = None,
         max_visual_checks: int = 3,
         containment_pad_m: float = 0.02,
+        budget: VisualBudget | None = None,
     ):
         self.beliefs = beliefs
         self._held = held_getter or (lambda: None)
         self._vlm_verify = vlm_verify
-        self.max_visual_checks = int(max_visual_checks)
+        self.budget = budget if budget is not None else VisualBudget(max_visual_checks)
         self.pad = float(containment_pad_m)
         self.milestones: list[Milestone] = []
-        self._visual_checks = 0
+
+    @property
+    def max_visual_checks(self) -> int:
+        return self.budget.max_checks
 
     # ── lifecycle ────────────────────────────────────────────────────────
 
     def reset(self, milestones: list[str]) -> None:
         self.milestones = [Milestone(text=m) for m in milestones if m and m.strip()]
-        self._visual_checks = 0
+        self.budget.reset()
 
     @property
     def active(self) -> bool:
@@ -175,9 +230,8 @@ class MilestoneTracker:
             allow_visual
             and self._vlm_verify is not None
             and frame_jpeg
-            and self._visual_checks < self.max_visual_checks
+            and self.budget.take()
         ):
-            self._visual_checks += 1
             try:
                 verdict, evidence = self._vlm_verify(text, frame_jpeg)
             except Exception as e:  # a flaky VLM must never fail the task
@@ -314,6 +368,21 @@ class MilestoneTracker:
         return [m.text for m in self.milestones if m.status != DONE]
 
 
+def _yes_no(text: str) -> bool | None:
+    """Head-of-answer parse: YES -> True, NO -> False, anything else -> None.
+
+    Answers that do not start with a clear YES/NO become ``None`` rather
+    than a coin flip -- shared by the milestone verifier and the pre-motion
+    critic so both read a model's answer the same way.
+    """
+    head = re.sub(r"[^a-z]", "", (text or "")[:6].lower())
+    if head.startswith("yes"):
+        return True
+    if head.startswith("no"):
+        return False
+    return None
+
+
 def make_vlm_verifier(llm, prompt_template: str) -> Callable[[str, bytes], tuple[bool | None, str]]:
     """Adapt an ``LLMClient`` into a ``(milestone, jpeg) -> (bool|None, str)``.
 
@@ -334,11 +403,267 @@ def make_vlm_verifier(llm, prompt_template: str) -> Callable[[str, bytes], tuple
             max_tokens=80,
         )
         text = (resp.text or "").strip()
-        head = re.sub(r"[^a-z]", "", text[:6].lower())
-        if head.startswith("yes"):
-            return True, text[:160]
-        if head.startswith("no"):
-            return False, text[:160]
-        return None, text[:160] or "no answer"
+        verdict = _yes_no(text)
+        if verdict is None:
+            return None, text[:160] or "no answer"
+        return verdict, text[:160]
 
+    return verify
+
+
+# ── pre-motion plausibility critic (Human-CLAW, ROADMAP #6) ─────────────────
+#
+# ADVISORY ONLY. Nothing in this section can refuse, delay beyond its budget
+# or rewrite a call: ``check()`` returns a dict and never raises, and the
+# orchestrator dispatches the call unchanged whatever the verdict says. The
+# safety harness is the sole authority that refuses motion (AGENTS.md).
+
+
+class _SafeArgs(dict):
+    """``str.format_map`` source that renders a missing argument as ``?``
+    instead of raising -- a wrong placeholder degrades the wording of the
+    question, never the check."""
+
+    def __missing__(self, key):
+        return "?"
+
+
+#: One skill-specific question per motion primitive, written against the
+#: TOOL_SPECS argument names (grasp/push/point take `label`, pick_and_place
+#: takes `object`, place_at takes x/y). Each asks about the preconditions
+#: that the harness cannot see -- what is visible, what is held, whether the
+#: target makes sense -- not about limits the harness already enforces.
+_PLAUSIBILITY_QUESTIONS: dict[str, str] = {
+    "grasp_object": (
+        "Is {label!r} actually visible on the table, unoccluded and within the "
+        "arm's reach, and is the gripper EMPTY right now?"
+    ),
+    "grasp_at_pixel": (
+        "Does pixel ({u}, {v}) in the image fall on a graspable object on the "
+        "table, and is the gripper EMPTY right now?"
+    ),
+    "pick_and_place": (
+        "Is {object!r} visible and reachable, is the gripper EMPTY, and is the "
+        "destination {destination!r} a free, reachable spot for it?"
+    ),
+    "place_at": (
+        "Is the gripper HOLDING an object right now, and is ({x}, {y}) a free "
+        "spot on the table inside the workspace?"
+    ),
+    "place_on_object": (
+        "Is the gripper HOLDING an object, and is {label!r} visible, stable and "
+        "large enough to receive it?"
+    ),
+    "push_object": (
+        "Is {label!r} visible on the table with free space to push it "
+        "{direction} by {distance_m} m, and is the gripper EMPTY?"
+    ),
+    "move_relative": (
+        "Does moving the tool {direction} by {distance_m} m keep it above the "
+        "table and inside the workspace without hitting anything in view?"
+    ),
+    "handover": (
+        "Is the gripper HOLDING the object to hand over, and is the handover "
+        "pose clear of people and obstacles in view?"
+    ),
+    "open_gripper": (
+        "Is opening the gripper here sensible -- if it holds an object, is this "
+        "a surface where releasing it is intended?"
+    ),
+    "close_gripper": (
+        "Is there an object between the jaws to close on, or is closing on "
+        "nothing the intent?"
+    ),
+    "move_home": (
+        "Is the path back to the home pose clear, and if the gripper holds an "
+        "object, is carrying it home intended?"
+    ),
+    "point_at": (
+        "Is {label!r} visible so that pointing at it is meaningful, and is the "
+        "pointing pose clear?"
+    ),
+    "sort_by_color": (
+        "Are the objects to sort visible on the table with free destination "
+        "zones, and is the gripper EMPTY?"
+    ),
+    "throw": (
+        "Is the gripper HOLDING {label!r}, and is the {direction} throw direction "
+        "clear of people and fragile things in view?"
+    ),
+    "turn_screw": (
+        "Is the fastener {label!r} visible, engaged by the tool and oriented so "
+        "a wrist rotation turns it {direction}?"
+    ),
+    "reset_scene": "Is a scene reset intended now (nothing held, no motion in progress)?",
+}
+_GENERIC_QUESTION = (
+    "Given the current view and the world model, is this call with these exact "
+    "arguments plausible to succeed and sensible right now?"
+)
+
+#: cap on belief lines in the digest -- the prompt must stay small
+_DIGEST_MAX_BELIEFS = 12
+
+
+def _short_call(name: str, args: dict) -> str:
+    return f"{name}(" + ", ".join(f"{k}={v}" for k, v in (args or {}).items()) + ")"
+
+
+class PlausibilityChecker:
+    """Human-CLAW-style pre-execution interrogation of ONE proposed motion call.
+
+    ``verifier`` is a ``(prompt_text, jpeg) -> (bool | None, str)`` callable
+    (see ``make_plausibility_verifier``); ``None`` means no vision-capable
+    model is configured and every check is recorded as ``skipped``.
+    ``beliefs`` is a ``BeliefStore`` (its ``summary()`` is the digest),
+    ``held_getter`` returns the held label, ``workspace`` is the configured
+    reachability box (``{"min": [...], "max": [...]}``) quoted to the critic.
+
+    ``check()`` is the whole contract: it never raises and always returns
+    ``{"verdict", "reasons", "source"}``.  Verdicts: ``plausible`` /
+    ``implausible`` / ``unsure`` from the model, or ``skipped`` with the
+    reason (no model, no frame, budget exhausted, verifier fault).  The
+    caller treats every one of them the same way for dispatch -- the call
+    runs unchanged -- and only ``implausible`` earns the planner a caution.
+    """
+
+    def __init__(
+        self,
+        verifier: Callable[[str, bytes], tuple[bool | None, str]] | None = None,
+        *,
+        beliefs=None,
+        held_getter: Callable[[], str | None] | None = None,
+        budget: VisualBudget | None = None,
+        max_checks: int = 3,
+        workspace=None,
+        skip_reason: str | None = None,
+        prompt_template: str | None = None,
+    ):
+        self._verifier = verifier
+        self.beliefs = beliefs
+        self._held = held_getter or (lambda: None)
+        self.budget = budget if budget is not None else VisualBudget(max_checks)
+        self.workspace = workspace
+        self._skip_reason = skip_reason or "no vision-capable model configured"
+        if prompt_template is None:
+            from .prompts import PLAUSIBILITY_USER
+
+            prompt_template = PLAUSIBILITY_USER
+        self._template = prompt_template
+
+    def reset(self) -> None:
+        """New task, fresh budget (the orchestrator calls this per task)."""
+        self.budget.reset()
+
+    # ── the interrogation ────────────────────────────────────────────────
+
+    def check(self, name: str, args: dict, frame_jpeg: bytes | None) -> dict:
+        """Judge ``name(**args)`` from the current frame. Never raises."""
+        try:
+            if self._verifier is None:
+                return self._skipped(self._skip_reason)
+            if not frame_jpeg:
+                return self._skipped("no camera frame to judge from")
+            if not self.budget.take():
+                return self._skipped(
+                    f"visual budget exhausted ({self.budget.max_checks} checks per task)"
+                )
+            source = f"vlm:{getattr(self._verifier, 'source', None) or 'unknown'}"
+            try:
+                verdict, text = self._verifier(self.prompt(name, args), frame_jpeg)
+            except Exception as e:  # noqa: BLE001 -- a flaky VLM must never block a motion
+                return self._skipped(f"verifier failed: {type(e).__name__}: {e}")
+            reason = str(text or "").strip()[:200] or "no answer"
+            if verdict is True:
+                return {"verdict": PLAUSIBLE, "reasons": [reason], "source": source}
+            if verdict is False:
+                return {"verdict": IMPLAUSIBLE, "reasons": [reason], "source": source}
+            return {"verdict": UNSURE, "reasons": [reason], "source": source}
+        except Exception as e:  # noqa: BLE001 -- belt and braces: advisory code cannot fail a task
+            return self._skipped(f"critic failed: {type(e).__name__}: {e}")
+
+    @staticmethod
+    def _skipped(reason: str) -> dict:
+        return {"verdict": SKIPPED, "reasons": [reason], "source": "none"}
+
+    # ── prompt pieces (public so tests and tools can inspect them) ───────
+
+    def question(self, name: str, args: dict) -> str:
+        template = _PLAUSIBILITY_QUESTIONS.get(name, _GENERIC_QUESTION)
+        try:
+            return template.format_map(_SafeArgs(args or {}))
+        except Exception:  # noqa: BLE001 -- odd arg values: fall back to the generic question
+            return _GENERIC_QUESTION
+
+    def belief_digest(self) -> str:
+        """World model as the critic sees it: beliefs, held state, reach box."""
+        lines: list[str] = []
+        try:
+            rows = list(self.beliefs.summary()) if self.beliefs is not None else []
+        except Exception:  # noqa: BLE001
+            rows = []
+            lines.append("- beliefs unavailable")
+        for row in rows[:_DIGEST_MAX_BELIEFS]:
+            try:
+                pos = ", ".join(f"{float(v):.3f}" for v in (row.get("position") or [])[:3])
+                color = f" ({row['color']})" if row.get("color") else ""
+                lines.append(
+                    f"- {row.get('label')}{color} at ({pos}) {row.get('state')}, "
+                    f"age {row.get('age_s')} s, conf {row.get('conf')}"
+                )
+            except Exception:  # noqa: BLE001
+                lines.append(f"- {row!r}")
+        if len(rows) > _DIGEST_MAX_BELIEFS:
+            lines.append(f"- ... {len(rows) - _DIGEST_MAX_BELIEFS} more")
+        if not rows and not lines:
+            lines.append("- no tracked objects")
+        try:
+            held = self._held()
+        except Exception:  # noqa: BLE001
+            held = None
+        lines.append(f"- gripper holding: {held or 'nothing'}")
+        ws = self.workspace
+        try:
+            if ws is not None:
+                lo = [float(v) for v in ws.get("min")]
+                hi = [float(v) for v in ws.get("max")]
+                lines.append(
+                    "- reachable TCP box: x [%.2f, %.2f], y [%.2f, %.2f], z [%.2f, %.2f]"
+                    % (lo[0], hi[0], lo[1], hi[1], lo[2], hi[2])
+                )
+        except Exception:  # noqa: BLE001 -- a malformed box is simply not quoted
+            pass
+        return "\n".join(lines)
+
+    def prompt(self, name: str, args: dict) -> str:
+        return self._template.format(
+            call=_short_call(name, args),
+            question=self.question(name, args),
+            beliefs=self.belief_digest(),
+        )
+
+
+def make_plausibility_verifier(llm, system: str | None = None) -> Callable[[str, bytes], tuple[bool | None, str]]:
+    """Adapt an ``LLMClient`` into a ``(prompt_text, jpeg) -> (bool|None, str)``
+    for ``PlausibilityChecker`` -- the pre-motion twin of ``make_vlm_verifier``.
+
+    The returned callable carries a ``source`` attribute naming the model
+    (``llm.model`` when the client has one, else the client class) so the
+    verdict in the trace says WHO judged.
+    """
+    if system is None:
+        from .prompts import PLAUSIBILITY_SYSTEM
+
+        system = PLAUSIBILITY_SYSTEM
+
+    def verify(prompt_text: str, jpeg: bytes) -> tuple[bool | None, str]:
+        resp = llm.chat(
+            system=system,
+            messages=[{"role": "user", "content": prompt_text, "images": [jpeg]}],
+            max_tokens=120,
+        )
+        text = (resp.text or "").strip()
+        return _yes_no(text), text
+
+    verify.source = str(getattr(llm, "model", None) or type(llm).__name__)  # type: ignore[attr-defined]
     return verify

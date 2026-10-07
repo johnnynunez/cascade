@@ -420,3 +420,35 @@ def test_sync_solve_is_off_by_default(tmp_path):
         assert owner.step() == 'stepped'
         attempt['outcome'] = 'solved'
     profile.close()
+
+
+def test_cohort_output_verify_is_its_own_span_between_bam_and_solve_and_is_restored(tmp_path):
+    class Fleet:
+        def _verify_outputs(self, check, step_count):
+            return check.verify(step_count)
+
+    class Check:
+        def verify(self, step_count):
+            return ('verified', step_count)
+    fleet = Fleet()
+    owner = SimpleNamespace(physics_clock=(2, .01), _read_completed_scene=lambda: None,
+        step=lambda: 'stepped', capture=lambda: None, support_probe=lambda: None)
+    profile = PhaseProfile(tmp_path/'timing.jsonl')
+    timing.instrument_owner(profile, owner, [], fleet=fleet)
+    with profile.attempt(owner) as attempt:
+        assert fleet._verify_outputs(Check(), 2) == ('verified', 2)
+        assert owner.step() == 'stepped'
+        attempt['outcome'] = 'solved'
+    profile.close()
+    assert [s['phase'] for s in rows(tmp_path/'timing.jsonl')[0]['spans']] == ['bam.verify', 'solve']
+    assert '_verify_outputs' not in vars(fleet)  # the class method is restored, no instance shadow
+    assert fleet._verify_outputs(Check(), 2) == ('verified', 2)
+
+
+def test_instrument_owner_without_a_fleet_adds_no_verify_span(tmp_path):
+    owner = SimpleNamespace(physics_clock=(2, .01), _read_completed_scene=lambda: None,
+        step=lambda: 'stepped', capture=lambda: None, support_probe=lambda: None)
+    profile = PhaseProfile(tmp_path/'timing.jsonl')
+    timing.instrument_owner(profile, owner, [])
+    assert all(restore[2] != 'bam.verify' for restore in profile.restores)
+    profile.close()

@@ -141,7 +141,8 @@ def run(args, admission, signals):
         if getattr(args, 'profile_phases', False):
             from cascade.sim.microduck_timing import PhaseProfile, instrument_owner
             profile = PhaseProfile(out / 'timing.jsonl')
-            instrument_owner(profile, owner, steppers, sync_solve=bool(getattr(args, 'profile_sync_solve', False)))
+            instrument_owner(profile, owner, steppers, sync_solve=bool(getattr(args, 'profile_sync_solve', False)),
+                             fleet=fleet)
         if gc_policy == 'freeze-startup-heap':
             # After every startup allocation (SDK, scene, identity, steppers, profiler)
             # and before any solve, endpoint or control; see cascade.sim.heap_freeze.

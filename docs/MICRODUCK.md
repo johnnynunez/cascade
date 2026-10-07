@@ -1059,7 +1059,64 @@ against the host-snapshot build (same recipe as above) measured the step median
 `bam.before_step` unchanged at 13.9. All twelve client walks remain `unverified`
 on the unchanged deadlines. What remains: the GPU physics step (7.6 ms per 5 ms
 step), `bam.before_step` with ~230 Warp device→host copies per step (the twelve
-adapters' five output reads each are 60 device syncs; a cohort-level batched
-finiteness check is the next slice), the deep copies of `completed.validate` and
+adapters' five output reads each are 60 device syncs; the cohort-level
+finiteness check below removes those), the deep copies of `completed.validate` and
 `policy.prepare`, and the sparse `record.physics` / `camera.overview` writes that
 make the p95 tail.
+
+### Shared-owner per-step cost: one device-side finiteness check for the BAM outputs (7 October 2026)
+
+After the host snapshot, each of the twelve `NewtonBamAdapter.before_step` calls
+still read five of its OWN drive outputs back to the host to refuse a non-finite
+value before the solver steps: `external_torque` after the bridge gathered it
+("nonfinite previous external torque") and `effort`, `motor_torque`,
+`effective_vin`, `friction_budget` after the pinned `compute` ("nonfinite native
+BAM output; solver must not step"). Every `.numpy()` is a full device sync: 60
+per 5 ms step for twelve robots, inside the 13.9 ms of `bam.before_step`.
+
+`BamOutputCheck` (`control/newton_bam.py`) is one device array of int32 flags with
+a slot per (adapter, output array) and two small Warp kernels (`wp.isfinite` per
+element, `wp.atomic_max` into the slot; they compile for Warp's CPU device and for
+CUDA). `SharedMicroduckStepper` builds it once per cohort at construction
+(labelled by robot id; a warm-up launch compiles the kernels at startup, not in
+the first step); every `tick` `reset(step)`s it on the device right after the host
+snapshot for exactly the admitted `simulation_step_count` and hands it to every adapter's
+`before_step(dt, snapshot=…, output_check=…)`: the five host reads become two
+kernel launches into the adapter's slot and `before_step` performs no device
+sync. Immediately before `owner.step()` the owner calls `verify()`: the ONE
+`.numpy()` of the flag array for the whole cohort, which raises a `ValueError`
+with the original wording plus the robot, slot and array of the first flagged
+output. Any exception there flows into the existing containment (`_discard`,
+`_fail`, re-raise): the solver never steps. Under `--profile-phases` that read is
+its own `bam.verify` span, between the last `bam.before_step` and `solve`, so an
+A/B compares `bam.before_step + bam.verify` against the old `bam.before_step`.
+
+Nothing is checked less: the same arrays, every element, every adapter, every
+step. What changes is where the verdict is read. With a cohort check an adapter
+has already published its friction budget,
+scattered its effort and advanced its drive state for the step when `verify()`
+refuses it; this is irrelevant because the failure is terminal (every robot is
+contained and the owner cannot tick again) and the solver never steps on those
+values. The check is bound like the snapshot: an adapter refuses a check of
+another stage/model/solver, one reset for another step, or one it is not
+registered in, before any write; `verify()` refuses a never-reset or stale check
+and an incomplete cohort (an adapter that did not mark all five arrays this step).
+The single-robot path (`output_check=None`) is byte-for-byte unchanged, reads and
+ordering included.
+
+CPU tests establish the mechanism, not a speedup: on the real pinned kernels
+(`tests/test_newton_bam.py`, converter venv, `CUDA_VISIBLE_DEVICES=-1`) two
+adapters on one stage produce identical efforts, friction and telemetry over three
+steps with and without the check, the whole cohort costs the snapshot's world
+reads plus exactly ONE device read (the flag array) and zero reads of the ten
+output arrays inside `before_step`; a NaN injected into any one of the five
+arrays of one adapter is refused by `verify()` naming that robot and array;
+never-reset, stale, other-step, other-stage, non-check, unregistered-adapter,
+incomplete-cohort and mark-after-verify uses are refused; and the private path
+still raises on the same NaN before any write. The software-double tests
+(`tests/test_microduck_shared_scene.py`, `..._staging.py`, `..._stepper.py`,
+`..._timing.py`) pin one check per cohort, one reset per solved tick on the
+admitted step, every actuator marking the same check, the verify as the last
+call before the solve, a failed verify containing every robot without a solve,
+plain doubles keeping the plain call, and the `bam.verify` span through the real
+launcher. The measured A/B on the x86 rig is a separate, later record.

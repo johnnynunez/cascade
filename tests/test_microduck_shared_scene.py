@@ -88,7 +88,7 @@ class View:
     def contain(self, reason): self.owner.contain(reason)
 
 
-def shared(count=2):
+def shared(count=2, actuator=SoftwareActuator):
     owner = SoftwareBackend()
     layout = bind_scene(**layout_fixture(count))
     steppers = []
@@ -103,9 +103,9 @@ def shared(count=2):
             max_angular_speed=.5, max_duration_s=10., lease_s=.3,
             max_state_age_s=1., max_action_wall_s=10., clock=lambda: 1.)
         view = View(owner, binding, ctrl.hello()['epoch'])
-        actuator = SoftwareActuator(owner)
-        actuator.coordinate_indices = binding.q_indices, binding.dof_indices
-        steppers.append(MicroduckStepper(view, ctrl, SoftwarePolicy(owner), actuator,
+        member = actuator(owner)
+        member.coordinate_indices = binding.q_indices, binding.dof_indices
+        steppers.append(MicroduckStepper(view, ctrl, SoftwarePolicy(owner), member,
             max_steps=100, max_wall_s=100., min_height_m=.05, max_height_m=.3,
             max_tilt_rad=.7, clock=lambda: 1.))
     fleet = SharedMicroduckStepper(owner, steppers, layout=layout)
@@ -396,5 +396,85 @@ def test_shared_tick_without_snapshot_support_keeps_the_plain_actuation_call():
     fleet, owner, steppers = shared(2)
     fleet.start()
     fleet.tick()
-    assert [e for e in owner.events if e[0] == 'snapshot'] == []
+    assert [e for e in owner.events if e[0] in ('snapshot', 'check.reset', 'verify')] == []
     assert [e[0] for e in owner.events if e[1] == 2].count('before') == 2
+
+
+class SoftwareOutputCheck:
+    """Double of ``BamOutputCheck``: records resets, marks and the one verify per step."""
+    def __init__(self, backend, adapters, labels):
+        self.backend, self.adapters, self.labels = backend, tuple(adapters), tuple(labels)
+        self.step_count = None
+        self.marked = []
+        self.failure = None
+
+    def reset(self, step_count):
+        self.step_count, self.marked = step_count, []
+        self.backend.events.append(('check.reset', step_count))
+
+    def verify(self, step_count=None):
+        self.backend.events.append(('verify', self.backend.step_count, tuple(self.marked), step_count))
+        if self.failure is not None:
+            raise self.failure
+
+
+class CheckedActuator(SoftwareActuator):
+    """Software double of an adapter offering the per-step host snapshot AND the cohort output check."""
+    checks = []
+
+    def host_snapshot(self):
+        return object()
+
+    def output_check(self, adapters, *, labels=None):
+        check = SoftwareOutputCheck(self.backend, adapters, labels)
+        CheckedActuator.checks.append(check)
+        return check
+
+    def before_step(self, dt, *, snapshot=None, output_check=None):
+        # The real adapter refuses a check of another step or one it is not registered in.
+        assert snapshot is not None and output_check is not None
+        assert self in output_check.adapters and output_check.step_count == self.backend.step_count
+        output_check.marked.append(output_check.labels[output_check.adapters.index(self)])
+        self.backend.events.append(('checked', self.backend.step_count, id(output_check)))
+        super().before_step(dt)
+
+
+def test_shared_tick_resets_one_output_check_per_solve_and_verifies_it_right_before_the_solve():
+    CheckedActuator.checks = []
+    fleet, owner, steppers = shared(3, actuator=CheckedActuator)
+    fleet.start()
+    for _ in range(4): fleet.tick()
+    [check] = CheckedActuator.checks  # built once for the whole cohort, labelled by robot id
+    assert check.adapters == tuple(s.actuator for s in steppers)
+    assert check.labels == ('duck0', 'duck1', 'duck2')
+    for step in range(2, 6):
+        events = [e for e in owner.events if e[1] == step and e[0] != 'infer']
+        # Reset for exactly this admitted step before the first actuation; every adapter
+        # marked the same check; ONE verify is the last thing before the solve.
+        assert [e[0] for e in events] == ['check.reset'] + ['checked', 'before'] * 3 + ['verify', 'solve']
+        assert events[0] == ('check.reset', step)
+        assert {e[2] for e in events if e[0] == 'checked'} == {id(check)}
+        assert events[-2] == ('verify', step, ('duck0', 'duck1', 'duck2'), step)
+    assert all(s.steps == 4 for s in steppers)
+
+
+def test_output_check_failure_refuses_the_solve_and_contains_every_robot():
+    CheckedActuator.checks = []
+    fleet, owner, steppers = shared(2, actuator=CheckedActuator)
+    fleet.start()
+    fleet.tick()
+    [check] = CheckedActuator.checks
+    check.failure = ValueError('nonfinite native BAM output; solver must not step (robot duck1, slot 1, motor_torque)')
+    before = owner.step_count
+    with pytest.raises(ValueError, match='solver must not step') as caught:
+        fleet.tick()
+    assert caught.value is check.failure
+    # The adapters' before_step calls completed, the verify refused, the solver never stepped.
+    assert owner.step_count == before
+    assert [e[0] for e in owner.events if e[1] == before and e[0] != 'infer'][-1] == 'verify'
+    assert [e[0] for e in owner.events if e[1] == before].count('checked') == 2
+    assert all(s.failure == str(check.failure) and s.controller.state()['controller'] == 'fault' for s in steppers)
+    assert all(s.controller.state()['state']['step'] == before for s in steppers)  # the previous publication stands
+    assert owner.contained == ['shared MicroDuck containment; no physical stop verdict']
+    with pytest.raises(RuntimeError, match='not running'): fleet.tick()
+    assert owner.step_count == before

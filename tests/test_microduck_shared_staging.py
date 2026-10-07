@@ -165,8 +165,8 @@ def _launch_shared_runner(tmp_path, monkeypatch, *, profile_phases, gc_policy, f
     from types import SimpleNamespace as NS
     from test_heap_freeze import fake_collector
     from test_microduck_bridge_cli import software_limits
-    from test_microduck_shared_scene import View, layout_fixture
-    from test_microduck_stepper import SoftwareActuator, SoftwareBackend, SoftwarePolicy, render_times
+    from test_microduck_shared_scene import CheckedActuator, View, layout_fixture
+    from test_microduck_stepper import SoftwareBackend, SoftwarePolicy, render_times
     from cascade.sim import heap_freeze, microduck_shared as shared_module, microduck_shared_native as native
     from cascade.control import microduck_policy
 
@@ -193,7 +193,9 @@ def _launch_shared_runner(tmp_path, monkeypatch, *, profile_phases, gc_policy, f
         def __init__(self, *unused):
             super().__init__()
             self.layout = shared_module.bind_scene(**layout_fixture(1))
-            self.actuators = [SoftwareActuator(self)]
+            # Offers the host snapshot and the cohort output check like the real adapter, so the
+            # launcher's profiled attempt has to show the single verify between BAM and solve.
+            self.actuators = [CheckedActuator(self)]
             binding = self.layout.robots[0]
             self.actuators[0].coordinate_indices = binding.q_indices, binding.dof_indices
             self.receipt = {'software_fixture': True, 'configuration': {}}
@@ -290,8 +292,12 @@ def test_launcher_withheld_attempt_preserves_step_budget_and_only_emits_complete
         assert footer['gc_summary']['accounting_complete']
         assert result['phase_profile'] == {'file': 'timing.jsonl', 'attempts': 3, 'errors': []}
         phases = {s['phase'] for r in attempts for s in r['spans']}
-        assert {'policy.prepare', 'bam.before_step', 'solve', 'publication', 'record.physics',
+        assert {'policy.prepare', 'bam.before_step', 'bam.verify', 'solve', 'publication', 'record.physics',
                 'write.physics.jsonl', 'camera.overview', 'camera.capture', 'support.probe'} <= phases
+        for attempt in attempts[1:]:
+            # One cohort verify per solved attempt, after the last bam.before_step and before the solve.
+            order = [s['phase'] for s in attempt['spans'] if s['phase'] in ('bam.before_step', 'bam.verify', 'solve')]
+            assert order == ['bam.before_step', 'bam.verify', 'solve']
         assert not any(s['phase'] in ('solve', 'publication') for s in attempts[0]['spans'])
         assert created[0].receipt['configuration']['phase_profile'] == 'owner-thread-inclusive-gc-trigger-v1'
     else:

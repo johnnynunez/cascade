@@ -1,0 +1,68 @@
+{
+ "raw_root": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/h2-owner",
+ "raw": {
+  "runs/ep3/kit/physics.jsonl": {
+   "sha256": "b31db6f5161448d59a96b2807ae47ed544a31acc63b7a80e3ba2857868a993f1",
+   "bytes": 14756946
+  },
+  "runs/ep3/kit/policy.jsonl": {
+   "sha256": "1e4082c5319b174615c8a437d071a8c488bd080f3a1f016fc751280880698660",
+   "bytes": 2554293
+  },
+  "runs/ep3/kit/frames.jsonl": {
+   "sha256": "6a481ddb9c992bc489c1ec9e1dc49591cfdbccf8ec4ae6594367a5f62c548e0d",
+   "bytes": 129890
+  },
+  "runs/ep3/kit/receipt.json": {
+   "sha256": "5d9cba93a20311d48cefc39c84b3055da435a96cbe32ef35c1fd614ed0b7cf97",
+   "bytes": 57543
+  },
+  "runs/ep3/kit/runtime.json": {
+   "sha256": "52953f9007337942aad8bce491edf9778881378996039093aade38a01aaa3f7b",
+   "bytes": 37854
+  },
+  "runs/ep3/kit/model-identity.json": {
+   "sha256": "a62487675eef27f12c9cbcf2ef21499fcbdb3a8c468572649230aebd2c5a7ff9",
+   "bytes": 58605
+  },
+  "runs/ep3/episode.json": {
+   "sha256": "8f59a57144f12b02a0c7b8b3fa49529dad2877e961af6cf3fa66facf047ae4dc",
+   "bytes": 26183
+  },
+  "runs/ep3/h2-episode-ep3.mp4": {
+   "sha256": "62db006cc0f90d19e8e87e7bdbae358bdb3d7c80930c10d00f79438c42b32068",
+   "bytes": 1175916
+  },
+  "runs/ep3/owner.log": {
+   "sha256": "9fe644b461df6d7a4781f603a93a87570ec96843f36697aa99cc6a39c97d02a0",
+   "bytes": 36979
+  },
+  "runs/ep3/verifier-samples-0.jsonl": {
+   "sha256": "5798defa62800cd5396e741c1d01323dbdfef37e649d7e5d778244132d685e47",
+   "bytes": 217693
+  },
+  "runs/ep3/verifier-samples-1.jsonl": {
+   "sha256": "feddd2f5033f737a29492753a4cb2ad4061bb9dcacfd956a379111fcd9143762",
+   "bytes": 146671
+  },
+  "runs/ep3/verifier-samples-2.jsonl": {
+   "sha256": "71cb36afcce6730d6cac1a0b1c2368f6d66e8a2f786f1056dd117d30c07c03d9",
+   "bytes": 216492
+  },
+  "runs/ep3/verifier-samples-3.jsonl": {
+   "sha256": "57f0ffece289a375ac3b7f943e6f8d928e462dd6acce83590a74a65a4873fb35",
+   "bytes": 142634
+  },
+  "runs/ep3/verifier-samples-4.jsonl": {
+   "sha256": "ca0406476d1231558bb5b1ff43b2c90f01dbf5ff5828153c9d80f49b130ac457",
+   "bytes": 148009
+  }
+ },
+ "copied": {
+  "make_video.py": "e5ee94c8acb407af259705b6d24ae22ac4b918ec4cd270e1e15305bfbc94cf93",
+  "resolved-config.json": "9463f39fb663fb430cf096c557f09dd180f5fabcf895f6c657fea7b9eb3af4b6",
+  "contact-sheet.jpg": "04093a17051524b0d59687772ae090942eb59f04b7c68991aa994b4aeae8b045",
+  "h2_episode.py": "3c391293c17d4ab7dc1cf2d4247db91cd276a8cfafd8e792924e49c2c871368b",
+  "episode-summary.json": "885dac20a101876d2773e4a4224c0c04bda659130fa5b484c9ba2d0957844e57"
+ }
+}

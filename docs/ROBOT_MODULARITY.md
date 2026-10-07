@@ -441,7 +441,9 @@ learned state unchanged. Hosted CI remains a separate result on the PR.
 ## Admission work for an actual humanoid
 
 The next physical vertical must select one real embodiment and controller,
-rather than assert support for all humanoids at once. Required work includes:
+rather than assert support for all humanoids at once. The embodiment selected
+on 7 October 2026 is the Unitree H2 on PhysX ([HUMANOID_H2.md](HUMANOID_H2.md)):
+no gate below is passed yet. Required work includes:
 
 1. Bind the model, policy, command endpoint and all observation/action mappings;
    demonstrate exclusive ownership and controller-clock execution.

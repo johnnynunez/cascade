@@ -64,6 +64,10 @@ class BaseTruthReader:
         self._closed = threading.Event()
         self._ready = False
         self._epoch = identifier(profile["epoch"], "epoch") if "epoch" in profile else None
+        from .mobile_bridge import KINDS
+        self._kind = profile.get("kind", "microduck")
+        if self._kind not in KINDS:
+            raise ValueError(f"kind must be one of {sorted(KINDS)}")
         self.last_error: str | None = None
 
     def _hello(self, response):
@@ -73,8 +77,8 @@ class BaseTruthReader:
             raise ValueError('truth hello support_contract mismatch')
         if type(response.get("protocol")) is not int or response["protocol"] != 1:
             raise ValueError("truth protocol mismatch")
-        if response.get("kind") != "microduck" or response.get("measurement_kind") != "physics":
-            raise ValueError("truth requires MicroDuck physics, not another robot or mock")
+        if response.get("kind") != self._kind or response.get("measurement_kind") != "physics":
+            raise ValueError("truth requires the pinned embodiment's physics, not another robot or mock")
         for key in ("robot_id", "source", "engine", "device", "asset_sha256", "policy_sha256", "model_identity_sha256"):
             if response.get(key) != self._profile[key]:
                 raise ValueError(f"truth hello {key} mismatch")

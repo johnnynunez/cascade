@@ -6,6 +6,21 @@ maintain capability limits in the relevant document below. Do not append full
 command transcripts, repeated suite totals or a second copy of an evidence
 receipt here.
 
+## Unitree H2 vertical — owner and first episodes (7 October 2026)
+
+Decision: Unitree H2, PhysX first (NVIDIA's public H2 USD + `Velocity-H2-History-v0`,
+pinned in `configs/h2/bundle.json`; Newton route = newton-assets PR #53). Landed:
+the contract module (`control/h2_policy_contract.py`), the PhysX owner
+(`scripts/isaac_h2_bridge.py`, `sim/h2_physx.py`, `sim/h2_stepper.py`,
+`sim/h2_identity.py`), the `kind` field on the MOBILE wire (`microduck`/`h2`),
+the candidate profiles and `docs/HUMANOID_H2.md`. Measured: the reference loop
+walks 0.63 m/2 s; the CASCADE-owned episode confirmed 3 of 5 `walk_velocity`
+commands under the candidate verifier (two refuted on the post-command settle
+window). Handoff: measure the settle behaviour (how long the policy keeps
+stepping after a zero twist) before touching any candidate limit; add
+`distance_control`/`turn_control` for `walk_distance`/`turn`; MCP-driven
+episodes; a Newton experiment with the same policy is a separate, labelled run.
+
 ## Start here
 
 - [README](README.md): project overview and entry points.

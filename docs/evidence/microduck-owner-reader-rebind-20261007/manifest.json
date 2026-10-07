@@ -1,0 +1,183 @@
+{
+ "recipe": {
+  "robots": 12,
+  "world": "one shared scene",
+  "policy": "rough_walk_e",
+  "clients": "12 closed-loop walk_distance 5 m (route harness copy)",
+  "max_steps": 6000,
+  "profile_phases": true,
+  "gpu": "gpu1 (RTX PRO 6000 Blackwell, x86 test rig, not a Spark number)",
+  "isaac": "omni_isaac_sim 6.2 alpha release build",
+  "newton": "1.6.1rc1",
+  "base_port": 18300,
+  "harness": "cascade-lab/HERMES_AUDIT_20261007/harness/route_walk.py",
+  "launch_argv_D": [
+   "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/python.sh",
+   "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/route/scripts/isaac_microduck_shared.py",
+   "--engine",
+   "newton",
+   "--release",
+   "/home/johnny/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release",
+   "--sdk-recipe",
+   "isaac62_48b2d951",
+   "--bundle",
+   "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/isaaclab-usd-allcollisions-v1",
+   "--bundle-sha256",
+   "ba7cdd9ed68552fc83aefaf881a148970203bb08fb003e0d52715f42a8263079",
+   "--policy",
+   "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck-rough-walk-e/policy.onnx",
+   "--policy-sha256",
+   "5aa423bd693e431b19e2ead77f99cbae6184e40a529eb2f7c1b4f85bb7f57040",
+   "--policy-profile",
+   "rough_walk_e",
+   "--bam-source-root",
+   "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/research/isaaclab-pr8161/source",
+   "--bam-profile",
+   "official_infer_nominal_no_delay",
+   "--python-extra-path",
+   "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/runtime-python",
+   "--robot-id",
+   "microduck",
+   "--source",
+   "isaac-microduck",
+   "--device",
+   "cuda:0",
+   "--port",
+   "0",
+   "--limits",
+   "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/route/configs/microduck/controller-limits-route.json",
+   "--out",
+   "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abD-rebind-12/owner/kit",
+   "--camera-every",
+   "20",
+   "--max-jpeg-bytes",
+   "4194304",
+   "--overview-resolution",
+   "1920x1080",
+   "--ground-visual-m",
+   "40.0",
+   "--max-wall-s",
+   "1000.0",
+   "--max-steps",
+   "6000",
+   "--solver-cuda-graph",
+   "--reuse-solved-read",
+   "--robots",
+   "12",
+   "--spacing",
+   "1.0",
+   "--layout",
+   "line",
+   "--route-m",
+   "5.0",
+   "--physics-row-every",
+   "10",
+   "--serve-base-port",
+   "18300",
+   "--gc-policy",
+   "freeze-startup-heap",
+   "--profile-phases"
+  ]
+ },
+ "arms": {
+  "B": "PR #222 head b721e7a + #225 host snapshot (same rows as evidence microduck-owner-host-snapshot-20261007)",
+  "D": "B + this change (rebound support, cached binding digest, memoized plain contacts, regex identifier scan)",
+  "P2": "B + in-process --profile-cprofile, 1000 completed steps: the profile that motivated D"
+ },
+ "model_identity": "see raw model-identity.json",
+ "raw": [
+  {
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abB-snapshot-12/owner/kit/timing.jsonl",
+   "sha256": "05d46b50f92f4d25678a1100b76b3e37a1b2fae446f028f8c5de1142360fc3e6",
+   "bytes": 47459875
+  },
+  {
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abB-snapshot-12/owner/kit/receipt.json",
+   "sha256": "8fb947f4c18b0995ac5e967f62e0834157c9c93cd7041c8b2db2f4184052f2f0",
+   "bytes": 2761910
+  },
+  {
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abB-snapshot-12/owner/launch.json",
+   "sha256": "c62f637c4cb7493631b573c1f184f095e4f291df3e8e046323b1066c28c6e980",
+   "bytes": 2747
+  },
+  {
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abB-snapshot-12/owner/kit/model-identity.json",
+   "sha256": "627fbbe198f7ce4c38ad601a5352f11ba3c843b393dca9e6fa4bb8c7d4c8c211",
+   "bytes": 655264
+  },
+  {
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abB.driver.log",
+   "sha256": "9f04c4d98b8f7f5f1811bc44c855efbec436b0bc735f75414566dcd3c786b91a",
+   "bytes": 29630,
+   "client_outcomes": {
+    "False/unverified": 12
+   }
+  },
+  {
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abD-rebind-12/owner/kit/timing.jsonl",
+   "sha256": "57f4f453fb4505a8f052f43b5a5d4942d72782837f65fa1205f36969701c8660",
+   "bytes": 52228508
+  },
+  {
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abD-rebind-12/owner/kit/receipt.json",
+   "sha256": "27d2808e99cbaec5b0f8323dcacf4f7999bc0579e3ae95e376640acf3380d6b8",
+   "bytes": 2763123
+  },
+  {
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abD-rebind-12/owner/launch.json",
+   "sha256": "a8f6699a793b28a2f5043c0adab6bbc52f8845349e743666df7e735125dbddcc",
+   "bytes": 2791
+  },
+  {
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abD-rebind-12/owner/kit/model-identity.json",
+   "sha256": "2b07c804af3f4b633f3c4427ba05f6f116a8a7843ab338dd45ceaea6c4c1e628",
+   "bytes": 655264
+  },
+  {
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abD.driver.log",
+   "sha256": "c76530c21c850f53d20a344efa91a6350d120110978dafd06bfe30a311be866c",
+   "bytes": 29711,
+   "client_outcomes": {
+    "False/unverified": 12
+   }
+  },
+  {
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abP2-cprofile-12/owner/kit/timing.jsonl",
+   "sha256": "d0aa1e84fea1a2d6200fbf4a38f69e3327a50c5c82c1224c7061fef5e3e58652",
+   "bytes": 8208836
+  },
+  {
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abP2-cprofile-12/owner/kit/receipt.json",
+   "sha256": "fb8b244d5c42473110bede4093cf847d996ed4bfced92aa61b411fb0a09b9ded",
+   "bytes": 2768070
+  },
+  {
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abP2-cprofile-12/owner/launch.json",
+   "sha256": "8b47bc86de5ad66144340f7949505c87ee54419da426398dc2573f637f901f51",
+   "bytes": 2825
+  },
+  {
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abP2-cprofile-12/owner/kit/model-identity.json",
+   "sha256": "36948e5b353dde495116ae588995cfa2ad5c5a65d323ae71dcd2d72b1e88b0f8",
+   "bytes": 655264
+  },
+  {
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abP2-cprofile-12/owner/kit/owner.prof",
+   "sha256": "6a88b498ce54915952673da922dda47059d4af66f547218a3550d4d7f1a90119",
+   "bytes": 415764
+  },
+  {
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/harness/abP2.driver.log",
+   "sha256": "9a1e3e480f12cad8c1a79ccfe62afc2f0b46cefd98dd503be6c41bc4bcbe62c3",
+   "bytes": 28625,
+   "client_outcomes": {
+    "False/unverified": 12
+   }
+  }
+ ],
+ "host": {
+  "hostname": "johnny-Ubuntu",
+  "date": "2026-10-07"
+ }
+}

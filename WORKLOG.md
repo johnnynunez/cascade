@@ -70,9 +70,17 @@ against one per-step host copy of the model/solver/state arrays (measured
 `bam.before_step` 24.3 → 13.6 ms, step median 76.2 → 61.3 ms, all walks still
 `unverified`; `docs/evidence/microduck-owner-host-snapshot-20261007/`). The new
 `--profile-sync-solve` diagnostic shows 7.6 ms of GPU physics per 5 ms step.
+Second slice, from an in-process `--profile-cprofile` of that owner: cached
+binding digest, metadata-only `SupportObservation.rebound`, memoized plain
+contacts for the twelve clients' `state()` polls, regex `identifier()` —
+step median 61.3 → 48.55 ms, `bam.before_step` unchanged
+(`docs/evidence/microduck-owner-reader-rebind-20261007/`).
 
-Unresolved handoff: the remaining host cost (`completed.validate` deep copies and
-decode, per-adapter output reads and Warp launches, `policy.prepare`,
-`publication`) and the physics budget per asset (full-vertex hulls) are what
-stand between the owner and twelve closed-loop clients meeting the unchanged
-deadlines; RPC serving still shares the owner's GIL.
+Unresolved handoff: `bam.before_step` (13.9 ms: ~230 Warp device→host copies per
+step, 60 of them the twelve adapters' five output reads — batch them into one
+cohort-level device-side finiteness check and one read), the deep copies of
+`completed.validate` and `policy.prepare`, the sparse `record.physics` /
+`camera.overview` writes behind the p95 tail, the physics budget per asset
+(full-vertex hulls, 7.6 ms GPU per 5 ms step) and RPC serving on the owner's
+GIL are what stand between the owner and twelve closed-loop clients meeting the
+unchanged deadlines.

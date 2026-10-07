@@ -1,0 +1,95 @@
+{
+ "recipe": {
+  "robots": 12,
+  "world": "one shared scene",
+  "policy": "rough_walk_e",
+  "clients": "12 closed-loop walk_distance 5 m clients, one walk per robot (route harness copy, --waves 1)",
+  "max_steps": 6000,
+  "profile_phases": true,
+  "gpu": "gpu1 (RTX PRO 6000 Blackwell, x86 test rig, not a Spark number; llama-server idle on the same card)",
+  "isaac": "omni_isaac_sim 6.2 alpha release build",
+  "newton": "1.6.1rc1",
+  "base_port": 18300,
+  "harness": "cascade-lab/HERMES_AUDIT_20261007/harness/route_walk.py",
+  "arm_M_source": "origin/main 30a61fd (+ docs-only commit of PR #239) via worktree HERMES_BACKLOG_20261007/roadmap-docs/cascade",
+  "arm_E_source": "feat/backlog-bam-output-batch a911446 = 8749ff3 (this change) merged with origin/main 30a61fd"
+ },
+ "raw": {
+  "M": {
+   "run_dir": "cascade-lab/HERMES_AUDIT_20261007/harness/abM-main-12",
+   "timing_jsonl": {
+    "path": "abM-main-12/owner/kit/timing.jsonl",
+    "bytes": 48993789,
+    "sha256": "5359e5c9c46137efc67d0dc41405cf73ac5ac960f5f7f55d48152bab9c382caf"
+   },
+   "receipt_json": {
+    "path": "abM-main-12/owner/kit/receipt.json",
+    "bytes": 2721750,
+    "sha256": "667028236230831fb133efbfeffe35e8c99f64d76b3186d37e99d3bd7a7d26a0"
+   },
+   "driver_log": {
+    "path": "abM.driver.log",
+    "sha256": "43969a8357b676a50115eaa67f8f5ab16e0bbc70c0f79edb14037676f83fda2e"
+   },
+   "owner_end": {
+    "completed": false,
+    "end_reason": "signal/lifecycle shutdown",
+    "steps": 2943,
+    "exit_code": 143,
+    "wall_duration_s": 214.74431695500243
+   },
+   "client_verdicts": {
+    "walks": 12,
+    "confirmed": 0,
+    "post_status": [
+     "unverified"
+    ],
+    "measured_distance_m_median": 0.435,
+    "errors": [
+     "bridge I/O failed: bridge request wall-time deadline expired",
+     "feedback clock did not advance",
+     "feedback generation changed",
+     "stale or future-dated feedback"
+    ]
+   }
+  },
+  "E": {
+   "run_dir": "cascade-lab/HERMES_AUDIT_20261007/harness/abE-bamcheck-12",
+   "timing_jsonl": {
+    "path": "abE-bamcheck-12/owner/kit/timing.jsonl",
+    "bytes": 53315373,
+    "sha256": "64b1e2587e2deccd842002ac0853632ab19f6dcca4930d79c1d87a4005805f69"
+   },
+   "receipt_json": {
+    "path": "abE-bamcheck-12/owner/kit/receipt.json",
+    "bytes": 2763030,
+    "sha256": "a86a176d1ec23bbc3bb4b5cc514e442c233a3498469546b9d38921147b5a9e02"
+   },
+   "driver_log": {
+    "path": "abE.driver.log",
+    "sha256": "0027602e23982c43b3f5737b22bf73f077257d85f950ad80ef425292f6370204"
+   },
+   "owner_end": {
+    "completed": false,
+    "end_reason": "signal/lifecycle shutdown",
+    "steps": 3175,
+    "exit_code": 143,
+    "wall_duration_s": 218.21094974800508
+   },
+   "client_verdicts": {
+    "walks": 12,
+    "confirmed": 0,
+    "post_status": [
+     "unverified"
+    ],
+    "measured_distance_m_median": 0.494,
+    "errors": [
+     "bridge I/O failed: bridge request wall-time deadline expired",
+     "feedback clock did not advance",
+     "feedback generation changed",
+     "stale or future-dated feedback"
+    ]
+   }
+  }
+ }
+}

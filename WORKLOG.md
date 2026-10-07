@@ -97,8 +97,11 @@ solve (`bam.verify` span); every check and its wording are preserved, the
 single-robot path is unchanged. CPU tests on the real pinned kernels and on the
 software doubles establish the mechanism; the x86 A/B is not yet measured.
 
-Unresolved handoff: `bam.before_step` after the output check (the remaining Warp
-device→host copies and ~48 launches per step; measure the A/B first), the deep
+Unresolved handoff: `bam.before_step` after the output check — measured 13.9 → 11.9 ms
+per step on the x86 rig (`docs/evidence/microduck-owner-bam-check-20261007/`), so the
+remaining ~11.8 ms is the per-adapter Warp launch overhead (~48 launches per step) and the
+host-side binding checks, i.e. the next slice is batching the twelve adapters' launches
+into cohort kernels; then the deep
 copies of `completed.validate` and `policy.prepare`, the sparse
 `record.physics` / `camera.overview` writes behind the p95 tail, the physics
 budget per asset (full-vertex hulls, 7.6 ms GPU per 5 ms step) and RPC serving

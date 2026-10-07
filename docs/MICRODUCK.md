@@ -1119,4 +1119,16 @@ still raises on the same NaN before any write. The software-double tests
 admitted step, every actuator marking the same check, the verify as the last
 call before the solve, a failed verify containing every robot without a solve,
 plain doubles keeping the plain call, and the `bam.verify` span through the real
-launcher. The measured A/B on the x86 rig is a separate, later record.
+launcher. The [same-day A/B](evidence/microduck-owner-bam-check-20261007/REPORT.md)
+(twelve robots, one world, route profile, twelve closed-loop 5 m clients, x86 rig,
+arm M = `main` 30a61fd after the 7 October merge train vs arm E = M + this change)
+measured `bam.before_step` 13.91 → 11.79 ms plus `bam.verify` 0.08 ms —
+**13.91 → 11.87 ms per step** (1.004 → 0.849 ms per robot) — and the step median
+48.82 → 46.78 ms (p95 126.0 → 123.9), the other phases unchanged within noise. The
+sixty syncs were worth about 2 ms of the 13.9: what remains in `bam.before_step`
+(~11.8 ms, ~1 ms per robot) is the per-adapter Warp launch overhead (gather, `compute`,
+friction publish, scatter, state update, now the two flag kernels) and the host-side
+binding/model-sync checks on the snapshot copies, so the next slice there is batching
+the twelve adapters' launches into cohort kernels, not fewer reads. All twelve client
+walks remain `unverified` in both arms on the unchanged deadlines; this is a measured
+cost reduction, not a control or admission result.

@@ -352,7 +352,7 @@ capability, because none of them are wanted on all hosts:
 |---|---|---|
 | `kinematics` | `pin` (Pinocchio) | always |
 | `perception` | `ultralytics` | real cameras / open-vocabulary detection |
-| `llm` | `openai`, `anthropic` | any real brain (also covers Nous Portal and local servers) |
+| `llm` | `openai`, `anthropic` | any real brain over an API (also covers Nous Portal and local servers); the `codex_astra` profile needs no extra, only the Codex CLI |
 | `sim` | `mujoco` | hardware-free physics on any host |
 | `sim-warp` | `mujoco-warp`, `warp-lang` | the same MJCF on the MuJoCo Warp GPU runtime (`engine: warp`); CPU-capable, so it installs anywhere |
 | `arm-feetech` | `pyserial` | SO-101 and other Feetech-servo arms |
@@ -649,7 +649,8 @@ MCP-capable host can drive.
 
 | profile | backend | notes |
 |---|---|---|
-| `hermes` | [Hermes / Nous Portal](https://hermes-agent.nousresearch.com/) (cloud gateway, 300+ models) | `NOUS_API_KEY`; OpenAI-compatible. **Default** via `--llm auto`. Text-only |
+| `codex_astra` | **GPT-6-Astra through the Codex CLI** (`codex exec` subprocess on a ChatGPT/Codex subscription) | no `OPENAI_API_KEY` and no HTTP from cascade: one `codex exec --ignore-user-config --ephemeral -s read-only --output-schema …` per step, prompt on stdin, current-view JPEGs via `-i`, strict-JSON final message → tool call. **`--llm auto` picks it first when Codex is logged in** (`codex login`); pin another with `--llm hermes` / `CASCADE_LLM=…`. Measured 2026-10-07 (codex-cli 0.160.1, medium effort): 7–9 s per step, text or with an image. `--ignore-user-config` keeps your own Codex MCP servers out of the brain's session; vision + tools |
+| `hermes` | [Hermes / Nous Portal](https://hermes-agent.nousresearch.com/) (cloud gateway, 300+ models) | `NOUS_API_KEY`; OpenAI-compatible. **Default** via `--llm auto` when Codex is not logged in. Text-only |
 | `anthropic` | Claude (cloud) | `ANTHROPIC_API_KEY`; vision + tools |
 | `local_qwen` | local Qwen via llama.cpp / vLLM | OpenAI-compatible; MTP speculative decoding (~1.4–2.2× decode) measured on a DGX Spark |
 | `local_cosmos` | NVIDIA Cosmos3-Edge Reasoner via vLLM | `scripts/serve_cosmos_vllm.sh` (:8082); 2.44B MoT, thinking on by default — see the script header for the day-one serving pitfalls it works around |
@@ -704,7 +705,7 @@ python scripts/setup_agents.py --camera d455f --arm rebot_rs --write
 | **Hermes** *(default)* | `~/.hermes/config.yaml` `mcp_servers` | `./scripts/install_hermes.sh --portal` (installs the CLI, logs into Portal, registers this robot), then `./scripts/hermes_demo.sh` (register + test + chat) |
 | **Claude Code** | project `.mcp.json` (ships in this repo; interpreter path is machine-specific, and it pins the Isaac camera/arm profiles) | if your checkout lives elsewhere, regenerate with the profiles you want: `setup_agents.py --host claude --camera isaac,isaac_side --arm isaac --write` (add `--python <interpreter>` if your venv is not at `<checkout-parent>/.demo`); user-scope: `--host claude` prints the `claude mcp add` one-liner |
 | **Claude Desktop** | `claude_desktop_config.json` | paste the JSON block from `setup_agents.py --host claude` |
-| **Codex CLI** | `~/.codex/config.toml` `[mcp_servers.cascade]` | `setup_agents.py --host codex --write`, verify with `codex mcp list` |
+| **Codex CLI** | `$CODEX_HOME/config.toml` `[mcp_servers.cascade]` — or, with `--codex-profile robot`, the layer `$CODEX_HOME/robot.config.toml` that only `codex -p robot` loads, so the robot tool server is not in every coding session | `setup_agents.py --host codex --write` (base config) or `setup_agents.py --host codex --codex-profile robot --write` then `codex -p robot`; verify with `codex mcp list` (add `-p robot`). Codex as a **brain** instead is the `codex_astra` profile above |
 | **OpenClaw** | native `mcp.servers` (2026+) or [mcporter](https://docs.openclaw.ai/cli/mcp) | `./scripts/launch.sh` (one click, verified on OpenClaw 2.0 = 2026.9.3: brings up the simulator if there is one, registers the server idempotently with `openclaw mcp set`, restarts the gateway, checks the robot tools are listed via `mcp probe --json` and that the brain answers a turn, then opens the web chat; `--brain auto` keeps whatever auth OpenClaw already has unless a local model server is answering) · `./scripts/bootstrap.sh` (fresh Spark: installs Isaac, Qwen Q4, OpenClaw and verified kitchen assets) · `./scripts/openclaw_demo.sh` (local-brain variant when the servers are already up); `setup_agents.py --host openclaw` prints the `openclaw mcp add` one-liner + JSON block. OpenClaw blocks the `PYTHONPATH` env — the package must be editable-installed in the venv (the scripts handle it). On macOS the server is launched under `mjpython` so the MuJoCo viewer can open (plain python refuses `launch_passive` there) |
 
 The server pre-warms perception at startup (cameras + detector + world

@@ -2,10 +2,13 @@
 
 import json
 import sys
+from pathlib import Path
 
+import pytest
 from conftest import REPO
 
 sys.path.insert(0, str(REPO / "scripts"))
+import setup_agents  # noqa: E402
 from setup_agents import (  # noqa: E402
     claude_add_command,
     claude_mcp_json,
@@ -89,3 +92,68 @@ def test_openclaw_outputs():
     assert "--env CASCADE_CAMERAS=l515" in cmd
     data = json.loads(openclaw_json_block(PY, ENV))
     assert data["mcpServers"]["cascade"]["command"] == PY
+
+
+# ── Codex: base config vs a `-p NAME` profile layer ──────────────────────
+
+
+def test_codex_config_path_base_and_profile_layer(tmp_path):
+    """A robot tool server should not be loaded into every coding session:
+    `--codex-profile robot` targets $CODEX_HOME/robot.config.toml, which Codex
+    layers only under `codex -p robot`."""
+    home = tmp_path / "codex-home"
+    assert setup_agents.codex_config_path(None, codex_home=home) == home / "config.toml"
+    assert setup_agents.codex_config_path("robot", codex_home=home) == home / "robot.config.toml"
+    for bad in ("", "../x", "a/b", "ro bot", "a.b"):
+        with pytest.raises(ValueError):
+            setup_agents.codex_config_path(bad, codex_home=home)
+
+
+def test_codex_config_path_honours_codex_home_env(tmp_path, monkeypatch):
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "elsewhere"))
+    assert setup_agents.codex_config_path(None) == tmp_path / "elsewhere" / "config.toml"
+    monkeypatch.delenv("CODEX_HOME")
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "home"))
+    assert setup_agents.codex_config_path(None) == tmp_path / "home" / ".codex" / "config.toml"
+
+
+def test_codex_profile_write_leaves_the_base_config_alone(tmp_path, monkeypatch, capsys):
+    """Driving setup_agents.main() with --write against a PRIVATE $CODEX_HOME: the block
+    lands in the profile layer, the base config.toml is untouched, and the
+    upsert is idempotent there too."""
+    home = tmp_path / "codex-home"
+    home.mkdir()
+    base = home / "config.toml"
+    base.write_text('model = "gpt-5.5"\n')
+    monkeypatch.setenv("CODEX_HOME", str(home))
+    # belt and braces: even a path bug must not reach the real ~/.codex
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "fake-home"))
+    argv = ["setup_agents.py", "--host", "codex", "--codex-profile", "robot",
+            "--camera", "l515", "--arm", "mock", "--python", PY, "--write"]
+    monkeypatch.setattr(sys, "argv", argv)
+    assert setup_agents.main() == 0
+    assert setup_agents.main() == 0  # idempotent
+    layer = home / "robot.config.toml"
+    assert layer.exists()
+    import tomllib
+
+    data = tomllib.loads(layer.read_text())
+    assert data["mcp_servers"]["cascade"]["command"] == PY
+    assert data["mcp_servers"]["cascade"]["env"]["CASCADE_CAMERAS"] == "l515"
+    assert layer.read_text().count("[mcp_servers.cascade]") == 1
+    assert base.read_text() == 'model = "gpt-5.5"\n', "the base config must not change"
+    out = capsys.readouterr().out
+    assert "codex -p robot" in out, "tell the operator how the layer is loaded"
+    assert not (tmp_path / "fake-home").exists()
+
+
+def test_codex_default_path_is_unchanged_without_a_profile(tmp_path, monkeypatch, capsys):
+    home = tmp_path / "codex-home"
+    monkeypatch.setenv("CODEX_HOME", str(home))
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "fake-home"))
+    monkeypatch.setattr(sys, "argv", ["setup_agents.py", "--host", "codex", "--python", PY])
+    assert setup_agents.main() == 0
+    out = capsys.readouterr().out
+    assert str(home / "config.toml") in out
+    assert "codex -p" not in out
+    assert not (home / "config.toml").exists(), "no --write, no file"

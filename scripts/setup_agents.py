@@ -4,7 +4,8 @@
 One robot tool-server, many brains. Supported hosts:
 
     hermes    ~/.hermes/config.yaml           (mcp_servers.<name>, YAML)
-    codex     ~/.codex/config.toml            ([mcp_servers.<name>], TOML)
+    codex     $CODEX_HOME/config.toml         ([mcp_servers.<name>], TOML; or a
+              `codex -p NAME` layer NAME.config.toml via --codex-profile NAME)
     claude    <repo>/.mcp.json (project)      (Claude Code; auto-detected)
               + `claude mcp add` one-liner for user scope / Desktop JSON
     openclaw  `openclaw mcp set` one-liner    (native mcp.servers) or a
@@ -16,6 +17,7 @@ that can be safely edited in place (hermes YAML, codex TOML, project
 
     python scripts/setup_agents.py                          # print all
     python scripts/setup_agents.py --host codex --write
+    python scripts/setup_agents.py --host codex --codex-profile robot --write   # codex -p robot
     python scripts/setup_agents.py --camera d455f --arm rebot_rs --write
 """
 
@@ -24,6 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -79,6 +82,29 @@ def server_env(
 
 CODEX_START = f"[mcp_servers.{SERVER}]"
 CODEX_ENV_START = f"[mcp_servers.{SERVER}.env]"
+# `codex -p NAME` layers $CODEX_HOME/NAME.config.toml; keep the name a plain
+# token so it cannot escape CODEX_HOME or collide with the `.config.toml` suffix.
+_CODEX_PROFILE_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def codex_home_dir() -> Path:
+    """`$CODEX_HOME`, else `~/.codex` -- the same resolution the CLI uses."""
+    return Path(os.environ.get("CODEX_HOME", "").strip() or Path.home() / ".codex")
+
+
+def codex_config_path(profile: str | None = None, codex_home: Path | None = None) -> Path:
+    """Where the `[mcp_servers.cascade]` block goes.
+
+    Without a profile: the base `config.toml`, loaded by every Codex session.
+    With `--codex-profile NAME`: `NAME.config.toml`, which Codex layers only
+    under `codex -p NAME` -- a robot tool server should not be loaded into
+    every coding session."""
+    home = Path(codex_home) if codex_home is not None else codex_home_dir()
+    if profile is None:
+        return home / "config.toml"
+    if not _CODEX_PROFILE_RE.match(profile):
+        raise ValueError(f"--codex-profile must match [A-Za-z0-9_-]+, got {profile!r}")
+    return home / f"{profile}.config.toml"
 
 
 def codex_toml_block(python: str, env: dict[str, str]) -> str:
@@ -189,9 +215,20 @@ def main() -> int:
                         "never hideable)")
     p.add_argument("--env", action="append", default=[], metavar="KEY=VALUE",
                    help="extra env var for the server entry (repeatable)")
+    p.add_argument("--codex-profile", default=None, metavar="NAME",
+                   help="Codex host only: write the block to $CODEX_HOME/NAME.config.toml, "
+                        "which Codex layers only under `codex -p NAME`, instead of the "
+                        "base config.toml -- so the robot tool server is not loaded "
+                        "into every coding session")
     p.add_argument("--write", action="store_true",
                    help="apply file edits (hermes yaml, codex toml, project .mcp.json)")
     args = p.parse_args()
+
+    if args.codex_profile is not None:
+        try:
+            codex_config_path(args.codex_profile)
+        except ValueError as e:
+            p.error(str(e))
 
     for kv in args.env:
         if "=" not in kv or not kv.split("=", 1)[0].strip():
@@ -225,14 +262,15 @@ def main() -> int:
 
         elif host == "codex":
             block = codex_toml_block(args.python, env)
-            path = Path.home() / ".codex" / "config.toml"
+            path = codex_config_path(args.codex_profile)
+            hint = f" (loaded only by `codex -p {args.codex_profile}`)" if args.codex_profile else ""
             if args.write:
                 merged = codex_upsert(path.read_text() if path.exists() else None, block)
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(merged)
-                print(f"[written] {path}")
+                print(f"[written] {path}{hint}")
             else:
-                print(f"# append to {path}:\n{block}")
+                print(f"# append to {path}{hint}:\n{block}")
 
         elif host == "claude":
             path = REPO / ".mcp.json"

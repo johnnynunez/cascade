@@ -1,0 +1,63 @@
+# GPT-6-Astra as the BRAIN, reached THROUGH the Codex CLI on the user's
+# ChatGPT/Codex subscription. Picked FIRST by `--llm auto` when Codex is
+# logged in (`codex login`); pin another profile with `--llm hermes` or
+# `CASCADE_LLM=<profile>` to opt out.
+#
+#   codex login                                     # once, ChatGPT subscription
+#   python -m cascade.apps.demo --llm codex_astra --task "tidy the table"
+#
+# Mechanism. There is NO OPENAI_API_KEY in this setup (auth_mode chatgpt in
+# $CODEX_HOME/auth.json), so api.openai.com is not reachable from cascade and
+# the `openai` profile cannot be used; the only way to the model is the CLI
+# itself. `CodexExecClient` (agent/llm.py) therefore runs ONE subprocess per
+# agent step:
+#
+#   codex exec --ignore-user-config --ephemeral --skip-git-repo-check \
+#              -s read-only -C <private empty tmp dir> -m gpt-6-astra \
+#              -c model_reasoning_effort=medium --enable skip_host_skill_discovery \
+#              --output-schema schema.json -o out.json --color never [-i img.jpg ...] -
+#
+# with the whole exchange (system text, tool specs, conversation with tool
+# results verbatim, output rules) rendered into one prompt on stdin, the
+# current observation's JPEGs attached with `-i`, and the final message
+# forced by `--output-schema` into {"text", "tool_calls": [{"name",
+# "arguments_json"}]} (OpenAI strict mode rejects free-form objects, so the
+# arguments travel as a JSON string the client decodes). `--ignore-user-config`
+# keeps the user's own MCP servers out of the brain's Codex session -- a brain
+# that could call the robot MCP server directly would bypass CASCADE's
+# harness -- and `-C` points at an empty directory so no repo AGENTS.md leaks
+# into the prompt. Measured 2026-10-07 on codex-cli 0.160.1: 7-9 s per step
+# at medium effort (text and with one image). Cascade's own loop, reflex and
+# experience tiers, trace.jsonl and verdicts are unchanged: only tier 3 swaps.
+type: codex_exec
+
+model: gpt-6-astra
+
+# The user's Codex default (xhigh) is tuned for coding sessions; a robot step
+# wants latency. low/medium/high/xhigh.
+reasoning_effort: medium
+
+# Astra sees: the orchestrator attaches the memory harness + current view.
+supports_vision: true
+
+# Wall-clock budget per step before the codex process group is killed and the
+# step fails loudly (RuntimeError with the stderr tail).
+timeout_s: 240
+
+# `codex` is taken from PATH; set CASCADE_CODEX_BIN=/path/to/codex (or
+# `codex_bin:` here) for a non-PATH install. CASCADE_CODEX_BIN wins.
+# codex_bin: codex
+
+# Extra `-c key=value` overrides for codex exec (TOML values), e.g.
+#   codex_config: ["model_verbosity=low"]
+codex_config: []
+
+# `--enable` feature flags. skip_host_skill_discovery keeps ~/.codex/skills out
+# of the brain prompt (otherwise Codex injects them until "Exceeded skills
+# context budget"); it is "under development" in 0.160 -- set [] if a future
+# CLI rejects it.
+codex_features: ["skip_host_skill_discovery"]
+
+# Only the images of the LAST image-carrying message (memory frames + current
+# view) are attached; null = all of them, N = the newest N.
+max_images: null

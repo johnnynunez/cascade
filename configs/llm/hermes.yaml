@@ -1,5 +1,8 @@
 # Hermes / Nous Portal as the BRAIN: cascade runs its own agent loop and calls
-# Portal for the reasoning. Default profile (see `--llm auto`).
+# Portal for the reasoning. Second in `--llm auto` since 2026-10-07: a logged-in
+# Codex CLI (configs/llm/codex_astra.yaml, GPT-6-Astra on the subscription)
+# is picked first; this profile is the default when Codex is not logged in and
+# NOUS_API_KEY is set.
 #
 #   export NOUS_API_KEY=...        # portal.nousresearch.com, or `hermes setup --portal`
 #   python -m cascade.apps.demo --llm hermes --task "tidy the table"

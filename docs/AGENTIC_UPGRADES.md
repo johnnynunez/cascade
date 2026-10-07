@@ -21,9 +21,11 @@ what was deliberately **not** built.
 > Four more sources were checked 2026-08-27 (Human-CLAW, LaMem-VLA,
 > grasping.io/HUG, a full re-read of the Waddle Labs post) — full verdicts
 > in `docs/ROADMAP.md`'s "Landed 2026-08-27" section. Only one shipped code
-> here (the envelope confidence addendum in §3 below); the rest are scoped
-> open follow-ups (#6-8 in that section), not landed mechanisms, except
-> LaMem-VLA which joined "Deliberately not built" below.
+> there (the envelope confidence addendum in §3 below); the rest were scoped
+> open follow-ups (#6-8 in that section), except LaMem-VLA which joined
+> "Deliberately not built" below. Follow-up #6 — Human-CLAW's pre-execution
+> skill verifier — landed 2026-10-07 as the advisory-only pre-motion critic
+> described in §2.
 
 ## What each source contributed
 
@@ -31,6 +33,7 @@ what was deliberately **not** built.
 |---|---|---|
 | **Pigey** (2607.21725) | Closed-loop orchestrator that *tracks and verifies outcomes from observation* and recovers | `agent/effects.py` — postconditions; `sim/truth.py` — independent truth channel |
 | **Agentic-VLA** (2605.22896) | Decompose into checkable sub-goals; use progress as signal; VLM critic on failure | `agent/milestones.py` — symbolic+visual milestone verification, stall detection |
+| **Human-CLAW** (2607.27180) | Interrogate a proposed skill call with skill-specific questions *before* it runs | `agent/milestones.py::PlausibilityChecker` — pre-motion plausibility critic, **advisory only** (no veto, no substitution) |
 | **Harness-VLA / RPent** (2607.08448) | Learn the *operating range* + failure model of a fixed primitive library instead of growing it | `memory/envelope.py` — per-primitive envelopes, failure taxonomy |
 | **ASPIRE** (NVIDIA GEAR) | Diagnose traces → repair → distil validated fixes into a retrievable skill library | `agent/aspire.py` + `scripts/learn_from_runs.py` |
 | **VIA** (2607.11119) | Give the agent an *interface it can read*, not raw pixels | `perception/visual_interface.py` — numbered marks, metric grid, reachability overlay |
@@ -104,6 +107,39 @@ Unverifiable milestones report `UNKNOWN` rather than guessing, and a claimed
 success carrying unverified milestones is annotated in the final summary. Three
 motions with no milestone advance triggers a strategy change instead of a
 blind retry.
+
+**2026-10-07 addendum: the same critic pattern, *before* the motion
+(Human-CLAW, ROADMAP #6).** Effect verification (§1) and milestone checks
+are post-hoc — they tell the planner what *happened*. Human-CLAW's
+pre-execution skill verifier asks the complementary question before anything
+moves: *is this call, with these exact args, plausible given the current
+view, the beliefs, what is reachable and what is held?*
+`agent/milestones.py::PlausibilityChecker` does that for every motion skill
+the LLM tier dispatches: a skill-specific question (a grasp asks whether the
+object is visible, unoccluded, in reach and the gripper empty; a place asks
+whether something is held and the target is a free spot in the workspace),
+the current frame, and a digest of beliefs + held state + the configured
+reach box go to the configured VLM with `prompts.PLAUSIBILITY_USER`. The
+answer rides on the tool result and the trace row as
+`plausibility: {verdict, reasons, source}` (`plausible` / `implausible` /
+`unsure`, or `skipped` with the reason: no vision model, no frame, budget
+exhausted, verifier fault), and an `implausible` verdict becomes a caution
+the planner reads on its next turn.
+
+Two things it deliberately is **not**, and the tests pin both
+(`tests/test_premotion_plausibility.py`): it is not Human-CLAW's
+veto/substitute — the call is dispatched unchanged whatever the verdict
+says, because the safety harness is the sole authority that refuses motion
+(same booth rule as the envelope notes in §3); and it is not a new clock
+risk — it draws VLM turns from `VisualBudget`, the milestone tracker's own
+per-task limiter factored out so both critics share one mechanism
+(`agent.premotion_max_checks`, default 3 per task; past it the result says
+`skipped` and the motion runs). `agent.premotion_check: false` (or
+`CASCADE_PREMOTION_CHECK=0`) is the pre-critic path exactly — pinned
+write-for-write against a golden taken from the previous orchestrator. The
+reflex and experience tiers stay LLM-free by contract and are not
+interrogated. Nothing here was measured on the rig; no claim is made about
+how often the VLM's verdicts are right.
 
 ### 3. Operating envelopes (Harness-VLA)
 
@@ -259,7 +295,7 @@ context. The ablation is about overlays given to the model.
 
 ```
 src/cascade/agent/effects.py             Pigey postconditions
-src/cascade/agent/milestones.py          Agentic-VLA milestone verification
+src/cascade/agent/milestones.py          Agentic-VLA milestone verification + Human-CLAW pre-motion critic (advisory)
 src/cascade/agent/aspire.py              ASPIRE diagnose / distil / retrieve
 src/cascade/agent/cosmos3.py             Cosmos3-Edge client (XML tool calls)
 src/cascade/memory/envelope.py           Harness-VLA operating envelopes

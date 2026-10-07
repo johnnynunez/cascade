@@ -1,0 +1,15 @@
+# Synthetic RGB-ONLY tabletop: the `mock` scene with its depth channel removed.
+#
+# This rehearses a plain webcam (compare configs/cameras/uvc.yaml) without a
+# `table_plane_cam`, i.e. a camera from which nothing can be lifted to metres.
+# The capability matrix (apps/capabilities.py) then reads depth_3d=no and the
+# MCP server withholds every 3D tool with the reason; add a `table_plane_cam`
+# and the chain becomes "plane" (grasping works, object heights do not).
+#
+#   CASCADE_CAMERA=mock_rgb python -m cascade.apps.mcp_server
+#
+# Everything else (scene, detector, extrinsics) is inherited from mock.yaml,
+# so the only difference between this rig and `mock` is the missing sensor.
+extends: mock
+
+rgb_only: true

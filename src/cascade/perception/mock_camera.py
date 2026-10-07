@@ -83,7 +83,14 @@ class MockCamera(CameraBase):
 
     @property
     def has_depth(self) -> bool:
-        return True
+        # `rgb_only: true` rehearses a plain webcam (configs/cameras/mock_rgb.yaml):
+        # the same scene with its depth channel removed, so the RGB-only
+        # tool surface and the plane-depth chain can be exercised offline.
+        return not self._rgb_only
+
+    @property
+    def _rgb_only(self) -> bool:
+        return bool(self._cfg.get("rgb_only", False)) if self._cfg is not None else False
 
     def open(self) -> None:
         if self._cfg is not None:
@@ -100,6 +107,13 @@ class MockCamera(CameraBase):
     def _grab(self) -> Frame:
         if not self._opened:
             raise CameraError("camera not opened")
+        frame = self._render()
+        if self._rgb_only:
+            frame.depth_m = None
+            frame.depth_source = "none"
+        return frame
+
+    def _render(self) -> Frame:
         if self._files:
             data = np.load(self._files[self._idx % len(self._files)])
             self._idx += 1

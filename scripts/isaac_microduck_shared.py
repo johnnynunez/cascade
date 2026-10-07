@@ -85,6 +85,7 @@ def run(args, admission, signals):
     out.mkdir(parents=True, exist_ok=False)
     (out / 'frames').mkdir()
     started = time.monotonic()
+    state_reader = getattr(args, 'state_reader', 'owner-gil')
     result = {'completed': False, 'physical_acceptance': False, 'steps': 0,
               'scope': 'shared-scene zero-command foundation', 'teardown_errors': []}
     owner = fleet = endpoints = profile = heap = cprofiler = None
@@ -119,12 +120,20 @@ def run(args, admission, signals):
             # The selected policy is hashed into the effective recipe below; its
             # measured counters are recorded separately and never mutate it.
             owner.receipt['configuration']['gc_policy'] = gc_policy
+        if state_reader == 'process':
+            # Who answers reader polls is part of the hashed recipe, like the other selections.
+            owner.receipt['configuration']['state_reader'] = state_reader
         identity = owner.bind_identity(repo=REPO, runtime_scene=out / 'runtime-scene.usda')
         write_json(out / 'model-identity.json', identity)
         remaining = args.max_wall_s - (time.monotonic() - started)
+        # The opt-in off-GIL reader needs controllers that mirror every reply into their slot;
+        # detached until the endpoints attach them, they are the base class call for call.
+        controller_class = MobileBridgeController
+        if state_reader == 'process':
+            from cascade.sim.mobile_state_offload import StatePublishingController as controller_class
         for binding, actuator in zip(owner.layout.robots, owner.actuators):
             signals.checkpoint(persistent=True)
-            controller = MobileBridgeController(robot_id=binding.robot_id, source=args.source,
+            controller = controller_class(robot_id=binding.robot_id, source=args.source,
                 engine='newton', device=args.device, asset_sha256=admission['asset_sha256'],
                 policy_sha256=args.policy_sha256, model_identity_sha256=binding.model_identity_sha256,
                 support_contract=binding.support_contract(), physics_dt=.005, policy_dt=.020,
@@ -161,7 +170,8 @@ def run(args, admission, signals):
             from cascade.sim.microduck_admission import SharedEndpoints
             height, width = getattr(owner, 'overview_shape', (480, 640))
             endpoints = SharedEndpoints(steppers, base_port=args.serve_base_port,
-                                        max_jpeg_bytes=args.max_jpeg_bytes, max_pixels=height * width)
+                                        max_jpeg_bytes=args.max_jpeg_bytes, max_pixels=height * width,
+                                        state_reader=state_reader)
             result['scope'] = 'shared-scene bounded command candidate; physical outcomes unverified'
         before = owner.physics_clock
         warmup = owner.capture()
@@ -293,6 +303,14 @@ def run(args, admission, signals):
             # Which BAM actuation the owner ran: one cohort before_step per step (one Warp launch
             # per stage for the fleet) or the per-adapter calls, and why.
             result['bam_cohort'] = fleet.cohort_receipt() if fleet else None
+            # Who answered reader state() polls: none without endpoints, the owner's endpoint
+            # threads (owner-gil), or the opt-in reader-server process with its counters.
+            if endpoints is not None:
+                result['state_reader'] = endpoints.state_reader_receipt()
+            elif getattr(args, 'serve_base_port', None) is not None:
+                result['state_reader'] = {'mode': state_reader, 'started': False}
+            else:
+                result['state_reader'] = None
             if profile is not None:
                 result['phase_profile'] = {'file': 'timing.jsonl', 'attempts': profile.attempts,
                                           'errors': list(profile.errors)}
@@ -339,6 +357,10 @@ def main(argv=None):
     extra.add_argument('--choreography', default=None,
                        help='opt-in showcase: JSON choreography (presenter path, formation, assets); robots are '
                             'driven by in-process scripted twists, no command admission; receipted, not admission')
+    extra.add_argument('--state-reader', choices=['owner-gil', 'process'], default='owner-gil',
+                       help="opt-in 'process': after a reader channel's first state reply, its later state polls "
+                            'are answered off the owner GIL by a stdlib reader-server process from per-step '
+                            'shared-memory slots (needs --serve-base-port); hashed and receipted, not admission')
     options, rest = extra.parse_known_args(argv)
     args = parse_args(rest)
     args.robots, args.spacing = options.robots, options.spacing
@@ -354,6 +376,7 @@ def main(argv=None):
         raise ValueError('--profile-sync-solve requires --profile-phases')
     args.gc_policy = options.gc_policy
     args.choreography = options.choreography
+    args.state_reader = options.state_reader
     bind_repo()
     from cascade.apps.signal_stop import StopSignals
     from cascade.sim.microduck_shared_native import placements
@@ -373,6 +396,14 @@ def main(argv=None):
         raise ValueError('use --port 0 and opt in separately with --serve-base-port')
     if args.serve_base_port is not None and not 0 <= args.serve_base_port <= 65536-args.robots:
         raise ValueError('invalid per-robot loopback port range')
+    if args.state_reader == 'process':
+        # Checked before admission and Kit: the reader server only exists behind endpoints, and
+        # it receives reader descriptors over a Unix socket (SCM_RIGHTS).
+        import socket
+        if args.serve_base_port is None:
+            raise ValueError('--state-reader process requires --serve-base-port')
+        if not hasattr(socket, 'send_fds'):
+            raise ValueError('--state-reader process requires Unix descriptor passing (socket.send_fds)')
     if args.sdk_recipe is None:
         raise ValueError('shared native runtime requires an explicit SDK recipe')
     if not args.reuse_solved_read or not args.solver_cuda_graph or args.camera_rgbd:
@@ -381,7 +412,8 @@ def main(argv=None):
     for path in ('scripts/isaac_microduck_shared.py', 'src/cascade/sim/microduck_shared.py',
                  'src/cascade/sim/microduck_shared_native.py', 'src/cascade/sim/microduck_admission.py',
                  'src/cascade/sim/microduck_timing.py', 'src/cascade/sim/heap_freeze.py',
-                 'src/cascade/sim/microduck_choreography.py'):
+                 'src/cascade/sim/microduck_choreography.py', 'src/cascade/sim/mobile_state_offload.py',
+                 'src/cascade/sim/mobile_state_server.py'):
         admission['source_sha256'][path] = hashlib.sha256((REPO / path).read_bytes()).hexdigest()
     if args.check_only:
         print(json.dumps({'ok': True, 'robots': args.robots, 'physical_acceptance': False,

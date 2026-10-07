@@ -569,14 +569,19 @@ class MobileBridgeServer:
     MAX_RESPONSE_BYTES = 8 * 1024 * 1024
     MAX_CONNECTIONS = 32
     IO_TIMEOUT_S = 1.0
+    READER_OPS = frozenset({"state", "frame"})
+    FORBIDDEN = "operation forbidden on channel role"
 
-    def __init__(self, controller, *, host="127.0.0.1", port: int, frame_callback=None):
+    def __init__(self, controller, *, host="127.0.0.1", port: int, frame_callback=None, state_offload=None):
         self.controller = controller
         self._host = loopback_address(host)
         if type(port) is not int or not 0 <= port <= 65535:
             raise ValueError("explicit bridge port must be an integer in 0..65535")
         self._address = (self._host, port)
         self._frame = frame_callback
+        # Opt-in (shared MicroDuck owner, --state-reader process): after a reader channel's first
+        # state reply its descriptor moves to the off-GIL state server (mobile_state_offload).
+        self._offload = state_offload
         self._guard = threading.Lock()  # registry only, never controller calls/I/O
         self._halt = threading.Event()
         self._slots = threading.BoundedSemaphore(self.MAX_CONNECTIONS)
@@ -665,6 +670,29 @@ class MobileBridgeServer:
                 self._workers.add(worker)
             worker.start()
 
+    def adopt(self, conn, pending) -> bool:
+        """Serve a reader the state server handed back with one pending request, from now on.
+
+        It still holds the connection slot it took when it was accepted (``release_offloaded``
+        frees a slot whose reader ended in the state server instead).
+        """
+        with self._guard:
+            accepted = not self._halt.is_set()
+            if accepted:
+                worker = threading.Thread(target=self._serve, args=(conn, pending), name="mobile-rpc-client",
+                                          daemon=True)
+                self._clients.add(conn)
+                self._workers.add(worker)
+        if not accepted:
+            conn.close()
+            self._slots.release()
+            return False
+        worker.start()
+        return True
+
+    def release_offloaded(self) -> None:
+        self._slots.release()
+
     @staticmethod
     def _decode(line):
         def pairs(items):
@@ -704,32 +732,40 @@ class MobileBridgeServer:
         except (OSError, ValueError):
             return False
 
-    def _serve(self, conn):
+    def _serve(self, conn, pending=None):
         role, owner, owner_conn = "reader", None, None
         handshaken = False
         buffer = bytearray()
         deadline = None
         received_wall = None
+        offload, handed_off = self._offload, False
+        if pending is not None:
+            # A reader handed back by the state server, with the one complete request it owes a
+            # reply to: served here from now on (never handed off again).
+            handshaken, offload = True, None
+            buffer.extend(pending.line)
+            deadline, received_wall = pending.deadline, pending.received_wall
         try:
             while not self._halt.is_set():
-                left = 0.05 if deadline is None else min(0.05, deadline - time.monotonic())
-                if left <= 0:
-                    raise ValueError("request wall-time deadline expired")
-                conn.settimeout(left)
-                try:
-                    part = conn.recv(4096)
-                except socket.timeout:
-                    continue
-                if not part:
-                    return
-                if deadline is None:
-                    deadline = time.monotonic() + self.IO_TIMEOUT_S
-                    received_wall = self.controller._clock()
-                buffer.extend(part)
-                if len(buffer) > self.MAX_REQUEST_BYTES:
-                    raise ValueError("request too large")
-                if b"\n" not in buffer:
-                    continue
+                if b"\n" not in buffer:  # always true unless a handed-back request is pending
+                    left = 0.05 if deadline is None else min(0.05, deadline - time.monotonic())
+                    if left <= 0:
+                        raise ValueError("request wall-time deadline expired")
+                    conn.settimeout(left)
+                    try:
+                        part = conn.recv(4096)
+                    except socket.timeout:
+                        continue
+                    if not part:
+                        return
+                    if deadline is None:
+                        deadline = time.monotonic() + self.IO_TIMEOUT_S
+                        received_wall = self.controller._clock()
+                    buffer.extend(part)
+                    if len(buffer) > self.MAX_REQUEST_BYTES:
+                        raise ValueError("request too large")
+                    if b"\n" not in buffer:
+                        continue
                 line, extra = bytes(buffer).split(b"\n", 1)
                 if extra:
                     raise ValueError("pipelined requests are not supported")
@@ -757,14 +793,14 @@ class MobileBridgeServer:
                     handshaken = True
                     result = self.dispatch(request)
                 else:
-                    allowed = {"reader": {"state", "frame"}, "control": {"command_velocity", "reset_stop"},
+                    allowed = {"reader": self.READER_OPS, "control": {"command_velocity", "reset_stop"},
                                "stop": {"stop"}, "renew": {"renew"}}
                     with self._guard:
                         owner_live = owner_conn is not None and self._owners.get(owner) is owner_conn
                     if role != "reader" and not owner_live:
                         result = {"ok": False, "error": "owner channel disconnected"}
                     elif not handshaken or op not in allowed[role]:
-                        result = {"ok": False, "error": "operation forbidden on channel role"}
+                        result = {"ok": False, "error": self.FORBIDDEN}
                     elif op in {"command_velocity", "renew"} and request.get("owner") != owner:
                         result = {"ok": False, "error": "request owner differs from channel owner"}
                     else:
@@ -787,6 +823,12 @@ class MobileBridgeServer:
                     self._send(conn, result)
                 buffer.clear()
                 deadline = None
+                if (offload is not None and handshaken and role == "reader" and op == "state"
+                        and offload.handoff(conn)):
+                    # The state server now owns this reader (and serves its later polls); its
+                    # connection slot stays taken until the server releases or returns it.
+                    handed_off = True
+                    return
         except (OSError, ValueError, TypeError, RecursionError):
             # Invalid framing poisons the stream: no retry or late response reuse.
             pass
@@ -798,11 +840,12 @@ class MobileBridgeServer:
                         del self._owners[owner]
                 if registered:
                     self.controller.owner_disconnected(owner)
-            conn.close()
+            conn.close()  # after a handoff: only this descriptor, the connection lives on there
             with self._guard:
                 self._clients.discard(conn)
                 self._workers.discard(threading.current_thread())
-            self._slots.release()
+            if not handed_off:
+                self._slots.release()
 
     def close(self) -> None:
         if self._halt.is_set():

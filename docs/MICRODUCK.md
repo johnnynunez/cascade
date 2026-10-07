@@ -1209,3 +1209,116 @@ change): `bam.before_step` 12.11 → 6.57 ms and the step median 46.79 → 42.43
 walks stay `unverified` on the unchanged deadlines. The remaining per-step host work
 inside the cohort span is the twelve adapters' host-side binding checks on the snapshot
 copies.
+
+### Shared-owner per-step cost: an opt-in off-GIL `state()` reader (7 October 2026)
+
+Client `state()` polls — about one per robot per step, profiled at ~2.3 ms each in the
+real owner — are answered by the owner's endpoint threads on the owner's GIL, so they
+inflate whichever phase the simulation thread is in. `scripts/isaac_microduck_shared.py
+--state-reader process` (opt-in; requires `--serve-base-port`; refused at argument
+validation, before admission and Kit, without it or without Unix descriptor passing)
+moves the *polling* of reader channels to a standard-library-only reader-server process.
+The default, `owner-gil`, is the existing path byte for byte.
+
+What moves and what stays. Each endpoint keeps its TCP listener, `hello`, the control,
+renew and stop channels, commands, resets, stops and frames, and the **first** `state`
+reply of every reader channel. After that reply the owner passes the channel's
+descriptor (SCM_RIGHTS) to the server (`src/cascade/sim/mobile_state_server.py`,
+spawned by `mobile_state_offload.StateServerProcess` as `sys.executable -I`, so it
+cannot import CASCADE, NumPy or Kit); the owner's connection slot stays taken until the
+server releases the channel. A `frame` on a handed-off reader goes back to the owner
+with its pending request and first-byte deadline and stays there (frames live in the
+owner's `FrameCache`; the closed-loop clients poll `state` only). Everything else the
+server sees is answered exactly as the owner would: a second `hello`, any mutating op,
+unknown ops, oversize, pipelined, duplicate-field, NaN or non-object requests poison or
+refuse the stream with the owner's wording.
+
+Publication. `StatePublishingController` (a `MobileBridgeController` that is its base
+class call for call until a slot is attached) mirrors `marshal.dumps(state())` into its
+robot's slot **under the controller lock** after every completed step (`publish`) and
+every permission change (stop, reset, command admission and completion, fault, epoch,
+script, owner disconnect; the polled `control_at`/`watchdog`/`renew` republish only
+when the reply changed), so a stop ACK is never followed by a pre-stop reply. One
+shared-memory segment holds one slot per robot: a seqlock (odd while the owner writes),
+a CRC32 over metadata and payload (Python cannot fence stores, so on a weakly ordered
+CPU a reader could see the even sequence before the payload bytes; the CRC turns that
+mixed read into a retried torn read), the publication count (a publication older than
+one already served is never served), the step, the controller's publish time
+(`_state_wall`), the generation, and the robot id and model identity the slot is bound
+to (checked when the server attaches and on every read).
+
+One deviation from the brief, and why. The brief said to publish each robot's
+*already-serialized* response, but the reply carries two ages computed at poll time
+(`state_age_s` and `state.producer_age_s`); a pre-serialized reply would freeze them and
+serve an old observation that looks fresh. The server therefore re-encodes the owner's
+own dict exactly as `MobileBridgeServer._send` does with only those two fields
+recomputed as `max(0, now - publish time)` on the system monotonic clock — the owner's
+own expression — and never refreshes the publish time (one encode per publication with
+placeholders; each poll splices `float.__repr__` of the age, which is json's own float
+format). If the owner stalls, the served age grows and the clients' unchanged
+`max_state_age_s` check refuses it exactly as before. Owner and server must run the
+same Python minor version and marshal format or the server refuses to start.
+
+Failure is closed. Owner exit or death closes the server's control socket: the server
+shuts every handed-off channel and exits; an orderly close marks every slot closed
+first. A publication that fails or exceeds the 1 MiB slot marks the slot unavailable,
+and a poll then gets `{"ok": false, "error": "off-GIL state unavailable: ..."}`, never
+an older reply. If the server dies, the owner frees the slots of the channels it held
+(those clients see EOF) and later readers stay on the owner, counted as
+`handoff_refused`. None of this changes a limit, a deadline, an admission rule or a
+verdict.
+
+Receipts. The run receipt's `state_reader` is `null` without endpoints,
+`{"mode": "owner-gil"}` by default, or the process counters (`handoffs`,
+`handoff_refused`, `returned`, `released`, slot `publications` and `publish_errors` per
+robot, the server's per-robot `served`/`refused`/`returned`, its pid and exit code).
+The hashed configuration records `state_reader: "process"` only when opted in, so the
+default recipe hash is unchanged; the two new modules are in the source hashes; under
+`--profile-phases` each slot write is a `state.publish` span nested in `publication`
+(or in the span that changed permission).
+
+CPU tests establish the contract, not a speedup (`tests/test_mobile_state_server.py`,
+software doubles and loopback TCP): the served bytes equal `json.dumps` of the
+controller's `state()` at the same clock for eight controller states (published,
+latched, active, completed, fault, reset, next step, new epoch); an owner stall ages the
+reply and the unchanged freshness check (`BaseSafetyHarness.validate_state`) refuses it;
+a write in progress, a mixed slot and 400 concurrent publications are only ever read
+whole and in order; a slot written for another robot or model, an unpublished or a
+closed slot is refused; a reply too large for the slot or a failing mirror refuses the
+slot (the control path carries on) instead of serving the previous step; every
+mutating controller method republishes before its ACK; the TCP path hands a reader off
+after its first reply, keeps the owner's framing rules, returns a `frame` reader to the
+owner, and closes every handed-off reader when the owner process is killed; the server
+runs under `-I` on the standard library only; the launcher validates the flag before
+admission, receipts the mode and nests the spans. Mutations that serve the write time
+instead of `now` as the age, skip the CRC check, drop the `control_at` republish, or
+leave the previous step in a slot after an oversize or failed publication each fail
+tests.
+Separately, Isaac Sim's bundled Python (3.12.14, `-I`) ran the server against a venv
+owner and served a reply equal to the in-GIL one minus the two ages (a scratch check,
+no Kit).
+
+CPU measurements on this x86 box (software doubles, twelve robots, 192 contacts each,
+118 541-byte reply; not the real owner): the slot publication costs the owner
+**5.9–6.3 ms per step for twelve robots** whether or not anyone polls — 5.8–6.0 ms of
+it is `state()` building the reply for the new snapshot (the cost the first in-GIL poll
+after a step pays today), 0.76–0.89 ms `marshal.dumps`, 0.11 ms the slot writes —
+against 11.7–11.9 ms for twelve first in-GIL polls after a step (`state()` +
+`json.dumps`) and 0.59–0.69 ms per repeated poll. A fake owner loop (4 ms of pure-Python work holding
+the GIL, a 4 ms GIL-free wait standing in for the GPU, twelve publishes) with twelve
+client **processes** polling (two runs each):
+
+| Client load | Step median / p95, `owner-gil` | Step median / p95, `process` | Polls served per s | Poll latency median |
+| --- | --- | --- | --- | --- |
+| none | 9.7 / 10.2 ms | 15.9 / 18.1 ms | — | — |
+| 50 Hz per robot | 25.0–25.4 / 47–59 ms | 16.4–18.1 / 19.8–23.2 ms | 520–522 (of 600) vs 600 | 14–15 vs 1.2–1.4 ms |
+| back-to-back | 27.1–27.9 / 56–69 ms | 16.3 / 19.5–20.1 ms | 511–520 vs 10 967–11 106 | 16–18 vs 0.46–0.49 ms |
+
+So on this CPU the mirror is a ~6 ms per-step regression with no clients, and with
+clients the owner's step stops depending on the poll rate. **No real-owner speedup is
+claimed**: whether the 2.3 ms polls of the real owner outweigh its publication cost is
+for the GPU A/B (route harness, `--profile-phases`, `owner-gil` vs `process`), which is
+pending. Deferred: moving the `state()` build itself out of the owner (the server would
+have to assemble replies from the completed snapshot, duplicating the reply schema
+across the process boundary) and skipping the mirror for robots with no handed-off
+reader (useless under twelve polling clients).

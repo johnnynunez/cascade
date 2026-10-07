@@ -282,5 +282,9 @@ def instrument_owner(profile, owner, steppers, *, sync_solve=False, synchronize=
                             ('_commit_tick', 'publication')):
             profile.wrap(stepper, name, phase, robot)
         profile.wrap(stepper.actuator, 'set_targets', 'bam.targets', robot)
+        if hasattr(getattr(stepper, 'controller', None), '_mirror_state'):
+            # Opt-in off-GIL state reader: the owner-side cost of mirroring one reply into its
+            # shared-memory slot (nested in publication, or in whatever span changed permission).
+            profile.wrap(stepper.controller, '_mirror_state', 'state.publish', robot)
         if cohort is None:
             profile.wrap(stepper.actuator, 'before_step', 'bam.before_step', robot)

@@ -99,6 +99,13 @@ def run(args, admission, signals):
         owner = SharedKitNewtonBackend(args, admission, experience)
         owner.signals = signals
         owner.open()
+        if getattr(owner, 'choreography', None) is not None:
+            # Visual dressing after the native model exists; the exported runtime scene and the
+            # model identity below are those of the undressed physical scene.
+            signals.checkpoint(persistent=True)
+            result['choreography'] = owner.dress_showcase()
+            result['scope'] = ('showcase choreography: in-process scripted twists from the simulated presenter pose; '
+                               'no command admission, no agent tasks; physical outcomes unverified')
         if getattr(args, 'profile_phases', False):
             owner.receipt['configuration']['phase_profile'] = 'owner-thread-inclusive-gc-trigger-v1'
         physics_row_every = int(getattr(args, 'physics_row_every', 1) or 1)
@@ -159,6 +166,12 @@ def run(args, admission, signals):
         warmup = owner.capture()
         if owner.physics_clock != before or (warmup['step'], warmup['sim_time_s']) != before:
             raise RuntimeError('camera warmup changed shared physics clock')
+        if getattr(owner, 'choreography', None) is not None:
+            # Scripts attach after the camera warm-up (the first RTX capture can take seconds and the
+            # scripted path keeps the controller's own freshness rule). Every robot is announced as
+            # scripted in its hello; no endpoint exists to admit commands.
+            for index, stepper in enumerate(steppers):
+                stepper.controller.script(owner.choreography.script_for(index))
         write_json(out / 'runtime.json', {'backend': owner.receipt,
             'robots': {s.identity['robot_id']: s.controller.hello() for s in steppers}})
         def row(stream, value, *, physics_row=False):
@@ -304,7 +317,7 @@ def main(argv=None):
     extra = argparse.ArgumentParser(add_help=False)
     extra.add_argument('--robots', type=int, required=True)
     extra.add_argument('--spacing', type=float, required=True)
-    extra.add_argument('--layout', choices=['grid', 'line'], default='grid',
+    extra.add_argument('--layout', choices=['grid', 'line', 'choreography'], default='grid',
                        help="initial placement: the retained square grid, or one lane per robot along +x")
     extra.add_argument('--route-m', type=float, default=0.,
                        help='forward route length framed by the overview camera (camera only; no motion bound)')
@@ -319,6 +332,9 @@ def main(argv=None):
                             'is attributed to solve instead of the first host read; serializes CPU/GPU')
     extra.add_argument('--gc-policy', choices=['freeze-startup-heap'], default=None,
                        help='opt-in: collect once and freeze the startup heap before fleet start; receipted, not admission')
+    extra.add_argument('--choreography', default=None,
+                       help='opt-in showcase: JSON choreography (presenter path, formation, assets); robots are '
+                            'driven by in-process scripted twists, no command admission; receipted, not admission')
     options, rest = extra.parse_known_args(argv)
     args = parse_args(rest)
     args.robots, args.spacing = options.robots, options.spacing
@@ -333,10 +349,22 @@ def main(argv=None):
     if args.profile_sync_solve and not args.profile_phases:
         raise ValueError('--profile-sync-solve requires --profile-phases')
     args.gc_policy = options.gc_policy
+    args.choreography = options.choreography
     bind_repo()
     from cascade.apps.signal_stop import StopSignals
     from cascade.sim.microduck_shared_native import placements
-    placements(args.robots, args.spacing, args.layout, args.route_m)
+    if args.choreography is not None:
+        if args.layout != 'choreography':
+            raise ValueError('--choreography requires --layout choreography')
+        if options.serve_base_port is not None:
+            raise ValueError('a choreographed showcase serves no command endpoints')
+        from cascade.sim.microduck_choreography import Choreography
+        choreography = Choreography.load(args.choreography, args.robots)
+        placements(args.robots, args.spacing, 'choreography', args.route_m, positions=choreography.spawn_positions())
+    elif args.layout == 'choreography':
+        raise ValueError('--layout choreography requires --choreography')
+    else:
+        placements(args.robots, args.spacing, args.layout, args.route_m)
     if args.port != 0:
         raise ValueError('use --port 0 and opt in separately with --serve-base-port')
     if args.serve_base_port is not None and not 0 <= args.serve_base_port <= 65536-args.robots:
@@ -348,7 +376,8 @@ def main(argv=None):
     admission = admit(args)
     for path in ('scripts/isaac_microduck_shared.py', 'src/cascade/sim/microduck_shared.py',
                  'src/cascade/sim/microduck_shared_native.py', 'src/cascade/sim/microduck_admission.py',
-                 'src/cascade/sim/microduck_timing.py', 'src/cascade/sim/heap_freeze.py'):
+                 'src/cascade/sim/microduck_timing.py', 'src/cascade/sim/heap_freeze.py',
+                 'src/cascade/sim/microduck_choreography.py'):
         admission['source_sha256'][path] = hashlib.sha256((REPO / path).read_bytes()).hexdigest()
     if args.check_only:
         print(json.dumps({'ok': True, 'robots': args.robots, 'physical_acceptance': False,

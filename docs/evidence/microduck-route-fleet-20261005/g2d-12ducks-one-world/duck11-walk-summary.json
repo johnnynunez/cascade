@@ -1,0 +1,21 @@
+{
+ "robot_id": "duck11",
+ "step": {
+  "confirmed": false,
+  "post_status": "unverified",
+  "post_reason": "unbound command evidence: missing/failed admission or completion receipt",
+  "measured_distance_m": 0.7969767032639011,
+  "wall_s": 278.28,
+  "error": "stale or future-dated feedback",
+  "before_pos": [
+   0.0026726750656962395,
+   5.500391483306885,
+   0.11744954437017441
+  ],
+  "after_pos": [
+   0.766400158405304,
+   5.502231121063232,
+   0.11907780170440674
+  ]
+ }
+}

@@ -1,0 +1,697 @@
+{
+  "args": {
+    "base_port": 18300,
+    "camera_every": 20,
+    "distances": "5,4.5,5.5,4,5,5.5,3.5,5,4.5,5.5,5,4",
+    "gpus": "gpu0,gpu1",
+    "listen_timeout": 900.0,
+    "max_steps": 40000,
+    "max_wall_s": 1500.0,
+    "physics_row_every": 4,
+    "policy": "rough_walk_e",
+    "resolution": "1280x720",
+    "robots": 12,
+    "run_name": "f2-rwe-12worlds",
+    "stagger_s": 3.0
+  },
+  "base_profile": "microduck_distance_route",
+  "bundle": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/isaaclab-usd-allcollisions-v1",
+  "bundle_sha256": "ba7cdd9ed68552fc83aefaf881a148970203bb08fb003e0d52715f42a8263079",
+  "distances": [
+    5.0,
+    4.5,
+    5.5,
+    4.0,
+    5.0,
+    5.5,
+    3.5,
+    5.0,
+    4.5,
+    5.5,
+    5.0,
+    4.0
+  ],
+  "limits": {
+    "heading_hold_ki": 2.0,
+    "heading_hold_kp": 4.0,
+    "lease_s": 1.0,
+    "max_action_wall_s": 1034,
+    "max_angular_speed": 1.0,
+    "max_constraints": 2400,
+    "max_contacts": 512,
+    "max_duration_s": 60.0,
+    "max_height_m": 0.3,
+    "max_linear_speed": 0.3,
+    "max_state_age_s": 0.5,
+    "max_tilt_rad": 0.7,
+    "min_height_m": 0.06
+  },
+  "policy": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck-rough-walk-e/policy.onnx",
+  "policy_profile": "rough_walk_e",
+  "policy_sha256": "5aa423bd693e431b19e2ead77f99cbae6184e40a529eb2f7c1b4f85bb7f57040",
+  "ready": [
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true
+  ],
+  "repo": "/home/johnny/Projects/demo/cascade-lab/HERMES_MICRODUCK_FLEET_20261004/integ",
+  "robot_ids": [
+    "duck00",
+    "duck01",
+    "duck02",
+    "duck03",
+    "duck04",
+    "duck05",
+    "duck06",
+    "duck07",
+    "duck08",
+    "duck09",
+    "duck10",
+    "duck11"
+  ],
+  "scope": "fleet route diagnostic: one shared-owner world per robot, RobotRuntime, no LLM; not physical admission",
+  "summary": [
+    {
+      "after_pos": [
+        4.7861328125,
+        0.06025242432951927,
+        0.1214342936873436
+      ],
+      "before_pos": [
+        0.0027406697627156973,
+        0.0006521796458400786,
+        0.1173328310251236
+      ],
+      "confirmed": true,
+      "distance_m": 5.0,
+      "duck": "duck00",
+      "error": null,
+      "gpu": "gpu0",
+      "measured_distance_m": 4.995520815755657,
+      "metrics": {
+        "body_displacement_m": [
+          4.9998679385026925,
+          0.053166097328265945
+        ],
+        "distance_outcome": {
+          "body_displacement_m": [
+            4.9908795076292005,
+            0.04776679825188254
+          ],
+          "path_length_m": 6.73516182201755,
+          "rotation_path_rad": 28.749146957485447,
+          "yaw_change_rad": 0.154794479254112
+        },
+        "max_angular_speed_rad_s": 2.142801425734424,
+        "max_linear_speed_m_s": 0.26634910977015724,
+        "max_tilt_rad": 0.061067376715419244,
+        "min_height_m": 0.11520630121231079,
+        "path_length_m": 6.717870747125094,
+        "rotation_path_rad": 28.546866636162378,
+        "settle_drift_m": 4.7732866873651126e-05,
+        "settle_drift_rad": 0.00010166806211085814,
+        "settle_max_angular_speed_rad_s": 0.016061613435841275,
+        "settle_max_linear_speed_m_s": 0.0009409592541023305,
+        "settle_samples": 21,
+        "settle_sim_duration_s": 0.20999999530613422,
+        "settle_veto_observations": 28,
+        "sim_duration_s": 39.869999108836055,
+        "yaw_change_rad": -0.0467848817128683
+      },
+      "post_reason": "independent measured motion matches caller intent",
+      "post_status": "confirmed",
+      "wall_s": 126.13
+    },
+    {
+      "after_pos": [
+        4.303164005279541,
+        0.06405658274888992,
+        0.1217389702796936
+      ],
+      "before_pos": [
+        0.0027333563193678856,
+        0.0006541201728396118,
+        0.11733879894018173
+      ],
+      "confirmed": true,
+      "distance_m": 4.5,
+      "duck": "duck01",
+      "error": null,
+      "gpu": "gpu1",
+      "measured_distance_m": 4.495736837958645,
+      "metrics": {
+        "body_displacement_m": [
+          4.495072041983293,
+          0.0643145045010403
+        ],
+        "distance_outcome": {
+          "body_displacement_m": [
+            4.490027974314962,
+            0.053177226767340297
+          ],
+          "path_length_m": 6.079929253569412,
+          "rotation_path_rad": 26.330092408575453,
+          "yaw_change_rad": 0.14375172548286183
+        },
+        "max_angular_speed_rad_s": 2.1942581986404868,
+        "max_linear_speed_m_s": 0.2657774994345373,
+        "max_tilt_rad": 0.062258364685732134,
+        "min_height_m": 0.11527928709983826,
+        "path_length_m": 6.0521927066533605,
+        "rotation_path_rad": 26.14234332492554,
+        "settle_drift_m": 0.00013729515845409485,
+        "settle_drift_rad": 0.0013474230486972857,
+        "settle_max_angular_speed_rad_s": 0.030780484244615505,
+        "settle_max_linear_speed_m_s": 0.001791138808451401,
+        "settle_samples": 22,
+        "settle_sim_duration_s": 0.20499999541789293,
+        "settle_veto_observations": 28,
+        "sim_duration_s": 36.02999919466674,
+        "yaw_change_rad": -0.017736980562040542
+      },
+      "post_reason": "independent measured motion matches caller intent",
+      "post_status": "confirmed",
+      "wall_s": 114.44
+    },
+    {
+      "after_pos": [
+        5.258566379547119,
+        0.07239658385515213,
+        0.11985126882791519
+      ],
+      "before_pos": [
+        0.0027214833535254,
+        0.0006443439051508904,
+        0.11735234409570694
+      ],
+      "confirmed": true,
+      "distance_m": 5.5,
+      "duck": "duck02",
+      "error": null,
+      "gpu": "gpu0",
+      "measured_distance_m": 5.495308810096933,
+      "metrics": {
+        "body_displacement_m": [
+          5.4965892656053175,
+          0.07443326865551164
+        ],
+        "distance_outcome": {
+          "body_displacement_m": [
+            5.497753223105746,
+            0.07930090373911318
+          ],
+          "path_length_m": 7.405769055070533,
+          "rotation_path_rad": 32.15516848727397,
+          "yaw_change_rad": -0.06366090839139205
+        },
+        "max_angular_speed_rad_s": 2.2281837746287056,
+        "max_linear_speed_m_s": 0.27016352594864645,
+        "max_tilt_rad": 0.06252672166940178,
+        "min_height_m": 0.11510535329580307,
+        "path_length_m": 7.374700854502933,
+        "rotation_path_rad": 31.997072567365244,
+        "settle_drift_m": 7.122293809193287e-05,
+        "settle_drift_rad": 0.0010051164667656534,
+        "settle_max_angular_speed_rad_s": 0.007911603144004492,
+        "settle_max_linear_speed_m_s": 0.0007345062720137679,
+        "settle_samples": 20,
+        "settle_sim_duration_s": 0.20499999541789293,
+        "settle_veto_observations": 24,
+        "sim_duration_s": 43.82999902032316,
+        "yaw_change_rad": 0.035184484665562
+      },
+      "post_reason": "independent measured motion matches caller intent",
+      "post_status": "confirmed",
+      "wall_s": 137.64
+    },
+    {
+      "after_pos": [
+        3.826038122177124,
+        0.06053413450717926,
+        0.12151001393795013
+      ],
+      "before_pos": [
+        0.002661713631823659,
+        0.0006587780662812293,
+        0.11735411733388901
+      ],
+      "confirmed": true,
+      "distance_m": 4.0,
+      "duck": "duck03",
+      "error": null,
+      "gpu": "gpu1",
+      "measured_distance_m": 3.9954903261297905,
+      "metrics": {
+        "body_displacement_m": [
+          3.9962408356027397,
+          0.057346158994901066
+        ],
+        "distance_outcome": {
+          "body_displacement_m": [
+            3.9903018941660138,
+            0.04529958759822256
+          ],
+          "path_length_m": 5.373892279863968,
+          "rotation_path_rad": 23.29032671380067,
+          "yaw_change_rad": 0.11611014565704282
+        },
+        "max_angular_speed_rad_s": 2.227214036308597,
+        "max_linear_speed_m_s": 0.26972985534322413,
+        "max_tilt_rad": 0.062142158393467,
+        "min_height_m": 0.11560001224279404,
+        "path_length_m": 5.349490447829035,
+        "rotation_path_rad": 23.12586074094348,
+        "settle_drift_m": 0.00010936257488586493,
+        "settle_drift_rad": 0.0010137687152845481,
+        "settle_max_angular_speed_rad_s": 0.03281520737919444,
+        "settle_max_linear_speed_m_s": 0.0013436934161470625,
+        "settle_samples": 21,
+        "settle_sim_duration_s": 0.20999999530613422,
+        "settle_veto_observations": 28,
+        "sim_duration_s": 31.71999929100275,
+        "yaw_change_rad": -0.039750613334730935
+      },
+      "post_reason": "independent measured motion matches caller intent",
+      "post_status": "confirmed",
+      "wall_s": 101.22
+    },
+    {
+      "after_pos": [
+        4.780073642730713,
+        0.060235701501369476,
+        0.11993779242038727
+      ],
+      "before_pos": [
+        0.0026572933420538902,
+        0.0006167362444102764,
+        0.11736653000116348
+      ],
+      "confirmed": true,
+      "distance_m": 5.0,
+      "duck": "duck04",
+      "error": null,
+      "gpu": "gpu0",
+      "measured_distance_m": 4.995409719825856,
+      "metrics": {
+        "body_displacement_m": [
+          4.998582496233261,
+          0.06548863561554483
+        ],
+        "distance_outcome": {
+          "body_displacement_m": [
+            4.9962984415150276,
+            0.06667910806415514
+          ],
+          "path_length_m": 6.742506847632469,
+          "rotation_path_rad": 29.29751623608109,
+          "yaw_change_rad": -0.08017081109445838
+        },
+        "max_angular_speed_rad_s": 2.214221406616774,
+        "max_linear_speed_m_s": 0.2668478140553966,
+        "max_tilt_rad": 0.06102467792612002,
+        "min_height_m": 0.1152610182762146,
+        "path_length_m": 6.710658676844806,
+        "rotation_path_rad": 29.142618634649626,
+        "settle_drift_m": 4.962386507365779e-05,
+        "settle_drift_rad": 0.001802779461776336,
+        "settle_max_angular_speed_rad_s": 0.005625143488808251,
+        "settle_max_linear_speed_m_s": 0.0005721957806686718,
+        "settle_samples": 20,
+        "settle_sim_duration_s": 0.21499999519437551,
+        "settle_veto_observations": 28,
+        "sim_duration_s": 39.88999910838902,
+        "yaw_change_rad": 0.018808273132337627
+      },
+      "post_reason": "independent measured motion matches caller intent",
+      "post_status": "confirmed",
+      "wall_s": 125.33
+    },
+    {
+      "after_pos": [
+        5.258878231048584,
+        0.06953553110361099,
+        0.1190531849861145
+      ],
+      "before_pos": [
+        0.0026590435300022364,
+        0.000591444200836122,
+        0.117373526096344
+      ],
+      "confirmed": true,
+      "distance_m": 5.5,
+      "duck": "duck05",
+      "error": null,
+      "gpu": "gpu1",
+      "measured_distance_m": 5.495169737469136,
+      "metrics": {
+        "body_displacement_m": [
+          5.4949117224764885,
+          0.07002182252311918
+        ],
+        "distance_outcome": {
+          "body_displacement_m": [
+            5.494708010200843,
+            0.07551931877546551
+          ],
+          "path_length_m": 7.4344947440664315,
+          "rotation_path_rad": 32.13430970382402,
+          "yaw_change_rad": -0.04537351439807494
+        },
+        "max_angular_speed_rad_s": 2.2415209261103053,
+        "max_linear_speed_m_s": 0.27225139234785983,
+        "max_tilt_rad": 0.06555240648175596,
+        "min_height_m": 0.11522256582975388,
+        "path_length_m": 7.404233647520718,
+        "rotation_path_rad": 31.973717810451074,
+        "settle_drift_m": 8.697475404282345e-05,
+        "settle_drift_rad": 0.0008622936699323736,
+        "settle_max_angular_speed_rad_s": 0.016602291229938917,
+        "settle_max_linear_speed_m_s": 0.0014266862374740046,
+        "settle_samples": 18,
+        "settle_sim_duration_s": 0.20499999541789293,
+        "settle_veto_observations": 23,
+        "sim_duration_s": 44.164999012835324,
+        "yaw_change_rad": 0.08598168246721971
+      },
+      "post_reason": "independent measured motion matches caller intent",
+      "post_status": "confirmed",
+      "wall_s": 138.02
+    },
+    {
+      "after_pos": [
+        3.3449931144714355,
+        0.04621117562055588,
+        0.11728440970182419
+      ],
+      "before_pos": [
+        0.0026517536025494337,
+        0.0005530091584660113,
+        0.11738795042037964
+      ],
+      "confirmed": false,
+      "distance_m": 3.5,
+      "duck": "duck06",
+      "error": null,
+      "gpu": "gpu0",
+      "measured_distance_m": 3.4951182370608644,
+      "metrics": {
+        "body_displacement_m": [
+          3.4959984531478043,
+          0.046923941134854284
+        ],
+        "distance_outcome": {
+          "body_displacement_m": [
+            3.505389470379571,
+            0.047305190073281676
+          ],
+          "path_length_m": 4.7666240798147435,
+          "rotation_path_rad": 20.661207215781044,
+          "yaw_change_rad": 0.03744181221192494
+        },
+        "max_angular_speed_rad_s": 2.2197851562594506,
+        "max_linear_speed_m_s": 0.26403606324161244,
+        "max_tilt_rad": 0.061490162230592546,
+        "min_height_m": 0.11516386270523071,
+        "path_length_m": 4.719420862572845,
+        "rotation_path_rad": 20.408962366303562,
+        "settle_drift_m": 0.0007771604037925009,
+        "settle_drift_rad": 0.010307918952886895,
+        "settle_max_angular_speed_rad_s": 0.10887840402530048,
+        "settle_max_linear_speed_m_s": 0.007869664472570365,
+        "settle_samples": 21,
+        "settle_sim_duration_s": 0.20999999530613422,
+        "settle_veto_observations": 28,
+        "sim_duration_s": 28.174999370239675,
+        "yaw_change_rad": 0.04581148572619007
+      },
+      "post_reason": "did not settle: active controller, residual velocity or pose drift",
+      "post_status": "refuted",
+      "wall_s": 90.13
+    },
+    {
+      "after_pos": [
+        4.782871723175049,
+        0.056004252284765244,
+        0.11672881990671158
+      ],
+      "before_pos": [
+        0.0026601008139550686,
+        0.0005194807308726013,
+        0.1173965111374855
+      ],
+      "confirmed": true,
+      "distance_m": 5.0,
+      "duck": "duck07",
+      "error": null,
+      "gpu": "gpu1",
+      "measured_distance_m": 4.995506955462588,
+      "metrics": {
+        "body_displacement_m": [
+          5.0021272404131265,
+          0.0503231620132696
+        ],
+        "distance_outcome": {
+          "body_displacement_m": [
+            4.995194847887167,
+            0.05364566959766598
+          ],
+          "path_length_m": 6.724757803532348,
+          "rotation_path_rad": 28.936296992284504,
+          "yaw_change_rad": 0.046120021493652574
+        },
+        "max_angular_speed_rad_s": 2.1573141275137964,
+        "max_linear_speed_m_s": 0.26797257484469444,
+        "max_tilt_rad": 0.06199989908935496,
+        "min_height_m": 0.11529175192117691,
+        "path_length_m": 6.701008332237669,
+        "rotation_path_rad": 28.82208859923649,
+        "settle_drift_m": 5.8388687253800084e-05,
+        "settle_drift_rad": 0.0024347302658556894,
+        "settle_max_angular_speed_rad_s": 0.012541889516712241,
+        "settle_max_linear_speed_m_s": 0.0007322861628938882,
+        "settle_samples": 20,
+        "settle_sim_duration_s": 0.20999999530613422,
+        "settle_veto_observations": 25,
+        "sim_duration_s": 39.70499911252409,
+        "yaw_change_rad": -0.036701987034749424
+      },
+      "post_reason": "independent measured motion matches caller intent",
+      "post_status": "confirmed",
+      "wall_s": 125.54
+    },
+    {
+      "after_pos": [
+        4.305185794830322,
+        0.06478510051965714,
+        0.11981772631406784
+      ],
+      "before_pos": [
+        0.0026651015505194664,
+        0.0004858790198341012,
+        0.11740688979625702
+      ],
+      "confirmed": true,
+      "distance_m": 4.5,
+      "duck": "duck08",
+      "error": null,
+      "gpu": "gpu0",
+      "measured_distance_m": 4.496311102651868,
+      "metrics": {
+        "body_displacement_m": [
+          4.49634814569916,
+          0.06380406649188307
+        ],
+        "distance_outcome": {
+          "body_displacement_m": [
+            4.503418110987833,
+            0.06588873091732363
+          ],
+          "path_length_m": 6.056766619030871,
+          "rotation_path_rad": 26.19854684525439,
+          "yaw_change_rad": -0.002209839772032782
+        },
+        "max_angular_speed_rad_s": 2.1962527674085983,
+        "max_linear_speed_m_s": 0.27181284509191944,
+        "max_tilt_rad": 0.06277295847309083,
+        "min_height_m": 0.11546902358531952,
+        "path_length_m": 6.012898435046776,
+        "rotation_path_rad": 25.923458106215918,
+        "settle_drift_m": 0.00024248443390792674,
+        "settle_drift_rad": 0.0038902120508083693,
+        "settle_max_angular_speed_rad_s": 0.03206862725660667,
+        "settle_max_linear_speed_m_s": 0.0027731873277536474,
+        "settle_samples": 19,
+        "settle_sim_duration_s": 0.20999999530613422,
+        "settle_veto_observations": 26,
+        "sim_duration_s": 35.59499920438975,
+        "yaw_change_rad": 0.027614454856883464
+      },
+      "post_reason": "independent measured motion matches caller intent",
+      "post_status": "confirmed",
+      "wall_s": 113.8
+    },
+    {
+      "after_pos": [
+        5.2583794593811035,
+        0.06462845951318741,
+        0.11634448915719986
+      ],
+      "before_pos": [
+        0.002656904747709632,
+        0.00045783029054291546,
+        0.11741974204778671
+      ],
+      "confirmed": true,
+      "distance_m": 5.5,
+      "duck": "duck09",
+      "error": null,
+      "gpu": "gpu1",
+      "measured_distance_m": 5.495521634076105,
+      "metrics": {
+        "body_displacement_m": [
+          5.496666405541383,
+          0.06009732554649222
+        ],
+        "distance_outcome": {
+          "body_displacement_m": [
+            5.494279922205522,
+            0.0613125923775613
+          ],
+          "path_length_m": 7.39219401682122,
+          "rotation_path_rad": 32.11700476671939,
+          "yaw_change_rad": 0.041324319436351065
+        },
+        "max_angular_speed_rad_s": 2.164149239166544,
+        "max_linear_speed_m_s": 0.26943003243760094,
+        "max_tilt_rad": 0.06593163952344368,
+        "min_height_m": 0.11523279547691345,
+        "path_length_m": 7.363209617398659,
+        "rotation_path_rad": 31.979562492666695,
+        "settle_drift_m": 7.154489168505024e-05,
+        "settle_drift_rad": 0.0006049382414273095,
+        "settle_max_angular_speed_rad_s": 0.012042213175009704,
+        "settle_max_linear_speed_m_s": 0.0008293647105012758,
+        "settle_samples": 19,
+        "settle_sim_duration_s": 0.20499999541789293,
+        "settle_veto_observations": 23,
+        "sim_duration_s": 43.65999902412295,
+        "yaw_change_rad": -0.045205424309888144
+      },
+      "post_reason": "independent measured motion matches caller intent",
+      "post_status": "confirmed",
+      "wall_s": 136.31
+    },
+    {
+      "after_pos": [
+        4.782385349273682,
+        0.07090064138174057,
+        0.12053138017654419
+      ],
+      "before_pos": [
+        0.002668911125510931,
+        0.0004245304735377431,
+        0.11743485182523727
+      ],
+      "confirmed": true,
+      "distance_m": 5.0,
+      "duck": "duck10",
+      "error": null,
+      "gpu": "gpu0",
+      "measured_distance_m": 4.995421954195157,
+      "metrics": {
+        "body_displacement_m": [
+          5.001205918590991,
+          0.053812382123005306
+        ],
+        "distance_outcome": {
+          "body_displacement_m": [
+            4.999118407316865,
+            0.051760310453504384
+          ],
+          "path_length_m": 6.719927468331362,
+          "rotation_path_rad": 29.09165278537864,
+          "yaw_change_rad": 0.1207304933040611
+        },
+        "max_angular_speed_rad_s": 2.1513792384398944,
+        "max_linear_speed_m_s": 0.2689205422673505,
+        "max_tilt_rad": 0.06217791970392028,
+        "min_height_m": 0.11538030952215195,
+        "path_length_m": 6.697752763511149,
+        "rotation_path_rad": 28.908770101870545,
+        "settle_drift_m": 0.00015296889769112634,
+        "settle_drift_rad": 0.0013369110324819597,
+        "settle_max_angular_speed_rad_s": 0.021451955781405317,
+        "settle_max_linear_speed_m_s": 0.002456673869885176,
+        "settle_samples": 20,
+        "settle_sim_duration_s": 0.21499999519437551,
+        "settle_veto_observations": 25,
+        "sim_duration_s": 39.674999113194644,
+        "yaw_change_rad": -0.029476254578949722
+      },
+      "post_reason": "independent measured motion matches caller intent",
+      "post_status": "confirmed",
+      "wall_s": 125.31
+    },
+    {
+      "after_pos": [
+        3.825742483139038,
+        0.06913138926029205,
+        0.1194102019071579
+      ],
+      "before_pos": [
+        0.0026768434327095747,
+        0.00039385983836837113,
+        0.11744970083236694
+      ],
+      "confirmed": false,
+      "distance_m": 4.0,
+      "duck": "duck11",
+      "error": null,
+      "gpu": "gpu1",
+      "measured_distance_m": 3.9950768729605364,
+      "metrics": {
+        "body_displacement_m": [
+          3.996079228361552,
+          0.05845260710095814
+        ],
+        "distance_outcome": {
+          "body_displacement_m": [
+            4.002898284619834,
+            0.053283217177558434
+          ],
+          "path_length_m": 5.362030610941393,
+          "rotation_path_rad": 23.23330516589101,
+          "yaw_change_rad": 0.061071827569658094
+        },
+        "max_angular_speed_rad_s": 2.2534717329463283,
+        "max_linear_speed_m_s": 0.27522647467059763,
+        "max_tilt_rad": 0.062350049030896054,
+        "min_height_m": 0.11549429595470428,
+        "path_length_m": 5.315366309654169,
+        "rotation_path_rad": 23.001566750097428,
+        "settle_drift_m": 0.0067432213194438045,
+        "settle_drift_rad": 0.04319279771209784,
+        "settle_max_angular_speed_rad_s": 0.47965650235282764,
+        "settle_max_linear_speed_m_s": 0.10104921098655505,
+        "settle_samples": 23,
+        "settle_sim_duration_s": 0.20999999530613422,
+        "settle_veto_observations": 29,
+        "sim_duration_s": 31.32499929983169,
+        "yaw_change_rad": 0.014928714740803099
+      },
+      "post_reason": "did not settle: active controller, residual velocity or pose drift",
+      "post_status": "refuted",
+      "wall_s": 100.56
+    }
+  ],
+  "walks_released_wall": 1791229344.4022255
+}

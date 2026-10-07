@@ -618,6 +618,36 @@ the rough task ran on the collision plane because MJWarp rejects an all-flat
 mesh terrain, and nothing physical is claimed. The driver, generalized, was
 offered to the fork as [AntoineRichard/IsaacLab#21](https://github.com/AntoineRichard/IsaacLab/pull/21).
 
+### Keynote showcase: twelve robots follow a presenter proxy in one world (5 October 2026)
+
+A presentation of the same policy, BAM and simulation under *scripted* commands,
+not an admission result: `scripts/isaac_microduck_shared.py --layout choreography
+--choreography configs/microduck/choreography-keynote-12.json` (no command
+endpoints). A choreography names a presenter path (piecewise linear, constant
+speed, pauses at waypoints), a formation of slots behind the presenter, the
+visual stage and presenter assets (`assets/showcase/keynote/`, generated and
+validated with pxr: no physics API) and a follow camera. Each robot's
+`MobileBridgeController.script` supplies a twist evaluated inside `control_at`
+from its own completed state and the presenter pose at that simulation time
+(an oracle from the clock; no perception): a P-law toward its slot, turn-only
+when the slot is behind, clipped to the admitted 0.3 m/s / 1 rad/s and under the
+controller's own 0.5 s state-age rule; a broken script faults the controller,
+a stop clears it, and `hello` announces `scripted_twist` so no client can
+mistake a scripted robot for a free one. The stage is referenced into the Kit
+stage only after the Newton model exists; the receipt asserts the native model,
+clock and shape/body counts unchanged and digests both layers.
+
+Run `k1-keynote-12` ([evidence](evidence/microduck-keynote-showcase-20261005/REPORT.md)):
+Isaac Sim 6.2 / Newton 1.6.1rc1, Isaac Lab USD with complete hulls,
+`rough_walk_e`, twelve robots in one world, 68 s of simulation in 830 s of wall
+(61 ms per 5 ms step): 12/12 neither fell nor faulted, net displacement
+6.65–7.00 m each, formation intact at the end (0.53–0.87 m behind the slots 6 s
+after the presenter stopped; the gait averages well under its 0.3 m/s command,
+so the presenter walks at 0.20 m/s and pauses 10 s twice). Twelve robots in one
+world worked here because there are no RPC clients; the route fleet's failure
+with twelve closed-loop clients ([`evidence/microduck-route-fleet-20261005`](evidence/microduck-route-fleet-20261005/REPORT.md)) stands, and
+the roadmap row stays open.
+
 ## Remaining admission work
 
 The current real MCP campaign confirms supported standing and a separately

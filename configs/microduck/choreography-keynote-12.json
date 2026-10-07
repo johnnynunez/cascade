@@ -1,0 +1,110 @@
+{
+ "_comment": "Keynote showcase: presenter proxy walks 2.5 m, pauses 10 s (talks), walks, pauses, walks; 12 MicroDucks hold a 3x4 formation behind it and close up during the pauses (the gait averages ~0.13 m/s at the 0.3 m/s limit). Oracle presenter pose; no perception; not physical admission.",
+ "stage_asset": "../../assets/showcase/keynote/assets/stage.usda",
+ "presenter_asset": "../../assets/showcase/keynote/assets/presenter.usda",
+ "presenter": {
+  "waypoints": [
+   [
+    -4.5,
+    1.8
+   ],
+   [
+    -2.0,
+    1.8
+   ],
+   [
+    0.5,
+    2.4
+   ],
+   [
+    3.0,
+    2.4
+   ]
+  ],
+  "speed_m_s": 0.2,
+  "start_delay_s": 4.0,
+  "dwell_s": [
+   10.0,
+   10.0
+  ]
+ },
+ "formation": {
+  "slots": [
+   [
+    -0.9,
+    -0.9
+   ],
+   [
+    -0.9,
+    -0.3
+   ],
+   [
+    -0.9,
+    0.3
+   ],
+   [
+    -0.9,
+    0.9
+   ],
+   [
+    -1.5,
+    -0.9
+   ],
+   [
+    -1.5,
+    -0.3
+   ],
+   [
+    -1.5,
+    0.3
+   ],
+   [
+    -1.5,
+    0.9
+   ],
+   [
+    -2.1,
+    -0.9
+   ],
+   [
+    -2.1,
+    -0.3
+   ],
+   [
+    -2.1,
+    0.3
+   ],
+   [
+    -2.1,
+    0.9
+   ]
+  ],
+  "gain_per_s": 0.7,
+  "max_speed_m_s": 0.3,
+  "max_turn_rad_s": 1.0,
+  "heading_gain": 2.0,
+  "deadband_m": 0.1
+ },
+ "walk_cycle": {
+  "stride_m": 0.65
+ },
+ "camera": {
+  "mode": "follow",
+  "offset": [
+   -1.4,
+   -6.6,
+   2.1
+  ],
+  "target_offset": [
+   -1.1,
+   0.0,
+   0.85
+  ],
+  "smooth_s": 2.0,
+  "focal_length_mm": 24.0
+ },
+ "lighting": {
+  "dome_intensity": 15.0,
+  "sun_intensity": 60.0
+ }
+}

@@ -57,9 +57,31 @@ committed). Inventory with every source checked and every "not found":
   policy joints at zero gain, self-collision and solver iterations as trained. Known
   deviation (also in NVIDIA's example): the 17 held joints keep the asset's authored
   drives, far stiffer than the training's gains.
-- **Not shown:** any Newton run; `walk_distance`/`turn` skills (no
-  `distance_control`/`turn_control` yet); anything on hardware; measured (not
-  candidate) verifier limits.
+- **Geometric skills, settle measurement and the chat-host path**
+  ([evidence](evidence/h2-geometric-candidate-20261007/REPORT.md), 7 October 2026, same
+  owner): `h2_velocity_candidate` now carries `walk_distance`/`turn`
+  (`distance_control` 0.3 m/s up to 0.6 m inside the unchanged 3 s command budget;
+  `turn_control` translation veto 0.35 m — candidates derived from the first episodes).
+  Through `RobotRuntime → SafeBase`: `walk_distance` +0.5 → **+0.452 m**, `turn` 0.8 →
+  **+0.771 rad** (pelvis path 0.185 m), `walk_distance` −0.5 → **−0.453 m**, all executed
+  and all three **refuted by the verifier's settle check**; `walk_velocity` 0.3 × 3 s
+  confirmed again (+0.643 m). Through **MCP** (`python -m cascade.apps.mcp_server`,
+  `CASCADE_ROBOT=h2`, the chat-host path): 13 tools listed, `walk_velocity` +0.63 m
+  **confirmed**, `turn` 0.6 → 0.574 rad **refuted** (settle ω 0.205 vs 0.20), `walk_velocity`
+  back −0.41 m **confirmed**; a `walk_velocity` issued while the previous runtime's close had
+  latched the stop was correctly refused (`backend stop is latched`). No fall in either run.
+- **Measured cause of every settle refutation so far:** the policy cut to zero twist at
+  goal arrival (mid-step) keeps a yaw oscillation of 0.3–0.9 rad/s for longer than the
+  ≈1.9 s of sim that the 4 s **wall** `settle_timeout_s` covers at this owner's ≈0.47× real
+  time, whereas a duration-ended `walk_velocity` is below 0.12 rad/s by then. Standing right
+  after readiness decays 0.34 → 0.04 rad/s over 3.5 s sim, and the reader sampled ≥ 1.9 s
+  sim after a stop sees ω ≤ 0.06 rad/s: the robot does come to rest; it needs ~2.5–3.5 s of
+  sim to pass the candidate 0.20 rad/s. Nothing was relaxed to pass. **Open decision:** size
+  the candidate settle budget from this measurement in sim seconds (≈ 3.5 s sim, ~8 s wall
+  here, with `max_wall_duration_s` to match), or have the geometric skills hand over to an
+  explicit standing phase before the verdict; either is a new, labelled candidate revision.
+- **Not shown:** any Newton run; anything on hardware; measured (not candidate) verifier
+  limits; `walk_distance` beyond ~0.6 m (bounded by the 3 s command budget, not by the robot).
 
 ## Owner architecture (to build; mirrors the MicroDuck shared owner)
 

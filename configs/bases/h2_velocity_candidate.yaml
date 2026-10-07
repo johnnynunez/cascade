@@ -33,3 +33,23 @@ verifier:
   stop_angular_speed_rad_s: 0.20
   stop_drift_m: 0.03
   stop_drift_rad: 0.05
+# Geometric skills, candidate bounds (NOT admission). Derived from the first owned
+# episodes of 2026-10-07 (docs/evidence/h2-owner-first-episodes-20261007): a 0.3 m/s
+# command tracked ~0.215 m/s (0.645 m in 3 s), so within the unchanged 3 s
+# `safety.max_duration_s` a walk_distance can reach ~0.6 m; a 0.5 rad/s turn moved the
+# pelvis 0.195 m along its path for 0.875 rad, so the control-side translation veto for
+# a turn of up to `max_turn_angle_rad` (1.0) is 0.35 m. The verifier, not these
+# bounds, judges success; min_height/max_tilt are the training fall criteria.
+capabilities: [walk_velocity, walk_distance, turn, stop_navigation]
+distance_control:
+  speed_m_s: 0.3
+  max_distance_m: 0.6
+  tolerance_m: 0.05
+  max_lateral_drift_m: 0.20
+  max_heading_drift_rad: 0.20
+  min_height_m: 0.615
+  max_tilt_rad: 0.5236
+turn_control:
+  max_translation_path_m: 0.35
+  min_height_m: 0.615
+  max_tilt_rad: 0.5236

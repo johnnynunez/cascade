@@ -875,9 +875,20 @@ are synchronous by design here, noted for long-horizon work.
      `test_ik_failure_alongside_a_width_reason_is_still_retried`,
      `test_selector_refuses_explicitly_when_every_candidate_exceeds_the_jaw_span`,
      `test_a_truncated_mixed_reason_list_is_not_an_over_width_refusal`.
-  7. Test-coverage gaps flagged: place-stage loop, deadline expiry,
+  7. ~~Test-coverage gaps flagged: place-stage loop, deadline expiry,
      epoch fallback, z-clamp, exemption z_min through _in_cylinder,
-     McpClient timeout is dead code.
+     McpClient timeout is dead code.~~ **landed 2026-10-07**: place-stage
+     loop (`test_place_stage_retries_after_a_failed_place`,
+     `test_place_stage_is_bounded_while_still_holding`,
+     `test_mid_carry_slip_restarts_the_grasp_stage_within_the_budget`);
+     deadline expiry, epoch fallback, z-clamp and `_in_cylinder` z_min were
+     already pinned (`test_persistence_deadline_expiry_stops_the_loop_early`,
+     `test_localize_epoch_fallback_uses_motion_start_when_no_rescan`,
+     `test_place_at_caps_release_height_to_the_topdown_ceiling`,
+     `test_exemption_cylinder_z_min_is_honoured_by_in_cylinder`);
+     `McpClient.recv(timeout=)` is live (queue-pumped stdout) and is now
+     exercised without a server
+     (`test_mcp_client_recv_times_out_instead_of_hanging`).
 
 - **Newton upstream issue (2026-07-19).** Manipulation contacts are broken
   at the PARSER level on the 6.0 develop build: identical failure under

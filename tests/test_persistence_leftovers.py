@@ -401,3 +401,110 @@ def test_a_truncated_mixed_reason_list_is_not_an_over_width_refusal(rt):
     with pytest.raises(NoExecutableGrasp) as info2:
         select_grasp(grasps[:5], StubKin(), np.zeros(6), max_width_m=0.055)
     assert "wider than the jaws" in rt._grasp_retry_verdict("cube", 1, f"SkillError: {info2.value}")
+
+
+# ── #7 (finish): place-stage loop, per-task cap on handover, McpClient timeout
+
+def test_place_stage_retries_after_a_failed_place(rt, monkeypatch):
+    real_place = rt.skill_place_at
+    calls = {"place": 0, "reobserve": 0}
+
+    def flaky_place(*a, **k):
+        calls["place"] += 1
+        if calls["place"] == 1:
+            raise SkillError("did not settle at the place pose")
+        return real_place(*a, **k)
+
+    monkeypatch.setattr(rt, "skill_place_at", flaky_place)
+    monkeypatch.setattr(rt, "_reobserve",
+                        lambda *a, **k: calls.__setitem__("reobserve", calls["reobserve"] + 1))
+    rt.observe()
+    res = rt.skill_pick_and_place("red cube")
+    assert res.get("ok", True), res
+    assert res["grasp_attempts"] == 1 and res["place_attempts"] == 2
+    assert calls["reobserve"] >= 1  # re-home + re-scan between place attempts
+    notes = [e.text for e in rt.memory.events()]
+    assert any("place attempt 1 failed" in n for n in notes)
+    assert any("still holding" in n and "place attempt 2" in n for n in notes)
+    assert rt.held_object is None
+
+
+def test_place_stage_is_bounded_while_still_holding(rt, monkeypatch):
+    calls = {"n": 0}
+
+    def never(*a, **k):
+        calls["n"] += 1
+        raise SkillError("did not settle at the place pose")
+
+    monkeypatch.setattr(rt, "skill_place_at", never)
+    monkeypatch.setattr(rt, "_reobserve", lambda *a, **k: None)
+    rt.cfg.grasp._data["max_pick_attempts"] = 3
+    rt.observe()
+    res = rt.skill_pick_and_place("red cube")
+    assert res["ok"] is False and res["stage"] == "place", res
+    assert calls["n"] == 3 and "after 3 attempts" in res["error"]
+    assert "still holding" in res["note"]
+    assert rt.held_object == "red cube"  # nothing released, no regrasp attempted
+
+
+def test_mid_carry_slip_restarts_the_grasp_stage_within_the_budget(rt, monkeypatch):
+    real_place = rt.skill_place_at
+    calls = {"n": 0}
+
+    def slip_then_place(*a, **k):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            rt.held_object = None  # the carry's slip check cleared the flag
+            rt._held_det_label = None
+            raise SkillError("'red cube' slipped out of the gripper during the carry")
+        return real_place(*a, **k)
+
+    monkeypatch.setattr(rt, "skill_place_at", slip_then_place)
+    monkeypatch.setattr(rt, "_reobserve", lambda *a, **k: None)
+    rt.observe()
+    res = rt.skill_pick_and_place("red cube")
+    assert res.get("ok", True), res
+    assert res["grasp_attempts"] == 2 and res["place_attempts"] == 2
+    notes = [e.text for e in rt.memory.events()]
+    assert any("slipped while I was carrying it -- starting over" in n for n in notes)
+
+
+def test_handover_persistence_is_capped_by_the_task_budget(rt, monkeypatch):
+    """#3 x #4: the task epoch bounds handover's loop exactly as it bounds
+    pick_and_place's (pin; the cap landed with `_grasp_with_persistence`)."""
+    calls = {"n": 0}
+
+    def miss(*a, **k):
+        calls["n"] += 1
+        raise SkillError("did not settle at grasp pose")
+
+    monkeypatch.setattr(rt, "skill_grasp_object", miss)
+    monkeypatch.setattr(rt, "skill_move_home", lambda *a, **k: {"ok": True})
+    monkeypatch.setattr(rt, "_reobserve", lambda *a, **k: None)
+    rt.cfg.grasp._data["max_pick_attempts"] = 8
+    rt.begin_task_budget(seconds=0.0)
+    try:
+        res = rt.skill_handover("red cube")
+    finally:
+        rt.end_task_budget()
+    assert res["ok"] is False and calls["n"] == 1, res
+    assert "persistence budget exhausted" in res["error"]
+
+
+def test_mcp_client_recv_times_out_instead_of_hanging():
+    """`McpClient.recv(timeout=)` was flagged as dead code by the 2026-07-18
+    review; it is live (a queue-pumped stdout) -- exercise the timeout path
+    without a server: an empty queue must fail the test, not block it."""
+    import queue
+
+    from test_mcp_server import McpClient
+
+    c = McpClient.__new__(McpClient)
+    c._out_q = queue.Queue()
+    c.proc = SimpleNamespace(pid=0)
+    t0 = time.monotonic()
+    with pytest.raises(pytest.fail.Exception, match="no response within 0.05s"):
+        c.recv(timeout=0.05)
+    assert time.monotonic() - t0 < 5.0
+    c._out_q.put('{"jsonrpc": "2.0", "id": 1, "result": {}}\n')
+    assert c.recv(timeout=0.05)["id"] == 1

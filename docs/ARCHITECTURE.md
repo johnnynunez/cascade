@@ -88,7 +88,13 @@ background includes three published systems:
   `agent/advisor.py`), embedding-indexed experience memory (tier 2), and
   *adaptive reward synthesis* -- which we run at inference time as
   **checkable milestones** (`agent/milestones.py`: symbolic against the
-  world model first, VLM only when the symbolic tier abstains).
+  world model first, VLM only when the symbolic tier abstains). Since
+  2026-10-07 the same rate-limited critic also runs *before* each LLM-tier
+  motion dispatch (Human-CLAW's pre-execution verifier, ROADMAP #6):
+  `PlausibilityChecker` asks the VLM whether this call with these args is
+  plausible given the frame, beliefs and held state; the answer is attached
+  to the result/trace as `plausibility` and is **advisory only** -- the
+  harness alone refuses motion.
 - **Claude plays robotics** (Anthropic, 2026): control-interface level
   dominates model choice; one LLM turn costs 2–15 s so routine commands
   must not wait on the model; structured state beats extra image context;
@@ -129,12 +135,14 @@ shared boundary is `RobotRuntime.execute()`, as shown in the
               apps/mcp_server.py  ── 41 tools ──┐                  agent/orchestrator.py
               (34 specs − task_done              │                  tier 1 REFLEX   regex grammar      ~µs
                + 8 host extras: camera_snapshot, │                  tier 2 HABIT    experience memory  ~ms
-               world_state, task_memory, ...)    │                  tier 3 LLM      + memory harness   2–15 s/turn
-                                                 ▼                            │
+               world_state, task_memory, ...;    │                  tier 3 LLM      + memory harness   2–15 s/turn
+               minus what the rig's capability   │
+               matrix withholds, with reasons)   ▼                            │
                               skills/runtime.py  SkillRuntime.execute()  ◀────┘
                               ONE choke point: arm selection, BEFORE keyframe, watcher pause,
                               skill body, postcondition VERIFY, envelope, AFTER keyframe,
-                              trace row (with tier), memory tuple <frame, action, verdict>
+                              trace row (with tier + advisory `plausibility` hand-off),
+                              memory tuple <frame, action, verdict>
                                                  │
         ┌──────────────┬──────────────┬──────────┼───────────────┬─────────────────┬──────────────┐
         ▼              ▼              ▼          ▼               ▼                 ▼              ▼
@@ -515,7 +523,8 @@ src/cascade/
 │   ├── orchestrator.py reflex → habit → LLM loop; memory harness injection; TaskReport
 │   ├── reflex.py       tier-1 grammar (incl. reset_scene) + tier-2 ExperienceMemory
 │   ├── effects.py      PostconditionChecker + annotate_result (Pigey closed loop)
-│   ├── milestones.py   checkable milestones: symbolic first, VLM second, UNKNOWN honest
+│   ├── milestones.py   checkable milestones: symbolic first, VLM second, UNKNOWN honest;
+│   │                   + advisory pre-motion plausibility critic (never a veto)
 │   ├── llm.py          OpenAI-compat (cloud/local) / Anthropic / Cosmos3 / Mock
 │   ├── cosmos3.py      Cosmos3-Edge XML tool-call dialect
 │   ├── prompts.py / advisor.py   persona, decomposition, VLM critic
@@ -538,6 +547,7 @@ src/cascade/
 └── apps/
     ├── demo.py         build_runtime() = the composition root; CLI --task / --interactive
     ├── mcp_server.py   MCP stdio front-end: 41 tools, out-of-band stop, per-call log
+    ├── capabilities.py capability matrix from the built runtime; TOOL_REQUIREMENTS trims the MCP catalog
     ├── process_owner.py profile-owned process identity for shutdown and proof binding
     ├── stream_server.py lazy MJPEG dashboard (+ chat, STOP)     live_view.py  RigViewer
     ├── live_control.py viewer-driven control        record.py / viewer.py  capture / view
@@ -664,6 +674,17 @@ openai|local_*`) cascade runs its own loop with all three tiers.
 - **A claim is not a fact.** Every effect is verified on an independent
   channel when one exists, and the verdict travels with the result, into
   the trace, into memory and to the judge.
+- **The tool surface is derived, not declared.** `apps/capabilities.py`
+  reads the BUILT runtime -- the depth chain each camera stream really
+  produces (`DepthProvider.depth_source_for`), the sidecar probes behind
+  `runtime.backends()`, the `ArmRig`, the verifier, the memory -- and
+  `TOOL_REQUIREMENTS` names what each tool cannot run without. The MCP
+  server withholds (and rejects if called) only what probed state shows
+  unmet; unknown is not unavailable, a fallback (OBB for a dead GraspGen-X)
+  is reported, never hidden, and the stop path is never a capability. The
+  matrix is printed next to `backends:`, served by `/state` and by
+  `world_state` with every withheld tool's reason. `CASCADE_HIDE_TOOLS`
+  remains the explicit operator override on top.
 - **Memory is structured first, embeddings second.** Recall tools work on
   labels/time/positions; the TurboQuant index has one live consumer (tier
   2). Frames -- not text -- are what the planner is shown of its own past.
@@ -726,4 +747,8 @@ EOF
 ```
 
 `tests/test_llm_and_library.py` pins the README's headline skill and tool
-counts to these derived numbers, so a drift there fails the suite.
+counts to these derived numbers, so a drift there fails the suite. The
+MCP count is the FULL catalog; a running server lists it minus what the
+rig's capability matrix withholds (`world_state.tools_withheld` names them,
+e.g. 40 on a single-arm rig), so compare `mcp probe --json` against
+`41 - len(tools_withheld)`, not against 41.

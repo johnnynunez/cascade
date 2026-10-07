@@ -666,7 +666,10 @@ eight gateway extras — `camera_snapshot` (returns a live JPEG the agent can
 `verify_last_action`, `task_memory` (the visual memory harness, as images),
 and `emergency_stop`/`reset_stop` — 41 tools total (re-derive with
 `openclaw mcp probe cascade --json`; see [The 33 skills](#the-33-skills) below
-for what each one does). Safety harness, tracing and memory are identical —
+for what each one does). That is the full catalog; what a given rig is
+offered is this minus the tools its capability matrix (described below)
+withholds (the default single-arm mock rig lists 40: `list_arms` needs two
+arms). Safety harness, tracing and memory are identical —
 only the brain swaps.
 
 One registrar for every host — prints what each platform needs, `--write`
@@ -704,9 +707,23 @@ out-of-band by the stdin reader, Esc/cancellation in the host mid-motion
 freezes the arm, first Ctrl+C on the server latches the e-stop (no
 free-fall), and the dashboard STOP button works from any browser on the
 LAN. For attendee-facing sessions, `CASCADE_HIDE_TOOLS=reset_stop` makes
-clearing a stop staff-only. Env knobs:
+clearing a stop staff-only. The catalog is also trimmed by a **capability
+matrix** derived from the built rig (`apps/capabilities.py`): the depth chain
+each camera really produces (sensor / mono / table-plane / none), which
+sidecars answered their startup probe, how many arms the `ArmRig` has, and
+whether the verifier and memory are attached. A tool whose precondition the
+rig cannot meet is withheld and rejected if called — on an RGB-only camera
+the 3D tools go, on a single-arm rig `list_arms` and the injected `arm`
+parameter go — with the reason in `world_state.tools_withheld`, the dashboard
+`/state` and the `[cascade] capabilities:` banner line. A fallback is
+reported, never hidden: GraspGen-X down means the grasp tools run on the
+analytic OBB planner and the matrix says so. Nothing is withheld before the
+runtime is probed; a catalog listed before that is refreshed via
+`notifications/tools/list_changed`. `CASCADE_HIDE_TOOLS` stays the explicit
+operator override on top. Env knobs:
 `CASCADE_CAMERAS` (comma list, first = manipulation camera), `CASCADE_CAMERA`
-(single-camera fallback), `CASCADE_ARM`, `CASCADE_DETECTOR_MODEL`,
+(single-camera fallback), `CASCADE_ARMS` (comma list, first = manipulation
+arm, builds the `ArmRig`), `CASCADE_ARM` (single-arm fallback), `CASCADE_DETECTOR_MODEL`,
 `CASCADE_DETECT_CLASSES`, `CASCADE_HIDE_TOOLS`, `CASCADE_VIEW` (cv2 camera window),
 `CASCADE_MJ_VIEW` (MuJoCo physics window; the launcher sets it in sim modes),
 `CASCADE_PREWARM`, `CASCADE_STREAM`, `CASCADE_STREAM_PORT`, `CASCADE_RUN_DIR`

@@ -172,9 +172,12 @@ Open, in priority order (details in the sections below):
    hand-eye, table plane), `pytest -m hardware`, then `--arm rebot_rs` at
    low velocity. Everything above the driver has been exercised in two
    simulators; the drivers have not.
-2. **Persistence-loop leftovers** #2–#7 below (provisional held marker,
+2. ~~**Persistence-loop leftovers** #2–#7 below (provisional held marker,
    per-task budget cap across tiers, handover/sort persistence, thin-object
-   slip heuristic, fail-fast on over-width, the listed coverage gaps).
+   slip heuristic, fail-fast on over-width, the listed coverage gaps).~~
+   **landed 2026-10-07** — see the struck items in "Persistence-loop review
+   leftovers" below; `tests/test_persistence_leftovers.py` (25 tests) pins
+   each one.
 3. **Learned grasps for real**: run `serve_graspgenx.sh` (CUDA) instead of
    the protocol stub and calibrate `tip_offset_m` / the reBot sweep volume
    in Isaac; the stub only proves the wire.
@@ -300,7 +303,8 @@ inspiration lifted from an abstract.
   verifier** that interrogates a proposed call with skill-specific questions
   before it runs — distinct from this repo's existing *post-hoc* effect
   verification (`agent/effects.py`) and *static* operating envelopes
-  (`memory/envelope.py`). Not landed yet — see open follow-up #6 below.
+  (`memory/envelope.py`). Landed 2026-10-07 as an advisory-only critic —
+  see follow-up #6 below.
 - **LaMem-VLA** (2607.07608) — dual latent-memory architecture (Curator →
   Seeker → Condenser → Weaver) that splices condensed memory tokens directly
   into a VLA policy's embedding space. Requires a trainable VLA backbone
@@ -330,20 +334,36 @@ inspiration lifted from an abstract.
   explicitly rather than citing Waddle as a safety precedent.
 
 Open follow-ups from this work:
-6. **Pre-motion plausibility check (Human-CLAW).** Extend
+6. ~~**Pre-motion plausibility check (Human-CLAW).** Extend
    `agent/milestones.py`'s existing rate-limited `VERIFY_USER` critic
    pattern to run *before* dispatch for `_MOTION_SKILLS`
    (`skills/runtime.py:31`), not just post-hoc for milestone progress: ask
    "is this specific call, with these specific args, plausible given
    current beliefs/reachability?" and let it veto/substitute, the way
    Human-CLAW's verifier does. Reuses existing rate-limiting so it does not
-   blow booth-clock budget. Deliberately not landed today: this touches the
-   safety-critical motion-dispatch choke point in `SkillRuntime.execute()`,
-   and per AGENTS.md the harness must remain the sole authority that
-   refuses motion — a verifier here has to be advisory-only (same booth
-   rule as envelopes), and that needs a live-rig or at minimum a
-   MockLLM-scripted test pass before landing, not a speculative edit to the
-   motion path from a machine that cannot run the rig.
+   blow booth-clock budget.~~ **landed 2026-10-07** —
+   `agent/milestones.py::PlausibilityChecker` (+ `VisualBudget`, the
+   tracker's per-task limiter factored out so both critics share one
+   mechanism; `prompts.PLAUSIBILITY_USER`), consulted by the orchestrator
+   before every LLM-tier motion dispatch with the current frame, a
+   skill-specific question and the belief/held/reach digest; the answer
+   rides on the result and the trace row as
+   `plausibility: {verdict, reasons, source}`, an `implausible` verdict is a
+   caution the planner reads on its next turn, and no model / no frame /
+   exhausted budget / verifier fault record `skipped` with the reason.
+   **Deliberately NOT the veto/substitute half of Human-CLAW**: the call is
+   dispatched unchanged whatever the verdict says — the harness stays the
+   sole authority that refuses motion (booth rule, same as envelopes).
+   Measured on the mock stack with the scripted planner + a scripted critic
+   (`tests/test_premotion_plausibility.py`, 12 tests, RED against main):
+   an "implausible" grasp still drives the arm and holds the cube, the
+   budget caps critic turns at `agent.premotion_max_checks` (default 3) per
+   task and resets per task, a raising verifier yields `skipped`, and
+   `agent.premotion_check: false` reproduces main's orchestrator path
+   write-for-write (runtime attribute writes, dispatches, planner messages
+   pinned against a golden taken from main). Reflex/experience tiers stay
+   LLM-free; `fleet.py` / `dashboard_runner.py` / `booth_rehearsal.py` do
+   not opt in. No live-rig run; no claim about the verdicts' accuracy.
 7. **HUG as a second grasp backend.** Add `grasp.backend: hug` alongside
    `graspgenx`, self-hosted the same way (a serve script + client mirroring
    `grasping/graspgenx_backend.py`), re-ranked by the same
@@ -461,9 +481,28 @@ Open follow-ups from this work:
 11. **Pigey snapshot/restore + occlusion search** as composite skills over
     `BeliefStore` (`snapshot_scene`/`restore_scene`, `search_for_object`):
     the one demo beat visible from chat that no current skill covers. (M)
-12. **Capability matrix → tool surface (Waddle).** Compute `_EXCLUDED_TOOLS`
+12. ~~**Capability matrix → tool surface (Waddle).** Compute `_EXCLUDED_TOOLS`
     from what the rig can do (depth, sidecars, n_arms) instead of
-    `CASCADE_HIDE_TOOLS` by hand. (S)
+    `CASCADE_HIDE_TOOLS` by hand. (S)~~ **landed 2026-10-07** —
+    `apps/capabilities.py` derives the matrix from the BUILT runtime's probed
+    state (per-camera depth chain via `DepthProvider.depth_source_for`, the
+    sidecar probes behind `runtime.backends()`, `ArmRig` length, bases,
+    verifier, memory; tri-state, unknown never withholds) and
+    `TOOL_REQUIREMENTS` trims the MCP catalog by it: RGB-only rig → the 3D
+    tools are withheld and rejected with the reason, single arm → `list_arms`
+    and the injected `arm` parameter go, dead GraspGen-X/occupancy → reported
+    fallback, nothing hidden; `CASCADE_HIDE_TOOLS` stays the operator
+    override, `_EXCLUDED_TOOLS` keeps `task_done` out. Reported in the
+    `[cascade] capabilities:` banner, `/state`, `world_state.tools_withheld`
+    and the server log; a catalog listed before the build is refreshed via
+    `notifications/tools/list_changed`. Measured on the mock stack over real
+    JSON-RPC (`tests/test_mcp_server.py`, 10 new tests, each RED on main):
+    `mock_rgb` withholds 13 tools and keeps 28 RGB/motion tools, a table
+    plane keeps the grasp tools and withholds only `place_on_object` (and
+    `list_arms`, one arm), the
+    default rig lists 40 of 41, `CASCADE_ARMS=so101_left,so101_right` lists
+    all 41 with `list_arms` naming both arms. No skill, limit or asset
+    changed; nothing here was run on a physical rig.
 13. **`recall_step(n)` + a `stuck` outcome (RPent).** Trace keyframes already
     exist per step; expose them, and let motion skills return a human-
     actionable ask distinct from failure. (S)
@@ -844,20 +883,77 @@ are synchronous by design here, noted for long-horizon work.
      `notifications/cancelled` on an in-flight motion tool freezes the arm,
      SIGINT latches instead of free-falling, and the dashboard STOP button
      is wired in MCP mode (tests in `tests/test_mcp_server.py`).
-  2. Exception between gripper close and held_object assignment leaves a
+  2. ~~Exception between gripper close and held_object assignment leaves a
      physically held object logically unheld (reconcile only clears the
-     opposite desync); consider a provisional held marker before close.
-  3. Budget can multiply across tiers: fast-path burns persist_seconds,
-     then a real-LLM tier can call pick_and_place again. Cap per task.
-  4. handover / sort_by_color still single-attempt (inconsistent with
-     pick_and_place persistence).
-  5. _reconcile_held mistakes a legitimately-held VERY thin object
-     (<4% jaw span ~ 3.6 mm) for a slip; booth objects are chunky.
-  6. Fail fast when every grasp candidate exceeds jaw width (currently
-     retries perception on an object-property error).
-  7. Test-coverage gaps flagged: place-stage loop, deadline expiry,
+     opposite desync); consider a provisional held marker before close.~~
+     **landed 2026-10-07** (marker already in `skill_grasp_object` /
+     `_reconcile_held`; finished today): `_held_provisional` is set before
+     the first jaw command and promoted/refuted by the next skill; jaws AT
+     the open position now refute it instead of promoting a phantom hold,
+     and `open_gripper` discards it. Pinned by
+     `tests/test_persistence_leftovers.py` (`..._reconcile_promotes`,
+     `..._on_air_is_dropped`, `..._around_the_close`,
+     `test_open_gripper_discards_a_provisional_marker`,
+     `test_provisional_marker_with_jaws_at_the_open_position_is_dropped`).
+  3. ~~Budget can multiply across tiers: fast-path burns persist_seconds,
+     then a real-LLM tier can call pick_and_place again. Cap per task.~~
+     **already landed** (`begin_task_budget` / `_task_deadline`,
+     `grasp.task_persist_seconds` = 1.5x `persist_seconds` by default,
+     opened/closed by `AgentOrchestrator.run_task`, capping pick_and_place
+     AND `_grasp_with_persistence`); pinned by
+     `test_task_budget_caps_a_second_tier_call`,
+     `test_orchestrator_opens_and_closes_the_task_budget` and (2026-10-07)
+     `test_handover_persistence_is_capped_by_the_task_budget`. The key is
+     now documented in `configs/demo.yaml`.
+  4. ~~handover / sort_by_color still single-attempt (inconsistent with
+     pick_and_place persistence).~~ **already landed** (both grasp through
+     `_grasp_with_persistence`: re-home, re-scan, fresh plan, same
+     `max_pick_attempts` / `persist_seconds`, capped by the task budget;
+     sort_by_color gives each object `sort_object_persist_seconds`);
+     pinned by `test_handover_retries_a_grasp_like_pick_and_place`,
+     `test_sort_by_color_does_not_give_up_on_the_first_miss`. Still
+     single-attempt by design: sort_by_color's PLACE (a failed place while
+     holding stops the sort instead of cascading).
+  5. ~~_reconcile_held mistakes a legitimately-held VERY thin object
+     (<4% jaw span ~ 3.6 mm) for a slip; booth objects are chunky.~~
+     **landed 2026-10-07**: the held width is MEASURED when the object is
+     taken (`_held_width_m` = jaw stall after the lift; planned width when
+     feedback is unavailable; stall width at promotion/adoption). An object
+     that measured thinner than `air_grasp_frac` x jaw span is never
+     cleared on width alone (position feedback cannot tell that hold from
+     air); a chunky known width keeps the 4 % rule unchanged. The older
+     `gripper.min_object_m` profile key still works. Pinned by
+     `test_grasp_records_the_measured_held_width`,
+     `test_known_thin_object_is_never_read_as_a_slip_on_width_alone`,
+     `test_thin_object_declared_in_profile_is_not_read_as_a_slip`.
+  6. ~~Fail fast when every grasp candidate exceeds jaw width (currently
+     retries perception on an object-property error).~~ **landed
+     2026-10-07** (the string heuristic in `_grasp_retry_verdict` already
+     stopped after one attempt; finished today): `select_grasp` raises an
+     explicit refusal — "every candidate exceeds the jaw span (narrowest
+     Xmm > gripper max Ymm; use push_object)" with `all_too_wide`,
+     `narrowest_width_m`, `jaw_max_width_m` on the exception — and lists
+     non-width reasons first, so a 4-reason truncation of a MIXED list
+     (five too-wide ahead of one vetoed candidate) can no longer read as
+     all-too-wide and end persistence after one attempt. Pinned by
+     `test_pick_and_place_gives_up_early_when_every_grasp_is_too_wide`,
+     `test_ik_failure_alongside_a_width_reason_is_still_retried`,
+     `test_selector_refuses_explicitly_when_every_candidate_exceeds_the_jaw_span`,
+     `test_a_truncated_mixed_reason_list_is_not_an_over_width_refusal`.
+  7. ~~Test-coverage gaps flagged: place-stage loop, deadline expiry,
      epoch fallback, z-clamp, exemption z_min through _in_cylinder,
-     McpClient timeout is dead code.
+     McpClient timeout is dead code.~~ **landed 2026-10-07**: place-stage
+     loop (`test_place_stage_retries_after_a_failed_place`,
+     `test_place_stage_is_bounded_while_still_holding`,
+     `test_mid_carry_slip_restarts_the_grasp_stage_within_the_budget`);
+     deadline expiry, epoch fallback, z-clamp and `_in_cylinder` z_min were
+     already pinned (`test_persistence_deadline_expiry_stops_the_loop_early`,
+     `test_localize_epoch_fallback_uses_motion_start_when_no_rescan`,
+     `test_place_at_caps_release_height_to_the_topdown_ceiling`,
+     `test_exemption_cylinder_z_min_is_honoured_by_in_cylinder`);
+     `McpClient.recv(timeout=)` is live (queue-pumped stdout) and is now
+     exercised without a server
+     (`test_mcp_client_recv_times_out_instead_of_hanging`).
 
 - **Newton upstream issue (2026-07-19).** Manipulation contacts are broken
   at the PARSER level on the 6.0 develop build: identical failure under

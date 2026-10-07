@@ -263,6 +263,8 @@ def test_launcher_withheld_attempt_preserves_step_budget_and_only_emits_complete
     run = _launch_shared_runner(tmp_path, monkeypatch, profile_phases=profile_phases, gc_policy=gc_policy)
     result, out, created, policy_calls = run.result, run.out, run.created, run.policy_calls
     assert result['completed'] and result['steps'] == 2 and result['withheld_ticks'] == 1, result
+    # One software robot: the owner keeps the per-adapter actuation and says so in the receipt.
+    assert result['bam_cohort'] == {'path': 'per-adapter', 'adapters': 1, 'reason': 'single robot'}
     assert created[0].closed == 1 and created[0].shutdown_code == 0
     def rows(name): return [json.loads(line) for line in (out / name).read_text().splitlines()]
     for name in ('physics.jsonl', 'frames.jsonl', 'support-probe.jsonl'):

@@ -1132,3 +1132,76 @@ binding/model-sync checks on the snapshot copies, so the next slice there is bat
 the twelve adapters' launches into cohort kernels, not fewer reads. All twelve client
 walks remain `unverified` in both arms on the unchanged deadlines; this is a measured
 cost reduction, not a control or admission result.
+
+### Shared-owner per-step cost: cohort Warp launches for the twelve BAM adapters (7 October 2026)
+
+After the output check, `bam.before_step` was still ~11.8 ms per 5 ms step for twelve
+robots, and the device→host syncs were no longer the reason: each
+`NewtonBamAdapter.before_step` issues six `wp.launch` calls (the bridge's load gather,
+the external-torque flag mark, the pinned motor and friction kernels, the four-output
+flag mark, the friction publish) plus an indexed effort scatter and eight drive-state
+copies — counted by instrumenting `wp.launch`/`wp.copy` on the real pinned kernels:
+**72 launches and 108 copies per step for twelve adapters**, every one a Python call
+serialized on the owner thread, with the per-adapter host-side binding checks between
+them.
+
+`BamCohort` (`control/newton_bam.py`) registers the twelve adapters once and drives them
+with ONE pinned `DriveBam` finalized over 14·N DOFs (`env_dof_stride=14`, the stride the
+Isaac Lab adapter itself uses for N environments) and ONE pinned `MjWarpActuatorBridge`
+over the concatenated DOF indices. Registration seeds each row of the stacked arrays
+from the adapter's own arrays and re-points the adapter's targets, outputs and drive
+state to live views of its row, so `set_targets`, `reset` (which zeroes exactly its row
+and republishes its DOFs) and `telemetry` are unchanged per adapter; a registered adapter
+refuses a private `before_step`. `BamCohort.before_step(dt, snapshot=…, output_check=…)`
+first runs EVERY adapter's host-side checks verbatim (`_before_step_checks`: armed,
+`dt`, snapshot/check binding, model/solver/DOF-map drift, cadence, finite state, `nefc`),
+so one adapter's refusal refuses the step for the whole fleet with nothing written; then
+each device stage runs once: **6 launches and 9 copies per step for the fleet**
+(5 launches on the first step after a reset, when no stale load is gathered — the same
+skip the private path makes). `BamOutputCheck` gained the cohort-level marks
+(`mark_cohort_external_torque`, `mark_cohort_outputs`: one launch each over the stacked
+array through a row→slot table built when the cohort is paired with the check), so the
+owner's `verify()` stays exactly ONE host read per step and still names the robot and
+array; a cohort without a check reads its five stacked outputs itself and refuses before
+any write, naming the member. `SharedMicroduckStepper` builds the cohort at construction
+for more than one robot (`_build_cohort`, paired with the output check, labelled by robot
+id) and its `tick` keeps the order `_host_snapshot` → `check.reset(step)` → per-robot
+`set_targets` → ONE `cohort.before_step` → `_verify_outputs` → `owner.step()`, with the
+same `_discard`/`_fail` containment; the run receipt records the path
+(`bam_cohort: {path, adapters, reason}`). Under `--profile-phases` the cohort's
+`before_step` is the `bam.before_step` span (one span for the fleet instead of one per
+robot), `bam.verify` is unchanged, so an A/B sums like with like.
+
+No kernel was copied or rewritten: only the three pinned sources run. That fixes the
+one place where the cohort deviates from "stack everything": the pinned motor kernel
+seeds the command-delay draw with `rand_init(seed, (i // env_dof_stride) * 7919 + step)`
+and the reset kernel draws the lag phase from `i // env_dof_stride`, so row k of a stacked
+drive would not reproduce a private drive's lag stream. Every other operation is
+per-DOF or per-14-block (the battery sag sums `|prev_motor_torque|` over the row's own
+block), so for a delay-free drive (`max_delay == 0`, `delay_update_period == 0` — the
+profiles every twelve-duck run has used) each row is bitwise what the private adapter
+computes on the same bytes. `NewtonBamAdapter.cohort()` returns `None` for a stochastic
+delay profile or differing shared drive settings (`BamCohort.unsupported` says why) and
+the owner keeps the per-adapter path, receipted as such; the single-robot owner never
+builds a cohort and its path is unchanged.
+
+CPU tests establish the mechanism, not a speedup: on the real pinned kernels
+(`tests/test_newton_bam.py`, converter venv) twelve adapters driven privately and twelve
+driven by a cohort, with random per-row state, targets and solver loads over four
+steps, produce identical efforts, friction publications and telemetry (`assert_allclose`
+at 1e-6 and exact equality), the counted launches are 72 → 6 (first step 60 → 5) and the
+copies 108 → 9 with the check's single read preserved; registration mid-history
+continues the private history exactly; a stochastic-delay profile, mixed shared
+settings, overlapping DOFs, another stage, a stranger, a member of another cohort and a
+check that does not register every member are refused; every per-adapter refusal
+(unarmed, drift, NaN state, DOF map, cadence, `dt`, friction tuning) refuses the whole
+cohort before any write; the slice-1 output-check refusals (never reset, other/stale
+step, unregistered, other stage, non-check, incomplete, mark after verify) hold on the
+cohort path, and skipping one stage's cohort mark fails `verify()`. The software doubles
+(`tests/test_microduck_shared_scene.py`, `..._timing.py`, `..._staging.py`) pin one
+cohort per fleet paired with the one check, the tick order above, the per-adapter path
+for one robot or a declined cohort, containment on a cohort failure, the span wiring
+and the receipt. **Speedup not yet measured; the x86 A/B is pending** (compare
+`bam.before_step + bam.verify` against the slice-1 build with `--profile-phases`, twelve
+robots, one world, the route harness; the remaining per-step host work inside the
+cohort span is the twelve adapters' host-side binding checks on the snapshot copies).

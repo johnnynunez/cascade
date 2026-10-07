@@ -946,3 +946,460 @@ def test_private_before_step_still_refuses_nonfinite_outputs_before_any_write(ru
     np.testing.assert_array_equal(stage.control.joint_f.numpy(), effort)
     np.testing.assert_array_equal(stage.solver.mjw_model.dof_frictionloss.numpy(), friction)
     assert adapter.telemetry()["last_simulation_step_count"] == 0
+
+
+# --- shared-scene cohort: ONE pinned drive/bridge over stacked rows, one launch per stage per step ---
+
+def fleet_stage(runtime, source_root, count, **overrides):
+    """``count`` adapters on ONE stage, each owning fourteen disjoint hinges (the twelve-duck shape)."""
+    import numpy as np
+    stage = buffer_stage(runtime, hinges=14 * count)
+    adapters = []
+    for row in range(count):
+        dofs = np.arange(6 + 14 * row, 6 + 14 * (row + 1), dtype=np.int64)
+        adapters.append(module().NewtonBamAdapter(stage, source_root=source_root, sdk_recipe=recipe(),
+                                                  q_indices=dofs + 1, dof_indices=dofs, params=params(**overrides)))
+    return stage, adapters
+
+
+def counting_launches(monkeypatch, wp):
+    """Record every ``wp.launch`` (by kernel name) and ``wp.copy`` issued through the warp module."""
+    launches, copies = [], []
+    original_launch, original_copy = wp.launch, wp.copy
+
+    def launch(kernel, *args, **kwargs):
+        launches.append(getattr(kernel, "key", str(kernel)).rsplit(".", 1)[-1])
+        return original_launch(kernel, *args, **kwargs)
+
+    def copy(*args, **kwargs):
+        copies.append(1)
+        return original_copy(*args, **kwargs)
+    monkeypatch.setattr(wp, "launch", launch)
+    monkeypatch.setattr(wp, "copy", copy)
+    return launches, copies
+
+
+def fleet_inputs(rng, count):
+    """Random per-row joint state, targets and solver loads: every row's arithmetic differs."""
+    import numpy as np
+    draw = lambda lo, hi: rng.uniform(lo, hi, (count, 14)).astype(np.float32)  # noqa: E731
+    return dict(q=draw(-0.5, 0.5), qd=draw(-4.0, 4.0), targets=draw(-1.0, 1.0),
+                bias=draw(-0.6, 0.6), constraint=draw(-0.3, 0.3))
+
+
+def apply_fleet_inputs(stage, adapters, inputs):
+    import numpy as np
+    q, qd = stage.state_0.joint_q.numpy(), stage.state_0.joint_qd.numpy()
+    mjd = stage.solver.mjw_data
+    bias = np.zeros(mjd.qfrc_bias.shape, np.float32)
+    constraint = np.zeros(mjd.qfrc_constraint.shape, np.float32)
+    for row, adapter in enumerate(adapters):
+        qi, di = (list(x) for x in adapter.coordinate_indices)
+        q[qi], qd[di] = inputs["q"][row], inputs["qd"][row]
+        bias[0, di], constraint[0, di] = inputs["bias"][row], inputs["constraint"][row]
+        adapter.set_targets(inputs["targets"][row])
+    stage.state_0.joint_q.assign(q)
+    stage.state_0.joint_qd.assign(qd)
+    mjd.qfrc_bias.assign(bias)
+    mjd.qfrc_constraint.assign(constraint)
+
+
+def poison_cohort(cohort, adapter, name):
+    """Inject a non-finite value into ONE member's row where a native fault would surface: in the
+    solver load the cohort bridge gathers (external torque) or in that row of a drive output after
+    the pinned ``compute`` ran (the member's arrays are live views of the cohort rows)."""
+    import numpy as np
+    if name == "external_torque":
+        bias = np.zeros(adapter._solver.mjw_data.qfrc_bias.shape, np.float32)
+        bias[0, adapter.coordinate_indices[1][2]] = np.nan
+        adapter._solver.mjw_data.qfrc_bias.assign(bias)
+        return
+    original = cohort._drive.compute
+
+    def compute(*args, **kwargs):
+        original(*args, **kwargs)
+        output_arrays(adapter)[name].fill_(float("nan"))
+    cohort._drive.compute = compute
+
+
+def test_twelve_adapter_cohort_launches_one_kernel_per_stage_with_identical_rows(runtime, source_root, monkeypatch):
+    """The launch-count claim of this slice, counted (not estimated), and per-row exactness.
+
+    Per-adapter path (slice 1): six ``wp.launch`` per adapter per step (gather, external-torque
+    mark, motor, friction, outputs mark, friction publish) and nine ``wp.copy`` (effort scatter +
+    eight state copies) -- 72 launches / 108 copies for twelve. Cohort path: one launch per stage
+    for the whole fleet (6) and nine copies, every row bitwise equal to its private adapter.
+    """
+    import json
+    import numpy as np
+    wp, _ = runtime
+    count = 12
+    overrides = dict(vin_drop_gain=0.2, max_current=1.75)  # exercise the per-block sag sum and the current limiter
+    private_stage, private = fleet_stage(runtime, source_root, count, **overrides)
+    shared_stage, members = fleet_stage(runtime, source_root, count, **overrides)
+    labels = [f"duck{i}" for i in range(count)]
+    private_check = private[0].output_check(private, labels=labels)
+    check = members[0].output_check(members, labels=labels)
+    cohort = members[0].cohort(members, labels=labels, output_check=check)  # paired at bind time, like the owner
+    assert isinstance(cohort, module().BamCohort)
+    assert cohort.adapters == tuple(members) and cohort.labels == tuple(labels) and cohort.rows == count
+    rng = np.random.default_rng(20261007)
+    launches, copies = counting_launches(monkeypatch, wp)
+    reads = counting_numpy(monkeypatch, wp)
+    receipt = {}
+    stages = ("_gather_external_torque_kernel", "mark_nonfinite_rows", "_bam_motor_kernel", "_bam_friction_kernel",
+              "mark_nonfinite_outputs_rows", "_publish_dof_friction_kernel")
+    for step in range(4):
+        inputs = fleet_inputs(rng, count)
+        for stage, adapters in ((private_stage, private), (shared_stage, members)):
+            apply_fleet_inputs(stage, adapters, inputs)
+        del launches[:], copies[:], reads[:]
+        snapshot = private[0].host_snapshot()
+        private_check.reset(step)
+        for adapter in private:
+            adapter.before_step(0.005, snapshot=snapshot, output_check=private_check)
+        private_check.verify(step)
+        before = dict(launch=len(launches), copy=len(copies), reads=len(reads))
+        del launches[:], copies[:], reads[:]
+        snapshot = members[0].host_snapshot()
+        check.reset(step)
+        cohort.before_step(0.005, snapshot=snapshot, output_check=check)
+        # Inside before_step: only the snapshot's world reads, none of the stacked output arrays.
+        assert len(reads) == snapshot.device_reads
+        check.verify(step)
+        after = dict(launch=len(launches), copy=len(copies), reads=len(reads))
+        assert after["reads"] == snapshot.device_reads + 1 and reads[-1] is check.flags
+        gather = 0 if step == 0 else 1  # the first step after reset zeroes the load instead of gathering it
+        assert before == dict(launch=count * (5 + gather), copy=count * 9, reads=snapshot.device_reads + 1)
+        assert after == dict(launch=5 + gather, copy=9, reads=snapshot.device_reads + 1)
+        # Exactly one launch per stage, in stage order, for the whole fleet.
+        assert [name.rsplit("__", 1)[-1] for name in launches] == [
+            s for s in stages if gather or s != "_gather_external_torque_kernel"]
+        np.testing.assert_array_equal(private_stage.control.joint_f.numpy(), shared_stage.control.joint_f.numpy())
+        np.testing.assert_array_equal(private_stage.solver.mjw_model.dof_frictionloss.numpy(),
+                                      shared_stage.solver.mjw_model.dof_frictionloss.numpy())
+        assert np.count_nonzero(shared_stage.control.joint_f.numpy()) == 14 * count
+        for reference, member in zip(private, members):
+            expected, actual = reference.telemetry(), member.telemetry()
+            for key in OUTPUT_NAMES + ("targets", "delay_lag", "delay_fill"):
+                np.testing.assert_allclose(actual[key], expected[key], rtol=0, atol=1e-6, err_msg=f"{key} step={step}")
+                assert actual[key] == expected[key], key  # the same pinned kernel on the same bytes: bitwise
+            for key in ("last_simulation_step_count", "steps_since_reset", "armed", "reset_count"):
+                assert actual[key] == expected[key], key
+            assert actual["last_simulation_step_count"] == step
+        receipt[step] = dict(per_adapter=before, cohort=after)
+        for stage in (private_stage, shared_stage):
+            stage.simulation_step_count += 1
+    assert check.device_reads == private_check.device_reads == 4
+    print("COHORT_LAUNCH_RECEIPT", json.dumps(dict(adapters=count, first_step=receipt[0], steady_state=receipt[1],
+          counted="wp.launch/wp.copy monkeypatched; per step; private = slice-1 path with BamOutputCheck",
+          provenance="synthetic_random_inputs_original_Warp_kernels_not_trajectory")))
+
+
+@pytest.mark.parametrize("case", ["delay", "phase_period", "mixed_shared", "mixed_dt", "overlap", "duplicate",
+                                  "other_stage", "stranger", "already_registered", "labels", "not_member", "empty",
+                                  "check_subset", "check_other_stage", "not_a_check"])
+def test_cohort_refuses_inexact_or_foreign_memberships(runtime, source_root, case):
+    """A stacked drive is used only where it reproduces every private row exactly; everything else fails closed."""
+    import numpy as np
+    Cohort = module().BamCohort
+    stage, (a, b) = fleet_stage(runtime, source_root, 2)
+    if case in ("check_subset", "check_other_stage", "not_a_check"):
+        # The owner's check is paired at bind time: a member it does not register, a check of
+        # another stage or a non-check refuse the cohort before any row is re-pointed.
+        if case == "check_subset":
+            check = a.output_check([a])
+        elif case == "check_other_stage":
+            _, others = fleet_stage(runtime, source_root, 2)
+            check = others[0].output_check(others)
+        else:
+            check = object()
+        with pytest.raises((RuntimeError, ValueError)):
+            a.cohort([a, b], output_check=check)
+    elif case in ("delay", "phase_period"):
+        # The pinned kernels seed the lag/phase draws by DOF block, so row k of a stacked drive cannot
+        # reproduce a private drive's stream: the builder declines (None) and the class refuses.
+        overrides = dict(min_delay=3, max_delay=6) if case == "delay" else dict(delay_update_period=4)
+        stage, (a, b) = fleet_stage(runtime, source_root, 2, **overrides)
+        assert a.cohort([a, b]) is None
+        assert "delay" in Cohort.unsupported([a, b])
+        with pytest.raises(ValueError, match="delay"):
+            Cohort([a, b])
+        assert a._cohort is None and b._cohort is None
+    elif case in ("mixed_shared", "mixed_dt"):
+        dofs = np.asarray(b.coordinate_indices[1])
+        other = module().NewtonBamAdapter(stage, source_root=source_root, sdk_recipe=recipe(), q_indices=dofs + 1,
+                                          dof_indices=dofs, params=params(**({"vin_min": 5.0} if case == "mixed_shared"
+                                                                              else {"physics_dt": 0.01})))
+        assert a.cohort([a, other]) is None
+        assert ("vin_min" if case == "mixed_shared" else "physics_dt") in Cohort.unsupported([a, other])
+        with pytest.raises(ValueError):
+            Cohort([a, other])
+    elif case == "overlap":
+        dofs = np.asarray(b.coordinate_indices[1])
+        other = module().NewtonBamAdapter(stage, source_root=source_root, sdk_recipe=recipe(), q_indices=dofs + 1,
+                                          dof_indices=dofs, params=params())
+        assert Cohort.unsupported([a, b, other]) is None
+        with pytest.raises(ValueError, match="disjoint"):
+            a.cohort([a, b, other])
+    elif case == "duplicate":
+        with pytest.raises(ValueError, match="twice"):
+            a.cohort([a, b, a])
+    elif case == "other_stage":
+        _, (c, _) = fleet_stage(runtime, source_root, 2)
+        with pytest.raises(ValueError, match="stage"):
+            a.cohort([a, c])
+    elif case == "stranger":
+        with pytest.raises(ValueError):
+            a.cohort([a, object()])
+    elif case == "already_registered":
+        assert isinstance(a.cohort([a, b]), Cohort)
+        with pytest.raises(ValueError, match="already"):
+            Cohort([a])
+    elif case == "labels":
+        with pytest.raises(ValueError, match="label"):
+            a.cohort([a, b], labels=["same", "same"])
+    elif case == "not_member":
+        with pytest.raises(ValueError, match="member"):
+            b.cohort([a])
+    else:
+        with pytest.raises(ValueError):
+            Cohort([])
+    if case != "already_registered":
+        # Nothing was re-pointed or written on refusal: both adapters still actuate privately.
+        for adapter in (a, b):
+            assert adapter._cohort is None
+            adapter.set_targets(np.full(14, 0.1))
+            adapter.before_step(0.005)
+        assert np.count_nonzero(stage.control.joint_f.numpy()) == 28
+
+
+@pytest.mark.parametrize("fault", ["unarmed", "damping", "nan_q", "dof_map", "cadence", "dt", "friction_tuning"])
+def test_cohort_before_step_keeps_every_member_check_and_writes_nothing_on_refusal(runtime, source_root, fault):
+    import numpy as np
+    stage, adapters = fleet_stage(runtime, source_root, 3)
+    cohort = adapters[0].cohort(adapters, labels=["d0", "d1", "d2"])
+    for adapter in adapters[: 2 if fault == "unarmed" else 3]:
+        adapter.set_targets(np.full(14, 0.1))
+    dt = 0.005
+    if fault == "damping":
+        values = stage.model.joint_damping.numpy()
+        values[adapters[1].coordinate_indices[1][0]] = 0.5
+        stage.model.joint_damping.assign(values)
+    elif fault == "nan_q":
+        q = stage.state_0.joint_q.numpy()
+        q[adapters[2].coordinate_indices[0][3]] = np.nan
+        stage.state_0.joint_q.assign(q)
+    elif fault == "dof_map":
+        mapping = stage.solver.mjc_dof_to_newton_dof.numpy()
+        mapping[0, adapters[1].coordinate_indices[1][0]] = -1
+        stage.solver.mjc_dof_to_newton_dof.assign(mapping)
+    elif fault == "cadence":
+        cohort.before_step(dt)
+        stage.simulation_step_count += 2
+    elif fault == "dt":
+        dt = 0.01
+    elif fault == "friction_tuning":
+        values = stage.model.mujoco.solreffriction.numpy()
+        values[adapters[2].coordinate_indices[1][5]] = (0.03, 1.0)
+        stage.model.mujoco.solreffriction.assign(values)
+        stage.solver.notify_model_changed(runtime[1].ModelFlags.JOINT_DOF_PROPERTIES)
+    effort = stage.control.joint_f.numpy().copy()
+    friction = stage.solver.mjw_model.dof_frictionloss.numpy().copy()
+    steps = [adapter.telemetry()["last_simulation_step_count"] for adapter in adapters]
+    with pytest.raises((RuntimeError, ValueError)):
+        cohort.before_step(dt)
+    # One member's refusal refuses the whole cohort before any device write or cadence bookkeeping,
+    # including for the members whose own checks passed.
+    np.testing.assert_array_equal(stage.control.joint_f.numpy(), effort)
+    np.testing.assert_array_equal(stage.solver.mjw_model.dof_frictionloss.numpy(), friction)
+    assert [adapter.telemetry()["last_simulation_step_count"] for adapter in adapters] == steps
+    assert steps == ([0] * 3 if fault == "cadence" else [None] * 3)
+
+
+@pytest.mark.parametrize("case", ["never_reset", "other_step", "stale_step", "unregistered", "other_stage", "not_a_check",
+                                  "incomplete_external", "incomplete_outputs", "after_verify"])
+def test_cohort_output_check_is_refused_when_unbound_stale_foreign_or_incomplete(runtime, source_root, case, monkeypatch):
+    """The slice-1 refusals hold on the cohort path, and skipping ONE stage's cohort mark fails verify()."""
+    import numpy as np
+    stage, adapters = fleet_stage(runtime, source_root, 2)
+    cohort = adapters[0].cohort(adapters, labels=["duck0", "duck1"])
+    for adapter in adapters:
+        adapter.set_targets(np.full(14, 0.1))
+    check = adapters[0].output_check(adapters, labels=["duck0", "duck1"])
+    snapshot = adapters[0].host_snapshot()
+    if case == "never_reset":
+        with pytest.raises(RuntimeError):
+            check.verify()
+        with pytest.raises(RuntimeError):
+            cohort.before_step(0.005, snapshot=snapshot, output_check=check)
+    elif case == "other_step":
+        check.reset(5)
+        with pytest.raises(RuntimeError):
+            cohort.before_step(0.005, snapshot=snapshot, output_check=check)
+    elif case == "stale_step":
+        check.reset(0)
+        cohort.before_step(0.005, snapshot=snapshot, output_check=check)
+        stage.simulation_step_count += 1
+        with pytest.raises(RuntimeError):
+            check.verify()
+        with pytest.raises(RuntimeError):
+            check.verify(0)
+    elif case == "unregistered":
+        check = adapters[0].output_check([adapters[0]])
+        check.reset(0)
+        with pytest.raises(RuntimeError):
+            cohort.before_step(0.005, snapshot=snapshot, output_check=check)
+    elif case == "other_stage":
+        _, others = fleet_stage(runtime, source_root, 2)
+        check = others[0].output_check(others)
+        check.reset(0)
+        with pytest.raises(RuntimeError):
+            cohort.before_step(0.005, snapshot=snapshot, output_check=check)
+    elif case == "not_a_check":
+        with pytest.raises(RuntimeError):
+            cohort.before_step(0.005, snapshot=snapshot, output_check=object())
+    elif case in ("incomplete_external", "incomplete_outputs"):
+        name = "mark_cohort_external_torque" if case == "incomplete_external" else "mark_cohort_outputs"
+        monkeypatch.setattr(check, name, lambda *args, **kwargs: None)
+        check.reset(0)
+        cohort.before_step(0.005, snapshot=snapshot, output_check=check)
+        with pytest.raises(RuntimeError, match="incomplete"):
+            check.verify()
+    else:
+        check.reset(0)
+        cohort.before_step(0.005, snapshot=snapshot, output_check=check)
+        check.verify()
+        with pytest.raises(RuntimeError):
+            check.mark_cohort_external_torque(cohort, cohort._drive.external_torque)
+    if case in ("never_reset", "other_step", "unregistered", "other_stage", "not_a_check"):
+        # Refused before any effort write or cadence bookkeeping, for every member.
+        assert all(adapter.telemetry()["last_simulation_step_count"] is None for adapter in adapters)
+        assert not np.any(stage.control.joint_f.numpy())
+
+
+@pytest.mark.parametrize("name", OUTPUT_NAMES)
+def test_cohort_output_check_names_the_faulty_row_and_array(runtime, source_root, name):
+    import numpy as np
+    stage, adapters = fleet_stage(runtime, source_root, 3)
+    labels = ["d0", "d1", "d2"]
+    cohort = adapters[0].cohort(adapters, labels=labels)
+    check = adapters[0].output_check(adapters, labels=labels)
+    for adapter in adapters:
+        adapter.set_targets(np.full(14, 0.1))
+    check.reset(0)
+    cohort.before_step(0.005, snapshot=adapters[0].host_snapshot(), output_check=check)
+    check.verify()
+    stage.simulation_step_count = 1
+    poison_cohort(cohort, adapters[1], name)
+    check.reset(1)
+    cohort.before_step(0.005, snapshot=adapters[0].host_snapshot(), output_check=check)  # no host read: the verdict is verify()'s
+    expected = ("nonfinite previous external torque" if name == "external_torque"
+                else "nonfinite native BAM output; solver must not step")
+    with pytest.raises(ValueError, match=expected) as caught:
+        check.verify()
+    message = str(caught.value)
+    assert "d1" in message and name in message and "d0" not in message and "d2" not in message
+    assert not any(other in message for other in OUTPUT_NAMES if other != name)
+
+
+@pytest.mark.parametrize("name", OUTPUT_NAMES)
+def test_cohort_without_output_check_refuses_nonfinite_rows_before_any_write(runtime, source_root, name):
+    """Without a cohort check the cohort reads its five stacked outputs itself (five syncs for the
+    fleet) and refuses before publish/scatter/update, naming the member -- like the private path."""
+    import numpy as np
+    stage, adapters = fleet_stage(runtime, source_root, 2)
+    cohort = adapters[0].cohort(adapters, labels=["duck0", "duck1"])
+    for adapter in adapters:
+        adapter.set_targets(np.full(14, 0.1))
+    cohort.before_step(0.005)
+    stage.simulation_step_count = 1
+    poison_cohort(cohort, adapters[1], name)
+    effort = stage.control.joint_f.numpy().copy()
+    friction = stage.solver.mjw_model.dof_frictionloss.numpy().copy()
+    expected = ("nonfinite previous external torque" if name == "external_torque"
+                else "nonfinite native BAM output; solver must not step")
+    with pytest.raises(ValueError, match=expected) as caught:
+        cohort.before_step(0.005)
+    assert "duck1" in str(caught.value) and "duck0" not in str(caught.value)
+    np.testing.assert_array_equal(stage.control.joint_f.numpy(), effort)
+    np.testing.assert_array_equal(stage.solver.mjw_model.dof_frictionloss.numpy(), friction)
+    assert all(adapter.telemetry()["last_simulation_step_count"] == 0 for adapter in adapters)
+
+
+def test_cohort_member_refuses_private_actuation_and_resets_only_its_row(runtime, source_root):
+    import numpy as np
+    stage, adapters = fleet_stage(runtime, source_root, 3)
+    cohort = adapters[0].cohort(adapters, labels=["d0", "d1", "d2"])
+    rng = np.random.default_rng(7)
+    for adapter in adapters:
+        adapter.set_targets(np.full(14, 0.1))
+    with pytest.raises(RuntimeError, match="cohort"):
+        adapters[1].before_step(0.005)
+    assert all(adapter.telemetry()["last_simulation_step_count"] is None for adapter in adapters)
+    for step in range(3):
+        stage.simulation_step_count = step
+        apply_fleet_inputs(stage, adapters, fleet_inputs(rng, 3))
+        cohort.before_step(0.005)
+    others_before = [adapters[i].telemetry() for i in (0, 2)]
+    effort = stage.control.joint_f.numpy().copy()
+    friction = stage.solver.mjw_model.dof_frictionloss.numpy().copy()
+    own = list(adapters[1].coordinate_indices[1])
+    rest = np.setdiff1d(np.arange(len(effort)), own)
+    adapters[1].reset()
+    reset = adapters[1].telemetry()
+    assert reset["steps_since_reset"] == 0 and reset["armed"] is False and reset["reset_count"] == 1
+    for key in OUTPUT_NAMES + ("targets", "delay_fill"):
+        np.testing.assert_array_equal(reset[key], np.zeros(14))
+    assert [adapters[i].telemetry() for i in (0, 2)] == others_before  # the other rows are untouched
+    np.testing.assert_array_equal(stage.control.joint_f.numpy()[own], 0.0)
+    np.testing.assert_array_equal(stage.control.joint_f.numpy()[rest], effort[rest])
+    np.testing.assert_array_equal(stage.solver.mjw_model.dof_frictionloss.numpy()[0, own], 0.0)
+    np.testing.assert_array_equal(stage.solver.mjw_model.dof_frictionloss.numpy()[0, rest], friction[0, rest])
+    stage.simulation_step_count = 3
+    with pytest.raises(RuntimeError, match="targets"):  # an unarmed member refuses the whole cohort step
+        cohort.before_step(0.005)
+    assert [adapter.telemetry()["last_simulation_step_count"] for adapter in adapters] == [2, None, 2]
+    # Re-arm from rest so the sign of the new effort follows the new (negative) targets alone.
+    q, qd = stage.state_0.joint_q.numpy(), stage.state_0.joint_qd.numpy()
+    q[list(adapters[1].coordinate_indices[0])] = 0.0
+    qd[list(adapters[1].coordinate_indices[1])] = 0.0
+    stage.state_0.joint_q.assign(q)
+    stage.state_0.joint_qd.assign(qd)
+    adapters[1].set_targets(np.full(14, -0.1))
+    cohort.before_step(0.005)
+    after = [adapter.telemetry() for adapter in adapters]
+    # The reset row skips the stale load once (like a private adapter); the others gathered theirs.
+    np.testing.assert_array_equal(after[1]["external_torque"], np.zeros(14))
+    assert np.any(np.asarray(after[0]["external_torque"]) != 0) and np.any(np.asarray(after[2]["external_torque"]) != 0)
+    assert np.all(np.asarray(after[1]["effort"]) < 0)  # never replays the old positive targets
+    assert [t["steps_since_reset"] for t in after] == [4, 1, 4]
+    assert [t["last_simulation_step_count"] for t in after] == [3, 3, 3]
+
+
+def test_cohort_registration_continues_the_members_private_history_exactly(runtime, source_root):
+    """Rows are seeded from the adapters' own arrays at registration: the cohort continues any history."""
+    import numpy as np
+    rng = np.random.default_rng(11)
+    private_stage, private = fleet_stage(runtime, source_root, 3, vin_drop_gain=0.2)
+    shared_stage, members = fleet_stage(runtime, source_root, 3, vin_drop_gain=0.2)
+    cohort = None
+    for step in range(6):
+        inputs = fleet_inputs(rng, 3)
+        for stage, adapters in ((private_stage, private), (shared_stage, members)):
+            stage.simulation_step_count = step
+            apply_fleet_inputs(stage, adapters, inputs)
+        if step == 3:
+            cohort = members[0].cohort(members)
+        for adapter in private:
+            adapter.before_step(0.005)
+        if cohort is None:
+            for adapter in members:
+                adapter.before_step(0.005)
+        else:
+            cohort.before_step(0.005)
+        np.testing.assert_array_equal(private_stage.control.joint_f.numpy(), shared_stage.control.joint_f.numpy())
+        np.testing.assert_array_equal(private_stage.solver.mjw_model.dof_frictionloss.numpy(),
+                                      shared_stage.solver.mjw_model.dof_frictionloss.numpy())
+        for reference, member in zip(private, members):
+            assert member.telemetry() == reference.telemetry()

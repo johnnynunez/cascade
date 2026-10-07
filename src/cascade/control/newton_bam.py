@@ -258,7 +258,10 @@ def _nonfinite_flag_kernels(wp):
 
     Built once per process from the lazily imported ``wp`` (this module never imports
     Warp at import time); ``wp.isfinite`` and ``wp.atomic_max`` compile for Warp's CPU
-    device and for CUDA alike. The flags are never read on the device.
+    device and for CUDA alike. The flags are never read on the device. The two ``_rows``
+    variants take a cohort's stacked array (``stride`` consecutive elements per adapter
+    row) and ``row_base``, the first flag of each row's adapter: one launch marks every
+    row of the cohort for a stage.
     """
     global _nonfinite_kernels
     if _nonfinite_kernels is None:
@@ -284,7 +287,33 @@ def _nonfinite_flag_kernels(wp):
                 wp.atomic_max(flags, first + 2, 1)
             if not wp.isfinite(friction_budget[i]):
                 wp.atomic_max(flags, first + 3, 1)
-        _nonfinite_kernels = (mark_nonfinite, mark_nonfinite_outputs)
+
+        @wp.kernel
+        def mark_nonfinite_rows(values: wp.array(dtype=wp.float32), row_base: wp.array(dtype=wp.int32), stride: int,
+                                flags: wp.array(dtype=wp.int32), column: int):
+            i = wp.tid()
+            if not wp.isfinite(values[i]):
+                wp.atomic_max(flags, row_base[i // stride] + column, 1)
+
+        @wp.kernel
+        def mark_nonfinite_outputs_rows(effort: wp.array(dtype=wp.float32), motor_torque: wp.array(dtype=wp.float32),
+                                        effective_vin: wp.array(dtype=wp.float32),
+                                        friction_budget: wp.array(dtype=wp.float32),
+                                        row_base: wp.array(dtype=wp.int32), stride: int,
+                                        flags: wp.array(dtype=wp.int32), first: int):
+            # One launch for the whole cohort: ``first`` is the "effort" column, the row's
+            # adapter owns the flags from row_base[row] on.
+            i = wp.tid()
+            base = row_base[i // stride] + first
+            if not wp.isfinite(effort[i]):
+                wp.atomic_max(flags, base, 1)
+            if not wp.isfinite(motor_torque[i]):
+                wp.atomic_max(flags, base + 1, 1)
+            if not wp.isfinite(effective_vin[i]):
+                wp.atomic_max(flags, base + 2, 1)
+            if not wp.isfinite(friction_budget[i]):
+                wp.atomic_max(flags, base + 3, 1)
+        _nonfinite_kernels = (mark_nonfinite, mark_nonfinite_outputs, mark_nonfinite_rows, mark_nonfinite_outputs_rows)
     return _nonfinite_kernels
 
 
@@ -337,14 +366,20 @@ class BamOutputCheck:
         # Keep the adapters alive so an id() cannot be reused by a stranger.
         self._adapters = adapters
         self._slots = {id(adapter): index for index, adapter in enumerate(adapters)}
-        self._single, self._outputs = _nonfinite_flag_kernels(self._wp)
+        self._single, self._outputs, self._rows_single, self._rows_outputs = _nonfinite_flag_kernels(self._wp)
         # Device flags, one per (adapter, array); read only by verify().
         self.flags = self._wp.zeros(len(adapters) * len(self.ARRAYS), dtype=self._wp.int32, device=self._device)
-        # Compile/load both kernels now (bind time), not inside the first physics
-        # step: a warm-up launch over finite zeros marks nothing and syncs nothing.
+        # Compile/load the kernels now (bind time), not inside the first physics step: a
+        # warm-up launch over finite zeros marks nothing and syncs nothing.
         zeros = self._wp.zeros(1, dtype=self._wp.float32, device=self._device)
+        row = self._wp.zeros(1, dtype=self._wp.int32, device=self._device)
         self._wp.launch(self._single, dim=1, inputs=[zeros, self.flags, 0], device=self._device)
         self._wp.launch(self._outputs, dim=1, inputs=[zeros, zeros, zeros, zeros, self.flags, 1], device=self._device)
+        self._wp.launch(self._rows_single, dim=1, inputs=[zeros, row, 1, self.flags, 0], device=self._device)
+        self._wp.launch(self._rows_outputs, dim=1, inputs=[zeros, zeros, zeros, zeros, row, 1, self.flags, 1],
+                        device=self._device)
+        # Row -> first-flag tables of the cohorts marking through this check (built on first use).
+        self._cohort_rows = {}
         self.step_count = None
         self._marked = set()
         self._verified = False
@@ -391,6 +426,59 @@ class BamOutputCheck:
         """Flag ``adapter``'s four compute-output slots in one launch (no host sync)."""
         self._launch(adapter, (effort, motor_torque, effective_vin, friction_budget), (1, 2, 3, 4), self._outputs)
 
+    def rows_for(self, cohort):
+        """Device table of each cohort row's first flag; every member must be registered here.
+
+        Built once per cohort (the shared owner has one cohort and one check); refused for
+        a cohort of another stage or with an unregistered member, before any mark.
+        """
+        import numpy as np
+        cached = self._cohort_rows.get(id(cohort))
+        if cached is not None and cached[0] is cohort:
+            return cached[1]
+        if not isinstance(cohort, BamCohort):
+            raise RuntimeError("cohort marks require a BamCohort")
+        if cohort.stage is not self.stage or cohort.model is not self.model or cohort.solver is not self.solver:
+            raise RuntimeError("cohort belongs to another stage/model/solver than this output check")
+        bases = []
+        for adapter in cohort.adapters:
+            slot = self._slots.get(id(adapter))
+            if slot is None:
+                raise RuntimeError("a cohort member is not registered in this output check")
+            bases.append(slot * len(self.ARRAYS))
+        if max(bases) + len(self.ARRAYS) > self.flags.shape[0]:
+            raise RuntimeError("output check slot layout exceeds the flag array")  # never silent out-of-bounds writes
+        rows = self._wp.array(np.asarray(bases, dtype=np.int32), dtype=self._wp.int32, device=self._device)
+        # Keep the cohort alive so its id() cannot be reused by a stranger.
+        self._cohort_rows[id(cohort)] = (cohort, rows)
+        return rows
+
+    def _launch_cohort(self, cohort, arrays, columns, kernel):
+        wp = self._wp
+        rows = self.rows_for(cohort)
+        if self.step_count is None:
+            raise RuntimeError("output check was not reset for a step")
+        if self._verified:
+            raise RuntimeError("output check already verified for this step; reset it for the next")
+        length = cohort.stride * cohort.rows
+        for array in arrays:
+            if (not isinstance(array, wp.array) or array.ndim != 1 or array.shape != (length,)
+                    or not wp.types.types_equal(array.dtype, wp.float32) or array.device != self._device):
+                raise RuntimeError(f"cohort output check expects 1-D float32 Warp arrays of length {length} on {self._device}")
+        wp.launch(kernel, dim=length, inputs=[*arrays, rows, cohort.stride, self.flags, columns[0]], device=self._device)
+        for adapter in cohort.adapters:
+            slot = self._slots[id(adapter)]
+            self._marked.update((slot, column) for column in columns)
+
+    def mark_cohort_external_torque(self, cohort, external_torque):
+        """Flag every member's external-torque slot from the cohort's stacked array: ONE launch, no host sync."""
+        self._launch_cohort(cohort, (external_torque,), (0,), self._rows_single)
+
+    def mark_cohort_outputs(self, cohort, effort, motor_torque, effective_vin, friction_budget):
+        """Flag every member's four compute-output slots from the stacked arrays: ONE launch, no host sync."""
+        self._launch_cohort(cohort, (effort, motor_torque, effective_vin, friction_budget), (1, 2, 3, 4),
+                            self._rows_outputs)
+
     def verify(self, step_count=None):
         """The cohort's ONE device read; raise before the solver steps if any output was non-finite.
 
@@ -420,6 +508,18 @@ class BamOutputCheck:
             raise ValueError("nonfinite native BAM output; solver must not step" + where)
 
 
+def _model_bound_bridge(sources, model):
+    """The pinned MJWarp bridge bound to ``model``'s friction solver attributes.
+
+    The ONLY adaptation to the upstream bridge: no NewtonManager import. One class per
+    adapter or cohort; its instances differ only in the DOF slots they manage.
+    """
+    class BoundModelBridge(sources.MjWarpActuatorBridge):
+        def _model_friction_solver_attributes(self):
+            return model.mujoco.solreffriction, model.mujoco.solimpfriction
+    return BoundModelBridge
+
+
 class NewtonBamAdapter:
     """One explicit 14-DOF M6 battery group; the caller alone steps physics.
 
@@ -435,6 +535,7 @@ class NewtonBamAdapter:
         self._wp, self._newton = _runtime(sdk_recipe=sdk_recipe)
         wp = self._wp
         self._snapshot = None
+        self._cohort = None
         self._sources = load_pinned_bam(source_root, sdk_recipe=sdk_recipe)
         self._params = _validated_params(params)
         self._stage = stage
@@ -467,13 +568,8 @@ class NewtonBamAdapter:
         self._state = self._drive.state(14, self._device)
         self._drive.external_torque = wp.zeros(14, device=self._device)
         model = self._model
-
-        class BoundModelBridge(self._sources.MjWarpActuatorBridge):
-            # The ONLY adaptation to the upstream bridge: no NewtonManager import.
-            def _model_friction_solver_attributes(self):
-                return model.mujoco.solreffriction, model.mujoco.solimpfriction
-
-        self._bridge = BoundModelBridge(self._solver, self._dof_indices, model.joint_dof_count, self._device)
+        self._bridge = _model_bound_bridge(self._sources, model)(self._solver, self._dof_indices,
+                                                                 model.joint_dof_count, self._device)
         for field, coefficient in (("joint_damping", "friction_viscous"), ("joint_armature", "armature")):
             self._scatter(getattr(model, field), wp.full(14, M6_PARAMETERS[coefficient], device=self._device))
         if p["stiff_frictionloss"]:
@@ -520,6 +616,43 @@ class NewtonBamAdapter:
         if not any(adapter is self for adapter in adapters):
             raise ValueError("the adapter building an output check must be a member of its cohort")
         return BamOutputCheck(self._stage, adapters, labels=labels)
+
+    def cohort(self, adapters, *, labels=None, output_check=None):
+        """One ``BamCohort`` driving ``adapters`` (this one included) with cohort launches, or None.
+
+        None when one stacked pinned drive cannot reproduce these adapters' arithmetic exactly
+        (a stochastic command delay or differing shared drive settings, see
+        ``BamCohort.unsupported``): the caller keeps the per-adapter ``before_step`` calls.
+        Faults -- another stage, overlapping DOFs, a stranger, a member of another cohort --
+        raise. ``output_check`` (the owner's ``BamOutputCheck`` over the same adapters) is
+        paired at construction. Built once per cohort; see ``BamCohort``.
+        """
+        if not any(adapter is self for adapter in adapters):
+            raise ValueError("the adapter building a cohort must be a member of it")
+        if BamCohort.unsupported(adapters) is not None:
+            return None
+        return BamCohort(adapters, labels=labels, output_check=output_check)
+
+    def _join_cohort(self, cohort, row):
+        """Seed row ``row`` of ``cohort``'s stacked arrays from this adapter's own, then make the
+        adapter's arrays live views of that row: ``set_targets``, ``reset`` and ``telemetry`` keep
+        working on this adapter and now read and write the cohort's row; ``before_step`` is the
+        cohort's from here on."""
+        wp = self._wp
+        lo, hi = cohort.stride * row, cohort.stride * (row + 1)
+
+        def take(private, stacked):
+            view = stacked[lo:hi]
+            wp.copy(view, private)
+            return view
+        self._targets = take(self._targets, cohort._targets)
+        self._forces = take(self._forces, cohort._forces)
+        for name in ("external_torque", "motor_torque", "effective_vin", "friction_budget"):
+            setattr(self._drive, name, take(getattr(self._drive, name), getattr(cohort._drive, name)))
+        for name in ("prev_motor_torque", "prev_applied_torque", "delay_ring", "delay_lag", "delay_fill",
+                     "delay_step_count", "delay_phase", "delay_rng_seed"):
+            setattr(self._state, name, take(getattr(self._state, name), getattr(cohort._state, name)))
+        self._cohort = cohort
 
     def _bind_snapshot(self, snapshot, count):
         if not isinstance(snapshot, BamHostSnapshot):
@@ -681,26 +814,12 @@ class NewtonBamAdapter:
         self._targets.assign(targets)
         self._armed = True
 
-    def before_step(self, dt, *, snapshot=None, output_check=None):
-        """Prepare effort/friction for ONE external solver step; never step it.
+    def _before_step_checks(self, dt, snapshot, output_check):
+        """Every host-side check of ``before_step``, before any device write; returns (count, state_0).
 
-        Host-side checks are intentionally outside CUDA graph capture. A caller
-        must abort the physics step on any exception, not reuse old efforts.
-        ``snapshot`` (a ``BamHostSnapshot`` of this stage, captured this step)
-        lets a shared-scene cohort run these checks against one set of host
-        copies; every check still runs for every adapter.
-
-        ``output_check`` (a ``BamOutputCheck`` this adapter is registered in, reset
-        for this step) replaces the five host reads of this adapter's own drive
-        outputs by device-side marks into its slot, so this call performs no
-        device sync. The caller MUST then call ``output_check.verify()`` after
-        the cohort's last ``before_step`` and BEFORE the solver steps, and abort
-        the step on failure (the shared owner's ``_fail``). With a cohort check
-        the friction publication, effort scatter and drive-state update below
-        happen before that verdict; this is irrelevant because the failure is
-        terminal and the solver never steps on those values. Without
-        ``output_check`` (the single-robot path) the reads and their ordering are
-        unchanged: a non-finite output raises here, before any write.
+        Shared verbatim by the private path and by ``BamCohort.before_step`` (which runs it for
+        every member before the cohort's device stages, so one member's refusal refuses the step
+        for the whole cohort with nothing written).
         """
         import numbers
         import numpy as np
@@ -732,6 +851,43 @@ class NewtonBamAdapter:
                 raise RuntimeError("MJWarp nefc exceeds the constraint array capacity")
         finally:
             self._snapshot = None
+        return count, state
+
+    def _stepped(self, count):
+        """Cadence bookkeeping after this adapter's effort was written for ``count``."""
+        self._last_step = count
+        self._steps_since_reset += 1
+        self._skip_external_once = False
+
+    def before_step(self, dt, *, snapshot=None, output_check=None):
+        """Prepare effort/friction for ONE external solver step; never step it.
+
+        Host-side checks are intentionally outside CUDA graph capture. A caller
+        must abort the physics step on any exception, not reuse old efforts.
+        ``snapshot`` (a ``BamHostSnapshot`` of this stage, captured this step)
+        lets a shared-scene cohort run these checks against one set of host
+        copies; every check still runs for every adapter.
+
+        ``output_check`` (a ``BamOutputCheck`` this adapter is registered in, reset
+        for this step) replaces the five host reads of this adapter's own drive
+        outputs by device-side marks into its slot, so this call performs no
+        device sync. The caller MUST then call ``output_check.verify()`` after
+        the cohort's last ``before_step`` and BEFORE the solver steps, and abort
+        the step on failure (the shared owner's ``_fail``). With a cohort check
+        the friction publication, effort scatter and drive-state update below
+        happen before that verdict; this is irrelevant because the failure is
+        terminal and the solver never steps on those values. Without
+        ``output_check`` (the single-robot path) the reads and their ordering are
+        unchanged: a non-finite output raises here, before any write.
+
+        An adapter registered in a ``BamCohort`` is actuated by the cohort's
+        ``before_step`` alone and refuses this call.
+        """
+        import numpy as np
+
+        if self._cohort is not None:
+            raise RuntimeError("adapter is driven by a BamCohort; actuate it through the cohort's before_step")
+        count, state = self._before_step_checks(dt, snapshot, output_check)
         if self._skip_external_once:
             self._drive.external_torque.zero_()
         else:
@@ -759,9 +915,7 @@ class NewtonBamAdapter:
         self._bridge.publish_dof_friction(self._drive.friction_budget)
         self._scatter(self._stage.control.joint_f, self._forces)
         self._drive.update_state(self._state, self._state)
-        self._last_step = count
-        self._steps_since_reset += 1
-        self._skip_external_once = False
+        self._stepped(count)
 
     def reset(self):
         """Clear owned histories/channels, NOT physical q/qd or another DOF."""
@@ -802,3 +956,173 @@ class NewtonBamAdapter:
                            ("delay_lag", self._state.delay_lag), ("delay_fill", self._state.delay_fill)):
             result[key] = array.numpy().tolist()
         return result
+
+
+class BamCohort:
+    """N registered adapters actuated by ONE pinned drive and ONE pinned bridge over stacked rows.
+
+    Per step the private path launches six kernels per adapter (the bridge's load gather,
+    the external-torque flag mark, the drive's motor and friction kernels, the four-output
+    flag mark, the friction publish) plus an indexed effort scatter and eight state copies:
+    72 launches and 108 copies for twelve robots, serialized on the host. A cohort owns one
+    ``DriveBam`` finalized over ``14 * N`` DOFs with ``env_dof_stride=14`` and one
+    ``MjWarpActuatorBridge`` over the concatenated DOF indices, so each stage is ONE launch
+    for the whole fleet (6 per step) and the scatter/state copies happen once (9).
+
+    Exactness (``unsupported``): the pinned kernels are per-DOF or per-14-block (the battery
+    sag sums ``|prev_motor_torque|`` over ``i - i % env_dof_stride .. +14``), so row k of the
+    stacked drive computes exactly what a private drive computes on the same bytes -- except
+    the stochastic command delay, whose lag draw is seeded by ``i // env_dof_stride`` and
+    whose reset phase by the same block index. A cohort therefore requires a delay-free drive
+    (``max_delay == 0``, ``delay_update_period == 0``) and equal shared drive settings; the
+    builder (``NewtonBamAdapter.cohort``) returns None otherwise and the caller keeps the
+    per-adapter path. No kernel is copied or rewritten: only the three pinned sources run.
+
+    Registration seeds every row from the member's own arrays and re-points the member's
+    targets, outputs and drive state to live views of its row, so ``set_targets``, ``reset``
+    (which zeroes exactly its row and republishes its DOFs) and ``telemetry`` are unchanged
+    per adapter, and a member refuses a private ``before_step``. ``before_step`` first runs
+    EVERY member's host-side checks (``_before_step_checks``, verbatim) and refuses the
+    whole step before any device write when one member refuses; then the device stages run
+    once. With an ``output_check`` the two finiteness marks are the cohort-level launches
+    and the owner's single ``verify()`` stays the ONE host read; without one the cohort
+    reads its five stacked outputs (five syncs for the fleet) and refuses before any write,
+    naming the member, like the private path.
+    """
+
+    def __init__(self, adapters, *, labels=None, output_check=None):
+        import numpy as np
+
+        adapters = tuple(adapters)
+        reason = self.unsupported(adapters)  # also rejects strangers and an empty cohort
+        if reason is not None:
+            raise ValueError(reason)
+        if len({id(adapter) for adapter in adapters}) != len(adapters):
+            raise ValueError("cohort lists an adapter twice")
+        first = adapters[0]
+        self.stage, self.model, self.solver = first._stage, first._model, first._solver
+        for adapter in adapters:
+            if adapter._stage is not self.stage or adapter._model is not self.model or adapter._solver is not self.solver:
+                raise ValueError("every adapter of a cohort must be bound to one stage/model/solver")
+            if adapter._cohort is not None:
+                raise ValueError("adapter already belongs to a cohort")
+        if len({str(adapter._device) for adapter in adapters}) != 1:
+            raise ValueError("cohort spans devices")
+        labels = tuple(str(i) for i in range(len(adapters))) if labels is None else tuple(map(str, labels))
+        if len(labels) != len(adapters) or len(set(labels)) != len(labels):
+            raise ValueError("cohort requires one unique label per adapter")
+        dofs = np.concatenate([adapter._dofs for adapter in adapters])
+        qs = np.concatenate([adapter._qs for adapter in adapters])
+        if len(np.unique(dofs)) != dofs.size or len(np.unique(qs)) != qs.size:
+            raise ValueError("cohort adapters must own disjoint DOFs/coordinates")
+        wp = self._wp = first._wp
+        device = self._device = first._device
+        self.adapters, self.labels = adapters, labels
+        self.stride, self.rows = 14, len(adapters)
+        n = self.stride * self.rows
+        self._dof_indices = wp.array(dofs, dtype=wp.uint32, device=device)
+        self._q_indices = wp.array(qs, dtype=wp.uint32, device=device)
+        self._scatter_indices = wp.array(dofs, dtype=wp.int32, device=device)
+        self._target_indices = wp.array(np.arange(n), dtype=wp.uint32, device=device)
+        self._targets = wp.zeros(n, device=device)
+        self._forces = wp.zeros(n, device=device)
+        Drive = first._sources.DriveBam
+        # Row k's per-DOF coefficients are adapter k's own arrays; the shared scalars are equal.
+        per_dof = {name: wp.array(np.concatenate([getattr(adapter._drive, name).numpy() for adapter in adapters]),
+                                  dtype=wp.float32, device=device) for name in Drive._PER_DOF_PARAMS}
+        shared = {name: getattr(first._drive, name) for name in Drive.SHARED_PARAMS}
+        self._drive = Drive(**shared, **per_dof)
+        self._drive.set_env_dof_stride(self.stride)
+        self._drive.finalize(device, n)
+        self._state = self._drive.state(n, device)
+        self._drive.external_torque = wp.zeros(n, device=device)
+        self._bridge = _model_bound_bridge(first._sources, self.model)(self.solver, self._dof_indices,
+                                                                        self.model.joint_dof_count, device)
+        if output_check is not None:
+            # Pair with the owner's check now (bind time): an unregistered member or another
+            # stage fails here, and the first step pays no table build.
+            if not isinstance(output_check, BamOutputCheck):
+                raise ValueError("output_check must be a BamOutputCheck of this stage")
+            output_check.rows_for(self)
+        for row, adapter in enumerate(adapters):
+            adapter._join_cohort(self, row)
+
+    @staticmethod
+    def unsupported(adapters):
+        """Why one stacked pinned drive could NOT reproduce these adapters exactly; None when it can.
+
+        ``_bam_motor_kernel`` seeds the lag draw with
+        ``rand_init(seed, (i // env_dof_stride) * 7919 + step)`` and ``_bam_state_reset_kernel``
+        draws the phase from ``rand_init(seed, i // env_dof_stride)``: a private drive is block
+        0, row k of a stacked drive is block k, so a stochastic delay would give row k another
+        lag sequence. A delay-free drive never consults either draw. The scalar settings shared
+        by every DOF of one drive (``DriveBam.SHARED_PARAMS``) and ``physics_dt`` must agree.
+        """
+        adapters = tuple(adapters)
+        if not adapters or any(not isinstance(adapter, NewtonBamAdapter) for adapter in adapters):
+            raise ValueError("a BAM cohort requires NewtonBamAdapter instances")
+        first = adapters[0]._drive
+        for name in sorted(first.SHARED_PARAMS):
+            if any(getattr(adapter._drive, name) != getattr(first, name) for adapter in adapters[1:]):
+                return f"cohort adapters differ in the shared drive setting {name}"
+        if any(adapter._params["physics_dt"] != adapters[0]._params["physics_dt"] for adapter in adapters[1:]):
+            return "cohort adapters differ in physics_dt"
+        if first.max_delay != 0 or first.delay_update_period != 0:
+            return ("cohort requires a delay-free drive (max_delay == 0, delay_update_period == 0): the pinned "
+                    "kernels seed the command-delay draws by DOF block, so a stacked row would not reproduce "
+                    "a private drive's lag stream")
+        return None
+
+    def _scatter(self, destination, values):
+        self._wp.copy(self._wp.indexedarray(destination, [self._scatter_indices]), values)
+
+    def _refuse_nonfinite(self, array, message):
+        """The cohort's own host read of one stacked output (no output check): raise naming the member."""
+        import numpy as np
+        finite = np.isfinite(array.numpy())
+        if not finite.all():
+            row = int(np.flatnonzero(~finite)[0]) // self.stride
+            raise ValueError(f"{message} (robot {self.labels[row]}, row {row})")
+
+    def before_step(self, dt, *, snapshot=None, output_check=None):
+        """Prepare every member's effort/friction for ONE external solver step; never step it.
+
+        Same contract as ``NewtonBamAdapter.before_step`` for every member at once: the caller
+        aborts the physics step on any exception. ``snapshot`` is captured here when absent;
+        with ``output_check`` the caller MUST ``verify()`` after this call and BEFORE the solve.
+        """
+        if snapshot is None:
+            snapshot = BamHostSnapshot(self.stage)
+        # 1. Every member's host-side checks, verbatim and in order; a refusal leaves nothing written.
+        count = state = None
+        for adapter in self.adapters:
+            count, state = adapter._before_step_checks(dt, snapshot, output_check)
+        if output_check is not None:
+            output_check.rows_for(self)  # every member registered, same stage; before any mark
+        # 2. The device stages, once for the fleet.
+        drive = self._drive
+        skipping = [adapter for adapter in self.adapters if adapter._skip_external_once]
+        if len(skipping) == self.rows:
+            drive.external_torque.zero_()  # first step after every member's reset: no stale load gathered
+        else:
+            self._bridge.gather_external_torque(drive.external_torque)
+            for adapter in skipping:
+                adapter._drive.external_torque.zero_()  # that member's row view
+        if output_check is None:
+            self._refuse_nonfinite(drive.external_torque, "nonfinite previous external torque")
+        else:
+            output_check.mark_cohort_external_torque(self, drive.external_torque)
+        drive.compute(state.joint_q, state.joint_qd, self._targets, self._targets, None,
+                      self._q_indices, self._dof_indices, self._target_indices, self._target_indices,
+                      self._forces, self._state, float(dt), self._device)
+        if output_check is None:
+            for output in (self._forces, drive.motor_torque, drive.effective_vin, drive.friction_budget):
+                self._refuse_nonfinite(output, "nonfinite native BAM output; solver must not step")
+        else:
+            output_check.mark_cohort_outputs(self, self._forces, drive.motor_torque, drive.effective_vin,
+                                             drive.friction_budget)
+        self._bridge.publish_dof_friction(drive.friction_budget)
+        self._scatter(self.stage.control.joint_f, self._forces)
+        drive.update_state(self._state, self._state)
+        for adapter in self.adapters:
+            adapter._stepped(count)

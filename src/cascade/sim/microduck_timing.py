@@ -243,14 +243,21 @@ def instrument_owner(profile, owner, steppers, *, sync_solve=False, synchronize=
     overrides the device wait (tests); the default synchronizes the owner's
     Newton model device through Warp. ``fleet`` (the ``SharedMicroduckStepper``)
     adds the ``bam.verify`` span: the cohort's single device read of the BAM
-    output flags between the last ``bam.before_step`` and ``solve``.
+    output flags between the last ``bam.before_step`` and ``solve``. When the
+    fleet actuates through a ``BamCohort`` (``fleet.cohort``), its single
+    ``before_step`` is the ``bam.before_step`` span -- one span for the fleet
+    instead of one per robot, so an A/B sums like with like -- and the per-robot
+    ``before_step`` (never called on that path) is left unwrapped.
     """
     from . import microduck_contact_support as support, microduck_shared_native as native
 
     profile.wrap(support, 'read_support', 'support.decode')
     profile.wrap(native, '_read_native_states', 'native.capture')
+    cohort = getattr(fleet, 'cohort', None) if fleet is not None else None
     if fleet is not None:
         profile.wrap(fleet, '_verify_outputs', 'bam.verify')
+    if cohort is not None:
+        profile.wrap(cohort, 'before_step', 'bam.before_step')
     if sync_solve:
         wait = synchronize
         if wait is None:
@@ -275,4 +282,5 @@ def instrument_owner(profile, owner, steppers, *, sync_solve=False, synchronize=
                             ('_commit_tick', 'publication')):
             profile.wrap(stepper, name, phase, robot)
         profile.wrap(stepper.actuator, 'set_targets', 'bam.targets', robot)
-        profile.wrap(stepper.actuator, 'before_step', 'bam.before_step', robot)
+        if cohort is None:
+            profile.wrap(stepper.actuator, 'before_step', 'bam.before_step', robot)

@@ -535,6 +535,13 @@ def build_runtime(
     if not b["occupancy_live"] and occupancy is not None:
         print("[cascade] WARNING: occupancy is enabled in config but no bridge answered -- "
               "the clearance gate is OFF (start scripts/serve_occupancy.sh)", file=sys.stderr)
+    # Capability matrix (ROADMAP #12, Waddle): what this rig can do, read
+    # from the probed state above -- camera depth chain, sidecars, arms,
+    # verifier, memory. The MCP server trims its tool surface by it; the
+    # line here is what makes a withheld tool visible to the operator.
+    from .capabilities import capability_matrix, format_matrix
+
+    print(f"[cascade] capabilities: {format_matrix(capability_matrix(runtime))}")
     return runtime, arm
 
 
@@ -580,6 +587,12 @@ def _runtime_state(runtime) -> dict:
         # verified sidecars (grasp planner / occupancy) -- what is REALLY on
         "backends": runtime.backends(),
     }
+    # what this rig can do, from probed state (apps/capabilities.py): the
+    # dashboard shows it next to `backends`, so a tool the MCP server
+    # withholds is explained where the operator is already looking
+    from .capabilities import capability_matrix
+
+    out["capabilities"] = capability_matrix(runtime)
     if runtime.watcher is not None:
         out["perception"] = runtime.watcher.stats()
     return out

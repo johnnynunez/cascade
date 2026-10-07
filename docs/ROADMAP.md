@@ -450,9 +450,28 @@ Open follow-ups from this work:
 11. **Pigey snapshot/restore + occlusion search** as composite skills over
     `BeliefStore` (`snapshot_scene`/`restore_scene`, `search_for_object`):
     the one demo beat visible from chat that no current skill covers. (M)
-12. **Capability matrix → tool surface (Waddle).** Compute `_EXCLUDED_TOOLS`
+12. ~~**Capability matrix → tool surface (Waddle).** Compute `_EXCLUDED_TOOLS`
     from what the rig can do (depth, sidecars, n_arms) instead of
-    `CASCADE_HIDE_TOOLS` by hand. (S)
+    `CASCADE_HIDE_TOOLS` by hand. (S)~~ **landed 2026-10-07** —
+    `apps/capabilities.py` derives the matrix from the BUILT runtime's probed
+    state (per-camera depth chain via `DepthProvider.depth_source_for`, the
+    sidecar probes behind `runtime.backends()`, `ArmRig` length, bases,
+    verifier, memory; tri-state, unknown never withholds) and
+    `TOOL_REQUIREMENTS` trims the MCP catalog by it: RGB-only rig → the 3D
+    tools are withheld and rejected with the reason, single arm → `list_arms`
+    and the injected `arm` parameter go, dead GraspGen-X/occupancy → reported
+    fallback, nothing hidden; `CASCADE_HIDE_TOOLS` stays the operator
+    override, `_EXCLUDED_TOOLS` keeps `task_done` out. Reported in the
+    `[cascade] capabilities:` banner, `/state`, `world_state.tools_withheld`
+    and the server log; a catalog listed before the build is refreshed via
+    `notifications/tools/list_changed`. Measured on the mock stack over real
+    JSON-RPC (`tests/test_mcp_server.py`, 10 new tests, each RED on main):
+    `mock_rgb` withholds 13 tools and keeps 28 RGB/motion tools, a table
+    plane keeps the grasp tools and withholds only `place_on_object` (and
+    `list_arms`, one arm), the
+    default rig lists 40 of 41, `CASCADE_ARMS=so101_left,so101_right` lists
+    all 41 with `list_arms` naming both arms. No skill, limit or asset
+    changed; nothing here was run on a physical rig.
 13. **`recall_step(n)` + a `stuck` outcome (RPent).** Trace keyframes already
     exist per step; expose them, and let motion skills return a human-
     actionable ask distinct from failure. (S)

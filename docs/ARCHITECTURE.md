@@ -129,8 +129,9 @@ shared boundary is `RobotRuntime.execute()`, as shown in the
               apps/mcp_server.py  ── 41 tools ──┐                  agent/orchestrator.py
               (34 specs − task_done              │                  tier 1 REFLEX   regex grammar      ~µs
                + 8 host extras: camera_snapshot, │                  tier 2 HABIT    experience memory  ~ms
-               world_state, task_memory, ...)    │                  tier 3 LLM      + memory harness   2–15 s/turn
-                                                 ▼                            │
+               world_state, task_memory, ...;    │                  tier 3 LLM      + memory harness   2–15 s/turn
+               minus what the rig's capability   │
+               matrix withholds, with reasons)   ▼                            │
                               skills/runtime.py  SkillRuntime.execute()  ◀────┘
                               ONE choke point: arm selection, BEFORE keyframe, watcher pause,
                               skill body, postcondition VERIFY, envelope, AFTER keyframe,
@@ -533,6 +534,7 @@ src/cascade/
 └── apps/
     ├── demo.py         build_runtime() = the composition root; CLI --task / --interactive
     ├── mcp_server.py   MCP stdio front-end: 41 tools, out-of-band stop, per-call log
+    ├── capabilities.py capability matrix from the built runtime; TOOL_REQUIREMENTS trims the MCP catalog
     ├── process_owner.py profile-owned process identity for shutdown and proof binding
     ├── stream_server.py lazy MJPEG dashboard (+ chat, STOP)     live_view.py  RigViewer
     ├── live_control.py viewer-driven control        record.py / viewer.py  capture / view
@@ -659,6 +661,17 @@ openai|local_*`) cascade runs its own loop with all three tiers.
 - **A claim is not a fact.** Every effect is verified on an independent
   channel when one exists, and the verdict travels with the result, into
   the trace, into memory and to the judge.
+- **The tool surface is derived, not declared.** `apps/capabilities.py`
+  reads the BUILT runtime -- the depth chain each camera stream really
+  produces (`DepthProvider.depth_source_for`), the sidecar probes behind
+  `runtime.backends()`, the `ArmRig`, the verifier, the memory -- and
+  `TOOL_REQUIREMENTS` names what each tool cannot run without. The MCP
+  server withholds (and rejects if called) only what probed state shows
+  unmet; unknown is not unavailable, a fallback (OBB for a dead GraspGen-X)
+  is reported, never hidden, and the stop path is never a capability. The
+  matrix is printed next to `backends:`, served by `/state` and by
+  `world_state` with every withheld tool's reason. `CASCADE_HIDE_TOOLS`
+  remains the explicit operator override on top.
 - **Memory is structured first, embeddings second.** Recall tools work on
   labels/time/positions; the TurboQuant index has one live consumer (tier
   2). Frames -- not text -- are what the planner is shown of its own past.
@@ -720,4 +733,8 @@ EOF
 ```
 
 `tests/test_llm_and_library.py` pins the README's headline skill and tool
-counts to these derived numbers, so a drift there fails the suite.
+counts to these derived numbers, so a drift there fails the suite. The
+MCP count is the FULL catalog; a running server lists it minus what the
+rig's capability matrix withholds (`world_state.tools_withheld` names them,
+e.g. 40 on a single-arm rig), so compare `mcp probe --json` against
+`41 - len(tools_withheld)`, not against 41.

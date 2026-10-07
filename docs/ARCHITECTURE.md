@@ -557,7 +557,7 @@ src/cascade/
 │   ├── effects.py      PostconditionChecker + annotate_result (Pigey closed loop; `restored`/`searched` for the composites)
 │   ├── milestones.py   checkable milestones: symbolic first, VLM second, UNKNOWN honest;
 │   │                   + advisory pre-motion plausibility critic (never a veto)
-│   ├── llm.py          OpenAI-compat (cloud/local) / Anthropic / Cosmos3 / Mock
+│   ├── llm.py          OpenAI-compat (cloud/local) / Anthropic / Codex CLI (GPT-6-Astra via `codex exec`, no API key) / Cosmos3 / Mock
 │   ├── cosmos3.py      Cosmos3-Edge XML tool-call dialect
 │   ├── prompts.py / advisor.py   persona, decomposition, VLM critic
 │   ├── aspire.py       post-run diagnosis → skill-library note
@@ -673,8 +673,14 @@ Hosts: OpenClaw (native `mcp.servers`), Hermes (`~/.hermes/config.yaml`),
 Claude Code (`.mcp.json`), Claude Desktop, Codex -- all via
 `scripts/setup_agents.py`. Host and brain are different roles: as a host
 the platform's LLM picks tools and cascade's tiers are bypassed
-(`llm=mock` inside the server); as a brain (`--llm hermes|anthropic|
-openai|local_*`) cascade runs its own loop with all three tiers.
+(`llm=mock` inside the server); as a brain (`--llm codex_astra|hermes|
+anthropic|openai|local_*`) cascade runs its own loop with all three tiers.
+Codex can be either: `--codex-profile NAME` registers the tool server in a
+`codex -p NAME` layer (host), while `codex_astra` runs GPT-6-Astra as the
+brain through a `codex exec` subprocess per step -- `--ignore-user-config`,
+so that session never sees the user's own MCP servers and cannot reach the
+robot except through cascade's harness; `--llm auto` picks it first when
+the CLI is logged in.
 
 ## Key decisions (still load-bearing)
 

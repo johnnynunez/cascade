@@ -1,4 +1,5 @@
-"""Hermes/Nous Portal as the default brain, and `--llm auto`.
+"""Hermes/Nous Portal as the default API-key brain, Codex as the default
+subscription brain, and `--llm auto`.
 
 The risk here is not a crash. It is that `--llm auto` picks a paid endpoint when
 someone expected the offline mock, or picks mock when they expected their
@@ -6,6 +7,9 @@ configured brain -- both quiet, and one of them costs money.
 """
 
 from __future__ import annotations
+
+import json
+import stat
 
 import pytest
 
@@ -17,13 +21,35 @@ ALL_KEYS = [key for _, key in AUTO_LLM_PROFILES]
 
 
 @pytest.fixture(autouse=True)
-def _no_ambient_credentials(monkeypatch):
-    """A developer's exported ANTHROPIC_API_KEY must not change what this suite
-    certifies -- otherwise `auto` is tested as whatever the machine happens to
-    have."""
+def _no_ambient_credentials(monkeypatch, tmp_path):
+    """A developer's exported ANTHROPIC_API_KEY -- or the Codex login in his
+    ~/.codex/auth.json -- must not change what this suite certifies; otherwise
+    `auto` is tested as whatever the machine happens to have."""
     monkeypatch.delenv(LLM_ENV, raising=False)
     for key in ALL_KEYS:
         monkeypatch.delenv(key, raising=False)
+    # Codex auth detection reads $CODEX_HOME/auth.json: point it at nothing.
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "no-codex-home"))
+    monkeypatch.delenv("CASCADE_CODEX_BIN", raising=False)
+
+
+def _codex_login(tmp_path, monkeypatch, with_binary: bool = True):
+    """Simulate a logged-in Codex CLI without touching the real ~/.codex."""
+    home = tmp_path / "codex-home"
+    home.mkdir(exist_ok=True)
+    (home / "auth.json").write_text(json.dumps(
+        {"auth_mode": "chatgpt", "OPENAI_API_KEY": None,
+         "tokens": {"access_token": "test-token", "refresh_token": "r", "account_id": "a"}}))
+    monkeypatch.setenv("CODEX_HOME", str(home))
+    if with_binary:
+        fake = tmp_path / "codex"
+        fake.write_text("#!/bin/sh\nexit 0\n")
+        fake.chmod(fake.stat().st_mode | stat.S_IXUSR)
+        monkeypatch.setenv("CASCADE_CODEX_BIN", str(fake))
+    else:
+        # neither the override nor anything on PATH
+        monkeypatch.setenv("PATH", str(tmp_path / "empty-path"))
+        monkeypatch.delenv("CASCADE_CODEX_BIN", raising=False)
 
 
 def test_auto_falls_back_to_mock_with_no_credentials():
@@ -33,7 +59,8 @@ def test_auto_falls_back_to_mock_with_no_credentials():
 
 def test_auto_picks_hermes_first():
     """Hermes is the project default host; one Portal subscription covers both
-    it and this brain profile."""
+    it and this brain profile. First among the API-key profiles: the Codex
+    login check below runs before this table."""
     assert AUTO_LLM_PROFILES[0] == ("hermes", "NOUS_API_KEY")
 
 
@@ -69,6 +96,57 @@ def test_blank_credentials_do_not_count(monkeypatch):
     present turns a mock run into a 401."""
     monkeypatch.setenv("NOUS_API_KEY", "   ")
     assert resolve_llm_profile("auto") == "mock"
+
+
+# ── Codex first ──────────────────────────────────────────────────────────
+
+
+def test_auto_picks_codex_astra_first_when_codex_is_logged_in(tmp_path, monkeypatch):
+    """User decision: GPT-6-Astra through the Codex subscription is now the
+    brain. A logged-in Codex CLI outranks every exported API key."""
+    _codex_login(tmp_path, monkeypatch)
+    assert llm_mod.codex_auth_present() is True
+    assert resolve_llm_profile("auto") == llm_mod.AUTO_LLM_CODEX_PROFILE == "codex_astra"
+    for k in ALL_KEYS:
+        monkeypatch.setenv(k, "sk-test")
+    assert resolve_llm_profile("auto") == "codex_astra"
+
+
+def test_codex_login_without_the_cli_does_not_capture_auto(tmp_path, monkeypatch):
+    """A leftover ~/.codex/auth.json on a box whose Codex CLI is gone must not
+    send `auto` into a RuntimeError; it degrades to the API-key order."""
+    _codex_login(tmp_path, monkeypatch, with_binary=False)
+    assert llm_mod.codex_auth_present() is True
+    assert resolve_llm_profile("auto") == "mock"
+    monkeypatch.setenv("NOUS_API_KEY", "sk-test")
+    assert resolve_llm_profile("auto") == "hermes"
+
+
+def test_a_codex_login_without_a_token_is_not_a_login(tmp_path, monkeypatch):
+    _codex_login(tmp_path, monkeypatch)
+    (tmp_path / "codex-home" / "auth.json").write_text(
+        json.dumps({"auth_mode": "chatgpt", "OPENAI_API_KEY": None, "tokens": {}}))
+    assert llm_mod.codex_auth_present() is False
+    assert resolve_llm_profile("auto") == "mock"
+
+
+def test_an_explicit_profile_still_pins_over_codex(tmp_path, monkeypatch):
+    _codex_login(tmp_path, monkeypatch)
+    assert resolve_llm_profile("hermes") == "hermes"
+    assert resolve_llm_profile("mock") == "mock"
+    monkeypatch.setenv(LLM_ENV, "local_qwen")
+    assert resolve_llm_profile("auto") == "local_qwen"
+
+
+def test_codex_astra_profile_exists_and_names_no_credential():
+    path = CONFIG_DIR / "llm" / f"{llm_mod.AUTO_LLM_CODEX_PROFILE}.yaml"
+    assert path.exists()
+    cfg = load_profile("llm", llm_mod.AUTO_LLM_CODEX_PROFILE)
+    assert cfg.get("type") == "codex_exec"
+    assert cfg.get("model") == "gpt-6-astra"
+    assert cfg.get("api_key") is None and cfg.get("api_key_env") is None
+    text = path.read_text()
+    assert "OPENAI_API_KEY" in text, "the header must say why no API key is involved"
 
 
 # ── the profile itself ───────────────────────────────────────────────────

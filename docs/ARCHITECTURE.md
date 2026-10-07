@@ -201,8 +201,9 @@ tier or host. In order:
 1. `arm=` popped from the args and bound thread-locally for this call
    (multi-arm; `""`/`default` = primary; unknown name = `SkillError`).
 2. BEFORE keyframe (a fresh frame if none exists -- the first skill of a
-   run used to record `null`); a `PostconditionChecker.snapshot()` of the
-   target object.
+   run used to record `null`); for motion skills also one wrist keyframe
+   per `role: wrist` / eye-in-hand stream in the rig; a
+   `PostconditionChecker.snapshot()` of the target object.
 3. Watcher paused for motion skills; the skill body runs; every exception
    becomes `{"ok": false, "error": ...}` -- nothing escapes by design.
 4. **Postcondition verification** (`agent/effects.py`): the effect is
@@ -215,7 +216,9 @@ tier or host. In order:
 5. Envelope update (`memory/envelope.py`), AFTER keyframe -- a FRESH frame
    for motion skills, taken after the arm stopped (the pre-motion
    `last_frame` graded the logger, not the robot, and an outcome judge
-   scored 0% on a confirmed pick).
+   scored 0% on a confirmed pick); the wrist AFTER frames follow the same
+   fresh-grab rule, and a wrist camera that fails is dropped from the row,
+   never a reason to fail the skill.
 6. Trace row (`trace.jsonl`, with `tier`), and the Vesta memory tuple:
    AFTER frame + action text + independent verdict.
 
@@ -446,7 +449,14 @@ GRM or any OpenAI-compatible VLM. It runs **off the hot path**
 (`scripts/judge_run.py` over a finished run dir) and is calibrated against
 the physics postcondition per step (confusion matrix in the run summary).
 The first honest number on this rig: +0.45 on a physics-confirmed pick
-after the AFTER-keyframe fix; 0.00 before it.
+after the AFTER-keyframe fix; 0.00 before it. The prompt's two WRIST slots
+are filled from the rig's wrist keyframes when the trace has them
+(`keyframe_{before,after}_wrists`, written for motion skills on any rig
+with a `role: wrist` / eye-in-hand camera -- `mujoco_wrist` renders one
+from the SO-101 gripper body); otherwise the front image is repeated, and
+every record names which it was (`wrist_slots`, `wrist=` in the summary).
+No agreement change is claimed from the wrist view until the judge is
+re-run with it.
 
 ## Module map
 

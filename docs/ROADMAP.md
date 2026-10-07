@@ -586,10 +586,29 @@ Open follow-ups from this pass:
     vLLM (`--limit-mm-per-prompt image=8`) on the Spark/Jetson and re-run
     `judge_run.py --judge grm` over the same runs; compare its
     judge-vs-physics agreement with the API VLM's. (S once the box is up)
-15. **Wrist camera for the judge.** GRM's prompt reserves two wrist slots;
+15. ~~**Wrist camera for the judge.** GRM's prompt reserves two wrist slots;
     the SO-101 has none, so both repeat the front view. A wrist `<camera>`
     in the MJCF scene (and `Frame` wrists in `build_images`) would exercise
-    the model as trained. (S)
+    the model as trained. (S)~~ **landed 2026-10-07** —
+    `configs/cameras/mujoco_wrist.yaml` (`type: mujoco`, `role: wrist`,
+    `mj_attach: {body: gripper, T}`): `write_demo_scene` declares the
+    `<camera>` inside the SO-101 gripper body through a verbatim ElementTree
+    copy of the robot's include chain (asset untouched; compiled physics
+    pinned exactly equal to the plain scene plus one camera), the runtime
+    writes `keyframe_{before,after}_wrists` per motion skill, and `judge_run`
+    fills the wrist slots from them (one stream → both slots; none → the
+    documented front repeat), with every record naming the slot sources
+    (`StepVerdict.wrist_slots`, `wrist=` in the summary line). Measured on
+    the rendered world (`tests/test_wrist_camera.py`, EGL): gripper subtree
+    = 33,973 px of the wrist frame at every pose; red-cube bbox in the wrist
+    frame 46,410 px at TCP z = 0.08 m and 66,123 px at z = 0.05 m over the
+    prop (absent at home), straddling the frame centre between the jaws,
+    while the front camera loses the prop under the arm. **Not claimed:** any
+    change in judge-vs-physics agreement (no GRM/VLM re-run; #14 still
+    pending), a hand-eye calibration for the wrist view (no `extrinsics`, no
+    fusion; the wrist-cam extrinsics follow-up stays open), or Isaac/real-rig
+    wrist keyframes (eye-in-hand profiles qualify via `is_wrist_view`, but
+    the extra per-skill grab was not measured on the bridge).
 16. **nvblox on aarch64.** No wheel for Jetson (JetPack 7) as of v0.0.10;
     track the release and switch `auto` to prefer it there once it exists —
     the backend code already runs it. (blocked upstream)

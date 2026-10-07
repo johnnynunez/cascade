@@ -15,12 +15,18 @@ skills tiers have none).
 
 What it judges here. The runtime already saves a BEFORE and an AFTER
 keyframe per skill call (`skills/runtime.py`, `trace.jsonl` rows carry
-`keyframe_before` / `keyframe_after`). The judge scores each pair with the
-GRM prompt VERBATIM (examples/inference.py in the upstream repo; single-view
-= the front image repeated for the two wrist slots, blank goal when no
-reference end image exists -- both are documented upstream usages of
-GRM-2.0), then folds the per-skill hops into a run progress curve with the
-upstream fusion arithmetic.
+`keyframe_before` / `keyframe_after`), and on a rig with a wrist view
+(`configs/cameras/mujoco_wrist.yaml`, or an eye-in-hand profile) the same
+rows carry `keyframe_before_wrists` / `keyframe_after_wrists`. The judge
+scores each pair with the GRM prompt VERBATIM (examples/inference.py in the
+upstream repo): the wrist slots show the rig's real wrist frames when the
+trace has them (one wrist stream fills both slots, two fill left/right --
+`wrist_slots`), and otherwise the front image repeated, upstream's
+documented single-view usage; blank goal when no reference end image
+exists. Every record names which slots were real wrist views
+(`StepVerdict.wrist_slots`, `wrist=` in the summary line). The per-skill
+hops are then folded into a run progress curve with the upstream fusion
+arithmetic.
 
 Why it is worth having next to the physics channel. Cascade's postcondition
 verifier returns `confirmed` / `refuted` from an independent ground-truth
@@ -55,7 +61,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Sequence
 
 import numpy as np
 
@@ -119,6 +125,11 @@ Return ONLY one line containing the score wrapped in <score> tags, as an integer
 N_IMAGES = 8  # the prompt has exactly eight <image> slots
 _SCORE_RE = re.compile(r"<score>\s*([+-]?\d+(?:\.\d+)?)\s*%?\s*</score>", re.IGNORECASE)
 
+#: What a wrist slot shows when the rig has no wrist view: the FRONT image
+#: repeated (upstream's documented single-view usage). Named in every judge
+#: record so a score can never be mistaken for one that saw the gripper.
+FRONT_REPEAT = "front-repeat"
+
 
 class JudgeError(RuntimeError):
     pass
@@ -162,16 +173,49 @@ def blank_image_jpeg(size: tuple[int, int] = (64, 64)) -> bytes:
     return bytes(buf)
 
 
+def wrist_slots(wrist_names: Sequence[str] | None) -> dict[str, str]:
+    """Which camera fills each of the prompt's two wrist slots, given the
+    wrist streams that have a frame for this step (rig order).
+
+    No wrist stream: both slots repeat the FRONT image (`FRONT_REPEAT`,
+    upstream's single-view usage). One stream -- the single-arm case, e.g.
+    `mujoco_wrist` -- fills BOTH slots: the prompt reads the wrist views for
+    "fine-grained gripper state", and the one wrist view the rig has is that
+    evidence twice rather than once beside a front repeat. Two or more:
+    first = left, second = right; any further stream is not shown. The dict
+    goes into the judge record verbatim, so the record always names which
+    slots were real wrist views.
+    """
+    names = [str(n) for n in (wrist_names or [])]
+    if not names:
+        return {"left": FRONT_REPEAT, "right": FRONT_REPEAT}
+    if len(names) == 1:
+        return {"left": names[0], "right": names[0]}
+    return {"left": names[0], "right": names[1]}
+
+
+def _wrist_pair(frames: Sequence[bytes] | None, front: bytes) -> tuple[bytes, bytes]:
+    """The two wrist slot images, by the same rule as `wrist_slots`."""
+    frames = list(frames or [])
+    if not frames:
+        return front, front
+    if len(frames) == 1:
+        return frames[0], frames[0]
+    return frames[0], frames[1]
+
+
 def build_images(before: bytes, after: bytes, *, ref_start: bytes | None = None,
                  ref_end: bytes | None = None,
-                 before_wrists: tuple[bytes, bytes] | None = None,
-                 after_wrists: tuple[bytes, bytes] | None = None) -> list[bytes]:
-    """The 8-image list in prompt order. Single-view rigs repeat the front
-    image into the wrist slots (upstream's documented single-view usage);
-    missing references fall back to `before` (start) and a blank (end)."""
+                 before_wrists: Sequence[bytes] | None = None,
+                 after_wrists: Sequence[bytes] | None = None) -> list[bytes]:
+    """The 8-image list in prompt order. `before_wrists` / `after_wrists`
+    are the rig's wrist frames for the step in rig order (0, 1 or 2 used,
+    see `wrist_slots`); single-view rigs pass none and the front image is
+    repeated into the wrist slots (upstream's documented single-view usage).
+    Missing references fall back to `before` (start) and a blank (end)."""
     blank = blank_image_jpeg()
-    bw = before_wrists or (before, before)
-    aw = after_wrists or (after, after)
+    bw = _wrist_pair(before_wrists, before)
+    aw = _wrist_pair(after_wrists, after)
     return [ref_start if ref_start is not None else before,
             ref_end if ref_end is not None else blank,
             before, bw[0], bw[1], after, aw[0], aw[1]]
@@ -385,6 +429,10 @@ class StepVerdict:
     error: str | None = None
     raw: str | None = None
     response_metadata: dict | None = None
+    #: which camera filled each wrist slot of the prompt ({"left": ..,
+    #: "right": ..}; `FRONT_REPEAT` = the front image repeated); None for
+    #: a step that was not scored
+    wrist_slots: dict | None = None
 
     def agrees_with_physics(self) -> bool | None:
         """Judge says progress (hop > 0) iff physics confirmed. None when
@@ -442,11 +490,24 @@ class RunVerdict:
             d["hop_per_s"] = d["hop_sum"] / d["seconds"] if d["seconds"] > 0 else None
         return out
 
+    def wrist_views(self) -> dict[str, int]:
+        """Scored steps per wrist-slot source: `{"mujoco_wrist": 3,
+        "front-repeat": 1}` means three steps were judged with a real wrist
+        view in the wrist slots and one with the front image repeated. A
+        step with two different wrist streams counts once per stream."""
+        out: dict[str, int] = {}
+        for s in self.steps:
+            if s.hop is None or not s.wrist_slots:
+                continue
+            for src in dict.fromkeys(s.wrist_slots.values()):
+                out[src] = out.get(src, 0) + 1
+        return out
+
     def to_dict(self) -> dict:
         return {
             "run_dir": self.run_dir, "judge": self.judge, "mode": self.mode,
             "final_progress": self.final_progress, "progress": self.progress, "hops": self.hops,
-            "confusion": self.confusion(), "per_tier": self.per_tier(),
+            "confusion": self.confusion(), "per_tier": self.per_tier(), "wrist_views": self.wrist_views(),
             "steps": [s.__dict__ for s in self.steps],
         }
 
@@ -455,13 +516,18 @@ class RunVerdict:
         METRIC next to the physics verdict. `fn` is the number that matters
         -- a physics-confirmed step the pictures did not show as progress is
         a regression in what the robot lets the audience see (and the exact
-        symptom of the byte-identical-keyframe bug that motivated this)."""
+        symptom of the byte-identical-keyframe bug that motivated this).
+        `wrist=` names what the two wrist slots showed (`front-repeat` = no
+        wrist camera on the rig), so a number from a single-view run is never
+        read as one that saw the gripper."""
         c = self.confusion()
         agreement = "n/a" if c["agreement"] is None else f"{c['agreement']:.0%}"
         final = f"{self.final_progress:.2f}" if self.progress else "n/a"
+        wv = self.wrist_views()
+        wrist = ",".join(f"{k}:{v}" for k, v in sorted(wv.items(), key=lambda kv: (-kv[1], kv[0]))) or "n/a"
         return (f"judge={self.judge} mode={self.mode} scored={c['n_scored']}/{len(self.steps)} "
                 f"agreement={agreement} tp={c['tp']} tn={c['tn']} fp={c['fp']} fn={c['fn']} "
-                f"final_progress={final}")
+                f"final_progress={final} wrist={wrist}")
 
     def write(self, run_dir: str | Path | None = None) -> Path:
         """Persist `judge.json` next to the trace and append the metric line to
@@ -523,10 +589,24 @@ def judge_run(run_dir: str | Path, judge: ProgressJudge, mode: str = "incrementa
         if kb and ka and (run_dir / kb).exists() and (run_dir / ka).exists():
             before = (run_dir / kb).read_bytes()
             after = (run_dir / ka).read_bytes()
+            # Wrist views: the runtime writes `{stream: path}` per side for
+            # motion skills on a rig with a wrist camera. Only a stream with
+            # BOTH frames of the pair counts (a wrist camera that died
+            # mid-skill must not pair a real BEFORE with a front AFTER); the
+            # rest of the slots fall back to the front repeat, and the record
+            # names what each slot showed.
+            wb = row.get("keyframe_before_wrists") or {}
+            wa = row.get("keyframe_after_wrists") or {}
+            wrist_names = [n for n in wb if n in wa
+                           and (run_dir / wb[n]).exists() and (run_dir / wa[n]).exists()]
+            before_wrists = [(run_dir / wb[n]).read_bytes() for n in wrist_names] or None
+            after_wrists = [(run_dir / wa[n]).read_bytes() for n in wrist_names] or None
+            sv.wrist_slots = wrist_slots(wrist_names)
             if ref_start is None:
                 ref_start = before  # first BEFORE of the run anchors "just starting"
             try:
-                sv.hop = judge.score(sv.task, before, after, ref_start=ref_start, ref_end=ref_end)
+                sv.hop = judge.score(sv.task, before, after, ref_start=ref_start, ref_end=ref_end,
+                                     before_wrists=before_wrists, after_wrists=after_wrists)
                 raw_scores.append(sv.hop)
             except JudgeError as e:
                 sv.error = str(e)

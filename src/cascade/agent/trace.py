@@ -3,7 +3,12 @@
 Per run directory:
     trace.jsonl   - one JSON record per skill call (args, duration, result,
                     keyframe paths)
-    keyframes/    - JPEG snapshots immediately before/after each call
+    keyframes/    - JPEG snapshots immediately before/after each call; for
+                    motion skills on a rig with a wrist view also one
+                    `<step>_<skill>_{before,after}_wrist_<stream>.jpg` per
+                    wrist stream (`keyframe_before_wrists` /
+                    `keyframe_after_wrists`: `{stream: path}`, null when the
+                    rig has none -- the judge then repeats the front image)
     summary.txt   - final human-readable outcome
 
 ASPIRE's ablation credits this per-primitive evidence with the single largest
@@ -48,6 +53,8 @@ class TraceLogger:
         keyframe_after: str | None = None,
         tier: str | None = None,
         context: dict[str, Any] | None = None,
+        keyframe_before_wrists: dict[str, str] | None = None,
+        keyframe_after_wrists: dict[str, str] | None = None,
     ) -> None:
         rec = {
             "step": self._step,
@@ -60,6 +67,10 @@ class TraceLogger:
             "result": _jsonable(result),
             "keyframe_before": keyframe_before,
             "keyframe_after": keyframe_after,
+            # wrist views, {stream name: path}; null (not {}) when there are
+            # none so a reader can tell "no wrist camera" from "none saved"
+            "keyframe_before_wrists": dict(keyframe_before_wrists) if keyframe_before_wrists else None,
+            "keyframe_after_wrists": dict(keyframe_after_wrists) if keyframe_after_wrists else None,
         }
         with open(self._trace_path, "a") as f:
             f.write(json.dumps(rec) + "\n")

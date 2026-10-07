@@ -69,6 +69,30 @@ class CameraBase(abc.ABC):
         self.close()
 
 
+def is_wrist_view(cfg) -> bool:
+    """Does this camera profile look out of the robot's hand?
+
+    Two explicit declarations count, nothing is inferred from a name:
+    `role: wrist` (a view that follows the gripper but carries no hand-eye
+    calibration, e.g. the rendered `mujoco_wrist`) or `extrinsics.mode:
+    eye_in_hand` (a calibrated wrist camera such as `isaac_wrist` /
+    `d455f_wrist`, whose extrinsics already say the camera is on the hand).
+
+    The runtime uses this to record the stream's frames as WRIST keyframes
+    next to the front ones for motion skills, which is what fills the
+    outcome judge's two wrist slots (eval/progress_judge.py) with real wrist
+    views instead of the front image repeated. Works on a `Cfg` or a plain
+    mapping; anything else is not a wrist view.
+    """
+    if cfg is None or not hasattr(cfg, "get"):
+        return False
+    if str(cfg.get("role", "")).lower() == "wrist":
+        return True
+    extr = cfg.get("extrinsics")
+    return bool(extr is not None and hasattr(extr, "get")
+                and str(extr.get("mode", "")).lower() == "eye_in_hand")
+
+
 def make_camera(cfg: Cfg) -> CameraBase:
     """Instantiate a camera backend from a camera profile config."""
     kind = cfg.type

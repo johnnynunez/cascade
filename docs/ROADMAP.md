@@ -453,9 +453,29 @@ What landed, all measured on this CUDA-less Mac (suite 623 → 639 passed,
   0.050) m"; a chat-driven `pick_and_place` executed in physics.
 
 Open follow-ups from this work:
-9. **Task-Specific Memory recipes (Harness-VLA v4).** Store successful runs
+9. ~~**Task-Specific Memory recipes (Harness-VLA v4).** Store successful runs
    with xyz replaced by `localize_object(label)+offset` queries and re-ground
-   at replay; this is the shape for #8 and fixes tier-2's text keys. (M)
+   at replay; this is the shape for #8 and fixes tier-2's text keys. (M)~~
+   **landed 2026-10-07.** `memory/recipes.py` + tier-2 `ExperienceMemory`:
+   a VERIFIED LLM-tier run is stored as a recipe (`runs/recipes.jsonl`, one
+   per line, beside `experience.json`) whose motion steps carry
+   `{"$target": {"query": "localize_object", "label", "offset_m"}}` where the
+   run had `place_at` coordinates — anchored on an object perceived before
+   the first motion, preferring a non-held anchor (the bowl) over the
+   manipulated object's own start pose; drop-zone names and labels stay
+   symbolic; a coordinate with no anchor refuses the whole recipe rather
+   than storing a raw value. At a tier-2 hit the orchestrator grounds every
+   query through the runtime's `localize_object` BEFORE any motion; a query
+   that fails aborts the replay to the LLM tier with a note and zero motion
+   (there is no stored coordinate to fall back to), and a replay outcome
+   never overwrites the stored queries with the grounded coordinates.
+   Measured on the mock stack with the cube rendered 6 cm from where the
+   recipe was learned: the replay re-grounds, places relative to the NEW
+   position, never calls the LLM; an anchor missing from the table aborts
+   with no `_MOTION_SKILLS` call executed; pre-recipe `experience.json`
+   entries load and replay unchanged (`tests/test_task_recipes.py`, RED 15
+   failed on main → GREEN). Still advisory: the harness vets every grounded
+   motion; this is not a physical acceptance of any task.
 10. **ASPIRE cross-task promotion gate.** `agent/aspire.py`: promote a
     distilled skill only when seen in ≥2 distinct tasks (`occurrences`,
     `source_tasks`); the scoped retry-admission gate still permits retrieval

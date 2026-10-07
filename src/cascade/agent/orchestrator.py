@@ -32,7 +32,8 @@ import time
 from dataclasses import dataclass, field
 
 from ..conversation.receipts import agent_tool_output
-from ..skills.runtime import TOOL_SPECS, SkillRuntime
+from ..memory import recipes
+from ..skills.runtime import TOOL_SPECS, SkillRuntime, _MOTION_SKILLS
 from .advisor import Advisor
 from .aspire import retrieve as retrieve_skills
 from .llm import LLMClient, LLMResponse
@@ -207,6 +208,10 @@ class AgentOrchestrator:
 
         consecutive_failures = 0
         stalled_turns = 0
+        #: Task-Specific Memory: the scene as perceived BEFORE the first
+        #: motion, so a successful run can be stored with its coordinates
+        #: expressed relative to objects (memory/recipes.py), never raw.
+        scene0: list[dict] | None = None
         for step in range(1, self.max_steps + 1):
             resp = self.llm.chat(
                 system=self.system_prompt,
@@ -231,6 +236,8 @@ class AgentOrchestrator:
             messages.append(
                 {"role": "assistant", "content": resp.text, "tool_calls": list(resp.tool_calls)}
             )
+            if scene0 is None and call.name in _MOTION_SKILLS:
+                scene0 = self._scene_snapshot()
             self.runtime.current_tier = "llm"
             try:
                 result = self.runtime.execute(call.name, call.arguments)
@@ -245,7 +252,14 @@ class AgentOrchestrator:
                 task_verifier = getattr(self.runtime, "unverified_actions", None)
                 if task_verifier is not None:
                     success = success and result.get("success") is True
-                return self._finish_report(task, success, summary, step, milestones, tool_log, t_start)
+                report = self._finish_report(task, success, summary, step, milestones, tool_log, t_start)
+                if report.success:
+                    # Only a VERIFIED success is worth remembering: the
+                    # report's success already folds in every unverified
+                    # effect obligation, so an unconfirmed pick never
+                    # becomes a habit (same rule the fast tier applies).
+                    self._remember_recipe(task, tool_log, scene0, report)
+                return report
 
             ok = bool(result.get("ok"))
             consecutive_failures = 0 if ok else consecutive_failures + 1
@@ -420,17 +434,38 @@ class AgentOrchestrator:
             return None, None
         if tool_log is None:
             tool_log = []
-        for i, (name, args) in enumerate(plan.calls, start=1):
+        # Task-Specific Memory (Harness-VLA v4, memory/recipes.py): a
+        # recalled recipe carries perception QUERIES where the original run
+        # had coordinates. Every one of them is re-grounded through the
+        # runtime's own perception NOW, before the first motion. A query
+        # that does not resolve aborts the whole replay to the LLM tier --
+        # there is no stored coordinate to fall back to, by construction.
+        calls = plan.calls
+        n_grounded = 0
+        if plan.needs_grounding:
+            try:
+                calls, n_grounded = self._ground_recipe(plan, tool_log)
+            except recipes.GroundingError as e:
+                note = (
+                    f"(A remembered {plan.source} recipe for this command could not be "
+                    f"re-grounded on the current scene: {e}. No motion was attempted; "
+                    "observe and plan from what is actually on the table.)"
+                )
+                return None, note
+        offset = len(tool_log)
+        for i, (name, args) in enumerate(calls, start=1):
             self.runtime.current_tier = str(plan.source)  # reflex | experience
             try:
                 result = self.runtime.execute(name, args)
             finally:
                 self.runtime.current_tier = None
-            tool_log.append({"step": i, "tier": str(plan.source), "tool": name,
+            tool_log.append({"step": offset + i, "tier": str(plan.source), "tool": name,
                              "args": args, "result": result})
             task_verifier = getattr(self.runtime, "unverified_actions", None)
             unverified = task_verifier() if task_verifier is not None else []
             if not result.get("ok", False) or unverified:
+                # plan.calls, not the grounded `calls`: a recipe's record
+                # must keep its queries.
                 self.fast_planner.note_outcome(
                     task, plan.calls, False, time.monotonic() - t_start
                 )
@@ -441,7 +476,8 @@ class AgentOrchestrator:
                 )
                 return None, note
         duration = round(time.monotonic() - t_start, 2)
-        self.fast_planner.note_outcome(task, plan.calls, True, duration)
+        meta = {"summary": plan.summary} if plan.summary else {}
+        self.fast_planner.note_outcome(task, plan.calls, True, duration, **meta)
         # Agentic-VLA curriculum: credit each sub-goal separately as well, so a
         # clause proven inside this sequence warm-starts any FUTURE task that
         # contains it -- including a different sequence. Without this the
@@ -455,13 +491,86 @@ class AgentOrchestrator:
                 )
         summary = (
             f"done via {plan.source} path in {duration}s: "
-            + "; ".join(f"{n}({_short_args(a)})" for n, a in plan.calls)
+            + "; ".join(f"{n}({_short_args(a)})" for n, a in calls)
         )
+        if n_grounded:
+            summary += (
+                f" (recipe: {n_grounded} perception quer{'y' if n_grounded == 1 else 'ies'} "
+                "re-grounded before motion)"
+            )
         return (
-            self._finish_report(task, True, summary, len(plan.calls), [], tool_log, t_start,
+            self._finish_report(task, True, summary, len(calls), [], tool_log, t_start,
                                 path=plan.source, verify_milestones=False),
             None,
         )
+
+    def _ground_recipe(self, plan, tool_log: list) -> tuple[list, int]:
+        """Resolve a recipe's symbolic targets through `localize_object`.
+
+        Perception only -- `localize_object` is not in `_MOTION_SKILLS` --
+        and every lookup is logged under the plan's tier so the trace shows
+        the replay re-grounded before it moved. Raises GroundingError.
+        """
+        def localize(label: str) -> dict:
+            self.runtime.current_tier = str(plan.source)
+            try:
+                result = self.runtime.execute("localize_object", {"label": label})
+            finally:
+                self.runtime.current_tier = None
+            tool_log.append({"step": len(tool_log) + 1, "tier": str(plan.source),
+                             "tool": "localize_object", "args": {"label": label},
+                             "result": result, "grounding": True})
+            return result
+
+        return recipes.ground(plan.calls, localize)
+
+    def _scene_snapshot(self) -> list[dict]:
+        """Objects the belief store knows right now, as recipe anchors."""
+        beliefs = getattr(self.runtime, "beliefs", None)
+        if beliefs is None:
+            return []
+        try:
+            return [
+                {"label": b.label, "position": [float(v) for v in b.position]}
+                for b in beliefs.all()
+            ]
+        except Exception:  # noqa: BLE001 -- a snapshot failure only costs the recipe
+            return []
+
+    def _remember_recipe(self, task: str, tool_log: list, scene0, report: TaskReport) -> None:
+        """Store a verified LLM-tier run as a Task-Specific Memory recipe.
+
+        Coordinates become `localize_object(label) + offset` queries anchored
+        on the scene before the first motion; a run whose coordinates cannot
+        be anchored is NOT stored (never a raw coordinate), and says so in
+        the episodic memory so the omission is visible.
+        """
+        planner = self.fast_planner
+        if planner is None or getattr(planner, "experience", None) is None:
+            return
+        try:
+            scene = recipes.anchor_scene(tool_log, scene0 or [])
+            steps = recipes.symbolize_run(tool_log, scene)
+        except recipes.RecipeError as e:
+            try:
+                self.runtime.memory.add("note", f"run not kept as a recipe: {e}")
+            except Exception:  # noqa: BLE001
+                pass
+            return
+        except Exception:  # noqa: BLE001 -- memory bookkeeping never fails a finished task
+            return
+        if not steps:
+            return  # nothing moved: an answer, not a recipe
+        first_line = (report.summary or "").strip().splitlines()
+        summary = (first_line[0] if first_line else f"completed: {task}")[:200]
+        run_dir = getattr(getattr(self.runtime, "trace", None), "run_dir", None)
+        try:
+            planner.note_outcome(
+                task, steps, True, report.duration_s,
+                summary=summary, source_run=(run_dir.name if run_dir is not None else None),
+            )
+        except Exception:  # noqa: BLE001
+            pass
 
     def _with_memory_harness(self, messages: list[dict]) -> list[dict]:
         """Messages for THIS planner turn: the conversation with all older

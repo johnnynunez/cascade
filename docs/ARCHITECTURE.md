@@ -165,6 +165,8 @@ N cameras ──CameraStream (thread each, latest-frame slot, drop-stale; render
 chat command ("pick and place the red cube")
    ├─ tier 1 REFLEX   template grammar -> skill plan          agent/reflex.py
    ├─ tier 2 HABIT    hashed-BoW cosine ≥ 0.9, wins > losses  runs/experience.json
+   │                  + recipes (xyz -> perception queries,   runs/recipes.jsonl
+   │                    re-grounded before any motion)        memory/recipes.py
    └─ tier 3 LLM      decomposition + tool loop + advisor     agent/orchestrator.py
         all tiers execute through the same SkillRuntime; every trace row
         records `tier: reflex | experience | llm | mcp-host`
@@ -417,9 +419,9 @@ make that image current by assigning a new timestamp. See
 | `BeliefStore` (`memory/beliefs.py`) | objects: label, colour, 3D, freshness; visible/remembered | persisted across runs (wall-clock stamps, `LOADED_MIN_AGE_S` floor, 6 h max age) | every skill; can inform the agent, can never aim the jaws (`belief_fallback_age_s`) |
 | `EpisodicMemory` text ring | events, outcomes | ~15 s | `recall_memory`, narration |
 | `EpisodicMemory` frame ring | AFTER frame + action + verdict per motion skill | task-scale (600 s), reset per task / by `reset_scene` | `memory_frames(k)`: first frame pinned, uniform sample, newest last → LLM turn (images) and `task_memory` tool |
-| `ExperienceMemory` (`agent/reflex.py`) | command → plan habits, hashed BoW in a TurboQuant index | `runs/experience.json` | tier 2 |
+| `ExperienceMemory` (`agent/reflex.py`) | command → plan habits, hashed BoW in a TurboQuant index; plus Task-Specific Memory **recipes** (verified LLM-tier runs, coordinates replaced by `localize_object(label)+offset` queries + a summary, `memory/recipes.py`) | `runs/experience.json` (habits), `runs/recipes.jsonl` (recipes) | tier 2; a recipe is re-grounded through perception before any motion, a failed grounding aborts to the LLM tier |
 | `GraspOutcomeMemory` | per-object grasp features, wins/losses | `~/.cascade/grasp_memory.json` | grasp re-rank + z-nudge |
-| `OperatingEnvelope` (`memory/envelope.py`) | per-skill outcome statistics and failure classes | `runs/` | planner context, ROADMAP follow-ups |
+| `OperatingEnvelope` (`memory/envelope.py`) | per-skill outcome statistics and failure classes, raw args plus runtime-measured derived features (`DERIVED_FEATURES`: TCP z at close, object height/width, lateral offset; unmeasured → `missing`, never defaulted) | `~/.cascade/envelope.json` (`CASCADE_ENVELOPE_PATH`) | planner context; advisory |
 
 `skills/library.py` stores markdown guidance. Between sessions,
 `agent/aspire.py` admits a failed-then-successful retry only when its skill,
@@ -479,7 +481,8 @@ src/cascade/
 ├── memory/
 │   ├── beliefs.py      object permanence, colour-aware fusion, save/load (wall clock)
 │   ├── episodic.py     text ring (15 s) + frame ring (task-scale) + memory_frames(k)
-│   ├── envelope.py     Harness-VLA operating envelope (per-skill outcome stats)
+│   ├── envelope.py     Harness-VLA operating envelope (per-skill outcome stats + runtime-measured derived features)
+│   ├── recipes.py      Task-Specific Memory: xyz ⇄ localize_object(label)+offset queries (symbolize / ground)
 │   ├── grasp_memory.py persisted grasp-outcome prior (re-rank + z-nudge)
 │   └── turboquant.py / vector_index.py   4-bit rotation quantizer + asymmetric top-k
 ├── control/

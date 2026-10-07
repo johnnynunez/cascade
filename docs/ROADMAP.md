@@ -172,9 +172,12 @@ Open, in priority order (details in the sections below):
    hand-eye, table plane), `pytest -m hardware`, then `--arm rebot_rs` at
    low velocity. Everything above the driver has been exercised in two
    simulators; the drivers have not.
-2. **Persistence-loop leftovers** #2–#7 below (provisional held marker,
+2. ~~**Persistence-loop leftovers** #2–#7 below (provisional held marker,
    per-task budget cap across tiers, handover/sort persistence, thin-object
-   slip heuristic, fail-fast on over-width, the listed coverage gaps).
+   slip heuristic, fail-fast on over-width, the listed coverage gaps).~~
+   **landed 2026-10-07** — see the struck items in "Persistence-loop review
+   leftovers" below; `tests/test_persistence_leftovers.py` (25 tests) pins
+   each one.
 3. **Learned grasps for real**: run `serve_graspgenx.sh` (CUDA) instead of
    the protocol stub and calibrate `tip_offset_m` / the reBot sweep volume
    in Isaac; the stub only proves the wire.
@@ -850,20 +853,77 @@ are synchronous by design here, noted for long-horizon work.
      `notifications/cancelled` on an in-flight motion tool freezes the arm,
      SIGINT latches instead of free-falling, and the dashboard STOP button
      is wired in MCP mode (tests in `tests/test_mcp_server.py`).
-  2. Exception between gripper close and held_object assignment leaves a
+  2. ~~Exception between gripper close and held_object assignment leaves a
      physically held object logically unheld (reconcile only clears the
-     opposite desync); consider a provisional held marker before close.
-  3. Budget can multiply across tiers: fast-path burns persist_seconds,
-     then a real-LLM tier can call pick_and_place again. Cap per task.
-  4. handover / sort_by_color still single-attempt (inconsistent with
-     pick_and_place persistence).
-  5. _reconcile_held mistakes a legitimately-held VERY thin object
-     (<4% jaw span ~ 3.6 mm) for a slip; booth objects are chunky.
-  6. Fail fast when every grasp candidate exceeds jaw width (currently
-     retries perception on an object-property error).
-  7. Test-coverage gaps flagged: place-stage loop, deadline expiry,
+     opposite desync); consider a provisional held marker before close.~~
+     **landed 2026-10-07** (marker already in `skill_grasp_object` /
+     `_reconcile_held`; finished today): `_held_provisional` is set before
+     the first jaw command and promoted/refuted by the next skill; jaws AT
+     the open position now refute it instead of promoting a phantom hold,
+     and `open_gripper` discards it. Pinned by
+     `tests/test_persistence_leftovers.py` (`..._reconcile_promotes`,
+     `..._on_air_is_dropped`, `..._around_the_close`,
+     `test_open_gripper_discards_a_provisional_marker`,
+     `test_provisional_marker_with_jaws_at_the_open_position_is_dropped`).
+  3. ~~Budget can multiply across tiers: fast-path burns persist_seconds,
+     then a real-LLM tier can call pick_and_place again. Cap per task.~~
+     **already landed** (`begin_task_budget` / `_task_deadline`,
+     `grasp.task_persist_seconds` = 1.5x `persist_seconds` by default,
+     opened/closed by `AgentOrchestrator.run_task`, capping pick_and_place
+     AND `_grasp_with_persistence`); pinned by
+     `test_task_budget_caps_a_second_tier_call`,
+     `test_orchestrator_opens_and_closes_the_task_budget` and (2026-10-07)
+     `test_handover_persistence_is_capped_by_the_task_budget`. The key is
+     now documented in `configs/demo.yaml`.
+  4. ~~handover / sort_by_color still single-attempt (inconsistent with
+     pick_and_place persistence).~~ **already landed** (both grasp through
+     `_grasp_with_persistence`: re-home, re-scan, fresh plan, same
+     `max_pick_attempts` / `persist_seconds`, capped by the task budget;
+     sort_by_color gives each object `sort_object_persist_seconds`);
+     pinned by `test_handover_retries_a_grasp_like_pick_and_place`,
+     `test_sort_by_color_does_not_give_up_on_the_first_miss`. Still
+     single-attempt by design: sort_by_color's PLACE (a failed place while
+     holding stops the sort instead of cascading).
+  5. ~~_reconcile_held mistakes a legitimately-held VERY thin object
+     (<4% jaw span ~ 3.6 mm) for a slip; booth objects are chunky.~~
+     **landed 2026-10-07**: the held width is MEASURED when the object is
+     taken (`_held_width_m` = jaw stall after the lift; planned width when
+     feedback is unavailable; stall width at promotion/adoption). An object
+     that measured thinner than `air_grasp_frac` x jaw span is never
+     cleared on width alone (position feedback cannot tell that hold from
+     air); a chunky known width keeps the 4 % rule unchanged. The older
+     `gripper.min_object_m` profile key still works. Pinned by
+     `test_grasp_records_the_measured_held_width`,
+     `test_known_thin_object_is_never_read_as_a_slip_on_width_alone`,
+     `test_thin_object_declared_in_profile_is_not_read_as_a_slip`.
+  6. ~~Fail fast when every grasp candidate exceeds jaw width (currently
+     retries perception on an object-property error).~~ **landed
+     2026-10-07** (the string heuristic in `_grasp_retry_verdict` already
+     stopped after one attempt; finished today): `select_grasp` raises an
+     explicit refusal — "every candidate exceeds the jaw span (narrowest
+     Xmm > gripper max Ymm; use push_object)" with `all_too_wide`,
+     `narrowest_width_m`, `jaw_max_width_m` on the exception — and lists
+     non-width reasons first, so a 4-reason truncation of a MIXED list
+     (five too-wide ahead of one vetoed candidate) can no longer read as
+     all-too-wide and end persistence after one attempt. Pinned by
+     `test_pick_and_place_gives_up_early_when_every_grasp_is_too_wide`,
+     `test_ik_failure_alongside_a_width_reason_is_still_retried`,
+     `test_selector_refuses_explicitly_when_every_candidate_exceeds_the_jaw_span`,
+     `test_a_truncated_mixed_reason_list_is_not_an_over_width_refusal`.
+  7. ~~Test-coverage gaps flagged: place-stage loop, deadline expiry,
      epoch fallback, z-clamp, exemption z_min through _in_cylinder,
-     McpClient timeout is dead code.
+     McpClient timeout is dead code.~~ **landed 2026-10-07**: place-stage
+     loop (`test_place_stage_retries_after_a_failed_place`,
+     `test_place_stage_is_bounded_while_still_holding`,
+     `test_mid_carry_slip_restarts_the_grasp_stage_within_the_budget`);
+     deadline expiry, epoch fallback, z-clamp and `_in_cylinder` z_min were
+     already pinned (`test_persistence_deadline_expiry_stops_the_loop_early`,
+     `test_localize_epoch_fallback_uses_motion_start_when_no_rescan`,
+     `test_place_at_caps_release_height_to_the_topdown_ceiling`,
+     `test_exemption_cylinder_z_min_is_honoured_by_in_cylinder`);
+     `McpClient.recv(timeout=)` is live (queue-pumped stdout) and is now
+     exercised without a server
+     (`test_mcp_client_recv_times_out_instead_of_hanging`).
 
 - **Newton upstream issue (2026-07-19).** Manipulation contacts are broken
   at the PARSER level on the 6.0 develop build: identical failure under

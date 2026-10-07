@@ -9,12 +9,20 @@ admission: pending_h2_geometric_validation
 verifier:
   sample_interval_s: 0.02
   read_timeout_s: 0.5
-  max_wall_duration_s: 14.0
-  settle_timeout_s: 4.0
+  # Candidate revision 2 (2026-10-07, docs/evidence/h2-geometric-candidate-20261007):
+  # the settle budget is spent in WALL seconds while the H2 needs ~3.5 s of SIM to come to
+  # rest after a goal-stopped command (standing decays 0.34 -> 0.04 rad/s over 3.5 s sim;
+  # the yaw oscillation after a mid-step stop lasts 2-3 s sim). At this owner's ~0.47x
+  # real time 4 s wall covered ~1.9 s sim, so the verdict was taken before the robot could
+  # physically settle. 8 s wall ~ 3.8 s sim here; the wall budget and the sample quota are
+  # sized to cover command (3 s sim ~ 6.4 s wall) + settle. The rest thresholds below
+  # (0.08 m/s, 0.20 rad/s, 0.03 m, 0.05 rad over the last 0.4 s) are unchanged.
+  max_wall_duration_s: 20.0
+  settle_timeout_s: 8.0
   settle_window_s: 0.4
   min_motion_samples: 5
   min_settle_samples: 3
-  max_samples: 801
+  max_samples: 1201
   max_history: 30
   max_state_age_s: 0.5
   max_sample_gap_s: 0.15
@@ -33,3 +41,23 @@ verifier:
   stop_angular_speed_rad_s: 0.20
   stop_drift_m: 0.03
   stop_drift_rad: 0.05
+# Geometric skills, candidate bounds (NOT admission). Derived from the first owned
+# episodes of 2026-10-07 (docs/evidence/h2-owner-first-episodes-20261007): a 0.3 m/s
+# command tracked ~0.215 m/s (0.645 m in 3 s), so within the unchanged 3 s
+# `safety.max_duration_s` a walk_distance can reach ~0.6 m; a 0.5 rad/s turn moved the
+# pelvis 0.195 m along its path for 0.875 rad, so the control-side translation veto for
+# a turn of up to `max_turn_angle_rad` (1.0) is 0.35 m. The verifier, not these
+# bounds, judges success; min_height/max_tilt are the training fall criteria.
+capabilities: [walk_velocity, walk_distance, turn, stop_navigation]
+distance_control:
+  speed_m_s: 0.3
+  max_distance_m: 0.6
+  tolerance_m: 0.05
+  max_lateral_drift_m: 0.20
+  max_heading_drift_rad: 0.20
+  min_height_m: 0.615
+  max_tilt_rad: 0.5236
+turn_control:
+  max_translation_path_m: 0.35
+  min_height_m: 0.615
+  max_tilt_rad: 0.5236

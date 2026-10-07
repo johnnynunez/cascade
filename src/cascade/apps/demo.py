@@ -962,9 +962,16 @@ def _run_demo(args, cfg, runtime, mobile):
     # ASPIRE: validated repairs distilled from earlier runs, retrieved into
     # context at task start. This is the loop the ROADMAP listed as open --
     # `scripts/learn_from_runs.py` writes the entries, the agent reads them.
-    from ..skills.library import SkillLibrary
+    from ..skills.library import PROMOTION_MIN_TASKS, SkillLibrary
 
-    library = None if mobile else SkillLibrary(PACKAGE_ROOT / "skills_library")
+    # Cross-task gate (upstream ASPIRE): a distilled note reaches the agent
+    # only after it recurred in >= `memory.skill_min_tasks` distinct tasks
+    # (default 2). 1 is the explicit single-observation mode; nothing lowers
+    # it silently.
+    library = None if mobile else SkillLibrary(
+        PACKAGE_ROOT / "skills_library",
+        min_tasks=int(cfg.memory.get("skill_min_tasks", PROMOTION_MIN_TASKS)),
+    )
     agent = AgentOrchestrator(
         llm, runtime, advisor=advisor, max_steps=args.max_steps,
         decompose=not is_mock, fast_planner=None if mobile else FastPlanner(experience),

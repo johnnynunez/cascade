@@ -59,11 +59,52 @@ argument delta and evidence. The note calls this a recorded association: it
 must not claim that the parameter change caused success, invent a
 re-observation or prescribe fixed workspace values from another robot.
 
-`harvest()` retains its existing per-call deduplication by `(skill, signature)`.
-Storage still overwrites the existing file when a note has the same title-derived
-slug; there is no migration, bulk deletion or historical revalidation. Retrieval
-still matches keywords, not arm/scene compatibility. Recorded scope is guidance
-for the reader, not an enforced retrieval filter or cross-task promotion gate.
+`harvest()` folds every eligible run into the note for its `(skill, signature)`
+(the title-derived slug); there is no migration, bulk deletion or historical
+revalidation. Retrieval still matches keywords, not arm/scene compatibility.
+Recorded scope is guidance for the reader, not an enforced retrieval filter.
+
+## Cross-task promotion gate
+
+One confirmed retry is an observed association in one task. Upstream ASPIRE
+(`aspire/sim/cap/skills/library.py`) tracks `occurrences` and `source_tasks`
+per distilled skill and promotes it to the active library only once it recurs
+beyond a single task; CASCADE applies the distinct-task reading of that rule:
+
+| Field (front matter of `skills_library/<slug>.md`) | Meaning |
+|---|---|
+| `occurrences` | Distinct run directories that contributed a confirmed retry |
+| `source_tasks` | Distinct recorded task strings (whitespace/case-insensitive) |
+| `source_runs` | The contributing run names; a run already listed is never counted again |
+| `status` | `promoted` when `len(source_tasks) >= min_tasks` (default `PROMOTION_MIN_TASKS = 2`), else `candidate` |
+
+- **Promoted** notes are what `aspire.retrieve()` injects into the tier-3
+  context at task start, each prefixed with its evidence
+  (`[promoted: recurred in 2 distinct tasks, 3 confirmed runs]`).
+- **Candidate** notes (one task, however many runs; a run without a recorded
+  task adds an occurrence but no task) stay on disk, are listed by
+  `SkillLibrary.entries()`/`records()`/`relevant()` for inspection, and never
+  reach the agent context.
+- **Legacy files** without front matter parse as one occurrence from an
+  unknown task and are candidates. A later distinct task folds into them like
+  any other note; the unknown first task never counts, and because their
+  contributing run is unknown, re-harvesting that same run adds one occurrence
+  (never a second task, so it cannot promote them).
+- **Idempotent harvests.** Re-running `learn_from_runs.py` over the same runs
+  changes nothing (`learned: 0`); new runs advance the counters, which persist
+  in the file across sessions.
+- **Explicit relaxation only.** `SkillLibrary(root, min_tasks=1)` — via
+  `memory.skill_min_tasks: 1` in `configs/demo.yaml` or
+  `learn_from_runs.py --min-tasks 1` — restores retrieval after one confirmed
+  retry, tagged `[admitted by explicit min_tasks=1 ...; not cross-task
+  validated]`. `status` in the file is informational; retrieval recomputes it
+  with the configured threshold, so a stored `promoted` never overrides a
+  stricter configuration. Values below 1 are rejected.
+
+Promotion counts distinct recorded task strings. It does not establish that the
+tasks were different scenes, objects or calibrations, and it is not evidence
+that the note causes success; it only withholds single-task associations from
+the prompt, as upstream does.
 
 ## Inspect and harvest offline
 
@@ -87,16 +128,17 @@ an empty library directory; `--report` alone is not read-only. Do not combine
 `--dry-run` with `--export-md` when avoiding file output, because that option
 explicitly writes an export.
 
-The built-in orchestrator retrieves keyword-matched library notes at task
-start. Harvesting stays between sessions; this script neither runs a robot nor
-replays the recorded actions in a simulator.
+The built-in orchestrator retrieves keyword-matched, promoted library notes at
+task start (see the cross-task promotion gate above). Harvesting stays between
+sessions; this script neither runs a robot nor replays the recorded actions in
+a simulator.
 
 ## Verify the contract
 
 ```bash
 .venv/bin/python -m pytest tests/test_agentic_upgrades.py \
-  tests/test_aspire_admission.py tests/test_llm_and_library.py \
-  tests/test_arm_rig.py tests/test_verifier_crash.py -q
+  tests/test_aspire_admission.py tests/test_aspire_promotion.py \
+  tests/test_llm_and_library.py tests/test_arm_rig.py tests/test_verifier_crash.py -q
 
 # Broader non-hardware regression suite.
 .venv/bin/python -m pytest tests/ -q
@@ -105,7 +147,10 @@ replays the recorded actions in a simulator.
 The admission tests use synthetic trace fixtures and real dispatch, checker,
 logger and library integration with data-only physical callbacks. They cover
 negative admission cases, resolved aliases, pre-placement possession,
-explicit boundaries and retention of evidence. A backend-probe sentinel checks
+explicit boundaries, retention of evidence, and the promotion gate (second
+distinct task promotes; same task twice, unknown tasks and legacy files do
+not; counters persist and re-harvests are idempotent; `min_tasks=1` is the
+only relaxation). A backend-probe sentinel checks
 that logging alone never accesses lazy hardware. These tests are not physical
 trials or measured improvements in robot success rate.
 
@@ -126,6 +171,8 @@ better policies, and it does not certify the Isaac/CUDA/OpenClaw deployment.
   lack proven episode boundaries; a run directory alone is not one.
 - Notes are guidance, not transferable controllers. Matching one retry does
   not prove causality, cross-task generalization or better future performance.
+  Promotion after two distinct recorded tasks is upstream ASPIRE's recurrence
+  threshold, not a validation of either claim.
 
 Dream-RSI motivates restricting claims to recorded continuations. Its paper
 evaluates exploration controllers with fixed underlying models and execution

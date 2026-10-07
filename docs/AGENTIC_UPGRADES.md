@@ -152,9 +152,12 @@ python scripts/learn_from_runs.py --dry-run --report
 It folds recorded outcomes into the envelope model. The separate library
 path admits only matching-goal retries with explicit arm/possession context,
 measured confirmation and no intervening reset or task end. It writes the
-recorded association into `skills_library/*.md`, deduped by `(skill, signature)`
-within a harvest; the orchestrator retrieves keyword-matched notes at task
-start. See [retry evidence admission](DREAM_RSI_ADAPTATION.md) for inspection
+recorded association into `skills_library/*.md`, one note per `(skill,
+signature)` with `occurrences`/`source_tasks` counters in its front matter; the
+orchestrator retrieves keyword-matched notes at task start only once they are
+promoted — recurred in ≥ 2 distinct tasks, upstream ASPIRE's
+`skills/library.py` rule — and a single-task note stays a stored candidate.
+See [retry evidence admission](DREAM_RSI_ADAPTATION.md) for inspection
 commands and limits. A later success is not proof of a causal repair.
 
 Harvesting deliberately does **not** happen mid-demo: it would change guidance

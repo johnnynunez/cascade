@@ -523,6 +523,17 @@ def test_distil_writes_a_retrievable_library_entry(tmp_path):
     body = path.read_text()
     assert "material" in body and "'rigid' -> 'soft'" in body
 
+    # One task is a stored candidate, not guidance: upstream ASPIRE promotes
+    # a distilled skill only when it recurs across tasks (ROADMAP #10).
+    assert retrieve(library, "grasp the cube") == ""
+    assert library.relevant("grasp the cube")  # still inspectable in the store
+    run_b = _write_run(tmp_path, "run3b", [
+        {"skill": "grasp_object", "args": {"label": "cube", "material": "rigid"},
+         "result": {"ok": False, "error": "link/joint 7 would hit the table"}},
+        {"skill": "grasp_object", "args": {"label": "cube", "material": "soft"},
+         "result": _confirmed_result()},
+    ], summary="task: stack the cube on the box\nsuccess: true")
+    assert distil(diagnose(run_b), library) == path
     injected = retrieve(library, "grasp the cube")
     assert "ASPIRE library" in injected and "material" in injected
 
@@ -539,6 +550,9 @@ def test_harvest_dedupes_by_skill_and_signature(tmp_path):
     out = harvest(tmp_path, library)
     assert out["diagnosed"] == 3
     assert out["learned"] == 1  # same (skill, signature) collapses to one entry
+    (entry,) = library.records()
+    assert entry.occurrences == 3 and entry.n_tasks == 1  # counted, not promoted
+    assert out["candidates"] == [entry.name] and out["promoted"] == []
 
 
 def test_retrieve_is_empty_on_a_fresh_library(tmp_path):

@@ -627,7 +627,9 @@ command. Name a profile explicitly (`--llm mock`) to pin it, or set
 - **[Retry evidence](docs/DREAM_RSI_ADAPTATION.md)** gates new ASPIRE library
   notes: a later success must match the failed action's goal, resolved arm
   and held-object context, with a measured, confirmed postcondition and no
-  intervening reset or task end. This filters unsupported learning; it does
+  intervening reset or task end. A note reaches the agent only after it
+  recurs in two distinct tasks (upstream ASPIRE's promotion rule); a single
+  task's repair stays a stored candidate. This filters unsupported learning; it does
   not change robot control or establish that a retry caused an improvement.
 
 cascade works with hosted and local [LLM backends](#llm-backends) and is

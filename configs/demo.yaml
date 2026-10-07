@@ -139,6 +139,13 @@ memory:
   persist_beliefs: true
   beliefs_path: null        # null -> <repo>/runs/beliefs.json
   beliefs_max_age_s: 21600  # 6 h; older beliefs are dropped on load
+  # ASPIRE skill library (skills_library/*.md, written offline by
+  # scripts/learn_from_runs.py): a distilled note is retrieved into the agent
+  # context only after it recurred in this many DISTINCT tasks (upstream
+  # ASPIRE's promotion rule). Notes seen in one task stay stored candidates.
+  # 1 = retrieve after a single confirmed retry -- an explicit relaxation, not
+  # a default. Must be >= 1.
+  skill_min_tasks: 2
 
 # Always-on perception: every rig camera feeds the belief store continuously
 # so commands resolve against an already-warm world model.

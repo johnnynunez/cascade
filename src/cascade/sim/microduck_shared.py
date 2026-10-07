@@ -11,7 +11,7 @@ import json
 import re
 from contextlib import ExitStack
 from copy import deepcopy
-from dataclasses import asdict, dataclass, fields, replace
+from dataclasses import asdict, dataclass, fields
 from functools import cached_property
 
 import numpy as np
@@ -286,6 +286,7 @@ class SharedMicroduckStepper:
                     or stepper.actuator.coordinate_indices != (binding.q_indices, binding.dof_indices)):
                 raise ValueError('shared robot view/controller/model binding mismatch')
         self._members = tuple((s.backend, s.controller, s.policy, s.actuator) for s in self.steppers)
+        self._output_check = self._build_output_check()
         self.started = self.closed = False
         self.withheld_ticks = 0
         self.failure = ''
@@ -329,6 +330,32 @@ class SharedMicroduckStepper:
         """
         capture = getattr(self.steppers[0].actuator, 'host_snapshot', None)
         return capture() if callable(capture) else None
+
+    def _build_output_check(self):
+        """One device-side finiteness gate for every adapter's drive outputs; else None.
+
+        Built once, at construction (before any solve, so its kernels compile at
+        startup), by the first actuator for the whole cohort, labelled by robot id.
+        The actuators cannot change afterwards (``_check_bindings`` runs first on
+        every tick) and each adapter refuses a check of another stage/step or one it
+        is not registered in when it marks. Software doubles without ``output_check``
+        keep the five per-adapter host reads inside before_step.
+        """
+        build = getattr(self.steppers[0].actuator, 'output_check', None)
+        if not callable(build):
+            return None
+        return build([s.actuator for s in self.steppers],
+                     labels=[binding.robot_id for binding in self.layout.robots])
+
+    def _verify_outputs(self, check, step_count):
+        """The cohort's ONE device read of the output flags; refuses the solve on any fault.
+
+        Profiled as ``bam.verify`` under ``--profile-phases``. The adapters have already
+        published friction, scattered effort and advanced their drive state for this
+        step; irrelevant, because a failure here is terminal (``_fail``) and the solver
+        never steps on those values.
+        """
+        check.verify(step_count)
 
     def start(self):
         if self.started or self.closed or self.failure:
@@ -394,12 +421,24 @@ class SharedMicroduckStepper:
             # The cohort is admitted. Do not re-veto or rewind a partially
             # applied BAM history if stop arrives after this linearization.
             # One host snapshot of the world for every adapter's checks this step:
-            # captured after all policy commits, before the first actuation.
+            # captured after all policy commits, before the first actuation. One
+            # output check for every adapter's drive outputs: zeroed on the device
+            # for exactly this admitted step, marked by each adapter without a host
+            # sync, read ONCE below before the solve.
             snapshot = self._host_snapshot()
+            check = self._output_check
+            if check is not None:
+                check.reset(completed[0])
             for s, item in zip(self.steppers, staged):
                 if item.candidate is not None:
                     s.actuator.set_targets(item.candidate[1])
-                s._prepare_actuator(item.prepared, snapshot=snapshot)
+                s._prepare_actuator(item.prepared, snapshot=snapshot, output_check=check)
+            if check is not None:
+                # A non-finite output anywhere in the cohort refuses the solve here
+                # (ValueError naming the robot and array). Every adapter has already
+                # written its friction/effort for this step; irrelevant, since the
+                # exception is terminal (_fail below) and owner.step() never runs.
+                self._verify_outputs(check, completed[0])
             self.owner.step()
             results = []
             for s, item in zip(self.steppers, staged):

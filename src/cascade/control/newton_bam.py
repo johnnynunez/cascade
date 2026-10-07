@@ -247,6 +247,179 @@ def _indices(values, name, limit):
     return result.astype(np.int64, copy=True)
 
 
+# The drive outputs whose finiteness gates the solver step, in check order: the
+# previous external torque before ``compute``, the four outputs after it.
+OUTPUT_CHECK_ARRAYS = ("external_torque", "effort", "motor_torque", "effective_vin", "friction_budget")
+_nonfinite_kernels = None
+
+
+def _nonfinite_flag_kernels(wp):
+    """Warp kernels that mark a flag when any element of an output array is non-finite.
+
+    Built once per process from the lazily imported ``wp`` (this module never imports
+    Warp at import time); ``wp.isfinite`` and ``wp.atomic_max`` compile for Warp's CPU
+    device and for CUDA alike. The flags are never read on the device.
+    """
+    global _nonfinite_kernels
+    if _nonfinite_kernels is None:
+        @wp.kernel
+        def mark_nonfinite(values: wp.array(dtype=wp.float32), flags: wp.array(dtype=wp.int32), slot: int):
+            i = wp.tid()
+            if not wp.isfinite(values[i]):
+                wp.atomic_max(flags, slot, 1)
+
+        @wp.kernel
+        def mark_nonfinite_outputs(effort: wp.array(dtype=wp.float32), motor_torque: wp.array(dtype=wp.float32),
+                                   effective_vin: wp.array(dtype=wp.float32),
+                                   friction_budget: wp.array(dtype=wp.float32),
+                                   flags: wp.array(dtype=wp.int32), first: int):
+            # One launch per adapter for the four outputs of ``compute``; ``first`` is
+            # the adapter's "effort" flag, the next three follow OUTPUT_CHECK_ARRAYS.
+            i = wp.tid()
+            if not wp.isfinite(effort[i]):
+                wp.atomic_max(flags, first, 1)
+            if not wp.isfinite(motor_torque[i]):
+                wp.atomic_max(flags, first + 1, 1)
+            if not wp.isfinite(effective_vin[i]):
+                wp.atomic_max(flags, first + 2, 1)
+            if not wp.isfinite(friction_budget[i]):
+                wp.atomic_max(flags, first + 3, 1)
+        _nonfinite_kernels = (mark_nonfinite, mark_nonfinite_outputs)
+    return _nonfinite_kernels
+
+
+class BamOutputCheck:
+    """One device-side finiteness gate for a cohort's drive outputs, read ONCE per step.
+
+    Without it every adapter's ``before_step`` reads five of its own output arrays back
+    to the host to refuse a non-finite load/effort/voltage/friction before the solver
+    steps: five full device syncs per robot, sixty per 5 ms step for twelve. With a
+    cohort check those reads become kernel launches that mark one flag per (adapter,
+    array) on the device, and ``verify()`` performs the single host read for the whole
+    cohort, raising for the first flagged slot with the original wording plus the robot
+    label and the array. Nothing is checked less: the same arrays, every element, every
+    adapter, every step.
+
+    Contract for the caller (``SharedMicroduckStepper.tick``): ``reset(step_count)``
+    after the cohort is admitted and before the first ``before_step``; ``verify()``
+    after the LAST ``before_step`` and BEFORE the solver steps; abort the step (the
+    owner's ``_fail``) on any exception. By the time ``verify()`` raises, each adapter
+    has already published its friction budget, scattered its effort and advanced its
+    drive state for this step. That is irrelevant because the failure is terminal (every
+    robot is contained, the owner cannot tick again) and the solver never steps on
+    those values. The check is bound to the exact stage/model/solver and, by
+    ``reset``, to one ``simulation_step_count``: an adapter refuses a check of another
+    stage or step or one it is not registered in (``_bind_output_check``, like
+    ``_bind_snapshot``), and ``verify()`` refuses a never-reset, stale or incomplete
+    check (an adapter that did not mark all five arrays this step).
+    """
+
+    ARRAYS = OUTPUT_CHECK_ARRAYS
+
+    def __init__(self, stage, adapters, *, labels=None):
+        adapters = tuple(adapters)
+        if not adapters or any(not isinstance(adapter, NewtonBamAdapter) for adapter in adapters):
+            raise ValueError("output check requires a cohort of NewtonBamAdapter instances")
+        if len({id(adapter) for adapter in adapters}) != len(adapters):
+            raise ValueError("output check cohort lists an adapter twice")
+        self.stage = stage
+        self.model, self.solver = getattr(stage, "model", None), getattr(stage, "solver", None)
+        for adapter in adapters:
+            if adapter._stage is not stage or adapter._model is not self.model or adapter._solver is not self.solver:
+                raise ValueError("every adapter of an output check must be bound to its stage/model/solver")
+        if len({str(adapter._device) for adapter in adapters}) != 1:
+            raise ValueError("output check cohort spans devices")
+        labels = tuple(str(i) for i in range(len(adapters))) if labels is None else tuple(map(str, labels))
+        if len(labels) != len(adapters) or len(set(labels)) != len(labels):
+            raise ValueError("output check requires one unique label per adapter")
+        self.labels = labels
+        self._wp, self._device = adapters[0]._wp, adapters[0]._device
+        # Keep the adapters alive so an id() cannot be reused by a stranger.
+        self._adapters = adapters
+        self._slots = {id(adapter): index for index, adapter in enumerate(adapters)}
+        self._single, self._outputs = _nonfinite_flag_kernels(self._wp)
+        # Device flags, one per (adapter, array); read only by verify().
+        self.flags = self._wp.zeros(len(adapters) * len(self.ARRAYS), dtype=self._wp.int32, device=self._device)
+        # Compile/load both kernels now (bind time), not inside the first physics
+        # step: a warm-up launch over finite zeros marks nothing and syncs nothing.
+        zeros = self._wp.zeros(1, dtype=self._wp.float32, device=self._device)
+        self._wp.launch(self._single, dim=1, inputs=[zeros, self.flags, 0], device=self._device)
+        self._wp.launch(self._outputs, dim=1, inputs=[zeros, zeros, zeros, zeros, self.flags, 1], device=self._device)
+        self.step_count = None
+        self._marked = set()
+        self._verified = False
+        self.device_reads = 0
+
+    def slot(self, adapter):
+        """Slot index of a registered adapter; None for a stranger."""
+        return self._slots.get(id(adapter))
+
+    def reset(self, step_count):
+        """Zero the flags on the device and bind the check to ``step_count``."""
+        import numbers
+        if isinstance(step_count, bool) or not isinstance(step_count, numbers.Integral) or step_count < 0:
+            raise RuntimeError("output check must be reset for a nonnegative simulation_step_count")
+        self.flags.zero_()
+        self._marked = set()
+        self._verified = False
+        self.step_count = int(step_count)
+
+    def _launch(self, adapter, arrays, columns, kernel):
+        wp = self._wp
+        slot = self._slots.get(id(adapter))
+        if slot is None:
+            raise RuntimeError("adapter is not registered in this output check")
+        if self.step_count is None:
+            raise RuntimeError("output check was not reset for a step")
+        if self._verified:
+            raise RuntimeError("output check already verified for this step; reset it for the next")
+        for array in arrays:
+            if (not isinstance(array, wp.array) or array.ndim != 1 or array.shape != arrays[0].shape
+                    or not wp.types.types_equal(array.dtype, wp.float32) or array.device != self._device):
+                raise RuntimeError(f"output check expects 1-D float32 Warp arrays of one length on {self._device}")
+        base = slot * len(self.ARRAYS)
+        if base + columns[-1] >= self.flags.shape[0]:
+            raise RuntimeError("output check slot layout exceeds the flag array")  # never silent out-of-bounds writes
+        wp.launch(kernel, dim=arrays[0].shape[0], inputs=[*arrays, self.flags, base + columns[0]], device=self._device)
+        self._marked.update((slot, column) for column in columns)
+
+    def mark_external_torque(self, adapter, external_torque):
+        """Flag ``adapter``'s external-torque slot if any element is non-finite (no host sync)."""
+        self._launch(adapter, (external_torque,), (0,), self._single)
+
+    def mark_outputs(self, adapter, effort, motor_torque, effective_vin, friction_budget):
+        """Flag ``adapter``'s four compute-output slots in one launch (no host sync)."""
+        self._launch(adapter, (effort, motor_torque, effective_vin, friction_budget), (1, 2, 3, 4), self._outputs)
+
+    def verify(self, step_count=None):
+        """The cohort's ONE device read; raise before the solver steps if any output was non-finite.
+
+        ``step_count`` (optional) is the caller's admitted step; it and the stage's live
+        ``simulation_step_count`` must both equal the step this check was reset for.
+        """
+        import numpy as np
+        if self.step_count is None:
+            raise RuntimeError("output check was never reset for a step")
+        if step_count is not None and step_count != self.step_count:
+            raise RuntimeError("output check was reset on another simulation_step_count")
+        if _step_count_of(self.stage) != self.step_count:
+            raise RuntimeError("output check is stale: the stage advanced past its simulation_step_count")
+        for slot in range(len(self._adapters)):
+            for column, name in enumerate(self.ARRAYS):
+                if (slot, column) not in self._marked:
+                    raise RuntimeError(f"output check incomplete: {self.labels[slot]} did not mark {name} this step")
+        self._verified = True
+        flags = self.flags.numpy()
+        self.device_reads += 1
+        flagged = np.flatnonzero(flags)
+        if flagged.size:
+            slot, column = divmod(int(flagged[0]), len(self.ARRAYS))
+            where = f" (robot {self.labels[slot]}, slot {slot}, {self.ARRAYS[column]})"
+            if column == 0:
+                raise ValueError("nonfinite previous external torque" + where)
+            raise ValueError("nonfinite native BAM output; solver must not step" + where)
+
+
 class NewtonBamAdapter:
     """One explicit 14-DOF M6 battery group; the caller alone steps physics.
 
@@ -339,6 +512,15 @@ class NewtonBamAdapter:
         """Capture this stage's arrays once for a cohort's ``before_step`` calls this step."""
         return BamHostSnapshot(self._stage)
 
+    def output_check(self, adapters, *, labels=None):
+        """One ``BamOutputCheck`` for ``adapters`` (this one included) bound to this stage.
+
+        Built once per cohort, reset per step by the caller; see ``BamOutputCheck``.
+        """
+        if not any(adapter is self for adapter in adapters):
+            raise ValueError("the adapter building an output check must be a member of its cohort")
+        return BamOutputCheck(self._stage, adapters, labels=labels)
+
     def _bind_snapshot(self, snapshot, count):
         if not isinstance(snapshot, BamHostSnapshot):
             raise RuntimeError("snapshot must be a BamHostSnapshot of this stage")
@@ -347,6 +529,16 @@ class NewtonBamAdapter:
             raise RuntimeError("host snapshot belongs to another stage/model/solver")
         if snapshot.step_count != count:
             raise RuntimeError("host snapshot was captured on another simulation_step_count")
+
+    def _bind_output_check(self, check, count):
+        if not isinstance(check, BamOutputCheck):
+            raise RuntimeError("output_check must be a BamOutputCheck of this stage")
+        if check.stage is not self._stage or check.model is not self._model or check.solver is not self._solver:
+            raise RuntimeError("output check belongs to another stage/model/solver")
+        if check.slot(self) is None:
+            raise RuntimeError("this adapter is not registered in the output check cohort")
+        if check.step_count != count:
+            raise RuntimeError("output check was reset on another simulation_step_count")
 
     def _step_count(self):
         return _step_count_of(self._stage)
@@ -489,7 +681,7 @@ class NewtonBamAdapter:
         self._targets.assign(targets)
         self._armed = True
 
-    def before_step(self, dt, *, snapshot=None):
+    def before_step(self, dt, *, snapshot=None, output_check=None):
         """Prepare effort/friction for ONE external solver step; never step it.
 
         Host-side checks are intentionally outside CUDA graph capture. A caller
@@ -497,6 +689,18 @@ class NewtonBamAdapter:
         ``snapshot`` (a ``BamHostSnapshot`` of this stage, captured this step)
         lets a shared-scene cohort run these checks against one set of host
         copies; every check still runs for every adapter.
+
+        ``output_check`` (a ``BamOutputCheck`` this adapter is registered in, reset
+        for this step) replaces the five host reads of this adapter's own drive
+        outputs by device-side marks into its slot, so this call performs no
+        device sync. The caller MUST then call ``output_check.verify()`` after
+        the cohort's last ``before_step`` and BEFORE the solver steps, and abort
+        the step on failure (the shared owner's ``_fail``). With a cohort check
+        the friction publication, effort scatter and drive-state update below
+        happen before that verdict; this is irrelevant because the failure is
+        terminal and the solver never steps on those values. Without
+        ``output_check`` (the single-robot path) the reads and their ordering are
+        unchanged: a non-finite output raises here, before any write.
         """
         import numbers
         import numpy as np
@@ -510,6 +714,8 @@ class NewtonBamAdapter:
         if snapshot is None:
             snapshot = BamHostSnapshot(self._stage)
         self._bind_snapshot(snapshot, count)
+        if output_check is not None:
+            self._bind_output_check(output_check, count)
         self._snapshot = snapshot
         try:
             self._check_live()
@@ -530,14 +736,26 @@ class NewtonBamAdapter:
             self._drive.external_torque.zero_()
         else:
             self._bridge.gather_external_torque(self._drive.external_torque)
-        if not np.isfinite(self._drive.external_torque.numpy()).all():
-            raise ValueError("nonfinite previous external torque")
+        if output_check is None:
+            if not np.isfinite(self._drive.external_torque.numpy()).all():
+                raise ValueError("nonfinite previous external torque")
+        else:
+            output_check.mark_external_torque(self, self._drive.external_torque)
         self._drive.compute(state.joint_q, state.joint_qd, self._targets, self._targets, None,
                             self._q_indices, self._dof_indices, self._target_indices, self._target_indices,
                             self._forces, self._state, float(dt), self._device)
-        for output in (self._forces, self._drive.motor_torque, self._drive.effective_vin, self._drive.friction_budget):
-            if not np.isfinite(output.numpy()).all():
-                raise ValueError("nonfinite native BAM output; solver must not step")
+        if output_check is None:
+            for output in (self._forces, self._drive.motor_torque, self._drive.effective_vin, self._drive.friction_budget):
+                if not np.isfinite(output.numpy()).all():
+                    raise ValueError("nonfinite native BAM output; solver must not step")
+        else:
+            # Device-side marks only; the cohort's single host read is
+            # output_check.verify(), run by the caller after the last adapter and
+            # before the solver step. The publish/scatter/update below therefore
+            # precede that verdict, which is irrelevant: a failed verify is terminal
+            # for the owner and the solver never steps on these values.
+            output_check.mark_outputs(self, self._forces, self._drive.motor_torque,
+                                      self._drive.effective_vin, self._drive.friction_budget)
         self._bridge.publish_dof_friction(self._drive.friction_budget)
         self._scatter(self._stage.control.joint_f, self._forces)
         self._drive.update_state(self._state, self._state)

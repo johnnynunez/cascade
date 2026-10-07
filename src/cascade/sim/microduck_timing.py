@@ -233,7 +233,7 @@ class PhaseProfile:
             raise first
 
 
-def instrument_owner(profile, owner, steppers, *, sync_solve=False, synchronize=None):
+def instrument_owner(profile, owner, steppers, *, sync_solve=False, synchronize=None, fleet=None):
     """Install only in the explicitly profiled shared CLI, after model binding.
 
     ``sync_solve`` is a diagnostic: the ``solve`` span then also waits for the
@@ -241,12 +241,16 @@ def instrument_owner(profile, owner, steppers, *, sync_solve=False, synchronize=
     instead of to the first host read after it (``support.decode``). It
     serializes CPU and GPU work and is never on by default. ``synchronize``
     overrides the device wait (tests); the default synchronizes the owner's
-    Newton model device through Warp.
+    Newton model device through Warp. ``fleet`` (the ``SharedMicroduckStepper``)
+    adds the ``bam.verify`` span: the cohort's single device read of the BAM
+    output flags between the last ``bam.before_step`` and ``solve``.
     """
     from . import microduck_contact_support as support, microduck_shared_native as native
 
     profile.wrap(support, 'read_support', 'support.decode')
     profile.wrap(native, '_read_native_states', 'native.capture')
+    if fleet is not None:
+        profile.wrap(fleet, '_verify_outputs', 'bam.verify')
     if sync_solve:
         wait = synchronize
         if wait is None:

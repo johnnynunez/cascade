@@ -90,12 +90,20 @@ binding digest, metadata-only `SupportObservation.rebound`, memoized plain
 contacts for the twelve clients' `state()` polls, regex `identifier()` —
 step median 61.3 → 48.55 ms, `bam.before_step` unchanged
 (`docs/evidence/microduck-owner-reader-rebind-20261007/`).
+Third slice: `BamOutputCheck` replaces the twelve adapters' five per-step host
+reads of their own drive outputs (60 device syncs) with device-side finiteness
+flags and ONE read per step in `SharedMicroduckStepper.tick`, right before the
+solve (`bam.verify` span); every check and its wording are preserved, the
+single-robot path is unchanged. CPU tests on the real pinned kernels and on the
+software doubles establish the mechanism; the x86 A/B is not yet measured.
 
-Unresolved handoff: `bam.before_step` (13.9 ms: ~230 Warp device→host copies per
-step, 60 of them the twelve adapters' five output reads — batch them into one
-cohort-level device-side finiteness check and one read), the deep copies of
-`completed.validate` and `policy.prepare`, the sparse `record.physics` /
-`camera.overview` writes behind the p95 tail, the physics budget per asset
-(full-vertex hulls, 7.6 ms GPU per 5 ms step) and RPC serving on the owner's
-GIL are what stand between the owner and twelve closed-loop clients meeting the
-unchanged deadlines.
+Unresolved handoff: `bam.before_step` after the output check — measured 13.9 → 11.9 ms
+per step on the x86 rig (`docs/evidence/microduck-owner-bam-check-20261007/`), so the
+remaining ~11.8 ms is the per-adapter Warp launch overhead (~48 launches per step) and the
+host-side binding checks, i.e. the next slice is batching the twelve adapters' launches
+into cohort kernels; then the deep
+copies of `completed.validate` and `policy.prepare`, the sparse
+`record.physics` / `camera.overview` writes behind the p95 tail, the physics
+budget per asset (full-vertex hulls, 7.6 ms GPU per 5 ms step) and RPC serving
+on the owner's GIL are what stand between the owner and twelve closed-loop
+clients meeting the unchanged deadlines.

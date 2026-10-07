@@ -750,3 +750,199 @@ def test_snapshot_path_keeps_every_fail_closed_check(runtime, source_root, fault
     with pytest.raises((RuntimeError, ValueError)):
         b.before_step(0.005, snapshot=snapshot)
     assert b.telemetry()["last_simulation_step_count"] is None
+
+
+# --- shared-scene output check: one device-side finiteness gate, ONE host read per step ---
+
+OUTPUT_NAMES = ("external_torque", "effort", "motor_torque", "effective_vin", "friction_budget")
+
+
+def output_arrays(adapter):
+    """The five drive outputs whose finiteness gates the solver step, by name."""
+    return {"external_torque": adapter._drive.external_torque, "effort": adapter._forces,
+            "motor_torque": adapter._drive.motor_torque, "effective_vin": adapter._drive.effective_vin,
+            "friction_budget": adapter._drive.friction_budget}
+
+
+def poison(adapter, name):
+    """Inject a non-finite value where a native fault would surface: in the solver load the
+    bridge gathers (external torque, from the second step on) or in a drive output after
+    the pinned ``compute`` ran (the kernels themselves are never modified)."""
+    import numpy as np
+    if name == "external_torque":
+        bias = np.zeros(adapter._solver.mjw_data.qfrc_bias.shape, np.float32)
+        bias[0, adapter.coordinate_indices[1][2]] = np.nan
+        adapter._solver.mjw_data.qfrc_bias.assign(bias)
+        return
+    original = adapter._drive.compute
+
+    def compute(*args, **kwargs):
+        original(*args, **kwargs)
+        output_arrays(adapter)[name].fill_(float("nan"))
+    adapter._drive.compute = compute
+
+
+def excite(stage, step):
+    """Per-step joint state so efforts, friction and voltages differ between steps."""
+    import numpy as np
+    qd = stage.state_0.joint_qd.numpy()
+    qd[6:] = np.linspace(-3.0, 3.0, len(qd) - 6) * np.sin(0.7 * step + 0.3)
+    stage.state_0.joint_qd.assign(qd)
+
+
+def test_cohort_output_check_reads_the_device_once_with_identical_outputs(runtime, source_root, monkeypatch):
+    import numpy as np
+    wp, _ = runtime
+    private_stage, a1, b1 = cohort_stage(runtime, source_root)
+    shared_stage, a2, b2 = cohort_stage(runtime, source_root)
+    for adapter in (a1, b1, a2, b2):
+        adapter.set_targets(np.full(14, 0.1))
+    check = a2.output_check([a2, b2], labels=["duck0", "duck1"])
+    assert check.step_count is None and check.labels == ("duck0", "duck1")
+    outputs = [array for adapter in (a2, b2) for array in output_arrays(adapter).values()]
+    calls = counting_numpy(monkeypatch, wp)
+    for step in range(3):
+        for stage in (private_stage, shared_stage):
+            excite(stage, step)
+        del calls[:]
+        snapshot = a1.host_snapshot()
+        a1.before_step(0.005, snapshot=snapshot)
+        b1.before_step(0.005, snapshot=snapshot)
+        private_reads = len(calls)
+        del calls[:]
+        snapshot = a2.host_snapshot()
+        check.reset(shared_stage.simulation_step_count)
+        a2.before_step(0.005, snapshot=snapshot, output_check=check)
+        b2.before_step(0.005, snapshot=snapshot, output_check=check)
+        # Inside before_step: only the snapshot's world reads, none of the ten output arrays.
+        assert len(calls) == snapshot.device_reads
+        assert not any(any(read is array for array in outputs) for read in calls)
+        check.verify(shared_stage.simulation_step_count)
+        # The whole cohort's finiteness verdict cost exactly ONE device read: the flag array.
+        assert len(calls) == snapshot.device_reads + 1 and calls[-1] is check.flags
+        assert private_reads == snapshot.device_reads + 2 * 5
+        np.testing.assert_array_equal(private_stage.control.joint_f.numpy(), shared_stage.control.joint_f.numpy())
+        np.testing.assert_array_equal(private_stage.solver.mjw_model.dof_frictionloss.numpy(),
+                                      shared_stage.solver.mjw_model.dof_frictionloss.numpy())
+        assert np.count_nonzero(shared_stage.control.joint_f.numpy()) == 28
+        for private, cohort in ((a1, a2), (b1, b2)):
+            reference, actual = private.telemetry(), cohort.telemetry()
+            for key in OUTPUT_NAMES:
+                assert actual[key] == reference[key], key
+            assert actual["last_simulation_step_count"] == reference["last_simulation_step_count"] == step
+        for stage in (private_stage, shared_stage):
+            stage.simulation_step_count += 1
+    assert check.device_reads == 3
+
+
+@pytest.mark.parametrize("name", OUTPUT_NAMES)
+def test_cohort_output_check_refuses_the_step_and_names_the_adapter_and_array(runtime, source_root, name):
+    import numpy as np
+    stage, a, b = cohort_stage(runtime, source_root)
+    for adapter in (a, b):
+        adapter.set_targets(np.full(14, 0.1))
+    check = a.output_check([a, b], labels=["duck0", "duck1"])
+    snapshot = a.host_snapshot()
+    check.reset(0)
+    a.before_step(0.005, snapshot=snapshot, output_check=check)
+    b.before_step(0.005, snapshot=snapshot, output_check=check)
+    check.verify()
+    stage.simulation_step_count = 1
+    poison(b, name)
+    snapshot = a.host_snapshot()
+    check.reset(1)
+    a.before_step(0.005, snapshot=snapshot, output_check=check)
+    b.before_step(0.005, snapshot=snapshot, output_check=check)  # no host read here: the verdict is verify()'s
+    expected = ("nonfinite previous external torque" if name == "external_torque"
+                else "nonfinite native BAM output; solver must not step")
+    with pytest.raises(ValueError, match=expected) as caught:
+        check.verify()
+    message = str(caught.value)
+    assert "duck1" in message and name in message and "duck0" not in message
+    # The healthy adapter is not blamed and no other array of the faulty one is.
+    assert not any(other in message for other in OUTPUT_NAMES if other != name)
+
+
+@pytest.mark.parametrize("case", ["never_reset", "stale_step", "other_step", "unregistered", "other_stage",
+                                  "not_a_check", "incomplete", "after_verify"])
+def test_output_check_is_refused_when_unbound_stale_foreign_or_incomplete(runtime, source_root, case):
+    import numpy as np
+    stage, a, b = cohort_stage(runtime, source_root)
+    for adapter in (a, b):
+        adapter.set_targets(np.full(14, 0.1))
+    check = a.output_check([a, b])
+    snapshot = a.host_snapshot()
+    if case == "never_reset":
+        with pytest.raises(RuntimeError):
+            check.verify()
+        with pytest.raises(RuntimeError):
+            a.before_step(0.005, snapshot=snapshot, output_check=check)
+    elif case == "stale_step":
+        check.reset(0)
+        a.before_step(0.005, snapshot=snapshot, output_check=check)
+        b.before_step(0.005, snapshot=snapshot, output_check=check)
+        stage.simulation_step_count += 1
+        with pytest.raises(RuntimeError):
+            check.verify()
+        with pytest.raises(RuntimeError):
+            check.verify(0)
+    elif case == "other_step":
+        check.reset(5)
+        with pytest.raises(RuntimeError):
+            a.before_step(0.005, snapshot=snapshot, output_check=check)
+    elif case == "unregistered":
+        check = a.output_check([a])
+        check.reset(0)
+        with pytest.raises(RuntimeError):
+            b.before_step(0.005, snapshot=snapshot, output_check=check)
+        with pytest.raises(ValueError):
+            b.output_check([a])  # the builder must be a member of its own cohort
+    elif case == "other_stage":
+        other, c, d = cohort_stage(runtime, source_root)
+        check = c.output_check([c, d])
+        check.reset(0)
+        with pytest.raises(RuntimeError):
+            a.before_step(0.005, snapshot=snapshot, output_check=check)
+    elif case == "not_a_check":
+        with pytest.raises(RuntimeError):
+            a.before_step(0.005, snapshot=snapshot, output_check=object())
+    elif case == "incomplete":
+        check.reset(0)
+        a.before_step(0.005, snapshot=snapshot, output_check=check)
+        with pytest.raises(RuntimeError, match="incomplete"):
+            check.verify()
+    else:
+        check.reset(0)
+        a.before_step(0.005, snapshot=snapshot, output_check=check)
+        b.before_step(0.005, snapshot=snapshot, output_check=check)
+        check.verify()
+        with pytest.raises(RuntimeError):
+            check.mark_external_torque(b, b._drive.external_torque)
+    if case in ("never_reset", "other_step", "other_stage", "not_a_check"):
+        # Refused before any effort write or cadence bookkeeping.
+        assert a.telemetry()["last_simulation_step_count"] is None
+        assert not np.any(stage.control.joint_f.numpy())
+    if case == "unregistered":
+        assert b.telemetry()["last_simulation_step_count"] is None
+        assert not np.any(stage.control.joint_f.numpy()[list(b.coordinate_indices[1])])
+
+
+@pytest.mark.parametrize("name", OUTPUT_NAMES)
+def test_private_before_step_still_refuses_nonfinite_outputs_before_any_write(runtime, source_root, name):
+    """Regression pin of the single-robot path (no output_check): unchanged reads and wording."""
+    import numpy as np
+    stage = buffer_stage(runtime)
+    adapter = adapter_for(stage, source_root)
+    adapter.set_targets(np.full(14, 0.1))
+    adapter.before_step(0.005)
+    stage.simulation_step_count = 1
+    poison(adapter, name)
+    effort = stage.control.joint_f.numpy().copy()
+    friction = stage.solver.mjw_model.dof_frictionloss.numpy().copy()
+    expected = ("nonfinite previous external torque" if name == "external_torque"
+                else "nonfinite native BAM output; solver must not step")
+    with pytest.raises(ValueError, match=expected):
+        adapter.before_step(0.005)
+    np.testing.assert_array_equal(stage.control.joint_f.numpy(), effort)
+    np.testing.assert_array_equal(stage.solver.mjw_model.dof_frictionloss.numpy(), friction)
+    assert adapter.telemetry()["last_simulation_step_count"] == 0

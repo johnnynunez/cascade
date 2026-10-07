@@ -790,6 +790,29 @@ def test_before_step_cannot_mutate_clocks_then_solve_again():
     assert backend.contained
 
 
+@pytest.mark.parametrize('given', ['none', 'snapshot', 'check', 'both'])
+def test_prepare_actuator_forwards_only_the_cohort_objects_it_was_given(given):
+    """The shared owner's host snapshot and output check reach before_step as keywords;
+    a plain single-robot actuator (``before_step(dt)``) keeps the plain call."""
+    calls = []
+
+    class Recording(SoftwareActuator):
+        def before_step(self, dt, **kwargs):
+            calls.append(kwargs)
+            super().before_step(dt)
+    backend = SoftwareBackend()
+    stepper, backend, _, _, _ = make_stepper(backend=backend, actuator=Recording(backend))
+    stepper.start()
+    prepared = stepper._prepare_tick(prepare_actuator=False)
+    snapshot, check = object(), object()
+    kwargs = {'snapshot': snapshot} if given in ('snapshot', 'both') else {}
+    if given in ('check', 'both'):
+        kwargs['output_check'] = check
+    stepper._prepare_actuator(prepared, **kwargs)
+    assert calls == [kwargs]
+    assert backend.events[-1] == ('before', 2) and backend.step_count == 2
+
+
 def test_sdk_close_receipt_status_and_camera_cleanup_are_explicit(tmp_path):
     from types import SimpleNamespace as NS
     from cascade.sim.microduck_newton import KitNewtonBackend

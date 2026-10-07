@@ -67,6 +67,29 @@ VERIFY_USER = """Task milestone to verify: {milestone}
 Look at the image. Answer with exactly one word first, YES or NO, then a \
 one-sentence justification: is the milestone satisfied in the scene?"""
 
+# Human-CLAW-style pre-execution critic (ROADMAP follow-up #6). Asked BEFORE
+# a motion skill is dispatched, with the current frame; the answer is
+# advisory only -- it is attached to the result/trace and shown to the
+# planner, it never refuses or rewrites the call (the safety harness is the
+# sole authority that refuses motion).
+PLAUSIBILITY_SYSTEM = (
+    "You are a strict pre-execution critic for a tabletop robot arm. You judge "
+    "whether ONE proposed skill call, with exactly these arguments, is plausible "
+    "given the camera image and the robot's world model. You cannot stop the "
+    "robot; your answer is advice for the planner. Be specific and brief."
+)
+
+PLAUSIBILITY_USER = """Proposed robot action (NOT executed yet): {call}
+
+{question}
+
+World model (robot base frame, meters; the image is the current view):
+{beliefs}
+
+Answer with exactly one word first -- YES if the action is plausible as \
+proposed, NO if it is implausible -- then one sentence of reasons. If the \
+image and the world model do not let you tell, answer UNSURE."""
+
 MATERIAL_USER = """Look at the object in the image crop labeled {label!r}. \
 Classify how a parallel-jaw gripper should treat it. Answer with exactly one \
 word from: rigid, fragile, soft, deformable, slippery, heavy."""

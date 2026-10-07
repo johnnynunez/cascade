@@ -535,6 +535,13 @@ def build_runtime(
     if not b["occupancy_live"] and occupancy is not None:
         print("[cascade] WARNING: occupancy is enabled in config but no bridge answered -- "
               "the clearance gate is OFF (start scripts/serve_occupancy.sh)", file=sys.stderr)
+    # Capability matrix (ROADMAP #12, Waddle): what this rig can do, read
+    # from the probed state above -- camera depth chain, sidecars, arms,
+    # verifier, memory. The MCP server trims its tool surface by it; the
+    # line here is what makes a withheld tool visible to the operator.
+    from .capabilities import capability_matrix, format_matrix
+
+    print(f"[cascade] capabilities: {format_matrix(capability_matrix(runtime))}")
     return runtime, arm
 
 
@@ -580,6 +587,12 @@ def _runtime_state(runtime) -> dict:
         # verified sidecars (grasp planner / occupancy) -- what is REALLY on
         "backends": runtime.backends(),
     }
+    # what this rig can do, from probed state (apps/capabilities.py): the
+    # dashboard shows it next to `backends`, so a tool the MCP server
+    # withholds is explained where the operator is already looking
+    from .capabilities import capability_matrix
+
+    out["capabilities"] = capability_matrix(runtime)
     if runtime.watcher is not None:
         out["perception"] = runtime.watcher.stats()
     return out
@@ -810,6 +823,52 @@ def _beliefs_persist_enabled(mcfg) -> bool:
     return bool(mcfg.get("persist_beliefs", True))
 
 
+def _premotion_critic(cfg, llm, runtime, is_mock: bool):
+    """ROADMAP follow-up #6: the Human-CLAW pre-motion plausibility critic.
+
+    ADVISORY ONLY (agent/milestones.py): the orchestrator asks it before a
+    motion skill is dispatched and shows its answer to the planner; it never
+    refuses or rewrites a call -- the safety harness is the sole authority
+    that refuses motion. `agent.premotion_check: false` (or
+    CASCADE_PREMOTION_CHECK=0, same kill-switch shape as CASCADE_BELIEFS)
+    returns None, which is the pre-critic orchestrator path exactly.
+
+    Without a vision-capable brain the critic is still constructed so every
+    motion result records *why* it was not judged (`skipped`), rather than
+    silently looking identical to a judged one. The mock brain is a labelled
+    script, not a judge: asking it would consume the script.
+    """
+    agent_cfg = cfg.get("agent", {}) or {}
+    env = os.environ.get("CASCADE_PREMOTION_CHECK", "").strip().lower()
+    if env:
+        enabled = env not in ("0", "false", "no", "off")
+    else:
+        raw = agent_cfg.get("premotion_check", True)
+        enabled = (raw.strip().lower() in ("1", "true", "yes", "on")
+                   if isinstance(raw, str) else bool(raw))
+    if not enabled:
+        return None
+    from ..agent.milestones import PlausibilityChecker, make_plausibility_verifier
+
+    verifier, skip_reason = None, None
+    if is_mock:
+        skip_reason = "mock brain is a labelled script, not a vision model"
+    elif not getattr(llm, "supports_vision", False):
+        skip_reason = "no vision-capable model configured"
+    else:
+        verifier = make_plausibility_verifier(llm)
+    # `Cfg` and dict both answer .get("min"/"max"), which is all the digest reads.
+    workspace = cfg.safety.get("workspace") if "safety" in cfg else None
+    return PlausibilityChecker(
+        verifier,
+        beliefs=getattr(runtime, "beliefs", None),
+        held_getter=lambda: getattr(runtime, "held_object", None),
+        max_checks=int(agent_cfg.get("premotion_max_checks", 3)),
+        workspace=workspace,
+        skip_reason=skip_reason,
+    )
+
+
 def _make_detector(cfg):
     # A camera profile may pin its own detector (the mock camera uses the
     # mock detector so offline runs never load model weights).
@@ -962,14 +1021,24 @@ def _run_demo(args, cfg, runtime, mobile):
     # ASPIRE: validated repairs distilled from earlier runs, retrieved into
     # context at task start. This is the loop the ROADMAP listed as open --
     # `scripts/learn_from_runs.py` writes the entries, the agent reads them.
-    from ..skills.library import SkillLibrary
+    from ..skills.library import PROMOTION_MIN_TASKS, SkillLibrary
 
-    library = None if mobile else SkillLibrary(PACKAGE_ROOT / "skills_library")
+    # Cross-task gate (upstream ASPIRE): a distilled note reaches the agent
+    # only after it recurred in >= `memory.skill_min_tasks` distinct tasks
+    # (default 2). 1 is the explicit single-observation mode; nothing lowers
+    # it silently.
+    library = None if mobile else SkillLibrary(
+        PACKAGE_ROOT / "skills_library",
+        min_tasks=int(cfg.memory.get("skill_min_tasks", PROMOTION_MIN_TASKS)),
+    )
     agent = AgentOrchestrator(
         llm, runtime, advisor=advisor, max_steps=args.max_steps,
         decompose=not is_mock, fast_planner=None if mobile else FastPlanner(experience),
         skill_library=library, verify_milestones=not is_mock,
         memory_frames_k=int(cfg.memory.get("frames_k", 4)),
+        # ROADMAP #6 pre-motion critic: advisory only; arm runtimes only (the
+        # orchestrator drops it for mobile/composed modes like the tracker).
+        plausibility=None if mobile else _premotion_critic(cfg, llm, runtime, is_mock),
     )
 
     def _run(task: str):

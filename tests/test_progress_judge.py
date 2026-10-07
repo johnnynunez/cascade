@@ -89,6 +89,66 @@ def test_build_images_single_view_repeats_front_and_blanks_missing_goal():
     assert build_images(b, a, ref_end=goal)[1] == goal
 
 
+# --- wrist slots (ROADMAP #15) -----------------------------------------------
+def test_build_images_fills_the_wrist_slots_from_real_wrist_frames():
+    b, a = _jpeg(10), _jpeg(200)
+    wb, wa = _jpeg(33), _jpeg(66)
+    # ONE wrist stream: it fills BOTH wrist slots (front stays front)
+    imgs = build_images(b, a, before_wrists=[wb], after_wrists=[wa])
+    assert imgs[2] == b and imgs[3] == imgs[4] == wb
+    assert imgs[5] == a and imgs[6] == imgs[7] == wa
+    # two streams: left, right in rig order; a third is not shown
+    l, r, x = _jpeg(1), _jpeg(2), _jpeg(3)
+    imgs = build_images(b, a, before_wrists=[l, r, x], after_wrists=[r, l, x])
+    assert imgs[3:5] == [l, r] and imgs[6:8] == [r, l]
+    # the documented single-view fallback is unchanged: None/empty -> front repeated
+    assert build_images(b, a, before_wrists=[], after_wrists=None)[3:5] == [b, b]
+
+
+def test_wrist_slots_name_which_slots_are_real_wrist_views():
+    from cascade.eval.progress_judge import FRONT_REPEAT, wrist_slots
+
+    assert wrist_slots(None) == wrist_slots([]) == {"left": FRONT_REPEAT, "right": FRONT_REPEAT}
+    assert wrist_slots(["mujoco_wrist"]) == {"left": "mujoco_wrist", "right": "mujoco_wrist"}
+    assert wrist_slots(["l", "r"]) == {"left": "l", "right": "r"}
+    assert wrist_slots(["l", "r", "x"]) == {"left": "l", "right": "r"}
+    assert FRONT_REPEAT == "front-repeat"
+
+
+def test_judge_run_feeds_wrist_keyframes_and_the_record_names_the_slots(tmp_path):
+    run = _write_run(tmp_path, [
+        {"physics": "confirmed", "wrists": ["mujoco_wrist"]},
+        {"physics": "confirmed"},                                    # no wrist stream on this step
+        {"physics": "refuted", "wrists": ["mujoco_wrist"], "after_wrists": []},  # wrist died mid-skill
+    ])
+    seen = []
+
+    class Recording(FakeJudge):
+        def score(self, task, before, after, **refs):
+            seen.append({k: refs.get(k) for k in ("before_wrists", "after_wrists")})
+            return super().score(task, before, after, **refs)
+
+    v = judge_run(run, Recording(script=["<score>+60%</score>", "<score>+10%</score>", "<score>-10%</score>"]))
+    # the REAL wrist bytes reach the judge, in rig order
+    assert seen[0]["before_wrists"] == [(run / "keyframes/0000_before_wrist_mujoco_wrist.jpg").read_bytes()]
+    assert seen[0]["after_wrists"] == [(run / "keyframes/0000_after_wrist_mujoco_wrist.jpg").read_bytes()]
+    assert seen[1] == {"before_wrists": None, "after_wrists": None}
+    # a stream with only one side of the pair is not a wrist view of this step
+    assert seen[2] == {"before_wrists": None, "after_wrists": None}
+    assert v.steps[0].wrist_slots == {"left": "mujoco_wrist", "right": "mujoco_wrist"}
+    assert v.steps[1].wrist_slots == {"left": "front-repeat", "right": "front-repeat"}
+    assert v.steps[2].wrist_slots == {"left": "front-repeat", "right": "front-repeat"}
+    d = v.to_dict()
+    assert d["steps"][0]["wrist_slots"]["left"] == "mujoco_wrist"
+    assert d["wrist_views"] == {"mujoco_wrist": 1, "front-repeat": 2}
+    assert " wrist=front-repeat:2,mujoco_wrist:1" in v.summary_line()
+    # a run with no wrist stream anywhere says so in one token
+    run2 = _write_run(tmp_path / "two", [{"physics": "confirmed"}])
+    v2 = judge_run(run2, FakeJudge(0.5))
+    assert v2.to_dict()["wrist_views"] == {"front-repeat": 1}
+    assert " wrist=front-repeat:1" in v2.summary_line()
+
+
 # --- fusion arithmetic (upstream examples/inference.py) --------------------
 def test_incremental_fusion_matches_upstream_formula():
     prog, hops = fuse_progress([0.5, 0.5, -0.5], "incremental")
@@ -117,12 +177,23 @@ def _write_run(tmp_path: Path, rows: list[dict]) -> Path:
                 kb, ka = f"keyframes/{i:04d}_before.jpg", f"keyframes/{i:04d}_after.jpg"
                 (run / kb).write_bytes(_jpeg(20 + i))
                 (run / ka).write_bytes(_jpeg(120 + i))
+            # wrist keyframes as the runtime writes them: {stream: path} per side
+            wb = wa = None
+            if r.get("wrists"):
+                wb, wa = {}, {}
+                for n, name in enumerate(r["wrists"]):
+                    wb[name] = f"keyframes/{i:04d}_before_wrist_{name}.jpg"
+                    (run / wb[name]).write_bytes(_jpeg(40 + i + n))
+                for n, name in enumerate(r.get("after_wrists", r["wrists"])):
+                    wa[name] = f"keyframes/{i:04d}_after_wrist_{name}.jpg"
+                    (run / wa[name]).write_bytes(_jpeg(140 + i + n))
             res = {"ok": r.get("ok", True), "tier": r.get("tier", "reflex")}
             if "physics" in r:
                 res["postcondition"] = {"status": r["physics"], "channel": r.get("channel", "physics")}
             f.write(json.dumps({"step": i, "skill": r.get("skill", "pick_and_place"), "args": r.get("args", {"object": "red object"}),
                                 "duration_ms": r.get("ms", 1000), "result": res,
-                                "keyframe_before": kb, "keyframe_after": ka}) + "\n")
+                                "keyframe_before": kb, "keyframe_after": ka,
+                                "keyframe_before_wrists": wb, "keyframe_after_wrists": wa}) + "\n")
     return run
 
 

@@ -11,6 +11,10 @@ Tier 1 (reflex):   a template grammar compiles routine commands ("pick and
 Tier 2 (habit):    Agentic-VLA-style experience memory -- successful plans
                    indexed by a hashed bag-of-words embedding of the
                    instruction, retrieved by cosine similarity and replayed.
+                   Since 2026-10-07 this tier also holds Harness-VLA v4
+                   Task-Specific Memory RECIPES: successful LLM-tier runs
+                   with every concrete coordinate replaced by a perception
+                   query (memory/recipes.py), re-grounded at replay.
 Tier 3 (deliberation): the full LLM tool-calling loop (orchestrator), which
                    remains the fallback for novel or failed commands.
 """
@@ -20,6 +24,7 @@ from __future__ import annotations
 import json
 import re
 import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from zlib import crc32
@@ -366,11 +371,28 @@ class ExperienceMemory:
 
     Successful plans are stored with win/loss counts and persisted as JSON so
     habits survive process restarts (the demo learns across sessions).
+
+    Two kinds of record share the index (2026-10-07, ROADMAP #9):
+
+    * plain habits -- reflex/curriculum plans whose args are symbolic by
+      construction (labels, directions), persisted in ``experience.json``;
+    * **recipes** (``kind: "recipe"``) -- successful LLM-tier runs in
+      Harness-VLA v4's Task-Specific Memory shape: every concrete coordinate
+      replaced by a ``memory.recipes`` perception query, plus a one-line
+      ``summary``, persisted one per line in ``recipes.jsonl`` beside the
+      plans file. A recipe's calls are re-grounded by the orchestrator at
+      replay; a replay outcome never overwrites them with the grounded
+      coordinates (see ``record``).
     """
 
-    def __init__(self, path: Path | None = None, dim: int = 256):
+    def __init__(self, path: Path | None = None, dim: int = 256,
+                 recipes_path: Path | None = None):
         self._dim = dim
         self._path = path
+        self._recipes_path = (
+            recipes_path if recipes_path is not None
+            else (path.with_name("recipes.jsonl") if path is not None else None)
+        )
         self._index = QuantizedIndex(dim=dim, bits=4)
         self._records: list[dict] = []
         self._lock = threading.Lock()
@@ -381,6 +403,20 @@ class ExperienceMemory:
                     self._index.add(_embed(rec["task"], dim), meta=i)
             except Exception:
                 self._records = []
+        if self._recipes_path is not None and self._recipes_path.exists():
+            for line in self._recipes_path.read_text().splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                    task = rec["task"]
+                    rec["calls"] = [[c, dict(a)] for c, a in rec["calls"]]
+                except Exception:
+                    continue  # one corrupt line must not cost the others
+                rec["kind"] = "recipe"
+                self._records.append(rec)
+                self._index.add(_embed(task, dim), meta=len(self._records) - 1)
 
     def __len__(self) -> int:
         return len(self._records)
@@ -396,7 +432,16 @@ class ExperienceMemory:
                     return {"sim": round(sim, 3), **rec}
         return None
 
-    def record(self, task: str, calls: list[SkillCall], success: bool, duration_s: float) -> None:
+    def record(self, task: str, calls: list[SkillCall], success: bool, duration_s: float,
+               *, summary: str | None = None, source_run: str | None = None) -> None:
+        """Fold one outcome in. ``summary``/``source_run`` mark an LLM-tier
+        run stored as a RECIPE (Task-Specific Memory); so do symbolic
+        targets in ``calls``. A recipe's stored calls are only ever replaced
+        by symbolic calls -- the grounded coordinates a replay executed are
+        exactly what this memory must never remember."""
+        from ..memory.recipes import is_symbolic
+
+        symbolic = is_symbolic(calls)
         snapshot = None
         with self._lock:
             for rec in self._records:
@@ -404,37 +449,58 @@ class ExperienceMemory:
                     rec["wins" if success else "losses"] += 1
                     n = rec["wins"] + rec["losses"]
                     rec["avg_s"] = round(rec["avg_s"] + (duration_s - rec["avg_s"]) / n, 2)
-                    if success:
+                    if success and (rec.get("kind") != "recipe" or symbolic):
                         rec["calls"] = [[c, dict(a)] for c, a in calls]
-                    snapshot = json.dumps(self._records, indent=1)
+                    if summary and not rec.get("summary"):
+                        rec["summary"] = str(summary)
+                    snapshot = self._snapshot()
                     break
             else:
                 if not success:
                     return  # only remember plans that have worked at least once
-                self._records.append(
-                    {
-                        "task": task.strip().lower(),
-                        "calls": [[c, dict(a)] for c, a in calls],
-                        "wins": 1,
-                        "losses": 0,
-                        "avg_s": round(duration_s, 2),
-                    }
-                )
+                rec = {
+                    "task": task.strip().lower(),
+                    "calls": [[c, dict(a)] for c, a in calls],
+                    "wins": 1,
+                    "losses": 0,
+                    "avg_s": round(duration_s, 2),
+                }
+                if symbolic or summary is not None or source_run is not None:
+                    rec["kind"] = "recipe"
+                    rec["summary"] = str(summary or "")
+                    rec["source_run"] = source_run
+                    rec["created"] = time.time()
+                self._records.append(rec)
                 self._index.add(_embed(task, self._dim), meta=len(self._records) - 1)
-                snapshot = json.dumps(self._records, indent=1)
+                snapshot = self._snapshot()
         # File I/O happens OUTSIDE the lock: recall() on the command hot
         # path must never wait on a disk write.
         if snapshot is not None:
-            self._save(snapshot)
+            self._save(*snapshot)
 
-    def _save(self, snapshot: str) -> None:
-        if self._path is None:
-            return
-        try:
-            self._path.parent.mkdir(parents=True, exist_ok=True)
-            self._path.write_text(snapshot)
-        except OSError:
-            pass
+    def _snapshot(self) -> tuple[str, str]:
+        """(plans JSON, recipes JSONL) -- call with the lock held."""
+        plans = [r for r in self._records if r.get("kind") != "recipe"]
+        recipes = [r for r in self._records if r.get("kind") == "recipe"]
+        return (
+            json.dumps(plans, indent=1),
+            "".join(json.dumps(r) + "\n" for r in recipes),
+        )
+
+    def _save(self, snapshot: str, recipes: str | None = None) -> None:
+        if self._path is not None:
+            try:
+                self._path.parent.mkdir(parents=True, exist_ok=True)
+                self._path.write_text(snapshot)
+            except OSError:
+                pass
+        if recipes is not None and self._recipes_path is not None and (
+                recipes or self._recipes_path.exists()):
+            try:
+                self._recipes_path.parent.mkdir(parents=True, exist_ok=True)
+                self._recipes_path.write_text(recipes)
+            except OSError:
+                pass
 
     def stats(self) -> dict:
         return {"plans": len(self._records)}
@@ -456,10 +522,21 @@ class FastPlan:
     #: Where each call came from: "recalled" (a proven plan for this sub-goal,
     #: i.e. the warm start) or "reflex". Same length as `calls`.
     provenance: list[str] = field(default_factory=list)
+    #: One-line semantic summary when the plan is a recalled RECIPE
+    #: (Task-Specific Memory, memory/recipes.py); None for habits/reflexes.
+    #: `calls` of a recipe carry symbolic targets the orchestrator must
+    #: re-ground through perception before any motion.
+    summary: str | None = None
 
     @property
     def warm_started(self) -> bool:
         return any(p == "recalled" for p in self.provenance)
+
+    @property
+    def needs_grounding(self) -> bool:
+        from ..memory.recipes import is_symbolic
+
+        return is_symbolic(self.calls)
 
     def subgoal_spans(self):
         """Yield (subgoal, calls_for_that_subgoal) in order."""
@@ -573,11 +650,15 @@ class FastPlanner:
             rec = self.experience.recall(task)
             if rec is not None:
                 calls = [(c, dict(a)) for c, a in rec["calls"]]
+                detail = f"~{rec['task']!r} (sim {rec['sim']}, {rec['wins']}w/{rec['losses']}l)"
+                if rec.get("kind") == "recipe":
+                    detail += f"; recipe: {rec.get('summary') or 'no summary'}"
                 return FastPlan(
                     "experience",
                     calls,
-                    f"~{rec['task']!r} (sim {rec['sim']}, {rec['wins']}w/{rec['losses']}l)",
+                    detail,
                     provenance=["recalled"] * len(calls),
+                    summary=rec.get("summary") if rec.get("kind") == "recipe" else None,
                 )
         if self.curriculum:
             return self._plan_curriculum(task)
@@ -612,9 +693,14 @@ class FastPlanner:
             provenance=provenance,
         )
 
-    def note_outcome(self, task: str, calls: list[SkillCall], success: bool, duration_s: float) -> None:
+    def note_outcome(self, task: str, calls: list[SkillCall], success: bool, duration_s: float,
+                     **meta) -> None:
+        """Record a whole-task outcome. ``calls`` must be the plan AS STORED
+        (symbolic targets intact for a recipe), never the grounded calls the
+        runtime executed; ``meta`` (``summary``, ``source_run``) marks an
+        LLM-tier run being stored as a recipe."""
         if self.experience is not None:
-            self.experience.record(task, calls, success, duration_s)
+            self.experience.record(task, calls, success, duration_s, **meta)
 
     def note_subgoal_outcome(self, subgoal: str, calls: list[SkillCall],
                              success: bool, duration_s: float) -> None:

@@ -1,0 +1,58 @@
+# Rendered WRIST camera on the MuJoCo SO-101 -- the eye-in-hand view the
+# outcome judge's prompt reserves two slots for (eval/progress_judge.py,
+# ROADMAP follow-up #15). Pairs with `mujoco_scene` as the front view:
+#
+#   python -m cascade.apps.demo --arm so101_mujoco \
+#       --cameras mujoco_scene,mujoco_wrist --task "pick and place the red object"
+#
+# The camera is ATTACHED TO THE GRIPPER BODY of the robot MJCF, so it moves
+# with the arm and looks down the fingers at the jaw tips. A `<camera>` can
+# only be rigid to a body as that body's child, and the gripper body lives in
+# the fetched Menagerie `so101.xml` -- so `sim/demo_scene.write_demo_scene`
+# copies the robot's include chain beside the original (text verbatim, via
+# ElementTree) with this one `<camera>` inserted into `<body name="gripper">`
+# and points the generated scene at the copy. The asset itself is never
+# edited and the compiled physics is the original model plus one camera
+# (pinned exactly by tests/test_wrist_camera.py).
+#
+# `mj_attach.T` is T_cam2body in the usual OpenCV camera convention (right,
+# down, forward), expressed in the MJCF `gripper` body frame, converted to
+# MuJoCo's camera axes by the same code that poses the fixed cameras. The
+# pose is the Menagerie model's own wrist-camera mount (its `camera_mount`
+# body carries the real SO-101 mount at (0, 0.055, -0.045) in this frame),
+# tilted 0.75 rad from the finger axis toward the jaw tips. Measured on the
+# rendered frame (tests/test_wrist_camera.py): both jaw tips at the bottom of
+# the frame at every pose; the red prop appears between them during a
+# top-down descent and grows as the TCP comes down (bbox ~28k px at
+# TCP z=0.08, ~38k px at z=0.05 over a 3.5 cm cube).
+#
+# THIS IS EVIDENCE FOR THE JUDGE, NOT A CALIBRATED SENSOR. There is
+# deliberately no `extrinsics` block: the view fuses no 3-D beliefs, and
+# nothing here claims a hand-eye calibration (the ROADMAP wrist-cam
+# follow-ups -- extrinsics validated mid-descent against physics truth --
+# stay open). `role: wrist` is what makes the runtime record this stream's
+# frames as wrist keyframes next to the front ones for every motion skill.
+type: mujoco
+role: wrist
+width: 640
+height: 480
+# ~60 deg vertical field of view at 480 px (fovy = 2*atan(h/2fx)); both jaws
+# plus the approach target fit at grasp height.
+fx: 415.7
+
+mj_attach:
+  body: gripper
+  T:
+    - [1.0,  0.0,     0.0,     0.000]
+    - [0.0, -0.7317, -0.6816,  0.055]
+    - [0.0,  0.6816, -0.7317, -0.045]
+    - [0.0,  0.0,     0.0,     1.000]
+
+# RGB only: the judge reads pixels, and a depth pass would double the render
+# cost of a stream nothing backprojects from.
+depth: false
+fuse_beliefs: false
+static_scene: false
+
+# Same pump rate as the front rendered camera (see mujoco_scene.yaml).
+fps: 10

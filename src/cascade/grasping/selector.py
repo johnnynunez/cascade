@@ -15,7 +15,23 @@ from . import evidence
 
 
 class NoExecutableGrasp(SkillError):
-    """All candidates failed geometry/IK checks before any actuation."""
+    """All candidates failed geometry/IK checks before any actuation.
+
+    `all_too_wide` is True when EVERY candidate exceeded the jaw span (an
+    object property no re-scan can cure); `narrowest_width_m` is then the
+    best the planner could offer and `jaw_max_width_m` the span it lost
+    to. For a mixed or IK/vetting failure `all_too_wide` is False and
+    `narrowest_width_m` None (`jaw_max_width_m` is always the span used)."""
+
+    all_too_wide: bool = False
+    narrowest_width_m: float | None = None
+    jaw_max_width_m: float | None = None
+
+
+#: substring of the per-candidate width reason (also matched by the runtime)
+_TOO_WIDE_MARK = "> gripper max"
+#: the explicit all-candidates refusal, matched by `_grasp_retry_verdict`
+ALL_TOO_WIDE_MARKER = "every candidate exceeds the jaw span"
 
 
 def _flip_twin(g: Grasp) -> Grasp:
@@ -139,9 +155,16 @@ def select_grasp(
         return float(np.max(np.abs(q[:n] - q_ref[:n]))) if n else 0.0
 
     _check()
+    too_wide = 0
+    narrowest: float | None = None
+    considered = 0
     for g in grasps if preserve_order else sorted(grasps, key=lambda g: -g.quality):
         _check()
+        considered += 1
         if g.width_m > max_width_m:
+            too_wide += 1
+            w = float(g.width_m)
+            narrowest = w if narrowest is None else min(narrowest, w)
             reasons.append(
                 f"{g.label}: required width {g.width_m * 1000:.0f}mm > gripper "
                 f"max {max_width_m * 1000:.0f}mm (consider push or regrasp)"
@@ -164,4 +187,22 @@ def select_grasp(
         if best is not None:
             return best
     _check()
-    raise NoExecutableGrasp("no executable grasp: " + "; ".join(reasons[:4]))
+    # Over-width is an OBJECT property: re-scanning cannot shrink it, so the
+    # persistence loops stop on it. Say so explicitly, with the measurement
+    # (narrowest candidate vs jaw span), and keep the structured fact on the
+    # exception. A MIXED list (some too wide, some vetoed/IK-failed) is NOT
+    # that refusal: list the non-width reasons first so the 4-reason
+    # truncation below can never make it read as "every candidate too wide".
+    all_too_wide = considered > 0 and too_wide == considered
+    if not all_too_wide:
+        reasons = ([r for r in reasons if _TOO_WIDE_MARK not in r]
+                   + [r for r in reasons if _TOO_WIDE_MARK in r])
+    message = "no executable grasp: "
+    if all_too_wide:
+        message += (f"{ALL_TOO_WIDE_MARKER} (narrowest {narrowest * 1000:.0f}mm > gripper "
+                    f"max {max_width_m * 1000:.0f}mm; use push_object): ")
+    exc = NoExecutableGrasp(message + "; ".join(reasons[:4]))
+    exc.all_too_wide = all_too_wide
+    exc.narrowest_width_m = narrowest if all_too_wide else None
+    exc.jaw_max_width_m = float(max_width_m)
+    raise exc

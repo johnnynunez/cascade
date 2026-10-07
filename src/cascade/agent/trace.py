@@ -3,7 +3,12 @@
 Per run directory:
     trace.jsonl   - one JSON record per skill call (args, duration, result,
                     keyframe paths)
-    keyframes/    - JPEG snapshots immediately before/after each call
+    keyframes/    - JPEG snapshots immediately before/after each call; for
+                    motion skills on a rig with a wrist view also one
+                    `<step>_<skill>_{before,after}_wrist_<stream>.jpg` per
+                    wrist stream (`keyframe_before_wrists` /
+                    `keyframe_after_wrists`: `{stream: path}`, null when the
+                    rig has none -- the judge then repeats the front image)
     summary.txt   - final human-readable outcome
 
 ASPIRE's ablation credits this per-primitive evidence with the single largest
@@ -48,6 +53,8 @@ class TraceLogger:
         keyframe_after: str | None = None,
         tier: str | None = None,
         context: dict[str, Any] | None = None,
+        keyframe_before_wrists: dict[str, str] | None = None,
+        keyframe_after_wrists: dict[str, str] | None = None,
     ) -> None:
         rec = {
             "step": self._step,
@@ -60,10 +67,35 @@ class TraceLogger:
             "result": _jsonable(result),
             "keyframe_before": keyframe_before,
             "keyframe_after": keyframe_after,
+            # wrist views, {stream name: path}; null (not {}) when there are
+            # none so a reader can tell "no wrist camera" from "none saved"
+            "keyframe_before_wrists": dict(keyframe_before_wrists) if keyframe_before_wrists else None,
+            "keyframe_after_wrists": dict(keyframe_after_wrists) if keyframe_after_wrists else None,
         }
         with open(self._trace_path, "a") as f:
             f.write(json.dumps(rec) + "\n")
         self._step += 1
+
+    def rows(self) -> list[dict[str, Any]]:
+        """The recorded steps, oldest first, read back from `trace.jsonl`.
+
+        The file is the authority (`recall_step` serves what a post-hoc
+        reader would see, not an in-memory shadow of it); a line that does
+        not parse is skipped rather than failing the whole recall."""
+        if not self._trace_path.exists():
+            return []
+        out: list[dict[str, Any]] = []
+        for line in self._trace_path.read_text().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(rec, dict):
+                out.append(rec)
+        return out
 
     def finish(self, summary: str) -> None:
         # The runtime registers `backends_fn` so every summary carries WHICH

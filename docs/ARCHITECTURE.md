@@ -88,7 +88,13 @@ background includes three published systems:
   `agent/advisor.py`), embedding-indexed experience memory (tier 2), and
   *adaptive reward synthesis* -- which we run at inference time as
   **checkable milestones** (`agent/milestones.py`: symbolic against the
-  world model first, VLM only when the symbolic tier abstains).
+  world model first, VLM only when the symbolic tier abstains). Since
+  2026-10-07 the same rate-limited critic also runs *before* each LLM-tier
+  motion dispatch (Human-CLAW's pre-execution verifier, ROADMAP #6):
+  `PlausibilityChecker` asks the VLM whether this call with these args is
+  plausible given the frame, beliefs and held state; the answer is attached
+  to the result/trace as `plausibility` and is **advisory only** -- the
+  harness alone refuses motion.
 - **Claude plays robotics** (Anthropic, 2026): control-interface level
   dominates model choice; one LLM turn costs 2–15 s so routine commands
   must not wait on the model; structured state beats extra image context;
@@ -126,15 +132,18 @@ shared boundary is `RobotRuntime.execute()`, as shown in the
                  host LLM picks tools over MCP stdio                         --task / --interactive
                           │                                                          │
                           ▼                                                          ▼
-              apps/mcp_server.py  ── 41 tools ──┐                  agent/orchestrator.py
-              (34 specs − task_done              │                  tier 1 REFLEX   regex grammar      ~µs
+              apps/mcp_server.py  ── 45 tools ──┐                  agent/orchestrator.py
+              (38 specs − task_done              │                  tier 1 REFLEX   regex grammar      ~µs
                + 8 host extras: camera_snapshot, │                  tier 2 HABIT    experience memory  ~ms
-               world_state, task_memory, ...)    │                  tier 3 LLM      + memory harness   2–15 s/turn
-                                                 ▼                            │
+               world_state, task_memory, ...;    │                  tier 3 LLM      + memory harness   2–15 s/turn
+               minus what the rig's capability   │
+               matrix withholds, with reasons)   ▼                            │
                               skills/runtime.py  SkillRuntime.execute()  ◀────┘
                               ONE choke point: arm selection, BEFORE keyframe, watcher pause,
                               skill body, postcondition VERIFY, envelope, AFTER keyframe,
-                              trace row (with tier), memory tuple <frame, action, verdict>
+                              trace row (with tier + advisory `plausibility` hand-off),
+                              memory tuple <frame, action, verdict>,
+                              outcome stamp ok | failed | stuck (+ human-facing ask)
                                                  │
         ┌──────────────┬──────────────┬──────────┼───────────────┬─────────────────┬──────────────┐
         ▼              ▼              ▼          ▼               ▼                 ▼              ▼
@@ -165,6 +174,8 @@ N cameras ──CameraStream (thread each, latest-frame slot, drop-stale; render
 chat command ("pick and place the red cube")
    ├─ tier 1 REFLEX   template grammar -> skill plan          agent/reflex.py
    ├─ tier 2 HABIT    hashed-BoW cosine ≥ 0.9, wins > losses  runs/experience.json
+   │                  + recipes (xyz -> perception queries,   runs/recipes.jsonl
+   │                    re-grounded before any motion)        memory/recipes.py
    └─ tier 3 LLM      decomposition + tool loop + advisor     agent/orchestrator.py
         all tiers execute through the same SkillRuntime; every trace row
         records `tier: reflex | experience | llm | mcp-host`
@@ -201,23 +212,43 @@ tier or host. In order:
 1. `arm=` popped from the args and bound thread-locally for this call
    (multi-arm; `""`/`default` = primary; unknown name = `SkillError`).
 2. BEFORE keyframe (a fresh frame if none exists -- the first skill of a
-   run used to record `null`); a `PostconditionChecker.snapshot()` of the
-   target object.
+   run used to record `null`); for motion skills also one wrist keyframe
+   per `role: wrist` / eye-in-hand stream in the rig; a
+   `PostconditionChecker.snapshot()` of the target object.
 3. Watcher paused for motion skills; the skill body runs; every exception
    becomes `{"ok": false, "error": ...}` -- nothing escapes by design.
+   Every result is then stamped with one of three outcomes, `outcome: ok |
+   failed | stuck`. `stuck` (`SkillStuck`, or a result that says so) is
+   RPent's third finish status: the persistence loop spent its budget, or
+   stopped for a reason no retry cures (object never seen after re-scans,
+   wider than the jaws, destination not placeable) and `ask` is the
+   concrete human-actionable request. A stuck result is forced to
+   `ok: false` and never `verified`; the e-stop and every harness refusal
+   stay plain failures. The orchestrator ends the task on it (fast path and
+   LLM tier alike), relays the ask verbatim and writes `outcome: stuck` to
+   `summary.txt`.
 4. **Postcondition verification** (`agent/effects.py`): the effect is
    measured on the strongest available channel -- `physics` (sim truth),
    `belief` (perception), `gripper` (jaw width). A refuted claim
    *downgrades* `ok` and sets `self_reported_ok`. A displacement is two
    readings of the SAME channel (`_comparable_start`); a verifier that
    itself crashes yields an UNVERIFIED verdict naming the cause, never a
-   silent pass.
+   silent pass. A confirmed verdict on a stuck step is downgraded to
+   unverified (a stuck step claims no effect); refuted stays refuted.
 5. Envelope update (`memory/envelope.py`), AFTER keyframe -- a FRESH frame
    for motion skills, taken after the arm stopped (the pre-motion
    `last_frame` graded the logger, not the robot, and an outcome judge
-   scored 0% on a confirmed pick).
+   scored 0% on a confirmed pick); the wrist AFTER frames follow the same
+   fresh-grab rule, and a wrist camera that fails is dropped from the row,
+   never a reason to fail the skill.
 6. Trace row (`trace.jsonl`, with `tier`), and the Vesta memory tuple:
-   AFTER frame + action text + independent verdict.
+   AFTER frame + action text + independent verdict. `recall_step(n)` reads
+   this evidence back for the planner/chat host (RPent
+   `view_env_state(step=N)`): skill, args, outcome/ask, verdict, tier and
+   the BEFORE/AFTER keyframes -- served over MCP as image content items
+   with one caption each, and shown to the LLM tier once on its next turn.
+   Negative `n` counts from the end; recall rows are not steps; an invalid
+   `n` is an explicit error and never an old frame.
 
 For single-arm Isaac kitchen `pick_and_place` calls that report a completed
 motion to the configured green square or open box, `sim/placement.py` adds a fresh
@@ -415,11 +446,12 @@ make that image current by assigning a new timestamp. See
 | store | what | horizon | consumer |
 |---|---|---|---|
 | `BeliefStore` (`memory/beliefs.py`) | objects: label, colour, 3D, freshness; visible/remembered | persisted across runs (wall-clock stamps, `LOADED_MIN_AGE_S` floor, 6 h max age) | every skill; can inform the agent, can never aim the jaws (`belief_fallback_age_s`) |
+| `BeliefStore` named snapshots (`SceneSnapshot`) | ADVISORY layouts: the confirmed (visible) objects' label, colour, centroid, extent at memorize time | saved/loaded with the beliefs; dropped by `clear()` (`reset_scene`) | `snapshot_scene` writes, `restore_scene` reads them as TARGETS; never a claim about the present — only the `restored` postcondition is |
 | `EpisodicMemory` text ring | events, outcomes | ~15 s | `recall_memory`, narration |
 | `EpisodicMemory` frame ring | AFTER frame + action + verdict per motion skill | task-scale (600 s), reset per task / by `reset_scene` | `memory_frames(k)`: first frame pinned, uniform sample, newest last → LLM turn (images) and `task_memory` tool |
-| `ExperienceMemory` (`agent/reflex.py`) | command → plan habits, hashed BoW in a TurboQuant index | `runs/experience.json` | tier 2 |
+| `ExperienceMemory` (`agent/reflex.py`) | command → plan habits, hashed BoW in a TurboQuant index; plus Task-Specific Memory **recipes** (verified LLM-tier runs, coordinates replaced by `localize_object(label)+offset` queries + a summary, `memory/recipes.py`) | `runs/experience.json` (habits), `runs/recipes.jsonl` (recipes) | tier 2; a recipe is re-grounded through perception before any motion, a failed grounding aborts to the LLM tier |
 | `GraspOutcomeMemory` | per-object grasp features, wins/losses | `~/.cascade/grasp_memory.json` | grasp re-rank + z-nudge |
-| `OperatingEnvelope` (`memory/envelope.py`) | per-skill outcome statistics and failure classes | `runs/` | planner context, ROADMAP follow-ups |
+| `OperatingEnvelope` (`memory/envelope.py`) | per-skill outcome statistics and failure classes, raw args plus runtime-measured derived features (`DERIVED_FEATURES`: TCP z at close, object height/width, lateral offset; unmeasured → `missing`, never defaulted) | `~/.cascade/envelope.json` (`CASCADE_ENVELOPE_PATH`) | planner context; advisory |
 
 `skills/library.py` stores markdown guidance. Between sessions,
 `agent/aspire.py` admits a failed-then-successful retry only when its skill,
@@ -429,9 +461,14 @@ record intervenes. `SkillRuntime.execute()` records that context separately
 from tool arguments, without probing a lazy backend. Legacy traces lacking
 context cannot produce new notes.
 
-`scripts/learn_from_runs.py` harvests eligible associations; `retrieve()`
-loads keyword-matched notes into the tier-3 context at task start
-(`orchestrator.run_task`, with the library supplied by `demo.main`). A note
+`scripts/learn_from_runs.py` harvests eligible associations into
+`skills_library/*.md`, one note per `(skill, signature)` whose front matter
+counts `occurrences` (distinct runs) and `source_tasks` (distinct tasks);
+`retrieve()` loads keyword-matched notes into the tier-3 context at task start
+(`orchestrator.run_task`, with the library supplied by `demo.main`) **only once
+they are promoted** — recurred in ≥ 2 distinct tasks, upstream ASPIRE's rule.
+A note seen in one task stays a stored candidate; `memory.skill_min_tasks: 1`
+is the explicit relaxation. A note
 preserves the recorded evidence, not proof of a causal repair or transfer to
 another rig.
 This gate does not change experience-memory or operating-envelope admission.
@@ -446,7 +483,14 @@ GRM or any OpenAI-compatible VLM. It runs **off the hot path**
 (`scripts/judge_run.py` over a finished run dir) and is calibrated against
 the physics postcondition per step (confusion matrix in the run summary).
 The first honest number on this rig: +0.45 on a physics-confirmed pick
-after the AFTER-keyframe fix; 0.00 before it.
+after the AFTER-keyframe fix; 0.00 before it. The prompt's two WRIST slots
+are filled from the rig's wrist keyframes when the trace has them
+(`keyframe_{before,after}_wrists`, written for motion skills on any rig
+with a `role: wrist` / eye-in-hand camera -- `mujoco_wrist` renders one
+from the SO-101 gripper body); otherwise the front image is repeated, and
+every record names which it was (`wrist_slots`, `wrist=` in the summary).
+No agreement change is claimed from the wrist view until the judge is
+re-run with it.
 
 ## Module map
 
@@ -479,7 +523,8 @@ src/cascade/
 ├── memory/
 │   ├── beliefs.py      object permanence, colour-aware fusion, save/load (wall clock)
 │   ├── episodic.py     text ring (15 s) + frame ring (task-scale) + memory_frames(k)
-│   ├── envelope.py     Harness-VLA operating envelope (per-skill outcome stats)
+│   ├── envelope.py     Harness-VLA operating envelope (per-skill outcome stats + runtime-measured derived features)
+│   ├── recipes.py      Task-Specific Memory: xyz ⇄ localize_object(label)+offset queries (symbolize / ground)
 │   ├── grasp_memory.py persisted grasp-outcome prior (re-rank + z-nudge)
 │   └── turboquant.py / vector_index.py   4-bit rotation quantizer + asymmetric top-k
 ├── control/
@@ -508,16 +553,18 @@ src/cascade/
 │   └── force.py        material → two-stage close profiles
 ├── agent/
 │   ├── orchestrator.py reflex → habit → LLM loop; memory harness injection; TaskReport
-│   ├── reflex.py       tier-1 grammar (incl. reset_scene) + tier-2 ExperienceMemory
-│   ├── effects.py      PostconditionChecker + annotate_result (Pigey closed loop)
-│   ├── milestones.py   checkable milestones: symbolic first, VLM second, UNKNOWN honest
+│   ├── reflex.py       tier-1 grammar (incl. reset_scene, memorize/restore/find) + tier-2 ExperienceMemory
+│   ├── effects.py      PostconditionChecker + annotate_result (Pigey closed loop; `restored`/`searched` for the composites)
+│   ├── milestones.py   checkable milestones: symbolic first, VLM second, UNKNOWN honest;
+│   │                   + advisory pre-motion plausibility critic (never a veto)
 │   ├── llm.py          OpenAI-compat (cloud/local) / Anthropic / Cosmos3 / Mock
 │   ├── cosmos3.py      Cosmos3-Edge XML tool-call dialect
 │   ├── prompts.py / advisor.py   persona, decomposition, VLM critic
 │   ├── aspire.py       post-run diagnosis → skill-library note
 │   └── trace.py        trace.jsonl + keyframes
 ├── skills/
-│   ├── runtime.py      SkillRuntime: 33 skills + task_done, TOOL_SPECS, _MOTION_SKILLS
+│   ├── runtime.py      SkillRuntime: 37 skills + task_done, TOOL_SPECS, _MOTION_SKILLS (19)
+│   │                   incl. the Pigey composites snapshot_scene / restore_scene / search_for_object
 │   ├── contact_episode.py / release_episode.py  scoped retained recovery
 │   ├── held_observation.py aiming estimates vs coherent release authority
 │   └── library.py      markdown repair notes; written by aspire.py, retrieved per task
@@ -532,7 +579,8 @@ src/cascade/
 ├── eval/progress_judge.py   Robo-Dopamine progress judge (GRM / VLM), off the hot path
 └── apps/
     ├── demo.py         build_runtime() = the composition root; CLI --task / --interactive
-    ├── mcp_server.py   MCP stdio front-end: 41 tools, out-of-band stop, per-call log
+    ├── mcp_server.py   MCP stdio front-end: 45 tools, out-of-band stop, per-call log
+    ├── capabilities.py capability matrix from the built runtime; TOOL_REQUIREMENTS trims the MCP catalog
     ├── process_owner.py profile-owned process identity for shutdown and proof binding
     ├── stream_server.py lazy MJPEG dashboard (+ chat, STOP)     live_view.py  RigViewer
     ├── live_control.py viewer-driven control        record.py / viewer.py  capture / view
@@ -659,6 +707,17 @@ openai|local_*`) cascade runs its own loop with all three tiers.
 - **A claim is not a fact.** Every effect is verified on an independent
   channel when one exists, and the verdict travels with the result, into
   the trace, into memory and to the judge.
+- **The tool surface is derived, not declared.** `apps/capabilities.py`
+  reads the BUILT runtime -- the depth chain each camera stream really
+  produces (`DepthProvider.depth_source_for`), the sidecar probes behind
+  `runtime.backends()`, the `ArmRig`, the verifier, the memory -- and
+  `TOOL_REQUIREMENTS` names what each tool cannot run without. The MCP
+  server withholds (and rejects if called) only what probed state shows
+  unmet; unknown is not unavailable, a fallback (OBB for a dead GraspGen-X)
+  is reported, never hidden, and the stop path is never a capability. The
+  matrix is printed next to `backends:`, served by `/state` and by
+  `world_state` with every withheld tool's reason. `CASCADE_HIDE_TOOLS`
+  remains the explicit operator override on top.
 - **Memory is structured first, embeddings second.** Recall tools work on
   labels/time/positions; the TurboQuant index has one live consumer (tier
   2). Frames -- not text -- are what the planner is shown of its own past.
@@ -701,7 +760,8 @@ openai|local_*`) cascade runs its own loop with all three tiers.
   highgui); the MuJoCo physics window and the browser dashboard are the
   visuals there.
 - Skill-library notes are retrieved by guard-word match on the task text
-  (`aspire.retrieve`), not by embedding; a visual embedder for episodic
+  (`aspire.retrieve`), not by embedding, and only once promoted (recurred in
+  ≥ 2 distinct tasks); a visual embedder for episodic
   recall is still on the ROADMAP.
 
 ## Counts
@@ -720,4 +780,8 @@ EOF
 ```
 
 `tests/test_llm_and_library.py` pins the README's headline skill and tool
-counts to these derived numbers, so a drift there fails the suite.
+counts to these derived numbers, so a drift there fails the suite. The
+MCP count is the FULL catalog; a running server lists it minus what the
+rig's capability matrix withholds (`world_state.tools_withheld` names them,
+e.g. 40 on a single-arm rig), so compare `mcp probe --json` against
+`41 - len(tools_withheld)`, not against 41.

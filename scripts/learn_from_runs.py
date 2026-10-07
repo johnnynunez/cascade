@@ -38,7 +38,7 @@ sys.path.insert(0, str(REPO / "src"))
 
 from cascade.agent.aspire import harvest, report  # noqa: E402
 from cascade.memory.envelope import OperatingEnvelope  # noqa: E402
-from cascade.skills.library import SkillLibrary  # noqa: E402
+from cascade.skills.library import PROMOTION_MIN_TASKS, SkillLibrary  # noqa: E402
 
 
 def main() -> int:
@@ -47,6 +47,10 @@ def main() -> int:
                     help="directory holding <run>/trace.jsonl (default: repo runs/)")
     ap.add_argument("--library", default=str(REPO / "skills_library"),
                     help="ASPIRE skill library directory")
+    ap.add_argument("--min-tasks", type=int, default=PROMOTION_MIN_TASKS,
+                    help="distinct tasks a note must recur in before it is promoted "
+                         f"(default {PROMOTION_MIN_TASKS}, upstream ASPIRE's rule; 1 = retrieve "
+                         "after one confirmed retry, explicit relaxation)")
     ap.add_argument("--envelope", default="~/.cascade/envelope.json",
                     help="persisted operating-envelope model")
     ap.add_argument("--limit", type=int, default=200, help="most recent N runs")
@@ -55,6 +59,8 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true", help="diagnose without writing")
     ap.add_argument("--export-md", default="", help="also write MEMORY.md-style envelope export here")
     args = ap.parse_args()
+    if args.min_tasks < 1:
+        ap.error("--min-tasks must be >= 1 (1 is the explicit single-observation mode)")
 
     runs_dir = Path(args.runs).expanduser()
     if not runs_dir.exists():
@@ -64,9 +70,9 @@ def main() -> int:
     envelope = OperatingEnvelope(path=None if args.dry_run else args.envelope)
     ingested = envelope.ingest_runs(runs_dir, limit=args.limit)
 
-    library = SkillLibrary(args.library)
+    library = SkillLibrary(args.library, min_tasks=args.min_tasks)
     learned = (
-        {"learned": 0, "entries": [], "note": "dry run"}
+        {"learned": 0, "entries": [], "note": "dry run", "library": library.summary()}
         if args.dry_run
         else harvest(runs_dir, library, limit=args.limit)
     )
@@ -89,6 +95,10 @@ def main() -> int:
     print(f"runs dir      : {runs_dir}")
     print(f"traces folded : {ingested['traces']} traces, {ingested['records']} calls")
     print(f"skills learned: {learned.get('learned', 0)} {learned.get('entries', [])}")
+    lib = learned.get("library") or {}
+    if lib:
+        print(f"skill library : {lib['entries']} notes, {lib['promoted']} promoted, "
+              f"{lib['candidates']} candidates (promotion needs >= {lib['min_tasks']} distinct tasks)")
     hist = learned.get("failure_histogram") or {}
     if hist:
         print("\nfailure histogram:")

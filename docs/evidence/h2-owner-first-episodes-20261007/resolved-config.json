@@ -1,0 +1,293 @@
+{
+  "domains": {
+    "locomotion": {
+      "bases": [
+        "h2_episode"
+      ],
+      "kind": "locomotion",
+      "resolved": {
+        "base": {
+          "admission": "pending_h2_geometric_validation",
+          "asset_sha256": "040d2140bb0d6d653f5423d7d76462a49d25e8470af2153518bbdce9158bb5f1",
+          "bridge_host": "127.0.0.1",
+          "bridge_port": 18400,
+          "capabilities": [
+            "walk_velocity",
+            "turn",
+            "stop_navigation"
+          ],
+          "device": "cuda:0",
+          "engine": "physx",
+          "epoch": "0e0a9ac879554487a32c2e76a1de527a",
+          "kind": "h2",
+          "model_identity_sha256": "a7800af7fc571bec47288af2c587f2abba3c93d2c443c5b382ccf59e7c98339a",
+          "name": "h2_episode",
+          "physics_dt": 0.005,
+          "policy_dt": 0.02,
+          "policy_sha256": "0a47182bbe203eddc2b7a9185f822c14d3799723f8b8392c7a2895d25d449c83",
+          "resolved": {
+            "safety": {
+              "max_duration_s": 3.0,
+              "max_no_progress_s": 0.4,
+              "max_state_age_s": 0.5,
+              "max_turn_angle_rad": 1.0,
+              "max_vx": 0.4,
+              "max_vy": 0.2,
+              "max_wall_duration_s": 8.0,
+              "max_wz": 0.6,
+              "poll_interval_s": 0.01,
+              "turn_speed_rad_s": 0.5,
+              "turn_tolerance_rad": 0.03
+            }
+          },
+          "robot_id": "h2",
+          "safety": {
+            "max_duration_s": 3.0,
+            "max_no_progress_s": 0.4,
+            "max_state_age_s": 0.5,
+            "max_turn_angle_rad": 1.0,
+            "max_vx": 0.4,
+            "max_vy": 0.2,
+            "max_wall_duration_s": 8.0,
+            "max_wz": 0.6,
+            "poll_interval_s": 0.01,
+            "turn_speed_rad_s": 0.5,
+            "turn_tolerance_rad": 0.03
+          },
+          "source": "isaac-h2",
+          "support_contract": {
+            "foot_shapes": [
+              "/World/H2/Geometry/pelvis/left_hip_pitch_link/left_hip_roll_link/left_hip_yaw_link/left_knee_link/left_ankle_roll_link/left_ankle_pitch_link",
+              "/World/H2/Geometry/pelvis/right_hip_pitch_link/right_hip_roll_link/right_hip_yaw_link/right_knee_link/right_ankle_roll_link/right_ankle_pitch_link"
+            ],
+            "gravity_world_m_s2": [
+              0.0,
+              0.0,
+              -9.81
+            ],
+            "ground_shapes": [
+              "/World/Ground"
+            ],
+            "model_identity_sha256": "a7800af7fc571bec47288af2c587f2abba3c93d2c443c5b382ccf59e7c98339a",
+            "robot_shapes": [
+              "/World/H2/Geometry/pelvis",
+              "/World/H2/Geometry/pelvis/waist_yaw_link",
+              "/World/H2/Geometry/pelvis/left_hip_pitch_link",
+              "/World/H2/Geometry/pelvis/right_hip_pitch_link",
+              "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link",
+              "/World/H2/Geometry/pelvis/left_hip_pitch_link/left_hip_roll_link",
+              "/World/H2/Geometry/pelvis/right_hip_pitch_link/right_hip_roll_link",
+              "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link",
+              "/World/H2/Geometry/pelvis/left_hip_pitch_link/left_hip_roll_link/left_hip_yaw_link",
+              "/World/H2/Geometry/pelvis/right_hip_pitch_link/right_hip_roll_link/right_hip_yaw_link",
+              "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/head_pitch_link",
+              "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/right_shoulder_pitch_link",
+              "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/left_shoulder_pitch_link",
+              "/World/H2/Geometry/pelvis/left_hip_pitch_link/left_hip_roll_link/left_hip_yaw_link/left_knee_link",
+              "/World/H2/Geometry/pelvis/right_hip_pitch_link/right_hip_roll_link/right_hip_yaw_link/right_knee_link",
+              "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/head_pitch_link/head_yaw_link",
+              "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/right_shoulder_pitch_link/right_shoulder_roll_link",
+              "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/left_shoulder_pitch_link/left_shoulder_roll_link",
+              "/World/H2/Geometry/pelvis/left_hip_pitch_link/left_hip_roll_link/left_hip_yaw_link/left_knee_link/left_ankle_roll_link",
+              "/World/H2/Geometry/pelvis/right_hip_pitch_link/right_hip_roll_link/right_hip_yaw_link/right_knee_link/right_ankle_roll_link",
+              "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/right_shoulder_pitch_link/right_shoulder_roll_link/right_shoulder_yaw_link",
+              "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/left_shoulder_pitch_link/left_shoulder_roll_link/left_shoulder_yaw_link",
+              "/World/H2/Geometry/pelvis/left_hip_pitch_link/left_hip_roll_link/left_hip_yaw_link/left_knee_link/left_ankle_roll_link/left_ankle_pitch_link",
+              "/World/H2/Geometry/pelvis/right_hip_pitch_link/right_hip_roll_link/right_hip_yaw_link/right_knee_link/right_ankle_roll_link/right_ankle_pitch_link",
+              "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/right_shoulder_pitch_link/right_shoulder_roll_link/right_shoulder_yaw_link/right_elbow_link",
+              "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/left_shoulder_pitch_link/left_shoulder_roll_link/left_shoulder_yaw_link/left_elbow_link",
+              "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/right_shoulder_pitch_link/right_shoulder_roll_link/right_shoulder_yaw_link/right_elbow_link/right_wrist_roll_link",
+              "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/left_shoulder_pitch_link/left_shoulder_roll_link/left_shoulder_yaw_link/left_elbow_link/left_wrist_roll_link",
+              "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/right_shoulder_pitch_link/right_shoulder_roll_link/right_shoulder_yaw_link/right_elbow_link/right_wrist_roll_link/right_wrist_pitch_link",
+              "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/left_shoulder_pitch_link/left_shoulder_roll_link/left_shoulder_yaw_link/left_elbow_link/left_wrist_roll_link/left_wrist_pitch_link",
+              "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/right_shoulder_pitch_link/right_shoulder_roll_link/right_shoulder_yaw_link/right_elbow_link/right_wrist_roll_link/right_wrist_pitch_link/right_wrist_yaw_link",
+              "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/left_shoulder_pitch_link/left_shoulder_roll_link/left_shoulder_yaw_link/left_elbow_link/left_wrist_roll_link/left_wrist_pitch_link/left_wrist_yaw_link"
+            ],
+            "version": 1
+          },
+          "timeout_s": 0.5,
+          "type": "isaac",
+          "verifier": {
+            "max_angular_speed_rad_s": 4.0,
+            "max_heading_drift_rad": 0.2,
+            "max_history": 30,
+            "max_lateral_drift_m": 0.2,
+            "max_linear_speed_m_s": 1.5,
+            "max_position_abs_m": 8.0,
+            "max_progress_ratio": 1.4,
+            "max_sample_gap_s": 0.15,
+            "max_samples": 801,
+            "max_state_age_s": 0.5,
+            "max_tilt_rad": 0.5236,
+            "max_wall_duration_s": 14.0,
+            "min_height_m": 0.615,
+            "min_motion_samples": 5,
+            "min_progress_ratio": 0.6,
+            "min_settle_samples": 3,
+            "read_timeout_s": 0.5,
+            "rotation_tolerance_rad": 0.05,
+            "sample_interval_s": 0.02,
+            "settle_timeout_s": 4.0,
+            "settle_window_s": 0.4,
+            "stop_angular_speed_rad_s": 0.2,
+            "stop_drift_m": 0.03,
+            "stop_drift_rad": 0.05,
+            "stop_linear_speed_m_s": 0.08,
+            "translation_tolerance_m": 0.05
+          }
+        },
+        "bases": [
+          {
+            "admission": "pending_h2_geometric_validation",
+            "asset_sha256": "040d2140bb0d6d653f5423d7d76462a49d25e8470af2153518bbdce9158bb5f1",
+            "bridge_host": "127.0.0.1",
+            "bridge_port": 18400,
+            "capabilities": [
+              "walk_velocity",
+              "turn",
+              "stop_navigation"
+            ],
+            "device": "cuda:0",
+            "engine": "physx",
+            "epoch": "0e0a9ac879554487a32c2e76a1de527a",
+            "kind": "h2",
+            "model_identity_sha256": "a7800af7fc571bec47288af2c587f2abba3c93d2c443c5b382ccf59e7c98339a",
+            "name": "h2_episode",
+            "physics_dt": 0.005,
+            "policy_dt": 0.02,
+            "policy_sha256": "0a47182bbe203eddc2b7a9185f822c14d3799723f8b8392c7a2895d25d449c83",
+            "resolved": {
+              "safety": {
+                "max_duration_s": 3.0,
+                "max_no_progress_s": 0.4,
+                "max_state_age_s": 0.5,
+                "max_turn_angle_rad": 1.0,
+                "max_vx": 0.4,
+                "max_vy": 0.2,
+                "max_wall_duration_s": 8.0,
+                "max_wz": 0.6,
+                "poll_interval_s": 0.01,
+                "turn_speed_rad_s": 0.5,
+                "turn_tolerance_rad": 0.03
+              }
+            },
+            "robot_id": "h2",
+            "safety": {
+              "max_duration_s": 3.0,
+              "max_no_progress_s": 0.4,
+              "max_state_age_s": 0.5,
+              "max_turn_angle_rad": 1.0,
+              "max_vx": 0.4,
+              "max_vy": 0.2,
+              "max_wall_duration_s": 8.0,
+              "max_wz": 0.6,
+              "poll_interval_s": 0.01,
+              "turn_speed_rad_s": 0.5,
+              "turn_tolerance_rad": 0.03
+            },
+            "source": "isaac-h2",
+            "support_contract": {
+              "foot_shapes": [
+                "/World/H2/Geometry/pelvis/left_hip_pitch_link/left_hip_roll_link/left_hip_yaw_link/left_knee_link/left_ankle_roll_link/left_ankle_pitch_link",
+                "/World/H2/Geometry/pelvis/right_hip_pitch_link/right_hip_roll_link/right_hip_yaw_link/right_knee_link/right_ankle_roll_link/right_ankle_pitch_link"
+              ],
+              "gravity_world_m_s2": [
+                0.0,
+                0.0,
+                -9.81
+              ],
+              "ground_shapes": [
+                "/World/Ground"
+              ],
+              "model_identity_sha256": "a7800af7fc571bec47288af2c587f2abba3c93d2c443c5b382ccf59e7c98339a",
+              "robot_shapes": [
+                "/World/H2/Geometry/pelvis",
+                "/World/H2/Geometry/pelvis/waist_yaw_link",
+                "/World/H2/Geometry/pelvis/left_hip_pitch_link",
+                "/World/H2/Geometry/pelvis/right_hip_pitch_link",
+                "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link",
+                "/World/H2/Geometry/pelvis/left_hip_pitch_link/left_hip_roll_link",
+                "/World/H2/Geometry/pelvis/right_hip_pitch_link/right_hip_roll_link",
+                "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link",
+                "/World/H2/Geometry/pelvis/left_hip_pitch_link/left_hip_roll_link/left_hip_yaw_link",
+                "/World/H2/Geometry/pelvis/right_hip_pitch_link/right_hip_roll_link/right_hip_yaw_link",
+                "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/head_pitch_link",
+                "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/right_shoulder_pitch_link",
+                "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/left_shoulder_pitch_link",
+                "/World/H2/Geometry/pelvis/left_hip_pitch_link/left_hip_roll_link/left_hip_yaw_link/left_knee_link",
+                "/World/H2/Geometry/pelvis/right_hip_pitch_link/right_hip_roll_link/right_hip_yaw_link/right_knee_link",
+                "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/head_pitch_link/head_yaw_link",
+                "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/right_shoulder_pitch_link/right_shoulder_roll_link",
+                "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/left_shoulder_pitch_link/left_shoulder_roll_link",
+                "/World/H2/Geometry/pelvis/left_hip_pitch_link/left_hip_roll_link/left_hip_yaw_link/left_knee_link/left_ankle_roll_link",
+                "/World/H2/Geometry/pelvis/right_hip_pitch_link/right_hip_roll_link/right_hip_yaw_link/right_knee_link/right_ankle_roll_link",
+                "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/right_shoulder_pitch_link/right_shoulder_roll_link/right_shoulder_yaw_link",
+                "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/left_shoulder_pitch_link/left_shoulder_roll_link/left_shoulder_yaw_link",
+                "/World/H2/Geometry/pelvis/left_hip_pitch_link/left_hip_roll_link/left_hip_yaw_link/left_knee_link/left_ankle_roll_link/left_ankle_pitch_link",
+                "/World/H2/Geometry/pelvis/right_hip_pitch_link/right_hip_roll_link/right_hip_yaw_link/right_knee_link/right_ankle_roll_link/right_ankle_pitch_link",
+                "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/right_shoulder_pitch_link/right_shoulder_roll_link/right_shoulder_yaw_link/right_elbow_link",
+                "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/left_shoulder_pitch_link/left_shoulder_roll_link/left_shoulder_yaw_link/left_elbow_link",
+                "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/right_shoulder_pitch_link/right_shoulder_roll_link/right_shoulder_yaw_link/right_elbow_link/right_wrist_roll_link",
+                "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/left_shoulder_pitch_link/left_shoulder_roll_link/left_shoulder_yaw_link/left_elbow_link/left_wrist_roll_link",
+                "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/right_shoulder_pitch_link/right_shoulder_roll_link/right_shoulder_yaw_link/right_elbow_link/right_wrist_roll_link/right_wrist_pitch_link",
+                "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/left_shoulder_pitch_link/left_shoulder_roll_link/left_shoulder_yaw_link/left_elbow_link/left_wrist_roll_link/left_wrist_pitch_link",
+                "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/right_shoulder_pitch_link/right_shoulder_roll_link/right_shoulder_yaw_link/right_elbow_link/right_wrist_roll_link/right_wrist_pitch_link/right_wrist_yaw_link",
+                "/World/H2/Geometry/pelvis/waist_yaw_link/waist_roll_link/torso_link/left_shoulder_pitch_link/left_shoulder_roll_link/left_shoulder_yaw_link/left_elbow_link/left_wrist_roll_link/left_wrist_pitch_link/left_wrist_yaw_link"
+              ],
+              "version": 1
+            },
+            "timeout_s": 0.5,
+            "type": "isaac",
+            "verifier": {
+              "max_angular_speed_rad_s": 4.0,
+              "max_heading_drift_rad": 0.2,
+              "max_history": 30,
+              "max_lateral_drift_m": 0.2,
+              "max_linear_speed_m_s": 1.5,
+              "max_position_abs_m": 8.0,
+              "max_progress_ratio": 1.4,
+              "max_sample_gap_s": 0.15,
+              "max_samples": 801,
+              "max_state_age_s": 0.5,
+              "max_tilt_rad": 0.5236,
+              "max_wall_duration_s": 14.0,
+              "min_height_m": 0.615,
+              "min_motion_samples": 5,
+              "min_progress_ratio": 0.6,
+              "min_settle_samples": 3,
+              "read_timeout_s": 0.5,
+              "rotation_tolerance_rad": 0.05,
+              "sample_interval_s": 0.02,
+              "settle_timeout_s": 4.0,
+              "settle_window_s": 0.4,
+              "stop_angular_speed_rad_s": 0.2,
+              "stop_drift_m": 0.03,
+              "stop_drift_rad": 0.05,
+              "stop_linear_speed_m_s": 0.08,
+              "translation_tolerance_m": 0.05
+            }
+          }
+        ],
+        "llm": {
+          "type": "mock"
+        },
+        "memory": {
+          "beliefs_max_age_s": 21600,
+          "beliefs_path": null,
+          "frames_horizon_s": 600.0,
+          "frames_k": 4,
+          "horizon_s": 15.0,
+          "persist_beliefs": true
+        },
+        "robot_mode": "mobile"
+      },
+      "robot_id": "h2"
+    }
+  },
+  "llm": {
+    "type": "mock"
+  },
+  "memory": {},
+  "robot_id": "h2",
+  "robot_mode": "composed"
+}

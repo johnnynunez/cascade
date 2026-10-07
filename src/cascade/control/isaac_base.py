@@ -59,7 +59,11 @@ class IsaacBase(MobileBase):
             digest = self._expected[key]
             if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
                 raise ValueError(f"{key} must be 64 lowercase hexadecimal characters")
-        self._expected.update(protocol=1, kind="microduck", measurement_kind="physics")
+        from ..sim.mobile_bridge import KINDS
+        kind = profile.get("kind", "microduck")
+        if kind not in KINDS:
+            raise ValueError(f"kind must be one of {sorted(KINDS)}")
+        self._expected.update(protocol=1, kind=kind, measurement_kind="physics")
         from ..sim.mobile_identity import support_contract_digest
         self._expected['support_contract_sha256'] = support_contract_digest(
             profile['support_contract'], self._expected['model_identity_sha256'])

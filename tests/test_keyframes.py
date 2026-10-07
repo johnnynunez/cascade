@@ -109,3 +109,115 @@ def test_trace_rows_carry_the_dispatch_tier(runtime_and_arm):
     tiers = {r["skill"]: r.get("tier") for r in _rows(runtime)}
     assert tiers["move_home"] in ("llm", "reflex", "experience"), tiers
     assert runtime.current_tier is None                    # always reset after the call
+
+
+# ── wrist keyframes (ROADMAP #15: the judge's two wrist slots) ──────────────
+
+
+class _TickingStream:
+    """Same trick as _TickingCamera for a rig STREAM: every get_frame() paints
+    a distinct stripe and counts, so a wrist AFTER frame taken after the
+    motion is distinguishable from the BEFORE one."""
+
+    def __init__(self, inner):
+        self._inner = inner
+        self.grabs = 0
+        self.latest_calls = 0
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+    def _paint(self, frame, n):
+        rgb = np.ascontiguousarray(frame.rgb).copy()
+        rgb[-8:, :, :] = (n * 53) % 256
+        return type(frame)(**{**frame.__dict__, "rgb": rgb})
+
+    def latest(self):
+        self.latest_calls += 1
+        f = self._inner.latest()
+        return None if f is None else self._paint(f, 1000 + self.latest_calls)
+
+    def get_frame(self, *a, **k):
+        self.grabs += 1
+        return self._paint(self._inner.get_frame(*a, **k), self.grabs)
+
+
+@pytest.fixture
+def wrist_runtime(tmp_path):
+    """Mock rig with a second camera declared as a WRIST view (`role: wrist`,
+    no belief fusion) -- the generic flag the MuJoCo wrist profile and the
+    eye-in-hand profiles share."""
+    from cascade.apps.demo import shutdown_runtime
+    from cascade.config import load_demo_config
+
+    cfg = load_demo_config(cameras=["mock_small", "mock"], arm="so101_mock", llm="mock")
+    cfg.cameras[1]["role"] = "wrist"
+    cfg.cameras[1]["fuse_beliefs"] = False
+    runtime, arm = build_runtime(cfg, tmp_path / "run")
+    runtime.rig.streams["mock"] = _TickingStream(runtime.rig.streams["mock"])
+    yield runtime, arm
+    shutdown_runtime(runtime, arm)
+
+
+def test_motion_skill_records_wrist_keyframes_alongside_the_front_ones(wrist_runtime):
+    runtime, _ = wrist_runtime
+    wrist = runtime.rig.streams["mock"]
+    runtime.execute("move_home", {})
+    row = _rows(runtime)[0]
+    assert row["keyframe_before"] and row["keyframe_after"]
+    kb, ka = row["keyframe_before_wrists"], row["keyframe_after_wrists"]
+    assert list(kb) == ["mock"] and list(ka) == ["mock"], (kb, ka)
+    pb, pa = runtime.trace.run_dir / kb["mock"], runtime.trace.run_dir / ka["mock"]
+    assert pb.exists() and pa.exists()
+    assert pb.name.startswith("0000_move_home_before") and "wrist" in pb.name and "mock" in pb.name
+    # the AFTER wrist frame is a fresh grab taken once the motion ended ...
+    assert wrist.grabs >= 1
+    # ... and not the BEFORE wrist frame re-saved, nor the front keyframe
+    assert _md5(pb) != _md5(pa), "before/after wrist keyframes are byte-identical"
+    assert _md5(pa) != _md5(runtime.trace.run_dir / row["keyframe_after"])
+
+
+def test_non_motion_skill_records_no_wrist_keyframes(wrist_runtime):
+    """Wrist evidence is for the judge's BEFORE/AFTER pairs of MOTION skills;
+    a query skill neither grabs from the wrist stream nor writes wrist files."""
+    runtime, _ = wrist_runtime
+    wrist = runtime.rig.streams["mock"]
+    runtime.execute("get_observation", {})
+    row = _rows(runtime)[0]
+    assert row["keyframe_before_wrists"] is None and row["keyframe_after_wrists"] is None
+    assert wrist.grabs == 0
+    assert not any("wrist" in p.name for p in (runtime.trace.run_dir / "keyframes").iterdir())
+
+
+def test_rig_without_a_wrist_stream_records_none(runtime_and_arm):
+    """Single front camera: the keys exist (schema is uniform) and are null,
+    which is what tells the judge to fall back to repeating the front view."""
+    runtime, _ = runtime_and_arm
+    runtime.execute("move_home", {})
+    row = _rows(runtime)[0]
+    assert "keyframe_before_wrists" in row and row["keyframe_before_wrists"] is None
+    assert row["keyframe_after_wrists"] is None
+
+
+def test_a_failing_wrist_stream_never_blocks_the_skill(wrist_runtime):
+    runtime, _ = wrist_runtime
+
+    class _Dead:
+        name = "mock"
+
+        def latest(self):
+            raise RuntimeError("wrist camera unplugged")
+
+        def get_frame(self, *a, **k):
+            raise RuntimeError("wrist camera unplugged")
+
+    real = runtime.rig.streams["mock"]
+    runtime.rig.streams["mock"] = _Dead()
+    try:
+        res = runtime.execute("move_home", {})
+    finally:
+        runtime.rig.streams["mock"] = real              # let the fixture close the real stream
+    assert res["ok"] is True
+    row = _rows(runtime)[0]
+    assert row["keyframe_before"] and row["keyframe_after"]      # front evidence intact
+    assert row["keyframe_before_wrists"] is None and row["keyframe_after_wrists"] is None

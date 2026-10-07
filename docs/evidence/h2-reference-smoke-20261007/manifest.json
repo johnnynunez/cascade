@@ -1,0 +1,25 @@
+{
+ "what": "Reference smoke of NVIDIA h2_standalone.py --headless --test on the internal Isaac Sim 6.2 build, public 6.2 asset root pinned, PhysX, GPU 0 (RTX PRO 6000 Blackwell, x86 test rig; not a Spark number). Proves that the public H2 asset + Velocity-H2-History-v0 policy run on this build before CASCADE wraps them.",
+ "command": "CUDA_VISIBLE_DEVICES=GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3 ~/Projects/demo/omni_isaac_sim/_build/linux-x86_64/release/python.sh h2_standalone_public62.py --headless --test --device cuda  (systemd-run --user --scope -p MemoryMax=infinity)",
+ "script": {
+  "copy_of": "omni_isaac_sim/source/standalone_examples/api/isaacsim.robot.policy.examples/h2_standalone.py",
+  "change": "one added statement after `import carb`: carb.settings set /persistent/isaac/asset_root/default = https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2",
+  "sha256_copy": "ce352a8dd744bceb60c17fe299ebd448128b1ba11250da653e0a97be16901430",
+  "sha256_original": "29447241197fdf3b50e3b9395810857a83420309fbfa89481723531a105b1b52"
+ },
+ "result": {
+  "forward_displacement_m": 0.63,
+  "translation_duration_s": 2.0,
+  "exit_code": 0,
+  "wall_s_total": 177.4,
+  "policy_sha256": "0a47182bbe203eddc2b7a9185f822c14d3799723f8b8392c7a2895d25d449c83"
+ },
+ "not_claimed": "No CASCADE controller, verifier, deadlines or admission were involved; the asset_converter/asset_importer extension import errors in the log are a pre-existing dev-build issue unrelated to the policy loop.",
+ "raw": {
+  "log": {
+   "path": "/home/johnny/Projects/demo/cascade-lab/HERMES_AUDIT_20261007/h2-smoke/smoke1.log",
+   "sha256": "6816e58de62335a28b0b507617637ccf114729a03093b3bdde1145cb1e2dcb52",
+   "bytes": 35521
+  }
+ }
+}

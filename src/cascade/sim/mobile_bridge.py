@@ -61,6 +61,11 @@ def _yaw_wxyz(q) -> float:
     return math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
 
 
+# Embodiments that publish on the MOBILE wire: MicroDuck (14 observed joints) and the
+# Unitree H2 whose Velocity-H2-History-v0 policy commands exactly 14 joints.
+KINDS = frozenset({"microduck", "h2"})
+
+
 class MobileBridgeController:
     """Admission and a dual-clock deadman, independent of the RPC worker.
 
@@ -83,9 +88,15 @@ class MobileBridgeController:
         lease_s: float, max_state_age_s: float, physics_dt: float = 0.005,
         policy_dt: float = 0.020, max_action_wall_s: float = 120.0,
         clock=time.monotonic, heading_hold_kp: float = 0.0, heading_hold_ki: float = 0.0,
+        kind: str = "microduck",
     ):
         if engine not in {"physx", "newton"}:
             raise ValueError("engine must be physx or newton")
+        # The wire shape (14 observed joints, planar twist, one producer) is shared by
+        # every policy-driven biped CASCADE owns; ``kind`` names the embodiment so a
+        # client pinned to one robot family never binds another family's endpoint.
+        if kind not in KINDS:
+            raise ValueError(f"kind must be one of {sorted(KINDS)}")
         for name, value in (("heading_hold_kp", heading_hold_kp), ("heading_hold_ki", heading_hold_ki)):
             if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
                 raise ValueError(f"{name} must be a finite nonnegative number")
@@ -101,7 +112,7 @@ class MobileBridgeController:
         from cascade.sim.mobile_identity import support_contract_digest
 
         self._identity = {
-            "protocol": 1, "kind": "microduck", "robot_id": _token(robot_id, "robot_id"),
+            "protocol": 1, "kind": kind, "robot_id": _token(robot_id, "robot_id"),
             "source": _token(source, "source"), "engine": engine,
             "device": _token(device, "device"), "asset_sha256": asset_sha256,
             "policy_sha256": policy_sha256, "model_identity_sha256": model_identity_sha256, "physics_dt": _positive(physics_dt, "physics_dt"),

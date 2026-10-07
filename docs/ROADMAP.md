@@ -254,9 +254,22 @@ Open follow-ups from this work:
    `UNCONFIRMED` unless it is currently visible or was re-observed at least
    once (`VisualInterface.min_observations`, default 2) — pinned in
    `tests/test_visual_interface.py`.
-4. Envelope features are currently raw skill args; add derived features
+4. ~~Envelope features are currently raw skill args; add derived features
    (TCP z at grasp, object height) so the learned ranges capture the real
-   B601-RS constraint rather than a proxy.
+   B601-RS constraint rather than a proxy.~~ **landed 2026-10-07.**
+   `memory/envelope.py` `DERIVED_FEATURES`: the runtime measures
+   `tcp_z_at_grasp_m` (FK of the joint vector read back when the jaws
+   closed), `object_height_m` (fix top above the support plane),
+   `object_width_m` (narrower horizontal footprint extent) and
+   `object_tcp_lateral_offset_m` inside `skill_grasp_object` and passes them
+   through `record(..., measured=...)`; a feature the call could not measure
+   is counted in `missing` (never defaulted), both ride in the trace context
+   for `ingest_trace`, and `envelope_digest()`/`export_markdown()` show them
+   as `measured`. Measured on the mock stack: a grasp records all four
+   (height 0.050 m against the 5 cm synthetic box, lateral offset < 1 cm), a
+   grasp that dies at localization records four `missing`, confidence tiers
+   and `contradictions` unchanged (`tests/test_envelope_derived_features.py`,
+   RED 14 failed on main → GREEN). Advisory only, as before.
 5. **SGLang Omni as a second serving engine for Cosmos3-Edge**, landed
    2026-08-27: `scripts/serve_cosmos_sglang.sh` + `configs/llm/local_cosmos_sglang.yaml`
    (`local_cosmos_sglang`, :8083) alongside the existing vLLM path (`local_cosmos`,

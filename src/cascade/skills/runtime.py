@@ -12,6 +12,7 @@ from __future__ import annotations
 from ..control import motion_evidence
 
 import logging
+import math
 import os
 import sys
 import threading
@@ -189,6 +190,16 @@ class SkillRuntime:
         #: a belief that was fresh at task start stays "fresh" through 8
         #: retries even after every re-scan failed to see the object.
         self._last_reobserve_t: float | None = None
+        #: Derived envelope features for the CURRENT top-level skill call
+        #: (memory/envelope.py DERIVED_FEATURES): a scratchpad the running
+        #: skill fills from the runtime's own measurements -- FK of the
+        #: joint vector read back when the jaws closed, the localized fix --
+        #: via `_note_measurement()`. Owned by the outermost `_execute_skill`
+        #: (same ownership pattern as `_motion_t0`), so a grasp nested inside
+        #: pick_and_place credits the call the agent actually made. None
+        #: between calls; a feature the skill never wrote is recorded by the
+        #: envelope as MISSING, never defaulted here.
+        self._call_measurements: dict | None = None
         self._graspgenx = None  # lazy GraspGenXPlanner (grasp.backend)
         #: Optional profiles use a short retry cooldown after a server error.
         #: Required profiles fail visibly and retry on the next command.
@@ -262,6 +273,7 @@ class SkillRuntime:
     _arm = None
     _arm_override = None
     arm_rig = None
+    _call_measurements = None
 
     @property
     def arm(self):
@@ -619,6 +631,14 @@ class SkillRuntime:
                 # clears a physical obligation. The original point path remains.
                 region_context_error = f"{type(exc).__name__}: {exc}"
         t0 = time.monotonic()
+        # Derived envelope features: the outermost dispatched call owns a
+        # fresh scratchpad; whatever the skill measures lands on THIS row of
+        # the envelope and the trace (see `_note_measurement`). Released
+        # unconditionally below, after every exception path has produced its
+        # result, so one call's measurements can never bleed into the next.
+        owns_measurements = self._call_measurements is None
+        if owns_measurements:
+            self._call_measurements = {}
         try:
             import contextlib
 
@@ -675,6 +695,18 @@ class SkillRuntime:
             }
             traceback.print_exc()
         dur = (time.monotonic() - t0) * 1000
+        # Release the measurement scratchpad for this call. Only skills that
+        # declare derived features (DERIVED_FEATURES) get an instrumentation
+        # channel on their envelope row: for them an unmeasured feature is a
+        # MISSING count; everything else records exactly as before.
+        measured = None
+        if owns_measurements:
+            measured, self._call_measurements = self._call_measurements, None
+        from ..memory.envelope import DERIVED_FEATURES
+        if name not in DERIVED_FEATURES:
+            measured = None
+        if measured is not None:
+            trace_context["measured"] = dict(measured)
         # Pigey closed loop: was the claimed effect real? A refuted
         # postcondition DOWNGRADES a self-reported success (annotate_result).
         if (self.effects is not None or name == "turn_screw") and result.get("ok") is not None:
@@ -736,11 +768,13 @@ class SkillRuntime:
                 "do not claim fastener turns, axial advancement, seating or tightening torque. "
                 "Do not repeat motion to obtain confirmation from this unsupported observer."
             )
-        # Harness-VLA: fold the outcome into the learned operating envelope.
+        # Harness-VLA: fold the outcome into the learned operating envelope,
+        # raw args plus whatever this call measured (derived features).
         try:
             self.envelope.record(
                 name, args, ok=bool(result.get("ok")),
                 error=str(result.get("error", "")), duration_ms=dur,
+                measured=measured,
             )
         except Exception:
             pass
@@ -878,6 +912,44 @@ class SkillRuntime:
 
     def _tcp(self) -> np.ndarray:
         return self.kin.fk(self.arm.get_state().q)[:3, 3]
+
+    def _note_measurement(self, **values) -> None:
+        """Record derived envelope features for the current top-level call.
+
+        Only finite numbers are kept; anything else is simply not written,
+        and the envelope then records that feature as MISSING for this call
+        (memory/envelope.py). A no-op outside a dispatched call (direct
+        `skill_*` invocation from a test or a composite), so nothing here can
+        leak one call's measurements into the next.
+        """
+        scratch = self._call_measurements
+        if scratch is None:
+            return
+        for key, value in values.items():
+            try:
+                f = float(value)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(f):
+                scratch[key] = f
+
+    @staticmethod
+    def _horizontal_footprint_m(points) -> float | None:
+        """Narrower extent of the cloud's XY footprint (its own principal
+        axes), i.e. the smallest opening a horizontal parallel jaw can take
+        it with. The 3D OBB's smallest extent is the cloud's THICKNESS for a
+        top-down camera (it only sees the lid), which is not a jaw width."""
+        try:
+            xy = np.asarray(points, dtype=float)[:, :2]
+        except (TypeError, ValueError, IndexError):
+            return None
+        if xy.shape[0] < 3 or not np.isfinite(xy).all():
+            return None
+        centred = xy - xy.mean(axis=0)
+        _, _, vt = np.linalg.svd(centred, full_matrices=False)
+        proj = centred @ vt.T
+        extents = proj.max(axis=0) - proj.min(axis=0)
+        return float(np.min(extents))
 
     def _reconcile_held(self) -> None:
         """Reconcile the held flag with the jaws, in BOTH directions.
@@ -1840,6 +1912,21 @@ class SkillRuntime:
         else:
             frame, fix = self._localize(label, spatial_hint=spatial_hint)
         grasp_evidence.localized(frame, fix, getattr(self, "extrinsics", None))
+        # Derived envelope features from the fix (memory/envelope.py #4):
+        # the object's top above its support plane -- a top-down camera
+        # never sees the sides, so the cloud's z-span is NOT a height -- and
+        # the narrower horizontal footprint extent. Measured here, before
+        # planning, so a grasp that dies at IK still records what it saw.
+        try:
+            support = self.cfg.grasp.get("source_support_top_z_m")
+            support = (float(support) if support is not None
+                       else float(self.arm.harness.limits.table_z))
+            self._note_measurement(
+                object_height_m=float(fix.points[:, 2].max()) - support,
+                object_width_m=self._horizontal_footprint_m(fix.points),
+            )
+        except Exception:  # noqa: BLE001 -- a measurement failure is a missing feature, never a grasp failure
+            pass
         profile = select_profile(fix.detection.label or label, material)
         grasp_evidence.event("material_profile", profile=profile)
         grasp_evidence.phase("planning")
@@ -2309,6 +2396,20 @@ class SkillRuntime:
                     grasp_evidence.event("post_close_stability", **stability)
 
             tcp_close = self.kin.fk(close_state.q)[:3, 3]
+            # Derived envelope features from the jaws' own close state: the
+            # TCP height when they closed and how far the tool landed from
+            # the perceived centre. FK of MEASURED joints, not the planned
+            # grasp pose -- the planned value is what the raw args already
+            # proxied; this is where the arm actually was.
+            try:
+                self._note_measurement(
+                    tcp_z_at_grasp_m=float(tcp_close[2]),
+                    object_tcp_lateral_offset_m=float(np.hypot(
+                        float(fix.position[0]) - float(tcp_close[0]),
+                        float(fix.position[1]) - float(tcp_close[1]))),
+                )
+            except Exception:  # noqa: BLE001 -- missing feature, never a grasp failure
+                pass
             try:
                 held_offset_at_close = np.asarray(fix.position, float) - tcp_close
                 if held_offset_at_close.shape != (3,) or not np.isfinite(held_offset_at_close).all():

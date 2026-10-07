@@ -257,8 +257,11 @@ last define the envelope for both.
 > TABLE frame — [`so101_left.yaml`](configs/arms/so101_left.yaml) documents the
 > convention), and with it set on both arms each harness gates each sampled
 > motion edge on the measured segment-to-segment distance between link
-> centrelines (`safety.neighbor_clearance_m`, default 0.05 m, standing in for
-> unmodelled link *shape*). Two caveats, both in that profile's header: an
+> capsules (`safety.link_radii_m`, measured per link on the SO-101 collision
+> geometry) with `safety.neighbor_clearance_m` as the margin between link
+> surfaces — measured against MuJoCo to be a lower bound on the mesh distance
+> ([`tests/test_multi_arm_physics.py`](tests/test_multi_arm_physics.py)). Two
+> caveats, both in that profile's header: an
 > unreadable neighbour (a standby LazyArm) degrades to SKIP, not to block, and
 > `base_pose` is a **measurement** — a wrong one makes the distance
 > confidently wrong. Measure your own table before running two real arms.

@@ -174,6 +174,18 @@ overrides:
     table_z: 0.0            # base plate sits ON the work surface
     # Printed PLA links and 7.4 V servos: a third of the reBot's cap.
     max_joint_vel: 0.8
+    # Link thickness for the inter-arm gate (safety/harness.py), one radius
+    # per chain segment in kinematic order: shoulder_pan->shoulder_lift,
+    # ->elbow_flex, ->wrist_flex, ->wrist_roll, ->gripper joint, ->TCP.
+    # MEASURED on the Menagerie SO-101 collision geometry (assets/mjcf/so101,
+    # 30 collision geoms: boxes, meshes, capsules, spheres): the farthest
+    # collision surface from each segment, over random poses and the full
+    # gripper travel, is 0.066 / 0.065 / 0.053 / 0.048 / 0.089 / 0.085 m;
+    # rounded UP to 5 mm. tests/test_multi_arm_physics.py re-measures this
+    # against MuJoCo and fails if the geometry outgrows the radii (or the
+    # radii overshoot it by more than 1 cm). Only used when a neighbour is
+    # registered (`base_pose` on two arms); a single arm never reads it.
+    link_radii_m: [0.07, 0.07, 0.055, 0.05, 0.09, 0.09]
   grasp:
     # The 0.09 m ceiling has to cover the WHOLE descent, so the grasp ceiling
     # and the pregrasp offset are budgeted together: 0.05 + 0.03 = 0.08 keeps

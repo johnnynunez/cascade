@@ -99,13 +99,44 @@ def segment_segment_distances(p0, p1, q0, q1) -> np.ndarray:
     return np.linalg.norm(closest, axis=2)
 
 
-def chain_distance(chain_a, chain_b) -> tuple[float, int, int]:
+def _segment_radii(radii, n_segments: int, which: str) -> np.ndarray | None:
+    """Per-segment radii as a (n_segments,) array, or None for zero-radius links.
+
+    Refuses a list that does not describe exactly this chain: silently padding
+    or truncating would measure a different arm than the one declared, and
+    the harness turns the refusal into a blocked motion (fail closed).
+    """
+    if radii is None:
+        return None
+    r = np.asarray(radii, dtype=float).reshape(-1)
+    if r.size == 0:
+        return None
+    if r.size != n_segments:
+        raise ValueError(
+            f"{which}: {r.size} link radii for a chain of {n_segments} "
+            f"segment{'s' if n_segments != 1 else ''}"
+        )
+    if np.any(r < 0.0) or not np.all(np.isfinite(r)):
+        raise ValueError(f"{which}: link radii must be finite and not negative, got {r.tolist()}")
+    return r
+
+
+def chain_distance(chain_a, chain_b, radii_a=None, radii_b=None) -> tuple[float, int, int]:
     """Shortest distance between two polyline chains of link positions.
 
     Each chain is (K, 3) points in KINEMATIC ORDER (base joint first, tool
     last), so consecutive points bound one physical link. Returns
     `(distance, i, j)` -- the distance and which link of each chain achieved
     it, for an error message that names the offending pair.
+
+    `radii_a` / `radii_b` give each SEGMENT a thickness: the returned value is
+    then the clearance between the capsule SURFACES (centreline distance
+    minus both radii, negative when they overlap), and `(i, j)` names the
+    closest surfaces, which need not be the closest centrelines. A link is
+    not a zero-radius line: MEASURED on the Menagerie SO-101 collision
+    geometry, the farthest collision surface sits up to 9 cm off the segment
+    between two joint origins (tests/test_multi_arm_physics.py). None keeps
+    the centreline behaviour.
 
     A chain of a single point is treated as that point (no segments), which
     keeps a 1-DOF or mocked arm from raising instead of measuring.
@@ -118,6 +149,12 @@ def chain_distance(chain_a, chain_b) -> tuple[float, int, int]:
     # segment so the same code path still returns a real distance.
     a0, a1 = (A[:-1], A[1:]) if A.shape[0] > 1 else (A, A)
     b0, b1 = (B[:-1], B[1:]) if B.shape[0] > 1 else (B, B)
+    ra = _segment_radii(radii_a, a0.shape[0], "radii_a")
+    rb = _segment_radii(radii_b, b0.shape[0], "radii_b")
     d = segment_segment_distances(a0, a1, b0, b1)
+    if ra is not None:
+        d = d - ra[:, None]
+    if rb is not None:
+        d = d - rb[None, :]
     i, j = np.unravel_index(int(np.argmin(d)), d.shape)
     return float(d[i, j]), int(i), int(j)

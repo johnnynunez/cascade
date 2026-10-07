@@ -194,6 +194,17 @@ Open, in priority order (details in the sections below):
    consolidation on top of ExperienceMemory (keys on text today).
 8. **Multi-arm on physics**: `so101_left`/`so101_right` are mock; render a
    two-arm MuJoCo scene so the inter-arm gate is measured, not simulated.
+   **Half landed 2026-10-07** — `sim/demo_scene.multi_arm_scene_xml` attaches
+   N prefixed copies of the robot MJCF at the profiles' `base_pose`s and
+   `tests/test_multi_arm_physics.py` measures the gate against
+   `mj_geomDistance` over the real collision geometry: the centreline gate
+   approved overlapping meshes (12 of 2000 random pose pairs), so the gate
+   now subtracts measured per-link radii (`safety.link_radii_m`) and its
+   clearance is a proven lower bound on the physical one. Still open: a
+   prefix-aware `MujocoArm` so the two profiles can *run* (`type: mujoco`)
+   in that scene with a rendered camera, and a finer sphere model to win
+   back the workspace the single-radius envelope costs (the shipped
+   inward-yaw pose is 0.13 m clear in physics, 0.032 m to the gate).
 9. **Mobility + navigation (the next structural addition, approved
    2026-09-10 as design-first).** cascade has no mobile base, navigation,
    mapping or robot self-localization; ROS2 and the humanoid profiles are

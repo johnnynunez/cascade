@@ -193,10 +193,10 @@ def test_two_arms_keep_separate_safety_envelopes():
     assert left["base_pose"][1] == pytest.approx(0.22)
     assert right["base_pose"][1] == pytest.approx(-0.22)
     # each arm's resolved view carries its OWN clearance, not a shared blob
-    assert left["resolved"]["safety"]["neighbor_clearance_m"] == pytest.approx(0.05)
-    assert right["resolved"]["safety"]["neighbor_clearance_m"] == pytest.approx(0.05)
+    assert left["resolved"]["safety"]["neighbor_clearance_m"] == pytest.approx(0.03)
+    assert right["resolved"]["safety"]["neighbor_clearance_m"] == pytest.approx(0.03)
     # the primary still defines the top level (single-arm behaviour)
-    assert cfg.safety.get("neighbor_clearance_m") == pytest.approx(0.05)
+    assert cfg.safety.get("neighbor_clearance_m") == pytest.approx(0.03)
 
 
 def test_an_arms_overrides_do_not_leak_into_its_neighbours_view():
@@ -510,3 +510,116 @@ def test_default_and_empty_arm_names_mean_the_primary():
     assert rt_single._select_arm("default") is None
     with pytest.raises(SkillError, match="single arm"):
         rt_single._select_arm("other")
+
+
+# ── link thickness in the inter-arm gate ─────────────────────────────────
+#
+# MEASURED against MuJoCo on the Menagerie SO-101 (tests/test_multi_arm_physics.py):
+# the collision surface sits up to 9 cm off the joint-origin segments, so a
+# centreline gate at 0.05 m approves pose pairs whose meshes already overlap.
+# Each profile now declares per-segment `link_radii_m`; the gate measures the
+# clearance between link SURFACES and `neighbor_clearance_m` is a pure margin.
+
+
+class _StraightKin:
+    """Kinematics stub: an arm that is one straight 1 m link along +x from the
+    origin, two joints (base, mid) and a TCP, so the chain is 2 segments."""
+
+    joint_limits = (np.full(5, -3.0), np.full(5, 3.0))
+    n = 5
+
+    def fk(self, q):
+        T = np.eye(4)
+        T[:3, 3] = [1.0, 0.0, 0.0]
+        return T
+
+    def link_positions(self, q):
+        return np.array([[0.0, 0, 0], [0.5, 0, 0]])
+
+
+def _straight_harness(y: float, radii):
+    from cascade.safety.harness import SafetyHarness, SafetyLimits
+    from cascade.types import pose_to_transform
+
+    limits = SafetyLimits(
+        workspace_min=np.array([-5.0, -5.0, -5.0]), workspace_max=np.array([5.0, 5.0, 5.0]),
+        neighbor_clearance_m=0.05, link_radii_m=radii,
+    )
+    return SafetyHarness(limits, kinematics=_StraightKin(), base_pose=pose_to_transform([0, y, 0, 0, 0, 0]))
+
+
+def test_neighbor_gate_subtracts_both_arms_link_radii():
+    """Two parallel arms 0.20 m apart centreline-to-centreline. Thin links
+    clear a 0.05 m gate; 0.07 + 0.09 m thick links leave 0.04 m of surface
+    clearance and must be refused -- and the message must say so in surface
+    terms, with the depth, so the operator reads the right number."""
+    thin_a, thin_b = _straight_harness(0.0, None), _straight_harness(0.20, None)
+    thin_a.add_neighbor("b", lambda: thin_b.link_points_table_frame(np.zeros(5)))
+    assert thin_a._neighbor_violation(np.zeros(5)) is None
+
+    a = _straight_harness(0.0, (0.07, 0.07))
+    b = _straight_harness(0.20, (0.09, 0.09))
+    a.add_neighbor("b", lambda: b.link_points_table_frame(np.zeros(5)), link_radii_m=b.limits.link_radii_m)
+    reason = a._neighbor_violation(np.zeros(5))
+    assert reason is not None and "inter-arm clearance" in reason
+    assert "0.040 m" in reason and "link surfaces" in reason and "'b'" in reason
+
+    # the neighbour's thickness counts even when this arm declares none:
+    # 0.20 - 0.09 = 0.11 m of surface clearance, refused against 0.15 m ...
+    c = _straight_harness(0.0, None)
+    c.add_neighbor("b", lambda: b.link_points_table_frame(np.zeros(5)), link_radii_m=(0.09, 0.09))
+    c.limits.neighbor_clearance_m = 0.15
+    assert "0.110 m" in c._neighbor_violation(np.zeros(5))
+    # ... and approved once the margin fits in it
+    d = _straight_harness(0.0, None)
+    d.add_neighbor("b", lambda: b.link_points_table_frame(np.zeros(5)), link_radii_m=(0.09, 0.09))
+    d.limits.neighbor_clearance_m = 0.10
+    assert d._neighbor_violation(np.zeros(5)) is None
+
+
+def test_misdeclared_link_radii_block_instead_of_skipping():
+    """"Unknown neighbour" degrades to skip; a radii list that does not match
+    the chain is a CONFIG error and must fail closed: the motion is refused
+    with the mismatch named, never measured with silently padded radii."""
+    from cascade.safety.harness import SafetyHarness, SafetyLimits
+
+    a = _straight_harness(0.0, None)
+    b = _straight_harness(0.20, None)
+    a.add_neighbor("b", lambda: b.link_points_table_frame(np.zeros(5)), link_radii_m=(0.01,))
+    reason = a._neighbor_violation(np.zeros(5))
+    assert reason is not None and "link_radii_m" in reason and "'b'" in reason
+
+    # this arm's own radii are checked against its own chain at construction
+    limits = SafetyLimits(
+        workspace_min=np.array([-5.0, -5.0, -5.0]), workspace_max=np.array([5.0, 5.0, 5.0]),
+        link_radii_m=(0.07, 0.07, 0.07),
+    )
+    with pytest.raises(ValueError, match="link_radii_m"):
+        SafetyHarness(limits, kinematics=_StraightKin())
+    # without kinematics there is no chain to compare against, and no gate
+    SafetyHarness(limits)
+
+
+def test_so101_profiles_declare_measured_link_radii_and_the_rig_wires_them(tmp_path):
+    """The SO-101 geometry ships with the profile (so101.yaml, inherited by
+    every SO-101 backend), the resolved per-arm views keep it, and the rig
+    hands each harness its neighbour's radii -- not just its points."""
+    from cascade.apps.demo import build_runtime, shutdown_runtime
+    from cascade.safety.harness import SafetyLimits
+
+    cfg = load_demo_config(arms=["so101_left", "so101_right"], camera="mock", llm="mock")
+    for acfg in cfg.arms:
+        radii = acfg["resolved"]["safety"]["link_radii_m"]
+        # 6 segments: 5 arm joints + the gripper joint, then the TCP
+        assert len(radii) == 6
+        assert all(0.03 <= r <= 0.12 for r in radii)
+        assert SafetyLimits.from_config(cfg.arm.resolved.safety).link_radii_m == tuple(radii)
+    runtime, arm = build_runtime(cfg, tmp_path / "run", view=False, serve=False)
+    try:
+        left = runtime.arm_rig.get("so101_left")
+        right = runtime.arm_rig.get("so101_right")
+        assert left.harness.limits.link_radii_m == tuple(cfg.arms[0]["resolved"]["safety"]["link_radii_m"])
+        assert left.harness._neighbor_radii["so101_right"] == right.harness.limits.link_radii_m
+        assert right.harness._neighbor_radii["so101_left"] == left.harness.limits.link_radii_m
+    finally:
+        shutdown_runtime(runtime, arm)

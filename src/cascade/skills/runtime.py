@@ -23,6 +23,7 @@ import numpy as np
 from ..agent.trace import TraceLogger
 from ..grasping import plan_grasps_from_fix, select_grasp, select_profile
 from ..grasping import evidence as grasp_evidence
+from ..grasping.selector import ALL_TOO_WIDE_MARKER
 from . import carry_attachment
 from ..memory import BeliefStore, EpisodicMemory
 from ..perception.colors import detection_color, parse_color_query
@@ -110,6 +111,27 @@ class _PostPlaceRetreatPlanError(SkillError):
 
 class _PreCarryLiftError(SkillError):
     """Carry clearance is unavailable; retain the grasp without a home sweep."""
+
+
+def _every_candidate_too_wide(err: str) -> bool:
+    """True when a grasp failure says EVERY candidate exceeded the jaw span.
+
+    Over-width is an object property: re-scanning cannot shrink it, so the
+    persistence loops stop on it (ROADMAP leftover #6). The selector states
+    it explicitly (`ALL_TOO_WIDE_MARKER`, with narrowest width vs jaw span).
+    Without the marker, a message is read as all-too-wide only if EVERY
+    listed reason is a width reason -- a single IK/vetting reason means a
+    fresh plan may still succeed. (The selector lists non-width reasons
+    first, so its 4-reason truncation cannot hide them.)"""
+    if ALL_TOO_WIDE_MARKER in err:
+        return True
+    if "> gripper max" not in err or "IK failed" in err:
+        return False
+    _, sep, tail = err.partition("no executable grasp: ")
+    if not sep:
+        return True  # a bare width reason from another caller
+    reasons = [r for r in tail.split("; ") if r.strip()]
+    return bool(reasons) and all("> gripper max" in r for r in reasons)
 
 
 class SkillRuntime:
@@ -980,7 +1002,7 @@ class SkillRuntime:
             return "e-stop latched; not retrying"
         if attempt >= 2 and "no detections" in last_err and self.beliefs.find(object) is None:
             return "never seen after re-scans; giving up early"
-        if "> gripper max" in last_err and "IK failed" not in last_err:
+        if _every_candidate_too_wide(last_err):
             return "object wider than the jaws; use push_object; giving up early"
         return None
 

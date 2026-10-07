@@ -861,8 +861,20 @@ are synchronous by design here, noted for long-horizon work.
      `test_grasp_records_the_measured_held_width`,
      `test_known_thin_object_is_never_read_as_a_slip_on_width_alone`,
      `test_thin_object_declared_in_profile_is_not_read_as_a_slip`.
-  6. Fail fast when every grasp candidate exceeds jaw width (currently
-     retries perception on an object-property error).
+  6. ~~Fail fast when every grasp candidate exceeds jaw width (currently
+     retries perception on an object-property error).~~ **landed
+     2026-10-07** (the string heuristic in `_grasp_retry_verdict` already
+     stopped after one attempt; finished today): `select_grasp` raises an
+     explicit refusal — "every candidate exceeds the jaw span (narrowest
+     Xmm > gripper max Ymm; use push_object)" with `all_too_wide`,
+     `narrowest_width_m`, `jaw_max_width_m` on the exception — and lists
+     non-width reasons first, so a 4-reason truncation of a MIXED list
+     (five too-wide ahead of one vetoed candidate) can no longer read as
+     all-too-wide and end persistence after one attempt. Pinned by
+     `test_pick_and_place_gives_up_early_when_every_grasp_is_too_wide`,
+     `test_ik_failure_alongside_a_width_reason_is_still_retried`,
+     `test_selector_refuses_explicitly_when_every_candidate_exceeds_the_jaw_span`,
+     `test_a_truncated_mixed_reason_list_is_not_an_over_width_refusal`.
   7. Test-coverage gaps flagged: place-stage loop, deadline expiry,
      epoch fallback, z-clamp, exemption z_min through _in_cylinder,
      McpClient timeout is dead code.

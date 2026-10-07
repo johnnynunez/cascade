@@ -352,3 +352,52 @@ def test_known_thin_object_is_never_read_as_a_slip_on_width_alone(rt):
     _jaws(rt, 0.0)
     rt._reconcile_held()
     assert rt.held_object is None and rt._held_width_m is None
+
+
+# ── #6 (finish): an explicit, structured over-width refusal ─────────────────
+
+def _wide_grasp(width_m, quality, label):
+    from cascade.types import Grasp
+    return Grasp(position=np.array([0.3, 0.0, 0.05]), rotation=np.eye(3), width_m=width_m,
+                 approach=np.array([0.0, 0.0, -1.0]), quality=quality, label=label)
+
+
+def test_selector_refuses_explicitly_when_every_candidate_exceeds_the_jaw_span():
+    """The refusal names the narrowest candidate against the jaw span and is
+    structured (`all_too_wide`), so persistence stops on a fact instead of
+    parsing a truncated reason list."""
+    from test_persistence_loop import StubKin
+    from cascade.grasping.selector import NoExecutableGrasp, select_grasp
+
+    wide = [_wide_grasp(0.082, 0.9, "a"), _wide_grasp(0.070, 0.5, "b")]
+    with pytest.raises(NoExecutableGrasp) as info:
+        select_grasp(wide, StubKin(), np.zeros(6), max_width_m=0.055)
+    exc = info.value
+    assert exc.all_too_wide is True
+    assert exc.narrowest_width_m == pytest.approx(0.070)
+    assert exc.jaw_max_width_m == pytest.approx(0.055)
+    assert "every candidate exceeds the jaw span" in str(exc)
+    assert "70mm" in str(exc) and "55mm" in str(exc)
+
+
+def test_a_truncated_mixed_reason_list_is_not_an_over_width_refusal(rt):
+    """Five too-wide candidates ranked ahead of one vetoed candidate used to
+    yield a four-reason message of width reasons only, which read as 'every
+    candidate too wide' and ended persistence after ONE attempt. Non-width
+    reasons are listed first and the structured flag is False."""
+    from test_persistence_loop import StubKin
+    from cascade.grasping.selector import NoExecutableGrasp, select_grasp
+
+    grasps = [_wide_grasp(0.070, 0.9 - 0.1 * i, f"wide{i}") for i in range(5)]
+    grasps.append(_wide_grasp(0.030, 0.1, "narrow"))  # ranked last
+    veto = lambda g, qp, qg: "pregrasp unsafe: elbow would hit the table" if g.label == "narrow" else None
+    with pytest.raises(NoExecutableGrasp) as info:
+        select_grasp(grasps, StubKin(), np.zeros(6), max_width_m=0.055, validate=veto)
+    exc = info.value
+    assert exc.all_too_wide is False
+    assert "pregrasp unsafe" in str(exc)
+    assert rt._grasp_retry_verdict("cube", 1, f"SkillError: {exc}") is None
+    # and the structured refusal itself is terminal for persistence
+    with pytest.raises(NoExecutableGrasp) as info2:
+        select_grasp(grasps[:5], StubKin(), np.zeros(6), max_width_m=0.055)
+    assert "wider than the jaws" in rt._grasp_retry_verdict("cube", 1, f"SkillError: {info2.value}")

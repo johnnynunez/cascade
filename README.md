@@ -667,16 +667,16 @@ MCP-capable host can drive.
 
 The whole skill runtime is also exposed as an **MCP stdio server**
 (`cascade/apps/mcp_server.py`) — so instead of the built-in loop, any
-MCP-capable agent platform can drive the arm. The agent gets the same 34
+MCP-capable agent platform can drive the arm. The agent gets the same 37
 safety-gated skills (only the loop-internal `task_done` is excluded) plus
 eight gateway extras — `camera_snapshot` (returns a live JPEG the agent can
 *see*), `world_state`, `live_view_url`, `robot_knowledge`,
 `verify_last_action`, `task_memory` (the visual memory harness, as images),
-and `emergency_stop`/`reset_stop` — 42 tools total (re-derive with
-`openclaw mcp probe cascade --json`; see [The 34 skills](#the-34-skills) below
+and `emergency_stop`/`reset_stop` — 45 tools total (re-derive with
+`openclaw mcp probe cascade --json`; see [The 37 skills](#the-37-skills) below
 for what each one does). That is the full catalog; what a given rig is
 offered is this minus the tools its capability matrix (described below)
-withholds (the default single-arm mock rig lists 41: `list_arms` needs two
+withholds (the default single-arm mock rig lists 44: `list_arms` needs two
 arms). Safety harness, tracing and memory are identical —
 only the brain swaps.
 
@@ -740,12 +740,12 @@ side has its own knobs (`CASCADE_USD`, `CASCADE_PHYSICS_DEVICE` — `cpu` is the
 escape hatch for GPU-PhysX boot NaNs —, `CASCADE_BRIDGE_BIND`,
 `CASCADE_BRIDGE_NO_TARGETS`, `CASCADE_COMPANION_EXTS`); see `scripts/isaac_bridge.py`.
 
-## The 34 skills
+## The 37 skills
 
 One schema source (`TOOL_SPECS` in `src/cascade/skills/runtime.py`) feeds
 every consumer — the built-in `AgentOrchestrator`, the OpenAI/Anthropic
 LLM backends, and the MCP server — so this list is exactly what any brain,
-built-in or external, can call. "moves arm" marks the 17 skills in
+built-in or external, can call. "moves arm" marks the 19 skills in
 `_MOTION_SKILLS`, the only ones that pause `WorldWatcher` belief fusion while
 they run (and the ones that record a memory frame + verdict afterwards).
 Every result carries `outcome: ok | failed | stuck`; `stuck` (always
@@ -802,6 +802,14 @@ the orchestrator relays it verbatim and does not retry the step.
 | `recall_memory` | Recent events (~15 s) and, optionally, where a named object was last seen |
 | `recall_step` | Look back at one executed step by index (`n`, negative = from the end): skill, args, outcome/ask, the postcondition verdict recorded at the time, dispatch tier, and its BEFORE/AFTER keyframes (served as images over MCP). Read-only; an invalid `n` is an explicit error, never an old frame |
 | `list_arms` | Names the arms of a multi-arm rig (skills take `arm="<name>"`; `""`/`default` mean the primary) |
+| `snapshot_scene` | Memorize the layout under a name: the confirmed objects' labels, colours and centroids as ADVISORY data in the belief store (Pigey "memorize"). No motion; also the reflex phrases "memorize the scene" / "memoriza la escena" |
+
+**Scene memory (moves arm)**
+
+| skill | what it does |
+|---|---|
+| `restore_scene` | Put the table back the way a snapshot memorized it: only objects displaced beyond a tolerance move, blocker-first (an object on another's remembered spot goes first; a swap parks one on free table), each move a harness-vetted grasp + `place_at`, bounded by `max_moves` and the task budget. "Restored" is only what the postcondition confirms (physics when available; belief-only stays unverified). Reflex: "put everything back" / "restaura la escena" |
+| `search_for_object` | Pigey occlusion search: when the named object is not visible, lift the largest hollow/large occluder, park it ~0.2 m away on free reachable table inside the workspace, re-perceive, repeat up to `max_occluders`. Found → `task_complete: false`, resume the ORIGINAL task; not found → `ok: false`, `stuck: true`. Reflex: "find the red cube" / "busca el cubo rojo" |
 
 **Session (moves arm)**
 
@@ -809,7 +817,7 @@ the orchestrator relays it verbatim and does not retry the step.
 |---|---|
 | `reset_scene` | Between visitors: arm home, sim props back on their spawn pose, world model + task memory cleared, one fresh observation. Also the reflex phrases "reset the scene" / "start over" |
 
-`task_done` (declare success/failure with a summary) is the 35th spec but
+`task_done` (declare success/failure with a summary) is the 38th spec but
 is loop-internal — excluded from the MCP tool list, since an external host
 ends its own turns its own way. The MCP server adds eight host-side extras
 (`camera_snapshot`, `world_state`, `live_view_url`, `robot_knowledge`,

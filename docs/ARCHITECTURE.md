@@ -132,8 +132,8 @@ shared boundary is `RobotRuntime.execute()`, as shown in the
                  host LLM picks tools over MCP stdio                         --task / --interactive
                           │                                                          │
                           ▼                                                          ▼
-              apps/mcp_server.py  ── 42 tools ──┐                  agent/orchestrator.py
-              (35 specs − task_done              │                  tier 1 REFLEX   regex grammar      ~µs
+              apps/mcp_server.py  ── 45 tools ──┐                  agent/orchestrator.py
+              (38 specs − task_done              │                  tier 1 REFLEX   regex grammar      ~µs
                + 8 host extras: camera_snapshot, │                  tier 2 HABIT    experience memory  ~ms
                world_state, task_memory, ...;    │                  tier 3 LLM      + memory harness   2–15 s/turn
                minus what the rig's capability   │
@@ -446,6 +446,7 @@ make that image current by assigning a new timestamp. See
 | store | what | horizon | consumer |
 |---|---|---|---|
 | `BeliefStore` (`memory/beliefs.py`) | objects: label, colour, 3D, freshness; visible/remembered | persisted across runs (wall-clock stamps, `LOADED_MIN_AGE_S` floor, 6 h max age) | every skill; can inform the agent, can never aim the jaws (`belief_fallback_age_s`) |
+| `BeliefStore` named snapshots (`SceneSnapshot`) | ADVISORY layouts: the confirmed (visible) objects' label, colour, centroid, extent at memorize time | saved/loaded with the beliefs; dropped by `clear()` (`reset_scene`) | `snapshot_scene` writes, `restore_scene` reads them as TARGETS; never a claim about the present — only the `restored` postcondition is |
 | `EpisodicMemory` text ring | events, outcomes | ~15 s | `recall_memory`, narration |
 | `EpisodicMemory` frame ring | AFTER frame + action + verdict per motion skill | task-scale (600 s), reset per task / by `reset_scene` | `memory_frames(k)`: first frame pinned, uniform sample, newest last → LLM turn (images) and `task_memory` tool |
 | `ExperienceMemory` (`agent/reflex.py`) | command → plan habits, hashed BoW in a TurboQuant index; plus Task-Specific Memory **recipes** (verified LLM-tier runs, coordinates replaced by `localize_object(label)+offset` queries + a summary, `memory/recipes.py`) | `runs/experience.json` (habits), `runs/recipes.jsonl` (recipes) | tier 2; a recipe is re-grounded through perception before any motion, a failed grounding aborts to the LLM tier |
@@ -552,8 +553,8 @@ src/cascade/
 │   └── force.py        material → two-stage close profiles
 ├── agent/
 │   ├── orchestrator.py reflex → habit → LLM loop; memory harness injection; TaskReport
-│   ├── reflex.py       tier-1 grammar (incl. reset_scene) + tier-2 ExperienceMemory
-│   ├── effects.py      PostconditionChecker + annotate_result (Pigey closed loop)
+│   ├── reflex.py       tier-1 grammar (incl. reset_scene, memorize/restore/find) + tier-2 ExperienceMemory
+│   ├── effects.py      PostconditionChecker + annotate_result (Pigey closed loop; `restored`/`searched` for the composites)
 │   ├── milestones.py   checkable milestones: symbolic first, VLM second, UNKNOWN honest;
 │   │                   + advisory pre-motion plausibility critic (never a veto)
 │   ├── llm.py          OpenAI-compat (cloud/local) / Anthropic / Cosmos3 / Mock
@@ -562,7 +563,8 @@ src/cascade/
 │   ├── aspire.py       post-run diagnosis → skill-library note
 │   └── trace.py        trace.jsonl + keyframes
 ├── skills/
-│   ├── runtime.py      SkillRuntime: 34 skills + task_done, TOOL_SPECS, _MOTION_SKILLS
+│   ├── runtime.py      SkillRuntime: 37 skills + task_done, TOOL_SPECS, _MOTION_SKILLS (19)
+│   │                   incl. the Pigey composites snapshot_scene / restore_scene / search_for_object
 │   ├── contact_episode.py / release_episode.py  scoped retained recovery
 │   ├── held_observation.py aiming estimates vs coherent release authority
 │   └── library.py      markdown repair notes; written by aspire.py, retrieved per task
@@ -577,7 +579,7 @@ src/cascade/
 ├── eval/progress_judge.py   Robo-Dopamine progress judge (GRM / VLM), off the hot path
 └── apps/
     ├── demo.py         build_runtime() = the composition root; CLI --task / --interactive
-    ├── mcp_server.py   MCP stdio front-end: 42 tools, out-of-band stop, per-call log
+    ├── mcp_server.py   MCP stdio front-end: 45 tools, out-of-band stop, per-call log
     ├── capabilities.py capability matrix from the built runtime; TOOL_REQUIREMENTS trims the MCP catalog
     ├── process_owner.py profile-owned process identity for shutdown and proof binding
     ├── stream_server.py lazy MJPEG dashboard (+ chat, STOP)     live_view.py  RigViewer

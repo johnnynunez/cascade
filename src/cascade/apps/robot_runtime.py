@@ -12,7 +12,9 @@ from ..robotics.resources import ResourceCatalog
 
 _GLOBAL = {"emergency_stop", "reset_stop", "task_done"}
 _GRIPPER = {"grasp_object", "pick_and_place", "place_at", "place_on_object", "open_gripper",
-            "close_gripper", "grasp_at_pixel", "sort_by_color", "handover", "throw", "turn_screw"}
+            "close_gripper", "grasp_at_pixel", "sort_by_color", "handover", "throw", "turn_screw",
+            # Pigey composites pick and place too
+            "restore_scene", "search_for_object"}
 
 
 def _controller(profile, domain, name):

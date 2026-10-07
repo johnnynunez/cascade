@@ -172,6 +172,33 @@ _RULES: list[tuple[re.Pattern, str]] = [
         ),
         "reset_scene",
     ),
+    # Pigey scene memory (EN + ES). "memorize the scene" -> snapshot, no
+    # motion; "put everything back" -> restore, blocker-first through the
+    # harness; "find the X" -> occlusion search. Distinct from reset_scene
+    # above: a restore moves the props back where THIS visitor had them, a
+    # reset teleports sim props to spawn.
+    (
+        re.compile(
+            r"^(?:memori[sz]e|snapshot|remember|memoriza|recuerda|memorizar)"
+            r"(?:\s+(?:the|this|la|esta)\s+(?:scene|table|layout|escena|mesa)"
+            r"|\s+where\s+everything\s+is|\s+d[oó]nde\s+est[aá]\s+todo)$"
+        ),
+        "snapshot_scene",
+    ),
+    (
+        re.compile(
+            r"^(?:restore|restaura|restaurar)\s+(?:the|la)\s+(?:scene|table|layout|escena|mesa)$"
+            r"|^(?:put|pon|coloca|vuelve\s+a\s+poner)\s+(?:everything|it\s+all|todo)\s+"
+            r"(?:back|en\s+su\s+sitio|donde\s+estaba|como\s+estaba)(?:\s+where\s+it\s+was)?$"
+        ),
+        "restore_scene",
+    ),
+    (
+        re.compile(
+            rf"^(?:find|search\s+for|look\s+for|locate|busca|encuentra|localiza)\s+{_ART}(?P<obj>.+)$"
+        ),
+        "search_for_object",
+    ),
     # scene questions answer instantly from the world model
     (
         re.compile(
@@ -302,6 +329,14 @@ def parse_command(text: str) -> ReflexPlan | None:
             return ReflexPlan(intent, [("move_home", {})])
         if intent == "reset_scene":
             return ReflexPlan(intent, [("reset_scene", {})])
+        if intent == "snapshot_scene":
+            return ReflexPlan(intent, [("snapshot_scene", {})])
+        if intent == "restore_scene":
+            return ReflexPlan(intent, [("restore_scene", {})])
+        if intent == "search_for_object":
+            if not obj:
+                return None
+            return ReflexPlan(intent, [("search_for_object", {"label": obj})], obj)
         if intent == "look":
             return ReflexPlan(intent, [("get_observation", {})])
         if intent == "open_gripper":

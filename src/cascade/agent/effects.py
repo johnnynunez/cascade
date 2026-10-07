@@ -59,6 +59,10 @@ POSTCONDITIONS: dict[str, str] = {
     "close_gripper": "closed",
     "move_home": "at_home",
     "turn_screw": "threaded",
+    # Pigey composites: the layout came back / the occluders went where the
+    # search parked them. Both are "objects at remembered targets" checks.
+    "restore_scene": "restored",
+    "search_for_object": "searched",
 }
 
 #: An object that rose by at least this much (m) genuinely left the table.
@@ -306,6 +310,18 @@ class PostconditionChecker:
                     "; placement execution failed or reports an object still held; "
                     "release is not established"
                 )
+            # Same rule for the composites: physics may confirm the moves that
+            # did land, but a restore that stopped early, or a search/restore
+            # with an object still in the jaws, has not achieved its effect.
+            # A search that parked its occluders and honestly reports
+            # "not found" (ok=false, no stage) keeps the park verdict: the
+            # parks ARE its physical effect; finding was never a motion claim.
+            if (kind in ("restored", "searched")
+                    and pc.status == CONFIRMED
+                    and (result.get("holding") or result.get("stage")
+                         or (kind == "restored" and result.get("ok") is False))):
+                pc.status = UNVERIFIED
+                pc.evidence += "; the composite skill did not complete, so the effect is not established"
         except Exception as e:
             pc.status, pc.evidence = UNVERIFIED, f"verification error: {type(e).__name__}: {e}"
         self.history.append(pc)
@@ -673,6 +689,135 @@ class PostconditionChecker:
     def _check_at_home(self, pc, args, result, before) -> None:
         pc.status, pc.channel = CONFIRMED, "arm"
         pc.evidence = "arm commanded home (streamed waypoints approved by the harness)"
+
+    # ── Pigey composites: objects at remembered targets ──────────────────
+
+    def _verify_targets(self, pc, subjects, tolerance_m: float, what: str) -> None:
+        """Score each (label, target xy) against the object's CURRENT pose.
+
+        Shared by `restore_scene` and `search_for_object`, whose claim is the
+        same shape: "these objects now sit at these remembered/parked
+        points". The targets were fixed BEFORE the motion (a snapshot entry,
+        a park spot chosen from the belief store), so they are independent of
+        the actuator's report -- but the belief the object carries afterwards
+        is not: `place_at` authors it at exactly the target, so agreement in
+        the belief channel is the skill grading its own homework. Physics
+        confirms or refutes; belief-only stays UNVERIFIED, like
+        `_check_relocated` does for a self-reported drop point.
+        """
+        if not subjects:
+            pc.status = UNVERIFIED
+            pc.evidence = f"no object was moved by the {what}; nothing to verify independently"
+            return
+        worst_label, worst_err, channels, missing, per_object = None, -1.0, set(), [], {}
+        for s in subjects:
+            label = str(s.get("label") or "")
+            target = s.get("to")
+            if not label or not isinstance(target, (list, tuple)) or len(target) < 2:
+                continue
+            if self._refute_if_lost(pc, label):
+                return
+            pose, channel = self._best_pose(label)
+            if pose is None:
+                missing.append(label)
+                continue
+            err = _dist(pose[:2], [float(target[0]), float(target[1])])
+            channels.add(channel)
+            per_object[label] = {"err_m": round(err, 4), "final": [round(v, 4) for v in pose],
+                                 "target": [round(float(target[0]), 4), round(float(target[1]), 4)],
+                                 "channel": channel}
+            if err > worst_err:
+                worst_label, worst_err = label, err
+        pc.measured = {"objects": per_object, "tolerance_m": round(float(tolerance_m), 4)}
+        if missing:
+            pc.status = UNVERIFIED
+            pc.evidence = f"{', '.join(missing)} could not be re-located after the {what}"
+            return
+        if not per_object:
+            pc.status = UNVERIFIED
+            pc.evidence = f"no verifiable target in the {what} result"
+            return
+        if channels != {"physics"}:
+            pc.channel = "belief"
+            pc.status = UNVERIFIED
+            pc.evidence = (
+                f"{len(per_object)} object(s) match their {what} targets, but only in the belief "
+                "channel the place itself wrote -- no independent confirmation"
+            )
+            return
+        pc.channel = "physics"
+        if worst_err <= float(tolerance_m):
+            pc.status = CONFIRMED
+            pc.evidence = (
+                f"{len(per_object)} object(s) within {tolerance_m*100:.0f} cm of their {what} "
+                f"targets (worst {worst_label}: {worst_err*100:.1f} cm, physics)"
+            )
+        else:
+            pc.status = REFUTED
+            pc.evidence = (
+                f"{worst_label} ended {worst_err*100:.1f} cm from its {what} target "
+                f"(tolerance {tolerance_m*100:.0f} cm, physics)"
+            )
+
+    def _check_restored(self, pc, args, result, before) -> None:
+        """restore_scene: every move it made (restores AND temporary parks)
+        must have landed; with nothing moved, the layout it reports as
+        already matching is checked against physics when physics is there."""
+        tol = float(result.get("tolerance_m") or SAME_PLACE_M)
+        moves = [m for m in (result.get("moves") or []) if m.get("ok") and m.get("to")]
+        if moves:
+            self._verify_targets(pc, moves, tol, "restore")
+            return
+        unchanged = [{"label": u.get("label"), "to": u.get("target")}
+                     for u in (result.get("unchanged") or [])]
+        if not unchanged:
+            pc.status = UNVERIFIED
+            pc.evidence = "no object was moved and no snapshot object is visible; nothing to verify"
+            return
+        # Nothing moved: the only honest confirmation of "already restored" is
+        # a channel the diff did not read, i.e. physics.
+        self._verify_targets(pc, unchanged, tol, "snapshot")
+        if pc.status == UNVERIFIED and pc.channel == "belief":
+            pc.evidence = (
+                f"{len(unchanged)} object(s) already within tolerance of the snapshot in the "
+                "belief channel the diff itself read; no motion, no independent confirmation"
+            )
+
+    def _check_searched(self, pc, args, result, before) -> None:
+        """search_for_object: the parked occluders are the physical effect;
+        the sighting of the target is a perception result and is reported as
+        such, never as proof that the ORIGINAL task is done."""
+        label = str(args.get("label") or result.get("label") or "")
+        moved = [m for m in (result.get("occluders_moved") or []) if m.get("ok") and m.get("to")]
+        found = bool(result.get("found"))
+        if moved:
+            self._verify_targets(pc, moved, SAME_PLACE_M, "park")
+            pc.evidence = (f"{'found' if found else 'not found'}: {label}; " if label else "") + pc.evidence
+            return
+        if found:
+            pose, channel = self._best_pose(label) if label else (None, "")
+            reported = result.get("position")
+            if pose is None or not isinstance(reported, (list, tuple)) or len(reported) < 2:
+                pc.status = UNVERIFIED
+                pc.evidence = f"{label} reported visible but could not be re-located independently"
+                return
+            err = _dist(pose[:2], [float(reported[0]), float(reported[1])])
+            pc.channel = channel
+            pc.measured = {"reported": [round(float(v), 4) for v in reported[:2]],
+                           "final": [round(v, 4) for v in pose], "err_m": round(err, 4)}
+            if channel != "physics":
+                pc.status = UNVERIFIED
+                pc.evidence = (f"{label} sighted by the detector with nothing moved; no independent "
+                               "channel confirms its position")
+            elif err <= SAME_PLACE_M * 2:
+                pc.status = CONFIRMED
+                pc.evidence = f"physics agrees {label} is {err*100:.1f} cm from the reported position"
+            else:
+                pc.status = REFUTED
+                pc.evidence = f"physics puts {label} {err*100:.1f} cm from where the search reported it"
+            return
+        pc.status = UNVERIFIED
+        pc.evidence = f"nothing was moved and {label or 'the object'} was not seen; absence is not established"
 
     # ── helpers ──────────────────────────────────────────────────────────
 

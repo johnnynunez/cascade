@@ -244,6 +244,14 @@ class MobileSkillRuntime:
                 self._connected.add(name)
         return self.base_rig.get(name)
 
+    def passive_state(self, name):
+        """The base's own validated state for a whole-body frame chain.
+
+        The same passive read as ``get_base_state`` (a kinematic mock connects
+        on first read); never a motion authorization or an independent pose.
+        """
+        return self._connect(name).get_state()
+
     def execute(self, name, args=None, *, admission_check=None):
         started = time.monotonic()
         with self._gate:

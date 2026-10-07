@@ -19,7 +19,11 @@ and validation records carry the concrete dependency versions and source pins.
 and sensor attachments. [Measured frame trees](SPATIAL_PROVIDERS.md) separately
 bind transforms to capture time, map and epoch. Neither substitutes for the
 other. Mixed physical actuation remains refused until dynamic frames, shared
-control and robot-specific limits are validated.
+control and robot-specific limits are validated. An opt-in `whole_body`
+profile contract composes a mock arm mounted on a mock base (disjoint command
+endpoints, capture-time mount frames, coordination policy, per-domain reset;
+[contract](ROBOT_MODULARITY.md#multi-domain-embodiments-mounted-arms)); it is
+software evidence and refuses every physical mounted composition.
 
 The optional [spatial domain](SPATIAL_PROVIDERS.md) resolves source-bound
 capture transforms and landmark memory and plans on immutable planar maps.

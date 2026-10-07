@@ -891,15 +891,29 @@ class SkillRuntime:
         e-stop, a feedback timeout). If the jaws are stalled OPEN on
         something, the object IS in the gripper -> promote the marker to the
         real held state so the next skill does not open the jaws on it.
-        Jaws closed on air -> drop the marker.
+        Jaws closed on air -> drop the marker. Jaws AT the open position
+        (the close never landed, or `open_gripper` ran since) -> drop it
+        too: open jaws are not an invented hold.
         """
         if getattr(self, "_contact_episode", None) is not None:
             return  # only explicit contact recovery may finish this failed close
+        air = float(self.cfg.grasp.get("air_grasp_frac", 0.04))
         prov = getattr(self, "_held_provisional", None)
         if prov is not None and not self.held_object:
             wf = self._gripper_width_frac()
             if wf is not None:
-                if wf >= float(self.cfg.grasp.get("air_grasp_frac", 0.04)):
+                # Jaws AT the open position (within the same tolerance that
+                # separates a closed jaw from air) cannot be stalled on
+                # anything: the close never landed (refused before its first
+                # stage) or the jaws were opened since. Promoting that read
+                # every later grasp as "already holding" -- a phantom hold.
+                if wf >= 1.0 - air:
+                    self.memory.add(
+                        "outcome",
+                        f"the jaws are open; the interrupted grasp of {prov[0]!r} "
+                        "did not land -- nothing is held",
+                    )
+                elif wf >= air:
                     label, det_label, color = prov
                     self.held_object = label
                     self._held_det_label = det_label
@@ -924,7 +938,7 @@ class SkillRuntime:
         held_w = self._gripper_width_m()
         if thin > 0 and held_w is not None and held_w >= thin:
             return
-        if wf < float(self.cfg.grasp.get("air_grasp_frac", 0.04)):
+        if wf < air:
             self.memory.add(
                 "outcome",
                 f"I no longer feel {self.held_object!r} in the gripper "
@@ -3787,6 +3801,10 @@ class SkillRuntime:
             self.memory.add("action", f"released {self.held_object!r}")
             self.held_object = None
             self._held_det_label = None
+        # An explicit open after an interrupted grasp settles the question
+        # the provisional marker left open: whatever the jaws may have held
+        # is released now, so nothing remains to promote.
+        self._held_provisional = None
         return {"gripper": "open"}
 
     def skill_close_gripper(self) -> dict:

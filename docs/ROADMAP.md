@@ -833,9 +833,18 @@ are synchronous by design here, noted for long-horizon work.
      `notifications/cancelled` on an in-flight motion tool freezes the arm,
      SIGINT latches instead of free-falling, and the dashboard STOP button
      is wired in MCP mode (tests in `tests/test_mcp_server.py`).
-  2. Exception between gripper close and held_object assignment leaves a
+  2. ~~Exception between gripper close and held_object assignment leaves a
      physically held object logically unheld (reconcile only clears the
-     opposite desync); consider a provisional held marker before close.
+     opposite desync); consider a provisional held marker before close.~~
+     **landed 2026-10-07** (marker already in `skill_grasp_object` /
+     `_reconcile_held`; finished today): `_held_provisional` is set before
+     the first jaw command and promoted/refuted by the next skill; jaws AT
+     the open position now refute it instead of promoting a phantom hold,
+     and `open_gripper` discards it. Pinned by
+     `tests/test_persistence_leftovers.py` (`..._reconcile_promotes`,
+     `..._on_air_is_dropped`, `..._around_the_close`,
+     `test_open_gripper_discards_a_provisional_marker`,
+     `test_provisional_marker_with_jaws_at_the_open_position_is_dropped`).
   3. Budget can multiply across tiers: fast-path burns persist_seconds,
      then a real-LLM tier can call pick_and_place again. Cap per task.
   4. handover / sort_by_color still single-attempt (inconsistent with

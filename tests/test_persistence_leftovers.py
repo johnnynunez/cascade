@@ -283,3 +283,35 @@ def test_place_at_caps_release_height_to_the_topdown_ceiling(rt, monkeypatch):
     rt.cfg.grasp._data["topdown_z_max"] = 0.12
     rt.skill_place_at(0.20, -0.10, z=0.50)  # absurdly high request
     assert seen["z"] and max(seen["z"]) <= 0.12 + 1e-6, seen
+
+
+# ── #2 (finish): the marker against OPEN jaws ───────────────────────────────
+
+def test_open_gripper_discards_a_provisional_marker(rt):
+    """A deliberate `open_gripper` after a crashed grasp is the human saying
+    "nothing is held": the marker must not survive it, or the next skill's
+    `_reconcile_held` reads the OPEN jaws (1.0 >= air_grasp_frac) as a stall
+    and promotes a phantom hold that refuses every later grasp."""
+    rt.held_object = None
+    rt._held_provisional = ("red cube", "cube", "red")
+    rt.skill_open_gripper()
+    assert rt._held_provisional is None
+    rt._reconcile_held()
+    assert rt.held_object is None
+
+
+def test_provisional_marker_with_jaws_at_the_open_position_is_dropped(rt):
+    """The close never landed (refused before its first stage) or the jaws
+    were opened since: jaws AT the open position cannot be stalled on
+    anything, so the marker is refuted, never promoted."""
+    rt.held_object = None
+    rt._held_provisional = ("red cube", "cube", "red")
+    _jaws(rt, 1.0)
+    rt._reconcile_held()
+    assert rt.held_object is None and rt._held_provisional is None
+    # a wide object that stalls the jaws just inside the air tolerance of
+    # fully open is still a hold: never refute what the jaws may be holding
+    rt._held_provisional = ("red cube", "cube", "red")
+    _jaws(rt, 0.95)
+    rt._reconcile_held()
+    assert rt.held_object == "red cube"

@@ -61,3 +61,25 @@ turn_control:
   max_translation_path_m: 0.35
   min_height_m: 0.615
   max_tilt_rad: 0.5236
+  # Candidate revision 3 (B29, 2026-10-07), NOT physically measured yet: decelerate the
+  # admitted 0.5 rad/s turn before the goal, closed-loop on the MEASURED yaw (SafeBase:
+  # |wz| = max(min_rate, min(previous, sqrt(2*decel*(|remaining| - 0.03 tolerance)))),
+  # then the unchanged zero-twist stop) instead of cutting 0.5 rad/s to zero mid-step,
+  # which left the 0.8 rad turn of geo3-v2 oscillating 0.69 -> 0.32 rad/s for 3.75 s sim.
+  # Needs the H2 owner started with --velocity-scaling (scales the ACTIVE admitted twist
+  # by 0 < s <= 1; never re-admits or extends); without it every turn is refused before
+  # motion. Values from the geo3-v2 owner rows (docs/evidence/h2-geometric-candidate-20261007):
+  #  - min_rate 0.15: the 0.6 rad turn that settled was cut at ~0.26 rad/s (mean 0.1 s yaw
+  #    rate over its last 0.3 s), the refuted 0.8 rad turn at ~0.47 rad/s; the floor sits
+  #    below both and keeps the robot progressing until the unchanged 0.03 rad tolerance.
+  #  - decel 0.4 rad/s^2: 0.5 -> 0.15 rad/s takes 0.875 s, ~4 periods of the measured
+  #    ~0.2 s yaw oscillation and ~8x the policy's ~0.11 s response (0.1 s-mean yaw rate at
+  #    0.4 rad/s 0.11 s after admission), so the policy sees a ramp, not a step; the longest
+  #    admitted turn (1.0 rad) needs ~2.38 s of command, ~2.56 s at the measured 93 %
+  #    tracking (0.465 of 0.5 rad/s): inside the unchanged 3 s safety.max_duration_s.
+  #  - rate_step 0.025 rad/s (5 % of 0.5): at most 14 in-admission updates per turn, one per
+  #    ~0.06 s sim (3 policy ticks) while ramping.
+  goal_ramp:
+    decel_rad_s2: 0.4
+    min_rate_rad_s: 0.15
+    rate_step_rad_s: 0.025

@@ -15,6 +15,9 @@ from .mobile_base import BaseState, MobileBase, VelocityCommand, finite_real, id
 
 
 class MockMobileBase(MobileBase):
+    # The toy integrates a scaled admitted twist too; still never physical evidence.
+    velocity_scaling = True
+
     def __init__(self, *, wall_lease_s: float, robot_id="microduck-mock",
                  source="mock-kinematic", dt_s=.01, auto_step=True):
         self._robot_id = identifier(robot_id, "robot_id")
@@ -38,6 +41,7 @@ class MockMobileBase(MobileBase):
         self._published = time.monotonic()
         self._x = self._y = self._yaw = 0.
         self._command = None
+        self._scale = 1.  # fraction of the admitted twist; 1 unless scale_velocity lowered it
         self._sim_end = self._wall_end = 0.
 
     @property
@@ -102,11 +106,12 @@ class MockMobileBase(MobileBase):
             command = self._command
             if command is not None:
                 travel_dt = max(0., min(dt, self._sim_end - self._sim_time))
+                vx, vy, wz = (command.vx * self._scale, command.vy * self._scale, command.wz * self._scale)
                 # This integration is the declared toy, NEVER physical truth.
-                mid_yaw = self._yaw + command.wz * travel_dt / 2
-                self._x += (command.vx * math.cos(mid_yaw) - command.vy * math.sin(mid_yaw)) * travel_dt
-                self._y += (command.vx * math.sin(mid_yaw) + command.vy * math.cos(mid_yaw)) * travel_dt
-                self._yaw += command.wz * travel_dt
+                mid_yaw = self._yaw + wz * travel_dt / 2
+                self._x += (vx * math.cos(mid_yaw) - vy * math.sin(mid_yaw)) * travel_dt
+                self._y += (vx * math.sin(mid_yaw) + vy * math.cos(mid_yaw)) * travel_dt
+                self._yaw += wz * travel_dt
             self._sim_time += dt
             self._step += 1
             self._published = now
@@ -119,7 +124,8 @@ class MockMobileBase(MobileBase):
                 raise RuntimeError("mock base is disconnected")
             now = time.monotonic()
             command = self._command
-            vx, vy, wz = (command.vx, command.vy, command.wz) if command else (0., 0., 0.)
+            vx, vy, wz = ((command.vx * self._scale, command.vy * self._scale, command.wz * self._scale)
+                          if command else (0., 0., 0.))
             return BaseState(
                 robot_id=self._robot_id, source=self._source, epoch=self._epoch,
                 step=self._step, sim_time_s=self._sim_time,
@@ -149,10 +155,28 @@ class MockMobileBase(MobileBase):
                 return self._ack(False, accepted=False, error="disconnected, latched, fault or stale generation")
             self._generation += 1
             self._command = command
+            self._scale = 1.
             self._sim_end = self._sim_time + command.duration_s
             self._wall_end = time.monotonic() + self._lease
             return self._ack(accepted=True, start_sim_time_s=self._sim_time,
                              end_sim_time_s=self._sim_end)
+
+    def scale_velocity(self, scale, *, generation: int) -> dict:
+        """Toy twin of the bridge primitive: lower the ACTIVE admitted twist only.
+
+        Never admits, extends or renews; the generation is not consumed.
+        """
+        scale = finite_real(scale, "scale")
+        generation = nonnegative_int(generation, "generation")
+        if not 0 < scale <= 1:
+            raise ValueError("scale must be in (0, 1] of the admitted twist")
+        with self._lock:
+            self._expire(time.monotonic())
+            if (not self.connected or self._latched or self._fault or self._command is None
+                    or generation != self._generation):
+                return self._ack(False, accepted=False, error="no active admitted command for this generation")
+            self._scale = scale
+            return self._ack(accepted=True, scale=scale, end_sim_time_s=self._sim_end)
 
     def stop(self, *, latch=True) -> dict:
         if type(latch) is not bool:

@@ -20,11 +20,28 @@ from .microduck_newton import (KitNewtonBackend, author_collision_hull_limits, n
 from .microduck_shared import _SharedSupport, bind_scene
 
 
-def placements(count, spacing):
+def placements(count, spacing, layout='grid', route_m=0.):
+    """Disjoint robot namespaces and initial positions; ``layout`` is an explicit choice.
+
+    ``grid`` (the retained layout) is a square grid of ``spacing`` metres starting at the
+    origin. ``line`` puts the robots on x=0 along y, centred on the origin, so that every
+    robot owns a lane along +x: a robot walking ``route_m`` metres forward crosses no
+    other robot's start position. Lanes need less separation than the grid (robots
+    never share a lane), so ``line`` accepts a 1 m spacing; both floors are explicit.
+    ``route_m`` only frames the overview camera; it writes no pose and bounds no motion.
+    """
     if type(count) is not int or not 1 <= count <= 12:
         raise ValueError('robot count must be in 1..12')
-    if type(spacing) not in (int, float) or not math.isfinite(spacing) or spacing < 2.:
-        raise ValueError('explicit finite separation of at least 2 m required')
+    if layout not in ('grid', 'line'):
+        raise ValueError("layout must be 'grid' or 'line'")
+    floor = 2. if layout == 'grid' else 1.
+    if type(spacing) not in (int, float) or not math.isfinite(spacing) or spacing < floor:
+        raise ValueError(f'explicit finite separation of at least {floor:g} m required for the {layout} layout')
+    if type(route_m) not in (int, float) or not math.isfinite(route_m) or route_m < 0.:
+        raise ValueError('route_m must be a finite nonnegative length')
+    if layout == 'line':
+        return {f'duck{i:02d}': (f'/World/Duck{i:02d}', [0., float((i - (count - 1) / 2) * spacing), .125])
+                for i in range(count)}
     columns = math.ceil(math.sqrt(count))
     return {f'duck{i:02d}': (f'/World/Duck{i:02d}',
                             [float(i % columns * spacing), float(i // columns * spacing), .125])
@@ -36,7 +53,9 @@ class SharedKitNewtonBackend(KitNewtonBackend):
         super().__init__(args, admission, experience)
         if not self._reuse_solved_read:
             raise ValueError('shared native reads require explicit bound graph/read-reuse mode')
-        self.placements = placements(args.robots, args.spacing)
+        self.placements = placements(args.robots, args.spacing, getattr(args, 'layout', 'grid'),
+                                     getattr(args, 'route_m', 0.) or 0.)
+        self._route_m = float(getattr(args, 'route_m', 0.) or 0.)
         self._shared_read = None
         self._bound_identity = False
         self._support_layout = None
@@ -69,6 +88,14 @@ class SharedKitNewtonBackend(KitNewtonBackend):
 
     def _camera_pose(self):
         points = np.array([p for _, p in self.placements.values()])
+        if self._route_m > 0.:
+            # Frame the start positions plus the forward route (+x), from behind, above and
+            # to the side, so every lane and its whole length stay in view.
+            low, high = points.min(axis=0), points.max(axis=0)
+            high = high + [self._route_m, 0., 0.]
+            center = (low + high) / 2
+            extent = max(float((high - low)[:2].max()), .4)
+            return (center + [-extent*.55, -extent*.65, extent*.6]).tolist(), center.tolist()
         center = (points.min(axis=0) + points.max(axis=0)) / 2
         extent = max(float(np.ptp(points[:, :2], axis=0).max()), .4)
         return (center + [extent*.8, extent*.8, extent*.85]).tolist(), center.tolist()

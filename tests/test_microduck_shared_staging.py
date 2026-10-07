@@ -157,7 +157,7 @@ def test_retry_still_checks_episode_wall_budget_and_never_commits_late_policy():
 
 
 def _launch_shared_runner(tmp_path, monkeypatch, *, profile_phases, gc_policy, fleet_close_error=None,
-                          profile_cprofile=False):
+                          extra_limits=None, physics_row_every=1, max_steps=2, profile_cprofile=False):
     """Drive the real launcher with software fixtures; returns everything the asserts need."""
     import gc
     import importlib
@@ -240,11 +240,13 @@ def _launch_shared_runner(tmp_path, monkeypatch, *, profile_phases, gc_policy, f
     monkeypatch.setattr(shared_module, 'SharedMicroduckStepper', Interrupted)
     out = tmp_path / 'run'
     args = NS(out=out, device='cuda:0', source='software-test-not-physics', max_wall_s=3.,
-              max_steps=2, camera_every=1, max_jpeg_bytes=100000, policy=tmp_path / 'fixture.onnx',
+              max_steps=max_steps, camera_every=1, max_jpeg_bytes=100000, policy=tmp_path / 'fixture.onnx',
               policy_sha256='b'*64, target_profile='direct-v1', python_extra_path=[], robots=1, serve_base_port=None,
-              profile_phases=profile_phases, gc_policy=gc_policy, profile_cprofile=profile_cprofile)
+              profile_phases=profile_phases, gc_policy=gc_policy, physics_row_every=physics_row_every,
+              profile_cprofile=profile_cprofile)
     signals = NS(signum=None, registration_attempts=0, checkpoint=lambda **kwargs: None, defer=nullcontext)
-    admission = dict(target_contract=target_contract('b'*64, 'direct-v1'), asset_sha256='a'*64, limits=software_limits(), experience_text='software fixture\n')
+    admission = dict(target_contract=target_contract('b'*64, 'direct-v1'), asset_sha256='a'*64,
+                     limits=software_limits() | (extra_limits or {}), experience_text='software fixture\n')
     result = runner.run(args, admission, signals)
     assert tuple(gc.callbacks) == callbacks_before
     assert (gc.isenabled(), gc.get_threshold()) == gc_settings
@@ -306,6 +308,30 @@ def test_launcher_releases_the_frozen_heap_even_when_fleet_closure_fails(tmp_pat
     assert run.collector.calls == [('collect', 2), ('freeze',), ('collect', 2), ('unfreeze',), ('collect', 2)]
     assert [c[0] for c in run.policy_calls] == ['apply', 'release']
     assert result['gc_policy']['released']['unfrozen'] == 1575 and result['gc_policy']['applied'] is not None
+
+
+@pytest.mark.parametrize('gains', [None, {'heading_hold_kp': 4.0, 'heading_hold_ki': 2.0}])
+def test_launcher_gives_every_shared_controller_the_admitted_heading_hold(tmp_path, monkeypatch, gains):
+    import json
+    run = _launch_shared_runner(tmp_path, monkeypatch, profile_phases=False, gc_policy=None, extra_limits=gains)
+    assert run.result['completed']
+    robots = json.loads((run.out / 'runtime.json').read_text())['robots']
+    assert robots and all(hello['heading_hold'] == (None if gains is None else {'kp': 4.0, 'ki': 2.0})
+                          for hello in robots.values())
+
+
+def test_launcher_thins_physics_rows_only_when_asked_and_keeps_first_and_last(tmp_path, monkeypatch):
+    import json
+    run = _launch_shared_runner(tmp_path, monkeypatch, profile_phases=False, gc_policy=None,
+                                physics_row_every=3, max_steps=7)
+    assert run.result['completed'] and run.result['steps'] == 7
+    steps = [json.loads(line)['step'] for line in (run.out / 'physics.jsonl').read_text().splitlines()]
+    # solved steps are 3..9 (the first attempt is withheld): first, every third offset by one
+    # (i+1+1) % 3 == 0 -> i = 1, 4 -> steps 4, 7), and the last
+    assert steps == [3, 4, 7, 9]
+    assert run.created[0].receipt['configuration'] == {'physics_row_every': 3}
+    frames = [json.loads(line)['step'] for line in (run.out / 'frames.jsonl').read_text().splitlines()]
+    assert frames == list(range(3, 10))  # camera cadence is unchanged
 
 
 @pytest.mark.parametrize('profile_cprofile', [False, True])

@@ -53,6 +53,10 @@ def parse_args(argv=None):
     p.add_argument('--camera-mount', type=Path, help='explicit rigid-render-camera JSON; requires RGB-D and SDK48')
     p.add_argument('--camera-mount-sha256', help='independent SHA256 of the exact camera mount file')
     p.add_argument('--max-jpeg-bytes', type=int, default=2*1024**2)
+    p.add_argument('--ground-visual-m', type=float, default=None,
+                   help='opt-in display size of the ground plane (metres); the collider stays infinite')
+    p.add_argument('--overview-resolution', default=None,
+                   help='opt-in overview WIDTHxHEIGHT (default 640x480); recorded in the receipt and identity')
     p.add_argument('--solver-cuda-graph', action='store_true',
                    help='explicit reviewed SDK solver graph; BAM/checkpoints stay outside capture')
     p.add_argument('--reuse-solved-read', action='store_true',
@@ -301,13 +305,15 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
                 **{k: admission['limits'][k] for k in FALL_LIMITS})
             if getattr(args, 'camera_rgbd', False):
                 from cascade.sim.mobile_rgbd import RgbdFrameCache
+                height, width = getattr(backend, 'overview_shape', (480, 640))
                 cache = RgbdFrameCache(controller.hello(),
                     calibration=backend.receipt['rgbd_camera']['calibration'],
-                    max_jpeg_bytes=args.max_jpeg_bytes, max_pixels=640*480)
+                    max_jpeg_bytes=args.max_jpeg_bytes, max_pixels=height * width)
                 if admission.get('camera_mount') is not None:
                     backend.bind_capture_identity(controller.hello())
             else:
-                cache = FrameCache(controller.hello(), max_jpeg_bytes=args.max_jpeg_bytes, max_pixels=640*480)
+                height, width = getattr(backend, 'overview_shape', (480, 640))
+                cache = FrameCache(controller.hello(), max_jpeg_bytes=args.max_jpeg_bytes, max_pixels=height * width)
             server = (server_factory or MobileBridgeServer)(controller, port=args.port, frame_callback=cache)
             stepper.start()
         checkpoint()

@@ -17,7 +17,7 @@ import sys
 import time
 from pathlib import Path
 
-from isaac_microduck_bridge import (CONTROLLER_LIMITS, FALL_LIMITS, REPO, admit,
+from isaac_microduck_bridge import (CONTROLLER_LIMITS, FALL_LIMITS, HEADING_HOLD, REPO, admit,
     bind_repo, create_policy, selected_target_contract, json_default, parse_args, write_json,
     _persist, _refresh_receipt, _resolve_outcome)
 
@@ -101,6 +101,12 @@ def run(args, admission, signals):
         owner.open()
         if getattr(args, 'profile_phases', False):
             owner.receipt['configuration']['phase_profile'] = 'owner-thread-inclusive-gc-trigger-v1'
+        physics_row_every = int(getattr(args, 'physics_row_every', 1) or 1)
+        if physics_row_every != 1:
+            # Recording density of the full per-step physics rows (every Nth solved step, offset by
+            # N//2 so the row encode and the camera capture do not share an attempt, plus the first
+            # and the last); it enters the hashed configuration like the other selections.
+            owner.receipt['configuration']['physics_row_every'] = physics_row_every
         gc_policy = getattr(args, 'gc_policy', None)
         if gc_policy is not None:
             # The selected policy is hashed into the effective recipe below; its
@@ -115,7 +121,9 @@ def run(args, admission, signals):
                 engine='newton', device=args.device, asset_sha256=admission['asset_sha256'],
                 policy_sha256=args.policy_sha256, model_identity_sha256=binding.model_identity_sha256,
                 support_contract=binding.support_contract(), physics_dt=.005, policy_dt=.020,
-                **{k: admission['limits'][k] for k in CONTROLLER_LIMITS})
+                # The optional bridge-side heading hold is part of the admitted limits file
+                # (both gains or neither, see load_limits); every robot gets the same gains.
+                **{k: admission['limits'][k] for k in CONTROLLER_LIMITS + HEADING_HOLD if k in admission['limits']})
             view = SharedRobotView(owner, binding, controller.hello()['epoch'])
             steppers.append(MicroduckStepper(view, controller,
                 create_policy(args, admission), actuator,
@@ -143,8 +151,9 @@ def run(args, admission, signals):
         fleet.start()
         if args.serve_base_port is not None:
             from cascade.sim.microduck_admission import SharedEndpoints
+            height, width = getattr(owner, 'overview_shape', (480, 640))
             endpoints = SharedEndpoints(steppers, base_port=args.serve_base_port,
-                                        max_jpeg_bytes=args.max_jpeg_bytes)
+                                        max_jpeg_bytes=args.max_jpeg_bytes, max_pixels=height * width)
             result['scope'] = 'shared-scene bounded command candidate; physical outcomes unverified'
         before = owner.physics_clock
         warmup = owner.capture()
@@ -192,11 +201,12 @@ def run(args, admission, signals):
                         result['withheld_ticks'] = fleet.withheld_ticks
                         continue
                     result['steps'] = i + 1
-                    with profile.span('record.physics') if profile else nullcontext():
-                        row(physics, {'step': owner.physics_clock[0], 'sim_time_s': owner.physics_clock[1],
-                            'robots': {s.identity['robot_id']: {**samples[s.identity['robot_id']],
-                                'bam': s.actuator.telemetry(), 'controller': s.controller._state_for_record()}
-                                for s in steppers}}, physics_row=True)
+                    if i == 0 or (i+1 + physics_row_every // 2) % physics_row_every == 0 or i+1 == args.max_steps:
+                        with profile.span('record.physics') if profile else nullcontext():
+                            row(physics, {'step': owner.physics_clock[0], 'sim_time_s': owner.physics_clock[1],
+                                'robots': {s.identity['robot_id']: {**samples[s.identity['robot_id']],
+                                    'bam': s.actuator.telemetry(), 'controller': s.controller._state_for_record()}
+                                    for s in steppers}}, physics_row=True)
                     if i == 0 or (i+1) % args.camera_every == 0 or i+1 == args.max_steps:
                         with profile.span('camera.overview') if profile else nullcontext():
                             probe = owner.support_probe()
@@ -206,15 +216,17 @@ def run(args, admission, signals):
                             capture = owner.capture()
                             if (capture['step'], capture['sim_time_s']) != owner.physics_clock:
                                 raise RuntimeError('overview capture does not match shared solve')
-                            if endpoints is not None:
-                                endpoints.publish_capture(capture)
                             import cv2
                             ok, jpeg = cv2.imencode('.jpg', cv2.cvtColor(capture['rgb'], cv2.COLOR_RGB2BGR))
                             if not ok:
                                 raise RuntimeError('overview JPEG encoding failed')
+                            jpeg = jpeg.tobytes()
+                            if endpoints is not None:
+                                # The same bytes serve every robot's frame channel: one encode per capture.
+                                endpoints.publish_capture(capture, jpeg=jpeg)
                             path = out / 'frames' / f'overview_{capture["step"]:09d}.jpg'
                             with path.open('xb') as image:
-                                image.write(jpeg.tobytes())
+                                image.write(jpeg)
                             row(frames, {k:v for k,v in capture.items() if k != 'rgb'} | {
                                 'file': path.relative_to(out).as_posix(), 'sha256': hashlib.sha256(jpeg).hexdigest(),
                                 'scene_model_sha256': identity['scene_model_sha256'],
@@ -292,7 +304,13 @@ def main(argv=None):
     extra = argparse.ArgumentParser(add_help=False)
     extra.add_argument('--robots', type=int, required=True)
     extra.add_argument('--spacing', type=float, required=True)
+    extra.add_argument('--layout', choices=['grid', 'line'], default='grid',
+                       help="initial placement: the retained square grid, or one lane per robot along +x")
+    extra.add_argument('--route-m', type=float, default=0.,
+                       help='forward route length framed by the overview camera (camera only; no motion bound)')
     extra.add_argument('--serve-base-port', type=int, default=None)
+    extra.add_argument('--physics-row-every', type=int, default=1,
+                       help='record the full physics row every N solved steps (first and last always); receipted')
     extra.add_argument('--profile-phases', action='store_true')
     extra.add_argument('--profile-cprofile', action='store_true',
                        help='diagnostic: in-process cProfile of the stepping loop, written to <out>/owner.prof before SDK shutdown')
@@ -304,7 +322,11 @@ def main(argv=None):
     options, rest = extra.parse_known_args(argv)
     args = parse_args(rest)
     args.robots, args.spacing = options.robots, options.spacing
+    args.layout, args.route_m = options.layout, options.route_m
     args.serve_base_port = options.serve_base_port
+    args.physics_row_every = options.physics_row_every
+    if type(args.physics_row_every) is not int or args.physics_row_every < 1:
+        raise ValueError('--physics-row-every must be a positive integer')
     args.profile_phases = options.profile_phases
     args.profile_sync_solve = options.profile_sync_solve
     args.profile_cprofile = options.profile_cprofile
@@ -314,7 +336,7 @@ def main(argv=None):
     bind_repo()
     from cascade.apps.signal_stop import StopSignals
     from cascade.sim.microduck_shared_native import placements
-    placements(args.robots, args.spacing)
+    placements(args.robots, args.spacing, args.layout, args.route_m)
     if args.port != 0:
         raise ValueError('use --port 0 and opt in separately with --serve-base-port')
     if args.serve_base_port is not None and not 0 <= args.serve_base_port <= 65536-args.robots:

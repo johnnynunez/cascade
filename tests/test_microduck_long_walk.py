@@ -137,7 +137,13 @@ def test_long_profile_is_opt_in_and_changes_only_declared_bounds():
 def test_long_profile_walks_a_measured_metre_on_the_kinematic_fixture_only():
     from cascade.safety.base_harness import SafeBase
     long = _profile("microduck_distance_long")
-    raw = _SteppedDistanceMock(wall_lease_s=2., dt_s=.002, auto_step=False)
+    # The mock's wall lease stands for the bridge's max_action_wall_s, which this
+    # profile requires to be >= its 190 s wall budget (see the profile header). The
+    # 2 s lease of the 0.02 m slow-profile fixtures expires mid-walk on a slow
+    # runner (a 1 m kinematic walk is ~500 reads; macOS CI latched the mock with
+    # "feedback generation changed" at ~0.65 m), which measured runner speed, not
+    # the profile. The harness still enforces the profile's own wall limit.
+    raw = _SteppedDistanceMock(wall_lease_s=long["safety"]["max_wall_duration_s"], dt_s=.002, auto_step=False)
     safe = SafeBase(raw, long["safety"], distance_control=long["distance_control"],
                     turn_control=long["turn_control"])
     assert not safe.walk_distance(2.5)["execution_ok"] and not raw.connected  # beyond the profile

@@ -97,6 +97,12 @@ committed). Inventory with every source checked and every "not found":
   0.8 rad turn now passes the unchanged settle check 8/8 (1/6 without the ramp), but 1.0 rad
   drops to 1/5 (5/6 without): the ramp's deceleration plus a mid-turn yaw-rate dip of the
   policy exhaust the unchanged 3 s command ([live result](#live-result-8-october-2026)).
+- **Candidate revision 4 (8 October; software only, live A/B pending):** the ramp is budgeted
+  against the ADMITTED command time left, so it can no longer decelerate a turn past the unchanged
+  3 s command; when time is short it holds the rate and cuts higher instead
+  ([below](#candidate-revision-4-time-budgeted-goal-ramp-software-only-8-october-2026)). On a CPU toy
+  with the measured mid-turn dip, 1.0 rad goes from a timeout to 2.72 s while 0.6/0.8 rad keep
+  revision 3's ramp unchanged. Not measured on the owner.
 - **Not shown:** any Newton run; anything on hardware; measured (not candidate) verifier
   limits; `walk_distance` beyond ~0.6 m (bounded by the 3 s command budget, not by the robot).
 
@@ -199,7 +205,73 @@ motion). 39 independent turns; limits and the 3 s command unchanged.
   "unrequested translation during turn".
 - **Verdict: not admitted.** Nothing was retuned after the measurement. The next control
   revision will be designed and measured on its own: either a ramp that budgets the command time
-  left, or one that holds the rate through a dip.
+  left, or one that holds the rate through a dip. → [Revision 4](#candidate-revision-4-time-budgeted-goal-ramp-software-only-8-october-2026)
+  takes the first option (software only, live A/B pending).
+
+## Candidate revision 4: time-budgeted goal ramp (software only, 8 October 2026)
+
+**Why.** In the revision-3 owner A/B the three +1.0 rad timeouts dipped at full command
+(0.08–0.12 rad/s around 1.25–1.75 s), so the ramp, which starts on the measured remaining yaw
+(≈0.31 rad), began only at 2.10–2.24 s and its ≈0.8 s deceleration ran past the unchanged 3 s
+command. Without the ramp the same turns reached tolerance at 2.21–2.43 s.
+
+**Mechanism** (`SafeBase.turn`, opt-in per profile, inside the same single admission):
+
+- `turn_control.goal_ramp.time_budget: {reserve_s, tracking}` (exact keys; an explicit `null`
+  restores revision 3 for an `extends:` child, `goal_ramp: null` still turns the whole ramp off).
+- On every freshly validated sample the revision-3 law gets one more term:
+  `|wz| = max(min_rate, min(previous, max(sqrt(2·decel·d), d / (tracking · (left − reserve)))))`
+  with `d = |remaining| − turn_tolerance` (measured yaw) and `left = ACK end_sim_time_s − sample
+  sim time`, i.e. the constant rate that still covers the remaining measured yaw in the ADMITTED
+  command time left. Inside the last `reserve_s` the rate is only held. The same `rate_step` gate,
+  the same `scale_velocity(scale, generation)` and the same zero-twist stop follow.
+- It reads no yaw *rate*, so a transient dip moves it only by the yaw it actually cost (the
+  "dip-aware" requirement holds by construction). It can only withhold a deceleration; it never
+  raises the rate (`min(previous, …)` and the update gate), extends or renews the command, or skips
+  the stop. A dip longer than any budget can absorb still ends in the unchanged fail-closed timeout.
+- A budgeted result also carries `turn_rate_budget: {held_samples, first_held}` (how often the time
+  left, not the distance left, set the rate) and `command_time_left_s` / `budget_rate_rad_s` per update.
+
+**Values** (`h2_velocity_candidate`): `reserve_s: 0.3` (s of sim; ≈3 policy responses, ≈6 owner
+samples), `tracking: 0.93` (the measured 0.465 of 0.5 rad/s that revision 3 also used). Replayed on
+the logged revision-3 updates of the A/B (verifier clock), the budget binds on exactly the three
+timed-out +1.0 rad turns, the −1.0 rad turn that came within tolerance only at 2.90 s, and the last
+update of one confirmed 0.8 rad turn (budget 0.186 vs the law's 0.171 rad/s, so that update is
+withheld); the 18 other ramped turns are unchanged.
+
+**CPU evidence** (`tests/test_turn_goal_ramp_budget.py`, a kinematic toy at 0.93 tracking whose
+measured yaw rate dips to ≤ 0.1 rad/s 1.0–1.75 s after admission, with and without the ramp):
+
+| angle | no ramp | revision 3 | revision 4 |
+| --- | --- | --- | --- |
+| 0.6 rad | 1.86 s | 2.16 s, cut at 0.15 | identical to revision 3 |
+| 0.8 rad | 2.28 s | 2.70 s, cut at 0.15 | identical to revision 3 |
+| ±1.0 rad | 2.72 s | **timeout** (3 s command) | 2.72 s, cut at 0.5 (budget holds the admitted rate) |
+
+With a milder dip (0.2 rad/s) revision 4 keeps part of the ramp (1.0 rad: 2.70 s, cut at 0.35);
+without a dip it reproduces revision 3 decision for decision. Golden digest over all nine shipped
+base profiles (76 toy episodes, both trees): 75/76 backend command sequences identical to origin/main
+133876c (only the candidate's 1.0 rad dip turn changes); the candidate with `time_budget: null` or
+`goal_ramp: null` is identical to main in full.
+
+**Cost, stated.** When the budget binds, the turn is cut above the 0.15 rad/s floor, up to the
+admitted 0.5 rad/s, i.e. revision 2's cut. For 1.0 rad that is the arm that confirmed 5/6 on the owner;
+whether a late 0.8 rad turn cut that way still settles is exactly what the live A/B has to measure.
+Dip-*hold* (holding the rate while the measured rate is low) was not built: in all three 1.0 rad
+timeouts the dip came before the ramp started, so holding through it buys no time, and the one
+0.6 rad timeout (stalled at 0.02–0.06 rad/s with 0.29 rad/s commanded) is out of reach of any
+monotone ramp.
+
+**Live recipe (for the parent, GPU 0).** Same owner command line as revision 3 (`--velocity-scaling`).
+The change is client-side only (`SafeBase` + the candidate YAML; nothing in the owner's
+`SOURCE_FILES`), so the owner identity does not move, but the harness must import CASCADE from this
+revision (`CASCADE_H2_REPO=<this checkout>`) and pins the private base from each owner's
+`kit/model-identity.json` as before.
+Arms from one config dir, checked with `--dry-config` before any owner starts: R = as shipped
+(revision 4), V = `turn_control: {goal_ramp: {time_budget: null}}` (revision 3), N = `goal_ramp: null`
+(revision 2). Record per turn the verdict, the settle drift/ω, `turn_rate_budget`, the commanded
+rate at stop and the command time used; the limits, the 3 s command and the 8 s wall settle budget
+stay unchanged.
 
 ## Owner architecture (to build; mirrors the MicroDuck shared owner)
 
@@ -268,4 +340,6 @@ CASCADE's fail-closed rules; never let it become a second command path.
 - The revision-3 turn ramp trades command time for a slower cut: a long turn on a robot that
   tracks much worse than the measured 93 % reaches the unchanged 3 s command deadline and fails
   closed. If the owner episode shows that, the answer is a re-derived ramp (or a deadline-aware
-  floor) or a standing hand-over, not a larger `max_duration_s`.
+  floor) or a standing hand-over, not a larger `max_duration_s`. (The owner showed it on 8 October;
+  revision 4 is that deadline-aware floor. Its own trade: a late turn is cut faster, up to revision
+  2's 0.5 rad/s, which is what refuted 5 of 6 ramp-off 0.8 rad turns on settle.)

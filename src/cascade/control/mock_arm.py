@@ -111,3 +111,24 @@ class MockArm(ArmBase):
             self.send_joint_target(q_i)
             q_prev = q_i
         return not self._stopped
+
+    def stream_path(self, waypoints, duration_s, rate_hz=50.0, approve=None,
+                    settle_tol=None, settle_timeout_s=2.0, preflight=None,
+                    before_stream=None) -> bool:
+        """ArmBase.stream_path without real-time pacing (same ticks)."""
+        from .arm_base import path_ticks, prepare_stream
+
+        waypoints = [np.asarray(w, dtype=float).reshape(-1) for w in waypoints]
+        if not waypoints:
+            from ..types import SafetyViolation
+
+            raise SafetyViolation("empty joint path; no motion sent")
+        q_start, _ = prepare_stream(self, waypoints[-1], duration_s, preflight, before_stream)
+        ticks, dt = path_ticks(q_start, waypoints, duration_s, rate_hz)
+        q_prev = q_start
+        for q_i in ticks:
+            if approve is not None:
+                approve(q_prev, q_i, dt)
+            self.send_joint_target(q_i)
+            q_prev = q_i
+        return not self._stopped

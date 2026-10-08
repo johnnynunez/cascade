@@ -92,6 +92,9 @@ class LazyArm(ArmBase):
         # Delegate wholesale so backend overrides (settle_tol, pacing) apply.
         return self._ensure().stream_to(*args, **kwargs)
 
+    def stream_path(self, *args, **kwargs) -> bool:
+        return self._ensure().stream_path(*args, **kwargs)
+
     def wait_settled(self, *args, **kwargs) -> bool:
         return self._ensure().wait_settled(*args, **kwargs)
 

@@ -41,6 +41,12 @@ overrides:
 mit_kp: null
 mit_kd: null
 
+# Straight-line TCP nudges for move_relative (Seeed WRC e97998c): the path is
+# IK-sampled every 5 mm, must stay on one IK branch, is preflighted by the
+# harness and streamed as one motion (SafeArm.move_cartesian). OFF until it has
+# been watched on this rig at low speed; false keeps the joint-space nudge.
+cartesian_relative_moves: false
+
 # Gravity-compensation feedforward: Pinocchio g(q) added to every MIT arm
 # command as the tau term, so joints 2/3 (shoulder lift + elbow) no longer sag
 # under their own weight. Pure PD (tau_ff=0) holds with steady-state error

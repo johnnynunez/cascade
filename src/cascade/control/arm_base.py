@@ -27,6 +27,41 @@ PREFLIGHT_REBIND_BUDGET_S = 5.0
 PREFLIGHT_MAX_CHECKS = 8
 
 
+def path_length(q_start, waypoints) -> float:
+    """Chebyshev arc length of the joint polyline start -> waypoints: the sum
+    over segments of the LARGEST single-joint change. Every joint's travel is
+    bounded by it, so a min-jerk profile over this length peaks at
+    1.875 * L / T on every joint -- the same bound move_joints stretches by."""
+    pts = np.vstack([np.asarray(q_start, dtype=float).reshape(1, -1)]
+                    + [np.asarray(w, dtype=float).reshape(1, -1) for w in waypoints])
+    return float(np.sum(np.max(np.abs(np.diff(pts, axis=0)), axis=1)))
+
+
+def path_ticks(q_start, waypoints, duration_s, rate_hz=50.0):
+    """Streamed ticks along the joint polyline start -> waypoints, min-jerk in
+    (Chebyshev) arc length. Returns (ticks, dt); the last tick is the last
+    waypoint. Deterministic, so a preflight can vet exactly what streams."""
+    pts = np.vstack([np.asarray(q_start, dtype=float).reshape(1, -1)]
+                    + [np.asarray(w, dtype=float).reshape(1, -1) for w in waypoints])
+    seg = np.max(np.abs(np.diff(pts, axis=0)), axis=1)
+    cum = np.concatenate([[0.0], np.cumsum(seg)])
+    total = float(cum[-1])
+    steps = max(2, int(duration_s * rate_hz))
+    dt = duration_s / steps
+    ticks = []
+    for i in range(1, steps + 1):
+        if total <= 0.0:
+            ticks.append(pts[-1].copy())
+            continue
+        s = min_jerk(i / steps) * total
+        k = int(np.searchsorted(cum, s, side="right")) - 1
+        k = min(max(k, 0), len(seg) - 1)
+        f = 0.0 if seg[k] <= 0.0 else min(max((s - cum[k]) / seg[k], 0.0), 1.0)
+        ticks.append(pts[k] + (pts[k + 1] - pts[k]) * f)
+    ticks[-1] = pts[-1].copy()
+    return ticks, dt
+
+
 def prepare_stream(arm, q_target, duration_s, preflight=None, before_stream=None):
     """Bind preflight to feedback before starting the streaming clock."""
     start = np.asarray(arm.get_state().q, dtype=float).copy()
@@ -156,6 +191,48 @@ class ArmBase(abc.ABC):
             if sleep_s > 0:
                 time.sleep(sleep_s)
         return self.wait_settled(q_target, settle_tol, settle_timeout_s)
+
+    def stream_path(
+        self,
+        waypoints,
+        duration_s: float,
+        rate_hz: float = 50.0,
+        approve=None,
+        settle_tol: float | None = None,
+        settle_timeout_s: float | None = None,
+        preflight=None,
+        before_stream=None,
+    ) -> bool:
+        """Stream a dense joint path (e.g. a Cartesian line) as ONE motion.
+
+        Same contract as `stream_to` -- bound start feedback via
+        `prepare_stream`, `approve(q_prev, q_next, dt)` on every tick,
+        deadline pacing, feedback-based settle -- but the ticks follow the
+        polyline start -> waypoints (min-jerk in arc length, `path_ticks`)
+        instead of a straight joint-space line, and the arm does not stop at
+        intermediate waypoints. Backends whose motion has its own clock
+        (Isaac) must refuse rather than inherit this.
+        """
+        if settle_tol is None:
+            settle_tol = self.settle_tol
+        if settle_timeout_s is None:
+            settle_timeout_s = self.settle_timeout_s
+        waypoints = [np.asarray(w, dtype=float).reshape(-1) for w in waypoints]
+        if not waypoints:
+            raise SafetyViolation("empty joint path; no motion sent")
+        q_start, _ = prepare_stream(self, waypoints[-1], duration_s, preflight, before_stream)
+        ticks, dt = path_ticks(q_start, waypoints, duration_s, rate_hz)
+        q_prev = q_start
+        t0 = time.monotonic()
+        for i, q_i in enumerate(ticks, start=1):
+            if approve is not None:
+                approve(q_prev, q_i, dt)
+            self.send_joint_target(q_i)
+            q_prev = q_i
+            sleep_s = t0 + i * dt - time.monotonic()
+            if sleep_s > 0:
+                time.sleep(sleep_s)
+        return self.wait_settled(waypoints[-1], settle_tol, settle_timeout_s)
 
     def wait_settled(self, q_target: np.ndarray, tol: float, timeout_s: float) -> bool:
         deadline = time.monotonic() + timeout_s

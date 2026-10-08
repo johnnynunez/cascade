@@ -612,9 +612,14 @@ class FastPlanner:
     """
 
     def __init__(self, experience: ExperienceMemory | None = None,
-                 curriculum: bool = True):
+                 curriculum: bool = True, action_objects=None):
         self.experience = experience
         self.curriculum = curriculum
+        #: Optional action<->object consolidation of the same outcome stream
+        #: (memory/consolidation.py, ROADMAP #7). None (shipped default) =
+        #: nothing is recorded beyond `experience`. The orchestrator feeds it
+        #: once per executed plan -- never again per curriculum sub-goal.
+        self.action_objects = action_objects
 
     # ── one clause ──────────────────────────────────────────────────────
 

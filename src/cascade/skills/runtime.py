@@ -261,6 +261,12 @@ class SkillRuntime:
         #: between calls; a feature the skill never wrote is recorded by the
         #: envelope as MISSING, never defaulted here.
         self._call_measurements: dict | None = None
+        #: Object crops localized during the current outermost call, keyed by
+        #: detector label ({label: BGR crop}), for the memory embedder
+        #: (ROADMAP #7). Only ever a dict while a call is in flight AND
+        #: `self.memory.embedder` is set; None otherwise, so a runtime without
+        #: an embedder never copies a pixel for it.
+        self._call_crops: dict | None = None
         self._graspgenx = None  # lazy GraspGenXPlanner (grasp.backend)
         #: Optional profiles use a short retry cooldown after a server error.
         #: Required profiles fail visibly and retry on the next command.
@@ -705,6 +711,12 @@ class SkillRuntime:
         owns_measurements = self._call_measurements is None
         if owns_measurements:
             self._call_measurements = {}
+        # Same ownership for the memory embedder's crop scratchpad; absent an
+        # embedder this stays None and `_note_localized` is a pure pass-through.
+        owns_crops = (getattr(self, "_call_crops", None) is None
+                      and getattr(self.memory, "embedder", None) is not None)
+        if owns_crops:
+            self._call_crops = {}
         try:
             import contextlib
 
@@ -779,6 +791,9 @@ class SkillRuntime:
         measured = None
         if owns_measurements:
             measured, self._call_measurements = self._call_measurements, None
+        call_crops = None
+        if owns_crops:
+            call_crops, self._call_crops = self._call_crops, None
         from ..memory.envelope import DERIVED_FEATURES
         if name not in DERIVED_FEATURES:
             measured = None
@@ -917,6 +932,10 @@ class SkillRuntime:
         # would fill with near-duplicates of the current view.
         pc = result.get("postcondition") if isinstance(result, dict) else None
         verdict = str((pc or {}).get("status") or "") if isinstance(pc, dict) else ""
+        # ROADMAP #7: with a memory embedder, the objects this call localized
+        # ride on its event as crops (what they LOOKED like); the kwarg is
+        # only passed when there are some, so the default call is unchanged.
+        extra = {"crops": call_crops} if call_crops else {}
         self.memory.add(
             "action" if result["ok"] else "outcome",
             f"{name}({_short(args)}) -> {tail[:120]}",
@@ -927,6 +946,7 @@ class SkillRuntime:
                     and self.last_frame is not None)
                 else None
             ),
+            **extra,
         )
         return result
 
@@ -1510,6 +1530,28 @@ class SkillRuntime:
             raise SkillError("invalid active arm localization workspace")
         return bounds
 
+    def _note_localized(self, query: str, frame, fix):
+        """Pass-through for `_localize`'s DETECTION returns (ROADMAP #7).
+
+        With a memory embedder and a call in flight, keep the detected
+        object's pixels (its bbox in the frame the fix was computed on) so the
+        call's memory event can index what that object LOOKED like. Returns
+        exactly ``(frame, fix)``: the localization result is never altered,
+        and any fault here costs only the crop."""
+        crops = getattr(self, "_call_crops", None)
+        if crops is not None:
+            try:
+                det = fix.detection
+                h, w = frame.rgb.shape[:2]
+                x0, y0, x1, y1 = (int(round(float(v))) for v in np.asarray(det.bbox).reshape(-1)[:4])
+                x0, y0, x1, y1 = max(0, x0), max(0, y0), min(w, x1), min(h, y1)
+                if x1 - x0 >= 2 and y1 - y0 >= 2:
+                    label = str(det.label or getattr(fix, "label", "") or query)
+                    crops.setdefault(label, frame.rgb[y0:y1, x0:x1].copy())
+            except Exception:  # noqa: BLE001 -- bookkeeping never fails a localization
+                pass
+        return frame, fix
+
     def _localize(self, query: str, spatial_hint: str | None = None):
         """Fresh frame + color/proximity-aware 3D fix for a user phrase.
 
@@ -1571,7 +1613,7 @@ class SkillRuntime:
             frame = self.observe()
             try:
                 fix = analyze(frame, self.extrinsics)
-                return frame, fix
+                return self._note_localized(query, frame, fix)
             except SlowPerceptionError:
                 raise  # Not detector flicker; do not fall back to memory.
             except ReferenceResolutionError:
@@ -1605,7 +1647,7 @@ class SkillRuntime:
                     f"localize {query!r}: primary camera missed it; found "
                     f"through {getattr(cam.stream, 'name', 'another camera')}",
                 )
-                return cframe, fix
+                return self._note_localized(query, cframe, fix)
             except SlowPerceptionError:
                 raise
             except ReferenceResolutionError:
@@ -5026,6 +5068,24 @@ class SkillRuntime:
                     "seen_s_ago": round(now - b.last_seen_t, 1),
                     "state": b.state(now),
                 }
+            # ROADMAP #7, opt-in: "the thing that looked like X". Only with a
+            # memory embedder; absent one, this answer is the pre-#7 answer.
+            embedder = getattr(self.memory, "embedder", None)
+            if embedder is not None:
+                if getattr(embedder, "joint_space", False):
+                    try:
+                        out["looks_like"] = self.memory.recall_visual(str(query), k=3)
+                        out["looks_like_note"] = (
+                            "remembered appearance matches (cosine >= the embedder's floor), "
+                            "not a current observation: localize_object before acting on one")
+                    except Exception as e:  # noqa: BLE001 -- recall is advisory
+                        out["looks_like"] = []
+                        out["looks_like_note"] = f"visual recall failed: {type(e).__name__}: {e}"
+                else:
+                    out["looks_like"] = []
+                    out["looks_like_note"] = (
+                        "recall by description needs a joint image-text memory embedder "
+                        f"(siglip/clip); configured: {embedder.name}")
         return out
 
     def skill_recall_step(self, n: int = -1) -> dict:

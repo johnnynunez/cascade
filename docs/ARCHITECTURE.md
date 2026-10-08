@@ -449,7 +449,9 @@ make that image current by assigning a new timestamp. See
 | `BeliefStore` named snapshots (`SceneSnapshot`) | ADVISORY layouts: the confirmed (visible) objects' label, colour, centroid, extent at memorize time | saved/loaded with the beliefs; dropped by `clear()` (`reset_scene`) | `snapshot_scene` writes, `restore_scene` reads them as TARGETS; never a claim about the present — only the `restored` postcondition is |
 | `EpisodicMemory` text ring | events, outcomes | ~15 s | `recall_memory`, narration |
 | `EpisodicMemory` frame ring | AFTER frame + action + verdict per motion skill | task-scale (600 s), reset per task / by `reset_scene` | `memory_frames(k)`: first frame pinned, uniform sample, newest last → LLM turn (images) and `task_memory` tool |
+| `EpisodicMemory` visual index (**opt-in**, `memory.embedder`) | one TurboQuant vector per motion frame and per object crop localized during a call (`_localize` detections, keyed by detector label), from `memory/embedder.py` | task-scale (`frames_horizon_s`), ≤ `max_visual` (512) entries, pruned with the index; survives the per-task frame reset | `recall_visual(image \| text \| vector)`; `recall_memory(query)` adds `looks_like` hits only with a joint image-text embedder (siglip/clip). A hit is a remembered appearance, never a current observation |
 | `ExperienceMemory` (`agent/reflex.py`) | command → plan habits, hashed BoW in a TurboQuant index; plus Task-Specific Memory **recipes** (verified LLM-tier runs, coordinates replaced by `localize_object(label)+offset` queries + a summary, `memory/recipes.py`) | `runs/experience.json` (habits), `runs/recipes.jsonl` (recipes) | tier 2; a recipe is re-grounded through perception before any motion, a failed grounding aborts to the LLM tier |
+| `ActionObjectMemory` (`memory/consolidation.py`, **opt-in**, `memory.action_objects`) | the tier-2 outcome stream consolidated per (motion skill, normalized object label) across instruction wordings: wins / losses / wordings; one credit per EXECUTED call (never again per curriculum sub-goal); deliberately not merged by embedding (red cube ≠ blue cube) | `runs/action_objects.json` | LLM-tier intro: advisory digest for the objects the task names |
 | `GraspOutcomeMemory` | per-object grasp features, wins/losses | `~/.cascade/grasp_memory.json` | grasp re-rank + z-nudge |
 | `OperatingEnvelope` (`memory/envelope.py`) | per-skill outcome statistics and failure classes, raw args plus runtime-measured derived features (`DERIVED_FEATURES`: TCP z at close, object height/width, lateral offset; unmeasured → `missing`, never defaulted) | `~/.cascade/envelope.json` (`CASCADE_ENVELOPE_PATH`) | planner context; advisory |
 
@@ -474,6 +476,22 @@ another rig.
 This gate does not change experience-memory or operating-envelope admission.
 See [retry evidence admission](DREAM_RSI_ADAPTATION.md) for the exact checks,
 CLI workflow and remaining state/episode-lineage limits.
+
+**Memory embedder (ROADMAP #7, opt-in).** `memory.embedder.backend` is `none`
+in the shipped profile, and then nothing above changes. `hash` is a
+deterministic, dependency-free embedder (colour histogram + coarse layout for
+images, stemmed hashed words for text, in SEPARATE spaces): image→image recall
+of frames and localized object crops, and embedding-ranked skill notes
+(`relevant_entries(..., embedder=)`: cosine ≥ the embedder's `text_floor` OR a
+guard-word overlap, so an inflected paraphrase is found and no guard match is
+lost; the promotion gate runs first, unchanged). `siglip`/`clip` load a real
+image-text model through the `memory-embed` extra (torch from the host) with
+`local_files_only` by default; a requested backend that cannot load fails
+`build_runtime` with `EmbedderUnavailable` before any arm or camera exists --
+never a silent fallback to `hash`, whose vectors would answer a semantic query
+with noise. Embedding faults during a run are counted (`visual_stats`), never
+raised into a skill. Everything here is advisory: no recall confirms an
+outcome or gates motion.
 
 ### Evaluation
 
@@ -522,7 +540,9 @@ src/cascade/
 │   ├── reference.py          goal/reference images      workspace.py  reachable-region filter
 ├── memory/
 │   ├── beliefs.py      object permanence, colour-aware fusion, save/load (wall clock)
-│   ├── episodic.py     text ring (15 s) + frame ring (task-scale) + memory_frames(k)
+│   ├── episodic.py     text ring (15 s) + frame ring (task-scale) + memory_frames(k); opt-in visual index (recall_visual)
+│   ├── embedder.py     opt-in memory embedders: hash (deterministic, no deps) | siglip/clip (`memory-embed` extra)
+│   ├── consolidation.py opt-in action<->object outcome counts over tier-2 plans (advisory digest)
 │   ├── envelope.py     Harness-VLA operating envelope (per-skill outcome stats + runtime-measured derived features)
 │   ├── recipes.py      Task-Specific Memory: xyz ⇄ localize_object(label)+offset queries (symbolize / ground)
 │   ├── grasp_memory.py persisted grasp-outcome prior (re-rank + z-nudge)
@@ -725,8 +745,9 @@ the CLI is logged in.
   `world_state` with every withheld tool's reason. `CASCADE_HIDE_TOOLS`
   remains the explicit operator override on top.
 - **Memory is structured first, embeddings second.** Recall tools work on
-  labels/time/positions; the TurboQuant index has one live consumer (tier
-  2). Frames -- not text -- are what the planner is shown of its own past.
+  labels/time/positions; the TurboQuant index has one live consumer by
+  default (tier 2), plus the opt-in episodic visual index (ROADMAP #7).
+  Frames -- not text -- are what the planner is shown of its own past.
 - **Device agnosticism is a resolution step.** `device.py` answers "where
   does this model run" once; torch is not a dependency (per-platform build).
 
@@ -766,9 +787,18 @@ the CLI is logged in.
   highgui); the MuJoCo physics window and the browser dashboard are the
   visuals there.
 - Skill-library notes are retrieved by guard-word match on the task text
-  (`aspire.retrieve`), not by embedding, and only once promoted (recurred in
-  ≥ 2 distinct tasks); a visual embedder for episodic
-  recall is still on the ROADMAP.
+  (`aspire.retrieve`) by default, and only once promoted (recurred in ≥ 2
+  distinct tasks). Embedding retrieval exists since 2026-10-07 but is opt-in
+  (`memory.embedder`); with the dependency-free `hash` embedder it only adds
+  inflections (grasping ~ grasp), and the SigLIP/CLIP text floors
+  (`text_floor` 0.85, CLIP `text_image_floor` 0.25) are NOT calibrated with
+  real weights -- measure them on the GPU host before relying on them.
+- Visual recall indexes motion frames and the crops of objects a call
+  LOCALIZED, not every detection the watcher sees; it is in-process
+  (task-scale horizon, lost on restart). Text queries ("looks like X") need
+  a joint embedder; no semantic recall quality has been measured with real
+  weights. Action-object consolidation keys on the normalized label: a
+  detector label flicker (bottle/toy) stays two objects, by design.
 
 ## Counts
 

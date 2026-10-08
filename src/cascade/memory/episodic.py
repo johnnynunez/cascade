@@ -18,6 +18,18 @@ event for similarity recall. Two views feed the agent each turn:
 Thread-safe: the skill thread writes while dashboard /state handlers and the
 MCP world_state tool read concurrently (deque iteration during popleft
 raises RuntimeError without the lock -- reproduced in review 2026-07-18).
+
+Visual recall (ROADMAP #7, opt-in): with ``embedder=`` every frame-carrying
+event and every object crop handed to ``add(crops=...)`` is embedded into the
+TurboQuant index, and ``recall_visual`` answers "which remembered frame or
+object looks like this" (an image, always) or "... like X" (a text, only when
+the embedder has a JOINT image-text space). Index entries live in their own
+task-scale ring (``frame_horizon_s``, at most ``max_visual`` entries) and are
+dropped from the index with it -- before this, explicitly embedded events were
+never removed from the index at all. A recall hit is a remembered appearance,
+not a current observation: it never confirms an outcome and never aims motion.
+Without an embedder nothing is embedded and every pre-existing path is
+unchanged.
 """
 
 from __future__ import annotations
@@ -34,6 +46,14 @@ import numpy as np
 from .vector_index import QuantizedIndex
 
 
+def _unavailable():
+    from .embedder import EmbedderUnavailable
+
+    return EmbedderUnavailable(
+        "no memory embedder configured (memory.embedder.backend: none); "
+        "visual recall needs memory.embedder.backend: hash | siglip | clip")
+
+
 @dataclass
 class MemoryEvent:
     t: float
@@ -41,6 +61,17 @@ class MemoryEvent:
     text: str  # one-line human/agent readable summary
     data: dict[str, Any] = field(default_factory=dict)
     thumb_jpeg: bytes | None = None
+
+
+@dataclass
+class VisualEntry:
+    """One vector in the episodic index: a whole frame, an object crop, or an
+    embedding the caller supplied, and the event it belongs to."""
+
+    t: float
+    kind: str  # "frame" | "object" | "event"
+    label: str | None
+    event: MemoryEvent
 
 
 class EpisodicMemory:
@@ -54,6 +85,8 @@ class EpisodicMemory:
         clock=time.monotonic,
         frame_horizon_s: float = 600.0,
         max_frames: int = 64,
+        embedder=None,
+        max_visual: int = 512,
     ):
         self.horizon_s = horizon_s
         self._events: deque[MemoryEvent] = deque(maxlen=max_events)
@@ -66,7 +99,21 @@ class EpisodicMemory:
         self.frame_horizon_s = frame_horizon_s
         self._frames: deque[MemoryEvent] = deque(maxlen=max_frames)
         self._thumb_width = thumb_width
+        #: Optional image/text embedder (memory/embedder.py). None = the
+        #: pre-ROADMAP-#7 memory exactly: nothing is embedded implicitly.
+        self.embedder = embedder
+        if embedder is not None:
+            dim = int(embedder.dim)
+            if embed_dim is not None and int(embed_dim) != dim:
+                raise ValueError(
+                    f"embed_dim={embed_dim} disagrees with the embedder's dim {dim} ({embedder.name})")
+            embed_dim = dim
         self._index = QuantizedIndex(embed_dim, bits=embed_bits) if embed_dim else None
+        #: Index entries in index order, pruned with the frame horizon and the
+        #: `max_visual` cap; the index itself is pruned in lockstep.
+        self.max_visual = int(max_visual)
+        self._visual: deque[VisualEntry] = deque()
+        self.embed_errors = 0
         self._clock = clock
         self._lock = threading.RLock()
 
@@ -81,10 +128,16 @@ class EpisodicMemory:
         embedding: np.ndarray | None = None,
         t: float | None = None,
         thumb_jpeg: bytes | None = None,
+        crops: dict[str, np.ndarray] | None = None,
     ) -> MemoryEvent:
         """Record one event. `rgb` is downscaled to a thumbnail; `thumb_jpeg`
         attaches an already-encoded one (the runtime reuses the AFTER
-        keyframe it just wrote for the trace, so a frame is encoded once)."""
+        keyframe it just wrote for the trace, so a frame is encoded once).
+
+        With an embedder, `rgb` is also embedded as a ``frame`` entry and each
+        of `crops` ({label: BGR crop}) as an ``object`` entry. An embedder
+        fault is counted (``visual_stats``), never raised: memory bookkeeping
+        must not fail the skill that is reporting into it."""
         now = self._clock() if t is None else t
         thumb = thumb_jpeg
         if rgb is not None and thumb is None:
@@ -93,13 +146,33 @@ class EpisodicMemory:
             small = cv2.resize(rgb, (self._thumb_width, max(1, int(h * scale))))
             ok, buf = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 80])
             thumb = buf.tobytes() if ok else None
+        # Embed OUTSIDE the lock: a model forward pass must not block readers.
+        vectors: list[tuple[str, str | None, np.ndarray]] = []
+        errors = 0
+        if self.embedder is not None:
+            if rgb is not None:
+                try:
+                    vectors.append(("frame", None, self.embedder.embed_image(rgb)))
+                except Exception:  # noqa: BLE001
+                    errors += 1
+            for label, crop in (crops or {}).items():
+                try:
+                    vectors.append(("object", str(label), self.embedder.embed_image(crop)))
+                except Exception:  # noqa: BLE001
+                    errors += 1
+        if embedding is not None:
+            vectors.append(("event", None, embedding))
         ev = MemoryEvent(t=now, kind=kind, text=text, data=data or {}, thumb_jpeg=thumb)
         with self._lock:
             self._events.append(ev)
             if thumb is not None:
                 self._frames.append(ev)
-            if self._index is not None and embedding is not None:
-                self._index.add(embedding, meta=ev)
+            self.embed_errors += errors
+            if self._index is not None:
+                for vkind, label, vec in vectors:
+                    entry = VisualEntry(t=now, kind=vkind, label=label, event=ev)
+                    self._index.add(vec, meta=entry)
+                    self._visual.append(entry)
             self.prune(now)
         return ev
 
@@ -110,6 +183,17 @@ class EpisodicMemory:
                 self._events.popleft()
             while self._frames and now - self._frames[0].t > self.frame_horizon_s:
                 self._frames.popleft()
+            # Visual entries are appended in time order, so expiry is a prefix
+            # of the deque -- and of the index, which is pruned in lockstep.
+            drop = 0
+            n = len(self._visual)
+            while drop < n and now - self._visual[drop].t > self.frame_horizon_s:
+                drop += 1
+            drop = max(drop, n - self.max_visual)
+            if drop > 0 and self._index is not None:
+                self._index.remove_ids(set(range(drop)))
+                for _ in range(drop):
+                    self._visual.popleft()
 
     def reset_frames(self) -> None:
         """New episode: drop the visual history. The text ring is untouched
@@ -133,7 +217,78 @@ class EpisodicMemory:
         with self._lock:
             hits = self._index.search(embedding, k=k)
             live = {id(e) for e in self._events}
-        return [meta for _, meta in hits if id(meta) in live]
+        return [meta.event for _, meta in hits if id(meta.event) in live]
+
+    def recall_visual(self, query, k: int = 3, *, min_sim: float | None = None,
+                      kinds: tuple[str, ...] | None = None, now: float | None = None) -> list[dict]:
+        """Remembered frames/objects that look like `query`, best first.
+
+        `query` is a BGR image (always allowed), a text (only with a JOINT
+        image-text embedder; its default floor is the embedder's
+        ``text_image_floor``) or a ready vector. Each hit is
+        ``{"score", "kind", "label", "age_s", "text", "verdict", "step"}``: the
+        cosine, ``frame``/``object``/``event``, the object label for crops, how
+        long ago, the recorded action line and verdict of the event it came
+        from, and its memory-frame step while that frame is still in the
+        per-task ring (else None). Visual entries keep their own task-scale
+        horizon and survive the per-task ``reset_frames``. Advisory: a hit
+        says what something LOOKED like, never where it is now or whether an
+        action worked.
+        """
+        if isinstance(query, str):
+            if self.embedder is None:
+                raise _unavailable()
+            if not getattr(self.embedder, "joint_space", False):
+                raise ValueError(
+                    f"recall by description needs a joint image-text embedder (siglip/clip); "
+                    f"{self.embedder.name!r} embeds text and images in different spaces")
+            vec = self.embedder.embed_text(query)
+            if min_sim is None:
+                min_sim = getattr(self.embedder, "text_image_floor", None)
+        else:
+            arr = np.asarray(query)
+            if arr.ndim >= 2:
+                if self.embedder is None:
+                    raise _unavailable()
+                vec = self.embedder.embed_image(arr)
+            else:
+                vec = arr
+        if self._index is None:
+            raise _unavailable()
+        now = self._clock() if now is None else now
+        with self._lock:
+            self.prune(now)
+            hits = self._index.search(vec, k=len(self._index))
+            frame_steps = {id(ev): n + 1 for n, ev in enumerate(self._frames)}
+        out: list[dict] = []
+        for score, entry in hits:
+            if kinds and entry.kind not in kinds:
+                continue
+            if min_sim is not None and score < float(min_sim):
+                break  # hits are sorted: everything after is lower
+            ev = entry.event
+            out.append({
+                "score": round(float(score), 3),
+                "kind": entry.kind,
+                "label": entry.label,
+                "age_s": round(now - entry.t, 1),
+                "text": ev.text,
+                "verdict": str((ev.data or {}).get("verdict") or ""),
+                "step": frame_steps.get(id(ev)),
+            })
+            if len(out) >= k:
+                break
+        return out
+
+    def visual_stats(self) -> dict:
+        """What the visual index holds right now (for status pages and tests)."""
+        with self._lock:
+            return {
+                "embedder": getattr(self.embedder, "name", None),
+                "joint_space": bool(getattr(self.embedder, "joint_space", False)),
+                "entries": len(self._visual),
+                "embed_errors": int(self.embed_errors),
+            }
 
     def memory_frames(self, k: int = 4, now: float | None = None) -> list[dict]:
         """Vesta-style visual history: up to `k` past events that carry a

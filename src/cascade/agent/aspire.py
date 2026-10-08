@@ -320,15 +320,23 @@ def harvest(runs_dir: str | Path, library, limit: int = 100) -> dict:
     }
 
 
-def retrieve(library, task: str, max_entries: int = 2, max_chars: int = 1400) -> str:
+def retrieve(library, task: str, max_entries: int = 2, max_chars: int = 1400, *,
+             embedder=None) -> str:
     """Guard-matched PROMOTED library entries, trimmed for the agent context.
 
     Candidates (one task, any number of runs; legacy notes without counters)
     stay on disk and out of the prompt. A library without the promotion API
-    yields nothing rather than bypassing the gate.
+    yields nothing rather than bypassing the gate. With ``embedder`` (ROADMAP
+    #7, opt-in) the promoted notes are ranked by text-embedding similarity
+    and each block says so; without it the text is exactly the pre-embedder
+    text.
     """
     try:
-        entries = library.relevant_entries(task, max_entries=max_entries, promoted_only=True)
+        if embedder is None:
+            entries = library.relevant_entries(task, max_entries=max_entries, promoted_only=True)
+        else:
+            entries = library.relevant_entries(task, max_entries=max_entries, promoted_only=True,
+                                               embedder=embedder)
     except Exception:
         return ""
     if not entries:
@@ -342,6 +350,10 @@ def retrieve(library, task: str, max_entries: int = 2, max_chars: int = 1400) ->
         else:  # only reachable through an explicit min_tasks=1 library
             tag = (f"[admitted by explicit min_tasks=1: {entry.n_tasks} known task(s), "
                    f"{entry.occurrences} run(s); not cross-task validated]")
+        similarity = getattr(entry, "similarity", None)
+        if embedder is not None and similarity is not None:
+            tag += (f" [retrieved by embedding similarity {similarity:.2f} "
+                    f"({getattr(embedder, 'name', 'embedder')})]")
         block = tag + "\n" + entry.text.strip()
         if len(block) > budget:
             block = block[:budget].rsplit("\n", 1)[0] + "\n..."

@@ -54,6 +54,13 @@ grasp-safety = ["scipy>=1.10"]
 # live in the default one-click install; nvblox_torch (CUDA x86 only) is
 # added by scripts/install_occupancy_backend.sh --nvblox on NVIDIA boxes.
 occupancy = ["pyzmq>=25.0", "msgpack>=1.0", "msgpack-numpy>=0.4.8", "warp-lang>=1.16", "scipy>=1.10"]
+# Optional SigLIP/CLIP image-text embedder for episodic recall and skill-note
+# retrieval (cascade/memory/embedder.py, `memory.embedder.backend: siglip|clip`).
+# torch comes from the host env for the same per-platform reason as
+# `perception`. Weights load with local_files_only unless the profile allows a
+# download; without this extra (or torch, or cached weights) the backend
+# refuses to start (EmbedderUnavailable) -- never a silent fallback.
+memory-embed = ["transformers>=4.45", "pillow>=10.0"]
 dev = ["pytest>=8.0"]
 
 [project.scripts]

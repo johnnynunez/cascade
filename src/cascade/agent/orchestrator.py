@@ -214,12 +214,27 @@ class AgentOrchestrator:
             pass
         # ASPIRE: validated repairs distilled from earlier runs, guard-matched
         # to this task. This is the sim->real / run->run transfer channel.
+        # With a memory embedder (ROADMAP #7, opt-in) the notes are ranked by
+        # text-embedding similarity instead; without one the call is the
+        # pre-embedder call exactly.
         if self.skill_library is not None:
             try:
-                lib = retrieve_skills(self.skill_library, task)
+                embedder = getattr(getattr(self.runtime, "memory", None), "embedder", None)
+                lib = (retrieve_skills(self.skill_library, task) if embedder is None
+                       else retrieve_skills(self.skill_library, task, embedder=embedder))
                 if lib:
                     intro += "\n\n" + lib
             except Exception:
+                pass
+        # ROADMAP #7 action<->object consolidation (opt-in): what earlier
+        # plans did to the objects this task names, across wordings.
+        action_objects = getattr(self.fast_planner, "action_objects", None)
+        if action_objects is not None:
+            try:
+                digest = action_objects.agent_digest(task)
+                if digest:
+                    intro += "\n\n" + digest
+            except Exception:  # noqa: BLE001 -- advisory context never fails a task
                 pass
         intro += "\n\nBegin. Observe first, then act. Call one tool now."
         messages.append({"role": "user", "content": intro})
@@ -588,6 +603,7 @@ class AgentOrchestrator:
                 # would only buy the same pick a fresh persistence budget --
                 # a visitor watching minutes of retries. End here, ask.
                 self.fast_planner.note_outcome(task, plan.calls, False, time.monotonic() - t_start)
+                self._note_action_objects(task, plan.calls, False, failed_at=i - 1)
                 return (
                     self._finish_stuck(task, name, dict(args), result, i, [], tool_log, t_start,
                                        path=str(plan.source)),
@@ -601,6 +617,7 @@ class AgentOrchestrator:
                 self.fast_planner.note_outcome(
                     task, plan.calls, False, time.monotonic() - t_start
                 )
+                self._note_action_objects(task, plan.calls, False, failed_at=i - 1)
                 note = (
                     f"(A fast {plan.source} plan was tried first and FAILED at "
                     f"{name}({json.dumps(args)}): {str(result.get('error') or '; '.join(unverified))[:200]}. "
@@ -610,6 +627,10 @@ class AgentOrchestrator:
         duration = round(time.monotonic() - t_start, 2)
         meta = {"summary": plan.summary} if plan.summary else {}
         self.fast_planner.note_outcome(task, plan.calls, True, duration, **meta)
+        # Consolidated ONCE for the executed plan, before the per-sub-goal
+        # credits below (which re-credit the same execution under clause
+        # text and must not count twice per action and object).
+        self._note_action_objects(task, plan.calls, True)
         # Agentic-VLA curriculum: credit each sub-goal separately as well, so a
         # clause proven inside this sequence warm-starts any FUTURE task that
         # contains it -- including a different sequence. Without this the
@@ -702,6 +723,19 @@ class AgentOrchestrator:
                 summary=summary, source_run=(run_dir.name if run_dir is not None else None),
             )
         except Exception:  # noqa: BLE001
+            pass
+        self._note_action_objects(task, steps, True)
+
+    def _note_action_objects(self, task: str, calls, success: bool, *,
+                             failed_at: int | None = None) -> None:
+        """Feed the optional action<->object consolidation (ROADMAP #7) with
+        one EXECUTED plan. A no-op without it (the shipped default)."""
+        store = getattr(self.fast_planner, "action_objects", None)
+        if store is None:
+            return
+        try:
+            store.record_plan(calls, success, instruction=task, failed_at=failed_at)
+        except Exception:  # noqa: BLE001 -- memory bookkeeping never fails a task
             pass
 
     def _with_memory_harness(self, messages: list[dict]) -> list[dict]:

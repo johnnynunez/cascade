@@ -56,6 +56,9 @@ class LibraryEntry:
     source_tasks: list[str] = field(default_factory=list)
     source_runs: list[str] = field(default_factory=list)
     min_tasks: int = PROMOTION_MIN_TASKS
+    #: Text-embedding cosine to the task when the entry was retrieved with an
+    #: embedder (ROADMAP #7); None for guard-word retrieval and stored notes.
+    similarity: float | None = None
 
     @property
     def n_tasks(self) -> int:
@@ -200,13 +203,24 @@ class SkillLibrary:
                 "candidates": len(records) - promoted, "min_tasks": self.min_tasks}
 
     def relevant_entries(self, task: str, max_entries: int = 3,
-                         promoted_only: bool = False) -> list[LibraryEntry]:
+                         promoted_only: bool = False, *, embedder=None,
+                         min_sim: float | None = None) -> list[LibraryEntry]:
         """Naive keyword guard match against the 'When to apply' line.
 
         ``promoted_only`` applies the cross-task gate; it is what the agent
         context path uses. The default lists candidates too, for inspection
         and for manual notes consulted outside the agent loop.
+
+        With ``embedder`` (ROADMAP #7, opt-in) notes are ranked by the cosine
+        between the task and the note's title + guard line in the embedder's
+        TEXT space; a note qualifies at ``min_sim`` (default: the embedder's
+        ``text_floor``) OR on a guard-word overlap, so switching an embedder
+        on can add notes a paraphrase missed but never drops a guard match.
+        The promotion gate is applied first and is unchanged.
         """
+        if embedder is not None:
+            return self._relevant_by_embedding(task, max_entries, promoted_only,
+                                               embedder, min_sim)
         task_words = set(re.findall(r"[a-z]+", task.lower()))
         scored = []
         for entry in self.records():
@@ -219,6 +233,29 @@ class SkillLibrary:
                 scored.append((overlap, entry))
         scored.sort(key=lambda t: -t[0])
         return [entry for _, entry in scored[:max_entries]]
+
+    def _relevant_by_embedding(self, task: str, max_entries: int, promoted_only: bool,
+                               embedder, min_sim: float | None) -> list[LibraryEntry]:
+        import numpy as np
+
+        floor = float(min_sim if min_sim is not None else getattr(embedder, "text_floor", 0.5))
+        query = np.asarray(embedder.embed_text(task), dtype=np.float64)
+        task_words = set(re.findall(r"[a-z]+", task.lower()))
+        scored = []
+        for entry in self.records():
+            if promoted_only and not entry.promoted:
+                continue
+            m = re.search(r"\*\*When to apply:\*\*(.+)", entry.text)
+            when = m.group(1) if m else ""
+            title = re.search(r"^#\s*(.+)$", entry.text, re.M)
+            key = f"{title.group(1) if title else entry.name} {when}"
+            sim = float(np.dot(query, np.asarray(embedder.embed_text(key), dtype=np.float64)))
+            overlap = len(task_words & set(re.findall(r"[a-z]+", when.lower())))
+            if sim >= floor or overlap:
+                entry.similarity = round(sim, 3)
+                scored.append((sim, overlap, entry))
+        scored.sort(key=lambda t: (-t[0], -t[1], t[2].name))
+        return [entry for _, _, entry in scored[:max_entries]]
 
     def relevant(self, task: str, max_entries: int = 3, promoted_only: bool = False) -> list[str]:
         """Matched note bodies (front matter stripped); see ``relevant_entries``."""

@@ -83,6 +83,30 @@ grasp:
       offset_mid: [0.0, 0.0, -0.0225]
       gripper_type: 0
       fingertip_depth: 0.0
+  # HUG (Human Universal Grasping, arXiv:2606.17054) as an OPT-IN second
+  # learned backend (`backend: hug`, or CASCADE_GRASP_BACKEND=hug; the
+  # isaac_kitchen_hug profile). It predicts a human hand for one RGB-D frame
+  # and a query pixel; CASCADE maps each hand to a parallel-jaw pinch (thumb
+  # tip vs index tip -- our assumption, not a HUG output) and ranks by its own
+  # geometry (HUG has no score), then the usual outcome-memory re-rank,
+  # selector and harness apply. Server: scripts/serve_hug.py in HUG's own
+  # environment (CUDA required; `--stub` = analytic protocol double).
+  # See docs/HUG.md. These defaults change nothing while `backend` is graspgenx.
+  hug:
+    host: 127.0.0.1
+    port: 5558
+    required: true          # fail visibly; never an OBB substitute (false: reported OBB fallback)
+    num_samples: 32         # hands per request: N noise draws of ONE query (our batching)
+    topk: 32
+    timeout_ms: 15000
+    probe_timeout_ms: 300
+    crop: center            # HUG's documented centre crop; `query` (ours) keeps off-centre objects in view
+    pinch_opposition: index # thumb tip vs index tip; `index_middle` = mean of index+middle tips
+    pinch_approach: hand    # palm -> pinch; `vertical` keeps the contacts, forces top-down
+    approach_z_max: 0.2     # same tabletop rule as graspgenx: no approach from below
+    max_lateral_offset_m: 0.03   # pinch centre this far beside the observed object: dropped
+    surface_tolerance_m: 0.005   # pinch centre in front of the first object surface: dropped
+    max_query_offset_m: 0.02     # query pixel must back-project onto the fix (extrinsic check)
   # NOTE: strict top-down tool poses are only IK-reachable below z~0.15 on
   # the B601-RS (wrist limits); keep grasp_z + offset under that.
   pregrasp_offset_m: 0.04   # hover height above the grasp along -approach.

@@ -14,6 +14,7 @@ does not change which code produced those measurements.
 - [Booth runbook — hands-on expo session](BOOTH_RUNBOOK.md)
 - [Opening the demo](QUICKSTART.md)
 - [GraspGen-X on DGX Spark](GRASPGENX_SPARK.md)
+- [HUG, an opt-in second grasp backend](HUG.md)
 - [DGX Spark portability](DGX_SPARK_BREV.md)
 - [Brev kitchen deployment](BREV.md)
 - [Chrome camera companion](CHROME_EXTENSION.md)

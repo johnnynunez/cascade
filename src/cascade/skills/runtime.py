@@ -265,6 +265,10 @@ class SkillRuntime:
         #: Optional profiles use a short retry cooldown after a server error.
         #: Required profiles fail visibly and retry on the next command.
         self._graspgenx_down = False
+        #: lazy HugPlanner (`grasp.backend: hug`, opt-in) and its outage
+        #: latch; same required/optional contract as GraspGen-X above
+        self._hug = None
+        self._hug_down = False
         #: which grasp planner actually produced the last candidate list:
         #: "obb" | "graspgenx (learned 6-DoF)" | "graspgenx-stub (...)" |
         #: "obb (graspgenx down)". None until the first grasp. Surfaced by
@@ -1008,6 +1012,8 @@ class SkillRuntime:
             grasp = self.grasp_planner_used
         elif want == "graspgenx":
             grasp = "graspgenx (configured; not yet probed -- first grasp probes it)"
+        elif want == "hug":
+            grasp = "hug (configured; not yet probed -- first grasp probes it)"
         else:
             grasp = want
         return {
@@ -1387,10 +1393,15 @@ class SkillRuntime:
         }
 
     def _plan_grasps(self, fix, label: str | None = None, *,
-                     _deadline=None, _check=None, _prior_snapshot=None) -> list:
+                     _deadline=None, _check=None, _prior_snapshot=None, _frame=None) -> list:
         """Grasp candidates: learned 6-DoF (GraspGen-X server) when
         configured. The Spark profile requires the real model; other profiles
         can use an explicit, visible analytic fallback.
+
+        `grasp.backend: hug` (opt-in) plans from HUG human hands instead and
+        needs `_frame`, the RGB-D frame the fix was localized in; callers
+        pass it only for that backend, so every other backend is called
+        exactly as before.
 
         Fake-RL layer: past-attempt memory re-ranks the candidates so grasp
         geometry that historically WORKED for this object profile goes first
@@ -1413,7 +1424,9 @@ class SkillRuntime:
             width_pad_m=float(gcfg.get("width_pad_m", 0.015)),
             axis_order=self._tool_axis_order,
         )
-        if str(gcfg.get("backend", "obb")) != "graspgenx":
+        if str(gcfg.get("backend", "obb")) == "hug":
+            grasps = SkillRuntime._hug_candidates(self, fix, obb, _frame, _deadline, _check)
+        elif str(gcfg.get("backend", "obb")) != "graspgenx":
             grasps = obb
             self.grasp_planner_used = "obb"
         elif self._graspgenx_down and time.monotonic() < getattr(self, "_graspgenx_retry_after", 0.0) and not bool(gcfg.graspgenx.get("required", False)):
@@ -1498,6 +1511,73 @@ class SkillRuntime:
         if _check is not None:
             _check()
         return grasps
+
+    def _hug_candidates(self, fix, obb, frame, _deadline=None, _check=None) -> list:
+        """`grasp.backend: hug`: pinches mapped from HUG human hands.
+
+        Same contract as GraspGen-X: a REQUIRED profile raises (visible,
+        never an OBB substitute) and retries on the next command; an
+        optional one reports `obb (hug down)` and retries after a 5 s
+        cooldown; inside grasp_object's bounded search (`_check` set) the
+        deadline reaches the probe and the request and any error propagates
+        as-is, unlatched. HUG emits no score: `quality` is CASCADE's
+        geometric score (hug_backend.py), and the memory re-rank + selector
+        + harness downstream are unchanged."""
+        gcfg = self.cfg.grasp
+        hcfg = gcfg.get("hug") or {}
+        required = bool(hcfg.get("required", True))
+        if frame is None:
+            # A caller bug, not an outage: never latched, never an OBB substitute.
+            raise SkillError("HUG needs the RGB-D frame the object was localized in; "
+                             "none was passed")
+        if (getattr(self, "_hug_down", False) and not required
+                and time.monotonic() < getattr(self, "_hug_retry_after", 0.0)):
+            self.grasp_planner_used = "obb (hug down)"
+            return obb
+        bounded = {} if _deadline is None else {"deadline": _deadline, "check": _check}
+        try:
+            planner = getattr(self, "_hug", None)
+            if planner is None:
+                from ..grasping.hug_backend import HugPlanner
+
+                planner = self._hug = HugPlanner(gcfg)
+            if planner.status is None or getattr(self, "_hug_down", False):
+                planner.probe(**bounded)
+            # The same camera->base transform that lifted the fix's points;
+            # the planner refuses a frame whose transform does not reproduce it.
+            T = (frame.T_base_cam if getattr(frame, "T_base_cam", None) is not None
+                 else self.extrinsics.cam_to_base())
+            learned = planner.plan(frame, fix, T_base_cam=T, max_width_m=self._max_width,
+                                   axis_order=self._tool_axis_order,
+                                   width_pad_m=float(gcfg.get("width_pad_m", 0.015)), **bounded)
+            if _check is not None:
+                _check()
+            if not learned:
+                raise RuntimeError("HUG returned no usable candidates")
+            counts = getattr(planner, "last_counts", {}) or {}
+            self.memory.add(
+                "note",
+                f"hug: {len(learned)} pinch candidates from {counts.get('returned', '?')} hand "
+                f"samples in {planner.last_latency_s}s (pinch mapping and ranking are "
+                f"cascade's; HUG has no score)")
+            self._hug_down = False
+            self.grasp_planner_used = planner.describe()
+            return learned if required else learned + obb
+        except Exception as e:
+            if _check is not None:
+                _check()
+                raise  # bounded search never retries model/transport/cancellation errors
+            self._hug_down = True
+            self._hug_retry_after = time.monotonic() + 5.0
+            if getattr(self, "_hug", None) is not None:
+                self._hug.status = None
+            if required:
+                self.grasp_planner_used = "hug (unavailable)"
+                raise SkillError(f"HUG required but unavailable: {e}") from e
+            self.memory.add("note", f"hug unavailable ({str(e)[:90]}); OBB fallback")
+            logger.warning("hug unavailable (%s); analytic fallback; retry after 5s", str(e)[:160])
+            self.grasp_planner_used = "obb (hug down)"
+            return obb
 
     def _localization_workspace_bounds(self):
         """Read the selected arm's existing limits without connecting it."""
@@ -2042,7 +2122,9 @@ class SkillRuntime:
         decide before committing -- the observe-then-act loop, not blind
         execution. Follow with grasp_object to actually execute it."""
         frame, fix = self._localize(label, spatial_hint=spatial_hint)
-        grasps = self._plan_grasps(fix, label=label)
+        # Only HUG consumes the RGB-D frame; other backends' calls are unchanged.
+        grasps = self._plan_grasps(fix, label=label, **(
+            {"_frame": frame} if str(self.cfg.grasp.get("backend", "obb")) == "hug" else {}))
         if not grasps:
             return {"ok": False, "error": f"no grasp candidates for {label!r}"}
         g = grasps[0]  # already reranked by the fake-RL memory prior
@@ -2165,7 +2247,9 @@ class SkillRuntime:
             try:
                 candidates = self._plan_grasps(fix, label=label, **({} if search is None else {
                     "_deadline": search.deadline, "_check": search.check,
-                    "_prior_snapshot": frozen_prior}))
+                    "_prior_snapshot": frozen_prior}), **(
+                    # only HUG consumes the RGB-D frame the fix came from
+                    {"_frame": frame} if str(gcfg.get("backend", "obb")) == "hug" else {}))
             except NoEligibleGrasps as exc:
                 if search is None:
                     raise

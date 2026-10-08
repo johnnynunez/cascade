@@ -553,6 +553,9 @@ def build_runtime(
 def _probe_grasp_backend(runtime) -> None:
     """Resolve `grasp.backend: graspgenx` to a live server / stub / down NOW."""
     gcfg = runtime.cfg.grasp
+    if str(gcfg.get("backend", "obb")) == "hug":
+        _probe_hug_backend(runtime, gcfg)
+        return
     if str(gcfg.get("backend", "obb")) != "graspgenx":
         runtime.grasp_planner_used = str(gcfg.get("backend", "obb"))
         return
@@ -570,6 +573,27 @@ def _probe_grasp_backend(runtime) -> None:
         runtime._graspgenx_retry_after = time.monotonic() + 5.0
         runtime.grasp_planner_used = "obb (graspgenx down)"
         print(f"[cascade] WARNING: grasp.backend=graspgenx but no server answered "
+              f"({str(e)[:100]}); analytic OBB fallback; will retry the server", file=sys.stderr)
+
+
+def _probe_hug_backend(runtime, gcfg) -> None:
+    """`grasp.backend: hug` (opt-in): same startup contract as GraspGen-X.
+    A required profile refuses to start without a real HUG server (the
+    protocol stub included); an optional one says so and falls back to OBB."""
+    try:
+        from ..grasping.hug_backend import HugPlanner
+
+        planner = HugPlanner(gcfg)
+        planner.probe()
+        runtime._hug = planner
+        runtime.grasp_planner_used = planner.describe()
+    except Exception as e:  # noqa: BLE001 -- optional profiles may fall back, visibly
+        if bool((gcfg.get("hug") or {}).get("required", True)):
+            raise RuntimeError(f"HUG required at startup: {e}") from e
+        runtime._hug_down = True
+        runtime._hug_retry_after = time.monotonic() + 5.0
+        runtime.grasp_planner_used = "obb (hug down)"
+        print(f"[cascade] WARNING: grasp.backend=hug but no HUG server answered "
               f"({str(e)[:100]}); analytic OBB fallback; will retry the server", file=sys.stderr)
 
 

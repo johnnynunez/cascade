@@ -40,7 +40,7 @@ print(f"  n_points:           {fix.points.shape[0]}")
 print(f"  z range of points:  {round(float(fix.points[:,2].min()),3)} .. {round(float(fix.points[:,2].max()),3)}")
 
 print("\n=== 2. PLAN GRASPS ===")
-grasps = rt._plan_grasps(fix, label="cube")
+grasps = rt._plan_grasps(fix, label="cube", _frame=frame)  # the frame: grasp.backend hug only
 print(f"  n candidates: {len(grasps)}")
 for i, g in enumerate(grasps[:5]):
     ap = np.asarray(g.approach, dtype=float)

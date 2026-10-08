@@ -386,6 +386,9 @@ read-only verifier and waits for newer camera captures before proof starts.
 localize ─▶ ObjectFix (base-frame OBB; de-biased centre, verified on 2 engines)
    ├─▶ GraspGen-X candidates (ZMQ :5556, learned 6-DoF; gripper passed as a
    │    swept volume -- the arm profile owns `grasp.graspgenx.sweep`)
+   ├─▶ or HUG pinches (opt-in `grasp.backend: hug`, ZMQ :5558): human hands
+   │    from the RGB-D frame + a query pixel, mapped to parallel-jaw pinches
+   │    and scored by CASCADE geometry (HUG has no score; docs/HUG.md)
    └─▶ OBB candidates (optional profiles only)       optional server error → reported OBB fallback
                                                       learned inference retried after cooldown
    stable quality order ▸ outcome-memory re-rank + existing z-nudge
@@ -401,6 +404,12 @@ diffusion inference during startup. A missing server, protocol stub or failed
 required inference raises an error instead of substituting OBB. The five-second
 fallback cooldown applies to optional profiles; required profiles retry on the
 next request.
+
+The opt-in `isaac_kitchen_hug` profile requires real HUG in the same way. A
+missing server, the HUG protocol stub or a failed request is an error, never
+an OBB or GraspGen-X substitute. Only HUG receives the RGB-D frame; other
+backends are called exactly as before. HUG candidates are proposals: the
+same outcome-memory re-rank, selector and harness vetoes apply.
 
 With GGX and the observed-finger gate, infeasible planning may request at most
 three batches within eight seconds, using the same saved scene and frozen prior.

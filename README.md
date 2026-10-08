@@ -362,7 +362,7 @@ capability, because none of them are wanted on all hosts:
 | `sim-warp` | `mujoco-warp`, `warp-lang` | the same MJCF on the MuJoCo Warp GPU runtime (`engine: warp`); CPU-capable, so it installs anywhere |
 | `arm-feetech` | `pyserial` | SO-101 and other Feetech-servo arms |
 | `arm` | `motorbridge` | RobStride over SocketCAN |
-| `grasping` | `pyzmq`, `msgpack-numpy` | the GraspGen-X / nvblox **client** wire (`grasp.backend: graspgenx`, the default). Model stacks stay in their own venvs and processes, so cascade never imports torch for them |
+| `grasping` | `pyzmq`, `msgpack-numpy` | the GraspGen-X / HUG / nvblox **client** wire (`grasp.backend: graspgenx`, the default; `hug` is opt-in, see [docs/HUG.md](docs/HUG.md)). Model stacks stay in their own venvs and processes, so cascade never imports torch for them |
 
 **torch is deliberately not a dependency.** The right build is per-platform
 (CUDA, ROCm, Jetson wheels, MPS, CPU) and pinning one here would fight the
@@ -609,6 +609,11 @@ command. Name a profile explicitly (`--llm mock`) to pin it, or set
   server, checks diffusion inference and requires learned candidates; an
   unavailable model produces an error. Optional profiles report analytic
   OBB fallback and retry learned inference after a five-second cooldown.
+  An opt-in second backend, [HUG](docs/HUG.md) (`grasp.backend: hug`,
+  profile `isaac_kitchen_hug`), proposes human-hand grasps from the RGB-D
+  frame. CASCADE maps them to parallel-jaw pinches and scores them by its
+  own geometry, because HUG has no score. It follows the same
+  required/optional contract.
   Candidates are re-ranked by a persisted grasp-outcome
   memory, then vetted against IK *and* the safety-harness geometry.
   The model is conditioned on the gripper as a **swept volume**, so an arm

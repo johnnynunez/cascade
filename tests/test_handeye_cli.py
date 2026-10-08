@@ -156,6 +156,22 @@ def test_help_exits_cleanly():
     assert e.value.code == 0
 
 
+def test_script_and_console_entry_point_reach_the_cli():
+    """scripts/calibrate_handeye.py runs from a checkout without an install
+    (fresh interpreter, no PYTHONPATH); pyproject exposes the same main."""
+    import subprocess
+    import tomllib
+
+    repo = Path(__file__).resolve().parents[1]
+    env = {k: v for k, v in __import__("os").environ.items() if k != "PYTHONPATH"}
+    r = subprocess.run([sys.executable, str(repo / "scripts" / "calibrate_handeye.py"), "--help"],
+                       capture_output=True, text=True, timeout=60, cwd=repo.parent, env=env)
+    assert r.returncode == 0, r.stderr
+    assert "--dry-run" in r.stdout and "safety" in r.stdout
+    scripts = tomllib.loads((repo / "pyproject.toml").read_text())["project"]["scripts"]
+    assert scripts["cascade-calib-handeye"] == "cascade.calibration.cli:main"
+
+
 def test_gravity_comp_is_refused_not_faked(capsys):
     assert cli.main(["--gravity-comp"]) == 2
     assert "not ported" in capsys.readouterr().err

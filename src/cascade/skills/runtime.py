@@ -2625,7 +2625,14 @@ class SkillRuntime:
         if search is not None:
             search.check()  # Include the final pre-open read/veto in the same budget.
         planning_active = False  # Motion retains its separate physical-clock budget.
-        self.arm.set_gripper(self._grip_open, effort=0.8,
+        # Pre-grasp opening: fully open unless the arm profile opts into the
+        # adaptive opening (gripper.pregrasp_open_margin_m; Seeed WRC a2d5950
+        # opened to grasp width + 10 mm). Never narrower than the grasp width.
+        from ..grasping.force import pregrasp_open_position
+        open_pos = pregrasp_open_position(
+            grasp.width_m, self.cfg.arm.gripper.get("pregrasp_open_margin_m"),
+            self._grip_open, self._grip_closed, self._max_width)
+        self.arm.set_gripper(open_pos, effort=0.8,
                              **({"_halt_generation": scene_halt_generation} if scene_enabled else {}))
         _home = self.cfg.arm.get("home_q")
         if _home is not None:

@@ -69,3 +69,11 @@ gripper:
   # kp above, then relax to this much lower value so a held object is gripped
   # lightly (tau = kp*(target - pos)) instead of crushed. Opening is unaffected.
   hold_kp: 0.01
+  # Adaptive pre-grasp opening (Seeed WRC a2d5950 used 0.01 = object width +
+  # 10 mm): null = open fully (open_pos) before every grasp. Left OFF here on
+  # purpose: the opening goes through the LINEAR angle->width map, and this
+  # profile (6.2 rad <-> 0.09 m) disagrees with WRC's RS gripper (5.0 rad <->
+  # 0.09-0.095 m). Measure jaw width at a few angles first (see
+  # docs/WRC_CONTROL_PORT.md); a too-small scale would open narrower than the
+  # object and strike it on the descent.
+  pregrasp_open_margin_m: null

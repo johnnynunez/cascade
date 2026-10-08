@@ -15,6 +15,20 @@ CLEAR_ERROR_ATTEMPTS = 3
 CLEAR_ERROR_RETRY_S = 0.1
 
 
+def clamp_to_travel(pos: float, open_pos: float, closed_pos: float) -> float:
+    """Clamp a gripper position target into the profile's measured travel.
+
+    Ported from Seeed WRC `control/gripper.py` (WrcGripper._send_gripper_mit,
+    from rebot_grasp's GraspDriver), which clips every target to the open
+    soft limit. The RS jaw runs 0.0 (closed) -> +6.39 rad (open hard end);
+    `open_pos` keeps margin off that end, and a target past either end drives
+    the jaw into a hard stop at full MIT stiffness. Polarity-aware: the
+    interval is [min, max] of the two profile values.
+    """
+    lo, hi = min(open_pos, closed_pos), max(open_pos, closed_pos)
+    return float(min(max(float(pos), lo), hi))
+
+
 def clear_motor_faults(motors, *, attempts: int = CLEAR_ERROR_ATTEMPTS,
                        retry_s: float = CLEAR_ERROR_RETRY_S) -> None:
     """Clear latched fault bits on every motor, or raise before enable.

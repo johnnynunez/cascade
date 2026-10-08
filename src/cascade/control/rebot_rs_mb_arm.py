@@ -63,7 +63,7 @@ import numpy as np
 from ..config import Cfg
 from ..types import RobotState
 from .arm_base import ArmBase
-from .robstride import clear_motor_faults
+from .robstride import clamp_to_travel, clear_motor_faults
 
 MECH_POS = 0x7019
 MECH_VEL = 0x701A
@@ -290,6 +290,9 @@ class RebotRSMotorBridgeArm(ArmBase):
         if self._ctrl is None or self._gripper_id is None or self._stopped:
             return
         kp = self._grip_kp * float(np.clip(effort, 0.05, 1.0))
+        # Never past the profile's measured travel (WRC WrcGripper clip):
+        # beyond either end is a hard stop taken at full stiffness.
+        pos = clamp_to_travel(pos, self._grip_open, self._grip_closed)
         with self._lock:
             self._motors[self._gripper_id].send_mit(
                 float(pos), 0.0, kp, self._grip_kd, 0.0

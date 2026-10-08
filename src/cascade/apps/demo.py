@@ -319,6 +319,15 @@ def build_runtime(
     from ..planning.backend_evidence import selection_from_environment
     kitchen_renderer = selection_from_environment(cfg, os.environ)
 
+    # ROADMAP #7: the optional memory embedder is resolved FIRST, before any
+    # arm, camera or thread exists. A backend that was asked for but cannot
+    # run (missing `memory-embed` extra, torch or cached weights) fails the
+    # build here with EmbedderUnavailable instead of quietly running without
+    # it or with another backend. `backend: none` (shipped) -> None.
+    from ..memory.embedder import embedder_config, make_embedder
+
+    memory_embedder = make_embedder(embedder_config(cfg))
+
     from ..perception.occupancy import OccupancyMap
 
     # ── the arm rig: N arms, first = manipulation arm ───────────────────
@@ -406,7 +415,11 @@ def build_runtime(
     memory = EpisodicMemory(
         horizon_s=float(cfg.memory.get("horizon_s", 15.0)),
         frame_horizon_s=float(cfg.memory.get("frames_horizon_s", 600.0)),
+        **({"embedder": memory_embedder} if memory_embedder is not None else {}),
     )
+    if memory_embedder is not None:
+        print(f"[cascade] memory embedder: {memory_embedder.name} "
+              f"(joint image-text: {memory_embedder.joint_space})")
     mcfg = cfg.get("memory", _empty_cfg())
     # Instance-level association (2026-10-08): a camera frame's detections
     # are matched to beliefs one-to-one, so two identical props inside the
@@ -1102,6 +1115,15 @@ def _run_demo(args, cfg, runtime, mobile):
         ])
     advisor = Advisor(llm) if (llm.supports_vision and not is_mock) else None
     experience = None if mobile else ExperienceMemory(PACKAGE_ROOT / "runs" / "experience.json")
+    # ROADMAP #7: action<->object consolidation of tier-2 outcomes, opt-in via
+    # `memory.action_objects: true` (shipped off: the planner then carries
+    # nothing new). Persisted beside experience.json; advisory digest only.
+    action_objects = None
+    _ao = cfg.memory.get("action_objects", False)
+    if not mobile and (_ao is True or str(_ao).strip().lower() in ("1", "true", "yes", "on")):
+        from ..memory.consolidation import ActionObjectMemory
+
+        action_objects = ActionObjectMemory(PACKAGE_ROOT / "runs" / "action_objects.json")
     # ASPIRE: validated repairs distilled from earlier runs, retrieved into
     # context at task start. This is the loop the ROADMAP listed as open --
     # `scripts/learn_from_runs.py` writes the entries, the agent reads them.
@@ -1117,7 +1139,10 @@ def _run_demo(args, cfg, runtime, mobile):
     )
     agent = AgentOrchestrator(
         llm, runtime, advisor=advisor, max_steps=args.max_steps,
-        decompose=not is_mock, fast_planner=None if mobile else FastPlanner(experience),
+        decompose=not is_mock,
+        fast_planner=None if mobile else (
+            FastPlanner(experience) if action_objects is None
+            else FastPlanner(experience, action_objects=action_objects)),
         skill_library=library, verify_milestones=not is_mock,
         memory_frames_k=int(cfg.memory.get("frames_k", 4)),
         # ROADMAP #6 pre-motion critic: advisory only; arm runtimes only (the

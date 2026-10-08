@@ -204,8 +204,32 @@ Open, in priority order (details in the sections below):
 6. **Judge as a metric**: run `scripts/judge_run.py` over every launcher
    proof turn and keep the judge-vs-physics confusion matrix in the run
    summary, so a regression in the outcome pictures shows up as `fn`.
-7. **Visual embedder** for episodic recall (`embed_dim`), and action↔object
-   consolidation on top of ExperienceMemory (keys on text today).
+7. ~~**Visual embedder** for episodic recall (`embed_dim`), and action↔object
+   consolidation on top of ExperienceMemory (keys on text today).~~
+   **landed 2026-10-07 (opt-in, CPU-measured only).** `memory/embedder.py`:
+   `memory.embedder.backend: none` (shipped, byte-identical default) | `hash`
+   (deterministic colour/layout + hashed-word vectors, no dependency) |
+   `siglip` / `clip` (`memory-embed` extra; a requested backend that cannot
+   load fails `build_runtime` before any hardware, never a silent fallback).
+   `EpisodicMemory` indexes motion frames and the crops of objects a call
+   localized, pruned with a task-scale ring (the explicit-`embedding` index
+   used to grow without bound); `recall_memory(query)` gains `looks_like`
+   hits only with a joint image-text embedder. Skill-library notes rank by
+   text embedding (floor OR guard overlap, promotion gate first).
+   `memory/consolidation.py` (`memory.action_objects: true`) folds the tier-2
+   outcome stream into (skill, object) wins/losses across wordings, one credit
+   per executed call, as an advisory LLM-tier digest. Measured with the hash
+   embedder and a deterministic joint stub on CPU: `tests/test_memory_embedder.py`,
+   `tests/test_memory_visual_recall.py` (31 RED on c5012e7 → 35 GREEN with the
+   golden pins of `tests/test_memory_default_path.py`), 7/7 mutants killed.
+   STILL OPEN: real SigLIP/CLIP weights were never loaded here -- recall
+   quality and the uncalibrated text floors need a GPU-host evaluation;
+   crops come from localizations, not every watcher detection; recall is
+   in-process only. Found while measuring (NOT fixed, separate item): tier-2
+   recall matches the compound "pick up the red cube and then pick up the
+   blue cube" to the single habit "pick up the red cube" (cosine 0.901 ≥ 0.9)
+   because experience is consulted before the curriculum split, so the fast
+   tier can run half a command and report success.
 8. **Multi-arm on physics**: `so101_left`/`so101_right` are mock; render a
    two-arm MuJoCo scene so the inter-arm gate is measured, not simulated.
    **Half landed 2026-10-07** — `sim/demo_scene.multi_arm_scene_xml` attaches
@@ -1266,6 +1290,8 @@ are synchronous by design here, noted for long-horizon work.
   STILL OPEN from this item: action↔object consolidation on top of
   ExperienceMemory (sub-goal-level credit now exists via
   `FastPlanner.note_subgoal_outcome`, but it keys on TEXT, not on objects).
+  **Landed 2026-10-07 as an opt-in** (`memory.action_objects`, follow-up #7
+  above): `memory/consolidation.py` keys on (skill, object label).
 - **Straight-up spawn on the local tuned Isaac asset.** Blocked: drive
   travel from q=0 sweeps the props; joint-state authoring and tensor
   teleports NaN the solver on this asset (custom fixed-joint stack).
@@ -1307,9 +1333,12 @@ are synchronous by design here, noted for long-horizon work.
   `MODEL`/`HF_REPO`, update the profile — llama.cpp ignores the requested
   name but vLLM rejects a mismatch, and `supports_vision` gates the advisor
   and image context.
-- **Visual embedder for memory**: plug a CLIP/SigLIP image encoder into
+- ~~**Visual embedder for memory**: plug a CLIP/SigLIP image encoder into
   `EpisodicMemory(embed_dim=...)` + crops per detection, enabling
-  "the thing that looked like X" recall through the TurboQuant index.
+  "the thing that looked like X" recall through the TurboQuant index.~~
+  **landed 2026-10-07 (opt-in)** as `memory.embedder` -- see open item #7 in
+  the priority list above; crops are per LOCALIZED detection, and real
+  weights remain to be evaluated on the GPU host.
 
 ## Mid term
 

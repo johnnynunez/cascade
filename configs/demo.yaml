@@ -180,6 +180,26 @@ memory:
   # 1 = retrieve after a single confirmed retry -- an explicit relaxation, not
   # a default. Must be >= 1.
   skill_min_tasks: 2
+  # Memory embedder (ROADMAP #7, opt-in; memory/embedder.py). `none` = the
+  # memory exactly as before: no embedding index, guard-word skill notes.
+  # `hash` = deterministic, dependency-free colour/layout image vectors and
+  # hashed-word text vectors: image->image recall of frames and localized
+  # object crops, embedding-ranked skill notes, but NO text->image recall.
+  # `siglip` | `clip` = a real image-text model through the `memory-embed`
+  # extra (+ host torch): adds recall_memory's "looks like <query>" hits. A
+  # backend that is requested but cannot load fails the runtime build -- it
+  # never falls back silently. CASCADE_MEMORY_EMBEDDER (backend) and
+  # CASCADE_MEMORY_EMBEDDER_MODEL override this block. Advisory only.
+  embedder:
+    backend: none
+    model: null               # null -> the backend's default checkpoint
+    device: auto
+    local_files_only: true    # never downloads weights unless set to false
+  # Action<->object consolidation of tier-2 outcomes (ROADMAP #7, opt-in;
+  # memory/consolidation.py): wins/losses per (skill, object) across
+  # instruction wordings, persisted to runs/action_objects.json and shown to
+  # the LLM tier as advisory history for the objects a task names.
+  action_objects: false
 
 # Tier-3 planner knobs (agent/orchestrator.py).
 agent:

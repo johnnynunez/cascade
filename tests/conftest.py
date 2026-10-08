@@ -169,6 +169,16 @@ def _no_ambient_booth(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_ambient_memory_embedder(monkeypatch):
+    """A shell that exported CASCADE_MEMORY_EMBEDDER(=siglip) for a GPU session
+    must not turn every build_runtime in the suite into a model load (or an
+    EmbedderUnavailable on a box without the `memory-embed` extra). The suite
+    certifies the shipped default (no embedder); tests opt in per-test."""
+    monkeypatch.delenv("CASCADE_MEMORY_EMBEDDER", raising=False)
+    monkeypatch.delenv("CASCADE_MEMORY_EMBEDDER_MODEL", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _no_ambient_occupancy(monkeypatch):
     """occupancy is ON by default in configs/demo.yaml (2026-09-03), and this
     venv has the `grasping` extra, so every build_runtime in the suite would

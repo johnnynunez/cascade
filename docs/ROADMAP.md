@@ -739,6 +739,26 @@ aggregator, not nvblox. Fixes, all measured on this CUDA-less Mac (suite
   `--down` stops only what it started. Verified: `occupancy: :5557 warp
   TSDF+EDT on cpu (141x121x86 @ 1.0 cm)`, `graspgenx: :5556 (stub)`, 39 tools
   listed, a chat-driven `pick_and_place` confirmed in physics.
+  **Follow-up (backlog B34):** ~~the launcher started the bridge and the
+  occupancy sidecar on `CASCADE_BRIDGE_PORT` / `CASCADE_OCCUPANCY_PORT`, but
+  the runtime still dialled the profile ports 8611 / 5557 (only GraspGen-X
+  read its variable; LOCAL_RTX_VALIDATION.md, profiling attempt 07)~~
+  **landed 2026-10-08** — `load_demo_config` applies the three
+  `CASCADE_*_PORT` variables last, over demo.yaml, booth.yaml and every arm's
+  `overrides:`, to the top level and each arm's `resolved` view (every
+  `type: isaac` camera/arm `bridge_port`, `grasp.graspgenx.port`,
+  `occupancy.port`); `load_profile` does the bridge port for the standalone
+  viewer/recorder; `launch.sh` registers the bridge/occupancy variables with
+  the MCP server. Empty = unset; anything but ASCII digits in 1..65535 raises
+  naming the variable; base profiles keep `CASCADE_MICRODUCK_BRIDGE_PORT`.
+  Measured on CPU (`tests/test_port_env_overrides.py`, spies on the bridge
+  `create_connection` and the ZMQ `connect`): every client dials the override.
+  With no variable set, 170 resolved configurations (every shipped arm,
+  camera, base and robot profile) are byte-identical to 133876c; with all
+  three set, only 705 `bridge_port`, 271 `graspgenx.port` and 271
+  `occupancy.port` values differ. Still open: `CASCADE_HUG_PORT` and the
+  `*_HOST` variables stay construction-time reads, `scripts/setup_agents.py`
+  forwards none of the ports, and no live Isaac run on private ports yet.
 - **Robo-Dopamine as the outcome judge** (`eval/progress_judge.py`,
   `scripts/judge_run.py`; https://robo-dopamine.github.io/). The GRM is a
   VLM prompted with the task, optional START/END references and BEFORE/AFTER

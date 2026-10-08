@@ -207,7 +207,10 @@ external launcher enabling Kit's Tracy profiler. It did not reach proof or
 manipulation: the diagnostic bridge was assigned port 8612 while the shipped
 Isaac camera and arm profiles still selected 8611. The normal runtime check
 rejected the unreachable camera. Changing `CASCADE_BRIDGE_PORT` in that launcher
-changed the producer; it did not override those profile fields.
+changed the producer; it did not override those profile fields. (Fixed by backlog
+B34: `load_demo_config` now applies `CASCADE_BRIDGE_PORT`, `CASCADE_GRASPGENX_PORT`
+and `CASCADE_OCCUPANCY_PORT` last, to every Isaac camera/arm profile and both
+sidecar ports, and `launch.sh` registers them with the MCP server.)
 
 The [startup failure](evidence/detector-reuse/profile07-startup-failed.json),
 [strict failure](evidence/detector-reuse/profile07-strict-failed.json) and

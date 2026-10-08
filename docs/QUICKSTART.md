@@ -63,6 +63,13 @@ port, a model response, or another session's trace is insufficient.
 With `--no-robot-turn`, the status is STARTED / UNVERIFIED, never READY.
 Subsequent runs reuse downloaded packages and assets.
 
+To run a stack beside one that already holds the default ports, export
+`CASCADE_BRIDGE_PORT`, `CASCADE_OCCUPANCY_PORT` and `CASCADE_GRASPGENX_PORT`
+before launching. The launcher starts the Isaac bridge and the sidecars on
+them, registers them with the MCP server, and the runtime dials the same
+ports (they beat every config layer). A malformed value stops startup with an
+error naming the variable; an empty one means the default.
+
 For Isaac, the runtime check also prepares the read-only physics verifier and
 requires new RGB-D captures from every configured camera before proof starts.
 A failure is recorded in `runtime-check.log` and stops startup. This

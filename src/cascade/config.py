@@ -102,11 +102,19 @@ def _load_profile_raw(kind: str, name: str, cdir: Path,
 
 
 def load_profile(kind: str, name: str, config_dir: Path | None = None) -> Cfg:
-    """Load one profile, e.g. load_profile('cameras', 'l515')."""
+    """Load one profile, e.g. load_profile('cameras', 'l515').
+
+    An Isaac camera or arm profile gets its bridge port from
+    CASCADE_BRIDGE_PORT when that is set (see `env_port`), so the standalone
+    tools (viewer, recorder) dial the same bridge as the demo. Base profiles
+    never read the arm variables; they have CASCADE_MICRODUCK_BRIDGE_PORT.
+    """
     cdir = Path(config_dir) if config_dir else CONFIG_DIR
     data = _resolve_paths(_load_profile_raw(kind, name, cdir), cdir)
     if kind == "bases" and data.get("type") == "isaac":
         _mobile_environment(data)
+    if kind in ("cameras", "arms") and _dials_bridge(data):
+        _apply_bridge_port(data, env_port(BRIDGE_PORT_ENV))
     return Cfg(data)
 
 
@@ -137,6 +145,69 @@ def _deep_merge(base: dict, overlay: dict) -> None:
             _deep_merge(base[k], v)
         else:
             base[k] = v
+
+
+# Runtime endpoint overrides. scripts/launch.sh starts the Isaac bridge and the
+# GraspGen-X and occupancy sidecars on these ports (defaults 8611/5556/5557);
+# the runtime must dial the same ones, or a stack on private ports silently
+# talks to whatever holds the defaults (docs/LOCAL_RTX_VALIDATION.md,
+# profiling attempt 07: the bridge moved, the camera profiles did not). A set
+# variable beats every config layer (demo.yaml, booth.yaml, profiles, an arm's
+# `overrides:`); unset or empty leaves the configured port untouched.
+BRIDGE_PORT_ENV = "CASCADE_BRIDGE_PORT"
+GRASPGENX_PORT_ENV = "CASCADE_GRASPGENX_PORT"
+OCCUPANCY_PORT_ENV = "CASCADE_OCCUPANCY_PORT"
+PORT_ENV_VARS = (BRIDGE_PORT_ENV, GRASPGENX_PORT_ENV, OCCUPANCY_PORT_ENV)
+
+
+def env_port(name: str) -> int | None:
+    """The TCP port in environment variable `name`; None when unset or empty.
+
+    Empty means unset, as in launch.sh's `${CASCADE_..._PORT:-default}`, so the
+    launcher and the runtime agree on the default. Anything else must be ASCII
+    decimal digits in 1..65535 or this raises naming the variable: `int()` also
+    takes ' 8612', '+8612', '8_612' and non-ASCII digits, and dialling a port
+    other than the one the operator meant is the failure this override stops.
+    """
+    raw = os.environ.get(name, "")
+    if raw == "":
+        return None
+    if not (raw.isascii() and raw.isdecimal()) or not 1 <= int(raw) <= 65535:
+        raise ValueError(
+            f"{name}={raw!r} is not a TCP port: use ASCII decimal digits in 1..65535, "
+            "or unset it to keep the configured port"
+        )
+    return int(raw)
+
+
+def _dials_bridge(profile: Any) -> bool:
+    """A camera/arm profile whose client dials the Isaac bridge (`type: isaac`)."""
+    return isinstance(profile, dict) and str(profile.get("type", "")) == "isaac"
+
+
+def _apply_bridge_port(profile: Any, port: int | None) -> None:
+    if port is not None and _dials_bridge(profile):
+        profile["bridge_port"] = port
+
+
+def _apply_port_env(view: dict, ports: dict[str, int | None]) -> None:
+    """Apply the parsed CASCADE_*_PORT overrides to one full config view in place.
+
+    Called for the top level and for every arm's `resolved` view (a deep copy
+    that the arm's SafetyHarness, planners and skills read). Only an EXISTING
+    `grasp.graspgenx` / `occupancy` section gets a port: creating `occupancy:`
+    would ENABLE the map (`enabled` defaults to true once the section exists).
+    """
+    for profile in [view.get("camera"), *(view.get("cameras") or []),
+                    view.get("arm"), *(view.get("arms") or [])]:
+        _apply_bridge_port(profile, ports[BRIDGE_PORT_ENV])
+    grasp = view.get("grasp")
+    graspgenx = grasp.get("graspgenx") if isinstance(grasp, dict) else None
+    if ports[GRASPGENX_PORT_ENV] is not None and isinstance(graspgenx, dict):
+        graspgenx["port"] = ports[GRASPGENX_PORT_ENV]
+    occupancy = view.get("occupancy")
+    if ports[OCCUPANCY_PORT_ENV] is not None and isinstance(occupancy, dict):
+        occupancy["port"] = ports[OCCUPANCY_PORT_ENV]
 
 
 def _mobile_config(cdir, main, base, bases, llm) -> Cfg:
@@ -295,7 +366,16 @@ def load_demo_config(
     safety envelope for BOTH. So only the PRIMARY arm's overrides reach the
     top level (single-arm behaviour, byte for byte), and every arm keeps its
     own resolved view under `cfg.arms[i].resolved` -- which is what
-    build_runtime hands to that arm's SafetyHarness."""
+    build_runtime hands to that arm's SafetyHarness.
+
+    CASCADE_BRIDGE_PORT, CASCADE_GRASPGENX_PORT and CASCADE_OCCUPANCY_PORT,
+    when set, are applied after everything else (so they beat booth.yaml and
+    every arm's `overrides:`) to the top level and to every resolved view: the
+    `bridge_port` of each `type: isaac` camera and arm, `grasp.graspgenx.port`
+    and `occupancy.port`. They are the ports scripts/launch.sh started the
+    bridge and sidecars on. Unset or empty changes nothing; a malformed value
+    raises ValueError naming the variable (see `env_port`). Base profiles
+    never read them."""
     cdir = Path(config_dir) if config_dir else CONFIG_DIR
     selected_robot = robot if robot is not None else (
         None if _ignore_robot_environment else os.environ.get("CASCADE_ROBOT"))
@@ -461,6 +541,15 @@ def load_demo_config(
                 "cameras": primary.get("mj_cameras"),
                 "rig": copy.deepcopy(mujoco_rig),
             })
+
+    # CASCADE_BRIDGE_PORT / _GRASPGENX_PORT / _OCCUPANCY_PORT beat every layer
+    # above, including an arm's `overrides:`, so they are applied LAST: to the
+    # top level and to each arm's resolved view. Parsed once, before any is
+    # applied, so a malformed one refuses the whole config whatever the profile.
+    ports = {name: env_port(name) for name in PORT_ENV_VARS}
+    _apply_port_env(main, ports)
+    for prof in arm_profiles:
+        _apply_port_env(prof["resolved"], ports)
     return Cfg(main)
 
 

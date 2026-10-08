@@ -163,8 +163,11 @@ def test_endpoint_overlap_names_both_claimants():
     check_disjoint_endpoints({"manipulation": arm, "locomotion": distinct})
 
 
-def test_mounted_composition_refuses_one_endpoint_for_two_domains(tmp_path):
+def test_mounted_composition_refuses_one_endpoint_for_two_domains(tmp_path, monkeypatch):
     from cascade.apps.robot_runtime import describe_robot
+    # CASCADE_BRIDGE_PORT beats an arm profile's `bridge_port` (B34), so the
+    # autouse fixture's 43503 would move the arm off the shared endpoint.
+    monkeypatch.setenv("CASCADE_BRIDGE_PORT", "43510")
     base = yaml.safe_load((REPO / "configs/bases/microduck_isaac.yaml").read_text())
     base.update(bridge_port=43510)
     cdir = _variant(tmp_path, lambda d: (

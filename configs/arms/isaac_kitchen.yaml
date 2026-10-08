@@ -38,3 +38,8 @@ overrides:
     release_clearance_m: 0.115
     # Clear the released object before the empty gripper returns home.
     post_place_retreat_offset_m: 0.025
+gripper:
+  # B36: the bounded post-contact hold (`hold_squeeze_frac`, inherited from
+  # isaac.yaml) was measured on the bare scene only; the kitchen keeps the plain
+  # two-stage close until it is measured here.
+  hold_squeeze_frac: null

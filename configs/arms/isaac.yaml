@@ -36,3 +36,9 @@ gripper:
   open_pos: 1.0
   closed_pos: 0.0
   max_width_m: 0.09
+  # B36: once the jaws stall on an object, hold at the contact width minus this
+  # fraction of travel, the sim analogue of the real driver's light hold after
+  # contact. The bridge drops `effort`, so without it the stage-2 position
+  # target squeezed the cube at full drive stiffness and left wrist roll
+  # 0.042-0.049 rad off target on every held move (settle_tol 0.045).
+  hold_squeeze_frac: 0.05

@@ -2930,6 +2930,7 @@ class SkillRuntime:
             timeout = float(timeout)
             if not np.isfinite(timeout) or timeout <= 0:
                 raise SkillError("close_feedback_timeout_s must be finite and positive")
+        squeeze = self._hold_squeeze_frac()  # validated before the jaws move
         span = self._grip_closed - self._grip_open
         for frac, eff in (
             (profile.close_frac_stage1, profile.effort * 0.7),
@@ -2944,6 +2945,80 @@ class SkillRuntime:
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
             if timeout is not None:
                 self._wait_gripper_closed(1.0 - frac, timeout)
+        if squeeze is not None:
+            self._hold_after_contact(profile, squeeze, 1.0 - profile.close_frac_stage2,
+                                     _halt_generation=_halt_generation, _before_close=_before_close)
+
+    def _hold_squeeze_frac(self) -> float | None:
+        """`gripper.hold_squeeze_frac` of the arm profile, validated (None = off)."""
+        arm_cfg = getattr(self.cfg, "arm", None)
+        g = arm_cfg.get("gripper") if arm_cfg is not None else None
+        raw = g.get("hold_squeeze_frac") if g is not None else None
+        if raw is None:
+            return None
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            value = float("nan")
+        if not np.isfinite(value) or not 0.0 < value < 1.0:
+            raise SkillError(f"gripper.hold_squeeze_frac must be a fraction in (0, 1), got {raw!r}")
+        return value
+
+    def _hold_after_contact(self, profile, squeeze: float, stage2_open: float, *,
+                            _halt_generation=None, _before_close=None) -> None:
+        """B36: once the jaws stall on the object, hold at the measured contact
+        width minus `squeeze` (a fraction of full travel) instead of pushing on
+        toward the stage-2 target.
+
+        The real reBot driver does this with a light MIT hold gain after
+        contact (`_hold_light`). The Isaac bridge has no force bound: it drops
+        `effort`, and its finger drives push toward the position target at full
+        stiffness. Measured on Isaac (bare reBot scene, 8 Oct 2026), that
+        squeeze left wrist roll 0.042-0.049 rad off target on every held move
+        (settle_tol 0.045). A 0.60 close left 0.017 rad. Without a stall the
+        stage-2 command stays as it was; the hold only ever presses less.
+        """
+        g = self.cfg.arm.get("gripper")
+        timeout_s = float(g.get("hold_stall_timeout_s", 4.0)) if g is not None else 4.0
+        width = self._jaw_stall_width(stage2_open, timeout_s)
+        if width is None:
+            grasp_evidence.event("close_hold", applied=False, reason="no jaw stall observed")
+            return
+        hold_open = max(0.0, width - squeeze)
+        if width <= stage2_open + 0.02 or hold_open <= stage2_open:
+            grasp_evidence.event("close_hold", applied=False, reason="stage-2 target is already as light",
+                                 contact_open_frac=width)
+            return
+        target = self._grip_open + (self._grip_closed - self._grip_open) * (1.0 - hold_open)
+        if _before_close is not None:
+            _before_close()
+        grasp_evidence.event("close_hold", applied=True, contact_open_frac=width,
+                             hold_open_frac=hold_open, target_pos=target)
+        self.arm.set_gripper(target, effort=profile.effort,
+                             **({"_halt_generation": _halt_generation} if _halt_generation is not None else {}))
+        time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
+
+    def _jaw_stall_width(self, target_open: float, timeout_s: float) -> float | None:
+        """Open fraction where the jaws stopped (reached `target_open` or
+        stalled for 0.5 s), or None if they never stopped within `timeout_s`."""
+        deadline = time.monotonic() + max(float(timeout_s), 0.0)
+        anchor = None
+        stable_since = time.monotonic()
+        while True:
+            width = self._gripper_width_frac()
+            now = time.monotonic()
+            if width is not None and np.isfinite(width):
+                if width <= target_open + .01:
+                    return float(width)
+                if anchor is None or abs(width - anchor) > .002:
+                    anchor, stable_since = width, now
+                elif width < .95 and now - stable_since >= .5:
+                    return float(width)
+            else:
+                anchor, stable_since = None, now
+            if now >= deadline:
+                return None
+            time.sleep(.05)
 
     def _wait_gripper_closed(self, target_open: float, timeout_s: float) -> None:
         """Wait for commanded travel or a measured stall before lifting.
@@ -3631,6 +3706,37 @@ class SkillRuntime:
                             "error": last_err, "home_skipped": True, "grasp_attempts": attempt,
                             "note": "observed-finger attempt failed; automatic recovery was not geometrically checked"}
                 self.memory.add("outcome", f"pick attempt {attempt} failed: {last_err[:100]}")
+                # B36: an attempt can fail AFTER the close took the object
+                # (measured on Isaac: "did not settle at grasp lift pose" with
+                # the cube in the jaws). Re-running the grasp then refuses
+                # "already holding" until the budget is gone and the cube is
+                # never placed. Reconcile with the jaws; if they hold what was
+                # asked for, go on to place it -- exactly what the entry of
+                # this skill does for an object a previous task left held.
+                held_now = None
+                harness = getattr(self.arm, "harness", None)
+                if (harness is not None
+                        and getattr(self, "_contact_episode", None) is None
+                        and not getattr(harness, "estopped", False)):
+                    try:
+                        self._reconcile_held()
+                    except (SkillError, SafetyViolation):
+                        pass
+                    held_now = self.held_object
+                if held_now:
+                    hq, oq = str(held_now).lower(), str(object).lower()
+                    if hq in oq or oq in hq:
+                        self.memory.add(
+                            "note",
+                            f"attempt {attempt} failed after the close but {held_now!r} is in "
+                            "the jaws -- going on to place it instead of grasping again",
+                        )
+                        grasp = {"held": held_now, "grip_verified": None, "grip_profile": None,
+                                 "recovered_after": last_err}
+                        break
+                    last_err += f" (holding {held_now!r}, not {object!r}; a new grasp cannot start)"
+                    stop = "holding another object"
+                    break
                 # Fail fast on what a retry cannot cure (e-stop; an object the
                 # world model has NEVER seen after re-scans -- a typo or not
                 # on the table; an object wider than the jaws): burning two

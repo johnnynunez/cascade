@@ -1,0 +1,123 @@
+{
+ "note": "raw rows and bridge log stay in cascade-lab; this directory keeps the compact record",
+ "source_head": "a5e20c5",
+ "files": [
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/default_instance_1.json",
+   "sha256": "96ee351b4a69d0d35e16eed519f8833503b9c0ca2b219e5e49cdc71a43de01d5"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/default_instance_2.json",
+   "sha256": "c9c1ae68a5e2f90b88aa54f9f828bdf40af31f9cc8ca0059c4092138678e77c9"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/default_legacy_1.json",
+   "sha256": "8b02ff1a9d6f64f2cfc33fd3a9642974e328303e0e7eb8de97ee71135e754f26"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/default_legacy_2.json",
+   "sha256": "2d32d08a321eef7af56a7b626f5f480406132d924faf1b9e33f1219ad25f5a04"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/sweep2_0.05_instance.json",
+   "sha256": "668110d6882a33a90d4ad35730ddd6287a7ae8d3b9b61eaec9c705aa804bd31f"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/sweep2_0.05_legacy.json",
+   "sha256": "b4cd2e70c6ce5618a7e73b114d61c89bbd8c83df19a201b5a55258da8f1a7602"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/sweep2_0.06_instance.json",
+   "sha256": "658a1e68340b478c207bf1aab9114c6996297fe40803111d757550569b594258"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/sweep2_0.06_legacy.json",
+   "sha256": "3775f23e8b5a676d0e01907804942bd16b8e78c06775108a6147cc78b2445d73"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/sweep2_0.07_instance.json",
+   "sha256": "2cc94fdf9355f876308dd63ecd5b014a5b75be6f0f8e8566eeda48d99b6ccc65"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/sweep2_0.07_legacy.json",
+   "sha256": "e04f07e5988c1ca6dccab6f71c64c848d55e40a40888c12af2e4305d91e75287"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/sweep3_0.06_instance_r1.json",
+   "sha256": "6144d804959a00145a2223172037a0228734df179daa13108a00cb3a8425e88a"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/sweep3_0.06_instance_r2.json",
+   "sha256": "b5b4d73b9efd491b6b4fe7d1342efcae9486579a21e312352e948ce7beb12d81"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/sweep3_0.06_legacy_r1.json",
+   "sha256": "1da909a0f67013afe640ba69123bbc172f7e1134b3966c0e8d8caea9618feef8"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/sweep3_0.06_legacy_r2.json",
+   "sha256": "d8751fa02260d9d47d45ae46bc6c300e5af53eda9dff7f1bf504f3d8ed0ad573"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/sweep3_0.08_instance_r1.json",
+   "sha256": "ba6ad5f3732ab07b2076c4a3edba5a901d9c328ad90deb3381c575c35a55d690"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/sweep3_0.08_instance_r2.json",
+   "sha256": "04d858137aa10eff443339d8a2231f766eb2a1a3692025de11f1e24b2db68bed"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/sweep3_0.08_legacy_r1.json",
+   "sha256": "4e17711520d2ac0b3ad62c3b59c77a1b9a796746746fc93d36808c3820d1c48a"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/sweep3_0.08_legacy_r2.json",
+   "sha256": "41f59225c4286acd4a3ceeac271c5519fbad9da4ca6ce0a30d21250bf8b6adb9"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/twins_0.06_instance.json",
+   "sha256": "d6f75afda1d4717b99494051369017bf8d38eba4b78158f6d1729dd0ea39258e"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/twins_0.06_legacy.json",
+   "sha256": "ed30898ea39979e3da80f5757fd68c477a95233f384bb023e23106e9632b725f"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/twins_0.07_instance.json",
+   "sha256": "5109ba737ff4364385baaf9f04d45ea315a59e5926bacdb959a69913b1c7bff1"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/twins_0.07_legacy.json",
+   "sha256": "81267b42c78e36c60134b56af1c0be5d5557c2a77c6c8af72e4c52a753f53fa5"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/twins_0.09_instance.json",
+   "sha256": "2160fdb27be01bbd208b5ffc8d9b275c43c41a5d097eca86a749249acf9c5e30"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results/twins_0.09_legacy.json",
+   "sha256": "dc95afec5200df4b0b8836ca2aa90147e134e12b55d136b212e2990dfbd312ae"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/bridge.log",
+   "sha256": "76044191a828382b1c51a9c073c34154584646bec6a95a5ad0a94987215ea0e4"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results_b32/diag_1/rows.jsonl",
+   "sha256": "47fd0adde1103902babecc43848fed5be488f03bfd7f10e41f9a00fee2bb3f34"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results_b32/diag_1/beliefs.json",
+   "sha256": "f987f1e9190856a39e082ad1025d1aedfe5ef953df4abf81303413f5232fecd3"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results_b32/diag_1/crops/r00_isaac_side_6_biplane.png",
+   "sha256": "78651e0e05ad3c67703bb68f0a7d406c6f70167244c79c4f5478d9a98ab8a03c"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/results_b32/diag_1/crops/r00_isaac_side_0_building_block.png",
+   "sha256": "5b9d993b6d83eb8e7b1a8a9900e771c84057e985b545d5eb6930592a8c735b73"
+  }
+ ],
+ "diagnosis_note": "results_b32/diag_1: per-detection log (b32_phantom_diag.py, 24 rounds x 2 cameras) on a second bridge launch of the same source; bridge log bridge_b32.log stays in cascade-lab"
+}

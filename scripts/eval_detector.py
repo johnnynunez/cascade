@@ -138,6 +138,10 @@ def main() -> int:
     ap.add_argument("--arm", default="isaac")
     ap.add_argument("--bridge-port", type=int, default=8611)
     ap.add_argument("--json", type=Path, help="also write the report here")
+    ap.add_argument("--association", choices=("instance", "legacy"), default=None,
+                    help="belief association for this run: per-frame instances "
+                         "(the default config) or the pre-2026-10-08 per-detection "
+                         "fusion -- the A/B for memory.instance_association")
     args = ap.parse_args()
 
     from cascade.apps.demo import build_runtime, shutdown_runtime
@@ -149,6 +153,8 @@ def main() -> int:
         cameras=args.cameras.split(","), arm=args.arm, llm="mock"
     )
     cfg._data.setdefault("stream", {})["mode"] = "off"   # never bind a port to measure
+    if args.association is not None:
+        cfg._data.setdefault("memory", {})["instance_association"] = args.association == "instance"
 
     client = BridgeClient(port=args.bridge_port)
     try:

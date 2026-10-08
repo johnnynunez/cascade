@@ -1,0 +1,35 @@
+{
+ "engine": "newton",
+ "cube": "green_cube",
+ "cube_moved_m": 0.0,
+ "frames_by_phase": {
+  "static_hover": 21,
+  "moving_leg0_3.0s": 41,
+  "static_after_leg0": 12,
+  "moving_leg1_3.0s": 40,
+  "static_after_leg1": 10,
+  "moving_leg2_1.5s": 23,
+  "static_after_leg2": 11
+ },
+ "frame_refusals": 246,
+ "summary": {
+  "static": {
+   "frames": 54,
+   "err_px_median": 2.63,
+   "err_px_p95": 7.67,
+   "err_px_max": 7.71,
+   "iou_median": 0.982,
+   "iou_min": 0.969,
+   "depth_abs_err_m_median": 0.0
+  },
+  "moving": {
+   "frames": 104,
+   "err_px_median": 2.73,
+   "err_px_p95": 7.59,
+   "err_px_max": 9.38,
+   "iou_median": 0.984,
+   "iou_min": 0.964,
+   "depth_abs_err_m_median": 0.0
+  }
+ }
+}

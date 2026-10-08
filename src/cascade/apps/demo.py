@@ -407,14 +407,18 @@ def build_runtime(
         horizon_s=float(cfg.memory.get("horizon_s", 15.0)),
         frame_horizon_s=float(cfg.memory.get("frames_horizon_s", 600.0)),
     )
-    beliefs = BeliefStore()
+    mcfg = cfg.get("memory", _empty_cfg())
+    # Instance-level association (2026-10-08): a camera frame's detections
+    # are matched to beliefs one-to-one, so two identical props inside the
+    # 8 cm gate stay two beliefs. `memory.instance_association: false` is the
+    # per-detection baseline for a live A/B (memory/beliefs.py update_frame).
+    beliefs = BeliefStore(instance_association=_instance_association_enabled(mcfg))
     # Persistent spatial memory (ROADMAP item): the world model survives a
     # restart, so the robot does not re-discover a table it already mapped and
     # can answer "where was the mug" on a cold boot. Everything loaded is aged
     # past the visible horizon, so it reads as `remembered` -- the agent is
     # never told it can SEE something it has not looked at this session.
     # Disable with `memory.persist_beliefs: false` (or CASCADE_BELIEFS=0).
-    mcfg = cfg.get("memory", _empty_cfg())
     beliefs_path = None
     if _beliefs_persist_enabled(mcfg):
         beliefs_path = Path(
@@ -553,6 +557,9 @@ def build_runtime(
 def _probe_grasp_backend(runtime) -> None:
     """Resolve `grasp.backend: graspgenx` to a live server / stub / down NOW."""
     gcfg = runtime.cfg.grasp
+    if str(gcfg.get("backend", "obb")) == "hug":
+        _probe_hug_backend(runtime, gcfg)
+        return
     if str(gcfg.get("backend", "obb")) != "graspgenx":
         runtime.grasp_planner_used = str(gcfg.get("backend", "obb"))
         return
@@ -570,6 +577,27 @@ def _probe_grasp_backend(runtime) -> None:
         runtime._graspgenx_retry_after = time.monotonic() + 5.0
         runtime.grasp_planner_used = "obb (graspgenx down)"
         print(f"[cascade] WARNING: grasp.backend=graspgenx but no server answered "
+              f"({str(e)[:100]}); analytic OBB fallback; will retry the server", file=sys.stderr)
+
+
+def _probe_hug_backend(runtime, gcfg) -> None:
+    """`grasp.backend: hug` (opt-in): same startup contract as GraspGen-X.
+    A required profile refuses to start without a real HUG server (the
+    protocol stub included); an optional one says so and falls back to OBB."""
+    try:
+        from ..grasping.hug_backend import HugPlanner
+
+        planner = HugPlanner(gcfg)
+        planner.probe()
+        runtime._hug = planner
+        runtime.grasp_planner_used = planner.describe()
+    except Exception as e:  # noqa: BLE001 -- optional profiles may fall back, visibly
+        if bool((gcfg.get("hug") or {}).get("required", True)):
+            raise RuntimeError(f"HUG required at startup: {e}") from e
+        runtime._hug_down = True
+        runtime._hug_retry_after = time.monotonic() + 5.0
+        runtime.grasp_planner_used = "obb (hug down)"
+        print(f"[cascade] WARNING: grasp.backend=hug but no HUG server answered "
               f"({str(e)[:100]}); analytic OBB fallback; will retry the server", file=sys.stderr)
 
 
@@ -828,6 +856,15 @@ def _beliefs_persist_enabled(mcfg) -> bool:
     return bool(mcfg.get("persist_beliefs", True))
 
 
+def _instance_association_enabled(mcfg) -> bool:
+    """`memory.instance_association` (default true). A YAML string such as
+    "false" is honoured as false rather than read as a truthy string."""
+    value = mcfg.get("instance_association", True)
+    if isinstance(value, str):
+        return value.strip().lower() not in ("0", "false", "no", "off")
+    return bool(value)
+
+
 def _premotion_critic(cfg, llm, runtime, is_mock: bool):
     """ROADMAP follow-up #6: the Human-CLAW pre-motion plausibility critic.
 
@@ -874,6 +911,47 @@ def _premotion_critic(cfg, llm, runtime, is_mock: bool):
     )
 
 
+def _program_tier(cfg, is_mock: bool):
+    """ROADMAP follow-up #8: the opt-in programs tier (docs/PROGRAMS_TIER.md).
+
+    OFF by default: `agent.programs: false` (or CASCADE_PROGRAMS=0, the same
+    kill-switch shape as CASCADE_PREMOTION_CHECK) returns None, which is the
+    pre-change orchestrator path exactly. When on, a task no reflex/habit plan
+    covers gets one authoring turn and the program runs step by step through
+    SkillRuntime.execute(); the harness stays the sole authority that refuses
+    motion. The mock brain is a labelled script, not an author: asking it
+    would consume the script, so the tier is never enabled for it.
+
+    Store: `runs/programs.jsonl` (`memory.programs_path`,
+    CASCADE_PROGRAMS_PATH); a program is offered for reuse only after it was
+    verified in >= `agent.program_min_tasks` (default 2) distinct tasks.
+    """
+    agent_cfg = cfg.get("agent", {}) or {}
+    env = os.environ.get("CASCADE_PROGRAMS", "").strip().lower()
+    if env:
+        enabled = env not in ("0", "false", "no", "off")
+    else:
+        raw = agent_cfg.get("programs", False)
+        enabled = (raw.strip().lower() in ("1", "true", "yes", "on")
+                   if isinstance(raw, str) else bool(raw))
+    if not enabled:
+        return None
+    if is_mock:
+        print("[cascade] programs tier requested, but the mock brain is a labelled script, "
+              "not an author: tier left off")
+        return None
+    from ..agent.programs import ProgramTier
+    from ..memory.programs import ProgramLibrary
+    from ..skills.library import PROMOTION_MIN_TASKS
+
+    mem_cfg = cfg.get("memory", {}) or {}
+    path = (os.environ.get("CASCADE_PROGRAMS_PATH") or mem_cfg.get("programs_path")
+            or PACKAGE_ROOT / "runs" / "programs.jsonl")
+    library = ProgramLibrary(Path(str(path)).expanduser(),
+                             min_tasks=int(agent_cfg.get("program_min_tasks", PROMOTION_MIN_TASKS)))
+    return ProgramTier(library)
+
+
 def _make_detector(cfg):
     # A camera profile may pin its own detector (the mock camera uses the
     # mock detector so offline runs never load model weights).
@@ -888,7 +966,8 @@ def _make_detector(cfg):
             str(e.get("label") or f"{e.get('color', 'blue')} cube")
             for e in (cfg.camera.get("extra_props") or [])
         ]
-        return MockDetector(label=dcfg.get("label", "red cube"), extra_labels=extra)
+        return MockDetector(label=dcfg.get("label", "red cube"), extra_labels=extra,
+                            instances=bool(dcfg.get("instances", False)))
     if dcfg.type == "vlm":
         # Full-VLM perception (cosmos3-edge or any OpenAI-compatible vision
         # server): no YOLOE, no ultralytics import. ~1-3 s per pass on a
@@ -1044,6 +1123,8 @@ def _run_demo(args, cfg, runtime, mobile):
         # ROADMAP #6 pre-motion critic: advisory only; arm runtimes only (the
         # orchestrator drops it for mobile/composed modes like the tracker).
         plausibility=None if mobile else _premotion_critic(cfg, llm, runtime, is_mock),
+        # ROADMAP #8 programs tier: opt-in (agent.programs / CASCADE_PROGRAMS).
+        programs=None if mobile else _program_tier(cfg, is_mock),
     )
 
     def _run(task: str):

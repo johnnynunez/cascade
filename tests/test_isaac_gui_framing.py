@@ -11,15 +11,19 @@ REPO = Path(__file__).resolve().parents[1]
 
 
 @pytest.mark.parametrize("gui", [False, True])
-def test_application_disables_only_the_headless_default_viewport(gui):
+@pytest.mark.parametrize("deferred", [False, True])
+def test_application_disables_only_the_headless_default_viewport(gui, deferred):
     tree = ast.parse((REPO / "scripts/isaac_bridge.py").read_text())
     calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)
              and isinstance(node.func, ast.Name) and node.func.id == "SimulationApp"]
     assert len(calls) == 1
     settings = eval(compile(ast.Expression(calls[0].args[0]), "isaac_app_settings", "eval"),
-                    {"args": types.SimpleNamespace(gui=gui, width=960, height=540)})
+                    {"args": types.SimpleNamespace(gui=gui, width=960, height=540),
+                     "_defer_viewport_off": deferred and not gui})
     assert settings["headless"] is (not gui)
-    assert settings["disable_viewport_updates"] is (not gui)
+    # A full app experience (Newton) turns the viewport off only after app-ready;
+    # the default experience keeps switching it off at construction.
+    assert settings["disable_viewport_updates"] is (not gui and not deferred)
     assert settings["renderer"] == "RayTracedLighting"
     assert (settings["width"], settings["height"]) == (960, 540)
 

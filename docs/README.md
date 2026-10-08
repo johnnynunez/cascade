@@ -14,6 +14,7 @@ does not change which code produced those measurements.
 - [Booth runbook — hands-on expo session](BOOTH_RUNBOOK.md)
 - [Opening the demo](QUICKSTART.md)
 - [GraspGen-X on DGX Spark](GRASPGENX_SPARK.md)
+- [HUG, an opt-in second grasp backend](HUG.md)
 - [DGX Spark portability](DGX_SPARK_BREV.md)
 - [Brev kitchen deployment](BREV.md)
 - [Chrome camera companion](CHROME_EXTENSION.md)
@@ -41,6 +42,7 @@ does not change which code produced those measurements.
 - [Held-object observation after the NV08 failure](HELD_OBJECT_OBSERVATION.md)
 - [Native visitor turn budget](native-visitor-turn-budget.md)
 - [Scoped retry evidence admission](DREAM_RSI_ADAPTATION.md)
+- [Programs tier: authored and distilled task scripts under one admission rule (opt-in)](PROGRAMS_TIER.md)
 
 ## Mapping and engine experiments
 

@@ -77,8 +77,15 @@ class MobileBridgeController:
     Optional heading hold (``heading_hold_kp`` > 0) closes the loop on yaw for
     straight commands only (``wz == 0`` with nonzero translation): the measured
     heading at admission is held with ``wz = kp*e + ki*integral(e)``, clipped to
-    ``max_angular_speed``. Turn and zero commands are never rewritten, and
-    nothing is commanded after the admitted command ends or is stopped.
+    ``max_angular_speed``. Turn and zero commands are never rewritten by the
+    bridge, and nothing is commanded after the admitted command ends or is stopped.
+
+    Optional velocity scaling (``velocity_scaling=True``, advertised in ``hello``
+    only then): the admission's owner may scale the ACTIVE admitted twist by
+    ``0 < scale <= 1`` (``scale_velocity``). The client decides the scale (SafeBase's
+    measured-yaw goal ramp); the bridge only bounds it inside the admitted envelope.
+    It never admits, extends, renews or replays motion and does not consume the
+    generation; stop, fault and completion end it like the command itself.
     """
 
     def __init__(
@@ -88,7 +95,7 @@ class MobileBridgeController:
         lease_s: float, max_state_age_s: float, physics_dt: float = 0.005,
         policy_dt: float = 0.020, max_action_wall_s: float = 120.0,
         clock=time.monotonic, heading_hold_kp: float = 0.0, heading_hold_ki: float = 0.0,
-        kind: str = "microduck",
+        kind: str = "microduck", velocity_scaling: bool = False,
     ):
         if engine not in {"physx", "newton"}:
             raise ValueError("engine must be physx or newton")
@@ -97,6 +104,9 @@ class MobileBridgeController:
         # client pinned to one robot family never binds another family's endpoint.
         if kind not in KINDS:
             raise ValueError(f"kind must be one of {sorted(KINDS)}")
+        if type(velocity_scaling) is not bool:
+            raise ValueError("velocity_scaling must be an explicit boolean")
+        self.velocity_scaling = velocity_scaling
         for name, value in (("heading_hold_kp", heading_hold_kp), ("heading_hold_ki", heading_hold_ki)):
             if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
                 raise ValueError(f"{name} must be a finite nonnegative number")
@@ -117,7 +127,8 @@ class MobileBridgeController:
             "device": _token(device, "device"), "asset_sha256": asset_sha256,
             "policy_sha256": policy_sha256, "model_identity_sha256": model_identity_sha256, "physics_dt": _positive(physics_dt, "physics_dt"),
             "policy_dt": _positive(policy_dt, "policy_dt"),
-            "capabilities": ["state", "velocity", "stop", "reset_stop"],
+            "capabilities": ["state", "velocity", "stop", "reset_stop"] + (
+                ["velocity_scaling"] if velocity_scaling else []),
             "measurement_kind": "physics",
             "support_contract_sha256": support_contract_digest(support_contract, model_identity_sha256),
         }
@@ -408,6 +419,40 @@ class MobileBridgeController:
             self._active["lease_until_wall"] = min(now + self.lease_s, self._active["until_wall"])
             return {**self._ack(), "active": True}
 
+    def scale_velocity(self, request: dict) -> dict:
+        """Opt-in: the admission's owner lowers the ACTIVE twist to ``scale`` of itself.
+
+        Bound to the admission's epoch, generation, robot, owner and command_id;
+        refused when not enabled, latched, faulted, inactive, heading-held, stale
+        or expired. ``0 < scale <= 1`` of the ADMITTED twist, so it can neither
+        exceed nor flip the envelope. It never admits, extends, renews or replays
+        motion and does not consume the generation (a stop still invalidates it).
+        """
+        with self._lock:
+            if not self.velocity_scaling:
+                raise ValueError("velocity scaling is not enabled on this controller")
+            self._binding(request, robot=True)
+            if self._latched or self._fault:
+                raise ValueError("motion is latched; operator reset required")
+            if self._active is None:
+                raise ValueError("no active command to scale")
+            if request.get("owner") != self._active["owner"]:
+                raise ValueError("scale owner mismatch")
+            if request.get("command_id") != self._active["command_id"]:
+                raise ValueError("scale command_id mismatch")
+            if "heading_ref" in self._active:
+                raise ValueError("a heading-held command is never rescaled")
+            now = self._clock()
+            self._fresh(now)
+            if now >= self._active["lease_until_wall"] or now >= self._active["until_wall"]:
+                raise ValueError("an expired command cannot be scaled")
+            scale = _number(request.get("scale"), "scale")
+            if not 0 < scale <= 1:
+                raise ValueError("scale must be in (0, 1] of the admitted twist")
+            self._active["scale"] = scale
+            return {**self._ack(), "accepted": True, "command_id": self._active["command_id"],
+                    "scale": scale, "end_sim_time_s": self._active["until_sim"]}
+
     def watchdog(self) -> None:
         """Server wall-clock thread: runs even when Kit is paused or blocked."""
         with self._lock:
@@ -457,6 +502,8 @@ class MobileBridgeController:
                 return (0.0, 0.0, 0.0)
             if "heading_ref" in self._active:
                 return self._heading_hold(self._active, self._state, sim_time)
+            if "scale" in self._active:  # opt-in, inside the admitted envelope (0 < scale <= 1)
+                return tuple(v * self._active["scale"] for v in self._active["twist"])
             return self._active["twist"]
 
     def _scripted(self, sim_time: float) -> tuple[float, float, float]:
@@ -643,6 +690,12 @@ class MobileBridgeServer:
                 return self.controller.command_velocity(request)
             if op == "renew":
                 return self.controller.renew(request)
+            if op == "scale_velocity":
+                # Opt-in controller primitive; a controller without it keeps the old refusal.
+                scale = getattr(self.controller, "scale_velocity", None)
+                if scale is None:
+                    raise ValueError("unsupported mobile bridge operation")
+                return scale(request)
             if op == "stop":
                 return self.controller.stop(latch=request.get("latch", True))
             if op == "reset_stop":
@@ -793,7 +846,8 @@ class MobileBridgeServer:
                     handshaken = True
                     result = self.dispatch(request)
                 else:
-                    allowed = {"reader": self.READER_OPS, "control": {"command_velocity", "reset_stop"},
+                    allowed = {"reader": self.READER_OPS,
+                               "control": {"command_velocity", "reset_stop", "scale_velocity"},
                                "stop": {"stop"}, "renew": {"renew"}}
                     with self._guard:
                         owner_live = owner_conn is not None and self._owners.get(owner) is owner_conn
@@ -801,7 +855,7 @@ class MobileBridgeServer:
                         result = {"ok": False, "error": "owner channel disconnected"}
                     elif not handshaken or op not in allowed[role]:
                         result = {"ok": False, "error": self.FORBIDDEN}
-                    elif op in {"command_velocity", "renew"} and request.get("owner") != owner:
+                    elif op in {"command_velocity", "renew", "scale_velocity"} and request.get("owner") != owner:
                         result = {"ok": False, "error": "request owner differs from channel owner"}
                     else:
                         if op in {"command_velocity", "reset_stop"}:

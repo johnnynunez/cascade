@@ -174,8 +174,9 @@ def load_robot_config(robot: str, *, llm: str = "mock", config_dir: Path | None 
     if not isinstance(robot, str) or not re.fullmatch(r"[a-z][a-z0-9_]*", robot):
         raise ValueError("robot must be an exact profile slug")
     data = load_profile("robots", robot, cdir).as_dict()
-    if set(data) - {"version", "robot_id", "domains", "embodiment"} or type(data.get("version")) is not int or data.get("version") != 1:
-        raise ValueError("robot profile requires version 1, robot_id, domains and optional embodiment")
+    if (set(data) - {"version", "robot_id", "domains", "embodiment", "whole_body"}
+            or type(data.get("version")) is not int or data.get("version") != 1):
+        raise ValueError("robot profile requires version 1, robot_id, domains and optional embodiment/whole_body")
     # A robot identity is not a profile filename. Preserve the exact identifier
     # used by its backend (for example microduck-mock) without relabeling it.
     from .robotics.contracts import identifier
@@ -191,10 +192,13 @@ def load_robot_config(robot: str, *, llm: str = "mock", config_dir: Path | None 
             raise ValueError("domain profile must be an object")
         profile = copy.deepcopy(profile)
         kind = profile.get("kind")
-        if "mounted_on" in profile:
-            raise ValueError("mobile-mounted domains need measured dynamic transforms and validated shared control; unsupported")
+        if "mounted_on" in profile and "whole_body" not in data:
+            # A mount is only meaningful inside the explicit whole-body contract
+            # (disjoint endpoints, dynamic frame chain, coordination policy).
+            raise ValueError("mounted_on requires an explicit whole_body contract; mobile-mounted domains are "
+                             "otherwise unsupported")
         if kind == "manipulation":
-            if set(profile) - {"kind", "arms", "cameras", "robot_id", "offline"}:
+            if set(profile) - {"kind", "arms", "cameras", "robot_id", "offline", "mounted_on"}:
                 raise ValueError("unknown manipulation domain fields")
             if type(profile.get("offline", False)) is not bool:
                 raise ValueError("offline must be boolean")
@@ -235,6 +239,10 @@ def load_robot_config(robot: str, *, llm: str = "mock", config_dir: Path | None 
         if body.robot_id != data["robot_id"]:
             raise ValueError("embodiment robot_id must match robot profile")
         result["embodiment"] = body.as_dict()
+    if "whole_body" in data:
+        # Opt-in only: profiles without the key keep their exact surface.
+        from .robotics.whole_body import validate_contract
+        result["whole_body"] = validate_contract(data["whole_body"], resolved)
     return Cfg(result)
 
 
@@ -402,7 +410,7 @@ def load_demo_config(
     # downgrade after a failed learned-model request.
     backend = os.environ.get("CASCADE_GRASP_BACKEND")
     if backend:
-        if backend not in {"obb", "graspgenx"}:
+        if backend not in {"obb", "graspgenx", "hug"}:
             raise ValueError(f"invalid CASCADE_GRASP_BACKEND: {backend}")
         for view in [main, *(prof["resolved"] for prof in arm_profiles)]:
             view.setdefault("grasp", {})["backend"] = backend

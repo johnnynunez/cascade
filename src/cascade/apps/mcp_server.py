@@ -505,19 +505,23 @@ class McpSkillServer:
              "note": "arm frozen; call reset_stop to resume"}
         )
 
-    def reset_now(self) -> dict:
+    def reset_now(self, arguments=None) -> dict:
         """Clear the e-stop (reset_stop tool, or SIGUSR1 -- the staff
-        channel when reset_stop is hidden from attendees)."""
+        channel when reset_stop is hidden from attendees).
+
+        Whole-body robots reset one named domain per call; the server-level
+        stop latch clears only once no domain remains latched (SIGUSR1 names
+        no domain and is therefore refused for them)."""
         if self._bounded:
             rt = self._runtime
             if rt is None or self._input_closed:
                 return _text_result({"ok": False, "error": "runtime starting or input closed; reset refused"}, is_error=True)
             with self._stop_lock:
                 serial = self._stop_serial
-            result = rt.execute("reset_stop", {})
+            result = rt.execute("reset_stop", dict(arguments or {}))
             with self._stop_lock:
                 raced = serial != self._stop_serial
-                if result.get("ok") is True and not raced:
+                if result.get("ok") is True and not raced and not result.get("latched_domains"):
                     self._stop_pending = False
             if raced:
                 rt.stop()
@@ -854,20 +858,24 @@ class McpSkillServer:
         if name in self._stop_tools():
             return self.stop_now(navigation=name == "stop_navigation")
         if name == "reset_stop":
-            if not isinstance(arguments, dict) or arguments:
+            whole_body = self._composed and self._get_mobile_config().as_dict().get("whole_body") is not None
+            if not isinstance(arguments, dict) or (arguments and not whole_body):
                 return _text_result({"ok": False, "error": "reset_stop takes no arguments"}, is_error=True)
-            return self.reset_now()
+            # Whole-body: the runtime validates the single required domain.
+            return self.reset_now(arguments if whole_body else None)
         if self._composed and name == "list_resources":
             if not isinstance(arguments, dict) or arguments:
                 return _text_result({"ok": False, "error": "list_resources takes no arguments"}, is_error=True)
             from .robot_runtime import describe_robot
             from ..robotics.resources import ResourceCatalog
             from ..robotics.embodiment import embodiment_metadata
+            from ..robotics.whole_body import contract_metadata
             cfg = self._get_mobile_config()
             domains = describe_robot(cfg)
             catalog = ResourceCatalog([r for d in domains.values() for r in d.resources])
             return _text_result({"ok": True, "metadata_source": "configured_profile",
-                                 **catalog.as_dict(), **embodiment_metadata(cfg.as_dict().get("embodiment"), catalog)})
+                                 **catalog.as_dict(), **embodiment_metadata(cfg.as_dict().get("embodiment"), catalog),
+                                 **contract_metadata(cfg.as_dict().get("whole_body"))})
         if name == "list_bases":
             if arguments:
                 return _text_result({"ok": False, "error": "list_bases takes no arguments"}, is_error=True)
@@ -1239,12 +1247,29 @@ def main() -> int:
     import argparse
     from .signal_stop import StopSignals
 
-    parser = argparse.ArgumentParser(description="CASCADE stdio MCP server")
+    parser = argparse.ArgumentParser(description="CASCADE MCP server (stdio by default)")
     parser.add_argument("--launch-owner")
     parser.add_argument("--launch-state-dir", type=Path)
+    parser.add_argument("--http", metavar="HOST:PORT",
+                        help="serve Streamable HTTP instead of stdio (NemoClaw/OpenShell); needs "
+                             "CASCADE_MCP_TOKEN, and TLS for any non-loopback HOST")
+    parser.add_argument("--http-path", default="/mcp")
+    parser.add_argument("--http-port-file", type=Path,
+                        help="write the bound port here once listening (PORT 0 = any free port)")
+    parser.add_argument("--token-file", type=Path, help="bearer secret file instead of CASCADE_MCP_TOKEN")
+    parser.add_argument("--tls-cert", help="PEM certificate chain for an HTTPS listener")
+    parser.add_argument("--tls-key", help="PEM private key for --tls-cert")
     args = parser.parse_args()
     if bool(args.launch_owner) != bool(args.launch_state_dir):
         parser.error("--launch-owner and --launch-state-dir must be supplied together")
+    http = None
+    if args.http:
+        try:
+            http = _http_settings(args)
+        except (ValueError, OSError) as exc:
+            parser.error(str(exc))
+    elif args.tls_cert or args.tls_key or args.http_port_file or args.token_file:
+        parser.error("--tls-cert/--tls-key/--http-port-file/--token-file need --http")
     if args.launch_owner:
         from .process_owner import load_owner, register_process
         from ..config import PACKAGE_ROOT
@@ -1264,7 +1289,10 @@ def main() -> int:
     with StopSignals(staff_reset=True) as signals:
         server._signals = signals
         try:
-            exit_code = _serve_stdio(server, signals)
+            if http is not None:
+                exit_code = _serve_http(server, signals, **http)
+            else:
+                exit_code = _serve_stdio(server, signals)
         except KeyboardInterrupt:
             exit_code = 130
         finally:
@@ -1365,29 +1393,8 @@ def _serve_stdio(server, signals):
                                 print(f"[cascade-mcp] non-object frame skipped: "
                                       f"{str(m)[:120]}", file=sys.stderr)
                                 continue
-                            method = m.get("method")
-                            params = m.get("params") or {}
-                            if (method == "tools/call"
-                                    and (params.get("name") == "emergency_stop"
-                                         or (params.get("name") in server._stop_tools()
-                                             and params.get("name") not in _hidden_tools()))):
-                                result = server.stop_now(navigation=params.get("name") == "stop_navigation")
-                                if m.get("id") is not None:
-                                    _send(_response(m["id"], result))
-                                continue
-                            if method == "notifications/cancelled":
-                                server.cancel_request(params.get("requestId"))
-                                continue
-                            if method == "ping" and m.get("id") is not None:
-                                # host keepalives must not starve behind a motion
-                                _send(_response(m["id"], {}))
-                                continue
-                            if server._bounded:
-                                # Server-owned receive-time fence; never trust a
-                                # caller-provided value on the wire.
-                                with server._stop_lock:
-                                    m["_mobile_stop_serial"] = server._stop_serial
-                            inbox.put(m)
+                            if not _admit(server, m, _send):
+                                inbox.put((m, _send))
                     except Exception as e:
                         print(f"[cascade-mcp] reader error (frame skipped): {e}",
                               file=sys.stderr)
@@ -1402,62 +1409,7 @@ def _serve_stdio(server, signals):
         if os.environ.get("CASCADE_PREWARM", "1") != "0":
             server.prewarm_async()
     try:
-        while True:
-            msg = None
-            try:
-                signals.checkpoint()
-                msg = inbox.get()
-                if msg is _EOF:
-                    break
-                req_id = msg.get("id")
-                is_call = msg.get("method") == "tools/call"
-                with server._cancel_lock:
-                    cancelled = req_id is not None and req_id in server._cancelled_ids
-                    if cancelled:
-                        server._cancelled_ids.discard(req_id)
-                    else:
-                        server._inflight = (
-                            req_id,
-                            (msg.get("params") or {}).get("name") if is_call else None,
-                        )
-                if cancelled:
-                    continue  # client gave up before we started; never move
-                try:
-                    stale_motion = False
-                    if server._bounded and is_call:
-                        motion_skills = server._motion_tools()
-
-                        with server._stop_lock:
-                            stale_motion = ((msg.get("params") or {}).get("name") in motion_skills
-                                            and msg.get("_mobile_stop_serial") != server._stop_serial)
-                    if stale_motion:
-                        resp = _response(req_id, _text_result(
-                            {"ok": False, "execution_ok": False,
-                             "error": "queued motion invalidated by stop; re-issue a new command explicitly"},
-                            is_error=True))
-                    else:
-                        resp = handle_message(server, msg)
-                finally:
-                    with server._cancel_lock:
-                        server._inflight = None
-                        if req_id is not None:
-                            # a cancel that raced with completion is spent now
-                            server._cancelled_ids.discard(req_id)
-                if resp is not None:
-                    _send(resp)
-            except SignalRequest as request:
-                # All interrupted locks (including runtime._gate, _stop_lock,
-                # _cancel_lock and out_lock) have unwound. Never resume that
-                # tool call. Stop invalidation precedes reset/logging/replies.
-                server.stop_now()
-                if request.signum == signal.SIGTERM:
-                    return 128 + signal.SIGTERM
-                if request.signum == getattr(signal, "SIGUSR1", None):
-                    server.reset_now()
-                if isinstance(msg, dict) and msg.get("id") is not None:
-                    _send(_response(msg["id"], _text_result(
-                        {"ok": False, "execution_ok": False, "error": "interrupted by signal; re-issue explicitly"},
-                        is_error=True)))
+        return _worker_loop(server, signals, inbox, _EOF)
     finally:
         # Event.set is safe HERE, after the signal handler has returned.
         with signals.defer():
@@ -1468,7 +1420,366 @@ def _serve_stdio(server, signals):
             reader_halt.set()
             reader.join()
             os.close(input_fd)
+
+
+def _admit(server, m: dict, send) -> bool:
+    """Receive-side short circuit shared by every transport: True when the
+    frame was handled here and must NOT queue behind a running tool call.
+
+    This is the stop channel (module docstring): emergency_stop and the
+    capability's stop tools latch the moment they arrive, a cancel of the
+    in-flight motion freezes the arm, and keepalive pings are answered at once.
+    Everything else is stamped with the receive-time stop serial and queued.
+    """
+    method = m.get("method")
+    params = m.get("params") or {}
+    if (method == "tools/call"
+            and (params.get("name") == "emergency_stop"
+                 or (params.get("name") in server._stop_tools()
+                     and params.get("name") not in _hidden_tools()))):
+        result = server.stop_now(navigation=params.get("name") == "stop_navigation")
+        if m.get("id") is not None:
+            send(_response(m["id"], result))
+        return True
+    if method == "notifications/cancelled":
+        server.cancel_request(params.get("requestId"))
+        return True
+    if method == "ping" and m.get("id") is not None:
+        # host keepalives must not starve behind a motion
+        send(_response(m["id"], {}))
+        return True
+    if server._bounded:
+        # Server-owned receive-time fence; never trust a
+        # caller-provided value on the wire.
+        with server._stop_lock:
+            m["_mobile_stop_serial"] = server._stop_serial
+    return False
+
+
+def _worker_loop(server, signals, inbox, eof) -> int:
+    """The single serial worker: (frame, send) items in arrival order."""
+    import signal
+    from .signal_stop import SignalRequest
+
+    while True:
+        msg = None
+        send = None
+        try:
+            signals.checkpoint()
+            item = inbox.get()
+            if item is eof:
+                break
+            msg, send = item
+            req_id = msg.get("id")
+            is_call = msg.get("method") == "tools/call"
+            with server._cancel_lock:
+                cancelled = req_id is not None and req_id in server._cancelled_ids
+                if cancelled:
+                    server._cancelled_ids.discard(req_id)
+                else:
+                    server._inflight = (
+                        req_id,
+                        (msg.get("params") or {}).get("name") if is_call else None,
+                    )
+            if cancelled:
+                continue  # client gave up before we started; never move
+            try:
+                stale_motion = False
+                if server._bounded and is_call:
+                    motion_skills = server._motion_tools()
+
+                    with server._stop_lock:
+                        stale_motion = ((msg.get("params") or {}).get("name") in motion_skills
+                                        and msg.get("_mobile_stop_serial") != server._stop_serial)
+                if stale_motion:
+                    resp = _response(req_id, _text_result(
+                        {"ok": False, "execution_ok": False,
+                         "error": "queued motion invalidated by stop; re-issue a new command explicitly"},
+                        is_error=True))
+                else:
+                    resp = handle_message(server, msg)
+            finally:
+                with server._cancel_lock:
+                    server._inflight = None
+                    if req_id is not None:
+                        # a cancel that raced with completion is spent now
+                        server._cancelled_ids.discard(req_id)
+            if resp is not None:
+                send(resp)
+        except SignalRequest as request:
+            # All interrupted locks (including runtime._gate, _stop_lock,
+            # _cancel_lock and out_lock) have unwound. Never resume that
+            # tool call. Stop invalidation precedes reset/logging/replies.
+            server.stop_now()
+            if request.signum == signal.SIGTERM:
+                return 128 + signal.SIGTERM
+            if request.signum == getattr(signal, "SIGUSR1", None):
+                server.reset_now()
+            if isinstance(msg, dict) and msg.get("id") is not None and send is not None:
+                send(_response(msg["id"], _text_result(
+                    {"ok": False, "execution_ok": False, "error": "interrupted by signal; re-issue explicitly"},
+                    is_error=True)))
     return 0
+
+
+# ── Streamable HTTP transport (NemoClaw / OpenShell) ─────────────────────
+#
+# NemoClaw registers only authenticated Streamable HTTP MCP endpoints and never
+# launches or wraps a stdio server, so an agent sandboxed by OpenShell reaches
+# the robot through this listener. The robot side (harness, perception, Isaac
+# bridge, GPU) stays on the host; the sandbox gets the tool surface and nothing
+# else. The SAME serial worker, `_admit` stop channel and cancellation run
+# behind it; only framing differs. One process, one robot runtime, any number
+# of MCP sessions (the NemoClaw readiness probe opens its own).
+
+HTTP_MAX_BODY = 131_072      # OpenShell's managed-MCP request-body cap
+HTTP_MIN_TOKEN = 24          # characters of bearer secret
+
+
+def _http_settings(args) -> dict:
+    """Validate the --http options BEFORE anything robot-side starts."""
+    import ipaddress
+
+    spec = args.http
+    host, sep, port = spec.rpartition(":")
+    if not sep or not port.isdigit() or not 0 <= int(port) <= 65535 or not host:
+        raise ValueError(f"--http must be HOST:PORT, got {spec!r}")
+    host = host.strip("[]")
+    token = os.environ.get("CASCADE_MCP_TOKEN", "")
+    if args.token_file is not None:
+        token = Path(args.token_file).read_text().strip()
+    if len(token) < HTTP_MIN_TOKEN:
+        raise ValueError(
+            f"HTTP mode needs a bearer secret of at least {HTTP_MIN_TOKEN} characters in "
+            "CASCADE_MCP_TOKEN (or --token-file); refusing to serve the robot unauthenticated")
+    if bool(args.tls_cert) != bool(args.tls_key):
+        raise ValueError("--tls-cert and --tls-key go together")
+    try:
+        loopback = ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        loopback = host == "localhost"
+    if not loopback and not args.tls_cert:
+        raise ValueError(
+            f"a non-loopback listener ({host}) requires TLS (--tls-cert/--tls-key): NemoClaw "
+            "admits only HTTPS private endpoints and the bearer secret must not cross a network in clear")
+    path = args.http_path if args.http_path.startswith("/") else "/" + args.http_path
+    return {"host": host, "port": int(port), "path": path, "token": token,
+            "cert": args.tls_cert, "key": args.tls_key, "port_file": args.http_port_file}
+
+
+def _serve_http(server, signals, *, host, port, path, token, cert=None, key=None, port_file=None):
+    import hmac
+    import queue
+    import secrets
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    keepalive_s = float(os.environ.get("CASCADE_MCP_SSE_KEEPALIVE_S", "15"))
+    expected = f"Bearer {token}".encode()
+    sessions: set[str] = set()
+    sessions_lock = threading.Lock()
+    inbox: queue.Queue = queue.Queue()
+    _EOF = object()
+
+    with signals.defer():
+        from ..config import PACKAGE_ROOT
+
+        run_dir = Path(os.environ.get("CASCADE_RUN_DIR", PACKAGE_ROOT / "runs" / f"mcp_{os.getpid()}"))
+        try:
+            run_dir.mkdir(parents=True, exist_ok=True)
+            sys.stderr = _Tee(sys.stderr, open(run_dir / "server.log", "a", buffering=1))
+        except Exception:  # noqa: BLE001 -- a read-only checkout must not kill the server
+            pass
+        # No server->client stream (GET answers 405), so a trimmed catalog
+        # cannot be pushed: a withheld tool is still rejected, with its reason.
+        server._tools_changed_fn = lambda: print(
+            "[cascade-mcp] tool catalog changed (HTTP: clients re-list on their next tools/list)",
+            file=sys.stderr)
+
+        class Handler(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+            server_version = "cascade-mcp"
+            sys_version = ""
+
+            def log_message(self, fmt, *a):  # one line per refusal, nothing per success
+                pass
+
+            def _reply(self, status, body: bytes = b"", ctype="application/json", extra=None):
+                self.send_response(status)
+                for k, v in (extra or {}).items():
+                    self.send_header(k, v)
+                if body:
+                    self.send_header("Content-Type", ctype)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                if body:
+                    self.wfile.write(body)
+
+            def _refuse(self, status, why, extra=None):
+                print(f"[cascade-mcp] http {self.command} refused {status}: {why}", file=sys.stderr)
+                body = json.dumps({"jsonrpc": "2.0", "id": None,
+                                   "error": {"code": -32600, "message": why}}).encode()
+                # the body may be unread: never parse its tail as a next request
+                self.close_connection = True
+                self._reply(status, body, extra={**(extra or {}), "Connection": "close"})
+
+            def _guard(self) -> str | None | bool:
+                """-> the request's session id (None when absent), or False
+                after a refusal was sent."""
+                if self.path.split("?", 1)[0] != path:
+                    self._refuse(404, "unknown path")
+                    return False
+                auth = (self.headers.get("Authorization") or "").encode()
+                if not hmac.compare_digest(auth, expected):
+                    self._refuse(401, "missing or wrong bearer token",
+                                 {"WWW-Authenticate": 'Bearer realm="cascade-mcp"'})
+                    return False
+                if self.headers.get("Origin"):
+                    # browsers send Origin; MCP hosts do not (DNS rebinding)
+                    self._refuse(403, "Origin not allowed")
+                    return False
+                version = self.headers.get("MCP-Protocol-Version")
+                if version and version not in PROTOCOL_VERSIONS:
+                    self._refuse(400, f"unsupported MCP-Protocol-Version {version}")
+                    return False
+                return self.headers.get("Mcp-Session-Id")
+
+            def do_GET(self):  # noqa: N802
+                if self._guard() is not False:
+                    self._reply(405, extra={"Allow": "POST, DELETE"})
+
+            def do_DELETE(self):  # noqa: N802
+                session = self._guard()
+                if session is False:
+                    return
+                with sessions_lock:
+                    known = session in sessions
+                    sessions.discard(session)
+                if known:
+                    self._reply(200)
+                else:
+                    self._refuse(404, "unknown session")
+
+            def do_POST(self):  # noqa: N802
+                session = self._guard()
+                if session is False:
+                    return
+                ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+                if ctype != "application/json":
+                    return self._refuse(415, "Content-Type must be application/json")
+                try:
+                    length = int(self.headers.get("Content-Length") or "0")
+                except ValueError:
+                    return self._refuse(400, "bad Content-Length")
+                if length > HTTP_MAX_BODY:
+                    return self._refuse(413, f"body over {HTTP_MAX_BODY} bytes")
+                try:
+                    m = json.loads(self.rfile.read(length).decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    return self._refuse(400, "body is not JSON")
+                if not isinstance(m, dict):
+                    return self._refuse(400, "one JSON-RPC object per request (no batches)")
+                method = m.get("method")
+                extra = {}
+                if method == "initialize":
+                    session = secrets.token_urlsafe(24)
+                    with sessions_lock:
+                        sessions.add(session)
+                    extra["Mcp-Session-Id"] = session
+                elif session is not None:
+                    with sessions_lock:
+                        if session not in sessions:
+                            return self._refuse(404, "unknown session; re-initialize")
+                # JSON-RPC ids are unique per session only: namespace them so a
+                # cancel from one session can never stop another's motion.
+                ns = f"{session or '-'}|"
+                if method == "notifications/cancelled":
+                    params = dict(m.get("params") or {})
+                    if "requestId" in params:
+                        params["requestId"] = ns + json.dumps(params["requestId"])
+                    m = {**m, "params": params}
+                req_id = m.get("id")
+                if method is None or req_id is None:
+                    # notification or client response: accept, never answer
+                    if method is not None and not _admit(server, m, lambda _r: None):
+                        inbox.put((m, lambda _r: None))
+                    return self._reply(202, extra=extra)
+                done = threading.Event()
+                slot: list = []
+
+                def send(resp, _orig=req_id):
+                    resp = dict(resp)
+                    resp["id"] = _orig
+                    slot.append(resp)
+                    done.set()
+
+                m = {**m, "id": ns + json.dumps(req_id)}
+                if not _admit(server, m, send):
+                    inbox.put((m, send))
+                accept = self.headers.get("Accept") or ""
+                if method == "tools/call" and "text/event-stream" in accept:
+                    return self._stream(done, slot, extra)
+                done.wait()
+                self._reply(200, json.dumps(slot[0]).encode(), extra=extra)
+
+            def _stream(self, done, slot, extra):
+                """SSE for tool calls: a 150 s pick keeps the connection
+                visibly alive through proxies with idle timeouts."""
+                self.send_response(200)
+                for k, v in extra.items():
+                    self.send_header(k, v)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.close_connection = True
+                alive = True
+                while not done.wait(keepalive_s):
+                    if alive:
+                        try:
+                            self.wfile.write(b": keepalive\n\n")
+                            self.wfile.flush()
+                        except OSError:
+                            # a disconnect is not a cancel (MCP spec): the call
+                            # runs to completion; cancel/stop are explicit
+                            alive = False
+                if alive:
+                    try:
+                        self.wfile.write(b"event: message\ndata: " + json.dumps(slot[0]).encode() + b"\n\n")
+                        self.wfile.flush()
+                    except OSError:
+                        pass
+
+        httpd = ThreadingHTTPServer((host, port), Handler)
+        httpd.daemon_threads = True
+        scheme = "http"
+        if cert:
+            import ssl
+
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+            ctx.load_cert_chain(cert, key)
+            httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
+            scheme = "https"
+        bound_port = httpd.server_address[1]
+        print(f"[cascade-mcp] cascade MCP server on {scheme}://{host}:{bound_port}{path} "
+              f"(log: {run_dir / 'server.log'})", file=sys.stderr, flush=True)
+        if port_file is not None:
+            tmp = Path(str(port_file) + ".tmp")
+            tmp.write_text(f"{bound_port}\n")
+            os.replace(tmp, port_file)
+        listener = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.2},
+                                    daemon=True, name="cascade-mcp-http")
+        listener.start()
+        if os.environ.get("CASCADE_PREWARM", "1") != "0":
+            server.prewarm_async()
+    try:
+        return _worker_loop(server, signals, inbox, _EOF)
+    finally:
+        with signals.defer():
+            server.stop_now()
+            httpd.shutdown()
+            httpd.server_close()
+            listener.join(5)
 
 
 if __name__ == "__main__":

@@ -88,6 +88,7 @@ class AgentOrchestrator:
         verify_milestones: bool = True,
         memory_frames_k: int = 4,
         plausibility: PlausibilityChecker | None = None,
+        programs=None,
     ):
         self.llm = llm
         self.runtime = runtime
@@ -143,6 +144,12 @@ class AgentOrchestrator:
         #: pre-2026-10-07 path exactly: no runtime attribute is touched and
         #: no key is added to any result. Arm skills only, like the tracker.
         self.plausibility = None if self._mobile else plausibility
+        #: ROADMAP #8 programs tier (agent/programs.ProgramTier; design note
+        #: docs/PROGRAMS_TIER.md). OPT-IN: `None` (agent.programs: false, the
+        #: default) is the pre-2026-10-08 dispatch exactly -- no authoring turn,
+        #: no runtime write, no store touched. Arm skills only, like the
+        #: fast planner: programs encode manipulation skills.
+        self.programs = None if self._mobile else programs
 
     def run_task(self, task: str) -> TaskReport:
         # One persistence budget for the WHOLE task, across tiers: the reflex
@@ -171,6 +178,14 @@ class AgentOrchestrator:
         tool_log: list[dict] = []
         if self.fast_planner is not None:
             report, fast_note = self._try_fast_path(task, t_start, tool_log=tool_log)
+            if report is not None:
+                return report
+        # ROADMAP #8 programs tier (opt-in): consulted only when tiers 1/2 had
+        # no plan at all. A habit that FAILED goes straight to deliberation,
+        # which can see the failure; a program that stops hands its
+        # next_action to the LLM tier the same way.
+        if self.programs is not None and fast_note is None:
+            report, fast_note = self._try_program_tier(task, t_start, tool_log=tool_log)
             if report is not None:
                 return report
 
@@ -289,6 +304,8 @@ class AgentOrchestrator:
                     # effect obligation, so an unconfirmed pick never
                     # becomes a habit (same rule the fast tier applies).
                     self._remember_recipe(task, tool_log, scene0, report)
+                    if self.programs is not None:
+                        self._remember_program(task, tool_log, scene0, report)
                 return report
 
             # RPent `finish(status=stuck)`: the skill exhausted what the robot
@@ -702,6 +719,134 @@ class AgentOrchestrator:
                 summary=summary, source_run=(run_dir.name if run_dir is not None else None),
             )
         except Exception:  # noqa: BLE001
+            pass
+
+    # ── ROADMAP #8: the programs tier (opt-in; docs/PROGRAMS_TIER.md) ───────
+
+    def _try_program_tier(self, task: str, t_start: float, *, tool_log: list) -> tuple[TaskReport | None, str | None]:
+        """One authoring turn, then the program step by step; (report, None)
+        when it completed with every registered effect confirmed, else
+        (None, note-for-the-LLM-tier).
+
+        The brain writes a fresh program or reuses a PROMOTED one (candidates
+        are never offered); a reply that is not a well-formed program is
+        refused before anything runs. Every step is a top-level
+        `runtime.execute()` call -- the harness stays the sole authority that
+        refuses motion -- and the first failed / refused / refuted /
+        unverified step stops the program with a next_action. A stuck step
+        ends the task, exactly as in the other tiers.
+        """
+        from .programs import COMPLETED, INVALID, NONE as NO_PROGRAM, STUCK, write_receipt
+
+        tier = self.programs
+        offered = tier.offered(task)
+        try:
+            resp = self.llm.chat(
+                system=self.system_prompt,
+                messages=[{"role": "user", "content": tier.prompt(task, offered, self._world_labels())}],
+                max_tokens=1200,
+            )
+        except Exception as e:  # noqa: BLE001 -- no program; the LLM tier proceeds unchanged
+            self._memory_note(f"program authoring failed: {type(e).__name__}: {e}")
+            return None, None
+        if resp.tool_calls:
+            return None, None  # a tool call is not a program: the LLM tier gets the task as usual
+        proposal = tier.parse(resp.text, offered)
+        if proposal.kind == NO_PROGRAM:
+            return None, None
+        if proposal.kind == INVALID:
+            self._memory_note(f"program refused before it ran: {proposal.reason[:160]}")
+            return None, (
+                f"(A program was proposed for this task but refused before anything ran: {proposal.reason}. "
+                "No motion was attempted; plan the task step by step.)"
+            )
+        scene0 = self._scene_snapshot()
+        run = tier.run(proposal, self.runtime, tool_log=tool_log)
+        write_receipt(run, getattr(getattr(self.runtime, "trace", None), "run_dir", None))
+        run_id = self._task_run_id()
+        if run.status == STUCK:
+            tier.account(run, proposal, task=task, run_id=run_id, success=False)
+            step = run.steps[-1]
+            return (
+                self._finish_stuck(task, step.tool, dict(step.args), step.result, len(run.steps), [],
+                                   tool_log, t_start, path="program"),
+                None,
+            )
+        task_verifier = getattr(self.runtime, "unverified_actions", None)
+        unverified = task_verifier() if task_verifier is not None else []
+        if run.status == COMPLETED and not unverified:
+            report = self._finish_report(task, True, run.summary(), len(run.steps), [], tool_log, t_start,
+                                         path="program", verify_milestones=False)
+            tier.account(run, proposal, task=task, run_id=run_id, success=report.success)
+            if report.success:
+                # Same rule as a verified LLM-tier run: this instruction
+                # becomes a tier-2 recipe (queries, never coordinates).
+                self._remember_recipe(task, tool_log, scene0, report)
+            return report, None
+        tier.account(run, proposal, task=task, run_id=run_id, success=False)
+        self._memory_note(f"program {run.program.name} {run.status}: {run.reason[:160]}")
+        return None, run.note()
+
+    def _remember_program(self, task: str, tool_log: list, scene0, report: TaskReport) -> None:
+        """Distil a VERIFIED LLM-tier run into the program library (ROADMAP #8).
+
+        The verdict handed to the library is read from the task-effects
+        ledger, not from the report: every registered effect of the task must
+        be CONFIRMED, else nothing is stored. Never fails a finished task.
+        """
+        from .effects import CONFIRMED
+
+        try:
+            ledger = getattr(self.runtime, "task_effects", None)
+            rows = ledger().get("effects") if ledger is not None else None
+            if not rows or not all(r.get("status") == CONFIRMED for r in rows):
+                return  # no independent verdict = no evidence: nothing to distil, nothing to say
+            scene = recipes.anchor_scene(tool_log, scene0 or [])
+            first = (report.summary or "").strip().splitlines()
+            status, _ = self.programs.distil(tool_log, scene, task=task, run_id=self._task_run_id(),
+                                             verdict=CONFIRMED, summary=(first[0] if first else "")[:200])
+            if status != "admitted":
+                self._memory_note(f"run {status}")
+        except Exception:  # noqa: BLE001 -- memory bookkeeping never fails a finished task
+            pass
+
+    def _world_labels(self) -> list[str]:
+        """The world model for the authoring turn: labels, colour and state
+        only. No positions -- a program must not be written from coordinates."""
+        beliefs = getattr(self.runtime, "beliefs", None)
+        try:
+            rows = list(beliefs.summary()) if beliefs is not None else []
+        except Exception:  # noqa: BLE001
+            rows = []
+        out = []
+        for row in rows[:12]:
+            if not isinstance(row, dict) or not row.get("label"):
+                continue
+            color = f" ({row['color']})" if row.get("color") else ""
+            out.append(f"{row['label']}{color} {row.get('state') or ''}".strip())
+        return out
+
+    def _task_run_id(self) -> str:
+        """Identity of THIS task execution (run dir + task-effects id): the
+        program library counts each execution once."""
+        run_dir = getattr(getattr(self.runtime, "trace", None), "run_dir", None)
+        task_id = None
+        ledger = getattr(self.runtime, "task_effects", None)
+        if ledger is not None:
+            try:
+                task_id = ledger().get("task_id")
+            except Exception:  # noqa: BLE001
+                task_id = None
+        if not task_id:
+            import uuid
+
+            task_id = uuid.uuid4().hex
+        return f"{run_dir.name if run_dir is not None else 'run'}#{task_id}"
+
+    def _memory_note(self, text: str) -> None:
+        try:
+            self.runtime.memory.add("note", text)
+        except Exception:  # noqa: BLE001 -- narration must never fail a task
             pass
 
     def _with_memory_harness(self, messages: list[dict]) -> list[dict]:

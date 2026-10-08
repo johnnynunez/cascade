@@ -1,0 +1,16 @@
+# Explicit kitchen opt-in for HUG (docs/HUG.md): the calibrated kitchen GPU
+# profile with ONE change, the grasp backend, so a live A/B against
+# isaac_kitchen_gpu measures the backend and nothing else. HUG is required:
+# a missing server, the protocol stub or a failed request is an error, never
+# an OBB or GraspGen-X substitute. No kitchen admission is claimed.
+extends: isaac_kitchen_gpu
+overrides:
+  grasp:
+    backend: hug
+    hug:
+      required: true
+      # The countertop requires an approach within 18 degrees of vertical,
+      # whichever backend proposes the grasp (same value as graspgenx here).
+      approach_z_max: -0.95
+      timeout_ms: 45000
+      probe_timeout_ms: 5000

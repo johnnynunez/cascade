@@ -188,6 +188,8 @@ def _grasp_capability(runtime, backends: dict) -> dict:
     cfg = getattr(runtime, "cfg", None)
     gcfg = cfg.get("grasp") if cfg is not None and hasattr(cfg, "get") else None
     want = str(gcfg.get("backend", "obb")) if gcfg is not None and hasattr(gcfg, "get") else None
+    if want == "hug":
+        return _hug_capability(runtime, grasp)
     planner = getattr(runtime, "_graspgenx", None)
     status = getattr(planner, "status", None)
     down = bool(getattr(runtime, "_graspgenx_down", False))
@@ -206,6 +208,22 @@ def _grasp_capability(runtime, backends: dict) -> dict:
         return _entry(False, grasp, f"GraspGen-X is not in the loop ({grasp}); grasps use "
                                     "the analytic OBB planner")
     # configured, probe deferred to the first grasp: not a fact either way
+    return _entry(None, grasp)
+
+
+def _hug_capability(runtime, grasp: str) -> dict:
+    """`grasp.backend: hug`: learned (human-hand) grasps only when a real HUG
+    server answered; the stub and an outage are named, never "OBB" alone."""
+    status = getattr(getattr(runtime, "_hug", None), "status", None)
+    if bool(getattr(runtime, "_hug_down", False)):
+        return _entry(False, grasp, f"HUG is not answering ({grasp}); a required profile "
+                                    "refuses grasps, an optional one uses the analytic "
+                                    "OBB planner")
+    if status and status.get("stub"):
+        return _entry(False, grasp, f"only the HUG protocol stub answered ({grasp}): "
+                                    "analytic, not learned")
+    if status:
+        return _entry(True, grasp)
     return _entry(None, grasp)
 
 

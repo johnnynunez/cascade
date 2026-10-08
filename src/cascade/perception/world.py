@@ -33,6 +33,7 @@ from .freshness import capture_marker, frames_after_reset, newer_capture
 from .grounding import Extrinsics, mask_to_points_cam, oriented_bbox
 from .thread_join import cancel_stop_before_exit, join_thread, stop_before_exit
 from .workspace import WorkspaceFilter
+from ..memory.beliefs import FrameObservation
 from ..types import Frame, transform_points
 
 
@@ -305,10 +306,12 @@ class WorldWatcher:
             self._harness.heartbeat()
         if T is None or not cam.fuse:
             return
+        # The robot's own pixels (render self-mask minus a held payload).
+        self_px = self._workspace.self_pixels(frame)
         with self._pause_lock:
             if not self._fusion_allowed(cam, frame, epoch):
                 return
-        fused = 0
+        observations = []
         for d in dets:
             if d.label in self._ignore:
                 continue
@@ -322,7 +325,13 @@ class WorldWatcher:
                     mask = np.zeros((h, w), dtype=bool)
                     x0, y0, x1, y1 = d.bbox.astype(int)
                     mask[max(y0, 0):min(y1, h), max(x0, 0):min(x1, w)] = True
-            pts_cam = mask_to_points_cam(frame, mask)
+            # Mostly robot pixels: the arm itself, wherever it is (the base
+            # cylinder below misses the upper links). Otherwise only the
+            # detection's non-robot pixels are lifted to 3D.
+            rest, _ = self._workspace.exclude_self(mask, self_px)
+            if rest is None:
+                continue
+            pts_cam = mask_to_points_cam(frame, rest)
             if pts_cam.shape[0] < 10:
                 continue
             pts_base = transform_points(T, pts_cam)
@@ -333,19 +342,26 @@ class WorldWatcher:
             )
             if why is not None:
                 continue  # scenery, the robot itself, or out of reach
-            color = detection_color(frame.rgb, d)
-            with self._pause_lock:
-                if not self._fusion_allowed(cam, frame, epoch):
-                    return
-                self._beliefs.update(
-                    d.label, center, d.conf, extent=extents,
-                    top_z=float(pts_base[:, 2].max()), t=frame.t,
-                    color=color,
-                    points=pts_base if d.mask is not None else None,
-                )
-            fused += 1
-        if fused:
-            self.last_update_t = time.monotonic()
+            observations.append(FrameObservation(
+                d.label, center, d.conf, extent=extents,
+                top_z=float(pts_base[:, 2].max()),
+                color=detection_color(frame.rgb, d),
+                points=pts_base if d.mask is not None else None,
+                bbox=getattr(d, "bbox", None), mask=d.mask,
+            ))
+        if not observations:
+            return
+        # ONE commit per frame: the store associates this frame's instances
+        # with beliefs one-to-one. Fusing detection by detection let the
+        # second of two identical cubes 5 cm apart match the belief the first
+        # had just written (memory/beliefs.py `update_frame`). The pause
+        # check stays immediately before the commit, so a frame is fused
+        # whole or not at all.
+        with self._pause_lock:
+            if not self._fusion_allowed(cam, frame, epoch):
+                return
+            self._beliefs.update_frame(observations, t=frame.t)
+        self.last_update_t = time.monotonic()
 
     def stats(self) -> dict:
         return {

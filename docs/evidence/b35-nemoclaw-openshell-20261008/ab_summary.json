@@ -1,0 +1,158 @@
+{
+ "date": "2026-10-08",
+ "isaac": "6.2.0-alpha.19+develop.0.48b2d951 (internal omni_isaac_sim build), PhysX, bare reBot scene",
+ "gpu": "GPU-87c0fe81 (bridge, GraspGen-X, sandbox llama-server)",
+ "model": "Qwen3.8-27B UD-Q4_K_XL via llama.cpp (sandbox: authenticated :8081 instance)",
+ "nemoclaw": "v0.0.124",
+ "openshell": "0.0.116",
+ "openclaw_in_sandbox": "2026.7.1",
+ "source_head": "a0753d3 (live/rig = byte-identical src, configs differ only in private ports 18521/18522/18523)",
+ "rows": [
+  {
+   "run": "run_isaac",
+   "route": "sandbox",
+   "session": "b35-proof-2",
+   "note": "cold GraspGen-X (first inference after start)",
+   "args": {
+    "object": "pink cube",
+    "destination": "drop zone",
+    "material": "rigid"
+   },
+   "pick_ok": false,
+   "pick_s": 144.1,
+   "grasp_attempts": null,
+   "postcondition": "refuted",
+   "target_err_m": 0.3501,
+   "signature": "already-holding retry loop",
+   "reset_ok": false,
+   "reset_s": 22.5,
+   "reset_error": "Scene reset could not reach home: did not settle at home"
+  },
+  {
+   "run": "run_hostA1",
+   "route": "host",
+   "session": null,
+   "note": "",
+   "args": {
+    "object": "pink cube",
+    "destination": "drop zone"
+   },
+   "pick_ok": true,
+   "pick_s": 73.2,
+   "grasp_attempts": 1,
+   "postcondition": "confirmed",
+   "target_err_m": 0.0208,
+   "signature": "ok",
+   "reset_ok": false,
+   "reset_s": null,
+   "reset_error": null
+  },
+  {
+   "run": "run_sandboxB1",
+   "route": "sandbox",
+   "session": "b35-proof-3",
+   "note": "",
+   "args": {
+    "object": "pink cube",
+    "destination": "drop zone",
+    "material": "rigid"
+   },
+   "pick_ok": true,
+   "pick_s": 73.9,
+   "grasp_attempts": 1,
+   "postcondition": "confirmed",
+   "target_err_m": 0.0231,
+   "signature": "ok",
+   "reset_ok": true,
+   "reset_s": 11.2,
+   "reset_error": null
+  },
+  {
+   "run": "run_hostA2",
+   "route": "host",
+   "session": null,
+   "note": "",
+   "args": {
+    "object": "pink cube",
+    "destination": "drop zone",
+    "material": "rigid"
+   },
+   "pick_ok": false,
+   "pick_s": 146.7,
+   "grasp_attempts": null,
+   "postcondition": "unverified",
+   "target_err_m": 0.0056,
+   "signature": "place did not settle",
+   "reset_ok": false,
+   "reset_s": 21.6,
+   "reset_error": "Scene reset could not reach home: did not settle at home"
+  },
+  {
+   "run": "run_sandboxB2",
+   "route": "sandbox",
+   "session": "b35-sandboxB2",
+   "note": "",
+   "args": {
+    "object": "pink cube"
+   },
+   "pick_ok": true,
+   "pick_s": 69.4,
+   "grasp_attempts": 1,
+   "postcondition": "confirmed",
+   "target_err_m": 0.0238,
+   "signature": "ok",
+   "reset_ok": true,
+   "reset_s": 11.0,
+   "reset_error": null
+  },
+  {
+   "run": "run_hostA3",
+   "route": "host",
+   "session": null,
+   "note": "",
+   "args": {
+    "object": "pink cube",
+    "destination": "drop zone",
+    "material": "rigid"
+   },
+   "pick_ok": false,
+   "pick_s": 153.5,
+   "grasp_attempts": null,
+   "postcondition": "refuted",
+   "target_err_m": 0.3412,
+   "signature": "already-holding retry loop",
+   "reset_ok": false,
+   "reset_s": 22.3,
+   "reset_error": "Scene reset could not reach home: did not settle at home"
+  },
+  {
+   "run": "run_sandboxB3",
+   "route": "sandbox",
+   "session": "b35-sandboxB3",
+   "note": "",
+   "args": {
+    "object": "pink cube"
+   },
+   "pick_ok": false,
+   "pick_s": 63.5,
+   "grasp_attempts": 1,
+   "postcondition": "refuted",
+   "target_err_m": 0.2479,
+   "signature": "dropped in carry (grip verified, physics refuted)",
+   "reset_ok": true,
+   "reset_s": 11.8,
+   "reset_error": null
+  }
+ ],
+ "fresh_stage": {
+  "host_direct": {
+   "n": 3,
+   "pick_ok": 1
+  },
+  "sandbox_agent": {
+   "n": 3,
+   "pick_ok": 2,
+   "pick_and_reset_same_session_zero_failed_calls": 2
+  }
+ }
+}

@@ -49,6 +49,9 @@ def parse_args(argv=None):
     p.add_argument('--ground-visual-m', type=float, default=40.0)
     p.add_argument('--max-jpeg-bytes', type=int, default=2 * 1024**2)
     p.add_argument('--physics-row-every', type=int, default=1)
+    p.add_argument('--velocity-scaling', action='store_true',
+                   help='opt-in: let the admission owner scale its ACTIVE twist by 0<s<=1 (SafeBase '
+                        'turn_control.goal_ramp); never admits, extends or renews motion')
     p.add_argument('--check-only', action='store_true', help='offline admission only; no Kit, socket or writes')
     return p.parse_args(argv)
 
@@ -221,6 +224,7 @@ def run(args, admission, contract, *, backend_factory=None, server_factory=None,
                 model_identity_sha256=identity['model_identity_sha256'],
                 support_contract=identity['support_contract'],
                 physics_dt=contract.physics_dt, policy_dt=contract.control_dt,
+                velocity_scaling=getattr(args, 'velocity_scaling', False) is True,
                 **{k: admission['limits'][k] for k in CONTROLLER_LIMITS + HEADING_HOLD if k in admission['limits']})
             remaining = args.max_wall_s - (time.monotonic() - started)
             if remaining <= 0:

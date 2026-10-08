@@ -40,7 +40,7 @@ from .mobile_state_server import IMPLEMENTATION, SlotSegment, recv_message, send
 
 SERVER_PATH = Path(__file__).resolve().with_name("mobile_state_server.py")
 READ_ONLY = ("hello", "state")
-PUBLISHING = ("script", "publish", "command_velocity", "renew", "watchdog", "owner_disconnected",
+PUBLISHING = ("script", "publish", "command_velocity", "scale_velocity", "renew", "watchdog", "owner_disconnected",
               "control_at", "stop", "reset_stop", "fault", "begin_epoch")
 _ON_CHANGE = frozenset({"renew", "watchdog", "control_at"})  # polled; republish only if the reply changed
 PAYLOAD_BYTES = 1 << 20

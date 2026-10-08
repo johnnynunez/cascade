@@ -1,0 +1,59 @@
+{
+ "note": "raw per-run JSON/logs stay in cascade-lab; this directory keeps the compact record. The bridge log is still growing while the bridge serves; its path is recorded, not its hash.",
+ "source_head": "d918180",
+ "bridge_log": "cascade-lab/HERMES_BACKLOG_20261007/same-colour-beliefs/live/bridge_b32.log",
+ "files": [
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32-fusion-self-mask/live/results/ab_off_r1.json",
+   "sha256": "8d771bbd2a70347b1b60c9bc0196f7cb4bff20f411069697ac30feba626379e3"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32-fusion-self-mask/live/results/ab_off_r1.log",
+   "sha256": "7b62688ce97e85f01cdf3077b0a7dedfcc90cc2db27db3b160668fe5ac01e1a7"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32-fusion-self-mask/live/results/ab_off_r2.json",
+   "sha256": "094428e79d9a6840dd1174d509bd37cbc59fb86a7f11efb7613e4ed79723eddf"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32-fusion-self-mask/live/results/ab_off_r2.log",
+   "sha256": "adc22e19975ce4f0e3f0d1be60b03dacb8b7f263af758244a591a3186c34d6e3"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32-fusion-self-mask/live/results/ab_off_r3.json",
+   "sha256": "145d989454e2fb812128f600fb2d7a8de2e9f5bbe58b26100994394242206231"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32-fusion-self-mask/live/results/ab_off_r3.log",
+   "sha256": "352828c6fe7dd73bcdbe8dafa024b36b0ea4077b4a715b01ac6c910aa2a32e89"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32-fusion-self-mask/live/results/ab_on_r1.json",
+   "sha256": "aeb76f51fad392eade5dcf97e3158775e36dbe48b0d34aaa8c914928cb4b437f"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32-fusion-self-mask/live/results/ab_on_r1.log",
+   "sha256": "f56703016d63538822e53383d697efb1310a010fd6444b4c158fae7cf9f8b69d"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32-fusion-self-mask/live/results/ab_on_r2.json",
+   "sha256": "4cdc6100ad951a9d1c4d2afba0895946cba3af8e7aac5ff3d7c7f2749b71a21e"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32-fusion-self-mask/live/results/ab_on_r2.log",
+   "sha256": "571a4a223248d983a4cb9ff6b24138b1c53cfced0fc7864282d58d62b1d2d2e1"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32-fusion-self-mask/live/results/ab_on_r3.json",
+   "sha256": "9ce932f43f145c87678123511fbe7a551ed1b9381d6e642d99421106bc1824aa"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32-fusion-self-mask/live/results/ab_on_r3.log",
+   "sha256": "c0e3af1f9aeb2e92512e526704bd530a930424d68314b6cc03e0edeb0d9e2d26"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32-fusion-self-mask/live/run_ab.log",
+   "sha256": "29971585fd57d3f5aae11ada92f01380ca5e2eedcc40976a63754b008e465c12"
+  }
+ ]
+}

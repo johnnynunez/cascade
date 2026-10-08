@@ -23,11 +23,12 @@ architecture does not depend on a particular Isaac Sim build or robot shape.
 | Perception and spatial understanding | Extend the measured static planar RGB-D result to broader metric geometry and moving cameras; validate IMU/proprioception fusion and time alignment while preserving missing, stale and uncertain observations. |
 | Mapping and navigation | [Twelve live cuVSLAM tracks](CUVSLAM_NATIVE_VALIDATION.md#live-native-rgb-d-stream) join a 320-solve native producer to registered camera/base poses and verified stop invalidation. A separate [native synthetic fixture](CUVSLAM_NATIVE_VALIDATION.md#native-covariance-transport) retained all twelve odometry covariance matrices through IPC; physical pose uncertainty remains uncalibrated. Admit calibrated pose and complete collision mapping/volume, then validate native route execution, replanning and arrival/rest, including tracking loss and changed map epochs. |
 | Speech and interaction | [Two bounded voice cases](CONVERSATION.md#two-complete-native-speech-cases--voice13) now join synthetic microphone input, actual model decisions, native simulated hand motion/rest and same-origin browser audio, including operator stop, reset and reconnect. Extend to repeated and varied tasks, camera context, microphone/speaker hardware and an independently deployable conversation service; validate each physical robot setup. |
-| Whole-body humanoids | Bind dynamic frames and a whole-body controller to explicit embodiments; validate balance, self/environment collision and coordinated base/arm/head actions. Separate domain controllers must not compete for the same command endpoint. Embodiment chosen on 7 October 2026: [Unitree H2, PhysX first](HUMANOID_H2.md) with NVIDIA's public H2 USD and `Velocity-H2-History-v0` policy (pinned in `configs/h2/bundle.json`, contract in `control/h2_policy_contract.py`); the reference loop walks 0.63 m in 2 s on the internal 6.2 build ([smoke](evidence/h2-reference-smoke-20261007/manifest.json)); `scripts/isaac_h2_bridge.py` owns the H2 on PhysX and CASCADE's SafeBase drove the first episodes with the independent verifier confirming 3 of 5 `walk_velocity` commands ([evidence](evidence/h2-owner-first-episodes-20261007/REPORT.md)); binding gate passed in simulation, no physical admission; Newton route tracked through newton-assets PR #53. Same day, [geometric skills + chat-host path](evidence/h2-geometric-candidate-20261007/REPORT.md): `walk_distance` ±0.5 m and `turn` 0.8 rad execute to within 5 cm / 0.03 rad through the harness and `walk_velocity` is confirmed through MCP, but every goal-stopped command is refuted by the settle check — measured cause: the policy's post-stop yaw oscillation outlasts the 4 s wall settle budget at ≈0.47× RT (≈1.9 s sim; the robot is still after ~3 s sim). Candidate revision 2 the same day (settle budget 8 s wall, rest thresholds unchanged): 6/7 confirmed on both paths incl. `walk_distance` ±0.5 m and MCP `turn` 0.6; `turn` 0.8 rad still refuted on measurement (yaw oscillation 0.69 → 0.32 rad/s over 3.75 s sim) — next revision is control-side (ramp the turn rate before the goal), not a bigger budget. |
+| Whole-body humanoids | Bind dynamic frames and a whole-body controller to explicit embodiments; validate balance, self/environment collision and coordinated base/arm/head actions. ~~Separate domain controllers must not compete for the same command endpoint.~~ **landed 2026-10-08** (B30, mock-only): an opt-in `whole_body` profile contract composes a locomotion base and an arm `mounted_on` it with disjoint command endpoints (overlap refused naming both claimants), a capture-time `world ← base ← arm_base` frame chain (stale/missing/out-of-order base pose refuses arm motion, never extrapolated), `exclusive` coordination by default (`concurrent` opt-in), global stop with explicit per-domain `reset_stop(domain=...)`, and world-frame verdicts with the frame valid at command start ([contract](ROBOT_MODULARITY.md#multi-domain-embodiments-mounted-arms), `configs/robots/mobile_manipulator_mock.yaml`); measured by 43 software tests incl. golden digests of every earlier robot profile. Still open: physical admission of any mounted composition (measured mount calibration, independent base-pose source, moving-frame arm limits), the whole-body controller, balance, self/environment collision and H2 arm physics. Embodiment chosen on 7 October 2026: [Unitree H2, PhysX first](HUMANOID_H2.md) with NVIDIA's public H2 USD and `Velocity-H2-History-v0` policy (pinned in `configs/h2/bundle.json`, contract in `control/h2_policy_contract.py`); the reference loop walks 0.63 m in 2 s on the internal 6.2 build ([smoke](evidence/h2-reference-smoke-20261007/manifest.json)); `scripts/isaac_h2_bridge.py` owns the H2 on PhysX and CASCADE's SafeBase drove the first episodes with the independent verifier confirming 3 of 5 `walk_velocity` commands ([evidence](evidence/h2-owner-first-episodes-20261007/REPORT.md)); binding gate passed in simulation, no physical admission; Newton route tracked through newton-assets PR #53. Same day, [geometric skills + chat-host path](evidence/h2-geometric-candidate-20261007/REPORT.md): `walk_distance` ±0.5 m and `turn` 0.8 rad execute to within 5 cm / 0.03 rad through the harness and `walk_velocity` is confirmed through MCP, but every goal-stopped command is refuted by the settle check — measured cause: the policy's post-stop yaw oscillation outlasts the 4 s wall settle budget at ≈0.47× RT (≈1.9 s sim; the robot is still after ~3 s sim). Candidate revision 2 the same day (settle budget 8 s wall, rest thresholds unchanged): 6/7 confirmed on both paths incl. `walk_distance` ±0.5 m and MCP `turn` 0.6; `turn` 0.8 rad still refuted on measurement (yaw oscillation 0.69 → 0.32 rad/s over 3.75 s sim) — next revision is control-side (ramp the turn rate before the goal), not a bigger budget. |
+| Whole-body humanoids | Bind dynamic frames and a whole-body controller to explicit embodiments; validate balance, self/environment collision and coordinated base/arm/head actions. Separate domain controllers must not compete for the same command endpoint. Embodiment chosen on 7 October 2026: [Unitree H2, PhysX first](HUMANOID_H2.md) with NVIDIA's public H2 USD and `Velocity-H2-History-v0` policy (pinned in `configs/h2/bundle.json`, contract in `control/h2_policy_contract.py`); the reference loop walks 0.63 m in 2 s on the internal 6.2 build ([smoke](evidence/h2-reference-smoke-20261007/manifest.json)); `scripts/isaac_h2_bridge.py` owns the H2 on PhysX and CASCADE's SafeBase drove the first episodes with the independent verifier confirming 3 of 5 `walk_velocity` commands ([evidence](evidence/h2-owner-first-episodes-20261007/REPORT.md)); binding gate passed in simulation, no physical admission; Newton route tracked through newton-assets PR #53. Same day, [geometric skills + chat-host path](evidence/h2-geometric-candidate-20261007/REPORT.md): `walk_distance` ±0.5 m and `turn` 0.8 rad execute to within 5 cm / 0.03 rad through the harness and `walk_velocity` is confirmed through MCP, but every goal-stopped command is refuted by the settle check — measured cause: the policy's post-stop yaw oscillation outlasts the 4 s wall settle budget at ≈0.47× RT (≈1.9 s sim; the robot is still after ~3 s sim). Candidate revision 2 the same day (settle budget 8 s wall, rest thresholds unchanged): 6/7 confirmed on both paths incl. `walk_distance` ±0.5 m and MCP `turn` 0.6; `turn` 0.8 rad still refuted on measurement (yaw oscillation 0.69 → 0.32 rad/s over 3.75 s sim) — ~~next revision is control-side (ramp the turn rate before the goal), not a bigger budget~~ **landed 2026-10-07 in software (B29, candidate revision 3)**: `turn_control.goal_ramp` lowers the admitted 0.5 rad/s on the measured yaw (0.4 rad/s², floor 0.15 rad/s, then the unchanged zero-twist stop) inside ONE admission through the opt-in `scale_velocity` bridge primitive (`--velocity-scaling` on the H2 owner), so the unchanged verifier still binds one generation; CPU tests only, every other profile byte-for-byte unchanged. Owner episode 8 October ([live result](HUMANOID_H2.md#live-result-8-october-2026)): 0.8 rad 8/8 with the ramp vs 1/6 without, but 1.0 rad 1/5 vs 5/6 (the ramp's deceleration plus a mid-turn yaw-rate dip exhaust the unchanged 3 s command); not admitted, next control revision open. |
 | Hands and touch | Extend the [fixed LEAP free-finger runtime](ARTICULATED_HAND.md) beyond its four repetitions of one native motion/rest task: broaden trajectories and disturbances, add other hand drivers/controllers, calibrated tactile observations, contact/slip estimation and grasp/force skills; validate dexterous object interaction for each supported hand and sensor. |
 | Multiple robots | Resolve worst-case twelve-robot feedback latency without relaxing its limits; the later completed zero-command lifecycle did not overlap its long GC pause. The opt-in startup-heap freeze (`--gc-policy freeze-startup-heap`, [MICRODUCK.md](MICRODUCK.md#shared-scene-implementation-boundary)) is the current software candidate: [reader-only probes](MICRODUCK.md#shared-scene-implementation-boundary) on 5 October kept generation-2 collections out of the 800-attempt window, and a native twelve-robot command episode under the original limits is still required. Extend the completed 1/2/12-robot probes and endpoint zero sequences to independent native agent tasks, shared-space collision coordination and individual/global physical stop, disconnect and reset. The owner's per-step host cost is now [measured by phase](MICRODUCK.md#shared-owner-per-step-cost-one-host-snapshot-for-the-bam-checks-7-october-2026): one per-step host snapshot for the twelve BAM adapters cut the step median 76.2 → 61.3 ms with twelve closed-loop clients, and [cheaper per-robot binds and reader polls](MICRODUCK.md#shared-owner-per-step-cost-cheaper-per-robot-binds-and-reader-polls-7-october-2026) (cached binding digest, metadata-only support rebinding, memoized plain contacts for `state()` polls) 61.3 → 48.55 ms, and [one device-side finiteness check for the twelve BAM adapters' outputs](MICRODUCK.md#shared-owner-per-step-cost-one-device-side-finiteness-check-for-the-bam-outputs-7-october-2026) (60 device syncs → one read per step) 48.82 → 46.78 ms with `bam.before_step` 13.9 → 11.9 ms, and [one cohort of Warp launches for the twelve BAM adapters](evidence/microduck-owner-bam-cohort-20261007/REPORT.md) (one pinned `DriveBam` + bridge over 14·12 DOFs: 72 → 6 launches and 108 → 9 copies per step) 46.79 → 42.43 ms with `bam.before_step` 12.11 → 6.57 ms (all twelve walks still `unverified` on the unchanged deadlines), and an [opt-in off-GIL `state()` reader](MICRODUCK.md#shared-owner-per-step-cost-an-opt-in-off-gil-state-reader-7-october-2026) (`--state-reader process`: after each reader channel's first reply its polls are answered by a stdlib reader-server process from per-robot seqlocked shared-memory slots the owner rewrites under the controller lock; byte-identical replies, ages never refreshed, fail-closed on owner death) is implemented with CPU contract tests — on CPU it costs the owner ~6 ms per step for twelve robots and removes the poll-rate dependence of a fake owner loop (step median 25–28 → 16–18 ms under twelve polling client processes), while its GPU A/B against `owner-gil` on the route harness is pending — and the GPU physics step alone costs 7.6 ms per 5 ms step for twelve robots in one world, so real-time twelve-robot control needs cheaper physics (hull/solver budget per asset) as well as less host work. Measured so far: twelve robots in one world walk 68 s without a fall under in-process scripted twists ([keynote showcase](MICRODUCK.md#keynote-showcase-twelve-robots-follow-a-presenter-proxy-in-one-world-5-october-2026), no clients, no verifier), while twelve closed-loop clients on the same owner still trip the unchanged limits ([route fleet evidence](evidence/microduck-route-fleet-20261005/REPORT.md)). |
 | Agent intelligence and evaluation | Validate perception-guided planning, bounded skill graphs, memory-assisted recovery and multimodal feedback across tasks; complete Arena/VAB task episodes and held-out failures. Learned policy adaptation needs separate implementation and evaluation. |
-| Hardware and deployment | Connect selected robots and sensors through explicit adapters; verify calibration, transport loss, controller ownership, stop/restart and task outcomes before each physical deployment. Keep installation and service configuration portable. |
+| Hardware and deployment | Connect selected robots and sensors through explicit adapters; verify calibration, transport loss, controller ownership, stop/restart and task outcomes before each physical deployment. Keep installation and service configuration portable. **Sandboxed agent host (B35, opt-in, 2026-10-08):** an OpenClaw agent inside an NVIDIA OpenShell sandbox (NemoClaw) drives the robot through `mcp_server --http` (TLS + bearer, same serial worker and stop channel as stdio); on Isaac it ran a physics-confirmed pick and a verified reset in one session on 2 of 3 fresh stages ([NEMOCLAW.md](NEMOCLAW.md), [evidence](evidence/b35-nemoclaw-openshell-20261008/REPORT.md)). Still open: the kitchen proof cases and `demo_proof.py` on this route, the Spark, a firewall rule for the listener, sandbox GPU passthrough off. **B36 (new, found by B35):** pick reliability on the bare Isaac reBot scene, 3 of 6 fresh-stage picks failed with three signatures independent of the caller — a lifted cube counted as a failed attempt so every retry refuses "already holding" (cube kept at home height; the reset then fails "did not settle at home"), "did not settle above the place target", and a drop in carry after a verified grip; plus the cold GraspGen-X first inference (15.5 s) exceeding the 8 s client timeout. |
 
 ## Delivery plan recorded on 2026-10-02
 
@@ -183,10 +184,23 @@ Open, in priority order (details in the sections below):
 3. **Learned grasps for real**: run `serve_graspgenx.sh` (CUDA) instead of
    the protocol stub and calibrate `tip_offset_m` / the reBot sweep volume
    in Isaac; the stub only proves the wire.
-4. **Wrist camera** extrinsics validated mid-descent against physics truth.
+4. ~~**Wrist camera** extrinsics validated mid-descent against physics truth.~~
+   **landed 2026-10-07 (sim)** — every wrist frame's own `K` + `T_base_cam` projects the
+   resting box's physics-truth corners onto its pixels during a slow descent/ascent:
+   PhysX 0.69 px median moving (max 1.07), Newton 2.73 px (max 9.4), silhouette IoU
+   ≥ 0.96, depth exact, moving = static on both engines (time-aligned); see
+   [NEWTON_ENGINE.md](NEWTON_ENGINE.md#real-rebot-asset-on-the-internal-62-build-start-up-probe-battery-wrist-camera-7-october-2026).
+   The real D435i hand-eye calibration stays with the rig (B25).
 5. **Newton target validation** — the Isaac bridge already defaults to
    Newton. Validate the real reBot asset in Isaac Sim 6.1 on Spark; synthetic
    contacts or SO-101 standalone tests do not certify that different asset.
+   **x86 part landed 2026-10-07:** `physics_probe.py` on the real asset passes
+   8/8 on Newton and 8/8 on PhysX on the internal 6.2 build (and 8/8 on Newton on
+   the 6.1 baseline) after fixing the 6.2 Newton start-up deadlock and the probe's
+   silent unreachable-lift failure; still open: the Spark (GB10) run, and the 6.2
+   Newton camera cadence that leaves 34–40 % of refreshes frameless during arm motion
+   (2.8 % on 6.1 with the same three physics steps per update; cause open)
+   ([details](NEWTON_ENGINE.md#real-rebot-asset-on-the-internal-62-build-start-up-probe-battery-wrist-camera-7-october-2026)).
 6. **Judge as a metric**: run `scripts/judge_run.py` over every launcher
    proof turn and keep the judge-vs-physics confusion matrix in the run
    summary, so a regression in the outcome pictures shows up as `fn`.
@@ -393,19 +407,85 @@ Open follow-ups from this work:
    pinned against a golden taken from main). Reflex/experience tiers stay
    LLM-free; `fleet.py` / `dashboard_runner.py` / `booth_rehearsal.py` do
    not opt in. No live-rig run; no claim about the verdicts' accuracy.
-7. **HUG as a second grasp backend.** Add `grasp.backend: hug` alongside
+7. ~~**HUG as a second grasp backend.** Add `grasp.backend: hug` alongside
    `graspgenx`, self-hosted the same way (a serve script + client mirroring
    `grasping/graspgenx_backend.py`), re-ranked by the same
    `GraspOutcomeMemory`. Whether HUG's cross-embodiment grasps clear this
    arm's IK envelope is untested — the point of landing it is to find out,
-   not to assume it is better.
-8. **A `programs` tier (Waddle).** cascade has primitives (`TOOL_SPECS`)
+   not to assume it is better.~~ **landed 2026-10-08 (CPU / stub only)** —
+   [docs/HUG.md](HUG.md). `scripts/serve_hug.py` wraps HUG's documented
+   inference path (code `8d1c52d`, weights `1415c9e`, sha256-pinned) behind
+   a GraspGen-X-shaped REQ/REP protocol. CUDA is required unless
+   `--device cpu` is explicit, the operator supplies MANO (never shipped),
+   and `--stub` is an analytic double.
+
+   `grasping/hug_backend.py` maps each human hand to a parallel-jaw pinch.
+   That mapping is **our** assumption (thumb tip vs index tip, palm →
+   pinch approach), and so is `quality`: HUG emits no score, so the value
+   is CASCADE's geometric score. Then the same `GraspOutcomeMemory`
+   re-rank, selector and harness apply. HUG is opt-in only, via
+   `isaac_kitchen_hug` or `CASCADE_GRASP_BACKEND=hug`, under GraspGen-X's
+   required/optional contract: never an OBB substitute when required, and
+   bounded-search aware. The launcher refuses a `--graspgenx` override of
+   that profile. Every existing profile's backend and call shape are
+   pinned unchanged. `tests/test_hug_backend.py` and
+   `tests/test_hug_runtime.py` (63 tests: 58 RED against main c5012e7, and
+   the 5 golden pins of existing behaviour pass there by design) include a
+   mock-stack `grasp_object` that executes a stub HUG pinch through the
+   harness.
+
+   Measured on the 5-DoF mock SO-101: the stub's ~8° tilted palm approach
+   fails pregrasp IK for every pinch; `pinch_approach: vertical` reaches
+   them. **Still open (parent):**
+   - real weights + MANO on a CUDA host;
+   - the live Isaac A/B `isaac_kitchen_hug` vs `isaac_kitchen_gpu`, which
+     is the actual answer to "do HUG grasps clear this arm's IK
+     envelope";
+   - latency.
+
+   No claim about grasp quality, success rate or GraspGen-X comparison.
+8. ~~**A `programs` tier (Waddle).** cascade has primitives (`TOOL_SPECS`)
    and skills (`skills_library/*.md`, ASPIRE-distilled) but nothing above
    skills: an agent-composed, reusable, task-level script distinct from a
    one-off orchestrator run. Scoping question before landing: does a
    "program" get authored the same way ASPIRE distills a skill (diagnose a
    successful multi-skill run, persist it), or does the agent write one
-   proactively? Needs a design pass, not a first draft in this file.
+   proactively? Needs a design pass, not a first draft in this file.~~
+   **landed 2026-10-08** — design pass `docs/PROGRAMS_TIER.md` answers the
+   scoping question with **both, under one admission rule**: a program is
+   AUTHORED by the brain for one instruction (one text turn, tier 2.5:
+   consulted only when no reflex/habit plan exists) or DISTILLED from a
+   verified LLM-tier run, and either way authorship is never evidence — it
+   is stored only from an execution whose every registered effect the
+   task-effects ledger CONFIRMED, and offered for reuse only once verified in
+   ≥2 distinct tasks (ASPIRE's promotion rule, the same constant) and more
+   often than it failed. `agent/programs.py` (contract, runner, authoring,
+   distillation) + `memory/programs.py` (`runs/programs.jsonl`): a program is
+   a bounded list (≤12 steps) of REGISTERED tool calls with labels as
+   parameters and positions only as `localize_object(label)+offset` queries
+   (#9's recipes) re-grounded before the first motion; each step is a
+   top-level `SkillRuntime.execute()` call with its own trace row and
+   three-state postcondition, the harness stays the sole motion authority,
+   and the first failed / refused / refuted / unverified step stops the
+   program with a `next_action` for tier 3 (a `stuck` step ends the task,
+   #13). Opt-in: `agent.programs: false` (default) / `CASCADE_PROGRAMS=1`.
+   Measured on the mock stack with MockLLM-scripted brains
+   (`tests/test_programs_tier.py`, 40 tests, RED against a c5012e7 export):
+   an authored program runs as trace rows `localize_object, grasp_object,
+   place_at` with `place_at` at the re-grounded cube + offset, both effects
+   CONFIRMED (stand-in physics channel, as in the recipe tests), one LLM
+   turn; an unverified grasp, an e-stop refusal and an unresolvable anchor
+   each stop with zero later motion and hand tier 3 the reason; a candidate
+   is never offered and a `use` of it is refused; a promoted program is
+   reused with new bindings; an authored and a distilled program of two
+   instructions fold into one promoted record; `programs=None` reproduces
+   main's orchestrator path write-for-write (golden). **Still open:** no
+   real brain has authored a program (the mock brain is never given the
+   tier; whether Cosmos3/Gemma write valid programs is unmeasured), no
+   physical or Isaac run, not exposed to MCP chat hosts, no loops/branches
+   (skill graphs cover outcome routing on the composed runtime), motions
+   without a registered postcondition keep a program out of the library,
+   retrieval is keyword overlap.
 
 ## Landed 2026-09-09: the demo verifies itself in MuJoCo, and one click brings it up
 
@@ -821,6 +901,37 @@ engine" rule again -- a second OBJECT is also an independent channel):
    1. Two confirmed, different mask colours are now two objects however
    close; same-colour aliases still fuse; colour-less observations keep the
    old rule.
+   **Follow-up (backlog B31):** ~~same-colour IDENTICAL props inside the
+   8 cm gate still blurred into one belief (ARCHITECTURE "Known
+   limitations")~~ **landed 2026-10-08** — a camera frame is fused as a
+   whole (`BeliefStore.update_frame`): detections sharing image support are
+   one instance, instances and beliefs are matched one-to-one by a min-cost
+   assignment inside the unchanged gates. Measured with
+   `scripts/measure_same_colour_sweep.py` (two rendered 3.5 cm red cubes,
+   MuJoCo physics truth, the real WorldWatcher path,
+   `benchmark/results/same_colour_separation_sweep.json`): every pair the
+   detector returns as two detections is two beliefs at single-cube accuracy
+   (top view from 3.75 cm centre distance; the old store merged every such
+   pair below 8 cm, 1.6–3.6 cm off). Live on Isaac (6.2 PhysX, YOLOE
+   prompt-free, both demo cameras, PhysX truth;
+   `docs/evidence/b31-isaac-same-colour-20261008/`): identical pink twins
+   5–9 cm apart were two beliefs in 9/10 runs (old store 0/10, although YOLOE
+   gave 2–3 detections on the pair), and the 3-prop open-vocabulary scene
+   scores the same with either store. Still open: pairs the DETECTOR returns
+   as one detection (touching cubes; 5.5–7.0 cm in the oblique probe view;
+   the default mock detector's one blob per colour at any distance), and two
+   bare-scene errors seen with BOTH stores on this build. The first is a phantom
+   on the arm's own upper link (side camera; fusion ignored the robot mask);
+   **landed 2026-10-08 (B32a)**: `WorkspaceFilter` gates both fusion
+   paths on the render self-mask. Live, the phantom rate went from
+   17.9–19.6 % to 0 % in 3/3 runs, with precision 100 % and recall 100 %
+   (`docs/evidence/b32-fusion-self-mask-20261008/`). The second is still open
+   (B32b): a duplicate bin belief, because the side camera names the bin
+   "yellow" and the top camera "orange". Because of it the scene ends with 4
+   beliefs for 3 props, so the STABLE count of the 0 % row of
+   `SOTA_PERCEPTION_AND_EVALUATION.md` still does not reproduce. Frames without
+   a render self-mask (the real rig) need a link-geometry mask in fusion
+   (follow-up).
 
 Then the REAL chat turn on the two-prop scene ("put both cubes in the drop
 zone, one at a time, call task_memory before each action, tell me how many
@@ -1111,9 +1222,12 @@ are synchronous by design here, noted for long-horizon work.
     `scripts/physics_probe.py --engine newton` against the real asset on the
     DGX. What is settled is that the blanket claim "manipulation contacts are
     broken at the PARSER level" no longer holds for current Newton.
-- **Wrist cam follow-ups.** Validate the eye-in-hand extrinsics during a
+    **2026-10-07:** run against the real asset on the x86 6.2 build — 8/8 on
+    Newton (settle/drop/grasp/push, both boxes), same as PhysX; the DGX run is
+    still pending.
+- **Wrist cam follow-ups.** ~~Validate the eye-in-hand extrinsics during a
   real grasp (reproject wrist depth of the target object against the
-  physics-truth pose mid-descent); consider serving the wrist stream a
+  physics-truth pose mid-descent)~~ **landed 2026-10-07 in sim** (near-term #4); consider serving the wrist stream a
   narration highlight ("what the gripper sees") on the dashboard; on the
   real rig map `isaac_wrist.yaml` to the physical D435i + hand-eye calib.
 - **Sim perception flakiness** (separate campaign): YOLOE misses the YCB

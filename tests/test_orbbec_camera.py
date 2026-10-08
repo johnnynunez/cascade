@@ -16,7 +16,7 @@ import sys
 
 import numpy as np
 import pytest
-from fake_orbbec_sdk import OBFormat, VideoProfile, make_fake_sdk, reference_bgr
+from fake_orbbec_sdk import make_fake_sdk
 
 from cascade.config import Cfg
 from cascade.perception.camera_base import CameraError, make_camera

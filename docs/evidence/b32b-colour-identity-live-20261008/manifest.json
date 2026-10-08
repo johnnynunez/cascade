@@ -1,0 +1,422 @@
+{
+ "note": "raw per-run JSON/logs/clouds stay in cascade-lab; this directory keeps the compact record. The bridge log is still growing while the bridge serves; its path is recorded, not its hash.",
+ "bridge_log": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/bridge.log",
+ "files": [
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results/ab_off_r1.json",
+   "sha256": "4bcdad1661da16363c4d76fd4d72d1ccd3fa72c7392cc7645a2a4ac6a310bd99"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results/ab_off_r1.log",
+   "sha256": "7c68b8f4afb6cc186487fb05b2da3f0e8cf9c8c622bc4e0e72d30dee7e6df368"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results/ab_off_r2.json",
+   "sha256": "ee3c461b0aaff192f483dd7375bdeb46e2b54ed61c9c27db832be29e2c283b22"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results/ab_off_r2.log",
+   "sha256": "e0180ad23e5b7ff8b29471688cab1c46235fc47f62b35c999887fff9d90d37f6"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results/ab_off_r3.json",
+   "sha256": "bf3bdaee4e1a8d4ab95cc5df2f30f93c3406f81feda1c513ddcbd5bcb272a6a8"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results/ab_off_r3.log",
+   "sha256": "a2a6d3958982cf54b6d95c1a319f90bf0640b2967110ff60400150f430c8ada1"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results/ab_on_r1.json",
+   "sha256": "d58ded527bf732ebec9bb92bdbea5b56cef3a06f80c3c119c82d3cfd4ecf9141"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results/ab_on_r1.log",
+   "sha256": "88990e0ece6a9a4c8ea1e253ecc90c701f9345af3f013527bb76264fea2b69b1"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results/ab_on_r2.json",
+   "sha256": "a1544de4c5d98f2fd5bf9afdadce28d978295420f59c62919617ee396e2d16ac"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results/ab_on_r2.log",
+   "sha256": "b15d246126623fad9779647eedc674ab65ba95d1da06fbbd4633181de1a153f1"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results/ab_on_r3.json",
+   "sha256": "a597463b93fec1d3b09338828269ed53f0131bc1fbba5a53dc8223f863dea7e9"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results/ab_on_r3.log",
+   "sha256": "18e8fae3ab81814eb3221278c670390089b52efa6e2929271ae6d5fabd3389e8"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results/smoke_on.json",
+   "sha256": "92f0ec67bbca8e25a7aa690b67182e00fec1359bb119dfe09b80c857b1765fb2"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results/smoke_on.log",
+   "sha256": "609ed51d4e94d6eaf52b24fd3950311d5efd6e0b599d4e2bcc2b1763fa8464c9"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_diag/bare_on_r1.json",
+   "sha256": "24bbff8858dde19290e7d671c85ace97aa5e10b84867bfaf1563a5912bdd90b9"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_diag/bare_on_r1.log",
+   "sha256": "6c8b8a58de7d1ec03cd4d9493b0267357dcd67065f07c04f8c41cfc158a148b2"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_diag/bare_on_r2.json",
+   "sha256": "bbf57d3a07a7f446b7a11e07402de4044894d62bbdddba09d8b6a41272e039d7"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_diag/bare_on_r2.log",
+   "sha256": "a72e8095b809728bc41881220f5b4c0aae6d2873ac26ecb4e3d08124bf9e5013"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_diag/bare_on_r3.json",
+   "sha256": "e2dd33dbf91cc6a62d8e5b025ba8fe703faf0179acc0f2185868f665c95d3e5c"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_diag/bare_on_r3.log",
+   "sha256": "c9d14ce52abce09bf0442e759176dc95331af1afba9bac8a451eeb61fe65293d"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_diag/in_bin_centre_off_r1.json",
+   "sha256": "8600e10f7daf8f5a20e8e7aac8704fcb9e3f5d4f493370cccd89b6d8370544b5"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_diag/in_bin_centre_off_r1.log",
+   "sha256": "3d63b00b3ba85987eff837f74a0288bd0409b2a23ab586dc49e32fac16a9244c"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_diag/in_bin_centre_on_r1.json",
+   "sha256": "35fa0a7bba1b0abfba21270282eadc06504976801d804fcced84a0a77f1c1193"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_diag/in_bin_centre_on_r1.log",
+   "sha256": "39c0b83550fd596908f797f08c2561213985e2b23fa8f957f6cdc7b84911dc61"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_diag/in_bin_corner_off_r1.json",
+   "sha256": "56bc36027f9d1aa8de666f84efc0851177835d9aa649163196f6adb69e30270e"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_diag/in_bin_corner_off_r1.log",
+   "sha256": "725df528c1740812943b54493db5d811bb3ec61e871f65cd6ef3e139cae760ca"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_diag/in_bin_corner_on_r1.json",
+   "sha256": "6616ea4732ace9cf56fa19bf14431a91be06fbae51c0333b2cf2faa8f5fe85f9"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_diag/in_bin_corner_on_r1.log",
+   "sha256": "3e3455fc718efbcd6acdfcfee94060886666c1d9a27520eff8aea805cac9a00b"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_diag/next_to_bin_off_r1.json",
+   "sha256": "1e7fe8dc925d79691136198a56096e6b7c2c1f83ad85192f1285717b273d8d54"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_diag/next_to_bin_off_r1.log",
+   "sha256": "a5a7a64ddd48e7272a14e953ab3efc35b75a3d7146f5677a8063cc7c9b29e1fa"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_diag/next_to_bin_on_r1.json",
+   "sha256": "4dbecae9437e8b2fbb7fa95cb4cff0e1d07c4b55d32d132909f5ea26f0b1b826"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_diag/next_to_bin_on_r1.log",
+   "sha256": "d0bd053b39ac82b12a8d7aa41cc2f28a935359eb0f67b0fbceaf9a9c11b3eed2"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_diag/run.log",
+   "sha256": "4a3e9da1b2ecfbcb911c34568cfc1085a930d5972fe44554eda01bde5bde99f8"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_samples/analysis.txt",
+   "sha256": "7664f8ac9eee71ac41f69ea1237667f8eb8395de6754637f34462f008f0f9a51"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_samples/bare_r1.json",
+   "sha256": "90fd84976db770e7763fac0c5cb33e53d15289721fdb768426575a4401fbdb78"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_samples/bare_r1.log",
+   "sha256": "ed58da71f70d2fb434a3a3ba6cac1ef4add0cd4ef6762fe81bdc6476353e3ca3"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_samples/bare_r1.npz",
+   "sha256": "0f9209965431d5a300fa27c735af64bbf76d6b1c07adc630a4b34e10adc9c71f"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_samples/bare_r2.json",
+   "sha256": "14b0e4da69ad5d6357b7e40bfaec5a71b79c213102dc20147bdf48185d6886dc"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_samples/bare_r2.log",
+   "sha256": "cb51246e320de3824a9a5f243a1a3bebfdc21f63512a0e2b52e8acfe5e9c104f"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_samples/bare_r2.npz",
+   "sha256": "2f3e84719e2227432af6bc68a67320a1b1a07e5709e1bb3be874d6c6ca236f15"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_samples/bare_r3.json",
+   "sha256": "9e0b0633b8a294ad7cef41ab57455577cbe4a03c161763ee52a092058d04e5f9"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_samples/bare_r3.log",
+   "sha256": "940852f73d608cb433243c941c2e60ba872b1fe4fb5ed4af4c40fabc2af2b136"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_samples/bare_r3.npz",
+   "sha256": "474ba7dfc155f7a9958472afe398f04d4cf9cdee5d22d625e13a8297275fedb0"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_samples/in_bin_centre_r1.json",
+   "sha256": "a51aaff78c27568d5aaefc2a7962561cd78f19efe8ce125231d0115239e0ef7a"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_samples/in_bin_centre_r1.log",
+   "sha256": "5555975e3784a530c923fff1364fea4b5942ede6c01bb33b2a9b6edbbbb4826c"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_samples/in_bin_centre_r1.npz",
+   "sha256": "1fe7faa82108f1f8aed7c0896a522ae2f1feb253120bc153580e1821667a4443"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_samples/in_bin_corner_r1.json",
+   "sha256": "a7575cb226b365af7b8dcba5fd6213b6c63e476efb462463877d50ac915dbd7a"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_samples/in_bin_corner_r1.log",
+   "sha256": "847c32b74affaeb2589a5abc1ef6338226fe445c863bfb606d9544d2fe1a2448"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_samples/in_bin_corner_r1.npz",
+   "sha256": "3016d8f31176c2cec9ec01b091c27aa42e1f043a10ac07e866d77a5a6f0e674f"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_samples/next_to_bin_r1.json",
+   "sha256": "dd1fe5c6b09c194e3418fff8cd1d18be0453f58c8de1d94014f84d551dc57f59"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_samples/next_to_bin_r1.log",
+   "sha256": "f8c3b2422257cac4692e1d1f571f67d4dcbabc9e89974fceec37571e5b44dce8"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_samples/next_to_bin_r1.npz",
+   "sha256": "57fe6aa86ba9259e092fed950d5f3049f510e1bebfdda02c57e657a0b9f39081"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_samples/run.log",
+   "sha256": "5750ad3647aa9d69218e49b38d66367151b6153959f64da5f184bb38577ebbb6"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c/ab_off_r1.json",
+   "sha256": "8ea798eb396ed6733d87a9cca816a1cfb1b9a9b53fd0b977e351fbb6ad5948c3"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c/ab_off_r1.log",
+   "sha256": "ce357119e39f4c856db72bb8843e0a7668660afc32637649bf9472b4cc91b100"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c/ab_off_r2.json",
+   "sha256": "6eee5c3956e12fab85c4cb8c35a42da90bef8adc5116b46a58ef1666bf334f74"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c/ab_off_r2.log",
+   "sha256": "a77e87f7a50e93a37f4fe0acc2b24e2fd5c1da7e0f8194f40de29ec68524f55b"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c/ab_off_r3.json",
+   "sha256": "4b25820ccf3183586e9c3da03b9ed88e102458ceb2b5b62d3e21e1cc2d292487"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c/ab_off_r3.log",
+   "sha256": "8bc8dcc6d70ffbc6ba175f24bc2e96f0fa02602f411340ab9ffc588607f52733"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c/ab_off_r4.json",
+   "sha256": "7dc566b28dc42ff9884006dcfc8b1f2de4e6412b509e86f161ff91695988cb27"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c/ab_off_r4.log",
+   "sha256": "3d23c5a44725e88518a1408efaabc8f916bfad654372c5ad9d6c99c8ecf10abc"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c/ab_off_r5.json",
+   "sha256": "ec9ee9251719d07d9f99c4b5a07bf6b88fd11475facc4a14987e8106208c29ff"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c/ab_off_r5.log",
+   "sha256": "25ff02f4cecbadd1f7439e7267a2c8427ad95a1341685a369c9d30e2bc95b8fb"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c/ab_on_r1.json",
+   "sha256": "072fbd11053b297370678be3f3dcb75e63daca478a60f55210fbcd3aff98ebc9"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c/ab_on_r1.log",
+   "sha256": "8f4fdc6838673e198135acb33e9f96c620aa8619e4ea7d84d8be1522ab81c524"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c/ab_on_r2.json",
+   "sha256": "89d2259274fa16cc0a6cdea200983af41468e6de01a20e8ff5edd597c63046ad"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c/ab_on_r2.log",
+   "sha256": "7c070765f56bb4d4f5a8a8c1063b3d63ea4c207f047351e5ed34bb6498879de3"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c/ab_on_r3.json",
+   "sha256": "08bd2f0751c9399ae0acd207bbf6985f17c01cc384419a486f41c8b728a3f7e4"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c/ab_on_r3.log",
+   "sha256": "48a6e42467b808d7bff017b029f4cd89214f6cba257627ab6344ed1cbaba5d20"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c/ab_on_r4.json",
+   "sha256": "bee8d503ef2340dccfddaa777f7325ddea17b1c53c3a3328e148317282ec9dbc"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c/ab_on_r4.log",
+   "sha256": "a111f50aff77fac39e6bfb48899243ac4f9fda83f283da97744f9de13c10c170"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c/ab_on_r5.json",
+   "sha256": "bbf65ea79ef6a5fa6412fab3c5cf065625a68f9702ca1a6b342a9df31291fa63"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c/ab_on_r5.log",
+   "sha256": "635db7b132074d43f4383fa54fed116f92a296478ee8c5fa38836a6513952fff"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c/run_ab.log",
+   "sha256": "541ffaf535d5b6eeb52a5b8ae403597acef314f9ae66c5fd1083e60ac93d7b67"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/assign_in_bin_centre_off.json",
+   "sha256": "2957152139ff47b8120feb49b1fea8bc2f8e625f75c0047bcccf5dd81d238b66"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/assign_in_bin_centre_off.log",
+   "sha256": "60b09e528dc00413a430c2780422ac98efce4651d691f16389b4c26fc1f0ee26"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/assign_in_bin_centre_on.json",
+   "sha256": "0441ed0d391fabdb5503ed9bd8ddb75c456c369a1a205043bf06f0b347488406"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/assign_in_bin_centre_on.log",
+   "sha256": "7d5c4a8e903cadb55d4a46d8737b8279f43f43d85da5e75a48b0ff17470dac06"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/assign_in_bin_centre_on.npz",
+   "sha256": "1e904fa9680db467b69dc9c65c2d5e0cb82354acc93abe7eabe5797d8e558360"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/in_bin_centre_r1.json",
+   "sha256": "6a27a74797421115a68516a70b3ca4315c94efc12d28bd8c44d45014c62add64"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/in_bin_centre_r1.log",
+   "sha256": "70e5441cf29b3d139d7a8c9e3d093bcf717f9bf07d5bea504caa1d76ae39852b"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/in_bin_centre_r1.npz",
+   "sha256": "6eb0ec7ce698b53567dd8d676bd82fb10b00cdf95f93624f7d6783c0dc64af5f"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/in_bin_centre_r2.json",
+   "sha256": "5f88e7cee920847034d5e70a573bc0880b5f78ba917318b64ab686d2ea31093a"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/in_bin_centre_r2.log",
+   "sha256": "8f3a7467ee4075b76cd26c400412a3c4fc6fb62acfcf9cf980b5e81ba4aff254"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/in_bin_centre_r2.npz",
+   "sha256": "6083adbf0521362b67c21c5f93c3d1ba252cbeae119ab08c535fcede1db50ced"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/in_bin_corner_r1.json",
+   "sha256": "d647a290a898269672ccb1623395217f56509fc6aabebd6d3a2d483801f89ecd"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/in_bin_corner_r1.log",
+   "sha256": "4e1d4951e2b9c45ee4efc9fb9b4fcf7b76247075c10442168a9e1559de050c6d"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/in_bin_corner_r1.npz",
+   "sha256": "b6c25add0cc0cc8a36ffa09ffcda79b462b62ed28b5d079ea25a3b68ed9f504d"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/in_bin_corner_r2.json",
+   "sha256": "479a81d72575191f71fc67023f05758c787b69d7c14fd8a92457e6618deca752"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/in_bin_corner_r2.log",
+   "sha256": "8f5b9c3e43e9f726de13c83669e72b2f3ce7666ef5ff0d5ffcf313293a7dd7a2"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/in_bin_corner_r2.npz",
+   "sha256": "46699a702d49e99a5fe2333f0e14e8e8b93e8e9326479dcdaaacdf671119794b"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/next_to_bin_r1.json",
+   "sha256": "d92da9a42fffd5bf5a97e6433e67bf070cc74b95688667546c26b1df20dfb74f"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/next_to_bin_r1.log",
+   "sha256": "f30c418f0cdd85112d9335e1c70f644a2524c776ba3e78ccf0685afb7b39d8d0"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/next_to_bin_r1.npz",
+   "sha256": "a9c21f7f745696caad6729a13c105c71911cbaccab941f12bcb48c5e24df5d4d"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/next_to_bin_r2.json",
+   "sha256": "fd9e25eb7b9f4806f54e55069c78895b7c58db99c69e6e49f936f5d0b2e631ae"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/next_to_bin_r2.log",
+   "sha256": "9735e38d4c1579be85f4db1d7a9ddf7a4cc4aca190c99ec108aeccf5cea8ee76"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/next_to_bin_r2.npz",
+   "sha256": "8e888164b3235de1e756c239c5c98c242cb0e4fbf7b1c6a9e135350f78396a5b"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/results_b32c_adv/run.log",
+   "sha256": "86ce8386e1efbb97da2bf0d7be452bfab47aac53cf14f6c381926d17ddf2bec4"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/analyse_samples.py",
+   "sha256": "6f3888234dee9d45caf5bf74b90b9c1a7d22e5649f121b39fd34d0611af02666"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/b32b_live_ab.py",
+   "sha256": "f72637ba73ffdadf90c497989b378d375f22173e901f404ac86d331be602165c"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/b32b_live_diag.py",
+   "sha256": "ce43056cd923c0e5a1e97a1aa4cb7ed48796dadddea0ceb5e3040c0bbd49690c"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/make_evidence.py",
+   "sha256": "a2bac3df215aa49025935009adc70d8c2ea3ef255115b87629da9359c1839b5b"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/run_ab.sh",
+   "sha256": "8b935e01d19041a79eb113dd1f36aa982d09360f09bce2537dd9ebb15747c3e7"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/run_ab.log",
+   "sha256": "3022c644d51e4507f5a54e106a6881741c5b3ff06d141540ebf2ef68832990da"
+  }
+ ]
+}

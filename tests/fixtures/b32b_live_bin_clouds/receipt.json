@@ -1,0 +1,118 @@
+{
+ "what": "Real neighbour-colour decision clouds (robot-free, base frame, <=384 remembered points) logged by cascade-lab/HERMES_BACKLOG_20261007/b32b-colour-identity/live/b32b_live_diag.py --iou 1.0 at the moment BeliefStore._identity_ok compared an observation of one camera with a belief named by the other.",
+ "measured": "2026-10-08, Isaac Sim 6.2.0-alpha.19+develop.0.48b2d951, PhysX GPU (cuda:0, RTX PRO 6000), private bridge :18521 with CASCADE_ISAAC_PIXEL_MASK=1, bare reBot scene, YOLOE prompt-free (yoloe-11s-seg), cameras isaac + isaac_side at 1280x720, source c32ffcb (= main 12328c6 tree)",
+ "label_rule": "the belief is always the orange bin; an observation whose 2-98 % XY box spans > 10 cm is the bin seen by the other camera (same object), <= 10 cm is a 5 x 5 x 8 cm prop recoloured yellow and placed in the bin corner (0.15, -0.20) or next to it (0.30, -0.17) (different object)",
+ "population": {
+  "same": {
+   "n": 86,
+   "iou_shipped_box": [
+    0.708,
+    0.744,
+    0.926
+   ],
+   "iou_floor_box": [
+    0.87,
+    0.921,
+    0.945
+   ]
+  },
+  "different": {
+   "n": 6,
+   "iou_shipped_box_max": 0.118,
+   "iou_floor_box_max": 0.077
+  }
+ },
+ "pairs": [
+  {
+   "pair": 0,
+   "kind": "same",
+   "scene": "bare",
+   "run": "live/results_samples/bare_r3.json",
+   "decision": 17,
+   "iou_shipped_box": 0.7078,
+   "iou_floor_box": 0.9176,
+   "points": [
+    384,
+    384
+   ],
+   "source_json_sha256": "9e0b0633b8a294ad7cef41ab57455577cbe4a03c161763ee52a092058d04e5f9",
+   "source_npz_sha256": "474ba7dfc155f7a9958472afe398f04d4cf9cdee5d22d625e13a8297275fedb0"
+  },
+  {
+   "pair": 1,
+   "kind": "same",
+   "scene": "in_bin_centre",
+   "run": "live/results_samples/in_bin_centre_r1.json",
+   "decision": 4,
+   "iou_shipped_box": 0.712,
+   "iou_floor_box": 0.89,
+   "points": [
+    384,
+    384
+   ],
+   "source_json_sha256": "a51aaff78c27568d5aaefc2a7962561cd78f19efe8ce125231d0115239e0ef7a",
+   "source_npz_sha256": "1fe7faa82108f1f8aed7c0896a522ae2f1feb253120bc153580e1821667a4443"
+  },
+  {
+   "pair": 2,
+   "kind": "same",
+   "scene": "bare",
+   "run": "live/results_samples/bare_r3.json",
+   "decision": 14,
+   "iou_shipped_box": 0.7128,
+   "iou_floor_box": 0.8865,
+   "points": [
+    384,
+    384
+   ],
+   "source_json_sha256": "9e0b0633b8a294ad7cef41ab57455577cbe4a03c161763ee52a092058d04e5f9",
+   "source_npz_sha256": "474ba7dfc155f7a9958472afe398f04d4cf9cdee5d22d625e13a8297275fedb0"
+  },
+  {
+   "pair": 3,
+   "kind": "same",
+   "scene": "bare",
+   "run": "live/results_samples/bare_r1.json",
+   "decision": 7,
+   "iou_shipped_box": 0.7428,
+   "iou_floor_box": 0.8697,
+   "points": [
+    384,
+    384
+   ],
+   "source_json_sha256": "90fd84976db770e7763fac0c5cb33e53d15289721fdb768426575a4401fbdb78",
+   "source_npz_sha256": "0f9209965431d5a300fa27c735af64bbf76d6b1c07adc630a4b34e10adc9c71f"
+  },
+  {
+   "pair": 4,
+   "kind": "different",
+   "scene": "in_bin_corner",
+   "run": "live/results_samples/in_bin_corner_r1.json",
+   "decision": 0,
+   "iou_shipped_box": 0.118,
+   "iou_floor_box": 0.0767,
+   "points": [
+    384,
+    384
+   ],
+   "source_json_sha256": "a7575cb226b365af7b8dcba5fd6213b6c63e476efb462463877d50ac915dbd7a",
+   "source_npz_sha256": "3016d8f31176c2cec9ec01b091c27aa42e1f043a10ac07e866d77a5a6f0e674f"
+  },
+  {
+   "pair": 5,
+   "kind": "different",
+   "scene": "next_to_bin",
+   "run": "live/results_samples/next_to_bin_r1.json",
+   "decision": 0,
+   "iou_shipped_box": 0.0734,
+   "iou_floor_box": 0.0756,
+   "points": [
+    384,
+    384
+   ],
+   "source_json_sha256": "dd1fe5c6b09c194e3418fff8cd1d18be0453f58c8de1d94014f84d551dc57f59",
+   "source_npz_sha256": "57fe6aa86ba9259e092fed950d5f3049f510e1bebfdda02c57e657a0b9f39081"
+  }
+ ],
+ "clouds_npz_sha256": "d224ad7697cc3bca9c2292c9e069c79a28aa41985f6f8556f472bf6b4cf48f98"
+}

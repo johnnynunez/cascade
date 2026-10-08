@@ -975,8 +975,8 @@ engine" rule again -- a second OBJECT is also an independent channel):
    beliefs for 3 props, so the STABLE count of the 0 % row of
    `SOTA_PERCEPTION_AND_EVALUATION.md` still does not reproduce.~~ The second
    (B32b, a duplicate bin belief: the bin is H 22 "orange" in the top camera
-   and H 23 "yellow" in the side camera, 16/16 and 7/7 frames) **landed in
-   software 2026-10-08, live A/B pending**: colour identity is per camera
+   and H 23 "yellow" in the side camera, 16/16 and 7/7 frames) **landed
+   2026-10-08 (B32b + B32c, measured live)**: colour identity is per camera
    (`ObjectBelief.source_colors`, `BeliefStore._identity_ok`). A camera is held
    to the name it gave a belief; a camera that never named it may fuse a
    perceptual-neighbour name only at 3D box IoU >= 0.75 (2nd–98th percentile
@@ -987,11 +987,25 @@ engine" rule again -- a second OBJECT is also an independent channel):
    one ≤ 0.68); 23 tests (RED 21/23 on main 133876c, the 2 passing are the
    geometric premises), 20/20 mutants killed. Switch:
    `memory.per_camera_colour` (default true; false = the one-name A/B
-   baseline), `memory.neighbour_colour_iou`. Still open: the live Isaac A/B
-   (target: bare scene 4 → 3 beliefs, precision unchanged), the kitchen
+   baseline), `memory.neighbour_colour_iou`. ~~Still open: the live Isaac A/B
+   (target: bare scene 4 → 3 beliefs, precision unchanged)~~ **live A/B
+   2026-10-08**: with the B32b box the bin was one belief in only 5/7 runs,
+   because YOLOE's masks take in table pixels and the bin's two views scored
+   IoU 0.708–0.926 (median 0.744, 86 logged decisions) against 0.75.
+   **B32c landed 2026-10-08**: the overlap box drops each cloud's lowest
+   centimetre (above its own 2nd-percentile z), so the same decisions score
+   0.870–0.945. The threshold is unchanged. Live: the bin is one belief in
+   **5/5 runs, all 60 frames**, 3 beliefs for 3 props, precision and recall
+   1.0; the one-name arm keeps 4 in 5/5. A yellow 5 cm prop in or next to the
+   bin was never merged (IoU ≤ 0.10)
+   (`docs/evidence/b32b-colour-identity-live-20261008/`). Still open: the kitchen
    scene, and a small object named across a band boundary by two cameras
    (cube views overlap 0.66 at 320 × 180, 0.85 at 1280 × 720 in the ray-cast:
-   it may stay two beliefs, as before). Frames without
+   it may stay two beliefs, as before). Also found, pre-existing and not
+   changed: with a same-coloured prop inside the bin, the camera that names
+   both "yellow" fuses its view of the bin into the prop's belief (identical
+   with the one-name rule). The follow-up is a size-consistency check in the
+   fusion gate. Frames without
    a render self-mask (the real rig) need a link-geometry mask in fusion
    (follow-up).
 

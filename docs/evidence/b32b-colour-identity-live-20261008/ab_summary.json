@@ -1,0 +1,1806 @@
+{
+ "rig": "x86 test rig, GPU 0 (RTX PRO 6000 Blackwell), Isaac Sim 6.2.0-alpha.19+develop.0.48b2d951, PhysX GPU, private bridge :18521 with CASCADE_ISAAC_PIXEL_MASK=1, bare reBot scene, YOLOE prompt-free (yoloe-11s-seg), cameras isaac + isaac_side, 12 frames per run, scripts/eval_detector.evaluate",
+ "b32b_ab_whole_cloud_box": {
+  "source": "c32ffcb (= main 12328c6 tree)",
+  "runs": [
+   {
+    "run": "smoke_on.json",
+    "arm": "on",
+    "source_head": "c32ffcb",
+    "dirty": false,
+    "counts_per_frame": [
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3
+    ],
+    "final_beliefs": 3,
+    "precision": 1.0,
+    "recall": 1.0,
+    "phantom_rate": 0.0,
+    "localization_err_m": {
+     "mean": 0.0162,
+     "max": 0.032
+    },
+    "bin_beliefs": [
+     {
+      "color": "orange",
+      "source_colors": {
+       "isaac": "orange",
+       "isaac_side": "yellow"
+      },
+      "err_m": 0.0276
+     }
+    ],
+    "same_prop_pairs": []
+   },
+   {
+    "run": "ab_off_r1.json",
+    "arm": "off",
+    "source_head": "c32ffcb",
+    "dirty": false,
+    "counts_per_frame": [
+     3,
+     3,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4
+    ],
+    "final_beliefs": 4,
+    "precision": 1.0,
+    "recall": 1.0,
+    "phantom_rate": 0.0,
+    "localization_err_m": {
+     "mean": 0.0192,
+     "max": 0.0318
+    },
+    "bin_beliefs": [
+     {
+      "color": "orange",
+      "source_colors": {
+       "isaac": "orange"
+      },
+      "err_m": 0.0282
+     },
+     {
+      "color": "yellow",
+      "source_colors": {
+       "isaac_side": "yellow"
+      },
+      "err_m": 0.0308
+     }
+    ],
+    "same_prop_pairs": [
+     {
+      "prop": "bin",
+      "colors": [
+       "orange",
+       "yellow"
+      ],
+      "box_iou": 0.768
+     }
+    ]
+   },
+   {
+    "run": "ab_off_r2.json",
+    "arm": "off",
+    "source_head": "c32ffcb",
+    "dirty": false,
+    "counts_per_frame": [
+     3,
+     3,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4
+    ],
+    "final_beliefs": 4,
+    "precision": 0.8043,
+    "recall": 1.0,
+    "phantom_rate": 0.1957,
+    "localization_err_m": {
+     "mean": 0.0168,
+     "max": 0.0557
+    },
+    "bin_beliefs": [
+     {
+      "color": "orange",
+      "source_colors": {
+       "isaac": "orange"
+      },
+      "err_m": 0.0292
+     },
+     {
+      "color": "yellow",
+      "source_colors": {
+       "isaac_side": "yellow"
+      },
+      "err_m": 0.0557
+     }
+    ],
+    "same_prop_pairs": [
+     {
+      "prop": "bin",
+      "colors": [
+       "orange",
+       "yellow"
+      ],
+      "box_iou": 0.73
+     }
+    ]
+   },
+   {
+    "run": "ab_off_r3.json",
+    "arm": "off",
+    "source_head": "c32ffcb",
+    "dirty": false,
+    "counts_per_frame": [
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     4,
+     4,
+     4,
+     4,
+     4
+    ],
+    "final_beliefs": 4,
+    "precision": 1.0,
+    "recall": 1.0,
+    "phantom_rate": 0.0,
+    "localization_err_m": {
+     "mean": 0.0193,
+     "max": 0.0458
+    },
+    "bin_beliefs": [
+     {
+      "color": "orange",
+      "source_colors": {
+       "isaac": "orange"
+      },
+      "err_m": 0.0285
+     },
+     {
+      "color": "yellow",
+      "source_colors": {
+       "isaac_side": "yellow"
+      },
+      "err_m": 0.0458
+     }
+    ],
+    "same_prop_pairs": [
+     {
+      "prop": "bin",
+      "colors": [
+       "orange",
+       "yellow"
+      ],
+      "box_iou": 0.773
+     }
+    ]
+   },
+   {
+    "run": "ab_on_r1.json",
+    "arm": "on",
+    "source_head": "c32ffcb",
+    "dirty": false,
+    "counts_per_frame": [
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3
+    ],
+    "final_beliefs": 3,
+    "precision": 1.0,
+    "recall": 1.0,
+    "phantom_rate": 0.0,
+    "localization_err_m": {
+     "mean": 0.0159,
+     "max": 0.0316
+    },
+    "bin_beliefs": [
+     {
+      "color": "orange",
+      "source_colors": {
+       "isaac": "orange",
+       "isaac_side": "yellow"
+      },
+      "err_m": 0.0406
+     }
+    ],
+    "same_prop_pairs": []
+   },
+   {
+    "run": "ab_on_r2.json",
+    "arm": "on",
+    "source_head": "c32ffcb",
+    "dirty": false,
+    "counts_per_frame": [
+     3,
+     3,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4
+    ],
+    "final_beliefs": 4,
+    "precision": 1.0,
+    "recall": 1.0,
+    "phantom_rate": 0.0,
+    "localization_err_m": {
+     "mean": 0.0188,
+     "max": 0.0402
+    },
+    "bin_beliefs": [
+     {
+      "color": "orange",
+      "source_colors": {
+       "isaac": "orange"
+      },
+      "err_m": 0.0249
+     },
+     {
+      "color": "yellow",
+      "source_colors": {
+       "isaac_side": "yellow"
+      },
+      "err_m": 0.0402
+     }
+    ],
+    "same_prop_pairs": [
+     {
+      "prop": "bin",
+      "colors": [
+       "orange",
+       "yellow"
+      ],
+      "box_iou": 0.756
+     }
+    ]
+   },
+   {
+    "run": "ab_on_r3.json",
+    "arm": "on",
+    "source_head": "c32ffcb",
+    "dirty": false,
+    "counts_per_frame": [
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3
+    ],
+    "final_beliefs": 3,
+    "precision": 1.0,
+    "recall": 1.0,
+    "phantom_rate": 0.0,
+    "localization_err_m": {
+     "mean": 0.0163,
+     "max": 0.0317
+    },
+    "bin_beliefs": [
+     {
+      "color": "orange",
+      "source_colors": {
+       "isaac": "orange",
+       "isaac_side": "yellow"
+      },
+      "err_m": 0.0317
+     }
+    ],
+    "same_prop_pairs": []
+   },
+   {
+    "run": "bare_on_r1.json",
+    "arm": "on",
+    "source_head": "c32ffcb",
+    "dirty": null,
+    "counts_per_frame": [
+     3,
+     3,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4
+    ],
+    "final_beliefs": 4,
+    "precision": 1.0,
+    "recall": 1.0,
+    "phantom_rate": 0.0,
+    "localization_err_m": {
+     "mean": 0.0167,
+     "max": 0.0278
+    },
+    "bin_beliefs": [
+     {
+      "color": "orange",
+      "source_colors": {
+       "isaac": "orange"
+      },
+      "err_m": 0.0267
+     },
+     {
+      "color": "yellow",
+      "source_colors": {
+       "isaac_side": "yellow"
+      },
+      "err_m": 0.0251
+     }
+    ],
+    "same_prop_pairs": null
+   },
+   {
+    "run": "bare_on_r2.json",
+    "arm": "on",
+    "source_head": "c32ffcb",
+    "dirty": null,
+    "counts_per_frame": [
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3
+    ],
+    "final_beliefs": 3,
+    "precision": 1.0,
+    "recall": 1.0,
+    "phantom_rate": 0.0,
+    "localization_err_m": {
+     "mean": 0.0159,
+     "max": 0.0354
+    },
+    "bin_beliefs": [
+     {
+      "color": "orange",
+      "source_colors": {
+       "isaac": "orange",
+       "isaac_side": "yellow"
+      },
+      "err_m": 0.0245
+     }
+    ],
+    "same_prop_pairs": null
+   },
+   {
+    "run": "bare_on_r3.json",
+    "arm": "on",
+    "source_head": "c32ffcb",
+    "dirty": null,
+    "counts_per_frame": [
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3
+    ],
+    "final_beliefs": 3,
+    "precision": 1.0,
+    "recall": 1.0,
+    "phantom_rate": 0.0,
+    "localization_err_m": {
+     "mean": 0.0155,
+     "max": 0.03
+    },
+    "bin_beliefs": [
+     {
+      "color": "orange",
+      "source_colors": {
+       "isaac": "orange",
+       "isaac_side": "yellow"
+      },
+      "err_m": 0.03
+     }
+    ],
+    "same_prop_pairs": null
+   }
+  ]
+ },
+ "b32c_ab_floor_box": {
+  "source": "90a9f0c",
+  "runs": [
+   {
+    "run": "ab_off_r1.json",
+    "arm": "off",
+    "source_head": "90a9f0c",
+    "dirty": false,
+    "counts_per_frame": [
+     3,
+     3,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4
+    ],
+    "final_beliefs": 4,
+    "precision": 1.0,
+    "recall": 1.0,
+    "phantom_rate": 0.0,
+    "localization_err_m": {
+     "mean": 0.0182,
+     "max": 0.0294
+    },
+    "bin_beliefs": [
+     {
+      "color": "orange",
+      "source_colors": {
+       "isaac": "orange"
+      },
+      "err_m": 0.0277
+     },
+     {
+      "color": "yellow",
+      "source_colors": {
+       "isaac_side": "yellow"
+      },
+      "err_m": 0.0263
+     }
+    ],
+    "same_prop_pairs": [
+     {
+      "prop": "bin",
+      "colors": [
+       "orange",
+       "yellow"
+      ],
+      "box_iou": 0.949
+     }
+    ]
+   },
+   {
+    "run": "ab_off_r2.json",
+    "arm": "off",
+    "source_head": "90a9f0c",
+    "dirty": false,
+    "counts_per_frame": [
+     3,
+     3,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4
+    ],
+    "final_beliefs": 4,
+    "precision": 1.0,
+    "recall": 1.0,
+    "phantom_rate": 0.0,
+    "localization_err_m": {
+     "mean": 0.0215,
+     "max": 0.0454
+    },
+    "bin_beliefs": [
+     {
+      "color": "orange",
+      "source_colors": {
+       "isaac": "orange"
+      },
+      "err_m": 0.0253
+     },
+     {
+      "color": "yellow",
+      "source_colors": {
+       "isaac_side": "yellow"
+      },
+      "err_m": 0.0386
+     }
+    ],
+    "same_prop_pairs": [
+     {
+      "prop": "bin",
+      "colors": [
+       "orange",
+       "yellow"
+      ],
+      "box_iou": 0.905
+     }
+    ]
+   },
+   {
+    "run": "ab_off_r3.json",
+    "arm": "off",
+    "source_head": "90a9f0c",
+    "dirty": false,
+    "counts_per_frame": [
+     3,
+     3,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4
+    ],
+    "final_beliefs": 4,
+    "precision": 1.0,
+    "recall": 1.0,
+    "phantom_rate": 0.0,
+    "localization_err_m": {
+     "mean": 0.0183,
+     "max": 0.0287
+    },
+    "bin_beliefs": [
+     {
+      "color": "orange",
+      "source_colors": {
+       "isaac": "orange"
+      },
+      "err_m": 0.0281
+     },
+     {
+      "color": "yellow",
+      "source_colors": {
+       "isaac_side": "yellow"
+      },
+      "err_m": 0.0257
+     }
+    ],
+    "same_prop_pairs": [
+     {
+      "prop": "bin",
+      "colors": [
+       "orange",
+       "yellow"
+      ],
+      "box_iou": 0.932
+     }
+    ]
+   },
+   {
+    "run": "ab_off_r4.json",
+    "arm": "off",
+    "source_head": "90a9f0c",
+    "dirty": false,
+    "counts_per_frame": [
+     3,
+     3,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4
+    ],
+    "final_beliefs": 4,
+    "precision": 1.0,
+    "recall": 1.0,
+    "phantom_rate": 0.0,
+    "localization_err_m": {
+     "mean": 0.0249,
+     "max": 0.0592
+    },
+    "bin_beliefs": [
+     {
+      "color": "orange",
+      "source_colors": {
+       "isaac": "orange"
+      },
+      "err_m": 0.0281
+     },
+     {
+      "color": "yellow",
+      "source_colors": {
+       "isaac_side": "yellow"
+      },
+      "err_m": 0.0446
+     }
+    ],
+    "same_prop_pairs": [
+     {
+      "prop": "bin",
+      "colors": [
+       "orange",
+       "yellow"
+      ],
+      "box_iou": 0.882
+     }
+    ]
+   },
+   {
+    "run": "ab_off_r5.json",
+    "arm": "off",
+    "source_head": "90a9f0c",
+    "dirty": false,
+    "counts_per_frame": [
+     3,
+     3,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4
+    ],
+    "final_beliefs": 4,
+    "precision": 1.0,
+    "recall": 1.0,
+    "phantom_rate": 0.0,
+    "localization_err_m": {
+     "mean": 0.0181,
+     "max": 0.0375
+    },
+    "bin_beliefs": [
+     {
+      "color": "orange",
+      "source_colors": {
+       "isaac": "orange"
+      },
+      "err_m": 0.0255
+     },
+     {
+      "color": "yellow",
+      "source_colors": {
+       "isaac_side": "yellow"
+      },
+      "err_m": 0.0375
+     }
+    ],
+    "same_prop_pairs": [
+     {
+      "prop": "bin",
+      "colors": [
+       "orange",
+       "yellow"
+      ],
+      "box_iou": 0.91
+     }
+    ]
+   },
+   {
+    "run": "ab_on_r1.json",
+    "arm": "on",
+    "source_head": "90a9f0c",
+    "dirty": false,
+    "counts_per_frame": [
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3
+    ],
+    "final_beliefs": 3,
+    "precision": 1.0,
+    "recall": 1.0,
+    "phantom_rate": 0.0,
+    "localization_err_m": {
+     "mean": 0.0165,
+     "max": 0.0375
+    },
+    "bin_beliefs": [
+     {
+      "color": "orange",
+      "source_colors": {
+       "isaac": "orange",
+       "isaac_side": "yellow"
+      },
+      "err_m": 0.0313
+     }
+    ],
+    "same_prop_pairs": []
+   },
+   {
+    "run": "ab_on_r2.json",
+    "arm": "on",
+    "source_head": "90a9f0c",
+    "dirty": false,
+    "counts_per_frame": [
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3
+    ],
+    "final_beliefs": 3,
+    "precision": 1.0,
+    "recall": 1.0,
+    "phantom_rate": 0.0,
+    "localization_err_m": {
+     "mean": 0.0163,
+     "max": 0.033
+    },
+    "bin_beliefs": [
+     {
+      "color": "orange",
+      "source_colors": {
+       "isaac": "orange",
+       "isaac_side": "yellow"
+      },
+      "err_m": 0.033
+     }
+    ],
+    "same_prop_pairs": []
+   },
+   {
+    "run": "ab_on_r3.json",
+    "arm": "on",
+    "source_head": "90a9f0c",
+    "dirty": false,
+    "counts_per_frame": [
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3
+    ],
+    "final_beliefs": 3,
+    "precision": 1.0,
+    "recall": 1.0,
+    "phantom_rate": 0.0,
+    "localization_err_m": {
+     "mean": 0.0161,
+     "max": 0.0335
+    },
+    "bin_beliefs": [
+     {
+      "color": "orange",
+      "source_colors": {
+       "isaac": "orange",
+       "isaac_side": "yellow"
+      },
+      "err_m": 0.0331
+     }
+    ],
+    "same_prop_pairs": []
+   },
+   {
+    "run": "ab_on_r4.json",
+    "arm": "on",
+    "source_head": "90a9f0c",
+    "dirty": false,
+    "counts_per_frame": [
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3
+    ],
+    "final_beliefs": 3,
+    "precision": 1.0,
+    "recall": 1.0,
+    "phantom_rate": 0.0,
+    "localization_err_m": {
+     "mean": 0.0161,
+     "max": 0.033
+    },
+    "bin_beliefs": [
+     {
+      "color": "orange",
+      "source_colors": {
+       "isaac": "orange",
+       "isaac_side": "yellow"
+      },
+      "err_m": 0.0293
+     }
+    ],
+    "same_prop_pairs": []
+   },
+   {
+    "run": "ab_on_r5.json",
+    "arm": "on",
+    "source_head": "90a9f0c",
+    "dirty": false,
+    "counts_per_frame": [
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3,
+     3
+    ],
+    "final_beliefs": 3,
+    "precision": 1.0,
+    "recall": 1.0,
+    "phantom_rate": 0.0,
+    "localization_err_m": {
+     "mean": 0.0161,
+     "max": 0.0331
+    },
+    "bin_beliefs": [
+     {
+      "color": "orange",
+      "source_colors": {
+       "isaac": "orange",
+       "isaac_side": "yellow"
+      },
+      "err_m": 0.0331
+     }
+    ],
+    "same_prop_pairs": []
+   }
+  ]
+ },
+ "adversarial_whole_cloud_box": [
+  {
+   "run": "in_bin_centre_off_r1.json",
+   "scene": "in_bin_centre",
+   "arm": "off",
+   "source_head": "c32ffcb",
+   "counts_per_frame": [
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    4,
+    4,
+    4,
+    4,
+    4
+   ],
+   "precision": 0.878,
+   "recall": 1.0,
+   "neighbour_ious": [],
+   "final": [
+    {
+     "color": "orange",
+     "source_colors": {
+      "isaac": "orange"
+     },
+     "label": "storage box",
+     "nearest": "bin",
+     "err_m": 0.0186
+    },
+    {
+     "color": "pink",
+     "source_colors": {
+      "isaac": "pink",
+      "isaac_side": "pink"
+     },
+     "label": "cube",
+     "nearest": "pink_cube",
+     "err_m": 0.0089
+    },
+    {
+     "color": "yellow",
+     "source_colors": {
+      "isaac": "yellow",
+      "isaac_side": "yellow"
+     },
+     "label": "building block",
+     "nearest": "green_cube",
+     "err_m": 0.0148
+    },
+    {
+     "color": "brown",
+     "source_colors": {
+      "isaac": "brown"
+     },
+     "label": "doormat",
+     "nearest": "bin",
+     "err_m": 0.112
+    }
+   ]
+  },
+  {
+   "run": "in_bin_centre_on_r1.json",
+   "scene": "in_bin_centre",
+   "arm": "on",
+   "source_head": "c32ffcb",
+   "counts_per_frame": [
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    4,
+    4
+   ],
+   "precision": 0.9474,
+   "recall": 1.0,
+   "neighbour_ious": [
+    0.7171,
+    0.7252,
+    0.7498
+   ],
+   "final": [
+    {
+     "color": "orange",
+     "source_colors": {
+      "isaac": "orange"
+     },
+     "label": "storage box",
+     "nearest": "bin",
+     "err_m": 0.0183
+    },
+    {
+     "color": "pink",
+     "source_colors": {
+      "isaac": "pink",
+      "isaac_side": "pink"
+     },
+     "label": "cube",
+     "nearest": "pink_cube",
+     "err_m": 0.0089
+    },
+    {
+     "color": "yellow",
+     "source_colors": {
+      "isaac": "yellow",
+      "isaac_side": "yellow"
+     },
+     "label": "cube",
+     "nearest": "green_cube",
+     "err_m": 0.0146
+    },
+    {
+     "color": "brown",
+     "source_colors": {
+      "isaac": "brown"
+     },
+     "label": "doormat",
+     "nearest": "bin",
+     "err_m": 0.1122
+    }
+   ]
+  },
+  {
+   "run": "in_bin_corner_off_r1.json",
+   "scene": "in_bin_corner",
+   "arm": "off",
+   "source_head": "c32ffcb",
+   "counts_per_frame": [
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3
+   ],
+   "precision": 1.0,
+   "recall": 0.8056,
+   "neighbour_ious": [],
+   "final": [
+    {
+     "color": "orange",
+     "source_colors": {
+      "isaac": "orange"
+     },
+     "label": "storage box",
+     "nearest": "green_cube",
+     "err_m": 0.0143
+    },
+    {
+     "color": "pink",
+     "source_colors": {
+      "isaac": "pink",
+      "isaac_side": "pink"
+     },
+     "label": "cube",
+     "nearest": "pink_cube",
+     "err_m": 0.0093
+    },
+    {
+     "color": "yellow",
+     "source_colors": {
+      "isaac": "yellow",
+      "isaac_side": "yellow"
+     },
+     "label": "cube",
+     "nearest": "green_cube",
+     "err_m": 0.0252
+    }
+   ]
+  },
+  {
+   "run": "in_bin_corner_on_r1.json",
+   "scene": "in_bin_corner",
+   "arm": "on",
+   "source_head": "c32ffcb",
+   "counts_per_frame": [
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3
+   ],
+   "precision": 1.0,
+   "recall": 0.7222,
+   "neighbour_ious": [
+    0.0619
+   ],
+   "final": [
+    {
+     "color": "orange",
+     "source_colors": {
+      "isaac": "orange"
+     },
+     "label": "storage box",
+     "nearest": "green_cube",
+     "err_m": 0.0177
+    },
+    {
+     "color": "pink",
+     "source_colors": {
+      "isaac": "pink",
+      "isaac_side": "pink"
+     },
+     "label": "cube",
+     "nearest": "pink_cube",
+     "err_m": 0.0096
+    },
+    {
+     "color": "yellow",
+     "source_colors": {
+      "isaac": "yellow",
+      "isaac_side": "yellow"
+     },
+     "label": "cube",
+     "nearest": "green_cube",
+     "err_m": 0.0088
+    }
+   ]
+  },
+  {
+   "run": "next_to_bin_off_r1.json",
+   "scene": "next_to_bin",
+   "arm": "off",
+   "source_head": "c32ffcb",
+   "counts_per_frame": [
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4
+   ],
+   "precision": 1.0,
+   "recall": 1.0,
+   "neighbour_ious": [],
+   "final": [
+    {
+     "color": "orange",
+     "source_colors": {
+      "isaac": "orange"
+     },
+     "label": "first-aid kit",
+     "nearest": "bin",
+     "err_m": 0.0185
+    },
+    {
+     "color": "pink",
+     "source_colors": {
+      "isaac": "pink",
+      "isaac_side": "pink"
+     },
+     "label": "cube",
+     "nearest": "pink_cube",
+     "err_m": 0.0095
+    },
+    {
+     "color": "yellow",
+     "source_colors": {
+      "isaac": "yellow",
+      "isaac_side": "yellow"
+     },
+     "label": "cube",
+     "nearest": "green_cube",
+     "err_m": 0.0025
+    },
+    {
+     "color": "brown",
+     "source_colors": {
+      "isaac": "brown"
+     },
+     "label": "doormat",
+     "nearest": "bin",
+     "err_m": 0.0342
+    }
+   ]
+  },
+  {
+   "run": "next_to_bin_on_r1.json",
+   "scene": "next_to_bin",
+   "arm": "on",
+   "source_head": "c32ffcb",
+   "counts_per_frame": [
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4
+   ],
+   "precision": 1.0,
+   "recall": 1.0,
+   "neighbour_ious": [
+    0.0672,
+    0.0705,
+    0.0716,
+    0.0728
+   ],
+   "final": [
+    {
+     "color": "orange",
+     "source_colors": {
+      "isaac": "orange"
+     },
+     "label": "storage box",
+     "nearest": "bin",
+     "err_m": 0.0231
+    },
+    {
+     "color": "pink",
+     "source_colors": {
+      "isaac": "pink",
+      "isaac_side": "pink"
+     },
+     "label": "cube",
+     "nearest": "pink_cube",
+     "err_m": 0.0096
+    },
+    {
+     "color": "yellow",
+     "source_colors": {
+      "isaac": "yellow",
+      "isaac_side": "yellow"
+     },
+     "label": "hassock",
+     "nearest": "green_cube",
+     "err_m": 0.0029
+    },
+    {
+     "color": "brown",
+     "source_colors": {
+      "isaac": "brown"
+     },
+     "label": "doormat",
+     "nearest": "bin",
+     "err_m": 0.0445
+    }
+   ]
+  }
+ ],
+ "adversarial_floor_box": [
+  {
+   "run": "in_bin_centre_r1.json",
+   "scene": "in_bin_centre",
+   "arm": "on",
+   "source_head": "90a9f0c",
+   "counts_per_frame": [
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3
+   ],
+   "precision": 1.0,
+   "recall": 1.0,
+   "neighbour_ious": [
+    0.8605,
+    0.8996,
+    0.9119
+   ],
+   "final": [
+    {
+     "color": "orange",
+     "source_colors": {
+      "isaac": "orange"
+     },
+     "label": "storage box",
+     "nearest": "bin",
+     "err_m": 0.0193
+    },
+    {
+     "color": "pink",
+     "source_colors": {
+      "isaac": "pink",
+      "isaac_side": "pink"
+     },
+     "label": "cube",
+     "nearest": "pink_cube",
+     "err_m": 0.0089
+    },
+    {
+     "color": "yellow",
+     "source_colors": {
+      "isaac": "yellow",
+      "isaac_side": "yellow"
+     },
+     "label": "building block",
+     "nearest": "green_cube",
+     "err_m": 0.0148
+    }
+   ]
+  },
+  {
+   "run": "in_bin_centre_r2.json",
+   "scene": "in_bin_centre",
+   "arm": "on",
+   "source_head": "90a9f0c",
+   "counts_per_frame": [
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3
+   ],
+   "precision": 1.0,
+   "recall": 1.0,
+   "neighbour_ious": [
+    0.8791,
+    0.9116,
+    0.9358
+   ],
+   "final": [
+    {
+     "color": "orange",
+     "source_colors": {
+      "isaac": "orange"
+     },
+     "label": "gift box",
+     "nearest": "bin",
+     "err_m": 0.019
+    },
+    {
+     "color": "pink",
+     "source_colors": {
+      "isaac": "pink",
+      "isaac_side": "pink"
+     },
+     "label": "cube",
+     "nearest": "pink_cube",
+     "err_m": 0.0094
+    },
+    {
+     "color": "yellow",
+     "source_colors": {
+      "isaac": "yellow",
+      "isaac_side": "yellow"
+     },
+     "label": "building block",
+     "nearest": "green_cube",
+     "err_m": 0.0159
+    }
+   ]
+  },
+  {
+   "run": "in_bin_corner_r1.json",
+   "scene": "in_bin_corner",
+   "arm": "on",
+   "source_head": "90a9f0c",
+   "counts_per_frame": [
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3
+   ],
+   "precision": 1.0,
+   "recall": 0.8333,
+   "neighbour_ious": [
+    0.1
+   ],
+   "final": [
+    {
+     "color": "orange",
+     "source_colors": {
+      "isaac": "orange"
+     },
+     "label": "storage box",
+     "nearest": "green_cube",
+     "err_m": 0.0192
+    },
+    {
+     "color": "pink",
+     "source_colors": {
+      "isaac": "pink",
+      "isaac_side": "pink"
+     },
+     "label": "cube",
+     "nearest": "pink_cube",
+     "err_m": 0.0087
+    },
+    {
+     "color": "yellow",
+     "source_colors": {
+      "isaac": "yellow",
+      "isaac_side": "yellow"
+     },
+     "label": "cube",
+     "nearest": "green_cube",
+     "err_m": 0.0083
+    }
+   ]
+  },
+  {
+   "run": "in_bin_corner_r2.json",
+   "scene": "in_bin_corner",
+   "arm": "on",
+   "source_head": "90a9f0c",
+   "counts_per_frame": [
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3
+   ],
+   "precision": 1.0,
+   "recall": 0.8611,
+   "neighbour_ious": [
+    0.0719
+   ],
+   "final": [
+    {
+     "color": "orange",
+     "source_colors": {
+      "isaac": "orange"
+     },
+     "label": "storage box",
+     "nearest": "green_cube",
+     "err_m": 0.018
+    },
+    {
+     "color": "pink",
+     "source_colors": {
+      "isaac": "pink",
+      "isaac_side": "pink"
+     },
+     "label": "cube",
+     "nearest": "pink_cube",
+     "err_m": 0.0088
+    },
+    {
+     "color": "yellow",
+     "source_colors": {
+      "isaac": "yellow",
+      "isaac_side": "yellow"
+     },
+     "label": "cube",
+     "nearest": "green_cube",
+     "err_m": 0.0353
+    }
+   ]
+  },
+  {
+   "run": "next_to_bin_r1.json",
+   "scene": "next_to_bin",
+   "arm": "on",
+   "source_head": "90a9f0c",
+   "counts_per_frame": [
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4
+   ],
+   "precision": 1.0,
+   "recall": 1.0,
+   "neighbour_ious": [
+    0.0668,
+    0.0697,
+    0.0743
+   ],
+   "final": [
+    {
+     "color": "orange",
+     "source_colors": {
+      "isaac": "orange"
+     },
+     "label": "first-aid kit",
+     "nearest": "bin",
+     "err_m": 0.0299
+    },
+    {
+     "color": "pink",
+     "source_colors": {
+      "isaac": "pink",
+      "isaac_side": "pink"
+     },
+     "label": "cube",
+     "nearest": "pink_cube",
+     "err_m": 0.0088
+    },
+    {
+     "color": "yellow",
+     "source_colors": {
+      "isaac": "yellow",
+      "isaac_side": "yellow"
+     },
+     "label": "hassock",
+     "nearest": "green_cube",
+     "err_m": 0.0035
+    },
+    {
+     "color": "brown",
+     "source_colors": {
+      "isaac": "brown"
+     },
+     "label": "doormat",
+     "nearest": "bin",
+     "err_m": 0.043
+    }
+   ]
+  },
+  {
+   "run": "next_to_bin_r2.json",
+   "scene": "next_to_bin",
+   "arm": "on",
+   "source_head": "90a9f0c",
+   "counts_per_frame": [
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4
+   ],
+   "precision": 1.0,
+   "recall": 1.0,
+   "neighbour_ious": [
+    0.0713,
+    0.0726,
+    0.0733,
+    0.0748
+   ],
+   "final": [
+    {
+     "color": "orange",
+     "source_colors": {
+      "isaac": "orange"
+     },
+     "label": "first-aid kit",
+     "nearest": "bin",
+     "err_m": 0.0196
+    },
+    {
+     "color": "pink",
+     "source_colors": {
+      "isaac": "pink",
+      "isaac_side": "pink"
+     },
+     "label": "cube",
+     "nearest": "pink_cube",
+     "err_m": 0.0094
+    },
+    {
+     "color": "yellow",
+     "source_colors": {
+      "isaac": "yellow",
+      "isaac_side": "yellow"
+     },
+     "label": "cube",
+     "nearest": "green_cube",
+     "err_m": 0.0024
+    },
+    {
+     "color": "brown",
+     "source_colors": {
+      "isaac": "brown"
+     },
+     "label": "doormat",
+     "nearest": "bin",
+     "err_m": 0.0398
+    }
+   ]
+  }
+ ],
+ "same_colour_containment": [
+  {
+   "run": "assign_in_bin_centre_off.json",
+   "scene": "in_bin_centre",
+   "arm": "off",
+   "source_head": "90a9f0c",
+   "counts_per_frame": [
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3
+   ],
+   "precision": 1.0,
+   "recall": 1.0,
+   "neighbour_ious": [],
+   "final": [
+    {
+     "color": "orange",
+     "source_colors": {
+      "isaac": "orange"
+     },
+     "label": "storage box",
+     "nearest": "bin",
+     "err_m": 0.0197
+    },
+    {
+     "color": "pink",
+     "source_colors": {
+      "isaac": "pink",
+      "isaac_side": "pink"
+     },
+     "label": "cube",
+     "nearest": "pink_cube",
+     "err_m": 0.0088
+    },
+    {
+     "color": "yellow",
+     "source_colors": {
+      "isaac": "yellow",
+      "isaac_side": "yellow"
+     },
+     "label": "cube",
+     "nearest": "green_cube",
+     "err_m": 0.014
+    }
+   ]
+  },
+  {
+   "run": "assign_in_bin_centre_on.json",
+   "scene": "in_bin_centre",
+   "arm": "on",
+   "source_head": "90a9f0c",
+   "counts_per_frame": [
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3
+   ],
+   "precision": 1.0,
+   "recall": 1.0,
+   "neighbour_ious": [
+    0.8656,
+    0.8849,
+    0.8987
+   ],
+   "final": [
+    {
+     "color": "orange",
+     "source_colors": {
+      "isaac": "orange"
+     },
+     "label": "gift box",
+     "nearest": "bin",
+     "err_m": 0.0176
+    },
+    {
+     "color": "pink",
+     "source_colors": {
+      "isaac": "pink",
+      "isaac_side": "pink"
+     },
+     "label": "cube",
+     "nearest": "pink_cube",
+     "err_m": 0.0089
+    },
+    {
+     "color": "yellow",
+     "source_colors": {
+      "isaac": "yellow",
+      "isaac_side": "yellow"
+     },
+     "label": "cube",
+     "nearest": "green_cube",
+     "err_m": 0.0139
+    }
+   ]
+  }
+ ],
+ "decision_population": {
+  "same": {
+   "n": 86,
+   "iou_shipped_box": [
+    0.708,
+    0.744,
+    0.926
+   ],
+   "iou_floor_box": [
+    0.87,
+    0.921,
+    0.945
+   ]
+  },
+  "different": {
+   "n": 6,
+   "iou_shipped_box_max": 0.118,
+   "iou_floor_box_max": 0.077
+  }
+ }
+}

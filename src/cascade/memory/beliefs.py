@@ -225,6 +225,19 @@ NEIGHBOUR_COLOUR_IOU = 0.75
 _BOX_TRIM_PCT = 2.0
 _MIN_BOX_POINTS = 10
 
+#: ...and it ignores the cloud's lowest centimetre (above its own 2nd-percentile
+#: z), B32c. Measured live (Isaac 6.2 PhysX + YOLOE, 86 decisions between the
+#: two cameras' views of the bin): the masks take in table pixels at the
+#: object's own lowest height (median 35 % of the side camera's bin cloud, 12 %
+#: of the top camera's; the top box ran 3.5 cm past the near wall), so the
+#: whole-cloud box gave 0.708-0.926 (median 0.744) against the 0.75 threshold
+#: and split the bin in about half the first decisions. Without the low band:
+#: 0.870-0.945 (median 0.921), while a 5 cm prop in or next to the bin stays
+#: <= 0.077 (tests/fixtures/b32b_live_bin_clouds). Relative to the cloud, not
+#: to a table height, so a bin on a shelf behaves the same. A cloud with too
+#: little above the band (a mat, a sheet) keeps its whole box, as before.
+_BOX_FLOOR_BAND_M = 0.01
+
 
 def _cloud_box(points) -> tuple[np.ndarray, np.ndarray] | None:
     """Axis-aligned (base frame) robust box of a cloud, or None (no cloud)."""
@@ -235,6 +248,10 @@ def _cloud_box(points) -> tuple[np.ndarray, np.ndarray] | None:
     p = np.asarray(points, dtype=float).reshape(-1, 3)
     if p.shape[0] < _MIN_BOX_POINTS:
         return None
+    low = float(np.percentile(p[:, 2], _BOX_TRIM_PCT))
+    above = p[p[:, 2] > low + _BOX_FLOOR_BAND_M]
+    if above.shape[0] >= _MIN_BOX_POINTS:
+        p = above
     lo, hi = np.percentile(p, [_BOX_TRIM_PCT, 100.0 - _BOX_TRIM_PCT], axis=0)
     return lo, hi
 

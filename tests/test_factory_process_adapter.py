@@ -9,6 +9,7 @@ from dataclasses import replace
 
 import numpy as np
 import pytest
+from mobile_tick_fixture import healthy_episode_gc as healthy_episode_gc
 from test_factory_process_snapshot import fixture
 from test_fastening_runtime import binding, limits, row
 
@@ -156,7 +157,12 @@ def _finish(process, session):
         assert not process.is_alive()
 
 
+@pytest.mark.usefixtures("healthy_episode_gc")
 def test_real_owner_child_and_domain_start_turn_stop_rest_archive_without_physical_credit(tmp_path):
+    # Healthy episode: the 0.2 s rest-observation age is a production limit,
+    # so unrelated suite heap collection in this (parent) process must not
+    # spend it. The spawned owner child is a fresh interpreter; the stale-row
+    # rejection keeps its own test with GC untouched.
     process, session, raw, outcomes, receipt = _start(tmp_path)
     domain = _ProcessDomain(session, controller_id="synthetic-process")
     try:

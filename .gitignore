@@ -223,6 +223,10 @@ __marimo__/
 /.isaacsim/
 /.graspgenx/
 /.graspgenx-src/
+# HUG (docs/HUG.md): its own environment and clone. The clone holds the
+# operator's MANO model, which is licensed per user and never committed.
+/.hug/
+/.hug-src/
 /.nvblox/
 /.cosmos/
 /.cosmos-omni/

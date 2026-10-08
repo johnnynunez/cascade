@@ -407,12 +407,43 @@ Open follow-ups from this work:
    pinned against a golden taken from main). Reflex/experience tiers stay
    LLM-free; `fleet.py` / `dashboard_runner.py` / `booth_rehearsal.py` do
    not opt in. No live-rig run; no claim about the verdicts' accuracy.
-7. **HUG as a second grasp backend.** Add `grasp.backend: hug` alongside
+7. ~~**HUG as a second grasp backend.** Add `grasp.backend: hug` alongside
    `graspgenx`, self-hosted the same way (a serve script + client mirroring
    `grasping/graspgenx_backend.py`), re-ranked by the same
    `GraspOutcomeMemory`. Whether HUG's cross-embodiment grasps clear this
    arm's IK envelope is untested — the point of landing it is to find out,
-   not to assume it is better.
+   not to assume it is better.~~ **landed 2026-10-08 (CPU / stub only)** —
+   [docs/HUG.md](HUG.md). `scripts/serve_hug.py` wraps HUG's documented
+   inference path (code `8d1c52d`, weights `1415c9e`, sha256-pinned) behind
+   a GraspGen-X-shaped REQ/REP protocol. CUDA is required unless
+   `--device cpu` is explicit, the operator supplies MANO (never shipped),
+   and `--stub` is an analytic double.
+
+   `grasping/hug_backend.py` maps each human hand to a parallel-jaw pinch.
+   That mapping is **our** assumption (thumb tip vs index tip, palm →
+   pinch approach), and so is `quality`: HUG emits no score, so the value
+   is CASCADE's geometric score. Then the same `GraspOutcomeMemory`
+   re-rank, selector and harness apply. HUG is opt-in only, via
+   `isaac_kitchen_hug` or `CASCADE_GRASP_BACKEND=hug`, under GraspGen-X's
+   required/optional contract: never an OBB substitute when required, and
+   bounded-search aware. The launcher refuses a `--graspgenx` override of
+   that profile. Every existing profile's backend and call shape are
+   pinned unchanged. `tests/test_hug_backend.py` and
+   `tests/test_hug_runtime.py` (63 tests: 58 RED against main c5012e7, and
+   the 5 golden pins of existing behaviour pass there by design) include a
+   mock-stack `grasp_object` that executes a stub HUG pinch through the
+   harness.
+
+   Measured on the 5-DoF mock SO-101: the stub's ~8° tilted palm approach
+   fails pregrasp IK for every pinch; `pinch_approach: vertical` reaches
+   them. **Still open (parent):**
+   - real weights + MANO on a CUDA host;
+   - the live Isaac A/B `isaac_kitchen_hug` vs `isaac_kitchen_gpu`, which
+     is the actual answer to "do HUG grasps clear this arm's IK
+     envelope";
+   - latency.
+
+   No claim about grasp quality, success rate or GraspGen-X comparison.
 8. **A `programs` tier (Waddle).** cascade has primitives (`TOOL_SPECS`)
    and skills (`skills_library/*.md`, ASPIRE-distilled) but nothing above
    skills: an agent-composed, reusable, task-level script distinct from a

@@ -125,6 +125,21 @@ def _arm_cfgs(cfg) -> list[Cfg]:
     return [cfg.arm]
 
 
+def _camera_fusion(ccfg, extrinsics) -> tuple[bool, bool | None]:
+    """(fuse, map_depth) for one camera stream.
+
+    A camera fuses 3D beliefs when its profile has an `extrinsics:` block
+    (or says `fuse_beliefs: true`) -- and, since hand-eye records are gated,
+    only while those extrinsics are trusted. A configured calibration that
+    is missing/rejected/for another serial turns BOTH off, overriding the
+    profile: back-projecting through it would place beliefs and occupancy a
+    few centimetres off, the failure the record's gate exists to prevent.
+    """
+    if not getattr(extrinsics, "calibrated", True):
+        return False, False
+    return bool(ccfg.get("fuse_beliefs", "extrinsics" in ccfg)), ccfg.get("map_depth")
+
+
 def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
     """One arm: kinematics -> backend (maybe lazy) -> own harness -> SafeArm.
 
@@ -391,18 +406,24 @@ def build_runtime(
             rate_hz=float(ccfg.get("fps", 30.0)),
         )
         streams.append(stream)
+        extrinsics = Extrinsics.from_config(
+            ccfg.get("extrinsics", _empty_cfg()), fk_tcp2base=fk,
+            camera_serial=ccfg.get("serial"),
+        )
+        if not extrinsics.calibrated:
+            print(f"[cascade] camera {stream.name}: {extrinsics.calibration_error} "
+                  "-- streaming only, no 3D fusion", file=sys.stderr)
+        fuse, map_depth = _camera_fusion(ccfg, extrinsics)
         watched.append(
             WatchedCamera(
                 stream=stream,
                 depth=DepthProvider(ccfg),
-                extrinsics=Extrinsics.from_config(
-                    ccfg.get("extrinsics", _empty_cfg()), fk_tcp2base=fk
-                ),
+                extrinsics=extrinsics,
                 # A camera without calibrated extrinsics must not fuse 3D
                 # beliefs (garbage base-frame positions); it still streams
                 # video + overlays + heartbeats.
-                fuse=bool(ccfg.get("fuse_beliefs", "extrinsics" in ccfg)),
-                map_depth=ccfg.get("map_depth"),
+                fuse=fuse,
+                map_depth=map_depth,
             )
         )
     rig = CameraRig(streams)

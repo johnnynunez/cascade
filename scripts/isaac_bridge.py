@@ -146,8 +146,15 @@ from isaac_runtime import (ensure_time_code_range, find_experience, physics_time
 _kwargs = {}
 if args.engine == "newton":
     _kwargs["experience"] = str(find_experience("newton"))
+# A full app experience (the Newton one) loads `isaacsim.app.setup`, which on the
+# 6.2 build waits for the viewport's first frame before Kit reports app-ready;
+# switching the viewport off at construction then deadlocks the stage load (see
+# `_disable_viewport_updates_once_ready`). Those launches turn it off after
+# app-ready instead; the default (PhysX) experience keeps the original flag.
+_defer_viewport_off = (not args.gui) and "experience" in _kwargs
 app = SimulationApp(
-    {"headless": not args.gui, "disable_viewport_updates": not args.gui,
+    {"headless": not args.gui,
+     "disable_viewport_updates": (not args.gui) and not _defer_viewport_off,
      "renderer": "RayTracedLighting",
      "width": args.width, "height": args.height,
      # Headless clients use our TCP bridge. Kit's unused HTTP service otherwise
@@ -158,6 +165,45 @@ app = SimulationApp(
      ])},
     **_kwargs,
 )
+
+
+def _disable_viewport_updates_once_ready(app, max_updates: int = 1800) -> None:
+    """Headless: stop rendering the editor viewport, but only AFTER Kit is ready.
+
+    `SimulationApp(disable_viewport_updates=True)` switches the viewport off
+    the moment its own startup wait returns. On the 6.2 alpha build
+    `isaacsim.app.setup` additionally awaits the viewport's FIRST FRAME before
+    it releases `kEventAppReady`; a viewport whose updates are already off
+    never renders one, so the ready event never fires and `open_stage()`
+    below never finishes loading (measured 2026-10-07: 25k frames of
+    "await_viewport: waiting for viewport handle", the Render Async thread at
+    100 %, no bridge output, on both a CUDA_VISIBLE_DEVICES-pinned and an
+    unpinned launch). Letting the viewport render until `is_app_ready()`
+    and disabling it afterwards keeps the headless saving on every build.
+    """
+    import omni.kit.app
+
+    kit = omni.kit.app.get_app()
+    for _ in range(max_updates):
+        if kit.is_app_ready():
+            break
+        app.update()
+    else:
+        print("[bridge] WARNING: Kit never reported app-ready; viewport updates left ON", flush=True)
+        return
+    try:
+        from omni.kit.viewport.utility import get_active_viewport
+
+        viewport = get_active_viewport()
+        if viewport is not None:
+            viewport.updates_enabled = False
+            print("[bridge] viewport updates disabled after app-ready", flush=True)
+    except Exception as e:  # noqa: BLE001 - a build without the viewport utility keeps rendering
+        print(f"[bridge] viewport updates left ON ({e})", flush=True)
+
+
+if _defer_viewport_off:
+    _disable_viewport_updates_once_ready(app)
 
 from isaac_python_spans import from_environment as _python_spans_from_environment
 _python_spans = _python_spans_from_environment(__file__)

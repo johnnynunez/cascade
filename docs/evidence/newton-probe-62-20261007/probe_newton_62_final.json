@@ -1,0 +1,101 @@
+{
+  "engine": "newton",
+  "solver": null,
+  "build": {
+    "isaac": "('6.2.0', 'alpha.19', '6', '2', '0', 'alpha', '19', 'develop.0.48b2d951.local')",
+    "newton": "1.6.1rc1",
+    "warp": "1.17.0"
+  },
+  "objects": {
+    "pink_cube": {
+      "spawn": [
+        0.17,
+        0.15,
+        0.04
+      ],
+      "grasp_tcp_z": 0.045
+    },
+    "green_cube": {
+      "spawn": [
+        0.3,
+        0.16,
+        0.04
+      ],
+      "grasp_tcp_z": 0.045
+    }
+  },
+  "results": {
+    "settle": {
+      "pink_cube": {
+        "nan": false,
+        "jitter_std_m": 0.0,
+        "drift_xy_m": 0.0,
+        "sunk": false,
+        "pass": true
+      },
+      "green_cube": {
+        "nan": false,
+        "jitter_std_m": 0.0,
+        "drift_xy_m": 0.0,
+        "sunk": false,
+        "pass": true
+      }
+    },
+    "pink_cube": {
+      "drop": {
+        "nan": false,
+        "settle_s": 0.38,
+        "final_z": 0.0399,
+        "tunneled": false,
+        "flew": false,
+        "drift_xy_m": 0.0,
+        "pass": true
+      },
+      "grasp": {
+        "nan": false,
+        "tcp_err_m": 0.0037,
+        "shoved_on_descent_m": 0.0,
+        "hold_vmax_m_s": 0.012,
+        "lift_target_dz_m": 0.12,
+        "lifted": true,
+        "dz_lift_m": 0.119,
+        "pass": true
+      },
+      "push": {
+        "nan": false,
+        "moved_m": 0.0874,
+        "vmax_m_s": 0.006,
+        "on_table": true,
+        "pass": true
+      }
+    },
+    "green_cube": {
+      "drop": {
+        "nan": false,
+        "settle_s": 0.3,
+        "final_z": 0.0399,
+        "tunneled": false,
+        "flew": false,
+        "drift_xy_m": 0.0,
+        "pass": true
+      },
+      "grasp": {
+        "nan": false,
+        "tcp_err_m": 0.0054,
+        "shoved_on_descent_m": 0.0,
+        "hold_vmax_m_s": 0.006,
+        "lift_target_dz_m": 0.1,
+        "lifted": true,
+        "dz_lift_m": 0.099,
+        "pass": true
+      },
+      "push": {
+        "nan": false,
+        "moved_m": 0.0639,
+        "vmax_m_s": 0.002,
+        "on_table": true,
+        "pass": true
+      }
+    }
+  }
+}

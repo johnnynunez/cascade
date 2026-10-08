@@ -3,8 +3,8 @@
   "scene_name": "paai-cocina-asier-v1",
   "files": {
     "scripts/isaac_bridge.py": {
-      "sha256": "1a7c152969c6270680d6162fd44d35294d9cbb2aa2e61e3ba77c86a2109171f3",
-      "size_bytes": 118238
+      "sha256": "6bcebf8d7401b51db08d3e5958d66631a7f4ec93c86e9e8ed6952c4cf46c8bad",
+      "size_bytes": 120452
     },
     "src/cascade/sim/target_receipts.py": {
       "sha256": "05b587370f4e76dabe61366311ea78c5fe9781cd1e831b70fbdc54e9f8d34b24",

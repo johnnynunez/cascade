@@ -41,10 +41,18 @@ from cascade.types import make_transform  # noqa: E402
 HOME_Q = np.array([0.0, 1.2, 1.2, 0.0, 0.75, 0.0])
 
 # name -> (spawn, grasp_tcp_z, graspable, pushable)
+#
+# The YCB rows are the July 2026 dev scene; the bridge has authored only the
+# two 0.05 x 0.05 x 0.08 m boxes since the YCB experiment was disabled
+# (isaac_bridge.py `PROPS`; green_cube is placed far out as a perception
+# target). `discover_objects()` keeps whichever rows the live bridge has
+# and takes the spawn from the bridge's own `_PROP_SPAWNS`, so a probe run
+# never teleports a prop to a stale coordinate.
 OBJECTS = {
     "banana": ((0.24, 0.14, 0.018), 0.025, True, False),
     "soup_can": ((0.20, -0.12, 0.052), 0.060, True, True),
-    "pink_cube": ((0.28, 0.08, 0.026), 0.030, True, False),
+    "pink_cube": ((0.17, 0.15, 0.04), 0.045, True, True),
+    "green_cube": ((0.30, 0.16, 0.04), 0.045, True, True),
     "cracker_box": ((0.36, -0.02, 0.107), 0.180, False, True),
 }
 
@@ -71,6 +79,66 @@ class Probe:
         # WORLD-frame. exec shares the bridge module globals.
         self.base_z = float(self.ex("print(float(BASE_Z), flush=True)").strip())
 
+    def discover_objects(self) -> list[str]:
+        """The props this bridge authored, in OBJECTS order, with OBJECTS'
+        spawns replaced by the bridge's own spawn table."""
+        out = self.ex("import json\nprint(json.dumps({k: list(v) for k, v in _PROP_SPAWNS.items()}), flush=True)")
+        spawns = json.loads(out.strip().splitlines()[-1])
+        live = []
+        for name, (spawn, tcp_z, graspable, pushable) in list(OBJECTS.items()):
+            if name in spawns:
+                OBJECTS[name] = (tuple(float(v) for v in spawns[name]), tcp_z, graspable, pushable)
+                live.append(name)
+        self.live = list(live)
+        return live
+
+    def ensure_playing(self) -> bool:
+        """A bridge left stopped (an aborted earlier probe, an editor Stop)
+        has no physics tensors; `state` would raise. Press Play and wait
+        for the articulation to come back. Returns whether Play was needed."""
+        out = self.ex(
+            "import omni.timeline\n"
+            "_tl = omni.timeline.get_timeline_interface()\n"
+            "_was = _tl.is_playing()\n"
+            "if not _was:\n"
+            "    _tl.play()\n"
+            "print('PLAYING' if _was else 'RESUMED', flush=True)\n"
+        )
+        resumed = "RESUMED" in out
+        if resumed:
+            for _ in range(30):
+                try:
+                    self.arm.get_state()
+                    break
+                except Exception:  # noqa: BLE001 - tensors not back yet
+                    time.sleep(1.0)
+            else:
+                raise RuntimeError("bridge resumed Play but the articulation never came back")
+        return resumed
+
+    def build_info(self) -> dict:
+        """Isaac build + engine identity, read from the running Kit."""
+        out = self.ex(
+            "import json, carb\n"
+            "info = {}\n"
+            "try:\n"
+            "    import isaacsim.core.version as _v\n"
+            "    info['isaac'] = str(_v.get_version())\n"
+            "except Exception as e:\n"
+            "    info['isaac'] = f'unknown ({e})'\n"
+            "try:\n"
+            "    import newton, warp\n"
+            "    info['newton'] = newton.__version__\n"
+            "    info['warp'] = warp.__version__\n"
+            "except Exception as e:\n"
+            "    info['newton'] = f'unavailable ({e})'\n"
+            "print(json.dumps(info), flush=True)\n"
+        )
+        try:
+            return json.loads(out.strip().splitlines()[-1])
+        except Exception:  # noqa: BLE001
+            return {"raw": out[-300:]}
+
     # ── sim-side helpers (exec op runs on the bridge main thread) ───────
     def ex(self, code: str) -> str:
         r = self.cli.request({"op": "exec", "code": code})
@@ -93,43 +161,18 @@ class Probe:
         return {k: [v[0], v[1], v[2] - self.base_z] for k, v in raw.items()}
 
     def teleport(self, name: str, pos, settle_s: float = 0.0) -> None:
-        """PhysX: physics-view teleport. Newton: author while STOPPED (a
-        live teleport leaves latent NaN in this build), timeline-aware
-        bridge re-homes the arm on re-play."""
-        x, y, z = float(pos[0]), float(pos[1]), float(pos[2]) + self.base_z
-        if self.engine == "physx":
-            self.ex(
-                "import numpy as np\n"
-                "from isaacsim.core.experimental.prims import RigidPrim\n"
-                f"rp = RigidPrim('/World_Props/{name}')\n"
-                f"rp.set_world_poses(np.array([[{x},{y},{z}]]))\n"
-                "try:\n"
-                "    rp.set_velocities(np.zeros((1,3)), np.zeros((1,3)))\n"
-                "except Exception:\n"
-                "    pass\n"
-            )
-        else:
-            self.ex(
-                "import omni.timeline, omni.usd\n"
-                "from pxr import Gf, UsdGeom\n"
-                "tl = omni.timeline.get_timeline_interface()\n"
-                "tl.stop()\n"
-            )
-            time.sleep(1.0)
-            self.ex(
-                "import omni.usd\n"
-                "from pxr import Gf, UsdGeom\n"
-                "st = omni.usd.get_context().get_stage()\n"
-                f"xf = UsdGeom.Xformable(st.GetPrimAtPath('/World_Props/{name}'))\n"
-                "ops = xf.GetOrderedXformOps()\n"
-                "m = ops[-1].Get() if ops else Gf.Matrix4d(1.0)\n"
-                "m = Gf.Matrix4d(m)\n"
-                f"m.SetTranslateOnly(Gf.Vec3d({x}, {y}, {z}))\n"
-                "(ops[-1] if ops else xf.AddTransformOp()).Set(m)\n"
-                "import omni.timeline\n"
-                "omni.timeline.get_timeline_interface().play()\n"
-            )
-            time.sleep(3.0)  # bridge _resume_scene re-homes the arm
+        """Put a prop at `pos` (base frame) through the bridge's own
+        `place_prop` op -- the maintained, engine-aware path (PhysX: physics
+        view teleport; Newton: reduced-coordinate reset of the prop's free
+        joint in both state buffers). The July stop/author/play workaround
+        this replaced assumed a matrix xformOp the current bridge does not
+        author and bypassed the Newton reset the kitchen relies on."""
+        r = self.cli.request({"op": "place_prop", "name": name,
+                              "pos": [float(pos[0]), float(pos[1]), float(pos[2])]})
+        if not r.get("ok"):
+            raise RuntimeError(f"place_prop {name}: {r.get('error', '?')[:200]}")
+        if "place FAILED" in str(r.get("stdout", "")):
+            raise RuntimeError(f"place_prop {name}: bridge reported place FAILED")
         if settle_s:
             time.sleep(settle_s)
 
@@ -215,6 +258,11 @@ class Probe:
             return {"skipped": "hover IK unreachable", "pass": None}
         if not self.goto(R, (pos[0], pos[1], tcp_z), 1.5):
             return {"skipped": "grasp IK unreachable", "pass": None}
+        q_at = np.asarray(self.arm.get_state().q, dtype=float)
+        tcp_at = np.asarray(self.kin.fk(q_at))[:3, 3]
+        tcp_err = float(np.linalg.norm(tcp_at - np.array([pos[0], pos[1], tcp_z])))
+        at_grasp = self.poses([name])[name]
+        shoved = float(np.linalg.norm(np.array(at_grasp[:2]) - np.array(pos[:2])))
         self.arm.set_gripper(self.grip_closed, effort=1.0)
         rows = self.sample([name], 2.0)  # hold under full contact: NaN window
         zs = np.array([r[1][name] for r in rows])
@@ -225,7 +273,20 @@ class Probe:
                 dt = max(rows[i][0] - rows[i - 1][0], 1e-3)
                 vmax = max(vmax, float(np.linalg.norm(zs[i] - zs[i - 1]) / dt))
         z_before = float(zs[-1, 2]) if not nan_hold else float("nan")
-        self.goto(R, (pos[0], pos[1], tcp_z + 0.12), 1.5)
+        # Lift to the highest reachable height. At the far spot (r = 0.34 m) a
+        # top-down TCP 0.12 m above the grasp height is outside the IK envelope
+        # on this asset (measured 2026-10-07 on PhysX and Newton alike: +0.10
+        # solves, +0.12 does not); `goto` then returns False WITHOUT moving and
+        # the old probe scored the untouched cube as a failed lift. An
+        # unreachable lift is a probe-geometry fact, not a physics failure.
+        lift_dz = next((dz for dz in (0.12, 0.10, 0.08, 0.06)
+                        if self.goto(R, (pos[0], pos[1], tcp_z + dz), 1.5)), None)
+        if lift_dz is None:
+            self.arm.set_gripper(self.grip_open, effort=0.6)
+            time.sleep(1.0)
+            self.home()
+            return {"skipped": "lift IK unreachable", "pass": None,
+                    "tcp_err_m": round(tcp_err, 4), "nan": nan_hold}
         time.sleep(0.5)
         after = self.poses([name])[name]
         nan_lift = any(not np.isfinite(v) for v in after) or self.arm_nan()
@@ -235,7 +296,10 @@ class Probe:
         self.home()
         return {
             "nan": nan_hold or nan_lift,
+            "tcp_err_m": round(tcp_err, 4),
+            "shoved_on_descent_m": round(shoved, 4),
             "hold_vmax_m_s": round(vmax, 3),
+            "lift_target_dz_m": lift_dz,
             "lifted": bool(lifted),
             "dz_lift_m": round(float(after[2] - z_before), 3) if not (nan_hold or nan_lift) else None,
             "pass": (not (nan_hold or nan_lift)) and vmax < 1.5 and lifted,
@@ -280,14 +344,14 @@ class Probe:
 
     def restore(self):
         self.home()
-        for n, (spawn, *_rest) in OBJECTS.items():
+        for n in self.live:
             try:
-                self.teleport(n, spawn)
+                self.teleport(n, OBJECTS[n][0])
             except Exception as e:
                 print(f"[probe] restore {n}: {e}", file=sys.stderr)
 
 
-def apply_solver_json(probe: Probe, solver_json: str):
+def apply_solver_json(probe: Probe, solver_json: str, witness: str | None = None):
     """Mutate the live NewtonConfig.solver_cfg between stop/play."""
     cfg = json.loads(solver_json)
     lines = [
@@ -313,7 +377,8 @@ def apply_solver_json(probe: Probe, solver_json: str):
         time.sleep(2.0)
         try:
             probe.arm.get_state()
-            probe.poses(["banana"])
+            if witness:
+                probe.poses([witness])
             return
         except Exception:
             continue
@@ -332,10 +397,20 @@ def main():
     args = ap.parse_args()
 
     probe = Probe(args.port, args.engine)
+    if probe.ensure_playing():
+        print("[probe] bridge was stopped; pressed Play", flush=True)
+    live = probe.discover_objects()
     if args.solver_json:
-        apply_solver_json(probe, args.solver_json)
-    report = {"engine": args.engine, "solver": args.solver_json, "results": {}}
-    names = [n for n in args.objects if n in OBJECTS]
+        apply_solver_json(probe, args.solver_json, next(iter(live), None))
+    report = {"engine": args.engine, "solver": args.solver_json, "build": probe.build_info(),
+              "objects": {n: {"spawn": list(OBJECTS[n][0]), "grasp_tcp_z": OBJECTS[n][1]} for n in live},
+              "results": {}}
+    names = [n for n in args.objects if n in live]
+    missing = [n for n in args.objects if n not in live]
+    if missing:
+        print(f"[probe] not in this bridge's scene, skipped: {missing}", flush=True)
+    if not names:
+        raise SystemExit(f"none of {args.objects} is a prop of this bridge (it has {sorted(live)})")
 
     probe.home()
     if "settle" in args.tests:

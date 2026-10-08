@@ -616,6 +616,9 @@ command. Name a profile explicitly (`--llm mock`) to pin it, or set
   frame. CASCADE maps them to parallel-jaw pinches and scores them by its
   own geometry, because HUG has no score. It follows the same
   required/optional contract.
+  A second opt-in analytic backend, `grasp.backend: camera_frame`, ports
+  Seeed's WRC / rebot_grasp mask planner (approach along the camera's line
+  of sight; see [docs/WRC_PERCEPTION_PORT.md](docs/WRC_PERCEPTION_PORT.md)).
   Candidates are re-ranked by a persisted grasp-outcome
   memory, then vetted against IK *and* the safety-harness geometry.
   The model is conditioned on the gripper as a **swept volume**, so an arm

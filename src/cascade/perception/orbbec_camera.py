@@ -197,7 +197,7 @@ class OrbbecCamera(CameraBase):
             # with software alignment only (the AlignFilter below).
             logger.warning("Orbbec HW depth-to-colour alignment refused (%s); "
                            "using software alignment", e)
-            config, _ = self._config(ob, color, depth, hw_align=False)
+            config, hw_align = self._config(ob, color, depth, hw_align=False)
             try:
                 pipeline.start(config)
             except Exception as e2:  # noqa: BLE001
@@ -210,6 +210,17 @@ class OrbbecCamera(CameraBase):
         except BaseException:
             self.close()
             raise
+        logger.info("Orbbec %s: colour %s, depth %s, %s depth-to-colour alignment",
+                    self._serial or "(first device)", self._describe(color),
+                    self._describe(depth), "HW+SW" if hw_align else "SW")
+
+    @staticmethod
+    def _describe(profile) -> str:
+        try:
+            return (f"{profile.get_width()}x{profile.get_height()}@{profile.get_fps()} "
+                    f"{_format_name(profile.get_format())}")
+        except Exception:  # noqa: BLE001 - log text only
+            return repr(profile)
 
     @staticmethod
     def _config(ob, color, depth, *, hw_align: bool):

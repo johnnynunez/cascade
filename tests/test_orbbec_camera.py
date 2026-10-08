@@ -207,14 +207,18 @@ def test_an_align_filter_returning_a_frameset_directly_also_works(monkeypatch):
 # ── start / intrinsics / teardown ──────────────────────────────────────────
 
 
-def test_hw_alignment_refused_at_start_retries_with_software_alignment(monkeypatch):
+def test_hw_alignment_refused_at_start_retries_with_software_alignment(monkeypatch, caplog):
+    import logging
+
     sdk = _use(monkeypatch, make_fake_sdk(hw_align_breaks_start=True))
     cam = _cam()
-    cam.open()
+    with caplog.at_level(logging.INFO, logger="cascade.perception.orbbec_camera"):
+        cam.open()
     try:
         f = cam.get_frame()
     finally:
         cam.close()
+    assert "software alignment" in caplog.text and ", SW depth-to-colour" in caplog.text
     assert len(sdk.log.started) == 1
     assert sdk.log.started[0].align_mode != sdk.OBAlignMode.HW_MODE
     assert f.depth_m.shape == f.rgb.shape[:2] and sdk.log.align_calls >= 1
@@ -298,3 +302,14 @@ def test_wrist_profile_streams_but_never_fuses():
     assert prof.type == "orbbec" and not prof.get("serial")
     assert is_wrist_view(prof)
     assert prof.get("fuse_beliefs") is False and "extrinsics" not in prof
+
+
+def test_open_logs_the_chosen_streams_for_bring_up(sdk, caplog):
+    import logging
+
+    with caplog.at_level(logging.INFO, logger="cascade.perception.orbbec_camera"):
+        cam = _cam(serial="FAKE0001")
+        cam.open()
+        cam.close()
+    text = caplog.text
+    assert "FAKE0001" in text and "1280x720@30 MJPG" in text and "Y16" in text

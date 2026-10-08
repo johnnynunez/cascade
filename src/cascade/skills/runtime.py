@@ -2628,10 +2628,13 @@ class SkillRuntime:
         # Pre-grasp opening: fully open unless the arm profile opts into the
         # adaptive opening (gripper.pregrasp_open_margin_m; Seeed WRC a2d5950
         # opened to grasp width + 10 mm). Never narrower than the grasp width.
-        from ..grasping.force import pregrasp_open_position
-        open_pos = pregrasp_open_position(
-            grasp.width_m, self.cfg.arm.gripper.get("pregrasp_open_margin_m"),
-            self._grip_open, self._grip_closed, self._max_width)
+        # Unset = exactly the old full-open command, touching nothing else.
+        open_pos = self._grip_open
+        margin = (self.cfg.arm.get("gripper") or {}).get("pregrasp_open_margin_m")
+        if margin is not None:
+            from ..grasping.force import pregrasp_open_position
+            open_pos = pregrasp_open_position(
+                grasp.width_m, margin, self._grip_open, self._grip_closed, self._max_width)
         self.arm.set_gripper(open_pos, effort=0.8,
                              **({"_halt_generation": scene_halt_generation} if scene_enabled else {}))
         _home = self.cfg.arm.get("home_q")

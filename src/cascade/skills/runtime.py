@@ -1029,6 +1029,7 @@ class SkillRuntime:
 
     def _update_beliefs_from_frame(self, frame: Frame, dets, T=None) -> list[dict]:
         summaries = []
+        self_px = self._workspace.self_pixels(frame)  # the robot's own pixels, if rendered
         if not frame.has_depth:
             return [
                 {"label": d.label, "color": detection_color(frame.rgb, d),
@@ -1045,7 +1046,12 @@ class SkillRuntime:
                 h, w = frame.rgb.shape[:2]
                 from ..perception.grounding import _bbox_mask
                 mask = _bbox_mask(frame, d)
-            pts_cam = mask_to_points_cam(frame, mask)
+            # Same self-mask gate as the watcher: a detection that is mostly
+            # the robot is not an object, and robot pixels never reach 3D.
+            rest, _ = self._workspace.exclude_self(mask, self_px)
+            if rest is None:
+                continue
+            pts_cam = mask_to_points_cam(frame, rest)
             if pts_cam.shape[0] < 10:
                 continue
             pts_base = transform_points(T, pts_cam)

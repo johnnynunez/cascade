@@ -222,7 +222,8 @@ chat command ("pick and place the red cube")
   rule is per camera (B32b, 2026-10-08): a belief keeps the name each
   camera gave it, an observation is held to its own camera's name, and a
   camera that never named a belief fuses a perceptual-neighbour name
-  (orange~yellow) only at 3D box IoU >= 0.75.
+  (orange~yellow) only at 3D box IoU >= 0.75, with each cloud's lowest
+  centimetre left out of the box (B32c: masks take in table pixels).
 - **Detector preparation.** The open-world and prompted YOLO models remain
   resident, with up to eight successful text-embedding vocabularies retained
   in LRU order. This adds model residency while avoiding checkpoint and text
@@ -865,14 +866,24 @@ token and registration. Stdio through `launch.sh` remains the default; see
   name (`source_colors`) and an observation is held to its own camera's name;
   a camera that never named a belief fuses a NEIGHBOUR name only at 3D box
   IoU >= `memory.neighbour_colour_iou` (0.75), and needs real-mask clouds on
-  both sides. Not yet measured live (the Isaac A/B target is 4 → 3 beliefs on
-  the bare scene). Remaining failure modes: a camera that flips its own name
-  for one object still makes a second belief (held to its first name, as
-  before); two views of a SMALL object overlap less (a 3.5 cm cube: 0.66–0.85
-  IoU in the ray-cast) and may stay two beliefs; a heavily bleeding mask (6 px
-  at 1280 × 720) drops even the bin's two views below the threshold; and a
-  bleeding sliver of a prop inside the bin reaches 0.68, close to 0.75, if a
-  camera that never named the bin sees only that sliver.
+  both sides. The box ignores each cloud's lowest centimetre (B32c): YOLOE's
+  masks take in table pixels, and with them the bin's two live views scored a
+  median of 0.744. Live on Isaac 6.2 PhysX the bare scene is now 3 beliefs for
+  3 props in 5/5 runs (the one-name rule: 4 in 5/5), and a yellow prop in or
+  next to the orange bin was never merged
+  (`docs/evidence/b32b-colour-identity-live-20261008/`). Remaining failure
+  modes:
+  - a camera that flips its own name for one object still makes a second
+    belief (held to its first name, as before);
+  - two views of a SMALL object overlap less (a 3.5 cm cube: 0.66–0.85 IoU in
+    the ray-cast) and may stay two beliefs;
+  - a bleeding sliver of a short prop wholly inside the bin, seen only by a
+    camera that never named the bin, reaches 0.63 in the ray-cast;
+  - pre-existing and unchanged: a camera that names a container and the prop
+    inside it with the SAME colour fuses its view of the container into the
+    prop's belief (the side camera's "yellow" bin into the yellow cube, 3 frames
+    per run, identical with the one-name rule).
+
   `memory.per_camera_colour: false` restores the one-name rule.
 - Grip force is a stiffness proxy (kp scaling + stall detection), not a
   calibrated force loop.

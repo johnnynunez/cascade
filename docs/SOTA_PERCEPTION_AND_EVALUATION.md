@@ -145,6 +145,7 @@ ground truth (`TruthPoseReader`), 12 frames, static scene, 3 real props.
 | **open vocabulary + workspace filter + label-agnostic fusion** | **100%** | **0%** | **STABLE** | **100%** |
 | same, re-measured 2026-10-08 (Isaac 6.2 PhysX, cameras `isaac` + `isaac_side`, 3 runs) | 80.4–82.1% | 17.9–19.6% | 3 → 5 | 100% |
 | **+ render self-mask gate in fusion (B32a, 2026-10-08, same rig, 3 runs)** | **100%** | **0%** | 3 → 4 | **100%** |
+| **+ per-camera colour identity (B32b + B32c, 2026-10-08, same rig, 5 runs)** | **100%** | **0%** | **STABLE (3)** | **100%** |
 
 Artifacts: `benchmark/results/perception_nofilter.json` (gate disabled),
 `benchmark/results/perception_open_vocab.json` (final). Reproduce the ablation
@@ -183,7 +184,7 @@ camera "orange" (B32b). It scores as a hit, so it costs no precision, but it
 makes the count wrong. Frames without a render self-mask (the real rig) are
 fused as before.
 
-B32b (2026-10-08, software only so far) makes colour identity per camera.
+B32b (2026-10-08) makes colour identity per camera.
 The bin's median hue is H 22 in the top camera and H 23 in the side camera,
 one unit across the orange/yellow band boundary, in every frame. A hue margin
 cannot separate that from a real yellow prop next to the bin (3–4 units), but
@@ -195,9 +196,21 @@ percentile boxes, and IoU is used rather than intersection over the smaller
 box, so a prop inside the bin stays separate. In a CPU ray-cast of this scene
 (calibrated poses, bridge optics), the bin's two views score 0.90–0.91, or
 0.78–0.94 with 2–4 px of mask bleed. A cube inside the bin scores ≤ 0.03, and
-a bleeding sliver of one ≤ 0.68. The live A/B (`memory.per_camera_colour:
-true` vs `false`; target 4 → 3 beliefs at unchanged precision) has not been
-run yet, so no table row is claimed.
+a bleeding sliver of one ≤ 0.68.
+
+Live, those boxes were not enough. YOLOE's masks take in table pixels at the
+object's lowest height: a median 35 % of the side camera's bin cloud. Across
+86 logged decisions the two views scored 0.708–0.926, median 0.744, so the bin
+was one belief in only 5 of 7 runs. B32c leaves each cloud's lowest
+centimetre out of the box, and the same decisions score 0.870–0.945; the
+threshold stays 0.75. In 5 interleaved runs per arm on Isaac 6.2 PhysX
+(`memory.per_camera_colour: true` vs `false`), the per-camera store held 3
+beliefs for 3 props in all 60 frames. The one-name store ended with 4 in every
+run. Both arms had precision and recall 1.0, and mean localisation error was
+1.61–1.65 cm vs 1.81–2.49 cm. A yellow 5 cm prop in or next to the orange bin
+was never merged with it (IoU ≤ 0.10). See
+`docs/evidence/b32b-colour-identity-live-20261008/`. This is one rig and one
+scene: the kitchen and Newton are not measured.
 
 ### Same-colour twins: instance-level association (2026-10-08)
 

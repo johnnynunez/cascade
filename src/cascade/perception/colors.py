@@ -106,6 +106,16 @@ def color_matches(want: str, got: str | None, strict: bool = False) -> bool:
     return (not strict) and got in _NEIGHBORS.get(want, set())
 
 
+def are_neighbours(a: str | None, b: str | None) -> bool:
+    """Two DIFFERENT palette names that sit on a shared band boundary, in
+    either direction of `_NEIGHBORS` (which lists brown~red one way only).
+    The belief store lets two cameras' names for one object differ only by
+    this (memory/beliefs.py `_identity_ok`); red/blue never qualifies."""
+    if a is None or b is None or a == b:
+        return False
+    return b in _NEIGHBORS.get(a, set()) or a in _NEIGHBORS.get(b, set())
+
+
 def center_bbox_mask(shape_hw: tuple[int, int], bbox, frac: float = 0.5):
     """Mask over the central `frac` of a bbox: for detections without a
     segmentation mask, the box edges are mostly background -- naming the

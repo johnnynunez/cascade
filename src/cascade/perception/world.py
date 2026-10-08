@@ -33,7 +33,7 @@ from .freshness import capture_marker, frames_after_reset, newer_capture
 from .grounding import Extrinsics, mask_to_points_cam, oriented_bbox
 from .thread_join import cancel_stop_before_exit, join_thread, stop_before_exit
 from .workspace import WorkspaceFilter
-from ..memory.beliefs import FrameObservation
+from ..memory.beliefs import FrameObservation, camera_source
 from ..types import Frame, transform_points
 
 
@@ -348,6 +348,9 @@ class WorldWatcher:
                 color=detection_color(frame.rgb, d),
                 points=pts_base if d.mask is not None else None,
                 bbox=getattr(d, "bbox", None), mask=d.mask,
+                # colour identity is per camera (B32b): the store holds this
+                # name to the one THIS camera gave a belief
+                source=camera_source(cam.stream),
             ))
         if not observations:
             return

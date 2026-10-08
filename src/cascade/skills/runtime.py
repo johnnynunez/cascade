@@ -27,6 +27,7 @@ from ..grasping import evidence as grasp_evidence
 from ..grasping.selector import ALL_TOO_WIDE_MARKER
 from . import carry_attachment
 from ..memory import BeliefStore, EpisodicMemory, FrameObservation
+from ..memory.beliefs import camera_source
 from ..perception.colors import detection_color, parse_color_query
 from ..perception.reference import ReferenceResolutionError, parse_reference
 from typing import TYPE_CHECKING, Any
@@ -1027,7 +1028,8 @@ class SkillRuntime:
             return None
         return _jpeg(self.last_frame.rgb)
 
-    def _update_beliefs_from_frame(self, frame: Frame, dets, T=None) -> list[dict]:
+    def _update_beliefs_from_frame(self, frame: Frame, dets, T=None,
+                                   source: str | None = None) -> list[dict]:
         summaries = []
         self_px = self._workspace.self_pixels(frame)  # the robot's own pixels, if rendered
         if not frame.has_depth:
@@ -1039,6 +1041,11 @@ class SkillRuntime:
         if T is None:
             T = (frame.T_base_cam if frame.T_base_cam is not None
                  else self.extrinsics.cam_to_base())
+            # No T = a frame of the PRIMARY camera (observe()); its stream
+            # name is the colour-identity source (B32b). A caller passing T
+            # for another camera names it (`_reobserve`); unnamed stays None.
+            if source is None:
+                source = camera_source(getattr(self, "camera", None))
         observations = []
         for d in dets:
             mask = d.mask
@@ -1076,6 +1083,7 @@ class SkillRuntime:
                 color=color,
                 points=pts_base if d.mask is not None else None,
                 bbox=getattr(d, "bbox", None), mask=d.mask,
+                source=source,
             ))
             summaries.append(
                 {
@@ -1892,7 +1900,8 @@ class SkillRuntime:
                     dets = [d for d in dets if d.label != held]
                 T = (frame.T_base_cam if frame.T_base_cam is not None
                      else cam.extrinsics.cam_to_base())
-                self._update_beliefs_from_frame(frame, dets, T=T)
+                self._update_beliefs_from_frame(
+                    frame, dets, T=T, source=camera_source(cam.stream))
             except Exception:
                 continue
 

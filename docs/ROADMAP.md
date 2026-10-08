@@ -945,11 +945,29 @@ engine" rule again -- a second OBJECT is also an independent channel):
    **landed 2026-10-08 (B32a)**: `WorkspaceFilter` gates both fusion
    paths on the render self-mask. Live, the phantom rate went from
    17.9–19.6 % to 0 % in 3/3 runs, with precision 100 % and recall 100 %
-   (`docs/evidence/b32-fusion-self-mask-20261008/`). The second is still open
+   (`docs/evidence/b32-fusion-self-mask-20261008/`). ~~The second is still open
    (B32b): a duplicate bin belief, because the side camera names the bin
    "yellow" and the top camera "orange". Because of it the scene ends with 4
    beliefs for 3 props, so the STABLE count of the 0 % row of
-   `SOTA_PERCEPTION_AND_EVALUATION.md` still does not reproduce. Frames without
+   `SOTA_PERCEPTION_AND_EVALUATION.md` still does not reproduce.~~ The second
+   (B32b, a duplicate bin belief: the bin is H 22 "orange" in the top camera
+   and H 23 "yellow" in the side camera, 16/16 and 7/7 frames) **landed in
+   software 2026-10-08, live A/B pending**: colour identity is per camera
+   (`ObjectBelief.source_colors`, `BeliefStore._identity_ok`). A camera is held
+   to the name it gave a belief; a camera that never named it may fuse a
+   perceptual-neighbour name only at 3D box IoU >= 0.75 (2nd–98th percentile
+   boxes of the two clouds; union, not the smaller box, so a prop inside the
+   bin stays apart); red/blue never fuse. Measured on CPU only: the bin's two
+   views ray-cast from the calibrated poses score 0.90–0.91 IoU (0.78–0.94
+   with 2–4 px of mask bleed), a cube inside it ≤ 0.03 (a bleeding sliver of
+   one ≤ 0.68); 23 tests (RED 21/23 on main 133876c, the 2 passing are the
+   geometric premises), 20/20 mutants killed. Switch:
+   `memory.per_camera_colour` (default true; false = the one-name A/B
+   baseline), `memory.neighbour_colour_iou`. Still open: the live Isaac A/B
+   (target: bare scene 4 → 3 beliefs, precision unchanged), the kitchen
+   scene, and a small object named across a band boundary by two cameras
+   (cube views overlap 0.66 at 320 × 180, 0.85 at 1280 × 720 in the ray-cast:
+   it may stay two beliefs, as before). Frames without
    a render self-mask (the real rig) need a link-geometry mask in fusion
    (follow-up).
 

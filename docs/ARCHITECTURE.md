@@ -218,7 +218,11 @@ chat command ("pick and place the red cube")
   that share image support (an open-vocabulary second name, a part inside
   its whole) are one instance, and instances are matched to beliefs
   one-to-one by a min-cost assignment inside the same gates, so two
-  identical props the detector sees as two stay two beliefs.
+  identical props the detector sees as two stay two beliefs. The colour
+  rule is per camera (B32b, 2026-10-08): a belief keeps the name each
+  camera gave it, an observation is held to its own camera's name, and a
+  camera that never named a belief fuses a perceptual-neighbour name
+  (orange~yellow) only at 3D box IoU >= 0.75.
 - **Detector preparation.** The open-world and prompted YOLO models remain
   resident, with up to eight successful text-embedding vocabularies retained
   in LRU order. This adds model residency while avoiding checkpoint and text
@@ -833,9 +837,22 @@ token and registration. Stdio through `launch.sh` remains the default; see
   dropped, and the robot's pixels never reach 3D. Live, the bare scene's
   phantom rate went from 17.9–19.6 % to 0 %
   (`docs/evidence/b32-fusion-self-mask-20261008/`). Frames without that mask
-  (the real rig) still rely on the cylinder alone. Colour names are
-  per-camera: the side camera names the orange bin "yellow", so the bin can
-  become two beliefs (B32b).
+  (the real rig) still rely on the cylinder alone.
+- Colour names differ between cameras: one object can sit on a hue band
+  boundary (the Isaac bin is H 22 "orange" in the top camera, H 23 "yellow"
+  in the side camera). Since 2026-10-08 (B32b) a belief keeps each camera's
+  name (`source_colors`) and an observation is held to its own camera's name;
+  a camera that never named a belief fuses a NEIGHBOUR name only at 3D box
+  IoU >= `memory.neighbour_colour_iou` (0.75), and needs real-mask clouds on
+  both sides. Not yet measured live (the Isaac A/B target is 4 → 3 beliefs on
+  the bare scene). Remaining failure modes: a camera that flips its own name
+  for one object still makes a second belief (held to its first name, as
+  before); two views of a SMALL object overlap less (a 3.5 cm cube: 0.66–0.85
+  IoU in the ray-cast) and may stay two beliefs; a heavily bleeding mask (6 px
+  at 1280 × 720) drops even the bin's two views below the threshold; and a
+  bleeding sliver of a prop inside the bin reaches 0.68, close to 0.75, if a
+  camera that never named the bin sees only that sliver.
+  `memory.per_camera_colour: false` restores the one-name rule.
 - Grip force is a stiffness proxy (kp scaling + stall detection), not a
   calibrated force loop.
 - `RebotRSArm.disconnect()` cuts torque: park (`move_home`) first.

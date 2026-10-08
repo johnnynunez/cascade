@@ -32,6 +32,7 @@ from ..control.arm_rig import ArmRig
 from ..control.kinematics import Kinematics
 from ..control.lazy_arm import LazyArm
 from ..memory import BeliefStore, EpisodicMemory
+from ..memory.beliefs import NEIGHBOUR_COLOUR_IOU
 from ..perception.camera_base import make_camera
 from ..perception.depth_provider import DepthProvider
 from ..perception.grounding import Extrinsics
@@ -412,7 +413,9 @@ def build_runtime(
     # are matched to beliefs one-to-one, so two identical props inside the
     # 8 cm gate stay two beliefs. `memory.instance_association: false` is the
     # per-detection baseline for a live A/B (memory/beliefs.py update_frame).
-    beliefs = BeliefStore(instance_association=_instance_association_enabled(mcfg))
+    # Colour identity per camera (B32b): `memory.per_camera_colour: false` is
+    # the one-name baseline for a live A/B (memory/beliefs.py _identity_ok).
+    beliefs = _belief_store(mcfg)
     # Persistent spatial memory (ROADMAP item): the world model survives a
     # restart, so the robot does not re-discover a table it already mapped and
     # can answer "where was the mug" on a cold boot. Everything loaded is aged
@@ -863,6 +866,27 @@ def _instance_association_enabled(mcfg) -> bool:
     if isinstance(value, str):
         return value.strip().lower() not in ("0", "false", "no", "off")
     return bool(value)
+
+
+def _belief_store(mcfg) -> BeliefStore:
+    """The world model as the `memory:` block configures it.
+
+    `per_camera_colour` (default true, B32b): a belief keeps each camera's
+    colour name, so one object that two cameras name across a band boundary
+    (the Isaac bin: "orange" top, "yellow" side) is one belief; false = the
+    one-name rule. `neighbour_colour_iou` (default 0.75) is the 3D box IoU a
+    camera that never named a belief needs to fuse a neighbouring name into
+    it; outside (0, 1] raises. A YAML string such as "false" is honoured.
+    """
+    value = mcfg.get("per_camera_colour", True)
+    if isinstance(value, str):
+        value = value.strip().lower() not in ("0", "false", "no", "off")
+    iou = mcfg.get("neighbour_colour_iou")
+    return BeliefStore(
+        instance_association=_instance_association_enabled(mcfg),
+        per_camera_colour=bool(value),
+        neighbour_colour_iou=(NEIGHBOUR_COLOUR_IOU if iou is None else float(iou)),
+    )
 
 
 def _premotion_critic(cfg, llm, runtime, is_mock: bool):

@@ -589,7 +589,30 @@ class OccupancyMap:
         if required and m.status is None:
             client.close()
             raise OccupancyError(f"required occupancy bridge unavailable: {m.probe_error}")
+        if cfg.get("clear_on_start", False) is True and m.status is not None:
+            m.clear_bridge_map()
         return m
+
+    def clear_bridge_map(self) -> bool:
+        """Empty the bridge's map at session start. Never raises.
+
+        The bridge outlives the runtime: geometry integrated by an earlier
+        process (an arm that moved or fell during teardown, an older body-mask
+        radius) is not masked by anything this process knows, and on a real
+        rig such ghosts sat on the arm's own rest pose and refused the first
+        motion. Opt-in (`occupancy.clear_on_start`) because several runtimes
+        may share one bridge, and clearing it empties theirs until their next
+        refresh.
+        """
+        if self._client is None:
+            return False
+        try:
+            self._client.request({"action": "clear"})
+        except OccupancyError as e:
+            logger.warning("occupancy: could not clear the bridge map at start: %s", e)
+            return False
+        logger.warning("occupancy: cleared the bridge map at session start (clear_on_start)")
+        return True
 
     def probe(self, timeout_ms: int = 300) -> dict | None:
         """One startup round trip that names the backend (or records that

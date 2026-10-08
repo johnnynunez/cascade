@@ -46,6 +46,11 @@ occupancy:
   stride: 8                # legacy cloud-protocol subsampling (old bridges)
   depth_stride: 2          # depth-frame subsampling shipped to the bridge (640x480 -> 320x240)
   probe_timeout_ms: 300    # startup probe; a bridge that is up answers in < 5 ms
+  # Empty the bridge's map when this runtime starts. The bridge outlives the
+  # runtime, so geometry from an earlier session (an arm that moved during
+  # teardown, an older body-mask radius) is unmasked here and can refuse the
+  # first motion. Off by default: several runtimes may share one bridge.
+  clear_on_start: false
   # region_min/region_max: AABB to query for occupied points; defaults to
   # safety.workspace min/max if omitted.
 

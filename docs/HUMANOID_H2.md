@@ -89,15 +89,16 @@ committed). Inventory with every source checked and every "not found":
   turn is at 0.04 by then). The budget is not inflated further; the next revision is control-side
   (ramp the turn rate down before the goal, or hand over to standing) and will be measured on
   its own. Until then turns ≥ 0.8 rad on the H2 come back `refuted` and the host treats them so.
-- **Candidate revision 3 (same day, software only — NOT physically measured):** the turn
+- **Candidate revision 3 (same day; owner episodes 8 October — mixed, not admitted):** the turn
   now decelerates before the goal instead of cutting 0.5 rad/s to zero mid-step
   ([below](#candidate-revision-3-turn-goal-ramp-software-only-7-october-2026)). CPU tests pin
-  the control law, the in-admission scaling primitive and every fail-closed path; whether the
-  0.8 rad turn now passes the **unchanged** settle check is decided only by the owner episode
-  that has not run yet.
+  the control law, the in-admission scaling primitive and every fail-closed path. On the owner
+  (39 independent turns, ramp on vs `goal_ramp: null` on the same owner, limits unchanged) the
+  0.8 rad turn now passes the unchanged settle check 8/8 (1/6 without the ramp), but 1.0 rad
+  drops to 1/5 (5/6 without): the ramp's deceleration plus a mid-turn yaw-rate dip of the
+  policy exhaust the unchanged 3 s command ([live result](#live-result-8-october-2026)).
 - **Not shown:** any Newton run; anything on hardware; measured (not candidate) verifier
-  limits; `walk_distance` beyond ~0.6 m (bounded by the 3 s command budget, not by the robot);
-  any owner episode with the revision-3 turn ramp.
+  limits; `walk_distance` beyond ~0.6 m (bounded by the 3 s command budget, not by the robot).
 
 ## Candidate revision 3: turn goal ramp (software only, 7 October 2026)
 
@@ -156,7 +157,7 @@ but hits the 3 s deadline with it: the existing fail-closed timeout (execution e
 stop), never a larger budget. Each update is one control-channel RPC to an owner running at
 ≈0.47× real time.
 
-**Live recipe (the parent runs it on GPU 0; not run for this revision).**
+**Live recipe (run by the parent on GPU 0 on 8 October 2026; result below).**
 
 1. Start the owner from this revision's checkout with the geo3-v2 command line plus
    `--velocity-scaling`; `BRIDGE_LISTENING.json` → `hello.capabilities` must list
@@ -170,6 +171,35 @@ stop), never a larger budget. Each update is one control-channel RPC to an owner
    time used of the 3 s, and the owner's policy rows (commanded wz 0.5 → 0.15 inside ONE generation).
 4. A/B on the same owner: the 0.8 rad turn from an `extends:` child with `turn_control:
    {goal_ramp: null}` (revision 2 behaviour).
+
+### Live result (8 October 2026)
+
+[Evidence](evidence/h2-turn-ramp-live-20261008/REPORT.md): every turn, yaw-rate profiles, the
+harness and a SHA-256 manifest of the raw rows. The owner from this revision ran with
+`--velocity-scaling` on GPU 0 (the 6.2 build, PhysX). The ramp-on and `goal_ramp: null` arms
+ran on the same owner, with resolved bases that differ only in `goal_ramp` (checked before any
+motion). 39 independent turns; limits and the 3 s command unchanged.
+
+| angle | ramp on | ramp off |
+| --- | --- | --- |
+| ±0.6 rad | 3/4 (1 timeout) | 3/4 (1 refuted) |
+| ±0.8 rad | **8/8** | 1/6 (5 refuted: settle heading drift 0.053–0.084 rad) |
+| ±1.0 rad | 1/5 (3 timeouts, 1 refuted) | 5/6 |
+| ±0.8 rad through MCP | 4/6 | — |
+
+- **The ramp fixes what it was built for.** The commanded rate is at the 0.15 rad/s floor at
+  every ramped stop, and the 0.8 rad settle drifts are 0.028–0.050 rad. One is at 0.0499, so
+  the margin is thin.
+- **All four timeouts are ramp-on left turns.** The policy's yaw rate dips below 0.2 rad/s
+  around 1.0–1.75 s in 24 of the 39 turns, in both arms. On a 1.0 rad turn, that dip plus the
+  ramp's deceleration no longer fit in the 3 s command. Without the ramp, all six 1.0 rad turns
+  came within tolerance at 2.21–2.43 s.
+- **1.0 rad turns sit at the translation limit in both arms.** The verifier path is
+  0.166–0.227 m against `max_lateral_drift_m` 0.20 m, and both −1.0 rad refutations are
+  "unrequested translation during turn".
+- **Verdict: not admitted.** Nothing was retuned after the measurement. The next control
+  revision will be designed and measured on its own: either a ramp that budgets the command time
+  left, or one that holds the rate through a dip.
 
 ## Owner architecture (to build; mirrors the MicroDuck shared owner)
 

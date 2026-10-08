@@ -329,7 +329,7 @@ class MockDetector(Detector):
     """
 
     def __init__(self, detections: list[Detection] | None = None, label: str = "red cube",
-                 extra_labels: list[str] | None = None):
+                 extra_labels: list[str] | None = None, instances: bool = False):
         self._fixed = detections
         self._label = label
         #: further colour-keyed props ("blue cube", "green cube"): each is
@@ -337,6 +337,13 @@ class MockDetector(Detector):
         #: rgba the generated MuJoCo scene paints (sim/demo_scene.PROP_RGBA)
         #: and to the mock camera's synthetic colours.
         self._extra_labels = list(extra_labels or [])
+        #: opt-in (`detector: {type: mock, instances: true}`): one detection
+        #: per connected blob of a colour instead of one per colour, so two
+        #: same-colour props that do not touch IN THE IMAGE come back as two
+        #: instances. Off by default: every shipped scene paints one prop per
+        #: colour, and touching props stay one blob either way (that is a
+        #: detector limit; the belief store cannot split one detection).
+        self._instances = bool(instances)
         self._classes: list[str] = []
 
     def set_classes(self, classes: list[str] | None) -> None:
@@ -371,9 +378,34 @@ class MockDetector(Detector):
             mask = _COLOR_RULES[color](frame.rgb)
             if not mask.any():
                 continue
+            if self._instances:
+                out.extend(Detection(label=label, conf=0.95, bbox=_mask_bbox(blob), mask=blob)
+                           for blob in _blobs(mask))
+                continue
             # one blob per colour: the generated scenes never paint two props
             # of the same colour, so the union IS the object
             ys, xs = np.nonzero(mask)
             bbox = np.array([xs.min(), ys.min(), xs.max() + 1, ys.max() + 1], dtype=np.float32)
             out.append(Detection(label=label, conf=0.95, bbox=bbox, mask=mask))
         return out
+
+
+#: Smallest connected blob the instance mode reports (pixels): anti-aliased
+#: edge specks of a colour are not objects.
+_MIN_BLOB_PX = 20
+
+
+def _mask_bbox(mask: np.ndarray) -> np.ndarray:
+    ys, xs = np.nonzero(mask)
+    return np.array([xs.min(), ys.min(), xs.max() + 1, ys.max() + 1], dtype=np.float32)
+
+
+def _blobs(mask: np.ndarray) -> list[np.ndarray]:
+    """8-connected components of a colour mask, largest first (cv2 is a base
+    dependency; scipy is not)."""
+    import cv2
+
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(mask.astype(np.uint8), connectivity=8)
+    keep = [k for k in range(1, n) if stats[k, cv2.CC_STAT_AREA] >= _MIN_BLOB_PX]
+    keep.sort(key=lambda k: (-int(stats[k, cv2.CC_STAT_AREA]), k))
+    return [labels == k for k in keep]

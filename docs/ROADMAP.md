@@ -821,6 +821,22 @@ engine" rule again -- a second OBJECT is also an independent channel):
    1. Two confirmed, different mask colours are now two objects however
    close; same-colour aliases still fuse; colour-less observations keep the
    old rule.
+   **Follow-up (backlog B31):** ~~same-colour IDENTICAL props inside the
+   8 cm gate still blurred into one belief (ARCHITECTURE "Known
+   limitations")~~ **landed 2026-10-08** — a camera frame is fused as a
+   whole (`BeliefStore.update_frame`): detections sharing image support are
+   one instance, instances and beliefs are matched one-to-one by a min-cost
+   assignment inside the unchanged gates. Measured with
+   `scripts/measure_same_colour_sweep.py` (two rendered 3.5 cm red cubes,
+   MuJoCo physics truth, the real WorldWatcher path,
+   `benchmark/results/same_colour_separation_sweep.json`): every pair the
+   detector returns as two detections is two beliefs at single-cube accuracy
+   (top view from 3.75 cm centre distance; the old store merged every such
+   pair below 8 cm, 1.6–3.6 cm off). Still open: pairs the DETECTOR returns
+   as one detection (touching cubes; 5.5–7.0 cm in the oblique probe view;
+   the default mock detector's one blob per colour at any distance), and the
+   live open-vocabulary phantom A/B on Isaac (`memory.instance_association`
+   true vs false) before this counts as measured there.
 
 Then the REAL chat turn on the two-prop scene ("put both cubes in the drop
 zone, one at a time, call task_memory before each action, tell me how many

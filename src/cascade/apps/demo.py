@@ -869,6 +869,35 @@ def _park_gripper(arm) -> None:
         closer()
 
 
+def _park_move(arm, duration_s: float, stage: dict) -> bool:
+    """The park motion. If ONLY the occupancy map refuses it, park once more
+    without the map.
+
+    Teardown releases torque right after this. A refused park therefore
+    drops a raised arm, which is worse than the obstacle the map reported:
+    on a real rig that is often the arm's own unmasked parts or the object
+    still in its jaws. Joint limits, workspace, table and velocity gates all
+    still run; an e-stop latch is never bypassed.
+    """
+    from ..types import SafetyViolation
+
+    try:
+        return arm.move_joints(_park_pose(arm), duration_s=duration_s, joint_margin=0.0)
+    except SafetyViolation as exc:
+        harness = arm.harness
+        occupancy = getattr(harness, "occupancy", None)
+        if occupancy is None or harness.estopped or "occupancy" not in str(exc):
+            raise
+        print(f"[cascade] park refused by the occupancy map ({exc}); parking without the "
+              "map: releasing torque with the arm raised would drop it")
+        stage["occupancy_bypassed"] = str(exc)
+        harness.occupancy = None
+        try:
+            return arm.move_joints(_park_pose(arm), duration_s=duration_s, joint_margin=0.0)
+        finally:
+            harness.occupancy = occupancy
+
+
 def _park_arm(runtime, duration_s: float = 2.0) -> dict:
     """Slowly drive every arm to its zero pose before torque is cut.
 
@@ -922,7 +951,7 @@ def _park_arm(runtime, duration_s: float = 2.0) -> dict:
             # joint_margin=0 lets the park reach the mechanical stop (an exact
             # zero on the reBot's joint 2/3, whose lower limit IS 0); every
             # other safety gate (workspace, table, velocity) still runs.
-            completed = arm.move_joints(_park_pose(arm), duration_s=duration_s, joint_margin=0.0)
+            completed = _park_move(arm, duration_s, stage)
             _park_gripper(arm)
             if completed is False:
                 stage.update(ok=False, complete=False,

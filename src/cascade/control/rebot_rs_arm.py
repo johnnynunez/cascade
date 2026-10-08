@@ -58,6 +58,10 @@ class RebotRSArm(ArmBase):
         self._mit_kp = None
         self._mit_kd = None
         self.settle_tol = float(cfg.get("settle_tol", 0.05))
+        # Same per-profile override the motorbridge sibling honours; the RS rig
+        # needed a longer window for large joint swings (Seeed WRC e97998c,
+        # ba4e110). Default stays ArmBase's.
+        self.settle_timeout_s = float(cfg.get("settle_timeout_s", ArmBase.settle_timeout_s))
         g = cfg.get("gripper", Cfg({}))
         self._grip_open = float(g.get("open_pos", -6.8))
         self._grip_closed = float(g.get("closed_pos", 0.0))

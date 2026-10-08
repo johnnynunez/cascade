@@ -22,7 +22,13 @@ handover_q: [0.5, 1.2, 1.2, 0.0, 0.75, 0.0]
 # (shoulder lift + elbow) have their lower limit at 0 rad, so this parks them
 # ON the stop; the park relaxes the joint margin (joint_margin=0) for this
 # move only so it can reach it, while every other safety gate still runs.
-park_q: [0.0, 0.0, -0.05, 0.0, 0.0, 0.0]
+# It must lie INSIDE the URDF limits: the margin is the only thing the park
+# relaxes. (Joint 3 used to be -0.05, below its 0 limit -- the harness then
+# refused the park at joint 3 = -0.001 with joint 2 still ~0.05 rad up, the
+# gripper park never ran and teardown reported ParkIncomplete. Pinned by
+# tests/test_rebot_rest_and_park.py.) On the real arm joint 2 reads +0.004 at
+# the stop (Seeed WRC rig), so commanding 0 presses into it by only kp*4 mrad.
+park_q: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
 # Per-arm speed cap: below the global demo.yaml default (1.2 rad/s). Lower =
 # slower but longer moves -- min-jerk peak velocity (1.875*dq/T) is auto-stretched

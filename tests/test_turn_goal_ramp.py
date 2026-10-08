@@ -287,8 +287,11 @@ def test_default_off_turns_keep_the_golden_command_sequence_and_only_the_h2_cand
         admitted = ('command_velocity', {'vx': 0., 'vy': 0., 'wz': -safety['turn_speed_rad_s'],
                                          'duration_s': safety['max_duration_s']}, 0)
         turn = profile.get('turn_control')
-        # The ramped profile is also run with an explicit null ramp (the extends: A/B switch).
+        # The ramped profile is also run with an explicit null ramp (the extends: A/B switch), and the
+        # budgeted one with an explicit null budget (revision 3, B29b's A/B switch).
         variants = [turn] + ([{**turn, 'goal_ramp': None}] if name in ramped else [])
+        if (turn or {}).get('goal_ramp') and turn['goal_ramp'].get('time_budget'):
+            variants.append({**turn, 'goal_ramp': {**turn['goal_ramp'], 'time_budget': None}})
         for variant in variants:
             raw = RampFeedback()
             safe = SafeBase(raw, safety, turn_control=variant,
@@ -300,8 +303,9 @@ def test_default_off_turns_keep_the_golden_command_sequence_and_only_the_h2_cand
                 if (variant or {}).get('goal_ramp'):
                     assert raw.calls[0] == admitted and kinds(raw, 'scale_velocity'), name
                     assert raw.calls[-1] == ('stop', False)
+                    budget = ['turn_rate_budget'] if variant['goal_ramp'].get('time_budget') else []
                     assert sorted(result) == sorted(GOLDEN_TURN_KEYS + ['turn_rate_updates',
-                                                                        'commanded_rate_at_stop_rad_s'])
+                                                                        'commanded_rate_at_stop_rad_s', *budget])
                 else:  # byte-for-byte the pre-ramp sequence and result schema
                     assert raw.calls == [admitted, ('stop', False)], name
                     assert sorted(result) == GOLDEN_TURN_KEYS, name
@@ -335,7 +339,8 @@ def test_turn_tool_surface_is_unchanged_and_runtime_wiring_carries_the_ramp(tmp_
     from cascade.skills.mobile_runtime import TOOL_SPECS, tool_specs_for_profiles
 
     candidate = load_profile('bases', 'h2_velocity_candidate').as_dict()
-    assert candidate['turn_control']['goal_ramp'] == RAMP
+    # Revision 3's ramp, plus revision 4's opt-in time budget (B29b, tests/test_turn_goal_ramp_budget.py).
+    assert {k: v for k, v in candidate['turn_control']['goal_ramp'].items() if k != 'time_budget'} == RAMP
     without = copy.deepcopy(candidate)
     del without['turn_control']['goal_ramp']
     specs = tool_specs_for_profiles([candidate])

@@ -179,9 +179,11 @@ class SafeBase:
         if value is None:
             return None
         keys = {"decel_rad_s2", "min_rate_rad_s", "rate_step_rad_s"}
-        if not isinstance(value, dict) or set(value) != keys:
-            raise ValueError("turn_control.goal_ramp requires exactly " + ", ".join(sorted(keys)))
-        ramp = {k: finite_real(v, k) for k, v in value.items()}
+        # ``time_budget`` (B29b) is the one optional key; an explicit null keeps it off.
+        if not isinstance(value, dict) or not keys <= set(value) <= keys | {"time_budget"}:
+            raise ValueError("turn_control.goal_ramp requires exactly " + ", ".join(sorted(keys))
+                             + " (and optionally time_budget)")
+        ramp: dict = {k: finite_real(v, k) for k, v in value.items() if k != "time_budget"}
         if any(v <= 0 for v in ramp.values()):
             raise ValueError("goal ramp values must be positive")
         top = self.harness.limits["turn_speed_rad_s"]
@@ -189,7 +191,24 @@ class SafeBase:
             raise ValueError("goal ramp floor must stay below the admitted turn speed")
         if ramp["rate_step_rad_s"] > top - ramp["min_rate_rad_s"]:
             raise ValueError("goal ramp rate step exceeds the whole ramp")
+        if "time_budget" in value:
+            ramp["time_budget"] = self._time_budget_config(value["time_budget"])
         return MappingProxyType(ramp)
+
+    def _time_budget_config(self, value):
+        """Never decelerate below the rate the remaining yaw needs in the admitted time left."""
+        if value is None:
+            return None
+        keys = {"reserve_s", "tracking"}
+        if not isinstance(value, dict) or set(value) != keys:
+            raise ValueError("turn_control.goal_ramp.time_budget requires exactly reserve_s, tracking")
+        budget = {k: finite_real(v, k) for k, v in value.items()}
+        if not 0 < budget["reserve_s"] < self.harness.limits["max_duration_s"]:
+            raise ValueError("time budget reserve must be positive and leave part of the command")
+        # Above 1 would assume the robot outruns its command, i.e. permit LATER deceleration.
+        if not 0 < budget["tracking"] <= 1:
+            raise ValueError("time budget tracking must be in (0, 1]")
+        return MappingProxyType(budget)
 
     def _goal_ramp(self):
         return None if self.turn_control is None else self.turn_control.get("goal_ramp")
@@ -436,7 +455,7 @@ class SafeBase:
         w, x, y, z = state.orientation_wxyz
         return math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
 
-    def _ramp_turn(self, op, ramp, state, remaining, rate, ack, updates):
+    def _ramp_turn(self, op, ramp, state, remaining, rate, ack, updates, end, budget_record):
         """Lower the ADMITTED turn rate on the measured remaining yaw; never raise it.
 
         ``|wz| = max(min_rate, min(previous, sqrt(2 * decel * (|remaining| - tolerance))))``,
@@ -447,9 +466,34 @@ class SafeBase:
         state has already failed closed in ``_read`` before this runs. A new rate is
         sent only when it is ``rate_step`` lower (or reaches the floor), inside the same
         admission: the backend scales the admitted twist, never re-admits or extends it.
+
+        Optional ``time_budget`` (B29b): the distance term may not go below
+        ``(|remaining| - tolerance) / (tracking * (end - sim_time - reserve))``, the
+        constant rate that still covers the remaining measured yaw in the ADMITTED
+        command time left (ACK ``end_sim_time_s`` minus this sample's sim time), at the
+        configured tracking, keeping ``reserve_s``; inside the reserve the rate is held.
+        It reads no yaw RATE, so a transient dip moves it only by the yaw it really
+        cost. It can only withhold a deceleration (``min(previous, ...)`` still caps
+        it), never raise the rate, extend the command or skip the zero-twist stop.
         """
         limits = self.harness.limits
-        desired = math.sqrt(2 * ramp["decel_rad_s2"] * max(0., abs(remaining) - limits["turn_tolerance_rad"]))
+        distance = max(0., abs(remaining) - limits["turn_tolerance_rad"])
+        desired = math.sqrt(2 * ramp["decel_rad_s2"] * distance)
+        budget = ramp.get("time_budget")
+        left = need = None
+        if budget is not None:
+            left = end - state.sim_time_s
+            usable = left - budget["reserve_s"]
+            need = distance / (budget["tracking"] * usable) if usable > 0 else math.inf
+            if max(ramp["min_rate_rad_s"], min(rate, need)) > max(ramp["min_rate_rad_s"], min(rate, desired)):
+                # The time left, not the distance left, sets this sample's rate.
+                budget_record["held_samples"] += 1
+                if budget_record["first_held"] is None:
+                    budget_record["first_held"] = {
+                        "step": state.step, "sim_time_s": state.sim_time_s, "remaining_rad": remaining,
+                        "command_time_left_s": left, "distance_rate_rad_s": desired,
+                        "budget_rate_rad_s": need if math.isfinite(need) else None, "rate_rad_s": rate}
+            desired = max(desired, need)
         target = max(ramp["min_rate_rad_s"], min(rate, desired))
         if rate - target < ramp["rate_step_rad_s"] and not target == ramp["min_rate_rad_s"] < rate:
             return rate
@@ -458,8 +502,10 @@ class SafeBase:
         reply = self._ack(reply, epoch=ack["epoch"], generation=ack["generation"])
         if reply.get("accepted") is not True or reply["latched"]:
             raise ValueError("turn rate scaling was not accepted inside the admitted command")
-        updates.append({"step": state.step, "sim_time_s": state.sim_time_s,
-                        "remaining_rad": remaining, "rate_rad_s": target})
+        update = {"step": state.step, "sim_time_s": state.sim_time_s, "remaining_rad": remaining, "rate_rad_s": target}
+        if budget is not None:  # an update is only ever sent outside the reserve, so ``need`` is finite here
+            update.update(command_time_left_s=left, budget_rate_rad_s=need)
+        updates.append(update)
         self._check(op)
         return target
 
@@ -483,6 +529,10 @@ class SafeBase:
         rate = abs(command.wz)
         rate_updates = []
         ramped: dict = {"turn_rate_updates": rate_updates} if ramp is not None else {}
+        # Opt-in (goal_ramp.time_budget): how often the command time left withheld a deceleration.
+        budget_record = {"held_samples": 0, "first_held": None}
+        if ramp is not None and ramp.get("time_budget") is not None:
+            ramped["turn_rate_budget"] = budget_record
         try:
             with self._gate:
                 if self._latched or self._control_ops:
@@ -584,7 +634,7 @@ class SafeBase:
                     if error * angle < 0:
                         raise ValueError("measured yaw overshot target tolerance")
                     if ramp is not None:
-                        rate = self._ramp_turn(op, ramp, state, error, rate, ack, rate_updates)
+                        rate = self._ramp_turn(op, ramp, state, error, rate, ack, rate_updates, end, budget_record)
             if angle is not None and abs(angle - measured_angle) > self.harness.limits["turn_tolerance_rad"]:
                 raise ValueError("measured yaw did not reach target before simulation deadline")
             if distance is not None and (measured_distance is None or

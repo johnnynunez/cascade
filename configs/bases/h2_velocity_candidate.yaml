@@ -83,3 +83,24 @@ turn_control:
     decel_rad_s2: 0.4
     min_rate_rad_s: 0.15
     rate_step_rad_s: 0.025
+    # Candidate revision 4 (B29b, 2026-10-08), NOT physically measured yet. The owner A/B of revision 3
+    # (docs/evidence/h2-turn-ramp-live-20261008, 39 turns) measured 0.8 rad 8/8 with the ramp vs 1/6
+    # without, but 1.0 rad 1/5 vs 5/6: the policy's yaw rate dips below 0.2 rad/s ~1.0-1.75 s into most
+    # turns (both arms), so on a 1.0 rad turn the ramp started only at 2.1-2.24 s and its ~0.8 s
+    # deceleration ran past the unchanged 3 s command (3 timeouts). The budget never lets the rate fall
+    # below (|remaining| - 0.03) / (tracking * (command time left - reserve_s)), the constant rate that
+    # still covers the measured remaining yaw in the ADMITTED time left; inside the reserve the rate is
+    # held. It only withholds decelerations (never raises the rate, never extends the command):
+    #  - tracking 0.93: the measured 0.465 of 0.5 rad/s (geo3-v2), the same figure revision 3 used.
+    #  - reserve_s 0.3 s sim: ~3 policy responses (~0.11 s) / ~6 owner samples of slack for the
+    #    zero-twist stop to land inside the command. Replayed on the logged revision-3 ramp updates it
+    #    binds on exactly the 3 timed-out +1.0 rad turns, the -1.0 rad turn that came within tolerance
+    #    only at 2.90 s, and the last update of one confirmed 0.8 rad turn (budget 0.186 vs the
+    #    law's 0.171 rad/s: withheld); every other logged update is unchanged
+    #    (tests/test_turn_goal_ramp_budget.py replays it on the committed evidence).
+    # Cost, stated: a late turn is cut above the 0.15 floor (up to the admitted 0.5, i.e. revision 2's
+    # cut for the 1.0 rad turns that confirmed 5/6 without the ramp). `time_budget: null` in an
+    # `extends:` child restores revision 3 for an A/B.
+    time_budget:
+      reserve_s: 0.3
+      tracking: 0.93

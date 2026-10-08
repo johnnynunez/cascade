@@ -91,6 +91,7 @@ class IsaacBase(MobileBase):
         self._renew_halt = threading.Event()
         self._renew_thread = None
         self._renew_interval = None
+        self._velocity_scaling = False  # bound from the bridge hello at connect
 
     @property
     def metadata(self):
@@ -99,6 +100,12 @@ class IsaacBase(MobileBase):
     @property
     def capabilities(self):
         return frozenset({"walk_velocity", "turn", "stop_navigation"})
+
+    @property
+    def velocity_scaling(self):
+        """True only while connected to a bridge whose hello advertised ``velocity_scaling``."""
+        with self._gate:
+            return self._connected and self._velocity_scaling
 
     @property
     def connected(self):
@@ -145,6 +152,7 @@ class IsaacBase(MobileBase):
                 self._clients = clients
                 self._owner = owner
                 self._epoch, self._generation = epoch, hello["generation"]
+                self._velocity_scaling = "velocity_scaling" in hello["capabilities"]
                 self._connected = True
                 pending = self._pending_stop
                 self._renew_interval = min(hello["lease_s"] / 3., .1)
@@ -232,6 +240,48 @@ class IsaacBase(MobileBase):
                 self._generation = ack["generation"]
                 self._active = {"op": "renew", "epoch": epoch, "generation": ack["generation"],
                                 "owner": owner, "command_id": request["command_id"]}
+            return ack
+        except Exception as exc:
+            self.stop(latch=True)
+            return {"ok": False, "error": str(exc), "delivery_uncertain": True}
+        except BaseException:
+            self.stop(latch=True)
+            raise
+        finally:
+            self._motion.release()
+
+    def scale_velocity(self, scale, *, generation):
+        """Opt-in: lower THIS client's active admitted twist to ``scale`` of itself.
+
+        Refused locally (no I/O, no stop) unless connected, unlatched, the bridge
+        advertised ``velocity_scaling`` and this client's active admission carries
+        ``generation``. Any transport/ACK failure is uncertain delivery and stops.
+        """
+        scale = finite_real(scale, "scale")
+        generation = nonnegative_int(generation, "generation")
+        if not 0 < scale <= 1:
+            raise ValueError("scale must be in (0, 1] of the admitted twist")
+        with self._gate:
+            epoch, serial, owner, active = self._epoch, self._serial, self._owner, self._active
+            if not self._connected or self._latched:
+                return {"ok": False, "error": "not connected or stop latched"}
+            if not self._velocity_scaling:
+                return {"ok": False, "error": "bridge hello does not advertise velocity_scaling"}
+            if active is None or active["generation"] != generation:
+                return {"ok": False, "error": "no active admitted command for this generation"}
+        request = {"op": "scale_velocity", "scale": scale, "generation": generation, "epoch": epoch,
+                   "robot_id": self._expected["robot_id"], "source": self._expected["source"],
+                   "owner": owner, "command_id": active["command_id"]}
+        if not self._motion.acquire(blocking=False):
+            return {"ok": False, "error": "command or reset already in progress"}
+        try:
+            # BridgeClient raises with the bridge's own refusal reason (ok: false).
+            ack = self._ack(self._channel("control").request(request), epoch=epoch, generation=generation)
+            if ack.get("accepted") is not True or ack["latched"] or ack.get("command_id") != active["command_id"]:
+                raise BridgeError("invalid velocity scaling ACK")
+            with self._gate:
+                if self._serial != serial or not self._connected:
+                    raise BridgeError("stop/disconnect crossed velocity scaling")
             return ack
         except Exception as exc:
             self.stop(latch=True)

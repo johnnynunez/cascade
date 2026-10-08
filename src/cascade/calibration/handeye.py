@@ -61,9 +61,13 @@ MAX_TRANSLATION_RMSE_M = MAX_ACCEPTABLE_RMSE_M
 MAX_ROTATION_RMSE_DEG = 3.0
 #: Degeneracy gate: second singular value of the relative-rotation cloud.
 #: Below this the poses rotated about (at most) one axis and X is not
-#: determined, whatever the residual says. WRC's preset sweeps (roll/yaw
-#: +-0.5..1.0 rad, pitch 0..0.4 rad) score tens of degrees.
-MIN_ROTATION_SPREAD_DEG = 8.0
+#: determined, whatever the residual says (single-axis / translation-only
+#: sets score < 1 deg). Derivation of the number: with sigma_t ~ 2 mm per
+#: reading, the weakest translation direction is known to ~ sigma_t /
+#: spread / sqrt(N) -- 5 deg (0.087 rad) and 20 samples give ~5 mm. The
+#: shipped reBot presets score ~20 deg (eye-to-hand) and ~10 deg
+#: (eye-in-hand, which is pitch-heavy) on the RS kinematics.
+MIN_ROTATION_SPREAD_DEG = 5.0
 #: 12 unknowns, 6 equations per sample: 4 is the algebraic minimum, but a
 #: fit that only just has enough samples has no redundancy to detect a bad one.
 MIN_INLIERS = 8

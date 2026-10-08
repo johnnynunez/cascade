@@ -597,7 +597,7 @@ src/cascade/
 ├── eval/progress_judge.py   Robo-Dopamine progress judge (GRM / VLM), off the hot path
 └── apps/
     ├── demo.py         build_runtime() = the composition root; CLI --task / --interactive
-    ├── mcp_server.py   MCP stdio front-end: 45 tools, out-of-band stop, per-call log
+    ├── mcp_server.py   MCP front-end: 45 tools, out-of-band stop, per-call log; stdio by default, Streamable HTTP (`--http`, bearer + TLS) for NemoClaw/OpenShell
     ├── capabilities.py capability matrix from the built runtime; TOOL_REQUIREMENTS trims the MCP catalog
     ├── process_owner.py profile-owned process identity for shutdown and proof binding
     ├── stream_server.py lazy MJPEG dashboard (+ chat, STOP)     live_view.py  RigViewer
@@ -699,6 +699,16 @@ brain through a `codex exec` subprocess per step -- `--ignore-user-config`,
 so that session never sees the user's own MCP servers and cannot reach the
 robot except through cascade's harness; `--llm auto` picks it first when
 the CLI is logged in.
+
+Sandboxed host (opt-in, B35): an agent inside an NVIDIA OpenShell sandbox
+managed by NemoClaw reaches the robot through `mcp_server --http`
+(Streamable HTTP, TLS from a private CA, bearer token in OpenShell's provider
+store), because NemoClaw registers only authenticated HTTP MCP servers. The
+robot runtime stays on the host; the transport shares the stdio server's
+serial worker and receive-side stop channel (`_admit`), and namespaces
+JSON-RPC ids per session. `scripts/nemoclaw_mcp.py` issues the certificate,
+token and registration. Stdio through `launch.sh` remains the default; see
+[NEMOCLAW.md](NEMOCLAW.md).
 
 ## Key decisions (still load-bearing)
 

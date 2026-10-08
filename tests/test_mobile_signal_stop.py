@@ -278,8 +278,10 @@ def _child(entrypoint, site, signum, directory):
         "backend_lock": (MockMobileBase, "get_state", "self._lock"),
         "inflight_read": (MockMobileBase, "get_state", "self._lock"),
         "record_lock": (MobileSkillRuntime, "execute", "self._record_lock"),
-        "stop_lock": (mcp_server, "_serve_stdio", "server._stop_lock"),
-        "cancel_lock": (mcp_server, "_serve_stdio", "server._cancel_lock"),
+        # The serial worker moved into _worker_loop (shared by the stdio and
+        # Streamable HTTP transports); these are the worker's own gates.
+        "stop_lock": (mcp_server, "_worker_loop", "server._stop_lock"),
+        "cancel_lock": (mcp_server, "_worker_loop", "server._cancel_lock"),
         "out_lock": (mcp_server, "_send", "out_lock"),
     }[site]
     source = Path(inspect.getsourcefile(cls))

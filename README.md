@@ -645,6 +645,13 @@ command. Name a profile explicitly (`--llm mock`) to pin it, or set
 - The **[agent](src/cascade/agent/)** dispatches through three tiers —
   reflex (regex, no LLM) → experience (learned habits) → LLM — so routine
   commands never wait on the model, with a VLM advisor kicking in on failure.
+  An opt-in **[programs tier](docs/PROGRAMS_TIER.md)** (`agent.programs`, off
+  by default) sits between experience and the LLM loop: one authoring turn
+  writes a bounded list of registered tool calls (labels as parameters,
+  positions only as perception queries re-grounded before motion), run step by
+  step through the same `execute()`; the first unverified step hands the task
+  to the LLM tier, and a program is reused only after it was verified in two
+  distinct tasks. Measured on the mock stack with scripted brains only.
 - **[Retry evidence](docs/DREAM_RSI_ADAPTATION.md)** gates new ASPIRE library
   notes: a later success must match the failed action's goal, resolved arm
   and held-object context, with a measured, confirmed postcondition and no

@@ -197,6 +197,22 @@ agent:
   premotion_check: true
   premotion_max_checks: 3   # VLM turns per task (booth clock); beyond it the
                             # result records `skipped` and the motion runs
+  # Programs tier (Waddle "programs", ROADMAP follow-up #8; design note
+  # docs/PROGRAMS_TIER.md). OFF by default. When on, a task that no reflex or
+  # habit plan covers first gets ONE authoring turn: the brain writes a bounded
+  # list of registered tool calls (object labels as parameters, positions only
+  # as localize_object(label)+offset queries re-grounded before the first
+  # motion) or reuses a PROMOTED program, and the orchestrator runs it step by
+  # step through SkillRuntime.execute() -- the harness still vets every motion
+  # and every step keeps its own postcondition. The first failed, refused or
+  # unverified step stops it and hands the task to the LLM tier with a
+  # next_action. A program is stored only from a fully CONFIRMED execution and
+  # offered for reuse only after it was verified in program_min_tasks distinct
+  # tasks (1 = explicit relaxation). CASCADE_PROGRAMS=1/0 overrides; store:
+  # runs/programs.jsonl (memory.programs_path, CASCADE_PROGRAMS_PATH). The mock
+  # brain never gets it, and MCP chat hosts do not see it.
+  programs: false
+  program_min_tasks: 2
 
 # Always-on perception: every rig camera feeds the belief store continuously
 # so commands resolve against an already-warm world model.

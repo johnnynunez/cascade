@@ -911,6 +911,47 @@ def _premotion_critic(cfg, llm, runtime, is_mock: bool):
     )
 
 
+def _program_tier(cfg, is_mock: bool):
+    """ROADMAP follow-up #8: the opt-in programs tier (docs/PROGRAMS_TIER.md).
+
+    OFF by default: `agent.programs: false` (or CASCADE_PROGRAMS=0, the same
+    kill-switch shape as CASCADE_PREMOTION_CHECK) returns None, which is the
+    pre-change orchestrator path exactly. When on, a task no reflex/habit plan
+    covers gets one authoring turn and the program runs step by step through
+    SkillRuntime.execute(); the harness stays the sole authority that refuses
+    motion. The mock brain is a labelled script, not an author: asking it
+    would consume the script, so the tier is never enabled for it.
+
+    Store: `runs/programs.jsonl` (`memory.programs_path`,
+    CASCADE_PROGRAMS_PATH); a program is offered for reuse only after it was
+    verified in >= `agent.program_min_tasks` (default 2) distinct tasks.
+    """
+    agent_cfg = cfg.get("agent", {}) or {}
+    env = os.environ.get("CASCADE_PROGRAMS", "").strip().lower()
+    if env:
+        enabled = env not in ("0", "false", "no", "off")
+    else:
+        raw = agent_cfg.get("programs", False)
+        enabled = (raw.strip().lower() in ("1", "true", "yes", "on")
+                   if isinstance(raw, str) else bool(raw))
+    if not enabled:
+        return None
+    if is_mock:
+        print("[cascade] programs tier requested, but the mock brain is a labelled script, "
+              "not an author: tier left off")
+        return None
+    from ..agent.programs import ProgramTier
+    from ..memory.programs import ProgramLibrary
+    from ..skills.library import PROMOTION_MIN_TASKS
+
+    mem_cfg = cfg.get("memory", {}) or {}
+    path = (os.environ.get("CASCADE_PROGRAMS_PATH") or mem_cfg.get("programs_path")
+            or PACKAGE_ROOT / "runs" / "programs.jsonl")
+    library = ProgramLibrary(Path(str(path)).expanduser(),
+                             min_tasks=int(agent_cfg.get("program_min_tasks", PROMOTION_MIN_TASKS)))
+    return ProgramTier(library)
+
+
 def _make_detector(cfg):
     # A camera profile may pin its own detector (the mock camera uses the
     # mock detector so offline runs never load model weights).
@@ -1082,6 +1123,8 @@ def _run_demo(args, cfg, runtime, mobile):
         # ROADMAP #6 pre-motion critic: advisory only; arm runtimes only (the
         # orchestrator drops it for mobile/composed modes like the tracker).
         plausibility=None if mobile else _premotion_critic(cfg, llm, runtime, is_mock),
+        # ROADMAP #8 programs tier: opt-in (agent.programs / CASCADE_PROGRAMS).
+        programs=None if mobile else _program_tier(cfg, is_mock),
     )
 
     def _run(task: str):

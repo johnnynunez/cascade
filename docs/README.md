@@ -42,6 +42,7 @@ does not change which code produced those measurements.
 - [Held-object observation after the NV08 failure](HELD_OBJECT_OBSERVATION.md)
 - [Native visitor turn budget](native-visitor-turn-budget.md)
 - [Scoped retry evidence admission](DREAM_RSI_ADAPTATION.md)
+- [Programs tier: authored and distilled task scripts under one admission rule (opt-in)](PROGRAMS_TIER.md)
 
 ## Mapping and engine experiments
 

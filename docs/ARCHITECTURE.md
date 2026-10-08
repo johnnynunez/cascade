@@ -180,10 +180,32 @@ chat command ("pick and place the red cube")
    ├─ tier 2 HABIT    hashed-BoW cosine ≥ 0.9, wins > losses  runs/experience.json
    │                  + recipes (xyz -> perception queries,   runs/recipes.jsonl
    │                    re-grounded before any motion)        memory/recipes.py
+   ├─ tier 2.5 PROGRAM  OPT-IN (agent.programs: false):       agent/programs.py
+   │                  one authoring turn when tiers 1-2 had   memory/programs.py
+   │                    no plan; registered calls, run step   runs/programs.jsonl
+   │                    by step; first unverified step stops
    └─ tier 3 LLM      decomposition + tool loop + advisor     agent/orchestrator.py
         all tiers execute through the same SkillRuntime; every trace row
-        records `tier: reflex | experience | llm | mcp-host`
+        records `tier: reflex | experience | program | llm | mcp-host`
 ```
+
+- **Programs tier (opt-in, ROADMAP #8; [design note](PROGRAMS_TIER.md)).**
+  Waddle's level above skills: a program is a bounded (≤ 12 steps), declarative
+  list of REGISTERED `TOOL_SPECS` calls, object labels as parameters and
+  positions only as `localize_object(label)+offset` queries (the recipe
+  mechanism), re-grounded before the first motion — one unresolved query aborts
+  with zero motion. The orchestrator runs each step as a TOP-LEVEL
+  `SkillRuntime.execute()` call (`tier: program`), so every step keeps its own
+  trace row, keyframes, harness vetting and three-state postcondition; the
+  per-step verdict is read from the task-effects ledger, never from the step's
+  own result, and the first failed / refused / refuted / unverified step stops
+  the program with a `next_action` for tier 3. `task_done`, `reset_scene`,
+  `halt_motion`, pixel tools, `recall_step` and live-view tools are not
+  composable. Authored and distilled programs share one admission rule (stored
+  only from a fully CONFIRMED execution, offered only once promoted across ≥ 2
+  distinct tasks). `programs=None` (the default) is the pre-change dispatch
+  exactly; the mock brain, mobile/composed runtimes and the MCP server never
+  get the tier.
 
 - **Latest-slot streaming, never queues** (`perception/stream.py`).
 - **Warm world model.** Beliefs help resolve names and rank current visual
@@ -468,6 +490,7 @@ make that image current by assigning a new timestamp. See
 | `EpisodicMemory` text ring | events, outcomes | ~15 s | `recall_memory`, narration |
 | `EpisodicMemory` frame ring | AFTER frame + action + verdict per motion skill | task-scale (600 s), reset per task / by `reset_scene` | `memory_frames(k)`: first frame pinned, uniform sample, newest last → LLM turn (images) and `task_memory` tool |
 | `ExperienceMemory` (`agent/reflex.py`) | command → plan habits, hashed BoW in a TurboQuant index; plus Task-Specific Memory **recipes** (verified LLM-tier runs, coordinates replaced by `localize_object(label)+offset` queries + a summary, `memory/recipes.py`) | `runs/experience.json` (habits), `runs/recipes.jsonl` (recipes) | tier 2; a recipe is re-grounded through perception before any motion, a failed grounding aborts to the LLM tier |
+| `ProgramLibrary` (`memory/programs.py`, opt-in) | programs: parameterized registered-call lists (labels as params, positions as perception queries), keyed by a structural sha256; `occurrences`, `source_tasks`, `origins` (authored / distilled / reused), `losses` | `runs/programs.jsonl` (`memory.programs_path`, `CASCADE_PROGRAMS_PATH`) | tier 2.5 authoring prompt, **only promoted** records (≥ `agent.program_min_tasks` = 2 distinct tasks, verified more often than failed); admitted only from a CONFIRMED execution |
 | `GraspOutcomeMemory` | per-object grasp features, wins/losses | `~/.cascade/grasp_memory.json` | grasp re-rank + z-nudge |
 | `OperatingEnvelope` (`memory/envelope.py`) | per-skill outcome statistics and failure classes, raw args plus runtime-measured derived features (`DERIVED_FEATURES`: TCP z at close, object height/width, lateral offset; unmeasured → `missing`, never defaulted) | `~/.cascade/envelope.json` (`CASCADE_ENVELOPE_PATH`) | planner context; advisory |
 
@@ -543,6 +566,7 @@ src/cascade/
 │   ├── episodic.py     text ring (15 s) + frame ring (task-scale) + memory_frames(k)
 │   ├── envelope.py     Harness-VLA operating envelope (per-skill outcome stats + runtime-measured derived features)
 │   ├── recipes.py      Task-Specific Memory: xyz ⇄ localize_object(label)+offset queries (symbolize / ground)
+│   ├── programs.py     ProgramLibrary: stored programs, CONFIRMED-only admission, ASPIRE-style ≥2-task promotion (opt-in tier 2.5)
 │   ├── grasp_memory.py persisted grasp-outcome prior (re-rank + z-nudge)
 │   └── turboquant.py / vector_index.py   4-bit rotation quantizer + asymmetric top-k
 ├── control/
@@ -570,8 +594,10 @@ src/cascade/
 │   ├── observed_scene.py calibrated observed-finger approach and closing veto
 │   └── force.py        material → two-stage close profiles
 ├── agent/
-│   ├── orchestrator.py reflex → habit → LLM loop; memory harness injection; TaskReport
+│   ├── orchestrator.py reflex → habit → (opt-in) program → LLM loop; memory harness injection; TaskReport
 │   ├── reflex.py       tier-1 grammar (incl. reset_scene, memorize/restore/find) + tier-2 ExperienceMemory
+│   ├── programs.py     tier 2.5 (opt-in): program contract/validation, runner (ledger verdicts, stop + next_action),
+│   │                   authoring prompt/parse, distillation of verified runs (docs/PROGRAMS_TIER.md)
 │   ├── effects.py      PostconditionChecker + annotate_result (Pigey closed loop; `restored`/`searched` for the composites)
 │   ├── milestones.py   checkable milestones: symbolic first, VLM second, UNKNOWN honest;
 │   │                   + advisory pre-motion plausibility critic (never a veto)

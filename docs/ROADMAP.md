@@ -444,13 +444,48 @@ Open follow-ups from this work:
    - latency.
 
    No claim about grasp quality, success rate or GraspGen-X comparison.
-8. **A `programs` tier (Waddle).** cascade has primitives (`TOOL_SPECS`)
+8. ~~**A `programs` tier (Waddle).** cascade has primitives (`TOOL_SPECS`)
    and skills (`skills_library/*.md`, ASPIRE-distilled) but nothing above
    skills: an agent-composed, reusable, task-level script distinct from a
    one-off orchestrator run. Scoping question before landing: does a
    "program" get authored the same way ASPIRE distills a skill (diagnose a
    successful multi-skill run, persist it), or does the agent write one
-   proactively? Needs a design pass, not a first draft in this file.
+   proactively? Needs a design pass, not a first draft in this file.~~
+   **landed 2026-10-08** — design pass `docs/PROGRAMS_TIER.md` answers the
+   scoping question with **both, under one admission rule**: a program is
+   AUTHORED by the brain for one instruction (one text turn, tier 2.5:
+   consulted only when no reflex/habit plan exists) or DISTILLED from a
+   verified LLM-tier run, and either way authorship is never evidence — it
+   is stored only from an execution whose every registered effect the
+   task-effects ledger CONFIRMED, and offered for reuse only once verified in
+   ≥2 distinct tasks (ASPIRE's promotion rule, the same constant) and more
+   often than it failed. `agent/programs.py` (contract, runner, authoring,
+   distillation) + `memory/programs.py` (`runs/programs.jsonl`): a program is
+   a bounded list (≤12 steps) of REGISTERED tool calls with labels as
+   parameters and positions only as `localize_object(label)+offset` queries
+   (#9's recipes) re-grounded before the first motion; each step is a
+   top-level `SkillRuntime.execute()` call with its own trace row and
+   three-state postcondition, the harness stays the sole motion authority,
+   and the first failed / refused / refuted / unverified step stops the
+   program with a `next_action` for tier 3 (a `stuck` step ends the task,
+   #13). Opt-in: `agent.programs: false` (default) / `CASCADE_PROGRAMS=1`.
+   Measured on the mock stack with MockLLM-scripted brains
+   (`tests/test_programs_tier.py`, 40 tests, RED against a c5012e7 export):
+   an authored program runs as trace rows `localize_object, grasp_object,
+   place_at` with `place_at` at the re-grounded cube + offset, both effects
+   CONFIRMED (stand-in physics channel, as in the recipe tests), one LLM
+   turn; an unverified grasp, an e-stop refusal and an unresolvable anchor
+   each stop with zero later motion and hand tier 3 the reason; a candidate
+   is never offered and a `use` of it is refused; a promoted program is
+   reused with new bindings; an authored and a distilled program of two
+   instructions fold into one promoted record; `programs=None` reproduces
+   main's orchestrator path write-for-write (golden). **Still open:** no
+   real brain has authored a program (the mock brain is never given the
+   tier; whether Cosmos3/Gemma write valid programs is unmeasured), no
+   physical or Isaac run, not exposed to MCP chat hosts, no loops/branches
+   (skill graphs cover outcome routing on the composed runtime), motions
+   without a registered postcondition keep a program out of the library,
+   retrieval is keyword overlap.
 
 ## Landed 2026-09-09: the demo verifies itself in MuJoCo, and one click brings it up
 

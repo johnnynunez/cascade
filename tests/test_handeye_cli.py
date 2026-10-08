@@ -374,6 +374,16 @@ def test_a_rejected_fit_is_kept_for_diagnosis_but_not_written_to_out(tmp_path, m
 # ── --verify against operator-measured points ────────────────────────────
 
 
+def test_suggested_profile_path_does_not_depend_on_the_working_directory(tmp_path):
+    """A relative hand_eye_json resolves against the shell's cwd at runtime;
+    the snippet the CLI prints must be cwd-independent."""
+    from cascade.config import CONFIG_DIR
+
+    inside = CONFIG_DIR / "calib" / "d455f_scene_rebot_rs.handeye.json"
+    assert cli._profile_path(inside) == "${repo}/configs/calib/d455f_scene_rebot_rs.handeye.json"
+    assert cli._profile_path(tmp_path / "x.json") == str((tmp_path / "x.json").resolve())
+
+
 def test_verify_known_points_math():
     rep = cli.verify_known_points([[0.30, 0.0, 0.02], [0.25, -0.05, 0.02]],
                                   [[0.303, 0.004, 0.02], [0.25, -0.05, 0.02]])

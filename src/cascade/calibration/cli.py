@@ -219,6 +219,21 @@ def _default_out(camera: str, arm: str):
     return CONFIG_DIR / "calib" / f"{camera}_{arm}.handeye.json"
 
 
+def _profile_path(path) -> str:
+    """How a camera profile should reference ``path``: ``${repo}/...`` inside
+    the checkout (config.py expands it), else absolute. Never relative -- the
+    runtime would resolve that against whatever directory it was started in."""
+    from pathlib import Path
+
+    from ..config import PACKAGE_ROOT
+
+    p = Path(path).expanduser().resolve()
+    try:
+        return "${repo}/" + p.relative_to(PACKAGE_ROOT.resolve()).as_posix()
+    except ValueError:
+        return str(p)
+
+
 def _run_dir(args, camera: str):
     import time
     from pathlib import Path
@@ -390,7 +405,7 @@ def _solve_and_save(samples, *, args, mode, camera, arm, rig, session, out, run_
     path = save_hand_eye(out, record)
     print(f"[calib] saved {path}")
     print("[calib] point the camera profile at it:\n"
-          f"  extrinsics:\n    mode: {mode}\n    hand_eye_json: {path}\n"
+          f"  extrinsics:\n    mode: {mode}\n    hand_eye_json: {_profile_path(path)}\n"
           "then verify: --verify <record> --camera <profile> --known-points ...")
     return 0
 

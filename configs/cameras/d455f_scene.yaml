@@ -18,8 +18,12 @@ warmup_frames: 15
 
 extrinsics:
   mode: eye_to_hand
-  # PLACEHOLDER T_cam2base copied from d455f.yaml. Run hand-eye calibration
-  # on the rig and replace before trusting any 3D belief from this camera.
+  # PLACEHOLDER T_cam2base copied from d455f.yaml. Calibrate on the rig
+  # (marker on top of the gripper, docs/HANDEYE_CALIBRATION.md):
+  #   python scripts/calibrate_handeye.py --camera d455f_scene --arm rebot_rs
+  # then enable the record (it takes precedence over T below; a missing or
+  # rejected record turns 3D fusion OFF for this camera rather than fall back):
+  # hand_eye_json: ${repo}/configs/calib/d455f_scene_rebot_rs.handeye.json
   T:
     - [ 0.0, -1.0,  0.0, 0.28]
     - [-1.0,  0.0,  0.0, 0.00]

@@ -107,6 +107,27 @@ grasp:
     max_lateral_offset_m: 0.03   # pinch centre this far beside the observed object: dropped
     surface_tolerance_m: 0.005   # pinch centre in front of the first object surface: dropped
     max_query_offset_m: 0.02     # query pixel must back-project onto the fix (extrinsic check)
+  # Camera-frame mask planner (`backend: camera_frame`, or
+  # CASCADE_GRASP_BACKEND=camera_frame) -- OPT-IN, analytic, never a GraspGen-X
+  # substitute. Ported from Seeed's WRC fork, which mirrors rebot_grasp's
+  # estimate_grasp: minAreaRect on the detection mask, median mask depth
+  # back-projected, approach along the CAMERA'S LINE OF SIGHT (a tilted camera
+  # no longer biases the grasp), TCP pushed insertion_depth_m into the object.
+  # Needs a segmentation mask and measured depth (sensor/mono; plane-cast depth
+  # is refused). Candidates go through the same memory re-rank, jaw-width, IK
+  # and harness vetting as every backend. See docs/WRC_PERCEPTION_PORT.md.
+  # These defaults change nothing while `backend` is graspgenx.
+  camera_frame:
+    required: false         # true: no mask grasp -> visible error, never OBB
+    include_obb: true       # analytic OBB alternates ranked behind the mask grasp
+    insertion_depth_m: 0.015  # rebot_grasp default. WRC's rig ran 0.0 because its
+                              # hand-eye JSON baked in a 2 cm compensation: tune
+                              # together with the camera extrinsics.
+    depth_quantile: 0.5     # median depth inside the mask
+    finger_drop_m: 0.030    # drop mask pixels this much nearer than the median
+                            # (gripper fingers segmented into the object mask)
+    max_fix_offset_m: 0.03  # planned surface point must lie within this of the
+                            # localized object's box (frame/extrinsic check)
   # NOTE: strict top-down tool poses are only IK-reachable below z~0.15 on
   # the B601-RS (wrist limits); keep grasp_z + offset under that.
   pregrasp_offset_m: 0.04   # hover height above the grasp along -approach.

@@ -295,3 +295,58 @@ def plan_grasp_from_mask(
         quality=(1.0 if feasible else 0.2) * float(confidence),
         label=str(label),
     )]
+
+
+#: depth sources the planner trusts: a plane-cast depth puts every pixel ON
+#: the table (AGENTS.md), so the median mask depth would aim at the table
+_MEASURED_DEPTH = ("sensor", "mono")
+
+
+def camera_frame_grasps(frame, fix, T_cam2base, *, insertion_depth_m: float,
+                        depth_quantile: float, finger_drop_m: float,
+                        max_fix_offset_m: float, max_width_m: float, width_pad_m: float,
+                        axis_order: str, label: str = "") -> tuple[list[Grasp], str | None]:
+    """Runtime entry point: plan from the frame the object was LOCALIZED in.
+
+    -> (grasps, None) or ([], reason). The reasons name what is missing so
+    the runtime can report its fallback (or refuse, when required):
+    no segmentation mask, no measured depth, a mask that does not belong to
+    the frame, nothing plannable inside the mask, or a planned surface point
+    off the localized object. The last one is the frame/transform
+    consistency check: `fix.points` were lifted with the same transform, so a
+    surface point outside their box (+ `max_fix_offset_m`) means a mismatched
+    frame or extrinsic -- refused, never aimed at.
+    """
+    det = getattr(fix, "detection", None)
+    mask = getattr(det, "mask", None)
+    if mask is None:
+        return [], "no segmentation mask"
+    depth = getattr(frame, "depth_m", None)
+    if depth is None:
+        return [], "frame has no depth"
+    source = str(getattr(frame, "depth_source", "sensor"))
+    if source not in _MEASURED_DEPTH:
+        return [], f"depth source {source!r} is not measured (plane-cast depth aims at the table)"
+    if np.shape(mask) != np.shape(depth):
+        return [], f"mask {np.shape(mask)} does not match the frame's depth {np.shape(depth)}"
+    out = plan_grasp_from_mask(
+        mask, depth, frame.K, T_cam2base, insertion_depth_m=insertion_depth_m,
+        max_width_m=max_width_m, width_pad_m=width_pad_m, depth_quantile=depth_quantile,
+        finger_drop_m=finger_drop_m, axis_order=axis_order,
+        label=label or getattr(fix, "label", ""), confidence=float(getattr(det, "conf", 1.0)))
+    if not out:
+        return [], "no plannable contour/depth inside the mask"
+    pts = np.asarray(fix.points, dtype=float)
+    lo, hi = pts.min(axis=0), pts.max(axis=0)
+    kept = []
+    worst = 0.0
+    for g in out:
+        surface = np.asarray(g.position, float) - np.asarray(g.approach, float) * insertion_depth_m
+        off = float(np.linalg.norm(np.maximum(lo - surface, 0.0) + np.maximum(surface - hi, 0.0)))
+        if off <= max_fix_offset_m:
+            kept.append(g)
+        worst = max(worst, off)
+    if not kept:
+        return [], (f"planned point lies {worst:.3f} m off the localized object "
+                    f"(> {max_fix_offset_m:.3f} m: frame/extrinsic mismatch)")
+    return kept, None

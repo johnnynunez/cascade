@@ -490,7 +490,7 @@ def load_demo_config(
     # downgrade after a failed learned-model request.
     backend = os.environ.get("CASCADE_GRASP_BACKEND")
     if backend:
-        if backend not in {"obb", "graspgenx", "hug"}:
+        if backend not in {"obb", "graspgenx", "hug", "camera_frame"}:
             raise ValueError(f"invalid CASCADE_GRASP_BACKEND: {backend}")
         for view in [main, *(prof["resolved"] for prof in arm_profiles)]:
             view.setdefault("grasp", {})["backend"] = backend

@@ -120,4 +120,10 @@ def make_camera(cfg: Cfg) -> CameraBase:
         from .ovrtx_camera import OvrtxCamera
 
         return OvrtxCamera(cfg)
-    raise ValueError(f"unknown camera type {kind!r} (realsense|uvc|mock|isaac|mujoco|ovrtx)")
+    if kind == "orbbec":
+        # pyorbbecsdk itself is imported inside OrbbecCamera.open()
+        from .orbbec_camera import OrbbecCamera
+
+        return OrbbecCamera(cfg)
+    raise ValueError(
+        f"unknown camera type {kind!r} (realsense|uvc|mock|isaac|mujoco|ovrtx|orbbec)")

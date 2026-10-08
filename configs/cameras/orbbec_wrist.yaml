@@ -1,0 +1,17 @@
+# Orbbec Gemini 2 on the wrist: auxiliary view, stream + overlays only.
+#
+# Ported from Seeed's WRC fork (configs/cameras/orbbec_wrist.yaml). No
+# hand-eye calibration exists for this mount, so it declares `role: wrist`
+# (recorded as wrist keyframes for the outcome judge) and never fuses 3D
+# beliefs. Add an `extrinsics: {mode: eye_in_hand, T: ...}` block from a real
+# calibration before letting it fuse. Hardware status: UNVERIFIED in cascade.
+type: orbbec
+role: wrist
+serial: ""            # pin when two Orbbec units are attached (see orbbec_overhead.yaml)
+width: 1280
+height: 720
+fps: 30
+min_depth_m: 0.15
+max_depth_m: 1.5
+warmup_frames: 10
+fuse_beliefs: false

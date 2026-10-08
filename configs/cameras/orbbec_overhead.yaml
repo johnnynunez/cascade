@@ -1,0 +1,36 @@
+# Orbbec Gemini 2, fixed overhead (eye-to-hand) manipulation camera.
+#
+# Ported from Seeed's WRC fork (configs/cameras/orbbec_overhead.yaml). Backend:
+# src/cascade/perception/orbbec_camera.py (pyorbbecsdk v2, imported lazily in
+# open()). Hardware status: UNVERIFIED in cascade -- see
+# docs/WRC_PERCEPTION_PORT.md for the bring-up checklist.
+type: orbbec
+# Pin the unit when two Orbbec cameras are attached: unpinned binds whichever
+# the SDK enumerates first, which can flip between boots. WRC's profile pinned
+# Seeed's own units (AY3794300W4 / AY3Z331006L) -- never copy another rig's
+# serials. List the attached ones (read-only, opens no stream):
+#   python -c 'from cascade.perception.orbbec_camera import list_orbbec_devices as l; print(l())'
+serial: ""
+# 1280x720 colour arrives as MJPG on the Gemini 2 (decoded with cv2.imdecode);
+# depth is aligned to colour (HW D2C, software AlignFilter as fallback).
+width: 1280
+height: 720
+fps: 30
+min_depth_m: 0.25
+max_depth_m: 2.5
+warmup_frames: 15
+# intrinsics: [[fx, 0, cx], [0, fy, cy], [0, 0, 1]]   # optional pin; default = SDK's
+
+extrinsics:
+  mode: eye_to_hand
+  # REFERENCE ONLY: Seeed's B601 rig, overhead Gemini 2 tilted ~32 deg, solved
+  # 2026-09-02 (WRC data/calibration/hand_eye_top.json, joint SE(3) LM, 23
+  # inliers, 3.0 mm translation RMSE). It describes THAT mount. Any other
+  # mount needs its own hand-eye calibration before a single grasp
+  # (scripts/calibrate_camera.py); with this matrix on a different mount every
+  # grasp lands in the wrong place.
+  T:
+    - [ 0.9973184367249408, -0.06270148991846856,  0.03774200485565707,  0.3681574292609856]
+    - [-0.07317255899208003, -0.8451066594001988,  0.5295663422537228,  -0.28284141339673163]
+    - [-0.0013085790273516425, -0.5309079556754076, -0.8474284808887937,  0.5694521693354492]
+    - [ 0.0, 0.0, 0.0, 1.0]

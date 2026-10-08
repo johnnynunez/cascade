@@ -165,6 +165,12 @@ grasp:
                             # profile key gripper.hold_squeeze_frac, keyed by
                             # the bridge's physics engine (configs/arms/
                             # isaac.yaml: {physx: 0.05}; unset/null = off)
+  # The pregrasp is vetted and approached before the descent cylinder opens,
+  # so with an occupancy map the target's own top could refuse its own
+  # approach. Exempt the column directly above the target (its observed
+  # footprint, floor 2 cm under its top) for the pregrasp check and the
+  # executed approach. See SkillRuntime._target_column. Opt-in per arm.
+  approach_target_exemption: false
   drop_zone: [0.18, -0.17]  # pick_and_place default target = the bin, inside
                             # the B601-RS top-down IK envelope (reachable place)
   home_after_place: true    # clear the camera view after each pick_and_place

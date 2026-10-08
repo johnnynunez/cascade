@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from ..control import motion_evidence
 
+import contextlib
 import logging
 import math
 import os
@@ -66,6 +67,48 @@ OUTCOME_STUCK = "stuck"
 
 #: skills that move the arm: the WorldWatcher is held while they run so the
 #: held/handled object is not re-fused at a bogus mid-air position.
+
+def _target_column(gcfg, harness, grasp, fix) -> tuple | None:
+    """(center_xy, radius, z_min) of the column directly above the grasp
+    target that its own approach may enter, or None.
+
+    Radius: the target's observed footprint around the grasp XY (95th
+    percentile + 1 cm), capped by `exempt_radius_m`, so neighbours stay
+    outside. Floor: 2 cm below the target's observed top, never below the
+    table clearance, so table checks are unchanged. None (the strict legacy
+    check) when `grasp.approach_target_exemption` is false, the harness
+    cannot hold the exemption, or the target has no usable points.
+    """
+    if not bool(gcfg.get("approach_target_exemption", False)):
+        return None
+    if not callable(getattr(harness, "target_column_exemption", None)):
+        return None
+    points = getattr(fix, "points", None)
+    if points is None:
+        return None
+    points = np.asarray(points, dtype=float).reshape(-1, 3)
+    if not len(points) or not np.isfinite(points).all():
+        return None
+    center = np.asarray(grasp.position, dtype=float)[:2]
+    spread = float(np.percentile(np.linalg.norm(points[:, :2] - center, axis=1), 95))
+    radius = float(np.clip(spread + 0.01, 0.02, float(gcfg.get("exempt_radius_m", 0.07))))
+    limits = harness.limits
+    floor = float(limits.table_z) + float(getattr(limits, "table_clearance", 0.0))
+    z_min = max(float(points[:, 2].max()) - 0.02, floor)
+    return (center, radius, z_min)
+
+
+def _column_kw(column) -> dict:
+    if column is None:
+        return {}
+    return {"exempt_xy": column[0], "exempt_radius_m": column[1], "exempt_z_min": column[2]}
+
+
+def _column_exemption(harness, column):
+    if column is None:
+        return contextlib.nullcontext(False)
+    return harness.target_column_exemption(column)
+
 _MOTION_SKILLS = {
     "grasp_object", "place_at", "place_on_object", "push_object",
     "open_gripper", "close_gripper", "move_home", "pick_and_place",
@@ -2698,7 +2741,13 @@ class SkillRuntime:
             # q_grasp segment vets the actual executed path, not just its
             # endpoints (near-horizontal approaches can dip below the floor
             # OUTSIDE the cylinder mid-descent).
-            reason = harness.vet_pose(q_pre)
+            # ...except the column directly above the TARGET, which the
+            # approach enters by construction (see _target_column). The same
+            # column is held during the executed approach below, so vetting
+            # and execution agree. Neighbours, the table and every other arm
+            # point stay fully checked.
+            column = _target_column(gcfg, harness, g, fix) if scene_gate is None else None
+            reason = harness.vet_pose(q_pre, **_column_kw(column))
             if search is not None:
                 search.check()
             if reason:
@@ -2730,7 +2779,8 @@ class SkillRuntime:
                         grasp_evidence.event("observed_finger_candidate_rejected", phase_name=endpoint,
                                              conflict=conflict, q_pre=q_pre, q_grasp=q_grasp)
                         return f"{endpoint} finger endpoint occluded by non-target depth: {conflict}"
-            with geometry_guard(harness, deadline=approach_deadline):
+            with _column_exemption(harness, column), \
+                    geometry_guard(harness, deadline=approach_deadline):
                 reason = vet_segment(
                     harness, _seed, q_pre,
                     float(gcfg.get("move_duration_s", 2.5)),
@@ -2926,8 +2976,13 @@ class SkillRuntime:
             approached = self.arm.move_joints(q_pre,
                 duration_s=float(gcfg.get("move_duration_s", 2.5)), **_scene_motion(q_pre))
         else:
-            approached = self.arm.move_planned(q_pre,
-                duration_s=float(gcfg.get("move_duration_s", 2.5)))
+            column = _target_column(gcfg, self.arm.harness, grasp, fix)
+            if column is not None:
+                grasp_evidence.event("approach_target_column", center_xy=column[0],
+                                     radius_m=column[1], z_min=column[2])
+            with _column_exemption(self.arm.harness, column):
+                approached = self.arm.move_planned(q_pre,
+                    duration_s=float(gcfg.get("move_duration_s", 2.5)))
         if not approached:
             raise SkillError("did not settle at pregrasp pose")
 

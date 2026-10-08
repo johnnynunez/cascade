@@ -368,6 +368,13 @@ class GraspOutcomeMemory:
 def _reason_key(reason: str) -> str:
     """Bucket a free-text failure reason into a stable key."""
     r = (reason or "").lower()
+    # A refusal by the occupancy map says something blocked a pose -- often
+    # the target itself or map noise -- not that the grasp sat too low. It
+    # must not feed the "raise the grasp" nudge: on the physical reBot six
+    # such pregrasp refusals of a cup pushed its grasp ~5 cm up, above the
+    # rim, and every later attempt closed on air.
+    if "(occupancy map)" in r:
+        return "occupancy_refused"
     if "would hit the table" in r or "link" in r and "table" in r:
         return "link_hits_table"
     if "descent unsafe" in r:

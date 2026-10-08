@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import time
 import threading
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -223,6 +224,37 @@ class SafetyHarness:
                     or not np.array_equal(candidate[0], original[0]) or candidate[1:] != original[1:]):
                 raise SafetyViolation("retained release only permits its original scoped cylinder")
         self._grasp_exempt = candidate
+
+    @contextmanager
+    def target_column_exemption(self, cylinder):
+        """Exempt the column directly above a grasp target for one block.
+
+        The pregrasp sits above the target and is vetted and approached
+        before `allow_grasp_descent` opens the descent cylinder. With an
+        occupancy map, the target's own top is then an obstacle to its own
+        approach: on the physical reBot a ~10 cm cup's map surface sat ~1.5 cm
+        above its rim (1 cm voxels + depth noise), so a pregrasp that cleared
+        the real rim by 3.7 cm was refused, for every candidate. Inside this
+        block, arm points within `cylinder` = (center_xy, radius, z_min)
+        skip the map and table checks exactly as in the descent cylinder; the
+        caller keeps z_min above the table floor and the radius to the
+        target's footprint. Everything outside, and every other gate, is
+        unchanged.
+
+        Yields False and changes nothing when `cylinder` is None, or while a
+        retained model withdrawal or release episode owns the exemption.
+        """
+        if (cylinder is None or self._pending_model_withdrawal is not None
+                or self._pending_release_episode is not None):
+            yield False
+            return
+        center, radius, z_min = cylinder
+        previous = self._grasp_exempt
+        self._grasp_exempt = (np.asarray(center, dtype=float)[:2].copy(), float(radius), float(z_min))
+        try:
+            yield True
+        finally:
+            self._grasp_exempt = previous
 
     def clear_grasp_exemption(self) -> None:
         if self._pending_model_withdrawal is not None:

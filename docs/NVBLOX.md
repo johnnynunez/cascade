@@ -205,3 +205,27 @@ motion or around unseen geometry.
 For the upstream model and multi-camera requirements, see the
 [nvblox interface](https://nvidia-isaac.github.io/nvblox/v0.0.10/pages/core_library_interface.html)
 and NVIDIA's [multi-camera tutorial](https://nvidia-isaac-ros.github.io/concepts/scene_reconstruction/nvblox/tutorials/tutorial_multi_realsense.html).
+
+## The grasp target and its own approach
+
+The pregrasp is vetted, and approached, before the descent cylinder opens.
+With an occupancy map, the target's own top is therefore an obstacle to its
+own approach. On the physical reBot (front D435i at ~1.2 m, 1 cm warp voxels),
+a ~10 cm paper cup's map surface sat ~1.5 cm above its real rim, so a pregrasp
+that cleared the rim by 3.7 cm was refused for every candidate (`pregrasp
+unsafe: point 0 clearance 0.010-0.022 m below 0.030 m (occupancy map)`).
+
+`grasp.approach_target_exemption` (opt-in per arm; on for `rebot_rs`) exempts
+the column directly
+above the target: its observed footprint around the grasp XY (95th percentile
++ 1 cm, capped by `exempt_radius_m`), from 2 cm under its observed top
+upwards, never below the table clearance. The same column is applied to the
+pregrasp check, the approach-segment check and the executed approach
+(`SafetyHarness.target_column_exemption`), so vetting and execution agree. Arm
+points outside the column, neighbours and the table stay fully checked; a
+harness without the method, or a retained release/withdrawal episode, keeps
+the strict check.
+
+Grasp memory no longer turns an occupancy-map refusal into "raise the
+grasp": six such refusals had pushed that cup's grasp ~5 cm up, above its rim.
+They now count as `occupancy_refused` failures with no height nudge.

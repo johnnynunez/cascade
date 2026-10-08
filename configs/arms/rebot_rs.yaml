@@ -36,6 +36,10 @@ park_q: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 overrides:
   safety:
     max_joint_vel: 0.8
+  grasp:
+    # The front camera's map put a ~10 cm cup's top ~1.5 cm above its rim and
+    # every pregrasp was refused by the cup itself; exempt the target column.
+    approach_target_exemption: true
 
 # MIT gains per joint (null = use the SDK's rebotarm_rs.yaml values).
 mit_kp: null

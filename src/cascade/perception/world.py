@@ -306,6 +306,8 @@ class WorldWatcher:
             self._harness.heartbeat()
         if T is None or not cam.fuse:
             return
+        # The robot's own pixels (render self-mask minus a held payload).
+        self_px = self._workspace.self_pixels(frame)
         with self._pause_lock:
             if not self._fusion_allowed(cam, frame, epoch):
                 return
@@ -323,7 +325,13 @@ class WorldWatcher:
                     mask = np.zeros((h, w), dtype=bool)
                     x0, y0, x1, y1 = d.bbox.astype(int)
                     mask[max(y0, 0):min(y1, h), max(x0, 0):min(x1, w)] = True
-            pts_cam = mask_to_points_cam(frame, mask)
+            # Mostly robot pixels: the arm itself, wherever it is (the base
+            # cylinder below misses the upper links). Otherwise only the
+            # detection's non-robot pixels are lifted to 3D.
+            rest, _ = self._workspace.exclude_self(mask, self_px)
+            if rest is None:
+                continue
+            pts_cam = mask_to_points_cam(frame, rest)
             if pts_cam.shape[0] < 10:
                 continue
             pts_base = transform_points(T, pts_cam)

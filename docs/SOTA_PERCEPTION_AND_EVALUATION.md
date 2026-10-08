@@ -143,6 +143,8 @@ ground truth (`TruthPoseReader`), 12 frames, static scene, 3 real props.
 | open vocabulary, both fixes disabled | 51.8% | 48.2% | FLICKER | 100% |
 | open vocabulary, geometric gate disabled only | 42.0% | 58.0% | FLICKER | 80.6% |
 | **open vocabulary + workspace filter + label-agnostic fusion** | **100%** | **0%** | **STABLE** | **100%** |
+| same, re-measured 2026-10-08 (Isaac 6.2 PhysX, cameras `isaac` + `isaac_side`, 3 runs) | 80.4–82.1% | 17.9–19.6% | 3 → 5 | 100% |
+| **+ render self-mask gate in fusion (B32a, 2026-10-08, same rig, 3 runs)** | **100%** | **0%** | 3 → 4 | **100%** |
 
 Artifacts: `benchmark/results/perception_nofilter.json` (gate disabled),
 `benchmark/results/perception_open_vocab.json` (final). Reproduce the ablation
@@ -165,6 +167,21 @@ them.
 
 Caveat that must travel with these numbers: this is a 3-prop Isaac scene, not
 a booth. It is a floor, not a guarantee.
+
+The 2026-10-08 rows were measured with two cameras on the 6.2 build. The
+side camera sees the arm's upper link at the top of its image, 0.42 m up and
+outside the base cylinder. YOLOE names it "biplane" or "fighter jet", and
+98–99 % of its pixels are robot pixels in the bridge's render self-mask. That
+link was the whole phantom rate. `WorkspaceFilter` now consults that mask in
+both fusion paths, and the rule stays class-agnostic. A detection more than
+half robot pixels IS the robot; below that, its robot pixels are not lifted
+to 3D. Measured: robot detections 0.885–0.995 robot pixels, props at most
+0.046. `workspace_filter.self_mask: false` is the A/B switch; see
+`docs/evidence/b32-fusion-self-mask-20261008/`. The remaining fourth belief
+is a duplicate of the bin, which the side camera names "yellow" and the top
+camera "orange" (B32b). It scores as a hit, so it costs no precision, but it
+makes the count wrong. Frames without a render self-mask (the real rig) are
+fused as before.
 
 ### Same-colour twins: instance-level association (2026-10-08)
 
@@ -225,7 +242,8 @@ two stores are indistinguishable (precision 0.80–0.82, recall 1.0 and 5
 beliefs for 3 props in both), so the 0 % row above does not reproduce on this
 build for either store. The phantom is the arm's own upper link, which the side
 camera sees: 98–99 % of that detection's pixels are robot pixels, and fusion
-does not consult the robot mask. The fifth belief is a duplicate of the bin:
+did not consult the robot mask (it does since B32a: 0 % phantoms in 3/3 live
+runs, section 3). The fifth belief is a duplicate of the bin:
 the side camera names it "yellow" and the top camera "orange". These are
 perception findings, not association ones (backlog B32).
 

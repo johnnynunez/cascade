@@ -60,6 +60,16 @@ class WorkspaceFilter:
             table plane. Shadows and surface markings lift to a flat patch at
             z ~= 0 and are otherwise indistinguishable from a thin object;
             measured on the rig the lowest real prop centres at 2.8 cm.
+        self_mask: consult the frame's render self-mask (``Frame.robot_mask``
+            minus a held ``payload_mask``) when it carries one. The base
+            cylinder only covers the links near the base: on Isaac the side
+            camera sees the upper arm 0.42 m up and 0.32 m out, and YOLOE
+            named it "biplane", which became a belief (backlog B32).
+        self_mask_max_frac: a detection with more than this fraction of its
+            pixels on the robot IS the robot, wherever it is. Measured on
+            Isaac (both demo cameras, 24 rounds): robot detections 0.885 to
+            0.995, props at most 0.046. Below it, the robot's pixels are
+            removed before the mask is lifted to 3D.
     """
 
     base_radius_m: float = 0.12
@@ -71,6 +81,64 @@ class WorkspaceFilter:
     reach_m: float = 1.00
     max_frame_frac: float = 0.45
     min_height_m: float = 0.010
+    self_mask: bool = True
+    self_mask_max_frac: float = 0.5
+
+    def __post_init__(self) -> None:
+        if not 0.0 < float(self.self_mask_max_frac) <= 1.0:
+            raise ValueError("self_mask_max_frac must be in (0, 1]")
+
+    def self_pixels(self, frame) -> np.ndarray | None:
+        """The robot's own pixels in ``frame``: its render self-mask minus a
+        held payload (a prop in the jaws is still an object).
+
+        None when the gate is off, the frame carries no self-mask (the real
+        rig today), or its payload mask does not align with it; nothing is
+        excluded then.
+        """
+        if not self.self_mask:
+            return None
+        robot = getattr(frame, "robot_mask", None)
+        if robot is None:
+            return None
+        robot = np.asarray(robot, dtype=bool)
+        payload = getattr(frame, "payload_mask", None)
+        if payload is not None:
+            payload = np.asarray(payload, dtype=bool)
+            if payload.shape != robot.shape:
+                return None
+            robot = robot & ~payload
+        return robot
+
+    def exclude_self(self, mask, self_px):
+        """Split one detection mask against the robot's pixels.
+
+        Returns ``(rest, frac)``. ``frac`` is the fraction of the detection's
+        pixels that are robot pixels. ``rest`` is the mask without them, or
+        None when ``frac`` exceeds ``self_mask_max_frac`` (the detection is the
+        robot). Without usable self pixels (none, or another shape) the mask
+        comes back untouched with ``frac`` None. Accepts numpy masks and the
+        strict-CUDA detector's torch masks, which stay on their device.
+        """
+        if self_px is None or tuple(mask.shape) != tuple(self_px.shape):
+            return mask, None
+        if hasattr(mask, "device") and hasattr(mask, "numel"):
+            import torch
+
+            m = mask.to(torch.bool)
+            s = torch.as_tensor(self_px, device=m.device)
+            n = int(m.sum().item())
+            on = int((m & s).sum().item()) if n else 0
+            rest = (m & ~s) if on else mask
+        else:
+            m = np.asarray(mask, dtype=bool)
+            n = int(np.count_nonzero(m))
+            on = int(np.count_nonzero(m & self_px)) if n else 0
+            rest = (m & ~self_px) if on else mask
+        frac = on / n if n else 0.0
+        if frac > self.self_mask_max_frac:
+            return None, frac
+        return rest, frac
 
     def reject(
         self,
@@ -124,6 +192,14 @@ class WorkspaceFilter:
             v = cfg.get(key, default)
             return default if v is None else float(v)
 
+        def flag(key: str, default: bool) -> bool:
+            v = cfg.get(key, default)
+            if v is None:
+                return default
+            if not isinstance(v, bool):
+                raise ValueError(f"workspace_filter.{key} must be true or false, got {v!r}")
+            return v
+
         return cls(
             base_radius_m=f("base_radius_m", base.base_radius_m),
             base_height_m=f("base_height_m", base.base_height_m),
@@ -134,4 +210,6 @@ class WorkspaceFilter:
             reach_m=f("reach_m", base.reach_m),
             max_frame_frac=f("max_frame_frac", base.max_frame_frac),
             min_height_m=f("min_height_m", base.min_height_m),
+            self_mask=flag("self_mask", base.self_mask),
+            self_mask_max_frac=f("self_mask_max_frac", base.self_mask_max_frac),
         )

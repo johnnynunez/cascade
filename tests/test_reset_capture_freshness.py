@@ -105,7 +105,12 @@ def watcher_case(monkeypatch, *, gate_geometry=False, start_paused=False):
         def reject(*args, **kwargs):
             gate()
             return None
-        watcher._workspace = SimpleNamespace(reject=reject)
+        from cascade.perception.workspace import WorkspaceFilter
+        real = WorkspaceFilter()
+        # Gate the geometric verdict only; the render self-mask gate (B32)
+        # runs before it on every detection, as in production.
+        watcher._workspace = SimpleNamespace(reject=reject, self_pixels=real.self_pixels,
+                                             exclude_self=real.exclude_self)
     errors = []
 
     def tick():

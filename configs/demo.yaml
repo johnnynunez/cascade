@@ -306,6 +306,13 @@ workspace_filter:
   reach_m: 1.00          # beyond this the arm cannot act anyway
   max_frame_frac: 0.45   # a mask this large IS the scene
   min_height_m: 0.010    # flatter than this is a shadow, not an object
+  # Frames that carry a render self-mask (Isaac with CASCADE_ISAAC_PIXEL_MASK=1,
+  # which launch.sh sets): a detection more than this fraction robot pixels IS
+  # the robot, wherever it is; below it the robot's pixels are not lifted to 3D.
+  # Measured on Isaac: robot detections 0.885-0.995, props <= 0.046 (B32).
+  # self_mask: false is the A/B baseline.
+  self_mask: true
+  self_mask_max_frac: 0.5
 
 # Offline evaluation of recorded runs (src/cascade/eval, scripts/judge_run.py).
 # Robo-Dopamine GRM ("PRM-as-a-Judge", https://robo-dopamine.github.io/):

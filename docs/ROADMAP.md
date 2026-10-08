@@ -886,10 +886,17 @@ engine" rule again -- a second OBJECT is also an independent channel):
    as one detection (touching cubes; 5.5–7.0 cm in the oblique probe view;
    the default mock detector's one blob per colour at any distance), and two
    bare-scene errors seen with BOTH stores on this build. The first is a phantom
-   on the arm's own upper link (side camera; fusion ignores the robot mask). The
-   second is a duplicate bin belief: the side camera names the bin "yellow" and
-   the top camera "orange". Because of these, the 0 % row of
-   `SOTA_PERCEPTION_AND_EVALUATION.md` does not reproduce.
+   on the arm's own upper link (side camera; fusion ignored the robot mask);
+   **landed 2026-10-08 (B32a)**: `WorkspaceFilter` gates both fusion
+   paths on the render self-mask. Live, the phantom rate went from
+   17.9–19.6 % to 0 % in 3/3 runs, with precision 100 % and recall 100 %
+   (`docs/evidence/b32-fusion-self-mask-20261008/`). The second is still open
+   (B32b): a duplicate bin belief, because the side camera names the bin
+   "yellow" and the top camera "orange". Because of it the scene ends with 4
+   beliefs for 3 props, so the STABLE count of the 0 % row of
+   `SOTA_PERCEPTION_AND_EVALUATION.md` still does not reproduce. Frames without
+   a render self-mask (the real rig) need a link-geometry mask in fusion
+   (follow-up).
 
 Then the REAL chat turn on the two-prop scene ("put both cubes in the drop
 zone, one at a time, call task_memory before each action, tell me how many

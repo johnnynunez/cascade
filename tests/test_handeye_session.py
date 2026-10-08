@@ -275,3 +275,43 @@ def test_manual_mode_eof_finishes_cleanly(tmp_path):
     s, log, arm, h, kin = _session(tmp_path)
     assert s.run_manual(POSES, prompt=eof) == []
     assert arm.moves == []
+
+
+def test_go_home_is_vetted_and_speed_limited(tmp_path):
+    s, log, arm, h, kin = _session(tmp_path, speed_frac=0.25, min_move_s=1.0)
+    arm.q = HOME + 0.8
+    s.go_home()
+    (q, dur), = arm.moves
+    assert np.allclose(q, HOME)
+    assert log[-2] == ("vet", tuple(np.round(HOME, 6)))
+    assert 1.875 * 0.8 / dur <= 0.25 * h.limits.max_joint_vel + 1e-9
+    assert any(e["event"] == "home" for e in _events(tmp_path))
+
+
+def test_start_home_moves_home_inside_the_session(tmp_path):
+    s, log, arm, h, kin = _session(tmp_path)
+    arm.q = HOME + 0.3
+    s.run_auto(POSES[:2], start_home=True)
+    assert np.allclose(arm.moves[0][0], HOME) and len(arm.moves) == 3
+    ev = [e["event"] for e in _events(tmp_path)]
+    assert ev[:2] == ["session_start", "home"] and ev[-1] == "session_end"
+
+
+def test_a_vetoed_home_ends_the_session_with_a_trace(tmp_path):
+    from cascade.types import SkillError
+
+    s, log, arm, h, kin = _session(tmp_path, veto=[HOME])
+    with pytest.raises(SkillError):
+        s.run_auto(POSES, start_home=True)
+    assert arm.moves == []
+    end = _events(tmp_path)[-1]
+    assert end["event"] == "session_end" and "SkillError" in end["finish_reason"]
+
+
+def test_go_home_refuses_a_vetoed_home(tmp_path):
+    from cascade.types import SkillError
+
+    s, log, arm, h, kin = _session(tmp_path, veto=[HOME])
+    with pytest.raises(SkillError, match="home"):
+        s.go_home()
+    assert arm.moves == []

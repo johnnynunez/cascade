@@ -71,6 +71,38 @@ class SessionConfig:
             raise ValueError("stable_frames, min_move_s and max_joint_step_rad must be positive")
 
 
+def wait_for_stable_marker(grab, aruco, cfg: SessionConfig, *, D=None, sleep=time.sleep,
+                           clock=time.monotonic):
+    """Settle ``cfg.settle_s``, then return the detection once
+    ``cfg.stable_frames`` consecutive readings agree within ``stable_tol_m``
+    (a miss or a bad reprojection resets the run); None after
+    ``marker_timeout_s``. ``grab()`` returns a Frame or None."""
+    t0 = clock()
+    settle_until, deadline = t0 + cfg.settle_s, t0 + cfg.settle_s + cfg.marker_timeout_s
+    count, last = 0, None
+    while clock() < deadline:
+        frame = grab()
+        if frame is None:
+            sleep(0.05)
+            continue
+        if clock() < settle_until:
+            sleep(0.03)
+            continue
+        det = aruco.detect_frame(frame, cfg.marker.size_m, D=D, target_id=cfg.marker.marker_id)
+        if det is None or float(det.reprojection_px) > cfg.max_reprojection_px:
+            count, last = 0, None
+            sleep(0.03)
+            continue
+        if last is not None and np.linalg.norm(
+                det.T_marker2cam[:3, 3] - last.T_marker2cam[:3, 3]) > cfg.stable_tol_m:
+            count, last = 1, det      # still moving: restart the run
+            continue
+        count, last = count + 1, det
+        if count >= cfg.stable_frames:
+            return det
+    return None
+
+
 def order_by_joint_distance(q0, qs) -> list[int]:
     """Greedy nearest-next ordering (L-inf joint distance) starting at q0."""
     cur = np.asarray(q0, dtype=float)
@@ -144,32 +176,8 @@ class CollectionSession:
 
     def stable_detection(self):
         """Settle, then wait for N consecutive agreeing marker readings."""
-        c = self.cfg
-        t0 = self.clock()
-        settle_until, deadline = t0 + c.settle_s, t0 + c.settle_s + c.marker_timeout_s
-        count, last = 0, None
-        while self.clock() < deadline:
-            frame = self.grab()
-            if frame is None:
-                self.sleep(0.05)
-                continue
-            if self.clock() < settle_until:
-                self.sleep(0.03)
-                continue
-            det = self.aruco.detect_frame(frame, c.marker.size_m, D=self.dist_coeffs,
-                                          target_id=c.marker.marker_id)
-            if det is None or float(det.reprojection_px) > c.max_reprojection_px:
-                count, last = 0, None
-                self.sleep(0.03)
-                continue
-            if last is not None and np.linalg.norm(
-                    det.T_marker2cam[:3, 3] - last.T_marker2cam[:3, 3]) > c.stable_tol_m:
-                count, last = 1, det      # still moving: restart the run
-                continue
-            count, last = count + 1, det
-            if count >= c.stable_frames:
-                return det
-        return None
+        return wait_for_stable_marker(self.grab, self.aruco, self.cfg, D=self.dist_coeffs,
+                                      sleep=self.sleep, clock=self.clock)
 
     # ── planning / motion ────────────────────────────────────────────────
 
@@ -194,6 +202,29 @@ class CollectionSession:
     def _current_q(self) -> np.ndarray:
         return np.asarray(self.arm.get_state().q, dtype=float)[: self.n]
 
+    def _duration(self, jump: float) -> float:
+        """Min-jerk duration whose PEAK joint speed (1.875 dq / T) stays at
+        speed_frac of the harness cap; never shorter than min_move_s."""
+        cap = float(self.harness.limits.max_joint_vel)
+        return max(self.cfg.min_move_s, 1.875 * jump / (self.cfg.speed_frac * cap))
+
+    def go_home(self) -> None:
+        """Vetted, speed-limited move to the profile's home_q (sweep start).
+        Raises SkillError if the harness vetoes home -- the sweep never
+        starts from an unknown pose."""
+        if getattr(self.harness, "estopped", False):
+            raise SafetyViolation("e-stop latched; calibration stopped")
+        self.grab()
+        reason = self.harness.vet_pose(self.home_q)
+        if reason:
+            raise SkillError(f"home pose vetoed by the safety harness: {reason}")
+        jump = float(np.max(np.abs(self.home_q - self._current_q())))
+        duration = self._duration(jump)
+        self.log(f"[calib] moving to home ({jump:.2f} rad, {duration:.1f} s)")
+        self._event("home", q=list(self.home_q), duration_s=duration)
+        if self.arm.move_planned(self.home_q, duration_s=duration) is False:
+            raise SkillError("arm did not settle at home")
+
     def visit(self, i, label, q) -> HandEyeSample | None:
         """Vet, move (through SafeArm), settle, detect, capture. None = skipped."""
         c = self.cfg
@@ -210,8 +241,7 @@ class CollectionSession:
             self._skip(i, label, "joint_jump",
                        f"{jump:.2f} rad > {c.max_joint_step_rad:.2f} rad from the current pose")
             return None
-        cap = float(self.harness.limits.max_joint_vel)
-        duration = max(c.min_move_s, 1.875 * jump / (c.speed_frac * cap))
+        duration = self._duration(jump)
         self.log(f"[calib] {label}: moving ({jump:.2f} rad, {duration:.1f} s)")
         try:
             ok = self.arm.move_planned(q, duration_s=duration)
@@ -259,11 +289,14 @@ class CollectionSession:
 
     # ── the two sweeps ───────────────────────────────────────────────────
 
-    def _run(self, poses, step) -> list[HandEyeSample]:
+    def _run(self, poses, step, start_home=False) -> list[HandEyeSample]:
         self._event("session_start", mode=self.cfg.mode, n_poses=len(poses),
-                    marker=self.cfg.marker.to_json(), speed_frac=self.cfg.speed_frac)
+                    marker=self.cfg.marker.to_json(), speed_frac=self.cfg.speed_frac,
+                    settle_s=self.cfg.settle_s)
         reason = "all poses visited"
         try:
+            if start_home:
+                self.go_home()
             plan = self.plan(poses)
             order = order_by_joint_distance(self._current_q(), [q for _, _, q in plan])
             for k, idx in enumerate(order):
@@ -278,14 +311,16 @@ class CollectionSession:
             self._event("session_end", n_collected=len(self.samples), finish_reason=reason)
         return list(self.samples)
 
-    def run_auto(self, poses) -> list[HandEyeSample]:
-        """Visit every vetted preset; returns the samples collected."""
+    def run_auto(self, poses, *, start_home=False) -> list[HandEyeSample]:
+        """Visit every vetted preset; returns the samples collected.
+        ``start_home`` first moves (vetted) to home_q, so the greedy order
+        and the joint-jump ceiling start from a known pose."""
         def step(k, n, i, label, q):
             self.log(f"[calib] auto {k + 1}/{n}: {label}")
             self.visit(i, label, q)
-        return self._run(poses, step)
+        return self._run(poses, step, start_home)
 
-    def run_manual(self, poses, prompt=input) -> list[HandEyeSample]:
+    def run_manual(self, poses, prompt=input, *, start_home=False) -> list[HandEyeSample]:
         """Same sweep, one ENTER per pose: the operator gates every motion."""
         def step(k, n, i, label, q):
             try:
@@ -300,7 +335,7 @@ class CollectionSession:
                 return None
             self.visit(i, label, q)
             return None
-        return self._run(poses, step)
+        return self._run(poses, step, start_home)
 
 
 def _jsonable(o):

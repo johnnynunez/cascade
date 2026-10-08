@@ -96,7 +96,7 @@ Three properties that are load-bearing and easy to break: (1) the distance is SE
 - **Error taxonomy** (`types.py`): `SkillError` = failure the agent should reason about; `SafetyViolation` = harness rejection; plain `RuntimeError` = crash/hardware fault. The orchestrator's recovery logic depends on this split.
 - **Invariant:** `Kinematics.ik` `limit_margin` (0.025 rad) must stay strictly greater than the harness `joint_margin` (0.02) so IK never returns a pose the harness rejects — a past review defect; never tune one side alone.
 - **Booleans from LLMs arrive as strings** ("false" is truthy) — coerce with the `_as_bool` pattern in any new skill taking a bool.
-- Gripper `open_pos`/`closed_pos` polarity differs per arm profile (RS: open=-6.8 rad; mock: 0→1; Isaac: fraction, open=1.0; SO-101: open=+0.60 rad, closed=-0.15) — compute travel as `closed_pos - open_pos`, sign-aware.
+- Gripper `open_pos`/`closed_pos` polarity differs per arm profile (RS: open=+6.2 rad, closed=0 -- measured, the old -6.8 was the DM build; mock: 0→1; Isaac: fraction, open=1.0; SO-101: open=+0.60 rad, closed=-0.15) — compute travel as `closed_pos - open_pos`, sign-aware.
 - The SO-101 jaw is a single-hinge "beak", not parallel fingers: opening is NOT linear in motor angle and the jaw retracts along the approach as it opens. `max_width_m` is deliberately below the geometric gap at `open_pos` because the framework's angle→width map is linear; see the measured table in `configs/arms/so101.yaml`.
 - Comments in control/safety/grasping encode rig-verified failure observations that tests rely on — preserve and extend them.
 

@@ -93,3 +93,16 @@ def test_mb_set_gripper_clamps_to_profile_travel():
     for cmd in (9.0, 2.0, -3.0):
         arm.set_gripper(cmd)
     assert motor.sent == [pytest.approx(6.2), pytest.approx(2.0), pytest.approx(0.0)]
+
+
+def test_rs_gripper_defaults_are_the_measured_rs_polarity_not_dm():
+    """Seeed WRC e3b0b2a: the RS gripper opens toward POSITIVE angles; the DM
+    build's open=-6.8 had been copied over and drove the jaws the wrong way.
+    A profile that omits the gripper block must fall back to the measured RS
+    travel (the motorbridge sibling already does), never to the DM value."""
+    from cascade.control.rebot_rs_arm import RebotRSArm
+    from cascade.control.rebot_rs_mb_arm import RebotRSMotorBridgeArm
+
+    rs = RebotRSArm(Cfg({}))
+    mb = RebotRSMotorBridgeArm(Cfg({"mit_kp": [1.0] * 6, "mit_kd": [0.1] * 6}))
+    assert (rs._grip_open, rs._grip_closed) == (mb._grip_open, mb._grip_closed) == (6.2, 0.0)

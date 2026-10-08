@@ -63,7 +63,10 @@ class RebotRSArm(ArmBase):
         # ba4e110). Default stays ArmBase's.
         self.settle_timeout_s = float(cfg.get("settle_timeout_s", ArmBase.settle_timeout_s))
         g = cfg.get("gripper", Cfg({}))
-        self._grip_open = float(g.get("open_pos", -6.8))
+        # Fallbacks are the MEASURED RS travel (0 -> +6.39 rad, closed at 0),
+        # same as rebot_rs_mb -- never the DM build's open=-6.8, which drives
+        # the RS jaws the wrong way (Seeed WRC e3b0b2a hit exactly that).
+        self._grip_open = float(g.get("open_pos", 6.2))
         self._grip_closed = float(g.get("closed_pos", 0.0))
         self._grip_kp = float(g.get("kp", 6.0))
         self._grip_kd = float(g.get("kd", 0.4))

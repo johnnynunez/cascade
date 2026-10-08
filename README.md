@@ -756,7 +756,11 @@ arm, builds the `ArmRig`), `CASCADE_ARM` (single-arm fallback), `CASCADE_DETECTO
 `CASCADE_DETECT_CLASSES`, `CASCADE_HIDE_TOOLS`, `CASCADE_VIEW` (cv2 camera window),
 `CASCADE_MJ_VIEW` (MuJoCo physics window; the launcher sets it in sim modes),
 `CASCADE_PREWARM`, `CASCADE_STREAM`, `CASCADE_STREAM_PORT`, `CASCADE_RUN_DIR`
-(trace dir), `CASCADE_OCCUPANCY` (`0` skips the bridge probe), `DISPLAY`. The Isaac bridge
+(trace dir), `CASCADE_OCCUPANCY` (`0` skips the bridge probe), `DISPLAY`.
+`CASCADE_BRIDGE_PORT`, `CASCADE_GRASPGENX_PORT` and `CASCADE_OCCUPANCY_PORT` move the
+Isaac bridge and the two sidecars off 8611 / 5556 / 5557: the launcher starts them there
+and `load_demo_config` applies the same values last, over every config layer and every
+arm's resolved view (empty = unset; a malformed value is refused, naming the variable). The Isaac bridge
 side has its own knobs (`CASCADE_USD`, `CASCADE_PHYSICS_DEVICE` — `cpu` is the
 escape hatch for GPU-PhysX boot NaNs —, `CASCADE_BRIDGE_BIND`,
 `CASCADE_BRIDGE_NO_TARGETS`, `CASCADE_COMPANION_EXTS`); see `scripts/isaac_bridge.py`.

@@ -539,7 +539,8 @@ re-run with it.
 src/cascade/
 ├── types.py            Frame / Detection / ObjectFix / Grasp / RobotState / SkillError
 ├── config.py           YAML profiles (cameras/, arms/, llm/) → one Cfg; `extends:`,
-│                       arm `overrides:`, ${repo}/${assets}; CASCADE_BOOTH overlay
+│                       arm `overrides:`, ${repo}/${assets}; CASCADE_BOOTH overlay;
+│                       CASCADE_{BRIDGE,GRASPGENX,OCCUPANCY}_PORT applied last (B34)
 ├── device.py           resolve_device(): auto CUDA/ROCm → MPS → CPU, degrade with a warning
 ├── perception/
 │   ├── camera_base.py        CameraBase ABC + make_camera(); Frames carry METRIC depth

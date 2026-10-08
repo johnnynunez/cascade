@@ -183,6 +183,22 @@ camera "orange" (B32b). It scores as a hit, so it costs no precision, but it
 makes the count wrong. Frames without a render self-mask (the real rig) are
 fused as before.
 
+B32b (2026-10-08, software only so far) makes colour identity per camera.
+The bin's median hue is H 22 in the top camera and H 23 in the side camera,
+one unit across the orange/yellow band boundary, in every frame. A hue margin
+cannot separate that from a real yellow prop next to the bin (3–4 units), but
+each camera's names were 100 % stable. So a belief now keeps the name each
+camera gave it, and an observation is held to its own camera's name. A
+camera that never named a belief may fuse a perceptual-neighbour name only
+when the two clouds' 3D boxes overlap at IoU >= 0.75. The boxes are 2nd–98th
+percentile boxes, and IoU is used rather than intersection over the smaller
+box, so a prop inside the bin stays separate. In a CPU ray-cast of this scene
+(calibrated poses, bridge optics), the bin's two views score 0.90–0.91, or
+0.78–0.94 with 2–4 px of mask bleed. A cube inside the bin scores ≤ 0.03, and
+a bleeding sliver of one ≤ 0.68. The live A/B (`memory.per_camera_colour:
+true` vs `false`; target 4 → 3 beliefs at unchanged precision) has not been
+run yet, so no table row is claimed.
+
 ### Same-colour twins: instance-level association (2026-10-08)
 
 Label-agnostic fusion has a cost the table above cannot show: with three

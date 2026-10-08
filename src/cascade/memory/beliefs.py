@@ -17,6 +17,14 @@ association, 2026-10-08): the frame's detections are grouped into instances
 by shared image support, and instances and beliefs are matched ONE-TO-ONE by
 a min-cost assignment inside the unchanged gates. `update()` stays the
 single-observation writer (place_at, push, localize).
+
+Colour identity is per camera (2026-10-08, backlog B32b): a belief keeps the
+name each source camera gave it (`source_colors`). Two cameras can name one
+object differently -- the Isaac bin is H 22 "orange" in the top camera and H 23
+"yellow" in the side camera -- so an observation is held to the name ITS
+camera gave the belief; a camera that never named it may fuse a perceptual-
+neighbour name only on strong 3D overlap (`neighbour_colour_iou`). See
+`BeliefStore._identity_ok`.
 """
 
 from __future__ import annotations
@@ -32,7 +40,7 @@ from typing import Any
 
 import numpy as np
 
-from ..perception.colors import parse_color_query
+from ..perception.colors import are_neighbours, parse_color_query
 
 
 @dataclass
@@ -53,6 +61,17 @@ class ObjectBelief:
     last_seen_t: float = field(default_factory=time.monotonic)
     first_seen_t: float = field(default_factory=time.monotonic)
     observations: int = 1
+    source_colors: dict[str, str] = field(default_factory=dict)  # camera name ->
+    # the colour name THAT camera measured for this object. `color` stays the
+    # first measured name (stable for queries); two cameras may legitimately
+    # disagree across a hue band boundary (B32b), so identity checks use this.
+
+    def colour_names(self) -> set[str]:
+        """Every colour name any camera (or an unsourced writer) gave it."""
+        names = set(self.source_colors.values())
+        if self.color is not None:
+            names.add(self.color)
+        return names
 
     def state(self, now: float, visible_horizon_s: float = 1.5) -> str:
         return "visible" if (now - self.last_seen_t) <= visible_horizon_s else "remembered"
@@ -70,6 +89,10 @@ class FrameObservation:
     inside its whole) rather than two objects side by side, and they are used
     for that decision only: nothing image-side is stored. No `bbox` = no
     image evidence = the observation is an instance of its own.
+
+    `source` is the camera (stream) name. Colour identity is per camera
+    (B32b): the store holds an observation to the colour name ITS camera gave
+    a belief. None = unknown camera = the single-name rule of 2026-09-10.
     """
 
     label: str
@@ -81,6 +104,7 @@ class FrameObservation:
     points: np.ndarray | None = None
     bbox: np.ndarray | None = None
     mask: Any = None
+    source: str | None = None
 
 
 #: Two detections of ONE frame are the same instance only when they share at
@@ -181,6 +205,58 @@ def _support_overlap(a: FrameObservation, b: FrameObservation,
     return shared / small
 
 
+#: A camera that never named a belief may fuse a perceptual-NEIGHBOUR colour
+#: name (orange~yellow, colors._NEIGHBORS) into it only when the two robot-free
+#: clouds overlap at least this much (3D box IoU, see `_cloud_box`). Ray-cast
+#: on the bare Isaac scene (exact camera poses, bridge optics, 1280 x 720) the
+#: open bin's top and side views score 0.90-0.91 and a 3.5 cm cube inside the
+#: bin <= 0.03. With 2-4 px of mask bleed (the live OBB offsets, 2.8 / 5.0 cm,
+#: sit between those two) the bin scores 0.78-0.94 while the side camera's
+#: sliver of a cube inside it, seen over the near wall, reaches 0.68. 0.75 sits
+#: between the two; at 6 px the bin itself falls to 0.25-0.30 and stays two
+#: beliefs. A miss leaves the pre-B32b duplicate; a false merge loses an object.
+NEIGHBOUR_COLOUR_IOU = 0.75
+
+#: The box of a cloud is its 2nd..98th percentile per base axis: mask bleed
+#: lifts a few pixels onto the table far behind the object, and a min/max box
+#: takes them at face value (1 px of bleed at 320 x 180: the bin's two views
+#: score 0.34 with min/max boxes, 0.90 with these). Partial views of one object
+#: still span its extremes.
+_BOX_TRIM_PCT = 2.0
+_MIN_BOX_POINTS = 10
+
+
+def _cloud_box(points) -> tuple[np.ndarray, np.ndarray] | None:
+    """Axis-aligned (base frame) robust box of a cloud, or None (no cloud)."""
+    if points is None:
+        return None
+    if hasattr(points, "detach"):  # a torch tensor (strict CUDA mode): host copy, rare path
+        points = points.detach().cpu().numpy()
+    p = np.asarray(points, dtype=float).reshape(-1, 3)
+    if p.shape[0] < _MIN_BOX_POINTS:
+        return None
+    lo, hi = np.percentile(p, [_BOX_TRIM_PCT, 100.0 - _BOX_TRIM_PCT], axis=0)
+    return lo, hi
+
+
+def _box_iou(a, b) -> float:
+    """Intersection over UNION of two axis-aligned boxes. Not over the smaller
+    box: a cube INSIDE the bin is wholly contained (that ratio would be 1.0)
+    but fills ~2 % of it."""
+    lo, hi = np.maximum(a[0], b[0]), np.minimum(a[1], b[1])
+    inter = float(np.prod(np.clip(hi - lo, 0.0, None)))
+    union = float(np.prod(a[1] - a[0])) + float(np.prod(b[1] - b[0])) - inter
+    return inter / union if union > 0 else 0.0
+
+
+def camera_source(stream) -> str | None:
+    """The colour-identity source name of a camera stream: its `name` when
+    that is a non-empty string, else None (unknown camera = the one-name
+    rule). A mock's auto-attribute is not a camera name."""
+    name = getattr(stream, "name", None)
+    return name if isinstance(name, str) and name else None
+
+
 @dataclass
 class SceneSnapshot:
     """A named, ADVISORY record of where the confirmed objects were -- Pigey's
@@ -231,6 +307,8 @@ class BeliefStore:
         label_agnostic: bool = True,
         extent_frac: float = 0.5,
         instance_association: bool = True,
+        per_camera_colour: bool = True,
+        neighbour_colour_iou: float = NEIGHBOUR_COLOUR_IOU,
     ):
         self._beliefs: list[ObjectBelief] = []
         self._match_radius = match_radius_m
@@ -243,6 +321,14 @@ class BeliefStore:
         #: one-to-one; False = per-detection `update()` (pre-2026-10-08,
         #: `memory.instance_association: false`, the live A/B baseline)
         self._instance_association = bool(instance_association)
+        #: colour identity per source camera (B32b, `_identity_ok`); False =
+        #: one name per belief, any different name vetoes (pre-2026-10-08,
+        #: `memory.per_camera_colour: false`, the live A/B baseline)
+        self._per_camera_colour = bool(per_camera_colour)
+        iou = float(neighbour_colour_iou)
+        if not 0.0 < iou <= 1.0:  # also refuses NaN: 0 would fuse on any touch
+            raise ValueError(f"neighbour_colour_iou must be in (0, 1], got {neighbour_colour_iou!r}")
+        self._neighbour_colour_iou = iou
         self._lock = threading.RLock()
         #: named advisory layouts (SceneSnapshot), see `snapshot()`
         self._snapshots: dict[str, SceneSnapshot] = {}
@@ -257,6 +343,7 @@ class BeliefStore:
         t: float | None = None,
         color: str | None = None,
         points: np.ndarray | None = None,
+        source: str | None = None,
     ) -> ObjectBelief:
         """Fuse one 3D observation into the world model.
 
@@ -279,6 +366,10 @@ class BeliefStore:
         `points` should only be passed for REAL segmentation masks (never
         bbox-rectangle fallbacks -- those sweep in table/neighbor pixels and
         poison remembered geometry).
+
+        `source` names the camera the observation came from (per-camera
+        colour identity, `_identity_ok`); the single-observation writers
+        (place_at, push, localize) pass none and keep the one-name rule.
         """
         now = time.monotonic() if t is None else t
         position = np.asarray(position, dtype=float).reshape(3)
@@ -286,21 +377,24 @@ class BeliefStore:
         with self._lock:
             best, best_d = None, None
             for b in self._beliefs:
-                if not self._may_fuse(b.label, b.color, label, color):
-                    continue
                 radius = self._fusion_radius(b.extent, extent)
                 d = float(np.linalg.norm(b.position - position))
-                if d < radius and (best_d is None or d < best_d):
-                    best, best_d = b, d
+                if d >= radius or (best_d is not None and d >= best_d):
+                    continue
+                if not self._identity_ok(b, label, color, source, points):
+                    continue
+                best, best_d = b, d
             if best is None:
                 best = ObjectBelief(
                     label=label, position=position, extent=extent, top_z=top_z,
                     conf=conf, color=color, points=points,
                     last_seen_t=now, first_seen_t=now,
+                    source_colors=self._named_by(source, color),
                 )
                 self._beliefs.append(best)
                 return best
-            self._fuse(best, label, position, conf, extent, top_z, color, points, now)
+            self._fuse(best, label, position, conf, extent, top_z, color, points, now,
+                       source=source)
             return best
 
     # ── the fusion gate and the fusion step, shared by update/update_frame ──
@@ -335,6 +429,60 @@ class BeliefStore:
         # mask, so it is a measurement, not a label.
         return not (color_a is not None and color_b is not None and color_a != color_b)
 
+    def _identity_ok(self, b: ObjectBelief, label: str, color: str | None,
+                     source: str | None, points) -> bool:
+        """Identity gate of an OBSERVATION against a BELIEF: the label rule
+        and the colour rule, with colour identity per source camera.
+
+        Measured on the bare Isaac scene (B32b): the open bin is H 22
+        "orange" in the top camera and H 23 "yellow" in the side camera, every
+        frame, so the one-name rule kept it as two beliefs. A hue margin
+        cannot fix that (one object varies 1-3 hue units across cameras, a
+        yellow prop next to the bin would differ by 3-4), but each camera's
+        names were 100 % stable. So:
+
+        - a camera that has named this belief is held to ITS name: a
+          different name from it is a different object (the 2026-09-10 rule,
+          per camera, at any overlap);
+        - otherwise a name any camera gave the belief fuses as before;
+        - otherwise a perceptual neighbour of a name ANOTHER camera gave it
+          (orange~yellow, `colors.are_neighbours`) fuses only if both have a
+          real-mask cloud and their boxes overlap with IoU >=
+          `neighbour_colour_iou` -- union, not the smaller box, so a prop
+          inside the bin stays separate;
+        - everything else (red/blue, no camera name, no cloud) stays apart.
+
+        With `per_camera_colour=False`, or for beliefs and observations that
+        never carried a camera name, this is exactly `_may_fuse`.
+        """
+        if not self._per_camera_colour:
+            return self._may_fuse(b.label, b.color, label, color)
+        if not self._label_agnostic and b.label != label:
+            return False
+        if color is None:
+            return True
+        names = b.colour_names()
+        if not names:
+            return True
+        if source is not None and source in b.source_colors:
+            return color == b.source_colors[source]
+        if color in names:
+            return True
+        if source is None:
+            return False
+        # neighbour of a name ANOTHER CAMERA gave it: a belief only unsourced
+        # writers named has no per-camera evidence, so no exception
+        if not any(are_neighbours(color, n) for n in b.source_colors.values()):
+            return False
+        mine, theirs = _cloud_box(points), _cloud_box(b.points)
+        if mine is None or theirs is None:
+            return False
+        return _box_iou(mine, theirs) >= self._neighbour_colour_iou
+
+    @staticmethod
+    def _named_by(source: str | None, color: str | None) -> dict[str, str]:
+        return {source: color} if source is not None and color is not None else {}
+
     def _fusion_radius(self, extent_a, extent_b) -> float:
         # A big object's centre estimate wanders further between
         # frames than a small one's: two views of a 30 cm bin can
@@ -349,7 +497,8 @@ class BeliefStore:
         return radius
 
     def _fuse(self, best: ObjectBelief, label, position, conf, extent, top_z,
-              color, points, now, *, aliases=(), reanchor: bool = False) -> None:
+              color, points, now, *, aliases=(), reanchor: bool = False,
+              source: str | None = None) -> None:
         a = 1.0 if reanchor else self._pos_alpha
         best.position = (1 - a) * best.position + a * position
         # Decide the name BEFORE conf is smoothed, so the comparison is
@@ -370,7 +519,14 @@ class BeliefStore:
         if top_z is not None:
             best.top_z = top_z
         if color is not None:
-            best.color = color
+            # Per-camera identity keeps the FIRST measured name as the
+            # belief's colour: the bin must not read "orange" on one tick and
+            # "yellow" on the next because the cameras took turns. (Without
+            # per-camera identity a fused name always equals it anyway.)
+            if best.color is None or not self._per_camera_colour:
+                best.color = color
+            if source is not None:
+                best.source_colors[source] = color
         if points is not None:
             best.points = points
         best.last_seen_t = now
@@ -395,7 +551,8 @@ class BeliefStore:
            the store's own gate (label rule, colour rule, size-scaled
            radius); an instance never joins two measured colours;
         2. instances and beliefs are matched ONE-TO-ONE by a min-cost
-           assignment on 3D distance inside the same gates, a new object
+           assignment on 3D distance inside the same gates (the colour rule
+           per source camera, `_identity_ok`), a new object
            costing the instance's gate radius. Two instances of one frame
            never claim one belief, twins that move together do not swap
            (greedy nearest-first would), and a lone detection still goes to
@@ -422,7 +579,7 @@ class BeliefStore:
         if not self._instance_association:
             return [
                 self.update(o.label, o.position, o.conf, extent=o.extent, top_z=o.top_z,
-                            t=now, color=o.color, points=o.points)
+                            t=now, color=o.color, points=o.points, source=o.source)
                 for o in obs
             ]
         if not obs:
@@ -440,16 +597,17 @@ class BeliefStore:
         with self._lock:
             beliefs = list(self._beliefs)
             feasible: list[list[tuple[int, float, float]]] = []
-            for g, (label, _, colour, _, _) in zip(groups, named):
+            for g, (label, _, colour, cloud, _) in zip(groups, named):
                 k = g[0]
                 row = []
                 for j, b in enumerate(beliefs):
-                    if not self._may_fuse(b.label, b.color, label, colour):
-                        continue
                     radius = self._fusion_radius(b.extent, obs[k].extent)
                     d = float(np.linalg.norm(b.position - pos[k]))
-                    if d < radius:
-                        row.append((j, d, radius))
+                    if d >= radius:
+                        continue
+                    if not self._identity_ok(b, label, colour, obs[k].source, cloud):
+                        continue
+                    row.append((j, d, radius))
                 feasible.append(row)
             cols = sorted({j for row in feasible for j, _, _ in row})
             col_of = {j: c for c, j in enumerate(cols)}
@@ -471,13 +629,14 @@ class BeliefStore:
                     b = beliefs[matched[i]]
                     self._fuse(b, label, pos[k], conf, obs[k].extent, obs[k].top_z,
                                colour, cloud, now, aliases=names,
-                               reanchor=matched[i] in contested)
+                               reanchor=matched[i] in contested, source=obs[k].source)
                 else:
                     b = ObjectBelief(
                         label=label, position=pos[k], extent=obs[k].extent,
                         top_z=obs[k].top_z, conf=conf, color=colour, points=cloud,
                         aliases={x for x in names if x != label},
                         last_seen_t=now, first_seen_t=now,
+                        source_colors=self._named_by(obs[k].source, colour),
                     )
                     born.append(b)
                 for q in g:
@@ -654,18 +813,27 @@ class BeliefStore:
                     ]
                     cands = loose
                 if color:
-                    # Prefer the exact palette band, then perceptual
-                    # neighbors (red<->pink boundary objects), and only then
-                    # untagged beliefs -- never a wrong-colored object.
+                    # Prefer the exact palette band, then a band another
+                    # camera measured for the same object (per-camera
+                    # identity: the bin is "orange" to one camera, "yellow" to
+                    # the other), then perceptual neighbors (red<->pink
+                    # boundary objects), and only then untagged beliefs --
+                    # never a wrong-colored object.
                     from ..perception.colors import color_matches
 
                     exact = [b for b in cands if b.color == color]
+                    other_view = [
+                        b for b in cands
+                        if b.color is not None and b.color != color
+                        and color in b.source_colors.values()
+                    ]
                     near = [
                         b for b in cands
                         if b.color is not None and b.color != color
                         and color_matches(color, b.color)
                     ]
-                    cands = exact or near or [b for b in cands if b.color is None]
+                    cands = (exact or other_view or near
+                             or [b for b in cands if b.color is None])
                 # A bare color word needs the color to actually constrain;
                 # a bare noun already did. No constraint at all -> no match.
                 if color is None and noun is None:
@@ -752,6 +920,8 @@ class BeliefStore:
                     ),
                     "aliases": sorted(b.aliases),
                     "observations": int(b.observations),
+                    # per-camera colour names (B32b); absent in older files
+                    "source_colors": dict(b.source_colors),
                     # monotonic -> wall clock, the whole point of this format
                     "last_seen_wall": now_wall - (now_mono - b.last_seen_t),
                     "first_seen_wall": now_wall - (now_mono - b.first_seen_t),
@@ -825,6 +995,8 @@ class BeliefStore:
                             else np.asarray(pts, dtype=np.float32).reshape(-1, 3)),
                     aliases=set(r.get("aliases") or []),
                     observations=int(r.get("observations", 1)),
+                    source_colors={str(k): str(v) for k, v in
+                                   (r.get("source_colors") or {}).items()},
                     # Age is preserved RELATIVE to now, so "seen 40 minutes
                     # ago" still reads as 40 minutes ago after a restart.
                     last_seen_t=now_mono - age,

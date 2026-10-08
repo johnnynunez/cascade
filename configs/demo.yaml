@@ -173,6 +173,18 @@ memory:
   # the pre-2026-10-08 per-detection fusion, kept as the live A/B baseline
   # (memory/beliefs.py `update_frame`).
   instance_association: true
+  # Colour identity per camera (B32b): a belief keeps the colour name EACH
+  # camera gave it, and an observation is held to its own camera's name. One
+  # object that two cameras name across a hue band boundary (the Isaac bin:
+  # H 22 "orange" in the top camera, H 23 "yellow" in the side camera) is then
+  # one belief: a camera that never named a belief may fuse a perceptual-
+  # neighbour name (orange~yellow) only when the 3D boxes of the two clouds
+  # overlap with IoU >= neighbour_colour_iou (so a prop INSIDE the bin stays
+  # separate); non-neighbour names (red/blue) never fuse. false = the
+  # pre-2026-10-08 one-name rule, kept as the live A/B baseline
+  # (memory/beliefs.py `_identity_ok`).
+  per_camera_colour: true
+  neighbour_colour_iou: 0.75
   # ASPIRE skill library (skills_library/*.md, written offline by
   # scripts/learn_from_runs.py): a distilled note is retrieved into the agent
   # context only after it recurred in this many DISTINCT tasks (upstream

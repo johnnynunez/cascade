@@ -701,6 +701,16 @@ def build_runtime(
     if not b["occupancy_live"] and occupancy is not None:
         print("[cascade] WARNING: occupancy is enabled in config but no bridge answered -- "
               "the clearance gate is OFF (start scripts/serve_occupancy.sh)", file=sys.stderr)
+    elif (occupancy is not None and occupancy.status
+          and occupancy.status.get("backend") == "voxel"):
+        # The numpy fallback can exceed the per-frame timeout on a full depth
+        # frame (measured ~0.6 s vs 0.5 s on a Jetson Thor at 1280x720); every
+        # refresh then fails and the body-mask latch refuses all motion.
+        print("[cascade] NOTE: occupancy runs the CPU voxel fallback, which can be too slow "
+              f"for occupancy.timeout_ms={int((cfg.get('occupancy') or {}).get('timeout_ms', 500))}; "
+              "install the 'occupancy' "
+              "extra (warp-lang) and restart scripts/serve_occupancy.sh for the GPU backend",
+              file=sys.stderr)
     # Capability matrix (ROADMAP #12, Waddle): what this rig can do, read
     # from the probed state above -- camera depth chain, sidecars, arms,
     # verifier, memory. The MCP server trims its tool surface by it; the

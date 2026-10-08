@@ -183,10 +183,23 @@ Open, in priority order (details in the sections below):
 3. **Learned grasps for real**: run `serve_graspgenx.sh` (CUDA) instead of
    the protocol stub and calibrate `tip_offset_m` / the reBot sweep volume
    in Isaac; the stub only proves the wire.
-4. **Wrist camera** extrinsics validated mid-descent against physics truth.
+4. ~~**Wrist camera** extrinsics validated mid-descent against physics truth.~~
+   **landed 2026-10-07 (sim)** — every wrist frame's own `K` + `T_base_cam` projects the
+   resting box's physics-truth corners onto its pixels during a slow descent/ascent:
+   PhysX 0.69 px median moving (max 1.07), Newton 2.73 px (max 9.4), silhouette IoU
+   ≥ 0.96, depth exact, moving = static on both engines (time-aligned); see
+   [NEWTON_ENGINE.md](NEWTON_ENGINE.md#real-rebot-asset-on-the-internal-62-build-start-up-probe-battery-wrist-camera-7-october-2026).
+   The real D435i hand-eye calibration stays with the rig (B25).
 5. **Newton target validation** — the Isaac bridge already defaults to
    Newton. Validate the real reBot asset in Isaac Sim 6.1 on Spark; synthetic
    contacts or SO-101 standalone tests do not certify that different asset.
+   **x86 part landed 2026-10-07:** `physics_probe.py` on the real asset passes
+   8/8 on Newton and 8/8 on PhysX on the internal 6.2 build (and 8/8 on Newton on
+   the 6.1 baseline) after fixing the 6.2 Newton start-up deadlock and the probe's
+   silent unreachable-lift failure; still open: the Spark (GB10) run, and the 6.2
+   Newton camera cadence that leaves 34–40 % of refreshes frameless during arm motion
+   (2.8 % on 6.1 with the same three physics steps per update; cause open)
+   ([details](NEWTON_ENGINE.md#real-rebot-asset-on-the-internal-62-build-start-up-probe-battery-wrist-camera-7-october-2026)).
 6. **Judge as a metric**: run `scripts/judge_run.py` over every launcher
    proof turn and keep the judge-vs-physics confusion matrix in the run
    summary, so a regression in the outcome pictures shows up as `fn`.
@@ -1111,9 +1124,12 @@ are synchronous by design here, noted for long-horizon work.
     `scripts/physics_probe.py --engine newton` against the real asset on the
     DGX. What is settled is that the blanket claim "manipulation contacts are
     broken at the PARSER level" no longer holds for current Newton.
-- **Wrist cam follow-ups.** Validate the eye-in-hand extrinsics during a
+    **2026-10-07:** run against the real asset on the x86 6.2 build — 8/8 on
+    Newton (settle/drop/grasp/push, both boxes), same as PhysX; the DGX run is
+    still pending.
+- **Wrist cam follow-ups.** ~~Validate the eye-in-hand extrinsics during a
   real grasp (reproject wrist depth of the target object against the
-  physics-truth pose mid-descent); consider serving the wrist stream a
+  physics-truth pose mid-descent)~~ **landed 2026-10-07 in sim** (near-term #4); consider serving the wrist stream a
   narration highlight ("what the gripper sees") on the dashboard; on the
   real rig map `isaac_wrist.yaml` to the physical D435i + hand-eye calib.
 - **Sim perception flakiness** (separate campaign): YOLOE misses the YCB

@@ -29,6 +29,70 @@ Historical result from 2026-07-31 (before strict whole-object acceptance): `pick
 cube physics-confirmed inside the bin (31.9 cm displacement), postcondition
 `confirmed via physics`, articulation finite afterwards, 260 tests green.
 
+## Real reBot asset on the internal 6.2 build: start-up, probe battery, wrist camera (7 October 2026)
+
+Rig: x86 test rig, GPU 0, Isaac Sim 6.2.0-alpha.19 (`omni_isaac_sim` develop
+`48b2d951`), Newton 1.6.1rc1, Warp 1.17.0; the bare reBot scene
+(`assets/usd/RS-rebot-dev-arm/RS-rebot-dev-arm.usda`, two 0.05 × 0.05 × 0.08 m
+boxes `pink_cube`/`green_cube`), `scripts/isaac_bridge.py` on a private port with
+`CASCADE_ISAAC_PIXEL_MASK=1`. Evidence:
+[`evidence/newton-probe-62-20261007/`](evidence/newton-probe-62-20261007/REPORT.md).
+
+- **Start-up deadlock (fixed).** On this build `--engine newton --headless` never
+  served: ~25k frames of `await_viewport: waiting for viewport handle`, the Render
+  Async thread at 100 %, no `[bridge]` line, pinned or unpinned. The Newton launch
+  selects the full app experience (`isaacsim.exp.full.newton.kit`), whose
+  `isaacsim.app.setup` waits for the viewport's first frame before Kit reports
+  app-ready; `SimulationApp(disable_viewport_updates=True)` stops the viewport at
+  construction, so that frame never comes and `open_stage()` never returns.
+  Launches with an explicit experience now keep the viewport on until
+  `is_app_ready()` and only then turn its updates off
+  (`_disable_viewport_updates_once_ready`; a build that never reports ready keeps
+  rendering and says so). The default (PhysX) experience keeps switching it off at
+  construction, unchanged; it never had the wait. Measured: the Newton bridge serves
+  on 6.2 and on the 6.1 baseline build with the deferred switch, the PhysX bridge on
+  6.2 with the original flag.
+- **Probe battery** (`scripts/physics_probe.py`, the July battery brought up to the
+  current bridge): props are discovered from the bridge's own `_PROP_SPAWNS` (the July
+  YCB rows are gone), teleports use the bridge's engine-aware `place_prop` op (the old
+  stop/author/play path assumed an xformOp the bridge no longer authors and skipped
+  the Newton two-buffer reset), a stopped timeline is resumed before testing, the
+  report records the build, and each grasp records `tcp_err_m`,
+  `shoved_on_descent_m` and `lift_target_dz_m`. Result, same build and asset,
+  settle / drop / grasp / push for both boxes: **Newton 8/8, PhysX 8/8** (and Newton
+  8/8 on the 6.1 baseline build).
+- **The "green box grasp fails on Newton" result was the probe.** At the far spot
+  (r = 0.34 m) a top-down TCP 0.12 m above the grasp height is outside the IK envelope
+  on both engines (+0.10 solves; measured from the post-grasp `q` and from home);
+  `goto` returned False without moving and the probe scored the untouched box as a
+  failed lift. Attribution before the fix: swapping the boxes moved the failure with
+  the spot, not the box; a face-aligned jaw (fingers at 0.0252 m, i.e. the 5 cm face)
+  failed identically at the far spot, so neither corner contact nor the box; the
+  same far-spot grasp failed on PhysX too before the fix (`probe_physx_62_gated.json`).
+  The probe now lifts to the highest reachable of +0.12/0.10/0.08/0.06 m and reports
+  an unreachable lift as `skipped`, never as a physics failure.
+- **Wrist camera, validated mid-descent** (the eye-in-hand follow-up): a slow
+  top-down descent/ascent over a resting box, every wrist frame's own `K` and
+  `T_base_cam` projecting the box's physics-truth corners. PhysX: centroid error
+  median 0.83 px static / 0.69 px moving (max 1.07 px), silhouette IoU 0.995 / 0.997,
+  depth at the projected top-face centre exact. Newton: 2.63 px static / 2.73 px
+  moving (max 9.4 px), IoU 0.982 / 0.984, depth exact. Moving error equals static error
+  on both engines, so the per-frame extrinsics are time-aligned; the camera prim's USD
+  pose equals the served `T_base_cam` (0.0 mm, 0.096°) and `K` equals the prim's
+  focal length/aperture. Not covered: the real D435i hand-eye calibration.
+- **Open (Newton camera cadence on 6.2).** Each `app.update()` advances **three**
+  physics steps on the Newton experience (6.2 and 6.1 alike; one on PhysX), and the
+  RTX render can carry an intermediate step's time. The bridge's frame history records
+  one state per update, so such a frame has no matching state and is refused
+  (`render frame has no unique matching state history`, fail-closed, correct). While
+  the arm streams, 34–40 % of camera refreshes publish no frame at all on 6.2 (three
+  runs; idle 1–3 %; PhysX 0 %), but only 2.8 % on the 6.1 baseline build with the same
+  three-step update, so the step count alone does not explain the 6.2 rate. Toggling
+  `/app/player/useFixedTimeStepping` live did not change it. Candidate fixes, to be
+  measured: record the state per physics step (post-step callback) so intermediate
+  renders bind exactly, or run one physics step per update on the Newton app loop.
+  The frames never mismatch their state; they are missing.
+
 ## Independent placement corrections (2026-09-30)
 
 A completed motion routine is not placement acceptance. The diagnostic

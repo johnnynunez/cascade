@@ -1,0 +1,117 @@
+{
+ "build": "Isaac Sim 6.2.0-alpha.19 (omni_isaac_sim develop 48b2d951, _build/linux-x86_64/release), Newton 1.6.1rc1, Warp 1.17.0, GPU 0 (bus 21:00)",
+ "asset": "assets/usd/RS-rebot-dev-arm/RS-rebot-dev-arm.usda (bare cube scene: pink_cube + green_cube, 0.05 x 0.05 x 0.08 m)",
+ "raw": [
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/newton-probe/runs/wrist_reproj_newton.json",
+   "bytes": 70177,
+   "sha256": "abaec04c9089c02a5b7024ac4a6359a1001e0f3ebd3041bb895dda0ecf842c5f"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/newton-probe/runs/wrist_reproj_physx.json",
+   "bytes": 114616,
+   "sha256": "58d1ece97262158837f8b25a5e475a20f091eaccc597847daef86097f0a88bb9"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/newton-probe/runs/frame_gap_newton.json",
+   "bytes": 71030,
+   "sha256": "6afbbc281ee3f10091185774717a806da27299089e70bd80b6cdb96339a47964"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/newton-probe/runs/frame_gap_newton2.json",
+   "bytes": 126833,
+   "sha256": "6ffd20bbc3171713fb34963d9975420fb9666f276d47aa64f17911967d8f0d56"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/newton-probe/runs/frame_gap_newton_nofixed.json",
+   "bytes": 122507,
+   "sha256": "98834e220c85e3188fd1f0614f53697cb271d3539ceb380fa6532f85d7fc887c"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/newton-probe/runs/probe_physx_62_final.json",
+   "bytes": 2051,
+   "sha256": "cb3c1c4beb6e8f90b57753e463a0c947cd96c488404fbe456a451c40b368a7cf"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/newton-probe/runs/probe_newton_62_run1.json",
+   "bytes": 1855,
+   "sha256": "e24595de82e6d2bc9480f1d511f3fdc1d0e0938ad16aa21e4d240caaea76b918"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/newton-probe/runs/probe_newton_62_run2.json",
+   "bytes": 1986,
+   "sha256": "cbb11cb7901083c8f9b555fc96a3ad69e1035f184ae68c017e91f465879770be"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/newton-probe/runs/probe_newton_62_gated.json",
+   "bytes": 1985,
+   "sha256": "f8d24281f59d983f662e90d093c11e0c7f1fbcac72718653efeb4a81afa26c5b"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/newton-probe/runs/probe_physx_62_gated.json",
+   "bytes": 1980,
+   "sha256": "d36f458b74a7f6ae14c4feb4a413163531b4d592b9e43b0e25a314dd1bc56e3f"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/newton-probe/runs/bridge_newton62_gated.log",
+   "bytes": 259082,
+   "sha256": "655a5583e647bc6311c3c3fa40b66d9a6831c2d789056d3db91d06cd37f6cccd"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/newton-probe/runs/bridge_physx62_gated.log",
+   "bytes": 106575,
+   "sha256": "f26abbe05f1c8bfde1c0fdb12d1b7ec4d4a1c8eca5409865c3fb10b95c9b9cd6"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/newton-probe/runs/bridge_newton_18511_c.log",
+   "bytes": 220688,
+   "sha256": "8e6c223aded7573632ce29c5ae7ef58e7f8482d6765a8274d5acac541eea9cb1"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/newton-probe/runs/frame_gap_newton61.json",
+   "bytes": 70596,
+   "sha256": "913510e6a8810912a0ed75c7e6fe6c620cce949095df1f6cc99750d2de545cd9"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/newton-probe/runs/frame_gap_newton61.log",
+   "bytes": 3415,
+   "sha256": "3169865e80a2fec3c302aa48b680f2adeaaef148f539baaed881e11a0bd094f6"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/newton-probe/runs/probe_newton_61_final.json",
+   "bytes": 2045,
+   "sha256": "2b497806540ae6c11d9d110918ed6f106f23c6e9117e5b325553b779c96b33bf"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/newton-probe/runs/probe_newton_61_final.log",
+   "bytes": 1291,
+   "sha256": "1eaebbf222b93eb2d63d2541497ddba9c9086c6f5a0945e44e85c48d5b9803f6"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/newton-probe/runs/bridge_newton61_gated.log",
+   "bytes": 114642,
+   "sha256": "7d3bff7cee23c92fc83f7338a599c473738dc22a7a97d168f38087376d6b1d28"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/newton-probe/runs/probe_newton_62_final.json",
+   "bytes": 2053,
+   "sha256": "933712fe19cfe14e89ea4b08c0eaabf273e59169dc36e3af5d2031d732a58b1a"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/newton-probe/runs/probe_physx_62_final2.json",
+   "bytes": 2045,
+   "sha256": "9811df3500f169d685ed26b2d9d51e4750ce797f6a0c9815be74ae494546f4f7"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/newton-probe/runs/face_grasp_newton.json",
+   "bytes": 2187,
+   "sha256": "416d7d91f1aeeb13b66c5aa2f2b0f14a8f894eaa57cb5214be3a214047fe30df"
+  },
+  {
+   "path": "cascade-lab/HERMES_BACKLOG_20261007/newton-probe/runs/swap_grasp_newton.json",
+   "bytes": 1290,
+   "sha256": "693dc6217519ca116c3275cf5d5c5d7db1d16ee781c2d99a5bcde4edd33d145a"
+  }
+ ],
+ "baseline_build": "Isaac Sim 6.1.0-rc.26 (develop 2469084b, ~/Projects/isaac/IsaacSim/_build/linux-x86_64/release), Newton 1.5.0, Warp 1.16.0, GPU 0"
+}

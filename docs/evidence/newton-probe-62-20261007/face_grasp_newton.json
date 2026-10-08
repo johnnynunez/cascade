@@ -1,0 +1,125 @@
+{
+ "engine": "newton",
+ "rows": [
+  {
+   "finger_m": [
+    0.0351,
+    0.0351
+   ],
+   "cube_yaw_in_grip_deg": 0.6,
+   "dz_lift_m": 0.119,
+   "lifted": true,
+   "spot": "near r=0.227",
+   "mode": "radial",
+   "trial": 0,
+   "jaw_yaw_deg": 41.4,
+   "cube_yaw_deg": -0.0,
+   "jaw_minus_cube_deg": 41.4
+  },
+  {
+   "finger_m": [
+    0.0351,
+    0.0351
+   ],
+   "cube_yaw_in_grip_deg": 0.6,
+   "dz_lift_m": 0.119,
+   "lifted": true,
+   "spot": "near r=0.227",
+   "mode": "radial",
+   "trial": 1,
+   "jaw_yaw_deg": 41.4,
+   "cube_yaw_deg": -0.0,
+   "jaw_minus_cube_deg": 41.4
+  },
+  {
+   "finger_m": [
+    0.0252,
+    0.0253
+   ],
+   "cube_yaw_in_grip_deg": -0.0,
+   "dz_lift_m": 0.12,
+   "lifted": true,
+   "spot": "near r=0.227",
+   "mode": "face",
+   "trial": 0,
+   "jaw_yaw_deg": -0.0,
+   "cube_yaw_deg": -0.0,
+   "jaw_minus_cube_deg": 0.0
+  },
+  {
+   "finger_m": [
+    0.0252,
+    0.0253
+   ],
+   "cube_yaw_in_grip_deg": -0.0,
+   "dz_lift_m": 0.12,
+   "lifted": true,
+   "spot": "near r=0.227",
+   "mode": "face",
+   "trial": 1,
+   "jaw_yaw_deg": -0.0,
+   "cube_yaw_deg": -0.0,
+   "jaw_minus_cube_deg": 0.0
+  },
+  {
+   "finger_m": [
+    0.0323,
+    0.0324
+   ],
+   "cube_yaw_in_grip_deg": 3.0,
+   "dz_lift_m": 0.0,
+   "lifted": false,
+   "spot": "far r=0.340",
+   "mode": "radial",
+   "trial": 0,
+   "jaw_yaw_deg": 28.1,
+   "cube_yaw_deg": -0.0,
+   "jaw_minus_cube_deg": 28.1
+  },
+  {
+   "finger_m": [
+    0.0322,
+    0.0323
+   ],
+   "cube_yaw_in_grip_deg": 3.1,
+   "dz_lift_m": 0.0,
+   "lifted": false,
+   "spot": "far r=0.340",
+   "mode": "radial",
+   "trial": 1,
+   "jaw_yaw_deg": 28.1,
+   "cube_yaw_deg": -0.0,
+   "jaw_minus_cube_deg": 28.1
+  },
+  {
+   "finger_m": [
+    0.0252,
+    0.0253
+   ],
+   "cube_yaw_in_grip_deg": -0.1,
+   "dz_lift_m": 0.0,
+   "lifted": false,
+   "spot": "far r=0.340",
+   "mode": "face",
+   "trial": 0,
+   "jaw_yaw_deg": -0.0,
+   "cube_yaw_deg": -0.0,
+   "jaw_minus_cube_deg": 0.0
+  },
+  {
+   "finger_m": [
+    0.0252,
+    0.0253
+   ],
+   "cube_yaw_in_grip_deg": -0.1,
+   "dz_lift_m": 0.0,
+   "lifted": false,
+   "spot": "far r=0.340",
+   "mode": "face",
+   "trial": 1,
+   "jaw_yaw_deg": -0.0,
+   "cube_yaw_deg": -0.0,
+   "jaw_minus_cube_deg": 0.0
+  }
+ ]
+}

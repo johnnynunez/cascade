@@ -1,0 +1,81 @@
+{
+ "engine": "newton",
+ "spawns": {
+  "pink_cube": [
+   0.17,
+   0.15,
+   0.04
+  ],
+  "green_cube": [
+   0.3,
+   0.16,
+   0.04
+  ]
+ },
+ "runs": [
+  {
+   "nan": false,
+   "tcp_err_m": 0.0037,
+   "shoved_on_descent_m": 0.0,
+   "hold_vmax_m_s": 0.012,
+   "lifted": true,
+   "dz_lift_m": 0.119,
+   "pass": true,
+   "object": "green_cube",
+   "at": [
+    0.17,
+    0.15,
+    0.04
+   ],
+   "label": "green at pink's spot (r=0.227 m)"
+  },
+  {
+   "nan": false,
+   "tcp_err_m": 0.0054,
+   "shoved_on_descent_m": 0.0,
+   "hold_vmax_m_s": 0.007,
+   "lifted": false,
+   "dz_lift_m": 0.0,
+   "pass": false,
+   "object": "pink_cube",
+   "at": [
+    0.3,
+    0.16,
+    0.04
+   ],
+   "label": "pink at green's spot (r=0.340 m)"
+  },
+  {
+   "nan": false,
+   "tcp_err_m": 0.0054,
+   "shoved_on_descent_m": 0.0,
+   "hold_vmax_m_s": 0.006,
+   "lifted": false,
+   "dz_lift_m": 0.0,
+   "pass": false,
+   "object": "green_cube",
+   "at": [
+    0.3,
+    0.16,
+    0.04
+   ],
+   "label": "green at its own spot (control)"
+  },
+  {
+   "nan": false,
+   "tcp_err_m": 0.0037,
+   "shoved_on_descent_m": 0.0,
+   "hold_vmax_m_s": 0.011,
+   "lifted": true,
+   "dz_lift_m": 0.119,
+   "pass": true,
+   "object": "pink_cube",
+   "at": [
+    0.17,
+    0.15,
+    0.04
+   ],
+   "label": "pink at its own spot (control)"
+  }
+ ]
+}

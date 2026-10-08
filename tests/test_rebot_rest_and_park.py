@@ -44,6 +44,9 @@ RS_PROFILES = ["rebot_rs", "rebot_rs_mb"]
 MEASURED_REST = [0.0, 0.004, 0.0, 0.0, 0.0, 0.0]
 #: same encoder-offset story with joint 3 a hair below its zero
 REST_J3_NEGATIVE = [0.0, 0.004, -0.003, 0.0, 0.0, 0.0]
+#: cascade's own rig, 2026-08-27 (scripts/jog_rebot_mb.py): joints 2 and 3
+#: rested at -0.0009 rad, i.e. just past their 0 lower limit
+RIG_0827_REST = [0.0, -0.0009, -0.0009, 0.0, 0.0, 0.0]
 
 
 def _rig(profile, q0):
@@ -65,11 +68,12 @@ def _rig(profile, q0):
 
 @needs_pin
 @pytest.mark.parametrize("profile", RS_PROFILES)
-@pytest.mark.parametrize("start", ["measured_rest", "rest_j3_negative", "park_q"])
+@pytest.mark.parametrize("start", ["measured_rest", "rest_j3_negative", "rig_0827_rest", "park_q"])
 @pytest.mark.parametrize("method", ["move_joints", "move_planned"])
 def test_rest_pose_reaches_home_through_the_harness(profile, start, method):
     cfg = load_demo_config(arm=profile)
     q0 = {"measured_rest": MEASURED_REST, "rest_j3_negative": REST_J3_NEGATIVE,
+          "rig_0827_rest": RIG_0827_REST,
           "park_q": cfg.arm.get("park_q") or MEASURED_REST}[start]
     _, kin, raw, harness, arm = _rig(profile, q0)
     lo, _ = kin.joint_limits

@@ -275,7 +275,11 @@ def test_attempt_buffer_copies_arrays_and_excludes_other_threads(monkeypatch, tm
         np.testing.assert_array_equal(arrays['0000_points'], [1., 2.])
 
 
-def test_rgbd_masks_and_effective_calibration_are_copied_from_existing_frame(monkeypatch, tmp_path):
+def test_rgbd_masks_and_effective_calibration_are_copied_from_existing_frame(
+        monkeypatch, tmp_path, synthetic_git_metadata):
+    # `logging_ok` below also covers the source provenance; synthetic Git
+    # metadata keeps it independent of how fast the host runs `git status`
+    # (macOS CI exceeded the unchanged 2 s budget, PR #254 run 37757618418).
     monkeypatch.setenv('CASCADE_GRASP_EVIDENCE_DIR', str(tmp_path))
     rt, _, fix, frame = runtime(monkeypatch)
     frame.rgb[:] = 23
@@ -323,7 +327,8 @@ def test_rgbd_masks_and_effective_calibration_are_copied_from_existing_frame(mon
 
 
 @pytest.mark.parametrize('has_capture_transform', [False, True])
-def test_evidence_never_queries_live_eye_in_hand_fk(monkeypatch, tmp_path, has_capture_transform):
+def test_evidence_never_queries_live_eye_in_hand_fk(monkeypatch, tmp_path, has_capture_transform,
+                                                   synthetic_git_metadata):
     from cascade.perception.grounding import Extrinsics
     monkeypatch.setenv('CASCADE_GRASP_EVIDENCE_DIR', str(tmp_path))
     rt, _, fix, frame = runtime(monkeypatch)
@@ -363,7 +368,8 @@ def test_capture_error_and_truncation_are_never_silent_success(monkeypatch, tmp_
     assert doc['logging_errors'][0]['operation'] == 'event:bad_value'
 
 
-def test_real_planner_wire_capture_records_empty_retry_and_exact_converted_candidate(monkeypatch, tmp_path):
+def test_real_planner_wire_capture_records_empty_retry_and_exact_converted_candidate(
+        monkeypatch, tmp_path, synthetic_git_metadata):
     from cascade.grasping.graspgenx_backend import GraspGenXPlanner
     from test_graspgenx_backend import _cube_fix
     monkeypatch.setenv('CASCADE_GRASP_EVIDENCE_DIR', str(tmp_path))
@@ -413,7 +419,8 @@ def test_malformed_ggx_response_keeps_the_same_original_exception(monkeypatch, t
     assert receipt(tmp_path)['logging_ok'] is False
 
 
-def test_existing_memory_prior_and_nudge_are_captured_before_candidate_mutation(monkeypatch, tmp_path):
+def test_existing_memory_prior_and_nudge_are_captured_before_candidate_mutation(
+        monkeypatch, tmp_path, synthetic_git_metadata):
     from cascade.memory.grasp_memory import GraspOutcomeMemory
     from test_graspgenx_backend import _cube_fix
     monkeypatch.setenv('CASCADE_GRASP_EVIDENCE_DIR', str(tmp_path))

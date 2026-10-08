@@ -128,6 +128,19 @@ case "$BRAIN" in auto|keep|cosmos|cosmos-sglang|qwen) ;; *) printf 'unknown --br
 case "$SIM" in auto|isaac|mujoco|none) ;; *) printf 'unknown --sim %s\n' "$SIM" >&2; exit 2 ;; esac
 case "$OCCUPANCY" in auto|nvblox|warp|voxel|none) ;; *) printf 'unknown --occupancy %s\n' "$OCCUPANCY" >&2; exit 2 ;; esac
 case "$GRASPGENX" in auto|local|stub|external|none) ;; *) printf 'unknown --graspgenx %s\n' "$GRASPGENX" >&2; exit 2 ;; esac
+# The HUG profile pins `grasp.backend: hug` (docs/HUG.md). --graspgenx
+# local|external|none (and an inherited CASCADE_GRASP_BACKEND) override the
+# backend on every arm, which would silently turn it into GraspGen-X or OBB.
+if [[ "$ARM" == isaac_kitchen_hug ]]; then
+    if [[ "$GRASPGENX" == local || "$GRASPGENX" == external || "$GRASPGENX" == none ]]; then
+        printf '[launch] ERROR: --arm isaac_kitchen_hug selects the HUG grasp backend; --graspgenx %s would replace it (use auto or stub; start scripts/serve_hug.py yourself)\n' "$GRASPGENX" >&2
+        exit 2
+    fi
+    if [[ -n "${CASCADE_GRASP_BACKEND:-}" && "$CASCADE_GRASP_BACKEND" != hug ]]; then
+        printf '[launch] ERROR: --arm isaac_kitchen_hug selects the HUG grasp backend; CASCADE_GRASP_BACKEND=%s would replace it\n' "$CASCADE_GRASP_BACKEND" >&2
+        exit 2
+    fi
+fi
 case "$ISAAC_ENGINE" in ""|newton|physx) ;; *) printf 'unknown --engine %s (newton|physx)\n' "$ISAAC_ENGINE" >&2; exit 2 ;; esac
 if [[ -n "$ISAAC_ENGINE$SCENE_CONFIG" && "$SIM" != isaac && "$SIM" != auto ]]; then
     printf '[launch] ERROR: --engine and --scene-config apply only to Isaac Sim (--sim isaac)\n' >&2
@@ -841,6 +854,7 @@ if classes:
     env["CASCADE_DETECT_CLASSES"] = classes  # explicit operator vocabulary only
 for key in ("CASCADE_GRASP_MEMORY_PATH", "CASCADE_ENVELOPE_PATH", "CASCADE_BELIEFS_PATH", "CASCADE_BELIEFS",
             "CASCADE_GRASP_BACKEND", "CASCADE_GRASPGENX_PORT", "CASCADE_GRASPGENX_HOST",
+            "CASCADE_HUG_PORT", "CASCADE_HUG_HOST",
             "CASCADE_GRASP_EVIDENCE_DIR", "CASCADE_OBSERVED_FINGER_GATE",
             "CASCADE_KITCHEN_CAMERA_RENDERER",
             "CUDA_VISIBLE_DEVICES", "CUDA_DEVICE_ORDER", "CASCADE_DEVICE", "CASCADE_REQUIRE_CUDA"):

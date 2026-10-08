@@ -1,0 +1,355 @@
+{
+ "raw": [
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/turn-M-1-+0.8.json",
+   "bytes": 11778064,
+   "sha256": "e454866440096ad2f682b2182c705dd92b1749594e5346d23d38200a30cb1fc2"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/turn-M-2--0.8.json",
+   "bytes": 11612192,
+   "sha256": "2fe326a9555bb7e66f419a52b4ba58d05ec90314c4532a3efe4844c13453d18e"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/turn-N1-1-+0.8.json",
+   "bytes": 10880926,
+   "sha256": "6cdd9b0ed759402d2b51fefa96c418aa52f6411de46669b15b6fe24ee949c697"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/turn-N1-2--0.8.json",
+   "bytes": 10294800,
+   "sha256": "e91f52e6c6dbc26223b01c3ee5cb39518358c3b3d3af25ba0424f43ee8085a50"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/turn-N1-3-+1.0.json",
+   "bytes": 11387596,
+   "sha256": "1609a0b873d5f1ffe5e431a62b09c4568f1117945ad4bba5271261f39c3adc07"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/turn-N1-4--1.0.json",
+   "bytes": 11330292,
+   "sha256": "4e2091e3c4471a2d517cdb8d6369a5beb5c433a8d8048c1c2bc396ef487438bf"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/turn-R1-1-+0.8.json",
+   "bytes": 10568276,
+   "sha256": "a9cfc325018b899e43ed4bfbf8140312b64310d6fca7301253fce4d9976edc8c"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/turn-R1-2--0.8.json",
+   "bytes": 12183111,
+   "sha256": "10415a9f6166c1a01ed52ca3a7174e6d35698be234ad5105dbc75c079fd7d494"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/turn-R1-3-+1.0.json",
+   "bytes": 13174999,
+   "sha256": "242b426d71f5cb6eab99b971df5537d400c93880d37ecbe53e4303308f6a1d7d"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/turn-R1-4--1.0.json",
+   "bytes": 5131949,
+   "sha256": "9ca78fa92d7630d017e293eb3ba735bc5291bab3199428e3af634cd231adc20b"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/turn-R2-1-+0.8.json",
+   "bytes": 12140349,
+   "sha256": "b68d7a1f0b43445e4303b74c4004a6a98e721bf9c91ee3052d521565014e3e73"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/turn-R2-2--0.8.json",
+   "bytes": 11243848,
+   "sha256": "acd28904dd5f70a19c0f6a54f47addb162d6919f998bf5d885dd29273826fbc0"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/ramp.json",
+   "bytes": 57112,
+   "sha256": "a05cea748546d493db728207332ba8aeaf765a6e6001ef4bcb6ea1a7e66722af"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/launch.json",
+   "bytes": 1541,
+   "sha256": "d02f5d631ae9a8ec1f77b051b65f21b6cc334015dca66d327de35fe3173ea478"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/owner.log",
+   "bytes": 40035,
+   "sha256": "47e72508772882752febc80af4fdd4d46d57ca8afd0bb993eb8950876310e64a"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/analysis.jsonl",
+   "bytes": 6334,
+   "sha256": "a5bab2bbe2a54442348a9cb3f76085608ff77a2230b9d7cc2842d12e3f9acf05"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/resolved-config-ramp.json",
+   "bytes": 17982,
+   "sha256": "899364bb43e578f977a30bf3371afb2cb3ab8aa91d7b3986f02b734f96b04082"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/resolved-config-noramp.json",
+   "bytes": 17728,
+   "sha256": "5e1b37c540dd2f132919861e418b793786b9e0c5646ba811b4f837690212c7c9"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/kit/BRIDGE_LISTENING.json",
+   "bytes": 1207,
+   "sha256": "5d5d2ec7ed9deaed73b6384886bb987b8b2221d18a46dd4e438208a86fa4609f"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/kit/model-identity.json",
+   "bytes": 58605,
+   "sha256": "2a4e4eff941f709cc597c8435f750a2a5974610615abd19975f396308019dcf5"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/kit/receipt.json",
+   "bytes": 56060,
+   "sha256": "32d95214af464b770682f7a8f1d70763ed62013b40384c7f33cb51d481f6caf4"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/kit/runtime.json",
+   "bytes": 37880,
+   "sha256": "d5a7096886c2ac91ed5ae9068214d954504f30f997fbe4fb82fac30d422825f4"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/kit/startup.json",
+   "bytes": 19779,
+   "sha256": "0346e525cad947da6fdc2d4705a5d9533dab32c52814660fa89bb6e5f8e87597"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/kit/frames.jsonl",
+   "bytes": 448279,
+   "sha256": "fe3e212681f7ec94c86aca4bb788d5fb05add5a4ba4f7f7a819d6f94a13150ee"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/kit/physics.jsonl",
+   "bytes": 54849666,
+   "sha256": "498d795e8f00b6537935c7d155d8d6ef0ae48906a2f2664db4d0dfce2538d8a6"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live1/kit/policy.jsonl",
+   "bytes": 8731968,
+   "sha256": "5a8eb5e3c74981e2c7114207077921e363d7bdd55397fa43a32c58c1051eca66"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs_ramp1.log",
+   "bytes": 4478,
+   "sha256": "3c4b8f7382871f49f84e721d23928ed82ccea0f6f04f505cdcfe622a1eca02f6"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-M-1-+0.8.json",
+   "bytes": 12501315,
+   "sha256": "8fbb3c06a85eecf05362ad1a16c64f82a7ae9820f412ba61b993271a8b0d7496"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-M-2--0.8.json",
+   "bytes": 12547334,
+   "sha256": "df170adee29c05d59301062ad93271286ea101dd1b45894ca34aaa43b816c271"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-M-3-+0.8.json",
+   "bytes": 11637379,
+   "sha256": "45bd86b7510afbb1199432960895580ec1b7640305f8fc3493507bf63079ca1d"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-M-4--0.8.json",
+   "bytes": 11130232,
+   "sha256": "2991ae4844081e58bdf9f85ef427df800b39d1aaabe5617b07e7b40cbd746367"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-N1-1-+0.8.json",
+   "bytes": 11068507,
+   "sha256": "382aac29058a4bc5f07922aefd21fce46156f399c1e7a62eef5dc0c52d87493b"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-N1-2--0.8.json",
+   "bytes": 10691972,
+   "sha256": "316ea0011f24c4703665f3e3ef55029eab73747673bd62ed14e8ded980b05733"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-N1-3-+1.0.json",
+   "bytes": 11718898,
+   "sha256": "9f3f29c4a1ee1bea35dc204238765ddde7116952e42b87326eb2c8ce7f1664d3"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-N1-4--1.0.json",
+   "bytes": 12381684,
+   "sha256": "b4f29a680a9dd206d5538a59abb7d0c150dcf8912c01739eae62c894d23d189e"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-N1-5-+0.6.json",
+   "bytes": 10114601,
+   "sha256": "30c0353f08d1265560c8b312cdf7eec1e5919915249f83cb9043a7cc3dc2c7b0"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-N1-6--0.6.json",
+   "bytes": 11533956,
+   "sha256": "5a248a05e9eb18fc55f21fb7860fa56bbbc7829eb8f449b324ca22a2d422e4a7"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-N2-1-+0.8.json",
+   "bytes": 11771788,
+   "sha256": "23788d4e1ec02db430bc5de141288e5eddfe4ff7d5fb86eac98177c9ac614547"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-N2-2--0.8.json",
+   "bytes": 10539683,
+   "sha256": "efec46da96079fb8316f44ee44cd94150c75edcb7fbfca57782ab89166702765"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-N2-3-+1.0.json",
+   "bytes": 11751317,
+   "sha256": "4c36c001b7d163df12f5240fb58bfbcdf82025064582b55ddb7147dfc8f58d17"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-N2-4--1.0.json",
+   "bytes": 11161639,
+   "sha256": "0f42470412b4ef939199dcdbd21ad9a188edfab0f6bb9a8a2638bf857d2fa915"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-N2-5-+0.6.json",
+   "bytes": 9183246,
+   "sha256": "f405998b68c5c21d4bb7132cd32ca051f604e59d46528e2dc92d5a07f699a0be"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-N2-6--0.6.json",
+   "bytes": 8926012,
+   "sha256": "664ee783a5dddee88f19ef2c7a94120e60d307b6b6859e84fdf346138dc94e78"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-R1-1-+0.8.json",
+   "bytes": 10699389,
+   "sha256": "fd08850c413c1a998c2fca39813b94e0aac98d031f37fb8364829ee8fa20f0e1"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-R1-2--0.8.json",
+   "bytes": 12781179,
+   "sha256": "9d27a4b8fbaf98e04a72e5ae199963a1f133b9188791409707275a8a3c01260c"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-R1-3-+1.0.json",
+   "bytes": 13988902,
+   "sha256": "da0623f300dd7d4aa79738dad58d094bf2df73fce68d09acf0d6b5a4c0d91f78"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-R1-4--1.0.json",
+   "bytes": 12934343,
+   "sha256": "02eb275256e2256ea6db4c038550866a77660e9e79154602af18a19232bad851"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-R1-5-+0.6.json",
+   "bytes": 10785656,
+   "sha256": "e1bc2df1c09dfe9e733c4466490bab70d32703176ecf462dd5354a4f55bab684"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-R1-6--0.6.json",
+   "bytes": 10813519,
+   "sha256": "292731e2338d82c07844437e9a462e6ab0af97ca458197cf3654f8952aa70514"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-R2-1-+0.8.json",
+   "bytes": 11194811,
+   "sha256": "33ecf35b06996cb4c7e48bb9df667a4822401cdbdaf6136feb7a16b5bc870cd0"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-R2-2--0.8.json",
+   "bytes": 12624958,
+   "sha256": "271593cc1ae435acdcc91d7ccfb402fbe9dd39ece7e776b52e3f2ae1dc3f1265"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-R2-3-+1.0.json",
+   "bytes": 12296388,
+   "sha256": "e9e5111817365ae7dd125f9000f957539044bb3e216ac0fc738a86b5db052f42"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-R2-4--1.0.json",
+   "bytes": 12228247,
+   "sha256": "5f9ea78975b21599139e1e5f818286765b075667f615e1c57d4fc5f9a011ed05"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-R2-5-+0.6.json",
+   "bytes": 14626078,
+   "sha256": "769d112a18ba129c8eeb179296c9731165d38dfdf95221b83c14e922e13ff5c3"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/turn-R2-6--0.6.json",
+   "bytes": 11484737,
+   "sha256": "5f1b3ca99389c32e9c02c7fb9c198ce396e6686a4094661f38b8f239aee38990"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/ramp.json",
+   "bytes": 97459,
+   "sha256": "37211a2dd09dcab9a44b09128b39b59ffc35cfa3aa845470e8df36f16a1f99c8"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/launch.json",
+   "bytes": 1540,
+   "sha256": "d5799be6415d2f012399cdef79910a255fceb5e19fe35aaea5f261d5752a09bb"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/owner.log",
+   "bytes": 43377,
+   "sha256": "3a0de6fb1a9f0b1125b6e43e5cd63be72fdfaee00ee13fcbe15a3d624bc6bfe3"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/analysis.jsonl",
+   "bytes": 14933,
+   "sha256": "2ecdbec40541232757f4bde97af4fe97f6b08c63210de64ab96de14083aaa5ea"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/resolved-config-ramp.json",
+   "bytes": 17982,
+   "sha256": "de24917db7b49d1f4a598fd96ad38c398cdda5572d62015143ef6ab78beefe7d"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/resolved-config-noramp.json",
+   "bytes": 17728,
+   "sha256": "a8ad3e81356813f227757505b5850bd8e76b602e90df9d22c91cea3b50abfd78"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/kit/BRIDGE_LISTENING.json",
+   "bytes": 1207,
+   "sha256": "5482a0dfa6fd2dc4f06d3de9ed8ad4d60b9b5303d4104cbf5bd9bdf193d58eb7"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/kit/model-identity.json",
+   "bytes": 58605,
+   "sha256": "2a4e4eff941f709cc597c8435f750a2a5974610615abd19975f396308019dcf5"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/kit/receipt.json",
+   "bytes": 56072,
+   "sha256": "304d059364dead4ef1c8dc2eed4007f1130c0008887277bdae268e2eb01943b6"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/kit/runtime.json",
+   "bytes": 37880,
+   "sha256": "d6fb413ae5e52792eda0c2dba844a2e0925f7fa0814be61e21917d1d87d2901c"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/kit/startup.json",
+   "bytes": 19779,
+   "sha256": "d3b971527ed906d188bece12fe6f80157f2c1349e27200a0cf8f2f8549a60ee2"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/kit/frames.jsonl",
+   "bytes": 1101292,
+   "sha256": "cf5775dbb9e8ce83be4c36b2dbd67ba86b5a843fd5388d91ed295139e8a98a46"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/kit/physics.jsonl",
+   "bytes": 134182658,
+   "sha256": "31a60769dc1fb219d6140efac4149d0800b6454b8582ce27a1ae59b3091963a5"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs/b29-ramp-live2/kit/policy.jsonl",
+   "bytes": 21468328,
+   "sha256": "13965ce343c556734d667cc997c2d640789aabe0c2760f419706370f641aa570"
+  },
+  {
+   "path": "cascade-lab/HERMES_AUDIT_20261007/h2-owner/runs_ramp2.log",
+   "bytes": 9241,
+   "sha256": "4f7c2b8b226603937a270e526c778fa4391a43c6c7f34f02ae029baa69307552"
+  }
+ ],
+ "note": "raw rows stay in cascade-lab/; this record is derived from them"
+}

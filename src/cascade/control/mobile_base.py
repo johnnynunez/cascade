@@ -242,7 +242,19 @@ class MobileBase(ABC):
     model_identity_sha256. Command ACKs additionally contain
     accepted (bool), start_sim_time_s and end_sim_time_s (finite seconds).
     An ACK is admission information, NOT physical completion.
+
+    Optional, opt-in: a backend that sets ``velocity_scaling`` True may scale
+    the ACTIVE admitted twist by ``0 < scale <= 1`` (``scale_velocity``). That
+    never admits, extends, renews or replays motion and does not consume the
+    generation; a stop still invalidates it. Default backends refuse it.
     """
+
+    #: True only for a backend that implements in-envelope ``scale_velocity``.
+    velocity_scaling = False
+
+    def scale_velocity(self, scale: float, *, generation: int) -> dict:
+        """Scale the active admitted twist inside its envelope; refused by default."""
+        return {"ok": False, "error": "velocity scaling is not supported by this backend"}
 
     @property
     @abstractmethod

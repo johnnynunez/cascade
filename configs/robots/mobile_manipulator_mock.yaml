@@ -1,0 +1,40 @@
+# Mock-only mobile manipulator (backlog B30): the kinematic `mock` arm mounted
+# on the kinematic `microduck_mock` base under an explicit whole-body contract
+# (robotics/whole_body.py, docs/ROBOT_MODULARITY.md "Multi-domain embodiments").
+#
+# Software evidence only. Not whole-body control, balance, a measured mount
+# calibration or arm physics on a moving base; compositions with any physical
+# actuating resource are refused. Kinematic mock feedback can refute a
+# world-frame outcome but never confirm a physical one.
+version: 1
+robot_id: mobile-manipulator-mock
+whole_body:
+  version: 1
+  # exclusive (default): arm motion is refused while the base reports an
+  # active command, and base motion while an arm motion is in flight.
+  # `concurrent` lifts only those two vetoes; the mount-drift check still
+  # refutes an arm outcome whose start frame moved.
+  coordination: exclusive
+  # Mounted-arm frame budget. max_base_pose_age_s defaults to (and may only
+  # tighten) the base profile's safety.max_state_age_s.
+  max_mount_drift_m: 0.005
+  max_mount_drift_rad: 0.01
+  world_target_tolerance_m: 0.01
+domains:
+  locomotion:
+    kind: locomotion
+    bases: [microduck_mock]
+  manipulation:
+    kind: manipulation
+    offline: true
+    arms: [mock]
+    cameras: [mock]
+    # DECLARED T_base_armbase (metres, wxyz): a configuration value, not a
+    # calibration. Arm base 5 cm forward and 10 cm above the base frame,
+    # yawed +90 degrees.
+    mounted_on:
+      domain: locomotion
+      base: microduck_mock
+      translation_m: [0.05, 0.0, 0.10]
+      rotation_wxyz: [0.7071067811865476, 0.0, 0.0, 0.7071067811865476]
+      calibration_id: mobile_manipulator_mock/declared-mount-v1

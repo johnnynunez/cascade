@@ -83,6 +83,30 @@ grasp:
       offset_mid: [0.0, 0.0, -0.0225]
       gripper_type: 0
       fingertip_depth: 0.0
+  # HUG (Human Universal Grasping, arXiv:2606.17054) as an OPT-IN second
+  # learned backend (`backend: hug`, or CASCADE_GRASP_BACKEND=hug; the
+  # isaac_kitchen_hug profile). It predicts a human hand for one RGB-D frame
+  # and a query pixel; CASCADE maps each hand to a parallel-jaw pinch (thumb
+  # tip vs index tip -- our assumption, not a HUG output) and ranks by its own
+  # geometry (HUG has no score), then the usual outcome-memory re-rank,
+  # selector and harness apply. Server: scripts/serve_hug.py in HUG's own
+  # environment (CUDA required; `--stub` = analytic protocol double).
+  # See docs/HUG.md. These defaults change nothing while `backend` is graspgenx.
+  hug:
+    host: 127.0.0.1
+    port: 5558
+    required: true          # fail visibly; never an OBB substitute (false: reported OBB fallback)
+    num_samples: 32         # hands per request: N noise draws of ONE query (our batching)
+    topk: 32
+    timeout_ms: 15000
+    probe_timeout_ms: 300
+    crop: center            # HUG's documented centre crop; `query` (ours) keeps off-centre objects in view
+    pinch_opposition: index # thumb tip vs index tip; `index_middle` = mean of index+middle tips
+    pinch_approach: hand    # palm -> pinch; `vertical` keeps the contacts, forces top-down
+    approach_z_max: 0.2     # same tabletop rule as graspgenx: no approach from below
+    max_lateral_offset_m: 0.03   # pinch centre this far beside the observed object: dropped
+    surface_tolerance_m: 0.005   # pinch centre in front of the first object surface: dropped
+    max_query_offset_m: 0.02     # query pixel must back-project onto the fix (extrinsic check)
   # NOTE: strict top-down tool poses are only IK-reachable below z~0.15 on
   # the B601-RS (wrist limits); keep grasp_z + offset under that.
   pregrasp_offset_m: 0.04   # hover height above the grasp along -approach.
@@ -143,6 +167,12 @@ memory:
   persist_beliefs: true
   beliefs_path: null        # null -> <repo>/runs/beliefs.json
   beliefs_max_age_s: 21600  # 6 h; older beliefs are dropped on load
+  # Instance-level association: a camera frame's detections are grouped into
+  # instances (shared image support) and matched to beliefs ONE-TO-ONE, so
+  # two identical props inside the 8 cm fusion gate stay two beliefs. false =
+  # the pre-2026-10-08 per-detection fusion, kept as the live A/B baseline
+  # (memory/beliefs.py `update_frame`).
+  instance_association: true
   # ASPIRE skill library (skills_library/*.md, written offline by
   # scripts/learn_from_runs.py): a distilled note is retrieved into the agent
   # context only after it recurred in this many DISTINCT tasks (upstream
@@ -187,6 +217,22 @@ agent:
   premotion_check: true
   premotion_max_checks: 3   # VLM turns per task (booth clock); beyond it the
                             # result records `skipped` and the motion runs
+  # Programs tier (Waddle "programs", ROADMAP follow-up #8; design note
+  # docs/PROGRAMS_TIER.md). OFF by default. When on, a task that no reflex or
+  # habit plan covers first gets ONE authoring turn: the brain writes a bounded
+  # list of registered tool calls (object labels as parameters, positions only
+  # as localize_object(label)+offset queries re-grounded before the first
+  # motion) or reuses a PROMOTED program, and the orchestrator runs it step by
+  # step through SkillRuntime.execute() -- the harness still vets every motion
+  # and every step keeps its own postcondition. The first failed, refused or
+  # unverified step stops it and hands the task to the LLM tier with a
+  # next_action. A program is stored only from a fully CONFIRMED execution and
+  # offered for reuse only after it was verified in program_min_tasks distinct
+  # tasks (1 = explicit relaxation). CASCADE_PROGRAMS=1/0 overrides; store:
+  # runs/programs.jsonl (memory.programs_path, CASCADE_PROGRAMS_PATH). The mock
+  # brain never gets it, and MCP chat hosts do not see it.
+  programs: false
+  program_min_tasks: 2
 
 # Always-on perception: every rig camera feeds the belief store continuously
 # so commands resolve against an already-warm world model.
@@ -296,6 +342,13 @@ workspace_filter:
   reach_m: 1.00          # beyond this the arm cannot act anyway
   max_frame_frac: 0.45   # a mask this large IS the scene
   min_height_m: 0.010    # flatter than this is a shadow, not an object
+  # Frames that carry a render self-mask (Isaac with CASCADE_ISAAC_PIXEL_MASK=1,
+  # which launch.sh sets): a detection more than this fraction robot pixels IS
+  # the robot, wherever it is; below it the robot's pixels are not lifted to 3D.
+  # Measured on Isaac: robot detections 0.885-0.995, props <= 0.046 (B32).
+  # self_mask: false is the A/B baseline.
+  self_mask: true
+  self_mask_max_frac: 0.5
 
 # Offline evaluation of recorded runs (src/cascade/eval, scripts/judge_run.py).
 # Robo-Dopamine GRM ("PRM-as-a-Judge", https://robo-dopamine.github.io/):

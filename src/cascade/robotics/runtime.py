@@ -25,16 +25,22 @@ Use task_done(success=false) for refuted or unverified requested outcomes.
 """
 
 
-def _global_tools():
+def _global_tools(reset_domains=None):
+    """Global tools. ``reset_domains`` (whole-body robots only) makes reset per-domain."""
     def tool(name, description, properties=None, required=(), effect="read"):
         return ToolDescriptor(name=name, description=description,
                               parameters={"type": "object", "properties": properties or {},
                                           "required": list(required), "additionalProperties": False},
                               domain="robot", local_name=name, effect=effect)
+    reset = (tool("reset_stop", "Explicitly clear stop permission; no motion replay or world reset.", effect="control")
+             if reset_domains is None else
+             tool("reset_stop", "Explicitly clear ONE domain's stop latch; whole-body robots reset each domain "
+                  "separately. No motion replay or world reset.",
+                  {"domain": {"type": "string", "enum": list(reset_domains)}}, ("domain",), effect="control"))
     return (
         tool("list_resources", "Read declared resources and capabilities; no device connection or actuation."),
         tool("emergency_stop", "Priority cancellation and latch across all domains. ACK does not prove physical rest.", effect="stop"),
-        tool("reset_stop", "Explicitly clear stop permission; no motion replay or world reset.", effect="control"),
+        reset,
         tool("task_done", "Finish with independent action verdicts; synthetic execution never proves a physical task.",
              {"success": {"type": "boolean"}, "summary": {"type": "string"}}, ("success", "summary")),
     )
@@ -50,13 +56,17 @@ class RobotRuntime:
     robot_mode = "composed"
     system_prompt = SYSTEM_PROMPT
 
-    def __init__(self, domains, *, cfg=None, memory=None, trace=None):
+    def __init__(self, domains, *, cfg=None, memory=None, trace=None, whole_body=None):
         self.domains = dict(domains)
         self.cfg, self.memory, self.trace = cfg, memory, trace
+        # Whole-body coordinator (robotics/whole_body.py) or None. None keeps
+        # the global latch and argument-free reset exactly as before.
+        self._whole_body = whole_body
         self.resources = ResourceCatalog([r for d in self.domains.values() for r in d.resources])
         self._embodiment_metadata = embodiment_metadata(
             cfg.as_dict().get("embodiment") if cfg is not None else None, self.resources)
-        self.tool_descriptors = {t.name: t for t in _global_tools()}
+        self.tool_descriptors = {t.name: t for t in _global_tools(
+            reset_domains=sorted(self.domains) if whole_body is not None else None)}
         for name, domain in self.domains.items():
             if not re.fullmatch(r"[a-z][a-z0-9_]{0,23}", name) or domain.domain_id != name:
                 raise ValueError("invalid or mismatched domain id")
@@ -90,6 +100,10 @@ class RobotRuntime:
         self._drained = threading.Event()
         self._drained.set()
         self._latched = False
+        # Per-domain stop latches (whole-body only). A global stop latches
+        # every domain; each domain is then reset explicitly. ``_latched``
+        # stays "any domain latched" so every existing reader is unchanged.
+        self._latched_domains = set()
         self._generation = 0
         self._requested_stop_generation = -1
         self._task_id = uuid.uuid4().hex
@@ -159,6 +173,9 @@ class RobotRuntime:
             descriptor = self.tool_descriptors.get(name)
             if descriptor is None:
                 raise ValueError(f"unsupported robot tool: {name!r}")
+            if (name == "reset_stop" and self._whole_body is not None
+                    and isinstance(args, dict) and "domain" not in args):
+                raise ValueError("whole-body robots require an explicit per-domain reset_stop(domain=...)")
             self._arguments(descriptor, args)
             if descriptor.effect == "stop":
                 return self.stop()
@@ -170,7 +187,7 @@ class RobotRuntime:
             if name == "reset_stop":
                 if expected_generation is not None or deadline_monotonic_s is not None:
                     raise ValueError("reset_stop requires an explicit operator request without an episode token")
-                return self.reset_stop()
+                return self.reset_stop(**({"domain": args["domain"]} if "domain" in args else {}))
             if name == "list_resources":
                 with self._gate:
                     if deadline_monotonic_s is not None and time.monotonic() >= deadline_monotonic_s:
@@ -178,6 +195,7 @@ class RobotRuntime:
                     if expected_generation is not None and expected_generation != self._generation:
                         raise ValueError("stale execution generation")
                 return {"ok": True, **self.resources.as_dict(), **copy.deepcopy(self._embodiment_metadata),
+                        **(copy.deepcopy(self._whole_body.metadata()) if self._whole_body is not None else {}),
                         "metadata_source": "configured_profile"}
             with self._gate:
                 if deadline_monotonic_s is not None and time.monotonic() >= deadline_monotonic_s:
@@ -188,7 +206,11 @@ class RobotRuntime:
                     raise ValueError("robot runtime closed")
                 if self._active or self._resetting:
                     raise ValueError("another robot operation is active")
-                if descriptor.effect in {"motion", "control"} and self._latched:
+                if descriptor.effect in {"motion", "control"} and self._whole_body is not None:
+                    if descriptor.domain in self._latched_domains:
+                        raise ValueError(f"domain {descriptor.domain!r} stopped; explicit "
+                                         f"reset_stop(domain={descriptor.domain!r}) required")
+                elif descriptor.effect in {"motion", "control"} and self._latched:
                     raise ValueError("robot stopped; explicit reset_stop required")
                 self._active = True
                 self._drained.clear()
@@ -207,13 +229,28 @@ class RobotRuntime:
                         raise ValueError("execution deadline expired before domain dispatch")
                     if generation != self._generation or self._closed:
                         raise ValueError("dispatch invalidated by stop or close")
-                # Domain implementations perform their own last-moment backend
-                # generation check. Stop never waits for this call to finish.
-                result = domain.execute(descriptor.local_name, copy.deepcopy(args))
+                coordination = None
+                if self._whole_body is not None:
+                    # Passive whole-body admission (fresh base frame, policy)
+                    # before any actuator IO; a refusal raises here.
+                    if descriptor.effect == "motion":
+                        coordination = self._whole_body.admit(descriptor, copy.deepcopy(args))
+                    with self._gate:
+                        if generation != self._generation or self._closed:
+                            raise ValueError("dispatch invalidated by stop or close")
+                    result = self._whole_body.execute(coordination, domain, descriptor.local_name,
+                                                      copy.deepcopy(args))
+                else:
+                    # Domain implementations perform their own last-moment backend
+                    # generation check. Stop never waits for this call to finish.
+                    result = domain.execute(descriptor.local_name, copy.deepcopy(args))
                 if not isinstance(result, dict):
                     raise ValueError("domain result must be an object")
                 result = copy.deepcopy(result)
                 descriptor.validate_result(result)
+                if self._whole_body is not None:
+                    # World-frame verdict with the frame valid at command start.
+                    result = self._whole_body.finish(coordination, result)
                 with self._gate:
                     raced = generation != self._generation
                     if descriptor.effect == "motion":
@@ -306,6 +343,8 @@ class RobotRuntime:
         with self._stop_condition:
             self._generation += 1
             self._latched = True
+            if self._whole_body is not None:
+                self._latched_domains = set(self.domains)  # global stop latches every domain
             generation = self._generation
             self._requested_stop_generation = generation
             if self._workers_closed:
@@ -354,8 +393,21 @@ class RobotRuntime:
         return {"ok": all(r.get("ok") is True for r in results.values()), "latched": True,
                 "generation": generation, "domains": results, "physical_stop_verified": False}
 
-    def reset_stop(self, *, expected_generation=None, deadline_monotonic_s=None):
-        """Reset an operator-observed stop episode, optionally fencing delayed IO."""
+    def reset_stop(self, *, expected_generation=None, deadline_monotonic_s=None, domain=None):
+        """Reset an operator-observed stop episode, optionally fencing delayed IO.
+
+        Whole-body robots reset exactly one named domain per call; a failed
+        reset re-latches every domain.
+        """
+        if self._whole_body is None and domain is not None:
+            return {"ok": False, "error": "reset_stop takes no domain for this composition"}
+        if self._whole_body is not None and domain is None:
+            with self._gate:
+                latched = sorted(self._latched_domains)
+            return {"ok": False, "latched": bool(latched), "latched_domains": latched,
+                    "error": "whole-body robots require an explicit per-domain reset_stop(domain=...)"}
+        if domain is not None and domain not in self.domains:
+            return {"ok": False, "error": f"unknown domain {domain!r}"}
         with self._gate:
             if deadline_monotonic_s is not None:
                 if (type(deadline_monotonic_s) not in (float, int)
@@ -374,6 +426,8 @@ class RobotRuntime:
                 return {"ok": False, "error": "active or closed runtime cannot reset stop"}
             self._resetting = True
             generation = self._generation
+        if domain is not None:
+            return self._reset_domain(domain, generation, deadline_monotonic_s)
         results = {}
         try:
             for name, domain in self.domains.items():
@@ -396,6 +450,34 @@ class RobotRuntime:
             if not ok:
                 self.stop()  # re-latch domains reset before a failure/racing stop
             return {"ok": ok, "domains": results, "latched": not ok}
+        finally:
+            with self._gate:
+                self._resetting = False
+
+    def _reset_domain(self, domain, generation, deadline_monotonic_s):
+        """One explicit domain reset; the caller already owns ``_resetting``."""
+        try:
+            try:
+                result = self.domains[domain].reset_stop()
+                if not isinstance(result, dict):
+                    raise TypeError("domain reset must return a structured receipt")
+            except Exception as exc:
+                result = {"ok": False, "error": str(exc)}
+            with self._gate:
+                ok = (generation == self._generation and not self._closed
+                      and (deadline_monotonic_s is None or time.monotonic() < deadline_monotonic_s)
+                      and result.get("ok") is True)
+                if ok:
+                    self._generation += 1  # authority from the stopped episode stays invalid
+                    self._latched_domains.discard(domain)
+                    self._latched = bool(self._latched_domains)
+                    self._stop_slots[domain]["emergency"] = False
+            if not ok:
+                self.stop()  # a failed or raced reset re-latches every domain
+            with self._gate:
+                remaining = sorted(self._latched_domains)
+            return {"ok": ok, "domain": domain, "domains": {domain: result},
+                    "latched": bool(remaining), "latched_domains": remaining}
         finally:
             with self._gate:
                 self._resetting = False

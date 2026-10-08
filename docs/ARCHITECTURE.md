@@ -19,7 +19,11 @@ and validation records carry the concrete dependency versions and source pins.
 and sensor attachments. [Measured frame trees](SPATIAL_PROVIDERS.md) separately
 bind transforms to capture time, map and epoch. Neither substitutes for the
 other. Mixed physical actuation remains refused until dynamic frames, shared
-control and robot-specific limits are validated.
+control and robot-specific limits are validated. An opt-in `whole_body`
+profile contract composes a mock arm mounted on a mock base (disjoint command
+endpoints, capture-time mount frames, coordination policy, per-domain reset;
+[contract](ROBOT_MODULARITY.md#multi-domain-embodiments-mounted-arms)); it is
+software evidence and refuses every physical mounted composition.
 
 The optional [spatial domain](SPATIAL_PROVIDERS.md) resolves source-bound
 capture transforms and landmark memory and plans on immutable planar maps.
@@ -176,10 +180,32 @@ chat command ("pick and place the red cube")
    ├─ tier 2 HABIT    hashed-BoW cosine ≥ 0.9, wins > losses  runs/experience.json
    │                  + recipes (xyz -> perception queries,   runs/recipes.jsonl
    │                    re-grounded before any motion)        memory/recipes.py
+   ├─ tier 2.5 PROGRAM  OPT-IN (agent.programs: false):       agent/programs.py
+   │                  one authoring turn when tiers 1-2 had   memory/programs.py
+   │                    no plan; registered calls, run step   runs/programs.jsonl
+   │                    by step; first unverified step stops
    └─ tier 3 LLM      decomposition + tool loop + advisor     agent/orchestrator.py
         all tiers execute through the same SkillRuntime; every trace row
-        records `tier: reflex | experience | llm | mcp-host`
+        records `tier: reflex | experience | program | llm | mcp-host`
 ```
+
+- **Programs tier (opt-in, ROADMAP #8; [design note](PROGRAMS_TIER.md)).**
+  Waddle's level above skills: a program is a bounded (≤ 12 steps), declarative
+  list of REGISTERED `TOOL_SPECS` calls, object labels as parameters and
+  positions only as `localize_object(label)+offset` queries (the recipe
+  mechanism), re-grounded before the first motion — one unresolved query aborts
+  with zero motion. The orchestrator runs each step as a TOP-LEVEL
+  `SkillRuntime.execute()` call (`tier: program`), so every step keeps its own
+  trace row, keyframes, harness vetting and three-state postcondition; the
+  per-step verdict is read from the task-effects ledger, never from the step's
+  own result, and the first failed / refused / refuted / unverified step stops
+  the program with a `next_action` for tier 3. `task_done`, `reset_scene`,
+  `halt_motion`, pixel tools, `recall_step` and live-view tools are not
+  composable. Authored and distilled programs share one admission rule (stored
+  only from a fully CONFIRMED execution, offered only once promoted across ≥ 2
+  distinct tasks). `programs=None` (the default) is the pre-change dispatch
+  exactly; the mock brain, mobile/composed runtimes and the MCP server never
+  get the tier.
 
 - **Latest-slot streaming, never queues** (`perception/stream.py`).
 - **Warm world model.** Beliefs help resolve names and rank current visual
@@ -187,7 +213,12 @@ chat command ("pick and place the red cube")
   memory fallback. Fusion pauses during `_MOTION_SKILLS` (the
   held object must not be re-fused mid-air). Two observations with
   DIFFERENT measured colours are two objects however close; proximity
-  fusion (8 cm) is for label aliases of one object.
+  fusion (8 cm) is for label aliases of one object. A camera frame is
+  fused as a whole (`BeliefStore.update_frame`, 2026-10-08): detections
+  that share image support (an open-vocabulary second name, a part inside
+  its whole) are one instance, and instances are matched to beliefs
+  one-to-one by a min-cost assignment inside the same gates, so two
+  identical props the detector sees as two stay two beliefs.
 - **Detector preparation.** The open-world and prompted YOLO models remain
   resident, with up to eight successful text-embedding vocabularies retained
   in LRU order. This adds model residency while avoiding checkpoint and text
@@ -386,6 +417,9 @@ read-only verifier and waits for newer camera captures before proof starts.
 localize ─▶ ObjectFix (base-frame OBB; de-biased centre, verified on 2 engines)
    ├─▶ GraspGen-X candidates (ZMQ :5556, learned 6-DoF; gripper passed as a
    │    swept volume -- the arm profile owns `grasp.graspgenx.sweep`)
+   ├─▶ or HUG pinches (opt-in `grasp.backend: hug`, ZMQ :5558): human hands
+   │    from the RGB-D frame + a query pixel, mapped to parallel-jaw pinches
+   │    and scored by CASCADE geometry (HUG has no score; docs/HUG.md)
    └─▶ OBB candidates (optional profiles only)       optional server error → reported OBB fallback
                                                       learned inference retried after cooldown
    stable quality order ▸ outcome-memory re-rank + existing z-nudge
@@ -401,6 +435,12 @@ diffusion inference during startup. A missing server, protocol stub or failed
 required inference raises an error instead of substituting OBB. The five-second
 fallback cooldown applies to optional profiles; required profiles retry on the
 next request.
+
+The opt-in `isaac_kitchen_hug` profile requires real HUG in the same way. A
+missing server, the HUG protocol stub or a failed request is an error, never
+an OBB or GraspGen-X substitute. Only HUG receives the RGB-D frame; other
+backends are called exactly as before. HUG candidates are proposals: the
+same outcome-memory re-rank, selector and harness vetoes apply.
 
 With GGX and the observed-finger gate, infeasible planning may request at most
 three batches within eight seconds, using the same saved scene and frozen prior.
@@ -452,6 +492,7 @@ make that image current by assigning a new timestamp. See
 | `EpisodicMemory` visual index (**opt-in**, `memory.embedder`) | one TurboQuant vector per motion frame and per object crop localized during a call (`_localize` detections, keyed by detector label), from `memory/embedder.py` | task-scale (`frames_horizon_s`), ≤ `max_visual` (512) entries, pruned with the index; survives the per-task frame reset | `recall_visual(image \| text \| vector)`; `recall_memory(query)` adds `looks_like` hits only with a joint image-text embedder (siglip/clip). A hit is a remembered appearance, never a current observation |
 | `ExperienceMemory` (`agent/reflex.py`) | command → plan habits, hashed BoW in a TurboQuant index; plus Task-Specific Memory **recipes** (verified LLM-tier runs, coordinates replaced by `localize_object(label)+offset` queries + a summary, `memory/recipes.py`) | `runs/experience.json` (habits), `runs/recipes.jsonl` (recipes) | tier 2; a recipe is re-grounded through perception before any motion, a failed grounding aborts to the LLM tier |
 | `ActionObjectMemory` (`memory/consolidation.py`, **opt-in**, `memory.action_objects`) | the tier-2 outcome stream consolidated per (motion skill, normalized object label) across instruction wordings: wins / losses / wordings; one credit per EXECUTED call (never again per curriculum sub-goal); deliberately not merged by embedding (red cube ≠ blue cube) | `runs/action_objects.json` | LLM-tier intro: advisory digest for the objects the task names |
+| `ProgramLibrary` (`memory/programs.py`, opt-in) | programs: parameterized registered-call lists (labels as params, positions as perception queries), keyed by a structural sha256; `occurrences`, `source_tasks`, `origins` (authored / distilled / reused), `losses` | `runs/programs.jsonl` (`memory.programs_path`, `CASCADE_PROGRAMS_PATH`) | tier 2.5 authoring prompt, **only promoted** records (≥ `agent.program_min_tasks` = 2 distinct tasks, verified more often than failed); admitted only from a CONFIRMED execution |
 | `GraspOutcomeMemory` | per-object grasp features, wins/losses | `~/.cascade/grasp_memory.json` | grasp re-rank + z-nudge |
 | `OperatingEnvelope` (`memory/envelope.py`) | per-skill outcome statistics and failure classes, raw args plus runtime-measured derived features (`DERIVED_FEATURES`: TCP z at close, object height/width, lateral offset; unmeasured → `missing`, never defaulted) | `~/.cascade/envelope.json` (`CASCADE_ENVELOPE_PATH`) | planner context; advisory |
 
@@ -545,6 +586,7 @@ src/cascade/
 │   ├── consolidation.py opt-in action<->object outcome counts over tier-2 plans (advisory digest)
 │   ├── envelope.py     Harness-VLA operating envelope (per-skill outcome stats + runtime-measured derived features)
 │   ├── recipes.py      Task-Specific Memory: xyz ⇄ localize_object(label)+offset queries (symbolize / ground)
+│   ├── programs.py     ProgramLibrary: stored programs, CONFIRMED-only admission, ASPIRE-style ≥2-task promotion (opt-in tier 2.5)
 │   ├── grasp_memory.py persisted grasp-outcome prior (re-rank + z-nudge)
 │   └── turboquant.py / vector_index.py   4-bit rotation quantizer + asymmetric top-k
 ├── control/
@@ -572,8 +614,10 @@ src/cascade/
 │   ├── observed_scene.py calibrated observed-finger approach and closing veto
 │   └── force.py        material → two-stage close profiles
 ├── agent/
-│   ├── orchestrator.py reflex → habit → LLM loop; memory harness injection; TaskReport
+│   ├── orchestrator.py reflex → habit → (opt-in) program → LLM loop; memory harness injection; TaskReport
 │   ├── reflex.py       tier-1 grammar (incl. reset_scene, memorize/restore/find) + tier-2 ExperienceMemory
+│   ├── programs.py     tier 2.5 (opt-in): program contract/validation, runner (ledger verdicts, stop + next_action),
+│   │                   authoring prompt/parse, distillation of verified runs (docs/PROGRAMS_TIER.md)
 │   ├── effects.py      PostconditionChecker + annotate_result (Pigey closed loop; `restored`/`searched` for the composites)
 │   ├── milestones.py   checkable milestones: symbolic first, VLM second, UNKNOWN honest;
 │   │                   + advisory pre-motion plausibility critic (never a veto)
@@ -599,7 +643,7 @@ src/cascade/
 ├── eval/progress_judge.py   Robo-Dopamine progress judge (GRM / VLM), off the hot path
 └── apps/
     ├── demo.py         build_runtime() = the composition root; CLI --task / --interactive
-    ├── mcp_server.py   MCP stdio front-end: 45 tools, out-of-band stop, per-call log
+    ├── mcp_server.py   MCP front-end: 45 tools, out-of-band stop, per-call log; stdio by default, Streamable HTTP (`--http`, bearer + TLS) for NemoClaw/OpenShell
     ├── capabilities.py capability matrix from the built runtime; TOOL_REQUIREMENTS trims the MCP catalog
     ├── process_owner.py profile-owned process identity for shutdown and proof binding
     ├── stream_server.py lazy MJPEG dashboard (+ chat, STOP)     live_view.py  RigViewer
@@ -702,6 +746,16 @@ so that session never sees the user's own MCP servers and cannot reach the
 robot except through cascade's harness; `--llm auto` picks it first when
 the CLI is logged in.
 
+Sandboxed host (opt-in, B35): an agent inside an NVIDIA OpenShell sandbox
+managed by NemoClaw reaches the robot through `mcp_server --http`
+(Streamable HTTP, TLS from a private CA, bearer token in OpenShell's provider
+store), because NemoClaw registers only authenticated HTTP MCP servers. The
+robot runtime stays on the host; the transport shares the stdio server's
+serial worker and receive-side stop channel (`_admit`), and namespaces
+JSON-RPC ids per session. `scripts/nemoclaw_mcp.py` issues the certificate,
+token and registration. Stdio through `launch.sh` remains the default; see
+[NEMOCLAW.md](NEMOCLAW.md).
+
 ## Key decisions (still load-bearing)
 
 - **Metric depth in the Frame.** Sensor units differ per camera (L515
@@ -774,8 +828,34 @@ the CLI is logged in.
 
 ## Known limitations
 
-- Same-colour identical objects closer than 8 cm can blur into one belief
-  (different colours never do).
+- Same-colour identical objects: since 2026-10-08 a camera frame is fused as
+  a whole (`BeliefStore.update_frame`, instance-level association), so two
+  identical props the DETECTOR returns as two detections stay two beliefs
+  inside the old 8 cm gate, each as accurate as that prop alone (rendered
+  MuJoCo twins against physics truth, `scripts/measure_same_colour_sweep.py`:
+  top view resolved from 3.75 cm centre distance, the per-detection store
+  merged every pair below 8 cm). Still one belief: props the detector returns
+  as ONE detection — touching props, props that overlap in the image (the
+  oblique probe view up to 5.5–7.0 cm), the default mock detector's one blob
+  per colour at any distance (`instances: true` is opt-in), one detection
+  drawn around both. New failure mode to watch: two disjoint detections of
+  ONE object with no whole detection (a lid and a handle alone) are now two
+  beliefs. Live on Isaac (6.2 PhysX, YOLOE, both demo cameras; see
+  `docs/evidence/b31-isaac-same-colour-20261008/`): identical twins 5–9 cm
+  apart were two beliefs in 9/10 runs (old store: 0/10), and the
+  open-vocabulary 3-prop scene scores the same with either store
+  (`memory.instance_association: false` stays the A/B switch). Different
+  colours never fuse.
+- Open-vocabulary detections of the robot itself: the workspace filter's base
+  cylinder covers only the links near the base. Since 2026-10-08 fusion also
+  consults the render self-mask when a frame carries one (Isaac with
+  `CASCADE_ISAAC_PIXEL_MASK=1`). A detection more than half robot pixels is
+  dropped, and the robot's pixels never reach 3D. Live, the bare scene's
+  phantom rate went from 17.9–19.6 % to 0 %
+  (`docs/evidence/b32-fusion-self-mask-20261008/`). Frames without that mask
+  (the real rig) still rely on the cylinder alone. Colour names are
+  per-camera: the side camera names the orange bin "yellow", so the bin can
+  become two beliefs (B32b).
 - Grip force is a stiffness proxy (kp scaling + stall detection), not a
   calibrated force loop.
 - `RebotRSArm.disconnect()` cuts torque: park (`move_home`) first.

@@ -27,7 +27,6 @@ available as an upstream planner choice, with its own diffusion/OBB provenance.
 
 from __future__ import annotations
 
-import os
 import time
 
 import numpy as np
@@ -178,13 +177,15 @@ class GraspGenXClient:
 
 class GraspGenXPlanner:
     def __init__(self, cfg):
+        from ..config import GRASPGENX_HOST_ENV, GRASPGENX_PORT_ENV, sidecar_endpoint
+
         g = cfg.get("graspgenx", None)
         get = (lambda k, d: g.get(k, d)) if g is not None else (lambda k, d: d)
-        self._client = GraspGenXClient(
-            host=os.environ.get("CASCADE_GRASPGENX_HOST", str(get("host", "127.0.0.1"))),
-            port=int(os.environ.get("CASCADE_GRASPGENX_PORT", get("port", 5556))),
-            timeout_ms=int(get("timeout_ms", 8000)),
-        )
+        # load_demo_config already applied CASCADE_GRASPGENX_HOST/_PORT to the
+        # section; they fill only what a hand-made section lacks (applied once).
+        host, port = sidecar_endpoint(g, port_env=GRASPGENX_PORT_ENV, host_env=GRASPGENX_HOST_ENV,
+                                      default_port=5556)
+        self._client = GraspGenXClient(host=host, port=port, timeout_ms=int(get("timeout_ms", 8000)))
         self.gripper = str(get("gripper", "franka_panda"))
         self.tip_offset_m = float(get("tip_offset_m", 0.10))
         self.num_grasps = int(get("num_grasps", 100))

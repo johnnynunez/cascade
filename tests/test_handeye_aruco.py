@@ -113,14 +113,21 @@ def test_synthetic_camera_follows_the_arm_and_can_inject_an_outlier():
     X = _pose([0.30, 0.0, 0.80], [np.pi, 0.0, 0.0])      # looking straight down
     Y = _pose([0.0, 0.0, 0.03], [0.0, 0.0, 0.2])          # marker face up on the TCP
     tcp = {"T": _pose([0.30, 0.02, 0.25], [0.1, -0.1, 0.3])}
+    # The 2nd distinct TCP pose sees a displaced marker for as long as the
+    # arm stays there (a bumped mount), so it survives stability checks and
+    # reaches the solver as a genuine outlier sample.
     cam = SyntheticMarkerCamera(EYE_TO_HAND, X, Y, lambda: tcp["T"],
-                                image_size=(1280, 720), corrupt={1})
+                                image_size=(1280, 720), corrupt_poses={1})
     s = ArucoSession()
-    f0 = cam.get_frame()
-    det = s.detect_frame(f0, 0.10, D=cam.dist_coeffs)
+    det = s.detect_frame(cam.get_frame(), 0.10, D=cam.dist_coeffs)
     err = pose_error(se3_inv(cam.marker_in_camera()) @ det.T_marker2cam)
     assert np.linalg.norm(err[:3]) < 0.003
-    det1 = s.detect_frame(cam.get_frame(), 0.10)       # grab #1 is corrupted
-    assert np.linalg.norm(det1.T_marker2cam[:3, 3] - det.T_marker2cam[:3, 3]) > 0.03
+    tcp["T"] = _pose([0.32, 0.02, 0.25], [0.1, -0.1, 0.3])
+    a = s.detect_frame(cam.get_frame(), 0.10)
+    b = s.detect_frame(cam.get_frame(), 0.10)
+    truth = cam.marker_in_camera()
+    assert np.linalg.norm(a.T_marker2cam[:3, 3] - truth[:3, 3]) > 0.03
+    assert np.linalg.norm(a.T_marker2cam[:3, 3] - b.T_marker2cam[:3, 3]) < 0.002
     tcp["T"] = _pose([0.30, 0.02, 0.25], [2.5, 0.0, 0.0])   # marker turned away
     assert s.detect_frame(cam.get_frame(), 0.10) is None
+    assert cam.pose_index == 2

@@ -66,9 +66,12 @@ class SyntheticMarkerCamera:
 
     ``tcp_pose()`` returns the CURRENT T_gripper2base (FK of the arm the
     session drives), so the image follows the arm like a real one would.
-    ``noise_px`` adds Gaussian pixel noise; ``corrupt`` is a set of grab
-    indices whose marker pose is displaced by ``corrupt_offset_m`` -- an
-    injected outlier (a bumped mount, a misread), not noise.
+    ``noise_px`` adds Gaussian pixel noise. ``corrupt_poses`` is a set of
+    DISTINCT TCP-pose ordinals (0 = the first pose a frame was grabbed at; a
+    new pose starts when the TCP moves > 1 mm or turns > ~0.5 deg) at which the marker reads
+    displaced by ``corrupt_offset_m`` for as long as the arm stays there --
+    a bumped mount or a misread target, i.e. a genuine outlier SAMPLE that
+    survives the session's multi-frame stability check.
     """
 
     has_depth = False
@@ -76,7 +79,7 @@ class SyntheticMarkerCamera:
     def __init__(self, mode, T_hand_eye, T_marker, tcp_pose, *, K=None,
                  image_size=(1280, 720), size_m=0.10, marker_id=0,
                  dictionary="4x4_50", noise_px=0.0, seed=0,
-                 corrupt=(), corrupt_offset_m=(0.0, 0.04, 0.0), serial="SYNTHETIC"):
+                 corrupt_poses=(), corrupt_offset_m=(0.0, 0.04, 0.0), serial="SYNTHETIC"):
         from .handeye import EYE_TO_HAND, MODES
 
         if mode not in MODES:
@@ -88,16 +91,20 @@ class SyntheticMarkerCamera:
         self._tcp = tcp_pose
         w, h = int(image_size[0]), int(image_size[1])
         self.image_size = (w, h)
-        self.K = (np.array([[0.9 * w, 0.0, w / 2.0], [0.0, 0.9 * w, h / 2.0], [0, 0, 1.0]])
+        # Default intrinsics ~ a D455 colour stream (fx ~ 0.5 w, ~90 deg HFOV).
+        self.K = (np.array([[0.5 * w, 0.0, w / 2.0], [0.0, 0.5 * w, h / 2.0], [0, 0, 1.0]])
                   if K is None else np.asarray(K, dtype=float))
         self.size_m, self.marker_id, self.dictionary = size_m, marker_id, dictionary
         self.noise_px = float(noise_px)
         self._rng = np.random.default_rng(seed)
-        self.corrupt = set(corrupt)
+        self.corrupt_poses = set(corrupt_poses)
         self.corrupt_offset_m = np.asarray(corrupt_offset_m, dtype=float)
         self.serial = serial
         self.dist_coeffs = np.zeros(5)
         self.grabs = 0
+        self.pose_index = -1
+        self._last_tcp = None
+        self.corrupted_tcps: list[np.ndarray] = []   # TCP poses that read displaced
         self.opened = False
 
     def marker_in_camera(self) -> np.ndarray:
@@ -115,10 +122,18 @@ class SyntheticMarkerCamera:
     def get_frame(self):
         from ..types import Frame
 
+        tcp = np.asarray(self._tcp(), dtype=float)
+        if self._last_tcp is None or (
+                np.linalg.norm(tcp[:3, 3] - self._last_tcp[:3, 3]) > 1e-3
+                or np.linalg.norm(tcp[:3, :3] - self._last_tcp[:3, :3]) > 1e-2):
+            self.pose_index += 1
+            self._last_tcp = tcp
         M = self.marker_in_camera()
-        if self.grabs in self.corrupt:
+        if self.pose_index in self.corrupt_poses:
             M = M.copy()
             M[:3, 3] += self.corrupt_offset_m
+            if not any(np.allclose(tcp, T) for T in self.corrupted_tcps):
+                self.corrupted_tcps.append(tcp.copy())
         self.grabs += 1
         img = render_marker(self.K, self.image_size, M, size_m=self.size_m,
                             marker_id=self.marker_id, dictionary=self.dictionary)

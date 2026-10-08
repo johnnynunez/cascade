@@ -386,7 +386,9 @@ def build_runtime(
     # ── the camera rig: N continuous streams, first = manipulation ──────
     cam_cfgs = _camera_cfgs(cfg)
     streams, watched = [], []
-    detector = LockedDetector(_make_detector(cfg))
+    # The detector is built AFTER rig.open() (below): Seeed's WRC rig reset
+    # the depth cameras' USB link when YOLOE/CUDA loaded before they were
+    # streaming (WRC 37285b0, tests/test_detector_after_camera_open.py).
 
     def fk():
         # Eye-in-hand extrinsics need live FK -- but the 3 Hz watcher must
@@ -429,6 +431,7 @@ def build_runtime(
     rig = CameraRig(streams)
     rig.open()
     try:
+        detector = LockedDetector(_make_detector(cfg))
         rig.primary.warm_up(int(cam_cfgs[0].get("warmup_frames", 5)))
     except Exception:
         rig.close()  # a partial build must not leak open camera streams

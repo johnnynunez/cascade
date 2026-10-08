@@ -1,0 +1,529 @@
+{
+ "isaac|playroom": {
+  "n": 2,
+  "accepted": 0,
+  "hits": 0,
+  "colors": {
+   "orange": 2
+  },
+  "robot_frac_min_med_max": [
+   0.001,
+   0.0015,
+   0.002
+  ],
+  "nearest_m_min_max": [
+   0.1617,
+   0.1677
+  ],
+  "z_min_max": [
+   0.0052,
+   0.0401
+  ]
+ },
+ "isaac|storage box": {
+  "n": 15,
+  "accepted": 15,
+  "hits": 15,
+  "colors": {
+   "orange": 15
+  },
+  "robot_frac_min_med_max": [
+   0.002,
+   0.002,
+   0.003
+  ],
+  "nearest_m_min_max": [
+   0.0237,
+   0.0313
+  ],
+  "z_min_max": [
+   0.025,
+   0.0271
+  ]
+ },
+ "isaac|cube": {
+  "n": 23,
+  "accepted": 23,
+  "hits": 23,
+  "colors": {
+   "pink": 23
+  },
+  "robot_frac_min_med_max": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "nearest_m_min_max": [
+   0.0098,
+   0.0115
+  ],
+  "z_min_max": [
+   0.043,
+   0.0437
+  ]
+ },
+ "isaac|hassock": {
+  "n": 24,
+  "accepted": 24,
+  "hits": 24,
+  "colors": {
+   "green": 24
+  },
+  "robot_frac_min_med_max": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "nearest_m_min_max": [
+   0.0106,
+   0.0111
+  ],
+  "z_min_max": [
+   0.0432,
+   0.0439
+  ]
+ },
+ "isaac|amplifier": {
+  "n": 24,
+  "accepted": 0,
+  "hits": 0,
+  "colors": {
+   "gray": 24
+  },
+  "robot_frac_min_med_max": [
+   0.992,
+   0.993,
+   0.995
+  ],
+  "nearest_m_min_max": [
+   0.227,
+   0.2296
+  ],
+  "z_min_max": [
+   0.1216,
+   0.1242
+  ]
+ },
+ "isaac|computer tower": {
+  "n": 23,
+  "accepted": 0,
+  "hits": 0,
+  "colors": {
+   "gray": 23
+  },
+  "robot_frac_min_med_max": [
+   0.983,
+   0.985,
+   0.986
+  ],
+  "nearest_m_min_max": [
+   0.2068,
+   0.2206
+  ],
+  "z_min_max": [
+   0.0942,
+   0.0968
+  ]
+ },
+ "isaac|side cabinet": {
+  "n": 10,
+  "accepted": 0,
+  "hits": 0,
+  "colors": {
+   "gray": 10
+  },
+  "robot_frac_min_med_max": [
+   0.896,
+   0.9015,
+   0.905
+  ],
+  "nearest_m_min_max": [
+   0.232,
+   0.2332
+  ],
+  "z_min_max": [
+   0.0341,
+   0.0346
+  ]
+ },
+ "isaac_side|building block": {
+  "n": 21,
+  "accepted": 17,
+  "hits": 16,
+  "colors": {
+   "yellow": 21
+  },
+  "robot_frac_min_med_max": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "nearest_m_min_max": [
+   0.0225,
+   0.0823
+  ],
+  "z_min_max": [
+   0.0294,
+   0.0331
+  ]
+ },
+ "isaac_side|hassock": {
+  "n": 7,
+  "accepted": 7,
+  "hits": 7,
+  "colors": {
+   "green": 4,
+   "yellow": 3
+  },
+  "robot_frac_min_med_max": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "nearest_m_min_max": [
+   0.0112,
+   0.04
+  ],
+  "z_min_max": [
+   0.0317,
+   0.0421
+  ]
+ },
+ "isaac_side|cube": {
+  "n": 44,
+  "accepted": 44,
+  "hits": 37,
+  "colors": {
+   "pink": 24,
+   "green": 20
+  },
+  "robot_frac_min_med_max": [
+   0.0,
+   0.0435,
+   0.046
+  ],
+  "nearest_m_min_max": [
+   0.0099,
+   0.0624
+  ],
+  "z_min_max": [
+   0.037,
+   0.0424
+  ]
+ },
+ "isaac_side|robot": {
+  "n": 24,
+  "accepted": 0,
+  "hits": 0,
+  "colors": {
+   "gray": 24
+  },
+  "robot_frac_min_med_max": [
+   0.952,
+   0.956,
+   0.959
+  ],
+  "nearest_m_min_max": [
+   0.2782,
+   0.2831
+  ],
+  "z_min_max": [
+   0.2109,
+   0.2135
+  ]
+ },
+ "isaac_side|office desk": {
+  "n": 24,
+  "accepted": 0,
+  "hits": 0,
+  "colors": {
+   "orange": 24
+  },
+  "robot_frac_min_med_max": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "nearest_m_min_max": [
+   0.1174,
+   0.1322
+  ],
+  "z_min_max": [
+   -0.0144,
+   -0.0135
+  ]
+ },
+ "isaac_side|martial arts gym": {
+  "n": 22,
+  "accepted": 0,
+  "hits": 0,
+  "colors": {
+   "gray": 22
+  },
+  "robot_frac_min_med_max": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "nearest_m_min_max": [
+   0.1242,
+   0.3056
+  ],
+  "z_min_max": [
+   0.0003,
+   0.199
+  ]
+ },
+ "isaac_side|biplane": {
+  "n": 16,
+  "accepted": 16,
+  "hits": 0,
+  "colors": {
+   "gray": 16
+  },
+  "robot_frac_min_med_max": [
+   0.983,
+   0.987,
+   0.988
+  ],
+  "nearest_m_min_max": [
+   0.4048,
+   0.4084
+  ],
+  "z_min_max": [
+   0.4167,
+   0.4175
+  ]
+ },
+ "isaac|studio shot": {
+  "n": 22,
+  "accepted": 0,
+  "hits": 0,
+  "colors": {
+   "orange": 22
+  },
+  "robot_frac_min_med_max": [
+   0.0,
+   0.001,
+   0.003
+  ],
+  "nearest_m_min_max": [
+   0.158,
+   0.1714
+  ],
+  "z_min_max": [
+   0.0052,
+   0.0401
+  ]
+ },
+ "isaac|first-aid kit": {
+  "n": 8,
+  "accepted": 8,
+  "hits": 8,
+  "colors": {
+   "orange": 8
+  },
+  "robot_frac_min_med_max": [
+   0.002,
+   0.003,
+   0.003
+  ],
+  "nearest_m_min_max": [
+   0.0219,
+   0.0291
+  ],
+  "z_min_max": [
+   0.0259,
+   0.027
+  ]
+ },
+ "isaac|underdrawers": {
+  "n": 14,
+  "accepted": 0,
+  "hits": 0,
+  "colors": {
+   "gray": 14
+  },
+  "robot_frac_min_med_max": [
+   0.885,
+   0.9675,
+   0.985
+  ],
+  "nearest_m_min_max": [
+   0.2146,
+   0.2338
+  ],
+  "z_min_max": [
+   0.0326,
+   0.0346
+  ]
+ },
+ "isaac_side|stunt": {
+  "n": 6,
+  "accepted": 0,
+  "hits": 0,
+  "colors": {
+   "gray": 6
+  },
+  "robot_frac_min_med_max": [
+   0.893,
+   0.903,
+   0.905
+  ],
+  "nearest_m_min_max": [
+   0.2511,
+   0.27
+  ],
+  "z_min_max": [
+   0.254,
+   0.2598
+  ]
+ },
+ "isaac_side|fighter jet": {
+  "n": 14,
+  "accepted": 7,
+  "hits": 0,
+  "colors": {
+   "gray": 14
+  },
+  "robot_frac_min_med_max": [
+   0.913,
+   0.966,
+   0.984
+  ],
+  "nearest_m_min_max": [
+   0.269,
+   0.4079
+  ],
+  "z_min_max": [
+   0.2589,
+   0.417
+  ]
+ },
+ "isaac|transformer": {
+  "n": 4,
+  "accepted": 0,
+  "hits": 0,
+  "colors": {
+   "gray": 4
+  },
+  "robot_frac_min_med_max": [
+   0.99,
+   0.991,
+   0.991
+  ],
+  "nearest_m_min_max": [
+   0.2223,
+   0.2241
+  ],
+  "z_min_max": [
+   0.0984,
+   0.0988
+  ]
+ },
+ "isaac|gift box": {
+  "n": 1,
+  "accepted": 1,
+  "hits": 1,
+  "colors": {
+   "orange": 1
+  },
+  "robot_frac_min_med_max": [
+   0.002,
+   0.002,
+   0.002
+  ],
+  "nearest_m_min_max": [
+   0.0253,
+   0.0253
+  ],
+  "z_min_max": [
+   0.0244,
+   0.0244
+  ]
+ },
+ "isaac|stool": {
+  "n": 1,
+  "accepted": 1,
+  "hits": 1,
+  "colors": {
+   "pink": 1
+  },
+  "robot_frac_min_med_max": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "nearest_m_min_max": [
+   0.0109,
+   0.0109
+  ],
+  "z_min_max": [
+   0.0429,
+   0.0429
+  ]
+ },
+ "isaac|slot machine": {
+  "n": 4,
+  "accepted": 0,
+  "hits": 0,
+  "colors": {
+   "gray": 4
+  },
+  "robot_frac_min_med_max": [
+   0.99,
+   0.99,
+   0.991
+  ],
+  "nearest_m_min_max": [
+   0.2227,
+   0.225
+  ],
+  "z_min_max": [
+   0.0986,
+   0.0991
+  ]
+ },
+ "isaac_side|studio shot": {
+  "n": 2,
+  "accepted": 0,
+  "hits": 0,
+  "colors": {
+   "gray": 2
+  },
+  "robot_frac_min_med_max": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "nearest_m_min_max": [
+   0.1681,
+   0.1958
+  ],
+  "z_min_max": [
+   0.1564,
+   0.1628
+  ]
+ },
+ "isaac|dollhouse": {
+  "n": 1,
+  "accepted": 0,
+  "hits": 0,
+  "colors": {
+   "gray": 1
+  },
+  "robot_frac_min_med_max": [
+   0.985,
+   0.985,
+   0.985
+  ],
+  "nearest_m_min_max": [
+   0.2099,
+   0.2099
+  ],
+  "z_min_max": [
+   0.0972,
+   0.0972
+  ]
+ }
+}

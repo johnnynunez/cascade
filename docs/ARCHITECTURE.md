@@ -770,9 +770,12 @@ the CLI is logged in.
   per colour at any distance (`instances: true` is opt-in), one detection
   drawn around both. New failure mode to watch: two disjoint detections of
   ONE object with no whole detection (a lid and a handle alone) are now two
-  beliefs; the Isaac open-vocabulary phantom rate has not been re-measured
-  with this change (`memory.instance_association: false` is the A/B
-  baseline). Different colours never fuse.
+  beliefs. Live on Isaac (6.2 PhysX, YOLOE, both demo cameras; see
+  `docs/evidence/b31-isaac-same-colour-20261008/`): identical twins 5–9 cm
+  apart were two beliefs in 9/10 runs (old store: 0/10), and the
+  open-vocabulary 3-prop scene scores the same with either store
+  (`memory.instance_association: false` stays the A/B switch). Different
+  colours never fuse.
 - Grip force is a stiffness proxy (kp scaling + stall detection), not a
   calibrated force loop.
 - `RebotRSArm.disconnect()` cuts torque: park (`move_home`) first.

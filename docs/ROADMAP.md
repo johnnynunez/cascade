@@ -832,11 +832,19 @@ engine" rule again -- a second OBJECT is also an independent channel):
    `benchmark/results/same_colour_separation_sweep.json`): every pair the
    detector returns as two detections is two beliefs at single-cube accuracy
    (top view from 3.75 cm centre distance; the old store merged every such
-   pair below 8 cm, 1.6–3.6 cm off). Still open: pairs the DETECTOR returns
+   pair below 8 cm, 1.6–3.6 cm off). Live on Isaac (6.2 PhysX, YOLOE
+   prompt-free, both demo cameras, PhysX truth;
+   `docs/evidence/b31-isaac-same-colour-20261008/`): identical pink twins
+   5–9 cm apart were two beliefs in 9/10 runs (old store 0/10, although YOLOE
+   gave 2–3 detections on the pair), and the 3-prop open-vocabulary scene
+   scores the same with either store. Still open: pairs the DETECTOR returns
    as one detection (touching cubes; 5.5–7.0 cm in the oblique probe view;
-   the default mock detector's one blob per colour at any distance), and the
-   live open-vocabulary phantom A/B on Isaac (`memory.instance_association`
-   true vs false) before this counts as measured there.
+   the default mock detector's one blob per colour at any distance), and two
+   bare-scene errors seen with BOTH stores on this build. The first is a phantom
+   on the arm's own upper link (side camera; fusion ignores the robot mask). The
+   second is a duplicate bin belief: the side camera names the bin "yellow" and
+   the top camera "orange". Because of these, the 0 % row of
+   `SOTA_PERCEPTION_AND_EVALUATION.md` does not reproduce.
 
 Then the REAL chat turn on the two-prop scene ("put both cubes in the drop
 zone, one at a time, call task_memory before each action, tell me how many

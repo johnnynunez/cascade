@@ -213,10 +213,21 @@ What it does not fix, and what has not been measured:
   a jar detected with its lid and handle, which must stay one object);
 - **a new risk**: two disjoint detections of ONE object with no whole
   detection (a lid and a handle alone) are now two beliefs where the old
-  store fused them;
-- **the Isaac open-vocabulary phantom rate with this change** (the 0% row
-  above): re-run `scripts/eval_detector.py --association instance` and
-  `--association legacy` on the same scene before quoting it.
+  store fused them.
+
+**Measured live on Isaac** ([evidence](evidence/b31-isaac-same-colour-20261008/REPORT.md),
+6.2 PhysX, YOLOE prompt-free, both demo cameras, PhysX truth, x86 rig):
+two identical pink props 5–9 cm apart were two beliefs in 9 of 10 runs with
+the new store (0.7–2.0 cm mean error). With the old store they were ONE belief
+in all 10 runs (3.0–3.7 cm off), although YOLOE returned 2–3 detections on the
+pair in every recorded frame. On the default 3-prop scene the
+two stores are indistinguishable (precision 0.80–0.82, recall 1.0 and 5
+beliefs for 3 props in both), so the 0 % row above does not reproduce on this
+build for either store. The phantom is the arm's own upper link, which the side
+camera sees: 98–99 % of that detection's pixels are robot pixels, and fusion
+does not consult the robot mask. The fifth belief is a duplicate of the bin:
+the side camera names it "yellow" and the top camera "orange". These are
+perception findings, not association ones (backlog B32).
 
 ---
 

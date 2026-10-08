@@ -1,0 +1,410 @@
+[
+ {
+  "file": "ab_off_r1.json",
+  "self_mask": "off",
+  "source_head": "d918180",
+  "dirty": false,
+  "counts_per_frame": [
+   3,
+   3,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5
+  ],
+  "detections": 56,
+  "hits": 46,
+  "phantoms": 10,
+  "precision": 0.8214,
+  "recall": 1.0,
+  "phantom_rate": 0.1786,
+  "localization_err_m": {
+   "mean": 0.0197,
+   "max": 0.0358
+  },
+  "beliefs_final": [
+   [
+    "pink",
+    "cube",
+    "pink_cube",
+    0.0154,
+    true,
+    18
+   ],
+   [
+    "orange",
+    "storage box",
+    "bin",
+    0.0272,
+    true,
+    15
+   ],
+   [
+    "green",
+    "hassock",
+    "green_cube",
+    0.0087,
+    true,
+    18
+   ],
+   [
+    "yellow",
+    "building block",
+    "bin",
+    0.0358,
+    true,
+    3
+   ],
+   [
+    "gray",
+    "biplane",
+    "green_cube",
+    0.4083,
+    false,
+    3
+   ]
+  ]
+ },
+ {
+  "file": "ab_off_r2.json",
+  "self_mask": "off",
+  "source_head": "d918180",
+  "dirty": false,
+  "counts_per_frame": [
+   3,
+   3,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5
+  ],
+  "detections": 56,
+  "hits": 46,
+  "phantoms": 10,
+  "precision": 0.8214,
+  "recall": 1.0,
+  "phantom_rate": 0.1786,
+  "localization_err_m": {
+   "mean": 0.0205,
+   "max": 0.041
+  },
+  "beliefs_final": [
+   [
+    "pink",
+    "cube",
+    "pink_cube",
+    0.0219,
+    true,
+    18
+   ],
+   [
+    "orange",
+    "first-aid kit",
+    "bin",
+    0.0254,
+    true,
+    15
+   ],
+   [
+    "green",
+    "cube",
+    "green_cube",
+    0.0081,
+    true,
+    18
+   ],
+   [
+    "yellow",
+    "building block",
+    "bin",
+    0.043,
+    true,
+    3
+   ],
+   [
+    "gray",
+    "fighter jet",
+    "green_cube",
+    0.4079,
+    false,
+    3
+   ]
+  ]
+ },
+ {
+  "file": "ab_off_r3.json",
+  "self_mask": "off",
+  "source_head": "d918180",
+  "dirty": false,
+  "counts_per_frame": [
+   3,
+   3,
+   4,
+   4,
+   4,
+   4,
+   4,
+   5,
+   5,
+   5,
+   5,
+   5
+  ],
+  "detections": 51,
+  "hits": 41,
+  "phantoms": 10,
+  "precision": 0.8039,
+  "recall": 1.0,
+  "phantom_rate": 0.1961,
+  "localization_err_m": {
+   "mean": 0.0206,
+   "max": 0.0558
+  },
+  "beliefs_final": [
+   [
+    "pink",
+    "cube",
+    "pink_cube",
+    0.014,
+    true,
+    18
+   ],
+   [
+    "orange",
+    "storage box",
+    "bin",
+    0.0263,
+    true,
+    15
+   ],
+   [
+    "green",
+    "hassock",
+    "green_cube",
+    0.0089,
+    true,
+    18
+   ],
+   [
+    "gray",
+    "fighter jet",
+    "green_cube",
+    0.4077,
+    false,
+    3
+   ],
+   [
+    "yellow",
+    "building block",
+    "bin",
+    0.0416,
+    true,
+    2
+   ]
+  ]
+ },
+ {
+  "file": "ab_on_r1.json",
+  "self_mask": "on",
+  "source_head": "d918180",
+  "dirty": false,
+  "counts_per_frame": [
+   3,
+   3,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4
+  ],
+  "detections": 46,
+  "hits": 46,
+  "phantoms": 0,
+  "precision": 1.0,
+  "recall": 1.0,
+  "phantom_rate": 0.0,
+  "localization_err_m": {
+   "mean": 0.0196,
+   "max": 0.0354
+  },
+  "beliefs_final": [
+   [
+    "pink",
+    "cube",
+    "pink_cube",
+    0.0092,
+    true,
+    18
+   ],
+   [
+    "orange",
+    "first-aid kit",
+    "bin",
+    0.0271,
+    true,
+    15
+   ],
+   [
+    "green",
+    "hassock",
+    "green_cube",
+    0.0091,
+    true,
+    18
+   ],
+   [
+    "yellow",
+    "building block",
+    "bin",
+    0.0339,
+    true,
+    3
+   ]
+  ]
+ },
+ {
+  "file": "ab_on_r2.json",
+  "self_mask": "on",
+  "source_head": "d918180",
+  "dirty": false,
+  "counts_per_frame": [
+   3,
+   3,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4
+  ],
+  "detections": 46,
+  "hits": 46,
+  "phantoms": 0,
+  "precision": 1.0,
+  "recall": 1.0,
+  "phantom_rate": 0.0,
+  "localization_err_m": {
+   "mean": 0.0191,
+   "max": 0.0409
+  },
+  "beliefs_final": [
+   [
+    "pink",
+    "cube",
+    "pink_cube",
+    0.0088,
+    true,
+    18
+   ],
+   [
+    "green",
+    "hassock",
+    "green_cube",
+    0.0087,
+    true,
+    18
+   ],
+   [
+    "orange",
+    "storage box",
+    "bin",
+    0.0279,
+    true,
+    15
+   ],
+   [
+    "yellow",
+    "building block",
+    "bin",
+    0.0409,
+    true,
+    3
+   ]
+  ]
+ },
+ {
+  "file": "ab_on_r3.json",
+  "self_mask": "on",
+  "source_head": "d918180",
+  "dirty": false,
+  "counts_per_frame": [
+   3,
+   3,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4
+  ],
+  "detections": 46,
+  "hits": 46,
+  "phantoms": 0,
+  "precision": 1.0,
+  "recall": 1.0,
+  "phantom_rate": 0.0,
+  "localization_err_m": {
+   "mean": 0.0171,
+   "max": 0.0268
+  },
+  "beliefs_final": [
+   [
+    "pink",
+    "cube",
+    "pink_cube",
+    0.0092,
+    true,
+    18
+   ],
+   [
+    "green",
+    "hassock",
+    "green_cube",
+    0.0088,
+    true,
+    18
+   ],
+   [
+    "orange",
+    "first-aid kit",
+    "bin",
+    0.0249,
+    true,
+    15
+   ],
+   [
+    "yellow",
+    "building block",
+    "bin",
+    0.0262,
+    true,
+    3
+   ]
+  ]
+ }
+]

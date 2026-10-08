@@ -789,6 +789,16 @@ the CLI is logged in.
   open-vocabulary 3-prop scene scores the same with either store
   (`memory.instance_association: false` stays the A/B switch). Different
   colours never fuse.
+- Open-vocabulary detections of the robot itself: the workspace filter's base
+  cylinder covers only the links near the base. Since 2026-10-08 fusion also
+  consults the render self-mask when a frame carries one (Isaac with
+  `CASCADE_ISAAC_PIXEL_MASK=1`). A detection more than half robot pixels is
+  dropped, and the robot's pixels never reach 3D. Live, the bare scene's
+  phantom rate went from 17.9–19.6 % to 0 %
+  (`docs/evidence/b32-fusion-self-mask-20261008/`). Frames without that mask
+  (the real rig) still rely on the cylinder alone. Colour names are
+  per-camera: the side camera names the orange bin "yellow", so the bin can
+  become two beliefs (B32b).
 - Grip force is a stiffness proxy (kp scaling + stall detection), not a
   calibrated force loop.
 - `RebotRSArm.disconnect()` cuts torque: park (`move_home`) first.

@@ -26,7 +26,7 @@ from ..grasping import plan_grasps_from_fix, select_grasp, select_profile
 from ..grasping import evidence as grasp_evidence
 from ..grasping.selector import ALL_TOO_WIDE_MARKER
 from . import carry_attachment
-from ..memory import BeliefStore, EpisodicMemory
+from ..memory import BeliefStore, EpisodicMemory, FrameObservation
 from ..perception.colors import detection_color, parse_color_query
 from ..perception.reference import ReferenceResolutionError, parse_reference
 from typing import TYPE_CHECKING, Any
@@ -1032,6 +1032,7 @@ class SkillRuntime:
         if T is None:
             T = (frame.T_base_cam if frame.T_base_cam is not None
                  else self.extrinsics.cam_to_base())
+        observations = []
         for d in dets:
             mask = d.mask
             if mask is None:
@@ -1057,12 +1058,13 @@ class SkillRuntime:
             # get_observation on the two-cube scene fused red and blue into
             # one belief 3 cm from either -- both call sites must tag.
             color = detection_color(frame.rgb, d)
-            self.beliefs.update(
+            observations.append(FrameObservation(
                 d.label, center, d.conf, extent=extents,
-                top_z=float(pts_base[:, 2].max()), t=frame.t,
+                top_z=float(pts_base[:, 2].max()),
                 color=color,
                 points=pts_base if d.mask is not None else None,
-            )
+                bbox=getattr(d, "bbox", None), mask=d.mask,
+            ))
             summaries.append(
                 {
                     "label": d.label,
@@ -1071,6 +1073,12 @@ class SkillRuntime:
                     "position": [round(float(x), 3) for x in center],
                 }
             )
+        # The whole frame in ONE association, like the watcher: per-detection
+        # update() let the second of two identical cubes inside the 8 cm gate
+        # land in the belief the first had just written, and count_objects
+        # then said 1 (memory/beliefs.py `update_frame`).
+        if observations:
+            self.beliefs.update_frame(observations, t=frame.t)
         return summaries
 
     def _tcp(self) -> np.ndarray:

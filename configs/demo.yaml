@@ -143,6 +143,12 @@ memory:
   persist_beliefs: true
   beliefs_path: null        # null -> <repo>/runs/beliefs.json
   beliefs_max_age_s: 21600  # 6 h; older beliefs are dropped on load
+  # Instance-level association: a camera frame's detections are grouped into
+  # instances (shared image support) and matched to beliefs ONE-TO-ONE, so
+  # two identical props inside the 8 cm fusion gate stay two beliefs. false =
+  # the pre-2026-10-08 per-detection fusion, kept as the live A/B baseline
+  # (memory/beliefs.py `update_frame`).
+  instance_association: true
   # ASPIRE skill library (skills_library/*.md, written offline by
   # scripts/learn_from_runs.py): a distilled note is retrieved into the agent
   # context only after it recurred in this many DISTINCT tasks (upstream

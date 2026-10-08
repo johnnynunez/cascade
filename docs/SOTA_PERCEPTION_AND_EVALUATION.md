@@ -166,6 +166,69 @@ them.
 Caveat that must travel with these numbers: this is a 3-prop Isaac scene, not
 a booth. It is a floor, not a guarantee.
 
+### Same-colour twins: instance-level association (2026-10-08)
+
+Label-agnostic fusion has a cost the table above cannot show: with three
+DIFFERENT props, nothing inside the 8 cm gate is a second object. Two
+identical props are. The store used to fuse a frame detection by detection,
+so the second twin matched the belief the first had just written: one
+belief at an EMA blend, 1.6–3.6 cm off both cubes, whenever the twins were
+closer than 8 cm. Colour cannot help (both red) and neither can the label.
+
+`BeliefStore.update_frame` now fuses a camera frame as a whole, and it keeps
+the identity job separate from the geometry job, as section 2 asks:
+
+- **identity inside the frame comes from the IMAGE**: two detections are one
+  instance only if they share image support (intersection over the smaller
+  mask >= 0.5: the open-vocabulary second name, a part inside its whole) and
+  also pass the store's own gate. Twins share no pixels;
+- **identity across frames comes from GEOMETRY**: instances and beliefs are
+  matched one-to-one by a min-cost assignment on 3D distance inside the
+  unchanged gates (no scipy: a small Hungarian solver in `memory/beliefs.py`).
+  A lone detection still goes to the nearest belief inside its gate, so
+  everything the phantom ablation measured is matched as before.
+
+Measured against MuJoCo physics truth on rendered RGB-D, through the real
+WorldWatcher path (`scripts/measure_same_colour_sweep.py`, two 3.5 cm red
+cubes, 15 separations from touching to 12 cm, two cameras, two axes;
+`benchmark/results/same_colour_separation_sweep.json`). "Resolved" = two
+beliefs, each within the single-cube error of the same camera + 0.5 cm:
+
+| detector (mock, colour masks) | store | top view | oblique probe view |
+|---|---|---|---|
+| one blob per colour (default) | either | never | never |
+| one detection per blob (`instances: true`) | per-detection (old) | from 8.0 cm | from 8.0 cm |
+| one detection per blob (`instances: true`) | per-frame (new) | from 3.75 cm | from 6.0 cm (y) / 7.5 cm (x) |
+
+Every resolved pair sits exactly at its single-cube error (top <= 3.1 mm,
+oblique <= 7.7 mm, the raw OBB-centre bias of the visible surface). Every
+unresolved pair under the new store is a detector merge (one detection),
+not an association error: touching cubes, and in the oblique view cubes
+whose silhouettes touch in the image.
+
+What it does not fix, and what has not been measured:
+
+- **detector merging**: one detection over two objects stays one belief,
+  including a third detection drawn around a pair (structurally the same as
+  a jar detected with its lid and handle, which must stay one object);
+- **a new risk**: two disjoint detections of ONE object with no whole
+  detection (a lid and a handle alone) are now two beliefs where the old
+  store fused them.
+
+**Measured live on Isaac** ([evidence](evidence/b31-isaac-same-colour-20261008/REPORT.md),
+6.2 PhysX, YOLOE prompt-free, both demo cameras, PhysX truth, x86 rig):
+two identical pink props 5–9 cm apart were two beliefs in 9 of 10 runs with
+the new store (0.7–2.0 cm mean error). With the old store they were ONE belief
+in all 10 runs (3.0–3.7 cm off), although YOLOE returned 2–3 detections on the
+pair in every recorded frame. On the default 3-prop scene the
+two stores are indistinguishable (precision 0.80–0.82, recall 1.0 and 5
+beliefs for 3 props in both), so the 0 % row above does not reproduce on this
+build for either store. The phantom is the arm's own upper link, which the side
+camera sees: 98–99 % of that detection's pixels are robot pixels, and fusion
+does not consult the robot mask. The fifth belief is a duplicate of the bin:
+the side camera names it "yellow" and the top camera "orange". These are
+perception findings, not association ones (backlog B32).
+
 ---
 
 ## 4. Evaluation: what a credible claim requires

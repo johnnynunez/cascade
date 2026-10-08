@@ -11,6 +11,12 @@ color-word queries like "pink object" resolve against the live world model
 even when the detector vocabulary has no such class. All methods are
 thread-safe: the WorldWatcher fuses observations from N camera streams while
 the skill runtime reads.
+
+A whole camera frame is fused with `update_frame()` (instance-level
+association, 2026-10-08): the frame's detections are grouped into instances
+by shared image support, and instances and beliefs are matched ONE-TO-ONE by
+a min-cost assignment inside the unchanged gates. `update()` stays the
+single-observation writer (place_at, push, localize).
 """
 
 from __future__ import annotations
@@ -22,6 +28,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -49,6 +56,129 @@ class ObjectBelief:
 
     def state(self, now: float, visible_horizon_s: float = 1.5) -> str:
         return "visible" if (now - self.last_seen_t) <= visible_horizon_s else "remembered"
+
+
+@dataclass
+class FrameObservation:
+    """One detection of ONE camera frame, lifted to the base frame: the input
+    of `BeliefStore.update_frame`.
+
+    `bbox` (x0, y0, x1, y1 pixels) and `mask` (bool HxW, numpy or torch;
+    None = the bbox rectangle) are the detection's IMAGE support, i.e. the
+    pixels that were lifted. They are the only evidence that two detections
+    of the same frame are one object (an open-vocabulary second name, a part
+    inside its whole) rather than two objects side by side, and they are used
+    for that decision only: nothing image-side is stored. No `bbox` = no
+    image evidence = the observation is an instance of its own.
+    """
+
+    label: str
+    position: np.ndarray
+    conf: float
+    extent: np.ndarray | None = None
+    top_z: float | None = None
+    color: str | None = None
+    points: np.ndarray | None = None
+    bbox: np.ndarray | None = None
+    mask: Any = None
+
+
+#: Two detections of ONE frame are the same instance only when they share at
+#: least this fraction of the SMALLER one's image support (and pass the
+#: store's own fusion gate). An open-vocabulary detector's second name for an
+#: object (class-aware NMS keeps both, near-identical masks) and a part inside
+#: its whole (a handle inside the mug's mask) score ~1.0; two props side by
+#: side share no pixels and score 0.
+SAME_INSTANCE_OVERLAP = 0.5
+
+#: Cost of an assignment the gate forbids; any value above the sum of all
+#: birth costs keeps the solver off it (birth costs are gate radii, < 1 m).
+_FORBIDDEN = 1.0e6
+
+
+def _min_cost_assignment(cost) -> list[int]:
+    """Rectangular min-cost assignment: one distinct column per row (rows <=
+    columns), minimising the summed cost. Returns the column of each row.
+
+    Hungarian algorithm with row/column potentials (Kuhn-Munkres in the
+    O(n^2 m) shortest-augmenting-path form), the column scan vectorised with
+    numpy. Written here because scipy (`linear_sum_assignment`) is not a base
+    dependency; `tests/test_same_colour_beliefs.py` checks it against brute
+    force. Ties go to the lowest column index, so the result is deterministic.
+    """
+    c = np.asarray(cost, dtype=float)
+    n, m = c.shape
+    if n == 0:
+        return []
+    if n > m:
+        raise ValueError(f"assignment needs rows <= columns, got {n} x {m}")
+    a = np.zeros((n + 1, m + 1))
+    a[1:, 1:] = c
+    u = np.zeros(n + 1)
+    v = np.zeros(m + 1)
+    p = np.zeros(m + 1, dtype=int)  # p[j]: row holding column j (0 = free)
+    way = np.zeros(m + 1, dtype=int)
+    for i in range(1, n + 1):
+        p[0] = i
+        j0 = 0
+        minv = np.full(m + 1, np.inf)
+        used = np.zeros(m + 1, dtype=bool)
+        while True:
+            used[j0] = True
+            i0 = p[j0]
+            cur = a[i0] - u[i0] - v
+            better = ~used & (cur < minv)
+            minv[better] = cur[better]
+            way[better] = j0
+            open_minv = np.where(used, np.inf, minv)
+            j1 = int(np.argmin(open_minv))
+            delta = open_minv[j1]
+            u[p[used]] += delta
+            v[used] -= delta
+            minv[~used] -= delta
+            j0 = j1
+            if p[j0] == 0:
+                break
+        while j0:
+            j1 = way[j0]
+            p[j0] = p[j1]
+            j0 = j1
+    cols = [0] * n
+    for j in range(1, m + 1):
+        if p[j]:
+            cols[p[j] - 1] = j - 1
+    return cols
+
+
+def _support_area(o: FrameObservation) -> float:
+    if o.mask is not None:
+        return float(o.mask.sum())
+    x0, y0, x1, y1 = (float(v) for v in o.bbox)
+    return max(0.0, x1 - x0) * max(0.0, y1 - y0)
+
+
+def _support_overlap(a: FrameObservation, b: FrameObservation,
+                     area_a: float, area_b: float) -> float:
+    """Shared image support over the SMALLER support (1.0 = one inside the
+    other, 0.0 = disjoint). Masks are compared inside the intersection of
+    the two boxes only, so the cost is the overlap window, not the image."""
+    ax0, ay0, ax1, ay1 = (int(v) for v in a.bbox)
+    bx0, by0, bx1, by1 = (int(v) for v in b.bbox)
+    x0, y0 = max(ax0, bx0, 0), max(ay0, by0, 0)
+    x1, y1 = min(ax1, bx1), min(ay1, by1)
+    small = min(area_a, area_b)
+    if x1 <= x0 or y1 <= y0 or small <= 0:
+        return 0.0
+    ma, mb = a.mask, b.mask
+    if ma is not None and mb is not None and tuple(ma.shape) == tuple(mb.shape):
+        shared = float((ma[y0:y1, x0:x1] & mb[y0:y1, x0:x1]).sum())
+    elif ma is not None:
+        shared = float(ma[y0:y1, x0:x1].sum())
+    elif mb is not None:
+        shared = float(mb[y0:y1, x0:x1].sum())
+    else:
+        shared = float((x1 - x0) * (y1 - y0))
+    return shared / small
 
 
 @dataclass
@@ -100,6 +230,7 @@ class BeliefStore:
         forget_after_s: float | None = None,
         label_agnostic: bool = True,
         extent_frac: float = 0.5,
+        instance_association: bool = True,
     ):
         self._beliefs: list[ObjectBelief] = []
         self._match_radius = match_radius_m
@@ -108,6 +239,10 @@ class BeliefStore:
         self._conf_alpha = conf_alpha
         self._forget_after = forget_after_s
         self._label_agnostic = label_agnostic
+        #: `update_frame` associates a frame's instances with beliefs
+        #: one-to-one; False = per-detection `update()` (pre-2026-10-08,
+        #: `memory.instance_association: false`, the live A/B baseline)
+        self._instance_association = bool(instance_association)
         self._lock = threading.RLock()
         #: named advisory layouts (SceneSnapshot), see `snapshot()`
         self._snapshots: dict[str, SceneSnapshot] = {}
@@ -137,6 +272,9 @@ class BeliefStore:
         told apart this way, but at 8 cm on a tabletop they are touching, and
         merging them is a better failure than inventing duplicates. Pass
         `label_agnostic=False` for the old same-label-only behaviour.
+        (That is the SINGLE-observation rule. A whole camera frame goes
+        through `update_frame`, which keeps two detections of one frame apart
+        when the image shows them side by side.)
 
         `points` should only be passed for REAL segmentation masks (never
         bbox-rectangle fallbacks -- those sweep in table/neighbor pixels and
@@ -144,42 +282,13 @@ class BeliefStore:
         """
         now = time.monotonic() if t is None else t
         position = np.asarray(position, dtype=float).reshape(3)
-        if points is not None:
-            if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
-                from ..perception.cuda_math import remember_cloud
-                points = remember_cloud(points)
-            else:
-                pts = np.asarray(points, dtype=np.float32).reshape(-1, 3)
-                if pts.shape[0] > 384:
-                    idx = np.random.default_rng(0).choice(pts.shape[0], 384, replace=False)
-                    pts = pts[idx]
-                points = pts.copy()
+        points = self._remembered_cloud(points)
         with self._lock:
             best, best_d = None, None
             for b in self._beliefs:
-                if not self._label_agnostic and b.label != label:
+                if not self._may_fuse(b.label, b.color, label, color):
                     continue
-                # Two DIFFERENT confirmed colours are two objects, however
-                # close. Proximity matching exists for label aliases of ONE
-                # object ("cube" vs "hassock"); it must not fuse two small
-                # props that sit inside the 8 cm gate. Measured on the
-                # two-cube MuJoCo scene (3.5 cm cubes, 5.8 cm apart): the
-                # blue cube was absorbed into the red belief, count_objects
-                # said 1, and the merged position sat one cube-width off
-                # physics truth. Colour comes from the HSV classifier on the
-                # mask, so it is a measurement, not a label.
-                if color is not None and b.color is not None and b.color != color:
-                    continue
-                # A big object's centre estimate wanders further between
-                # frames than a small one's: two views of a 30 cm bin can
-                # disagree by 8 cm while two 5 cm cubes that far apart are
-                # genuinely different objects. Scaling the gate by the
-                # object's own measured size keeps this honest instead of
-                # tuning one radius to whatever is on the table today.
-                radius = self._match_radius
-                for e in (b.extent, extent):
-                    if e is not None:
-                        radius = max(radius, self._extent_frac * float(np.max(e)))
+                radius = self._fusion_radius(b.extent, extent)
                 d = float(np.linalg.norm(b.position - position))
                 if d < radius and (best_d is None or d < best_d):
                     best, best_d = b, d
@@ -191,29 +300,238 @@ class BeliefStore:
                 )
                 self._beliefs.append(best)
                 return best
-            a = self._pos_alpha
-            best.position = (1 - a) * best.position + a * position
-            # Decide the name BEFORE conf is smoothed, so the comparison is
-            # this observation against the belief as it stood.
-            if label != best.label:
-                if conf > best.conf:
-                    best.aliases.add(best.label)
-                    best.label = label
-                else:
-                    best.aliases.add(label)
-                best.aliases.discard(best.label)
-            best.conf = (1 - self._conf_alpha) * best.conf + self._conf_alpha * conf
-            if extent is not None:
-                best.extent = extent
-            if top_z is not None:
-                best.top_z = top_z
-            if color is not None:
-                best.color = color
-            if points is not None:
-                best.points = points
-            best.last_seen_t = now
-            best.observations += 1
+            self._fuse(best, label, position, conf, extent, top_z, color, points, now)
             return best
+
+    # ── the fusion gate and the fusion step, shared by update/update_frame ──
+
+    @staticmethod
+    def _remembered_cloud(points):
+        """The <=384-point copy of a REAL-mask cloud that a belief keeps."""
+        if points is None:
+            return None
+        if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+            from ..perception.cuda_math import remember_cloud
+            return remember_cloud(points)
+        pts = np.asarray(points, dtype=np.float32).reshape(-1, 3)
+        if pts.shape[0] > 384:
+            idx = np.random.default_rng(0).choice(pts.shape[0], 384, replace=False)
+            pts = pts[idx]
+        return pts.copy()
+
+    def _may_fuse(self, label_a: str, color_a: str | None,
+                  label_b: str, color_b: str | None) -> bool:
+        """Identity gate: could these two be the same object at all?"""
+        if not self._label_agnostic and label_a != label_b:
+            return False
+        # Two DIFFERENT confirmed colours are two objects, however
+        # close. Proximity matching exists for label aliases of ONE
+        # object ("cube" vs "hassock"); it must not fuse two small
+        # props that sit inside the 8 cm gate. Measured on the
+        # two-cube MuJoCo scene (3.5 cm cubes, 5.8 cm apart): the
+        # blue cube was absorbed into the red belief, count_objects
+        # said 1, and the merged position sat one cube-width off
+        # physics truth. Colour comes from the HSV classifier on the
+        # mask, so it is a measurement, not a label.
+        return not (color_a is not None and color_b is not None and color_a != color_b)
+
+    def _fusion_radius(self, extent_a, extent_b) -> float:
+        # A big object's centre estimate wanders further between
+        # frames than a small one's: two views of a 30 cm bin can
+        # disagree by 8 cm while two 5 cm cubes that far apart are
+        # genuinely different objects. Scaling the gate by the
+        # object's own measured size keeps this honest instead of
+        # tuning one radius to whatever is on the table today.
+        radius = self._match_radius
+        for e in (extent_a, extent_b):
+            if e is not None:
+                radius = max(radius, self._extent_frac * float(np.max(e)))
+        return radius
+
+    def _fuse(self, best: ObjectBelief, label, position, conf, extent, top_z,
+              color, points, now, *, aliases=(), reanchor: bool = False) -> None:
+        a = 1.0 if reanchor else self._pos_alpha
+        best.position = (1 - a) * best.position + a * position
+        # Decide the name BEFORE conf is smoothed, so the comparison is
+        # this observation against the belief as it stood.
+        if label != best.label:
+            if conf > best.conf:
+                best.aliases.add(best.label)
+                best.label = label
+            else:
+                best.aliases.add(label)
+            best.aliases.discard(best.label)
+        for name in aliases:  # the frame's other names for this instance
+            if name != best.label:
+                best.aliases.add(name)
+        best.conf = (1 - self._conf_alpha) * best.conf + self._conf_alpha * conf
+        if extent is not None:
+            best.extent = extent
+        if top_z is not None:
+            best.top_z = top_z
+        if color is not None:
+            best.color = color
+        if points is not None:
+            best.points = points
+        best.last_seen_t = now
+        best.observations += 1
+
+    # ── one camera frame at a time (instance-level association) ─────────
+
+    def update_frame(self, observations, t: float | None = None) -> list[ObjectBelief]:
+        """Fuse ALL detections of ONE camera frame; returns, per observation
+        and in input order, the belief it was fused into.
+
+        `update()` per detection let the SECOND detection of a frame match
+        the belief the FIRST had just created or moved: two identical red
+        cubes 5 cm apart became one belief at an EMA blend of both, inside
+        the 8 cm gate that exists for label aliases of ONE object (backlog
+        B31, ARCHITECTURE "Known limitations"). A frame is now associated as
+        a whole:
+
+        1. its detections are grouped into INSTANCES: two detections are one
+           object only if they share image support (`SAME_INSTANCE_OVERLAP`:
+           an open-vocabulary second name, a part inside its whole) AND pass
+           the store's own gate (label rule, colour rule, size-scaled
+           radius); an instance never joins two measured colours;
+        2. instances and beliefs are matched ONE-TO-ONE by a min-cost
+           assignment on 3D distance inside the same gates, a new object
+           costing the instance's gate radius. Two instances of one frame
+           never claim one belief, twins that move together do not swap
+           (greedy nearest-first would), and a lone detection still goes to
+           the nearest belief inside the gate, exactly as in `update()`;
+        3. an unmatched instance becomes a new belief; an unmatched belief is
+           not touched (occlusion / object permanence unchanged). A matched
+           belief that a NEW instance of the same frame could also have
+           taken was carrying two objects (or is being joined by one): it is
+           re-anchored on its own instance rather than EMA-blended with a
+           position that may be a midpoint.
+
+        A multi-detection instance takes its geometry from its largest image
+        support (the whole, not the part), its name by the `update()` rule
+        (the frame's most confident name competes with the belief's; every
+        other name becomes an alias), and counts as ONE observation.
+
+        Not fixable here: a detector that returns two objects as ONE
+        detection (the mock detector's one blob per colour, a box drawn
+        around both) hands the store one instance. `instance_association=
+        False` restores per-detection `update()` for a live A/B.
+        """
+        now = time.monotonic() if t is None else t
+        obs = list(observations)
+        if not self._instance_association:
+            return [
+                self.update(o.label, o.position, o.conf, extent=o.extent, top_z=o.top_z,
+                            t=now, color=o.color, points=o.points)
+                for o in obs
+            ]
+        if not obs:
+            return []
+        pos = [np.asarray(o.position, dtype=float).reshape(3) for o in obs]
+        groups = self._frame_instances(obs, pos)
+        named = []
+        for g in groups:
+            head = max(g, key=lambda q: float(obs[q].conf))  # first max: anchor wins ties
+            colour = next((obs[q].color for q in g if obs[q].color is not None), None)
+            cloud = next((obs[q].points for q in g if obs[q].points is not None), None)
+            named.append((obs[head].label, float(obs[head].conf), colour,
+                          self._remembered_cloud(cloud), [obs[q].label for q in g]))
+        out: list = [None] * len(obs)
+        with self._lock:
+            beliefs = list(self._beliefs)
+            feasible: list[list[tuple[int, float, float]]] = []
+            for g, (label, _, colour, _, _) in zip(groups, named):
+                k = g[0]
+                row = []
+                for j, b in enumerate(beliefs):
+                    if not self._may_fuse(b.label, b.color, label, colour):
+                        continue
+                    radius = self._fusion_radius(b.extent, obs[k].extent)
+                    d = float(np.linalg.norm(b.position - pos[k]))
+                    if d < radius:
+                        row.append((j, d, radius))
+                feasible.append(row)
+            cols = sorted({j for row in feasible for j, _, _ in row})
+            col_of = {j: c for c, j in enumerate(cols)}
+            n, m = len(groups), len(cols)
+            cost = np.full((n, m + n), _FORBIDDEN)
+            for i, row in enumerate(feasible):
+                cost[i, m:] = max((r for _, _, r in row), default=self._match_radius)
+                for j, d, _ in row:
+                    cost[i, col_of[j]] = d
+            assign = _min_cost_assignment(cost)
+            matched = {i: cols[c] for i, c in enumerate(assign) if c < m}
+            contested = {j for i, row in enumerate(feasible) if i not in matched
+                         for j, _, _ in row}
+            born = []
+            for i, g in enumerate(groups):
+                k = g[0]
+                label, conf, colour, cloud, names = named[i]
+                if i in matched:
+                    b = beliefs[matched[i]]
+                    self._fuse(b, label, pos[k], conf, obs[k].extent, obs[k].top_z,
+                               colour, cloud, now, aliases=names,
+                               reanchor=matched[i] in contested)
+                else:
+                    b = ObjectBelief(
+                        label=label, position=pos[k], extent=obs[k].extent,
+                        top_z=obs[k].top_z, conf=conf, color=colour, points=cloud,
+                        aliases={x for x in names if x != label},
+                        last_seen_t=now, first_seen_t=now,
+                    )
+                    born.append(b)
+                for q in g:
+                    out[q] = b
+            self._beliefs.extend(born)
+        return out
+
+    def _frame_instances(self, obs: list[FrameObservation], pos) -> list[list[int]]:
+        """Group one frame's observations into instances (see update_frame).
+
+        Union-find over pairs that share image support and pass the gate,
+        strongest overlap first; a merge that would join two measured colours
+        is refused. Each group lists its anchor (largest support, then most
+        confident) first; groups come in input order.
+        """
+        n = len(obs)
+        area = [(_support_area(o) if o.bbox is not None else 0.0) for o in obs]
+        edges = []
+        for i in range(n):
+            if area[i] <= 0:
+                continue
+            for j in range(i + 1, n):
+                if area[j] <= 0:
+                    continue
+                if not self._may_fuse(obs[i].label, obs[i].color, obs[j].label, obs[j].color):
+                    continue
+                if float(np.linalg.norm(pos[i] - pos[j])) >= self._fusion_radius(
+                        obs[i].extent, obs[j].extent):
+                    continue
+                overlap = _support_overlap(obs[i], obs[j], area[i], area[j])
+                if overlap >= SAME_INSTANCE_OVERLAP:
+                    edges.append((-overlap, i, j))
+        root = list(range(n))
+        colours = [{o.color} - {None} for o in obs]
+
+        def find(x: int) -> int:
+            while root[x] != x:
+                root[x] = root[root[x]]
+                x = root[x]
+            return x
+
+        for _, i, j in sorted(edges):
+            ri, rj = find(i), find(j)
+            if ri == rj or len(colours[ri] | colours[rj]) > 1:
+                continue
+            root[rj] = ri
+            colours[ri] |= colours[rj]
+        groups: dict[int, list[int]] = {}
+        for i in range(n):
+            groups.setdefault(find(i), []).append(i)
+        out = [sorted(g, key=lambda q: (-area[q], -float(obs[q].conf), q))
+               for g in groups.values()]
+        out.sort(key=min)
+        return out
 
     def clear(self) -> int:
         """Forget every object (scene reset). Returns how many were dropped.

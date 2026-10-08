@@ -191,7 +191,12 @@ chat command ("pick and place the red cube")
   memory fallback. Fusion pauses during `_MOTION_SKILLS` (the
   held object must not be re-fused mid-air). Two observations with
   DIFFERENT measured colours are two objects however close; proximity
-  fusion (8 cm) is for label aliases of one object.
+  fusion (8 cm) is for label aliases of one object. A camera frame is
+  fused as a whole (`BeliefStore.update_frame`, 2026-10-08): detections
+  that share image support (an open-vocabulary second name, a part inside
+  its whole) are one instance, and instances are matched to beliefs
+  one-to-one by a min-cost assignment inside the same gates, so two
+  identical props the detector sees as two stay two beliefs.
 - **Detector preparation.** The open-world and prompted YOLO models remain
   resident, with up to eight successful text-embedding vocabularies retained
   in LRU order. This adds model residency while avoiding checkpoint and text
@@ -757,8 +762,24 @@ the CLI is logged in.
 
 ## Known limitations
 
-- Same-colour identical objects closer than 8 cm can blur into one belief
-  (different colours never do).
+- Same-colour identical objects: since 2026-10-08 a camera frame is fused as
+  a whole (`BeliefStore.update_frame`, instance-level association), so two
+  identical props the DETECTOR returns as two detections stay two beliefs
+  inside the old 8 cm gate, each as accurate as that prop alone (rendered
+  MuJoCo twins against physics truth, `scripts/measure_same_colour_sweep.py`:
+  top view resolved from 3.75 cm centre distance, the per-detection store
+  merged every pair below 8 cm). Still one belief: props the detector returns
+  as ONE detection — touching props, props that overlap in the image (the
+  oblique probe view up to 5.5–7.0 cm), the default mock detector's one blob
+  per colour at any distance (`instances: true` is opt-in), one detection
+  drawn around both. New failure mode to watch: two disjoint detections of
+  ONE object with no whole detection (a lid and a handle alone) are now two
+  beliefs. Live on Isaac (6.2 PhysX, YOLOE, both demo cameras; see
+  `docs/evidence/b31-isaac-same-colour-20261008/`): identical twins 5–9 cm
+  apart were two beliefs in 9/10 runs (old store: 0/10), and the
+  open-vocabulary 3-prop scene scores the same with either store
+  (`memory.instance_association: false` stays the A/B switch). Different
+  colours never fuse.
 - Grip force is a stiffness proxy (kp scaling + stall detection), not a
   calibrated force loop.
 - `RebotRSArm.disconnect()` cuts torque: park (`move_home`) first.

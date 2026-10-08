@@ -33,6 +33,7 @@ from .freshness import capture_marker, frames_after_reset, newer_capture
 from .grounding import Extrinsics, mask_to_points_cam, oriented_bbox
 from .thread_join import cancel_stop_before_exit, join_thread, stop_before_exit
 from .workspace import WorkspaceFilter
+from ..memory.beliefs import FrameObservation
 from ..types import Frame, transform_points
 
 
@@ -308,7 +309,7 @@ class WorldWatcher:
         with self._pause_lock:
             if not self._fusion_allowed(cam, frame, epoch):
                 return
-        fused = 0
+        observations = []
         for d in dets:
             if d.label in self._ignore:
                 continue
@@ -333,19 +334,26 @@ class WorldWatcher:
             )
             if why is not None:
                 continue  # scenery, the robot itself, or out of reach
-            color = detection_color(frame.rgb, d)
-            with self._pause_lock:
-                if not self._fusion_allowed(cam, frame, epoch):
-                    return
-                self._beliefs.update(
-                    d.label, center, d.conf, extent=extents,
-                    top_z=float(pts_base[:, 2].max()), t=frame.t,
-                    color=color,
-                    points=pts_base if d.mask is not None else None,
-                )
-            fused += 1
-        if fused:
-            self.last_update_t = time.monotonic()
+            observations.append(FrameObservation(
+                d.label, center, d.conf, extent=extents,
+                top_z=float(pts_base[:, 2].max()),
+                color=detection_color(frame.rgb, d),
+                points=pts_base if d.mask is not None else None,
+                bbox=getattr(d, "bbox", None), mask=d.mask,
+            ))
+        if not observations:
+            return
+        # ONE commit per frame: the store associates this frame's instances
+        # with beliefs one-to-one. Fusing detection by detection let the
+        # second of two identical cubes 5 cm apart match the belief the first
+        # had just written (memory/beliefs.py `update_frame`). The pause
+        # check stays immediately before the commit, so a frame is fused
+        # whole or not at all.
+        with self._pause_lock:
+            if not self._fusion_allowed(cam, frame, epoch):
+                return
+            self._beliefs.update_frame(observations, t=frame.t)
+        self.last_update_t = time.monotonic()
 
     def stats(self) -> dict:
         return {

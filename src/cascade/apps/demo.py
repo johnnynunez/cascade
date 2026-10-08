@@ -407,14 +407,18 @@ def build_runtime(
         horizon_s=float(cfg.memory.get("horizon_s", 15.0)),
         frame_horizon_s=float(cfg.memory.get("frames_horizon_s", 600.0)),
     )
-    beliefs = BeliefStore()
+    mcfg = cfg.get("memory", _empty_cfg())
+    # Instance-level association (2026-10-08): a camera frame's detections
+    # are matched to beliefs one-to-one, so two identical props inside the
+    # 8 cm gate stay two beliefs. `memory.instance_association: false` is the
+    # per-detection baseline for a live A/B (memory/beliefs.py update_frame).
+    beliefs = BeliefStore(instance_association=_instance_association_enabled(mcfg))
     # Persistent spatial memory (ROADMAP item): the world model survives a
     # restart, so the robot does not re-discover a table it already mapped and
     # can answer "where was the mug" on a cold boot. Everything loaded is aged
     # past the visible horizon, so it reads as `remembered` -- the agent is
     # never told it can SEE something it has not looked at this session.
     # Disable with `memory.persist_beliefs: false` (or CASCADE_BELIEFS=0).
-    mcfg = cfg.get("memory", _empty_cfg())
     beliefs_path = None
     if _beliefs_persist_enabled(mcfg):
         beliefs_path = Path(
@@ -828,6 +832,15 @@ def _beliefs_persist_enabled(mcfg) -> bool:
     return bool(mcfg.get("persist_beliefs", True))
 
 
+def _instance_association_enabled(mcfg) -> bool:
+    """`memory.instance_association` (default true). A YAML string such as
+    "false" is honoured as false rather than read as a truthy string."""
+    value = mcfg.get("instance_association", True)
+    if isinstance(value, str):
+        return value.strip().lower() not in ("0", "false", "no", "off")
+    return bool(value)
+
+
 def _premotion_critic(cfg, llm, runtime, is_mock: bool):
     """ROADMAP follow-up #6: the Human-CLAW pre-motion plausibility critic.
 
@@ -888,7 +901,8 @@ def _make_detector(cfg):
             str(e.get("label") or f"{e.get('color', 'blue')} cube")
             for e in (cfg.camera.get("extra_props") or [])
         ]
-        return MockDetector(label=dcfg.get("label", "red cube"), extra_labels=extra)
+        return MockDetector(label=dcfg.get("label", "red cube"), extra_labels=extra,
+                            instances=bool(dcfg.get("instances", False)))
     if dcfg.type == "vlm":
         # Full-VLM perception (cosmos3-edge or any OpenAI-compatible vision
         # server): no YOLOE, no ultralytics import. ~1-3 s per pass on a

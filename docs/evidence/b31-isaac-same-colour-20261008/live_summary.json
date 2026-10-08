@@ -1,0 +1,700 @@
+[
+ {
+  "file": "default_instance_1.json",
+  "association": "instance",
+  "twin_sep_m": null,
+  "counts_per_frame": [
+   3,
+   3,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5
+  ],
+  "precision": 0.8214,
+  "recall": 1.0,
+  "phantom_rate": 0.1786
+ },
+ {
+  "file": "default_instance_2.json",
+  "association": "instance",
+  "twin_sep_m": null,
+  "counts_per_frame": [
+   3,
+   3,
+   4,
+   4,
+   4,
+   4,
+   4,
+   5,
+   5,
+   5,
+   5,
+   5
+  ],
+  "precision": 0.8039,
+  "recall": 1.0,
+  "phantom_rate": 0.1961
+ },
+ {
+  "file": "default_legacy_1.json",
+  "association": "legacy",
+  "twin_sep_m": null,
+  "counts_per_frame": [
+   3,
+   3,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5
+  ],
+  "precision": 0.8214,
+  "recall": 1.0,
+  "phantom_rate": 0.1786
+ },
+ {
+  "file": "default_legacy_2.json",
+  "association": "legacy",
+  "twin_sep_m": null,
+  "counts_per_frame": [
+   3,
+   3,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5
+  ],
+  "precision": 0.8214,
+  "recall": 1.0,
+  "phantom_rate": 0.1786
+ },
+ {
+  "file": "sweep2_0.05_instance.json",
+  "association": "instance",
+  "twin_sep_m": 0.05,
+  "counts_per_frame": [
+   2,
+   2,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5
+  ],
+  "precision": 0.8235,
+  "recall": 0.9167,
+  "phantom_rate": 0.1765,
+  "dets_on_twins": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "beliefs_near_twins": [
+   2,
+   2,
+   2,
+   2
+  ],
+  "twin_err_m_max": 0.0145,
+  "twin_err_m_mean": 0.0097
+ },
+ {
+  "file": "sweep2_0.05_legacy.json",
+  "association": "legacy",
+  "twin_sep_m": 0.05,
+  "counts_per_frame": [
+   2,
+   2,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4
+  ],
+  "precision": 0.7857,
+  "recall": 0.6667,
+  "phantom_rate": 0.2143,
+  "dets_on_twins": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "beliefs_near_twins": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "twin_err_m_max": 0.0407,
+  "twin_err_m_mean": 0.0336
+ },
+ {
+  "file": "sweep2_0.06_instance.json",
+  "association": "instance",
+  "twin_sep_m": 0.06,
+  "counts_per_frame": [
+   3,
+   3,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5
+  ],
+  "precision": 0.8333,
+  "recall": 1.0,
+  "phantom_rate": 0.1667,
+  "dets_on_twins": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "beliefs_near_twins": [
+   2,
+   2,
+   2,
+   2
+  ],
+  "twin_err_m_max": 0.0262,
+  "twin_err_m_mean": 0.0136
+ },
+ {
+  "file": "sweep2_0.06_legacy.json",
+  "association": "legacy",
+  "twin_sep_m": 0.06,
+  "counts_per_frame": [
+   2,
+   2,
+   3,
+   3,
+   3,
+   3,
+   4,
+   4
+  ],
+  "precision": 0.75,
+  "recall": 0.6667,
+  "phantom_rate": 0.25,
+  "dets_on_twins": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "beliefs_near_twins": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "twin_err_m_max": 0.041,
+  "twin_err_m_mean": 0.0338
+ },
+ {
+  "file": "sweep2_0.07_instance.json",
+  "association": "instance",
+  "twin_sep_m": 0.07,
+  "counts_per_frame": [
+   2,
+   2,
+   4,
+   4,
+   5,
+   5,
+   5,
+   5
+  ],
+  "precision": 0.8125,
+  "recall": 0.8333,
+  "phantom_rate": 0.1875,
+  "dets_on_twins": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "beliefs_near_twins": [
+   2,
+   2,
+   2,
+   2
+  ],
+  "twin_err_m_max": 0.0305,
+  "twin_err_m_mean": 0.0198
+ },
+ {
+  "file": "sweep2_0.07_legacy.json",
+  "association": "legacy",
+  "twin_sep_m": 0.07,
+  "counts_per_frame": [
+   2,
+   2,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4
+  ],
+  "precision": 0.7857,
+  "recall": 0.6667,
+  "phantom_rate": 0.2143,
+  "dets_on_twins": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "beliefs_near_twins": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "twin_err_m_max": 0.0371,
+  "twin_err_m_mean": 0.0337
+ },
+ {
+  "file": "sweep3_0.06_instance_r1.json",
+  "association": "instance",
+  "twin_sep_m": 0.06,
+  "counts_per_frame": [
+   3,
+   3,
+   4,
+   4,
+   4,
+   4,
+   5,
+   5
+  ],
+  "precision": 0.9375,
+  "recall": 1.0,
+  "phantom_rate": 0.0625,
+  "dets_on_twins": [
+   3,
+   2,
+   3,
+   3
+  ],
+  "beliefs_near_twins": [
+   2,
+   2,
+   2,
+   2
+  ],
+  "twin_err_m_max": 0.0268,
+  "twin_err_m_mean": 0.016
+ },
+ {
+  "file": "sweep3_0.06_instance_r2.json",
+  "association": "instance",
+  "twin_sep_m": 0.06,
+  "counts_per_frame": [
+   3,
+   3,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5
+  ],
+  "precision": 0.8333,
+  "recall": 1.0,
+  "phantom_rate": 0.1667,
+  "dets_on_twins": [
+   3,
+   3,
+   3,
+   3
+  ],
+  "beliefs_near_twins": [
+   2,
+   2,
+   2,
+   2
+  ],
+  "twin_err_m_max": 0.0286,
+  "twin_err_m_mean": 0.0185
+ },
+ {
+  "file": "sweep3_0.06_legacy_r1.json",
+  "association": "legacy",
+  "twin_sep_m": 0.06,
+  "counts_per_frame": [
+   2,
+   2,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4
+  ],
+  "precision": 0.7857,
+  "recall": 0.6667,
+  "phantom_rate": 0.2143,
+  "dets_on_twins": [
+   3,
+   2,
+   2,
+   3
+  ],
+  "beliefs_near_twins": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "twin_err_m_max": 0.041,
+  "twin_err_m_mean": 0.0338
+ },
+ {
+  "file": "sweep3_0.06_legacy_r2.json",
+  "association": "legacy",
+  "twin_sep_m": 0.06,
+  "counts_per_frame": [
+   2,
+   2,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4
+  ],
+  "precision": 0.6429,
+  "recall": 0.6667,
+  "phantom_rate": 0.3571,
+  "dets_on_twins": [
+   2,
+   2,
+   3,
+   2
+  ],
+  "beliefs_near_twins": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "twin_err_m_max": 0.044,
+  "twin_err_m_mean": 0.0328
+ },
+ {
+  "file": "sweep3_0.08_instance_r1.json",
+  "association": "instance",
+  "twin_sep_m": 0.08,
+  "counts_per_frame": [
+   3,
+   3,
+   4,
+   4,
+   4,
+   4,
+   5,
+   5
+  ],
+  "precision": 0.75,
+  "recall": 1.0,
+  "phantom_rate": 0.25,
+  "dets_on_twins": [
+   3,
+   3,
+   3,
+   3
+  ],
+  "beliefs_near_twins": [
+   2,
+   2,
+   2,
+   2
+  ],
+  "twin_err_m_max": 0.0297,
+  "twin_err_m_mean": 0.0197
+ },
+ {
+  "file": "sweep3_0.08_instance_r2.json",
+  "association": "instance",
+  "twin_sep_m": 0.08,
+  "counts_per_frame": [
+   3,
+   3,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5
+  ],
+  "precision": 0.8333,
+  "recall": 1.0,
+  "phantom_rate": 0.1667,
+  "dets_on_twins": [
+   3,
+   2,
+   2,
+   2
+  ],
+  "beliefs_near_twins": [
+   2,
+   2,
+   2,
+   2
+  ],
+  "twin_err_m_max": 0.0158,
+  "twin_err_m_mean": 0.0106
+ },
+ {
+  "file": "sweep3_0.08_legacy_r1.json",
+  "association": "legacy",
+  "twin_sep_m": 0.08,
+  "counts_per_frame": [
+   2,
+   2,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4
+  ],
+  "precision": 0.7857,
+  "recall": 0.6667,
+  "phantom_rate": 0.2143,
+  "dets_on_twins": [
+   3,
+   2,
+   3,
+   3
+  ],
+  "beliefs_near_twins": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "twin_err_m_max": 0.0391,
+  "twin_err_m_mean": 0.0331
+ },
+ {
+  "file": "sweep3_0.08_legacy_r2.json",
+  "association": "legacy",
+  "twin_sep_m": 0.08,
+  "counts_per_frame": [
+   2,
+   2,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4
+  ],
+  "precision": 0.6429,
+  "recall": 0.6667,
+  "phantom_rate": 0.3571,
+  "dets_on_twins": [
+   2,
+   2,
+   2,
+   2
+  ],
+  "beliefs_near_twins": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "twin_err_m_max": 0.0438,
+  "twin_err_m_mean": 0.0337
+ },
+ {
+  "file": "twins_0.06_instance.json",
+  "association": "instance",
+  "twin_sep_m": 0.06,
+  "counts_per_frame": [
+   2,
+   2,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4
+  ],
+  "precision": 0.7857,
+  "recall": 0.6667,
+  "phantom_rate": 0.2143,
+  "dets_on_twins": null,
+  "beliefs_near_twins": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "twin_err_m_max": 0.0339,
+  "twin_err_m_mean": 0.0294
+ },
+ {
+  "file": "twins_0.06_legacy.json",
+  "association": "legacy",
+  "twin_sep_m": 0.06,
+  "counts_per_frame": [
+   2,
+   2,
+   3,
+   3,
+   3,
+   3,
+   4,
+   4
+  ],
+  "precision": 0.75,
+  "recall": 0.6667,
+  "phantom_rate": 0.25,
+  "dets_on_twins": null,
+  "beliefs_near_twins": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "twin_err_m_max": 0.0346,
+  "twin_err_m_mean": 0.0303
+ },
+ {
+  "file": "twins_0.07_instance.json",
+  "association": "instance",
+  "twin_sep_m": 0.07,
+  "counts_per_frame": [
+   2,
+   3,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5
+  ],
+  "precision": 0.8286,
+  "recall": 0.9583,
+  "phantom_rate": 0.1714,
+  "dets_on_twins": null,
+  "beliefs_near_twins": [
+   2,
+   2,
+   2,
+   2
+  ],
+  "twin_err_m_max": 0.0144,
+  "twin_err_m_mean": 0.0111
+ },
+ {
+  "file": "twins_0.07_legacy.json",
+  "association": "legacy",
+  "twin_sep_m": 0.07,
+  "counts_per_frame": [
+   2,
+   2,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4
+  ],
+  "precision": 0.7857,
+  "recall": 0.6667,
+  "phantom_rate": 0.2143,
+  "dets_on_twins": null,
+  "beliefs_near_twins": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "twin_err_m_max": 0.0434,
+  "twin_err_m_mean": 0.0333
+ },
+ {
+  "file": "twins_0.09_instance.json",
+  "association": "instance",
+  "twin_sep_m": 0.09,
+  "counts_per_frame": [
+   3,
+   3,
+   5,
+   5,
+   5,
+   5,
+   5,
+   5
+  ],
+  "precision": 0.8333,
+  "recall": 1.0,
+  "phantom_rate": 0.1667,
+  "dets_on_twins": null,
+  "beliefs_near_twins": [
+   2,
+   2,
+   2,
+   2
+  ],
+  "twin_err_m_max": 0.0169,
+  "twin_err_m_mean": 0.0068
+ },
+ {
+  "file": "twins_0.09_legacy.json",
+  "association": "legacy",
+  "twin_sep_m": 0.09,
+  "counts_per_frame": [
+   2,
+   2,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4
+  ],
+  "precision": 0.6429,
+  "recall": 0.6667,
+  "phantom_rate": 0.3571,
+  "dets_on_twins": null,
+  "beliefs_near_twins": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "twin_err_m_max": 0.0485,
+  "twin_err_m_mean": 0.0372
+ }
+]

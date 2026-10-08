@@ -144,5 +144,11 @@ profile runs a second instance with `--api-key-file`.
 
 ## Status
 
-See the dated entry in [ROADMAP](ROADMAP.md) and the evidence directory linked
-there for what was measured on the x86 host.
+Measured on the x86 rig on Isaac Sim (8 Oct 2026,
+[evidence](evidence/b35-nemoclaw-openshell-20261008/REPORT.md)): a sandboxed
+OpenClaw agent ran a physics-confirmed `pick_and_place` (≈74 s, no cancel)
+followed by a verified `reset_scene` in the same session, 2 of 3 fresh stages;
+host-direct calls to the same server 1 of 3. Every failure signature also
+occurs without the sandbox (pick reliability on this rig, a separate item).
+Not yet: the kitchen proof cases, `demo_proof.py` on this route, the Spark.
+See the dated entry in [ROADMAP](ROADMAP.md).

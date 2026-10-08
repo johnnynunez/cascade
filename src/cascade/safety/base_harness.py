@@ -158,17 +158,41 @@ class SafeBase:
             raise ValueError("distance control attitude bounds must be unambiguous and upright")
         return MappingProxyType(result)
 
-    @staticmethod
-    def _turn_config(value):
+    def _turn_config(self, value):
         if value is None:
             return None
         keys = {"max_translation_path_m", "min_height_m", "max_tilt_rad"}
-        if not isinstance(value, dict) or set(value) != keys:
+        # ``goal_ramp`` is the one optional key (opt-in, profile-scoped); every
+        # other field remains the exact explicit contract.
+        if not isinstance(value, dict) or not keys <= set(value) <= keys | {"goal_ramp"}:
             raise ValueError("turn_control requires the exact explicit contract")
-        result = {k: finite_real(v, k) for k, v in value.items()}
+        result: dict = {k: finite_real(v, k) for k, v in value.items() if k != "goal_ramp"}
         if any(v <= 0 for v in result.values()) or result["max_tilt_rad"] >= math.pi / 2:
             raise ValueError("turn control bounds must be positive and upright")
+        if "goal_ramp" in value:
+            # An explicit null keeps the ramp OFF, so an ``extends:`` child can A/B it away.
+            result["goal_ramp"] = self._goal_ramp_config(value["goal_ramp"])
         return MappingProxyType(result)
+
+    def _goal_ramp_config(self, value):
+        """Deceleration of the ADMITTED turn rate before the goal; never above it."""
+        if value is None:
+            return None
+        keys = {"decel_rad_s2", "min_rate_rad_s", "rate_step_rad_s"}
+        if not isinstance(value, dict) or set(value) != keys:
+            raise ValueError("turn_control.goal_ramp requires exactly " + ", ".join(sorted(keys)))
+        ramp = {k: finite_real(v, k) for k, v in value.items()}
+        if any(v <= 0 for v in ramp.values()):
+            raise ValueError("goal ramp values must be positive")
+        top = self.harness.limits["turn_speed_rad_s"]
+        if not ramp["min_rate_rad_s"] < top:
+            raise ValueError("goal ramp floor must stay below the admitted turn speed")
+        if ramp["rate_step_rad_s"] > top - ramp["min_rate_rad_s"]:
+            raise ValueError("goal ramp rate step exceeds the whole ramp")
+        return MappingProxyType(ramp)
+
+    def _goal_ramp(self):
+        return None if self.turn_control is None else self.turn_control.get("goal_ramp")
 
     def _distance_state(self, state, *, require_load=False):
         self._geometric_state(state, self.distance_control, "distance", require_load=require_load)
@@ -395,7 +419,14 @@ class SafeBase:
             self.harness.validate_command(command)
         except (TypeError, ValueError) as error:
             return self._result(error=error)
-        result = self._execute(command, angle=angle, admission_check=admission_check)
+        if self._goal_ramp() is not None and getattr(self.raw, "velocity_scaling", False) is not True:
+            # Refused before any read or command: this profile's turn decelerates
+            # inside its admission, and a backend that cannot do that would cut
+            # the full rate to zero at the goal instead (the measured settle fault).
+            result = self._result(error="turn_control.goal_ramp requires backend velocity scaling, "
+                                        "which this backend does not advertise", command=command.as_dict())
+        else:
+            result = self._execute(command, angle=angle, admission_check=admission_check)
         result["requested_angle_rad"] = angle
         result.setdefault("measured_angle_rad", None)  # No feedback is not zero rotation.
         return result
@@ -404,6 +435,33 @@ class SafeBase:
     def _yaw(state):
         w, x, y, z = state.orientation_wxyz
         return math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+
+    def _ramp_turn(self, op, ramp, state, remaining, rate, ack, updates):
+        """Lower the ADMITTED turn rate on the measured remaining yaw; never raise it.
+
+        ``|wz| = max(min_rate, min(previous, sqrt(2 * decel * (|remaining| - tolerance))))``,
+        sign kept by the admitted command: the deceleration aims at the tolerance
+        boundary where the unchanged zero-twist stop fires, and the floor keeps the
+        robot progressing until then. Only the freshly validated advancing sample in
+        hand is used; nothing is extrapolated between samples, and a stale or missing
+        state has already failed closed in ``_read`` before this runs. A new rate is
+        sent only when it is ``rate_step`` lower (or reaches the floor), inside the same
+        admission: the backend scales the admitted twist, never re-admits or extends it.
+        """
+        limits = self.harness.limits
+        desired = math.sqrt(2 * ramp["decel_rad_s2"] * max(0., abs(remaining) - limits["turn_tolerance_rad"]))
+        target = max(ramp["min_rate_rad_s"], min(rate, desired))
+        if rate - target < ramp["rate_step_rad_s"] and not target == ramp["min_rate_rad_s"] < rate:
+            return rate
+        self._check(op)
+        reply = self.raw.scale_velocity(target / limits["turn_speed_rad_s"], generation=ack["generation"])
+        reply = self._ack(reply, epoch=ack["epoch"], generation=ack["generation"])
+        if reply.get("accepted") is not True or reply["latched"]:
+            raise ValueError("turn rate scaling was not accepted inside the admitted command")
+        updates.append({"step": state.step, "sim_time_s": state.sim_time_s,
+                        "remaining_rad": remaining, "rate_rad_s": target})
+        self._check(op)
+        return target
 
     def _execute(self, command, *, angle=None, distance=None, admission_check=None) -> dict:
         if not self._motion.acquire(blocking=False):
@@ -420,6 +478,11 @@ class SafeBase:
         distance_baseline = None
         turn_baseline = None
         translation_path = 0.
+        # Opt-in (turn_control.goal_ramp): the admitted |wz| only ever decreases.
+        ramp = self._goal_ramp() if angle is not None else None
+        rate = abs(command.wz)
+        rate_updates = []
+        ramped: dict = {"turn_rate_updates": rate_updates} if ramp is not None else {}
         try:
             with self._gate:
                 if self._latched or self._control_ops:
@@ -520,6 +583,8 @@ class SafeBase:
                         break
                     if error * angle < 0:
                         raise ValueError("measured yaw overshot target tolerance")
+                    if ramp is not None:
+                        rate = self._ramp_turn(op, ramp, state, error, rate, ack, rate_updates)
             if angle is not None and abs(angle - measured_angle) > self.harness.limits["turn_tolerance_rad"]:
                 raise ValueError("measured yaw did not reach target before simulation deadline")
             if distance is not None and (measured_distance is None or
@@ -539,7 +604,8 @@ class SafeBase:
                                    if distance is not None else {}),
                                 **({"requested_angle_rad": angle, "measured_angle_rad": measured_angle,
                                     "measured_translation_path_m": translation_path}
-                                   if angle is not None else {}))
+                                   if angle is not None else {}),
+                                **({**ramped, "commanded_rate_at_stop_rad_s": rate} if ramped else {}))
         except _Cancelled as error:
             # Backend generation handles a command crossing the stop boundary.
             return self._result(samples=samples, command=command.as_dict(), error=error,
@@ -549,7 +615,8 @@ class SafeBase:
                                     "distance_baseline": distance_baseline.as_dict() if distance_baseline else None}
                                    if distance is not None else {}),
                                 **({"measured_angle_rad": measured_angle,
-                                    "measured_translation_path_m": translation_path} if angle is not None else {}))
+                                    "measured_translation_path_m": translation_path} if angle is not None else {}),
+                                **ramped)
         except Exception as error:
             stop_ack = self.stop(latch=True)
             return self._result(samples=samples, command=command.as_dict(), error=error,
@@ -559,7 +626,8 @@ class SafeBase:
                                     "distance_baseline": distance_baseline.as_dict() if distance_baseline else None}
                                    if distance is not None else {}),
                                 **({"measured_angle_rad": measured_angle,
-                                    "measured_translation_path_m": translation_path} if angle is not None else {}))
+                                    "measured_translation_path_m": translation_path} if angle is not None else {}),
+                                **ramped)
         except BaseException:
             # SIGINT/SystemExit must not leave an admitted command running;
             # invalidate it first, but never swallow process cancellation.

@@ -1,0 +1,114 @@
+{
+ "cells": {
+  "MCP, ramp on 0.8": {
+   "n": 6,
+   "confirmed": 4,
+   "refuted": 2,
+   "timeout": 0,
+   "settle_drift_rad": [
+    0.081,
+    0.0399,
+    0.0246,
+    0.0383,
+    0.0447,
+    0.0686
+   ]
+  },
+  "ramp off 0.6": {
+   "n": 4,
+   "confirmed": 3,
+   "refuted": 1,
+   "timeout": 0,
+   "settle_drift_rad": [
+    0.0253,
+    0.0347,
+    0.0313,
+    0.0774
+   ]
+  },
+  "ramp off 0.8": {
+   "n": 6,
+   "confirmed": 1,
+   "refuted": 5,
+   "timeout": 0,
+   "settle_drift_rad": [
+    0.0666,
+    0.0734,
+    0.0746,
+    0.0226,
+    0.0835,
+    0.0533
+   ]
+  },
+  "ramp off 1.0": {
+   "n": 6,
+   "confirmed": 5,
+   "refuted": 1,
+   "timeout": 0,
+   "settle_drift_rad": [
+    0.0464,
+    0.0451,
+    0.0467,
+    0.0323,
+    0.033,
+    0.0442
+   ]
+  },
+  "ramp on 0.6": {
+   "n": 4,
+   "confirmed": 3,
+   "refuted": 0,
+   "timeout": 1,
+   "settle_drift_rad": [
+    0.0402,
+    0.0218,
+    null,
+    0.0371
+   ]
+  },
+  "ramp on 0.8": {
+   "n": 8,
+   "confirmed": 8,
+   "refuted": 0,
+   "timeout": 0,
+   "settle_drift_rad": [
+    0.0335,
+    0.0291,
+    0.0464,
+    0.0499,
+    0.0316,
+    0.0299,
+    0.044,
+    0.0281
+   ]
+  },
+  "ramp on 1.0": {
+   "n": 5,
+   "confirmed": 1,
+   "refuted": 1,
+   "timeout": 3,
+   "settle_drift_rad": [
+    null,
+    null,
+    0.0295,
+    null,
+    0.0437
+   ]
+  }
+ },
+ "excluded": [
+  "1:R1-4--1.0"
+ ],
+ "stall_then_goal_in_command": {
+  "commanded >= 0.45": {
+   "stalled_turns": 20,
+   "goal_reached_in_command": 17
+  },
+  "commanded < 0.45 (ramp already lowering)": {
+   "stalled_turns": 4,
+   "goal_reached_in_command": 3
+  }
+ },
+ "stall_count": 24,
+ "independent_turns": 39
+}

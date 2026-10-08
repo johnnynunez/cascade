@@ -89,8 +89,117 @@ committed). Inventory with every source checked and every "not found":
   turn is at 0.04 by then). The budget is not inflated further; the next revision is control-side
   (ramp the turn rate down before the goal, or hand over to standing) and will be measured on
   its own. Until then turns ≥ 0.8 rad on the H2 come back `refuted` and the host treats them so.
+- **Candidate revision 3 (same day; owner episodes 8 October — mixed, not admitted):** the turn
+  now decelerates before the goal instead of cutting 0.5 rad/s to zero mid-step
+  ([below](#candidate-revision-3-turn-goal-ramp-software-only-7-october-2026)). CPU tests pin
+  the control law, the in-admission scaling primitive and every fail-closed path. On the owner
+  (39 independent turns, ramp on vs `goal_ramp: null` on the same owner, limits unchanged) the
+  0.8 rad turn now passes the unchanged settle check 8/8 (1/6 without the ramp), but 1.0 rad
+  drops to 1/5 (5/6 without): the ramp's deceleration plus a mid-turn yaw-rate dip of the
+  policy exhaust the unchanged 3 s command ([live result](#live-result-8-october-2026)).
 - **Not shown:** any Newton run; anything on hardware; measured (not candidate) verifier
   limits; `walk_distance` beyond ~0.6 m (bounded by the 3 s command budget, not by the robot).
+
+## Candidate revision 3: turn goal ramp (software only, 7 October 2026)
+
+**Why.** Revision 2 left one refutation: `turn` 0.8 rad, cut from the admitted 0.5 rad/s to
+zero twist at goal arrival. In the geo3-v2 owner rows the one goal-stopped turn that settled
+(MCP 0.6 rad) was cut at ≈0.26 rad/s (0.1 s-mean yaw rate over its last 0.3 s; that turn had
+stalled on the way), the refuted 0.8 rad turn at ≈0.47 rad/s; after the cut the yaw oscillates
+at ≈5 Hz (period 0.16–0.23 s) and the 0.8 rad turn's decays only 0.69 → 0.32 rad/s over 3.75 s
+sim. Settle budget and rest thresholds stay unchanged; the change is on the control side.
+
+**Mechanism** (`SafeBase.turn`, opt-in per profile):
+
+- `turn_control.goal_ramp: {decel_rad_s2, min_rate_rad_s, rate_step_rad_s}` (exact keys;
+  an explicit `null` turns it off for an `extends:` child). On every freshly validated,
+  advancing state after the admitted baseline, with the same unwrapped **measured** yaw that
+  decides goal arrival: `|wz| = max(min_rate, min(previous, sqrt(2·decel·(|remaining| −
+  turn_tolerance))))`, sign of the admitted command. The deceleration aims at the tolerance
+  boundary where the unchanged zero-twist `stop(latch=False)` fires; the rate never rises
+  (a yaw-oscillation dip cannot re-accelerate the robot) and never drops below the floor
+  before that stop. A new rate is sent only when it is `rate_step` lower or reaches the floor.
+  Nothing is extrapolated between samples; a stale or missing state still fails closed
+  (latched stop) before any rate is computed from it.
+- **One admission, scaled inside its envelope**, not a sequence of commands: the bridge
+  refuses a command while one is active, a stop zeroes the twist until the next admission
+  (the very cut being removed), and the unchanged verifier binds a motion to one admission
+  generation G and completion G+1 (`BasePostconditionChecker._admitted_states`), so a
+  multi-admission turn would be `unverified` by construction. The new transport primitive
+  `scale_velocity(scale, generation)` sets `0 < scale ≤ 1` of the ADMITTED twist for the same
+  owner/command_id/epoch/generation; it never admits, extends, renews or replays motion, does
+  not consume the generation, and is refused when latched, faulted, stale, expired,
+  heading-held or inactive. It is opt-in on the bridge (`MobileBridgeController(
+  velocity_scaling=True)`, advertised in `hello.capabilities` only then, so every MicroDuck
+  hello is byte-identical) and on the H2 owner (`--velocity-scaling`). A ramped profile on a
+  backend that does not advertise it is refused before any read or command.
+- Unchanged: every veto (posture/support, 0.35 m translation path, overshoot, the 3 s command
+  and 8 s wall deadlines), the verifier and all its limits, the `turn(angle_rad)` tool, and every
+  other profile — on the toy fixture all 19 shipped-profile skill episodes
+  (`turn`/`walk_velocity`/`walk_distance`) reproduce the pre-change tree exactly except the H2
+  candidate's turn, which does too with `goal_ramp: null`. A ramped result additionally carries
+  `turn_rate_updates` (step, sim time, measured remaining, rate) and
+  `commanded_rate_at_stop_rad_s`.
+
+**Values** (`h2_velocity_candidate`, derivation in the YAML comment): `decel_rad_s2: 0.4`,
+`min_rate_rad_s: 0.15`, `rate_step_rad_s: 0.025`. The floor sits below both measured cut rates
+(≈0.26 settled, ≈0.47 refuted); 0.5 → 0.15 rad/s takes 0.875 s, ≈4 oscillation periods and ≈8×
+the policy's ≈0.11 s response (0.1 s-mean yaw rate at 0.4 rad/s 0.11 s after admission); the
+longest admitted turn (1.0 rad) needs ≈2.38 s of command, ≈2.56 s at the measured 93 % tracking
+(0.465 of 0.5 rad/s) — inside the unchanged 3 s `max_duration_s` (the CPU test drives it through
+the real loop: 2.54 s); at most 14 updates per turn, one per ≈0.06 s sim.
+
+**Cost.** The ramp spends ≈0.4 s more of the unchanged 3 s command than a constant-rate turn
+(toy fixture, 0.8 rad: 1.96 s instead of 1.56 s; 1.0 rad at 93 % tracking: 2.54 s instead of
+2.12 s). A robot tracking much worse than measured — 75 % for 1.0 rad, or the 53 % average of the
+MCP 0.6 rad turn that stalled, for 0.8 rad — completes without the ramp (2.62 s / 2.94 s on the toy)
+but hits the 3 s deadline with it: the existing fail-closed timeout (execution error, latched
+stop), never a larger budget. Each update is one control-channel RPC to an owner running at
+≈0.47× real time.
+
+**Live recipe (run by the parent on GPU 0 on 8 October 2026; result below).**
+
+1. Start the owner from this revision's checkout with the geo3-v2 command line plus
+   `--velocity-scaling`; `BRIDGE_LISTENING.json` → `hello.capabilities` must list
+   `velocity_scaling` (otherwise every ramped turn is refused before motion, by design).
+2. Re-pin the private `bases/h2_episode.yaml` (it `extends: h2_velocity_candidate`, so it
+   inherits `goal_ramp`) from the new `kit/model-identity.json`: the identity changes with this
+   revision because `mobile_bridge.py`, `mobile_base.py` and `isaac_h2_bridge.py` are hashed into it.
+3. Run `turn` 0.8 rad through `RobotRuntime → SafeBase` and through MCP (`CASCADE_ROBOT=h2`),
+   plus −0.8 and 1.0 rad; per turn record the verifier verdict, settle ω and drift (limits
+   unchanged: 0.20 rad/s, 0.05 rad), `turn_rate_updates`, `commanded_rate_at_stop_rad_s`, command
+   time used of the 3 s, and the owner's policy rows (commanded wz 0.5 → 0.15 inside ONE generation).
+4. A/B on the same owner: the 0.8 rad turn from an `extends:` child with `turn_control:
+   {goal_ramp: null}` (revision 2 behaviour).
+
+### Live result (8 October 2026)
+
+[Evidence](evidence/h2-turn-ramp-live-20261008/REPORT.md): every turn, yaw-rate profiles, the
+harness and a SHA-256 manifest of the raw rows. The owner from this revision ran with
+`--velocity-scaling` on GPU 0 (the 6.2 build, PhysX). The ramp-on and `goal_ramp: null` arms
+ran on the same owner, with resolved bases that differ only in `goal_ramp` (checked before any
+motion). 39 independent turns; limits and the 3 s command unchanged.
+
+| angle | ramp on | ramp off |
+| --- | --- | --- |
+| ±0.6 rad | 3/4 (1 timeout) | 3/4 (1 refuted) |
+| ±0.8 rad | **8/8** | 1/6 (5 refuted: settle heading drift 0.053–0.084 rad) |
+| ±1.0 rad | 1/5 (3 timeouts, 1 refuted) | 5/6 |
+| ±0.8 rad through MCP | 4/6 | — |
+
+- **The ramp fixes what it was built for.** The commanded rate is at the 0.15 rad/s floor at
+  every ramped stop, and the 0.8 rad settle drifts are 0.028–0.050 rad. One is at 0.0499, so
+  the margin is thin.
+- **All four timeouts are ramp-on left turns.** The policy's yaw rate dips below 0.2 rad/s
+  around 1.0–1.75 s in 24 of the 39 turns, in both arms. On a 1.0 rad turn, that dip plus the
+  ramp's deceleration no longer fit in the 3 s command. Without the ramp, all six 1.0 rad turns
+  came within tolerance at 2.21–2.43 s.
+- **1.0 rad turns sit at the translation limit in both arms.** The verifier path is
+  0.166–0.227 m against `max_lateral_drift_m` 0.20 m, and both −1.0 rad refutations are
+  "unrequested translation during turn".
+- **Verdict: not admitted.** Nothing was retuned after the measurement. The next control
+  revision will be designed and measured on its own: either a ramp that budgets the command time
+  left, or one that holds the rate through a dip.
 
 ## Owner architecture (to build; mirrors the MicroDuck shared owner)
 
@@ -156,3 +265,7 @@ CASCADE's fail-closed rules; never let it become a second command path.
   task.
 - `policy.pt` and the USD carry Isaac Sim asset terms (no licence file in the
   bundle); the YAML files are Apache-2.0; the Unitree description is BSD-3.
+- The revision-3 turn ramp trades command time for a slower cut: a long turn on a robot that
+  tracks much worse than the measured 93 % reaches the unchanged 3 s command deadline and fails
+  closed. If the owner episode shows that, the answer is a re-derived ramp (or a deadline-aware
+  floor) or a standing hand-over, not a larger `max_duration_s`.

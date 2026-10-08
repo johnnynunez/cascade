@@ -1,0 +1,180 @@
+{
+ "b29-ramp-live1": {
+  "hello_capabilities": [
+   "state",
+   "velocity",
+   "stop",
+   "reset_stop",
+   "velocity_scaling"
+  ],
+  "model_identity_sha256": "f34d4d71576c2df4d2e57ec874fc681c35884f0db68f7640c97c87b69c5f6e55",
+  "velocity_scaling_advertised": true,
+  "arms_check": {
+   "diff": [
+    [
+     "turn_control.goal_ramp",
+     {
+      "decel_rad_s2": 0.4,
+      "min_rate_rad_s": 0.15,
+      "rate_step_rad_s": 0.025
+     },
+     null
+    ]
+   ],
+   "ok": true,
+   "ramp_values": {
+    "decel_rad_s2": 0.4,
+    "min_rate_rad_s": 0.15,
+    "rate_step_rad_s": 0.025
+   }
+  },
+  "plan": null,
+  "reset_on_latch": false,
+  "rt_factor": {
+   "N1": 0.468,
+   "R1": 0.462,
+   "R2": 0.469
+  },
+  "owner_argv_flags": [
+   "--release",
+   "--policy",
+   "--limits",
+   "--robot-id",
+   "--source",
+   "--device",
+   "--port",
+   "--out",
+   "--max-wall-s",
+   "--max-steps",
+   "--camera-every",
+   "--overview-resolution",
+   "--physics-row-every",
+   "--camera-eye",
+   "--camera-target",
+   "--camera-follow",
+   "--velocity-scaling"
+  ],
+  "gpu": "GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3",
+  "owner_receipt": {
+   "completed": false,
+   "end_reason": "signal/lifecycle shutdown",
+   "error": null,
+   "exit_code": 143,
+   "frame_count": 1890,
+   "last_fall_evidence": {
+    "criteria": {
+     "max_pelvis_height_m": 1.6,
+     "max_tilt_rad": 0.5235987755982988,
+     "min_pelvis_height_m": 0.615
+    },
+    "illegal_contacts": [],
+    "pelvis_height_m": 0.9166982173919678,
+    "tilt_rad": 0.008563869333491084
+   },
+   "steps": 18895,
+   "wall_duration_s": 223.03591387099004
+  },
+  "loadavg_start": [
+   9.12646484375,
+   7.0869140625,
+   5.6826171875
+  ],
+  "per_turn_resets": []
+ },
+ "b29-ramp-live2": {
+  "hello_capabilities": [
+   "state",
+   "velocity",
+   "stop",
+   "reset_stop",
+   "velocity_scaling"
+  ],
+  "model_identity_sha256": "f34d4d71576c2df4d2e57ec874fc681c35884f0db68f7640c97c87b69c5f6e55",
+  "velocity_scaling_advertised": true,
+  "arms_check": {
+   "diff": [
+    [
+     "turn_control.goal_ramp",
+     {
+      "decel_rad_s2": 0.4,
+      "min_rate_rad_s": 0.15,
+      "rate_step_rad_s": 0.025
+     },
+     null
+    ]
+   ],
+   "ok": true,
+   "ramp_values": {
+    "decel_rad_s2": 0.4,
+    "min_rate_rad_s": 0.15,
+    "rate_step_rad_s": 0.025
+   }
+  },
+  "plan": "R:+0.8,-0.8,+1.0,-1.0,+0.6,-0.6|N:+0.8,-0.8,+1.0,-1.0,+0.6,-0.6|R:+0.8,-0.8,+1.0,-1.0,+0.6,-0.6|N:+0.8,-0.8,+1.0,-1.0,+0.6,-0.6",
+  "reset_on_latch": true,
+  "rt_factor": {
+   "N1": 0.46,
+   "N2": 0.468,
+   "R1": 0.454,
+   "R2": 0.478
+  },
+  "owner_argv_flags": [
+   "--release",
+   "--policy",
+   "--limits",
+   "--robot-id",
+   "--source",
+   "--device",
+   "--port",
+   "--out",
+   "--max-wall-s",
+   "--max-steps",
+   "--camera-every",
+   "--overview-resolution",
+   "--physics-row-every",
+   "--camera-eye",
+   "--camera-target",
+   "--camera-follow",
+   "--velocity-scaling"
+  ],
+  "gpu": "GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3",
+  "owner_receipt": {
+   "completed": false,
+   "end_reason": "signal/lifecycle shutdown",
+   "error": null,
+   "exit_code": 143,
+   "frame_count": 4624,
+   "last_fall_evidence": {
+    "criteria": {
+     "max_pelvis_height_m": 1.6,
+     "max_tilt_rad": 0.5235987755982988,
+     "min_pelvis_height_m": 0.615
+    },
+    "illegal_contacts": [],
+    "pelvis_height_m": 0.9160528779029846,
+    "tilt_rad": 0.008812095119073611
+   },
+   "steps": 46236,
+   "wall_duration_s": 514.8683440919995
+  },
+  "loadavg_start": [
+   2.9404296875,
+   8.1640625,
+   7.43994140625
+  ],
+  "per_turn_resets": [
+   {
+    "before": "R1-4",
+    "ok": true
+   },
+   {
+    "before": "R2-4",
+    "ok": true
+   },
+   {
+    "before": "R2-6",
+    "ok": true
+   }
+  ]
+ }
+}

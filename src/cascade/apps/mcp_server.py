@@ -505,19 +505,23 @@ class McpSkillServer:
              "note": "arm frozen; call reset_stop to resume"}
         )
 
-    def reset_now(self) -> dict:
+    def reset_now(self, arguments=None) -> dict:
         """Clear the e-stop (reset_stop tool, or SIGUSR1 -- the staff
-        channel when reset_stop is hidden from attendees)."""
+        channel when reset_stop is hidden from attendees).
+
+        Whole-body robots reset one named domain per call; the server-level
+        stop latch clears only once no domain remains latched (SIGUSR1 names
+        no domain and is therefore refused for them)."""
         if self._bounded:
             rt = self._runtime
             if rt is None or self._input_closed:
                 return _text_result({"ok": False, "error": "runtime starting or input closed; reset refused"}, is_error=True)
             with self._stop_lock:
                 serial = self._stop_serial
-            result = rt.execute("reset_stop", {})
+            result = rt.execute("reset_stop", dict(arguments or {}))
             with self._stop_lock:
                 raced = serial != self._stop_serial
-                if result.get("ok") is True and not raced:
+                if result.get("ok") is True and not raced and not result.get("latched_domains"):
                     self._stop_pending = False
             if raced:
                 rt.stop()
@@ -854,20 +858,24 @@ class McpSkillServer:
         if name in self._stop_tools():
             return self.stop_now(navigation=name == "stop_navigation")
         if name == "reset_stop":
-            if not isinstance(arguments, dict) or arguments:
+            whole_body = self._composed and self._get_mobile_config().as_dict().get("whole_body") is not None
+            if not isinstance(arguments, dict) or (arguments and not whole_body):
                 return _text_result({"ok": False, "error": "reset_stop takes no arguments"}, is_error=True)
-            return self.reset_now()
+            # Whole-body: the runtime validates the single required domain.
+            return self.reset_now(arguments if whole_body else None)
         if self._composed and name == "list_resources":
             if not isinstance(arguments, dict) or arguments:
                 return _text_result({"ok": False, "error": "list_resources takes no arguments"}, is_error=True)
             from .robot_runtime import describe_robot
             from ..robotics.resources import ResourceCatalog
             from ..robotics.embodiment import embodiment_metadata
+            from ..robotics.whole_body import contract_metadata
             cfg = self._get_mobile_config()
             domains = describe_robot(cfg)
             catalog = ResourceCatalog([r for d in domains.values() for r in d.resources])
             return _text_result({"ok": True, "metadata_source": "configured_profile",
-                                 **catalog.as_dict(), **embodiment_metadata(cfg.as_dict().get("embodiment"), catalog)})
+                                 **catalog.as_dict(), **embodiment_metadata(cfg.as_dict().get("embodiment"), catalog),
+                                 **contract_metadata(cfg.as_dict().get("whole_body"))})
         if name == "list_bases":
             if arguments:
                 return _text_result({"ok": False, "error": "list_bases takes no arguments"}, is_error=True)

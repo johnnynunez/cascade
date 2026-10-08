@@ -74,11 +74,20 @@ def _describe_domain(domain_id, profile, *, embodiment=None, sensor_domains=None
         return DomainAdapter(domain_id, profile, tuple(sensor.resources), sensor.tool_specs,
                              frozenset(), runtime=sensor)
     cfg = profile["resolved"]
+    mounted = None
     if kind == "manipulation":
         from ..skills.runtime import TOOL_SPECS, _MOTION_SKILLS
         specs, motions, profiles, resource_kind = copy.deepcopy(TOOL_SPECS), _MOTION_SKILLS, cfg["arms"], "arm"
         if all(p.get("gripper", {}).get("max_width_m", 0) <= 0 for p in profiles):
             specs = [s for s in specs if s["name"] not in _GRIPPER]
+        if "mounted_on" in profile:
+            # Whole-body contract only (validated by load_robot_config): the
+            # arm's world frame rides on the named base, so world-frame tools
+            # and every arm motion also depend on that base resource.
+            from ..robotics.whole_body import MOUNTED_TOOL_SPECS
+            specs = [*specs, *copy.deepcopy(MOUNTED_TOOL_SPECS)]
+            motions = frozenset({*motions, "reach_world_point"})
+            mounted = f"{profile['mounted_on']['domain']}/{profile['mounted_on']['base']}"
     else:
         from ..skills.mobile_runtime import MOTION_SKILLS, tool_specs_for_profiles
         specs, motions, profiles, resource_kind = tool_specs_for_profiles(cfg["bases"]), MOTION_SKILLS, cfg["bases"], "base"
@@ -100,23 +109,27 @@ def _describe_domain(domain_id, profile, *, embodiment=None, sensor_domains=None
                 robot_id=p.get("robot_id", profile["robot_id"]), capabilities=("gripper",),
                 controller_id=_controller(grip_profile, domain_id, name), writer_id=resource_id,
                 metadata={"profile": name, "backend": "ros2", "domain": domain_id}))
-    return DomainAdapter(domain_id, profile, tuple(resources), specs, motions)
+    return DomainAdapter(domain_id, profile, tuple(resources), specs, motions,
+                         mounted_requires={"get_arm_world_pose", "reach_world_point", *motions} if mounted else (),
+                         mounted_resource=mounted)
 
 
 class DomainAdapter:
     def __init__(self, domain_id, profile, resources, specs, motion_skills, *, runtime=None, owner=None,
-                 required_resources=()):
+                 required_resources=(), mounted_requires=(), mounted_resource=None):
         self.domain_id, self.profile, self.resources = domain_id, profile, resources
         self.runtime, self.owner = runtime, owner
         self.motion_skills = frozenset(motion_skills)
         self.tool_specs = [copy.deepcopy(s) for s in specs if s["name"] not in _GLOBAL]
         ids = tuple(r.resource_id for r in resources)
+        carrier = (mounted_resource,) if mounted_resource else ()
         self.tool_descriptors = tuple(ToolDescriptor(
             name=f"{domain_id}.{s['name']}", description=s["description"], parameters=s["parameters"],
             domain=domain_id, local_name=s["name"],
             effect="stop" if s["name"] in {"stop_navigation", "halt_motion"} else
                    "motion" if s["name"] in self.motion_skills else "read",
-            requires=(*ids, *required_resources), writes=ids if s["name"] in self.motion_skills else ()) for s in self.tool_specs)
+            requires=(*ids, *required_resources, *(carrier if s["name"] in mounted_requires else ())),
+            writes=ids if s["name"] in self.motion_skills else ()) for s in self.tool_specs)
 
     def execute(self, name, args):
         return self.runtime.execute(name, args)
@@ -188,14 +201,23 @@ def describe_robot(cfg):
             d.profile["kind"] in {"manipulation", "fastening", "hand"} and any(not r.synthetic for r in d.resources)
             for d in actuating):
         raise ValueError("floating-root or multi-DoF physical manipulation requires validated dynamic frames and shared control")
-    if len(actuating) > 1 and any(not r.synthetic for d in actuating for r in d.resources):
+    contract = cfg.as_dict().get("whole_body")
+    if contract is not None:
+        # Explicit multi-domain contract: disjoint command endpoints naming
+        # both claimants, mounted arms only, and still no physical admission.
+        from ..robotics.whole_body import admit_composition
+        admit_composition(domains, contract)
+    elif len(actuating) > 1 and any(not r.synthetic for d in actuating for r in d.resources):
         raise ValueError("mixed physical actuation needs validated shared-frame/control admission; only mixed mock domains are supported")
     return domains
 
 
 def robot_tool_descriptors(cfg):
     from ..robotics.runtime import _global_tools
-    return {t.name: t for t in (*_global_tools(), *(t for d in describe_robot(cfg).values() for t in d.tool_descriptors))}
+    domains = describe_robot(cfg)
+    resets = sorted(domains) if cfg.as_dict().get("whole_body") is not None else None
+    return {t.name: t for t in (*_global_tools(reset_domains=resets),
+                                *(t for d in domains.values() for t in d.tool_descriptors))}
 
 
 def build_robot_runtime(cfg, run_dir, *, navigation_bindings=None, **_kwargs):
@@ -204,6 +226,9 @@ def build_robot_runtime(cfg, run_dir, *, navigation_bindings=None, **_kwargs):
     from ..robotics.runtime import RobotRuntime
     domains = describe_robot(cfg)
     navigation_bindings = {} if navigation_bindings is None else navigation_bindings
+    contract = cfg.as_dict().get("whole_body")
+    if contract is not None and navigation_bindings:
+        raise ValueError("navigation bindings are not admitted for whole-body compositions")
     if (not isinstance(navigation_bindings, dict) or any(
             name not in domains or domains[name].profile["kind"] != "locomotion"
             or not isinstance(value, dict) or set(value) != {"source", "settings"}
@@ -259,7 +284,12 @@ def build_robot_runtime(cfg, run_dir, *, navigation_bindings=None, **_kwargs):
                                            domain.runtime.motion_skills, runtime=domain.runtime, owner=domain.owner)
                     domains[name] = domain
             built.append(domain)
-        runtime = RobotRuntime(domains, cfg=cfg, memory=EpisodicMemory(), trace=TraceLogger(run_dir))
+        whole_body = None
+        if contract is not None:
+            from ..robotics.whole_body import WholeBodyCoordinator
+            whole_body = WholeBodyCoordinator(contract, domains)
+        runtime = RobotRuntime(domains, cfg=cfg, memory=EpisodicMemory(), trace=TraceLogger(run_dir),
+                               **({"whole_body": whole_body} if whole_body is not None else {}))
         return runtime, runtime
     except BaseException:
         for domain in reversed(built):

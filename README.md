@@ -30,7 +30,9 @@ the mobile profile does not expose manipulation tools.
 The opt-in [composed robot runtime](docs/ROBOT_MODULARITY.md) provides separate
 manipulation, locomotion, fastening, sensor and spatial domains, controller
 ownership checks, bounded skill graphs and optional Arena/VAB validation adapters. Start with
-`--robot mixed_mock` for the synthetic integration example. Physical whole-body
+`--robot mixed_mock` for the synthetic integration example;
+`--robot mobile_manipulator_mock` exercises the opt-in whole-body contract (a
+mock arm mounted on a mock base, per-domain stop reset). Physical whole-body
 coordination and additional humanoid drivers still require embodiment-specific
 validation.
 

@@ -9,6 +9,9 @@ below retain their original 2 October scope.
 Existing arm and mobile entrypoints remain available alongside the opt-in
 composed runtime. Passive multi-DoF observations do not admit whole-body control;
 mixed physical actuation remains refused. `mixed_mock` is a synthetic example.
+`mobile_manipulator_mock` composes a mock arm mounted on a mock base under the
+explicit [whole-body contract](#multi-domain-embodiments-mounted-arms); it is
+software evidence, not physical admission.
 
 ## Architecture and the implemented boundary
 
@@ -77,8 +80,9 @@ guarantee or continued motion of unaffected peers is established.
 | Module | Implemented responsibility | Deliberate boundary |
 | --- | --- | --- |
 | `robotics/contracts.py`, `resources.py`, `embodiment.py` | Immutable tools/resources, joint/link/transmission and sensor declarations, static controller ownership | Declarations never connect a lazy actuator, supply measured transforms or certify a robot |
-| `robotics/runtime.py` | Namespaced dispatch, global stop latch, generation invalidation, domain lifecycle | Domain controllers retain transport leases, physical timing and safety |
-| `apps/robot_runtime.py` | Explicit manipulation, locomotion, fastening, sensing and spatial composition through `--robot` / `CASCADE_ROBOT` | Multiple physical actuation domains and mobile-mounted arms are refused |
+| `robotics/runtime.py` | Namespaced dispatch, global stop latch, generation invalidation, domain lifecycle; per-domain latches and an explicit per-domain `reset_stop(domain=...)` for whole-body profiles | Domain controllers retain transport leases, physical timing and safety |
+| `robotics/whole_body.py` | Opt-in whole-body contract: disjoint command endpoints, a capture-time `world ← base ← arm_base` frame chain, `exclusive`/`concurrent` coordination and world-frame verdicts with the frame valid at command start | Mock compositions only; a declared mount is not a calibration; no whole-body controller, balance, self-collision or moving-frame arm limits |
+| `apps/robot_runtime.py` | Explicit manipulation, locomotion, fastening, sensing and spatial composition through `--robot` / `CASCADE_ROBOT`; a manipulation domain `mounted_on` a locomotion base under a `whole_body` contract | Mixed physical actuation is refused; whole-body compositions with any physical actuating resource are refused with the missing gates named |
 | `conversation/`, `apps/conversation.py` | Browser media, Realtime provider, allowlisted semantic intents, deadlines and priority interruption | Supervisor above one robot runtime; no joint writer, implicit stop reset or hosted-service deployment |
 | `sensing/` | Typed passive observations, provenance, freshness, bounded readers/history | Reading cannot step physics or claim actuator ownership |
 | `spatial/` | Capture-time frame lookup, source-bound memory, synthetic route proposals, observed RGB-D annotations and an optional [cuVSLAM RGB-D provider](SPATIAL_PROVIDERS.md#optional-cuvslam-localization) | cuVSLAM has CPU contract coverage and a 12-frame native synthetic RGB-D replay; physical localization and navigation execution remain pending; annotations are not a collision map |
@@ -93,11 +97,11 @@ guarantee or continued motion of unaffected peers is established.
 | Capability | Present in the code | Still required |
 | --- | --- | --- |
 | Talk and understand tool intents | Local browser/provider/session path with bounded audio and curated tools | Reliable general dialogue, hardware audio and public service operation |
-| Interact with objects | Arm skills, SafeArm, grasp/release observations, optional cuMotion and OVRTX | Validation for each body/tool/scene; whole-body mobile manipulation |
+| Interact with objects | Arm skills, SafeArm, grasp/release observations, optional cuMotion and OVRTX; a mock arm mounted on a mock base with world-frame reach verdicts (B30) | Validation for each body/tool/scene; physical whole-body mobile manipulation (measured mount calibration, independent base pose, moving-frame arm limits) |
 | Turn a fastener | Mounted Factory domain with per-solve observations and final rest checks | Repeatability of the measured mounted turn/rest episode; acquisition, engagement, withdrawal and calibrated preload |
 | Walk or turn | MicroDuck MobileBase, pinned policy, BAM, command leases and independent support/rest checks | General gait, longer paths and other robot/model/controller combinations |
 | Perceive and remember space | Passive sensors, measured-frame contracts and retained RGB-D surface annotations | Physical SLAM/localization, metric reconstruction admission and execution of planned routes |
-| Describe different bodies | Fixed/floating roots, links, transmissions and typed scalar/generalized joint observations | Drivers and control mappings for each mechanism; dynamic whole-body control |
+| Describe different bodies | Fixed/floating roots, links, transmissions and typed scalar/generalized joint observations; explicit multi-domain embodiments with disjoint command endpoints and a capture-time mount frame chain (mock) | Drivers and control mappings for each mechanism; dynamic whole-body control, balance and arm physics on a moving base (e.g. Unitree H2 arms) |
 | Sense touch | Contact, estimated-force and tactile-image contracts | Calibrated tactile device drivers and task-specific tactile verification |
 | Coordinate twelve robots | Concurrent fleet runtime, agent CLI/MCP and one shared native scene; separate identities and zero-command support measured for twelve robots | Resolve measured feedback latency, then validate independent native agent tasks, collision interaction and physical fleet stop/reset |
 
@@ -228,6 +232,97 @@ separate traces, per-robot stop/cancel during blocked work with an unaffected
 peer, capacity refusal, queued-request cancellation, stale reset rejection and
 SIGTERM with stdin still open. These do not establish shared-scene physics or
 physical collision/stop performance.
+
+## Multi-domain embodiments: mounted arms
+
+Design of 7 October 2026 (backlog B30), implemented with mocks on 8 October
+2026. Before it, `apps/robot_runtime.py`
+refused every composition with more than one physical actuating domain and
+every `mounted_on` declaration. A robot profile can now opt into an explicit
+**whole-body contract** that composes a locomotion base and a manipulation arm
+mounted on it. Without a `whole_body:` block every earlier refusal, tool schema
+and reset rule is unchanged.
+
+```yaml
+version: 1
+robot_id: mobile-manipulator-mock
+whole_body:
+  version: 1
+  coordination: exclusive        # default; `concurrent` is an explicit opt-in
+  max_mount_drift_m: 0.005       # world-frame postcondition tolerances
+  max_mount_drift_rad: 0.01
+  world_target_tolerance_m: 0.01
+  # max_base_pose_age_s: optional; may only TIGHTEN the base profile's
+  # safety.max_state_age_s, which is the default
+domains:
+  locomotion: {kind: locomotion, bases: [microduck_mock]}
+  manipulation:
+    kind: manipulation
+    offline: true
+    arms: [mock]
+    cameras: [mock]
+    mounted_on:
+      domain: locomotion
+      base: microduck_mock
+      translation_m: [0.05, 0.0, 0.10]
+      rotation_wxyz: [0.7071067811865476, 0.0, 0.0, 0.7071067811865476]
+      calibration_id: mobile_manipulator_mock/declared-mount-v1
+```
+
+| Element | Contract | Fails closed when |
+| --- | --- | --- |
+| Domains and endpoints | Every actuating domain is a locomotion domain or a manipulation domain mounted on one. Each command endpoint (`controller_id`) belongs to exactly one domain; disjoint joint subsets are not disjoint endpoints | Two domains claim one endpoint (the error names both claimants and the endpoint); a fastening, hand or unmounted arm domain joins the contract; a mounted domain declares several arms or a static table `base_pose` |
+| Mount and dynamic frames | `world ← base` is the base state at its capture time (`received_monotonic_s − producer_age_s`, base epoch); `base ← arm_base` is the declared mount. Lookups use the spatial `FrameTree`: bounded zero-order hold, never extrapolation | The base pose is missing, unreadable, from another epoch, older than `max_base_pose_age_s`, out of order (older than a sample already seen), conflicting (two poses for one capture time), `fallen`, or its controller reports `fault`/`disabled`: every mounted-arm motion is refused before arm IO |
+| Coordination | `exclusive` (default): mounted-arm motion requires the base controller to report `ready` (no active command) and no locomotion operation in flight; locomotion motion requires that no mounted arm has a motion in flight (harness motion flag). `concurrent` (opt-in) lifts only these two vetoes | `RobotRuntime` still admits one ordinary tool call at a time. Concurrency never relaxes the frame requirement or the world-frame verdict |
+| Stop and reset | `emergency_stop` latches every domain (unchanged). `reset_stop` requires `domain`; only that domain's controller is reset and only its motion is re-admitted | `reset_stop` without a domain is refused; a failed or raced domain reset re-latches every domain |
+| World-frame postconditions | Every mounted-arm motion records the frame valid at command start and re-reads the base pose after the command. `manipulation.reach_world_point` resolves its world target once with the start frame, solves IK in the arm base frame and checks the achieved TCP in world with that same frame | Mount drift beyond tolerance refutes the outcome (downgrading `ok`, keeping `self_reported_ok`); a missing, stale or re-epoched end frame leaves it `unverified`; synthetic channels (kinematic mock base or arm) can refute but never confirm |
+| Physical admission | Not admitted. A whole-body composition with any physical actuating resource is refused and the error names the missing gates | Always, until a measured mount calibration, an independent base-pose source, moving-frame arm limits and a validated whole-body controller with balance-preserving stop exist |
+
+Mounted domains add two namespaced tools: `manipulation.get_arm_world_pose`
+(read) and `manipulation.reach_world_point` (motion through `SafeArm`; the
+harness remains the sole authority that refuses motion). The global
+`reset_stop` gains a required `domain` enum only for whole-body profiles. The
+opt-in profile is `configs/robots/mobile_manipulator_mock.yaml`
+(`--robot mobile_manipulator_mock` / `CASCADE_ROBOT=mobile_manipulator_mock`).
+These two tools are composition tools of `robotics/whole_body.py`, not
+`TOOL_SPECS` skills: arm-only profiles and the README skill counts are
+unchanged. `reach_world_point` is one IK solve that keeps the current tool
+orientation plus one harness-vetted `move_joints`; it refuses while an object
+is held and does no grasping, carrying or path planning. Every mounted-arm
+motion also requires the base resource in its descriptor `requires`.
+
+Operational notes (friction points):
+
+- `get_arm_world_pose` reports the TCP only when the lazy arm is already
+  connected; it never powers an arm to answer a pose query.
+- The frame chain reads the base's own validated state (`passive_state`, the
+  same read as `locomotion.get_base_state`); an independent base-pose source
+  is one of the physical admission gates, not an implemented input.
+- A latched base reports `ready`, so after a global stop the arm can be reset
+  and used while the base stays latched; resetting the base is a separate call.
+- Over MCP, `reset_stop` with no `domain` is refused for whole-body profiles,
+  and so is the argument-free SIGUSR1 staff reset; the server-level stop latch
+  clears only once no domain remains latched.
+- `RobotRuntime` still admits one ordinary tool call at a time, so
+  `concurrent` only lifts the vetoes on the other domain's in-flight
+  controller state. The mount-drift check still refutes an arm outcome whose
+  start frame moved.
+- Navigation bindings are refused for whole-body compositions; navigation
+  would add a second, asynchronous base writer to the coordination policy.
+
+Measured (software only, `tests/test_whole_body_domains.py`, 43 tests): overlap
+refusal names both claimants and the endpoint; the arm-base pose after a 4 cm
+base walk equals the base pose composed with the mount, and a world target is
+re-expressed with the moved frame (+4 cm along the yawed arm's y axis) and
+reached within 1 mm; stale and missing base poses refuse arm motion before the
+lazy arm connects; both coordination policies; global stop with per-domain
+reset and re-latch on a failed reset; the stdio MCP listing and reset; and
+golden resource/global-tool digests for all 15 earlier robot profiles
+(computed on `origin/main` a459429; one pins its existing refusal message).
+
+Not claimed: physical whole-body control, balance, Unitree H2 arm physics,
+arm/base self-collision, world collision for the mounted arm (its workspace and
+table limits remain arm-base-frame assumptions) or a calibrated mount.
 
 ## Observation and policy contracts
 

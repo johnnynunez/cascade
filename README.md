@@ -651,7 +651,10 @@ command. Name a profile explicitly (`--llm mock`) to pin it, or set
   positions only as perception queries re-grounded before motion), run step by
   step through the same `execute()`; the first unverified step hands the task
   to the LLM tier, and a program is reused only after it was verified in two
-  distinct tasks. Measured on the mock stack with scripted brains only.
+  distinct tasks. MCP chat hosts get the same tier as `list_programs` /
+  `run_program` when it is on, and with a `memory.embedder` programs are
+  ranked by text embedding instead of keyword overlap. Measured on the mock
+  stack with scripted brains only.
 - **[Retry evidence](docs/DREAM_RSI_ADAPTATION.md)** gates new ASPIRE library
   notes: a later success must match the failed action's goal, resolved arm
   and held-object context, with a measured, confirmed postcondition and no
@@ -693,7 +696,10 @@ safety-gated skills (only the loop-internal `task_done` is excluded) plus
 eight gateway extras — `camera_snapshot` (returns a live JPEG the agent can
 *see*), `world_state`, `live_view_url`, `robot_knowledge`,
 `verify_last_action`, `task_memory` (the visual memory harness, as images),
-and `emergency_stop`/`reset_stop` — 45 tools total (re-derive with
+and `emergency_stop`/`reset_stop` — and, only with the opt-in
+[programs tier](docs/PROGRAMS_TIER.md#mcp-chat-hosts) on, `list_programs` and
+`run_program` — 47 tools total (45 with the programs tier off, its default;
+re-derive with
 `openclaw mcp probe cascade --json`; see [The 37 skills](#the-37-skills) below
 for what each one does). That is the full catalog; what a given rig is
 offered is this minus the tools its capability matrix (described below)
@@ -740,7 +746,9 @@ clearing a stop staff-only. The catalog is also trimmed by a **capability
 matrix** derived from the built rig (`apps/capabilities.py`): the depth chain
 each camera really produces (sensor / mono / table-plane / none), which
 sidecars answered their startup probe, how many arms the `ArmRig` has, and
-whether the verifier and memory are attached. A tool whose precondition the
+whether the verifier and memory are attached (with the programs tier on, also
+whether its library opened: `list_programs` needs it, `run_program` needs it
+and the verifier). A tool whose precondition the
 rig cannot meet is withheld and rejected if called — on an RGB-only camera
 the 3D tools go, on a single-arm rig `list_arms` and the injected `arm`
 parameter go — with the reason in `world_state.tools_withheld`, the dashboard
@@ -846,7 +854,14 @@ the orchestrator relays it verbatim and does not retry the step.
 is loop-internal — excluded from the MCP tool list, since an external host
 ends its own turns its own way. The MCP server adds eight host-side extras
 (`camera_snapshot`, `world_state`, `live_view_url`, `robot_knowledge`,
-`verify_last_action`, `task_memory`, `emergency_stop`, `reset_stop`).
+`verify_last_action`, `task_memory`, `emergency_stop`, `reset_stop`), and
+two more only when the opt-in programs tier is on (`agent.programs: true` /
+`CASCADE_PROGRAMS=1`, arm servers):
+
+| tool | what it does |
+|---|---|
+| `list_programs` | The PROMOTED programs (verified end to end in ≥ 2 distinct tasks), ranked for `query` by keyword overlap — or by text embedding when `memory.embedder` is set — each with its parameters, steps, evidence and a ready `run_with`. Candidates are never listed |
+| `run_program` | Runs a promoted program by name, or a host-written `spec` once, through the CLI's own runner: every step a top-level skill call with its own trace row and verdict, positions only as `localize_object(label)+offset` re-grounded before motion, the first unverified step stops it with a `next_action`. A spec is stored as a candidate only from a fully CONFIRMED run. A cancel or `emergency_stop` latches the e-stop and nothing after it runs |
 
 ## Safety notes for a live rig
 

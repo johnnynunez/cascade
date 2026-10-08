@@ -773,7 +773,11 @@ class AgentOrchestrator:
         from .programs import COMPLETED, INVALID, NONE as NO_PROGRAM, STUCK, write_receipt
 
         tier = self.programs
-        offered = tier.offered(task)
+        # ROADMAP #8 follow-up (B42): with a memory embedder (opt-in) the
+        # offered programs are ranked by text embedding; without one this is
+        # the pre-embedder call exactly.
+        embedder = getattr(getattr(self.runtime, "memory", None), "embedder", None)
+        offered = tier.offered(task) if embedder is None else tier.offered(task, embedder=embedder)
         try:
             resp = self.llm.chat(
                 system=self.system_prompt,

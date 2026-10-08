@@ -55,6 +55,20 @@ withheld tool is rejected if called anyway. Every withheld tool carries its
 reason in `world_state.tools_withheld`, the dashboard `/state` and the
 `[cascade-mcp] tools withheld` log line -- a hidden tool is never silent.
 
+Programs (opt-in, docs/PROGRAMS_TIER.md "MCP chat hosts"): with
+`agent.programs: true` / `CASCADE_PROGRAMS=1` -- the CLI's switch -- an arm
+server also offers `list_programs` (promoted programs, ranked for an
+instruction by keyword overlap or, with a `memory.embedder`, by text
+embedding) and `run_program` (a promoted program by name, or a host-written
+spec run once). Both go through the CLI's own `ProgramTier` and runner: every
+step a top-level `execute()` with its own trace row and ledger verdict, the
+first unverified step stops the program, a spec is stored only from a fully
+CONFIRMED execution and reused only after two distinct tasks. A program may
+not reach a tool this server withholds or the operator hid; a cancel of an
+in-flight `run_program` latches the e-stop like any motion tool and no later
+step is dispatched. Off (the default), neither tool is a candidate and the
+server is the pre-tier one byte for byte.
+
 Latency contract (why this server is fast): perception pre-warms in the
 background the moment the gateway starts -- N camera streams, the detector,
 and the WorldWatcher that keeps the belief store hot. The ARM stays
@@ -235,7 +249,71 @@ _EXTRA_TOOLS = [
             "required": [],
         },
     },
+    # The programs tier (docs/PROGRAMS_TIER.md, B42). Candidates ONLY when the
+    # tier is on (agent.programs / CASCADE_PROGRAMS=1, arm runtimes): with it
+    # off these two are not part of the catalog and a call is an unknown tool,
+    # exactly as before the tier existed.
+    {
+        "name": "list_programs",
+        "description": (
+            "List the PROGRAMS this robot has learned: short sequences of "
+            "registered tool calls with object-label parameters, each verified "
+            "end to end (every effect CONFIRMED by an independent check) in at "
+            "least two distinct tasks. Pass `query` (the user's instruction) to "
+            "get the most relevant first. Each entry shows its parameters, its "
+            "steps, its evidence and a ready `run_with` for run_program. A "
+            "program verified in only one task is a candidate and is never "
+            "listed. Costs no image tokens."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "The instruction to match (optional)."},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 20,
+                          "description": "Max programs returned (default 5)."},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "run_program",
+        "description": (
+            "Run a PROGRAM step by step. Every step is an ordinary tool call "
+            "with its own trace row and an independent effect verdict; the "
+            "FIRST step that fails, is refused, refuted or unverified stops the "
+            "program and no later step runs. Pass EITHER `program` = the name "
+            "of a promoted program from list_programs, OR `spec` = a new "
+            "program {name, description, params: {param: what it is}, steps: "
+            "[{tool, args}]} -- a flat list of tool calls, no loops, branches "
+            "or code; a parameter fills a label argument as {\"$param\": name}; "
+            "a position is ONLY {\"$target\": {\"label\": <object or $param>, "
+            "\"offset_m\": [dx, dy]}} (re-measured with localize_object before "
+            "the first motion), never a raw coordinate. A new program runs once; "
+            "it is stored as a candidate only if every effect was confirmed, and "
+            "offered for reuse only after it is verified in two distinct tasks. "
+            "`bindings` maps each parameter to an object label; `task` is the "
+            "user's instruction. emergency_stop, or cancelling this call, stops "
+            "the arm and nothing after it runs. On a stop, follow `next_action`."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "program": {"type": "string", "description": "Name of a promoted program (list_programs)."},
+                "spec": {"type": "object", "description": "A new program (instead of `program`)."},
+                "bindings": {"type": "object",
+                             "description": "Parameter -> object label, e.g. {\"object\": \"red cube\"}."},
+                "task": {"type": "string", "description": "The user's instruction this run serves."},
+            },
+            "required": ["task"],
+        },
+    },
 ]
+
+#: the programs tier's MCP tools (served only when the tier is on)
+_PROGRAM_TOOLS = frozenset({"list_programs", "run_program"})
+#: ... of which these move the arm: a cancel of one in flight latches the
+#: e-stop like any `_MOTION_SKILLS` call
+_PROGRAM_MOTION_TOOLS = frozenset({"run_program"})
 
 
 class McpSkillServer:
@@ -293,6 +371,69 @@ class McpSkillServer:
         # and compare the surface under this lock, so a catalog listed
         # while the build finishes is always either probed or notified.
         self._surface_lock = threading.Lock()
+        # the programs-tier switch (agent.programs / CASCADE_PROGRAMS),
+        # resolved once per connection: catalog, dispatch and the cancel
+        # path must agree (None = not resolved yet)
+        self._programs_flag: bool | None = None
+
+    # ── programs tier (docs/PROGRAMS_TIER.md, B42) ───────────────────────
+
+    def _programs_on(self, cfg=None) -> bool:
+        """True when this server offers the programs tier: the CLI's switch
+        (`CASCADE_PROGRAMS` beats `agent.programs`, default off), arm
+        runtimes only. The host is the brain, so the CLI's mock-brain
+        exclusion does not apply. Resolved once; a config that cannot be
+        read means off."""
+        if self._bounded:
+            return False
+        flag = self._programs_flag
+        if flag is None:
+            from .demo import _programs_enabled
+
+            try:
+                if cfg is None and not os.environ.get("CASCADE_PROGRAMS", "").strip():
+                    from ..config import load_demo_config
+
+                    with contextlib.redirect_stdout(sys.stderr):
+                        cfg = load_demo_config(**self._arm_config_kwargs())
+                flag = _programs_enabled(cfg)
+            except Exception as e:  # noqa: BLE001 -- unreadable config: the tier stays off
+                print(f"[cascade-mcp] programs tier left off: {type(e).__name__}: {e}", file=sys.stderr)
+                flag = False
+            self._programs_flag = flag
+        return flag
+
+    @staticmethod
+    def _arm_config_kwargs() -> dict:
+        """The camera/arm lists the arm runtime is built from (env)."""
+        cameras = [c.strip() for c in os.environ.get(
+            "CASCADE_CAMERAS", os.environ.get("CASCADE_CAMERA", "mock")).split(",") if c.strip()]
+        arms = [a.strip() for a in os.environ.get(
+            "CASCADE_ARMS", os.environ.get("CASCADE_ARM", "mock")).split(",") if a.strip()]
+        return {"cameras": cameras, "arms": arms, "llm": "mock"}
+
+    def _attach_program_tier(self, runtime, cfg) -> None:
+        """Tier on: give the runtime its `ProgramTier` (the CLI's class,
+        store and promotion constant) before anyone can see the runtime, or
+        a `ProgramTierUnavailable` when the library cannot be opened -- the
+        capability matrix then withholds both tools with that reason. Tier
+        off: nothing is attached (the pre-tier runtime exactly)."""
+        if not self._programs_on(cfg):
+            return
+        from ..agent.programs import ProgramTier, ProgramTierUnavailable
+        from .demo import _program_library
+
+        try:
+            tier = ProgramTier(_program_library(cfg))
+            s = tier.library.summary()
+            print(f"[cascade-mcp] programs tier: on -- {s['promoted']} promoted, {s['candidates']} "
+                  f"candidate(s) in {tier.library.path}; reuse after {s['min_tasks']} distinct "
+                  "verified tasks", file=sys.stderr)
+        except Exception as e:  # noqa: BLE001 -- an unopenable store withholds, never crashes
+            tier = ProgramTierUnavailable(f"{type(e).__name__}: {e}")
+            print(f"[cascade-mcp] programs tier: on, but the library could not be opened "
+                  f"({tier.error}); list_programs / run_program withheld", file=sys.stderr)
+        runtime.program_tier = tier
 
     # ── runtime lifecycle ────────────────────────────────────────────────
 
@@ -347,9 +488,14 @@ class McpSkillServer:
                     signals = (getattr(self, "_signals", None)
                                if threading.current_thread() is threading.main_thread() else None)
                     with signals.defer() if signals is not None else contextlib.nullcontext():
-                        self._runtime, self._arm = build_runtime(
+                        runtime, arm = build_runtime(
                             cfg, run_dir, view=view, lazy_arm=True, serve=serve
                         )
+                        if not self._bounded:
+                            # before the runtime is visible: a host never
+                            # sees it without its programs tier (no-op off)
+                            self._attach_program_tier(runtime, cfg)
+                        self._runtime, self._arm = runtime, arm
                     if signals is not None and threading.current_thread() is threading.main_thread():
                         signals.checkpoint()
                     if self._runtime.stream_server is not None:
@@ -610,7 +756,9 @@ class McpSkillServer:
             else:
                 from ..skills.runtime import _MOTION_SKILLS as motion_skills
 
-            if name in motion_skills:
+            # a program run moves the arm step after step: cancelling it
+            # mid-run is "stop the robot" exactly like for a motion skill
+            if name in motion_skills or (name in _PROGRAM_MOTION_TOOLS and self._programs_on()):
                 print(
                     f"[cascade-mcp] client cancelled {name!r} mid-motion -> e-stop. "
                     "If this arrived at a round number of seconds the HOST's "
@@ -724,7 +872,9 @@ class McpSkillServer:
         else:
             from ..skills.runtime import TOOL_SPECS
 
-            candidates = TOOL_SPECS + _EXTRA_TOOLS
+            extras = (_EXTRA_TOOLS if self._programs_on()
+                      else [t for t in _EXTRA_TOOLS if t["name"] not in _PROGRAM_TOOLS])
+            candidates = TOOL_SPECS + extras
         # three independent filters: loop-internal, operator override, and
         # what the probed rig cannot do (empty until the runtime is built).
         # Computed and published under _surface_lock so a build finishing
@@ -825,6 +975,8 @@ class McpSkillServer:
                 return _text_result(self._verify_last(runtime))
             if name == "task_memory":
                 return self._task_memory(runtime, arguments or {})
+            if name in _PROGRAM_TOOLS and self._programs_on():
+                return self._program_call(runtime, name, arguments)
             with self._exec_lock:  # never overlap with a reflex-chat motion
                 runtime.current_tier = "mcp-host"  # the chat host's brain chose this call
                 if name == "pick_and_place":  # narrate on the dashboard
@@ -1029,6 +1181,205 @@ class McpSkillServer:
             "recent": [pc.as_dict() for pc in history],
             "contradictions": [pc.as_dict() for pc in checker.contradictions()[-3:]],
         }
+
+    # ── programs tier tools (docs/PROGRAMS_TIER.md "MCP chat hosts") ─────
+
+    def _program_call(self, runtime, name: str, arguments) -> dict:
+        from ..agent.programs import ProgramTier
+
+        tier = getattr(runtime, "program_tier", None)
+        if not isinstance(tier, ProgramTier):  # the matrix withholds this case; belt and braces
+            return _text_result({"ok": False, "status": "refused",
+                                 "error": "the programs tier is not available on this server"}, is_error=True)
+        args = arguments if isinstance(arguments, dict) else {}
+        if name == "list_programs":
+            return self._list_programs(runtime, tier, args)
+        return self._run_program(runtime, tier, args)
+
+    def _program_unavailable(self, program) -> str | None:
+        """Why ``program`` may not run on THIS server, or None. The runner
+        calls execute() directly, so the served surface is checked here for
+        every step and every grounding query: a program never reaches a tool
+        the capability matrix withholds or the operator hid."""
+        hidden = _hidden_tools()
+        withheld = self.withheld_tools()
+        for i, (tool, args) in enumerate(program.steps, start=1):
+            for needed in (tool, *(["localize_object"] if "$target" in args else [])):
+                if needed in _EXCLUDED_TOOLS:
+                    return f"step {i}: {needed} is not served to chat hosts"
+                if needed in hidden:
+                    return f"step {i}: {needed} is disabled by the operator (CASCADE_HIDE_TOOLS)"
+                if needed in withheld:
+                    return f"step {i}: {needed} is not available on this rig: {withheld[needed]}"
+        return None
+
+    def _program_halt(self, runtime):
+        """The runner's stop check (before grounding and before every step):
+        any latched stop -- emergency_stop, a cancelled run_program, the
+        dashboard STOP, SIGINT -- means no further step is dispatched. It
+        only ever stops; the harness stays the sole motion authority."""
+        harness = getattr(getattr(runtime, "arm", None), "harness", None)
+
+        def halt() -> str | None:
+            if self._stop_pending or (harness is not None and harness.estopped):
+                return ("the e-stop is latched (emergency_stop, a cancelled call, the dashboard STOP "
+                        "or SIGINT); reset_stop clears it")
+            return None
+
+        return halt
+
+    def _list_programs(self, runtime, tier, args: dict) -> dict:
+        from ..agent.programs import Program, ProgramError
+
+        lib = tier.library
+        lib.refresh()  # another session (one server per chat) may have promoted one
+        query = args.get("query")
+        query = " ".join(query.split()) if isinstance(query, str) else ""
+        try:
+            limit = max(1, min(int(args.get("limit") or 5), 20))
+        except (TypeError, ValueError):
+            limit = 5
+        embedder = getattr(getattr(runtime, "memory", None), "embedder", None)
+        if query:
+            ranked = lib.ranked(query, limit, embedder=embedder)
+            retrieval = (f"embedding similarity ({getattr(embedder, 'name', 'embedder')}, floor "
+                         f"{float(getattr(embedder, 'text_floor', 0.5)):.2f}) or a shared keyword"
+                         if embedder is not None else
+                         "keyword overlap with each program's name, description and verified tasks")
+        else:
+            ranked = [(rec, None) for rec in lib.listing(limit)]
+            retrieval = "all promoted programs (no query), most evidence first"
+        programs = []
+        for rec, sim in ranked:
+            try:  # re-validated against the CURRENT catalog, like every reuse
+                prog = Program.from_spec(rec.program, tool_specs=tier.tool_specs)
+            except ProgramError:
+                continue
+            entry = {
+                "name": rec.name,
+                "description": prog.description,
+                "params": prog.params,
+                "steps": [{"tool": tool, "args": step_args} for tool, step_args in prog.steps],
+                "summary": prog.describe(),
+                "evidence": {"distinct_tasks": rec.n_tasks, "verified_runs": rec.occurrences,
+                             "failed_runs": rec.losses},
+                "run_with": {"program": rec.name, "bindings": {p: f"<{p} label>" for p in prog.params}},
+            }
+            if sim is not None:
+                entry["similarity"] = sim
+            unavailable = self._program_unavailable(prog)
+            if unavailable:
+                entry["unavailable"] = unavailable
+            programs.append(entry)
+        summary = lib.summary()
+        return _text_result({
+            "ok": True,
+            "query": query or None,
+            "retrieval": retrieval,
+            "programs": programs,
+            "library": {k: summary[k] for k in ("promoted", "candidates", "demoted", "min_tasks")},
+            "note": ("Only PROMOTED programs are listed: verified end to end in at least "
+                     f"{summary['min_tasks']} distinct tasks and more often than they failed. Run one "
+                     "with run_program(program=<name>, bindings=..., task=<the instruction>); "
+                     "or write a new one as run_program(spec=...)."),
+        })
+
+    def _run_program(self, runtime, tier, args: dict) -> dict:
+        import uuid
+
+        from ..agent.programs import COMPLETED, INVALID, REUSE, write_receipt
+
+        def refuse(error: str) -> dict:
+            return _text_result({
+                "ok": False, "status": "refused", "error": error,
+                "next_action": ("No motion was attempted. Fix the request, pick a promoted program "
+                                "from list_programs, or use the individual tools."),
+            }, is_error=True)
+
+        name, spec = args.get("program"), args.get("spec")
+        if (name is None) == (spec is None):
+            return refuse("pass exactly one of `program` (the name of a promoted program, see "
+                          "list_programs) or `spec` (a new program: {name, description, params, steps})")
+        task = args.get("task")
+        if not isinstance(task, str) or not task.strip():
+            return refuse("`task` is required: the user's instruction this run serves -- the library "
+                          "counts verified programs per distinct task")
+        task = " ".join(task.split())
+        bindings = args.get("bindings")
+        if bindings is None:
+            bindings = {}
+        if not isinstance(bindings, dict):
+            return refuse("`bindings` must be an object that binds each program parameter to an object "
+                          "label, e.g. {\"object\": \"red cube\"}")
+        if name is not None:
+            if not isinstance(name, str) or not name.strip():
+                return refuse("`program` must be the name of a promoted program")
+            tier.library.refresh()  # promoted by another session since this one loaded the store
+            proposal = tier.proposal_for_use(name.strip(), bindings)
+        else:
+            if isinstance(spec, str):  # chat models often send a nested object JSON-encoded
+                try:
+                    spec = json.loads(spec)
+                except ValueError as e:
+                    return refuse(f"`spec` is not a JSON object: {e}")
+            proposal = tier.proposal_for_spec(spec, bindings)
+        if proposal.kind == INVALID:
+            return refuse(proposal.reason)
+        unavailable = self._program_unavailable(proposal.program)
+        if unavailable:
+            return refuse(unavailable)
+
+        # one arm, one command: the whole program holds the lock a single
+        # tool call holds (the reflex chat refuses while it runs)
+        with self._exec_lock:
+            runtime.current_task = f"program {proposal.program.name}: {task}"
+            try:
+                run = tier.run(proposal, runtime, tool_log=[], halt=self._program_halt(runtime))
+            finally:
+                runtime.current_task = None
+            runtime.last_path = "program"
+        receipt = write_receipt(run, getattr(getattr(runtime, "trace", None), "run_dir", None))
+        run_id = f"mcp-{os.getpid()}-{uuid.uuid4().hex[:10]}"
+        # the program's own ledger verdict is the only evidence: a fully
+        # CONFIRMED execution may be admitted, anything else may count a loss
+        outcome = tier.account(run, proposal, task=task, run_id=run_id, success=run.verified)
+        library: dict = {"outcome": outcome}
+        try:
+            record = tier.library.get(run.program.signature)
+        except Exception:  # noqa: BLE001 -- reporting never fails a call
+            record = None
+        if record is not None:
+            min_tasks = tier.library.min_tasks
+            library.update(name=record.name, status=record.status(min_tasks),
+                           distinct_tasks=record.n_tasks, verified_runs=record.occurrences,
+                           failed_runs=record.losses, min_tasks=min_tasks)
+        next_action = run.next_action
+        if run.status == COMPLETED and not run.verified:
+            next_action = (f"Program {run.program.name!r} ran to completion, but its effect is "
+                           f"{run.verdict.upper()}: not every step's effect was independently confirmed. "
+                           "Do not re-run it; observe the scene and check before claiming success.")
+        harness = getattr(getattr(runtime, "arm", None), "harness", None)
+        ok = run.status == COMPLETED and run.verified
+        return _text_result({
+            "ok": ok,
+            "status": run.status,
+            "verdict": run.verdict,
+            "verified": run.verified,
+            "program": run.program.name,
+            "signature": run.program.signature[:12],
+            "source": "stored" if proposal.kind == REUSE else "submitted",
+            "task": task,
+            "bindings": run.bindings,
+            "grounded": run.grounded,
+            "steps": [s.as_dict() for s in run.steps],
+            "stopped_at": run.stopped_at,
+            "reason": run.reason or None,
+            "next_action": next_action,
+            "held": run.held,
+            "estop_latched": bool(harness is not None and harness.estopped),
+            "library": library,
+            "receipt": str(receipt) if receipt is not None else None,
+        }, is_error=not ok)
 
     def _world_state(self, runtime) -> dict:
         from ..apps.demo import _runtime_state

@@ -969,6 +969,34 @@ def _premotion_critic(cfg, llm, runtime, is_mock: bool):
     )
 
 
+def _programs_enabled(cfg) -> bool:
+    """The programs-tier switch, ONE for every front-end (the CLI's
+    orchestrator and, since B42, the MCP server): `CASCADE_PROGRAMS` (1/0)
+    beats `agent.programs` (default false)."""
+    env = os.environ.get("CASCADE_PROGRAMS", "").strip().lower()
+    if env:
+        return env not in ("0", "false", "no", "off")
+    agent_cfg = (cfg.get("agent", {}) if cfg is not None else {}) or {}
+    raw = agent_cfg.get("programs", False)
+    return (raw.strip().lower() in ("1", "true", "yes", "on")
+            if isinstance(raw, str) else bool(raw))
+
+
+def _program_library(cfg):
+    """The program store: `runs/programs.jsonl` (`memory.programs_path`,
+    CASCADE_PROGRAMS_PATH); reuse after `agent.program_min_tasks` (default 2)
+    distinct verified tasks. Raises when the store cannot be opened."""
+    from ..memory.programs import ProgramLibrary
+    from ..skills.library import PROMOTION_MIN_TASKS
+
+    agent_cfg = cfg.get("agent", {}) or {}
+    mem_cfg = cfg.get("memory", {}) or {}
+    path = (os.environ.get("CASCADE_PROGRAMS_PATH") or mem_cfg.get("programs_path")
+            or PACKAGE_ROOT / "runs" / "programs.jsonl")
+    return ProgramLibrary(Path(str(path)).expanduser(),
+                          min_tasks=int(agent_cfg.get("program_min_tasks", PROMOTION_MIN_TASKS)))
+
+
 def _program_tier(cfg, is_mock: bool):
     """ROADMAP follow-up #8: the opt-in programs tier (docs/PROGRAMS_TIER.md).
 
@@ -984,30 +1012,15 @@ def _program_tier(cfg, is_mock: bool):
     CASCADE_PROGRAMS_PATH); a program is offered for reuse only after it was
     verified in >= `agent.program_min_tasks` (default 2) distinct tasks.
     """
-    agent_cfg = cfg.get("agent", {}) or {}
-    env = os.environ.get("CASCADE_PROGRAMS", "").strip().lower()
-    if env:
-        enabled = env not in ("0", "false", "no", "off")
-    else:
-        raw = agent_cfg.get("programs", False)
-        enabled = (raw.strip().lower() in ("1", "true", "yes", "on")
-                   if isinstance(raw, str) else bool(raw))
-    if not enabled:
+    if not _programs_enabled(cfg):
         return None
     if is_mock:
         print("[cascade] programs tier requested, but the mock brain is a labelled script, "
               "not an author: tier left off")
         return None
     from ..agent.programs import ProgramTier
-    from ..memory.programs import ProgramLibrary
-    from ..skills.library import PROMOTION_MIN_TASKS
 
-    mem_cfg = cfg.get("memory", {}) or {}
-    path = (os.environ.get("CASCADE_PROGRAMS_PATH") or mem_cfg.get("programs_path")
-            or PACKAGE_ROOT / "runs" / "programs.jsonl")
-    library = ProgramLibrary(Path(str(path)).expanduser(),
-                             min_tasks=int(agent_cfg.get("program_min_tasks", PROMOTION_MIN_TASKS)))
-    return ProgramTier(library)
+    return ProgramTier(_program_library(cfg))
 
 
 def _make_detector(cfg):

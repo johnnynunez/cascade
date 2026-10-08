@@ -3,6 +3,10 @@
 Status: implemented behind an opt-in flag (`agent.programs: false` by default,
 `CASCADE_PROGRAMS=1` to enable) on 2026-10-08; measured on the mock stack with
 scripted brains only. Nothing here was run on a physical rig or in Isaac.
+2026-10-09 (B42): the same switch exposes the tier to MCP chat hosts
+(`list_programs`, `run_program`; see [MCP chat hosts](#mcp-chat-hosts)), and an
+opt-in memory embedder ranks programs by text embedding; again mock stack and
+the dependency-free `hash` embedder only.
 
 ## The question
 
@@ -96,7 +100,10 @@ A program is a declarative JSON object, not code:
   call gets: its own trace row (`tier: program`), BEFORE/AFTER keyframes, watcher
   pause, three-state postcondition, task-effects obligation, Vesta memory frame
   and envelope row. Nesting a program inside one tool call would hide its steps
-  from all of that; that is why there is no `run_program` tool.
+  from all of that; that is why there is no `run_program` SKILL. (The MCP
+  server's `run_program` is a host-side tool like `world_state`, not a skill:
+  it hands the program to the same runner, which issues the same top-level
+  `execute()` calls -- see [MCP chat hosts](#mcp-chat-hosts).)
 - **Not a second control path.** The runner has no motion API. The
   SafetyHarness, reached through each skill's `SafeArm`, remains the sole
   authority that refuses motion; the program validator only decides whether a
@@ -164,6 +171,93 @@ name/description excluded), the program as first admitted, `occurrences`
 `n_tasks >= min_tasks` and `occurrences > losses`; `agent.program_min_tasks: 1`
 is the explicit relaxation and must be >= 1. A corrupt line costs only itself.
 
+Retrieval for a task (the authoring prompt's offered programs, and the MCP
+`list_programs` with a `query`) has two modes, behind the promotion gate either
+way -- a candidate or demoted record is never ranked, however similar:
+
+- **keyword overlap** (default): records sharing a content word with the task,
+  by overlap then evidence -- the pre-B42 ranking exactly.
+- **text embedding** (opt-in, B42): with a memory embedder configured
+  (`memory.embedder`, `CASCADE_MEMORY_EMBEDDER`; backends `hash` | `siglip` |
+  `clip`), the task is compared in the embedder's TEXT space with the closest of
+  the record's own name + description and each instruction it was verified on.
+  A record qualifies at the embedder's `text_floor` OR on a shared content word
+  -- the skill library's floor-or-guard rule -- so switching an embedder on can
+  add a paraphrase the keywords missed ("shifting cubes frontwards" finds the
+  program verified on "shift the green cube front-left") but never drops a
+  keyword match. Measured with the dependency-free `hash` embedder (stemmed
+  hashed bag of words, floor 0.3); the SigLIP/CLIP text floors are not
+  calibrated on real weights (the same caveat as the skill-library notes).
+
+Several processes may share one store -- the CLI and one MCP server per chat
+session (OpenClaw). Every write takes an advisory lock (`<store>.lock`),
+re-reads the store and applies its change to the CURRENT records, so no process
+erases another's records, occurrences or losses; a reader adopts other
+processes' writes with `refresh()` (a stat when nothing changed), which
+`list_programs` and `run_program(program=...)` call first. On main before B42
+the last writer rewrote the file from its own stale view.
+
+## MCP chat hosts
+
+With the tier on (`agent.programs: true` / `CASCADE_PROGRAMS=1`, the CLI's
+switch; arm servers only, never mobile/composed), the MCP server offers two
+host-side tools. The host is the brain here, so the CLI's mock-brain exclusion
+does not apply: the host's `run_program` call takes the place of the authoring
+turn and everything after it is the CLI's own code (`ProgramTier`,
+`run_program`, `account`).
+
+- **`list_programs(query?, limit?)`** -- the PROMOTED programs only, ranked for
+  `query` as above (all promoted, most evidence first, without one), each with
+  its parameters, normalized steps, `describe()` summary, evidence
+  (`distinct_tasks`, `verified_runs`, `failed_runs`) and a ready `run_with`.
+  Programs are re-validated against the current catalog; one that names a
+  tool this server withholds or the operator hid carries an `unavailable`
+  reason. The source instructions are not exposed (other sessions' words).
+- **`run_program(program | spec, bindings, task)`** -- exactly one of
+  `program` (a promoted program's name or signature) or `spec` (a new program,
+  validated like an authored one; a JSON-encoded string is accepted). `task`
+  is required: it is the user's instruction and the key for distinct-task
+  promotion. A `program` that is a candidate, demoted or unknown is refused
+  with zero motion, like a `use` of one.
+- **Storage and promotion: the same rule.** A submitted spec runs once. It is
+  stored -- as a candidate -- only if that execution was fully CONFIRMED by the
+  task-effects ledger; the program's own `verdict` is the only evidence (a
+  chat host's claim of success is not consulted). It is offered by
+  `list_programs` and runnable by name only once verified in >= 2 distinct
+  tasks and more often than it failed. An execution of an admitted structure
+  (by name, or the same structure resubmitted) that ran steps without
+  verifying counts a loss. A host can therefore never promote a program by
+  writing it, only by running it to a confirmed effect in two different tasks.
+- **The served surface binds programs too.** The runner calls `execute()`
+  directly, so before anything runs the server refuses a program whose step
+  or `$target` grounding query (`localize_object`) is withheld by the
+  capability matrix (e.g. 3D tools on an RGB-only rig) or hidden by
+  `CASCADE_HIDE_TOOLS`. Capability cells: `list_programs` needs `programs`
+  (the library opened); `run_program` needs `programs` and `verifier` --
+  without the verifier no step could ever be confirmed. The `programs` cell
+  exists only when the tier is attached, so with the tier off the matrix,
+  banner and `tools_withheld` are the pre-tier ones.
+- **Stop.** A program run moves the arm, so `run_program` is treated like a
+  motion tool: `notifications/cancelled` for an in-flight `run_program`
+  latches the e-stop (the stdin reader, never queued), as do `emergency_stop`,
+  the dashboard STOP and SIGINT. The runner gets a halt check
+  (`run_program(..., halt=...)`) evaluated before grounding and before every
+  step: once a stop is latched no further step is dispatched; a step in flight
+  is refused (or its effect refuted) by the harness/ledger. The result is
+  `status: stopped` with `estop_latched: true` and a `next_action`; nothing
+  resumes until `reset_stop`. A latched e-stop before the call means the
+  program never starts (`aborted`, zero motion). The whole program holds the
+  server's execution lock, so the dashboard reflex chat cannot interleave a
+  motion.
+- **Result.** `ok` is true only for a completed, CONFIRMED run; otherwise
+  `isError` with `status` (`completed` | `stopped` | `aborted` | `stuck` |
+  `refused`), per-step verdicts and evidence, `stopped_at`, `reason`,
+  `next_action` (what executed, what the gripper holds, "do not re-run"),
+  `grounded` queries, `library` (`outcome`: admitted / loss / not admitted,
+  the record's status and evidence) and the per-run receipt path
+  (`<run>/programs/<n>_<name>.json`, as for the CLI). Each step is its own
+  trace row with `tier: program`; `last_path` is `program`.
+
 ## Refusal and stop cases
 
 | case | where | effect |
@@ -176,6 +270,9 @@ is the explicit relaxation and must be >= 1. A corrupt line costs only itself.
 | skill failure, refuted effect, unverified registered effect | step | stop, `next_action`, tier 3; an admitted program counts a loss |
 | `stuck` step | step | task ends, ask relayed verbatim, no retry |
 | brain answers `NONE`, a tool call, or raises | authoring | no program; tier 3 unchanged |
+| MCP: both or neither of `program` / `spec`, no `task`, non-object `bindings` | `run_program` request | refused, zero motion |
+| MCP: a step or `$target` query the capability matrix withholds or the operator hid | served surface | refused, zero motion |
+| MCP: a stop latched before the call, or arriving while it runs (cancel, `emergency_stop`, dashboard STOP, SIGINT) | halt check + harness | `aborted` with zero motion / `stopped`, no later step dispatched, `next_action`; an admitted program that ran steps counts a loss |
 
 Advisory pieces never veto: library rank, promotion and the evidence tags only
 decide what is OFFERED to the brain. The pre-motion plausibility critic is not
@@ -188,9 +285,13 @@ like tier 2), and the milestone tracker is not run on it.
 `AgentOrchestrator(programs=None)`, whose dispatch is the pre-change path
 exactly: no authoring turn, no extra runtime write, no extra message, no store
 touched (pinned against a golden in `tests/test_programs_tier.py`). Mobile and
-composed runtimes never get the tier, the mock brain (a labelled script) never
-gets it from the CLI, and the MCP server -- where the host is the brain and the
-built-in tiers are bypassed -- does not expose it.
+composed runtimes never get the tier and the mock brain (a labelled script)
+never gets it from the CLI. On the MCP server, off means `list_programs` and
+`run_program` are not catalog candidates (a call is an unknown tool, exactly
+as before), the runtime carries no tier, the capability matrix has no
+`programs` cell, a cancel of a call named `run_program` is not a motion
+cancel, and no store is touched (golden-pinned in
+`tests/test_programs_mcp.py`).
 
 ## Not claimed, and still open
 
@@ -198,8 +299,12 @@ built-in tiers are bypassed -- does not expose it.
   scripted brains and, where a test needs a confirmed effect, the stand-in
   physics channel the recipe tests use. No claim that programs raise task
   success or that a real brain writes valid programs.
-- Not exposed to MCP chat hosts (a host-side tool would need the same
-  top-level execution outside a tool call); no branching or loops (skill
-  graphs cover outcome routing on the composed runtime); motions without a
-  registered postcondition can never make a program admissible; retrieval is
-  keyword overlap, not embedding (same limitation as the ASPIRE notes).
+- ~~Not exposed to MCP chat hosts~~ (landed 2026-10-09, B42: `list_programs` /
+  `run_program`, above). Not measured with a real host brain: whether a local
+  Qwen writes valid specs over MCP, or reuses promoted ones, is unmeasured.
+- No branching or loops (skill graphs cover outcome routing on the composed
+  runtime); motions without a registered postcondition can never make a
+  program admissible.
+- ~~Retrieval is keyword overlap, not embedding~~ (landed 2026-10-09, B42: opt-in
+  `memory.embedder`, floor-or-guard). Measured with the `hash` embedder only;
+  the SigLIP/CLIP text floors are uncalibrated on real weights.

@@ -54,11 +54,19 @@ CAP_MOBILE_BASE = "mobile_base"
 CAP_VERIFIER = "verifier"
 #: episodic memory with the Vesta frame harness
 CAP_MEMORY = "memory"
+#: the opt-in programs tier (docs/PROGRAMS_TIER.md; B42): its library opened.
+#: OPTIONAL: the cell exists only when the server attached a tier to the
+#: runtime (`agent.programs` / CASCADE_PROGRAMS=1), so with the tier off the
+#: matrix, its banner and the withheld list are the pre-tier ones exactly.
+CAP_PROGRAMS = "programs"
 
 CAPABILITIES = (
     CAP_DEPTH_3D, CAP_DEPTH_HEIGHTS, CAP_LEARNED_GRASPS, CAP_OCCUPANCY,
     CAP_MULTI_ARM, CAP_MOBILE_BASE, CAP_VERIFIER, CAP_MEMORY,
 )
+#: capabilities that are not part of every server: a tool requiring one that
+#: is ABSENT from the matrix is not served at all, so it is not "withheld"
+_OPTIONAL_CAPABILITIES = frozenset({CAP_PROGRAMS})
 
 #: Hand-maintained like `_MOTION_SKILLS`: tool name -> capabilities it cannot
 #: run without. A tool that merely DEGRADES without a capability (grasp tools
@@ -88,6 +96,11 @@ TOOL_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     # the Vesta frame harness and the event digest live in episodic memory
     "task_memory": (CAP_MEMORY,),
     "recall_memory": (CAP_MEMORY,),
+    # the programs tier (opt-in): listing needs the library; running a
+    # program needs the verifier too -- without it no step can be CONFIRMED,
+    # so every program would stop at its first registered effect
+    "list_programs": (CAP_PROGRAMS,),
+    "run_program": (CAP_PROGRAMS, CAP_VERIFIER),
 }
 
 #: never withheld by any probe: the stop path is not a capability
@@ -292,7 +305,32 @@ def capability_matrix(runtime) -> dict:
     out[CAP_MEMORY] = (_entry(True, "episodic memory with frame harness")
                        if memory is not None and hasattr(memory, "memory_frames")
                        else _entry(False, "none", "no episodic memory in this runtime"))
+    programs = _programs_capability(runtime)
+    if programs is not None:
+        out[CAP_PROGRAMS] = programs
     return out
+
+
+def _programs_capability(runtime) -> dict | None:
+    """The programs cell, or None when no tier is attached (the cell is then
+    absent -- the pre-tier matrix byte for byte)."""
+    tier = getattr(runtime, "program_tier", None)
+    if tier is None:
+        return None
+    from ..agent.programs import ProgramTier, ProgramTierUnavailable
+
+    if isinstance(tier, ProgramTierUnavailable):
+        return _entry(False, "library unavailable",
+                      f"the program library could not be opened ({tier.error}); "
+                      "no program can be listed, run or stored")
+    if not isinstance(tier, ProgramTier):
+        return None
+    try:
+        counts = tier.library.summary()
+    except Exception as e:  # noqa: BLE001 -- a report must never fail the call
+        return _entry(False, "library unreadable", f"the program library could not be read ({type(e).__name__}: {e})")
+    return _entry(True, f"{counts['promoted']} promoted, {counts['candidates']} candidate(s); "
+                        f"reuse after {tier.library.min_tasks} distinct verified tasks")
 
 
 def withheld_tools(matrix: dict, requirements: dict[str, tuple[str, ...]] | None = None) -> dict[str, str]:
@@ -306,6 +344,8 @@ def withheld_tools(matrix: dict, requirements: dict[str, tuple[str, ...]] | None
     for tool, caps in reqs.items():
         if tool in _NEVER_WITHHELD:
             continue
+        if any(c in _OPTIONAL_CAPABILITIES and c not in matrix for c in caps):
+            continue  # an opt-in tier this server did not attach: not served, not withheld
         unmet = [c for c in caps if (matrix.get(c) or {}).get("available") is False]
         if unmet:
             out[tool] = "; ".join(f"{c}: {matrix[c].get('why') or matrix[c].get('detail')}"
@@ -338,4 +378,6 @@ def format_matrix(matrix: dict) -> str:
         flag(CAP_VERIFIER, ""),
         flag(CAP_MEMORY, ""),
     ]
+    if CAP_PROGRAMS in matrix:  # only when a programs tier is attached
+        parts.append(flag(CAP_PROGRAMS))
     return " | ".join(parts)

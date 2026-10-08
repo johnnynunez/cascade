@@ -136,10 +136,12 @@ shared boundary is `RobotRuntime.execute()`, as shown in the
                  host LLM picks tools over MCP stdio                         --task / --interactive
                           │                                                          │
                           ▼                                                          ▼
-              apps/mcp_server.py  ── 45 tools ──┐                  agent/orchestrator.py
+              apps/mcp_server.py  ── 47 tools ──┐                  agent/orchestrator.py
               (38 specs − task_done              │                  tier 1 REFLEX   regex grammar      ~µs
                + 8 host extras: camera_snapshot, │                  tier 2 HABIT    experience memory  ~ms
                world_state, task_memory, ...;    │                  tier 3 LLM      + memory harness   2–15 s/turn
+               + list_programs/run_program only  │
+               with the opt-in programs tier;    │
                minus what the rig's capability   │
                matrix withholds, with reasons)   ▼                            │
                               skills/runtime.py  SkillRuntime.execute()  ◀────┘
@@ -204,8 +206,22 @@ chat command ("pick and place the red cube")
   composable. Authored and distilled programs share one admission rule (stored
   only from a fully CONFIRMED execution, offered only once promoted across ≥ 2
   distinct tasks). `programs=None` (the default) is the pre-change dispatch
-  exactly; the mock brain, mobile/composed runtimes and the MCP server never
-  get the tier.
+  exactly; the mock brain and mobile/composed runtimes never get the tier.
+  **MCP chat hosts (B42, opt-in with the same switch):** an arm MCP server
+  with the tier on serves `list_programs` (promoted programs only) and
+  `run_program` (a promoted program by name, or a host-written spec run
+  once). The host is the brain, so its `run_program` call replaces the
+  authoring turn and goes through the SAME `ProgramTier` + runner (top-level
+  `execute()` per step, ledger verdicts, re-grounding, first-unverified stop,
+  CONFIRMED-only admission, ≥ 2-task promotion); the server additionally
+  refuses a program whose step or grounding query the capability matrix
+  withholds or the operator hid, and hands the runner a halt check so a
+  latched stop dispatches no further step. A cancel of an in-flight
+  `run_program` latches the e-stop like any motion tool. With a
+  `memory.embedder`, programs are ranked by text embedding with the skill
+  library's floor-or-guard rule (keyword overlap otherwise). Tier off: both
+  tools are absent and the catalog, every call result and `world_state` are
+  the pre-tier ones (golden-pinned).
 
 - **Latest-slot streaming, never queues** (`perception/stream.py`).
 - **Warm world model.** Beliefs help resolve names and rank current visual
@@ -497,7 +513,7 @@ make that image current by assigning a new timestamp. See
 | `EpisodicMemory` visual index (**opt-in**, `memory.embedder`) | one TurboQuant vector per motion frame and per object crop localized during a call (`_localize` detections, keyed by detector label), from `memory/embedder.py` | task-scale (`frames_horizon_s`), ≤ `max_visual` (512) entries, pruned with the index; survives the per-task frame reset | `recall_visual(image \| text \| vector)`; `recall_memory(query)` adds `looks_like` hits only with a joint image-text embedder (siglip/clip). A hit is a remembered appearance, never a current observation |
 | `ExperienceMemory` (`agent/reflex.py`) | command → plan habits, hashed BoW in a TurboQuant index; plus Task-Specific Memory **recipes** (verified LLM-tier runs, coordinates replaced by `localize_object(label)+offset` queries + a summary, `memory/recipes.py`) | `runs/experience.json` (habits), `runs/recipes.jsonl` (recipes) | tier 2; a recipe is re-grounded through perception before any motion, a failed grounding aborts to the LLM tier |
 | `ActionObjectMemory` (`memory/consolidation.py`, **opt-in**, `memory.action_objects`) | the tier-2 outcome stream consolidated per (motion skill, normalized object label) across instruction wordings: wins / losses / wordings; one credit per EXECUTED call (never again per curriculum sub-goal); deliberately not merged by embedding (red cube ≠ blue cube) | `runs/action_objects.json` | LLM-tier intro: advisory digest for the objects the task names |
-| `ProgramLibrary` (`memory/programs.py`, opt-in) | programs: parameterized registered-call lists (labels as params, positions as perception queries), keyed by a structural sha256; `occurrences`, `source_tasks`, `origins` (authored / distilled / reused), `losses` | `runs/programs.jsonl` (`memory.programs_path`, `CASCADE_PROGRAMS_PATH`) | tier 2.5 authoring prompt, **only promoted** records (≥ `agent.program_min_tasks` = 2 distinct tasks, verified more often than failed); admitted only from a CONFIRMED execution |
+| `ProgramLibrary` (`memory/programs.py`, opt-in) | programs: parameterized registered-call lists (labels as params, positions as perception queries), keyed by a structural sha256; `occurrences`, `source_tasks`, `origins` (authored / distilled / reused), `losses` | `runs/programs.jsonl` (`memory.programs_path`, `CASCADE_PROGRAMS_PATH`) | tier 2.5 authoring prompt, **only promoted** records (≥ `agent.program_min_tasks` = 2 distinct tasks, verified more often than failed); admitted only from a CONFIRMED execution; also the MCP `list_programs` / `run_program` when the tier is on; keyword overlap, or text embedding with `memory.embedder` (floor-or-guard); every write re-reads the store under an advisory lock, so per-session MCP servers sharing it never lose each other's evidence |
 | `GraspOutcomeMemory` | per-object grasp features, wins/losses | `~/.cascade/grasp_memory.json` | grasp re-rank + z-nudge |
 | `OperatingEnvelope` (`memory/envelope.py`) | per-skill outcome statistics and failure classes, raw args plus runtime-measured derived features (`DERIVED_FEATURES`: TCP z at close, object height/width, lateral offset; unmeasured → `missing`, never defaulted) | `~/.cascade/envelope.json` (`CASCADE_ENVELOPE_PATH`) | planner context; advisory |
 
@@ -654,7 +670,7 @@ src/cascade/
 ├── eval/progress_judge.py   Robo-Dopamine progress judge (GRM / VLM), off the hot path
 └── apps/
     ├── demo.py         build_runtime() = the composition root; CLI --task / --interactive
-    ├── mcp_server.py   MCP front-end: 45 tools, out-of-band stop, per-call log; stdio by default, Streamable HTTP (`--http`, bearer + TLS) for NemoClaw/OpenShell
+    ├── mcp_server.py   MCP front-end: 47 tools (2 only with the opt-in programs tier), out-of-band stop, per-call log; stdio by default, Streamable HTTP (`--http`, bearer + TLS) for NemoClaw/OpenShell
     ├── capabilities.py capability matrix from the built runtime; TOOL_REQUIREMENTS trims the MCP catalog
     ├── process_owner.py profile-owned process identity for shutdown and proof binding
     ├── stream_server.py lazy MJPEG dashboard (+ chat, STOP)     live_view.py  RigViewer
@@ -895,7 +911,9 @@ token and registration. Stdio through `launch.sh` remains the default; see
 - `RebotRSArm.disconnect()` cuts torque: park (`move_home`) first.
 - The MCP server executes one tool call at a time; stops are handled
   out-of-band by the stdin reader (never queued behind a motion), but a
-  second *motion* request waits.
+  second *motion* request waits. A `run_program` call is one such call for
+  its whole program (seconds per step): a stop or cancel interrupts it, a
+  second request waits.
 - The rendered-camera window (`RigViewer`) cannot open on macOS from the
   server (Cocoa needs the main thread; `opencv-python-headless` has no
   highgui); the MuJoCo physics window and the browser dashboard are the
@@ -906,7 +924,10 @@ token and registration. Stdio through `launch.sh` remains the default; see
   (`memory.embedder`); with the dependency-free `hash` embedder it only adds
   inflections (grasping ~ grasp), and the SigLIP/CLIP text floors
   (`text_floor` 0.85, CLIP `text_image_floor` 0.25) are NOT calibrated with
-  real weights -- measure them on the GPU host before relying on them.
+  real weights -- measure them on the GPU host before relying on them. The
+  same opt-in embedder ranks stored programs (B42, `ProgramLibrary.ranked`)
+  under the same floor-or-guard rule and the same caveat; keyword overlap
+  stays the default.
 - Visual recall indexes motion frames and the crops of objects a call
   LOCALIZED, not every detection the watcher sees; it is in-process
   (task-scale horizon, lost on restart). Text queries ("looks like X") need

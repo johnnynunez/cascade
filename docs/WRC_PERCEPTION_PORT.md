@@ -153,7 +153,10 @@ read-only.
    image's shape and reads the tape-measured distance at 1 mm/unit: verify
    that `DepthFrame.get_depth_scale()` reports 1.0 at default precision. (d)
    `K` matches the factory intrinsics. If HW D2C is refused, the log names
-   the software-alignment fallback.
+   the software-alignment fallback. The backend opens depth only as Y16. If
+   the firmware offers only packed formats (Y11/Y12/RLE), `open()` fails with
+   "no depth stream profile". Enable the SDK's format conversion, or extend
+   `_pick_video_profile`'s depth preference with a decoder and a test.
 3. **Serial binding.** With both units attached, swap the profile serials and
    confirm the views swap. Unplug one unit and confirm the profile pinned to
    it fails with "not found" rather than streaming the other.

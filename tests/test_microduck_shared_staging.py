@@ -157,7 +157,8 @@ def test_retry_still_checks_episode_wall_budget_and_never_commits_late_policy():
 
 
 def _launch_shared_runner(tmp_path, monkeypatch, *, profile_phases, gc_policy, fleet_close_error=None,
-                          extra_limits=None, physics_row_every=1, max_steps=2, profile_cprofile=False):
+                          extra_limits=None, physics_row_every=1, max_steps=2, profile_cprofile=False,
+                          serve_base_port=None, state_reader=None):
     """Drive the real launcher with software fixtures; returns everything the asserts need."""
     import gc
     import importlib
@@ -243,9 +244,12 @@ def _launch_shared_runner(tmp_path, monkeypatch, *, profile_phases, gc_policy, f
     out = tmp_path / 'run'
     args = NS(out=out, device='cuda:0', source='software-test-not-physics', max_wall_s=3.,
               max_steps=max_steps, camera_every=1, max_jpeg_bytes=100000, policy=tmp_path / 'fixture.onnx',
-              policy_sha256='b'*64, target_profile='direct-v1', python_extra_path=[], robots=1, serve_base_port=None,
+              policy_sha256='b'*64, target_profile='direct-v1', python_extra_path=[], robots=1,
+              serve_base_port=serve_base_port,
               profile_phases=profile_phases, gc_policy=gc_policy, physics_row_every=physics_row_every,
               profile_cprofile=profile_cprofile)
+    if state_reader is not None:
+        args.state_reader = state_reader
     signals = NS(signum=None, registration_attempts=0, checkpoint=lambda **kwargs: None, defer=nullcontext)
     admission = dict(target_contract=target_contract('b'*64, 'direct-v1'), asset_sha256='a'*64,
                      limits=software_limits() | (extra_limits or {}), experience_text='software fixture\n')

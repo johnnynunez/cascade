@@ -167,9 +167,17 @@ class BoundaryController:
         self.admission.owner_disconnected(self.robot_id, owner)
 
 
+STATE_READERS = ('owner-gil', 'process')
+
+
 class SharedEndpoints:
-    """Independent loopback channels over a single owner; no physics methods."""
-    def __init__(self, steppers, *, base_port, max_jpeg_bytes, max_pixels=640*480):
+    """Independent loopback channels over a single owner; no physics methods.
+
+    ``state_reader='process'`` (opt-in) moves reader channels' ``state`` polls to the off-GIL
+    state server after their first reply (``mobile_state_offload``); every other operation,
+    including each channel's ``hello``, stays here. Requires publishing controllers.
+    """
+    def __init__(self, steppers, *, base_port, max_jpeg_bytes, max_pixels=640*480, state_reader='owner-gil'):
         from .mobile_bridge import MobileBridgeServer
         from .microduck_stepper import FrameCache
         steppers = tuple(steppers)
@@ -178,21 +186,34 @@ class SharedEndpoints:
             raise ValueError('explicit available loopback port range required')
         if type(max_pixels) is not int or max_pixels <= 0:
             raise ValueError('explicit positive overview pixel bound required')
+        if state_reader not in STATE_READERS:
+            raise ValueError(f'state_reader must be one of {STATE_READERS}')
         controllers = {s.identity['robot_id']: s.controller for s in steppers}
         if len(controllers) != len(steppers):
             raise ValueError('duplicate shared endpoint robot identity')
         self.admission = BoundaryAdmission(controllers)
         self.caches, self.servers = {}, {}
+        self.state_reader = None
         self.closed = self.started = False
         try:
+            if state_reader == 'process':
+                from .mobile_state_offload import StateServerProcess
+                self.state_reader = StateServerProcess(controllers)
             for i, (robot_id, controller) in enumerate(controllers.items()):
                 cache = FrameCache(controller.hello(), max_jpeg_bytes=max_jpeg_bytes, max_pixels=max_pixels)
                 self.caches[robot_id] = cache
+                offload = None if self.state_reader is None else self.state_reader.offload(robot_id)
                 self.servers[robot_id] = MobileBridgeServer(self.admission.endpoint(robot_id),
-                    port=base_port+i if base_port else 0, frame_callback=cache)
+                    port=base_port+i if base_port else 0, frame_callback=cache, state_offload=offload)
+                if offload is not None:
+                    self.state_reader.bind(robot_id, self.servers[robot_id])
         except BaseException as exc:
             self._rollback(exc)
             raise
+
+    def state_reader_receipt(self):
+        """Which path answered ``state`` polls, plus the off-GIL counters when it was the server."""
+        return {'mode': 'owner-gil'} if self.state_reader is None else self.state_reader.receipt()
 
     def publish_capture(self, capture, *, jpeg=None):
         """One encode for every robot's cache (twelve 1080p encodes took ~180 ms per capture)."""
@@ -237,8 +258,10 @@ class SharedEndpoints:
             return
         self.closed = True
         first = None
-        # Wake queued RPCs before server worker joins; attempt every cleanup.
-        for resource in (self.admission, *self.servers.values(), *self.caches.values()):
+        # Wake queued RPCs before server worker joins; attempt every cleanup. The off-GIL state
+        # server closes last: the servers' closing stop latch is still mirrored into its slots.
+        state_reader = () if self.state_reader is None else (self.state_reader,)
+        for resource in (self.admission, *self.servers.values(), *self.caches.values(), *state_reader):
             try:
                 resource.close()
             except BaseException as exc:

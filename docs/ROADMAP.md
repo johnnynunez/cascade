@@ -867,6 +867,21 @@ aggregator, not nvblox. Fixes, all measured on this CUDA-less Mac (suite
   `occupancy.port` values differ. Still open: no live Isaac run on private
   ports yet, and `launch.sh --graspgenx external` still probes
   `127.0.0.1:$CASCADE_GRASPGENX_PORT` whatever `CASCADE_GRASPGENX_HOST` says.
+  **Follow-up (backlog B64) landed 2026-10-09** — the sidecars' own test
+  fixtures no longer use fixed ports: the stub sat on 5599, the bridge on
+  5598/5599, and any listener there counted as ready, so concurrent suites
+  on one host answered each other (2 `zmq.error.Again` graspgenx and 4
+  `KeyError: 'point_cloud'` occupancy failures). Both scripts now take
+  `--port 0` (OS-assigned, announced in one `CASCADE_SERVER_READY` stdout
+  line) and `--instance-id` (echoed with the pid in `health` / `probe`);
+  `tests/owned_server.py` accepts a server only when the ready line and one
+  protocol round trip name the started process and its token; "dead server"
+  tests hold their port bound with nothing listening. Measured on CPU
+  (`tests/test_owned_test_servers.py`): with the port each fixture is
+  configured for answered by a foreign listener, the be57535 fixtures sent it
+  2 (graspgenx) and 3 (occupancy) requests, the new ones none. Test-only:
+  without the flags the scripts reply byte-identically. Still open: the
+  other server tests bind port 0 but do not check who answers.
 - **Robo-Dopamine as the outcome judge** (`eval/progress_judge.py`,
   `scripts/judge_run.py`; https://robo-dopamine.github.io/). The GRM is a
   VLM prompted with the task, optional START/END references and BEFORE/AFTER

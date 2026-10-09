@@ -18,13 +18,13 @@ offset, which is what actually breaks a demo.
 
 from __future__ import annotations
 
-import subprocess
 import sys
 import time
 
 import numpy as np
 import pytest
 from conftest import REPO
+from owned_server import OwnedServerError, held_dead_port, start_owned_server
 
 from cascade.config import Cfg
 from cascade.types import Detection, ObjectFix
@@ -47,37 +47,40 @@ needs_wire = pytest.mark.skipif(
 )
 
 STUB = REPO / "scripts" / "serve_graspgenx_stub.py"
-PORT = 5599          # not 5556: never collide with a real server on the rig
+
+
+def _stub_identity(port: int) -> dict:
+    from cascade.grasping.graspgenx_backend import GraspGenXClient
+
+    client = GraspGenXClient(host="127.0.0.1", port=port, timeout_ms=30000)
+    try:
+        return client.probe(timeout_ms=30000)
+    finally:
+        client.close()
 
 
 @pytest.fixture(scope="module")
-def stub_server():
-    """The protocol stub, on a private port."""
-    proc = subprocess.Popen(
-        [sys.executable, str(STUB), "--port", str(PORT), "--quiet"],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    )
-    # Wait for the bind rather than sleeping a fixed amount.
-    deadline = time.monotonic() + 15.0
-    import socket
+def stub_server(tmp_path_factory):
+    """The protocol stub, on a port the OS assigns. Accepted only when its
+    ready line and its health reply name the process started here and this
+    fixture's random token: the old fixed 5599 + "any listener answers" let
+    concurrent suites talk to each other's stub (B64, tests/owned_server.py)."""
+    try:
+        server = start_owned_server(
+            [sys.executable, str(STUB), "--quiet"], identify=_stub_identity, deadline_s=120.0,
+            stderr_path=tmp_path_factory.mktemp("graspgenx-stub") / "stderr.log")
+    except OwnedServerError as e:
+        pytest.fail(f"the stub did not come up as this module's own server: {e}")
+    yield server.port
+    assert server.stop(), "the stub exited while its tests ran"
 
-    while time.monotonic() < deadline:
-        if proc.poll() is not None:
-            err = proc.stderr.read().decode()[:400] if proc.stderr else ""
-            pytest.skip(f"stub server exited: {err}")
-        s = socket.socket()
-        s.settimeout(0.2)
-        if s.connect_ex(("127.0.0.1", PORT)) == 0:
-            s.close()
-            break
-        s.close()
-        time.sleep(0.1)
-    else:
-        proc.kill()
-        pytest.skip("stub server did not bind in time")
-    yield PORT
-    proc.kill()
-    proc.wait(timeout=5)
+
+@pytest.fixture
+def dead_port():
+    """A port this test holds bound with nothing listening: refused, and no
+    other process can serve on it meanwhile (unlike a literal "5601")."""
+    with held_dead_port() as port:
+        yield port
 
 
 def _cube_fix(centre=(0.22, 0.0, 0.045), half=0.025, n=400) -> ObjectFix:
@@ -103,7 +106,7 @@ def _planner(port, **over):
 # ── the failure that started this: the client could not even be built ────
 
 
-def test_the_client_builds_when_the_extra_is_installed():
+def test_the_client_builds_when_the_extra_is_installed(dead_port):
     """`grasp.backend: graspgenx` is the DEFAULT, so a missing wire dependency
     silently disabled the configured planner on every grasp. The extra now
     declares pyzmq+msgpack-numpy; this test fails loudly if that regresses."""
@@ -112,7 +115,7 @@ def test_the_client_builds_when_the_extra_is_installed():
     if not _has_wire():
         pytest.skip("grasping extra not installed in this venv")
     try:
-        GraspGenXClient(port=PORT)
+        GraspGenXClient(port=dead_port)
     except GraspGenXError as e:  # pragma: no cover
         pytest.fail(f"client could not be constructed: {e}")
 
@@ -265,20 +268,20 @@ def test_the_grasp_is_above_the_table_not_below_it(stub_server):
 
 
 @needs_wire
-def test_a_dead_server_raises_a_typed_error_promptly():
+def test_a_dead_server_raises_a_typed_error_promptly(dead_port):
     """The runtime catches this and falls back to OBB. It must be a
     GraspGenXError (not a hang, not a raw zmq error) or the fallback in
     runtime.py cannot do its job."""
     from cascade.grasping.graspgenx_backend import GraspGenXError
 
-    planner = _planner(5601, timeout_ms=600)   # nothing listening there
+    planner = _planner(dead_port, timeout_ms=600)   # held by this test, nothing listening
     t0 = time.monotonic()
     with pytest.raises(GraspGenXError):
         planner.plan(_cube_fix(), max_width_m=0.055)
     assert time.monotonic() - t0 < 10.0, "dead server took too long to fail"
 
 
-def test_the_runtime_falls_back_to_obb_when_graspgenx_is_down(monkeypatch):
+def test_the_runtime_falls_back_to_obb_when_graspgenx_is_down(monkeypatch, dead_port):
     """End of the booth rule, at the level that matters: a grasp still gets
     planned. Verified through the real _plan_grasps path with the backend
     pointed at a dead port."""
@@ -289,9 +292,9 @@ def test_the_runtime_falls_back_to_obb_when_graspgenx_is_down(monkeypatch):
     from cascade.config import load_demo_config
 
     cfg = load_demo_config(camera="mock_small", arm="so101_mock", llm="mock")
-    # point the backend at a port with nothing on it
+    # point the backend at a port this test holds with nothing listening
     cfg._data["grasp"]["backend"] = "graspgenx"
-    cfg._data["grasp"]["graspgenx"]["port"] = 5602
+    cfg._data["grasp"]["graspgenx"]["port"] = dead_port
     cfg._data["grasp"]["graspgenx"]["timeout_ms"] = 400
     runtime, arm = build_runtime(cfg, Path("/tmp/wrc_ggx_fallback"))
     try:
@@ -314,9 +317,9 @@ def test_required_model_rejects_the_analytic_stub(stub_server):
 
 @needs_wire
 @pytest.mark.parametrize("tags", [[], ["obb"], ["diff", "diff"]])
-def test_required_diffusion_rejects_missing_or_analytic_provenance(tags):
+def test_required_diffusion_rejects_missing_or_analytic_provenance(tags, dead_port):
     from cascade.grasping.graspgenx_backend import GraspGenXError
-    planner = _planner(5602, required=True, planner="diffusion", sweep={
+    planner = _planner(dead_port, required=True, planner="diffusion", sweep={
         "extents_open": [.09, .02, .045], "extents_mid": [.045, .02, .045]})
     planner._client.request = lambda request: {
         "grasps": np.eye(4)[None], "confidences": np.array([.9]), "branch_tags": tags}
@@ -400,8 +403,8 @@ def test_explicit_launcher_backend_reaches_every_arm(monkeypatch, backend):
 
 @needs_wire
 @pytest.mark.parametrize("tip", [0.0, 0.05, 0.098])
-def test_sweep_conditioning_and_returned_pose_use_the_same_gripper_frame(tip):
-    planner = _planner(5602, tip_offset_m=tip, sweep={
+def test_sweep_conditioning_and_returned_pose_use_the_same_gripper_frame(tip, dead_port):
+    planner = _planner(dead_port, tip_offset_m=tip, sweep={
         "extents_open": [.09, .02, .045], "extents_mid": [.045, .02, .045],
         "offset_open": [0, 0, 0], "offset_mid": [0, 0, 0],
         "fingertip_depth": .0225})

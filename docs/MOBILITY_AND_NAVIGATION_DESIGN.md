@@ -1,12 +1,43 @@
 # Design: mobility, humanoids and navigation (`MobileBase`)
 
-Status: **design, not code** (2026-09-10). Approved direction: Unitree G1/H1
+Status: **design (2026-09-10), partly implemented since with a different
+interface** -- see "Status, re-derived from the code (2026-10-09)" below and
+the current state in
+[ARCHITECTURE.md](ARCHITECTURE.md#ros2-humanoids-and-what-is-not-here-yet).
+Approved direction: Unitree G1/H1
 humanoid in simulation first; one `MobileBase` interface with two navigation
 backends -- ROS2 Nav2 when a ROS2 environment is sourced, a Warp costmap +
 planner otherwise -- so the one-click keeps working on a laptop. Code lands
 in a follow-up after this design is reviewed.
 
-## What exists today, precisely
+## Status, re-derived from the code (2026-10-09)
+
+What landed (each with its evidence level; details and paths in
+ARCHITECTURE.md):
+
+- `MobileBase` (`control/mobile_base.py`) is a **velocity-level** contract
+  (`BaseState`, `VelocityCommand`, generation fences, stop / `reset_stop`),
+  not the `go_to` / `costmap()` interface sketched below. `MobileRig`,
+  `SafeBase` (`safety/base_harness.py`), `MobileSkillRuntime`
+  (`walk_velocity`, `walk_distance`, `turn`, `stop_navigation`) and an
+  independent verifier (`agent/base_effects.py`) exist; `base` is an argument
+  of the mobile skills, not a binding in the arm `SkillRuntime.execute()`.
+- Backends: `mock` (kinematic double) and `isaac` (bridge client) only. The
+  simulated robots are MicroDuck on Newton and the Unitree H2 on PhysX
+  ([HUMANOID_H2.md](HUMANOID_H2.md)), not a G1/H1; both are candidates with
+  measured simulation episodes and no physical admission.
+- An opt-in `go_to` route runner (`spatial/navigation.py`) on a conservative
+  planar grid, CPU tests only; no shipped pose/clearance provider feeds it.
+- Optional cuVSLAM localization (`spatial/cuvslam.py`, NVIDIA's SDK in an
+  owned worker process), measured natively in simulation, pose uncertainty
+  uncalibrated.
+- A mock-only arm-on-base `whole_body` contract (`robotics/whole_body.py`).
+
+Not built: `go_to_pixel`, `go_to_object`, `where_am_i`, the ESDF costmap,
+`ros2_base` / Nav2, `mujoco_base`, `unitree_base`, the two-room demo and any
+hardware run. The sections below are the original design, kept as written.
+
+## What existed on 2026-09-10, precisely
 
 - **Arms only.** `control/arm_base.py` (`ArmBase`, six methods) and every
   backend under `control/` drive an *arm*. `type: ros2` (`ros2_arm.py`) is

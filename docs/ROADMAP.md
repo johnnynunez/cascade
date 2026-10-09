@@ -225,11 +225,27 @@ Open, in priority order (details in the sections below):
    STILL OPEN: real SigLIP/CLIP weights were never loaded here -- recall
    quality and the uncalibrated text floors need a GPU-host evaluation;
    crops come from localizations, not every watcher detection; recall is
-   in-process only. Found while measuring (NOT fixed, separate item): tier-2
+   in-process only. ~~Found while measuring (NOT fixed, separate item): tier-2
    recall matches the compound "pick up the red cube and then pick up the
    blue cube" to the single habit "pick up the red cube" (cosine 0.901 ≥ 0.9)
    because experience is consulted before the curriculum split, so the fast
-   tier can run half a command and report success.
+   tier can run half a command and report success.~~ **landed 2026-10-09
+   (B37)** — `ExperienceMemory.recall` accepts a habit or recipe only with
+   the task's clause structure: the same number of `split_subgoals` clauses
+   and, for a sequence, every clause ≥ 0.9 against its counterpart in order
+   (a single instruction keeps the pre-B37 rule exactly). Measured with the
+   real recall + `FastPlanner` on 23 instruction pairs, main vs branch: the
+   compound now runs both clauses through the curriculum, each clause still
+   warm-started from its own habit; the same rule stops a clause or a single
+   command from replaying a recorded compound (0.929: both cubes moved), a
+   reversed sequence (0.994: wrong order) and a one-word clause difference
+   (0.958: bowl for box). `tests/test_tier2_clause_structure.py` (20 RED on
+   4e896c3 → 28 GREEN, through `run_task` with `MockLLM`), 10/10 mutants
+   killed. Still open: a bare "and" is no clause boundary anywhere in the
+   fast tier (two "move …" commands joined by "and" still replay the first
+   one's habit, 0.951), and the opt-in programs tier offers programs by
+   keyword overlap or text embedding (B42) and leaves whole-vs-part to the
+   brain (ARCHITECTURE, Known limitations).
 8. **Multi-arm on physics**: `so101_left`/`so101_right` are mock; render a
    two-arm MuJoCo scene so the inter-arm gate is measured, not simulated.
    **Half landed 2026-10-07** — `sim/demo_scene.multi_arm_scene_xml` attaches

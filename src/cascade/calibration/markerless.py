@@ -790,3 +790,39 @@ def _fraction_in_front(pr, T, spacing, tol=0.02):
     if not good.any():
         return 0.0
     return float(np.mean(z[good] < p[ok][good, 2] - tol))
+
+
+# ── the record ───────────────────────────────────────────────────────────
+
+
+def record_from_markerless(fit: MarkerlessFit, samples, *, camera: str = "",
+                           camera_serial: str = "", arm: str = "", ee_frame: str = "", K=None,
+                           image_size=None, note: str = "", depth_files=()):
+    """Wrap a markerless fit as a schema-v1 hand-eye record (method
+    ``depth_icp_markerless``): same file, same loader, its own gate."""
+    import time
+
+    from .dataset import DepthPose, HandEyeRecord
+
+    stats = {p.label: p for p in fit.poses}
+    files = list(depth_files) + [""] * max(0, len(samples) - len(depth_files))
+    poses = []
+    for s, f in zip(samples, files):
+        st = stats.get(s.label)
+        poses.append(DepthPose(
+            label=s.label, q=tuple(float(v) for v in s.q),
+            T_gripper2base=np.asarray(s.T_gripper2base, dtype=float),
+            n_visible=0 if st is None else int(st.n_visible),
+            n_inliers=0 if st is None else int(st.n_inliers),
+            rmse_m=math.nan if st is None else float(st.rmse_m),
+            offset_m=math.nan if st is None else float(st.offset_m),
+            offset_deg=math.nan if st is None else float(st.offset_deg),
+            depth_file=str(f)))
+    outliers = tuple(i for i, p in enumerate(poses) if p.n_inliers < MIN_POSE_INLIERS)
+    return HandEyeRecord(
+        mode=EYE_TO_HAND, T_hand_eye=np.asarray(fit.T_cam2base, dtype=float), T_marker=None,
+        metrics=dict(fit.metrics), marker=None, samples=tuple(poses), outlier_indices=outliers,
+        camera=camera, camera_serial=str(camera_serial or ""), arm=arm, ee_frame=ee_frame,
+        K=None if K is None else np.asarray(K, dtype=float), D=None,
+        image_size=None if image_size is None else tuple(int(v) for v in image_size),
+        method=METHOD, created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), note=note)

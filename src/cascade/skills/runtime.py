@@ -43,6 +43,7 @@ from ..perception.grounding import (
 
 if TYPE_CHECKING:  # annotation only; the runtime import stays local (import cycle)
     from ..control.arm_rig import ArmRig
+    from ..perception.link_mask import LinkSelfMask
     from ..types import ObjectFix
 from ..types import Detection, Frame, SafetyViolation, SkillError, SkillStuck, make_transform, transform_points
 
@@ -225,6 +226,8 @@ class SkillRuntime:
         #: app wiring). None = persistence disabled, which is the default for
         #: bare/unit-test runtimes.
         self.beliefs_path = None
+        # B43: where the visual index persists (memory.persist_episodic); None = off
+        self.episodic_path = None
         #: dispatch tier that served the last command ("reflex" |
         #: "experience" | "llm" | "mcp-host"), for the dashboard "via:" chip
         self.last_path: str | None = None
@@ -350,6 +353,9 @@ class SkillRuntime:
     _arm_override = None
     arm_rig = None
     _call_measurements = None
+    #: LinkSelfMask | None (B39): set by the app wiring when
+    #: `workspace_filter.link_self_mask` is on; see perception/link_mask.py.
+    _link_self_mask: "LinkSelfMask | None" = None
 
     @property
     def arm(self):
@@ -1070,6 +1076,11 @@ class SkillRuntime:
             # for another camera names it (`_reobserve`); unnamed stays None.
             if source is None:
                 source = camera_source(getattr(self, "camera", None))
+        # B39 (opt-in): no render self-mask -> the arm's link geometry at this
+        # frame's time feeds the same gate, on a fusion-local copy of the frame.
+        link = getattr(self, "_link_self_mask", None)
+        if link is not None and self_px is None and dets and self._workspace.self_mask:
+            self_px = self._workspace.self_pixels(link.attach(frame, T))
         observations = []
         for d in dets:
             mask = d.mask
@@ -1969,6 +1980,17 @@ class SkillRuntime:
             return []
         return [c for c in cams[1:] if getattr(c, "fuse", True)]
 
+    def _sample_link_state(self, frame) -> None:
+        """B39: record the arm's joint state as a frame is taken, BEFORE
+        inference, so the link self-mask is posed at the image's time (a
+        sample taken after detection is further from it). A no-op unless
+        `workspace_filter.link_self_mask` is on and the frame has no render
+        self-mask."""
+        link = getattr(self, "_link_self_mask", None)
+        if (link is not None and self._workspace.self_mask
+                and getattr(frame, "robot_mask", None) is None):
+            link.sample()
+
     def _reobserve(self, frames: int = 2) -> None:
         """Refresh beliefs with fresh detector passes over EVERY fusing
         camera while the WorldWatcher is paused (motion skills hold it):
@@ -1979,6 +2001,7 @@ class SkillRuntime:
         for _ in range(max(int(frames), 1)):
             try:
                 frame = self.observe()
+                self._sample_link_state(frame)
                 dets = self.detector.detect(frame, classes=self._default_classes)
                 if held is not None:
                     dets = [d for d in dets if d.label != held]
@@ -1992,6 +2015,7 @@ class SkillRuntime:
                 frame = cam.depth.ensure_depth(cam.stream.get_frame())
                 if not frame.has_depth:
                     continue
+                self._sample_link_state(frame)
                 dets = self.detector.detect(frame, classes=self._default_classes)
                 if held is not None:
                     dets = [d for d in dets if d.label != held]
@@ -2119,6 +2143,7 @@ class SkillRuntime:
     def _describe_observation(self, frame: Frame) -> dict:
         """Analyze exactly the supplied frame, including a verified reset frame."""
         _frame_age_s(frame)
+        self._sample_link_state(frame)  # B39: the arm's pose for THIS image
         analysis_started = time.monotonic()
         dets = self.detector.detect(frame, classes=self._default_classes)
         self._show_detections(dets)
@@ -5264,6 +5289,11 @@ class SkillRuntime:
                         out["looks_like_note"] = (
                             "remembered appearance matches (cosine >= the embedder's floor), "
                             "not a current observation: localize_object before acting on one")
+                        if any(h.get("restored") for h in out["looks_like"]):
+                            # B43: a persisted visual index (memory.persist_episodic)
+                            out["looks_like_note"] += (
+                                ". Hits with restored=true were restored from an earlier session: "
+                                "remembered (age_s ago), never seen in this one")
                     except Exception as e:  # noqa: BLE001 -- recall is advisory
                         out["looks_like"] = []
                         out["looks_like_note"] = f"visual recall failed: {type(e).__name__}: {e}"

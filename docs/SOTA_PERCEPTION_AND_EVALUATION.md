@@ -182,7 +182,11 @@ to 3D. Measured: robot detections 0.885–0.995 robot pixels, props at most
 is a duplicate of the bin, which the side camera names "yellow" and the top
 camera "orange" (B32b). It scores as a hit, so it costs no precision, but it
 makes the count wrong. Frames without a render self-mask (the real rig) are
-fused as before.
+fused as before unless `workspace_filter.link_self_mask` is on (B39,
+2026-10-09, opt-in). It draws the robot's pixels from the URDF collision
+geometry at the measured joints. It has been measured only on CPU, against the
+URDF meshes themselves (IoU 0.889–0.951, coverage 1.0;
+`docs/evidence/b39-link-self-mask-20261009/`), so no live row is claimed for it.
 
 B32b (2026-10-08) makes colour identity per camera.
 The bin's median hue is H 22 in the top camera and H 23 in the side camera,
@@ -211,6 +215,18 @@ run. Both arms had precision and recall 1.0, and mean localisation error was
 was never merged with it (IoU ≤ 0.10). See
 `docs/evidence/b32b-colour-identity-live-20261008/`. This is one rig and one
 scene: the kitchen and Newton are not measured.
+
+B40 (2026-10-09, CPU only; live A/B owed) closes what B32b found on the way:
+with a yellow prop inside the orange bin, the side camera names both "yellow",
+and on frames where it saw only the bin its view of the bin (OBB 0.22 m) went
+into the PROP's belief, 3 frames per run in both colour arms. The store now
+refuses a view more than 2× the largest view a belief has had and more than
+5 cm larger (robust horizontal diameter of the real-mask cloud). On B32b's
+live clouds one object's views differ by ≤ × 1.29 and the bin's view is
+≥ × 2.48 the prop's; in the ray-cast, a belief born from a quarter of the bin's
+view, or ≥ 4 px of mask bleed onto the bin, is where the rule would split one
+object. No results row until the live A/B is run
+(`docs/evidence/b40-fusion-size-gate-20261009/`).
 
 ### Same-colour twins: instance-level association (2026-10-08)
 

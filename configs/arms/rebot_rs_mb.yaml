@@ -82,3 +82,8 @@ gripper:
   max_width_m: 0.09
   kp: 6.0
   kd: 0.4
+  # Contact-relative squeeze cap for the pick close (B38), same key and
+  # semantics as rebot_rs.yaml: rad of jaw travel past the first contact;
+  # steady torque = min(today's, kp*effort*cap). null = today's close.
+  # Measure first: docs/REBOT_GRIP_SQUEEZE_CAP.md.
+  max_contact_squeeze_rad: null

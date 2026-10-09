@@ -25,6 +25,12 @@ object differently -- the Isaac bin is H 22 "orange" in the top camera and H 23
 camera gave the belief; a camera that never named it may fuse a perceptual-
 neighbour name only on strong 3D overlap (`neighbour_colour_iou`). See
 `BeliefStore._identity_ok`.
+
+Fusion is size-consistent (2026-10-09, backlog B40): a view much larger than
+any view a belief has had is not that object. A camera that names a container
+and the prop inside it alike (the side camera's "yellow" bin and a yellow cube
+in it) no longer fuses its view of the container into the prop's belief. See
+`BeliefStore._size_ok`.
 """
 
 from __future__ import annotations
@@ -65,6 +71,11 @@ class ObjectBelief:
     # the colour name THAT camera measured for this object. `color` stays the
     # first measured name (stable for queries); two cameras may legitimately
     # disagree across a hue band boundary (B32b), so identity checks use this.
+    diameter_m: float | None = None  # the largest robust horizontal diameter
+    # of any real-mask view fused into this belief (B40 size gate,
+    # `BeliefStore._size_ok`): a running max, because a partial or occluded
+    # view only ever looks smaller. Session state, not saved; None with the
+    # gate off.
 
     def colour_names(self) -> set[str]:
         """Every colour name any camera (or an unsourced writer) gave it."""
@@ -239,8 +250,9 @@ _MIN_BOX_POINTS = 10
 _BOX_FLOOR_BAND_M = 0.01
 
 
-def _cloud_box(points) -> tuple[np.ndarray, np.ndarray] | None:
-    """Axis-aligned (base frame) robust box of a cloud, or None (no cloud)."""
+def _robust_cloud(points) -> np.ndarray | None:
+    """The cloud the robust box and the view size are taken on: a host (n, 3)
+    array without its lowest centimetre (see above), or None (no cloud)."""
     if points is None:
         return None
     if hasattr(points, "detach"):  # a torch tensor (strict CUDA mode): host copy, rare path
@@ -252,6 +264,14 @@ def _cloud_box(points) -> tuple[np.ndarray, np.ndarray] | None:
     above = p[p[:, 2] > low + _BOX_FLOOR_BAND_M]
     if above.shape[0] >= _MIN_BOX_POINTS:
         p = above
+    return p
+
+
+def _cloud_box(points) -> tuple[np.ndarray, np.ndarray] | None:
+    """Axis-aligned (base frame) robust box of a cloud, or None (no cloud)."""
+    p = _robust_cloud(points)
+    if p is None:
+        return None
     lo, hi = np.percentile(p, [_BOX_TRIM_PCT, 100.0 - _BOX_TRIM_PCT], axis=0)
     return lo, hi
 
@@ -264,6 +284,48 @@ def _box_iou(a, b) -> float:
     inter = float(np.prod(np.clip(hi - lo, 0.0, None)))
     union = float(np.prod(a[1] - a[0])) + float(np.prod(b[1] - b[0])) - inter
     return inter / union if union > 0 else 0.0
+
+
+#: Size consistency (B40). A camera that names a container and the prop inside
+#: it with the SAME colour (the Isaac side camera's "yellow" bin and a yellow
+#: cube in it) fused its view of the container into the prop's belief whenever
+#: the prop's centre was the nearer one -- live, 3 frames per run with either
+#: colour rule (docs/evidence/b32b-colour-identity-live-20261008/). A view's
+#: size is its robust horizontal diameter (`_view_diameter`) and a belief's is
+#: the largest one fused into it (`ObjectBelief.diameter_m`). A fusion is
+#: refused when the view is more than SIZE_GATE_RATIO times the belief's size
+#: AND more than SIZE_GATE_EXCESS_M larger. Measured on CPU
+#: (docs/evidence/b40-fusion-size-gate-20261009/): the bin's live views are
+#: 0.183-0.235 m across (205 views, both cameras), the 5 x 5 x 8 cm prop's
+#: 0.066-0.074 m (15); one object across its live views is within x1.29, a
+#: container view is >= x2.48 and +10.9 cm the prop's largest view. Ray-cast,
+#: hiding half of a view makes it up to x1.68 smaller; only a quarter of the
+#: bin left, up to x2.64 (ARCHITECTURE "Known limitations"). Both numbers are
+#: estimates between those, not a live calibration.
+SIZE_GATE_RATIO = 2.0
+SIZE_GATE_EXCESS_M = 0.05
+
+#: directions in the table plane, 22.5 deg apart (2 x 8): the largest robust
+#: span over them barely changes when the object turns (a 15 cm square: within
+#: 4 %), while the robust axis-aligned box of the turned square grows by 20 %
+#: (its min/max box by 41 %)
+_DIAMETER_DIRS = np.stack([np.cos(np.deg2rad(np.arange(0.0, 180.0, 22.5))),
+                           np.sin(np.deg2rad(np.arange(0.0, 180.0, 22.5)))])
+
+
+def _view_diameter(points) -> float | None:
+    """Robust horizontal diameter of a real-mask cloud in metres, or None (no
+    cloud): the largest 2nd-98th percentile span of its x-y projection over 8
+    directions, on the cloud without its lowest centimetre (as `_cloud_box`,
+    so a table skirt in the mask does not count). Horizontal on purpose: how
+    much of a prop's height a camera sees depends on the rim in front of it;
+    its width does not."""
+    p = _robust_cloud(points)
+    if p is None:
+        return None
+    proj = p[:, :2] @ _DIAMETER_DIRS
+    lo, hi = np.percentile(proj, [_BOX_TRIM_PCT, 100.0 - _BOX_TRIM_PCT], axis=0)
+    return float(np.max(hi - lo))
 
 
 def camera_source(stream) -> str | None:
@@ -326,6 +388,7 @@ class BeliefStore:
         instance_association: bool = True,
         per_camera_colour: bool = True,
         neighbour_colour_iou: float = NEIGHBOUR_COLOUR_IOU,
+        size_gate: bool = True,
     ):
         self._beliefs: list[ObjectBelief] = []
         self._match_radius = match_radius_m
@@ -346,6 +409,11 @@ class BeliefStore:
         if not 0.0 < iou <= 1.0:  # also refuses NaN: 0 would fuse on any touch
             raise ValueError(f"neighbour_colour_iou must be in (0, 1], got {neighbour_colour_iou!r}")
         self._neighbour_colour_iou = iou
+        #: size consistency (B40, `_size_ok`): a view much larger than any
+        #: view a belief has had is not that object; False = no size check
+        #: and no size state (pre-2026-10-09, `memory.size_gate: false`, the
+        #: live A/B baseline, byte-identical)
+        self._size_gate = bool(size_gate)
         self._lock = threading.RLock()
         #: named advisory layouts (SceneSnapshot), see `snapshot()`
         self._snapshots: dict[str, SceneSnapshot] = {}
@@ -387,10 +455,12 @@ class BeliefStore:
         `source` names the camera the observation came from (per-camera
         colour identity, `_identity_ok`); the single-observation writers
         (place_at, push, localize) pass none and keep the one-name rule.
+        A view with a cloud is also held to the belief's size (`_size_ok`).
         """
         now = time.monotonic() if t is None else t
         position = np.asarray(position, dtype=float).reshape(3)
         points = self._remembered_cloud(points)
+        diameter = self._diameter(points)
         with self._lock:
             best, best_d = None, None
             for b in self._beliefs:
@@ -400,6 +470,8 @@ class BeliefStore:
                     continue
                 if not self._identity_ok(b, label, color, source, points):
                     continue
+                if not self._size_ok(b, diameter):
+                    continue
                 best, best_d = b, d
             if best is None:
                 best = ObjectBelief(
@@ -407,11 +479,12 @@ class BeliefStore:
                     conf=conf, color=color, points=points,
                     last_seen_t=now, first_seen_t=now,
                     source_colors=self._named_by(source, color),
+                    diameter_m=diameter,
                 )
                 self._beliefs.append(best)
                 return best
             self._fuse(best, label, position, conf, extent, top_z, color, points, now,
-                       source=source)
+                       source=source, diameter=diameter)
             return best
 
     # ── the fusion gate and the fusion step, shared by update/update_frame ──
@@ -496,6 +569,45 @@ class BeliefStore:
             return False
         return _box_iou(mine, theirs) >= self._neighbour_colour_iou
 
+    def _diameter(self, cloud) -> float | None:
+        """A view's size for `_size_ok`: its robust horizontal diameter, or
+        None with the gate off (then nothing is measured or remembered)."""
+        return _view_diameter(cloud) if self._size_gate else None
+
+    @staticmethod
+    def _belief_diameter(b: ObjectBelief) -> float | None:
+        """The largest view diameter fused into `b`; a belief that never had
+        one measured (restored from disk, born from a view without a cloud)
+        is measured from the cloud it remembers, if any."""
+        return b.diameter_m if b.diameter_m is not None else _view_diameter(b.points)
+
+    def _size_ok(self, b: ObjectBelief, diameter: float | None) -> bool:
+        """Size gate (B40): can a view `diameter` metres across be `b`?
+
+        Not when it is more than SIZE_GATE_RATIO times the largest view `b`
+        has had AND more than SIZE_GATE_EXCESS_M larger. Measured live (B32b):
+        the side camera names the bin and a yellow prop inside it both
+        "yellow", and on frames where it saw only the bin, its bin view
+        (~0.19 m across) went into the prop's belief (~0.07 m) because the
+        prop's centre was nearer -- the prop then carried the bin's cloud,
+        extent and label for that tick.
+
+        One-sided on purpose: a partial or occluded view only looks SMALLER,
+        so a smaller view always passes, and the belief's size is a running
+        max (`ObjectBelief.diameter_m`), so its own full view passes after a
+        partial one. It only refuses: with no real-mask cloud on either side
+        (or the gate off, `diameter` None) there is no evidence and the other
+        gates decide alone. Not handled: a prop's view fusing into the
+        container's belief (that looks like an occluded container view).
+        """
+        if diameter is None:
+            return True
+        known = self._belief_diameter(b)
+        if known is None:
+            return True
+        return not (diameter > SIZE_GATE_RATIO * known
+                    and diameter - known > SIZE_GATE_EXCESS_M)
+
     @staticmethod
     def _named_by(source: str | None, color: str | None) -> dict[str, str]:
         return {source: color} if source is not None and color is not None else {}
@@ -515,7 +627,7 @@ class BeliefStore:
 
     def _fuse(self, best: ObjectBelief, label, position, conf, extent, top_z,
               color, points, now, *, aliases=(), reanchor: bool = False,
-              source: str | None = None) -> None:
+              source: str | None = None, diameter: float | None = None) -> None:
         a = 1.0 if reanchor else self._pos_alpha
         best.position = (1 - a) * best.position + a * position
         # Decide the name BEFORE conf is smoothed, so the comparison is
@@ -544,6 +656,11 @@ class BeliefStore:
                 best.color = color
             if source is not None:
                 best.source_colors[source] = color
+        if diameter is not None:
+            # the size gate's running max, taken BEFORE the cloud is replaced
+            # (a belief without a measured size is measured from its old one)
+            known = self._belief_diameter(best)
+            best.diameter_m = diameter if known is None else max(known, diameter)
         if points is not None:
             best.points = points
         best.last_seen_t = now
@@ -569,7 +686,8 @@ class BeliefStore:
            radius); an instance never joins two measured colours;
         2. instances and beliefs are matched ONE-TO-ONE by a min-cost
            assignment on 3D distance inside the same gates (the colour rule
-           per source camera, `_identity_ok`), a new object
+           per source camera, `_identity_ok`; the size rule, `_size_ok`), a
+           new object
            costing the instance's gate radius. Two instances of one frame
            never claim one belief, twins that move together do not swap
            (greedy nearest-first would), and a lone detection still goes to
@@ -607,14 +725,15 @@ class BeliefStore:
         for g in groups:
             head = max(g, key=lambda q: float(obs[q].conf))  # first max: anchor wins ties
             colour = next((obs[q].color for q in g if obs[q].color is not None), None)
-            cloud = next((obs[q].points for q in g if obs[q].points is not None), None)
+            cloud = self._remembered_cloud(
+                next((obs[q].points for q in g if obs[q].points is not None), None))
             named.append((obs[head].label, float(obs[head].conf), colour,
-                          self._remembered_cloud(cloud), [obs[q].label for q in g]))
+                          cloud, [obs[q].label for q in g], self._diameter(cloud)))
         out: list = [None] * len(obs)
         with self._lock:
             beliefs = list(self._beliefs)
             feasible: list[list[tuple[int, float, float]]] = []
-            for g, (label, _, colour, cloud, _) in zip(groups, named):
+            for g, (label, _, colour, cloud, _, diameter) in zip(groups, named):
                 k = g[0]
                 row = []
                 for j, b in enumerate(beliefs):
@@ -623,6 +742,8 @@ class BeliefStore:
                     if d >= radius:
                         continue
                     if not self._identity_ok(b, label, colour, obs[k].source, cloud):
+                        continue
+                    if not self._size_ok(b, diameter):
                         continue
                     row.append((j, d, radius))
                 feasible.append(row)
@@ -641,12 +762,13 @@ class BeliefStore:
             born = []
             for i, g in enumerate(groups):
                 k = g[0]
-                label, conf, colour, cloud, names = named[i]
+                label, conf, colour, cloud, names, diameter = named[i]
                 if i in matched:
                     b = beliefs[matched[i]]
                     self._fuse(b, label, pos[k], conf, obs[k].extent, obs[k].top_z,
                                colour, cloud, now, aliases=names,
-                               reanchor=matched[i] in contested, source=obs[k].source)
+                               reanchor=matched[i] in contested, source=obs[k].source,
+                               diameter=diameter)
                 else:
                     b = ObjectBelief(
                         label=label, position=pos[k], extent=obs[k].extent,
@@ -654,6 +776,7 @@ class BeliefStore:
                         aliases={x for x in names if x != label},
                         last_seen_t=now, first_seen_t=now,
                         source_colors=self._named_by(obs[k].source, colour),
+                        diameter_m=diameter,
                     )
                     born.append(b)
                 for q in g:

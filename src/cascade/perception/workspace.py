@@ -93,8 +93,9 @@ class WorkspaceFilter:
         held payload (a prop in the jaws is still an object).
 
         None when the gate is off, the frame carries no self-mask (the real
-        rig today), or its payload mask does not align with it; nothing is
-        excluded then.
+        rig, unless fusion handed in a copy carrying B39's link-geometry mask,
+        `perception/link_mask.py`), or its payload mask does not align with
+        it; nothing is excluded then.
         """
         if not self.self_mask:
             return None

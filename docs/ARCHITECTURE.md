@@ -180,6 +180,8 @@ N cameras ──CameraStream (thread each, latest-frame slot, drop-stale; render
 chat command ("pick and place the red cube")
    ├─ tier 1 REFLEX   template grammar -> skill plan          agent/reflex.py
    ├─ tier 2 HABIT    hashed-BoW cosine ≥ 0.9, wins > losses  runs/experience.json
+   │                  AND the task's clause structure (a
+   │                    sequence matches clause by clause)
    │                  + recipes (xyz -> perception queries,   runs/recipes.jsonl
    │                    re-grounded before any motion)        memory/recipes.py
    ├─ tier 2.5 PROGRAM  OPT-IN (agent.programs: false):       agent/programs.py
@@ -190,6 +192,25 @@ chat command ("pick and place the red cube")
         all tiers execute through the same SkillRuntime; every trace row
         records `tier: reflex | experience | program | llm | mcp-host`
 ```
+
+- **Tier 2 respects the clause structure (B37, 2026-10-09).** The hashed
+  bag-of-words vector cannot see clause boundaries or their order: "pick up
+  the red cube and then pick up the blue cube" scored 0.901 against the habit
+  "pick up the red cube", and because `FastPlanner` consults experience on the
+  whole task before the curriculum split, the fast tier ran half the command
+  and reported success. `ExperienceMemory.recall` (both call sites: the whole
+  task and each curriculum clause in `_plan_one`) now admits a habit or recipe
+  only when its instruction has the task's clauses as `split_subgoals` cuts
+  them: the same count, and for a sequence every clause ≥ `min_sim` against
+  its counterpart IN ORDER. A refused candidate is skipped like a demoted one.
+  So a sequence falls through to the curriculum (each clause still
+  warm-started from its own habit) or to the LLM tier; a clause or a single
+  command never replays a recorded compound (main: 0.929, both cubes moved);
+  a reversed sequence (0.994) and a one-word difference inside one clause of a
+  long command (0.958) no longer pass; a compound recorded as that compound
+  still replays. A single instruction is decided by the index similarity
+  alone, exactly as before (`tests/test_tier2_clause_structure.py` pins it
+  differentially against the pre-B37 rule).
 
 - **Programs tier (opt-in, ROADMAP #8; [design note](PROGRAMS_TIER.md)).**
   Waddle's level above skills: a program is a bounded (≤ 12 steps), declarative
@@ -239,7 +260,28 @@ chat command ("pick and place the red cube")
   camera gave it, an observation is held to its own camera's name, and a
   camera that never named a belief fuses a perceptual-neighbour name
   (orange~yellow) only at 3D box IoU >= 0.75, with each cloud's lowest
-  centimetre left out of the box (B32c: masks take in table pixels).
+  centimetre left out of the box (B32c: masks take in table pixels). Fusion
+  is also size-consistent (B40, 2026-10-09): a view more than 2× the largest
+  view a belief has had (robust horizontal diameter of the real-mask cloud,
+  `ObjectBelief.diameter_m`) AND more than 5 cm larger is not that object, so
+  a camera that names a container and the prop inside it alike cannot fuse
+  the container into the prop. Smaller views always pass; no cloud, no veto.
+- **Robot self-mask in fusion** (`perception/workspace.py`, B32a;
+  `perception/link_mask.py`, B39). A detection more than half robot pixels is
+  the robot and is dropped; below that, its robot pixels never reach 3D. The
+  robot pixels are the render self-mask when a frame carries one (Isaac with
+  `CASCADE_ISAAC_PIXEL_MASK=1`). For frames without one (the real rig),
+  `workspace_filter.link_self_mask` (opt-in, default off) draws them from the
+  arm's URDF collision geometry: each mesh is split into 5 cm link-frame cells,
+  each cell's 3D hull contains its triangles, the links are posed by FK at the
+  joint sample nearest the frame's capture time (sampled before inference), and
+  the projected hulls are filled and dilated 2 px. No sample within
+  `max_skew_s` (0.15 s) means no mask (counted, never interpolated). A render
+  mask is never overwritten, and the arm is not even read then. The mask goes into a
+  fusion-local copy of the frame; occupancy keeps its own body masking.
+  Measured on CPU against a per-triangle rasterisation of the reBot RS meshes
+  (4 poses × 2 cameras, 1280 × 720): coverage 1.0, IoU 0.889–0.951,
+  3–5 ms per frame (`docs/evidence/b39-link-self-mask-20261009/`).
 - **Detector preparation.** The open-world and prompted YOLO models remain
   resident, with up to eight successful text-embedding vocabularies retained
   in LRU order. This adds model residency while avoiding checkpoint and text
@@ -529,7 +571,10 @@ make that image current by assigning a new timestamp. See
 | `EpisodicMemory` text ring | events, outcomes | ~15 s | `recall_memory`, narration |
 | `EpisodicMemory` frame ring | AFTER frame + action + verdict per motion skill | task-scale (600 s), reset per task / by `reset_scene` | `memory_frames(k)`: first frame pinned, uniform sample, newest last → LLM turn (images) and `task_memory` tool |
 | `EpisodicMemory` visual index (**opt-in**, `memory.embedder`) | one TurboQuant vector per motion frame and per object crop localized during a call (`_localize` detections, keyed by detector label), from `memory/embedder.py` | task-scale (`frames_horizon_s`), ≤ `max_visual` (512) entries, pruned with the index; survives the per-task frame reset | `recall_visual(image \| text \| vector)`; `recall_memory(query)` adds `looks_like` hits only with a joint image-text embedder (siglip/clip). A hit is a remembered appearance, never a current observation |
+| `EpisodicMemory` watcher crops (**opt-in**, `memory.visual_recall_detections` + an embedder; B43) | one `detection` vector per crop of a COMMITTED WorldWatcher fusion, via `DetectionCropRecorder`: one per belief per frame, none for a belief cropped < `visual_recall_interval_s` (30 s) ago, ≤ `visual_recall_max_per_tick` (2) per tick; the recall line says what, where and which camera | task-scale, its own ring ≤ `visual_recall_max_detections` (128), so it never evicts the session entries above; events stay out of the text/frame rings | ranked together with the session index by `recall_visual` / `looks_like`. Fusion is paused during `_MOTION_SKILLS`, so no crop comes from a motion frame |
+| `EpisodicMemory` restored entries (**opt-in**, `memory.persist_episodic` / `CASCADE_EPISODIC`, `CASCADE_EPISODIC_PATH`; B43) | the visual index of the previous session (`save_visual` on shutdown, `load_visual` at build): kind, label, recall line, verdict, the decoded vector (float16) | `runs/episodic.json`; wall-clock stamps, `episodic_max_age_s` (6 h) dropped BEFORE the 2 s `LOADED_MIN_AGE_S` floor, own ring ≤ `max_visual`, pruned at that max age (not the task horizon); another embedder's file is refused | every restored hit carries `restored: true, state: "remembered"` and `recall_memory` says so; never a current observation, never aims motion |
 | `ExperienceMemory` (`agent/reflex.py`) | command → plan habits, hashed BoW in a TurboQuant index; plus Task-Specific Memory **recipes** (verified LLM-tier runs, coordinates replaced by `localize_object(label)+offset` queries + a summary, `memory/recipes.py`) | `runs/experience.json` (habits), `runs/recipes.jsonl` (recipes) | tier 2; a recipe is re-grounded through perception before any motion, a failed grounding aborts to the LLM tier |
+| `ExperienceMemory` (`agent/reflex.py`) | command → plan habits, hashed BoW in a TurboQuant index; plus Task-Specific Memory **recipes** (verified LLM-tier runs, coordinates replaced by `localize_object(label)+offset` queries + a summary, `memory/recipes.py`) | `runs/experience.json` (habits), `runs/recipes.jsonl` (recipes) | tier 2, only for an instruction with the record's clause structure (same `split_subgoals` count; a sequence clause by clause, in order); a recipe is re-grounded through perception before any motion, a failed grounding aborts to the LLM tier |
 | `ActionObjectMemory` (`memory/consolidation.py`, **opt-in**, `memory.action_objects`) | the tier-2 outcome stream consolidated per (motion skill, normalized object label) across instruction wordings: wins / losses / wordings; one credit per EXECUTED call (never again per curriculum sub-goal); deliberately not merged by embedding (red cube ≠ blue cube) | `runs/action_objects.json` | LLM-tier intro: advisory digest for the objects the task names |
 | `ProgramLibrary` (`memory/programs.py`, opt-in) | programs: parameterized registered-call lists (labels as params, positions as perception queries), keyed by a structural sha256; `occurrences`, `source_tasks`, `origins` (authored / distilled / reused), `losses` | `runs/programs.jsonl` (`memory.programs_path`, `CASCADE_PROGRAMS_PATH`) | tier 2.5 authoring prompt, **only promoted** records (≥ `agent.program_min_tasks` = 2 distinct tasks, verified more often than failed); admitted only from a CONFIRMED execution; also the MCP `list_programs` / `run_program` when the tier is on; keyword overlap, or text embedding with `memory.embedder` (floor-or-guard); every write re-reads the store under an advisory lock, so per-session MCP servers sharing it never lose each other's evidence |
 | `GraspOutcomeMemory` | per-object grasp features, wins/losses | `~/.cascade/grasp_memory.json` | grasp re-rank + z-nudge |
@@ -573,6 +618,35 @@ with noise. Embedding faults during a run are counted (`visual_stats`), never
 raised into a skill. Everything here is advisory: no recall confirms an
 outcome or gates motion.
 
+**Visual recall v2 (B43, both opt-in, both need the embedder).**
+`memory.visual_recall_detections` hands the detections of every COMMITTED
+WorldWatcher fusion to a `DetectionCropRecorder` (`memory/episodic.py`), which
+uses `BeliefStore.update_frame`'s per-observation belief to keep one crop per
+object per frame, at most one per object per `visual_recall_interval_s`, at
+most `visual_recall_max_per_tick` per tick; the crops land in a `detection`
+ring of their own, so a static table is not re-embedded at 3 Hz and the
+always-on watcher cannot evict motion frames or localized crops. The work
+runs on the watcher thread after the commit and outside the pause lock, and
+never for a frame taken while fusion was paused (motion skills), nor once a
+pause began after the commit; a recorder fault is counted
+(`WorldWatcher.visual_recall_errors`), logged once per distinct message, and
+costs only the crops. `memory.persist_episodic` (`CASCADE_EPISODIC`,
+`CASCADE_EPISODIC_PATH`) saves the visual index in `shutdown_runtime` (its
+own `episodic` teardown stage, right after `beliefs`, only when enabled) and
+restores it in `build_runtime`, with the belief store's rules: wall-clock
+stamps, the max age (`episodic_max_age_s`, 6 h) applied before the 2 s
+`LOADED_MIN_AGE_S` floor, atomic temp + `os.replace`, a corrupt file ignored
+and a file from another embedder (name or dim) refused. Vectors are stored
+decoded (float16) in the embedder's own space, so the file does not depend
+on the quantizer's rotation; restored entries keep their own ring, pruned at
+that max age rather than the task horizon, and every restored hit carries
+`restored: true, state: "remembered"`. Bad limits fail the build before any
+hardware; a switch without an embedder is reported and ignored. Off (the
+shipped default), the watcher, the memory and the teardown receipt are
+exactly B21's. Fleet: a global `CASCADE_EPISODIC_PATH` is refused for two
+manipulation robots, `episodic_path` joins the store-file exclusivity check,
+and composed manipulation domains get `stores/episodic.json`.
+
 ### Evaluation
 
 `eval/progress_judge.py` is a Robo-Dopamine-style progress judge: BEFORE/
@@ -580,6 +654,18 @@ AFTER keyframes (plus optional goal image) → `<score>±NN%</score>` from a
 GRM or any OpenAI-compatible VLM. It runs **off the hot path**
 (`scripts/judge_run.py` over a finished run dir) and is calibrated against
 the physics postcondition per step (confusion matrix in the run summary).
+Since 2026-10-09 (B44) the launcher can run it over its own proof turn:
+opt-in `scripts/launch.sh --judge fake|vlm|grm` (or `CASCADE_JUDGE`; default
+off, no judge process) hands the receipt to `scripts/judge_proof.py`
+(`eval/proof_judge.py`), which reads `proof.json` read-only, skips an
+unverified receipt, runs `judge_run.py --skills pick_and_place` in its own
+process group under a hard bound (`CASCADE_JUDGE_TIMEOUT_S`, default 180 s,
+max 1800; the group is killed at the bound) and merges the judge-vs-physics
+confusion matrix into `<evidence_dir>/run-summary.json` next to a copy of
+the receipt's verdict and sha256, plus ONE `judge:` banner line (`fn>0` =
+the pictures missed physics-confirmed progress). Advisory: READY, the exit
+status and `proof.json` never depend on it, and every failure (bad config,
+refused or hung endpoint, nothing scored, crash) reads `unavailable`.
 The first honest number on this rig: +0.45 on a physics-confirmed pick
 after the AFTER-keyframe fix; 0.00 before it. The prompt's two WRIST slots
 are filled from the rig's wrist keyframes when the trace has them
@@ -597,7 +683,8 @@ src/cascade/
 ├── types.py            Frame / Detection / ObjectFix / Grasp / RobotState / SkillError
 ├── config.py           YAML profiles (cameras/, arms/, llm/) → one Cfg; `extends:`,
 │                       arm `overrides:`, ${repo}/${assets}; CASCADE_BOOTH overlay;
-│                       CASCADE_{BRIDGE,GRASPGENX,OCCUPANCY}_PORT applied last (B34)
+│                       CASCADE_{BRIDGE,GRASPGENX,OCCUPANCY,HUG}_PORT and
+│                       CASCADE_{GRASPGENX,HUG}_HOST applied last (B34, B41)
 ├── device.py           resolve_device(): auto CUDA/ROCm → MPS → CPU, degrade with a warning
 ├── perception/
 │   ├── camera_base.py        CameraBase ABC + make_camera(); Frames carry METRIC depth
@@ -610,6 +697,7 @@ src/cascade/
 │   ├── detector.py           YOLOE / YOLO-World + MockDetector (open world by default)
 │   ├── vlm_detector.py       VLM as detector      vlm_ground.py  second-chance grounder
 │   ├── segmenter.py          mask refinement      robot_mask.py  arm body out of depth
+│   ├── workspace.py          WorkspaceFilter (base cylinder, self-mask gate)  link_mask.py  self-mask from link geometry
 │   ├── grounding.py          Extrinsics + localize (colour/near-aware, de-biased OBB centre)
 │   ├── calibration.py        Kabsch camera→base fit with RMSE + degeneracy refusal
 │   ├── colors.py             mask HSV → colour word; colour-query parsing
@@ -621,7 +709,7 @@ src/cascade/
 │   ├── reference.py          goal/reference images      workspace.py  reachable-region filter
 ├── memory/
 │   ├── beliefs.py      object permanence, colour-aware fusion, save/load (wall clock)
-│   ├── episodic.py     text ring (15 s) + frame ring (task-scale) + memory_frames(k); opt-in visual index (recall_visual)
+│   ├── episodic.py     text ring (15 s) + frame ring (task-scale) + memory_frames(k); opt-in visual index (recall_visual), watcher crops (DetectionCropRecorder) and save_visual/load_visual (B43)
 │   ├── embedder.py     opt-in memory embedders: hash (deterministic, no deps) | siglip/clip (`memory-embed` extra)
 │   ├── consolidation.py opt-in action<->object outcome counts over tier-2 plans (advisory digest)
 │   ├── envelope.py     Harness-VLA operating envelope (per-skill outcome stats + runtime-measured derived features)
@@ -642,6 +730,7 @@ src/cascade/
 │   ├── simulation_motion.py / motion_profile.py  physical clock + shared safety edges
 │   ├── feetech.py / feetech_arm.py   SO-101 & co over Feetech serial (UNVERIFIED on hw)
 │   ├── rebot_rs_arm.py / rebot_rs_mb_arm.py   reBot B601 over CAN / MotorBridge
+│   ├── robstride.py    shared RS helpers: travel clamp, fault clear, opt-in squeeze-capped close (B38)
 │   ├── ros2_arm.py     ANY ros2_control robot (JointState in, JointTrajectory out)
 │   └── unitree_arm.py  Unitree SDK arms (H1 / H1-2 / G1)
 ├── safety/
@@ -700,7 +789,12 @@ Sidecars (own process, own venv, ZMQ): `scripts/serve_graspgenx.sh`
 host); `scripts/serve_occupancy.sh` → `serve_occupancy_bridge.py`
 (`--backend auto`: nvblox > warp > voxel). Both are **probed at startup**
 and named in the banner; a missing sidecar degrades loudly to its fallback,
-never silently.
+never silently. The learned GraspGen-X server runs one synthetic inference
+before it binds its port (the first CUDA inference takes ~15 s, the client
+waits 8 s), so an open port means a warm model unless its `health` says
+`warmed_up: false`: the warm-up is advisory, and a failed one is logged and
+the server binds cold as before (no CUDA or no loadable model still refuses
+first; the required-profile inference check above is unchanged).
 
 ## ROS2, humanoids, and what is NOT here yet
 
@@ -790,6 +884,21 @@ brain through a `codex exec` subprocess per step -- `--ignore-user-config`,
 so that session never sees the user's own MCP servers and cannot reach the
 robot except through cascade's harness; `--llm auto` picks it first when
 the CLI is logged in.
+
+Endpoints (B34, B41): `CASCADE_BRIDGE_PORT`, `CASCADE_GRASPGENX_PORT`,
+`CASCADE_OCCUPANCY_PORT`, `CASCADE_HUG_PORT`, `CASCADE_GRASPGENX_HOST` and
+`CASCADE_HUG_HOST` are applied by `load_demo_config` after every config layer,
+to the top level and to each arm's `resolved` view (`config.ENDPOINT_ENV_VARS`;
+empty = unset; a port is ASCII digits in 1..65535, a host a hostname or IPv4
+address, anything else raises naming the variable). That is the only
+application: a GraspGen-X / HUG planner dials what its resolved section says
+(`config.sidecar_endpoint`) and falls back to a variable only for a key the
+section lacks, i.e. when it is built from a hand-made config, so an override
+written into `cfg._data` after loading stands. The bridge and the occupancy
+sidecar have no host variable: the launcher starts both on this machine.
+`launch.sh` registers the six with the MCP server; `setup_agents.py` copies
+every `CASCADE_*_PORT` / `CASCADE_*_HOST` set in its shell into each host's
+entry, checked by the same rules before anything is written.
 
 Sandboxed host (opt-in, B35): an agent inside an NVIDIA OpenShell sandbox
 managed by NemoClaw reaches the robot through `mcp_server --http`
@@ -898,7 +1007,14 @@ token and registration. Stdio through `launch.sh` remains the default; see
   dropped, and the robot's pixels never reach 3D. Live, the bare scene's
   phantom rate went from 17.9–19.6 % to 0 %
   (`docs/evidence/b32-fusion-self-mask-20261008/`). Frames without that mask
-  (the real rig) still rely on the cylinder alone.
+  (the real rig) rely on the cylinder alone unless
+  `workspace_filter.link_self_mask` is on (B39, 2026-10-09). That mask is drawn
+  from the URDF collision geometry at the nearest joint sample, and it is
+  measured only on CPU against the URDF meshes themselves. Its comparison with
+  the Isaac render mask (USD visual geometry) and any hardware measurement are
+  still open. Its accuracy on hardware also depends on the hand-eye calibration
+  and the joint offsets. A stale or unreadable joint state means no mask, i.e.
+  the cylinder alone.
 - Colour names differ between cameras: one object can sit on a hue band
   boundary (the Isaac bin is H 22 "orange" in the top camera, H 23 "yellow"
   in the side camera). Since 2026-10-08 (B32b) a belief keeps each camera's
@@ -918,14 +1034,45 @@ token and registration. Stdio through `launch.sh` remains the default; see
     the ray-cast) and may stay two beliefs;
   - a bleeding sliver of a short prop wholly inside the bin, seen only by a
     camera that never named the bin, reaches 0.63 in the ray-cast;
-  - pre-existing and unchanged: a camera that names a container and the prop
+  - ~~pre-existing and unchanged: a camera that names a container and the prop
     inside it with the SAME colour fuses its view of the container into the
     prop's belief (the side camera's "yellow" bin into the yellow cube, 3 frames
-    per run, identical with the one-name rule).
+    per run, identical with the one-name rule)~~ **landed 2026-10-09 (B40,
+    measured on CPU, live A/B owed)**: fusion is size-consistent
+    (`BeliefStore._size_ok`). A view's size is the robust horizontal diameter
+    of its real-mask cloud; a belief remembers the largest one fused into it
+    (`ObjectBelief.diameter_m`); a view more than 2× that AND more than 5 cm
+    larger is not that object. On B32b's live clouds one object's views differ
+    by ≤ × 1.29 and a container view is ≥ × 2.48 (+10.9 cm) the prop's largest
+    view; 2.0 and 5 cm are estimates between those
+    (`docs/evidence/b40-fusion-size-gate-20261009/`). It only refuses, and only
+    with a real-mask cloud on both sides. What it cannot do, from the ray-cast:
+    a belief BORN from a quarter of a container's view (3/4 hidden from its
+    first frame) refuses the container's full view (up to × 2.64) and the bin
+    becomes two beliefs; ≥ 4 px of mask bleed onto a container makes the view
+    of a prop inside it × 2.5 its size, so it is refused from the prop's own
+    belief (live YOLOE views of that prop: 0.066–0.074 m, no such bleed); and a
+    prop's view fusing into the CONTAINER's belief is not handled (a smaller
+    view always passes: it looks like an occluded view of the container).
+    `memory.size_gate: false` restores the store before it, byte for byte.
 
   `memory.per_camera_colour: false` restores the one-name rule.
 - Grip force is a stiffness proxy (kp scaling + stall detection), not a
-  calibrated force loop.
+  calibrated force loop. On the real reBot RS the pick close
+  (`close_gripper_two_stage`) leaves the jaws pushing at a FIXED fraction of
+  travel, so under MIT the holding torque kp·effort·(contact − target) grows
+  with object width (Seeed: a paper cup was crushed). Since 2026-10-09 (B38)
+  the arm profile's opt-in `gripper.max_contact_squeeze_rad` caps every jaw
+  target after the first mechPos-detected contact at that many radians past
+  it, so the steady torque is min(today's, kp·effort·cap). Objects whose
+  squeeze already fits the cap keep today's exact commands; a jaw that reaches
+  a capped target in free air gets today's target back
+  (`robstride.close_two_stage_capped`, [REBOT_GRIP_SQUEEZE_CAP.md](REBOT_GRIP_SQUEEZE_CAP.md)).
+  It ships `null` (today's close, byte-identical) and is measured only on a
+  simulated jaw: the suggested 2.52 rad and the per-object torques depend on
+  the unverified width map, the stage-1 scout squeeze before the first stall
+  is not capped, and the user's hardware protocol in that doc must run before
+  a value is set.
 - Reach: the default reBot profiles keep the top-down-only workspace box
   (x 0.10..0.50, y ±0.30), part of which top-down grasps cannot reach
   (r > 0.45 m). The measured larger envelope and the tilted analytic
@@ -955,11 +1102,46 @@ token and registration. Stdio through `launch.sh` remains the default; see
   under the same floor-or-guard rule and the same caveat; keyword overlap
   stays the default.
 - Visual recall indexes motion frames and the crops of objects a call
+  LOCALIZED by default; crops of every committed watcher detection
+  (`memory.visual_recall_detections`) and persistence across restarts
+  (`memory.persist_episodic`) exist since 2026-10-09 (B43) but are opt-in
+  and CPU-measured only -- the per-tick cost with a real detector and
+  embedder, and a restart on the booth, are not measured yet. Text queries
+  ("looks like X") need a joint embedder; no semantic recall quality has
+  been measured with real weights. Action-object consolidation keys on the
+  normalized label: a detector label flicker (bottle/toy) stays two
+  objects, by design.
   LOCALIZED, not every detection the watcher sees; it is in-process
   (task-scale horizon, lost on restart). Text queries ("looks like X") need
   a joint embedder; no semantic recall quality has been measured with real
   weights. Action-object consolidation keys on the normalized label: a
   detector label flicker (bottle/toy) stays two objects, by design.
+- Endpoint overrides are CPU-tested only (spies on the bridge
+  `create_connection` and the ZMQ `connect`): no live Isaac run on private
+  ports yet. `launch.sh --graspgenx external` checks the server at
+  `127.0.0.1:$CASCADE_GRASPGENX_PORT` even when `CASCADE_GRASPGENX_HOST`
+  points the runtime elsewhere, and `scripts/demo_proof.py` still reads
+  `CASCADE_BRIDGE_PORT` with its own `int()`.
+- Tier-2 clauses are cut only at sequence connectives (`split_subgoals`,
+  B37). A bare "and" is no clause boundary anywhere in the fast tier, so
+  "move the red cube to the front-left of the table and move the blue cube to
+  the front-left of the table" still replays the first command's habit
+  (measured 0.951) and runs half of it; within one clause the hashed
+  bag-of-words stays blind to word order. The opt-in programs tier (2.5) is
+  not covered by the clause rule: it OFFERS promoted programs by keyword
+  overlap (one shared content word) or, with `memory.embedder`, text
+  similarity (B42 floor-or-guard), the brain (or the MCP chat host calling
+  `run_program`) sees the whole task and picks, and a reused program's
+  success means every step it ran was confirmed, not that it covered every
+  clause -- a one-clause program reused for a sequence would report the same
+  half-command success the LLM tier's `task_done` could.
+- The launcher judge pass (B44) is opt-in and has only been exercised on
+  CPU (fake judge, recorded traces, a stub OpenAI-compatible endpoint): no
+  live Isaac proof turn has been judged by a real VLM or GRM yet, so no
+  judge-vs-physics agreement is claimed for this rig. It judges only the
+  proof turn's `pick_and_place` rows, and the shipped `eval.judge` targets a
+  frontier model through the OpenClaw gateway -- a local judge needs
+  `CASCADE_JUDGE_CONFIG`.
 
 ## Counts
 

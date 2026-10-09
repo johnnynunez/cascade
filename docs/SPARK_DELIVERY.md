@@ -197,6 +197,9 @@ Process receipts bind the checkout, profile, command, PID and process birth.
 The Spark launch passes `--no-judge`: the optional keyframe judge in
 `configs/demo.yaml` targets the personal gateway with a token from
 `~/.openclaw`, so it never runs here. The physical audit is the gate.
+(Since 2026-10-09 the launcher's judge pass is opt-in -- `--judge` /
+`CASCADE_JUDGE` -- so the flag only guarantees it stays off even when
+`CASCADE_JUDGE` is exported.)
 
 ## Natural English requests
 

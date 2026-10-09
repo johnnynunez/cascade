@@ -28,7 +28,7 @@ architecture does not depend on a particular Isaac Sim build or robot shape.
 | Hands and touch | Extend the [fixed LEAP free-finger runtime](ARTICULATED_HAND.md) beyond its four repetitions of one native motion/rest task: broaden trajectories and disturbances, add other hand drivers/controllers, calibrated tactile observations, contact/slip estimation and grasp/force skills; validate dexterous object interaction for each supported hand and sensor. |
 | Multiple robots | Resolve worst-case twelve-robot feedback latency without relaxing its limits; the later completed zero-command lifecycle did not overlap its long GC pause. The opt-in startup-heap freeze (`--gc-policy freeze-startup-heap`, [MICRODUCK.md](MICRODUCK.md#shared-scene-implementation-boundary)) is the current software candidate: [reader-only probes](MICRODUCK.md#shared-scene-implementation-boundary) on 5 October kept generation-2 collections out of the 800-attempt window, and a native twelve-robot command episode under the original limits is still required. Extend the completed 1/2/12-robot probes and endpoint zero sequences to independent native agent tasks, shared-space collision coordination and individual/global physical stop, disconnect and reset. The owner's per-step host cost is now [measured by phase](MICRODUCK.md#shared-owner-per-step-cost-one-host-snapshot-for-the-bam-checks-7-october-2026): one per-step host snapshot for the twelve BAM adapters cut the step median 76.2 → 61.3 ms with twelve closed-loop clients, and [cheaper per-robot binds and reader polls](MICRODUCK.md#shared-owner-per-step-cost-cheaper-per-robot-binds-and-reader-polls-7-october-2026) (cached binding digest, metadata-only support rebinding, memoized plain contacts for `state()` polls) 61.3 → 48.55 ms, and [one device-side finiteness check for the twelve BAM adapters' outputs](MICRODUCK.md#shared-owner-per-step-cost-one-device-side-finiteness-check-for-the-bam-outputs-7-october-2026) (60 device syncs → one read per step) 48.82 → 46.78 ms with `bam.before_step` 13.9 → 11.9 ms, and [one cohort of Warp launches for the twelve BAM adapters](evidence/microduck-owner-bam-cohort-20261007/REPORT.md) (one pinned `DriveBam` + bridge over 14·12 DOFs: 72 → 6 launches and 108 → 9 copies per step) 46.79 → 42.43 ms with `bam.before_step` 12.11 → 6.57 ms (all twelve walks still `unverified` on the unchanged deadlines), and an [opt-in off-GIL `state()` reader](MICRODUCK.md#shared-owner-per-step-cost-an-opt-in-off-gil-state-reader-7-october-2026) (`--state-reader process`: after each reader channel's first reply its polls are answered by a stdlib reader-server process from per-robot seqlocked shared-memory slots the owner rewrites under the controller lock; byte-identical replies, ages never refreshed, fail-closed on owner death) is implemented with CPU contract tests — on CPU it costs the owner ~6 ms per step for twelve robots and removes the poll-rate dependence of a fake owner loop (step median 25–28 → 16–18 ms under twelve polling client processes), while its GPU A/B against `owner-gil` on the route harness is pending — and the GPU physics step alone costs 7.6 ms per 5 ms step for twelve robots in one world, so real-time twelve-robot control needs cheaper physics (hull/solver budget per asset) as well as less host work. Measured so far: twelve robots in one world walk 68 s without a fall under in-process scripted twists ([keynote showcase](MICRODUCK.md#keynote-showcase-twelve-robots-follow-a-presenter-proxy-in-one-world-5-october-2026), no clients, no verifier), while twelve closed-loop clients on the same owner still trip the unchanged limits ([route fleet evidence](evidence/microduck-route-fleet-20261005/REPORT.md)). |
 | Agent intelligence and evaluation | Validate perception-guided planning, bounded skill graphs, memory-assisted recovery and multimodal feedback across tasks; complete Arena/VAB task episodes and held-out failures. Learned policy adaptation needs separate implementation and evaluation. |
-| Hardware and deployment | Connect selected robots and sensors through explicit adapters; verify calibration, transport loss, controller ownership, stop/restart and task outcomes before each physical deployment. Keep installation and service configuration portable. **Sandboxed agent host (B35, opt-in, 2026-10-08):** an OpenClaw agent inside an NVIDIA OpenShell sandbox (NemoClaw) drives the robot through `mcp_server --http` (TLS + bearer, same serial worker and stop channel as stdio); on Isaac it ran a physics-confirmed pick and a verified reset in one session on 2 of 3 fresh stages ([NEMOCLAW.md](NEMOCLAW.md), [evidence](evidence/b35-nemoclaw-openshell-20261008/REPORT.md)). Still open: the kitchen proof cases and `demo_proof.py` on this route, the Spark, a firewall rule for the listener, sandbox GPU passthrough off. **B36 (new, found by B35):** pick reliability on the bare Isaac reBot scene, 3 of 6 fresh-stage picks failed with three signatures independent of the caller — a lifted cube counted as a failed attempt so every retry refuses "already holding" (cube kept at home height; the reset then fails "did not settle at home"), "did not settle above the place target", and a drop in carry after a verified grip; plus the cold GraspGen-X first inference (15.5 s) exceeding the 8 s client timeout. |
+| Hardware and deployment | Connect selected robots and sensors through explicit adapters; verify calibration, transport loss, controller ownership, stop/restart and task outcomes before each physical deployment. Keep installation and service configuration portable. **Sandboxed agent host (B35, opt-in, 2026-10-08):** an OpenClaw agent inside an NVIDIA OpenShell sandbox (NemoClaw) drives the robot through `mcp_server --http` (TLS + bearer, same serial worker and stop channel as stdio); on Isaac it ran a physics-confirmed pick and a verified reset in one session on 2 of 3 fresh stages ([NEMOCLAW.md](NEMOCLAW.md), [evidence](evidence/b35-nemoclaw-openshell-20261008/REPORT.md)). Still open: the kitchen proof cases and `demo_proof.py` on this route, the Spark, a firewall rule for the listener, sandbox GPU passthrough off. **B36 (new, found by B35):** pick reliability on the bare Isaac reBot scene, 3 of 6 fresh-stage picks failed with three signatures independent of the caller — a lifted cube counted as a failed attempt so every retry refuses "already holding" (cube kept at home height; the reset then fails "did not settle at home"), "did not settle above the place target", and a drop in carry after a verified grip; ~~plus the cold GraspGen-X first inference (15.5 s) exceeding the 8 s client timeout~~ **landed 2026-10-09 (B15a)**: the learned server runs one warm-up inference before it binds, so the first client call was 0.16 s ([evidence](evidence/b15a-graspgenx-warmup-20261009/REPORT.md)); the three pick signatures stay open. **Grip squeeze cap (B38, opt-in, landed 2026-10-09):** the real reBot pick close left the jaws pushing at a fixed fraction of travel, so the holding torque grew with object width (Seeed: a paper cup crushed); the arm-profile key `gripper.max_contact_squeeze_rad` now caps the squeeze past the first contact, steady torque = min(today's, kp·effort·cap), today's exact commands for objects already within the cap — measured on a simulated RobStride jaw over 3/5/7.5/8.5 cm × every grip profile ([REBOT_GRIP_SQUEEZE_CAP.md](REBOT_GRIP_SQUEEZE_CAP.md)). Still open: the user's supervised hardware protocol in that doc, then a value in `rebot_rs.yaml` (ships `null`). |
 
 ## Delivery plan recorded on 2026-10-02
 
@@ -201,9 +201,25 @@ Open, in priority order (details in the sections below):
    Newton camera cadence that leaves 34–40 % of refreshes frameless during arm motion
    (2.8 % on 6.1 with the same three physics steps per update; cause open)
    ([details](NEWTON_ENGINE.md#real-rebot-asset-on-the-internal-62-build-start-up-probe-battery-wrist-camera-7-october-2026)).
-6. **Judge as a metric**: run `scripts/judge_run.py` over every launcher
+6. ~~**Judge as a metric**: run `scripts/judge_run.py` over every launcher
    proof turn and keep the judge-vs-physics confusion matrix in the run
-   summary, so a regression in the outcome pictures shows up as `fn`.
+   summary, so a regression in the outcome pictures shows up as `fn`.~~
+   **landed 2026-10-09 (opt-in, advisory, CPU-measured only; B44).**
+   `scripts/launch.sh --judge fake|vlm|grm` (or `CASCADE_JUDGE`; default
+   off) runs `judge_run.py` over the proof turn's `pick_and_place` rows via
+   `scripts/judge_proof.py`, bounded by `CASCADE_JUDGE_TIMEOUT_S` (default
+   180 s; the judge's process group is killed at the bound), and writes the
+   confusion matrix into `<proof evidence>/run-summary.json` plus one banner
+   line; `proof.json`, READY and the exit status never change, every failure
+   reads `unavailable`. The previous default-on, unbounded pass (shipped
+   `eval.judge` = a frontier model through the gateway) is gone: `--judge vlm`
+   is the same call, opted into. Measured on CPU only:
+   `tests/test_judge_proof_turn.py` (fake judge over recorded and mock-stack
+   traces, a stub OpenAI-compatible endpoint answering, refusing to score, or
+   hanging; 35 failed / 4 premise+golden passed on 4d0947b → 39 passed),
+   all mutants killed. STILL OPEN: no
+   live Isaac proof turn judged by a real model (local Qwen or GRM, #14), so
+   no agreement number for this rig.
 7. ~~**Visual embedder** for episodic recall (`embed_dim`), and action↔object
    consolidation on top of ExperienceMemory (keys on text today).~~
    **landed 2026-10-07 (opt-in, CPU-measured only).** `memory/embedder.py`:
@@ -224,12 +240,45 @@ Open, in priority order (details in the sections below):
    golden pins of `tests/test_memory_default_path.py`), 7/7 mutants killed.
    STILL OPEN: real SigLIP/CLIP weights were never loaded here -- recall
    quality and the uncalibrated text floors need a GPU-host evaluation;
+   ~~crops come from localizations, not every watcher detection; recall is
+   in-process only.~~ **landed 2026-10-09 (B43, both opt-in, CPU-measured
+   only):** `memory.visual_recall_detections` -- the WorldWatcher indexes a
+   crop of every COMMITTED detection (one per belief per frame, at most one
+   per belief per `visual_recall_interval_s` 30 s, ≤ 2 per tick, own ring of
+   128; fusion is paused during motion skills, so no crop comes from a
+   motion frame) -- and `memory.persist_episodic` (`CASCADE_EPISODIC`,
+   `CASCADE_EPISODIC_PATH`) -- the visual index is saved on shutdown and
+   restored at startup like the belief store (wall-clock ages, 6 h max age
+   dropped before a 2 s minimum apparent age, atomic writes, another
+   embedder's file refused, every restored hit `restored`/`remembered`).
+   Measured with the hash embedder and the joint stub on CPU:
+   `tests/test_memory_visual_recall_v2.py` (32 RED on 4d0947b → 38 GREEN with
+   6 premise/golden pins), 90/90 mutants killed. Still open: no live Isaac
+   run of either switch yet (watcher-crop cost per tick with a real
+   detector, restart on the booth), and real-weight recall quality as above.
+   Found while measuring (NOT fixed, separate item): tier-2
    crops come from localizations, not every watcher detection; recall is
-   in-process only. Found while measuring (NOT fixed, separate item): tier-2
+   in-process only. ~~Found while measuring (NOT fixed, separate item): tier-2
    recall matches the compound "pick up the red cube and then pick up the
    blue cube" to the single habit "pick up the red cube" (cosine 0.901 ≥ 0.9)
    because experience is consulted before the curriculum split, so the fast
-   tier can run half a command and report success.
+   tier can run half a command and report success.~~ **landed 2026-10-09
+   (B37)** — `ExperienceMemory.recall` accepts a habit or recipe only with
+   the task's clause structure: the same number of `split_subgoals` clauses
+   and, for a sequence, every clause ≥ 0.9 against its counterpart in order
+   (a single instruction keeps the pre-B37 rule exactly). Measured with the
+   real recall + `FastPlanner` on 23 instruction pairs, main vs branch: the
+   compound now runs both clauses through the curriculum, each clause still
+   warm-started from its own habit; the same rule stops a clause or a single
+   command from replaying a recorded compound (0.929: both cubes moved), a
+   reversed sequence (0.994: wrong order) and a one-word clause difference
+   (0.958: bowl for box). `tests/test_tier2_clause_structure.py` (20 RED on
+   4e896c3 → 28 GREEN, through `run_task` with `MockLLM`), 10/10 mutants
+   killed. Still open: a bare "and" is no clause boundary anywhere in the
+   fast tier (two "move …" commands joined by "and" still replay the first
+   one's habit, 0.951), and the opt-in programs tier offers programs by
+   keyword overlap or text embedding (B42) and leaves whole-vs-part to the
+   brain (ARCHITECTURE, Known limitations).
 8. **Multi-arm on physics**: `so101_left`/`so101_right` are mock; render a
    two-arm MuJoCo scene so the inter-arm gate is measured, not simulated.
    **Half landed 2026-10-07** — `sim/demo_scene.multi_arm_scene_xml` attaches
@@ -796,9 +845,28 @@ aggregator, not nvblox. Fixes, all measured on this CUDA-less Mac (suite
   With no variable set, 170 resolved configurations (every shipped arm,
   camera, base and robot profile) are byte-identical to 133876c; with all
   three set, only 705 `bridge_port`, 271 `graspgenx.port` and 271
-  `occupancy.port` values differ. Still open: `CASCADE_HUG_PORT` and the
+  `occupancy.port` values differ. Left open then: ~~`CASCADE_HUG_PORT` and the
   `*_HOST` variables stay construction-time reads, `scripts/setup_agents.py`
-  forwards none of the ports, and no live Isaac run on private ports yet.
+  forwards none of the ports~~ **landed 2026-10-09** (B41) —
+  `load_demo_config` also applies `CASCADE_HUG_PORT`, `CASCADE_GRASPGENX_HOST`
+  and `CASCADE_HUG_HOST` last, to every view (a host is a hostname or IPv4
+  address: 1–253 ASCII letters, digits, `.`, `-`, `_`, the first a letter or
+  digit; anything else raises naming the variable; empty = unset). A planner
+  dials what its resolved section says and falls back to a variable only for a
+  key the section lacks, so an override written into `cfg._data` after loading
+  is no longer undone at construction; `setup_agents.py` copies every
+  `CASCADE_*_PORT` / `CASCADE_*_HOST` set in its shell into each host's entry
+  (checked by the same rules); `serve_hug.py` reads `CASCADE_HUG_PORT` by the
+  client's rule. The bridge and the occupancy sidecar get no host variable on
+  purpose (launch.sh starts both on this machine; the bridge binds loopback by
+  default). Measured on CPU
+  (`tests/test_endpoint_env_overrides.py`, same spies): with no variable set,
+  213 resolved configurations and the registrar's output for all four hosts
+  are byte-identical to 4d0947b; with all six set, only 1395 `bridge_port` and
+  396 each of `graspgenx.port`/`.host`, `hug.port`/`.host` and
+  `occupancy.port` values differ. Still open: no live Isaac run on private
+  ports yet, and `launch.sh --graspgenx external` still probes
+  `127.0.0.1:$CASCADE_GRASPGENX_PORT` whatever `CASCADE_GRASPGENX_HOST` says.
 - **Robo-Dopamine as the outcome judge** (`eval/progress_judge.py`,
   `scripts/judge_run.py`; https://robo-dopamine.github.io/). The GRM is a
   VLM prompted with the task, optional START/END references and BEFORE/AFTER
@@ -1017,13 +1085,37 @@ engine" rule again -- a second OBJECT is also an independent channel):
    (`docs/evidence/b32b-colour-identity-live-20261008/`). Still open: the kitchen
    scene, and a small object named across a band boundary by two cameras
    (cube views overlap 0.66 at 320 × 180, 0.85 at 1280 × 720 in the ray-cast:
-   it may stay two beliefs, as before). Also found, pre-existing and not
+   it may stay two beliefs, as before). ~~Also found, pre-existing and not
    changed: with a same-coloured prop inside the bin, the camera that names
    both "yellow" fuses its view of the bin into the prop's belief (identical
    with the one-name rule). The follow-up is a size-consistency check in the
-   fusion gate. Frames without
+   fusion gate.~~ **Size-consistency check landed 2026-10-09 (B40, CPU;
+   live A/B owed)**: a view more than 2× the largest view a belief has had
+   (robust horizontal diameter of the real-mask cloud) AND more than 5 cm
+   larger is refused (`BeliefStore._size_ok`, `memory.size_gate`, default
+   true; false = the old store byte for byte, golden-tested). Measured on
+   B32b's live clouds: one object's views within × 1.29 (bin 0.183–0.235 m,
+   205 views), container view ≥ × 2.48 and +10.9 cm the prop's largest view
+   (0.066–0.074 m); 36 tests, 26/26 mutants killed
+   (`docs/evidence/b40-fusion-size-gate-20261009/`). Still open: the live A/B
+   (yellow prop in the orange bin, ≥ 3 runs per arm), a belief born from a
+   quarter of a container's view, ≥ 4 px of mask bleed onto a container (the
+   view of a prop inside it then looks × 2.5 its size; not seen live), and a
+   prop's view fusing into the container's belief. ~~Frames without
    a render self-mask (the real rig) need a link-geometry mask in fusion
-   (follow-up).
+   (follow-up).~~ **landed 2026-10-09 (B39)**: `perception/link_mask.py`
+   draws the robot's pixels from the URDF collision geometry (5 cm link-frame
+   cells, each cell's 3D hull) posed by FK at the joint sample nearest the
+   frame's capture time. Both fusion paths' B32a gate consumes it like a
+   render mask. It is opt-in (`workspace_filter.link_self_mask.enabled`,
+   default false = unchanged); a render mask stays authoritative; no joint
+   sample within 0.15 s = no mask. Measured on CPU only, against a
+   per-triangle rasterisation of the reBot RS meshes (4 poses × 2 cameras,
+   1280 × 720): coverage 1.0 and IoU 0.889–0.951 with the shipped 2 px, at
+   3–5 ms per frame (`docs/evidence/b39-link-self-mask-20261009/`). Still
+   open: the live comparison with the Isaac render mask
+   (`scripts/compare_link_self_mask.py`, owed), a hardware measurement, and
+   turning it on by default.
 
 Then the REAL chat turn on the two-prop scene ("put both cubes in the drop
 zone, one at a time, call task_memory before each action, tell me how many
@@ -1355,7 +1447,21 @@ are synchronous by design here, noted for long-horizon work.
   as automatic fallback and additional IK candidates. The launcher starts
   `serve_graspgenx_stub.py` on hosts without CUDA so the client path is
   exercised everywhere -- the banner says `graspgenx-stub (analytic protocol
-  double)`, and that is NOT the learned model. TODO: (1) calibrate
+  double)`, and that is NOT the learned model. ~~(0) cold first inference~~
+  **landed 2026-10-09 (B15a)**: a fresh server answered its first
+  `infer_object` in 15.53 s and every later one in 0.09 s (x86 RTX PRO 6000,
+  torch 2.7.0+cu128), longer than the client's 8 s `timeout_ms`, so the
+  first pick of a session fell back to the analytic planner on every path
+  that does not run `check_graspgenx.py` first (the booth runbook's
+  `serve_graspgenx.sh` + `booth_up.sh`, a directly started MCP server).
+  `scripts/graspgenx_server.py` now runs one synthetic inference before it
+  binds its port (`--no-warmup` restores the old start-up) and reports
+  `warmed_up` / `warmup_s` / `warmup_error` in `health`; a failed warm-up is
+  logged and the server binds cold as before (no CUDA / no model still
+  refuses first). Live ([evidence](evidence/b15a-graspgenx-warmup-20261009/REPORT.md)):
+  warm-up 15.42 s before the port opened, then client inferences 0.16 /
+  0.14 / 0.13 s; `tests/test_graspgenx_warmup.py`. Still open: the
+  fail-open branch is CPU-tested only, GB10 not measured. TODO: (1) calibrate
   `tip_offset_m` in Isaac Sim (gripper-base -> reBot jaw center), (2) refine
   the URDF-derived reBot sweep-volume params in `configs/demo.yaml` with an
   Isaac Sim measurement (franka_panda remains only the no-sweep fallback),
@@ -1365,7 +1471,9 @@ are synchronous by design here, noted for long-horizon work.
   1. `sudo ip link set can0 up type can bitrate 1000000`; kill any
      motorbridge-gateway/Studio.
   2. Re-verify RS gripper travel + stall torque; update
-     `configs/arms/rebot_rs.yaml` (open/closed rad, kp, max_width_m).
+     `configs/arms/rebot_rs.yaml` (open/closed rad, kp, max_width_m). Then run
+     the B38 squeeze-cap protocol ([REBOT_GRIP_SQUEEZE_CAP.md](REBOT_GRIP_SQUEEZE_CAP.md))
+     before setting `gripper.max_contact_squeeze_rad`.
   3. Hand-eye calibration: run the baseline repo's `collect_handeye_eih.py`
      (eye-in-hand) or measure the static mount, point the camera profile's
      `extrinsics` at it.
@@ -1385,8 +1493,11 @@ are synchronous by design here, noted for long-horizon work.
   `EpisodicMemory(embed_dim=...)` + crops per detection, enabling
   "the thing that looked like X" recall through the TurboQuant index.~~
   **landed 2026-10-07 (opt-in)** as `memory.embedder` -- see open item #7 in
-  the priority list above; crops are per LOCALIZED detection, and real
-  weights remain to be evaluated on the GPU host.
+  the priority list above; ~~crops are per LOCALIZED detection~~ (**landed
+  2026-10-09**, B43: `memory.visual_recall_detections` adds a crop per
+  committed watcher detection, `memory.persist_episodic` keeps the index
+  across restarts, both opt-in), and real weights remain to be evaluated on
+  the GPU host.
 
 ## Mid term
 

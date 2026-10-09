@@ -96,7 +96,8 @@ def _validate_fleet(configs):
                     make_base(base)  # passive constructor validates native pins/ports
     manipulation = sum(any(d["kind"] == "manipulation" for d in cfg.domains.as_dict().values()) for cfg in configs)
     if manipulation > 1 and any(os.environ.get(key) for key in
-            ("CASCADE_BELIEFS_PATH", "CASCADE_GRASP_MEMORY_PATH", "CASCADE_ENVELOPE_PATH")):
+            ("CASCADE_BELIEFS_PATH", "CASCADE_GRASP_MEMORY_PATH", "CASCADE_ENVELOPE_PATH",
+             "CASCADE_EPISODIC_PATH")):
         raise ValueError("global memory path overrides would share stores across fleet robots")
 
 

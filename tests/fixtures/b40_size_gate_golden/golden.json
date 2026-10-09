@@ -1,0 +1,542 @@
+{
+ "default": {
+  "beliefs": [
+   {
+    "aliases": [
+     "box",
+     "building block",
+     "gift box"
+    ],
+    "color": "orange",
+    "conf": 0.7530633199999999,
+    "extent": [
+     0.19040781790644362,
+     0.19115007902429149,
+     0.07889931708855093
+    ],
+    "first_seen_t": 1.0,
+    "label": "storage box",
+    "last_seen_t": 6.5,
+    "observations": 8,
+    "points_n": 384,
+    "points_sha256": "90aabf89d212b9a36935b1175cb4e37ccf9258473d779ec718f896b8b0b5f9a4",
+    "position": [
+     0.18804775765533852,
+     -0.16503557279046216,
+     0.034234052690605615
+    ],
+    "source_colors": [
+     [
+      "isaac",
+      "orange"
+     ],
+     [
+      "isaac_side",
+      "yellow"
+     ]
+    ],
+    "top_z": 0.06113100291500595
+   },
+   {
+    "aliases": [
+     "building block",
+     "passbook"
+    ],
+    "color": "yellow",
+    "conf": 0.7835454999999999,
+    "extent": [
+     0.07944715465198104,
+     0.0686450441752319,
+     0.0481942819132704
+    ],
+    "first_seen_t": 1.0,
+    "label": "cube",
+    "last_seen_t": 6.5,
+    "observations": 6,
+    "points_n": 384,
+    "points_sha256": "f65af5e154a43d9e79e5c8aad2789ba0b6173a4160794d9dc4c619b3d842c9de",
+    "position": [
+     0.1923415647011563,
+     -0.16013997261537233,
+     0.059583623795578355
+    ],
+    "source_colors": [
+     [
+      "isaac",
+      "yellow"
+     ],
+     [
+      "isaac_side",
+      "yellow"
+     ]
+    ],
+    "top_z": 0.08105809121955265
+   },
+   {
+    "aliases": [],
+    "color": "red",
+    "conf": 0.888,
+    "extent": [
+     0.05553394061233473,
+     0.047415737042774304,
+     0.025014858589976412
+    ],
+    "first_seen_t": 5.0,
+    "label": "cube",
+    "last_seen_t": 5.5,
+    "observations": 2,
+    "points_n": 100,
+    "points_sha256": "f3de2836600846f24ec8d8da25d137d9df65156c01a3fafd72abb28adc44c13d",
+    "position": [
+     0.24679676019574243,
+     0.04011626995600172,
+     0.02582554843760357
+    ],
+    "source_colors": [
+     [
+      "isaac",
+      "red"
+     ],
+     [
+      "isaac_side",
+      "red"
+     ]
+    ],
+    "top_z": 0.03686661920047718
+   },
+   {
+    "aliases": [],
+    "color": "red",
+    "conf": 0.877,
+    "extent": [
+     0.04752042127504369,
+     0.04643604686998565,
+     0.028864847432415467
+    ],
+    "first_seen_t": 5.0,
+    "label": "cube",
+    "last_seen_t": 5.5,
+    "observations": 2,
+    "points_n": 132,
+    "points_sha256": "6ee925879f96ee88486629ab5623d855bce82ccb232a3e2e943c1f202afdae82",
+    "position": [
+     0.24660485860704545,
+     0.08954505141247807,
+     0.024449937438433662
+    ],
+    "source_colors": [
+     [
+      "isaac",
+      "red"
+     ],
+     [
+      "isaac_side",
+      "red"
+     ]
+    ],
+    "top_z": 0.03681757778212774
+   }
+  ],
+  "steps": [
+   [
+    0,
+    1
+   ],
+   [
+    1
+   ],
+   [
+    0,
+    1
+   ],
+   [
+    0,
+    1
+   ],
+   [
+    0
+   ],
+   [
+    1
+   ],
+   [
+    0
+   ],
+   [
+    0
+   ],
+   [
+    2,
+    3
+   ],
+   [
+    2,
+    3
+   ],
+   [
+    0
+   ],
+   [
+    0,
+    1
+   ]
+  ]
+ },
+ "one_name_rule": {
+  "beliefs": [
+   {
+    "aliases": [
+     "gift box"
+    ],
+    "color": "orange",
+    "conf": 0.7999999999999999,
+    "extent": [
+     0.19040781790644362,
+     0.19115007902429149,
+     0.07889931708855093
+    ],
+    "first_seen_t": 1.0,
+    "label": "storage box",
+    "last_seen_t": 6.5,
+    "observations": 4,
+    "points_n": 384,
+    "points_sha256": "90aabf89d212b9a36935b1175cb4e37ccf9258473d779ec718f896b8b0b5f9a4",
+    "position": [
+     0.1789817972003522,
+     -0.17571584391700645,
+     0.0320238306771885
+    ],
+    "source_colors": [
+     [
+      "isaac",
+      "orange"
+     ]
+    ],
+    "top_z": 0.06113100291500595
+   },
+   {
+    "aliases": [
+     "box",
+     "building block"
+    ],
+    "color": "yellow",
+    "conf": 0.7305098499999998,
+    "extent": [
+     0.20968679113183106,
+     0.16654293681443494,
+     0.07251576678403647
+    ],
+    "first_seen_t": 1.0,
+    "label": "cube",
+    "last_seen_t": 6.0,
+    "observations": 7,
+    "points_n": 384,
+    "points_sha256": "1d39e1ab578bc14bf3b7ed439a2f4ec41b589293826e64c6dc8ad7b1b9b0d696",
+    "position": [
+     0.19853066352001647,
+     -0.1536078972759798,
+     0.03651940012881079
+    ],
+    "source_colors": [
+     [
+      "isaac",
+      "yellow"
+     ],
+     [
+      "isaac_side",
+      "yellow"
+     ]
+    ],
+    "top_z": 0.06223720057964166
+   },
+   {
+    "aliases": [
+     "passbook"
+    ],
+    "color": "yellow",
+    "conf": 0.64,
+    "extent": [
+     0.07944715465198104,
+     0.0686450441752319,
+     0.0481942819132704
+    ],
+    "first_seen_t": 2.5,
+    "label": "cube",
+    "last_seen_t": 6.5,
+    "observations": 3,
+    "points_n": 384,
+    "points_sha256": "f65af5e154a43d9e79e5c8aad2789ba0b6173a4160794d9dc4c619b3d842c9de",
+    "position": [
+     0.19263276707313726,
+     -0.15809762361942256,
+     0.062309402691057156
+    ],
+    "source_colors": [
+     [
+      "isaac",
+      "yellow"
+     ],
+     [
+      "isaac_side",
+      "yellow"
+     ]
+    ],
+    "top_z": 0.08105809121955265
+   },
+   {
+    "aliases": [],
+    "color": "red",
+    "conf": 0.888,
+    "extent": [
+     0.05553394061233473,
+     0.047415737042774304,
+     0.025014858589976412
+    ],
+    "first_seen_t": 5.0,
+    "label": "cube",
+    "last_seen_t": 5.5,
+    "observations": 2,
+    "points_n": 100,
+    "points_sha256": "f3de2836600846f24ec8d8da25d137d9df65156c01a3fafd72abb28adc44c13d",
+    "position": [
+     0.24679676019574243,
+     0.04011626995600172,
+     0.02582554843760357
+    ],
+    "source_colors": [
+     [
+      "isaac",
+      "red"
+     ],
+     [
+      "isaac_side",
+      "red"
+     ]
+    ],
+    "top_z": 0.03686661920047718
+   },
+   {
+    "aliases": [],
+    "color": "red",
+    "conf": 0.877,
+    "extent": [
+     0.04752042127504369,
+     0.04643604686998565,
+     0.028864847432415467
+    ],
+    "first_seen_t": 5.0,
+    "label": "cube",
+    "last_seen_t": 5.5,
+    "observations": 2,
+    "points_n": 132,
+    "points_sha256": "6ee925879f96ee88486629ab5623d855bce82ccb232a3e2e943c1f202afdae82",
+    "position": [
+     0.24660485860704545,
+     0.08954505141247807,
+     0.024449937438433662
+    ],
+    "source_colors": [
+     [
+      "isaac",
+      "red"
+     ],
+     [
+      "isaac_side",
+      "red"
+     ]
+    ],
+    "top_z": 0.03681757778212774
+   }
+  ],
+  "steps": [
+   [
+    0,
+    1
+   ],
+   [
+    1
+   ],
+   [
+    0,
+    1
+   ],
+   [
+    1,
+    2
+   ],
+   [
+    1
+   ],
+   [
+    2
+   ],
+   [
+    0
+   ],
+   [
+    1
+   ],
+   [
+    3,
+    4
+   ],
+   [
+    3,
+    4
+   ],
+   [
+    1
+   ],
+   [
+    0,
+    2
+   ]
+  ]
+ },
+ "per_detection": {
+  "beliefs": [
+   {
+    "aliases": [
+     "gift box"
+    ],
+    "color": "orange",
+    "conf": 0.7999999999999999,
+    "extent": [
+     0.19040781790644362,
+     0.19115007902429149,
+     0.07889931708855093
+    ],
+    "first_seen_t": 1.0,
+    "label": "storage box",
+    "last_seen_t": 6.5,
+    "observations": 4,
+    "points_n": 384,
+    "points_sha256": "90aabf89d212b9a36935b1175cb4e37ccf9258473d779ec718f896b8b0b5f9a4",
+    "position": [
+     0.1789817972003522,
+     -0.17571584391700645,
+     0.0320238306771885
+    ],
+    "source_colors": [
+     [
+      "isaac",
+      "orange"
+     ]
+    ],
+    "top_z": 0.06113100291500595
+   },
+   {
+    "aliases": [
+     "box",
+     "building block",
+     "passbook"
+    ],
+    "color": "yellow",
+    "conf": 0.7609185785499999,
+    "extent": [
+     0.07944715465198104,
+     0.0686450441752319,
+     0.0481942819132704
+    ],
+    "first_seen_t": 1.0,
+    "label": "cube",
+    "last_seen_t": 6.5,
+    "observations": 10,
+    "points_n": 384,
+    "points_sha256": "f65af5e154a43d9e79e5c8aad2789ba0b6173a4160794d9dc4c619b3d842c9de",
+    "position": [
+     0.1947812156479581,
+     -0.15818755744692675,
+     0.04931414177237935
+    ],
+    "source_colors": [
+     [
+      "isaac",
+      "yellow"
+     ],
+     [
+      "isaac_side",
+      "yellow"
+     ]
+    ],
+    "top_z": 0.08105809121955265
+   },
+   {
+    "aliases": [],
+    "color": "red",
+    "conf": 0.87966,
+    "extent": [
+     0.04752042127504369,
+     0.04643604686998565,
+     0.028864847432415467
+    ],
+    "first_seen_t": 5.0,
+    "label": "cube",
+    "last_seen_t": 5.5,
+    "observations": 4,
+    "points_n": 132,
+    "points_sha256": "6ee925879f96ee88486629ab5623d855bce82ccb232a3e2e943c1f202afdae82",
+    "position": [
+     0.24728449346579323,
+     0.06912172807519446,
+     0.024052553818197375
+    ],
+    "source_colors": [
+     [
+      "isaac",
+      "red"
+     ],
+     [
+      "isaac_side",
+      "red"
+     ]
+    ],
+    "top_z": 0.03681757778212774
+   }
+  ],
+  "steps": [
+   [
+    0,
+    1
+   ],
+   [
+    1
+   ],
+   [
+    0,
+    1
+   ],
+   [
+    1,
+    1
+   ],
+   [
+    1
+   ],
+   [
+    1
+   ],
+   [
+    0
+   ],
+   [
+    1
+   ],
+   [
+    2,
+    2
+   ],
+   [
+    2,
+    2
+   ],
+   [
+    1
+   ],
+   [
+    0,
+    1
+   ]
+  ]
+ }
+}

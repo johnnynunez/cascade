@@ -1,0 +1,7 @@
+{
+ "what": "BeliefStore decisions on SCENARIO (tests/fusion_size_gate_fixture.py), written by the pre-B40 store; B40's size_gate=False must reproduce them byte for byte",
+ "store_source": "origin/main 4e896c3486e42c31b0f16a6d0527499fe11293d3 (git archive export)",
+ "command": "env -u PYTHONPATH PYTHONPATH=<git archive of store_source>/src python tests/fusion_size_gate_fixture.py --write --source <store_source>",
+ "inputs_npz_sha256": "1d9cd034ecfa57b660126f79b5ee74257a6494148237e5aa6051588d1778e6c9",
+ "golden_json_sha256": "b9d13ca75d9b8c089a26ee67a5def4bd45a433c0077ea3fc0f263f9bfbefe926"
+}

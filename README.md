@@ -432,6 +432,10 @@ requires green cube to green square and orange to open box; generic Isaac
 uses the pink cube, and MuJoCo uses the red cube. A `proof.json` receipt must bind the
 expected model/session/MCP runtime to the physical result and reset of the
 manipulated prop. `--no-robot-turn` is **STARTED / UNVERIFIED**, never READY.
+`--judge fake|vlm|grm` (or `CASCADE_JUDGE`; off by default) adds an advisory,
+time-bounded outcome-judge pass over the proof pick: the judge-vs-physics
+confusion matrix goes into `<proof evidence>/run-summary.json` and one
+`judge:` banner line, and nothing it does changes READY or the exit status.
 The banner names the components actually selected (sim bridge, occupancy
 backend, grasp planner, tool count, chat URL, run log), so a shared machine
 never runs a demo that is silently missing a piece. Every tool call the
@@ -529,7 +533,9 @@ python -m pytest tests/ -m hardware -q     # needs a RealSense camera (profile: 
 uv pip install -e '.[grasping]'            # pyzmq + msgpack-numpy
 
 # ...then a server. The real one needs an NVIDIA GPU, its own venv and
-# downloaded checkpoints:
+# downloaded checkpoints. It runs one warm-up inference before it opens its
+# port (~20 s after start on an RTX PRO 6000), so the first pick is not the
+# slow first CUDA inference:
 scripts/serve_graspgenx.sh
 
 # ...or, on a machine without CUDA (laptop, booth box, CI), a protocol-
@@ -720,6 +726,12 @@ python scripts/setup_agents.py --host codex --write
 python scripts/setup_agents.py --camera d455f --arm rebot_rs --write
 ```
 
+Every `CASCADE_*_PORT` / `CASCADE_*_HOST` set in that shell (a stack on private
+ports, an external GraspGen-X / HUG server) is copied into each entry's env, because
+a stdio host may start the server without the shell's environment; the copied names
+are printed, a value the runtime would refuse stops the registration before anything
+is written, and `--env KEY=VALUE` overrides an inherited value.
+
 > **Host and brain are different roles**, and Hermes can be either. As a
 > **host** (this section) Hermes runs the agent loop and cascade is a tool
 > server: Hermes owns the conversation and cascade's reflex/experience tiers
@@ -772,7 +784,13 @@ arm, builds the `ArmRig`), `CASCADE_ARM` (single-arm fallback), `CASCADE_DETECTO
 `CASCADE_BRIDGE_PORT`, `CASCADE_GRASPGENX_PORT` and `CASCADE_OCCUPANCY_PORT` move the
 Isaac bridge and the two sidecars off 8611 / 5556 / 5557: the launcher starts them there
 and `load_demo_config` applies the same values last, over every config layer and every
-arm's resolved view (empty = unset; a malformed value is refused, naming the variable). The Isaac bridge
+arm's resolved view (empty = unset; a malformed value is refused, naming the variable).
+`CASCADE_HUG_PORT`, `CASCADE_GRASPGENX_HOST` and `CASCADE_HUG_HOST` follow the same
+contract for a HUG server, or a GraspGen-X / HUG server on another machine (a host is a
+hostname or an IPv4 address: no port, scheme or whitespace); the bridge and the occupancy
+sidecar have no host variable. The launcher registers all six with the MCP server, and
+`scripts/setup_agents.py` copies every `CASCADE_*_PORT` / `CASCADE_*_HOST` set in its shell
+into each host's entry. The Isaac bridge
 side has its own knobs (`CASCADE_USD`, `CASCADE_PHYSICS_DEVICE` — `cpu` is the
 escape hatch for GPU-PhysX boot NaNs —, `CASCADE_BRIDGE_BIND`,
 `CASCADE_BRIDGE_NO_TARGETS`, `CASCADE_COMPANION_EXTS`); see `scripts/isaac_bridge.py`.
@@ -836,7 +854,7 @@ the orchestrator relays it verbatim and does not retry the step.
 
 | skill | what it does |
 |---|---|
-| `recall_memory` | Recent events (~15 s) and, optionally, where a named object was last seen (plus remembered `looks_like` matches when an opt-in image-text `memory.embedder` is configured) |
+| `recall_memory` | Recent events (~15 s) and, optionally, where a named object was last seen (plus remembered `looks_like` matches when an opt-in image-text `memory.embedder` is configured; with the opt-in `memory.persist_episodic` they may come from an earlier session and are then marked `restored` / `remembered`) |
 | `recall_step` | Look back at one executed step by index (`n`, negative = from the end): skill, args, outcome/ask, the postcondition verdict recorded at the time, dispatch tier, and its BEFORE/AFTER keyframes (served as images over MCP). Read-only; an invalid `n` is an explicit error, never an old frame |
 | `list_arms` | Names the arms of a multi-arm rig (skills take `arm="<name>"`; `""`/`default` mean the primary) |
 | `snapshot_scene` | Memorize the layout under a name: the confirmed objects' labels, colours and centroids as ADVISORY data in the belief store (Pigey "memorize"). No motion; also the reflex phrases "memorize the scene" / "memoriza la escena" |

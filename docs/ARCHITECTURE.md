@@ -1166,12 +1166,19 @@ token and registration. Stdio through `launch.sh` remains the default; see
   success means every step it ran was confirmed, not that it covered every
   clause -- a one-clause program reused for a sequence would report the same
   half-command success the LLM tier's `task_done` could.
-- The launcher judge pass (B44) is opt-in and has only been exercised on
-  CPU (fake judge, recorded traces, a stub OpenAI-compatible endpoint): no
-  live Isaac proof turn has been judged by a real VLM or GRM yet, so no
-  judge-vs-physics agreement is claimed for this rig. It judges only the
-  proof turn's `pick_and_place` rows, and the shipped `eval.judge` targets a
-  frontier model through the OpenClaw gateway -- a local judge needs
+- The launcher judge pass (B44) is opt-in. Its launcher path has only been
+  exercised on CPU (fake judge, recorded traces, a stub OpenAI-compatible
+  endpoint): no full launch has judged its proof turn with a real model yet.
+  Offline, the local Qwen3.8-27B judged 72 recorded live Isaac picks
+  (B44-live, `docs/evidence/b44-live-qwen-judge-20261009/`): at the 1536-token
+  budget `tp=40 tn=1 fp=15 fn=0`, 12 unscored; with those re-judged at 8192
+  tokens `tp=40 tn=7 fp=19 fn=0`. So on this rig `fn` is trustworthy and the
+  `hop > 0` rule is not a failure detector: the GRM prompt rates a refuted
+  pick's partial progress as a positive hop, and Qwen can run past the budget
+  without a score (an abstention, recorded as unscored, never as 0). Two
+  scenes, one view, in-sample. It judges only the proof turn's
+  `pick_and_place` rows, and the shipped `eval.judge` targets a frontier
+  model through the OpenClaw gateway -- a local judge needs
   `CASCADE_JUDGE_CONFIG`.
 
 ## Counts

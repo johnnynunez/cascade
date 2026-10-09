@@ -180,6 +180,8 @@ N cameras ──CameraStream (thread each, latest-frame slot, drop-stale; render
 chat command ("pick and place the red cube")
    ├─ tier 1 REFLEX   template grammar -> skill plan          agent/reflex.py
    ├─ tier 2 HABIT    hashed-BoW cosine ≥ 0.9, wins > losses  runs/experience.json
+   │                  AND the task's clause structure (a
+   │                    sequence matches clause by clause)
    │                  + recipes (xyz -> perception queries,   runs/recipes.jsonl
    │                    re-grounded before any motion)        memory/recipes.py
    ├─ tier 2.5 PROGRAM  OPT-IN (agent.programs: false):       agent/programs.py
@@ -190,6 +192,25 @@ chat command ("pick and place the red cube")
         all tiers execute through the same SkillRuntime; every trace row
         records `tier: reflex | experience | program | llm | mcp-host`
 ```
+
+- **Tier 2 respects the clause structure (B37, 2026-10-09).** The hashed
+  bag-of-words vector cannot see clause boundaries or their order: "pick up
+  the red cube and then pick up the blue cube" scored 0.901 against the habit
+  "pick up the red cube", and because `FastPlanner` consults experience on the
+  whole task before the curriculum split, the fast tier ran half the command
+  and reported success. `ExperienceMemory.recall` (both call sites: the whole
+  task and each curriculum clause in `_plan_one`) now admits a habit or recipe
+  only when its instruction has the task's clauses as `split_subgoals` cuts
+  them: the same count, and for a sequence every clause ≥ `min_sim` against
+  its counterpart IN ORDER. A refused candidate is skipped like a demoted one.
+  So a sequence falls through to the curriculum (each clause still
+  warm-started from its own habit) or to the LLM tier; a clause or a single
+  command never replays a recorded compound (main: 0.929, both cubes moved);
+  a reversed sequence (0.994) and a one-word difference inside one clause of a
+  long command (0.958) no longer pass; a compound recorded as that compound
+  still replays. A single instruction is decided by the index similarity
+  alone, exactly as before (`tests/test_tier2_clause_structure.py` pins it
+  differentially against the pre-B37 rule).
 
 - **Programs tier (opt-in, ROADMAP #8; [design note](PROGRAMS_TIER.md)).**
   Waddle's level above skills: a program is a bounded (≤ 12 steps), declarative
@@ -511,7 +532,7 @@ make that image current by assigning a new timestamp. See
 | `EpisodicMemory` text ring | events, outcomes | ~15 s | `recall_memory`, narration |
 | `EpisodicMemory` frame ring | AFTER frame + action + verdict per motion skill | task-scale (600 s), reset per task / by `reset_scene` | `memory_frames(k)`: first frame pinned, uniform sample, newest last → LLM turn (images) and `task_memory` tool |
 | `EpisodicMemory` visual index (**opt-in**, `memory.embedder`) | one TurboQuant vector per motion frame and per object crop localized during a call (`_localize` detections, keyed by detector label), from `memory/embedder.py` | task-scale (`frames_horizon_s`), ≤ `max_visual` (512) entries, pruned with the index; survives the per-task frame reset | `recall_visual(image \| text \| vector)`; `recall_memory(query)` adds `looks_like` hits only with a joint image-text embedder (siglip/clip). A hit is a remembered appearance, never a current observation |
-| `ExperienceMemory` (`agent/reflex.py`) | command → plan habits, hashed BoW in a TurboQuant index; plus Task-Specific Memory **recipes** (verified LLM-tier runs, coordinates replaced by `localize_object(label)+offset` queries + a summary, `memory/recipes.py`) | `runs/experience.json` (habits), `runs/recipes.jsonl` (recipes) | tier 2; a recipe is re-grounded through perception before any motion, a failed grounding aborts to the LLM tier |
+| `ExperienceMemory` (`agent/reflex.py`) | command → plan habits, hashed BoW in a TurboQuant index; plus Task-Specific Memory **recipes** (verified LLM-tier runs, coordinates replaced by `localize_object(label)+offset` queries + a summary, `memory/recipes.py`) | `runs/experience.json` (habits), `runs/recipes.jsonl` (recipes) | tier 2, only for an instruction with the record's clause structure (same `split_subgoals` count; a sequence clause by clause, in order); a recipe is re-grounded through perception before any motion, a failed grounding aborts to the LLM tier |
 | `ActionObjectMemory` (`memory/consolidation.py`, **opt-in**, `memory.action_objects`) | the tier-2 outcome stream consolidated per (motion skill, normalized object label) across instruction wordings: wins / losses / wordings; one credit per EXECUTED call (never again per curriculum sub-goal); deliberately not merged by embedding (red cube ≠ blue cube) | `runs/action_objects.json` | LLM-tier intro: advisory digest for the objects the task names |
 | `ProgramLibrary` (`memory/programs.py`, opt-in) | programs: parameterized registered-call lists (labels as params, positions as perception queries), keyed by a structural sha256; `occurrences`, `source_tasks`, `origins` (authored / distilled / reused), `losses` | `runs/programs.jsonl` (`memory.programs_path`, `CASCADE_PROGRAMS_PATH`) | tier 2.5 authoring prompt, **only promoted** records (≥ `agent.program_min_tasks` = 2 distinct tasks, verified more often than failed); admitted only from a CONFIRMED execution; also the MCP `list_programs` / `run_program` when the tier is on; keyword overlap, or text embedding with `memory.embedder` (floor-or-guard); every write re-reads the store under an advisory lock, so per-session MCP servers sharing it never lose each other's evidence |
 | `GraspOutcomeMemory` | per-object grasp features, wins/losses | `~/.cascade/grasp_memory.json` | grasp re-rank + z-nudge |
@@ -956,6 +977,19 @@ token and registration. Stdio through `launch.sh` remains the default; see
   `127.0.0.1:$CASCADE_GRASPGENX_PORT` even when `CASCADE_GRASPGENX_HOST`
   points the runtime elsewhere, and `scripts/demo_proof.py` still reads
   `CASCADE_BRIDGE_PORT` with its own `int()`.
+- Tier-2 clauses are cut only at sequence connectives (`split_subgoals`,
+  B37). A bare "and" is no clause boundary anywhere in the fast tier, so
+  "move the red cube to the front-left of the table and move the blue cube to
+  the front-left of the table" still replays the first command's habit
+  (measured 0.951) and runs half of it; within one clause the hashed
+  bag-of-words stays blind to word order. The opt-in programs tier (2.5) is
+  not covered by the clause rule: it OFFERS promoted programs by keyword
+  overlap (one shared content word) or, with `memory.embedder`, text
+  similarity (B42 floor-or-guard), the brain (or the MCP chat host calling
+  `run_program`) sees the whole task and picks, and a reused program's
+  success means every step it ran was confirmed, not that it covered every
+  clause -- a one-clause program reused for a sequence would report the same
+  half-command success the LLM tier's `task_done` could.
 
 ## Counts
 

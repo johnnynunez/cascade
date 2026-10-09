@@ -511,6 +511,8 @@ make that image current by assigning a new timestamp. See
 | `EpisodicMemory` text ring | events, outcomes | ~15 s | `recall_memory`, narration |
 | `EpisodicMemory` frame ring | AFTER frame + action + verdict per motion skill | task-scale (600 s), reset per task / by `reset_scene` | `memory_frames(k)`: first frame pinned, uniform sample, newest last → LLM turn (images) and `task_memory` tool |
 | `EpisodicMemory` visual index (**opt-in**, `memory.embedder`) | one TurboQuant vector per motion frame and per object crop localized during a call (`_localize` detections, keyed by detector label), from `memory/embedder.py` | task-scale (`frames_horizon_s`), ≤ `max_visual` (512) entries, pruned with the index; survives the per-task frame reset | `recall_visual(image \| text \| vector)`; `recall_memory(query)` adds `looks_like` hits only with a joint image-text embedder (siglip/clip). A hit is a remembered appearance, never a current observation |
+| `EpisodicMemory` watcher crops (**opt-in**, `memory.visual_recall_detections` + an embedder; B43) | one `detection` vector per crop of a COMMITTED WorldWatcher fusion, via `DetectionCropRecorder`: one per belief per frame, none for a belief cropped < `visual_recall_interval_s` (30 s) ago, ≤ `visual_recall_max_per_tick` (2) per tick; the recall line says what, where and which camera | task-scale, its own ring ≤ `visual_recall_max_detections` (128), so it never evicts the session entries above; events stay out of the text/frame rings | ranked together with the session index by `recall_visual` / `looks_like`. Fusion is paused during `_MOTION_SKILLS`, so no crop comes from a motion frame |
+| `EpisodicMemory` restored entries (**opt-in**, `memory.persist_episodic` / `CASCADE_EPISODIC`, `CASCADE_EPISODIC_PATH`; B43) | the visual index of the previous session (`save_visual` on shutdown, `load_visual` at build): kind, label, recall line, verdict, the decoded vector (float16) | `runs/episodic.json`; wall-clock stamps, `episodic_max_age_s` (6 h) dropped BEFORE the 2 s `LOADED_MIN_AGE_S` floor, own ring ≤ `max_visual`, pruned at that max age (not the task horizon); another embedder's file is refused | every restored hit carries `restored: true, state: "remembered"` and `recall_memory` says so; never a current observation, never aims motion |
 | `ExperienceMemory` (`agent/reflex.py`) | command → plan habits, hashed BoW in a TurboQuant index; plus Task-Specific Memory **recipes** (verified LLM-tier runs, coordinates replaced by `localize_object(label)+offset` queries + a summary, `memory/recipes.py`) | `runs/experience.json` (habits), `runs/recipes.jsonl` (recipes) | tier 2; a recipe is re-grounded through perception before any motion, a failed grounding aborts to the LLM tier |
 | `ActionObjectMemory` (`memory/consolidation.py`, **opt-in**, `memory.action_objects`) | the tier-2 outcome stream consolidated per (motion skill, normalized object label) across instruction wordings: wins / losses / wordings; one credit per EXECUTED call (never again per curriculum sub-goal); deliberately not merged by embedding (red cube ≠ blue cube) | `runs/action_objects.json` | LLM-tier intro: advisory digest for the objects the task names |
 | `ProgramLibrary` (`memory/programs.py`, opt-in) | programs: parameterized registered-call lists (labels as params, positions as perception queries), keyed by a structural sha256; `occurrences`, `source_tasks`, `origins` (authored / distilled / reused), `losses` | `runs/programs.jsonl` (`memory.programs_path`, `CASCADE_PROGRAMS_PATH`) | tier 2.5 authoring prompt, **only promoted** records (≥ `agent.program_min_tasks` = 2 distinct tasks, verified more often than failed); admitted only from a CONFIRMED execution; also the MCP `list_programs` / `run_program` when the tier is on; keyword overlap, or text embedding with `memory.embedder` (floor-or-guard); every write re-reads the store under an advisory lock, so per-session MCP servers sharing it never lose each other's evidence |
@@ -554,6 +556,35 @@ never a silent fallback to `hash`, whose vectors would answer a semantic query
 with noise. Embedding faults during a run are counted (`visual_stats`), never
 raised into a skill. Everything here is advisory: no recall confirms an
 outcome or gates motion.
+
+**Visual recall v2 (B43, both opt-in, both need the embedder).**
+`memory.visual_recall_detections` hands the detections of every COMMITTED
+WorldWatcher fusion to a `DetectionCropRecorder` (`memory/episodic.py`), which
+uses `BeliefStore.update_frame`'s per-observation belief to keep one crop per
+object per frame, at most one per object per `visual_recall_interval_s`, at
+most `visual_recall_max_per_tick` per tick; the crops land in a `detection`
+ring of their own, so a static table is not re-embedded at 3 Hz and the
+always-on watcher cannot evict motion frames or localized crops. The work
+runs on the watcher thread after the commit and outside the pause lock, and
+never for a frame taken while fusion was paused (motion skills), nor once a
+pause began after the commit; a recorder fault is counted
+(`WorldWatcher.visual_recall_errors`), logged once per distinct message, and
+costs only the crops. `memory.persist_episodic` (`CASCADE_EPISODIC`,
+`CASCADE_EPISODIC_PATH`) saves the visual index in `shutdown_runtime` (its
+own `episodic` teardown stage, right after `beliefs`, only when enabled) and
+restores it in `build_runtime`, with the belief store's rules: wall-clock
+stamps, the max age (`episodic_max_age_s`, 6 h) applied before the 2 s
+`LOADED_MIN_AGE_S` floor, atomic temp + `os.replace`, a corrupt file ignored
+and a file from another embedder (name or dim) refused. Vectors are stored
+decoded (float16) in the embedder's own space, so the file does not depend
+on the quantizer's rotation; restored entries keep their own ring, pruned at
+that max age rather than the task horizon, and every restored hit carries
+`restored: true, state: "remembered"`. Bad limits fail the build before any
+hardware; a switch without an embedder is reported and ignored. Off (the
+shipped default), the watcher, the memory and the teardown receipt are
+exactly B21's. Fleet: a global `CASCADE_EPISODIC_PATH` is refused for two
+manipulation robots, `episodic_path` joins the store-file exclusivity check,
+and composed manipulation domains get `stores/episodic.json`.
 
 ### Evaluation
 
@@ -603,7 +634,7 @@ src/cascade/
 │   ├── reference.py          goal/reference images      workspace.py  reachable-region filter
 ├── memory/
 │   ├── beliefs.py      object permanence, colour-aware fusion, save/load (wall clock)
-│   ├── episodic.py     text ring (15 s) + frame ring (task-scale) + memory_frames(k); opt-in visual index (recall_visual)
+│   ├── episodic.py     text ring (15 s) + frame ring (task-scale) + memory_frames(k); opt-in visual index (recall_visual), watcher crops (DetectionCropRecorder) and save_visual/load_visual (B43)
 │   ├── embedder.py     opt-in memory embedders: hash (deterministic, no deps) | siglip/clip (`memory-embed` extra)
 │   ├── consolidation.py opt-in action<->object outcome counts over tier-2 plans (advisory digest)
 │   ├── envelope.py     Harness-VLA operating envelope (per-skill outcome stats + runtime-measured derived features)
@@ -929,11 +960,15 @@ token and registration. Stdio through `launch.sh` remains the default; see
   under the same floor-or-guard rule and the same caveat; keyword overlap
   stays the default.
 - Visual recall indexes motion frames and the crops of objects a call
-  LOCALIZED, not every detection the watcher sees; it is in-process
-  (task-scale horizon, lost on restart). Text queries ("looks like X") need
-  a joint embedder; no semantic recall quality has been measured with real
-  weights. Action-object consolidation keys on the normalized label: a
-  detector label flicker (bottle/toy) stays two objects, by design.
+  LOCALIZED by default; crops of every committed watcher detection
+  (`memory.visual_recall_detections`) and persistence across restarts
+  (`memory.persist_episodic`) exist since 2026-10-09 (B43) but are opt-in
+  and CPU-measured only -- the per-tick cost with a real detector and
+  embedder, and a restart on the booth, are not measured yet. Text queries
+  ("looks like X") need a joint embedder; no semantic recall quality has
+  been measured with real weights. Action-object consolidation keys on the
+  normalized label: a detector label flicker (bottle/toy) stays two
+  objects, by design.
 
 ## Counts
 

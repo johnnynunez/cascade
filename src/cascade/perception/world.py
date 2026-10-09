@@ -99,6 +99,7 @@ class WorldWatcher:
         harness=None,
         workspace: "WorkspaceFilter | None" = None,
         occupancy=None,
+        visual_recall=None,
     ):
         self._cams = cameras
         self._detector = detector
@@ -110,6 +111,13 @@ class WorldWatcher:
         # OccupancyMap | None -- refreshed here (perception rate_hz), never
         # from the 50 Hz motion stream; see perception/occupancy.py.
         self._occupancy = occupancy
+        # B43 (opt-in memory.visual_recall_detections): a
+        # memory.episodic.DetectionCropRecorder handed the detections of each
+        # COMMITTED fusion, so the visual index also remembers what the
+        # watcher saw, not only what a call localized. None = off.
+        self._visual_recall = visual_recall
+        self.visual_recall_errors = 0
+        self._visual_recall_error: str | None = None
         self._stop = False
         self._pause_count = 0
         self._pause_lock = threading.Lock()
@@ -363,8 +371,31 @@ class WorldWatcher:
         with self._pause_lock:
             if not self._fusion_allowed(cam, frame, epoch):
                 return
-            self._beliefs.update_frame(observations, t=frame.t)
+            fused = self._beliefs.update_frame(observations, t=frame.t)
         self.last_update_t = time.monotonic()
+        if self._visual_recall is not None:
+            self._note_crops(cam, frame, observations, fused)
+
+    def _note_crops(self, cam: WatchedCamera, frame: Frame, observations, fused) -> None:
+        """B43: remember what the detections of a COMMITTED frame looked like.
+
+        Only a committed fusion gets here, and fusion is paused while a
+        motion skill runs, so no crop ever comes from a motion frame. It runs
+        after the commit and outside the pause lock (embedding is compute);
+        a motion that took the pause in between gets no embedding work on its
+        time either. A fault costs the crops, never the tick (fusion and the
+        heartbeat already happened)."""
+        if self._pause_count:
+            return
+        try:
+            self._visual_recall.offer(frame.rgb, observations, fused,
+                                      source=camera_source(cam.stream))
+        except Exception as e:  # noqa: BLE001
+            self.visual_recall_errors += 1
+            msg = f"{type(e).__name__}: {e}"
+            if msg != self._visual_recall_error:  # log state changes, not 3 Hz spam
+                print(f"[watcher:{cam.stream.name}] visual recall: {msg}", file=sys.stderr)
+            self._visual_recall_error = msg
 
     def stats(self) -> dict:
         return {

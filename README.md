@@ -835,7 +835,7 @@ the orchestrator relays it verbatim and does not retry the step.
 
 | skill | what it does |
 |---|---|
-| `recall_memory` | Recent events (~15 s) and, optionally, where a named object was last seen (plus remembered `looks_like` matches when an opt-in image-text `memory.embedder` is configured) |
+| `recall_memory` | Recent events (~15 s) and, optionally, where a named object was last seen (plus remembered `looks_like` matches when an opt-in image-text `memory.embedder` is configured; with the opt-in `memory.persist_episodic` they may come from an earlier session and are then marked `restored` / `remembered`) |
 | `recall_step` | Look back at one executed step by index (`n`, negative = from the end): skill, args, outcome/ask, the postcondition verdict recorded at the time, dispatch tier, and its BEFORE/AFTER keyframes (served as images over MCP). Read-only; an invalid `n` is an explicit error, never an old frame |
 | `list_arms` | Names the arms of a multi-arm rig (skills take `arm="<name>"`; `""`/`default` mean the primary) |
 | `snapshot_scene` | Memorize the layout under a name: the confirmed objects' labels, colours and centroids as ADVISORY data in the belief store (Pigey "memorize"). No motion; also the reflex phrases "memorize the scene" / "memoriza la escena" |

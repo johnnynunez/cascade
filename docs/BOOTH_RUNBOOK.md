@@ -116,6 +116,11 @@ scripts/booth_up.sh                 # pre-flight: red/green every silent killer
 `booth_up.sh` checks failures that can otherwise change the demo's behavior:
 optional GraspGen-X profiles report analytic OBB fallback when inference is
 unavailable, then retry the learned server after a five-second cooldown.
+`serve_graspgenx.sh` opens :5556 only after one warm-up inference (the first
+CUDA inference takes ~15 s, longer than the client's 8 s timeout), so wait for
+its `warm-up inference ... before binding` line before the first pick; once
+the port answers, the model is warm. A `WARNING: warm-up inference failed`
+line means it bound cold (the old start-up): restart it before the booth opens.
 The Spark presenter profile requires the real model and reports an error instead.
 A wrong launch directory makes every detection vanish
 (YOLOE's text encoder resolves relative to the CWD), and online ultralytics

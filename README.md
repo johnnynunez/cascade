@@ -532,7 +532,9 @@ python -m pytest tests/ -m hardware -q     # needs a RealSense camera (profile: 
 uv pip install -e '.[grasping]'            # pyzmq + msgpack-numpy
 
 # ...then a server. The real one needs an NVIDIA GPU, its own venv and
-# downloaded checkpoints:
+# downloaded checkpoints. It runs one warm-up inference before it opens its
+# port (~20 s after start on an RTX PRO 6000), so the first pick is not the
+# slow first CUDA inference:
 scripts/serve_graspgenx.sh
 
 # ...or, on a machine without CUDA (laptop, booth box, CI), a protocol-

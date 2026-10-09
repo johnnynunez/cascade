@@ -129,7 +129,11 @@ profile runs a second instance with `--api-key-file`.
   starts took 15.5 s on the x86 rig, past the client's 8 s timeout, so the
   first attempt fell back to the analytic planner; in that run the cube ended
   held at 0.44 m and the retries refused with "already holding". The same
-  failure does not depend on the transport; warm the planner before a proof.
+  failure does not depend on the transport; ~~warm the planner before a
+  proof~~ **landed 2026-10-09 (B15a)**: `scripts/graspgenx_server.py` runs one
+  warm-up inference before it binds, so the first client call was 0.16 s
+  ([evidence](evidence/b15a-graspgenx-warmup-20261009/REPORT.md)); check
+  `health` reports `warmed_up: true` before a proof.
 - **The `nemoclaw <name> agent` wrapper exits 1** with `replayInvalid=true`
   even when the turn's JSON reports `status: ok` and every tool call
   succeeded. Judge a turn by the server's per-call log and the physics

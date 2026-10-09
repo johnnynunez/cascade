@@ -33,8 +33,8 @@ safety:
 occupancy:
   enabled: true
   required: false
-  host: 127.0.0.1
-  port: 5557
+  host: 127.0.0.1          # no variable: launch.sh starts this bridge on this machine
+  port: 5557               # CASCADE_OCCUPANCY_PORT overrides it (load_demo_config, last)
   timeout_ms: 500          # per ZMQ round trip; refreshed at perception_loop.rate_hz, not per waypoint
   max_age_s: 10.0          # expiry skips an optional map and blocks a required map
   stride: 8                # legacy cloud-protocol subsampling (old bridges)
@@ -52,8 +52,8 @@ grasp:
   # failed startup/inference is an error, with no analytic substitution.
   backend: graspgenx
   graspgenx:
-    host: 127.0.0.1
-    port: 5556
+    host: 127.0.0.1         # CASCADE_GRASPGENX_HOST / _PORT override both, applied last by
+    port: 5556              # load_demo_config to every arm's view (e.g. a server on a CUDA box)
     gripper: franka_panda   # fallback when `sweep` is removed
     num_grasps: 100
     topk: 32
@@ -93,8 +93,8 @@ grasp:
   # environment (CUDA required; `--stub` = analytic protocol double).
   # See docs/HUG.md. These defaults change nothing while `backend` is graspgenx.
   hug:
-    host: 127.0.0.1
-    port: 5558
+    host: 127.0.0.1         # CASCADE_HUG_HOST / _PORT override both, applied last by load_demo_config
+    port: 5558              # (every arm's view); scripts/serve_hug.py binds CASCADE_HUG_PORT too
     required: true          # fail visibly; never an OBB substitute (false: reported OBB fallback)
     num_samples: 32         # hands per request: N noise draws of ONE query (our batching)
     topk: 32
@@ -152,6 +152,9 @@ grasp:
   release_clearance_m: 0.06 # place_on_object: drop height above target top
   air_grasp_frac: 0.04      # jaw open-fraction below this after close = missed
   close_settle_s: 0.4       # generic two-stage close dwell (real arm ignores)
+                            # real reBot RS squeeze cap: the arm-profile key
+                            # gripper.max_contact_squeeze_rad (configs/arms/
+                            # rebot_rs*.yaml, null = off; docs/REBOT_GRIP_SQUEEZE_CAP.md)
   drop_zone: [0.18, -0.17]  # pick_and_place default target = the bin, inside
                             # the B601-RS top-down IK envelope (reachable place)
   home_after_place: true    # clear the camera view after each pick_and_place
@@ -240,6 +243,30 @@ memory:
     model: null               # null -> the backend's default checkpoint
     device: auto
     local_files_only: true    # never downloads weights unless set to false
+  # Visual recall v2 (B43, ROADMAP #7; both opt-in, both need the embedder
+  # above -- without one they are reported at startup and ignored).
+  # visual_recall_detections: the WorldWatcher also remembers what each
+  # COMMITTED detection looked like, not only the objects a call localized:
+  # one crop per belief per frame, at most one per belief every
+  # visual_recall_interval_s, at most visual_recall_max_per_tick per watcher
+  # tick, in a ring of its own (visual_recall_max_detections, frames_horizon_s)
+  # so it never evicts motion frames or localized crops. Fusion is paused
+  # while the arm moves, so a motion frame never yields a crop. A bad limit
+  # fails the build. false = the B21 index exactly.
+  visual_recall_detections: false
+  visual_recall_interval_s: 30.0
+  visual_recall_max_per_tick: 2
+  visual_recall_max_detections: 128
+  # persist_episodic: the visual index (frames, localized and watcher crops)
+  # is written on shutdown and reloaded at startup, like persist_beliefs:
+  # wall-clock ages, entries older than episodic_max_age_s dropped, every
+  # restored hit marked restored/remembered and at least 2 s old -- never a
+  # current observation. A file from another embedder is refused (its vectors
+  # are not comparable). CASCADE_EPISODIC=1/0 overrides this switch;
+  # CASCADE_EPISODIC_PATH relocates the file. false = in-process only.
+  persist_episodic: false
+  episodic_path: null       # null -> <repo>/runs/episodic.json
+  episodic_max_age_s: 21600 # 6 h, like beliefs_max_age_s
   # Action<->object consolidation of tier-2 outcomes (ROADMAP #7, opt-in;
   # memory/consolidation.py): wins/losses per (skill, object) across
   # instruction wordings, persisted to runs/action_objects.json and shown to
@@ -401,6 +428,21 @@ workspace_filter:
   # self_mask: false is the A/B baseline.
   self_mask: true
   self_mask_max_frac: 0.5
+  # Frames WITHOUT a render self-mask (the real rig): build the robot's pixels
+  # from the arm's URDF link geometry instead (B39, perception/link_mask.py),
+  # posed by FK at the joint sample nearest the frame's capture time, and feed
+  # the same gate. Opt-in; false is byte-identical to the gate without it.
+  # Off whenever self_mask is false; a render mask is never overwritten.
+  #   dilate_px   pixels added around the silhouette (calibration slack)
+  #   max_skew_s  no joint sample this close to the frame -> NO mask (logged)
+  #   cell_m      mesh pieces (link-frame cells); smaller = tighter, slower
+  #   capsule_radius_m  for a link whose mesh cannot be read (default: the
+  #               arm profile's body_mask_radius_m)
+  link_self_mask:
+    enabled: false
+    dilate_px: 2
+    max_skew_s: 0.15
+    cell_m: 0.05
 
 # Offline evaluation of recorded runs (src/cascade/eval, scripts/judge_run.py).
 # Robo-Dopamine GRM ("PRM-as-a-Judge", https://robo-dopamine.github.io/):

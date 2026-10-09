@@ -99,6 +99,8 @@ class WorldWatcher:
         harness=None,
         workspace: "WorkspaceFilter | None" = None,
         occupancy=None,
+        link_mask=None,
+        visual_recall=None,
     ):
         self._cams = cameras
         self._detector = detector
@@ -110,6 +112,17 @@ class WorldWatcher:
         # OccupancyMap | None -- refreshed here (perception rate_hz), never
         # from the 50 Hz motion stream; see perception/occupancy.py.
         self._occupancy = occupancy
+        # LinkSelfMask | None (B39, opt-in `workspace_filter.link_self_mask`):
+        # the robot's own pixels from its link geometry, for frames that
+        # carry no render self-mask; see perception/link_mask.py.
+        self._link_mask = link_mask
+        # B43 (opt-in memory.visual_recall_detections): a
+        # memory.episodic.DetectionCropRecorder handed the detections of each
+        # COMMITTED fusion, so the visual index also remembers what the
+        # watcher saw, not only what a call localized. None = off.
+        self._visual_recall = visual_recall
+        self.visual_recall_errors = 0
+        self._visual_recall_error: str | None = None
         self._stop = False
         self._pause_count = 0
         self._pause_lock = threading.Lock()
@@ -295,6 +308,16 @@ class WorldWatcher:
             if self._occupancy is not None and cam.maps_depth:
                 # Keep geometry fresh during motion; only beliefs are paused.
                 self._occupancy.refresh(frame, T)
+        # B39: a frame without a render self-mask gets the arm's link geometry
+        # instead (opt-in). Its joint sample is taken HERE, before inference,
+        # so it is this image's pose; never while fusion is paused (a moving
+        # arm's reads belong to the motion loop, and nothing would be fused).
+        link = self._link_mask
+        if (link is None or T is None or not cam.fuse or not self._workspace.self_mask
+                or getattr(frame, "robot_mask", None) is not None or self.is_paused):
+            link = None
+        else:
+            link.sample()
         dets = self._detector.detect(frame, classes=self._classes)
         cam.stream.set_overlay(detections=dets)
         self.last_dets[cam.stream.name] = dets
@@ -306,8 +329,13 @@ class WorldWatcher:
             self._harness.heartbeat()
         if T is None or not cam.fuse:
             return
-        # The robot's own pixels (render self-mask minus a held payload).
-        self_px = self._workspace.self_pixels(frame)
+        # The robot's own pixels (render self-mask minus a held payload; B39:
+        # else the link-geometry mask, on a fusion-local copy of the frame --
+        # the occupancy map above keeps its own body masking).
+        if link is not None and dets and not self.is_paused:
+            self_px = self._workspace.self_pixels(link.attach(frame, T))
+        else:
+            self_px = self._workspace.self_pixels(frame)
         with self._pause_lock:
             if not self._fusion_allowed(cam, frame, epoch):
                 return
@@ -363,8 +391,31 @@ class WorldWatcher:
         with self._pause_lock:
             if not self._fusion_allowed(cam, frame, epoch):
                 return
-            self._beliefs.update_frame(observations, t=frame.t)
+            fused = self._beliefs.update_frame(observations, t=frame.t)
         self.last_update_t = time.monotonic()
+        if self._visual_recall is not None:
+            self._note_crops(cam, frame, observations, fused)
+
+    def _note_crops(self, cam: WatchedCamera, frame: Frame, observations, fused) -> None:
+        """B43: remember what the detections of a COMMITTED frame looked like.
+
+        Only a committed fusion gets here, and fusion is paused while a
+        motion skill runs, so no crop ever comes from a motion frame. It runs
+        after the commit and outside the pause lock (embedding is compute);
+        a motion that took the pause in between gets no embedding work on its
+        time either. A fault costs the crops, never the tick (fusion and the
+        heartbeat already happened)."""
+        if self._pause_count:
+            return
+        try:
+            self._visual_recall.offer(frame.rgb, observations, fused,
+                                      source=camera_source(cam.stream))
+        except Exception as e:  # noqa: BLE001
+            self.visual_recall_errors += 1
+            msg = f"{type(e).__name__}: {e}"
+            if msg != self._visual_recall_error:  # log state changes, not 3 Hz spam
+                print(f"[watcher:{cam.stream.name}] visual recall: {msg}", file=sys.stderr)
+            self._visual_recall_error = msg
 
     def stats(self) -> dict:
         return {

@@ -58,7 +58,7 @@ How the Cartesian port works:
 - **`WrcGripper` state machine** (IDLE→POSITION→CLOSING→HOLDING, torque-mode close at 1.5 N·m, stall when `|vel| < 0.12`, hard-stop = empty grasp).
   - It depends on a 500 Hz loop plus `get_state()` velocity and torque feedback. cascade measured that RS `get_state()` is not decoded on this firmware and that mechVel (0x701A) is not in rad/s, so the stall detector would read noise.
   - cascade already covers what it does: `close_gripper_torque` (stall on mechPos, then `hold_kp` light hold) and the skill-level `air_grasp_frac` empty-grasp check.
-- **Width-aware close** (`grasping/force.py::compute_close_target`, `tests/test_gripper_width_aware_close.py`). WRC iterated v2 0.75 → v5 0.30 with `effort` 1.0, so the constants are not settled. They are also tuned against WRC's 5.0 rad ≙ 95 mm map, which disagrees with cascade's, and under MIT the squeeze force still scales with object width. This is not demonstrably better than cascade's fixed fractions plus light hold. Revisit after onsite force measurements.
+- **Width-aware close** (`grasping/force.py::compute_close_target`, `tests/test_gripper_width_aware_close.py`). WRC iterated v2 0.75 → v5 0.30 with `effort` 1.0, so the constants are not settled. They are also tuned against WRC's 5.0 rad ≙ 95 mm map, which disagrees with cascade's, and under MIT the squeeze force still scales with object width. This is not demonstrably better than cascade's fixed fractions, which since B38 can be bounded by the opt-in contact-relative squeeze cap `gripper.max_contact_squeeze_rad` ([REBOT_GRIP_SQUEEZE_CAP.md](REBOT_GRIP_SQUEEZE_CAP.md)); the light hold (`hold_kp`) runs only in the park close. Revisit after onsite force measurements.
 - **ADR-0002 `force=1.0`.** This is a torque-mode hold value for `GraspDriver.grasp()`. cascade closes in position mode with kp-scaled effort, so the number has no equivalent here.
 - **home_q changes** (e3b0b2a, ba4e110, f6fca0d, ADR-0001).
   - WRC tried three different home poses and settled on `[0, 0.1684, 0.6226, -0.4543, 0, 0]` (TCP 0.25/0/0.35, identity rotation).
@@ -124,6 +124,9 @@ Support the arm before anything enables it: after a clean shutdown it is limp.
      and confirm the `[rebot] grip contact` line appears only for the object.
    - Only after the width map is confirmed, consider
      `gripper.pregrasp_open_margin_m: 0.01`.
+   - Then run the pick-close squeeze protocol in
+     [REBOT_GRIP_SQUEEZE_CAP.md](REBOT_GRIP_SQUEEZE_CAP.md) (B38) before
+     setting `gripper.max_contact_squeeze_rad`.
 5. **Cartesian nudge (optional).** At the lowered velocity cap, set
    `cartesian_relative_moves: true` and issue `move down a bit` and `move up a bit`.
    Watch that the TCP travels straight. Revert the setting if anything looks wrong.

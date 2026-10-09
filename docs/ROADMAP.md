@@ -393,8 +393,10 @@ inspiration lifted from an abstract.
   functions) → `skills` (agent-authored, reusable, composed from
   primitives) → `programs` (full task-specific policies composed from
   skills, written fresh per instruction). cascade has the first two
-  (`TOOL_SPECS` = primitives, `skills_library/*.md` = skills) but no
-  `programs` tier — see open follow-up #8. Also notable, as a *contrast*
+  (`TOOL_SPECS` = primitives, `skills_library/*.md` = skills) ~~but no
+  `programs` tier — see open follow-up #8~~ **landed**: the opt-in programs
+  tier (follow-up #8, 2026-10-08; exposed to MCP chat hosts and ranked by
+  embedding since 2026-10-09, B42). Also notable, as a *contrast*
   and not a pattern to adopt: Waddle's described safety layer is a single
   `verify(...)` check with no rate-limiting or rollback protocol — thinner
   than this repo's harness-as-sole-authority design, worth stating

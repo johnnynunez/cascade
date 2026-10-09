@@ -206,6 +206,18 @@ memory:
   # (memory/beliefs.py `_identity_ok`).
   per_camera_colour: true
   neighbour_colour_iou: 0.75
+  # Size consistency in the fusion gate (B40): a camera view much larger than
+  # any view a belief has had -- more than 2x its robust horizontal diameter
+  # AND more than 5 cm larger -- is not that object. So a camera that names a
+  # container and the prop inside it with the SAME colour (the Isaac side
+  # camera's "yellow" bin and a yellow cube in it) no longer fuses its view of
+  # the container into the prop's belief. A smaller view always passes (a
+  # partial or occluded view only looks smaller), and a view or belief without
+  # a real-mask cloud is never refused. Both numbers are CPU estimates from the
+  # live clouds (docs/evidence/b40-fusion-size-gate-20261009/); the live A/B
+  # is owed. false = the pre-2026-10-09 store, byte for byte, kept as the live
+  # A/B baseline (memory/beliefs.py `_size_ok`).
+  size_gate: true
   # ASPIRE skill library (skills_library/*.md, written offline by
   # scripts/learn_from_runs.py): a distilled note is retrieved into the agent
   # context only after it recurred in this many DISTINCT tasks (upstream

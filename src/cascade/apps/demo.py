@@ -452,6 +452,8 @@ def build_runtime(
     # per-detection baseline for a live A/B (memory/beliefs.py update_frame).
     # Colour identity per camera (B32b): `memory.per_camera_colour: false` is
     # the one-name baseline for a live A/B (memory/beliefs.py _identity_ok).
+    # Size consistency (B40): `memory.size_gate: false` is the no-size-check
+    # baseline for a live A/B (memory/beliefs.py _size_ok).
     beliefs = _belief_store(mcfg)
     # Persistent spatial memory (ROADMAP item): the world model survives a
     # restart, so the robot does not re-discover a table it already mapped and
@@ -913,16 +915,24 @@ def _belief_store(mcfg) -> BeliefStore:
     (the Isaac bin: "orange" top, "yellow" side) is one belief; false = the
     one-name rule. `neighbour_colour_iou` (default 0.75) is the 3D box IoU a
     camera that never named a belief needs to fuse a neighbouring name into
-    it; outside (0, 1] raises. A YAML string such as "false" is honoured.
+    it; outside (0, 1] raises. `size_gate` (default true, B40): a view much
+    larger than any view a belief has had is not that object (a camera that
+    names a container and the prop inside it alike must not fuse the
+    container into the prop); false = the store before it, byte for byte. A
+    YAML string such as "false" is honoured.
     """
     value = mcfg.get("per_camera_colour", True)
     if isinstance(value, str):
         value = value.strip().lower() not in ("0", "false", "no", "off")
+    gate = mcfg.get("size_gate", True)
+    if isinstance(gate, str):
+        gate = gate.strip().lower() not in ("0", "false", "no", "off")
     iou = mcfg.get("neighbour_colour_iou")
     return BeliefStore(
         instance_association=_instance_association_enabled(mcfg),
         per_camera_colour=bool(value),
         neighbour_colour_iou=(NEIGHBOUR_COLOUR_IOU if iou is None else float(iou)),
+        size_gate=bool(gate),
     )
 
 

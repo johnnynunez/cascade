@@ -315,12 +315,17 @@ class RobotSurface:
                         seed: int = 0, geometry: str = "collision", exterior_only: bool = True,
                         links=None, dense_per_m2: float = DENSE_POINTS_PER_M2) -> "RobotSurface":
         """``links=None``: every link with a mesh whose pose the measured
-        joints determine. ``model_path`` must be the URDF ``kin`` was built
-        from (USD models carry no mesh paths cascade can read)."""
+        joints determine; ``links="all"`` also includes passively driven
+        ones (a renderer, never a calibration model). ``model_path`` must be
+        the URDF ``kin`` was built from (USD models carry no mesh paths
+        cascade can read)."""
         path = Path(model_path)
         if path.suffix.lower() != ".urdf":
             raise ValueError(f"surface model needs the arm's URDF (meshes), got {path.name}")
         meshes = parse_collision_meshes(path, geometry)
+        everything = links == "all"
+        if everything:
+            links = None
         model = kin.model
         names, fids = [], []
         for fid, fr in enumerate(model.frames):
@@ -328,7 +333,7 @@ class RobotSurface:
                 continue
             if links is not None and fr.name not in links:
                 continue
-            if links is None and int(fr.parentJoint) > int(kin.n):
+            if links is None and not everything and int(fr.parentJoint) > int(kin.n):
                 continue          # passive / unmeasured joint (e.g. finger slides)
             names.append(fr.name)
             fids.append(fid)
@@ -346,17 +351,24 @@ class RobotSurface:
     def __len__(self) -> int:
         return len(self._P)
 
-    def link_poses(self, q) -> np.ndarray:
-        """(L, 4, 4) T_link2base at the (measured) joints ``q``."""
+    def link_poses(self, q, passive=None) -> np.ndarray:
+        """(L, 4, 4) T_link2base at the (measured) joints ``q``. ``passive``
+        sets the joints kin zero-pads (a renderer posing the finger slides);
+        a calibration model never passes it."""
         kin = self.kin
         pin = kin._pin
         data = kin.data
-        pin.forwardKinematics(kin.model, data, kin._pad(np.asarray(q, dtype=float)))
+        qf = kin._pad(np.asarray(q, dtype=float))
+        if passive is not None:
+            extra = np.asarray(passive, dtype=float).ravel()
+            m = min(extra.size, kin.nq - kin.n)
+            qf[kin.n: kin.n + m] = extra[:m]
+        pin.forwardKinematics(kin.model, data, qf)
         pin.updateFramePlacements(kin.model, data)
         return np.stack([np.asarray(data.oMf[f].homogeneous) for f in self.frame_ids])
 
-    def points_at(self, q) -> SurfaceCloud:
-        T = self.link_poses(q)
+    def points_at(self, q, passive=None) -> SurfaceCloud:
+        T = self.link_poses(q, passive)
         R = T[self._ids, :3, :3]
         t = T[self._ids, :3, 3]
         P = np.einsum("nij,nj->ni", R, self._P) + t

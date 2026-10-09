@@ -85,7 +85,7 @@ guarantee or continued motion of unaffected peers is established.
 | `apps/robot_runtime.py` | Explicit manipulation, locomotion, fastening, sensing and spatial composition through `--robot` / `CASCADE_ROBOT`; a manipulation domain `mounted_on` a locomotion base under a `whole_body` contract | Mixed physical actuation is refused; whole-body compositions with any physical actuating resource are refused with the missing gates named |
 | `conversation/`, `apps/conversation.py` | Browser media, Realtime provider, allowlisted semantic intents, deadlines and priority interruption | Supervisor above one robot runtime; no joint writer, implicit stop reset or hosted-service deployment |
 | `sensing/` | Typed passive observations, provenance, freshness, bounded readers/history | Reading cannot step physics or claim actuator ownership |
-| `spatial/` | Capture-time frame lookup, source-bound memory, synthetic route proposals, observed RGB-D annotations and an optional [cuVSLAM RGB-D provider](SPATIAL_PROVIDERS.md#optional-cuvslam-localization) | cuVSLAM has CPU contract coverage and a 12-frame native synthetic RGB-D replay; physical localization and navigation execution remain pending; annotations are not a collision map |
+| `spatial/` | Capture-time frame lookup, source-bound memory, synthetic route proposals, observed RGB-D annotations, an optional [cuVSLAM RGB-D provider](SPATIAL_PROVIDERS.md#optional-cuvslam-localization) and an opt-in [`go_to` route runner](SPATIAL_PROVIDERS.md#opt-in-observed-route-execution) (`spatial/navigation.py`) | cuVSLAM has CPU contract coverage, a 12-frame native synthetic RGB-D replay and a [live native simulation stream](CUVSLAM_NATIVE_VALIDATION.md#live-native-rgb-d-stream) of 12 tracked captures, with uncalibrated pose uncertainty; `go_to` has CPU tests only and no shipped provider; physical localization and native route execution remain pending; annotations are not a collision map |
 | `control/microduck_policy.py`, `sim/microduck_stepper.py` | Pinned ONNX contract and physics-clock policy application | Robot-specific implementation; no generic humanoid policy loader or second writer to head joints |
 | `robotics/graph.py` | Immutable bounded DAG of registered skills, outcome and data edges | No graph-generated code, online self-editing or automatic stop reset |
 | `eval/vab.py`, `eval/arena.py`, `eval/trials.py` | Optional external API adapters and bound independent verdicts | Upstream success alone does not grant physical admission |
@@ -99,8 +99,8 @@ guarantee or continued motion of unaffected peers is established.
 | Talk and understand tool intents | Local browser/provider/session path with bounded audio and curated tools | Reliable general dialogue, hardware audio and public service operation |
 | Interact with objects | Arm skills, SafeArm, grasp/release observations, optional cuMotion and OVRTX; a mock arm mounted on a mock base with world-frame reach verdicts (B30) | Validation for each body/tool/scene; physical whole-body mobile manipulation (measured mount calibration, independent base pose, moving-frame arm limits) |
 | Turn a fastener | Mounted Factory domain with per-solve observations and final rest checks | Repeatability of the measured mounted turn/rest episode; acquisition, engagement, withdrawal and calibrated preload |
-| Walk or turn | MicroDuck MobileBase, pinned policy, BAM, command leases and independent support/rest checks | General gait, longer paths and other robot/model/controller combinations |
-| Perceive and remember space | Passive sensors, measured-frame contracts and retained RGB-D surface annotations | Physical SLAM/localization, metric reconstruction admission and execution of planned routes |
+| Walk or turn | MicroDuck MobileBase, pinned policy, BAM, command leases and independent support/rest checks; the [Unitree H2 PhysX candidate](HUMANOID_H2.md) on the same `MobileBase`/`SafeBase`/verifier path (simulation only) | General gait, longer paths, physical admission and other robot/model/controller combinations |
+| Perceive and remember space | Passive sensors, measured-frame contracts, retained RGB-D surface annotations, optional cuVSLAM localization (uncalibrated) and an opt-in `go_to` route runner (CPU tests only) | Calibrated physical SLAM/localization, a collision map from the robot's own sensors, metric reconstruction admission and native execution of planned routes |
 | Describe different bodies | Fixed/floating roots, links, transmissions and typed scalar/generalized joint observations; explicit multi-domain embodiments with disjoint command endpoints and a capture-time mount frame chain (mock) | Drivers and control mappings for each mechanism; dynamic whole-body control, balance and arm physics on a moving base (e.g. Unitree H2 arms) |
 | Sense touch | Contact, estimated-force and tactile-image contracts | Calibrated tactile device drivers and task-specific tactile verification |
 | Coordinate twelve robots | Concurrent fleet runtime, agent CLI/MCP and one shared native scene; separate identities and zero-command support measured for twelve robots | Resolve measured feedback latency, then validate independent native agent tasks, collision interaction and physical fleet stop/reset |
@@ -538,7 +538,9 @@ learned state unchanged. Hosted CI remains a separate result on the PR.
 The next physical vertical must select one real embodiment and controller,
 rather than assert support for all humanoids at once. The embodiment selected
 on 7 October 2026 is the Unitree H2 on PhysX ([HUMANOID_H2.md](HUMANOID_H2.md)):
-no gate below is passed yet. Required work includes:
+gate 1 (binding) passed in simulation on 7 October 2026, gate 2 is partially
+shown and gate 5 has a first simulation pass ([gate table](HUMANOID_H2.md#admission-gates-robot_modularitymd--admission-work-for-an-actual-humanoid));
+nothing is admitted physically. Required work includes:
 
 1. Bind the model, policy, command endpoint and all observation/action mappings;
    demonstrate exclusive ownership and controller-clock execution.

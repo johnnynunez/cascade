@@ -879,6 +879,15 @@ waits 8 s), so an open port means a warm model unless its `health` says
 `warmed_up: false`: the warm-up is advisory, and a failed one is logged and
 the server binds cold as before (no CUDA or no loadable model still refuses
 first; the required-profile inference check above is unchanged).
+Both sidecar scripts also take `--port 0` (bind a port the OS assigns and
+announce it in one `CASCADE_SERVER_READY {"endpoint", "port", "pid",
+"instance"}` stdout line) and `--instance-id TOKEN` (echoed with the pid in
+the `health` / `probe` reply). The test fixtures start them that way through
+`tests/owned_server.py`, which accepts a server only when its ready line and
+one protocol round trip name the started process and a fresh random token,
+and "dead server" tests hold their port bound with nothing listening, so two
+test suites on one host never answer each other (B64). Without the two flags
+the replies and the banner are unchanged.
 
 ## ROS2, humanoids, and what is NOT here yet
 
@@ -1339,6 +1348,15 @@ token and registration. Stdio through `launch.sh` remains the default; see
   `127.0.0.1:$CASCADE_GRASPGENX_PORT` even when `CASCADE_GRASPGENX_HOST`
   points the runtime elsewhere, and `scripts/demo_proof.py` still reads
   `CASCADE_BRIDGE_PORT` with its own `int()`.
+- Test-server ownership (B64) covers the GraspGen-X stub and occupancy bridge
+  fixtures only. The other server-starting tests already bind port 0 /
+  `bind_to_random_port` (nothing fixed) but do not check who answers, and a
+  few take a "free" port by binding 0 and releasing it before their server or
+  "dead endpoint" uses it (`tests/test_hug_backend.py` `_free_port`,
+  `tests/test_openclaw_gateway.py`): a small race, not a collision between
+  suites. OS-assigned ports come from the ephemeral range (Linux
+  32768–60999), so a test can briefly hold a port inside a block another
+  local process meant to bind.
 - Tier-2 clauses are cut only at sequence connectives (`split_subgoals`,
   B37). A bare "and" is no clause boundary anywhere in the fast tier, so
   "move the red cube to the front-left of the table and move the blue cube to

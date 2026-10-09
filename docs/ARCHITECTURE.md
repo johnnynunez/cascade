@@ -912,9 +912,30 @@ application: a GraspGen-X / HUG planner dials what its resolved section says
 section lacks, i.e. when it is built from a hand-made config, so an override
 written into `cfg._data` after loading stands. The bridge and the occupancy
 sidecar have no host variable: the launcher starts both on this machine.
-`launch.sh` registers the six with the MCP server; `setup_agents.py` copies
-every `CASCADE_*_PORT` / `CASCADE_*_HOST` set in its shell into each host's
-entry, checked by the same rules before anything is written.
+`launch.sh` and `setup_agents.py` register these six with the MCP server,
+checked (`setup_agents.py`) by the same rules before anything is written.
+
+Registration environment (B63): an MCP host starts `mcp_server` with the `env`
+of the entry it was given, not with the shell that registered it, so a runtime
+switch reaches the robot runtime only if the registration copies it. Both
+registrations read ONE list, `cascade.apps.mcp_env`: every `CASCADE_*`
+variable `src/cascade` reads is either `FORWARDED` (copied verbatim when set
+in the registering shell, never invented: memory paths, endpoints, devices,
+`CASCADE_GRASP_EXECUTOR` / `CASCADE_VLA_PORT`, booth/stream/view switches,
+...) or `NOT_FORWARDED` with a category and a reason (registration-written
+rig names, rig selectors that would replace the named rig such as
+`CASCADE_ROBOT` / `CASCADE_ARMS`, the per-process `CASCADE_RUN_DIR`, demo-CLI
+brain settings, launcher-side judge settings, HTTP-transport settings, and the
+secret `CASCADE_MCP_TOKEN`). A value the registration derives from its own
+flags still wins (`--occupancy none`, `--graspgenx none`, `--headless`,
+`--env`, `--detect-classes`, `--hide-tools`). With nothing extra set, the
+`mcp set` JSON is byte-identical to before. `tests/test_mcp_env_forwarding.py`
+scans `src/cascade` for `CASCADE_*` names and fails on one that is in neither
+list, or on a list entry nothing reads. Before B63 `launch.sh` copied a fixed
+18-name list without the B49 executor switches, so
+`CASCADE_GRASP_EXECUTOR=vla ./run.sh` registered a server on the analytic
+executor while the launcher's own runtime check, which inherits the whole
+shell, saw `vla`.
 
 Sandboxed host (opt-in, B35): an agent inside an NVIDIA OpenShell sandbox
 managed by NemoClaw reaches the robot through `mcp_server --http`
@@ -1173,6 +1194,20 @@ token and registration. Stdio through `launch.sh` remains the default; see
   proof turn's `pick_and_place` rows, and the shipped `eval.judge` targets a
   frontier model through the OpenClaw gateway -- a local judge needs
   `CASCADE_JUDGE_CONFIG`.
+- Registration environment (B63) is CPU-tested only (the real `launch.sh`
+  with its host CLI doubled, the real `setup_agents.py`, and a child process
+  started with exactly the registered env). No live MCP host has started a
+  server from a B63 entry with `CASCADE_GRASP_EXECUTOR=vla` yet. The guard
+  sees `CASCADE_*` names written as whole string constants in `src/cascade`
+  (plus the composed `CASCADE_MICRODUCK_*` family); a name built some other
+  way is not seen. Three registrations stay outside the list: the legacy
+  `scripts/hermes_demo.sh` and `scripts/openclaw_demo.sh` still register a
+  fixed env, and the Brev container (`deploy/runtime/runtime.py`) builds its
+  MCP env from its own pinned, non-secret environment on purpose (no caller
+  switch passes through except `CASCADE_ISAAC_{WIDTH,HEIGHT,CAM_EVERY,DT}`).
+  The launcher's runtime check still inherits the whole shell, so a
+  not-forwarded selector exported there (`CASCADE_ROBOT`, `CASCADE_BASE`)
+  changes what the check builds, not what the registered server builds.
 
 ## Counts
 

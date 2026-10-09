@@ -867,6 +867,26 @@ aggregator, not nvblox. Fixes, all measured on this CUDA-less Mac (suite
   `occupancy.port` values differ. Still open: no live Isaac run on private
   ports yet, and `launch.sh --graspgenx external` still probes
   `127.0.0.1:$CASCADE_GRASPGENX_PORT` whatever `CASCADE_GRASPGENX_HOST` says.
+- ~~**Every runtime switch must reach the registered MCP server** (found
+  merging B49): `launch.sh` registered a fixed 18-name env, so
+  `CASCADE_GRASP_EXECUTOR` / `CASCADE_VLA_PORT` never reached the server
+  (`CASCADE_GRASP_EXECUTOR=vla ./run.sh` ran the analytic executor while the
+  launcher's own runtime check saw `vla`), and `setup_agents.py` forwarded by
+  a different rule.~~ **landed 2026-10-09 (B63)** — one registry,
+  `cascade.apps.mcp_env`, read by both registrations: each of the 58
+  `CASCADE_*` names `src/cascade` reads is forwarded verbatim when set (43,
+  plus `CUDA_VISIBLE_DEVICES` / `CUDA_DEVICE_ORDER`) or listed as not
+  forwarded with a category and a reason (15: rig names the registration
+  writes, rig selectors such as `CASCADE_ROBOT`, `CASCADE_RUN_DIR`, demo-CLI
+  brain settings, launcher judge settings, HTTP transport, the secret
+  `CASCADE_MCP_TOKEN`); a guard test fails on an unclassified or stale name.
+  Measured on CPU through the real `launch.sh` and `setup_agents.py`
+  (`tests/test_mcp_env_forwarding.py`): all 45 forwarded variables reach both
+  entries verbatim, a child started with only the registered env selects
+  `vla` on the policy port, selectors and secrets are never written, and with
+  nothing extra set the `mcp set` JSON is byte-identical to be57535. Still
+  open: a live MCP host started from such an entry, and the legacy
+  `hermes_demo.sh` / `openclaw_demo.sh` registrars (fixed env).
 - **Robo-Dopamine as the outcome judge** (`eval/progress_judge.py`,
   `scripts/judge_run.py`; https://robo-dopamine.github.io/). The GRM is a
   VLM prompted with the task, optional START/END references and BEFORE/AFTER

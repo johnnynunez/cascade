@@ -1129,7 +1129,10 @@ watcher pause, per-call scratchpad or `last_frame` write), never takes
 already guarded for concurrent readers. `world_state` is the dashboard
 `/state` body, which runs on HTTP threads during every motion (its only
 writes are the belief store's and episodic memory's own age-based expiry,
-under their locks, which every reader performs); the envelope
+under their locks, which every reader performs; with B47's
+`stream.wrist_narration` on it also carries the narrator's `wrist_view`,
+copied under the narrator's own lock plus a passive `latest()` of the wrist
+stream); the envelope
 and grasp-memory digests take their stores' own short locks, which the 50 Hz
 control loop (`harness.approve` + arm streaming) never takes; the verdict
 history is append-only; on the lane `camera_snapshot` is a passive stream

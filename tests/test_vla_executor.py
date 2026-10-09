@@ -160,6 +160,41 @@ def test_codec_round_trips_the_openpi_msgpack_numpy_format():
         pack({"bad": np.array([object()], dtype=object)})
 
 
+def test_the_wire_stays_openpi_after_msgpack_numpy_patches_msgpack(monkeypatch):
+    """The GraspGen-X, HUG and occupancy clients call `msgpack_numpy.patch()`,
+    which replaces `msgpack.packb/Packer/unpackb` process-wide. The VLA wire
+    must stay openpi's layout (and refuse object arrays) after that."""
+    pytest.importorskip("msgpack", reason="the `vla` extra (msgpack) is not installed")
+    import msgpack
+    from msgpack import fallback
+
+    from cascade.grasping.vla_client import pack, unpack
+
+    pristine = fallback.unpackb
+    mn = None
+    try:
+        import msgpack_numpy as mn
+    except ImportError:
+        pass
+    if mn is not None:  # exactly what msgpack_numpy.patch() replaces, undone after the test
+        for name in ("Packer", "Unpacker", "packb", "unpackb", "dumps", "loads"):
+            monkeypatch.setattr(msgpack, name, getattr(mn, name))
+    else:
+        monkeypatch.setattr(msgpack, "packb", lambda *a, **k: b"patched")
+        monkeypatch.setattr(msgpack, "unpackb", lambda *a, **k: "patched")
+    chunk = np.arange(6, dtype=np.float32).reshape(2, 3)
+    raw = pristine(pack({"actions": chunk}))
+    assert set(raw["actions"]) == {b"__ndarray__", b"data", b"dtype", b"shape"}
+    np.testing.assert_array_equal(unpack(pack({"actions": chunk}))["actions"], chunk)
+    with pytest.raises(ValueError):
+        pack({"bad": np.array([object()], dtype=object)})
+    if mn is not None:
+        # msgpack-numpy's own layout (which carries pickles for object arrays)
+        # is NOT decoded on this wire: it stays a plain dict, never an array
+        foreign = mn.packb({"actions": chunk})
+        assert isinstance(unpack(foreign)["actions"], dict)
+
+
 def test_missing_extra_is_an_explicit_refusal(monkeypatch):
     """No silent fallback to the analytic pipeline: a `vla` route without its
     extra refuses, naming the extra to install."""

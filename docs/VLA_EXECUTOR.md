@@ -72,7 +72,11 @@ Arrays use openpi's msgpack-numpy extension:
 - numpy scalars: `{b"__npgeneric__": True, b"data", b"dtype"}`.
 
 The client reimplements this. The PyPI `msgpack-numpy` package uses a
-different layout, and the client never unpickles.
+different layout, and the client never unpickles. It binds msgpack's own
+`Packer`/`unpackb`, not the module attributes: the GraspGen-X, HUG and
+occupancy clients call `msgpack_numpy.patch()` in the same process, and the
+patched functions would send (and decode) msgpack-numpy's layout, which can
+carry pickles. That layout is never produced or decoded on this wire.
 
 The client refuses object, void and complex dtypes. A non-dict metadata
 frame, a silent peer, an undecodable reply, a non-dict reply or a dropped

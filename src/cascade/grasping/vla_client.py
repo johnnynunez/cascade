@@ -82,17 +82,26 @@ def _unpack_array(obj):
     return obj
 
 
+def _impl():
+    """msgpack's own Packer/unpackb, never the module attributes:
+    `msgpack_numpy.patch()` (called by the GraspGen-X, HUG and occupancy
+    clients in this same process) REPLACES `msgpack.packb/Packer/unpackb`
+    with versions that encode arrays in msgpack-numpy's layout (and pickle
+    object arrays) -- which an openpi / LingBot server cannot decode."""
+    try:
+        from msgpack import _cmsgpack as impl
+    except ImportError:  # pure-Python build
+        from msgpack import fallback as impl
+    return impl
+
+
 def pack(obj) -> bytes:
     """msgpack with openpi's ndarray encoding."""
-    import msgpack
-
-    return msgpack.packb(obj, default=_pack_array)
+    return _impl().Packer(default=_pack_array).pack(obj)
 
 
 def unpack(data: bytes):
-    import msgpack
-
-    return msgpack.unpackb(data, object_hook=_unpack_array)
+    return _impl().unpackb(data, object_hook=_unpack_array)
 
 
 class PolicyClient:

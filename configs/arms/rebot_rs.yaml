@@ -83,3 +83,14 @@ gripper:
   # docs/WRC_CONTROL_PORT.md); a too-small scale would open narrower than the
   # object and strike it on the descent.
   pregrasp_open_margin_m: null
+  # Contact-relative squeeze cap for the pick close (B38; Seeed: the paper cup
+  # was crushed). Today the jaws are sent to a FIXED fraction of travel and
+  # left pushing, so the holding torque kp*effort*(contact - target) grows
+  # with object width. With a cap, every jaw target after the first contact
+  # (a mechPos stall) is at most this many radians past it: steady torque =
+  # min(today's, kp*effort*cap). null = today's close, unchanged. Must be > 0.1.
+  # Suggested start 2.52 = the 5 cm cube's squeeze under the rigid profile on
+  # the LINEAR map above (3.444 - 0.93 rad), so the cube keeps today's grip --
+  # but only after the hardware protocol in docs/REBOT_GRIP_SQUEEZE_CAP.md has
+  # measured the real contact angles (the width map is unverified).
+  max_contact_squeeze_rad: null

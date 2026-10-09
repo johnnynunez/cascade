@@ -1,0 +1,13 @@
+# Isaac Sim reBot RS with the measured reach envelope (B45, opt-in): the
+# `isaac` profile plus the study's angled approaches and workspace box --
+# exactly the block in arms/rebot_rs_reach.yaml (see there and
+# docs/REACH_ENVELOPE.md). This is the profile the live validation runs:
+#   ./scripts/launch.sh --sim isaac --arm isaac_reach ...
+extends: isaac
+overrides:
+  safety:
+    workspace:
+      min: [0.10, -0.50, -0.01]
+      max: [0.55, 0.50, 0.55]
+  grasp:
+    angled_approach_tilts_deg: [30, 45, 90]

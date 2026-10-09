@@ -1,0 +1,4 @@
+health {"status": "ok", "learned": true, "device": "cuda:0", "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition", "capability": [12, 0], "torch": "2.7.0+cu128", "cuda": "12.8", "architecture": "x86_64", "warmed_up": true, "warmup_s": 15.417}
+call 0: 0.16 s, keys=['branch_tags', 'confidences', 'grasps', 'timing'], grasps=316
+call 1: 0.14 s, keys=['branch_tags', 'confidences', 'grasps', 'timing'], grasps=316
+call 2: 0.13 s, keys=['branch_tags', 'confidences', 'grasps', 'timing'], grasps=316

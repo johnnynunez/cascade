@@ -416,6 +416,21 @@ workspace_filter:
   # self_mask: false is the A/B baseline.
   self_mask: true
   self_mask_max_frac: 0.5
+  # Frames WITHOUT a render self-mask (the real rig): build the robot's pixels
+  # from the arm's URDF link geometry instead (B39, perception/link_mask.py),
+  # posed by FK at the joint sample nearest the frame's capture time, and feed
+  # the same gate. Opt-in; false is byte-identical to the gate without it.
+  # Off whenever self_mask is false; a render mask is never overwritten.
+  #   dilate_px   pixels added around the silhouette (calibration slack)
+  #   max_skew_s  no joint sample this close to the frame -> NO mask (logged)
+  #   cell_m      mesh pieces (link-frame cells); smaller = tighter, slower
+  #   capsule_radius_m  for a link whose mesh cannot be read (default: the
+  #               arm profile's body_mask_radius_m)
+  link_self_mask:
+    enabled: false
+    dilate_px: 2
+    max_skew_s: 0.15
+    cell_m: 0.05
 
 # Offline evaluation of recorded runs (src/cascade/eval, scripts/judge_run.py).
 # Robo-Dopamine GRM ("PRM-as-a-Judge", https://robo-dopamine.github.io/):

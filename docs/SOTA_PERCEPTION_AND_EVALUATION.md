@@ -182,7 +182,11 @@ to 3D. Measured: robot detections 0.885–0.995 robot pixels, props at most
 is a duplicate of the bin, which the side camera names "yellow" and the top
 camera "orange" (B32b). It scores as a hit, so it costs no precision, but it
 makes the count wrong. Frames without a render self-mask (the real rig) are
-fused as before.
+fused as before unless `workspace_filter.link_self_mask` is on (B39,
+2026-10-09, opt-in). It draws the robot's pixels from the URDF collision
+geometry at the measured joints. It has been measured only on CPU, against the
+URDF meshes themselves (IoU 0.889–0.951, coverage 1.0;
+`docs/evidence/b39-link-self-mask-20261009/`), so no live row is claimed for it.
 
 B32b (2026-10-08) makes colour identity per camera.
 The bin's median hue is H 22 in the top camera and H 23 in the side camera,

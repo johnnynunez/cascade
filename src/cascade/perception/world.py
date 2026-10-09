@@ -99,6 +99,7 @@ class WorldWatcher:
         harness=None,
         workspace: "WorkspaceFilter | None" = None,
         occupancy=None,
+        link_mask=None,
         visual_recall=None,
     ):
         self._cams = cameras
@@ -111,6 +112,10 @@ class WorldWatcher:
         # OccupancyMap | None -- refreshed here (perception rate_hz), never
         # from the 50 Hz motion stream; see perception/occupancy.py.
         self._occupancy = occupancy
+        # LinkSelfMask | None (B39, opt-in `workspace_filter.link_self_mask`):
+        # the robot's own pixels from its link geometry, for frames that
+        # carry no render self-mask; see perception/link_mask.py.
+        self._link_mask = link_mask
         # B43 (opt-in memory.visual_recall_detections): a
         # memory.episodic.DetectionCropRecorder handed the detections of each
         # COMMITTED fusion, so the visual index also remembers what the
@@ -303,6 +308,16 @@ class WorldWatcher:
             if self._occupancy is not None and cam.maps_depth:
                 # Keep geometry fresh during motion; only beliefs are paused.
                 self._occupancy.refresh(frame, T)
+        # B39: a frame without a render self-mask gets the arm's link geometry
+        # instead (opt-in). Its joint sample is taken HERE, before inference,
+        # so it is this image's pose; never while fusion is paused (a moving
+        # arm's reads belong to the motion loop, and nothing would be fused).
+        link = self._link_mask
+        if (link is None or T is None or not cam.fuse or not self._workspace.self_mask
+                or getattr(frame, "robot_mask", None) is not None or self.is_paused):
+            link = None
+        else:
+            link.sample()
         dets = self._detector.detect(frame, classes=self._classes)
         cam.stream.set_overlay(detections=dets)
         self.last_dets[cam.stream.name] = dets
@@ -314,8 +329,13 @@ class WorldWatcher:
             self._harness.heartbeat()
         if T is None or not cam.fuse:
             return
-        # The robot's own pixels (render self-mask minus a held payload).
-        self_px = self._workspace.self_pixels(frame)
+        # The robot's own pixels (render self-mask minus a held payload; B39:
+        # else the link-geometry mask, on a fusion-local copy of the frame --
+        # the occupancy map above keeps its own body masking).
+        if link is not None and dets and not self.is_paused:
+            self_px = self._workspace.self_pixels(link.attach(frame, T))
+        else:
+            self_px = self._workspace.self_pixels(frame)
         with self._pause_lock:
             if not self._fusion_allowed(cam, frame, epoch):
                 return

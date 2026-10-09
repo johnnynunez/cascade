@@ -12,6 +12,12 @@ SocketCAN can0 @ 1 Mbps), but with the rig-verified fixes this SDK lacks:
   from the SDK's global config (which silently loads the DM URDF).
 - Gripper close is a two-stage, effort-scaled MIT command with stall
   detection via mechVel (0x701A) instead of the SDK's broken open/close.
+- Latched motor faults are cleared on connect, before enable (the SDK's
+  enable does not; see robstride.clear_motor_faults).
+- This driver streams MIT commands itself at the harness's 50 Hz. It never
+  starts the SDK's RebotArmEndPose 500 Hz loop, whose _loop_cb re-sends its
+  own _q_target every 2 ms and so overwrites any direct send_mit (WRC rig
+  finding #2) -- tests/test_rebot_rs_sdk_loop.py pins that.
 
 Operational notes (verified on this rig 2026-07):
 - bring the bus up first: sudo ip link set can0 up type can bitrate 1000000
@@ -33,6 +39,7 @@ import numpy as np
 from ..config import Cfg
 from ..types import RobotState
 from .arm_base import ArmBase
+from .robstride import clamp_to_travel, clear_motor_faults
 
 MECH_POS = 0x7019
 MECH_VEL = 0x701A
@@ -51,8 +58,15 @@ class RebotRSArm(ArmBase):
         self._mit_kp = None
         self._mit_kd = None
         self.settle_tol = float(cfg.get("settle_tol", 0.05))
+        # Same per-profile override the motorbridge sibling honours; the RS rig
+        # needed a longer window for large joint swings (Seeed WRC e97998c,
+        # ba4e110). Default stays ArmBase's.
+        self.settle_timeout_s = float(cfg.get("settle_timeout_s", ArmBase.settle_timeout_s))
         g = cfg.get("gripper", Cfg({}))
-        self._grip_open = float(g.get("open_pos", -6.8))
+        # Fallbacks are the MEASURED RS travel (0 -> +6.39 rad, closed at 0),
+        # same as rebot_rs_mb -- never the DM build's open=-6.8, which drives
+        # the RS jaws the wrong way (Seeed WRC e3b0b2a hit exactly that).
+        self._grip_open = float(g.get("open_pos", 6.2))
         self._grip_closed = float(g.get("closed_pos", 0.0))
         self._grip_kp = float(g.get("kp", 6.0))
         self._grip_kd = float(g.get("kd", 0.4))
@@ -108,6 +122,20 @@ class RebotRSArm(ArmBase):
         grp.mode_mit()
         if arm.has_gripper:
             arm.gripper.mode_mit()
+        # Latched RobStride faults survive across sessions and the SDK's
+        # enable does not clear them; a faulted motor silently ignores MIT
+        # commands (WRC rig finding #1). The clear is a type-4 stop frame, so
+        # it goes here: modes set, torque not yet enabled. Every motor on the
+        # bus, gripper included. A clear that keeps failing aborts connect
+        # before anything is enabled and releases the bus.
+        try:
+            clear_motor_faults(sorted(arm._motor_map.items()))
+        except Exception:
+            try:
+                arm.disconnect()
+            except Exception:
+                pass
+            raise
         grp.enable()
         self._arm = arm
         self._stopped = False
@@ -225,6 +253,9 @@ class RebotRSArm(ArmBase):
         """
         if self._arm is None or not self._arm.has_gripper or self._stopped:
             return
+        # Never past the profile's measured travel (WRC WrcGripper clip):
+        # beyond either end is a hard stop taken at full stiffness.
+        pos = clamp_to_travel(pos, self._grip_open, self._grip_closed)
         with self._lock:
             self._arm.gripper.send_mit(
                 np.array([pos]), kp=np.array([kp]), kd=np.array([self._grip_kd])

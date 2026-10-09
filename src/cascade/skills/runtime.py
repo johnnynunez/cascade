@@ -2625,7 +2625,17 @@ class SkillRuntime:
         if search is not None:
             search.check()  # Include the final pre-open read/veto in the same budget.
         planning_active = False  # Motion retains its separate physical-clock budget.
-        self.arm.set_gripper(self._grip_open, effort=0.8,
+        # Pre-grasp opening: fully open unless the arm profile opts into the
+        # adaptive opening (gripper.pregrasp_open_margin_m; Seeed WRC a2d5950
+        # opened to grasp width + 10 mm). Never narrower than the grasp width.
+        # Unset = exactly the old full-open command, touching nothing else.
+        open_pos = self._grip_open
+        margin = (self.cfg.arm.get("gripper") or {}).get("pregrasp_open_margin_m")
+        if margin is not None:
+            from ..grasping.force import pregrasp_open_position
+            open_pos = pregrasp_open_position(
+                grasp.width_m, margin, self._grip_open, self._grip_closed, self._max_width)
+        self.arm.set_gripper(open_pos, effort=0.8,
                              **({"_halt_generation": scene_halt_generation} if scene_enabled else {}))
         _home = self.cfg.arm.get("home_q")
         if _home is not None:
@@ -4820,11 +4830,22 @@ class SkillRuntime:
         T = self.kin.fk(q_now)
         target = T.copy()
         target[:3, 3] += np.asarray(dirs[direction], dtype=float) * distance_m
-        ik = self.kin.ik(target, q_now)
-        if not ik.success:
-            raise SkillError(f"cannot move {distance_m:.2f} m {direction} from here")
-        if not self.arm.move_joints(ik.q, duration_s=1.0):
-            raise SkillError("did not settle after the nudge")
+        cartesian = self.cfg.arm.get("cartesian_relative_moves", False)
+        if cartesian is True or str(cartesian).strip().lower() in ("1", "true", "yes", "on"):
+            # Opt-in per arm profile (Seeed WRC e97998c moved its nudges onto
+            # a Cartesian line): the TCP travels straight in `direction`
+            # instead of the arc a joint-space min-jerk traces. Every sample
+            # must solve continuously (planning.cartesian) and the dense path
+            # is harness-preflighted; a refusal is reported, never replaced by
+            # a silent joint-space fallback.
+            if not self.arm.move_cartesian(target, duration_s=1.0):
+                raise SkillError("did not settle after the nudge")
+        else:
+            ik = self.kin.ik(target, q_now)
+            if not ik.success:
+                raise SkillError(f"cannot move {distance_m:.2f} m {direction} from here")
+            if not self.arm.move_joints(ik.q, duration_s=1.0):
+                raise SkillError("did not settle after the nudge")
         tcp = self.kin.fk(self.arm.get_state().q)[:3, 3]
         return {"moved": direction, "distance_m": distance_m,
                 "tcp_xyz": [round(float(x), 3) for x in tcp]}

@@ -144,6 +144,11 @@ _RULES: list[tuple[re.Pattern, str]] = [
     (
         re.compile(
             r"^(?:go\s+home|move\s+home|home|park(?:\s+the\s+arm)?|"
+            # "return home" family (Seeed WRC b70f3a0: these fell through to
+            # the LLM loop). Only phrasings that mean the HOME pose: "back to
+            # zero" is the park pose, and "reset" is reset_scene below.
+            r"(?:(?:go|come)\s+)?back\s+(?:to\s+(?:the\s+)?)?home(?:\s+position)?|"
+            r"return\s+(?:to\s+(?:the\s+)?)?home(?:\s+position)?|"
             # Spanish: every other rule in this grammar is bilingual, and the
             # curriculum tier made the gap visible -- "saluda y luego vuelve a
             # casa" split correctly into two clauses but the second one had no

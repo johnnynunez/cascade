@@ -30,6 +30,10 @@ and scripts/jog_rebot_mb.py, the bring-up tools that established these):
   therefore captures the live pose and preloads it as the MIT setpoint
   BEFORE `enable_all()`, or the arm snaps from wherever it rests to whatever
   setpoint the motors happened to hold.
+- Fault bits LATCH across sessions (Seeed WRC rig, fault_raw=0x4 on every
+  motor) and a faulted motor silently ignores MIT commands, so `connect()`
+  clears them after the mode write and before enable
+  (`robstride.clear_motor_faults`).
 - Reconnecting to an arm a previous session left ENABLED (the bring-up scripts
   leave torque on by design) fails on the run-mode write -- 0x7005 never
   answers -- while position reads keep working. `connect()` recovers by
@@ -59,6 +63,7 @@ import numpy as np
 from ..config import Cfg
 from ..types import RobotState
 from .arm_base import ArmBase
+from .robstride import clamp_to_travel, clear_motor_faults
 
 MECH_POS = 0x7019
 MECH_VEL = 0x701A
@@ -152,6 +157,14 @@ class RebotRSMotorBridgeArm(ArmBase):
                 time.sleep(0.2)
                 for m in motors.values():
                     m.ensure_mode(Mode.MIT)
+
+            # Latched RobStride faults survive across sessions and a faulted
+            # motor silently ignores MIT commands (WRC rig finding #1). The
+            # clear is a type-4 stop frame, so it is issued only now: the mode
+            # write above succeeded, which proves every motor is in reset, so
+            # it cannot drop a holding arm, and torque is not enabled yet. A
+            # clear that keeps failing raises into the bus-release path below.
+            clear_motor_faults(sorted(motors.items()))
 
             self._ctrl, self._motors = ctrl, motors
             # Capture where the arm actually rests. Motors are limp after a
@@ -277,6 +290,9 @@ class RebotRSMotorBridgeArm(ArmBase):
         if self._ctrl is None or self._gripper_id is None or self._stopped:
             return
         kp = self._grip_kp * float(np.clip(effort, 0.05, 1.0))
+        # Never past the profile's measured travel (WRC WrcGripper clip):
+        # beyond either end is a hard stop taken at full stiffness.
+        pos = clamp_to_travel(pos, self._grip_open, self._grip_closed)
         with self._lock:
             self._motors[self._gripper_id].send_mit(
                 float(pos), 0.0, kp, self._grip_kd, 0.0

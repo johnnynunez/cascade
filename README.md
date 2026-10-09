@@ -900,9 +900,12 @@ first motion:
 
 **reBot B601 (`--arm rebot_rs`)**
 
-- Gripper open/close angles in `configs/arms/rebot_rs.yaml` were
-  characterized on the DM build — **re-verify travel and stall torque on the
-  RS gripper before the first grasp**.
+- Gripper travel in `configs/arms/rebot_rs.yaml` was re-measured on the RS
+  build (0 → +6.39 rad, closed at 0), but its angle↔width scale disagrees with
+  Seeed's WRC rig — **re-verify jaw width and stall on the RS gripper before
+  the first grasp**. Latched motor faults are cleared on connect; the
+  remaining onsite checks are listed in
+  [docs/WRC_CONTROL_PORT.md](docs/WRC_CONTROL_PORT.md).
 - Do not run `motorbridge-gateway` / MotorBridge Studio while the demo runs
   (host-id 0xFD conflict on the CAN bus).
 

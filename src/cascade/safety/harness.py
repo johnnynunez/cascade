@@ -979,6 +979,82 @@ class SafeArm:
                 return False
         return True
 
+    def move_cartesian(self, T_goal: np.ndarray, duration_s: float = 2.0, *,
+                       rate_hz: float = 50.0) -> bool:
+        """Move the TCP along a straight line to `T_goal` (Seeed WRC e97998c).
+
+        Plans from MEASURED feedback with `planning.cartesian` (every sample
+        solved, continuous, no branch flips -- else SkillError), then executes
+        through `move_joint_path`: the whole dense path is preflighted with
+        the harness before the first command and every tick is approved.
+        """
+        self._refuse_path_with_planner()
+        if self.harness.estopped:
+            raise SafetyViolation("e-stop latched")
+        kin = self.harness.kin
+        if kin is None:
+            from ..types import SkillError
+
+            raise SkillError("cartesian motion needs the arm's kinematics")
+        self.harness.check_model_withdrawal(command=True, planned=True)
+        self.harness.check_release_episode(target=T_goal, duration=duration_s)
+        from ..planning.cartesian import plan_cartesian_path
+
+        start = np.asarray(self._arm.get_state().q, dtype=float)
+        path = plan_cartesian_path(kin, start, T_goal)
+        return self.move_joint_path(path, duration_s=duration_s, rate_hz=rate_hz)
+
+    def move_joint_path(self, waypoints, duration_s: float = 2.0, *,
+                        rate_hz: float = 50.0) -> bool:
+        """Stream a dense joint path as one harness-gated motion.
+
+        Same stretch rule as move_joints (min-jerk peak 1.875 * L / T kept
+        under 0.9 * the velocity cap, L the path's Chebyshev arc length), a
+        full `vet_step` preflight of the exact ticks from the bound start
+        feedback (a doomed path never starts), then `approve()` per tick.
+        """
+        from ..control.arm_base import path_length, path_ticks
+
+        self._refuse_path_with_planner()
+        waypoints = [np.asarray(w, dtype=float).reshape(-1) for w in waypoints]
+        if not waypoints:
+            raise SafetyViolation("empty joint path; no motion sent")
+        final = waypoints[-1]
+        self.harness.check_model_withdrawal(command=True, target=final,
+                                           duration=duration_s, joint_margin=None)
+        self.harness.check_release_episode(target=final, duration=duration_s)
+        start = np.asarray(self._arm.get_state().q, dtype=float)
+        needed = 1.875 * path_length(start, waypoints) / (0.9 * self.harness.limits.max_joint_vel)
+        duration_s = max(float(duration_s), needed)
+        steps = max(2, int(duration_s * rate_hz))
+        #: inspection hook (tests): the tick period of the last streamed path
+        self.last_path_dt = duration_s / steps
+        h = self.harness
+
+        def preflight(actual_start, dur):
+            ticks, dt = path_ticks(actual_start, waypoints, dur, rate_hz)
+            prev = actual_start
+            for q in ticks:
+                reason = h.vet_step(prev, q, dt)
+                if reason:
+                    raise SafetyViolation(f"joint path is unsafe, no motion sent: {reason}")
+                prev = q
+
+        h.begin_motion()
+        try:
+            return self._arm.stream_path(waypoints, duration_s, rate_hz=rate_hz,
+                                         approve=h.approve, preflight=preflight,
+                                         before_stream=h.check_stream_start)
+        finally:
+            h.end_motion()
+
+    def _refuse_path_with_planner(self) -> None:
+        if self.motion_planner is not None:
+            # A planner-bound arm owns its curves (and their evidence); the
+            # wall-clock joint-path streamer must not route around it.
+            raise SafetyViolation(
+                "joint-path streaming would bypass this arm's motion planner; no motion sent")
+
     def set_gripper(self, pos: float, effort: float = 1.0, *, _halt_generation=None) -> None:
         self.harness.check_model_withdrawal(command=True, gripper=True, grip=pos, effort=effort)
         self.harness.check_release_episode(gripper=True, grip=pos)

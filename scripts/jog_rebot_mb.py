@@ -333,6 +333,13 @@ def main() -> int:
 
         for mid, m in motors.items():
             m.ensure_mode(Mode.MIT)
+        # Latched RobStride faults survive across sessions and a faulted motor
+        # silently ignores MIT, so a jog would "move nothing" -- which on the
+        # rig was once misread as low gains (see STALL_LAG_RAD). Clear them now:
+        # mode written (motors in reset), torque not yet on.
+        from cascade.control.robstride import clear_motor_faults
+
+        clear_motor_faults(sorted(motors.items()))
         # Hold the captured pose on every joint BEFORE enabling, so the first
         # thing each motor does once energized is stay where it already is.
         _send_hold(motors, q_hold, gains)

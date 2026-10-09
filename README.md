@@ -935,12 +935,17 @@ two more only when the opt-in programs tier is on (`agent.programs: true` /
 - The safety harness fails closed; motions abort mid-stream on violation.
 - Hand-eye extrinsics in the camera profiles are placeholders — calibrate
   on-site with `scripts/calibrate_handeye.py` (ArUco, eye-to-hand and
-  eye-in-hand, every motion through the safety harness; procedure in
+  eye-in-hand, or `--method markerless` for an eye-to-hand RGB-D camera:
+  the arm's own meshes fitted in depth, no marker; every motion through the
+  safety harness; procedure in
   [docs/HANDEYE_CALIBRATION.md](docs/HANDEYE_CALIBRATION.md)) and point the
   profile's `extrinsics.hand_eye_json` at the record. A missing, rejected or
   other-serial record leaves that camera streaming without 3D fusion. The
   baseline repo's `collect_handeye_eih.py` output still loads via
-  `hand_eye_npz`.
+  `hand_eye_npz`. An opt-in `extrinsics.drift_monitor` notices a knocked
+  eye-to-hand camera at runtime (the arm seen in depth no longer matches FK
+  while static), turns that camera's 3D fusion off and proposes a passive
+  re-calibration; it never moves the arm.
 - Each arm has a limited **top-down envelope**, much smaller than its total
   reach, and grasp heights + hover offsets are configured per profile
   accordingly: below z ≈ 0.15 m on the B601-RS, and on the SO-101 an annulus

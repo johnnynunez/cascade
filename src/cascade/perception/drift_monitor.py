@@ -14,7 +14,8 @@ always in view, so the monitor uses it:
   single-view ICP of the arm's surface at FK through the current extrinsic
   (``calibration.markerless.measure_offset``). The statistic is the RMS
   displacement of the visible arm surface under the correction found (plus
-  its rotation angle): ~2 mm under D455-like noise, ~24 mm for a 2 deg knock.
+  its rotation angle): 2.0 mm median (5.7 mm worst of 111) under D455-like
+  synthetic noise, 24 mm median for a 2 deg knock.
   A view that cannot decide (arm occluded / out of view / too few points /
   depth that does not explain the arm) is INCONCLUSIVE: it neither counts
   towards drift nor resets the count.
@@ -68,17 +69,25 @@ CONFIG_KEYS = ("enabled", "period_s", "max_offset_m", "max_rot_deg", "consecutiv
 class DriftMonitorConfig:
     """Per camera, ``extrinsics.drift_monitor:`` in the camera profile.
 
-    Defaults are conservative and OFF. ``max_offset_m`` is the RMS
-    displacement of the visible arm surface (10 mm: ~3x the worst noise-only
-    reading measured on the synthetic D455, ~2.4x below a 2 deg knock);
-    ``max_rot_deg`` the correction's rotation (2 deg: single-view rotation
-    noise peaks ~1.1 deg); three CONSECUTIVE drift checks before acting.
+    Defaults are conservative and OFF. Measured on the synthetic D455
+    (single view, 37 reBot presets x 3 noise seeds = 111 checks, docs/
+    HANDEYE_CALIBRATION.md): noise alone reads 2.0 mm median / 4.7 mm p99 /
+    5.7 mm max of surface displacement and 0.52 / 1.53 / 1.65 deg of
+    rotation. ``max_offset_m`` 10 mm sits 1.75x above that worst reading; a
+    1 deg knock reads 11.7 mm median (95 % of checks over), 2 deg 24 mm
+    (100 %), 10 mm of translation 10.6 mm (84 %), 20 mm 20 mm (100 %);
+    0.5 deg / 5 mm are below a single view's noise floor and NOT detected.
+    The single-view rotation estimate is the noisier statistic (the arm
+    constrains rotation about itself weakly), so ``max_rot_deg`` 3 deg is
+    only a backstop -- the surface displacement is what flags. Three
+    CONSECUTIVE drift checks before acting; an ok check resets the count,
+    an inconclusive one does not.
     """
 
     enabled: bool = False
     period_s: float = 5.0
     max_offset_m: float = 0.010
-    max_rot_deg: float = 2.0
+    max_rot_deg: float = 3.0
     consecutive: int = 3
     auto_apply: bool = False
 

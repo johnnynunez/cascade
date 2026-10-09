@@ -33,7 +33,7 @@ from cascade.perception.drift_monitor import DriftMonitorConfig
 def test_defaults_are_conservative_and_off():
     c = DriftMonitorConfig.from_config(None)
     assert c.enabled is False and c.auto_apply is False
-    assert (c.period_s, c.max_offset_m, c.max_rot_deg, c.consecutive) == (5.0, 0.010, 2.0, 3)
+    assert (c.period_s, c.max_offset_m, c.max_rot_deg, c.consecutive) == (5.0, 0.010, 3.0, 3)
     assert DriftMonitorConfig.from_config(Cfg({"enabled": True, "consecutive": 4})).consecutive == 4
 
 

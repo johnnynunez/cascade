@@ -42,6 +42,6 @@ extrinsics:
     enabled: false
     period_s: 5.0
     max_offset_m: 0.010
-    max_rot_deg: 2.0
+    max_rot_deg: 3.0
     consecutive: 3
     auto_apply: false

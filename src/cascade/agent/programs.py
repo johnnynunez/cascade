@@ -587,14 +587,32 @@ def _not_started(program: Program, reason: str) -> str:
             "plan from what is actually on the table.")
 
 
+def _halted_action(run: ProgramRun, index: int, name: str, args: Mapping, why: str) -> str:
+    """The hand-off when a stop arrived between two steps: step ``index``
+    was never dispatched."""
+    n = len(run.program.spec["steps"])
+    done = ", ".join(f"{s.index}:{s.tool}" for s in run.steps) or "none"
+    return (f"Program {run.program.name!r} was stopped before step {index}/{n} {name}({_short(args)}): {why}. "
+            f"Steps executed: {done}; {n - index + 1} step(s) were not run; the gripper holds "
+            f"{run.held or 'nothing'}. Do not re-run this program or repeat a step unchanged: observe the scene "
+            "and plan what is left from the current state.")
+
+
 def run_program(program: Program, bindings: Any, runtime, *, tier: str = "program",
-                tool_log: list | None = None) -> ProgramRun:
+                tool_log: list | None = None, halt=None) -> ProgramRun:
     """Bind, ground, then execute every step through ``runtime.execute()``.
 
     Grounding (perception only) happens for ALL ``$target`` queries before the
     first step; a query that does not resolve aborts with zero motion. Each
     step is an ordinary top-level call tagged ``tier``; the run stops at the
     first step whose verdict is in ``STOPPING``.
+
+    ``halt`` (optional; the MCP server's stop channel, B42) is a zero-argument
+    callable that returns a reason once no further call may be dispatched --
+    a stop arrived. It is checked before grounding and before every step, so
+    nothing after a stop is ever dispatched; the step in flight when the stop
+    arrives is the harness's to refuse (the e-stop latch). It never authorizes
+    anything. ``None`` is the pre-B42 runner exactly.
     """
     run = ProgramRun(program, dict(bindings or {}))
     log = tool_log if tool_log is not None else []
@@ -605,6 +623,14 @@ def run_program(program: Program, bindings: Any, runtime, *, tier: str = "progra
         run.reason = f"binding refused: {e}"
         run.next_action = _not_started(program, run.reason)
         return run
+
+    if halt is not None:
+        why = halt()
+        if why:
+            run.reason = f"not started: {why}"
+            run.held = getattr(runtime, "held_object", None)
+            run.next_action = _not_started(program, str(why))
+            return run
 
     def dispatch(name: str, args: dict):
         runtime.current_tier = tier
@@ -632,7 +658,16 @@ def run_program(program: Program, bindings: Any, runtime, *, tier: str = "progra
 
     offset = len(log)
     run.status = COMPLETED
+    halted = None
     for i, (name, args) in enumerate(calls, start=1):
+        if halt is not None:
+            why = halt()
+            if why:
+                halted = (i, name, args, str(why))
+                run.status = STOPPED
+                run.stopped_at = i
+                run.reason = f"stopped before step {i} {name}: {why}"
+                break
         before = _ledger(runtime)
         result = dispatch(name, args)
         verdict, evidence = classify_step(name, result, _step_rows(before, _ledger(runtime)))
@@ -646,7 +681,9 @@ def run_program(program: Program, bindings: Any, runtime, *, tier: str = "progra
             run.reason = f"step {i} {name}: {verdict} -- {evidence}"
             break
     run.held = getattr(runtime, "held_object", None)
-    if run.status == STOPPED:
+    if halted is not None:
+        run.next_action = _halted_action(run, *halted)
+    elif run.status == STOPPED:
         run.next_action = _stopped_action(run)
     elif run.status == STUCK:
         run.next_action = f"STUCK at {run.steps[-1].tool}: relay the ask to the human verbatim and stop."
@@ -765,11 +802,25 @@ _EXAMPLE = {
 }
 
 
+@dataclass(frozen=True)
+class ProgramTierUnavailable:
+    """What the MCP server attaches to a runtime whose programs tier is ON
+    but whose library could not be opened: the capability matrix then
+    withholds the program tools with this reason instead of offering tools
+    that cannot work."""
+
+    error: str
+
+
 class ProgramTier:
     """Author / validate / run / account -- the orchestrator's program tier.
 
     Owns no runtime and no LLM: the orchestrator makes the one authoring call
     and hands the text here; execution goes through the runtime it passes in.
+    The MCP server (B42) serves the same object to chat hosts: the host is
+    the brain, so its `run_program` call takes the place of the authoring
+    turn and goes through `proposal_for_use` / `proposal_for_spec`, `run`
+    and `account` exactly like a parsed reply.
     """
 
     def __init__(self, library: ProgramLibrary, *, tool_specs: Iterable[Mapping] | None = None,
@@ -778,10 +829,16 @@ class ProgramTier:
         self.tool_specs = list(TOOL_SPECS if tool_specs is None else tool_specs)
         self.max_offered = int(max_offered)
 
-    def offered(self, task: str) -> list[ProgramRecord]:
-        """Promoted programs worth showing the brain for this task (never candidates)."""
+    def offered(self, task: str, *, embedder=None) -> list[ProgramRecord]:
+        """Promoted programs worth showing the brain for this task (never candidates).
+
+        With a memory ``embedder`` (opt-in) they are ranked by text embedding
+        with the skill library's floor-or-guard rule; without one this is the
+        pre-B42 keyword call exactly."""
         try:
-            return self.library.retrievable(task, max_entries=self.max_offered)
+            if embedder is None:
+                return self.library.retrievable(task, max_entries=self.max_offered)
+            return self.library.retrievable(task, max_entries=self.max_offered, embedder=embedder)
         except Exception:  # noqa: BLE001 -- a broken store offers nothing
             return []
 
@@ -862,40 +919,59 @@ class ProgramTier:
                 return Proposal(NONE, reason="the brain declined to write a program")
             return Proposal(INVALID, reason="the answer held no JSON program object")
         bindings = obj.get("bind") or {}
+        if "use" in obj:
+            return self.proposal_for_use(obj.get("use"), bindings, offered)
+        if "program" in obj:
+            spec = obj["program"]
+        elif "steps" in obj:
+            spec = {k: v for k, v in obj.items() if k != "bind"}
+        else:
+            return Proposal(INVALID, reason="expected {'program': {...}, 'bind': {...}} or "
+                                            "{'use': <name>, 'bind': {...}}")
+        return self.proposal_for_spec(spec, bindings)
+
+    def proposal_for_use(self, key: Any, bindings: Any, offered: Iterable[ProgramRecord] = ()) -> Proposal:
+        """Reuse a stored program by name or signature -- only a PROMOTED one
+        (verified in >= min_tasks distinct tasks and more often than it
+        failed); a candidate, demoted or unknown program is refused."""
+        if bindings is None:
+            bindings = {}
         try:
-            if "use" in obj:
-                key = obj.get("use")
-                record = next((r for r in offered if key in (r.name, r.signature)), None)
-                if record is None:
-                    known = self.library.get(key) if isinstance(key, str) else None
-                    if known is not None and known.retrievable(self.library.min_tasks):
-                        record = known
-                    elif known is not None:
-                        return Proposal(INVALID, reason=(
-                            f"{key!r} is a {known.status(self.library.min_tasks)} program, not promoted: only "
-                            f"programs verified in >= {self.library.min_tasks} distinct tasks (and more "
-                            "often than they failed) are reused"))
-                    else:
-                        return Proposal(INVALID, reason=f"{key!r} is an unknown program")
-                # Re-validated against the CURRENT catalog: a tool may have changed since admission.
-                program = Program.from_spec(record.program, tool_specs=self.tool_specs)
-                program.bind(bindings)
-                return Proposal(REUSE, program, dict(bindings), record=record)
-            if "program" in obj:
-                spec = obj["program"]
-            elif "steps" in obj:
-                spec = {k: v for k, v in obj.items() if k != "bind"}
-            else:
-                return Proposal(INVALID, reason="expected {'program': {...}, 'bind': {...}} or "
-                                                "{'use': <name>, 'bind': {...}}")
+            record = next((r for r in offered if key in (r.name, r.signature)), None)
+            if record is None:
+                known = self.library.get(key) if isinstance(key, str) else None
+                if known is not None and known.retrievable(self.library.min_tasks):
+                    record = known
+                elif known is not None:
+                    return Proposal(INVALID, reason=(
+                        f"{key!r} is a {known.status(self.library.min_tasks)} program, not promoted: only "
+                        f"programs verified in >= {self.library.min_tasks} distinct tasks (and more "
+                        "often than they failed) are reused"))
+                else:
+                    return Proposal(INVALID, reason=f"{key!r} is an unknown program")
+            # Re-validated against the CURRENT catalog: a tool may have changed since admission.
+            program = Program.from_spec(record.program, tool_specs=self.tool_specs)
+            program.bind(bindings)
+            return Proposal(REUSE, program, dict(bindings), record=record)
+        except ProgramError as e:
+            return Proposal(INVALID, reason=str(e))
+
+    def proposal_for_spec(self, spec: Any, bindings: Any) -> Proposal:
+        """A fresh program written for this instruction: validated and bound,
+        never trusted -- what it earns is decided by its execution."""
+        if bindings is None:
+            bindings = {}
+        try:
             program = Program.from_spec(spec, tool_specs=self.tool_specs)
             program.bind(bindings)
             return Proposal(FRESH, program, dict(bindings))
         except ProgramError as e:
             return Proposal(INVALID, reason=str(e))
 
-    def run(self, proposal: Proposal, runtime, *, tool_log: list | None = None) -> ProgramRun:
-        return run_program(proposal.program, proposal.bindings, runtime, tool_log=tool_log)
+    def run(self, proposal: Proposal, runtime, *, tool_log: list | None = None, halt=None) -> ProgramRun:
+        if halt is None:
+            return run_program(proposal.program, proposal.bindings, runtime, tool_log=tool_log)
+        return run_program(proposal.program, proposal.bindings, runtime, tool_log=tool_log, halt=halt)
 
     def account(self, run: ProgramRun, proposal: Proposal, *, task: str, run_id: str, success: bool) -> str:
         """Library bookkeeping for one execution; never raises.
@@ -911,9 +987,10 @@ class ProgramTier:
                 self.library.admit(run.program.spec, run.program.signature, task=task, run=run_id,
                                    origin=origin, verdict=run.verdict, summary=run.summary()[:200])
                 return "admitted"
-            if run.steps and self.library.get(run.program.signature) is not None:
-                self.library.record_failure(run.program.signature, run=run_id,
-                                            reason=run.reason or run.verdict)
+            # record_failure re-reads a shared store first and gives an
+            # unknown (never admitted) program no record
+            if run.steps and self.library.record_failure(run.program.signature, run=run_id,
+                                                         reason=run.reason or run.verdict) is not None:
                 return "loss"
         except Exception as e:  # noqa: BLE001 -- bookkeeping never fails a task
             return f"library error: {type(e).__name__}: {e}"

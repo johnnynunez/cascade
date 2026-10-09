@@ -506,10 +506,24 @@ Open follow-ups from this work:
    main's orchestrator path write-for-write (golden). **Still open:** no
    real brain has authored a program (the mock brain is never given the
    tier; whether Cosmos3/Gemma write valid programs is unmeasured), no
-   physical or Isaac run, not exposed to MCP chat hosts, no loops/branches
-   (skill graphs cover outcome routing on the composed runtime), motions
-   without a registered postcondition keep a program out of the library,
-   retrieval is keyword overlap.
+   physical or Isaac run, ~~not exposed to MCP chat hosts~~ **landed
+   2026-10-09** (B42: with the tier on, an arm MCP server serves
+   `list_programs` + `run_program` through the same `ProgramTier`/runner and
+   admission rule, withheld by the capability matrix without the library or
+   the verifier, a cancel mid-program latches the e-stop and dispatches no
+   later step; `agent.programs: false` keeps catalog, calls and `world_state`
+   byte-identical; `tests/test_programs_mcp.py`, 25 tests on the mock stack,
+   23 RED against a 4e896c3 export, the 2 golden pins pass there; the same
+   file found and pins a lost-update bug on main: two processes sharing
+   `programs.jsonl` counted 40 of 80 admits, now 80 under an advisory lock), no
+   loops/branches (skill graphs cover outcome routing on the composed
+   runtime), motions without a registered postcondition keep a program out of
+   the library, ~~retrieval is keyword overlap~~ **landed 2026-10-09** (B42:
+   with `memory.embedder` set, programs are ranked by text embedding with the
+   skill library's floor-or-guard rule; keyword overlap stays the default;
+   measured with the dependency-free `hash` embedder only, SigLIP/CLIP text
+   floors uncalibrated). Still open after B42: no real local brain (Qwen) has
+   authored or reused a program over MCP, no Isaac run of `run_program`.
 
 ## Landed 2026-09-09: the demo verifies itself in MuJoCo, and one click brings it up
 

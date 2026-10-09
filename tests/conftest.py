@@ -179,6 +179,16 @@ def _no_ambient_memory_embedder(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_ambient_programs(monkeypatch):
+    """A shell that exported CASCADE_PROGRAMS=1 for a live session must not
+    add list_programs / run_program to every MCP catalog in the suite (B42),
+    nor point it at a real programs.jsonl. The suite certifies the shipped
+    default (tier off); tests opt in per-test."""
+    monkeypatch.delenv("CASCADE_PROGRAMS", raising=False)
+    monkeypatch.delenv("CASCADE_PROGRAMS_PATH", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _no_ambient_occupancy(monkeypatch):
     """occupancy is ON by default in configs/demo.yaml (2026-09-03), and this
     venv has the `grasping` extra, so every build_runtime in the suite would

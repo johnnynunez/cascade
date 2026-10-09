@@ -241,8 +241,15 @@ agent:
   # next_action. A program is stored only from a fully CONFIRMED execution and
   # offered for reuse only after it was verified in program_min_tasks distinct
   # tasks (1 = explicit relaxation). CASCADE_PROGRAMS=1/0 overrides; store:
-  # runs/programs.jsonl (memory.programs_path, CASCADE_PROGRAMS_PATH). The mock
-  # brain never gets it, and MCP chat hosts do not see it.
+  # runs/programs.jsonl (memory.programs_path, CASCADE_PROGRAMS_PATH). The
+  # CLI's mock brain never gets it. The SAME switch gives an arm MCP server
+  # two more tools for chat hosts (B42): list_programs (promoted programs
+  # only) and run_program (a promoted program by name, or a host-written spec
+  # run once and stored as a candidate only if every effect was CONFIRMED),
+  # through the same runner and admission rule; a cancel mid-program latches
+  # the e-stop. With memory.embedder set, programs are ranked by text
+  # embedding (floor-or-guard, like the skill-library notes) instead of
+  # keyword overlap. false = the pre-tier CLI and MCP server exactly.
   programs: false
   program_min_tasks: 2
 

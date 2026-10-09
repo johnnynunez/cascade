@@ -189,6 +189,16 @@ def _no_ambient_programs(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_ambient_judge(monkeypatch):
+    """A shell that exported CASCADE_JUDGE(=vlm) for a live launch must not
+    make every launcher test in the suite start a judge pass against a real
+    model endpoint (B44), nor point judge_run at a private judge config. The
+    suite certifies the shipped default (judge pass off); tests opt in."""
+    for name in ("CASCADE_JUDGE", "CASCADE_JUDGE_TIMEOUT_S", "CASCADE_JUDGE_CONFIG"):
+        monkeypatch.delenv(name, raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _no_ambient_occupancy(monkeypatch):
     """occupancy is ON by default in configs/demo.yaml (2026-09-03), and this
     venv has the `grasping` extra, so every build_runtime in the suite would

@@ -39,10 +39,14 @@
 #                  already has; a local server is only used when it answers)
 #   5. proof       `openclaw mcp probe cascade` must list the robot tools; the
 #                  brain answers a turn; in sim modes ONE real pick is checked
-#                  against physics, the scene is reset, and the outcome JUDGE
-#                  (eval.judge) scores the pick's keyframes -- fn>0 in the
-#                  banner means the pictures missed physics-confirmed progress
-#                  (--no-robot-turn / --no-judge skip these)
+#                  against physics and the scene is reset (--no-robot-turn
+#                  skips it). Opt-in (--judge fake|vlm|grm or CASCADE_JUDGE):
+#                  an ADVISORY outcome judge scores the proof pick's keyframes
+#                  under a hard bound (CASCADE_JUDGE_TIMEOUT_S, default 180 s)
+#                  and writes the judge-vs-physics confusion matrix into
+#                  <evidence>/run-summary.json -- fn>0 in the banner means the
+#                  pictures missed physics-confirmed progress; it never changes
+#                  READY or the exit status (--no-judge forces it off)
 #   6. chat        `openclaw dashboard` opens the browser (--no-open to skip)
 #
 # Platform notes (all verified on macOS 26 / OpenClaw 2026.9.3, 2026-09-09):
@@ -70,7 +74,8 @@ BRAIN="auto"          # auto | keep | cosmos | cosmos-sglang | qwen
 OPEN_CHAT=1
 SETUP=0               # --setup: create venv + install extras + fetch assets + install OpenClaw
 ROBOT_TURN=1          # --no-robot-turn: skip the real pick_and_place proof (sim modes only)
-NO_JUDGE=0            # --no-judge: skip scoring the proof turn with eval.judge
+NO_JUDGE=0            # --no-judge: force the judge pass off (wins over --judge / CASCADE_JUDGE)
+JUDGE="${CASCADE_JUDGE:-off}"   # --judge off|fake|vlm|grm: opt-in advisory judge pass over the proof turn
 CHECK=0               # --check: preflight report only
 OCCUPANCY="auto"      # auto | nvblox | warp | voxel | none   (bridge backend, or skip)
 GRASPGENX="auto"      # auto | local | stub | external | none (Spark auto = local CUDA model)
@@ -93,7 +98,7 @@ usage() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; }
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --sim|--arm|--cameras|--brain|--occupancy|--graspgenx|--engine|--scene-config|--camera-renderer)
+        --sim|--arm|--cameras|--brain|--occupancy|--graspgenx|--engine|--scene-config|--camera-renderer|--judge)
             [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || { printf '[launch] ERROR: missing value for %s\n' "$1" >&2; exit 2; } ;;
     esac
     case "$1" in
@@ -108,6 +113,7 @@ while [[ $# -gt 0 ]]; do
         --setup) SETUP=1; shift ;;
         --no-robot-turn) ROBOT_TURN=0; shift ;;
         --no-judge)      NO_JUDGE=1; shift ;;
+        --judge)         JUDGE="$2"; shift 2 ;;
         --check) CHECK=1; shift ;;
         --occupancy) OCCUPANCY="$2"; shift 2 ;;
         --graspgenx) GRASPGENX="$2"; shift 2 ;;
@@ -128,6 +134,10 @@ case "$BRAIN" in auto|keep|cosmos|cosmos-sglang|qwen) ;; *) printf 'unknown --br
 case "$SIM" in auto|isaac|mujoco|none) ;; *) printf 'unknown --sim %s\n' "$SIM" >&2; exit 2 ;; esac
 case "$OCCUPANCY" in auto|nvblox|warp|voxel|none) ;; *) printf 'unknown --occupancy %s\n' "$OCCUPANCY" >&2; exit 2 ;; esac
 case "$GRASPGENX" in auto|local|stub|external|none) ;; *) printf 'unknown --graspgenx %s\n' "$GRASPGENX" >&2; exit 2 ;; esac
+# The judge pass is advisory, but a judge nobody chose is a number nobody can
+# read: an unknown --judge / CASCADE_JUDGE refuses here, before anything starts.
+case "$JUDGE" in off|fake|vlm|grm) ;; *) printf '[launch] ERROR: --judge / CASCADE_JUDGE must be off|fake|vlm|grm, got %s\n' "$JUDGE" >&2; exit 2 ;; esac
+[[ $NO_JUDGE == 0 ]] || JUDGE=off
 # The HUG profile pins `grasp.backend: hug` (docs/HUG.md). --graspgenx
 # local|external|none (and an inherited CASCADE_GRASP_BACKEND) override the
 # backend on every arm, which would silently turn it into GraspGen-X or OBB.
@@ -1110,16 +1120,25 @@ print(len(tools), int(need <= set(tools)))
     PROOF_TRACE="$(printf '%s' "$PROOF_JSON" | "$PY" -c 'import json,sys; print(json.load(sys.stdin).get("trace", ""))')"
     BRAIN_DESC="$(printf '%s' "$PROOF_JSON" | "$PY" -c 'import json,sys; print(json.load(sys.stdin)["model"])')"
 
-    # Preserve the optional outcome metric, without making a judge outage
-    # fatal or calling macOS-only caffeinate on Linux. Physics is the gate.
+    # Judge as a METRIC of the proof turn (opt-in, advisory; ROADMAP #6).
+    # scripts/judge_proof.py reads proof.json (never writes it), runs
+    # scripts/judge_run.py over the proof pick under a hard bound
+    # (CASCADE_JUDGE_TIMEOUT_S, default 180 s; the judge's process group is
+    # killed at the bound) and writes the judge-vs-physics confusion matrix
+    # into <evidence>/run-summary.json. Physics is the gate: READY and the
+    # exit status never depend on this block, and every failure reads
+    # "unavailable". tests/test_judge_proof_turn.py runs this block verbatim.
+    # >>> judge pass
     JUDGE_NOTE=""
-    if [[ $NO_JUDGE == 0 && $PROOF_VERIFIED == 1 ]]; then
-        TURN_LOG="$(dirname "$PROOF_TRACE")"
-        log "judging proof keyframes (optional metric, not the readiness gate)"
-        JUDGE_OUT="$("$PY" "$REPO/scripts/judge_run.py" "$TURN_LOG" --strict 2>&1 || true)"
-        JUDGE_NOTE="$(printf '%s' "$JUDGE_OUT" | "$PY" -c 'import sys; lines=[x.split("appended to summary.txt: ",1)[1] for x in sys.stdin.read().splitlines() if "appended to summary.txt: " in x]; print(lines[-1] if lines else "unavailable; physical verification remains valid")')"
+    if [[ "$JUDGE" != off ]]; then
+        log "judging the proof turn with --judge $JUDGE (advisory metric, never the readiness gate)"
+        JUDGE_NOTE="$("$PY" "$REPO/scripts/judge_proof.py" --proof "$STATE_DIR/proof.json" --judge "$JUDGE" \
+            --repo "$REPO" 2>>"$STATE_DIR/judge-pass.log" || true)"
+        [[ -n "$JUDGE_NOTE" ]] \
+            || JUDGE_NOTE="unavailable (the judge pass did not report; see $STATE_DIR/judge-pass.log); advisory only, the physics verdict stands"
         log "judge: $JUDGE_NOTE"
     fi
+    # <<< judge pass
 fi
 
 # ── 6. chat ─────────────────────────────────────────────────────────────────

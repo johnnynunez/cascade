@@ -3,16 +3,34 @@
 `rebot_rs_mb_arm.RebotRSMotorBridgeArm` over motorbridge directly).
 
 Pure Python over duck-typed motor handles: nothing here imports motorbridge,
-so the mock stack and the offline tests never load a CAN runtime.
+so the mock stack and the offline tests never load a CAN runtime. The opt-in
+contact-relative squeeze cap for the gripper close (B38,
+`close_two_stage_capped`) lives here so both transports share one copy.
 """
 
 from __future__ import annotations
 
+import math
+import numbers
 import time
 
 #: bounded retries for a late clear_error ACK (see clear_motor_faults)
 CLEAR_ERROR_ATTEMPTS = 3
 CLEAR_ERROR_RETRY_S = 0.1
+
+# Two-stage close timing/tolerances, the values both RS drivers' close already
+# uses (grace after a command, poll period, "stage target reached", minimum
+# travel before a stall can count).
+GRIP_GRACE_S = 0.3
+GRIP_POLL_S = 0.15
+GRIP_REACH_RAD = 0.1
+GRIP_MIN_TRAVEL_RAD = 0.05
+#: mechPos advance per poll below which the jaw counts as stopped: the stall
+#: rule `close_gripper_torque` uses (0.03 rad per 150 ms). The squeeze cap
+#: never reads mechVel (0x701A), which is not rad/s on this firmware
+#: (docs/WRC_CONTROL_PORT.md).
+GRIP_STALL_RAD = 0.03
+_CAP_KEY = "gripper.max_contact_squeeze_rad"
 
 
 def clamp_to_travel(pos: float, open_pos: float, closed_pos: float) -> float:
@@ -71,3 +89,115 @@ def clear_motor_faults(motors, *, attempts: int = CLEAR_ERROR_ATTEMPTS,
                     f"{attempt + 1} attempt(s) ({e}); refusing to enable a motor "
                     "that may still hold a latched fault"
                 ) from e
+
+
+def contact_squeeze_cap(value) -> float | None:
+    """Validate the arm profile's `gripper.max_contact_squeeze_rad` (B38).
+
+    None (the shipped default) = no cap: `close_gripper_two_stage` runs the
+    fixed-fraction close unchanged. Otherwise it must be a finite number of
+    radians ABOVE `GRIP_REACH_RAD`: the cap leaves a rigidly held jaw `cap`
+    short of its target, and a cap inside the reach tolerance would read as
+    "target reached, nothing held" and restore the full squeeze. Anything else
+    is a config error, raised while the driver is built -- before any jaw
+    command can be sent.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, numbers.Real):
+        raise ValueError(f"{_CAP_KEY} must be a number of radians or null (got {value!r})")
+    cap = float(value)
+    if not math.isfinite(cap) or cap <= GRIP_REACH_RAD:
+        raise ValueError(
+            f"{_CAP_KEY} must be finite and greater than the {GRIP_REACH_RAD} rad "
+            f"stage-reach tolerance (got {value!r}); null disables the cap")
+    return cap
+
+
+def capped_squeeze_target(stage_target: float, contact: float | None, cap: float,
+                          open_pos: float, closed_pos: float) -> float:
+    """The stage target, but never more than `cap` past `contact` toward closed.
+
+    Under MIT the steady torque on a stopped jaw is kp*(target - pos), so this
+    bounds it at kp*cap and leaves every target already within `cap` of the
+    contact exactly as it was. No contact yet = the stage target. Polarity-
+    aware like `clamp_to_travel` (the RS jaw closes toward smaller angles).
+    """
+    if contact is None:
+        return float(stage_target)
+    if closed_pos < open_pos:
+        return float(max(stage_target, contact - cap))
+    return float(min(stage_target, contact + cap))
+
+
+def close_two_stage_capped(driver, stages, cap: float, timeout_s: float) -> float | None:
+    """Two-stage gripper close with the contact-relative squeeze cap (B38).
+
+    `driver` is either RS transport (duck-typed: `set_gripper`,
+    `_gripper_pos`, `_grip_open`, `_grip_closed`, `_grip_contact_pos`);
+    `stages` = ((target_rad, effort), ...) exactly as its fixed close computes
+    them. Same grace, poll period, reach tolerance and per-stage deadline as
+    that close, with three differences:
+
+    - contact is a mechPos stall: two consecutive polls that advance less than
+      `GRIP_STALL_RAD`, after `GRIP_MIN_TRAVEL_RAD` of travel, short of the
+      target. mechVel is never read (not rad/s on this firmware);
+    - from the first contact on, every jaw target is at most `cap` past that
+      contact (`capped_squeeze_target`), so the steady squeeze torque is
+      min(today's, kp_eff*cap). The contact is the FIRST stall and is never
+      re-anchored, so a deformable object cannot ratchet the jaw further in;
+    - a jaw that comes within `GRIP_REACH_RAD` of a capped target met nothing
+      there (a stick-slip, or a stall misread in free air): the contact is
+      dropped and the stage target restored, so in free air the close never
+      ends weaker than the fixed close and the runtime's post-lift air-grasp
+      check still sees the jaws closed.
+
+    Every command goes through `driver.set_gripper`, which keeps the travel
+    clamp and refuses everything after `stop()`. Returns the final jaw angle
+    (None when feedback failed); `driver._grip_contact_pos` keeps the contact.
+    """
+    open_pos, closed_pos = driver._grip_open, driver._grip_closed
+    start_pos = driver._gripper_pos()
+    contact = None
+    driver._grip_contact_pos = None
+    for stage_target, effort in stages:
+        target = capped_squeeze_target(stage_target, contact, cap, open_pos, closed_pos)
+        driver.set_gripper(target, effort=effort)
+        time.sleep(GRIP_GRACE_S)  # spin-up grace: a still-moving jaw is not a stall
+        still, last = 0, None
+        deadline = time.monotonic() + timeout_s / 2
+        while time.monotonic() < deadline:
+            time.sleep(GRIP_POLL_S)
+            pos = driver._gripper_pos()
+            if pos is None:
+                continue
+            if abs(pos - target) < GRIP_REACH_RAD:
+                if target == stage_target:
+                    break  # reached this stage's target
+                print(f"[rebot] jaw reached the capped target {target:.3f} rad with "
+                      f"nothing in the way: no contact, back to {stage_target:.3f} rad")
+                contact = driver._grip_contact_pos = None
+                target = stage_target
+                driver.set_gripper(target, effort=effort)
+                still, last = 0, pos
+                continue
+            traveled = start_pos is not None and abs(pos - start_pos) > GRIP_MIN_TRAVEL_RAD
+            if last is not None and abs(pos - last) < GRIP_STALL_RAD and traveled:
+                still += 1
+            else:
+                still = 0
+            last = pos
+            if still < 2:
+                continue
+            if contact is None:
+                contact = driver._grip_contact_pos = pos
+                capped = capped_squeeze_target(stage_target, contact, cap, open_pos, closed_pos)
+                print(f"[rebot] grip contact at {contact:.3f} rad (squeeze cap {cap:.2f} rad: "
+                      f"target {capped:.3f}, stage target {stage_target:.3f})")
+                if capped != target:
+                    target = capped
+                    driver.set_gripper(target, effort=effort)
+                    still = 0
+                    continue  # watch the capped hold: a free jaw would run on to it
+            break  # stopped on the object: next stage
+    return driver._gripper_pos()

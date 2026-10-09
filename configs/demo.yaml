@@ -152,6 +152,9 @@ grasp:
   release_clearance_m: 0.06 # place_on_object: drop height above target top
   air_grasp_frac: 0.04      # jaw open-fraction below this after close = missed
   close_settle_s: 0.4       # generic two-stage close dwell (real arm ignores)
+                            # real reBot RS squeeze cap: the arm-profile key
+                            # gripper.max_contact_squeeze_rad (configs/arms/
+                            # rebot_rs*.yaml, null = off; docs/REBOT_GRIP_SQUEEZE_CAP.md)
   drop_zone: [0.18, -0.17]  # pick_and_place default target = the bin, inside
                             # the B601-RS top-down IK envelope (reachable place)
   home_after_place: true    # clear the camera view after each pick_and_place

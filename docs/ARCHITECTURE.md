@@ -646,6 +646,7 @@ src/cascade/
 │   ├── simulation_motion.py / motion_profile.py  physical clock + shared safety edges
 │   ├── feetech.py / feetech_arm.py   SO-101 & co over Feetech serial (UNVERIFIED on hw)
 │   ├── rebot_rs_arm.py / rebot_rs_mb_arm.py   reBot B601 over CAN / MotorBridge
+│   ├── robstride.py    shared RS helpers: travel clamp, fault clear, opt-in squeeze-capped close (B38)
 │   ├── ros2_arm.py     ANY ros2_control robot (JointState in, JointTrajectory out)
 │   └── unitree_arm.py  Unitree SDK arms (H1 / H1-2 / G1)
 ├── safety/
@@ -944,7 +945,21 @@ token and registration. Stdio through `launch.sh` remains the default; see
 
   `memory.per_camera_colour: false` restores the one-name rule.
 - Grip force is a stiffness proxy (kp scaling + stall detection), not a
-  calibrated force loop.
+  calibrated force loop. On the real reBot RS the pick close
+  (`close_gripper_two_stage`) leaves the jaws pushing at a FIXED fraction of
+  travel, so under MIT the holding torque kp·effort·(contact − target) grows
+  with object width (Seeed: a paper cup was crushed). Since 2026-10-09 (B38)
+  the arm profile's opt-in `gripper.max_contact_squeeze_rad` caps every jaw
+  target after the first mechPos-detected contact at that many radians past
+  it, so the steady torque is min(today's, kp·effort·cap). Objects whose
+  squeeze already fits the cap keep today's exact commands; a jaw that reaches
+  a capped target in free air gets today's target back
+  (`robstride.close_two_stage_capped`, [REBOT_GRIP_SQUEEZE_CAP.md](REBOT_GRIP_SQUEEZE_CAP.md)).
+  It ships `null` (today's close, byte-identical) and is measured only on a
+  simulated jaw: the suggested 2.52 rad and the per-object torques depend on
+  the unverified width map, the stage-1 scout squeeze before the first stall
+  is not capped, and the user's hardware protocol in that doc must run before
+  a value is set.
 - `RebotRSArm.disconnect()` cuts torque: park (`move_home`) first.
 - The MCP server executes one tool call at a time; stops are handled
   out-of-band by the stdin reader (never queued behind a motion), but a

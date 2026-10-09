@@ -1021,9 +1021,21 @@ engine" rule again -- a second OBJECT is also an independent channel):
    changed: with a same-coloured prop inside the bin, the camera that names
    both "yellow" fuses its view of the bin into the prop's belief (identical
    with the one-name rule). The follow-up is a size-consistency check in the
-   fusion gate. Frames without
+   fusion gate. ~~Frames without
    a render self-mask (the real rig) need a link-geometry mask in fusion
-   (follow-up).
+   (follow-up).~~ **landed 2026-10-09 (B39)**: `perception/link_mask.py`
+   draws the robot's pixels from the URDF collision geometry (5 cm link-frame
+   cells, each cell's 3D hull) posed by FK at the joint sample nearest the
+   frame's capture time. Both fusion paths' B32a gate consumes it like a
+   render mask. It is opt-in (`workspace_filter.link_self_mask.enabled`,
+   default false = unchanged); a render mask stays authoritative; no joint
+   sample within 0.15 s = no mask. Measured on CPU only, against a
+   per-triangle rasterisation of the reBot RS meshes (4 poses × 2 cameras,
+   1280 × 720): coverage 1.0 and IoU 0.889–0.951 with the shipped 2 px, at
+   3–5 ms per frame (`docs/evidence/b39-link-self-mask-20261009/`). Still
+   open: the live comparison with the Isaac render mask
+   (`scripts/compare_link_self_mask.py`, owed), a hardware measurement, and
+   turning it on by default.
 
 Then the REAL chat turn on the two-prop scene ("put both cubes in the drop
 zone, one at a time, call task_memory before each action, tell me how many

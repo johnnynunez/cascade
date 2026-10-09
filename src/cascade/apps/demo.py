@@ -364,18 +364,28 @@ def build_runtime(
         workspace_max=[max(v[i] for v in ws_max) for i in range(3)],
     )
 
-    raw_arms, safe_arms, arm_names = [], [], []
+    raw_arms, safe_arms, arm_names, kins = [], [], [], []
     for i, acfg in enumerate(arm_cfgs):
         raw, safe, k = _build_arm(acfg, lazy_arm, occupancy, cfg)
         raw_arms.append(raw)
         safe_arms.append(safe)
         arm_names.append(str(acfg.get("name", f"arm{i}")))
+        kins.append(k)
         if i == 0:
             kin = k
     arm_rig = ArmRig(safe_arms, arm_names)
     # Inter-arm proximity gating (no-op for a single arm, or when profiles
     # declare no base_pose -- see _wire_neighbors).
     _wire_neighbors(arm_rig, raw_arms)
+    # B39: the robot's own pixels from its link geometry, for camera frames
+    # that carry no render self-mask (the real rig). Opt-in
+    # (`workspace_filter.link_self_mask.enabled`); off, this is None and
+    # nothing is loaded or read. Built before any camera opens, so a bad
+    # setting fails the build without leaking a stream.
+    from ..perception.link_mask import build_link_self_mask
+
+    link_self_mask = build_link_self_mask(
+        cfg, list(zip(arm_names, arm_cfgs, kins, raw_arms, strict=True)))
     # The primary arm stays bound to the same names the single-arm code used,
     # so every existing call site (56 `self.arm` uses in the skill runtime,
     # shutdown_runtime, the truth-pose hook) is untouched by the rig.
@@ -489,6 +499,9 @@ def build_runtime(
     # rig has to learn about it; a skill called with `arm="<name>"` is
     # rebound for that one call by SkillRuntime.execute().
     runtime.arm_rig = arm_rig
+    # Both fusion paths consult the same link self-mask (None = off): the
+    # runtime's get_observation / _reobserve here, the watcher below.
+    runtime._link_self_mask = link_self_mask
 
     # Pigey (arXiv:2607.21725) closed loop: verify each primitive's physical
     # effect against a channel the actuator does not own. In sim the bridge
@@ -509,6 +522,7 @@ def build_runtime(
             harness=harness,
             workspace=WorkspaceFilter.from_config(cfg.get("workspace_filter")),
             occupancy=occupancy,
+            link_mask=link_self_mask,
         )
         watcher.start()
         runtime.watcher = watcher

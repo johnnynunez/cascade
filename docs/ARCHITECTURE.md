@@ -240,6 +240,22 @@ chat command ("pick and place the red cube")
   camera that never named a belief fuses a perceptual-neighbour name
   (orange~yellow) only at 3D box IoU >= 0.75, with each cloud's lowest
   centimetre left out of the box (B32c: masks take in table pixels).
+- **Robot self-mask in fusion** (`perception/workspace.py`, B32a;
+  `perception/link_mask.py`, B39). A detection more than half robot pixels is
+  the robot and is dropped; below that, its robot pixels never reach 3D. The
+  robot pixels are the render self-mask when a frame carries one (Isaac with
+  `CASCADE_ISAAC_PIXEL_MASK=1`). For frames without one (the real rig),
+  `workspace_filter.link_self_mask` (opt-in, default off) draws them from the
+  arm's URDF collision geometry: each mesh is split into 5 cm link-frame cells,
+  each cell's 3D hull contains its triangles, the links are posed by FK at the
+  joint sample nearest the frame's capture time (sampled before inference), and
+  the projected hulls are filled and dilated 2 px. No sample within
+  `max_skew_s` (0.15 s) means no mask (counted, never interpolated). A render
+  mask is never overwritten, and the arm is not even read then. The mask goes into a
+  fusion-local copy of the frame; occupancy keeps its own body masking.
+  Measured on CPU against a per-triangle rasterisation of the reBot RS meshes
+  (4 poses × 2 cameras, 1280 × 720): coverage 1.0, IoU 0.889–0.951,
+  3–5 ms per frame (`docs/evidence/b39-link-self-mask-20261009/`).
 - **Detector preparation.** The open-world and prompted YOLO models remain
   resident, with up to eight successful text-embedding vocabularies retained
   in LRU order. This adds model residency while avoiding checkpoint and text
@@ -592,6 +608,7 @@ src/cascade/
 │   ├── detector.py           YOLOE / YOLO-World + MockDetector (open world by default)
 │   ├── vlm_detector.py       VLM as detector      vlm_ground.py  second-chance grounder
 │   ├── segmenter.py          mask refinement      robot_mask.py  arm body out of depth
+│   ├── workspace.py          WorkspaceFilter (base cylinder, self-mask gate)  link_mask.py  self-mask from link geometry
 │   ├── grounding.py          Extrinsics + localize (colour/near-aware, de-biased OBB centre)
 │   ├── calibration.py        Kabsch camera→base fit with RMSE + degeneracy refusal
 │   ├── colors.py             mask HSV → colour word; colour-query parsing
@@ -880,7 +897,14 @@ token and registration. Stdio through `launch.sh` remains the default; see
   dropped, and the robot's pixels never reach 3D. Live, the bare scene's
   phantom rate went from 17.9–19.6 % to 0 %
   (`docs/evidence/b32-fusion-self-mask-20261008/`). Frames without that mask
-  (the real rig) still rely on the cylinder alone.
+  (the real rig) rely on the cylinder alone unless
+  `workspace_filter.link_self_mask` is on (B39, 2026-10-09). That mask is drawn
+  from the URDF collision geometry at the nearest joint sample, and it is
+  measured only on CPU against the URDF meshes themselves. Its comparison with
+  the Isaac render mask (USD visual geometry) and any hardware measurement are
+  still open. Its accuracy on hardware also depends on the hand-eye calibration
+  and the joint offsets. A stale or unreadable joint state means no mask, i.e.
+  the cylinder alone.
 - Colour names differ between cameras: one object can sit on a hue band
   boundary (the Isaac bin is H 22 "orange" in the top camera, H 23 "yellow"
   in the side camera). Since 2026-10-08 (B32b) a belief keeps each camera's

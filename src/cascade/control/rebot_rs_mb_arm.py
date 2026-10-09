@@ -63,7 +63,12 @@ import numpy as np
 from ..config import Cfg
 from ..types import RobotState
 from .arm_base import ArmBase
-from .robstride import clamp_to_travel, clear_motor_faults
+from .robstride import (
+    clamp_to_travel,
+    clear_motor_faults,
+    close_two_stage_capped,
+    contact_squeeze_cap,
+)
 
 MECH_POS = 0x7019
 MECH_VEL = 0x701A
@@ -114,6 +119,11 @@ class RebotRSMotorBridgeArm(ArmBase):
         self._grip_closed = float(g.get("closed_pos", 0.0))
         self._grip_kp = float(g.get("kp", 6.0))
         self._grip_kd = float(g.get("kd", 0.4))
+        self._grip_contact_pos: float | None = None
+        # Opt-in squeeze cap for the pick close (B38), shared with RebotRSArm
+        # (robstride.close_two_stage_capped). null = the fixed close below runs
+        # unchanged; a bad value raises here, before any jaw command.
+        self._grip_squeeze_cap = contact_squeeze_cap(g.get("max_contact_squeeze_rad"))
 
     # ── lifecycle ────────────────────────────────────────────────────────
 
@@ -317,8 +327,18 @@ class RebotRSMotorBridgeArm(ArmBase):
         after each command and require TWO consecutive slow samples with some
         minimum travel. A stage-1 stall does NOT end the close -- stage 2
         still runs at full effort to seat the grip.
+
+        `gripper.max_contact_squeeze_rad` (opt-in, B38) bounds the squeeze
+        past the first contact exactly as in RebotRSArm
+        (robstride.close_two_stage_capped). null = this fixed close, unchanged.
         """
         span = self._grip_closed - self._grip_open
+        if self._grip_squeeze_cap is not None:
+            return close_two_stage_capped(
+                self,
+                ((self._grip_open + span * width_frac_stage1, effort * 0.7),
+                 (self._grip_open + span * width_frac_stage2, effort)),
+                self._grip_squeeze_cap, timeout_s)
         start_pos = self._gripper_pos()
         for frac, eff in ((width_frac_stage1, effort * 0.7), (width_frac_stage2, effort)):
             target = self._grip_open + span * frac

@@ -36,7 +36,6 @@ robot base with the same `T_base_cam` that lifted the object's mask points.
 from __future__ import annotations
 
 import math
-import os
 import time
 
 import numpy as np
@@ -320,13 +319,15 @@ class HugPlanner:
     """Frame + fix -> base-frame parallel-jaw pinches from HUG hands."""
 
     def __init__(self, cfg):
+        from ..config import HUG_HOST_ENV, HUG_PORT_ENV, sidecar_endpoint
+
         h = cfg.get("hug", None)
         get = (lambda k, d: h.get(k, d)) if h is not None else (lambda k, d: d)
-        self._client = HugClient(
-            host=os.environ.get("CASCADE_HUG_HOST", str(get("host", "127.0.0.1"))),
-            port=int(os.environ.get("CASCADE_HUG_PORT", get("port", DEFAULT_PORT))),
-            timeout_ms=int(get("timeout_ms", 15000)),
-        )
+        # load_demo_config already applied CASCADE_HUG_HOST/_PORT to the section;
+        # they fill only what a hand-made section lacks (applied once).
+        host, port = sidecar_endpoint(h, port_env=HUG_PORT_ENV, host_env=HUG_HOST_ENV,
+                                      default_port=DEFAULT_PORT)
+        self._client = HugClient(host=host, port=port, timeout_ms=int(get("timeout_ms", 15000)))
         self.required = bool(get("required", True))
         self.num_samples = int(get("num_samples", 32))
         if not 1 <= self.num_samples <= 256:

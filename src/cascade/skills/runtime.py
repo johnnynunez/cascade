@@ -226,6 +226,8 @@ class SkillRuntime:
         #: app wiring). None = persistence disabled, which is the default for
         #: bare/unit-test runtimes.
         self.beliefs_path = None
+        # B43: where the visual index persists (memory.persist_episodic); None = off
+        self.episodic_path = None
         #: dispatch tier that served the last command ("reflex" |
         #: "experience" | "llm" | "mcp-host"), for the dashboard "via:" chip
         self.last_path: str | None = None
@@ -5287,6 +5289,11 @@ class SkillRuntime:
                         out["looks_like_note"] = (
                             "remembered appearance matches (cosine >= the embedder's floor), "
                             "not a current observation: localize_object before acting on one")
+                        if any(h.get("restored") for h in out["looks_like"]):
+                            # B43: a persisted visual index (memory.persist_episodic)
+                            out["looks_like_note"] += (
+                                ". Hits with restored=true were restored from an earlier session: "
+                                "remembered (age_s ago), never seen in this one")
                     except Exception as e:  # noqa: BLE001 -- recall is advisory
                         out["looks_like"] = []
                         out["looks_like_note"] = f"visual recall failed: {type(e).__name__}: {e}"

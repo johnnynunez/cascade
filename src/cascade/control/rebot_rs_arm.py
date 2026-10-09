@@ -12,6 +12,8 @@ SocketCAN can0 @ 1 Mbps), but with the rig-verified fixes this SDK lacks:
   from the SDK's global config (which silently loads the DM URDF).
 - Gripper close is a two-stage, effort-scaled MIT command with stall
   detection via mechVel (0x701A) instead of the SDK's broken open/close.
+  Opt-in `gripper.max_contact_squeeze_rad` (B38) caps the squeeze past the
+  first contact (robstride.close_two_stage_capped, mechPos-only stall).
 - Latched motor faults are cleared on connect, before enable (the SDK's
   enable does not; see robstride.clear_motor_faults).
 - This driver streams MIT commands itself at the harness's 50 Hz. It never
@@ -39,7 +41,12 @@ import numpy as np
 from ..config import Cfg
 from ..types import RobotState
 from .arm_base import ArmBase
-from .robstride import clamp_to_travel, clear_motor_faults
+from .robstride import (
+    clamp_to_travel,
+    clear_motor_faults,
+    close_two_stage_capped,
+    contact_squeeze_cap,
+)
 
 MECH_POS = 0x7019
 MECH_VEL = 0x701A
@@ -75,6 +82,11 @@ class RebotRSArm(ArmBase):
         # under MIT, so this number is the holding force in kp units.
         self._grip_hold_kp = float(g.get("hold_kp", 1.0))
         self._grip_contact_pos: float | None = None
+        # Opt-in squeeze cap for the pick close (B38): radians of jaw travel
+        # allowed past the first contact (robstride.close_two_stage_capped).
+        # null = close_gripper_two_stage runs its fixed-fraction close
+        # unchanged; a bad value raises here, before any jaw command.
+        self._grip_squeeze_cap = contact_squeeze_cap(g.get("max_contact_squeeze_rad"))
         # Gravity-compensation feedforward (Pinocchio g(q)) added to every MIT
         # arm command. Pure PD (tau_ff=0) holds with steady-state error g/kp,
         # which is the "joint 3 drops then recovers" droop seen during the
@@ -277,8 +289,20 @@ class RebotRSArm(ArmBase):
         after each command and require TWO consecutive slow samples with some
         minimum travel. A stage-1 stall does NOT end the close -- stage 2
         still runs at full effort to seat the grip.
+
+        The jaws are left pushing at the stage-2 target, so under MIT
+        (tau = kp*(target - pos)) the holding torque grows with object width.
+        `gripper.max_contact_squeeze_rad` (opt-in, B38) bounds it: every target
+        after the first contact is at most that far past it
+        (robstride.close_two_stage_capped). null = this fixed close, unchanged.
         """
         span = self._grip_closed - self._grip_open
+        if self._grip_squeeze_cap is not None:
+            return close_two_stage_capped(
+                self,
+                ((self._grip_open + span * width_frac_stage1, effort * 0.7),
+                 (self._grip_open + span * width_frac_stage2, effort)),
+                self._grip_squeeze_cap, timeout_s)
         start_pos = self._gripper_pos()
         for frac, eff in ((width_frac_stage1, effort * 0.7), (width_frac_stage2, effort)):
             target = self._grip_open + span * frac

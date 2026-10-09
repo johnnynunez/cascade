@@ -16,6 +16,7 @@ path without an LLM call; only novel tasks reach the model.
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import sys
 import time
@@ -343,6 +344,11 @@ def build_runtime(
     from ..memory.embedder import embedder_config, make_embedder
 
     memory_embedder = make_embedder(embedder_config(cfg))
+    # B43 (ROADMAP #7 v2), both opt-in: crops of every committed watcher
+    # detection, and the visual index persisted across restarts. Resolved
+    # and validated HERE too, so a bad limit fails the build before any
+    # hardware exists, like a bad embedder does.
+    visual_recall = _visual_recall_settings(cfg.get("memory", _empty_cfg()), memory_embedder)
 
     from ..perception.occupancy import OccupancyMap
 
@@ -451,6 +457,8 @@ def build_runtime(
         horizon_s=float(cfg.memory.get("horizon_s", 15.0)),
         frame_horizon_s=float(cfg.memory.get("frames_horizon_s", 600.0)),
         **({"embedder": memory_embedder} if memory_embedder is not None else {}),
+        **({"max_detections": visual_recall["detections"]["max_detections"]}
+           if visual_recall["detections"] is not None else {}),
     )
     if memory_embedder is not None:
         print(f"[cascade] memory embedder: {memory_embedder.name} "
@@ -485,6 +493,19 @@ def build_runtime(
                 print(f"[cascade] recalled {n} object(s) from {beliefs_path}")
         except Exception as e:  # noqa: BLE001 - memory must never block startup
             print(f"[cascade] belief memory not loaded ({e})", file=sys.stderr)
+    # B43 (opt-in `memory.persist_episodic`): the visual index survives a
+    # restart the same way. Restored entries are aged by wall clock and
+    # floored at LOADED_MIN_AGE_S, so every restored hit reads `remembered`;
+    # a file from another embedder is refused, a corrupt one ignored.
+    episodic_path = None
+    if visual_recall["persist"] is not None:
+        episodic_path = visual_recall["persist"]["path"]
+        try:
+            n = memory.load_visual(episodic_path, max_age_s=visual_recall["persist"]["max_age_s"])
+            if n:
+                print(f"[cascade] recalled {n} remembered appearance(s) from {episodic_path}")
+        except Exception as e:  # noqa: BLE001 - memory must never block startup
+            print(f"[cascade] visual memory not loaded ({e})", file=sys.stderr)
     trace = TraceLogger(run_dir)
     runtime = SkillRuntime(
         rig.primary, watched[0].depth, detector, watched[0].extrinsics,
@@ -494,6 +515,8 @@ def build_runtime(
     runtime._kitchen_camera_renderer = kitchen_renderer
     # Where to persist the world model on shutdown (None = disabled).
     runtime.beliefs_path = beliefs_path
+    # Where to persist the visual index on shutdown (B43; None = disabled).
+    runtime.episodic_path = episodic_path
     # The arm rig hangs off the runtime the same way the camera rig does.
     # `runtime.arm` stays the primary SafeArm, so nothing that predates the
     # rig has to learn about it; a skill called with `arm="<name>"` is
@@ -523,6 +546,10 @@ def build_runtime(
             workspace=WorkspaceFilter.from_config(cfg.get("workspace_filter")),
             occupancy=occupancy,
             link_mask=link_self_mask,
+            # B43: only with memory.visual_recall_detections (+ an embedder);
+            # otherwise the watcher is constructed exactly as before.
+            **({"visual_recall": _detection_recorder(memory, visual_recall["detections"])}
+               if visual_recall["detections"] is not None else {}),
         )
         watcher.start()
         runtime.watcher = watcher
@@ -858,6 +885,13 @@ def shutdown_runtime(runtime, arm) -> dict:
         n = runtime.beliefs.save(path)
         print(f"[cascade] remembered {n} object(s) -> {path}")
 
+    def _save_episodic():
+        # B43 (opt-in): the visual index, right after the world model and
+        # before the watcher (its only other writer) stops; atomic either way.
+        path = runtime.episodic_path
+        n = runtime.memory.save_visual(path)
+        print(f"[cascade] remembered {n} appearance(s) -> {path}")
+
     def _disconnect_arms():
         rig = getattr(runtime, "arm_rig", None)
         if rig is not None:
@@ -868,6 +902,10 @@ def shutdown_runtime(runtime, arm) -> dict:
     for name, step in (
         ("park", lambda: _park_arm(runtime)),
         ("beliefs", _save_beliefs),
+        # present only when the visual index is persisted, so the default
+        # receipt keeps exactly its stages
+        *((("episodic", _save_episodic),) if getattr(runtime, "episodic_path", None) is not None
+          else ()),
         ("watcher", lambda: runtime.watcher.stop() if runtime.watcher is not None else None),
         ("stream_server", lambda: runtime.stream_server.stop() if getattr(runtime, "stream_server", None) else None),
         ("viewer", lambda: runtime.viewer.stop() if getattr(runtime, "viewer", None) else None),
@@ -908,6 +946,85 @@ def _beliefs_persist_enabled(mcfg) -> bool:
     if env:
         return env not in ("0", "false", "no", "off")
     return bool(mcfg.get("persist_beliefs", True))
+
+
+def _flag(value) -> bool:
+    """A YAML/env boolean: the string "false" is false, not a truthy string."""
+    if isinstance(value, str):
+        return value.strip().lower() not in ("0", "false", "no", "off")
+    return bool(value)
+
+
+def _episodic_persist_enabled(mcfg) -> bool:
+    """`memory.persist_episodic` (B43, default false), with CASCADE_EPISODIC
+    as the override -- the same shape as `_beliefs_persist_enabled`."""
+    env = os.environ.get("CASCADE_EPISODIC", "").strip().lower()
+    if env:
+        return env not in ("0", "false", "no", "off")
+    return _flag(mcfg.get("persist_episodic", False))
+
+
+def _episodic_path(mcfg) -> Path:
+    """Where the visual index persists: CASCADE_EPISODIC_PATH, else
+    `memory.episodic_path`, else <repo>/runs/episodic.json."""
+    return Path(os.environ.get("CASCADE_EPISODIC_PATH")
+                or str(mcfg.get("episodic_path") or (PACKAGE_ROOT / "runs" / "episodic.json")))
+
+
+def _memory_number(mcfg, key: str, default, *, minimum: float, integer: bool = False):
+    """A validated `memory.<key>`: finite, >= `minimum`, an integer when asked.
+    Anything else is a ValueError naming the key (fail closed at build)."""
+    raw = mcfg.get(key, default)
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        value = math.nan
+    if (isinstance(raw, bool) or not math.isfinite(value) or value < minimum
+            or (integer and value != int(value))):
+        kind = "an integer" if integer else "a finite number"
+        raise ValueError(f"memory.{key} must be {kind} >= {minimum:g}, got {raw!r}")
+    return int(value) if integer else value
+
+
+def _visual_recall_settings(mcfg, embedder) -> dict:
+    """B43's two opt-in switches as validated settings.
+
+    ``detections`` (memory.visual_recall_detections): the recorder's limits.
+    ``persist`` (memory.persist_episodic / CASCADE_EPISODIC): path + max age.
+    Each is None when off. A switch without a memory embedder has no index
+    to feed or persist: it is reported and ignored, never a crash -- memory
+    is advisory and must not block startup. An invalid limit raises."""
+    out: dict = {"detections": None, "persist": None}
+    if _flag(mcfg.get("visual_recall_detections", False)):
+        limits = {
+            "interval_s": _memory_number(mcfg, "visual_recall_interval_s", 30.0, minimum=0.0),
+            "max_per_tick": _memory_number(mcfg, "visual_recall_max_per_tick", 2,
+                                           minimum=1, integer=True),
+            "max_detections": _memory_number(mcfg, "visual_recall_max_detections", 128,
+                                             minimum=1, integer=True),
+        }
+        if embedder is None:
+            print("[cascade] memory.visual_recall_detections needs memory.embedder "
+                  "(backend: hash | siglip | clip); watcher crops stay off", file=sys.stderr)
+        else:
+            out["detections"] = limits
+    if _episodic_persist_enabled(mcfg):
+        max_age = _memory_number(mcfg, "episodic_max_age_s", EpisodicMemory.DEFAULT_MAX_AGE_S,
+                                 minimum=0.0)
+        if embedder is None:
+            print("[cascade] memory.persist_episodic needs memory.embedder "
+                  "(backend: hash | siglip | clip); the visual index is not persisted",
+                  file=sys.stderr)
+        else:
+            out["persist"] = {"path": _episodic_path(mcfg), "max_age_s": max_age}
+    return out
+
+
+def _detection_recorder(memory, limits: dict):
+    from ..memory.episodic import DetectionCropRecorder
+
+    return DetectionCropRecorder(memory, interval_s=limits["interval_s"],
+                                 max_per_tick=limits["max_per_tick"])
 
 
 def _instance_association_enabled(mcfg) -> bool:

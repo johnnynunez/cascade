@@ -266,7 +266,8 @@ def build_robot_runtime(cfg, run_dir, *, navigation_bindings=None, **_kwargs):
             if domain.profile["kind"] == "manipulation":
                 domain_cfg._data.setdefault("grasp", {})["memory_path"] = str(stores / "grasp.json")
                 domain_cfg._data.setdefault("memory", {}).update(
-                    beliefs_path=str(stores / "beliefs.json"), envelope_path=str(stores / "envelope.json"))
+                    beliefs_path=str(stores / "beliefs.json"), envelope_path=str(stores / "envelope.json"),
+                    episodic_path=str(stores / "episodic.json"))
                 from .demo import build_runtime
                 domain.runtime, domain.owner = build_runtime(domain_cfg, directory, lazy_arm=True, view=False, serve=False)
             else:

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import os
+import threading
 from typing import Callable
 
 import numpy as np
@@ -50,6 +51,9 @@ class Extrinsics:
         """
         if mode not in ("eye_to_hand", "eye_in_hand"):
             raise ValueError(f"bad extrinsics mode {mode!r}")
+        # Guards the (calibration_error, T) pair against a runtime
+        # invalidate()/adopt() from the extrinsic drift monitor's thread.
+        self._lock = threading.Lock()
         self.mode = mode
         self.T_compensation = _compensation_transform(compensation_m)
         self.T_hand_eye = np.eye(4) if T is None else np.asarray(T, dtype=float)
@@ -66,6 +70,30 @@ class Extrinsics:
     @property
     def calibrated(self) -> bool:
         return self.calibration_error is None
+
+    def invalidate(self, reason: str) -> None:
+        """Mark this camera UNCALIBRATED at runtime (the extrinsic drift
+        monitor saw it move): same semantics as a rejected record --
+        `cam_to_base()` refuses with `reason`, `.T` reads NaN. Every holder
+        of this object (WatchedCamera, SkillRuntime) sees it at once."""
+        with self._lock:
+            self.calibration_error = str(reason)
+            self.T = np.full((4, 4), np.nan)
+
+    def adopt(self, T_cam2base, source: str) -> None:
+        """Trust a new eye-to-hand transform (a gated re-calibration). It is
+        the full T_cam2base as measured, so the profile's compensation is
+        folded into T_hand_eye rather than applied a second time."""
+        if self.mode != "eye_to_hand":
+            raise ValueError("adopt() is eye_to_hand only")
+        T = np.asarray(T_cam2base, dtype=float).reshape(4, 4)
+        if not np.all(np.isfinite(T)):
+            raise ValueError("refusing to adopt a non-finite transform")
+        with self._lock:
+            self.T_hand_eye = np.linalg.inv(self.T_compensation) @ T
+            self.T = T.copy()
+            self.source = source
+            self.calibration_error = None
 
     @classmethod
     def from_config(cls, cfg, fk_tcp2base=None, *, camera_serial=None) -> "Extrinsics":
@@ -129,10 +157,12 @@ class Extrinsics:
 
     def cam_to_base(self) -> np.ndarray:
         """T_cam2base at this instant (uses live FK for eye-in-hand)."""
-        if self.calibration_error is not None:
-            raise SkillError(self.calibration_error)
+        with self._lock:
+            error, T = self.calibration_error, self.T
+        if error is not None:
+            raise SkillError(error)
         if self.mode == "eye_to_hand":
-            return self.T
+            return T
         if self._fk is None:
             raise SkillError("eye_in_hand extrinsics need a FK callback")
         return self.T_compensation @ self._fk() @ self.T

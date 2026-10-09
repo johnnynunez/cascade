@@ -24,8 +24,9 @@ Two rules keep this honest:
   tools run on the analytic OBB planner and the matrix says so; the
   occupancy bridge down means the clearance gate is off and the matrix says
   so. Only a tool that cannot run at all without the sidecar is withheld
-  (no shipped tool is in that position today; the mechanism is pinned by
-  `tests/test_mcp_server.py`).
+  (the label grasps under the opt-in `grasp.executor: vla`, whose policy
+  server IS the grasp -- B49, `vla_policy`; the mechanism is pinned by
+  `tests/test_mcp_server.py` and `tests/test_vla_executor.py`).
 
 The stop path (`emergency_stop`, `reset_stop`) can never depend on a probe.
 """
@@ -59,6 +60,13 @@ CAP_MEMORY = "memory"
 #: runtime (`agent.programs` / CASCADE_PROGRAMS=1), so with the tier off the
 #: matrix, its banner and the withheld list are the pre-tier ones exactly.
 CAP_PROGRAMS = "programs"
+#: the opt-in VLA executor (B49, `grasp.executor: vla`): its policy server
+#: answered (startup probe or the latest episode's connect). A ROUTE
+#: capability: the cell exists only when the runtime has a VLA executor
+#: attached, and the label-grasp tools are gated on it only then -- an
+#: absent cell is never "unmet". With the analytic executor (the default)
+#: the matrix, its banner and the withheld list are the pre-B49 ones exactly.
+CAP_VLA_POLICY = "vla_policy"
 
 CAPABILITIES = (
     CAP_DEPTH_3D, CAP_DEPTH_HEIGHTS, CAP_LEARNED_GRASPS, CAP_OCCUPANCY,
@@ -77,11 +85,13 @@ TOOL_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     # label/pixel -> metres: nothing to aim without 3D grounding
     "localize_object": (CAP_DEPTH_3D,),
     "preview_grasp": (CAP_DEPTH_3D,),
-    "grasp_object": (CAP_DEPTH_3D,),
-    "pick_and_place": (CAP_DEPTH_3D,),
+    # ... and with `grasp.executor: vla` the label grasp IS the policy: no
+    # server, no grasp (the route never falls back to the analytic pipeline)
+    "grasp_object": (CAP_DEPTH_3D, CAP_VLA_POLICY),
+    "pick_and_place": (CAP_DEPTH_3D, CAP_VLA_POLICY),
     "push_object": (CAP_DEPTH_3D,),
     "point_at": (CAP_DEPTH_3D,),
-    "sort_by_color": (CAP_DEPTH_3D,),
+    "sort_by_color": (CAP_DEPTH_3D, CAP_VLA_POLICY),
     "turn_screw": (CAP_DEPTH_3D,),
     "grasp_at_pixel": (CAP_DEPTH_3D,),
     "probe_point": (CAP_DEPTH_3D,),
@@ -311,7 +321,29 @@ def capability_matrix(runtime) -> dict:
     programs = _programs_capability(runtime)
     if programs is not None:
         out[CAP_PROGRAMS] = programs
+    vla = _vla_capability(runtime)
+    if vla is not None:
+        out[CAP_VLA_POLICY] = vla
     return out
+
+
+def _vla_capability(runtime) -> dict | None:
+    """The `vla_policy` cell, or None when no VLA executor is attached (the
+    analytic executor: the cell is then absent). Reads the executor's last
+    recorded status only -- never dials the server from here."""
+    executor = getattr(runtime, "vla_executor", None)
+    if executor is None:
+        return None
+    status = getattr(executor, "status", None) or {}
+    detail = str(status.get("detail") or "VLA policy server")
+    answered = status.get("answered")
+    if answered is True:
+        return _entry(True, detail)
+    if answered is False:
+        return _entry(False, detail,
+                      f"{detail}; grasp.executor: vla refuses label grasps rather than fall back "
+                      "to the analytic pipeline (start the policy server, then restart the runtime)")
+    return _entry(None, detail)
 
 
 def _programs_capability(runtime) -> dict | None:
@@ -383,4 +415,6 @@ def format_matrix(matrix: dict) -> str:
     ]
     if CAP_PROGRAMS in matrix:  # only when a programs tier is attached
         parts.append(flag(CAP_PROGRAMS))
+    if CAP_VLA_POLICY in matrix:  # only with `grasp.executor: vla`
+        parts.append(flag(CAP_VLA_POLICY))
     return " | ".join(parts)

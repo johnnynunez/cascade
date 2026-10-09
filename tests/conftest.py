@@ -189,6 +189,16 @@ def _no_ambient_programs(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_ambient_vla_executor(monkeypatch):
+    """A shell that exported CASCADE_GRASP_EXECUTOR=vla (and a policy port)
+    for a GPU session must not route every grasp in the suite to a policy
+    server (B49). The suite certifies the shipped analytic executor; tests
+    opt in per test."""
+    monkeypatch.delenv("CASCADE_GRASP_EXECUTOR", raising=False)
+    monkeypatch.delenv("CASCADE_VLA_PORT", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _no_ambient_occupancy(monkeypatch):
     """occupancy is ON by default in configs/demo.yaml (2026-09-03), and this
     venv has the `grasping` extra, so every build_runtime in the suite would

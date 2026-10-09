@@ -8,6 +8,11 @@ not enabled merely by appearing in this document.
 
 Status: research note, 2026-08-08. No code changed yet.
 
+Update 2026-10-09: the `VLAExecutor` slot of question 3 exists now (opt-in
+`grasp.executor: vla`, B49, [VLA_EXECUTOR.md](VLA_EXECUTOR.md)). It speaks the
+openpi / LingBot websocket protocol, so TurboVLA would fill it through a server
+that speaks that wire. No real checkpoint has run through it yet.
+
 This note answers four questions raised together:
 
 1. is the perception stack (L515 to YOLOE to mask to cloud to BeliefStore) still the right shape?

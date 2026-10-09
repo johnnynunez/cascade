@@ -158,6 +158,9 @@ BRIDGE_PORT_ENV = "CASCADE_BRIDGE_PORT"
 GRASPGENX_PORT_ENV = "CASCADE_GRASPGENX_PORT"
 OCCUPANCY_PORT_ENV = "CASCADE_OCCUPANCY_PORT"
 PORT_ENV_VARS = (BRIDGE_PORT_ENV, GRASPGENX_PORT_ENV, OCCUPANCY_PORT_ENV)
+#: the opt-in VLA policy server (B49, `grasp.vla.port`); applied after the
+#: three above, only to an existing `grasp.vla` section
+VLA_PORT_ENV = "CASCADE_VLA_PORT"
 
 
 def env_port(name: str) -> int | None:
@@ -495,6 +498,15 @@ def load_demo_config(
         for view in [main, *(prof["resolved"] for prof in arm_profiles)]:
             view.setdefault("grasp", {})["backend"] = backend
 
+    # B49: the opt-in VLA executor, selected the same way on every view.
+    # Unset/empty keeps `grasp.executor` from the config (default analytic).
+    executor = os.environ.get("CASCADE_GRASP_EXECUTOR")
+    if executor:
+        if executor not in {"analytic", "vla"}:
+            raise ValueError(f"invalid CASCADE_GRASP_EXECUTOR: {executor} (analytic|vla)")
+        for view in [main, *(prof["resolved"] for prof in arm_profiles)]:
+            view.setdefault("grasp", {})["executor"] = executor
+
     # Rendered sim cameras look INTO a MuJoCo arm's world; tell each which.
     # The primary arm owns the scene (in a rig, the generated file holds every
     # arm and the primary's profile decides the props), so a rendered camera
@@ -550,6 +562,14 @@ def load_demo_config(
     _apply_port_env(main, ports)
     for prof in arm_profiles:
         _apply_port_env(prof["resolved"], ports)
+    # CASCADE_VLA_PORT (B49): the VLA policy server's port, same parsing and
+    # precedence; only an EXISTING `grasp.vla` section gets it.
+    vla_port = env_port(VLA_PORT_ENV)
+    if vla_port is not None:
+        for view in [main, *(prof["resolved"] for prof in arm_profiles)]:
+            vla = (view.get("grasp") or {}).get("vla")
+            if isinstance(vla, dict):
+                vla["port"] = vla_port
     return Cfg(main)
 
 

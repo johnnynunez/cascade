@@ -61,6 +61,13 @@ occupancy = ["pyzmq>=25.0", "msgpack>=1.0", "msgpack-numpy>=0.4.8", "warp-lang>=
 # download; without this extra (or torch, or cached weights) the backend
 # refuses to start (EmbedderUnavailable) -- never a silent fallback.
 memory-embed = ["transformers>=4.45", "pillow>=10.0"]
+# Opt-in VLA executor (`grasp.executor: vla`, B49; grasping/vla_client.py):
+# the CLIENT side of the openpi / LingBot-VLA websocket policy protocol
+# only. The policy itself runs in its own environment and process on a GPU
+# host (openpi serve_policy, LingBot deploy.lingbot_vla_v2_policy), so
+# cascade never imports torch for it. Without this extra the route refuses
+# (VLAUnavailable) -- never a silent analytic fallback.
+vla = ["websockets>=13.0", "msgpack>=1.0"]
 dev = ["pytest>=8.0"]
 
 [project.scripts]

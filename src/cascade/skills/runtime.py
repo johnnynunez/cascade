@@ -280,6 +280,10 @@ class SkillRuntime:
         #: latch; same required/optional contract as GraspGen-X above
         self._hug = None
         self._hug_down = False
+        #: the opt-in VLA executor (`grasp.executor: vla`, B49;
+        #: grasping/vla_executor.py), built and probed by build_runtime. None
+        #: with the analytic executor (the default): nothing VLA exists then.
+        self.vla_executor = None
         #: which grasp planner actually produced the last candidate list:
         #: "obb" | "graspgenx (learned 6-DoF)" | "graspgenx-stub (...)" |
         #: "obb (graspgenx down)". None until the first grasp. Surfaced by
@@ -1041,11 +1045,15 @@ class SkillRuntime:
             grasp = "hug (configured; not yet probed -- first grasp probes it)"
         else:
             grasp = want
-        return {
+        out = {
             "grasp_planner": grasp,
             "occupancy": occ.describe() if occ is not None else "disabled",
             "occupancy_live": bool(occ is not None and occ.status),
         }
+        if getattr(self, "vla_executor", None) is not None:
+            # only with `grasp.executor: vla`: which policy server serves grasps
+            out["grasp_executor"] = self.vla_executor.describe()
+        return out
 
     def frame_jpeg(self) -> bytes | None:
         if self.last_frame is None:
@@ -2334,6 +2342,13 @@ class SkillRuntime:
             pass
         profile = select_profile(fix.detection.label or label, material)
         grasp_evidence.event("material_profile", profile=profile)
+        if not (_fix is not None and _frame is not None):
+            from ..grasping.vla_executor import executor_name
+
+            if executor_name(gcfg) == "vla":
+                # B49, opt-in: a language-conditioned policy serves this
+                # label grasp; pixel-addressed grasps stay analytic.
+                return self._vla_grasp(label, frame, fix, profile, scene_halt_generation)
         grasp_evidence.phase("planning")
         search = None
         planning_active = False
@@ -2895,10 +2910,7 @@ class SkillRuntime:
         if verified:
             commanded_open = max(1.0 - profile.close_frac_stage2, 0.0)
             expected_open = min(grasp.width_m / self._max_width, 1.0)
-            air_grasp = width_after_lift < float(gcfg.get("air_grasp_frac", 0.04)) or (
-                width_after_lift <= commanded_open + 0.03
-                and expected_open >= commanded_open + 0.07
-            )
+            air_grasp = self._air_grasp(width_after_lift, commanded_open, expected_open)
             if air_grasp:
                 if carry_attachment.active(self) is not None:
                     carry_attachment.active(self).reject(
@@ -2916,36 +2928,13 @@ class SkillRuntime:
                     "error": "air grasp: gripper closed fully, object not held",
                     "suggestion": "re-localize the object or try the alternate yaw",
                 }
-        self.held_object = label
-        self._held_det_label = fix.detection.label
-        self._held_color = detection_color(frame.rgb, fix.detection)
-        self._held_provisional = None  # promoted: the real flag is set now
         # The held width as MEASURED (jaw stall after the lift); the planned
         # width stands in when feedback was unavailable. `_reconcile_held`
         # reads it before calling a closed jaw a slip.
-        self._held_width_m = (float(width_after_lift) * float(self._max_width)
-                              if verified else float(grasp.width_m))
-        # A cached aiming estimate cannot prove a later slip. Preserve the
-        # post-lift clock floor separately for newly acquired hold evidence.
-        self._held_offset = held_offset_at_close
-        self._held_observation_floor = None
-        self._held_observation_floor_q = None
-        from .held_observation import binding
-        self._held_observation_binding = binding(self)
-        self._held_observation_joint_signs = np.asarray(
-            self.cfg.arm.get("joint_signs", [1] * self.arm.n_joints), float).copy()
-        try:
-            import copy
-            state_after_lift = self.arm.get_state()
-            carry_attachment.observe(self, state_after_lift)
-            self._held_observation_floor = copy.deepcopy(state_after_lift.physics_clock)
-            self._held_observation_floor_q = np.asarray(state_after_lift.q, float).copy()
-        except carry_attachment.AttachmentInvalid:
-            raise
-        except Exception as exc:
-            if carry_attachment.active(self) is not None:
-                carry_attachment.active(self).reject("post-lift feedback unavailable: " + str(exc))
-        self.beliefs.mark_removed(self._held_det_label or label, near=fix.position)
+        self._promote_held(label, frame, fix,
+                           held_width_m=(float(width_after_lift) * float(self._max_width)
+                                         if verified else float(grasp.width_m)),
+                           held_offset=held_offset_at_close)
         try:
             self.grasp_memory.record(
                 label, fix, grasp, success=True,
@@ -2966,6 +2955,132 @@ class SkillRuntime:
             "grip_verified": verified,
             "gripper_open_frac": round(width_after_lift, 2) if verified else None,
             "grasp_width_m": round(grasp.width_m, 3),
+        }
+
+    def _air_grasp(self, width_after: float, commanded_open: float, expected_open: float) -> bool:
+        """ASPIRE jaw-travel heuristic, shared by both executors: jaws nearly
+        shut, or at the commanded close although the object should have
+        stopped them much wider -- nothing resisted, nothing is held."""
+        return width_after < float(self.cfg.grasp.get("air_grasp_frac", 0.04)) or (
+            width_after <= commanded_open + 0.03
+            and expected_open >= commanded_open + 0.07
+        )
+
+    def _promote_held(self, label, frame, fix, *, held_width_m, held_offset) -> None:
+        """Record a grasp the jaw check accepted: the held flag, its identity,
+        the measured width, the aiming offset and the observation binding.
+        Shared by the analytic and the VLA executor so the two cannot drift."""
+        self.held_object = label
+        self._held_det_label = fix.detection.label
+        self._held_color = detection_color(frame.rgb, fix.detection)
+        self._held_provisional = None  # promoted: the real flag is set now
+        self._held_width_m = held_width_m
+        # A cached aiming estimate cannot prove a later slip. Preserve the
+        # post-lift clock floor separately for newly acquired hold evidence.
+        self._held_offset = held_offset
+        self._held_observation_floor = None
+        self._held_observation_floor_q = None
+        from .held_observation import binding
+        self._held_observation_binding = binding(self)
+        self._held_observation_joint_signs = np.asarray(
+            self.cfg.arm.get("joint_signs", [1] * self.arm.n_joints), float).copy()
+        try:
+            import copy
+            state_after_lift = self.arm.get_state()
+            carry_attachment.observe(self, state_after_lift)
+            self._held_observation_floor = copy.deepcopy(state_after_lift.physics_clock)
+            self._held_observation_floor_q = np.asarray(state_after_lift.q, float).copy()
+        except carry_attachment.AttachmentInvalid:
+            raise
+        except Exception as exc:
+            if carry_attachment.active(self) is not None:
+                carry_attachment.active(self).reject("post-lift feedback unavailable: " + str(exc))
+        self.beliefs.mark_removed(self._held_det_label or label, near=fix.position)
+
+    def _vla_grasp(self, label, frame, fix, profile, halt_generation) -> dict:
+        """`grasp.executor: vla` (B49, opt-in; grasping/vla_executor.py).
+
+        The target is already localized by `skill_grasp_object` (same
+        `_localize`, same measurements). Refusals happen before any motion:
+        a rig gate the route does not implement, a policy server that does
+        not answer, a missing `vla` extra. Then the jaws open and the arm
+        re-homes over the vetted route exactly like the analytic pipeline,
+        and the policy's chunks run under the harness (see the executor).
+        The verdict is the SAME as the analytic one: the jaw-travel check
+        here, then `execute()`'s independent postcondition verifier. Nothing
+        the server says about its own success is read. Outcomes do not train
+        the analytic grasp memory (there is no candidate geometry to credit).
+        """
+        from ..grasping.vla_executor import CLOSE_BELOW, VLAExecutor, route_refusal
+
+        reason = route_refusal(self)
+        if reason is not None:
+            raise SkillError(f"grasp.executor: vla refused: {reason}; no motion sent")
+        if getattr(self, "vla_executor", None) is None:
+            self.vla_executor = VLAExecutor.from_cfg(self.cfg.grasp)
+        executor = self.vla_executor
+        client = executor.connect()  # VLAUnavailable: nothing has moved
+        try:
+            self.arm.set_gripper(self._grip_open, effort=0.8, _halt_generation=halt_generation)
+            home = self.cfg.arm.get("home_q")
+            if home is not None and not self.arm.move_planned(
+                    np.asarray(home, dtype=float), duration_s=1.5, _halt_generation=halt_generation):
+                raise SkillError("did not settle at home before the VLA episode")
+            provisional = (label, fix.detection.label, detection_color(frame.rgb, fix.detection))
+            try:
+                report = executor.run(self, client, label=label, effort=profile.effort,
+                                      halt_generation=halt_generation, provisional=provisional)
+            except (SkillError, SafetyViolation) as exc:
+                self.memory.add("outcome", f"VLA grasp episode for {label!r} ended early: {exc}")
+                raise
+        finally:
+            client.close()
+        summary = {k: report[k] for k in ("chunks", "waypoints", "closed", "stop", "server", "infer_ms")}
+        if not report["closed"]:
+            self.memory.add("outcome", f"VLA grasp {label!r} FAILED: the policy never closed the gripper")
+            return {"ok": False, "executor": "vla", "vla": summary,
+                    "error": (f"VLA episode ended ({report['stop']}, {report['chunks']} chunks) and the "
+                              "policy never closed the gripper: nothing was grasped")}
+        if report["last_open_commanded"] > CLOSE_BELOW:
+            # closed, then commanded open again: whatever was there was let go
+            self._held_provisional = None
+            self.memory.add("outcome", f"VLA grasp {label!r} FAILED: the policy re-opened the gripper")
+            return {"ok": False, "executor": "vla", "vla": summary,
+                    "error": (f"the policy re-opened the gripper (last command {report['last_open_commanded']:.2f} "
+                              "open) before the episode ended: nothing is held")}
+        width_after = self._gripper_width_frac()
+        verified = width_after is not None
+        footprint = self._horizontal_footprint_m(fix.points)
+        if verified:
+            expected_open = min(footprint / self._max_width, 1.0) if footprint else 0.0
+            if self._air_grasp(width_after, report["last_open_commanded"], expected_open):
+                self._held_provisional = None
+                self.memory.add("outcome", f"VLA grasp {label!r} FAILED: jaws closed on air")
+                return {"ok": False, "executor": "vla", "vla": summary,
+                        "error": "air grasp: gripper closed fully, object not held",
+                        "suggestion": "re-localize the object; the policy closed on nothing"}
+        held_offset = None
+        if report["q_at_close"] is not None:
+            offset = np.asarray(fix.position, float) - self.kin.fk(report["q_at_close"])[:3, 3]
+            if offset.shape == (3,) and np.isfinite(offset).all():
+                held_offset = offset
+        self._promote_held(label, frame, fix,
+                           held_width_m=(float(width_after) * float(self._max_width) if verified
+                                         else footprint),
+                           held_offset=held_offset)
+        self.memory.add(
+            "action",
+            f"grasped {label!r} via the VLA policy ({report['chunks']} chunks, "
+            + (f"jaw at {width_after:.2f})" if verified else "grip UNVERIFIED)"),
+        )
+        return {
+            "held": label,
+            **self._target_resolution(label, frame, fix),
+            "grip_profile": profile.name,
+            "grip_verified": verified,
+            "gripper_open_frac": round(width_after, 2) if verified else None,
+            "executor": "vla",
+            "vla": summary,
         }
 
     def _grasp_support_height(self, points) -> float:

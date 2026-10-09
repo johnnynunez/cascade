@@ -1,6 +1,8 @@
 # Unitree H2: the whole-body humanoid vertical (design, 7 October 2026)
 
-**Status: candidate, no admission gate passed.** This page fixes the embodiment,
+**Status: candidate; gate 1 (binding) passed in simulation on 7 October 2026,
+no physical admission** ([gates](#admission-gates-robot_modularitymd--admission-work-for-an-actual-humanoid)).
+This page fixes the embodiment,
 the policy, the engine order and the owner architecture for CASCADE's first
 whole-body humanoid, and records what has actually been shown. The existing
 `h1`/`h1_2`/`g1` profiles drive only the ARM of a standing Unitree humanoid
@@ -273,7 +275,7 @@ Arms from one config dir, checked with `--dry-config` before any owner starts: R
 rate at stop and the command time used; the limits, the 3 s command and the 8 s wall settle budget
 stay unchanged.
 
-## Owner architecture (to build; mirrors the MicroDuck shared owner)
+## Owner architecture (built 7 October 2026 as `scripts/isaac_h2_bridge.py`; mirrors the MicroDuck shared owner)
 
 The H2 owner is one process per world inside Isaac Sim, stepping PhysX at
 200 Hz with the policy every fourth solve (the bundle's `decimation: 4`),

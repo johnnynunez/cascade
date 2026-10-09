@@ -45,8 +45,10 @@ The read-only [spatial domain](docs/SPATIAL_PROVIDERS.md) adds capture-time
 transforms, landmark memory and synthetic planar route proposals. The separate
 [observed RGB-D path](docs/RGBD_SPATIAL_OBSERVATIONS.md) retains calibrated
 surface annotations. An optional cuVSLAM provider estimates local RGB-D poses in
-an isolated process; native localization validation and navigation execution
-remain pending. Surface annotations do not constitute a collision map.
+an isolated process (a live native simulation stream tracked 12 captures; pose
+uncertainty is uncalibrated); calibrated localization and native route
+execution remain pending, and the opt-in `go_to` route runner has CPU tests
+only. Surface annotations do not constitute a collision map.
 Coordinating twelve robots in one scene is an implementation target, not an
 existing twelve-robot acceptance result.
 
@@ -213,7 +215,7 @@ explicit construction and validate its declared capabilities.
 | `h1` | [Unitree H1](https://github.com/unitreerobotics/unitree_ros) right arm (gen 1: bare forearm, no hand) | 4 | ROS2 topics | a sourced ROS2 env — **untested on hardware** |
 | `h1_2` | [Unitree H1-2](https://github.com/unitreerobotics/unitree_ros) right arm (7-DoF wrist, flange) | 7 | ROS2 topics | a sourced ROS2 env — **untested on hardware** |
 | `h1_mock` / `h1_2_mock` | same, kinematic only | 4 / 7 | — | nothing |
-| `h2_velocity_physx` (base profile) | [Unitree H2](https://github.com/unitreerobotics/unitree_ros) whole body: NVIDIA's public H2 USD + `Velocity-H2-History-v0` walking policy (14 of 31 joints), PhysX first — **candidate, no admission gate passed**; [design](docs/HUMANOID_H2.md) | 31 (14 commanded) | Isaac Sim 6.2 bridge (to build) | `scripts/h2_assets.py` (SHA-256 pinned policy) |
+| `h2_velocity_physx` (base profile) | [Unitree H2](https://github.com/unitreerobotics/unitree_ros) whole body: NVIDIA's public H2 USD + `Velocity-H2-History-v0` walking policy (14 of 31 joints), PhysX first — **candidate: binding gate passed in simulation, no physical admission**; [design](docs/HUMANOID_H2.md) | 31 (14 commanded) | Isaac Sim 6.2 PhysX owner (`scripts/isaac_h2_bridge.py`) | `scripts/h2_assets.py` (SHA-256 pinned policy) |
 | `rebot_rs` | Seeed reBot DevArm B601 (RobStride) | 6 | RobStride over SocketCAN | `.[arm]`, `can0` up |
 | `rebot_rs_mb` | same, via MotorBridge | 6 | MotorBridge | `.[arm]` |
 | `isaac` | reBot in Isaac Sim | 6 | ZMQ bridge | Isaac Sim + NVIDIA GPU |
@@ -237,15 +239,21 @@ handless arm declares `max_width_m: 0` so grasps are *refused honestly*
 instead of mimed. See [`docs/ROS2_BACKEND_BRIEF.md`](docs/ROS2_BACKEND_BRIEF.md)
 for the design rationale (QoS, streaming trade, stop semantics).
 
-> **Scope, honestly:** ROS2 and the humanoid profiles drive **arms**. There
-> is no mobile base, navigation, mapping or robot self-localization in
-> cascade yet -- "localization" here means finding *objects*. The mobility
-> layer (a `MobileBase` twin of `ArmBase`, Vesta's pixel-goal / turn / stop
-> navigation verbs as skills with the visual memory harness spanning the
-> walk, Nav2 or a Warp costmap planner behind one interface, Unitree G1/H1
-> in Isaac Sim first) is designed in
-> [`docs/MOBILITY_AND_NAVIGATION_DESIGN.md`](docs/MOBILITY_AND_NAVIGATION_DESIGN.md)
-> and is the next structural addition on the [roadmap](docs/ROADMAP.md).
+> **Scope, honestly:** ROS2 still drives **arms** only, and the `h1` /
+> `h1_2` / `g1` arm profiles drive the arm of a standing robot. Mobility is a
+> separate, opt-in layer: a velocity-level `MobileBase` with `SafeBase`,
+> `walk_velocity` / `walk_distance` / `turn` / `stop_navigation` skills and
+> an independent verifier (`--base <profile>`), exercised on MicroDuck
+> (Newton) and the Unitree H2 (PhysX) in **simulation only**, neither
+> admitted; an opt-in `go_to` route runner with CPU tests only; an optional
+> cuVSLAM localization provider whose pose uncertainty is uncalibrated; and a
+> mock-only arm-on-base `whole_body` contract. There is no ROS2 base
+> interface (Twist / Nav2), no collision map built from a base's own
+> sensors, no whole-body controller and no hardware base. Current state, with
+> code paths and evidence:
+> [Architecture → ROS2, humanoids, and what is NOT here yet](docs/ARCHITECTURE.md#ros2-humanoids-and-what-is-not-here-yet);
+> the original design is
+> [`docs/MOBILITY_AND_NAVIGATION_DESIGN.md`](docs/MOBILITY_AND_NAVIGATION_DESIGN.md).
 
 <a id="multi-arm"></a>
 **Multi-arm.** `--arms a,b` builds an `ArmRig` (first = manipulation arm, the
@@ -997,8 +1005,11 @@ runtime contracts, historical measurements and research notes.
 - [docs/JEV_DECISIONS.md](docs/JEV_DECISIONS.md) — Jev and Qwen-based decision
   models, an offline routing pilot, and measured local Kev results
 - [docs/MOBILITY_AND_NAVIGATION_DESIGN.md](docs/MOBILITY_AND_NAVIGATION_DESIGN.md)
-  — design for mobile bases, humanoid locomotion and navigation (`MobileBase`,
-  Vesta's nav verbs, Nav2 / Warp planner backends, G1 in Isaac first); not code yet
+  — the 2026-09-10 design for mobile bases, humanoid locomotion and navigation
+  (`MobileBase`, Vesta's nav verbs, Nav2 / Warp planner backends, G1 in Isaac
+  first); partly implemented since with a velocity-level interface — its
+  status note and [Architecture](docs/ARCHITECTURE.md#ros2-humanoids-and-what-is-not-here-yet)
+  say what landed
 - [docs/ROS2_BACKEND_BRIEF.md](docs/ROS2_BACKEND_BRIEF.md) · [docs/NEWTON_ENGINE.md](docs/NEWTON_ENGINE.md)
   · [docs/BRIDGE_DEGRADATION.md](docs/BRIDGE_DEGRADATION.md) — backend briefs
 - [docs/VLA_EXECUTOR.md](docs/VLA_EXECUTOR.md) — the opt-in VLA executor

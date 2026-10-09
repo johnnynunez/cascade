@@ -30,9 +30,11 @@ capture transforms and landmark memory and plans on immutable planar maps.
 Its synthetic replay uses the same composed MCP route without actuator resources;
 the [RGB-D observation domain](RGBD_SPATIAL_OBSERVATIONS.md) adds retained surface
 annotations. The optional cuVSLAM provider estimates local RGB-D poses in an
-isolated process with capture, calibration and map-epoch checks. Native
-localization validation, collision-map construction and route execution remain
-pending.
+isolated process with capture, calibration and map-epoch checks; a live
+native simulation stream tracked 12 real captures, with pose uncertainty
+still uncalibrated. Calibrated localization, collision-map construction and
+native route execution remain pending; the opt-in `go_to` route runner has
+CPU tests only ([current state](#ros2-humanoids-and-what-is-not-here-yet)).
 
 The optional [MicroDuck path](MICRODUCK.md) selects `MobileRig`, `SafeBase` and
 `MobileSkillRuntime` before arm construction. It shares CASCADE's MCP, traces
@@ -42,7 +44,10 @@ support determine outcomes. Canonical model identity binds state, frames and
 verifier profiles to the effective recipe. Historical short-distance episodes
 have bounded positive results; general gait, longer paths and later source/model
 compositions require their own validation. The policy advances on completed
-physics solves, with no LLM call in the control loop.
+physics solves, with no LLM call in the control loop. The Unitree H2 PhysX
+walking candidate ([HUMANOID_H2.md](HUMANOID_H2.md)) uses the same
+`MobileBase` / `SafeBase` / verifier path through its own owner process;
+neither robot is admitted physically.
 
 See the [capability and acceptance index](PROJECT_STATUS_20261003.md) for merged
 changes, software validation and physical runs, and the
@@ -746,11 +751,16 @@ src/cascade/
 │   ├── rebot_rs_arm.py / rebot_rs_mb_arm.py   reBot B601 over CAN / MotorBridge
 │   ├── robstride.py    shared RS helpers: travel clamp, fault clear, opt-in squeeze-capped close (B38)
 │   ├── ros2_arm.py     ANY ros2_control robot (JointState in, JointTrajectory out)
-│   └── unitree_arm.py  Unitree SDK arms (H1 / H1-2 / G1)
+│   ├── unitree_arm.py  Unitree SDK arms (H1 / H1-2 / G1)
+│   ├── mobile_base.py  MobileBase ABC: BaseState + VelocityCommand, generation fences
+│   ├── mobile_rig.py / mock_base.py / isaac_base.py   named bases; kinematic double;
+│   │                   bridge client of a simulator-owned controller (microduck | h2)
+│   └── h2_policy_contract.py   Velocity-H2-History-v0 contract (31 joints, 14 commanded)
 ├── safety/
 │   ├── harness.py      SafetyHarness (approve / vet_pose, escape rules) + SafeArm
 │   ├── trajectory.py   sampled route validation and bounded planning
-│   └── geometry.py     segment-segment distances for the inter-arm gate
+│   ├── geometry.py     segment-segment distances for the inter-arm gate
+│   └── base_harness.py SafeBase: base limits, freshness, cancellation, progress
 ├── calibration/        hand-eye calibration (ArUco; ported from Seeed's WRC fork) -- docs/HANDEYE_CALIBRATION.md
 │   ├── handeye.py      joint SE(3) solve of A X B = Z (eye-to-hand + eye-in-hand), robust LM + quality gate
 │   ├── session.py      collection sweep: presets vetted twice, every move via SafeArm.move_planned
@@ -769,6 +779,7 @@ src/cascade/
 │   ├── programs.py     tier 2.5 (opt-in): program contract/validation, runner (ledger verdicts, stop + next_action),
 │   │                   authoring prompt/parse, distillation of verified runs (docs/PROGRAMS_TIER.md)
 │   ├── effects.py      PostconditionChecker + annotate_result (Pigey closed loop; `restored`/`searched` for the composites)
+│   ├── base_effects.py independent mobile postconditions on a state channel the actuator does not own
 │   ├── milestones.py   checkable milestones: symbolic first, VLM second, UNKNOWN honest;
 │   │                   + advisory pre-motion plausibility critic (never a veto)
 │   ├── llm.py          OpenAI-compat (cloud/local) / Anthropic / Codex CLI (GPT-6-Astra via `codex exec`, no API key) / Cosmos3 / Mock
@@ -781,7 +792,15 @@ src/cascade/
 │   │                   incl. the Pigey composites snapshot_scene / restore_scene / search_for_object
 │   ├── contact_episode.py / release_episode.py  scoped retained recovery
 │   ├── held_observation.py aiming estimates vs coherent release authority
+│   ├── mobile_runtime.py MobileSkillRuntime: walk_velocity / walk_distance / turn / stop_navigation
 │   └── library.py      markdown repair notes; written by aspire.py, retrieved per task
+├── spatial/
+│   ├── frames.py / memory.py / grid.py   capture-time frames, grounded memory, planar routes
+│   ├── navigation.py   opt-in `go_to` route runner (CPU tests only; no shipped provider)
+│   └── cuvslam.py      optional cuVSLAM RGB-D localization (+ _worker, _uncertainty)
+├── robotics/
+│   ├── runtime.py / contracts.py / embodiment.py   RobotRuntime, resources, embodiments
+│   └── whole_body.py   opt-in mounted-arm contract (B30, mock-only)
 ├── sim/
 │   ├── ovrtx_renderer.py     optional owned RTX renderer for explicit scene snapshots
 │   ├── mujoco_world.py shared MjModel/MjData registry (arm + cameras + truth, one lock)
@@ -789,12 +808,14 @@ src/cascade/
 │   ├── truth.py        physics-truth channel (MuJoCo + Isaac), LazyTruthPoseFn
 │   ├── mujoco_rgbd.py  offscreen RGB-D + data.xpos truth (perception verification)
 │   ├── isaac_reset.py  validates measured per-prop reset replies, never fabricates poses
+│   ├── mobile_bridge.py / h2_physx.py / h2_stepper.py   simulator-owned base controller; H2 PhysX owner
 │   └── bridge_client.py newline-JSON TCP client for scripts/isaac_bridge.py
 ├── eval/progress_judge.py   Robo-Dopamine progress judge (GRM / VLM), off the hot path
 └── apps/
     ├── demo.py         build_runtime() = the composition root; CLI --task / --interactive
     ├── mcp_server.py   MCP front-end: 47 tools (2 only with the opt-in programs tier), out-of-band stop, per-call log; stdio by default, Streamable HTTP (`--http`, bearer + TLS) for NemoClaw/OpenShell
     ├── capabilities.py capability matrix from the built runtime; TOOL_REQUIREMENTS trims the MCP catalog
+    ├── mobile_runtime.py / robot_runtime.py   base-only (`--base`) and composed (`--robot`) runtimes
     ├── process_owner.py profile-owned process identity for shutdown and proof binding
     ├── stream_server.py lazy MJPEG dashboard (+ chat, STOP)     live_view.py  RigViewer
     ├── live_control.py viewer-driven control        record.py / viewer.py  capture / view
@@ -814,6 +835,18 @@ first; the required-profile inference check above is unchanged).
 
 ## ROS2, humanoids, and what is NOT here yet
 
+Re-derived from the code on 2026-10-09 (B48). Every claim below names its
+evidence: *measured* (a run with numbers, linked), *CPU tests* / *mock-only*
+(software evidence), *simulation only* (Isaac Sim / Newton / PhysX episodes,
+no robot), or *unverified on hardware* (written against a real interface,
+never run on a robot). `tests/test_docs_architecture_current.py` fails when
+the "Still not here" list names a capability whose module exists, when a
+present capability's module is not cited here, or when a cited path is gone.
+The wider design direction stays in `docs/MOBILITY_AND_NAVIGATION_DESIGN.md`
+(its status note says which parts landed and how they differ); open work is
+in the ROADMAP rows "Locomotion", "Mapping and navigation" and "Whole-body
+humanoids".
+
 **ROS2 today = arms.** `type: ros2` (`control/ros2_arm.py`) speaks the two
 interfaces every `ros2_control` deployment has -- `sensor_msgs/JointState`
 in, `trajectory_msgs/JointTrajectory` (or `Float64MultiArray` for a forward
@@ -829,7 +862,7 @@ profiles: `so101_ros2`, `piper`, `h1`, `h1_2`, `fr3`. Design rationale (QoS,
 streaming vs. single trajectory, stop semantics, licence notes) in
 `docs/ROS2_BACKEND_BRIEF.md`. **Unverified on hardware.**
 
-**Humanoids today = one arm of a standing robot.** `type: unitree_arm`
+**Humanoid arms on a standing robot.** `type: unitree_arm`
 (`control/unitree_arm.py`) drives an arm of a G1 / H1 / H1-2 over Unitree's
 Arm-SDK channel (`rt/arm_sdk` LowCmd with the per-family motor index table
 and the CRC the firmware validates; `rt/lowstate` in), ramping the SDK
@@ -838,18 +871,114 @@ Balance, legs, waist and walking stay with Unitree's own controller; a
 handless gen-1 H1 declares `max_width_m: 0` so grasps are refused, not mimed.
 The humanoid profiles' `base_pose` places the shoulder in the shared table
 frame, which is what the inter-arm and occupancy gates need. **Unverified on
-hardware.**
+hardware.** The whole-body H2 walking candidate below is a separate path.
 
-**Not here: a mobile base, navigation, mapping, robot self-localization.**
-Nothing publishes a Twist, consumes odometry or a map, or talks to Nav2;
-"localization" in this codebase means object grounding. The design for that
-layer -- a `MobileBase` twin of `ArmBase`, `MobileRig`, `base=` binding in
-`execute()`, Vesta's three navigation verbs as skills (`go_to_pixel`,
-`turn`, `stop_navigation`) with the memory harness spanning the walk, a
-2D costmap sliced from the existing Warp ESDF, and two navigation backends
-(Nav2 when ROS2 is sourced, the Warp planner otherwise), targeting a Unitree
-G1/H1 in Isaac Sim first -- is written up in
-`docs/MOBILITY_AND_NAVIGATION_DESIGN.md` and scheduled in the ROADMAP.
+**Mobile bases (velocity level, since 2026-10-02).**
+`control/mobile_base.py` defines `MobileBase`: immutable `BaseState`
+snapshots of completed physics steps, finite body-frame `VelocityCommand`s
+admitted against a generation fence, and separate stop / `reset_stop`
+channels -- a velocity interface, not the `go_to` / `costmap()` interface the
+2026-09-10 design sketched. `MobileRig` (`control/mobile_rig.py`) names the
+bases; `SafeBase` (`safety/base_harness.py`) enforces limits, freshness,
+cancellation and progress; `MobileSkillRuntime` (`skills/mobile_runtime.py`)
+serves `walk_velocity`, `walk_distance`, `turn`, `stop_navigation`,
+`get_base_state` and the stop tools with an optional `base` argument; and
+`agent/base_effects.py` judges every command on a state channel the actuator
+does not own (the mock base has no truth channel, so its motions stay
+`unverified`). `apps/mobile_runtime.py::make_base` builds exactly two
+backends: `mock` (`control/mock_base.py`, a kinematic test double) and
+`isaac` (`control/isaac_base.py`, a bridge client of a simulator-owned
+controller, kinds `microduck` and `h2`). A base runs alone with
+`--base <profile>` / `CASCADE_BASE` (no arm is built) or as the `locomotion`
+domain of a `--robot` profile; profiles live in `configs/bases/`. Evidence:
+CPU tests (`tests/test_mobile_*.py`) plus the simulation episodes below;
+there is no hardware backend, so no base has moved a robot.
+
+**Legged robots on that layer: MicroDuck and the Unitree H2 (simulation
+only).** MicroDuck ([MICRODUCK.md](MICRODUCK.md)) runs its official ONNX
+policy with the pinned native BAM on Newton
+(`scripts/isaac_microduck_bridge.py`); measured native episodes (standing
+and stop checks, four historical ±30 mm distance receipts that a later
+audit no longer admits, one small negative turn) sit beside retained
+failures (composed reverse motion, larger and positive turns), so its
+locomotion is a candidate, not admitted. The Unitree H2 whole-body walking
+candidate ([HUMANOID_H2.md](HUMANOID_H2.md)) binds NVIDIA's public H2 USD
+and `Velocity-H2-History-v0` policy through `control/h2_policy_contract.py`
+(31 joints, 14 commanded; arms, head and waist yaw held) and a PhysX owner
+(`sim/h2_physx.py`, `sim/h2_stepper.py`, `scripts/isaac_h2_bridge.py`) on
+the internal Isaac Sim 6.2 build. Measured there through `SafeBase` and the
+independent verifier: first episodes 3 of 5 `walk_velocity` commands
+confirmed; candidate revision 2 confirmed 6 of 7 on the controller and MCP
+paths; the revision-3 turn ramp took 0.8 rad turns to 8/8 (1/6 without) but
+1.0 rad turns to 1/5 (5/6 without); revision 4 has CPU tests only. Binding
+gate passed in simulation; no physical admission and no hardware binding.
+
+**Arm mounted on a base (B30, mock-only).** `robotics/whole_body.py` and an
+opt-in `whole_body:` profile block
+(`configs/robots/mobile_manipulator_mock.yaml`) compose a locomotion base
+and an arm `mounted_on` it: disjoint command endpoints, a capture-time
+`world ← base ← arm_base` frame chain (a stale or missing base pose refuses
+arm motion), `exclusive` coordination by default and per-domain
+`reset_stop(domain=...)`
+([contract](ROBOT_MODULARITY.md#multi-domain-embodiments-mounted-arms)).
+Measured by 43 CPU tests (`tests/test_whole_body_domains.py`) on the
+kinematic mock arm and base only; a composition with any physical actuating
+resource is refused. It is a composition contract, not a whole-body
+controller.
+
+**Localization: cuVSLAM (optional, uncalibrated).** `spatial/cuvslam.py`
+(`CuVslamSpatialDomain`; the SDK runs in an owned worker process,
+`spatial/cuvslam_worker.py`) estimates the optical-camera pose from
+retained RGB-D captures through `warmup_localization` / `track_capture` /
+`get_localization`; it never acquires a frame or moves anything, and
+cuVSLAM is not installed by default. `spatial/cuvslam_uncertainty.py` keeps
+the SDK's odometry covariance apart from the SLAM pose. Measured natively
+([record](CUVSLAM_NATIVE_VALIDATION.md)): a 12-frame synthetic replay
+(final translation error 0.01178 m), a
+[live stream](CUVSLAM_NATIVE_VALIDATION.md#live-native-rgb-d-stream) that
+tracked 12 real captures from a 320-solve Isaac/Newton MicroDuck producer
+under zero policy commands, with `emergency_stop` invalidating the map
+epoch, and 12 of 12 odometry covariance matrices through the worker IPC.
+Pose uncertainty stays unknown (no calibrated error bound), tracking loss
+and map-epoch changes are untested natively, and no physical camera has
+fed it.
+
+**Route execution: `go_to` (opt-in, CPU tests only).**
+`spatial/navigation.py` (`NavigationDomain`) replaces the free-motion tools
+with `go_to(goal_xy_m, map_epoch, map_sha256)`: a conservative route on an
+immutable planar grid (`spatial/grid.py`, flat ground only), executed as
+`turn` / `walk_distance` segments through the same `SafeBase` and verifier,
+with the whole-robot swept volume (`spatial/robot_volume.py`) cleared
+against fresh registered base poses during travel. It is reachable only
+through the Python API (`build_mobile_runtime(..., navigation_source=...)`
+or `build_robot_runtime(navigation_bindings=...)`) and refused for
+whole-body compositions. No shipped provider satisfies its source contract
+(a registered map-from-base pose with known error bounds plus swept-volume
+clearance, [SPATIAL_PROVIDERS.md](SPATIAL_PROVIDERS.md#opt-in-observed-route-execution));
+only the fixture in `tests/test_spatial_navigation.py` does, over the mock
+controller. Grids today come only from the synthetic `spatial_replay`
+profile (`spatial/domain.py`).
+
+**Still not here** (checked against `src/cascade`, `scripts/` and `configs/`
+on 2026-10-09):
+
+- ROS2 for a base: nothing publishes `geometry_msgs/Twist` on `/cmd_vel`,
+  subscribes to `nav_msgs/Odometry` or an `OccupancyGrid`, or calls Nav2;
+  there is no `ros2_base`, `unitree_base` (Unitree `LocoClient`) or
+  `mujoco_base` backend (`make_base` accepts `mock` and `isaac` only).
+- A collision map built from the robot's own sensors for a base: the
+  arm-local occupancy service is not sliced into a costmap, RGB-D surface
+  annotations are not a collision map, and so no shipped source can feed
+  the route runner above.
+- A calibrated pose: no localization source has a measured error bound, and
+  tracking loss and map-epoch changes are not validated natively.
+- The 2026-09-10 design's planner verbs `go_to_pixel`, `go_to_object` and
+  `where_am_i`, and a `base=` binding inside the arm runtime's
+  `SkillRuntime.execute()`.
+- A whole-body controller: balance-aware arm motion, self/environment
+  collision for an arm on a moving base, arm physics on the H2 (its arms
+  are held) and any physical mobile manipulation.
+- Hardware: no base or legged robot has been driven by CASCADE.
 
 ## Launch and hosts
 

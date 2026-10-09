@@ -361,6 +361,73 @@ MicroDuck retains its existing audited 61-observation/14-action native contract.
 Its head/neck joints belong to that policy; the mouth lies outside it. A speech
 app must not obtain a second writer to policy-owned joints.
 
+### Capture-time alignment (B50, opt-in)
+
+A camera capture and an IMU or joint sample describe one instant only when
+they were captured at (nearly) the same time on one clock. `read_sensor`
+returns each sensor's latest capture independently: on the loopback mobile
+bridge, a camera read at physics step 10 followed by an IMU read returns steps
+10 and 11, and nothing says so. An `alignment:` block in a sensors domain adds
+the read-only tool `read_aligned` (absent: the catalog is byte-identical):
+
+```yaml
+sensing:
+  kind: sensors
+  alignment:
+    max_skew_s: 0.02          # required, (0, 1] s; the bound is inclusive
+    max_rotation_rad: 0.02    # optional
+    max_translation_m: 0.005  # optional
+  providers: [...]
+```
+
+`sensing.read_aligned(reference="overview", sensor_ids=["imu", "joints"])`
+(default: every other sensor) reads ONE fresh reference capture. A failed or
+repeated reference read refuses the call; no older capture is substituted. Each
+paired sensor is read once (a refusal, such as a replay when its producer has
+nothing newer, is reported as `read_error`, not fatal) and paired with its
+admitted capture in the hub's bounded history nearest the reference's capture
+time (`src/cascade/sensing/alignment.py`):
+
+- Only comparable clocks are paired by skew: the same clock domain and the same
+  epoch (a reset world restarts simulation time). The process-local
+  `monotonic` domain is shared by every in-process provider across epochs.
+- `aligned`: |skew| ≤ `max_skew_s`.
+- `uncertain`: the observation is returned but flagged. `clock_not_comparable`
+  (no comparable capture; the latest one, skew unknown, while younger than the
+  sensor's `max_age_s`), `saturated` (the payload's own flag) or
+  `motion_exceeds_tolerance`: the sample's own measured rate × |skew| (|gyro|
+  for an IMU, the fastest joint per unit for joint payloads) exceeds the
+  declared tolerance. That is a first-order estimate, not a bound.
+- `stale`: |skew| > `max_skew_s`, or an incomparable capture older than
+  `max_age_s`. Sequence, epoch, capture time, skew and capture SHA-256 are
+  reported; the observation is withheld.
+- `missing`: no admitted capture. Nothing is made up.
+
+Nothing is interpolated or extrapolated: a returned observation is one admitted
+capture, byte for byte (its `capture_sha256` is the hub's). Ties keep the
+earlier capture. Channels a producer did not measure stay absent and are listed
+(`absent`: e.g. the mobile IMU's `linear_acceleration_m_s2`, `effort_nm`). B39's
+link self-mask pairs camera frames with joint samples through the same buffer
+and classification.
+
+Measured (software only, `tests/test_proprio_time_alignment.py`, 42 tests;
+RED on `origin/main` be57535: 35 failed, 7 premise/golden passed): on the real
+loopback mobile bridge (state socket and RGB-D frame cache) through the MCP
+composed-robot path, a step-10 camera capture pairs with the step-11 IMU and
+proprioception samples at +5 ms (aligned under 7.5 ms); a step-14 capture finds
+only step 11 (−15 ms: stale, withheld, `replay` reported); a 3 rad/s yaw rate
+5 ms from the capture is uncertain (0.015 rad > 0.01 rad). Only reader-role
+`hello`/`state`/`frame` requests reach the bridge and no actuator is built.
+Without `alignment:` the sensors-domain catalog of every shipped robot profile
+keeps its golden digest.
+
+Not claimed: IMU/proprioception fusion (no estimator consumes the pairings),
+the skew distribution of a native Isaac producer, producer-rate sampling (the
+history holds only captures that reads admitted, at most 32 captures / 16 MB
+shared by all sensors, so one large RGB-D capture can evict IMU samples),
+hardware clock synchronization, or the accuracy of the first-order motion
+estimate.
+
 ## Why these research directions fit
 
 This is a focused survey of relevant primary implementations, not a claim that

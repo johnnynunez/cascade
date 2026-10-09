@@ -569,6 +569,15 @@ def build_runtime(
     mode, idle_timeout = resolve_mode(scfg, os.environ.get)
     if not serve:
         mode = "off"
+    # B47 (opt-in): `stream.wrist_narration: true` + a wrist stream -> the
+    # dashboard highlights that tile during motion skills with one line built
+    # from verifiable state only. Off, or no wrist stream: nothing attached,
+    # nothing served differently (apps/wrist_narration.py).
+    from .wrist_narration import build_narrator
+
+    runtime.wrist_narrator = build_narrator(runtime, scfg)
+    wrist_kw = ({"wrist_view": runtime.wrist_narrator.camera}
+                if runtime.wrist_narrator is not None else {})
 
     def _make_stream_server():
         from .stream_server import StreamServer
@@ -584,6 +593,7 @@ def build_runtime(
             runtime_fn=lambda: runtime,
             depth_max_m=float(scfg.get("depth_max_m", 2.0)),
             on_poll=lambda: runtime.live_view.note_poll(),
+            **wrist_kw,
         )
 
     external_view = os.environ.get("CASCADE_EXTERNAL_VIEW_URL")
@@ -734,6 +744,11 @@ def _runtime_state(runtime) -> dict:
     out["capabilities"] = capability_matrix(runtime)
     if runtime.watcher is not None:
         out["perception"] = runtime.watcher.stats()
+    # B47: only with a wrist narrator (opt-in + a wrist stream); absent, the
+    # state carries exactly the keys it always had.
+    narrator = getattr(runtime, "wrist_narrator", None)
+    if narrator is not None:
+        out["wrist_view"] = narrator.snapshot(runtime)
     return out
 
 

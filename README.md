@@ -510,7 +510,11 @@ python -m cascade.apps.demo --arm so101_mujoco --camera mujoco_scene --interacti
 # to the front ones for every motion skill, and the outcome judge
 # (scripts/judge_run.py) fills the GRM prompt's two wrist slots with them
 # instead of repeating the front view. Evidence only: no hand-eye
-# calibration is claimed and the view fuses no beliefs.
+# calibration is claimed and the view fuses no beliefs. Opt-in
+# `stream.wrist_narration: true` also highlights that tile on the dashboard
+# while a motion skill runs, captioned with one line of verifiable state
+# (skill + target, held-state, the grasp's three-state verdict) -- never a
+# claim about what the frame shows; no wrist camera = no panel.
 python -m cascade.apps.demo --arm so101_mujoco --cameras mujoco_scene,mujoco_wrist --interactive
 
 # ONE CLICK: simulator (Isaac Sim if installed, else MuJoCo) + OpenClaw 2.0

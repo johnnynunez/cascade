@@ -55,7 +55,8 @@ the arm before inference, the runtime when it takes a frame for
 get_observation / _reobserve, and `attach` samples on demand when no sample is
 near enough. If the nearest sample is more than `max_skew_s` away, NO mask is
 built and `last` says why: missing evidence stays missing, it is never
-interpolated or invented.
+interpolated or invented. The sample ring and that classification are the
+shared capture-time alignment component (`cascade.sensing.alignment`, B50).
 
 FINGERS. Joints past the `n_controlled` commanded ones (the RS's two
 prismatic fingers) are posed from the measured gripper opening: `gripper_pos`
@@ -75,13 +76,15 @@ import sys
 import threading
 import time
 import xml.etree.ElementTree as ET
-from collections import Counter, deque
+from collections import Counter
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Callable, Iterable
 
 import cv2
 import numpy as np
+
+from ..sensing.alignment import ALIGNED, MISSING, SampleBuffer, classify
 
 #: Points nearer the camera plane than this (metres) are clipped: perspective
 #: projection is undefined at z = 0 and mirrors what lies behind the camera.
@@ -515,16 +518,12 @@ def rasterize_pieces(pieces: Iterable[np.ndarray], K, T_cam2base, shape, dilate_
 # ── time alignment ────────────────────────────────────────────────────────
 
 
-class JointSamples:
-    """A bounded, thread-safe ring of RobotState samples by their monotonic `t`."""
+class JointSamples(SampleBuffer):
+    """A bounded, thread-safe ring of RobotState samples by their monotonic `t`.
 
-    def __init__(self, maxlen: int = 64):
-        self._buf: deque = deque(maxlen=int(maxlen))
-        self._lock = threading.Lock()
-
-    def __len__(self) -> int:
-        with self._lock:
-            return len(self._buf)
+    The ring and its nearest-sample lookup are the shared capture-time
+    alignment component (`cascade.sensing.alignment`, B50).
+    """
 
     def record(self, state) -> bool:
         """Keep `state` if its time and joint vector are finite; False otherwise."""
@@ -535,18 +534,7 @@ class JointSamples:
             return False
         if not math.isfinite(t) or q.size == 0 or not np.isfinite(q).all():
             return False
-        with self._lock:
-            self._buf.append((t, state))
-        return True
-
-    def nearest(self, t: float):
-        """`(state, skew_s)` of the sample nearest `t` (skew = sample.t - t), or None."""
-        with self._lock:
-            items = list(self._buf)
-        if not items:
-            return None
-        ts, state = min(items, key=lambda item: abs(item[0] - t))
-        return state, ts - t
+        return self.add(t, state)
 
 
 # ── link poses from the arm model ─────────────────────────────────────────
@@ -721,15 +709,15 @@ class LinkSelfMask:
             arm.error = None
 
     def _arm_pieces(self, arm: _Arm, t: float):
-        got = arm.samples.nearest(t)
-        if got is None or abs(got[1]) > self.max_skew_s:
+        pairing = classify(t, arm.samples.nearest(t), max_skew_s=self.max_skew_s)
+        if pairing.status != ALIGNED:
             self._sample(arm)  # on demand: nothing was sampled near this frame
-            got = arm.samples.nearest(t)
-        if got is None:
+            pairing = classify(t, arm.samples.nearest(t), max_skew_s=self.max_skew_s)
+        if pairing.status == MISSING:
             return None, {"reason": "no_joint_state", "skew_s": None, "error": arm.error}
-        state, skew = got
-        if abs(skew) > self.max_skew_s:
-            return None, {"reason": "stale_joint_state", "skew_s": skew, "error": arm.error}
+        if pairing.status != ALIGNED:   # stale: the value is withheld, never interpolated
+            return None, {"reason": "stale_joint_state", "skew_s": pairing.skew_s, "error": arm.error}
+        state, skew = pairing.sample, pairing.skew_s
         pose_sets = arm.poses(state)
         out = []
         for link, link_pieces in arm.geometry.pieces.items():

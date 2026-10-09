@@ -220,6 +220,10 @@ class SkillRuntime:
         self.live_view = None
         #: the live StreamServer while the view is open, else None
         self.stream_server = None
+        #: B47 WristNarrator (apps/wrist_narration.py), set by the app wiring
+        #: only with `stream.wrist_narration: true` AND a wrist stream; None
+        #: = execute() dispatches exactly as before.
+        self.wrist_narrator: Any = None
         #: natural-language task currently executing (dashboard narration)
         self.current_task: str | None = None
         #: where the persistent world model is written on shutdown (set by the
@@ -604,6 +608,28 @@ class SkillRuntime:
         return self._task_effects.snapshot()
 
     def execute(self, name: str, args: dict) -> dict:
+        """Dispatch with task obligations covering all tiers and preparation faults.
+
+        B47: with a wrist narrator attached (`stream.wrist_narration: true`
+        and a wrist stream, apps/wrist_narration.py) a motion skill is
+        bracketed by the narrator's begin/end so the dashboard can highlight
+        the wrist view while it runs; the `finally` guarantees a raised
+        dispatch never leaves the highlight on. Without a narrator this is
+        exactly the previous dispatch. The narrator only records -- it never
+        alters args, the result, or whether the skill runs."""
+        narrator = getattr(self, "wrist_narrator", None)
+        if narrator is None or name not in _MOTION_SKILLS:
+            return self._execute_with_obligations(name, args)
+        owns = narrator.begin(self, name, args)
+        result = None
+        try:
+            result = self._execute_with_obligations(name, args)
+            return result
+        finally:
+            if owns:
+                narrator.end(self, result)
+
+    def _execute_with_obligations(self, name: str, args: dict) -> dict:
         """Dispatch with task obligations covering all tiers and preparation faults."""
         from ..agent.effects import POSTCONDITIONS
 

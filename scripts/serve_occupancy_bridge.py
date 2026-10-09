@@ -36,11 +36,18 @@ frame, metres, float32):
 
     ./scripts/serve_occupancy_bridge.py [--port 5557] [--voxel-size 0.01]
         [--backend auto|nvblox|warp|voxel] [--region-min x y z] [--region-max x y z]
+
+Test ownership (B64): `--port 0` binds a port the OS assigns and prints one
+stdout line `CASCADE_SERVER_READY {"endpoint", "port", "pid", "instance"}`
+after the bind; `--instance-id TOKEN` adds `"pid"` and `"instance": TOKEN` to
+the probe reply, so a test fixture only ever talks to the bridge it started.
+Without them the probe reply is unchanged.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import time
@@ -59,13 +66,16 @@ msgpack_numpy.patch()
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--port", type=int, default=5557)
+    ap.add_argument("--port", type=int, default=5557,
+                    help="0 = a port the OS assigns, announced on stdout")
     ap.add_argument("--voxel-size", type=float, default=0.01)
     ap.add_argument("--backend", choices=["auto", "nvblox", "warp", "voxel"], default="auto")
     ap.add_argument("--region-min", type=float, nargs=3, default=(-0.5, -0.6, -0.15),
                     help="workspace AABB the dense backends allocate (base frame, m)")
     ap.add_argument("--region-max", type=float, nargs=3, default=(0.9, 0.6, 0.7))
     ap.add_argument("--device", default="auto", help="warp: cpu|cuda:0|auto")
+    ap.add_argument("--instance-id", default=None,
+                    help="token echoed with this process's pid in the probe reply")
     args = ap.parse_args()
 
     t0 = time.perf_counter()
@@ -74,8 +84,10 @@ def main() -> None:
     describe = grid.describe()
     ctx = zmq.Context.instance()
     sock = ctx.socket(zmq.REP)
-    sock.bind(f"tcp://0.0.0.0:{args.port}")
-    print(f"[occupancy-bridge] :{args.port} backend={grid.name} {describe} "
+    sock.bind(f"tcp://0.0.0.0:{args.port}")          # 0 = a port the OS assigns
+    endpoint = sock.getsockopt(zmq.LAST_ENDPOINT).decode()
+    port = int(endpoint.rsplit(":", 1)[1])
+    print(f"[occupancy-bridge] :{port} backend={grid.name} {describe} "
           f"(up in {time.perf_counter()-t0:.1f}s)", file=sys.stderr, flush=True)
 
     probe = {
@@ -84,6 +96,12 @@ def main() -> None:
         "esdf": grid.name in ("nvblox", "warp"), "carving": grid.name in ("nvblox", "warp"),
         "masked_depth": bool(getattr(grid, "masked_depth", False)),
     }
+    if args.instance_id is not None:
+        probe.update(pid=os.getpid(), instance=args.instance_id)
+    if args.port == 0:
+        print("CASCADE_SERVER_READY " + json.dumps(
+            {"endpoint": endpoint, "port": port, "pid": os.getpid(),
+             "instance": args.instance_id}), flush=True)
     while True:
         raw = sock.recv()
         try:

@@ -793,7 +793,7 @@ src/cascade/
 ├── eval/progress_judge.py   Robo-Dopamine progress judge (GRM / VLM), off the hot path
 └── apps/
     ├── demo.py         build_runtime() = the composition root; CLI --task / --interactive
-    ├── mcp_server.py   MCP front-end: 47 tools (2 only with the opt-in programs tier), out-of-band stop, per-call log; stdio by default, Streamable HTTP (`--http`, bearer + TLS) for NemoClaw/OpenShell
+    ├── mcp_server.py   MCP front-end: 47 tools (2 only with the opt-in programs tier), out-of-band stop, per-call log, opt-in read-only lane (B46); stdio by default, Streamable HTTP (`--http`, bearer + TLS) for NemoClaw/OpenShell
     ├── capabilities.py capability matrix from the built runtime; TOOL_REQUIREMENTS trims the MCP catalog
     ├── process_owner.py profile-owned process identity for shutdown and proof binding
     ├── stream_server.py lazy MJPEG dashboard (+ chat, STOP)     live_view.py  RigViewer
@@ -925,6 +925,40 @@ serial worker and receive-side stop channel (`_admit`), and namespaces
 JSON-RPC ids per session. `scripts/nemoclaw_mcp.py` issues the certificate,
 token and registration. Stdio through `launch.sh` remains the default; see
 [NEMOCLAW.md](NEMOCLAW.md).
+
+Read-only lane (opt-in, B46): `mcp.readonly_lane: true` (or
+`CASCADE_MCP_READONLY_LANE=1`) lets a chat host look while the robot moves.
+After `_admit` (stops, cancels, pings keep first claim on every frame), the
+receive side's `_enqueue` hands a `tools/call` for one of
+`READONLY_LANE_TOOLS` -- `world_state`, `robot_knowledge`,
+`verify_last_action`, `camera_snapshot` -- to a single lane thread when the
+worker's in-flight call is a motion (`_MOTION_SKILLS`, or `run_program` with
+the programs tier on); every other frame is queued for the serial worker as
+before, so motions stay strictly serialized and a second motion still waits.
+The receive side only checks and enqueues, so a held lane call cannot delay a
+stop, and the lane never writes `_inflight`, so a host cancel of the motion
+still latches the e-stop. Membership rule, per tool: it never enters
+`SkillRuntime.execute()` (no trace row, memory event, envelope record,
+watcher pause, per-call scratchpad or `last_frame` write), never takes
+`_exec_lock`, never commands an arm, gripper or base, and touches only state
+already guarded for concurrent readers. `world_state` is the dashboard
+`/state` body, which runs on HTTP threads during every motion (its only
+writes are the belief store's and episodic memory's own age-based expiry,
+under their locks, which every reader performs); the envelope
+and grasp-memory digests take their stores' own short locks, which the 50 Hz
+control loop (`harness.approve` + arm streaming) never takes; the verdict
+history is append-only; on the lane `camera_snapshot` is a passive stream
+read like the dashboard's MJPEG reads (the stream's condition is held only to
+take a frame reference; waiting releases it) -- no `observe_fresh`, so no
+`last_frame` write, no in-place depth filling, no harness heartbeat.
+`describe_scene` and `get_observation` stay
+out: they fuse beliefs mid-motion (exactly what the watcher pause prevents),
+run the shared detector and read the arm. A lane result carries
+`served_during_motion` (`motion`, `note`: state may be in flux, the motion's
+verdict is not recorded yet). Off (the default) the routing is the plain
+queue put; `tests/test_mcp_readonly_lane.py` pins both modes through the real
+server process (stdio and HTTP), holding a motion mid-stream with file
+barriers.
 
 ## Key decisions (still load-bearing)
 
@@ -1098,11 +1132,17 @@ token and registration. Stdio through `launch.sh` remains the default; see
   the robot gains no reach), and live Isaac / real-rig picks in the new region
   are not yet measured ([REACH_ENVELOPE.md](REACH_ENVELOPE.md)).
 - `RebotRSArm.disconnect()` cuts torque: park (`move_home`) first.
-- The MCP server executes one tool call at a time; stops are handled
-  out-of-band by the stdin reader (never queued behind a motion), but a
-  second *motion* request waits. A `run_program` call is one such call for
-  its whole program (seconds per step): a stop or cancel interrupts it, a
-  second request waits.
+- The MCP server executes one tool call at a time by default; stops, cancels
+  and pings are handled out-of-band by the receive side (never queued behind
+  a motion), but every other request waits for the motion in flight. With the
+  opt-in read-only lane (`mcp.readonly_lane`, B46) `world_state`,
+  `robot_knowledge`, `verify_last_action` and `camera_snapshot` answer during
+  a motion instead (marked `served_during_motion`); a second *motion*
+  request, `describe_scene`, `get_observation` and every other tool still
+  wait. A `run_program` call is one motion for its whole program (seconds per
+  step): a stop or cancel interrupts it, a second request waits. The lane
+  ships off and is measured on the mock stack only (no live Isaac or real-rig
+  latency yet).
 - The rendered-camera window (`RigViewer`) cannot open on macOS from the
   server (Cocoa needs the main thread; `opencv-python-headless` has no
   highgui); the MuJoCo physics window and the browser dashboard are the

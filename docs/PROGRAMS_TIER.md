@@ -248,7 +248,11 @@ turn and everything after it is the CLI's own code (`ProgramTier`,
   resumes until `reset_stop`. A latched e-stop before the call means the
   program never starts (`aborted`, zero motion). The whole program holds the
   server's execution lock, so the dashboard reflex chat cannot interleave a
-  motion.
+  motion. With the opt-in read-only lane (`mcp.readonly_lane`, B46) a
+  `run_program` in flight counts as a motion: `world_state`,
+  `robot_knowledge`, `verify_last_action` and `camera_snapshot` answer during
+  it (marked `served_during_motion`); every other call still waits for the
+  whole program.
 - **Result.** `ok` is true only for a completed, CONFIRMED run; otherwise
   `isError` with `status` (`completed` | `stopped` | `aborted` | `stuck` |
   `refused`), per-step verdicts and evidence, `stopped_at`, `reason`,

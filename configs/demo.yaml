@@ -399,6 +399,21 @@ stream:
   quality: 80
   depth_max_m: 2.0          # depth-view colormap range (tabletop scale)
 
+# MCP server front-end (apps/mcp_server.py, chat hosts).
+mcp:
+  # Read-only lane (B46). OFF by default: the server answers one tool call at
+  # a time -- stops, cancels and pings are always handled out-of-band, but a
+  # world_state sent mid-pick waits for the pick. On, a world_state,
+  # robot_knowledge, verify_last_action or camera_snapshot call that arrives
+  # while a motion tool (or run_program) runs is answered at once on a
+  # separate lane thread, and its result carries `served_during_motion`
+  # (state may be in flux). Motions stay strictly serialized, every other tool
+  # still waits, a lane call can never delay a stop, and lane calls never
+  # enter SkillRuntime.execute() or take the execution lock (camera_snapshot
+  # reads the stream passively: no last_frame write, no depth filling).
+  # CASCADE_MCP_READONLY_LANE=1/0 overrides. false = the serial server exactly.
+  readonly_lane: false
+
 # Local cv2 window (RigViewer). One row per camera, RGB beside its depth
 # colormap so a depth sensor is never silently shown as RGB-only.
 # --no-view / CASCADE_VIEW=0 still disables the window entirely.

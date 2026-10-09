@@ -185,6 +185,49 @@ grasp:
   min_grasp_z_m: 0.008      # learned grasp z a few mm below this above the
                             # table is clamped up (tip-offset overshoot),
                             # not aborted
+  # Grasp EXECUTOR (ROADMAP mid term "VLA policy backend", B49) -- OPT-IN.
+  # `analytic` = everything above: localize -> plan (backend) -> select ->
+  # vetted approach/descent/close/lift; byte-identical to before B49.
+  # `vla` (or CASCADE_GRASP_EXECUTOR=vla) = grasp_object(label), and every
+  # composite that grasps by label, is served by a language-conditioned
+  # policy over the openpi / LingBot-VLA-v2 websocket protocol
+  # (grasping/vla_executor.py; `vla` extra: websockets + msgpack). Same
+  # localization; jaws open and re-home like the analytic path; then each
+  # action chunk is admitted WHOLE by the SafetyHarness (vet_pose, no grasp
+  # exemption) and streamed waypoint by waypoint through SafeArm.move_joints
+  # (approve() on every sample). Stop latch/halts honoured between chunks;
+  # chunk and episode deadlines end the episode with no further motion. The
+  # server's own success flags are never read: the jaw check and the
+  # postcondition verifier judge. No server, no extra, the observed-finger
+  # gate or a native motion planner -> the grasp is refused before motion
+  # (never an analytic fallback) and the capability matrix withholds the
+  # label-grasp tools. Pixel grasps (grasp_at_pixel) stay analytic.
+  # Protocol double: scripts/serve_vla_stub.py. See docs/VLA_EXECUTOR.md.
+  executor: analytic
+  vla:
+    host: 127.0.0.1
+    port: 8000                # openpi serve_policy default; LingBot uses --port (8006 default).
+                              # CASCADE_VLA_PORT overrides it.
+    connect_timeout_s: 1.0    # connect + metadata frame; also the startup probe budget
+    chunk_timeout_s: 2.0      # one infer round trip; a late chunk ends the episode
+    episode_timeout_s: 60.0   # the whole episode (also capped by the task budget)
+    max_chunks: 20
+    chunks_after_close: 1     # chunks run after the first close command (the lift)
+    max_chunk_len: 64         # rows per chunk accepted (LingBot --use_length 25..50)
+    action_key: actions       # reply key holding the (H, D) chunk (openpi: actions)
+    action_space: joint       # joint = absolute LOCAL joint angles (rad, this arm's
+                              # convention) | tcp = base-frame x y z roll pitch yaw (IK)
+    gripper: open_frac        # gripper column: 1 = open .. 0 = closed (close_frac flips it)
+    gripper_column: null      # null -> the column right after the arm columns
+    waypoint_duration_s: 0.2  # per action; SafeArm still stretches for the velocity cap
+    prompt: "pick up the {label}"
+    image_key: observation/image   # primary camera, RGB uint8, resized square
+    state_key: observation/state   # measured joints + jaw opening fraction, float32
+    prompt_key: prompt
+    image_size: 224           # null -> native resolution
+    reset: null               # sent once per episode before the first observation
+                              # (LingBot: {reset: true, robo_name: <robot config>})
+    extra_obs: {}             # static keys merged into every observation
 
 memory:
   horizon_s: 15.0           # episodic window the agent can consult

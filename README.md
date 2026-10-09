@@ -366,6 +366,7 @@ capability, because none of them are wanted on all hosts:
 | `arm-feetech` | `pyserial` | SO-101 and other Feetech-servo arms |
 | `arm` | `motorbridge` | RobStride over SocketCAN |
 | `grasping` | `pyzmq`, `msgpack-numpy` | the GraspGen-X / HUG / nvblox **client** wire (`grasp.backend: graspgenx`, the default; `hug` is opt-in, see [docs/HUG.md](docs/HUG.md)). Model stacks stay in their own venvs and processes, so cascade never imports torch for them |
+| `vla` | `websockets`, `msgpack` | the opt-in VLA policy **client** (`grasp.executor: vla`, openpi / LingBot websocket protocol; see [docs/VLA_EXECUTOR.md](docs/VLA_EXECUTOR.md)). The policy runs in its own environment on a GPU host |
 
 **torch is deliberately not a dependency.** The right build is per-platform
 (CUDA, ROCm, Jetson wheels, MPS, CPU) and pinning one here would fight the
@@ -626,6 +627,14 @@ command. Name a profile explicitly (`--llm mock`) to pin it, or set
   A second opt-in analytic backend, `grasp.backend: camera_frame`, ports
   Seeed's WRC / rebot_grasp mask planner (approach along the camera's line
   of sight; see [docs/WRC_PERCEPTION_PORT.md](docs/WRC_PERCEPTION_PORT.md)).
+  Opt-in too, a different EXECUTOR: `grasp.executor: vla` serves label
+  grasps from a language-conditioned policy over the openpi / LingBot-VLA
+  websocket protocol (`vla` extra). Every action chunk is admitted by the
+  safety harness before it moves and approved sample by sample while it
+  moves; the same verifier judges the grasp; no policy server means no
+  grasp, never a silent analytic fallback
+  ([docs/VLA_EXECUTOR.md](docs/VLA_EXECUTOR.md); measured against its
+  protocol stub only, no real weights yet).
   Candidates are re-ranked by a persisted grasp-outcome
   memory, then vetted against IK *and* the safety-harness geometry.
   The model is conditioned on the gripper as a **swept volume**, so an arm
@@ -992,6 +1001,9 @@ runtime contracts, historical measurements and research notes.
   Vesta's nav verbs, Nav2 / Warp planner backends, G1 in Isaac first); not code yet
 - [docs/ROS2_BACKEND_BRIEF.md](docs/ROS2_BACKEND_BRIEF.md) · [docs/NEWTON_ENGINE.md](docs/NEWTON_ENGINE.md)
   · [docs/BRIDGE_DEGRADATION.md](docs/BRIDGE_DEGRADATION.md) — backend briefs
+- [docs/VLA_EXECUTOR.md](docs/VLA_EXECUTOR.md) — the opt-in VLA executor
+  behind `grasp_object`: protocol, harness gating, deadlines, stop latch,
+  what is measured (stub only) and the live steps owed with real weights
 - Research notes: [SOTA_PERCEPTION_AND_EVALUATION](docs/SOTA_PERCEPTION_AND_EVALUATION.md),
   [COMPARISON_TO_PUBLISHED_WORK](docs/COMPARISON_TO_PUBLISHED_WORK.md),
   [PERCEPTION_AND_EXECUTION_RESEARCH](docs/PERCEPTION_AND_EXECUTION_RESEARCH.md),

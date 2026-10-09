@@ -621,6 +621,7 @@ def build_runtime(
     # (graspgenx down)" before anything moves instead of an 8 s stall and a
     # buried memory note. Occupancy was probed when its map was built.
     _probe_grasp_backend(runtime)
+    _probe_vla_executor(runtime)
     runtime.trace.backends_fn = runtime.backends
     b = runtime.backends()
     print(f"[cascade] backends: grasp_planner={b['grasp_planner']} | occupancy={b['occupancy']}")
@@ -661,6 +662,28 @@ def _probe_grasp_backend(runtime) -> None:
         runtime.grasp_planner_used = "obb (graspgenx down)"
         print(f"[cascade] WARNING: grasp.backend=graspgenx but no server answered "
               f"({str(e)[:100]}); analytic OBB fallback; will retry the server", file=sys.stderr)
+
+
+def _probe_vla_executor(runtime) -> None:
+    """`grasp.executor: vla` (B49, opt-in): build the executor -- a bad
+    `grasp.vla` block or an unknown executor name fails the build -- and probe
+    its policy server NOW, so the banner and the capability matrix say whether
+    the route can run before anything moves. The analytic executor (the
+    default) attaches nothing."""
+    from ..grasping.vla_executor import VLAExecutor, executor_name
+
+    gcfg = runtime.cfg.grasp
+    if executor_name(gcfg) != "vla":
+        return
+    executor = VLAExecutor.from_cfg(gcfg)
+    runtime.vla_executor = executor
+    status = executor.probe()
+    if status["answered"]:
+        print(f"[cascade] grasp executor: vla -> {status['detail']}")
+    else:
+        print(f"[cascade] WARNING: grasp.executor=vla but {status['detail']}; label grasps are "
+              "refused (no analytic fallback) until a policy server answers and the runtime "
+              "restarts", file=sys.stderr)
 
 
 def _probe_hug_backend(runtime, gcfg) -> None:

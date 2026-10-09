@@ -40,8 +40,10 @@ jobs:
       # skipping: it is the DEFAULT grasp backend, and without the extra the
       # client cannot even be built. The heavy extras (perception/arm) stay
       # hardware-only. grasp-safety supplies the host geometry dependency for
-      # the observed-finger collision tests on each architecture.
-      - run: uv sync --extra dev --extra kinematics --extra arm-feetech --extra sim --extra sim-warp --extra grasping --extra grasp-safety --extra conversation
+      # the observed-finger collision tests on each architecture. `vla` is the
+      # VLA policy client (websockets + msgpack, B49), so grasp_object's opt-in
+      # VLA route runs against scripts/serve_vla_stub.py instead of skipping.
+      - run: uv sync --extra dev --extra kinematics --extra arm-feetech --extra sim --extra sim-warp --extra grasping --extra grasp-safety --extra conversation --extra vla
       - name: install and verify pinned kitchen release without a simulator
         run: uv run python scripts/kitchen_assets.py
       - run: uv run pytest tests/ deploy/brev/tests/test_public_visitor.py deploy/brev/tests/test_visitor_video.py -q
@@ -80,7 +82,7 @@ jobs:
       - run: uv sync --extra dev --extra kinematics
       - name: optional stacks must be absent
         run: |
-          for mod in torch ultralytics mujoco mujoco_warp warp serial openai zmq msgpack; do
+          for mod in torch ultralytics mujoco mujoco_warp warp serial openai zmq msgpack websockets; do
             if uv run python -c "import $mod" 2>/dev/null; then
               echo "$mod is installed; this job no longer proves anything"; exit 1
             fi

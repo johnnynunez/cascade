@@ -203,6 +203,16 @@ def _no_ambient_programs(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_ambient_vla_executor(monkeypatch):
+    """A shell that exported CASCADE_GRASP_EXECUTOR=vla (and a policy port)
+    for a GPU session must not route every grasp in the suite to a policy
+    server (B49). The suite certifies the shipped analytic executor; tests
+    opt in per test."""
+    monkeypatch.delenv("CASCADE_GRASP_EXECUTOR", raising=False)
+    monkeypatch.delenv("CASCADE_VLA_PORT", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _no_ambient_judge(monkeypatch):
     """A shell that exported CASCADE_JUDGE(=vlm) for a live launch must not
     make every launcher test in the suite start a judge pass against a real

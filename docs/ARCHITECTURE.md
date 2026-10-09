@@ -119,10 +119,15 @@ Two later additions changed what the loop measures rather than how it acts:
   that harness. No Vesta weights or code were released; only the harness
   and the evaluation design were adopted (ROADMAP "Landed 2026-09-10").
 
-We deliberately did **not** build a VLA-policy-in-the-loop executor: the
-deterministic skill stack is debuggable, safety-gateable and runs offline
-(ROADMAP records the decision and the LIBERO layer-attribution numbers
-that back it).
+The deterministic skill stack is the default executor: it is debuggable,
+safety-gateable and runs offline (ROADMAP records the original decision not
+to put a VLA policy in the loop, and the LIBERO layer-attribution numbers
+that back it). Since 2026-10-09 (B49) a language-conditioned policy can
+serve label grasps as an OPT-IN second executor, `grasp.executor: vla`
+([VLA executor](VLA_EXECUTOR.md)): `grasp_object` keeps its name, schema,
+localization and verifier; only the motion between "jaws open at home" and
+"lifted" comes from the policy's action chunks, and every chunk passes the
+SafetyHarness before and during motion.
 
 ## Manipulation runtime detail
 
@@ -491,6 +496,15 @@ localize ─▶ ObjectFix (base-frame OBB; de-biased centre, verified on 2 engin
    actual-pose full-stroke preflight before each close stage ▸ lift ▸ verification
    place_at: aiming compensation and fresh slip authority are separate results
 
+opt-in `grasp.executor: vla` (B49, docs/VLA_EXECUTOR.md), label grasps only:
+localize ─▶ (same fix) ─▶ refuse before motion: observed-finger gate | native planner |
+   payload map | no policy server | no `vla` extra   (never an analytic fallback)
+   open ▸ home (vetted route) ▸ per chunk: obs (fresh frame, measured joints/jaw, prompt)
+   ▸ infer within chunk + episode deadline ▸ stop latch / halt check ▸ rows → joint
+   targets ▸ harness vet_pose on EVERY target (no exemption) ▸ SafeArm.move_joints per
+   waypoint (approve() per sample) + set_gripper ▸ end after close + lift chunk(s)
+   ▸ same jaw check + execute()'s verifier; the server's own success flags are not read
+
 ```
 
 The Spark presenter profile requires real GraspGen-X candidates and checks
@@ -746,6 +760,8 @@ src/cascade/
 │   ├── obb_grasp.py    base-frame OBB grasps      graspgenx_backend.py  ZMQ client + fallback
 │   ├── selector.py     supplied/quality order ▸ width ▸ IK ▸ harness pre-vet
 │   ├── observed_scene.py calibrated observed-finger approach and closing veto
+│   ├── vla_client.py   openpi/LingBot websocket msgpack-numpy policy client (`vla` extra, lazy)
+│   ├── vla_executor.py opt-in `grasp.executor: vla`: chunk → joint targets, harness-gated episode
 │   └── force.py        material → two-stage close profiles
 ├── agent/
 │   ├── orchestrator.py reflex → habit → (opt-in) program → LLM loop; memory harness injection; TaskReport
@@ -1101,6 +1117,21 @@ token and registration. Stdio through `launch.sh` remains the default; see
   same opt-in embedder ranks stored programs (B42, `ProgramLibrary.ranked`)
   under the same floor-or-guard rule and the same caveat; keyword overlap
   stays the default.
+- The opt-in VLA executor (`grasp.executor: vla`, B49) is measured only
+  against its protocol stub on the mock stack: no real policy has run
+  through it, and none post-trained on this arm exists (public LingBot /
+  openpi checkpoints are other embodiments, so their actions here are
+  expected to be refused by the harness or to miss). Chunks execute as
+  harness-gated per-action moves that settle at every action
+  (quasi-static), not at the policy's native control rate; the observation
+  is the manipulation camera only (no wrist/side views); there is no grasp
+  exemption, so a policy grasp of a very low object can be refused where
+  the analytic descent is allowed; the route refuses rigs with the
+  observed-finger gate, a native motion planner (cuMotion profiles) or a
+  payload-tracking map. The `vla_policy` capability cell reflects the
+  startup probe and the last episode's connect, and nothing re-probes in the
+  background: a policy server started after a failed probe needs a runtime
+  restart (MCP hosts see the label-grasp tools withheld until then).
 - Visual recall indexes motion frames and the crops of objects a call
   LOCALIZED by default; crops of every committed watcher detection
   (`memory.visual_recall_detections`) and persistence across restarts

@@ -48,6 +48,10 @@ from ..types import Detection, Frame, SafetyViolation, SkillError, SkillStuck, m
 
 logger = logging.getLogger(__name__)
 
+#: grasp backends that plan from the RGB-D frame the object was localized in
+#: (callers pass `_frame=` to `_plan_grasps` only for these, so every other
+#: backend is called exactly as before)
+_FRAME_GRASP_BACKENDS = frozenset({"hug", "camera_frame"})
 #: The three step outcomes `execute()` stamps on every result (`outcome`).
 #: `STUCK` (RPent's third finish status) is always `ok: false` and carries
 #: an `ask`: the concrete, human-actionable request that would unblock it.
@@ -1468,6 +1472,8 @@ class SkillRuntime:
         )
         if str(gcfg.get("backend", "obb")) == "hug":
             grasps = SkillRuntime._hug_candidates(self, fix, obb, _frame, _deadline, _check)
+        elif str(gcfg.get("backend", "obb")) == "camera_frame":
+            grasps = SkillRuntime._camera_frame_candidates(self, fix, obb, _frame)
         elif str(gcfg.get("backend", "obb")) != "graspgenx":
             grasps = obb
             self.grasp_planner_used = "obb"
@@ -1620,6 +1626,55 @@ class SkillRuntime:
             logger.warning("hug unavailable (%s); analytic fallback; retry after 5s", str(e)[:160])
             self.grasp_planner_used = "obb (hug down)"
             return obb
+
+    def _camera_frame_candidates(self, fix, obb, frame) -> list:
+        """`grasp.backend: camera_frame` (opt-in): the WRC / rebot_grasp mask
+        planner (grasping/camera_grasp.py) -- approach along the camera's line
+        of sight, TCP pushed into the object.
+
+        Analytic and local, so there is no outage to latch: it either plans
+        from this frame or names why not. A `required` profile then raises
+        (visible, never an OBB substitute); an optional one returns the OBB
+        candidates and says so in `grasp_planner_used` and a memory note. With
+        `include_obb` (default) the OBB grasps also follow the mask grasp as
+        IK alternates (WRC's layer 3). Either way the memory re-rank, the
+        selector's width/IK checks and the harness vetting downstream are
+        unchanged."""
+        from ..grasping.camera_grasp import camera_frame_grasps
+
+        gcfg = self.cfg.grasp
+        ccfg = gcfg.get("camera_frame") or {}
+        required = bool(ccfg.get("required", False))
+        if frame is None:
+            # A caller bug, not a perception gap: never an OBB substitute.
+            raise SkillError("the camera-frame grasp planner needs the RGB-D frame the "
+                             "object was localized in; none was passed")
+        T = (frame.T_base_cam if getattr(frame, "T_base_cam", None) is not None
+             else self.extrinsics.cam_to_base())
+        grasps, reason = camera_frame_grasps(
+            frame, fix, T,
+            insertion_depth_m=float(ccfg.get("insertion_depth_m", 0.015)),
+            depth_quantile=float(ccfg.get("depth_quantile", 0.5)),
+            finger_drop_m=float(ccfg.get("finger_drop_m", 0.030)),
+            max_fix_offset_m=float(ccfg.get("max_fix_offset_m", 0.03)),
+            max_width_m=self._max_width,
+            width_pad_m=float(gcfg.get("width_pad_m", 0.015)),
+            axis_order=self._tool_axis_order)
+        if grasps:
+            g = grasps[0]
+            tilt = float(np.degrees(np.arccos(np.clip(-float(g.approach[2]), -1.0, 1.0))))
+            self.memory.add("note", f"camera_frame: {len(grasps)} mask grasp(s), approach "
+                                    f"{tilt:.0f} deg off vertical, jaw {g.width_m * 1000:.0f} mm")
+            self.grasp_planner_used = "camera_frame (mask + depth)"
+            return grasps + obb if bool(ccfg.get("include_obb", True)) else grasps
+        if required:
+            self.grasp_planner_used = "camera_frame (unavailable)"
+            raise SkillError(f"camera-frame grasp planner required but produced nothing: {reason}")
+        self.memory.add("note", f"camera_frame: no mask grasp ({reason}); OBB fallback")
+        logger.warning("camera_frame grasp planner produced nothing (%s); analytic OBB fallback",
+                       reason)
+        self.grasp_planner_used = f"obb (camera_frame: {reason})"
+        return obb
 
     def _localization_workspace_bounds(self):
         """Read the selected arm's existing limits without connecting it."""
@@ -2187,9 +2242,11 @@ class SkillRuntime:
         decide before committing -- the observe-then-act loop, not blind
         execution. Follow with grasp_object to actually execute it."""
         frame, fix = self._localize(label, spatial_hint=spatial_hint)
-        # Only HUG consumes the RGB-D frame; other backends' calls are unchanged.
+        # Only the frame backends (HUG, camera_frame) consume the RGB-D frame;
+        # other backends' calls are unchanged.
         grasps = self._plan_grasps(fix, label=label, **(
-            {"_frame": frame} if str(self.cfg.grasp.get("backend", "obb")) == "hug" else {}))
+            {"_frame": frame} if str(self.cfg.grasp.get("backend", "obb")) in _FRAME_GRASP_BACKENDS
+            else {}))
         if not grasps:
             return {"ok": False, "error": f"no grasp candidates for {label!r}"}
         g = grasps[0]  # already reranked by the fake-RL memory prior
@@ -2313,8 +2370,9 @@ class SkillRuntime:
                 candidates = self._plan_grasps(fix, label=label, **({} if search is None else {
                     "_deadline": search.deadline, "_check": search.check,
                     "_prior_snapshot": frozen_prior}), **(
-                    # only HUG consumes the RGB-D frame the fix came from
-                    {"_frame": frame} if str(gcfg.get("backend", "obb")) == "hug" else {}))
+                    # only the frame backends consume the RGB-D frame the fix came from
+                    {"_frame": frame} if str(gcfg.get("backend", "obb")) in _FRAME_GRASP_BACKENDS
+                    else {}))
             except NoEligibleGrasps as exc:
                 if search is None:
                     raise

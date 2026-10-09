@@ -28,6 +28,30 @@ import numpy as np
 from ..types import Grasp, ObjectFix
 
 
+def tool_rotation(approach: np.ndarray, open_axis: np.ndarray,
+                  axis_order: str = "down_open") -> np.ndarray:
+    """TCP rotation from an orthonormal (approach, jaw-opening) pair, laid out
+    in the arm's `tool_axis_order` (see `_yaw_rotation` for the measured
+    conventions). The single place that knows the column layouts, shared by
+    the OBB and camera-frame planners so they cannot drift apart."""
+    down = np.asarray(approach, dtype=float)
+    open_axis = np.asarray(open_axis, dtype=float)
+    if axis_order == "open_down":
+        # Right-handed with approach last: [open, third x open ... ] worked out
+        # so that col0 = opening, col2 = approach, matching the measurement.
+        return np.column_stack([open_axis, np.cross(down, open_axis), down])
+    if axis_order == "third_open_down":
+        # col1 = opening, col2 = approach; col0 = open x down keeps it
+        # right-handed (det = +1), which IK needs for a valid rotation.
+        return np.column_stack([np.cross(open_axis, down), open_axis, down])
+    if axis_order != "down_open":
+        raise ValueError(
+            f"unknown tool_axis_order {axis_order!r} "
+            "(down_open | open_down | third_open_down)"
+        )
+    return np.column_stack([down, open_axis, np.cross(down, open_axis)])
+
+
 def _yaw_rotation(yaw: float, tool_down: np.ndarray | None = None,
                   axis_order: str = "down_open") -> np.ndarray:
     """TCP rotation for a top-down grasp with jaw-opening yaw.
@@ -79,21 +103,7 @@ def _yaw_rotation(yaw: float, tool_down: np.ndarray | None = None,
     open_axis = np.array([np.cos(yaw), np.sin(yaw), 0.0])
     open_axis -= open_axis @ down * down
     open_axis /= np.linalg.norm(open_axis)
-    third = np.cross(down, open_axis)
-    if axis_order == "open_down":
-        # Right-handed with approach last: [open, third x open ... ] worked out
-        # so that col0 = opening, col2 = approach, matching the measurement.
-        return np.column_stack([open_axis, np.cross(down, open_axis), down])
-    if axis_order == "third_open_down":
-        # col1 = opening, col2 = approach; col0 = open x down keeps it
-        # right-handed (det = +1), which IK needs for a valid rotation.
-        return np.column_stack([np.cross(open_axis, down), open_axis, down])
-    if axis_order != "down_open":
-        raise ValueError(
-            f"unknown tool_axis_order {axis_order!r} "
-            "(down_open | open_down | third_open_down)"
-        )
-    return np.column_stack([down, open_axis, third])
+    return tool_rotation(down, open_axis, axis_order)
 
 
 def _rim_grasp_width(points: np.ndarray, obj_top_z: float,

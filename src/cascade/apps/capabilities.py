@@ -203,6 +203,9 @@ def _grasp_capability(runtime, backends: dict) -> dict:
     want = str(gcfg.get("backend", "obb")) if gcfg is not None and hasattr(gcfg, "get") else None
     if want == "hug":
         return _hug_capability(runtime, grasp)
+    if want == "camera_frame":
+        return _entry(False, grasp, f"grasps use the analytic camera-frame mask planner "
+                                    f"({grasp}); no learned model is in the loop")
     planner = getattr(runtime, "_graspgenx", None)
     status = getattr(planner, "status", None)
     down = bool(getattr(runtime, "_graspgenx_down", False))

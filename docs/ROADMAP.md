@@ -217,9 +217,21 @@ Open, in priority order (details in the sections below):
    `tests/test_judge_proof_turn.py` (fake judge over recorded and mock-stack
    traces, a stub OpenAI-compatible endpoint answering, refusing to score, or
    hanging; 35 failed / 4 premise+golden passed on 4d0947b → 39 passed),
-   all mutants killed. STILL OPEN: no
-   live Isaac proof turn judged by a real model (local Qwen or GRM, #14), so
-   no agreement number for this rig.
+   all mutants killed. **Live, on recorded picks (B44-live, 2026-10-09):**
+   the local Qwen3.8-27B (llama.cpp :8080) judged 72 recorded live Isaac
+   picks (B36 bare-reBot A/B series + B35 NemoClaw runs; 40 physics-confirmed,
+   27 refuted, 5 unverified): with the 1536-token budget Spark ships, 60
+   scored and `tp=40 tn=1 fp=15 fn=0` (agreement 73 %); the 12 left unscored
+   (11 refuted, 0 confirmed: Qwen reasons past the budget and never writes a
+   score) re-judged at 8192 tokens give `tp=40 tn=7 fp=19 fn=0` over 66
+   (71 %). Every confirmed pick scored +100 %, so `fn` -- the regression this
+   metric exists for -- is trustworthy here; refuted picks scored −100…+90 %,
+   so `hop > 0` counts partial progress as success (`hop ≥ 1.0` would separate
+   all 66, chosen in-sample, not shipped)
+   ([evidence](evidence/b44-live-qwen-judge-20261009/README.md)). STILL OPEN:
+   a full launch whose proof turn is judged with `--judge vlm`; a success
+   threshold validated out of sample (B65) and a score that fits the budget
+   (B66); GRM (#14).
 7. ~~**Visual embedder** for episodic recall (`embed_dim`), and action↔object
    consolidation on top of ExperienceMemory (keys on text today).~~
    **landed 2026-10-07 (opt-in, CPU-measured only).** `memory/embedder.py`:

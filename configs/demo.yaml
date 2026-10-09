@@ -58,7 +58,7 @@ grasp:
     num_grasps: 100
     topk: 32
     min_score: 0.0
-    timeout_ms: 8000
+    timeout_ms: 8000        # warm inferences (0.09 s measured); the server warms before binding (B15a)
     tip_offset_m: 0.098     # virtual model base -> TCP; applied to BOTH sweep conditioning and returned poses
     # DEFAULT GRIPPER GEOMETRY = the reBot RS parallel jaw, because demo.yaml
     # describes the reference rig. This is a swept volume for cross-embodiment

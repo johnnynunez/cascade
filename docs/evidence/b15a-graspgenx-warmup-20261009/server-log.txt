@@ -1,0 +1,63 @@
+2026-10-09 01:15:45,372 - OpenGL.acceleratesupport - INFO - OpenGL_accelerate module loaded
+2026-10-09 01:15:45,374 - OpenGL.arrays.arraydatatype - INFO - Using accelerated ArrayDatatype
+2026-10-09 01:15:45,551 - graspgenx.dataset.dataset - WARNING - Could not import renderer (pyrender): Library "GLU" not found.. Rendering functions will be unavailable (OK for training).
+/home/johnny/Projects/demo/GraspGenX/graspgenx/models/pointnet/pointnet2_utils.py:23: UserWarning: Unable to load pointnet2_ops cpp extension. JIT Compiling.
+  warnings.warn("Unable to load pointnet2_ops cpp extension. JIT Compiling.")
+/home/johnny/Projects/demo/.graspgenx/lib/python3.11/site-packages/torch/utils/cpp_extension.py:2356: UserWarning: TORCH_CUDA_ARCH_LIST is not set, all archs for visible cards are included for compilation. 
+If this is not desired, please set os.environ['TORCH_CUDA_ARCH_LIST'].
+  warnings.warn(
+/home/johnny/Projects/demo/GraspGenX/graspgenx/models/pointnet/pointnet2_utils.py:40: UserWarning: Unable to import PointNet++ backbone (pointnet2_ops). PointNet++ models will not be available. Other backbones (e.g. WarpConvNet) are unaffected.
+  warnings.warn(
+Generator checkpoint : /home/johnny/Projects/demo/GraspGenX/ext/graspgenx_checkpoints/release/gen/epoch_736.pth
+Discriminator checkpoint: /home/johnny/Projects/demo/GraspGenX/ext/graspgenx_checkpoints/release/dis/epoch_1056.pth
+Generator      : backbone=ptv3vanilla, gripper=sweep_volume_v2, obj_dim=512, embed_dim=512, pointnet_ver=v2
+  DDPM         : train_steps=20, eval_steps=20, beta_schedule=squaredcos_cap_v2, clip_sample=True, compositional=True
+  Grasp        : grasp_repr=r3_so3, kappa(noise_scale)=3.27, pose_repr=mlp
+Discriminator  : backbone=ptv3vanilla, gripper=sweep_volume_v2, obj_dim=512, embed_dim=256, pointnet_ver=v2
+  Grasp        : grasp_repr=r3_so3, kappa(noise_scale)=3.27, pose_repr=mlp
+2026-10-09 01:15:46,921 - graspgenx.serving.zmq_server - INFO - Loading GraspGen model weights ...
+/home/johnny/Projects/demo/.graspgenx/lib/python3.11/site-packages/timm/models/layers/__init__.py:48: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
+2026-10-09 01:15:47,573 - graspgenx.models.discriminator - INFO - Pose representation is mlp
+2026-10-09 01:15:47,576 - graspgenx.models.grasp_gen - INFO - Loading generator checkpoint from /home/johnny/Projects/demo/GraspGenX/ext/graspgenx_checkpoints/release/gen/epoch_736.pth
+2026-10-09 01:15:47,856 - graspgenx.models.grasp_gen - INFO - Loading discriminator checkpoint from /home/johnny/Projects/demo/GraspGenX/ext/graspgenx_checkpoints/release/dis/epoch_1056.pth
+2026-10-09 01:15:48,132 - graspgenx.serving.zmq_server - INFO - Model loaded.
+2026-10-09 01:15:48,133 - graspgenx.serving.zmq_server - INFO - Building sampler from sweep-volume params (sweep:5402cf24e83fb4fca288a991a58edbbcebc83e1f)
+2026-10-09 01:15:48,137 - graspgenx.utils.point_cloud - INFO - Removed 0 points from point cloud
+2026-10-09 01:15:48,137 - graspgenx.samplers.graspmoe - INFO - [graspmoe] outlier removal: 3455 kept, 0 removed (thresh=0.014, k=20)
+/home/johnny/Projects/demo/GraspGenX/graspgenx/models/generator.py:853: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  torch.sqrt(torch.tensor(var_pos, device=device)),
+/home/johnny/Projects/demo/GraspGenX/graspgenx/models/generator.py:865: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  torch.sqrt(torch.tensor(var_rot, device=device)),
+2026-10-09 01:16:03,519 - graspgenx.grasp_server - INFO - Confidences min: 0.00001, max: 0.95462
+2026-10-09 01:16:03,519 - graspgenx.grasp_server - INFO - Thresholding grasps @ -1.0. Only 100/100 grasps remaining
+2026-10-09 01:16:03,524 - graspgenx.grasp_server - INFO - Found 100 grasps in iteration 1, total grasps: 100
+2026-10-09 01:16:03,524 - graspgenx.grasp_server - INFO - Time taken for inference: 15.38649582862854 seconds
+2026-10-09 01:16:03,533 - graspgenx.samplers.graspmoe - INFO - [graspmoe] generated 216 OBB candidates (36 yaws x 6 Zs, density=sparse)
+2026-10-09 01:16:03,549 - graspgenx.samplers.graspmoe - INFO - [graspmoe] 316 total grasps (diffusion=100, OBB=216, skipped_obb=False); score range 0.000..0.973
+[graspgenx] warm-up inference 15.42 s before binding 127.0.0.1:18532
+2026-10-09 01:16:03,550 - graspgenx.serving.zmq_server - INFO - GraspGenX ZMQ server listening on tcp://127.0.0.1:18532
+2026-10-09 01:16:03,822 - graspgenx.utils.point_cloud - INFO - Removed 0 points from point cloud
+2026-10-09 01:16:03,822 - graspgenx.samplers.graspmoe - INFO - [graspmoe] outlier removal: 3407 kept, 0 removed (thresh=0.014, k=20)
+2026-10-09 01:16:03,914 - graspgenx.grasp_server - INFO - Confidences min: 0.00001, max: 0.92896
+2026-10-09 01:16:03,914 - graspgenx.grasp_server - INFO - Thresholding grasps @ -1.0. Only 100/100 grasps remaining
+2026-10-09 01:16:03,920 - graspgenx.grasp_server - INFO - Found 100 grasps in iteration 1, total grasps: 100
+2026-10-09 01:16:03,920 - graspgenx.grasp_server - INFO - Time taken for inference: 0.09810829162597656 seconds
+2026-10-09 01:16:03,930 - graspgenx.samplers.graspmoe - INFO - [graspmoe] generated 216 OBB candidates (36 yaws x 6 Zs, density=sparse)
+2026-10-09 01:16:03,950 - graspgenx.samplers.graspmoe - INFO - [graspmoe] 316 total grasps (diffusion=100, OBB=216, skipped_obb=False); score range 0.000..0.934
+2026-10-09 01:16:03,956 - graspgenx.utils.point_cloud - INFO - Removed 0 points from point cloud
+2026-10-09 01:16:03,956 - graspgenx.samplers.graspmoe - INFO - [graspmoe] outlier removal: 3407 kept, 0 removed (thresh=0.014, k=20)
+2026-10-09 01:16:04,059 - graspgenx.grasp_server - INFO - Confidences min: 0.23673, max: 0.94647
+2026-10-09 01:16:04,060 - graspgenx.grasp_server - INFO - Thresholding grasps @ -1.0. Only 100/100 grasps remaining
+2026-10-09 01:16:04,064 - graspgenx.grasp_server - INFO - Found 100 grasps in iteration 1, total grasps: 100
+2026-10-09 01:16:04,064 - graspgenx.grasp_server - INFO - Time taken for inference: 0.10819053649902344 seconds
+2026-10-09 01:16:04,074 - graspgenx.samplers.graspmoe - INFO - [graspmoe] generated 216 OBB candidates (36 yaws x 6 Zs, density=sparse)
+2026-10-09 01:16:04,092 - graspgenx.samplers.graspmoe - INFO - [graspmoe] 316 total grasps (diffusion=100, OBB=216, skipped_obb=False); score range 0.007..0.946
+2026-10-09 01:16:04,098 - graspgenx.utils.point_cloud - INFO - Removed 0 points from point cloud
+2026-10-09 01:16:04,098 - graspgenx.samplers.graspmoe - INFO - [graspmoe] outlier removal: 3407 kept, 0 removed (thresh=0.014, k=20)
+2026-10-09 01:16:04,185 - graspgenx.grasp_server - INFO - Confidences min: 0.29490, max: 0.92866
+2026-10-09 01:16:04,186 - graspgenx.grasp_server - INFO - Thresholding grasps @ -1.0. Only 100/100 grasps remaining
+2026-10-09 01:16:04,190 - graspgenx.grasp_server - INFO - Found 100 grasps in iteration 1, total grasps: 100
+2026-10-09 01:16:04,190 - graspgenx.grasp_server - INFO - Time taken for inference: 0.0916297435760498 seconds
+2026-10-09 01:16:04,201 - graspgenx.samplers.graspmoe - INFO - [graspmoe] generated 216 OBB candidates (36 yaws x 6 Zs, density=sparse)
+2026-10-09 01:16:04,219 - graspgenx.samplers.graspmoe - INFO - [graspmoe] 316 total grasps (diffusion=100, OBB=216, skipped_obb=False); score range 0.007..0.933

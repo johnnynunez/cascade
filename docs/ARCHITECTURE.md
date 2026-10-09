@@ -682,7 +682,12 @@ Sidecars (own process, own venv, ZMQ): `scripts/serve_graspgenx.sh`
 host); `scripts/serve_occupancy.sh` → `serve_occupancy_bridge.py`
 (`--backend auto`: nvblox > warp > voxel). Both are **probed at startup**
 and named in the banner; a missing sidecar degrades loudly to its fallback,
-never silently.
+never silently. The learned GraspGen-X server runs one synthetic inference
+before it binds its port (the first CUDA inference takes ~15 s, the client
+waits 8 s), so an open port means a warm model unless its `health` says
+`warmed_up: false`: the warm-up is advisory, and a failed one is logged and
+the server binds cold as before (no CUDA or no loadable model still refuses
+first; the required-profile inference check above is unchanged).
 
 ## ROS2, humanoids, and what is NOT here yet
 

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import copy
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -108,6 +109,9 @@ def load_profile(kind: str, name: str, config_dir: Path | None = None) -> Cfg:
     CASCADE_BRIDGE_PORT when that is set (see `env_port`), so the standalone
     tools (viewer, recorder) dial the same bridge as the demo. Base profiles
     never read the arm variables; they have CASCADE_MICRODUCK_BRIDGE_PORT.
+    The sidecar variables (GraspGen-X, HUG, occupancy) do not apply here: the
+    standalone tools dial only the bridge, and an arm's `overrides:` naming a
+    sidecar is resolved by load_demo_config, which applies them over it.
     """
     cdir = Path(config_dir) if config_dir else CONFIG_DIR
     data = _resolve_paths(_load_profile_raw(kind, name, cdir), cdir)
@@ -153,11 +157,34 @@ def _deep_merge(base: dict, overlay: dict) -> None:
 # talks to whatever holds the defaults (docs/LOCAL_RTX_VALIDATION.md,
 # profiling attempt 07: the bridge moved, the camera profiles did not). A set
 # variable beats every config layer (demo.yaml, booth.yaml, profiles, an arm's
-# `overrides:`); unset or empty leaves the configured port untouched.
+# `overrides:`); unset or empty leaves the configured value untouched.
 BRIDGE_PORT_ENV = "CASCADE_BRIDGE_PORT"
 GRASPGENX_PORT_ENV = "CASCADE_GRASPGENX_PORT"
 OCCUPANCY_PORT_ENV = "CASCADE_OCCUPANCY_PORT"
-PORT_ENV_VARS = (BRIDGE_PORT_ENV, GRASPGENX_PORT_ENV, OCCUPANCY_PORT_ENV)
+HUG_PORT_ENV = "CASCADE_HUG_PORT"
+PORT_ENV_VARS = (BRIDGE_PORT_ENV, GRASPGENX_PORT_ENV, OCCUPANCY_PORT_ENV, HUG_PORT_ENV)
+# Host variables exist for the two sidecars that may run on ANOTHER machine:
+# GraspGen-X (`launch.sh --graspgenx external`, a CUDA box) and HUG (started by
+# hand in HUG's own environment). The bridge and the occupancy sidecar have
+# none on purpose: launch.sh starts both on this machine and waits on them
+# there, and the bridge (whose `exec` op is arbitrary code execution) binds
+# loopback by default, so `bridge_host` / `occupancy.host` stay profile and
+# demo.yaml values.
+GRASPGENX_HOST_ENV = "CASCADE_GRASPGENX_HOST"
+HUG_HOST_ENV = "CASCADE_HUG_HOST"
+HOST_ENV_VARS = (GRASPGENX_HOST_ENV, HUG_HOST_ENV)
+#: every variable `load_demo_config` applies; scripts/launch.sh and
+#: scripts/setup_agents.py register each one present with the MCP server
+ENDPOINT_ENV_VARS = PORT_ENV_VARS + HOST_ENV_VARS
+# (section path, port variable, host variable) of each sidecar client's section
+_SIDECAR_SECTIONS = (
+    (("grasp", "graspgenx"), GRASPGENX_PORT_ENV, GRASPGENX_HOST_ENV),
+    (("grasp", "hug"), HUG_PORT_ENV, HUG_HOST_ENV),
+    (("occupancy",), OCCUPANCY_PORT_ENV, None),
+)
+# A hostname or an IPv4 address: 1..253 ASCII letters, digits, '.', '-', '_',
+# the first a letter or digit (see `env_host`).
+_HOST_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,252}")
 
 
 def env_port(name: str) -> int | None:
@@ -180,6 +207,64 @@ def env_port(name: str) -> int | None:
     return int(raw)
 
 
+def env_host(name: str) -> str | None:
+    """The host in environment variable `name`; None when unset or empty.
+
+    Empty means unset, as for the ports. Anything else must be a hostname or an
+    IPv4 address -- 1 to 253 ASCII letters, digits, '.', '-' or '_', the first
+    one a letter or digit -- or this raises naming the variable. The value is
+    dialled verbatim (`tcp://<host>:<port>`, `(host, port)`), so everything that
+    would make it name another endpoint, or none, is refused instead of
+    dialled: whitespace anywhere (' gx10' is not silently stripped), a port
+    suffix ('gx10:5556'; the port has its own variable), a scheme, path or user
+    ('tcp://gx10', 'gx10/x', 'me@gx10'), an IPv6 literal (the ZMQ clients build
+    `tcp://<host>:<port>` without brackets and never enable IPv6) and non-ASCII
+    names (IDNA would turn them into a different name).
+    """
+    raw = os.environ.get(name, "")
+    if raw == "":
+        return None
+    if not _HOST_RE.fullmatch(raw):
+        raise ValueError(
+            f"{name}={raw!r} is not a host: use a hostname or an IPv4 address (ASCII "
+            "letters, digits, '.', '-', '_'; no port, scheme or whitespace), or unset it "
+            "to keep the configured host"
+        )
+    return raw
+
+
+def endpoint_env() -> dict[str, Any]:
+    """Every variable of ENDPOINT_ENV_VARS parsed once: name -> int port / str host,
+    or None when unset or empty. Raises ValueError naming a malformed one."""
+    values: dict[str, Any] = {name: env_port(name) for name in PORT_ENV_VARS}
+    values.update({name: env_host(name) for name in HOST_ENV_VARS})
+    return values
+
+
+def sidecar_endpoint(section: Any, *, port_env: str, host_env: str,
+                     default_port: int, default_host: str = "127.0.0.1") -> tuple[str, int]:
+    """(host, port) a GraspGen-X / HUG client dials, from its config section.
+
+    The variables are applied ONCE. load_demo_config has already written them
+    into every section it resolved, so a key the section carries is final: it
+    is the variable's value, or an explicit override written into `cfg._data`
+    after loading (benchmark/diagnostics set `--grasp-port` that way), which
+    re-reading the environment here would silently undo. A variable only fills
+    a key the section LACKS -- a planner built from a hand-made config, or with
+    no section at all -- so such a planner still honours it. Both variables
+    are parsed by the same rule either way: a malformed one raises, naming it,
+    even when the section makes it moot.
+    """
+    port_override, host_override = env_port(port_env), env_host(host_env)
+    host = section.get("host", None) if section is not None else None
+    port = section.get("port", None) if section is not None else None
+    if host is None:
+        host = default_host if host_override is None else host_override
+    if port is None:
+        port = default_port if port_override is None else port_override
+    return str(host), int(port)
+
+
 def _dials_bridge(profile: Any) -> bool:
     """A camera/arm profile whose client dials the Isaac bridge (`type: isaac`)."""
     return isinstance(profile, dict) and str(profile.get("type", "")) == "isaac"
@@ -190,24 +275,29 @@ def _apply_bridge_port(profile: Any, port: int | None) -> None:
         profile["bridge_port"] = port
 
 
-def _apply_port_env(view: dict, ports: dict[str, int | None]) -> None:
-    """Apply the parsed CASCADE_*_PORT overrides to one full config view in place.
+def _apply_endpoint_env(view: dict, values: dict[str, Any]) -> None:
+    """Apply the parsed endpoint overrides (`endpoint_env`) to one full config view in place.
 
     Called for the top level and for every arm's `resolved` view (a deep copy
-    that the arm's SafetyHarness, planners and skills read). Only an EXISTING
-    `grasp.graspgenx` / `occupancy` section gets a port: creating `occupancy:`
-    would ENABLE the map (`enabled` defaults to true once the section exists).
+    that the arm's SafetyHarness, planners and skills read). The bridge port
+    goes on every `type: isaac` camera and arm. A sidecar's port and host go
+    only into an EXISTING `grasp.graspgenx` / `grasp.hug` / `occupancy`
+    section: creating `occupancy:` would ENABLE the map (`enabled` defaults to
+    true once the section exists), and no section is invented for the others.
     """
     for profile in [view.get("camera"), *(view.get("cameras") or []),
                     view.get("arm"), *(view.get("arms") or [])]:
-        _apply_bridge_port(profile, ports[BRIDGE_PORT_ENV])
-    grasp = view.get("grasp")
-    graspgenx = grasp.get("graspgenx") if isinstance(grasp, dict) else None
-    if ports[GRASPGENX_PORT_ENV] is not None and isinstance(graspgenx, dict):
-        graspgenx["port"] = ports[GRASPGENX_PORT_ENV]
-    occupancy = view.get("occupancy")
-    if ports[OCCUPANCY_PORT_ENV] is not None and isinstance(occupancy, dict):
-        occupancy["port"] = ports[OCCUPANCY_PORT_ENV]
+        _apply_bridge_port(profile, values[BRIDGE_PORT_ENV])
+    for path, port_env, host_env in _SIDECAR_SECTIONS:
+        section: Any = view
+        for key in path:
+            section = section.get(key) if isinstance(section, dict) else None
+        if not isinstance(section, dict):
+            continue
+        if values[port_env] is not None:
+            section["port"] = values[port_env]
+        if host_env is not None and values[host_env] is not None:
+            section["host"] = values[host_env]
 
 
 def _mobile_config(cdir, main, base, bases, llm) -> Cfg:
@@ -368,14 +458,18 @@ def load_demo_config(
     own resolved view under `cfg.arms[i].resolved` -- which is what
     build_runtime hands to that arm's SafetyHarness.
 
-    CASCADE_BRIDGE_PORT, CASCADE_GRASPGENX_PORT and CASCADE_OCCUPANCY_PORT,
+    CASCADE_BRIDGE_PORT, CASCADE_GRASPGENX_PORT, CASCADE_OCCUPANCY_PORT and
+    CASCADE_HUG_PORT, and the hosts CASCADE_GRASPGENX_HOST and CASCADE_HUG_HOST,
     when set, are applied after everything else (so they beat booth.yaml and
     every arm's `overrides:`) to the top level and to every resolved view: the
     `bridge_port` of each `type: isaac` camera and arm, `grasp.graspgenx.port`
-    and `occupancy.port`. They are the ports scripts/launch.sh started the
-    bridge and sidecars on. Unset or empty changes nothing; a malformed value
-    raises ValueError naming the variable (see `env_port`). Base profiles
-    never read them."""
+    / `.host`, `grasp.hug.port` / `.host` and `occupancy.port` (existing
+    sections only). They name where scripts/launch.sh started the bridge and
+    sidecars, or where an external GraspGen-X / HUG server listens. Unset or
+    empty changes nothing; a malformed value raises ValueError naming the
+    variable (see `env_port`, `env_host`). Base profiles never read them. A
+    planner dials what its resolved section says and falls back to a variable
+    only for a key the section lacks (`sidecar_endpoint`): applied once."""
     cdir = Path(config_dir) if config_dir else CONFIG_DIR
     selected_robot = robot if robot is not None else (
         None if _ignore_robot_environment else os.environ.get("CASCADE_ROBOT"))
@@ -542,14 +636,15 @@ def load_demo_config(
                 "rig": copy.deepcopy(mujoco_rig),
             })
 
-    # CASCADE_BRIDGE_PORT / _GRASPGENX_PORT / _OCCUPANCY_PORT beat every layer
-    # above, including an arm's `overrides:`, so they are applied LAST: to the
-    # top level and to each arm's resolved view. Parsed once, before any is
-    # applied, so a malformed one refuses the whole config whatever the profile.
-    ports = {name: env_port(name) for name in PORT_ENV_VARS}
-    _apply_port_env(main, ports)
+    # The endpoint variables (CASCADE_BRIDGE_PORT / _GRASPGENX_PORT / _OCCUPANCY_PORT
+    # / _HUG_PORT, CASCADE_GRASPGENX_HOST / _HUG_HOST) beat every layer above,
+    # including an arm's `overrides:`, so they are applied LAST: to the top level
+    # and to each arm's resolved view. Parsed once, before any is applied, so a
+    # malformed one refuses the whole config whatever the profile.
+    values = endpoint_env()
+    _apply_endpoint_env(main, values)
     for prof in arm_profiles:
-        _apply_port_env(prof["resolved"], ports)
+        _apply_endpoint_env(prof["resolved"], values)
     return Cfg(main)
 
 

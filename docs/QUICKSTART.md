@@ -69,6 +69,10 @@ before launching. The launcher starts the Isaac bridge and the sidecars on
 them, registers them with the MCP server, and the runtime dials the same
 ports (they beat every config layer). A malformed value stops startup with an
 error naming the variable; an empty one means the default.
+`CASCADE_HUG_PORT`, `CASCADE_GRASPGENX_HOST` and `CASCADE_HUG_HOST` follow the
+same rules for a HUG server, or a GraspGen-X / HUG server on another machine.
+Registering with `scripts/setup_agents.py` from the same shell copies every
+`CASCADE_*_PORT` / `CASCADE_*_HOST` that is set into each host's server entry.
 
 For Isaac, the runtime check also prepares the read-only physics verifier and
 requires new RGB-D captures from every configured camera before proof starts.

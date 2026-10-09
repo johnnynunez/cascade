@@ -852,8 +852,13 @@ ends its own turns its own way. The MCP server adds eight host-side extras
 
 - The safety harness fails closed; motions abort mid-stream on violation.
 - Hand-eye extrinsics in the camera profiles are placeholders — calibrate
-  on-site (the baseline repo's `collect_handeye_eih.py` output loads
-  directly via `hand_eye_npz`).
+  on-site with `scripts/calibrate_handeye.py` (ArUco, eye-to-hand and
+  eye-in-hand, every motion through the safety harness; procedure in
+  [docs/HANDEYE_CALIBRATION.md](docs/HANDEYE_CALIBRATION.md)) and point the
+  profile's `extrinsics.hand_eye_json` at the record. A missing, rejected or
+  other-serial record leaves that camera streaming without 3D fusion. The
+  baseline repo's `collect_handeye_eih.py` output still loads via
+  `hand_eye_npz`.
 - Each arm has a limited **top-down envelope**, much smaller than its total
   reach, and grasp heights + hover offsets are configured per profile
   accordingly: below z ≈ 0.15 m on the B601-RS, and on the SO-101 an annulus

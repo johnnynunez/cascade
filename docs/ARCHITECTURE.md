@@ -614,6 +614,11 @@ src/cascade/
 │   ├── harness.py      SafetyHarness (approve / vet_pose, escape rules) + SafeArm
 │   ├── trajectory.py   sampled route validation and bounded planning
 │   └── geometry.py     segment-segment distances for the inter-arm gate
+├── calibration/        hand-eye calibration (ArUco; ported from Seeed's WRC fork) -- docs/HANDEYE_CALIBRATION.md
+│   ├── handeye.py      joint SE(3) solve of A X B = Z (eye-to-hand + eye-in-hand), robust LM + quality gate
+│   ├── session.py      collection sweep: presets vetted twice, every move via SafeArm.move_planned
+│   ├── dataset.py      schema-v1 record (gated on load)    aruco.py  detection + IPPE-square PnP
+│   └── cli.py          --list/--bind/--dry-run/--verify    synthetic.py  rendered-marker camera
 ├── grasping/
 │   ├── obb_grasp.py    base-frame OBB grasps      graspgenx_backend.py  ZMQ client + fallback
 │   ├── selector.py     supplied/quality order ▸ width ▸ IK ▸ harness pre-vet

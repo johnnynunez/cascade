@@ -7,7 +7,9 @@ center (more robust than the mean for elongated/partially occluded objects).
 Extrinsics supports both mounting styles:
 - eye_to_hand: static T_cam2base (camera on a tripod/frame looking at the arm)
 - eye_in_hand: T_cam2gripper composed with FK at capture time
-It can read the baseline repo's hand_eye.npz files (key T_result) unchanged.
+It can read the baseline repo's hand_eye.npz files (key T_result) unchanged,
+and the gated schema-v1 records scripts/calibrate_handeye.py writes
+(`extrinsics.hand_eye_json`, see docs/HANDEYE_CALIBRATION.md).
 """
 
 from __future__ import annotations
@@ -28,17 +30,58 @@ class Extrinsics:
         mode: str = "eye_to_hand",
         T: np.ndarray | None = None,
         fk_tcp2base: Callable[[], np.ndarray] | None = None,
+        *,
+        compensation_m=None,
+        source: str = "inline",
+        calibration_error: str | None = None,
     ):
-        """`T` is T_cam2base (eye_to_hand) or T_cam2gripper (eye_in_hand)."""
+        """`T` is T_cam2base (eye_to_hand) or T_cam2gripper (eye_in_hand).
+
+        `compensation_m` is the profile's per-camera `hand_eye_compensation_m`
+        (ADR-0009, ported from WRC): a base-frame translation applied on the
+        LEFT -- eye_to_hand: T_comp @ T; eye_in_hand: T_comp @ FK @ T. For
+        eye_to_hand it is baked into `.T`, so every reader of the static
+        matrix (e.g. grasp-evidence audits) sees the transform actually used.
+
+        `calibration_error` marks a camera whose configured calibration
+        cannot be trusted (missing / malformed / rejected record, wrong
+        serial): it must not fuse, and `cam_to_base()` refuses with the
+        reason instead of returning a confident wrong transform.
+        """
         if mode not in ("eye_to_hand", "eye_in_hand"):
             raise ValueError(f"bad extrinsics mode {mode!r}")
         self.mode = mode
-        self.T = np.eye(4) if T is None else np.asarray(T, dtype=float)
+        self.T_compensation = _compensation_transform(compensation_m)
+        self.T_hand_eye = np.eye(4) if T is None else np.asarray(T, dtype=float)
+        self.calibration_error = calibration_error
+        self.source = source
+        if calibration_error is not None:
+            self.T = np.full((4, 4), np.nan)
+        elif mode == "eye_to_hand":
+            self.T = self.T_compensation @ self.T_hand_eye
+        else:
+            self.T = self.T_hand_eye
         self._fk = fk_tcp2base
 
+    @property
+    def calibrated(self) -> bool:
+        return self.calibration_error is None
+
     @classmethod
-    def from_config(cls, cfg, fk_tcp2base=None) -> "Extrinsics":
+    def from_config(cls, cfg, fk_tcp2base=None, *, camera_serial=None) -> "Extrinsics":
+        """Build from a camera profile's `extrinsics:` block.
+
+        Sources, first match wins: `hand_eye_json` (schema-v1 record from
+        scripts/calibrate_handeye.py, gated), `hand_eye_npz` (the baseline
+        repo's file, key T_result), inline `T`. `camera_serial` is the
+        profile's pinned serial; a record made for another unit is refused.
+        """
         mode = cfg.get("mode", "eye_to_hand")
+        comp = cfg.get("hand_eye_compensation_m")
+        json_path = cfg.get("hand_eye_json")
+        if json_path:
+            return cls._from_hand_eye_json(Path(str(json_path)).expanduser(), cfg.get("mode"),
+                                           comp, fk_tcp2base, camera_serial)
         npz_path = cfg.get("hand_eye_npz")
         if npz_path and Path(npz_path).exists():
             data = np.load(npz_path, allow_pickle=True)
@@ -48,18 +91,71 @@ class Extrinsics:
                 saved_mode = str(np.asarray(data["mode"]).ravel()[0])
             else:
                 saved_mode = mode
-            return cls(mode=saved_mode, T=T, fk_tcp2base=fk_tcp2base)
+            return cls(mode=saved_mode, T=T, fk_tcp2base=fk_tcp2base, compensation_m=comp,
+                       source=f"npz:{npz_path}")
         mat = cfg.get("T")
         T = np.asarray(mat, dtype=float).reshape(4, 4) if mat is not None else None
-        return cls(mode=mode, T=T, fk_tcp2base=fk_tcp2base)
+        return cls(mode=mode, T=T, fk_tcp2base=fk_tcp2base, compensation_m=comp)
+
+    @classmethod
+    def _from_hand_eye_json(cls, path, profile_mode, comp, fk, camera_serial) -> "Extrinsics":
+        from ..calibration.dataset import read_hand_eye
+
+        def refused(reason, mode=None):
+            msg = (f"hand-eye calibration {path} not usable: {reason}; recalibrate "
+                   "(docs/HANDEYE_CALIBRATION.md)")
+            return cls(mode=mode or profile_mode or "eye_to_hand", fk_tcp2base=fk,
+                       compensation_m=comp, source=f"hand_eye_json:{path}",
+                       calibration_error=msg)
+
+        try:
+            record = read_hand_eye(path)
+        except FileNotFoundError:
+            return refused("file not found")
+        except ValueError as e:
+            return refused(f"malformed hand-eye record ({e})")
+        if profile_mode and profile_mode != record.mode:
+            # An authoring error, not a calibration result: the profile and
+            # the record disagree about where the camera is mounted.
+            raise ValueError(f"extrinsics mode {profile_mode!r} contradicts the {record.mode!r} "
+                             f"hand-eye record {path}")
+        if not record.acceptable:
+            return refused("; ".join(record.rejection_reasons), record.mode)
+        if camera_serial and record.camera_serial and str(camera_serial) != record.camera_serial:
+            return refused(f"recorded for camera serial {record.camera_serial}, but the "
+                           f"profile pins {camera_serial}", record.mode)
+        return cls(mode=record.mode, T=record.T_hand_eye, fk_tcp2base=fk, compensation_m=comp,
+                   source=f"hand_eye_json:{path}")
 
     def cam_to_base(self) -> np.ndarray:
         """T_cam2base at this instant (uses live FK for eye-in-hand)."""
+        if self.calibration_error is not None:
+            raise SkillError(self.calibration_error)
         if self.mode == "eye_to_hand":
             return self.T
         if self._fk is None:
             raise SkillError("eye_in_hand extrinsics need a FK callback")
-        return self._fk() @ self.T
+        return self.T_compensation @ self._fk() @ self.T
+
+
+def _compensation_transform(comp) -> np.ndarray:
+    """ADR-0009 `{x, y, z}` (metres, base frame) -> 4x4; None = identity."""
+    T = np.eye(4)
+    if comp is None:
+        return T
+    getter = comp.get if hasattr(comp, "get") else None
+    keys = set(comp.as_dict()) if hasattr(comp, "as_dict") else (
+        set(comp) if isinstance(comp, dict) else None)
+    if getter is None or keys is None or not keys <= {"x", "y", "z"}:
+        raise ValueError(f"hand_eye_compensation_m must be a mapping of x/y/z metres, got {comp!r}")
+    try:
+        vals = [float(getter(k, 0.0)) for k in ("x", "y", "z")]
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"hand_eye_compensation_m values must be numbers: {comp!r}") from e
+    if not all(np.isfinite(vals)):
+        raise ValueError(f"hand_eye_compensation_m must be finite: {comp!r}")
+    T[:3, 3] = vals
+    return T
 
 
 def mask_to_points_cam(

@@ -71,6 +71,7 @@ cascade-fleet-mcp = "cascade.apps.fleet_mcp:main"
 cascade-view = "cascade.apps.viewer:main"
 cascade-conversation = "cascade.apps.conversation:main"
 cascade-fleet = "cascade.apps.fleet:main"
+cascade-calib-handeye = "cascade.calibration.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]

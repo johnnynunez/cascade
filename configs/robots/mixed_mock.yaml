@@ -11,6 +11,16 @@ domains:
     bases: [microduck_mock]
   sensing:
     kind: sensors
+    # Opt-in capture-time pairing (B50): an `alignment:` block adds the
+    # read-only tool `sensing.read_aligned` (one fresh reference capture, each
+    # other sensor's admitted capture nearest its capture time, reported as
+    # aligned / stale / missing / uncertain with the measured skew; never
+    # interpolated; stale and missing values withheld). Absent = the catalog
+    # is byte-identical. See docs/ROBOT_MODULARITY.md "Capture-time alignment".
+    # alignment:
+    #   max_skew_s: 0.02          # required, (0, 1]; inclusive bound on |skew|
+    #   max_rotation_rad: 0.02    # optional: |gyro| or joint rate x |skew| above = uncertain
+    #   max_translation_m: 0.005  # optional: linear joint rate x |skew| above = uncertain
     providers:
       - id: imu
         kind: synthetic

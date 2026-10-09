@@ -34,11 +34,19 @@ Grasp frame convention returned here is GraspGen-X's OWN (not cascade's):
 `tip_offset_m` behind the jaw centre. Getting this wrong is the single most
 likely bug in the client, which is exactly why the stub emits the real
 convention rather than a convenient one.
+
+Test ownership (B64): `--port 0` binds a port the OS assigns and prints one
+stdout line `CASCADE_SERVER_READY {"endpoint", "port", "pid", "instance"}`
+after the bind; `--instance-id TOKEN` adds `"pid"` and `"instance": TOKEN` to
+the `health`/`ping` reply. Test fixtures use both so that a suite only ever
+talks to the stub it started. Without them the replies are unchanged.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import sys
 
 import numpy as np
@@ -114,7 +122,8 @@ def plan_grasps(points: np.ndarray, num_grasps: int = 32,
             np.asarray(confs, dtype=np.float32))
 
 
-def serve(port: int, gripper: str, verbose: bool = True) -> None:
+def serve(port: int, gripper: str, verbose: bool = True,
+          instance: str | None = None) -> None:
     try:
         import msgpack
         import msgpack_numpy
@@ -127,9 +136,15 @@ def serve(port: int, gripper: str, verbose: bool = True) -> None:
 
     ctx = zmq.Context.instance()
     sock = ctx.socket(zmq.REP)
-    sock.bind(f"tcp://127.0.0.1:{port}")
+    sock.bind(f"tcp://127.0.0.1:{port}")          # 0 = a port the OS assigns
+    endpoint = sock.getsockopt(zmq.LAST_ENDPOINT).decode()
+    identity = {} if instance is None else {"pid": os.getpid(), "instance": instance}
+    if port == 0:
+        print("CASCADE_SERVER_READY " + json.dumps(
+            {"endpoint": endpoint, "port": int(endpoint.rsplit(":", 1)[1]),
+             "pid": os.getpid(), "instance": instance}), flush=True)
     if verbose:
-        print(f"[graspgenx-stub] listening on tcp://127.0.0.1:{port} "
+        print(f"[graspgenx-stub] listening on {endpoint} "
               f"(gripper={gripper}) -- ANALYTIC, not the learned model")
 
     while True:
@@ -143,8 +158,8 @@ def serve(port: int, gripper: str, verbose: bool = True) -> None:
                 # `health` is what the real server answers ({"status": "ok"});
                 # `ping` is this stub's older spelling. `stub: true` lets the
                 # client name us honestly in the run banner.
-                sock.send(msgpack.packb({"status": "ok", "ok": True, "stub": True},
-                                        use_bin_type=True))
+                sock.send(msgpack.packb({"status": "ok", "ok": True, "stub": True,
+                                         **identity}, use_bin_type=True))
                 continue
             pts = np.asarray(req["point_cloud"], dtype=np.float64).reshape(-1, 3)
             if pts.shape[0] < 3:
@@ -172,11 +187,14 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description="GraspGen-X protocol stub (analytic, runs without CUDA)"
     )
-    ap.add_argument("--port", type=int, default=5556)
+    ap.add_argument("--port", type=int, default=5556,
+                    help="0 = a port the OS assigns, announced on stdout")
     ap.add_argument("--gripper", default="so101")
     ap.add_argument("--quiet", action="store_true")
+    ap.add_argument("--instance-id", default=None,
+                    help="token echoed with this process's pid in health replies")
     a = ap.parse_args()
-    serve(a.port, a.gripper, verbose=not a.quiet)
+    serve(a.port, a.gripper, verbose=not a.quiet, instance=a.instance_id)
     return 0
 
 

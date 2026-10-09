@@ -85,7 +85,7 @@ guarantee or continued motion of unaffected peers is established.
 | `apps/robot_runtime.py` | Explicit manipulation, locomotion, fastening, sensing and spatial composition through `--robot` / `CASCADE_ROBOT`; a manipulation domain `mounted_on` a locomotion base under a `whole_body` contract | Mixed physical actuation is refused; whole-body compositions with any physical actuating resource are refused with the missing gates named |
 | `conversation/`, `apps/conversation.py` | Browser media, Realtime provider, allowlisted semantic intents, deadlines and priority interruption | Supervisor above one robot runtime; no joint writer, implicit stop reset or hosted-service deployment |
 | `sensing/` | Typed passive observations, provenance, freshness, bounded readers/history | Reading cannot step physics or claim actuator ownership |
-| `spatial/` | Capture-time frame lookup, source-bound memory, synthetic route proposals, observed RGB-D annotations and an optional [cuVSLAM RGB-D provider](SPATIAL_PROVIDERS.md#optional-cuvslam-localization) | cuVSLAM has CPU contract coverage and a 12-frame native synthetic RGB-D replay; physical localization and navigation execution remain pending; annotations are not a collision map |
+| `spatial/` | Capture-time frame lookup, source-bound memory, synthetic route proposals, observed RGB-D annotations, an optional [cuVSLAM RGB-D provider](SPATIAL_PROVIDERS.md#optional-cuvslam-localization) and an opt-in [`go_to` route runner](SPATIAL_PROVIDERS.md#opt-in-observed-route-execution) (`spatial/navigation.py`) | cuVSLAM has CPU contract coverage, a 12-frame native synthetic RGB-D replay and a [live native simulation stream](CUVSLAM_NATIVE_VALIDATION.md#live-native-rgb-d-stream) of 12 tracked captures, with uncalibrated pose uncertainty; `go_to` has CPU tests only and no shipped provider; physical localization and native route execution remain pending; annotations are not a collision map |
 | `control/microduck_policy.py`, `sim/microduck_stepper.py` | Pinned ONNX contract and physics-clock policy application | Robot-specific implementation; no generic humanoid policy loader or second writer to head joints |
 | `robotics/graph.py` | Immutable bounded DAG of registered skills, outcome and data edges | No graph-generated code, online self-editing or automatic stop reset |
 | `eval/vab.py`, `eval/arena.py`, `eval/trials.py` | Optional external API adapters and bound independent verdicts | Upstream success alone does not grant physical admission |
@@ -99,8 +99,8 @@ guarantee or continued motion of unaffected peers is established.
 | Talk and understand tool intents | Local browser/provider/session path with bounded audio and curated tools | Reliable general dialogue, hardware audio and public service operation |
 | Interact with objects | Arm skills, SafeArm, grasp/release observations, optional cuMotion and OVRTX; a mock arm mounted on a mock base with world-frame reach verdicts (B30) | Validation for each body/tool/scene; physical whole-body mobile manipulation (measured mount calibration, independent base pose, moving-frame arm limits) |
 | Turn a fastener | Mounted Factory domain with per-solve observations and final rest checks | Repeatability of the measured mounted turn/rest episode; acquisition, engagement, withdrawal and calibrated preload |
-| Walk or turn | MicroDuck MobileBase, pinned policy, BAM, command leases and independent support/rest checks | General gait, longer paths and other robot/model/controller combinations |
-| Perceive and remember space | Passive sensors, measured-frame contracts and retained RGB-D surface annotations | Physical SLAM/localization, metric reconstruction admission and execution of planned routes |
+| Walk or turn | MicroDuck MobileBase, pinned policy, BAM, command leases and independent support/rest checks; the [Unitree H2 PhysX candidate](HUMANOID_H2.md) on the same `MobileBase`/`SafeBase`/verifier path (simulation only) | General gait, longer paths, physical admission and other robot/model/controller combinations |
+| Perceive and remember space | Passive sensors, measured-frame contracts, retained RGB-D surface annotations, optional cuVSLAM localization (uncalibrated) and an opt-in `go_to` route runner (CPU tests only) | Calibrated physical SLAM/localization, a collision map from the robot's own sensors, metric reconstruction admission and native execution of planned routes |
 | Describe different bodies | Fixed/floating roots, links, transmissions and typed scalar/generalized joint observations; explicit multi-domain embodiments with disjoint command endpoints and a capture-time mount frame chain (mock) | Drivers and control mappings for each mechanism; dynamic whole-body control, balance and arm physics on a moving base (e.g. Unitree H2 arms) |
 | Sense touch | Contact, estimated-force and tactile-image contracts | Calibrated tactile device drivers and task-specific tactile verification |
 | Coordinate twelve robots | Concurrent fleet runtime, agent CLI/MCP and one shared native scene; separate identities and zero-command support measured for twelve robots | Resolve measured feedback latency, then validate independent native agent tasks, collision interaction and physical fleet stop/reset |
@@ -361,6 +361,73 @@ MicroDuck retains its existing audited 61-observation/14-action native contract.
 Its head/neck joints belong to that policy; the mouth lies outside it. A speech
 app must not obtain a second writer to policy-owned joints.
 
+### Capture-time alignment (B50, opt-in)
+
+A camera capture and an IMU or joint sample describe one instant only when
+they were captured at (nearly) the same time on one clock. `read_sensor`
+returns each sensor's latest capture independently: on the loopback mobile
+bridge, a camera read at physics step 10 followed by an IMU read returns steps
+10 and 11, and nothing says so. An `alignment:` block in a sensors domain adds
+the read-only tool `read_aligned` (absent: the catalog is byte-identical):
+
+```yaml
+sensing:
+  kind: sensors
+  alignment:
+    max_skew_s: 0.02          # required, (0, 1] s; the bound is inclusive
+    max_rotation_rad: 0.02    # optional
+    max_translation_m: 0.005  # optional
+  providers: [...]
+```
+
+`sensing.read_aligned(reference="overview", sensor_ids=["imu", "joints"])`
+(default: every other sensor) reads ONE fresh reference capture. A failed or
+repeated reference read refuses the call; no older capture is substituted. Each
+paired sensor is read once (a refusal, such as a replay when its producer has
+nothing newer, is reported as `read_error`, not fatal) and paired with its
+admitted capture in the hub's bounded history nearest the reference's capture
+time (`src/cascade/sensing/alignment.py`):
+
+- Only comparable clocks are paired by skew: the same clock domain and the same
+  epoch (a reset world restarts simulation time). The process-local
+  `monotonic` domain is shared by every in-process provider across epochs.
+- `aligned`: |skew| ≤ `max_skew_s`.
+- `uncertain`: the observation is returned but flagged. `clock_not_comparable`
+  (no comparable capture; the latest one, skew unknown, while younger than the
+  sensor's `max_age_s`), `saturated` (the payload's own flag) or
+  `motion_exceeds_tolerance`: the sample's own measured rate × |skew| (|gyro|
+  for an IMU, the fastest joint per unit for joint payloads) exceeds the
+  declared tolerance. That is a first-order estimate, not a bound.
+- `stale`: |skew| > `max_skew_s`, or an incomparable capture older than
+  `max_age_s`. Sequence, epoch, capture time, skew and capture SHA-256 are
+  reported; the observation is withheld.
+- `missing`: no admitted capture. Nothing is made up.
+
+Nothing is interpolated or extrapolated: a returned observation is one admitted
+capture, byte for byte (its `capture_sha256` is the hub's). Ties keep the
+earlier capture. Channels a producer did not measure stay absent and are listed
+(`absent`: e.g. the mobile IMU's `linear_acceleration_m_s2`, `effort_nm`). B39's
+link self-mask pairs camera frames with joint samples through the same buffer
+and classification.
+
+Measured (software only, `tests/test_proprio_time_alignment.py`, 42 tests;
+RED on `origin/main` be57535: 35 failed, 7 premise/golden passed): on the real
+loopback mobile bridge (state socket and RGB-D frame cache) through the MCP
+composed-robot path, a step-10 camera capture pairs with the step-11 IMU and
+proprioception samples at +5 ms (aligned under 7.5 ms); a step-14 capture finds
+only step 11 (−15 ms: stale, withheld, `replay` reported); a 3 rad/s yaw rate
+5 ms from the capture is uncertain (0.015 rad > 0.01 rad). Only reader-role
+`hello`/`state`/`frame` requests reach the bridge and no actuator is built.
+Without `alignment:` the sensors-domain catalog of every shipped robot profile
+keeps its golden digest.
+
+Not claimed: IMU/proprioception fusion (no estimator consumes the pairings),
+the skew distribution of a native Isaac producer, producer-rate sampling (the
+history holds only captures that reads admitted, at most 32 captures / 16 MB
+shared by all sensors, so one large RGB-D capture can evict IMU samples),
+hardware clock synchronization, or the accuracy of the first-order motion
+estimate.
+
 ## Why these research directions fit
 
 This is a focused survey of relevant primary implementations, not a claim that
@@ -538,7 +605,9 @@ learned state unchanged. Hosted CI remains a separate result on the PR.
 The next physical vertical must select one real embodiment and controller,
 rather than assert support for all humanoids at once. The embodiment selected
 on 7 October 2026 is the Unitree H2 on PhysX ([HUMANOID_H2.md](HUMANOID_H2.md)):
-no gate below is passed yet. Required work includes:
+gate 1 (binding) passed in simulation on 7 October 2026, gate 2 is partially
+shown and gate 5 has a first simulation pass ([gate table](HUMANOID_H2.md#admission-gates-robot_modularitymd--admission-work-for-an-actual-humanoid));
+nothing is admitted physically. Required work includes:
 
 1. Bind the model, policy, command endpoint and all observation/action mappings;
    demonstrate exclusive ownership and controller-clock execution.

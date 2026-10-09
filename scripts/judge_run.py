@@ -36,6 +36,8 @@ def main() -> int:
     ap.add_argument("--skills", help="comma-separated skills to judge (default: all traced calls)")
     ap.add_argument("--fake-score", type=float, default=None, help="with --judge fake: the constant hop")
     ap.add_argument("--strict", action="store_true", help="exit 3 for disagreement; exit 4 when a physics-confirmed step has no score")
+    ap.add_argument("--json-out", help="also write the verdict (judge.json + summary_line) to this path, atomically "
+                                       "(scripts/judge_proof.py reads it for the launcher's run summary)")
     args = ap.parse_args()
 
     from cascade.config import load_demo_config
@@ -104,6 +106,11 @@ def main() -> int:
         print(f"tier {tier:<10} n={d['n']} hop_mean={d['hop_mean']:+.2f} {hps}")
     out = v.write()
     print(f"wrote {out} and appended to summary.txt: {v.summary_line()}")
+    if args.json_out:
+        dest = Path(args.json_out)
+        tmp = dest.with_name(dest.name + ".tmp")
+        tmp.write_text(json.dumps({**v.to_dict(), "summary_line": v.summary_line()}, indent=1))
+        tmp.replace(dest)
     # exit status is the metric: 3 = the judge missed physics-confirmed
     # progress (fn > 0), so a launcher or CI can gate on it
     if args.strict and any(s.physics == "confirmed" and s.hop is None for s in v.steps):

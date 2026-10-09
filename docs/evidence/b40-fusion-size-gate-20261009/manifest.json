@@ -1,0 +1,40 @@
+{
+ "what": "inputs and outputs of measure_sizes.py (B40, CPU only, 2026-10-09)",
+ "command": "python docs/evidence/b40-fusion-size-gate-20261009/measure_sizes.py --lab <cascade-lab>/HERMES_BACKLOG_20261007/b32b-colour-identity/live --json docs/evidence/b40-fusion-size-gate-20261009/sizes_summary.json",
+ "lab_inputs_sha256 (read-only, not in the repo)": {
+  "b32b-colour-identity/live/results_b32c_adv/assign_in_bin_centre_off.json": "2957152139ff47b8120feb49b1fea8bc2f8e625f75c0047bcccf5dd81d238b66",
+  "b32b-colour-identity/live/results_b32c_adv/assign_in_bin_centre_on.json": "0441ed0d391fabdb5503ed9bd8ddb75c456c369a1a205043bf06f0b347488406",
+  "b32b-colour-identity/live/results_b32c_adv/assign_in_bin_centre_on.npz": "1e904fa9680db467b69dc9c65c2d5e0cb82354acc93abe7eabe5797d8e558360",
+  "b32b-colour-identity/live/results_b32c_adv/in_bin_centre_r1.json": "6a27a74797421115a68516a70b3ca4315c94efc12d28bd8c44d45014c62add64",
+  "b32b-colour-identity/live/results_b32c_adv/in_bin_centre_r1.npz": "6eb0ec7ce698b53567dd8d676bd82fb10b00cdf95f93624f7d6783c0dc64af5f",
+  "b32b-colour-identity/live/results_b32c_adv/in_bin_centre_r2.json": "5f88e7cee920847034d5e70a573bc0880b5f78ba917318b64ab686d2ea31093a",
+  "b32b-colour-identity/live/results_b32c_adv/in_bin_centre_r2.npz": "6083adbf0521362b67c21c5f93c3d1ba252cbeae119ab08c535fcede1db50ced",
+  "b32b-colour-identity/live/results_b32c_adv/in_bin_corner_r1.json": "d647a290a898269672ccb1623395217f56509fc6aabebd6d3a2d483801f89ecd",
+  "b32b-colour-identity/live/results_b32c_adv/in_bin_corner_r1.npz": "b6c25add0cc0cc8a36ffa09ffcda79b462b62ed28b5d079ea25a3b68ed9f504d",
+  "b32b-colour-identity/live/results_b32c_adv/in_bin_corner_r2.json": "479a81d72575191f71fc67023f05758c787b69d7c14fd8a92457e6618deca752",
+  "b32b-colour-identity/live/results_b32c_adv/in_bin_corner_r2.npz": "46699a702d49e99a5fe2333f0e14e8e8b93e8e9326479dcdaaacdf671119794b",
+  "b32b-colour-identity/live/results_b32c_adv/next_to_bin_r1.json": "d92da9a42fffd5bf5a97e6433e67bf070cc74b95688667546c26b1df20dfb74f",
+  "b32b-colour-identity/live/results_b32c_adv/next_to_bin_r1.npz": "a9c21f7f745696caad6729a13c105c71911cbaccab941f12bcb48c5e24df5d4d",
+  "b32b-colour-identity/live/results_b32c_adv/next_to_bin_r2.json": "fd9e25eb7b9f4806f54e55069c78895b7c58db99c69e6e49f936f5d0b2e631ae",
+  "b32b-colour-identity/live/results_b32c_adv/next_to_bin_r2.npz": "8e888164b3235de1e756c239c5c98c242cb0e4fbf7b1c6a9e135350f78396a5b",
+  "b32b-colour-identity/live/results_samples/bare_r1.json": "90fd84976db770e7763fac0c5cb33e53d15289721fdb768426575a4401fbdb78",
+  "b32b-colour-identity/live/results_samples/bare_r1.npz": "0f9209965431d5a300fa27c735af64bbf76d6b1c07adc630a4b34e10adc9c71f",
+  "b32b-colour-identity/live/results_samples/bare_r2.json": "14b0e4da69ad5d6357b7e40bfaec5a71b79c213102dc20147bdf48185d6886dc",
+  "b32b-colour-identity/live/results_samples/bare_r2.npz": "2f3e84719e2227432af6bc68a67320a1b1a07e5709e1bb3be874d6c6ca236f15",
+  "b32b-colour-identity/live/results_samples/bare_r3.json": "9e0b0633b8a294ad7cef41ab57455577cbe4a03c161763ee52a092058d04e5f9",
+  "b32b-colour-identity/live/results_samples/bare_r3.npz": "474ba7dfc155f7a9958472afe398f04d4cf9cdee5d22d625e13a8297275fedb0",
+  "b32b-colour-identity/live/results_samples/in_bin_centre_r1.json": "a51aaff78c27568d5aaefc2a7962561cd78f19efe8ce125231d0115239e0ef7a",
+  "b32b-colour-identity/live/results_samples/in_bin_centre_r1.npz": "1fe7faa82108f1f8aed7c0896a522ae2f1feb253120bc153580e1821667a4443",
+  "b32b-colour-identity/live/results_samples/in_bin_corner_r1.json": "a7575cb226b365af7b8dcba5fd6213b6c63e476efb462463877d50ac915dbd7a",
+  "b32b-colour-identity/live/results_samples/in_bin_corner_r1.npz": "3016d8f31176c2cec9ec01b091c27aa42e1f043a10ac07e866d77a5a6f0e674f",
+  "b32b-colour-identity/live/results_samples/next_to_bin_r1.json": "dd1fe5c6b09c194e3418fff8cd1d18be0453f58c8de1d94014f84d551dc57f59",
+  "b32b-colour-identity/live/results_samples/next_to_bin_r1.npz": "57fe6aa86ba9259e092fed950d5f3049f510e1bebfdda02c57e657a0b9f39081"
+ },
+ "repo_inputs_sha256": {
+  "tests/fixtures/b32b_live_bin_clouds/clouds.npz": "d224ad7697cc3bca9c2292c9e069c79a28aa41985f6f8556f472bf6b4cf48f98",
+  "tests/fixtures/b32b_live_bin_clouds/receipt.json": "6eda8a05367b0aa8554edfc7c3f1957ec1be583b52da287adbf84d514ecefe5a"
+ },
+ "outputs_sha256": {
+  "sizes_summary.json": "03a9717af011e6c72a4da32f6ed75df7afc4c28e6554b8e7647914852e0a61d2"
+ }
+}

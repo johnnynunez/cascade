@@ -1,0 +1,460 @@
+{
+ "rule": {
+  "ratio": 2.0,
+  "excess_m": 0.05
+ },
+ "live": {
+  "bin": {
+   "diameter": {
+    "n": 205,
+    "min": 0.1828,
+    "median": 0.1954,
+    "max": 0.2351
+   },
+   "aa_xy": {
+    "n": 205,
+    "min": 0.1415,
+    "median": 0.1465,
+    "max": 0.2152
+   },
+   "obb": {
+    "n": 205,
+    "min": 0.1842,
+    "median": 0.2266,
+    "max": 0.2994
+   }
+  },
+  "prop": {
+   "diameter": {
+    "n": 15,
+    "min": 0.0658,
+    "median": 0.0671,
+    "max": 0.0736
+   },
+   "aa_xy": {
+    "n": 15,
+    "min": 0.0483,
+    "median": 0.049,
+    "max": 0.0646
+   },
+   "obb": {
+    "n": 15,
+    "min": 0.0902,
+    "median": 0.0916,
+    "max": 0.3278
+   }
+  },
+  "ratios": {
+   "diameter": {
+    "same_bin_max_over_min": 1.286,
+    "same_prop_max_over_min": 1.118,
+    "container_min_over_prop_max": 2.484,
+    "container_min_minus_prop_max_m": 0.1092
+   },
+   "aa_xy": {
+    "same_bin_max_over_min": 1.521,
+    "same_prop_max_over_min": 1.336,
+    "container_min_over_prop_max": 2.19,
+    "container_min_minus_prop_max_m": 0.0769
+   },
+   "obb": {
+    "same_bin_max_over_min": 1.625,
+    "same_prop_max_over_min": 3.633,
+    "container_min_over_prop_max": 0.562,
+    "container_min_minus_prop_max_m": -0.1436
+   }
+  }
+ },
+ "live_defect": {
+  "runs": [
+   "assign_in_bin_centre_off",
+   "assign_in_bin_centre_on"
+  ],
+  "bin_views_absorbed_by_the_prop": 6,
+  "their_obb_max": {
+   "n": 6,
+   "min": 0.218,
+   "median": 0.219,
+   "max": 0.222
+  },
+  "prop_belief_born_obb_max": {
+   "n": 6,
+   "min": 0.09,
+   "median": 0.09,
+   "max": 0.09
+  },
+  "sources": [
+   "isaac_side"
+  ]
+ },
+ "raycast_diameter": {
+  "bin | isaac | bleed 0px | full": {
+   "n": 3,
+   "min": 0.1918,
+   "median": 0.193,
+   "max": 0.1931
+  },
+  "bin | isaac | bleed 0px | half": {
+   "n": 12,
+   "min": 0.1604,
+   "median": 0.1707,
+   "max": 0.1947
+  },
+  "bin | isaac | bleed 0px | quarter": {
+   "n": 12,
+   "min": 0.0947,
+   "median": 0.1108,
+   "max": 0.148
+  },
+  "bin | isaac | bleed 1px | full": {
+   "n": 3,
+   "min": 0.188,
+   "median": 0.1897,
+   "max": 0.1903
+  },
+  "bin | isaac | bleed 1px | half": {
+   "n": 12,
+   "min": 0.1626,
+   "median": 0.1678,
+   "max": 0.1945
+  },
+  "bin | isaac | bleed 1px | quarter": {
+   "n": 12,
+   "min": 0.0943,
+   "median": 0.1141,
+   "max": 0.147
+  },
+  "bin | isaac | bleed 2px | full": {
+   "n": 3,
+   "min": 0.1839,
+   "median": 0.1896,
+   "max": 0.1921
+  },
+  "bin | isaac | bleed 2px | half": {
+   "n": 12,
+   "min": 0.1597,
+   "median": 0.1694,
+   "max": 0.1911
+  },
+  "bin | isaac | bleed 2px | quarter": {
+   "n": 12,
+   "min": 0.0991,
+   "median": 0.1119,
+   "max": 0.1477
+  },
+  "bin | isaac_side | bleed 0px | full": {
+   "n": 3,
+   "min": 0.1833,
+   "median": 0.1975,
+   "max": 0.1985
+  },
+  "bin | isaac_side | bleed 0px | half": {
+   "n": 12,
+   "min": 0.1441,
+   "median": 0.1688,
+   "max": 0.1971
+  },
+  "bin | isaac_side | bleed 0px | quarter": {
+   "n": 12,
+   "min": 0.0732,
+   "median": 0.1282,
+   "max": 0.1504
+  },
+  "bin | isaac_side | bleed 1px | full": {
+   "n": 3,
+   "min": 0.1865,
+   "median": 0.1943,
+   "max": 0.1977
+  },
+  "bin | isaac_side | bleed 1px | half": {
+   "n": 12,
+   "min": 0.1633,
+   "median": 0.1785,
+   "max": 0.201
+  },
+  "bin | isaac_side | bleed 1px | quarter": {
+   "n": 12,
+   "min": 0.073,
+   "median": 0.138,
+   "max": 0.1691
+  },
+  "bin | isaac_side | bleed 2px | full": {
+   "n": 3,
+   "min": 0.1871,
+   "median": 0.1934,
+   "max": 0.1948
+  },
+  "bin | isaac_side | bleed 2px | half": {
+   "n": 12,
+   "min": 0.1645,
+   "median": 0.1826,
+   "max": 0.1975
+  },
+  "bin | isaac_side | bleed 2px | quarter": {
+   "n": 12,
+   "min": 0.0727,
+   "median": 0.1372,
+   "max": 0.1848
+  },
+  "cube5 | isaac | bleed 0px | full": {
+   "n": 1,
+   "min": 0.0619,
+   "median": 0.0619,
+   "max": 0.0619
+  },
+  "cube5 | isaac | bleed 0px | half": {
+   "n": 4,
+   "min": 0.0505,
+   "median": 0.0508,
+   "max": 0.0617
+  },
+  "cube5 | isaac | bleed 0px | quarter": {
+   "n": 4,
+   "min": 0.0255,
+   "median": 0.0373,
+   "max": 0.0446
+  },
+  "cube5 | isaac | bleed 1px | full": {
+   "n": 1,
+   "min": 0.0663,
+   "median": 0.0663,
+   "max": 0.0663
+  },
+  "cube5 | isaac | bleed 1px | half": {
+   "n": 4,
+   "min": 0.0559,
+   "median": 0.0659,
+   "max": 0.0744
+  },
+  "cube5 | isaac | bleed 1px | quarter": {
+   "n": 4,
+   "min": 0.035,
+   "median": 0.0533,
+   "max": 0.0606
+  },
+  "cube5 | isaac | bleed 2px | full": {
+   "n": 1,
+   "min": 0.0924,
+   "median": 0.0924,
+   "max": 0.0924
+  },
+  "cube5 | isaac | bleed 2px | half": {
+   "n": 4,
+   "min": 0.066,
+   "median": 0.0715,
+   "max": 0.099
+  },
+  "cube5 | isaac | bleed 2px | quarter": {
+   "n": 4,
+   "min": 0.035,
+   "median": 0.0581,
+   "max": 0.0684
+  },
+  "cube5 | isaac_side | bleed 0px | full": {
+   "n": 1,
+   "min": 0.067,
+   "median": 0.067,
+   "max": 0.067
+  },
+  "cube5 | isaac_side | bleed 0px | half": {
+   "n": 4,
+   "min": 0.0418,
+   "median": 0.0523,
+   "max": 0.0669
+  },
+  "cube5 | isaac_side | bleed 0px | quarter": {
+   "n": 4,
+   "min": 0.0348,
+   "median": 0.0424,
+   "max": 0.0479
+  },
+  "cube5 | isaac_side | bleed 1px | full": {
+   "n": 1,
+   "min": 0.1609,
+   "median": 0.1609,
+   "max": 0.1609
+  },
+  "cube5 | isaac_side | bleed 1px | half": {
+   "n": 4,
+   "min": 0.0767,
+   "median": 0.1465,
+   "max": 0.152
+  },
+  "cube5 | isaac_side | bleed 1px | quarter": {
+   "n": 4,
+   "min": 0.0491,
+   "median": 0.0909,
+   "max": 0.1517
+  },
+  "cube5 | isaac_side | bleed 2px | full": {
+   "n": 1,
+   "min": 0.1653,
+   "median": 0.1653,
+   "max": 0.1653
+  },
+  "cube5 | isaac_side | bleed 2px | half": {
+   "n": 4,
+   "min": 0.0838,
+   "median": 0.1583,
+   "max": 0.1736
+  },
+  "cube5 | isaac_side | bleed 2px | quarter": {
+   "n": 4,
+   "min": 0.0435,
+   "median": 0.0957,
+   "max": 0.1553
+  },
+  "prop | isaac | bleed 0px | full": {
+   "n": 3,
+   "min": 0.0632,
+   "median": 0.0638,
+   "max": 0.0674
+  },
+  "prop | isaac | bleed 0px | half": {
+   "n": 12,
+   "min": 0.0512,
+   "median": 0.0581,
+   "max": 0.0669
+  },
+  "prop | isaac | bleed 0px | quarter": {
+   "n": 12,
+   "min": 0.0395,
+   "median": 0.0451,
+   "max": 0.0532
+  },
+  "prop | isaac | bleed 1px | full": {
+   "n": 3,
+   "min": 0.0659,
+   "median": 0.0821,
+   "max": 0.1026
+  },
+  "prop | isaac | bleed 1px | half": {
+   "n": 12,
+   "min": 0.0511,
+   "median": 0.0788,
+   "max": 0.1082
+  },
+  "prop | isaac | bleed 1px | quarter": {
+   "n": 12,
+   "min": 0.0402,
+   "median": 0.0487,
+   "max": 0.104
+  },
+  "prop | isaac | bleed 2px | full": {
+   "n": 3,
+   "min": 0.0676,
+   "median": 0.0921,
+   "max": 0.1335
+  },
+  "prop | isaac | bleed 2px | half": {
+   "n": 12,
+   "min": 0.0511,
+   "median": 0.0845,
+   "max": 0.1468
+  },
+  "prop | isaac | bleed 2px | quarter": {
+   "n": 12,
+   "min": 0.0402,
+   "median": 0.0585,
+   "max": 0.1049
+  },
+  "prop | isaac_side | bleed 0px | full": {
+   "n": 3,
+   "min": 0.0637,
+   "median": 0.0658,
+   "max": 0.0669
+  },
+  "prop | isaac_side | bleed 0px | half": {
+   "n": 12,
+   "min": 0.0406,
+   "median": 0.0508,
+   "max": 0.0678
+  },
+  "prop | isaac_side | bleed 0px | quarter": {
+   "n": 12,
+   "min": 0.0365,
+   "median": 0.0449,
+   "max": 0.0498
+  },
+  "prop | isaac_side | bleed 1px | full": {
+   "n": 3,
+   "min": 0.0683,
+   "median": 0.1343,
+   "max": 0.1599
+  },
+  "prop | isaac_side | bleed 1px | half": {
+   "n": 12,
+   "min": 0.0462,
+   "median": 0.0716,
+   "max": 0.161
+  },
+  "prop | isaac_side | bleed 1px | quarter": {
+   "n": 12,
+   "min": 0.0401,
+   "median": 0.0502,
+   "max": 0.1297
+  },
+  "prop | isaac_side | bleed 2px | full": {
+   "n": 3,
+   "min": 0.0686,
+   "median": 0.1454,
+   "max": 0.1788
+  },
+  "prop | isaac_side | bleed 2px | half": {
+   "n": 12,
+   "min": 0.0466,
+   "median": 0.084,
+   "max": 0.1766
+  },
+  "prop | isaac_side | bleed 2px | quarter": {
+   "n": 12,
+   "min": 0.0401,
+   "median": 0.0596,
+   "max": 0.1422
+  }
+ },
+ "raycast_ratios": {
+  "5 cm cube in the bin corner | bin | bleed <= 0px | full / smallest half": 1.268,
+  "5 cm cube in the bin corner | bin | bleed <= 0px | full / smallest quarter": 2.087,
+  "5 cm cube in the bin corner | bin | bleed <= 0px | largest full / smallest full": 1.03,
+  "5 cm cube in the bin corner | bin | bleed <= 1px | full / smallest half": 1.268,
+  "5 cm cube in the bin corner | bin | bleed <= 1px | full / smallest quarter": 2.087,
+  "5 cm cube in the bin corner | bin | bleed <= 1px | largest full / smallest full": 1.041,
+  "5 cm cube in the bin corner | cube5 | bleed <= 0px | full / smallest half": 1.603,
+  "5 cm cube in the bin corner | cube5 | bleed <= 0px | full / smallest quarter": 2.63,
+  "5 cm cube in the bin corner | cube5 | bleed <= 0px | largest full / smallest full": 1.083,
+  "5 cm cube in the bin corner | cube5 | bleed <= 1px | full / smallest half": 3.852,
+  "5 cm cube in the bin corner | cube5 | bleed <= 1px | full / smallest quarter": 6.319,
+  "5 cm cube in the bin corner | cube5 | bleed <= 1px | largest full / smallest full": 2.602,
+  "bin + prop in it (live position) | bin | bleed <= 0px | full / smallest half": 1.377,
+  "bin + prop in it (live position) | bin | bleed <= 0px | full / smallest quarter": 1.998,
+  "bin + prop in it (live position) | bin | bleed <= 0px | largest full / smallest full": 1.028,
+  "bin + prop in it (live position) | bin | bleed <= 1px | full / smallest half": 1.377,
+  "bin + prop in it (live position) | bin | bleed <= 1px | full / smallest quarter": 1.998,
+  "bin + prop in it (live position) | bin | bleed <= 1px | largest full / smallest full": 1.043,
+  "bin + prop in it (live position) | prop | bleed <= 0px | full / smallest half": 1.483,
+  "bin + prop in it (live position) | prop | bleed <= 0px | full / smallest quarter": 1.747,
+  "bin + prop in it (live position) | prop | bleed <= 0px | largest full / smallest full": 1.008,
+  "bin + prop in it (live position) | prop | bleed <= 1px | full / smallest half": 3.72,
+  "bin + prop in it (live position) | prop | bleed <= 1px | full / smallest quarter": 4.382,
+  "bin + prop in it (live position) | prop | bleed <= 1px | largest full / smallest full": 2.529,
+  "bin + prop next to it | bin | bleed <= 0px | full / smallest half": 1.312,
+  "bin + prop next to it | bin | bleed <= 0px | full / smallest quarter": 2.638,
+  "bin + prop next to it | bin | bleed <= 0px | largest full / smallest full": 1.053,
+  "bin + prop next to it | bin | bleed <= 1px | full / smallest half": 1.312,
+  "bin + prop next to it | bin | bleed <= 1px | full / smallest quarter": 2.644,
+  "bin + prop next to it | bin | bleed <= 1px | largest full / smallest full": 1.053,
+  "bin + prop next to it | prop | bleed <= 0px | full / smallest half": 1.38,
+  "bin + prop next to it | prop | bleed <= 0px | full / smallest quarter": 1.651,
+  "bin + prop next to it | prop | bleed <= 0px | largest full / smallest full": 1.031,
+  "bin + prop next to it | prop | bleed <= 1px | full / smallest half": 2.817,
+  "bin + prop next to it | prop | bleed <= 1px | full / smallest quarter": 3.372,
+  "bin + prop next to it | prop | bleed <= 1px | largest full / smallest full": 2.105,
+  "prop bare (0.17, 0.15) | prop | bleed <= 0px | full / smallest half": 1.66,
+  "prop bare (0.17, 0.15) | prop | bleed <= 0px | full / smallest quarter": 1.833,
+  "prop bare (0.17, 0.15) | prop | bleed <= 0px | largest full / smallest full": 1.008,
+  "prop bare (0.17, 0.15) | prop | bleed <= 1px | full / smallest half": 1.681,
+  "prop bare (0.17, 0.15) | prop | bleed <= 1px | full / smallest quarter": 1.857,
+  "prop bare (0.17, 0.15) | prop | bleed <= 1px | largest full / smallest full": 1.037
+ }
+}

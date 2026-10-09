@@ -10,7 +10,9 @@ Tier 1 (reflex):   a template grammar compiles routine commands ("pick and
                    into deterministic skill calls, in microseconds.
 Tier 2 (habit):    Agentic-VLA-style experience memory -- successful plans
                    indexed by a hashed bag-of-words embedding of the
-                   instruction, retrieved by cosine similarity and replayed.
+                   instruction, retrieved by cosine similarity and replayed
+                   only for an instruction with the same clause structure
+                   (since B37: a sequence never replays one clause's habit).
                    Since 2026-10-07 this tier also holds Harness-VLA v4
                    Task-Specific Memory RECIPES: successful LLM-tier runs
                    with every concrete coordinate replaced by a perception
@@ -427,15 +429,51 @@ class ExperienceMemory:
         return len(self._records)
 
     def recall(self, task: str, min_sim: float = 0.9) -> dict | None:
-        """Best stored plan for a similar instruction, if it mostly worked."""
+        """Best stored plan for a similar instruction, if it mostly worked
+        AND it has the instruction's clause structure (`_same_clauses`).
+
+        A candidate refused for its structure is skipped like a demoted one,
+        so a matching record ranked below it is still found.
+        """
         with self._lock:
             for sim, i in self._index.search(_embed(task, self._dim), k=3):
                 if sim < min_sim:
                     break
                 rec = self._records[i]
-                if rec["wins"] > rec["losses"]:
+                if rec["wins"] > rec["losses"] and self._same_clauses(task, rec["task"], min_sim):
                     return {"sim": round(sim, 3), **rec}
         return None
+
+    def _same_clauses(self, task: str, recorded: str, min_sim: float) -> bool:
+        """True when the recorded instruction has the task's clause structure.
+
+        The hashed bag-of-words vector cannot see clause boundaries or their
+        order. Measured on this index (B37): "pick up the red cube and then
+        pick up the blue cube" scores 0.901 against the habit "pick up the
+        red cube" -- replaying it ran half the command and reported success,
+        the failure the curriculum's all-or-nothing rule exists to prevent;
+        the reverse direction let one instruction (or one curriculum clause
+        in `FastPlanner._plan_one`) replay a recorded compound and run
+        clauses nobody asked for (0.929); a reversed sequence is the same
+        vector (0.994, "go home and then wave" -> wave first); and one
+        differing word in one clause is diluted by the rest (bowl vs box in
+        a two-clause command: 0.958).
+
+        So the clauses are compared, as the curriculum splits them
+        (`split_subgoals`: sequence connectives only, never a bare "and"):
+        the counts must be equal and, for a sequence, every clause must clear
+        `min_sim` against its counterpart IN ORDER -- the same bar a single
+        instruction clears. A single instruction IS its one clause, already
+        scored by the index: nothing more is computed for it, so its recall
+        is the pre-B37 rule exactly.
+        """
+        want, have = split_subgoals(task), split_subgoals(recorded)
+        if len(want) != len(have):
+            return False
+        if len(want) < 2:
+            return True
+        return all(float(_embed(a, self._dim) @ _embed(b, self._dim)) >= min_sim
+                   for a, b in zip(want, have))
 
     def record(self, task: str, calls: list[SkillCall], success: bool, duration_s: float,
                *, summary: str | None = None, source_run: str | None = None) -> None:
@@ -604,7 +642,11 @@ class FastPlanner:
     Resolution order, cheapest first:
 
     1. **reflex** -- the whole command matches the grammar (microseconds);
-    2. **experience** -- a proven plan for a similar instruction (warm start);
+    2. **experience** -- a proven plan for a similar instruction with the SAME
+       clause structure (warm start). A sequence never replays a habit
+       recorded for one of its clauses (B37: "pick up the red cube and then
+       pick up the blue cube" scored 0.901 against "pick up the red cube"
+       and ran half the command); it reaches (3) instead;
     3. **curriculum** -- the command is a SEQUENCE of clauses, each of which
        resolves by (2) or (1). This is the Agentic-VLA structure at inference
        time: decompose into sub-goals, warm-start each from retrieved
@@ -634,7 +676,9 @@ class FastPlanner:
         Experience is consulted BEFORE the grammar: a plan that has actually
         worked on this rig beats a freshly compiled one, and that preference IS
         the warm start. `recall` already refuses records whose losses outnumber
-        wins, so a habit that stopped working stops being retrieved.
+        wins, so a habit that stopped working stops being retrieved, and it
+        refuses records of another clause structure: a clause never replays a
+        recorded compound, which would run clauses nobody asked for.
         """
         if self.experience is not None:
             rec = self.experience.recall(text)
@@ -657,6 +701,10 @@ class FastPlanner:
             return FastPlan("reflex", reflex.calls, reflex.intent,
                             provenance=["reflex"] * len(reflex.calls))
         if self.experience is not None:
+            # Whole-task recall. `recall` only accepts a record with this
+            # task's clause structure, so a sequence whose clauses each have
+            # a habit falls through to the curriculum below (which
+            # warm-starts every clause) instead of replaying one of them.
             rec = self.experience.recall(task)
             if rec is not None:
                 calls = [(c, dict(a)) for c, a in rec["calls"]]

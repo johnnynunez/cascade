@@ -44,6 +44,12 @@ class QuantizedIndex:
         self._norms = [self._norms[i] for i in keep]
         self._meta = [self._meta[i] for i in keep]
 
+    def decoded(self) -> list[np.ndarray]:
+        """Every entry's (approximate) vector in the ORIGINAL space, in index
+        order -- what episodic persistence writes, so a stored file does not
+        depend on this quantizer's rotation."""
+        return [self._tq.decode(c, n) for c, n in zip(self._codes, self._norms)]
+
     def search(self, query: np.ndarray, k: int = 5) -> list[tuple[float, Any]]:
         """Top-k by estimated cosine similarity -> [(score, meta), ...]."""
         if not self._codes:

@@ -217,6 +217,7 @@ explicit construction and validate its declared capabilities.
 | `rebot_rs` | Seeed reBot DevArm B601 (RobStride) | 6 | RobStride over SocketCAN | `.[arm]`, `can0` up |
 | `rebot_rs_mb` | same, via MotorBridge | 6 | MotorBridge | `.[arm]` |
 | `isaac` | reBot in Isaac Sim | 6 | ZMQ bridge | Isaac Sim + NVIDIA GPU |
+| `rebot_rs_reach` / `isaac_reach` / `mock_reach` | the reBot profiles with the **measured reach envelope** (opt-in): tilted analytic grasps + the workspace box grown only where the study measured a reachable approach — kinematic only, live picks owed; [REACH_ENVELOPE.md](docs/REACH_ENVELOPE.md) | 6 | as the parent profile | as the parent profile |
 | `libero_panda` | Franka Panda in LIBERO | 7 | benchmark harness | LIBERO |
 | `mock` | kinematic stand-in | 6 | — | nothing |
 | `ros2_generic` | **template**: ANY robot a `ros2_control` bringup exposes | — | ROS2 topics | copy the file, fill in your robot's numbers, drop the `template: true` flag |

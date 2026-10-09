@@ -1456,6 +1456,10 @@ class SkillRuntime:
         if _check is not None:
             _check()
         gcfg = self.cfg.grasp
+        # B45 opt-in: tilted alternates of every top-down footprint candidate
+        # (the reach profiles, e.g. arms/rebot_rs_reach.yaml). Unset/empty
+        # leaves the planner call exactly as before.
+        tilts = gcfg.get("angled_approach_tilts_deg")
         obb = plan_grasps_from_fix(
             fix,
             table_z=float(self.cfg.safety.get("table_z", 0.0)),
@@ -1469,6 +1473,7 @@ class SkillRuntime:
             # (measured in MuJoCo). Per-arm, like every other jaw dimension.
             width_pad_m=float(gcfg.get("width_pad_m", 0.015)),
             axis_order=self._tool_axis_order,
+            **({"angled_tilts_deg": tilts} if tilts else {}),
         )
         if str(gcfg.get("backend", "obb")) == "hug":
             grasps = SkillRuntime._hug_candidates(self, fix, obb, _frame, _deadline, _check)

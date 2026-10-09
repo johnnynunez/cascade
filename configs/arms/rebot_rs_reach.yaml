@@ -1,0 +1,34 @@
+# reBot B601-RS with the MEASURED reach envelope (B45, opt-in).
+#
+# Same arm, transport and limits as `rebot_rs`; two things differ, both
+# measured offline on the shipped URDF by scripts/reachability_study.py
+# (results: docs/evidence/reach-envelope-20261009/rebot_reachability.json,
+# write-up: docs/REACH_ENVELOPE.md):
+#
+#   1. grasp.angled_approach_tilts_deg -- the analytic (OBB) planner also
+#      emits tilted versions of every top-down candidate (approach leaning
+#      30 / 45 degrees away from the base, and horizontal), ranked BEHIND
+#      every top-down one. Top-down alone reaches r <= 0.45 m at grasp
+#      height (0.38 m for a 10 cm grasp height), which is why objects "had to
+#      be really close"; out45 reaches 0.69 m, the horizontal approach 0.75 m.
+#   2. safety.workspace -- the harness box grown ONLY over grid cells where
+#      one of those approaches was measured reachable at every studied grasp
+#      height (0.02-0.10 m), under the runtime's own IK seed, IK margin and
+#      harness vet. It is the new LIMIT for this profile, not a relaxation of
+#      any gate: joint margin, velocity cap, table clearance, keep-outs,
+#      occupancy and the IK limit_margin > joint_margin invariant are the
+#      parent's, unchanged. x_min stays 0.10 (no self-collision model near
+#      the base). tests/test_reach_envelope.py pins these numbers to the
+#      study's derived envelope.
+#
+# NOT validated on hardware or in physics: live Isaac picks in the new region
+# are owed (docs/REACH_ENVELOPE.md "Live validation"). The default profiles
+# (`rebot_rs`, `rebot_rs_mb`, `isaac*`, `mock`) are unchanged.
+extends: rebot_rs
+overrides:
+  safety:
+    workspace:
+      min: [0.10, -0.50, -0.01]
+      max: [0.55, 0.50, 0.55]
+  grasp:
+    angled_approach_tilts_deg: [30, 45, 90]

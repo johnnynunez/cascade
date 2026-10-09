@@ -13,7 +13,10 @@ DEFAULTS = {"robot": "conversation_mock", "provider_url": None, "token_env": Non
             "allow_tools": [], "allow_motion": False, "barge_in": "stop_robot",
             "port": 8780, "config_dir": None, "run_dir": None, "run_root": None,
             "start_stopped": False, "intent_timeout_s": 10, "execution_timeout_s": 30,
-            "provider_release_contract": None, "robot_lifecycle": None}
+            "provider_release_contract": None, "robot_lifecycle": None,
+            # Split deployment (B51): the robot runtime runs in its own
+            # cascade-robot-service process. Absent = built in-process (default).
+            "robot_endpoint": None, "robot_token_env": None}
 
 
 def configuration(args):
@@ -58,6 +61,15 @@ def configuration(args):
         raise ValueError("bounded hand activation requires stop_robot interruption")
     if values["token_env"] is not None and type(values["token_env"]) is not str:
         raise ValueError("token_env must name an environment variable")
+    if values["robot_endpoint"] is not None:
+        from ..robotics.endpoint import endpoint_origin
+        values["robot_endpoint"] = endpoint_origin(values["robot_endpoint"])
+        if type(values["robot_token_env"]) is not str or not values["robot_token_env"].isidentifier():
+            raise ValueError("robot_endpoint requires robot_token_env naming an environment variable")
+        if values["robot_lifecycle"] is not None or values["config_dir"] is not None:
+            raise ValueError("a remote robot runtime takes no local robot lifecycle or profile directory")
+    elif values["robot_token_env"] is not None:
+        raise ValueError("robot_token_env requires robot_endpoint")
     for key in ("allow_motion", "start_stopped"):
         if type(values[key]) is not bool:
             raise ValueError(f"{key} must be boolean")

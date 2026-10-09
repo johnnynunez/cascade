@@ -636,6 +636,18 @@ AFTER keyframes (plus optional goal image) → `<score>±NN%</score>` from a
 GRM or any OpenAI-compatible VLM. It runs **off the hot path**
 (`scripts/judge_run.py` over a finished run dir) and is calibrated against
 the physics postcondition per step (confusion matrix in the run summary).
+Since 2026-10-09 (B44) the launcher can run it over its own proof turn:
+opt-in `scripts/launch.sh --judge fake|vlm|grm` (or `CASCADE_JUDGE`; default
+off, no judge process) hands the receipt to `scripts/judge_proof.py`
+(`eval/proof_judge.py`), which reads `proof.json` read-only, skips an
+unverified receipt, runs `judge_run.py --skills pick_and_place` in its own
+process group under a hard bound (`CASCADE_JUDGE_TIMEOUT_S`, default 180 s,
+max 1800; the group is killed at the bound) and merges the judge-vs-physics
+confusion matrix into `<evidence_dir>/run-summary.json` next to a copy of
+the receipt's verdict and sha256, plus ONE `judge:` banner line (`fn>0` =
+the pictures missed physics-confirmed progress). Advisory: READY, the exit
+status and `proof.json` never depend on it, and every failure (bad config,
+refused or hung endpoint, nothing scored, crash) reads `unavailable`.
 The first honest number on this rig: +0.45 on a physics-confirmed pick
 after the AFTER-keyframe fix; 0.00 before it. The prompt's two WRIST slots
 are filled from the rig's wrist keyframes when the trace has them
@@ -1092,6 +1104,13 @@ token and registration. Stdio through `launch.sh` remains the default; see
   success means every step it ran was confirmed, not that it covered every
   clause -- a one-clause program reused for a sequence would report the same
   half-command success the LLM tier's `task_done` could.
+- The launcher judge pass (B44) is opt-in and has only been exercised on
+  CPU (fake judge, recorded traces, a stub OpenAI-compatible endpoint): no
+  live Isaac proof turn has been judged by a real VLM or GRM yet, so no
+  judge-vs-physics agreement is claimed for this rig. It judges only the
+  proof turn's `pick_and_place` rows, and the shipped `eval.judge` targets a
+  frontier model through the OpenClaw gateway -- a local judge needs
+  `CASCADE_JUDGE_CONFIG`.
 
 ## Counts
 

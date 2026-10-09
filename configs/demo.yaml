@@ -464,6 +464,19 @@ workspace_filter:
 #   the same credentials as the demo's brain -- no second API key on the
 #   booth laptop. `backend_model` pins the weights (x-openclaw-model) and
 #   `fresh_session` isolates every BEFORE/AFTER pair from agent history.
+# Launcher judge pass (B44, opt-in, advisory): `scripts/launch.sh --judge
+#   fake|vlm|grm` (or CASCADE_JUDGE; default off = no judge process) runs
+#   judge_run.py over the proof turn's pick_and_place keyframes AFTER the
+#   physics proof, with this section's settings (or the complete JSON in
+#   CASCADE_JUDGE_CONFIG) and the backend from --judge, under a hard bound
+#   CASCADE_JUDGE_TIMEOUT_S (default 180 s, max 1800; the judge's process
+#   group is killed at the bound). The judge-vs-physics confusion matrix
+#   lands in <state>/<proof-session>/run-summary.json plus one banner line.
+#   It never changes READY, proof.json or the exit status; a failure reads
+#   "unavailable". `--judge vlm` with the section below calls the gateway's
+#   frontier model -- for the local brain point CASCADE_JUDGE_CONFIG at a
+#   JSON like deploy/runtime/runtime.py writes (base_url of the local
+#   OpenAI-compatible server, model id, extra_body enable_thinking: false).
 eval:
   judge:
     backend: vlm

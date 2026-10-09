@@ -201,9 +201,25 @@ Open, in priority order (details in the sections below):
    Newton camera cadence that leaves 34–40 % of refreshes frameless during arm motion
    (2.8 % on 6.1 with the same three physics steps per update; cause open)
    ([details](NEWTON_ENGINE.md#real-rebot-asset-on-the-internal-62-build-start-up-probe-battery-wrist-camera-7-october-2026)).
-6. **Judge as a metric**: run `scripts/judge_run.py` over every launcher
+6. ~~**Judge as a metric**: run `scripts/judge_run.py` over every launcher
    proof turn and keep the judge-vs-physics confusion matrix in the run
-   summary, so a regression in the outcome pictures shows up as `fn`.
+   summary, so a regression in the outcome pictures shows up as `fn`.~~
+   **landed 2026-10-09 (opt-in, advisory, CPU-measured only; B44).**
+   `scripts/launch.sh --judge fake|vlm|grm` (or `CASCADE_JUDGE`; default
+   off) runs `judge_run.py` over the proof turn's `pick_and_place` rows via
+   `scripts/judge_proof.py`, bounded by `CASCADE_JUDGE_TIMEOUT_S` (default
+   180 s; the judge's process group is killed at the bound), and writes the
+   confusion matrix into `<proof evidence>/run-summary.json` plus one banner
+   line; `proof.json`, READY and the exit status never change, every failure
+   reads `unavailable`. The previous default-on, unbounded pass (shipped
+   `eval.judge` = a frontier model through the gateway) is gone: `--judge vlm`
+   is the same call, opted into. Measured on CPU only:
+   `tests/test_judge_proof_turn.py` (fake judge over recorded and mock-stack
+   traces, a stub OpenAI-compatible endpoint answering, refusing to score, or
+   hanging; 35 failed / 4 premise+golden passed on 4d0947b → 39 passed),
+   all mutants killed. STILL OPEN: no
+   live Isaac proof turn judged by a real model (local Qwen or GRM, #14), so
+   no agreement number for this rig.
 7. ~~**Visual embedder** for episodic recall (`embed_dim`), and action↔object
    consolidation on top of ExperienceMemory (keys on text today).~~
    **landed 2026-10-07 (opt-in, CPU-measured only).** `memory/embedder.py`:

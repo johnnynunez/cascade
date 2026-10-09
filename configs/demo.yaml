@@ -398,6 +398,16 @@ stream:
   fps: 15
   quality: 80
   depth_max_m: 2.0          # depth-view colormap range (tabletop scale)
+  # B47 "what the gripper sees" (opt-in). true + a camera whose profile is a
+  # wrist view (`role: wrist` or eye-in-hand extrinsics, e.g. mujoco_wrist /
+  # isaac_wrist / d455f_wrist): while a motion skill runs the dashboard
+  # highlights THAT tile and captions it with one line built only from
+  # verifiable state -- skill + target, the runtime's held-state, and the
+  # three-state postcondition once it exists (a hold reads "unverified" unless
+  # grasp_object's own verdict covers it). /state and the MCP world state gain
+  # `wrist_view`. No wrist camera = no panel (a front view is never shown as
+  # the gripper's). false = the exact pre-B47 dashboard and state.
+  wrist_narration: false
 
 # Local cv2 window (RigViewer). One row per camera, RGB beside its depth
 # colormap so a depth sensor is never silently shown as RGB-only.

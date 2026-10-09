@@ -180,7 +180,8 @@ N cameras ──CameraStream (thread each, latest-frame slot, drop-stale; render
    │            │     robot-body mask ──▶ BeliefStore (label + colour + 3D +
    │            │     freshness) and occupancy integration
    │            └── StreamServer (lazy MJPEG dashboard: rgb | depth | agent view,
-   │                  narration, object table, chat, STOP)
+   │                  narration, object table, chat, STOP; opt-in wrist-tile
+   │                  highlight `stream.wrist_narration`, B47)
    │
 chat command ("pick and place the red cube")
    ├─ tier 1 REFLEX   template grammar -> skill plan          agent/reflex.py
@@ -348,6 +349,34 @@ tier or host. In order:
    with one caption each, and shown to the LLM tier once on its next turn.
    Negative `n` counts from the end; recall rows are not steps; an invalid
    `n` is an explicit error and never an old frame.
+
+**Wrist narration on the dashboard (B47, opt-in, 2026-10-09).** With
+`stream.wrist_narration: true` and a rig camera whose profile is a wrist view
+(`is_wrist_view`: `role: wrist` or eye-in-hand extrinsics), `build_runtime`
+attaches a `WristNarrator` (`apps/wrist_narration.py`) to the FIRST such
+stream, and `execute()` brackets every `_MOTION_SKILLS` call with its
+`begin`/`end` (in a `finally`, so a dispatch that raises never leaves the
+highlight on; a nested dispatch never takes over the outer motion's line).
+The dashboard then highlights that stream's tile while the motion runs and
+captions it with one line, e.g. `now: move_home · holding 'red object' (grasp
+unverified)` / `last: grasp_object 'red object' failed · not holding ·
+holding: refuted (belief)`. The line uses only state the runtime can vouch
+for -- the dispatched skill and target, the runtime's held-state
+(`held_object`; the `_held_provisional` marker of an unfinished close reads
+`closing on ... (grasp not complete, unverified)`, never a hold) and the
+three-state postcondition once it exists. A hold reads `grasp unverified`
+unless `grasp_object`'s own verdict covers that same continuous hold; the
+verdict is dropped when the held label changes and at the start of every
+motion skill outside `CARRIES_GRASP_VERDICT` (skills that cannot start a new
+grasp; a new motion skill is outside by default), a channel is named only for
+a confirmed/refuted verdict, a motion in flight claims no outcome, and a
+wrist stream with no frame says so. It never reads pixels or the arm (a
+dashboard poll must not touch a LazyArm or the bus) and changes no result,
+gate or verdict. `/state` and the MCP world state gain `wrist_view`. No wrist
+stream = no narrator, no panel and a one-line note at startup: a front view is
+never captioned as the gripper's. Flag off (the default) = the exact previous
+dispatch, `/state` keys and dashboard bytes (sha256 pinned in
+`tests/test_wrist_narration.py`).
 
 For single-arm Isaac kitchen `pick_and_place` calls that report a completed
 motion to the configured green square or open box, `sim/placement.py` adds a fresh
@@ -797,6 +826,7 @@ src/cascade/
     ├── capabilities.py capability matrix from the built runtime; TOOL_REQUIREMENTS trims the MCP catalog
     ├── process_owner.py profile-owned process identity for shutdown and proof binding
     ├── stream_server.py lazy MJPEG dashboard (+ chat, STOP)     live_view.py  RigViewer
+    ├── wrist_narration.py opt-in "what the gripper sees" line on the wrist tile (B47)
     ├── live_control.py viewer-driven control        record.py / viewer.py  capture / view
 ```
 
@@ -1173,6 +1203,18 @@ token and registration. Stdio through `launch.sh` remains the default; see
   proof turn's `pick_and_place` rows, and the shipped `eval.judge` targets a
   frontier model through the OpenClaw gateway -- a local judge needs
   `CASCADE_JUDGE_CONFIG`.
+- The wrist narration highlight (`stream.wrist_narration`, B47) is opt-in and
+  measured only on the mock stack (a mock camera declared `role: wrist`,
+  real runtime / HTTP dashboard / headless-browser script): no Isaac or
+  real-rig run has shown it, and the physical D435i wrist camera still has no
+  profile mapping or hand-eye calibration (`isaac_wrist.yaml` is the Isaac
+  bridge's simulated D435i). The line narrates runtime state, not the wrist
+  image: it says nothing about what is visible in the frame. The dashboard
+  polls `/state` every 0.5 s, so a motion shorter than that may never show
+  as `now:`; a grasp verdict follows a hold by its label and by motion
+  boundaries only (a hold released and re-taken under the same label outside
+  any motion skill would keep the old verdict; no current code path does
+  that); only the first wrist stream of a rig is captioned.
 
 ## Counts
 

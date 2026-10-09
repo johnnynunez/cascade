@@ -1412,8 +1412,16 @@ are synchronous by design here, noted for long-horizon work.
     still pending.
 - **Wrist cam follow-ups.** ~~Validate the eye-in-hand extrinsics during a
   real grasp (reproject wrist depth of the target object against the
-  physics-truth pose mid-descent)~~ **landed 2026-10-07 in sim** (near-term #4); consider serving the wrist stream a
-  narration highlight ("what the gripper sees") on the dashboard; on the
+  physics-truth pose mid-descent)~~ **landed 2026-10-07 in sim** (near-term #4); ~~consider serving the wrist stream a
+  narration highlight ("what the gripper sees") on the dashboard~~ **landed
+  2026-10-09 (B47, opt-in `stream.wrist_narration`)** -- during a motion skill
+  the wrist tile is highlighted and captioned with one line from verifiable
+  state only (skill + target, runtime held-state, three-state postcondition;
+  unverified grasp reads unverified, no wrist camera = no panel), measured on
+  the mock stack through the real runtime, HTTP dashboard and its script
+  (`tests/test_wrist_narration.py`; flag off = dashboard bytes sha256-pinned
+  to main); not yet shown on Isaac or the real rig, and it narrates runtime
+  state, not the image. Still open: on the
   real rig map `isaac_wrist.yaml` to the physical D435i + hand-eye calib.
 - **Sim perception flakiness** (separate campaign): YOLOE misses the YCB
   banana on some boots and label-flickers the soup can (bottle/toy);

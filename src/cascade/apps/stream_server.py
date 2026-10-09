@@ -9,6 +9,7 @@ Routes:
     /stream/<name>       multipart/x-mixed-replace MJPEG (annotated)
     /snapshot/<name>.jpg one annotated frame
     /state               JSON: beliefs (with colors), cameras, agent status
+                         (+ `wrist_view` with the opt-in stream.wrist_narration)
     /keyframes           before/after keyframe filmstrip from the run dir
     /keyframe/<file>     one keyframe JPEG (basename-only, no traversal)
 
@@ -109,7 +110,7 @@ _INDEX_HTML = """<!doctype html>
    .cam {{ padding: 12px; }}
    .cam h2 {{ font-size: 15px; }}
    .views button {{ padding: 7px 10px; min-height: 34px; }}
- }}
+ }}{wrist_css}
 </style></head><body>
 <header><h1>Physical Agentic AI &middot; OpenClaw Demo</h1>
  <span id="task">{initial_task}</span>
@@ -301,7 +302,7 @@ _INDEX_HTML = """<!doctype html>
      document.querySelectorAll('#chat input, #chat button').forEach(el => el.disabled = readOnly);
      document.getElementById('task').textContent = readOnly ? 'Live cameras · send orders in OpenClaw' :
        (s.task ? `task: ${{s.task}}` : 'idle - waiting for a command');
-     updateCameraStatus();
+     updateCameraStatus();{wrist_tick}
      document.getElementById('gmem').textContent =
        (s.grasp_memory || []).join('\\n') || 'empty';
      const feed = document.getElementById('feed');
@@ -320,8 +321,34 @@ _INDEX_HTML = """<!doctype html>
    finally {{ clearTimeout(timeout); }}
    setTimeout(tick, 500);
  }}
- tick();
+{wrist_js} tick();
 </script></body></html>"""
+
+# B47 (opt-in, `stream.wrist_narration`): the wrist tile's highlight. Spliced
+# into the template ONLY when the server is given a wrist stream name; every
+# placeholder is the empty string otherwise, so the default dashboard is
+# byte-identical (tests/test_wrist_narration.py pins its sha256). The line's
+# text comes from /state `wrist_view.line` and is set via textContent.
+_WRIST_CSS = (
+    "\n .cam.wrist-active { border-color: #648e22; box-shadow: 0 0 0 3px #b4e35a; }"
+    "\n .wrist-line { margin: 10px 0 0; font: 12px/1.5 ui-monospace,monospace;"
+    " color: #38422f; overflow-wrap: anywhere; }"
+    "\n .cam.wrist-active .wrist-line { color: #242722; font-weight: 600; }"
+)
+_WRIST_JS = (
+    " function renderWrist(s) {\n"
+    "   const img = document.getElementById('img-' + WRIST);\n"
+    "   const line = document.getElementById('wrist-line');\n"
+    "   if (!img || !line) return;\n"
+    "   const w = s.wrist_view;\n"
+    "   const text = w && typeof w.line === 'string' ? w.line : '';\n"
+    "   line.textContent = text;\n"
+    "   line.hidden = !text;\n"
+    "   img.closest('.cam').classList.toggle('wrist-active', !!(w && w.active === true));\n"
+    " }\n"
+)
+_WRIST_TILE_ATTR = ' data-wrist="1"'
+_WRIST_LINE = '<p class="wrist-line" id="wrist-line" hidden></p>'
 
 
 def lan_ip() -> str:
@@ -351,9 +378,14 @@ class StreamServer:
         runtime_fn=None,
         depth_max_m: float = 2.0,
         on_poll=None,
+        wrist_view: str | None = None,
     ):
         self._rig = rig
         self._state_fn = state_fn or (lambda: {})
+        # B47: the rig stream whose tile carries the wrist narration line
+        # (a `role: wrist` / eye-in-hand profile, chosen by the app wiring);
+        # None = no wrist panel and the exact pre-B47 page.
+        self._wrist_view = str(wrist_view) if wrist_view else None
         # Lazily resolved SkillRuntime, used by the depth/annotated/analyze
         # views. A callable (not the object) because the MCP server builds its
         # runtime AFTER the server may already exist.
@@ -685,14 +717,16 @@ def _make_handler(server: StreamServer):
 
         def _index(self):
             read_only = server.state().get("read_only") is True
+            wrist = server._wrist_view
             tiles = "".join(
-                f'<div class="cam"><h2>{n}'
+                f'<div class="cam"{_WRIST_TILE_ATTR if n == wrist else ""}><h2>{n}'
                 f'<span class="views">'
                 f"<button class=\"on\" onclick=\"setView('{n}','rgb',this)\">rgb</button>"
                 f"<button {'hidden' if read_only else ''} onclick=\"setView('{n}','depth',this)\">depth</button>"
                 f"<button {'hidden' if read_only else ''} onclick=\"setView('{n}','agent',this)\">agent</button>"
                 f'</span></h2>'
-                f'<img id="img-{n}" src="/stream/{n}" alt="{n}"></div>'
+                f'<img id="img-{n}" src="/stream/{n}" alt="{n}">'
+                f'{_WRIST_LINE if n == wrist else ""}</div>'
                 for n in server._rig.names
             )
             body = _INDEX_HTML.format(
@@ -701,6 +735,10 @@ def _make_handler(server: StreamServer):
                 read_only_hidden="" if read_only else "hidden",
                 command_disabled="disabled" if read_only else "",
                 initial_task="Live cameras · send orders in OpenClaw" if read_only else "no task",
+                wrist_css=_WRIST_CSS if wrist else "",
+                wrist_tick=" renderWrist(s);" if wrist else "",
+                wrist_js=(" const WRIST = " + json.dumps(wrist).replace("<", "\\u003c") + ";\n"
+                          + _WRIST_JS) if wrist else "",
             ).encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")

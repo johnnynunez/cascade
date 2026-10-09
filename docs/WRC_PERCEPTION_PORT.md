@@ -118,8 +118,10 @@ real GraspGen-X: no shipped profile selects `camera_frame`.
   raised to 1.0, the MIT torque cap (WRC ADR-0002, tuned for a 3D-printed
   banana). It is gripper actuation and force, which belongs to the control
   workstream. It interacts with the air-grasp heuristic, which reads
-  `close_frac_stage2`. Cascade's RS gripper instead closes at `kp` and relaxes
-  to `hold_kp` on contact so objects are held lightly. Raising force without
+  `close_frac_stage2`. Cascade's RS gripper relaxes to `hold_kp` on contact
+  only in the park close; the pick close holds at kp·effort at a fixed
+  fraction of travel, and since B38 the opt-in `gripper.max_contact_squeeze_rad`
+  bounds that squeeze past the first contact. Raising force without
   rig evidence in cascade is not a port.
 - **`grasping/selector.py` `ik_retries=3`.** Superseded: cascade's
   `Kinematics.ik` already defaults to 4 random restarts inside the limit

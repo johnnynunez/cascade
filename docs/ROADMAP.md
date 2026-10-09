@@ -812,9 +812,28 @@ aggregator, not nvblox. Fixes, all measured on this CUDA-less Mac (suite
   With no variable set, 170 resolved configurations (every shipped arm,
   camera, base and robot profile) are byte-identical to 133876c; with all
   three set, only 705 `bridge_port`, 271 `graspgenx.port` and 271
-  `occupancy.port` values differ. Still open: `CASCADE_HUG_PORT` and the
+  `occupancy.port` values differ. Left open then: ~~`CASCADE_HUG_PORT` and the
   `*_HOST` variables stay construction-time reads, `scripts/setup_agents.py`
-  forwards none of the ports, and no live Isaac run on private ports yet.
+  forwards none of the ports~~ **landed 2026-10-09** (B41) —
+  `load_demo_config` also applies `CASCADE_HUG_PORT`, `CASCADE_GRASPGENX_HOST`
+  and `CASCADE_HUG_HOST` last, to every view (a host is a hostname or IPv4
+  address: 1–253 ASCII letters, digits, `.`, `-`, `_`, the first a letter or
+  digit; anything else raises naming the variable; empty = unset). A planner
+  dials what its resolved section says and falls back to a variable only for a
+  key the section lacks, so an override written into `cfg._data` after loading
+  is no longer undone at construction; `setup_agents.py` copies every
+  `CASCADE_*_PORT` / `CASCADE_*_HOST` set in its shell into each host's entry
+  (checked by the same rules); `serve_hug.py` reads `CASCADE_HUG_PORT` by the
+  client's rule. The bridge and the occupancy sidecar get no host variable on
+  purpose (launch.sh starts both on this machine; the bridge binds loopback by
+  default). Measured on CPU
+  (`tests/test_endpoint_env_overrides.py`, same spies): with no variable set,
+  213 resolved configurations and the registrar's output for all four hosts
+  are byte-identical to 4d0947b; with all six set, only 1395 `bridge_port` and
+  396 each of `graspgenx.port`/`.host`, `hug.port`/`.host` and
+  `occupancy.port` values differ. Still open: no live Isaac run on private
+  ports yet, and `launch.sh --graspgenx external` still probes
+  `127.0.0.1:$CASCADE_GRASPGENX_PORT` whatever `CASCADE_GRASPGENX_HOST` says.
 - **Robo-Dopamine as the outcome judge** (`eval/progress_judge.py`,
   `scripts/judge_run.py`; https://robo-dopamine.github.io/). The GRM is a
   VLM prompted with the task, optional START/END references and BEFORE/AFTER

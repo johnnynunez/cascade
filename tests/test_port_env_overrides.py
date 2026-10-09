@@ -322,8 +322,8 @@ def test_graspgenx_dials_the_override_carried_by_the_resolved_config(monkeypatch
     _private(monkeypatch)
     cfg = _kitchen()
     views = [cfg.grasp, *(Cfg(arm["resolved"]).grasp for arm in cfg.arms)]
-    # GraspGenXPlanner also reads its variable at construction (pre-B34
-    # behaviour, kept); the resolved config must carry the port on its own.
+    # The planner falls back to CASCADE_GRASPGENX_PORT only for a key its section
+    # lacks (B41, `sidecar_endpoint`); the resolved config must carry the port.
     monkeypatch.delenv("CASCADE_GRASPGENX_PORT")
     for grasp in views:
         with pytest.raises(_Dialled):

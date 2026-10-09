@@ -600,7 +600,8 @@ src/cascade/
 ├── types.py            Frame / Detection / ObjectFix / Grasp / RobotState / SkillError
 ├── config.py           YAML profiles (cameras/, arms/, llm/) → one Cfg; `extends:`,
 │                       arm `overrides:`, ${repo}/${assets}; CASCADE_BOOTH overlay;
-│                       CASCADE_{BRIDGE,GRASPGENX,OCCUPANCY}_PORT applied last (B34)
+│                       CASCADE_{BRIDGE,GRASPGENX,OCCUPANCY,HUG}_PORT and
+│                       CASCADE_{GRASPGENX,HUG}_HOST applied last (B34, B41)
 ├── device.py           resolve_device(): auto CUDA/ROCm → MPS → CPU, degrade with a warning
 ├── perception/
 │   ├── camera_base.py        CameraBase ABC + make_camera(); Frames carry METRIC depth
@@ -794,6 +795,21 @@ so that session never sees the user's own MCP servers and cannot reach the
 robot except through cascade's harness; `--llm auto` picks it first when
 the CLI is logged in.
 
+Endpoints (B34, B41): `CASCADE_BRIDGE_PORT`, `CASCADE_GRASPGENX_PORT`,
+`CASCADE_OCCUPANCY_PORT`, `CASCADE_HUG_PORT`, `CASCADE_GRASPGENX_HOST` and
+`CASCADE_HUG_HOST` are applied by `load_demo_config` after every config layer,
+to the top level and to each arm's `resolved` view (`config.ENDPOINT_ENV_VARS`;
+empty = unset; a port is ASCII digits in 1..65535, a host a hostname or IPv4
+address, anything else raises naming the variable). That is the only
+application: a GraspGen-X / HUG planner dials what its resolved section says
+(`config.sidecar_endpoint`) and falls back to a variable only for a key the
+section lacks, i.e. when it is built from a hand-made config, so an override
+written into `cfg._data` after loading stands. The bridge and the occupancy
+sidecar have no host variable: the launcher starts both on this machine.
+`launch.sh` registers the six with the MCP server; `setup_agents.py` copies
+every `CASCADE_*_PORT` / `CASCADE_*_HOST` set in its shell into each host's
+entry, checked by the same rules before anything is written.
+
 Sandboxed host (opt-in, B35): an agent inside an NVIDIA OpenShell sandbox
 managed by NemoClaw reaches the robot through `mcp_server --http`
 (Streamable HTTP, TLS from a private CA, bearer token in OpenShell's provider
@@ -955,6 +971,12 @@ token and registration. Stdio through `launch.sh` remains the default; see
   a joint embedder; no semantic recall quality has been measured with real
   weights. Action-object consolidation keys on the normalized label: a
   detector label flicker (bottle/toy) stays two objects, by design.
+- Endpoint overrides are CPU-tested only (spies on the bridge
+  `create_connection` and the ZMQ `connect`): no live Isaac run on private
+  ports yet. `launch.sh --graspgenx external` checks the server at
+  `127.0.0.1:$CASCADE_GRASPGENX_PORT` even when `CASCADE_GRASPGENX_HOST`
+  points the runtime elsewhere, and `scripts/demo_proof.py` still reads
+  `CASCADE_BRIDGE_PORT` with its own `int()`.
 - Tier-2 clauses are cut only at sequence connectives (`split_subgoals`,
   B37). A bare "and" is no clause boundary anywhere in the fast tier, so
   "move the red cube to the front-left of the table and move the blue cube to

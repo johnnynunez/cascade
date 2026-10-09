@@ -524,6 +524,24 @@ declares the jaw datum (`jaw_fixed_tip_m`, `jaw_close_dir`) and the selector
 displaces the IK target accordingly -- without it every grasp straddled the
 prop while perception was accurate to 1.4 mm.
 
+**Reach envelope (B45, opt-in, 2026-10-09).** The analytic planner is
+top-down by default, and on the reBot top-down grasps reach only r ≤ 0.45 m
+from the base (0.38 m at a 10 cm grasp height), measured through the real
+selector and the runtime's harness vet by `scripts/reachability_study.py`
+([REACH_ENVELOPE.md](REACH_ENVELOPE.md)); leaning the approach away from the
+base reaches 0.69 m (45°), a horizontal approach 0.75 m, leaning sideways
+nothing. `grasp.angled_approach_tilts_deg` (empty by default) makes
+`plan_grasps_from_fix` append tilted versions of every footprint candidate,
+same horizontal jaw axis, approach leaning perpendicular to it away from the
+base, ranked behind every top-down and rim candidate. The `*_reach` arm
+profiles (`rebot_rs_reach`, `isaac_reach`, `mock_reach`) set the tilts to
+[30, 45, 90] and replace the workspace box with the measured envelope
+(x 0.10..0.55, y ±0.50: the shipped box grown only over grid cells where one
+of those approaches reaches at every studied grasp height). That box is the
+new limit of those profiles; every other harness gate is the parent's.
+`tests/test_reach_envelope.py` pins the profiles to the study's JSON, the JSON
+to the URDF hash and settings, and every other profile golden.
+
 ### Sim as an instrument, not a stand-in
 
 `sim/mujoco_world.py` keeps ONE `MjModel`/`MjData` per resolved MJCF path
@@ -1055,6 +1073,14 @@ token and registration. Stdio through `launch.sh` remains the default; see
   the unverified width map, the stage-1 scout squeeze before the first stall
   is not capped, and the user's hardware protocol in that doc must run before
   a value is set.
+- Reach: the default reBot profiles keep the top-down-only workspace box
+  (x 0.10..0.50, y ±0.30), part of which top-down grasps cannot reach
+  (r > 0.45 m). The measured larger envelope and the tilted analytic
+  candidates are opt-in (`*_reach` profiles, B45) and kinematic only: no
+  contact physics or gripper-housing collision was modelled, the planner's
+  lean is perpendicular to the jaw (an object that only fits a jaw pointing at
+  the robot gains no reach), and live Isaac / real-rig picks in the new region
+  are not yet measured ([REACH_ENVELOPE.md](REACH_ENVELOPE.md)).
 - `RebotRSArm.disconnect()` cuts torque: park (`move_home`) first.
 - The MCP server executes one tool call at a time; stops are handled
   out-of-band by the stdin reader (never queued behind a motion), but a

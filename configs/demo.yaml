@@ -3,7 +3,13 @@
 
 safety:
   # Base-frame workspace AABB for the TCP (meters). Verified against the RS
-  # URDF top-down IK reachability probe (x 0.15..0.45, y +-0.25).
+  # URDF top-down IK reachability probe (x 0.15..0.45, y +-0.25). MEASURED
+  # 2026-10-09 (scripts/reachability_study.py, docs/REACH_ENVELOPE.md): with
+  # the runtime's own IK seed and harness vet, top-down grasps reach only
+  # r <= 0.45 m from the base at 2 cm grasp height (0.38 m at 10 cm), so the
+  # far corners of this box need an angled approach. Angled approaches reach
+  # r ~0.69-0.75 m; the opt-in *_reach arm profiles (rebot_rs_reach,
+  # isaac_reach, mock_reach) carry the measured, larger box. Unchanged here.
   workspace:
     min: [0.10, -0.30, -0.01]
     max: [0.50, 0.30, 0.55]
@@ -160,6 +166,14 @@ grasp:
   home_after_place: true    # clear the camera view after each pick_and_place
   topdown_z_max: 0.15       # strict top-down poses are IK-unreachable above
                             # this on the B601-RS (wrist limits)
+  # Analytic (OBB) planner: approach tilts (degrees from straight down, in
+  # (0, 90]; 90 = horizontal) emitted as extra candidates BEHIND every
+  # top-down one, leaning away from the base with the same horizontal jaw
+  # axis. [] (default) = top-down only, exactly as before. Opt-in via the
+  # *_reach arm profiles ([30, 45, 90], measured: docs/REACH_ENVELOPE.md).
+  # Learned backends (GraspGen-X, HUG) already propose angled grasps; this
+  # only affects the analytic candidates. A malformed list fails the grasp.
+  angled_approach_tilts_deg: []
   # Persistence: pick_and_place keeps retrying (re-home, re-scan, fresh
   # grasp plan) until it succeeds or one of these budgets runs out.
   persist_seconds: 120

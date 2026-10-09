@@ -51,7 +51,7 @@ class FleetRuntime:
                 if owner is None:
                     continue
                 exclusive(("object", id(owner)), robot_id, "domain runtime")
-                paths = [getattr(owner, "beliefs_path", None)]
+                paths = [getattr(owner, "beliefs_path", None), getattr(owner, "episodic_path", None)]
                 for key in ("memory", "beliefs", "grasp_memory", "envelope", "trace"):
                     value = getattr(owner, key, None)
                     if value is not None:

@@ -30,14 +30,36 @@ never removed from the index at all. A recall hit is a remembered appearance,
 not a current observation: it never confirms an outcome and never aims motion.
 Without an embedder nothing is embedded and every pre-existing path is
 unchanged.
+
+Visual recall v2 (B43, both opt-in, both need an embedder):
+
+- ``add_detection_crop`` / :class:`DetectionCropRecorder` -- the WorldWatcher
+  also indexes what each COMMITTED detection looked like (fusion is paused
+  while the arm moves, so a motion frame never yields one), deduplicated per
+  belief and rate-limited, in a ``detection`` ring of its own
+  (``max_detections``) so it can never evict a motion frame or a localized
+  crop. Its events stay out of the text and frame rings.
+- ``save_visual`` / ``load_visual`` -- the index survives a restart, modelled
+  on ``BeliefStore.save/load``: wall-clock timestamps, entries past the max
+  age dropped BEFORE a minimum apparent age (``LOADED_MIN_AGE_S``) is applied,
+  atomic temp + ``os.replace`` writes, and a file from another embedder is
+  refused (vectors of two models are not comparable). Restored entries keep
+  their own ring, pruned at the load's max age rather than the task horizon,
+  and every restored hit carries ``restored: True, state: "remembered"``.
 """
 
 from __future__ import annotations
 
+import base64
+import json
+import math
+import os
 import threading
 import time
+import weakref
 from collections import deque
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import cv2
@@ -69,12 +91,104 @@ class VisualEntry:
     embedding the caller supplied, and the event it belongs to."""
 
     t: float
-    kind: str  # "frame" | "object" | "event"
+    kind: str  # "frame" | "object" | "event" | "detection"
     label: str | None
     event: MemoryEvent
+    #: Loaded from an earlier session (B43): remembered, never current.
+    restored: bool = False
+
+
+def crop_bbox(rgb: np.ndarray, bbox, min_px: int = 2) -> np.ndarray | None:
+    """A copy of the pixels inside `bbox` (x0, y0, x1, y1), clipped to the
+    image; None without a box or when fewer than `min_px` remain on a side."""
+    if bbox is None:
+        return None
+    h, w = rgb.shape[:2]
+    x0, y0, x1, y1 = (int(round(float(v))) for v in np.asarray(bbox).reshape(-1)[:4])
+    x0, y0, x1, y1 = max(0, x0), max(0, y0), min(w, x1), min(h, y1)
+    if x1 - x0 < min_px or y1 - y0 < min_px:
+        return None
+    return rgb[y0:y1, x0:x1].copy()
+
+
+class DetectionCropRecorder:
+    """Feeds the visual index from the WorldWatcher (B43, opt-in
+    ``memory.visual_recall_detections``).
+
+    The watcher calls :meth:`offer` with the observations of a frame it has
+    just COMMITTED to the belief store and the belief each one was fused into
+    (``BeliefStore.update_frame``'s return). Per call: one crop per belief
+    (a second name over the same pixels is the same object), none for a
+    belief cropped less than `interval_s` ago, at most `max_per_tick` --
+    so the embedding cost per watcher tick is bounded and a static table
+    is not re-embedded at 3 Hz. Beliefs are tracked by identity through a
+    weak reference: a belief that died never shadows a new one that reuses
+    its id, and the bookkeeping never keeps a belief alive.
+    """
+
+    def __init__(self, memory, *, interval_s: float = 30.0, max_per_tick: int = 2):
+        if getattr(memory, "embedder", None) is None:
+            raise ValueError("detection crops need a memory embedder "
+                             "(memory.embedder.backend: hash | siglip | clip)")
+        interval = float(interval_s)
+        if not math.isfinite(interval) or interval < 0.0:
+            raise ValueError(f"visual_recall_interval_s must be finite and >= 0, got {interval_s!r}")
+        if isinstance(max_per_tick, bool) or int(max_per_tick) != max_per_tick or max_per_tick < 1:
+            raise ValueError(f"visual_recall_max_per_tick must be an integer >= 1, got {max_per_tick!r}")
+        self.memory = memory
+        self.interval_s = interval
+        self.max_per_tick = int(max_per_tick)
+        #: id(belief) -> (weakref to it, when it was last cropped)
+        self._last: dict[int, tuple[weakref.ref, float]] = {}
+
+    @staticmethod
+    def describe(obs, source: str | None = None) -> str:
+        """The recall line of a watcher crop: what, where, which camera."""
+        label = str(obs.label)
+        color = getattr(obs, "color", None)
+        name = label if not color or color in label.split() else f"{color} {label}"
+        x, y, z = (float(v) for v in np.asarray(obs.position, dtype=float).reshape(3))
+        text = f"watcher saw {name} at ({x:.2f}, {y:.2f}, {z:.2f}) m"
+        return text + (f" [{source}]" if source else "")
+
+    def offer(self, rgb: np.ndarray, observations, beliefs, *, source: str | None = None) -> int:
+        """Index the crops that are due; returns how many were indexed."""
+        now = self.memory._clock()
+        # Forget dead beliefs and expired intervals: bounded by live beliefs.
+        self._last = {k: (ref, t) for k, (ref, t) in self._last.items()
+                      if ref() is not None and now - t < self.interval_s}
+        picked = []
+        seen: set[int] = set()
+        for obs, belief in zip(observations, beliefs):
+            if belief is None or id(belief) in seen or id(belief) in self._last:
+                continue
+            crop = crop_bbox(rgb, getattr(obs, "bbox", None))
+            if crop is None:
+                continue
+            seen.add(id(belief))
+            picked.append((obs, belief, crop))
+            if len(picked) >= self.max_per_tick:
+                break
+        indexed = 0
+        for obs, belief, crop in picked:
+            self._last[id(belief)] = (weakref.ref(belief), now)
+            indexed += bool(self.memory.add_detection_crop(
+                str(obs.label), crop, text=self.describe(obs, source), t=now))
+        return indexed
 
 
 class EpisodicMemory:
+    #: Persisted visual entries older than this (wall clock) are dropped on
+    #: load (B43) -- the same default as ``BeliefStore.DEFAULT_MAX_AGE_S``.
+    DEFAULT_MAX_AGE_S = 6 * 3600.0
+    #: Floor on the apparent age of anything restored from disk, the
+    #: ``BeliefStore.LOADED_MIN_AGE_S`` rule: nothing restored reads as
+    #: just seen.
+    LOADED_MIN_AGE_S = 2.0
+    #: Entry kinds whose vectors the embedder produced: only these persist (a
+    #: caller-supplied ``embedding=`` lives in a space nobody declared).
+    PERSISTED_KINDS = ("frame", "object", "detection")
+
     def __init__(
         self,
         horizon_s: float = 15.0,
@@ -87,6 +201,7 @@ class EpisodicMemory:
         max_frames: int = 64,
         embedder=None,
         max_visual: int = 512,
+        max_detections: int = 128,
     ):
         self.horizon_s = horizon_s
         self._events: deque[MemoryEvent] = deque(maxlen=max_events)
@@ -113,6 +228,18 @@ class EpisodicMemory:
         #: `max_visual` cap; the index itself is pruned in lockstep.
         self.max_visual = int(max_visual)
         self._visual: deque[VisualEntry] = deque()
+        #: B43 rings, both empty unless their opt-in feature feeds them:
+        #: watcher-detection crops (``add_detection_crop``, at most
+        #: `max_detections`, task-scale horizon) and entries restored from an
+        #: earlier session (``load_visual``, at most `max_visual`, pruned at
+        #: the load's max age). Each has its own index, created on first use.
+        self.max_detections = int(max_detections)
+        self._embed_bits = embed_bits
+        self._detections: deque[VisualEntry] = deque()
+        self._det_index: QuantizedIndex | None = None
+        self._restored: deque[VisualEntry] = deque()
+        self._restored_index: QuantizedIndex | None = None
+        self._restored_max_age_s = self.DEFAULT_MAX_AGE_S
         self.embed_errors = 0
         self._clock = clock
         self._lock = threading.RLock()
@@ -176,6 +303,57 @@ class EpisodicMemory:
             self.prune(now)
         return ev
 
+    def _new_index(self) -> QuantizedIndex:
+        """A fresh index in the embedder's space (same quantizer settings, so
+        scores from every ring are comparable)."""
+        return QuantizedIndex(int(self.embedder.dim), bits=self._embed_bits)
+
+    def add_detection_crop(self, label: str, crop: np.ndarray, *, text: str,
+                           t: float | None = None) -> bool:
+        """Index one WATCHER detection crop as a ``detection`` entry (B43,
+        opt-in; fed by :class:`DetectionCropRecorder`).
+
+        Its event (`text`: what was seen, where, by which camera) belongs to
+        the visual index only: the text digest and the memory frames are
+        unchanged. The ring is capped at `max_detections` and pruned with the
+        task-scale horizon, apart from the session ring, so the always-on
+        watcher cannot evict a motion frame or a localized crop. Returns
+        whether a vector was indexed; an embedder fault is counted
+        (``visual_stats``), never raised."""
+        if self.embedder is None:
+            raise _unavailable()
+        now = self._clock() if t is None else t
+        try:  # outside the lock, like add(): a forward pass must not block readers
+            vec = self.embedder.embed_image(crop)
+        except Exception:  # noqa: BLE001
+            with self._lock:
+                self.embed_errors += 1
+            return False
+        entry = VisualEntry(t=now, kind="detection", label=str(label),
+                            event=MemoryEvent(t=now, kind="observation", text=str(text)))
+        with self._lock:
+            if self._det_index is None:
+                self._det_index = self._new_index()
+            self._det_index.add(vec, meta=entry)
+            self._detections.append(entry)
+            self.prune(now)
+        return True
+
+    @staticmethod
+    def _prune_ring(ring: deque, index: QuantizedIndex | None, now: float,
+                    horizon_s: float, cap: int) -> None:
+        """Expire a time-ordered ring and its index in lockstep: entries past
+        `horizon_s` are a prefix, and so is the overflow past `cap`."""
+        drop = 0
+        n = len(ring)
+        while drop < n and now - ring[drop].t > horizon_s:
+            drop += 1
+        drop = max(drop, n - cap)
+        if drop > 0 and index is not None:
+            index.remove_ids(set(range(drop)))
+            for _ in range(drop):
+                ring.popleft()
+
     def prune(self, now: float | None = None) -> None:
         now = self._clock() if now is None else now
         with self._lock:
@@ -185,15 +363,14 @@ class EpisodicMemory:
                 self._frames.popleft()
             # Visual entries are appended in time order, so expiry is a prefix
             # of the deque -- and of the index, which is pruned in lockstep.
-            drop = 0
-            n = len(self._visual)
-            while drop < n and now - self._visual[drop].t > self.frame_horizon_s:
-                drop += 1
-            drop = max(drop, n - self.max_visual)
-            if drop > 0 and self._index is not None:
-                self._index.remove_ids(set(range(drop)))
-                for _ in range(drop):
-                    self._visual.popleft()
+            self._prune_ring(self._visual, self._index, now, self.frame_horizon_s, self.max_visual)
+            self._prune_ring(self._detections, self._det_index, now, self.frame_horizon_s,
+                             self.max_detections)
+            # Restored entries: their own horizon (the load's max age, never
+            # below the restored-age floor), not the task-scale one -- they
+            # are older than any task by construction.
+            self._prune_ring(self._restored, self._restored_index, now,
+                             max(self._restored_max_age_s, self.LOADED_MIN_AGE_S), self.max_visual)
 
     def reset_frames(self) -> None:
         """New episode: drop the visual history. The text ring is untouched
@@ -259,6 +436,12 @@ class EpisodicMemory:
         with self._lock:
             self.prune(now)
             hits = self._index.search(vec, k=len(self._index))
+            # B43 rings (watcher crops, restored entries) ranked together with
+            # the session ring; a stable sort keeps the session's own order,
+            # and without them this is exactly the session search.
+            for index in (self._det_index, self._restored_index):
+                if index is not None:
+                    hits = sorted(hits + index.search(vec, k=len(index)), key=lambda h: -h[0])
             frame_steps = {id(ev): n + 1 for n, ev in enumerate(self._frames)}
         out: list[dict] = []
         for score, entry in hits:
@@ -267,7 +450,7 @@ class EpisodicMemory:
             if min_sim is not None and score < float(min_sim):
                 break  # hits are sorted: everything after is lower
             ev = entry.event
-            out.append({
+            hit = {
                 "score": round(float(score), 3),
                 "kind": entry.kind,
                 "label": entry.label,
@@ -275,7 +458,13 @@ class EpisodicMemory:
                 "text": ev.text,
                 "verdict": str((ev.data or {}).get("verdict") or ""),
                 "step": frame_steps.get(id(ev)),
-            })
+            }
+            if entry.restored:
+                # From an earlier session: remembered, never seen in this one
+                # (its age is at least LOADED_MIN_AGE_S by construction).
+                hit["restored"] = True
+                hit["state"] = "remembered"
+            out.append(hit)
             if len(out) >= k:
                 break
         return out
@@ -286,9 +475,130 @@ class EpisodicMemory:
             return {
                 "embedder": getattr(self.embedder, "name", None),
                 "joint_space": bool(getattr(self.embedder, "joint_space", False)),
-                "entries": len(self._visual),
+                "entries": len(self._visual) + len(self._detections) + len(self._restored),
                 "embed_errors": int(self.embed_errors),
             }
+
+    def visual_breakdown(self) -> dict:
+        """Entries per ring: this session's frames/crops, watcher crops, and
+        entries restored from an earlier session (B43)."""
+        with self._lock:
+            return {"session": len(self._visual), "detections": len(self._detections),
+                    "restored": len(self._restored)}
+
+    # ── persistence (B43, opt-in memory.persist_episodic) ────────────────
+
+    def save_visual(self, path, *, now_wall: float | None = None) -> int:
+        """Persist the visual index; returns how many entries were written.
+
+        Modelled on ``BeliefStore.save``: monotonic timestamps become WALL
+        CLOCK (the monotonic origin resets with the process), and the write is
+        atomic (temp file + ``os.replace``) because the watcher may be adding
+        crops meanwhile. Each entry stores its kind, label, recall line,
+        verdict and the vector the index holds, decoded to the embedder's own
+        space (float16) so the file does not depend on the quantizer's
+        rotation. A caller's explicit ``embedding=`` is not persisted."""
+        if self.embedder is None or self._index is None:
+            raise _unavailable()
+        path = Path(path)
+        now_wall = time.time() if now_wall is None else float(now_wall)
+        records = []
+        with self._lock:
+            now = self._clock()
+            self.prune(now)
+            for ring, index in ((self._restored, self._restored_index), (self._visual, self._index),
+                                (self._detections, self._det_index)):
+                if index is None:
+                    continue
+                for entry, vec in zip(ring, index.decoded()):
+                    if entry.kind not in self.PERSISTED_KINDS:
+                        continue
+                    records.append({
+                        "kind": entry.kind,
+                        "label": entry.label,
+                        "text": entry.event.text,
+                        "verdict": str((entry.event.data or {}).get("verdict") or ""),
+                        "wall": now_wall - (now - entry.t),
+                        "vec": base64.b64encode(np.asarray(vec, np.float16).tobytes()).decode("ascii"),
+                    })
+        records.sort(key=lambda r: r["wall"])
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(path.suffix + f".tmp{os.getpid()}")
+        tmp.write_text(json.dumps({"version": 1, "embedder": self.embedder.name,
+                                   "dim": int(self.embedder.dim), "saved_wall": now_wall,
+                                   "entries": records}))
+        try:
+            os.replace(tmp, path)
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
+        return len(records)
+
+    def load_visual(self, path, max_age_s: float | None = None, *,
+                    now_wall: float | None = None) -> int:
+        """Restore entries saved by :meth:`save_visual`; returns how many.
+
+        Modelled on ``BeliefStore.load``: ages are wall clock relative to now,
+        entries older than `max_age_s` (default ``DEFAULT_MAX_AGE_S``) are
+        dropped, and only THEN is the apparent age floored at
+        ``LOADED_MIN_AGE_S`` (a clock that went backwards reads as "just
+        saved"), so the floor cannot smuggle in an expired entry and nothing
+        restored reads as current. A load replaces the restored ring (newest
+        `max_visual` kept). A missing or corrupt file, or a bad record, is
+        skipped -- a broken memory must not stop the robot. A file written by
+        ANOTHER embedder (name or dimension) raises ValueError: its vectors
+        live in a different space and would answer recall with noise."""
+        if self.embedder is None or self._index is None:
+            raise _unavailable()
+        path = Path(path)
+        try:
+            blob = json.loads(path.read_text())
+            records = list(blob["entries"])
+            name, dim = blob.get("embedder"), int(blob.get("dim"))
+        except Exception:  # noqa: BLE001 - missing or corrupt: never block startup
+            return 0
+        if name != self.embedder.name:
+            raise ValueError(f"{path} was embedded by {name!r}, this memory uses "
+                             f"{self.embedder.name!r}: not comparable, not loaded")
+        if dim != int(self.embedder.dim):
+            raise ValueError(f"{path} holds dim {dim} vectors, {self.embedder.name!r} embeds "
+                             f"dim {self.embedder.dim}: not loaded")
+        max_age_s = self.DEFAULT_MAX_AGE_S if max_age_s is None else float(max_age_s)
+        now_wall = time.time() if now_wall is None else float(now_wall)
+        now = self._clock()
+        loaded: list[tuple[VisualEntry, np.ndarray]] = []
+        for r in records:
+            try:
+                kind = str(r["kind"])
+                vec = np.frombuffer(base64.b64decode(r["vec"]), dtype=np.float16).astype(np.float32)
+                if kind not in self.PERSISTED_KINDS or vec.shape[0] != dim:
+                    continue
+                age = now_wall - float(r["wall"])
+                if age > max_age_s:
+                    continue
+                # AFTER the max-age test; it also turns the negative age of a
+                # clock that went backwards into "just saved", never the future
+                age = max(age, self.LOADED_MIN_AGE_S)
+                verdict = str(r.get("verdict") or "")
+                event = MemoryEvent(t=now - age, kind="observation", text=str(r.get("text") or ""),
+                                    data={"verdict": verdict} if verdict else {})
+                label = r.get("label")
+                loaded.append((VisualEntry(t=now - age, kind=kind,
+                                           label=None if label is None else str(label),
+                                           event=event, restored=True), vec))
+            except Exception:  # noqa: BLE001 - skip a bad record, keep the rest
+                continue
+        loaded.sort(key=lambda pair: pair[0].t)
+        loaded = loaded[max(0, len(loaded) - self.max_visual):]
+        index = self._new_index()
+        for entry, vec in loaded:
+            index.add(vec, meta=entry)
+        with self._lock:
+            self._restored = deque(entry for entry, _ in loaded)
+            self._restored_index = index
+            self._restored_max_age_s = max_age_s
+            self.prune(now)
+        return len(loaded)
 
     def memory_frames(self, k: int = 4, now: float | None = None) -> list[dict]:
         """Vesta-style visual history: up to `k` past events that carry a

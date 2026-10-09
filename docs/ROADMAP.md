@@ -224,6 +224,23 @@ Open, in priority order (details in the sections below):
    golden pins of `tests/test_memory_default_path.py`), 7/7 mutants killed.
    STILL OPEN: real SigLIP/CLIP weights were never loaded here -- recall
    quality and the uncalibrated text floors need a GPU-host evaluation;
+   ~~crops come from localizations, not every watcher detection; recall is
+   in-process only.~~ **landed 2026-10-09 (B43, both opt-in, CPU-measured
+   only):** `memory.visual_recall_detections` -- the WorldWatcher indexes a
+   crop of every COMMITTED detection (one per belief per frame, at most one
+   per belief per `visual_recall_interval_s` 30 s, ≤ 2 per tick, own ring of
+   128; fusion is paused during motion skills, so no crop comes from a
+   motion frame) -- and `memory.persist_episodic` (`CASCADE_EPISODIC`,
+   `CASCADE_EPISODIC_PATH`) -- the visual index is saved on shutdown and
+   restored at startup like the belief store (wall-clock ages, 6 h max age
+   dropped before a 2 s minimum apparent age, atomic writes, another
+   embedder's file refused, every restored hit `restored`/`remembered`).
+   Measured with the hash embedder and the joint stub on CPU:
+   `tests/test_memory_visual_recall_v2.py` (32 RED on 4d0947b → 38 GREEN with
+   6 premise/golden pins), 90/90 mutants killed. Still open: no live Isaac
+   run of either switch yet (watcher-crop cost per tick with a real
+   detector, restart on the booth), and real-weight recall quality as above.
+   Found while measuring (NOT fixed, separate item): tier-2
    crops come from localizations, not every watcher detection; recall is
    in-process only. ~~Found while measuring (NOT fixed, separate item): tier-2
    recall matches the compound "pick up the red cube and then pick up the
@@ -1422,8 +1439,11 @@ are synchronous by design here, noted for long-horizon work.
   `EpisodicMemory(embed_dim=...)` + crops per detection, enabling
   "the thing that looked like X" recall through the TurboQuant index.~~
   **landed 2026-10-07 (opt-in)** as `memory.embedder` -- see open item #7 in
-  the priority list above; crops are per LOCALIZED detection, and real
-  weights remain to be evaluated on the GPU host.
+  the priority list above; ~~crops are per LOCALIZED detection~~ (**landed
+  2026-10-09**, B43: `memory.visual_recall_detections` adds a crop per
+  committed watcher detection, `memory.persist_episodic` keeps the index
+  across restarts, both opt-in), and real weights remain to be evaluated on
+  the GPU host.
 
 ## Mid term
 

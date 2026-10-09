@@ -231,6 +231,30 @@ memory:
     model: null               # null -> the backend's default checkpoint
     device: auto
     local_files_only: true    # never downloads weights unless set to false
+  # Visual recall v2 (B43, ROADMAP #7; both opt-in, both need the embedder
+  # above -- without one they are reported at startup and ignored).
+  # visual_recall_detections: the WorldWatcher also remembers what each
+  # COMMITTED detection looked like, not only the objects a call localized:
+  # one crop per belief per frame, at most one per belief every
+  # visual_recall_interval_s, at most visual_recall_max_per_tick per watcher
+  # tick, in a ring of its own (visual_recall_max_detections, frames_horizon_s)
+  # so it never evicts motion frames or localized crops. Fusion is paused
+  # while the arm moves, so a motion frame never yields a crop. A bad limit
+  # fails the build. false = the B21 index exactly.
+  visual_recall_detections: false
+  visual_recall_interval_s: 30.0
+  visual_recall_max_per_tick: 2
+  visual_recall_max_detections: 128
+  # persist_episodic: the visual index (frames, localized and watcher crops)
+  # is written on shutdown and reloaded at startup, like persist_beliefs:
+  # wall-clock ages, entries older than episodic_max_age_s dropped, every
+  # restored hit marked restored/remembered and at least 2 s old -- never a
+  # current observation. A file from another embedder is refused (its vectors
+  # are not comparable). CASCADE_EPISODIC=1/0 overrides this switch;
+  # CASCADE_EPISODIC_PATH relocates the file. false = in-process only.
+  persist_episodic: false
+  episodic_path: null       # null -> <repo>/runs/episodic.json
+  episodic_max_age_s: 21600 # 6 h, like beliefs_max_age_s
   # Action<->object consolidation of tier-2 outcomes (ROADMAP #7, opt-in;
   # memory/consolidation.py): wins/losses per (skill, object) across
   # instruction wordings, persisted to runs/action_objects.json and shown to

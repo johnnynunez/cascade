@@ -499,6 +499,12 @@ class SafetyHarness:
     def end_motion(self) -> None:
         self._motion_active = False
 
+    @property
+    def motion_active(self) -> bool:
+        """True between begin_motion() and end_motion() (read-only; the
+        extrinsic drift monitor checks only a static arm)."""
+        return bool(self._motion_active)
+
     def check_stream_start(self, *, halt_generation: int | None = None) -> None:
         """Recheck live guards after planning without clearing a new halt."""
         self.check_contact_episode()

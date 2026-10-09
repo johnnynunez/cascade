@@ -239,6 +239,8 @@ class SkillRuntime:
         self._held_width_m: float | None = None
         #: optional WorldWatcher (set by the app wiring); paused during motion
         self.watcher = None
+        #: ExtrinsicDriftMonitor per monitored eye-to-hand camera (app wiring)
+        self.drift_monitors = []
         self._reset_observation_pending = False
         #: RGB frame captured immediately before the current motion skill, for
         #: CaP-X visual differencing. Set by execute(); None between motions.

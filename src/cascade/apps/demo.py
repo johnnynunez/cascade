@@ -126,6 +126,40 @@ def _arm_cfgs(cfg) -> list[Cfg]:
     return [cfg.arm]
 
 
+def _drift_monitors(cam_cfgs, watched, *, watcher, surface_fn, q_fn, motion_fn, run_dir,
+                    memory, arm_name: str = "", ee_frame: str = "") -> list:
+    """One ExtrinsicDriftMonitor per camera whose profile enables
+    ``extrinsics.drift_monitor``. Enabled where it can never work (a wrist
+    camera, a camera type without sensor depth) is a configuration error; an
+    uncalibrated camera has nothing to monitor (said on stderr)."""
+    from ..calibration.cli import _RGB_ONLY_TYPES
+    from ..perception.drift_monitor import DriftMonitorConfig, ExtrinsicDriftMonitor
+
+    out = []
+    for ccfg, cam in zip(cam_cfgs, watched):
+        ext = ccfg.get("extrinsics") or {}
+        dcfg = DriftMonitorConfig.from_config(ext.get("drift_monitor") if hasattr(ext, "get")
+                                              else None)
+        if not dcfg.enabled:
+            continue
+        name = cam.stream.name
+        if cam.extrinsics.mode != "eye_to_hand":
+            raise ValueError(f"camera {name!r}: extrinsics.drift_monitor needs an eye_to_hand "
+                             "camera (a wrist camera does not see the arm it rides on)")
+        if str(ccfg.get("type", "")) in _RGB_ONLY_TYPES or ccfg.get("rgb_only"):
+            raise ValueError(f"camera {name!r}: extrinsics.drift_monitor needs sensor depth; "
+                             f"type {ccfg.get('type')!r} has none")
+        if not cam.extrinsics.calibrated:
+            print(f"[cascade] camera {name}: extrinsic drift monitor not started (camera is "
+                  "not calibrated; nothing to monitor)", file=sys.stderr)
+            continue
+        out.append(ExtrinsicDriftMonitor(
+            name, cam, watcher=watcher, surface_fn=surface_fn, q_fn=q_fn, motion_fn=motion_fn,
+            config=dcfg, run_dir=run_dir, memory=memory,
+            camera_serial=str(ccfg.get("serial", "") or ""), arm=arm_name, ee_frame=ee_frame))
+    return out
+
+
 def _camera_fusion(ccfg, extrinsics) -> tuple[bool, bool | None]:
     """(fuse, map_depth) for one camera stream.
 
@@ -556,6 +590,35 @@ def build_runtime(
         watcher.start()
         runtime.watcher = watcher
 
+    # Extrinsic drift monitors (perception/drift_monitor.py): per eye-to-hand
+    # camera, opt-in. Read-only on the arm: joints via a reader that never
+    # materialises a LazyArm, motion from the harness / a paused watcher.
+    def _q_now():
+        if not getattr(arm, "connected", True):
+            return None
+        return arm.get_state().q
+
+    def _moving():
+        w = runtime.watcher
+        return bool(harness.motion_active or (w is not None and w.is_paused))
+
+    def _surface():
+        from ..calibration.robot_surface import RobotSurface
+
+        return RobotSurface.from_kinematics(kin, str(arm_cfgs[0].model))
+
+    runtime.drift_monitors = _drift_monitors(
+        cam_cfgs, watched, watcher=runtime.watcher, surface_fn=_surface, q_fn=_q_now,
+        motion_fn=_moving, run_dir=trace.run_dir, memory=memory,
+        arm_name=str(arm_cfgs[0].get("name", "") or ""),
+        ee_frame=str(arm_cfgs[0].get("ee_frame", "") or ""))
+    for mon in runtime.drift_monitors:
+        mon.start()
+        c = mon.config
+        print(f"[cascade] camera {mon.name}: extrinsic drift monitor on (every {c.period_s:g} s "
+              f"while the arm is static; flags > {1000 * c.max_offset_m:.0f} mm / "
+              f"{c.max_rot_deg:g} deg x{c.consecutive}; auto_apply={c.auto_apply})")
+
     # ── live view: headless by default, opened on demand ─────────────────
     # Chat (Hermes / OpenClaw / any MCP host) is the interface; the browser
     # dashboard is a diagnostic surface you attach. `serve=False` from the CLI
@@ -749,6 +812,10 @@ def _runtime_state(runtime) -> dict:
     narrator = getattr(runtime, "wrist_narrator", None)
     if narrator is not None:
         out["wrist_view"] = narrator.snapshot(runtime)
+    monitors = getattr(runtime, "drift_monitors", None) or []
+    if monitors:
+        # per camera: ok / drift, fusing, last check, passive candidate
+        out["extrinsics_drift"] = {m.name: m.status() for m in monitors}
     return out
 
 
@@ -874,6 +941,8 @@ def owned_threads(runtime) -> list:
             out.append((label, thread))
 
     add("watcher", getattr(runtime, "watcher", None))
+    for mon in getattr(runtime, "drift_monitors", None) or []:
+        add(f"drift-monitor:{mon.name}", mon)
     add("stream-server", getattr(runtime, "stream_server", None))
     add("viewer", getattr(runtime, "viewer", None))
     rig = getattr(runtime, "rig", None)
@@ -891,9 +960,10 @@ def shutdown_runtime(runtime, arm) -> dict:
     second arm powered (torque on, unsupervised) after teardown reported
     success.
 
-    Order: park (needs the watcher's heartbeat) -> save beliefs -> watcher
-    (the consumer of the camera streams) -> dashboard -> viewer -> camera
-    streams (producers) -> arms. Each thread owner WAITS for its thread's
+    Order: park (needs the watcher's heartbeat) -> save beliefs -> drift
+    monitors (they read the watcher's streams and the arm's joints) ->
+    watcher (the consumer of the camera streams) -> dashboard -> viewer ->
+    camera streams (producers) -> arms. Each thread owner WAITS for its thread's
     in-flight work; a bounded join here once let the watcher's first cold
     YOLOE inference (> 5 s) outlive shutdown and abort the launcher's
     runtime check at interpreter exit.
@@ -932,6 +1002,10 @@ def shutdown_runtime(runtime, arm) -> dict:
         n = runtime.memory.save_visual(path)
         print(f"[cascade] remembered {n} appearance(s) -> {path}")
 
+    def _stop_drift_monitors():
+        for mon in getattr(runtime, "drift_monitors", None) or []:
+            mon.stop()
+
     def _disconnect_arms():
         rig = getattr(runtime, "arm_rig", None)
         if rig is not None:
@@ -946,6 +1020,10 @@ def shutdown_runtime(runtime, arm) -> dict:
         # receipt keeps exactly its stages
         *((("episodic", _save_episodic),) if getattr(runtime, "episodic_path", None) is not None
           else ()),
+        # likewise only with a drift monitor (opt-in, extrinsics.drift_monitor):
+        # they read the watcher's streams and the arm's joints, so stop first
+        *((("drift_monitors", _stop_drift_monitors),)
+          if getattr(runtime, "drift_monitors", None) else ()),
         ("watcher", lambda: runtime.watcher.stop() if runtime.watcher is not None else None),
         ("stream_server", lambda: runtime.stream_server.stop() if getattr(runtime, "stream_server", None) else None),
         ("viewer", lambda: runtime.viewer.stop() if getattr(runtime, "viewer", None) else None),

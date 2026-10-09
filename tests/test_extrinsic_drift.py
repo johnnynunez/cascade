@@ -398,3 +398,74 @@ def test_auto_apply_only_takes_a_candidate_that_explains_current_depth_better(
     assert not better and new == pytest.approx(old)
     better, new, old = rig.monitor.candidate_is_better(_bump(T_TRUE, 3.0))
     assert not better and new < old
+
+
+# ── runtime wiring (apps/demo.py) ────────────────────────────────────────
+
+
+def _profile(mode="eye_to_hand", enabled=True, kind="realsense", T=True, **dm):
+    ext = {"mode": mode, "drift_monitor": {"enabled": enabled, **dm}}
+    if T:
+        ext["T"] = T_TRUE.tolist()
+    return Cfg({"type": kind, "name": "scene", "extrinsics": ext})
+
+
+def _watched(ccfg):
+    from types import SimpleNamespace
+
+    from cascade.perception.grounding import Extrinsics
+
+    e = Extrinsics.from_config(ccfg.extrinsics, fk_tcp2base=lambda: np.eye(4))
+    return SimpleNamespace(stream=SimpleNamespace(name=ccfg.name), extrinsics=e, fuse=True,
+                           map_depth=None, generation=0)
+
+
+def test_monitors_are_built_only_where_they_can_work(capsys):
+    from cascade.apps.demo import _drift_monitors
+
+    kw = dict(watcher=None, surface_fn=lambda: None, q_fn=lambda: None, motion_fn=lambda: False,
+              run_dir=None, memory=None)
+    on = _profile()
+    assert [m.name for m in _drift_monitors([on], [_watched(on)], **kw)] == ["scene"]
+    off = _profile(enabled=False)
+    assert _drift_monitors([off], [_watched(off)], **kw) == []
+    assert _drift_monitors([Cfg({"type": "mock", "name": "m", "extrinsics": {}})],
+                           [_watched(Cfg({"name": "m", "extrinsics": {}}))], **kw) == []
+    # Uncalibrated: nothing to monitor -- said, not silent.
+    nocal = _profile(T=False)
+    nocal._data["extrinsics"]["hand_eye_json"] = "/nonexistent.json"
+    assert _drift_monitors([nocal], [_watched(nocal)], **kw) == []
+    assert "drift monitor" in capsys.readouterr().err
+    # Enabled where it can never work is a configuration error.
+    wrist = _profile(mode="eye_in_hand")
+    with pytest.raises(ValueError, match="eye_to_hand"):
+        _drift_monitors([wrist], [_watched(wrist)], **kw)
+    rgb = _profile(kind="uvc")
+    with pytest.raises(ValueError, match="depth"):
+        _drift_monitors([rgb], [_watched(rgb)], **kw)
+    bad = _profile(consecutive=0)
+    with pytest.raises(ValueError, match="consecutive"):
+        _drift_monitors([bad], [_watched(bad)], **kw)
+
+
+@needs_pin
+def test_build_runtime_starts_reports_and_stops_the_monitor(tmp_path):
+    from cascade.apps.demo import _runtime_state, build_runtime, owned_threads, shutdown_runtime
+    from cascade.config import load_demo_config
+
+    cfg = load_demo_config(camera="mock", arm="mock", llm="mock")
+    cfg._data["camera"]["extrinsics"]["drift_monitor"] = {"enabled": True, "period_s": 0.5}
+    runtime, arm = build_runtime(cfg, tmp_path / "run", view=False, serve=False)
+    try:
+        assert [m.name for m in runtime.drift_monitors] == [runtime.rig.primary.name]
+        mon = runtime.drift_monitors[0]
+        assert mon._thread is not None and mon._thread.is_alive()
+        assert ("drift-monitor", mon._thread) in [(l.split(":")[0], t)
+                                                 for l, t in owned_threads(runtime)]
+        state = _runtime_state(runtime)
+        assert state["extrinsics_drift"][mon.name]["state"] == "ok"
+    finally:
+        receipt = shutdown_runtime(runtime, arm)
+    assert not mon._thread or not mon._thread.is_alive()
+    assert "drift_monitors" in [s["stage"] for s in receipt["stages"]]
+    assert not receipt["pending_threads"]

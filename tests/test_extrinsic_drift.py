@@ -327,3 +327,74 @@ def test_extrinsics_invalidate_and_adopt_are_visible_to_every_holder():
     # The candidate is the full measured T_cam2base: compensation is not
     # applied a second time.
     assert np.allclose(e.T_compensation @ e.T_hand_eye, new)
+
+
+# ── passive re-calibration ───────────────────────────────────────────────
+
+
+def _events(tmp_path):
+    p = tmp_path / "extrinsics_drift.jsonl"
+    return [json.loads(x)["event"] for x in p.read_text().splitlines()] if p.exists() else []
+
+
+@needs_pin
+def test_views_from_before_the_knock_are_dropped_when_the_camera_is_flagged(
+        kin, surface, preset_qs, tmp_path):
+    rig = Rig(kin, surface, tmp_path)
+    for q in preset_qs[0:9:3]:
+        assert rig.dwell(q)[1].outcome == "ok"
+    assert len(rig.monitor.snapshots) == 3
+    rig.camera.T_cam2base = _bump(T_TRUE, 2.0)
+    for q in preset_qs[12:24:4]:
+        rig.dwell(q)
+    assert rig.cam.fuse is False
+    # Only the three views that saw the camera where it is NOW remain.
+    assert [s.q for s in rig.monitor.snapshots] == [tuple(map(float, q)) for q in preset_qs[12:24:4]]
+
+
+@needs_pin
+@pytest.mark.parametrize("auto_apply", [False, True])
+def test_a_passive_candidate_is_written_once_enough_diverse_static_views_exist(
+        kin, surface, preset_qs, tmp_path, auto_apply):
+    from cascade.calibration.dataset import load_hand_eye
+    from cascade.calibration.frames import pose_error, se3_inv
+
+    rig = Rig(kin, surface, tmp_path,
+              config=DriftMonitorConfig(enabled=True, auto_apply=auto_apply))
+    bumped = _bump(T_TRUE, 2.0)
+    rig.camera.T_cam2base = bumped
+    for q in preset_qs[::3]:                   # normal work: the arm stops here and there
+        rig.dwell(q)
+        if rig.monitor.candidate_path is not None:
+            break
+    path = rig.monitor.candidate_path
+    assert path is not None, rig.monitor.status()
+    assert path.parent == tmp_path / "extrinsics_candidates"
+    rec = load_hand_eye(path)
+    assert rec is not None and rec.markerless and "PASSIVE" in rec.note
+    e = pose_error(se3_inv(bumped) @ rec.T_cam2base)
+    assert 1000 * np.linalg.norm(e[:3]) < 5.0 and np.degrees(np.linalg.norm(e[3:])) < 0.5
+    events = _events(tmp_path)
+    assert "camera_uncalibrated" in events and "candidate_written" in events
+    if auto_apply:
+        assert "candidate_applied" in events
+        assert rig.cam.fuse and rig.cam.extrinsics.calibrated
+        assert np.allclose(rig.cam.extrinsics.cam_to_base(), rec.T_cam2base)
+        assert rig.monitor.status()["state"] == "ok"
+        assert rig.dwell(preset_qs[1])[1].outcome == "ok"     # checks pass again
+    else:
+        assert "candidate_applied" not in events
+        assert rig.cam.fuse is False and not rig.cam.extrinsics.calibrated
+        assert any("hand_eye_json:" in line and str(path) in line for line in rig.lines)
+
+
+@needs_pin
+def test_auto_apply_only_takes_a_candidate_that_explains_current_depth_better(
+        kin, surface, preset_qs, tmp_path):
+    rig = Rig(kin, surface, tmp_path, config=DriftMonitorConfig(enabled=True, auto_apply=True))
+    for q in preset_qs[0:12:4]:
+        rig.dwell(q)
+    better, new, old = rig.monitor.candidate_is_better(T_TRUE)       # no better than active
+    assert not better and new == pytest.approx(old)
+    better, new, old = rig.monitor.candidate_is_better(_bump(T_TRUE, 3.0))
+    assert not better and new < old

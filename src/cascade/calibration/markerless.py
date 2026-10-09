@@ -698,6 +698,18 @@ def solve_markerless(samples, surface, T_init, *, mode: str = EYE_TO_HAND, n_sta
     return MarkerlessFit(T_cam2base=T, metrics=metrics, poses=tuple(poses))
 
 
+def explained_fraction(samples, surface, T) -> float:
+    """Share of the arm's visible model points that the depth explains
+    (associated within INLIER_DIST_M) through ``T``, over ``samples``: how
+    well a transform explains CURRENT depth, independent of any fit."""
+    samples = list(samples)
+    if not samples:
+        return 0.0
+    prep = _prepare(samples, surface)
+    return float(_fitness(prep, np.asarray(T, dtype=float),
+                          1.0 / math.sqrt(surface.points_per_m2), _EVAL))
+
+
 # ── single-pose offset (the drift monitor's measurement) ─────────────────
 
 

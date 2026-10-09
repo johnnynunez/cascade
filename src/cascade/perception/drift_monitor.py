@@ -52,7 +52,14 @@ from pathlib import Path
 
 import numpy as np
 
-from ..calibration.markerless import DepthSample, measure_offset
+from ..calibration.markerless import (
+    MIN_INLIER_FRACTION,
+    MIN_POSES,
+    MIN_ROTATION_SPREAD_DEG,
+    MIN_TCP_SPREAD_M,
+    DepthSample,
+    measure_offset,
+)
 
 CONFIG_KEYS = ("enabled", "period_s", "max_offset_m", "max_rot_deg", "consecutive", "auto_apply")
 
@@ -135,6 +142,9 @@ Q_STATIC_TOL_RAD = 2e-3
 #: Snapshots kept for passive re-calibration must differ by this much.
 DISTINCT_Q_RAD = 0.05
 MAX_SNAPSHOTS = 24
+#: A candidate replaces the active extrinsic only if it explains this much
+#: more of the visible arm in the current depth.
+APPLY_MARGIN = 0.05
 
 
 def _stderr(line: str) -> None:
@@ -308,6 +318,8 @@ class ExtrinsicDriftMonitor:
                     self._flag(r)
             elif not self._flagged:
                 self._consecutive = 0
+        if self._flagged:
+            self._maybe_candidate(now)
         return res
 
     # ── flag / adopt ─────────────────────────────────────────────────────
@@ -351,6 +363,90 @@ class ExtrinsicDriftMonitor:
         if len(self.snapshots) > MAX_SNAPSHOTS:
             self.snapshots.pop(0)
             self._snap_t.pop(0)
+
+    def _maybe_candidate(self, now) -> None:
+        if self.candidate_path is not None or len(self.snapshots) < MIN_POSES:
+            return
+        if len(self.snapshots) < self._attempted_at + 2 and self._attempted_at:
+            return          # nothing new enough since the last refused attempt
+        from ..calibration.markerless import _diversity
+
+        spread, rot = _diversity(self.snapshots)
+        if spread < MIN_TCP_SPREAD_M or rot < MIN_ROTATION_SPREAD_DEG:
+            return          # keep collecting: the gate would refuse it anyway
+        self._attempted_at = len(self.snapshots)
+        self._solve_candidate(now)
+
+    def _solve_candidate(self, now) -> None:
+        from ..calibration.dataset import save_hand_eye
+        from ..calibration.markerless import record_from_markerless, solve_markerless
+
+        T0 = self._last_estimate if self._last_estimate is not None else self._T_ref
+        fit = solve_markerless(self.snapshots, self._surface, T0)
+        last = self.snapshots[-1]
+        rec = record_from_markerless(
+            fit, self.snapshots, camera=self.name, camera_serial=self.camera_serial,
+            arm=self.arm, ee_frame=self.ee_frame, K=last.K,
+            image_size=(last.depth_m.shape[1], last.depth_m.shape[0]),
+            note="PASSIVE CANDIDATE from the extrinsic drift monitor (static views taken during "
+                 "normal work; the arm was never moved for it)")
+        stamp = time.strftime("%Y%m%d_%H%M%S")
+        if not rec.acceptable:
+            self.last_rejection = "; ".join(rec.rejection_reasons)
+            self._event("candidate_rejected", n_views=len(self.snapshots),
+                        reasons=rec.rejection_reasons)
+            self._log(f"[drift:{self.name}] passive re-calibration from {len(self.snapshots)} "
+                      f"views not accepted yet: {self.last_rejection}")
+            return
+        if self.run_dir is None:
+            return
+        path = save_hand_eye(self.run_dir / "extrinsics_candidates" /
+                             f"{self.name}_{stamp}.handeye.json", rec)
+        self.candidate_path = path
+        self.last_rejection = None
+        self._event("candidate_written", path=str(path), metrics=rec.metrics)
+        self._log(f"[drift:{self.name}] candidate re-calibration written: {path}\n"
+                  f"[drift:{self.name}] {rec.summary()}")
+        if not self.config.auto_apply:
+            self._log(f"[drift:{self.name}] NOT applied (extrinsics.drift_monitor.auto_apply is "
+                      "false). To adopt it: copy it under configs/calib/ and set in the camera "
+                      f"profile\n  extrinsics:\n    hand_eye_json: {path}\n(it is the full "
+                      "T_cam2base: drop any hand_eye_compensation_m), then restart; or "
+                      "re-run scripts/calibrate_handeye.py --method markerless")
+            self._note(f"camera {self.name}: passive re-calibration candidate ready ({path})")
+            return
+        self._maybe_apply(fit.T_cam2base, path)
+
+    def candidate_is_better(self, T_candidate, views=None) -> tuple[bool, float, float]:
+        """(better, explained_by_candidate, explained_by_active) on the most
+        recent static views: the share of visible arm points each transform
+        explains."""
+        from ..calibration.markerless import explained_fraction
+
+        views = list(views if views is not None else self.snapshots[-3:])
+        new = explained_fraction(views, self._surface, T_candidate)
+        old = explained_fraction(views, self._surface, self._T_ref)
+        return (new >= MIN_INLIER_FRACTION and new > old + APPLY_MARGIN), new, old
+
+    def _maybe_apply(self, T_new, path) -> None:
+        better, new, old = self.candidate_is_better(T_new)
+        if not better:
+            self._event("candidate_not_applied", path=str(path), explained_new=new,
+                        explained_active=old)
+            self._log(f"[drift:{self.name}] candidate NOT applied: it explains {100 * new:.0f} % "
+                      f"of the arm in current depth vs {100 * old:.0f} % for the active one")
+            return
+        self.watched.extrinsics.adopt(T_new, source=f"drift_candidate:{path}")
+        self._T_ref = np.array(T_new, dtype=float)
+        self._set_fusion(self._orig_fuse, self._orig_map)
+        self._flagged = False
+        self._flag_reason = None
+        self._consecutive = 0
+        self._event("candidate_applied", path=str(path), explained_new=new, explained_active=old)
+        self._log(f"[drift:{self.name}] candidate APPLIED (auto_apply): explains {100 * new:.0f} % "
+                  f"of the arm vs {100 * old:.0f} %; 3D fusion back on for this camera")
+        self._note(f"camera {self.name}: re-calibrated passively; 3D fusion back on",
+                   path=str(path))
 
     # ── thread ───────────────────────────────────────────────────────────
 

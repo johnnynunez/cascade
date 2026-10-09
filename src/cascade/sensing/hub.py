@@ -160,6 +160,10 @@ class SensorHub:
         with self._lock:
             return tuple(slot.descriptor for slot in self._slots.values())
 
+    def now(self):
+        """The local monotonic clock admission ages are judged on."""
+        return self._clock()
+
     def _admit(self, slot, observation, size):
         if type(observation) is not ObservationEnvelope:
             raise SensorError("provider did not return an immutable observation")

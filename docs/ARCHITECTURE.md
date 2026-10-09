@@ -287,6 +287,21 @@ chat command ("pick and place the red cube")
   Measured on CPU against a per-triangle rasterisation of the reBot RS meshes
   (4 poses × 2 cameras, 1280 × 720): coverage 1.0, IoU 0.889–0.951,
   3–5 ms per frame (`docs/evidence/b39-link-self-mask-20261009/`).
+- **Capture-time alignment** (`sensing/alignment.py`, B50, 2026-10-09). One
+  shared component pairs a reference capture time with the nearest recorded
+  sample of another stream and reports `aligned` (|skew| ≤ `max_skew_s`,
+  inclusive), `stale` (farther: identity and skew reported, value withheld),
+  `missing` (no sample) or `uncertain` (value returned but flagged: clock not
+  comparable, saturated, or the sample's own rate × |skew| above a declared
+  tolerance). It never interpolates or extrapolates; ties keep the earlier
+  sample. The link self-mask's frame ↔ joint pairing above runs on it
+  unchanged. The opt-in sensors-domain `alignment:` block adds
+  `sensing.read_aligned`: one fresh reference capture (a camera), then each
+  IMU/joint sensor's admitted capture nearest its capture time from the hub's
+  bounded history, on one clock instance only (same clock domain and epoch;
+  the process-local `monotonic` clock across provider epochs). Measured on CPU
+  through MCP against the real loopback mobile bridge
+  ([contract and numbers](ROBOT_MODULARITY.md#capture-time-alignment-b50-opt-in)).
 - **Detector preparation.** The open-world and prompted YOLO models remain
   resident, with up to eight successful text-embedding vocabularies retained
   in LRU order. This adds model residency while avoiding checkpoint and text
@@ -721,6 +736,8 @@ src/cascade/
 │   ├── probe.py / pixel_target.py / visual_interface.py / visual_diff.py
 │   │                         cursor, pixel→object, annotated agent view, before/after diff
 │   ├── reference.py          goal/reference images      workspace.py  reachable-region filter
+├── sensing/            passive typed sensors: models (IMU, joints, contact, RGB-D), SensorHub, providers,
+│                       SensorDomain; alignment.py capture-time pairing (B50, shared with link_mask.py)
 ├── memory/
 │   ├── beliefs.py      object permanence, colour-aware fusion, save/load (wall clock)
 │   ├── episodic.py     text ring (15 s) + frame ring (task-scale) + memory_frames(k); opt-in visual index (recall_visual), watcher crops (DetectionCropRecorder) and save_visual/load_visual (B43)
@@ -1031,6 +1048,16 @@ token and registration. Stdio through `launch.sh` remains the default; see
   still open. Its accuracy on hardware also depends on the hand-eye calibration
   and the joint offsets. A stale or unreadable joint state means no mask, i.e.
   the cylinder alone.
+- IMU / proprioception time alignment (B50) is software only and pairs; it
+  does not fuse. `sensing.read_aligned` picks among the captures that reads
+  admitted to the hub (at most 32 captures / 16 MB shared by every sensor; a
+  large RGB-D capture can evict IMU samples), not a producer-rate stream, so
+  its skew depends on how often the caller reads. The rate × skew "motion"
+  test is a first-order estimate from the sample's own rate, not a bound;
+  captures are compared only on one clock instance (same clock domain and
+  epoch, or the process-local monotonic clock), with no hardware clock
+  synchronization. No estimator consumes the pairings yet, and the
+  native skew distribution on the Isaac MicroDuck bridge is unmeasured.
 - Colour names differ between cameras: one object can sit on a hue band
   boundary (the Isaac bin is H 22 "orange" in the top camera, H 23 "yellow"
   in the side camera). Since 2026-10-08 (B32b) a belief keeps each camera's

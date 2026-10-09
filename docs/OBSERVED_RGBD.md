@@ -90,6 +90,13 @@ The same admitted capture can feed the [spatial observation domain](RGBD_SPATIAL
 through its exact returned `capture_sha256`, epoch and sequence. Sharing it does
 not acquire another frame or refresh its original age.
 
+To pair this camera with the same bridge's IMU and joint state by physics time,
+add `mobile_state` providers (`modality: imu` / `proprioception`, same
+`profile`) and an opt-in `alignment:` block; `sensing.read_aligned` then reports
+each pairing as aligned / stale / missing / uncertain with the measured skew,
+never interpolated ([capture-time alignment](ROBOT_MODULARITY.md#capture-time-alignment-b50-opt-in);
+CPU evidence only, no native skew measurement yet).
+
 An explicit `wait_next: true` on a `mobile_rgbd` provider opts into the producer's
 `rgbd_wait_next` capability. The first read returns the latest completed capture;
 later requests carry that reader's exact epoch and previous step, and wait for

@@ -8,6 +8,10 @@ the arm from ``apps.demo._build_arm`` (kinematics -> the profile's own
 SafetyHarness -> SafeArm, a LazyArm so the motors stay untouched until the
 first vetted motion). Entry points: ``python scripts/calibrate_handeye.py``
 and ``cascade-calib-handeye``. Operator procedure: docs/HANDEYE_CALIBRATION.md.
+
+``--method markerless`` (eye-to-hand RGB-D cameras only) runs the SAME
+vetted sweep but records depth of the arm at each settled pose and fits the
+arm's own meshes to it (calibration/markerless.py); no marker is mounted.
 """
 
 from __future__ import annotations
@@ -25,6 +29,10 @@ from .handeye import EYE_IN_HAND, EYE_TO_HAND, solve_hand_eye
 VERIFY_MAX_RMSE_M = 0.010
 #: Fewer samples than this are not worth solving (the gate wants 8 inliers).
 MIN_SAMPLES_TO_SOLVE = 6
+METHODS = ("marker", "markerless")
+#: --dry-run --method markerless starts the solver this far from the truth
+#: (a deliberately wrong "profile guess": 8 cm and 10 deg).
+DRY_RUN_INIT_ERROR = (0.08, 10.0)
 
 
 def _T(t, R) -> np.ndarray:
@@ -61,21 +69,29 @@ class DryRunRig:
     kin: object
     camera: object
     T_hand_eye: np.ndarray
-    T_marker: np.ndarray
+    T_marker: np.ndarray | None
     home_q: np.ndarray
     ee_frame: str
+    model_path: str = ""
+    T_init: np.ndarray | None = None     # markerless: the deliberately wrong start
 
 
 def dry_run_rig(arm: str, mode: str, *, noise_px: float = 0.5, corrupt_poses=(),
-                seed: int = 0, marker: MarkerSpec = MarkerSpec()) -> DryRunRig:
+                seed: int = 0, marker: MarkerSpec = MarkerSpec(),
+                method: str = "marker") -> DryRunRig:
     """The arm profile's kinematics, harness and velocity cap on a MockArm,
-    plus a synthetic camera. Never builds a hardware backend: the profile's
-    ``type`` is replaced by ``mock`` and the result is checked."""
+    plus a synthetic camera (a rendered marker, or for ``method="markerless"``
+    rendered depth of the arm). Never builds a hardware backend: the
+    profile's ``type`` is replaced by ``mock`` and the result is checked."""
     from ..apps.demo import _arm_cfgs, _build_arm
     from ..config import load_demo_config
     from ..control.mock_arm import MockArm
     from .synthetic import SyntheticMarkerCamera
 
+    if method not in METHODS:
+        raise ValueError(f"unknown method {method!r}")
+    if method == "markerless" and mode != EYE_TO_HAND:
+        raise ValueError("markerless calibration is eye_to_hand only")
     cfg = load_demo_config(camera="mock", arm=arm, llm="mock")
     acfg = _arm_cfgs(cfg)[0]
     acfg._data["type"] = "mock"
@@ -84,14 +100,28 @@ def dry_run_rig(arm: str, mode: str, *, noise_px: float = 0.5, corrupt_poses=(),
         raw.disconnect()
         raise RuntimeError("dry run built a non-mock arm backend; refusing")
     T_he, T_m = _dry_run_truth()[mode]
-    camera = SyntheticMarkerCamera(
-        mode, T_he, T_m, lambda: kin.fk(safe_arm.get_state().q), noise_px=noise_px,
-        corrupt_poses=corrupt_poses, seed=seed, size_m=marker.size_m,
-        marker_id=marker.marker_id, dictionary=marker.dictionary)
+    model_path = str(acfg.model)
+    T_init = None
+    if method == "markerless":
+        from .synthetic_depth import SyntheticDepthCamera
+
+        camera = SyntheticDepthCamera(kin, model_path, T_he, lambda: safe_arm.get_state().q,
+                                      seed=seed)
+        trans, deg = DRY_RUN_INIT_ERROR
+        T_init = T_he @ _T(trans * np.array([1.0, 1.0, -0.5]) / 1.5,
+                           so3_exp(np.radians(deg) * np.array([1.0, -0.5, 0.3])
+                                   / np.linalg.norm([1.0, -0.5, 0.3])))
+        T_m = None
+    else:
+        camera = SyntheticMarkerCamera(
+            mode, T_he, T_m, lambda: kin.fk(safe_arm.get_state().q), noise_px=noise_px,
+            corrupt_poses=corrupt_poses, seed=seed, size_m=marker.size_m,
+            marker_id=marker.marker_id, dictionary=marker.dictionary)
     return DryRunRig(cfg=cfg, arm_name=arm, raw_arm=raw, safe_arm=safe_arm, kin=kin,
                      camera=camera, T_hand_eye=T_he, T_marker=T_m,
                      home_q=np.asarray(acfg.home_q, dtype=float),
-                     ee_frame=str(acfg.get("ee_frame", "")))
+                     ee_frame=str(acfg.get("ee_frame", "")), model_path=model_path,
+                     T_init=T_init)
 
 
 def solve_and_record(samples, *, mode, marker, camera="", camera_serial="", arm="",
@@ -121,6 +151,7 @@ class Rig:
     home_q: np.ndarray
     ee_frame: str
     camera_serial: str = ""
+    model_path: str = ""
 
 
 def _prompt(msg: str = "") -> str:
@@ -159,7 +190,8 @@ def build_rig(cfg, args) -> Rig:
     return Rig(safe_arm=safe_arm, raw_arm=raw, kin=kin, camera=camera,
                home_q=np.asarray(acfg.home_q, dtype=float),
                ee_frame=str(acfg.get("ee_frame", "")),
-               camera_serial=str(cfg.camera.get("serial", "") or ""))
+               camera_serial=str(cfg.camera.get("serial", "") or ""),
+               model_path=str(acfg.get("model", "")))
 
 
 def _cleanup(rig: Rig | None, *, park: bool) -> None:
@@ -210,7 +242,7 @@ def _session_config(args, mode, *, dry_run=False):
     settle = args.settle_time if args.settle_time is not None else (0.0 if dry_run else SETTLE_S)
     return SessionConfig(mode=mode, marker=_marker(args), settle_s=settle,
                          marker_timeout_s=args.marker_timeout, stable_frames=args.stable_frames,
-                         speed_frac=args.speed_frac)
+                         speed_frac=args.speed_frac, depth_frames=args.depth_frames)
 
 
 def _default_out(camera: str, arm: str):
@@ -250,7 +282,62 @@ MOUNTING = {
                  "across the sweep; it must not shift relative to the gripper",
     EYE_IN_HAND: "marker FLAT ON THE TABLE ~0.45 m in front of the base, taped down; it must "
                  "not move during the sweep",
+    "markerless": "NO marker: the camera fits the arm's own meshes in depth. Keep the arm "
+                  "unobstructed (nothing held, no clutter on it) and in the camera's view",
 }
+
+
+# ── markerless prerequisites ─────────────────────────────────────────────
+
+#: Camera backends with no depth stream of their own (cascade's `uvc` is
+#: RGB; its plane-cast "depth" is the table, not the arm).
+_RGB_ONLY_TYPES = ("uvc",)
+
+
+def markerless_refusal(ccfg, mode) -> str | None:
+    """Why this camera profile cannot be calibrated markerless, or None."""
+    if mode != EYE_TO_HAND:
+        return (f"--method markerless is eye_to_hand only (profile mode {mode!r}): an "
+                "eye-in-hand (wrist) camera does not see the arm it rides on; use the marker "
+                "method for it")
+    kind = str(ccfg.get("type", ""))
+    if kind in _RGB_ONLY_TYPES or ccfg.get("rgb_only"):
+        return (f"--method markerless needs a camera with SENSOR depth; profile type {kind!r} "
+                "has none (plane-cast or monocular depth is not a measurement of the arm)")
+    return None
+
+
+def markerless_initial_guess(ccfg) -> np.ndarray | None:
+    """The solver's start: the profile's accepted hand-eye record if any,
+    else its inline (placeholder) ``extrinsics.T``; None when there is no
+    guess at all (identity would start the camera at the base origin)."""
+    from .dataset import read_hand_eye
+    from .frames import is_se3
+
+    ext = ccfg.get("extrinsics") or {}
+    path = ext.get("hand_eye_json") if hasattr(ext, "get") else None
+    if path:
+        try:
+            rec = read_hand_eye(path)
+            if rec.acceptable and rec.mode == EYE_TO_HAND:
+                return np.asarray(rec.T_hand_eye, dtype=float)
+        except (FileNotFoundError, ValueError):
+            pass
+    T = ext.get("T") if hasattr(ext, "get") else None
+    if T is None:
+        return None
+    T = np.asarray(T, dtype=float).reshape(4, 4)
+    if not is_se3(T) or np.allclose(T, np.eye(4)):
+        return None
+    return T
+
+
+def _camera_has_depth(camera) -> bool:
+    v = getattr(camera, "has_depth", None)
+    try:
+        return bool(v() if callable(v) else v)
+    except Exception:  # noqa: BLE001 - a probe that fails is a camera without depth
+        return False
 
 
 # ── --list / --bind ──────────────────────────────────────────────────────
@@ -355,8 +442,18 @@ def cmd_bind(args) -> int:
 
 def _sweep(rig: Rig, args, mode, poses, run_dir, state: dict, dry_run: bool):
     from .aruco import ArucoSession, camera_dist_coeffs
-    from .session import CollectionSession
+    from .session import CollectionSession, DepthCollectionSession
 
+    if args.method == "markerless":
+        session = DepthCollectionSession(
+            safe_arm=rig.safe_arm, kin=rig.kin, camera=rig.camera,
+            config=_session_config(args, mode, dry_run=dry_run), home_q=rig.home_q,
+            trace_path=run_dir / "trace.jsonl", capture_dir=run_dir / "captures")
+        state["session"] = session
+        state["moved"] = True
+        if args.manual:
+            return session.run_manual(poses, prompt=lambda m: _prompt(m), start_home=True)
+        return session.run_auto(poses, start_home=True)
     session = CollectionSession(
         safe_arm=rig.safe_arm, kin=rig.kin, camera=rig.camera,
         aruco=ArucoSession(args.dict), config=_session_config(args, mode, dry_run=dry_run), home_q=rig.home_q,
@@ -371,8 +468,6 @@ def _sweep(rig: Rig, args, mode, poses, run_dir, state: dict, dry_run: bool):
 
 def _solve_and_save(samples, *, args, mode, camera, arm, rig, session, out, run_dir,
                     dry_truth=None) -> int:
-    from .dataset import save_hand_eye
-    from .frames import pose_error, se3_inv
 
     if len(samples) < MIN_SAMPLES_TO_SOLVE:
         print(f"[calib] only {len(samples)} samples (need >= {MIN_SAMPLES_TO_SOLVE}); nothing "
@@ -386,6 +481,35 @@ def _solve_and_save(samples, *, args, mode, camera, arm, rig, session, out, run_
     record = solve_and_record(samples, mode=mode, marker=_marker(args), camera=camera,
                               camera_serial=rig.camera_serial, arm=arm, ee_frame=rig.ee_frame,
                               K=K, D=session.dist_coeffs, image_size=size, note=note)
+    return _report_and_save(record, mode=mode, camera=camera, out=out, run_dir=run_dir,
+                            dry_truth=dry_truth)
+
+
+def _solve_and_save_markerless(samples, *, camera, arm, rig, session, out, run_dir, surface,
+                               T_init, dry_truth=None) -> int:
+    from .markerless import record_from_markerless, solve_markerless
+
+    if len(samples) < MIN_SAMPLES_TO_SOLVE:
+        print(f"[calib] only {len(samples)} depth samples (need >= {MIN_SAMPLES_TO_SOLVE}); "
+              f"nothing saved. Check the arm stays in the camera's view (trace: {run_dir})")
+        return 1
+    print(f"[calib] fitting the arm's meshes to {len(samples)} depth samples ...")
+    fit = solve_markerless(samples, surface, T_init)
+    last = samples[-1]
+    note = ("DRY RUN: synthetic depth camera + MockArm; NOT a calibration of any camera"
+            if dry_truth is not None else "")
+    record = record_from_markerless(
+        fit, samples, camera=camera, camera_serial=rig.camera_serial, arm=arm,
+        ee_frame=rig.ee_frame, K=last.K, image_size=(last.depth_m.shape[1], last.depth_m.shape[0]),
+        note=note, depth_files=getattr(session, "depth_files", ()))
+    return _report_and_save(record, mode=EYE_TO_HAND, camera=camera, out=out, run_dir=run_dir,
+                            dry_truth=dry_truth)
+
+
+def _report_and_save(record, *, mode, camera, out, run_dir, dry_truth=None) -> int:
+    from .dataset import save_hand_eye
+    from .frames import pose_error, se3_inv
+
     print(record.summary())
     if dry_truth is not None:
         err = pose_error(se3_inv(dry_truth) @ record.T_hand_eye)
@@ -408,6 +532,14 @@ def _solve_and_save(samples, *, args, mode, camera, arm, rig, session, out, run_
           f"  extrinsics:\n    mode: {mode}\n    hand_eye_json: {_profile_path(path)}\n"
           "then verify: --verify <record> --camera <profile> --known-points ...")
     return 0
+
+
+def _describe_error(T, T_ref) -> str:
+    from .frames import pose_error, se3_inv
+
+    e = pose_error(se3_inv(T_ref) @ T)
+    return (f"{1000 * float(np.linalg.norm(e[:3])):.1f} mm / "
+            f"{float(np.degrees(np.linalg.norm(e[3:]))):.1f} deg")
 
 
 def cmd_calibrate(args, *, dry_run: bool) -> int:
@@ -434,6 +566,20 @@ def cmd_calibrate(args, *, dry_run: bool) -> int:
     if mode not in MODES:
         _err(f"camera profile {camera!r} has no extrinsics.mode (eye_to_hand|eye_in_hand)")
         return 2
+    markerless = args.method == "markerless"
+    T_init = None
+    if markerless:
+        why = markerless_refusal(cfg.camera, mode)
+        if why:
+            _err(why)
+            return 2
+        if not dry_run:
+            T_init = markerless_initial_guess(cfg.camera)
+            if T_init is None:
+                _err(f"--method markerless starts from the camera profile's rough T_cam2base: "
+                     f"give {camera!r} an extrinsics.T (camera ~0.6-1 m above the table, "
+                     "looking down; a few cm / ~15 deg is close enough)")
+                return 2
     try:
         poses = load_poses(arm, mode, args.poses)
         _session_config(args, mode, dry_run=dry_run)
@@ -457,32 +603,55 @@ def cmd_calibrate(args, *, dry_run: bool) -> int:
 
     print(f"[calib] {'DRY RUN ' if dry_run else ''}{mode} camera={camera} "
           f"serial={cfg.camera.get('serial', '') or '-'} arm={arm} poses={len(poses)} "
-          f"mode={'manual' if args.manual else 'auto'}")
-    print(f"[calib] mount: {MOUNTING[mode]}")
-    print(f"[calib] marker {args.dict} id {args.marker_id}, {1000 * args.marker_size:.1f} mm "
-          "(the MEASURED printed size)")
+          f"mode={'manual' if args.manual else 'auto'} method={args.method}")
+    if markerless:
+        print(f"[calib] mount: {MOUNTING['markerless']}")
+    else:
+        print(f"[calib] mount: {MOUNTING[mode]}")
+        print(f"[calib] marker {args.dict} id {args.marker_id}, {1000 * args.marker_size:.1f} mm "
+              "(the MEASURED printed size)")
     print(f"[calib] speed: {args.speed_frac:.2f} x the arm profile's max_joint_vel; every pose "
           "vetted by the safety harness; Ctrl+C = halt + park + torque off")
     print(f"[calib] trace -> {run_dir}; output -> {out}")
 
     rig, samples, status, state = None, None, None, {"moved": False}
     dry_truth = None
+    surface = None
     with StopSignals() as signals:
         try:
             with signals.defer():
                 if dry_run:
                     dr = dry_run_rig(arm, mode, noise_px=args.noise_px, corrupt_poses={5},
-                                     seed=args.seed, marker=_marker(args))
+                                     seed=args.seed, marker=_marker(args), method=args.method)
                     dry_truth = dr.T_hand_eye
                     rig = Rig(safe_arm=dr.safe_arm, raw_arm=dr.raw_arm, kin=dr.kin,
                               camera=dr.camera, home_q=dr.home_q, ee_frame=dr.ee_frame,
-                              camera_serial=dr.camera.serial)
+                              camera_serial=dr.camera.serial, model_path=dr.model_path)
+                    if markerless:
+                        T_init = dr.T_init
+                        print("[calib] DRY RUN initial guess "
+                              f"{_describe_error(T_init, dry_truth)} off the synthetic truth")
                 else:
                     rig = build_rig(cfg, args)
             signals.checkpoint()
-            if not dry_run and not args.yes:
-                ans = _prompt("[calib] Arm will move. E-stop in reach, workspace clear, marker "
-                              "mounted? type 'yes' to start > ")
+            if markerless:
+                # Before anything moves: a depth stream and the arm's meshes.
+                if not _camera_has_depth(rig.camera):
+                    _err(f"camera {camera!r} delivers no depth; --method markerless fits the "
+                         "arm in DEPTH. Nothing moved.")
+                    status = 2
+                else:
+                    from .robot_surface import RobotSurface
+
+                    try:
+                        surface = RobotSurface.from_kinematics(rig.kin, rig.model_path)
+                    except (FileNotFoundError, ValueError) as e:
+                        _err(f"no surface model for arm {arm!r}: {e}. Nothing moved.")
+                        status = 2
+            if status is None and not dry_run and not args.yes:
+                ans = _prompt("[calib] Arm will move. E-stop in reach, workspace clear, "
+                              + ("arm unobstructed? " if markerless else "marker mounted? ")
+                              + "type 'yes' to start > ")
                 if ans.strip().lower() != "yes":
                     print("[calib] aborted by operator; nothing moved")
                     status = 1
@@ -505,6 +674,10 @@ def cmd_calibrate(args, *, dry_run: bool) -> int:
         if status is not None:
             return status
         try:
+            if markerless:
+                return _solve_and_save_markerless(
+                    samples, camera=camera, arm=arm, rig=rig, session=state["session"], out=out,
+                    run_dir=run_dir, surface=surface, T_init=T_init, dry_truth=dry_truth)
             return _solve_and_save(samples, args=args, mode=mode, camera=camera, arm=arm,
                                    rig=rig, session=state["session"], out=out, run_dir=run_dir,
                                    dry_truth=dry_truth)
@@ -609,7 +782,10 @@ def cmd_verify(args) -> int:
     if (cfg.camera.get("extrinsics") or {}).get("hand_eye_compensation_m") is not None:
         print("[calib] note: verifying the RAW record; the profile's hand_eye_compensation_m "
               "is a runtime correction on top of it")
-    marker = MarkerSpec.from_json(record.marker.to_json())
+    # A markerless record has no marker; verifying it still lays a marker at
+    # measured points, described by the command line.
+    marker = (_marker(args) if record.marker is None
+              else MarkerSpec.from_json(record.marker.to_json()))
     scfg = SessionConfig(mode=EYE_TO_HAND, marker=marker,
                          settle_s=SETTLE_S if args.settle_time is None else args.settle_time,
                          marker_timeout_s=args.marker_timeout, stable_frames=args.stable_frames)
@@ -670,8 +846,9 @@ def build_parser():
     p = argparse.ArgumentParser(
         prog="cascade-calib-handeye",
         description="Hand-eye calibration (ArUco, joint SE(3) solve) for an eye-to-hand or "
-                    "eye-in-hand camera profile. Every motion is vetted by the arm's safety "
-                    "harness and executed through SafeArm. Procedure: "
+                    "eye-in-hand camera profile, or markerless (--method markerless: the arm's "
+                    "meshes fitted in depth, eye-to-hand RGB-D only). Every motion is vetted "
+                    "by the arm's safety harness and executed through SafeArm. Procedure: "
                     "docs/HANDEYE_CALIBRATION.md")
     act = p.add_mutually_exclusive_group()
     act.add_argument("--list", action="store_true", help="list connected RealSense/Orbbec cameras")
@@ -690,6 +867,11 @@ def build_parser():
     p.add_argument("--manual", action="store_true",
                    help="operator presses ENTER before every (vetted) preset pose")
     p.add_argument("--poses", help="YAML list of [x,y,z,roll,pitch,yaw] TCP poses (base frame)")
+    p.add_argument("--method", choices=METHODS, default="marker",
+                   help="marker (ArUco, both mountings; default) or markerless (eye-to-hand "
+                        "RGB-D only: fit the arm's own meshes in depth, no marker)")
+    p.add_argument("--depth-frames", type=int, default=5,
+                   help="markerless: depth frames per pose (temporal median, default 5)")
     p.add_argument("--marker-size", type=float, default=0.10,
                    help="MEASURED printed marker side, metres (default 0.10)")
     p.add_argument("--marker-id", type=int, default=0)
@@ -714,6 +896,9 @@ def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
     if args.gravity_comp:
         _err(GRAVITY_COMP_NOT_PORTED)
+        return 2
+    if args.depth_frames < 1:
+        _err("--depth-frames must be >= 1")
         return 2
     if not _speed_ok(args.speed_frac):
         _err(f"--speed-frac {args.speed_frac}: must be in (0, 1] of the harness velocity cap "

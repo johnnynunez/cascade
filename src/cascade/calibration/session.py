@@ -446,7 +446,7 @@ class DepthCollectionSession(CollectionSession):
             mm = np.clip(np.round(depth * 1000.0), 0, 65535).astype(np.uint16)
             cv2.imwrite(str(self.capture_dir / name), mm)
             self.depth_files.append(f"{self.capture_dir.name}/{name}")
-        except Exception as e:  # an audit image must never cost a sample
+        except Exception as e:  # noqa: BLE001 - an audit image must never cost a sample
             self.log(f"[calib] could not save depth for {label}: {e}")
 
 

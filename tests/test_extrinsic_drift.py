@@ -17,7 +17,6 @@ WorldWatcher objects.
 from __future__ import annotations
 
 import json
-import math
 
 import numpy as np
 import pytest
@@ -133,7 +132,7 @@ class Rig:
         self.t = 0.0
         self.q = np.array([0.0, 1.2, 1.2, 0.0, 0.0, 0.0])
         self.moving = False
-        clock = lambda: self.t                                   # noqa: E731
+        clock = lambda: self.t
         self.camera = SyntheticDepthCamera(kin, URDF, T_TRUE, lambda: self.q, seed=1,
                                            clock=clock, **cam_kw)
         self.cam = WatchedCamera(stream=Stream(self.camera, "scene"),
@@ -423,8 +422,8 @@ def _watched(ccfg):
 def test_monitors_are_built_only_where_they_can_work(capsys):
     from cascade.apps.demo import _drift_monitors
 
-    kw = dict(watcher=None, surface_fn=lambda: None, q_fn=lambda: None, motion_fn=lambda: False,
-              run_dir=None, memory=None)
+    kw = {"watcher": None, "surface_fn": lambda: None, "q_fn": lambda: None,
+          "motion_fn": lambda: False, "run_dir": None, "memory": None}
     on = _profile()
     assert [m.name for m in _drift_monitors([on], [_watched(on)], **kw)] == ["scene"]
     off = _profile(enabled=False)
@@ -450,7 +449,12 @@ def test_monitors_are_built_only_where_they_can_work(capsys):
 
 @needs_pin
 def test_build_runtime_starts_reports_and_stops_the_monitor(tmp_path):
-    from cascade.apps.demo import _runtime_state, build_runtime, owned_threads, shutdown_runtime
+    from cascade.apps.demo import (
+        _runtime_state,
+        build_runtime,
+        owned_threads,
+        shutdown_runtime,
+    )
     from cascade.config import load_demo_config
 
     cfg = load_demo_config(camera="mock", arm="mock", llm="mock")

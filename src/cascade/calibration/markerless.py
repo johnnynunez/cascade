@@ -187,11 +187,12 @@ class _Pyramid:
         self.K = np.asarray(K, dtype=float)
         self.size = (depth.shape[1], depth.shape[0])
         fx = self.K[0, 0]
-        self.normal_stride = max(1, 2 ** int(round(math.log2(max(0.0115 * fx, 1.0)))))
+        # int(): on numpy < 2 round(np.float64) is a float
+        self.normal_stride = max(1, 2 ** int(round(math.log2(max(0.0115 * fx, 1.0)))))  # noqa: RUF046
         self._levels = {}
 
     def stride(self, alpha: float) -> int:
-        return max(1, int(round(alpha * self.K[0, 0])))
+        return max(1, int(round(alpha * self.K[0, 0])))  # noqa: RUF046 - numpy < 2
 
     def level(self, s: int):
         if s not in self._levels:
@@ -202,7 +203,7 @@ class _Pyramid:
             if s >= ns:
                 N = _normal_map(P)
             else:
-                Pn, Nn, Kn = self.level(ns)
+                _, Nn, _ = self.level(ns)
                 # Pixel centre of each fine cell -> the coarse normal cell.
                 h, w = z.shape
                 rows = np.clip(np.round((np.arange(h) * s + (s - 1) / 2.0 - (ns - 1) / 2.0) / ns)
@@ -767,13 +768,14 @@ def measure_offset(sample: DepthSample, surface, T, *, min_points: int = 300,
     front = _fraction_in_front(pr, T, spacing)
     in_before = int(np.sum(before.dist <= INLIER_DIST_M))
     T2 = _icp(prep, T, schedule, spacing, c, L, rel_floor=rel_floor)
-    poses, r, H = _evaluate(prep, T2, spacing, c, L)
+    poses, _, _ = _evaluate(prep, T2, spacing, c, L)
     after = poses[0]
     frac_b = in_before / n_vis
     frac_a = after.n_inliers / max(min(after.n_visible, _EVAL.cap), 1)
-    common = dict(n_visible=n_vis, n_inliers_before=in_before, n_inliers_after=after.n_inliers,
-                  fraction_before=frac_b, fraction_after=frac_a, fraction_front=front,
-                  rmse_m=after.rmse_m, T_estimate=T2)
+    common = {"n_visible": n_vis, "n_inliers_before": in_before,
+              "n_inliers_after": after.n_inliers, "fraction_before": frac_b,
+              "fraction_after": frac_a, "fraction_front": front, "rmse_m": after.rmse_m,
+              "T_estimate": T2}
     if after.n_inliers < min_points or frac_a < MIN_INLIER_FRACTION:
         why = ("occluded" if front > 0.3 else "the depth does not explain the arm near the "
                "current extrinsic")

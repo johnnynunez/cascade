@@ -123,7 +123,7 @@ def test_frames_follow_the_arm_and_are_sensor_depth(kin):
     # Fresh noise each grab at the same pose; same seed -> same sequence.
     c = cam.get_frame()
     assert not np.array_equal(b.depth_m, c.depth_m)
-    cam2, s2 = _camera(kin, HOME)
+    cam2, _ = _camera(kin, HOME)
     first = cam2.get_frame()
     assert np.array_equal(first.depth_m, a.depth_m)
 

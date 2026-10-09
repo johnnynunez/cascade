@@ -130,7 +130,7 @@ def test_initial_guess_comes_from_the_profile():
 
 
 def test_dry_run_markerless_end_to_end(tmp_path, monkeypatch, capsys):
-    import cascade.apps.demo as demo
+    from cascade.apps import demo
 
     built = []
     real_make_arm = demo.make_arm

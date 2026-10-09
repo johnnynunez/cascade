@@ -30,8 +30,8 @@ from __future__ import annotations
 
 import functools
 import math
-import zlib
 import xml.etree.ElementTree as ET
+import zlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -313,7 +313,7 @@ class RobotSurface:
     @classmethod
     def from_kinematics(cls, kin, model_path, *, points_per_m2: float = DEFAULT_POINTS_PER_M2,
                         seed: int = 0, geometry: str = "collision", exterior_only: bool = True,
-                        links=None, dense_per_m2: float = DENSE_POINTS_PER_M2) -> "RobotSurface":
+                        links=None, dense_per_m2: float = DENSE_POINTS_PER_M2) -> RobotSurface:
         """``links=None``: every link with a mesh whose pose the measured
         joints determine; ``links="all"`` also includes passively driven
         ones (a renderer, never a calibration model). ``model_path`` must be

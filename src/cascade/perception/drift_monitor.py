@@ -92,7 +92,7 @@ class DriftMonitorConfig:
     auto_apply: bool = False
 
     @classmethod
-    def from_config(cls, raw) -> "DriftMonitorConfig":
+    def from_config(cls, raw) -> DriftMonitorConfig:
         if raw is None:
             return cls()
         if hasattr(raw, "as_dict"):
@@ -100,7 +100,8 @@ class DriftMonitorConfig:
         elif hasattr(raw, "_data"):
             raw = dict(raw._data)
         if not isinstance(raw, dict):
-            raise ValueError(f"extrinsics.drift_monitor must be a mapping, got {raw!r}")
+            # ValueError like every other config refusal (callers catch one type)
+            raise ValueError(f"extrinsics.drift_monitor must be a mapping, got {raw!r}")  # noqa: TRY004
         unknown = sorted(set(raw) - set(CONFIG_KEYS))
         if unknown:
             raise ValueError(f"extrinsics.drift_monitor: unknown key(s) {unknown}; "
@@ -231,7 +232,7 @@ class ExtrinsicDriftMonitor:
         if self._memory is not None:
             try:
                 self._memory.add("note", text, data={"camera": self.name, **data})
-            except Exception:  # noqa: BLE001 - reporting must never break the monitor
+            except Exception:  # noqa: BLE001, S110 - a memory note must never break the monitor
                 pass
 
     def status(self) -> dict:
@@ -499,8 +500,8 @@ def _compact(sample: DepthSample) -> DepthSample:
     """Keep a snapshot at <= ~640 px wide (block median), K scaled to it."""
     from ..calibration.markerless import _block_median, _level_K
 
-    h, w = sample.depth_m.shape
-    s = max(1, int(round(w / 640)))
+    w = sample.depth_m.shape[1]
+    s = max(1, round(w / 640))
     if s == 1:
         return sample
     z = _block_median(sample.depth_m, s)

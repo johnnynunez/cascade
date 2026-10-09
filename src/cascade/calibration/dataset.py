@@ -99,7 +99,8 @@ def assess_record(method: str, metrics: dict) -> list[str]:
     """The gate for ``method``; an unknown method is a reason in itself."""
     if method == METHOD:
         return assess_hand_eye(metrics)
-    from .markerless import METHOD as MARKERLESS, assess_markerless
+    from .markerless import METHOD as MARKERLESS
+    from .markerless import assess_markerless
 
     if method == MARKERLESS:
         return assess_markerless(metrics)

@@ -260,7 +260,12 @@ chat command ("pick and place the red cube")
   camera gave it, an observation is held to its own camera's name, and a
   camera that never named a belief fuses a perceptual-neighbour name
   (orange~yellow) only at 3D box IoU >= 0.75, with each cloud's lowest
-  centimetre left out of the box (B32c: masks take in table pixels).
+  centimetre left out of the box (B32c: masks take in table pixels). Fusion
+  is also size-consistent (B40, 2026-10-09): a view more than 2× the largest
+  view a belief has had (robust horizontal diameter of the real-mask cloud,
+  `ObjectBelief.diameter_m`) AND more than 5 cm larger is not that object, so
+  a camera that names a container and the prop inside it alike cannot fuse
+  the container into the prop. Smaller views always pass; no cloud, no veto.
 - **Robot self-mask in fusion** (`perception/workspace.py`, B32a;
   `perception/link_mask.py`, B39). A detection more than half robot pixels is
   the robot and is dropped; below that, its robot pixels never reach 3D. The
@@ -994,10 +999,27 @@ token and registration. Stdio through `launch.sh` remains the default; see
     the ray-cast) and may stay two beliefs;
   - a bleeding sliver of a short prop wholly inside the bin, seen only by a
     camera that never named the bin, reaches 0.63 in the ray-cast;
-  - pre-existing and unchanged: a camera that names a container and the prop
+  - ~~pre-existing and unchanged: a camera that names a container and the prop
     inside it with the SAME colour fuses its view of the container into the
     prop's belief (the side camera's "yellow" bin into the yellow cube, 3 frames
-    per run, identical with the one-name rule).
+    per run, identical with the one-name rule)~~ **landed 2026-10-09 (B40,
+    measured on CPU, live A/B owed)**: fusion is size-consistent
+    (`BeliefStore._size_ok`). A view's size is the robust horizontal diameter
+    of its real-mask cloud; a belief remembers the largest one fused into it
+    (`ObjectBelief.diameter_m`); a view more than 2× that AND more than 5 cm
+    larger is not that object. On B32b's live clouds one object's views differ
+    by ≤ × 1.29 and a container view is ≥ × 2.48 (+10.9 cm) the prop's largest
+    view; 2.0 and 5 cm are estimates between those
+    (`docs/evidence/b40-fusion-size-gate-20261009/`). It only refuses, and only
+    with a real-mask cloud on both sides. What it cannot do, from the ray-cast:
+    a belief BORN from a quarter of a container's view (3/4 hidden from its
+    first frame) refuses the container's full view (up to × 2.64) and the bin
+    becomes two beliefs; ≥ 4 px of mask bleed onto a container makes the view
+    of a prop inside it × 2.5 its size, so it is refused from the prop's own
+    belief (live YOLOE views of that prop: 0.066–0.074 m, no such bleed); and a
+    prop's view fusing into the CONTAINER's belief is not handled (a smaller
+    view always passes: it looks like an occluded view of the container).
+    `memory.size_gate: false` restores the store before it, byte for byte.
 
   `memory.per_camera_colour: false` restores the one-name rule.
 - Grip force is a stiffness proxy (kp scaling + stall detection), not a

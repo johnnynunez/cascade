@@ -1069,11 +1069,23 @@ engine" rule again -- a second OBJECT is also an independent channel):
    (`docs/evidence/b32b-colour-identity-live-20261008/`). Still open: the kitchen
    scene, and a small object named across a band boundary by two cameras
    (cube views overlap 0.66 at 320 × 180, 0.85 at 1280 × 720 in the ray-cast:
-   it may stay two beliefs, as before). Also found, pre-existing and not
+   it may stay two beliefs, as before). ~~Also found, pre-existing and not
    changed: with a same-coloured prop inside the bin, the camera that names
    both "yellow" fuses its view of the bin into the prop's belief (identical
    with the one-name rule). The follow-up is a size-consistency check in the
-   fusion gate. ~~Frames without
+   fusion gate.~~ **Size-consistency check landed 2026-10-09 (B40, CPU;
+   live A/B owed)**: a view more than 2× the largest view a belief has had
+   (robust horizontal diameter of the real-mask cloud) AND more than 5 cm
+   larger is refused (`BeliefStore._size_ok`, `memory.size_gate`, default
+   true; false = the old store byte for byte, golden-tested). Measured on
+   B32b's live clouds: one object's views within × 1.29 (bin 0.183–0.235 m,
+   205 views), container view ≥ × 2.48 and +10.9 cm the prop's largest view
+   (0.066–0.074 m); 36 tests, 26/26 mutants killed
+   (`docs/evidence/b40-fusion-size-gate-20261009/`). Still open: the live A/B
+   (yellow prop in the orange bin, ≥ 3 runs per arm), a belief born from a
+   quarter of a container's view, ≥ 4 px of mask bleed onto a container (the
+   view of a prop inside it then looks × 2.5 its size; not seen live), and a
+   prop's view fusing into the container's belief. ~~Frames without
    a render self-mask (the real rig) need a link-geometry mask in fusion
    (follow-up).~~ **landed 2026-10-09 (B39)**: `perception/link_mask.py`
    draws the robot's pixels from the URDF collision geometry (5 cm link-frame

@@ -26,11 +26,15 @@ LIMIT_KEYS = frozenset({
     "max_lateral_drift_m", "max_heading_drift_rad", "stop_linear_speed_m_s",
     "stop_angular_speed_rad_s", "stop_drift_m", "stop_drift_rad",
 })
+# Opt-in pair (B74), both or neither: same names as ``distance_control``'s.
+ADMISSION_LIMIT_KEYS = ("max_admission_lateral_m", "max_admission_heading_rad")
 
 
 def _validate_limits(limits):
-    if not isinstance(limits, dict) or set(limits) != LIMIT_KEYS:
+    if not isinstance(limits, dict) or not LIMIT_KEYS <= set(limits) <= LIMIT_KEYS | set(ADMISSION_LIMIT_KEYS):
         raise ValueError("verifier limits require exactly: " + ", ".join(sorted(LIMIT_KEYS)))
+    admission = {key: limits[key] for key in ADMISSION_LIMIT_KEYS if key in limits}
+    limits = {key: value for key, value in limits.items() if key in LIMIT_KEYS}
     integers = {"min_motion_samples", "min_settle_samples", "max_samples", "max_history"}
     result = {key: (nonnegative_int(value, key) if key in integers else finite_real(value, key))
               for key, value in limits.items()}
@@ -50,7 +54,23 @@ def _validate_limits(limits):
     if (result["stop_linear_speed_m_s"] > result["max_linear_speed_m_s"] or
             result["stop_angular_speed_rad_s"] > result["max_angular_speed_rad_s"]):
         raise ValueError("stop thresholds must stay inside plausibility limits")
+    if admission:
+        result.update(_admission_limits(admission, result))
     return result
+
+
+def _admission_limits(values, limits):
+    """Opt-in (B74): an explicit null pair keeps it off; the absorbed segment may
+    not be allowed more lateral/heading change than the whole walk."""
+    if set(values) != set(ADMISSION_LIMIT_KEYS):
+        raise ValueError("admission drift bounds require both " + " and ".join(ADMISSION_LIMIT_KEYS))
+    if all(value is None for value in values.values()):
+        return {}
+    bounds = {key: finite_real(value, key) for key, value in values.items()}
+    if not (0 < bounds["max_admission_lateral_m"] <= limits["max_lateral_drift_m"] and
+            0 < bounds["max_admission_heading_rad"] <= limits["max_heading_drift_rad"]):
+        raise ValueError("admission drift bounds must be positive and within the drift bounds")
+    return bounds
 
 
 @dataclass
@@ -468,6 +488,17 @@ class BasePostconditionChecker:
             if interval["first_veto"] is not None and status == "confirmed":
                 status = "refuted"
                 reason = "post-completion distance outcome: " + interval["first_veto"]["reason"]
+            if "max_admission_lateral_m" in self._limits:
+                drift = self._admission_drift(verdict, states, effect_states[0])
+                verdict["evidence"]["admission_drift"] = drift
+                # Like the outcome veto, it only turns a confirmation into a refutation.
+                if status == "confirmed" and drift is None:
+                    status = "unverified"
+                    reason = "no independent sample at or before the admission clock for the admission drift bound"
+                elif status == "confirmed" and (
+                        abs(drift["lateral_m"]) > self._limits["max_admission_lateral_m"] or
+                        abs(drift["heading_rad"]) > self._limits["max_admission_heading_rad"]):
+                    status, reason = "refuted", "admission drift before the distance baseline exceeds bound"
         # Entire observed episode retains forbidden support and unavailable
         # channels. Swing/flight during locomotion does not require ground load;
         # its terminal settle window does. Zero-twist balance requires support
@@ -536,6 +567,23 @@ class BasePostconditionChecker:
                  "completion_step": completed["step"], "last_step": previous["step"],
                  "last_sim_time_s": previous["sim_time_s"], "first_veto": first_veto,
                  "scope": "veto only; includes valid confirmation-ineligible observations"})
+
+    def _admission_drift(self, verdict, states, baseline):
+        """Opt-in (B74): the change the effect baseline would absorb.
+
+        The baseline may be the first admitted sample, up to max_sample_gap_s
+        after the admission clock; its predecessor among the eligible samples is
+        then the last one at or before that clock. A baseline AT the clock
+        absorbs nothing (reference is the baseline). Missing reference -> None.
+        """
+        start = verdict["evidence"]["effect_interval"]["admitted_start_sim_time_s"]
+        reference = next((s for s in reversed(states) if s["sim_time_s"] <= start), None)
+        if reference is None:
+            return None
+        _, lateral, dyaw, _ = self._planar_increment(reference, baseline)
+        return {"reference_step": reference["step"], "reference_sim_time_s": reference["sim_time_s"],
+                "baseline_step": baseline["step"], "baseline_sim_time_s": baseline["sim_time_s"],
+                "lateral_m": lateral, "heading_rad": dyaw}
 
     def _admitted_states(self, op, verdict, states):
         """Clip to measured admission/completion boundaries, never interpolate.

@@ -4,13 +4,13 @@ import errno
 import json
 import os
 from pathlib import Path
-import socket
 import subprocess
 import sys
 import time
 from types import SimpleNamespace
 
 import pytest
+from owned_server import handed_over_port
 
 from cascade.apps import process_owner as owners
 
@@ -24,6 +24,15 @@ SPEC.loader.exec_module(gateway)
 
 @pytest.fixture
 def private_gateway(tmp_path, monkeypatch):
+    # The gateway is TOLD its port (`gateway run --port P`), so it cannot bind
+    # port 0 itself. The port is bound here and the fake gateway is handed that
+    # very socket (B70): it is never free between choosing it and listening on
+    # it, and it closes with the gateway.
+    with handed_over_port() as handoff:
+        yield from _private_gateway(tmp_path, monkeypatch, handoff)
+
+
+def _private_gateway(tmp_path, monkeypatch, handoff):
     repo = tmp_path / "repo"
     state = repo / "runs/.launch/profile-cascade-demo"
     home = tmp_path / "empty-home"
@@ -31,8 +40,10 @@ def private_gateway(tmp_path, monkeypatch):
     owner = owners.load_owner(state, repo, "cascade-demo", create=True)
     cli = repo / ".openclaw-cli/bin/openclaw"
     cli.parent.mkdir(parents=True)
-    cli.write_text(f"#!{sys.executable}\n" + '''import json,os,socket,subprocess,sys,time
+    cli.write_text(f"#!{sys.executable}\nimport sys; sys.path.insert(0, {str(Path(__file__).parent)!r})\n"
+                   + '''import json,os,socket,subprocess,sys,time
 from pathlib import Path
+from owned_server import take_handed_port
 args=sys.argv[1:]
 with Path(os.environ['CLI_CALLS']).open('a') as out: out.write(json.dumps(args)+'\\n')
 if args[:1]==['--profile']: args=args[2:]
@@ -46,8 +57,7 @@ if args[:2]==['gateway','run']:
         Path(os.environ['PRIVATE_WORKER_PID']).write_text(str(worker.pid))
     Path(os.environ['CHILD_ENV']).write_text(json.dumps({key:os.environ.get(key) for key in
         ('HOME','OPENCLAW_STATE_DIR','OPENCLAW_CONFIG_PATH','NODE_COMPILE_CACHE')}))
-    server=socket.socket();server.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
-    server.bind(('127.0.0.1',int(args[args.index('--port')+1])));server.listen()
+    server=take_handed_port(os.environ['PORT_HANDOFF'],int(args[args.index('--port')+1]));server.listen()
     while True:
         connection,_=server.accept();connection.close()
 elif args[:1]==['health']:
@@ -60,16 +70,15 @@ elif args[:1]==['health']:
 else: raise SystemExit('unexpected CLI/service-manager operation: '+repr(args))
 ''')
     cli.chmod(0o755)
-    with socket.socket() as server:
-        server.bind(("127.0.0.1", 0))
-        port = server.getsockname()[1]
+    port = handoff.port
+    monkeypatch.setenv("PORT_HANDOFF", handoff.path)
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("OPENCLAW_CONFIG_PATH", str(tmp_path / "personal-config.json"))
     monkeypatch.setenv("OPENCLAW_STATE_DIR", str(tmp_path / "personal-state"))
     monkeypatch.setenv("CLI_CALLS", str(tmp_path / "calls.jsonl"))
     monkeypatch.setenv("CHILD_ENV", str(tmp_path / "child-env.json"))
     monkeypatch.setenv("TEST_PORT", str(port))
-    result = {"repo": repo, "state": state, "owner": owner, "home": home, "port": port,
+    result = {"repo": repo, "state": state, "owner": owner, "home": home, "port": port, "handoff": handoff,
               "calls": tmp_path / "calls.jsonl", "child_env": tmp_path / "child-env.json"}
     yield result
     for record in owners.live_records(state, owner, role="gateway_child"):
@@ -102,9 +111,7 @@ def test_empty_home_uses_project_state_and_no_service_manager(private_gateway):
 
 def test_unowned_port_is_refused_before_launcher_configuration(private_gateway, monkeypatch):
     h = private_gateway
-    foreign = socket.socket()
-    foreign.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    foreign.bind(("127.0.0.1", h["port"]))
+    foreign = h["handoff"].claim()  # the held socket itself: only this test can be what answers
     foreign.listen()
     try:
         with pytest.raises(RuntimeError, match="unowned"):

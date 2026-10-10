@@ -236,10 +236,11 @@ shared bearer token, at least 32 characters) select the split mode; `robot` then
 names the robot_id the robot service must report, and any other identity refuses
 startup. `robot_lifecycle` and `config_dir` are refused in this mode: no local
 robot profile is read. CLI: `--robot-endpoint`, `--robot-token-env`. Both
-processes bind loopback only. The provider stays the operator-owned local
-endpoint; nothing here selects a hosted model.
+processes bind loopback by default; the robot service binds another address
+only over TLS ([across hosts](#across-hosts-opt-in-tls-b71)). The provider
+stays the operator-owned local endpoint; nothing here selects a hosted model.
 
-`cascade.robot-runtime/1` is HTTP/JSON on loopback
+`cascade.robot-runtime/1` is HTTP/JSON, on loopback in clear by default
 ([`robotics/endpoint.py`](../src/cascade/robotics/endpoint.py), standard
 library only). Requests carry `Authorization: Bearer …` and
 `X-Cascade-Protocol: cascade.robot-runtime/1`; every answer names its protocol,
@@ -309,6 +310,95 @@ robot stop through a 1 s lease, and a new conversation process re-attached to
 the same robot process with the stop still latched until an explicit reset.
 With the robot service gone, `/readyz` turned 503. This is transport and
 authority evidence, not speech inference, hardware audio or a physical result.
+
+### Across hosts: opt-in TLS (B71)
+
+Across hosts the protocol is unchanged; only the transport is.
+`cascade-robot-service --tls-cert <pem> --tls-key <pem>` serves HTTPS (TLS 1.2
+minimum, standard-library `ssl`, no new dependency) and may then bind any
+explicit unicast IP. Without TLS a non-loopback `--host` is refused before any
+runtime is built (exit 2); `0.0.0.0`, `::` and multicast are refused either
+way. The bearer token, the lease, stop and reset rules are exactly those above:
+TLS adds who the robot is, not who may command it.
+
+```bash
+# Robot host: a private CA (stays here) and a certificate for the address the conversation dials.
+python scripts/robot_endpoint_certs.py --out runs/robot-tls --san IP:192.0.2.10
+cascade-robot-service --robot conversation_mock --host 192.0.2.10 --port 8781 \
+  --tls-cert runs/robot-tls/server.pem --tls-key runs/robot-tls/server.key \
+  --token-env CASCADE_ROBOT_ENDPOINT_TOKEN --run-root runs/robot
+# Conversation host: copy ca.pem only (never ca.key or server.key) and set the token.
+cascade-conversation --config configs/conversation/remote_robot_tls.json
+```
+
+[`scripts/robot_endpoint_certs.py`](../scripts/robot_endpoint_certs.py) uses the
+B35 openssl recipe (`scripts/nemoclaw_mcp.py certs`): an RSA-3072 CA created
+once per directory (`--force` rotates it), an RSA-2048 server certificate valid
+for exactly the `--san` entries given (`IP:<address>` or `DNS:<name>`, no
+wildcard), keys 0600 in a 0700 directory, and the certificate's SHA-256
+fingerprint printed. The robot service prints the same fingerprint
+(`TLS certificate sha256 …`) and adds `tls_certificate_sha256` to its
+`ready.json`.
+
+Conversation keys ([example](../configs/conversation/remote_robot_tls.json)):
+`robot_endpoint` is then `https://<host>:<port>` (host name or IP; no path or
+credentials) with at least one trust anchor:
+
+- `robot_tls_ca` (CLI `--robot-tls-ca`): the only CA trusted, never the system
+  store. The certificate must chain to it and name the URL host (hostname or IP
+  check). A relative path resolves against the configuration file.
+- `robot_tls_fingerprint` (CLI `--robot-tls-fingerprint`): the server
+  certificate's SHA-256, 64 hex digits, colons allowed. It is checked after the
+  handshake and before a single request byte, so the token never reaches an
+  unpinned peer. Alone it trusts exactly that certificate (no chain or name
+  check); with `robot_tls_ca` both must hold.
+
+TLS is chosen explicitly, both ways: an `https://` endpoint without a trust
+anchor, a trust anchor with an `http://` endpoint, and plaintext off loopback
+are configuration errors. The conversation's `ready.json` `robot_endpoint` adds
+`tls: {certificate_sha256, trust}` (`ca`, `fingerprint` or `ca+fingerprint`),
+the certificate it actually verified. The plaintext default is unchanged byte
+for byte (golden-pinned: server responses, client requests, the robot service's
+`ready.json` and banner). Each handshake runs in its connection's own thread
+with a 10 s limit, never in the accept loop, so a silent or plaintext peer
+cannot delay an operator's stop. Each request still opens a new connection
+(HTTP/1.0): every TLS call pays a full handshake, with no session resumption.
+
+Measured on CPU (`tests/test_robot_endpoint_tls.py`, real child processes as
+above, certificates from the script, skipped without the `openssl` CLI): a
+complete text turn over TLS (walk executed and traced in the robot process,
+`unverified` result and spoken PCM back to the browser) and an operator stop
+superseding a 3 s walk; a conversation pinned to another CA or another
+fingerprint, sent in clear to the TLS listener, or holding a stale or missing
+token never published `ready.json`, never took the lease and never reached the
+robot; a certificate from the right CA naming another host was refused;
+`SIGKILL` of the conversation over TLS mid-walk latched the robot stop through
+a 1 s lease; a TCP peer that never sent a ClientHello neither delayed another
+client's stop nor outlived the handshake limit. In-process, the endpoint also
+served a private, non-loopback interface of the same host.
+
+Extra-hop latency ([`scripts/bench_robot_endpoint.py`](../scripts/bench_robot_endpoint.py),
+[evidence](evidence/b71-robot-runtime-tls-20261010/latency.json)): N = 500
+interleaved calls per mode after 20 warm-up calls, mock MicroDuck robot, one
+x86 host with 128 hardware threads at load average 30–33, loopback, TLSv1.3
+(TLS_AES_256_GCM_SHA384, RSA-2048 leaf). Milliseconds, p50 / p95:
+
+| Call | In process | Split, plaintext | Split, TLS |
+| --- | --- | --- | --- |
+| state read (`GET /v1/state`) | 0.003 / 0.004 | 0.53 / 0.67 | 1.57 / 1.89 |
+| read tool (`locomotion.get_base_state`) | 0.79 / 1.12 | 1.51 / 1.85 | 2.37 / 2.75 |
+
+The hop adds about 0.5 ms (state) to 0.7 ms (tool) at p50 in clear and about
+1.6 ms with TLS: TLS costs about 1 ms more per call, each call performing a
+full handshake. These are one host's loopback numbers with other test suites
+running, not a figure for a real network or for deliberate load.
+
+Not claimed: a deployment between two hosts (none was available: loopback and
+one private interface of the same host only); latency across a real network or
+under load; mutual TLS (the client proves itself with the bearer token, not a
+certificate); token expiry or rotation (a token stays valid until the robot
+service restarts with another); certificate revocation or renewal; a firewall
+rule for the listener.
 
 ## Boundaries and lifecycle
 

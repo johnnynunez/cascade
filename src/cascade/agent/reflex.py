@@ -244,6 +244,14 @@ def parse_command(text: str) -> ReflexPlan | None:
     # LLM tier, which can plan multi-step ("wave and then pick up the cube").
     if re.search(r"\b(?:and then|then|after that|luego|despues|después)\b", cmd):
         return None
+    # The same for two commands joined by a bare "and" (B69): the rules'
+    # lazy object/destination groups are not clause-aware and swallow the
+    # second command into an argument ("put the red cube in the bowl and put
+    # the blue cube in the bowl" -> ONE pick_and_place whose destination is
+    # "bowl and put the blue cube in the bowl"). `split_subgoals` decides
+    # where a clause begins; the curriculum then plans each clause.
+    if len(split_subgoals(cmd)) > 1:
+        return None
 
     for rule, intent in _RULES:
         m = rule.match(cmd)
@@ -460,7 +468,9 @@ class ExperienceMemory:
         a two-clause command: 0.958).
 
         So the clauses are compared, as the curriculum splits them
-        (`split_subgoals`: sequence connectives only, never a bare "and"):
+        (`split_subgoals`: sequence connectives, and since B69 a bare "and"
+        that begins a new imperative clause -- "move the red cube ... and
+        move the blue cube ..." scored 0.951 against its first command):
         the counts must be equal and, for a sequence, every clause must clear
         `min_sim` against its counterpart IN ORDER -- the same bar a single
         instruction clears. A single instruction IS its one clause, already
@@ -622,17 +632,108 @@ _SEQUENCE_SPLIT = re.compile(
     re.IGNORECASE,
 )
 
+# ── a bare "and" that begins a new imperative clause (B69) ──────────────
+#
+# B37 made tier-2 recall compare clauses, but clauses were cut only at the
+# sequence connectives above, so "move the red cube to the front-left of the
+# table and move the blue cube to the front-left of the table" stayed ONE
+# clause, scored 0.951 against the habit for its first command, and the fast
+# tier ran half of it and reported success. A coordinated "and"/"y"
+# (optionally "and also"/"y también", optionally after a comma) is a clause
+# boundary when a CLAUSE VERB of the reflex/skill vocabulary follows it --
+# except where the grammar's own one-clause "and"s live:
+#
+# * verb coordination: the word before "and" (past a trailing "up"/"down")
+#   is a verb that takes an object -- "pick and place the cube", "pick up
+#   and place ...", "open and close the gripper": two verbs, one object;
+# * a back-reference: the verb is followed by it/them/this/that/these/those
+#   -- "pick up the cube and put it in the box", "grab X and throw it";
+# * an object-taking verb with no object of its own (nothing, a preposition
+#   or a direction follows) -- "grab the banana and throw (to the left)".
+#
+# Noun coordination never splits: "the red and blue cube" has no verb after
+# "and". Spanish object clitics are enclitic ("ponlo", "lánzalo"), so those
+# forms are simply not in the verb lists. A wrong cut can only send a
+# command to the curriculum (all-or-nothing) or the LLM tier, never make the
+# fast tier run fewer clauses.
+
+#: Clause verbs that take a direct object.
+_OBJECT_VERBS = frozenset(
+    "pick grab grasp take fetch lift place put drop set save store push throw toss launch "
+    "stack hand give pass bring show tighten loosen unscrew untighten sort organize organise "
+    "count find locate describe open close memorize memorise snapshot remember restore "
+    "coge agarra toma recoge pon coloca deja guarda mete mueve empuja lanza tira arroja apila "
+    "dame pasame pásame traeme tráeme aprieta atornilla enrosca afloja desatornilla desenrosca "
+    "ordena organiza busca encuentra localiza abre cierra lleva memoriza recuerda "
+    "restaura señala senala".split()
+)
+#: Clause verbs complete without a direct object ("wave", "go home",
+#: "point at the bowl", "move left"): they start a clause, and one before
+#: "and" is a clause of its own ("wave and go home"), not a verb sharing an
+#: object.
+_BARE_VERBS = frozenset(
+    "wave say go come return park look observe scan reset restart release let point search move "
+    "saluda vuelve ve vete regresa aparca mira observa reinicia resetea suelta".split()
+)
+_PARTICLES = frozenset({"up", "down"})
+_BACK_REFERENCES = frozenset({"it", "them", "this", "that", "these", "those"})
+#: After an object-taking verb, these mean it has no object of its own.
+#: (Not the Spanish "a": in English it is the article that opens an object.)
+_NO_OBJECT = frozenset(
+    "to into in inside on onto at over back away aside left right forward forwards backward "
+    "backwards there here en al sobre dentro hacia encima aqui aquí ahi ahí alli allí".split()
+)
+_COORDINATOR = re.compile(r"\s+(?:and|y)\s+(?:(?:also|tambi[eé]n)\s+)?", re.IGNORECASE)
+_WORDS = re.compile(r"[^\W\d_]+")
+
+
+def _starts_clause(before: str, after: str) -> bool:
+    """True when the coordinator between `before` and `after` begins a new
+    imperative clause (the rule above)."""
+    words = _WORDS.findall(after.lower())
+    verb = words[0] if words else ""
+    if verb not in _OBJECT_VERBS and verb not in _BARE_VERBS:
+        return False
+    prev = _WORDS.findall(before.lower())
+    while prev and prev[-1] in _PARTICLES:
+        prev.pop()
+    if prev and prev[-1] in _OBJECT_VERBS:
+        return False                       # "pick and place the cube"
+    rest = words[1:]
+    while rest and rest[0] in _PARTICLES:
+        rest = rest[1:]
+    nxt = rest[0] if rest else ""
+    if nxt in _BACK_REFERENCES:
+        return False                       # "... and put it in the box"
+    if verb in _OBJECT_VERBS and (not nxt or nxt in _NO_OBJECT):
+        return False                       # "grab the banana and throw to the left"
+    return True
+
+
+def _coordinated_clauses(text: str) -> list[str]:
+    """`text` cut at every coordinator that begins a new clause."""
+    clauses, start = [], 0
+    for m in _COORDINATOR.finditer(text):
+        if _starts_clause(text[:m.start()], text[m.end():]):
+            clauses.append(text[start:m.start()])
+            start = m.end()
+    clauses.append(text[start:])
+    return clauses
+
 
 def split_subgoals(task: str) -> list[str]:
-    """Split a sequential instruction into ordered clauses.
+    """Split an instruction into its ordered imperative clauses.
 
-    Only splits on explicit SEQUENCE connectives, never on a bare "and":
-    "pick up the cube and put it in the box" is ONE pick_and_place that the
-    grammar already handles, and splitting it would turn a single motion into
-    two half-motions. This is why the reflex rules keep their own "and"
-    handling and this function is deliberately conservative.
+    Sequence connectives always split; a bare "and" splits only where it
+    begins a new imperative clause (B69, the rule above): "pick up the cube
+    and put it in the box" is ONE pick_and_place that the grammar already
+    handles, and splitting it would turn a single motion into two
+    half-motions, while "put the red cube in the bowl and put the blue cube
+    in the bowl" is two commands. A text without such an "and" is cut
+    exactly as before B69.
     """
-    parts = [p.strip(" ,.") for p in _SEQUENCE_SPLIT.split(task.strip())]
+    parts = [c for p in _SEQUENCE_SPLIT.split(task.strip()) for c in _coordinated_clauses(p)]
+    parts = [p.strip(" ,.") for p in parts]
     return [p for p in parts if p]
 
 

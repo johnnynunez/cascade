@@ -90,7 +90,16 @@ stop route that needs no lease and runs beside an in-flight motion, and reset
 only with the lease and the exact observed generation. The conversation then
 serves unauthenticated `/healthz` and `/readyz` probes. Without
 `robot_endpoint` the service is the original in-process composition
-(golden-pinned). See [separate deployment](CONVERSATION.md#deploy-the-conversation-service-separately).
+(golden-pinned). Across hosts the same protocol runs over opt-in TLS (B71,
+stdlib `ssl`): `cascade-robot-service --tls-cert/--tls-key` serves HTTPS and
+may then bind a non-loopback IP (without TLS that bind is refused before any
+runtime is built); the client trusts only `robot_tls_ca` (hostname checked)
+and/or `robot_tls_fingerprint`, checked before any request byte, and the
+bearer token still gates every route. Handshakes run in each connection's own
+thread with a limit, never in the accept loop, so a stalled peer cannot delay
+a stop. The plaintext default is golden-pinned byte for byte.
+See [separate deployment](CONVERSATION.md#deploy-the-conversation-service-separately)
+and [across hosts](CONVERSATION.md#across-hosts-opt-in-tls-b71).
 
 ## Design position
 
@@ -237,6 +246,35 @@ chat command ("pick and place the red cube")
   still replays. A single instruction is decided by the index similarity
   alone, exactly as before (`tests/test_tier2_clause_structure.py` pins it
   differentially against the pre-B37 rule).
+
+- **A bare "and" can begin a clause (B69, 2026-10-10).** B37's rule compared
+  clauses as `split_subgoals` cut them, and that cut only at sequence
+  connectives, so "move the red cube to the front-left of the table and move
+  the blue cube to the front-left of the table" was ONE clause, scored 0.951
+  against the habit for its first command and replayed it. The reflex grammar
+  had the same blind spot one tier earlier: its lazy object/destination groups
+  swallow a second command into an argument ("put the red cube in the bowl
+  and put the blue cube in the bowl" compiled to one `pick_and_place` whose
+  destination was "bowl and put the blue cube in the bowl"). After the
+  sequence split, `split_subgoals` now cuts at a coordinated "and"/"y"
+  (optionally "and also"/"y también") followed by a clause verb of the
+  reflex/skill vocabulary (`_OBJECT_VERBS`, `_BARE_VERBS` in
+  `agent/reflex.py`), except where the grammar's own one-clause "and"s live:
+  verb coordination (the word before "and" takes an object: "pick and place
+  the cube", "open and close the gripper"), a back-reference ("… and put it
+  in the box", "… and throw it") and an object-taking verb with no object of
+  its own ("… and throw to the left", "… and place in the bowl"). Noun
+  coordination never splits ("the red and blue cube": no verb follows);
+  Spanish object clitics are enclitic ("ponlo"), so they are not clause verbs.
+  `parse_command` refuses a command that `split_subgoals` cuts, as it refuses
+  a "then" compound, so such a command reaches B37's recall rule and the
+  curriculum, which plan it exactly as the same clauses joined by "then"
+  (all-or-nothing; a clause with no plan sends the whole task to the LLM
+  tier). Default-on like B37: a command without such an "and" is cut, recalled
+  and compiled exactly as before (`tests/test_tier2_and_clause.py` pins it
+  differentially against the pre-B69 rule), and a wrong cut can only move a
+  command to the curriculum or the LLM tier, never make the fast tier run
+  fewer clauses.
 
 - **Programs tier (opt-in, ROADMAP #8; [design note](PROGRAMS_TIER.md)).**
   Waddle's level above skills: a program is a bounded (≤ 12 steps), declarative
@@ -946,7 +984,10 @@ the `health` / `probe` reply). The test fixtures start them that way through
 one protocol round trip name the started process and a fresh random token,
 and "dead server" tests hold their port bound with nothing listening, so two
 test suites on one host never answer each other (B64). Without the two flags
-the replies and the banner are unchanged.
+the replies and the banner are unchanged. A fake server that must be told its
+port up front (the OpenClaw gateway double) is handed the socket the fixture
+bound (`handed_over_port`, SCM_RIGHTS over a private Unix socket), so no test
+port is released between choosing and using it (B70).
 
 ## ROS2, humanoids, and what is NOT here yet
 
@@ -1008,6 +1049,19 @@ controller, kinds `microduck` and `h2`). A base runs alone with
 domain of a `--robot` profile; profiles live in `configs/bases/`. Evidence:
 CPU tests (`tests/test_mobile_*.py`) plus the simulation episodes below;
 there is no hardware backend, so no base has moved a robot.
+
+**Distance baselines (B67, B74).** `walk_distance` credits travel and
+integrates lateral/heading drift only from a baseline: SafeBase's first
+completed post-ACK sample and the checker's first admitted independent sample
+(at most `max_sample_gap_s` after the ACK's admission clock). Delivery motion
+before it is never progress. The opt-in pair `max_admission_lateral_m` /
+`max_admission_heading_rad`, set together in a base profile's
+`distance_control` and `verifier` (one-sided = no independent verifier),
+also bounds the lateral/heading change that baseline would absorb: SafeBase
+vetoes and latches on it from the last pre-ACK sample through every delivery
+sample, and the checker refutes a confirmation on it from its last sample at
+or before the admission clock ([contract](MICRODUCK_DISTANCE_CANDIDATE.md#implemented-contract)).
+CPU tests only; no shipped profile sets the pair.
 
 **Legged robots on that layer: MicroDuck and the Unitree H2 (simulation
 only).** MicroDuck ([MICRODUCK.md](MICRODUCK.md)) runs its official ONNX
@@ -1156,6 +1210,12 @@ application: a GraspGen-X / HUG planner dials what its resolved section says
 section lacks, i.e. when it is built from a hand-made config, so an override
 written into `cfg._data` after loading stands. The bridge and the occupancy
 sidecar have no host variable: the launcher starts both on this machine.
+`launch.sh --graspgenx local|external` checks the GraspGen-X endpoint the
+runtime will dial (B70): with `CASCADE_GRASPGENX_HOST` set it parses it by the
+same rule (a malformed value stops the launch, naming it, before anything is
+dialled or started), prints `GraspGen-X endpoint: HOST:PORT`, probes that host
+(`external`) and passes `--host` to `check_graspgenx.py` (both); unset or
+empty, and in the `stub` / `none` modes, its commands and output are unchanged.
 `launch.sh` and `setup_agents.py` register these six with the MCP server,
 checked (`setup_agents.py`) by the same rules before anything is written.
 
@@ -1490,30 +1550,47 @@ barriers.
   detector label flicker (bottle/toy) stays two objects, by design.
 - Endpoint overrides are CPU-tested only (spies on the bridge
   `create_connection` and the ZMQ `connect`): no live Isaac run on private
-  ports yet. `launch.sh --graspgenx external` checks the server at
-  `127.0.0.1:$CASCADE_GRASPGENX_PORT` even when `CASCADE_GRASPGENX_HOST`
-  points the runtime elsewhere, and `scripts/demo_proof.py` still reads
-  `CASCADE_BRIDGE_PORT` with its own `int()`.
+  ports yet. `launch.sh --graspgenx local|external` checks the host the
+  runtime dials since B70, measured only against listeners on a second
+  loopback address (127.0.0.2; those tests skip on macOS, which configures
+  none), never against a server on another machine. `local` still starts its
+  server on this machine and `stub` its stub, whatever
+  `CASCADE_GRASPGENX_HOST` says: with the variable pointing elsewhere, `local`
+  checks the other host (what the runtime uses) and `stub` checks nothing.
+  `scripts/demo_proof.py` still reads `CASCADE_BRIDGE_PORT` with its own
+  `int()` (unchanged on purpose: its semantics are not touched).
 - Test-server ownership (B64) covers the GraspGen-X stub and occupancy bridge
   fixtures only. The other server-starting tests already bind port 0 /
-  `bind_to_random_port` (nothing fixed) but do not check who answers, and a
-  few take a "free" port by binding 0 and releasing it before their server or
-  "dead endpoint" uses it (`tests/test_hug_backend.py` `_free_port`,
-  `tests/test_openclaw_gateway.py`): a small race, not a collision between
-  suites. OS-assigned ports come from the ephemeral range (Linux
+  `bind_to_random_port` (nothing fixed) but do not check who answers. Since
+  B70 no HUG or OpenClaw-gateway test releases a port before using it (the
+  dead HUG server is `held_dead_port()`; the fake gateway is handed the bound
+  socket by `handed_over_port()`), and `tests/test_endpoint_port_followups.py`
+  fails on any new bind-0 / read / release / use site in `tests/`. It still
+  lists four older ones with their reasons: three conversation-provider
+  tests whose code under test bind-checks the port itself (a held port is
+  refused there by design), and `tests/test_spark_install.py::launch_fixture`,
+  a dead Qwen endpoint that could be held but is not yet (open). OS-assigned
+  ports come from the ephemeral range (Linux
   32768–60999), so a test can briefly hold a port inside a block another
   local process meant to bind. A held "dead" port is refused at once on
   Linux but never answered on the macOS CI runner (measured: a connect timed
   out after 30 s), so dead-server tests fail there by their client's own
   short timeout, not by a refusal.
-- Tier-2 clauses are cut only at sequence connectives (`split_subgoals`,
-  B37). A bare "and" is no clause boundary anywhere in the fast tier, so
-  "move the red cube to the front-left of the table and move the blue cube to
-  the front-left of the table" still replays the first command's habit
-  (measured 0.951) and runs half of it; within one clause the hashed
-  bag-of-words stays blind to word order. The opt-in programs tier (2.5) is
-  not covered by the clause rule: it OFFERS promoted programs by keyword
-  overlap (one shared content word) or, with `memory.embedder`, text
+- Tier-2 clauses are cut at sequence connectives (B37) and, since B69, at a
+  coordinated "and"/"y" followed by a clause verb of the reflex/skill
+  vocabulary (`split_subgoals`). Still not cut, so still one clause: a second
+  clause without its own verb ("stack the red cube on the blue box and the
+  green cube on the red one"), an adverb other than "also"/"también" between
+  "and" and the verb ("… and carefully move the blue cube …"), a verb outside
+  the vocabulary, "that"/"this" used as a determiner right after the verb
+  ("… and put that blue cube in the bowl", read as a back-reference). The cut
+  is lexical: a noun that is also a clause verb can over-cut prose
+  ("containment and release …"), which sends the task to the curriculum
+  (every clause planned, or none) or the LLM tier, never to a one-clause
+  plan. Within one clause the
+  hashed bag-of-words stays blind to word order. The opt-in programs tier
+  (2.5) is not covered by the clause rule: it OFFERS promoted programs by
+  keyword overlap (one shared content word) or, with `memory.embedder`, text
   similarity (B42 floor-or-guard), the brain (or the MCP chat host calling
   `run_program`) sees the whole task and picks, and a reused program's
   success means every step it ran was confirmed, not that it covered every
@@ -1562,13 +1639,19 @@ barriers.
   The launcher's runtime check still inherits the whole shell, so a
   not-forwarded selector exported there (`CASCADE_ROBOT`, `CASCADE_BASE`)
   changes what the check builds, not what the registered server builds.
-- The split conversation deployment (B51, opt-in) is loopback only (one host
-  or network namespace); a cross-host deployment needs an authenticated,
-  encrypted transport that `cascade.robot-runtime/1` does not provide. The
+- The split conversation deployment (B51, opt-in) is plaintext loopback by
+  default; off loopback it needs the opt-in TLS transport (B71: server
+  certificate, client pinned to a CA with hostname check and/or to the
+  certificate fingerprint, bearer token unchanged; a non-loopback bind without
+  TLS is refused). That transport is measured on one host only (loopback and a
+  private interface of the same host): no run between two hosts, no mutual
+  TLS, no token expiry or rotation, no certificate revocation or renewal, and
+  every TLS call performs a full handshake (about 1 ms more per call than
+  plaintext on loopback). The
   robot re-anchors the remaining intent budget when a request arrives, so its
   deadline is late by the one-way request latency. The conversation's state
-  reads (`/api/status`, a session's generation) are blocking loopback calls
-  bounded by a 2 s I/O timeout; with the robot service unreachable
+  reads (`/api/status`, a session's generation) are blocking calls to the robot
+  service bounded by a 2 s I/O timeout; with the robot service unreachable
   `/api/status` fails (HTTP 500) instead of inventing a generation, `/readyz`
   says why, and a stop sent through the conversation cannot be delivered --
   the robot's lease expiry (default 3 s) is then the stop. A lost lease is
@@ -1586,6 +1669,13 @@ barriers.
   boundaries only (a hold released and re-taken under the same label outside
   any motion skill would keep the old verdict; no current code path does
   that); only the first wrist stream of a rig is captioned.
+- The `walk_distance` admission-drift pair (B74) is CPU-tested only and unset
+  in every shipped base profile: no retained native episode records the
+  segment from the last pre-ACK sample to the distance baseline, so no value
+  is proposed yet (a live Isaac A/B is owed). Without it both SafeBase and the
+  checker still absorb a lateral/heading change first seen on their baseline,
+  as before. Forward delivery motion is only excluded from progress, never
+  bounded, on either layer.
 
 ## Counts
 

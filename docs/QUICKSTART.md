@@ -71,7 +71,8 @@ ports (they beat every config layer). A malformed value stops startup with an
 error naming the variable; an empty one means the default.
 `CASCADE_HUG_PORT`, `CASCADE_GRASPGENX_HOST` and `CASCADE_HUG_HOST` follow the
 same rules for a HUG server, or a GraspGen-X / HUG server on another machine.
-Registering with `scripts/setup_agents.py` from the same shell copies them, and
+Registering with `scripts/setup_agents.py` (or `scripts/hermes_demo.sh` /
+`scripts/openclaw_demo.sh`) from the same shell copies them, and
 every other runtime switch that is set (`CASCADE_GRASP_EXECUTOR`,
 `CASCADE_VLA_PORT`, `CASCADE_BOOTH`, ...; the list is
 `src/cascade/apps/mcp_env.py`), into each host's server entry, exactly as the

@@ -1135,7 +1135,18 @@ list, or on a list entry nothing reads. Before B63 `launch.sh` copied a fixed
 18-name list without the B49 executor switches, so
 `CASCADE_GRASP_EXECUTOR=vla ./run.sh` registered a server on the analytic
 executor while the launcher's own runtime check, which inherits the whole
-shell, saw `vla`.
+shell, saw `vla`. The two shell registrars README still points users at,
+`scripts/hermes_demo.sh` (Hermes: register + test + chat) and
+`scripts/openclaw_demo.sh` (OpenClaw, local-brain variant), take the same rule
+since B68: they run `python -m cascade.apps.mcp_env KEY=VALUE ...` with
+`PYTHONPATH=<checkout>/src` (this checkout's list, whatever cascade the venv
+has installed), which prints `registration_env` -- the script's own values
+first, then every forwarded switch set in its shell, verbatim -- as
+shell-quoted words the script `eval`s into the host's `--env` arguments, and
+names the copied switches on stderr. It runs before any host call, so if it
+fails nothing is registered (`hermes_demo.sh` removes the old entry only
+after it). With nothing extra set, every host call is byte-identical to before
+(`tests/test_legacy_mcp_registrars.py`).
 
 Sandboxed host (opt-in, B35): an agent inside an NVIDIA OpenShell sandbox
 managed by NemoClaw reaches the robot through `mcp_server --http`
@@ -1472,11 +1483,14 @@ barriers.
   server from a B63 entry with `CASCADE_GRASP_EXECUTOR=vla` yet. The guard
   sees `CASCADE_*` names written as whole string constants in `src/cascade`
   (plus the composed `CASCADE_MICRODUCK_*` family); a name built some other
-  way is not seen. Three registrations stay outside the list: the legacy
-  `scripts/hermes_demo.sh` and `scripts/openclaw_demo.sh` still register a
-  fixed env, and the Brev container (`deploy/runtime/runtime.py`) builds its
-  MCP env from its own pinned, non-secret environment on purpose (no caller
-  switch passes through except `CASCADE_ISAAC_{WIDTH,HEIGHT,CAM_EVERY,DT}`).
+  way is not seen. One registration stays outside the list on purpose: the
+  Brev container (`deploy/runtime/runtime.py`) builds its MCP env from its
+  own pinned, non-secret environment (no caller switch passes through except
+  `CASCADE_ISAAC_{WIDTH,HEIGHT,CAM_EVERY,DT}`). The shell registrars
+  `scripts/hermes_demo.sh` and `scripts/openclaw_demo.sh` read the list since
+  B68, tested the same way (real scripts, host CLIs doubled, also under bash
+  3.2.57); no live Hermes or OpenClaw host has started a server from such an
+  entry yet.
   The launcher's runtime check still inherits the whole shell, so a
   not-forwarded selector exported there (`CASCADE_ROBOT`, `CASCADE_BASE`)
   changes what the check builds, not what the registered server builds.

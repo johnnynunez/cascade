@@ -39,7 +39,7 @@ from .mobile_bridge import MobileBridgeController, MobileBridgeServer
 from .mobile_state_server import IMPLEMENTATION, SlotSegment, recv_message, send_message
 
 SERVER_PATH = Path(__file__).resolve().with_name("mobile_state_server.py")
-READ_ONLY = ("hello", "state")
+READ_ONLY = ("hello", "state", "state_history")  # state_history (B72): copies of recorded states, no reply change
 PUBLISHING = ("script", "publish", "command_velocity", "scale_velocity", "renew", "watchdog", "owner_disconnected",
               "control_at", "stop", "reset_stop", "fault", "begin_epoch")
 _ON_CHANGE = frozenset({"renew", "watchdog", "control_at"})  # polled; republish only if the reply changed

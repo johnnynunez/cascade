@@ -352,7 +352,7 @@ def test_the_publishing_controller_wraps_every_mutating_method():
     from cascade.sim.mobile_state_offload import PUBLISHING, READ_ONLY, StatePublishingController
     public = {name for name, value in vars(MobileBridgeController).items()
               if callable(value) and not name.startswith('_')}
-    assert set(READ_ONLY) == {'hello', 'state'}
+    assert set(READ_ONLY) == {'hello', 'state', 'state_history'}
     assert public == set(PUBLISHING) | set(READ_ONLY) and not set(PUBLISHING) & set(READ_ONLY)
     for name in PUBLISHING:
         assert vars(StatePublishingController)[name] is not vars(MobileBridgeController)[name]

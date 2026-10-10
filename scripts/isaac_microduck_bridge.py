@@ -67,7 +67,20 @@ def parse_args(argv=None):
                    help='optional closed, independently frozen manifest.json + data seed directory')
     p.add_argument('--rtx-cache-seed-sha256', help='independently pinned seed manifest SHA-256')
     p.add_argument('--check-only', action='store_true', help='offline admission only; no Kit, socket or writes')
+    # Absent unless given, so the recorded arguments of a default run are unchanged.
+    p.add_argument('--state-history', type=int, default=argparse.SUPPRESS,
+                   help='opt-in (B72): keep the last N completed states (1..256) for the reader op state_history')
     return p.parse_args(argv)
+
+
+def state_history(args) -> int:
+    """The opt-in producer state history size (B72); 0 when --state-history is absent."""
+    if not hasattr(args, 'state_history'):
+        return 0
+    from cascade.sim.mobile_bridge import MAX_STATE_HISTORY
+    if type(args.state_history) is not int or not 1 <= args.state_history <= MAX_STATE_HISTORY:
+        raise ValueError(f'--state-history must be an integer in 1..{MAX_STATE_HISTORY}')
+    return args.state_history
 
 
 CONTROLLER_LIMITS = ('max_linear_speed', 'max_angular_speed', 'max_duration_s', 'lease_s',
@@ -295,7 +308,7 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
                 support_contract=model_identity['support_contract'],
                 # Wire v1 nominal dt is retained for existing strict clients; the
                 # measured float32 dt is separately frozen in the runtime receipt.
-                physics_dt=.005, policy_dt=.020,
+                physics_dt=.005, policy_dt=.020, state_history=state_history(args),
                 **{k: admission['limits'][k] for k in CONTROLLER_LIMITS + HEADING_HOLD if k in admission['limits']})
             remaining = args.max_wall_s - (time.monotonic() - started)
             if remaining <= 0:
@@ -487,6 +500,7 @@ def admit(args):
     integrator = integrator_contract(getattr(args, 'integrator_profile', 'sdk-default'))
     if args.engine != 'newton':
         raise ValueError('PhysX BAM unsupported; no fallback')
+    state_history(args)  # opt-in producer state history (B72), refused before any file is read
     mount_path, mount_sha = getattr(args, 'camera_mount', None), getattr(args, 'camera_mount_sha256', None)
     camera_mount = None
     if mount_path is not None or mount_sha is not None:

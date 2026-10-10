@@ -70,5 +70,15 @@ class EmbodimentBoundProvider:
         self.validate_payload(observation.payload)
         return observation
 
+    def read_produced(self, after=None):
+        """Producer history (B72) under the same structural binding as `read`."""
+        method = getattr(self._provider, "read_produced", None)
+        if not callable(method):
+            raise SensorError("provider records no produced samples")
+        observations = method(after)
+        for observation in observations:
+            self.validate_payload(observation.payload)
+        return observations
+
     def close(self):
         return self._provider.close()

@@ -422,11 +422,91 @@ Without `alignment:` the sensors-domain catalog of every shipped robot profile
 keeps its golden digest.
 
 Not claimed: IMU/proprioception fusion (no estimator consumes the pairings),
-the skew distribution of a native Isaac producer, producer-rate sampling (the
+the skew distribution of a native Isaac producer, ~~producer-rate sampling (the
 history holds only captures that reads admitted, at most 32 captures / 16 MB
-shared by all sensors, so one large RGB-D capture can evict IMU samples),
-hardware clock synchronization, or the accuracy of the first-order motion
-estimate.
+shared by all sensors, so one large RGB-D capture can evict IMU samples)~~
+(opt-in since B72, below), hardware clock synchronization, or the accuracy of
+the first-order motion estimate.
+
+### Producer-rate sampling (B72, opt-in)
+
+Without it, `read_aligned` pairs among the captures that READS admitted, so the
+skew depends on when the caller reads: the IMU can have produced a sample at
+the camera's capture instant that no read ever saw, and the pairing then takes
+a farther capture, often stale. With `producer_history` the pairing also sees
+every sample the producer recorded as it published it:
+
+```yaml
+sensing:
+  kind: sensors
+  alignment:
+    max_skew_s: 0.0075
+    producer_history: 64      # optional, 1..256 samples kept per paired sensor
+  providers: [...]
+```
+
+- Producers record at publication, bounded and opt-in. The mobile bridge
+  (`MobileBridgeController(state_history=N)`, CLI `--state-history N`, 1..256)
+  keeps its last N completed states exactly as `state` would serve them, each
+  with its own publication time, advertises `state_history` in `hello`, and
+  serves them to reader channels as `state_history(after_step)`: copies of
+  history, never a refresh; a new epoch empties it; without the option nothing
+  changes and the operation is refused. In process,
+  `BufferedSensorProvider(descriptor, history=N)` records its last N
+  publications. Other providers record nothing and keep read-time sampling.
+- The reader (`BaseTruthReader.history`) checks the advertised bound, the
+  reply's epoch, every state's identity, and that steps and physics times
+  strictly advance after `after_step`. One reply has one local receipt time;
+  every age includes the round trip.
+- The hub admits each fetch through the sensor's own bounded worker, deadline
+  and quarantine, under the read rules: identity, one epoch per sensor
+  (shared with reads), strictly increasing sequence, capture time and receipt.
+  A violating batch is refused whole. A sample older than the sensor's
+  `max_age_s` or above the packet bound is seen but never admitted, not even
+  when presented again. Each sensor's ring holds at most `producer_history`
+  samples and `max_history_bytes`, apart from the shared read history, so a
+  large RGB-D capture cannot evict IMU samples from it.
+- `read_aligned` still reads each paired sensor once, then fetches its
+  producer history (a refusal is reported as `producer_error`) and pairs among
+  both, ordered by capture time, one copy per capture (the read one). The
+  classification is B50's: nothing interpolated, ties keep the earlier sample,
+  stale and missing values withheld, another epoch or clock domain never
+  aligned, saturation or rate × skew uncertain. Each pairing reports
+  `from_producer` (true when only the producer's history held the chosen
+  capture) and the policy reports `producer_history`. Without the key the
+  output is byte-identical (golden digest).
+
+Measured (software only, `tests/test_producer_rate_alignment.py`, 60 tests;
+RED on `origin/main` 38f6d08: 55 failed, 5 premise/golden passed): through MCP
+on the real loopback mobile bridge, a read-time domain and a producer-history
+domain on the same bridge, one camera capture every 6 physics steps (33.3 Hz
+at 5 ms), 24 captures, `read_aligned` called 0–5 steps (0–25 ms) after each
+capture (each delay 4×), `max_skew_s` 7.5 ms, `max_rotation_rad` 0.01, IMU yaw
+≈3 rad/s, joints 0.5 rad/s:
+
+- IMU and joints produced every step (200 Hz, as the MicroDuck stepper
+  publishes): read-time sampling paired the IMU 4 aligned / 4 uncertain /
+  16 stale and the joints 8 aligned / 16 stale, |skew| mean 9.167 ms, median
+  10 ms, max 15 ms. With the ring all 48 pairings were aligned at 0 ms. In 40
+  of the 48, read-time sampling had paired a farther capture than one already
+  produced: 32 of those were stale and 4 (IMU, +5 ms at 3 rad/s) uncertain.
+- IMU and joints produced every 4 steps (50 Hz): read-time sampling 8 aligned /
+  16 stale per sensor (|skew| mean 8.333 ms, max 20 ms); with the ring
+  12 aligned at 0 ms and 12 stale at −10 ms per sensor. A capture that falls
+  between two samples stays stale; the ring never paired a farther capture than
+  read-time sampling.
+
+The bridge runner (`scripts/isaac_microduck_bridge.py --state-history 8`, CPU
+software backend) records every completed step it publishes; without the flag
+its recorded arguments and `hello` are unchanged.
+
+Not claimed: the native skew distribution on Isaac, with or without the ring;
+a fusion estimator that consumes the pairings; hardware clock
+synchronization; producer history through the off-GIL `--state-reader process`
+reader (a handed-off reader channel refuses `state_history`, so the pairing
+reports `producer_error` and falls back to read-time sampling); a
+`--state-history` flag on the H2 owner; producer history for RGB/RGB-D
+providers (the reference is read fresh).
 
 ## Why these research directions fit
 

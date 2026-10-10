@@ -1,11 +1,13 @@
 """Passive adapters. Independent observation clients never construct actuators."""
 from __future__ import annotations
 
+from collections import deque
 import math
 import threading
 import time
 import uuid
 
+from .alignment import MAX_PRODUCER_HISTORY
 from .hub import SensorDescriptor, SensorError
 from .models import (ImuPayload, MeasurementMetadata, ObservationEnvelope,
                      ProprioceptionPayload, JointStatePayload, GeneralizedJointStatePayload,
@@ -17,13 +19,18 @@ class BufferedSensorProvider:
 
     Reading the same capture twice does not generate another sequence/timestamp.
     The producer, not this adapter, is responsible for capture and calibration.
+    Opt-in `history=N` (B72) also records the last N publications as they are
+    published, for `read_produced`; 0 (default) records nothing.
     """
-    def __init__(self, descriptor: SensorDescriptor):
+    def __init__(self, descriptor: SensorDescriptor, *, history=0):
         if not isinstance(descriptor, SensorDescriptor):
             raise ValueError("typed descriptor required")
+        if type(history) is not int or not 0 <= history <= MAX_PRODUCER_HISTORY:
+            raise ValueError(f"history must be an integer in 0..{MAX_PRODUCER_HISTORY}")
         self.descriptor = descriptor
         self._lock = threading.Lock()
         self._observation = None
+        self._produced = deque(maxlen=history) if history else None
         self._closed = False
 
     def publish(self, observation):
@@ -33,6 +40,8 @@ class BufferedSensorProvider:
             if self._closed:
                 raise SensorError("buffered provider closed")
             self._observation = observation
+            if self._produced is not None:
+                self._produced.append(observation)
 
     def read(self):
         with self._lock:
@@ -40,10 +49,20 @@ class BufferedSensorProvider:
                 raise SensorError("no completed capture available")
             return self._observation
 
+    def read_produced(self, after=None):
+        """Recorded publications with a sequence after `after`, oldest first."""
+        with self._lock:
+            if self._closed:
+                raise SensorError("buffered provider closed")
+            if self._produced is None:
+                raise SensorError("buffered provider records no produced samples")
+            return tuple(o for o in self._produced if after is None or o.sequence > after)
+
     def close(self):
         with self._lock:
             self._closed = True
             self._observation = None
+            self._produced = None
 
 
 class SyntheticSensorProvider:
@@ -113,6 +132,17 @@ class MobileStateSensorProvider:
         state = self._reader()
         if state is None:
             raise SensorError(f"mobile state unavailable: {self._reader.last_error}")
+        return self._envelope(state)
+
+    def read_produced(self, after=None):
+        """The states the bridge recorded as it published them (its opt-in
+        `state_history`, B72) with a step after `after`, oldest first."""
+        states = self._reader.history(after)
+        if states is None:
+            raise SensorError(f"mobile state history unavailable: {self._reader.last_error}")
+        return tuple(self._envelope(state) for state in states)
+
+    def _envelope(self, state):
         if state.robot_id != self.descriptor.robot_id:
             raise SensorError("mobile state robot identity mismatch")
         meta = MeasurementMetadata(self.descriptor.frame_id, self.descriptor.calibration_id)

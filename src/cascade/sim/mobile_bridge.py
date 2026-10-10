@@ -7,6 +7,7 @@ state readers only receive copies of the last completed physics observation.
 from __future__ import annotations
 
 import copy
+from collections import deque
 from dataclasses import replace
 import math
 import ipaddress
@@ -65,6 +66,9 @@ def _yaw_wxyz(q) -> float:
 # Unitree H2 whose Velocity-H2-History-v0 policy commands exactly 14 joints.
 KINDS = frozenset({"microduck", "h2"})
 
+#: Upper bound of the opt-in producer state history (B72), in completed states.
+MAX_STATE_HISTORY = 256
+
 
 class MobileBridgeController:
     """Admission and a dual-clock deadman, independent of the RPC worker.
@@ -86,6 +90,12 @@ class MobileBridgeController:
     measured-yaw goal ramp); the bridge only bounds it inside the admitted envelope.
     It never admits, extends, renews or replays motion and does not consume the
     generation; stop, fault and completion end it like the command itself.
+
+    Optional producer state history (``state_history=N`` > 0, advertised in
+    ``hello`` only then, B72): every completed state is recorded as it is
+    published, in a ring of the last N, and served to reader channels by the
+    ``state_history`` operation (copies of history, never a refresh). A new
+    epoch empties it.
     """
 
     def __init__(
@@ -95,7 +105,7 @@ class MobileBridgeController:
         lease_s: float, max_state_age_s: float, physics_dt: float = 0.005,
         policy_dt: float = 0.020, max_action_wall_s: float = 120.0,
         clock=time.monotonic, heading_hold_kp: float = 0.0, heading_hold_ki: float = 0.0,
-        kind: str = "microduck", velocity_scaling: bool = False,
+        kind: str = "microduck", velocity_scaling: bool = False, state_history: int = 0,
     ):
         if engine not in {"physx", "newton"}:
             raise ValueError("engine must be physx or newton")
@@ -107,6 +117,10 @@ class MobileBridgeController:
         if type(velocity_scaling) is not bool:
             raise ValueError("velocity_scaling must be an explicit boolean")
         self.velocity_scaling = velocity_scaling
+        if type(state_history) is not int or not 0 <= state_history <= MAX_STATE_HISTORY:
+            raise ValueError(f"state_history must be an integer in 0..{MAX_STATE_HISTORY}")
+        self.state_history_size = state_history
+        self._produced = deque(maxlen=state_history) if state_history else None
         for name, value in (("heading_hold_kp", heading_hold_kp), ("heading_hold_ki", heading_hold_ki)):
             if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
                 raise ValueError(f"{name} must be a finite nonnegative number")
@@ -128,7 +142,8 @@ class MobileBridgeController:
             "policy_sha256": policy_sha256, "model_identity_sha256": model_identity_sha256, "physics_dt": _positive(physics_dt, "physics_dt"),
             "policy_dt": _positive(policy_dt, "policy_dt"),
             "capabilities": ["state", "velocity", "stop", "reset_stop"] + (
-                ["velocity_scaling"] if velocity_scaling else []),
+                ["velocity_scaling"] if velocity_scaling else []) + (
+                ["state_history"] if state_history else []),
             "measurement_kind": "physics",
             "support_contract_sha256": support_contract_digest(support_contract, model_identity_sha256),
         }
@@ -164,7 +179,8 @@ class MobileBridgeController:
                     "max_action_wall_s": self.max_action_wall_s,
                     "heading_hold": ({"kp": self.heading_hold_kp, "ki": self.heading_hold_ki}
                                      if self.heading_hold_kp > 0 else None),
-                    "scripted_twist": self._script is not None}
+                    "scripted_twist": self._script is not None,
+                    **({"state_history": self.state_history_size} if self._produced is not None else {})}
 
     def script(self, source) -> dict:
         """Opt-in in-process twist source for a choreographed showcase (no network admission).
@@ -330,9 +346,36 @@ class MobileBridgeController:
             self._state = validated
             self._completed_snapshot = snapshot
             self._state_wall = self._clock()
-            if validated["fallen"]:
+            fallen = validated["fallen"]
+            if fallen:
                 self.fault("physics state is fallen")
+            if self._produced is not None:
+                # Recorded as published (B72): exactly what `state` would now
+                # serve for this step, its own publication time as receipt.
+                self._produced.append(replace(
+                    snapshot, received_monotonic_s=self._state_wall, controller_status=self._mobile_status(),
+                    generation=self._generation, latched=self._latched))
+            if fallen:
                 raise ValueError("physics state is fallen")
+
+    def state_history(self, request: dict) -> dict:
+        """Opt-in (B72): the completed states recorded as they were published,
+        oldest first, with a step after ``after_step`` (absent/None: all kept).
+        History, not a refresh: each keeps its own publication time."""
+        with self._lock:
+            if self._produced is None:
+                raise ValueError("unsupported mobile bridge operation")
+            if not isinstance(request, dict):
+                raise ValueError("request must be an object")
+            after = request.get("after_step")
+            if after is not None and (type(after) is not int or after < 0):
+                raise ValueError("after_step must be a nonnegative integer or null")
+            now = self._clock()
+            states = [replace(s, producer_age_s=max(0.0, now - s.received_monotonic_s)).as_dict()
+                      for s in self._produced if after is None or s.step > after]
+            return {"ok": True, "robot_id": self._identity["robot_id"], "source": self._identity["source"],
+                    "epoch": self._epoch, "model_identity_sha256": self._identity["model_identity_sha256"],
+                    "state_history": self.state_history_size, "states": states}
 
     def _binding(self, request: dict, *, robot: bool = False) -> None:
         if not isinstance(request, dict):
@@ -582,6 +625,8 @@ class MobileBridgeController:
             self._state = None
             self._completed_snapshot = None
             self._state_wall = None
+            if self._produced is not None:
+                self._produced.clear()  # a new epoch never serves the old one's samples
             self._last_control_time = None
             self._last_completed = None
             self._completed_owner = None
@@ -626,6 +671,10 @@ class MobileBridgeServer:
             raise ValueError("explicit bridge port must be an integer in 0..65535")
         self._address = (self._host, port)
         self._frame = frame_callback
+        # Opt-in producer history (B72): a reader op only on a controller that records it.
+        # The off-GIL state reader below is configured from READER_OPS and refuses it.
+        self._reader_ops = self.READER_OPS | (
+            {"state_history"} if getattr(controller, "state_history_size", 0) else set())
         # Opt-in (shared MicroDuck owner, --state-reader process): after a reader channel's first
         # state reply its descriptor moves to the off-GIL state server (mobile_state_offload).
         self._offload = state_offload
@@ -685,6 +734,8 @@ class MobileBridgeServer:
                 return hello
             if op == "state":
                 return self.controller.state()
+            if op == "state_history" and getattr(self.controller, "state_history_size", 0):
+                return self.controller.state_history(request)  # opt-in producer history (B72)
             if op == "command_velocity":
                 request = {**request, "_received_wall": request.get("_received_wall", self.controller._clock())}
                 return self.controller.command_velocity(request)
@@ -846,7 +897,7 @@ class MobileBridgeServer:
                     handshaken = True
                     result = self.dispatch(request)
                 else:
-                    allowed = {"reader": self.READER_OPS,
+                    allowed = {"reader": self._reader_ops,
                                "control": {"command_velocity", "reset_stop", "scale_velocity"},
                                "stop": {"stop"}, "renew": {"renew"}}
                     with self._guard:

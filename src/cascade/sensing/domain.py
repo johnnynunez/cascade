@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from ..robotics.contracts import ResourceDescriptor, identifier
-from .alignment import STATUSES, AlignmentPolicy, absent_channels, align_capture
+from .alignment import STATUSES, AlignmentPolicy, absent_channels, align_capture, merge_captures
 from .hub import SensorError, SensorHub
 from .models import (GeneralizedJointStatePayload, ImuPayload, MeasurementMetadata,
                      ProprioceptionPayload, JointStatePayload)
@@ -34,6 +34,8 @@ class SensorDomain:
             raise ValueError("AlignmentPolicy required")
         self.hub = hub
         self.alignment = alignment
+        if alignment is not None and alignment.producer_history is not None:
+            hub.enable_produced(alignment.producer_history)  # opt-in producer-rate sampling (B72)
         hub.seal()
         self.resources = tuple(ResourceDescriptor(
             resource_id=f"{domain_id}/{descriptor.sensor_id}", kind="sensor",
@@ -74,7 +76,13 @@ class SensorDomain:
         e.g. a replay when its producer has nothing newer, is reported, not
         fatal), then its admitted capture nearest the reference's capture time
         from the hub's bounded history. A failed reference read refuses the
-        call: no older capture is substituted."""
+        call: no older capture is substituted.
+
+        With `producer_history` (B72) each paired sensor also admits the
+        samples its producer recorded since the last fetch (a refusal is
+        reported as `producer_error`), and the pairing chooses among the read
+        and the produced captures; `from_producer` says whether the chosen one
+        was seen only through the producer's history."""
         descriptors = {d.sensor_id: d for d in self.hub.descriptors}
         reference_id = identifier(args["reference"], "reference")
         if reference_id not in descriptors:
@@ -90,6 +98,7 @@ class SensorDomain:
             if sensor_id == reference_id:
                 raise ValueError("the reference cannot be paired with itself")
         reference = self.hub.read(reference_id)
+        produced = self.alignment.producer_history is not None
         pairings, counts = {}, {status: 0 for status in STATUSES}
         for sensor_id in ids:
             read_error = None
@@ -97,10 +106,23 @@ class SensorDomain:
                 self.hub.read(sensor_id)
             except SensorError as exc:
                 read_error = f"{type(exc).__name__}: {exc}"[:400]
-            pairing = align_capture(reference, self.hub.history(sensor_id), self.alignment,
+            history = self.hub.history(sensor_id)
+            if produced:
+                producer_error = None
+                try:
+                    self.hub.read_produced(sensor_id)
+                except SensorError as exc:
+                    producer_error = f"{type(exc).__name__}: {exc}"[:400]
+                candidates = merge_captures(history, self.hub.produced(sensor_id))
+            else:
+                candidates = history
+            pairing = align_capture(reference, candidates, self.alignment,
                                     now=self.hub.now(), max_age_s=descriptors[sensor_id].max_age_s)
             entry = {**pairing.as_dict(), "read_error": read_error}
             candidate = pairing.candidate
+            if produced:
+                entry.update(producer_error=producer_error, from_producer=None if candidate is None else not any(
+                    o.epoch == candidate.epoch and o.sequence == candidate.sequence for o in history))
             if candidate is not None:
                 entry.update(sequence=candidate.sequence, epoch=candidate.epoch,
                              clock_domain=candidate.clock_domain, capture_time_s=candidate.capture_time_s,

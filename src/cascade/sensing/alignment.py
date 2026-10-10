@@ -26,7 +26,9 @@ Generalized from B39's link self-mask (`perception/link_mask.py`), which pairs
 each camera frame with the arm's joint sample nearest its capture time and now
 uses `SampleBuffer` and `classify` from here. The sensing domain's opt-in
 `read_aligned` tool (`domain.py`) applies `align_capture` to admitted
-`ObservationEnvelope`s. Stdlib only: imported by the minimal install.
+`ObservationEnvelope`s; with `producer_history` (B72) also to the samples each
+producer recorded as it published them (`merge_captures`). Stdlib only:
+imported by the minimal install.
 """
 from __future__ import annotations
 
@@ -52,6 +54,16 @@ _DISPLACEMENT = {"rad/s": "rad", "m/s": "m"}
 
 #: Upper bound of `max_skew_s`: a second apart is not one instant.
 MAX_SKEW_LIMIT_S = 1.0
+
+#: Upper bound of `producer_history` (B72): samples kept per paired sensor.
+MAX_PRODUCER_HISTORY = 256
+
+
+def bounded_count(value, label: str, maximum: int = MAX_PRODUCER_HISTORY) -> int:
+    """An explicit integer in 1..maximum (never a bool, float or string)."""
+    if type(value) is not int or not 1 <= value <= maximum:
+        raise ValueError(f"{label} must be an integer in 1..{maximum}, got {value!r}")
+    return value
 
 
 def nearest(items, t, time_of=lambda item: item[0]):
@@ -164,29 +176,40 @@ def _positive(block, key, *, required=False, maximum=None):
 
 @dataclass(frozen=True)
 class AlignmentPolicy:
-    """The sensors-domain `alignment:` block (opt-in `read_aligned`)."""
+    """The sensors-domain `alignment:` block (opt-in `read_aligned`).
+
+    `producer_history` (opt-in, B72): each paired sensor keeps a ring of up to
+    that many samples its producer recorded as it published them, so the
+    pairing is not limited to the captures that reads happened to admit.
+    """
     max_skew_s: float
     max_rotation_rad: float | None = None
     max_translation_m: float | None = None
+    producer_history: int | None = None
 
     @classmethod
     def from_profile(cls, block) -> "AlignmentPolicy":
         if not isinstance(block, dict):
             raise ValueError(f"alignment must be a mapping, got {block!r}")
-        unknown = set(block) - {"max_skew_s", "max_rotation_rad", "max_translation_m"}
+        unknown = set(block) - {"max_skew_s", "max_rotation_rad", "max_translation_m", "producer_history"}
         if unknown:
             raise ValueError(f"unknown alignment settings: {sorted(unknown)}")
+        history = (bounded_count(block["producer_history"], "alignment.producer_history")
+                   if "producer_history" in block else None)
         return cls(_positive(block, "max_skew_s", required=True, maximum=MAX_SKEW_LIMIT_S),
-                   _positive(block, "max_rotation_rad"), _positive(block, "max_translation_m"))
+                   _positive(block, "max_rotation_rad"), _positive(block, "max_translation_m"), history)
 
     @property
     def tolerances(self) -> dict:
         return {"rad": self.max_rotation_rad, "m": self.max_translation_m}
 
     def as_dict(self) -> dict:
-        return {"max_skew_s": self.max_skew_s, "max_rotation_rad": self.max_rotation_rad,
-                "max_translation_m": self.max_translation_m,
-                "selection": "nearest_admitted_capture", "interpolation": "none"}
+        out = {"max_skew_s": self.max_skew_s, "max_rotation_rad": self.max_rotation_rad,
+               "max_translation_m": self.max_translation_m,
+               "selection": "nearest_admitted_capture", "interpolation": "none"}
+        if self.producer_history is not None:
+            out["producer_history"] = self.producer_history
+        return out
 
 
 def comparable(reference, candidate) -> bool:
@@ -194,6 +217,20 @@ def comparable(reference, candidate) -> bool:
     if reference.clock_domain != candidate.clock_domain:
         return False
     return reference.clock_domain in LOCAL_CLOCK_DOMAINS or reference.epoch == candidate.epoch
+
+
+def merge_captures(admitted, produced) -> list:
+    """One sensor's read-admitted captures plus the captures its producer
+    recorded (B72), ordered by capture time; a capture in both (same epoch and
+    sequence) is kept once, as the read admitted it.
+
+    Both come from ONE sensor of one hub, which pins one epoch and one clock
+    domain per sensor, so capture times are comparable and the last element is
+    the latest capture (what `align_capture` reports without a common clock).
+    """
+    seen = {(o.epoch, o.sequence) for o in admitted}
+    extra = [o for o in produced if (o.epoch, o.sequence) not in seen]
+    return sorted([*admitted, *extra], key=lambda o: o.capture_time_s)
 
 
 def _merge(out: dict, unit: str, magnitude: float) -> None:

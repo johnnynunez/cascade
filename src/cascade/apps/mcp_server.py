@@ -94,6 +94,19 @@ the RS arm, so park it first. SIGUSR1 clears the e-stop: that is the STAFF
 reset channel when reset_stop is hidden from attendees
 (`pkill -USR1 -f cascade.apps.mcp_server` requires shell access to the
 rig, which is exactly the staff/attendee boundary).
+
+Read-only lane (opt-in, B46; `mcp.readonly_lane: true` in configs/demo.yaml or
+CASCADE_MCP_READONLY_LANE=1): everything above still holds -- one serial
+worker, stops/cancels/pings on the receive side -- but a call to one of
+`READONLY_LANE_TOOLS` that arrives while a MOTION tool (`_MOTION_SKILLS`, or
+`run_program` with the programs tier on) is in flight is handed to a separate
+lane thread and answered at once instead of after the motion. Its result
+carries `served_during_motion` (state may be in flux). Motions stay strictly
+serialized, every other tool still waits, the receive side only enqueues (a
+lane call can never delay a stop), and a lane call never enters
+`SkillRuntime.execute()`, never takes `_exec_lock` and never writes state the
+motion depends on. Off (the default) the server is the serial one byte for
+byte.
 """
 
 from __future__ import annotations
@@ -103,6 +116,7 @@ import contextlib
 import copy
 import json
 import os
+import queue
 import sys
 import threading
 import time
@@ -315,6 +329,151 @@ _PROGRAM_TOOLS = frozenset({"list_programs", "run_program"})
 #: e-stop like any `_MOTION_SKILLS` call
 _PROGRAM_MOTION_TOOLS = frozenset({"run_program"})
 
+#: B46 (opt-in): the tools the read-only lane may answer WHILE a motion runs
+#: on the worker. Each is a server-side read that never enters
+#: `SkillRuntime.execute()` (no trace row, memory event, envelope record,
+#: watcher pause, per-call scratchpad or `last_frame` write), never takes
+#: `_exec_lock` and never commands an arm, gripper or base:
+#:   world_state         `_runtime_state` -- the dashboard `/state` body, which
+#:                       already runs on HTTP threads during every motion --
+#:                       plus cached stream stats and the capability matrix;
+#:                       its only writes are the belief store's and episodic
+#:                       memory's own age-based expiry under their locks,
+#:                       which every reader (that poll included) performs
+#:   robot_knowledge     envelope and grasp-memory digests (both stores are
+#:                       lock-guarded so the skill thread records while
+#:                       readers read)
+#:   verify_last_action  the verifier's append-only verdict history
+#:   camera_snapshot     on the lane a PASSIVE stream read (`_lane_camera_snapshot`)
+#: Everything else waits for the motion as before, e.g. describe_scene /
+#: get_observation (they fuse beliefs mid-motion, run the shared detector and
+#: read the arm), task_memory (`new_task` resets frames), live_view_url (binds
+#: a port), list_programs (refreshes the store run_program reads), reset_stop /
+#: halt_motion (write the harness). When in doubt a tool stays out.
+READONLY_LANE_TOOLS = frozenset({"world_state", "robot_knowledge", "verify_last_action",
+                                 "camera_snapshot"})
+#: the lane's single thread (lane-served calls are identifiable by it)
+LANE_THREAD_NAME = "cascade-mcp-readonly-lane"
+
+
+def _readonly_lane_enabled(cfg) -> bool:
+    """The B46 switch: CASCADE_MCP_READONLY_LANE (1/0; empty = unset) beats
+    `mcp.readonly_lane` (default false). Only an explicit yes turns it on;
+    off is the serial server exactly."""
+    yes = ("1", "true", "yes", "on")
+    env = os.environ.get("CASCADE_MCP_READONLY_LANE", "").strip().lower()
+    if env:
+        return env in yes
+    mcp_cfg = (cfg.get("mcp", {}) if cfg is not None else {}) or {}
+    raw = mcp_cfg.get("readonly_lane", False)
+    return raw.strip().lower() in yes if isinstance(raw, str) else bool(raw)
+
+
+def _mark_served_during_motion(out: dict, motion: str, tool: str) -> dict:
+    """A lane result says it was served while `motion` ran (B46). The marker
+    joins the result's JSON summary (its last text block); a result without
+    one gets its own block. Returns a new dict, `out` is not mutated."""
+    note = (f"Answered on the read-only lane because {motion} was running when this call "
+            "arrived: the arm, the gripper, any held object and the tracked objects may be "
+            f"in flux, and {motion}'s own result and verdict are not recorded yet. Re-check "
+            f"after {motion} returns before acting on this.")
+    if tool == "camera_snapshot":
+        note += (" The image is a passive read of the camera stream: it does not refresh "
+                 "the frame the running motion uses.")
+    marker = {"motion": motion, "lane": "read_only", "note": note}
+    content = list(out.get("content") or [])
+    for i in range(len(content) - 1, -1, -1):
+        block = content[i]
+        if isinstance(block, dict) and block.get("type") == "text":
+            try:
+                payload = json.loads(block.get("text", ""))
+            except (TypeError, ValueError):
+                payload = None
+            if isinstance(payload, dict):
+                content[i] = {**block, "text": json.dumps({**payload, "served_during_motion": marker})}
+                return {**out, "content": content}
+            break
+    content.append({"type": "text", "text": json.dumps({"served_during_motion": marker})})
+    return {**out, "content": content}
+
+
+class _ReadOnlyLane:
+    """B46: one thread that answers `READONLY_LANE_TOOLS` calls while the
+    serial worker runs a motion.
+
+    The receive side calls `offer()` after `_admit` (the stop channel keeps
+    first claim on every frame): it only checks and enqueues -- never runs a
+    tool, never blocks -- so a held lane call cannot delay a stop. The
+    worker's `_inflight` is read under `_cancel_lock` and never written here,
+    so a host cancel of the motion still latches the e-stop. Calls are served
+    in arrival order; one cancelled before the lane reached it is dropped,
+    exactly as the worker drops one."""
+
+    def __init__(self, server: "McpSkillServer", *, start: bool = True):
+        from ..skills.runtime import _MOTION_SKILLS
+
+        self._server = server
+        self._motion_skills = _MOTION_SKILLS  # the live set cancel_request reads
+        self._queue: queue.Queue = queue.Queue()
+        self._thread = threading.Thread(target=self._run, daemon=True, name=LANE_THREAD_NAME)
+        if start:
+            self._thread.start()
+
+    def offer(self, m: dict, send) -> bool:
+        """True when `m` was handed to the lane; False = the caller queues it
+        for the worker exactly as before. Only a `tools/call` request with a
+        str/int id, for a lane tool the operator has not hidden, while a
+        motion is in flight."""
+        if m.get("method") != "tools/call" or not isinstance(m.get("id"), (str, int)):
+            return False
+        params = m.get("params")
+        name = params.get("name") if isinstance(params, dict) else None
+        if not isinstance(name, str) or name not in READONLY_LANE_TOOLS or name in _hidden_tools():
+            return False
+        server = self._server
+        with server._cancel_lock:
+            inflight = server._inflight
+            motion = inflight[1] if inflight is not None else None
+            # the programs flag is read, never resolved here (resolving may
+            # load the config on the stop channel): run_program is only
+            # dispatched once it resolved True
+            if not (motion in self._motion_skills
+                    or (motion in _PROGRAM_MOTION_TOOLS and server._programs_flag is True)):
+                return False
+        self._queue.put((m, send, motion))
+        return True
+
+    def close(self) -> None:
+        """No lane call starts after this (shutdown); idempotent."""
+        self._queue.put(None)
+
+    def _run(self) -> None:
+        server = self._server
+        while True:
+            item = self._queue.get()
+            if item is None:
+                return
+            m, send, motion = item
+            req_id = m.get("id")
+            with server._cancel_lock:
+                cancelled = req_id in server._cancelled_ids
+                server._cancelled_ids.discard(req_id)
+            if cancelled:
+                continue  # the host gave up before the lane reached it
+            try:
+                resp = _lane_response(server, m, motion)
+            except Exception as e:  # noqa: BLE001 -- the lane thread must never die
+                resp = _response(req_id, _mark_served_during_motion(_text_result(
+                    {"ok": False, "error": f"{type(e).__name__}: {e}"}, is_error=True),
+                    motion, (m.get("params") or {}).get("name", "")))
+            with server._cancel_lock:
+                server._cancelled_ids.discard(req_id)  # a cancel that raced completion is spent
+            try:
+                send(resp)
+            except Exception as e:  # noqa: BLE001 -- a closed transport must not kill the lane
+                print(f"[cascade-mcp] read-only lane could not deliver a response: {e}",
+                      file=sys.stderr)
+
 
 class McpSkillServer:
     def __init__(self):
@@ -375,6 +534,10 @@ class McpSkillServer:
         # resolved once per connection: catalog, dispatch and the cancel
         # path must agree (None = not resolved yet)
         self._programs_flag: bool | None = None
+        # B46 read-only lane (mcp.readonly_lane / CASCADE_MCP_READONLY_LANE):
+        # built with the arm runtime when on; None = off, and the receive
+        # side then queues every frame for the worker exactly as before
+        self._readonly_lane: _ReadOnlyLane | None = None
 
     # ── programs tier (docs/PROGRAMS_TIER.md, B42) ───────────────────────
 
@@ -539,6 +702,14 @@ class McpSkillServer:
                     # `backends:` line build_runtime just printed -- and a
                     # host that already listed tools is told to re-fetch
                     self._announce_surface()
+                    if _readonly_lane_enabled(cfg):
+                        # B46: after the runtime is published, so a lane call
+                        # always finds it built
+                        self._readonly_lane = _ReadOnlyLane(self)
+                        print("[cascade-mcp] read-only lane: on -- "
+                              f"{', '.join(sorted(READONLY_LANE_TOOLS))} answer while a motion "
+                              "runs (marked served_during_motion); motions stay serialized",
+                              file=sys.stderr)
             except Exception as e:
                 if _poison:
                     self._init_error = f"{type(e).__name__}: {e}"
@@ -586,6 +757,8 @@ class McpSkillServer:
 
         if not retry:
             stages.append(teardown_step("stop", stop))
+        if self._readonly_lane is not None:
+            self._readonly_lane.close()  # no lane call starts against a runtime being torn down
         # taking _init_lock waits out an in-flight prewarm build, so a
         # runtime that finishes building after EOF is still torn down
         with self._init_lock, contextlib.redirect_stdout(sys.stderr):
@@ -1002,6 +1175,51 @@ class McpSkillServer:
                 if name == "recall_step" and result.get("ok"):
                     return self._recall_result(runtime, result)
         return _text_result(result, is_error=not result.get("ok", False))
+
+    def call_readonly(self, name: str, arguments, motion: str) -> dict:
+        """B46: answer one `READONLY_LANE_TOOLS` call on the lane thread while
+        `motion` runs on the worker. The same server-side reads `call_tool`
+        uses, minus everything a running motion owns: no `execute()`, no
+        `_exec_lock`, no `redirect_stdout` (it swaps the PROCESS-wide stdout
+        the worker's call is using; these reads print nothing). Withheld tools
+        are rejected exactly as on the worker. Every result -- errors too --
+        carries `served_during_motion`."""
+        runtime = self._runtime
+        if runtime is None or name not in READONLY_LANE_TOOLS:
+            # offer() admits only lane tools, only once the runtime is built
+            out = _text_result({"ok": False, "error": f"tool {name!r} is not served on the "
+                                "read-only lane"}, is_error=True)
+        else:
+            out = self._reject_withheld(name)
+            if out is None:
+                if name == "world_state":
+                    out = _text_result(self._world_state(runtime))
+                elif name == "robot_knowledge":
+                    out = _text_result(self._robot_knowledge(runtime))
+                elif name == "verify_last_action":
+                    out = _text_result(self._verify_last(runtime))
+                else:
+                    camera = arguments.get("camera") if isinstance(arguments, dict) else None
+                    out = self._lane_camera_snapshot(runtime, camera)
+        return _mark_served_during_motion(out, motion, name)
+
+    def _lane_camera_snapshot(self, runtime, camera: str | None) -> dict:
+        """camera_snapshot on the lane: a PASSIVE read of the named (or
+        primary) stream, the dashboard's kind of read. Unlike
+        `_camera_snapshot` it never calls `observe_fresh` -- which writes
+        `runtime.last_frame` (the motion's BEFORE/AFTER evidence), fills depth
+        into the shared frame in place and beats the harness heartbeat -- and
+        never takes `_exec_lock`, which the running motion holds."""
+        from ..skills.runtime import _fresh_camera_frame
+
+        rig = getattr(runtime, "rig", None)
+        try:
+            if rig is None:
+                raise RuntimeError("no camera rig on this runtime")
+            frame = _fresh_camera_frame(rig.get(camera) if camera else rig.primary)
+        except Exception as exc:  # noqa: BLE001 -- same envelope as _camera_snapshot
+            return _text_result({"ok": False, "error": str(exc)}, is_error=True)
+        return self._image_result(runtime, frame, camera=camera)
 
     def _call_mobile_tool(self, name, arguments):
         allowed = {s["name"] for s in self.list_tools()}
@@ -1594,6 +1812,46 @@ def handle_message(server: McpSkillServer, msg: dict) -> dict | None:
         return _response(req_id, error={"code": -32603, "message": f"internal error: {e}"})
 
 
+def _lane_response(server: McpSkillServer, msg: dict, motion: str) -> dict:
+    """B46: the read-only lane's twin of `handle_message`'s tools/call
+    branch -- the same response envelope and the same one stderr line per
+    call (naming the lane and the motion it ran beside)."""
+    params = msg.get("params") or {}
+    name = params.get("name", "")
+    args = params.get("arguments") or {}
+    t_call = time.monotonic()
+    try:
+        out = server.call_readonly(name, args, motion)
+    except Exception as e:  # noqa: BLE001 -- one bad read never kills the lane
+        out = _mark_served_during_motion(
+            _text_result({"ok": False, "error": f"{type(e).__name__}: {e}"}, is_error=True),
+            motion, name)
+    try:
+        parts = [c for c in (out.get("content") or []) if c.get("type") == "text"]
+        n_img = sum(1 for c in (out.get("content") or []) if c.get("type") == "image")
+        body = (parts[-1].get("text", "") if parts else "")
+        if n_img:
+            body = f"[{n_img} image(s)] " + body
+        print(f"[cascade-mcp] tools/call {name}({_short_args(args)}) on the read-only lane "
+              f"during {motion} -> {'ERROR' if out.get('isError') else 'ok'} in "
+              f"{time.monotonic() - t_call:.1f}s: {body[:200]}", file=sys.stderr, flush=True)
+    except Exception:  # noqa: BLE001 -- logging must never fail a call
+        pass
+    return _response(msg.get("id"), out)
+
+
+def _enqueue(server, inbox, m: dict, send) -> None:
+    """Receive side, after `_admit` (shared by every transport): queue a frame
+    for the serial worker -- or, with the opt-in read-only lane (B46), hand a
+    read-only tool call to the lane while a motion runs. Lane off
+    (`_readonly_lane is None`) this is exactly the pre-lane
+    `inbox.put((m, send))`."""
+    lane = server._readonly_lane
+    if lane is not None and lane.offer(m, send):
+        return
+    inbox.put((m, send))
+
+
 def main() -> int:
     import argparse
     from .signal_stop import StopSignals
@@ -1745,7 +2003,7 @@ def _serve_stdio(server, signals):
                                       f"{str(m)[:120]}", file=sys.stderr)
                                 continue
                             if not _admit(server, m, _send):
-                                inbox.put((m, _send))
+                                _enqueue(server, inbox, m, _send)
                     except Exception as e:
                         print(f"[cascade-mcp] reader error (frame skipped): {e}",
                               file=sys.stderr)
@@ -2065,7 +2323,7 @@ def _serve_http(server, signals, *, host, port, path, token, cert=None, key=None
 
                 m = {**m, "id": ns + json.dumps(req_id)}
                 if not _admit(server, m, send):
-                    inbox.put((m, send))
+                    _enqueue(server, inbox, m, send)
                 accept = self.headers.get("Accept") or ""
                 if method == "tools/call" and "text/event-stream" in accept:
                     return self._stream(done, slot, extra)

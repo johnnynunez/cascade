@@ -975,6 +975,19 @@ domain of a `--robot` profile; profiles live in `configs/bases/`. Evidence:
 CPU tests (`tests/test_mobile_*.py`) plus the simulation episodes below;
 there is no hardware backend, so no base has moved a robot.
 
+**Distance baselines (B67, B74).** `walk_distance` credits travel and
+integrates lateral/heading drift only from a baseline: SafeBase's first
+completed post-ACK sample and the checker's first admitted independent sample
+(at most `max_sample_gap_s` after the ACK's admission clock). Delivery motion
+before it is never progress. The opt-in pair `max_admission_lateral_m` /
+`max_admission_heading_rad`, set together in a base profile's
+`distance_control` and `verifier` (one-sided = no independent verifier),
+also bounds the lateral/heading change that baseline would absorb: SafeBase
+vetoes and latches on it from the last pre-ACK sample through every delivery
+sample, and the checker refutes a confirmation on it from its last sample at
+or before the admission clock ([contract](MICRODUCK_DISTANCE_CANDIDATE.md#implemented-contract)).
+CPU tests only; no shipped profile sets the pair.
+
 **Legged robots on that layer: MicroDuck and the Unitree H2 (simulation
 only).** MicroDuck ([MICRODUCK.md](MICRODUCK.md)) runs its official ONNX
 policy with the pinned native BAM on Newton
@@ -1543,6 +1556,13 @@ barriers.
   boundaries only (a hold released and re-taken under the same label outside
   any motion skill would keep the old verdict; no current code path does
   that); only the first wrist stream of a rig is captioned.
+- The `walk_distance` admission-drift pair (B74) is CPU-tested only and unset
+  in every shipped base profile: no retained native episode records the
+  segment from the last pre-ACK sample to the distance baseline, so no value
+  is proposed yet (a live Isaac A/B is owed). Without it both SafeBase and the
+  checker still absorb a lateral/heading change first seen on their baseline,
+  as before. Forward delivery motion is only excluded from progress, never
+  bounded, on either layer.
 
 ## Counts
 

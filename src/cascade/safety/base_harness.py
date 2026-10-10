@@ -145,9 +145,12 @@ class SafeBase:
             return None
         keys = {"speed_m_s", "max_distance_m", "tolerance_m", "max_lateral_drift_m",
                 "max_heading_drift_rad", "min_height_m", "max_tilt_rad"}
-        if not isinstance(value, dict) or set(value) != keys:
+        # The admission pair (B74) is the one optional extension, both or neither.
+        optional = set(self._ADMISSION_KEYS)
+        if not isinstance(value, dict) or not keys <= set(value) <= keys | optional:
             raise ValueError("distance_control requires the exact explicit contract")
-        result = {k: finite_real(v, k) for k, v in value.items()}
+        admission = {k: value[k] for k in self._ADMISSION_KEYS if k in value}
+        result = {k: finite_real(v, k) for k, v in value.items() if k in keys}
         if any(v <= 0 for v in result.values()):
             raise ValueError("distance control limits must be positive")
         if result["speed_m_s"] > self.harness.limits["max_vx"]:
@@ -156,7 +159,28 @@ class SafeBase:
             raise ValueError("distance tolerance must be below the maximum distance")
         if result["max_heading_drift_rad"] >= math.pi or result["max_tilt_rad"] >= math.pi / 2:
             raise ValueError("distance control attitude bounds must be unambiguous and upright")
+        if admission:
+            result.update(self._admission_config(admission, result))
         return MappingProxyType(result)
+
+    _ADMISSION_KEYS = ("max_admission_lateral_m", "max_admission_heading_rad")
+
+    def _admission_config(self, value, bounds):
+        """Opt-in (B74) bound on the change from the last pre-ACK sample to the baseline.
+
+        Both keys or neither; an explicit null pair keeps it OFF, so an
+        ``extends:`` child can A/B it away. The segment precedes the walk, so its
+        bound may not exceed the walk's own lateral/heading drift bound.
+        """
+        if set(value) != set(self._ADMISSION_KEYS):
+            raise ValueError("distance_control admission bounds require both " + " and ".join(self._ADMISSION_KEYS))
+        if all(v is None for v in value.values()):
+            return {}
+        result = {k: finite_real(v, k) for k, v in value.items()}
+        if not (0 < result["max_admission_lateral_m"] <= bounds["max_lateral_drift_m"]
+                and 0 < result["max_admission_heading_rad"] <= bounds["max_heading_drift_rad"]):
+            raise ValueError("distance control admission bounds must be positive and within the drift bounds")
+        return result
 
     def _turn_config(self, value):
         if value is None:
@@ -455,6 +479,32 @@ class SafeBase:
         w, x, y, z = state.orientation_wxyz
         return math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
 
+    @classmethod
+    def _body_increment(cls, previous, state):
+        """Measured (forward, lateral, yaw) step at the midpoint heading, wrap-safe across +/-pi."""
+        yaw = cls._yaw(previous)
+        delta = cls._yaw(state) - yaw
+        dyaw = math.atan2(math.sin(delta), math.cos(delta))
+        heading = yaw + dyaw / 2
+        dx, dy = (state.position_world[i] - previous.position_world[i] for i in (0, 1))
+        return math.cos(heading)*dx + math.sin(heading)*dy, -math.sin(heading)*dx + math.cos(heading)*dy, dyaw
+
+    def _admission_drift(self, previous, state, record):
+        """Opt-in (B74) veto on the segment the distance baseline would otherwise absorb.
+
+        Integrates the lateral/heading change from the last pre-ACK sample through
+        every delivery sample to the baseline with the walk's own increments, and
+        checks it at each sample like the walk's drift veto. Forward delivery
+        motion is neither bounded here nor ever credited to ``measured_distance``.
+        """
+        _, lateral, dyaw = self._body_increment(previous, state)
+        record["measured_admission_lateral_m"] += lateral
+        record["measured_admission_heading_rad"] += dyaw
+        bounds = self.distance_control
+        if (abs(record["measured_admission_lateral_m"]) > bounds["max_admission_lateral_m"]
+                or abs(record["measured_admission_heading_rad"]) > bounds["max_admission_heading_rad"]):
+            raise ValueError("distance control admission change exceeded before the distance baseline")
+
     def _ramp_turn(self, op, ramp, state, remaining, rate, ack, updates, end, budget_record):
         """Lower the ADMITTED turn rate on the measured remaining yaw; never raise it.
 
@@ -524,6 +574,10 @@ class SafeBase:
         distance_baseline = None
         turn_baseline = None
         translation_path = 0.
+        # Opt-in (distance_control.max_admission_*): change from the last pre-ACK
+        # sample to the distance baseline; None until a command is admitted.
+        admission = ({"measured_admission_lateral_m": None, "measured_admission_heading_rad": None}
+                     if distance is not None and "max_admission_lateral_m" in self.distance_control else {})
         # Opt-in (turn_control.goal_ramp): the admitted |wz| only ever decreases.
         ramp = self._goal_ramp() if angle is not None else None
         rate = abs(command.wz)
@@ -572,6 +626,8 @@ class SafeBase:
             ack_validated = True
             state = start
             measured_angle = 0.
+            if admission:
+                admission.update(measured_admission_lateral_m=0., measured_admission_heading_rad=0.)
             while state.sim_time_s < end:
                 previous = state
                 state = self._next(op, state, generation=ack["generation"])
@@ -587,18 +643,18 @@ class SafeBase:
                     # positive travel credit. Subsequent increments use measured
                     # midpoint heading, including wrap across +/-pi.
                     if distance_baseline is None:
+                        if admission:
+                            # Opt-in: the lateral/heading part of that drift is
+                            # bounded; forward delivery still earns nothing.
+                            self._admission_drift(previous, state, admission)
                         if state.sim_time_s <= begin:
                             continue
                         distance_baseline = state
                         measured_distance = measured_angle = 0.
                         continue
-                    yaw = self._yaw(previous)
-                    delta = self._yaw(state) - yaw
-                    dyaw = math.atan2(math.sin(delta), math.cos(delta))
-                    heading = yaw + dyaw / 2
-                    dx, dy = (state.position_world[i] - previous.position_world[i] for i in (0, 1))
-                    measured_distance += math.cos(heading)*dx + math.sin(heading)*dy
-                    lateral += -math.sin(heading)*dx + math.cos(heading)*dy
+                    forward, side, dyaw = self._body_increment(previous, state)
+                    measured_distance += forward
+                    lateral += side
                     measured_angle += dyaw
                     bounds = self.distance_control
                     if abs(lateral) > bounds["max_lateral_drift_m"] or abs(measured_angle) > bounds["max_heading_drift_rad"]:
@@ -652,6 +708,7 @@ class SafeBase:
                                     "distance_baseline": distance_baseline.as_dict(),
                                     "measured_lateral_m": lateral, "measured_heading_rad": measured_angle}
                                    if distance is not None else {}),
+                                **admission,
                                 **({"requested_angle_rad": angle, "measured_angle_rad": measured_angle,
                                     "measured_translation_path_m": translation_path}
                                    if angle is not None else {}),
@@ -664,6 +721,7 @@ class SafeBase:
                                 **({"measured_distance_m": measured_distance,
                                     "distance_baseline": distance_baseline.as_dict() if distance_baseline else None}
                                    if distance is not None else {}),
+                                **admission,
                                 **({"measured_angle_rad": measured_angle,
                                     "measured_translation_path_m": translation_path} if angle is not None else {}),
                                 **ramped)
@@ -675,6 +733,7 @@ class SafeBase:
                                 **({"measured_distance_m": measured_distance,
                                     "distance_baseline": distance_baseline.as_dict() if distance_baseline else None}
                                    if distance is not None else {}),
+                                **admission,
                                 **({"measured_angle_rad": measured_angle,
                                     "measured_translation_path_m": translation_path} if angle is not None else {}),
                                 **ramped)

@@ -149,6 +149,27 @@ deadline: delivery drift and rotation first observed after expiry cannot
 complete the requested angle. Late observations remain in the result for
 independent safety checks. This control correction does not admit a turn policy.
 
+Both layers integrate lateral and heading drift from their own baseline, so a
+change first observed on that baseline is absorbed: a constant offset there
+completes the walk on the controller and confirms on the checker (found by B67,
+pinned by CPU premise tests). Since 10 October 2026 an opt-in pair bounds that
+segment: `max_admission_lateral_m` and `max_admission_heading_rad`, set together
+in `distance_control` and in `verifier`; a profile that sets them on only one
+layer gets no independent verifier. Each bound must be positive and no larger
+than that layer's own drift bound; two explicit nulls switch it off. SafeBase
+integrates the change from the last pre-ACK sample through every delivery sample
+to its baseline, with the walk's own midpoint-heading increments, checks it at
+each sample and vetoes and latches like the drift veto; the result reports
+`measured_admission_lateral_m` and `measured_admission_heading_rad` (null before
+an admitted command). The checker's baseline is the first admitted independent
+sample, at most `max_sample_gap_s` after the ACK's admission clock: it refutes a
+confirmation whose change from the last independent sample at or before that
+clock exceeds the pair, and leaves it unverified if no such sample exists.
+Forward delivery motion is still neither credited nor bounded; a turn's
+translation path already includes delivery. No shipped profile sets the pair:
+no retained native episode records that segment, so a value awaits a live A/B.
+Absent or null, results are byte-identical to before (golden CPU digests).
+
 The distance candidate also enables an explicit turn guard. Before dispatch it
 requires an upright measured state and known, positively loaded sole support;
 during the command it checks posture, forbidden contacts and the accumulated

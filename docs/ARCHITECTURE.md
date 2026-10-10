@@ -1375,8 +1375,11 @@ barriers.
   request, `describe_scene`, `get_observation` and every other tool still
   wait. A `run_program` call is one motion for its whole program (seconds per
   step): a stop or cancel interrupts it, a second request waits. The lane
-  ships off and is measured on the mock stack only (no live Isaac or real-rig
-  latency yet).
+  ships off. Live on Isaac it was measured once, over 4 lane-on / 4 lane-off
+  pink-cube picks on the bare reBot scene (2026-10-10,
+  `docs/evidence/w6-live-20261010/`): lane reads in 0.001–0.003 s
+  (`camera_snapshot` 0.024–0.038 s) during the pick, picks confirmed 2/4 vs
+  1/4, the stop answered in 0.032 s. No real-rig latency yet.
 - The rendered-camera window (`RigViewer`) cannot open on macOS from the
   server (Cocoa needs the main thread; `opencv-python-headless` has no
   highgui); the MuJoCo physics window and the browser dashboard are the
@@ -1452,9 +1455,13 @@ barriers.
   success means every step it ran was confirmed, not that it covered every
   clause -- a one-clause program reused for a sequence would report the same
   half-command success the LLM tier's `task_done` could.
-- The launcher judge pass (B44) is opt-in. Its launcher path has only been
-  exercised on CPU (fake judge, recorded traces, a stub OpenAI-compatible
-  endpoint): no full launch has judged its proof turn with a real model yet.
+- The launcher judge pass (B44) is opt-in. Its launcher path was exercised on
+  CPU (fake judge, recorded traces, a stub OpenAI-compatible endpoint) and
+  once live (2026-10-10, `docs/evidence/w6-live-20261010/`): launch.sh's judge
+  block with `--judge vlm` and the local Qwen over a launcher-style Isaac
+  proof turn (direct tool calls, no brain) gave `tp=1 tn=0 fp=0 fn=0` on its
+  physics-confirmed pick, with `proof.json` unchanged. No full `./run.sh`
+  launch with the OpenClaw brain has judged its proof turn yet.
   Offline, the local Qwen3.8-27B judged 72 recorded live Isaac picks
   (B44-live, `docs/evidence/b44-live-qwen-judge-20261009/`): at the 1536-token
   budget `tp=40 tn=1 fp=15 fn=0`, 12 unscored; with those re-judged at 8192
@@ -1466,10 +1473,14 @@ barriers.
   `pick_and_place` rows, and the shipped `eval.judge` targets a frontier
   model through the OpenClaw gateway -- a local judge needs
   `CASCADE_JUDGE_CONFIG`.
-- Registration environment (B63) is CPU-tested only (the real `launch.sh`
+- Registration environment (B63) is CPU-tested (the real `launch.sh`
   with its host CLI doubled, the real `setup_agents.py`, and a child process
-  started with exactly the registered env). No live MCP host has started a
-  server from a B63 entry with `CASCADE_GRASP_EXECUTOR=vla` yet. The guard
+  started with exactly the registered env) and ran once live (2026-10-10,
+  `docs/evidence/w6-live-20261010/`): a server started with only the env of
+  launch.sh's registration heredoc, `CASCADE_GRASP_EXECUTOR=vla` exported,
+  ran the VLA executor (a scripted stub policy) against the live Isaac bridge,
+  and the analytic one without it. No real MCP host (OpenClaw) has started a
+  B63 entry yet. The guard
   sees `CASCADE_*` names written as whole string constants in `src/cascade`
   (plus the composed `CASCADE_MICRODUCK_*` family); a name built some other
   way is not seen. Three registrations stay outside the list: the legacy

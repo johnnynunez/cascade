@@ -1,0 +1,127 @@
+{
+ "receipt": {
+  "verified": true,
+  "model": "none (direct MCP tool calls, no brain; live-w6 launcher-style turn)",
+  "sim": "isaac",
+  "session_id": "cascade-proof-6947b5522a9d4a0ba4e2a47ffb10bbe1",
+  "profile": "hermes-live-w6",
+  "trace": "<live-w6>/cascade/runs/mcp_3216581_64d9c6432a1642d0a8858330d91e2d54/trace.jsonl",
+  "props_reset": [
+   "pink_cube",
+   "green_cube"
+  ],
+  "evidence_dir": "<live-w6>/launch_state/profile-hermes-live-w6/cascade-proof-6947b5522a9d4a0ba4e2a47ffb10bbe1"
+ },
+ "receipt_sha256_before": [
+  "3ac715a48fe3df7e57e3e847d1c082bb87ab8e164c2f7906c257d469bed69c44",
+  "3ac715a48fe3df7e57e3e847d1c082bb87ab8e164c2f7906c257d469bed69c44"
+ ],
+ "receipt_sha256_after": [
+  "3ac715a48fe3df7e57e3e847d1c082bb87ab8e164c2f7906c257d469bed69c44",
+  "3ac715a48fe3df7e57e3e847d1c082bb87ab8e164c2f7906c257d469bed69c44"
+ ],
+ "run_summary": {
+  "schema": "cascade.run_summary/1",
+  "written_at": 1791605513.2201955,
+  "proof": {
+   "path": "<live-w6>/launch_state/profile-hermes-live-w6/proof.json",
+   "sha256": "3ac715a48fe3df7e57e3e847d1c082bb87ab8e164c2f7906c257d469bed69c44",
+   "session_id": "cascade-proof-6947b5522a9d4a0ba4e2a47ffb10bbe1",
+   "verified": true,
+   "sim": "isaac",
+   "model": "none (direct MCP tool calls, no brain; live-w6 launcher-style turn)",
+   "trace": "<live-w6>/cascade/runs/mcp_3216581_64d9c6432a1642d0a8858330d91e2d54/trace.jsonl"
+  },
+  "judge": {
+   "backend": "vlm",
+   "status": "ok",
+   "advisory": true,
+   "skills": [
+    "pick_and_place"
+   ],
+   "timeout_s": 180.0,
+   "reason": null,
+   "log": "<live-w6>/launch_state/profile-hermes-live-w6/cascade-proof-6947b5522a9d4a0ba4e2a47ffb10bbe1/judge-run.log",
+   "judge_pid": 3222056,
+   "verdict": "<live-w6>/launch_state/profile-hermes-live-w6/cascade-proof-6947b5522a9d4a0ba4e2a47ffb10bbe1/judge.json",
+   "judge": "vlm:Qwen/Qwen3.8-27B",
+   "mode": "incremental",
+   "confusion": {
+    "tp": 1,
+    "tn": 0,
+    "fp": 0,
+    "fn": 0,
+    "n_scored": 1,
+    "n_with_physics": 1,
+    "agreement": 1.0
+   },
+   "final_progress": 1.0,
+   "summary_line": "judge=vlm:Qwen/Qwen3.8-27B mode=incremental scored=1/1 agreement=100% tp=1 tn=0 fp=0 fn=0 final_progress=1.00 wrist=front-repeat:1",
+   "unscored_physics": 0,
+   "elapsed_s": 7.727
+  }
+ },
+ "judge_verdict": {
+  "judge": "vlm:Qwen/Qwen3.8-27B",
+  "mode": "incremental",
+  "final_progress": 1.0,
+  "progress": [
+   1.0
+  ],
+  "hops": [
+   1.0
+  ],
+  "confusion": {
+   "tp": 1,
+   "tn": 0,
+   "fp": 0,
+   "fn": 0,
+   "n_scored": 1,
+   "n_with_physics": 1,
+   "agreement": 1.0
+  },
+  "summary_line": "judge=vlm:Qwen/Qwen3.8-27B mode=incremental scored=1/1 agreement=100% tp=1 tn=0 fp=0 fn=0 final_progress=1.00 wrist=front-repeat:1",
+  "wrist_views": {
+   "front-repeat": 1
+  },
+  "steps": [
+   {
+    "step": 0,
+    "skill": "pick_and_place",
+    "task": "pick and place the pink cube at drop zone",
+    "hop": 1.0,
+    "physics": "confirmed",
+    "channel": "physics",
+    "ok": true,
+    "tier": "mcp-host",
+    "duration_s": 69.32239999999999,
+    "error": null,
+    "wrist_slots": {
+     "left": "front-repeat",
+     "right": "front-repeat"
+    },
+    "raw_tail": "e cube is not in the drop zone.\n    *   In the AFTER images, the cube is clearly inside the drop zone.\n    *   This represents a complete success of the task objective. The transition is from \"start\" to \"end\".\n\n4.  **Score Calculation:**\n    *   BEFORE is at 0% progress.\n    *   AFTER is at 100% progress (task completed).\n    *   The improvement is the full range of the task.\n\n<score>+100%</score>"
+   }
+  ]
+ },
+ "banner": [
+  "[launch] judge: advisory judge=vlm:Qwen/Qwen3.8-27B mode=incremental scored=1/1 agreement=100% tp=1 tn=0 fp=0 fn=0 final_progress=1.00 wrist=front-repeat:1 (physics verdict unchanged; <live-w6>/launch_state/profile-hermes-live-w6/cascade-proof-6947b5522a9d4a0ba4e2a47ffb10bbe1/run-summary.json)"
+ ],
+ "judge_config_shape": {
+  "backend": "vlm",
+  "base_url": "http://127.0.0.1:8080/v1",
+  "api_key": "<any; not a secret>",
+  "model": "Qwen/Qwen3.8-27B",
+  "mode": "incremental",
+  "temperature": 0.1,
+  "top_p": 0.9,
+  "max_tokens": 1536,
+  "timeout_s": 300,
+  "extra_body": {
+   "chat_template_kwargs": {
+    "enable_thinking": false
+   }
+  }
+ },
+ "source_run": "b63 an5 (the launcher-style proof turn)"
+}

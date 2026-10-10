@@ -3298,8 +3298,8 @@ class SkillRuntime:
         names `physx` or `newton` in its ping reply). Measured on Isaac (bare
         reBot scene, fresh stage per run, learned GraspGen-X grasps; evidence
         docs/evidence/b36-pick-reliability-20261010/): with the hold PhysX
-        confirmed 11/12 picks against 5/12 without it; on Newton the hold
-        confirmed 1/4 against 12/12 without it (the cube dropped early in the
+        confirmed 15/16 picks against 9/16 without it; on Newton the hold
+        confirmed 1/4 against 14/14 without it (the cube dropped early in the
         carry) -- so the Isaac profile opts in for PhysX only.
         A backend that reports no engine, or an engine the mapping does not
         name, gets no hold. Every value is validated before the jaws move,
@@ -3334,10 +3334,10 @@ class SkillRuntime:
         bound: it drops `effort`, and its finger drives push toward the
         position target at full stiffness. Measured on Isaac PhysX (bare
         reBot scene, first lift of each run), that squeeze left wrist roll a
-        median 0.045 rad off its lift target (11 of 31 lifts at or over
-        settle_tol 0.045: "did not settle at grasp lift pose"); with the hold
-        the median was 0.012 rad (max 0.015, 15 lifts). Newton showed no such
-        deflection (0.000 rad, 16 lifts). Without a stall the stage-2 command
+        median 0.045 rad off its lift target (9 of 35 lifts at or over
+        settle_tol 0.045, each one "did not settle at grasp lift pose"); with
+        the hold the median was 0.011 rad (max 0.015, 20 lifts). Newton showed
+        no such deflection (0.000 rad, 18 lifts). Without a stall the stage-2 command
         stays as it was; the hold only ever presses less. The caller's
         air-grasp check must then compare against the hold target, not the
         stage-2 one.

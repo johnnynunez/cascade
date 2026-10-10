@@ -12,10 +12,10 @@ evidence: docs/evidence/b36-pick-reliability-20261010/) failed with three signat
 * S2 -- "did not settle above the place target", and S3 -- a drop in carry after a
   verified grip. Their common driver on PhysX: the bridge drops `effort` and the
   finger drives push to the stage-2 position target at full stiffness; with the cube
-  squeezed, wrist roll sat a median 0.044 rad from its lift target (settle_tol
+  squeezed, wrist roll sat a median 0.045 rad from its lift target (settle_tol
   0.045). `gripper.hold_squeeze_frac` holds at the measured contact width minus a
-  fraction once the jaws stall (median 0.011 rad). PhysX: 11/12 confirmed picks with
-  it vs 5/12 without; Newton: 1/4 with it vs 12/12 without, so the Isaac profile
+  fraction once the jaws stall (median 0.011 rad). PhysX: 15/16 confirmed picks with
+  it vs 9/16 without; Newton: 1/4 with it vs 14/14 without, so the Isaac profile
   keys it by the engine the bridge reports and opts in for PhysX only.
 * The hold must not blind the post-lift air-grasp check: the jaws were last
   commanded to the hold opening, so that is what "nothing resisted" is judged
@@ -504,7 +504,7 @@ _AB6PF4_WIDTHS = [
 
 def test_recorded_physx_contact_chatter_is_not_a_stall(rt_arm, monkeypatch):
     """Known limitation, pinned as measured: ab6pf4's +-0.003 contact chatter is
-    wider than the 0.002 stall band, so no hold applies (1 of 12 PhysX runs).
+    wider than the 0.002 stall band, so no hold applies (1 of 16 PhysX runs).
     A wider band is an unmeasured change (ROADMAP follow-up), not a tweak."""
     rt, arm = rt_arm
     arm.object_stop_frac = 0.5

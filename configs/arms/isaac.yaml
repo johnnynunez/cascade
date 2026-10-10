@@ -41,11 +41,11 @@ gripper:
   # after contact (B38). The bridge drops `effort`, so without it the stage-2
   # position target squeezes the cube at full drive stiffness and leaves wrist
   # roll a median 0.045 rad off its lift target on PhysX (settle_tol 0.045;
-  # 0.012 with the hold; Newton shows no such deflection). Only the
+  # 0.011 with the hold; Newton shows no such deflection). Only the
   # grasp's close holds; the air-grasp check then judges the hold opening.
   # Keyed by the engine the bridge names in its ping reply: on the bare scene
-  # (fresh stage per run, GraspGen-X grasps) PhysX confirmed 11/12 picks with
-  # it vs 5/12 without; Newton 1/4 with it vs 12/12 without (the cube dropped
+  # (fresh stage per run, GraspGen-X grasps) PhysX confirmed 15/16 picks with
+  # it vs 9/16 without; Newton 1/4 with it vs 14/14 without (the cube dropped
   # in the carry), so Newton keeps the plain two-stage close.
   # docs/evidence/b36-pick-reliability-20261010/README.md
   hold_squeeze_frac:

@@ -1414,7 +1414,7 @@ barriers.
   a value is set.
 - Isaac pick reliability (B36): the grasp hold after contact applies only when
   the jaw stall detector (0.5 s within a 0.002 band) sees the stall; PhysX
-  contact chatter of +-0.003 hid it in 1 of 12 live runs, which then failed
+  contact chatter of +-0.003 hid it in 1 of 16 live runs, which then failed
   "did not settle above the place target" after the held-object recovery. It
   helps only with the learned GraspGen-X grasps: with the analytic OBB fallback
   (GraspGen-X down) neither arm placed the cube (0/3 vs 0/3: main stuck on

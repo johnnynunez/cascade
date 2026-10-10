@@ -361,6 +361,21 @@ chat command ("pick and place the red cube")
   the process-local `monotonic` clock across provider epochs). Measured on CPU
   through MCP against the real loopback mobile bridge
   ([contract and numbers](ROBOT_MODULARITY.md#capture-time-alignment-b50-opt-in)).
+- **Producer-rate sampling** (B72, 2026-10-10, opt-in `alignment.producer_history`).
+  Producers record each completed sample as they publish it, in a bounded
+  ring: the mobile bridge's `state_history=N` (`--state-history N`), served
+  to reader channels as `state_history(after_step)`, and
+  `BufferedSensorProvider(history=N)` in process. The hub admits each fetch
+  through the sensor's own bounded worker, under the read rules (identity, one
+  epoch per sensor, strictly increasing sequence, capture time and receipt;
+  a bad batch is refused whole; stale or oversized samples are never kept),
+  into a per-sensor ring of at most N samples and `max_history_bytes`.
+  `read_aligned` then pairs among the read and the produced captures with the
+  B50 classification unchanged and reports `from_producer`; absent, the output
+  is byte-identical. Measured on CPU through MCP against the real loopback
+  bridge: with IMU/joints at 200 Hz and a 33.3 Hz camera polled 0–25 ms late,
+  16/24 read-time pairings per sensor were stale and all 24 aligned at 0 ms
+  from the ring ([contract and numbers](ROBOT_MODULARITY.md#producer-rate-sampling-b72-opt-in)).
 - **Detector preparation.** The open-world and prompted YOLO models remain
   resident, with up to eight successful text-embedding vocabularies retained
   in LRU order. This adds model residency while avoiding checkpoint and text
@@ -834,7 +849,7 @@ src/cascade/
 │   │                         cursor, pixel→object, annotated agent view, before/after diff
 │   ├── reference.py          goal/reference images      workspace.py  reachable-region filter
 ├── sensing/            passive typed sensors: models (IMU, joints, contact, RGB-D), SensorHub, providers,
-│                       SensorDomain; alignment.py capture-time pairing (B50, shared with link_mask.py)
+│                       SensorDomain; alignment.py capture-time pairing (B50, shared with link_mask.py; producer history B72)
 ├── memory/
 │   ├── beliefs.py      object permanence, colour-aware fusion, save/load (wall clock)
 │   ├── episodic.py     text ring (15 s) + frame ring (task-scale) + memory_frames(k); opt-in visual index (recall_visual), watcher crops (DetectionCropRecorder) and save_visual/load_visual (B43)
@@ -1371,10 +1386,14 @@ barriers.
   and the joint offsets. A stale or unreadable joint state means no mask, i.e.
   the cylinder alone.
 - IMU / proprioception time alignment (B50) is software only and pairs; it
-  does not fuse. `sensing.read_aligned` picks among the captures that reads
-  admitted to the hub (at most 32 captures / 16 MB shared by every sensor; a
-  large RGB-D capture can evict IMU samples), not a producer-rate stream, so
-  its skew depends on how often the caller reads. The rate × skew "motion"
+  does not fuse. Without `producer_history` (B72, opt-in) `sensing.read_aligned`
+  picks among the captures that reads admitted to the hub (at most 32 captures
+  / 16 MB shared by every sensor; a large RGB-D capture can evict IMU samples),
+  so its skew depends on how often the caller reads. With it, each paired
+  sensor also pairs among the samples its producer recorded (mobile bridge
+  `--state-history`, buffered providers), measured only on CPU; the off-GIL
+  `--state-reader process` reader refuses `state_history`, and the samples a
+  producer did not produce stay unpaired (never interpolated). The rate × skew "motion"
   test is a first-order estimate from the sample's own rate, not a bound;
   captures are compared only on one clock instance (same clock domain and
   epoch, or the process-local monotonic clock), with no hardware clock

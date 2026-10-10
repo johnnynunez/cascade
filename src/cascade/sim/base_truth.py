@@ -1,6 +1,7 @@
 """Read-only MicroDuck truth over a separately owned, bounded TCP connection.
 
-This reader can send only hello(role=reader) and state. It never constructs an
+This reader can send only hello(role=reader), state and (opt-in, B72) the
+reader op state_history. It never constructs an
 IsaacBase, requests control ownership, steps physics, or modifies any target.
 State parsing is shared with the transport, not with an actuator's result.
 """
@@ -63,6 +64,7 @@ class BaseTruthReader:
         self._lock = threading.Lock()
         self._closed = threading.Event()
         self._ready = False
+        self._history_size = None  # advertised `state_history` bound (B72), from hello
         self._epoch = identifier(profile["epoch"], "epoch") if "epoch" in profile else None
         from .mobile_bridge import KINDS
         self._kind = profile.get("kind", "microduck")
@@ -92,8 +94,20 @@ class BaseTruthReader:
         if self._epoch is not None and epoch != self._epoch:
             raise ValueError("truth hello epoch changed; construct a new reader after reset")
         self._epoch = epoch
+        # Opt-in producer history (B72): its advertised bound, checked on use.
+        self._history_size = response.get("state_history") if "state_history" in capabilities else None
 
     def __call__(self) -> BaseState | None:
+        return self._exchange(self._state)
+
+    def history(self, after_step=None):
+        """The completed states the bridge recorded as it published them (its
+        opt-in `state_history`, B72) with a step after `after_step`, oldest
+        first. None on any failure (`last_error`), exactly like a state read;
+        a bridge that does not advertise the capability is refused."""
+        return self._exchange(lambda remaining: self._history(after_step, remaining))
+
+    def _exchange(self, request):
         deadline = time.monotonic() + self._timeout_s
         if not self._lock.acquire(timeout=self._timeout_s):
             self.last_error = "truth reader lock timeout"
@@ -113,18 +127,7 @@ class BaseTruthReader:
                 self._client.connect()
                 self._hello(self._client.request({"op": "hello", "role": "reader"}, timeout_s=remaining()))
                 self._ready = True
-            # No import of an actuator, policy, Isaac or Kit. This pure helper
-            # validates BaseState and stamps the receipt clock on THIS client.
-            from ..control.isaac_base import state_from_wire
-            started = time.monotonic()
-            payload = self._client.request({"op": "state"}, timeout_s=remaining())
-            received = time.monotonic()
-            value = state_from_wire(payload, received_monotonic_s=received,
-                                    round_trip_s=received - started)
-            if (value.robot_id != self._profile["robot_id"] or value.source != self._profile["source"]
-                    or value.epoch != self._epoch or value.measurement_kind != "physics"
-                    or value.model_identity_sha256 != self._profile["model_identity_sha256"]):
-                raise ValueError("truth state identity/source/epoch/measurement_kind mismatch")
+            value = request(remaining)
             if self._closed.is_set():
                 raise ValueError("truth reader closed during read")
             remaining()
@@ -137,6 +140,50 @@ class BaseTruthReader:
             return None
         finally:
             self._lock.release()
+
+    def _checked(self, value):
+        if (value.robot_id != self._profile["robot_id"] or value.source != self._profile["source"]
+                or value.epoch != self._epoch or value.measurement_kind != "physics"
+                or value.model_identity_sha256 != self._profile["model_identity_sha256"]):
+            raise ValueError("truth state identity/source/epoch/measurement_kind mismatch")
+        return value
+
+    def _state(self, remaining):
+        # No import of an actuator, policy, Isaac or Kit. This pure helper
+        # validates BaseState and stamps the receipt clock on THIS client.
+        from ..control.isaac_base import state_from_wire
+        started = time.monotonic()
+        payload = self._client.request({"op": "state"}, timeout_s=remaining())
+        received = time.monotonic()
+        return self._checked(state_from_wire(payload, received_monotonic_s=received,
+                                             round_trip_s=received - started))
+
+    def _history(self, after_step, remaining):
+        from ..control.isaac_base import state_from_wire
+        from .mobile_bridge import MAX_STATE_HISTORY
+        size = self._history_size
+        if type(size) is not int or not 1 <= size <= MAX_STATE_HISTORY:
+            raise ValueError("truth endpoint does not serve a bounded state_history")
+        if after_step is not None and (type(after_step) is not int or after_step < 0):
+            raise ValueError("after_step must be a nonnegative integer or None")
+        started = time.monotonic()
+        payload = self._client.request({"op": "state_history", "after_step": after_step}, timeout_s=remaining())
+        received = time.monotonic()
+        if payload.get("epoch") != self._epoch:
+            raise ValueError("truth state history epoch mismatch")
+        states = payload.get("states")
+        if not isinstance(states, list) or len(states) > size:
+            raise ValueError("truth state history must be a bounded list")
+        values, last = [], None
+        for item in states:
+            # One receipt for the whole reply; every age includes its round trip.
+            value = self._checked(state_from_wire(item, received_monotonic_s=received,
+                                                  round_trip_s=received - started))
+            if ((after_step is not None and value.step <= after_step)
+                    or (last is not None and (value.step <= last.step or value.sim_time_s <= last.sim_time_s))):
+                raise ValueError("truth state history must advance")
+            values.append(last := value)
+        return tuple(values)
 
     def close(self):
         self._closed.set()

@@ -95,7 +95,11 @@ add `mobile_state` providers (`modality: imu` / `proprioception`, same
 `profile`) and an opt-in `alignment:` block; `sensing.read_aligned` then reports
 each pairing as aligned / stale / missing / uncertain with the measured skew,
 never interpolated ([capture-time alignment](ROBOT_MODULARITY.md#capture-time-alignment-b50-opt-in);
-CPU evidence only, no native skew measurement yet).
+CPU evidence only, no native skew measurement yet). Starting the producer with
+`--state-history N` and adding `producer_history: N` to that block lets the
+pairing choose among every state the bridge produced, not only the ones a read
+happened to return ([producer-rate sampling](ROBOT_MODULARITY.md#producer-rate-sampling-b72-opt-in),
+B72; also CPU evidence only).
 
 An explicit `wait_next: true` on a `mobile_rgbd` provider opts into the producer's
 `rgbd_wait_next` capability. The first read returns the latest completed capture;

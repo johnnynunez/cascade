@@ -21,6 +21,9 @@ domains:
     #   max_skew_s: 0.02          # required, (0, 1]; inclusive bound on |skew|
     #   max_rotation_rad: 0.02    # optional: |gyro| or joint rate x |skew| above = uncertain
     #   max_translation_m: 0.005  # optional: linear joint rate x |skew| above = uncertain
+    #   producer_history: 64      # optional (B72), 1..256: also pair among the samples each
+    #                             # producer recorded as it published them (mobile bridge
+    #                             # --state-history, buffered providers); absent = read-time only
     providers:
       - id: imu
         kind: synthetic

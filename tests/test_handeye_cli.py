@@ -23,6 +23,14 @@ from cascade.calibration import cli
 from cascade.calibration.dataset import load_hand_eye, read_hand_eye
 
 
+def _pinned(camera: str) -> str:
+    """The serial the shipped profile pins (read, not hard-coded: units get
+    re-bound on site with --bind, and a test must not pin the rig's cabling)."""
+    from cascade.config import load_demo_config
+
+    return str(load_demo_config(camera=camera, arm="rebot_rs", llm="mock").camera.serial)
+
+
 # ── device enumeration / binding ─────────────────────────────────────────
 
 
@@ -284,7 +292,7 @@ def test_real_run_saves_an_acceptable_record_then_parks(tmp_path, monkeypatch, f
     assert rc == 0
     rec = read_hand_eye(out)
     assert rec.acceptable and rec.arm == "rebot_rs" and rec.camera == "d455f_scene"
-    assert rec.camera_serial == "261422303968"          # the profile's pinned unit
+    assert rec.camera_serial == _pinned("d455f_scene")  # the profile's pinned unit
     rig = fake_rig["rig"]
     # Shutdown = the runtime's: park to the profile's park_q through SafeArm
     # (joint margin relaxed for that one move), THEN torque off.
@@ -445,7 +453,7 @@ def test_verify_against_known_points(tmp_path, monkeypatch, capsys, offset, rc_e
         G[:3, 3] = rng.uniform([0.25, -0.1, 0.2], [0.35, 0.05, 0.35])
         samples.append(HandEyeSample(G, se3_inv(rig.T_hand_eye) @ G @ rig.T_marker))
     rec = cli.solve_and_record(samples, mode="eye_to_hand", marker=MarkerSpec(),
-                               camera="d455f_scene", camera_serial="261422303968")
+                               camera="d455f_scene", camera_serial=_pinned("d455f_scene"))
     path = save_hand_eye(tmp_path / "rec.json", rec)
 
     known = [(0.30, 0.00, 0.0), (0.25, -0.05, 0.0), (0.35, 0.05, 0.0)]

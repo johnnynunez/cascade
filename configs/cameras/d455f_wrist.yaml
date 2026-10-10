@@ -8,7 +8,7 @@
 # Firmware 5.17.0.10 (updated 2026-08-15). Min depth ~0.52 m at 1280x720 --
 # mount so the target sits beyond that; below it depth returns 0 (invalid).
 type: realsense
-serial: "261522301814"
+serial: "261422303968"
 width: 1280
 height: 720
 fps: 30

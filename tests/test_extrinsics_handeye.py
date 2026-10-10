@@ -131,7 +131,7 @@ def test_malformed_record_leaves_the_camera_uncalibrated(tmp_path):
 def test_serial_mismatch_is_refused(tmp_path):
     p = _record_file(tmp_path, serial="261422303968")
     cfg = Cfg({"mode": "eye_to_hand", "hand_eye_json": str(p)})
-    e = Extrinsics.from_config(cfg, camera_serial="261522301814")   # the wrist unit
+    e = Extrinsics.from_config(cfg, camera_serial="261522301814")   # the other unit
     assert not e.calibrated and "261522301814" in e.calibration_error
     assert Extrinsics.from_config(cfg, camera_serial="261422303968").calibrated
     # No serial pinned on either side: nothing to compare, nothing refused.

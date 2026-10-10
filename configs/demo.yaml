@@ -571,6 +571,13 @@ eval:
     temperature: 0.1                   # upstream sampling for GRM
     top_p: 0.9
     max_tokens: 64
+    # B66 (opt-in): an answer that ends without a parseable <score> (a local VLM
+    # reasoning past max_tokens -- Qwen3.8-27B did on 12 of 72 recorded live
+    # picks at 1536) gets ONE follow-up call asking for the score line alone,
+    # within this many tokens (1..512; 0 = off: one call per step, as before).
+    # judge.json names score_via first|follow-up|none per step and the follow-up's
+    # tokens; a follow-up without a score leaves the step unscored, never 0.
+    score_followup_tokens: 0
 
 # Conversation service (cascade-conversation) is configured by its own versioned
 # JSON, not by this file (docs/CONVERSATION.md). Its `robot_endpoint` +

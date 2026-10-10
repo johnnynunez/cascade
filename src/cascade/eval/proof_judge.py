@@ -190,6 +190,8 @@ def run_judge_pass(proof_path, backend: str, *, repo, timeout_s: float = DEFAULT
                  final_progress=verdict.get("final_progress"), summary_line=verdict.get("summary_line"),
                  unscored_physics=sum(1 for s in steps if s.get("hop") is None
                                       and s.get("physics") in ("confirmed", "refuted")))
+    if verdict.get("score_via"):   # B66 follow-up on: how each score was obtained
+        block["score_via"] = verdict["score_via"]
     if not confusion.get("n_scored"):
         first = next((s.get("error") for s in steps if s.get("error")), None)
         return done("unavailable", f"no proof-turn step was scored ({first or 'no pick_and_place row'})")

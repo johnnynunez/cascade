@@ -39,7 +39,9 @@ uv sync --extra vla      # websockets + msgpack; nothing else, no torch
 
 Set in the launching shell, both variables reach the MCP server: `./run.sh` /
 `scripts/launch.sh` copy them into the server entry they register, and so does
-every entry `scripts/setup_agents.py` writes (B63, `cascade.apps.mcp_env`). An
+every entry `scripts/setup_agents.py` writes (B63, `cascade.apps.mcp_env`) and,
+since B68, the entries `scripts/hermes_demo.sh` / `scripts/openclaw_demo.sh`
+register. An
 MCP host starts the server with that entry's environment only; before B63 the
 launcher registered neither variable, so `CASCADE_GRASP_EXECUTOR=vla ./run.sh`
 ran the analytic executor. Checked live once (10 Oct 2026,

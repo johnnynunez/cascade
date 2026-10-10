@@ -744,6 +744,16 @@ the receipt's verdict and sha256, plus ONE `judge:` banner line (`fn>0` =
 the pictures missed physics-confirmed progress). Advisory: READY, the exit
 status and `proof.json` never depend on it, and every failure (bad config,
 refused or hung endpoint, nothing scored, crash) reads `unavailable`.
+A local VLM can run out of `max_tokens` before it writes its score (B44-live:
+12 of 72 steps at the 1536 tokens Spark ships, 11 of them physics failures,
+so the abstentions dropped `tn` cases). Opt-in
+`eval.judge.score_followup_tokens: N` (B66; default 0 = one call per step,
+unchanged) then makes ONE more call -- the same turn, the first answer as the
+assistant turn, and the GRM prompt's own output line, within N tokens -- and
+the step's `response_metadata` records `score_via` (first / follow-up /
+none), the follow-up's answer and tokens, and the `abstention` reason when it
+also has no score (the step stays unscored). It runs inside judge_run.py, so
+the launcher bound above covers it.
 The first honest number on this rig: +0.45 on a physics-confirmed pick
 after the AFTER-keyframe fix; 0.00 before it. The prompt's two WRIST slots
 are filled from the rig's wrist keyframes when the trace has them
@@ -1135,7 +1145,18 @@ list, or on a list entry nothing reads. Before B63 `launch.sh` copied a fixed
 18-name list without the B49 executor switches, so
 `CASCADE_GRASP_EXECUTOR=vla ./run.sh` registered a server on the analytic
 executor while the launcher's own runtime check, which inherits the whole
-shell, saw `vla`.
+shell, saw `vla`. The two shell registrars README still points users at,
+`scripts/hermes_demo.sh` (Hermes: register + test + chat) and
+`scripts/openclaw_demo.sh` (OpenClaw, local-brain variant), take the same rule
+since B68: they run `python -m cascade.apps.mcp_env KEY=VALUE ...` with
+`PYTHONPATH=<checkout>/src` (this checkout's list, whatever cascade the venv
+has installed), which prints `registration_env` -- the script's own values
+first, then every forwarded switch set in its shell, verbatim -- as
+shell-quoted words the script `eval`s into the host's `--env` arguments, and
+names the copied switches on stderr. It runs before any host call, so if it
+fails nothing is registered (`hermes_demo.sh` removes the old entry only
+after it). With nothing extra set, every host call is byte-identical to before
+(`tests/test_legacy_mcp_registrars.py`).
 
 Sandboxed host (opt-in, B35): an agent inside an NVIDIA OpenShell sandbox
 managed by NemoClaw reaches the robot through `mcp_server --http`
@@ -1468,7 +1489,11 @@ barriers.
   tokens `tp=40 tn=7 fp=19 fn=0`. So on this rig `fn` is trustworthy and the
   `hop > 0` rule is not a failure detector: the GRM prompt rates a refuted
   pick's partial progress as a positive hop, and Qwen can run past the budget
-  without a score (an abstention, recorded as unscored, never as 0). Two
+  without a score (an abstention, recorded as unscored, never as 0). The B66
+  follow-up (`eval.judge.score_followup_tokens`, opt-in, off everywhere by
+  default including `deploy/runtime`'s Spark judge) is CPU-tested only, with a
+  stub replaying those 12 answers: whether Qwen answers the follow-up with a
+  tagged score is the live re-judge still owed. Two
   scenes, one view, in-sample. It judges only the proof turn's
   `pick_and_place` rows, and the shipped `eval.judge` targets a frontier
   model through the OpenClaw gateway -- a local judge needs
@@ -1483,11 +1508,14 @@ barriers.
   B63 entry yet. The guard
   sees `CASCADE_*` names written as whole string constants in `src/cascade`
   (plus the composed `CASCADE_MICRODUCK_*` family); a name built some other
-  way is not seen. Three registrations stay outside the list: the legacy
-  `scripts/hermes_demo.sh` and `scripts/openclaw_demo.sh` still register a
-  fixed env, and the Brev container (`deploy/runtime/runtime.py`) builds its
-  MCP env from its own pinned, non-secret environment on purpose (no caller
-  switch passes through except `CASCADE_ISAAC_{WIDTH,HEIGHT,CAM_EVERY,DT}`).
+  way is not seen. One registration stays outside the list on purpose: the
+  Brev container (`deploy/runtime/runtime.py`) builds its MCP env from its
+  own pinned, non-secret environment (no caller switch passes through except
+  `CASCADE_ISAAC_{WIDTH,HEIGHT,CAM_EVERY,DT}`). The shell registrars
+  `scripts/hermes_demo.sh` and `scripts/openclaw_demo.sh` read the list since
+  B68, tested the same way (real scripts, host CLIs doubled, also under bash
+  3.2.57); no live Hermes or OpenClaw host has started a server from such an
+  entry yet.
   The launcher's runtime check still inherits the whole shell, so a
   not-forwarded selector exported there (`CASCADE_ROBOT`, `CASCADE_BASE`)
   changes what the check builds, not what the registered server builds.

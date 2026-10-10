@@ -69,16 +69,26 @@ fi
 # 1. Register the MCP server (probes the connection before saving).
 # cwd is models/ because YOLOE's text encoder resolves relative to it (see the
 # header note); DETECTOR is passed absolute so it works from anywhere.
+# OpenClaw starts the server with the env registered here, not with this
+# shell, so every runtime switch set in this shell (CASCADE_GRASP_EXECUTOR=vla,
+# CASCADE_VLA_PORT, CASCADE_MCP_READONLY_LANE, memory paths, sidecar ports,
+# devices, ...) is copied verbatim from the ONE list launch.sh and
+# setup_agents.py use (cascade.apps.mcp_env, B63/B68), read from this checkout.
+# The values below win; rig selectors and secrets are never copied.
 echo "[+] registering MCP server (cameras=$CAMERAS arm=$ARM)"
+MCP_ENV_WORDS="$(PYTHONPATH="$REPO/src" "$PY" -m cascade.apps.mcp_env \
+    "CASCADE_CAMERAS=$CAMERAS" "CASCADE_ARM=$ARM" \
+    "CASCADE_DETECTOR_MODEL=$DETECTOR" "CASCADE_DETECT_CLASSES=$CLASSES" \
+    "YOLO_OFFLINE=True" "ULTRALYTICS_OFFLINE=True" "DISPLAY=${DISPLAY:-:1}")"
+eval "MCP_ENV=($MCP_ENV_WORDS)"   # shell-quoted KEY=VALUE words (shlex.quote)
+OC_ENV=()
+for kv in "${MCP_ENV[@]}"; do OC_ENV+=(--env "$kv"); done
 openclaw mcp add cascade \
     --command "$PY" \
     --arg -m --arg cascade.apps.mcp_server \
     --cwd "$REPO/models" \
     --connect-timeout 120 \
-    --env "CASCADE_CAMERAS=$CAMERAS" --env "CASCADE_ARM=$ARM" \
-    --env "CASCADE_DETECTOR_MODEL=$DETECTOR" --env "CASCADE_DETECT_CLASSES=$CLASSES" \
-    --env "YOLO_OFFLINE=True" --env "ULTRALYTICS_OFFLINE=True" \
-    --env "DISPLAY=${DISPLAY:-:1}"
+    "${OC_ENV[@]}"
 
 # 2. Gateway FIRST: `openclaw onboard --non-interactive` health-checks it and
 #    aborts if nothing is listening, and a gateway started before `mcp add`

@@ -235,8 +235,22 @@ Open, in priority order (details in the sections below):
    physics-confirmed pick): `tp=1 tn=0 fp=0 fn=0`, hop +1.0, 7.7 s, `proof.json`
    sha256 unchanged ([evidence](evidence/w6-live-20261010/README.md)).
    STILL OPEN: the same pass inside a full `./run.sh` launch with the OpenClaw
-   brain; a success threshold validated out of sample (B65) and a score that
-   fits the budget (B66); GRM (#14).
+   brain; a success threshold validated out of sample (B65); GRM (#14). ~~A
+   score that fits the budget (B66).~~ **landed 2026-10-10 (opt-in, CPU-measured only; B66).**
+   `eval.judge.score_followup_tokens: N` (default 0 = one call per step,
+   byte-identical requests and records): a first answer without a parseable
+   `<score>` gets ONE follow-up call -- the same turn, that answer, and the GRM
+   prompt's own output line, `max_tokens` N (1..512), plain chat-completions
+   (no `grammar`, which OpenAI-style endpoints reject; a constrained final line
+   cannot help when 11 of the 12 abstentions were cut at the budget before
+   reaching it). The record names `score_via` first / follow-up / none, the
+   follow-up's answer and tokens, and why a step stayed unscored -- never a
+   made-up score; it runs inside the B44 bound. Measured on CPU only:
+   `tests/test_judge_score_budget.py` (a stub endpoint replaying the 12
+   recorded B44-live abstentions; 17 failed / 5 premise+golden passed on
+   86373d7 → 22 passed), all 35 mutants killed. STILL OPEN: the live
+   re-judge of those 12 with Qwen (does it answer the follow-up with a tagged
+   score?) and whether to turn it on in `deploy/runtime`'s Spark judge config.
 7. ~~**Visual embedder** for episodic recall (`embed_dim`), and action↔object
    consolidation on top of ExperienceMemory (keys on text today).~~
    **landed 2026-10-07 (opt-in, CPU-measured only).** `memory/embedder.py`:
@@ -936,8 +950,23 @@ aggregator, not nvblox. Fixes, all measured on this CUDA-less Mac (suite
   scripted stub policy: 17 policy requests over 8 grasp episodes, every empty
   close refused by the jaw check), and the same registration without the pair
   ran the analytic one ([evidence](evidence/w6-live-20261010/README.md)). Still
-  open: the same through a real MCP host (OpenClaw starting the entry), and
-  the legacy `hermes_demo.sh` / `openclaw_demo.sh` registrars (fixed env).
+  open: the same through a real MCP host (OpenClaw starting the entry). ~~The legacy
+  `hermes_demo.sh` / `openclaw_demo.sh` registrars (fixed env).~~ **landed
+  2026-10-10 (B68)** — both are still documented entry points (README quick
+  start and platform table, `install_hermes.sh`, `setup_agents.py --host
+  hermes`; launch.sh has no Hermes path), so they were routed, not retired:
+  each runs `python -m cascade.apps.mcp_env` (its own values first, every
+  forwarded switch set in its shell after them, verbatim) before any host
+  call. Measured on CPU through the real scripts with the host CLIs doubled
+  (`tests/test_legacy_mcp_registrars.py`, bash 5 and bash 3.2.57): all 46
+  forwarded variables reach both entries verbatim, a child started with only
+  the registered env selects `vla` on the policy port with the read-only lane
+  on, selectors and secrets are never written, a registry failure registers
+  nothing, and with nothing extra set every host call is byte-identical to
+  86373d7. Also fixed: under macOS `/bin/bash` 3.2 `hermes_demo.sh` died at
+  `exec hermes chat` without `--model` / `--provider` (empty array under
+  `set -u`). Still open: a live Hermes / OpenClaw host started from these
+  entries.
 - **Robo-Dopamine as the outcome judge** (`eval/progress_judge.py`,
   `scripts/judge_run.py`; https://robo-dopamine.github.io/). The GRM is a
   VLM prompted with the task, optional START/END references and BEFORE/AFTER

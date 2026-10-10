@@ -447,6 +447,10 @@ manipulated prop. `--no-robot-turn` is **STARTED / UNVERIFIED**, never READY.
 time-bounded outcome-judge pass over the proof pick: the judge-vs-physics
 confusion matrix goes into `<proof evidence>/run-summary.json` and one
 `judge:` banner line, and nothing it does changes READY or the exit status.
+A local judge that reasons past its `max_tokens` without writing `<score>`
+can get one bounded follow-up call for the score line alone (opt-in
+`eval.judge.score_followup_tokens`, B66); the record says whether each score
+came from the first answer, the follow-up, or neither.
 The banner names the components actually selected (sim bridge, occupancy
 backend, grasp planner, tool count, chat URL, run log), so a shared machine
 never runs a demo that is silently missing a piece. Every tool call the

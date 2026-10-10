@@ -23,6 +23,14 @@ from cascade.calibration.frames import pose_error, se3_inv, so3_exp
 pytestmark = needs_pin
 
 
+def _pinned(camera: str) -> str:
+    """The serial the shipped profile pins (read, not hard-coded: units are
+    re-bound on site)."""
+    from cascade.config import load_demo_config
+
+    return str(load_demo_config(camera=camera, arm="rebot_rs", llm="mock").camera.serial)
+
+
 def _err(T_est, T_ref):
     e = pose_error(se3_inv(T_ref) @ T_est)
     return 1000 * float(np.linalg.norm(e[:3])), float(np.degrees(np.linalg.norm(e[3:])))
@@ -214,7 +222,7 @@ def test_real_run_markerless_saves_an_acceptable_record_then_parks(tmp_path, dep
         cli.build_rig = real_build
     assert rc == 0
     rec = read_hand_eye(out)
-    assert rec.acceptable and rec.markerless and rec.camera_serial == "261422303968"
+    assert rec.acceptable and rec.markerless and rec.camera_serial == _pinned("d455f_scene")
     mm, deg = _err(rec.T_cam2base, depth_rig["truth"])
     assert mm < 5.0 and deg < 0.5, (mm, deg)
     park = [i for i, c in enumerate(calls) if c == ("move_joints", 0.0)]
@@ -262,7 +270,7 @@ def test_verify_works_for_a_markerless_record(tmp_path, monkeypatch, capsys):
 
     truth = cli._dry_run_truth()["eye_to_hand"][0]
     rec = record_from_markerless(MarkerlessFit(T_cam2base=truth, metrics=dict(GOOD)), [],
-                                 camera="d455f_scene", camera_serial="261422303968")
+                                 camera="d455f_scene", camera_serial=_pinned("d455f_scene"))
     path = save_hand_eye(tmp_path / "rec.json", rec)
     known = [(0.30, 0.00, 0.0), (0.25, -0.05, 0.0), (0.35, 0.05, 0.0)]
     cam = PlacedMarkerCamera(truth, known)

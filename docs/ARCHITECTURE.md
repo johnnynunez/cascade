@@ -1377,7 +1377,10 @@ token and registration. Stdio through `launch.sh` remains the default; see
   `tests/test_openclaw_gateway.py`): a small race, not a collision between
   suites. OS-assigned ports come from the ephemeral range (Linux
   32768–60999), so a test can briefly hold a port inside a block another
-  local process meant to bind.
+  local process meant to bind. A held "dead" port is refused at once on
+  Linux but never answered on the macOS CI runner (measured: a connect timed
+  out after 30 s), so dead-server tests fail there by their client's own
+  short timeout, not by a refusal.
 - Tier-2 clauses are cut only at sequence connectives (`split_subgoals`,
   B37). A bare "and" is no clause boundary anywhere in the fast tier, so
   "move the red cube to the front-left of the table and move the blue cube to

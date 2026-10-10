@@ -972,7 +972,10 @@ the `health` / `probe` reply). The test fixtures start them that way through
 one protocol round trip name the started process and a fresh random token,
 and "dead server" tests hold their port bound with nothing listening, so two
 test suites on one host never answer each other (B64). Without the two flags
-the replies and the banner are unchanged.
+the replies and the banner are unchanged. A fake server that must be told its
+port up front (the OpenClaw gateway double) is handed the socket the fixture
+bound (`handed_over_port`, SCM_RIGHTS over a private Unix socket), so no test
+port is released between choosing and using it (B70).
 
 ## ROS2, humanoids, and what is NOT here yet
 
@@ -1034,6 +1037,19 @@ controller, kinds `microduck` and `h2`). A base runs alone with
 domain of a `--robot` profile; profiles live in `configs/bases/`. Evidence:
 CPU tests (`tests/test_mobile_*.py`) plus the simulation episodes below;
 there is no hardware backend, so no base has moved a robot.
+
+**Distance baselines (B67, B74).** `walk_distance` credits travel and
+integrates lateral/heading drift only from a baseline: SafeBase's first
+completed post-ACK sample and the checker's first admitted independent sample
+(at most `max_sample_gap_s` after the ACK's admission clock). Delivery motion
+before it is never progress. The opt-in pair `max_admission_lateral_m` /
+`max_admission_heading_rad`, set together in a base profile's
+`distance_control` and `verifier` (one-sided = no independent verifier),
+also bounds the lateral/heading change that baseline would absorb: SafeBase
+vetoes and latches on it from the last pre-ACK sample through every delivery
+sample, and the checker refutes a confirmation on it from its last sample at
+or before the admission clock ([contract](MICRODUCK_DISTANCE_CANDIDATE.md#implemented-contract)).
+CPU tests only; no shipped profile sets the pair.
 
 **Legged robots on that layer: MicroDuck and the Unitree H2 (simulation
 only).** MicroDuck ([MICRODUCK.md](MICRODUCK.md)) runs its official ONNX
@@ -1182,6 +1198,12 @@ application: a GraspGen-X / HUG planner dials what its resolved section says
 section lacks, i.e. when it is built from a hand-made config, so an override
 written into `cfg._data` after loading stands. The bridge and the occupancy
 sidecar have no host variable: the launcher starts both on this machine.
+`launch.sh --graspgenx local|external` checks the GraspGen-X endpoint the
+runtime will dial (B70): with `CASCADE_GRASPGENX_HOST` set it parses it by the
+same rule (a malformed value stops the launch, naming it, before anything is
+dialled or started), prints `GraspGen-X endpoint: HOST:PORT`, probes that host
+(`external`) and passes `--host` to `check_graspgenx.py` (both); unset or
+empty, and in the `stub` / `none` modes, its commands and output are unchanged.
 `launch.sh` and `setup_agents.py` register these six with the MCP server,
 checked (`setup_agents.py`) by the same rules before anything is written.
 
@@ -1512,17 +1534,27 @@ barriers.
   detector label flicker (bottle/toy) stays two objects, by design.
 - Endpoint overrides are CPU-tested only (spies on the bridge
   `create_connection` and the ZMQ `connect`): no live Isaac run on private
-  ports yet. `launch.sh --graspgenx external` checks the server at
-  `127.0.0.1:$CASCADE_GRASPGENX_PORT` even when `CASCADE_GRASPGENX_HOST`
-  points the runtime elsewhere, and `scripts/demo_proof.py` still reads
-  `CASCADE_BRIDGE_PORT` with its own `int()`.
+  ports yet. `launch.sh --graspgenx local|external` checks the host the
+  runtime dials since B70, measured only against listeners on a second
+  loopback address (127.0.0.2; those tests skip on macOS, which configures
+  none), never against a server on another machine. `local` still starts its
+  server on this machine and `stub` its stub, whatever
+  `CASCADE_GRASPGENX_HOST` says: with the variable pointing elsewhere, `local`
+  checks the other host (what the runtime uses) and `stub` checks nothing.
+  `scripts/demo_proof.py` still reads `CASCADE_BRIDGE_PORT` with its own
+  `int()` (unchanged on purpose: its semantics are not touched).
 - Test-server ownership (B64) covers the GraspGen-X stub and occupancy bridge
   fixtures only. The other server-starting tests already bind port 0 /
-  `bind_to_random_port` (nothing fixed) but do not check who answers, and a
-  few take a "free" port by binding 0 and releasing it before their server or
-  "dead endpoint" uses it (`tests/test_hug_backend.py` `_free_port`,
-  `tests/test_openclaw_gateway.py`): a small race, not a collision between
-  suites. OS-assigned ports come from the ephemeral range (Linux
+  `bind_to_random_port` (nothing fixed) but do not check who answers. Since
+  B70 no HUG or OpenClaw-gateway test releases a port before using it (the
+  dead HUG server is `held_dead_port()`; the fake gateway is handed the bound
+  socket by `handed_over_port()`), and `tests/test_endpoint_port_followups.py`
+  fails on any new bind-0 / read / release / use site in `tests/`. It still
+  lists four older ones with their reasons: three conversation-provider
+  tests whose code under test bind-checks the port itself (a held port is
+  refused there by design), and `tests/test_spark_install.py::launch_fixture`,
+  a dead Qwen endpoint that could be held but is not yet (open). OS-assigned
+  ports come from the ephemeral range (Linux
   32768–60999), so a test can briefly hold a port inside a block another
   local process meant to bind. A held "dead" port is refused at once on
   Linux but never answered on the macOS CI runner (measured: a connect timed
@@ -1615,6 +1647,13 @@ barriers.
   boundaries only (a hold released and re-taken under the same label outside
   any motion skill would keep the old verdict; no current code path does
   that); only the first wrist stream of a rig is captioned.
+- The `walk_distance` admission-drift pair (B74) is CPU-tested only and unset
+  in every shipped base profile: no retained native episode records the
+  segment from the last pre-ACK sample to the distance baseline, so no value
+  is proposed yet (a live Isaac A/B is owed). Without it both SafeBase and the
+  checker still absorb a lateral/heading change first seen on their baseline,
+  as before. Forward delivery motion is only excluded from progress, never
+  bounded, on either layer.
 
 ## Counts
 

@@ -61,7 +61,14 @@ def build_mobile_runtime(cfg, run_dir, *, checkers=None, navigation_source=None,
         try:
             if not isinstance(profile.get("verifier"), dict):
                 raise ValueError("independent verifier limits not configured; physical admission pending")
-            from ..agent.base_effects import BasePostconditionChecker
+            from ..agent.base_effects import ADMISSION_LIMIT_KEYS, BasePostconditionChecker
+
+            # One opt-in for both layers (B74): a controller veto without its
+            # independent counterpart (or the reverse) leaves the verifier off.
+            control = profile.get("distance_control") or {}
+            if any((control.get(key) is None) != (profile["verifier"].get(key) is None)
+                   for key in ADMISSION_LIMIT_KEYS):
+                raise ValueError("admission drift bound must be set in both distance_control and verifier")
 
             if profile["type"] == "isaac":
                 from ..sim.base_truth import BaseTruthReader

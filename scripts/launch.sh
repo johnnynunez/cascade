@@ -747,6 +747,24 @@ fi
 case "$GRASPGENX" in
     auto) [[ "$SIM" == "none" ]] && GRASPGENX="external" || GRASPGENX="stub" ;;
 esac
+# The runtime dials the GraspGen-X host load_demo_config resolves:
+# CASCADE_GRASPGENX_HOST, applied last over grasp.graspgenx.host (127.0.0.1 in
+# configs/demo.yaml). The local/external checks below dial that same endpoint,
+# parsed by the runtime rule (B70). Unset or empty, they keep dialling loopback
+# with unchanged output; stub and none never read the variable.
+GGX_HOST=""
+if [[ -n "${CASCADE_GRASPGENX_HOST:-}" && ( "$GRASPGENX" == local || "$GRASPGENX" == external ) ]]; then
+    GGX_HOST="$("$PY" - <<'PYEOF'
+import sys
+from cascade.config import env_host
+try:
+    print(env_host("CASCADE_GRASPGENX_HOST"))
+except ValueError as exc:
+    sys.exit(f"[launch] ERROR: {exc}")
+PYEOF
+)" || exit 1
+    log "GraspGen-X endpoint: $GGX_HOST:$GGX_PORT (CASCADE_GRASPGENX_HOST); the checks below dial it"
+fi
 case "$GRASPGENX" in
     local)
         start_sidecar graspgenx "$GGX_PORT" 180 \
@@ -756,13 +774,13 @@ case "$GRASPGENX" in
             "$PY" "$REPO/scripts/serve_graspgenx_stub.py" --port "$GGX_PORT" --quiet
         log "grasp planner: GraspGen-X PROTOCOL STUB (analytic protocol double)" ;;
     external)
-        [[ $DRY == 1 ]] || port_open "$GGX_PORT" || die "no GraspGen-X server on :$GGX_PORT" ;;
+        [[ $DRY == 1 ]] || port_open "$GGX_PORT" "${GGX_HOST:-127.0.0.1}" || die "no GraspGen-X server on $GGX_HOST:$GGX_PORT" ;;
     none) log "GraspGen-X explicitly disabled (--graspgenx none): analytic OBB planner" ;;
     *) die "--graspgenx must be auto|local|stub|external|none" ;;
 esac
 if [[ "$GRASPGENX" == local || "$GRASPGENX" == external ]]; then
     if [[ $DRY == 0 ]]; then
-        "$PY" "$REPO/scripts/check_graspgenx.py" --port "$GGX_PORT" \
+        "$PY" "$REPO/scripts/check_graspgenx.py" ${GGX_HOST:+--host "$GGX_HOST"} --port "$GGX_PORT" \
             --output "$STATE_DIR/graspgenx-readiness.json" \
             || die "GraspGen-X learned inference failed; see $STATE_DIR/graspgenx.log"
     fi
@@ -1181,7 +1199,7 @@ $( [[ "$SIM" == "mujoco" ]] && echo "         viewer:    $VIEWER_NOTE" )
 $( [[ -n "${JUDGE_NOTE:-}" ]] && echo "         judge:     $JUDGE_NOTE" )
 $( [[ "$SIM" == "isaac"  ]] && echo "         isaac:     bridge :$BRIDGE_PORT, log $STATE_DIR/isaac_bridge.log" )
 $( [[ "$OCCUPANCY" != "none" ]] && echo "         occupancy: :$OCC_PORT ${OCC_DESC:-(dry run)}" )
-$( [[ "$GRASPGENX" != "none" ]] && echo "         graspgenx: :$GGX_PORT ($GRASPGENX)" )
+$( [[ "$GRASPGENX" != "none" ]] && echo "         graspgenx: $GGX_HOST:$GGX_PORT ($GRASPGENX)" )
          stop:      ./scripts/launch.sh --down
 EOF
 if [[ $OPEN_CHAT == 1 && $DRY == 0 ]]; then

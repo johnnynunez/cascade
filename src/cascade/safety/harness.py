@@ -563,6 +563,13 @@ class SafetyHarness:
 
         q_prev = np.asarray(q_prev, dtype=float)
         q_next = np.asarray(q_next, dtype=float)
+        # NaN compares False against every bound below, so a non-finite pose
+        # would pass the limit, velocity and workspace gates alike. A joint
+        # vector that is not finite is a bad reading or a bad plan, never a
+        # pose (rig 2026-10-10: a mechPos read of +2.3e18 was commanded).
+        if not (np.all(np.isfinite(q_prev)) and np.all(np.isfinite(q_next))):
+            reject(f"non-finite joint vector (from {q_prev.tolist()} to {q_next.tolist()}): "
+                   "not a pose -- a bad reading or a bad plan")
 
         if self.kin is not None:
             lo, hi = self.kin.joint_limits
@@ -694,9 +701,11 @@ class SafetyHarness:
         Escape rules do not apply here: this vets a chosen target, not a
         recovery move.
         """
+        q = np.asarray(q, dtype=float)
+        if not np.all(np.isfinite(q)):
+            return f"non-finite joint vector {q.tolist()}: not a pose"
         if self.kin is None:
             return None
-        q = np.asarray(q, dtype=float)
         exempt = None
         if exempt_xy is not None:
             z_min = self.limits.table_z if exempt_z_min is None else float(exempt_z_min)

@@ -103,6 +103,19 @@ Support the arm before anything enables it: after a clean shutdown it is limp.
    Studio (they use the same host id, 0xFD). Run `python scripts/diag_rebot_mb.py`
    then `--snapshot rest`. Record joints 2 and 3 at rest (WRC saw +0.004;
    cascade's rig saw −0.0009) and confirm every joint is inside the URDF limits.
+   **Incident 2026-10-10.** `sign_check_rebot_mb.py --joints 2,3` drove the
+   shoulder into its end at full stiffness, and the operator cut power. The
+   cause was a mechPos read of +2.3e18 on joint 2's way back: the stall guard
+   commanded the motor to that value. In addition, every motor had been
+   registered as `rs-00` although joints 1-3 are `rs-06`, which put the MIT
+   gains on the wrong scale. Both bring-up scripts now:
+   - vet every reading (`robstride.plausible_position`);
+   - clamp every target to the probe envelope;
+   - ramp back from the last commanded pose, never from a reading;
+   - stop the run, holding that pose, on an implausible reading;
+   - refuse without the SDK's per-motor models.
+
+   See `tests/test_rebot_probe_reading_guard.py`. Do not loosen any of these.
 2. **Fault clear.** Use `python scripts/jog_rebot_mb.py --joint 1 --hold-only`
    (it now clears faults after the mode write and before enable). Confirm that
    no `clear_error failed` is raised and that the hold drift is under 50 mrad.

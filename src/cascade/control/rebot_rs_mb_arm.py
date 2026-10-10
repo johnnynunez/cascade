@@ -64,10 +64,13 @@ from ..config import Cfg
 from ..types import RobotState
 from .arm_base import ArmBase
 from .robstride import (
+    UnsafeReading,
     clamp_to_travel,
     clear_motor_faults,
     close_two_stage_capped,
     contact_squeeze_cap,
+    joint_reading_problem,
+    plausible_position,
 )
 
 MECH_POS = 0x7019
@@ -86,6 +89,7 @@ class RebotRSMotorBridgeArm(ArmBase):
         self._stopped = False
         self.n_joints = int(cfg.get("n_joints", 6))
         self._last_q = np.zeros(self.n_joints)
+        self._last_q_t: float | None = None   # when _last_q was read (None: never)
         self._last_cmd_q: np.ndarray | None = None
         self._read_failures = 0
 
@@ -191,6 +195,7 @@ class RebotRSMotorBridgeArm(ArmBase):
             self._stopped = False
             self._read_failures = 0
             self._last_q = q
+            self._last_q_t = time.monotonic()
             self._last_cmd_q = q.copy()
         except Exception:
             self._ctrl, self._motors = None, {}
@@ -214,21 +219,34 @@ class RebotRSMotorBridgeArm(ArmBase):
     # ── feedback (param reads, the only reliable RS path) ────────────────
 
     def _read_positions(self) -> np.ndarray:
-        q = np.zeros(self.n_joints)
+        """mechPos of every joint (local convention); raises UnsafeReading if
+        any value cannot be a position. connect() HOLDS this pose before
+        enable_all, so an unvetted value here would be commanded at full
+        stiffness the instant torque arrives (rig 2026-10-10: +2.3e18)."""
+        raw = []
         with self._lock:
-            for i, mid in enumerate(self._joint_ids):
-                raw = self._motors[mid].robstride_get_param_f32(
+            for mid in self._joint_ids:
+                raw.append(self._motors[mid].robstride_get_param_f32(
                     MECH_POS, self._read_timeout_ms
-                )
-                q[i] = float(raw)
-        return q * self._wire
+                ))
+        problem = joint_reading_problem(raw)
+        if problem:
+            raise UnsafeReading(f"implausible mechPos: {problem}")
+        return np.asarray(raw, dtype=float) * self._wire
 
     def get_state(self) -> RobotState:
         if self._ctrl is None:
             raise RuntimeError("arm not connected")
         try:
             q = self._read_positions()
-            self._last_q = q
+            now = time.monotonic()
+            # A plausible value can still be impossible: it must be reachable
+            # from the last GOOD reading in the time since.
+            if self._last_q_t is not None:
+                problem = joint_reading_problem(q, self._last_q, now - self._last_q_t)
+                if problem:
+                    raise UnsafeReading(f"implausible mechPos: {problem}")
+            self._last_q, self._last_q_t = q, now
             self._read_failures = 0
         except Exception as e:
             # One transient CAN hiccup: serve last known. Repeated failures
@@ -256,11 +274,12 @@ class RebotRSMotorBridgeArm(ArmBase):
             return None
         try:
             with self._lock:
-                return float(
+                x = float(
                     self._motors[self._gripper_id].robstride_get_param_f32(
                         MECH_POS, self._read_timeout_ms
                     )
                 )
+            return x if plausible_position(x) else None
         except Exception:
             return None
 

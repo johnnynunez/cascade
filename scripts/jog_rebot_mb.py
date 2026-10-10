@@ -31,6 +31,17 @@ SAFETY MODEL -- read this before running:
   fix the SDK for anything real.
 - Run from a pose that is mechanically stable (the calibrated zero is), with
   the arm supported and nobody within reach.
+- EVERY READING IS VETTED before it is used (cascade.control.robstride:
+  finite, inside the motor's +-4*pi, inside the URDF limits +- 0.1 rad), and
+  every position sent to the jogged joint is clamped to [start, goal]. An
+  implausible reading stops the jog holding the last COMMANDED pose; it is
+  never commanded. Rig incident 2026-10-10: the sign check commanded a
+  +2.3e18 mechPos read as "where the joint is" and the shoulder drove into
+  its end at full stiffness.
+- Each motor is registered with ITS model from the SDK config (rs-06 on
+  joints 1-3, rs-00 elsewhere). MIT gains are encoded on the model's scale,
+  so one flat model for all seven mis-scales the rs-06 gains about 10x.
+  Without the SDK config the jog refuses.
 
 The bus is exclusive (host id 0xFD): stop motorbridge-gateway and any
 LeRobot process first.
@@ -54,6 +65,14 @@ import numpy as np
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
+
+from cascade.control.robstride import (  # noqa: E402  (path set above)
+    READ_ATTEMPTS,
+    ProbeEnvelope,
+    UnsafeReading,
+    plausible_position,
+    read_plausible,
+)
 
 MECH_POS = 0x7019
 MECH_VEL = 0x701A
@@ -120,6 +139,21 @@ def _sdk_motors() -> dict[int, tuple[str, float, float]] | None:
         return None
 
 
+def _motor_models(sdk) -> dict[int, str] | None:
+    """Per-motor model from the SDK table, or None unless EVERY motor has one."""
+    if not sdk or any(mid not in sdk for mid in (*ARM_IDS, GRIPPER_ID)):
+        return None
+    return {mid: str(sdk[mid][0]) for mid in (*ARM_IDS, GRIPPER_ID)}
+
+
+def _joint_limits(limits, motor_id: int):
+    """(lo, hi) for an arm joint, (None, None) for the gripper (no URDF joint)."""
+    if motor_id == GRIPPER_ID:
+        return None, None
+    lo, hi = limits
+    return float(lo[motor_id - 1]), float(hi[motor_id - 1])
+
+
 def _profile_gains(motor_id: int) -> tuple[float, float] | None:
     """The SDK's own MIT gains for this motor, or None if unavailable.
 
@@ -161,9 +195,6 @@ def _urdf_local_limits():
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--channel", default="can0")
-    ap.add_argument("--model", default="rs-00",
-                    help="fallback motor model only if the SDK config can't be "
-                         "read; otherwise the per-joint rs-06/rs-00 is used")
     ap.add_argument("--joint", type=int, required=True, choices=list(ARM_IDS) + [GRIPPER_ID],
                     help="motor id to jog (1..6 arm, 7 gripper)")
     ap.add_argument("--delta", type=float, default=0.05,
@@ -211,15 +242,26 @@ def main() -> int:
         print(f"[!] gains capped at kp<={MAX_KP} kd<={MAX_KD}")
         return 2
 
+    sdk = _sdk_motors()
+    models = _motor_models(sdk)
+    if models is None:
+        print("[!] the per-motor models (rs-06 on joints 1-3, rs-00 elsewhere) could not be "
+              "read from the SDK config. MIT gains are encoded on the motor model's scale, "
+              "so guessing one model for all seven mis-scales them. Refusing.")
+        return 2
+    limits = _urdf_local_limits()
+    if limits is None:
+        print("[!] cannot read the joint limits, so neither the readings nor the goal can "
+              "be vetted. Refusing to move.")
+        return 1
+
     from motorbridge import Controller, Mode
 
-    sdk = _sdk_motors()
     ctrl = Controller(channel=args.channel)
     motors: dict[int, object] = {}
     for mid in (*ARM_IDS, GRIPPER_ID):
-        model = sdk[mid][0] if sdk and mid in sdk else args.model
         motors[mid] = ctrl.add_robstride_motor(
-            motor_id=mid, feedback_id=HOST_ID, model=model
+            motor_id=mid, feedback_id=HOST_ID, model=models[mid]
         )
     # Bound before the try so the Ctrl+C handler can never raise NameError while
     # trying to soft-stop: an interrupt arriving during setup must still take the
@@ -228,10 +270,13 @@ def main() -> int:
     gains: dict[int, tuple[float, float]] = {}
     try:
         for mid, m in motors.items():
-            p = _read(m, MECH_POS)
+            lo_j, hi_j = _joint_limits(limits, mid)
+            p = read_plausible(lambda m=m: _read(m, MECH_POS), lo_j, hi_j)
             if p is None:
-                print(f"[!] motor {mid} did not report mechPos; aborting rather than "
-                      f"holding a pose built from an unknown joint")
+                print(f"[!] motor {mid} did not report a plausible mechPos (none, non-finite, "
+                      f"or outside its range/limits in {READ_ATTEMPTS} reads); aborting "
+                      f"rather than holding a pose built from an unknown joint. Nothing "
+                      f"was energized.")
                 return 1
             q_hold[mid] = p
 
@@ -265,11 +310,6 @@ def main() -> int:
         # The gripper (id 7) has no URDF joint, so it is exempt: its travel was
         # characterized by hand in diag_rebot_mb.py instead.
         if target_id != GRIPPER_ID:
-            limits = _urdf_local_limits()
-            if limits is None:
-                print("[!] cannot read the joint limits, so the goal cannot be "
-                      "vetted. Refusing to move.")
-                return 1
             lo, hi = limits
             j = target_id - 1
             if not (lo[j] < goal < hi[j]):
@@ -313,8 +353,7 @@ def main() -> int:
             for mid in sorted(gains)
         ) + "   (kp/kd, * = the jogged joint)")
         print("  models      " + "  ".join(
-            f"{'grip' if mid == GRIPPER_ID else f'j{mid}'}:"
-            f"{sdk[mid][0] if sdk and mid in sdk else args.model}"
+            f"{'grip' if mid == GRIPPER_ID else f'j{mid}'}:{models[mid]}"
             for mid in sorted(motors)
         ))
         print(f"  return      {'no' if args.no_return else 'yes, back to start'}")
@@ -347,10 +386,16 @@ def main() -> int:
         _send_hold(motors, q_hold, gains)
         time.sleep(0.3)
 
-        held = {mid: _read(m, MECH_POS) for mid, m in motors.items()}
-        drift = max(
-            abs((held[mid] or q_hold[mid]) - q_hold[mid]) for mid in motors
-        )
+        held = {}
+        for mid, m in motors.items():
+            x = _read(m, MECH_POS)
+            if x is None:
+                held[mid] = q_hold[mid]
+                continue
+            if not plausible_position(x, *_joint_limits(limits, mid)):
+                raise UnsafeReading(f"motor {mid} reported mechPos {x!r} while holding")
+            held[mid] = x
+        drift = max(abs(held[mid] - q_hold[mid]) for mid in motors)
         print(f"\n[+] energized. max drift from the hold pose: {drift:.4f} rad")
         if drift > 0.05:
             print("[!] the arm sagged more than 50 mrad -- gains are too low for this "
@@ -363,8 +408,10 @@ def main() -> int:
             _idle(motors, q_hold, gains)
             return 0
 
+        env = ProbeEnvelope.spanning(start, goal)
+        lim_t = _joint_limits(limits, target_id)
         print(f"[+] jogging motor {target_id} ...")
-        if not _ramp(motors, q_hold, target_id, start, goal, gains, args):
+        if not _ramp(motors, q_hold, target_id, start, goal, gains, args, env=env, limits=lim_t):
             print("\n[!] stalled -- the arm is left holding where the joint "
                   "actually stopped, torque ON. Nothing further was commanded.")
             print("    Next: check whether this axis' positive direction runs "
@@ -376,6 +423,8 @@ def main() -> int:
             return 1
         time.sleep(0.4)
         end = _read(motors[target_id], MECH_POS)
+        if end is not None and not plausible_position(end, *lim_t):
+            raise UnsafeReading(f"motor {target_id} reported mechPos {end!r} after the jog")
         moved = None if end is None else end - start
 
         print("\n=== result ===")
@@ -402,7 +451,8 @@ def main() -> int:
 
         if not args.no_return:
             print(f"\n[+] returning motor {target_id} to {start:+.4f}")
-            if not _ramp(motors, q_hold, target_id, goal, start, gains, args):
+            if not _ramp(motors, q_hold, target_id, goal, start, gains, args,
+                         env=env, limits=lim_t):
                 print("[!] stalled on the way BACK, which means the joint cannot "
                       "reach the pose it started from. Support the arm and "
                       "inspect the joint before commanding anything else.")
@@ -414,6 +464,14 @@ def main() -> int:
         else:
             print("[+] leaving the arm holding. Park it before any disconnect.")
         return 0
+    except UnsafeReading as e:
+        # The ramp/hold already left every motor at its last COMMANDED pose.
+        print(f"\n[!] IMPLAUSIBLE READING -- stopped: {e}")
+        print("    Nothing was commanded from it; every motor holds its last commanded "
+              "(vetted) pose, torque ON. Do NOT re-run: support the arm, check the bus "
+              "with scripts/diag_rebot_mb.py (read-only), and find out why a read "
+              "returned that before commanding anything else.")
+        return 1
     except KeyboardInterrupt:
         # Soft stop: re-assert the hold pose rather than cutting torque, matching
         # RebotRSArm.stop(). Cutting torque on a loaded arm makes it free-fall.
@@ -465,24 +523,34 @@ STALL_LAG_RAD = 0.035
 STALL_CHECK_EVERY = 5
 
 
-def _ramp(motors, q_hold, target_id, start, goal, gains, args) -> bool:
+def _ramp(motors, q_hold, target_id, start, goal, gains, args, *, env, limits) -> bool:
     """Ramp the target joint from start to goal. Returns False if it STALLED.
 
     On a stall the ramp stops advancing immediately and the caller is expected
     to stop commanding motion; continuing would keep loading the stop.
+
+    Every position sent to the target goes through ``env`` (built from vetted
+    values). A reading that is not plausible for ``limits`` raises
+    UnsafeReading after re-sending the LAST COMMANDED pose: it is never held,
+    never ramped from.
     """
     steps = max(2, int(args.duration * args.rate_hz))
     dt = args.duration / steps
     t0 = time.monotonic()
+    last = env.clamp(start)
     for i in range(1, steps + 1):
         s = i / steps
         # min-jerk, same profile ArmBase.stream_to uses, so the jog feels like
         # the real motion path rather than a step input.
         s = 10 * s**3 - 15 * s**4 + 6 * s**5
-        q = start + (goal - start) * s
+        q = env.clamp(start + (goal - start) * s)
 
         if i % STALL_CHECK_EVERY == 0:
             actual = _read(motors[target_id], MECH_POS, timeout_ms=80)
+            if actual is not None and not plausible_position(actual, *limits):
+                _send_hold(motors, {**q_hold, target_id: last}, gains)
+                raise UnsafeReading(f"motor {target_id} reported mechPos {actual!r} "
+                                    f"mid-ramp (commanded {last:+.4f})")
             if actual is not None and abs(q - actual) > STALL_LAG_RAD:
                 print(f"\n[!] STALL: commanded {q:+.4f} but mechPos is {actual:+.4f} "
                       f"({abs(q - actual):.4f} rad of lag). Aborting the ramp.")
@@ -491,17 +559,16 @@ def _ramp(motors, q_hold, target_id, start, goal, gains, args) -> bool:
                       "drives it INTO the stop. Do NOT raise the gains: that is "
                       "how the motor gets damaged.")
                 # Stop pushing. Command the joint to where it actually is, so it
-                # holds there instead of continuing to load the stop.
-                for mid, m in motors.items():
-                    kp, kd = gains[mid]
-                    m.send_mit(actual if mid == target_id else q_hold[mid],
-                               0.0, kp, kd, 0.0)
+                # holds there instead of continuing to load the stop -- clamped
+                # into the envelope: a plausible reading can still be wrong.
+                _send_hold(motors, {**q_hold, target_id: env.clamp(actual)}, gains)
                 return False
 
         for mid, m in motors.items():
             pos = q if mid == target_id else q_hold[mid]
             kp, kd = gains[mid]
             m.send_mit(pos, 0.0, kp, kd, 0.0)
+        last = q
         sleep_s = t0 + i * dt - time.monotonic()
         if sleep_s > 0:
             time.sleep(sleep_s)

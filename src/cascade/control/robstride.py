@@ -33,6 +33,85 @@ GRIP_STALL_RAD = 0.03
 _CAP_KEY = "gripper.max_contact_squeeze_rad"
 
 
+# ── reading guard for anything that commands a position it has read ──────
+
+#: MIT position range of every RobStride model on this arm (rs-00, rs-06):
+#: +-4*pi rad. A reading outside it is not a position, it is a bad frame.
+MIT_P_MAX = 4.0 * math.pi
+#: A reading this far outside the URDF limits is still plausible: a joint
+#: resting on its mechanical end reads a few mrad past it (j2/j3 at -0.0009
+#: against 0.0), and the wrist read 3.149 against +-3.14 before re-zeroing.
+READ_LIMIT_TOL_RAD = 0.1
+#: Startup reads retried this many times before a motor counts as unreadable.
+READ_ATTEMPTS = 3
+
+
+class UnsafeReading(RuntimeError):
+    """A position reading that cannot be a position. Whoever sees one stops
+    moving: it holds the last COMMANDED (already vetted) pose and never
+    commands, ramps from, or reports the reading.
+
+    Rig incident 2026-10-10 (scripts/sign_check_rebot_mb.py): a mechPos
+    parameter read returned +2.3e18 mid-probe; the stall guard commanded the
+    motor to it, MIT clamped that to the motor's +4*pi end, and the shoulder
+    drove at full stiffness until the operator cut power.
+    """
+
+
+def plausible_position(x, lo=None, hi=None, *, tol: float = READ_LIMIT_TOL_RAD) -> bool:
+    """True if ``x`` can be a joint position: a real finite number inside the
+    motor's MIT range and, when given, inside [lo - tol, hi + tol]."""
+    if isinstance(x, bool) or not isinstance(x, numbers.Real):
+        return False
+    x = float(x)
+    if not math.isfinite(x) or abs(x) > MIT_P_MAX:
+        return False
+    if lo is not None and x < float(lo) - tol:
+        return False
+    return hi is None or x <= float(hi) + tol
+
+
+def read_plausible(read, lo=None, hi=None, *, attempts: int = READ_ATTEMPTS):
+    """Call ``read()`` until it returns a plausible position; None if it never
+    does within ``attempts`` (a timeout -> None counts as an attempt too)."""
+    for _ in range(max(1, int(attempts))):
+        x = read()
+        if plausible_position(x, lo, hi):
+            return float(x)
+    return None
+
+
+class ProbeEnvelope:
+    """Every position a bring-up probe may send to the joint it moves.
+
+    Built from VETTED values only (the start reading that passed
+    plausible_position, and the planned delta), so whatever the bus returns
+    later, the command stays inside [lo, hi]: a hold at a stall reading is
+    clamped into it, a non-finite target raises instead of being sent.
+    """
+
+    def __init__(self, lo: float, hi: float):
+        lo, hi = float(lo), float(hi)
+        if not (math.isfinite(lo) and math.isfinite(hi)) or lo > hi:
+            raise ValueError(f"bad probe envelope [{lo}, {hi}]")
+        self.lo, self.hi = lo, hi
+
+    @classmethod
+    def around(cls, center: float, radius: float) -> ProbeEnvelope:
+        r = abs(float(radius))
+        return cls(float(center) - r, float(center) + r)
+
+    @classmethod
+    def spanning(cls, a: float, b: float) -> ProbeEnvelope:
+        return cls(min(float(a), float(b)), max(float(a), float(b)))
+
+    def clamp(self, x: float) -> float:
+        x = float(x)
+        if not math.isfinite(x):
+            raise ValueError(f"refusing to command a non-finite position ({x})")
+        return min(max(x, self.lo), self.hi)
+
+
 def clamp_to_travel(pos: float, open_pos: float, closed_pos: float) -> float:
     """Clamp a gripper position target into the profile's measured travel.
 

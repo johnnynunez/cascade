@@ -80,6 +80,12 @@ def _assert_cleared_before_enable(log):
     assert clears and max(modes) < min(clears) and max(clears) < enable, log
 
 
+#: The SDK's per-motor (model, kp, kd): both scripts now refuse without it
+#: (one flat model for all seven mis-scales the rs-06 gains,
+#: test_rebot_probe_reading_guard.py).
+_SDK = {mid: ("rs-06" if mid <= 3 else "rs-00", 5.0, 0.5) for mid in range(1, 8)}
+
+
 def _limits():
     return (np.array([-2.8, 0.0, 0.0, -1.69, -1.57, -3.14]),
             np.array([2.8, 3.14, 3.14, 1.79, 1.57, 3.14]))
@@ -90,7 +96,7 @@ def test_jog_clears_faults_before_enable(monkeypatch):
 
     log = []
     _fake_motorbridge(monkeypatch, log)
-    monkeypatch.setattr(jog, "_sdk_motors", lambda: None)
+    monkeypatch.setattr(jog, "_sdk_motors", lambda: dict(_SDK))
     monkeypatch.setattr(jog, "_profile_gains", lambda mid: (5.0, 0.5))
     monkeypatch.setattr(jog, "_read", lambda m, p, timeout_ms=300: 0.5)
     monkeypatch.setattr(jog, "_urdf_local_limits", _limits)
@@ -105,6 +111,7 @@ def test_sign_check_clears_faults_before_enable(monkeypatch):
 
     log = []
     _fake_motorbridge(monkeypatch, log)
+    monkeypatch.setattr(sc, "_sdk_motors", lambda: dict(_SDK))
     monkeypatch.setattr(sc, "_profile_gains", lambda mid: (5.0, 0.5))
     monkeypatch.setattr(sc, "_read", lambda m, p, timeout_ms=300: 0.5)
     monkeypatch.setattr(sc, "_urdf_local_limits", _limits)
@@ -120,7 +127,7 @@ def test_jog_dry_run_touches_no_motor(monkeypatch):
 
     log = []
     _fake_motorbridge(monkeypatch, log)
-    monkeypatch.setattr(jog, "_sdk_motors", lambda: None)
+    monkeypatch.setattr(jog, "_sdk_motors", lambda: dict(_SDK))
     monkeypatch.setattr(jog, "_profile_gains", lambda mid: (5.0, 0.5))
     monkeypatch.setattr(jog, "_read", lambda m, p, timeout_ms=300: 0.5)
     monkeypatch.setattr(jog, "_urdf_local_limits", _limits)

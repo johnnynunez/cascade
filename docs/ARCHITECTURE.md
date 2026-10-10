@@ -744,6 +744,16 @@ the receipt's verdict and sha256, plus ONE `judge:` banner line (`fn>0` =
 the pictures missed physics-confirmed progress). Advisory: READY, the exit
 status and `proof.json` never depend on it, and every failure (bad config,
 refused or hung endpoint, nothing scored, crash) reads `unavailable`.
+A local VLM can run out of `max_tokens` before it writes its score (B44-live:
+12 of 72 steps at the 1536 tokens Spark ships, 11 of them physics failures,
+so the abstentions dropped `tn` cases). Opt-in
+`eval.judge.score_followup_tokens: N` (B66; default 0 = one call per step,
+unchanged) then makes ONE more call -- the same turn, the first answer as the
+assistant turn, and the GRM prompt's own output line, within N tokens -- and
+the step's `response_metadata` records `score_via` (first / follow-up /
+none), the follow-up's answer and tokens, and the `abstention` reason when it
+also has no score (the step stays unscored). It runs inside judge_run.py, so
+the launcher bound above covers it.
 The first honest number on this rig: +0.45 on a physics-confirmed pick
 after the AFTER-keyframe fix; 0.00 before it. The prompt's two WRIST slots
 are filled from the rig's wrist keyframes when the trace has them
@@ -1472,7 +1482,11 @@ barriers.
   tokens `tp=40 tn=7 fp=19 fn=0`. So on this rig `fn` is trustworthy and the
   `hop > 0` rule is not a failure detector: the GRM prompt rates a refuted
   pick's partial progress as a positive hop, and Qwen can run past the budget
-  without a score (an abstention, recorded as unscored, never as 0). Two
+  without a score (an abstention, recorded as unscored, never as 0). The B66
+  follow-up (`eval.judge.score_followup_tokens`, opt-in, off everywhere by
+  default including `deploy/runtime`'s Spark judge) is CPU-tested only, with a
+  stub replaying those 12 answers: whether Qwen answers the follow-up with a
+  tagged score is the live re-judge still owed. Two
   scenes, one view, in-sample. It judges only the proof turn's
   `pick_and_place` rows, and the shipped `eval.judge` targets a frontier
   model through the OpenClaw gateway -- a local judge needs

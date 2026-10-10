@@ -53,5 +53,8 @@ are never counted.
 
 - **(B65)** An opt-in success threshold for the judge metric (e.g. `eval.judge.success_hop`), validated on runs
   held out from this set.
-- **(B66)** Make the score fit the budget: a reasoning-then-score two-step, or a constrained final line, so a
-  local judge cannot abstain by running long.
+- ~~**(B66)** Make the score fit the budget: a reasoning-then-score two-step, or a constrained final line, so a
+  local judge cannot abstain by running long.~~ **Landed 2026-10-10 (B66, opt-in, CPU-tested only):**
+  `eval.judge.score_followup_tokens: N` gives a first answer without `<score>` one follow-up call for the score
+  line alone (N tokens); the record says `score_via` first / follow-up / none. Live re-judge of the 12 steps above
+  with Qwen still owed.

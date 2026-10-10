@@ -229,8 +229,22 @@ Open, in priority order (details in the sections below):
    all 66, chosen in-sample, not shipped)
    ([evidence](evidence/b44-live-qwen-judge-20261009/README.md)). STILL OPEN:
    a full launch whose proof turn is judged with `--judge vlm`; a success
-   threshold validated out of sample (B65) and a score that fits the budget
-   (B66); GRM (#14).
+   threshold validated out of sample (B65); GRM (#14). ~~A score that fits the
+   budget (B66).~~ **landed 2026-10-10 (opt-in, CPU-measured only; B66).**
+   `eval.judge.score_followup_tokens: N` (default 0 = one call per step,
+   byte-identical requests and records): a first answer without a parseable
+   `<score>` gets ONE follow-up call -- the same turn, that answer, and the GRM
+   prompt's own output line, `max_tokens` N (1..512), plain chat-completions
+   (no `grammar`, which OpenAI-style endpoints reject; a constrained final line
+   cannot help when 11 of the 12 abstentions were cut at the budget before
+   reaching it). The record names `score_via` first / follow-up / none, the
+   follow-up's answer and tokens, and why a step stayed unscored -- never a
+   made-up score; it runs inside the B44 bound. Measured on CPU only:
+   `tests/test_judge_score_budget.py` (a stub endpoint replaying the 12
+   recorded B44-live abstentions; 17 failed / 5 premise+golden passed on
+   86373d7 → 22 passed), all 35 mutants killed. STILL OPEN: the live
+   re-judge of those 12 with Qwen (does it answer the follow-up with a tagged
+   score?) and whether to turn it on in `deploy/runtime`'s Spark judge config.
 7. ~~**Visual embedder** for episodic recall (`embed_dim`), and action↔object
    consolidation on top of ExperienceMemory (keys on text today).~~
    **landed 2026-10-07 (opt-in, CPU-measured only).** `memory/embedder.py`:

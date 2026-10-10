@@ -200,6 +200,10 @@ class OccupancyMap:
         self._body_error: str | None = None
         self.allowed_contact_paths: set[str] = set()
         self._refresh_lock = threading.RLock()
+        # Taken FIRST by refresh() and by every mode change (capture fence,
+        # scene reset), never by clearance(): a plain refresh holds it through
+        # its bridge round trip so no mode change can interleave with it.
+        self._io_lock = threading.RLock()
         self._payload_pose_fn = None
         self._payload_samples = {}
         self._contact_paths = None
@@ -250,7 +254,7 @@ class OccupancyMap:
         """
         if not self.tracks_payload:
             return False
-        with self._refresh_lock:
+        with self._io_lock, self._refresh_lock:
             if self._scene_reset_invalidated:
                 raise OccupancyError("scene reset cannot be downgraded to retained-anchor refresh")
             self._reset_pending = True
@@ -298,7 +302,7 @@ class OccupancyMap:
 
     def fence_capture_refresh(self, reason):
         """Keep a failed/deadline-expired refresh unusable until explicit retry."""
-        with self._refresh_lock:
+        with self._io_lock, self._refresh_lock:
             self._reset_pending = True
             self._body_error = "retained-payload capture refresh failed: " + str(reason)
             self._grid = self._occupied = None
@@ -309,7 +313,7 @@ class OccupancyMap:
         """Invalidate attached geometry/history before draining pre-reset captures."""
         if self._payload_pose_fn is None:
             return False
-        with self._refresh_lock:
+        with self._io_lock, self._refresh_lock:
             self.scene_reset_generation += 1
             self._scene_reset_invalidated = True
             self._reset_pending = True
@@ -335,7 +339,7 @@ class OccupancyMap:
     def finish_scene_reset(self, floor_frames):
         from .freshness import capture_marker
 
-        with self._refresh_lock:
+        with self._io_lock, self._refresh_lock:
             floors = {}
             for frame in floor_frames:
                 marker = capture_marker(frame)
@@ -650,12 +654,55 @@ class OccupancyMap:
         change of that state is logged once: a failure that persists (a
         bridge too slow for `timeout_ms`, say) otherwise keeps a body-mask
         latch closed with no visible cause.
+
+        clearance() takes `_refresh_lock` for every streamed waypoint, so a
+        plain optional map (no payload tracking, no reset or capture fence
+        in progress) runs the slow part outside it; see `_refresh_plain`.
         """
-        with self._refresh_lock:
+        with self._io_lock:
             try:
-                self._refresh(frame, T_base_cam)
+                if self._plain_refresh():
+                    self._refresh_plain(frame, T_base_cam)
+                    return
+                with self._refresh_lock:
+                    self._refresh(frame, T_base_cam)
             finally:
-                self._report_refresh_state()
+                with self._refresh_lock:
+                    self._report_refresh_state()
+
+    def _plain_refresh(self) -> bool:
+        """An optional map with no payload tracking and no reset or capture
+        fence in progress: its refresh may query the bridge unlocked."""
+        return (self._client is not None and not self.required
+                and self._payload_pose_fn is None and not self._reset_pending
+                and not self._reset_floors and self._capture_refresh_binding is None
+                and not self._scene_reset_invalidated)
+
+    def _refresh_plain(self, frame, T_base_cam: np.ndarray) -> None:
+        """Refresh a plain optional map without blocking clearance().
+
+        Found on the physical reBot: refresh() held `_refresh_lock` through
+        the body-pose read and the bridge round trip (~61 ms on warp/CUDA),
+        and clearance(), which the harness calls for every 50 Hz waypoint,
+        waited on it. Three times a second two to three waypoints then went
+        out late and back to back: the arm moved in steps, and the same moves
+        were smooth with the map off. Here only the result is installed under
+        the lock; mode changes take `_io_lock` first, so none can begin
+        during this upload.
+        """
+        try:
+            _, fetched = self._fetch_grid(frame, T_base_cam)
+        except (OccupancyError, KeyError, TypeError, ValueError) as e:
+            with self._refresh_lock:
+                self.last_error = str(e)
+            return
+        if fetched is None:
+            return  # nothing to query without a region of interest
+        with self._refresh_lock:
+            self._commit_grid(frame, fetched, None)
+        if self.status is None:
+            # the bridge came up after startup: name it now
+            self.probe()
 
     def _report_refresh_state(self) -> None:
         """Log refresh failures and recovery on change, not per frame."""
@@ -711,49 +758,10 @@ class OccupancyMap:
                         or age < 0 or age > self.max_age_s
                         or not np.any(np.isfinite(frame.depth_m) & (frame.depth_m > 0))):
                     raise OccupancyError("required occupancy needs a fresh nonempty depth frame")
-            if frame.has_depth:
-                if self._depth_supported is not False:
-                    try:
-                        prepared = self._integrate_depth(frame, T_base_cam)
-                    except OccupancyError as e:
-                        if self._payload_pose_fn is not None or isinstance(e, _MaskedDepthError):
-                            raise  # payload transitions require the depth + clear contract
-                        if "unknown action" in str(e):
-                            # an old bridge: fall back to the cloud protocol
-                            self._depth_supported = False
-                            self._integrate_points(frame, T_base_cam)
-                        else:
-                            raise
-                else:
-                    self._integrate_points(frame, T_base_cam)
-            region_min = self._region_min
-            region_max = self._region_max
-            if region_min is None or region_max is None:
+            prepared, fetched = self._fetch_grid(frame, T_base_cam)
+            if fetched is None:
                 return  # nothing to query without a region of interest
-            resp = self._client.request({
-                "action": "query",
-                "region_min": np.asarray(region_min, dtype=np.float32),
-                "region_max": np.asarray(region_max, dtype=np.float32),
-            })
-            occupied = np.asarray(resp["points"], dtype=np.float32).reshape(-1, 3)
-            if not np.isfinite(occupied).all():
-                raise ValueError("nonfinite occupied points")
-            if "grid" in resp:
-                grid = np.asarray(resp["grid"], dtype=np.float32)
-                origin = np.asarray(resp["origin"], dtype=np.float32)
-                voxel = float(resp["voxel"])
-                if (grid.ndim != 3 or min(grid.shape) < 1 or np.isnan(grid).any()
-                        or origin.shape != (3,) or not np.isfinite(origin).all()
-                        or not np.isfinite(voxel) or voxel <= 0):
-                    raise ValueError("invalid ESDF query geometry")
-            else:
-                grid, origin, voxel = None, None, 0.
-            self._occupied, self._grid = occupied, grid
-            self._grid_origin, self._grid_voxel = origin, voxel
-            self._last_refresh = capture_t if self.required else time.monotonic()
-            self.last_error = None
-            if frame.has_depth:
-                self._body_error = None
+            self._commit_grid(frame, fetched, capture_t if self.required else None)
             if prepared is not None:
                 paths, stamp, camera, points, floors, marker = prepared
                 if paths != self._contact_paths:
@@ -814,6 +822,62 @@ class OccupancyMap:
                 camera = (getattr(frame, "capture", None) or {}).get("camera")
                 self._integrated_captures = {k: v for k, v in self._integrated_captures.items()
                                              if k[1] != camera}
+
+    def _fetch_grid(self, frame, T_base_cam: np.ndarray):
+        """Integrate this frame and query the region -> (prepared, fetched).
+
+        `fetched` is (occupied, grid, origin, voxel), or None without a region
+        of interest. Talks to the bridge; installs nothing.
+        """
+        prepared = None
+        if frame.has_depth:
+            if self._depth_supported is not False:
+                try:
+                    prepared = self._integrate_depth(frame, T_base_cam)
+                except OccupancyError as e:
+                    if self._payload_pose_fn is not None or isinstance(e, _MaskedDepthError):
+                        raise  # payload transitions require the depth + clear contract
+                    if "unknown action" in str(e):
+                        # an old bridge: fall back to the cloud protocol
+                        self._depth_supported = False
+                        self._integrate_points(frame, T_base_cam)
+                    else:
+                        raise
+            else:
+                self._integrate_points(frame, T_base_cam)
+        region_min = self._region_min
+        region_max = self._region_max
+        if region_min is None or region_max is None:
+            return prepared, None
+        resp = self._client.request({
+            "action": "query",
+            "region_min": np.asarray(region_min, dtype=np.float32),
+            "region_max": np.asarray(region_max, dtype=np.float32),
+        })
+        occupied = np.asarray(resp["points"], dtype=np.float32).reshape(-1, 3)
+        if not np.isfinite(occupied).all():
+            raise ValueError("nonfinite occupied points")
+        if "grid" in resp:
+            grid = np.asarray(resp["grid"], dtype=np.float32)
+            origin = np.asarray(resp["origin"], dtype=np.float32)
+            voxel = float(resp["voxel"])
+            if (grid.ndim != 3 or min(grid.shape) < 1 or np.isnan(grid).any()
+                    or origin.shape != (3,) or not np.isfinite(origin).all()
+                    or not np.isfinite(voxel) or voxel <= 0):
+                raise ValueError("invalid ESDF query geometry")
+        else:
+            grid, origin, voxel = None, None, 0.
+        return prepared, (occupied, grid, origin, voxel)
+
+    def _commit_grid(self, frame, fetched, capture_t) -> None:
+        """Install a fetched grid (caller holds `_refresh_lock`)."""
+        occupied, grid, origin, voxel = fetched
+        self._occupied, self._grid = occupied, grid
+        self._grid_origin, self._grid_voxel = origin, voxel
+        self._last_refresh = capture_t if self.required else time.monotonic()
+        self.last_error = None
+        if frame.has_depth:
+            self._body_error = None
 
     def _integrate_depth(self, frame, T_base_cam: np.ndarray) -> None:
         s = self.depth_stride

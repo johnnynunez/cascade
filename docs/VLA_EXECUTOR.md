@@ -44,7 +44,11 @@ since B68, the entries `scripts/hermes_demo.sh` / `scripts/openclaw_demo.sh`
 register. An
 MCP host starts the server with that entry's environment only; before B63 the
 launcher registered neither variable, so `CASCADE_GRASP_EXECUTOR=vla ./run.sh`
-ran the analytic executor.
+ran the analytic executor. Checked live once (10 Oct 2026,
+[evidence](evidence/w6-live-20261010/README.md)): a server started with only
+the env of launch.sh's registration, both variables exported, ran this
+executor against the Isaac bridge with the protocol stub below; without them
+the same registration ran the analytic one.
 
 The policy runs in its own environment and process, normally on the GPU
 host. cascade only ships the client (`grasping/vla_client.py`).

@@ -1,0 +1,1122 @@
+{
+ "runs": [
+  {
+   "tag": "vla1",
+   "arm": "vla",
+   "fresh_memory": false,
+   "entry": {
+    "command": "/home/johnny/Projects/demo/cascade/.venv/bin/python",
+    "args": [
+     "-m",
+     "cascade.apps.mcp_server",
+     "--launch-owner",
+     "<owner>",
+     "--launch-state-dir",
+     "<live-w6>/launch_state/profile-hermes-live-w6"
+    ],
+    "cwd": "<live-w6>/cascade/models",
+    "env": {
+     "CASCADE_CAMERAS": "isaac,isaac_side",
+     "CASCADE_ARM": "isaac",
+     "CASCADE_DETECTOR_MODEL": "<live-w6>/cascade/models/yoloe-11s-seg.pt",
+     "YOLO_OFFLINE": "True",
+     "ULTRALYTICS_OFFLINE": "True",
+     "CASCADE_OPENCLAW_PROFILE": "hermes-live-w6",
+     "CASCADE_GRASP_MEMORY_PATH": "<live-w6>/launch_state/profile-hermes-live-w6/memory/grasp_memory.json",
+     "CASCADE_ENVELOPE_PATH": "<live-w6>/launch_state/profile-hermes-live-w6/memory/envelope.json",
+     "CASCADE_BELIEFS_PATH": "<live-w6>/launch_state/profile-hermes-live-w6/memory/beliefs.json",
+     "CASCADE_GRASPGENX_PORT": "47001",
+     "CASCADE_BRIDGE_PORT": "47000",
+     "CASCADE_OCCUPANCY_PORT": "47002",
+     "CUDA_VISIBLE_DEVICES": "GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3",
+     "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+     "CASCADE_OCCUPANCY": "0",
+     "CASCADE_GRASP_EXECUTOR": "vla",
+     "CASCADE_VLA_PORT": "47010",
+     "CASCADE_VIEW": "0",
+     "DISPLAY": ":0"
+    },
+    "requestTimeoutMs": 300000
+   },
+   "server_env_keys": [
+    "CASCADE_ARM",
+    "CASCADE_BELIEFS_PATH",
+    "CASCADE_BRIDGE_PORT",
+    "CASCADE_CAMERAS",
+    "CASCADE_DETECTOR_MODEL",
+    "CASCADE_ENVELOPE_PATH",
+    "CASCADE_GRASPGENX_PORT",
+    "CASCADE_GRASP_EXECUTOR",
+    "CASCADE_GRASP_MEMORY_PATH",
+    "CASCADE_OCCUPANCY",
+    "CASCADE_OCCUPANCY_PORT",
+    "CASCADE_OPENCLAW_PROFILE",
+    "CASCADE_VIEW",
+    "CASCADE_VLA_PORT",
+    "CUDA_DEVICE_ORDER",
+    "CUDA_VISIBLE_DEVICES",
+    "DISPLAY",
+    "HOME",
+    "PATH",
+    "PYTHONPATH",
+    "ULTRALYTICS_OFFLINE",
+    "YOLO_OFFLINE"
+   ],
+   "server_log": [
+    "[cascade] grasp executor: vla -> 127.0.0.1:47010 (policy=scripted-stub, chunks=2)",
+    "[cascade] backends: grasp_planner=graspgenx (learned 6-DoF) | occupancy=disabled",
+    "[cascade] capabilities: depth_3d=yes (isaac: sensor, isaac_side: sensor) | depth_heights=yes | learned_grasps=yes | occupancy=no (disabled) | arms=1 | bases=0 | verifier=yes | memory=yes | vla_policy=yes"
+   ],
+   "world_state_backends": {
+    "grasp_planner": "graspgenx (learned 6-DoF)",
+    "occupancy": "disabled",
+    "occupancy_live": false,
+    "grasp_executor": "vla (127.0.0.1:47010 (policy=scripted-stub, chunks=2))"
+   },
+   "tools": {
+    "n": 45,
+    "pick_and_place": true,
+    "grasp_object": true
+   },
+   "pick": {
+    "ok": false,
+    "verified": false,
+    "outcome": "stuck",
+    "error": "grasp failed after 8 attempts (132.5s): air grasp: gripper closed fully, object not held",
+    "stage": "grasp",
+    "executor": null,
+    "grasp_attempts": null,
+    "duration_s": null,
+    "postcondition": {
+     "status": "refuted",
+     "channel": "physics",
+     "kind": "relocated",
+     "evidence": "pink cube is still within 0.0 cm of where it started"
+    }
+   },
+   "reset": {
+    "ok": true,
+    "world": "isaac",
+    "props_reset": [
+     "pink_cube",
+     "green_cube"
+    ],
+    "error": null
+   },
+   "proof": null,
+   "server_exit": 0,
+   "heredoc_sha256": "2a572babc7183ca1691ffd1e675a2a6e3ddfc870388221444ee154c47e51dc59",
+   "launch_sh_sha256": "3660c96c9556419d7739581086cc25774f621b93a01f10f9f3ce910756bf9146",
+   "trace_sha256": "31d5d7b9ca3986bbc6df7881124211a827c761d39d9b137518559616d99e2490"
+  },
+  {
+   "tag": "vla2",
+   "arm": "vla",
+   "fresh_memory": true,
+   "entry": {
+    "command": "/home/johnny/Projects/demo/cascade/.venv/bin/python",
+    "args": [
+     "-m",
+     "cascade.apps.mcp_server",
+     "--launch-owner",
+     "<owner>",
+     "--launch-state-dir",
+     "<live-w6>/launch_state/profile-hermes-live-w6"
+    ],
+    "cwd": "<live-w6>/cascade/models",
+    "env": {
+     "CASCADE_CAMERAS": "isaac,isaac_side",
+     "CASCADE_ARM": "isaac",
+     "CASCADE_DETECTOR_MODEL": "<live-w6>/cascade/models/yoloe-11s-seg.pt",
+     "YOLO_OFFLINE": "True",
+     "ULTRALYTICS_OFFLINE": "True",
+     "CASCADE_OPENCLAW_PROFILE": "hermes-live-w6",
+     "CASCADE_GRASP_MEMORY_PATH": "<live-w6>/b63/vla2/memory/grasp_memory.json",
+     "CASCADE_ENVELOPE_PATH": "<live-w6>/b63/vla2/memory/envelope.json",
+     "CASCADE_BELIEFS_PATH": "<live-w6>/b63/vla2/memory/beliefs.json",
+     "CASCADE_GRASPGENX_PORT": "47001",
+     "CASCADE_BRIDGE_PORT": "47000",
+     "CASCADE_OCCUPANCY_PORT": "47002",
+     "CUDA_VISIBLE_DEVICES": "GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3",
+     "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+     "CASCADE_OCCUPANCY": "0",
+     "CASCADE_GRASP_EXECUTOR": "vla",
+     "CASCADE_VLA_PORT": "47010",
+     "CASCADE_VIEW": "0",
+     "DISPLAY": ":0"
+    },
+    "requestTimeoutMs": 300000
+   },
+   "server_env_keys": [
+    "CASCADE_ARM",
+    "CASCADE_BELIEFS_PATH",
+    "CASCADE_BRIDGE_PORT",
+    "CASCADE_CAMERAS",
+    "CASCADE_DETECTOR_MODEL",
+    "CASCADE_ENVELOPE_PATH",
+    "CASCADE_GRASPGENX_PORT",
+    "CASCADE_GRASP_EXECUTOR",
+    "CASCADE_GRASP_MEMORY_PATH",
+    "CASCADE_OCCUPANCY",
+    "CASCADE_OCCUPANCY_PORT",
+    "CASCADE_OPENCLAW_PROFILE",
+    "CASCADE_VIEW",
+    "CASCADE_VLA_PORT",
+    "CUDA_DEVICE_ORDER",
+    "CUDA_VISIBLE_DEVICES",
+    "DISPLAY",
+    "HOME",
+    "PATH",
+    "PYTHONPATH",
+    "ULTRALYTICS_OFFLINE",
+    "YOLO_OFFLINE"
+   ],
+   "server_log": [
+    "[cascade] grasp executor: vla -> 127.0.0.1:47010 (policy=scripted-stub, chunks=2)",
+    "[cascade] backends: grasp_planner=graspgenx (learned 6-DoF) | occupancy=disabled",
+    "[cascade] capabilities: depth_3d=yes (isaac: sensor, isaac_side: sensor) | depth_heights=yes | learned_grasps=yes | occupancy=no (disabled) | arms=1 | bases=0 | verifier=yes | memory=yes | vla_policy=yes"
+   ],
+   "world_state_backends": {
+    "grasp_planner": "graspgenx (learned 6-DoF)",
+    "occupancy": "disabled",
+    "occupancy_live": false,
+    "grasp_executor": "vla (127.0.0.1:47010 (policy=scripted-stub, chunks=2))"
+   },
+   "tools": {
+    "n": 45,
+    "pick_and_place": true,
+    "grasp_object": true
+   },
+   "pick": {
+    "ok": false,
+    "verified": false,
+    "outcome": "stuck",
+    "error": "grasp failed after 8 attempts (130.8s): air grasp: gripper closed fully, object not held",
+    "stage": "grasp",
+    "executor": null,
+    "grasp_attempts": null,
+    "duration_s": null,
+    "postcondition": {
+     "status": "refuted",
+     "channel": "physics",
+     "kind": "relocated",
+     "evidence": "pink cube is still within 0.0 cm of where it started"
+    }
+   },
+   "reset": {
+    "ok": true,
+    "world": "isaac",
+    "props_reset": [
+     "pink_cube",
+     "green_cube"
+    ],
+    "error": null
+   },
+   "proof": null,
+   "server_exit": 0,
+   "heredoc_sha256": "2a572babc7183ca1691ffd1e675a2a6e3ddfc870388221444ee154c47e51dc59",
+   "launch_sh_sha256": "3660c96c9556419d7739581086cc25774f621b93a01f10f9f3ce910756bf9146",
+   "trace_sha256": "218debd3e4a8cd6b367bcd3198b29fc2693c5922896e5b9736c45f2add77f01f",
+   "vla_requests": [
+    {
+     "call": 1,
+     "prompt": "pick up the pink cube",
+     "state": [
+      -0.0005,
+      1.209,
+      1.1951,
+      -0.0002,
+      0.0,
+      0.0,
+      1.0
+     ],
+     "image_shape": [
+      224,
+      224,
+      3
+     ],
+     "image_dtype": "uint8",
+     "reply_gripper": 1.0
+    },
+    {
+     "call": 2,
+     "prompt": "pick up the pink cube",
+     "state": [
+      -0.0005,
+      1.209,
+      1.195,
+      -0.0002,
+      0.0,
+      0.0,
+      1.0
+     ],
+     "image_shape": [
+      224,
+      224,
+      3
+     ],
+     "image_dtype": "uint8",
+     "reply_gripper": 0.0
+    },
+    {
+     "call": 3,
+     "prompt": "pick up the pink cube",
+     "state": [
+      -0.0005,
+      1.209,
+      1.195,
+      -0.0002,
+      0.0,
+      0.0,
+      0.9099
+     ],
+     "image_shape": [
+      224,
+      224,
+      3
+     ],
+     "image_dtype": "uint8",
+     "reply_gripper": 0.0
+    },
+    {
+     "call": 4,
+     "prompt": "pick up the pink cube",
+     "state": [
+      -0.0005,
+      1.209,
+      1.1951,
+      -0.0002,
+      0.0,
+      -0.0,
+      1.0
+     ],
+     "image_shape": [
+      224,
+      224,
+      3
+     ],
+     "image_dtype": "uint8",
+     "reply_gripper": 0.0
+    },
+    {
+     "call": 5,
+     "prompt": "pick up the pink cube",
+     "state": [
+      -0.0005,
+      1.209,
+      1.195,
+      -0.0002,
+      -0.0,
+      0.0,
+      0.7317
+     ],
+     "image_shape": [
+      224,
+      224,
+      3
+     ],
+     "image_dtype": "uint8",
+     "reply_gripper": 0.0
+    },
+    {
+     "call": 6,
+     "prompt": "pick up the pink cube",
+     "state": [
+      -0.0005,
+      1.209,
+      1.1951,
+      -0.0002,
+      0.0,
+      -0.0,
+      1.0
+     ],
+     "image_shape": [
+      224,
+      224,
+      3
+     ],
+     "image_dtype": "uint8",
+     "reply_gripper": 0.0
+    },
+    {
+     "call": 7,
+     "prompt": "pick up the pink cube",
+     "state": [
+      -0.0005,
+      1.209,
+      1.195,
+      -0.0002,
+      0.0,
+      0.0,
+      0.8203
+     ],
+     "image_shape": [
+      224,
+      224,
+      3
+     ],
+     "image_dtype": "uint8",
+     "reply_gripper": 0.0
+    },
+    {
+     "call": 8,
+     "prompt": "pick up the pink cube",
+     "state": [
+      -0.0005,
+      1.209,
+      1.1951,
+      -0.0002,
+      0.0,
+      -0.0,
+      1.0
+     ],
+     "image_shape": [
+      224,
+      224,
+      3
+     ],
+     "image_dtype": "uint8",
+     "reply_gripper": 0.0
+    },
+    {
+     "call": 9,
+     "prompt": "pick up the pink cube",
+     "state": [
+      -0.0005,
+      1.209,
+      1.195,
+      -0.0002,
+      0.0,
+      0.0,
+      0.9099
+     ],
+     "image_shape": [
+      224,
+      224,
+      3
+     ],
+     "image_dtype": "uint8",
+     "reply_gripper": 0.0
+    },
+    {
+     "call": 10,
+     "prompt": "pick up the pink cube",
+     "state": [
+      -0.0005,
+      1.209,
+      1.1951,
+      -0.0002,
+      0.0,
+      -0.0,
+      1.0
+     ],
+     "image_shape": [
+      224,
+      224,
+      3
+     ],
+     "image_dtype": "uint8",
+     "reply_gripper": 0.0
+    },
+    {
+     "call": 11,
+     "prompt": "pick up the pink cube",
+     "state": [
+      -0.0005,
+      1.209,
+      1.195,
+      -0.0002,
+      0.0,
+      0.0,
+      0.9099
+     ],
+     "image_shape": [
+      224,
+      224,
+      3
+     ],
+     "image_dtype": "uint8",
+     "reply_gripper": 0.0
+    },
+    {
+     "call": 12,
+     "prompt": "pick up the pink cube",
+     "state": [
+      -0.0005,
+      1.209,
+      1.1951,
+      -0.0002,
+      0.0,
+      -0.0,
+      1.0
+     ],
+     "image_shape": [
+      224,
+      224,
+      3
+     ],
+     "image_dtype": "uint8",
+     "reply_gripper": 0.0
+    },
+    {
+     "call": 13,
+     "prompt": "pick up the pink cube",
+     "state": [
+      -0.0005,
+      1.209,
+      1.195,
+      -0.0002,
+      0.0,
+      0.0,
+      0.9099
+     ],
+     "image_shape": [
+      224,
+      224,
+      3
+     ],
+     "image_dtype": "uint8",
+     "reply_gripper": 0.0
+    },
+    {
+     "call": 14,
+     "prompt": "pick up the pink cube",
+     "state": [
+      -0.0005,
+      1.209,
+      1.1951,
+      -0.0002,
+      0.0,
+      -0.0,
+      1.0
+     ],
+     "image_shape": [
+      224,
+      224,
+      3
+     ],
+     "image_dtype": "uint8",
+     "reply_gripper": 0.0
+    },
+    {
+     "call": 15,
+     "prompt": "pick up the pink cube",
+     "state": [
+      -0.0005,
+      1.209,
+      1.195,
+      -0.0002,
+      0.0,
+      0.0,
+      0.9099
+     ],
+     "image_shape": [
+      224,
+      224,
+      3
+     ],
+     "image_dtype": "uint8",
+     "reply_gripper": 0.0
+    },
+    {
+     "call": 16,
+     "prompt": "pick up the pink cube",
+     "state": [
+      -0.0005,
+      1.209,
+      1.1951,
+      -0.0002,
+      0.0,
+      -0.0,
+      1.0
+     ],
+     "image_shape": [
+      224,
+      224,
+      3
+     ],
+     "image_dtype": "uint8",
+     "reply_gripper": 0.0
+    },
+    {
+     "call": 17,
+     "prompt": "pick up the pink cube",
+     "state": [
+      -0.0005,
+      1.209,
+      1.195,
+      -0.0002,
+      0.0,
+      0.0,
+      0.9099
+     ],
+     "image_shape": [
+      224,
+      224,
+      3
+     ],
+     "image_dtype": "uint8",
+     "reply_gripper": 0.0
+    }
+   ]
+  },
+  {
+   "tag": "an1",
+   "arm": "analytic",
+   "fresh_memory": false,
+   "entry": {
+    "command": "/home/johnny/Projects/demo/cascade/.venv/bin/python",
+    "args": [
+     "-m",
+     "cascade.apps.mcp_server",
+     "--launch-owner",
+     "<owner>",
+     "--launch-state-dir",
+     "<live-w6>/launch_state/profile-hermes-live-w6"
+    ],
+    "cwd": "<live-w6>/cascade/models",
+    "env": {
+     "CASCADE_CAMERAS": "isaac,isaac_side",
+     "CASCADE_ARM": "isaac",
+     "CASCADE_DETECTOR_MODEL": "<live-w6>/cascade/models/yoloe-11s-seg.pt",
+     "YOLO_OFFLINE": "True",
+     "ULTRALYTICS_OFFLINE": "True",
+     "CASCADE_OPENCLAW_PROFILE": "hermes-live-w6",
+     "CASCADE_GRASP_MEMORY_PATH": "<live-w6>/launch_state/profile-hermes-live-w6/memory/grasp_memory.json",
+     "CASCADE_ENVELOPE_PATH": "<live-w6>/launch_state/profile-hermes-live-w6/memory/envelope.json",
+     "CASCADE_BELIEFS_PATH": "<live-w6>/launch_state/profile-hermes-live-w6/memory/beliefs.json",
+     "CASCADE_GRASPGENX_PORT": "47001",
+     "CASCADE_BRIDGE_PORT": "47000",
+     "CASCADE_OCCUPANCY_PORT": "47002",
+     "CUDA_VISIBLE_DEVICES": "GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3",
+     "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+     "CASCADE_OCCUPANCY": "0",
+     "CASCADE_VIEW": "0",
+     "DISPLAY": ":0"
+    },
+    "requestTimeoutMs": 300000
+   },
+   "server_env_keys": [
+    "CASCADE_ARM",
+    "CASCADE_BELIEFS_PATH",
+    "CASCADE_BRIDGE_PORT",
+    "CASCADE_CAMERAS",
+    "CASCADE_DETECTOR_MODEL",
+    "CASCADE_ENVELOPE_PATH",
+    "CASCADE_GRASPGENX_PORT",
+    "CASCADE_GRASP_MEMORY_PATH",
+    "CASCADE_OCCUPANCY",
+    "CASCADE_OCCUPANCY_PORT",
+    "CASCADE_OPENCLAW_PROFILE",
+    "CASCADE_VIEW",
+    "CUDA_DEVICE_ORDER",
+    "CUDA_VISIBLE_DEVICES",
+    "DISPLAY",
+    "HOME",
+    "PATH",
+    "PYTHONPATH",
+    "ULTRALYTICS_OFFLINE",
+    "YOLO_OFFLINE"
+   ],
+   "server_log": [
+    "[cascade] backends: grasp_planner=graspgenx (learned 6-DoF) | occupancy=disabled",
+    "[cascade] capabilities: depth_3d=yes (isaac: sensor, isaac_side: sensor) | depth_heights=yes | learned_grasps=yes | occupancy=no (disabled) | arms=1 | bases=0 | verifier=yes | memory=yes"
+   ],
+   "world_state_backends": {
+    "grasp_planner": "graspgenx (learned 6-DoF)",
+    "occupancy": "disabled",
+    "occupancy_live": false
+   },
+   "tools": {
+    "n": 45,
+    "pick_and_place": true,
+    "grasp_object": true
+   },
+   "pick": {
+    "ok": false,
+    "verified": false,
+    "outcome": "stuck",
+    "error": "grasp failed after 5 attempts (154.8s): SkillError: already holding 'pink cube'; place it first",
+    "stage": "grasp",
+    "executor": null,
+    "grasp_attempts": null,
+    "duration_s": null,
+    "postcondition": {
+     "status": "refuted",
+     "channel": "physics",
+     "kind": "relocated",
+     "evidence": "pink cube ended 34.1 cm from where it was meant to go (at [0.474, 0.002], wanted [0.18, -0.17])"
+    }
+   },
+   "reset": {
+    "ok": false,
+    "world": null,
+    "props_reset": [],
+    "error": "Scene reset could not reach home: did not settle at home"
+   },
+   "proof": {
+    "path": "<live-w6>/launch_state/profile-hermes-live-w6/proof.json",
+    "verified": false,
+    "error": "ProofError: expected one current physics-confirmed pick for 'pink cube'; found 0",
+    "evidence_dir": "<live-w6>/launch_state/profile-hermes-live-w6/cascade-proof-fbc737fe65304a149d529077bf167fe2"
+   },
+   "server_exit": 0,
+   "heredoc_sha256": "2a572babc7183ca1691ffd1e675a2a6e3ddfc870388221444ee154c47e51dc59",
+   "launch_sh_sha256": "3660c96c9556419d7739581086cc25774f621b93a01f10f9f3ce910756bf9146",
+   "trace_sha256": "bc75c71e10d861c2fec2cfe3a13bde457b80c57ae1acb7d9f309146c3750b506"
+  },
+  {
+   "tag": "an2",
+   "arm": "analytic",
+   "fresh_memory": false,
+   "entry": {
+    "command": "/home/johnny/Projects/demo/cascade/.venv/bin/python",
+    "args": [
+     "-m",
+     "cascade.apps.mcp_server",
+     "--launch-owner",
+     "<owner>",
+     "--launch-state-dir",
+     "<live-w6>/launch_state/profile-hermes-live-w6"
+    ],
+    "cwd": "<live-w6>/cascade/models",
+    "env": {
+     "CASCADE_CAMERAS": "isaac,isaac_side",
+     "CASCADE_ARM": "isaac",
+     "CASCADE_DETECTOR_MODEL": "<live-w6>/cascade/models/yoloe-11s-seg.pt",
+     "YOLO_OFFLINE": "True",
+     "ULTRALYTICS_OFFLINE": "True",
+     "CASCADE_OPENCLAW_PROFILE": "hermes-live-w6",
+     "CASCADE_GRASP_MEMORY_PATH": "<live-w6>/launch_state/profile-hermes-live-w6/memory/grasp_memory.json",
+     "CASCADE_ENVELOPE_PATH": "<live-w6>/launch_state/profile-hermes-live-w6/memory/envelope.json",
+     "CASCADE_BELIEFS_PATH": "<live-w6>/launch_state/profile-hermes-live-w6/memory/beliefs.json",
+     "CASCADE_GRASPGENX_PORT": "47001",
+     "CASCADE_BRIDGE_PORT": "47000",
+     "CASCADE_OCCUPANCY_PORT": "47002",
+     "CUDA_VISIBLE_DEVICES": "GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3",
+     "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+     "CASCADE_OCCUPANCY": "0",
+     "CASCADE_VIEW": "0",
+     "DISPLAY": ":0"
+    },
+    "requestTimeoutMs": 300000
+   },
+   "server_env_keys": [
+    "CASCADE_ARM",
+    "CASCADE_BELIEFS_PATH",
+    "CASCADE_BRIDGE_PORT",
+    "CASCADE_CAMERAS",
+    "CASCADE_DETECTOR_MODEL",
+    "CASCADE_ENVELOPE_PATH",
+    "CASCADE_GRASPGENX_PORT",
+    "CASCADE_GRASP_MEMORY_PATH",
+    "CASCADE_OCCUPANCY",
+    "CASCADE_OCCUPANCY_PORT",
+    "CASCADE_OPENCLAW_PROFILE",
+    "CASCADE_VIEW",
+    "CUDA_DEVICE_ORDER",
+    "CUDA_VISIBLE_DEVICES",
+    "DISPLAY",
+    "HOME",
+    "PATH",
+    "PYTHONPATH",
+    "ULTRALYTICS_OFFLINE",
+    "YOLO_OFFLINE"
+   ],
+   "server_log": [
+    "[cascade] backends: grasp_planner=graspgenx (learned 6-DoF) | occupancy=disabled",
+    "[cascade] capabilities: depth_3d=yes (isaac: sensor, isaac_side: sensor) | depth_heights=yes | learned_grasps=yes | occupancy=no (disabled) | arms=1 | bases=0 | verifier=yes | memory=yes"
+   ],
+   "world_state_backends": {
+    "grasp_planner": "graspgenx (learned 6-DoF)",
+    "occupancy": "disabled",
+    "occupancy_live": false
+   },
+   "tools": {
+    "n": 45,
+    "pick_and_place": true,
+    "grasp_object": true
+   },
+   "pick": {
+    "ok": false,
+    "verified": false,
+    "outcome": "stuck",
+    "error": "grasp failed after 5 attempts (150.4s): SkillError: already holding 'pink cube'; place it first",
+    "stage": "grasp",
+    "executor": null,
+    "grasp_attempts": null,
+    "duration_s": null,
+    "postcondition": {
+     "status": "refuted",
+     "channel": "physics",
+     "kind": "relocated",
+     "evidence": "pink cube ended 34.1 cm from where it was meant to go (at [0.475, 0.001], wanted [0.18, -0.17])"
+    }
+   },
+   "reset": {
+    "ok": false,
+    "world": null,
+    "props_reset": [],
+    "error": "Scene reset could not reach home: did not settle at home"
+   },
+   "proof": {
+    "path": "<live-w6>/launch_state/profile-hermes-live-w6/proof.json",
+    "verified": false,
+    "error": "ProofError: expected one current physics-confirmed pick for 'pink cube'; found 0",
+    "evidence_dir": "<live-w6>/launch_state/profile-hermes-live-w6/cascade-proof-8bafbba030dd49079243b5bc7a2e8e12"
+   },
+   "server_exit": 0,
+   "heredoc_sha256": "2a572babc7183ca1691ffd1e675a2a6e3ddfc870388221444ee154c47e51dc59",
+   "launch_sh_sha256": "3660c96c9556419d7739581086cc25774f621b93a01f10f9f3ce910756bf9146",
+   "trace_sha256": "171803349e950dec8db3669b88b0d792da4e0c14b33ea2ce0e74fbdc1f4aa304"
+  },
+  {
+   "tag": "an3",
+   "arm": "analytic",
+   "fresh_memory": false,
+   "entry": {
+    "command": "/home/johnny/Projects/demo/cascade/.venv/bin/python",
+    "args": [
+     "-m",
+     "cascade.apps.mcp_server",
+     "--launch-owner",
+     "<owner>",
+     "--launch-state-dir",
+     "<live-w6>/launch_state/profile-hermes-live-w6"
+    ],
+    "cwd": "<live-w6>/cascade/models",
+    "env": {
+     "CASCADE_CAMERAS": "isaac,isaac_side",
+     "CASCADE_ARM": "isaac",
+     "CASCADE_DETECTOR_MODEL": "<live-w6>/cascade/models/yoloe-11s-seg.pt",
+     "YOLO_OFFLINE": "True",
+     "ULTRALYTICS_OFFLINE": "True",
+     "CASCADE_OPENCLAW_PROFILE": "hermes-live-w6",
+     "CASCADE_GRASP_MEMORY_PATH": "<live-w6>/launch_state/profile-hermes-live-w6/memory/grasp_memory.json",
+     "CASCADE_ENVELOPE_PATH": "<live-w6>/launch_state/profile-hermes-live-w6/memory/envelope.json",
+     "CASCADE_BELIEFS_PATH": "<live-w6>/launch_state/profile-hermes-live-w6/memory/beliefs.json",
+     "CASCADE_GRASPGENX_PORT": "47001",
+     "CASCADE_BRIDGE_PORT": "47000",
+     "CASCADE_OCCUPANCY_PORT": "47002",
+     "CUDA_VISIBLE_DEVICES": "GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3",
+     "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+     "CASCADE_OCCUPANCY": "0",
+     "CASCADE_VIEW": "0",
+     "DISPLAY": ":0"
+    },
+    "requestTimeoutMs": 300000
+   },
+   "server_env_keys": [
+    "CASCADE_ARM",
+    "CASCADE_BELIEFS_PATH",
+    "CASCADE_BRIDGE_PORT",
+    "CASCADE_CAMERAS",
+    "CASCADE_DETECTOR_MODEL",
+    "CASCADE_ENVELOPE_PATH",
+    "CASCADE_GRASPGENX_PORT",
+    "CASCADE_GRASP_MEMORY_PATH",
+    "CASCADE_OCCUPANCY",
+    "CASCADE_OCCUPANCY_PORT",
+    "CASCADE_OPENCLAW_PROFILE",
+    "CASCADE_VIEW",
+    "CUDA_DEVICE_ORDER",
+    "CUDA_VISIBLE_DEVICES",
+    "DISPLAY",
+    "HOME",
+    "PATH",
+    "PYTHONPATH",
+    "ULTRALYTICS_OFFLINE",
+    "YOLO_OFFLINE"
+   ],
+   "server_log": [
+    "[cascade] backends: grasp_planner=graspgenx (learned 6-DoF) | occupancy=disabled",
+    "[cascade] capabilities: depth_3d=yes (isaac: sensor, isaac_side: sensor) | depth_heights=yes | learned_grasps=yes | occupancy=no (disabled) | arms=1 | bases=0 | verifier=yes | memory=yes"
+   ],
+   "world_state_backends": {
+    "grasp_planner": "graspgenx (learned 6-DoF)",
+    "occupancy": "disabled",
+    "occupancy_live": false
+   },
+   "tools": {
+    "n": 45,
+    "pick_and_place": true,
+    "grasp_object": true
+   },
+   "pick": {
+    "ok": false,
+    "verified": false,
+    "outcome": "stuck",
+    "error": "grasp failed after 5 attempts (150.1s): SkillError: already holding 'pink cube'; place it first",
+    "stage": "grasp",
+    "executor": null,
+    "grasp_attempts": null,
+    "duration_s": null,
+    "postcondition": {
+     "status": "refuted",
+     "channel": "physics",
+     "kind": "relocated",
+     "evidence": "pink cube ended 34.1 cm from where it was meant to go (at [0.475, 0.003], wanted [0.18, -0.17])"
+    }
+   },
+   "reset": {
+    "ok": false,
+    "world": null,
+    "props_reset": [],
+    "error": "Scene reset could not reach home: did not settle at home"
+   },
+   "proof": {
+    "path": "<live-w6>/launch_state/profile-hermes-live-w6/proof.json",
+    "verified": false,
+    "error": "ProofError: expected one current physics-confirmed pick for 'pink cube'; found 0",
+    "evidence_dir": "<live-w6>/launch_state/profile-hermes-live-w6/cascade-proof-64a478fcbbf149a9afa4e37ddd7a66c1"
+   },
+   "server_exit": 0,
+   "heredoc_sha256": "2a572babc7183ca1691ffd1e675a2a6e3ddfc870388221444ee154c47e51dc59",
+   "launch_sh_sha256": "3660c96c9556419d7739581086cc25774f621b93a01f10f9f3ce910756bf9146",
+   "trace_sha256": "8f599b3f15f21edb2813ec52ec51f9c8f58db3c6d3a1f0857c62be57afbc919c"
+  },
+  {
+   "tag": "an4",
+   "arm": "analytic",
+   "fresh_memory": true,
+   "entry": {
+    "command": "/home/johnny/Projects/demo/cascade/.venv/bin/python",
+    "args": [
+     "-m",
+     "cascade.apps.mcp_server",
+     "--launch-owner",
+     "<owner>",
+     "--launch-state-dir",
+     "<live-w6>/launch_state/profile-hermes-live-w6"
+    ],
+    "cwd": "<live-w6>/cascade/models",
+    "env": {
+     "CASCADE_CAMERAS": "isaac,isaac_side",
+     "CASCADE_ARM": "isaac",
+     "CASCADE_DETECTOR_MODEL": "<live-w6>/cascade/models/yoloe-11s-seg.pt",
+     "YOLO_OFFLINE": "True",
+     "ULTRALYTICS_OFFLINE": "True",
+     "CASCADE_OPENCLAW_PROFILE": "hermes-live-w6",
+     "CASCADE_GRASP_MEMORY_PATH": "<live-w6>/b63/an4/memory/grasp_memory.json",
+     "CASCADE_ENVELOPE_PATH": "<live-w6>/b63/an4/memory/envelope.json",
+     "CASCADE_BELIEFS_PATH": "<live-w6>/b63/an4/memory/beliefs.json",
+     "CASCADE_GRASPGENX_PORT": "47001",
+     "CASCADE_BRIDGE_PORT": "47000",
+     "CASCADE_OCCUPANCY_PORT": "47002",
+     "CUDA_VISIBLE_DEVICES": "GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3",
+     "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+     "CASCADE_OCCUPANCY": "0",
+     "CASCADE_VIEW": "0",
+     "DISPLAY": ":0"
+    },
+    "requestTimeoutMs": 300000
+   },
+   "server_env_keys": [
+    "CASCADE_ARM",
+    "CASCADE_BELIEFS_PATH",
+    "CASCADE_BRIDGE_PORT",
+    "CASCADE_CAMERAS",
+    "CASCADE_DETECTOR_MODEL",
+    "CASCADE_ENVELOPE_PATH",
+    "CASCADE_GRASPGENX_PORT",
+    "CASCADE_GRASP_MEMORY_PATH",
+    "CASCADE_OCCUPANCY",
+    "CASCADE_OCCUPANCY_PORT",
+    "CASCADE_OPENCLAW_PROFILE",
+    "CASCADE_VIEW",
+    "CUDA_DEVICE_ORDER",
+    "CUDA_VISIBLE_DEVICES",
+    "DISPLAY",
+    "HOME",
+    "PATH",
+    "PYTHONPATH",
+    "ULTRALYTICS_OFFLINE",
+    "YOLO_OFFLINE"
+   ],
+   "server_log": [
+    "[cascade] backends: grasp_planner=graspgenx (learned 6-DoF) | occupancy=disabled",
+    "[cascade] capabilities: depth_3d=yes (isaac: sensor, isaac_side: sensor) | depth_heights=yes | learned_grasps=yes | occupancy=no (disabled) | arms=1 | bases=0 | verifier=yes | memory=yes"
+   ],
+   "world_state_backends": {
+    "grasp_planner": "graspgenx (learned 6-DoF)",
+    "occupancy": "disabled",
+    "occupancy_live": false
+   },
+   "tools": {
+    "n": 45,
+    "pick_and_place": true,
+    "grasp_object": true
+   },
+   "pick": {
+    "ok": false,
+    "verified": false,
+    "outcome": "stuck",
+    "error": "grasp failed after 5 attempts (152.9s): SkillError: already holding 'pink cube'; place it first",
+    "stage": "grasp",
+    "executor": null,
+    "grasp_attempts": null,
+    "duration_s": null,
+    "postcondition": {
+     "status": "refuted",
+     "channel": "physics",
+     "kind": "relocated",
+     "evidence": "pink cube ended 34.1 cm from where it was meant to go (at [0.475, 0.0], wanted [0.18, -0.17])"
+    }
+   },
+   "reset": {
+    "ok": false,
+    "world": null,
+    "props_reset": [],
+    "error": "Scene reset could not reach home: did not settle at home"
+   },
+   "proof": {
+    "path": "<live-w6>/launch_state/profile-hermes-live-w6/proof.json",
+    "verified": false,
+    "error": "ProofError: expected one current physics-confirmed pick for 'pink cube'; found 0",
+    "evidence_dir": "<live-w6>/launch_state/profile-hermes-live-w6/cascade-proof-7176e3e766c9465a8f836e749e32e400"
+   },
+   "server_exit": 0,
+   "heredoc_sha256": "2a572babc7183ca1691ffd1e675a2a6e3ddfc870388221444ee154c47e51dc59",
+   "launch_sh_sha256": "3660c96c9556419d7739581086cc25774f621b93a01f10f9f3ce910756bf9146",
+   "trace_sha256": "b8975abcbf57221c0da8a3ab959734f9da02fcb52f0f5c125bf6790ee47c1a2b"
+  },
+  {
+   "tag": "an5",
+   "arm": "analytic",
+   "fresh_memory": true,
+   "entry": {
+    "command": "/home/johnny/Projects/demo/cascade/.venv/bin/python",
+    "args": [
+     "-m",
+     "cascade.apps.mcp_server",
+     "--launch-owner",
+     "<owner>",
+     "--launch-state-dir",
+     "<live-w6>/launch_state/profile-hermes-live-w6"
+    ],
+    "cwd": "<live-w6>/cascade/models",
+    "env": {
+     "CASCADE_CAMERAS": "isaac,isaac_side",
+     "CASCADE_ARM": "isaac",
+     "CASCADE_DETECTOR_MODEL": "<live-w6>/cascade/models/yoloe-11s-seg.pt",
+     "YOLO_OFFLINE": "True",
+     "ULTRALYTICS_OFFLINE": "True",
+     "CASCADE_OPENCLAW_PROFILE": "hermes-live-w6",
+     "CASCADE_GRASP_MEMORY_PATH": "<live-w6>/b63/an5/memory/grasp_memory.json",
+     "CASCADE_ENVELOPE_PATH": "<live-w6>/b63/an5/memory/envelope.json",
+     "CASCADE_BELIEFS_PATH": "<live-w6>/b63/an5/memory/beliefs.json",
+     "CASCADE_GRASPGENX_PORT": "47001",
+     "CASCADE_BRIDGE_PORT": "47000",
+     "CASCADE_OCCUPANCY_PORT": "47002",
+     "CUDA_VISIBLE_DEVICES": "GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3",
+     "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+     "CASCADE_OCCUPANCY": "0",
+     "CASCADE_VIEW": "0",
+     "DISPLAY": ":0"
+    },
+    "requestTimeoutMs": 300000
+   },
+   "server_env_keys": [
+    "CASCADE_ARM",
+    "CASCADE_BELIEFS_PATH",
+    "CASCADE_BRIDGE_PORT",
+    "CASCADE_CAMERAS",
+    "CASCADE_DETECTOR_MODEL",
+    "CASCADE_ENVELOPE_PATH",
+    "CASCADE_GRASPGENX_PORT",
+    "CASCADE_GRASP_MEMORY_PATH",
+    "CASCADE_OCCUPANCY",
+    "CASCADE_OCCUPANCY_PORT",
+    "CASCADE_OPENCLAW_PROFILE",
+    "CASCADE_VIEW",
+    "CUDA_DEVICE_ORDER",
+    "CUDA_VISIBLE_DEVICES",
+    "DISPLAY",
+    "HOME",
+    "PATH",
+    "PYTHONPATH",
+    "ULTRALYTICS_OFFLINE",
+    "YOLO_OFFLINE"
+   ],
+   "server_log": [
+    "[cascade] backends: grasp_planner=graspgenx (learned 6-DoF) | occupancy=disabled",
+    "[cascade] capabilities: depth_3d=yes (isaac: sensor, isaac_side: sensor) | depth_heights=yes | learned_grasps=yes | occupancy=no (disabled) | arms=1 | bases=0 | verifier=yes | memory=yes"
+   ],
+   "world_state_backends": {
+    "grasp_planner": "graspgenx (learned 6-DoF)",
+    "occupancy": "disabled",
+    "occupancy_live": false
+   },
+   "tools": {
+    "n": 45,
+    "pick_and_place": true,
+    "grasp_object": true
+   },
+   "pick": {
+    "ok": true,
+    "verified": true,
+    "outcome": "ok",
+    "error": null,
+    "stage": null,
+    "executor": null,
+    "grasp_attempts": 1,
+    "duration_s": 69.32,
+    "postcondition": {
+     "status": "confirmed",
+     "channel": "physics",
+     "kind": "relocated",
+     "evidence": "pink cube is 2.6 cm from the drop zone center (physics)"
+    }
+   },
+   "reset": {
+    "ok": true,
+    "world": "isaac",
+    "props_reset": [
+     "pink_cube",
+     "green_cube"
+    ],
+    "error": null
+   },
+   "proof": {
+    "path": "<live-w6>/launch_state/profile-hermes-live-w6/proof.json",
+    "verified": true,
+    "error": null,
+    "evidence_dir": "<live-w6>/launch_state/profile-hermes-live-w6/cascade-proof-6947b5522a9d4a0ba4e2a47ffb10bbe1"
+   },
+   "server_exit": 0,
+   "heredoc_sha256": "2a572babc7183ca1691ffd1e675a2a6e3ddfc870388221444ee154c47e51dc59",
+   "launch_sh_sha256": "3660c96c9556419d7739581086cc25774f621b93a01f10f9f3ce910756bf9146",
+   "trace_sha256": "bd83311dc542338c3e532d627d18fcdcc2a9194d8b2c754642486ce6f9d81a25"
+  }
+ ],
+ "protocol": {
+  "registration": "scripts/launch.sh's MCP registration heredoc, extracted verbatim and run as launch.sh runs it (\"$PY\" - <args>), --sim isaac --arm isaac --cameras isaac,isaac_side --occupancy none --headless, profile hermes-live-w6, launch owner from process_owner.py init",
+  "server": "entry command + args in entry cwd with ONLY entry env (+ PATH, HOME, PYTHONPATH=<wt>/src as the editable-install stand-in); stdio JSON-RPC; no OpenClaw gateway, no brain",
+  "turn": "world_state -> pick_and_place {pink cube, drop zone} -> reset_scene -> world_state",
+  "vla_stub": "vla1: scripts/serve_vla_stub.py --port 47010 --chunks vla_chunks.json; vla2: the same ScriptedPolicy + StubPolicyServer classes with a per-request log (vla_stub_logged.py)",
+  "vla_chunks": [
+   [
+    [
+     0.0,
+     1.2,
+     1.2,
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ]
+   ],
+   [
+    [
+     0.0,
+     1.2,
+     1.2,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   ]
+  ]
+ }
+}

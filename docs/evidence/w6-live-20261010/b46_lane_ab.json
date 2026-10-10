@@ -1,0 +1,788 @@
+{
+ "runs": [
+  {
+   "tag": "on1",
+   "order": 0,
+   "lane": "1",
+   "motion": "pick_and_place",
+   "motion_s": 79.194,
+   "motion_result": {
+    "ok": true,
+    "verified": true,
+    "outcome": "ok",
+    "error": null,
+    "stage": null
+   },
+   "motion_postcondition": {
+    "status": "confirmed",
+    "channel": "physics",
+    "kind": "relocated",
+    "reason": null
+   },
+   "reads": [
+    {
+     "tool": "world_state",
+     "latency_s": 0.003,
+     "answered_before_motion": true,
+     "isError": false,
+     "served_during_motion": "pick_and_place"
+    },
+    {
+     "tool": "robot_knowledge",
+     "latency_s": 0.003,
+     "answered_before_motion": true,
+     "isError": false,
+     "served_during_motion": "pick_and_place"
+    },
+    {
+     "tool": "verify_last_action",
+     "latency_s": 0.003,
+     "answered_before_motion": true,
+     "isError": false,
+     "served_during_motion": "pick_and_place"
+    },
+    {
+     "tool": "camera_snapshot",
+     "latency_s": 0.024,
+     "answered_before_motion": true,
+     "isError": false,
+     "served_during_motion": "pick_and_place"
+    }
+   ],
+   "after_motion_world_state_marked": false,
+   "stop": null,
+   "trace_pick_rows": 1,
+   "trace_pick_postcondition": [
+    "confirmed"
+   ],
+   "grasp_attempt_failures": [
+    null
+   ],
+   "bridge_gpu": {
+    "required": false,
+    "backend": "physx",
+    "device": "cuda:0",
+    "tensor_device": "cuda:0",
+    "tensor_device_ordinal": 0,
+    "cuda_context_present": true,
+    "gpu_dynamics": true,
+    "broadphase": "GPU",
+    "cpu_fallback_allowed": false,
+    "fallback_log_count": 0
+   },
+   "sources": {
+    "probe_json": "b46/on1.json",
+    "probe_json_sha256": "85825ce80020cadf9a9fd0ff1171513621cbeb514c8aeff623e60bec87fe29d9",
+    "trace": "b46/run_on1/trace.jsonl",
+    "trace_sha256": "036bc6ba0f2c7742ce7d0ded7ffc1c5109247819ca1472364b67cfa065e00ee6"
+   }
+  },
+  {
+   "tag": "off1",
+   "order": 1,
+   "lane": "0",
+   "motion": "pick_and_place",
+   "motion_s": 165.703,
+   "motion_result": {
+    "ok": false,
+    "verified": false,
+    "outcome": "stuck",
+    "error": "grasp failed after 5 attempts (165.3s): SkillError: already holding 'pink cube'; place it first",
+    "stage": "grasp"
+   },
+   "motion_postcondition": {
+    "status": "refuted",
+    "channel": "physics",
+    "kind": "relocated",
+    "reason": null
+   },
+   "reads": [
+    {
+     "tool": "world_state",
+     "latency_s": 164.703,
+     "answered_before_motion": false,
+     "isError": false,
+     "served_during_motion": null
+    },
+    {
+     "tool": "robot_knowledge",
+     "latency_s": 164.703,
+     "answered_before_motion": false,
+     "isError": false,
+     "served_during_motion": null
+    },
+    {
+     "tool": "verify_last_action",
+     "latency_s": 164.703,
+     "answered_before_motion": false,
+     "isError": false,
+     "served_during_motion": null
+    },
+    {
+     "tool": "camera_snapshot",
+     "latency_s": 164.778,
+     "answered_before_motion": false,
+     "isError": false,
+     "served_during_motion": null
+    }
+   ],
+   "after_motion_world_state_marked": false,
+   "stop": null,
+   "trace_pick_rows": 1,
+   "trace_pick_postcondition": [
+    "refuted"
+   ],
+   "grasp_attempt_failures": [
+    "did not settle at grasp lift pose",
+    "already holding 'pink cube'; place it first",
+    "already holding 'pink cube'; place it first",
+    "already holding 'pink cube'; place it first",
+    "already holding 'pink cube'; place it first"
+   ],
+   "bridge_gpu": {
+    "required": false,
+    "backend": "physx",
+    "device": "cuda:0",
+    "tensor_device": "cuda:0",
+    "tensor_device_ordinal": 0,
+    "cuda_context_present": true,
+    "gpu_dynamics": true,
+    "broadphase": "GPU",
+    "cpu_fallback_allowed": false,
+    "fallback_log_count": 0
+   },
+   "sources": {
+    "probe_json": "b46/off1.json",
+    "probe_json_sha256": "06a768ead0a9fe91ccc3eb226165bf94f7f8aecfcf59eac665996147d4de42d6",
+    "trace": "b46/run_off1/trace.jsonl",
+    "trace_sha256": "38d69278dda8cc098b8973f07a1643c12ca4eddcfdb8e1f88707a072bfc6d915"
+   }
+  },
+  {
+   "tag": "on2",
+   "order": 2,
+   "lane": "1",
+   "motion": "pick_and_place",
+   "motion_s": 158.994,
+   "motion_result": {
+    "ok": false,
+    "verified": false,
+    "outcome": "stuck",
+    "error": "grasp failed after 5 attempts (158.6s): SkillError: already holding 'pink cube'; place it first",
+    "stage": "grasp"
+   },
+   "motion_postcondition": {
+    "status": "refuted",
+    "channel": "physics",
+    "kind": "relocated",
+    "reason": null
+   },
+   "reads": [
+    {
+     "tool": "world_state",
+     "latency_s": 0.001,
+     "answered_before_motion": true,
+     "isError": false,
+     "served_during_motion": "pick_and_place"
+    },
+    {
+     "tool": "robot_knowledge",
+     "latency_s": 0.001,
+     "answered_before_motion": true,
+     "isError": false,
+     "served_during_motion": "pick_and_place"
+    },
+    {
+     "tool": "verify_last_action",
+     "latency_s": 0.001,
+     "answered_before_motion": true,
+     "isError": false,
+     "served_during_motion": "pick_and_place"
+    },
+    {
+     "tool": "camera_snapshot",
+     "latency_s": 0.038,
+     "answered_before_motion": true,
+     "isError": false,
+     "served_during_motion": "pick_and_place"
+    }
+   ],
+   "after_motion_world_state_marked": false,
+   "stop": null,
+   "trace_pick_rows": 1,
+   "trace_pick_postcondition": [
+    "refuted"
+   ],
+   "grasp_attempt_failures": [
+    "did not settle at grasp lift pose",
+    "already holding 'pink cube'; place it first",
+    "already holding 'pink cube'; place it first",
+    "already holding 'pink cube'; place it first",
+    "already holding 'pink cube'; place it first"
+   ],
+   "bridge_gpu": {
+    "required": false,
+    "backend": "physx",
+    "device": "cuda:0",
+    "tensor_device": "cuda:0",
+    "tensor_device_ordinal": 0,
+    "cuda_context_present": true,
+    "gpu_dynamics": true,
+    "broadphase": "GPU",
+    "cpu_fallback_allowed": false,
+    "fallback_log_count": 0
+   },
+   "sources": {
+    "probe_json": "b46/on2.json",
+    "probe_json_sha256": "597978e869f59aae00aac4cd7b282eab315873af8260a4f0d022437255c10950",
+    "trace": "b46/run_on2/trace.jsonl",
+    "trace_sha256": "1455c3170e1a10fcfbf62a158769280ff34752db6156a9abe0b9292c70179dfc"
+   }
+  },
+  {
+   "tag": "off2",
+   "order": 3,
+   "lane": "0",
+   "motion": "pick_and_place",
+   "motion_s": 66.419,
+   "motion_result": {
+    "ok": false,
+    "verified": false,
+    "outcome": "failed",
+    "error": "postcondition failed: pink cube ended 11.4 cm from where it was meant to go (at [0.224, -0.064], wanted [0.18, -0.17])",
+    "stage": null
+   },
+   "motion_postcondition": {
+    "status": "refuted",
+    "channel": "physics",
+    "kind": "relocated",
+    "reason": null
+   },
+   "reads": [
+    {
+     "tool": "world_state",
+     "latency_s": 65.418,
+     "answered_before_motion": false,
+     "isError": false,
+     "served_during_motion": null
+    },
+    {
+     "tool": "robot_knowledge",
+     "latency_s": 65.418,
+     "answered_before_motion": false,
+     "isError": false,
+     "served_during_motion": null
+    },
+    {
+     "tool": "verify_last_action",
+     "latency_s": 65.418,
+     "answered_before_motion": false,
+     "isError": false,
+     "served_during_motion": null
+    },
+    {
+     "tool": "camera_snapshot",
+     "latency_s": 65.468,
+     "answered_before_motion": false,
+     "isError": false,
+     "served_during_motion": null
+    }
+   ],
+   "after_motion_world_state_marked": false,
+   "stop": null,
+   "trace_pick_rows": 1,
+   "trace_pick_postcondition": [
+    "refuted"
+   ],
+   "grasp_attempt_failures": [
+    null
+   ],
+   "bridge_gpu": {
+    "required": false,
+    "backend": "physx",
+    "device": "cuda:0",
+    "tensor_device": "cuda:0",
+    "tensor_device_ordinal": 0,
+    "cuda_context_present": true,
+    "gpu_dynamics": true,
+    "broadphase": "GPU",
+    "cpu_fallback_allowed": false,
+    "fallback_log_count": 0
+   },
+   "sources": {
+    "probe_json": "b46/off2.json",
+    "probe_json_sha256": "8565498dabdd828e13fcbd034489786a9fa03357dab4334f23e850dd1417caa7",
+    "trace": "b46/run_off2/trace.jsonl",
+    "trace_sha256": "ca1535705bd016b59e7b5b9b70bfc611cd36d7b7e94bcb827c419747ea817f01"
+   }
+  },
+  {
+   "tag": "on3",
+   "order": 4,
+   "lane": "1",
+   "motion": "pick_and_place",
+   "motion_s": 160.056,
+   "motion_result": {
+    "ok": false,
+    "verified": false,
+    "outcome": "stuck",
+    "error": "grasp failed after 5 attempts (159.7s): SkillError: already holding 'pink cube'; place it first",
+    "stage": "grasp"
+   },
+   "motion_postcondition": {
+    "status": "refuted",
+    "channel": "physics",
+    "kind": "relocated",
+    "reason": null
+   },
+   "reads": [
+    {
+     "tool": "world_state",
+     "latency_s": 0.001,
+     "answered_before_motion": true,
+     "isError": false,
+     "served_during_motion": "pick_and_place"
+    },
+    {
+     "tool": "robot_knowledge",
+     "latency_s": 0.001,
+     "answered_before_motion": true,
+     "isError": false,
+     "served_during_motion": "pick_and_place"
+    },
+    {
+     "tool": "verify_last_action",
+     "latency_s": 0.001,
+     "answered_before_motion": true,
+     "isError": false,
+     "served_during_motion": "pick_and_place"
+    },
+    {
+     "tool": "camera_snapshot",
+     "latency_s": 0.031,
+     "answered_before_motion": true,
+     "isError": false,
+     "served_during_motion": "pick_and_place"
+    }
+   ],
+   "after_motion_world_state_marked": false,
+   "stop": null,
+   "trace_pick_rows": 1,
+   "trace_pick_postcondition": [
+    "refuted"
+   ],
+   "grasp_attempt_failures": [
+    "did not settle at grasp lift pose",
+    "already holding 'pink cube'; place it first",
+    "already holding 'pink cube'; place it first",
+    "already holding 'pink cube'; place it first",
+    "already holding 'pink cube'; place it first"
+   ],
+   "bridge_gpu": {
+    "required": false,
+    "backend": "physx",
+    "device": "cuda:0",
+    "tensor_device": "cuda:0",
+    "tensor_device_ordinal": 0,
+    "cuda_context_present": true,
+    "gpu_dynamics": true,
+    "broadphase": "GPU",
+    "cpu_fallback_allowed": false,
+    "fallback_log_count": 0
+   },
+   "sources": {
+    "probe_json": "b46/on3.json",
+    "probe_json_sha256": "d3e5051d435967a5b34cb3a24f5232f123dd61cb1ca7881999c242b12aeafd93",
+    "trace": "b46/run_on3/trace.jsonl",
+    "trace_sha256": "18bd9b197b6f1c62a84a5b5b77a7c7e5b8e41301bb867d6c21609d70a7633b89"
+   }
+  },
+  {
+   "tag": "off3",
+   "order": 5,
+   "lane": "0",
+   "motion": "pick_and_place",
+   "motion_s": 69.897,
+   "motion_result": {
+    "ok": true,
+    "verified": true,
+    "outcome": "ok",
+    "error": null,
+    "stage": null
+   },
+   "motion_postcondition": {
+    "status": "confirmed",
+    "channel": "physics",
+    "kind": "relocated",
+    "reason": null
+   },
+   "reads": [
+    {
+     "tool": "world_state",
+     "latency_s": 68.897,
+     "answered_before_motion": false,
+     "isError": false,
+     "served_during_motion": null
+    },
+    {
+     "tool": "robot_knowledge",
+     "latency_s": 68.897,
+     "answered_before_motion": false,
+     "isError": false,
+     "served_during_motion": null
+    },
+    {
+     "tool": "verify_last_action",
+     "latency_s": 68.897,
+     "answered_before_motion": false,
+     "isError": false,
+     "served_during_motion": null
+    },
+    {
+     "tool": "camera_snapshot",
+     "latency_s": 68.947,
+     "answered_before_motion": false,
+     "isError": false,
+     "served_during_motion": null
+    }
+   ],
+   "after_motion_world_state_marked": false,
+   "stop": null,
+   "trace_pick_rows": 1,
+   "trace_pick_postcondition": [
+    "confirmed"
+   ],
+   "grasp_attempt_failures": [
+    null
+   ],
+   "bridge_gpu": {
+    "required": false,
+    "backend": "physx",
+    "device": "cuda:0",
+    "tensor_device": "cuda:0",
+    "tensor_device_ordinal": 0,
+    "cuda_context_present": true,
+    "gpu_dynamics": true,
+    "broadphase": "GPU",
+    "cpu_fallback_allowed": false,
+    "fallback_log_count": 0
+   },
+   "sources": {
+    "probe_json": "b46/off3.json",
+    "probe_json_sha256": "d5792ce163eda10d182bf87d5293b6515da53881af07ef155a49c4e5f37ac9d9",
+    "trace": "b46/run_off3/trace.jsonl",
+    "trace_sha256": "88f39932e7fd7bb89f1d7ede037d38156e799e8e2f682fe3a0ba2880646e0efa"
+   }
+  },
+  {
+   "tag": "on4",
+   "order": 6,
+   "lane": "1",
+   "motion": "pick_and_place",
+   "motion_s": 72.782,
+   "motion_result": {
+    "ok": true,
+    "verified": true,
+    "outcome": "ok",
+    "error": null,
+    "stage": null
+   },
+   "motion_postcondition": {
+    "status": "confirmed",
+    "channel": "physics",
+    "kind": "relocated",
+    "reason": null
+   },
+   "reads": [
+    {
+     "tool": "world_state",
+     "latency_s": 0.001,
+     "answered_before_motion": true,
+     "isError": false,
+     "served_during_motion": "pick_and_place"
+    },
+    {
+     "tool": "robot_knowledge",
+     "latency_s": 0.001,
+     "answered_before_motion": true,
+     "isError": false,
+     "served_during_motion": "pick_and_place"
+    },
+    {
+     "tool": "verify_last_action",
+     "latency_s": 0.001,
+     "answered_before_motion": true,
+     "isError": false,
+     "served_during_motion": "pick_and_place"
+    },
+    {
+     "tool": "camera_snapshot",
+     "latency_s": 0.024,
+     "answered_before_motion": true,
+     "isError": false,
+     "served_during_motion": "pick_and_place"
+    }
+   ],
+   "after_motion_world_state_marked": false,
+   "stop": null,
+   "trace_pick_rows": 1,
+   "trace_pick_postcondition": [
+    "confirmed"
+   ],
+   "grasp_attempt_failures": [
+    null
+   ],
+   "bridge_gpu": {
+    "required": false,
+    "backend": "physx",
+    "device": "cuda:0",
+    "tensor_device": "cuda:0",
+    "tensor_device_ordinal": 0,
+    "cuda_context_present": true,
+    "gpu_dynamics": true,
+    "broadphase": "GPU",
+    "cpu_fallback_allowed": false,
+    "fallback_log_count": 0
+   },
+   "sources": {
+    "probe_json": "b46/on4.json",
+    "probe_json_sha256": "85f051420dbb9423d29e4b6cc4900b3ed9af83fc767d5bd56b728c426f117fc7",
+    "trace": "b46/run_on4/trace.jsonl",
+    "trace_sha256": "7b4910b44ae6a3d7dc67169619fdef33fbdbebf603385e4da8022c500cacb1d5"
+   }
+  },
+  {
+   "tag": "off4",
+   "order": 7,
+   "lane": "0",
+   "motion": "pick_and_place",
+   "motion_s": 67.125,
+   "motion_result": {
+    "ok": false,
+    "verified": false,
+    "outcome": "failed",
+    "error": "postcondition failed: pink cube ended 12.0 cm from where it was meant to go (at [0.196, -0.051], wanted [0.18, -0.17])",
+    "stage": null
+   },
+   "motion_postcondition": {
+    "status": "refuted",
+    "channel": "physics",
+    "kind": "relocated",
+    "reason": null
+   },
+   "reads": [
+    {
+     "tool": "world_state",
+     "latency_s": 66.125,
+     "answered_before_motion": false,
+     "isError": false,
+     "served_during_motion": null
+    },
+    {
+     "tool": "robot_knowledge",
+     "latency_s": 66.125,
+     "answered_before_motion": false,
+     "isError": false,
+     "served_during_motion": null
+    },
+    {
+     "tool": "verify_last_action",
+     "latency_s": 66.125,
+     "answered_before_motion": false,
+     "isError": false,
+     "served_during_motion": null
+    },
+    {
+     "tool": "camera_snapshot",
+     "latency_s": 66.171,
+     "answered_before_motion": false,
+     "isError": false,
+     "served_during_motion": null
+    }
+   ],
+   "after_motion_world_state_marked": false,
+   "stop": null,
+   "trace_pick_rows": 1,
+   "trace_pick_postcondition": [
+    "refuted"
+   ],
+   "grasp_attempt_failures": [
+    null
+   ],
+   "bridge_gpu": {
+    "required": false,
+    "backend": "physx",
+    "device": "cuda:0",
+    "tensor_device": "cuda:0",
+    "tensor_device_ordinal": 0,
+    "cuda_context_present": true,
+    "gpu_dynamics": true,
+    "broadphase": "GPU",
+    "cpu_fallback_allowed": false,
+    "fallback_log_count": 0
+   },
+   "sources": {
+    "probe_json": "b46/off4.json",
+    "probe_json_sha256": "1d41d3290e13d30980e5cf17c4e961f6d1dd7e33c079769911a33ef0e878838c",
+    "trace": "b46/run_off4/trace.jsonl",
+    "trace_sha256": "cbf995d18bea7b0bb65be89dfb2d629cd1098f98e0fda222cfc8bc1a8cb4fda4"
+   }
+  },
+  {
+   "tag": "stop1",
+   "order": 8,
+   "lane": "1",
+   "motion": "pick_and_place",
+   "motion_s": 3.27,
+   "motion_result": {
+    "ok": false,
+    "verified": false,
+    "outcome": "failed",
+    "error": "grasp failed after 1 attempts (2.9s): SafetyViolation: simulation motion stopped (e-stop latched; not retrying)",
+    "stage": "grasp"
+   },
+   "motion_postcondition": {
+    "status": "refuted",
+    "channel": "physics",
+    "kind": "relocated",
+    "reason": null
+   },
+   "reads": [
+    {
+     "tool": "world_state",
+     "latency_s": 0.001,
+     "answered_before_motion": true,
+     "isError": false,
+     "served_during_motion": "pick_and_place"
+    },
+    {
+     "tool": "robot_knowledge",
+     "latency_s": 0.001,
+     "answered_before_motion": true,
+     "isError": false,
+     "served_during_motion": "pick_and_place"
+    },
+    {
+     "tool": "verify_last_action",
+     "latency_s": 0.001,
+     "answered_before_motion": true,
+     "isError": false,
+     "served_during_motion": "pick_and_place"
+    },
+    {
+     "tool": "camera_snapshot",
+     "latency_s": 0.025,
+     "answered_before_motion": true,
+     "isError": false,
+     "served_during_motion": "pick_and_place"
+    }
+   ],
+   "after_motion_world_state_marked": false,
+   "stop": {
+    "after_s": 3.0,
+    "latency_s": 0.032,
+    "answered_before_motion": true,
+    "stopped": true
+   },
+   "trace_pick_rows": 1,
+   "trace_pick_postcondition": [
+    "refuted"
+   ],
+   "grasp_attempt_failures": [
+    "simulation motion stopped"
+   ],
+   "bridge_gpu": {
+    "required": false,
+    "backend": "physx",
+    "device": "cuda:0",
+    "tensor_device": "cuda:0",
+    "tensor_device_ordinal": 0,
+    "cuda_context_present": true,
+    "gpu_dynamics": true,
+    "broadphase": "GPU",
+    "cpu_fallback_allowed": false,
+    "fallback_log_count": 0
+   },
+   "sources": {
+    "probe_json": "b46/stop1.json",
+    "probe_json_sha256": "e4fe1a190dfb31dd6da8a87c6c49b8836b056929ea4eda7399dfd157d6e2f83e",
+    "trace": "b46/run_stop1/trace.jsonl",
+    "trace_sha256": "bf3217d1cb0b5526c8d9eff722c9bb19bb42ce458e6b9a3eaeadeab13e466e47"
+   }
+  }
+ ],
+ "smoke": {
+  "tag": "smoke1",
+  "lane": "1",
+  "motion_s": 155.334,
+  "motion_result": {
+   "ok": false,
+   "verified": false,
+   "outcome": "stuck",
+   "error": "grasp failed after 4 attempts (153.6s): SkillError: already holding 'pink cube'; place it first",
+   "stage": "grasp"
+  },
+  "motion_postcondition": {
+   "status": "refuted",
+   "channel": "physics",
+   "kind": "relocated",
+   "reason": null
+  },
+  "reads": [
+   {
+    "tool": "world_state",
+    "latency_s": 0.001,
+    "answered_before_motion": true,
+    "isError": false,
+    "served_during_motion": "pick_and_place"
+   },
+   {
+    "tool": "robot_knowledge",
+    "latency_s": 0.001,
+    "answered_before_motion": true,
+    "isError": false,
+    "served_during_motion": "pick_and_place"
+   },
+   {
+    "tool": "verify_last_action",
+    "latency_s": 0.001,
+    "answered_before_motion": true,
+    "isError": false,
+    "served_during_motion": "pick_and_place"
+   },
+   {
+    "tool": "camera_snapshot",
+    "latency_s": 0.608,
+    "answered_before_motion": true,
+    "isError": false,
+    "served_during_motion": "pick_and_place"
+   }
+  ],
+  "note": "harness smoke before the series; not part of the interleaved A/B"
+ },
+ "protocol": {
+  "probe": "scratch/live_lane_probe.py = the B46 probe (mcp-readonly-lane/scratch/live_lane_probe.py, sha256 7be3a5a7117d954f7f493c155d30bf0237d84e2ca20f1fdfb4c24a59f9be6d0e) + --server-cwd/--server-log/--raw-out and the motion postcondition in its report; call sequence unchanged",
+  "motion": "pick_and_place {object: pink cube, destination: drop zone}",
+  "read_delay_s": 1.0,
+  "reads": [
+   "world_state",
+   "robot_knowledge",
+   "verify_last_action",
+   "camera_snapshot"
+  ],
+  "scene": "bare reBot RS (assets/usd/RS-rebot-dev-arm/RS-rebot-dev-arm.usda), PhysX, fresh stage per run",
+  "order": [
+   "on1",
+   "off1",
+   "on2",
+   "off2",
+   "on3",
+   "off3",
+   "on4",
+   "off4",
+   "stop1"
+  ],
+  "grasp_backend": "GraspGen-X sidecar :47001 (warm, shared by every run)",
+  "stop_run": "--stop-after 3 (lane on)"
+ }
+}

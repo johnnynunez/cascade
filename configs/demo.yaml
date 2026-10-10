@@ -165,6 +165,10 @@ grasp:
                             # profile key gripper.hold_squeeze_frac, keyed by
                             # the bridge's physics engine (configs/arms/
                             # isaac.yaml: {physx: 0.05}; unset/null = off)
+  # open_gripper: wait up to this long for the jaws to open (or stall) before
+  # the skill returns, so its postcondition reads the jaws after they moved.
+  # null = return as soon as the target is sent (sims that open instantly).
+  open_wait_timeout_s: null
   drop_zone: [0.18, -0.17]  # pick_and_place default target = the bin, inside
                             # the B601-RS top-down IK envelope (reachable place)
   home_after_place: true    # clear the camera view after each pick_and_place

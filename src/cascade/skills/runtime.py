@@ -5389,7 +5389,39 @@ class SkillRuntime:
         # is released now, so nothing remains to promote.
         self._held_provisional = None
         self._held_width_m = None
+        timeout = self.cfg.grasp.get("open_wait_timeout_s")
+        if timeout is not None:
+            self._wait_gripper_opened(float(timeout))
         return {"gripper": "open"}
+
+    def _wait_gripper_opened(self, timeout_s: float) -> None:
+        """Return once the jaws are open or have stopped moving.
+
+        Found on the physical reBot: `set_gripper` only sends the target, so
+        the "empty" postcondition read the jaws ~0.5 ms after the command and
+        reported "gripper still closed" while they were still opening. A stall
+        short of open (something in the way) also ends the wait: the
+        postcondition then judges the measured width. Unknown feedback ends it
+        at once (the postcondition reports it unverified).
+        """
+        if not np.isfinite(timeout_s) or timeout_s <= 0:
+            raise SkillError("open_wait_timeout_s must be finite and positive")
+        deadline = time.monotonic() + timeout_s
+        anchor, stable_since = None, time.monotonic()
+        while True:
+            width = self._gripper_width_frac()
+            now = time.monotonic()
+            if width is None or not np.isfinite(width):
+                return
+            if width >= .95:
+                return
+            if anchor is None or abs(width - anchor) > .002:
+                anchor, stable_since = width, now
+            elif now - stable_since >= .5:
+                return
+            if now >= deadline:
+                raise SkillError(f"gripper still opening after {timeout_s:.1f} s (at {width:.2f} of full travel)")
+            time.sleep(.05)
 
     def skill_close_gripper(self) -> dict:
         self._close_two_stage(select_profile("", "rigid"))

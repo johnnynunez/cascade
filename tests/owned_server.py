@@ -164,9 +164,13 @@ def start_owned_server(argv: Sequence[str], *, identify: Callable[[int], object]
 
 @contextmanager
 def held_dead_port() -> Iterator[int]:
-    """A loopback port this process holds bound but NOT listening: every
-    connection is refused, and no other socket can bind it while the test
-    runs -- unlike a literal "nothing listens on 5597" assumption."""
+    """A loopback port this process holds bound but NOT listening: no
+    connection to it ever completes, and no other socket can bind it while the
+    test runs -- unlike a literal "nothing listens on 5597" assumption.
+
+    How a connect fails is platform-specific: Linux refuses it at once; on the
+    macOS CI runner it is never answered, so the client's own timeout fires.
+    A client pointed here must therefore carry a short timeout."""
     holder = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         holder.bind(("127.0.0.1", 0))

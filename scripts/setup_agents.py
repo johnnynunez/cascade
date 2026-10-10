@@ -20,22 +20,26 @@ that can be safely edited in place (hermes YAML, codex TOML, project
     python scripts/setup_agents.py --host codex --codex-profile robot --write   # codex -p robot
     python scripts/setup_agents.py --camera d455f --arm rebot_rs --write
 
-Endpoint variables: every CASCADE_<NAME>_PORT / CASCADE_<NAME>_HOST set in
-this shell (CASCADE_BRIDGE_PORT, CASCADE_GRASPGENX_PORT/_HOST,
-CASCADE_OCCUPANCY_PORT, CASCADE_HUG_PORT/_HOST -- the ones load_demo_config
-applies -- and any other, e.g. CASCADE_STREAM_PORT) is copied verbatim into
-every entry's env, as scripts/launch.sh does for its registration: a stdio
-host may start the server without this shell's environment, and a stack moved
-off the default ports must not dial the defaults. Nothing is invented (an
-unset variable is not written; an empty one is copied empty, which the
-runtime reads as unset), and the copied names are printed. A value the
-runtime would refuse stops the registration naming the variable, before any
-file is written: a *_PORT must be ASCII digits in 1..65535, a *_HOST a
-hostname or IPv4 address (cascade.config.env_port / env_host; an interpreter
-that cannot import it is refused too -- use the repo's Python). `--env
-KEY=VALUE` beats the inherited value and is written as given.
+Runtime switches: every variable `cascade.apps.mcp_env.FORWARDED` names that
+is set in this shell is copied verbatim into every entry's env -- the same
+list scripts/launch.sh registers (B63): memory paths, endpoints
+(CASCADE_BRIDGE_PORT, CASCADE_GRASPGENX_PORT/_HOST, CASCADE_OCCUPANCY_PORT,
+CASCADE_HUG_PORT/_HOST, CASCADE_STREAM_PORT, ...), devices, the grasp
+executor and its policy port (CASCADE_GRASP_EXECUTOR, CASCADE_VLA_PORT),
+CASCADE_BOOTH, ... A stdio host may start the server without this shell's
+environment, so a switch that is not copied silently does not apply. Nothing
+is invented (an unset variable is not written; an empty one is copied empty),
+the copied names are printed, and rig selectors (CASCADE_ROBOT, CASCADE_BASE,
+CASCADE_ARMS), per-process values and secrets (CASCADE_MCP_TOKEN) are never
+copied (`NOT_FORWARDED` says why for each). A value the runtime would refuse
+stops the registration naming the variable, before any file is written: a
+*_PORT must be ASCII digits in 1..65535, a *_HOST a hostname or IPv4 address
+(cascade.config.env_port / env_host; an interpreter that cannot import it is
+refused too -- use the repo's Python). `--env KEY=VALUE` (and
+--detect-classes / --hide-tools) beat the inherited value and are written as
+given.
 
-    CASCADE_BRIDGE_PORT=45311 CASCADE_HUG_PORT=45318 \\
+    CASCADE_BRIDGE_PORT=45311 CASCADE_GRASP_EXECUTOR=vla CASCADE_VLA_PORT=8000 \\
         python scripts/setup_agents.py --host hermes --write
 """
 
@@ -58,28 +62,30 @@ from setup_hermes import yaml_block as hermes_yaml_block  # noqa: E402
 # hardcoding one machine's home.
 DEFAULT_PY = str(REPO.parent / ".demo" / "bin" / "python")
 SERVER = "cascade"
-#: CASCADE_<NAME>_PORT / CASCADE_<NAME>_HOST -- copied into every entry (`endpoint_env`)
-ENDPOINT_VAR = re.compile(r"CASCADE_[A-Z0-9_]+_(?:PORT|HOST)")
+if str(REPO / "src") not in sys.path:  # this checkout's registry (stdlib only; no PyYAML needed)
+    sys.path.insert(0, str(REPO / "src"))
+from cascade.apps.mcp_env import FORWARDED, forwarded_env  # noqa: E402
 
 
-def endpoint_env(skip=()) -> dict[str, str]:
-    """Every CASCADE_*_PORT / CASCADE_*_HOST in this environment, verbatim, by name.
+def inherited_env(skip=()) -> dict[str, str]:
+    """Every variable cascade.apps.mcp_env forwards that is set in this environment, verbatim.
 
-    Only variables that are present are returned, never a default; an empty
-    one stays empty (the runtime reads it as unset). Each value is checked
-    with the runtime's own rule first -- `cascade.config.env_port` for a
-    *_PORT, `env_host` for a *_HOST -- so a value the server would refuse at
-    startup (or one that would break the YAML/TOML blocks) raises ValueError
-    naming the variable instead of being written into a host's config; so
-    does an interpreter that cannot import cascade.config (no PyYAML), as
+    The same list scripts/launch.sh registers (B63): memory paths, endpoints,
+    devices, the grasp executor and its policy port, booth/stream/view
+    switches, ... -- see `FORWARDED`. Only variables that are present are
+    returned, never a default; an empty one stays empty. Each *_PORT / *_HOST
+    is checked with the runtime's own rule first -- `cascade.config.env_port`
+    / `env_host` -- so a value the server would refuse at startup (or one that
+    would break the YAML/TOML blocks) raises ValueError naming the variable
+    instead of being written into a host's config; so does an interpreter that
+    cannot import cascade.config (no PyYAML) when there is one to check, as
     nothing is written unchecked. Names in `skip` (given explicitly with
     --env) are neither copied nor checked.
     """
-    names = sorted(k for k in os.environ if ENDPOINT_VAR.fullmatch(k) and k not in skip)
+    env = forwarded_env(skip=skip)
+    names = [name for name in env if name.endswith(("_PORT", "_HOST"))]
     if not names:
-        return {}
-    if str(REPO / "src") not in sys.path:
-        sys.path.insert(0, str(REPO / "src"))
+        return env
     try:
         from cascade.config import env_host, env_port
     except ImportError as e:  # e.g. a bare python3 without PyYAML: never write unchecked
@@ -90,7 +96,7 @@ def endpoint_env(skip=()) -> dict[str, str]:
 
     for name in names:
         (env_port if name.endswith("_PORT") else env_host)(name)
-    return {name: os.environ[name] for name in names}
+    return env
 
 
 def server_env(
@@ -108,16 +114,14 @@ def server_env(
         "CASCADE_ARM": arm,
         "DISPLAY": display,
     }
-    # Stdio hosts may discard their inherited environment. Preserve explicit
-    # device selection literally: empty visibility disables CUDA, while UUIDs
-    # and ordinal lists must not be rewritten into a different device space.
-    for key in ("CUDA_VISIBLE_DEVICES", "CUDA_DEVICE_ORDER", "CASCADE_DEVICE", "CASCADE_REQUIRE_CUDA"):
-        if key in os.environ:
-            env[key] = os.environ[key]
-    # Endpoint overrides, for the same reason: a private stack's ports/hosts
-    # (CASCADE_BRIDGE_PORT, CASCADE_HUG_HOST, ...; see endpoint_env). An
-    # explicit --env value wins below and leaves the inherited one unread.
-    env.update(endpoint_env(skip={kv.partition("=")[0].strip() for kv in extra or []}))
+    # Stdio hosts may discard their inherited environment, so every runtime
+    # switch set in this shell is copied: the same list launch.sh registers
+    # (cascade.apps.mcp_env, see inherited_env). Device selection stays
+    # literal: empty visibility disables CUDA, and UUIDs / ordinal lists must
+    # not be rewritten into a different device space. An explicit --env value
+    # wins below and leaves the inherited one unread; so do --detect-classes
+    # and --hide-tools.
+    env.update(inherited_env(skip={kv.partition("=")[0].strip() for kv in extra or []}))
     if offline:
         # without these, ultralytics phones GitHub on class re-embeds and
         # stalls the perception watcher for seconds -- never at a venue
@@ -296,7 +300,9 @@ def main() -> int:
     except ValueError as e:  # an inherited endpoint variable the server would refuse
         p.error(str(e))
     explicit = {kv.partition("=")[0].strip() for kv in args.env}
-    inherited = [k for k in env if ENDPOINT_VAR.fullmatch(k) and k not in explicit]
+    explicit |= {"CASCADE_DETECT_CLASSES"} if args.detect_classes else set()
+    explicit |= {"CASCADE_HIDE_TOOLS"} if args.hide_tools else set()
+    inherited = [k for k in env if k in FORWARDED and k not in explicit]
     if inherited:
         print("# forwarded from this shell into every server entry: "
               + " ".join(f"{k}={env[k]}" for k in inherited))

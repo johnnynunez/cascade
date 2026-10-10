@@ -852,6 +852,7 @@ if [[ "$SIM" == "mujoco" && "$(uname -s)" == "Darwin" && -x "$(dirname "$PY")/mj
 fi
 MCP_JSON="$("$PY" - "$MCP_PY" "$REPO" "$CAMERAS" "$ARM" "$DETECTOR" "$CLASSES" "$SIM" "$STATE_DIR" "$LAUNCH_OWNER" "$ISAAC_GUI" "$OCCUPANCY" <<'PYEOF'
 import json, os, sys
+from cascade.apps.mcp_env import forwarded_env
 py, repo, cams, arm, det, classes, sim = sys.argv[1:8]
 state_dir, owner = sys.argv[8:10]
 env = {
@@ -862,17 +863,15 @@ env = {
 }
 if classes:
     env["CASCADE_DETECT_CLASSES"] = classes  # explicit operator vocabulary only
-for key in ("CASCADE_GRASP_MEMORY_PATH", "CASCADE_ENVELOPE_PATH", "CASCADE_BELIEFS_PATH", "CASCADE_BELIEFS",
-            "CASCADE_GRASP_BACKEND", "CASCADE_GRASPGENX_PORT", "CASCADE_GRASPGENX_HOST",
-            "CASCADE_BRIDGE_PORT", "CASCADE_OCCUPANCY_PORT",
-            "CASCADE_HUG_PORT", "CASCADE_HUG_HOST",
-            "CASCADE_GRASP_EVIDENCE_DIR", "CASCADE_OBSERVED_FINGER_GATE",
-            "CASCADE_KITCHEN_CAMERA_RENDERER",
-            "CUDA_VISIBLE_DEVICES", "CUDA_DEVICE_ORDER", "CASCADE_DEVICE", "CASCADE_REQUIRE_CUDA"):
-    # OpenClaw need not inherit these from its gateway. Keep operator values
-    # verbatim, including empty visibility and CUDA local ordinal mapping.
-    if key in os.environ:
-        env[key] = os.environ[key]
+# OpenClaw need not inherit anything from its gateway: every runtime switch
+# set in this shell (memory paths, endpoints, devices, CASCADE_GRASP_EXECUTOR /
+# CASCADE_VLA_PORT, ...) is copied verbatim from the ONE list setup_agents.py
+# also uses (cascade.apps.mcp_env, B63), including empty CUDA visibility. The
+# values written above from the flags of this launcher win. No single quote in
+# this heredoc: bash 3.2 (macOS /bin/bash) scans a heredoc inside a command
+# substitution as shell text, so an odd count breaks the whole script.
+for key, value in forwarded_env().items():
+    env.setdefault(key, value)
 if sys.argv[11] == "none":
     # --occupancy none is an explicit runtime opt-out, not just permission
     # to omit its server. Otherwise lazy-arm preflight still asks the dead

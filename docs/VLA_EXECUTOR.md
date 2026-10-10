@@ -37,6 +37,13 @@ grasp:
 uv sync --extra vla      # websockets + msgpack; nothing else, no torch
 ```
 
+Set in the launching shell, both variables reach the MCP server: `./run.sh` /
+`scripts/launch.sh` copy them into the server entry they register, and so does
+every entry `scripts/setup_agents.py` writes (B63, `cascade.apps.mcp_env`). An
+MCP host starts the server with that entry's environment only; before B63 the
+launcher registered neither variable, so `CASCADE_GRASP_EXECUTOR=vla ./run.sh`
+ran the analytic executor.
+
 The policy runs in its own environment and process, normally on the GPU
 host. cascade only ships the client (`grasping/vla_client.py`).
 
@@ -210,7 +217,7 @@ uv run scripts/serve_policy.py policy:checkpoint \
     --policy.config=<config> --policy.dir=<checkpoint dir>
 # LingBot-VLA-v2 (its own checkout and env)
 python -m deploy.lingbot_vla_v2_policy --model_path <ckpt> --port 8006 --use_length 50
-# cascade
+# cascade (both variables are registered with the MCP server, B63)
 CASCADE_GRASP_EXECUTOR=vla CASCADE_VLA_PORT=<port> ./run.sh <profile>
 ```
 

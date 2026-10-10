@@ -122,10 +122,16 @@ def load_profile(kind: str, name: str, config_dir: Path | None = None) -> Cfg:
     return Cfg(data)
 
 
+#: the explicit mobile-base overrides `_mobile_environment` reads, each as
+#: MICRODUCK_ENV_PREFIX + key.upper() (cascade.apps.mcp_env lists the names)
+MICRODUCK_ENV_PREFIX = "CASCADE_MICRODUCK_"
+MICRODUCK_ENV_KEYS = ("asset_sha256", "policy_sha256", "model_identity_sha256", "bridge_port", "engine", "device")
+
+
 def _mobile_environment(profile):
     """Only explicit mobile overrides; no arm sidecar ports or hash wildcards."""
-    for key in ("asset_sha256", "policy_sha256", "model_identity_sha256", "bridge_port", "engine", "device"):
-        env = "CASCADE_MICRODUCK_" + key.upper()
+    for key in MICRODUCK_ENV_KEYS:
+        env = MICRODUCK_ENV_PREFIX + key.upper()
         if env in os.environ:
             value = os.environ[env]
             if key == "bridge_port":
@@ -175,6 +181,7 @@ HUG_HOST_ENV = "CASCADE_HUG_HOST"
 HOST_ENV_VARS = (GRASPGENX_HOST_ENV, HUG_HOST_ENV)
 #: every variable `load_demo_config` applies; scripts/launch.sh and
 #: scripts/setup_agents.py register each one present with the MCP server
+#: (through cascade.apps.mcp_env.FORWARDED, the one list of forwarded variables)
 ENDPOINT_ENV_VARS = PORT_ENV_VARS + HOST_ENV_VARS
 # (section path, port variable, host variable) of each sidecar client's section
 _SIDECAR_SECTIONS = (

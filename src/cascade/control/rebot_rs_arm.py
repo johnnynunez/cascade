@@ -42,10 +42,13 @@ from ..config import Cfg
 from ..types import RobotState
 from .arm_base import ArmBase
 from .robstride import (
+    UnsafeReading,
     clamp_to_travel,
     clear_motor_faults,
     close_two_stage_capped,
     contact_squeeze_cap,
+    joint_reading_problem,
+    plausible_position,
 )
 
 MECH_POS = 0x7019
@@ -62,6 +65,7 @@ class RebotRSArm(ArmBase):
         self._lock = threading.Lock()
         self._stopped = False
         self._last_q = np.zeros(self.n_joints)
+        self._last_q_t: float | None = None   # when _last_q was read (None: never)
         self._mit_kp = None
         self._mit_kd = None
         self.settle_tol = float(cfg.get("settle_tol", 0.05))
@@ -142,6 +146,10 @@ class RebotRSArm(ArmBase):
         # before anything is enabled and releases the bus.
         try:
             clear_motor_faults(sorted(arm._motor_map.items()))
+            # Where the arm rests, vetted BEFORE torque: a reading that cannot
+            # be a position (rig 2026-10-10: +2.3e18) must stop the connect
+            # here, not become the first pose a planner streams from.
+            self._read_positions(grp)
         except Exception:
             try:
                 arm.disconnect()
@@ -153,6 +161,7 @@ class RebotRSArm(ArmBase):
         self._stopped = False
         self._read_failures = 0
         self._last_q = self._read_positions()
+        self._last_q_t = time.monotonic()
         self._last_cmd_q: np.ndarray | None = None
         if self._gc_enabled:
             from .kinematics import Kinematics
@@ -175,16 +184,21 @@ class RebotRSArm(ArmBase):
 
     # ── feedback (param reads, the only reliable RS path) ────────────────
 
-    def _motors(self):
-        grp = self._arm.arm
+    def _motors(self, grp=None):
+        grp = self._arm.arm if grp is None else grp
         return [grp._mm[name] for name in grp.joint_names]
 
-    def _read_positions(self) -> np.ndarray:
-        q = np.zeros(self.n_joints)
+    def _read_positions(self, grp=None) -> np.ndarray:
+        """mechPos of every joint; raises UnsafeReading if any value cannot
+        be a position (non-finite, outside the motor's +-4*pi)."""
+        raw = []
         with self._lock:
-            for i, m in enumerate(self._motors()[: self.n_joints]):
-                q[i] = m.robstride_get_param_f32(MECH_POS)
-        return q
+            for m in self._motors(grp)[: self.n_joints]:
+                raw.append(m.robstride_get_param_f32(MECH_POS))
+        problem = joint_reading_problem(raw)
+        if problem:
+            raise UnsafeReading(f"implausible mechPos: {problem}")
+        return np.asarray(raw, dtype=float)
 
     #: consecutive feedback failures tolerated before motion must abort
     MAX_READ_FAILURES = 3
@@ -192,7 +206,14 @@ class RebotRSArm(ArmBase):
     def get_state(self) -> RobotState:
         try:
             q = self._read_positions()
-            self._last_q = q
+            now = time.monotonic()
+            # A plausible value can still be impossible: it must be reachable
+            # from the last GOOD reading in the time since.
+            if self._last_q_t is not None:
+                problem = joint_reading_problem(q, self._last_q, now - self._last_q_t)
+                if problem:
+                    raise UnsafeReading(f"implausible mechPos: {problem}")
+            self._last_q, self._last_q_t = q, now
             self._read_failures = 0
         except Exception as e:
             # One transient CAN hiccup: serve last known. Repeated failures
@@ -221,9 +242,10 @@ class RebotRSArm(ArmBase):
         try:
             with self._lock:
                 m = self._arm.gripper._mm[self._arm.gripper.joint_names[0]]
-                return float(m.robstride_get_param_f32(MECH_POS))
+                x = float(m.robstride_get_param_f32(MECH_POS))
         except Exception:
             return None
+        return x if plausible_position(x) else None
 
     # ── commands ─────────────────────────────────────────────────────────
 

@@ -81,6 +81,37 @@ def read_plausible(read, lo=None, hi=None, *, attempts: int = READ_ATTEMPTS):
     return None
 
 
+#: Continuity bound for consecutive joint readings: far above anything the
+#: arm is commanded to do (the harness caps ~0.8 rad/s) and above what a
+#: limp arm falls at, so only a reading that cannot be a measurement trips it.
+READ_MAX_JOINT_SPEED = 6.0     # rad/s
+READ_JUMP_TOL_RAD = 0.15
+
+
+def joint_reading_problem(q, last=None, elapsed_s=None, *,
+                          max_speed: float = READ_MAX_JOINT_SPEED,
+                          tol: float = READ_JUMP_TOL_RAD) -> str | None:
+    """Why a vector of joint readings cannot be the arm's position, or None.
+
+    Every value must be plausible_position (finite, inside the motor's
+    +-4*pi); with ``last`` (the last GOOD reading) and ``elapsed_s`` since
+    it, no joint may have moved farther than max_speed * elapsed + tol.
+    """
+    vals = [float(x) if isinstance(x, numbers.Real) and not isinstance(x, bool) else x
+            for x in q]
+    for i, x in enumerate(vals):
+        if not plausible_position(x):
+            return f"joint {i + 1} read {x!r}, which is not a position"
+    if last is not None and elapsed_s is not None:
+        allowed = max_speed * max(0.0, float(elapsed_s)) + tol
+        for i, (x, y) in enumerate(zip(vals, last)):
+            if abs(x - float(y)) > allowed:
+                return (f"joint {i + 1} read {x:+.4f} rad, {abs(x - float(y)):.3f} rad from "
+                        f"{float(y):+.4f} {float(elapsed_s):.2f} s earlier -- farther than the "
+                        f"arm can travel")
+    return None
+
+
 class ProbeEnvelope:
     """Every position a bring-up probe may send to the joint it moves.
 

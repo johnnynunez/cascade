@@ -24,7 +24,6 @@ from __future__ import annotations
 import hashlib
 import queue
 import re
-import socket
 import subprocess
 import sys
 import threading
@@ -33,6 +32,7 @@ import time
 import numpy as np
 import pytest
 from conftest import REPO
+from owned_server import held_dead_port
 
 from cascade.config import Cfg
 from cascade.types import Detection, Frame, ObjectFix
@@ -62,15 +62,6 @@ def _serve_module():
     finally:
         sys.path.remove(str(REPO / "scripts"))
     return serve_hug
-
-
-def _free_port() -> int:
-    """A port nobody listens on (bound, then released): a dead server."""
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    port = s.getsockname()[1]
-    s.close()
-    return port
 
 
 @pytest.fixture(autouse=True)
@@ -399,10 +390,15 @@ def test_a_dead_hug_server_raises_a_typed_error_promptly():
     from cascade.grasping.hug_backend import HugError
 
     frame, fix, T = _scene()
-    planner = _planner(_free_port(), timeout_ms=500)
-    t0 = time.monotonic()
-    with pytest.raises(HugError, match="timed out"):
-        planner.plan(frame, fix, T_base_cam=T)
+    # Held bound with nothing listening for the whole test (B70): a port that
+    # was bound and released could be taken -- and answered -- by another
+    # process before the client dials it. Linux refuses the connect, macOS
+    # leaves it unanswered; either way only the 0.5 s request timeout ends it.
+    with held_dead_port() as port:
+        planner = _planner(port, timeout_ms=500)
+        t0 = time.monotonic()
+        with pytest.raises(HugError, match="timed out"):
+            planner.plan(frame, fix, T_base_cam=T)
     assert time.monotonic() - t0 < 10.0
 
 

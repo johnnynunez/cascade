@@ -393,19 +393,20 @@ def test_banner_and_capability_matrix_describe_hug_honestly():
 
 def test_startup_probe_fails_visibly_for_required_hug_and_degrades_loudly_otherwise(capsys):
     from cascade.apps.demo import _probe_grasp_backend
-    from test_hug_backend import _free_port
+    from owned_server import held_dead_port
 
     for required in (True, False):
         cfg = load_demo_config()
         cfg._data["grasp"]["backend"] = "hug"
-        cfg._data["grasp"]["hug"].update(required=required, port=_free_port(),
-                                         probe_timeout_ms=200)
         rt = SimpleNamespace(cfg=cfg, grasp_planner_used=None, _hug=None, _hug_down=False)
-        if required:
-            with pytest.raises(RuntimeError, match="HUG required at startup"):
-                _probe_grasp_backend(rt)
-            continue
-        _probe_grasp_backend(rt)
+        # A dead server held for the probe (B70), not a port bound and released.
+        with held_dead_port() as port:
+            cfg._data["grasp"]["hug"].update(required=required, port=port, probe_timeout_ms=200)
+            if required:
+                with pytest.raises(RuntimeError, match="HUG required at startup"):
+                    _probe_grasp_backend(rt)
+                continue
+            _probe_grasp_backend(rt)
         assert rt._hug_down is True and rt.grasp_planner_used == "obb (hug down)"
         assert "grasp.backend=hug" in capsys.readouterr().err
 

@@ -146,6 +146,10 @@ grasp:
                             # z~0.10, and a larger hover pushes the pregrasp
                             # pose above z~0.15 where top-down IK fails on the
                             # B601-RS.
+  # Raise a top-down pregrasp (and so the lift) to at least this far above
+  # the object's observed top, falling back to pregrasp_offset_m when the
+  # raised pose is unreachable. null = off (fixed offset only).
+  pregrasp_clear_top_m: null
   depth_fraction: 0.15      # grasp this far down from the object's TOP. Low
                             # value = grasp near the top face, which keeps the
                             # gripper fingers (they extend ~5cm below the TCP)

@@ -58,6 +58,7 @@ def select_grasp(
     jaw_close_dir=None,
     check=None,
     preserve_order: bool = False,
+    pregrasp_min_z: float | None = None,
 ) -> tuple[Grasp, np.ndarray, np.ndarray]:
     """-> (grasp, q_pregrasp, q_grasp) for the best executable candidate.
 
@@ -99,6 +100,15 @@ def select_grasp(
     read "air grasp" while perception was accurate to 1.4 mm. Parallel-jaw
     arms (reBot, Panda) omit both keys: their gap centre is the frame origin
     at every width, so the offset would be ~0.
+
+    `pregrasp_min_z` (optional) raises a downward approach's pregrasp along
+    the approach until the TCP is at least this high. The lift returns to the
+    pregrasp, so with the object's top plus a margin here the jaws leave the
+    object before the grasp exemption closes. Found on the physical reBot: a
+    paper cup grasped at 5.2 cm (its widest visible section) with a 4 cm
+    offset left the fingertips at the 9.3 cm rim after the lift, inside the
+    occupancy margin, and every motion home was refused. A raised pregrasp
+    that fails IK or validation falls back to `pregrasp_offset_m`.
     """
     reasons: list[str] = []
     fixed_tip = None
@@ -127,9 +137,21 @@ def select_grasp(
         if fixed_tip is not None and close_dir is not None:
             off = fixed_tip + close_dir * (float(g.width_m) / 2.0)
             p_grasp = g.position - g.rotation @ off
+        down = -float(np.asarray(g.approach, dtype=float)[2])
+        if pregrasp_min_z is not None and down > 0.5:
+            raised = (float(pregrasp_min_z) - float(p_grasp[2])) / down
+            if raised > pregrasp_offset_m + 1e-3:
+                solved = _solve_at(g, p_grasp, raised)
+                evidence.event("raised_pregrasp", offset_m=raised, min_z=pregrasp_min_z,
+                               result=solved if isinstance(solved, str) else "ok")
+                if not isinstance(solved, str):
+                    return solved
+        return _solve_at(g, p_grasp, pregrasp_offset_m)
+
+    def _solve_at(g: Grasp, p_grasp, offset_m: float):
         T_grasp = make_transform(g.rotation, p_grasp)
         T_pre = make_transform(
-            g.rotation, p_grasp - g.approach * pregrasp_offset_m
+            g.rotation, p_grasp - g.approach * offset_m
         )
         evidence.event("ik_targets", grasp=g, T_grasp=T_grasp, T_pre=T_pre, seed_q=q_current)
         pre = kin.ik(T_pre, q_current)

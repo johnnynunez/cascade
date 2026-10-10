@@ -43,6 +43,10 @@ overrides:
     # The front camera's map put a ~10 cm cup's top ~1.5 cm above its rim and
     # every pregrasp was refused by the cup itself; exempt the target column.
     approach_target_exemption: true
+    # Lift the jaws clear of the object's top (+3 cm = the occupancy margin):
+    # a cup grasped at 5.2 cm with the 4 cm offset left the fingertips at its
+    # 9.3 cm rim, inside the margin, and every route home was refused.
+    pregrasp_clear_top_m: 0.03
 
 # MIT gains per joint (null = use the SDK's rebotarm_rs.yaml values).
 mit_kp: null

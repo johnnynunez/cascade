@@ -2868,6 +2868,15 @@ class SkillRuntime:
                     raise SafetyViolation(f"home finger trajectory intersects observed surface: {conflict}")
         grasp_evidence.event("selection_input", state=state, seed_q=_seed)
         from ..grasping.selector import NoExecutableGrasp
+        # Opt-in: pregrasp (and so the lift) at least this far above the
+        # object's observed top, so the jaws leave it before the exemption
+        # closes. See select_grasp(pregrasp_min_z=...).
+        pregrasp_min_z = None
+        clear_top = gcfg.get("pregrasp_clear_top_m")
+        if clear_top is not None:
+            top = float(np.max(fix.points[:, 2])) if len(fix.points) else float("nan")
+            if np.isfinite(top) and np.isfinite(float(clear_top)):
+                pregrasp_min_z = top + float(clear_top)
         try:
             for batch in range(1 if search is None else search.max_batches):
                 if batch:
@@ -2888,6 +2897,7 @@ class SkillRuntime:
                         _seed,
                         max_width_m=self._max_width,
                         pregrasp_offset_m=float(gcfg.get("pregrasp_offset_m", 0.12)),
+                        pregrasp_min_z=pregrasp_min_z,
                         validate=_vet,
                         preserve_order=True,
                         # Single-hinge jaw datum (TOOL frame): the fixed jaw's contact

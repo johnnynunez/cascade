@@ -57,12 +57,22 @@ else
 fi
 
 echo "[+] registering MCP server (camera=$CAMERA arm=$ARM)"
+# Hermes starts the server with the env registered here, not with this shell,
+# so every runtime switch set in this shell (CASCADE_GRASP_EXECUTOR=vla,
+# CASCADE_VLA_PORT, CASCADE_MCP_READONLY_LANE, memory paths, sidecar ports,
+# devices, ...) is copied verbatim from the ONE list launch.sh and
+# setup_agents.py use (cascade.apps.mcp_env, B63/B68). The values below win;
+# rig selectors and secrets are never copied. Computed before the old entry is
+# removed: if the registry cannot run, set -e stops here and nothing changes.
+MCP_ENV_WORDS="$(PYTHONPATH="$REPO/src" "$PY" -m cascade.apps.mcp_env \
+    "PYTHONPATH=$REPO/src" "CASCADE_CAMERAS=$CAMERA" "CASCADE_ARM=$ARM" \
+    "CASCADE_DETECTOR_MODEL=$DETECTOR" "DISPLAY=${DISPLAY:-:1}" \
+    "YOLO_OFFLINE=True" "ULTRALYTICS_OFFLINE=True")"
+eval "MCP_ENV=($MCP_ENV_WORDS)"   # shell-quoted KEY=VALUE words (shlex.quote)
 hermes mcp remove cascade >/dev/null 2>&1 || true
 hermes mcp add cascade \
     --command "$PY" \
-    --env "PYTHONPATH=$REPO/src" "CASCADE_CAMERAS=$CAMERA" "CASCADE_ARM=$ARM" \
-          "CASCADE_DETECTOR_MODEL=$DETECTOR" "DISPLAY=${DISPLAY:-:1}" \
-          "YOLO_OFFLINE=True" "ULTRALYTICS_OFFLINE=True" \
+    --env "${MCP_ENV[@]}" \
     --args -m cascade.apps.mcp_server
 
 echo "[+] testing the connection"
@@ -79,4 +89,5 @@ cat <<'EOF'
       localize the bottle
       grasp the red cube
 EOF
-exec hermes chat "${CHAT_ARGS[@]}"
+# bash 3.2 (macOS /bin/bash) calls "${A[@]}" of an empty array unbound under set -u
+exec hermes chat ${CHAT_ARGS[@]+"${CHAT_ARGS[@]}"}

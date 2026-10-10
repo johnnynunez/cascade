@@ -12,7 +12,10 @@ names plus every ``CASCADE_*_PORT`` / ``_HOST``), so
 executor while the launcher's own runtime check, which inherits the shell,
 saw ``vla``.
 
-This module is the ONE list both registrations read (`forwarded_env`). Every
+This module is the ONE list both registrations read (`forwarded_env`), and
+since B68 the two shell registrars too (``scripts/hermes_demo.sh`` and
+``scripts/openclaw_demo.sh`` call ``python -m cascade.apps.mcp_env``, see
+`main`). Every
 ``CASCADE_*`` variable the runtime (``src/cascade``) reads is either
 
 * in `FORWARDED`: copied VERBATIM when it is present in the registering shell
@@ -143,3 +146,48 @@ def forwarded_env(environ: Mapping[str, str] | None = None, skip: Iterable[str] 
     source = os.environ if environ is None else environ
     skipped = set(skip)
     return {name: source[name] for name in FORWARDED if name in source and name not in skipped}
+
+
+def registration_env(explicit: Mapping[str, str], environ: Mapping[str, str] | None = None) -> dict[str, str]:
+    """The env a registration writes: its own values (`explicit`, from its flags
+    and its own resolution) first and in their order -- they win -- then every
+    `forwarded_env` variable of `environ` it did not name. launch.sh's rule
+    (explicit values, then ``setdefault``), for registrars that are not Python."""
+    env = dict(explicit)
+    for name, value in forwarded_env(environ).items():
+        env.setdefault(name, value)
+    return env
+
+
+def main(argv: Iterable[str] | None = None) -> int:
+    """``python -m cascade.apps.mcp_env KEY=VALUE ...`` (B68), for the shell
+    registrars ``scripts/hermes_demo.sh`` and ``scripts/openclaw_demo.sh``.
+
+    Prints `registration_env` of the given pairs and this process's environment
+    on stdout, one shell-quoted ``KEY=VALUE`` word per line, for
+    ``eval "ENV=($words)"`` -- every value survives verbatim (spaces, quotes,
+    ``$``, newlines, empty). The names copied from the environment are named on
+    stderr (non-secret by construction). A malformed pair exits 2 with nothing
+    on stdout."""
+    import shlex
+    import sys
+
+    explicit: dict[str, str] = {}
+    for pair in sys.argv[1:] if argv is None else argv:
+        name, sep, value = pair.partition("=")
+        if not sep or not name:
+            print(f"cascade.apps.mcp_env: expected KEY=VALUE, got {pair!r}", file=sys.stderr)
+            return 2
+        explicit[name] = value
+    env = registration_env(explicit)
+    copied = [name for name in env if name not in explicit]
+    if copied:
+        print("[+] forwarded from this shell into the MCP entry: "
+              + " ".join(f"{name}={env[name]}" for name in copied), file=sys.stderr)
+    for name, value in env.items():
+        print(shlex.quote(f"{name}={value}"))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

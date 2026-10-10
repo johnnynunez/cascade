@@ -924,8 +924,23 @@ aggregator, not nvblox. Fixes, all measured on this CUDA-less Mac (suite
   entries verbatim, a child started with only the registered env selects
   `vla` on the policy port, selectors and secrets are never written, and with
   nothing extra set the `mcp set` JSON is byte-identical to be57535. Still
-  open: a live MCP host started from such an entry, and the legacy
-  `hermes_demo.sh` / `openclaw_demo.sh` registrars (fixed env).
+  open: a live MCP host started from such an entry. ~~The legacy
+  `hermes_demo.sh` / `openclaw_demo.sh` registrars (fixed env).~~ **landed
+  2026-10-10 (B68)** — both are still documented entry points (README quick
+  start and platform table, `install_hermes.sh`, `setup_agents.py --host
+  hermes`; launch.sh has no Hermes path), so they were routed, not retired:
+  each runs `python -m cascade.apps.mcp_env` (its own values first, every
+  forwarded switch set in its shell after them, verbatim) before any host
+  call. Measured on CPU through the real scripts with the host CLIs doubled
+  (`tests/test_legacy_mcp_registrars.py`, bash 5 and bash 3.2.57): all 46
+  forwarded variables reach both entries verbatim, a child started with only
+  the registered env selects `vla` on the policy port with the read-only lane
+  on, selectors and secrets are never written, a registry failure registers
+  nothing, and with nothing extra set every host call is byte-identical to
+  86373d7. Also fixed: under macOS `/bin/bash` 3.2 `hermes_demo.sh` died at
+  `exec hermes chat` without `--model` / `--provider` (empty array under
+  `set -u`). Still open: a live Hermes / OpenClaw host started from these
+  entries.
 - **Robo-Dopamine as the outcome judge** (`eval/progress_judge.py`,
   `scripts/judge_run.py`; https://robo-dopamine.github.io/). The GRM is a
   VLM prompted with the task, optional START/END references and BEFORE/AFTER

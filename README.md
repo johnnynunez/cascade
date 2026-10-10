@@ -758,6 +758,10 @@ memory paths, the device selection, `CASCADE_GRASP_EXECUTOR` / `CASCADE_VLA_PORT
 `CASCADE_ARMS`) and secrets (`CASCADE_MCP_TOKEN`) are never copied. The copied names
 are printed, a value the runtime would refuse stops the registration before anything
 is written, and `--env KEY=VALUE` overrides an inherited value.
+`scripts/hermes_demo.sh` and `scripts/openclaw_demo.sh` copy the same list (B68) after
+their own flags and print the copied names; they do not check values themselves, so a
+malformed port is refused by the server when it starts (naming the variable), not at
+registration.
 
 > **Host and brain are different roles**, and Hermes can be either. As a
 > **host** (this section) Hermes runs the agent loop and cascade is a tool
@@ -823,9 +827,10 @@ arm's resolved view (empty = unset; a malformed value is refused, naming the var
 `CASCADE_HUG_PORT`, `CASCADE_GRASPGENX_HOST` and `CASCADE_HUG_HOST` follow the same
 contract for a HUG server, or a GraspGen-X / HUG server on another machine (a host is a
 hostname or an IPv4 address: no port, scheme or whitespace); the bridge and the occupancy
-sidecar have no host variable. The launcher and `scripts/setup_agents.py` copy these
+sidecar have no host variable. The launcher, `scripts/setup_agents.py` and the two
+demo registrars (`scripts/hermes_demo.sh`, `scripts/openclaw_demo.sh`) copy these
 six, and every other runtime switch set in their shell, into the MCP server's entry
-from one list (`src/cascade/apps/mcp_env.py`, B63). The Isaac bridge
+from one list (`src/cascade/apps/mcp_env.py`, B63/B68). The Isaac bridge
 side has its own knobs (`CASCADE_USD`, `CASCADE_PHYSICS_DEVICE` — `cpu` is the
 escape hatch for GPU-PhysX boot NaNs —, `CASCADE_BRIDGE_BIND`,
 `CASCADE_BRIDGE_NO_TARGETS`, `CASCADE_COMPANION_EXTS`); see `scripts/isaac_bridge.py`.

@@ -37,6 +37,54 @@ class _SteppedDistanceMock(MockMobileBase):
         return super().get_state()
 
 
+# Post-ACK sample at which the injected geometric fault starts: sample 1 is the
+# distance baseline, sample 2 one clean measured increment.
+_FAULT_ONSET_SAMPLES = 3
+
+
+def _geometric_fault(state, fault):
+    if fault == "lateral":
+        return replace(state, position_world=(state.position_world[0], .02, .2))
+    if fault == "low":
+        return replace(state, position_world=(state.position_world[0], 0., .04))
+    angle = .2 if fault == "heading" else .7
+    q = ((math.cos(angle/2), 0., 0., math.sin(angle/2)) if fault == "heading"
+         else (math.cos(angle/2), math.sin(angle/2), 0., 0.))
+    return replace(state, orientation_wxyz=q)
+
+
+def _shows_fault(row, fault):
+    """Whether a returned sample (dict) carries the injected fault."""
+    return {"lateral": row["position_world"][1] == .02, "low": row["position_world"][2] == .04,
+            "heading": row["orientation_wxyz"][3] != 0., "tilt": row["orientation_wxyz"][1] != 0.}[fault]
+
+
+class _GeometricFaultMock(_SteppedDistanceMock):
+    """Fault keyed to the fixture's own simulated clock, never to a read count.
+
+    A read count raced the free-running worker (macOS main e96a3a2): reads that
+    see no new step still counted, so the fault could start AT the distance
+    baseline, which absorbs a constant lateral/heading offset. With explicit
+    steps and no worker motion, post-ACK read k is simulated step admission+10k.
+    """
+
+    def __init__(self, fault, **kwargs):
+        super().__init__(**kwargs)
+        self.fault, self.fault_from_step = fault, None
+
+    def command_velocity(self, command, *, generation):
+        ack = super().command_velocity(command, generation=generation)
+        if ack.get("accepted") is True:
+            self.fault_from_step = self._step + 10 * _FAULT_ONSET_SAMPLES
+        return ack
+
+    def get_state(self):
+        state = super().get_state()
+        if self.fault_from_step is None or state.step < self.fault_from_step:
+            return state
+        return _geometric_fault(state, self.fault)
+
+
 @pytest.mark.parametrize("distance", [.02, -.02])
 def test_distance_stops_on_measured_travel_and_never_claims_mock_physics(distance):
     raw = _SteppedDistanceMock(wall_lease_s=2., dt_s=.002, auto_step=False)
@@ -199,31 +247,24 @@ def test_preadmission_drift_and_commanded_velocity_cannot_substitute_for_motion(
 
 @pytest.mark.parametrize("fault", ["lateral", "heading", "low", "tilt"])
 def test_distance_control_stops_on_geometric_fault(fault):
-    class Broken(MockMobileBase):
-        reads_after_command = 0
-
-        def get_state(self):
-            state = super().get_state()
-            if state.controller_status == "active":
-                self.reads_after_command += 1
-                if self.reads_after_command > 2:
-                    if fault == "lateral":
-                        return replace(state, position_world=(state.position_world[0], .02, .2))
-                    if fault == "low":
-                        return replace(state, position_world=(state.position_world[0], 0., .04))
-                    angle = .2 if fault == "heading" else .7
-                    q = ((math.cos(angle/2), 0., 0., math.sin(angle/2)) if fault == "heading"
-                         else (math.cos(angle/2), math.sin(angle/2), 0., 0.))
-                    return replace(state, orientation_wxyz=q)
-            return state
-
-    raw = Broken(wall_lease_s=2., dt_s=.002)
+    raw = _GeometricFaultMock(fault, wall_lease_s=2., dt_s=.002, auto_step=False)
     safe = configured(raw)
     safe.connect()
     try:
         result = safe.walk_distance(.02)
         assert not result["execution_ok"], result
-        assert "drift exceeded" in result["error"] or "posture bound" in result["error"]
+        expected = "posture bound" if fault in ("low", "tilt") else "lateral/heading drift exceeded"
+        assert expected in result["error"], result
+        samples = result["measured"]["samples"]
+        assert all(b["step"] - a["step"] == 10 for a, b in zip(samples, samples[1:]))
+        # first, start, clean baseline, one clean increment, then the first
+        # faulted sample, which the veto stops on inside the admitted command.
+        assert len(samples) == 2 + _FAULT_ONSET_SAMPLES
+        assert result["distance_baseline"] == samples[2]
+        assert [_shows_fault(row, fault) for row in samples] == [False] * (1 + _FAULT_ONSET_SAMPLES) + [True]
+        assert samples[-1]["sim_time_s"] < result["ack"]["end_sim_time_s"]
+        assert result["measured_distance_m"] < .02 - .002  # stopped by the veto, not by arrival
+        assert result["stop_ack"]["latched"] and safe.latched
         assert raw.get_state().latched
     finally:
         safe.disconnect()

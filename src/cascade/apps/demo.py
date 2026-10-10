@@ -261,7 +261,7 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
                 finally:
                     observer.disconnect()
             else:
-                q = _arm.get_state().q
+                q = _body_mask_q(_arm)
             pts = arm_link_points(_kin, q)
             if _T is not None:
                 pts = pts @ _T[:3, :3].T + _T[:3, 3]
@@ -287,6 +287,16 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
                 return pose if _T is None else _T @ pose
             occupancy.track_payload(frame_tcp_pose)
     return arm, SafeArm(arm, harness, motion_planner=motion_planner), kin
+
+
+def _body_mask_q(arm):
+    """Joint pose for the occupancy body mask of a CONNECTED arm.
+
+    A backend may serve it without a bus read while it streams
+    (`RebotRSArm.body_mask_q`); every other arm keeps its measured pose.
+    """
+    fn = getattr(arm, "body_mask_q", None)
+    return fn() if callable(fn) else arm.get_state().q
 
 
 def _base_transform(acfg):

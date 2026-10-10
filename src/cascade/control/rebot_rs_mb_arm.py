@@ -91,6 +91,7 @@ class RebotRSMotorBridgeArm(ArmBase):
         self._last_q = np.zeros(self.n_joints)
         self._last_q_t: float | None = None   # when _last_q was read (None: never)
         self._last_cmd_q: np.ndarray | None = None
+        self._last_cmd_t: float | None = None
         self._read_failures = 0
 
         self.settle_tol = float(cfg.get("settle_tol", 0.05))
@@ -314,6 +315,25 @@ class RebotRSMotorBridgeArm(ArmBase):
         q = np.asarray(q, dtype=float).reshape(-1)[: self.n_joints]
         self._send_mit(q)
         self._last_cmd_q = q.copy()
+        self._last_cmd_t = time.monotonic()
+
+    #: a joint target newer than this means a stream is sending (50 Hz = 20 ms)
+    STREAM_ACTIVE_S = 0.1
+
+    def body_mask_q(self) -> np.ndarray:
+        """Joint pose for masking the robot out of depth images.
+
+        Same reason as `RebotRSArm.body_mask_q`: a measured pose polls the six
+        joint motors in turn with this driver's lock held, which the 50 Hz
+        stream needs for every waypoint. While a stream is sending targets,
+        return the target being tracked (no bus traffic); otherwise the
+        measured pose. Safety checks keep using `get_state()`.
+        """
+        t, q = self._last_cmd_t, self._last_cmd_q
+        if (q is not None and t is not None and not self._stopped
+                and time.monotonic() - t < self.STREAM_ACTIVE_S):
+            return q.copy()
+        return self.get_state().q
 
     def set_gripper(self, pos: float, effort: float = 1.0) -> None:
         if self._ctrl is None or self._gripper_id is None or self._stopped:

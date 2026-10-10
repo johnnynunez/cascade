@@ -18,6 +18,13 @@ cascade's existing extrinsic record (``perception/calibration.py``):
   one more file to lose); the samples are kept so a fit can be audited or
   re-solved later, with the measured joints they came from.
 * Writes are atomic (temp file + ``os.replace``), as for the belief store.
+* One file format, several METHODS: the marker joint solve
+  (``joint_se3_lm_huber``) and markerless depth ICP
+  (``depth_icp_markerless``, eye-to-hand only). The gate is per method
+  (``assess_record``) and an unknown method never passes: a record whose
+  quality cannot be judged is treated as one that failed. A markerless
+  record has no marker, so its marker spec and marker transform are absent
+  rather than filled with something that looks like one.
 
 Units: metres and radians; matrices are 4x4 ``T_a2b`` (points in a -> b).
 """
@@ -72,12 +79,41 @@ class MarkerSpec:
 
 
 @dataclass(frozen=True)
+class DepthPose:
+    """A markerless sample as recorded: the measured joints, their FK and
+    how well that pose's depth explained the fitted arm (the depth image
+    itself is saved next to the trace, ``depth_file``, not in the JSON)."""
+
+    label: str
+    q: tuple | None
+    T_gripper2base: np.ndarray
+    n_visible: int = 0
+    n_inliers: int = 0
+    rmse_m: float = float("nan")
+    offset_m: float = float("nan")
+    offset_deg: float = float("nan")
+    depth_file: str = ""
+
+
+def assess_record(method: str, metrics: dict) -> list[str]:
+    """The gate for ``method``; an unknown method is a reason in itself."""
+    if method == METHOD:
+        return assess_hand_eye(metrics)
+    from .markerless import METHOD as MARKERLESS
+    from .markerless import assess_markerless
+
+    if method == MARKERLESS:
+        return assess_markerless(metrics)
+    return [f"unknown calibration method {method!r}: no quality gate to judge it by"]
+
+
+@dataclass(frozen=True)
 class HandEyeRecord:
     mode: str
     T_hand_eye: np.ndarray
-    T_marker: np.ndarray
+    T_marker: np.ndarray | None
     metrics: dict
-    marker: MarkerSpec
+    marker: MarkerSpec | None
     samples: tuple = ()
     outlier_indices: tuple = ()
     camera: str = ""
@@ -121,8 +157,14 @@ class HandEyeRecord:
     # ── the gate ─────────────────────────────────────────────────────────
 
     @property
+    def markerless(self) -> bool:
+        from .markerless import METHOD as MARKERLESS
+
+        return self.method == MARKERLESS
+
+    @property
     def rejection_reasons(self) -> list[str]:
-        reasons = assess_hand_eye(self.metrics)
+        reasons = assess_record(self.method, self.metrics)
         if self.stored_acceptable is False and not reasons:
             reasons = ["record was saved as rejected"]
         return reasons
@@ -142,6 +184,10 @@ class HandEyeRecord:
     def summary(self) -> str:
         m = self.metrics
         verdict = "OK" if self.acceptable else "REJECTED"
+        if self.markerless:
+            from .markerless import markerless_summary
+
+            return markerless_summary(m, self.acceptable, self.camera)
         return (f"[{verdict}] {self.mode} camera={self.camera or '?'}: "
                 f"{int(m.get('n_inliers', 0))}/{int(m.get('n_samples', 0))} inliers, "
                 f"translation rmse {float(m.get('translation_rmse_m', math.nan)) * 1000:.1f} mm, "
@@ -165,16 +211,16 @@ class HandEyeRecord:
             "arm": self.arm,
             "ee_frame": self.ee_frame,
             k_he: np.asarray(self.T_hand_eye, dtype=float).tolist(),
-            k_m: np.asarray(self.T_marker, dtype=float).tolist(),
-            "marker": self.marker.to_json(),
+            **({} if self.T_marker is None
+               else {k_m: np.asarray(self.T_marker, dtype=float).tolist()}),
+            "marker": None if self.marker is None else self.marker.to_json(),
             "intrinsics": None if self.K is None else {
                 "K": np.asarray(self.K, dtype=float).tolist(),
                 "D": [] if self.D is None else np.asarray(self.D, dtype=float).ravel().tolist(),
                 "image_size": None if self.image_size is None else list(self.image_size),
             },
             "method": self.method,
-            "metrics": {k: (float(v) if isinstance(v, (int, float, np.floating, np.integer))
-                            else v) for k, v in self.metrics.items()},
+            "metrics": {k: _json_number(v) for k, v in self.metrics.items()},
             "acceptable": not reasons,
             "rejection_reasons": reasons,
             "outlier_indices": [int(i) for i in self.outlier_indices],
@@ -195,25 +241,37 @@ class HandEyeRecord:
         mode = d.get("mode")
         if mode not in MODES:
             raise ValueError(f"bad hand-eye mode {mode!r}")
+        from .markerless import METHOD as MARKERLESS
+
+        method = str(d.get("method", METHOD))
+        if method not in (METHOD, MARKERLESS):
+            raise ValueError(f"unknown calibration method {method!r} (this loader reads "
+                             f"{METHOD!r} and {MARKERLESS!r}); there is no gate to judge it by")
+        markerless = method == MARKERLESS
+        if markerless and mode != EYE_TO_HAND:
+            raise ValueError(f"a {MARKERLESS} record must be eye_to_hand (the arm is the target; "
+                             f"a wrist camera does not see it), got {mode!r}")
         k_he, k_m = _KEYS[mode]
         T_he = _se3(d.get(k_he), k_he)
-        T_m = _se3(d.get(k_m), k_m)
+        T_m = None if markerless and d.get(k_m) is None else _se3(d.get(k_m), k_m)
         intr = d.get("intrinsics") or None
         K = D = size = None
         if intr:
             K = np.asarray(intr["K"], dtype=float).reshape(3, 3)
             D = np.asarray(intr.get("D") or [], dtype=float)
             size = tuple(int(v) for v in intr["image_size"]) if intr.get("image_size") else None
-        samples = tuple(_sample_from_json(s) for s in d.get("samples", []))
+        parse = _depth_pose_from_json if markerless else _sample_from_json
+        samples = tuple(parse(s) for s in d.get("samples", []))
+        marker = d.get("marker") if markerless else d["marker"]
         return cls(
             mode=mode, T_hand_eye=T_he, T_marker=T_m,
             metrics=dict(d.get("metrics") or {}),
-            marker=MarkerSpec.from_json(d["marker"]),
+            marker=None if marker is None else MarkerSpec.from_json(marker),
             samples=samples,
             outlier_indices=tuple(int(i) for i in d.get("outlier_indices", [])),
             camera=str(d.get("camera", "")), camera_serial=str(d.get("camera_serial", "")),
             arm=str(d.get("arm", "")), ee_frame=str(d.get("ee_frame", "")),
-            K=K, D=D, image_size=size, method=str(d.get("method", METHOD)),
+            K=K, D=D, image_size=size, method=method,
             created_at=str(d.get("created_at", "")), note=str(d.get("note", "")),
             stored_acceptable=bool(d.get("acceptable", False)),
         )
@@ -229,7 +287,31 @@ def _se3(value, name) -> np.ndarray:
     return T
 
 
-def _sample_json(s: HandEyeSample, inlier: bool) -> dict:
+def _json_number(v):
+    """Metric values as plain JSON (non-finite -> null, which the gates
+    read as missing, i.e. refused)."""
+    if isinstance(v, (bool, np.bool_)):
+        return bool(v)
+    if isinstance(v, (int, float, np.floating, np.integer)):
+        v = float(v)
+        return v if math.isfinite(v) else None
+    return v
+
+
+def _sample_json(s, inlier: bool) -> dict:
+    if isinstance(s, DepthPose):
+        return {
+            "label": s.label,
+            "q": None if s.q is None else [float(v) for v in s.q],
+            "T_gripper2base": np.asarray(s.T_gripper2base, dtype=float).tolist(),
+            "n_visible": int(s.n_visible),
+            "n_inliers": int(s.n_inliers),
+            "rmse_m": _json_number(s.rmse_m),
+            "offset_m": _json_number(s.offset_m),
+            "offset_deg": _json_number(s.offset_deg),
+            "depth_file": s.depth_file,
+            "inlier": bool(inlier),
+        }
     return {
         "label": s.label,
         "q": None if s.q is None else [float(v) for v in s.q],
@@ -247,6 +329,20 @@ def _sample_from_json(d: dict) -> HandEyeSample:
         label=str(d.get("label", "")),
         q=None if d.get("q") is None else tuple(float(v) for v in d["q"]),
         reprojection_px=float(d.get("reprojection_px", 0.0)),
+    )
+
+
+def _depth_pose_from_json(d: dict) -> DepthPose:
+    def num(key):
+        v = d.get(key)
+        return float("nan") if v is None else float(v)
+    return DepthPose(
+        label=str(d.get("label", "")),
+        q=None if d.get("q") is None else tuple(float(v) for v in d["q"]),
+        T_gripper2base=_se3(d["T_gripper2base"], "sample T_gripper2base"),
+        n_visible=int(d.get("n_visible", 0)), n_inliers=int(d.get("n_inliers", 0)),
+        rmse_m=num("rmse_m"), offset_m=num("offset_m"), offset_deg=num("offset_deg"),
+        depth_file=str(d.get("depth_file", "")),
     )
 
 

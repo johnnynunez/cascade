@@ -26,6 +26,10 @@ The motion path is cascade's, and that is the point of the port:
 
 Interrupts are the caller's (scripts/calibrate_handeye.py): it halts the
 harness and parks through ``SafeArm`` on Ctrl+C.
+
+``DepthCollectionSession`` is the markerless variant: the SAME vetted sweep,
+but after settling it grabs depth (a temporal median of a few frames, at
+joints verified unchanged across the grabs) instead of detecting a marker.
 """
 
 from __future__ import annotations
@@ -39,7 +43,7 @@ import numpy as np
 
 from ..types import MotionHalted, SafetyViolation, SkillError, pose_to_transform
 from .dataset import MarkerSpec
-from .handeye import MODES, HandEyeSample
+from .handeye import EYE_TO_HAND, MODES, HandEyeSample
 
 #: Default per-move ceiling on the largest single-joint excursion. A preset
 #: whose home-seeded IK solution sits further than this from where the arm
@@ -60,6 +64,7 @@ class SessionConfig:
     speed_frac: float = 0.5         # of the harness max_joint_vel; (0, 1]
     min_move_s: float = 3.0
     max_joint_step_rad: float = MAX_JOINT_STEP_RAD
+    depth_frames: int = 5           # markerless: temporal median of this many
 
     def __post_init__(self):
         if self.mode not in MODES:
@@ -67,8 +72,10 @@ class SessionConfig:
         if not (0.0 < float(self.speed_frac) <= 1.0):
             raise ValueError(f"speed_frac must be in (0, 1] of the harness velocity cap, "
                              f"got {self.speed_frac} (the cap is never raised)")
-        if self.stable_frames < 1 or self.min_move_s <= 0 or self.max_joint_step_rad <= 0:
-            raise ValueError("stable_frames, min_move_s and max_joint_step_rad must be positive")
+        if (self.stable_frames < 1 or self.min_move_s <= 0 or self.max_joint_step_rad <= 0
+                or self.depth_frames < 1):
+            raise ValueError("stable_frames, depth_frames, min_move_s and max_joint_step_rad "
+                             "must be positive")
 
 
 def wait_for_stable_marker(grab, aruco, cfg: SessionConfig, *, D=None, sleep=time.sleep,
@@ -225,8 +232,13 @@ class CollectionSession:
         if self.arm.move_planned(self.home_q, duration_s=duration) is False:
             raise SkillError("arm did not settle at home")
 
-    def visit(self, i, label, q) -> HandEyeSample | None:
-        """Vet, move (through SafeArm), settle, detect, capture. None = skipped."""
+    def visit(self, i, label, q):
+        """Vet, move (through SafeArm), settle, capture. None = skipped."""
+        if not self._move_to(i, label, q):
+            return None
+        return self._capture(i, label)
+
+    def _move_to(self, i, label, q) -> bool:
         c = self.cfg
         if getattr(self.harness, "estopped", False):
             raise SafetyViolation("e-stop latched; calibration stopped")
@@ -235,12 +247,12 @@ class CollectionSession:
         reason = self.harness.vet_pose(q)          # immediately before motion
         if reason:
             self._skip(i, label, "vetoed", reason)
-            return None
+            return False
         jump = float(np.max(np.abs(q - self._current_q())))
         if jump > c.max_joint_step_rad:
             self._skip(i, label, "joint_jump",
                        f"{jump:.2f} rad > {c.max_joint_step_rad:.2f} rad from the current pose")
-            return None
+            return False
         duration = self._duration(jump)
         self.log(f"[calib] {label}: moving ({jump:.2f} rad, {duration:.1f} s)")
         try:
@@ -251,10 +263,13 @@ class CollectionSession:
             if getattr(self.harness, "estopped", False):
                 raise
             self._skip(i, label, "refused", str(e))
-            return None
+            return False
         if ok is False:
             self._skip(i, label, "not_settled")
-            return None
+            return False
+        return True
+
+    def _capture(self, i, label) -> HandEyeSample | None:
         det = self.stable_detection()
         if det is None:
             self.log(f"[calib] {label}: no stable marker")
@@ -336,6 +351,103 @@ class CollectionSession:
             self.visit(i, label, q)
             return None
         return self._run(poses, step, start_home)
+
+
+#: Joints must not move by more than this (rad, any joint) between the first
+#: and last depth frame of a capture: depth and FK must describe ONE pose.
+STATIC_JOINT_TOL_RAD = 1e-3
+
+
+def temporal_median(depths) -> np.ndarray:
+    """Pixel-wise median of the VALID readings (0 = invalid); a pixel needs a
+    valid reading in at least half of the frames."""
+    stack = np.stack([np.asarray(d, dtype=np.float32) for d in depths])
+    valid = stack > 0
+    with np.errstate(invalid="ignore"):
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            med = np.nanmedian(np.where(valid, stack, np.nan), axis=0)
+    keep = valid.sum(axis=0) * 2 >= len(stack)
+    return np.where(keep & np.isfinite(med), med, 0.0).astype(np.float32)
+
+
+class DepthCollectionSession(CollectionSession):
+    """The markerless sweep: same planning, vetting, ordering, motion and
+    trace as the marker session; after settling it records depth of the arm
+    (a temporal median of ``depth_frames`` sensor-depth frames) at the
+    MEASURED joints, verified unchanged across the grabs. Eye-to-hand only.
+    """
+
+    def __init__(self, *, safe_arm, kin, camera, config: SessionConfig, home_q,
+                 trace_path=None, capture_dir=None, log=print, sleep=time.sleep,
+                 clock=time.monotonic):
+        if config.mode != EYE_TO_HAND:
+            raise ValueError("markerless calibration is eye_to_hand only: a wrist camera does "
+                             "not see the arm it rides on")
+        super().__init__(safe_arm=safe_arm, kin=kin, camera=camera, aruco=None, config=config,
+                         home_q=home_q, trace_path=trace_path, capture_dir=capture_dir,
+                         log=log, sleep=sleep, clock=clock)
+        self.depth_files: list[str] = []
+
+    def _capture(self, i, label):
+        from .markerless import DepthSample
+
+        c = self.cfg
+        settle_until = self.clock() + c.settle_s
+        while self.clock() < settle_until:      # keep the watchdog fed while settling
+            self.grab()
+            self.sleep(0.05)
+        q0 = self._current_q()
+        frames = []
+        deadline = self.clock() + max(c.marker_timeout_s, 0.1)
+        while len(frames) < c.depth_frames and self.clock() < deadline:
+            f = self.grab()
+            if f is None:
+                self.sleep(0.03)
+                continue
+            if f.depth_m is None or getattr(f, "depth_source", "sensor") != "sensor":
+                self.log(f"[calib] {label}: frame has no SENSOR depth")
+                self._event("sample_skipped", i=i, label=label, reason="no_depth")
+                return None
+            frames.append(f)
+        if len(frames) < c.depth_frames:
+            self._event("sample_skipped", i=i, label=label, reason="no_frames",
+                        detail=f"{len(frames)}/{c.depth_frames} frames")
+            return None
+        q1 = self._current_q()
+        if float(np.max(np.abs(q1 - q0))) > STATIC_JOINT_TOL_RAD:
+            self._event("sample_skipped", i=i, label=label, reason="arm_not_static",
+                        detail=f"{float(np.max(np.abs(q1 - q0))):.4f} rad during capture")
+            return None
+        depth = temporal_median([f.depth_m for f in frames])
+        G = np.asarray(self.kin.fk(q1), dtype=float)
+        sample = DepthSample(q=tuple(float(v) for v in q1), T_gripper2base=G, depth_m=depth,
+                             K=np.asarray(frames[-1].K, dtype=float).copy(), label=label,
+                             t=float(getattr(frames[-1], "t", 0.0)))
+        self.samples.append(sample)
+        self._save_depth(label, depth)
+        valid = float(np.mean(depth > 0))
+        self._event("sample_recorded", i=i, label=label, q=list(sample.q), depth_frames=len(frames),
+                    valid_fraction=valid)
+        self.log(f"[calib] {label}: captured depth sample {len(self.samples)} "
+                 f"({100 * valid:.0f} % valid pixels)")
+        return sample
+
+    def _save_depth(self, label, depth) -> None:
+        if self.capture_dir is None:
+            return
+        try:
+            import cv2
+
+            self.capture_dir.mkdir(parents=True, exist_ok=True)
+            name = f"{label}_depth.png"
+            mm = np.clip(np.round(depth * 1000.0), 0, 65535).astype(np.uint16)
+            cv2.imwrite(str(self.capture_dir / name), mm)
+            self.depth_files.append(f"{self.capture_dir.name}/{name}")
+        except Exception as e:  # noqa: BLE001 - an audit image must never cost a sample
+            self.log(f"[calib] could not save depth for {label}: {e}")
 
 
 def _jsonable(o):

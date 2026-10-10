@@ -74,6 +74,10 @@ class WatchedCamera:
     reset_pending: bool = False
     last_capture: dict | None = None
     map_depth: bool | None = None  # None follows fuse; explicitly independent of semantic beliefs
+    # Bumped (under the watcher's lock) whenever fuse/map_depth/extrinsics
+    # change at runtime (the extrinsic drift monitor): a tick that started
+    # under the old generation must not commit.
+    generation: int = 0
 
     @property
     def maps_depth(self):
@@ -245,9 +249,20 @@ class WorldWatcher:
                 cam.reset_pending = False
         return observed
 
-    def _fusion_allowed(self, cam, frame, epoch):
+    def set_camera_fusion(self, cam: WatchedCamera, *, fuse: bool, map_depth: bool | None) -> None:
+        """Switch one stream's 3D fusion / depth mapping at runtime (the
+        extrinsic drift monitor). Atomic w.r.t. a tick: the generation bump
+        makes any tick already in flight for this camera drop its commit."""
+        with self._pause_lock:
+            cam.fuse = bool(fuse)
+            cam.map_depth = map_depth
+            cam.generation += 1
+
+    def _fusion_allowed(self, cam, frame, epoch, generation=None):
         """Called under _pause_lock, including immediately before each commit."""
         if self._pause_count or epoch != self._fusion_epoch:
+            return False
+        if not cam.fuse or (generation is not None and generation != cam.generation):
             return False
         if cam.reset_pending and cam.fusion_floor is None:
             cam.fusion_floor = frame
@@ -282,6 +297,7 @@ class WorldWatcher:
     def _tick(self, cam: WatchedCamera) -> None:
         with self._pause_lock:
             epoch = self._fusion_epoch
+            generation, fuse, maps_depth = cam.generation, cam.fuse, cam.maps_depth
         frame = cam.stream.latest()
         if frame is None:
             return
@@ -299,13 +315,13 @@ class WorldWatcher:
             cam.last_capture = None
         frame = cam.depth.ensure_depth(frame)
         T = None
-        if frame.has_depth and (cam.fuse or cam.maps_depth):
+        if frame.has_depth and (fuse or maps_depth):
             # Mask geometry before waiting for semantic inference/its lock.
             # Otherwise the robot can move during detection and a current
             # joint pose masks an OLD image, permanently fusing self ghosts.
             T = (frame.T_base_cam if frame.T_base_cam is not None
                  else cam.extrinsics.cam_to_base())
-            if self._occupancy is not None and cam.maps_depth:
+            if self._occupancy is not None and maps_depth:
                 # Keep geometry fresh during motion; only beliefs are paused.
                 self._occupancy.refresh(frame, T)
         # B39: a frame without a render self-mask gets the arm's link geometry
@@ -327,7 +343,7 @@ class WorldWatcher:
         # watchdog window and rely on this).
         if self._harness is not None:
             self._harness.heartbeat()
-        if T is None or not cam.fuse:
+        if T is None or not fuse:
             return
         # The robot's own pixels (render self-mask minus a held payload; B39:
         # else the link-geometry mask, on a fusion-local copy of the frame --
@@ -337,7 +353,7 @@ class WorldWatcher:
         else:
             self_px = self._workspace.self_pixels(frame)
         with self._pause_lock:
-            if not self._fusion_allowed(cam, frame, epoch):
+            if not self._fusion_allowed(cam, frame, epoch, generation):
                 return
         observations = []
         for d in dets:
@@ -389,7 +405,7 @@ class WorldWatcher:
         # check stays immediately before the commit, so a frame is fused
         # whole or not at all.
         with self._pause_lock:
-            if not self._fusion_allowed(cam, frame, epoch):
+            if not self._fusion_allowed(cam, frame, epoch, generation):
                 return
             fused = self._beliefs.update_frame(observations, t=frame.t)
         self.last_update_t = time.monotonic()

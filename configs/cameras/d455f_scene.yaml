@@ -21,6 +21,9 @@ extrinsics:
   # PLACEHOLDER T_cam2base copied from d455f.yaml. Calibrate on the rig
   # (marker on top of the gripper, docs/HANDEYE_CALIBRATION.md):
   #   python scripts/calibrate_handeye.py --camera d455f_scene --arm rebot_rs
+  # or markerless (no marker: the arm's meshes fitted in depth; this T is
+  # the starting guess):
+  #   python scripts/calibrate_handeye.py --camera d455f_scene --arm rebot_rs --method markerless
   # then enable the record (it takes precedence over T below; a missing or
   # rejected record turns 3D fusion OFF for this camera rather than fall back):
   # hand_eye_json: ${repo}/configs/calib/d455f_scene_rebot_rs.handeye.json
@@ -29,3 +32,16 @@ extrinsics:
     - [-1.0,  0.0,  0.0, 0.00]
     - [ 0.0,  0.0, -1.0, 0.60]
     - [ 0.0,  0.0,  0.0, 1.00]
+  # Runtime extrinsic drift monitor (docs/HANDEYE_CALIBRATION.md): while the
+  # arm is static, checks that depth still matches the arm at FK through
+  # this extrinsic; after `consecutive` checks off by more than max_offset_m
+  # (RMS of the visible arm surface) or max_rot_deg, 3D fusion for this
+  # camera stops and a passive re-calibration candidate is proposed in the
+  # run dir. Read-only on the arm. Opt-in; applying a candidate is opt-in too.
+  drift_monitor:
+    enabled: false
+    period_s: 5.0
+    max_offset_m: 0.010
+    max_rot_deg: 3.0
+    consecutive: 3
+    auto_apply: false

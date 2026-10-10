@@ -907,6 +907,8 @@ src/cascade/
 │   ├── calibration.py        Kabsch camera→base fit with RMSE + degeneracy refusal
 │   ├── colors.py             mask HSV → colour word; colour-query parsing
 │   ├── stream.py / world.py  CameraStream + CameraRig / WorldWatcher (always-on fusion)
+│   ├── drift_monitor.py      opt-in extrinsic drift monitor: arm-in-depth check while static,
+│   │                         per-camera fusion off on drift, passive re-calibration candidate
 │   ├── occupancy.py          OccupancyMap client + harness clearance gate
 │   ├── occupancy_backends.py nvblox | warp | voxel (+ _warp_tsdf_kernels.py: TSDF carve + exact EDT)
 │   ├── probe.py / pixel_target.py / visual_interface.py / visual_diff.py
@@ -949,11 +951,13 @@ src/cascade/
 │   ├── trajectory.py   sampled route validation and bounded planning
 │   ├── geometry.py     segment-segment distances for the inter-arm gate
 │   └── base_harness.py SafeBase: base limits, freshness, cancellation, progress
-├── calibration/        hand-eye calibration (ArUco; ported from Seeed's WRC fork) -- docs/HANDEYE_CALIBRATION.md
+├── calibration/        hand-eye calibration (ArUco, ported from Seeed's WRC fork; or markerless) -- docs/HANDEYE_CALIBRATION.md
 │   ├── handeye.py      joint SE(3) solve of A X B = Z (eye-to-hand + eye-in-hand), robust LM + quality gate
-│   ├── session.py      collection sweep: presets vetted twice, every move via SafeArm.move_planned
-│   ├── dataset.py      schema-v1 record (gated on load)    aruco.py  detection + IPPE-square PnP
-│   └── cli.py          --list/--bind/--dry-run/--verify    synthetic.py  rendered-marker camera
+│   ├── markerless.py   eye-to-hand from depth: robust point-to-plane ICP of the arm's meshes at FK + gate
+│   ├── robot_surface.py  exterior surface samples from the URDF meshes, posed by the signed kinematics
+│   ├── session.py      collection sweep: presets vetted twice, every move via SafeArm.move_planned (marker | depth)
+│   ├── dataset.py      schema-v1 record (per-method gate on load)    aruco.py  detection + IPPE-square PnP
+│   └── cli.py          --list/--bind/--dry-run/--verify/--method   synthetic.py / synthetic_depth.py  test cameras
 ├── grasping/
 │   ├── obb_grasp.py    base-frame OBB grasps      graspgenx_backend.py  ZMQ client + fallback
 │   ├── selector.py     supplied/quality order ▸ width ▸ IK ▸ harness pre-vet

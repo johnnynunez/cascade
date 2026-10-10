@@ -124,8 +124,9 @@ proof is separate from the five-object campaign above.
 For an already running server use `--graspgenx external`. Set
 `CASCADE_GRASPGENX_PORT` for a different local port; it is propagated to the
 runtime and OpenClaw MCP process. `CASCADE_GRASPGENX_HOST` names a server on
-another machine for the runtime (a hostname or IPv4 address), but the
-launcher's `external` readiness check still probes `127.0.0.1`.
+another machine for the runtime (a hostname or IPv4 address); the launcher's
+`local` / `external` readiness checks dial that same host, print which
+endpoint they check, and stop the launch on a malformed value (B70).
 `--graspgenx none` explicitly selects analytic
 OBB. Spark rejects `--graspgenx stub`; a stub cannot validate the model.
 

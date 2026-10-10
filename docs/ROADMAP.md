@@ -909,8 +909,9 @@ aggregator, not nvblox. Fixes, all measured on this CUDA-less Mac (suite
   are byte-identical to 4d0947b; with all six set, only 1395 `bridge_port` and
   396 each of `graspgenx.port`/`.host`, `hug.port`/`.host` and
   `occupancy.port` values differ. Still open: no live Isaac run on private
-  ports yet, and `launch.sh --graspgenx external` still probes
-  `127.0.0.1:$CASCADE_GRASPGENX_PORT` whatever `CASCADE_GRASPGENX_HOST` says.
+  ports yet, and ~~`launch.sh --graspgenx external` still probes
+  `127.0.0.1:$CASCADE_GRASPGENX_PORT` whatever `CASCADE_GRASPGENX_HOST` says~~
+  **landed 2026-10-10** (B70, below).
   **Follow-up (backlog B64) landed 2026-10-09** — the sidecars' own test
   fixtures no longer use fixed ports: the stub sat on 5599, the bridge on
   5598/5599, and any listener there counted as ready, so concurrent suites
@@ -926,6 +927,32 @@ aggregator, not nvblox. Fixes, all measured on this CUDA-less Mac (suite
   2 (graspgenx) and 3 (occupancy) requests, the new ones none. Test-only:
   without the flags the scripts reply byte-identically. Still open: the
   other server tests bind port 0 but do not check who answers.
+  **Follow-up (backlog B70) landed 2026-10-10** — `launch.sh --graspgenx
+  local|external` checks the GraspGen-X endpoint the runtime dials: with
+  `CASCADE_GRASPGENX_HOST` set it parses it by the runtime's rule
+  (`config.env_host`; a malformed value stops the launch, naming it, before
+  anything is dialled or started), prints `GraspGen-X endpoint: HOST:PORT`,
+  probes that host (`external`), passes `--host` to `check_graspgenx.py` and
+  names the host in the banner. Unset or empty, and in the `stub` / `none`
+  modes, its commands and output are byte-identical (golden-pinned).
+  Measured on CPU (`tests/test_endpoint_port_followups.py`, the launcher's own
+  block against listeners on OS-assigned ports, the runtime host on
+  127.0.0.2): with a server only on 127.0.0.2, 38f6d08 reached it 0 times and
+  stopped the launch, the new block reaches it once and passes it `--host`;
+  with a server only on 127.0.0.1, 38f6d08 accepted it and the new block
+  refuses (`no GraspGen-X server on 127.0.0.2:PORT`, 0 connections to
+  loopback). The test ports that were bound and released before use are gone:
+  the HUG dead-server tests hold theirs (`held_dead_port()`), and the OpenClaw
+  gateway double is handed the socket bound to its port
+  (`owned_server.handed_over_port`, SCM_RIGHTS), so it is never free between
+  choosing and listening. An AST guard fails on any new bind-0 / read /
+  release / use site in `tests/`. Not changed: `scripts/demo_proof.py` still
+  reads `CASCADE_BRIDGE_PORT` with its own `int()`. Still open: no check
+  against a server on another machine (macOS has no second loopback address,
+  so those tests skip there); `--graspgenx stub` starts its stub here whatever
+  the host says; `tests/test_spark_install.py::launch_fixture` still
+  releases its dead Qwen port (three conversation-provider tests do too, by
+  design: their code under test bind-checks the port itself).
 - ~~**Every runtime switch must reach the registered MCP server** (found
   merging B49): `launch.sh` registered a fixed 18-name env, so
   `CASCADE_GRASP_EXECUTOR` / `CASCADE_VLA_PORT` never reached the server

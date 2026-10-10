@@ -129,6 +129,28 @@ Support the arm before anything enables it: after a clean shutdown it is limp.
    This is the real test of Finding #3: the move must start without any
    harness rejection. Then exit with an empty line (or one Ctrl+C) and confirm
    the teardown receipt shows the park `complete` at `park_q = 0`.
+
+   **Scripted alternative:** `python scripts/home_rebot_rs.py --yes`. It needs no profile
+   edit and moves rest -> home -> rest at 0.4 rad/s.
+   - **Measured checks:** each leg runs in 4 steps, and the arm's measured position is
+     checked after every step. If a step fails the check, the arm soft-stops and holds
+     with torque ON.
+   - **Rehearsal:** run `--dry-run --camera mock` first.
+   - **Result on the rig, 2026-10-11:** every step tracked within 0.013 rad. Home was
+     measured at (0.452, -0.001, 0.432) m, against a nominal (0.452, 0, 0.438).
+
+   Two traps:
+   - **The perception watchdog (5 s) refuses motion when no camera is running.** The tool
+     beats it only from frames that actually arrive from the fixed camera. Without a
+     camera, it stopped half-way up.
+   - **Never reconnect anything while the arm is raised.** `connect()` clears latched
+     faults with a stop frame that cuts torque. Support the arm, press the e-stop and lower
+     it by hand instead.
+
+   Joint 3 cannot be sign-checked from rest: about 6.7 N·m of gravity holds it on its stop,
+   which is above the probe's 3.6 N·m abort. Check it with the motors limp instead: unfold
+   the forearm by hand and compare `diag_rebot_mb.py --snapshot` before and after. The
+   value must rise.
 4. **Gripper travel and stall re-verification.**
    - Hand-sweep the jaw with `diag_rebot_mb.py` and confirm 0 → +6.39 rad.
    - Measure the jaw opening in mm at about 1.5, 3.0, 4.5 and 6.2 rad to settle

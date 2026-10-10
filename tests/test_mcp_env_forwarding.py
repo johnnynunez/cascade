@@ -441,8 +441,37 @@ def test_isaac_registration_is_byte_identical(monkeypatch, capsys):
     _scrub_process(monkeypatch)
     monkeypatch.setenv("CASCADE_REQUIRE_CUDA", "1")
     monkeypatch.setenv("CASCADE_OPENCLAW_PROFILE", "cascade-demo")
+    # The Spark is Linux: on macOS the heredoc adds DISPLAY=":0" for the viewer
+    # (an unrelated, older branch), so pin the platform the golden describes.
+    monkeypatch.setattr(sys, "platform", "linux")
     config = _in_process_registration(monkeypatch, capsys, sim="isaac", occupancy="none")
     assert json.dumps(config) == GOLDEN_ISAAC
+
+
+def _command_substitution_heredocs(text: str) -> list[tuple[int, str]]:
+    """(line, body) of every heredoc opened on a line that starts a `$(`."""
+    lines, found, i = text.split("\n"), [], 0
+    while i < len(lines):
+        opened = re.search(r"<<-?\s*['\"]?([A-Za-z_][A-Za-z0-9_]*)['\"]?", lines[i])
+        if opened and "$(" in lines[i]:
+            end = lines.index(opened.group(1), i + 1)
+            found.append((i + 1, "\n".join(lines[i + 1:end])))
+            i = end
+        i += 1
+    return found
+
+
+def test_launch_heredocs_in_command_substitutions_parse_under_bash_3_2():
+    # macOS /bin/bash is 3.2, which scans a heredoc inside `$( ... )` as shell
+    # text: one apostrophe in the registration heredoc's comment (B63's first
+    # push) made bash 3.2 reject the whole launch.sh ("line 1131: syntax error
+    # near unexpected token `('"), measured with a bash-3.2.57 build and on
+    # macos-latest CI. Keep quotes and parentheses balanced in every such body.
+    blocks = _command_substitution_heredocs(LAUNCH.read_text())
+    assert any('"requestTimeoutMs"' in body for _, body in blocks)  # the registration is one of them
+    unbalanced = [line for line, body in blocks
+                  if body.count("'") % 2 or body.count('"') % 2 or body.count("(") != body.count(")")]
+    assert unbalanced == []
 
 
 # ── setup_agents.py (real registrar) ──────────────────────────────────────

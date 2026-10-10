@@ -867,7 +867,9 @@ if classes:
 # set in this shell (memory paths, endpoints, devices, CASCADE_GRASP_EXECUTOR /
 # CASCADE_VLA_PORT, ...) is copied verbatim from the ONE list setup_agents.py
 # also uses (cascade.apps.mcp_env, B63), including empty CUDA visibility. The
-# values written above from this launcher's flags win.
+# values written above from the flags of this launcher win. No single quote in
+# this heredoc: bash 3.2 (macOS /bin/bash) scans a heredoc inside a command
+# substitution as shell text, so an odd count breaks the whole script.
 for key, value in forwarded_env().items():
     env.setdefault(key, value)
 if sys.argv[11] == "none":

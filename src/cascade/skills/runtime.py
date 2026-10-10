@@ -44,11 +44,16 @@ from ..perception.grounding import (
 
 if TYPE_CHECKING:  # annotation only; the runtime import stays local (import cycle)
     from ..control.arm_rig import ArmRig
+    from ..perception.link_mask import LinkSelfMask
     from ..types import ObjectFix
 from ..types import Detection, Frame, SafetyViolation, SkillError, SkillStuck, make_transform, transform_points
 
 logger = logging.getLogger(__name__)
 
+#: grasp backends that plan from the RGB-D frame the object was localized in
+#: (callers pass `_frame=` to `_plan_grasps` only for these, so every other
+#: backend is called exactly as before)
+_FRAME_GRASP_BACKENDS = frozenset({"hug", "camera_frame"})
 #: The three step outcomes `execute()` stamps on every result (`outcome`).
 #: `STUCK` (RPent's third finish status) is always `ok: false` and carries
 #: an `ask`: the concrete, human-actionable request that would unblock it.
@@ -228,12 +233,18 @@ class SkillRuntime:
         self.live_view = None
         #: the live StreamServer while the view is open, else None
         self.stream_server = None
+        #: B47 WristNarrator (apps/wrist_narration.py), set by the app wiring
+        #: only with `stream.wrist_narration: true` AND a wrist stream; None
+        #: = execute() dispatches exactly as before.
+        self.wrist_narrator: Any = None
         #: natural-language task currently executing (dashboard narration)
         self.current_task: str | None = None
         #: where the persistent world model is written on shutdown (set by the
         #: app wiring). None = persistence disabled, which is the default for
         #: bare/unit-test runtimes.
         self.beliefs_path = None
+        # B43: where the visual index persists (memory.persist_episodic); None = off
+        self.episodic_path = None
         #: dispatch tier that served the last command ("reflex" |
         #: "experience" | "llm" | "mcp-host"), for the dashboard "via:" chip
         self.last_path: str | None = None
@@ -289,6 +300,10 @@ class SkillRuntime:
         #: latch; same required/optional contract as GraspGen-X above
         self._hug = None
         self._hug_down = False
+        #: the opt-in VLA executor (`grasp.executor: vla`, B49;
+        #: grasping/vla_executor.py), built and probed by build_runtime. None
+        #: with the analytic executor (the default): nothing VLA exists then.
+        self.vla_executor = None
         #: which grasp planner actually produced the last candidate list:
         #: "obb" | "graspgenx (learned 6-DoF)" | "graspgenx-stub (...)" |
         #: "obb (graspgenx down)". None until the first grasp. Surfaced by
@@ -359,6 +374,9 @@ class SkillRuntime:
     _arm_override = None
     arm_rig = None
     _call_measurements = None
+    #: LinkSelfMask | None (B39): set by the app wiring when
+    #: `workspace_filter.link_self_mask` is on; see perception/link_mask.py.
+    _link_self_mask: "LinkSelfMask | None" = None
 
     @property
     def arm(self):
@@ -603,6 +621,28 @@ class SkillRuntime:
         return self._task_effects.snapshot()
 
     def execute(self, name: str, args: dict) -> dict:
+        """Dispatch with task obligations covering all tiers and preparation faults.
+
+        B47: with a wrist narrator attached (`stream.wrist_narration: true`
+        and a wrist stream, apps/wrist_narration.py) a motion skill is
+        bracketed by the narrator's begin/end so the dashboard can highlight
+        the wrist view while it runs; the `finally` guarantees a raised
+        dispatch never leaves the highlight on. Without a narrator this is
+        exactly the previous dispatch. The narrator only records -- it never
+        alters args, the result, or whether the skill runs."""
+        narrator = getattr(self, "wrist_narrator", None)
+        if narrator is None or name not in _MOTION_SKILLS:
+            return self._execute_with_obligations(name, args)
+        owns = narrator.begin(self, name, args)
+        result = None
+        try:
+            result = self._execute_with_obligations(name, args)
+            return result
+        finally:
+            if owns:
+                narrator.end(self, result)
+
+    def _execute_with_obligations(self, name: str, args: dict) -> dict:
         """Dispatch with task obligations covering all tiers and preparation faults."""
         from ..agent.effects import POSTCONDITIONS
 
@@ -1050,11 +1090,15 @@ class SkillRuntime:
             grasp = "hug (configured; not yet probed -- first grasp probes it)"
         else:
             grasp = want
-        return {
+        out = {
             "grasp_planner": grasp,
             "occupancy": occ.describe() if occ is not None else "disabled",
             "occupancy_live": bool(occ is not None and occ.status),
         }
+        if getattr(self, "vla_executor", None) is not None:
+            # only with `grasp.executor: vla`: which policy server serves grasps
+            out["grasp_executor"] = self.vla_executor.describe()
+        return out
 
     def frame_jpeg(self) -> bytes | None:
         if self.last_frame is None:
@@ -1079,6 +1123,11 @@ class SkillRuntime:
             # for another camera names it (`_reobserve`); unnamed stays None.
             if source is None:
                 source = camera_source(getattr(self, "camera", None))
+        # B39 (opt-in): no render self-mask -> the arm's link geometry at this
+        # frame's time feeds the same gate, on a fusion-local copy of the frame.
+        link = getattr(self, "_link_self_mask", None)
+        if link is not None and self_px is None and dets and self._workspace.self_mask:
+            self_px = self._workspace.self_pixels(link.attach(frame, T))
         observations = []
         for d in dets:
             mask = d.mask
@@ -1465,6 +1514,10 @@ class SkillRuntime:
         if _check is not None:
             _check()
         gcfg = self.cfg.grasp
+        # B45 opt-in: tilted alternates of every top-down footprint candidate
+        # (the reach profiles, e.g. arms/rebot_rs_reach.yaml). Unset/empty
+        # leaves the planner call exactly as before.
+        tilts = gcfg.get("angled_approach_tilts_deg")
         obb = plan_grasps_from_fix(
             fix,
             table_z=float(self.cfg.safety.get("table_z", 0.0)),
@@ -1478,9 +1531,12 @@ class SkillRuntime:
             # (measured in MuJoCo). Per-arm, like every other jaw dimension.
             width_pad_m=float(gcfg.get("width_pad_m", 0.015)),
             axis_order=self._tool_axis_order,
+            **({"angled_tilts_deg": tilts} if tilts else {}),
         )
         if str(gcfg.get("backend", "obb")) == "hug":
             grasps = SkillRuntime._hug_candidates(self, fix, obb, _frame, _deadline, _check)
+        elif str(gcfg.get("backend", "obb")) == "camera_frame":
+            grasps = SkillRuntime._camera_frame_candidates(self, fix, obb, _frame)
         elif str(gcfg.get("backend", "obb")) != "graspgenx":
             grasps = obb
             self.grasp_planner_used = "obb"
@@ -1633,6 +1689,55 @@ class SkillRuntime:
             logger.warning("hug unavailable (%s); analytic fallback; retry after 5s", str(e)[:160])
             self.grasp_planner_used = "obb (hug down)"
             return obb
+
+    def _camera_frame_candidates(self, fix, obb, frame) -> list:
+        """`grasp.backend: camera_frame` (opt-in): the WRC / rebot_grasp mask
+        planner (grasping/camera_grasp.py) -- approach along the camera's line
+        of sight, TCP pushed into the object.
+
+        Analytic and local, so there is no outage to latch: it either plans
+        from this frame or names why not. A `required` profile then raises
+        (visible, never an OBB substitute); an optional one returns the OBB
+        candidates and says so in `grasp_planner_used` and a memory note. With
+        `include_obb` (default) the OBB grasps also follow the mask grasp as
+        IK alternates (WRC's layer 3). Either way the memory re-rank, the
+        selector's width/IK checks and the harness vetting downstream are
+        unchanged."""
+        from ..grasping.camera_grasp import camera_frame_grasps
+
+        gcfg = self.cfg.grasp
+        ccfg = gcfg.get("camera_frame") or {}
+        required = bool(ccfg.get("required", False))
+        if frame is None:
+            # A caller bug, not a perception gap: never an OBB substitute.
+            raise SkillError("the camera-frame grasp planner needs the RGB-D frame the "
+                             "object was localized in; none was passed")
+        T = (frame.T_base_cam if getattr(frame, "T_base_cam", None) is not None
+             else self.extrinsics.cam_to_base())
+        grasps, reason = camera_frame_grasps(
+            frame, fix, T,
+            insertion_depth_m=float(ccfg.get("insertion_depth_m", 0.015)),
+            depth_quantile=float(ccfg.get("depth_quantile", 0.5)),
+            finger_drop_m=float(ccfg.get("finger_drop_m", 0.030)),
+            max_fix_offset_m=float(ccfg.get("max_fix_offset_m", 0.03)),
+            max_width_m=self._max_width,
+            width_pad_m=float(gcfg.get("width_pad_m", 0.015)),
+            axis_order=self._tool_axis_order)
+        if grasps:
+            g = grasps[0]
+            tilt = float(np.degrees(np.arccos(np.clip(-float(g.approach[2]), -1.0, 1.0))))
+            self.memory.add("note", f"camera_frame: {len(grasps)} mask grasp(s), approach "
+                                    f"{tilt:.0f} deg off vertical, jaw {g.width_m * 1000:.0f} mm")
+            self.grasp_planner_used = "camera_frame (mask + depth)"
+            return grasps + obb if bool(ccfg.get("include_obb", True)) else grasps
+        if required:
+            self.grasp_planner_used = "camera_frame (unavailable)"
+            raise SkillError(f"camera-frame grasp planner required but produced nothing: {reason}")
+        self.memory.add("note", f"camera_frame: no mask grasp ({reason}); OBB fallback")
+        logger.warning("camera_frame grasp planner produced nothing (%s); analytic OBB fallback",
+                       reason)
+        self.grasp_planner_used = f"obb (camera_frame: {reason})"
+        return obb
 
     def _localization_workspace_bounds(self):
         """Read the selected arm's existing limits without connecting it."""
@@ -1927,6 +2032,17 @@ class SkillRuntime:
             return []
         return [c for c in cams[1:] if getattr(c, "fuse", True)]
 
+    def _sample_link_state(self, frame) -> None:
+        """B39: record the arm's joint state as a frame is taken, BEFORE
+        inference, so the link self-mask is posed at the image's time (a
+        sample taken after detection is further from it). A no-op unless
+        `workspace_filter.link_self_mask` is on and the frame has no render
+        self-mask."""
+        link = getattr(self, "_link_self_mask", None)
+        if (link is not None and self._workspace.self_mask
+                and getattr(frame, "robot_mask", None) is None):
+            link.sample()
+
     def _reobserve(self, frames: int = 2) -> None:
         """Refresh beliefs with fresh detector passes over EVERY fusing
         camera while the WorldWatcher is paused (motion skills hold it):
@@ -1937,6 +2053,7 @@ class SkillRuntime:
         for _ in range(max(int(frames), 1)):
             try:
                 frame = self.observe()
+                self._sample_link_state(frame)
                 dets = self.detector.detect(frame, classes=self._default_classes)
                 if held is not None:
                     dets = [d for d in dets if d.label != held]
@@ -1950,6 +2067,7 @@ class SkillRuntime:
                 frame = cam.depth.ensure_depth(cam.stream.get_frame())
                 if not frame.has_depth:
                     continue
+                self._sample_link_state(frame)
                 dets = self.detector.detect(frame, classes=self._default_classes)
                 if held is not None:
                     dets = [d for d in dets if d.label != held]
@@ -2077,6 +2195,7 @@ class SkillRuntime:
     def _describe_observation(self, frame: Frame) -> dict:
         """Analyze exactly the supplied frame, including a verified reset frame."""
         _frame_age_s(frame)
+        self._sample_link_state(frame)  # B39: the arm's pose for THIS image
         analysis_started = time.monotonic()
         dets = self.detector.detect(frame, classes=self._default_classes)
         self._show_detections(dets)
@@ -2200,9 +2319,11 @@ class SkillRuntime:
         decide before committing -- the observe-then-act loop, not blind
         execution. Follow with grasp_object to actually execute it."""
         frame, fix = self._localize(label, spatial_hint=spatial_hint)
-        # Only HUG consumes the RGB-D frame; other backends' calls are unchanged.
+        # Only the frame backends (HUG, camera_frame) consume the RGB-D frame;
+        # other backends' calls are unchanged.
         grasps = self._plan_grasps(fix, label=label, **(
-            {"_frame": frame} if str(self.cfg.grasp.get("backend", "obb")) == "hug" else {}))
+            {"_frame": frame} if str(self.cfg.grasp.get("backend", "obb")) in _FRAME_GRASP_BACKENDS
+            else {}))
         if not grasps:
             return {"ok": False, "error": f"no grasp candidates for {label!r}"}
         g = grasps[0]  # already reranked by the fake-RL memory prior
@@ -2290,6 +2411,13 @@ class SkillRuntime:
             pass
         profile = select_profile(fix.detection.label or label, material)
         grasp_evidence.event("material_profile", profile=profile)
+        if not (_fix is not None and _frame is not None):
+            from ..grasping.vla_executor import executor_name
+
+            if executor_name(gcfg) == "vla":
+                # B49, opt-in: a language-conditioned policy serves this
+                # label grasp; pixel-addressed grasps stay analytic.
+                return self._vla_grasp(label, frame, fix, profile, scene_halt_generation)
         grasp_evidence.phase("planning")
         search = None
         planning_active = False
@@ -2326,8 +2454,9 @@ class SkillRuntime:
                 candidates = self._plan_grasps(fix, label=label, **({} if search is None else {
                     "_deadline": search.deadline, "_check": search.check,
                     "_prior_snapshot": frozen_prior}), **(
-                    # only HUG consumes the RGB-D frame the fix came from
-                    {"_frame": frame} if str(gcfg.get("backend", "obb")) == "hug" else {}))
+                    # only the frame backends consume the RGB-D frame the fix came from
+                    {"_frame": frame} if str(gcfg.get("backend", "obb")) in _FRAME_GRASP_BACKENDS
+                    else {}))
             except NoEligibleGrasps as exc:
                 if search is None:
                     raise
@@ -2638,7 +2767,17 @@ class SkillRuntime:
         if search is not None:
             search.check()  # Include the final pre-open read/veto in the same budget.
         planning_active = False  # Motion retains its separate physical-clock budget.
-        self.arm.set_gripper(self._grip_open, effort=0.8,
+        # Pre-grasp opening: fully open unless the arm profile opts into the
+        # adaptive opening (gripper.pregrasp_open_margin_m; Seeed WRC a2d5950
+        # opened to grasp width + 10 mm). Never narrower than the grasp width.
+        # Unset = exactly the old full-open command, touching nothing else.
+        open_pos = self._grip_open
+        margin = (self.cfg.arm.get("gripper") or {}).get("pregrasp_open_margin_m")
+        if margin is not None:
+            from ..grasping.force import pregrasp_open_position
+            open_pos = pregrasp_open_position(
+                grasp.width_m, margin, self._grip_open, self._grip_closed, self._max_width)
+        self.arm.set_gripper(open_pos, effort=0.8,
                              **({"_halt_generation": scene_halt_generation} if scene_enabled else {}))
         _home = self.cfg.arm.get("home_q")
         if _home is not None:
@@ -2840,10 +2979,7 @@ class SkillRuntime:
         if verified:
             commanded_open = max(1.0 - profile.close_frac_stage2, 0.0)
             expected_open = min(grasp.width_m / self._max_width, 1.0)
-            air_grasp = width_after_lift < float(gcfg.get("air_grasp_frac", 0.04)) or (
-                width_after_lift <= commanded_open + 0.03
-                and expected_open >= commanded_open + 0.07
-            )
+            air_grasp = self._air_grasp(width_after_lift, commanded_open, expected_open)
             if air_grasp:
                 if carry_attachment.active(self) is not None:
                     carry_attachment.active(self).reject(
@@ -2861,36 +2997,13 @@ class SkillRuntime:
                     "error": "air grasp: gripper closed fully, object not held",
                     "suggestion": "re-localize the object or try the alternate yaw",
                 }
-        self.held_object = label
-        self._held_det_label = fix.detection.label
-        self._held_color = detection_color(frame.rgb, fix.detection)
-        self._held_provisional = None  # promoted: the real flag is set now
         # The held width as MEASURED (jaw stall after the lift); the planned
         # width stands in when feedback was unavailable. `_reconcile_held`
         # reads it before calling a closed jaw a slip.
-        self._held_width_m = (float(width_after_lift) * float(self._max_width)
-                              if verified else float(grasp.width_m))
-        # A cached aiming estimate cannot prove a later slip. Preserve the
-        # post-lift clock floor separately for newly acquired hold evidence.
-        self._held_offset = held_offset_at_close
-        self._held_observation_floor = None
-        self._held_observation_floor_q = None
-        from .held_observation import binding
-        self._held_observation_binding = binding(self)
-        self._held_observation_joint_signs = np.asarray(
-            self.cfg.arm.get("joint_signs", [1] * self.arm.n_joints), float).copy()
-        try:
-            import copy
-            state_after_lift = self.arm.get_state()
-            carry_attachment.observe(self, state_after_lift)
-            self._held_observation_floor = copy.deepcopy(state_after_lift.physics_clock)
-            self._held_observation_floor_q = np.asarray(state_after_lift.q, float).copy()
-        except carry_attachment.AttachmentInvalid:
-            raise
-        except Exception as exc:
-            if carry_attachment.active(self) is not None:
-                carry_attachment.active(self).reject("post-lift feedback unavailable: " + str(exc))
-        self.beliefs.mark_removed(self._held_det_label or label, near=fix.position)
+        self._promote_held(label, frame, fix,
+                           held_width_m=(float(width_after_lift) * float(self._max_width)
+                                         if verified else float(grasp.width_m)),
+                           held_offset=held_offset_at_close)
         try:
             self.grasp_memory.record(
                 label, fix, grasp, success=True,
@@ -2911,6 +3024,132 @@ class SkillRuntime:
             "grip_verified": verified,
             "gripper_open_frac": round(width_after_lift, 2) if verified else None,
             "grasp_width_m": round(grasp.width_m, 3),
+        }
+
+    def _air_grasp(self, width_after: float, commanded_open: float, expected_open: float) -> bool:
+        """ASPIRE jaw-travel heuristic, shared by both executors: jaws nearly
+        shut, or at the commanded close although the object should have
+        stopped them much wider -- nothing resisted, nothing is held."""
+        return width_after < float(self.cfg.grasp.get("air_grasp_frac", 0.04)) or (
+            width_after <= commanded_open + 0.03
+            and expected_open >= commanded_open + 0.07
+        )
+
+    def _promote_held(self, label, frame, fix, *, held_width_m, held_offset) -> None:
+        """Record a grasp the jaw check accepted: the held flag, its identity,
+        the measured width, the aiming offset and the observation binding.
+        Shared by the analytic and the VLA executor so the two cannot drift."""
+        self.held_object = label
+        self._held_det_label = fix.detection.label
+        self._held_color = detection_color(frame.rgb, fix.detection)
+        self._held_provisional = None  # promoted: the real flag is set now
+        self._held_width_m = held_width_m
+        # A cached aiming estimate cannot prove a later slip. Preserve the
+        # post-lift clock floor separately for newly acquired hold evidence.
+        self._held_offset = held_offset
+        self._held_observation_floor = None
+        self._held_observation_floor_q = None
+        from .held_observation import binding
+        self._held_observation_binding = binding(self)
+        self._held_observation_joint_signs = np.asarray(
+            self.cfg.arm.get("joint_signs", [1] * self.arm.n_joints), float).copy()
+        try:
+            import copy
+            state_after_lift = self.arm.get_state()
+            carry_attachment.observe(self, state_after_lift)
+            self._held_observation_floor = copy.deepcopy(state_after_lift.physics_clock)
+            self._held_observation_floor_q = np.asarray(state_after_lift.q, float).copy()
+        except carry_attachment.AttachmentInvalid:
+            raise
+        except Exception as exc:
+            if carry_attachment.active(self) is not None:
+                carry_attachment.active(self).reject("post-lift feedback unavailable: " + str(exc))
+        self.beliefs.mark_removed(self._held_det_label or label, near=fix.position)
+
+    def _vla_grasp(self, label, frame, fix, profile, halt_generation) -> dict:
+        """`grasp.executor: vla` (B49, opt-in; grasping/vla_executor.py).
+
+        The target is already localized by `skill_grasp_object` (same
+        `_localize`, same measurements). Refusals happen before any motion:
+        a rig gate the route does not implement, a policy server that does
+        not answer, a missing `vla` extra. Then the jaws open and the arm
+        re-homes over the vetted route exactly like the analytic pipeline,
+        and the policy's chunks run under the harness (see the executor).
+        The verdict is the SAME as the analytic one: the jaw-travel check
+        here, then `execute()`'s independent postcondition verifier. Nothing
+        the server says about its own success is read. Outcomes do not train
+        the analytic grasp memory (there is no candidate geometry to credit).
+        """
+        from ..grasping.vla_executor import CLOSE_BELOW, VLAExecutor, route_refusal
+
+        reason = route_refusal(self)
+        if reason is not None:
+            raise SkillError(f"grasp.executor: vla refused: {reason}; no motion sent")
+        if getattr(self, "vla_executor", None) is None:
+            self.vla_executor = VLAExecutor.from_cfg(self.cfg.grasp)
+        executor = self.vla_executor
+        client = executor.connect()  # VLAUnavailable: nothing has moved
+        try:
+            self.arm.set_gripper(self._grip_open, effort=0.8, _halt_generation=halt_generation)
+            home = self.cfg.arm.get("home_q")
+            if home is not None and not self.arm.move_planned(
+                    np.asarray(home, dtype=float), duration_s=1.5, _halt_generation=halt_generation):
+                raise SkillError("did not settle at home before the VLA episode")
+            provisional = (label, fix.detection.label, detection_color(frame.rgb, fix.detection))
+            try:
+                report = executor.run(self, client, label=label, effort=profile.effort,
+                                      halt_generation=halt_generation, provisional=provisional)
+            except (SkillError, SafetyViolation) as exc:
+                self.memory.add("outcome", f"VLA grasp episode for {label!r} ended early: {exc}")
+                raise
+        finally:
+            client.close()
+        summary = {k: report[k] for k in ("chunks", "waypoints", "closed", "stop", "server", "infer_ms")}
+        if not report["closed"]:
+            self.memory.add("outcome", f"VLA grasp {label!r} FAILED: the policy never closed the gripper")
+            return {"ok": False, "executor": "vla", "vla": summary,
+                    "error": (f"VLA episode ended ({report['stop']}, {report['chunks']} chunks) and the "
+                              "policy never closed the gripper: nothing was grasped")}
+        if report["last_open_commanded"] > CLOSE_BELOW:
+            # closed, then commanded open again: whatever was there was let go
+            self._held_provisional = None
+            self.memory.add("outcome", f"VLA grasp {label!r} FAILED: the policy re-opened the gripper")
+            return {"ok": False, "executor": "vla", "vla": summary,
+                    "error": (f"the policy re-opened the gripper (last command {report['last_open_commanded']:.2f} "
+                              "open) before the episode ended: nothing is held")}
+        width_after = self._gripper_width_frac()
+        verified = width_after is not None
+        footprint = self._horizontal_footprint_m(fix.points)
+        if verified:
+            expected_open = min(footprint / self._max_width, 1.0) if footprint else 0.0
+            if self._air_grasp(width_after, report["last_open_commanded"], expected_open):
+                self._held_provisional = None
+                self.memory.add("outcome", f"VLA grasp {label!r} FAILED: jaws closed on air")
+                return {"ok": False, "executor": "vla", "vla": summary,
+                        "error": "air grasp: gripper closed fully, object not held",
+                        "suggestion": "re-localize the object; the policy closed on nothing"}
+        held_offset = None
+        if report["q_at_close"] is not None:
+            offset = np.asarray(fix.position, float) - self.kin.fk(report["q_at_close"])[:3, 3]
+            if offset.shape == (3,) and np.isfinite(offset).all():
+                held_offset = offset
+        self._promote_held(label, frame, fix,
+                           held_width_m=(float(width_after) * float(self._max_width) if verified
+                                         else footprint),
+                           held_offset=held_offset)
+        self.memory.add(
+            "action",
+            f"grasped {label!r} via the VLA policy ({report['chunks']} chunks, "
+            + (f"jaw at {width_after:.2f})" if verified else "grip UNVERIFIED)"),
+        )
+        return {
+            "held": label,
+            **self._target_resolution(label, frame, fix),
+            "grip_profile": profile.name,
+            "grip_verified": verified,
+            "gripper_open_frac": round(width_after, 2) if verified else None,
+            "executor": "vla",
+            "vla": summary,
         }
 
     def _grasp_support_height(self, points) -> float:
@@ -4955,11 +5194,22 @@ class SkillRuntime:
         T = self.kin.fk(q_now)
         target = T.copy()
         target[:3, 3] += np.asarray(dirs[direction], dtype=float) * distance_m
-        ik = self.kin.ik(target, q_now)
-        if not ik.success:
-            raise SkillError(f"cannot move {distance_m:.2f} m {direction} from here")
-        if not self.arm.move_joints(ik.q, duration_s=1.0):
-            raise SkillError("did not settle after the nudge")
+        cartesian = self.cfg.arm.get("cartesian_relative_moves", False)
+        if cartesian is True or str(cartesian).strip().lower() in ("1", "true", "yes", "on"):
+            # Opt-in per arm profile (Seeed WRC e97998c moved its nudges onto
+            # a Cartesian line): the TCP travels straight in `direction`
+            # instead of the arc a joint-space min-jerk traces. Every sample
+            # must solve continuously (planning.cartesian) and the dense path
+            # is harness-preflighted; a refusal is reported, never replaced by
+            # a silent joint-space fallback.
+            if not self.arm.move_cartesian(target, duration_s=1.0):
+                raise SkillError("did not settle after the nudge")
+        else:
+            ik = self.kin.ik(target, q_now)
+            if not ik.success:
+                raise SkillError(f"cannot move {distance_m:.2f} m {direction} from here")
+            if not self.arm.move_joints(ik.q, duration_s=1.0):
+                raise SkillError("did not settle after the nudge")
         tcp = self.kin.fk(self.arm.get_state().q)[:3, 3]
         return {"moved": direction, "distance_m": distance_m,
                 "tcp_xyz": [round(float(x), 3) for x in tcp]}
@@ -5320,6 +5570,11 @@ class SkillRuntime:
                         out["looks_like_note"] = (
                             "remembered appearance matches (cosine >= the embedder's floor), "
                             "not a current observation: localize_object before acting on one")
+                        if any(h.get("restored") for h in out["looks_like"]):
+                            # B43: a persisted visual index (memory.persist_episodic)
+                            out["looks_like_note"] += (
+                                ". Hits with restored=true were restored from an earlier session: "
+                                "remembered (age_s ago), never seen in this one")
                     except Exception as e:  # noqa: BLE001 -- recall is advisory
                         out["looks_like"] = []
                         out["looks_like_note"] = f"visual recall failed: {type(e).__name__}: {e}"

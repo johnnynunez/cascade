@@ -2,21 +2,38 @@
 from __future__ import annotations
 
 from ..robotics.contracts import ResourceDescriptor, identifier
-from .hub import SensorHub
+from .alignment import STATUSES, AlignmentPolicy, absent_channels, align_capture
+from .hub import SensorError, SensorHub
 from .models import (GeneralizedJointStatePayload, ImuPayload, MeasurementMetadata,
                      ProprioceptionPayload, JointStatePayload)
 from .providers import (MobileRgbSensorProvider, MobileRgbdSensorProvider,
                         MobileStateSensorProvider, SyntheticSensorProvider)
 
 
+#: Opt-in (`alignment:` in the sensors profile, backlog B50).
+READ_ALIGNED_SPEC = {
+    "name": "read_aligned",
+    "description": ("Read one fresh reference capture (e.g. a camera) and pair each other sensor's admitted "
+                    "capture nearest its capture time: aligned / stale / missing / uncertain with the measured "
+                    "skew. Never interpolated; stale and missing values are withheld; no stepping or actuation."),
+    "parameters": {"type": "object", "properties": {
+        "reference": {"type": "string"},
+        "sensor_ids": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 15}},
+        "required": ["reference"], "additionalProperties": False},
+}
+
+
 class SensorDomain:
     motion_skills = frozenset()
 
-    def __init__(self, domain_id, hub):
+    def __init__(self, domain_id, hub, *, alignment=None):
         self.domain_id = identifier(domain_id, "sensor domain")
         if not isinstance(hub, SensorHub):
             raise ValueError("SensorHub required")
+        if alignment is not None and not isinstance(alignment, AlignmentPolicy):
+            raise ValueError("AlignmentPolicy required")
         self.hub = hub
+        self.alignment = alignment
         hub.seal()
         self.resources = tuple(ResourceDescriptor(
             resource_id=f"{domain_id}/{descriptor.sensor_id}", kind="sensor",
@@ -31,6 +48,8 @@ class SensorDomain:
              "parameters": {"type": "object", "properties": {"sensor_id": {"type": "string"}},
                             "required": ["sensor_id"], "additionalProperties": False}},
         ]
+        if alignment is not None:
+            self.tool_specs.append(dict(READ_ALIGNED_SPEC))
 
     def execute(self, local_name, args):
         try:
@@ -43,9 +62,59 @@ class SensorDomain:
                 observation = self.hub.read(args["sensor_id"])
                 return {"ok": True, "observation": observation.as_dict(),
                         "capture_sha256": observation.sha256}
+            if (local_name == "read_aligned" and self.alignment is not None and "reference" in args
+                    and set(args) <= {"reference", "sensor_ids"}):
+                return self._read_aligned(args)
             raise ValueError("unknown sensor tool or invalid arguments")
         except Exception as exc:
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:500]}
+
+    def _read_aligned(self, args):
+        """One FRESH reference capture; each paired sensor read once (a refusal,
+        e.g. a replay when its producer has nothing newer, is reported, not
+        fatal), then its admitted capture nearest the reference's capture time
+        from the hub's bounded history. A failed reference read refuses the
+        call: no older capture is substituted."""
+        descriptors = {d.sensor_id: d for d in self.hub.descriptors}
+        reference_id = identifier(args["reference"], "reference")
+        if reference_id not in descriptors:
+            raise ValueError("unknown reference sensor")
+        ids = args.get("sensor_ids", [s for s in descriptors if s != reference_id])
+        if not isinstance(ids, list) or not 1 <= len(ids) <= 15:
+            raise ValueError("sensor_ids must list 1..15 sensors")
+        if len(set(ids)) != len(ids):
+            raise ValueError("duplicate sensor_ids")
+        for sensor_id in ids:
+            if identifier(sensor_id, "sensor_id") not in descriptors:
+                raise ValueError("unknown sensor in sensor_ids")
+            if sensor_id == reference_id:
+                raise ValueError("the reference cannot be paired with itself")
+        reference = self.hub.read(reference_id)
+        pairings, counts = {}, {status: 0 for status in STATUSES}
+        for sensor_id in ids:
+            read_error = None
+            try:
+                self.hub.read(sensor_id)
+            except SensorError as exc:
+                read_error = f"{type(exc).__name__}: {exc}"[:400]
+            pairing = align_capture(reference, self.hub.history(sensor_id), self.alignment,
+                                    now=self.hub.now(), max_age_s=descriptors[sensor_id].max_age_s)
+            entry = {**pairing.as_dict(), "read_error": read_error}
+            candidate = pairing.candidate
+            if candidate is not None:
+                entry.update(sequence=candidate.sequence, epoch=candidate.epoch,
+                             clock_domain=candidate.clock_domain, capture_time_s=candidate.capture_time_s,
+                             capture_sha256=candidate.sha256)
+            if pairing.sample is not None:
+                entry.update(observation=candidate.as_dict(), absent=absent_channels(candidate.payload))
+            pairings[sensor_id] = entry
+            counts[pairing.status] += 1
+        return {"ok": True,
+                "reference": {"sensor_id": reference_id, "sequence": reference.sequence, "epoch": reference.epoch,
+                              "clock_domain": reference.clock_domain,
+                              "capture_time_s": reference.capture_time_s, "capture_sha256": reference.sha256,
+                              "observation": reference.as_dict()},
+                "policy": self.alignment.as_dict(), "pairings": pairings, "counts": counts}
 
     def stop(self):
         return {"ok": True, "actuation": False}
@@ -66,9 +135,11 @@ def build_sensor_domain(domain_id, profile, *, providers=None, embodiment=None):
     """
     if not isinstance(profile, dict) or profile.get("kind") != "sensors":
         raise ValueError("explicit sensors domain profile required")
-    allowed = {"kind", "robot_id", "providers", "max_age_s", "read_timeout_s"}
+    allowed = {"kind", "robot_id", "providers", "max_age_s", "read_timeout_s", "alignment"}
     if set(profile) - allowed:
         raise ValueError("unknown sensor domain settings")
+    # Opt-in capture-time pairing (B50); parsed before any provider is built.
+    alignment = AlignmentPolicy.from_profile(profile["alignment"]) if "alignment" in profile else None
     robot_id = identifier(profile["robot_id"], "robot_id")
     declarations = profile.get("providers", [])
     if not isinstance(declarations, list) or not 1 <= len(declarations) <= 16:
@@ -141,4 +212,4 @@ def build_sensor_domain(domain_id, profile, *, providers=None, embodiment=None):
         hub.register(provider)
     if injected:
         raise ValueError("unused injected sensor provider")
-    return SensorDomain(domain_id, hub)
+    return SensorDomain(domain_id, hub, alignment=alignment)

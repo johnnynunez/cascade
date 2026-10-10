@@ -61,6 +61,8 @@ import numpy as np
 
 TARGET_SIZE = 224
 DEFAULT_PORT = 5558
+#: the variable the CASCADE client applies to `grasp.hug.port` (cascade.config)
+PORT_ENV = "CASCADE_HUG_PORT"
 N_LANDMARKS = 21
 MAX_SAMPLES = 256
 HUG_COMMIT = "8d1c52d4c24bfae5a369e32e3f134f5601a02630"
@@ -434,6 +436,25 @@ def serve(engine, host: str = "127.0.0.1", port: int = DEFAULT_PORT, verbose: bo
         sock.send(msgpack.packb(reply, use_bin_type=True))
 
 
+def port_from_env() -> int:
+    """`--port` default: CASCADE_HUG_PORT, read by the CASCADE client's own rule.
+
+    load_demo_config applies the same variable to `grasp.hug.port`, so the two
+    ends must parse it alike (`cascade.config.env_port`): empty = unset
+    (DEFAULT_PORT), else ASCII decimal digits in 1..65535, else ValueError
+    naming the variable. Duplicated rather than imported because this server
+    runs in HUG's own environment; tests/test_endpoint_env_overrides.py pins
+    that both readings agree.
+    """
+    raw = os.environ.get(PORT_ENV, "")
+    if raw == "":
+        return DEFAULT_PORT
+    if not (raw.isascii() and raw.isdecimal()) or not 1 <= int(raw) <= 65535:
+        raise ValueError(f"{PORT_ENV}={raw!r} is not a TCP port: use ASCII decimal digits in "
+                         "1..65535, or unset it (or pass --port)")
+    return int(raw)
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="HUG grasp server for CASCADE (REQ/REP msgpack)")
     ap.add_argument("--stub", action="store_true",
@@ -445,11 +466,16 @@ def main(argv=None) -> int:
     ap.add_argument("--sampling-steps", type=int, default=1,
                     help="Euler steps (HUG's app/inference default since 8d1c52d: 1)")
     ap.add_argument("--host", default="127.0.0.1")
-    ap.add_argument("--port", type=int,
-                    default=int(os.environ.get("CASCADE_HUG_PORT", DEFAULT_PORT)),
-                    help="0 binds a free port and prints it")
+    ap.add_argument("--port", type=int, default=None,
+                    help=f"0 binds a free port and prints it (default: ${PORT_ENV}, "
+                         f"else {DEFAULT_PORT})")
     ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args(argv)
+    if args.port is None:
+        try:
+            args.port = port_from_env()
+        except ValueError as e:
+            ap.error(str(e))
     if args.stub:
         engine = StubEngine()
     else:

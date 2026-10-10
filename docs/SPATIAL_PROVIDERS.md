@@ -34,7 +34,10 @@ captures within the configured gap independently of LLM response time.
 `get_localization` reads its last still-fresh estimate. Neither tool acquires a
 frame or steps physics. CPU contracts and a 12-frame native synthetic RGB-D
 replay pass; [the native validation record](CUVSLAM_NATIVE_VALIDATION.md) binds
-the build, inputs, estimates and cleanup. Physical localization remains pending.
+the build, inputs, estimates and cleanup, and also records a
+[live native simulation stream](CUVSLAM_NATIVE_VALIDATION.md#live-native-rgb-d-stream)
+that tracked 12 captures from a MicroDuck producer with unknown pose
+uncertainty. Physical localization remains pending.
 
 An explicit `preparation_intrinsics` configuration additionally exposes
 `prepare_localization({})` for applications that must initialize the SDK before

@@ -28,6 +28,30 @@ import numpy as np
 from ..types import Grasp, ObjectFix
 
 
+def tool_rotation(approach: np.ndarray, open_axis: np.ndarray,
+                  axis_order: str = "down_open") -> np.ndarray:
+    """TCP rotation from an orthonormal (approach, jaw-opening) pair, laid out
+    in the arm's `tool_axis_order` (see `_yaw_rotation` for the measured
+    conventions). The single place that knows the column layouts, shared by
+    the OBB and camera-frame planners so they cannot drift apart."""
+    down = np.asarray(approach, dtype=float)
+    open_axis = np.asarray(open_axis, dtype=float)
+    if axis_order == "open_down":
+        # Right-handed with approach last: [open, third x open ... ] worked out
+        # so that col0 = opening, col2 = approach, matching the measurement.
+        return np.column_stack([open_axis, np.cross(down, open_axis), down])
+    if axis_order == "third_open_down":
+        # col1 = opening, col2 = approach; col0 = open x down keeps it
+        # right-handed (det = +1), which IK needs for a valid rotation.
+        return np.column_stack([np.cross(open_axis, down), open_axis, down])
+    if axis_order != "down_open":
+        raise ValueError(
+            f"unknown tool_axis_order {axis_order!r} "
+            "(down_open | open_down | third_open_down)"
+        )
+    return np.column_stack([down, open_axis, np.cross(down, open_axis)])
+
+
 def _yaw_rotation(yaw: float, tool_down: np.ndarray | None = None,
                   axis_order: str = "down_open") -> np.ndarray:
     """TCP rotation for a top-down grasp with jaw-opening yaw.
@@ -79,21 +103,7 @@ def _yaw_rotation(yaw: float, tool_down: np.ndarray | None = None,
     open_axis = np.array([np.cos(yaw), np.sin(yaw), 0.0])
     open_axis -= open_axis @ down * down
     open_axis /= np.linalg.norm(open_axis)
-    third = np.cross(down, open_axis)
-    if axis_order == "open_down":
-        # Right-handed with approach last: [open, third x open ... ] worked out
-        # so that col0 = opening, col2 = approach, matching the measurement.
-        return np.column_stack([open_axis, np.cross(down, open_axis), down])
-    if axis_order == "third_open_down":
-        # col1 = opening, col2 = approach; col0 = open x down keeps it
-        # right-handed (det = +1), which IK needs for a valid rotation.
-        return np.column_stack([np.cross(open_axis, down), open_axis, down])
-    if axis_order != "down_open":
-        raise ValueError(
-            f"unknown tool_axis_order {axis_order!r} "
-            "(down_open | open_down | third_open_down)"
-        )
-    return np.column_stack([down, open_axis, third])
+    return tool_rotation(down, open_axis, axis_order)
 
 
 def _rim_grasp_width(points: np.ndarray, obj_top_z: float,
@@ -281,6 +291,69 @@ def _widest_section_z(points: np.ndarray, axis: np.ndarray, grasp_z: float,
     return max(target, floor_z)
 
 
+#: Tilted alternates rank behind every top-down/rim candidate: their quality
+#: is the matching top-down candidate's times this factor (the lowest feasible
+#: top-down candidate is 0.89 and the lowest rim candidate 0.81 of the
+#: detection confidence; a tilted one is at most 0.5).
+ANGLED_QUALITY_FACTOR = 0.5
+
+
+def angled_tilts(tilts) -> tuple[float, ...]:
+    """Validated `grasp.angled_approach_tilts_deg`: finite degrees in (0, 90].
+
+    Fails closed: a typo must not silently plan something else."""
+    if tilts is None:
+        return ()
+    if not isinstance(tilts, (list, tuple)):
+        raise ValueError(f"grasp.angled_approach_tilts_deg must be a list of degrees, got {tilts!r}")
+    out = []
+    for t in tilts:
+        if isinstance(t, bool):
+            raise ValueError(f"grasp.angled_approach_tilts_deg: {t!r} is not a number")
+        try:
+            v = float(t)
+        except (TypeError, ValueError):
+            raise ValueError(f"grasp.angled_approach_tilts_deg: {t!r} is not a number") from None
+        if not np.isfinite(v) or not 0.0 < v <= 90.0:
+            raise ValueError(f"grasp.angled_approach_tilts_deg: {t!r} outside (0, 90] degrees")
+        out.append(v)
+    return tuple(out)
+
+
+def _angled_alternates(position, jaw_axis, tilts, width_m, quality, label, axis_order):
+    """Tilted versions of one top-down footprint grasp (B45, opt-in).
+
+    The jaw keeps the top-down candidate's horizontal closing axis, so it
+    still closes across the same pair of faces. The approach leans from
+    straight down by each tilt toward the horizontal direction perpendicular
+    to the jaw that points AWAY from the robot base (the base frame origin):
+    leaning out lets the wrist stay nearer the base, which is what extends
+    reach (measured: scripts/reachability_study.py, families `out*`/`side`).
+    90 degrees is a horizontal approach. Both jaw orientations are emitted,
+    like the top-down yaw and yaw + pi pair."""
+    a = np.array([float(jaw_axis[0]), float(jaw_axis[1]), 0.0])
+    a /= np.linalg.norm(a)
+    lean = np.cross([0.0, 0.0, 1.0], a)
+    if float(lean[:2] @ np.asarray(position, dtype=float)[:2]) < 0.0:
+        lean = -lean
+    down = np.array([0.0, 0.0, -1.0])
+    out = []
+    for k, tilt in enumerate(tilts):
+        theta = np.radians(tilt)
+        approach = np.cos(theta) * down + np.sin(theta) * lean
+        approach /= np.linalg.norm(approach)
+        for sub, jaw in enumerate((a, -a)):
+            out.append(Grasp(
+                position=np.asarray(position, dtype=float).copy(),
+                rotation=tool_rotation(approach, jaw, axis_order),
+                width_m=width_m,
+                approach=approach.copy(),
+                quality=quality * ANGLED_QUALITY_FACTOR * (1.0 - 0.01 * k) * (1.0 - 0.001 * sub),
+                label=label,
+            ))
+    return out
+
+
 def plan_grasps_from_fix(
     fix: ObjectFix,
     table_z: float,
@@ -289,8 +362,16 @@ def plan_grasps_from_fix(
     min_grasp_z_above_table: float = 0.005,
     width_pad_m: float = 0.015,
     axis_order: str = "down_open",
+    angled_tilts_deg=(),
 ) -> list[Grasp]:
-    """-> ranked candidate grasps (primary yaw first, then alternates)."""
+    """-> ranked candidate grasps (primary yaw first, then alternates).
+
+    `angled_tilts_deg` (opt-in, `grasp.angled_approach_tilts_deg`; empty =
+    the top-down planner unchanged) appends tilted versions of every
+    footprint candidate behind all top-down and rim candidates; see
+    `_angled_alternates`."""
+    tilts = angled_tilts(angled_tilts_deg)
+    footprint: list[tuple] = []
     # Horizontal footprint: project OBB axes into the table plane.
     axes, extents = fix.axes, fix.extent
     horiz: list[tuple[float, np.ndarray]] = []
@@ -329,6 +410,8 @@ def plan_grasps_from_fix(
         pos = fix.position.copy()
         pos[2] = _widest_section_z(fix.points, axis, grasp_z, obj_bottom_z, obj_top_z,
                                    table_z + min_grasp_z_above_table)
+        footprint.append((pos, axis, required,
+                          (1.0 if feasible else 0.2) * (1.0 - 0.1 * rank) * fix.detection.conf))
         # Both yaw and yaw+pi describe the SAME physical grasp: the jaw axis is
         # a line, so flipping it swaps which jaw is on which side and nothing
         # else. Emitting the flip costs nothing and buys reach on arms whose
@@ -404,4 +487,6 @@ def plan_grasps_from_fix(
                         quality=0.9 * (1.0 - 0.1 * rank) * fix.detection.conf,
                         label=fix.label,
                     ))
+    for pos, axis, required, quality in footprint:
+        grasps.extend(_angled_alternates(pos, axis, tilts, required, quality, fix.label, axis_order))
     return grasps

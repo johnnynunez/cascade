@@ -3,7 +3,13 @@
 
 safety:
   # Base-frame workspace AABB for the TCP (meters). Verified against the RS
-  # URDF top-down IK reachability probe (x 0.15..0.45, y +-0.25).
+  # URDF top-down IK reachability probe (x 0.15..0.45, y +-0.25). MEASURED
+  # 2026-10-09 (scripts/reachability_study.py, docs/REACH_ENVELOPE.md): with
+  # the runtime's own IK seed and harness vet, top-down grasps reach only
+  # r <= 0.45 m from the base at 2 cm grasp height (0.38 m at 10 cm), so the
+  # far corners of this box need an angled approach. Angled approaches reach
+  # r ~0.69-0.75 m; the opt-in *_reach arm profiles (rebot_rs_reach,
+  # isaac_reach, mock_reach) carry the measured, larger box. Unchanged here.
   workspace:
     min: [0.10, -0.30, -0.01]
     max: [0.50, 0.30, 0.55]
@@ -33,8 +39,8 @@ safety:
 occupancy:
   enabled: true
   required: false
-  host: 127.0.0.1
-  port: 5557
+  host: 127.0.0.1          # no variable: launch.sh starts this bridge on this machine
+  port: 5557               # CASCADE_OCCUPANCY_PORT overrides it (load_demo_config, last)
   timeout_ms: 500          # per ZMQ round trip; refreshed at perception_loop.rate_hz, not per waypoint
   max_age_s: 10.0          # expiry skips an optional map and blocks a required map
   stride: 8                # legacy cloud-protocol subsampling (old bridges)
@@ -52,13 +58,13 @@ grasp:
   # failed startup/inference is an error, with no analytic substitution.
   backend: graspgenx
   graspgenx:
-    host: 127.0.0.1
-    port: 5556
+    host: 127.0.0.1         # CASCADE_GRASPGENX_HOST / _PORT override both, applied last by
+    port: 5556              # load_demo_config to every arm's view (e.g. a server on a CUDA box)
     gripper: franka_panda   # fallback when `sweep` is removed
     num_grasps: 100
     topk: 32
     min_score: 0.0
-    timeout_ms: 8000
+    timeout_ms: 8000        # warm inferences (0.09 s measured); the server warms before binding (B15a)
     tip_offset_m: 0.098     # virtual model base -> TCP; applied to BOTH sweep conditioning and returned poses
     # DEFAULT GRIPPER GEOMETRY = the reBot RS parallel jaw, because demo.yaml
     # describes the reference rig. This is a swept volume for cross-embodiment
@@ -93,8 +99,8 @@ grasp:
   # environment (CUDA required; `--stub` = analytic protocol double).
   # See docs/HUG.md. These defaults change nothing while `backend` is graspgenx.
   hug:
-    host: 127.0.0.1
-    port: 5558
+    host: 127.0.0.1         # CASCADE_HUG_HOST / _PORT override both, applied last by load_demo_config
+    port: 5558              # (every arm's view); scripts/serve_hug.py binds CASCADE_HUG_PORT too
     required: true          # fail visibly; never an OBB substitute (false: reported OBB fallback)
     num_samples: 32         # hands per request: N noise draws of ONE query (our batching)
     topk: 32
@@ -107,6 +113,27 @@ grasp:
     max_lateral_offset_m: 0.03   # pinch centre this far beside the observed object: dropped
     surface_tolerance_m: 0.005   # pinch centre in front of the first object surface: dropped
     max_query_offset_m: 0.02     # query pixel must back-project onto the fix (extrinsic check)
+  # Camera-frame mask planner (`backend: camera_frame`, or
+  # CASCADE_GRASP_BACKEND=camera_frame) -- OPT-IN, analytic, never a GraspGen-X
+  # substitute. Ported from Seeed's WRC fork, which mirrors rebot_grasp's
+  # estimate_grasp: minAreaRect on the detection mask, median mask depth
+  # back-projected, approach along the CAMERA'S LINE OF SIGHT (a tilted camera
+  # no longer biases the grasp), TCP pushed insertion_depth_m into the object.
+  # Needs a segmentation mask and measured depth (sensor/mono; plane-cast depth
+  # is refused). Candidates go through the same memory re-rank, jaw-width, IK
+  # and harness vetting as every backend. See docs/WRC_PERCEPTION_PORT.md.
+  # These defaults change nothing while `backend` is graspgenx.
+  camera_frame:
+    required: false         # true: no mask grasp -> visible error, never OBB
+    include_obb: true       # analytic OBB alternates ranked behind the mask grasp
+    insertion_depth_m: 0.015  # rebot_grasp default. WRC's rig ran 0.0 because its
+                              # hand-eye JSON baked in a 2 cm compensation: tune
+                              # together with the camera extrinsics.
+    depth_quantile: 0.5     # median depth inside the mask
+    finger_drop_m: 0.030    # drop mask pixels this much nearer than the median
+                            # (gripper fingers segmented into the object mask)
+    max_fix_offset_m: 0.03  # planned surface point must lie within this of the
+                            # localized object's box (frame/extrinsic check)
   # NOTE: strict top-down tool poses are only IK-reachable below z~0.15 on
   # the B601-RS (wrist limits); keep grasp_z + offset under that.
   pregrasp_offset_m: 0.04   # hover height above the grasp along -approach.
@@ -131,11 +158,22 @@ grasp:
   release_clearance_m: 0.06 # place_on_object: drop height above target top
   air_grasp_frac: 0.04      # jaw open-fraction below this after close = missed
   close_settle_s: 0.4       # generic two-stage close dwell (real arm ignores)
+                            # real reBot RS squeeze cap: the arm-profile key
+                            # gripper.max_contact_squeeze_rad (configs/arms/
+                            # rebot_rs*.yaml, null = off; docs/REBOT_GRIP_SQUEEZE_CAP.md)
   drop_zone: [0.18, -0.17]  # pick_and_place default target = the bin, inside
                             # the B601-RS top-down IK envelope (reachable place)
   home_after_place: true    # clear the camera view after each pick_and_place
   topdown_z_max: 0.15       # strict top-down poses are IK-unreachable above
                             # this on the B601-RS (wrist limits)
+  # Analytic (OBB) planner: approach tilts (degrees from straight down, in
+  # (0, 90]; 90 = horizontal) emitted as extra candidates BEHIND every
+  # top-down one, leaning away from the base with the same horizontal jaw
+  # axis. [] (default) = top-down only, exactly as before. Opt-in via the
+  # *_reach arm profiles ([30, 45, 90], measured: docs/REACH_ENVELOPE.md).
+  # Learned backends (GraspGen-X, HUG) already propose angled grasps; this
+  # only affects the analytic candidates. A malformed list fails the grasp.
+  angled_approach_tilts_deg: []
   # Persistence: pick_and_place keeps retrying (re-home, re-scan, fresh
   # grasp plan) until it succeeds or one of these budgets runs out.
   persist_seconds: 120
@@ -147,6 +185,49 @@ grasp:
   min_grasp_z_m: 0.008      # learned grasp z a few mm below this above the
                             # table is clamped up (tip-offset overshoot),
                             # not aborted
+  # Grasp EXECUTOR (ROADMAP mid term "VLA policy backend", B49) -- OPT-IN.
+  # `analytic` = everything above: localize -> plan (backend) -> select ->
+  # vetted approach/descent/close/lift; byte-identical to before B49.
+  # `vla` (or CASCADE_GRASP_EXECUTOR=vla) = grasp_object(label), and every
+  # composite that grasps by label, is served by a language-conditioned
+  # policy over the openpi / LingBot-VLA-v2 websocket protocol
+  # (grasping/vla_executor.py; `vla` extra: websockets + msgpack). Same
+  # localization; jaws open and re-home like the analytic path; then each
+  # action chunk is admitted WHOLE by the SafetyHarness (vet_pose, no grasp
+  # exemption) and streamed waypoint by waypoint through SafeArm.move_joints
+  # (approve() on every sample). Stop latch/halts honoured between chunks;
+  # chunk and episode deadlines end the episode with no further motion. The
+  # server's own success flags are never read: the jaw check and the
+  # postcondition verifier judge. No server, no extra, the observed-finger
+  # gate or a native motion planner -> the grasp is refused before motion
+  # (never an analytic fallback) and the capability matrix withholds the
+  # label-grasp tools. Pixel grasps (grasp_at_pixel) stay analytic.
+  # Protocol double: scripts/serve_vla_stub.py. See docs/VLA_EXECUTOR.md.
+  executor: analytic
+  vla:
+    host: 127.0.0.1
+    port: 8000                # openpi serve_policy default; LingBot uses --port (8006 default).
+                              # CASCADE_VLA_PORT overrides it.
+    connect_timeout_s: 1.0    # connect + metadata frame; also the startup probe budget
+    chunk_timeout_s: 2.0      # one infer round trip; a late chunk ends the episode
+    episode_timeout_s: 60.0   # the whole episode (also capped by the task budget)
+    max_chunks: 20
+    chunks_after_close: 1     # chunks run after the first close command (the lift)
+    max_chunk_len: 64         # rows per chunk accepted (LingBot --use_length 25..50)
+    action_key: actions       # reply key holding the (H, D) chunk (openpi: actions)
+    action_space: joint       # joint = absolute LOCAL joint angles (rad, this arm's
+                              # convention) | tcp = base-frame x y z roll pitch yaw (IK)
+    gripper: open_frac        # gripper column: 1 = open .. 0 = closed (close_frac flips it)
+    gripper_column: null      # null -> the column right after the arm columns
+    waypoint_duration_s: 0.2  # per action; SafeArm still stretches for the velocity cap
+    prompt: "pick up the {label}"
+    image_key: observation/image   # primary camera, RGB uint8, resized square
+    state_key: observation/state   # measured joints + jaw opening fraction, float32
+    prompt_key: prompt
+    image_size: 224           # null -> native resolution
+    reset: null               # sent once per episode before the first observation
+                              # (LingBot: {reset: true, robo_name: <robot config>})
+    extra_obs: {}             # static keys merged into every observation
 
 memory:
   horizon_s: 15.0           # episodic window the agent can consult
@@ -185,6 +266,18 @@ memory:
   # (memory/beliefs.py `_identity_ok`).
   per_camera_colour: true
   neighbour_colour_iou: 0.75
+  # Size consistency in the fusion gate (B40): a camera view much larger than
+  # any view a belief has had -- more than 2x its robust horizontal diameter
+  # AND more than 5 cm larger -- is not that object. So a camera that names a
+  # container and the prop inside it with the SAME colour (the Isaac side
+  # camera's "yellow" bin and a yellow cube in it) no longer fuses its view of
+  # the container into the prop's belief. A smaller view always passes (a
+  # partial or occluded view only looks smaller), and a view or belief without
+  # a real-mask cloud is never refused. Both numbers are CPU estimates from the
+  # live clouds (docs/evidence/b40-fusion-size-gate-20261009/); the live A/B
+  # is owed. false = the pre-2026-10-09 store, byte for byte, kept as the live
+  # A/B baseline (memory/beliefs.py `_size_ok`).
+  size_gate: true
   # ASPIRE skill library (skills_library/*.md, written offline by
   # scripts/learn_from_runs.py): a distilled note is retrieved into the agent
   # context only after it recurred in this many DISTINCT tasks (upstream
@@ -207,6 +300,30 @@ memory:
     model: null               # null -> the backend's default checkpoint
     device: auto
     local_files_only: true    # never downloads weights unless set to false
+  # Visual recall v2 (B43, ROADMAP #7; both opt-in, both need the embedder
+  # above -- without one they are reported at startup and ignored).
+  # visual_recall_detections: the WorldWatcher also remembers what each
+  # COMMITTED detection looked like, not only the objects a call localized:
+  # one crop per belief per frame, at most one per belief every
+  # visual_recall_interval_s, at most visual_recall_max_per_tick per watcher
+  # tick, in a ring of its own (visual_recall_max_detections, frames_horizon_s)
+  # so it never evicts motion frames or localized crops. Fusion is paused
+  # while the arm moves, so a motion frame never yields a crop. A bad limit
+  # fails the build. false = the B21 index exactly.
+  visual_recall_detections: false
+  visual_recall_interval_s: 30.0
+  visual_recall_max_per_tick: 2
+  visual_recall_max_detections: 128
+  # persist_episodic: the visual index (frames, localized and watcher crops)
+  # is written on shutdown and reloaded at startup, like persist_beliefs:
+  # wall-clock ages, entries older than episodic_max_age_s dropped, every
+  # restored hit marked restored/remembered and at least 2 s old -- never a
+  # current observation. A file from another embedder is refused (its vectors
+  # are not comparable). CASCADE_EPISODIC=1/0 overrides this switch;
+  # CASCADE_EPISODIC_PATH relocates the file. false = in-process only.
+  persist_episodic: false
+  episodic_path: null       # null -> <repo>/runs/episodic.json
+  episodic_max_age_s: 21600 # 6 h, like beliefs_max_age_s
   # Action<->object consolidation of tier-2 outcomes (ROADMAP #7, opt-in;
   # memory/consolidation.py): wins/losses per (skill, object) across
   # instruction wordings, persisted to runs/action_objects.json and shown to
@@ -241,8 +358,15 @@ agent:
   # next_action. A program is stored only from a fully CONFIRMED execution and
   # offered for reuse only after it was verified in program_min_tasks distinct
   # tasks (1 = explicit relaxation). CASCADE_PROGRAMS=1/0 overrides; store:
-  # runs/programs.jsonl (memory.programs_path, CASCADE_PROGRAMS_PATH). The mock
-  # brain never gets it, and MCP chat hosts do not see it.
+  # runs/programs.jsonl (memory.programs_path, CASCADE_PROGRAMS_PATH). The
+  # CLI's mock brain never gets it. The SAME switch gives an arm MCP server
+  # two more tools for chat hosts (B42): list_programs (promoted programs
+  # only) and run_program (a promoted program by name, or a host-written spec
+  # run once and stored as a candidate only if every effect was CONFIRMED),
+  # through the same runner and admission rule; a cancel mid-program latches
+  # the e-stop. With memory.embedder set, programs are ranked by text
+  # embedding (floor-or-guard, like the skill-library notes) instead of
+  # keyword overlap. false = the pre-tier CLI and MCP server exactly.
   programs: false
   program_min_tasks: 2
 
@@ -274,6 +398,31 @@ stream:
   fps: 15
   quality: 80
   depth_max_m: 2.0          # depth-view colormap range (tabletop scale)
+  # B47 "what the gripper sees" (opt-in). true + a camera whose profile is a
+  # wrist view (`role: wrist` or eye-in-hand extrinsics, e.g. mujoco_wrist /
+  # isaac_wrist / d455f_wrist): while a motion skill runs the dashboard
+  # highlights THAT tile and captions it with one line built only from
+  # verifiable state -- skill + target, the runtime's held-state, and the
+  # three-state postcondition once it exists (a hold reads "unverified" unless
+  # grasp_object's own verdict covers it). /state and the MCP world state gain
+  # `wrist_view`. No wrist camera = no panel (a front view is never shown as
+  # the gripper's). false = the exact pre-B47 dashboard and state.
+  wrist_narration: false
+
+# MCP server front-end (apps/mcp_server.py, chat hosts).
+mcp:
+  # Read-only lane (B46). OFF by default: the server answers one tool call at
+  # a time -- stops, cancels and pings are always handled out-of-band, but a
+  # world_state sent mid-pick waits for the pick. On, a world_state,
+  # robot_knowledge, verify_last_action or camera_snapshot call that arrives
+  # while a motion tool (or run_program) runs is answered at once on a
+  # separate lane thread, and its result carries `served_during_motion`
+  # (state may be in flux). Motions stay strictly serialized, every other tool
+  # still waits, a lane call can never delay a stop, and lane calls never
+  # enter SkillRuntime.execute() or take the execution lock (camera_snapshot
+  # reads the stream passively: no last_frame write, no depth filling).
+  # CASCADE_MCP_READONLY_LANE=1/0 overrides. false = the serial server exactly.
+  readonly_lane: false
 
 # Local cv2 window (RigViewer). One row per camera, RGB beside its depth
 # colormap so a depth sensor is never silently shown as RGB-only.
@@ -361,6 +510,21 @@ workspace_filter:
   # self_mask: false is the A/B baseline.
   self_mask: true
   self_mask_max_frac: 0.5
+  # Frames WITHOUT a render self-mask (the real rig): build the robot's pixels
+  # from the arm's URDF link geometry instead (B39, perception/link_mask.py),
+  # posed by FK at the joint sample nearest the frame's capture time, and feed
+  # the same gate. Opt-in; false is byte-identical to the gate without it.
+  # Off whenever self_mask is false; a render mask is never overwritten.
+  #   dilate_px   pixels added around the silhouette (calibration slack)
+  #   max_skew_s  no joint sample this close to the frame -> NO mask (logged)
+  #   cell_m      mesh pieces (link-frame cells); smaller = tighter, slower
+  #   capsule_radius_m  for a link whose mesh cannot be read (default: the
+  #               arm profile's body_mask_radius_m)
+  link_self_mask:
+    enabled: false
+    dilate_px: 2
+    max_skew_s: 0.15
+    cell_m: 0.05
 
 # Offline evaluation of recorded runs (src/cascade/eval, scripts/judge_run.py).
 # Robo-Dopamine GRM ("PRM-as-a-Judge", https://robo-dopamine.github.io/):
@@ -382,6 +546,19 @@ workspace_filter:
 #   the same credentials as the demo's brain -- no second API key on the
 #   booth laptop. `backend_model` pins the weights (x-openclaw-model) and
 #   `fresh_session` isolates every BEFORE/AFTER pair from agent history.
+# Launcher judge pass (B44, opt-in, advisory): `scripts/launch.sh --judge
+#   fake|vlm|grm` (or CASCADE_JUDGE; default off = no judge process) runs
+#   judge_run.py over the proof turn's pick_and_place keyframes AFTER the
+#   physics proof, with this section's settings (or the complete JSON in
+#   CASCADE_JUDGE_CONFIG) and the backend from --judge, under a hard bound
+#   CASCADE_JUDGE_TIMEOUT_S (default 180 s, max 1800; the judge's process
+#   group is killed at the bound). The judge-vs-physics confusion matrix
+#   lands in <state>/<proof-session>/run-summary.json plus one banner line.
+#   It never changes READY, proof.json or the exit status; a failure reads
+#   "unavailable". `--judge vlm` with the section below calls the gateway's
+#   frontier model -- for the local brain point CASCADE_JUDGE_CONFIG at a
+#   JSON like deploy/runtime/runtime.py writes (base_url of the local
+#   OpenAI-compatible server, model id, extra_body enable_thinking: false).
 eval:
   judge:
     backend: vlm
@@ -394,3 +571,18 @@ eval:
     temperature: 0.1                   # upstream sampling for GRM
     top_p: 0.9
     max_tokens: 64
+    # B66 (opt-in): an answer that ends without a parseable <score> (a local VLM
+    # reasoning past max_tokens -- Qwen3.8-27B did on 12 of 72 recorded live
+    # picks at 1536) gets ONE follow-up call asking for the score line alone,
+    # within this many tokens (1..512; 0 = off: one call per step, as before).
+    # judge.json names score_via first|follow-up|none per step and the follow-up's
+    # tokens; a follow-up without a score leaves the step unscored, never 0.
+    score_followup_tokens: 0
+
+# Conversation service (cascade-conversation) is configured by its own versioned
+# JSON, not by this file (docs/CONVERSATION.md). Its `robot_endpoint` +
+# `robot_token_env` (B51) select the split deployment: the robot runtime runs in
+# `cascade-robot-service` (protocol cascade.robot-runtime/1, loopback only,
+# bearer token, supervision lease whose expiry latches the robot stop) and the
+# conversation process builds no robot. Absent (default) = the robot runtime is
+# built in-process exactly as before. Example: configs/conversation/remote_robot.json.

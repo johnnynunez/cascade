@@ -52,6 +52,22 @@ Backends (config `eval.judge`), one prompt, one parser, one interface:
 
 All offline: `scripts/judge_run.py runs/<run>` reads the artifacts a demo
 left behind. Nothing here runs in the control loop.
+
+A score that fits the budget (B66, opt-in `eval.judge.score_followup_tokens`,
+default 0 = one call per step, byte-identical to before). A local VLM asked
+for ONE line may still reason in its answer and run out of `max_tokens`
+before writing `<score>`: with the 1536 tokens the Spark judge ships, the
+local Qwen3.8-27B left 12 of 72 recorded live picks unscored, 11 cut
+mid-reasoning and 1 with its score written without the tags -- and 11 of the
+12 were physics failures, so the abstentions quietly drop `tn` cases from the
+judge-vs-physics matrix. With a budget N > 0, a first answer without a
+parseable score gets ONE follow-up call: the same turn, that answer as the
+assistant turn, and `SCORE_FOLLOWUP_PROMPT` (the GRM prompt's own output
+line), with `max_tokens` N. Plain chat-completions, no endpoint-specific
+grammar. The step's `response_metadata` names how the score was obtained
+(`score_via` first / follow-up / none) and what the follow-up cost; a
+follow-up without a score leaves the step unscored with the reason
+(`abstention`) -- never a score cascade made up.
 """
 
 from __future__ import annotations
@@ -59,6 +75,7 @@ from __future__ import annotations
 import base64
 import json
 import re
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -130,9 +147,36 @@ _SCORE_RE = re.compile(r"<score>\s*([+-]?\d+(?:\.\d+)?)\s*%?\s*</score>", re.IGN
 #: record so a score can never be mistaken for one that saw the gripper.
 FRONT_REPEAT = "front-repeat"
 
+#: B66: the one user turn of the score follow-up -- the GRM prompt's own
+#: output-format line, verbatim, after a request to stop analysing.
+SCORE_FOLLOWUP_PROMPT = ("Your answer above ended without the required score line. Do not continue or repeat "
+                         "the analysis. " + GRM_PROMPT[GRM_PROMPT.index("Return ONLY one line"):])
+#: ceiling of `eval.judge.score_followup_tokens`: the follow-up asks for one
+#: line (~10 tokens); a larger budget would be a second reasoning pass.
+MAX_SCORE_FOLLOWUP_TOKENS = 512
+#: `score_via` values, in report order: the first answer had the score, the
+#: follow-up had it, or neither (the step stays unscored).
+SCORE_VIA = ("first", "follow-up", "none")
+
 
 class JudgeError(RuntimeError):
     pass
+
+
+def _followup_budget(value) -> int:
+    """`eval.judge.score_followup_tokens`: unset/None/0 = off; otherwise an
+    integer in [1, MAX_SCORE_FOLLOWUP_TOKENS]. Anything else is refused -- a
+    budget nobody can read is not silently ignored."""
+    if value is None:
+        return 0
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= MAX_SCORE_FOLLOWUP_TOKENS:
+        raise JudgeError(f"eval.judge.score_followup_tokens must be an integer in [0, "
+                         f"{MAX_SCORE_FOLLOWUP_TOKENS}] (0 = off), got {value!r}")
+    return value
+
+
+def _completion_tokens(usage: dict | None):
+    return (usage or {}).get("completion_tokens")
 
 
 def _is_local_url(url: str) -> bool:
@@ -263,7 +307,9 @@ class OpenAICompatJudge(ProgressJudge):
                  kind: str = "vlm", temperature: float = 0.1, top_p: float = 0.9,
                  max_tokens: int = 64, timeout_s: float = 120.0,
                  extra_headers: dict | None = None, fresh_session: bool = False,
-                 extra_body: dict | None = None):
+                 extra_body: dict | None = None, score_followup_tokens: int | None = 0):
+        #: B66 follow-up budget; 0 = off (one call per step, as before)
+        self.score_followup_tokens = _followup_budget(score_followup_tokens)
         try:
             from openai import OpenAI
         except ImportError as e:  # pragma: no cover - extra not installed
@@ -307,31 +353,80 @@ class OpenAICompatJudge(ProgressJudge):
         if backend:
             self.name = f"{kind}:{backend} via {model}"
 
-    def score(self, task: str, before: bytes, after: bytes, **refs) -> float:
-        self.last_raw = None
-        self.last_metadata = None
-        content = interleave(task, build_images(before, after, **refs))
+    def _headers(self) -> dict | None:
         headers = dict(self.extra_headers)
         if self.fresh_session:
             import uuid
 
             headers["x-openclaw-session-key"] = f"cascade-judge-{uuid.uuid4().hex[:12]}"
+        return headers or None
+
+    def _complete(self, messages: list[dict], max_tokens: int) -> tuple[str, dict]:
+        """One chat-completions call -> (answer text, response metadata)."""
         resp = self._client.chat.completions.create(
             model=self.model,
-            messages=[{"role": "user", "content": content}],
-            temperature=self.temperature, top_p=self.top_p, max_tokens=self.max_tokens,
-            extra_headers=headers or None,
+            messages=messages,
+            temperature=self.temperature, top_p=self.top_p, max_tokens=max_tokens,
+            extra_headers=self._headers(),
             **({"extra_body": self.extra_body} if self.extra_body else {}),
         )
-        self.last_raw = (resp.choices[0].message.content or "") if resp.choices else ""
+        raw = (resp.choices[0].message.content or "") if resp.choices else ""
         usage = getattr(resp, "usage", None)
-        self.last_metadata = {
+        return raw, {
             "model": getattr(resp, "model", None),
             "finish_reason": getattr(resp.choices[0], "finish_reason", None) if resp.choices else None,
             "usage": usage.model_dump() if usage is not None else None,
             "reasoning_chars": len(getattr(resp.choices[0].message, "reasoning_content", "") or "") if resp.choices else 0,
         }
-        return parse_score(self.last_raw)
+
+    def score(self, task: str, before: bytes, after: bytes, **refs) -> float:
+        self.last_raw = None
+        self.last_metadata = None
+        content = interleave(task, build_images(before, after, **refs))
+        messages = [{"role": "user", "content": content}]
+        self.last_raw, self.last_metadata = self._complete(messages, self.max_tokens)
+        if not self.score_followup_tokens:
+            return parse_score(self.last_raw)
+        try:
+            hop = parse_score(self.last_raw)
+        except JudgeError as first_error:
+            return self._score_followup(messages, first_error)
+        self.last_metadata.update(score_via="first", followup=None, extra_completion_tokens=0, abstention=None)
+        return hop
+
+    def _score_followup(self, messages: list[dict], first_error: JudgeError) -> float:
+        """B66: the first answer has no parseable `<score>` (cut at the budget,
+        or the score written without its tags). Ask ONCE, within
+        `score_followup_tokens`, for the score line alone: the same turn, the
+        first answer as the assistant turn, then `SCORE_FOLLOWUP_PROMPT`. The
+        record (`last_metadata`) says how it went; no score from the
+        follow-up raises, so the step stays unscored -- never a made-up hop."""
+        meta = self.last_metadata
+        fu = {"max_tokens": self.score_followup_tokens, "raw": None, "finish_reason": None,
+              "usage": None, "error": None, "elapsed_s": None}
+        meta.update(score_via="none", followup=fu, extra_completion_tokens=None, abstention=None)
+        why = (f"no <score> in the first answer (finish_reason={meta.get('finish_reason')}, "
+               f"{_completion_tokens(meta.get('usage'))} completion tokens)")
+        started = time.monotonic()
+        try:
+            raw, fmeta = self._complete([*messages, {"role": "assistant", "content": self.last_raw},
+                                         {"role": "user", "content": SCORE_FOLLOWUP_PROMPT}],
+                                        self.score_followup_tokens)
+        except Exception as exc:  # noqa: BLE001 -- transport/server failure of the follow-up call
+            fu.update(error=f"{type(exc).__name__}: {str(exc)[:160]}", elapsed_s=round(time.monotonic() - started, 3))
+            meta["abstention"] = f"{why}; the follow-up failed: {fu['error']}"
+            raise JudgeError(f"{first_error}; follow-up failed: {fu['error']}") from exc
+        fu.update(raw=raw, finish_reason=fmeta["finish_reason"], usage=fmeta["usage"],
+                  elapsed_s=round(time.monotonic() - started, 3))
+        meta["extra_completion_tokens"] = _completion_tokens(fmeta["usage"])
+        try:
+            hop = parse_score(raw)
+        except JudgeError as exc:
+            meta["abstention"] = (f"{why} nor in the follow-up (finish_reason={fmeta['finish_reason']}, "
+                                  f"{_completion_tokens(fmeta['usage'])} of {self.score_followup_tokens} tokens)")
+            raise JudgeError(f"{first_error}; follow-up: {exc}") from None
+        meta["score_via"] = "follow-up"
+        return hop
 
 
 class FakeJudge(ProgressJudge):
@@ -379,7 +474,7 @@ def make_judge(cfg: dict | None) -> ProgressJudge:
             temperature=float(cfg.get("temperature", 0.1)), top_p=float(cfg.get("top_p", 0.9)),
             max_tokens=int(cfg.get("max_tokens", 64)), timeout_s=float(cfg.get("timeout_s", 120.0)),
             extra_headers=headers, fresh_session=bool(cfg.get("fresh_session", False)),
-            extra_body=cfg.get("extra_body"),
+            extra_body=cfg.get("extra_body"), score_followup_tokens=cfg.get("score_followup_tokens"),
         )
     raise JudgeError(f"eval.judge.backend must be grm|vlm|fake, got {kind!r}")
 
@@ -503,13 +598,25 @@ class RunVerdict:
                 out[src] = out.get(src, 0) + 1
         return out
 
+    def score_via(self) -> dict[str, int]:
+        """B66: steps per way their score was obtained -- `first` answer,
+        `follow-up`, or `none` (unscored) -- over the steps judged with
+        `eval.judge.score_followup_tokens` on. {} when the mode was off (the
+        default), and then nothing about it is written anywhere."""
+        vias = [(s.response_metadata or {}).get("score_via") for s in self.steps]
+        return {k: vias.count(k) for k in SCORE_VIA if k in vias}
+
     def to_dict(self) -> dict:
-        return {
+        d = {
             "run_dir": self.run_dir, "judge": self.judge, "mode": self.mode,
             "final_progress": self.final_progress, "progress": self.progress, "hops": self.hops,
             "confusion": self.confusion(), "per_tier": self.per_tier(), "wrist_views": self.wrist_views(),
             "steps": [s.__dict__ for s in self.steps],
         }
+        via = self.score_via()
+        if via:
+            d["score_via"] = via
+        return d
 
     def summary_line(self) -> str:
         """One line for `summary.txt` / the launcher banner: the judge as a
@@ -519,15 +626,21 @@ class RunVerdict:
         symptom of the byte-identical-keyframe bug that motivated this).
         `wrist=` names what the two wrist slots showed (`front-repeat` = no
         wrist camera on the rig), so a number from a single-view run is never
-        read as one that saw the gripper."""
+        read as one that saw the gripper. With the B66 follow-up on,
+        `score_via=` says how many scores came from the first answer, from
+        the follow-up, or not at all."""
         c = self.confusion()
         agreement = "n/a" if c["agreement"] is None else f"{c['agreement']:.0%}"
         final = f"{self.final_progress:.2f}" if self.progress else "n/a"
         wv = self.wrist_views()
         wrist = ",".join(f"{k}:{v}" for k, v in sorted(wv.items(), key=lambda kv: (-kv[1], kv[0]))) or "n/a"
-        return (f"judge={self.judge} mode={self.mode} scored={c['n_scored']}/{len(self.steps)} "
+        line = (f"judge={self.judge} mode={self.mode} scored={c['n_scored']}/{len(self.steps)} "
                 f"agreement={agreement} tp={c['tp']} tn={c['tn']} fp={c['fp']} fn={c['fn']} "
                 f"final_progress={final} wrist={wrist}")
+        via = self.score_via()
+        if via:
+            line += " score_via=" + ",".join(f"{k}:{v}" for k, v in via.items())
+        return line
 
     def write(self, run_dir: str | Path | None = None) -> Path:
         """Persist `judge.json` next to the trace and append the metric line to

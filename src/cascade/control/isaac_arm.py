@@ -15,7 +15,7 @@ from ..config import Cfg
 from ..grasping import evidence as grasp_evidence
 from ..sim.bridge_client import BridgeClient, BridgeError
 from ..sim.isaac_reset import validate_isaac_reset
-from ..types import RobotState
+from ..types import RobotState, SafetyViolation
 from .arm_base import ArmBase
 from . import motion_evidence
 
@@ -191,6 +191,13 @@ class IsaacArm(ArmBase):
         from .simulation_motion import SimulationMotion
 
         return SimulationMotion(self).settle(q_target, tol, timeout_s)
+
+    def stream_path(self, *args, **kwargs) -> bool:
+        """Refused: ArmBase's wall-clock path streamer would bypass this
+        backend's simulator-time motion contract (docs/ISAAC_MOTION_CLOCK.md).
+        Cartesian lines on Isaac belong to the cuMotion `linear_tool_path`."""
+        raise SafetyViolation(
+            "joint-path streaming is not available on the Isaac motion clock; no motion sent")
 
     def stream_profile(self, profile, *, planned_state, approve, preflight,
                        before_stream=None, feedback_guard=None):

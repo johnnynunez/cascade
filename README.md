@@ -40,13 +40,17 @@ The [conversation gateway](docs/CONVERSATION.md) implements browser audio,
 Realtime provider integration and an explicit robot-tool allowlist with priority
 stop. Its recorded speech and motion episodes have separate source and outcome
 bounds; general dialogue reliability and a public hosted service remain pending.
+It can also run as its own process against a separately deployed
+`cascade-robot-service` ([opt-in, loopback protocol `cascade.robot-runtime/1`](docs/CONVERSATION.md#deploy-the-conversation-service-separately)).
 
 The read-only [spatial domain](docs/SPATIAL_PROVIDERS.md) adds capture-time
 transforms, landmark memory and synthetic planar route proposals. The separate
 [observed RGB-D path](docs/RGBD_SPATIAL_OBSERVATIONS.md) retains calibrated
 surface annotations. An optional cuVSLAM provider estimates local RGB-D poses in
-an isolated process; native localization validation and navigation execution
-remain pending. Surface annotations do not constitute a collision map.
+an isolated process (a live native simulation stream tracked 12 captures; pose
+uncertainty is uncalibrated); calibrated localization and native route
+execution remain pending, and the opt-in `go_to` route runner has CPU tests
+only. Surface annotations do not constitute a collision map.
 Coordinating twelve robots in one scene is an implementation target, not an
 existing twelve-robot acceptance result.
 
@@ -213,10 +217,11 @@ explicit construction and validate its declared capabilities.
 | `h1` | [Unitree H1](https://github.com/unitreerobotics/unitree_ros) right arm (gen 1: bare forearm, no hand) | 4 | ROS2 topics | a sourced ROS2 env — **untested on hardware** |
 | `h1_2` | [Unitree H1-2](https://github.com/unitreerobotics/unitree_ros) right arm (7-DoF wrist, flange) | 7 | ROS2 topics | a sourced ROS2 env — **untested on hardware** |
 | `h1_mock` / `h1_2_mock` | same, kinematic only | 4 / 7 | — | nothing |
-| `h2_velocity_physx` (base profile) | [Unitree H2](https://github.com/unitreerobotics/unitree_ros) whole body: NVIDIA's public H2 USD + `Velocity-H2-History-v0` walking policy (14 of 31 joints), PhysX first — **candidate, no admission gate passed**; [design](docs/HUMANOID_H2.md) | 31 (14 commanded) | Isaac Sim 6.2 bridge (to build) | `scripts/h2_assets.py` (SHA-256 pinned policy) |
+| `h2_velocity_physx` (base profile) | [Unitree H2](https://github.com/unitreerobotics/unitree_ros) whole body: NVIDIA's public H2 USD + `Velocity-H2-History-v0` walking policy (14 of 31 joints), PhysX first — **candidate: binding gate passed in simulation, no physical admission**; [design](docs/HUMANOID_H2.md) | 31 (14 commanded) | Isaac Sim 6.2 PhysX owner (`scripts/isaac_h2_bridge.py`) | `scripts/h2_assets.py` (SHA-256 pinned policy) |
 | `rebot_rs` | Seeed reBot DevArm B601 (RobStride) | 6 | RobStride over SocketCAN | `.[arm]`, `can0` up |
 | `rebot_rs_mb` | same, via MotorBridge | 6 | MotorBridge | `.[arm]` |
 | `isaac` | reBot in Isaac Sim | 6 | ZMQ bridge | Isaac Sim + NVIDIA GPU |
+| `rebot_rs_reach` / `isaac_reach` / `mock_reach` | the reBot profiles with the **measured reach envelope** (opt-in): tilted analytic grasps + the workspace box grown only where the study measured a reachable approach — kinematic only, live picks owed; [REACH_ENVELOPE.md](docs/REACH_ENVELOPE.md) | 6 | as the parent profile | as the parent profile |
 | `libero_panda` | Franka Panda in LIBERO | 7 | benchmark harness | LIBERO |
 | `mock` | kinematic stand-in | 6 | — | nothing |
 | `ros2_generic` | **template**: ANY robot a `ros2_control` bringup exposes | — | ROS2 topics | copy the file, fill in your robot's numbers, drop the `template: true` flag |
@@ -236,15 +241,21 @@ handless arm declares `max_width_m: 0` so grasps are *refused honestly*
 instead of mimed. See [`docs/ROS2_BACKEND_BRIEF.md`](docs/ROS2_BACKEND_BRIEF.md)
 for the design rationale (QoS, streaming trade, stop semantics).
 
-> **Scope, honestly:** ROS2 and the humanoid profiles drive **arms**. There
-> is no mobile base, navigation, mapping or robot self-localization in
-> cascade yet -- "localization" here means finding *objects*. The mobility
-> layer (a `MobileBase` twin of `ArmBase`, Vesta's pixel-goal / turn / stop
-> navigation verbs as skills with the visual memory harness spanning the
-> walk, Nav2 or a Warp costmap planner behind one interface, Unitree G1/H1
-> in Isaac Sim first) is designed in
-> [`docs/MOBILITY_AND_NAVIGATION_DESIGN.md`](docs/MOBILITY_AND_NAVIGATION_DESIGN.md)
-> and is the next structural addition on the [roadmap](docs/ROADMAP.md).
+> **Scope, honestly:** ROS2 still drives **arms** only, and the `h1` /
+> `h1_2` / `g1` arm profiles drive the arm of a standing robot. Mobility is a
+> separate, opt-in layer: a velocity-level `MobileBase` with `SafeBase`,
+> `walk_velocity` / `walk_distance` / `turn` / `stop_navigation` skills and
+> an independent verifier (`--base <profile>`), exercised on MicroDuck
+> (Newton) and the Unitree H2 (PhysX) in **simulation only**, neither
+> admitted; an opt-in `go_to` route runner with CPU tests only; an optional
+> cuVSLAM localization provider whose pose uncertainty is uncalibrated; and a
+> mock-only arm-on-base `whole_body` contract. There is no ROS2 base
+> interface (Twist / Nav2), no collision map built from a base's own
+> sensors, no whole-body controller and no hardware base. Current state, with
+> code paths and evidence:
+> [Architecture → ROS2, humanoids, and what is NOT here yet](docs/ARCHITECTURE.md#ros2-humanoids-and-what-is-not-here-yet);
+> the original design is
+> [`docs/MOBILITY_AND_NAVIGATION_DESIGN.md`](docs/MOBILITY_AND_NAVIGATION_DESIGN.md).
 
 <a id="multi-arm"></a>
 **Multi-arm.** `--arms a,b` builds an `ArmRig` (first = manipulation arm, the
@@ -365,6 +376,7 @@ capability, because none of them are wanted on all hosts:
 | `arm-feetech` | `pyserial` | SO-101 and other Feetech-servo arms |
 | `arm` | `motorbridge` | RobStride over SocketCAN |
 | `grasping` | `pyzmq`, `msgpack-numpy` | the GraspGen-X / HUG / nvblox **client** wire (`grasp.backend: graspgenx`, the default; `hug` is opt-in, see [docs/HUG.md](docs/HUG.md)). Model stacks stay in their own venvs and processes, so cascade never imports torch for them |
+| `vla` | `websockets`, `msgpack` | the opt-in VLA policy **client** (`grasp.executor: vla`, openpi / LingBot websocket protocol; see [docs/VLA_EXECUTOR.md](docs/VLA_EXECUTOR.md)). The policy runs in its own environment on a GPU host |
 
 **torch is deliberately not a dependency.** The right build is per-platform
 (CUDA, ROCm, Jetson wheels, MPS, CPU) and pinning one here would fight the
@@ -431,6 +443,14 @@ requires green cube to green square and orange to open box; generic Isaac
 uses the pink cube, and MuJoCo uses the red cube. A `proof.json` receipt must bind the
 expected model/session/MCP runtime to the physical result and reset of the
 manipulated prop. `--no-robot-turn` is **STARTED / UNVERIFIED**, never READY.
+`--judge fake|vlm|grm` (or `CASCADE_JUDGE`; off by default) adds an advisory,
+time-bounded outcome-judge pass over the proof pick: the judge-vs-physics
+confusion matrix goes into `<proof evidence>/run-summary.json` and one
+`judge:` banner line, and nothing it does changes READY or the exit status.
+A local judge that reasons past its `max_tokens` without writing `<score>`
+can get one bounded follow-up call for the score line alone (opt-in
+`eval.judge.score_followup_tokens`, B66); the record says whether each score
+came from the first answer, the follow-up, or neither.
 The banner names the components actually selected (sim bridge, occupancy
 backend, grasp planner, tool count, chat URL, run log), so a shared machine
 never runs a demo that is silently missing a piece. Every tool call the
@@ -496,7 +516,11 @@ python -m cascade.apps.demo --arm so101_mujoco --camera mujoco_scene --interacti
 # to the front ones for every motion skill, and the outcome judge
 # (scripts/judge_run.py) fills the GRM prompt's two wrist slots with them
 # instead of repeating the front view. Evidence only: no hand-eye
-# calibration is claimed and the view fuses no beliefs.
+# calibration is claimed and the view fuses no beliefs. Opt-in
+# `stream.wrist_narration: true` also highlights that tile on the dashboard
+# while a motion skill runs, captioned with one line of verifiable state
+# (skill + target, held-state, the grasp's three-state verdict) -- never a
+# claim about what the frame shows; no wrist camera = no panel.
 python -m cascade.apps.demo --arm so101_mujoco --cameras mujoco_scene,mujoco_wrist --interactive
 
 # ONE CLICK: simulator (Isaac Sim if installed, else MuJoCo) + OpenClaw 2.0
@@ -528,7 +552,9 @@ python -m pytest tests/ -m hardware -q     # needs a RealSense camera (profile: 
 uv pip install -e '.[grasping]'            # pyzmq + msgpack-numpy
 
 # ...then a server. The real one needs an NVIDIA GPU, its own venv and
-# downloaded checkpoints:
+# downloaded checkpoints. It runs one warm-up inference before it opens its
+# port (~20 s after start on an RTX PRO 6000), so the first pick is not the
+# slow first CUDA inference:
 scripts/serve_graspgenx.sh
 
 # ...or, on a machine without CUDA (laptop, booth box, CI), a protocol-
@@ -616,6 +642,17 @@ command. Name a profile explicitly (`--llm mock`) to pin it, or set
   frame. CASCADE maps them to parallel-jaw pinches and scores them by its
   own geometry, because HUG has no score. It follows the same
   required/optional contract.
+  A second opt-in analytic backend, `grasp.backend: camera_frame`, ports
+  Seeed's WRC / rebot_grasp mask planner (approach along the camera's line
+  of sight; see [docs/WRC_PERCEPTION_PORT.md](docs/WRC_PERCEPTION_PORT.md)).
+  Opt-in too, a different EXECUTOR: `grasp.executor: vla` serves label
+  grasps from a language-conditioned policy over the openpi / LingBot-VLA
+  websocket protocol (`vla` extra). Every action chunk is admitted by the
+  safety harness before it moves and approved sample by sample while it
+  moves; the same verifier judges the grasp; no policy server means no
+  grasp, never a silent analytic fallback
+  ([docs/VLA_EXECUTOR.md](docs/VLA_EXECUTOR.md); measured against its
+  protocol stub only, no real weights yet).
   Candidates are re-ranked by a persisted grasp-outcome
   memory, then vetted against IK *and* the safety-harness geometry.
   The model is conditioned on the gripper as a **swept volume**, so an arm
@@ -651,7 +688,10 @@ command. Name a profile explicitly (`--llm mock`) to pin it, or set
   positions only as perception queries re-grounded before motion), run step by
   step through the same `execute()`; the first unverified step hands the task
   to the LLM tier, and a program is reused only after it was verified in two
-  distinct tasks. Measured on the mock stack with scripted brains only.
+  distinct tasks. MCP chat hosts get the same tier as `list_programs` /
+  `run_program` when it is on, and with a `memory.embedder` programs are
+  ranked by text embedding instead of keyword overlap. Measured on the mock
+  stack with scripted brains only.
 - **[Retry evidence](docs/DREAM_RSI_ADAPTATION.md)** gates new ASPIRE library
   notes: a later success must match the failed action's goal, resolved arm
   and held-object context, with a measured, confirmed postcondition and no
@@ -693,7 +733,10 @@ safety-gated skills (only the loop-internal `task_done` is excluded) plus
 eight gateway extras — `camera_snapshot` (returns a live JPEG the agent can
 *see*), `world_state`, `live_view_url`, `robot_knowledge`,
 `verify_last_action`, `task_memory` (the visual memory harness, as images),
-and `emergency_stop`/`reset_stop` — 45 tools total (re-derive with
+and `emergency_stop`/`reset_stop` — and, only with the opt-in
+[programs tier](docs/PROGRAMS_TIER.md#mcp-chat-hosts) on, `list_programs` and
+`run_program` — 47 tools total (45 with the programs tier off, its default;
+re-derive with
 `openclaw mcp probe cascade --json`; see [The 37 skills](#the-37-skills) below
 for what each one does). That is the full catalog; what a given rig is
 offered is this minus the tools its capability matrix (described below)
@@ -709,6 +752,20 @@ python scripts/setup_agents.py                     # show all hosts
 python scripts/setup_agents.py --host codex --write
 python scripts/setup_agents.py --camera d455f --arm rebot_rs --write
 ```
+
+Every runtime switch set in that shell is copied into each entry's env, because a
+stdio host may start the server without the shell's environment: `CASCADE_*_PORT` /
+`CASCADE_*_HOST` (a stack on private ports, an external GraspGen-X / HUG server), the
+memory paths, the device selection, `CASCADE_GRASP_EXECUTOR` / `CASCADE_VLA_PORT`,
+`CASCADE_BOOTH` and the rest of the one list in `src/cascade/apps/mcp_env.py`, which
+`scripts/launch.sh` registers too (B63). Rig selectors (`CASCADE_ROBOT`, `CASCADE_BASE`,
+`CASCADE_ARMS`) and secrets (`CASCADE_MCP_TOKEN`) are never copied. The copied names
+are printed, a value the runtime would refuse stops the registration before anything
+is written, and `--env KEY=VALUE` overrides an inherited value.
+`scripts/hermes_demo.sh` and `scripts/openclaw_demo.sh` copy the same list (B68) after
+their own flags and print the copied names; they do not check values themselves, so a
+malformed port is refused by the server when it starts (naming the variable), not at
+registration.
 
 > **Host and brain are different roles**, and Hermes can be either. As a
 > **host** (this section) Hermes runs the agent loop and cascade is a tool
@@ -736,11 +793,20 @@ out-of-band by the stdin reader, Esc/cancellation in the host mid-motion
 freezes the arm, first Ctrl+C on the server latches the e-stop (no
 free-fall), and the dashboard STOP button works from any browser on the
 LAN. For attendee-facing sessions, `CASCADE_HIDE_TOOLS=reset_stop` makes
-clearing a stop staff-only. The catalog is also trimmed by a **capability
+clearing a stop staff-only. By default every other call waits for the motion
+in flight; with the opt-in **read-only lane** (`mcp.readonly_lane: true` in
+`configs/demo.yaml`, or `CASCADE_MCP_READONLY_LANE=1`) the host can also LOOK
+while the arm moves: `world_state`, `robot_knowledge`, `verify_last_action`
+and `camera_snapshot` answer during a motion (or `run_program`) with
+`served_during_motion` in the result (state may be in flux), while a second
+motion and every other tool -- `describe_scene` and `get_observation`
+included, they fuse beliefs -- still wait. The catalog is also trimmed by a **capability
 matrix** derived from the built rig (`apps/capabilities.py`): the depth chain
 each camera really produces (sensor / mono / table-plane / none), which
 sidecars answered their startup probe, how many arms the `ArmRig` has, and
-whether the verifier and memory are attached. A tool whose precondition the
+whether the verifier and memory are attached (with the programs tier on, also
+whether its library opened: `list_programs` needs it, `run_program` needs it
+and the verifier). A tool whose precondition the
 rig cannot meet is withheld and rejected if called — on an RGB-only camera
 the 3D tools go, on a single-arm rig `list_arms` and the injected `arm`
 parameter go — with the reason in `world_state.tools_withheld`, the dashboard
@@ -753,14 +819,22 @@ operator override on top. Env knobs:
 `CASCADE_CAMERAS` (comma list, first = manipulation camera), `CASCADE_CAMERA`
 (single-camera fallback), `CASCADE_ARMS` (comma list, first = manipulation
 arm, builds the `ArmRig`), `CASCADE_ARM` (single-arm fallback), `CASCADE_DETECTOR_MODEL`,
-`CASCADE_DETECT_CLASSES`, `CASCADE_HIDE_TOOLS`, `CASCADE_VIEW` (cv2 camera window),
+`CASCADE_DETECT_CLASSES`, `CASCADE_HIDE_TOOLS`, `CASCADE_MCP_READONLY_LANE`
+(1/0, the read-only lane above), `CASCADE_VIEW` (cv2 camera window),
 `CASCADE_MJ_VIEW` (MuJoCo physics window; the launcher sets it in sim modes),
 `CASCADE_PREWARM`, `CASCADE_STREAM`, `CASCADE_STREAM_PORT`, `CASCADE_RUN_DIR`
 (trace dir), `CASCADE_OCCUPANCY` (`0` skips the bridge probe), `DISPLAY`.
 `CASCADE_BRIDGE_PORT`, `CASCADE_GRASPGENX_PORT` and `CASCADE_OCCUPANCY_PORT` move the
 Isaac bridge and the two sidecars off 8611 / 5556 / 5557: the launcher starts them there
 and `load_demo_config` applies the same values last, over every config layer and every
-arm's resolved view (empty = unset; a malformed value is refused, naming the variable). The Isaac bridge
+arm's resolved view (empty = unset; a malformed value is refused, naming the variable).
+`CASCADE_HUG_PORT`, `CASCADE_GRASPGENX_HOST` and `CASCADE_HUG_HOST` follow the same
+contract for a HUG server, or a GraspGen-X / HUG server on another machine (a host is a
+hostname or an IPv4 address: no port, scheme or whitespace); the bridge and the occupancy
+sidecar have no host variable. The launcher, `scripts/setup_agents.py` and the two
+demo registrars (`scripts/hermes_demo.sh`, `scripts/openclaw_demo.sh`) copy these
+six, and every other runtime switch set in their shell, into the MCP server's entry
+from one list (`src/cascade/apps/mcp_env.py`, B63/B68). The Isaac bridge
 side has its own knobs (`CASCADE_USD`, `CASCADE_PHYSICS_DEVICE` — `cpu` is the
 escape hatch for GPU-PhysX boot NaNs —, `CASCADE_BRIDGE_BIND`,
 `CASCADE_BRIDGE_NO_TARGETS`, `CASCADE_COMPANION_EXTS`); see `scripts/isaac_bridge.py`.
@@ -824,7 +898,7 @@ the orchestrator relays it verbatim and does not retry the step.
 
 | skill | what it does |
 |---|---|
-| `recall_memory` | Recent events (~15 s) and, optionally, where a named object was last seen (plus remembered `looks_like` matches when an opt-in image-text `memory.embedder` is configured) |
+| `recall_memory` | Recent events (~15 s) and, optionally, where a named object was last seen (plus remembered `looks_like` matches when an opt-in image-text `memory.embedder` is configured; with the opt-in `memory.persist_episodic` they may come from an earlier session and are then marked `restored` / `remembered`) |
 | `recall_step` | Look back at one executed step by index (`n`, negative = from the end): skill, args, outcome/ask, the postcondition verdict recorded at the time, dispatch tier, and its BEFORE/AFTER keyframes (served as images over MCP). Read-only; an invalid `n` is an explicit error, never an old frame |
 | `list_arms` | Names the arms of a multi-arm rig (skills take `arm="<name>"`; `""`/`default` mean the primary) |
 | `snapshot_scene` | Memorize the layout under a name: the confirmed objects' labels, colours and centroids as ADVISORY data in the belief store (Pigey "memorize"). No motion; also the reflex phrases "memorize the scene" / "memoriza la escena" |
@@ -846,14 +920,26 @@ the orchestrator relays it verbatim and does not retry the step.
 is loop-internal — excluded from the MCP tool list, since an external host
 ends its own turns its own way. The MCP server adds eight host-side extras
 (`camera_snapshot`, `world_state`, `live_view_url`, `robot_knowledge`,
-`verify_last_action`, `task_memory`, `emergency_stop`, `reset_stop`).
+`verify_last_action`, `task_memory`, `emergency_stop`, `reset_stop`), and
+two more only when the opt-in programs tier is on (`agent.programs: true` /
+`CASCADE_PROGRAMS=1`, arm servers):
+
+| tool | what it does |
+|---|---|
+| `list_programs` | The PROMOTED programs (verified end to end in ≥ 2 distinct tasks), ranked for `query` by keyword overlap — or by text embedding when `memory.embedder` is set — each with its parameters, steps, evidence and a ready `run_with`. Candidates are never listed |
+| `run_program` | Runs a promoted program by name, or a host-written `spec` once, through the CLI's own runner: every step a top-level skill call with its own trace row and verdict, positions only as `localize_object(label)+offset` re-grounded before motion, the first unverified step stops it with a `next_action`. A spec is stored as a candidate only from a fully CONFIRMED run. A cancel or `emergency_stop` latches the e-stop and nothing after it runs |
 
 ## Safety notes for a live rig
 
 - The safety harness fails closed; motions abort mid-stream on violation.
 - Hand-eye extrinsics in the camera profiles are placeholders — calibrate
-  on-site (the baseline repo's `collect_handeye_eih.py` output loads
-  directly via `hand_eye_npz`).
+  on-site with `scripts/calibrate_handeye.py` (ArUco, eye-to-hand and
+  eye-in-hand, every motion through the safety harness; procedure in
+  [docs/HANDEYE_CALIBRATION.md](docs/HANDEYE_CALIBRATION.md)) and point the
+  profile's `extrinsics.hand_eye_json` at the record. A missing, rejected or
+  other-serial record leaves that camera streaming without 3D fusion. The
+  baseline repo's `collect_handeye_eih.py` output still loads via
+  `hand_eye_npz`.
 - Each arm has a limited **top-down envelope**, much smaller than its total
   reach, and grasp heights + hover offsets are configured per profile
   accordingly: below z ≈ 0.15 m on the B601-RS, and on the SO-101 an annulus
@@ -880,9 +966,12 @@ first motion:
 
 **reBot B601 (`--arm rebot_rs`)**
 
-- Gripper open/close angles in `configs/arms/rebot_rs.yaml` were
-  characterized on the DM build — **re-verify travel and stall torque on the
-  RS gripper before the first grasp**.
+- Gripper travel in `configs/arms/rebot_rs.yaml` was re-measured on the RS
+  build (0 → +6.39 rad, closed at 0), but its angle↔width scale disagrees with
+  Seeed's WRC rig — **re-verify jaw width and stall on the RS gripper before
+  the first grasp**. Latched motor faults are cleared on connect; the
+  remaining onsite checks are listed in
+  [docs/WRC_CONTROL_PORT.md](docs/WRC_CONTROL_PORT.md).
 - Do not run `motorbridge-gateway` / MotorBridge Studio while the demo runs
   (host-id 0xFD conflict on the CAN bus).
 
@@ -943,10 +1032,16 @@ runtime contracts, historical measurements and research notes.
 - [docs/JEV_DECISIONS.md](docs/JEV_DECISIONS.md) — Jev and Qwen-based decision
   models, an offline routing pilot, and measured local Kev results
 - [docs/MOBILITY_AND_NAVIGATION_DESIGN.md](docs/MOBILITY_AND_NAVIGATION_DESIGN.md)
-  — design for mobile bases, humanoid locomotion and navigation (`MobileBase`,
-  Vesta's nav verbs, Nav2 / Warp planner backends, G1 in Isaac first); not code yet
+  — the 2026-09-10 design for mobile bases, humanoid locomotion and navigation
+  (`MobileBase`, Vesta's nav verbs, Nav2 / Warp planner backends, G1 in Isaac
+  first); partly implemented since with a velocity-level interface — its
+  status note and [Architecture](docs/ARCHITECTURE.md#ros2-humanoids-and-what-is-not-here-yet)
+  say what landed
 - [docs/ROS2_BACKEND_BRIEF.md](docs/ROS2_BACKEND_BRIEF.md) · [docs/NEWTON_ENGINE.md](docs/NEWTON_ENGINE.md)
   · [docs/BRIDGE_DEGRADATION.md](docs/BRIDGE_DEGRADATION.md) — backend briefs
+- [docs/VLA_EXECUTOR.md](docs/VLA_EXECUTOR.md) — the opt-in VLA executor
+  behind `grasp_object`: protocol, harness gating, deadlines, stop latch,
+  what is measured (stub only) and the live steps owed with real weights
 - Research notes: [SOTA_PERCEPTION_AND_EVALUATION](docs/SOTA_PERCEPTION_AND_EVALUATION.md),
   [COMPARISON_TO_PUBLISHED_WORK](docs/COMPARISON_TO_PUBLISHED_WORK.md),
   [PERCEPTION_AND_EXECUTION_RESEARCH](docs/PERCEPTION_AND_EXECUTION_RESEARCH.md),

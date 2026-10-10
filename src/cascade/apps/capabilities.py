@@ -24,8 +24,9 @@ Two rules keep this honest:
   tools run on the analytic OBB planner and the matrix says so; the
   occupancy bridge down means the clearance gate is off and the matrix says
   so. Only a tool that cannot run at all without the sidecar is withheld
-  (no shipped tool is in that position today; the mechanism is pinned by
-  `tests/test_mcp_server.py`).
+  (the label grasps under the opt-in `grasp.executor: vla`, whose policy
+  server IS the grasp -- B49, `vla_policy`; the mechanism is pinned by
+  `tests/test_mcp_server.py` and `tests/test_vla_executor.py`).
 
 The stop path (`emergency_stop`, `reset_stop`) can never depend on a probe.
 """
@@ -54,11 +55,26 @@ CAP_MOBILE_BASE = "mobile_base"
 CAP_VERIFIER = "verifier"
 #: episodic memory with the Vesta frame harness
 CAP_MEMORY = "memory"
+#: the opt-in programs tier (docs/PROGRAMS_TIER.md; B42): its library opened.
+#: OPTIONAL: the cell exists only when the server attached a tier to the
+#: runtime (`agent.programs` / CASCADE_PROGRAMS=1), so with the tier off the
+#: matrix, its banner and the withheld list are the pre-tier ones exactly.
+CAP_PROGRAMS = "programs"
+#: the opt-in VLA executor (B49, `grasp.executor: vla`): its policy server
+#: answered (startup probe or the latest episode's connect). A ROUTE
+#: capability: the cell exists only when the runtime has a VLA executor
+#: attached, and the label-grasp tools are gated on it only then -- an
+#: absent cell is never "unmet". With the analytic executor (the default)
+#: the matrix, its banner and the withheld list are the pre-B49 ones exactly.
+CAP_VLA_POLICY = "vla_policy"
 
 CAPABILITIES = (
     CAP_DEPTH_3D, CAP_DEPTH_HEIGHTS, CAP_LEARNED_GRASPS, CAP_OCCUPANCY,
     CAP_MULTI_ARM, CAP_MOBILE_BASE, CAP_VERIFIER, CAP_MEMORY,
 )
+#: capabilities that are not part of every server: a tool requiring one that
+#: is ABSENT from the matrix is not served at all, so it is not "withheld"
+_OPTIONAL_CAPABILITIES = frozenset({CAP_PROGRAMS})
 
 #: Hand-maintained like `_MOTION_SKILLS`: tool name -> capabilities it cannot
 #: run without. A tool that merely DEGRADES without a capability (grasp tools
@@ -69,11 +85,13 @@ TOOL_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     # label/pixel -> metres: nothing to aim without 3D grounding
     "localize_object": (CAP_DEPTH_3D,),
     "preview_grasp": (CAP_DEPTH_3D,),
-    "grasp_object": (CAP_DEPTH_3D,),
-    "pick_and_place": (CAP_DEPTH_3D,),
+    # ... and with `grasp.executor: vla` the label grasp IS the policy: no
+    # server, no grasp (the route never falls back to the analytic pipeline)
+    "grasp_object": (CAP_DEPTH_3D, CAP_VLA_POLICY),
+    "pick_and_place": (CAP_DEPTH_3D, CAP_VLA_POLICY),
     "push_object": (CAP_DEPTH_3D,),
     "point_at": (CAP_DEPTH_3D,),
-    "sort_by_color": (CAP_DEPTH_3D,),
+    "sort_by_color": (CAP_DEPTH_3D, CAP_VLA_POLICY),
     "turn_screw": (CAP_DEPTH_3D,),
     "grasp_at_pixel": (CAP_DEPTH_3D,),
     "probe_point": (CAP_DEPTH_3D,),
@@ -88,6 +106,11 @@ TOOL_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     # the Vesta frame harness and the event digest live in episodic memory
     "task_memory": (CAP_MEMORY,),
     "recall_memory": (CAP_MEMORY,),
+    # the programs tier (opt-in): listing needs the library; running a
+    # program needs the verifier too -- without it no step can be CONFIRMED,
+    # so every program would stop at its first registered effect
+    "list_programs": (CAP_PROGRAMS,),
+    "run_program": (CAP_PROGRAMS, CAP_VERIFIER),
 }
 
 #: never withheld by any probe: the stop path is not a capability
@@ -190,6 +213,9 @@ def _grasp_capability(runtime, backends: dict) -> dict:
     want = str(gcfg.get("backend", "obb")) if gcfg is not None and hasattr(gcfg, "get") else None
     if want == "hug":
         return _hug_capability(runtime, grasp)
+    if want == "camera_frame":
+        return _entry(False, grasp, f"grasps use the analytic camera-frame mask planner "
+                                    f"({grasp}); no learned model is in the loop")
     planner = getattr(runtime, "_graspgenx", None)
     status = getattr(planner, "status", None)
     down = bool(getattr(runtime, "_graspgenx_down", False))
@@ -292,7 +318,54 @@ def capability_matrix(runtime) -> dict:
     out[CAP_MEMORY] = (_entry(True, "episodic memory with frame harness")
                        if memory is not None and hasattr(memory, "memory_frames")
                        else _entry(False, "none", "no episodic memory in this runtime"))
+    programs = _programs_capability(runtime)
+    if programs is not None:
+        out[CAP_PROGRAMS] = programs
+    vla = _vla_capability(runtime)
+    if vla is not None:
+        out[CAP_VLA_POLICY] = vla
     return out
+
+
+def _vla_capability(runtime) -> dict | None:
+    """The `vla_policy` cell, or None when no VLA executor is attached (the
+    analytic executor: the cell is then absent). Reads the executor's last
+    recorded status only -- never dials the server from here."""
+    executor = getattr(runtime, "vla_executor", None)
+    if executor is None:
+        return None
+    status = getattr(executor, "status", None) or {}
+    detail = str(status.get("detail") or "VLA policy server")
+    answered = status.get("answered")
+    if answered is True:
+        return _entry(True, detail)
+    if answered is False:
+        return _entry(False, detail,
+                      f"{detail}; grasp.executor: vla refuses label grasps rather than fall back "
+                      "to the analytic pipeline (start the policy server, then restart the runtime)")
+    return _entry(None, detail)
+
+
+def _programs_capability(runtime) -> dict | None:
+    """The programs cell, or None when no tier is attached (the cell is then
+    absent -- the pre-tier matrix byte for byte)."""
+    tier = getattr(runtime, "program_tier", None)
+    if tier is None:
+        return None
+    from ..agent.programs import ProgramTier, ProgramTierUnavailable
+
+    if isinstance(tier, ProgramTierUnavailable):
+        return _entry(False, "library unavailable",
+                      f"the program library could not be opened ({tier.error}); "
+                      "no program can be listed, run or stored")
+    if not isinstance(tier, ProgramTier):
+        return None
+    try:
+        counts = tier.library.summary()
+    except Exception as e:  # noqa: BLE001 -- a report must never fail the call
+        return _entry(False, "library unreadable", f"the program library could not be read ({type(e).__name__}: {e})")
+    return _entry(True, f"{counts['promoted']} promoted, {counts['candidates']} candidate(s); "
+                        f"reuse after {tier.library.min_tasks} distinct verified tasks")
 
 
 def withheld_tools(matrix: dict, requirements: dict[str, tuple[str, ...]] | None = None) -> dict[str, str]:
@@ -306,6 +379,8 @@ def withheld_tools(matrix: dict, requirements: dict[str, tuple[str, ...]] | None
     for tool, caps in reqs.items():
         if tool in _NEVER_WITHHELD:
             continue
+        if any(c in _OPTIONAL_CAPABILITIES and c not in matrix for c in caps):
+            continue  # an opt-in tier this server did not attach: not served, not withheld
         unmet = [c for c in caps if (matrix.get(c) or {}).get("available") is False]
         if unmet:
             out[tool] = "; ".join(f"{c}: {matrix[c].get('why') or matrix[c].get('detail')}"
@@ -338,4 +413,8 @@ def format_matrix(matrix: dict) -> str:
         flag(CAP_VERIFIER, ""),
         flag(CAP_MEMORY, ""),
     ]
+    if CAP_PROGRAMS in matrix:  # only when a programs tier is attached
+        parts.append(flag(CAP_PROGRAMS))
+    if CAP_VLA_POLICY in matrix:  # only with `grasp.executor: vla`
+        parts.append(flag(CAP_VLA_POLICY))
     return " | ".join(parts)

@@ -55,6 +55,20 @@ withheld tool is rejected if called anyway. Every withheld tool carries its
 reason in `world_state.tools_withheld`, the dashboard `/state` and the
 `[cascade-mcp] tools withheld` log line -- a hidden tool is never silent.
 
+Programs (opt-in, docs/PROGRAMS_TIER.md "MCP chat hosts"): with
+`agent.programs: true` / `CASCADE_PROGRAMS=1` -- the CLI's switch -- an arm
+server also offers `list_programs` (promoted programs, ranked for an
+instruction by keyword overlap or, with a `memory.embedder`, by text
+embedding) and `run_program` (a promoted program by name, or a host-written
+spec run once). Both go through the CLI's own `ProgramTier` and runner: every
+step a top-level `execute()` with its own trace row and ledger verdict, the
+first unverified step stops the program, a spec is stored only from a fully
+CONFIRMED execution and reused only after two distinct tasks. A program may
+not reach a tool this server withholds or the operator hid; a cancel of an
+in-flight `run_program` latches the e-stop like any motion tool and no later
+step is dispatched. Off (the default), neither tool is a candidate and the
+server is the pre-tier one byte for byte.
+
 Latency contract (why this server is fast): perception pre-warms in the
 background the moment the gateway starts -- N camera streams, the detector,
 and the WorldWatcher that keeps the belief store hot. The ARM stays
@@ -80,6 +94,19 @@ the RS arm, so park it first. SIGUSR1 clears the e-stop: that is the STAFF
 reset channel when reset_stop is hidden from attendees
 (`pkill -USR1 -f cascade.apps.mcp_server` requires shell access to the
 rig, which is exactly the staff/attendee boundary).
+
+Read-only lane (opt-in, B46; `mcp.readonly_lane: true` in configs/demo.yaml or
+CASCADE_MCP_READONLY_LANE=1): everything above still holds -- one serial
+worker, stops/cancels/pings on the receive side -- but a call to one of
+`READONLY_LANE_TOOLS` that arrives while a MOTION tool (`_MOTION_SKILLS`, or
+`run_program` with the programs tier on) is in flight is handed to a separate
+lane thread and answered at once instead of after the motion. Its result
+carries `served_during_motion` (state may be in flux). Motions stay strictly
+serialized, every other tool still waits, the receive side only enqueues (a
+lane call can never delay a stop), and a lane call never enters
+`SkillRuntime.execute()`, never takes `_exec_lock` and never writes state the
+motion depends on. Off (the default) the server is the serial one byte for
+byte.
 """
 
 from __future__ import annotations
@@ -89,6 +116,7 @@ import contextlib
 import copy
 import json
 import os
+import queue
 import sys
 import threading
 import time
@@ -235,7 +263,216 @@ _EXTRA_TOOLS = [
             "required": [],
         },
     },
+    # The programs tier (docs/PROGRAMS_TIER.md, B42). Candidates ONLY when the
+    # tier is on (agent.programs / CASCADE_PROGRAMS=1, arm runtimes): with it
+    # off these two are not part of the catalog and a call is an unknown tool,
+    # exactly as before the tier existed.
+    {
+        "name": "list_programs",
+        "description": (
+            "List the PROGRAMS this robot has learned: short sequences of "
+            "registered tool calls with object-label parameters, each verified "
+            "end to end (every effect CONFIRMED by an independent check) in at "
+            "least two distinct tasks. Pass `query` (the user's instruction) to "
+            "get the most relevant first. Each entry shows its parameters, its "
+            "steps, its evidence and a ready `run_with` for run_program. A "
+            "program verified in only one task is a candidate and is never "
+            "listed. Costs no image tokens."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "The instruction to match (optional)."},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 20,
+                          "description": "Max programs returned (default 5)."},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "run_program",
+        "description": (
+            "Run a PROGRAM step by step. Every step is an ordinary tool call "
+            "with its own trace row and an independent effect verdict; the "
+            "FIRST step that fails, is refused, refuted or unverified stops the "
+            "program and no later step runs. Pass EITHER `program` = the name "
+            "of a promoted program from list_programs, OR `spec` = a new "
+            "program {name, description, params: {param: what it is}, steps: "
+            "[{tool, args}]} -- a flat list of tool calls, no loops, branches "
+            "or code; a parameter fills a label argument as {\"$param\": name}; "
+            "a position is ONLY {\"$target\": {\"label\": <object or $param>, "
+            "\"offset_m\": [dx, dy]}} (re-measured with localize_object before "
+            "the first motion), never a raw coordinate. A new program runs once; "
+            "it is stored as a candidate only if every effect was confirmed, and "
+            "offered for reuse only after it is verified in two distinct tasks. "
+            "`bindings` maps each parameter to an object label; `task` is the "
+            "user's instruction. emergency_stop, or cancelling this call, stops "
+            "the arm and nothing after it runs. On a stop, follow `next_action`."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "program": {"type": "string", "description": "Name of a promoted program (list_programs)."},
+                "spec": {"type": "object", "description": "A new program (instead of `program`)."},
+                "bindings": {"type": "object",
+                             "description": "Parameter -> object label, e.g. {\"object\": \"red cube\"}."},
+                "task": {"type": "string", "description": "The user's instruction this run serves."},
+            },
+            "required": ["task"],
+        },
+    },
 ]
+
+#: the programs tier's MCP tools (served only when the tier is on)
+_PROGRAM_TOOLS = frozenset({"list_programs", "run_program"})
+#: ... of which these move the arm: a cancel of one in flight latches the
+#: e-stop like any `_MOTION_SKILLS` call
+_PROGRAM_MOTION_TOOLS = frozenset({"run_program"})
+
+#: B46 (opt-in): the tools the read-only lane may answer WHILE a motion runs
+#: on the worker. Each is a server-side read that never enters
+#: `SkillRuntime.execute()` (no trace row, memory event, envelope record,
+#: watcher pause, per-call scratchpad or `last_frame` write), never takes
+#: `_exec_lock` and never commands an arm, gripper or base:
+#:   world_state         `_runtime_state` -- the dashboard `/state` body, which
+#:                       already runs on HTTP threads during every motion --
+#:                       plus cached stream stats and the capability matrix;
+#:                       its only writes are the belief store's and episodic
+#:                       memory's own age-based expiry under their locks,
+#:                       which every reader (that poll included) performs
+#:   robot_knowledge     envelope and grasp-memory digests (both stores are
+#:                       lock-guarded so the skill thread records while
+#:                       readers read)
+#:   verify_last_action  the verifier's append-only verdict history
+#:   camera_snapshot     on the lane a PASSIVE stream read (`_lane_camera_snapshot`)
+#: Everything else waits for the motion as before, e.g. describe_scene /
+#: get_observation (they fuse beliefs mid-motion, run the shared detector and
+#: read the arm), task_memory (`new_task` resets frames), live_view_url (binds
+#: a port), list_programs (refreshes the store run_program reads), reset_stop /
+#: halt_motion (write the harness). When in doubt a tool stays out.
+READONLY_LANE_TOOLS = frozenset({"world_state", "robot_knowledge", "verify_last_action",
+                                 "camera_snapshot"})
+#: the lane's single thread (lane-served calls are identifiable by it)
+LANE_THREAD_NAME = "cascade-mcp-readonly-lane"
+
+
+def _readonly_lane_enabled(cfg) -> bool:
+    """The B46 switch: CASCADE_MCP_READONLY_LANE (1/0; empty = unset) beats
+    `mcp.readonly_lane` (default false). Only an explicit yes turns it on;
+    off is the serial server exactly."""
+    yes = ("1", "true", "yes", "on")
+    env = os.environ.get("CASCADE_MCP_READONLY_LANE", "").strip().lower()
+    if env:
+        return env in yes
+    mcp_cfg = (cfg.get("mcp", {}) if cfg is not None else {}) or {}
+    raw = mcp_cfg.get("readonly_lane", False)
+    return raw.strip().lower() in yes if isinstance(raw, str) else bool(raw)
+
+
+def _mark_served_during_motion(out: dict, motion: str, tool: str) -> dict:
+    """A lane result says it was served while `motion` ran (B46). The marker
+    joins the result's JSON summary (its last text block); a result without
+    one gets its own block. Returns a new dict, `out` is not mutated."""
+    note = (f"Answered on the read-only lane because {motion} was running when this call "
+            "arrived: the arm, the gripper, any held object and the tracked objects may be "
+            f"in flux, and {motion}'s own result and verdict are not recorded yet. Re-check "
+            f"after {motion} returns before acting on this.")
+    if tool == "camera_snapshot":
+        note += (" The image is a passive read of the camera stream: it does not refresh "
+                 "the frame the running motion uses.")
+    marker = {"motion": motion, "lane": "read_only", "note": note}
+    content = list(out.get("content") or [])
+    for i in range(len(content) - 1, -1, -1):
+        block = content[i]
+        if isinstance(block, dict) and block.get("type") == "text":
+            try:
+                payload = json.loads(block.get("text", ""))
+            except (TypeError, ValueError):
+                payload = None
+            if isinstance(payload, dict):
+                content[i] = {**block, "text": json.dumps({**payload, "served_during_motion": marker})}
+                return {**out, "content": content}
+            break
+    content.append({"type": "text", "text": json.dumps({"served_during_motion": marker})})
+    return {**out, "content": content}
+
+
+class _ReadOnlyLane:
+    """B46: one thread that answers `READONLY_LANE_TOOLS` calls while the
+    serial worker runs a motion.
+
+    The receive side calls `offer()` after `_admit` (the stop channel keeps
+    first claim on every frame): it only checks and enqueues -- never runs a
+    tool, never blocks -- so a held lane call cannot delay a stop. The
+    worker's `_inflight` is read under `_cancel_lock` and never written here,
+    so a host cancel of the motion still latches the e-stop. Calls are served
+    in arrival order; one cancelled before the lane reached it is dropped,
+    exactly as the worker drops one."""
+
+    def __init__(self, server: "McpSkillServer", *, start: bool = True):
+        from ..skills.runtime import _MOTION_SKILLS
+
+        self._server = server
+        self._motion_skills = _MOTION_SKILLS  # the live set cancel_request reads
+        self._queue: queue.Queue = queue.Queue()
+        self._thread = threading.Thread(target=self._run, daemon=True, name=LANE_THREAD_NAME)
+        if start:
+            self._thread.start()
+
+    def offer(self, m: dict, send) -> bool:
+        """True when `m` was handed to the lane; False = the caller queues it
+        for the worker exactly as before. Only a `tools/call` request with a
+        str/int id, for a lane tool the operator has not hidden, while a
+        motion is in flight."""
+        if m.get("method") != "tools/call" or not isinstance(m.get("id"), (str, int)):
+            return False
+        params = m.get("params")
+        name = params.get("name") if isinstance(params, dict) else None
+        if not isinstance(name, str) or name not in READONLY_LANE_TOOLS or name in _hidden_tools():
+            return False
+        server = self._server
+        with server._cancel_lock:
+            inflight = server._inflight
+            motion = inflight[1] if inflight is not None else None
+            # the programs flag is read, never resolved here (resolving may
+            # load the config on the stop channel): run_program is only
+            # dispatched once it resolved True
+            if not (motion in self._motion_skills
+                    or (motion in _PROGRAM_MOTION_TOOLS and server._programs_flag is True)):
+                return False
+        self._queue.put((m, send, motion))
+        return True
+
+    def close(self) -> None:
+        """No lane call starts after this (shutdown); idempotent."""
+        self._queue.put(None)
+
+    def _run(self) -> None:
+        server = self._server
+        while True:
+            item = self._queue.get()
+            if item is None:
+                return
+            m, send, motion = item
+            req_id = m.get("id")
+            with server._cancel_lock:
+                cancelled = req_id in server._cancelled_ids
+                server._cancelled_ids.discard(req_id)
+            if cancelled:
+                continue  # the host gave up before the lane reached it
+            try:
+                resp = _lane_response(server, m, motion)
+            except Exception as e:  # noqa: BLE001 -- the lane thread must never die
+                resp = _response(req_id, _mark_served_during_motion(_text_result(
+                    {"ok": False, "error": f"{type(e).__name__}: {e}"}, is_error=True),
+                    motion, (m.get("params") or {}).get("name", "")))
+            with server._cancel_lock:
+                server._cancelled_ids.discard(req_id)  # a cancel that raced completion is spent
+            try:
+                send(resp)
+            except Exception as e:  # noqa: BLE001 -- a closed transport must not kill the lane
+                print(f"[cascade-mcp] read-only lane could not deliver a response: {e}",
+                      file=sys.stderr)
 
 
 class McpSkillServer:
@@ -293,6 +530,73 @@ class McpSkillServer:
         # and compare the surface under this lock, so a catalog listed
         # while the build finishes is always either probed or notified.
         self._surface_lock = threading.Lock()
+        # the programs-tier switch (agent.programs / CASCADE_PROGRAMS),
+        # resolved once per connection: catalog, dispatch and the cancel
+        # path must agree (None = not resolved yet)
+        self._programs_flag: bool | None = None
+        # B46 read-only lane (mcp.readonly_lane / CASCADE_MCP_READONLY_LANE):
+        # built with the arm runtime when on; None = off, and the receive
+        # side then queues every frame for the worker exactly as before
+        self._readonly_lane: _ReadOnlyLane | None = None
+
+    # ── programs tier (docs/PROGRAMS_TIER.md, B42) ───────────────────────
+
+    def _programs_on(self, cfg=None) -> bool:
+        """True when this server offers the programs tier: the CLI's switch
+        (`CASCADE_PROGRAMS` beats `agent.programs`, default off), arm
+        runtimes only. The host is the brain, so the CLI's mock-brain
+        exclusion does not apply. Resolved once; a config that cannot be
+        read means off."""
+        if self._bounded:
+            return False
+        flag = self._programs_flag
+        if flag is None:
+            from .demo import _programs_enabled
+
+            try:
+                if cfg is None and not os.environ.get("CASCADE_PROGRAMS", "").strip():
+                    from ..config import load_demo_config
+
+                    with contextlib.redirect_stdout(sys.stderr):
+                        cfg = load_demo_config(**self._arm_config_kwargs())
+                flag = _programs_enabled(cfg)
+            except Exception as e:  # noqa: BLE001 -- unreadable config: the tier stays off
+                print(f"[cascade-mcp] programs tier left off: {type(e).__name__}: {e}", file=sys.stderr)
+                flag = False
+            self._programs_flag = flag
+        return flag
+
+    @staticmethod
+    def _arm_config_kwargs() -> dict:
+        """The camera/arm lists the arm runtime is built from (env)."""
+        cameras = [c.strip() for c in os.environ.get(
+            "CASCADE_CAMERAS", os.environ.get("CASCADE_CAMERA", "mock")).split(",") if c.strip()]
+        arms = [a.strip() for a in os.environ.get(
+            "CASCADE_ARMS", os.environ.get("CASCADE_ARM", "mock")).split(",") if a.strip()]
+        return {"cameras": cameras, "arms": arms, "llm": "mock"}
+
+    def _attach_program_tier(self, runtime, cfg) -> None:
+        """Tier on: give the runtime its `ProgramTier` (the CLI's class,
+        store and promotion constant) before anyone can see the runtime, or
+        a `ProgramTierUnavailable` when the library cannot be opened -- the
+        capability matrix then withholds both tools with that reason. Tier
+        off: nothing is attached (the pre-tier runtime exactly)."""
+        if not self._programs_on(cfg):
+            return
+        from ..agent.programs import ProgramTier, ProgramTierUnavailable
+        from .demo import _program_library
+
+        try:
+            tier = ProgramTier(_program_library(cfg))
+            s = tier.library.summary()
+            print(f"[cascade-mcp] programs tier: on -- {s['promoted']} promoted, {s['candidates']} "
+                  f"candidate(s) in {tier.library.path}; reuse after {s['min_tasks']} distinct "
+                  "verified tasks", file=sys.stderr)
+        except Exception as e:  # noqa: BLE001 -- an unopenable store withholds, never crashes
+            tier = ProgramTierUnavailable(f"{type(e).__name__}: {e}")
+            print(f"[cascade-mcp] programs tier: on, but the library could not be opened "
+                  f"({tier.error}); list_programs / run_program withheld", file=sys.stderr)
+        runtime.program_tier = tier
 
     # ── runtime lifecycle ────────────────────────────────────────────────
 
@@ -347,9 +651,14 @@ class McpSkillServer:
                     signals = (getattr(self, "_signals", None)
                                if threading.current_thread() is threading.main_thread() else None)
                     with signals.defer() if signals is not None else contextlib.nullcontext():
-                        self._runtime, self._arm = build_runtime(
+                        runtime, arm = build_runtime(
                             cfg, run_dir, view=view, lazy_arm=True, serve=serve
                         )
+                        if not self._bounded:
+                            # before the runtime is visible: a host never
+                            # sees it without its programs tier (no-op off)
+                            self._attach_program_tier(runtime, cfg)
+                        self._runtime, self._arm = runtime, arm
                     if signals is not None and threading.current_thread() is threading.main_thread():
                         signals.checkpoint()
                     if self._runtime.stream_server is not None:
@@ -393,6 +702,14 @@ class McpSkillServer:
                     # `backends:` line build_runtime just printed -- and a
                     # host that already listed tools is told to re-fetch
                     self._announce_surface()
+                    if _readonly_lane_enabled(cfg):
+                        # B46: after the runtime is published, so a lane call
+                        # always finds it built
+                        self._readonly_lane = _ReadOnlyLane(self)
+                        print("[cascade-mcp] read-only lane: on -- "
+                              f"{', '.join(sorted(READONLY_LANE_TOOLS))} answer while a motion "
+                              "runs (marked served_during_motion); motions stay serialized",
+                              file=sys.stderr)
             except Exception as e:
                 if _poison:
                     self._init_error = f"{type(e).__name__}: {e}"
@@ -440,6 +757,8 @@ class McpSkillServer:
 
         if not retry:
             stages.append(teardown_step("stop", stop))
+        if self._readonly_lane is not None:
+            self._readonly_lane.close()  # no lane call starts against a runtime being torn down
         # taking _init_lock waits out an in-flight prewarm build, so a
         # runtime that finishes building after EOF is still torn down
         with self._init_lock, contextlib.redirect_stdout(sys.stderr):
@@ -610,7 +929,9 @@ class McpSkillServer:
             else:
                 from ..skills.runtime import _MOTION_SKILLS as motion_skills
 
-            if name in motion_skills:
+            # a program run moves the arm step after step: cancelling it
+            # mid-run is "stop the robot" exactly like for a motion skill
+            if name in motion_skills or (name in _PROGRAM_MOTION_TOOLS and self._programs_on()):
                 print(
                     f"[cascade-mcp] client cancelled {name!r} mid-motion -> e-stop. "
                     "If this arrived at a round number of seconds the HOST's "
@@ -724,7 +1045,9 @@ class McpSkillServer:
         else:
             from ..skills.runtime import TOOL_SPECS
 
-            candidates = TOOL_SPECS + _EXTRA_TOOLS
+            extras = (_EXTRA_TOOLS if self._programs_on()
+                      else [t for t in _EXTRA_TOOLS if t["name"] not in _PROGRAM_TOOLS])
+            candidates = TOOL_SPECS + extras
         # three independent filters: loop-internal, operator override, and
         # what the probed rig cannot do (empty until the runtime is built).
         # Computed and published under _surface_lock so a build finishing
@@ -825,6 +1148,8 @@ class McpSkillServer:
                 return _text_result(self._verify_last(runtime))
             if name == "task_memory":
                 return self._task_memory(runtime, arguments or {})
+            if name in _PROGRAM_TOOLS and self._programs_on():
+                return self._program_call(runtime, name, arguments)
             with self._exec_lock:  # never overlap with a reflex-chat motion
                 runtime.current_tier = "mcp-host"  # the chat host's brain chose this call
                 if name == "pick_and_place":  # narrate on the dashboard
@@ -850,6 +1175,51 @@ class McpSkillServer:
                 if name == "recall_step" and result.get("ok"):
                     return self._recall_result(runtime, result)
         return _text_result(result, is_error=not result.get("ok", False))
+
+    def call_readonly(self, name: str, arguments, motion: str) -> dict:
+        """B46: answer one `READONLY_LANE_TOOLS` call on the lane thread while
+        `motion` runs on the worker. The same server-side reads `call_tool`
+        uses, minus everything a running motion owns: no `execute()`, no
+        `_exec_lock`, no `redirect_stdout` (it swaps the PROCESS-wide stdout
+        the worker's call is using; these reads print nothing). Withheld tools
+        are rejected exactly as on the worker. Every result -- errors too --
+        carries `served_during_motion`."""
+        runtime = self._runtime
+        if runtime is None or name not in READONLY_LANE_TOOLS:
+            # offer() admits only lane tools, only once the runtime is built
+            out = _text_result({"ok": False, "error": f"tool {name!r} is not served on the "
+                                "read-only lane"}, is_error=True)
+        else:
+            out = self._reject_withheld(name)
+            if out is None:
+                if name == "world_state":
+                    out = _text_result(self._world_state(runtime))
+                elif name == "robot_knowledge":
+                    out = _text_result(self._robot_knowledge(runtime))
+                elif name == "verify_last_action":
+                    out = _text_result(self._verify_last(runtime))
+                else:
+                    camera = arguments.get("camera") if isinstance(arguments, dict) else None
+                    out = self._lane_camera_snapshot(runtime, camera)
+        return _mark_served_during_motion(out, motion, name)
+
+    def _lane_camera_snapshot(self, runtime, camera: str | None) -> dict:
+        """camera_snapshot on the lane: a PASSIVE read of the named (or
+        primary) stream, the dashboard's kind of read. Unlike
+        `_camera_snapshot` it never calls `observe_fresh` -- which writes
+        `runtime.last_frame` (the motion's BEFORE/AFTER evidence), fills depth
+        into the shared frame in place and beats the harness heartbeat -- and
+        never takes `_exec_lock`, which the running motion holds."""
+        from ..skills.runtime import _fresh_camera_frame
+
+        rig = getattr(runtime, "rig", None)
+        try:
+            if rig is None:
+                raise RuntimeError("no camera rig on this runtime")
+            frame = _fresh_camera_frame(rig.get(camera) if camera else rig.primary)
+        except Exception as exc:  # noqa: BLE001 -- same envelope as _camera_snapshot
+            return _text_result({"ok": False, "error": str(exc)}, is_error=True)
+        return self._image_result(runtime, frame, camera=camera)
 
     def _call_mobile_tool(self, name, arguments):
         allowed = {s["name"] for s in self.list_tools()}
@@ -1029,6 +1399,205 @@ class McpSkillServer:
             "recent": [pc.as_dict() for pc in history],
             "contradictions": [pc.as_dict() for pc in checker.contradictions()[-3:]],
         }
+
+    # ── programs tier tools (docs/PROGRAMS_TIER.md "MCP chat hosts") ─────
+
+    def _program_call(self, runtime, name: str, arguments) -> dict:
+        from ..agent.programs import ProgramTier
+
+        tier = getattr(runtime, "program_tier", None)
+        if not isinstance(tier, ProgramTier):  # the matrix withholds this case; belt and braces
+            return _text_result({"ok": False, "status": "refused",
+                                 "error": "the programs tier is not available on this server"}, is_error=True)
+        args = arguments if isinstance(arguments, dict) else {}
+        if name == "list_programs":
+            return self._list_programs(runtime, tier, args)
+        return self._run_program(runtime, tier, args)
+
+    def _program_unavailable(self, program) -> str | None:
+        """Why ``program`` may not run on THIS server, or None. The runner
+        calls execute() directly, so the served surface is checked here for
+        every step and every grounding query: a program never reaches a tool
+        the capability matrix withholds or the operator hid."""
+        hidden = _hidden_tools()
+        withheld = self.withheld_tools()
+        for i, (tool, args) in enumerate(program.steps, start=1):
+            for needed in (tool, *(["localize_object"] if "$target" in args else [])):
+                if needed in _EXCLUDED_TOOLS:
+                    return f"step {i}: {needed} is not served to chat hosts"
+                if needed in hidden:
+                    return f"step {i}: {needed} is disabled by the operator (CASCADE_HIDE_TOOLS)"
+                if needed in withheld:
+                    return f"step {i}: {needed} is not available on this rig: {withheld[needed]}"
+        return None
+
+    def _program_halt(self, runtime):
+        """The runner's stop check (before grounding and before every step):
+        any latched stop -- emergency_stop, a cancelled run_program, the
+        dashboard STOP, SIGINT -- means no further step is dispatched. It
+        only ever stops; the harness stays the sole motion authority."""
+        harness = getattr(getattr(runtime, "arm", None), "harness", None)
+
+        def halt() -> str | None:
+            if self._stop_pending or (harness is not None and harness.estopped):
+                return ("the e-stop is latched (emergency_stop, a cancelled call, the dashboard STOP "
+                        "or SIGINT); reset_stop clears it")
+            return None
+
+        return halt
+
+    def _list_programs(self, runtime, tier, args: dict) -> dict:
+        from ..agent.programs import Program, ProgramError
+
+        lib = tier.library
+        lib.refresh()  # another session (one server per chat) may have promoted one
+        query = args.get("query")
+        query = " ".join(query.split()) if isinstance(query, str) else ""
+        try:
+            limit = max(1, min(int(args.get("limit") or 5), 20))
+        except (TypeError, ValueError):
+            limit = 5
+        embedder = getattr(getattr(runtime, "memory", None), "embedder", None)
+        if query:
+            ranked = lib.ranked(query, limit, embedder=embedder)
+            retrieval = (f"embedding similarity ({getattr(embedder, 'name', 'embedder')}, floor "
+                         f"{float(getattr(embedder, 'text_floor', 0.5)):.2f}) or a shared keyword"
+                         if embedder is not None else
+                         "keyword overlap with each program's name, description and verified tasks")
+        else:
+            ranked = [(rec, None) for rec in lib.listing(limit)]
+            retrieval = "all promoted programs (no query), most evidence first"
+        programs = []
+        for rec, sim in ranked:
+            try:  # re-validated against the CURRENT catalog, like every reuse
+                prog = Program.from_spec(rec.program, tool_specs=tier.tool_specs)
+            except ProgramError:
+                continue
+            entry = {
+                "name": rec.name,
+                "description": prog.description,
+                "params": prog.params,
+                "steps": [{"tool": tool, "args": step_args} for tool, step_args in prog.steps],
+                "summary": prog.describe(),
+                "evidence": {"distinct_tasks": rec.n_tasks, "verified_runs": rec.occurrences,
+                             "failed_runs": rec.losses},
+                "run_with": {"program": rec.name, "bindings": {p: f"<{p} label>" for p in prog.params}},
+            }
+            if sim is not None:
+                entry["similarity"] = sim
+            unavailable = self._program_unavailable(prog)
+            if unavailable:
+                entry["unavailable"] = unavailable
+            programs.append(entry)
+        summary = lib.summary()
+        return _text_result({
+            "ok": True,
+            "query": query or None,
+            "retrieval": retrieval,
+            "programs": programs,
+            "library": {k: summary[k] for k in ("promoted", "candidates", "demoted", "min_tasks")},
+            "note": ("Only PROMOTED programs are listed: verified end to end in at least "
+                     f"{summary['min_tasks']} distinct tasks and more often than they failed. Run one "
+                     "with run_program(program=<name>, bindings=..., task=<the instruction>); "
+                     "or write a new one as run_program(spec=...)."),
+        })
+
+    def _run_program(self, runtime, tier, args: dict) -> dict:
+        import uuid
+
+        from ..agent.programs import COMPLETED, INVALID, REUSE, write_receipt
+
+        def refuse(error: str) -> dict:
+            return _text_result({
+                "ok": False, "status": "refused", "error": error,
+                "next_action": ("No motion was attempted. Fix the request, pick a promoted program "
+                                "from list_programs, or use the individual tools."),
+            }, is_error=True)
+
+        name, spec = args.get("program"), args.get("spec")
+        if (name is None) == (spec is None):
+            return refuse("pass exactly one of `program` (the name of a promoted program, see "
+                          "list_programs) or `spec` (a new program: {name, description, params, steps})")
+        task = args.get("task")
+        if not isinstance(task, str) or not task.strip():
+            return refuse("`task` is required: the user's instruction this run serves -- the library "
+                          "counts verified programs per distinct task")
+        task = " ".join(task.split())
+        bindings = args.get("bindings")
+        if bindings is None:
+            bindings = {}
+        if not isinstance(bindings, dict):
+            return refuse("`bindings` must be an object that binds each program parameter to an object "
+                          "label, e.g. {\"object\": \"red cube\"}")
+        if name is not None:
+            if not isinstance(name, str) or not name.strip():
+                return refuse("`program` must be the name of a promoted program")
+            tier.library.refresh()  # promoted by another session since this one loaded the store
+            proposal = tier.proposal_for_use(name.strip(), bindings)
+        else:
+            if isinstance(spec, str):  # chat models often send a nested object JSON-encoded
+                try:
+                    spec = json.loads(spec)
+                except ValueError as e:
+                    return refuse(f"`spec` is not a JSON object: {e}")
+            proposal = tier.proposal_for_spec(spec, bindings)
+        if proposal.kind == INVALID:
+            return refuse(proposal.reason)
+        unavailable = self._program_unavailable(proposal.program)
+        if unavailable:
+            return refuse(unavailable)
+
+        # one arm, one command: the whole program holds the lock a single
+        # tool call holds (the reflex chat refuses while it runs)
+        with self._exec_lock:
+            runtime.current_task = f"program {proposal.program.name}: {task}"
+            try:
+                run = tier.run(proposal, runtime, tool_log=[], halt=self._program_halt(runtime))
+            finally:
+                runtime.current_task = None
+            runtime.last_path = "program"
+        receipt = write_receipt(run, getattr(getattr(runtime, "trace", None), "run_dir", None))
+        run_id = f"mcp-{os.getpid()}-{uuid.uuid4().hex[:10]}"
+        # the program's own ledger verdict is the only evidence: a fully
+        # CONFIRMED execution may be admitted, anything else may count a loss
+        outcome = tier.account(run, proposal, task=task, run_id=run_id, success=run.verified)
+        library: dict = {"outcome": outcome}
+        try:
+            record = tier.library.get(run.program.signature)
+        except Exception:  # noqa: BLE001 -- reporting never fails a call
+            record = None
+        if record is not None:
+            min_tasks = tier.library.min_tasks
+            library.update(name=record.name, status=record.status(min_tasks),
+                           distinct_tasks=record.n_tasks, verified_runs=record.occurrences,
+                           failed_runs=record.losses, min_tasks=min_tasks)
+        next_action = run.next_action
+        if run.status == COMPLETED and not run.verified:
+            next_action = (f"Program {run.program.name!r} ran to completion, but its effect is "
+                           f"{run.verdict.upper()}: not every step's effect was independently confirmed. "
+                           "Do not re-run it; observe the scene and check before claiming success.")
+        harness = getattr(getattr(runtime, "arm", None), "harness", None)
+        ok = run.status == COMPLETED and run.verified
+        return _text_result({
+            "ok": ok,
+            "status": run.status,
+            "verdict": run.verdict,
+            "verified": run.verified,
+            "program": run.program.name,
+            "signature": run.program.signature[:12],
+            "source": "stored" if proposal.kind == REUSE else "submitted",
+            "task": task,
+            "bindings": run.bindings,
+            "grounded": run.grounded,
+            "steps": [s.as_dict() for s in run.steps],
+            "stopped_at": run.stopped_at,
+            "reason": run.reason or None,
+            "next_action": next_action,
+            "held": run.held,
+            "estop_latched": bool(harness is not None and harness.estopped),
+            "library": library,
+            "receipt": str(receipt) if receipt is not None else None,
+        }, is_error=not ok)
 
     def _world_state(self, runtime) -> dict:
         from ..apps.demo import _runtime_state
@@ -1243,6 +1812,46 @@ def handle_message(server: McpSkillServer, msg: dict) -> dict | None:
         return _response(req_id, error={"code": -32603, "message": f"internal error: {e}"})
 
 
+def _lane_response(server: McpSkillServer, msg: dict, motion: str) -> dict:
+    """B46: the read-only lane's twin of `handle_message`'s tools/call
+    branch -- the same response envelope and the same one stderr line per
+    call (naming the lane and the motion it ran beside)."""
+    params = msg.get("params") or {}
+    name = params.get("name", "")
+    args = params.get("arguments") or {}
+    t_call = time.monotonic()
+    try:
+        out = server.call_readonly(name, args, motion)
+    except Exception as e:  # noqa: BLE001 -- one bad read never kills the lane
+        out = _mark_served_during_motion(
+            _text_result({"ok": False, "error": f"{type(e).__name__}: {e}"}, is_error=True),
+            motion, name)
+    try:
+        parts = [c for c in (out.get("content") or []) if c.get("type") == "text"]
+        n_img = sum(1 for c in (out.get("content") or []) if c.get("type") == "image")
+        body = (parts[-1].get("text", "") if parts else "")
+        if n_img:
+            body = f"[{n_img} image(s)] " + body
+        print(f"[cascade-mcp] tools/call {name}({_short_args(args)}) on the read-only lane "
+              f"during {motion} -> {'ERROR' if out.get('isError') else 'ok'} in "
+              f"{time.monotonic() - t_call:.1f}s: {body[:200]}", file=sys.stderr, flush=True)
+    except Exception:  # noqa: BLE001 -- logging must never fail a call
+        pass
+    return _response(msg.get("id"), out)
+
+
+def _enqueue(server, inbox, m: dict, send) -> None:
+    """Receive side, after `_admit` (shared by every transport): queue a frame
+    for the serial worker -- or, with the opt-in read-only lane (B46), hand a
+    read-only tool call to the lane while a motion runs. Lane off
+    (`_readonly_lane is None`) this is exactly the pre-lane
+    `inbox.put((m, send))`."""
+    lane = server._readonly_lane
+    if lane is not None and lane.offer(m, send):
+        return
+    inbox.put((m, send))
+
+
 def main() -> int:
     import argparse
     from .signal_stop import StopSignals
@@ -1394,7 +2003,7 @@ def _serve_stdio(server, signals):
                                       f"{str(m)[:120]}", file=sys.stderr)
                                 continue
                             if not _admit(server, m, _send):
-                                inbox.put((m, _send))
+                                _enqueue(server, inbox, m, _send)
                     except Exception as e:
                         print(f"[cascade-mcp] reader error (frame skipped): {e}",
                               file=sys.stderr)
@@ -1714,7 +2323,7 @@ def _serve_http(server, signals, *, host, port, path, token, cert=None, key=None
 
                 m = {**m, "id": ns + json.dumps(req_id)}
                 if not _admit(server, m, send):
-                    inbox.put((m, send))
+                    _enqueue(server, inbox, m, send)
                 accept = self.headers.get("Accept") or ""
                 if method == "tools/call" and "text/event-stream" in accept:
                     return self._stream(done, slot, extra)

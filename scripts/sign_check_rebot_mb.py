@@ -216,6 +216,11 @@ def main() -> int:
 
         for m in motors.values():
             m.ensure_mode(Mode.MIT)
+        # Latched faults make a motor ignore MIT silently, which this probe
+        # would misreport as a BLOCKED joint. Clear them before torque.
+        from cascade.control.robstride import clear_motor_faults
+
+        clear_motor_faults(sorted(motors.items()))
         _hold(motors, q_hold, gains)
         ctrl.enable_all()
         _hold(motors, q_hold, gains)

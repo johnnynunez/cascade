@@ -16,6 +16,7 @@ path without an LLM call; only novel tasks reach the model.
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import sys
 import time
@@ -123,6 +124,21 @@ def _arm_cfgs(cfg) -> list[Cfg]:
     if raw:
         return [Cfg(a) if isinstance(a, dict) else a for a in raw]
     return [cfg.arm]
+
+
+def _camera_fusion(ccfg, extrinsics) -> tuple[bool, bool | None]:
+    """(fuse, map_depth) for one camera stream.
+
+    A camera fuses 3D beliefs when its profile has an `extrinsics:` block
+    (or says `fuse_beliefs: true`) -- and, since hand-eye records are gated,
+    only while those extrinsics are trusted. A configured calibration that
+    is missing/rejected/for another serial turns BOTH off, overriding the
+    profile: back-projecting through it would place beliefs and occupancy a
+    few centimetres off, the failure the record's gate exists to prevent.
+    """
+    if not getattr(extrinsics, "calibrated", True):
+        return False, False
+    return bool(ccfg.get("fuse_beliefs", "extrinsics" in ccfg)), ccfg.get("map_depth")
 
 
 def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
@@ -328,6 +344,11 @@ def build_runtime(
     from ..memory.embedder import embedder_config, make_embedder
 
     memory_embedder = make_embedder(embedder_config(cfg))
+    # B43 (ROADMAP #7 v2), both opt-in: crops of every committed watcher
+    # detection, and the visual index persisted across restarts. Resolved
+    # and validated HERE too, so a bad limit fails the build before any
+    # hardware exists, like a bad embedder does.
+    visual_recall = _visual_recall_settings(cfg.get("memory", _empty_cfg()), memory_embedder)
 
     from ..perception.occupancy import OccupancyMap
 
@@ -349,18 +370,28 @@ def build_runtime(
         workspace_max=[max(v[i] for v in ws_max) for i in range(3)],
     )
 
-    raw_arms, safe_arms, arm_names = [], [], []
+    raw_arms, safe_arms, arm_names, kins = [], [], [], []
     for i, acfg in enumerate(arm_cfgs):
         raw, safe, k = _build_arm(acfg, lazy_arm, occupancy, cfg)
         raw_arms.append(raw)
         safe_arms.append(safe)
         arm_names.append(str(acfg.get("name", f"arm{i}")))
+        kins.append(k)
         if i == 0:
             kin = k
     arm_rig = ArmRig(safe_arms, arm_names)
     # Inter-arm proximity gating (no-op for a single arm, or when profiles
     # declare no base_pose -- see _wire_neighbors).
     _wire_neighbors(arm_rig, raw_arms)
+    # B39: the robot's own pixels from its link geometry, for camera frames
+    # that carry no render self-mask (the real rig). Opt-in
+    # (`workspace_filter.link_self_mask.enabled`); off, this is None and
+    # nothing is loaded or read. Built before any camera opens, so a bad
+    # setting fails the build without leaking a stream.
+    from ..perception.link_mask import build_link_self_mask
+
+    link_self_mask = build_link_self_mask(
+        cfg, list(zip(arm_names, arm_cfgs, kins, raw_arms, strict=True)))
     # The primary arm stays bound to the same names the single-arm code used,
     # so every existing call site (56 `self.arm` uses in the skill runtime,
     # shutdown_runtime, the truth-pose hook) is untouched by the rig.
@@ -371,7 +402,9 @@ def build_runtime(
     # ── the camera rig: N continuous streams, first = manipulation ──────
     cam_cfgs = _camera_cfgs(cfg)
     streams, watched = [], []
-    detector = LockedDetector(_make_detector(cfg))
+    # The detector is built AFTER rig.open() (below): Seeed's WRC rig reset
+    # the depth cameras' USB link when YOLOE/CUDA loaded before they were
+    # streaming (WRC 37285b0, tests/test_detector_after_camera_open.py).
 
     def fk():
         # Eye-in-hand extrinsics need live FK -- but the 3 Hz watcher must
@@ -391,23 +424,30 @@ def build_runtime(
             rate_hz=float(ccfg.get("fps", 30.0)),
         )
         streams.append(stream)
+        extrinsics = Extrinsics.from_config(
+            ccfg.get("extrinsics", _empty_cfg()), fk_tcp2base=fk,
+            camera_serial=ccfg.get("serial"),
+        )
+        if not extrinsics.calibrated:
+            print(f"[cascade] camera {stream.name}: {extrinsics.calibration_error} "
+                  "-- streaming only, no 3D fusion", file=sys.stderr)
+        fuse, map_depth = _camera_fusion(ccfg, extrinsics)
         watched.append(
             WatchedCamera(
                 stream=stream,
                 depth=DepthProvider(ccfg),
-                extrinsics=Extrinsics.from_config(
-                    ccfg.get("extrinsics", _empty_cfg()), fk_tcp2base=fk
-                ),
+                extrinsics=extrinsics,
                 # A camera without calibrated extrinsics must not fuse 3D
                 # beliefs (garbage base-frame positions); it still streams
                 # video + overlays + heartbeats.
-                fuse=bool(ccfg.get("fuse_beliefs", "extrinsics" in ccfg)),
-                map_depth=ccfg.get("map_depth"),
+                fuse=fuse,
+                map_depth=map_depth,
             )
         )
     rig = CameraRig(streams)
     rig.open()
     try:
+        detector = LockedDetector(_make_detector(cfg))
         rig.primary.warm_up(int(cam_cfgs[0].get("warmup_frames", 5)))
     except Exception:
         rig.close()  # a partial build must not leak open camera streams
@@ -417,6 +457,8 @@ def build_runtime(
         horizon_s=float(cfg.memory.get("horizon_s", 15.0)),
         frame_horizon_s=float(cfg.memory.get("frames_horizon_s", 600.0)),
         **({"embedder": memory_embedder} if memory_embedder is not None else {}),
+        **({"max_detections": visual_recall["detections"]["max_detections"]}
+           if visual_recall["detections"] is not None else {}),
     )
     if memory_embedder is not None:
         print(f"[cascade] memory embedder: {memory_embedder.name} "
@@ -428,6 +470,8 @@ def build_runtime(
     # per-detection baseline for a live A/B (memory/beliefs.py update_frame).
     # Colour identity per camera (B32b): `memory.per_camera_colour: false` is
     # the one-name baseline for a live A/B (memory/beliefs.py _identity_ok).
+    # Size consistency (B40): `memory.size_gate: false` is the no-size-check
+    # baseline for a live A/B (memory/beliefs.py _size_ok).
     beliefs = _belief_store(mcfg)
     # Persistent spatial memory (ROADMAP item): the world model survives a
     # restart, so the robot does not re-discover a table it already mapped and
@@ -451,6 +495,19 @@ def build_runtime(
                 print(f"[cascade] recalled {n} object(s) from {beliefs_path}")
         except Exception as e:  # noqa: BLE001 - memory must never block startup
             print(f"[cascade] belief memory not loaded ({e})", file=sys.stderr)
+    # B43 (opt-in `memory.persist_episodic`): the visual index survives a
+    # restart the same way. Restored entries are aged by wall clock and
+    # floored at LOADED_MIN_AGE_S, so every restored hit reads `remembered`;
+    # a file from another embedder is refused, a corrupt one ignored.
+    episodic_path = None
+    if visual_recall["persist"] is not None:
+        episodic_path = visual_recall["persist"]["path"]
+        try:
+            n = memory.load_visual(episodic_path, max_age_s=visual_recall["persist"]["max_age_s"])
+            if n:
+                print(f"[cascade] recalled {n} remembered appearance(s) from {episodic_path}")
+        except Exception as e:  # noqa: BLE001 - memory must never block startup
+            print(f"[cascade] visual memory not loaded ({e})", file=sys.stderr)
     trace = TraceLogger(run_dir)
     runtime = SkillRuntime(
         rig.primary, watched[0].depth, detector, watched[0].extrinsics,
@@ -460,11 +517,16 @@ def build_runtime(
     runtime._kitchen_camera_renderer = kitchen_renderer
     # Where to persist the world model on shutdown (None = disabled).
     runtime.beliefs_path = beliefs_path
+    # Where to persist the visual index on shutdown (B43; None = disabled).
+    runtime.episodic_path = episodic_path
     # The arm rig hangs off the runtime the same way the camera rig does.
     # `runtime.arm` stays the primary SafeArm, so nothing that predates the
     # rig has to learn about it; a skill called with `arm="<name>"` is
     # rebound for that one call by SkillRuntime.execute().
     runtime.arm_rig = arm_rig
+    # Both fusion paths consult the same link self-mask (None = off): the
+    # runtime's get_observation / _reobserve here, the watcher below.
+    runtime._link_self_mask = link_self_mask
 
     # Pigey (arXiv:2607.21725) closed loop: verify each primitive's physical
     # effect against a channel the actuator does not own. In sim the bridge
@@ -485,6 +547,11 @@ def build_runtime(
             harness=harness,
             workspace=WorkspaceFilter.from_config(cfg.get("workspace_filter")),
             occupancy=occupancy,
+            link_mask=link_self_mask,
+            # B43: only with memory.visual_recall_detections (+ an embedder);
+            # otherwise the watcher is constructed exactly as before.
+            **({"visual_recall": _detection_recorder(memory, visual_recall["detections"])}
+               if visual_recall["detections"] is not None else {}),
         )
         watcher.start()
         runtime.watcher = watcher
@@ -502,6 +569,15 @@ def build_runtime(
     mode, idle_timeout = resolve_mode(scfg, os.environ.get)
     if not serve:
         mode = "off"
+    # B47 (opt-in): `stream.wrist_narration: true` + a wrist stream -> the
+    # dashboard highlights that tile during motion skills with one line built
+    # from verifiable state only. Off, or no wrist stream: nothing attached,
+    # nothing served differently (apps/wrist_narration.py).
+    from .wrist_narration import build_narrator
+
+    runtime.wrist_narrator = build_narrator(runtime, scfg)
+    wrist_kw = ({"wrist_view": runtime.wrist_narrator.camera}
+                if runtime.wrist_narrator is not None else {})
 
     def _make_stream_server():
         from .stream_server import StreamServer
@@ -517,6 +593,7 @@ def build_runtime(
             runtime_fn=lambda: runtime,
             depth_max_m=float(scfg.get("depth_max_m", 2.0)),
             on_poll=lambda: runtime.live_view.note_poll(),
+            **wrist_kw,
         )
 
     external_view = os.environ.get("CASCADE_EXTERNAL_VIEW_URL")
@@ -554,6 +631,7 @@ def build_runtime(
     # (graspgenx down)" before anything moves instead of an 8 s stall and a
     # buried memory note. Occupancy was probed when its map was built.
     _probe_grasp_backend(runtime)
+    _probe_vla_executor(runtime)
     runtime.trace.backends_fn = runtime.backends
     b = runtime.backends()
     print(f"[cascade] backends: grasp_planner={b['grasp_planner']} | occupancy={b['occupancy']}")
@@ -594,6 +672,28 @@ def _probe_grasp_backend(runtime) -> None:
         runtime.grasp_planner_used = "obb (graspgenx down)"
         print(f"[cascade] WARNING: grasp.backend=graspgenx but no server answered "
               f"({str(e)[:100]}); analytic OBB fallback; will retry the server", file=sys.stderr)
+
+
+def _probe_vla_executor(runtime) -> None:
+    """`grasp.executor: vla` (B49, opt-in): build the executor -- a bad
+    `grasp.vla` block or an unknown executor name fails the build -- and probe
+    its policy server NOW, so the banner and the capability matrix say whether
+    the route can run before anything moves. The analytic executor (the
+    default) attaches nothing."""
+    from ..grasping.vla_executor import VLAExecutor, executor_name
+
+    gcfg = runtime.cfg.grasp
+    if executor_name(gcfg) != "vla":
+        return
+    executor = VLAExecutor.from_cfg(gcfg)
+    runtime.vla_executor = executor
+    status = executor.probe()
+    if status["answered"]:
+        print(f"[cascade] grasp executor: vla -> {status['detail']}")
+    else:
+        print(f"[cascade] WARNING: grasp.executor=vla but {status['detail']}; label grasps are "
+              "refused (no analytic fallback) until a policy server answers and the runtime "
+              "restarts", file=sys.stderr)
 
 
 def _probe_hug_backend(runtime, gcfg) -> None:
@@ -644,6 +744,11 @@ def _runtime_state(runtime) -> dict:
     out["capabilities"] = capability_matrix(runtime)
     if runtime.watcher is not None:
         out["perception"] = runtime.watcher.stats()
+    # B47: only with a wrist narrator (opt-in + a wrist stream); absent, the
+    # state carries exactly the keys it always had.
+    narrator = getattr(runtime, "wrist_narrator", None)
+    if narrator is not None:
+        out["wrist_view"] = narrator.snapshot(runtime)
     return out
 
 
@@ -820,6 +925,13 @@ def shutdown_runtime(runtime, arm) -> dict:
         n = runtime.beliefs.save(path)
         print(f"[cascade] remembered {n} object(s) -> {path}")
 
+    def _save_episodic():
+        # B43 (opt-in): the visual index, right after the world model and
+        # before the watcher (its only other writer) stops; atomic either way.
+        path = runtime.episodic_path
+        n = runtime.memory.save_visual(path)
+        print(f"[cascade] remembered {n} appearance(s) -> {path}")
+
     def _disconnect_arms():
         rig = getattr(runtime, "arm_rig", None)
         if rig is not None:
@@ -830,6 +942,10 @@ def shutdown_runtime(runtime, arm) -> dict:
     for name, step in (
         ("park", lambda: _park_arm(runtime)),
         ("beliefs", _save_beliefs),
+        # present only when the visual index is persisted, so the default
+        # receipt keeps exactly its stages
+        *((("episodic", _save_episodic),) if getattr(runtime, "episodic_path", None) is not None
+          else ()),
         ("watcher", lambda: runtime.watcher.stop() if runtime.watcher is not None else None),
         ("stream_server", lambda: runtime.stream_server.stop() if getattr(runtime, "stream_server", None) else None),
         ("viewer", lambda: runtime.viewer.stop() if getattr(runtime, "viewer", None) else None),
@@ -872,6 +988,85 @@ def _beliefs_persist_enabled(mcfg) -> bool:
     return bool(mcfg.get("persist_beliefs", True))
 
 
+def _flag(value) -> bool:
+    """A YAML/env boolean: the string "false" is false, not a truthy string."""
+    if isinstance(value, str):
+        return value.strip().lower() not in ("0", "false", "no", "off")
+    return bool(value)
+
+
+def _episodic_persist_enabled(mcfg) -> bool:
+    """`memory.persist_episodic` (B43, default false), with CASCADE_EPISODIC
+    as the override -- the same shape as `_beliefs_persist_enabled`."""
+    env = os.environ.get("CASCADE_EPISODIC", "").strip().lower()
+    if env:
+        return env not in ("0", "false", "no", "off")
+    return _flag(mcfg.get("persist_episodic", False))
+
+
+def _episodic_path(mcfg) -> Path:
+    """Where the visual index persists: CASCADE_EPISODIC_PATH, else
+    `memory.episodic_path`, else <repo>/runs/episodic.json."""
+    return Path(os.environ.get("CASCADE_EPISODIC_PATH")
+                or str(mcfg.get("episodic_path") or (PACKAGE_ROOT / "runs" / "episodic.json")))
+
+
+def _memory_number(mcfg, key: str, default, *, minimum: float, integer: bool = False):
+    """A validated `memory.<key>`: finite, >= `minimum`, an integer when asked.
+    Anything else is a ValueError naming the key (fail closed at build)."""
+    raw = mcfg.get(key, default)
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        value = math.nan
+    if (isinstance(raw, bool) or not math.isfinite(value) or value < minimum
+            or (integer and value != int(value))):
+        kind = "an integer" if integer else "a finite number"
+        raise ValueError(f"memory.{key} must be {kind} >= {minimum:g}, got {raw!r}")
+    return int(value) if integer else value
+
+
+def _visual_recall_settings(mcfg, embedder) -> dict:
+    """B43's two opt-in switches as validated settings.
+
+    ``detections`` (memory.visual_recall_detections): the recorder's limits.
+    ``persist`` (memory.persist_episodic / CASCADE_EPISODIC): path + max age.
+    Each is None when off. A switch without a memory embedder has no index
+    to feed or persist: it is reported and ignored, never a crash -- memory
+    is advisory and must not block startup. An invalid limit raises."""
+    out: dict = {"detections": None, "persist": None}
+    if _flag(mcfg.get("visual_recall_detections", False)):
+        limits = {
+            "interval_s": _memory_number(mcfg, "visual_recall_interval_s", 30.0, minimum=0.0),
+            "max_per_tick": _memory_number(mcfg, "visual_recall_max_per_tick", 2,
+                                           minimum=1, integer=True),
+            "max_detections": _memory_number(mcfg, "visual_recall_max_detections", 128,
+                                             minimum=1, integer=True),
+        }
+        if embedder is None:
+            print("[cascade] memory.visual_recall_detections needs memory.embedder "
+                  "(backend: hash | siglip | clip); watcher crops stay off", file=sys.stderr)
+        else:
+            out["detections"] = limits
+    if _episodic_persist_enabled(mcfg):
+        max_age = _memory_number(mcfg, "episodic_max_age_s", EpisodicMemory.DEFAULT_MAX_AGE_S,
+                                 minimum=0.0)
+        if embedder is None:
+            print("[cascade] memory.persist_episodic needs memory.embedder "
+                  "(backend: hash | siglip | clip); the visual index is not persisted",
+                  file=sys.stderr)
+        else:
+            out["persist"] = {"path": _episodic_path(mcfg), "max_age_s": max_age}
+    return out
+
+
+def _detection_recorder(memory, limits: dict):
+    from ..memory.episodic import DetectionCropRecorder
+
+    return DetectionCropRecorder(memory, interval_s=limits["interval_s"],
+                                 max_per_tick=limits["max_per_tick"])
+
+
 def _instance_association_enabled(mcfg) -> bool:
     """`memory.instance_association` (default true). A YAML string such as
     "false" is honoured as false rather than read as a truthy string."""
@@ -889,16 +1084,24 @@ def _belief_store(mcfg) -> BeliefStore:
     (the Isaac bin: "orange" top, "yellow" side) is one belief; false = the
     one-name rule. `neighbour_colour_iou` (default 0.75) is the 3D box IoU a
     camera that never named a belief needs to fuse a neighbouring name into
-    it; outside (0, 1] raises. A YAML string such as "false" is honoured.
+    it; outside (0, 1] raises. `size_gate` (default true, B40): a view much
+    larger than any view a belief has had is not that object (a camera that
+    names a container and the prop inside it alike must not fuse the
+    container into the prop); false = the store before it, byte for byte. A
+    YAML string such as "false" is honoured.
     """
     value = mcfg.get("per_camera_colour", True)
     if isinstance(value, str):
         value = value.strip().lower() not in ("0", "false", "no", "off")
+    gate = mcfg.get("size_gate", True)
+    if isinstance(gate, str):
+        gate = gate.strip().lower() not in ("0", "false", "no", "off")
     iou = mcfg.get("neighbour_colour_iou")
     return BeliefStore(
         instance_association=_instance_association_enabled(mcfg),
         per_camera_colour=bool(value),
         neighbour_colour_iou=(NEIGHBOUR_COLOUR_IOU if iou is None else float(iou)),
+        size_gate=bool(gate),
     )
 
 
@@ -948,6 +1151,34 @@ def _premotion_critic(cfg, llm, runtime, is_mock: bool):
     )
 
 
+def _programs_enabled(cfg) -> bool:
+    """The programs-tier switch, ONE for every front-end (the CLI's
+    orchestrator and, since B42, the MCP server): `CASCADE_PROGRAMS` (1/0)
+    beats `agent.programs` (default false)."""
+    env = os.environ.get("CASCADE_PROGRAMS", "").strip().lower()
+    if env:
+        return env not in ("0", "false", "no", "off")
+    agent_cfg = (cfg.get("agent", {}) if cfg is not None else {}) or {}
+    raw = agent_cfg.get("programs", False)
+    return (raw.strip().lower() in ("1", "true", "yes", "on")
+            if isinstance(raw, str) else bool(raw))
+
+
+def _program_library(cfg):
+    """The program store: `runs/programs.jsonl` (`memory.programs_path`,
+    CASCADE_PROGRAMS_PATH); reuse after `agent.program_min_tasks` (default 2)
+    distinct verified tasks. Raises when the store cannot be opened."""
+    from ..memory.programs import ProgramLibrary
+    from ..skills.library import PROMOTION_MIN_TASKS
+
+    agent_cfg = cfg.get("agent", {}) or {}
+    mem_cfg = cfg.get("memory", {}) or {}
+    path = (os.environ.get("CASCADE_PROGRAMS_PATH") or mem_cfg.get("programs_path")
+            or PACKAGE_ROOT / "runs" / "programs.jsonl")
+    return ProgramLibrary(Path(str(path)).expanduser(),
+                          min_tasks=int(agent_cfg.get("program_min_tasks", PROMOTION_MIN_TASKS)))
+
+
 def _program_tier(cfg, is_mock: bool):
     """ROADMAP follow-up #8: the opt-in programs tier (docs/PROGRAMS_TIER.md).
 
@@ -963,30 +1194,15 @@ def _program_tier(cfg, is_mock: bool):
     CASCADE_PROGRAMS_PATH); a program is offered for reuse only after it was
     verified in >= `agent.program_min_tasks` (default 2) distinct tasks.
     """
-    agent_cfg = cfg.get("agent", {}) or {}
-    env = os.environ.get("CASCADE_PROGRAMS", "").strip().lower()
-    if env:
-        enabled = env not in ("0", "false", "no", "off")
-    else:
-        raw = agent_cfg.get("programs", False)
-        enabled = (raw.strip().lower() in ("1", "true", "yes", "on")
-                   if isinstance(raw, str) else bool(raw))
-    if not enabled:
+    if not _programs_enabled(cfg):
         return None
     if is_mock:
         print("[cascade] programs tier requested, but the mock brain is a labelled script, "
               "not an author: tier left off")
         return None
     from ..agent.programs import ProgramTier
-    from ..memory.programs import ProgramLibrary
-    from ..skills.library import PROMOTION_MIN_TASKS
 
-    mem_cfg = cfg.get("memory", {}) or {}
-    path = (os.environ.get("CASCADE_PROGRAMS_PATH") or mem_cfg.get("programs_path")
-            or PACKAGE_ROOT / "runs" / "programs.jsonl")
-    library = ProgramLibrary(Path(str(path)).expanduser(),
-                             min_tasks=int(agent_cfg.get("program_min_tasks", PROMOTION_MIN_TASKS)))
-    return ProgramTier(library)
+    return ProgramTier(_program_library(cfg))
 
 
 def _make_detector(cfg):

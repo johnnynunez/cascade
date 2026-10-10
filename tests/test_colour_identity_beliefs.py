@@ -552,14 +552,16 @@ def test_per_camera_names_survive_a_restart(tmp_path):
     path = tmp_path / "beliefs.json"
     store.save(path)
     again = BeliefStore()
-    assert again.load(path) == 1
+    # no age limit: the views were taken at monotonic t=1.0/1.5 (seconds since
+    # boot), so the default 6 h limit would drop them on a host up longer
+    assert again.load(path, max_age_s=float("inf")) == 1
     assert again.all()[0].source_colors == {"isaac": "orange", "isaac_side": "yellow"}
     blob = json.loads(path.read_text())
     for r in blob["beliefs"]:
         r.pop("source_colors")
     path.write_text(json.dumps(blob))
     old = BeliefStore()
-    assert old.load(path) == 1 and old.all()[0].source_colors == {}
+    assert old.load(path, max_age_s=float("inf")) == 1 and old.all()[0].source_colors == {}
 
 
 def test_demo_config_turns_it_on_and_the_switch_parses():

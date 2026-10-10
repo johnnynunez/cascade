@@ -139,6 +139,20 @@ def _isolate_persistent_beliefs(monkeypatch, tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def _isolate_episodic_memory(monkeypatch, tmp_path):
+    """Same isolation for the persisted VISUAL index (B43).
+
+    `memory.persist_episodic` is off in the shipped profile, but a shell that
+    exported CASCADE_EPISODIC=1 for a live session would otherwise make every
+    build_runtime in the suite read and write the developer's
+    `runs/episodic.json` -- remembered appearances leaking between tests and
+    into the real store. Tests opt in per-test; the path is private.
+    """
+    monkeypatch.setenv("CASCADE_EPISODIC_PATH", str(tmp_path / "episodic.json"))
+    monkeypatch.delenv("CASCADE_EPISODIC", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _isolate_learned_memories(monkeypatch, tmp_path):
     """Same isolation for the OTHER shared learned stores.
 
@@ -176,6 +190,36 @@ def _no_ambient_memory_embedder(monkeypatch):
     certifies the shipped default (no embedder); tests opt in per-test."""
     monkeypatch.delenv("CASCADE_MEMORY_EMBEDDER", raising=False)
     monkeypatch.delenv("CASCADE_MEMORY_EMBEDDER_MODEL", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _no_ambient_programs(monkeypatch):
+    """A shell that exported CASCADE_PROGRAMS=1 for a live session must not
+    add list_programs / run_program to every MCP catalog in the suite (B42),
+    nor point it at a real programs.jsonl. The suite certifies the shipped
+    default (tier off); tests opt in per-test."""
+    monkeypatch.delenv("CASCADE_PROGRAMS", raising=False)
+    monkeypatch.delenv("CASCADE_PROGRAMS_PATH", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _no_ambient_vla_executor(monkeypatch):
+    """A shell that exported CASCADE_GRASP_EXECUTOR=vla (and a policy port)
+    for a GPU session must not route every grasp in the suite to a policy
+    server (B49). The suite certifies the shipped analytic executor; tests
+    opt in per test."""
+    monkeypatch.delenv("CASCADE_GRASP_EXECUTOR", raising=False)
+    monkeypatch.delenv("CASCADE_VLA_PORT", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _no_ambient_judge(monkeypatch):
+    """A shell that exported CASCADE_JUDGE(=vlm) for a live launch must not
+    make every launcher test in the suite start a judge pass against a real
+    model endpoint (B44), nor point judge_run at a private judge config. The
+    suite certifies the shipped default (judge pass off); tests opt in."""
+    for name in ("CASCADE_JUDGE", "CASCADE_JUDGE_TIMEOUT_S", "CASCADE_JUDGE_CONFIG"):
+        monkeypatch.delenv(name, raising=False)
 
 
 @pytest.fixture(autouse=True)

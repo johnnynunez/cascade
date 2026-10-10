@@ -23,6 +23,8 @@ does not change which code produced those measurements.
 ## Runtime contracts
 
 - [Architecture](ARCHITECTURE.md)
+- [WRC control port for the reBot B601-RS: fault clear, park, gripper, Cartesian moves, onsite checks](WRC_CONTROL_PORT.md)
+- [reBot RS gripper: opt-in contact-relative squeeze cap and its hardware protocol (B38)](REBOT_GRIP_SQUEEZE_CAP.md)
 - [Composable robots, typed sensors, skill graphs and Arena/VAB validation](ROBOT_MODULARITY.md)
 - [Local conversation gateway and typed robot speech tools](CONVERSATION.md)
 - [Capture-time frames, spatial memory and planar route replay](SPATIAL_PROVIDERS.md)

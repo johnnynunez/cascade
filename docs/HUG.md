@@ -128,8 +128,12 @@ required profile rejects it.
 
 Selecting HUG:
 
-- `CASCADE_HUG_PORT` / `CASCADE_HUG_HOST` override `grasp.hug.port/host`.
-  The launcher forwards both to the MCP server.
+- `CASCADE_HUG_PORT` / `CASCADE_HUG_HOST` override `grasp.hug.port/host`:
+  `load_demo_config` applies them last, to every arm's view (empty = unset; a
+  malformed port or host is refused, naming the variable), and
+  `serve_hug.py` reads `CASCADE_HUG_PORT` by the same rule when `--port` is
+  not given. The launcher and `scripts/setup_agents.py` forward both to the
+  MCP server.
 - `scripts/launch.sh` has no HUG sidecar; start the server yourself.
 - With `--arm isaac_kitchen_hug`, the launcher refuses `--graspgenx
   local|external|none` and any non-`hug` `CASCADE_GRASP_BACKEND`, because

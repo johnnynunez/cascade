@@ -1,0 +1,98 @@
+# Hand-eye calibration preset poses, per arm (scripts/calibrate_handeye.py).
+#
+# Each pose is [x, y, z, roll, pitch, yaw]: TCP (the arm profile's ee_frame)
+# in the ROBOT BASE frame, metres, URDF rpy (R = Rz(yaw) Ry(pitch) Rx(roll),
+# cascade.types.pose_to_transform). The calibration CLI solves IK for each
+# from the profile's home_q, vets it with the arm's SafetyHarness, orders the
+# sweep greedily in joint space, and vets every pose AGAIN right before the
+# arm moves through SafeArm. Unreachable/vetoed presets are skipped, never
+# forced.
+#
+# `arms:` maps an arm profile to a set EXPLICITLY. A new arm gets an entry
+# only after its reachability is measured (tests/test_handeye_presets.py
+# pins the reBot sets on the RS kinematics: >= 90 % usable, rotation spread
+# >= 1.5x the solver's degeneracy gate, largest joint move < 2 rad).
+arms:
+  rebot_rs: rebot
+  rebot_rs_mb: rebot
+  mock: rebot          # the mock arm IS the RS model kinematically (dry runs)
+
+sets:
+  rebot:
+    # Eye-to-hand (fixed top camera, marker on top of the gripper, face up).
+    # Verbatim from Seeed's WRC fork, scripts/calib_top_orbbec.py
+    # TOP_CALIB_POSES (itself copied from rebot_grasp/scripts/
+    # calibrate_top_camera.py): roll/yaw/pitch sweeps around (0.30, -0.05,
+    # 0.28), translations, combined corners and extreme combos. On cascade's
+    # RS kinematics 37/38 solve (0.25,-0.05,0.28 rpy 0 does not) and all
+    # 37 pass vet_pose; rotation spread ~20 deg.
+    eye_to_hand:
+      - [ 0.30, -0.05,  0.28,  0.00,  0.00, -0.50]
+      - [ 0.30, -0.05,  0.28,  0.00,  0.00,  0.00]
+      - [ 0.30, -0.05,  0.28,  0.00,  0.00,  0.50]
+      - [ 0.30, -0.05,  0.28, -0.60,  0.00,  0.00]
+      - [ 0.30, -0.05,  0.28, -0.30,  0.00,  0.00]
+      - [ 0.30, -0.05,  0.28,  0.30,  0.00,  0.00]
+      - [ 0.30, -0.05,  0.28,  0.60,  0.00,  0.00]
+      - [ 0.30, -0.05,  0.28,  0.00,  0.20,  0.00]
+      - [ 0.30, -0.05,  0.28,  0.00,  0.20,  0.50]
+      - [ 0.30, -0.05,  0.28,  0.00,  0.20, -0.50]
+      - [ 0.30, -0.05,  0.28,  0.00,  0.20, -1.00]
+      - [ 0.30, -0.05,  0.28,  0.00,  0.40,  0.00]
+      - [ 0.30, -0.05,  0.28,  0.00,  0.40,  0.50]
+      - [ 0.30, -0.05,  0.28,  0.00,  0.40, -0.50]
+      - [ 0.25, -0.05,  0.28,  0.00,  0.00,  0.00]
+      - [ 0.25, -0.05,  0.28,  0.00,  0.20,  0.50]
+      - [ 0.35, -0.05,  0.28,  0.00,  0.00,  0.00]
+      - [ 0.35, -0.05,  0.28,  0.00,  0.20, -0.50]
+      - [ 0.30, -0.10,  0.28,  0.00,  0.00,  0.00]
+      - [ 0.30, -0.10,  0.28,  0.20,  0.20,  0.50]
+      - [ 0.30, -0.05,  0.30,  0.00,  0.00,  0.00]
+      - [ 0.30, -0.05,  0.32,  0.00,  0.00,  0.00]
+      - [ 0.30,  0.00,  0.28,  0.00,  0.00,  0.00]
+      - [ 0.30,  0.00,  0.28,  0.00,  0.20,  0.50]
+      - [ 0.30,  0.05,  0.28,  0.00,  0.00,  0.00]
+      - [ 0.30, -0.05,  0.22,  0.00,  0.20,  0.50]
+      - [ 0.30, -0.05,  0.35,  0.00,  0.00,  0.00]
+      - [ 0.30, -0.05,  0.35,  0.00,  0.20, -0.50]
+      - [ 0.25, -0.05,  0.25,  0.30,  0.20,  0.50]
+      - [ 0.25,  0.00,  0.25, -0.30,  0.20, -0.50]
+      - [ 0.35, -0.05,  0.25, -0.30,  0.20,  0.50]
+      - [ 0.35,  0.00,  0.25,  0.30,  0.20, -0.50]
+      - [ 0.30, -0.05,  0.28, -0.40,  0.20, -1.00]
+      - [ 0.30, -0.05,  0.28, -0.30,  0.30, -1.00]
+      - [ 0.30, -0.05,  0.28,  0.60,  0.20,  0.30]
+      - [ 0.30, -0.05,  0.28, -0.60,  0.20, -0.30]
+      - [ 0.30, -0.05,  0.28,  0.50,  0.30,  0.50]
+      - [ 0.30, -0.05,  0.28, -0.50,  0.30, -0.50]
+    # Eye-in-hand (wrist camera looking along the approach, marker flat on
+    # the table ~0.45 m in front of the base). Verbatim from WRC
+    # scripts/calib_wrist.py CALIB_POSES: tool pitched down 0.5-0.9 rad with
+    # yaw/roll variation. 25/25 solve and pass vet_pose on the RS kinematics;
+    # rotation spread ~10 deg (pitch-heavy by design).
+    eye_in_hand:
+      - [ 0.28,  0.00,  0.30,  0.00,  0.50,  0.00]
+      - [ 0.28,  0.00,  0.30,  0.00,  0.70,  0.00]
+      - [ 0.28,  0.00,  0.30,  0.00,  0.90,  0.00]
+      - [ 0.28, -0.15,  0.30,  0.00,  0.60,  0.00]
+      - [ 0.28,  0.15,  0.30,  0.00,  0.60,  0.00]
+      - [ 0.28, -0.20,  0.32,  0.00,  0.50,  0.00]
+      - [ 0.28,  0.20,  0.32,  0.00,  0.50,  0.00]
+      - [ 0.35,  0.00,  0.28,  0.00,  0.60,  0.00]
+      - [ 0.22,  0.00,  0.35,  0.00,  0.70,  0.00]
+      - [ 0.38,  0.00,  0.25,  0.00,  0.80,  0.00]
+      - [ 0.28,  0.00,  0.30,  0.00,  0.60, -0.30]
+      - [ 0.28,  0.00,  0.30,  0.00,  0.60,  0.30]
+      - [ 0.28,  0.00,  0.30,  0.00,  0.60, -0.60]
+      - [ 0.28,  0.00,  0.30,  0.00,  0.60,  0.60]
+      - [ 0.28,  0.00,  0.30, -0.40,  0.60,  0.00]
+      - [ 0.28,  0.00,  0.30,  0.40,  0.60,  0.00]
+      - [ 0.28,  0.00,  0.40,  0.00,  0.50,  0.00]
+      - [ 0.28,  0.10,  0.40,  0.00,  0.50,  0.30]
+      - [ 0.28, -0.10,  0.40,  0.00,  0.50, -0.30]
+      - [ 0.28,  0.00,  0.22,  0.00,  0.80,  0.00]
+      - [ 0.28,  0.08,  0.22,  0.00,  0.80,  0.20]
+      - [ 0.28, -0.08,  0.22,  0.00,  0.80, -0.20]
+      - [ 0.32,  0.15,  0.26,  0.30,  0.70,  0.40]
+      - [ 0.32, -0.15,  0.26, -0.30,  0.70, -0.40]
+      - [ 0.24,  0.12,  0.35,  0.20,  0.55,  0.25]

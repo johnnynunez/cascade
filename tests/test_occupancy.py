@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from conftest import REPO, loopback_host
+from owned_server import OwnedServerError, held_dead_port, start_owned_server
 
 from cascade.perception.occupancy import OccupancyError, OccupancyMap
 from cascade.safety.harness import SafetyHarness, SafetyLimits
@@ -380,7 +381,6 @@ def test_observed_border_cell_does_not_borrow_clearance_from_unknown_neighbor(re
 # ─────────────────────────────────────────────────────────────────────────
 
 BRIDGE = REPO / "scripts" / "serve_occupancy_bridge.py"
-BRIDGE_PORT = 5598          # not 5557: never collide with a rig bridge
 
 
 def _has_wire() -> bool:
@@ -400,56 +400,64 @@ needs_wire = pytest.mark.skipif(
 )
 
 
-def _spawn_bridge(port: int):
-    """The real occupancy bridge (warp backend), on a private port. Fails the
-    test if it cannot start: a bridge that will not come up is a regression,
-    not an environment to skip around (the deps are in the `grasping` extra
-    plus warp-lang, both in this venv)."""
-    import socket
-    import subprocess
-    import sys
-    import time
+def _bridge_identity(port: int) -> dict:
+    from cascade.perception.occupancy import OccupancyClient
 
-    proc = subprocess.Popen(
-        [sys.executable, str(BRIDGE), "--port", str(port),
-         "--voxel-size", "0.02", "--backend", "warp",
-         "--region-min", "-1.0", "-1.0", "-1.0", "--region-max", "1.0", "1.0", "1.0"],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    )
-    deadline = time.monotonic() + 90.0   # first Warp kernel compile is slow
-    while time.monotonic() < deadline:
-        if proc.poll() is not None:
-            err = proc.stderr.read().decode()[-600:] if proc.stderr else ""
-            pytest.fail(f"occupancy bridge exited at startup: {err}")
-        s = socket.socket()
-        s.settimeout(0.2)
-        ok = s.connect_ex((loopback_host(), port)) == 0
-        s.close()
-        if ok:
-            return proc
-        time.sleep(0.1)
-    proc.kill()
-    pytest.fail("occupancy bridge did not bind in time")
+    client = OccupancyClient(host=loopback_host(), port=port, timeout_ms=30000)
+    try:
+        return client.probe(timeout_ms=30000)
+    finally:
+        client.close()
+
+
+def _spawn_bridge(stderr_dir):
+    """The real occupancy bridge (warp backend), on a port the OS assigns.
+    Accepted only when its ready line and its probe reply name the process
+    started here and a fresh random token: the old fixed 5598/5599 + "any
+    listener answers" let concurrent suites talk to each other's bridge
+    (B64, tests/owned_server.py). Fails the test if it cannot start: a
+    bridge that will not come up is a regression, not an environment to
+    skip around (the deps are in the `grasping` extra plus warp-lang, both
+    in this venv)."""
+    import sys
+
+    try:
+        return start_owned_server(
+            [sys.executable, str(BRIDGE), "--voxel-size", "0.02", "--backend", "warp",
+             "--region-min", "-1.0", "-1.0", "-1.0", "--region-max", "1.0", "1.0", "1.0"],
+            identify=_bridge_identity,
+            deadline_s=180.0,   # first Warp kernel compile is slow
+            stderr_path=stderr_dir / "bridge.stderr")
+    except OwnedServerError as e:
+        pytest.fail(f"occupancy bridge did not come up as this test's own server: {e}")
 
 
 @pytest.fixture(scope="module")
-def bridge_server():
+def bridge_server(tmp_path_factory):
     """Shared bridge for the protocol tests. NOTE: legacy `integrate` stamps
     points that no ray ever carves, so tests on this fixture see each
     other's obstacles -- geometry-sensitive tests use `fresh_bridge`."""
-    proc = _spawn_bridge(BRIDGE_PORT)
-    yield BRIDGE_PORT
-    proc.kill()
-    proc.wait(timeout=5)
+    server = _spawn_bridge(tmp_path_factory.mktemp("occupancy-bridge"))
+    yield server.port
+    assert server.stop(), "the shared bridge exited while its tests ran"
 
 
 @pytest.fixture
-def fresh_bridge():
+def fresh_bridge(tmp_path):
     """A private, EMPTY bridge per test for depth-frame geometry."""
-    proc = _spawn_bridge(BRIDGE_PORT + 1)
-    yield BRIDGE_PORT + 1
-    proc.kill()
-    proc.wait(timeout=5)
+    server = _spawn_bridge(tmp_path)
+    yield server.port
+    assert server.stop(), "the bridge exited while its test ran"
+
+
+@pytest.fixture
+def dead_port():
+    """A port this test holds bound with nothing listening: no connection
+    completes (refused on Linux, unanswered on macOS -- keep client timeouts
+    short), and no other process can serve on it meanwhile (unlike a
+    literal "5597")."""
+    with held_dead_port() as port:
+        yield port
 
 
 def _live_map(port, **kw):
@@ -465,14 +473,14 @@ def _live_map(port, **kw):
 
 
 @needs_wire
-def test_the_wire_client_builds_when_the_extra_is_installed():
+def test_the_wire_client_builds_when_the_extra_is_installed(dead_port):
     """occupancy.py raises OccupancyError if pyzmq/msgpack-numpy are missing,
     which disables the whole map. The `grasping` extra carries them (shared
     with the GraspGen-X client); this fails loudly if that regresses."""
     from cascade.perception.occupancy import OccupancyClient, OccupancyError
 
     try:
-        OccupancyClient(port=BRIDGE_PORT)
+        OccupancyClient(port=dead_port)
     except OccupancyError as e:  # pragma: no cover
         pytest.fail(f"client could not be constructed: {e}")
 
@@ -582,11 +590,11 @@ def test_the_harness_gates_on_data_that_came_over_the_wire(bridge_server):
 
 
 @needs_wire
-def test_a_dead_bridge_degrades_instead_of_freezing_the_arm(bridge_server):
+def test_a_dead_bridge_degrades_instead_of_freezing_the_arm(bridge_server, dead_port):
     """The booth rule. A bridge that stops answering must leave the arm
     movable: refresh records last_error, the cache ages out, and clearance
     then returns None (= skip the check) rather than blocking forever."""
-    m = _live_map(5597, max_age_s=0.0)   # nothing listening on 5597
+    m = _live_map(dead_port, max_age_s=0.0)   # held by this test, nothing listening
     m.refresh(_frame(), T_base_cam=np.eye(4))
     assert m.last_error is not None, "a dead bridge should record an error"
     assert m.clearance(np.zeros((1, 3))) is None, "no data must read as None"
@@ -609,7 +617,7 @@ def test_the_bridge_reports_a_bad_action_as_an_error(bridge_server):
 
 
 @needs_wire
-def test_probe_names_the_backend(bridge_server):
+def test_probe_names_the_backend(bridge_server, dead_port):
     """The startup probe is what makes 'occupancy: warp on cpu' a verified
     statement instead of a config wish."""
     m = _live_map(bridge_server)
@@ -617,7 +625,7 @@ def test_probe_names_the_backend(bridge_server):
     assert st is not None and st["backend"] == "warp" and st["esdf"] is True and st["carving"] is True
     assert st["masked_depth"] is False
     assert "warp" in m.describe()
-    dead = _live_map(5597)
+    dead = _live_map(dead_port)
     assert dead.probe() is None and dead.probe_error and "timed out" in dead.probe_error
     assert dead.describe().startswith("none")
 

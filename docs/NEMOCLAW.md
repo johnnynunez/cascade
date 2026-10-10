@@ -46,6 +46,11 @@ changes:
   running pick.
 - JSON-RPC ids are namespaced per session, so a cancel from one session cannot
   freeze another session's motion.
+- The opt-in read-only lane (B46, `mcp.readonly_lane` /
+  `CASCADE_MCP_READONLY_LANE=1`) is shared too: the same receive-side routing
+  (`_enqueue`, after `_admit`) answers `world_state`, `robot_knowledge`,
+  `verify_last_action` and `camera_snapshot` while a motion runs; off by
+  default.
 - Tool calls answer as JSON or SSE (`Accept`); SSE sends `: keepalive`
   comments every 15 s (`CASCADE_MCP_SSE_KEEPALIVE_S`) so a 150 s pick survives
   proxy idle timeouts. A dropped connection is **not** a cancel (MCP spec);
@@ -129,7 +134,11 @@ profile runs a second instance with `--api-key-file`.
   starts took 15.5 s on the x86 rig, past the client's 8 s timeout, so the
   first attempt fell back to the analytic planner; in that run the cube ended
   held at 0.44 m and the retries refused with "already holding". The same
-  failure does not depend on the transport; warm the planner before a proof.
+  failure does not depend on the transport; ~~warm the planner before a
+  proof~~ **landed 2026-10-09 (B15a)**: `scripts/graspgenx_server.py` runs one
+  warm-up inference before it binds, so the first client call was 0.16 s
+  ([evidence](evidence/b15a-graspgenx-warmup-20261009/REPORT.md)); check
+  `health` reports `warmed_up: true` before a proof.
 - **The `nemoclaw <name> agent` wrapper exits 1** with `replayInvalid=true`
   even when the turn's JSON reports `status: ok` and every tool call
   succeeded. Judge a turn by the server's per-call log and the physics

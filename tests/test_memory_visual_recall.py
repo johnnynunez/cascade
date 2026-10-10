@@ -385,7 +385,8 @@ def test_the_fast_tier_credits_each_executed_plan_once_and_subgoals_never_twice(
     assert planner.action_objects is aom
     # (wordings chosen so tier-2 recall cannot match the whole command to one
     # clause's habit: "pick up the red cube and then pick up the blue cube"
-    # recalls "pick up the red cube" at cosine 0.901 on main -- see REPORT)
+    # recalled "pick up the red cube" at cosine 0.901 before B37 -- fixed and
+    # pinned in tests/test_tier2_clause_structure.py)
     task = "put the red cube in the bin and then put the blue cube in the bowl"
     plan_calls = [("pick_and_place", {"object": "red cube"}),
                   ("pick_and_place", {"object": "blue cube"})]

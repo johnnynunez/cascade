@@ -765,6 +765,51 @@ def test_warp_backend_carves_and_reports_timing():
     assert b.last_integrate_ms > 0
 
 
+# `occupancy.clear_on_start` sends the bridge's `clear` action. Found on the
+# physical reBot: only the nvblox backend implemented it, so on the warp
+# backend the rig runs, every start logged "'WarpTsdfBackend' object has no
+# attribute 'clear'" and the previous session's map stayed in place.
+
+@needs_warp
+def test_warp_clear_forgets_the_map_and_stays_usable():
+    from cascade.perception.occupancy_backends import make_backend
+
+    b = make_backend("warp", voxel=0.01, region_min=(0.0, -0.3, -0.02), region_max=(0.6, 0.3, 0.4))
+    f = _tabletop_frame(cube=True, W=640, H=480, fx=600.0)
+    b.integrate_depth(f.depth_m, f.K, _T_TOPDOWN)
+    assert b.occupied_mask().any()
+    b.clear()
+    assert not b.occupied_mask().any()
+    out = b.query((0.0, -0.3, -0.02), (0.6, 0.3, 0.4))
+    assert out["points"].shape[0] == 0 and np.isinf(out["grid"]).all()
+    b.integrate_depth(f.depth_m, f.K, _T_TOPDOWN)
+    pts = np.argwhere(b.occupied_mask()) * 0.01 + b.spec.origin
+    assert (pts[:, 2] > 0.015).sum() > 20, "cube missing after clear: the map is not reusable"
+
+
+def test_voxel_clear_forgets_the_map():
+    from cascade.perception.occupancy_backends import make_backend
+
+    b = make_backend("voxel", voxel=0.02)
+    b.integrate_points(np.array([[0.3, 0.0, 0.05]], dtype=np.float32))
+    assert b.query((0.0, -0.3, -0.02), (0.6, 0.3, 0.4))["points"].shape[0] == 1
+    b.clear()
+    assert b.query((0.0, -0.3, -0.02), (0.6, 0.3, 0.4))["points"].shape[0] == 0
+
+
+@needs_wire
+def test_clear_on_start_empties_the_real_warp_bridge(fresh_bridge):
+    m = _live_map(fresh_bridge, region_min=np.array([0.0, -0.3, -0.02]),
+                  region_max=np.array([0.6, 0.3, 0.4]), depth_stride=1)
+    for _ in range(3):
+        m.refresh(_tabletop_frame(cube=True), T_base_cam=_T_TOPDOWN)
+    assert m.last_error is None, m.last_error
+    region = {"region_min": [0.0, -0.3, -0.02], "region_max": [0.6, 0.3, 0.4]}
+    assert m._client.request({"action": "query", **region})["points"].shape[0] > 0
+    assert m.clear_bridge_map() is True
+    assert m._client.request({"action": "query", **region})["points"].shape[0] == 0
+
+
 def test_explicit_backend_never_falls_through(monkeypatch):
     """`nvblox` asked for on a machine without it must raise, not hand back
     another backend under the same name (the client displays that name)."""

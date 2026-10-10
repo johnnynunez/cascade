@@ -77,6 +77,21 @@ thread/tool contacts. Read-only verifiers measure advancement, actual seating
 contact and zero-motor retention. This experiment does not change the ordinary
 `turn_screw` skill into an autonomous tool-acquisition or preload controller.
 
+The conversation supervisor can also run apart from the robot (B51, opt-in):
+`cascade-robot-service` owns the composed `RobotRuntime` and serves it on
+loopback over the versioned protocol `cascade.robot-runtime/1`
+(`robotics/endpoint.py`, stdlib only); `cascade-conversation` with
+`robot_endpoint` substitutes a `RemoteRobotRuntime` client for the in-process
+runtime and builds no robot. Every existing check stays in the robot process
+(generation and deadline fences, harnesses, verifiers, trace). The protocol
+adds a bearer token and a protocol header, one supervision lease whose expiry
+latches the robot stop (a killed conversation process stops the robot), a
+stop route that needs no lease and runs beside an in-flight motion, and reset
+only with the lease and the exact observed generation. The conversation then
+serves unauthenticated `/healthz` and `/readyz` probes. Without
+`robot_endpoint` the service is the original in-process composition
+(golden-pinned). See [separate deployment](CONVERSATION.md#deploy-the-conversation-service-separately).
+
 ## Design position
 
 CASCADE uses **curated domain tools** between an LLM or human and robot
@@ -1430,6 +1445,18 @@ barriers.
   `pick_and_place` rows, and the shipped `eval.judge` targets a frontier
   model through the OpenClaw gateway -- a local judge needs
   `CASCADE_JUDGE_CONFIG`.
+- The split conversation deployment (B51, opt-in) is loopback only (one host
+  or network namespace); a cross-host deployment needs an authenticated,
+  encrypted transport that `cascade.robot-runtime/1` does not provide. The
+  robot re-anchors the remaining intent budget when a request arrives, so its
+  deadline is late by the one-way request latency. The conversation's state
+  reads (`/api/status`, a session's generation) are blocking loopback calls
+  bounded by a 2 s I/O timeout; with the robot service unreachable
+  `/api/status` fails (HTTP 500) instead of inventing a generation, `/readyz`
+  says why, and a stop sent through the conversation cannot be delivered --
+  the robot's lease expiry (default 3 s) is then the stop. A lost lease is
+  terminal for that conversation process (restart it). Measured on CPU only,
+  with a Realtime protocol stub and the mock MicroDuck base.
 - The wrist narration highlight (`stream.wrist_narration`, B47) is opt-in and
   measured only on the mock stack (a mock camera declared `role: wrist`,
   real runtime / HTTP dashboard / headless-browser script): no Isaac or

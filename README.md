@@ -40,6 +40,8 @@ The [conversation gateway](docs/CONVERSATION.md) implements browser audio,
 Realtime provider integration and an explicit robot-tool allowlist with priority
 stop. Its recorded speech and motion episodes have separate source and outcome
 bounds; general dialogue reliability and a public hosted service remain pending.
+It can also run as its own process against a separately deployed
+`cascade-robot-service` ([opt-in, loopback protocol `cascade.robot-runtime/1`](docs/CONVERSATION.md#deploy-the-conversation-service-separately)).
 
 The read-only [spatial domain](docs/SPATIAL_PROVIDERS.md) adds capture-time
 transforms, landmark memory and synthetic planar route proposals. The separate

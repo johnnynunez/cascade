@@ -77,6 +77,7 @@ cascade-mcp = "cascade.apps.mcp_server:main"
 cascade-fleet-mcp = "cascade.apps.fleet_mcp:main"
 cascade-view = "cascade.apps.viewer:main"
 cascade-conversation = "cascade.apps.conversation:main"
+cascade-robot-service = "cascade.apps.robot_service:main"
 cascade-fleet = "cascade.apps.fleet:main"
 cascade-calib-handeye = "cascade.calibration.cli:main"
 

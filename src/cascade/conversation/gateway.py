@@ -17,9 +17,12 @@ from ..lifecycle import teardown_receipt
 
 
 class ConversationGateway:
-    def __init__(self, domain, provider_factory, *, token=None, activation=None):
+    def __init__(self, domain, provider_factory, *, token=None, activation=None, probes=None):
         self.domain, self.provider_factory = domain, provider_factory
         self.activation = activation
+        # Split deployments only (B51): () -> {"ready": bool, "reason": ...}
+        # for the remote robot. None keeps the original route table.
+        self.probes = probes
         self._capture_ready = None
         self._activation_task = self._episode_task = None
         self._activating = False
@@ -76,6 +79,11 @@ class ConversationGateway:
         app.router.add_post("/api/robot/start", self._start_robot)
         app.router.add_get("/api/status", self._status)
         app.router.add_get("/api/media", self._media)
+        if self.probes is not None:
+            # Unauthenticated supervisor probes: no token, session, tool or
+            # generation detail. Everything under /api/ stays authenticated.
+            app.router.add_get("/healthz", self._healthz)
+            app.router.add_get("/readyz", self._readyz)
         return app
 
     async def start(self, *, host="127.0.0.1", port=8780):
@@ -154,6 +162,17 @@ class ConversationGateway:
             raise web.HTTPBadGateway(text="provider session unavailable") from None
         finally:
             self._creating = False
+
+    async def _healthz(self, request):
+        from aiohttp import web
+        return web.json_response({"alive": True})
+
+    async def _readyz(self, request):
+        from aiohttp import web
+        robot = await asyncio.to_thread(self.probes)
+        # A closing gateway refuses new sessions, so it is never ready.
+        ready = robot.get("ready") is True and not self._closing
+        return web.json_response({"ready": ready, "robot": robot}, status=200 if ready else 503)
 
     async def _status(self, request):
         from aiohttp import web

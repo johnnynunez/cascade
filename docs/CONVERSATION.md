@@ -212,6 +212,104 @@ forcible termination of an outstanding action. CPU tests exercise real child
 HTTP/WebSocket processes, explicit reset/stop, restart, and failed cleanup using
 a protocol fixture and the synthetic sensor profile, without speech inference.
 
+## Deploy the conversation service separately
+
+By default `cascade-conversation` builds the selected robot runtime inside its
+own process. The opt-in split deployment (B51) runs the robot in its own process
+instead, so the speech layer can be deployed, restarted or upgraded without
+restarting the robot, and the robot side needs neither `aiohttp` nor any speech
+dependency:
+
+```bash
+export CASCADE_ROBOT_ENDPOINT_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+# Robot side (base install): owns the runtime, harnesses, verifiers and trace.
+cascade-robot-service --robot conversation_mock --port 8781 \
+  --token-env CASCADE_ROBOT_ENDPOINT_TOKEN --run-root runs/robot
+# Conversation side (`conversation` extra): builds no robot.
+cascade-conversation --config configs/conversation/remote_robot.json
+```
+
+[`configs/conversation/remote_robot.json`](../configs/conversation/remote_robot.json)
+is the example. `robot_endpoint` (`http://<loopback>:<port>`, normalized; no
+path, query or credentials) and `robot_token_env` (the variable holding the
+shared bearer token, at least 32 characters) select the split mode; `robot` then
+names the robot_id the robot service must report, and any other identity refuses
+startup. `robot_lifecycle` and `config_dir` are refused in this mode: no local
+robot profile is read. CLI: `--robot-endpoint`, `--robot-token-env`. Both
+processes bind loopback only. The provider stays the operator-owned local
+endpoint; nothing here selects a hosted model.
+
+`cascade.robot-runtime/1` is HTTP/JSON on loopback
+([`robotics/endpoint.py`](../src/cascade/robotics/endpoint.py), standard
+library only). Requests carry `Authorization: Bearer …` and
+`X-Cascade-Protocol: cascade.robot-runtime/1`; every answer names its protocol,
+and a peer speaking another version is refused before any lease or command.
+
+| Route | Needs | Effect |
+| --- | --- | --- |
+| `GET /v1/health` | nothing | liveness |
+| `GET /v1/describe` | token | robot_id, resources, tool descriptors, `trace_recorded`, `lease_ttl_s` |
+| `GET /v1/state` | token | generation, stopped, lease held, lease-expiry stops, executing requests |
+| `POST` / `DELETE /v1/lease` | token | acquire (one supervisor, 409 while held), renew, release |
+| `POST /v1/execute` | token + lease | `RobotRuntime.execute` with the episode generation and remaining deadline (at most 300 s) |
+| `POST /v1/stop` | token only | `RobotRuntime.stop()`, never refused for lease reasons |
+| `POST /v1/reset` | token + lease | `reset_stop` with the exact observed generation |
+| `POST /v1/record` | token + lease | trace row for an already delivered stop-effect tool |
+
+What carries over unchanged, and what the boundary adds:
+
+- `ConversationDomain`, the session and the gateway are the same code; they talk
+  to a `RemoteRobotRuntime` with the runtime surface they already used. The robot
+  process keeps every authority: generation and deadline fences, each domain's
+  harness and verifier, and its own trace, which records every remote execute.
+- Operator stop wins. `/api/stop` reaches the robot's `/v1/stop`, which runs on
+  its own request thread while a motion request is still executing; the robot
+  service also accepts a stop from any token holder without a lease.
+- The conversation holds one supervision lease (default 3 s, robot-service
+  `--lease-ttl-s`, 0.2 < ttl ≤ 30) and renews it every third of that. When
+  renewal lapses (process killed, hung or cut off) the robot service latches
+  `stop()` and records it in `closure.json` under `lease_expiry_stops`.
+  Releasing a lease is neither a stop nor a reset. A lost lease is terminal for
+  that conversation process: restart it, then reset explicitly.
+- A remote execute needs the episode generation and the remaining local
+  deadline; the robot re-anchors that budget when the request arrives (late by
+  the one-way loopback latency). Execute can never clear a stop; reset needs the
+  lease and the exact observed generation.
+- Unknown robot state is reported as stopped and a transport failure during an
+  execute as `delivery_uncertain`. With the robot service gone, `/api/status`
+  answers HTTP 500 instead of a fabricated generation, and the conversation's
+  shutdown exits nonzero because it could not confirm the stop.
+- Tool results remain the robot's verdicts (`unverified` stays `unverified`);
+  the model's words remain display text.
+
+Split mode also serves unauthenticated probes: `GET /healthz` returns
+`{"alive": true}`; `GET /readyz` returns 200 when the robot endpoint answers and
+the lease is held, and 503 with the reason otherwise or while the gateway
+closes. Neither carries a token, session, tool or generation; `/api/*` stays
+authenticated, and the default in-process route table is unchanged. Provider
+readiness is not probed; the provider connects per session.
+
+The conversation's `ready.json` adds `robot_endpoint: {origin, protocol,
+catalog_sha256, lease_ttl_s}` and sets `robot_config_sha256` to null; the robot
+service's own `ready.json` carries the same `catalog_sha256`, binding the two
+processes to one robot identity, resource and tool catalog. Neither record
+contains a token.
+
+Measured on CPU (`tests/test_conversation_split_service.py`, real child
+processes on loopback, a Realtime protocol stub standing in for ASR, LLM and
+TTS, and the mock MicroDuck base `microduck_conversation_mock`): one complete
+text turn ran from typed text through a provider tool call to
+`locomotion.walk_velocity`, executed and traced in the robot process; its
+`unverified` result returned to the provider and browser, followed by spoken
+PCM and a transcript. An operator stop superseded a 3 s walk running in the
+robot process. After disconnect, a stale-generation reset was refused, the
+observed-generation reset succeeded, and a new session read the same robot state
+(same base epoch). `SIGKILL` of the conversation process mid-walk latched the
+robot stop through a 1 s lease, and a new conversation process re-attached to
+the same robot process with the stop still latched until an explicit reset.
+With the robot service gone, `/readyz` turned 503. This is transport and
+authority evidence, not speech inference, hardware audio or a physical result.
+
 ## Boundaries and lifecycle
 
 - `MediaIO` separates capture, playback, flush and close. `QueueMediaIO` bounds
@@ -600,7 +698,7 @@ inference.
 uv sync --extra dev --extra conversation
 uv run pytest tests/test_conversation_contracts.py \
   tests/test_conversation_protocol.py tests/test_conversation_input_origin.py \
-  tests/test_conversation_frontend.py -q
+  tests/test_conversation_frontend.py tests/test_conversation_split_service.py -q
 ```
 
 The protocol suite opens owned ephemeral loopback ports. It verifies audio byte

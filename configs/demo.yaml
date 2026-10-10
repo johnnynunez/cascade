@@ -571,3 +571,11 @@ eval:
     temperature: 0.1                   # upstream sampling for GRM
     top_p: 0.9
     max_tokens: 64
+
+# Conversation service (cascade-conversation) is configured by its own versioned
+# JSON, not by this file (docs/CONVERSATION.md). Its `robot_endpoint` +
+# `robot_token_env` (B51) select the split deployment: the robot runtime runs in
+# `cascade-robot-service` (protocol cascade.robot-runtime/1, loopback only,
+# bearer token, supervision lease whose expiry latches the robot stop) and the
+# conversation process builds no robot. Absent (default) = the robot runtime is
+# built in-process exactly as before. Example: configs/conversation/remote_robot.json.

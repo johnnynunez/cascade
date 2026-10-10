@@ -163,6 +163,7 @@ class RebotRSArm(ArmBase):
         self._last_q = self._read_positions()
         self._last_q_t = time.monotonic()
         self._last_cmd_q: np.ndarray | None = None
+        self._last_cmd_t: float | None = None
         if self._gc_enabled:
             from .kinematics import Kinematics
 
@@ -258,6 +259,31 @@ class RebotRSArm(ArmBase):
         with self._lock:
             self._send_mit(q)
         self._last_cmd_q = q.copy()
+        self._last_cmd_t = time.monotonic()
+
+    #: a joint target newer than this means a stream is sending (50 Hz = 20 ms)
+    STREAM_ACTIVE_S = 0.1
+
+    def body_mask_q(self) -> np.ndarray:
+        """Joint pose for masking the robot out of depth images.
+
+        Found on the physical reBot: a measured pose polls the six joint
+        motors one after another (mechPos, 8 ms each over motorbridge), about
+        48 ms with the driver lock held. The occupancy watcher masks the arm
+        on every refresh (3 Hz), so during a streamed move each mask read held
+        up two to three 20 ms waypoints, which then went out back to back: the
+        arm moved in steps instead of one smooth motion. While a stream is
+        sending targets, this returns the target the arm is tracking (it
+        trails by ~1-3 cm at speed, well inside the body-mask radius) without
+        any bus traffic; otherwise the measured pose. Safety checks keep using
+        `get_state()`.
+        """
+        t = getattr(self, "_last_cmd_t", None)
+        q = getattr(self, "_last_cmd_q", None)
+        if (q is not None and t is not None and not self._stopped
+                and time.monotonic() - t < self.STREAM_ACTIVE_S):
+            return q.copy()
+        return self.get_state().q
 
     def _send_mit(self, q: np.ndarray) -> None:
         """Send one arm MIT command, adding the gravity feedforward when

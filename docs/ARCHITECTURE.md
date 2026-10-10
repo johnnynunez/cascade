@@ -238,6 +238,35 @@ chat command ("pick and place the red cube")
   alone, exactly as before (`tests/test_tier2_clause_structure.py` pins it
   differentially against the pre-B37 rule).
 
+- **A bare "and" can begin a clause (B69, 2026-10-10).** B37's rule compared
+  clauses as `split_subgoals` cut them, and that cut only at sequence
+  connectives, so "move the red cube to the front-left of the table and move
+  the blue cube to the front-left of the table" was ONE clause, scored 0.951
+  against the habit for its first command and replayed it. The reflex grammar
+  had the same blind spot one tier earlier: its lazy object/destination groups
+  swallow a second command into an argument ("put the red cube in the bowl
+  and put the blue cube in the bowl" compiled to one `pick_and_place` whose
+  destination was "bowl and put the blue cube in the bowl"). After the
+  sequence split, `split_subgoals` now cuts at a coordinated "and"/"y"
+  (optionally "and also"/"y también") followed by a clause verb of the
+  reflex/skill vocabulary (`_OBJECT_VERBS`, `_BARE_VERBS` in
+  `agent/reflex.py`), except where the grammar's own one-clause "and"s live:
+  verb coordination (the word before "and" takes an object: "pick and place
+  the cube", "open and close the gripper"), a back-reference ("… and put it
+  in the box", "… and throw it") and an object-taking verb with no object of
+  its own ("… and throw to the left", "… and place in the bowl"). Noun
+  coordination never splits ("the red and blue cube": no verb follows);
+  Spanish object clitics are enclitic ("ponlo"), so they are not clause verbs.
+  `parse_command` refuses a command that `split_subgoals` cuts, as it refuses
+  a "then" compound, so such a command reaches B37's recall rule and the
+  curriculum, which plan it exactly as the same clauses joined by "then"
+  (all-or-nothing; a clause with no plan sends the whole task to the LLM
+  tier). Default-on like B37: a command without such an "and" is cut, recalled
+  and compiled exactly as before (`tests/test_tier2_and_clause.py` pins it
+  differentially against the pre-B69 rule), and a wrong cut can only move a
+  command to the curriculum or the LLM tier, never make the fast tier run
+  fewer clauses.
+
 - **Programs tier (opt-in, ROADMAP #8; [design note](PROGRAMS_TIER.md)).**
   Waddle's level above skills: a program is a bounded (≤ 12 steps), declarative
   list of REGISTERED `TOOL_SPECS` calls, object labels as parameters and
@@ -1463,14 +1492,21 @@ barriers.
   Linux but never answered on the macOS CI runner (measured: a connect timed
   out after 30 s), so dead-server tests fail there by their client's own
   short timeout, not by a refusal.
-- Tier-2 clauses are cut only at sequence connectives (`split_subgoals`,
-  B37). A bare "and" is no clause boundary anywhere in the fast tier, so
-  "move the red cube to the front-left of the table and move the blue cube to
-  the front-left of the table" still replays the first command's habit
-  (measured 0.951) and runs half of it; within one clause the hashed
-  bag-of-words stays blind to word order. The opt-in programs tier (2.5) is
-  not covered by the clause rule: it OFFERS promoted programs by keyword
-  overlap (one shared content word) or, with `memory.embedder`, text
+- Tier-2 clauses are cut at sequence connectives (B37) and, since B69, at a
+  coordinated "and"/"y" followed by a clause verb of the reflex/skill
+  vocabulary (`split_subgoals`). Still not cut, so still one clause: a second
+  clause without its own verb ("stack the red cube on the blue box and the
+  green cube on the red one"), an adverb other than "also"/"también" between
+  "and" and the verb ("… and carefully move the blue cube …"), a verb outside
+  the vocabulary, "that"/"this" used as a determiner right after the verb
+  ("… and put that blue cube in the bowl", read as a back-reference). The cut
+  is lexical: a noun that is also a clause verb can over-cut prose
+  ("containment and release …"), which sends the task to the curriculum
+  (every clause planned, or none) or the LLM tier, never to a one-clause
+  plan. Within one clause the
+  hashed bag-of-words stays blind to word order. The opt-in programs tier
+  (2.5) is not covered by the clause rule: it OFFERS promoted programs by
+  keyword overlap (one shared content word) or, with `memory.embedder`, text
   similarity (B42 floor-or-guard), the brain (or the MCP chat host calling
   `run_program`) sees the whole task and picks, and a reused program's
   success means every step it ran was confirmed, not that it covered every

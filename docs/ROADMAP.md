@@ -305,9 +305,27 @@ Open, in priority order (details in the sections below):
    reversed sequence (0.994: wrong order) and a one-word clause difference
    (0.958: bowl for box). `tests/test_tier2_clause_structure.py` (20 RED on
    4e896c3 → 28 GREEN, through `run_task` with `MockLLM`), 10/10 mutants
-   killed. Still open: a bare "and" is no clause boundary anywhere in the
+   killed. Still open: ~~a bare "and" is no clause boundary anywhere in the
    fast tier (two "move …" commands joined by "and" still replay the first
-   one's habit, 0.951), and the opt-in programs tier offers programs by
+   one's habit, 0.951)~~ **landed 2026-10-10 (B69)** — `split_subgoals` cuts
+   a clause at a coordinated "and"/"y" (optionally "also"/"también") followed
+   by a clause verb of the reflex/skill vocabulary, except verb coordination
+   ("pick and place X"), a back-reference ("… and put it in the box") and an
+   object-taking verb with no object of its own ("… and throw to the left");
+   `parse_command` refuses such a compound like a "then" one, so recall
+   (B37 rule) and the curriculum see both clauses. Measured with the real
+   recall, `FastPlanner` and `run_task` (fake runtime and the mock stack):
+   the ROADMAP pair no longer replays the red habit (LLM tier when the blue
+   command has no plan, curriculum when both have one), the grammar no longer
+   swallows a second command into an argument ("… in the bowl and put the
+   blue cube in the bowl": two pick_and_place instead of one with that
+   destination), and every command without such an "and" is unchanged
+   (differential pin against the pre-B69 rule). Default-on like B37.
+   `tests/test_tier2_and_clause.py` (46 RED on 38f6d08 → 97 GREEN), 25/25
+   mutants killed. Still open: a second clause without its own verb ("… and
+   the green cube on the red one"), an adverb other than also/también before
+   the verb, and verbs outside the vocabulary are not cut; and the opt-in
+   programs tier offers programs by
    keyword overlap or text embedding (B42) and leaves whole-vs-part to the
    brain (ARCHITECTURE, Known limitations).
 8. **Multi-arm on physics**: `so101_left`/`so101_right` are mock; render a

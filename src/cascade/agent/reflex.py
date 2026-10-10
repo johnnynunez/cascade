@@ -215,6 +215,9 @@ _RULES: list[tuple[re.Pattern, str]] = [
         "describe",
     ),
     (re.compile(r"^(?:open\s+(?:the\s+)?gripper|let\s+go|release|abre\s+la\s+pinza|suelta(?:lo|la)?)$"), "open_gripper"),
+    # the counterpart of "open the gripper": without it "close the gripper"
+    # needed the LLM tier, and the offline mock brain cannot run it at all
+    (re.compile(r"^(?:close\s+(?:the\s+)?gripper|cierra\s+la\s+pinza)$"), "close_gripper"),
     (re.compile(r"^(?:stop|para|alto)$"), None),  # never a reflex: stop is for e-stop tools
 ]
 
@@ -356,6 +359,8 @@ def parse_command(text: str) -> ReflexPlan | None:
             return ReflexPlan(intent, [("get_observation", {})])
         if intent == "open_gripper":
             return ReflexPlan(intent, [("open_gripper", {})])
+        if intent == "close_gripper":
+            return ReflexPlan(intent, [("close_gripper", {})])
     return None
 
 

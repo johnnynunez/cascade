@@ -10,7 +10,7 @@ script. Full procedure: docs/HANDEYE_CALIBRATION.md.
 
     # which camera is which (two identical D455Fs: the serial decides)
     python scripts/calibrate_handeye.py --list
-    python scripts/calibrate_handeye.py --bind d455f_scene --serial 261422303968
+    python scripts/calibrate_handeye.py --bind d455f_scene --serial 261522301814
 
     # no hardware: MockArm + a rendered marker through the same code path
     python scripts/calibrate_handeye.py --dry-run

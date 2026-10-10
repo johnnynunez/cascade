@@ -36,7 +36,7 @@ noise in small relative motions.
    serial tells them apart:
    ```
    python scripts/calibrate_handeye.py --list
-   python scripts/calibrate_handeye.py --bind d455f_scene --serial 261422303968
+   python scripts/calibrate_handeye.py --bind d455f_scene --serial 261522301814
    ```
    `--bind` refuses a serial that is not connected and keeps the profile's
    comments. A real run refuses a RealSense/Orbbec profile with no serial.

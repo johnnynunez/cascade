@@ -8,7 +8,7 @@
 # Firmware 5.17.0.10 (updated 2026-08-15). Min depth ~0.52 m at 1280x720 --
 # keep the tripod far enough back; below it depth returns 0 (invalid).
 type: realsense
-serial: "261422303968"
+serial: "261522301814"
 width: 1280
 height: 720
 fps: 30

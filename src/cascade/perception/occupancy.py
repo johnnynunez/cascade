@@ -179,6 +179,10 @@ class OccupancyMap:
         self._grid_voxel: float = 0.0
         self._last_refresh: float | None = None
         self.last_error: str | None = None
+        # The refresh error last reported to the log. A refresh swallows its
+        # own failures into `last_error`; without a log line a bridge that
+        # keeps timing out is invisible while every motion is refused.
+        self._reported_refresh_error: str | None = None
         #: what answered the startup probe: {"backend": "warp", "device": ...}
         #: or None if nothing did. Read by the demo banner / run summary.
         self.status: dict | None = None
@@ -585,7 +589,30 @@ class OccupancyMap:
         if required and m.status is None:
             client.close()
             raise OccupancyError(f"required occupancy bridge unavailable: {m.probe_error}")
+        if cfg.get("clear_on_start", False) is True and m.status is not None:
+            m.clear_bridge_map()
         return m
+
+    def clear_bridge_map(self) -> bool:
+        """Empty the bridge's map at session start. Never raises.
+
+        The bridge outlives the runtime: geometry integrated by an earlier
+        process (an arm that moved or fell during teardown, an older body-mask
+        radius) is not masked by anything this process knows, and on a real
+        rig such ghosts sat on the arm's own rest pose and refused the first
+        motion. Opt-in (`occupancy.clear_on_start`) because several runtimes
+        may share one bridge, and clearing it empties theirs until their next
+        refresh.
+        """
+        if self._client is None:
+            return False
+        try:
+            self._client.request({"action": "clear"})
+        except OccupancyError as e:
+            logger.warning("occupancy: could not clear the bridge map at start: %s", e)
+            return False
+        logger.warning("occupancy: cleared the bridge map at session start (clear_on_start)")
+        return True
 
     def probe(self, timeout_ms: int = 300) -> dict | None:
         """One startup round trip that names the backend (or records that
@@ -619,10 +646,32 @@ class OccupancyMap:
         the distance grid for the configured region.
 
         Best-effort: any failure records `last_error` and leaves the
-        existing cache in place (it simply ages toward `max_age_s`).
+        existing cache in place (it simply ages toward `max_age_s`). Each
+        change of that state is logged once: a failure that persists (a
+        bridge too slow for `timeout_ms`, say) otherwise keeps a body-mask
+        latch closed with no visible cause.
         """
         with self._refresh_lock:
-            self._refresh(frame, T_base_cam)
+            try:
+                self._refresh(frame, T_base_cam)
+            finally:
+                self._report_refresh_state()
+
+    def _report_refresh_state(self) -> None:
+        """Log refresh failures and recovery on change, not per frame."""
+        error = self.last_error
+        if error == self._reported_refresh_error:
+            return
+        if error:
+            logger.warning(
+                "occupancy refresh failed%s: %s",
+                " (motion stays refused until a masked depth refresh succeeds)"
+                if self._body_error else "",
+                error,
+            )
+        else:
+            logger.warning("occupancy refresh recovered")
+        self._reported_refresh_error = error
 
     def _refresh(self, frame, T_base_cam: np.ndarray) -> None:
         if self._client is None:
@@ -1035,7 +1084,8 @@ class OccupancyMap:
         if self._body_error is not None:
             from ..types import SafetyViolation
 
-            raise SafetyViolation(f"occupancy unsafe: {self._body_error}")
+            cause = f" (last refresh failed: {self.last_error})" if self.last_error else ""
+            raise SafetyViolation(f"occupancy unsafe: {self._body_error}{cause}")
         stale = self.is_stale()
         usable_grid = (not stale and self._grid is not None and self._grid.size
                        and np.isfinite(self._grid).any())

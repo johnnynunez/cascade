@@ -205,3 +205,28 @@ motion or around unseen geometry.
 For the upstream model and multi-camera requirements, see the
 [nvblox interface](https://nvidia-isaac.github.io/nvblox/v0.0.10/pages/core_library_interface.html)
 and NVIDIA's [multi-camera tutorial](https://nvidia-isaac-ros.github.io/concepts/scene_reconstruction/nvblox/tutorials/tutorial_multi_realsense.html).
+
+## Troubleshooting: every motion refused as "not yet validated"
+
+With a robot body registered, the map refuses all motion until one depth
+refresh has succeeded with the robot masked out. `refresh()` records its own
+failures in `last_error` instead of raising, so a refresh that **never**
+succeeds used to leave only the generic refusal:
+
+```
+SafetyViolation: occupancy unsafe: robot body pose not yet validated by a masked depth refresh
+```
+
+Each change of refresh state is now logged once (`occupancy refresh failed:
+...` / `occupancy refresh recovered`), and the refusal carries the cause, for
+example `(last refresh failed: occupancy bridge at 127.0.0.1:5557 timed out
+(500 ms))`.
+
+Measured on a Jetson Thor with a D435i at 1280x720: the numpy `voxel`
+fallback took 0.60–0.69 s per refresh, over the default `timeout_ms: 500`, so
+the latch never cleared. The `warp` backend on `cuda:0` took 62–75 ms per
+refresh. Its first two refreshes also timed out while its CUDA kernels
+compiled; the third succeeded. The demo now prints a note when the bridge
+reports the `voxel` backend. Install the `occupancy` extra (`warp-lang`) and
+restart `scripts/serve_occupancy.sh`, whose `--backend auto` then selects
+`warp`.

@@ -114,6 +114,10 @@ class VoxelBackend:
     def integrate_depth(self, depth: np.ndarray, K: np.ndarray, T_base_cam: np.ndarray) -> None:
         self.integrate_points(unproject(depth, K, T_base_cam, stride=4))
 
+    def clear(self) -> None:
+        """Forget every observation (the bridge's `clear` action)."""
+        self._voxels.clear()
+
     def query(self, region_min, region_max) -> dict[str, Any]:
         spec = GridSpec(region_min, region_max, self.voxel)
         occ = np.zeros(spec.shape, dtype=bool)
@@ -233,6 +237,18 @@ class WarpTsdfBackend:
         wp.synchronize_device(self.device)
         self._frames += 1
         self.last_integrate_ms = (time.perf_counter() - t0) * 1e3
+
+    def clear(self) -> None:
+        """Forget every observation (the bridge's `clear` action): all voxels
+        return to unknown (weight 0), the state a fresh backend starts in. The
+        bridge outlives the runtimes it serves, so `occupancy.clear_on_start`
+        sends this to keep one session's map out of the next."""
+        for arr in (self._tsdf, self._weight, self._dist2, self._tmp):
+            arr.zero_()
+        self._wp.synchronize_device(self.device)
+        self._frames = 0
+        self.last_integrate_ms = 0.0
+        self.last_query_ms = 0.0
 
     # -- query ---------------------------------------------------------------
 

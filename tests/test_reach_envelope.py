@@ -268,8 +268,11 @@ def test_reach_profiles_carry_the_measured_envelope_and_change_nothing_else(prof
     assert {k: v for k, v in rs["safety"].items() if k != "workspace"} == \
         {k: v for k, v in bs["safety"].items() if k != "workspace"}
     assert rs["grasp"]["angled_approach_tilts_deg"] == ENVELOPE_TILTS
-    assert {k: v for k, v in rs["grasp"].items() if k != "angled_approach_tilts_deg"} == \
-        {k: v for k, v in bs["grasp"].items() if k != "angled_approach_tilts_deg"}
+    # B73 adds the clearance vet of those tilted candidates (opt-in, same profiles)
+    assert rs["grasp"]["angled_clearance_vet"] is True and bs["grasp"]["angled_clearance_vet"] is False
+    opt_in = ("angled_approach_tilts_deg", "angled_clearance_vet")
+    assert {k: v for k, v in rs["grasp"].items() if k not in opt_in} == \
+        {k: v for k, v in bs["grasp"].items() if k not in opt_in}
     strip = ("resolved", "overrides", "name")
     assert {k: v for k, v in reach.arms[0].items() if k not in strip} == \
         {k: v for k, v in base.arms[0].items() if k not in strip}

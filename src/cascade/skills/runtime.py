@@ -24,6 +24,7 @@ import numpy as np
 from ..agent.trace import TraceLogger
 from ..grasping import plan_grasps_from_fix, select_grasp, select_profile
 from ..grasping import evidence as grasp_evidence
+from ..grasping.obb_grasp import AngledGrasp
 from ..grasping.selector import ALL_TOO_WIDE_MARKER
 from . import carry_attachment
 from ..memory import BeliefStore, EpisodicMemory, FrameObservation
@@ -1726,6 +1727,61 @@ class SkillRuntime:
         self.grasp_planner_used = f"obb (camera_frame: {reason})"
         return obb
 
+    def _angled_clearance_check(self, fix):
+        """B73, opt-in (`grasp.angled_clearance_vet: true`, the `*_reach` arm
+        profiles): a validate step for the analytic planner's angled
+        candidates (`AngledGrasp`), or None when the flag is false (the
+        default: nothing is loaded, nothing changes).
+
+        The returned check places the arm's forearm/wrist/gripper collision
+        hulls (grasping/gripper_clearance.py) along the candidate's approach
+        q_pre -> q_grasp with the jaws at the commanded pre-grasp opening, and
+        refuses the candidate when any hull comes closer than
+        `width_pad_m / 2` to the support plane (`safety.table_z`) or to the
+        target's observed box -- the next candidate is then tried. Every
+        decision and refusal reason is recorded in the grasp evidence
+        (`gripper_clearance`). Hulls that cannot be loaded or bound to this
+        arm's model refuse every angled candidate, with the reason (fail
+        closed); top-down candidates are never vetted here."""
+        flag = self.cfg.grasp.get("angled_clearance_vet", False)
+        if flag is False:
+            return None
+        if flag is not True:
+            raise SkillError(f"grasp.angled_clearance_vet must be true or false, got {flag!r}")
+        from ..grasping import gripper_clearance as gc
+
+        margin = gc.margin_m(self.cfg.grasp)
+        open_margin = (self.cfg.arm.get("gripper") or {}).get("pregrasp_open_margin_m")
+        support_z = float(self.arm.harness.limits.table_z)
+        state: dict = {}
+
+        def check(g, q_pre, q_grasp):
+            jaw = gc.jaw_gap_m(g.width_m, self._max_width, open_margin)
+            record = {"position": g.position, "approach": g.approach, "margin_m": margin,
+                      "support_z_m": support_z, "jaw_gap_m": jaw}
+            if "vet" not in state:
+                try:
+                    state["box"] = gc.target_box(fix, support_z)
+                    state["vet"] = gc.ApproachClearance(gc.load_geometry(self.cfg.arm.get("model")), self.kin)
+                except Exception as exc:  # noqa: BLE001 -- fail closed; the reason is recorded
+                    state["vet"], state["error"] = None, f"{type(exc).__name__}: {exc}"
+            result = None
+            if state["vet"] is not None:
+                try:
+                    result = state["vet"].check(q_pre, q_grasp, support_z=support_z, box=state["box"],
+                                                margin_m=margin, jaw_gap_m=jaw)
+                except Exception as exc:  # noqa: BLE001 -- fail closed for this candidate
+                    state["error"] = f"{type(exc).__name__}: {exc}"
+            if result is None:
+                reason = f"gripper clearance unverifiable: {state['error']}"
+                grasp_evidence.event("gripper_clearance", decision="refused", reason=reason, **record)
+                return reason
+            grasp_evidence.event("gripper_clearance", **result.as_evidence(),
+                                 box=state["box"].as_evidence(), **record)
+            return None if result.ok else f"gripper clearance: {result.reason}"
+
+        return check
+
     def _localization_workspace_bounds(self):
         """Read the selected arm's existing limits without connecting it."""
         limits = getattr(getattr(self.arm, "harness", None), "limits", None)
@@ -2543,6 +2599,10 @@ class SkillRuntime:
                     "_trajectory_preflight": trajectory_preflight}
         from ..safety.trajectory import PLAN_BUDGET_S, geometry_guard, vet_segment
         approach_deadline = time.monotonic() + PLAN_BUDGET_S
+        # B73 opt-in: forearm/wrist/gripper clearance of the analytic planner's
+        # angled candidates (None unless grasp.angled_clearance_vet is set).
+        clearance_check = (self._angled_clearance_check(fix)
+                           if gcfg.get("angled_clearance_vet", False) is not False else None)
 
         def _vet(g, q_pre, q_grasp):
             planner = getattr(self.arm, "motion_planner", None)
@@ -2626,6 +2686,13 @@ class SkillRuntime:
                 )
                 if reason:
                     return f"descent unsafe: {reason}"
+            if clearance_check is not None and isinstance(g, AngledGrasp):
+                # The harness proxies above are joint origins, exempt inside
+                # the grasp cylinder; a leaning approach can still put the
+                # housing, wrist or a finger into the table or the target.
+                reason = clearance_check(g, q_pre, q_grasp)
+                if reason:
+                    return reason
             if scene_gate is not None:
                 for phase, start, end, duration in (
                         ("pregrasp", _seed, q_pre, gcfg.get("move_duration_s", 2.5)),

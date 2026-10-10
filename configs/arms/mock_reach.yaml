@@ -11,3 +11,6 @@ overrides:
       max: [0.55, 0.50, 0.55]
   grasp:
     angled_approach_tilts_deg: [30, 45, 90]
+    # B73: vet each tilted candidate's forearm/wrist/gripper clearance to the
+    # table and the observed object (configs/demo.yaml, REACH_ENVELOPE.md).
+    angled_clearance_vet: true

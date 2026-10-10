@@ -87,6 +87,8 @@ FORWARDED: dict[str, str] = {
     "CASCADE_MICRODUCK_BRIDGE_PORT": "MicroDuck base bridge port (base profiles only)",
     "CASCADE_MICRODUCK_ENGINE": "MicroDuck base physics engine (base profiles only)",
     "CASCADE_MICRODUCK_DEVICE": "MicroDuck base physics device (base profiles only)",
+    # ---- landed on main while B63 was open ----
+    "CASCADE_MCP_READONLY_LANE": "read-only MCP lane on/off (B46), read by the server itself",
 }
 
 #: why a variable the runtime reads is not copied from the registering shell

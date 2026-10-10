@@ -77,6 +77,21 @@ thread/tool contacts. Read-only verifiers measure advancement, actual seating
 contact and zero-motor retention. This experiment does not change the ordinary
 `turn_screw` skill into an autonomous tool-acquisition or preload controller.
 
+The conversation supervisor can also run apart from the robot (B51, opt-in):
+`cascade-robot-service` owns the composed `RobotRuntime` and serves it on
+loopback over the versioned protocol `cascade.robot-runtime/1`
+(`robotics/endpoint.py`, stdlib only); `cascade-conversation` with
+`robot_endpoint` substitutes a `RemoteRobotRuntime` client for the in-process
+runtime and builds no robot. Every existing check stays in the robot process
+(generation and deadline fences, harnesses, verifiers, trace). The protocol
+adds a bearer token and a protocol header, one supervision lease whose expiry
+latches the robot stop (a killed conversation process stops the robot), a
+stop route that needs no lease and runs beside an in-flight motion, and reset
+only with the lease and the exact observed generation. The conversation then
+serves unauthenticated `/healthz` and `/readyz` probes. Without
+`robot_endpoint` the service is the original in-process composition
+(golden-pinned). See [separate deployment](CONVERSATION.md#deploy-the-conversation-service-separately).
+
 ## Design position
 
 CASCADE uses **curated domain tools** between an LLM or human and robot
@@ -859,7 +874,7 @@ src/cascade/
 ├── eval/progress_judge.py   Robo-Dopamine progress judge (GRM / VLM), off the hot path
 └── apps/
     ├── demo.py         build_runtime() = the composition root; CLI --task / --interactive
-    ├── mcp_server.py   MCP front-end: 47 tools (2 only with the opt-in programs tier), out-of-band stop, per-call log; stdio by default, Streamable HTTP (`--http`, bearer + TLS) for NemoClaw/OpenShell
+    ├── mcp_server.py   MCP front-end: 47 tools (2 only with the opt-in programs tier), out-of-band stop, per-call log, opt-in read-only lane (B46); stdio by default, Streamable HTTP (`--http`, bearer + TLS) for NemoClaw/OpenShell
     ├── capabilities.py capability matrix from the built runtime; TOOL_REQUIREMENTS trims the MCP catalog
     ├── mobile_runtime.py / robot_runtime.py   base-only (`--base`) and composed (`--robot`) runtimes
     ├── process_owner.py profile-owned process identity for shutdown and proof binding
@@ -1132,6 +1147,43 @@ JSON-RPC ids per session. `scripts/nemoclaw_mcp.py` issues the certificate,
 token and registration. Stdio through `launch.sh` remains the default; see
 [NEMOCLAW.md](NEMOCLAW.md).
 
+Read-only lane (opt-in, B46): `mcp.readonly_lane: true` (or
+`CASCADE_MCP_READONLY_LANE=1`) lets a chat host look while the robot moves.
+After `_admit` (stops, cancels, pings keep first claim on every frame), the
+receive side's `_enqueue` hands a `tools/call` for one of
+`READONLY_LANE_TOOLS` -- `world_state`, `robot_knowledge`,
+`verify_last_action`, `camera_snapshot` -- to a single lane thread when the
+worker's in-flight call is a motion (`_MOTION_SKILLS`, or `run_program` with
+the programs tier on); every other frame is queued for the serial worker as
+before, so motions stay strictly serialized and a second motion still waits.
+The receive side only checks and enqueues, so a held lane call cannot delay a
+stop, and the lane never writes `_inflight`, so a host cancel of the motion
+still latches the e-stop. Membership rule, per tool: it never enters
+`SkillRuntime.execute()` (no trace row, memory event, envelope record,
+watcher pause, per-call scratchpad or `last_frame` write), never takes
+`_exec_lock`, never commands an arm, gripper or base, and touches only state
+already guarded for concurrent readers. `world_state` is the dashboard
+`/state` body, which runs on HTTP threads during every motion (its only
+writes are the belief store's and episodic memory's own age-based expiry,
+under their locks, which every reader performs; with B47's
+`stream.wrist_narration` on it also carries the narrator's `wrist_view`,
+copied under the narrator's own lock plus a passive `latest()` of the wrist
+stream); the envelope
+and grasp-memory digests take their stores' own short locks, which the 50 Hz
+control loop (`harness.approve` + arm streaming) never takes; the verdict
+history is append-only; on the lane `camera_snapshot` is a passive stream
+read like the dashboard's MJPEG reads (the stream's condition is held only to
+take a frame reference; waiting releases it) -- no `observe_fresh`, so no
+`last_frame` write, no in-place depth filling, no harness heartbeat.
+`describe_scene` and `get_observation` stay
+out: they fuse beliefs mid-motion (exactly what the watcher pause prevents),
+run the shared detector and read the arm. A lane result carries
+`served_during_motion` (`motion`, `note`: state may be in flux, the motion's
+verdict is not recorded yet). Off (the default) the routing is the plain
+queue put; `tests/test_mcp_readonly_lane.py` pins both modes through the real
+server process (stdio and HTTP), holding a motion mid-stream with file
+barriers.
+
 ## Key decisions (still load-bearing)
 
 - **Metric depth in the Frame.** Sensor units differ per camera (L515
@@ -1314,11 +1366,17 @@ token and registration. Stdio through `launch.sh` remains the default; see
   the robot gains no reach), and live Isaac / real-rig picks in the new region
   are not yet measured ([REACH_ENVELOPE.md](REACH_ENVELOPE.md)).
 - `RebotRSArm.disconnect()` cuts torque: park (`move_home`) first.
-- The MCP server executes one tool call at a time; stops are handled
-  out-of-band by the stdin reader (never queued behind a motion), but a
-  second *motion* request waits. A `run_program` call is one such call for
-  its whole program (seconds per step): a stop or cancel interrupts it, a
-  second request waits.
+- The MCP server executes one tool call at a time by default; stops, cancels
+  and pings are handled out-of-band by the receive side (never queued behind
+  a motion), but every other request waits for the motion in flight. With the
+  opt-in read-only lane (`mcp.readonly_lane`, B46) `world_state`,
+  `robot_knowledge`, `verify_last_action` and `camera_snapshot` answer during
+  a motion instead (marked `served_during_motion`); a second *motion*
+  request, `describe_scene`, `get_observation` and every other tool still
+  wait. A `run_program` call is one motion for its whole program (seconds per
+  step): a stop or cancel interrupts it, a second request waits. The lane
+  ships off and is measured on the mock stack only (no live Isaac or real-rig
+  latency yet).
 - The rendered-camera window (`RigViewer`) cannot open on macOS from the
   server (Cocoa needs the main thread; `opencv-python-headless` has no
   highgui); the MuJoCo physics window and the browser dashboard are the
@@ -1422,6 +1480,18 @@ token and registration. Stdio through `launch.sh` remains the default; see
   The launcher's runtime check still inherits the whole shell, so a
   not-forwarded selector exported there (`CASCADE_ROBOT`, `CASCADE_BASE`)
   changes what the check builds, not what the registered server builds.
+- The split conversation deployment (B51, opt-in) is loopback only (one host
+  or network namespace); a cross-host deployment needs an authenticated,
+  encrypted transport that `cascade.robot-runtime/1` does not provide. The
+  robot re-anchors the remaining intent budget when a request arrives, so its
+  deadline is late by the one-way request latency. The conversation's state
+  reads (`/api/status`, a session's generation) are blocking loopback calls
+  bounded by a 2 s I/O timeout; with the robot service unreachable
+  `/api/status` fails (HTTP 500) instead of inventing a generation, `/readyz`
+  says why, and a stop sent through the conversation cannot be delivered --
+  the robot's lease expiry (default 3 s) is then the stop. A lost lease is
+  terminal for that conversation process (restart it). Measured on CPU only,
+  with a Realtime protocol stub and the mock MicroDuck base.
 - The wrist narration highlight (`stream.wrist_narration`, B47) is opt-in and
   measured only on the mock stack (a mock camera declared `role: wrist`,
   real runtime / HTTP dashboard / headless-browser script): no Isaac or

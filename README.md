@@ -40,6 +40,8 @@ The [conversation gateway](docs/CONVERSATION.md) implements browser audio,
 Realtime provider integration and an explicit robot-tool allowlist with priority
 stop. Its recorded speech and motion episodes have separate source and outcome
 bounds; general dialogue reliability and a public hosted service remain pending.
+It can also run as its own process against a separately deployed
+`cascade-robot-service` ([opt-in, loopback protocol `cascade.robot-runtime/1`](docs/CONVERSATION.md#deploy-the-conversation-service-separately)).
 
 The read-only [spatial domain](docs/SPATIAL_PROVIDERS.md) adds capture-time
 transforms, landmark memory and synthetic planar route proposals. The separate
@@ -783,7 +785,14 @@ out-of-band by the stdin reader, Esc/cancellation in the host mid-motion
 freezes the arm, first Ctrl+C on the server latches the e-stop (no
 free-fall), and the dashboard STOP button works from any browser on the
 LAN. For attendee-facing sessions, `CASCADE_HIDE_TOOLS=reset_stop` makes
-clearing a stop staff-only. The catalog is also trimmed by a **capability
+clearing a stop staff-only. By default every other call waits for the motion
+in flight; with the opt-in **read-only lane** (`mcp.readonly_lane: true` in
+`configs/demo.yaml`, or `CASCADE_MCP_READONLY_LANE=1`) the host can also LOOK
+while the arm moves: `world_state`, `robot_knowledge`, `verify_last_action`
+and `camera_snapshot` answer during a motion (or `run_program`) with
+`served_during_motion` in the result (state may be in flux), while a second
+motion and every other tool -- `describe_scene` and `get_observation`
+included, they fuse beliefs -- still wait. The catalog is also trimmed by a **capability
 matrix** derived from the built rig (`apps/capabilities.py`): the depth chain
 each camera really produces (sensor / mono / table-plane / none), which
 sidecars answered their startup probe, how many arms the `ArmRig` has, and
@@ -802,7 +811,8 @@ operator override on top. Env knobs:
 `CASCADE_CAMERAS` (comma list, first = manipulation camera), `CASCADE_CAMERA`
 (single-camera fallback), `CASCADE_ARMS` (comma list, first = manipulation
 arm, builds the `ArmRig`), `CASCADE_ARM` (single-arm fallback), `CASCADE_DETECTOR_MODEL`,
-`CASCADE_DETECT_CLASSES`, `CASCADE_HIDE_TOOLS`, `CASCADE_VIEW` (cv2 camera window),
+`CASCADE_DETECT_CLASSES`, `CASCADE_HIDE_TOOLS`, `CASCADE_MCP_READONLY_LANE`
+(1/0, the read-only lane above), `CASCADE_VIEW` (cv2 camera window),
 `CASCADE_MJ_VIEW` (MuJoCo physics window; the launcher sets it in sim modes),
 `CASCADE_PREWARM`, `CASCADE_STREAM`, `CASCADE_STREAM_PORT`, `CASCADE_RUN_DIR`
 (trace dir), `CASCADE_OCCUPANCY` (`0` skips the bridge probe), `DISPLAY`.

@@ -409,6 +409,21 @@ stream:
   # the gripper's). false = the exact pre-B47 dashboard and state.
   wrist_narration: false
 
+# MCP server front-end (apps/mcp_server.py, chat hosts).
+mcp:
+  # Read-only lane (B46). OFF by default: the server answers one tool call at
+  # a time -- stops, cancels and pings are always handled out-of-band, but a
+  # world_state sent mid-pick waits for the pick. On, a world_state,
+  # robot_knowledge, verify_last_action or camera_snapshot call that arrives
+  # while a motion tool (or run_program) runs is answered at once on a
+  # separate lane thread, and its result carries `served_during_motion`
+  # (state may be in flux). Motions stay strictly serialized, every other tool
+  # still waits, a lane call can never delay a stop, and lane calls never
+  # enter SkillRuntime.execute() or take the execution lock (camera_snapshot
+  # reads the stream passively: no last_frame write, no depth filling).
+  # CASCADE_MCP_READONLY_LANE=1/0 overrides. false = the serial server exactly.
+  readonly_lane: false
+
 # Local cv2 window (RigViewer). One row per camera, RGB beside its depth
 # colormap so a depth sensor is never silently shown as RGB-only.
 # --no-view / CASCADE_VIEW=0 still disables the window entirely.
@@ -556,3 +571,11 @@ eval:
     temperature: 0.1                   # upstream sampling for GRM
     top_p: 0.9
     max_tokens: 64
+
+# Conversation service (cascade-conversation) is configured by its own versioned
+# JSON, not by this file (docs/CONVERSATION.md). Its `robot_endpoint` +
+# `robot_token_env` (B51) select the split deployment: the robot runtime runs in
+# `cascade-robot-service` (protocol cascade.robot-runtime/1, loopback only,
+# bearer token, supervision lease whose expiry latches the robot stop) and the
+# conversation process builds no robot. Absent (default) = the robot runtime is
+# built in-process exactly as before. Example: configs/conversation/remote_robot.json.

@@ -46,6 +46,11 @@ changes:
   running pick.
 - JSON-RPC ids are namespaced per session, so a cancel from one session cannot
   freeze another session's motion.
+- The opt-in read-only lane (B46, `mcp.readonly_lane` /
+  `CASCADE_MCP_READONLY_LANE=1`) is shared too: the same receive-side routing
+  (`_enqueue`, after `_admit`) answers `world_state`, `robot_knowledge`,
+  `verify_last_action` and `camera_snapshot` while a motion runs; off by
+  default.
 - Tool calls answer as JSON or SSE (`Accept`); SSE sends `: keepalive`
   comments every 15 s (`CASCADE_MCP_SSE_KEEPALIVE_S`) so a 150 s pick survives
   proxy idle timeouts. A dropped connection is **not** a cancel (MCP spec);

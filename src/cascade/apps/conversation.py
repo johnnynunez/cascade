@@ -37,6 +37,10 @@ def parser():
                         help="Input-origin budget, at most 60 seconds (default 10)")
     result.add_argument("--execution-timeout-s", type=float,
                         help="Action budget, at most 300 seconds (default 30)")
+    result.add_argument("--robot-endpoint",
+                        help="Split deployment: http://<loopback>:<port> of a cascade-robot-service "
+                             "(--robot then names its expected robot_id); default builds the robot in-process")
+    result.add_argument("--robot-token-env", help="Environment variable holding the robot endpoint bearer token")
     return result
 
 
@@ -64,19 +68,34 @@ async def serve(args):
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, requested_stop, sig)
     try:
-        cfg = load_robot_config(args.robot, config_dir=getattr(args, "config_dir", None))
+        remote = getattr(args, "robot_endpoint", None) is not None
         activation = None
-        if getattr(args, "robot_lifecycle", None) == "bounded_hand":
-            from ..conversation.activation import build_bounded_hand_service
-            runtime, activation = build_bounded_hand_service(cfg, run_dir)
+        if remote:
+            # Split deployment (B51): the robot runtime is owned by its own
+            # cascade-robot-service process; no local profile or driver here.
+            from ..robotics.endpoint import RemoteRobotRuntime, endpoint_token
+            runtime = RemoteRobotRuntime(args.robot_endpoint, endpoint_token(args.robot_token_env))
+            runtime.connect()
+            if runtime.robot_id != args.robot:
+                raise ValueError("remote robot identity differs from the configured robot")
+            robot_id, robot_config_sha256 = runtime.robot_id, None
         else:
-            runtime, _ = build_robot_runtime(cfg, run_dir)
-        domain = ConversationDomain(runtime, robot_id=cfg.robot_id, allow_tools=args.allow_tool,
+            cfg = load_robot_config(args.robot, config_dir=getattr(args, "config_dir", None))
+            if getattr(args, "robot_lifecycle", None) == "bounded_hand":
+                from ..conversation.activation import build_bounded_hand_service
+                runtime, activation = build_bounded_hand_service(cfg, run_dir)
+            else:
+                runtime, _ = build_robot_runtime(cfg, run_dir)
+            robot_id = cfg.robot_id
+            robot_config_sha256 = hashlib.sha256(json.dumps(
+                cfg.as_dict(), sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        domain = ConversationDomain(runtime, robot_id=robot_id, allow_tools=args.allow_tool,
                                     allow_motion=args.allow_motion, barge_in=args.barge_in,
                                     intent_timeout_s=args.intent_timeout_s,
                                     execution_timeout_s=args.execution_timeout_s)
         gateway = ConversationGateway(domain, lambda: RealtimeWebSocket(config),
-                                      **({"activation": activation} if activation is not None else {}))
+                                      **({"activation": activation} if activation is not None else {}),
+                                      **({"probes": runtime.ready} if remote else {}))
         if getattr(args, "start_stopped", False):
             stopped = await domain.stop()
             if stopped.get("ok") is not True:
@@ -84,15 +103,16 @@ async def serve(args):
         origin = await gateway.start(port=args.port)
         ready = {"schema": 1, "state": "listening_at_publication", "pid": os.getpid(),
                  "published_monotonic_s": time.monotonic(), "origin": origin,
-                 "robot_id": cfg.robot_id, "tools": list(domain.tools),
+                 "robot_id": robot_id, "tools": list(domain.tools),
                  "runtime_stopped": runtime.stopped, "provider_connected": False,
                  "physical_admission": False,
                  "intent_timeout_s": args.intent_timeout_s,
                  "execution_timeout_s": args.execution_timeout_s,
                  "robot_lifecycle": getattr(args, "robot_lifecycle", None),
                  "service_config_sha256": getattr(args, "service_config_sha256", None),
-                 "robot_config_sha256": hashlib.sha256(json.dumps(
-                     cfg.as_dict(), sort_keys=True, separators=(",", ":")).encode()).hexdigest()}
+                 "robot_config_sha256": robot_config_sha256}
+        if remote:
+            ready["robot_endpoint"] = runtime.endpoint_receipt()
         with (run_dir / "ready.json").open("x") as stream:
             json.dump(ready, stream, indent=2)
         # Fragment is not sent in HTTP requests. Browser exchanges it for a

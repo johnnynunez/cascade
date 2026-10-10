@@ -385,6 +385,40 @@ tier or host. In order:
    Negative `n` counts from the end; recall rows are not steps; an invalid
    `n` is an explicit error and never an old frame.
 
+**Pick persistence never re-grasps what it holds (B36, 2026-10-10).** The
+grasp persistence loops (`pick_and_place`, and `_grasp_with_persistence` behind
+`handover`, `sort_by_color` and `rearrange`) retry a failed attempt with a
+fresh re-home, re-scan and plan. An attempt can fail AFTER its close took the
+object (live on Isaac: "did not settle at grasp lift pose" with the cube
+lifted). Before retrying, `_held_after_failed_attempt` reconciles the held flag
+with the jaws exactly as a skill's entry does (`_reconcile_held` promotes the
+close's provisional marker only when the jaws are stalled on something): the
+requested object in the jaws IS the grasp -- the pick goes on to place it, the
+result carries `grasp_recovered_after` and `grip_verified: null` (the post-lift
+jaw check never ran); another object stops the loop as `stuck`. Nothing is
+asked during an e-stop or an unfinished contact episode. Before this every
+retry refused "already holding" until the budget was gone, the cube ended
+held at the home pose and the scene reset failed.
+
+**Grasp hold after contact on Isaac (B36, 2026-10-10).** The Isaac bridge has
+no force bound (it drops `effort`): the stage-2 position target squeezes a
+grasped object at full drive stiffness. On PhysX that left wrist roll a median
+0.045 rad from its lift target (settle_tol 0.045; Newton shows no such
+deflection), the root of "did not settle at grasp lift pose" / "...above the
+place target" and of drops in carry. `gripper.hold_squeeze_frac` (arm profile;
+a number, or a mapping keyed by the physics engine the bridge names in its ping
+reply, which `IsaacArm.connect` records) makes the GRASP's close wait for the
+jaws to stall (`hold_stall_timeout_s`, default 4 s) and then hold at the
+measured contact opening minus that fraction of travel (`_grasp_close`); no
+stall, or a stall within 0.02 of the stage-2 target, keeps the stage-2 command.
+`close_gripper`, the screw stroke and drivers with their own two-stage close
+(the real reBot: B38 bounds its squeeze) are unchanged. The post-lift air-grasp
+check then judges the HOLD opening (an object lost in the lift leaves the jaws
+there). Values are validated before the grasp moves. `configs/arms/isaac.yaml`
+(and `isaac_cumotion`, `isaac_reach`) ship `{physx: 0.05}`; the kitchen
+profiles opt out (`null`) until measured; unset = the two-stage close byte for
+byte. Measured: [evidence](evidence/b36-pick-reliability-20261010/README.md).
+
 **Wrist narration on the dashboard (B47, opt-in, 2026-10-09).** With
 `stream.wrist_narration: true` and a rig camera whose profile is a wrist view
 (`is_wrist_view`: `role: wrist` or eye-in-hand extrinsics), `build_runtime`
@@ -1378,6 +1412,15 @@ barriers.
   the unverified width map, the stage-1 scout squeeze before the first stall
   is not capped, and the user's hardware protocol in that doc must run before
   a value is set.
+- Isaac pick reliability (B36): the grasp hold after contact applies only when
+  the jaw stall detector (0.5 s within a 0.002 band) sees the stall; PhysX
+  contact chatter of +-0.003 hid it in 1 of 12 live runs, which then failed
+  "did not settle above the place target" after the held-object recovery. It
+  helps only with the learned GraspGen-X grasps: with the analytic OBB fallback
+  (GraspGen-X down) neither arm placed the cube (0/3 vs 0/3: main stuck on
+  "already holding", the branch lifted it and dropped it in the carry).
+  Newton keeps the plain close (the hold dropped the cube there); the kitchen
+  profiles are unmeasured and opt out.
 - Reach: the default reBot profiles keep the top-down-only workspace box
   (x 0.10..0.50, y ±0.30), part of which top-down grasps cannot reach
   (r > 0.45 m). The measured larger envelope and the tilted analytic

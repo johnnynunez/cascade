@@ -41,7 +41,8 @@ Realtime provider integration and an explicit robot-tool allowlist with priority
 stop. Its recorded speech and motion episodes have separate source and outcome
 bounds; general dialogue reliability and a public hosted service remain pending.
 It can also run as its own process against a separately deployed
-`cascade-robot-service` ([opt-in, loopback protocol `cascade.robot-runtime/1`](docs/CONVERSATION.md#deploy-the-conversation-service-separately)).
+`cascade-robot-service` ([opt-in, protocol `cascade.robot-runtime/1`](docs/CONVERSATION.md#deploy-the-conversation-service-separately):
+plaintext on loopback by default, [opt-in TLS with a pinned CA](docs/CONVERSATION.md#across-hosts-opt-in-tls-b71) off loopback).
 
 The read-only [spatial domain](docs/SPATIAL_PROVIDERS.md) adds capture-time
 transforms, landmark memory and synthetic planar route proposals. The separate

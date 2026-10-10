@@ -90,7 +90,16 @@ stop route that needs no lease and runs beside an in-flight motion, and reset
 only with the lease and the exact observed generation. The conversation then
 serves unauthenticated `/healthz` and `/readyz` probes. Without
 `robot_endpoint` the service is the original in-process composition
-(golden-pinned). See [separate deployment](CONVERSATION.md#deploy-the-conversation-service-separately).
+(golden-pinned). Across hosts the same protocol runs over opt-in TLS (B71,
+stdlib `ssl`): `cascade-robot-service --tls-cert/--tls-key` serves HTTPS and
+may then bind a non-loopback IP (without TLS that bind is refused before any
+runtime is built); the client trusts only `robot_tls_ca` (hostname checked)
+and/or `robot_tls_fingerprint`, checked before any request byte, and the
+bearer token still gates every route. Handshakes run in each connection's own
+thread with a limit, never in the accept loop, so a stalled peer cannot delay
+a stop. The plaintext default is golden-pinned byte for byte.
+See [separate deployment](CONVERSATION.md#deploy-the-conversation-service-separately)
+and [across hosts](CONVERSATION.md#across-hosts-opt-in-tls-b71).
 
 ## Design position
 
@@ -1587,13 +1596,19 @@ barriers.
   The launcher's runtime check still inherits the whole shell, so a
   not-forwarded selector exported there (`CASCADE_ROBOT`, `CASCADE_BASE`)
   changes what the check builds, not what the registered server builds.
-- The split conversation deployment (B51, opt-in) is loopback only (one host
-  or network namespace); a cross-host deployment needs an authenticated,
-  encrypted transport that `cascade.robot-runtime/1` does not provide. The
+- The split conversation deployment (B51, opt-in) is plaintext loopback by
+  default; off loopback it needs the opt-in TLS transport (B71: server
+  certificate, client pinned to a CA with hostname check and/or to the
+  certificate fingerprint, bearer token unchanged; a non-loopback bind without
+  TLS is refused). That transport is measured on one host only (loopback and a
+  private interface of the same host): no run between two hosts, no mutual
+  TLS, no token expiry or rotation, no certificate revocation or renewal, and
+  every TLS call performs a full handshake (about 1 ms more per call than
+  plaintext on loopback). The
   robot re-anchors the remaining intent budget when a request arrives, so its
   deadline is late by the one-way request latency. The conversation's state
-  reads (`/api/status`, a session's generation) are blocking loopback calls
-  bounded by a 2 s I/O timeout; with the robot service unreachable
+  reads (`/api/status`, a session's generation) are blocking calls to the robot
+  service bounded by a 2 s I/O timeout; with the robot service unreachable
   `/api/status` fails (HTTP 500) instead of inventing a generation, `/readyz`
   says why, and a stop sent through the conversation cannot be delivered --
   the robot's lease expiry (default 3 s) is then the stop. A lost lease is

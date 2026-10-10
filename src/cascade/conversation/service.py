@@ -16,7 +16,10 @@ DEFAULTS = {"robot": "conversation_mock", "provider_url": None, "token_env": Non
             "provider_release_contract": None, "robot_lifecycle": None,
             # Split deployment (B51): the robot runtime runs in its own
             # cascade-robot-service process. Absent = built in-process (default).
-            "robot_endpoint": None, "robot_token_env": None}
+            "robot_endpoint": None, "robot_token_env": None,
+            # Opt-in TLS for that endpoint (B71): an https:// robot_endpoint needs
+            # a pinned CA and/or the server certificate's SHA-256 fingerprint.
+            "robot_tls_ca": None, "robot_tls_fingerprint": None}
 
 
 def configuration(args):
@@ -40,7 +43,7 @@ def configuration(args):
                 or data["version"] != 1 or set(data) - (set(DEFAULTS) | {"version"})):
             raise ValueError("conversation configuration requires version 1 and known fields")
         values.update({key: value for key, value in data.items() if key != "version"})
-        for key in ("config_dir", "run_dir", "run_root"):
+        for key in ("config_dir", "run_dir", "run_root", "robot_tls_ca"):
             if values[key] is not None:
                 if type(values[key]) is not str or not values[key]:
                     raise ValueError(f"{key} must be a nonempty path")
@@ -61,15 +64,20 @@ def configuration(args):
         raise ValueError("bounded hand activation requires stop_robot interruption")
     if values["token_env"] is not None and type(values["token_env"]) is not str:
         raise ValueError("token_env must name an environment variable")
+    tls = values["robot_tls_ca"] is not None or values["robot_tls_fingerprint"] is not None
     if values["robot_endpoint"] is not None:
-        from ..robotics.endpoint import endpoint_origin
-        values["robot_endpoint"] = endpoint_origin(values["robot_endpoint"])
+        from ..robotics.endpoint import certificate_fingerprint, endpoint_origin
+        values["robot_endpoint"] = endpoint_origin(values["robot_endpoint"], tls=tls)
         if type(values["robot_token_env"]) is not str or not values["robot_token_env"].isidentifier():
             raise ValueError("robot_endpoint requires robot_token_env naming an environment variable")
         if values["robot_lifecycle"] is not None or values["config_dir"] is not None:
             raise ValueError("a remote robot runtime takes no local robot lifecycle or profile directory")
+        if values["robot_tls_fingerprint"] is not None:
+            values["robot_tls_fingerprint"] = certificate_fingerprint(values["robot_tls_fingerprint"])
     elif values["robot_token_env"] is not None:
         raise ValueError("robot_token_env requires robot_endpoint")
+    elif tls:
+        raise ValueError("robot_tls_ca and robot_tls_fingerprint require an https robot_endpoint")
     for key in ("allow_motion", "start_stopped"):
         if type(values[key]) is not bool:
             raise ValueError(f"{key} must be boolean")
@@ -86,7 +94,7 @@ def configuration(args):
             or any(type(t) is not str or not 0 < len(t) <= 128 for t in tools)
             or len(set(tools)) != len(tools)):
         raise ValueError("allow_tools must contain unique tool names")
-    for key in ("config_dir", "run_dir", "run_root"):
+    for key in ("config_dir", "run_dir", "run_root", "robot_tls_ca"):
         value = values[key]
         if value is not None:
             if not isinstance(value, (str, Path)) or not str(value):

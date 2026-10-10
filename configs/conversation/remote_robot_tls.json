@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "robot": "conversation_mock",
+  "robot_endpoint": "https://192.0.2.10:8781",
+  "robot_token_env": "CASCADE_ROBOT_ENDPOINT_TOKEN",
+  "robot_tls_ca": "../../runs/robot-tls/ca.pem",
+  "provider_url": "ws://127.0.0.1:8765/v1/realtime",
+  "allow_tools": [
+    "sensing.list_sensors",
+    "sensing.read_sensor"
+  ],
+  "start_stopped": true,
+  "port": 8780,
+  "run_root": "../../runs/conversation"
+}

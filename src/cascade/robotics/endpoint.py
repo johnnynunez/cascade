@@ -1,9 +1,10 @@
 """`cascade.robot-runtime/1`: one robot runtime served to a separately deployed supervisor.
 
 The conversation service (``cascade-conversation``) normally builds its robot
-runtime in its own process. This module lets the two run as separate processes
-on one host: ``RobotRuntimeEndpoint`` serves an existing ``RobotRuntime`` over
-loopback HTTP/JSON (stdlib only, no extra dependency), and ``RemoteRobotRuntime``
+runtime in its own process. This module lets the two run as separate processes:
+``RobotRuntimeEndpoint`` serves an existing ``RobotRuntime`` over HTTP/JSON
+(stdlib only, no extra dependency) -- plaintext on loopback by default, HTTPS
+with opt-in TLS anywhere else -- and ``RemoteRobotRuntime``
 is the client with the surface ``ConversationDomain`` and its gateway use.
 
 Safety properties carried across the process boundary (B51):
@@ -24,8 +25,11 @@ Safety properties carried across the process boundary (B51):
 * The client reports unknown state as stopped, a lost transport as
   ``delivery_uncertain`` and a lost lease as terminal for that supervisor.
 
-Loopback only, like the conversation gateway: a cross-host deployment needs an
-authenticated encrypted transport this protocol does not provide.
+Plaintext loopback by default, like the conversation gateway. TLS is opt-in
+(B71): the endpoint serves a certificate + key, the client trusts only a
+pinned CA (hostname checked) and/or the server certificate's SHA-256
+fingerprint, and the bearer token still gates every route. Off loopback the
+endpoint refuses to start without TLS. Stdlib ``ssl`` only.
 """
 from __future__ import annotations
 
@@ -37,7 +41,10 @@ import ipaddress
 import json
 import math
 import os
+import re
 import secrets
+import socket
+import ssl
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -50,6 +57,8 @@ PROTOCOL_HEADER = "X-Cascade-Protocol"
 MAX_REQUEST_BYTES = 1 << 20
 MAX_RESPONSE_BYTES = 16 << 20
 MAX_DEADLINE_S = 300.0
+# A TLS peer gets this long to finish its handshake, in its own request thread.
+TLS_HANDSHAKE_TIMEOUT_S = 10.0
 _LOOPBACK_NAMES = {"127.0.0.1", "localhost", "::1"}
 
 
@@ -63,21 +72,23 @@ def _check_token(token):
     return token
 
 
-def endpoint_origin(url):
-    """Normalize ``http://<loopback>:<port>``; anything else is refused."""
+def endpoint_origin(url, *, tls=False):
+    """Normalize ``http://<loopback>:<port>``, or with ``tls`` ``https://<host>:<port>``; anything else is refused."""
+    scheme, shape = ("https", "an https://<host>:<port>") if tls else ("http", "an http://<loopback>:<port>")
     if not isinstance(url, str):
-        raise ValueError("robot endpoint must be an http://<loopback>:<port> URL")
+        raise ValueError(f"robot endpoint must be {shape} URL")
     parts = urlsplit(url)
     try:
         port = parts.port
     except ValueError as exc:
         raise ValueError("robot endpoint port is invalid") from exc
-    if (parts.scheme != "http" or parts.hostname not in _LOOPBACK_NAMES or not port
+    named = bool(parts.hostname) if tls else parts.hostname in _LOOPBACK_NAMES
+    if (parts.scheme != scheme or not named or not port
             or parts.username or parts.password or parts.query or parts.fragment
             or parts.path not in {"", "/"}):
-        raise ValueError("robot endpoint must be an http://<loopback>:<port> URL without path or credentials")
+        raise ValueError(f"robot endpoint must be {shape} URL without path or credentials")
     host = f"[{parts.hostname}]" if ":" in parts.hostname else parts.hostname
-    return f"http://{host}:{port}"
+    return f"{scheme}://{host}:{port}"
 
 
 def endpoint_token(env_name):
@@ -94,6 +105,75 @@ def catalog_digest(description):
     """SHA256 of the robot identity, resources and tools a supervisor is bound to."""
     canonical = {key: description[key] for key in ("robot_id", "resources", "tools")}
     return hashlib.sha256(json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+# --------------------------------------------------------------------- TLS (opt-in, B71)
+
+
+def certificate_sha256(path):
+    """SHA-256 (lowercase hex) of the first certificate in a PEM file: the leaf a client can pin."""
+    with open(path, encoding="ascii") as stream:
+        text = stream.read()
+    begin = text.index("-----BEGIN CERTIFICATE-----")
+    end = text.index("-----END CERTIFICATE-----", begin) + len("-----END CERTIFICATE-----")
+    return hashlib.sha256(ssl.PEM_cert_to_DER_cert(text[begin:end])).hexdigest()
+
+
+def certificate_fingerprint(value):
+    """Normalize a pinned SHA-256 certificate fingerprint (hex, colons allowed) to 64 lowercase hex digits."""
+    digest = value.replace(":", "").strip().lower() if isinstance(value, str) else ""
+    if not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise ValueError("robot TLS fingerprint must be a SHA-256 digest: 64 hex digits, colons allowed")
+    return digest
+
+
+def server_tls_context(cert, key):
+    """TLS 1.2+ server context for the endpoint; raises if the certificate and key do not load as a pair."""
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.load_cert_chain(str(cert), str(key))
+    return context
+
+
+def client_tls_context(ca=None):
+    """Client context trusting ONLY the pinned CA, hostname checked (no system store).
+
+    Without a CA the client trusts nothing but the pinned leaf fingerprint, which
+    the caller checks after the handshake and before sending any byte."""
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    if ca is None:
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+    else:
+        context.load_verify_locations(cafile=str(ca))
+    return context
+
+
+class _TLSHTTPServer(ThreadingHTTPServer):
+    """Handshake in each connection's own thread, never in the accept loop.
+
+    Wrapping the listening socket would run every handshake inside
+    ``serve_forever``: one silent or plaintext peer would then delay every other
+    client -- including an operator's stop -- until it gave up."""
+    daemon_threads = True
+    tls_context = tls_handshake_timeout_s = None      # both set by RobotRuntimeEndpoint.start()
+
+    def finish_request(self, request, client_address):
+        request.settimeout(self.tls_handshake_timeout_s)
+        try:
+            secured = self.tls_context.wrap_socket(request, server_side=True)
+        except (OSError, ValueError):
+            return                      # refused handshake: nothing was read as HTTP
+        try:
+            secured.settimeout(None)    # then exactly the plaintext request handling
+            super().finish_request(secured, client_address)
+        finally:
+            try:
+                secured.shutdown(socket.SHUT_WR)
+            except OSError:
+                pass
+            secured.close()
 
 
 def _strict_json(raw):
@@ -132,7 +212,7 @@ class RobotRuntimeEndpoint:
         self._closing = False
         self.lease_expiry_stops = []
         self._server = self._thread = self._watchdog = None
-        self.origin = None
+        self.origin = self.tls_certificate_sha256 = None
         self._description = {
             "robot_id": robot_id,
             "resources": [resource.as_dict() for resource in runtime.resources],
@@ -141,16 +221,32 @@ class RobotRuntimeEndpoint:
 
     # ------------------------------------------------------------------ lifecycle
 
-    def start(self, *, host="127.0.0.1", port=0):
+    def start(self, *, host="127.0.0.1", port=0, tls_cert=None, tls_key=None):
+        """Bind one explicit IP. Plaintext only on loopback; any other address needs ``tls_cert`` + ``tls_key``."""
         if self._server is not None or self._closing:
             raise ValueError("endpoint already started or closed")
-        if not ipaddress.ip_address(host).is_loopback or type(port) is not int or not 0 <= port <= 65535:
+        if (tls_cert is None) != (tls_key is None):
+            raise ValueError("robot endpoint TLS needs both a certificate and its key")
+        address = ipaddress.ip_address(host)
+        if type(port) is not int or not 0 <= port <= 65535:
             raise ValueError("robot endpoint binds an explicit loopback IP only")
-        server = ThreadingHTTPServer((host, port), self._handler())
+        if tls_cert is None and not address.is_loopback:
+            raise ValueError("a non-loopback robot endpoint requires TLS (tls_cert and tls_key): "
+                             "the bearer token must not cross a network in clear")
+        if address.is_unspecified or address.is_multicast:
+            raise ValueError("robot endpoint binds one explicit unicast IP")
+        if tls_cert is None:
+            server = ThreadingHTTPServer((host, port), self._handler())
+        else:
+            context, fingerprint = server_tls_context(tls_cert, tls_key), certificate_sha256(tls_cert)
+            server = _TLSHTTPServer((host, port), self._handler())
+            server.tls_context, server.tls_handshake_timeout_s = context, TLS_HANDSHAKE_TIMEOUT_S
+            self.tls_certificate_sha256 = fingerprint
         server.daemon_threads = True
         self._server = server
         rendered = f"[{host}]" if ":" in host else host
-        self.origin = f"http://{rendered}:{server.server_address[1]}"
+        scheme = "http" if tls_cert is None else "https"
+        self.origin = f"{scheme}://{rendered}:{server.server_address[1]}"
         self._thread = threading.Thread(target=server.serve_forever, name="robot-endpoint", daemon=True)
         self._thread.start()
         self._watchdog = threading.Thread(target=self._watch_lease, name="robot-endpoint-lease", daemon=True)
@@ -356,9 +452,17 @@ class RemoteRobotRuntime:
     """
     robot_mode = "remote"
 
-    def __init__(self, origin, token, *, io_timeout_s=2.0, execute_timeout_s=330.0):
-        self.origin = endpoint_origin(origin)
+    def __init__(self, origin, token, *, io_timeout_s=2.0, execute_timeout_s=330.0, tls_ca=None, tls_fingerprint=None):
+        # TLS is selected explicitly: an https:// origin needs a pinned CA and/or a
+        # certificate fingerprint, and pinning anything requires an https:// origin.
+        tls = tls_ca is not None or tls_fingerprint is not None
+        self.origin = endpoint_origin(origin, tls=tls)
         self._token = _check_token(token)
+        self._tls_pin = None if tls_fingerprint is None else certificate_fingerprint(tls_fingerprint)
+        self._tls_context = client_tls_context(tls_ca) if tls else None
+        self._tls_trust = "+".join(name for name, value in (("ca", tls_ca), ("fingerprint", tls_fingerprint))
+                                   if value is not None)
+        self.tls_certificate_sha256 = None
         self.io_timeout_s, self.execute_timeout_s = io_timeout_s, execute_timeout_s
         self.robot_id = None
         self.resources, self.tool_descriptors, self.trace = (), {}, None
@@ -372,14 +476,21 @@ class RemoteRobotRuntime:
 
     def _request(self, method, path, body=None, *, timeout=None):
         parts = urlsplit(self.origin)
-        connection = http.client.HTTPConnection(parts.hostname, parts.port,
-                                                timeout=self.io_timeout_s if timeout is None else timeout)
+        timeout = self.io_timeout_s if timeout is None else timeout
+        if self._tls_context is None:
+            connection = http.client.HTTPConnection(parts.hostname, parts.port, timeout=timeout)
+        else:
+            connection = http.client.HTTPSConnection(parts.hostname, parts.port, timeout=timeout,
+                                                     context=self._tls_context)
         headers = {"Authorization": "Bearer " + self._token, PROTOCOL_HEADER: PROTOCOL}
         data = None
         if body is not None:
             data = json.dumps(body, allow_nan=False).encode()
             headers["Content-Type"] = "application/json"
         try:
+            if self._tls_context is not None:
+                connection.connect()
+                self._check_peer(connection.sock)    # before a single request byte (the token) is sent
             connection.request(method, path, body=data, headers=headers)
             response = connection.getresponse()
             raw = response.read(MAX_RESPONSE_BYTES + 1)
@@ -396,6 +507,13 @@ class RemoteRobotRuntime:
         if not isinstance(payload, dict) or payload.get("protocol") != PROTOCOL:
             raise RobotEndpointError("robot endpoint protocol mismatch")
         return response.status, payload
+
+    def _check_peer(self, sock):
+        """Record the server's leaf certificate; refuse a fingerprint other than the pinned one."""
+        digest = hashlib.sha256(sock.getpeercert(binary_form=True) or b"").hexdigest()
+        if self._tls_pin is not None and not hmac.compare_digest(digest, self._tls_pin):
+            raise RobotEndpointError("robot endpoint certificate fingerprint mismatch")
+        self.tls_certificate_sha256 = digest
 
     def connect(self):
         status, description = self._request("GET", "/v1/describe")
@@ -438,8 +556,11 @@ class RemoteRobotRuntime:
             return self._lost or self.lease_id is None
 
     def endpoint_receipt(self):
-        return {"origin": self.origin, "protocol": PROTOCOL, "catalog_sha256": self.catalog_sha256,
-                "lease_ttl_s": self.lease_ttl_s}
+        receipt = {"origin": self.origin, "protocol": PROTOCOL, "catalog_sha256": self.catalog_sha256,
+                   "lease_ttl_s": self.lease_ttl_s}
+        if self._tls_context is not None:
+            receipt["tls"] = {"certificate_sha256": self.tls_certificate_sha256, "trust": self._tls_trust}
+        return receipt
 
     # ------------------------------------------------------------------ runtime surface
 

@@ -586,3 +586,10 @@ eval:
 # bearer token, supervision lease whose expiry latches the robot stop) and the
 # conversation process builds no robot. Absent (default) = the robot runtime is
 # built in-process exactly as before. Example: configs/conversation/remote_robot.json.
+# Off loopback (B71, opt-in) the robot service needs --tls-cert/--tls-key (it
+# refuses a non-loopback --host without them) and the conversation JSON then
+# takes `robot_endpoint: https://<host>:<port>` with `robot_tls_ca` (the only CA
+# trusted, hostname checked) and/or `robot_tls_fingerprint` (the server
+# certificate's SHA-256); both absent = plaintext loopback, byte-identical.
+# scripts/robot_endpoint_certs.py issues the CA + certificate. Example:
+# configs/conversation/remote_robot_tls.json.

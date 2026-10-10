@@ -38,9 +38,14 @@ def parser():
     result.add_argument("--execution-timeout-s", type=float,
                         help="Action budget, at most 300 seconds (default 30)")
     result.add_argument("--robot-endpoint",
-                        help="Split deployment: http://<loopback>:<port> of a cascade-robot-service "
+                        help="Split deployment: http://<loopback>:<port> of a cascade-robot-service, or "
+                             "https://<host>:<port> with --robot-tls-ca/--robot-tls-fingerprint "
                              "(--robot then names its expected robot_id); default builds the robot in-process")
     result.add_argument("--robot-token-env", help="Environment variable holding the robot endpoint bearer token")
+    result.add_argument("--robot-tls-ca", type=Path,
+                        help="Opt-in TLS (B71): the only CA trusted for the https robot endpoint (hostname checked)")
+    result.add_argument("--robot-tls-fingerprint",
+                        help="Opt-in TLS (B71): pinned SHA-256 of the robot endpoint's certificate (hex)")
     return result
 
 
@@ -74,7 +79,9 @@ async def serve(args):
             # Split deployment (B51): the robot runtime is owned by its own
             # cascade-robot-service process; no local profile or driver here.
             from ..robotics.endpoint import RemoteRobotRuntime, endpoint_token
-            runtime = RemoteRobotRuntime(args.robot_endpoint, endpoint_token(args.robot_token_env))
+            runtime = RemoteRobotRuntime(args.robot_endpoint, endpoint_token(args.robot_token_env),
+                                         tls_ca=getattr(args, "robot_tls_ca", None),
+                                         tls_fingerprint=getattr(args, "robot_tls_fingerprint", None))
             runtime.connect()
             if runtime.robot_id != args.robot:
                 raise ValueError("remote robot identity differs from the configured robot")

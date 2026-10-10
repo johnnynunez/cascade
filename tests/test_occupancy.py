@@ -452,8 +452,10 @@ def fresh_bridge(tmp_path):
 
 @pytest.fixture
 def dead_port():
-    """A port this test holds bound with nothing listening: refused, and no
-    other process can serve on it meanwhile (unlike a literal "5597")."""
+    """A port this test holds bound with nothing listening: no connection
+    completes (refused on Linux, unanswered on macOS -- keep client timeouts
+    short), and no other process can serve on it meanwhile (unlike a
+    literal "5597")."""
     with held_dead_port() as port:
         yield port
 

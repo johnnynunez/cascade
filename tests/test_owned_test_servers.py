@@ -37,6 +37,7 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 from contextlib import contextmanager
 
 import numpy as np
@@ -241,16 +242,45 @@ def test_premise_a_stub_cannot_bind_a_port_another_socket_holds():
     assert "Address already in use" in result.stderr
 
 
-def test_a_held_dead_port_refuses_connections_and_cannot_be_taken():
+def _connect_outcome(port: int, timeout_s: float) -> str:
+    """'connected', 'refused' or 'no answer' for one TCP connect to `port`."""
+    try:
+        socket.create_connection(("127.0.0.1", port), timeout=timeout_s).close()
+    except ConnectionRefusedError:
+        return "refused"
+    except TimeoutError:
+        return "no answer"
+    return "connected"
+
+
+def test_a_held_dead_port_never_completes_a_connection_and_cannot_be_taken():
+    """The contract every `dead_port` fixture relies on, on every platform: no
+    connection to the port ever completes, and no other socket can bind it.
+    HOW the connect fails is platform-specific (next test): the macOS CI runner
+    never answers it, so this probe gives up after 2 s instead of 30."""
     with held_dead_port() as port:
-        with pytest.raises(ConnectionRefusedError):
-            socket.create_connection(("127.0.0.1", port), timeout=30).close()
+        assert _connect_outcome(port, timeout_s=2.0) in ("refused", "no answer")
         intruder = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             with pytest.raises(OSError):
                 intruder.bind(("127.0.0.1", port))
         finally:
             intruder.close()
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"),
+                    reason="Linux-only: macOS leaves a connect to a bound, non-listening port unanswered")
+def test_on_linux_a_held_dead_port_refuses_at_once():
+    """Linux answers a connect to a bound, non-listening port with a reset, so a
+    client fails immediately. Measured on the macOS CI runner (main 68d2866,
+    the first version of this test): the same connect timed out after 30 s
+    (`TimeoutError: [Errno 60]`), i.e. a dead_port client there fails by its
+    own timeout instead -- why every dead_port test uses a short client
+    timeout."""
+    with held_dead_port() as port:
+        t0 = time.monotonic()
+        assert _connect_outcome(port, timeout_s=30.0) == "refused"
+        assert time.monotonic() - t0 < 1.0
 
 
 # ── RED: fail on main, pass after ────────────────────────────────────────

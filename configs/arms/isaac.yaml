@@ -41,4 +41,9 @@ gripper:
   # contact. The bridge drops `effort`, so without it the stage-2 position
   # target squeezed the cube at full drive stiffness and left wrist roll
   # 0.042-0.049 rad off target on every held move (settle_tol 0.045).
-  hold_squeeze_frac: 0.05
+  # Keyed by the engine the bridge reports at connect: measured on the bare
+  # scene (8 Oct 2026, fresh stage per run) PhysX went 2/6 -> 6/6 confirmed
+  # picks with it, Newton 4/4 -> 1/4 (the lighter hold left the cube on the
+  # table), so Newton keeps the plain two-stage close.
+  hold_squeeze_frac:
+    physx: 0.05

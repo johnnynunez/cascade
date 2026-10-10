@@ -237,7 +237,8 @@ def test_an_invalid_squeeze_is_refused_before_the_jaws_move(rt_arm, monkeypatch,
 
 def test_only_the_bare_isaac_scene_profiles_opt_in_and_the_tolerance_is_unchanged():
     """Resolved configs, so `extends:` inheritance is covered: the kitchen
-    profiles inherit isaac.yaml and must opt out until measured there."""
+    profiles inherit isaac.yaml and must opt out until measured there. The
+    Isaac opt-in is PhysX-only: Newton measured worse with the hold."""
     from pathlib import Path
 
     arms = Path(__file__).resolve().parents[1] / "configs" / "arms"
@@ -246,8 +247,102 @@ def test_only_the_bare_isaac_scene_profiles_opt_in_and_the_tolerance_is_unchange
         g = load_demo_config(camera="mock", arm=p.stem, llm="mock").arm.get("gripper")
         value = g.get("hold_squeeze_frac") if g is not None else None
         if value is not None:
-            opted[p.stem] = value
+            opted[p.stem] = value.as_dict() if hasattr(value, "as_dict") else value
     assert sorted(opted) == ["isaac", "isaac_cumotion"], opted
-    assert all(0.0 < float(v) < 0.1 for v in opted.values())
+    for value in opted.values():
+        assert value == {"physx": 0.05}, value  # no newton entry: the plain close there
     for name in ("isaac", "isaac_kitchen"):
         assert float(load_demo_config(camera="mock", arm=name, llm="mock").arm.get("settle_tol")) == 0.045
+
+
+# ── 3. the hold is keyed by the physics engine the backend reports ──────────
+
+
+class _EngineArm:
+    """Stands in for `SafeArm.raw` reporting a physics engine (Isaac bridge)."""
+
+    def __init__(self, engine):
+        self.physics_engine = engine
+
+
+def _with_engine(rt, monkeypatch, engine):
+    safe = rt.arm
+    monkeypatch.setattr(type(safe), "raw", property(lambda self: _EngineArm(engine)), raising=False)
+
+
+@pytest.mark.parametrize("engine,expected", [
+    ("physx", 0.05), ("PhysX", 0.05), ("newton", None), ("mujoco", None), (None, None), ("", None),
+])
+def test_a_per_engine_squeeze_applies_only_on_the_engine_it_names(rt_arm, monkeypatch, engine, expected):
+    rt, arm = rt_arm
+    rt.cfg.arm.gripper._data["hold_squeeze_frac"] = {"physx": 0.05}
+    _with_engine(rt, monkeypatch, engine)
+    assert rt._hold_squeeze_frac() == expected
+
+
+def test_a_backend_without_an_engine_gets_no_per_engine_hold(rt_arm, monkeypatch):
+    """The mock arm reports no engine: the close ends at the stage-2 target."""
+    rt, arm = rt_arm
+    arm.object_stop_frac = 0.5
+    rt.cfg.arm.gripper._data["hold_squeeze_frac"] = {"physx": 0.05}
+    assert getattr(rt.arm.raw, "physics_engine", None) is None
+    sent = _spy_gripper(rt, arm, monkeypatch)
+    rt._close_two_stage(select_profile("", "rigid"))
+    stage2 = rt._grip_open + _span(rt) * 0.85
+    assert sent[-1] == pytest.approx(stage2)
+
+
+def test_the_physx_hold_runs_through_the_close_when_the_backend_reports_physx(rt_arm, monkeypatch):
+    rt, arm = rt_arm
+    arm.object_stop_frac = 0.5
+    rt.cfg.arm.gripper._data["hold_squeeze_frac"] = {"physx": 0.05, "newton": None}
+    sent = _spy_gripper(rt, arm, monkeypatch)
+    arm.physics_engine = "physx"  # the mock arm is the raw backend here
+    rt._close_two_stage(select_profile("", "rigid"))
+    assert sent[-1] == pytest.approx(rt._grip_open + _span(rt) * (1.0 - 0.45)), sent
+    sent.clear()
+    arm.physics_engine = "newton"
+    rt._close_two_stage(select_profile("", "rigid"))
+    assert sent[-1] == pytest.approx(rt._grip_open + _span(rt) * 0.85), sent
+
+
+@pytest.mark.parametrize("bad", [{"physx": 0}, {"physx": 1.0}, {"newton": "lots"}, {"physx": float("nan")}])
+def test_a_bad_entry_for_any_engine_is_refused_before_the_jaws_move(rt_arm, monkeypatch, bad):
+    rt, arm = rt_arm
+    arm.object_stop_frac = 0.5
+    arm.physics_engine = "physx"
+    rt.cfg.arm.gripper._data["hold_squeeze_frac"] = bad
+    sent = _spy_gripper(rt, arm, monkeypatch)
+    with pytest.raises(SkillError, match="hold_squeeze_frac"):
+        rt._close_two_stage(select_profile("", "rigid"))
+    assert sent == []
+
+
+def test_isaac_arm_records_the_engine_named_in_the_bridge_ping():
+    from cascade.control.isaac_arm import IsaacArm
+
+    cfg = load_demo_config(camera="mock", arm="isaac", llm="mock").arm
+    arm = IsaacArm(cfg)
+    assert arm.physics_engine is None
+
+    class _Client:
+        _addr = ("fake", 1)
+
+        def __init__(self, reply):
+            self.reply = reply
+            self.ops = []
+
+        def connect(self):
+            pass
+
+        def request(self, payload, timeout_s=None):
+            self.ops.append(payload["op"])
+            return self.reply
+
+    for reply, expected in (({"ok": True, "engine": "physx"}, "physx"),
+                            ({"ok": True, "engine": "Newton"}, "newton"),
+                            ({"ok": True}, None), ({"ok": True, "engine": 3}, None)):
+        arm._client = _Client(reply)
+        arm.connect()
+        assert arm.physics_engine == expected
+        assert arm._client.ops == ["ping"]

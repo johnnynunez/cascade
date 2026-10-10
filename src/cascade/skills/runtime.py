@@ -22,6 +22,7 @@ import cv2
 import numpy as np
 
 from ..agent.trace import TraceLogger
+from ..config import Cfg
 from ..grasping import plan_grasps_from_fix, select_grasp, select_profile
 from ..grasping import evidence as grasp_evidence
 from ..grasping.selector import ALL_TOO_WIDE_MARKER
@@ -135,6 +136,18 @@ class _PostPlaceRetreatPlanError(SkillError):
 
 class _PreCarryLiftError(SkillError):
     """Carry clearance is unavailable; retain the grasp without a home sweep."""
+
+
+def _squeeze_fraction(raw, name: str) -> float:
+    """A post-contact hold squeeze: a fraction of jaw travel in (0, 1), else
+    SkillError naming the profile key (raised before any jaw command)."""
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        value = float("nan")
+    if not np.isfinite(value) or not 0.0 < value < 1.0:
+        raise SkillError(f"{name} must be a fraction in (0, 1), got {raw!r}")
+    return value
 
 
 def _every_candidate_too_wide(err: str) -> bool:
@@ -2950,19 +2963,35 @@ class SkillRuntime:
                                      _halt_generation=_halt_generation, _before_close=_before_close)
 
     def _hold_squeeze_frac(self) -> float | None:
-        """`gripper.hold_squeeze_frac` of the arm profile, validated (None = off)."""
+        """`gripper.hold_squeeze_frac` of the arm profile, validated (None = off).
+
+        A number applies on any backend. A mapping is keyed by the physics
+        engine the arm backend reports (`physics_engine`; the Isaac bridge
+        names `physx` or `newton` in its ping reply). Measured on Isaac
+        (8 Oct 2026, bare reBot scene, fresh stage per run): the hold took
+        PhysX from 2/6 to 6/6 physics-confirmed picks and Newton from 4/4 to
+        1/4 -- the lighter hold left the cube on the table under Newton's
+        contact model -- so the Isaac profile opts in for PhysX only. A
+        backend that reports no engine, or an engine the mapping does not
+        name, gets no hold. Every value is validated before the jaws move,
+        including the entries for other engines (a bad profile fails closed).
+        """
         arm_cfg = getattr(self.cfg, "arm", None)
         g = arm_cfg.get("gripper") if arm_cfg is not None else None
         raw = g.get("hold_squeeze_frac") if g is not None else None
         if raw is None:
             return None
-        try:
-            value = float(raw)
-        except (TypeError, ValueError):
-            value = float("nan")
-        if not np.isfinite(value) or not 0.0 < value < 1.0:
-            raise SkillError(f"gripper.hold_squeeze_frac must be a fraction in (0, 1), got {raw!r}")
-        return value
+        if isinstance(raw, Cfg):
+            per_engine = raw.as_dict()
+            for name, entry in per_engine.items():
+                if entry is not None:
+                    _squeeze_fraction(entry, f"gripper.hold_squeeze_frac.{name}")
+            engine = getattr(self.arm.raw, "physics_engine", None)
+            if not isinstance(engine, str) or not engine:
+                return None
+            entry = per_engine.get(engine.lower())
+            return None if entry is None else _squeeze_fraction(entry, f"gripper.hold_squeeze_frac.{engine}")
+        return _squeeze_fraction(raw, "gripper.hold_squeeze_frac")
 
     def _hold_after_contact(self, profile, squeeze: float, stage2_open: float, *,
                             _halt_generation=None, _before_close=None) -> None:

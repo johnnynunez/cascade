@@ -53,12 +53,20 @@ class IsaacArm(ArmBase):
             port=int(cfg.get("bridge_port", 8611)),
         )
         self._stopped = False
+        # Physics engine the bridge reports at connect() (None until then, and
+        # for a bridge that does not name one).
+        self.physics_engine: str | None = None
         # Acknowledged targets only; never infer motion from requested poses.
         self._acknowledged_joint_targets = 0
 
     def connect(self) -> None:
         self._client.connect()
-        self._client.ping()
+        # The bridge names its physics engine in the ping reply. Profile keys
+        # measured per engine select on it (`gripper.hold_squeeze_frac`,
+        # B36: the post-contact hold fixed PhysX picks and broke Newton's).
+        reply = self._client.request({"op": "ping"})
+        engine = reply.get("engine") if isinstance(reply, dict) else None
+        self.physics_engine = engine.lower() if isinstance(engine, str) and engine else None
         self._stopped = False
 
     def disconnect(self) -> None:

@@ -5,7 +5,11 @@ from its own process (`cascade-robot-service`); `cascade-conversation` with
 `robot_endpoint` drives it remotely and builds no robot itself. Premise/golden
 tests pin the default in-process path, which must stay byte-identical.
 
-Every server here binds a loopback port inside this item's block 46400-46499.
+Every server here binds a loopback port the OS assigns (port 0, as B64's
+tests/owned_server.py): the in-process ones report the bound port, the child
+processes announce it on stdout and in their own ready.json under this test's
+run directory, and a per-test bearer token makes any foreign listener refuse.
+Block ports (46400-46499) appear only in values nothing binds or dials.
 Mock ASR/LLM/TTS = a loopback Realtime provider stub; the robot is the mock
 MicroDuck kinematic base behind its real SafeBase/RobotRuntime. No speech
 inference, microphone, GPU or physics: transport and authority only.
@@ -20,7 +24,6 @@ import math
 import os
 import secrets
 import signal
-import socket
 import struct
 import sys
 import threading
@@ -59,37 +62,11 @@ GOLDEN_READY_KEYS = {
 # --------------------------------------------------------------------------- ports
 
 
-def _block_ports():
-    # Start at a per-process offset so concurrent sessions rarely probe the same port.
-    start = (os.getpid() * 11) % len(PORT_BLOCK)
-    for offset in range(len(PORT_BLOCK)):
-        yield PORT_BLOCK[(start + offset) % len(PORT_BLOCK)]
-
-
-def _free_port():
-    """A block port nobody listens on. SO_REUSEADDR like every server here: a port
-    whose earlier server left TIME_WAIT connections is free for them."""
-    for port in _block_ports():
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            try:
-                probe.bind(("127.0.0.1", port))
-            except OSError:
-                continue
-        return port
-    raise AssertionError("no free port left in this item's block 46400-46499")
-
-
-def _bind_in_block(start):
-    """Bind an in-process server directly (no check-then-use race)."""
-    for port in _block_ports():
-        try:
-            result = start(port)
-        except OSError:
-            continue
-        assert port in PORT_BLOCK
-        return port, result
-    raise AssertionError("no free port left in this item's block 46400-46499")
+def _loopback_port(origin):
+    """The port of an announced http(s)/ws loopback origin; never 0."""
+    parts = urlsplit(origin)
+    assert parts.hostname == "127.0.0.1" and parts.port, origin
+    return parts.port
 
 
 # ------------------------------------------------------------- fixture robot (in-process)
@@ -146,7 +123,8 @@ def _served(*, ttl=5.0):
     body, trace = _Body(), _Trace()
     runtime = RobotRuntime({"body": body}, trace=trace)
     endpoint = RobotRuntimeEndpoint(runtime, robot_id="fixture", token=TOKEN, lease_ttl_s=ttl)
-    _, origin = _bind_in_block(lambda port: endpoint.start(port=port))
+    origin = endpoint.start(port=0)
+    _loopback_port(origin)
     try:
         yield SimpleNamespace(body=body, trace=trace, runtime=runtime, endpoint=endpoint, origin=origin)
     finally:
@@ -327,7 +305,7 @@ def test_endpoint_refuses_weak_token_foreign_identity_bad_lease_and_public_bind(
         endpoint = RobotRuntimeEndpoint(runtime, robot_id="fixture", token=TOKEN, lease_ttl_s=30)
         for host in ("0.0.0.0", "192.0.2.1"):
             with pytest.raises(ValueError):
-                endpoint.start(host=host, port=_free_port())
+                endpoint.start(host=host, port=0)
         assert endpoint.close()["ok"] is True
     finally:
         runtime.close()
@@ -523,7 +501,8 @@ def test_remote_runtime_refuses_another_protocol_version_before_taking_a_lease()
         def log_message(self, *_args):
             pass
 
-    port, server = _bind_in_block(lambda p: ThreadingHTTPServer(("127.0.0.1", p), Foreign))
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Foreign)
+    port = server.server_address[1]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -656,9 +635,9 @@ def test_endpoint_rejects_malformed_lease_requests_and_bodies():
             connection.close()
         assert rig.trace.rows == [] and rig.body.stops == 0 and not rig.runtime.stopped
         with pytest.raises(ValueError):
-            rig.endpoint.start(port=_free_port())          # one listener per endpoint
+            rig.endpoint.start(port=0)          # one listener per endpoint
     with pytest.raises(ValueError):
-        rig.endpoint.start(port=_free_port())              # never restarted after close
+        rig.endpoint.start(port=0)              # never restarted after close
 
 
 def test_only_one_supervisor_connects_and_a_wrong_token_never_connects():
@@ -794,7 +773,7 @@ def test_conversation_service_refuses_a_remote_robot_with_another_identity(tmp_p
             args = configuration(parser().parse_args([
                 "--provider-url", "ws://127.0.0.1:46499/v1/realtime", "--run-dir", str(tmp_path / "run"),
                 "--robot", "someone-else", "--robot-endpoint", rig.origin, "--robot-token-env", TOKEN_ENV,
-                "--port", str(_free_port())]))
+                "--port", "0"]))
             # Bounded: a service that wrongly started would otherwise wait for a signal.
             assert asyncio.run(asyncio.wait_for(serve(SimpleNamespace(**args)), 60)) == 1
         finally:
@@ -902,52 +881,46 @@ async def _read_prefixed(process, prefix):
 
 
 async def _robot_service(directory, token, *, lease_ttl_s):
-    for attempt in range(4):
-        port, run = _free_port(), directory / f"robot-{attempt}"
-        process = await asyncio.create_subprocess_exec(
-            sys.executable, "-m", "cascade.apps.robot_service", "--robot", "microduck_conversation_mock",
-            "--port", str(port), "--run-dir", str(run), "--token-env", TOKEN_ENV,
-            "--lease-ttl-s", str(lease_ttl_s), cwd=REPO, env=_env(token),
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        line = await _read_prefixed(process, b"Robot runtime endpoint ")
-        if line is not None:
-            service = _Process(process, run, line.split()[3])
-            assert service.origin == f"http://127.0.0.1:{port}" and port in PORT_BLOCK
-            service.state = lambda: _http(service.origin, "GET", "/v1/state", token=token)[1]
-            service.trace_rows = lambda: [json.loads(row) for row in
-                                          (run / "trace.jsonl").read_text().splitlines() if row.strip()]
-            return service
+    run = directory / "robot"
+    process = await asyncio.create_subprocess_exec(
+        sys.executable, "-m", "cascade.apps.robot_service", "--robot", "microduck_conversation_mock",
+        "--port", "0", "--run-dir", str(run), "--token-env", TOKEN_ENV,
+        "--lease-ttl-s", str(lease_ttl_s), cwd=REPO, env=_env(token),
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    line = await _read_prefixed(process, b"Robot runtime endpoint ")
+    if line is None:
         await process.wait()
-        error = (await process.stderr.read()).decode()
-        if "Address already in use" not in error:
-            raise AssertionError(error)
-    raise AssertionError("robot service could not bind a block port")
+        raise AssertionError((await process.stderr.read()).decode())
+    service = _Process(process, run, line.split()[3])
+    # The port the OS gave THIS child: its stdout line and its own ready record agree.
+    ready = service.ready_record()
+    assert _loopback_port(service.origin) and (ready["origin"], ready["pid"]) == (service.origin, process.pid)
+    service.state = lambda: _http(service.origin, "GET", "/v1/state", token=token)[1]
+    service.trace_rows = lambda: [json.loads(row) for row in
+                                  (run / "trace.jsonl").read_text().splitlines() if row.strip()]
+    return service
 
 
 async def _conversation_service(directory, values, *, token=None):
     directory.mkdir(parents=True, exist_ok=True)
-    for attempt in range(4):
-        port, run = _free_port(), directory / f"conversation-{attempt}"
-        path = directory / f"service-{attempt}.json"
-        path.write_text(json.dumps({"version": 1, "provider_url": "ws://127.0.0.1:46499/v1/realtime",
-                                    "port": port, "run_dir": run.name, "intent_timeout_s": 60,
-                                    "execution_timeout_s": 30, **values}))
-        process = await asyncio.create_subprocess_exec(
-            sys.executable, "-m", "cascade.apps.conversation", "--config", str(path), cwd=directory,
-            env=_env(token), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        line = await _read_prefixed(process, b"Open ")
-        if line is not None:
-            url, credential = line[5:].split("/#")
-            service = _Process(process, run, url)
-            service.url, service.token = url, credential
-            assert url == f"http://127.0.0.1:{port}" and port in PORT_BLOCK
-            return service
+    run, path = directory / "conversation", directory / "service.json"
+    path.write_text(json.dumps({"version": 1, "provider_url": "ws://127.0.0.1:46499/v1/realtime",
+                                "port": 0, "run_dir": run.name, "intent_timeout_s": 60,
+                                "execution_timeout_s": 30, **values}))
+    process = await asyncio.create_subprocess_exec(
+        sys.executable, "-m", "cascade.apps.conversation", "--config", str(path), cwd=directory,
+        env=_env(token), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    line = await _read_prefixed(process, b"Open ")
+    if line is None:
         await process.wait()
-        error = (await process.stderr.read()).decode()
         closure = json.loads((run / "closure.json").read_text()) if (run / "closure.json").exists() else {}
-        if (closure.get("service_error") or {}).get("type") != "OSError":
-            raise AssertionError(error or closure)
-    raise AssertionError("conversation service could not bind a block port")
+        raise AssertionError((await process.stderr.read()).decode() or closure)
+    url, credential = line[5:].split("/#")
+    service = _Process(process, run, url)
+    service.url, service.token = url, credential
+    ready = service.ready_record()
+    assert _loopback_port(url) and (ready["origin"], ready["pid"]) == (url, process.pid)
+    return service
 
 
 class _Provider:
@@ -963,14 +936,10 @@ class _Provider:
         app.router.add_get("/v1/realtime", self._handle)
         self.runner = web.AppRunner(app)
         await self.runner.setup()
-        for port in _block_ports():
-            try:
-                await web.TCPSite(self.runner, "127.0.0.1", port).start()
-            except OSError:
-                continue
-            self.url = f"ws://127.0.0.1:{port}/v1/realtime"
-            return self
-        raise AssertionError("no free provider port in the block")
+        await web.TCPSite(self.runner, "127.0.0.1", 0).start()
+        self.url = f"ws://127.0.0.1:{self.runner.addresses[0][1]}/v1/realtime"
+        _loopback_port(self.url)
+        return self
 
     async def _handle(self, request):
         import aiohttp

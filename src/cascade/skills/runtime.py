@@ -155,6 +155,20 @@ def _squeeze_fraction(raw, name: str) -> float:
     return value
 
 
+def _hold_stall_timeout_s(gripper_cfg) -> float:
+    """`gripper.hold_stall_timeout_s` (default 4 s): how long the post-contact
+    hold waits for the jaws to stall. Finite and positive, else SkillError
+    (a NaN deadline would never expire)."""
+    raw = gripper_cfg.get("hold_stall_timeout_s", 4.0) if gripper_cfg is not None else 4.0
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        value = float("nan")
+    if not np.isfinite(value) or value <= 0.0:
+        raise SkillError(f"gripper.hold_stall_timeout_s must be finite and positive, got {raw!r}")
+    return value
+
+
 def _every_candidate_too_wide(err: str) -> bool:
     """True when a grasp failure says EVERY candidate exceeded the jaw span.
 
@@ -1325,6 +1339,34 @@ class SkillRuntime:
             return "object wider than the jaws; use push_object; giving up early"
         return None
 
+    def _held_after_failed_attempt(self, object: str) -> tuple[bool, str] | None:
+        """B36: after a grasp attempt FAILED, ask the jaws whether the close
+        took the object anyway. Returns None when nothing is held (the retry
+        persistence is untouched), else `(is_requested, held_label)`.
+
+        Measured live on Isaac (bare reBot scene): attempt 1 ended "did not
+        settle at grasp lift pose" with the cube lifted in the jaws; every
+        retry then refused "already holding" until the budget ran out, the
+        cube ended at the home pose and the scene reset failed. The held flag
+        is reconciled exactly as a skill's entry does (`_reconcile_held`
+        promotes the close's provisional marker only when the jaws are stalled
+        on something, and drops it for open or empty jaws). Nothing is asked
+        during an unfinished contact episode or an e-stop: those stop the loop
+        through `_grasp_retry_verdict` as before."""
+        harness = getattr(self.arm, "harness", None)
+        if (harness is None or getattr(self, "_contact_episode", None) is not None
+                or getattr(harness, "estopped", False)):
+            return None
+        try:
+            self._reconcile_held()
+        except (SkillError, SafetyViolation):
+            pass  # unknown jaw state: whatever the flag says stands
+        held = self.held_object
+        if not held:
+            return None
+        hq, oq = str(held).lower(), str(object).lower()
+        return (hq in oq or oq in hq), str(held)
+
     def _grasp_with_persistence(self, object: str, material: str | None = None,
                                 budget_s: float | None = None) -> dict:
         """Grasp with the SAME persistence pick_and_place has (re-home,
@@ -1369,6 +1411,20 @@ class SkillRuntime:
                 return {**res, "ok": False, "home_skipped": True, "grasp_attempts": attempt,
                         "note": "observed-finger attempt failed; automatic recovery was not geometrically checked"}
             self.memory.add("outcome", f"grasp attempt {attempt} failed: {last_err[:100]}")
+            # B36: a failed attempt that still put the object in the jaws is a
+            # grasp, not a miss (a retry would only refuse "already holding").
+            held = self._held_after_failed_attempt(object)
+            if held is not None:
+                is_requested, held_label = held
+                if is_requested:
+                    self.memory.add(
+                        "note", f"attempt {attempt} failed after the close but {held_label!r} "
+                                "is in the jaws -- treating it as grasped")
+                    return {"held": held_label, "grip_verified": None, "grip_profile": None,
+                            "grasp_attempts": attempt, "recovered_after": last_err}
+                last_err += f" (holding {held_label!r}, not {object!r}; a new grasp cannot start)"
+                stop = "holding another object"
+                break
             stop = self._grasp_retry_verdict(object, attempt, last_err)
             if stop:
                 last_err += f" ({stop})"
@@ -2418,6 +2474,9 @@ class SkillRuntime:
                 # B49, opt-in: a language-conditioned policy serves this
                 # label grasp; pixel-addressed grasps stay analytic.
                 return self._vla_grasp(label, frame, fix, profile, scene_halt_generation)
+        # B36: the post-contact hold for this backend, validated before
+        # anything moves (None = the plain two-stage close).
+        hold_squeeze = SkillRuntime._grasp_hold_squeeze(self)
         grasp_evidence.phase("planning")
         search = None
         planning_active = False
@@ -2813,6 +2872,7 @@ class SkillRuntime:
         episode = None
         contact_completed = False
         held_offset_at_close = None
+        close_hold_open = None  # B36: the post-contact hold's opening, when one was commanded
         grasp_evidence.phase("descent")
         grasp_evidence.event("move_target", q=q_grasp,
                              duration_s=gcfg.get("descend_duration_s", 2.0), bias_compensate=True)
@@ -2871,9 +2931,10 @@ class SkillRuntime:
             else:
                 episode = contact_episode.begin(self, q_pre)
                 self._held_provisional = provisional
-            self._close_two_stage(profile,
-                                   **({"_halt_generation": scene_halt_generation,
-                                       "_before_close": close_guard} if scene_enabled else {}))
+            close_hold_open = SkillRuntime._grasp_close(
+                self, profile, hold_squeeze,
+                **({"_halt_generation": scene_halt_generation,
+                    "_before_close": close_guard} if scene_enabled else {}))
             contact_episode.wait_geometry(self, episode)
             self._held_support_offset_m = None
             # Approximate aiming compensation uses the closed grasp pose,
@@ -2977,7 +3038,12 @@ class SkillRuntime:
         grasp_evidence.event("grip_verification", width_after_lift=width_after_lift)
         verified = width_after_lift is not None
         if verified:
-            commanded_open = max(1.0 - profile.close_frac_stage2, 0.0)
+            # B36: after a post-contact hold the jaws were last commanded to
+            # the hold opening, not the stage-2 one; an object lost in the lift
+            # leaves them THERE, so that is the opening "nothing resisted" is
+            # judged against (else the hold would blind this check).
+            commanded_open = (close_hold_open if close_hold_open is not None
+                              else max(1.0 - profile.close_frac_stage2, 0.0))
             expected_open = min(grasp.width_m / self._max_width, 1.0)
             air_grasp = self._air_grasp(width_after_lift, commanded_open, expected_open)
             if air_grasp:
@@ -3161,6 +3227,33 @@ class SkillRuntime:
             return support
         return max(float(self.cfg.safety.get("table_z", 0.0)), float(points[:, 2].min()))
 
+    def _grasp_hold_squeeze(self) -> float | None:
+        """B36: the squeeze of the grasp's bounded post-contact hold on this
+        backend (`gripper.hold_squeeze_frac`, see `_hold_squeeze_frac`), or
+        None = the plain two-stage close. Read once per grasp before anything
+        moves, with `gripper.hold_stall_timeout_s`, so a bad profile fails
+        closed. A driver with its own two-stage close (the real reBot, whose
+        squeeze B38 bounds) never holds here."""
+        squeeze = SkillRuntime._hold_squeeze_frac(self)
+        if squeeze is None:
+            return None
+        if hasattr(getattr(self.arm, "raw", None), "close_gripper_two_stage"):
+            return None
+        _hold_stall_timeout_s(self.cfg.arm.get("gripper"))
+        return squeeze
+
+    def _grasp_close(self, profile, squeeze: float | None, **close_kw) -> float | None:
+        """The grasp's close: the two-stage close, unchanged, then -- with a
+        `squeeze` from `_grasp_hold_squeeze` -- the post-contact hold. Returns
+        the hold's open fraction when one was commanded, else None. Only the
+        grasp holds (the path it was measured on): `close_gripper` and the
+        screw stroke call `_close_two_stage` and stay exactly as before.
+        `close_kw` (`_halt_generation`, `_before_close`) reaches both."""
+        self._close_two_stage(profile, **close_kw)
+        if squeeze is None:
+            return None
+        return self._hold_after_contact(profile, squeeze, 1.0 - profile.close_frac_stage2, **close_kw)
+
     def _close_two_stage(self, profile, *, _halt_generation=None, _before_close=None) -> None:
         # Some hardware drivers expose a raw two-stage escape hatch. It may
         # not bypass a retained model-backed empty-tool withdrawal either.
@@ -3182,7 +3275,6 @@ class SkillRuntime:
             timeout = float(timeout)
             if not np.isfinite(timeout) or timeout <= 0:
                 raise SkillError("close_feedback_timeout_s must be finite and positive")
-        squeeze = self._hold_squeeze_frac()  # validated before the jaws move
         span = self._grip_closed - self._grip_open
         for frac, eff in (
             (profile.close_frac_stage1, profile.effort * 0.7),
@@ -3197,21 +3289,19 @@ class SkillRuntime:
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
             if timeout is not None:
                 self._wait_gripper_closed(1.0 - frac, timeout)
-        if squeeze is not None:
-            self._hold_after_contact(profile, squeeze, 1.0 - profile.close_frac_stage2,
-                                     _halt_generation=_halt_generation, _before_close=_before_close)
 
     def _hold_squeeze_frac(self) -> float | None:
         """`gripper.hold_squeeze_frac` of the arm profile, validated (None = off).
 
         A number applies on any backend. A mapping is keyed by the physics
         engine the arm backend reports (`physics_engine`; the Isaac bridge
-        names `physx` or `newton` in its ping reply). Measured on Isaac
-        (8 Oct 2026, bare reBot scene, fresh stage per run): the hold took
-        PhysX from 2/6 to 6/6 physics-confirmed picks and Newton from 4/4 to
-        1/4 -- the lighter hold left the cube on the table under Newton's
-        contact model -- so the Isaac profile opts in for PhysX only. A
-        backend that reports no engine, or an engine the mapping does not
+        names `physx` or `newton` in its ping reply). Measured on Isaac (bare
+        reBot scene, fresh stage per run, learned GraspGen-X grasps; evidence
+        docs/evidence/b36-pick-reliability-20261010/): with the hold PhysX
+        confirmed 11/12 picks against 5/12 without it; on Newton the hold
+        confirmed 1/4 against 12/12 without it (the cube dropped early in the
+        carry) -- so the Isaac profile opts in for PhysX only.
+        A backend that reports no engine, or an engine the mapping does not
         name, gets no hold. Every value is validated before the jaws move,
         including the entries for other engines (a bad profile fails closed).
         """
@@ -3225,7 +3315,7 @@ class SkillRuntime:
             for name, entry in per_engine.items():
                 if entry is not None:
                     _squeeze_fraction(entry, f"gripper.hold_squeeze_frac.{name}")
-            engine = getattr(self.arm.raw, "physics_engine", None)
+            engine = getattr(getattr(self.arm, "raw", None), "physics_engine", None)
             if not isinstance(engine, str) or not engine:
                 return None
             entry = per_engine.get(engine.lower())
@@ -3233,30 +3323,36 @@ class SkillRuntime:
         return _squeeze_fraction(raw, "gripper.hold_squeeze_frac")
 
     def _hold_after_contact(self, profile, squeeze: float, stage2_open: float, *,
-                            _halt_generation=None, _before_close=None) -> None:
+                            _halt_generation=None, _before_close=None) -> float | None:
         """B36: once the jaws stall on the object, hold at the measured contact
         width minus `squeeze` (a fraction of full travel) instead of pushing on
-        toward the stage-2 target.
+        toward the stage-2 target. Returns the commanded hold open fraction,
+        or None when no hold was commanded (the stage-2 command stands).
 
-        The real reBot driver does this with a light MIT hold gain after
-        contact (`_hold_light`). The Isaac bridge has no force bound: it drops
-        `effort`, and its finger drives push toward the position target at full
-        stiffness. Measured on Isaac (bare reBot scene, 8 Oct 2026), that
-        squeeze left wrist roll 0.042-0.049 rad off target on every held move
-        (settle_tol 0.045). A 0.60 close left 0.017 rad. Without a stall the
-        stage-2 command stays as it was; the hold only ever presses less.
+        The real reBot driver bounds its squeeze after contact (B38,
+        `gripper.max_contact_squeeze_rad`). The Isaac bridge has no force
+        bound: it drops `effort`, and its finger drives push toward the
+        position target at full stiffness. Measured on Isaac PhysX (bare
+        reBot scene, first lift of each run), that squeeze left wrist roll a
+        median 0.045 rad off its lift target (11 of 31 lifts at or over
+        settle_tol 0.045: "did not settle at grasp lift pose"); with the hold
+        the median was 0.012 rad (max 0.015, 15 lifts). Newton showed no such
+        deflection (0.000 rad, 16 lifts). Without a stall the stage-2 command
+        stays as it was; the hold only ever presses less. The caller's
+        air-grasp check must then compare against the hold target, not the
+        stage-2 one.
         """
         g = self.cfg.arm.get("gripper")
-        timeout_s = float(g.get("hold_stall_timeout_s", 4.0)) if g is not None else 4.0
+        timeout_s = _hold_stall_timeout_s(g)
         width = self._jaw_stall_width(stage2_open, timeout_s)
         if width is None:
             grasp_evidence.event("close_hold", applied=False, reason="no jaw stall observed")
-            return
+            return None
         hold_open = max(0.0, width - squeeze)
         if width <= stage2_open + 0.02 or hold_open <= stage2_open:
             grasp_evidence.event("close_hold", applied=False, reason="stage-2 target is already as light",
                                  contact_open_frac=width)
-            return
+            return None
         target = self._grip_open + (self._grip_closed - self._grip_open) * (1.0 - hold_open)
         if _before_close is not None:
             _before_close()
@@ -3265,6 +3361,7 @@ class SkillRuntime:
         self.arm.set_gripper(target, effort=profile.effort,
                              **({"_halt_generation": _halt_generation} if _halt_generation is not None else {}))
         time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
+        return hold_open
 
     def _jaw_stall_width(self, target_open: float, timeout_s: float) -> float | None:
         """Open fraction where the jaws stopped (reached `target_open` or
@@ -3978,31 +4075,22 @@ class SkillRuntime:
                 # (measured on Isaac: "did not settle at grasp lift pose" with
                 # the cube in the jaws). Re-running the grasp then refuses
                 # "already holding" until the budget is gone and the cube is
-                # never placed. Reconcile with the jaws; if they hold what was
-                # asked for, go on to place it -- exactly what the entry of
-                # this skill does for an object a previous task left held.
-                held_now = None
-                harness = getattr(self.arm, "harness", None)
-                if (harness is not None
-                        and getattr(self, "_contact_episode", None) is None
-                        and not getattr(harness, "estopped", False)):
-                    try:
-                        self._reconcile_held()
-                    except (SkillError, SafetyViolation):
-                        pass
-                    held_now = self.held_object
-                if held_now:
-                    hq, oq = str(held_now).lower(), str(object).lower()
-                    if hq in oq or oq in hq:
+                # never placed. If the jaws hold what was asked for, go on to
+                # place it -- exactly what the entry of this skill does for an
+                # object a previous task left held.
+                held = self._held_after_failed_attempt(object)
+                if held is not None:
+                    is_requested, held_label = held
+                    if is_requested:
                         self.memory.add(
                             "note",
-                            f"attempt {attempt} failed after the close but {held_now!r} is in "
+                            f"attempt {attempt} failed after the close but {held_label!r} is in "
                             "the jaws -- going on to place it instead of grasping again",
                         )
-                        grasp = {"held": held_now, "grip_verified": None, "grip_profile": None,
+                        grasp = {"held": held_label, "grip_verified": None, "grip_profile": None,
                                  "recovered_after": last_err}
                         break
-                    last_err += f" (holding {held_now!r}, not {object!r}; a new grasp cannot start)"
+                    last_err += f" (holding {held_label!r}, not {object!r}; a new grasp cannot start)"
                     stop = "holding another object"
                     break
                 # Fail fast on what a retry cannot cure (e-stop; an object the
@@ -4131,6 +4219,9 @@ class SkillRuntime:
                         ),
                         "grip_verified": grasp.get("grip_verified"),
                     }
+                    if grasp.get("recovered_after"):
+                        # B36: the grasp stage ended on a failed attempt with the object held
+                        out["grasp_recovered_after"] = grasp["recovered_after"]
                     # Still holding after every place attempt (destination
                     # blocked / not placeable) or slipped with the grasp
                     # budget spent: the human has to change something. The
@@ -4182,6 +4273,10 @@ class SkillRuntime:
         }
         if "target_resolution" in grasp:
             result["target_resolution"] = grasp["target_resolution"]
+        if grasp.get("recovered_after"):
+            # B36: attempt `grasp_attempts` failed after the close, the jaws
+            # held the object, and the place stage went on with it
+            result["grasp_recovered_after"] = grasp["recovered_after"]
         if (not destination or _names_drop_zone(destination)
                 or placed.get("destination_kind") == "configured_point"):
             result["destination_kind"] = "configured_point"

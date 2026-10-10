@@ -37,13 +37,16 @@ gripper:
   closed_pos: 0.0
   max_width_m: 0.09
   # B36: once the jaws stall on an object, hold at the contact width minus this
-  # fraction of travel, the sim analogue of the real driver's light hold after
-  # contact. The bridge drops `effort`, so without it the stage-2 position
-  # target squeezed the cube at full drive stiffness and left wrist roll
-  # 0.042-0.049 rad off target on every held move (settle_tol 0.045).
-  # Keyed by the engine the bridge reports at connect: measured on the bare
-  # scene (8 Oct 2026, fresh stage per run) PhysX went 2/6 -> 6/6 confirmed
-  # picks with it, Newton 4/4 -> 1/4 (the lighter hold left the cube on the
-  # table), so Newton keeps the plain two-stage close.
+  # fraction of travel, the sim analogue of the real driver's bounded squeeze
+  # after contact (B38). The bridge drops `effort`, so without it the stage-2
+  # position target squeezes the cube at full drive stiffness and leaves wrist
+  # roll a median 0.045 rad off its lift target on PhysX (settle_tol 0.045;
+  # 0.012 with the hold; Newton shows no such deflection). Only the
+  # grasp's close holds; the air-grasp check then judges the hold opening.
+  # Keyed by the engine the bridge names in its ping reply: on the bare scene
+  # (fresh stage per run, GraspGen-X grasps) PhysX confirmed 11/12 picks with
+  # it vs 5/12 without; Newton 1/4 with it vs 12/12 without (the cube dropped
+  # in the carry), so Newton keeps the plain two-stage close.
+  # docs/evidence/b36-pick-reliability-20261010/README.md
   hold_squeeze_frac:
     physx: 0.05

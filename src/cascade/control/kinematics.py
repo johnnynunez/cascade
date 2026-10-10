@@ -204,6 +204,33 @@ class Kinematics:
             q = self.clamp(q + step * dq, margin)
         return IKResult(q=q.copy(), success=False, error=err_norm, iterations=max_iter)
 
+    def frame_poses(self, q: np.ndarray, frames, joint_values=None) -> list[np.ndarray]:
+        """Base-frame 4x4 placements of named model frames (URDF links) at q.
+
+        `joint_values` ({joint name: value}) sets joints BEYOND the controlled
+        chain -- e.g. the gripper's prismatic fingers, which `fk` leaves at
+        zero. A controlled joint, an unknown joint or an unknown frame raises
+        ValueError (never a silent zero / another frame)."""
+        pin = self._pin
+        qf = self._pad(q)
+        for name, value in (joint_values or {}).items():
+            jid = self.model.getJointId(name)
+            if jid >= self.model.njoints:
+                raise ValueError(f"joint {name!r} not in model")
+            idx = self.model.idx_qs[jid]
+            if idx < self.n:
+                raise ValueError(f"joint {name!r} is a controlled joint; pass it in q")
+            qf[idx] = float(value)
+        pin.forwardKinematics(self.model, self.data, qf)
+        pin.updateFramePlacements(self.model, self.data)
+        out = []
+        for name in frames:
+            fid = self.model.getFrameId(name)
+            if fid >= len(self.model.frames):
+                raise ValueError(f"frame {name!r} not in model")
+            out.append(np.array(self.data.oMf[fid].homogeneous))
+        return out
+
     def link_positions(self, q: np.ndarray) -> np.ndarray:
         """Base-frame positions of every joint frame -> (n_joints, 3).
 

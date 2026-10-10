@@ -109,12 +109,100 @@ unchanged; `angled_approach_tilts_deg: []` in `demo.yaml` is the old planner.
 The localization filter ("outside the active arm workspace") follows the
 harness box, so the opt-in profiles also consider objects in the new region.
 
+## Gripper clearance of the tilted candidates (B73, measured 2026-10-10)
+
+The harness vets every candidate with link proxies -- joint origins -- and
+during the descent exempts every proxy inside the grasp cylinder (radius
+`exempt_radius_m`, floor table_z − 0.06), which a top-down descent needs.
+A leaning approach puts the housing, the wrist motors and the fingers near
+the table and the object instead, where the proxies cannot see them. The
+`*_reach` profiles therefore also set `grasp.angled_clearance_vet: true`
+(false everywhere else; `grasping/gripper_clearance.py`):
+
+- **Geometry:** the convex hull of every connected component of the URDF's
+  collision meshes from `link3` (forearm) onward -- `link3`..`link6`, the
+  housing `gripper_end` and both fingers -- built offline
+  (`scripts/build_gripper_clearance_hulls.py`, SciPy) into
+  `assets/grasp_geometry/rebot_rs_clearance_hulls.json`, bound to the URDF
+  and STL sha256. Hulls, not raw meshes: the lowest point of a hull is one of
+  its vertices and every hull vertex is a mesh vertex, so the table test is
+  exact for the mesh; components, not whole links: a whole-finger hull spans
+  the slide carriage behind the palm, which reaches past the jaw centreline,
+  and cut the measured finger-to-cube clearance of a 5 cm cube from 20 mm
+  to 2 mm. Not bounding boxes: their corners lie outside the mesh, so they
+  are exact for neither test. Placed by the IK model's own FK with the
+  fingers at the commanded pre-grasp opening (fully open = `max_width_m`
+  0.09 m on these profiles).
+- **Where:** every pose of the executed approach, pregrasp (s = 0) to grasp
+  (s = 1) along the joint-space line, bisected until no hull vertex moves
+  more than 1 mm between two vetted poses (57–113 poses for the 4 cm
+  approach on the study grid).
+- **Against:** the support plane (`safety.table_z`) -- lowest hull vertex --
+  and the target's observed box (upright, yawed to the planner's jaw axis,
+  enclosing the OBB footprint, down to the support when the cloud does not
+  resolve the bottom) -- a separating-axis lower bound over the box's axes
+  and the hulls' face normals, never optimistic. The jaw gap needs no
+  exemption: no hull is there.
+- **Margin:** `width_pad_m / 2` = 7.5 mm, the clearance the planner already
+  gives each open jaw against the observed object; between vetted poses the
+  approach keeps ≥ 7.0 mm (margin − half the 1 mm step).
+- **Decision:** below the margin the candidate is refused and the next one
+  tried (its flip twin is vetted on its own). Each decision, both
+  clearances, the binding part and the approach fraction are a
+  `gripper_clearance` grasp-evidence event; the refusal reason also reaches
+  the selector's `no executable grasp` message. Unloadable or mismatched
+  hulls, or a check that raises, refuse every tilted candidate with the
+  reason (fail closed). Top-down and learned candidates are not vetted here.
+
+Measured on the B45 grid (`scripts/angled_clearance_study.py` →
+[`evidence/angled-clearance-20261010/rebot_angled_clearance.json`](evidence/angled-clearance-20261010/rebot_angled_clearance.json)):
+every point of the envelope pass that the planner's tilts reached (roll 0,
+`rebot_rs_reach`), through the real selector with the runtime's vet order
+(harness, then clearance), with an upright object box under the TCP for each
+grasp height (the objects B45's heights stand for: 4.3 cm lemon box,
+3.75 × 3.75 × 6 cm, 5 × 5 × 8 cm, 5 × 5 × 12 cm), surviving / reachable:
+
+| tilt | z 0.02 | z 0.05 | z 0.07 | z 0.10 | lowest clearance (part) |
+| --- | --- | --- | --- | --- | --- |
+| 30° (`out30`) | 655 / 655 | 654 / 654 | 648 / 648 | 634 / 634 | +19.9 mm at z 0.02 (fingers) |
+| 45° (`out45`) | 649 / 649 | 662 / 662 | 675 / 675 | 692 / 692 | +19.5 mm at z 0.10 (fingers) |
+| 90° (`side`) | not reachable | 0 / 47 | 81 / 81 | 189 / 189 | -3.1 mm at z 0.05 (link5) |
+
+- **The side approach loses most, at low objects:** all 47 side grasps at
+  5 cm (r 0.57–0.64 m) are refused -- the wrist motor `link5` passes
+  3.1 mm *below* the table on the approach (the forearm `link3` 8 mm above
+  it) while every joint origin passes the harness. At 7 cm `link5` clears
+  the table by 16.9 mm; at 10 cm the binding clearance is the open fingers'
+  20 mm beside the object. Side is not reachable at 2 cm at all.
+- **30° and 45° lose nothing, also near the base (r from 0.125 m) and at
+  2 cm:** their lowest point is always the fingertips (19.8 mm above the
+  table at a 2 cm grasp: 0.2 mm under the TCP), and the closest they come to
+  the object box is 19.5 mm (the open fingers beside it, (0.09 − object
+  width) / 2, or the housing's front edge at 45°). Geometry says why: the
+  housing's front face is 73 mm behind the fingertips and reaches 41 mm off
+  the approach axis, so it drops below the tips only beyond atan(73/41) ≈ 61°
+  of tilt.
+- **Not tuned:** the survivors are identical for any margin from 0 to 15 mm
+  (5539 of 5586); at 20 mm they fall to 1936 / 2025 / 189 (the finger-to-box
+  clearance is 20 mm for 5 cm objects).
+- **The envelope is unchanged:** every one of its 703 admitted cells keeps a
+  surviving approach at every grasp height (the refused side points are all
+  reached by a 30°/45° candidate that ranks ahead of side), so the `*_reach`
+  box stays as derived. On the study grid the vet therefore changes no
+  analytic pick; it removes side fallbacks that would have hit the table
+  when the 30°/45° candidates fail for other reasons (occupancy, observed
+  fingers, cuMotion, an obstacle), and it vets the observed box everywhere.
+
 ## Limits of the measurement (not claimed)
 
-- **Kinematic and harness reachability only.** No contact physics, no gripper
-  housing or finger collision with the table or the object (the harness's link
-  proxies are joint origins), no grasp success rate. A reachable pose is not a
-  held object.
+- **Kinematic and harness reachability only.** No contact physics and no
+  grasp success rate. A reachable pose is not a held object. The B73 vet
+  adds the forearm-to-fingers collision hulls against the table and the
+  target's observed box on the pregrasp → grasp approach of the planner's
+  tilted candidates; it does not cover the home → pregrasp transit (harness
+  proxies only), other objects or obstacles, learned (GraspGen-X / HUG)
+  candidates, perception error beyond the margin, or the real rig's table
+  height.
 - **The planner leans perpendicular to the jaw.** For an object whose only
   fitting jaw axis points at the robot (narrow side facing the base), the lean
   is sideways, which adds no reach: such an object beyond top-down reach is
@@ -123,9 +211,11 @@ harness box, so the opt-in profiles also consider objects in the new region.
   45°-yawed case.
 - `side` admits the outer ring (r up to ~0.75 m) and the box's outer corners;
   it is the least plausible family physically (horizontal sweep at grasp
-  height, housing near the table at low heights).
+  height). Its wrist at low heights is now measured and vetted (B73 above:
+  refused at 5 cm, clear by 16.9 mm at 7 cm).
 - Learned candidates (GraspGen-X, HUG) are not filtered by family: in the
-  opt-in profiles they gain the larger box, nothing else.
+  opt-in profiles they gain the larger box, nothing else (the B73 clearance
+  vet does not apply to them).
 - Place targets, drop zones and `topdown_z_max` are unchanged; this is about
   picking.
 - Real rig: the URDF is the model; table height, base mount and camera field
@@ -148,9 +238,28 @@ the mock stack only: `mock` refused all six, `mock_reach` grasped all six with
 verifier's postcondition, the chosen tilt, the cube pose after the grasp, and
 any harness refusal; a held cube is the claim, a reachable pose is not.
 
+B73 (the clearance vet, on in `isaac_reach`) owes the same runs on a tree
+that contains it, with `CASCADE_GRASP_EVIDENCE_DIR` set: every receipt then
+carries a `gripper_clearance` event per vetted tilted candidate. Expected
+offline: the chosen 30°/45° candidates are admitted with ≥ 19.5 mm to the
+table and the cube box, so the picks equal B45's. Read per run the event's
+decision, both clearances and the binding part next to the outcome, and
+whether any contact other than the finger pads reaches the cube or the table
+before the close (the vet's claim). A low-prop side check (a ≤ 6 cm tall
+prop at r ≈ 0.6 m where a 30°/45° candidate is refused for another reason)
+is not reachable with the analytic ranking on the bare scene; the vet's side
+refusal is pinned offline only.
+
 Re-run the study after any change to the URDF, `home_q`, the pregrasp offset,
 the exemption radius, the joint margin or the IK margin (the evidence test
 pins the URDF hash and these settings):
 
     PYTHONPATH=src CUDA_VISIBLE_DEVICES=-1 python scripts/reachability_study.py \
         --out docs/evidence/reach-envelope-20261009/rebot_reachability.json
+
+and then the clearance hulls (after a URDF/mesh change; SciPy) and the B73
+measurement (its evidence test pins the URDF, hulls and B45 evidence hashes):
+
+    PYTHONPATH=src python scripts/build_gripper_clearance_hulls.py
+    PYTHONPATH=src CUDA_VISIBLE_DEVICES=-1 python scripts/angled_clearance_study.py \
+        --out docs/evidence/angled-clearance-20261010/rebot_angled_clearance.json

@@ -298,6 +298,25 @@ def _widest_section_z(points: np.ndarray, axis: np.ndarray, grasp_z: float,
 ANGLED_QUALITY_FACTOR = 0.5
 
 
+class AngledGrasp(Grasp):
+    """A tilted alternate from `_angled_alternates` (B45). Same fields as
+    `Grasp` (evidence and memory see an ordinary grasp); the type alone lets
+    the opt-in clearance vet (B73, `grasp.angled_clearance_vet`) find the
+    planner's angled candidates among learned ones it does not model."""
+
+
+def object_vertical_span(points: np.ndarray, table_z: float) -> tuple[float, float]:
+    """(bottom_z, top_z) of an observed object: the cloud's top, and its
+    bottom only when side geometry resolves it -- a top-only cloud cannot
+    locate the bottom, so the tabletop prior (the support plane) is kept."""
+    obj_top_z = float(points[:, 2].max())
+    points_min_z = float(points[:, 2].min())
+    if (obj_top_z - points_min_z <= 0.01
+            or points_min_z - table_z < 0.5 * max(obj_top_z - table_z, 0.01)):
+        return float(table_z), obj_top_z
+    return points_min_z, obj_top_z
+
+
 def angled_tilts(tilts) -> tuple[float, ...]:
     """Validated `grasp.angled_approach_tilts_deg`: finite degrees in (0, 90].
 
@@ -343,7 +362,7 @@ def _angled_alternates(position, jaw_axis, tilts, width_m, quality, label, axis_
         approach = np.cos(theta) * down + np.sin(theta) * lean
         approach /= np.linalg.norm(approach)
         for sub, jaw in enumerate((a, -a)):
-            out.append(Grasp(
+            out.append(AngledGrasp(
                 position=np.asarray(position, dtype=float).copy(),
                 rotation=tool_rotation(approach, jaw, axis_order),
                 width_m=width_m,
@@ -388,14 +407,8 @@ def plan_grasps_from_fix(
     horiz.sort(key=lambda t: t[0])  # narrowest horizontal extent first
 
     obj_top_z = float(fix.points[:, 2].max())
-    points_min_z = float(fix.points[:, 2].min())
-    # A top-only cloud cannot locate the bottom. Keep the tabletop prior
-    # unless side geometry resolves the vertical extent.
-    if (obj_top_z - points_min_z <= 0.01
-            or points_min_z - table_z < 0.5 * max(obj_top_z - table_z, 0.01)):
-        obj_bottom_z = table_z
-    else:
-        obj_bottom_z = points_min_z
+    # A top-only cloud cannot locate the bottom (see object_vertical_span).
+    obj_bottom_z, _ = object_vertical_span(fix.points, table_z)
     height = max(obj_top_z - obj_bottom_z, 0.01)
     grasp_z = max(
         obj_top_z - depth_fraction * height,

@@ -1,9 +1,9 @@
 # reBot B601-RS with the MEASURED reach envelope (B45, opt-in).
 #
-# Same arm, transport and limits as `rebot_rs`; two things differ, both
-# measured offline on the shipped URDF by scripts/reachability_study.py
-# (results: docs/evidence/reach-envelope-20261009/rebot_reachability.json,
-# write-up: docs/REACH_ENVELOPE.md):
+# Same arm, transport and limits as `rebot_rs`; three things differ, all
+# measured offline on the shipped URDF (1-2: scripts/reachability_study.py,
+# results docs/evidence/reach-envelope-20261009/rebot_reachability.json;
+# 3: scripts/angled_clearance_study.py; write-up: docs/REACH_ENVELOPE.md):
 #
 #   1. grasp.angled_approach_tilts_deg -- the analytic (OBB) planner also
 #      emits tilted versions of every top-down candidate (approach leaning
@@ -20,6 +20,12 @@
 #      parent's, unchanged. x_min stays 0.10 (no self-collision model near
 #      the base). tests/test_reach_envelope.py pins these numbers to the
 #      study's derived envelope.
+#   3. grasp.angled_clearance_vet (B73) -- each tilted candidate's approach is
+#      vetted with the URDF collision hulls of the forearm, wrist, housing and
+#      open fingers against the table and the target's observed box (margin
+#      width_pad_m / 2); a refused candidate falls back to the next one.
+#      Measured: refuses every 5 cm side grasp (wrist motor below the table),
+#      no 30/45 degree one (docs/REACH_ENVELOPE.md "Gripper clearance").
 #
 # NOT validated on hardware or in physics: live Isaac picks in the new region
 # are owed (docs/REACH_ENVELOPE.md "Live validation"). The default profiles
@@ -32,3 +38,6 @@ overrides:
       max: [0.55, 0.50, 0.55]
   grasp:
     angled_approach_tilts_deg: [30, 45, 90]
+    # B73: vet each tilted candidate's forearm/wrist/gripper clearance to the
+    # table and the observed object (configs/demo.yaml, REACH_ENVELOPE.md).
+    angled_clearance_vet: true

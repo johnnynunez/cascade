@@ -37,12 +37,14 @@ ALL_TOO_WIDE_MARKER = "every candidate exceeds the jaw span"
 def _flip_twin(g: Grasp) -> Grasp:
     """The same parallel-jaw grasp with the jaws swapped: the TCP rotated
     180 degrees about the approach axis. Position, width and approach are
-    unchanged; only which finger lands on which side differs."""
+    unchanged; only which finger lands on which side differs. The twin keeps
+    the candidate's kind (`obb_grasp.AngledGrasp` stays one: the opt-in
+    clearance vet must see both orientations)."""
     a = np.asarray(g.approach, dtype=float).reshape(3)
     a = a / max(float(np.linalg.norm(a)), 1e-12)
     flip = 2.0 * np.outer(a, a) - np.eye(3)  # rotation by pi about `a`
-    return Grasp(position=g.position, rotation=flip @ np.asarray(g.rotation, dtype=float),
-                 width_m=g.width_m, approach=g.approach, quality=g.quality, label=g.label)
+    return type(g)(position=g.position, rotation=flip @ np.asarray(g.rotation, dtype=float),
+                   width_m=g.width_m, approach=g.approach, quality=g.quality, label=g.label)
 
 
 def select_grasp(

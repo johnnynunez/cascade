@@ -649,6 +649,36 @@ new limit of those profiles; every other harness gate is the parent's.
 `tests/test_reach_envelope.py` pins the profiles to the study's JSON, the JSON
 to the URDF hash and settings, and every other profile golden.
 
+**Gripper clearance of the angled candidates (B73, opt-in, 2026-10-10).** The
+harness vets a candidate with link proxies (joint origins) and exempts every
+proxy inside the grasp cylinder during the descent, so a leaning approach
+could put the housing, the wrist motors or a finger into the table or the
+target unseen: a 5 cm side grasp the B45 study admits drives the wrist
+motor's mesh (`link5`) 3.1 mm below the table. `grasp.angled_clearance_vet`
+(false by default; true in the `*_reach` profiles) adds a validate step to
+`skill_grasp_object._vet`, after every harness check, for the planner's
+tilted candidates only (`obb_grasp.AngledGrasp`, a field-identical `Grasp`
+subclass; the selector's flip twin keeps the type).
+`grasping/gripper_clearance.py` places the convex hulls of every connected
+component of the URDF collision meshes from `link3` onward (forearm, wrist,
+housing, both fingers; `assets/grasp_geometry/rebot_rs_clearance_hulls.json`,
+built offline with SciPy by `scripts/build_gripper_clearance_hulls.py`,
+bound to the URDF and STL hashes) by the IK model's own FK
+(`Kinematics.frame_poses`, fingers at the commanded pre-grasp opening) along
+the executed approach q_pre -> q_grasp, bisected until no hull vertex moves
+more than 1 mm between two vetted poses. It refuses the candidate when the
+lowest hull vertex (exact for the mesh) or a separating-axis lower bound of
+the distance to the target's observed box (upright, yawed to the jaw axis,
+down to the support when the cloud does not resolve the bottom) is below
+`width_pad_m / 2` -- the clearance the planner already gives each open jaw.
+The next candidate is then tried; each decision and refusal reason is a
+`gripper_clearance` grasp-evidence event. Hulls that cannot be loaded or
+bound to the arm's model, or a check that raises, refuse the angled
+candidate with the reason (fail closed). Measured on the B45 grid
+(`scripts/angled_clearance_study.py`, REACH_ENVELOPE.md "Gripper
+clearance"): all 47 side grasps at 5 cm are refused, the other 5539 tilted
+grasps survive, and the decision is the same for any margin from 0 to 15 mm.
+
 ### Sim as an instrument, not a stand-in
 
 `sim/mujoco_world.py` keeps ONE `MjModel`/`MjData` per resolved MJCF path
@@ -870,6 +900,7 @@ src/cascade/
 │   ├── obb_grasp.py    base-frame OBB grasps      graspgenx_backend.py  ZMQ client + fallback
 │   ├── selector.py     supplied/quality order ▸ width ▸ IK ▸ harness pre-vet
 │   ├── observed_scene.py calibrated observed-finger approach and closing veto
+│   ├── gripper_clearance.py opt-in (B73) forearm→finger hull clearance of angled candidates (table, observed box)
 │   ├── vla_client.py   openpi/LingBot websocket msgpack-numpy policy client (`vla` extra, lazy)
 │   ├── vla_executor.py opt-in `grasp.executor: vla`: chunk → joint targets, harness-gated episode
 │   └── force.py        material → two-stage close profiles
@@ -1411,10 +1442,15 @@ barriers.
   (x 0.10..0.50, y ±0.30), part of which top-down grasps cannot reach
   (r > 0.45 m). The measured larger envelope and the tilted analytic
   candidates are opt-in (`*_reach` profiles, B45) and kinematic only: no
-  contact physics or gripper-housing collision was modelled, the planner's
-  lean is perpendicular to the jaw (an object that only fits a jaw pointing at
-  the robot gains no reach), and live Isaac / real-rig picks in the new region
-  are not yet measured ([REACH_ENVELOPE.md](REACH_ENVELOPE.md)).
+  contact physics was modelled, the planner's lean is perpendicular to the
+  jaw (an object that only fits a jaw pointing at the robot gains no reach),
+  and live Isaac / real-rig picks in the new region are not yet measured
+  ([REACH_ENVELOPE.md](REACH_ENVELOPE.md)). The B73 clearance vet (same
+  profiles) covers the forearm-to-fingers collision hulls against the table
+  and the target's observed box along the pregrasp -> grasp approach only:
+  not the home -> pregrasp transit (the harness proxies alone), not other
+  objects or obstacles, not learned (GraspGen-X / HUG) or top-down
+  candidates, not physics (a clear approach is not a held object).
 - `RebotRSArm.disconnect()` cuts torque: park (`move_home`) first.
 - The MCP server executes one tool call at a time by default; stops, cancels
   and pings are handled out-of-band by the receive side (never queued behind

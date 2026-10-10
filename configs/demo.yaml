@@ -174,6 +174,17 @@ grasp:
   # Learned backends (GraspGen-X, HUG) already propose angled grasps; this
   # only affects the analytic candidates. A malformed list fails the grasp.
   angled_approach_tilts_deg: []
+  # B73 (opt-in with the tilts above; the *_reach profiles set true): vet
+  # each tilted ANALYTIC candidate's approach (pregrasp -> grasp, sampled so
+  # no point moves more than 1 mm between checks) with the URDF collision
+  # hulls of the forearm, wrist, housing and open fingers
+  # (assets/grasp_geometry/rebot_rs_clearance_hulls.json) against the support
+  # plane (safety.table_z) and the target's observed box; a candidate closer
+  # than width_pad_m / 2 (the planner's own jaw clearance) is refused and the
+  # next one tried. Decision + reason go to the grasp evidence. Learned and
+  # top-down candidates are not vetted here. false = exactly the B45 planner.
+  # Measured on the B45 grid: docs/REACH_ENVELOPE.md "Gripper clearance".
+  angled_clearance_vet: false
   # Persistence: pick_and_place keeps retrying (re-home, re-scan, fresh
   # grasp plan) until it succeeds or one of these budgets runs out.
   persist_seconds: 120

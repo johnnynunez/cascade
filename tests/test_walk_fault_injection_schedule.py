@@ -140,10 +140,15 @@ class _OnsetFault(_SteppedDistanceMock):
         return _fault(state, self.fault) if self.post_ack_reads >= self.onset else state
 
 
+# B74: opt-in bound on the change from the last pre-ACK sample to that baseline.
+_ADMISSION_BOUNDS = dict(max_admission_lateral_m=.005, max_admission_heading_rad=.04)
+
+
+@pytest.mark.parametrize("admission", [False, True], ids=["flag_off", "flag_on"])
 @pytest.mark.parametrize("fault", FAULTS)
 @pytest.mark.parametrize("onset", [1, 2])
-def test_premise_only_a_fault_first_seen_at_the_post_ack_baseline_escapes_the_drift_veto(onset, fault):
-    """Pins the cause, not a desired property (passes on main by design).
+def test_premise_only_a_fault_first_seen_at_the_post_ack_baseline_escapes_the_drift_veto(onset, fault, admission):
+    """Pins the cause, not a desired property (flag off passes on main by design).
 
     SafeBase integrates lateral/heading drift from the first completed post-ACK
     sample (docs/MICRODUCK_DISTANCE_CANDIDATE.md, "Implemented contract"). A
@@ -151,18 +156,20 @@ def test_premise_only_a_fault_first_seen_at_the_post_ack_baseline_escapes_the_dr
     the walk completes; the same offset one sample later is vetoed. Posture
     (low/tilt) is checked on every sample, baseline included, so it is vetoed at
     either onset: this is why only lateral (and, equally exposed, heading) could
-    flake. A product follow-up may bound the pre-baseline segment too; this
-    premise must then be updated.
+    flake. B74's opt-in ``distance_control.max_admission_lateral_m`` /
+    ``max_admission_heading_rad`` bound the pre-baseline segment: flag on, the
+    onset-1 offset is vetoed on the would-be baseline; flag off (the default) it
+    is still absorbed.
     """
     raw = _OnsetFault(fault, onset, wall_lease_s=2., dt_s=.002, auto_step=False)
-    safe = configured(raw)
+    safe = configured(raw, **(_ADMISSION_BOUNDS if admission else {}))
     safe.connect()
     try:
         result = safe.walk_distance(.02)
         samples = result["measured"]["samples"]
         assert all(b["step"] - a["step"] == 10 for a, b in zip(samples, samples[1:]))
         baseline = result["distance_baseline"]
-        if onset == 1 and fault in ("lateral", "heading"):
+        if onset == 1 and fault in ("lateral", "heading") and not admission:
             assert result["execution_ok"], result
             assert result["ok"] is False and result["outcome"] == "unverified"
             assert baseline["step"] == samples[2]["step"] and baseline == samples[2]  # faulted baseline
@@ -172,7 +179,8 @@ def test_premise_only_a_fault_first_seen_at_the_post_ack_baseline_escapes_the_dr
             assert abs(result["measured_distance_m"] - .02) <= .002
             assert not raw.get_state().latched
         else:
-            expected = "posture bound" if fault in ("low", "tilt") else "drift exceeded"
+            expected = ("posture bound" if fault in ("low", "tilt") else
+                        "admission change exceeded" if onset == 1 else "lateral/heading drift exceeded")
             assert not result["execution_ok"] and expected in result["error"], result
             assert len(samples) == 2 + onset  # vetoed at the first faulted sample
             # Onset 1 posture: the veto fires on the would-be baseline itself.

@@ -5425,39 +5425,26 @@ class SkillRuntime:
         self.memory.add("outcome", f"search for {query!r} failed: {error[:100]}")
         return result
 
-    def skill_move_relative(self, direction: str, distance_m: float = 0.05) -> dict:
-        """Nudge the TCP: fine chat-driven control ("a bit to the left")."""
-        dirs = {
-            "forward": [1, 0, 0], "back": [-1, 0, 0],
-            "left": [0, 1, 0], "right": [0, -1, 0],
-            "up": [0, 0, 1], "down": [0, 0, -1],
-        }
-        if direction not in dirs:
-            raise SkillError(f"direction must be one of {sorted(dirs)}")
-        distance_m = float(np.clip(distance_m, 0.01, 0.15))
-        q_now = self.arm.get_state().q
-        T = self.kin.fk(q_now)
-        target = T.copy()
-        target[:3, 3] += np.asarray(dirs[direction], dtype=float) * distance_m
-        cartesian = self.cfg.arm.get("cartesian_relative_moves", False)
-        if cartesian is True or str(cartesian).strip().lower() in ("1", "true", "yes", "on"):
-            # Opt-in per arm profile (Seeed WRC e97998c moved its nudges onto
-            # a Cartesian line): the TCP travels straight in `direction`
-            # instead of the arc a joint-space min-jerk traces. Every sample
-            # must solve continuously (planning.cartesian) and the dense path
-            # is harness-preflighted; a refusal is reported, never replaced by
-            # a silent joint-space fallback.
-            if not self.arm.move_cartesian(target, duration_s=1.0):
-                raise SkillError("did not settle after the nudge")
-        else:
-            ik = self.kin.ik(target, q_now)
-            if not ik.success:
-                raise SkillError(f"cannot move {distance_m:.2f} m {direction} from here")
-            if not self.arm.move_joints(ik.q, duration_s=1.0):
-                raise SkillError("did not settle after the nudge")
-        tcp = self.kin.fk(self.arm.get_state().q)[:3, 3]
-        return {"moved": direction, "distance_m": distance_m,
-                "tcp_xyz": [round(float(x), 3) for x in tcp]}
+    def skill_move_relative(self, direction: str | None = None, distance_m: float | None = None,
+                            amount: str | None = None, frame: str | None = None,
+                            vector: list | None = None) -> dict:
+        """Nudge the TCP (and whatever it holds) by a short straight displacement.
+
+        Fine, chat-driven control: "a bit to the left", "lift it up", "bring
+        it toward me", "a bit more". A named direction or a free vector, in
+        the robot base frame (the default for bare left/right/forward/back),
+        the viewer frame (the fixed scene camera the demo screen shows) or
+        the tool frame (in/out along the gripper); `direction="again"`
+        repeats the last one. Interpretation, vetting, refusal and history
+        live in `skills/relative_motion.py` + `skills/spatial_moves.py`;
+        their docstrings explain why the default frame is the robot base and
+        why a refused move is vetted, never probed. Every result states the
+        frame and the base-frame displacement it used.
+        """
+        from . import spatial_moves
+
+        return spatial_moves.move_relative(self, direction=direction, distance_m=distance_m,
+                                           amount=amount, frame=frame, vector=vector)
 
     def skill_open_gripper(self) -> dict:
         self.arm.set_gripper(self._grip_open, effort=0.8)
@@ -6688,14 +6675,49 @@ TOOL_SPECS: list[dict] = [
     },
     {
         "name": "move_relative",
-        "description": "Nudge the gripper a few centimeters (fine adjustment): forward/back/left/right/up/down, default 0.05 m, max 0.15 m.",
+        "description": (
+            "Move the gripper -- and anything it holds -- a short straight distance, then report "
+            "exactly how the request was interpreted. Use for vague nudges. Examples: 'lift it up' "
+            "-> direction=up; 'a bit to the left' -> direction=left, amount=small; 'bring it toward "
+            "me' -> direction=toward_viewer; 'push it away from me' -> direction=away_from_viewer; "
+            "'move it right on the screen' -> direction=right, frame=viewer; 'a bit more' / 'again' "
+            "/ 'keep going' -> direction=again (same direction; add amount to change the size); "
+            "'3 cm left and 2 cm up' -> vector=[0, 0.03, 0.02]. SIZE: amount tiny=1 cm ('a hair', "
+            "'a tiny bit'), small=2 cm ('a bit', 'slightly', 'a little'), medium=5 cm (default), "
+            "large=10 cm ('a lot', 'much'); or distance_m for an exact number; at most 0.15 m per "
+            "call. FRAME: left/right/forward/back mean the ROBOT's own directions (frame=base, the "
+            "default: forward = away from the robot base, left = the robot's left) unless the "
+            "person refers to themselves or the screen ('my left', 'right on the screen', 'as I "
+            "see it') -> frame=viewer. toward_viewer/away_from_viewer always use the screen "
+            "camera. in/out move along the gripper's pointing direction. up/down are always "
+            "vertical. 'back' is a direction, NOT undo: for 'go back to where it was' / 'undo "
+            "that' call undo_move. While holding an object it moves slower, never opens or "
+            "closes the jaws, and keeps the object's bottom off the table. Tell the person the "
+            "`interpretation` (and `as_seen_on_screen`). If refused (ok=false), the arm did NOT "
+            "move: relay the reason; if `feasible_distance_m` is given, offer that smaller move."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
-                "direction": {"type": "string", "enum": ["forward", "back", "left", "right", "up", "down"]},
-                "distance_m": {"type": "number"},
+                "direction": {
+                    "type": "string",
+                    "enum": ["forward", "back", "left", "right", "up", "down",
+                             "toward_viewer", "away_from_viewer", "in", "out", "again"],
+                    "description": "Named direction (omit when giving `vector`). 'again' repeats the last move_relative.",
+                },
+                "amount": {"type": "string", "enum": ["tiny", "small", "medium", "large"],
+                           "description": "Vague size: tiny 1 cm, small 2 cm, medium 5 cm (default), large 10 cm."},
+                "distance_m": {"type": "number",
+                               "description": "Exact distance in metres (0.005-0.15). Overrides amount."},
+                "frame": {"type": "string", "enum": ["base", "viewer", "tool"],
+                          "description": ("base = the robot's own directions (default); viewer = as seen on "
+                                          "the screen camera; tool = along the gripper (in/out).")},
+                "vector": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3,
+                           "description": ("Free displacement in metres in `frame`: base [x forward, y left, "
+                                           "z up]; viewer [right, away, up]; tool [approach, jaw axis, third]. "
+                                           "Length 0.005-0.15 m. Use instead of direction/amount.")},
             },
-            "required": ["direction"],
+            "required": [],
         },
     },
     {

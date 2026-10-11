@@ -587,7 +587,7 @@ def resolve_rotation(direction, *, frame=None, angle_deg: float, tool, viewer=No
                     f"tilt {angle:g} deg so the jaws point more {said} (about the TCP)")
 
 
-def camera_up_violation(rotations, up_tcp, min_z: float = 0.0) -> str | None:
+def camera_up_violation(rotations, up_tcp, min_z: float = 0.0, tol: float = 1e-9) -> str | None:
     """Why a path of TCP orientations would turn the wrist camera under, or None.
 
     `up_tcp` is the camera's up axis in the TCP frame (reBot: TCP +z, which
@@ -595,7 +595,9 @@ def camera_up_violation(rotations, up_tcp, min_z: float = 0.0) -> str | None:
     at EVERY sample, because a roll whose ends are fine can still pass
     through upside-down. Escape rule, like the harness's: from a pose that is
     already below the limit, samples may not go LOWER than the start (so the
-    camera can always be brought back up, never further down).
+    camera can always be brought back up, never further down). `tol` absorbs
+    IK residuals on a pose that sits exactly on the limit (a top-down reBot
+    grasp holds the camera axis exactly horizontal).
     """
     up = np.asarray(up_tcp, dtype=float)
     zs = [float((np.asarray(R, dtype=float) @ up)[2]) for R in rotations]
@@ -603,7 +605,7 @@ def camera_up_violation(rotations, up_tcp, min_z: float = 0.0) -> str | None:
         return None
     floor = min(float(min_z), zs[0])
     worst = min(zs)
-    if worst < floor - 1e-9:
+    if worst < floor - float(tol):
         deg = math.degrees(math.asin(max(-1.0, min(1.0, worst))))
         return (f"{CAMERA_ON_TOP}: this motion would turn the gripper's camera-up axis to "
                 f"{deg:+.0f} deg from horizontal (z component {worst:.2f} < {float(min_z):.2f}); "

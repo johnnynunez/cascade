@@ -27,6 +27,7 @@ through that one child's environment, never argv.
     scripts/openshell_rig.py gateway start   # its own gateway, 127.0.0.1:17670
     scripts/openshell_rig.py serve-mcp       # cascade's MCP server on loopback (systemd it)
     scripts/openshell_rig.py up              # image, profiles, providers, sandbox, chat
+    scripts/openshell_rig.py open            # OpenClaw's web UI + the cascade camera extension
     scripts/openshell_rig.py chat-url        # http://127.0.0.1:<chat>/#token=... (secret!)
     scripts/openshell_rig.py motion lock     # observe-only: OpenShell denies every motion tool
     scripts/openshell_rig.py status | down
@@ -341,6 +342,10 @@ def serve_mcp_env(base: dict | None = None) -> dict:
     env["PYTHONPATH"] = os.pathsep.join(p for p in (str(REPO / "src"), env.get("PYTHONPATH", "")) if p)
     env.setdefault("YOLO_OFFLINE", "True")
     env.setdefault("ULTRALYTICS_OFFLINE", "True")
+    # Headless: a systemd user unit has DISPLAY=:0, and the default view=1
+    # pops an OpenCV window next to the demo. The demo's screen is OpenClaw's
+    # web UI with the camera extension (`open`), fed by the live-view server.
+    env.setdefault("CASCADE_VIEW", "0")
     return env
 
 
@@ -637,15 +642,40 @@ def cmd_motion(home: Path, args) -> int:
     return 0
 
 
-def cmd_chat_url(home: Path, args) -> int:
-    cfg = _load_settings(home, args)
+def chat_url(home: Path, cfg: Settings, run=_default_run) -> str:
+    """The tokenized OpenClaw chat URL. The token is minted inside the
+    sandbox and read back through `sandbox exec`; it is a secret."""
     js = ("process.stdout.write(JSON.parse(require('fs').readFileSync("
           "process.env.HOME + '/.openclaw/openclaw.json')).gateway.auth.token)")
-    r = _openshell(home, "sandbox", "exec", "--name", cfg.sandbox, "--", "node", "-e", js)
+    r = _openshell(home, "sandbox", "exec", "--name", cfg.sandbox, "--", "node", "-e", js, run=run)
     token = (r.stdout or "").strip()
     if not token:
         raise SystemExit("no chat token yet; is the sandbox Ready?")
-    print(f"http://127.0.0.1:{cfg.chat_port}/#token={token}")
+    return f"http://127.0.0.1:{cfg.chat_port}/#token={token}"
+
+
+def open_chat(home: Path, cfg: Settings, run=_default_run, opener=None) -> None:
+    """The demo's screen: OpenClaw's own web UI in the Chromium profile that
+    loads the cascade camera extension (scripts/spark_browser.py, the same
+    profile and extension every route uses). The extension finds the rig's
+    cameras through the live-view server on this loopback page
+    (extensions/chrome/discovery.mjs). The tokenized URL goes from the
+    sandbox to the browser; it is never printed."""
+    if opener is None:
+        sys.path.insert(0, str(REPO / "scripts"))
+        from spark_browser import open_browser as opener
+    opener(REPO, url=chat_url(home, cfg, run=run))
+    print(f"opened OpenClaw on 127.0.0.1:{cfg.chat_port} with the cascade camera extension "
+          "(click the extension, then Connect cameras)")
+
+
+def cmd_open(home: Path, args) -> int:
+    open_chat(home, _load_settings(home, args))
+    return 0
+
+
+def cmd_chat_url(home: Path, args) -> int:
+    print(chat_url(home, _load_settings(home, args)))
     return 0
 
 
@@ -707,6 +737,7 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("action", choices=["start", "stop", "check"])
     for name, help_ in (("serve-mcp", "run cascade's MCP server on loopback (foreground)"),
                         ("up", "image, profiles, providers, sandbox, chat forward"),
+                        ("open", "open OpenClaw's web UI with the cascade camera extension"),
                         ("chat-url", "print the chat URL with its token (a secret)"),
                         ("status", "read-only health of every piece"),
                         ("down", "stop the chat forward and delete the sandbox")):
@@ -727,7 +758,8 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     home = home_dir()
     return {"install": cmd_install, "gateway": cmd_gateway, "serve-mcp": cmd_serve_mcp, "up": cmd_up,
-            "chat-url": cmd_chat_url, "status": cmd_status, "down": cmd_down, "motion": cmd_motion}[args.cmd](home, args)
+            "chat-url": cmd_chat_url, "open": cmd_open, "status": cmd_status, "down": cmd_down,
+            "motion": cmd_motion}[args.cmd](home, args)
 
 
 if __name__ == "__main__":

@@ -89,7 +89,10 @@ systemd-run --user --unit=cascade-openshell-mcp --collect -p MemoryMax=infinity 
 #    sandbox, chat forward
 scripts/openshell_rig.py up --observe-only   # first bring-up: look, don't touch
 scripts/openshell_rig.py status
-scripts/openshell_rig.py chat-url            # prints the tokenized chat URL: a secret
+scripts/openshell_rig.py open                # the demo's screen: OpenClaw's own web UI in the
+                                             # Chromium profile with the cascade camera extension
+                                             # (click it, then "Connect cameras"); token never printed
+scripts/openshell_rig.py chat-url            # or print the tokenized chat URL: a secret
 
 # 4. when the operator is ready to let the arm move
 scripts/openshell_rig.py motion unlock
@@ -109,6 +112,17 @@ registry.
 
 `down` stops the chat forward and deletes the sandbox; `down --gateway` also
 stops the gateway.
+
+## The demo's screen
+
+OpenClaw's own web UI (the sandbox's gateway, forwarded to 127.0.0.1) in the
+Chromium profile that loads the cascade camera extension: `open`. The
+extension finds the rig's cameras from that loopback page through the
+live-view server (`127.0.0.1:8090/state`, `extensions/chrome/discovery.mjs`).
+That server stays up as the cameras' backend; its own dashboard page is not
+the demo UI. `serve-mcp` runs headless (`CASCADE_VIEW=0` unless set): a
+systemd user unit has `DISPLAY=:0`, and the server's default OpenCV window
+would otherwise open next to the demo.
 
 ## Two Landlock findings baked into the image
 
@@ -141,7 +155,7 @@ OpenShell's default filesystem policy lets the agent read `/usr` and write
 
 | Path | What |
 |---|---|
-| `scripts/openshell_rig.py` | the route: install, gateway, serve-mcp, up, motion, chat-url, status, down |
+| `scripts/openshell_rig.py` | the route: install, gateway, serve-mcp, up, motion, open, chat-url, status, down |
 | `deploy/openshell/Dockerfile` | agent image (node 24 by digest, OpenClaw pinned, Landlock-safe layout) |
 | `deploy/openshell/openclaw.json` | OpenClaw config template: placeholders, never secrets |
 | `deploy/openshell/render-config.mjs` | first-start render: ports, model, chat origin, chat token |

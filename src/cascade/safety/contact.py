@@ -91,9 +91,9 @@ class ContactMonitorConfig:
     lag_s: float = 0.25
     #: consecutive bad samples of one joint before tripping
     debounce_samples: int = 2
-    stall_window_s: float = 0.2
+    stall_window_s: float = 0.12
     #: None disables the stall rule (band only)
-    stall_min_travel_rad: float | None = 0.04
+    stall_min_travel_rad: float | None = 0.03
     stall_ratio: float = 0.2
     #: no good sample of a joint for this long mid-motion = stop
     max_feedback_gap_s: float = 0.35
@@ -147,8 +147,8 @@ class ContactMonitorConfig:
             track_tol_rad=tols,
             lag_s=_number(block, "lag_s", 0.25, lo=0.0),
             debounce_samples=_number(block, "debounce_samples", 2, lo=1, integer=True),
-            stall_window_s=_number(block, "stall_window_s", 0.2, lo=0.0, lo_open=True),
-            stall_min_travel_rad=_number(block, "stall_min_travel_rad", 0.04, lo=0.0,
+            stall_window_s=_number(block, "stall_window_s", 0.12, lo=0.0, lo_open=True),
+            stall_min_travel_rad=_number(block, "stall_min_travel_rad", 0.03, lo=0.0,
                                          lo_open=True, allow_none=True),
             stall_ratio=_number(block, "stall_ratio", 0.2, lo=0.0, hi=1.0),
             max_feedback_gap_s=_number(block, "max_feedback_gap_s", 0.35, lo=0.0, lo_open=True),
@@ -231,6 +231,8 @@ class ContactMonitor:
         self.max_err = np.zeros(n)
         self.max_raw = np.zeros(n)
         self.max_lag = np.zeros(n)
+        #: lowest advance / commanded-advance ratio the stall rule evaluated
+        self.min_ratio = np.full(n, np.inf)
         self.max_gap = 0.0
 
     def commanded(self, t: float, q) -> None:
@@ -382,6 +384,7 @@ class ContactMonitor:
             return None
         c_min = min(abs(c) for c in cs)
         moved = x - x_a
+        self.min_ratio[j] = min(self.min_ratio[j], moved * sign / c_min)
         if moved * sign > self.cfg.stall_ratio * c_min:
             return None
         return {"moved_rad": round(moved, 4), "commanded_rad": round(sign * c_min, 4),
@@ -439,6 +442,9 @@ class ContactMonitor:
             "samples": [int(v) for v in self.n_samples],
             "max_track_err_rad": r(self.max_err), "track_tol_rad": r(self.tol),
             "max_raw_err_rad": r(self.max_raw), "max_effective_lag_s": r(self.max_lag, 3),
+            "min_advance_ratio": [None if not math.isfinite(v) else round(float(v), 3)
+                                  for v in self.min_ratio],
+            "stall_ratio": self.cfg.stall_ratio,
             "max_feedback_gap_s": round(self.max_gap, 3),
             "reads": {"cycles": st.cycles, "reads": st.reads,
                       "per_cycle": round(st.reads / st.cycles, 2) if st.cycles else None,
@@ -462,6 +468,7 @@ def format_summary(s: dict) -> str:
             f"{s.get('phase')}: track err max {vec('max_track_err_rad')} rad "
             f"(tol {vec('track_tol_rad')}); raw {vec('max_raw_err_rad')}; "
             f"lag {vec('max_effective_lag_s')} s (lag_s {s.get('lag_s')}); "
+            f"advance ratio min {s.get('min_advance_ratio')} (stall_ratio {s.get('stall_ratio')}); "
             f"samples {s.get('samples')}; gap max {s.get('max_feedback_gap_s')} s")
     reads = s.get("reads") or {}
     if reads.get("cycles"):

@@ -175,8 +175,9 @@ def test_something_between_the_jaws_fails_the_reference_and_moves_nothing_more(c
     jaw = clock(Jaw(4.0))
     jaw.obstacle = (1.5, "closing")                                 # an object in the jaws
     g = guard_for(jaw)
-    with pytest.raises(GripperFault, match="something is between the jaws"):
+    with pytest.raises(GripperFault, match="something is between the jaws") as exc:
         g.command(6.2, 1.6)
+    assert "raw +1.5" in str(exc.value) and "re-zero" in str(exc.value)
     assert not g.referenced and g.position() is None
     assert jaw.sent[-1] == pytest.approx(1.5, abs=0.05)             # holds where it stopped
     assert jaw.press["obstacle"] < 3.0

@@ -245,10 +245,12 @@ class RSGripperGuard:
         if abs(residual) > REF_CLOSED_TOL:
             self.invalidate("referencing stopped short of the closed stop")
             raise GripperFault(
-                f"gripper reference failed: the jaws stopped {abs(residual):.2f} rad from "
-                f"closed, not at the closed stop -- something is between the jaws. Remove "
-                "it; the gripper stays unusable (the arm can still move) until a reference "
-                "succeeds.")
+                f"gripper reference failed: the jaws stopped at motor raw {raw:+.3f} rad, "
+                f"{abs(residual):.2f} rad from where the profile's closed_pos lies in any "
+                "motor turn -- something is between the jaws, or the motor's zero no longer "
+                "matches the closed stop (a slipped or damaged jaw drive: re-zero the motor "
+                "at the closed stop). The gripper stays unusable (the arm can still move) "
+                "until a reference succeeds.")
         self.offset = turns * TWO_PI
         self._last_target = raw - self.offset
         self.unreferenced_why = ""

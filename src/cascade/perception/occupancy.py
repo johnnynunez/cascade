@@ -1228,6 +1228,43 @@ class OccupancyMap:
 
     # ── reads (hot path) ────────────────────────────────────────────────
 
+    def view_snapshot(self) -> dict:
+        """What a VIEWER may show of this map (the live view's `nvblox_map`
+        tile, apps/map_tile.py): the occupied voxel centres of the last
+        successful query, their age, and why the map may be missing.
+
+        Never slows the threads that own the map and never changes it:
+
+        - no lock. A refresh holds `_io_lock` through a bridge round trip and
+          clearance() takes `_refresh_lock` for every 50 Hz waypoint; a
+          viewer taking either could delay the robot. Single attribute reads
+          are atomic, and `_commit_grid` REPLACES the arrays instead of
+          writing into them, so the cloud read here is always one complete
+          query result (its age may belong to the next refresh: display
+          only, never a safety input);
+        - no bridge traffic: this reads the cache the safety gate reads;
+        - read-only: the cloud is a non-writeable view, `status` a copy.
+        """
+        occupied = self._occupied
+        last = self._last_refresh
+        if occupied is not None:
+            occupied = occupied.view()
+            occupied.flags.writeable = False
+        status = self.status
+        rmin, rmax = self._region_min, self._region_max
+        return {
+            "points": occupied,
+            "age_s": None if last is None else max(0.0, time.monotonic() - last),
+            "last_error": self.last_error,
+            "body_error": self._body_error,
+            "status": dict(status) if status else None,
+            "probe_error": self.probe_error,
+            "region_min": None if rmin is None else [float(v) for v in rmin],
+            "region_max": None if rmax is None else [float(v) for v in rmax],
+            "max_age_s": self.max_age_s,
+            "required": self.required,
+        }
+
     def is_stale(self) -> bool:
         return self._last_refresh is None or (time.monotonic() - self._last_refresh) > self.max_age_s
 

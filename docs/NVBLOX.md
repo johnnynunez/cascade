@@ -340,6 +340,103 @@ stream. A wrist camera's T comes from FK at the watcher's read, while the
 mask uses the state read a moment later. The eye-in-hand path is
 synthetic-tested only, because the wrist D455F has no hand-eye record yet.
 
+## Always-on occupancy on the reBot
+
+Rig incident, 2026-10-11: `grasp_object(green object)` chose a side approach
+(object at [0.28, 0.129, 0.043]). The wrist and the padded wrist D455F, which
+sits on top of the gripper (8 cm up, 14 cm back from the fingertips, 15 cm
+across the jaws), swept into the clutter beside the target and pressed for
+~8 s until `did not settle at grasp pose`. The MCP server ran with
+`CASCADE_OCCUPANCY=0` because the capsule mask left the jaws in the map, so
+the harness had no obstacle model at all. Even with a map it sampled only the
+TCP and the joint origins. The requirement since: even with a computed
+trajectory, every step keeps checking against the cameras.
+
+What runs now on `rebot_rs` (and `rebot_rs_reach`, which extends it):
+
+| | when | what |
+|---|---|---|
+| map refresh | every perception tick (`perception_loop.rate_hz`, 3 Hz), per new frame of each `map_depth` camera, **also while a motion holds `watcher.paused()`** (beliefs pause, the map does not) | depth masked by the URDF mesh silhouette at the arm's current joint state (`body_mask: mesh`), plus the held-payload envelope while holding |
+| preflight | before any command: `vet_pose` of goals/pregrasps, `vet_step` over every segment of a route or planned curve | TCP, joint origins, held payload, **tool volume** (wrist camera box + open jaws) against the latest grid |
+| every streamed step | `approve()` in the stream loop, 50 Hz (move_joints, move_planned, move_joint_path, move_cartesian, cuMotion profiles, grasp approach/descent, place, spatial tools: all go through SafeArm) | the same samples against the grid **in force at that step**, not the one the route was vetted on |
+
+The streamed check reads the cached grid (no bridge round trip); a required
+map refreshes outside the lock the 50 Hz reads take
+(`OccupancyMap._refresh_plain`). Cost measured on the Spark: 0.18 ms per step
+with the 408 tool-volume samples (0.09 ms without). An obstacle that appears
+during a motion enters the map at the next refresh (up to one perception tick
+plus the ~60 ms bridge round trip) and the next step is refused; the arm holds
+its last commanded pose (`tests/test_occupancy_during_motion.py`).
+
+Profile (`configs/arms/rebot_rs.yaml` `overrides.occupancy`):
+
+```yaml
+occupancy:
+  required: true        # fail closed
+  unobserved: free      # the arm's own masked volume is never observed
+  max_age_s: 1.5        # ~4 perception ticks; an older grid authorizes nothing
+  ready_timeout_s: 3.0  # first motion after a LazyArm wake waits for one masked refresh
+```
+
+- **Fail closed.** No bridge at startup refuses startup. `CASCADE_OCCUPANCY=0`
+  (or `launch.sh --occupancy none`) with this profile is a startup error
+  (`required occupancy conflicts with CASCADE_OCCUPANCY=off`). During a
+  motion, a grid older than `max_age_s`, a failed refresh or a body-mask fault
+  refuses the next step with the cause, e.g. `required occupancy unavailable:
+  distance grid is stale (1.62 s old, max_age_s 1.5)` or `... refresh failed:
+  occupancy bridge at 127.0.0.1:5557 timed out (500 ms)`.
+- **`unobserved` is separate from `required`.** `blocked` (the default for a
+  required map) treats every voxel the camera never observed as an obstacle.
+  The camera never observes the arm's own masked volume, which is where the
+  arm is, so `blocked` refuses motion from rest. `free` reads unobserved as
+  far; observed obstacles, staleness and failures still block.
+- **LazyArm standby.** With the arm unpowered there is no joint state to mask
+  with, so the map integrates nothing and latches `robot body pose
+  unavailable` (by design). When the first motion powers the arm on,
+  `LazyArm(on_materialize=...)` waits up to `ready_timeout_s` for one masked
+  refresh. It neither refuses for the standby latch nor proceeds unchecked;
+  on timeout it prints the cause and the motion stays refused.
+- **Tool volume** (`safety.tool_volume`): the wrist camera box comes from
+  `relative_motion.wrist_camera` (the box the spatial tools plan with, via
+  `spatial_moves.wrist_camera_dims`), the open jaws from
+  `grasp.graspgenx.sweep`. Samples every `spacing_m` (2 cm) over faces and
+  interior. Obstacles are attributed by where the obstacle is: voxels within
+  `table_band_m` of the table plane are the table (the table rule governs
+  it), and the grasp target's own voxels inside its exemption cylinder are not
+  obstacles to it. Every other voxel, a neighbour of the target included,
+  blocks the camera and the jaws. An arm already inside the margin may move
+  away or hold, never closer (`tests/test_harness_tool_volume.py`).
+- **Held object.** `body_mask.held_payload` (an envelope in the
+  `gripper_end` frame) is drawn into the mask while the runtime holds an
+  object, so a held object is the robot's payload, not an obstacle at its
+  TCP (`tests/test_occupancy_held_payload.py`).
+- **Reported.** `backends.occupancy_state` (MCP `world_state`, live view
+  `/state`) and the `occupancy` capability cell carry `state`
+  (live/stale/failed/waiting/no bridge), `age_s`, `occupied_voxels`,
+  `refreshes` and `required`.
+
+End to end offline (`tests/test_rebot_occupancy_live.py`): the reBot's URDF
+meshes are rendered into the front camera's depth and go through the mesh
+mask, a voxelizing fake bridge and the `_build_arm` harness. With the capsule
+mask home is refused by the arm's own jaws; with the mesh mask rest, home and
+every step between them are admitted (jaws open and closed), and the
+incident's side grasp is refused at the preflight once the blue object beside
+the target is in view.
+
+Limitations:
+
+- Only cameras with `map_depth` feed the map. The wrist D455F has no
+  hand-eye record yet (`map_depth: false`), so the map is the scene camera's
+  view: what it cannot see (behind the arm, under the gripper) reads as free.
+- Detection latency: an obstacle that appears mid-motion is caught at the
+  next refresh, not instantly. At 3 Hz that is up to ~0.4 s of travel. The
+  map is not a contact sensor.
+- Objects lower than `table_band_m` (2 cm) are the table for the tool volume
+  (the TCP and joints still see them). Cables and anything outside the URDF
+  and the attachments still reach the map (see the body mask section).
+- `rebot_rs_mb` (motorbridge transport) keeps the capsule mask and the
+  optional map.
+
 ## Troubleshooting: every motion refused as "not yet validated"
 
 With a robot body registered, the map refuses all motion until one depth

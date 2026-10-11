@@ -824,7 +824,8 @@ arm, builds the `ArmRig`), `CASCADE_ARM` (single-arm fallback), `CASCADE_DETECTO
 (1/0, the read-only lane above), `CASCADE_VIEW` (cv2 camera window),
 `CASCADE_MJ_VIEW` (MuJoCo physics window; the launcher sets it in sim modes),
 `CASCADE_PREWARM`, `CASCADE_STREAM`, `CASCADE_STREAM_PORT`, `CASCADE_RUN_DIR`
-(trace dir), `CASCADE_OCCUPANCY` (`0` skips the bridge probe), `DISPLAY`.
+(trace dir), `CASCADE_OCCUPANCY` (`0` skips the bridge probe; a startup error for a
+profile that requires its map, such as `rebot_rs`), `DISPLAY`.
 `CASCADE_BRIDGE_PORT`, `CASCADE_GRASPGENX_PORT` and `CASCADE_OCCUPANCY_PORT` move the
 Isaac bridge and the two sidecars off 8611 / 5556 / 5557: the launcher starts them there
 and `load_demo_config` applies the same values last, over every config layer and every

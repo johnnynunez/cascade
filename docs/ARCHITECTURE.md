@@ -597,13 +597,24 @@ Optional non-payload occupancy may report no data for an absent/stale cache;
 that is not evidence of free space. Profiles opting into `occupancy.required`
 refuse startup if the bridge cannot be probed and refuse motion on missing,
 stale or failed map observations. Their ordinary arm samples also need observed
-interpolation support outside the existing local contact exemption. A known body-mask fault raises even when
+interpolation support outside the existing local contact exemption, unless the
+profile sets `occupancy.unobserved: free` (the reBot: the camera never observes
+the arm's own masked volume). A known body-mask fault raises even when
 the map is stale. Payload/recovery modes additionally require observed geometry,
 correct source/epoch/contact binding and successful fresh commits from all
 required cameras. Unknown payload samples and the configured 30 mm clearance
 remain rejection conditions. Contact/release episodes retain narrowly scoped
 recovery authority after failure; another command cannot borrow their cylinder.
 See [nvblox](NVBLOX.md) and [release recovery](NVBLOX_RELEASE_RETREAT.md).
+
+The reBot requires its map (`rebot_rs` `overrides.occupancy`): the watcher
+refreshes it with mesh-masked depth on every perception tick, also during a
+motion, and every vetted pose and every streamed step is checked against the
+grid in force at that step. Its clearance samples include the gripper's own
+volume (`safety.tool_volume`: the wrist camera box of
+`relative_motion.wrist_camera` and the open jaws), with the table band and
+the grasp target's own voxels attributed away, so a neighbour of the target
+blocks the camera. See [nvblox, always-on occupancy](NVBLOX.md#always-on-occupancy-on-the-rebot).
 
 The [NV carry attachment guard](NVBLOX_CARRY_ATTACHMENT.md) retains the original
 post-close attachment through lift and placement transport. Isaac state reuses

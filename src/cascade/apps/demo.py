@@ -219,7 +219,9 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
         # LazyArm's hint is the only DOF answer anything can get, and the
         # class default (6) is wrong for a 5-DoF SO-101 or a 7-DoF Panda.
         arm = LazyArm(lambda: make_arm(acfg, kinematics=kin), n_joints=n_joints,
-                      profile_type=str(acfg.get("type", "")))
+                      profile_type=str(acfg.get("type", "")),
+                      on_materialize=(None if occupancy is None
+                                      else lambda: _await_occupancy_after_wake(occupancy, acfg)))
     else:
         arm = make_arm(acfg, kinematics=kin)
         arm.connect()
@@ -311,6 +313,25 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
                 return pose if _T is None else _T @ pose
             occupancy.track_payload(frame_tcp_pose)
     return arm, SafeArm(arm, harness, motion_planner=motion_planner), kin
+
+
+def _await_occupancy_after_wake(occupancy, acfg) -> None:
+    """LazyArm wake hook: wait (bounded by `occupancy.ready_timeout_s`) for
+    the map's first masked refresh with the arm powered.
+
+    In standby there is no measured pose to mask the robot out of the depth,
+    so the map integrated nothing and latched "robot body pose unavailable"
+    (an unmasked arm would map itself as an obstacle). The watcher's next
+    tick, a fraction of a second after the arm connects, clears that latch.
+    Without this wait the first motion met the latch and was refused; it
+    must neither be refused for that nor proceed unchecked. On timeout the
+    latch stays and every harness check refuses with its cause."""
+    if occupancy.wait_until_usable():
+        return
+    name = str(acfg.get("name", acfg.get("type", "arm")))
+    print(f"[cascade] occupancy: no masked depth refresh within {occupancy.ready_timeout_s:g} s "
+          f"after {name} powered on; motion stays refused until one succeeds "
+          f"({occupancy.last_error or 'no refresh yet'})", file=sys.stderr)
 
 
 def _body_mask_q(arm):

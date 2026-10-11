@@ -15,7 +15,8 @@ from .arm_base import ArmBase
 
 
 class LazyArm(ArmBase):
-    def __init__(self, factory, n_joints: int = 6, profile_type: str | None = None):
+    def __init__(self, factory, n_joints: int = 6, profile_type: str | None = None,
+                 on_materialize=None):
         self._factory = factory
         self._n_joints_default = n_joints
         #: The `type:` of the profile the factory will build (isaac, mujoco,
@@ -23,16 +24,26 @@ class LazyArm(ArmBase):
         #: the verifier decide whether a physics-truth channel can ever exist
         #: for this arm (sim types) without powering a real one to find out.
         self._profile_type = profile_type
+        #: Called once, by the thread that materialized the arm, AFTER the
+        #: lock is released (a hook that waits on another thread reading this
+        #: arm must not deadlock): the demo waits there for the occupancy
+        #: map's first masked refresh (apps/demo.py `_build_arm`).
+        self._on_materialize = on_materialize
         self._arm: ArmBase | None = None
         self._lock = threading.Lock()
 
     def _ensure(self) -> ArmBase:
+        woke = False
         with self._lock:
             if self._arm is None:
                 arm = self._factory()
                 arm.connect()
                 self._arm = arm
-            return self._arm
+                woke = True
+            arm = self._arm
+        if woke and self._on_materialize is not None:
+            self._on_materialize()
+        return arm
 
     @property
     def connected(self) -> bool:

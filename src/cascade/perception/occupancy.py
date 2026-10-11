@@ -168,10 +168,20 @@ class OccupancyMap:
         depth_stride: int = 2,
         required: bool = False,
         unobserved: str | None = None,
+        ready_timeout_s: float = 3.0,
     ):
         if type(required) is not bool:
             raise OccupancyError("occupancy.required must be a boolean")
         self.required = required
+        try:
+            ready = float(ready_timeout_s)
+        except (TypeError, ValueError):
+            ready = float("nan")
+        if not (np.isfinite(ready) and 0.0 <= ready <= 30.0):
+            raise OccupancyError(f"occupancy.ready_timeout_s must be within 0..30 s, got {ready_timeout_s!r}")
+        #: how long a waking arm waits for its first masked refresh
+        #: (`wait_until_usable`, the LazyArm wake hook in apps/demo.py)
+        self.ready_timeout_s = ready
         # What an unobserved voxel means, separately from `required`: a
         # required map must be FRESH, but on a real arm the camera never
         # observes the arm's own volume (its pixels are masked), so a
@@ -651,6 +661,7 @@ class OccupancyMap:
             depth_stride=int(cfg.get("depth_stride", 2)),
             required=required,
             unobserved=cfg.get("unobserved", None),
+            ready_timeout_s=cfg.get("ready_timeout_s", 3.0),
         )
         m.allowed_contact_paths = set(cfg.get("allowed_contact_paths", []))
         m.probe(timeout_ms=int(cfg.get("probe_timeout_ms", 300)))
@@ -1202,6 +1213,37 @@ class OccupancyMap:
         """True when unobserved space must be treated as an obstacle (the
         harness then refuses points without observed grid support)."""
         return self.unobserved == "blocked"
+
+    def usable(self) -> bool:
+        """Would clearance() answer instead of refusing for a map-state
+        reason (a latched body-mask fault, a failed refresh, or -- required
+        maps -- a missing/stale grid)? Never raises, never blocks long."""
+        with self._refresh_lock:
+            if self._body_error is not None:
+                return False
+            if not self.required:
+                return True
+            return (self.last_error is None and not self.is_stale() and self._grid is not None
+                    and bool(self._grid.size) and bool(np.isfinite(self._grid).any()))
+
+    def wait_until_usable(self, timeout_s: float | None = None) -> bool:
+        """Wait (bounded) until `usable()`; True when it is, False at the
+        deadline. Holds no lock while it sleeps, so the refresh it waits for
+        can commit. `timeout_s` None = `ready_timeout_s`.
+
+        For a waking arm (apps/demo.py hooks it into LazyArm): in standby
+        there is no pose to mask the robot with, so the map integrated
+        nothing and latched; the first motion waits for the watcher's next
+        masked refresh instead of being refused or proceeding unchecked."""
+        limit = self.ready_timeout_s if timeout_s is None else max(float(timeout_s), 0.0)
+        deadline = time.monotonic() + limit
+        while True:
+            if self.usable():
+                return True
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            time.sleep(min(0.02, remaining))
 
     def clearance(self, points: np.ndarray) -> np.ndarray | None:
         """Min distance from each query point to the nearest known obstacle.

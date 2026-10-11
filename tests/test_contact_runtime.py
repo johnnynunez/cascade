@@ -54,8 +54,9 @@ def away_from_home(rt):
     return home, q
 
 
-def wall_on_the_descent(rt, monkeypatch, fraction=0.3):
-    """Put a wall in the way of the grasp descent's biggest joint motion."""
+def wall_on_the_descent(rt, monkeypatch, fraction=0.3, short_rad=None):
+    """Put a wall in the way of the grasp descent's biggest joint motion:
+    at `fraction` of its travel, or `short_rad` before its target."""
     raw = rt._raw_test_arm
     move = rt.arm.move_joints
     walls = []
@@ -65,7 +66,9 @@ def wall_on_the_descent(rt, monkeypatch, fraction=0.3):
             q0 = raw.get_state().q
             dq = np.asarray(q_target, dtype=float) - q0
             j = int(np.argmax(np.abs(dq)))
-            raw.block_joint(j, at=q0[j] + fraction * dq[j], direction=np.sign(dq[j]))
+            at = (q0[j] + fraction * dq[j] if short_rad is None
+                  else float(q_target[j]) - short_rad * np.sign(dq[j]))
+            raw.block_joint(j, at=at, direction=np.sign(dq[j]))
             walls.append(j)
         return move(q_target, *a, **kw)
     monkeypatch.setattr(rt.arm, "move_joints", move_joints)
@@ -141,6 +144,19 @@ def test_other_motion_skills_fail_with_the_contact_reason(rt, skill, args, holdi
 
 
 # ── grasp descent: the incident ──────────────────────────────────────────
+
+
+def test_a_light_press_at_the_end_of_the_descent_still_grasps(rt, monkeypatch):
+    """Fingertips touching the table/object just short of the grasp pose
+    (within the settle tolerance) is today's grasp contact: no trip, the
+    jaws close as before."""
+    walls = wall_on_the_descent(rt, monkeypatch, short_rad=0.02)
+    res = rt.execute("grasp_object", {"label": "red cube", "material": "rigid"})
+    assert walls
+    assert res["ok"] is True and res.get("held") == "red cube", res
+    assert not rt.arm.harness.contact_zones
+    reports = rows(rt)[-1]["context"]["contact_monitor"]
+    assert all(r["tripped"] is None for r in reports)
 
 
 def test_grasp_descent_into_clutter_stops_retreats_and_reports(rt, monkeypatch):

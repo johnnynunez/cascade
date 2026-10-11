@@ -203,11 +203,21 @@ def _gripper_cfg(cap, kp):
     return g
 
 
+def _referenced(arm, jaw):
+    """Turn-referenced with the jaw where it rests (motor frame = jaw
+    frame), as after the reference every connect now runs before the first
+    gripper command (tests/test_rebot_gripper_reference.py). The close
+    paths pinned here are unchanged by it."""
+    arm._grip_guard.offset = 0.0
+    arm._grip_guard._last_target = float(jaw.pos)
+    return arm
+
+
 def _rs(jaw, cap=_UNSET, kp=RS_KP):
     arm = RebotRSArm(Cfg({"gripper": _gripper_cfg(cap, kp)}))
     arm._arm = _SdkArm(jaw)
     arm._last_cmd_q = None
-    return arm
+    return _referenced(arm, jaw)
 
 
 def _mb(jaw, cap=_UNSET, kp=MB_KP):
@@ -216,7 +226,7 @@ def _mb(jaw, cap=_UNSET, kp=MB_KP):
         "gripper": _gripper_cfg(cap, kp)}))
     arm._ctrl = object()
     arm._motors = {7: _Motor(jaw)}
-    return arm
+    return _referenced(arm, jaw)
 
 
 def _close(arm, profile):

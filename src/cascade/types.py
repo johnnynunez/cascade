@@ -143,6 +143,13 @@ class SafetyViolation(RuntimeError):
     """A motion command was rejected by the safety harness."""
 
 
+class GripperFault(SafetyViolation):
+    """The gripper refused or stopped a command for safety: its position is
+    unknown (no turn reference after power-on), the reference found
+    something between the jaws, or the jaws were blocked while opening
+    (control/rs_gripper.py). The arm itself is unaffected."""
+
+
 class ContactDetected(SafetyViolation):
     """The arm was blocked mid-motion: measured joints stopped following the
     command (cascade.safety.contact.ContactMonitor, `safety.contact_monitor`).

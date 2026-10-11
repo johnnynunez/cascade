@@ -43,13 +43,13 @@ from ..types import RobotState
 from .arm_base import ArmBase
 from .robstride import (
     UnsafeReading,
-    clamp_to_travel,
     clear_motor_faults,
     close_two_stage_capped,
     contact_squeeze_cap,
     joint_reading_problem,
     plausible_position,
 )
+from .rs_gripper import RSGripperGuard
 
 MECH_POS = 0x7019
 MECH_VEL = 0x701A
@@ -91,6 +91,14 @@ class RebotRSArm(ArmBase):
         # null = close_gripper_two_stage runs its fixed-fraction close
         # unchanged; a bad value raises here, before any jaw command.
         self._grip_squeeze_cap = contact_squeeze_cap(g.get("max_contact_squeeze_rad"))
+        # The jaw travels more than one motor turn and the motor knows its
+        # position only within one turn after power-on: every gripper command
+        # goes through the turn reference and the guarded opening
+        # (control/rs_gripper.py; rig 2026-10-12, broken open stops).
+        self._grip_guard = RSGripperGuard(
+            open_pos=self._grip_open, closed_pos=self._grip_closed, ref_kp=self._grip_kp,
+            read_raw=self._gripper_raw, send_raw=self._gripper_send_raw,
+            stopped=lambda: bool(getattr(self, "_stopped", False)))
         # Gravity-compensation feedforward (Pinocchio g(q)) added to every MIT
         # arm command. Pure PD (tau_ff=0) holds with steady-state error g/kp,
         # which is the "joint 3 drops then recovers" droop seen during the
@@ -159,6 +167,7 @@ class RebotRSArm(ArmBase):
         grp.enable()
         self._arm = arm
         self._stopped = False
+        self._grip_guard.invalidate("connected: the gripper motor's turn count is unknown")
         self._read_failures = 0
         self._last_q = self._read_positions()
         self._last_q_t = time.monotonic()
@@ -249,6 +258,9 @@ class RebotRSArm(ArmBase):
             # instead of planning from phantom positions.
             self._read_failures += 1
             if self._read_failures >= self.MAX_READ_FAILURES:
+                # Gone quiet on the bus: possibly powered off, and the
+                # gripper motor's turn count with it.
+                self._grip_guard.invalidate("arm feedback lost")
                 raise RuntimeError(
                     f"CAN feedback lost ({self._read_failures} consecutive "
                     f"mechPos read failures): {e}"
@@ -263,17 +275,30 @@ class RebotRSArm(ArmBase):
         )
 
     def _gripper_pos(self) -> float | None:
-        """Gripper motor angle, or None when the read fails (callers must
-        treat None as 'unknown', never as a position)."""
+        """Jaw angle (profile frame), or None when unknown: a failed read, or
+        no turn reference yet (callers must treat None as 'unknown', never as
+        a position)."""
         if self._arm is None or not self._arm.has_gripper:
             return None
-        try:
-            with self._lock:
-                m = self._arm.gripper._mm[self._arm.gripper.joint_names[0]]
-                x = float(m.robstride_get_param_f32(MECH_POS))
-        except Exception:
-            return None
-        return x if plausible_position(x) else None
+        return self._grip_guard.position()
+
+    def _gripper_raw(self) -> float:
+        """The gripper motor's mechPos in ITS frame (whole turns off the
+        jaw's after a power-on). Raises on a failed or implausible read."""
+        if self._arm is None or not self._arm.has_gripper:
+            raise RuntimeError("no gripper")
+        with self._lock:
+            m = self._arm.gripper._mm[self._arm.gripper.joint_names[0]]
+            x = float(m.robstride_get_param_f32(MECH_POS))
+        if not plausible_position(x):
+            raise UnsafeReading(f"implausible gripper mechPos {x!r}")
+        return x
+
+    def _gripper_send_raw(self, pos: float, kp: float) -> None:
+        with self._lock:
+            self._arm.gripper.send_mit(
+                np.array([pos]), kp=np.array([kp]), kd=np.array([self._grip_kd])
+            )
 
     # ── commands ─────────────────────────────────────────────────────────
 
@@ -351,13 +376,10 @@ class RebotRSArm(ArmBase):
         """
         if self._arm is None or not self._arm.has_gripper or self._stopped:
             return
-        # Never past the profile's measured travel (WRC WrcGripper clip):
-        # beyond either end is a hard stop taken at full stiffness.
-        pos = clamp_to_travel(pos, self._grip_open, self._grip_closed)
-        with self._lock:
-            self._arm.gripper.send_mit(
-                np.array([pos]), kp=np.array([kp]), kd=np.array([self._grip_kd])
-            )
+        # Referenced first, never past the profile's measured travel (WRC
+        # WrcGripper clip: beyond either end is a hard stop taken at full
+        # stiffness), and an opening that stalls holds instead of pushing.
+        self._grip_guard.command(pos, kp)
 
     def close_gripper_two_stage(
         self,

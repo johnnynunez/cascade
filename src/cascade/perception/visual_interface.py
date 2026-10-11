@@ -376,7 +376,7 @@ def annotate_frame(runtime, **kwargs) -> tuple[np.ndarray | None, list[Mark]]:
         reach_x=configured_grasp_band(grasp_cfg),
     )
     try:
-        tcp = runtime._tcp()
+        tcp = runtime._tcp_if_awake()  # a look never powers a standby arm
     except Exception:
         tcp = None
     beliefs = []

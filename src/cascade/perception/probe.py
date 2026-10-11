@@ -227,7 +227,10 @@ class PointProbe:
 
         # how far is the gripper from this point right now
         try:
-            tcp = np.asarray(self.rt._tcp(), dtype=float)[:3]
+            tcp = self.rt._tcp_if_awake()  # None in standby: a probe never powers the arm
+            if tcp is None:
+                return out
+            tcp = np.asarray(tcp, dtype=float)[:3]
             delta = p_base - tcp
             out["from_gripper"] = {
                 "distance_m": round(float(np.linalg.norm(delta)), 4),

@@ -426,3 +426,41 @@ def test_single_tile_is_returned_untouched():
 
     only = np.zeros((60, 160, 3), dtype=np.uint8)
     assert _stack_tiles([only]) is only
+
+
+def test_the_agent_view_never_powers_a_standby_arm():
+    """The dashboard's agent view draws the gripper's TCP. It read it through
+    runtime._tcp() -> arm.get_state(), which opens a LazyArm (on the reBot:
+    connect(), a stop frame, then enable): any browser on the LAN switching
+    a tile to the agent view would have powered the motors. It must use the
+    look-only accessor, which answers None while the arm is in standby."""
+    from types import SimpleNamespace
+
+    from cascade.apps.stream_server import StreamServer
+    from cascade.config import Cfg
+
+    class StandbyRuntime:
+        cfg = SimpleNamespace(safety=Cfg({"table_z": 0.0}), grasp=Cfg({}))
+        extrinsics = None
+        beliefs = SimpleNamespace(all=list)
+        looked = 0
+
+        def _tcp(self):
+            raise AssertionError("the agent view woke the arm")
+
+        def _tcp_if_awake(self):  # the look-only accessor: standby -> None
+            StandbyRuntime.looked += 1
+
+    rig, stream = _rig_with_depth()
+    rig.open()
+    try:
+        deadline = time.time() + 5
+        while stream.latest() is None and time.time() < deadline:
+            time.sleep(0.05)
+        rt = StandbyRuntime()
+        server = StreamServer(rig, port=0, runtime_fn=lambda: rt)
+        jpeg = server.annotated_view_jpeg("over")
+        assert jpeg is not None
+        assert StandbyRuntime.looked == 1, "the agent view must ask the look-only TCP"
+    finally:
+        rig.close()

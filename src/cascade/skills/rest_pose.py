@@ -103,7 +103,11 @@ _HARNESS_LOAD = (
 # ── small helpers ───────────────────────────────────────────────────────────
 
 
-def _bool(value, name: str) -> bool:
+def _bool(value, name: str, default: bool) -> bool:
+    """A boolean tool argument. Chat hosts fill optional schema fields with
+    null (= the default) and sometimes send "true"/"false" as strings."""
+    if value is None:
+        return default
     if isinstance(value, bool):
         return value
     if isinstance(value, str) and value.strip().lower() in ("true", "false"):
@@ -224,7 +228,7 @@ def _not_at_rest(arm, start, park, route, why: str) -> dict:
 def move_to_rest(rt, *, keep_torque=False) -> dict:
     from ..control.lazy_arm import LazyArm
 
-    keep_torque = _bool(keep_torque, "keep_torque")
+    keep_torque = _bool(keep_torque, "keep_torque", default=False)
     arm = rt.arm
     harness, raw = arm.harness, arm.raw
     lazy = isinstance(raw, LazyArm)

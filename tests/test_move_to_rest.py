@@ -189,6 +189,27 @@ def test_keep_torque_folds_but_leaves_the_motors_on(rig):
     assert _commands(world) == n0 and arm.connected is False
 
 
+@pytest.mark.parametrize("value, released", [(None, True), ("false", True), ("true", False)])
+def test_keep_torque_accepts_what_chat_models_send(rig, value, released):
+    """Chat hosts fill optional schema fields (null) or send booleans as
+    strings; both mean what they say. Anything else is refused before any
+    motion."""
+    runtime, arm, world = rig
+    _wake(runtime, arm, world)
+    res = runtime.execute("move_to_rest", {"keep_torque": value})
+    assert res["ok"] is True and res["at"] == "rest", res
+    assert (res["torque"] == "released") is released and arm.connected is (not released)
+
+
+def test_a_nonsense_keep_torque_is_refused_before_any_motion(rig):
+    runtime, arm, world = rig
+    _wake(runtime, arm, world)
+    n0 = _commands(world)
+    res = runtime.execute("move_to_rest", {"keep_torque": "maybe"})
+    assert res["ok"] is False and "keep_torque" in res["error"]
+    assert _commands(world) == n0 and arm.connected is True
+
+
 def test_a_standby_arm_is_not_woken_up(rig):
     """Never opened (or already released): the motors hold nothing, so
     nothing can drop -- and reading the pose would power them for nothing."""

@@ -18,6 +18,14 @@ treat them as "no measurement" -- not free, not occupied. Under-masking
 leaves phantom obstacles; over-masking hides real ones next to the arm, so
 radii are per-arm profile data (`arm.body_mask_radius_m`, default 0.06 m)
 and the held object is NOT masked (it is a real obstacle for other links).
+
+Capsules fit a thin arm, not a wide gripper: on the real reBot (2026-10-11)
+they left the open jaws and the wrist D455F in the map, 2.8 cm from the
+chain. `MeshBodyMask` (below, arm profile `body_mask: mesh`) masks the
+arm's URDF silhouette instead -- every link, the fingers at the measured
+opening, profile attachments, a metric margin -- and refuses to build rather
+than fall back to capsules when a mesh cannot be read. docs/NVBLOX.md
+"Robot body mask on real arms" has the measured before/after.
 """
 
 from __future__ import annotations

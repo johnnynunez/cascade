@@ -875,7 +875,11 @@ aggregator, not nvblox. Fixes, all measured on this CUDA-less Mac (suite
   depth pixels before integration — "no measurement", not free space. After:
   0.065–0.229 m at HOME, the pick runs, and the harness consulted the map
   **991 times with real data** during one `pick_and_place` (physics-confirmed,
-  3.9 cm from the drop point).
+  3.9 cm from the drop point). On the real reBot the capsules did not reach
+  the open jaws or the wrist D455F (2026-10-11: voxels 2.8 cm from the
+  chain), so a profile can now opt in to `body_mask: mesh`, the URDF meshes
+  rasterized per frame with a 2 cm margin (on for `rebot_rs`; docs/NVBLOX.md
+  "Robot body mask on real arms").
 - **ROS2 arms.** `control/unitree_arm.py` (Unitree Arm SDK: `rt/arm_sdk` +
   `rt/lowstate`, LowCmd CRC verified against `unitree_hg`/`unitree_go`),
   `control/ros2_arm.py` grew `GripperCommand` action support (what

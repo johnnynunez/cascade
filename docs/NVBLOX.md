@@ -226,6 +226,120 @@ new arrives, and the video says so (0 voxels or a stale map). On the Spark a
 1280 x 720 composite at 10 fps writes in real time, and each map query takes
 14-16 ms (92 x 102 x 68 voxels).
 
+## Robot body mask on real arms (`body_mask: mesh`)
+
+The camera sees the arm, so every depth frame is masked before integration.
+Isaac frames carry a render self-mask. Real arms used capsules instead: each
+pixel's 3D point was tested against `body_mask_radius_m` (6 cm) around the
+joint polyline (`perception/robot_mask.py robot_mask`). A gripper is wide
+where that chain is thin. On the real reBot (2026-10-11, calibrated fixed
+D455F, arm at rest q = 0), the nvblox map built with the capsule mask kept
+voxels on the open jaws (~14 cm wide) and on the wrist D455F above them. The
+nearest was 2.8 cm from the chain, under `min_clearance_m` 0.03, so motion
+from rest could be refused by the robot's own body.
+
+An arm profile opts in with `body_mask: mesh` (on for `rebot_rs`). Each frame
+is then masked by the arm's **silhouette**: `MeshBodyMask` rasterizes the
+URDF collision meshes of every link at the current joint state into the depth
+image that ships (after `depth_stride`), the same code as fusion's B39 link
+self-mask (`perception/link_mask.py`).
+
+```yaml
+body_mask:
+  mode: mesh          # capsule (the default when absent) | mesh
+  inflate_m: 0.02     # metric margin on every convex piece, applied once at load
+  dilate_px: 2        # pixel dilation of the silhouette (flying pixels on its edge)
+  cell_m: 0.05        # mesh piece size (LinkGeometry), the default
+  attachments:        # rigid parts the URDF lacks: boxes in a link frame
+    - {name: wrist_d455f, link: gripper_end, box: [0.065, 0.14, 0.055],
+       xyz: [-0.0925, 0.0, 0.0625], rpy: [0, 0, 0]}
+```
+
+- **Fingers.** The passive finger joints are posed from the measured gripper
+  position through the profile's `gripper.open_pos/closed_pos`. When the
+  opening is unknown they are swept over their whole travel, which gives more
+  mask and never less. The opening is unknown after a failed gripper read,
+  and while an RS arm streams a motion (`body_mask_state()` reads nothing on
+  the bus then, for the same 50 Hz timing reason as `body_mask_q`).
+- **Margins.** `inflate_m` absorbs metric errors such as the hand-eye
+  calibration, the mesh against the printed part, and the finger
+  angle->width map. 2 cm is ~10 px at 0.6 m but ~64 px at 0.1 m in a 640x360
+  D455F frame, so a pixel dilation alone cannot absorb it at every depth.
+  `dilate_px` covers the silhouette's edge. The 2 cm margin stays below
+  `min_clearance_m` (3 cm), so the surfaces it hides lie in the band that the
+  clearance gate already keeps clear of the arm.
+- **Wrist camera and attachments.** The RS URDF does not model the wrist
+  D455F. Its box is an envelope sized from the depth points that its body
+  left on the 2026-10-11 capture, plus ~1 cm. Those points were measured
+  through the markerless hand-eye calibration. Measure the mount with
+  calipers and tighten the box.
+- **Any camera.** The mask needs only K and T_base_cam: a fixed T for
+  eye-to-hand cameras, FK(q) @ X for eye-in-hand. A wrist camera's jaws
+  straddle the near plane and are clipped there. Because the mask is a
+  silhouette, it does not read the depth values, so a wrong depth on a robot
+  pixel (stereo speckle, a close-range mismatch on the jaws) is masked too.
+  The capsule test would integrate it.
+- **Fail closed.** If there is no joint state (the arm in standby: a LazyArm
+  is never woken by looking; a failed read; a non-finite q), the frame is not
+  integrated. The fault latches, and clearance is refused with
+  `robot body pose unavailable for the <arm> mesh mask: ...` until a masked
+  refresh succeeds. Both wire paths mask: nvblox `integrate_masked_depth`
+  gets the silhouette as inactive rays, and older bridges get zeroed depth or
+  filtered points.
+- **No silent capsule fallback.** `LinkGeometry` replaces an unreadable mesh
+  with a capsule, which suits fusion's detection gate, but a capsule is the
+  mask that left the jaws in the map. If a mesh is missing (git-lfs not
+  fetched, for example), a `body_mask: mesh` profile refuses to build and
+  names the link. Fetch the meshes (`git lfs pull`) or set
+  `body_mask: capsule` knowingly. An attachment on a link that the model
+  lacks is refused the same way. `mesh` is also refused on Isaac arms (they
+  have the render mask and capture-time joint state) and together with
+  payload tracking (its replay re-sends history with render masks only).
+
+Measured on the same real capture (24 frames, 640x360 after stride 2, q = 0,
+gripper unknown so the fingers are swept) with
+`scripts/eval_body_mask.py ... --tsdf`. The TSDF columns use cascade's warp
+TSDF on the CPU, fed each mask's zeroed depth, over the configured workspace
+region:
+
+| | capsule (6 cm) | mesh (2 cm, 2 px) |
+|---|---:|---:|
+| unmasked depth points within 3 cm of the URDF surface, per frame | 3859 | **0** |
+| ... within 5 cm, per frame | 4576 | 84 |
+| TSDF occupied voxels within 3 cm / 5 cm of the arm | 77 / 132 | **0** / 3 |
+| nearest TSDF voxel to the joint chain | 3.1 cm | 8.0 cm |
+| ESDF clearance at the harness points (TCP + joints) | 5.1 cm | 8.7 cm |
+| masked points > 5 cm from the URDF surface, per frame | 0 | 197 |
+| mask cost per frame (FK + raster) | 22.7 ms | **5.0 ms** |
+
+Scored the same way (over its larger region), the original nvblox
+capsule-masked map from that day had 407 occupied voxels within 3 cm of the
+URDF surface, and its nearest voxel was 2.81 cm from the chain. The 197
+masked points per frame that lie more than 5 cm from the URDF surface were
+inspected on the last frame. They sit on the wrist camera (masked by its box,
+as intended) and on a cable at the elbow: robot parts that the URDF lacks,
+not scene surfaces. The margin study on the same capture, as unmasked points
+within 3 cm per frame with 2 px dilation, gave 417 at 0 cm, 214 at 0.5 cm,
+108 at 1 cm, 37 at 1.5 cm and 0 at 2 cm.
+
+Re-validate on any rig without the robot or a bridge:
+
+```bash
+python scripts/eval_body_mask.py capture.npz --arm rebot_rs --q 0 0 0 0 0 0 [--gripper RAD] [--tsdf]
+```
+
+The capture is a `.npz` with `depth` (N,H,W) in metres, `K`, and
+`T_cam2base` (per frame for a wrist camera). The arm must not move during
+the capture.
+
+Limitations: cables, the base's mounting plate and anything else outside the
+URDF and the attachments still reach the map. The finger angle->width map
+of the RS profile is unverified. While an RS arm streams a motion, the jaw
+gap is masked (swept fingers), so a held object is not integrated during the
+stream. A wrist camera's T comes from FK at the watcher's read, while the
+mask uses the state read a moment later. The eye-in-hand path is
+synthetic-tested only, because the wrist D455F has no hand-eye record yet.
+
 ## Troubleshooting: every motion refused as "not yet validated"
 
 With a robot body registered, the map refuses all motion until one depth

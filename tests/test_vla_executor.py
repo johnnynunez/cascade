@@ -114,7 +114,7 @@ def test_golden_analytic_runtime_exposes_no_vla_surface(tmp_path):
     rt, arm = build_runtime(cfg, tmp_path / "run")
     try:
         assert getattr(rt, "vla_executor", None) is None
-        assert set(rt.backends()) == {"grasp_planner", "occupancy", "occupancy_live"}
+        assert set(rt.backends()) == {"grasp_planner", "occupancy", "occupancy_live", "occupancy_state"}
         matrix = capability_matrix(rt)
         assert "vla_policy" not in matrix
         assert "vla_policy" not in format_matrix(matrix)

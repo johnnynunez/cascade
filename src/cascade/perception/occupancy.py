@@ -226,6 +226,8 @@ class OccupancyMap:
         self._grid_voxel: float = 0.0
         self._last_refresh: float | None = None
         self.last_error: str | None = None
+        #: committed refreshes since construction (report(): is it ticking?)
+        self.refreshes = 0
         # The refresh error last reported to the log. A refresh swallows its
         # own failures into `last_error`; without a log line a bridge that
         # keeps timing out is invisible while every motion is refused.
@@ -980,6 +982,7 @@ class OccupancyMap:
         self._grid_origin, self._grid_voxel = origin, voxel
         self._last_refresh = capture_t if self.required else time.monotonic()
         self.last_error = None
+        self.refreshes += 1
         if frame.has_depth:
             self._body_error = None
 
@@ -1245,6 +1248,38 @@ class OccupancyMap:
                 return True
             return (self.last_error is None and not self.is_stale() and self._grid is not None
                     and bool(self._grid.size) and bool(np.isfinite(self._grid).any()))
+
+    def report(self) -> dict:
+        """The map's state for the operator surfaces (MCP world_state, the
+        capability matrix, the live view /state): can it authorize a step
+        right now, how old is it, how much does it hold. Lock-free (a
+        snapshot of attributes): the dashboard polls it, and a refresh stuck
+        on a slow bridge must not hang the dashboard.
+
+        state: "no bridge" (probe failed), "failed" (the last refresh or the
+        body mask failed), "waiting" (nothing integrated yet), "stale" (older
+        than max_age_s), "live". `live` is True only for "live"."""
+        last, error, body = self._last_refresh, self.last_error, self._body_error
+        occupied, grid = self._occupied, self._grid
+        age = None if last is None else max(time.monotonic() - last, 0.0)
+        if not self.status:
+            state, detail = "no bridge", f"no bridge ({self.probe_error or 'not probed'})"
+        elif body is not None or error is not None:
+            state, detail = "failed", f"refresh failed: {body or error}"
+        elif last is None or grid is None:
+            state, detail = "waiting", "waiting for the first masked depth refresh"
+        elif age > self.max_age_s:
+            state, detail = "stale", f"distance grid is stale ({age:.2f} s old, max_age_s {self.max_age_s:g})"
+        else:
+            state, detail = "live", f"live ({age:.2f} s old)"
+        return {
+            "state": state, "live": state == "live", "detail": detail,
+            "bridge": bool(self.status), "backend": self.describe(),
+            "required": bool(self.required), "unobserved": self.unobserved,
+            "age_s": None if age is None else round(age, 3), "max_age_s": self.max_age_s,
+            "occupied_voxels": 0 if occupied is None else len(occupied),
+            "refreshes": int(self.refreshes), "last_error": body or error,
+        }
 
     def wait_until_usable(self, timeout_s: float | None = None) -> bool:
         """Wait (bounded) until `usable()`; True when it is, False at the

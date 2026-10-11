@@ -1157,6 +1157,8 @@ class SkillRuntime:
             "grasp_planner": grasp,
             "occupancy": occ.describe() if occ is not None else "disabled",
             "occupancy_live": bool(occ is not None and occ.status),
+            # can the map authorize a step NOW: state, age, voxels (report())
+            "occupancy_state": occ.report() if occ is not None and hasattr(occ, "report") else None,
         }
         if getattr(self, "vla_executor", None) is not None:
             # only with `grasp.executor: vla`: which policy server serves grasps

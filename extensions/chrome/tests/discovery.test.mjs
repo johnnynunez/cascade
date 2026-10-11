@@ -68,12 +68,46 @@ test('the Spark gateway page falls back to the local camera server on the same h
   assert.equal(saved.discoveryHint,hint.statusURL,'keep the page hint so reopening the panel does not restart discovery');
  }finally{Object.assign(globalThis,original);}
 });
+test('a loopback OpenClaw page on another port (NemoClaw 18789) finds the real rig through cascade\'s live view',async()=>{
+ // Real arm, no Spark camera server: the cameras are cascade's own live view
+ // (stream_server.py, :8090), whose /state lists them and /stream/<name> is MJPEG.
+ const original={chrome:globalThis.chrome,fetch:globalThis.fetch};const saved={},requests=[];
+ const cameras=['d455f_scene','d455f_wrist'];
+ globalThis.chrome={storage:{local:{get:async()=>saved,set:async values=>Object.assign(saved,values)}}};
+ globalThis.fetch=async url=>{requests.push(url);
+  if(url==='http://127.0.0.1:8090/state')return new Response(JSON.stringify({cameras:Object.fromEntries(cameras.map(n=>[n,{frame_id:7,online:true}])),t:1}),{headers:{'content-type':'application/json'}});
+  // the OpenClaw Control UI answers its SPA shell, not JSON
+  if(url==='http://127.0.0.1:18789/api/status')return new Response('<html></html>',{headers:{'content-type':'text/html'}});
+  return new Response('Not Found',{status:404,headers:{'content-type':'text/plain'}});};
+ try{
+  const hint=await bootstrap({pageURL:'http://127.0.0.1:18789/chat?session=main'});
+  const {config}=await discover(hint);
+  assert.deepEqual(requests,['http://127.0.0.1:18789/api/status','http://127.0.0.1:8091/api/status','http://127.0.0.1:8090/state','http://127.0.0.1:8090/state']);
+  assert.equal(config.base,'http://127.0.0.1:8090');
+  assert.equal(config.streams.d455f_wrist,'http://127.0.0.1:8090/stream/d455f_wrist');
+  assert.equal(config.permission,hint.permission,'the fallback must not need another host grant');
+  assert.deepEqual(config.names,cameras);assert.equal(config.defaultCamera,'d455f_scene');
+ }finally{Object.assign(globalThis,original);}
+});
+test('the Spark camera server still wins over the live view when both answer',async()=>{
+ const original={chrome:globalThis.chrome,fetch:globalThis.fetch};const requests=[];
+ globalThis.chrome={storage:{local:{get:async()=>({}),set:async()=>{}}}};
+ globalThis.fetch=async url=>{requests.push(url);
+  if(url==='http://127.0.0.1:8091/api/status')return new Response(JSON.stringify({camera_discovery:{version:1,base_url:'/',state_url:'/state',default_camera:'worktop',cameras:[{name:'worktop',stream_url:'/stream/worktop'}]}}),{headers:{'content-type':'application/json'}});
+  if(url==='http://127.0.0.1:8091/state'||url==='http://127.0.0.1:8090/state')return new Response(JSON.stringify({cameras:{worktop:{frame_id:1}}}),{headers:{'content-type':'application/json'}});
+  return new Response('Not Found',{status:404,headers:{'content-type':'text/plain'}});};
+ try{
+  const {config}=await discover(await bootstrap({pageURL:'http://127.0.0.1:18789/'}));
+  assert.equal(config.base,'http://127.0.0.1:8091');
+  assert.ok(!requests.includes('http://127.0.0.1:8090/state'));
+ }finally{Object.assign(globalThis,original);}
+});
 test('the local camera fallback never applies to remote pages or to the camera server itself',async()=>{
  const original={chrome:globalThis.chrome,fetch:globalThis.fetch};const requests=[];
  globalThis.chrome={storage:{local:{get:async()=>({}),set:async()=>{}}}};
  globalThis.fetch=async url=>{requests.push(url);return new Response('Not Found',{status:404,headers:{'content-type':'text/plain'}});};
  try{
-  for(const pageURL of ['https://demo.example/openclaw/','http://100.90.1.2:18790/chat','http://localhost:18790/chat','http://127.0.0.1:8091/']){
+  for(const pageURL of ['https://demo.example/openclaw/','http://100.90.1.2:18790/chat','http://localhost:18790/chat','http://127.0.0.1:8091/','http://127.0.0.1:8090/','https://127.0.0.1:18789/']){
    requests.length=0;
    await assert.rejects(discover(await bootstrap({pageURL})));
    assert.equal(requests.length,1,pageURL+' must not try a second server');

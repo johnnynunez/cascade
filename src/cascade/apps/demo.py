@@ -736,6 +736,26 @@ def build_runtime(
     wrist_kw = ({"wrist_view": runtime.wrist_narrator.camera}
                 if runtime.wrist_narrator is not None else {})
 
+    # The nvblox map as one more live-view tile (`nvblox_map`,
+    # apps/map_tile.py): resolved HERE so a misspelled switch fails the
+    # build. `auto` = only when this runtime has an occupancy map. The tile
+    # reads the map's lock-free snapshot and renders only for a connected
+    # viewer; standby is read from LazyArm's own flag (never materialized).
+    from .map_tile import MapTile, map_tile_settings
+
+    map_settings = map_tile_settings(scfg, occupancy=occupancy, occupancy_cfg=cfg.get("occupancy"))
+    map_workspace = ([min(v[i] for v in ws_min) for i in range(3)],
+                     [max(v[i] for v in ws_max) for i in range(3)])
+
+    def _map_tile():
+        if not map_settings.enabled:
+            return {}
+        return {"map_tile": MapTile(
+            occupancy, map_settings, workspace=map_workspace,
+            arm_up_fn=lambda: getattr(runtime.arm.raw, "connected", True),
+            objects_fn=runtime.beliefs.summary,
+        )}
+
     def _make_stream_server():
         from .stream_server import StreamServer
 
@@ -752,6 +772,7 @@ def build_runtime(
             on_poll=lambda: runtime.live_view.note_poll(),
             lan_commands=bool(scfg.get("lan_commands", False)),
             **wrist_kw,
+            **_map_tile(),
         )
 
     external_view = os.environ.get("CASCADE_EXTERNAL_VIEW_URL")

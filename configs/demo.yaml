@@ -496,6 +496,23 @@ stream:
   # `wrist_view`. No wrist camera = no panel (a front view is never shown as
   # the gripper's). false = the exact pre-B47 dashboard and state.
   wrist_narration: false
+  # The nvblox occupancy map as one more live-view tile, the virtual camera
+  # `nvblox_map` (apps/map_tile.py): a slowly orbiting 3-D render of the
+  # occupied voxels with the safety workspace, a top-down height map with the
+  # visible objects, voxel count and map age. /state lists it LAST, marked
+  # {virtual: true, kind: map}; the camera extension shows it as one more view
+  # and agent tools never see it. It reads the runtime's own map (no lock, no
+  # bridge traffic, read-only) and renders only while a viewer streams it.
+  # auto = only when this runtime has an occupancy map; true = always (the
+  # frame then says why there is none, e.g. "nvblox off (CASCADE_OCCUPANCY=0)");
+  # false = never. CASCADE_NVBLOX_MAP=0|1|auto overrides `enabled`.
+  nvblox_map:
+    enabled: auto
+    fps: 3                  # 0.5-10; the map itself refreshes at the perception rate
+    stale_s: 2.0            # older map -> its age is drawn in red
+    quality: 75             # JPEG quality
+    width: 960
+    height: 540
 
 # MCP server front-end (apps/mcp_server.py, chat hosts).
 mcp:

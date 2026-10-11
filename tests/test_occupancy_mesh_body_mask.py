@@ -900,3 +900,40 @@ def test_without_an_occupancy_map_nothing_is_built():
     cfg, acfg = _rebot_profile(body_mask="mesh")
     arm, _, _ = demo._build_arm(acfg, True, None, cfg)
     assert arm.connected is False
+
+
+# ── slice 7: the shipped profiles ───────────────────────────────────────
+
+
+def test_every_shipped_arm_profile_has_a_valid_body_mask():
+    from cascade.config import CONFIG_DIR, load_profile
+    from cascade.perception.robot_mask import body_mask_settings
+
+    names = sorted(p.stem for p in (CONFIG_DIR / "arms").glob("*.yaml"))
+    assert "rebot_rs" in names
+    for name in names:
+        body_mask_settings(load_profile("arms", name))          # raises on a malformed block
+
+
+def test_the_rebot_rs_profile_opts_in_with_the_wrist_camera_attached():
+    """The real reBot: URDF meshes, the shipped margins, and the wrist D455F
+    (not in the URDF) as a box on gripper_end that encloses the depth points
+    the camera's body left on the real capture (gripper_end frame, metres:
+    x -0.11..-0.07, y -0.06..0.05, z 0.06..0.08, measured 2026-10-11)."""
+    from cascade.config import load_profile
+    from cascade.perception.robot_mask import (
+        DEFAULT_BODY_DILATE_PX,
+        DEFAULT_BODY_INFLATE_M,
+        body_mask_settings,
+    )
+
+    got = body_mask_settings(load_profile("arms", "rebot_rs"))
+    assert got is not None and got["inflate_m"] == DEFAULT_BODY_INFLATE_M
+    assert got["dilate_px"] == DEFAULT_BODY_DILATE_PX
+    (name, link, size, T), = got["attachments"]
+    assert (name, link) == ("wrist_d455f", "gripper_end")
+    lo = T[:3, 3] - np.abs(T[:3, :3]) @ (np.asarray(size) / 2)
+    hi = T[:3, 3] + np.abs(T[:3, :3]) @ (np.asarray(size) / 2)
+    observed_lo, observed_hi = np.array([-0.11, -0.062, 0.041]), np.array([-0.07, 0.062, 0.08])
+    assert (lo <= observed_lo).all() and (hi >= observed_hi).all(), "the box must enclose the camera's points"
+    assert (np.asarray(size) <= 0.16).all(), "an envelope, not a blanket over the gripper"

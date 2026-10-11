@@ -78,6 +78,35 @@ gravity_comp:
   enabled: true
   tau_scale: [1.0, 1.10, 1.10, 1.0, 1.0, 1.0]
 
+# Occupancy body mask: the URDF meshes, not capsules (perception/robot_mask.py
+# MeshBodyMask, docs/NVBLOX.md "Robot body mask"). Measured on this rig on
+# 2026-10-11 (calibrated fixed D455F, arm at rest q = 0): the 6 cm capsules
+# around the joint chain left 108 occupied voxels on the gripper and the wrist
+# camera, the nearest 2.8 cm from the chain, under min_clearance_m 0.03.
+# The mask draws every link (fingers at the measured opening, swept while a
+# stream runs or when the gripper read fails), inflated by inflate_m and
+# dilated by dilate_px. No joint state (standby, failed read) -> the frame is
+# not integrated; an unreadable mesh (git-lfs not fetched) refuses the build
+# instead of falling back to capsules. `body_mask: capsule` restores the old
+# mask.
+body_mask:
+  mode: mesh
+  inflate_m: 0.02
+  dilate_px: 2
+  attachments:
+    # The wrist D455F (124 x 29 x 26 mm) and its bracket are NOT in the URDF.
+    # Envelope in the gripper_end frame (x along the jaws, z up at rest),
+    # sized from the depth points its body left on the 2026-10-11 capture
+    # (x -0.11..-0.07, y -0.06..+0.05, z +0.06..+0.08, top face and the side
+    # facing the fixed camera) plus ~1 cm, the bracket down to the gripper
+    # top (z 0.041). An estimate through the hand-eye calibration: measure
+    # the mount with calipers and tighten it on the rig.
+    - name: wrist_d455f
+      link: gripper_end
+      box: [0.065, 0.14, 0.055]
+      xyz: [-0.0925, 0.0, 0.0625]
+      rpy: [0.0, 0.0, 0.0]
+
 gripper:
   # MEASURED on the RS build (scripts/diag_rebot_mb.py): travel runs 0.0 ->
   # +6.39 rad, closed at 0. That is the OPPOSITE polarity to the old DM values

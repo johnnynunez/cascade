@@ -13,6 +13,13 @@ Routes:
     /keyframes           before/after keyframe filmstrip from the run dir
     /keyframe/<file>     one keyframe JPEG (basename-only, no traversal)
 
+With a map tile (apps/map_tile.py, `stream.nvblox_map`) the server also
+announces the virtual camera `nvblox_map`: LAST in /state `cameras`, marked
+{"virtual": true, "kind": "map"}, streamed at /stream/nvblox_map (and
+/snapshot/nvblox_map.jpg) at the tile's own rate, rendered only while a
+client is connected. It has no depth/agent views and is not in analyze();
+everything agent-facing lists the camera rig, which never contains it.
+
 The handler threads only ever *read* the latest frame slot of each stream,
 so any number of viewers can attach without slowing perception or control.
 """
@@ -33,6 +40,7 @@ so any number of viewers can attach without slowing perception or control.
 
 from __future__ import annotations
 
+import html
 import ipaddress
 import json
 import socket
@@ -406,8 +414,16 @@ class StreamServer:
         on_poll=None,
         wrist_view: str | None = None,
         lan_commands: bool = False,
+        map_tile=None,
     ):
         self._rig = rig
+        # The nvblox map as one more (virtual) camera; None = no such tile
+        # and the exact pre-map server. A real stream of the same name would
+        # make /stream/<name> ambiguous: refuse it.
+        if map_tile is not None and map_tile.name in list(getattr(rig, "names", [])):
+            raise ValueError(f"a rig camera is already named {map_tile.name!r}; "
+                             "rename it or disable stream.nvblox_map")
+        self._map_tile = map_tile
         # POST /task (the reflex chat) from other machines: off unless the
         # operator opts in. POST /cancel (STOP) is always open. See
         # command_allowed().
@@ -520,7 +536,23 @@ class StreamServer:
         except Exception as e:
             base["state_error"] = str(e)
         base.setdefault("agent_status", "idle")
+        tile = self._map_tile
+        if tile is not None:
+            # appended LAST: clients that default to the first announced
+            # camera (the extension) keep showing a real one
+            cams = dict(base.get("cameras") or {})
+            try:
+                cams[tile.name] = tile.stats()
+            except Exception as e:  # noqa: BLE001 -- a map problem must never break /state
+                cams[tile.name] = {"virtual": True, "kind": "map", "frame_id": 0, "fps": 0.0,
+                                   "error": f"map tile: {e}"[:200]}
+            base["cameras"] = cams
         return base
+
+    def map_tile_for(self, name: str):
+        """The virtual map camera if `name` is it, else None."""
+        tile = self._map_tile
+        return tile if tile is not None and name == tile.name else None
 
     # ── depth + annotated views (the diagnostic surfaces) ────────────────
 
@@ -691,9 +723,16 @@ def _make_handler(server: StreamServer):
                     return self._json(server.analyze(cam))
                 if path.startswith("/snapshot/"):
                     name = path.split("/", 2)[2].removesuffix(".jpg")
-                    return self._snapshot(name)
+                    tile = server.map_tile_for(name)
+                    return self._snapshot(name, tile.jpeg() if tile is not None else None)
                 if path.startswith("/stream/"):
-                    return self._mjpeg(path.split("/", 2)[2], server.annotated_jpeg)
+                    name = path.split("/", 2)[2]
+                    tile = server.map_tile_for(name)
+                    if tile is not None:
+                        # rendered here, in this client's handler thread,
+                        # at the tile's own rate: no client, no rendering
+                        return self._mjpeg(name, lambda _n: tile.jpeg(), fps=tile.fps)
+                    return self._mjpeg(name, server.annotated_jpeg)
                 if path.startswith("/depth/"):
                     return self._mjpeg(path.split("/", 2)[2], server.depth_jpeg)
                 if path.startswith("/annotated/"):
@@ -767,6 +806,12 @@ def _make_handler(server: StreamServer):
                 f'{_WRIST_LINE if n == wrist else ""}</div>'
                 for n in server._rig.names
             )
+            tile = server._map_tile
+            if tile is not None:
+                # a map has no depth/agent views: a title, no view buttons
+                label = html.escape(tile.label)
+                tiles += (f'<div class="cam" data-virtual="map"><h2 style="text-transform:none">{label}</h2>'
+                          f'<img id="img-{tile.name}" src="/stream/{tile.name}" alt="{label}"></div>')
             body = _INDEX_HTML.format(
                 tiles=tiles, read_only_json=json.dumps(read_only),
                 command_hidden="hidden" if read_only else "",
@@ -846,8 +891,8 @@ def _make_handler(server: StreamServer):
             self.end_headers()
             self.wfile.write(data)
 
-        def _snapshot(self, name: str):
-            jpeg = server.annotated_jpeg(name)
+        def _snapshot(self, name: str, jpeg: bytes | None = None):
+            jpeg = jpeg if jpeg is not None else server.annotated_jpeg(name)
             if jpeg is None:
                 return self.send_error(503, "no frame yet")
             self.send_response(200)
@@ -857,8 +902,9 @@ def _make_handler(server: StreamServer):
             self.end_headers()
             self.wfile.write(jpeg)
 
-        def _mjpeg(self, name: str, render=None):
-            server._rig.get(name)  # 404 (KeyError) before headers go out
+        def _mjpeg(self, name: str, render=None, fps: float | None = None):
+            if fps is None:  # a rig camera (the map tile passes its own fps)
+                server._rig.get(name)  # 404 (KeyError) before headers go out
             render = render or server.annotated_jpeg
             self.send_response(200)
             self.send_header(
@@ -866,7 +912,7 @@ def _make_handler(server: StreamServer):
             )
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
-            period = 1.0 / max(server._fps, 1.0)
+            period = 1.0 / (fps if fps else max(server._fps, 1.0))
             while not server._stopping:
                 t0 = time.monotonic()
                 jpeg = render(name)

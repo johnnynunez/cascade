@@ -100,3 +100,15 @@ overrides:
     wrist_camera_up:
       tcp_axis: [0.0, 0.0, 1.0]
       min_up_z: -0.1
+    # Motor-feedback contact stop (docs/CONTACT_STOP.md), MEASURE ONLY here:
+    # these MIT gains are unvalidated away from the zero pose and this
+    # backend has no gravity compensation, so an outstretched arm may sag
+    # past a tolerance tuned for rebot_rs. Every motion logs its tracking
+    # ("[contact] measure ..." on stderr, context.contact_monitor in the
+    # trace); calibrate (scripts/contact_calibrate.py), then set enforce.
+    contact_monitor:
+      enabled: true
+      mode: measure
+      track_tol_rad: 0.10
+      lag_s: 0.25
+      read_timeout_s: 0.05

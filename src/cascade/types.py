@@ -143,6 +143,24 @@ class SafetyViolation(RuntimeError):
     """A motion command was rejected by the safety harness."""
 
 
+class ContactDetected(SafetyViolation):
+    """The arm was blocked mid-motion: measured joints stopped following the
+    command (cascade.safety.contact.ContactMonitor, `safety.contact_monitor`).
+
+    The stream has stopped and the arm holds where it was MEASURED -- torque
+    on, never snapped back to the command. A SafetyViolation, so every abort
+    path treats it as one; skills and persistence loops that must not drive
+    the arm into the same obstacle again check for this subclass. `event` is
+    the monitor's trip record (joint, error, phase, hold pose) when known; it
+    is None after a skill re-raises it with extra context, like
+    `type(exc)(f"{exc}; ...")`.
+    """
+
+    def __init__(self, message: str, event: dict | None = None):
+        super().__init__(message)
+        self.event = event
+
+
 class MotionHalted(SafetyViolation):
     """An in-flight motion was cancelled deliberately, not for safety.
 

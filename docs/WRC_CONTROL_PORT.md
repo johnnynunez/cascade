@@ -25,7 +25,7 @@ Sources: `git -C wrc log 389a18d..HEAD`, WRC
 | a2d5950 (adaptive opening) | Opt-in pre-grasp opening to the grasp width plus a margin. It goes through `SafeArm.set_gripper` and is never narrower than the grasp width. A negative or non-finite margin is a config error. An unknown width means fully open. | `grasping/force.py::pregrasp_open_position`; `skill_grasp_object`; profile key `gripper.pregrasp_open_margin_m` (rebot_rs: `null`) | `test_pregrasp_adaptive_open.py` |
 | e97998c, ba4e110 (settle window) | `RebotRSArm` now reads `settle_timeout_s` from the profile, as the motorbridge backend already did. Defaults and shipped values are unchanged. | `rebot_rs_arm.py` | `test_rebot_settle_config.py` |
 | e97998c (`planning/cartesian_planner.py`, `SafeArm.move_joints_path/move_cartesian`) | Straight-line TCP motion; details below the table. | `planning/cartesian.py`, `ArmBase.stream_path`, `SafeArm.move_cartesian/move_joint_path`, `skill_move_relative` (profile key `cartesian_relative_moves`, rebot_rs: `false`) | `test_cartesian_path.py` |
-| b70f3a0 (reflex) | "return (to the) home", "back home" and "go back home" are now `move_home` reflexes. | `agent/reflex.py` | `test_reflex_return_home.py` |
+| b70f3a0 (reflex) | "return (to the) home", "back home" and "go back home" are now reflexes -- since `move_to_rest`, of the folded rest pose (`move_to_rest`); the raised `move_home` is the "initial pose" (see SPATIAL_COMMANDS.md). | `agent/reflex.py` | `test_reflex_return_home.py` |
 
 How the Cartesian port works:
 
@@ -124,7 +124,8 @@ Support the arm before anything enables it: after a clean shutdown it is limp.
    `overrides.safety.max_joint_vel` in `rebot_rs.yaml` (for example to 0.3;
    only ever lower it). Start
    `python -m cascade.apps.demo --arm rebot_rs --camera mock --llm mock --interactive --no-serve`
-   and type `go home` (a reflex: no LLM involved) from the rest pose. Report
+   and type `go to the initial pose` (a reflex: no LLM involved; `go home`
+   now means the rest pose, `move_to_rest`) from the rest pose. Report
    the measured joint state.
    This is the real test of Finding #3: the move must start without any
    harness rejection. Then exit with an empty line (or one Ctrl+C) and confirm

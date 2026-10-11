@@ -118,12 +118,49 @@ def height_colors(z: np.ndarray) -> np.ndarray:
     return lut[(t * 255).astype(int)]
 
 
+def splat(img: np.ndarray, x: np.ndarray, y: np.ndarray, key: np.ndarray, colors: np.ndarray,
+          *, lo: int, hi: int) -> None:
+    """Paint a square [x+lo, x+hi] x [y+lo, y+hi] per point into `img`, in
+    place; where squares overlap, the point with the SMALLEST `key` wins.
+
+    Vectorized on purpose: the live view renders inside the robot's own
+    process, where a per-point Python loop (~12 ms for 14 k voxels) holds
+    the GIL that the 50 Hz motion stream and the perception thread need.
+    Here every (pixel, point) pair is listed, sorted by (pixel, key) and the
+    first entry per pixel is written -- the same picture as painting the
+    points in descending key order, without a Python loop.
+    """
+    h, w = img.shape[:2]
+    n = len(x)
+    if n == 0:
+        return
+    # rank of each point by key; (pixel, rank) packed into one int64 sorts
+    # faster than a two-key lexsort, and numpy's sort releases the GIL
+    rank = np.empty(n, np.int64)
+    by_key = np.argsort(np.asarray(key), kind="stable")
+    rank[by_key] = np.arange(n)
+    offsets = np.arange(lo, hi + 1)
+    dy, dx = (o.ravel() for o in np.meshgrid(offsets, offsets, indexing="ij"))
+    px = np.asarray(x, np.int64)[:, None] + dx[None, :]
+    py = np.asarray(y, np.int64)[:, None] + dy[None, :]
+    ok = (px >= 0) & (px < w) & (py >= 0) & (py < h)
+    packed = ((py * w + px) * n + rank[:, None])[ok]
+    if packed.size == 0:
+        return
+    packed.sort()
+    pixel = packed // n
+    first = np.ones(packed.size, bool)
+    first[1:] = pixel[1:] != pixel[:-1]
+    winner = by_key[packed[first] % n]
+    img.reshape(-1, img.shape[2])[pixel[first]] = np.asarray(colors)[winner]
+
+
 def render_points(points: np.ndarray, view: View, colors: np.ndarray | None = None, *,
                   point_px: int = 3, background=BACKGROUND) -> np.ndarray:
     """Z-buffered square splats of `points` (RGB uint8, H x W x 3).
 
-    Points are drawn far-to-near, so the nearest one at a pixel wins. Points
-    at or behind the virtual camera are dropped.
+    The nearest point at a pixel wins (as if drawn far-to-near). Points at or
+    behind the virtual camera are dropped.
     """
     w, h = view.size
     img = np.empty((h, w, 3), np.uint8)
@@ -138,10 +175,8 @@ def render_points(points: np.ndarray, view: View, colors: np.ndarray | None = No
     half = point_px // 2
     ok &= (u >= -half) & (u < w + half) & (v >= -half) & (v < h + half)
     idx = np.nonzero(ok)[0]
-    idx = idx[np.argsort(-z[idx])]  # far first
-    ui, vi = np.round(u[idx]).astype(int), np.round(v[idx]).astype(int)
-    for i, x, y in zip(idx, ui, vi):
-        img[max(0, y - half):max(0, y + half + 1), max(0, x - half):max(0, x + half + 1)] = colors[i]
+    splat(img, np.round(u[idx]).astype(int), np.round(v[idx]).astype(int), z[idx],
+          np.asarray(colors)[idx], lo=-half, hi=half)
     return img
 
 
@@ -172,12 +207,12 @@ def topdown(points: np.ndarray, lo, hi, objects=(), size=(640, 360), px_per_m=No
 
     pts = np.asarray(points, float).reshape(-1, 3)
     if len(pts):
-        order = np.argsort(pts[:, 2])  # highest drawn last
-        cols = height_colors(pts[order, 2])
+        # highest voxel of a column wins; anything off the panel is dropped
+        # (clipped per pixel, never via a negative slice end)
         r = max(1, int(0.005 * s))
-        for p, c in zip(pts[order], cols):
-            px, py = to_px(p[0], p[1])
-            img[max(0, py - r):py + r + 1, max(0, px - r):px + r + 1] = c
+        px = np.trunc(cx - pts[:, 1] * s).astype(int)   # same rounding as to_px()
+        py = np.trunc(h - (pts[:, 0] - x0) * s).astype(int)
+        splat(img, px, py, -pts[:, 2], height_colors(pts[:, 2]), lo=-r, hi=r)
     lo, hi = np.asarray(lo, float), np.asarray(hi, float)
     cv2.rectangle(img, to_px(hi[0], hi[1]), to_px(lo[0], lo[1]), (118, 185, 0), 1, cv2.LINE_AA)
     cv2.circle(img, to_px(0.0, 0.0), 6, (255, 255, 255), -1, cv2.LINE_AA)
@@ -192,6 +227,48 @@ def topdown(points: np.ndarray, lo, hi, objects=(), size=(640, 360), px_per_m=No
         cv2.putText(img, str(ob.get("label", "?"))[:18], (px + 9, py - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.42,
                     (255, 180, 240), 1, cv2.LINE_AA)
     return img
+
+
+#: Caption colours (RGB): normal text, and a map that is stale or missing.
+TEXT = (230, 230, 230)
+ALERT = (255, 90, 90)
+
+
+def draw_caption(img: np.ndarray, text: str, *, ok: bool = True, org=None, scale: float = 0.5) -> None:
+    """One line of text at the panel's bottom-left (red when not `ok`)."""
+    org = org or (10, img.shape[0] - 12)
+    cv2.putText(img, text, org, cv2.FONT_HERSHEY_SIMPLEX, scale, TEXT if ok else ALERT, 1, cv2.LINE_AA)
+
+
+def map_panels(points, *, t_s: float, workspace, objects=(), size=(640, 360), caption: str = "",
+               caption_ok: bool = True, footer: str = "", topdown_size=None):
+    """The two views of what nvblox holds, shared by scripts/record_live_map.py
+    and the live view's `nvblox_map` tile (apps/map_tile.py):
+
+    - a slowly orbiting 3-D render of the occupied voxels (height-coloured)
+      with the safety workspace in green and `caption` (red if not ok);
+    - the top-down height map with the workspace, the robot base, the
+      agent's `objects` and an optional `footer`.
+
+    Read-only on its inputs: `points` is never written. Returns (m3d, td):
+    RGB uint8 of `size` (w, h) and of `topdown_size` (default `size`).
+    """
+    pts = np.asarray(points, np.float32).reshape(-1, 3)
+    lo, hi = workspace
+    view = orbit_view(t_s, size=size)
+    m3d = render_points(pts, view)
+    draw_box(m3d, view, lo, hi)
+    if caption:
+        draw_caption(m3d, caption, ok=caption_ok)
+    td = topdown(pts, lo, hi, objects, size=topdown_size or size)
+    if footer:
+        draw_caption(td, footer)
+    return m3d, td
+
+
+def visible_objects(objects, limit: int = 12) -> list:
+    """The agent's beliefs worth drawing on the map: currently visible ones."""
+    return [o for o in (objects or []) if isinstance(o, dict) and o.get("state") == "visible"][:limit]
 
 
 def camera_panel(img_rgb: np.ndarray | None, size, name: str, note: str = "no frame") -> np.ndarray:

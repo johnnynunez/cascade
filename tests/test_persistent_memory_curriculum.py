@@ -165,7 +165,7 @@ def test_a_sequence_of_reflexes_no_longer_needs_the_llm():
     assert plan is not None, "a sequence of two reflexes still escaped to the LLM"
     assert plan.source == "curriculum"
     assert plan.subgoals == ["wave", "go home"]
-    assert [c for c, _ in plan.calls] == ["wave", "move_home"]
+    assert [c for c, _ in plan.calls] == ["wave", "move_to_rest"]
 
 
 def test_an_unplannable_clause_aborts_the_whole_fast_plan():
@@ -191,7 +191,7 @@ def test_a_proven_subgoal_warm_starts_a_later_task(tmp_path):
     assert plan.source == "curriculum"
     assert plan.warm_started
     assert plan.provenance[0] == "recalled"
-    assert [c for c, _ in plan.calls] == ["move_home", "wave", "move_home"]
+    assert [c for c, _ in plan.calls] == ["move_home", "wave", "move_to_rest"]
 
 
 def test_subgoal_spans_credit_the_right_clause(tmp_path):
@@ -245,7 +245,7 @@ def test_spanish_sequences_take_the_fast_path_too():
     plan = planner.plan("saluda y luego vuelve a casa")
     assert plan is not None
     assert plan.source == "curriculum"
-    assert [c for c, _ in plan.calls] == ["wave", "move_home"]
+    assert [c for c, _ in plan.calls] == ["wave", "move_to_rest"]
 
 
 def test_curriculum_can_be_disabled():

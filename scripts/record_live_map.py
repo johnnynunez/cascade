@@ -107,8 +107,7 @@ def read_state(url: str, out: Latest, stop: threading.Event) -> None:
 
 
 def visible_objects(state) -> list:
-    objs = (state or {}).get("objects") or []
-    return [o for o in objs if isinstance(o, dict) and o.get("state") == "visible"][:12]
+    return lmv.visible_objects((state or {}).get("objects"))
 
 
 def main(argv=None) -> int:
@@ -176,19 +175,14 @@ def main(argv=None) -> int:
                 titles.append("")
             pts, map_age, map_note = map_latest.get()
             pts = np.zeros((0, 3), np.float32) if pts is None else pts
-            view = lmv.orbit_view(t, size=TILE)
-            m3d = lmv.render_points(pts, view)
-            lmv.draw_box(m3d, view, args.ws_min, args.ws_max)
             map_ok = map_age <= 2.0 and map_latest.value is not None
             label = (f"{len(pts)} occupied voxels · query {map_note}" if map_ok
                      else f"map: {map_note if map_latest.value is None else f'STALE {map_age:.1f} s'}")
-            cv2.putText(m3d, label, (10, TILE[1] - 12), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                        (230, 230, 230) if map_ok else (255, 90, 90), 1, cv2.LINE_AA)
             state, _, _ = state_latest.get()
-            td = lmv.topdown(pts, args.ws_min, args.ws_max, visible_objects(state), size=TILE)
             held = (state or {}).get("holding")
-            cv2.putText(td, f"t {t:5.1f} s   holding: {held or '-'}", (10, TILE[1] - 12),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (230, 230, 230), 1, cv2.LINE_AA)
+            m3d, td = lmv.map_panels(pts, t_s=t, workspace=(args.ws_min, args.ws_max),
+                                     objects=visible_objects(state), size=TILE, caption=label,
+                                     caption_ok=map_ok, footer=f"t {t:5.1f} s   holding: {held or '-'}")
             frame = lmv.compose(panels + [m3d, td], titles + ["nvblox: occupied voxels (3-D)",
                                                               "nvblox: top-down height + objects"], tile=TILE)
             ff.stdin.write(frame.tobytes())

@@ -729,19 +729,19 @@ MCP-capable host can drive.
 
 The whole skill runtime is also exposed as an **MCP stdio server**
 (`cascade/apps/mcp_server.py`) — so instead of the built-in loop, any
-MCP-capable agent platform can drive the arm. The agent gets the same 40
+MCP-capable agent platform can drive the arm. The agent gets the same 41
 safety-gated skills (only the loop-internal `task_done` is excluded) plus
 eight gateway extras — `camera_snapshot` (returns a live JPEG the agent can
 *see*), `world_state`, `live_view_url`, `robot_knowledge`,
 `verify_last_action`, `task_memory` (the visual memory harness, as images),
 and `emergency_stop`/`reset_stop` — and, only with the opt-in
 [programs tier](docs/PROGRAMS_TIER.md#mcp-chat-hosts) on, `list_programs` and
-`run_program` — 50 tools total (48 with the programs tier off, its default;
+`run_program` — 51 tools total (49 with the programs tier off, its default;
 re-derive with
-`openclaw mcp probe cascade --json`; see [The 40 skills](#the-40-skills) below
+`openclaw mcp probe cascade --json`; see [The 41 skills](#the-41-skills) below
 for what each one does). That is the full catalog; what a given rig is
 offered is this minus the tools its capability matrix (described below)
-withholds (the default single-arm mock rig lists 47: `list_arms` needs two
+withholds (the default single-arm mock rig lists 48: `list_arms` needs two
 arms). Safety harness, tracing and memory are identical —
 only the brain swaps.
 
@@ -824,7 +824,8 @@ arm, builds the `ArmRig`), `CASCADE_ARM` (single-arm fallback), `CASCADE_DETECTO
 (1/0, the read-only lane above), `CASCADE_VIEW` (cv2 camera window),
 `CASCADE_MJ_VIEW` (MuJoCo physics window; the launcher sets it in sim modes),
 `CASCADE_PREWARM`, `CASCADE_STREAM`, `CASCADE_STREAM_PORT`, `CASCADE_RUN_DIR`
-(trace dir), `CASCADE_OCCUPANCY` (`0` skips the bridge probe), `DISPLAY`.
+(trace dir), `CASCADE_OCCUPANCY` (`0` skips the bridge probe; a startup error for a
+profile that requires its map, such as `rebot_rs`), `DISPLAY`.
 `CASCADE_BRIDGE_PORT`, `CASCADE_GRASPGENX_PORT` and `CASCADE_OCCUPANCY_PORT` move the
 Isaac bridge and the two sidecars off 8611 / 5556 / 5557: the launcher starts them there
 and `load_demo_config` applies the same values last, over every config layer and every
@@ -840,12 +841,12 @@ side has its own knobs (`CASCADE_USD`, `CASCADE_PHYSICS_DEVICE` — `cpu` is the
 escape hatch for GPU-PhysX boot NaNs —, `CASCADE_BRIDGE_BIND`,
 `CASCADE_BRIDGE_NO_TARGETS`, `CASCADE_COMPANION_EXTS`); see `scripts/isaac_bridge.py`.
 
-## The 40 skills
+## The 41 skills
 
 One schema source (`TOOL_SPECS` in `src/cascade/skills/runtime.py`) feeds
 every consumer — the built-in `AgentOrchestrator`, the OpenAI/Anthropic
 LLM backends, and the MCP server — so this list is exactly what any brain,
-built-in or external, can call. "moves arm" marks the 22 skills in
+built-in or external, can call. "moves arm" marks the 23 skills in
 `_MOTION_SKILLS`, the only ones that pause `WorldWatcher` belief fusion while
 they run (and the ones that record a memory frame + verdict afterwards).
 Every result carries `outcome: ok | failed | stuck`; `stuck` (always
@@ -884,7 +885,8 @@ the orchestrator relays it verbatim and does not retry the step.
 | `undo_move` | "Go back": retrace the last 1-5 nudges through their recorded waypoints, re-vetted; refuses if anything else moved the arm since |
 | `move_near_object` | Position the gripper and its load `above` / `just_above` / `next_to` / `closer` to a named object or the table, keeping a held object's bottom over the target's measured top |
 | `open_gripper` / `close_gripper` | Open (drops what's held) / close with the default grip profile |
-| `move_home` | Return to the home configuration; also clears the camera view |
+| `move_home` | The raised INITIAL / ready pose (`home_q`, motors on): "initial pose", "ready pose", "pose inicial"; also clears the camera view. Not "home" / "pose 0" -- see `move_to_rest` |
+| `move_to_rest` | "Home", "go home", "pose 0", "rest", "park", "fold it", "so I can turn it off": fold onto the rest pose (`park_q`, links on their stops) through SafeArm, verify it there by measurement, close the gripper and switch the motors off (`safe_to_power_off: true`); refuses while holding or e-stopped, and keeps the motors on if the arm is not measured at rest. The next motion re-energizes it. [Initial vs rest pose](docs/SPATIAL_COMMANDS.md#initial-pose-vs-rest-pose-home-pose-0-and-powering-off) |
 | `turn_screw` | Command harness-vetted wrist-roll strokes; actual thread advancement and tightening torque are not verified. [Assembly research](docs/SCREW_MANIPULATION_RESEARCH.md). |
 | `halt_motion` | Stop the in-flight motion because it's no longer the right action (wrong object, scene changed, subgoal already met) -- no motion itself |
 
@@ -971,7 +973,8 @@ first motion:
    reach a hard stop well before an STS3215 gives up pushing.
 3. Re-measure the gripper travel and set `gripper.*` from the arm.
 4. Park it (`move_home`) before disconnecting: `disconnect()` cuts torque and
-   a loaded arm drops. Same applies to the reBot.
+   a loaded arm drops. On the reBot RS, `move_to_rest` ("go home", "pose 0")
+   folds it onto its rest pose and only then switches the motors off.
 
 **reBot B601 (`--arm rebot_rs`)**
 

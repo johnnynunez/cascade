@@ -170,8 +170,8 @@ shared boundary is `RobotRuntime.execute()`, as shown in the
                  host LLM picks tools over MCP stdio                         --task / --interactive
                           │                                                          │
                           ▼                                                          ▼
-              apps/mcp_server.py  ── 50 tools ──┐                  agent/orchestrator.py
-              (41 specs − task_done              │                  tier 1 REFLEX   regex grammar      ~µs
+              apps/mcp_server.py  ── 51 tools ──┐                  agent/orchestrator.py
+              (42 specs − task_done              │                  tier 1 REFLEX   regex grammar      ~µs
                + 8 host extras: camera_snapshot, │                  tier 2 HABIT    experience memory  ~ms
                world_state, task_memory, ...;    │                  tier 3 LLM      + memory harness   2–15 s/turn
                + list_programs/run_program only  │
@@ -586,6 +586,22 @@ twin with less joint travel, camera down, and the camera hit the table. An
 arm already camera-down may hold, or move only while the camera turns back
 up (`tests/test_wrist_camera_up.py`).
 
+The [contact stop](CONTACT_STOP.md) is the motor-feedback layer for what the
+cameras cannot see. On profiles that enable `safety.contact_monitor`, every
+streamed motion compares the measured joints with the commanded trajectory
+while it streams and while it settles. On the reBot RS that means one or two
+single-motor mechPos reads per 20 ms cycle. The comparison has a lag band
+because the MIT loop has no velocity feedforward, and a stall rule catches a
+joint that stops while its command keeps moving. A blocked joint stops the
+stream: the arm holds its measured pose with torque on, and
+`ContactDetected(SafetyViolation)` reaches the skill result, the MCP tool
+result and the trace. A contact zone around the hold keeps grasp selection,
+planned routes and steps from going straight back until `reset_scene`. The
+pick/place persistence loops do not retry into it. `rebot_rs` enforces it;
+`rebot_rs_mb` measures only. The thresholds are calibrated on the rig with
+`scripts/contact_calibrate.py`. The figures so far are measured offline
+against a PD plant (CPU tests) and are unverified on hardware.
+
 Isaac defaults to 30 Hz nominal targets paced by authoritative physical time.
 The common profile preserves every complete legacy 50 Hz edge with its original
 dt, adds actual command edges and checks intervening subedges. Hardware retains
@@ -597,13 +613,24 @@ Optional non-payload occupancy may report no data for an absent/stale cache;
 that is not evidence of free space. Profiles opting into `occupancy.required`
 refuse startup if the bridge cannot be probed and refuse motion on missing,
 stale or failed map observations. Their ordinary arm samples also need observed
-interpolation support outside the existing local contact exemption. A known body-mask fault raises even when
+interpolation support outside the existing local contact exemption, unless the
+profile sets `occupancy.unobserved: free` (the reBot: the camera never observes
+the arm's own masked volume). A known body-mask fault raises even when
 the map is stale. Payload/recovery modes additionally require observed geometry,
 correct source/epoch/contact binding and successful fresh commits from all
 required cameras. Unknown payload samples and the configured 30 mm clearance
 remain rejection conditions. Contact/release episodes retain narrowly scoped
 recovery authority after failure; another command cannot borrow their cylinder.
 See [nvblox](NVBLOX.md) and [release recovery](NVBLOX_RELEASE_RETREAT.md).
+
+The reBot requires its map (`rebot_rs` `overrides.occupancy`): the watcher
+refreshes it with mesh-masked depth on every perception tick, also during a
+motion, and every vetted pose and every streamed step is checked against the
+grid in force at that step. Its clearance samples include the gripper's own
+volume (`safety.tool_volume`: the wrist camera box of
+`relative_motion.wrist_camera` and the open jaws), with the table band and
+the grasp target's own voxels attributed away, so a neighbour of the target
+blocks the camera. See [nvblox, always-on occupancy](NVBLOX.md#always-on-occupancy-on-the-rebot).
 
 The [NV carry attachment guard](NVBLOX_CARRY_ATTACHMENT.md) retains the original
 post-close attachment through lift and placement transport. Isaac state reuses
@@ -991,10 +1018,11 @@ src/cascade/
 │   ├── aspire.py       post-run diagnosis → skill-library note
 │   └── trace.py        trace.jsonl + keyframes
 ├── skills/
-│   ├── runtime.py      SkillRuntime: 40 skills + task_done, TOOL_SPECS, _MOTION_SKILLS (22)
+│   ├── runtime.py      SkillRuntime: 41 skills + task_done, TOOL_SPECS, _MOTION_SKILLS (23)
 │   │                   incl. the Pigey composites snapshot_scene / restore_scene / search_for_object
 │   ├── contact_episode.py / release_episode.py  scoped retained recovery
 │   ├── held_observation.py aiming estimates vs coherent release authority
+│   ├── rest_pose.py    move_to_rest: fold onto park_q, verify measured, release torque (standby)
 │   ├── mobile_runtime.py MobileSkillRuntime: walk_velocity / walk_distance / turn / stop_navigation
 │   └── library.py      markdown repair notes; written by aspire.py, retrieved per task
 ├── spatial/
@@ -1016,7 +1044,7 @@ src/cascade/
 ├── eval/progress_judge.py   Robo-Dopamine progress judge (GRM / VLM), off the hot path
 └── apps/
     ├── demo.py         build_runtime() = the composition root; CLI --task / --interactive
-    ├── mcp_server.py   MCP front-end: 50 tools (2 only with the opt-in programs tier), out-of-band stop, per-call log, opt-in read-only lane (B46); stdio by default, Streamable HTTP (`--http`, bearer + TLS) for NemoClaw/OpenShell
+    ├── mcp_server.py   MCP front-end: 51 tools (2 only with the opt-in programs tier), out-of-band stop, per-call log, opt-in read-only lane (B46); stdio by default, Streamable HTTP (`--http`, bearer + TLS) for NemoClaw/OpenShell
     ├── capabilities.py capability matrix from the built runtime; TOOL_REQUIREMENTS trims the MCP catalog
     ├── mobile_runtime.py / robot_runtime.py   base-only (`--base`) and composed (`--robot`) runtimes
     ├── process_owner.py profile-owned process identity for shutdown and proof binding
@@ -1563,7 +1591,10 @@ barriers.
   not the home -> pregrasp transit (the harness proxies alone), not other
   objects or obstacles, not learned (GraspGen-X / HUG) or top-down
   candidates, not physics (a clear approach is not a held object).
-- `RebotRSArm.disconnect()` cuts torque: park (`move_home`) first.
+- `RebotRSArm.disconnect()` cuts torque: park first. `move_to_rest` ("home",
+  "pose 0", `skills/rest_pose.py`) folds onto `park_q`, verifies the measured
+  pose and only then returns the LazyArm to standby; `move_home` is the raised
+  initial pose and keeps the motors on.
 - The MCP server executes one tool call at a time by default; stops, cancels
   and pings are handled out-of-band by the receive side (never queued behind
   a motion), but every other request waits for the motion in flight. With the

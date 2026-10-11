@@ -27,14 +27,17 @@ escape vertically.
 
 from __future__ import annotations
 
+import sys
 import time
 import threading
+from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 import numpy as np
 
-from ..types import MotionHalted, SafetyViolation
+from ..types import ContactDetected, MotionHalted, SafetyViolation
+from .contact import ContactMonitor, ContactMonitorConfig, format_summary
 
 
 @dataclass
@@ -79,6 +82,10 @@ class SafetyLimits:
     #: (about 6 deg below horizontal) admits a straight-down dive, where the
     #: axis is horizontal and the camera sits behind the jaws.
     min_tool_up_z: float = -0.1
+    #: Motor-feedback contact monitor (`safety.contact_monitor`, see
+    #: cascade/safety/contact.py and docs/CONTACT_STOP.md): None or disabled
+    #: = no feedback is read mid-stream.
+    contact: ContactMonitorConfig | None = None
 
     @classmethod
     def from_config(cls, cfg) -> "SafetyLimits":
@@ -100,6 +107,7 @@ class SafetyLimits:
             neighbor_clearance_m=float(cfg.get("neighbor_clearance_m", 0.10)),
             link_radii_m=None if radii is None else tuple(float(r) for r in radii),
             **_wrist_camera_up(cfg.get("wrist_camera_up")),
+            contact=ContactMonitorConfig.from_config(cfg.get("contact_monitor")),
         )
 
 
@@ -122,15 +130,31 @@ def _wrist_camera_up(block) -> dict:
     return {"tool_up_axis": tuple(float(v) for v in axis / n), "min_tool_up_z": min_z}
 
 
+def _unknown_blocks(occupancy) -> bool:
+    """Does this map treat unobserved space as an obstacle? An OccupancyMap
+    says so itself (`unobserved: blocked`); a stand-in without the property
+    keeps the old pairing with `required`."""
+    blocks = getattr(occupancy, "unknown_blocks", None)
+    if blocks is None:
+        blocks = getattr(occupancy, "required", False)
+    return bool(blocks)
+
+
 class SafetyHarness:
     def __init__(self, limits: SafetyLimits, kinematics=None, occupancy=None,
-                 base_pose=None):
+                 base_pose=None, tool_volume=None):
         self.limits = limits
         self.kin = kinematics
         # OccupancyMap | None (see perception/occupancy.py). Optional and
         # None by default: no occupancy bridge runs unless configured, and an
         # unconfigured/stale map must never gate motion (booth rule).
         self.occupancy = occupancy
+        # safety.tool_volume.ToolVolume | None: clearance samples on the
+        # gripper's own volume (the wrist camera box, the open jaws), checked
+        # against the occupancy map with the TCP and the joint origins at
+        # every vetted pose and every streamed step (opt-in per arm profile:
+        # `safety.tool_volume`; see `_tool_volume_violation`).
+        self.tool_volume = tool_volume
         # Where this arm is bolted, as a 4x4 base->table transform. None means
         # "the base frame IS the table frame", which is exactly true for a
         # single-arm rig and is why nothing here changes for one arm.
@@ -169,6 +193,14 @@ class SafetyHarness:
         self._last_heartbeat = time.monotonic()
         self._motion_active = False
         self.violations: list[str] = []
+        #: per-motion contact monitor summaries, drained into the run trace
+        #: by the skill runtime (bounded: an unattended run must not grow it)
+        self._contact_reports: deque = deque(maxlen=64)
+        #: the last contact the monitor detected (its trip event), or None
+        self.last_contact: dict | None = None
+        #: spots where the arm was blocked; the TCP may not re-enter one
+        #: until reset_scene clears them (see _contact_zone_violation)
+        self._contact_zones: list[dict] = []
 
     # ── state management ─────────────────────────────────────────────────
 
@@ -296,6 +328,87 @@ class SafetyHarness:
             if scope is None or scope[0] is not pending or scope[1] != "cleanup":
                 raise SafetyViolation("retained release cylinder cleanup requires its episode scope")
         self._grasp_exempt = None
+
+    # ── motor-feedback contact monitor ───────────────────────────────────
+
+    def contact_monitor(self, label: str) -> ContactMonitor | None:
+        """A fresh monitor for one streamed motion, or None when this arm's
+        profile does not enable `safety.contact_monitor`."""
+        cfg = self.limits.contact
+        if cfg is None or not cfg.enabled:
+            return None
+        return ContactMonitor(cfg, label=label)
+
+    def record_contact_motion(self, monitor: ContactMonitor, exc: BaseException | None = None) -> dict:
+        """File one motion's report; on a contact, remember it and fence the
+        spot. Logged to stderr in measure mode, with `log_motions`, and
+        whenever the monitor stopped a motion."""
+        summary = monitor.summary()
+        self._contact_reports.append(summary)
+        cfg = monitor.cfg
+        if (cfg.mode == "measure" or cfg.log_motions or summary["tripped"]
+                or summary["feedback_lost"] or summary["would_trip"]):
+            print(format_summary(summary), file=sys.stderr, flush=True)
+        if isinstance(exc, ContactDetected) and monitor.tripped is not None:
+            self._note_contact(monitor, str(exc))
+        return summary
+
+    def _note_contact(self, monitor: ContactMonitor, message: str) -> None:
+        event = dict(monitor.tripped)
+        event["message"] = message
+        event["at"] = time.time()
+        self.last_contact = event
+        self.violations.append(message)
+        radius = float(monitor.cfg.contact_zone_m)
+        q = event.get("hold_q") or event.get("measured_q")
+        if radius <= 0 or self.kin is None or q is None:
+            return
+        try:
+            center = np.asarray(self.kin.fk(np.asarray(q, dtype=float))[:3, 3], dtype=float)
+        except Exception:  # noqa: BLE001 -- no zone rather than no stop report
+            return
+        if not np.all(np.isfinite(center)):
+            return
+        self._contact_zones.append({
+            "center": center, "radius_m": radius, "joint": event.get("joint"),
+            "reason": f"contact detected at joint {event.get('joint')} during {event.get('motion')}",
+            "at": event["at"],
+        })
+
+    def drain_contact_reports(self) -> list[dict]:
+        out = list(self._contact_reports)
+        self._contact_reports.clear()
+        return out
+
+    @property
+    def contact_zones(self) -> list[dict]:
+        return list(self._contact_zones)
+
+    def clear_contact_zones(self, reason: str = "cleared") -> int:
+        """Forget every contact zone (reset_scene: the human cleared the
+        obstacle). Returns how many there were."""
+        n = len(self._contact_zones)
+        self._contact_zones.clear()
+        if n:
+            self.violations.append(f"CONTACT ZONES CLEARED ({n}): {reason}")
+        return n
+
+    def _contact_zone_violation(self, tcp, tcp_prev=None) -> str | None:
+        """The TCP may not ENTER a contact zone. An arm already inside one
+        (it is where the contact left it) may move anywhere -- leaving must
+        always be possible -- so `tcp_prev` inside the same zone admits the
+        step; `tcp_prev` None (a static candidate) never does."""
+        for zone in self._contact_zones:
+            c, r = zone["center"], zone["radius_m"]
+            if float(np.linalg.norm(tcp - c)) > r:
+                continue
+            if tcp_prev is not None and float(np.linalg.norm(tcp_prev - c)) <= r:
+                continue
+            ago = max(0.0, time.time() - zone["at"])
+            return (f"TCP would enter the contact zone {np.round(c, 3).tolist()} (r={r:.3f} m): "
+                    f"{zone['reason']} {ago:.0f} s ago -- something the cameras do not see "
+                    "blocked the arm there; clear it, then reset_scene")
+        return None
 
     # ── inter-arm awareness ──────────────────────────────────────────────
 
@@ -730,6 +843,12 @@ class SafetyHarness:
             if np.all(tcp >= kmin) and np.all(tcp <= kmax):
                 reject(f"TCP inside keep-out zone {kmin.tolist()}..{kmax.tolist()}")
 
+        if self._contact_zones:
+            reason = self._contact_zone_violation(
+                tcp, self.kin.fk(np.asarray(q_prev, dtype=float))[:3, 3])
+            if reason is not None:
+                reject(reason)
+
         # Coarse link check: joint origins must stay above the table too
         # (elbow scooping the table is the classic failure). The LAST link is
         # the gripper_end/TCP itself -- it legitimately descends to the
@@ -751,6 +870,12 @@ class SafetyHarness:
                 reject(reason)
 
             reason = self._payload_occupancy_violation(q_next, self._grasp_exempt)
+            if reason is not None:
+                reject(reason)
+
+            # The gripper's own volume (wrist camera, jaws), with a retreat
+            # rule: an arm already too close may back away, never close in.
+            reason = self._tool_volume_violation(T, self._grasp_exempt, q_prev=q_prev)
             if reason is not None:
                 reject(reason)
 
@@ -832,6 +957,11 @@ class SafetyHarness:
             if np.all(tcp >= kmin) and np.all(tcp <= kmax):
                 return f"TCP inside keep-out zone {kmin.tolist()}..{kmax.tolist()}"
 
+        if self._contact_zones:
+            reason = self._contact_zone_violation(tcp)
+            if reason is not None:
+                return reason
+
         links = self.kin.link_positions(q)
         for i, p in enumerate(links[1:], start=2):
             if p[2] < self.limits.table_z + 0.01 and not self._in_cylinder(p, exempt):
@@ -842,6 +972,9 @@ class SafetyHarness:
             if reason is not None:
                 return reason
             reason = self._payload_occupancy_violation(q, exempt)
+            if reason is not None:
+                return reason
+            reason = self._tool_volume_violation(T, exempt)
             if reason is not None:
                 return reason
         # Same inter-arm gate approve() applies per waypoint, so a grasp
@@ -868,12 +1001,13 @@ class SafetyHarness:
 
         `points.clearance()` returns None when the map has no fresh data
         (never refreshed, stale, or the bridge is down) -- that is
-        unavailable optional map skips this check. Required maps and carried
-        surfaces instead need observed distance-grid support; their missing
-        or unknown observations must not admit motion.
+        unavailable optional map skips this check. Required maps refuse
+        instead (they raise). Carried surfaces, and maps whose policy is
+        `unobserved: blocked`, need observed distance-grid support; their
+        unknown observations must not admit motion.
         """
         query = self.occupancy.payload_clearance if attached else self.occupancy.clearance
-        observed_required = attached or getattr(self.occupancy, "required", False)
+        observed_required = attached or _unknown_blocks(self.occupancy)
         dist = query(points)
         if dist is None:
             return "clearance unavailable (fresh observed distance grid required)" if observed_required else None
@@ -886,6 +1020,72 @@ class SafetyHarness:
                 return (f"point {i} clearance {d:.3f} m below {min_c:.3f} m (occupancy map)"
                         f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]")
         return None
+
+    def _tool_volume_clearance(self, T_tcp: np.ndarray, exempt: tuple | None):
+        """(samples, clearance) of the tool volume at TCP pose `T_tcp`
+        (base frame), or (samples, None) when an optional map has no data.
+
+        Obstacles are attributed by where they are: voxels in the table
+        plane band and inside the active grasp exemption (the target) do not
+        count; every other one does (OccupancyMap.clearance_excluding). A map
+        without that method gets the sample-based exemption instead."""
+        vol = self.tool_volume
+        T = np.asarray(T_tcp, dtype=float)
+        if self.base_pose is not None:
+            T = self.base_pose @ T
+        pts = vol.points(T)
+        excluding = getattr(self.occupancy, "clearance_excluding", None)
+        if excluding is not None:
+            dist = excluding(pts, below_z=float(self.limits.table_z) + float(vol.table_band_m),
+                             cylinder=exempt, within=float(self.limits.min_clearance_m))
+        else:
+            dist = self.occupancy.clearance(pts)
+            if dist is not None and exempt is not None:
+                dist = np.where([self._in_cylinder(p, exempt) for p in pts], np.inf, dist)
+        return pts, (None if dist is None else np.asarray(dist, dtype=float))
+
+    def _tool_volume_bad(self, dist: np.ndarray) -> np.ndarray:
+        bad = dist < self.limits.min_clearance_m          # NaN compares False
+        if _unknown_blocks(self.occupancy):
+            bad |= ~np.isfinite(dist)
+        return bad
+
+    def _tool_volume_violation(self, T_next: np.ndarray, exempt: tuple | None, *,
+                               q_prev=None) -> str | None:
+        """Why the wrist camera box / jaws at TCP pose `T_next` are too close
+        to a mapped obstacle, or None.
+
+        Retreat rule (with `q_prev`, i.e. a step, never a static vet): an arm
+        whose volume is ALREADY too close at q_prev may take a step that
+        brings no sample closer and no new sample inside the margin -- else a
+        stop next to an obstacle (or an obstacle that appears next to a
+        resting arm) would strand it. Entering the margin is always refused.
+        """
+        vol = self.tool_volume
+        if vol is None or self.occupancy is None or self.kin is None:
+            return None
+        pts, dist = self._tool_volume_clearance(T_next, exempt)
+        if dist is None:
+            return ("tool volume clearance unavailable (fresh observed distance grid required)"
+                    if _unknown_blocks(self.occupancy) else None)
+        bad = self._tool_volume_bad(dist)
+        if not bad.any():
+            return None
+        if q_prev is not None:
+            _, before = self._tool_volume_clearance(self.kin.fk(np.asarray(q_prev, dtype=float)), exempt)
+            # every sample inside the margin now was at least this close
+            # before: none closed in, so none entered from outside either
+            # (NaN never compares >=)
+            if before is not None and np.all(dist[bad] >= before[bad] - 1e-6):
+                return None
+        worst = np.where(bad, np.nan_to_num(dist, nan=-np.inf, posinf=-np.inf), np.inf)
+        i = int(np.argmin(worst))
+        name, p, d = vol.names[int(vol.part[i])], pts[i], dist[i]
+        where = f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]"
+        if not np.isfinite(d):
+            return f"{name} has unobserved clearance (occupancy map){where}"
+        return (f"{name} clearance {d:.3f} m below {self.limits.min_clearance_m:.3f} m "
+                f"(occupancy map){where}")
 
     def _in_grasp_cylinder(self, p: np.ndarray) -> bool:
         return self._in_cylinder(p, self._grasp_exempt)
@@ -959,6 +1159,7 @@ class SafeArm:
         if self.motion_planner is not None:
             if _cancellation_token is not None:
                 raise SafetyViolation('observed cancellation context requires the bound joint streamer')
+            self._refuse_unmonitored_planner_stream()
             from ..planning.runtime import execute
             try:
                 return execute(self, q_target, duration_s, joint_margin=joint_margin,
@@ -1025,6 +1226,13 @@ class SafeArm:
                 self.harness.check_motion_cancellation(_cancellation_token)
             backend_kw = {**backend_kw, 'before_stream': before_stream}
 
+        # Motor-feedback contact monitor (safety.contact_monitor): one per
+        # streamed motion. Mandatory once enabled -- like the safety callbacks
+        # above it is never dropped with an unsupported backend hint.
+        monitor = self._contact_monitor("move_joints")
+        if monitor is not None:
+            backend_kw = {**backend_kw, "contact_monitor": monitor}
+        failure = None
         try:
             # `backend_kw` forwards backend-specific hints (e.g. a measured
             # descend-bias compensation) without this layer knowing what they
@@ -1042,12 +1250,48 @@ class SafeArm:
                     # Safety callbacks are mandatory, never backend hints. A
                     # TypeError after a target must not retry without them.
                     raise SafetyViolation("motion safety callback failed; no unguarded retry") from exc
+                if monitor is not None:
+                    return self._stream_monitored_retry(q_target, duration_s, approve, monitor, exc)
                 if not backend_kw:
                     raise
                 return self._arm.stream_to(q_target, duration_s,
                                            approve=approve)
+        except BaseException as exc:
+            failure = exc
+            raise
         finally:
+            if monitor is not None:
+                self.harness.record_contact_motion(monitor, failure)
             self.harness.end_motion()
+
+    def _stream_monitored_retry(self, q_target, duration_s, approve, monitor, exc):
+        """The backend rejected the call's keywords. Retry with the monitor
+        but without the hints -- only if no target went out under it (a
+        TypeError raised mid-stream is not a binding error), and refuse
+        outright when the backend cannot take the monitor at all."""
+        if monitor.started:
+            raise SafetyViolation("motion safety callback failed; no unguarded retry") from exc
+        try:
+            return self._arm.stream_to(q_target, duration_s, approve=approve,
+                                       contact_monitor=monitor)
+        except TypeError as again:
+            if monitor.started:
+                raise SafetyViolation("motion safety callback failed; no unguarded retry") from again
+            raise SafetyViolation(
+                "this arm's backend cannot stream under the contact monitor "
+                "(safety.contact_monitor is enabled for it); no motion sent") from again
+
+    def _contact_monitor(self, label: str):
+        # Harness test doubles predate the monitor: no method, no monitor.
+        make = getattr(self.harness, "contact_monitor", None)
+        return make(label) if callable(make) else None
+
+    def _refuse_unmonitored_planner_stream(self) -> None:
+        cfg = getattr(getattr(self.harness, "limits", None), "contact", None)
+        if cfg is not None and cfg.enabled:
+            raise SafetyViolation(
+                "the contact monitor cannot watch a planner-bound stream; disable "
+                "safety.contact_monitor for this profile or drop its motion_planner; no motion sent")
 
     def move_planned(self, q_target: np.ndarray, duration_s: float = 3.0, *,
                      _halt_generation=None, rate_hz=None) -> bool:
@@ -1149,12 +1393,20 @@ class SafeArm:
                     raise SafetyViolation(f"joint path is unsafe, no motion sent: {reason}")
                 prev = q
 
+        monitor = self._contact_monitor("move_joint_path")
+        extra = {} if monitor is None else {"contact_monitor": monitor}
         h.begin_motion()
+        failure = None
         try:
             return self._arm.stream_path(waypoints, duration_s, rate_hz=rate_hz,
                                          approve=h.approve, preflight=preflight,
-                                         before_stream=h.check_stream_start)
+                                         before_stream=h.check_stream_start, **extra)
+        except BaseException as exc:
+            failure = exc
+            raise
         finally:
+            if monitor is not None:
+                h.record_contact_motion(monitor, failure)
             h.end_motion()
 
     def _refuse_path_with_planner(self) -> None:

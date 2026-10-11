@@ -257,15 +257,28 @@ def _hug_capability(runtime, grasp: str) -> dict:
 
 
 def _occupancy_capability(backends: dict) -> dict:
+    """`available` = the bridge answers (no tool is withheld either way);
+    the detail and the extra keys say whether the map can authorize a step
+    right now (`state` live/stale/failed/waiting), its age and voxel count,
+    and whether a not-live map refuses motion (`required`) or is skipped."""
     live = backends.get("occupancy_live")
     detail = str(backends.get("occupancy", "not reported"))
+    report = backends.get("occupancy_state")
+    extra = {}
+    if isinstance(report, dict):
+        extra = {k: report.get(k) for k in ("state", "required", "age_s", "occupied_voxels")}
+        if report.get("bridge"):
+            gate = ("required: motion is refused while it is not live" if report.get("required")
+                    else "optional: skipped while it is not live")
+            detail = (f"{detail}; {report.get('detail')}, {report.get('occupied_voxels')} occupied voxels"
+                      f" ({gate})")
     if live is None:
-        return _entry(None, detail)
+        return {**_entry(None, detail), **extra}
     if live:
-        return _entry(True, detail)
-    return _entry(False, detail,
-                  f"the occupancy bridge is not answering ({detail}); the "
-                  "clearance gate is off")
+        return {**_entry(True, detail), **extra}
+    return {**_entry(False, detail,
+                     f"the occupancy bridge is not answering ({detail}); the "
+                     "clearance gate is off"), **extra}
 
 
 def capability_matrix(runtime) -> dict:

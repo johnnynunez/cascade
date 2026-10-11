@@ -55,8 +55,8 @@ fi
 
 echo
 echo "=== reset checklist (hands, ~60 s, parallel with Q&A) ==="
-echo "  1. arm parked?           last command must have been move_home /"
-echo "                           'go home' -- NEVER disconnect a loaded arm"
+echo "  1. arm parked?           last command must have been 'go home'"
+echo "                           (move_to_rest) -- NEVER disconnect a loaded arm"
 echo "  2. props back on tape:   every prop on its taped zone, bin emptied"
 echo "  3. cup + spare props     back at the host position"
 echo "  4. /clear in the MCP host chat (fresh context, server keeps running)"

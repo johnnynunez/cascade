@@ -521,8 +521,10 @@ def set_motion_lock(home: Path, cfg: Settings, locked: bool, extra: tuple[str, .
 
 #: A `motion unlock` without --for lasts this long, then re-locks itself.
 DEFAULT_UNLOCK_S = 20 * 60
-#: No unlock may last longer: a demo session, not a standing permission.
-MAX_UNLOCK_S = 2 * 3600
+#: No unlock may last longer: a presentation day (a presenter demos for hours,
+#: and a re-lock mid-talk makes the agent refuse motion on stage), never a
+#: standing permission -- a rig left running overnight is observe-only again.
+MAX_UNLOCK_S = 12 * 3600
 #: The transient systemd user timer that runs `motion lock` at expiry.
 RELOCK_UNIT = "cascade-openshell-relock"
 #: Set in the re-lock unit's environment, so `motion lock` there does not
@@ -864,13 +866,13 @@ def main(argv: list[str] | None = None) -> int:
             lock.add_argument("--observe-only", action="store_true",
                               help="OpenShell denies every motion tool (lift with `motion unlock`)")
             lock.add_argument("--allow-motion", action="store_true",
-                              help="start with motion allowed, for --for (default 20m, max 2h)")
+                              help="start with motion allowed, for --for (default 20m, max 12h)")
             p.add_argument("--for", dest="for_", help="with --allow-motion: unlock duration (90s, 15m, 1h)")
         if name == "down":
             p.add_argument("--gateway", action="store_true", help="also stop the gateway")
     m = sub.add_parser("motion", help="lock/unlock the arm at the OpenShell layer, live")
     m.add_argument("action", choices=["lock", "unlock", "status"])
-    m.add_argument("--for", dest="for_", help="unlock duration (90s, 15m, 1h; default 20m, max 2h); "
+    m.add_argument("--for", dest="for_", help="unlock duration (90s, 15m, 8h; default 20m, max 12h); "
                                              "every unlock re-locks itself")
     settings_flags(m)
     args = ap.parse_args(argv)

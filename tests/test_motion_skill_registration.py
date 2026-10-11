@@ -31,6 +31,8 @@ _MOVES = re.compile(
     r"|self\.arm\.raw\."
     # the natural-language motion tools delegate their whole motion path
     r"|spatial_moves\.(move_relative|rotate_gripper|undo_move|move_near_object)\("
+    # ... and so does the rest pose (fold, verify, release)
+    r"|rest_pose\.move_to_rest\("
     r"|self\.skill_(grasp_object|place_at|place_on_object|pick_and_place"
     r"|open_gripper|close_gripper|push_object|move_home|grasp_at_pixel)\("
 )

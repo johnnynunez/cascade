@@ -34,6 +34,25 @@ park_q: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 # slower but longer moves -- min-jerk peak velocity (1.875*dq/T) is auto-stretched
 # under 0.9*this, so this is a ceiling, not a duration multiplier.
 overrides:
+  # The live camera map is REQUIRED on this arm: every vetted pose and every
+  # 50 Hz step is checked against a distance grid built from robot-masked
+  # depth, refreshed every perception tick, including WHILE the arm moves.
+  # A missing bridge refuses startup; a map that is stale (older than
+  # max_age_s), failed or unmasked refuses the next step and the arm holds.
+  # CASCADE_OCCUPANCY=0 with this profile is a startup error. Rig incident
+  # 2026-10-11: with the map off, a side grasp swept the wrist camera into
+  # clutter beside the target (docs/NVBLOX.md "Always-on occupancy").
+  occupancy:
+    required: true
+    # the camera never sees the arm's own (masked) volume, and that space is
+    # where the arm IS: unobserved reads as free; observed obstacles, a stale
+    # map and a failed refresh still block (tests/test_rebot_occupancy_live.py)
+    unobserved: free
+    # ~4 perception ticks at 3 Hz: an older grid no longer authorizes a step
+    max_age_s: 1.5
+    # after the LazyArm powers on, its first motion waits this long for one
+    # masked refresh (standby has no joint state to mask with)
+    ready_timeout_s: 3.0
   safety:
     max_joint_vel: 0.8
     # The wrist D455F rides on TOP of the gripper; rolled underneath, it hits
@@ -45,6 +64,43 @@ overrides:
     wrist_camera_up:
       tcp_axis: [0.0, 0.0, 1.0]
       min_up_z: -0.1
+    # The occupancy check samples the gripper's own volume too, not only the
+    # TCP and the joint origins: the wrist camera box (relative_motion.
+    # wrist_camera, the same box the spatial tools plan with) and the open
+    # jaws (grasp.graspgenx.sweep, the RS finger geometry), every
+    # `spacing_m`, at every vetted pose and every 50 Hz step. Rig incident
+    # 2026-10-11: a side grasp swept the wrist camera into clutter beside the
+    # target while TCP and joints stayed clear (tests/test_harness_tool_volume.py).
+    # Voxels within `table_band_m` of the table plane are the table (governed
+    # by the table rule), and the grasp target's own voxels inside its
+    # exemption cylinder are not obstacles to it; neighbours are.
+    tool_volume:
+      wrist_camera: true
+      jaws: true
+      spacing_m: 0.02
+      table_band_m: 0.02
+    # Motor-feedback contact stop (docs/CONTACT_STOP.md). Every streamed
+    # motion reads joint feedback mid-stream (one motor's mechPos per read,
+    # 1-2 per 20 ms cycle) and stops, holding the MEASURED pose with torque
+    # on, when a joint falls out of the lag band of its command or stalls
+    # while the command keeps moving -- what the cameras cannot see
+    # (2026-10-11: the wrist pressed into clutter for 8 s during a grasp).
+    # These are deliberately loose: the rig tracked within 0.013 rad per
+    # segment on 2026-10-11, the MIT loop lags 60-100 ms (no velocity
+    # feedforward). CALIBRATE before tightening: set mode: measure, run
+    # normal moves, `python scripts/contact_calibrate.py <trace.jsonl>`.
+    contact_monitor:
+      enabled: true
+      mode: enforce             # measure = log only, never stop
+      track_tol_rad: 0.10       # lag-compensated, scalar or per joint; > settle_tol + 0.02
+      lag_s: 0.25               # how far a joint may trail its command
+      debounce_samples: 2       # consecutive bad samples of one joint
+      stall_window_s: 0.12      # stall: commanded >= stall_min_travel_rad in the
+      stall_min_travel_rad: 0.03  # window, the joint advanced <= stall_ratio of it
+      stall_ratio: 0.2
+      max_feedback_gap_s: 0.35  # no good reading of a joint this long = stop
+      read_timeout_s: 0.05      # per single-motor read mid-stream
+      contact_zone_m: 0.05      # fence around the contact until reset_scene (0 = off)
   grasp:
     # set_gripper only sends the target; without the wait, "open the gripper"
     # was reported failed ("gripper still closed") while the jaws were opening.
@@ -77,6 +133,46 @@ cartesian_relative_moves: false
 gravity_comp:
   enabled: true
   tau_scale: [1.0, 1.10, 1.10, 1.0, 1.0, 1.0]
+
+# Occupancy body mask: the URDF meshes, not capsules (perception/robot_mask.py
+# MeshBodyMask, docs/NVBLOX.md "Robot body mask"). Measured on this rig on
+# 2026-10-11 (calibrated fixed D455F, arm at rest q = 0): the 6 cm capsules
+# around the joint chain left 108 occupied voxels on the gripper and the wrist
+# camera, the nearest 2.8 cm from the chain, under min_clearance_m 0.03.
+# The mask draws every link (fingers at the measured opening, swept while a
+# stream runs or when the gripper read fails), inflated by inflate_m and
+# dilated by dilate_px. No joint state (standby, failed read) -> the frame is
+# not integrated; an unreadable mesh (git-lfs not fetched) refuses the build
+# instead of falling back to capsules. `body_mask: capsule` restores the old
+# mask.
+body_mask:
+  mode: mesh
+  inflate_m: 0.02
+  dilate_px: 2
+  attachments:
+    # The wrist D455F (124 x 29 x 26 mm) and its bracket are NOT in the URDF.
+    # Envelope in the gripper_end frame (x along the jaws, z up at rest),
+    # sized from the depth points its body left on the 2026-10-11 capture
+    # (x -0.11..-0.07, y -0.06..+0.05, z +0.06..+0.08, top face and the side
+    # facing the fixed camera) plus ~1 cm, the bracket down to the gripper
+    # top (z 0.041). An estimate through the hand-eye calibration: measure
+    # the mount with calipers and tighten it on the rig.
+    - name: wrist_d455f
+      link: gripper_end
+      box: [0.065, 0.14, 0.055]
+      xyz: [-0.0925, 0.0, 0.0625]
+      rpy: [0.0, 0.0, 0.0]
+  # While the runtime holds something, the mask also draws this envelope in
+  # the gripper_end frame (x along the approach, y across the jaws, z up),
+  # inflated like every piece: from 5 cm behind the fingertips to 10 cm past
+  # them, 13 cm across (the 9 cm max opening plus the fingers) and 13 cm
+  # high. The 6 cm capsules hid a held object as a side effect; the tight
+  # mesh mask would map it at the TCP and refuse the place that follows
+  # (tests/test_occupancy_held_payload.py). Masked space is not erased: an
+  # obstacle seen before it came within the envelope stays in the map.
+  held_payload:
+    box: [0.15, 0.13, 0.13]
+    xyz: [0.025, 0.0, 0.0]
 
 gripper:
   # MEASURED on the RS build (scripts/diag_rebot_mb.py): travel runs 0.0 ->

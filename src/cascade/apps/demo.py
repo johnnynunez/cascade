@@ -41,6 +41,7 @@ from ..perception.stream import CameraRig, CameraStream
 from ..perception.world import LockedDetector, WatchedCamera, WorldWatcher
 from ..perception.workspace import WorkspaceFilter
 from ..safety.harness import SafeArm, SafetyHarness, SafetyLimits
+from ..safety.tool_volume import build_tool_volume
 from ..skills.runtime import SkillRuntime
 
 
@@ -198,6 +199,7 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
     """
     view = acfg.get("resolved") or fallback_cfg
     n_joints = int(acfg.get("n_joints", 6))
+    body_mask = None
     kin = Kinematics(
         model_path=acfg.model,
         ee_frame=acfg.get("ee_frame", "gripper_end"),
@@ -219,13 +221,18 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
         # LazyArm's hint is the only DOF answer anything can get, and the
         # class default (6) is wrong for a 5-DoF SO-101 or a 7-DoF Panda.
         arm = LazyArm(lambda: make_arm(acfg, kinematics=kin), n_joints=n_joints,
-                      profile_type=str(acfg.get("type", "")))
+                      profile_type=str(acfg.get("type", "")),
+                      on_materialize=(None if occupancy is None
+                                      else lambda: _await_occupancy_after_wake(occupancy, acfg)))
     else:
         arm = make_arm(acfg, kinematics=kin)
         arm.connect()
     harness = SafetyHarness(
         SafetyLimits.from_config(view.safety), kinematics=kin, occupancy=occupancy,
         base_pose=_base_transform(acfg),
+        # the wrist camera box + open jaws as clearance samples (opt-in per
+        # profile: `safety.tool_volume`; a bad block fails the build here)
+        tool_volume=build_tool_volume(view, acfg),
     )
     # Optional profile-defined rest pose for the shutdown park (see
     # _park_pose). Defaults to the clamped all-zero fallback when absent.
@@ -276,8 +283,33 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
                     raise ValueError("Isaac capture snapshot required")
                 return _body_points(frame=frame)
 
-        occupancy.add_robot_body(_body_points, radius_m=float(acfg.get("body_mask_radius_m", 0.06)),
-                                 frame_link_points_fn=frame_body)
+        # `body_mask: mesh` (real arms, opt in per profile): the URDF
+        # geometry rasterized per depth frame instead of capsules around the
+        # joint chain, which left the reBot's jaws and wrist camera in the
+        # map (perception/robot_mask.py MeshBodyMask, docs/NVBLOX.md).
+        from ..perception.robot_mask import body_mask_settings, build_mesh_body_mask
+
+        arm_name = str(acfg.get("name", acfg.get("type", "arm")))
+        if body_mask_settings(acfg) is not None and acfg.get("type") == "isaac":
+            raise ValueError(
+                f"arm {arm_name!r}: body_mask: mesh is for real arms, not type isaac. Isaac frames "
+                "carry the render self-mask and their capture-time joint state; a mesh mask posed "
+                "at the live state would mask an older image. Use body_mask: capsule.")
+
+        def _mesh_state(_arm=arm):
+            # Never materialize a standby LazyArm (powering the motors is not
+            # a side effect of looking): no state -> the frame is refused.
+            if not getattr(_arm, "connected", True):
+                return None
+            return _body_mask_state(_arm)
+
+        mesh = build_mesh_body_mask(acfg, kin, _mesh_state, name=arm_name)
+        body_mask = mesh
+        if mesh is not None:
+            occupancy.add_robot_body_mask(mesh)
+        else:
+            occupancy.add_robot_body(_body_points, radius_m=float(acfg.get("body_mask_radius_m", 0.06)),
+                                     frame_link_points_fn=frame_body)
         if fallback_cfg.get("occupancy", _empty_cfg()).get("track_payload", False):
             if acfg.get("type") != "isaac":
                 raise ValueError("payload segmentation currently requires the Isaac capture contract")
@@ -286,7 +318,48 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
                 pose = _kin.fk(IsaacArm(_cfg).state_from_frame(frame).q)
                 return pose if _T is None else _T @ pose
             occupancy.track_payload(frame_tcp_pose)
-    return arm, SafeArm(arm, harness, motion_planner=motion_planner), kin
+    safe = SafeArm(arm, harness, motion_planner=motion_planner)
+    # the mesh body mask (or None): build_runtime tells it when the runtime
+    # holds something (`_wire_held_payload`)
+    safe.body_mask = body_mask
+    return arm, safe, kin
+
+
+def _wire_held_payload(runtime) -> None:
+    """Let the primary arm's mesh body mask draw its `held_payload` envelope
+    while the runtime holds an object (or may hold one: a provisional hold
+    after a close). The capsule mask hid a held object as a side effect; the
+    mesh mask is tight, so without this the object would be mapped at the
+    TCP and the next motion refused by its own payload. Only the primary
+    arm: `held_object` is the runtime's single holding state."""
+    mesh = getattr(getattr(runtime, "arm", None), "body_mask", None)
+    if mesh is None or not getattr(mesh, "has_held_payload", False):
+        return
+
+    def holding() -> bool:
+        return (getattr(runtime, "held_object", None) is not None
+                or getattr(runtime, "_held_provisional", None) is not None)
+
+    mesh.holding_fn = holding
+
+
+def _await_occupancy_after_wake(occupancy, acfg) -> None:
+    """LazyArm wake hook: wait (bounded by `occupancy.ready_timeout_s`) for
+    the map's first masked refresh with the arm powered.
+
+    In standby there is no measured pose to mask the robot out of the depth,
+    so the map integrated nothing and latched "robot body pose unavailable"
+    (an unmasked arm would map itself as an obstacle). The watcher's next
+    tick, a fraction of a second after the arm connects, clears that latch.
+    Without this wait the first motion met the latch and was refused; it
+    must neither be refused for that nor proceed unchecked. On timeout the
+    latch stays and every harness check refuses with its cause."""
+    if occupancy.wait_until_usable():
+        return
+    name = str(acfg.get("name", acfg.get("type", "arm")))
+    print(f"[cascade] occupancy: no masked depth refresh within {occupancy.ready_timeout_s:g} s "
+          f"after {name} powered on; motion stays refused until one succeeds "
+          f"({occupancy.last_error or 'no refresh yet'})", file=sys.stderr)
 
 
 def _body_mask_q(arm):
@@ -297,6 +370,16 @@ def _body_mask_q(arm):
     """
     fn = getattr(arm, "body_mask_q", None)
     return fn() if callable(fn) else arm.get_state().q
+
+
+def _body_mask_state(arm):
+    """Joint state (q AND gripper opening) for the occupancy MESH body mask
+    of a CONNECTED arm (`body_mask: mesh`). A backend may serve it without a
+    bus read while it streams (`RebotRSArm.body_mask_state`: the tracked
+    target with the gripper unknown, so the fingers are swept); every other
+    arm keeps its measured state."""
+    fn = getattr(arm, "body_mask_state", None)
+    return fn() if callable(fn) else arm.get_state()
 
 
 def _base_transform(acfg):
@@ -558,6 +641,7 @@ def build_runtime(
         kin, safe_arm, memory, beliefs, trace, cfg,
     )
     runtime.rig = rig
+    _wire_held_payload(runtime)
     runtime._kitchen_camera_renderer = kitchen_renderer
     # Where to persist the world model on shutdown (None = disabled).
     runtime.beliefs_path = beliefs_path
@@ -652,6 +736,26 @@ def build_runtime(
     wrist_kw = ({"wrist_view": runtime.wrist_narrator.camera}
                 if runtime.wrist_narrator is not None else {})
 
+    # The nvblox map as one more live-view tile (`nvblox_map`,
+    # apps/map_tile.py): resolved HERE so a misspelled switch fails the
+    # build. `auto` = only when this runtime has an occupancy map. The tile
+    # reads the map's lock-free snapshot and renders only for a connected
+    # viewer; standby is read from LazyArm's own flag (never materialized).
+    from .map_tile import MapTile, map_tile_settings
+
+    map_settings = map_tile_settings(scfg, occupancy=occupancy, occupancy_cfg=cfg.get("occupancy"))
+    map_workspace = ([min(v[i] for v in ws_min) for i in range(3)],
+                     [max(v[i] for v in ws_max) for i in range(3)])
+
+    def _map_tile():
+        if not map_settings.enabled:
+            return {}
+        return {"map_tile": MapTile(
+            occupancy, map_settings, workspace=map_workspace,
+            arm_up_fn=lambda: getattr(runtime.arm.raw, "connected", True),
+            objects_fn=runtime.beliefs.summary,
+        )}
+
     def _make_stream_server():
         from .stream_server import StreamServer
 
@@ -668,6 +772,7 @@ def build_runtime(
             on_poll=lambda: runtime.live_view.note_poll(),
             lan_commands=bool(scfg.get("lan_commands", False)),
             **wrist_kw,
+            **_map_tile(),
         )
 
     external_view = os.environ.get("CASCADE_EXTERNAL_VIEW_URL")

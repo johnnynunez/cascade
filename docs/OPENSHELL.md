@@ -64,8 +64,8 @@ These were checked from inside the sandbox:
   tools (`emergency_stop`, `halt_motion`) can never be denied.
 - **Locked by default; every unlock expires.** `up` starts observe-only
   unless `--allow-motion` is given, and a saved unlock never carries over to
-  a new session. `motion unlock` lasts 20 min by default (`--for 90s|15m|1h`,
-  max 2 h; zero or unbounded is refused). Before it unlocks, it schedules its
+  a new session. `motion unlock` lasts 20 min by default (`--for 90s|15m|8h`,
+  max 12 h, a presentation day; zero or unbounded is refused). Before it unlocks, it schedules its
   own re-lock, a transient systemd user timer (`cascade-openshell-relock`)
   that runs `motion lock`. If that cannot be scheduled, the arm stays locked.
   `motion lock` cancels a pending re-lock, and `motion status` shows the time
@@ -105,7 +105,7 @@ scripts/openshell_rig.py open                # the demo's screen: OpenClaw's own
 scripts/openshell_rig.py chat-url            # or print the tokenized chat URL: a secret
 
 # 4. when the operator is ready to let the arm move (e-stop in hand, space clear)
-scripts/openshell_rig.py motion unlock --for 15m   # re-locks itself; default 20m, max 2h
+scripts/openshell_rig.py motion unlock --for 15m   # re-locks itself; default 20m, max 12h
 scripts/openshell_rig.py motion status              # "allowed for 14 min more ..."
 scripts/openshell_rig.py motion lock                # done: observe-only again now
 ```

@@ -256,9 +256,12 @@ def _cylinder_points(radius: float, length: float, n: int = 16) -> np.ndarray:
     return np.concatenate([np.c_[ring, np.full(n, -half)], np.c_[ring, np.full(n, half)]])
 
 
-def _unit_sphere_cover() -> np.ndarray:
-    """Vertices of a once-subdivided icosahedron, scaled so that every face lies
-    at least 1 from the centre: their hull contains the unit sphere."""
+def _unit_sphere_cover(subdivide: bool = True) -> np.ndarray:
+    """Vertices of an icosahedron (once subdivided by default), scaled so that
+    every face lies at least 1 from the centre: their hull contains the unit
+    sphere. The plain icosahedron (12 vertices, circumradius 1.258) is the
+    cheap cover `LinkGeometry.inflated` sums with every piece; the subdivided
+    one (42 vertices, circumradius ~1.07) draws capsules and spheres."""
     p = (1 + 5 ** 0.5) / 2
     v = [(-1, p, 0), (1, p, 0), (-1, -p, 0), (1, -p, 0), (0, -1, p), (0, 1, p),
          (0, -1, -p), (0, 1, -p), (p, 0, -1), (p, 0, 1), (-p, 0, -1), (-p, 0, 1)]
@@ -276,10 +279,12 @@ def _unit_sphere_cover() -> np.ndarray:
             mids[key] = len(verts) - 1
         return mids[key]
 
-    fine = []
-    for a, b, c in faces:
-        ab, bc, ca = mid(a, b), mid(b, c), mid(c, a)
-        fine += [(a, ab, ca), (b, bc, ab), (c, ca, bc), (ab, bc, ca)]
+    fine = faces
+    if subdivide:
+        fine = []
+        for a, b, c in faces:
+            ab, bc, ca = mid(a, b), mid(b, c), mid(c, a)
+            fine += [(a, ab, ca), (b, bc, ab), (c, ca, bc), (ab, bc, ca)]
     V = np.asarray(verts)
     tri = V[np.asarray(fine)]
     normal = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
@@ -289,6 +294,7 @@ def _unit_sphere_cover() -> np.ndarray:
 
 
 _SPHERE_COVER = _unit_sphere_cover()
+_ICOSAHEDRON_COVER = _unit_sphere_cover(subdivide=False)
 
 
 def _capsule_points(a, b, radius: float) -> np.ndarray:
@@ -350,6 +356,68 @@ class LinkGeometry:
 
     def n_pieces(self) -> int:
         return sum(len(pieces) for pieces in self.pieces.values())
+
+    def inflated(self, margin_m: float) -> LinkGeometry:
+        """Every piece grown by at least `margin_m` in every direction.
+
+        WHY a metric inflation on top of the pixel dilation: the errors this
+        mask must absorb are metric, not pixel-sized. A hand-eye calibration
+        off by 1-2 cm (the markerless fit on the reBot rig), the URDF's mesh
+        tolerance against the printed parts, the finger opening read through
+        an unverified angle->width map: each moves the robot's true surface a
+        few centimetres in 3D. In a 640x360 D455F frame (fx ~320 px) 2 cm is
+        ~10 px at 0.6 m and ~64 px at 0.1 m (the wrist camera's jaws). A
+        fixed pixel dilation is either too small near the camera or too large
+        far from it; a margin in metres is right at every depth.
+
+        HOW: the Minkowski sum of each convex piece with a regular
+        icosahedron whose INRADIUS is `margin_m` (its hull contains the ball
+        of that radius, so the sum contains every point within `margin_m` of
+        the piece), reduced to its 3D hull vertices. Over-inflation is
+        bounded by the icosahedron's circumradius, 1.26 x `margin_m`, at its
+        vertices only. Done once at load time, in the link frame (a ball is
+        rotation invariant, and the cover's hull contains it in any
+        orientation), so it costs nothing per frame beyond the extra hull
+        vertices. `margin_m` 0 returns this geometry unchanged.
+        """
+        if (isinstance(margin_m, bool) or not isinstance(margin_m, (int, float))
+                or not math.isfinite(margin_m) or margin_m < 0):
+            raise ValueError(f"inflation margin must be a finite number >= 0 metres, got {margin_m!r}")
+        if margin_m == 0:
+            return self
+        cover = _ICOSAHEDRON_COVER * float(margin_m)
+        pieces = {link: tuple(_hull_vertices((np.asarray(p, dtype=np.float64)[:, None, :]
+                                              + cover[None]).reshape(-1, 3)) for p in link_pieces)
+                  for link, link_pieces in self.pieces.items()}
+        return LinkGeometry(pieces=pieces, sources=dict(self.sources))
+
+    def with_boxes(self, boxes) -> LinkGeometry:
+        """This geometry plus rigid boxes the model does not carry.
+
+        WHY: a URDF describes the arm as shipped, not the rig as built. The
+        reBot RS URDF has no wrist D455F (124 x 29 x 26 mm plus its bracket,
+        bolted on top of the gripper) and the fixed camera sees it; on the
+        real capture it was the largest unmasked blob next to the jaws.
+
+        `boxes`: (name, link, (sx, sy, sz) metres, 4x4 pose of the box centre
+        in the link frame) each. The box's 8 corners become one more convex
+        piece of `link` (created when the model gives that link no geometry;
+        posing then fails loudly if the link is not a frame of the model), and
+        `sources[link]` names it. Returns a new geometry; this one is unchanged.
+        """
+        pieces = dict(self.pieces)
+        sources = dict(self.sources)
+        for name, link, size, T in boxes:
+            size = np.asarray(size, dtype=np.float64).reshape(-1)
+            if size.shape != (3,) or not np.isfinite(size).all() or (size <= 0).any():
+                raise ValueError(f"attachment {name!r}: box size must be three positive metres, got {size!r}")
+            T = np.asarray(T, dtype=np.float64)
+            if T.shape != (4, 4) or not np.isfinite(T).all():
+                raise ValueError(f"attachment {name!r}: box pose must be a finite 4x4 transform")
+            pieces[str(link)] = tuple(pieces.get(str(link), ())) + (_transform(_box_points(size), T),)
+            tag = f"box:{name}"
+            sources[str(link)] = f"{sources[str(link)]}+{tag}" if str(link) in sources else tag
+        return LinkGeometry(pieces=pieces, sources=sources)
 
     @classmethod
     def from_urdf(cls, path, *, cell_m: float = DEFAULT_CELL_M,
@@ -653,6 +721,28 @@ def _distinct(transforms: list[np.ndarray]) -> list[np.ndarray]:
     return out
 
 
+def posed_pieces(geometry: LinkGeometry, pose_sets: list[dict[str, np.ndarray]],
+                 base_T: np.ndarray | None = None) -> list[np.ndarray]:
+    """Every piece of `geometry` placed by `pose_sets` (one {link: 4x4} per
+    configuration, as `KinematicsLinkPoses` returns) in the camera
+    extrinsics' frame (`base_T` @ link pose). A piece placed by several
+    configurations (swept fingers) becomes ONE point set, the union of its
+    placements: its hull is the swept volume for a translation, a superset of
+    the piece at every sampled pose otherwise. A link the pose source does
+    not place cannot be drawn and is skipped (callers that must not skip
+    links validate them when they build the pose source)."""
+    out = []
+    for link, link_pieces in geometry.pieces.items():
+        placed = _distinct([poses[link] for poses in pose_sets if link in poses])
+        if not placed:
+            continue
+        if base_T is not None:
+            placed = [base_T @ T for T in placed]
+        for piece in link_pieces:
+            out.append(np.concatenate([_transform(piece, T) for T in placed]))
+    return out
+
+
 class LinkSelfMask:
     """The robot's own pixels from link geometry, for frames without a render mask.
 
@@ -718,16 +808,7 @@ class LinkSelfMask:
         if pairing.status != ALIGNED:   # stale: the value is withheld, never interpolated
             return None, {"reason": "stale_joint_state", "skew_s": pairing.skew_s, "error": arm.error}
         state, skew = pairing.sample, pairing.skew_s
-        pose_sets = arm.poses(state)
-        out = []
-        for link, link_pieces in arm.geometry.pieces.items():
-            placed = _distinct([poses[link] for poses in pose_sets if link in poses])
-            if not placed:
-                continue  # a link the pose source does not place cannot be drawn
-            if arm.base_T is not None:
-                placed = [arm.base_T @ T for T in placed]
-            for piece in link_pieces:
-                out.append(np.concatenate([_transform(piece, T) for T in placed]))
+        out = posed_pieces(arm.geometry, arm.poses(state), arm.base_T)
         return out, {"reason": "link_mask", "skew_s": skew, "error": None}
 
     # -- masks ----------------------------------------------------------------

@@ -37,6 +37,16 @@ default `lazy` opens it only when the agent calls `open_live_view`. The
 fallback never applies to remote, `localhost` or https pages, or to the camera
 servers themselves.
 
+**The nvblox map as a view.** When the runtime has an occupancy map, the live
+view also announces `nvblox_map`, listed after the real cameras and labelled
+**3D map (nvblox)**: the occupied voxels in a slow 3-D orbit with the safety
+workspace, a top-down height map with the objects, and the map's age. It is
+MJPEG like the cameras, rendered only while a view shows it, and says plainly
+when there is nothing to show (occupancy off, bridge not answering, arm in
+standby). Its `/state` entry is marked `"virtual": true, "kind": "map"`; the
+agent's camera tools never list it. `CASCADE_NVBLOX_MAP=1` shows it even with
+occupancy off, `0` hides it. See [the map as a live-view tile](NVBLOX.md#the-map-as-a-live-view-tile-nvblox_map).
+
 The page may advertise its status endpoint with
 `<meta name="openclaw-demo" content="/api/status">`. Otherwise discovery
 uses the active page's origin, including its port. All discovered camera

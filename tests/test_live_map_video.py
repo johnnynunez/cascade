@@ -100,3 +100,68 @@ def test_a_missing_camera_is_shown_as_missing_not_as_a_frozen_frame():
     panel = lmv.camera_panel(None, (320, 180), "d455f_wrist")
     assert panel.shape == (180, 320, 3)
     assert panel.mean() < 60   # dark placeholder with a label, never the last good frame
+
+
+# ── shared rendering for the recorder and the live view's map tile ──────────
+
+
+def _reference_splat(points, view, colors, point_px):
+    """The original per-point painter (far to near, nearest wins), kept here
+    as the reference the vectorized splatter must reproduce exactly."""
+    w, h = view.size
+    img = np.empty((h, w, 3), np.uint8)
+    img[:] = lmv.BACKGROUND
+    u, v, z = view.project(points)
+    ok = (z > 0.02) & np.isfinite(u) & np.isfinite(v)
+    half = point_px // 2
+    ok &= (u >= -half) & (u < w + half) & (v >= -half) & (v < h + half)
+    idx = np.nonzero(ok)[0]
+    idx = idx[np.argsort(-z[idx], kind="stable")]
+    for i, x, y in zip(idx, np.round(u[idx]).astype(int), np.round(v[idx]).astype(int)):
+        img[max(0, y - half):max(0, y + half + 1), max(0, x - half):max(0, x + half + 1)] = colors[i]
+    return img
+
+
+@pytest.mark.parametrize("point_px", [1, 3, 4])
+def test_the_vectorized_splatter_paints_exactly_what_the_per_point_painter_did(point_px):
+    """The live view renders in the robot's own process: a per-point Python
+    loop there holds the GIL the 50 Hz motion stream needs. The numpy
+    splatter must still draw the same picture, pixel for pixel."""
+    rng = np.random.default_rng(7)
+    pts = rng.uniform([-0.2, -0.6, -0.1], [0.9, 0.6, 0.6], (3000, 3))
+    cols = rng.integers(0, 255, (3000, 3), dtype=np.uint8)
+    view = lmv.orbit_view(3.0, size=(320, 180))
+    got = lmv.render_points(pts, view, cols, point_px=point_px)
+    assert np.array_equal(got, _reference_splat(pts, view, cols, point_px))
+
+
+def test_top_down_points_outside_its_extent_are_dropped_not_smeared():
+    """A voxel beyond the drawn extent (x > 0.75 m: negative pixel rows) used
+    to become a negative slice end and paint most of the panel."""
+    far = np.array([[1.5, 0.0, 0.1], [0.3, 2.0, 0.1], [-1.0, 0.0, 0.1]])
+    empty = lmv.topdown(np.zeros((0, 3)), [0.1, -0.3, 0.0], [0.5, 0.3, 0.5], size=(320, 180))
+    img = lmv.topdown(far, [0.1, -0.3, 0.0], [0.5, 0.3, 0.5], size=(320, 180))
+    assert np.array_equal(img, empty)
+
+
+def test_top_down_shows_the_highest_voxel_of_a_column():
+    lo, hi = [0.1, -0.3, 0.0], [0.5, 0.3, 0.5]
+    low, high = np.array([0.3, 0.0, 0.0]), np.array([0.3, 0.0, 0.3])
+    a = lmv.topdown(np.array([low, high]), lo, hi, size=(320, 180))
+    b = lmv.topdown(np.array([high, low]), lo, hi, size=(320, 180))
+    only_high = lmv.topdown(np.array([high]), lo, hi, size=(320, 180))
+    assert np.array_equal(a, only_high) and np.array_equal(b, only_high)
+
+
+def test_map_panels_are_shared_by_the_recorder_and_the_live_view():
+    """One renderer for both: the 3-D orbit with the workspace and a caption,
+    and the top-down height map with the objects."""
+    pts = np.array([[0.3, 0.0, 0.05], [0.35, 0.05, 0.1]])
+    m3d, td = lmv.map_panels(pts, t_s=1.0, workspace=([0.1, -0.3, -0.01], [0.5, 0.3, 0.55]),
+                             objects=[{"label": "cube", "position": [0.3, 0.0, 0.05]}],
+                             size=(320, 180), caption="2 occupied voxels", caption_ok=True)
+    assert m3d.shape == td.shape == (180, 320, 3)
+    assert _drawn(m3d).any() and _drawn(td).any()
+    red = lmv.map_panels(pts, t_s=1.0, workspace=([0.1, -0.3, -0.01], [0.5, 0.3, 0.55]),
+                         size=(320, 180), caption="map: STALE 9.0 s", caption_ok=False)[0]
+    assert ((red[..., 0] > 200) & (red[..., 1] < 120)).any()   # the stale caption is red

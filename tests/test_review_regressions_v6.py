@@ -181,7 +181,7 @@ def test_unverified_fast_success_cannot_train_a_reflex(runtime):
     planner = FastPlanner(experience=experience)
     loop = agent(runtime, [('task_done', {'success': True, 'summary': 'claim'})])
     loop.fast_planner = planner
-    report = loop.run_task('go home')
+    report = loop.run_task('go to the initial pose')  # the move_home reflex
     assert report.success is False and report.unverified
     assert len(experience) == 0
 

@@ -143,23 +143,44 @@ _RULES: list[tuple[re.Pattern, str]] = [
                    r"(?P<dir>forward|back|left|right|up|down)(?:\s+a\s+(?:bit|little))?$"),
         "move_relative",
     ),
+    # Two poses, two words (the reBot owner's convention, the same routing
+    # the move_home / move_to_rest tool descriptions give the LLM tier):
+    # "home", "pose 0", "rest", "park", "fold" = the folded REST pose the
+    # robot can be switched off from (move_to_rest); "initial / ready / start
+    # pose" = the raised INITIAL pose, motors on (move_home). "reset" stays
+    # reset_scene below.
     (
         re.compile(
-            r"^(?:go\s+home|move\s+home|home|park(?:\s+the\s+arm)?|"
+            r"^(?:home|(?:go|move|come)\s+home|"
             # "return home" family (Seeed WRC b70f3a0: these fell through to
-            # the LLM loop). Only phrasings that mean the HOME pose: "back to
-            # zero" is the park pose, and "reset" is reset_scene below.
-            r"(?:(?:go|come)\s+)?back\s+(?:to\s+(?:the\s+)?)?home(?:\s+position)?|"
-            r"return\s+(?:to\s+(?:the\s+)?)?home(?:\s+position)?|"
-            # Spanish: every other rule in this grammar is bilingual, and the
-            # curriculum tier made the gap visible -- "saluda y luego vuelve a
-            # casa" split correctly into two clauses but the second one had no
-            # rule, sending a pair of reflexes to the LLM.
-            r"(?:vuelve|ve|regresa|vete)\s+a\s+casa|a\s+casa|"
-            r"(?:vuelve|regresa)\s+al?\s+(?:inicio|origen)|"
-            r"aparca(?:\s+el\s+brazo)?)$"
+            # the LLM loop)
+            r"(?:(?:go|come)\s+)?back\s+(?:to\s+(?:the\s+)?)?home(?:\s+(?:position|pose))?|"
+            r"return\s+(?:to\s+(?:the\s+)?)?home(?:\s+(?:position|pose))?|"
+            r"(?:go|move)\s+to\s+(?:the\s+)?home\s+(?:position|pose)|home\s+(?:position|pose)|"
+            r"park(?:\s+(?:the\s+arm|it|yourself))?|"
+            r"(?:(?:(?:go|move|come)\s+(?:back\s+)?|back\s+|return\s+)to\s+(?:the\s+|your\s+)?)?"
+            r"rest(?:ing)?(?:\s+(?:position|pose))?|"
+            r"(?:(?:(?:go|move|come)\s+(?:back\s+)?|back\s+|return\s+)to\s+(?:the\s+)?)?"
+            r"(?:zero|pose\s+(?:0|zero)|(?:zero|0)\s+(?:pose|position)|position\s+(?:0|zero))|"
+            r"fold(?:\s+(?:the\s+arm|it|yourself))?(?:\s+(?:up|away|down))?|"
+            # Spanish: every other rule in this grammar is bilingual
+            r"(?:vuelve|ve|regresa|vete)\s+a\s+(?:casa|home)|a\s+casa|"
+            r"(?:(?:vuelve|ve|regresa|vete)\s+(?:a\s+(?:la\s+)?|al\s+))?"
+            r"(?:pose|posici[oó]n)\s+(?:0|cero|de\s+reposo)|"
+            r"(?:vuelve|ve|regresa|vete)\s+al\s+(?:reposo|cero|origen)|reposo|"
+            r"aparca(?:\s+el\s+brazo)?|pli[eé]ga(?:lo|te)?(?:\s+el\s+brazo)?)$"
         ),
-        "home",
+        "rest",
+    ),
+    (
+        re.compile(
+            r"^(?:(?:(?:(?:go|move|come)\s+(?:back\s+)?|back\s+|return\s+)to\s+(?:the\s+|your\s+)?)?"
+            r"(?:initial|ready|start|starting)\s+(?:pose|position)|"
+            r"(?:(?:vuelve|ve|regresa|vete)\s+a\s+(?:la\s+)?)?"
+            r"(?:pose|posici[oó]n)\s+(?:inicial|de\s+inicio)|"
+            r"(?:vuelve|ve|regresa|vete)\s+al\s+inicio)$"
+        ),
+        "initial_pose",
     ),
     (
         re.compile(
@@ -343,7 +364,9 @@ def parse_command(text: str) -> ReflexPlan | None:
             return ReflexPlan(intent, [("describe_scene", {})])
         if intent == "move_relative":
             return ReflexPlan(intent, [("move_relative", {"direction": g["dir"]})])
-        if intent == "home":
+        if intent == "rest":
+            return ReflexPlan(intent, [("move_to_rest", {})])
+        if intent == "initial_pose":
             return ReflexPlan(intent, [("move_home", {})])
         if intent == "reset_scene":
             return ReflexPlan(intent, [("reset_scene", {})])
@@ -677,8 +700,9 @@ _OBJECT_VERBS = frozenset(
 #: "and" is a clause of its own ("wave and go home"), not a verb sharing an
 #: object.
 _BARE_VERBS = frozenset(
-    "wave say go come return park look observe scan reset restart release let point search move "
-    "saluda vuelve ve vete regresa aparca mira observa reinicia resetea suelta".split()
+    "wave say go come return park fold look observe scan reset restart release let point search "
+    "move saluda vuelve ve vete regresa aparca pliega pliégalo pliegalo pliégate pliegate mira "
+    "observa reinicia resetea suelta".split()
 )
 _PARTICLES = frozenset({"up", "down"})
 _BACK_REFERENCES = frozenset({"it", "them", "this", "that", "these", "those"})

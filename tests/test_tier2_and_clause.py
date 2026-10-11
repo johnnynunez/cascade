@@ -296,7 +296,7 @@ def test_the_roadmap_compound_runs_both_habits_through_the_curriculum(tmp_path):
     (f"{PON_RED} y {PON_BLUE}", [_p_and_p("cubo rojo", "bol"), _p_and_p("cubo azul", "bol")]),
     (f"{RED} and wave", [_grasp("red cube"), ("wave", {})]),
     (f"{RED} and move up", [_grasp("red cube"), ("move_relative", {"direction": "up"})]),
-    ("wave and go home", [("wave", {}), ("move_home", {})]),
+    ("wave and go home", [("wave", {}), ("move_to_rest", {})]),
 ])
 def test_a_reflex_never_swallows_a_second_clause(task, calls):
     """Main compiled each of these into ONE call carrying the second command
@@ -503,7 +503,7 @@ def test_fast_plans_without_a_clause_starting_and_are_unchanged(tmp_path):
         "experience", [_p_and_p("red cube", "bowl"), _p_and_p("blue cube", "bowl")], ["recalled", "recalled"])
     assert got("grab the banana and throw it far") == (
         "reflex", [("throw", {"direction": "forward", "label": "banana"})], ["reflex"])
-    assert got("wave and then go home") == ("curriculum", [("wave", {}), ("move_home", {})], ["reflex", "reflex"])
+    assert got("wave and then go home") == ("curriculum", [("wave", {}), ("move_to_rest", {})], ["reflex", "reflex"])
     assert got(f"{RED} and then {BLUE}") == (
         "experience", [_grasp("red cube"), _grasp("blue cube")], ["recalled", "recalled"])
     assert got(f"{BLUE} and then {RED}") == (

@@ -31,7 +31,10 @@ def test_reset_phrases_are_reflexes_and_nothing_else_matches():
               "reset", "new demo", "nueva demo"):
         p = parse_command(t)
         assert p is not None and p.calls == [("reset_scene", {})], t
-    assert parse_command("go home").calls == [("move_home", {})]
+    # "go home" is the folded rest pose (move_to_rest), "initial pose" the
+    # raised one (move_home); neither is shadowed by reset
+    assert parse_command("go home").calls == [("move_to_rest", {})]
+    assert parse_command("go to the initial pose").calls == [("move_home", {})]
     assert parse_command("reset the gripper force") is None
 
 

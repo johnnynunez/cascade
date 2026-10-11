@@ -13,6 +13,10 @@ safe to run, offline (MockArm behind the REAL SafeArm/SafetyHarness of the
 * segmented: a segment whose MEASURED pose misses its target soft-stops the
   arm (hold, torque ON) and nothing else is commanded; the same for a harness
   refusal mid-run;
+* the profile's motor-feedback contact stop watches every step: a joint
+  that stops tracking mid-step stops the run there (hold the MEASURED
+  pose, torque ON); --contact-log records each step's tracking for
+  scripts/contact_calibrate.py;
 * torque is released only when the arm is measured back at rest (or when
   nothing was ever commanded);
 * only the final down segment relaxes the joint margin (onto the 0-rad stops
@@ -101,7 +105,8 @@ def _recording_arm_cls():
     return RecordingArm
 
 
-def _builder(q0, events, freeze_after=None, spy_margins=None, refuse_on_move=None):
+def _builder(q0, events, freeze_after=None, spy_margins=None, refuse_on_move=None,
+             contact_off=False):
     """build(cfg, dry_run) -> (raw, safe, kin) through demo._build_arm with
     the real harness; only the backend is a recording MockArm."""
     from cascade.apps import demo
@@ -120,6 +125,11 @@ def _builder(q0, events, freeze_after=None, spy_margins=None, refuse_on_move=Non
                                              fallback_cfg=cfg)
         finally:
             demo.make_arm = orig
+        if contact_off:
+            import dataclasses
+
+            h = safe.harness
+            h.limits = dataclasses.replace(h.limits, contact=None)
         if spy_margins is not None or refuse_on_move is not None:
             inner = safe.move_joints
             moves = {"n": 0}
@@ -233,11 +243,13 @@ def test_rest_home_rest_through_the_harness():
 
 @needs_pin
 def test_a_segment_that_does_not_track_soft_stops_and_keeps_torque(capsys):
+    """The per-step MEASURED check is the backstop when the contact stop is
+    off (or misses): caught right after the first step."""
     import home_rebot_rs as hr
 
     events = []
     # measured pose freezes after the first few targets of segment 1
-    build = _builder(RIG_REST, events, freeze_after=5)
+    build = _builder(RIG_REST, events, freeze_after=5, contact_off=True)
     assert _main(["--yes", "--hold-s", "0"], build, FakeCamera()) == 1
     # caught by the per-step MEASURED check, right after the first step
     assert "up step 1: the arm did not reach its target" in capsys.readouterr().out
@@ -245,6 +257,45 @@ def test_a_segment_that_does_not_track_soft_stops_and_keeps_torque(capsys):
     i_stop = next(i for i, e in enumerate(events) if e[0] == "stop")
     assert all(e[0] != "target" for e in events[i_stop:])      # nothing after the stop
     assert ("disconnect",) not in events                       # torque stays ON
+
+
+@needs_pin
+def test_the_contact_stop_ends_the_run_mid_step_holding_the_measured_pose(capsys):
+    """rebot_rs ships the contact stop enforced: a joint that stops tracking
+    is caught DURING the step, the hold is the measured pose, the soft stop
+    re-asserts it and torque stays on."""
+    import home_rebot_rs as hr
+
+    events = []
+    build = _builder(RIG_REST, events, freeze_after=5)
+    assert _main(["--yes", "--hold-s", "0"], build, FakeCamera()) == 1
+    out = capsys.readouterr().out
+    assert "CONTACT (contact detected at joint" in out
+    assert "holding the measured pose where it was blocked, torque ON" in out
+    targets = _targets(events)
+    assert len(targets) < int(hr.SEG_S * RATE_HZ)              # mid-step, not after it
+    # frozen when target 5 went out: the measured pose is where target 4 left it
+    np.testing.assert_allclose(targets[-1], targets[3], atol=1e-9)
+    i_stop = next(i for i, e in enumerate(events) if e[0] == "stop")
+    assert all(e[0] != "target" for e in events[i_stop:])
+    assert ("disconnect",) not in events
+
+
+@needs_pin
+def test_contact_log_records_every_step_for_calibration(tmp_path, capsys):
+    import json
+
+    import contact_calibrate
+
+    events = []
+    log = tmp_path / "rig.jsonl"
+    build = _builder(RIG_REST, events)
+    assert _main(["--yes", "--hold-s", "0", "--contact-log", str(log)], build, FakeCamera()) == 0
+    reports = [json.loads(x) for x in log.read_text().splitlines()]
+    assert len(reports) == 8 and all(r["mode"] == "enforce" and not r["tripped"] for r in reports)
+    assert capsys.readouterr().out.count("contact track max 0.000 rad") == 8
+    s = contact_calibrate.suggest(contact_calibrate.load_reports([log]))
+    assert s["motions"] == 8 and s["would_trip"] == [] and s["suggested"]["lag_s"] == 0.1
 
 
 @needs_pin

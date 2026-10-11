@@ -45,6 +45,9 @@ class MockArm(ArmBase):
         self._grip_open = float(g.get("open_pos", 0.0)) if g else 0.0
         self._grip_closed = float(g.get("closed_pos", 1.0)) if g else 1.0
         self.object_stop_frac: float | None = None
+        #: joint -> position it is stuck at (block_joint): commands still
+        #: stream, the measured pose stops -- an obstacle the arm runs into
+        self._blocked: dict[int, tuple[float, int | None]] = {}
 
     def connect(self) -> None:
         self._connected = True
@@ -67,8 +70,33 @@ class MockArm(ArmBase):
             raise RuntimeError("mock arm not connected")
         if self._stopped:
             return
-        self._q = np.asarray(q, dtype=float).copy()
-        self.commands.append(self._q.copy())
+        q = np.asarray(q, dtype=float).copy()
+        measured = q.copy()
+        for j, (at, direction) in getattr(self, "_blocked", {}).items():
+            if direction is None:
+                measured[j] = at      # something stops this joint where it is
+            elif direction > 0:
+                measured[j] = min(q[j], at)   # a wall: cannot pass `at` going up
+            else:
+                measured[j] = max(q[j], at)
+        self._q = measured
+        self.commands.append(q.copy())
+
+    def block_joint(self, j: int, at: float | None = None, direction: int | None = None) -> None:
+        """Emulate an obstacle: joint `j` stops following commands at `at`
+        (default: where it is now) -- the wrist pressed against clutter.
+        `direction` None freezes it both ways; +1 / -1 make it a wall the
+        joint cannot pass going up / down but can always back away from.
+        Commands are still recorded in `commands`; only the measured pose
+        (`get_state`) stops. `unblock_joints()` releases."""
+        j = int(j)
+        if at is not None and direction is None:
+            self._q[j] = float(at)
+        at = float(self._q[j]) if at is None else float(at)
+        self._blocked[j] = (at, None if direction is None else (1 if direction > 0 else -1))
+
+    def unblock_joints(self) -> None:
+        self._blocked.clear()
 
     def set_gripper(self, pos: float, effort: float = 1.0) -> None:
         if self._stopped:
@@ -92,29 +120,22 @@ class MockArm(ArmBase):
         self._stopped = False
 
     # Mock streaming doesn't need real-time pacing; override to skip sleeps.
+    # Same ticks, approve and contact monitor as ArmBase (logical tick time).
     def stream_to(self, q_target, duration_s, rate_hz=50.0, approve=None,
                   settle_tol=None, settle_timeout_s=2.0, preflight=None,
-                  before_stream=None) -> bool:
-        from .arm_base import prepare_stream
+                  before_stream=None, contact_monitor=None) -> bool:
+        from .arm_base import min_jerk, prepare_stream
 
         q_start, q_target = prepare_stream(self, q_target, duration_s, preflight, before_stream)
         steps = max(2, int(duration_s * rate_hz))
         dt = duration_s / steps
-        q_prev = q_start
-        from .arm_base import min_jerk
-
-        for i in range(1, steps + 1):
-            s = min_jerk(i / steps)
-            q_i = q_start + (q_target - q_start) * s
-            if approve is not None:
-                approve(q_prev, q_i, dt)
-            self.send_joint_target(q_i)
-            q_prev = q_i
+        ticks = (q_start + (q_target - q_start) * min_jerk(i / steps) for i in range(1, steps + 1))
+        self._stream_ticks(q_start, ticks, dt, approve, contact_monitor, paced=False)
         return not self._stopped
 
     def stream_path(self, waypoints, duration_s, rate_hz=50.0, approve=None,
                     settle_tol=None, settle_timeout_s=2.0, preflight=None,
-                    before_stream=None) -> bool:
+                    before_stream=None, contact_monitor=None) -> bool:
         """ArmBase.stream_path without real-time pacing (same ticks)."""
         from .arm_base import path_ticks, prepare_stream
 
@@ -125,10 +146,5 @@ class MockArm(ArmBase):
             raise SafetyViolation("empty joint path; no motion sent")
         q_start, _ = prepare_stream(self, waypoints[-1], duration_s, preflight, before_stream)
         ticks, dt = path_ticks(q_start, waypoints, duration_s, rate_hz)
-        q_prev = q_start
-        for q_i in ticks:
-            if approve is not None:
-                approve(q_prev, q_i, dt)
-            self.send_joint_target(q_i)
-            q_prev = q_i
+        self._stream_ticks(q_start, ticks, dt, approve, contact_monitor, paced=False)
         return not self._stopped

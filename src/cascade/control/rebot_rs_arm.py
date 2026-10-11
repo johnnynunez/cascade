@@ -204,18 +204,45 @@ class RebotRSArm(ArmBase):
     #: consecutive feedback failures tolerated before motion must abort
     MAX_READ_FAILURES = 3
 
+    def _fresh_positions(self) -> np.ndarray:
+        """A full, guarded read; raises instead of serving the last pose."""
+        q = self._read_positions()
+        now = time.monotonic()
+        # A plausible value can still be impossible: it must be reachable
+        # from the last GOOD reading in the time since.
+        if self._last_q_t is not None:
+            problem = joint_reading_problem(q, self._last_q, now - self._last_q_t)
+            if problem:
+                raise UnsafeReading(f"implausible mechPos: {problem}")
+        self._last_q, self._last_q_t = q, now
+        self._read_failures = 0
+        return q
+
+    def read_positions_for_monitor(self) -> np.ndarray:
+        """The contact monitor's settle samples and post-contact hold pose:
+        `get_state` would serve the last good pose on a failed read -- during
+        a stream that can be its START, and holding it would snap the arm
+        back. This raises instead."""
+        return self._fresh_positions().copy()
+
+    def contact_joint_reader(self):
+        """One motor's mechPos per call, for the contact monitor mid-stream.
+        A full pose polls the six motors one after another (~8 ms each, the
+        driver lock held), far more than the slack of a 20 ms cycle; one or
+        two single reads fit. Each read carries the monitor's short timeout."""
+        return self._read_joint
+
+    def _read_joint(self, j: int, timeout_s: float) -> float:
+        timeout_ms = max(1, round(float(timeout_s) * 1000.0))
+        with self._lock:
+            x = self._motors()[int(j)].robstride_get_param_f32(MECH_POS, timeout_ms)
+        if not plausible_position(x):
+            raise UnsafeReading(f"implausible mechPos on joint {int(j) + 1}: {x!r}")
+        return float(x)
+
     def get_state(self) -> RobotState:
         try:
-            q = self._read_positions()
-            now = time.monotonic()
-            # A plausible value can still be impossible: it must be reachable
-            # from the last GOOD reading in the time since.
-            if self._last_q_t is not None:
-                problem = joint_reading_problem(q, self._last_q, now - self._last_q_t)
-                if problem:
-                    raise UnsafeReading(f"implausible mechPos: {problem}")
-            self._last_q, self._last_q_t = q, now
-            self._read_failures = 0
+            q = self._fresh_positions()
         except Exception as e:
             # One transient CAN hiccup: serve last known. Repeated failures
             # mean the bus is unhealthy -- fail loudly so motion aborts
@@ -278,12 +305,23 @@ class RebotRSArm(ArmBase):
         any bus traffic; otherwise the measured pose. Safety checks keep using
         `get_state()`.
         """
+        return self.body_mask_state().q
+
+    def body_mask_state(self) -> RobotState:
+        """Joint pose AND gripper opening for the occupancy mesh body mask
+        (arm profile `body_mask: mesh`), with the bus-read rule of
+        `body_mask_q`: while a stream is sending targets, the target being
+        tracked and the gripper reported UNKNOWN (`gripper_valid=False`, no
+        gripper read either). The mesh mask then sweeps the fingers over
+        their whole travel: more mask, never a stale or guessed opening.
+        Otherwise the measured state, gripper included.
+        """
         t = getattr(self, "_last_cmd_t", None)
         q = getattr(self, "_last_cmd_q", None)
         if (q is not None and t is not None and not self._stopped
                 and time.monotonic() - t < self.STREAM_ACTIVE_S):
-            return q.copy()
-        return self.get_state().q
+            return RobotState(q=q.copy(), gripper_pos=0.0, gripper_valid=False, t=time.monotonic())
+        return self.get_state()
 
     def _send_mit(self, q: np.ndarray) -> None:
         """Send one arm MIT command, adding the gravity feedforward when

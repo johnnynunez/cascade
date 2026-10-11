@@ -226,6 +226,298 @@ new arrives, and the video says so (0 voxels or a stale map). On the Spark a
 1280 x 720 composite at 10 fps writes in real time, and each map query takes
 14-16 ms (92 x 102 x 68 voxels).
 
+## Robot body mask on real arms (`body_mask: mesh`)
+
+The camera sees the arm, so every depth frame is masked before integration.
+Isaac frames carry a render self-mask. Real arms used capsules instead: each
+pixel's 3D point was tested against `body_mask_radius_m` (6 cm) around the
+joint polyline (`perception/robot_mask.py robot_mask`). A gripper is wide
+where that chain is thin. On the real reBot (2026-10-11, calibrated fixed
+D455F, arm at rest q = 0), the nvblox map built with the capsule mask kept
+voxels on the open jaws (~14 cm wide) and on the wrist D455F above them. The
+nearest was 2.8 cm from the chain, under `min_clearance_m` 0.03, so motion
+from rest could be refused by the robot's own body.
+
+An arm profile opts in with `body_mask: mesh` (on for `rebot_rs`). Each frame
+is then masked by the arm's **silhouette**: `MeshBodyMask` rasterizes the
+URDF collision meshes of every link at the current joint state into the depth
+image that ships (after `depth_stride`), the same code as fusion's B39 link
+self-mask (`perception/link_mask.py`).
+
+```yaml
+body_mask:
+  mode: mesh          # capsule (the default when absent) | mesh
+  inflate_m: 0.02     # metric margin on every convex piece, applied once at load
+  dilate_px: 2        # pixel dilation of the silhouette (flying pixels on its edge)
+  cell_m: 0.05        # mesh piece size (LinkGeometry), the default
+  attachments:        # rigid parts the URDF lacks: boxes in a link frame
+    - {name: wrist_d455f, link: gripper_end, box: [0.065, 0.14, 0.055],
+       xyz: [-0.0925, 0.0, 0.0625], rpy: [0, 0, 0]}
+```
+
+- **Fingers.** The passive finger joints are posed from the measured gripper
+  position through the profile's `gripper.open_pos/closed_pos`. When the
+  opening is unknown they are swept over their whole travel, which gives more
+  mask and never less. The opening is unknown after a failed gripper read,
+  and while an RS arm streams a motion (`body_mask_state()` reads nothing on
+  the bus then, for the same 50 Hz timing reason as `body_mask_q`).
+- **Margins.** `inflate_m` absorbs metric errors such as the hand-eye
+  calibration, the mesh against the printed part, and the finger
+  angle->width map. 2 cm is ~10 px at 0.6 m but ~64 px at 0.1 m in a 640x360
+  D455F frame, so a pixel dilation alone cannot absorb it at every depth.
+  `dilate_px` covers the silhouette's edge. The 2 cm margin stays below
+  `min_clearance_m` (3 cm), so the surfaces it hides lie in the band that the
+  clearance gate already keeps clear of the arm.
+- **Wrist camera and attachments.** The RS URDF does not model the wrist
+  D455F. Its box is an envelope sized from the depth points that its body
+  left on the 2026-10-11 capture, plus ~1 cm. Those points were measured
+  through the markerless hand-eye calibration. Measure the mount with
+  calipers and tighten the box.
+- **Any camera.** The mask needs only K and T_base_cam: a fixed T for
+  eye-to-hand cameras, FK(q) @ X for eye-in-hand. A wrist camera's jaws
+  straddle the near plane and are clipped there. Because the mask is a
+  silhouette, it does not read the depth values, so a wrong depth on a robot
+  pixel (stereo speckle, a close-range mismatch on the jaws) is masked too.
+  The capsule test would integrate it.
+- **Fail closed.** If there is no joint state (the arm in standby: a LazyArm
+  is never woken by looking; a failed read; a non-finite q), the frame is not
+  integrated. The fault latches, and clearance is refused with
+  `robot body pose unavailable for the <arm> mesh mask: ...` until a masked
+  refresh succeeds. Both wire paths mask: nvblox `integrate_masked_depth`
+  gets the silhouette as inactive rays, and older bridges get zeroed depth or
+  filtered points.
+- **No silent capsule fallback.** `LinkGeometry` replaces an unreadable mesh
+  with a capsule, which suits fusion's detection gate, but a capsule is the
+  mask that left the jaws in the map. If a mesh is missing (git-lfs not
+  fetched, for example), a `body_mask: mesh` profile refuses to build and
+  names the link. Fetch the meshes (`git lfs pull`) or set
+  `body_mask: capsule` knowingly. An attachment on a link that the model
+  lacks is refused the same way. `mesh` is also refused on Isaac arms (they
+  have the render mask and capture-time joint state) and together with
+  payload tracking (its replay re-sends history with render masks only).
+
+Measured on the same real capture (24 frames, 640x360 after stride 2, q = 0,
+gripper unknown so the fingers are swept) with
+`scripts/eval_body_mask.py ... --tsdf`. The TSDF columns use cascade's warp
+TSDF on the CPU, fed each mask's zeroed depth, over the configured workspace
+region:
+
+| | capsule (6 cm) | mesh (2 cm, 2 px) |
+|---|---:|---:|
+| unmasked depth points within 3 cm of the URDF surface, per frame | 3859 | **0** |
+| ... within 5 cm, per frame | 4576 | 84 |
+| TSDF occupied voxels within 3 cm / 5 cm of the arm | 77 / 132 | **0** / 3 |
+| nearest TSDF voxel to the joint chain | 3.1 cm | 8.0 cm |
+| ESDF clearance at the harness points (TCP + joints) | 5.1 cm | 8.7 cm |
+| masked points > 5 cm from the URDF surface, per frame | 0 | 197 |
+| mask cost per frame (FK + raster) | 22.7 ms | **5.0 ms** |
+
+Scored the same way (over its larger region), the original nvblox
+capsule-masked map from that day had 407 occupied voxels within 3 cm of the
+URDF surface, and its nearest voxel was 2.81 cm from the chain. The 197
+masked points per frame that lie more than 5 cm from the URDF surface were
+inspected on the last frame. They sit on the wrist camera (masked by its box,
+as intended) and on a cable at the elbow: robot parts that the URDF lacks,
+not scene surfaces. The margin study on the same capture, as unmasked points
+within 3 cm per frame with 2 px dilation, gave 417 at 0 cm, 214 at 0.5 cm,
+108 at 1 cm, 37 at 1.5 cm and 0 at 2 cm.
+
+Re-validate on any rig without the robot or a bridge:
+
+```bash
+python scripts/eval_body_mask.py capture.npz --arm rebot_rs --q 0 0 0 0 0 0 [--gripper RAD] [--tsdf]
+```
+
+The capture is a `.npz` with `depth` (N,H,W) in metres, `K`, and
+`T_cam2base` (per frame for a wrist camera). The arm must not move during
+the capture.
+
+Limitations: cables, the base's mounting plate and anything else outside the
+URDF and the attachments still reach the map. The finger angle->width map
+of the RS profile is unverified. While an RS arm streams a motion, the jaw
+gap is masked (swept fingers), so a held object is not integrated during the
+stream. A wrist camera's T comes from FK at the watcher's read, while the
+mask uses the state read a moment later. The eye-in-hand path is
+synthetic-tested only, because the wrist D455F has no hand-eye record yet.
+
+## Always-on occupancy on the reBot
+
+Rig incident, 2026-10-11: `grasp_object(green object)` chose a side approach
+(object at [0.28, 0.129, 0.043]). The wrist and the padded wrist D455F, which
+sits on top of the gripper (8 cm up, 14 cm back from the fingertips, 15 cm
+across the jaws), swept into the clutter beside the target and pressed for
+~8 s until `did not settle at grasp pose`. The MCP server ran with
+`CASCADE_OCCUPANCY=0` because the capsule mask left the jaws in the map, so
+the harness had no obstacle model at all. Even with a map it sampled only the
+TCP and the joint origins. The requirement since: even with a computed
+trajectory, every step keeps checking against the cameras.
+
+What runs now on `rebot_rs` (and `rebot_rs_reach`, which extends it):
+
+| | when | what |
+|---|---|---|
+| map refresh | every perception tick (`perception_loop.rate_hz`, 3 Hz), per new frame of each `map_depth` camera, **also while a motion holds `watcher.paused()`** (beliefs pause, the map does not) | depth masked by the URDF mesh silhouette at the arm's current joint state (`body_mask: mesh`), plus the held-payload envelope while holding |
+| preflight | before any command: `vet_pose` of goals/pregrasps, `vet_step` over every segment of a route or planned curve | TCP, joint origins, held payload, **tool volume** (wrist camera box + open jaws) against the latest grid |
+| every streamed step | `approve()` in the stream loop, 50 Hz (move_joints, move_planned, move_joint_path, move_cartesian, cuMotion profiles, grasp approach/descent, place, spatial tools: all go through SafeArm) | the same samples against the grid **in force at that step**, not the one the route was vetted on |
+
+The streamed check reads the cached grid (no bridge round trip); a required
+map refreshes outside the lock the 50 Hz reads take
+(`OccupancyMap._refresh_plain`). Cost measured on the Spark: 0.18 ms per step
+with the 408 tool-volume samples (0.09 ms without). An obstacle that appears
+during a motion enters the map at the next refresh (up to one perception tick
+plus the ~60 ms bridge round trip) and the next step is refused; the arm holds
+its last commanded pose (`tests/test_occupancy_during_motion.py`).
+
+Profile (`configs/arms/rebot_rs.yaml` `overrides.occupancy`):
+
+```yaml
+occupancy:
+  required: true        # fail closed
+  unobserved: free      # the arm's own masked volume is never observed
+  max_age_s: 1.5        # ~4 perception ticks; an older grid authorizes nothing
+  ready_timeout_s: 3.0  # first motion after a LazyArm wake waits for one masked refresh
+```
+
+- **Fail closed.** No bridge at startup refuses startup. `CASCADE_OCCUPANCY=0`
+  (or `launch.sh --occupancy none`) with this profile is a startup error
+  (`required occupancy conflicts with CASCADE_OCCUPANCY=off`). During a
+  motion, a grid older than `max_age_s`, a failed refresh or a body-mask fault
+  refuses the next step with the cause, e.g. `required occupancy unavailable:
+  distance grid is stale (1.62 s old, max_age_s 1.5)` or `... refresh failed:
+  occupancy bridge at 127.0.0.1:5557 timed out (500 ms)`.
+- **`unobserved` is separate from `required`.** `blocked` (the default for a
+  required map) treats every voxel the camera never observed as an obstacle.
+  The camera never observes the arm's own masked volume, which is where the
+  arm is, so `blocked` refuses motion from rest. `free` reads unobserved as
+  far; observed obstacles, staleness and failures still block.
+- **LazyArm standby.** With the arm unpowered there is no joint state to mask
+  with, so the map integrates nothing and latches `robot body pose
+  unavailable` (by design). When the first motion powers the arm on,
+  `LazyArm(on_materialize=...)` waits up to `ready_timeout_s` for one masked
+  refresh. It neither refuses for the standby latch nor proceeds unchecked;
+  on timeout it prints the cause and the motion stays refused.
+- **Tool volume** (`safety.tool_volume`): the wrist camera box comes from
+  `relative_motion.wrist_camera` (the box the spatial tools plan with, via
+  `spatial_moves.wrist_camera_dims`), the open jaws from
+  `grasp.graspgenx.sweep`. Samples every `spacing_m` (2 cm) over faces and
+  interior. Obstacles are attributed by where the obstacle is: voxels within
+  `table_band_m` of the table plane are the table (the table rule governs
+  it), and the grasp target's own voxels inside its exemption cylinder are not
+  obstacles to it. Every other voxel, a neighbour of the target included,
+  blocks the camera and the jaws. An arm already inside the margin may move
+  away or hold, never closer (`tests/test_harness_tool_volume.py`).
+- **Held object.** `body_mask.held_payload` (an envelope in the
+  `gripper_end` frame) is drawn into the mask while the runtime holds an
+  object, so a held object is the robot's payload, not an obstacle at its
+  TCP (`tests/test_occupancy_held_payload.py`).
+- **Reported.** `backends.occupancy_state` (MCP `world_state`, live view
+  `/state`) and the `occupancy` capability cell carry `state`
+  (live/stale/failed/waiting/no bridge), `age_s`, `occupied_voxels`,
+  `refreshes` and `required`.
+
+End to end offline (`tests/test_rebot_occupancy_live.py`): the reBot's URDF
+meshes are rendered into the front camera's depth and go through the mesh
+mask, a voxelizing fake bridge and the `_build_arm` harness. With the capsule
+mask home is refused by the arm's own jaws; with the mesh mask rest, home and
+every step between them are admitted (jaws open and closed), and the
+incident's side grasp is refused at the preflight once the blue object beside
+the target is in view.
+
+Limitations:
+
+- Only cameras with `map_depth` feed the map. The wrist D455F has no
+  hand-eye record yet (`map_depth: false`), so the map is the scene camera's
+  view: what it cannot see (behind the arm, under the gripper) reads as free.
+- Detection latency: an obstacle that appears mid-motion is caught at the
+  next refresh, not instantly. At 3 Hz that is up to ~0.4 s of travel. The
+  map is not a contact sensor.
+- Objects lower than `table_band_m` (2 cm) are the table for the tool volume
+  (the TCP and joints still see them). Cables and anything outside the URDF
+  and the attachments still reach the map (see the body mask section).
+- `rebot_rs_mb` (motorbridge transport) keeps the capsule mask and the
+  optional map.
+
+## The map as a live-view tile (`nvblox_map`)
+
+The demo screen's camera extension can show the map next to the two camera
+tiles. The live view (`apps/stream_server.py`, `127.0.0.1:8090`) announces
+one more camera, `nvblox_map`, rendered by `apps/map_tile.py` with the same
+renderer as `scripts/record_live_map.py` (`apps/live_map_video.map_panels`):
+
+- left: the occupied voxels in a slow 3-D orbit (a turn a minute), coloured
+  by height, with the safety workspace in green and
+  `N occupied voxels · map 0.4 s old` underneath;
+- top right: the top-down height map with the robot base and the agent's
+  visible objects;
+- bottom right: backend and voxel size, voxel count, map age, `arm: up` /
+  `arm: standby`, and a clock.
+
+It is 960 x 540 at 3 fps by default. `/state` lists it **last** (the
+extension's default view stays the first real camera), marked
+`{"virtual": true, "kind": "map", "label": "3D map (nvblox)"}` with
+`map_state`, `voxels` and `map_age_s`. `/stream/nvblox_map` is MJPEG with a
+`Content-Length` per part, like the cameras, and `/snapshot/nvblox_map.jpg`
+is one frame. There is no `/depth/` or `/annotated/` view of it, and
+`analyze`, MCP `world_state`, `camera_snapshot` and the capability matrix
+list only the camera rig.
+
+**What it reads, and what it cannot do.** The tile draws the runtime's own
+`OccupancyMap`: the cloud of the last successful query, i.e. what the
+clearance gate uses, through `OccupancyMap.view_snapshot()`. That read takes
+no lock (the perception thread holds the map's locks through a bridge round
+trip, and `clearance()` takes them for every 50 Hz waypoint), sends nothing
+to the bridge, and hands out a non-writeable view. The standby flag comes
+from `LazyArm.connected`, so a viewer never powers the motors. Tests pin all
+of this with a bridge that raises on `integrate_*`/`clear` and records every
+request (it receives none) while another thread holds both map locks.
+
+**Cost.** Frames are rendered in the HTTP handler of a connected viewer:
+no viewer, no rendering, and several viewers share one render per period;
+`/state` never renders. Measured on the Spark (median of 20 frames, render
+plus JPEG): 5.5 ms wall / 12 ms CPU for 3 k voxels, 12.7 ms / 19 ms for 14 k
+voxels, 1.9 ms for a placeholder; at 3 fps that is 4-6 % of one core and
+120-200 KiB/s per viewer. No GPU, no bridge time. The renderer is numpy-
+vectorized: a thread ticking every 2 ms saw at most 0.5 ms of lateness while
+the tile rendered 14 k voxels at 3 fps, against 7.6 ms with the earlier
+per-point Python loop (which held the GIL the motion stream needs).
+
+**Honest placeholders.** A frame never freezes; every placeholder carries a
+clock:
+
+| state         | the tile says                                                      |
+|---------------|--------------------------------------------------------------------|
+| `off`         | `nvblox off (CASCADE_OCCUPANCY=0)` (or `occupancy.enabled: false`) |
+| `bridge_down` | `nvblox bridge not answering` and the error (probe failed, or a refresh timed out) |
+| `standby`     | `map starts when the arm powers on` / `(the arm must be masked out)` |
+| `waiting`     | `waiting for the first masked depth frame` and why                 |
+| `stale`       | the last map, its age (and the last refresh error) in red          |
+| `live`        | the map                                                            |
+
+A map younger than `stale_s` is shown even in standby (a simulated arm is
+masked without powering a LazyArm). A render failure becomes a red
+`map view failed` frame and `/state` `error`, never a dead stream.
+
+**Configuration** (`stream.nvblox_map` in `configs/demo.yaml`):
+
+| key       | default | meaning |
+|-----------|---------|---------|
+| `enabled` | `auto`  | `auto`: only when this runtime has an occupancy map; `true`: always (the frame says why there is none); `false`: never |
+| `fps`     | `3`     | frames per second while someone watches (0.5-10) |
+| `stale_s` | `2.0`   | an older map is drawn with its age in red |
+| `quality` | `75`    | JPEG quality |
+| `width`, `height` | `960`, `540` | frame size |
+
+`CASCADE_NVBLOX_MAP=0|1|auto` overrides `enabled`. `auto` is the default
+because a tile that can only say "off" would sit on every mock and simulator
+dashboard; with `CASCADE_OCCUPANCY=0` the live view is exactly the camera rig.
+
+**On the rig.** With occupancy on (`CASCADE_OCCUPANCY` unset or `1`, the
+bridge on `127.0.0.1:5557`) and `CASCADE_STREAM=eager`, the extension's view
+selector lists `d455f_scene`, `d455f_wrist` and `3D map (nvblox)`. Check
+`curl -s 127.0.0.1:8090/state | python3 -m json.tool | grep -A9 nvblox_map`:
+`map_state` should read `standby` until the arm is powered, then `live`. To
+show the tile while occupancy is still off, set `CASCADE_NVBLOX_MAP=1`.
+
 ## Troubleshooting: every motion refused as "not yet validated"
 
 With a robot body registered, the map refuses all motion until one depth

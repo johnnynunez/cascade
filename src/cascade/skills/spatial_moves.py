@@ -98,12 +98,8 @@ def _positive(value, name: str, *, upper: float | None = None) -> float:
     return v
 
 
-def settings(rt) -> Settings:
-    """`relative_motion:` from the config (demo.yaml, arm `overrides:` may
-    change it per robot). Invalid values fail closed: a NaN duration or a
-    non-finite camera axis would otherwise disable a check silently."""
-    c = rt.cfg.get("relative_motion", None) if hasattr(rt.cfg, "get") else None
-    c = c if c is not None else {}
+def _tool_up(c):
+    """`relative_motion.tool_up_axis` as a unit tuple, or None (no camera)."""
     up = c.get("tool_up_axis", [0.0, 0.0, 1.0])
     if up is not None:
         try:
@@ -113,6 +109,27 @@ def settings(rt) -> Settings:
         if not np.all(np.isfinite(up_v)) or np.linalg.norm(up_v) < 1e-6:
             raise SkillError(f"relative_motion.tool_up_axis must be a finite non-zero vector, got {up!r}")
         up = tuple(float(x) for x in up_v / np.linalg.norm(up_v))
+    return up
+
+
+def wrist_camera_dims(c) -> tuple:
+    """((protrusion, behind the tip, half width) or None, camera-up axis or
+    None) from a `relative_motion:` block, parsed exactly as `settings()`
+    does. The harness samples the SAME box for its occupancy check
+    (safety/tool_volume.py), so the two layers can never disagree."""
+    c = c if c is not None else {}
+    up = _tool_up(c)
+    dims, _ = _camera_settings(c, up)
+    return dims, up
+
+
+def settings(rt) -> Settings:
+    """`relative_motion:` from the config (demo.yaml, arm `overrides:` may
+    change it per robot). Invalid values fail closed: a NaN duration or a
+    non-finite camera axis would otherwise disable a check silently."""
+    c = rt.cfg.get("relative_motion", None) if hasattr(rt.cfg, "get") else None
+    c = c if c is not None else {}
+    up = _tool_up(c)
     min_z = float(c.get("tool_up_min_z", 0.0))
     if not math.isfinite(min_z) or not -1.0 <= min_z <= 1.0:
         raise SkillError(f"relative_motion.tool_up_min_z must be in [-1, 1], got {min_z!r}")

@@ -53,8 +53,34 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
+#: Payload tracking replays depth history with the frames' captured render
+#: masks only; a mesh-masked arm's old frames would replay unmasked.
+_PAYLOAD_VS_MESH = ("payload tracking cannot be combined with a mesh body mask (`body_mask: mesh`): "
+                    "the payload replay re-sends history with render masks only")
+
+
 class OccupancyError(RuntimeError):
     pass
+
+
+def _nearest_distance(points: np.ndarray, cloud: np.ndarray, reach: float) -> np.ndarray:
+    """Distance from each point to its nearest cloud point, inf beyond
+    `reach` (or with an empty cloud)."""
+    points = np.atleast_2d(np.asarray(points, dtype=float))
+    if not len(cloud):
+        return np.full(len(points), np.inf)
+    try:
+        from scipy.spatial import cKDTree
+    except ImportError:  # pragma: no cover -- scipy ships with the grasping extras
+        out = np.full(len(points), np.inf)
+        for start in range(0, len(cloud), 4096):
+            chunk = cloud[start:start + 4096]
+            d = np.linalg.norm(points[:, None, :] - chunk[None, :, :], axis=-1).min(axis=1)
+            out = np.minimum(out, d)
+        out[out > reach] = np.inf
+        return out
+    d, _ = cKDTree(cloud).query(points, distance_upper_bound=float(reach))
+    return np.asarray(d, dtype=float)
 
 
 class _MaskedDepthError(OccupancyError):
@@ -161,10 +187,31 @@ class OccupancyMap:
         stride: int = 8,
         depth_stride: int = 2,
         required: bool = False,
+        unobserved: str | None = None,
+        ready_timeout_s: float = 3.0,
     ):
         if type(required) is not bool:
             raise OccupancyError("occupancy.required must be a boolean")
         self.required = required
+        try:
+            ready = float(ready_timeout_s)
+        except (TypeError, ValueError):
+            ready = float("nan")
+        if not (np.isfinite(ready) and 0.0 <= ready <= 30.0):
+            raise OccupancyError(f"occupancy.ready_timeout_s must be within 0..30 s, got {ready_timeout_s!r}")
+        #: how long a waking arm waits for its first masked refresh
+        #: (`wait_until_usable`, the LazyArm wake hook in apps/demo.py)
+        self.ready_timeout_s = ready
+        # What an unobserved voxel means, separately from `required`: a
+        # required map must be FRESH, but on a real arm the camera never
+        # observes the arm's own volume (its pixels are masked), so a
+        # "blocked" policy refuses every motion from rest. None keeps the old
+        # pairing: blocked for required maps, free for optional ones.
+        if unobserved is None:
+            unobserved = "blocked" if required else "free"
+        if not isinstance(unobserved, str) or unobserved not in ("free", "blocked"):
+            raise OccupancyError(f"occupancy.unobserved must be 'free' or 'blocked', got {unobserved!r}")
+        self.unobserved = unobserved
         self._client = client
         self._region_min = None if region_min is None else np.asarray(region_min, dtype=float)
         self._region_max = None if region_max is None else np.asarray(region_max, dtype=float)
@@ -179,6 +226,8 @@ class OccupancyMap:
         self._grid_voxel: float = 0.0
         self._last_refresh: float | None = None
         self.last_error: str | None = None
+        #: committed refreshes since construction (report(): is it ticking?)
+        self.refreshes = 0
         # The refresh error last reported to the log. A refresh swallows its
         # own failures into `last_error`; without a log line a bridge that
         # keeps timing out is invisible while every motion is refused.
@@ -196,6 +245,10 @@ class OccupancyMap:
         self._body_fns: list = []
         self._body_radii: list[float] = []
         self._frame_body_fns: list = []
+        #: arms masked by their own PIXELS (`body_mask: mesh`, perception/
+        #: robot_mask.MeshBodyMask): callables (depth, K, T_base_cam) ->
+        #: (H, W) bool, evaluated on the exact depth image that ships.
+        self._pixel_body_fns: list = []
         self.last_masked_px: int = 0
         self._body_error: str | None = None
         self.allowed_contact_paths: set[str] = set()
@@ -367,6 +420,8 @@ class OccupancyMap:
         """Use captured depth of attached props as robot geometry, not world obstacles."""
         if self._payload_pose_fn is not None:
             raise ValueError("payload tracking currently requires a single arm")
+        if self._pixel_body_fns:
+            raise OccupancyError(_PAYLOAD_VS_MESH)
         self._payload_pose_fn = frame_tcp_pose_fn
         self._body_error = "payload segmentation not yet validated"
 
@@ -503,6 +558,46 @@ class OccupancyMap:
         self._frame_body_fns.append(frame_link_points_fn)
         self._body_error = "robot body pose not yet validated by a masked depth refresh"
 
+    def add_robot_body_mask(self, mask_fn) -> None:
+        """Register an arm masked by its own PIXELS before integration.
+
+        `mask_fn(depth, K, T_base_cam) -> (H, W) bool` is called on the depth
+        image that actually ships (after `depth_stride`, with the matching
+        K), True on the robot's pixels: `perception.robot_mask.MeshBodyMask`
+        for an arm profile with `body_mask: mesh` (the arm's URDF geometry
+        rasterized at its current joint state). Same fail-closed contract as
+        `add_robot_body`: until a masked refresh succeeds clearance is
+        refused, and a call that raises (no joint state: the arm in standby,
+        a failed read) or returns anything but a bool image of the depth's
+        shape integrates NOTHING and latches the fault. It is never replaced
+        by a weaker mask.
+        """
+        if self._payload_pose_fn is not None:
+            raise OccupancyError(_PAYLOAD_VS_MESH)
+        self._pixel_body_fns.append(mask_fn)
+        self._body_error = "robot body pose not yet validated by a masked depth refresh"
+
+    def _robot_pixel_masks(self, depth: np.ndarray, K: np.ndarray, T_base_cam: np.ndarray) -> np.ndarray:
+        """OR of every pixel-masked body on this exact depth image. Every
+        body is evaluated before anything is sent; one failure refuses the
+        frame (`OccupancyError`) and latches `_body_error`."""
+        total = np.zeros(np.shape(depth)[:2], dtype=bool)
+        for i, fn in enumerate(self._pixel_body_fns):
+            name = getattr(fn, "name", f"#{i}")
+            try:
+                mask = fn(depth, K, T_base_cam)
+                if (not isinstance(mask, np.ndarray) or mask.dtype != np.bool_
+                        or mask.shape != total.shape):
+                    raise ValueError(f"expected a bool {total.shape} image, got "
+                                     f"{getattr(mask, 'dtype', type(mask).__name__)} "
+                                     f"{getattr(mask, 'shape', '')}")
+            except Exception as e:  # includes standby and failed reads: refuse the frame
+                self.last_masked_px = 0
+                self._body_error = f"robot body pose unavailable for the {name} mesh mask: {e}"
+                raise OccupancyError(self._body_error) from e
+            total |= mask
+        return total
+
     def _robot_bodies(self, frame=None) -> list:
         """Read ALL registered bodies before sending any depth to the map.
 
@@ -587,6 +682,8 @@ class OccupancyMap:
             stride=int(cfg.get("stride", 8)),
             depth_stride=int(cfg.get("depth_stride", 2)),
             required=required,
+            unobserved=cfg.get("unobserved", None),
+            ready_timeout_s=cfg.get("ready_timeout_s", 3.0),
         )
         m.allowed_contact_paths = set(cfg.get("allowed_contact_paths", []))
         m.probe(timeout_ms=int(cfg.get("probe_timeout_ms", 300)))
@@ -671,15 +768,28 @@ class OccupancyMap:
                     self._report_refresh_state()
 
     def _plain_refresh(self) -> bool:
-        """An optional map with no payload tracking and no reset or capture
-        fence in progress: its refresh may query the bridge unlocked."""
-        return (self._client is not None and not self.required
+        """A map with no payload tracking and no reset or capture fence in
+        progress: its refresh may query the bridge unlocked. Required maps
+        included: the reBot runs one, and its 50 Hz clearance reads must not
+        wait on a round trip either."""
+        return (self._client is not None
                 and self._payload_pose_fn is None and not self._reset_pending
                 and not self._reset_floors and self._capture_refresh_binding is None
                 and not self._scene_reset_invalidated)
 
+    def _required_capture_time(self, frame) -> float:
+        """A required map only integrates a fresh, nonempty depth frame; its
+        age is then measured from that capture, never from the commit."""
+        capture_t = float(frame.t)
+        age = time.monotonic() - capture_t
+        if (not frame.has_depth or not np.isfinite(age)
+                or age < 0 or age > self.max_age_s
+                or not np.any(np.isfinite(frame.depth_m) & (frame.depth_m > 0))):
+            raise OccupancyError("required occupancy needs a fresh nonempty depth frame")
+        return capture_t
+
     def _refresh_plain(self, frame, T_base_cam: np.ndarray) -> None:
-        """Refresh a plain optional map without blocking clearance().
+        """Refresh a plain map without blocking clearance().
 
         Found on the physical reBot: refresh() held `_refresh_lock` through
         the body-pose read and the bridge round trip (~61 ms on warp/CUDA),
@@ -691,6 +801,7 @@ class OccupancyMap:
         during this upload.
         """
         try:
+            capture_t = self._required_capture_time(frame) if self.required else None
             _, fetched = self._fetch_grid(frame, T_base_cam)
         except (OccupancyError, KeyError, TypeError, ValueError) as e:
             with self._refresh_lock:
@@ -699,7 +810,7 @@ class OccupancyMap:
         if fetched is None:
             return  # nothing to query without a region of interest
         with self._refresh_lock:
-            self._commit_grid(frame, fetched, None)
+            self._commit_grid(frame, fetched, capture_t)
         if self.status is None:
             # the bridge came up after startup: name it now
             self.probe()
@@ -752,12 +863,7 @@ class OccupancyMap:
         try:
             prepared = None
             if self.required:
-                capture_t = float(frame.t)
-                age = time.monotonic() - capture_t
-                if (not frame.has_depth or not np.isfinite(age)
-                        or age < 0 or age > self.max_age_s
-                        or not np.any(np.isfinite(frame.depth_m) & (frame.depth_m > 0))):
-                    raise OccupancyError("required occupancy needs a fresh nonempty depth frame")
+                capture_t = self._required_capture_time(frame)
             prepared, fetched = self._fetch_grid(frame, T_base_cam)
             if fetched is None:
                 return  # nothing to query without a region of interest
@@ -876,6 +982,7 @@ class OccupancyMap:
         self._grid_origin, self._grid_voxel = origin, voxel
         self._last_refresh = capture_t if self.required else time.monotonic()
         self.last_error = None
+        self.refreshes += 1
         if frame.has_depth:
             self._body_error = None
 
@@ -1057,6 +1164,7 @@ class OccupancyMap:
     def _robot_depth_mask(self, depth: np.ndarray, K: np.ndarray, T_base_cam: np.ndarray, *, frame=None) -> np.ndarray:
         """Identify excluded measured surfaces before choosing backend semantics."""
         bodies = self._robot_bodies(frame)
+        own = self._robot_pixel_masks(depth, K, T_base_cam)
         from .robot_mask import robot_mask
 
         total = np.zeros(depth.shape, dtype=bool)
@@ -1066,12 +1174,20 @@ class OccupancyMap:
         else:
             for lp, r in bodies:
                 total |= robot_mask(depth, K, T_base_cam, lp, radius_m=r)
+        # a NEW array: `total` may be a view of the frame's render mask,
+        # which fusion reads too
+        total = total | own
         self.last_masked_px = int(total.sum())
         return total
 
     def _integrate_points(self, frame, T_base_cam: np.ndarray) -> None:
         bodies = self._robot_bodies(frame)
-        pixels = self._render_robot_mask(frame)
+        render = pixels = self._render_robot_mask(frame)
+        if self._pixel_body_fns and frame.has_depth:
+            # the legacy cloud path back-projects the FULL-resolution depth
+            own = self._robot_pixel_masks(np.asarray(frame.depth_m, dtype=np.float32),
+                                          np.asarray(frame.K, dtype=np.float64), T_base_cam)
+            pixels = own if pixels is None else (pixels | own)
         if pixels is not None:
             import copy
 
@@ -1080,7 +1196,7 @@ class OccupancyMap:
             frame.depth_m[pixels] = 0
             self.last_masked_px = int(pixels.sum())
         pts_base = self._depth_to_base_points(frame, T_base_cam)
-        if pts_base.shape[0] and bodies and pixels is None:
+        if pts_base.shape[0] and bodies and render is None:
             # legacy cloud path: drop points within the body radius of any link
             from .robot_mask import _segment_distances
 
@@ -1112,8 +1228,114 @@ class OccupancyMap:
 
     # ── reads (hot path) ────────────────────────────────────────────────
 
+    def view_snapshot(self) -> dict:
+        """What a VIEWER may show of this map (the live view's `nvblox_map`
+        tile, apps/map_tile.py): the occupied voxel centres of the last
+        successful query, their age, and why the map may be missing.
+
+        Never slows the threads that own the map and never changes it:
+
+        - no lock. A refresh holds `_io_lock` through a bridge round trip and
+          clearance() takes `_refresh_lock` for every 50 Hz waypoint; a
+          viewer taking either could delay the robot. Single attribute reads
+          are atomic, and `_commit_grid` REPLACES the arrays instead of
+          writing into them, so the cloud read here is always one complete
+          query result (its age may belong to the next refresh: display
+          only, never a safety input);
+        - no bridge traffic: this reads the cache the safety gate reads;
+        - read-only: the cloud is a non-writeable view, `status` a copy.
+        """
+        occupied = self._occupied
+        last = self._last_refresh
+        if occupied is not None:
+            occupied = occupied.view()
+            occupied.flags.writeable = False
+        status = self.status
+        rmin, rmax = self._region_min, self._region_max
+        return {
+            "points": occupied,
+            "age_s": None if last is None else max(0.0, time.monotonic() - last),
+            "last_error": self.last_error,
+            "body_error": self._body_error,
+            "status": dict(status) if status else None,
+            "probe_error": self.probe_error,
+            "region_min": None if rmin is None else [float(v) for v in rmin],
+            "region_max": None if rmax is None else [float(v) for v in rmax],
+            "max_age_s": self.max_age_s,
+            "required": self.required,
+        }
+
     def is_stale(self) -> bool:
         return self._last_refresh is None or (time.monotonic() - self._last_refresh) > self.max_age_s
+
+    @property
+    def unknown_blocks(self) -> bool:
+        """True when unobserved space must be treated as an obstacle (the
+        harness then refuses points without observed grid support)."""
+        return self.unobserved == "blocked"
+
+    def usable(self) -> bool:
+        """Would clearance() answer instead of refusing for a map-state
+        reason (a latched body-mask fault, a failed refresh, or -- required
+        maps -- a missing/stale grid)? Never raises, never blocks long."""
+        with self._refresh_lock:
+            if self._body_error is not None:
+                return False
+            if not self.required:
+                return True
+            return (self.last_error is None and not self.is_stale() and self._grid is not None
+                    and bool(self._grid.size) and bool(np.isfinite(self._grid).any()))
+
+    def report(self) -> dict:
+        """The map's state for the operator surfaces (MCP world_state, the
+        capability matrix, the live view /state): can it authorize a step
+        right now, how old is it, how much does it hold. Lock-free (a
+        snapshot of attributes): the dashboard polls it, and a refresh stuck
+        on a slow bridge must not hang the dashboard.
+
+        state: "no bridge" (probe failed), "failed" (the last refresh or the
+        body mask failed), "waiting" (nothing integrated yet), "stale" (older
+        than max_age_s), "live". `live` is True only for "live"."""
+        last, error, body = self._last_refresh, self.last_error, self._body_error
+        occupied, grid = self._occupied, self._grid
+        age = None if last is None else max(time.monotonic() - last, 0.0)
+        if not self.status:
+            state, detail = "no bridge", f"no bridge ({self.probe_error or 'not probed'})"
+        elif body is not None or error is not None:
+            state, detail = "failed", f"refresh failed: {body or error}"
+        elif last is None or grid is None:
+            state, detail = "waiting", "waiting for the first masked depth refresh"
+        elif age > self.max_age_s:
+            state, detail = "stale", f"distance grid is stale ({age:.2f} s old, max_age_s {self.max_age_s:g})"
+        else:
+            state, detail = "live", f"live ({age:.2f} s old)"
+        return {
+            "state": state, "live": state == "live", "detail": detail,
+            "bridge": bool(self.status), "backend": self.describe(),
+            "required": bool(self.required), "unobserved": self.unobserved,
+            "age_s": None if age is None else round(age, 3), "max_age_s": self.max_age_s,
+            "occupied_voxels": 0 if occupied is None else len(occupied),
+            "refreshes": int(self.refreshes), "last_error": body or error,
+        }
+
+    def wait_until_usable(self, timeout_s: float | None = None) -> bool:
+        """Wait (bounded) until `usable()`; True when it is, False at the
+        deadline. Holds no lock while it sleeps, so the refresh it waits for
+        can commit. `timeout_s` None = `ready_timeout_s`.
+
+        For a waking arm (apps/demo.py hooks it into LazyArm): in standby
+        there is no pose to mask the robot with, so the map integrated
+        nothing and latched; the first motion waits for the watcher's next
+        masked refresh instead of being refused or proceeding unchecked."""
+        limit = self.ready_timeout_s if timeout_s is None else max(float(timeout_s), 0.0)
+        deadline = time.monotonic() + limit
+        while True:
+            if self.usable():
+                return True
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            time.sleep(min(0.02, remaining))
 
     def clearance(self, points: np.ndarray) -> np.ndarray | None:
         """Min distance from each query point to the nearest known obstacle.
@@ -1126,23 +1348,82 @@ class OccupancyMap:
         point far outside the map inherit an obstacle distance it has no
         relation to, or hide a real one. Unknown (inf) voxels read as far.
         Without a grid (old bridge): brute-force distance to the occupied cloud.
-        Required maps raise SafetyViolation if missing, stale or failed, and
-        return NaN for points without observed grid support. A pending/failed robot-body mask raises SafetyViolation even when
-        the cache has aged out; this known fault must never become a bypass.
+        Required maps raise SafetyViolation if missing, stale or failed.
+        With `unobserved: blocked` (the default of a required map) points
+        without observed grid support read NaN. A pending/failed robot-body
+        mask raises SafetyViolation even when the cache has aged out; this
+        known fault must never become a bypass.
         """
         with self._refresh_lock:
             distance = self._clearance(points)
+            if distance is not None and self.unknown_blocks:
+                observed = (self._observed_grid_support(points) if self._grid is not None
+                            else np.zeros(len(distance), dtype=bool))
+                distance = np.where(observed, distance, np.nan)
             if self.required:
-                distance = np.where(self._observed_grid_support(points), distance, np.nan)
                 self._check_required_age()
             return distance
+
+    def clearance_excluding(self, points: np.ndarray, *, below_z: float | None = None,
+                            cylinder: tuple | None = None, within: float | None = None):
+        """clearance() for samples of the robot's own VOLUME (the wrist
+        camera box, the jaws), with obstacles attributed by where the
+        OBSTACLE is rather than where the sample is.
+
+        Occupied voxels at or below `below_z` (the table plane) and inside
+        `cylinder` = (center_xy, radius, z_min) (the grasp target) are not
+        obstacles here. Every other one is, so a neighbour just outside the
+        target's cylinder still blocks a camera sample that hangs inside it,
+        while the target's own wall does not block a sample just outside.
+
+        The distance grid cannot say which obstacle is nearest, so samples
+        whose grid clearance is below `within` are re-measured against the
+        occupied voxel centres of the same query (minus half a voxel); when
+        no non-excluded voxel lies within reach they read `within`, a lower
+        bound. Everything else -- None/raises/NaN for unavailable, stale or
+        unobserved data -- is exactly clearance()."""
+        pts = np.atleast_2d(np.asarray(points, dtype=float))
+        with self._refresh_lock:
+            dist = self.clearance(pts)
+            if dist is None or within is None or (below_z is None and cylinder is None):
+                return dist
+            dist = np.array(dist, dtype=float)
+            near = np.isfinite(dist) & (dist < within)
+            cloud = self._occupied
+            if not near.any() or cloud is None or not len(cloud):
+                return dist   # nothing to re-measure, or nothing to re-measure with
+            voxel = float(self._grid_voxel or 0.0)
+            sub = pts[near]
+            reach = float(within) + voxel
+            lo, hi = sub.min(axis=0) - reach, sub.max(axis=0) + reach
+            cand = np.asarray(cloud, dtype=float)
+            cand = cand[np.all((cand >= lo) & (cand <= hi), axis=1)]
+            if below_z is not None:
+                cand = cand[cand[:, 2] > float(below_z)]
+            if cylinder is not None and len(cand):
+                center, radius, z_min = cylinder
+                inside = ((np.linalg.norm(cand[:, :2] - np.asarray(center, dtype=float)[:2], axis=1)
+                           <= float(radius)) & (cand[:, 2] >= float(z_min) - 1e-6))
+                cand = cand[~inside]
+        exact = _nearest_distance(sub, cand, reach)
+        exact = np.where(np.isfinite(exact), np.maximum(exact - voxel / 2.0, 0.0), float(within))
+        dist[near] = exact
+        return dist
 
     def _check_required_age(self) -> None:
         """Interpolation must finish inside the same observation lifetime."""
         if self.required and self.is_stale():
             from ..types import SafetyViolation
 
-            raise SafetyViolation("required occupancy unavailable: distance grid is stale")
+            raise SafetyViolation(f"required occupancy unavailable: {self._stale_reason()}")
+
+    def _stale_reason(self) -> str:
+        """Why the grid is not fresh, with its age: the refusal an operator
+        reads when the camera map stops updating during a motion."""
+        if self._last_refresh is None:
+            return "no distance grid integrated yet (stale)"
+        age = time.monotonic() - self._last_refresh
+        return f"distance grid is stale ({age:.2f} s old, max_age_s {self.max_age_s:g})"
 
     def _clearance(self, points: np.ndarray) -> np.ndarray | None:
         if self._body_error is not None:
@@ -1158,7 +1439,7 @@ class OccupancyMap:
 
             reason = None if self.last_error is None else f"refresh failed: {self.last_error}"
             if stale:
-                reason = reason or "distance grid is missing or stale"
+                reason = reason or self._stale_reason()
             if not usable_grid:
                 reason = reason or "fresh observed distance grid required"
             if reason:

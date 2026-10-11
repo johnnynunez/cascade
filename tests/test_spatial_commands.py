@@ -685,3 +685,43 @@ def test_an_invalidated_scene_camera_disables_only_the_viewer_frame(rig):
     ok = runtime.execute("move_relative", {"direction": "left", "amount": "small"})
     assert ok["ok"], ok
     assert "unavailable" in ok["as_seen_on_screen"]
+
+
+@needs_pin
+def test_an_interrupted_route_can_be_undone_from_where_it_stopped(rig):
+    """A halt mid-route (halt_motion, a superseded call) leaves the arm
+    part-way along a vetted segment. That partial path is recorded, so 'go
+    back' retraces it instead of refusing as stale."""
+    from cascade.types import SafetyViolation
+
+    runtime, _ = rig
+    _seen(runtime)
+    _park_low(runtime, z=0.14, xy=(0.32, -0.10))
+    start = _tcp(runtime)
+    real = runtime.arm.move_joints
+    calls = []
+
+    def halted_on_the_descent(q, duration_s=2.0, **k):
+        calls.append(q)
+        if len(calls) == 2:
+            q0 = np.asarray(runtime.arm.get_state().q, dtype=float)
+            real(q0 + (np.asarray(q, dtype=float) - q0) * 0.5, duration_s=duration_s, **k)
+            raise SafetyViolation("halted: superseded")
+        return real(q, duration_s=duration_s, **k)
+
+    runtime.arm.move_joints = halted_on_the_descent
+    r = runtime.execute("move_near_object", {"label": "red cube", "relation": "above"})
+    assert r["ok"] is False and "halted" in r["error"]
+    runtime.arm.move_joints = real
+    u = runtime.execute("undo_move", {})
+    assert u["ok"], u
+    np.testing.assert_allclose(_tcp(runtime), start, atol=2e-3)
+
+
+@needs_pin
+def test_move_relative_keeps_its_previous_result_keys(rig):
+    """Callers of the old move_relative read `distance_m` and `tcp_xyz`."""
+    runtime, _ = rig
+    r = runtime.execute("move_relative", {"direction": "up", "amount": "small"})
+    assert r["ok"] and r["distance_m"] == pytest.approx(0.02)
+    np.testing.assert_allclose(r["tcp_xyz"], _tcp(runtime)[:3, 3], atol=1e-3)

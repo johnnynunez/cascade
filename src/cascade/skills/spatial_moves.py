@@ -45,6 +45,7 @@ cleared instead of being replayed from the wrong place.
 from __future__ import annotations
 
 import itertools
+import logging
 import math
 from dataclasses import dataclass
 
@@ -53,6 +54,8 @@ import numpy as np
 from ..types import SafetyViolation, SkillError
 from . import carry_attachment
 from . import relative_motion as rm
+
+logger = logging.getLogger(__name__)
 
 #: deepest undo one call may ask for
 MAX_UNDO_STEPS = 5
@@ -380,9 +383,21 @@ def execute_route(rt, route: Route, duration: float, *, tool: str, words: str,
                 raise SkillError(f"did not settle at the end of segment {i + 1}/{len(route.segments)}")
             waypoints.append(np.asarray(rt.arm.get_state().q, dtype=float).copy())
     finally:
-        if record and len(waypoints) > 1:
-            history(rt).push(rm.MoveRecord(tool=tool, words=words, waypoints=waypoints,
-                                           tcp_end=np.asarray(kin.fk(waypoints[-1]), dtype=float)))
+        if record:
+            # Interrupted (halt_motion, a superseded call): the arm stopped
+            # part-way along a VETTED segment -- on its joint line, or on its
+            # straight line for cartesian profiles. Recording that stop as the
+            # last waypoint lets "go back" retrace exactly the part that ran,
+            # instead of refusing the whole history as stale.
+            try:
+                q_now = np.asarray(rt.arm.get_state().q, dtype=float).copy()
+                if float(np.max(np.abs(q_now - waypoints[-1]))) > 1e-4:
+                    waypoints.append(q_now)
+            except Exception as exc:  # noqa: BLE001 -- a feedback fault must not mask the original error
+                logger.warning("spatial move: no feedback after the route (%s); recording waypoints only", exc)
+            if len(waypoints) > 1:
+                history(rt).push(rm.MoveRecord(tool=tool, words=words, waypoints=waypoints,
+                                               tcp_end=np.asarray(kin.fk(waypoints[-1]), dtype=float)))
     return waypoints
 
 
@@ -518,8 +533,12 @@ def move_relative(rt, direction=None, distance_m=None, amount=None, frame=None, 
                        feasible=feasible, retry_hint="call move_relative again with that distance_m")
     execute_route(rt, route, duration, tool="move_relative", words=words)
     _state(rt)["last"]["translation"] = (move.request(), move.distance)
-    return success(rt, tool="move_relative", words=words, frame=move.frame, camera=move.camera,
-                   delta=move.delta, T0=T0, load=load, route=route)
+    out = success(rt, tool="move_relative", words=words, frame=move.frame, camera=move.camera,
+                  delta=move.delta, T0=T0, load=load, route=route)
+    # keys of the pre-frames move_relative result, kept for existing readers
+    out["distance_m"] = round(move.distance, 4)
+    out["tcp_xyz"] = [round(float(v), 3) for v in out["tcp_after"]]
+    return out
 
 
 def undo_move(rt, steps=1) -> dict:

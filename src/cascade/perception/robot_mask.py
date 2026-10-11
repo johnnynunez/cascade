@@ -92,13 +92,25 @@ class BodyMaskUnavailable(RuntimeError):
     integrated (an unknown pose is not an empty scene)."""
 
 
+#: Shipped metric inflation of the mesh body mask (arm profile
+#: `body_mask.inflate_m`), metres, applied to every convex piece at load.
+#: Chosen on the real reBot capture (2026-10-11, fixed D455F, markerless
+#: hand-eye, 24 frames at 640x360, docs/NVBLOX.md): with 2 px of dilation,
+#: 1 / 1.5 / 2 cm left 108 / 37 / 0 unmasked depth points per frame within
+#: 3 cm of the URDF surface (the 6 cm capsules: 3859). 2 cm is also below
+#: `min_clearance_m` (3 cm): whatever the margin hides lies inside the band
+#: the clearance gate already keeps the arm away from.
+DEFAULT_BODY_INFLATE_M = 0.02
+
 #: Shipped pixel dilation of the mesh body mask (arm profile
 #: `body_mask.dilate_px`). It absorbs what a metric margin does not: the
 #: rasterisation edge and the D455F's flying pixels, which sit on the
-#: silhouette's border in the IMAGE whatever their depth. Measured on the
-#: real capture (640x360): 2 px removed half of the residual left by the
-#: metric margin alone at a given margin.
+#: silhouette's border in the IMAGE whatever their depth. On the real
+#: capture, 2 px roughly halved the residual left by the margin alone.
 DEFAULT_BODY_DILATE_PX = 2
+
+_BODY_MASK_KEYS = {"mode", "inflate_m", "dilate_px", "cell_m", "attachments"}
+_ATTACHMENT_KEYS = {"name", "link", "box", "xyz", "rpy"}
 
 
 class MeshBodyMask:
@@ -166,3 +178,158 @@ class MeshBodyMask:
         self.last = {"pixels": int(np.count_nonzero(mask)), "configs": len(pose_sets),
                      "ms": (time.perf_counter() - t0) * 1e3}
         return mask
+
+
+# ── configuration: the arm profile's `body_mask` ────────────────────────────
+
+
+def _bad(msg: str) -> ValueError:
+    return ValueError(f"arm profile body_mask: {msg}")
+
+
+def _as_dict(block) -> dict:
+    if hasattr(block, "as_dict"):
+        return block.as_dict()
+    if isinstance(block, dict):
+        return dict(block)
+    raise _bad(f"expected `capsule`, `mesh` or a mapping, got {block!r}")
+
+
+def _vector(value, n: int, what: str) -> np.ndarray:
+    try:
+        out = np.asarray(value, dtype=np.float64).reshape(-1)
+    except (TypeError, ValueError):
+        raise _bad(f"{what} must be {n} numbers, got {value!r}") from None
+    if out.shape != (n,) or not np.isfinite(out).all():
+        raise _bad(f"{what} must be {n} finite numbers, got {value!r}")
+    return out
+
+
+def body_mask_settings(acfg) -> dict | None:
+    """The arm profile's `body_mask`, parsed: None for the capsule mask (the
+    default, `body_mask` absent or `capsule`), else {inflate_m, dilate_px,
+    cell_m, attachments: [(name, link, size, T_link_box)]}.
+
+    Accepted forms: `body_mask: mesh` (every default) or a mapping with
+    `mode: mesh` plus any of `inflate_m` (metres >= 0), `dilate_px`
+    (integer >= 0), `cell_m` (LinkGeometry's mesh cell, metres > 0) and
+    `attachments` (a list of {name, link, box: [sx, sy, sz], xyz, rpy}:
+    rigid boxes posed in a link frame, for parts the URDF lacks). Any other
+    key or value raises ValueError: a typo in a safety mask must not become
+    a silent default.
+    """
+    block = acfg.get("body_mask") if hasattr(acfg, "get") else None
+    if block is None or block == "capsule":
+        return None
+    if block == "mesh":
+        block = {"mode": "mesh"}
+    elif isinstance(block, str) or not (hasattr(block, "as_dict") or isinstance(block, dict)):
+        raise _bad(f"expected `capsule`, `mesh` or a mapping, got {block!r}")
+    block = _as_dict(block)
+    unknown = set(block) - _BODY_MASK_KEYS
+    if unknown:
+        raise _bad(f"unknown keys {sorted(unknown)} (allowed: {sorted(_BODY_MASK_KEYS)})")
+    mode = block.get("mode", "mesh")
+    if mode == "capsule":
+        return None
+    if mode != "mesh":
+        raise _bad(f"mode must be `capsule` or `mesh`, got {mode!r}")
+    inflate = block.get("inflate_m", DEFAULT_BODY_INFLATE_M)
+    if isinstance(inflate, bool) or not isinstance(inflate, (int, float)) or not np.isfinite(inflate) \
+            or inflate < 0:
+        raise _bad(f"inflate_m must be a number of metres >= 0, got {inflate!r}")
+    dilate = block.get("dilate_px", DEFAULT_BODY_DILATE_PX)
+    if isinstance(dilate, bool) or not isinstance(dilate, int) or dilate < 0:
+        raise _bad(f"dilate_px must be an integer >= 0, got {dilate!r}")
+    from .link_mask import DEFAULT_CELL_M
+
+    cell = block.get("cell_m", DEFAULT_CELL_M)
+    if isinstance(cell, bool) or not isinstance(cell, (int, float)) or not np.isfinite(cell) or cell <= 0:
+        raise _bad(f"cell_m must be a positive number of metres, got {cell!r}")
+    raw = block.get("attachments") or []
+    if not isinstance(raw, list):
+        raise _bad(f"attachments must be a list, got {raw!r}")
+    from ..types import pose_to_transform
+
+    attachments = []
+    for i, item in enumerate(raw):
+        if not isinstance(item, dict):
+            raise _bad(f"attachments[{i}] must be a mapping, got {item!r}")
+        unknown = set(item) - _ATTACHMENT_KEYS
+        if unknown:
+            raise _bad(f"attachments[{i}]: unknown keys {sorted(unknown)} (allowed: {sorted(_ATTACHMENT_KEYS)})")
+        name = str(item.get("name") or f"attachment{i}")
+        link = item.get("link")
+        if not isinstance(link, str) or not link:
+            raise _bad(f"attachment {name!r} needs the `link` it is bolted to")
+        if "box" not in item:
+            raise _bad(f"attachment {name!r} needs a `box: [sx, sy, sz]` (metres)")
+        size = _vector(item["box"], 3, f"attachment {name!r} box")
+        if (size <= 0).any():
+            raise _bad(f"attachment {name!r} box sizes must be positive, got {item['box']!r}")
+        xyz = _vector(item.get("xyz", [0.0, 0.0, 0.0]), 3, f"attachment {name!r} xyz")
+        rpy = _vector(item.get("rpy", [0.0, 0.0, 0.0]), 3, f"attachment {name!r} rpy")
+        attachments.append((name, link, tuple(float(v) for v in size),
+                            pose_to_transform(list(xyz) + list(rpy))))
+    return {"inflate_m": float(inflate), "dilate_px": int(dilate), "cell_m": float(cell),
+            "attachments": attachments}
+
+
+def build_mesh_body_mask(acfg, kin, state_fn, *, name: str) -> MeshBodyMask | None:
+    """The occupancy mesh body mask for one arm profile, or None when the
+    profile keeps the capsule mask (nothing is loaded, nothing is read).
+
+    Geometry: the profile `model`'s URDF collision meshes (LinkGeometry,
+    `cell_m` pieces), plus `attachments`, inflated by `inflate_m`. Fingers:
+    `KinematicsLinkPoses` with the profile's `gripper.open_pos/closed_pos`
+    (measured opening -> finger joints; unknown -> swept). Table frame:
+    `base_pose`.
+
+    CAPSULE FALLBACK: refused. LinkGeometry replaces a mesh it cannot read
+    (missing, a git-lfs pointer never fetched, an unsupported format) by a
+    capsule around the link, which is right for fusion's detection gate but
+    is precisely the occupancy mask that left the reBot's jaws in the map.
+    A profile that asked for `body_mask: mesh` therefore fails to build,
+    naming the links and the reason, and the operator either fetches the
+    meshes (`git lfs pull`) or sets `body_mask: capsule` knowingly. Never a
+    silent downgrade. The same holds for an attachment on a link the model
+    does not have.
+    """
+    settings = body_mask_settings(acfg)
+    if settings is None:
+        return None
+    import sys
+
+    from .link_mask import KinematicsLinkPoses, LinkGeometry
+
+    model = acfg.get("model")
+    if not model:
+        raise _bad(f"mesh: arm {name!r} has no `model` to take its geometry from")
+    geometry = LinkGeometry.from_urdf(model, cell_m=settings["cell_m"])
+    fallbacks = {link: why for link, why in geometry.sources.items() if why.startswith("capsule")}
+    if fallbacks:
+        detail = "; ".join(f"{link!r}: {why}" for link, why in sorted(fallbacks.items()))
+        raise _bad(f"mesh for arm {name!r} cannot load the geometry of {len(fallbacks)} link(s) "
+                   f"({detail}). Refusing a capsule fallback for an occupancy mask: fetch the meshes "
+                   f"(git lfs pull) or set `body_mask: capsule` explicitly.")
+    geometry = geometry.with_boxes(settings["attachments"]).inflated(settings["inflate_m"])
+    grip = acfg.get("gripper") or {}
+    try:
+        poses = KinematicsLinkPoses(kin, geometry.links, gripper_open=grip.get("open_pos"),
+                                    gripper_closed=grip.get("closed_pos"))
+    except KeyError as exc:
+        raise _bad(f"mesh for arm {name!r}: {exc.args[0] if exc.args else exc} "
+                   f"(an attachment's `link` must be a link of {model})") from None
+    pose = acfg.get("base_pose")
+    base_T = None
+    if pose is not None:
+        from ..types import pose_to_transform
+
+        base_T = pose_to_transform(pose)
+    body = MeshBodyMask(geometry, poses, state_fn, base_T=base_T, n_joints=int(kin.n),
+                        dilate_px=settings["dilate_px"], name=name)
+    boxes = ", ".join(a[0] for a in settings["attachments"]) or "none"
+    print(f"[cascade] occupancy body mask: {name}: URDF mesh, {len(geometry.links)} links, "
+          f"{geometry.n_pieces()} pieces, inflate {settings['inflate_m']} m, dilate {settings['dilate_px']} px, "
+          f"attachments: {boxes}", file=sys.stderr)
+    return body

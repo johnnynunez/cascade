@@ -574,3 +574,240 @@ def test_payload_tracking_and_the_mesh_mask_are_refused_together():
     occ.track_payload(lambda frame: np.eye(4))
     with pytest.raises(OccupancyError, match="mesh"):
         occ.add_robot_body_mask(_mesh_mask(_state()))
+
+
+# ── slice 5: the arm profile's `body_mask` and the builder ───────────────
+
+
+def _settings(block):
+    from cascade.config import Cfg
+    from cascade.perception.robot_mask import body_mask_settings
+
+    return body_mask_settings(Cfg({"body_mask": block} if block is not ... else {}))
+
+
+def test_capsule_stays_the_default_and_mesh_opts_in_with_documented_defaults():
+    from cascade.perception.robot_mask import (
+        DEFAULT_BODY_DILATE_PX,
+        DEFAULT_BODY_INFLATE_M,
+    )
+
+    assert _settings(...) is None and _settings("capsule") is None and _settings({"mode": "capsule"}) is None
+    got = _settings("mesh")
+    assert got == {"inflate_m": DEFAULT_BODY_INFLATE_M, "dilate_px": DEFAULT_BODY_DILATE_PX,
+                   "cell_m": lm.DEFAULT_CELL_M, "attachments": []}
+    assert DEFAULT_BODY_INFLATE_M == 0.02 and DEFAULT_BODY_DILATE_PX == 2
+
+
+def test_a_full_mesh_block_with_an_attachment():
+    got = _settings({"mode": "mesh", "inflate_m": 0.015, "dilate_px": 3, "cell_m": 0.03,
+                     "attachments": [{"name": "wrist_d455f", "link": "gripper_end", "box": [0.065, 0.14, 0.055],
+                                      "xyz": [-0.0925, 0.0, 0.0625], "rpy": [0.0, 0.0, 0.1]}]})
+    assert got["inflate_m"] == 0.015 and got["dilate_px"] == 3 and got["cell_m"] == 0.03
+    (name, link, size, T), = got["attachments"]
+    assert (name, link) == ("wrist_d455f", "gripper_end") and tuple(size) == (0.065, 0.14, 0.055)
+    np.testing.assert_allclose(T, _rpy_T((-0.0925, 0.0, 0.0625), (0.0, 0.0, 0.1)))
+
+
+@pytest.mark.parametrize("block", [
+    "meshes", 3, {"mode": "voxels"}, {"mode": "mesh", "inflate_m": -0.01}, {"mode": "mesh", "inflate_m": "2cm"},
+    {"mode": "mesh", "dilate_px": 1.5}, {"mode": "mesh", "dilate_px": -1}, {"mode": "mesh", "cell_m": 0},
+    {"mode": "mesh", "inflate": 0.02},                                           # a typo is not a default
+    {"mode": "mesh", "attachments": {"link": "gripper_end"}},
+    {"mode": "mesh", "attachments": [{"name": "cam", "box": [0.1, 0.1, 0.1]}]},            # no link
+    {"mode": "mesh", "attachments": [{"name": "cam", "link": "gripper_end", "box": [0.1, 0.1]}]},
+    {"mode": "mesh", "attachments": [{"name": "cam", "link": "gripper_end", "box": [0.1, 0.1, 0.1],
+                                      "xyz": [0.0, 0.0]}]},
+    {"mode": "mesh", "attachments": [{"name": "cam", "link": "gripper_end", "box": [0.1, 0.1, 0.1],
+                                      "colour": "silver"}]},
+])
+def test_bad_body_mask_settings_are_refused_loudly(block):
+    with pytest.raises(ValueError, match="body_mask"):
+        _settings(block)
+
+
+def _urdf_with_meshes(tmp_path, *, lfs: bool) -> str:
+    """A two-link URDF whose second mesh is either a real binary STL or an
+    unfetched git-lfs pointer (what a CI checkout without LFS has)."""
+    import struct
+
+    (tmp_path / "meshes").mkdir()
+    tris = np.array([[[0, 0, 0], [0.1, 0, 0], [0, 0.1, 0]], [[0, 0, 0], [0, 0.1, 0], [0, 0, 0.1]]], np.float32)
+    data = b"stl".ljust(80, b" ") + struct.pack("<I", len(tris))
+    data += b"".join(struct.pack("<3f", 0, 0, 0) + t.tobytes() + b"\0\0" for t in tris)
+    (tmp_path / "meshes" / "a.stl").write_bytes(data)
+    (tmp_path / "meshes" / "b.stl").write_bytes(
+        b"version https://git-lfs.github.com/spec/v1\noid sha256:00\nsize 9\n" if lfs else data)
+    urdf = tmp_path / "arm.urdf"
+    urdf.write_text("""<robot name="t">
+  <link name="a"><collision><geometry><mesh filename="meshes/a.stl"/></geometry></collision></link>
+  <link name="b"><collision><geometry><mesh filename="meshes/b.stl"/></geometry></collision></link>
+  <joint name="j" type="revolute"><parent link="a"/><child link="b"/><origin xyz="0 0 0.2"/>
+    <axis xyz="0 0 1"/><limit lower="-1" upper="1" effort="1" velocity="1"/></joint>
+</robot>""")
+    return str(urdf)
+
+
+def test_a_mesh_that_cannot_load_refuses_the_mesh_mask_instead_of_a_silent_capsule(tmp_path):
+    """`body_mask: mesh` promised the URDF geometry. A capsule in its place
+    (LinkGeometry's fallback, fine for fusion's gate) would be exactly the
+    mask that left the jaws in the map, so the build refuses and says why."""
+    from cascade.config import Cfg
+    from cascade.perception.robot_mask import build_mesh_body_mask
+
+    acfg = Cfg({"model": _urdf_with_meshes(tmp_path, lfs=True), "body_mask": "mesh"})
+    with pytest.raises(ValueError, match=r"(?s)body_mask: mesh.*'b'.*git-lfs.*body_mask: capsule"):
+        build_mesh_body_mask(acfg, kin=None, state_fn=lambda: None, name="arm0")
+
+
+def test_the_capsule_profile_builds_no_mesh_mask_and_reads_nothing(tmp_path):
+    from cascade.config import Cfg
+    from cascade.perception.robot_mask import build_mesh_body_mask
+
+    acfg = Cfg({"model": _urdf_with_meshes(tmp_path, lfs=True)})                  # no body_mask
+    assert build_mesh_body_mask(acfg, kin=None, state_fn=lambda: pytest.fail("read"), name="arm0") is None
+
+
+def _rs_meshes_available() -> bool:
+    from conftest import URDF
+
+    probe = URDF.parents[1] / "meshes" / "link2.STL"
+    try:
+        return probe.exists() and not probe.read_bytes()[:64].startswith(b"version https://git-lfs")
+    except OSError:
+        return False
+
+
+def _has_pin() -> bool:
+    from conftest import has_pinocchio
+
+    return has_pinocchio()
+
+
+needs_rs = pytest.mark.skipif(not (_has_pin() and _rs_meshes_available()),
+                              reason="needs pinocchio and the RS meshes (git-lfs)")
+
+
+def _rs_acfg(**block):
+    from conftest import JOINT_SIGNS, URDF
+
+    from cascade.config import Cfg
+
+    return Cfg({"model": str(URDF), "ee_frame": "gripper_end", "n_joints": 6, "joint_signs": JOINT_SIGNS,
+                "gripper": {"open_pos": 6.2, "closed_pos": 0.0},
+                "body_mask": {"mode": "mesh", **block}})
+
+
+def _rs_kin():
+    from conftest import JOINT_SIGNS, URDF
+
+    from cascade.control.kinematics import Kinematics
+
+    return Kinematics(str(URDF), "gripper_end", 6, JOINT_SIGNS)
+
+
+@needs_rs
+@pytest.mark.parametrize("q", [[0.0] * 6, [0.0, 1.2, 1.2, 0.0, 0.0, 0.0], [0.3, 0.6, 1.6, 0.2, -0.4, 0.5]])
+def test_the_rs_mesh_mask_contains_every_rs_triangle_at_the_measured_opening(q):
+    """The real reBot RS model, end to end through the builder: the mask at
+    640x360 contains a per-triangle fill of the RS collision meshes (truth
+    drawn by test_link_self_mask's helpers, one triangle per fill call),
+    fingers at the measured opening, no metric inflation and 1 px of
+    dilation (exact geometry; the pixel absorbs the two fills' different
+    edge rounding, as in test_link_self_mask), within the 20 ms budget."""
+    from test_link_self_mask import _fill, _pin_link_poses, _posed, _rs_truth_triangles
+
+    from cascade.perception.robot_mask import build_mesh_body_mask
+    from cascade.types import RobotState
+
+    kin = _rs_kin()
+    state = RobotState(q=np.asarray(q, float), gripper_pos=3.1, gripper_valid=True)    # half open: 50 mm
+    body = build_mesh_body_mask(_rs_acfg(inflate_m=0.0, dilate_px=1), kin, lambda: state, name="rebot")
+    T = look_at((0.25, -0.75, 0.45), (0.25, 0.0, 0.20))
+    truth = _fill(_posed(_rs_truth_triangles(), _pin_link_poses(kin, np.asarray(q, float), 0.025)), T, (H, W), K)
+    assert truth.sum() > 3000
+    mask = body(np.zeros((H, W), np.float32), K, T)
+    times = []
+    for _ in range(5):
+        body(np.zeros((H, W), np.float32), K, T)
+        times.append(body.last["ms"])
+    ms = min(times)
+    print(f"\nRS mesh body mask q={q}: {int(mask.sum())} px, truth {int(truth.sum())} px, {ms:.1f} ms")
+    assert (truth & ~mask).sum() == 0
+    assert ms < 20.0
+
+
+@needs_rs
+def test_the_inflation_reaches_past_the_surface_by_the_margin():
+    """inflate_m in metres, checked in 3D: every surface point of the RS
+    collision meshes pushed 1.9 cm outward (any direction) still projects
+    into the 2 cm-inflated mask."""
+    from test_link_self_mask import _pin_link_poses, _posed, _rs_truth_triangles
+
+    from cascade.perception.robot_mask import build_mesh_body_mask
+    from cascade.types import RobotState
+
+    kin = _rs_kin()
+    q = np.array([0.0, 1.2, 1.2, 0.0, 0.0, 0.0])
+    state = RobotState(q=q, gripper_pos=3.1, gripper_valid=True)
+    body = build_mesh_body_mask(_rs_acfg(inflate_m=0.02, dilate_px=0), kin, lambda: state, name="rebot")
+    T = look_at((0.25, -0.75, 0.45), (0.25, 0.0, 0.20))
+    pts = _posed(_rs_truth_triangles(), _pin_link_poses(kin, q, 0.025)).reshape(-1, 3)
+    pts = pts[np.random.default_rng(1).choice(len(pts), 20000, replace=False)]
+    pushed = pts + 0.019 * _unit_dirs(len(pts), seed=2)
+    cam = (pushed - T[:3, 3]) @ T[:3, :3]
+    uv = np.round(cam[:, :2] / cam[:, 2:] * FX + K[:2, 2]).astype(int)
+    inside = (uv[:, 0] >= 0) & (uv[:, 0] < W) & (uv[:, 1] >= 0) & (uv[:, 1] < H)
+    mask = body(np.zeros((H, W), np.float32), K, T)
+    assert inside.sum() > 15000 and mask[uv[inside, 1], uv[inside, 0]].all()
+
+
+@needs_rs
+def test_an_attachment_on_a_link_the_model_lacks_is_refused():
+    from cascade.perception.robot_mask import build_mesh_body_mask
+
+    acfg = _rs_acfg(attachments=[{"name": "cam", "link": "wrist_cam_mount", "box": [0.1, 0.1, 0.1]}])
+    with pytest.raises(ValueError, match="wrist_cam_mount"):
+        build_mesh_body_mask(acfg, _rs_kin(), lambda: None, name="rebot")
+
+
+@needs_rs
+def test_the_rs_fingers_follow_the_profile_gripper_mapping():
+    """From above the gripper at home the jaw gap is visible: the measured
+    opening (gripper.open_pos/closed_pos maps the motor angle onto the
+    URDF's finger travel) leaves it open, an unknown one sweeps it shut."""
+    from cascade.perception.robot_mask import build_mesh_body_mask
+    from cascade.types import RobotState
+
+    kin = _rs_kin()
+    q = np.array([0.0, 1.2, 1.2, 0.0, 0.0, 0.0])
+    tcp = kin.fk(q)[:3, 3]
+    T = look_at(tcp + np.array([0.0, 0.0, 0.45]), tcp, up=(1.0, 0.0, 0.0))
+    current = {}
+    body = build_mesh_body_mask(_rs_acfg(inflate_m=0.0, dilate_px=0), kin, lambda: current["s"], name="rebot")
+    masks = {}
+    for tag, pos, valid in (("closed", 0.0, True), ("open", 6.2, True), ("unknown", 0.0, False)):
+        current["s"] = RobotState(q=q, gripper_pos=pos, gripper_valid=valid)
+        masks[tag] = body(np.zeros((H, W), np.float32), K, T)
+    assert (masks["open"] & ~masks["unknown"]).sum() == 0 and (masks["closed"] & ~masks["unknown"]).sum() == 0
+    assert (masks["unknown"] & ~masks["open"]).sum() > 200, "the measured opening must leave the jaw gap visible"
+    assert (masks["open"] != masks["closed"]).sum() > 200
+
+
+@needs_rs
+def test_the_profile_base_pose_places_the_arm_in_the_table_frame():
+    from cascade.perception.robot_mask import build_mesh_body_mask
+    from cascade.types import RobotState
+
+    kin = _rs_kin()
+    state = RobotState(q=np.array([0.0, 1.2, 1.2, 0.0, 0.0, 0.0]), gripper_pos=3.1, gripper_valid=True)
+    T = look_at((0.25, -0.75, 0.45), (0.25, 0.0, 0.20))
+    plain = build_mesh_body_mask(_rs_acfg(), kin, lambda: state, name="rebot")
+    acfg = _rs_acfg()
+    shifted_cfg = type(acfg)({**acfg.as_dict(), "base_pose": [0.12, 0.0, 0.0, 0.0, 0.0, 0.0]})
+    shifted = build_mesh_body_mask(shifted_cfg, kin, lambda: state, name="rebot")
+    shift = _T(t=(0.12, 0.0, 0.0))
+    a = shifted(np.zeros((H, W), np.float32), K, T)
+    b = plain(np.zeros((H, W), np.float32), K, np.linalg.inv(shift) @ T)
+    assert a.sum() > 3000 and (a != b).sum() <= 0.005 * a.sum()
+    assert (a != plain(np.zeros((H, W), np.float32), K, T)).sum() > 1000

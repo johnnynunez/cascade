@@ -122,3 +122,243 @@ def test_a_box_on_a_link_without_geometry_creates_that_link():
 def test_a_degenerate_box_is_refused(size):
     with pytest.raises(ValueError, match="box"):
         _cube_geometry().with_boxes([("bad", "cube", size, np.eye(4))])
+
+
+# ── slice 3: the per-frame mesh mask against ray-cast depth ──────────────
+#
+# A synthetic arm of boxes whose gripper is WIDER than the capsule: a 16 cm
+# palm and two jaws 12 cm apart (the reBot's open jaws are ~14 cm wide),
+# posed by a hand-written FK. The truth is a ray caster written here (slab
+# test per pixel against every posed box), independent of the projection +
+# hull fill under test.
+
+W, H = 640, 360
+FX = 320.0
+K = np.array([[FX, 0.0, W / 2], [0.0, FX, H / 2], [0.0, 0.0, 1.0]])
+
+ARM_BOXES = {            # link: (size, centre in the link frame)
+    "base": ((0.12, 0.12, 0.08), (0.0, 0.0, 0.04)),
+    "upper": ((0.06, 0.06, 0.24), (0.0, 0.0, 0.12)),
+    "fore": ((0.30, 0.05, 0.05), (0.15, 0.0, 0.0)),
+    "palm": ((0.04, 0.16, 0.04), (0.02, 0.0, 0.0)),
+    "finger_l": ((0.06, 0.015, 0.03), (0.03, 0.0075, 0.0)),
+    "finger_r": ((0.06, 0.015, 0.03), (0.03, -0.0075, 0.0)),
+}
+JAWS = ("palm", "finger_l", "finger_r")
+SCENE_BOXES = {          # base frame: (size, centre)
+    "table": ((3.0, 3.0, 0.02), (0.2, 0.0, -0.01)),
+    "wall": ((3.0, 0.02, 3.0), (0.2, 0.7, 0.5)),
+    "object": ((0.06, 0.06, 0.06), (0.22, 0.12, 0.03)),
+}
+
+
+def _rz(a):
+    c, s = np.cos(a), np.sin(a)
+    return np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
+
+
+def _ry(a):
+    c, s = np.cos(a), np.sin(a)
+    return np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]])
+
+
+def _T(R=None, t=(0.0, 0.0, 0.0)) -> np.ndarray:
+    T = np.eye(4)
+    T[:3, :3] = np.eye(3) if R is None else R
+    T[:3, 3] = t
+    return T
+
+
+def synth_poses(state) -> list[dict[str, np.ndarray]]:
+    """FK of the synthetic arm. q[0] yaws the post, q[1] pitches the fore
+    link; `gripper_pos` is the jaw gap in metres (unknown -> both ends, the
+    swept convention of KinematicsLinkPoses)."""
+    q = np.asarray(state.q, dtype=float)
+    upper = _T(_rz(q[0]), (0.0, 0.0, 0.08))
+    fore = upper @ _T(t=(0.0, 0.0, 0.24)) @ _T(_ry(q[1]))
+    palm = fore @ _T(t=(0.30, 0.0, 0.0))
+    gaps = [float(state.gripper_pos)] if getattr(state, "gripper_valid", True) else [0.02, 0.12]
+    return [{"base": np.eye(4), "upper": upper, "fore": fore, "palm": palm,
+             "finger_l": palm @ _T(t=(0.04, gap / 2, 0.0)), "finger_r": palm @ _T(t=(0.04, -gap / 2, 0.0))}
+            for gap in gaps]
+
+
+def synth_chain(state) -> np.ndarray:
+    """The capsule mask's polyline: joint frames + TCP (front of the palm)."""
+    P = synth_poses(state)[0]
+    return np.array([[0, 0, 0], P["upper"][:3, 3], P["fore"][:3, 3], P["palm"][:3, 3],
+                     (P["palm"] @ np.array([0.04, 0, 0, 1.0]))[:3]])
+
+
+def synth_geometry() -> lm.LinkGeometry:
+    return lm.LinkGeometry(
+        pieces={k: (lm._box_points(s) + np.asarray(c),) for k, (s, c) in ARM_BOXES.items()},
+        sources={k: "box" for k in ARM_BOXES})
+
+
+def look_at(eye, target, up=(0.0, 0.0, 1.0)) -> np.ndarray:
+    """cam->base for an optical frame (x right, y down, z forward)."""
+    z = np.asarray(target, float) - np.asarray(eye, float)
+    z /= np.linalg.norm(z)
+    x = np.cross(z, up)
+    x /= np.linalg.norm(x)
+    return _T(np.stack([x, np.cross(z, x), z], axis=1), eye)
+
+
+def render(state, T_base_cam):
+    """(depth, label) by ray casting every posed box: label is the box name
+    of the first hit per pixel ('' = nothing)."""
+    boxes = [(name, s, P[name] @ _T(t=c)) for name, (s, c) in ARM_BOXES.items()
+             for P in synth_poses(state)[:1]]
+    boxes += [(name, s, _T(t=c)) for name, (s, c) in SCENE_BOXES.items()]
+    u, v = np.meshgrid(np.arange(W) + 0.0, np.arange(H) + 0.0)
+    d_cam = np.stack([(u - K[0, 2]) / FX, (v - K[1, 2]) / FX, np.ones_like(u)], -1).reshape(-1, 3)
+    R, o = T_base_cam[:3, :3], T_base_cam[:3, 3]
+    d = d_cam @ R.T
+    best = np.full(len(d), np.inf)
+    label = np.full(len(d), "", dtype=object)
+    for name, size, Tb in boxes:
+        Rb, cb, h = Tb[:3, :3], Tb[:3, 3], np.asarray(size) / 2
+        ol, dl = (o - cb) @ Rb, d @ Rb
+        with np.errstate(divide="ignore", invalid="ignore"):
+            t1, t2 = (-h - ol) / dl, (h - ol) / dl
+        tn = np.nanmax(np.minimum(t1, t2), axis=1)
+        tf = np.nanmin(np.maximum(t1, t2), axis=1)
+        hit = (tn <= tf) & (tn > 1e-6) & (tn < best)
+        best[hit], label[hit] = tn[hit], name
+    depth = np.where(np.isfinite(best), best, 0.0).reshape(H, W).astype(np.float32)  # d_cam has z = 1
+    return depth, label.reshape(H, W)
+
+
+def _state(q=(0.0, 0.0), gap=0.12, valid=True):
+    from cascade.types import RobotState
+
+    return RobotState(q=np.asarray(q, dtype=float), gripper_pos=gap, gripper_valid=valid)
+
+
+SIDE_CAM = look_at((0.20, -0.90, 0.45), (0.20, 0.0, 0.22))
+
+
+def _mesh_mask(state, **kw):
+    from cascade.perception.robot_mask import MeshBodyMask
+
+    return MeshBodyMask(synth_geometry(), synth_poses, lambda: state, **kw)
+
+
+def test_premise_the_capsule_leaves_the_wide_jaws_in_the_map():
+    """The failure measured on the rig, reproduced: 6 cm capsules around the
+    joint chain do not reach the wide palm and jaws."""
+    from cascade.perception.robot_mask import robot_mask
+
+    state = _state()
+    depth, label = render(state, SIDE_CAM)
+    jaws = np.isin(label, JAWS)
+    assert jaws.sum() > 500
+    capsule = robot_mask(depth, K, SIDE_CAM, synth_chain(state), radius_m=0.06)
+    assert (jaws & ~capsule).sum() > 100, "premise: the capsule must miss part of the jaws"
+
+
+def test_mesh_mask_covers_every_robot_pixel_and_spares_the_object_beside_it():
+    state = _state()
+    depth, label = render(state, SIDE_CAM)
+    robot = np.isin(label, list(ARM_BOXES))
+    mask = _mesh_mask(state, dilate_px=2)(depth, K, SIDE_CAM)
+    assert mask.shape == depth.shape and mask.dtype == np.bool_
+    assert robot.sum() > 5000 and (robot & ~mask).sum() == 0, "a robot pixel reached the map"
+    obj = label == "object"
+    assert obj.sum() > 300 and not (mask & obj).any(), "the object next to the arm was masked"
+
+
+def test_mesh_mask_ignores_the_depth_values():
+    """A silhouette, not a 3D distance test: a wrong depth on a robot pixel
+    (D455F speckle on the jaws, a stereo mismatch) is still masked. The
+    capsule test reads the depth and would let it through."""
+    state = _state()
+    depth, label = render(state, SIDE_CAM)
+    robot = np.isin(label, list(ARM_BOXES))
+    garbage = np.where(robot, 2.5, depth).astype(np.float32)   # every arm pixel reads 2.5 m
+    mask = _mesh_mask(state, dilate_px=2)(garbage, K, SIDE_CAM)
+    assert (robot & ~mask).sum() == 0
+
+
+@pytest.mark.parametrize("q", [(0.0, 0.0), (0.4, -0.5), (-0.6, 0.3)])
+def test_eye_in_hand_jaws_straddling_the_near_plane_are_masked_and_fixed_in_the_image(q):
+    """The wrist camera: T_base_cam = FK(q) @ X. Its jaws sit centimetres
+    away and the palm crosses the camera plane, so pieces are clipped at
+    the near plane. The hand-mounted geometry must be covered, and since the
+    camera moves with the hand, its mask must not depend on q."""
+    X = look_at((0.02, 0.0, 0.035), (0.12, 0.0, -0.01))            # palm frame, 1.5 cm above it
+    palm_size, palm_centre = ARM_BOXES["palm"]
+    palm_in_cam = (lm._box_points(palm_size) + np.asarray(palm_centre) - X[:3, 3]) @ X[:3, :3]
+    assert palm_in_cam[:, 2].min() < 0 < palm_in_cam[:, 2].max(), "premise: the palm crosses the camera plane"
+    state = _state(q)
+    T = synth_poses(state)[0]["palm"] @ X
+    depth, label = render(state, T)
+    hand = np.isin(label, JAWS)
+    assert (label == "palm").sum() > 10_000 and hand.sum() > 50_000
+    mask = _mesh_mask(state, dilate_px=0)(depth, K, T)
+    assert (hand & ~mask).sum() == 0
+    ref_state = _state((0.0, 0.0))
+    ref = _mesh_mask(ref_state, dilate_px=0)(depth, K, synth_poses(ref_state)[0]["palm"] @ X)
+    assert (mask != ref).sum() <= 10, "the hand's mask moved in the wrist camera's image"
+
+
+@pytest.mark.parametrize("state, why", [(None, "no joint state"), (_state((np.nan, 0.0)), "unusable"),
+                                         (_state((0.0,)), "unusable")])
+def test_unknown_or_unusable_joint_state_refuses_instead_of_masking_nothing(state, why):
+    """The occupancy contract: an unknown pose is not an empty scene."""
+    from cascade.perception.robot_mask import BodyMaskUnavailable, MeshBodyMask
+
+    depth, _ = render(_state(), SIDE_CAM)
+    body = MeshBodyMask(synth_geometry(), synth_poses, lambda: state, n_joints=2)
+    with pytest.raises(BodyMaskUnavailable, match=why):
+        body(depth, K, SIDE_CAM)
+
+
+def test_the_pixel_dilation_grows_the_silhouette_by_that_many_pixels():
+    """`dilate_px` absorbs flying pixels on the silhouette's border: a ring
+    of exactly that width (Euclidean distance transform as the truth)."""
+    from scipy.ndimage import distance_transform_edt
+
+    state = _state()
+    depth, _ = render(state, SIDE_CAM)
+    m0 = _mesh_mask(state, dilate_px=0)(depth, K, SIDE_CAM)
+    m3 = _mesh_mask(state, dilate_px=3)(depth, K, SIDE_CAM)
+    dist = distance_transform_edt(~m0)
+    assert (m0 & ~m3).sum() == 0
+    assert m3[(dist > 0) & (dist <= 2.5)].all() and not m3[dist > 3.5].any()
+    assert (m3 & ~m0).sum() > 500
+
+
+def test_a_failing_state_read_propagates_and_is_never_swallowed():
+    from cascade.perception.robot_mask import MeshBodyMask
+
+    def boom():
+        raise RuntimeError("bus read failed")
+
+    body = MeshBodyMask(synth_geometry(), synth_poses, boom)
+    with pytest.raises(RuntimeError, match="bus read failed"):
+        body(np.zeros((H, W), np.float32), K, SIDE_CAM)
+
+
+def test_unknown_opening_sweeps_the_jaws_and_a_measured_one_does_not():
+    """Fingers at the measured gap; unknown -> the whole travel (more mask,
+    never less). A thin object between the measured jaws stays visible."""
+    depth, _ = render(_state(gap=0.12), SIDE_CAM)
+    measured = _mesh_mask(_state(gap=0.12), dilate_px=0)(depth, K, SIDE_CAM)
+    swept = _mesh_mask(_state(gap=0.0, valid=False), dilate_px=0)(depth, K, SIDE_CAM)
+    assert (measured & ~swept).sum() == 0 and (swept & ~measured).sum() > 0
+
+
+def test_base_pose_moves_the_arm_into_the_table_frame():
+    """A profile's `base_pose`: link poses are in the arm's base frame, the
+    camera extrinsics in the table frame."""
+    from cascade.perception.robot_mask import MeshBodyMask
+
+    state = _state()
+    shift = _T(t=(0.10, 0.0, 0.0))
+    depth, label = render(state, np.linalg.inv(shift) @ SIDE_CAM)   # the arm seen from a camera moved back
+    body = MeshBodyMask(synth_geometry(), synth_poses, lambda: state, base_T=shift, dilate_px=2)
+    mask = body(depth, K, SIDE_CAM)
+    robot = np.isin(label, list(ARM_BOXES))
+    assert (robot & ~mask).sum() == 0

@@ -79,6 +79,28 @@ overrides:
       jaws: true
       spacing_m: 0.02
       table_band_m: 0.02
+    # Motor-feedback contact stop (docs/CONTACT_STOP.md). Every streamed
+    # motion reads joint feedback mid-stream (one motor's mechPos per read,
+    # 1-2 per 20 ms cycle) and stops, holding the MEASURED pose with torque
+    # on, when a joint falls out of the lag band of its command or stalls
+    # while the command keeps moving -- what the cameras cannot see
+    # (2026-10-11: the wrist pressed into clutter for 8 s during a grasp).
+    # These are deliberately loose: the rig tracked within 0.013 rad per
+    # segment on 2026-10-11, the MIT loop lags 60-100 ms (no velocity
+    # feedforward). CALIBRATE before tightening: set mode: measure, run
+    # normal moves, `python scripts/contact_calibrate.py <trace.jsonl>`.
+    contact_monitor:
+      enabled: true
+      mode: enforce             # measure = log only, never stop
+      track_tol_rad: 0.10       # lag-compensated, scalar or per joint; > settle_tol + 0.02
+      lag_s: 0.25               # how far a joint may trail its command
+      debounce_samples: 2       # consecutive bad samples of one joint
+      stall_window_s: 0.12      # stall: commanded >= stall_min_travel_rad in the
+      stall_min_travel_rad: 0.03  # window, the joint advanced <= stall_ratio of it
+      stall_ratio: 0.2
+      max_feedback_gap_s: 0.35  # no good reading of a joint this long = stop
+      read_timeout_s: 0.05      # per single-motor read mid-stream
+      contact_zone_m: 0.05      # fence around the contact until reset_scene (0 = off)
   grasp:
     # set_gripper only sends the target; without the wait, "open the gripper"
     # was reported failed ("gripper still closed") while the jaws were opening.

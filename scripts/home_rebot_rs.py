@@ -28,7 +28,10 @@ What it does, in order, and why:
 6. Moves up in SEGMENTS joint-space steps and back down the same way. After
    each step the MEASURED pose must be within TRACK_TOL of the target, else
    soft stop (hold the last commanded pose, torque ON) and exit: nothing else
-   is commanded. A SafetyViolation does the same. Only the final down step
+   is commanded. A SafetyViolation does the same -- including the profile's
+   motor-feedback contact stop (safety.contact_monitor, docs/CONTACT_STOP.md),
+   which checks the measured joints DURING each step and, when one is
+   blocked, holds the measured pose instead. Only the final down step
    relaxes the joint margin, exactly like the demo's park (joints 2/3 have
    their lower limit AT the rest pose).
 7. Releases torque only when the arm is measured back at rest (or when
@@ -42,12 +45,18 @@ Usage (motorbridge-gateway / Studio closed; can0 up; operator at the e-stop):
 
     python scripts/home_rebot_rs.py --dry-run --camera mock   # MockArm, no bus
     python scripts/home_rebot_rs.py --yes                     # the real arm
+
+Contact-monitor calibration: --contact-log FILE appends every step's monitor
+report (per-joint tracking error, lag, stall ratio, read rate) as JSON lines;
+scripts/contact_calibrate.py FILE suggests thresholds from them. Each step's
+log line also shows its worst lag-compensated tracking error.
 """
 
 from __future__ import annotations
 
 import argparse
 import dataclasses
+import json
 import sys
 import threading
 import time
@@ -58,7 +67,7 @@ import numpy as np
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
 
-from cascade.types import SafetyViolation
+from cascade.types import ContactDetected, SafetyViolation
 
 ARM_PROFILE = "rebot_rs"
 DEFAULT_MAX_VEL = 0.4      # rad/s; the profile's cap is 0.8 -- only ever tightened
@@ -151,19 +160,39 @@ def _default_build(cfg, dry_run: bool, start_q=None):
         demo.make_arm = orig
 
 
-def _leg(safe, name, a, b, *, last_margin, log, pace_s=0.0) -> bool:
+def _contact_reports(safe, sink=None) -> list[dict]:
+    """The contact monitor's reports since the last call (one per streamed
+    motion), appended to `sink` as JSON lines for contact_calibrate.py."""
+    drain = getattr(getattr(safe, "harness", None), "drain_contact_reports", None)
+    reports = drain() if callable(drain) else []
+    if sink is not None:
+        for r in reports:
+            sink.write(json.dumps(r) + "\n")
+        sink.flush()
+    return reports
+
+
+def _track_note(reports) -> str:
+    errs = [max(r["max_track_err_rad"]) for r in reports if r.get("max_track_err_rad")]
+    return f"  contact track max {max(errs):.3f} rad" if errs else ""
+
+
+def _leg(safe, name, a, b, *, last_margin, log, pace_s=0.0, contact_sink=None) -> bool:
     """SEGMENTS checked steps from a to b. False = stop (caller soft-stops)."""
     for k in range(1, SEGMENTS + 1):
         wp = a + (b - a) * (k / SEGMENTS)
         margin = last_margin if k == SEGMENTS else None
         t0 = time.monotonic()
-        settled = safe.move_joints(wp, duration_s=SEG_S, joint_margin=margin)
+        try:
+            settled = safe.move_joints(wp, duration_s=SEG_S, joint_margin=margin)
+        finally:
+            note = _track_note(_contact_reports(safe, contact_sink))
         if pace_s:
             time.sleep(pace_s)
         q = np.asarray(safe.get_state().q, dtype=float)
         err = float(np.max(np.abs(q - wp)))
         log(f"    {name} {k}/{SEGMENTS}: target {_fmt(wp)}  measured {_fmt(q)}  "
-            f"err {err:.3f} rad  settled={settled}  {time.monotonic() - t0:.1f}s")
+            f"err {err:.3f} rad  settled={settled}  {time.monotonic() - t0:.1f}s{note}")
         if not settled or err > TRACK_TOL:
             log(f"[!] {name} step {k}: the arm did not reach its target "
                 f"(err {err:.3f} rad, limit {TRACK_TOL}; settled={settled}). STOP.")
@@ -171,7 +200,8 @@ def _leg(safe, name, a, b, *, last_margin, log, pace_s=0.0) -> bool:
     return True
 
 
-def home_and_back(safe, kin, home, park, *, hold_s: float, log=print, pace_s=0.0) -> int:
+def home_and_back(safe, kin, home, park, *, hold_s: float, log=print, pace_s=0.0,
+                  contact_sink=None) -> int:
     q0 = np.asarray(safe.get_state().q, dtype=float)
     log(f"[+] start q {_fmt(q0)}   home {_fmt(home)}   park {_fmt(park)}   "
         f"cap {safe.harness.limits.max_joint_vel} rad/s")
@@ -182,26 +212,28 @@ def home_and_back(safe, kin, home, park, *, hold_s: float, log=print, pace_s=0.0
         safe.disconnect()
         return 1
 
-    def soft_stop(why):
+    def soft_stop(why, held="the last commanded pose"):
         try:
             safe.stop()
         except Exception as e:  # noqa: BLE001  report it; the operator's e-stop is next
             log(f"[!] soft stop failed ({type(e).__name__}: {e})")
-        log(f"[!] {why}: holding the last commanded pose, torque ON; nothing else will be "
+        log(f"[!] {why}: holding {held}, torque ON; nothing else will be "
             "commanded. Support the arm, then e-stop and lower it by hand. Do NOT reconnect "
             "while it is raised (connect() clears faults with a torque-off frame).")
         return 1
 
     try:
         log("[+] up: rest -> home")
-        if not _leg(safe, "up", q0, home, last_margin=None, log=log, pace_s=pace_s):
+        if not _leg(safe, "up", q0, home, last_margin=None, log=log, pace_s=pace_s,
+                    contact_sink=contact_sink):
             return soft_stop("stopped on the way up")
         qh = np.asarray(safe.get_state().q, dtype=float)
         log(f"[+] at home: q {_fmt(qh)}  TCP (base) {_fmt(kin.fk(qh)[:3, 3])} m; "
             f"holding {hold_s:g} s")
         time.sleep(hold_s)
         log("[+] down: home -> rest")
-        if not _leg(safe, "down", qh, park, last_margin=0.0, log=log, pace_s=pace_s):
+        if not _leg(safe, "down", qh, park, last_margin=0.0, log=log, pace_s=pace_s,
+                    contact_sink=contact_sink):
             return soft_stop("stopped on the way down")
         qe = np.asarray(safe.get_state().q, dtype=float)
         if float(np.max(np.abs(qe - park))) > TRACK_TOL:
@@ -210,6 +242,10 @@ def home_and_back(safe, kin, home, park, *, hold_s: float, log=print, pace_s=0.0
         safe.disconnect()
         log(f"[+] back at rest {_fmt(qe)}; torque released (the arm rests on its stops).")
         return 0
+    except ContactDetected as e:
+        # stopped mid-step by the motor-feedback contact stop: the hold it
+        # commanded is the MEASURED pose, and stop() re-asserts exactly that
+        return soft_stop(f"CONTACT ({e})", held="the measured pose where it was blocked")
     except SafetyViolation as e:
         return soft_stop(f"SAFETY VIOLATION ({e})")
     except BaseException as e:
@@ -230,6 +266,9 @@ def main(argv=None, *, build=None, make_camera=None) -> int:
     ap.add_argument("--hold-s", type=float, default=3.0, help="seconds to hold at home")
     ap.add_argument("--camera-wait-s", type=float, default=8.0)
     ap.add_argument("--beat-wait-s", type=float, default=2.0)
+    ap.add_argument("--contact-log", default=None,
+                    help="append each step's contact-monitor report (JSON lines) for "
+                         "scripts/contact_calibrate.py")
     args = ap.parse_args(argv)
     log = lambda msg: print(msg, flush=True)
 
@@ -284,6 +323,10 @@ def main(argv=None, *, build=None, make_camera=None) -> int:
             return 1
         # A dry run keeps real time (MockArm moves instantly), so the
         # watchdog feed is exercised for as long as the real run lasts.
+        if args.contact_log:
+            with open(args.contact_log, "a") as sink:
+                return home_and_back(safe, kin, home, park, hold_s=args.hold_s, log=log,
+                                     pace_s=SEG_S if args.dry_run else 0.0, contact_sink=sink)
         return home_and_back(safe, kin, home, park, hold_s=args.hold_s, log=log,
                              pace_s=SEG_S if args.dry_run else 0.0)
     finally:

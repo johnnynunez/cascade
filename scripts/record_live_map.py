@@ -107,8 +107,7 @@ def read_state(url: str, out: Latest, stop: threading.Event) -> None:
 
 
 def visible_objects(state) -> list:
-    objs = (state or {}).get("objects") or []
-    return [o for o in objs if isinstance(o, dict) and o.get("state") == "visible"][:12]
+    return lmv.visible_objects((state or {}).get("objects"))
 
 
 def main(argv=None) -> int:

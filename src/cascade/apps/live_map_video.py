@@ -241,7 +241,7 @@ def draw_caption(img: np.ndarray, text: str, *, ok: bool = True, org=None, scale
 
 
 def map_panels(points, *, t_s: float, workspace, objects=(), size=(640, 360), caption: str = "",
-               caption_ok: bool = True, footer: str = ""):
+               caption_ok: bool = True, footer: str = "", topdown_size=None):
     """The two views of what nvblox holds, shared by scripts/record_live_map.py
     and the live view's `nvblox_map` tile (apps/map_tile.py):
 
@@ -250,8 +250,8 @@ def map_panels(points, *, t_s: float, workspace, objects=(), size=(640, 360), ca
     - the top-down height map with the workspace, the robot base, the
       agent's `objects` and an optional `footer`.
 
-    Read-only on its inputs: `points` is never written. Returns (m3d, td),
-    both RGB uint8 of `size` (w, h).
+    Read-only on its inputs: `points` is never written. Returns (m3d, td):
+    RGB uint8 of `size` (w, h) and of `topdown_size` (default `size`).
     """
     pts = np.asarray(points, np.float32).reshape(-1, 3)
     lo, hi = workspace
@@ -260,10 +260,15 @@ def map_panels(points, *, t_s: float, workspace, objects=(), size=(640, 360), ca
     draw_box(m3d, view, lo, hi)
     if caption:
         draw_caption(m3d, caption, ok=caption_ok)
-    td = topdown(pts, lo, hi, objects, size=size)
+    td = topdown(pts, lo, hi, objects, size=topdown_size or size)
     if footer:
         draw_caption(td, footer)
     return m3d, td
+
+
+def visible_objects(objects, limit: int = 12) -> list:
+    """The agent's beliefs worth drawing on the map: currently visible ones."""
+    return [o for o in (objects or []) if isinstance(o, dict) and o.get("state") == "visible"][:limit]
 
 
 def camera_panel(img_rgb: np.ndarray | None, size, name: str, note: str = "no frame") -> np.ndarray:

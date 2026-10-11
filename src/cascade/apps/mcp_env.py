@@ -92,6 +92,7 @@ FORWARDED: dict[str, str] = {
     "CASCADE_MICRODUCK_DEVICE": "MicroDuck base physics device (base profiles only)",
     # ---- landed on main while B63 was open ----
     "CASCADE_MCP_READONLY_LANE": "read-only MCP lane on/off (B46), read by the server itself",
+    "CASCADE_NVBLOX_MAP": "live-view nvblox map tile (0|1|auto, apps/map_tile.py)",
 }
 
 #: why a variable the runtime reads is not copied from the registering shell

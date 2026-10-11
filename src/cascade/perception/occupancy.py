@@ -1343,7 +1343,15 @@ class OccupancyMap:
         if self.required and self.is_stale():
             from ..types import SafetyViolation
 
-            raise SafetyViolation("required occupancy unavailable: distance grid is stale")
+            raise SafetyViolation(f"required occupancy unavailable: {self._stale_reason()}")
+
+    def _stale_reason(self) -> str:
+        """Why the grid is not fresh, with its age: the refusal an operator
+        reads when the camera map stops updating during a motion."""
+        if self._last_refresh is None:
+            return "no distance grid integrated yet (stale)"
+        age = time.monotonic() - self._last_refresh
+        return f"distance grid is stale ({age:.2f} s old, max_age_s {self.max_age_s:g})"
 
     def _clearance(self, points: np.ndarray) -> np.ndarray | None:
         if self._body_error is not None:
@@ -1359,7 +1367,7 @@ class OccupancyMap:
 
             reason = None if self.last_error is None else f"refresh failed: {self.last_error}"
             if stale:
-                reason = reason or "distance grid is missing or stale"
+                reason = reason or self._stale_reason()
             if not usable_grid:
                 reason = reason or "fresh observed distance grid required"
             if reason:

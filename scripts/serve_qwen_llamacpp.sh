@@ -172,8 +172,21 @@ check_server
 # The default projector is installed with the Q4 model for camera inspection.
 set --
 if [[ -n "$MMPROJ_FILE" ]]; then set -- --mmproj "$MMPROJ_FILE"; fi
+# Authenticated brain (NemoClaw / OpenShell routes: PORT=8081 ALIAS=qwen3.8-27b
+# API_KEY_FILE=...). llama-server reads the key from the file itself, so argv
+# (world-readable in /proc) carries a path, never the key; the file must be
+# private and non-empty. Those routes also need a bare ALIAS: OpenClaw splits
+# provider/model on the first '/'.
+if [[ -n "${API_KEY_FILE:-}" ]]; then
+    key_file="${API_KEY_FILE/#\~/$HOME}"
+    [[ -f "$key_file" ]] || { echo "API_KEY_FILE $key_file is missing" >&2; exit 1; }
+    key_mode="$(stat -c %a "$key_file" 2>/dev/null || stat -f %Lp "$key_file")"
+    (( (8#$key_mode & 8#077) == 0 )) || { echo "API_KEY_FILE $key_file is mode $key_mode; chmod 600 it first" >&2; exit 1; }
+    [[ -n "$(tr -d '[:space:]' < "$key_file")" ]] || { echo "API_KEY_FILE $key_file is empty" >&2; exit 1; }
+    set -- "$@" --api-key-file "$key_file"
+fi
 exec "$LLAMA_SERVER" \
     --model "$MODEL_FILE" "$@" \
-    --alias Qwen/Qwen3.8-27B --host 127.0.0.1 --port "$PORT" \
+    --alias "${ALIAS:-Qwen/Qwen3.8-27B}" --host 127.0.0.1 --port "$PORT" \
     --ctx-size "$CTX" --n-gpu-layers 999 --flash-attn on --parallel 1 --jinja \
     --reasoning off --chat-template-kwargs '{"enable_thinking":false}'

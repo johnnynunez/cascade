@@ -603,7 +603,7 @@ python -m cascade.apps.demo --arm so101_mock --camera mock_small \
     --task "tidy the table"             # --llm auto picks hermes
 
 # real rig, a locally served Qwen3.6 (start the server first)
-scripts/serve_qwen_llamacpp.sh          # or serve_qwen_vllm.sh (MTP spec decoding)
+scripts/serve_qwen_llamacpp.sh          # or serve_qwen_vllm.sh (Qwen3.8 NVFP4 + DFlash2, ~2-3x faster on Spark)
 python -m cascade.apps.demo --task "..." --cameras d455f --arm rebot_rs --llm local_qwen
 
 # talk to it through a chat host instead of the CLI loop

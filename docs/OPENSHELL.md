@@ -66,13 +66,14 @@ These were checked from inside the sandbox:
 ## Bring-up
 
 ```bash
-# 0. the brain: OpenAI-compatible on 127.0.0.1:8081, a bearer key read from a 0600
-#    file (default ~/.cascade/nemoclaw/llama.key, or --brain-key-file /
-#    $CASCADE_BRAIN_KEY_FILE) and a bare served model id, e.g. vLLM with
-#      --host 127.0.0.1 --port 8081 --served-model-name qwen3.8-27b
-#      (VLLM_API_KEY from that file; never --api-key on argv)
-#    scripts/serve_qwen_{vllm,llamacpp}.sh do not take a key yet, and the vLLM one
-#    binds 0.0.0.0: do not use them unchanged for this route.
+# 0. the brain on 127.0.0.1:8081 with a bearer key read from a 0600 file (default
+#    ~/.cascade/nemoclaw/llama.key, or --brain-key-file / $CASCADE_BRAIN_KEY_FILE)
+#    and the bare served id qwen3.8-27b. vLLM, Qwen3.8 NVFP4 + DFlash2 (measured 2-3x
+#    llama.cpp on the Spark); the key goes to VLLM_API_KEY, never argv:
+systemd-run --user --unit=cascade-brain-vllm --collect -p MemoryMax=infinity \
+    -E PORT=8081 -E API_KEY_FILE="$HOME/.cascade/nemoclaw/llama.key" \
+    "$PWD/scripts/serve_qwen_vllm.sh"
+#    or llama.cpp: PORT=8081 ALIAS=qwen3.8-27b API_KEY_FILE=... scripts/serve_qwen_llamacpp.sh
 
 # 1. OpenShell 0.1.3: downloaded, sha256-checked against the pinned digests, extracted
 #    under ~/.cascade/openshell (its own XDG config/state; NemoClaw's is untouched)

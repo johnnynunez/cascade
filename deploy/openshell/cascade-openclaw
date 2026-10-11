@@ -1,0 +1,9 @@
+#!/bin/sh
+# Entrypoint of cascade's OpenClaw sandbox: render the config on first start,
+# then run the OpenClaw gateway (chat + agent) on the sandbox's loopback.
+# The host reaches it only through `openshell forward service` bound to
+# 127.0.0.1 (scripts/openshell_rig.py up).
+set -eu
+umask 077
+node /usr/local/share/cascade/render-config.mjs
+exec openclaw gateway --port 18789 --bind loopback

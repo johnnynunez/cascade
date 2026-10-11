@@ -1,0 +1,63 @@
+{
+  "agents": {
+    "defaults": {
+      "model": {"primary": "cascade/qwen3.8-27b"},
+      "timeoutSeconds": 600,
+      "skipBootstrap": true,
+      "thinkingDefault": "off",
+      "workspace": "/sandbox/.openclaw/workspace"
+    }
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "cascade": {
+        "baseUrl": "http://host.openshell.internal:8081/v1",
+        "apiKey": "${CASCADE_BRAIN_API_KEY}",
+        "api": "openai-completions",
+        "timeoutSeconds": 600,
+        "models": [
+          {
+            "id": "qwen3.8-27b",
+            "name": "Qwen3.8-27B (cascade brain)",
+            "reasoning": false,
+            "input": ["text", "image"],
+            "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0},
+            "contextWindow": 65536,
+            "maxTokens": 4096,
+            "compat": {"supportsStore": false}
+          }
+        ]
+      }
+    }
+  },
+  "tools": {
+    "alsoAllow": ["bundle-mcp"],
+    "toolSearch": {"enabled": false},
+    "web": {"fetch": {"enabled": false}, "search": {"enabled": false}}
+  },
+  "update": {"checkOnStart": false},
+  "mcp": {
+    "servers": {
+      "cascade": {
+        "transport": "streamable-http",
+        "url": "http://host.openshell.internal:18741/mcp",
+        "headers": {"Authorization": "Bearer ${CASCADE_MCP_TOKEN}"},
+        "requestTimeoutMs": 300000,
+        "connectionTimeoutMs": 120000
+      }
+    }
+  },
+  "gateway": {
+    "mode": "local",
+    "port": 18789,
+    "bind": "loopback",
+    "auth": {"mode": "token", "token": ""},
+    "controlUi": {
+      "allowInsecureAuth": true,
+      "dangerouslyDisableDeviceAuth": true,
+      "allowedOrigins": []
+    },
+    "trustedProxies": ["127.0.0.1", "::1"]
+  }
+}

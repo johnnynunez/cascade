@@ -879,7 +879,10 @@ the orchestrator relays it verbatim and does not retry the step.
 | `place_at` | Place the held object at base-frame coordinates |
 | `place_on_object` | Place the held object on/in another named object |
 | `push_object` | Push a named object along the table (too wide to grasp, or to reposition it) |
-| `move_relative` | Nudge the gripper a few centimeters (forward/back/left/right/up/down) |
+| `move_relative` | Nudge the gripper and its load: a named direction or free vector in the robot (default), screen or gripper frame, vague sizes ("a bit" = 2 cm, max 15 cm), `again`; always reports the interpretation and how it looks on screen. [Spatial commands](docs/SPATIAL_COMMANDS.md) |
+| `rotate_gripper` | Bounded roll / tilt nudge (≤ 30°) about the gripper tip; the wrist camera always stays on top, so upside-down rolls are refused |
+| `undo_move` | "Go back": retrace the last 1-5 nudges through their recorded waypoints, re-vetted; refuses if anything else moved the arm since |
+| `move_near_object` | Position the gripper and its load `above` / `just_above` / `next_to` / `closer` to a named object or the table, keeping a held object's bottom over the target's measured top |
 | `open_gripper` / `close_gripper` | Open (drops what's held) / close with the default grip profile |
 | `move_home` | Return to the home configuration; also clears the camera view |
 | `turn_screw` | Command harness-vetted wrist-roll strokes; actual thread advancement and tightening torque are not verified. [Assembly research](docs/SCREW_MANIPULATION_RESEARCH.md). |

@@ -45,6 +45,7 @@ does not change which code produced those measurements.
 - [Native visitor turn budget](native-visitor-turn-budget.md)
 - [Scoped retry evidence admission](DREAM_RSI_ADAPTATION.md)
 - [Programs tier: authored and distilled task scripts under one admission rule (opt-in)](PROGRAMS_TIER.md)
+- [Natural-language spatial commands: frames, vague sizes, undo, object-relative moves, wrist camera on top](SPATIAL_COMMANDS.md)
 
 ## Mapping and engine experiments
 

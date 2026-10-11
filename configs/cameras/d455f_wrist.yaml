@@ -16,6 +16,15 @@ min_depth_m: 0.4
 max_depth_m: 4.0
 warmup_frames: 15
 
+# Kept OUT of 3D fusion (beliefs and occupancy) until this unit has a gated
+# eye-in-hand record: the identity placeholder below says "camera frame ==
+# gripper frame", so every detection would be placed where the gripper is,
+# centimetres from the object. It still streams: overlay, heartbeat, the
+# agent's images. Calibrate (marker flat on the table), point hand_eye_json at
+# the record, then drop these two lines.
+fuse_beliefs: false
+map_depth: false
+
 extrinsics:
   mode: eye_in_hand
   # PLACEHOLDER T_cam2gripper -- identity means "camera frame == gripper

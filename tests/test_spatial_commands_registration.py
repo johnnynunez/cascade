@@ -129,3 +129,32 @@ def test_the_spatial_modules_never_command_the_gripper():
     for module in ("relative_motion.py", "spatial_moves.py"):
         src = (REPO / "src" / "cascade" / "skills" / module).read_text()
         assert not re.search(r"set_gripper|close_gripper|open_gripper|_close_two_stage", src), module
+
+
+def test_the_tools_and_the_harness_agree_on_the_wrist_camera_axis():
+    """Two layers guard the wrist camera: the harness (`safety.wrist_camera_up`,
+    #318, every motion, tolerance down to min_up_z) and these tools
+    (`relative_motion.tool_up_axis`, stricter, plus the camera's volume).
+    On every arm profile that declares the harness rule, both must name the
+    SAME TCP axis -- otherwise the tools would protect the wrong side of the
+    gripper -- and the tools must be at least as strict."""
+    import numpy as np
+
+    from cascade.config import load_demo_config
+
+    checked = []
+    for path in sorted((REPO / "configs" / "arms").glob("*.yaml")):
+        cfg = load_demo_config(camera="mock", arm=path.stem, llm="mock")
+        block = cfg.safety.get("wrist_camera_up")
+        if block is None:
+            continue
+        rel = cfg.relative_motion
+        assert rel.get("tool_up_axis") is not None, path.stem
+        harness_axis = np.asarray(block.get("tcp_axis", [0.0, 0.0, 1.0]), dtype=float)
+        tools_axis = np.asarray(rel.tool_up_axis, dtype=float)
+        np.testing.assert_allclose(tools_axis / np.linalg.norm(tools_axis),
+                                   harness_axis / np.linalg.norm(harness_axis), atol=1e-9,
+                                   err_msg=path.stem)
+        assert float(rel.tool_up_min_z) >= float(block.get("min_up_z", -0.1)), path.stem
+        checked.append(path.stem)
+    assert "rebot_rs" in checked

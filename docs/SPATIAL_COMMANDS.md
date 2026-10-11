@@ -218,13 +218,23 @@ out-of-range key under `wrist_camera` refuses every move until fixed (a typo
 must not silently keep a default); `wrist_camera: null` disables the volume
 check, and a config without the key gets the reBot defaults.
 
-This is a check of these four tools only: grasps, places, `move_home` and the
-other skills do not model the camera's volume. The harness-level constraint
-(`SafetyLimits` tool-up axis, enforced in `approve()` and `vet_pose()`) is a
-separate branch (`fix/wrist-camera-up`); once it lands, both should read one
-configuration.
-An arm without a camera on the gripper sets `tool_up_axis: null` in its
-profile `overrides:`.
+### Two layers
+
+- **The harness** (PR #318, `safety.wrist_camera_up` in the reBot profiles)
+  refuses a camera-down pose for EVERY motion -- grasps, places, `move_home`
+  and these tools -- in `approve()`, `vet_step()` and `vet_pose()`, down to
+  `min_up_z` (-0.1, about 6 degrees below horizontal, so a straight-down dive
+  passes). It checks the orientation only.
+- **These four tools** add, on top: a stricter orientation limit
+  (`tool_up_min_z` 0.0), the refusal of upside-down wording before any
+  planning, the camera's volume (table, keep-outs, optional occupancy) and the
+  model guidance in the tool descriptions. Grasps, places and `move_home` do
+  not model the camera's volume.
+
+`tests/test_spatial_commands_registration.py` pins that, on every arm profile
+that declares `safety.wrist_camera_up`, `relative_motion.tool_up_axis` names the
+same TCP axis and is at least as strict. An arm without a camera on the
+gripper sets `tool_up_axis: null` in its profile `overrides:`.
 
 ## "Again" and "go back"
 

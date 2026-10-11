@@ -279,3 +279,35 @@ def test_unknown_gpu_architecture_fails_closed_instead_of_assuming_the_spark(pre
     assert result.returncode != 0
     assert "Cannot read the CUDA compute capability" in result.stderr
     assert not (bins / "cmake-configure-args").exists()
+
+
+def test_authenticated_brain_reads_its_key_from_a_private_file(prepared, tmp_path):
+    """The NemoClaw / OpenShell routes need a bearer-protected brain with a
+    bare alias (OpenClaw splits provider/model on '/'). llama-server reads
+    the key from the file itself, so argv carries a path, never the key."""
+    _, _, _, env = prepared
+    key = tmp_path / "brain.key"
+    key.write_text("s3cret-brain-key\n")
+    key.chmod(0o600)
+    env.update(API_KEY_FILE=str(key), ALIAS="qwen3.8-27b", PORT="8081")
+    result = invoke(prepared)
+    assert result.returncode == 0, result.stdout + result.stderr
+    args = next(json.loads(line) for line in result.stdout.splitlines() if '"server_args"' in line)["server_args"]
+    assert args[args.index("--api-key-file") + 1] == str(key)
+    assert args[args.index("--alias") + 1] == "qwen3.8-27b"
+    assert args[args.index("--host") + 1] == "127.0.0.1"
+    assert not any("s3cret" in a for a in args)
+
+
+@pytest.mark.parametrize("problem", ["loose", "empty", "missing"])
+def test_a_bad_key_file_is_refused_before_serving(prepared, tmp_path, problem):
+    _, _, _, env = prepared
+    key = tmp_path / "brain.key"
+    if problem != "missing":
+        key.write_text("" if problem == "empty" else "k\n")
+        key.chmod(0o644 if problem == "loose" else 0o600)
+    env["API_KEY_FILE"] = str(key)
+    result = invoke(prepared)
+    assert result.returncode != 0
+    assert "server_args" not in result.stdout
+

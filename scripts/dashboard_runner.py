@@ -47,7 +47,7 @@ cfg = load_demo_config(cameras=["isaac", "isaac_side", "isaac_wrist"],
 if qwen_up:
     # VLM grounding: 2nd perception filter when YOLOE misses (slow path only)
     cfg._data["grounder"] = {"base_url": "http://127.0.0.1:8080/v1",
-                             "model": "Qwen/Qwen3.6-27B"}
+                             "model": "Qwen/Qwen3.8-27B"}
 cfg._data["detector"]["conf"] = 0.12  # pastel cubes on RTX renders sit ~0.15
 # name the booth objects explicitly: beliefs are stored under DETECTOR
 # labels, and "banana" cannot resolve a belief labeled "fruit"

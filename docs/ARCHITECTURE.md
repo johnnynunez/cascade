@@ -171,7 +171,7 @@ shared boundary is `RobotRuntime.execute()`, as shown in the
                           │                                                          │
                           ▼                                                          ▼
               apps/mcp_server.py  ── 50 tools ──┐                  agent/orchestrator.py
-              (38 specs − task_done              │                  tier 1 REFLEX   regex grammar      ~µs
+              (41 specs − task_done              │                  tier 1 REFLEX   regex grammar      ~µs
                + 8 host extras: camera_snapshot, │                  tier 2 HABIT    experience memory  ~ms
                world_state, task_memory, ...;    │                  tier 3 LLM      + memory harness   2–15 s/turn
                + list_programs/run_program only  │
@@ -991,7 +991,7 @@ src/cascade/
 │   ├── aspire.py       post-run diagnosis → skill-library note
 │   └── trace.py        trace.jsonl + keyframes
 ├── skills/
-│   ├── runtime.py      SkillRuntime: 37 skills + task_done, TOOL_SPECS, _MOTION_SKILLS (19)
+│   ├── runtime.py      SkillRuntime: 40 skills + task_done, TOOL_SPECS, _MOTION_SKILLS (22)
 │   │                   incl. the Pigey composites snapshot_scene / restore_scene / search_for_object
 │   ├── contact_episode.py / release_episode.py  scoped retained recovery
 │   ├── held_observation.py aiming estimates vs coherent release authority

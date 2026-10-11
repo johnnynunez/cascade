@@ -263,6 +263,32 @@ grasp:
                               # (LingBot: {reset: true, robo_name: <robot config>})
     extra_obs: {}             # static keys merged into every observation
 
+# Natural-language spatial nudges: move_relative, rotate_gripper, undo_move,
+# move_near_object (skills/relative_motion.py + skills/spatial_moves.py;
+# docs/SPATIAL_COMMANDS.md). The per-call caps (0.15 m, 30 deg) are code
+# constants, not tunables. An arm profile may override any key below through
+# its `overrides:` block.
+relative_motion:
+  duration_s: 1.0             # one nudge; SafeArm stretches it under the velocity cap
+  held_speed_scale: 0.5       # holding an object: half speed (twice the duration)
+  # A held object's bottom is checked against the table like the TCP. The
+  # grasp's measured support offset is used when known; otherwise assume the
+  # object hangs this far below the TCP (conservative: refuses low moves early).
+  held_drop_default_m: 0.06
+  history_len: 10             # undo_move history per arm
+  # Stream name of the camera the demo screen shows ("viewer" frame). null =
+  # the first fixed (eye-to-hand) camera of the rig, primary first. A wrist
+  # camera is never accepted: its "right" turns with every move.
+  viewer_camera: null
+  # The reBot's wrist camera is mounted on TOP of the gripper: its up axis is
+  # TCP +z and must never point below horizontal (it would hit the table).
+  # Every pose these tools plan keeps (R_tcp @ tool_up_axis).z >= tool_up_min_z.
+  # Another arm sets its own camera-up axis here, or null if it has no camera
+  # on the gripper.
+  tool_up_axis: [0.0, 0.0, 1.0]
+  tool_up_min_z: 0.0
+  max_object_move_m: 0.50     # move_near_object: largest TCP displacement per call
+
 memory:
   horizon_s: 15.0           # episodic window the agent can consult
   # Vesta memory harness (arXiv:2606.20905 §2.4): how many captioned PAST

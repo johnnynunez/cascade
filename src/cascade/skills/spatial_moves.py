@@ -588,3 +588,92 @@ def undo_move(rt, steps=1) -> dict:
     if note:
         out["note"] = note
     return out
+
+
+def _over_cap_message(rt, s: Settings, word, frame, angle_deg, T0, tool_axes, exc) -> str:
+    """When an angle is refused by the cap, say whether the requested turn
+    would ALSO roll the wrist camera under -- so "rotate it upside down"
+    (180 deg) is answered with the reason that matters, and the agent learns
+    not to offer it in smaller pieces."""
+    try:
+        a = float(angle_deg)
+    except (TypeError, ValueError):
+        return str(exc)
+    if not math.isfinite(a) or a <= rm.MAX_TURN_DEG or s.tool_up_axis is None:
+        return str(exc)
+    a = min(a, 360.0)
+    try:
+        rot = rm.resolve_rotation(word, frame=frame, angle_deg=a, tool=tool_axes,
+                                  viewer=lambda: viewer_axes(rt))
+    except SkillError:
+        return str(exc)
+    turns = [rm.rotation_matrix(rot.axis, math.radians(t)) @ T0[:3, :3]
+             for t in np.linspace(0.0, a, 73)]
+    cam = rm.camera_up_violation(turns, s.tool_up_axis, s.tool_up_min_z, tol=_CAMERA_TOL)
+    if cam:
+        return (f"refused: {cam}. Do not offer to turn it upside down, not even in steps; "
+                f"at most {rm.MAX_TURN_DEG:g} deg per call and only while the camera stays on top")
+    return str(exc)
+
+
+def rotate_gripper(rt, direction=None, angle_deg=None, amount=None, frame=None) -> dict:
+    """Small bounded orientation nudge about the TCP point: roll about the
+    gripper's own axis or tilt the jaws toward a direction. Same plan -> vet
+    -> execute -> record path as move_relative, so caps, the held-object
+    rules, the wrist-camera rule and the vetted feasible offer all apply."""
+    if direction is None:
+        raise SkillError("give a direction: clockwise/counterclockwise (roll the wrist) or "
+                         "up/down/left/right/forward/back/toward_viewer/away_from_viewer (tilt)")
+    s = settings(rt)
+    q0, T0 = _pose(rt)
+
+    def tool_axes():
+        return rm.tool_axes(T0[:3, :3], rt._tool_axis_order)
+
+    word = rm.normalize_rotation_direction(direction)
+    prefix = ""
+    if word == rm.AGAIN:
+        if frame is not None:
+            raise SkillError("'again' repeats the last rotation as it was: omit frame "
+                             "(angle_deg or amount may change its size)")
+        last = _state(rt)["last"].get("rotation")
+        if last is None:
+            raise SkillError("nothing to repeat: no rotate_gripper has run on this arm yet")
+        req, last_angle = last
+        word, frame = req["direction"], req["frame"]
+        angle = (rm.resolve_angle(angle_deg, amount)[0]
+                 if (angle_deg is not None or amount is not None) else last_angle)
+        prefix = "again: "
+    else:
+        try:
+            angle = rm.resolve_angle(angle_deg, amount)[0]
+        except SkillError as exc:
+            raise SkillError(_over_cap_message(rt, s, word, frame, angle_deg, T0, tool_axes, exc)) from exc
+    rot = rm.resolve_rotation(word, frame=frame, angle_deg=angle, tool=tool_axes,
+                              viewer=lambda: viewer_axes(rt))
+    words = prefix + rot.words
+    load = carried(rt, s)
+    duration = _duration(s, load)
+
+    def attempt(f):
+        goal = T0.copy()
+        goal[:3, :3] = rm.rotation_matrix(rot.axis, math.radians(angle * f)) @ T0[:3, :3]
+        return plan_route(rt, q0, [("pose", goal)], load=load, s=s, duration=duration)
+
+    try:
+        route = attempt(1.0)
+    except Refused as err:
+        frac = feasible_fraction(attempt)
+        feasible = None
+        if frac is not None and angle * frac >= rm.MIN_TURN_DEG:
+            feasible = {"feasible_angle_deg": round(angle * frac, 1), "feasible_fraction": round(frac, 3)}
+        return refusal(rt, err, words=words, frame=rot.frame, delta=np.zeros(3), load=load,
+                       feasible=feasible, retry_hint="call rotate_gripper again with that angle_deg")
+    execute_route(rt, route, duration, tool="rotate_gripper", words=words)
+    _state(rt)["last"]["rotation"] = (rot.request(), angle)
+    extra = {"kind": rot.kind, "angle_deg": angle, "rotation_axis_base": _vec(rot.axis)}
+    if s.tool_up_axis is not None:
+        R1 = _kin(rt).fk(rt.arm.get_state().q)[:3, :3]
+        extra["camera_up_z"] = round(float((R1 @ np.asarray(s.tool_up_axis))[2]), 3)
+    return success(rt, tool="rotate_gripper", words=words, frame=rot.frame, camera=None,
+                   delta=np.zeros(3), T0=T0, load=load, route=route, extra=extra)

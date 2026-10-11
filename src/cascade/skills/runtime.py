@@ -116,7 +116,7 @@ _MOTION_SKILLS = {
     "throw", "grasp_at_pixel", "turn_screw", "reset_scene",
     # natural-language spatial nudges (skills/spatial_moves.py): every one
     # streams through SafeArm, so `motion lock` must deny it too
-    "undo_move",
+    "undo_move", "rotate_gripper",
     # Pigey composites over the belief store: both pick and place through
     # the same primitives every other composite uses (snapshot_scene is
     # perception-only and deliberately absent)
@@ -5449,6 +5449,22 @@ class SkillRuntime:
         return spatial_moves.move_relative(self, direction=direction, distance_m=distance_m,
                                            amount=amount, frame=frame, vector=vector)
 
+    def skill_rotate_gripper(self, direction: str | None = None, angle_deg: float | None = None,
+                             amount: str | None = None, frame: str | None = None) -> dict:
+        """Small bounded orientation nudge ("rotate it a bit", "tilt it down").
+
+        Roll (clockwise/counterclockwise, about the gripper's own axis, as
+        seen looking along the jaws) or tilt (the jaws swing toward a
+        direction), at most 30 deg per call, about the TCP point. The wrist
+        camera sits on top of the reBot gripper (TCP +z): no roll or tilt may
+        turn it below horizontal -- "upside down" is refused by name. See
+        `spatial_moves.rotate_gripper`.
+        """
+        from . import spatial_moves
+
+        return spatial_moves.rotate_gripper(self, direction=direction, angle_deg=angle_deg,
+                                            amount=amount, frame=frame)
+
     def skill_undo_move(self, steps: int = 1) -> dict:
         """"Go back" / "undo that": retrace the last `steps` (1-5) moves made by
         move_relative / rotate_gripper / move_near_object, newest first.
@@ -6734,6 +6750,42 @@ TOOL_SPECS: list[dict] = [
                                            "Length 0.005-0.15 m. Use instead of direction/amount.")},
             },
             "required": [],
+        },
+    },
+    {
+        "name": "rotate_gripper",
+        "description": (
+            "Small orientation nudge of the gripper about its tip (and of anything it holds): "
+            "ROLL the wrist (direction=clockwise / counterclockwise, as seen looking along the "
+            "jaws; for a gripper pointing down, as seen from above) or TILT it so the jaws point "
+            "more toward a direction (direction=up / down / left / right / forward / back in the "
+            "robot frame, or toward_viewer / away_from_viewer / frame=viewer for the screen). "
+            "Examples: 'rotate it a bit' -> clockwise, amount=small; 'twist the other way' -> "
+            "counterclockwise; 'tilt it down a little' -> down, amount=small; 'point it toward me' "
+            "-> toward_viewer; 'a bit more' -> direction=again. SIZE: amount tiny=5, small=10, "
+            "medium=15 (default), large=30 deg; or angle_deg 1-30 (at most 30 deg per call). "
+            "SAFETY: the wrist camera is mounted on TOP of the gripper and must always stay up: "
+            "never offer to turn the gripper upside down or roll it past sideways -- such requests "
+            "are refused. While holding an object it turns slower and never opens the jaws. If "
+            "refused (ok=false), the arm did NOT move; relay the reason and, if given, offer "
+            "`feasible_angle_deg`. 'undo_move' turns it back."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "direction": {
+                    "type": "string",
+                    "enum": ["clockwise", "counterclockwise", "up", "down", "left", "right",
+                             "forward", "back", "toward_viewer", "away_from_viewer", "again"],
+                    "description": "clockwise/counterclockwise = roll; any other word = tilt toward it.",
+                },
+                "amount": {"type": "string", "enum": ["tiny", "small", "medium", "large"],
+                           "description": "Vague size: tiny 5, small 10, medium 15 (default), large 30 degrees."},
+                "angle_deg": {"type": "number", "description": "Exact angle in degrees (1-30). Overrides amount."},
+                "frame": {"type": "string", "enum": ["base", "viewer"],
+                          "description": "For tilts only: base = robot directions (default); viewer = as seen on the screen."},
+            },
+            "required": ["direction"],
         },
     },
     {

@@ -729,19 +729,19 @@ MCP-capable host can drive.
 
 The whole skill runtime is also exposed as an **MCP stdio server**
 (`cascade/apps/mcp_server.py`) — so instead of the built-in loop, any
-MCP-capable agent platform can drive the arm. The agent gets the same 38
+MCP-capable agent platform can drive the arm. The agent gets the same 39
 safety-gated skills (only the loop-internal `task_done` is excluded) plus
 eight gateway extras — `camera_snapshot` (returns a live JPEG the agent can
 *see*), `world_state`, `live_view_url`, `robot_knowledge`,
 `verify_last_action`, `task_memory` (the visual memory harness, as images),
 and `emergency_stop`/`reset_stop` — and, only with the opt-in
 [programs tier](docs/PROGRAMS_TIER.md#mcp-chat-hosts) on, `list_programs` and
-`run_program` — 48 tools total (46 with the programs tier off, its default;
+`run_program` — 49 tools total (47 with the programs tier off, its default;
 re-derive with
-`openclaw mcp probe cascade --json`; see [The 38 skills](#the-38-skills) below
+`openclaw mcp probe cascade --json`; see [The 39 skills](#the-39-skills) below
 for what each one does). That is the full catalog; what a given rig is
 offered is this minus the tools its capability matrix (described below)
-withholds (the default single-arm mock rig lists 45: `list_arms` needs two
+withholds (the default single-arm mock rig lists 46: `list_arms` needs two
 arms). Safety harness, tracing and memory are identical —
 only the brain swaps.
 
@@ -840,12 +840,12 @@ side has its own knobs (`CASCADE_USD`, `CASCADE_PHYSICS_DEVICE` — `cpu` is the
 escape hatch for GPU-PhysX boot NaNs —, `CASCADE_BRIDGE_BIND`,
 `CASCADE_BRIDGE_NO_TARGETS`, `CASCADE_COMPANION_EXTS`); see `scripts/isaac_bridge.py`.
 
-## The 38 skills
+## The 39 skills
 
 One schema source (`TOOL_SPECS` in `src/cascade/skills/runtime.py`) feeds
 every consumer — the built-in `AgentOrchestrator`, the OpenAI/Anthropic
 LLM backends, and the MCP server — so this list is exactly what any brain,
-built-in or external, can call. "moves arm" marks the 20 skills in
+built-in or external, can call. "moves arm" marks the 21 skills in
 `_MOTION_SKILLS`, the only ones that pause `WorldWatcher` belief fusion while
 they run (and the ones that record a memory frame + verdict afterwards).
 Every result carries `outcome: ok | failed | stuck`; `stuck` (always

@@ -350,3 +350,110 @@ def test_undo_rejects_bad_step_counts(rig, steps):
     r = runtime.execute("undo_move", {"steps": steps})
     assert r["ok"] is False
     assert len(arm.commands) == n0
+
+
+# ── orientation nudges, wrist camera on top ─────────────────────────────────
+
+
+def _angle_deg(R0, R1):
+    cos = (np.trace(R0.T @ R1) - 1.0) / 2.0
+    return float(np.degrees(np.arccos(np.clip(cos, -1.0, 1.0))))
+
+
+@needs_pin
+def test_roll_turns_about_the_gripper_axis_in_place(rig):
+    runtime, _ = rig
+    T0 = _tcp(runtime)
+    r = runtime.execute("rotate_gripper", {"direction": "clockwise", "amount": "small"})
+    assert r["ok"], r
+    assert r["kind"] == "roll" and r["angle_deg"] == pytest.approx(10.0)
+    T1 = _tcp(runtime)
+    np.testing.assert_allclose(T1[:3, 3], T0[:3, 3], atol=2e-3)       # in place
+    np.testing.assert_allclose(T1[:3, 0], T0[:3, 0], atol=2e-3)       # approach kept
+    assert _angle_deg(T0[:3, :3], T1[:3, :3]) == pytest.approx(10.0, abs=0.5)
+    assert T1[2, 2] > 0.95                                            # camera still on top
+
+
+@needs_pin
+def test_tilt_down_points_the_jaws_toward_the_table(rig):
+    runtime, _ = rig
+    T0 = _tcp(runtime)                     # home: jaws point forward (+x)
+    r = runtime.execute("rotate_gripper", {"direction": "down", "angle_deg": 15})
+    assert r["ok"], r
+    assert r["kind"] == "tilt"
+    T1 = _tcp(runtime)
+    np.testing.assert_allclose(T1[:3, 3], T0[:3, 3], atol=2e-3)
+    assert T1[2, 0] == pytest.approx(-np.sin(np.radians(15.0)), abs=5e-3)
+
+
+@needs_pin
+@pytest.mark.parametrize("args", [{"direction": "clockwise", "angle_deg": 180},
+                                  {"direction": "counterclockwise", "angle_deg": 120},
+                                  {"direction": "upside down"},
+                                  {"direction": "flip"}])
+def test_rotate_it_upside_down_is_refused_before_any_motion(rig, args):
+    """User safety requirement: the wrist camera sits on TOP of the gripper
+    and must never be rolled under (it hits the table)."""
+    runtime, arm = rig
+    n0 = len(arm.commands)
+    r = runtime.execute("rotate_gripper", args)
+    assert r["ok"] is False
+    assert "camera must stay on top" in r["error"]
+    assert len(arm.commands) == n0
+
+
+@needs_pin
+def test_rolls_stop_where_the_wrist_camera_would_go_below_horizontal(rig):
+    runtime, arm = rig
+    for angle in (30, 30, 25):                                         # 85 deg, camera still up
+        r = runtime.execute("rotate_gripper", {"direction": "clockwise", "angle_deg": angle})
+        assert r["ok"], r
+    n0 = len(arm.commands)
+    r = runtime.execute("rotate_gripper", {"direction": "clockwise", "angle_deg": 10})
+    assert r["ok"] is False and r["refused_by"] == "wrist_camera"
+    assert "camera must stay on top" in r["error"]
+    assert len(arm.commands) == n0
+    assert r["feasible_angle_deg"] == pytest.approx(5.0, abs=1.0)
+    back = runtime.execute("rotate_gripper", {"direction": "counterclockwise", "angle_deg": 30})
+    assert back["ok"], back
+
+
+@needs_pin
+@pytest.mark.parametrize("args", [{"direction": "clockwise", "angle_deg": 31},
+                                  {"direction": "clockwise", "angle_deg": float("nan")},
+                                  {"direction": "clockwise", "angle_deg": -5},
+                                  {"direction": "clockwise", "frame": "viewer"},
+                                  {"direction": "sideways"},
+                                  {}])
+def test_rotation_caps_and_validation_never_move(rig, args):
+    runtime, arm = rig
+    n0 = len(arm.commands)
+    r = runtime.execute("rotate_gripper", args)
+    assert r["ok"] is False, r
+    assert len(arm.commands) == n0
+
+
+@needs_pin
+def test_rotate_again_and_undo_back_to_the_start(rig):
+    runtime, _ = rig
+    T0 = _tcp(runtime)
+    assert runtime.execute("rotate_gripper", {"direction": "counterclockwise", "amount": "small"})["ok"]
+    r = runtime.execute("rotate_gripper", {"direction": "again"})
+    assert r["ok"] and r["interpretation"].startswith("again:")
+    assert _angle_deg(T0[:3, :3], _tcp(runtime)[:3, :3]) == pytest.approx(20.0, abs=0.7)
+    assert runtime.execute("undo_move", {"steps": 2})["ok"]
+    np.testing.assert_allclose(_tcp(runtime), T0, atol=2e-3)
+
+
+@needs_pin
+def test_rotating_while_holding_is_slow_and_never_touches_the_jaws(rig):
+    runtime, arm = rig
+    _hold(runtime, arm)
+
+    def no_gripper(*a, **k):
+        raise AssertionError("a rotation commanded the jaws while holding")
+
+    runtime.arm.set_gripper = no_gripper
+    r = runtime.execute("rotate_gripper", {"direction": "clockwise", "amount": "tiny"})
+    assert r["ok"], r
+    assert r["holding"] == "red cube" and "slow" in r["speed"]

@@ -60,6 +60,11 @@ def _cfg(nvblox_map=None):
 def make_runtime(tmp_path, monkeypatch):
     built = []
 
+    # These tests open the live view; CASCADE_STREAM=0 is its hard kill
+    # switch (tests/test_live_view.py), so an outer shell setting it must
+    # not decide them.
+    monkeypatch.delenv("CASCADE_STREAM", raising=False)
+
     def make(nvblox_map=None, *, occupancy=False, lazy_arm=False):
         bridge = None
         if occupancy:

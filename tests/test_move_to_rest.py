@@ -68,6 +68,14 @@ def _build(monkeypatch, tmp_path, *, park_q=PARK, arm_profile="mock"):
     cfg = load_demo_config(camera="mock", arm=arm_profile, llm="mock")
     if park_q is not None:
         cfg._data["arm"]["park_q"] = list(park_q)
+    # rebot_rs requires its live camera map (fail closed), and the suite pins
+    # CASCADE_OCCUPANCY=0: that combination refuses startup by design. These
+    # tests are about the rest pose and the motion envelope, so the map is
+    # off here; the required map on rebot_rs is exercised end to end by
+    # tests/test_rebot_occupancy_live.py.
+    occ = cfg._data.get("occupancy")
+    if isinstance(occ, dict) and occ.get("required"):
+        occ["required"] = False
     world = {"q": None, "floor": {}, "instances": [], "events": []}
     # Every backend is a MockArm: the factory is replaced BEFORE the runtime
     # is built, so no real driver is ever constructed, whatever the profile.

@@ -23,6 +23,8 @@ integration, with a metric inflation and a pixel dilation. These tests pin:
 """
 from __future__ import annotations
 
+import typing
+
 import numpy as np
 import pytest
 
@@ -937,3 +939,105 @@ def test_the_rebot_rs_profile_opts_in_with_the_wrist_camera_attached():
     observed_lo, observed_hi = np.array([-0.11, -0.062, 0.041]), np.array([-0.07, 0.062, 0.08])
     assert (lo <= observed_lo).all() and (hi >= observed_hi).all(), "the box must enclose the camera's points"
     assert (np.asarray(size) <= 0.16).all(), "an envelope, not a blanket over the gripper"
+
+
+# ── scripts/eval_body_mask.py: capsule vs mesh on a recorded capture ─────
+
+
+def _eval_script():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "eval_body_mask.py"
+    spec = importlib.util.spec_from_file_location("eval_body_mask", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _painter_depth(tris_base, T, shape=(H, W)):
+    """A synthetic depth image of triangles (the test's own z-buffer):
+    farthest first, each filled with its mean camera depth."""
+    import cv2
+
+    pc = (np.asarray(tris_base, float) - T[:3, 3]) @ T[:3, :3]
+    z = pc[..., 2].mean(axis=1)
+    uv = np.stack([pc[..., 0] / pc[..., 2] * FX + K[0, 2], pc[..., 1] / pc[..., 2] * FX + K[1, 2]], -1)
+    depth = np.zeros(shape, np.float32)
+    for i in np.argsort(-z):
+        cv2.fillConvexPoly(depth, np.round(uv[i] * 16).astype(np.int32), float(z[i]), cv2.LINE_8, 4)
+    return depth
+
+
+@needs_rs
+def test_eval_script_scores_capsule_against_mesh_on_a_rendered_capture(tmp_path):
+    """End to end on a synthetic capture: the RS arm at rest (fingers half
+    open) in front of a wall, rendered from its own triangles. The capsule
+    leaves arm points within 3 cm of the URDF surface; the mesh mask none.
+    Same metrics the real-data report uses (docs/NVBLOX.md)."""
+    from test_link_self_mask import _pin_link_poses, _posed, _rs_truth_triangles
+
+    q = np.zeros(6)
+    kin = _rs_kin()
+    tris = lm._subdivide(_posed(_rs_truth_triangles(), _pin_link_poses(kin, q, 0.025)), 0.01)
+    T = look_at((0.10, 0.55, 0.45), (0.10, 0.0, 0.15))
+    arm = _painter_depth(tris, T)
+    depth = np.where(arm > 0, arm, 1.6).astype(np.float32)          # a wall behind the arm
+    cap = tmp_path / "cap.npz"
+    np.savez(cap, depth=np.stack([depth, depth]), K=np.stack([K, K]), T_cam2base=T)
+    ev = _eval_script()
+    report = ev.evaluate(ev.load_capture(cap), arm="rebot_rs", q=q, gripper_pos=3.1, stride=1)
+    cap_r, mesh_r = report["capsule"], report["mesh"]
+    assert cap_r["unmasked_within_3cm"] > 100
+    assert mesh_r["unmasked_within_3cm"] == 0 and mesh_r["unmasked_within_5cm"] == 0
+    assert mesh_r["occupied_voxels_within_3cm"] == 0 < cap_r["occupied_voxels_within_3cm"]
+    assert mesh_r["mask_ms_median"] < 20.0 and report["frames"] == 2
+
+
+class _FakeTsdf:
+    """Stands in for the warp TSDF backend: records the depth each method
+    integrates, and reports one occupied voxel 9 mm above the gripper's top
+    face and 5 cm above the joint chain, for the capsule run only."""
+
+    runs: typing.ClassVar[list] = []
+
+    def __init__(self, voxel, region_min, region_max):
+        self.voxel, self.depths = voxel, []
+        _FakeTsdf.runs.append(self)
+
+    def integrate_depth(self, depth, K, T):
+        self.depths.append(np.array(depth))
+
+    def query(self, region_min, region_max):
+        first = len(_FakeTsdf.runs) == 1
+        pts = np.array([[0.202, 0.0, 0.218 + 0.05]]) if first else np.zeros((0, 3))
+        return {"points": pts.astype(np.float32), "grid": np.full((4, 4, 4), 0.5, np.float32),
+                "origin": np.asarray(region_min, np.float32), "voxel": 0.25}
+
+
+@needs_rs
+def test_eval_script_runs_each_mask_through_a_tsdf_backend(tmp_path):
+    """The optional TSDF pass (the production non-native path: masked pixels
+    zeroed, then integrated) gets each method's own zeroed depth and scores
+    the backend's occupied voxels with the same surface metrics."""
+    from test_link_self_mask import _pin_link_poses, _posed, _rs_truth_triangles
+
+    q = np.zeros(6)
+    tris = lm._subdivide(_posed(_rs_truth_triangles(), _pin_link_poses(_rs_kin(), q, 0.025)), 0.01)
+    T = look_at((0.10, 0.55, 0.45), (0.10, 0.0, 0.15))
+    arm = _painter_depth(tris, T)
+    depth = np.where(arm > 0, arm, 1.6).astype(np.float32)
+    cap = tmp_path / "cap.npz"
+    np.savez(cap, depth=depth, K=K, T_cam2base=T)
+    _FakeTsdf.runs = []
+    ev = _eval_script()
+    report = ev.evaluate(ev.load_capture(cap), arm="rebot_rs", q=q, gripper_pos=3.1, stride=1,
+                         tsdf_factory=_FakeTsdf)
+    capsule_run, mesh_run = _FakeTsdf.runs
+    assert len(capsule_run.depths) == len(mesh_run.depths) == 1
+    assert (mesh_run.depths[0][arm > 0] == 0).all(), "the mesh run integrated arm depth"
+    assert (capsule_run.depths[0][arm > 0] > 0).any(), "premise: the capsule leaves some arm depth"
+    assert report["capsule"]["tsdf_occupied_within_3cm"] == 1 and report["mesh"]["tsdf_occupied_within_5cm"] == 0
+    assert report["capsule"]["tsdf_nearest_to_chain_m"] == pytest.approx(0.05, abs=1e-3)
+    assert report["mesh"]["tsdf_nearest_to_chain_m"] == float("inf")
+    assert report["capsule"]["tsdf_harness_clearance_m"] == pytest.approx(0.5)

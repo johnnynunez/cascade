@@ -34,6 +34,25 @@ park_q: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 # slower but longer moves -- min-jerk peak velocity (1.875*dq/T) is auto-stretched
 # under 0.9*this, so this is a ceiling, not a duration multiplier.
 overrides:
+  # The live camera map is REQUIRED on this arm: every vetted pose and every
+  # 50 Hz step is checked against a distance grid built from robot-masked
+  # depth, refreshed every perception tick, including WHILE the arm moves.
+  # A missing bridge refuses startup; a map that is stale (older than
+  # max_age_s), failed or unmasked refuses the next step and the arm holds.
+  # CASCADE_OCCUPANCY=0 with this profile is a startup error. Rig incident
+  # 2026-10-11: with the map off, a side grasp swept the wrist camera into
+  # clutter beside the target (docs/NVBLOX.md "Always-on occupancy").
+  occupancy:
+    required: true
+    # the camera never sees the arm's own (masked) volume, and that space is
+    # where the arm IS: unobserved reads as free; observed obstacles, a stale
+    # map and a failed refresh still block (tests/test_rebot_occupancy_live.py)
+    unobserved: free
+    # ~4 perception ticks at 3 Hz: an older grid no longer authorizes a step
+    max_age_s: 1.5
+    # after the LazyArm powers on, its first motion waits this long for one
+    # masked refresh (standby has no joint state to mask with)
+    ready_timeout_s: 3.0
   safety:
     max_joint_vel: 0.8
     # The wrist D455F rides on TOP of the gripper; rolled underneath, it hits

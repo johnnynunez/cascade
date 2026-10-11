@@ -93,6 +93,96 @@ class GridBridge:
                 "voxel": v, "points": occupied.astype(np.float32)}
 
 
+class DepthBridge(GridBridge):
+    """Fake bridge that maps what the depth frames show: every valid (and,
+    on the native path, active) pixel is unprojected and its voxel marked
+    occupied; `query` returns the distance from each grid centre to the
+    nearest occupied voxel centre. Memoryless per frame (one fixed camera),
+    so a test sees exactly what the last masked frame put in the map.
+    `boxes` still add synthetic obstacles on top."""
+
+    def __init__(self, boxes=(), *, voxel=0.02, **kw):
+        super().__init__(boxes, voxel=voxel, **kw)
+        self.cloud = np.zeros((0, 3))
+
+    def request(self, payload, timeout_ms=None):
+        if payload["action"] in ("integrate_depth", "integrate_masked_depth"):
+            depth = np.asarray(payload["depth"], float)
+            K, T = np.asarray(payload["K"], float), np.asarray(payload["T_base_cam"], float)
+            ok = np.isfinite(depth) & (depth > 0)
+            if payload.get("active_mask") is not None:
+                ok &= np.asarray(payload["active_mask"]).astype(bool)
+            v, u = np.nonzero(ok)
+            z = depth[v, u]
+            cam = np.c_[(u - K[0, 2]) * z / K[0, 0], (v - K[1, 2]) * z / K[1, 1], z]
+            pts = cam @ T[:3, :3].T + T[:3, 3]
+            keys = np.unique(np.floor(pts / self.voxel).astype(np.int64), axis=0)
+            self.cloud = (keys + 0.5) * self.voxel
+        return super().request(payload, timeout_ms)
+
+    def _grid(self, lo, hi):
+        from scipy.spatial import cKDTree
+
+        out = super()._grid(lo, hi)
+        v = self.voxel
+        inside = np.all((self.cloud >= lo - v) & (self.cloud <= hi + v), axis=1)
+        cloud = self.cloud[inside]
+        if len(cloud):
+            g = out["grid"]
+            axes = [out["origin"][i] + v * np.arange(g.shape[i]) for i in range(3)]
+            centres = np.stack(np.meshgrid(*axes, indexing="ij"), axis=-1).reshape(-1, 3)
+            d, _ = cKDTree(cloud).query(centres)
+            out["grid"] = np.minimum(g, d.reshape(g.shape).astype(np.float32))
+            out["points"] = np.concatenate([out["points"], cloud.astype(np.float32)])
+        return out
+
+
+def render_depth(K, T_base_cam, shape, surfaces=(), table_z=0.0):
+    """Depth image of a table plane at `table_z` plus surface points (a
+    z-buffer of point splats), as a camera at T_base_cam (camera -> base)
+    sees them."""
+    h, w = shape
+    R, t = np.asarray(T_base_cam, float)[:3, :3], np.asarray(T_base_cam, float)[:3, 3]
+    v, u = np.mgrid[0:h, 0:w]
+    rays = np.stack([(u - K[0, 2]) / K[0, 0], (v - K[1, 2]) / K[1, 1], np.ones_like(u, float)], -1)
+    rays_b = rays @ R.T
+    with np.errstate(divide="ignore", invalid="ignore"):
+        s = (table_z - t[2]) / rays_b[..., 2]              # depth along the optical axis
+    depth = np.where(np.isfinite(s) & (s > 0), s, np.inf)
+    for pts in surfaces:
+        pc = (np.asarray(pts, float).reshape(-1, 3) - t) @ R
+        pc = pc[pc[:, 2] > 0.05]
+        uu = np.round(K[0, 0] * pc[:, 0] / pc[:, 2] + K[0, 2]).astype(int)
+        vv = np.round(K[1, 1] * pc[:, 1] / pc[:, 2] + K[1, 2]).astype(int)
+        ok = (uu >= 0) & (uu < w) & (vv >= 0) & (vv < h)
+        np.minimum.at(depth, (vv[ok], uu[ok]), pc[ok, 2])
+    return np.where(np.isfinite(depth), depth, 0.0).astype(np.float32)
+
+
+def box_surface(lo, hi, spacing=0.004):
+    """Surface points of an axis-aligned box, at most `spacing` apart."""
+    lo, hi = np.asarray(lo, float), np.asarray(hi, float)
+    axes = [np.linspace(lo[i], hi[i], max(2, int(np.ceil((hi[i] - lo[i]) / spacing)) + 1)) for i in range(3)]
+    g = np.stack(np.meshgrid(*axes, indexing="ij"), -1).reshape(-1, 3)
+    on_face = np.any(np.isclose(g, lo) | np.isclose(g, hi), axis=1)
+    return g[on_face]
+
+
+def triangle_surface(tris, spacing=0.004):
+    """Points on every triangle (n x 3 x 3), at most about `spacing` apart."""
+    tris = np.asarray(tris, float)
+    edge = np.max(np.linalg.norm(tris[:, [1, 2, 0]] - tris, axis=-1), axis=1)
+    out = []
+    for n in np.unique(np.clip(np.ceil(edge / spacing).astype(int), 1, 40)):
+        sel = tris[np.clip(np.ceil(edge / spacing).astype(int), 1, 40) == n]
+        i, j = np.meshgrid(np.arange(n + 1), np.arange(n + 1), indexing="ij")
+        keep = i + j <= n
+        a, b = i[keep] / n, j[keep] / n
+        bary = np.stack([1 - a - b, a, b], -1)                    # m x 3
+        out.append(np.einsum("mk,tkd->tmd", bary, sel).reshape(-1, 3))
+    return np.concatenate(out) if out else np.zeros((0, 3))
+
+
 def depth_frame(t=None, shape=(12, 16)):
     """A small depth frame (2 m everywhere); `t` defaults to now (fresh)."""
     kw = {} if t is None else {"t": t}

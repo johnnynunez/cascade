@@ -39,6 +39,11 @@ def _ry(t):
 
 @pytest.fixture(scope="module")
 def rebot():
+    return side_grasp_geometry()
+
+
+def side_grasp_geometry():
+    """The reBot, its tool volume and the incident's side grasp (IK solved)."""
     from cascade.config import load_demo_config
     from cascade.control.kinematics import Kinematics
 

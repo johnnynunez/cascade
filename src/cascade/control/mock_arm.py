@@ -47,7 +47,7 @@ class MockArm(ArmBase):
         self.object_stop_frac: float | None = None
         #: joint -> position it is stuck at (block_joint): commands still
         #: stream, the measured pose stops -- an obstacle the arm runs into
-        self._blocked: dict[int, float] = {}
+        self._blocked: dict[int, tuple[float, int | None]] = {}
 
     def connect(self) -> None:
         self._connected = True
@@ -72,20 +72,28 @@ class MockArm(ArmBase):
             return
         q = np.asarray(q, dtype=float).copy()
         measured = q.copy()
-        for j, at in getattr(self, "_blocked", {}).items():
-            measured[j] = at          # something stops this joint where it is
+        for j, (at, direction) in getattr(self, "_blocked", {}).items():
+            if direction is None:
+                measured[j] = at      # something stops this joint where it is
+            elif direction > 0:
+                measured[j] = min(q[j], at)   # a wall: cannot pass `at` going up
+            else:
+                measured[j] = max(q[j], at)
         self._q = measured
         self.commands.append(q.copy())
 
-    def block_joint(self, j: int, at: float | None = None) -> None:
-        """Emulate an obstacle: joint `j` stops following commands and stays
-        at `at` (default: where it is now) -- the wrist pressed against
-        clutter. Commands are still recorded in `commands`; only the
-        measured pose (`get_state`) stops. `unblock_joints()` releases."""
+    def block_joint(self, j: int, at: float | None = None, direction: int | None = None) -> None:
+        """Emulate an obstacle: joint `j` stops following commands at `at`
+        (default: where it is now) -- the wrist pressed against clutter.
+        `direction` None freezes it both ways; +1 / -1 make it a wall the
+        joint cannot pass going up / down but can always back away from.
+        Commands are still recorded in `commands`; only the measured pose
+        (`get_state`) stops. `unblock_joints()` releases."""
         j = int(j)
-        if at is not None:
+        if at is not None and direction is None:
             self._q[j] = float(at)
-        self._blocked[j] = float(self._q[j])
+        at = float(self._q[j]) if at is None else float(at)
+        self._blocked[j] = (at, None if direction is None else (1 if direction > 0 else -1))
 
     def unblock_joints(self) -> None:
         self._blocked.clear()

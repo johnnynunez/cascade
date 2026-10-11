@@ -48,7 +48,8 @@ if TYPE_CHECKING:  # annotation only; the runtime import stays local (import cyc
     from ..control.arm_rig import ArmRig
     from ..perception.link_mask import LinkSelfMask
     from ..types import ObjectFix
-from ..types import Detection, Frame, SafetyViolation, SkillError, SkillStuck, make_transform, transform_points
+from ..types import (ContactDetected, Detection, Frame, SafetyViolation, SkillError, SkillStuck,
+                     make_transform, transform_points)
 
 logger = logging.getLogger(__name__)
 
@@ -467,6 +468,20 @@ class SkillRuntime:
         """Rebind the PRIMARY arm (tests and harnesses do this directly)."""
         self._arm = value
 
+    def _contact_harnesses(self) -> list:
+        """Harnesses of every arm that files contact-monitor reports
+        (registry only: never materializes a standby LazyArm)."""
+        arms = list(self.arm_rig.arms.values()) if getattr(self, "arm_rig", None) is not None \
+            else [getattr(self, "_arm", None)]
+        out = []
+        for arm in arms:
+            # The instance dict, not getattr: bookkeeping must never reach a
+            # backend's __getattr__ (that can probe or materialize an arm).
+            harness = (getattr(arm, "__dict__", None) or {}).get("harness")
+            if harness is not None and callable(getattr(harness, "drain_contact_reports", None)):
+                out.append(harness)
+        return out
+
     def _select_arm(self, name):
         """Resolve an arm name to a SafeArm, or raise SkillError.
 
@@ -754,6 +769,11 @@ class SkillRuntime:
             if self.arm_rig is not None else "default"
         )
         trace_context = {"arm": resolved_arm, "held_object": self.held_object}
+        # Motor-feedback contact monitor: this call's trace row carries only
+        # its own motions' tracking reports (safety.contact_monitor).
+        contact_harnesses = self._contact_harnesses()
+        for harness in contact_harnesses:
+            harness.drain_contact_reports()
         self._show_status(f"{name}({_short(args)})")
         # BEFORE keyframe. `last_frame` is only set by observe(), so the first
         # skill of a run used to record `keyframe_before: null` -- exactly the
@@ -887,6 +907,8 @@ class SkillRuntime:
                 result = (carry_attachment.failure_result(self, e)
                           if isinstance(e, carry_attachment.AttachmentInvalid)
                           else {"ok": False, "error": f"{type(e).__name__}: {e}"})
+                if isinstance(e, ContactDetected):
+                    result.update(_contact_result(effective_arm))
         except TypeError as e:
             result = {"ok": False, "error": f"bad arguments for {name}: {e}"}
         except Exception as e:  # camera dropouts, CAN loss, ... : the agent
@@ -1034,6 +1056,9 @@ class SkillRuntime:
         if advisory is not None:
             self.pending_plausibility = None
             result["plausibility"] = advisory
+        contact_reports = [r for h in contact_harnesses for r in h.drain_contact_reports()]
+        if contact_reports:
+            trace_context["contact_monitor"] = contact_reports
         self.trace.record(name, args, result, dur, before, after,
                           tier=self.current_tier, context=trace_context,
                           keyframe_before_wrists=before_wrists, keyframe_after_wrists=after_wrists)
@@ -1400,6 +1425,10 @@ class SkillRuntime:
             return "unfinished contact episode; explicit reset_scene recovery required"
         if self.arm.harness.estopped:
             return "e-stop latched; not retrying"
+        if _is_contact(last_err):
+            # The arm hit something the cameras did not see. Re-homing,
+            # re-scanning and planning again would drive it back there.
+            return "contact detected: something blocked the arm; not retrying into it"
         if attempt >= 2 and "no detections" in last_err and self.beliefs.find(object) is None:
             return "never seen after re-scans; giving up early"
         if _every_candidate_too_wide(last_err):
@@ -4353,12 +4382,16 @@ class SkillRuntime:
                     if self.arm.harness.estopped:
                         place_err += " (e-stop latched; not retrying)"
                         break
+                    if _is_contact(place_err):
+                        place_err += " (contact detected: something blocked the arm; not retrying into it)"
+                        break
                     if not self.held_object:
                         break  # slipped mid-carry: placing again is pointless
             if placed is None:
                 can_regrasp = (
                     not self.held_object
                     and not self.arm.harness.estopped
+                    and not _is_contact(place_err)
                     and time.monotonic() < deadline
                     and attempt < max_attempts
                 )
@@ -5690,6 +5723,11 @@ class SkillRuntime:
                            recovery_error=str(e), beliefs_forgotten=0,
                            error=f"Reset could not withdraw the retained contact episode: {e}")
                 return out
+        # The human has cleared what blocked the arm: forget the contact
+        # zones (safety.contact_monitor) before the home move plans a route.
+        out["contact_zones_cleared"] = sum(
+            h.clear_contact_zones("reset_scene") for h in self._contact_harnesses()
+            if callable(getattr(h, "clear_contact_zones", None)))
         home_ok = True
         try:
             pending_withdrawals = getattr(self, "_mujoco_withdrawals", {})
@@ -6294,6 +6332,13 @@ def _stuck_ask(object: str, last_err: str, attempts: int, *, stage: str = "grasp
     err = str(last_err or "").lower()
     obj = f"{object!r}" if object else "the object"
     n = max(int(attempts), 1)
+    if _is_contact(err):
+        doing = "placing" if stage == "place" else "reaching for"
+        held = " I am still holding it." if holding else ""
+        return (f"Something blocked my arm while I was {doing} {obj}: it hit an obstacle my "
+                f"cameras did not see, stopped and is holding where it was blocked.{held} "
+                f"Clear the space around {obj} and around the gripper camera, say 'reset' "
+                f"(reset_scene) so I forget that spot, and ask again.")
     if stage == "place":
         dest = f"on/at {destination}" if destination else "at the destination"
         if holding:
@@ -6318,6 +6363,32 @@ def _stuck_ask(object: str, last_err: str, attempts: int, *, stage: str = "grasp
     return (f"I could not pick up {obj} after {n} attempt(s) and my persistence budget is "
             f"spent. Reposition it (upright, in view, within reach) or change the "
             f"instruction, and ask again.")
+
+
+def _is_contact(error) -> bool:
+    """The failure was the contact monitor stopping a blocked arm."""
+    return "contact detected" in str(error or "").lower()
+
+
+def _contact_result(arm) -> dict:
+    """What a ContactDetected adds to a skill result: the trip record and
+    an instruction for the planner (never retry into the same spot)."""
+    harness = getattr(arm, "harness", None)
+    event = dict(getattr(harness, "last_contact", None) or {})
+    contact = {k: event[k] for k in ("joint", "error_rad", "raw_error_rad", "tol_rad",
+                                     "duration_ms", "phase", "motion", "stall", "hold_q")
+               if k in event}
+    zones = getattr(harness, "contact_zones", None) or []
+    if zones:
+        zone = zones[-1]
+        contact["zone"] = {"center": [round(float(v), 4) for v in zone["center"]],
+                           "radius_m": zone["radius_m"]}
+    joint = contact.get("joint", "?")
+    return {"contact": contact, "hint": (
+        f"The arm hit something at joint {joint} that the cameras did not see; it stopped and "
+        "holds where it was blocked (torque on). Do not retry the same motion or re-plan to the "
+        "same spot: tell the user, ask them to clear the obstacle, then call reset_scene "
+        "(that also lifts the fence around the spot).")}
 
 
 def _is_human_curable(stop_reason: str | None) -> bool:

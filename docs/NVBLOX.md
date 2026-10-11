@@ -437,6 +437,87 @@ Limitations:
 - `rebot_rs_mb` (motorbridge transport) keeps the capsule mask and the
   optional map.
 
+## The map as a live-view tile (`nvblox_map`)
+
+The demo screen's camera extension can show the map next to the two camera
+tiles. The live view (`apps/stream_server.py`, `127.0.0.1:8090`) announces
+one more camera, `nvblox_map`, rendered by `apps/map_tile.py` with the same
+renderer as `scripts/record_live_map.py` (`apps/live_map_video.map_panels`):
+
+- left: the occupied voxels in a slow 3-D orbit (a turn a minute), coloured
+  by height, with the safety workspace in green and
+  `N occupied voxels · map 0.4 s old` underneath;
+- top right: the top-down height map with the robot base and the agent's
+  visible objects;
+- bottom right: backend and voxel size, voxel count, map age, `arm: up` /
+  `arm: standby`, and a clock.
+
+It is 960 x 540 at 3 fps by default. `/state` lists it **last** (the
+extension's default view stays the first real camera), marked
+`{"virtual": true, "kind": "map", "label": "3D map (nvblox)"}` with
+`map_state`, `voxels` and `map_age_s`. `/stream/nvblox_map` is MJPEG with a
+`Content-Length` per part, like the cameras, and `/snapshot/nvblox_map.jpg`
+is one frame. There is no `/depth/` or `/annotated/` view of it, and
+`analyze`, MCP `world_state`, `camera_snapshot` and the capability matrix
+list only the camera rig.
+
+**What it reads, and what it cannot do.** The tile draws the runtime's own
+`OccupancyMap`: the cloud of the last successful query, i.e. what the
+clearance gate uses, through `OccupancyMap.view_snapshot()`. That read takes
+no lock (the perception thread holds the map's locks through a bridge round
+trip, and `clearance()` takes them for every 50 Hz waypoint), sends nothing
+to the bridge, and hands out a non-writeable view. The standby flag comes
+from `LazyArm.connected`, so a viewer never powers the motors. Tests pin all
+of this with a bridge that raises on `integrate_*`/`clear` and records every
+request (it receives none) while another thread holds both map locks.
+
+**Cost.** Frames are rendered in the HTTP handler of a connected viewer:
+no viewer, no rendering, and several viewers share one render per period;
+`/state` never renders. Measured on the Spark (median of 20 frames, render
+plus JPEG): 5.5 ms wall / 12 ms CPU for 3 k voxels, 12.7 ms / 19 ms for 14 k
+voxels, 1.9 ms for a placeholder; at 3 fps that is 4-6 % of one core and
+120-200 KiB/s per viewer. No GPU, no bridge time. The renderer is numpy-
+vectorized: a thread ticking every 2 ms saw at most 0.5 ms of lateness while
+the tile rendered 14 k voxels at 3 fps, against 7.6 ms with the earlier
+per-point Python loop (which held the GIL the motion stream needs).
+
+**Honest placeholders.** A frame never freezes; every placeholder carries a
+clock:
+
+| state         | the tile says                                                      |
+|---------------|--------------------------------------------------------------------|
+| `off`         | `nvblox off (CASCADE_OCCUPANCY=0)` (or `occupancy.enabled: false`) |
+| `bridge_down` | `nvblox bridge not answering` and the error (probe failed, or a refresh timed out) |
+| `standby`     | `map starts when the arm powers on` / `(the arm must be masked out)` |
+| `waiting`     | `waiting for the first masked depth frame` and why                 |
+| `stale`       | the last map, its age (and the last refresh error) in red          |
+| `live`        | the map                                                            |
+
+A map younger than `stale_s` is shown even in standby (a simulated arm is
+masked without powering a LazyArm). A render failure becomes a red
+`map view failed` frame and `/state` `error`, never a dead stream.
+
+**Configuration** (`stream.nvblox_map` in `configs/demo.yaml`):
+
+| key       | default | meaning |
+|-----------|---------|---------|
+| `enabled` | `auto`  | `auto`: only when this runtime has an occupancy map; `true`: always (the frame says why there is none); `false`: never |
+| `fps`     | `3`     | frames per second while someone watches (0.5-10) |
+| `stale_s` | `2.0`   | an older map is drawn with its age in red |
+| `quality` | `75`    | JPEG quality |
+| `width`, `height` | `960`, `540` | frame size |
+
+`CASCADE_NVBLOX_MAP=0|1|auto` overrides `enabled`. `auto` is the default
+because a tile that can only say "off" would sit on every mock and simulator
+dashboard; with `CASCADE_OCCUPANCY=0` the live view is exactly the camera rig.
+
+**On the rig.** With occupancy on (`CASCADE_OCCUPANCY` unset or `1`, the
+bridge on `127.0.0.1:5557`) and `CASCADE_STREAM=eager`, the extension's view
+selector lists `d455f_scene`, `d455f_wrist` and `3D map (nvblox)`. Check
+`curl -s 127.0.0.1:8090/state | python3 -m json.tool | grep -A9 nvblox_map`:
+`map_state` should read `standby` until the arm is powered, then `live`. To
+show the tile while occupancy is still off, set `CASCADE_NVBLOX_MAP=1`.
+
 ## Troubleshooting: every motion refused as "not yet validated"
 
 With a robot body registered, the map refuses all motion until one depth

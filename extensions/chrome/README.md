@@ -13,7 +13,9 @@ the attendee chat without a permission prompt. Automatic insertion is limited
 to the local PAAI page on port 8092; the camera reader uses loopback port 8091.
 `./run.sh dashboard` opens OpenClaw itself (port 18790) in the same profile.
 That gateway advertises no cameras, so discovery falls back to port 8091 on the
-same loopback host grant.
+same loopback host grant. On the real rig the cameras come from cascade's live
+view on port 8090, which can add one more view, **3D map (nvblox)**: the
+robot's occupancy map, rendered live (see `docs/NVBLOX.md`).
 
 Click the camera image to enlarge it. Click again or press Escape to return.
 You can also reach the image with Tab and open it with Enter or Space. The

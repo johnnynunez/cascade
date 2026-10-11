@@ -114,6 +114,9 @@ _MOTION_SKILLS = {
     "open_gripper", "close_gripper", "move_home", "pick_and_place",
     "point_at", "wave", "handover", "sort_by_color", "move_relative",
     "throw", "grasp_at_pixel", "turn_screw", "reset_scene",
+    # natural-language spatial nudges (skills/spatial_moves.py): every one
+    # streams through SafeArm, so `motion lock` must deny it too
+    "undo_move",
     # Pigey composites over the belief store: both pick and place through
     # the same primitives every other composite uses (snapshot_scene is
     # perception-only and deliberately absent)
@@ -5446,6 +5449,19 @@ class SkillRuntime:
         return spatial_moves.move_relative(self, direction=direction, distance_m=distance_m,
                                            amount=amount, frame=frame, vector=vector)
 
+    def skill_undo_move(self, steps: int = 1) -> dict:
+        """"Go back" / "undo that": retrace the last `steps` (1-5) moves made by
+        move_relative / rotate_gripper / move_near_object, newest first.
+
+        Only from where the recorded move ended (otherwise the history is
+        stale and is cleared), through the recorded waypoints in reverse, and
+        vetted by the harness before any command -- see
+        `spatial_moves.undo_move`.
+        """
+        from . import spatial_moves
+
+        return spatial_moves.undo_move(self, steps=steps)
+
     def skill_open_gripper(self) -> dict:
         self.arm.set_gripper(self._grip_open, effort=0.8)
         if self.held_object:
@@ -6716,6 +6732,27 @@ TOOL_SPECS: list[dict] = [
                            "description": ("Free displacement in metres in `frame`: base [x forward, y left, "
                                            "z up]; viewer [right, away, up]; tool [approach, jaw axis, third]. "
                                            "Length 0.005-0.15 m. Use instead of direction/amount.")},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "undo_move",
+        "description": (
+            "Go back: return the gripper (and anything it holds) to where it was before the last "
+            "move_relative / rotate_gripper / move_near_object, retracing the same path backwards. "
+            "Use for 'go back', 'undo that', 'put it back where it was a moment ago', 'no, the "
+            "other way' (after undoing, move the other way). steps=2..5 undoes several moves. "
+            "It only works right after those moves: if anything else moved the arm since (a "
+            "grasp, place, move_home...) it refuses and forgets the history. The path back is "
+            "safety-checked first; if refused the arm does not move. Not for 'move back' in the "
+            "sense of 'toward the robot base' -- that is move_relative direction=back."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "steps": {"type": "integer", "minimum": 1, "maximum": 5,
+                          "description": "How many recorded moves to undo, newest first (default 1)."},
             },
             "required": [],
         },

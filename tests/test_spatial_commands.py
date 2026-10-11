@@ -239,3 +239,114 @@ def test_a_held_object_keeps_its_bottom_off_the_table(rig):
     assert len(arm.commands) == n0
     # bottom 3 cm under the TCP must stay 2 cm over the table: TCP >= 5 cm
     assert r["feasible_distance_m"] == pytest.approx(0.05, abs=0.004)
+
+
+# ── "again" and "go back" ───────────────────────────────────────────────────
+
+
+@needs_pin
+def test_again_repeats_the_last_direction_and_size(rig):
+    runtime, _ = rig
+    start = _tcp(runtime)[:3, 3]
+    assert runtime.execute("move_relative", {"direction": "left", "amount": "small"})["ok"]
+    r = runtime.execute("move_relative", {"direction": "again"})
+    assert r["ok"], r
+    assert r["interpretation"].startswith("again:")
+    np.testing.assert_allclose(_tcp(runtime)[:3, 3] - start, [0.0, 0.04, 0.0], atol=3e-3)
+    # "a tiny bit more": same direction, new size
+    r = runtime.execute("move_relative", {"direction": "more", "amount": "tiny"})
+    assert r["ok"], r
+    np.testing.assert_allclose(_tcp(runtime)[:3, 3] - start, [0.0, 0.05, 0.0], atol=3e-3)
+
+
+@needs_pin
+def test_again_with_nothing_to_repeat_is_refused_without_motion(rig):
+    runtime, arm = rig
+    n0 = len(arm.commands)
+    r = runtime.execute("move_relative", {"direction": "again"})
+    assert r["ok"] is False and "nothing to repeat" in r["error"]
+    assert len(arm.commands) == n0
+
+
+@needs_pin
+def test_undo_retraces_moves_one_at_a_time_back_to_the_start(rig):
+    runtime, arm = rig
+    start = _tcp(runtime)
+    assert runtime.execute("move_relative", {"direction": "up", "amount": "small"})["ok"]
+    assert runtime.execute("move_relative", {"direction": "left", "amount": "small"})["ok"]
+    r = runtime.execute("undo_move", {})
+    assert r["ok"], r
+    assert len(r["undone"]) == 1 and "left" in r["undone"][0]
+    np.testing.assert_allclose(_tcp(runtime)[:3, 3] - start[:3, 3], [0.0, 0.0, 0.02], atol=2e-3)
+    assert r["undo_available"] == 1
+    assert runtime.execute("undo_move", {})["ok"]
+    np.testing.assert_allclose(_tcp(runtime), start, atol=2e-3)
+    n0 = len(arm.commands)
+    r = runtime.execute("undo_move", {})
+    assert r["ok"] is False and "nothing to undo" in r["error"]
+    assert len(arm.commands) == n0
+
+
+@needs_pin
+def test_undo_several_steps_in_one_call(rig):
+    runtime, _ = rig
+    start = _tcp(runtime)
+    for direction in ("up", "left", "forward"):
+        assert runtime.execute("move_relative", {"direction": direction, "amount": "small"})["ok"]
+    r = runtime.execute("undo_move", {"steps": 3})
+    assert r["ok"], r
+    assert len(r["undone"]) == 3
+    np.testing.assert_allclose(_tcp(runtime), start, atol=2e-3)
+
+
+@needs_pin
+def test_a_refused_move_does_not_change_the_history(rig):
+    runtime, _ = rig
+    start = _tcp(runtime)
+    assert runtime.execute("move_relative", {"direction": "up", "amount": "small"})["ok"]
+    h = runtime.arm.harness
+    tcp = _tcp(runtime)[:3, 3]
+    h.limits.keep_out.append((tcp + [-0.2, -0.2, -0.12], tcp + [0.2, 0.2, -0.08]))
+    refused = runtime.execute("move_relative", {"direction": "down", "distance_m": 0.12})
+    assert refused["ok"] is False and refused["undo_available"] == 1
+    h.limits.keep_out.clear()
+    r = runtime.execute("undo_move", {})
+    assert r["ok"], r
+    np.testing.assert_allclose(_tcp(runtime), start, atol=2e-3)
+
+
+@needs_pin
+def test_undo_refuses_and_forgets_after_another_command_moved_the_arm(rig):
+    runtime, arm = rig
+    assert runtime.execute("move_relative", {"direction": "up", "amount": "medium"})["ok"]
+    assert runtime.execute("move_home", {})["ok"]
+    n0 = len(arm.commands)
+    r = runtime.execute("undo_move", {})
+    assert r["ok"] is False and "moved since" in r["error"]
+    assert len(arm.commands) == n0
+    assert "nothing to undo" in runtime.execute("undo_move", {})["error"]
+
+
+@needs_pin
+def test_an_undo_is_vetted_like_any_move(rig):
+    runtime, arm = rig
+    start = _tcp(runtime)[:3, 3]
+    assert runtime.execute("move_relative", {"direction": "up", "amount": "medium"})["ok"]
+    # something now occupies the spot the gripper came from
+    runtime.arm.harness.limits.keep_out.append((start - 0.01, start + 0.01))
+    n0 = len(arm.commands)
+    r = runtime.execute("undo_move", {})
+    assert r["ok"] is False and r["refused_by"] == "safety_harness"
+    assert len(arm.commands) == n0
+    assert r["undo_available"] == 1          # still there for when it is clear
+
+
+@needs_pin
+@pytest.mark.parametrize("steps", [0, 6, 1.5, True, "two", float("nan")])
+def test_undo_rejects_bad_step_counts(rig, steps):
+    runtime, arm = rig
+    assert runtime.execute("move_relative", {"direction": "up", "amount": "small"})["ok"]
+    n0 = len(arm.commands)
+    r = runtime.execute("undo_move", {"steps": steps})
+    assert r["ok"] is False
+    assert len(arm.commands) == n0

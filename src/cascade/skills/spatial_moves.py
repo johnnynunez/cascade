@@ -359,9 +359,11 @@ def _duration(s: Settings, load: Carried) -> float:
     return s.duration_s / (s.held_speed_scale if load.label else 1.0)
 
 
-def execute_route(rt, route: Route, duration: float, *, tool: str, words: str) -> list:
+def execute_route(rt, route: Route, duration: float, *, tool: str, words: str,
+                  record: bool = True) -> list:
     """Run a vetted route through SafeArm; record it (or the completed part
-    of it, if a later segment is interrupted) in the history."""
+    of it, if a later segment is interrupted) in the history. An undo runs
+    with `record=False`: it consumes history, it does not add to it."""
     waypoints = [np.asarray(rt.arm.get_state().q, dtype=float).copy()]
     kin = _kin(rt)
     try:
@@ -374,7 +376,7 @@ def execute_route(rt, route: Route, duration: float, *, tool: str, words: str) -
                 raise SkillError(f"did not settle at the end of segment {i + 1}/{len(route.segments)}")
             waypoints.append(np.asarray(rt.arm.get_state().q, dtype=float).copy())
     finally:
-        if len(waypoints) > 1:
+        if record and len(waypoints) > 1:
             history(rt).push(rm.MoveRecord(tool=tool, words=words, waypoints=waypoints,
                                            tcp_end=np.asarray(kin.fk(waypoints[-1]), dtype=float)))
     return waypoints
@@ -514,3 +516,75 @@ def move_relative(rt, direction=None, distance_m=None, amount=None, frame=None, 
     _state(rt)["last"]["translation"] = (move.request(), move.distance)
     return success(rt, tool="move_relative", words=words, frame=move.frame, camera=move.camera,
                    delta=move.delta, T0=T0, load=load, route=route)
+
+
+def undo_move(rt, steps=1) -> dict:
+    """Retrace the last `steps` recorded moves backwards, one record at a time.
+
+    Each record is undone only from where it ENDED (pose_matches): if any
+    other command moved the arm since, retracing would start from a place
+    the record never vetted a path from, so the whole history is cleared and
+    the undo is refused. Each retrace is planned and vetted like a new move
+    (the world may have changed: something may now sit where the gripper
+    was); a refused retrace leaves the arm and the history untouched.
+    """
+    if (isinstance(steps, bool) or not isinstance(steps, (int, float, np.integer, np.floating))
+            or not math.isfinite(float(steps)) or float(steps) != int(steps)
+            or not 1 <= int(steps) <= MAX_UNDO_STEPS):
+        raise SkillError(f"steps must be a whole number from 1 to {MAX_UNDO_STEPS}, got {steps!r}")
+    s = settings(rt)
+    hist = history(rt)
+    if not len(hist):
+        raise SkillError("nothing to undo: no move_relative / rotate_gripper / move_near_object move "
+                         "is recorded for this arm (or the history was cleared because the arm moved "
+                         "since)")
+    load = carried(rt, s)
+    duration = _duration(s, load)
+    undone: list[str] = []
+    T_start = None
+    note = None
+    route = None
+    for _ in range(int(steps)):
+        rec = hist.last()
+        if rec is None:
+            break
+        q0, T0 = _pose(rt)
+        T_start = T0 if T_start is None else T_start
+        if not rm.pose_matches(T0, rec.tcp_end):
+            hist.clear()
+            why = ("the arm has moved since that move (another command moved it), so retracing it "
+                   "could cross space that was never checked for it; the undo history is cleared")
+            if not undone:
+                raise SkillError(f"cannot undo: {why}")
+            note = why
+            break
+        goals = [("joints", q) for q in reversed(rec.waypoints[:-1])]
+        try:
+            route = plan_route(rt, q0, goals, load=load, s=s, duration=duration)
+        except Refused as err:
+            out = refusal(rt, err, words=f"undo: {rec.words}", frame=None, delta=None, load=load)
+            out["undone"] = undone
+            out["arm_moved"] = bool(undone)
+            return out
+        execute_route(rt, route, duration, tool="undo_move", words=rec.words, record=False)
+        hist.pop()
+        undone.append(rec.words)
+    T1 = _kin(rt).fk(rt.arm.get_state().q)
+    delta = T1[:3, 3] - T_start[:3, 3]
+    out = {
+        "moved": True,
+        "undone": undone,
+        "interpretation": "undid, newest first: " + " | ".join(undone),
+        "displacement_base_m": _vec(delta),
+        "as_seen_on_screen": _screen(rt, delta),
+        "tcp_before": _vec(T_start[:3, 3]),
+        "tcp_after": _vec(T1[:3, 3]),
+        "path": "straight line (cartesian)" if route is not None and route.cartesian else "joint space",
+        "holding": load.label,
+        "speed": "slow (holding an object)" if load.label else "normal",
+        "undo_available": len(hist),
+        "summary": f"Went back {len(undone)} step(s): undid " + "; then ".join(undone) + ".",
+    }
+    if note:
+        out["note"] = note
+    return out

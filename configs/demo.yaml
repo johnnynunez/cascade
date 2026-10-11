@@ -287,6 +287,20 @@ relative_motion:
   # on the gripper.
   tool_up_axis: [0.0, 0.0, 1.0]
   tool_up_min_z: 0.0
+  # ... and it STICKS OUT above the gripper, so its volume is checked too: a
+  # box from the fingertip plane back along the gripper, across the jaws and
+  # up along the camera-up axis. Every planned pose keeps that box above the
+  # table clearance the harness keeps for the TCP (safety.table_clearance)
+  # and outside every safety.keep_out zone. null = no camera volume check.
+  wrist_camera:
+    protrusion_m: 0.08      # sticks out 6-8 cm above the gripper (user, 2026-10-11): upper bound
+    behind_tip_m: 0.12      # ASSUMED, not measured: how far back from the fingertips it reaches
+    half_width_m: 0.04      # ASSUMED, not measured: half its width across the jaws
+    # Also keep the box min_clearance_m from the occupancy map's obstacles.
+    # Off until the map's robot-body mask is known to cover the camera: an
+    # unmasked camera reads as an obstacle at zero distance and every move
+    # would be refused.
+    check_occupancy: false
   max_object_move_m: 0.50     # move_near_object: largest TCP displacement per call
 
 memory:

@@ -725,3 +725,128 @@ def test_move_relative_keeps_its_previous_result_keys(rig):
     r = runtime.execute("move_relative", {"direction": "up", "amount": "small"})
     assert r["ok"] and r["distance_m"] == pytest.approx(0.02)
     np.testing.assert_allclose(r["tcp_xyz"], _tcp(runtime)[:3, 3], atol=1e-3)
+
+
+# ── the wrist camera's volume (it sticks out 6-8 cm above the gripper) ──────
+
+
+def _park_forward(runtime, x=0.48, z=0.13, roll_deg=0.0):
+    """Test setup: jaws pointing forward (+x), rolled `roll_deg` about them."""
+    from cascade.skills import relative_motion as rm_
+
+    kin = runtime.arm.harness.kin
+    T = np.eye(4)
+    T[:3, 3] = [x, 0.0, z]
+    T[:3, :3] = rm_.rotation_matrix([1.0, 0.0, 0.0], np.radians(roll_deg))
+    ik = kin.ik(T, runtime.arm.get_state().q)
+    assert ik.success
+    # a straight joint-space sweep from home leaves the workspace box on the
+    # way; move_planned finds a vetted corner route
+    assert runtime.arm.move_planned(ik.q, duration_s=2.0)
+    np.testing.assert_allclose(_tcp(runtime), T, atol=2e-3)
+
+
+@needs_pin
+def test_unrolled_the_camera_rides_on_top_and_a_descent_is_fine(rig):
+    runtime, _ = rig
+    _park_forward(runtime, roll_deg=0.0)
+    runtime.arm.harness.limits.table_z = 0.05        # TCP floor 0.07
+    r = runtime.execute("move_relative", {"direction": "down", "distance_m": 0.03})
+    assert r["ok"], r
+
+
+@needs_pin
+def test_a_rolled_gripper_cannot_drop_the_side_of_the_camera_into_the_table(rig):
+    """Rolled 80 deg the camera-up axis still points up, and the TCP would
+    end 3 cm over its floor -- but the camera's side hangs ~4 cm below the
+    TCP and would reach the table."""
+    runtime, arm = rig
+    _park_forward(runtime, roll_deg=80.0)
+    runtime.arm.harness.limits.table_z = 0.05        # TCP floor 0.07
+    n0 = len(arm.commands)
+    r = runtime.execute("move_relative", {"direction": "down", "distance_m": 0.03})
+    assert r["ok"] is False and r["refused_by"] == "wrist_camera", r
+    assert "table" in r["error"] and "camera" in r["error"]
+    assert len(arm.commands) == n0
+    edge = 0.13 - 0.04 * np.sin(np.radians(80.0))     # camera's lowest corner now
+    assert r["feasible_distance_m"] == pytest.approx(edge - 0.07, abs=0.003)
+
+
+@needs_pin
+def test_a_camera_already_too_low_may_only_climb(rig):
+    runtime, arm = rig
+    _park_forward(runtime, roll_deg=80.0)
+    runtime.arm.harness.limits.table_z = 0.08        # floor 0.10: camera edge 0.091 is under it
+    n0 = len(arm.commands)
+    down = runtime.execute("move_relative", {"direction": "left", "amount": "small"})
+    assert down["ok"] is False and down["refused_by"] == "wrist_camera"
+    assert len(arm.commands) == n0
+    up = runtime.execute("move_relative", {"direction": "up", "amount": "small"})
+    assert up["ok"], up
+
+
+@needs_pin
+def test_the_camera_is_kept_out_of_a_keep_out_zone_the_tcp_never_enters(rig):
+    runtime, arm = rig
+    tcp = _tcp(runtime)[:3, 3]                       # home: jaws forward, camera on top
+    zone = (tcp + [-0.05, -0.01, 0.092], tcp + [-0.01, 0.01, 0.112])
+    runtime.arm.harness.limits.keep_out.append(zone)
+    n0 = len(arm.commands)
+    r = runtime.execute("move_relative", {"direction": "up", "distance_m": 0.03})
+    assert r["ok"] is False and r["refused_by"] == "wrist_camera", r
+    assert "keep-out" in r["error"]
+    assert len(arm.commands) == n0
+    assert r["feasible_distance_m"] == pytest.approx(0.012, abs=0.003)   # 9.2 cm gap - 8 cm camera
+    # nothing else objects: without the camera model the same move runs
+    runtime.cfg._data["relative_motion"]["wrist_camera"] = None
+    assert runtime.execute("move_relative", {"direction": "up", "distance_m": 0.03})["ok"]
+
+
+@needs_pin
+def test_checking_the_camera_against_the_occupancy_map_is_opt_in(rig):
+    runtime, arm = rig
+    tcp = _tcp(runtime)[:3, 3]
+    runtime.arm.harness.occupancy = _PointObstacle(tcp + [-0.06, 0.035, 0.07])   # inside the camera box
+    assert runtime.execute("move_relative", {"direction": "left", "amount": "small"})["ok"]
+    assert runtime.execute("undo_move", {})["ok"]
+    runtime.cfg._data["relative_motion"]["wrist_camera"]["check_occupancy"] = True
+    n0 = len(arm.commands)
+    r = runtime.execute("move_relative", {"direction": "left", "amount": "small"})
+    assert r["ok"] is False and r["refused_by"] == "wrist_camera" and "occupancy" in r["error"]
+    assert len(arm.commands) == n0
+
+
+@needs_pin
+@pytest.mark.parametrize("bad", [{"protrusion_m": float("nan")}, {"behind_tip_m": -0.1},
+                                 {"half_width_m": "wide"}, {"protrusion_m": 0.8},
+                                 {"behind_m": 0.1}])   # a typo must not silently keep the default
+def test_a_bad_camera_size_refuses_every_move(rig, bad):
+    runtime, arm = rig
+    runtime.cfg._data["relative_motion"]["wrist_camera"].update(bad)
+    n0 = len(arm.commands)
+    r = runtime.execute("move_relative", {"direction": "up", "amount": "small"})
+    assert r["ok"] is False and "wrist_camera" in r["error"]
+    assert len(arm.commands) == n0
+
+
+@needs_pin
+def test_the_camera_volume_is_checked_at_every_sample_not_only_the_ends(rig):
+    """A path whose ends are fine but whose middle drops the camera's side
+    into the table (e.g. a joint-space arc while rolled) must be refused."""
+    from cascade.skills import relative_motion as rm_
+    from cascade.skills import spatial_moves
+
+    runtime, _ = rig
+    s = spatial_moves.settings(runtime)
+
+    def pose(z, roll_deg):
+        T = np.eye(4)
+        T[:3, 3] = [0.45, 0.0, z]
+        T[:3, :3] = rm_.rotation_matrix([1.0, 0.0, 0.0], np.radians(roll_deg))
+        return T
+
+    high = pose(0.10, 0.0)                     # camera bottom 10 cm over the table
+    dip = pose(0.05, 80.0)                     # its side at ~1 cm: under the 2 cm clearance
+    assert spatial_moves._camera_volume(runtime, [high, high], s) is None
+    found = spatial_moves._camera_volume(runtime, [high, dip, high], s)
+    assert found is not None and found[0] == "wrist_camera" and "table" in found[1]

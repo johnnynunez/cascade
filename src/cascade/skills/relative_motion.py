@@ -613,6 +613,96 @@ def camera_up_violation(rotations, up_tcp, min_z: float = 0.0, tol: float = 1e-9
     return None
 
 
+# ── wrist camera volume ─────────────────────────────────────────────────────
+
+#: largest camera dimension the config accepts (m): beyond this it is a typo
+_MAX_CAMERA_DIM_M = 0.30
+
+
+@dataclass(frozen=True)
+class CameraBox:
+    """The wrist camera as an oriented box in the base frame.
+
+    The reBot camera sits on TOP of the gripper and sticks out 6-8 cm above
+    it (user, 2026-10-11). The orientation rule (`camera_up_violation`) keeps
+    it from facing the table; this box is what lets a check see that a
+    rolled or tilted gripper can still drop one side of the camera -- or the
+    whole camera -- into the table or a keep-out zone while the TCP itself is
+    fine. Local axes: approach (the camera reaches `behind` back from the
+    fingertip plane), jaw axis (+-`half_width`), camera up (0..`protrusion`).
+    """
+
+    center: np.ndarray
+    axes: np.ndarray        # columns: approach, jaw, up (base frame, orthonormal)
+    half: np.ndarray        # half extents along those columns
+
+    def corners(self) -> np.ndarray:
+        signs = np.array([[sx, sy, sz] for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)], float)
+        return self.center + (signs * self.half) @ self.axes.T
+
+    def min_z(self) -> float:
+        # the lowest point of a box is a corner: closed form of corners()[:, 2].min()
+        return float(self.center[2] - np.sum(self.half * np.abs(self.axes[2, :])))
+
+    def points(self, spacing_m: float = 0.02) -> np.ndarray:
+        """A grid over the box (faces included), at most `spacing_m` apart."""
+        grids = []
+        for h in self.half:
+            n = max(1, math.ceil(2.0 * float(h) / spacing_m))
+            grids.append(np.linspace(-float(h), float(h), n + 1) if h > 0 else np.zeros(1))
+        local = np.stack(np.meshgrid(*grids, indexing="ij"), axis=-1).reshape(-1, 3)
+        return self.center + local @ self.axes.T
+
+
+def camera_box(T_tcp, approach_tcp, up_tcp, *, protrusion_m: float, behind_m: float,
+               half_width_m: float) -> CameraBox:
+    """The camera's box for TCP pose `T_tcp`. `approach_tcp` / `up_tcp` are the
+    gripper's approach and the camera's up axis IN THE TCP FRAME."""
+    dims = {"protrusion_m": protrusion_m, "behind_m": behind_m, "half_width_m": half_width_m}
+    for name, v in dims.items():
+        if (isinstance(v, bool) or not isinstance(v, (int, float, np.integer, np.floating))
+                or not math.isfinite(float(v)) or not 0.0 <= float(v) <= _MAX_CAMERA_DIM_M):
+            raise SkillError(f"relative_motion.wrist_camera.{name} must be within "
+                             f"0..{_MAX_CAMERA_DIM_M:g} m, got {v!r}")
+    T = np.asarray(T_tcp, dtype=float)
+    R, p = T[:3, :3], T[:3, 3]
+    a = R @ (np.asarray(approach_tcp, dtype=float) / np.linalg.norm(approach_tcp))
+    u = R @ np.asarray(up_tcp, dtype=float)
+    u = u - float(u @ a) * a
+    if float(np.linalg.norm(u)) < 1e-6:
+        raise SkillError("relative_motion.tool_up_axis must not be parallel to the approach")
+    u = u / np.linalg.norm(u)
+    j = np.cross(u, a)
+    axes = np.column_stack([a, j, u])
+    center = p - a * (float(behind_m) / 2.0) + u * (float(protrusion_m) / 2.0)
+    half = np.array([float(behind_m) / 2.0, float(half_width_m), float(protrusion_m) / 2.0])
+    return CameraBox(center=center, axes=axes, half=half)
+
+
+def box_overlaps_aabb(center, axes, half, aabb_min, aabb_max) -> bool:
+    """Exact oriented-box vs axis-aligned-box test (separating axes: the 3
+    world axes, the 3 box axes and their 9 edge cross products). Touching
+    counts as overlapping."""
+    c = np.asarray(center, dtype=float)
+    A = np.asarray(axes, dtype=float)
+    e = np.asarray(half, dtype=float)
+    lo, hi = np.asarray(aabb_min, dtype=float), np.asarray(aabb_max, dtype=float)
+    bc, f = (lo + hi) / 2.0, (hi - lo) / 2.0
+    d = c - bc
+    candidates = [np.eye(3)[i] for i in range(3)] + [A[:, i] for i in range(3)]
+    candidates += [np.cross(np.eye(3)[i], A[:, k]) for i in range(3) for k in range(3)]
+    for L in candidates:
+        n = float(np.linalg.norm(L))
+        if n < 1e-9:  # parallel edges: covered by the face axes
+            continue
+        L = L / n
+        r_box = float(np.sum(e * np.abs(L @ A)))
+        r_aabb = float(np.sum(f * np.abs(L)))
+        if abs(float(L @ d)) > r_box + r_aabb + 1e-12:
+            return False
+    return True
+
+
 # ── history ─────────────────────────────────────────────────────────────────
 
 #: an undo is only safe from where the last recorded move ENDED; further than

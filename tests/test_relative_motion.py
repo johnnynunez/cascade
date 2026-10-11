@@ -366,3 +366,139 @@ def test_camera_up_check_lets_an_already_low_camera_only_come_back_up():
     worse = rm.rotation_matrix(np.array([1.0, 0.0, 0.0]), math.radians(110.0))
     assert rm.camera_up_violation([low, better], up, min_z=0.0) is None
     assert rm.camera_up_violation([low, worse], up, min_z=0.0) is not None
+
+
+# ── wrist camera volume (it sticks out 6-8 cm above the gripper) ────────────
+
+_DOWN_OPEN_APPROACH = np.array([1.0, 0.0, 0.0])   # reBot: approach = TCP x
+_CAM_UP = np.array([0.0, 0.0, 1.0])               # reBot: camera up = TCP z
+
+
+def _box_at(R, p=(0.0, 0.0, 0.0), protrusion=0.08, behind=0.12, half_width=0.04):
+    T = np.eye(4)
+    T[:3, :3] = R
+    T[:3, 3] = p
+    return rm.camera_box(T, _DOWN_OPEN_APPROACH, _CAM_UP, protrusion_m=protrusion,
+                         behind_m=behind, half_width_m=half_width)
+
+
+def test_camera_box_at_home_sits_on_top_and_behind_the_fingertips():
+    box = _box_at(np.eye(3), p=(0.45, 0.0, 0.40))
+    c = box.corners()
+    np.testing.assert_allclose(c.min(axis=0), [0.33, -0.04, 0.40], atol=1e-12)
+    np.testing.assert_allclose(c.max(axis=0), [0.45, 0.04, 0.48], atol=1e-12)
+    assert box.min_z() == pytest.approx(0.40)
+
+
+def test_pointing_down_the_camera_never_hangs_below_the_fingertips():
+    down = np.column_stack([[0, 0, -1], [0, 1, 0], [1, 0, 0]])   # approach -z, camera up +x
+    for roll in (0.0, 45.0, 90.0, 170.0):
+        R = rm.rotation_matrix([0, 0, 1], math.radians(roll)) @ down
+        assert _box_at(R, p=(0.3, 0.0, 0.05)).min_z() == pytest.approx(0.05, abs=1e-12)
+
+
+def test_a_rolled_horizontal_gripper_drops_one_side_of_the_camera():
+    """Rolled 80 deg the camera-up axis still points up (orientation rule
+    passes) but the camera's side now hangs ~4 cm below the TCP."""
+    R = rm.rotation_matrix([1, 0, 0], math.radians(80.0))
+    box = _box_at(R, p=(0.45, 0.0, 0.10))
+    assert float((R @ _CAM_UP)[2]) > 0.17
+    assert box.min_z() == pytest.approx(0.10 - 0.04 * math.sin(math.radians(80.0)), abs=1e-12)
+
+
+def test_camera_box_rejects_bad_dimensions():
+    for kw in ({"protrusion": float("nan")}, {"behind": -0.01}, {"half_width": float("inf")},
+               {"protrusion": 0.5}):
+        with pytest.raises(SkillError, match="wrist_camera"):
+            _box_at(np.eye(3), **kw)
+
+
+def test_box_overlap_separated_overlapping_and_contained():
+    lo, hi = np.array([-1.0, -1.0, -1.0]), np.array([1.0, 1.0, 1.0])
+    I, e = np.eye(3), np.array([0.5, 0.5, 0.5])
+    assert not rm.box_overlaps_aabb(np.array([1.6, 0.0, 0.0]), I, e, lo, hi)
+    assert rm.box_overlaps_aabb(np.array([1.4, 0.0, 0.0]), I, e, lo, hi)
+    assert rm.box_overlaps_aabb(np.zeros(3), I, e, lo, hi)                     # inside
+    assert rm.box_overlaps_aabb(np.zeros(3), I, np.array([5.0, 5.0, 5.0]), lo, hi)  # engulfs
+
+
+def test_box_overlap_is_exact_for_a_rotated_box_near_a_corner():
+    """45-deg box beside the AABB's corner: their axis-aligned bounds
+    overlap, the boxes do not (separated along the box's own axis)."""
+    lo, hi = -np.ones(3), np.ones(3)
+    A = rm.rotation_matrix([0, 0, 1], math.radians(45.0))
+    c = np.array([2.2, 2.2, 0.0])
+    assert not rm.box_overlaps_aabb(c, A, np.ones(3), lo, hi)
+    assert rm.box_overlaps_aabb(np.array([1.6, 1.6, 0.0]), A, np.ones(3), lo, hi)
+
+
+def _dense_points(c, A, e, n=25):
+    g = np.linspace(-1.0, 1.0, n)
+    local = np.stack(np.meshgrid(g, g, g, indexing="ij"), axis=-1).reshape(-1, 3) * e
+    return c + local @ A.T
+
+
+def test_box_overlap_finds_an_edge_to_edge_separation():
+    """No face axis of either box separates these two; only an edge-cross
+    axis does (found by search). Dense sampling confirms no part of the box
+    is inside the AABB."""
+    raw = np.array([[-0.853829, 0.08784, -0.513088],
+                    [0.500891, 0.406974, -0.763859],
+                    [0.141716, -0.909207, -0.391484]])
+    U, _, Vt = np.linalg.svd(raw)
+    A = U @ Vt
+    c, e = np.array([0.5645, -1.5168, -1.5986]), np.array([0.4203, 0.6494, 0.5197])
+    lo, hi = -np.ones(3), np.ones(3)
+    pts = _dense_points(c, A, e)
+    assert not np.any(np.all((pts >= lo) & (pts <= hi), axis=1))
+    assert not rm.box_overlaps_aabb(c, A, e, lo, hi)
+
+
+def test_box_overlap_finds_a_separation_only_the_box_face_shows():
+    """Neither a world axis nor an edge cross product separates these; only
+    one of the oriented box's own face normals does (found by search)."""
+    raw = np.array([[-0.615732, -0.671355, 0.4125],
+                    [-0.503363, 0.737899, 0.449589],
+                    [-0.606218, 0.06919, -0.792283]])
+    U, _, Vt = np.linalg.svd(raw)
+    A = U @ Vt
+    c, e = np.array([-1.318, -1.1239, -1.5623]), np.array([0.4117, 0.4804, 0.6612])
+    lo, hi = -np.ones(3), np.ones(3)
+    pts = _dense_points(c, A, e)
+    assert not np.any(np.all((pts >= lo) & (pts <= hi), axis=1))
+    assert not rm.box_overlaps_aabb(c, A, e, lo, hi)
+
+
+def test_box_overlap_finds_a_separation_only_a_world_axis_shows():
+    """Only the AABB's own (world) face normals separate these (found by
+    search): the test is exact, not merely conservative."""
+    raw = np.array([[0.651153, -0.6296, -0.423796],
+                    [-0.340817, -0.741506, 0.577939],
+                    [-0.678117, -0.23189, -0.697412]])
+    U, _, Vt = np.linalg.svd(raw)
+    A = U @ Vt
+    c, e = np.array([0.1413, -0.003, -1.8294]), np.array([0.3102, 0.6935, 0.531])
+    lo, hi = -np.ones(3), np.ones(3)
+    pts = _dense_points(c, A, e)
+    assert not np.any(np.all((pts >= lo) & (pts <= hi), axis=1))
+    assert not rm.box_overlaps_aabb(c, A, e, lo, hi)
+
+
+def test_box_overlap_never_misses_a_sampled_intersection():
+    rng = np.random.default_rng(7)
+    lo, hi = -np.ones(3), np.ones(3)
+    for _ in range(300):
+        A = rm.rotation_matrix(rng.normal(size=3), rng.uniform(0, math.pi))
+        e, c = rng.uniform(0.1, 0.8, 3), rng.uniform(-2.2, 2.2, 3)
+        sampled = np.any(np.all((_dense_points(c, A, e, 9) >= lo) & (_dense_points(c, A, e, 9) <= hi),
+                                axis=1))
+        if sampled:
+            assert rm.box_overlaps_aabb(c, A, e, lo, hi)
+
+
+def test_camera_points_cover_the_box_at_the_requested_spacing():
+    box = _box_at(np.eye(3))
+    pts = box.points(spacing_m=0.02)
+    assert len(pts) == 7 * 5 * 5                   # 12 cm / 8 cm / 8 cm at <= 2 cm
+    np.testing.assert_allclose(pts.min(axis=0), box.corners().min(axis=0), atol=1e-12)
+    np.testing.assert_allclose(pts.max(axis=0), box.corners().max(axis=0), atol=1e-12)

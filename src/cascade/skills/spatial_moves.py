@@ -82,6 +82,10 @@ class Settings:
     tool_up_axis: tuple | None
     tool_up_min_z: float
     max_object_move_m: float
+    #: (protrusion, behind the tip, half width) of the wrist camera box, m;
+    #: None = no camera volume check
+    wrist_camera: tuple | None
+    camera_occupancy: bool
 
 
 def _positive(value, name: str, *, upper: float | None = None) -> float:
@@ -113,6 +117,7 @@ def settings(rt) -> Settings:
     if not math.isfinite(min_z) or not -1.0 <= min_z <= 1.0:
         raise SkillError(f"relative_motion.tool_up_min_z must be in [-1, 1], got {min_z!r}")
     viewer = c.get("viewer_camera", None)
+    camera, camera_occupancy = _camera_settings(c, up)
     return Settings(
         duration_s=_positive(c.get("duration_s", 1.0), "duration_s", upper=30.0),
         held_speed_scale=_positive(c.get("held_speed_scale", 0.5), "held_speed_scale", upper=1.0),
@@ -122,7 +127,41 @@ def settings(rt) -> Settings:
         tool_up_axis=up,
         tool_up_min_z=min_z,
         max_object_move_m=_positive(c.get("max_object_move_m", 0.50), "max_object_move_m", upper=1.0),
+        wrist_camera=camera,
+        camera_occupancy=camera_occupancy,
     )
+
+
+_ABSENT = object()
+#: the reBot camera box when a config has no `wrist_camera` key at all:
+#: protrusion as measured by the user (upper bound), the rest assumed
+DEFAULT_WRIST_CAMERA = {"protrusion_m": 0.08, "behind_tip_m": 0.12, "half_width_m": 0.04}
+
+
+def _camera_settings(c, up) -> tuple:
+    """(dims or None, check_occupancy). An explicit null disables the volume
+    check; a MISSING key falls back to the reBot defaults (a config written
+    before the camera was modelled must not silently lose the check). Bad
+    sizes raise SkillError, refusing every move until fixed."""
+    raw = c.get("wrist_camera", _ABSENT)
+    if up is None or raw is None:
+        return None, False
+    if raw is _ABSENT:
+        raw = DEFAULT_WRIST_CAMERA
+    keys = set(raw.as_dict() if hasattr(raw, "as_dict") else raw)
+    unknown = sorted(keys - set(DEFAULT_WRIST_CAMERA) - {"check_occupancy"})
+    if unknown:
+        raise SkillError(f"relative_motion.wrist_camera has unknown key(s) {unknown}; expected "
+                         f"{sorted(DEFAULT_WRIST_CAMERA)} and check_occupancy")
+    get = raw.get
+    dims = (get("protrusion_m", DEFAULT_WRIST_CAMERA["protrusion_m"]),
+            get("behind_tip_m", DEFAULT_WRIST_CAMERA["behind_tip_m"]),
+            get("half_width_m", DEFAULT_WRIST_CAMERA["half_width_m"]))
+    rm.camera_box(np.eye(4), [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], protrusion_m=dims[0],
+                  behind_m=dims[1], half_width_m=dims[2])  # validates, raises on bad sizes
+    occ = get("check_occupancy", False)
+    occ = occ is True or str(occ).strip().lower() in ("1", "true", "yes", "on")
+    return tuple(float(d) for d in dims), occ
 
 
 # ── per-arm state ───────────────────────────────────────────────────────────
@@ -261,14 +300,60 @@ def _joint_samples(q0, q1):
     return [q0 + (q1 - q0) * (k / n) for k in range(n + 1)]
 
 
+def _camera_volume(rt, poses, s: Settings):
+    """Why the wrist camera's BOX would hit the table, a keep-out zone or
+    (opt-in) an occupancy-map obstacle along `poses`, or None.
+
+    The orientation rule keeps the camera facing up; this catches what it
+    cannot: rolled or tilted, the camera's side (it is ~8 cm tall and sits
+    behind the fingertips) can reach the table or a fixture while the TCP --
+    the only point the harness checks -- is fine.
+    """
+    prot, behind, half_w = s.wrist_camera
+    approach_tcp = np.eye(3)[rm._TOOL_COLUMNS[rt._tool_axis_order][0]]
+    boxes = [rm.camera_box(T, approach_tcp, s.tool_up_axis, protrusion_m=prot, behind_m=behind,
+                           half_width_m=half_w) for T in poses]
+    harness = rt.arm.harness
+    limits = harness.limits
+    what = f"the wrist camera (it sticks out {prot * 100:.1f} cm above the gripper)"
+    table_z, clear = float(limits.table_z), float(limits.table_clearance)
+    floor = table_z + clear
+    lows = [b.min_z() for b in boxes]
+    start, lowest = lows[0], min(lows)
+    # Escape rule, as for the TCP and a held object: from a pose whose camera
+    # is already under the clearance plane, only climbing moves are allowed.
+    escaping = start < floor and lowest >= start - 1e-6 and lows[-1] > start + 1e-3
+    if lowest < floor - 1e-6 and not escaping:
+        return "wrist_camera", (
+            f"{what} would come to {(lowest - table_z) * 100:.1f} cm above the table; it must stay "
+            f"{clear * 100:.1f} cm above it, the clearance the harness keeps for the gripper tip")
+    for kmin, kmax in limits.keep_out:
+        hits = [i for i, b in enumerate(boxes) if rm.box_overlaps_aabb(b.center, b.axes, b.half, kmin, kmax)]
+        if hits:
+            # no escape rule, like the harness's own keep-out check for the TCP
+            where = "is already inside" if hits[0] == 0 else "would enter"
+            return "wrist_camera", (f"{what} {where} keep-out zone "
+                                    f"{np.round(kmin, 3).tolist()}..{np.round(kmax, 3).tolist()}")
+    if s.camera_occupancy and getattr(harness, "occupancy", None) is not None:
+        for b in boxes:
+            reason = harness._occupancy_violation(b.points(0.02), None)
+            if reason:
+                return "wrist_camera", f"{what}: {reason}"
+    return None
+
+
 def _path_checks(rt, kin, samples, load: Carried, s: Settings):
-    """(source, reason) for the two checks the harness does not own, or None."""
+    """(source, reason) for the checks the harness does not own, or None."""
     poses = [np.asarray(kin.fk(q), dtype=float) for q in samples]
     if s.tool_up_axis is not None:
         reason = rm.camera_up_violation([T[:3, :3] for T in poses], s.tool_up_axis,
                                         s.tool_up_min_z, tol=_CAMERA_TOL)
         if reason:
             return "wrist_camera", reason
+        if s.wrist_camera is not None:
+            found = _camera_volume(rt, poses, s)
+            if found:
+                return found
     if load.label:
         limits = rt.arm.harness.limits
         floor = float(limits.table_z) + float(limits.table_clearance)
@@ -331,9 +416,9 @@ def plan_route(rt, q_start, goals, *, load: Carried, s: Settings, duration: floa
                 else:
                     q_goal = np.asarray(target, dtype=float).reshape(-1)
                 samples = _joint_samples(q, q_goal)
-            found = _path_checks(rt, kin, samples, load, s)
-            if found:
-                raise Refused(found[0], found[1], i)
+            # The harness is the authority: when it objects, it is the one
+            # reported. The runtime's own checks (wrist camera, held object)
+            # run second and so name only what the harness cannot see.
             if cart:
                 for a, b in itertools.pairwise(samples):
                     reason = harness.vet_step(a, b, 0.0)  # geometry; the streamer stretches time
@@ -343,6 +428,9 @@ def plan_route(rt, q_start, goals, *, load: Carried, s: Settings, duration: floa
                 reason = vet_segment(harness, q, q_goal, duration)
                 if reason:
                     raise Refused("safety_harness", reason, i)
+            found = _path_checks(rt, kin, samples, load, s)
+            if found:
+                raise Refused(found[0], found[1], i)
             segments.append(Segment(q.copy(), q_goal, T_goal))
             q = q_goal
     return Route(segments, cart)

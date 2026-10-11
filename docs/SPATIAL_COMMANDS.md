@@ -142,7 +142,8 @@ the code restored).
    `cartesian_relative_moves`, an unplannable straight line, a
    planner-owned arm or an armed carry attachment is a refusal.
 8. **Table clearance and occupancy** are the harness's, enforced in the
-   preflight; a held object adds its own check (below).
+   preflight; a held object and the wrist camera's volume add their own
+   checks (below), which run after the harness's.
 9. **A refused move does not change the history**; an undo is vetted like
    any move and a refused undo keeps its record.
 
@@ -174,9 +175,50 @@ camera reason, and the tool description tells the model never to offer an
 upside-down roll. From a pose that is already below the limit, no motion may
 lower the camera further (moves that raise it, or keep it, are allowed).
 
-This is a check of these tools. The harness-level constraint (`SafetyLimits`
-tool-up axis, enforced in `approve()` and `vet_pose()`) is a separate branch
-(`fix/wrist-camera-up`); once it lands, both should read one configuration.
+### Its volume: it sticks out 6-8 cm
+
+Facing up is not enough: the camera **sticks out 6-8 cm above the gripper**
+(user, 2026-10-11), and the harness only checks the TCP and the joint origins.
+Rolled 80 degrees, the camera-up axis still points up, but the camera's side
+hangs about 4 cm below the TCP; a descent the harness accepts for the TCP would
+put that side into the table. So every planned pose also checks the camera as
+an oriented box in the TCP frame:
+
+- along the gripper: from the fingertip plane back `behind_tip_m` (0.12 m);
+- across the jaws: +-`half_width_m` (0.04 m);
+- up along the camera-up axis: 0 to `protrusion_m` (0.08 m, the upper end of
+  the user's 6-8 cm).
+
+`protrusion_m` is the user's figure; **`behind_tip_m` and `half_width_m` are
+assumptions, not measurements** -- measure them on the rig and set them in the
+arm profile's `overrides:`. Checks, at every sample of the route (a joint-space
+arc can dip in the middle while both ends are fine):
+
+1. **Table**: the box's lowest corner keeps `safety.table_clearance` over
+   `safety.table_z`, the same clearance the harness keeps for the TCP. Escape
+   rule as for the TCP: a camera already under that plane may only climb.
+   Pointing straight down, the camera's lowest point is level with the TCP, so
+   this never makes a top-down move stricter than the harness already is.
+2. **Keep-out zones**: an exact box-against-box test (separating axes) against
+   every `safety.keep_out` zone; no escape rule, as for the TCP.
+3. **Occupancy map** (opt-in, `wrist_camera.check_occupancy: true`): a grid of
+   points over the box at most 2 cm apart keeps `safety.min_clearance_m` from
+   observed obstacles. Off by default because the map's robot-body mask is
+   built from link radii; if it does not cover the camera, the camera reads as
+   an obstacle at zero distance and every move is refused. Turn it on once a
+   masked depth refresh is known to remove the camera.
+
+The harness runs first: when it objects, `refused_by` is `safety_harness`;
+`wrist_camera` therefore means only the camera is in the way. A misspelled or
+out-of-range key under `wrist_camera` refuses every move until fixed (a typo
+must not silently keep a default); `wrist_camera: null` disables the volume
+check, and a config without the key gets the reBot defaults.
+
+This is a check of these four tools only: grasps, places, `move_home` and the
+other skills do not model the camera's volume. The harness-level constraint
+(`SafetyLimits` tool-up axis, enforced in `approve()` and `vet_pose()`) is a
+separate branch (`fix/wrist-camera-up`); once it lands, both should read one
+configuration.
 An arm without a camera on the gripper sets `tool_up_axis: null` in its
 profile `overrides:`.
 
@@ -226,6 +268,11 @@ relative_motion:
   viewer_camera: null
   tool_up_axis: [0.0, 0.0, 1.0]
   tool_up_min_z: 0.0
+  wrist_camera:
+    protrusion_m: 0.08
+    behind_tip_m: 0.12      # assumed
+    half_width_m: 0.04      # assumed
+    check_occupancy: false
   max_object_move_m: 0.50
 ```
 
@@ -241,6 +288,8 @@ kinematics). Before relying on it with visitors:
 - Confirm the wrist-camera axis on hardware (TCP +z = camera up) and that
   joint 6 rolls never pass the limit, including from top-down grasp poses
   where the camera axis sits exactly horizontal.
+- Measure the camera box: `behind_tip_m` (0.12) and `half_width_m` (0.04) are
+  assumed; only the 6-8 cm protrusion came from the rig.
 - Measure `held_drop_default_m` against real props; with
   `grasp.place_support_clearance_m` unset the measured support offset is
   never recorded and the 6 cm default applies (conservative: low moves are

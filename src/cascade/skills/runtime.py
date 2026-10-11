@@ -6744,7 +6744,8 @@ TOOL_SPECS: list[dict] = [
             "camera. in/out move along the gripper's pointing direction. up/down are always "
             "vertical. 'back' is a direction, NOT undo: for 'go back to where it was' / 'undo "
             "that' call undo_move. While holding an object it moves slower, never opens or "
-            "closes the jaws, and keeps the object's bottom off the table. Tell the person the "
+            "closes the jaws, and keeps the object's bottom off the table; the wrist camera that sticks "
+            "out ~8 cm on top of the gripper is always kept off the table too. Tell the person the "
             "`interpretation` (and `as_seen_on_screen`). If refused (ok=false), the arm did NOT "
             "move: relay the reason; if `feasible_distance_m` is given, offer that smaller move."
         ),
@@ -6784,9 +6785,10 @@ TOOL_SPECS: list[dict] = [
             "counterclockwise; 'tilt it down a little' -> down, amount=small; 'point it toward me' "
             "-> toward_viewer; 'a bit more' -> direction=again. SIZE: amount tiny=5, small=10, "
             "medium=15 (default), large=30 deg; or angle_deg 1-30 (at most 30 deg per call). "
-            "SAFETY: the wrist camera is mounted on TOP of the gripper and must always stay up: "
-            "never offer to turn the gripper upside down or roll it past sideways -- such requests "
-            "are refused. While holding an object it turns slower and never opens the jaws. If "
+            "SAFETY: the wrist camera is mounted on TOP of the gripper, sticks out ~8 cm and must "
+            "always stay up: never offer to turn the gripper upside down or roll it past sideways -- "
+            "such requests are refused, and so is any turn that would bring the camera itself near "
+            "the table or into a keep-out zone. While holding an object it turns slower and never opens the jaws. If "
             "refused (ok=false), the arm did NOT move; relay the reason and, if given, offer "
             "`feasible_angle_deg`. 'undo_move' turns it back."
         ),

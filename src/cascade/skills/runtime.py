@@ -1246,6 +1246,22 @@ class SkillRuntime:
     def _tcp(self) -> np.ndarray:
         return self.kin.fk(self.arm.get_state().q)[:3, 3]
 
+    def _tcp_if_awake(self) -> np.ndarray | None:
+        """The gripper's TCP for a pure LOOK, or None while the arm is in
+        standby.
+
+        `_tcp()` reads `arm.get_state()`, and on a LazyArm that opens the
+        arm: on the reBot, connect() (a type-4 stop frame, then enable). A
+        call that only reads the cameras (annotated_view, analyze_scene,
+        probe_point) must not power the motors as a side effect, the same
+        rule world_state and robot_knowledge follow (`connected` is
+        LazyArm's own flag and never materializes). Motion skills keep
+        `_tcp()`: they are about to open the arm anyway.
+        """
+        if not getattr(getattr(self.arm, "raw", None), "connected", True):
+            return None
+        return self._tcp()
+
     def _note_measurement(self, **values) -> None:
         """Record derived envelope features for the current top-level call.
 

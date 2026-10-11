@@ -584,7 +584,9 @@ class StreamServer:
                 reach_x=configured_grasp_band(grasp_cfg),
             )
             try:
-                tcp = runtime._tcp()
+                # a viewer never powers a standby arm (any LAN browser can
+                # switch a tile to this view)
+                tcp = runtime._tcp_if_awake()
             except Exception:
                 tcp = None
             img, _ = vi.render(frame, beliefs=list(runtime.beliefs.all()), tcp=tcp)

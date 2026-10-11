@@ -262,6 +262,27 @@ def test_hermes_config_upsert():
     assert 'CASCADE_CAMERAS: "mock"' in merged2 and 'CASCADE_CAMERAS: "l515"' not in merged2
 
 
+def test_looking_never_powers_a_standby_arm(client):
+    """A LOOK must not materialize the LazyArm. annotated_view,
+    analyze_scene and probe_point each asked for the gripper's TCP through
+    arm.get_state(), which opens the arm: on the reBot that is connect()
+    (a type-4 stop frame, then enable), on a call that only reads the
+    cameras. Found on the real rig, 2026-10-11: after an observe-only
+    agent turn (get_observation, probe_point x4) the dashboard read
+    `arm: up`. The TCP is simply absent while the arm is in standby."""
+    client.request("initialize", {"protocolVersion": "2025-06-18"})
+    client.notify("notifications/initialized")
+    for name, args in (("annotated_view", {}), ("analyze_scene", {}),
+                       ("probe_point", {"u": 0.5, "v": 0.6, "normalized": True})):
+        payload, is_err = _tool_payload(
+            client.request("tools/call", {"name": name, "arguments": args}))
+        assert not is_err, (name, payload)
+        if name == "probe_point":
+            assert "from_gripper" not in payload, "no TCP while the arm is in standby"
+        state, _ = _tool_payload(client.request("tools/call", {"name": "world_state", "arguments": {}}))
+        assert state["session_state"]["arm_connected"] is False, f"{name} woke the arm"
+
+
 def test_new_livestream_tools_over_jsonrpc(client):
     """world_state / live_view_url / pick_and_place / camera_snapshot(camera=)
     were untested at the protocol level (2026-07-18 review finding)."""

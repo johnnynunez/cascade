@@ -73,6 +73,8 @@ def _runtime(frame=None, beliefs=(), tcp=(0.3, 0.0, 0.3), workspace=None):
         rig=None,
         observe=lambda: frame,
         _tcp=lambda: np.array(tcp, dtype=float),
+        # an awake arm (tcp=None: a LazyArm in standby, see below)
+        _tcp_if_awake=lambda: None if tcp is None else np.array(tcp, dtype=float),
     )
     return rt
 
@@ -199,6 +201,18 @@ def test_probe_reports_offset_from_the_gripper():
     out = PointProbe(rt).probe(W / 2, H / 2)
     assert out["from_gripper"]["distance_m"] > 0
     assert len(out["from_gripper"]["delta_xyz_m"]) == 3
+
+
+def test_probe_in_standby_measures_the_point_without_waking_the_arm():
+    """A probe only reads the camera: with the arm in standby it reports the
+    point and omits from_gripper rather than opening the arm for a TCP."""
+    rt = _runtime(tcp=None)
+    woke = []  # recorded, not raised: the probe swallows TCP errors
+    rt._tcp = lambda: woke.append(1) or np.zeros(3)
+    out = PointProbe(rt).probe(W / 2, H / 2)
+    assert out["ok"] and len(out["position"]) == 3
+    assert "from_gripper" not in out
+    assert not woke, "probe_point opened a standby arm for its TCP"
 
 
 # ── honest failure (never invent a 3D point) ─────────────────────────────

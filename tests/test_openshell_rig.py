@@ -554,12 +554,25 @@ def test_locking_cancels_a_pending_relock(tmp_path):
     assert "motion_unlocked_until" not in rig._read_state(tmp_path)
 
 
-@pytest.mark.parametrize("text, seconds", [("90s", 90), ("15m", 900), ("1h", 3600), ("2h", 7200), ("45", 45)])
+@pytest.mark.parametrize("text, seconds", [("90s", 90), ("15m", 900), ("1h", 3600), ("2h", 7200), ("45", 45),
+                                           ("8h", 28800), ("12h", 43200), ("43200", 43200)])
 def test_unlock_durations(text, seconds):
     assert _load().parse_duration(text) == seconds
 
 
-@pytest.mark.parametrize("text", ["0", "0m", "3h", "-5m", "forever", "", "1.5x"])
+def test_one_unlock_covers_a_presentation_day_but_still_expires():
+    """A presenter demos for hours: a grant that re-locks mid-talk makes the
+    agent refuse every motion in front of the audience. One unlock may last a
+    working day (12 h); it still expires on its own the same day, so a rig
+    left running overnight is observe-only again."""
+    rig = _load()
+    assert rig.MAX_UNLOCK_S == 12 * 3600
+    assert rig.parse_duration("12h") == rig.MAX_UNLOCK_S
+    with pytest.raises(SystemExit):
+        rig.parse_duration(str(rig.MAX_UNLOCK_S + 1))
+
+
+@pytest.mark.parametrize("text", ["0", "0m", "13h", "43201", "24h", "-5m", "forever", "", "1.5x"])
 def test_an_unlock_is_never_unbounded_or_longer_than_the_cap(text):
     with pytest.raises(SystemExit):
         _load().parse_duration(text)

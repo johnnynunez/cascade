@@ -91,6 +91,9 @@ TOOL_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "pick_and_place": (CAP_DEPTH_3D, CAP_VLA_POLICY),
     "push_object": (CAP_DEPTH_3D,),
     "point_at": (CAP_DEPTH_3D,),
+    # "above X" hovers at X's OBSERVED top + clearance: plane-cast depth
+    # reads every top as the table and would hover inside a tall X
+    "move_near_object": (CAP_DEPTH_3D, CAP_DEPTH_HEIGHTS),
     "sort_by_color": (CAP_DEPTH_3D, CAP_VLA_POLICY),
     "turn_screw": (CAP_DEPTH_3D,),
     "grasp_at_pixel": (CAP_DEPTH_3D,),

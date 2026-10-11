@@ -38,6 +38,8 @@ from ..agent.effects import CONFIRMED, REFUTED, UNVERIFIED
 CARRIES_GRASP_VERDICT = frozenset({
     "place_at", "place_on_object", "move_home", "move_relative",
     "point_at", "wave", "open_gripper", "close_gripper",
+    # natural-language spatial nudges: they never command the jaws at all
+    "rotate_gripper", "undo_move", "move_near_object",
 })
 
 #: Longest label shown verbatim (quotes excluded); longer ones are cut.

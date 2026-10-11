@@ -26,8 +26,11 @@ from cascade.skills.runtime import _MOTION_SKILLS, SkillRuntime
 #: Calls that command the arm. Reading state (get_state, harness queries) does
 #: not move anything and must not force a skill into the motion set.
 _MOVES = re.compile(
-    r"self\.arm\.(move_joints|move_home|stream_to|set_gripper|move_relative)"
+    r"self\.arm\.(move_joints|move_home|stream_to|set_gripper|move_relative"
+    r"|move_cartesian|move_planned|move_joint_path)"
     r"|self\.arm\.raw\."
+    # the natural-language motion tools delegate their whole motion path
+    r"|spatial_moves\.(move_relative|rotate_gripper|undo_move|move_near_object)\("
     r"|self\.skill_(grasp_object|place_at|place_on_object|pick_and_place"
     r"|open_gripper|close_gripper|push_object|move_home|grasp_at_pixel)\("
 )

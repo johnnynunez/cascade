@@ -459,8 +459,23 @@ _PLAUSIBILITY_QUESTIONS: dict[str, str] = {
         "{direction} by {distance_m} m, and is the gripper EMPTY?"
     ),
     "move_relative": (
-        "Does moving the tool {direction} by {distance_m} m keep it above the "
-        "table and inside the workspace without hitting anything in view?"
+        "Does moving the tool {direction} (frame {frame}, {amount} / {distance_m} m, "
+        "vector {vector}) keep it -- and anything it holds -- above the table and "
+        "inside the workspace without hitting anything in view?"
+    ),
+    "rotate_gripper": (
+        "Does turning the gripper {direction} by {angle_deg} deg ({amount}) keep "
+        "the wrist camera on top and any held object clear of the table and of "
+        "everything in view?"
+    ),
+    "undo_move": (
+        "Is the space the gripper just came from (the last {steps} move(s)) still "
+        "free, so going back cannot hit anything placed there since?"
+    ),
+    "move_near_object": (
+        "Is {label!r} visible, and is the position {relation} it (clearance "
+        "{clearance_m} m, side {side}) free and reachable for the gripper and "
+        "anything it holds?"
     ),
     "handover": (
         "Is the gripper HOLDING the object to hand over, and is the handover "

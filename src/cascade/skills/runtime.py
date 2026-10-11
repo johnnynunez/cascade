@@ -6974,7 +6974,14 @@ TOOL_SPECS: list[dict] = [
     },
     {
         "name": "move_home",
-        "description": "Return the arm to its home configuration (also clears the camera view).",
+        "description": (
+            "Move the arm to its INITIAL (ready) pose: raised, motors on, gripper forward, "
+            "ready for the next task -- what the user means by 'initial pose', 'ready pose', "
+            "'start pose', 'starting position' (Spanish: 'pose inicial', 'posición inicial', "
+            "'vuelve al inicio'). Also clears the camera view. 'home', 'go home', 'pose 0', "
+            "'zero', 'rest', 'park', 'fold' or 'so I can turn it off' are NOT this tool: they "
+            "mean the folded rest pose -- call move_to_rest."
+        ),
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
     {

@@ -885,7 +885,7 @@ the orchestrator relays it verbatim and does not retry the step.
 | `undo_move` | "Go back": retrace the last 1-5 nudges through their recorded waypoints, re-vetted; refuses if anything else moved the arm since |
 | `move_near_object` | Position the gripper and its load `above` / `just_above` / `next_to` / `closer` to a named object or the table, keeping a held object's bottom over the target's measured top |
 | `open_gripper` / `close_gripper` | Open (drops what's held) / close with the default grip profile |
-| `move_home` | Return to the home configuration; also clears the camera view |
+| `move_home` | The raised INITIAL / ready pose (`home_q`, motors on): "initial pose", "ready pose", "pose inicial"; also clears the camera view. Not "home" / "pose 0" -- see `move_to_rest` |
 | `move_to_rest` | "Home", "go home", "pose 0", "rest", "park", "fold it", "so I can turn it off": fold onto the rest pose (`park_q`, links on their stops) through SafeArm, verify it there by measurement, close the gripper and switch the motors off (`safe_to_power_off: true`); refuses while holding or e-stopped, and keeps the motors on if the arm is not measured at rest. The next motion re-energizes it. [Initial vs rest pose](docs/SPATIAL_COMMANDS.md#initial-pose-vs-rest-pose-home-pose-0-and-powering-off) |
 | `turn_screw` | Command harness-vetted wrist-roll strokes; actual thread advancement and tightening torque are not verified. [Assembly research](docs/SCREW_MANIPULATION_RESEARCH.md). |
 | `halt_motion` | Stop the in-flight motion because it's no longer the right action (wrong object, scene changed, subgoal already met) -- no motion itself |

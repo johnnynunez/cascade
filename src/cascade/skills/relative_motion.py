@@ -260,8 +260,8 @@ _ALIASES = {
 _AMBIGUOUS = {
     "go_back": ("'go back' is ambiguous: to return to where the gripper was before the last "
                 "move call undo_move; to move toward the robot base use direction='back'"),
-    "return": ("'return' is ambiguous: call undo_move to retrace the last move, or move_home "
-               "for the home pose"),
+    "return": ("'return' is ambiguous: call undo_move to retrace the last move, move_home "
+               "for the raised initial pose, or move_to_rest for home / pose 0 / rest"),
 }
 
 

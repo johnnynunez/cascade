@@ -490,8 +490,13 @@ _PLAUSIBILITY_QUESTIONS: dict[str, str] = {
         "nothing the intent?"
     ),
     "move_home": (
-        "Is the path back to the home pose clear, and if the gripper holds an "
-        "object, is carrying it home intended?"
+        "Is the path back to the raised initial pose clear, and if the gripper holds an "
+        "object, is carrying it there intended?"
+    ),
+    "move_to_rest": (
+        "Is the gripper EMPTY, is the space between the arm and its folded rest pose over "
+        "the base clear, and does the person mean to stop working with it (unless "
+        "keep_torque is true, the motors are switched off at the end)?"
     ),
     "point_at": (
         "Is {label!r} visible so that pointing at it is meaningful, and is the "

@@ -63,6 +63,26 @@ class OccupancyError(RuntimeError):
     pass
 
 
+def _nearest_distance(points: np.ndarray, cloud: np.ndarray, reach: float) -> np.ndarray:
+    """Distance from each point to its nearest cloud point, inf beyond
+    `reach` (or with an empty cloud)."""
+    points = np.atleast_2d(np.asarray(points, dtype=float))
+    if not len(cloud):
+        return np.full(len(points), np.inf)
+    try:
+        from scipy.spatial import cKDTree
+    except ImportError:  # pragma: no cover -- scipy ships with the grasping extras
+        out = np.full(len(points), np.inf)
+        for start in range(0, len(cloud), 4096):
+            chunk = cloud[start:start + 4096]
+            d = np.linalg.norm(points[:, None, :] - chunk[None, :, :], axis=-1).min(axis=1)
+            out = np.minimum(out, d)
+        out[out > reach] = np.inf
+        return out
+    d, _ = cKDTree(cloud).query(points, distance_upper_bound=float(reach))
+    return np.asarray(d, dtype=float)
+
+
 class _MaskedDepthError(OccupancyError):
     """A negotiated native-mask operation must never downgrade to an old wire."""
 
@@ -1271,6 +1291,52 @@ class OccupancyMap:
             if self.required:
                 self._check_required_age()
             return distance
+
+    def clearance_excluding(self, points: np.ndarray, *, below_z: float | None = None,
+                            cylinder: tuple | None = None, within: float | None = None):
+        """clearance() for samples of the robot's own VOLUME (the wrist
+        camera box, the jaws), with obstacles attributed by where the
+        OBSTACLE is rather than where the sample is.
+
+        Occupied voxels at or below `below_z` (the table plane) and inside
+        `cylinder` = (center_xy, radius, z_min) (the grasp target) are not
+        obstacles here. Every other one is, so a neighbour just outside the
+        target's cylinder still blocks a camera sample that hangs inside it,
+        while the target's own wall does not block a sample just outside.
+
+        The distance grid cannot say which obstacle is nearest, so samples
+        whose grid clearance is below `within` are re-measured against the
+        occupied voxel centres of the same query (minus half a voxel); when
+        no non-excluded voxel lies within reach they read `within`, a lower
+        bound. Everything else -- None/raises/NaN for unavailable, stale or
+        unobserved data -- is exactly clearance()."""
+        pts = np.atleast_2d(np.asarray(points, dtype=float))
+        with self._refresh_lock:
+            dist = self.clearance(pts)
+            if dist is None or within is None or (below_z is None and cylinder is None):
+                return dist
+            dist = np.array(dist, dtype=float)
+            near = np.isfinite(dist) & (dist < within)
+            cloud = self._occupied
+            if not near.any() or cloud is None or not len(cloud):
+                return dist   # nothing to re-measure, or nothing to re-measure with
+            voxel = float(self._grid_voxel or 0.0)
+            sub = pts[near]
+            reach = float(within) + voxel
+            lo, hi = sub.min(axis=0) - reach, sub.max(axis=0) + reach
+            cand = np.asarray(cloud, dtype=float)
+            cand = cand[np.all((cand >= lo) & (cand <= hi), axis=1)]
+            if below_z is not None:
+                cand = cand[cand[:, 2] > float(below_z)]
+            if cylinder is not None and len(cand):
+                center, radius, z_min = cylinder
+                inside = ((np.linalg.norm(cand[:, :2] - np.asarray(center, dtype=float)[:2], axis=1)
+                           <= float(radius)) & (cand[:, 2] >= float(z_min) - 1e-6))
+                cand = cand[~inside]
+        exact = _nearest_distance(sub, cand, reach)
+        exact = np.where(np.isfinite(exact), np.maximum(exact - voxel / 2.0, 0.0), float(within))
+        dist[near] = exact
+        return dist
 
     def _check_required_age(self) -> None:
         """Interpolation must finish inside the same observation lifetime."""

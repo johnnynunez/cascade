@@ -45,6 +45,21 @@ overrides:
     wrist_camera_up:
       tcp_axis: [0.0, 0.0, 1.0]
       min_up_z: -0.1
+    # The occupancy check samples the gripper's own volume too, not only the
+    # TCP and the joint origins: the wrist camera box (relative_motion.
+    # wrist_camera, the same box the spatial tools plan with) and the open
+    # jaws (grasp.graspgenx.sweep, the RS finger geometry), every
+    # `spacing_m`, at every vetted pose and every 50 Hz step. Rig incident
+    # 2026-10-11: a side grasp swept the wrist camera into clutter beside the
+    # target while TCP and joints stayed clear (tests/test_harness_tool_volume.py).
+    # Voxels within `table_band_m` of the table plane are the table (governed
+    # by the table rule), and the grasp target's own voxels inside its
+    # exemption cylinder are not obstacles to it; neighbours are.
+    tool_volume:
+      wrist_camera: true
+      jaws: true
+      spacing_m: 0.02
+      table_band_m: 0.02
   grasp:
     # set_gripper only sends the target; without the wait, "open the gripper"
     # was reported failed ("gripper still closed") while the jaws were opening.

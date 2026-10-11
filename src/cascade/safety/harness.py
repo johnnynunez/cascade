@@ -134,13 +134,19 @@ def _unknown_blocks(occupancy) -> bool:
 
 class SafetyHarness:
     def __init__(self, limits: SafetyLimits, kinematics=None, occupancy=None,
-                 base_pose=None):
+                 base_pose=None, tool_volume=None):
         self.limits = limits
         self.kin = kinematics
         # OccupancyMap | None (see perception/occupancy.py). Optional and
         # None by default: no occupancy bridge runs unless configured, and an
         # unconfigured/stale map must never gate motion (booth rule).
         self.occupancy = occupancy
+        # safety.tool_volume.ToolVolume | None: clearance samples on the
+        # gripper's own volume (the wrist camera box, the open jaws), checked
+        # against the occupancy map with the TCP and the joint origins at
+        # every vetted pose and every streamed step (opt-in per arm profile:
+        # `safety.tool_volume`; see `_tool_volume_violation`).
+        self.tool_volume = tool_volume
         # Where this arm is bolted, as a 4x4 base->table transform. None means
         # "the base frame IS the table frame", which is exactly true for a
         # single-arm rig and is why nothing here changes for one arm.
@@ -764,6 +770,12 @@ class SafetyHarness:
             if reason is not None:
                 reject(reason)
 
+            # The gripper's own volume (wrist camera, jaws), with a retreat
+            # rule: an arm already too close may back away, never close in.
+            reason = self._tool_volume_violation(T, self._grasp_exempt, q_prev=q_prev)
+            if reason is not None:
+                reject(reason)
+
         # Inter-arm proximity, LAST because it is the only check that reads
         # another robot's live state. No neighbours registered = no cost, so
         # a single-arm rig runs the identical code path it always did.
@@ -854,6 +866,9 @@ class SafetyHarness:
             reason = self._payload_occupancy_violation(q, exempt)
             if reason is not None:
                 return reason
+            reason = self._tool_volume_violation(T, exempt)
+            if reason is not None:
+                return reason
         # Same inter-arm gate approve() applies per waypoint, so a grasp
         # candidate that would abort against the neighbour is discarded at
         # ranking time instead of failing mid-descent.
@@ -897,6 +912,72 @@ class SafetyHarness:
                 return (f"point {i} clearance {d:.3f} m below {min_c:.3f} m (occupancy map)"
                         f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]")
         return None
+
+    def _tool_volume_clearance(self, T_tcp: np.ndarray, exempt: tuple | None):
+        """(samples, clearance) of the tool volume at TCP pose `T_tcp`
+        (base frame), or (samples, None) when an optional map has no data.
+
+        Obstacles are attributed by where they are: voxels in the table
+        plane band and inside the active grasp exemption (the target) do not
+        count; every other one does (OccupancyMap.clearance_excluding). A map
+        without that method gets the sample-based exemption instead."""
+        vol = self.tool_volume
+        T = np.asarray(T_tcp, dtype=float)
+        if self.base_pose is not None:
+            T = self.base_pose @ T
+        pts = vol.points(T)
+        excluding = getattr(self.occupancy, "clearance_excluding", None)
+        if excluding is not None:
+            dist = excluding(pts, below_z=float(self.limits.table_z) + float(vol.table_band_m),
+                             cylinder=exempt, within=float(self.limits.min_clearance_m))
+        else:
+            dist = self.occupancy.clearance(pts)
+            if dist is not None and exempt is not None:
+                dist = np.where([self._in_cylinder(p, exempt) for p in pts], np.inf, dist)
+        return pts, (None if dist is None else np.asarray(dist, dtype=float))
+
+    def _tool_volume_bad(self, dist: np.ndarray) -> np.ndarray:
+        bad = dist < self.limits.min_clearance_m          # NaN compares False
+        if _unknown_blocks(self.occupancy):
+            bad |= ~np.isfinite(dist)
+        return bad
+
+    def _tool_volume_violation(self, T_next: np.ndarray, exempt: tuple | None, *,
+                               q_prev=None) -> str | None:
+        """Why the wrist camera box / jaws at TCP pose `T_next` are too close
+        to a mapped obstacle, or None.
+
+        Retreat rule (with `q_prev`, i.e. a step, never a static vet): an arm
+        whose volume is ALREADY too close at q_prev may take a step that
+        brings no sample closer and no new sample inside the margin -- else a
+        stop next to an obstacle (or an obstacle that appears next to a
+        resting arm) would strand it. Entering the margin is always refused.
+        """
+        vol = self.tool_volume
+        if vol is None or self.occupancy is None or self.kin is None:
+            return None
+        pts, dist = self._tool_volume_clearance(T_next, exempt)
+        if dist is None:
+            return ("tool volume clearance unavailable (fresh observed distance grid required)"
+                    if _unknown_blocks(self.occupancy) else None)
+        bad = self._tool_volume_bad(dist)
+        if not bad.any():
+            return None
+        if q_prev is not None:
+            _, before = self._tool_volume_clearance(self.kin.fk(np.asarray(q_prev, dtype=float)), exempt)
+            # every sample inside the margin now was at least this close
+            # before: none closed in, so none entered from outside either
+            # (NaN never compares >=)
+            if before is not None and np.all(dist[bad] >= before[bad] - 1e-6):
+                return None
+        worst = np.where(bad, np.nan_to_num(dist, nan=-np.inf, posinf=-np.inf), np.inf)
+        i = int(np.argmin(worst))
+        name, p, d = vol.names[int(vol.part[i])], pts[i], dist[i]
+        where = f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]"
+        if not np.isfinite(d):
+            return f"{name} has unobserved clearance (occupancy map){where}"
+        return (f"{name} clearance {d:.3f} m below {self.limits.min_clearance_m:.3f} m "
+                f"(occupancy map){where}")
 
     def _in_grasp_cylinder(self, p: np.ndarray) -> bool:
         return self._in_cylinder(p, self._grasp_exempt)

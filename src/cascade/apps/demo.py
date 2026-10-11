@@ -41,6 +41,7 @@ from ..perception.stream import CameraRig, CameraStream
 from ..perception.world import LockedDetector, WatchedCamera, WorldWatcher
 from ..perception.workspace import WorkspaceFilter
 from ..safety.harness import SafeArm, SafetyHarness, SafetyLimits
+from ..safety.tool_volume import build_tool_volume
 from ..skills.runtime import SkillRuntime
 
 
@@ -228,6 +229,9 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
     harness = SafetyHarness(
         SafetyLimits.from_config(view.safety), kinematics=kin, occupancy=occupancy,
         base_pose=_base_transform(acfg),
+        # the wrist camera box + open jaws as clearance samples (opt-in per
+        # profile: `safety.tool_volume`; a bad block fails the build here)
+        tool_volume=build_tool_volume(view, acfg),
     )
     # Optional profile-defined rest pose for the shutdown park (see
     # _park_pose). Defaults to the clamped all-zero fallback when absent.

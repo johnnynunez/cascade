@@ -811,3 +811,92 @@ def test_the_profile_base_pose_places_the_arm_in_the_table_frame():
     b = plain(np.zeros((H, W), np.float32), K, np.linalg.inv(shift) @ T)
     assert a.sum() > 3000 and (a != b).sum() <= 0.005 * a.sum()
     assert (a != plain(np.zeros((H, W), np.float32), K, T)).sum() > 1000
+
+
+# ── slice 6: the demo wiring (`_build_arm`) ─────────────────────────────
+
+
+def _rebot_profile(**override):
+    from cascade.apps import demo
+    from cascade.config import Cfg, load_demo_config
+
+    cfg = load_demo_config(arm="rebot_rs", llm="mock")
+    acfg = demo._arm_cfgs(cfg)[0]
+    return cfg, Cfg({**acfg.as_dict(), **override})
+
+
+@needs_rs
+def test_a_standby_arm_is_never_woken_and_nothing_is_integrated(monkeypatch):
+    """LazyArm in standby: the mesh mask has no joint state, so the frame is
+    refused (fail closed) and the motors are never materialized by looking."""
+    from cascade.apps import demo
+
+    built = []
+    monkeypatch.setattr(demo, "make_arm", lambda *a, **k: built.append(1) or pytest.fail("materialized"))
+    cfg, acfg = _rebot_profile(body_mask="mesh")
+    bridge = _Bridge()
+    occ = _occupancy(bridge)
+    arm, _, _ = demo._build_arm(acfg, True, occ, cfg)
+    assert len(occ._pixel_body_fns) == 1 and occ._body_fns == []
+    depth = np.full((H, W), 1.0, np.float32)
+    occ.refresh(_frame(depth), look_at((0.25, -0.75, 0.45), (0.25, 0.0, 0.2)))
+    assert not [p for p in bridge.requests if p["action"].startswith("integrate")]
+    assert "robot body pose" in occ.last_error and "standby" in occ.last_error
+    assert built == [] and arm.connected is False
+
+
+@needs_rs
+def test_a_connected_arm_is_masked_by_its_meshes_at_its_measured_state():
+    """A connected arm (mock backend, the rebot_rs profile's model): the
+    shipped frame has every pixel of the arm's RS triangles zeroed (truth:
+    per-triangle fill at the arm's own state, fingers at its gripper)."""
+    from test_link_self_mask import _fill, _pin_link_poses, _posed, _rs_truth_triangles
+
+    from cascade.apps import demo
+
+    cfg, acfg = _rebot_profile(body_mask="mesh", type="mock")
+    bridge = _Bridge()
+    occ = _occupancy(bridge)
+    arm, _, kin = demo._build_arm(acfg, False, occ, cfg)
+    state = arm.get_state()
+    np.testing.assert_allclose(state.q, acfg.home_q)
+    T = look_at((0.25, -0.75, 0.45), (0.25, 0.0, 0.2))
+    depth = np.full((H, W), 1.0, np.float32)
+    occ.refresh(_frame(depth), T)
+    assert occ.last_error is None, occ.last_error
+    finger = 0.05 * (state.gripper_pos - 0.0) / 6.2                    # profile closed 0, open 6.2 rad
+    truth = _fill(_posed(_rs_truth_triangles(), _pin_link_poses(kin, np.asarray(state.q), finger)), T, (H, W), K)
+    shipped = bridge.sent("integrate_depth")[-1]["depth"]
+    assert truth.sum() > 3000 and (shipped[truth] == 0).all()
+    assert occ.last_masked_px >= truth.sum()
+
+
+@needs_rs
+def test_the_capsule_profile_keeps_the_capsule_body():
+    from cascade.apps import demo
+
+    cfg, acfg = _rebot_profile(body_mask="capsule")
+    occ = _occupancy(_Bridge())
+    demo._build_arm(acfg, True, occ, cfg)
+    assert len(occ._body_fns) == 1 and occ._pixel_body_fns == []
+    assert occ._body_radii == [pytest.approx(float(acfg.get("body_mask_radius_m", 0.06)))]
+
+
+@needs_rs
+def test_the_mesh_mask_is_refused_for_an_isaac_arm():
+    """Isaac frames carry the render mask and their CAPTURE-time joint state;
+    a mesh mask posed at the live state would mask yesterday's image."""
+    from cascade.apps import demo
+
+    cfg, acfg = _rebot_profile(body_mask="mesh", type="isaac")
+    with pytest.raises(ValueError, match="isaac"):
+        demo._build_arm(acfg, True, _occupancy(_Bridge()), cfg)
+
+
+@needs_rs
+def test_without_an_occupancy_map_nothing_is_built():
+    from cascade.apps import demo
+
+    cfg, acfg = _rebot_profile(body_mask="mesh")
+    arm, _, _ = demo._build_arm(acfg, True, None, cfg)
+    assert arm.connected is False

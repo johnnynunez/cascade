@@ -117,6 +117,66 @@ def test_no_bus_reads_while_the_mask_is_queried_during_a_real_stream(monkeypatch
     assert reads_in_stream == []
 
 
+# ── the mesh body mask (`body_mask: mesh`) needs the gripper too ─────────
+
+
+def test_streaming_mesh_mask_state_is_the_target_with_the_gripper_unknown(monkeypatch, clock):
+    """While a stream sends targets: no bus read (the 50 Hz loop's timing),
+    so the gripper opening is NOT read either. It is reported unknown, never
+    as a stale or guessed position: the mesh mask then sweeps the fingers
+    over their whole travel (more mask, never less)."""
+    arm, _, reads = connected_arm(monkeypatch)
+    gripper_reads = []
+    monkeypatch.setattr(arm, "_gripper_pos", lambda: gripper_reads.append(1) or 3.0)
+    target = np.array([0.0, 1.2, 1.2, 0.0, 0.0, 0.0])
+    arm.send_joint_target(target)
+    clock[0] += 0.02
+    state = arm.body_mask_state()
+    np.testing.assert_allclose(state.q, target)
+    assert state.gripper_valid is False
+    assert reads == [] and gripper_reads == []
+    np.testing.assert_allclose(arm.body_mask_q(), target)        # the capsule path reads the same pose
+
+
+def test_idle_mesh_mask_state_is_the_measured_state_with_the_gripper(monkeypatch, clock):
+    arm, _, reads = connected_arm(monkeypatch)
+    monkeypatch.setattr(arm, "_gripper_pos", lambda: 3.1)
+    state = arm.body_mask_state()
+    np.testing.assert_allclose(state.q, MEASURED)
+    assert state.gripper_valid is True and state.gripper_pos == pytest.approx(3.1)
+    assert len(reads) == 1
+
+
+def test_mb_mesh_mask_state_streaming_and_idle(monkeypatch):
+    import cascade.control.rebot_rs_mb_arm as mb
+
+    now = [100.0]
+    monkeypatch.setattr(mb.time, "monotonic", lambda: now[0])
+    arm, _, reads = mb_arm(monkeypatch)
+    monkeypatch.setattr(arm, "_gripper_pos", lambda: 2.0)
+    target = np.array([0.0, 1.2, 1.2, 0.0, 0.0, 0.0])
+    arm.send_joint_target(target)
+    now[0] += 0.02
+    state = arm.body_mask_state()
+    np.testing.assert_allclose(state.q, target)
+    assert state.gripper_valid is False and reads == []
+    now[0] += 0.5
+    state = arm.body_mask_state()
+    np.testing.assert_allclose(state.q, MEASURED)
+    assert state.gripper_valid is True and state.gripper_pos == pytest.approx(2.0) and len(reads) == 1
+
+
+def test_runtime_mesh_state_helper_prefers_the_hook_and_falls_back_to_get_state():
+    from cascade.apps.demo import _body_mask_state
+
+    measured = RobotState(q=MEASURED.copy(), gripper_pos=0.7)
+    plain = SimpleNamespace(get_state=lambda: measured)
+    assert _body_mask_state(plain) is measured
+    hooked = RobotState(q=np.ones(6), gripper_valid=False)
+    with_hook = SimpleNamespace(body_mask_state=lambda: hooked, get_state=lambda: pytest.fail("bus read"))
+    assert _body_mask_state(with_hook) is hooked
+
+
 def test_runtime_mask_helper_keeps_other_arms_on_measured_pose():
     plain = SimpleNamespace(get_state=lambda: RobotState(q=MEASURED.copy(), gripper_pos=0.0))
     np.testing.assert_allclose(_body_mask_q(plain), MEASURED)

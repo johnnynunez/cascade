@@ -278,12 +278,23 @@ class RebotRSArm(ArmBase):
         any bus traffic; otherwise the measured pose. Safety checks keep using
         `get_state()`.
         """
+        return self.body_mask_state().q
+
+    def body_mask_state(self) -> RobotState:
+        """Joint pose AND gripper opening for the occupancy mesh body mask
+        (arm profile `body_mask: mesh`), with the bus-read rule of
+        `body_mask_q`: while a stream is sending targets, the target being
+        tracked and the gripper reported UNKNOWN (`gripper_valid=False`, no
+        gripper read either). The mesh mask then sweeps the fingers over
+        their whole travel: more mask, never a stale or guessed opening.
+        Otherwise the measured state, gripper included.
+        """
         t = getattr(self, "_last_cmd_t", None)
         q = getattr(self, "_last_cmd_q", None)
         if (q is not None and t is not None and not self._stopped
                 and time.monotonic() - t < self.STREAM_ACTIVE_S):
-            return q.copy()
-        return self.get_state().q
+            return RobotState(q=q.copy(), gripper_pos=0.0, gripper_valid=False, t=time.monotonic())
+        return self.get_state()
 
     def _send_mit(self, q: np.ndarray) -> None:
         """Send one arm MIT command, adding the gravity feedforward when

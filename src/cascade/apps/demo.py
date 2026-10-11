@@ -276,8 +276,32 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
                     raise ValueError("Isaac capture snapshot required")
                 return _body_points(frame=frame)
 
-        occupancy.add_robot_body(_body_points, radius_m=float(acfg.get("body_mask_radius_m", 0.06)),
-                                 frame_link_points_fn=frame_body)
+        # `body_mask: mesh` (real arms, opt in per profile): the URDF
+        # geometry rasterized per depth frame instead of capsules around the
+        # joint chain, which left the reBot's jaws and wrist camera in the
+        # map (perception/robot_mask.py MeshBodyMask, docs/NVBLOX.md).
+        from ..perception.robot_mask import body_mask_settings, build_mesh_body_mask
+
+        arm_name = str(acfg.get("name", acfg.get("type", "arm")))
+        if body_mask_settings(acfg) is not None and acfg.get("type") == "isaac":
+            raise ValueError(
+                f"arm {arm_name!r}: body_mask: mesh is for real arms, not type isaac. Isaac frames "
+                "carry the render self-mask and their capture-time joint state; a mesh mask posed "
+                "at the live state would mask an older image. Use body_mask: capsule.")
+
+        def _mesh_state(_arm=arm):
+            # Never materialize a standby LazyArm (powering the motors is not
+            # a side effect of looking): no state -> the frame is refused.
+            if not getattr(_arm, "connected", True):
+                return None
+            return _body_mask_state(_arm)
+
+        mesh = build_mesh_body_mask(acfg, kin, _mesh_state, name=arm_name)
+        if mesh is not None:
+            occupancy.add_robot_body_mask(mesh)
+        else:
+            occupancy.add_robot_body(_body_points, radius_m=float(acfg.get("body_mask_radius_m", 0.06)),
+                                     frame_link_points_fn=frame_body)
         if fallback_cfg.get("occupancy", _empty_cfg()).get("track_payload", False):
             if acfg.get("type") != "isaac":
                 raise ValueError("payload segmentation currently requires the Isaac capture contract")
@@ -297,6 +321,16 @@ def _body_mask_q(arm):
     """
     fn = getattr(arm, "body_mask_q", None)
     return fn() if callable(fn) else arm.get_state().q
+
+
+def _body_mask_state(arm):
+    """Joint state (q AND gripper opening) for the occupancy MESH body mask
+    of a CONNECTED arm (`body_mask: mesh`). A backend may serve it without a
+    bus read while it streams (`RebotRSArm.body_mask_state`: the tracked
+    target with the gripper unknown, so the fingers are swept); every other
+    arm keeps its measured state."""
+    fn = getattr(arm, "body_mask_state", None)
+    return fn() if callable(fn) else arm.get_state()
 
 
 def _base_transform(acfg):

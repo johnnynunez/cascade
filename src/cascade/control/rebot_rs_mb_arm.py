@@ -329,11 +329,18 @@ class RebotRSMotorBridgeArm(ArmBase):
         return the target being tracked (no bus traffic); otherwise the
         measured pose. Safety checks keep using `get_state()`.
         """
+        return self.body_mask_state().q
+
+    def body_mask_state(self) -> RobotState:
+        """Joint pose and gripper opening for the occupancy mesh body mask,
+        same rule as `RebotRSArm.body_mask_state`: while streaming, the
+        tracked target with the gripper unknown (no bus read; the mask
+        sweeps the fingers); otherwise the measured state."""
         t, q = self._last_cmd_t, self._last_cmd_q
         if (q is not None and t is not None and not self._stopped
                 and time.monotonic() - t < self.STREAM_ACTIVE_S):
-            return q.copy()
-        return self.get_state().q
+            return RobotState(q=q.copy(), gripper_pos=0.0, gripper_valid=False, t=time.monotonic())
+        return self.get_state()
 
     def set_gripper(self, pos: float, effort: float = 1.0) -> None:
         if self._ctrl is None or self._gripper_id is None or self._stopped:

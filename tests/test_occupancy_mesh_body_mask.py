@@ -362,3 +362,215 @@ def test_base_pose_moves_the_arm_into_the_table_frame():
     mask = body(depth, K, SIDE_CAM)
     robot = np.isin(label, list(ARM_BOXES))
     assert (robot & ~mask).sum() == 0
+
+
+# ── slice 4: the occupancy map integrates only what the mesh mask leaves ──
+
+
+class _Bridge:
+    """Records what would go over the wire; `native` = an nvblox bridge
+    that negotiated integrate_masked_depth; `points_only` = an old bridge
+    without the depth protocol (the legacy cloud path)."""
+
+    def __init__(self, *, native=False, points_only=False):
+        self.native, self.points_only = native, points_only
+        self.requests: list[dict] = []
+
+    def request(self, payload, timeout_ms=None):
+        from cascade.perception.occupancy import OccupancyError
+
+        self.requests.append(payload)
+        action = payload["action"]
+        if action == "probe":
+            return {"ok": True, "backend": "nvblox" if self.native else "fake", "device": "cpu",
+                    "voxel": 0.01, "esdf": True, "masked_depth": self.native}
+        if action in ("integrate_depth", "integrate_masked_depth") and self.points_only:
+            raise OccupancyError(f"unknown action {action!r}")
+        if action in ("integrate_depth", "integrate_masked_depth", "integrate"):
+            return {"ms": 0.1}
+        if action == "query":
+            return {"points": np.zeros((0, 3), np.float32), "grid": np.full((2, 2, 2), np.inf, np.float32),
+                    "origin": np.zeros(3, np.float32), "voxel": 0.01}
+        raise OccupancyError(f"unknown action {action!r}")
+
+    def probe(self, timeout_ms=300):
+        return self.request({"action": "probe"})
+
+    def sent(self, action):
+        return [p for p in self.requests if p["action"] == action]
+
+
+def _occupancy(bridge, stride=1):
+    from cascade.perception.occupancy import OccupancyMap
+
+    return OccupancyMap(client=bridge, region_min=np.array([-0.3, -0.5, -0.05]),
+                        region_max=np.array([0.7, 0.8, 0.6]), depth_stride=stride)
+
+
+def _frame(depth):
+    from cascade.types import Frame
+
+    return Frame(rgb=np.zeros(depth.shape + (3,), np.uint8), depth_m=depth, K=K.copy())
+
+
+@pytest.mark.parametrize("stride", [1, 2])
+def test_the_map_never_receives_a_robot_pixel_and_keeps_the_object(stride):
+    state = _state()
+    depth, label = render(state, SIDE_CAM)
+    bridge = _Bridge()
+    occ = _occupancy(bridge, stride)
+    occ.add_robot_body_mask(_mesh_mask(state))
+    occ.refresh(_frame(depth), SIDE_CAM)
+    assert occ.last_error is None, occ.last_error
+    shipped = bridge.sent("integrate_depth")[-1]["depth"]
+    lab = label[::stride, ::stride]
+    assert shipped.shape == lab.shape
+    assert (shipped[np.isin(lab, list(ARM_BOXES))] == 0).all(), "a robot pixel reached the map"
+    obj = lab == "object"
+    np.testing.assert_allclose(shipped[obj], depth[::stride, ::stride][obj])
+    assert occ.last_masked_px >= int(np.isin(lab, list(ARM_BOXES)).sum())
+
+
+def test_native_nvblox_masking_gets_the_mesh_mask_as_inactive_rays():
+    state = _state()
+    depth, label = render(state, SIDE_CAM)
+    bridge = _Bridge(native=True)
+    occ = _occupancy(bridge)
+    occ.add_robot_body_mask(_mesh_mask(state))
+    occ.refresh(_frame(depth), SIDE_CAM)
+    assert occ.last_error is None, occ.last_error
+    packet = bridge.sent("integrate_masked_depth")[-1]
+    np.testing.assert_array_equal(packet["depth"], depth)            # raw depth: nvblox masks natively
+    robot = np.isin(label, list(ARM_BOXES))
+    assert not packet["active_mask"][robot].any() and packet["active_mask"][label == "object"].all()
+
+
+def test_the_legacy_cloud_path_drops_the_robot_points_too():
+    state = _state()
+    depth, label = render(state, SIDE_CAM)
+    bridge = _Bridge(points_only=True)
+    occ = _occupancy(bridge)
+    occ.stride = 1
+    occ.add_robot_body_mask(_mesh_mask(state))
+    occ.refresh(_frame(depth), SIDE_CAM)
+    assert occ.last_error is None, occ.last_error
+    pts = np.asarray(bridge.sent("integrate")[-1]["points"], dtype=float)
+    # independent truth: back-project the robot's own pixels; none may be sent
+    ys, xs = np.nonzero(np.isin(label, list(ARM_BOXES)) & (depth > 0))
+    z = depth[ys, xs]
+    robot_pts = (np.stack([(xs - K[0, 2]) / FX * z, (ys - K[1, 2]) / FX * z, z], -1)
+                 @ SIDE_CAM[:3, :3].T + SIDE_CAM[:3, 3])
+    from scipy.spatial import cKDTree
+
+    assert cKDTree(robot_pts).query(pts, distance_upper_bound=1e-4)[0].min() > 1e-4
+    assert len(pts) > 1000
+
+
+@pytest.mark.parametrize("points_only", [False, True])
+@pytest.mark.parametrize("state_fn", [lambda: None, lambda: (_ for _ in ()).throw(RuntimeError("read failed"))])
+def test_no_joint_state_integrates_nothing_and_blocks_clearance(state_fn, points_only):
+    """Standby (LazyArm) or a failed read: NOTHING reaches the map, and the
+    fault cannot age into a clearance bypass."""
+    from cascade.perception.robot_mask import MeshBodyMask
+    from cascade.types import SafetyViolation
+
+    depth, _ = render(_state(), SIDE_CAM)
+    bridge = _Bridge(points_only=points_only)
+    occ = _occupancy(bridge)
+    if points_only:
+        occ._depth_supported = False                                  # straight to the legacy cloud path
+    occ.add_robot_body_mask(MeshBodyMask(synth_geometry(), synth_poses, state_fn))
+    occ.refresh(_frame(depth), SIDE_CAM)
+    assert not [p for p in bridge.requests if p["action"].startswith("integrate")]
+    assert "robot body pose" in occ.last_error and occ.last_masked_px == 0
+    occ._last_refresh = 0.0                                           # an aged cache
+    with pytest.raises(SafetyViolation, match="robot body pose"):
+        occ.clearance([[0.3, 0.0, 0.3]])
+
+
+def test_losing_the_joint_state_after_a_good_refresh_relatches_the_fault():
+    """The arm masked fine, then its read fails (or it drops to standby):
+    the next frame is refused and clearance is refused with it, even though
+    the previous grid is still fresh."""
+    from cascade.perception.robot_mask import MeshBodyMask
+    from cascade.types import SafetyViolation
+
+    current = {"state": _state()}
+    depth, _ = render(current["state"], SIDE_CAM)
+    bridge = _Bridge()
+    occ = _occupancy(bridge)
+    occ.add_robot_body_mask(MeshBodyMask(synth_geometry(), synth_poses, lambda: current["state"]))
+    occ.refresh(_frame(depth), SIDE_CAM)
+    assert occ.last_error is None
+    occ.clearance([[0.3, 0.0, 0.3]])                                  # validated: no fault raised
+    sent = len(bridge.sent("integrate_depth"))
+    current["state"] = None
+    occ.refresh(_frame(depth), SIDE_CAM)
+    assert len(bridge.sent("integrate_depth")) == sent, "an unmasked frame reached the map"
+    with pytest.raises(SafetyViolation, match="mesh mask"):
+        occ.clearance([[0.3, 0.0, 0.3]])
+
+
+@pytest.mark.parametrize("bad", [lambda d: np.zeros(d.shape, np.uint8), lambda d: np.zeros((3, 3), bool),
+                                 lambda d: None])
+def test_a_malformed_body_mask_is_refused(bad):
+    depth, _ = render(_state(), SIDE_CAM)
+    bridge = _Bridge()
+    occ = _occupancy(bridge)
+    occ.add_robot_body_mask(lambda d, K_, T_: bad(d))
+    occ.refresh(_frame(depth), SIDE_CAM)
+    assert not bridge.sent("integrate_depth") and "robot body pose" in occ.last_error
+
+
+@pytest.mark.parametrize("points_only", [False, True])
+def test_a_capsule_arm_and_a_mesh_arm_are_both_masked(points_only):
+    """Two arms on one map: each keeps its own masking, on both wire paths."""
+    from cascade.perception.robot_mask import _segment_distances, robot_mask
+
+    state = _state()
+    depth, label = render(state, SIDE_CAM)
+    other = np.array([[0.55, 0.0, 0.0], [0.55, 0.0, 0.25]])          # a second arm's chain (a post)
+    bridge = _Bridge(points_only=points_only)
+    occ = _occupancy(bridge)
+    occ.stride = 1
+    occ.add_robot_body(lambda: other, radius_m=0.05)
+    occ.add_robot_body_mask(_mesh_mask(state))
+    occ.refresh(_frame(depth), SIDE_CAM)
+    assert occ.last_error is None, occ.last_error
+    capsule = robot_mask(depth, K, SIDE_CAM, other, radius_m=0.05)
+    assert capsule.sum() > 0
+    if not points_only:
+        shipped = bridge.sent("integrate_depth")[-1]["depth"]
+        assert (shipped[capsule] == 0).all()
+        assert (shipped[np.isin(label, list(ARM_BOXES))] == 0).all()
+        return
+    pts = np.asarray(bridge.sent("integrate")[-1]["points"], dtype=float)
+    assert len(pts) > 1000 and _segment_distances(pts, other[0], other[1]).min() > 0.05
+
+
+def test_a_render_mask_is_never_written_by_the_mesh_mask():
+    """The frame's own `robot_mask` (Isaac) is shared with fusion: OR-ing the
+    mesh mask in must build a new array, never write the frame's."""
+    state = _state()
+    depth, _ = render(state, SIDE_CAM)
+    frame = _frame(depth)
+    frame.robot_mask = np.zeros(depth.shape, bool)
+    occ = _occupancy(_Bridge())
+    occ.add_robot_body_mask(_mesh_mask(state))
+    occ.refresh(frame, SIDE_CAM)
+    assert occ.last_error is None and not frame.robot_mask.any()
+
+
+def test_payload_tracking_and_the_mesh_mask_are_refused_together():
+    """Payload replay re-sends history with the frames' render masks only; a
+    mesh-masked arm's history would replay unmasked."""
+    from cascade.perception.occupancy import OccupancyError
+
+    occ = _occupancy(_Bridge())
+    occ.add_robot_body_mask(_mesh_mask(_state()))
+    with pytest.raises(OccupancyError, match="mesh"):
+        occ.track_payload(lambda frame: np.eye(4))
+    occ = _occupancy(_Bridge())
+    occ.track_payload(lambda frame: np.eye(4))
+    with pytest.raises(OccupancyError, match="mesh"):
+        occ.add_robot_body_mask(_mesh_mask(_state()))

@@ -53,6 +53,12 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
+#: Payload tracking replays depth history with the frames' captured render
+#: masks only; a mesh-masked arm's old frames would replay unmasked.
+_PAYLOAD_VS_MESH = ("payload tracking cannot be combined with a mesh body mask (`body_mask: mesh`): "
+                    "the payload replay re-sends history with render masks only")
+
+
 class OccupancyError(RuntimeError):
     pass
 
@@ -196,6 +202,10 @@ class OccupancyMap:
         self._body_fns: list = []
         self._body_radii: list[float] = []
         self._frame_body_fns: list = []
+        #: arms masked by their own PIXELS (`body_mask: mesh`, perception/
+        #: robot_mask.MeshBodyMask): callables (depth, K, T_base_cam) ->
+        #: (H, W) bool, evaluated on the exact depth image that ships.
+        self._pixel_body_fns: list = []
         self.last_masked_px: int = 0
         self._body_error: str | None = None
         self.allowed_contact_paths: set[str] = set()
@@ -367,6 +377,8 @@ class OccupancyMap:
         """Use captured depth of attached props as robot geometry, not world obstacles."""
         if self._payload_pose_fn is not None:
             raise ValueError("payload tracking currently requires a single arm")
+        if self._pixel_body_fns:
+            raise OccupancyError(_PAYLOAD_VS_MESH)
         self._payload_pose_fn = frame_tcp_pose_fn
         self._body_error = "payload segmentation not yet validated"
 
@@ -502,6 +514,46 @@ class OccupancyMap:
         self._body_radii.append(float(radius_m))
         self._frame_body_fns.append(frame_link_points_fn)
         self._body_error = "robot body pose not yet validated by a masked depth refresh"
+
+    def add_robot_body_mask(self, mask_fn) -> None:
+        """Register an arm masked by its own PIXELS before integration.
+
+        `mask_fn(depth, K, T_base_cam) -> (H, W) bool` is called on the depth
+        image that actually ships (after `depth_stride`, with the matching
+        K), True on the robot's pixels: `perception.robot_mask.MeshBodyMask`
+        for an arm profile with `body_mask: mesh` (the arm's URDF geometry
+        rasterized at its current joint state). Same fail-closed contract as
+        `add_robot_body`: until a masked refresh succeeds clearance is
+        refused, and a call that raises (no joint state: the arm in standby,
+        a failed read) or returns anything but a bool image of the depth's
+        shape integrates NOTHING and latches the fault. It is never replaced
+        by a weaker mask.
+        """
+        if self._payload_pose_fn is not None:
+            raise OccupancyError(_PAYLOAD_VS_MESH)
+        self._pixel_body_fns.append(mask_fn)
+        self._body_error = "robot body pose not yet validated by a masked depth refresh"
+
+    def _robot_pixel_masks(self, depth: np.ndarray, K: np.ndarray, T_base_cam: np.ndarray) -> np.ndarray:
+        """OR of every pixel-masked body on this exact depth image. Every
+        body is evaluated before anything is sent; one failure refuses the
+        frame (`OccupancyError`) and latches `_body_error`."""
+        total = np.zeros(np.shape(depth)[:2], dtype=bool)
+        for i, fn in enumerate(self._pixel_body_fns):
+            name = getattr(fn, "name", f"#{i}")
+            try:
+                mask = fn(depth, K, T_base_cam)
+                if (not isinstance(mask, np.ndarray) or mask.dtype != np.bool_
+                        or mask.shape != total.shape):
+                    raise ValueError(f"expected a bool {total.shape} image, got "
+                                     f"{getattr(mask, 'dtype', type(mask).__name__)} "
+                                     f"{getattr(mask, 'shape', '')}")
+            except Exception as e:  # includes standby and failed reads: refuse the frame
+                self.last_masked_px = 0
+                self._body_error = f"robot body pose unavailable for the {name} mesh mask: {e}"
+                raise OccupancyError(self._body_error) from e
+            total |= mask
+        return total
 
     def _robot_bodies(self, frame=None) -> list:
         """Read ALL registered bodies before sending any depth to the map.
@@ -1057,6 +1109,7 @@ class OccupancyMap:
     def _robot_depth_mask(self, depth: np.ndarray, K: np.ndarray, T_base_cam: np.ndarray, *, frame=None) -> np.ndarray:
         """Identify excluded measured surfaces before choosing backend semantics."""
         bodies = self._robot_bodies(frame)
+        own = self._robot_pixel_masks(depth, K, T_base_cam)
         from .robot_mask import robot_mask
 
         total = np.zeros(depth.shape, dtype=bool)
@@ -1066,12 +1119,20 @@ class OccupancyMap:
         else:
             for lp, r in bodies:
                 total |= robot_mask(depth, K, T_base_cam, lp, radius_m=r)
+        # a NEW array: `total` may be a view of the frame's render mask,
+        # which fusion reads too
+        total = total | own
         self.last_masked_px = int(total.sum())
         return total
 
     def _integrate_points(self, frame, T_base_cam: np.ndarray) -> None:
         bodies = self._robot_bodies(frame)
-        pixels = self._render_robot_mask(frame)
+        render = pixels = self._render_robot_mask(frame)
+        if self._pixel_body_fns and frame.has_depth:
+            # the legacy cloud path back-projects the FULL-resolution depth
+            own = self._robot_pixel_masks(np.asarray(frame.depth_m, dtype=np.float32),
+                                          np.asarray(frame.K, dtype=np.float64), T_base_cam)
+            pixels = own if pixels is None else (pixels | own)
         if pixels is not None:
             import copy
 
@@ -1080,7 +1141,7 @@ class OccupancyMap:
             frame.depth_m[pixels] = 0
             self.last_masked_px = int(pixels.sum())
         pts_base = self._depth_to_base_points(frame, T_base_cam)
-        if pts_base.shape[0] and bodies and pixels is None:
+        if pts_base.shape[0] and bodies and render is None:
             # legacy cloud path: drop points within the body radius of any link
             from .robot_mask import _segment_distances
 

@@ -1432,6 +1432,10 @@ class SkillRuntime:
             # The arm hit something the cameras did not see. Re-homing,
             # re-scanning and planning again would drive it back there.
             return "contact detected: something blocked the arm; not retrying into it"
+        if _is_gripper_fault(last_err):
+            # Reference failed (something between the jaws) or the jaws were
+            # blocked opening: another attempt would only press again.
+            return "gripper fault: not retrying until the jaws are cleared"
         if attempt >= 2 and "no detections" in last_err and self.beliefs.find(object) is None:
             return "never seen after re-scans; giving up early"
         if _every_candidate_too_wide(last_err):
@@ -6352,6 +6356,12 @@ def _stuck_ask(object: str, last_err: str, attempts: int, *, stage: str = "grasp
     err = str(last_err or "").lower()
     obj = f"{object!r}" if object else "the object"
     n = max(int(attempts), 1)
+    if _is_gripper_fault(err):
+        return (f"My gripper stopped itself while handling {obj}: "
+                + ("something is between the jaws, so I cannot find their closed position. "
+                   if "between the jaws" in err else
+                   "the jaws were blocked while opening, so they hold where they stopped. ")
+                + "Clear the jaws (nothing between or against them), then ask again.")
     if _is_contact(err):
         doing = "placing" if stage == "place" else "reaching for"
         held = " I am still holding it." if holding else ""
@@ -6383,6 +6393,11 @@ def _stuck_ask(object: str, last_err: str, attempts: int, *, stage: str = "grasp
     return (f"I could not pick up {obj} after {n} attempt(s) and my persistence budget is "
             f"spent. Reposition it (upright, in view, within reach) or change the "
             f"instruction, and ask again.")
+
+
+def _is_gripper_fault(error) -> bool:
+    """The gripper refused or stopped for safety (control/rs_gripper.py)."""
+    return "gripperfault" in str(error or "").lower()
 
 
 def _is_contact(error) -> bool:

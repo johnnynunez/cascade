@@ -10,7 +10,10 @@ end drives the jaw into a hard stop at full MIT stiffness (the DM-polarity
 [min(open_pos, closed_pos), max(open_pos, closed_pos)] -- polarity-aware, so
 a profile with the opposite sign is clamped the same way.
 
-Offline: fake gripper groups/motors record what would go on the wire.
+Offline: fake gripper groups/motors record what would go on the wire. The
+drivers here are already turn-referenced, holding fully open (`_referenced`):
+the reference itself, and the ramped, watched opening, are the subject of
+tests/test_rebot_gripper_reference.py.
 """
 
 from __future__ import annotations
@@ -39,13 +42,21 @@ class _FakeSdkArm:
         self.gripper = _GripGroup()
 
 
+def _referenced(arm, at):
+    """As after a turn reference with the jaw last sent to `at` (motor frame
+    = jaw frame)."""
+    arm._grip_guard.offset = 0.0
+    arm._grip_guard._last_target = float(at)
+    return arm
+
+
 def _rs(open_pos=6.2, closed_pos=0.0):
     from cascade.control.rebot_rs_arm import RebotRSArm
 
     arm = RebotRSArm(Cfg({"gripper": {"open_pos": open_pos, "closed_pos": closed_pos,
                                       "kp": 2.0, "kd": 0.4}}))
     arm._arm = _FakeSdkArm()
-    return arm
+    return _referenced(arm, open_pos)
 
 
 @pytest.mark.parametrize("cmd, expected", [
@@ -90,6 +101,7 @@ def test_mb_set_gripper_clamps_to_profile_travel():
     motor = _MbMotor()
     arm._ctrl = object()
     arm._motors = {7: motor}
+    _referenced(arm, 6.2)
     for cmd in (9.0, 2.0, -3.0):
         arm.set_gripper(cmd)
     assert motor.sent == [pytest.approx(6.2), pytest.approx(2.0), pytest.approx(0.0)]

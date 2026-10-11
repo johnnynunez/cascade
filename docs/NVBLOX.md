@@ -206,6 +206,26 @@ For the upstream model and multi-camera requirements, see the
 [nvblox interface](https://nvidia-isaac.github.io/nvblox/v0.0.10/pages/core_library_interface.html)
 and NVIDIA's [multi-camera tutorial](https://nvidia-isaac-ros.github.io/concepts/scene_reconstruction/nvblox/tutorials/tutorial_multi_realsense.html).
 
+## Watching the map live
+
+`scripts/record_live_map.py` records what nvblox holds next to what the
+cameras see: the cameras' annotated streams on top, the occupied voxels below
+(a slow 3-D orbit with the safety workspace, and a top-down height map with
+the agent's visible objects). It runs beside the MCP server and only watches:
+cameras come from the live-view server (`/stream/<camera>`), and the bridge is
+wrapped in `ReadOnlyBridge`, which forwards `probe`/`query` and raises on
+`clear`/`integrate_*`. A stopped stream is drawn as missing, never frozen;
+the voxel count and map age are on every frame.
+
+```bash
+scripts/record_live_map.py --seconds 60 --out runs/videos/live_map.mp4
+```
+
+The map shows what the server integrated: with `CASCADE_OCCUPANCY=0` nothing
+new arrives, and the video says so (0 voxels or a stale map). On the Spark a
+1280 x 720 composite at 10 fps writes in real time, and each map query takes
+14-16 ms (92 x 102 x 68 voxels).
+
 ## Troubleshooting: every motion refused as "not yet validated"
 
 With a robot body registered, the map refuses all motion until one depth

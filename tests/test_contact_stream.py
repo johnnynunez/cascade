@@ -86,6 +86,30 @@ def test_mock_blocked_joint_trips_holds_the_measured_pose_and_stops_streaming():
     assert exc.value.event["joint"] == 3 and exc.value.event["hold_q"] == pytest.approx(list(held))
 
 
+@pytest.mark.parametrize("bad_read", ["raises", "disagrees", "nan"])
+def test_no_trustworthy_measured_pose_means_no_hold_command(bad_read):
+    """The hold is only sent for a fresh reading that agrees with what the
+    monitor just saw; otherwise the motors keep the last streamed target
+    (commanding a wrong 'measured' pose could swing the arm)."""
+    class Flaky(MockArm):
+        def read_positions_for_monitor(self):
+            if bad_read == "raises":
+                raise RuntimeError("ack timeout")
+            q = self.get_state().q.copy()
+            q[0] = np.nan if bad_read == "nan" else q[0] + 1.0   # plausible, wrong
+            return q
+    arm = Flaky(Cfg({"n_joints": 6, "home_q": HOME.tolist()}))
+    arm.connect()
+    arm.block_joint(2)
+    m = monitor()
+    with pytest.raises(ContactDetected):
+        arm.stream_to(HOME + np.array([0, 0, 0.6, 0, 0, 0]), 2.0, contact_monitor=m)
+    assert m.hold.startswith("last command (measured pose unavailable")
+    last = arm.commands[-1]
+    assert last[0] == HOME[0] and last[2] > HOME[2]          # a streamed tick, no hold
+    assert "hold_q" not in (m.tripped or {})
+
+
 def test_mock_blocked_joint_trips_on_a_joint_path_too():
     arm = mock_arm()
     arm.block_joint(1)

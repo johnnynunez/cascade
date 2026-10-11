@@ -235,20 +235,48 @@ class RebotRSMotorBridgeArm(ArmBase):
             raise UnsafeReading(f"implausible mechPos: {problem}")
         return np.asarray(raw, dtype=float) * self._wire
 
+    def _fresh_positions(self) -> np.ndarray:
+        """A full, guarded read; raises instead of serving the last pose."""
+        if self._ctrl is None:
+            raise RuntimeError("arm not connected")
+        q = self._read_positions()
+        now = time.monotonic()
+        # A plausible value can still be impossible: it must be reachable
+        # from the last GOOD reading in the time since.
+        if self._last_q_t is not None:
+            problem = joint_reading_problem(q, self._last_q, now - self._last_q_t)
+            if problem:
+                raise UnsafeReading(f"implausible mechPos: {problem}")
+        self._last_q, self._last_q_t = q, now
+        self._read_failures = 0
+        return q
+
+    def read_positions_for_monitor(self) -> np.ndarray:
+        """Fresh full pose for the contact monitor (see RebotRSArm): raises
+        rather than serve a stale pose the arm would be snapped back to."""
+        return self._fresh_positions().copy()
+
+    def contact_joint_reader(self):
+        """One motor's mechPos per call (local convention), for the contact
+        monitor mid-stream; see RebotRSArm.contact_joint_reader."""
+        return self._read_joint
+
+    def _read_joint(self, j: int, timeout_s: float) -> float:
+        if self._ctrl is None:
+            raise RuntimeError("arm not connected")
+        j = int(j)
+        timeout_ms = max(1, round(float(timeout_s) * 1000.0))
+        with self._lock:
+            x = self._motors[self._joint_ids[j]].robstride_get_param_f32(MECH_POS, timeout_ms)
+        if not plausible_position(x):
+            raise UnsafeReading(f"implausible mechPos on joint {j + 1}: {x!r}")
+        return float(x) * float(self._wire[j])
+
     def get_state(self) -> RobotState:
         if self._ctrl is None:
             raise RuntimeError("arm not connected")
         try:
-            q = self._read_positions()
-            now = time.monotonic()
-            # A plausible value can still be impossible: it must be reachable
-            # from the last GOOD reading in the time since.
-            if self._last_q_t is not None:
-                problem = joint_reading_problem(q, self._last_q, now - self._last_q_t)
-                if problem:
-                    raise UnsafeReading(f"implausible mechPos: {problem}")
-            self._last_q, self._last_q_t = q, now
-            self._read_failures = 0
+            q = self._fresh_positions()
         except Exception as e:
             # One transient CAN hiccup: serve last known. Repeated failures
             # mean the bus is unhealthy -- fail loudly so motion aborts

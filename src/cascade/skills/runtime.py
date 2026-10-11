@@ -116,7 +116,7 @@ _MOTION_SKILLS = {
     "throw", "grasp_at_pixel", "turn_screw", "reset_scene",
     # natural-language spatial nudges (skills/spatial_moves.py): every one
     # streams through SafeArm, so `motion lock` must deny it too
-    "undo_move", "rotate_gripper",
+    "undo_move", "rotate_gripper", "move_near_object",
     # Pigey composites over the belief store: both pick and place through
     # the same primitives every other composite uses (snapshot_scene is
     # perception-only and deliberately absent)
@@ -5465,6 +5465,26 @@ class SkillRuntime:
         return spatial_moves.rotate_gripper(self, direction=direction, angle_deg=angle_deg,
                                             amount=amount, frame=frame)
 
+    def skill_move_near_object(self, label: str | None = None, relation: str | None = None,
+                               clearance_m: float | None = None, side: str | None = None,
+                               frame: str | None = None, distance_m: float | None = None,
+                               amount: str | None = None) -> dict:
+        """Position the gripper and its load relative to a named object or
+        the table: "hold it above the green spool", "next to the cup",
+        "closer to the box", "lower it until it's just above the table".
+
+        The target is localized fresh; heights use its OBSERVED top plus
+        clearance plus how far a held object hangs below the TCP; the route
+        climbs first / descends last and is vetted end to end before the
+        first command. Never opens or closes the jaws. See
+        `spatial_moves.move_near_object`.
+        """
+        from . import spatial_moves
+
+        return spatial_moves.move_near_object(self, label=label, relation=relation,
+                                              clearance_m=clearance_m, side=side, frame=frame,
+                                              distance_m=distance_m, amount=amount)
+
     def skill_undo_move(self, steps: int = 1) -> dict:
         """"Go back" / "undo that": retrace the last `steps` (1-5) moves made by
         move_relative / rotate_gripper / move_near_object, newest first.
@@ -6786,6 +6806,44 @@ TOOL_SPECS: list[dict] = [
                           "description": "For tilts only: base = robot directions (default); viewer = as seen on the screen."},
             },
             "required": ["direction"],
+        },
+    },
+    {
+        "name": "move_near_object",
+        "description": (
+            "Move the gripper -- and anything it holds -- to a position RELATIVE TO A NAMED "
+            "OBJECT or the table, without grasping or releasing anything. relation=above: hover "
+            "over it ('hold it above the green spool' -> label='green spool', relation=above); "
+            "just_above: barely over it ('lower it until it's just above the table' -> "
+            "label='table', relation=just_above); next_to: beside it ('hold it next to the cup' "
+            "-> next_to; side=left/right/forward/back or toward_viewer/away_from_viewer with "
+            "frame=viewer picks the side, default the side nearest the gripper); closer: move "
+            "toward it ('bring it closer to the box' -> closer, amount/distance_m as in "
+            "move_relative; it stops before touching). Heights use the target's measured top; "
+            "when holding something, the held object's bottom (not the gripper) is kept "
+            "clearance_m above the target's top (default 5 cm for above, 1.5 cm for just_above). "
+            "It climbs first and descends last, at most 0.5 m per call. Use place_at / "
+            "place_on_object to actually put something down, this only positions. If refused "
+            "(ok=false) the arm did NOT move; relay the reason. undo_move goes back."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "label": {"type": "string",
+                          "description": "The reference object, e.g. 'green spool', or 'table'."},
+                "relation": {"type": "string", "enum": ["above", "just_above", "next_to", "closer"]},
+                "clearance_m": {"type": "number",
+                                "description": "Gap to keep (0.005-0.15 m): vertical for above/just_above, edge to edge for next_to."},
+                "side": {"type": "string",
+                         "enum": ["nearest", "left", "right", "forward", "back", "toward_viewer", "away_from_viewer"],
+                         "description": "next_to only: which side of the object (default nearest)."},
+                "frame": {"type": "string", "enum": ["base", "viewer"],
+                          "description": "Frame of `side`: base = robot directions (default), viewer = as seen on the screen."},
+                "amount": {"type": "string", "enum": ["tiny", "small", "medium", "large"],
+                           "description": "closer only: 1 / 2 / 5 (default) / 10 cm."},
+                "distance_m": {"type": "number", "description": "closer only: exact distance (0.005-0.15 m)."},
+            },
+            "required": ["label", "relation"],
         },
     },
     {

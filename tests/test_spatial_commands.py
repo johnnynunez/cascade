@@ -42,20 +42,21 @@ def _hold(runtime, arm, label="red cube", drop_m=0.03):
     runtime._held_support_offset_m = drop_m
 
 
-def _park_low(runtime, z=0.10):
+def _park_low(runtime, z=0.10, xy=(0.30, 0.0)):
     """Test setup: a top-down pose `z` above the real table (through SafeArm,
-    so the harness vets it like any motion). Raising `table_z` instead would
-    put the elbow 'under the table' and refuse everything for the wrong
-    reason."""
+    so the harness vets it like any motion) -- the pose a grasp leaves the
+    gripper in. Raising `table_z` instead would put the elbow 'under the
+    table' and refuse everything for the wrong reason."""
     from cascade.grasping.obb_grasp import _yaw_rotation
     from cascade.types import make_transform
 
     kin = runtime.arm.harness.kin
-    T = make_transform(_yaw_rotation(0.0, axis_order=runtime._tool_axis_order), [0.30, 0.0, z])
+    yaw = float(np.arctan2(xy[1], xy[0]))          # radial jaws, like point_at
+    T = make_transform(_yaw_rotation(yaw, axis_order=runtime._tool_axis_order), [xy[0], xy[1], z])
     ik = kin.ik(T, runtime.arm.get_state().q)
     assert ik.success
     assert runtime.arm.move_joints(ik.q, duration_s=2.0)
-    np.testing.assert_allclose(_tcp(runtime)[:3, 3], [0.30, 0.0, z], atol=2e-3)
+    np.testing.assert_allclose(_tcp(runtime)[:3, 3], [xy[0], xy[1], z], atol=2e-3)
 
 
 # ── frames and the reported interpretation ──────────────────────────────────
@@ -457,3 +458,150 @@ def test_rotating_while_holding_is_slow_and_never_touches_the_jaws(rig):
     r = runtime.execute("rotate_gripper", {"direction": "clockwise", "amount": "tiny"})
     assert r["ok"], r
     assert r["holding"] == "red cube" and "slow" in r["speed"]
+
+
+# ── positions relative to objects ───────────────────────────────────────────
+
+
+def _seen(runtime, label="red cube"):
+    import time
+
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if runtime.beliefs.find(label) is not None:
+            return runtime.beliefs.find(label)
+        time.sleep(0.05)
+    pytest.fail(f"the watcher never saw {label!r}")
+
+
+@needs_pin
+def test_hold_above_an_object_hovers_over_its_top(rig):
+    runtime, _ = rig
+    _seen(runtime)
+    _park_low(runtime, z=0.14, xy=(0.32, -0.10))
+    r = runtime.execute("move_near_object", {"label": "red cube", "relation": "above"})
+    assert r["ok"], r
+    top = r["target"]["top_z_m"]
+    tcp = _tcp(runtime)[:3, 3]
+    np.testing.assert_allclose(tcp[:2], r["target"]["center_xy_m"], atol=3e-3)
+    assert tcp[2] == pytest.approx(top + 0.05, abs=3e-3)       # default 5 cm over its top
+    assert "red cube" in r["interpretation"]
+
+
+@needs_pin
+def test_holding_keeps_the_carried_bottom_above_the_targets_top(rig):
+    runtime, arm = rig
+    _seen(runtime)
+    _park_low(runtime, z=0.14, xy=(0.32, -0.10))
+    _hold(runtime, arm, label="blue block", drop_m=0.03)
+    r = runtime.execute("move_near_object", {"label": "red cube", "relation": "above", "clearance_m": 0.04})
+    assert r["ok"], r
+    assert _tcp(runtime)[2, 3] == pytest.approx(r["target"]["top_z_m"] + 0.04 + 0.03, abs=3e-3)
+    assert r["holding"] == "blue block"
+
+
+@needs_pin
+def test_going_back_after_a_hover_retraces_the_carry_route(rig):
+    """The hover went over at the start height and then straight down; the
+    undo must climb straight up first, never cut diagonally across the
+    target it is hovering over."""
+    runtime, arm = rig
+    _seen(runtime)
+    _park_low(runtime, z=0.14, xy=(0.32, -0.10))
+    start = _tcp(runtime)
+    r = runtime.execute("move_near_object", {"label": "red cube", "relation": "above"})
+    assert r["ok"], r
+    centre = np.asarray(r["target"]["center_xy_m"])
+    n0 = len(arm.commands)
+    assert runtime.execute("undo_move", {})["ok"]
+    np.testing.assert_allclose(_tcp(runtime), start, atol=2e-3)
+    kin = runtime.arm.harness.kin
+    path = np.array([kin.fk(q)[:3, 3] for q in arm.commands[n0:]])
+    away = np.linalg.norm(path[:, :2] - centre, axis=1) > 0.02
+    assert away.any() and path[away, 2].min() > start[2, 3] - 0.01
+
+
+@needs_pin
+def test_just_above_the_table_while_holding(rig):
+    runtime, arm = rig
+    _park_low(runtime, z=0.15)
+    _hold(runtime, arm, drop_m=0.03)
+    before = _tcp(runtime)[:3, 3]
+    r = runtime.execute("move_near_object", {"label": "table", "relation": "just_above"})
+    assert r["ok"], r
+    tcp = _tcp(runtime)[:3, 3]
+    np.testing.assert_allclose(tcp[:2], before[:2], atol=2e-3)
+    # the held bottom (3 cm under the TCP) ends just over the harness clearance
+    assert tcp[2] - 0.03 == pytest.approx(0.025, abs=3e-3)
+
+
+@needs_pin
+def test_next_to_an_object_stops_beside_it_on_the_named_side(rig):
+    runtime, _ = rig
+    _seen(runtime)
+    _park_low(runtime, z=0.15)
+    r = runtime.execute("move_near_object", {"label": "red cube", "relation": "next_to", "side": "left"})
+    assert r["ok"], r
+    tcp = _tcp(runtime)[:3, 3]
+    centre = np.asarray(r["target"]["center_xy_m"])
+    assert tcp[1] > centre[1]                                  # the robot's left
+    assert np.linalg.norm(tcp[:2] - centre) == pytest.approx(r["target"]["standoff_m"], abs=3e-3)
+    assert tcp[2] > r["target"]["top_z_m"]                      # never lower than its top
+
+
+@needs_pin
+def test_closer_moves_toward_it_and_stops_at_the_standoff(rig):
+    runtime, arm = rig
+    _seen(runtime)
+    centre = None
+    r = runtime.execute("move_near_object", {"label": "red cube", "relation": "closer", "amount": "large"})
+    assert r["ok"], r
+    centre = np.asarray(r["target"]["center_xy_m"])
+    d = np.linalg.norm(_tcp(runtime)[:2, 3] - centre)
+    assert d == pytest.approx(r["target"]["standoff_m"], abs=3e-3)   # stopped short of 10 cm
+    n0 = len(arm.commands)
+    again = runtime.execute("move_near_object", {"label": "red cube", "relation": "closer"})
+    assert again["ok"] is False and "already" in again["error"]
+    assert len(arm.commands) == n0
+
+
+@needs_pin
+@pytest.mark.parametrize("args", [
+    {"label": "red cube", "relation": "inside"},
+    {"label": "red cube"},
+    {"relation": "above"},
+    {"label": "table", "relation": "next_to"},
+    {"label": "red cube", "relation": "above", "clearance_m": float("nan")},
+    {"label": "red cube", "relation": "above", "clearance_m": 0.5},
+    {"label": "red cube", "relation": "next_to", "side": "up"},
+    {"label": "purple elephant", "relation": "above"},
+])
+def test_object_relative_requests_that_cannot_be_honoured_never_move(rig, args):
+    runtime, arm = rig
+    _seen(runtime)
+    n0 = len(arm.commands)
+    r = runtime.execute("move_near_object", args)
+    assert r["ok"] is False, r
+    assert len(arm.commands) == n0
+
+
+@needs_pin
+def test_the_object_in_the_gripper_is_not_a_target(rig):
+    runtime, arm = rig
+    _seen(runtime)
+    _hold(runtime, arm, label="red cube")
+    n0 = len(arm.commands)
+    r = runtime.execute("move_near_object", {"label": "red cube", "relation": "above"})
+    assert r["ok"] is False and "holding" in r["error"]
+    assert len(arm.commands) == n0
+
+
+@needs_pin
+def test_a_target_too_far_for_one_call_is_refused(rig):
+    runtime, arm = rig
+    _seen(runtime)
+    runtime.cfg._data["relative_motion"]["max_object_move_m"] = 0.10
+    n0 = len(arm.commands)
+    r = runtime.execute("move_near_object", {"label": "red cube", "relation": "above"})
+    assert r["ok"] is False and "per call" in r["error"]
+    assert len(arm.commands) == n0

@@ -677,3 +677,212 @@ def rotate_gripper(rt, direction=None, angle_deg=None, amount=None, frame=None) 
         extra["camera_up_z"] = round(float((R1 @ np.asarray(s.tool_up_axis))[2]), 3)
     return success(rt, tool="rotate_gripper", words=words, frame=rot.frame, camera=None,
                    delta=np.zeros(3), T0=T0, load=load, route=route, extra=extra)
+
+
+# ── positions relative to objects ───────────────────────────────────────────
+
+_RELATIONS = {
+    "above": "above", "over": "above", "on_top_of": "above", "hover_above": "above",
+    "just_above": "just_above", "right_above": "just_above", "barely_above": "just_above",
+    "just_over": "just_above", "slightly_above": "just_above",
+    "next_to": "next_to", "beside": "next_to", "by": "next_to", "near": "next_to",
+    "alongside": "next_to",
+    "closer": "closer", "closer_to": "closer", "nearer": "closer", "toward": "closer",
+    "towards": "closer", "approach": "closer",
+}
+#: gap between what the gripper carries and the target (above: vertical;
+#: next_to: horizontal, edge to edge)
+_DEFAULT_CLEARANCE = {"above": 0.05, "just_above": 0.015, "next_to": 0.03}
+#: beside a target the carried bottom still clears its top by this much, so
+#: an underestimated footprint can never put the load INTO the target
+_BESIDE_OVER_TOP_M = 0.02
+#: closer never ends nearer than footprint + carried radius + this
+_CLOSER_MARGIN_M = 0.02
+_TABLE_WORDS = {"table", "the_table", "tabletop", "table_top", "table_surface", "the_tabletop"}
+
+
+def _word(text) -> str:
+    return "_".join(str(text).strip().lower().replace("-", " ").split())
+
+
+def _same_object(query: str, held: str) -> bool:
+    q, h = _word(query).replace("the_", ""), _word(held).replace("the_", "")
+    return bool(q) and (q == h or q in h or h in q)
+
+
+def _target_geometry(rt, label: str, T0, load: Carried) -> dict:
+    """Fresh localization of `label`: centre XY, observed top, footprint
+    radius (95th percentile of the cloud around the centre). Uses the same
+    `_localize` every grasp uses (fresh frames, belief fallback only within
+    its freshness gate). Refuses a match that is the object in the jaws."""
+    _, fix = rt._localize(label)
+    pts = np.asarray(fix.points, dtype=float).reshape(-1, 3)
+    if not len(pts) or not np.all(np.isfinite(pts)):
+        raise SkillError(f"{label!r} was detected but has no usable 3D points to measure")
+    centre = np.asarray(fix.position, dtype=float)[:2]
+    top = float(pts[:, 2].max())
+    spread = float(np.percentile(np.linalg.norm(pts[:, :2] - centre, axis=1), 95))
+    radius = float(np.clip(spread, 0.01, 0.20))
+    if load.label:
+        tcp = T0[:3, 3]
+        if (float(np.linalg.norm(centre - tcp[:2])) < 0.03
+                and top > float(tcp[2]) - load.drop_m - 0.02):
+            raise SkillError(f"the {label!r} I see is at the gripper -- it looks like the object I am "
+                             f"holding ({load.label!r}); name another target")
+    return {"label": str(fix.detection.label or label), "center_xy_m": _vec(centre),
+            "top_z_m": round(top, 4), "radius_m": round(radius, 4)}
+
+
+def move_near_object(rt, label=None, relation=None, clearance_m=None, side=None, frame=None,
+                     distance_m=None, amount=None) -> dict:
+    """Position the gripper (and its load) relative to a named object or the
+    table: above it, just above it, next to it, or closer to it.
+
+    Heights are measured, not assumed: the target's OBSERVED top (never an
+    OBB extent) plus clearance, plus how far the held object hangs below
+    the TCP -- so "hold it above the spool" keeps the carried object's
+    bottom over the spool's top. The route is carry-shaped and fully vetted
+    before the first command: climb vertically first if the goal is higher,
+    travel horizontally at the higher of the two heights, descend vertically
+    last; the target therefore never sits under the load during transit.
+    """
+    if not label or not isinstance(label, str):
+        raise SkillError("label is required: the object to move relative to (or 'table')")
+    if relation is None:
+        raise SkillError("relation is required: above, just_above, next_to or closer")
+    rel = _RELATIONS.get(_word(relation))
+    if rel is None:
+        raise SkillError(f"relation must be one of above / just_above / next_to / closer, got {relation!r}")
+    if clearance_m is not None:
+        if rel == "closer":
+            raise SkillError("clearance_m does not apply to 'closer' (use distance_m or amount)")
+        c = rm._finite_number(clearance_m, "clearance_m")
+        if not rm.MIN_STEP_M <= c <= rm.MAX_STEP_M:
+            raise SkillError(f"clearance_m must be within {rm.MIN_STEP_M:g}..{rm.MAX_STEP_M:g} m, got {c:g}")
+        clearance = c
+    else:
+        clearance = _DEFAULT_CLEARANCE.get(rel, 0.0)
+    if rel != "next_to" and side is not None:
+        raise SkillError("side applies only to relation next_to")
+    if rel != "closer" and (distance_m is not None or amount is not None):
+        raise SkillError("distance_m/amount apply only to relation closer")
+    s = settings(rt)
+    q0, T0 = _pose(rt)
+    load = carried(rt, s)
+    limits = rt.arm.harness.limits
+    table_z, table_clear = float(limits.table_z), float(limits.table_clearance)
+    is_table = _word(label) in _TABLE_WORDS
+    if is_table:
+        if rel not in ("above", "just_above"):
+            raise SkillError("relative to the table only 'above' and 'just_above' make sense")
+        target = {"label": "table", "center_xy_m": _vec(T0[:2, 3]), "top_z_m": round(table_z, 4),
+                  "radius_m": None}
+        # the harness keeps the TCP table_clearance over the table; a carried
+        # bottom keeps the same, so "just above" means just over that plane
+        clearance = max(clearance, table_clear + 0.005)
+    else:
+        if load.label and _same_object(label, load.label):
+            raise SkillError(f"I am holding the {load.label!r}: it cannot be the target. Name the "
+                             "object to move it relative to")
+        target = _target_geometry(rt, label, T0, load)
+    centre = np.asarray(target["center_xy_m"], dtype=float)
+    top = float(target["top_z_m"])
+    gripper_floor = table_z + table_clear + 0.005
+    p0 = T0[:3, 3]
+    pts = []
+    note = None
+    if rel in ("above", "just_above"):
+        gz = max(top + clearance + load.drop_m, gripper_floor)
+        goal = np.array([centre[0], centre[1], gz])
+        what = "the held object's bottom" if load.label else "the gripper"
+        words = (f"{'just ' if rel == 'just_above' else ''}above {target['label']!r}: {what} "
+                 f"{clearance * 100:.1f} cm over its top (top at z={top:.3f} m)")
+    elif rel == "next_to":
+        if side is None or _word(side) == "nearest":
+            v = p0[:2] - centre
+            if float(np.linalg.norm(v)) < 0.01:
+                v, note = np.array([-1.0, 0.0]), "the gripper was right above it: chose the side toward the robot base"
+            unit, side_words = v / np.linalg.norm(v), "on the side nearest the gripper"
+        else:
+            mv = rm.resolve_translation(side, frame=frame, distance=1.0, viewer=lambda: viewer_axes(rt),
+                                        tool=lambda: rm.tool_axes(T0[:3, :3], rt._tool_axis_order))
+            u = np.asarray(mv.delta, dtype=float)[:2]
+            if float(np.linalg.norm(u)) < 0.5:
+                raise SkillError(f"side must be a horizontal direction, got {side!r}")
+            unit = u / np.linalg.norm(u)
+            side_words = (f"on its {mv.direction.replace('_', ' ')} side ({mv.frame} frame: "
+                          f"{rm.describe_base(np.append(unit, 0.0))})")
+        standoff = float(target["radius_m"]) + load.radius_m + clearance
+        target["standoff_m"] = round(standoff, 4)
+        gz = max(top + _BESIDE_OVER_TOP_M + load.drop_m, gripper_floor)
+        goal = np.array([*(centre + unit * standoff), gz])
+        words = (f"next to {target['label']!r} {side_words}: {clearance * 100:.1f} cm gap edge to edge, "
+                 f"{standoff * 100:.1f} cm from its centre, over the height of its top")
+    else:  # closer
+        v = centre - p0[:2]
+        d_h = float(np.linalg.norm(v))
+        standoff = float(target["radius_m"]) + load.radius_m + _CLOSER_MARGIN_M
+        target["standoff_m"] = round(standoff, 4)
+        room = d_h - standoff
+        if room < rm.MIN_STEP_M:
+            raise SkillError(f"already as close to {target['label']!r} as it safely gets "
+                             f"({d_h * 100:.1f} cm from its centre; the stop is {standoff * 100:.1f} cm)")
+        step, _ = rm.resolve_distance(distance_m, amount)
+        travel = min(step, room)
+        if travel < step:
+            note = f"stopped {standoff * 100:.1f} cm from its centre instead of moving the full {step * 100:.1f} cm"
+        goal = np.array([*(p0[:2] + v / d_h * travel), p0[2]])
+        words = f"{travel * 100:.1f} cm closer to {target['label']!r} (horizontally, same height)"
+    delta = goal - p0
+    total = float(np.linalg.norm(delta))
+    if total > s.max_object_move_m:
+        raise SkillError(f"{target['label']!r} is {total:.2f} m away from the gripper; at most "
+                         f"{s.max_object_move_m:.2f} m per call -- move closer first or use place_at for a carry")
+    if rel == "closer":
+        pts = [goal]
+    else:
+        transit = max(float(p0[2]), float(goal[2]))
+        if transit - p0[2] > 1e-3:
+            pts.append(np.array([p0[0], p0[1], transit]))
+        if float(np.linalg.norm(goal[:2] - p0[:2])) > 1e-3:
+            pts.append(np.array([goal[0], goal[1], transit]))
+        if transit - goal[2] > 1e-3:
+            pts.append(goal)
+    if not pts:
+        return {"moved": False, "interpretation": words, "target": target, "relation": rel,
+                "holding": load.label, "summary": f"Already there: {words}."}
+
+    def goals_for(f):
+        out = []
+        for p in pts:
+            T = T0.copy()
+            T[:3, 3] = p0 + (p - p0) * f if rel == "closer" else p
+            out.append(("pose", T))
+        return out
+
+    duration = _duration(s, load)
+    try:
+        route = plan_route(rt, q0, goals_for(1.0), load=load, s=s, duration=duration)
+    except Refused as err:
+        feasible = None
+        if rel == "closer":
+            frac = feasible_fraction(lambda f: plan_route(rt, q0, goals_for(f), load=load, s=s,
+                                                          duration=duration))
+            if frac is not None and total * frac >= rm.MIN_STEP_M:
+                feasible = {"feasible_distance_m": round(total * frac, 3), "feasible_fraction": round(frac, 3)}
+        out = refusal(rt, err, words=words, frame="base", delta=delta, load=load, feasible=feasible,
+                      retry_hint="call move_near_object again with that distance_m")
+        out["target"] = target
+        if err.source == "kinematics":
+            out["next_action"] += (" The gripper keeps its current orientation on this move; if it "
+                                   "points sideways, pointing the jaws down first (rotate_gripper "
+                                   "direction=down) often makes the position reachable.")
+        if len(pts) > 1:
+            out["error"] += f" (segment {err.segment + 1} of {len(pts)} of the carry route)"
+        return out
+    execute_route(rt, route, duration, tool="move_near_object", words=words)
+    extra = {"relation": rel, "target": target, "path_segments": len(route.segments)}
+    if note:
+        extra["note"] = note
+    return success(rt, tool="move_near_object", words=words, frame="base", camera=None, delta=delta,
+                   T0=T0, load=load, route=route, extra=extra)

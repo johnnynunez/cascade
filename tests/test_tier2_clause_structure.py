@@ -221,7 +221,7 @@ def test_a_compound_with_an_unplannable_clause_goes_to_the_llm_tier(tmp_path):
     (PON_BOTH, [("pick_and_place", {"object": "cubo rojo", "destination": "bol"}),
                 ("pick_and_place", {"object": "cubo azul", "destination": "bol"})],
      f"{PON_RED} y luego vuelve a casa",
-     [("pick_and_place", {"object": "cubo rojo", "destination": "bol"}), ("move_home", {})]),
+     [("pick_and_place", {"object": "cubo rojo", "destination": "bol"}), ("move_to_rest", {})]),
 ])
 def test_a_clause_never_recalls_a_recorded_sequence(tmp_path, recorded, calls, task, expected):
     """The symmetric hazard inside `_plan_one`: the first clause matched the
@@ -240,7 +240,7 @@ def test_a_reordered_sequence_runs_in_the_order_asked(tmp_path):
     exp = _exp(tmp_path, ("wave and then go home", [("wave", {}), ("move_home", {})]))
     plan = FastPlanner(exp).plan("go home and then wave")
     assert plan is not None and plan.source == "curriculum", plan and plan.detail
-    assert [n for n, _ in plan.calls] == ["move_home", "wave"]
+    assert [n for n, _ in plan.calls] == ["move_to_rest", "wave"]  # "go home" = the rest reflex
 
 
 # ── AgentOrchestrator.run_task (MockLLM; fake runtime, then the mock stack) ─
@@ -492,7 +492,7 @@ def test_reflex_and_single_instruction_plans_are_unchanged(tmp_path):
 
     assert got("pick and place pink object") == (
         "reflex", [("pick_and_place", {"object": "pink object"})], ["reflex"])
-    assert got("go home") == ("reflex", [("move_home", {})], ["reflex"])
+    assert got("go home") == ("reflex", [("move_to_rest", {})], ["reflex"])
     assert got(RED) == ("reflex", [_grasp("red cube")], ["reflex"])
     assert got("hand me that toy dinosaur") == ("reflex", [("handover", {"label": "that toy dinosaur"})], ["reflex"])
     assert got("please do that special calibration dance") == (
@@ -502,6 +502,6 @@ def test_reflex_and_single_instruction_plans_are_unchanged(tmp_path):
         "experience", _move_recipe("red cube"), "front-left placement")
     assert got("calibrate the camera") is None
     assert got("wave and then go home") == (
-        "curriculum", [("wave", {}), ("move_home", {})], ["reflex", "reflex"])
+        "curriculum", [("wave", {}), ("move_to_rest", {})], ["reflex", "reflex"])
     assert got("do the special calibration dance and then go home") == (
-        "curriculum", [("move_home", {}), ("wave", {}), ("move_home", {})], ["recalled", "recalled", "reflex"])
+        "curriculum", [("move_home", {}), ("wave", {}), ("move_to_rest", {})], ["recalled", "recalled", "reflex"])

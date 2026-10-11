@@ -4,7 +4,9 @@ words route to the right pose in every tier.
 Routing (the reBot owner's convention): "home", "go home", "pose 0", "zero",
 "rest", "park", "fold" and "so I can turn it off" mean the folded rest pose
 (`move_to_rest`); "initial / ready / start pose" means the raised pose
-(`move_home`). The LLM tier routes by the tool descriptions, pinned here.
+(`move_home`). The LLM tier routes by the tool descriptions, the reflex tier
+(dashboard chat, the offline brain) by the grammar in agent/reflex.py; both
+are pinned here so they cannot drift apart.
 """
 
 from __future__ import annotations
@@ -17,6 +19,7 @@ from pathlib import Path
 
 import pytest
 
+from cascade.agent.reflex import parse_command
 from cascade.skills.runtime import _MOTION_SKILLS, TOOL_SPECS, SkillRuntime
 
 REPO = Path(__file__).resolve().parents[1]
@@ -113,3 +116,39 @@ def test_relative_motion_names_both_poses_for_an_ambiguous_return():
     with pytest.raises(SkillError) as exc:
         rm.normalize_direction("return")
     assert "move_home" in str(exc.value) and "move_to_rest" in str(exc.value)
+
+
+# ── the reflex tier: grammar ────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("text", [
+    "home", "go home", "move home", "back home", "go back home", "return home",
+    "return to the home position", "go to the home pose",
+    "park", "park the arm", "rest", "go to rest", "rest pose", "go to the rest position",
+    "pose 0", "pose zero", "zero pose", "zero position", "back to zero", "return to zero",
+    "go to pose 0", "fold", "fold the arm", "fold up",
+    "vuelve a home", "ve a home", "vuelve a casa", "a casa", "pose cero",
+    "vuelve a la pose 0", "posición cero", "posicion de reposo", "reposo", "vuelve al reposo",
+    "aparca", "aparca el brazo", "pliega el brazo", "vuelve al origen",
+    "please go home", "can you go to pose 0?",
+])
+def test_home_pose0_and_rest_phrases_are_rest_reflexes(text):
+    plan = parse_command(text)
+    assert plan is not None, text
+    assert plan.intent == "rest" and plan.calls == [(TOOL, {})], (text, plan)
+
+
+@pytest.mark.parametrize("text", [
+    "initial pose", "go to the initial pose", "back to the initial position",
+    "ready pose", "go to the ready position", "start pose", "starting position",
+    "vuelve a la pose inicial", "pose inicial", "posición inicial", "ve a la posicion inicial",
+    "vuelve al inicio", "regresa al inicio",
+])
+def test_initial_pose_phrases_stay_move_home(text):
+    plan = parse_command(text)
+    assert plan is not None, text
+    assert plan.intent == "initial_pose" and plan.calls == [("move_home", {})], (text, plan)
+
+
+def test_reset_keeps_its_existing_meaning():
+    assert parse_command("reset").intent == "reset_scene"

@@ -256,6 +256,8 @@ class MapTile:
         self.frame_id = 0
         #: seconds the last render + JPEG encode took (diagnostics)
         self.last_render_s = 0.0
+        #: why the last frame is an error frame (None after a good render)
+        self.error: str | None = None
 
     @property
     def fps(self) -> float:
@@ -291,7 +293,7 @@ class MapTile:
             fps = (len(recent) - 1) / max(recent[-1] - recent[0], 1e-6)
         return {
             "virtual": True, "kind": "map", "label": MAP_LABEL,
-            "fps": round(fps, 1), "frame_id": self.frame_id, "depth": False, "error": None,
+            "fps": round(fps, 1), "frame_id": self.frame_id, "depth": False, "error": self.error,
             "map_state": v.state, "voxels": v.voxels,
             "map_age_s": None if v.age_s is None else round(float(v.age_s), 1),
         }
@@ -306,7 +308,12 @@ class MapTile:
             if self._jpeg is not None and now - self._t_frame < 0.9 / self.fps:
                 return self._jpeg
             t0 = time.perf_counter()
-            rgb = self._render(self.view())
+            try:
+                rgb = self._render(self.view())
+                self.error = None
+            except Exception as e:  # noqa: BLE001 -- an error frame, never a dead stream
+                self.error = f"map view failed: {type(e).__name__}: {e}"[:200]
+                rgb = self._error_frame(self.error)
             ok, buf = cv2.imencode(".jpg", cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR),
                                    [cv2.IMWRITE_JPEG_QUALITY, int(self.settings.quality)])
             if not ok:  # pragma: no cover - cv2 encodes any uint8 image
@@ -330,6 +337,13 @@ class MapTile:
             self._placeholder(img, v, k)
         else:
             self._map(img, v, k)
+        return img
+
+    def _error_frame(self, message: str) -> np.ndarray:
+        w, h = self.settings.size
+        img = np.empty((h, w, 3), np.uint8)
+        img[:] = lmv.BACKGROUND
+        self._placeholder(img, MapView("error", "map view failed", (message,)), h / 540.0)
         return img
 
     def _workspace_box(self, v: MapView):
@@ -385,7 +399,7 @@ class MapTile:
     def _placeholder(self, img, v: MapView, k: float) -> None:
         h, w = img.shape[:2]
         _text(img, MAP_LABEL, (16, 30 * k + 4), 0.75 * k, TITLE, max(1, round(1.4 * k)))
-        color = {"bridge_down": lmv.ALERT, "off": DIM}.get(v.state, AMBER)
+        color = {"bridge_down": lmv.ALERT, "error": lmv.ALERT, "off": DIM}.get(v.state, AMBER)
         scale = 0.95 * k
         rows = _wrap(v.headline, w - 60, scale)
         y = h * 0.45 - (len(rows) - 1) * 20 * k

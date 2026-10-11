@@ -380,3 +380,24 @@ def test_visible_objects_keeps_only_visible_beliefs():
     objs = [{"label": "a", "position": [0.3, 0, 0], "state": "visible"},
             {"label": "b", "position": [0.3, 0, 0], "state": "remembered"}, "junk"]
     assert [o["label"] for o in lmv.visible_objects(objs)] == ["a"]
+
+
+def test_a_render_failure_becomes_an_error_frame_not_a_dead_stream():
+    clock = Clock()
+    t = tile(FakeOcc(age_s=0.2), clock=clock)
+    real = t._render
+    calls = []
+
+    def flaky(v):
+        calls.append(v.state)
+        if len(calls) == 1:
+            raise ValueError("bad voxel block")
+        return real(v)
+
+    t._render = flaky
+    img = decode(t.jpeg())
+    assert img.shape == (270, 480, 3) and reddish(img).sum() > 10   # "map view failed" in red
+    assert t.stats()["error"] == "map view failed: ValueError: bad voxel block"
+    clock.t += 1.0
+    decode(t.jpeg())
+    assert t.stats()["error"] is None and t.frame_id == 2

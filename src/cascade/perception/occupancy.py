@@ -167,10 +167,21 @@ class OccupancyMap:
         stride: int = 8,
         depth_stride: int = 2,
         required: bool = False,
+        unobserved: str | None = None,
     ):
         if type(required) is not bool:
             raise OccupancyError("occupancy.required must be a boolean")
         self.required = required
+        # What an unobserved voxel means, separately from `required`: a
+        # required map must be FRESH, but on a real arm the camera never
+        # observes the arm's own volume (its pixels are masked), so a
+        # "blocked" policy refuses every motion from rest. None keeps the old
+        # pairing: blocked for required maps, free for optional ones.
+        if unobserved is None:
+            unobserved = "blocked" if required else "free"
+        if not isinstance(unobserved, str) or unobserved not in ("free", "blocked"):
+            raise OccupancyError(f"occupancy.unobserved must be 'free' or 'blocked', got {unobserved!r}")
+        self.unobserved = unobserved
         self._client = client
         self._region_min = None if region_min is None else np.asarray(region_min, dtype=float)
         self._region_max = None if region_max is None else np.asarray(region_max, dtype=float)
@@ -639,6 +650,7 @@ class OccupancyMap:
             stride=int(cfg.get("stride", 8)),
             depth_stride=int(cfg.get("depth_stride", 2)),
             required=required,
+            unobserved=cfg.get("unobserved", None),
         )
         m.allowed_contact_paths = set(cfg.get("allowed_contact_paths", []))
         m.probe(timeout_ms=int(cfg.get("probe_timeout_ms", 300)))
@@ -1185,6 +1197,12 @@ class OccupancyMap:
     def is_stale(self) -> bool:
         return self._last_refresh is None or (time.monotonic() - self._last_refresh) > self.max_age_s
 
+    @property
+    def unknown_blocks(self) -> bool:
+        """True when unobserved space must be treated as an obstacle (the
+        harness then refuses points without observed grid support)."""
+        return self.unobserved == "blocked"
+
     def clearance(self, points: np.ndarray) -> np.ndarray | None:
         """Min distance from each query point to the nearest known obstacle.
 
@@ -1196,14 +1214,19 @@ class OccupancyMap:
         point far outside the map inherit an obstacle distance it has no
         relation to, or hide a real one. Unknown (inf) voxels read as far.
         Without a grid (old bridge): brute-force distance to the occupied cloud.
-        Required maps raise SafetyViolation if missing, stale or failed, and
-        return NaN for points without observed grid support. A pending/failed robot-body mask raises SafetyViolation even when
-        the cache has aged out; this known fault must never become a bypass.
+        Required maps raise SafetyViolation if missing, stale or failed.
+        With `unobserved: blocked` (the default of a required map) points
+        without observed grid support read NaN. A pending/failed robot-body
+        mask raises SafetyViolation even when the cache has aged out; this
+        known fault must never become a bypass.
         """
         with self._refresh_lock:
             distance = self._clearance(points)
+            if distance is not None and self.unknown_blocks:
+                observed = (self._observed_grid_support(points) if self._grid is not None
+                            else np.zeros(len(distance), dtype=bool))
+                distance = np.where(observed, distance, np.nan)
             if self.required:
-                distance = np.where(self._observed_grid_support(points), distance, np.nan)
                 self._check_required_age()
             return distance
 

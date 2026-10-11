@@ -87,3 +87,81 @@ def test_required_map_ages_from_the_capture_not_from_the_commit():
     time.sleep(0.25)
     with pytest.raises(SafetyViolation, match="stale"):
         occ.clearance(AT)
+
+
+# ── unobserved space: a policy of its own, separate from `required` ────────
+#
+# On a real arm the camera never observes the arm's own volume (the body mask
+# removes its pixels; nvblox integrates free space only up to the truncation
+# band in front of them), nor anything behind an object or outside its view.
+# `required: true` used to ALSO mean "unobserved is an obstacle", which refuses
+# every motion from rest: the TCP sits inside the gripper's own unobserved
+# shadow, and the shoulder joints lie outside the queried region.
+
+
+def _unknown_around_the_tcp():
+    bridge = GridBridge([TABLE])
+    bridge.unknown = [centred_box(AT[0], [0.10, 0.10, 0.10])]
+    return bridge
+
+
+def test_required_maps_still_block_unobserved_space_by_default():
+    occ = make_map(_unknown_around_the_tcp())
+    assert occ.unobserved == "blocked" and occ.unknown_blocks
+    occ.refresh(depth_frame(), np.eye(4))
+    assert np.isnan(occ.clearance(AT)[0])
+
+
+def test_unobserved_free_reads_unknown_as_far_but_staleness_still_blocks():
+    occ = make_map(_unknown_around_the_tcp(), unobserved="free", max_age_s=0.3)
+    assert occ.required and not occ.unknown_blocks
+    occ.refresh(depth_frame(), np.eye(4))
+    assert occ.clearance(AT)[0] > 0.5
+    assert np.isinf(occ.clearance([[5.0, 0.0, 0.0]])[0])        # outside the region
+    time.sleep(0.35)
+    with pytest.raises(SafetyViolation, match="stale"):
+        occ.clearance(AT)
+
+
+def test_optional_maps_keep_reading_unobserved_space_as_free():
+    occ = make_map(_unknown_around_the_tcp(), required=False)
+    assert occ.unobserved == "free" and not occ.unknown_blocks
+
+
+@pytest.mark.parametrize("bad", ["maybe", "", 1, None, True])
+def test_a_bad_unobserved_policy_is_refused(bad):
+    from cascade.perception.occupancy import OccupancyError, OccupancyMap
+
+    if bad is None:
+        assert OccupancyMap(unobserved=None).unobserved == "free"      # None = the default
+        return
+    with pytest.raises(OccupancyError, match="unobserved"):
+        OccupancyMap(unobserved=bad)
+
+
+def test_from_config_reads_the_unobserved_policy(monkeypatch):
+    from cascade.perception import occupancy as occ_mod
+
+    bridge = GridBridge([TABLE])
+    monkeypatch.setattr(occ_mod, "OccupancyClient", lambda **kw: bridge)
+    monkeypatch.setenv("CASCADE_OCCUPANCY", "1")
+    m = occ_mod.OccupancyMap.from_config({"enabled": True, "required": True, "unobserved": "free",
+                                         "region_min": [0, 0, 0], "region_max": [1, 1, 1]})
+    assert m.required and m.unobserved == "free"
+    with pytest.raises(occ_mod.OccupancyError, match="unobserved"):
+        occ_mod.OccupancyMap.from_config({"enabled": True, "unobserved": "sometimes"})
+
+
+def test_the_harness_follows_the_map_policy_for_unobserved_points():
+    from cascade.safety.harness import SafetyHarness, SafetyLimits
+
+    limits = SafetyLimits(workspace_min=np.array([-1.0, -1, -1]), workspace_max=np.array([1.0, 1, 1]))
+    blocked = make_map(_unknown_around_the_tcp())
+    blocked.refresh(depth_frame(), np.eye(4))
+    reason = SafetyHarness(limits, occupancy=blocked)._occupancy_violation(AT, None)
+    assert reason and "unobserved clearance" in reason
+    free = make_map(_unknown_around_the_tcp(), unobserved="free")
+    free.refresh(depth_frame(), np.eye(4))
+    assert SafetyHarness(limits, occupancy=free)._occupancy_violation(AT, None) is None
+    outside = np.array([[5.0, 0.0, 0.0]])
+    assert SafetyHarness(limits, occupancy=free)._occupancy_violation(outside, None) is None

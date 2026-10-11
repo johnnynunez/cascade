@@ -122,6 +122,16 @@ def _wrist_camera_up(block) -> dict:
     return {"tool_up_axis": tuple(float(v) for v in axis / n), "min_tool_up_z": min_z}
 
 
+def _unknown_blocks(occupancy) -> bool:
+    """Does this map treat unobserved space as an obstacle? An OccupancyMap
+    says so itself (`unobserved: blocked`); a stand-in without the property
+    keeps the old pairing with `required`."""
+    blocks = getattr(occupancy, "unknown_blocks", None)
+    if blocks is None:
+        blocks = getattr(occupancy, "required", False)
+    return bool(blocks)
+
+
 class SafetyHarness:
     def __init__(self, limits: SafetyLimits, kinematics=None, occupancy=None,
                  base_pose=None):
@@ -868,12 +878,13 @@ class SafetyHarness:
 
         `points.clearance()` returns None when the map has no fresh data
         (never refreshed, stale, or the bridge is down) -- that is
-        unavailable optional map skips this check. Required maps and carried
-        surfaces instead need observed distance-grid support; their missing
-        or unknown observations must not admit motion.
+        unavailable optional map skips this check. Required maps refuse
+        instead (they raise). Carried surfaces, and maps whose policy is
+        `unobserved: blocked`, need observed distance-grid support; their
+        unknown observations must not admit motion.
         """
         query = self.occupancy.payload_clearance if attached else self.occupancy.clearance
-        observed_required = attached or getattr(self.occupancy, "required", False)
+        observed_required = attached or _unknown_blocks(self.occupancy)
         dist = query(points)
         if dist is None:
             return "clearance unavailable (fresh observed distance grid required)" if observed_required else None

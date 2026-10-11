@@ -36,6 +36,15 @@ park_q: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 overrides:
   safety:
     max_joint_vel: 0.8
+    # The wrist D455F rides on TOP of the gripper; rolled underneath, it hits
+    # the table (seen on the rig). Every vetted pose and every step (the
+    # 50 Hz approve, trajectory preflights, planned paths) keeps the
+    # camera-up axis (TCP +z, = base +z at rest/home) at or above about
+    # 6 deg below horizontal (SafetyHarness, tests/test_wrist_camera_up.py).
+    # A parallel jaw has a camera-up twin for every grasp.
+    wrist_camera_up:
+      tcp_axis: [0.0, 0.0, 1.0]
+      min_up_z: -0.1
   grasp:
     # set_gripper only sends the target; without the wait, "open the gripper"
     # was reported failed ("gripper still closed") while the jaws were opening.

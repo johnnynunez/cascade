@@ -193,6 +193,17 @@ grasp height (the objects B45's heights stand for: 4.3 cm lemon box,
   when the 30°/45° candidates fail for other reasons (occupancy, observed
   fingers, cuMotion, an obstacle), and it vets the observed box everywhere.
 
+## Wrist camera kept on top (2026-10-11)
+
+The reBot profiles now refuse poses that put the wrist camera below the
+gripper (`safety.wrist_camera_up`, see ARCHITECTURE.md "Motion safety path").
+The study was re-run with that rule: the grid and the derived envelope
+(`workspace_min/max`) are unchanged. Forty per-family counts dropped by 1-6
+cells of about 1,000 each (for example open-box `out45` roll 0 at 5 cm,
+1094 -> 1088). Those cells were reachable only by the camera-down twin.
+The angled-clearance study (B73, below) was re-run on the new rows: its
+results are identical; only its provenance (input hash, commit) changed.
+
 ## Limits of the measurement (not claimed)
 
 - **Kinematic and harness reachability only.** No contact physics and no

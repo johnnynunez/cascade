@@ -68,6 +68,17 @@ class SafetyLimits:
     #: every pose. None = zero-radius lines (the pre-2026-10 behaviour). A
     #: list of the wrong length is a config error and fails closed.
     link_radii_m: tuple[float, ...] | None = None
+    #: A TCP-frame unit axis that must keep pointing UP (opt-in per arm:
+    #: `safety.wrist_camera_up.tcp_axis`). The reBot carries its wrist camera
+    #: on TOP of the gripper; rolled underneath, the camera hits the table
+    #: (seen on the real rig). A parallel jaw is symmetric under a half-turn
+    #: about its approach, so every grasp has a camera-up twin. None = no
+    #: such constraint (arms without a wrist-mounted camera).
+    tool_up_axis: tuple[float, float, float] | None = None
+    #: The axis's base-frame z component may not fall below this. -0.1
+    #: (about 6 deg below horizontal) admits a straight-down dive, where the
+    #: axis is horizontal and the camera sits behind the jaws.
+    min_tool_up_z: float = -0.1
 
     @classmethod
     def from_config(cls, cfg) -> "SafetyLimits":
@@ -88,7 +99,27 @@ class SafetyLimits:
             min_clearance_m=float(cfg.get("min_clearance_m", 0.03)),
             neighbor_clearance_m=float(cfg.get("neighbor_clearance_m", 0.10)),
             link_radii_m=None if radii is None else tuple(float(r) for r in radii),
+            **_wrist_camera_up(cfg.get("wrist_camera_up")),
         )
+
+
+def _wrist_camera_up(block) -> dict:
+    """Parse `safety.wrist_camera_up: {tcp_axis: [x, y, z], min_up_z: -0.1}`.
+    A malformed block is a config error: a safety constraint that silently
+    turns itself off is worse than none."""
+    if block is None:
+        return {}
+    get = block.get if hasattr(block, "get") else None
+    if get is None:
+        raise ValueError(f"wrist_camera_up must be a mapping, got {block!r}")
+    axis = np.asarray(get("tcp_axis", [0.0, 0.0, 1.0]), dtype=float).reshape(-1)
+    n = float(np.linalg.norm(axis)) if axis.size == 3 else 0.0
+    if axis.size != 3 or not np.all(np.isfinite(axis)) or n < 1e-9:
+        raise ValueError(f"wrist_camera_up.tcp_axis must be a finite non-zero 3-vector, got {axis.tolist()}")
+    min_z = float(get("min_up_z", -0.1))
+    if not (np.isfinite(min_z) and -1.0 <= min_z < 1.0):
+        raise ValueError(f"wrist_camera_up.min_up_z must be in [-1, 1), got {min_z}")
+    return {"tool_up_axis": tuple(float(v) for v in axis / n), "min_tool_up_z": min_z}
 
 
 class SafetyHarness:
@@ -663,6 +694,22 @@ class SafetyHarness:
                     f"[{lo_w.tolist()} .. {hi_w.tolist()}]"
                 )
 
+        up = self._tool_up_z(T)
+        if up is not None and up < self.limits.min_tool_up_z:
+            # Escape rule (mirrors the joint-limit, workspace and table
+            # rules): an arm ALREADY camera-down (turned by hand, or by an
+            # older build) may hold, or move only while the camera turns
+            # strictly back toward up (so `move_home` can recover it; every
+            # other gate still applies). It may never slide or turn further
+            # while the camera stays underneath.
+            q_prev_a = np.asarray(q_prev, dtype=float)
+            up_prev = self._tool_up_z(self.kin.fk(q_prev_a))
+            hold = bool(np.allclose(q_prev_a, q_next, atol=1e-9))
+            recovering = up_prev is not None and up_prev < self.limits.min_tool_up_z and (
+                hold or up > up_prev + 1e-6)
+            if not recovering:
+                reject(self._tool_up_reason(up))
+
         floor = self.limits.table_z + self.limits.table_clearance
         if tcp[2] < floor and not self._in_grasp_cylinder(tcp):
             # Escape rule: if the TCP is ALREADY below the floor (aborted
@@ -714,6 +761,17 @@ class SafetyHarness:
         if reason is not None:
             reject(reason)
 
+    def _tool_up_z(self, T: np.ndarray) -> float | None:
+        """Base-frame z component of the configured camera-up axis at T."""
+        axis = self.limits.tool_up_axis
+        if axis is None:
+            return None
+        return float((np.asarray(T, dtype=float)[:3, :3] @ np.asarray(axis, dtype=float))[2])
+
+    def _tool_up_reason(self, up: float) -> str:
+        return (f"wrist camera would face down: camera-up axis z={up:.2f} < {self.limits.min_tool_up_z:.2f} "
+                "(the camera must stay on top of the gripper; use the grasp's camera-up twin)")
+
     def vet_pose(
         self,
         q: np.ndarray,
@@ -754,7 +812,11 @@ class SafetyHarness:
                 f"[{lo[bad] + m:.3f}, {hi[bad] - m:.3f}]"
             )
 
-        tcp = self.kin.fk(q)[:3, 3]
+        T = self.kin.fk(q)
+        tcp = T[:3, 3]
+        up = self._tool_up_z(T)
+        if up is not None and up < self.limits.min_tool_up_z:
+            return self._tool_up_reason(up)
         lo_w, hi_w = self.limits.workspace_min, self.limits.workspace_max
         if np.any(tcp < lo_w) or np.any(tcp > hi_w):
             return (

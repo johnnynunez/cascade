@@ -666,6 +666,7 @@ def build_runtime(
             runtime_fn=lambda: runtime,
             depth_max_m=float(scfg.get("depth_max_m", 2.0)),
             on_poll=lambda: runtime.live_view.note_poll(),
+            lan_commands=bool(scfg.get("lan_commands", False)),
             **wrist_kw,
         )
 

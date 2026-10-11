@@ -576,6 +576,16 @@ stop generation and optional occupancy/inter-arm checks. A `SafetyViolation`
 ends the stream. `vet_pose()` is the static counterpart for candidate rejection;
 planned routes also vet their sampled segments before execution.
 
+Arms with a camera on top of the gripper (every reBot profile) set
+`safety.wrist_camera_up`: a TCP-frame axis that must not point below
+horizontal (`min_up_z`, -0.1 by default, which admits a straight-down dive).
+`vet_pose()` and every streamed step enforce it, so grasp selection takes the
+camera-up twin of a parallel-jaw grasp, and no nudge or skill can roll the
+camera underneath. On the real reBot, a rolled wrist made the selector pick the
+twin with less joint travel, camera down, and the camera hit the table. An
+arm already camera-down may hold, or move only while the camera turns back
+up (`tests/test_wrist_camera_up.py`).
+
 Isaac defaults to 30 Hz nominal targets paced by authoritative physical time.
 The common profile preserves every complete legacy 50 Hz edge with its original
 dt, adds actual command edges and checks intervening subedges. Hardware retains

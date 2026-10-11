@@ -87,3 +87,16 @@ gripper:
   # steady torque = min(today's, kp*effort*cap). null = today's close.
   # Measure first: docs/REBOT_GRIP_SQUEEZE_CAP.md.
   max_contact_squeeze_rad: null
+
+# Same arm and wrist camera as rebot_rs (another SDK backend).
+overrides:
+  safety:
+    # The wrist D455F rides on TOP of the gripper; rolled underneath, it hits
+    # the table (seen on the rig). Every vetted pose and every step (the
+    # 50 Hz approve, trajectory preflights, planned paths) keeps the
+    # camera-up axis (TCP +z, = base +z at rest/home) at or above about
+    # 6 deg below horizontal (SafetyHarness, tests/test_wrist_camera_up.py).
+    # A parallel jaw has a camera-up twin for every grasp.
+    wrist_camera_up:
+      tcp_axis: [0.0, 0.0, 1.0]
+      min_up_z: -0.1

@@ -332,6 +332,24 @@ def serve_mcp_argv(cfg: Settings, token_file: Path, python: str = sys.executable
             "--token-file", str(token_file)]
 
 
+def serve_mcp_env(base: dict | None = None) -> dict:
+    """The server's environment, as nemoclaw_mcp.py serve and launch.sh build
+    it: this checkout's src first, offline hub flags (explicit values kept),
+    and no CASCADE_MCP_TOKEN, so the token file is the only source."""
+    env = dict(os.environ if base is None else base)
+    env.pop(MCP_TOKEN_ENV, None)
+    env["PYTHONPATH"] = os.pathsep.join(p for p in (str(REPO / "src"), env.get("PYTHONPATH", "")) if p)
+    env.setdefault("YOLO_OFFLINE", "True")
+    env.setdefault("ULTRALYTICS_OFFLINE", "True")
+    return env
+
+
+def serve_mcp_cwd() -> Path:
+    """models/: YOLOE resolves its text encoder relative to the cwd (launch.sh
+    runs the runtime there too); from the repo root offline detection fails."""
+    return REPO / "models"
+
+
 # ── OpenShell calls ───────────────────────────────────────────────────────
 
 
@@ -548,10 +566,9 @@ def cmd_serve_mcp(home: Path, args) -> int:
     token_file = Path(args.mcp_token_file or home / "mcp.token")
     ensure_token(token_file)
     argv = serve_mcp_argv(cfg, token_file)
-    env = dict(os.environ)
-    env["PYTHONPATH"] = os.pathsep.join(p for p in (str(REPO / "src"), env.get("PYTHONPATH", "")) if p)
-    os.chdir(REPO)
-    os.execvpe(argv[0], argv, env)
+    serve_mcp_cwd().mkdir(exist_ok=True)
+    os.chdir(serve_mcp_cwd())
+    os.execvpe(argv[0], argv, serve_mcp_env())
     return 0  # pragma: no cover
 
 

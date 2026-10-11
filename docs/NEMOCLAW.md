@@ -13,6 +13,12 @@ CASCADE uses it as an **opt-in agent host**. Plain OpenClaw over stdio
 the same READY proof (tools listed, a brain turn, a real pick and reset in one
 chat session).
 
+> **Standalone OpenShell 0.1.x without NemoClaw:** see [OPENSHELL.md](OPENSHELL.md)
+> (`scripts/openshell_rig.py`). That route uses OpenShell provider profiles. The
+> brain and the robot are reached on the host loopback, the credentials are
+> bound to the agent's binary, `reset_stop` is refused at L7, and an
+> observe-only lock can be toggled live.
+
 ## What runs where
 
 ```

@@ -1310,7 +1310,12 @@ robot runtime stays on the host; the transport shares the stdio server's
 serial worker and receive-side stop channel (`_admit`), and namespaces
 JSON-RPC ids per session. `scripts/nemoclaw_mcp.py` issues the certificate,
 token and registration. Stdio through `launch.sh` remains the default; see
-[NEMOCLAW.md](NEMOCLAW.md).
+[NEMOCLAW.md](NEMOCLAW.md). The standalone OpenShell 0.1.x route
+(`scripts/openshell_rig.py`, [OPENSHELL.md](OPENSHELL.md)) serves the same MCP
+server on the host loopback instead. OpenShell provider profiles bind the
+bearer token to the agent's binary and endpoint, and refuse `reset_stop` (or,
+when observe-only, every motion tool) at L7 before the request leaves the
+sandbox.
 
 Read-only lane (opt-in, B46): `mcp.readonly_lane: true` (or
 `CASCADE_MCP_READONLY_LANE=1`) lets a chat host look while the robot moves.

@@ -170,8 +170,8 @@ shared boundary is `RobotRuntime.execute()`, as shown in the
                  host LLM picks tools over MCP stdio                         --task / --interactive
                           │                                                          │
                           ▼                                                          ▼
-              apps/mcp_server.py  ── 50 tools ──┐                  agent/orchestrator.py
-              (41 specs − task_done              │                  tier 1 REFLEX   regex grammar      ~µs
+              apps/mcp_server.py  ── 51 tools ──┐                  agent/orchestrator.py
+              (42 specs − task_done              │                  tier 1 REFLEX   regex grammar      ~µs
                + 8 host extras: camera_snapshot, │                  tier 2 HABIT    experience memory  ~ms
                world_state, task_memory, ...;    │                  tier 3 LLM      + memory harness   2–15 s/turn
                + list_programs/run_program only  │
@@ -1018,10 +1018,11 @@ src/cascade/
 │   ├── aspire.py       post-run diagnosis → skill-library note
 │   └── trace.py        trace.jsonl + keyframes
 ├── skills/
-│   ├── runtime.py      SkillRuntime: 40 skills + task_done, TOOL_SPECS, _MOTION_SKILLS (22)
+│   ├── runtime.py      SkillRuntime: 41 skills + task_done, TOOL_SPECS, _MOTION_SKILLS (23)
 │   │                   incl. the Pigey composites snapshot_scene / restore_scene / search_for_object
 │   ├── contact_episode.py / release_episode.py  scoped retained recovery
 │   ├── held_observation.py aiming estimates vs coherent release authority
+│   ├── rest_pose.py    move_to_rest: fold onto park_q, verify measured, release torque (standby)
 │   ├── mobile_runtime.py MobileSkillRuntime: walk_velocity / walk_distance / turn / stop_navigation
 │   └── library.py      markdown repair notes; written by aspire.py, retrieved per task
 ├── spatial/
@@ -1043,7 +1044,7 @@ src/cascade/
 ├── eval/progress_judge.py   Robo-Dopamine progress judge (GRM / VLM), off the hot path
 └── apps/
     ├── demo.py         build_runtime() = the composition root; CLI --task / --interactive
-    ├── mcp_server.py   MCP front-end: 50 tools (2 only with the opt-in programs tier), out-of-band stop, per-call log, opt-in read-only lane (B46); stdio by default, Streamable HTTP (`--http`, bearer + TLS) for NemoClaw/OpenShell
+    ├── mcp_server.py   MCP front-end: 51 tools (2 only with the opt-in programs tier), out-of-band stop, per-call log, opt-in read-only lane (B46); stdio by default, Streamable HTTP (`--http`, bearer + TLS) for NemoClaw/OpenShell
     ├── capabilities.py capability matrix from the built runtime; TOOL_REQUIREMENTS trims the MCP catalog
     ├── mobile_runtime.py / robot_runtime.py   base-only (`--base`) and composed (`--robot`) runtimes
     ├── process_owner.py profile-owned process identity for shutdown and proof binding
@@ -1590,7 +1591,10 @@ barriers.
   not the home -> pregrasp transit (the harness proxies alone), not other
   objects or obstacles, not learned (GraspGen-X / HUG) or top-down
   candidates, not physics (a clear approach is not a held object).
-- `RebotRSArm.disconnect()` cuts torque: park (`move_home`) first.
+- `RebotRSArm.disconnect()` cuts torque: park first. `move_to_rest` ("home",
+  "pose 0", `skills/rest_pose.py`) folds onto `park_q`, verifies the measured
+  pose and only then returns the LazyArm to standby; `move_home` is the raised
+  initial pose and keeps the motors on.
 - The MCP server executes one tool call at a time by default; stops, cancels
   and pings are handled out-of-band by the receive side (never queued behind
   a motion), but every other request waits for the motion in flight. With the

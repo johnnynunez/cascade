@@ -118,6 +118,9 @@ _MOTION_SKILLS = {
     # natural-language spatial nudges (skills/spatial_moves.py): every one
     # streams through SafeArm, so `motion lock` must deny it too
     "undo_move", "rotate_gripper", "move_near_object",
+    # "home" / "pose 0" / "rest": folds onto park_q through SafeArm and then
+    # switches the motors off (skills/rest_pose.py)
+    "move_to_rest",
     # Pigey composites over the belief store: both pick and place through
     # the same primitives every other composite uses (snapshot_scene is
     # perception-only and deliberately absent)
@@ -2425,7 +2428,8 @@ class SkillRuntime:
                 "holding": self.held_object,
             }
         else:
-            robot = {"status": "standby (arm control has not been opened in this session)",
+            robot = {"status": ("standby (motors off: arm control not opened in this session, "
+                                "or released at rest by move_to_rest)"),
                      "live_arm_feedback": False,
                      "holding": self.held_object}
         return {
@@ -5880,6 +5884,22 @@ class SkillRuntime:
             raise SkillError("did not settle at home")
         return {"at": "home"}
 
+    def skill_move_to_rest(self, keep_torque: bool = False) -> dict:
+        """"Home" / "pose 0" / "rest" / "park": fold the arm onto its rest pose
+        (the profile's `park_q`), verify it there by MEASUREMENT, close the
+        gripper and switch the motors off (the LazyArm returns to standby), so
+        the robot can be powered down. `keep_torque=True` folds it and leaves
+        the motors on.
+
+        Not `move_home`: that is the raised INITIAL pose (`home_q`, motors
+        on). Refuses while holding (or possibly holding) an object and while
+        the e-stop is latched; a pose that is not measured at rest keeps its
+        torque. See `skills/rest_pose.py` for the route and the rules.
+        """
+        from . import rest_pose
+
+        return rest_pose.move_to_rest(self, keep_torque=keep_torque)
+
     def skill_list_arms(self) -> dict:
         """Which arms this rig has, and which one commands default to.
 
@@ -6956,6 +6976,34 @@ TOOL_SPECS: list[dict] = [
         "name": "move_home",
         "description": "Return the arm to its home configuration (also clears the camera view).",
         "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "move_to_rest",
+        "description": (
+            "Fold the arm onto its REST pose and switch the motors off, so the robot can be "
+            "powered down. This is what the user means by 'home', 'go home', 'back home', "
+            "'pose 0', 'zero pose', 'back to zero', 'rest', 'park', 'fold it', 'so I can turn "
+            "it off' (Spanish: 'vuelve a home', 'a casa', 'pose 0 / pose cero', 'reposo', "
+            "'aparca', 'pliega el brazo'). The arm lies folded back over its base (every "
+            "joint 0, wrist camera on top); once it is MEASURED there the gripper closes and "
+            "the motors are released. NOT the raised initial/ready pose -- that is move_home. "
+            "If the gripper holds something it refuses: ask the user to put it down first. It "
+            "also refuses while the e-stop is latched. If the arm does not reach the rest "
+            "pose the motors stay ON (a raised arm without torque would fall) and the result "
+            "says why. Say the robot can be switched off ONLY when the result has "
+            "safe_to_power_off=true. keep_torque=true folds it but keeps the motors on. The "
+            "next motion command switches the motors on again by itself. An arm with no "
+            "folded rest pose goes to its initial pose instead (safe_to_power_off=false)."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "keep_torque": {"type": "boolean",
+                                "description": "Keep the motors on at the rest pose (default "
+                                               "false: they are switched off)."},
+            },
+            "required": [],
+        },
     },
     {
         "name": "reset_scene",

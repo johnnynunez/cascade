@@ -506,3 +506,120 @@ def test_open_refuses_without_a_token(tmp_path):
     rig = _load()
     with pytest.raises(SystemExit, match="Ready"):
         rig.open_chat(tmp_path, rig.Settings(), run=FakeRun(), opener=lambda repo, url: None)
+
+
+# ── timed unlock: motion permission always expires ────────────────────────
+
+
+def _relock_calls(run):
+    return [a for a in run.argvs() if a[:2] == ["systemd-run", "--user"]
+            and any(x.startswith("--unit=cascade-openshell-relock") for x in a)]
+
+
+def test_an_unlock_expires_by_default(tmp_path, monkeypatch):
+    """A forgotten `motion unlock` must not leave the agent able to move the
+    arm indefinitely: every unlock schedules its own re-lock (a transient
+    systemd timer that runs `motion lock`)."""
+    rig = _load()
+    monkeypatch.setattr(rig.time, "time", lambda: 1000.0)
+    run = FakeRun(outs={"provider profile export": "resource_version: 3\n"})
+    rig.unlock_motion(tmp_path, rig.Settings(), run=run)
+    relock = _relock_calls(run)
+    assert len(relock) == 1
+    assert f"--on-active={rig.DEFAULT_UNLOCK_S}" in relock[0]
+    assert relock[0][-2:] == ["motion", "lock"]
+    assert rig.motion_locked(tmp_path) is False
+    assert rig._read_state(tmp_path)["motion_unlocked_until"] == 1000.0 + rig.DEFAULT_UNLOCK_S
+
+
+def test_the_relock_is_scheduled_before_the_arm_is_unlocked(tmp_path):
+    """If the re-lock cannot be scheduled, the unlock never happens."""
+    rig = _load()
+    run = FakeRun(rcs={"--user --unit=cascade-openshell-relock": 1},
+                  outs={"provider profile export": "resource_version: 3\n"})
+    rig.set_motion_lock(tmp_path, rig.Settings(), locked=True, run=run)
+    n_updates = len([a for a in run.argvs() if a[1:4] == ["provider", "profile", "update"]])
+    with pytest.raises(SystemExit, match="re-lock"):
+        rig.unlock_motion(tmp_path, rig.Settings(), run=run)
+    assert rig.motion_locked(tmp_path) is True
+    assert len([a for a in run.argvs() if a[1:4] == ["provider", "profile", "update"]]) == n_updates
+
+
+def test_locking_cancels_a_pending_relock(tmp_path):
+    rig = _load()
+    run = FakeRun(outs={"provider profile export": "resource_version: 3\n"})
+    rig.lock_motion(tmp_path, rig.Settings(), run=run)
+    assert ["systemctl", "--user", "stop", "cascade-openshell-relock.timer"] in run.argvs()
+    assert rig.motion_locked(tmp_path) is True
+    assert "motion_unlocked_until" not in rig._read_state(tmp_path)
+
+
+@pytest.mark.parametrize("text, seconds", [("90s", 90), ("15m", 900), ("1h", 3600), ("2h", 7200), ("45", 45)])
+def test_unlock_durations(text, seconds):
+    assert _load().parse_duration(text) == seconds
+
+
+@pytest.mark.parametrize("text", ["0", "0m", "3h", "-5m", "forever", "", "1.5x"])
+def test_an_unlock_is_never_unbounded_or_longer_than_the_cap(text):
+    with pytest.raises(SystemExit):
+        _load().parse_duration(text)
+
+
+def test_status_reports_the_time_left(tmp_path, monkeypatch, capsys):
+    rig = _load()
+    rig._write_state(tmp_path, motion_locked=False, motion_unlocked_until=1600.0)
+    monkeypatch.setattr(rig.time, "time", lambda: 1000.0)
+    assert rig.motion_status(tmp_path) == "allowed for 10 min more (then re-locked automatically)"
+    rig._write_state(tmp_path, motion_locked=True)
+    assert rig.motion_status(tmp_path) == "LOCKED (observe-only)"
+
+
+@pytest.mark.parametrize("saved_lock", [None, True, False])
+def test_up_starts_observe_only_unless_motion_is_asked_for(tmp_path, saved_lock):
+    """Safe by default: a fresh or restarted agent can look, not move. Motion
+    needs an explicit --allow-motion, which is a timed unlock like any other."""
+    rig = _load()
+    if saved_lock is not None:
+        rig._write_state(tmp_path, motion_locked=saved_lock)
+    assert rig.startup_locked(tmp_path, observe_only=False, allow_motion=False) is True
+    assert rig.startup_locked(tmp_path, observe_only=True, allow_motion=False) is True
+    assert rig.startup_locked(tmp_path, observe_only=False, allow_motion=True) is False
+
+
+def test_extra_denies_survive_a_lock_toggle(tmp_path):
+    """`up --deny-tool X` is an operator decision: a later `motion lock` or
+    `motion unlock` must keep denying X, not silently drop it."""
+    rig = _load()
+    run = FakeRun(outs={"provider profile export": "resource_version: 3\n"})
+    rig.set_motion_lock(tmp_path, rig.Settings(), locked=True, extra=("push_object",), run=run)
+    rig.unlock_motion(tmp_path, rig.Settings(), run=run)
+    upd = [a for a in run.argvs() if a[1:4] == ["provider", "profile", "update"]]
+    prof = json.loads(Path(upd[-1][upd[-1].index("--file") + 1]).read_text())
+    assert {r["tool"] for r in prof["endpoints"][0]["deny_rules"]} == {"reset_stop", "push_object"}
+    rig.lock_motion(tmp_path, rig.Settings(), run=run)
+    upd = [a for a in run.argvs() if a[1:4] == ["provider", "profile", "update"]]
+    prof = json.loads(Path(upd[-1][upd[-1].index("--file") + 1]).read_text())
+    assert "push_object" in {r["tool"] for r in prof["endpoints"][0]["deny_rules"]}
+
+
+def test_the_relock_unit_does_not_stop_itself_midway(tmp_path, monkeypatch):
+    """Found live: the re-lock service runs `motion lock`, which cancels the
+    re-lock unit; stopping its own .service killed it before it finished
+    (the lock was already applied, its bookkeeping was not). Inside the
+    re-lock unit only the timer is cancelled."""
+    rig = _load()
+    monkeypatch.setenv(rig.RELOCK_ENV, "1")
+    run = FakeRun(outs={"provider profile export": "resource_version: 3\n"})
+    rig._write_state(tmp_path, motion_locked=False, motion_unlocked_until=5.0)
+    rig.lock_motion(tmp_path, rig.Settings(), run=run)
+    assert ["systemctl", "--user", "stop", "cascade-openshell-relock.service"] not in run.argvs()
+    assert ["systemctl", "--user", "stop", "cascade-openshell-relock.timer"] in run.argvs()
+    assert rig.motion_locked(tmp_path) and "motion_unlocked_until" not in rig._read_state(tmp_path)
+
+
+def test_the_relock_unit_identifies_itself(tmp_path):
+    rig = _load()
+    run = FakeRun(outs={"provider profile export": "resource_version: 3\n"})
+    rig.unlock_motion(tmp_path, rig.Settings(), run=run)
+    relock = _relock_calls(run)[0]
+    assert f"{rig.RELOCK_ENV}=1" in relock

@@ -487,20 +487,125 @@ def _write_state(home: Path, **fields) -> None:
     tmp.replace(_state_file(home))
 
 
+def _drop_state(home: Path, *keys: str) -> None:
+    state = {k: v for k, v in _read_state(home).items() if k not in keys}
+    home.mkdir(parents=True, exist_ok=True, mode=0o700)
+    tmp = _state_file(home).with_suffix(".tmp")
+    tmp.write_text(json.dumps(state, indent=2) + "\n")
+    tmp.replace(_state_file(home))
+
+
 def motion_locked(home: Path) -> bool:
     return bool(_read_state(home).get("motion_locked", False))
 
 
-def set_motion_lock(home: Path, cfg: Settings, locked: bool, extra: tuple[str, ...] = (),
+def set_motion_lock(home: Path, cfg: Settings, locked: bool, extra: tuple[str, ...] | None = None,
                     run=_default_run) -> tuple[str, ...]:
     """Lock (observe-only) or unlock the arm at the OpenShell layer by
     updating the robot profile's deny rules. Live 0.1.3 propagates a profile
     update to the running sandbox within seconds, so neither the agent nor
-    its chat token is recreated."""
+    its chat token is recreated.
+
+    `extra` (from `up --deny-tool`) is remembered: a later lock or unlock
+    without it keeps denying those tools. An operator's deny is never dropped
+    as a side effect of toggling motion."""
+    if extra is None:
+        extra = tuple(_read_state(home).get("deny_extra", ()))
     deny = deny_set(observe_only=locked, extra=extra)
     sync_profile(home, robot_profile(cfg.mcp_port, deny), run=run)
-    _write_state(home, motion_locked=locked, deny=list(deny))
+    _write_state(home, motion_locked=locked, deny=list(deny), deny_extra=list(extra))
     return deny
+
+
+# ── timed unlock: motion permission always expires ────────────────────────
+
+#: A `motion unlock` without --for lasts this long, then re-locks itself.
+DEFAULT_UNLOCK_S = 20 * 60
+#: No unlock may last longer: a demo session, not a standing permission.
+MAX_UNLOCK_S = 2 * 3600
+#: The transient systemd user timer that runs `motion lock` at expiry.
+RELOCK_UNIT = "cascade-openshell-relock"
+#: Set in the re-lock unit's environment, so `motion lock` there does not
+#: stop its own service halfway through.
+RELOCK_ENV = "CASCADE_OPENSHELL_RELOCK"
+
+
+def parse_duration(text: str) -> int:
+    """'90s' / '15m' / '1h' / '45' (seconds) -> seconds, in (0, MAX_UNLOCK_S].
+    Zero, negative, unbounded ('forever') and over-the-cap values are refused:
+    there is deliberately no way to unlock the arm without an expiry."""
+    t = str(text).strip().lower()
+    unit = {"s": 1, "m": 60, "h": 3600}.get(t[-1:], None)
+    number = t[:-1] if unit else t
+    try:
+        value = int(number) * (unit or 1)
+    except ValueError:
+        raise SystemExit(f"unlock duration {text!r}: use e.g. 90s, 15m or 1h") from None
+    if not 0 < value <= MAX_UNLOCK_S:
+        raise SystemExit(f"unlock duration {text!r} must be > 0 and <= {MAX_UNLOCK_S // 3600} h")
+    return value
+
+
+def _cancel_relock(run=_default_run) -> None:
+    """Drop a pending re-lock. Inside the re-lock unit itself (found live:
+    stopping its own .service killed `motion lock` halfway), only the timer
+    is touched; systemd collects the finished service."""
+    run(["systemctl", "--user", "stop", f"{RELOCK_UNIT}.timer"], capture_output=True, check=False)
+    if os.environ.get(RELOCK_ENV) == "1":
+        return
+    run(["systemctl", "--user", "stop", f"{RELOCK_UNIT}.service"], capture_output=True, check=False)
+    run(["systemctl", "--user", "reset-failed", f"{RELOCK_UNIT}.timer", f"{RELOCK_UNIT}.service"],
+        capture_output=True, check=False)
+
+
+def unlock_motion(home: Path, cfg: Settings, seconds: int = DEFAULT_UNLOCK_S, run=_default_run) -> tuple[str, ...]:
+    """Allow motion for `seconds`, then re-lock automatically.
+
+    The re-lock (a transient systemd timer running `motion lock`) is
+    scheduled BEFORE the profile is unlocked: if it cannot be scheduled, the
+    arm stays locked. A timer outlives this shell and a crashed agent; it
+    does not outlive a reboot, after which `up` starts observe-only anyway."""
+    seconds = int(seconds)
+    if not 0 < seconds <= MAX_UNLOCK_S:
+        raise SystemExit(f"unlock duration must be > 0 and <= {MAX_UNLOCK_S} s")
+    _cancel_relock(run)
+    r = run(["systemd-run", "--user", f"--unit={RELOCK_UNIT}", "--collect", f"--on-active={seconds}",
+             "-E", f"CASCADE_OPENSHELL_HOME={home}", "-E", f"{RELOCK_ENV}=1", sys.executable, str(Path(__file__).resolve()),
+             "motion", "lock"], capture_output=True, text=True, check=False)
+    if r.returncode != 0:
+        raise SystemExit(f"could not schedule the automatic re-lock ({(r.stderr or '').strip()[:200]}); "
+                         "motion stays LOCKED")
+    deny = set_motion_lock(home, cfg, locked=False, run=run)
+    _write_state(home, motion_unlocked_until=time.time() + seconds)
+    return deny
+
+
+def lock_motion(home: Path, cfg: Settings, run=_default_run) -> tuple[str, ...]:
+    """Observe-only now (first), then drop any pending re-lock timer."""
+    deny = set_motion_lock(home, cfg, locked=True, run=run)
+    _cancel_relock(run)
+    _drop_state(home, "motion_unlocked_until")
+    return deny
+
+
+def motion_status(home: Path) -> str:
+    state = _read_state(home)
+    if state.get("motion_locked", False):
+        return "LOCKED (observe-only)"
+    until = state.get("motion_unlocked_until")
+    if until is None:
+        return "allowed WITHOUT an expiry (an older unlock): run `motion lock`, or `motion unlock --for 20m`"
+    left = until - time.time()
+    if left <= 0:
+        return "allowed, but the automatic re-lock is overdue: run `motion lock`"
+    return f"allowed for {-(-int(left) // 60)} min more (then re-locked automatically)"
+
+
+def startup_locked(home: Path, *, observe_only: bool, allow_motion: bool) -> bool:
+    """`up` starts observe-only unless motion is asked for explicitly (and
+    then it is a timed unlock). A saved unlock from an earlier session does
+    not carry over: a fresh agent can look, not move."""
+    return not allow_motion or observe_only
 
 
 def _load_settings(home: Path, args) -> Settings:
@@ -599,8 +704,14 @@ def cmd_up(home: Path, args) -> int:
         print(f"building {tag}")
         subprocess.run(["docker", "build", "-t", tag, str(DEPLOY)], check=True)
     sync_profile(home, brain_profile(cfg.brain_port))
-    locked = args.observe_only or (motion_locked(home) and not args.allow_motion)
-    deny = set_motion_lock(home, cfg, locked, extra=tuple(args.deny_tool or ()))
+    locked = startup_locked(home, observe_only=args.observe_only, allow_motion=args.allow_motion)
+    if locked:
+        deny = set_motion_lock(home, cfg, True, extra=tuple(args.deny_tool or ()))
+        _cancel_relock()
+        _drop_state(home, "motion_unlocked_until")
+    else:
+        _write_state(home, deny_extra=list(args.deny_tool or ()))
+        deny = unlock_motion(home, cfg, parse_duration(args.for_) if args.for_ else DEFAULT_UNLOCK_S)
     sync_provider(home, "cascade-brain", BRAIN_KEY_ENV, brain_key_file)
     sync_provider(home, "cascade-robot", MCP_TOKEN_ENV, token_file)
     state = _read_state(home)
@@ -625,7 +736,7 @@ def cmd_up(home: Path, args) -> int:
     _systemd_run(CHAT_UNIT, [str(home / OPENSHELL_VERSION / "bin" / "openshell"), *forward_argv(cfg)],
                  env, home / "chat-forward.log")
     print(f"sandbox {cfg.sandbox} Ready ({tag}); chat on http://127.0.0.1:{cfg.chat_port}/")
-    print(f"motion: {'LOCKED by OpenShell (observe-only)' if locked else 'allowed'}; "
+    print(f"motion: {'LOCKED by OpenShell (observe-only)' if locked else motion_status(home)}; "
           f"denied at L7: {', '.join(deny) if len(deny) < 4 else f'{len(deny)} tools'}")
     print("open it with the token: scripts/openshell_rig.py chat-url  (prints a secret)")
     return 0
@@ -634,11 +745,14 @@ def cmd_up(home: Path, args) -> int:
 def cmd_motion(home: Path, args) -> int:
     cfg = _load_settings(home, args)
     if args.action == "status":
-        print("LOCKED (observe-only)" if motion_locked(home) else "allowed")
+        print(motion_status(home))
         return 0
-    deny = set_motion_lock(home, cfg, locked=args.action == "lock")
-    print(f"motion {'LOCKED' if args.action == 'lock' else 'allowed'}: OpenShell denies {', '.join(deny)}")
-    print("takes effect in the running sandbox within ~10 s")
+    if args.action == "lock":
+        deny = lock_motion(home, cfg)
+    else:
+        deny = unlock_motion(home, cfg, parse_duration(args.for_) if args.for_ else DEFAULT_UNLOCK_S)
+    print(f"motion {motion_status(home)}: OpenShell denies {', '.join(deny)}")
+    print("takes effect in the running sandbox within ~10 s; emergency_stop and halt_motion always work")
     return 0
 
 
@@ -749,11 +863,15 @@ def main(argv: list[str] | None = None) -> int:
             lock = p.add_mutually_exclusive_group()
             lock.add_argument("--observe-only", action="store_true",
                               help="OpenShell denies every motion tool (lift with `motion unlock`)")
-            lock.add_argument("--allow-motion", action="store_true", help="clear a saved observe-only lock")
+            lock.add_argument("--allow-motion", action="store_true",
+                              help="start with motion allowed, for --for (default 20m, max 2h)")
+            p.add_argument("--for", dest="for_", help="with --allow-motion: unlock duration (90s, 15m, 1h)")
         if name == "down":
             p.add_argument("--gateway", action="store_true", help="also stop the gateway")
     m = sub.add_parser("motion", help="lock/unlock the arm at the OpenShell layer, live")
     m.add_argument("action", choices=["lock", "unlock", "status"])
+    m.add_argument("--for", dest="for_", help="unlock duration (90s, 15m, 1h; default 20m, max 2h); "
+                                             "every unlock re-locks itself")
     settings_flags(m)
     args = ap.parse_args(argv)
     home = home_dir()

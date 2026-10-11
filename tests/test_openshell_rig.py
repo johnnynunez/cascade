@@ -473,3 +473,36 @@ def test_release_extraction_refuses_path_traversal(tmp_path):
         tf.addfile(ti, io.BytesIO(data))
     out = rig.extract_binary(good, "openshell", tmp_path / "bin")
     assert out == tmp_path / "bin" / "openshell" and os.access(out, os.X_OK)
+
+
+# ── the demo UI: OpenClaw's own web UI + the cascade camera extension ─────
+
+
+def test_the_mcp_server_is_headless_by_default():
+    """Under a systemd user unit DISPLAY=:0 is set, and the server's default
+    view=1 popped an OpenCV "cascade :: live" window next to the demo. The
+    demo's screen is OpenClaw's web UI with the camera extension; the
+    cameras reach it through the live-view server, not a desktop window."""
+    rig = _load()
+    assert rig.serve_mcp_env({"PATH": "/bin"})["CASCADE_VIEW"] == "0"
+    assert rig.serve_mcp_env({"PATH": "/bin", "CASCADE_VIEW": "1"})["CASCADE_VIEW"] == "1"
+
+
+def test_open_puts_the_tokenized_chat_in_the_extension_browser_never_on_stdout(tmp_path, capsys):
+    rig = _load()
+    run = FakeRun(outs={"sandbox exec": "deadbeefcafe0123"})
+    opened = []
+    rig.open_chat(tmp_path, rig.Settings(chat_port=18799, sandbox="cascade-agent"), run=run,
+                  opener=lambda repo, url: opened.append((repo, url)))
+    assert opened == [(rig.REPO, "http://127.0.0.1:18799/#token=deadbeefcafe0123")]
+    exec_argv = next(a for a in run.argvs() if a[1:3] == ["sandbox", "exec"])
+    assert exec_argv[exec_argv.index("--name") + 1] == "cascade-agent"
+    out = capsys.readouterr()
+    assert "deadbeefcafe0123" not in out.out + out.err
+    assert "18799" in out.out
+
+
+def test_open_refuses_without_a_token(tmp_path):
+    rig = _load()
+    with pytest.raises(SystemExit, match="Ready"):
+        rig.open_chat(tmp_path, rig.Settings(), run=FakeRun(), opener=lambda repo, url: None)

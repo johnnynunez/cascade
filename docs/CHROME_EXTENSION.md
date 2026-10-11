@@ -24,6 +24,19 @@ panel, it opens in a larger window; closing that window also returns the camera.
 In **Show in chat**, the camera expands within the current tab. The stream keeps
 running while you switch sizes.
 
+**Real rig (no Spark camera server).** On a loopback OpenClaw page on any
+port, for example NemoClaw's Control UI on `127.0.0.1:18789`, discovery first
+tries the page itself. When that page advertises no cameras, the extension
+tries the Spark camera server (`127.0.0.1:8091`), then cascade's own live view
+(`127.0.0.1:8090/state`, served by `apps/stream_server.py`). The live view
+lists the real cameras, for example `d455f_scene` and `d455f_wrist`, and
+streams them as MJPEG. All three use the same `http://127.0.0.1/*` grant.
+
+Start the live view with the runtime by setting `CASCADE_STREAM=eager`. The
+default `lazy` opens it only when the agent calls `open_live_view`. The
+fallback never applies to remote, `localhost` or https pages, or to the camera
+servers themselves.
+
 The page may advertise its status endpoint with
 `<meta name="openclaw-demo" content="/api/status">`. Otherwise discovery
 uses the active page's origin, including its port. All discovered camera

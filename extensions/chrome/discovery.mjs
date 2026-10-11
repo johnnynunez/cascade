@@ -1,6 +1,18 @@
 import {parseCameraURL,cameraNames} from './core.mjs';
 export const LABELS={kitchen:'Kitchen',worktop:'Worktop',side:'Side'};
-const SPARK_GATEWAY_STATUS='http://127.0.0.1:18790/api/status',SPARK_CAMERA_STATUS='http://127.0.0.1:8091/api/status';
+const SPARK_CAMERA_STATUS='http://127.0.0.1:8091/api/status';
+// cascade's own live view (apps/stream_server.py): /state lists the cameras,
+// /stream/<name> is MJPEG. The real rig has no Spark camera server.
+const LIVE_VIEW_STATE='http://127.0.0.1:8090/state';
+// A loopback chat page (the Spark gateway on 18790, NemoClaw's OpenClaw on
+// 18789, ...) advertises no cameras: try the local camera servers on the SAME
+// host grant. Never for remote or `localhost` pages, https pages, or the
+// camera servers themselves.
+export function localFallbacks(status){
+ const u=new URL(status);
+ if(u.protocol!=='http:'||u.hostname!=='127.0.0.1'||u.pathname!=='/api/status'||['8090','8091'].includes(u.port))return [];
+ return [SPARK_CAMERA_STATUS,LIVE_VIEW_STATE];
+}
 export function cleanURL(value,relativeTo){
  const u=new URL(value,relativeTo);
  if(!['http:','https:'].includes(u.protocol)||u.username||u.password||u.search||u.hash||/%|\\/.test(u.pathname))throw Error('Invalid discovery endpoint');
@@ -50,14 +62,14 @@ export async function bootstrap(info){
  return {statusURL,permission:hostPermission(statusURL)};
 }
 export async function discover(hint,signal){
- let status=hint.statusURL,raw;
- try{raw=await boundedJSON(status,signal);}
- catch(error){
-  // A DGX Spark serves its OpenClaw gateway and cameras on separate loopback
-  // ports, and the gateway advertises no cameras. Same host grant, no token.
-  if(status!==SPARK_GATEWAY_STATUS||signal?.aborted)throw error;
-  status=SPARK_CAMERA_STATUS;raw=await boundedJSON(status,signal);
+ let status,raw,failure;
+ // A DGX Spark serves its OpenClaw gateway and cameras on separate loopback
+ // ports, and the gateway advertises no cameras. Same host grant, no token.
+ for(const candidate of [hint.statusURL,...localFallbacks(hint.statusURL)]){
+  try{raw=await boundedJSON(candidate,signal);status=candidate;break;}
+  catch(error){failure=error;if(signal?.aborted)throw error;}
  }
+ if(status===undefined)throw failure;
  const config=contract(raw,status),live=await boundedJSON(config.stateURL,signal);
  const names=cameraNames(live).filter(name=>config.streams[name]);if(!names.length)throw Error('No cameras announced');
  config.names=names;config.defaultCamera=names.includes(config.defaultCamera)?config.defaultCamera:names.includes('worktop')?'worktop':names[0];

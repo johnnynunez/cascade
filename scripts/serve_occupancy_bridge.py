@@ -34,7 +34,7 @@ frame, metres, float32):
           inf = nothing known), "origin": (3,), "voxel": float,
           "points": (M,3) occupied voxel centres (legacy consumers)}
 
-    ./scripts/serve_occupancy_bridge.py [--port 5557] [--voxel-size 0.01]
+    ./scripts/serve_occupancy_bridge.py [--host 127.0.0.1] [--port 5557] [--voxel-size 0.01]
         [--backend auto|nvblox|warp|voxel] [--region-min x y z] [--region-max x y z]
 
 Test ownership (B64): `--port 0` binds a port the OS assigns and prints one
@@ -66,6 +66,11 @@ msgpack_numpy.patch()
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--host", default="127.0.0.1",
+                    help="interface to bind (default loopback: the runtime dials occupancy.host "
+                         "127.0.0.1, and this REP socket has no authentication while its "
+                         "integrate* actions write the map the planner trusts; 0.0.0.0 only "
+                         "for a bridge on another machine, on a trusted network)")
     ap.add_argument("--port", type=int, default=5557,
                     help="0 = a port the OS assigns, announced on stdout")
     ap.add_argument("--voxel-size", type=float, default=0.01)
@@ -84,7 +89,7 @@ def main() -> None:
     describe = grid.describe()
     ctx = zmq.Context.instance()
     sock = ctx.socket(zmq.REP)
-    sock.bind(f"tcp://0.0.0.0:{args.port}")          # 0 = a port the OS assigns
+    sock.bind(f"tcp://{args.host}:{args.port}")      # 0 = a port the OS assigns
     endpoint = sock.getsockopt(zmq.LAST_ENDPOINT).decode()
     port = int(endpoint.rsplit(":", 1)[1])
     print(f"[occupancy-bridge] :{port} backend={grid.name} {describe} "

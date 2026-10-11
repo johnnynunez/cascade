@@ -409,3 +409,40 @@ def test_pick_and_place_stops_on_a_gripper_fault_and_asks_to_clear_the_jaws(mock
     assert res.get("outcome") == "stuck"
     assert "jaws" in res["ask"] and "Clear the jaws" in res["ask"]
     assert len(calls) == 1
+
+
+# ── scripts/check_rebot_gripper.py: the on-rig check ────────────────────
+
+
+def _check_script():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parent.parent / "scripts" / "check_rebot_gripper.py"
+    spec = importlib.util.spec_from_file_location("check_rebot_gripper", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+@pytest.mark.parametrize(("q0", "code"), [(np.zeros(6), 0), (np.array([0, 1.2, 1.2, 0, 0, 0]), 2)])
+def test_the_rig_check_moves_only_the_gripper_and_only_from_rest(clock, q0, code):
+    jaw = clock(Jaw(6.35, -TWO_PI))                                  # the incident's power-on
+    arm = sdk_arm(jaw)
+    held = []
+    arm.get_state = lambda: types.SimpleNamespace(q=q0.copy())
+    arm.send_joint_target = lambda q: held.append(np.asarray(q, float).copy())
+    out = []
+    assert _check_script().run(arm, np.zeros(6), log=out.append) == code
+    assert len(held) == 1 and np.allclose(held[0], q0)              # held where it was, once
+    if code == 2:
+        assert jaw.sent == [] and "not folded at rest" in out[-1]
+        return
+    assert any("raw reading at connect: +0.0668" in line for line in out)
+    assert any("offset -1 turn(s)" in line for line in out)
+    assert jaw.press["open_end"] == 0.0 and out[-1].startswith("[+] gripper OK")
+
+
+def test_the_rig_check_needs_yes(capsys):
+    assert _check_script().main([]) == 2
+    assert "Nothing done" in capsys.readouterr().out

@@ -62,6 +62,15 @@ These were checked from inside the sandbox:
   locked the day it lands. A profile update reaches the running sandbox in
   under 10 s, so the agent and its chat token are not recreated. The two stop
   tools (`emergency_stop`, `halt_motion`) can never be denied.
+- **Locked by default; every unlock expires.** `up` starts observe-only
+  unless `--allow-motion` is given, and a saved unlock never carries over to
+  a new session. `motion unlock` lasts 20 min by default (`--for 90s|15m|1h`,
+  max 2 h; zero or unbounded is refused). Before it unlocks, it schedules its
+  own re-lock, a transient systemd user timer (`cascade-openshell-relock`)
+  that runs `motion lock`. If that cannot be scheduled, the arm stays locked.
+  `motion lock` cancels a pending re-lock, and `motion status` shows the time
+  left. Tools denied with `up --deny-tool` stay denied across every lock and
+  unlock.
 
 ## Bring-up
 
@@ -88,15 +97,17 @@ systemd-run --user --unit=cascade-openshell-mcp --collect -p MemoryMax=infinity 
 
 # 3. image (rebuilt when deploy/openshell changes), profiles, providers,
 #    sandbox, chat forward
-scripts/openshell_rig.py up --observe-only   # first bring-up: look, don't touch
+scripts/openshell_rig.py up                  # observe-only by default: look, don't touch
 scripts/openshell_rig.py status
 scripts/openshell_rig.py open                # the demo's screen: OpenClaw's own web UI in the
                                              # Chromium profile with the cascade camera extension
                                              # (click it, then "Connect cameras"); token never printed
 scripts/openshell_rig.py chat-url            # or print the tokenized chat URL: a secret
 
-# 4. when the operator is ready to let the arm move
-scripts/openshell_rig.py motion unlock
+# 4. when the operator is ready to let the arm move (e-stop in hand, space clear)
+scripts/openshell_rig.py motion unlock --for 15m   # re-locks itself; default 20m, max 2h
+scripts/openshell_rig.py motion status              # "allowed for 14 min more ..."
+scripts/openshell_rig.py motion lock                # done: observe-only again now
 ```
 
 To ask the agent from a shell (for example a smoke test):

@@ -26,12 +26,17 @@ extrinsics:
   #   python scripts/calibrate_handeye.py --camera d455f_scene --arm rebot_rs --method markerless
   # then enable the record (it takes precedence over T below; a missing or
   # rejected record turns 3D fusion OFF for this camera rather than fall back):
-  # hand_eye_json: ${repo}/configs/calib/d455f_scene_rebot_rs.handeye.json
+  # Calibrated on THIS rig 2026-10-11 (markerless, 37/37 poses, rmse 3.3 mm):
+  hand_eye_json: ${repo}/configs/calib/d455f_scene_rebot_rs.handeye.json
+  # ROUGH starting guess on THIS rig (2026-10-10), not a calibration: tape
+  # measurements (camera ~48 cm up, on the far edge of the table, looking back
+  # at the arm) + the table plane in depth + a single-view fit of the arm at
+  # rest (explains 74 % of the visible arm). Refine with --method markerless.
   T:
-    - [ 0.0, -1.0,  0.0, 0.28]
-    - [-1.0,  0.0,  0.0, 0.00]
-    - [ 0.0,  0.0, -1.0, 0.60]
-    - [ 0.0,  0.0,  0.0, 1.00]
+    - [-0.99151,  0.12855, -0.01949,  0.23383]
+    - [ 0.06771,  0.38250, -0.92147,  0.54274]
+    - [-0.11100, -0.91497, -0.38796,  0.46806]
+    - [ 0.00000,  0.00000,  0.00000,  1.00000]
   # Runtime extrinsic drift monitor (docs/HANDEYE_CALIBRATION.md): while the
   # arm is static, checks that depth still matches the arm at FK through
   # this extrinsic; after `consecutive` checks off by more than max_offset_m

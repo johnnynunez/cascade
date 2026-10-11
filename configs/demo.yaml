@@ -427,8 +427,11 @@ perception_loop:
 stream:
   mode: lazy
   idle_timeout_s: 900       # 15 min of no browser activity -> auto-close
-  host: 0.0.0.0
+  host: 0.0.0.0             # LAN on purpose: big screen + the staff phone's STOP button
   port: 8090
+  lan_commands: false       # dashboard chat (POST /task, reflex grammar: home, wave, ...)
+                            # moves the arm, so only this machine may use it; STOP
+                            # (POST /cancel) works from any browser regardless
   fps: 15
   quality: 80
   depth_max_m: 2.0          # depth-view colormap range (tabletop scale)

@@ -33,6 +33,7 @@ so any number of viewers can attach without slowing perception or control.
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import socket
 import sys
@@ -363,6 +364,31 @@ def lan_ip() -> str:
         return "127.0.0.1"
 
 
+def command_allowed(client_host: str, lan_commands: bool) -> bool:
+    """May this HTTP client make the dashboard chat (POST /task) move the arm?
+
+    The live view binds 0.0.0.0 on purpose: the big screen and the staff
+    phone's STOP button (POST /cancel) reach it from other machines, and
+    stopping must keep working from anywhere. Commanding motion is a different
+    privilege. The chat feeds the reflex grammar ("home", "wave", ...) with no
+    auth, so on a shared venue network any browser could otherwise drive the
+    real arm. Only this machine's loopback may command unless the operator
+    opts in with `stream.lan_commands: true`.
+
+    Loopback means 127.0.0.0/8, ::1 and their IPv4-mapped form (spelled out:
+    the stdlib only maps ::ffff:127.x itself from Python 3.12.4/3.13). Anything
+    unparsable is refused: a policy that fails open is not a policy.
+    """
+    if lan_commands:
+        return True
+    try:
+        ip = ipaddress.ip_address(client_host)
+    except ValueError:
+        return False
+    mapped = getattr(ip, "ipv4_mapped", None)
+    return bool((mapped or ip).is_loopback)
+
+
 class StreamServer:
     """HTTP front-end over a CameraRig + a state callback."""
 
@@ -379,8 +405,13 @@ class StreamServer:
         depth_max_m: float = 2.0,
         on_poll=None,
         wrist_view: str | None = None,
+        lan_commands: bool = False,
     ):
         self._rig = rig
+        # POST /task (the reflex chat) from other machines: off unless the
+        # operator opts in. POST /cancel (STOP) is always open. See
+        # command_allowed().
+        self._lan_commands = bool(lan_commands)
         self._state_fn = state_fn or (lambda: {})
         # B47: the rig stream whose tile carries the wrist narration line
         # (a `role: wrist` / eye-in-hand profile, chosen by the app wiring);
@@ -689,6 +720,11 @@ def _make_handler(server: StreamServer):
                     return self._json({"cancelled": False, "error": str(e)[:120]})
             if self.path.rstrip("/") != "/task":
                 return self._json({"error": "unknown path"}, code=404)
+            if not command_allowed(self.client_address[0], server._lan_commands):
+                return self._json({"accepted": False,
+                                   "error": "dashboard commands are accepted only from this "
+                                            "machine (stream.lan_commands: false); STOP works "
+                                            "from any browser"}, code=403)
             if server._task_fn is None:
                 return self._json({"accepted": False,
                                    "error": "no task handler wired (REPL mode drives tasks)"},

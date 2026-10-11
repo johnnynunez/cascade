@@ -184,7 +184,7 @@ exit line for the lose case (§8). One `pick_and_place` per group, ever.
 | 5:15–7:45 | **Sabotage.** Attendee 3: *"Pick up the pink cube and put it in the box."* As the jaws descend, the **host** slides the cube 5 cm. Booth config caps this at 3 attempts / 45 s; narration streams the recovery ("attempt 2/3 — re-homing, re-scanning, planning a fresh grasp") with no one typing anything. **G3 @ 8:00.** |
 | 7:45–9:15 | **Object permanence.** Host covers the green cube with the cup, theatrically. Attendee 4: *"Where is the green cube?"* — the answer comes from memory, with position and age, while the object's row dims on the big screen. *"Point at where it was."* — the arm points at the cup; host lifts it at the fingertip; the row re-brightens. (Requires the `belief_fallback_age_s` booth tuning, §1.) |
 | 9:15–10:45 | **The throw.** The group picks who types: *"Grab the banana and throw it into the bin!"* Jaws pop open mid-arc. Host: "Every waypoint of that throw was still vetted by the safety harness at 50 hertz." **G4:** only if ≥60 s ahead — *"Hand me the pink cube"*: handover presents and holds until *"open the gripper"*. "Two-message protocol — it never lets go until you say so." |
-| 10:45–11:30 | **Close** (never cut). *"Wave goodbye, then go home."* `move_home` parks the arm safely — mandatory posture between groups. Group photo on the wave. |
+| 10:45–11:30 | **Close** (never cut). *"Wave goodbye, then go home."* "Go home" is `move_to_rest`: the arm folds onto its rest pose, is verified there and its motors switch off (they wake on the next group's first command) — mandatory posture between groups. ("Initial pose" is the raised `move_home`.) Group photo on the wave. |
 | 11:30–15:00 | **Q&A + reset in parallel** (§7). Talking points: the robot's "diary" (the dashboard's grasp-memory panel, plus `~/.cascade/GRASP_MEMORY.md` refreshed by the reset script — "your disc failure is in here now; the next group inherits it"), and the **keyframes** link on the big screen — this session's before/after evidence trail ("the black-box recorder of the last ten minutes", no file browser needed). Walk the group out at 14:30. |
 
 ## 6. Safety rules (host-only, non-negotiable)
@@ -207,7 +207,8 @@ exit line for the lose case (§8). One `pick_and_place` per group, ever.
   `pkill -USR1 -f cascade.apps.mcp_server` (SIGUSR1 is the staff reset
   channel; restarting the server also works but costs the warm state).
 - **Never kill or disconnect with the arm loaded or raised** — exit
-  disables torque and the arm falls. Park first (*"go home"*), always.
+  disables torque and the arm falls. Park first (*"go home"* = `move_to_rest`;
+  wait for `safe_to_power_off: true`), always.
 - Attendees never reach into the workspace while the arm is powered; the
   host does all staging inside the taped zones.
 

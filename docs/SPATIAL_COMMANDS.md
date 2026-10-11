@@ -42,6 +42,8 @@ the reference rig) does not have to invent numbers or frames.
 | "rotate it a bit" | `rotate_gripper(direction="clockwise", amount="small")` |
 | "tilt it down a little" | `rotate_gripper(direction="down", amount="small")` |
 | "turn it upside down" | refused: the wrist camera must stay on top |
+| "go to the initial pose" / "ready pose" / "pose inicial" | `move_home()` (raised, motors on) |
+| "go home" / "pose 0" / "rest" / "park" / "fold it" / "vuelve a home" | `move_to_rest()` (folded, then motors off) -- see [below](#initial-pose-vs-rest-pose-home-pose-0-and-powering-off) |
 
 ## Sizes
 
@@ -269,6 +271,58 @@ pointing the jaws down first with `rotate_gripper`).
   (`capabilities.TOOL_REQUIREMENTS`): plane-cast depth reads every top as the
   table.
 
+## Initial pose vs rest pose ("home", "pose 0"), and powering off
+
+The reBot has two named poses, and the words for them follow its owner:
+
+| the person says | pose | tool | motors after |
+|---|---|---|---|
+| "initial pose", "ready pose", "start pose" ("pose inicial", "vuelve al inicio") | `home_q` = `[0, 1.2, 1.2, 0, 0, 0]`: raised, gripper forward, ready for work | `move_home` | on |
+| "home", "go home", "pose 0", "zero", "rest", "park", "fold it", "so I can turn it off" ("vuelve a home", "a casa", "pose 0 / pose cero", "reposo", "aparca", "pliega el brazo", "vuelve al origen") | `park_q` = all joints 0: folded back over the base, links on their stops, wrist camera on top | `move_to_rest` | **off** (unless `keep_torque=true`) |
+
+Both the tool descriptions (LLM tier) and the reflex grammar
+(`agent/reflex.py`: dashboard chat, offline brain; intents `rest` and
+`initial_pose`) route this way, pinned by
+`tests/test_move_to_rest_registration.py`. `move_home` keeps its name and
+behaviour: `reset_scene`, the grasp pipeline's re-home, calibration and the
+tests use it.
+
+`move_to_rest` (`src/cascade/skills/rest_pose.py`, tests
+`tests/test_move_to_rest.py`):
+
+1. **Refuses before any command** while the e-stop is latched, and while the
+   gripper holds -- or may hold -- something (the shutdown park's retained-load
+   markers): the person is asked to put it down first.
+2. **Folds through SafeArm** on the route the rig has proven
+   (`scripts/home_rebot_rs.py`): up to the initial pose first unless the arm
+   is already there (`move_planned`, `move_home`'s route), then home -> rest
+   in 4 joint-space steps, each **measured** against its target (0.08 rad).
+   Only the last step relaxes the joint margin to 0 (joints 2/3 have their
+   lower limit at the rest pose). Every step is vetted by the harness (speed
+   cap, table, workspace, occupancy, wrist camera up); the whole route is
+   vetted before the first command, so a refused fold never starts. The
+   occupancy map is never bypassed (only the shutdown park may do that: it
+   would otherwise drop a raised arm; this tool simply stays put, motors on).
+3. **Releases torque only on a measured rest**: every joint within 0.05 rad
+   of `park_q`. Then the gripper closes (the RS's torque-detected close, as at
+   shutdown) and the LazyArm returns to standby -- the backend's disconnect
+   cuts torque. The result says `{"at": "rest", "torque": "released",
+   "safe_to_power_off": true}`; only then may the agent tell the person to
+   switch the robot off. Any other outcome keeps the motors ON and says why
+   (`"at": "not_rest"` with the measured pose): a raised arm without torque
+   falls.
+4. **The next motion re-energizes by itself**: any motion tool re-opens the
+   backend from the rest pose. (On the RS, opening clears latched faults with
+   a torque-off stop frame -- harmless at rest, the only place this tool ever
+   releases.) Asking for rest again while in standby moves nothing and reads
+   nothing (`"at": "standby"`): reading the pose would switch the motors on.
+
+Profiles without `park_q` (every arm except the reBot RS and the cuMotion
+Isaac twins) have no known folded pose and none is guessed: the request goes
+to the initial pose, motors on, `safe_to_power_off: false`. A backend opened
+directly (the demo CLI, not a LazyArm) or a simulator keeps its connection
+at rest and says so.
+
 ## Configuration
 
 `configs/demo.yaml`, overridable per arm through `overrides:`:
@@ -313,3 +367,10 @@ kinematics). Before relying on it with visitors:
   error after a move.
 - 5-DoF arms (SO-101): translations keep the full orientation, which a 5-DoF
   wrist often cannot hold off its azimuth plane; expect kinematic refusals.
+- `move_to_rest`: watch the first fold from the initial pose at the profile's
+  speed cap with a hand near the arm, and check that the occupancy map does not
+  refuse the last step because of the arm's own unmasked parts near the base
+  (the shutdown park has seen this). Confirm the measured pose at the stops
+  stays within the 0.05 rad release tolerance, that the gripper closes, that
+  the dashboard shows the arm in standby afterwards, and that the next motion
+  re-opens it from rest without a jolt.

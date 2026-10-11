@@ -973,7 +973,8 @@ first motion:
    reach a hard stop well before an STS3215 gives up pushing.
 3. Re-measure the gripper travel and set `gripper.*` from the arm.
 4. Park it (`move_home`) before disconnecting: `disconnect()` cuts torque and
-   a loaded arm drops. Same applies to the reBot.
+   a loaded arm drops. On the reBot RS, `move_to_rest` ("go home", "pose 0")
+   folds it onto its rest pose and only then switches the motors off.
 
 **reBot B601 (`--arm rebot_rs`)**
 

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {cleanURL,statusHint,contract,bootstrap,discover,LABELS} from '../discovery.mjs';
 
 test('automatically discovered demo cameras use the approved English labels',()=>{
- assert.deepEqual(LABELS,{kitchen:'Kitchen',worktop:'Worktop',side:'Side'});
+ assert.deepEqual(LABELS,{kitchen:'Kitchen',worktop:'Worktop',side:'Side',nvblox_map:'3D map (nvblox)'});
  const cameras=Object.keys(LABELS).map(name=>({name,stream_url:'/stream/'+name}));
  const config=contract({camera_discovery:{version:1,base_url:'https://demo.example',state_url:'/state',default_camera:'worktop',cameras}},'https://demo.example/api/status');
  assert.deepEqual(config.labels,LABELS);
@@ -112,5 +112,24 @@ test('the local camera fallback never applies to remote pages or to the camera s
    await assert.rejects(discover(await bootstrap({pageURL})));
    assert.equal(requests.length,1,pageURL+' must not try a second server');
   }
+ }finally{Object.assign(globalThis,original);}
+});
+test('the rig live view\'s nvblox map is one more view, after the real cameras, with its own label',async()=>{
+ // apps/stream_server.py appends the virtual camera `nvblox_map` LAST in
+ // /state (marked virtual/kind map) and serves it at /stream/nvblox_map as
+ // MJPEG like any camera: no extension change beyond the label.
+ const original={chrome:globalThis.chrome,fetch:globalThis.fetch};const saved={};
+ const cameras={d455f_scene:{frame_id:7,depth:true,error:null},d455f_wrist:{frame_id:9,depth:true,error:null},
+  nvblox_map:{virtual:true,kind:'map',label:'3D map (nvblox)',frame_id:0,fps:0,depth:false,error:null,map_state:'live'}};
+ globalThis.chrome={storage:{local:{get:async()=>saved,set:async values=>Object.assign(saved,values)}}};
+ globalThis.fetch=async url=>{
+  if(url==='http://127.0.0.1:8090/state')return new Response(JSON.stringify({cameras,t:1}),{headers:{'content-type':'application/json'}});
+  return new Response('Not Found',{status:404,headers:{'content-type':'text/plain'}});};
+ try{
+  const {config}=await discover(await bootstrap({pageURL:'http://127.0.0.1:18789/chat?session=main'}));
+  assert.deepEqual(config.names,['d455f_scene','d455f_wrist','nvblox_map']);
+  assert.equal(config.defaultCamera,'d455f_scene','the map never becomes the default view');
+  assert.equal(config.streams.nvblox_map,'http://127.0.0.1:8090/stream/nvblox_map');
+  assert.equal(LABELS[config.names[2]],'3D map (nvblox)');
  }finally{Object.assign(globalThis,original);}
 });

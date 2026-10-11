@@ -1,5 +1,7 @@
 import {parseCameraURL,cameraNames} from './core.mjs';
-export const LABELS={kitchen:'Kitchen',worktop:'Worktop',side:'Side'};
+// nvblox_map: the rig live view's virtual camera (apps/map_tile.py), the
+// occupancy map rendered as MJPEG and announced LAST in /state.
+export const LABELS={kitchen:'Kitchen',worktop:'Worktop',side:'Side',nvblox_map:'3D map (nvblox)'};
 const SPARK_CAMERA_STATUS='http://127.0.0.1:8091/api/status';
 // cascade's own live view (apps/stream_server.py): /state lists the cameras,
 // /stream/<name> is MJPEG. The real rig has no Spark camera server.

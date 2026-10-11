@@ -179,7 +179,11 @@ def viewer_axes(rt) -> rm.ViewerAxes:
     if getattr(ext, "mode", None) != "eye_to_hand":
         raise SkillError(f"viewer frame unavailable: camera {name!r} moves with the arm "
                          "(eye-in-hand); its 'right' would turn with every move")
-    return rm.viewer_axes(ext.cam_to_base(), camera=name)
+    try:
+        T = ext.cam_to_base()
+    except SkillError as exc:  # missing/rejected record or drift-invalidated at runtime
+        raise SkillError(f"viewer frame unavailable: camera {name!r} is not calibrated ({exc})") from exc
+    return rm.viewer_axes(T, camera=name)
 
 
 def _screen(rt, delta) -> str:

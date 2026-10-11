@@ -605,3 +605,83 @@ def test_a_target_too_far_for_one_call_is_refused(rig):
     r = runtime.execute("move_near_object", {"label": "red cube", "relation": "above"})
     assert r["ok"] is False and "per call" in r["error"]
     assert len(arm.commands) == n0
+
+
+# ── straight-line profiles and the viewer calibration ───────────────────────
+
+
+@pytest.fixture
+def cartesian_rig(demo_cfg, tmp_path):
+    from cascade.apps.demo import build_runtime, shutdown_runtime
+
+    demo_cfg._data["arm"]["cartesian_relative_moves"] = True
+    runtime, arm = build_runtime(demo_cfg, tmp_path / "run")
+    try:
+        yield runtime, arm
+    finally:
+        shutdown_runtime(runtime, arm)
+
+
+@needs_pin
+def test_a_cartesian_profile_moves_on_a_straight_line(cartesian_rig):
+    runtime, arm = cartesian_rig
+    start = _tcp(runtime)[:3, 3]
+    n0 = len(arm.commands)
+    r = runtime.execute("move_relative", {"vector": [0.0, 0.03, -0.03]})
+    assert r["ok"], r
+    assert r["path"].startswith("straight line")
+    kin = runtime.arm.harness.kin
+    path = np.array([kin.fk(q)[:3, 3] for q in arm.commands[n0:]])
+    d = np.array([0.0, 0.03, -0.03]) / np.linalg.norm([0.0, 0.03, -0.03])
+    rel = path - start
+    off_line = np.linalg.norm(rel - np.outer(rel @ d, d), axis=1)
+    assert off_line.max() < 1e-3
+
+
+@needs_pin
+def test_an_unplannable_straight_line_is_refused_never_replaced_by_joint_space(cartesian_rig, monkeypatch):
+    runtime, arm = cartesian_rig
+    from cascade.planning import cartesian
+    from cascade.types import SkillError
+
+    def no_line(*a, **k):
+        raise SkillError("cartesian path: IK failed at 3/10")
+
+    monkeypatch.setattr(cartesian, "plan_cartesian_path", no_line)
+    joint_moves = []
+    runtime.arm.move_joints = lambda *a, **k: joint_moves.append(a) or True
+    n0 = len(arm.commands)
+    r = runtime.execute("move_relative", {"direction": "left", "amount": "small"})
+    assert r["ok"] is False and r["refused_by"] == "kinematics"
+    assert "straight-line" in r["error"]
+    assert joint_moves == [] and len(arm.commands) == n0
+
+
+@needs_pin
+def test_a_straight_line_cannot_carry_a_retained_attachment(cartesian_rig):
+    runtime, arm = cartesian_rig
+
+    class _Attachment:          # an armed NV carry guard that is still valid
+        def guard(self):
+            pass
+
+    runtime._carry_attachment = _Attachment()
+    n0 = len(arm.commands)
+    r = runtime.execute("move_relative", {"direction": "up", "amount": "small"})
+    assert r["ok"] is False and r["refused_by"] == "carry_attachment"
+    assert len(arm.commands) == n0
+
+
+@needs_pin
+def test_an_invalidated_scene_camera_disables_only_the_viewer_frame(rig):
+    """The drift monitor can invalidate the scene camera mid-session: screen
+    words must then refuse (no guessed transform), robot words keep working."""
+    runtime, arm = rig
+    runtime.extrinsics.invalidate("extrinsic drift: camera moved 3 cm")
+    n0 = len(arm.commands)
+    r = runtime.execute("move_relative", {"direction": "toward_viewer", "amount": "small"})
+    assert r["ok"] is False and "viewer frame unavailable" in r["error"] and "frame='base'" in r["error"]
+    assert len(arm.commands) == n0
+    ok = runtime.execute("move_relative", {"direction": "left", "amount": "small"})
+    assert ok["ok"], ok
+    assert "unavailable" in ok["as_seen_on_screen"]

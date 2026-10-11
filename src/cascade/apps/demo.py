@@ -199,6 +199,7 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
     """
     view = acfg.get("resolved") or fallback_cfg
     n_joints = int(acfg.get("n_joints", 6))
+    body_mask = None
     kin = Kinematics(
         model_path=acfg.model,
         ee_frame=acfg.get("ee_frame", "gripper_end"),
@@ -303,6 +304,7 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
             return _body_mask_state(_arm)
 
         mesh = build_mesh_body_mask(acfg, kin, _mesh_state, name=arm_name)
+        body_mask = mesh
         if mesh is not None:
             occupancy.add_robot_body_mask(mesh)
         else:
@@ -316,7 +318,29 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
                 pose = _kin.fk(IsaacArm(_cfg).state_from_frame(frame).q)
                 return pose if _T is None else _T @ pose
             occupancy.track_payload(frame_tcp_pose)
-    return arm, SafeArm(arm, harness, motion_planner=motion_planner), kin
+    safe = SafeArm(arm, harness, motion_planner=motion_planner)
+    # the mesh body mask (or None): build_runtime tells it when the runtime
+    # holds something (`_wire_held_payload`)
+    safe.body_mask = body_mask
+    return arm, safe, kin
+
+
+def _wire_held_payload(runtime) -> None:
+    """Let the primary arm's mesh body mask draw its `held_payload` envelope
+    while the runtime holds an object (or may hold one: a provisional hold
+    after a close). The capsule mask hid a held object as a side effect; the
+    mesh mask is tight, so without this the object would be mapped at the
+    TCP and the next motion refused by its own payload. Only the primary
+    arm: `held_object` is the runtime's single holding state."""
+    mesh = getattr(getattr(runtime, "arm", None), "body_mask", None)
+    if mesh is None or not getattr(mesh, "has_held_payload", False):
+        return
+
+    def holding() -> bool:
+        return (getattr(runtime, "held_object", None) is not None
+                or getattr(runtime, "_held_provisional", None) is not None)
+
+    mesh.holding_fn = holding
 
 
 def _await_occupancy_after_wake(occupancy, acfg) -> None:
@@ -617,6 +641,7 @@ def build_runtime(
         kin, safe_arm, memory, beliefs, trace, cfg,
     )
     runtime.rig = rig
+    _wire_held_payload(runtime)
     runtime._kitchen_camera_renderer = kitchen_renderer
     # Where to persist the world model on shutdown (None = disabled).
     runtime.beliefs_path = beliefs_path

@@ -597,7 +597,7 @@ def test_capsule_stays_the_default_and_mesh_opts_in_with_documented_defaults():
     assert _settings(...) is None and _settings("capsule") is None and _settings({"mode": "capsule"}) is None
     got = _settings("mesh")
     assert got == {"inflate_m": DEFAULT_BODY_INFLATE_M, "dilate_px": DEFAULT_BODY_DILATE_PX,
-                   "cell_m": lm.DEFAULT_CELL_M, "attachments": []}
+                   "cell_m": lm.DEFAULT_CELL_M, "attachments": [], "held_payload": None}
     assert DEFAULT_BODY_INFLATE_M == 0.02 and DEFAULT_BODY_DILATE_PX == 2
 
 

@@ -117,7 +117,8 @@ DEFAULT_BODY_INFLATE_M = 0.02
 #: capture, 2 px roughly halved the residual left by the margin alone.
 DEFAULT_BODY_DILATE_PX = 2
 
-_BODY_MASK_KEYS = {"mode", "inflate_m", "dilate_px", "cell_m", "attachments"}
+_BODY_MASK_KEYS = {"mode", "inflate_m", "dilate_px", "cell_m", "attachments", "held_payload"}
+_HELD_PAYLOAD_KEYS = {"box", "xyz", "rpy"}
 _ATTACHMENT_KEYS = {"name", "link", "box", "xyz", "rpy"}
 
 
@@ -156,10 +157,16 @@ class MeshBodyMask:
     """
 
     def __init__(self, geometry, poses, state_fn, *, base_T=None, n_joints: int | None = None,
-                 dilate_px: int = DEFAULT_BODY_DILATE_PX, name: str = "arm"):
+                 dilate_px: int = DEFAULT_BODY_DILATE_PX, name: str = "arm", held_payload=None):
         if isinstance(dilate_px, bool) or not isinstance(dilate_px, int) or dilate_px < 0:
             raise ValueError(f"dilate_px must be a non-negative integer, got {dilate_px!r}")
         self.geometry = geometry
+        #: LinkGeometry of the held-payload envelope (`body_mask.held_payload`,
+        #: on the end-effector link), drawn only while `holding_fn()` is true.
+        #: The runtime wires `holding_fn` (apps/demo.py `_wire_held_payload`):
+        #: a held object is the robot's payload, not an obstacle at its TCP.
+        self.held_payload = held_payload
+        self.holding_fn = None
         self._poses = poses
         self._state_fn = state_fn
         self.base_T = None if base_T is None else np.asarray(base_T, dtype=np.float64).reshape(4, 4)
@@ -181,11 +188,18 @@ class MeshBodyMask:
         if q.size == 0 or q.size < (self.n_joints or 0) or not np.isfinite(q).all():
             raise BodyMaskUnavailable(f"{self.name}: unusable joint state q={q.tolist()}")
         pose_sets = self._poses(state)
-        mask = rasterize_pieces(posed_pieces(self.geometry, pose_sets, self.base_T), K, T_base_cam,
-                                np.shape(depth)[:2], self.dilate_px)
+        pieces = posed_pieces(self.geometry, pose_sets, self.base_T)
+        holding = bool(self.held_payload is not None and self.holding_fn is not None and self.holding_fn())
+        if holding:
+            pieces = pieces + posed_pieces(self.held_payload, pose_sets, self.base_T)
+        mask = rasterize_pieces(pieces, K, T_base_cam, np.shape(depth)[:2], self.dilate_px)
         self.last = {"pixels": int(np.count_nonzero(mask)), "configs": len(pose_sets),
-                     "ms": (time.perf_counter() - t0) * 1e3}
+                     "holding": holding, "ms": (time.perf_counter() - t0) * 1e3}
         return mask
+
+    @property
+    def has_held_payload(self) -> bool:
+        return self.held_payload is not None
 
 
 # ── configuration: the arm profile's `body_mask` ────────────────────────────
@@ -280,7 +294,31 @@ def body_mask_settings(acfg) -> dict | None:
         attachments.append((name, link, tuple(float(v) for v in size),
                             pose_to_transform(list(xyz) + list(rpy))))
     return {"inflate_m": float(inflate), "dilate_px": int(dilate), "cell_m": float(cell),
-            "attachments": attachments}
+            "attachments": attachments, "held_payload": _held_payload(block.get("held_payload"))}
+
+
+def _held_payload(item):
+    """`body_mask.held_payload: {box: [sx, sy, sz], xyz, rpy}` in the
+    end-effector frame -> (size, T_ee_box), or None (absent)."""
+    if item is None:
+        return None
+    if hasattr(item, "as_dict"):
+        item = item.as_dict()
+    if not isinstance(item, dict):
+        raise _bad(f"held_payload must be a mapping {{box, xyz, rpy}}, got {item!r}")
+    unknown = set(item) - _HELD_PAYLOAD_KEYS
+    if unknown:
+        raise _bad(f"held_payload: unknown keys {sorted(unknown)} (allowed: {sorted(_HELD_PAYLOAD_KEYS)})")
+    if "box" not in item:
+        raise _bad("held_payload needs a `box: [sx, sy, sz]` (metres)")
+    size = _vector(item["box"], 3, "held_payload box")
+    if (size <= 0).any():
+        raise _bad(f"held_payload box sizes must be positive, got {item['box']!r}")
+    from ..types import pose_to_transform
+
+    xyz = _vector(item.get("xyz", [0.0, 0.0, 0.0]), 3, "held_payload xyz")
+    rpy = _vector(item.get("rpy", [0.0, 0.0, 0.0]), 3, "held_payload rpy")
+    return tuple(float(v) for v in size), pose_to_transform(list(xyz) + list(rpy))
 
 
 def build_mesh_body_mask(acfg, kin, state_fn, *, name: str) -> MeshBodyMask | None:
@@ -334,8 +372,17 @@ def build_mesh_body_mask(acfg, kin, state_fn, *, name: str) -> MeshBodyMask | No
         from ..types import pose_to_transform
 
         base_T = pose_to_transform(pose)
+    held = None
+    if settings["held_payload"] is not None:
+        ee = str(acfg.get("ee_frame", "gripper_end"))
+        if ee not in geometry.links:
+            raise _bad(f"held_payload for arm {name!r}: the end-effector link {ee!r} has no geometry "
+                       f"to pose it with (links: {list(geometry.links)})")
+        size, T_box = settings["held_payload"]
+        held = (LinkGeometry(pieces={}, sources={}).with_boxes([("held_payload", ee, size, T_box)])
+                .inflated(settings["inflate_m"]))
     body = MeshBodyMask(geometry, poses, state_fn, base_T=base_T, n_joints=int(kin.n),
-                        dilate_px=settings["dilate_px"], name=name)
+                        dilate_px=settings["dilate_px"], name=name, held_payload=held)
     boxes = ", ".join(a[0] for a in settings["attachments"]) or "none"
     print(f"[cascade] occupancy body mask: {name}: URDF mesh, {len(geometry.links)} links, "
           f"{geometry.n_pieces()} pieces, inflate {settings['inflate_m']} m, dilate {settings['dilate_px']} px, "

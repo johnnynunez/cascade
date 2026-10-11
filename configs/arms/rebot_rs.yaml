@@ -121,6 +121,17 @@ body_mask:
       box: [0.065, 0.14, 0.055]
       xyz: [-0.0925, 0.0, 0.0625]
       rpy: [0.0, 0.0, 0.0]
+  # While the runtime holds something, the mask also draws this envelope in
+  # the gripper_end frame (x along the approach, y across the jaws, z up),
+  # inflated like every piece: from 5 cm behind the fingertips to 10 cm past
+  # them, 13 cm across (the 9 cm max opening plus the fingers) and 13 cm
+  # high. The 6 cm capsules hid a held object as a side effect; the tight
+  # mesh mask would map it at the TCP and refuse the place that follows
+  # (tests/test_occupancy_held_payload.py). Masked space is not erased: an
+  # obstacle seen before it came within the envelope stays in the map.
+  held_payload:
+    box: [0.15, 0.13, 0.13]
+    xyz: [0.025, 0.0, 0.0]
 
 gripper:
   # MEASURED on the RS build (scripts/diag_rebot_mb.py): travel runs 0.0 ->

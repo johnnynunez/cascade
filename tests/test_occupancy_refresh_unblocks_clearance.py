@@ -119,11 +119,13 @@ def test_a_mode_change_waits_for_the_upload_in_flight(plain):
     assert m._plain_refresh() is False                  # later refreshes take the locked path
 
 
-def test_only_plain_optional_maps_refresh_unlocked():
+def test_plain_maps_refresh_unlocked_required_or_not():
     m = OccupancyMap(client=SlowBridge(), region_min=np.full(3, -1.0), region_max=np.full(3, 1.0))
     assert m._plain_refresh()
-    assert not OccupancyMap(client=SlowBridge(), region_min=np.full(3, -1.0),
-                            region_max=np.full(3, 1.0), required=True)._plain_refresh()
+    # a required map too (the reBot runs one): its 50 Hz reads must not wait
+    # on the round trip either; tests/test_occupancy_required_live.py
+    assert OccupancyMap(client=SlowBridge(), region_min=np.full(3, -1.0),
+                        region_max=np.full(3, 1.0), required=True)._plain_refresh()
     m.track_payload(lambda: np.eye(4))
     assert not m._plain_refresh()
     assert not OccupancyMap(client=None, region_min=np.full(3, -1.0),

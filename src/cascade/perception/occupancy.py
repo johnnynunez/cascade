@@ -723,15 +723,28 @@ class OccupancyMap:
                     self._report_refresh_state()
 
     def _plain_refresh(self) -> bool:
-        """An optional map with no payload tracking and no reset or capture
-        fence in progress: its refresh may query the bridge unlocked."""
-        return (self._client is not None and not self.required
+        """A map with no payload tracking and no reset or capture fence in
+        progress: its refresh may query the bridge unlocked. Required maps
+        included: the reBot runs one, and its 50 Hz clearance reads must not
+        wait on a round trip either."""
+        return (self._client is not None
                 and self._payload_pose_fn is None and not self._reset_pending
                 and not self._reset_floors and self._capture_refresh_binding is None
                 and not self._scene_reset_invalidated)
 
+    def _required_capture_time(self, frame) -> float:
+        """A required map only integrates a fresh, nonempty depth frame; its
+        age is then measured from that capture, never from the commit."""
+        capture_t = float(frame.t)
+        age = time.monotonic() - capture_t
+        if (not frame.has_depth or not np.isfinite(age)
+                or age < 0 or age > self.max_age_s
+                or not np.any(np.isfinite(frame.depth_m) & (frame.depth_m > 0))):
+            raise OccupancyError("required occupancy needs a fresh nonempty depth frame")
+        return capture_t
+
     def _refresh_plain(self, frame, T_base_cam: np.ndarray) -> None:
-        """Refresh a plain optional map without blocking clearance().
+        """Refresh a plain map without blocking clearance().
 
         Found on the physical reBot: refresh() held `_refresh_lock` through
         the body-pose read and the bridge round trip (~61 ms on warp/CUDA),
@@ -743,6 +756,7 @@ class OccupancyMap:
         during this upload.
         """
         try:
+            capture_t = self._required_capture_time(frame) if self.required else None
             _, fetched = self._fetch_grid(frame, T_base_cam)
         except (OccupancyError, KeyError, TypeError, ValueError) as e:
             with self._refresh_lock:
@@ -751,7 +765,7 @@ class OccupancyMap:
         if fetched is None:
             return  # nothing to query without a region of interest
         with self._refresh_lock:
-            self._commit_grid(frame, fetched, None)
+            self._commit_grid(frame, fetched, capture_t)
         if self.status is None:
             # the bridge came up after startup: name it now
             self.probe()
@@ -804,12 +818,7 @@ class OccupancyMap:
         try:
             prepared = None
             if self.required:
-                capture_t = float(frame.t)
-                age = time.monotonic() - capture_t
-                if (not frame.has_depth or not np.isfinite(age)
-                        or age < 0 or age > self.max_age_s
-                        or not np.any(np.isfinite(frame.depth_m) & (frame.depth_m > 0))):
-                    raise OccupancyError("required occupancy needs a fresh nonempty depth frame")
+                capture_t = self._required_capture_time(frame)
             prepared, fetched = self._fetch_grid(frame, T_base_cam)
             if fetched is None:
                 return  # nothing to query without a region of interest

@@ -67,26 +67,37 @@ def test_the_demo_block_documents_the_monitor_disabled():
     assert c is None or not c.enabled
 
 
-def test_the_rebot_rs_harness_monitors_every_motion(tmp_path, monkeypatch):
-    """build_runtime on the rebot_rs profile with a MockArm in place of the
-    RS backend (no bus): its SafeArm hands every stream a monitor."""
+@pytest.mark.parametrize("lazy", [False, True])
+def test_the_rebot_rs_harness_monitors_every_motion(lazy, monkeypatch):
+    """_build_arm on the rebot_rs profile with a MockArm in place of the RS
+    backend (no bus), eager and behind the demo's LazyArm: every stream
+    reaches the backend with a monitor, and a blocked joint trips through
+    the whole stack."""
     from cascade.apps import demo
     from cascade.control.mock_arm import MockArm
     from cascade.safety.contact import ContactMonitor
+    from cascade.types import ContactDetected
 
-    monkeypatch.setattr(demo, "make_arm", lambda a, kinematics=None: MockArm(a, kinematics=kinematics))
+    seen, made = [], []
+
+    class Backend(MockArm):
+        def stream_to(self, q, duration_s, **kw):
+            seen.append(kw.get("contact_monitor"))
+            return super().stream_to(q, duration_s, **kw)
+
+    def make_arm(a, kinematics=None):
+        made.append(Backend(a, kinematics=kinematics))
+        return made[-1]
+    monkeypatch.setattr(demo, "make_arm", make_arm)
     cfg = load_demo_config(camera="mock", arm="rebot_rs", llm="mock")
-    raw, safe, _kin = demo._build_arm(cfg.arm, lazy_arm=False, occupancy=None, fallback_cfg=cfg)
-    seen = []
-    orig = raw.stream_to
-
-    def stream_to(q, duration_s, **kw):
-        seen.append(kw.get("contact_monitor"))
-        return orig(q, duration_s, **kw)
-    raw.stream_to = stream_to
+    _raw, safe, _kin = demo._build_arm(cfg.arm, lazy_arm=lazy, occupancy=None, fallback_cfg=cfg)
     safe.harness.heartbeat()
-    q = raw.get_state().q.copy()
+    q = safe.get_state().q.copy()
     q[0] += 0.05
     assert safe.move_joints(q, duration_s=1.0)
     assert len(seen) == 1 and isinstance(seen[0], ContactMonitor)
     assert seen[0].cfg.mode == "enforce"
+    made[0].block_joint(0, at=q[0] + 0.01, direction=1)
+    q[0] += 0.3
+    with pytest.raises(ContactDetected, match="contact detected at joint 1"):
+        safe.move_joints(q, duration_s=2.0)

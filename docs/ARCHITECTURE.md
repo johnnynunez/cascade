@@ -586,6 +586,22 @@ twin with less joint travel, camera down, and the camera hit the table. An
 arm already camera-down may hold, or move only while the camera turns back
 up (`tests/test_wrist_camera_up.py`).
 
+The [contact stop](CONTACT_STOP.md) is the motor-feedback layer for what the
+cameras cannot see. On profiles that enable `safety.contact_monitor`, every
+streamed motion compares the measured joints with the commanded trajectory
+while it streams and while it settles. On the reBot RS that means one or two
+single-motor mechPos reads per 20 ms cycle. The comparison has a lag band
+because the MIT loop has no velocity feedforward, and a stall rule catches a
+joint that stops while its command keeps moving. A blocked joint stops the
+stream: the arm holds its measured pose with torque on, and
+`ContactDetected(SafetyViolation)` reaches the skill result, the MCP tool
+result and the trace. A contact zone around the hold keeps grasp selection,
+planned routes and steps from going straight back until `reset_scene`. The
+pick/place persistence loops do not retry into it. `rebot_rs` enforces it;
+`rebot_rs_mb` measures only. The thresholds are calibrated on the rig with
+`scripts/contact_calibrate.py`. The figures so far are measured offline
+against a PD plant (CPU tests) and are unverified on hardware.
+
 Isaac defaults to 30 Hz nominal targets paced by authoritative physical time.
 The common profile preserves every complete legacy 50 Hz edge with its original
 dt, adds actual command edges and checks intervening subedges. Hardware retains

@@ -115,6 +115,31 @@ def test_motions_without_a_contact_still_log_their_tracking_to_the_trace(rt):
     assert report["tripped"] is None and len(report["max_track_err_rad"]) == 6
 
 
+@pytest.mark.parametrize(("skill", "args", "holding"), [
+    ("move_relative", {"direction": "left", "distance_m": 0.05}, None),
+    ("place_at", {"x": 0.3, "y": 0.1}, "red cube"),
+])
+def test_other_motion_skills_fail_with_the_contact_reason(rt, skill, args, holding):
+    """The first joint that moves meets a wall 2 mrad later."""
+    raw = rt._raw_test_arm
+    q0 = raw.get_state().q.copy()
+    send = raw.send_joint_target
+
+    def send_joint_target(q):
+        dq = np.asarray(q, dtype=float) - q0
+        if not raw._blocked and np.max(np.abs(dq)) > 1e-4:
+            j = int(np.argmax(np.abs(dq)))
+            raw.block_joint(j, at=q0[j] + 0.002 * np.sign(dq[j]), direction=np.sign(dq[j]))
+        return send(q)
+    raw.send_joint_target = send_joint_target
+    rt.held_object = holding
+    res = rt.execute(skill, args)
+    assert res["ok"] is False
+    assert res["error"].startswith("ContactDetected: contact detected at joint")
+    assert "something is blocking the arm" in res["error"]
+    assert res["contact"]["hold_q"] and "reset_scene" in res["hint"]
+
+
 # ── grasp descent: the incident ──────────────────────────────────────────
 
 

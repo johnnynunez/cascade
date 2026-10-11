@@ -292,10 +292,15 @@ relative_motion:
   # up along the camera-up axis. Every planned pose keeps that box above the
   # table clearance the harness keeps for the TCP (safety.table_clearance)
   # and outside every safety.keep_out zone. null = no camera volume check.
+  # Measured from tape-measure photos of the rig (2026-10-11, +-1-2 cm): a
+  # D455F (124 x 29 x 26 mm) padded with bubble wrap, ~15 cm long across the
+  # jaws with the padding; front ~8 cm behind the fingertips, padding to
+  # 13-14 cm back; top 5-7 cm above the finger axis (user: 6-8 cm). Rounded UP:
+  # a larger box only refuses more. Re-measure if the padding changes.
   wrist_camera:
-    protrusion_m: 0.08      # sticks out 6-8 cm above the gripper (user, 2026-10-11): upper bound
-    behind_tip_m: 0.12      # ASSUMED, not measured: how far back from the fingertips it reaches
-    half_width_m: 0.04      # ASSUMED, not measured: half its width across the jaws
+    protrusion_m: 0.08      # sticks out 6-8 cm above the gripper: upper bound
+    behind_tip_m: 0.14      # how far back from the fingertips it reaches (padding included)
+    half_width_m: 0.075     # half of its ~15 cm across the jaws (padding included)
     # Also keep the box min_clearance_m from the occupancy map's obstacles.
     # Off until the map's robot-body mask is known to cover the camera: an
     # unmasked camera reads as an obstacle at zero distance and every move

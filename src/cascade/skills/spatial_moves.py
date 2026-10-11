@@ -133,9 +133,9 @@ def settings(rt) -> Settings:
 
 
 _ABSENT = object()
-#: the reBot camera box when a config has no `wrist_camera` key at all:
-#: protrusion as measured by the user (upper bound), the rest assumed
-DEFAULT_WRIST_CAMERA = {"protrusion_m": 0.08, "behind_tip_m": 0.12, "half_width_m": 0.04}
+#: the reBot camera box when a config has no `wrist_camera` key at all: the
+#: padded D455F as measured on the rig (configs/demo.yaml has the numbers)
+DEFAULT_WRIST_CAMERA = {"protrusion_m": 0.08, "behind_tip_m": 0.14, "half_width_m": 0.075}
 
 
 def _camera_settings(c, up) -> tuple:

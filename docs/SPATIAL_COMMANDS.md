@@ -180,17 +180,21 @@ lower the camera further (moves that raise it, or keep it, are allowed).
 Facing up is not enough: the camera **sticks out 6-8 cm above the gripper**
 (user, 2026-10-11), and the harness only checks the TCP and the joint origins.
 Rolled 80 degrees, the camera-up axis still points up, but the camera's side
-hangs about 4 cm below the TCP; a descent the harness accepts for the TCP would
+hangs about 7 cm below the TCP; a descent the harness accepts for the TCP would
 put that side into the table. So every planned pose also checks the camera as
 an oriented box in the TCP frame:
 
-- along the gripper: from the fingertip plane back `behind_tip_m` (0.12 m);
-- across the jaws: +-`half_width_m` (0.04 m);
+- along the gripper: from the fingertip plane back `behind_tip_m` (0.14 m);
+- across the jaws: +-`half_width_m` (0.075 m);
 - up along the camera-up axis: 0 to `protrusion_m` (0.08 m, the upper end of
   the user's 6-8 cm).
 
-`protrusion_m` is the user's figure; **`behind_tip_m` and `half_width_m` are
-assumptions, not measurements** -- measure them on the rig and set them in the
+Measured from tape-measure photos of the rig (2026-10-11, +-1-2 cm): the
+camera is a D455F (124 x 29 x 26 mm) padded with bubble wrap and tape, about
+15 cm long across the jaws with the padding; its front sits about 8 cm behind
+the fingertips and the padding reaches 13-14 cm back; its top is 5-7 cm above
+the finger axis. Every figure is rounded UP (a larger box only refuses more).
+Re-measure if the padding or the mount changes, and set the numbers in the
 arm profile's `overrides:`. Checks, at every sample of the route (a joint-space
 arc can dip in the middle while both ends are fine):
 
@@ -270,8 +274,8 @@ relative_motion:
   tool_up_min_z: 0.0
   wrist_camera:
     protrusion_m: 0.08
-    behind_tip_m: 0.12      # assumed
-    half_width_m: 0.04      # assumed
+    behind_tip_m: 0.14
+    half_width_m: 0.075
     check_occupancy: false
   max_object_move_m: 0.50
 ```
@@ -288,8 +292,9 @@ kinematics). Before relying on it with visitors:
 - Confirm the wrist-camera axis on hardware (TCP +z = camera up) and that
   joint 6 rolls never pass the limit, including from top-down grasp poses
   where the camera axis sits exactly horizontal.
-- Measure the camera box: `behind_tip_m` (0.12) and `half_width_m` (0.04) are
-  assumed; only the 6-8 cm protrusion came from the rig.
+- The camera box was read from photos (+-1-2 cm), not measured with the arm
+  in a known pose; a straight tape measurement of the padded length and of
+  fingertip-to-back-of-padding would tighten it.
 - Measure `held_drop_default_m` against real props; with
   `grasp.place_support_clearance_m` unset the measured support offset is
   never recorded and the 6 cm default applies (conservative: low moves are

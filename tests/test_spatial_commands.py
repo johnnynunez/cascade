@@ -758,17 +758,19 @@ def test_unrolled_the_camera_rides_on_top_and_a_descent_is_fine(rig):
 @needs_pin
 def test_a_rolled_gripper_cannot_drop_the_side_of_the_camera_into_the_table(rig):
     """Rolled 80 deg the camera-up axis still points up, and the TCP would
-    end 3 cm over its floor -- but the camera's side hangs ~4 cm below the
-    TCP and would reach the table."""
+    end 6 cm over its floor -- but the camera's side (half its padded width,
+    7.5 cm) hangs below the TCP and would reach the table."""
     runtime, arm = rig
-    _park_forward(runtime, roll_deg=80.0)
+    half_w = float(runtime.cfg.relative_motion.wrist_camera.half_width_m)
+    _park_forward(runtime, z=0.16, roll_deg=80.0)
     runtime.arm.harness.limits.table_z = 0.05        # TCP floor 0.07
+    edge = 0.16 - half_w * np.sin(np.radians(80.0))  # camera's lowest corner now
+    assert edge > 0.07                                # still above the floor here
     n0 = len(arm.commands)
     r = runtime.execute("move_relative", {"direction": "down", "distance_m": 0.03})
     assert r["ok"] is False and r["refused_by"] == "wrist_camera", r
     assert "table" in r["error"] and "camera" in r["error"]
     assert len(arm.commands) == n0
-    edge = 0.13 - 0.04 * np.sin(np.radians(80.0))     # camera's lowest corner now
     assert r["feasible_distance_m"] == pytest.approx(edge - 0.07, abs=0.003)
 
 
@@ -850,3 +852,27 @@ def test_the_camera_volume_is_checked_at_every_sample_not_only_the_ends(rig):
     assert spatial_moves._camera_volume(runtime, [high, high], s) is None
     found = spatial_moves._camera_volume(runtime, [high, dip, high], s)
     assert found is not None and found[0] == "wrist_camera" and "table" in found[1]
+
+
+# ── the shipped camera box must cover the camera as measured ────────────────
+
+
+@pytest.mark.parametrize("arm", ["rebot_rs", "mock"])
+def test_the_shipped_camera_box_covers_the_measured_reBot_camera(arm):
+    """Measured on the rig's photos (2026-10-11, tape measure, +-1-2 cm):
+    a D455F (124 x 29 x 26 mm) on top of the wrist, padded with bubble wrap
+    and tape, ~15 cm long across the jaws with the padding; its front sits
+    ~8 cm behind the fingertips and the padding reaches 13-14 cm back; its
+    top is 5-7 cm above the finger axis (user: 6-8 cm). The box may be
+    larger -- that only refuses more -- never smaller."""
+    from cascade.config import load_demo_config
+    from cascade.skills import spatial_moves
+
+    cam = load_demo_config(camera="mock", arm=arm, llm="mock").relative_motion.wrist_camera
+    assert float(cam.protrusion_m) >= 0.08
+    assert float(cam.behind_tip_m) >= 0.14
+    assert 2.0 * float(cam.half_width_m) >= 0.15
+    # a config without the key falls back to the same, measured box
+    d = spatial_moves.DEFAULT_WRIST_CAMERA
+    assert (d["protrusion_m"], d["behind_tip_m"], d["half_width_m"]) == (
+        float(cam.protrusion_m), float(cam.behind_tip_m), float(cam.half_width_m))

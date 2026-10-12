@@ -22,6 +22,14 @@ You can also reach the image with Tab and open it with Enter or Space. The
 side panel opens a larger window; the chat overlay expands within the tab.
 The existing camera connection keeps running while you switch sizes.
 
+On a portrait screen (window taller than wide) the panel docks across the top
+and the chat moves below it; landscape keeps the floating panel. Rotating the
+screen re-docks it live. On the booth machine,
+`python3 scripts/screen_orientation.py install` adds **Ctrl+Alt+R** and a desktop
+icon that toggle portrait and landscape, and restores the last choice at login.
+`toggle`, `portrait`, `landscape` and `status` also work from a terminal; set
+`PAAI_PORTRAIT_ROTATION=right` for a monitor mounted clockwise.
+
 Discovery uses page metadata or the active page's origin and preserves its
 port. Camera endpoints must share that host and scheme. No chat messages,
 model data or gateway credentials are stored. The history permission only

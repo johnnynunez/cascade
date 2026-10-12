@@ -1347,10 +1347,11 @@ store), because NemoClaw registers only authenticated HTTP MCP servers. The
 robot runtime stays on the host; the transport shares the stdio server's
 serial worker and receive-side stop channel (`_admit`), and namespaces
 JSON-RPC ids per session. `scripts/nemoclaw_mcp.py` issues the certificate,
-token and registration. Stdio through `launch.sh` remains the default; see
-[NEMOCLAW.md](NEMOCLAW.md). The standalone OpenShell 0.1.x route
-(`scripts/openshell_rig.py`, [OPENSHELL.md](OPENSHELL.md)) serves the same MCP
-server on the host loopback instead. OpenShell provider profiles bind the
+token and registration; see [NEMOCLAW.md](NEMOCLAW.md). The standalone
+OpenShell 0.1.x route (`scripts/openshell_rig.py`, [OPENSHELL.md](OPENSHELL.md))
+serves the same MCP server on the host loopback instead, and on Linux it is
+where `launch.sh` always runs the agent (simulators and the real robot alike);
+stdio through `launch.sh` remains the route on macOS. OpenShell provider profiles bind the
 bearer token to the agent's binary and endpoint, and refuse `reset_stop` (or,
 when observe-only, every motion tool) at L7 before the request leaves the
 sandbox.

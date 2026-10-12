@@ -1,8 +1,11 @@
-# Standalone OpenShell profile (opt-in)
+# OpenShell: where the agent runs on Linux
 
 OpenClaw in an [NVIDIA OpenShell](https://github.com/NVIDIA/OpenShell) 0.1.x
-sandbox, driving the real rig, **without NemoClaw**. One script,
-[`scripts/openshell_rig.py`](../scripts/openshell_rig.py), owns the whole route:
+sandbox, **without NemoClaw**. On Linux this is the only place the agent runs:
+`scripts/launch.sh` puts it there for every `--sim` (Isaac, MuJoCo, or the real
+robot with `--sim none`; see [Every Linux launch](#every-linux-launch-scriptslaunchsh)),
+and the real rig's operator route uses it too. One script,
+[`scripts/openshell_rig.py`](../scripts/openshell_rig.py), owns the route:
 a pinned and checksummed OpenShell, its own gateway, the agent image in
 [`deploy/openshell/`](../deploy/openshell/), two provider profiles, the
 sandbox and the chat forward.
@@ -189,6 +192,30 @@ systemd-run --user --unit=cascade-openshell-$I-mcp --collect -p MemoryMax=infini
 "${RIG[@]}" up && "${RIG[@]}" status                     # sandbox cascade-sim-agent, chat on 17910
 ```
 
+## Every Linux launch (`scripts/launch.sh`)
+
+On Linux, `scripts/launch.sh` always runs the agent inside OpenShell, for
+`--sim isaac`, `--sim mujoco` and the real robot (`--sim none`). The platform
+decides (`uname -s`); there is no flag or variable that puts the agent back on
+a Linux host. macOS has no OpenShell Docker driver, so OpenClaw runs on the
+host there, as before. The simulator and its sidecars start exactly as before;
+steps 4-6 are [`scripts/launch_openshell.sh`](../scripts/launch_openshell.sh):
+
+| | what happens |
+|---|---|
+| instance | `sim` for a simulator, the default instance (the real rig's) for `--sim none`; `CASCADE_OPENSHELL_INSTANCE` overrides |
+| brain | a model served on this host's loopback (`--brain qwen\|cosmos\|cosmos-sglang`). `keep` (a cloud model the host's OpenClaw is logged into) is refused: the sandbox reaches only the loopback brain. The served id must be bare (no `/`), and its context window reaches the sandbox (`--context-window`) |
+| brain key | `CASCADE_BRAIN_KEY_FILE`, else `CASCADE_MODEL_API_KEY` written to a 0600 file in the launch state, else a minted one (a server without `--api-key` ignores it) |
+| robot server | built once (`runtime_check`), then `openshell_rig.py mcp-start`: `serve-mcp` as the instance's unit, bound to this launch's owner, with the registration's environment from a 0600 file. A simulator's server learns into the launch state's `memory/` (grasp memory, envelope, beliefs, episodic), never into `~/.cascade` (the real robot's stores), and it starts empty on every launch: the world is new, so a recalled position is wrong by construction. Explicit `CASCADE_*_PATH` values win |
+| sandbox | `openshell_rig.py up`. A simulator starts with motion allowed for 12 h; the real robot starts observe-only (`motion unlock`) |
+| proof | the sandbox's own OpenClaw (`openshell_rig.py exec -- openclaw ...`, through `CASCADE_OPENCLAW_COMMAND`): its gateway must be healthy, `mcp probe` must list the robot tools, the brain must answer, and in sim modes one pick is checked against physics and the same world is reset (`demo_proof.py --persistent-mcp`: the world is the instance's one long-lived server) |
+| chat | `http://127.0.0.1:<chat port>/` (`open` or `chat-url`); `launch.sh --down` runs `teardown` of the recorded instance (a named one with its gateway) |
+
+The Spark kitchen (`install.sh --profile spark`) still uses the host route on
+Linux for now: its chat setup (the kitchen prompt plugin, the visitor tool
+list and instructions, the demo UI on :8092) lives in a host OpenClaw profile
+and moves into the sandbox next.
+
 ## The demo's screen
 
 OpenClaw's own web UI (the sandbox's gateway, forwarded to 127.0.0.1) in the
@@ -223,6 +250,17 @@ OpenShell's default filesystem policy lets the agent read `/usr` and write
   `export`). `up` therefore lints only new profiles.
 - **OpenClaw 2026.9.3 needs node >= 24.16.** npm refuses it on node 22, so the
   base image is `node:24-bookworm-slim`, pinned by digest.
+- **`openshell status` exits 0 with no gateway registered** ("No gateway
+  configured"). Health is this instance's gateway named in the output and
+  `Status: Connected`; `gateway start` registers it on a fresh home (`gateway
+  add` also selects it) or selects it when another gateway is active.
+- **OpenClaw's own tools in the robot's prompt.** With the template's former
+  `alsoAllow: ["bundle-mcp"]`, the agent also saw OpenClaw's built-in tools and
+  skills: "What is the session status?" called OpenClaw's `session_status`
+  instead of cascade's `world_state`, and a two-call turn sent 73k prompt
+  tokens. `tools.allow: ["cascade__*"]` and no skills: `world_state`, 22.5k
+  (MuJoCo, Qwen3.8-27B, 2026-10-12). OpenClaw refuses `allow` and `alsoAllow`
+  in one scope.
 - **The chat token** is minted inside the sandbox at first start, in a 0600
   file. It is never on a host argv. A restart keeps it, so an open tab stays
   valid.
@@ -231,10 +269,12 @@ OpenShell's default filesystem policy lets the agent read `/usr` and write
 
 | Path | What |
 |---|---|
-| `scripts/openshell_rig.py` | the route: install, gateway, serve-mcp, up, motion, open, chat-url, status, down, instance |
+| `scripts/openshell_rig.py` | the route: install, gateway, serve-mcp, mcp-start, up, motion, open, chat-url, exec, status, down, teardown, instance |
+| `scripts/launch_openshell.sh` | `scripts/launch.sh` steps 4-6 on Linux: brain, robot server, sandbox, proof inside it, chat |
 | `deploy/openshell/Dockerfile` | agent image (node 24 by digest, OpenClaw pinned, Landlock-safe layout) |
 | `deploy/openshell/openclaw.json` | OpenClaw config template: placeholders, never secrets |
 | `deploy/openshell/render-config.mjs` | first-start render: ports, model, chat origin, chat token |
 | `deploy/openshell/cascade-openclaw` | entrypoint: render, then `openclaw gateway` on the sandbox loopback |
 | `tests/test_openshell_rig.py` | the contract above, including the default instance's golden values and the isolation of a named one (runs `render-config.mjs` with the host's node) |
+| `tests/test_launch_openshell_route.py` | the real `launch.sh` on Linux end to end, with the rig, Docker, the model and OpenClaw doubled |
 | `~/.cascade/openshell/` | OpenShell binaries, gateway config + mTLS, profiles, `mcp.token`, `deployed.json` (a named instance: `~/.cascade/openshell-<name>/`, plus its `instance` file) |

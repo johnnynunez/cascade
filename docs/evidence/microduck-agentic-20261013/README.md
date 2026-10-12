@@ -44,7 +44,7 @@ collision with shared physics. The videos state that robots do not touch or see 
 
 ## All attempts
 
-`attempts.md` and `attempts.json` list every episode with an `episode.json`: 18 runs, passes and failures alike. For
+`attempts.md` and `attempts.json` list every episode with an `episode.json`: 21 runs, passes and failures alike. For
 each run they give:
 * the verdict at run time;
 * the verdict under the current verifier configs;
@@ -53,10 +53,19 @@ each run they give:
 
 Verifier changes made after seeing results (stage_edge: point -> edge band; multi_room_fetch: centre radius ->
 base-to-surface distance; backstage: `no_contact` added) are marked there. Each one was followed by a fresh run under
-the new definition (stage2, multiroom6, backstage5 onward). Attempts per scenario with the final code:
-* backstage: 2 runs in parallel, 1 PASS (backstage9) and 1 FAIL (backstage10, possible contact with the speaker box);
-* multi_room_fetch: 1 run, 3/3;
-* stage_edge: 1 run, PASS.
+the new definition.
+
+### Success rates (small samples; LLM sampling makes runs differ)
+
+| Scenario | Runs counted | Passed | Failures |
+| --- | --- | --- | --- |
+| backstage_obstacles | backstage9, 10, 11 | 1 of 3 | 10: possible contact with the speaker box; 11: ankle origin 0.016 m from the cable reel (exact cylinder distance) |
+| stage_edge | stage2 (before the A* planner existed), stage3 | 1 of 2 | 3: the 0.45 m drop guard stopped it 5 mm before the edge band (x 1.695 vs 1.70) |
+| multi_room_fetch | multiroom6, 7 | 1 of 2 episodes, 5 of 6 robots | 7: duck_a stopped 0.404 m from the red box (limit 0.4 m) |
+
+In both near misses, the stage guard and the 0.4 m fetch distance, the agent stops at the limit it reads from the ToF
+(guard distance, or surface range plus offset) with almost no margin. The fix would be a margin in the prompt or the
+guard. It was not tuned here, to avoid fitting the verifier.
 
 ## Learned vs scripted
 

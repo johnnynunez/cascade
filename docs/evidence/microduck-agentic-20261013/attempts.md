@@ -30,3 +30,8 @@
 | multiroom6 | multi_room_fetch | duck_a | PASS | PASS | success | 0.011 contact? | 70 | 178.3 | fresh run under the near_object (base-to-surface) verifier |
 |  |  | duck_b | PASS | PASS | success | 0.000 contact? |  |  |  |
 |  |  | duck_c | PASS | PASS | success | 0.252 |  |  |  |
+| stage3 | stage_edge | duck_a | FAIL | same | failure | 0.210 | 16 | 33.4 | repeat with final code: drop guard stopped it at x 1.695, 5 mm short of the edge band |
+| backstage11 | backstage_obstacles | duck_a | FAIL | same | failure | 0.000 contact? | 18 | 39.0 | repeat with final code: reached 0.32 m, but ankle origin 0.016 m from the CableReel cylinder (exact) -> possible contact |
+| multiroom7 | multi_room_fetch | duck_a | FAIL | same | success | 0.067 | 86 | 186.2 | repeat with final code |
+|  |  | duck_b | PASS | same | success | 0.000 contact? |  |  |  |
+|  |  | duck_c | PASS | same | success | 0.258 |  |  |  |

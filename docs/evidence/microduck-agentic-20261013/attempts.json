@@ -646,5 +646,113 @@
    }
   },
   "note": "fresh run under the near_object (base-to-surface) verifier"
+ },
+ {
+  "run": "stage3",
+  "scenario": "stage_edge",
+  "sim_time_s": 33.4,
+  "wall_s": 178.8,
+  "llm_calls": 16,
+  "reverified": false,
+  "robots": {
+   "duck_a": {
+    "passed_at_run": false,
+    "passed_current_verifier": false,
+    "verify_type": "region",
+    "final_pose": {
+     "x": 1.695,
+     "y": -0.077,
+     "z": 0.415
+    },
+    "distance_m": null,
+    "fallen": false,
+    "agent_claimed_success": false,
+    "min_clearance_m": 0.21,
+    "possible_contact": false
+   }
+  },
+  "note": "repeat with final code: drop guard stopped it at x 1.695, 5 mm short of the edge band"
+ },
+ {
+  "run": "backstage11",
+  "scenario": "backstage_obstacles",
+  "sim_time_s": 39.0,
+  "wall_s": 200.9,
+  "llm_calls": 18,
+  "reverified": false,
+  "robots": {
+   "duck_a": {
+    "passed_at_run": false,
+    "passed_current_verifier": false,
+    "verify_type": "reach",
+    "final_pose": {
+     "x": 2.297,
+     "y": 0.087,
+     "z": 0.117
+    },
+    "distance_m": 0.323,
+    "fallen": false,
+    "agent_claimed_success": false,
+    "min_clearance_m": 0.0,
+    "possible_contact": true
+   }
+  },
+  "note": "repeat with final code: reached 0.32 m, but ankle origin 0.016 m from the CableReel cylinder (exact) -> possible contact"
+ },
+ {
+  "run": "multiroom7",
+  "scenario": "multi_room_fetch",
+  "sim_time_s": 186.2,
+  "wall_s": 409.3,
+  "llm_calls": 86,
+  "reverified": false,
+  "robots": {
+   "duck_a": {
+    "passed_at_run": false,
+    "passed_current_verifier": false,
+    "verify_type": "near_object",
+    "final_pose": {
+     "x": 3.296,
+     "y": -0.796,
+     "z": 0.117
+    },
+    "distance_m": 0.404,
+    "fallen": false,
+    "agent_claimed_success": true,
+    "min_clearance_m": 0.067,
+    "possible_contact": false
+   },
+   "duck_b": {
+    "passed_at_run": true,
+    "passed_current_verifier": true,
+    "verify_type": "upright",
+    "final_pose": {
+     "x": 3.916,
+     "y": -0.356,
+     "z": 0.119
+    },
+    "distance_m": null,
+    "fallen": false,
+    "agent_claimed_success": true,
+    "min_clearance_m": 0.0,
+    "possible_contact": true
+   },
+   "duck_c": {
+    "passed_at_run": true,
+    "passed_current_verifier": true,
+    "verify_type": "near_object",
+    "final_pose": {
+     "x": 1.045,
+     "y": 0.594,
+     "z": 0.117
+    },
+    "distance_m": 0.342,
+    "fallen": false,
+    "agent_claimed_success": true,
+    "min_clearance_m": 0.258,
+    "possible_contact": false
+   }
+  },
+  "note": "repeat with final code"
  }
 ]

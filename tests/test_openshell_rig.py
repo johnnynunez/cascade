@@ -18,12 +18,16 @@ live spike on the Spark established (2026-10-11):
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import importlib.util
 import json
 import os
 import re
+import subprocess
 import sys
+import types
+from dataclasses import asdict
 from pathlib import Path
 
 import pytest
@@ -636,3 +640,555 @@ def test_the_relock_unit_identifies_itself(tmp_path):
     rig.unlock_motion(tmp_path, rig.Settings(), run=run)
     relock = _relock_calls(run)[0]
     assert f"{rig.RELOCK_ENV}=1" in relock
+
+
+# ── instances: a second, isolated route next to the default one ───────────
+#
+# The default instance is the live rig: its names, ports, units, provider
+# ids, home and state file must stay exactly what they were before
+# instances existed, or the next `up` would recreate (or miss) the running
+# sandbox. A named instance must share none of them.
+
+#: Today's default route, written out literally (never derived from the module).
+TODAY = {
+    "gateway_name": "cascade", "gateway_port": 17670,
+    "gateway_unit": "cascade-openshell-gateway", "chat_unit": "cascade-openshell-chat",
+    "relock_unit": "cascade-openshell-relock", "sandbox_label": "cascade-openshell",
+    "brain_provider": "cascade-brain", "robot_provider": "cascade-robot",
+    "sandbox": "cascade-agent", "mcp_port": 18741, "chat_port": 18799,
+}
+TODAY_TOML = ('[openshell]\nversion = 2\n\n[openshell.gateway]\nname = "cascade"\ncompute_driver = "docker"\n'
+              'bind_address = "127.0.0.1:17670"\n\n[openshell.drivers.docker]\nsandbox_label = "cascade-openshell"\n')
+TODAY_SANDBOX_ARGV = [
+    "sandbox", "create", "--name", "cascade-agent", "--from", "IMG",
+    "--provider", "cascade-brain", "--provider", "cascade-robot",
+    "--env", "CASCADE_BRAIN_PORT=8081", "--env", "CASCADE_MCP_PORT=18741",
+    "--env", "CASCADE_CHAT_PORT=18799", "--env", "CASCADE_MODEL=qwen3.8-27b",
+    "--restart-policy", "on-failure", "--detach", "--", "cascade-openclaw"]
+TODAY_SETTINGS = {"brain_port": 8081, "mcp_port": 18741, "chat_port": 18799,
+                  "model": "qwen3.8-27b", "sandbox": "cascade-agent"}
+#: sha256 of json.dumps(profile, sort_keys=True): the profiles the live
+#: gateway holds. Any change here is an update pushed to the running sandbox.
+TODAY_PROFILE_SHA = {
+    "cascade-brain": "7e81c98a4f6dfa80dbd0be5b5253d5c1e6c60b2db961e2146e813d634e3a8ba4",
+    "cascade-robot": "cb34708159f1048412ba6da017c1a953771f47d6ffd3582143ebc089881b2ef7",
+}
+
+
+def _profile_sha(profile: dict) -> str:
+    return hashlib.sha256(json.dumps(profile, sort_keys=True).encode()).hexdigest()
+
+
+def test_golden_todays_default_constants_and_builders(monkeypatch, tmp_path):
+    rig = _load()
+    assert (rig.GATEWAY_NAME, rig.GATEWAY_PORT, rig.GATEWAY_UNIT, rig.CHAT_UNIT, rig.RELOCK_UNIT,
+            rig.SANDBOX_LABEL, rig.DEFAULT_SANDBOX, rig.DEFAULT_MCP_PORT, rig.DEFAULT_CHAT_PORT) == (
+        "cascade", 17670, "cascade-openshell-gateway", "cascade-openshell-chat", "cascade-openshell-relock",
+        "cascade-openshell", "cascade-agent", 18741, 18799)
+    assert rig.DEFAULT_BRAIN_PORT == 8081
+    assert rig.gateway_toml() == TODAY_TOML
+    for p in (rig.brain_profile(), rig.robot_profile()):
+        assert _profile_sha(p) == TODAY_PROFILE_SHA[p["id"]]
+    assert rig.sandbox_create_argv(rig.Settings(), "IMG") == TODAY_SANDBOX_ARGV
+    assert rig.forward_argv(rig.Settings()) == [
+        "forward", "service", "cascade-agent", "--target-port", "18789", "--local", "127.0.0.1:18799"]
+    assert asdict(rig.Settings()) == TODAY_SETTINGS
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("CASCADE_OPENSHELL_HOME", raising=False)
+    assert rig.home_dir() == tmp_path / ".cascade" / "openshell"
+    monkeypatch.setenv("CASCADE_OPENSHELL_HOME", str(tmp_path / "elsewhere"))
+    assert rig.home_dir() == tmp_path / "elsewhere"
+
+
+class Host:
+    """The host as main() sees it: every child process any command starts is
+    recorded and answered here (nothing is executed), and the loopback
+    probes of the brain and the MCP server answer 200 without a socket."""
+
+    def __init__(self, rig, tmp_path):
+        self.rig, self.tmp, self.user = rig, tmp_path, tmp_path / "user"
+        self.argvs: list[list[str]] = []
+        self.gateways_up: set[str] = set()   # openshell binaries whose gateway was added
+
+    def run(self, argv, env=None, **kw):
+        argv = [str(a) for a in argv]
+        self.argvs.append(argv)
+        rc, out = self.answer(argv)
+        return subprocess.CompletedProcess(argv, rc, stdout=out, stderr="")
+
+    def answer(self, argv):
+        if argv[0] == "systemctl" and "is-active" in argv:
+            return 3, ""   # inactive: `gateway start` launches its unit
+        if argv[0].endswith("/openshell"):
+            args = argv[1:]
+            if args == ["status"]:
+                return (0 if argv[0] in self.gateways_up else 1), ""
+            if args[:2] == ["gateway", "add"]:
+                self.gateways_up.add(argv[0])
+            if args[:2] == ["sandbox", "get"]:
+                return 0, "Phase: Ready\n"
+            if args[:2] == ["sandbox", "exec"]:
+                return 0, "chat-token"
+            if args[:3] == ["provider", "profile", "export"]:
+                return 0, "resource_version: 3\n"
+        return 0, ""
+
+    def install(self, home: Path, name: str = "") -> Path:
+        """What `[--instance name] install` + a first `serve-mcp` leave
+        behind, minus the download: the home claimed by its instance,
+        placeholder binaries (never executed) and the MCP token."""
+        if name:
+            self.rig.claim_home(self.rig.instance(name), home)
+        bindir = home / self.rig.OPENSHELL_VERSION / "bin"
+        bindir.mkdir(parents=True, exist_ok=True)
+        for binary in ("openshell", "openshell-gateway"):
+            (bindir / binary).write_text("")
+        tok = home / "mcp.token"
+        tok.write_text("mcp-token\n")
+        tok.chmod(0o600)
+        return home
+
+    def drive(self, *pre: str) -> None:
+        """Every command that touches a unit, a provider or the sandbox."""
+        for cmd in (["gateway", "start"], ["up"], ["status"], ["chat-url"],
+                    ["motion", "unlock", "--for", "90s"], ["motion", "status"], ["motion", "lock"],
+                    ["down", "--gateway"]):
+            assert self.rig.main([*pre, *cmd]) == 0, cmd
+
+
+@pytest.fixture
+def host(monkeypatch, tmp_path):
+    rig = _load()
+    h = Host(rig, tmp_path)
+    monkeypatch.setattr(rig, "subprocess", types.SimpleNamespace(
+        run=h.run, CompletedProcess=subprocess.CompletedProcess))
+    monkeypatch.setattr(rig, "_http_status", lambda *a, **k: 200)
+    monkeypatch.setattr(rig, "time", types.SimpleNamespace(time=lambda: 1000.0, sleep=lambda s: None))
+    monkeypatch.setenv("HOME", str(h.user))   # Path.home(): never the real ~/.cascade
+    for k in ("CASCADE_OPENSHELL_HOME", "CASCADE_OPENSHELL_INSTANCE", "CASCADE_OPENSHELL_RELOCK",
+              "CASCADE_BRAIN_KEY_FILE"):
+        monkeypatch.delenv(k, raising=False)
+    key = h.user / ".cascade" / "nemoclaw" / "llama.key"
+    key.parent.mkdir(parents=True)
+    key.write_text("brain-key\n")
+    key.chmod(0o600)
+    return h
+
+
+def _openshell_targets(args: list[str]) -> set[str]:
+    t = set()
+    if args[:2] in (["provider", "get"], ["provider", "update"]):
+        t.add(f"provider:{args[2]}")
+    if args[:2] == ["provider", "create"]:
+        t |= {f"provider:{args[args.index('--name') + 1]}", f"provider:{args[args.index('--type') + 1]}"}
+    if args[:2] == ["provider", "profile"]:
+        if "--file" in args:
+            t.add(f"profile:{json.loads(Path(args[args.index('--file') + 1]).read_text())['id']}")
+        if args[2] in ("export", "update"):
+            t.add(f"profile:{args[-1]}")
+    if args[:2] in (["sandbox", "get"], ["sandbox", "delete"]):
+        t.add(f"sandbox:{args[2]}")
+    if args[:2] in (["sandbox", "create"], ["sandbox", "exec"]):
+        t.add(f"sandbox:{args[args.index('--name') + 1]}")
+        t |= {f"provider:{args[i + 1]}" for i, a in enumerate(args) if a == "--provider"}
+    if args[:2] == ["gateway", "add"]:
+        t.add(f"gateway:{args[args.index('--name') + 1]}@{args[2]}")
+    if args[:2] == ["forward", "service"]:
+        t.add(f"forward:{args[2]}@{args[args.index('--local') + 1]}")
+    return t
+
+
+def _targets(argvs: list[list[str]]) -> set[str]:
+    """What every recorded child acts on: units, gateway, providers,
+    profiles, sandbox, chat forward, the binaries and the re-lock's command."""
+    t = set()
+    for a in argvs:
+        if a[0] == "systemctl":
+            t |= {f"unit:{u}" for u in a[3:] if not u.startswith("-")}
+        elif a[0] == "systemd-run":
+            t |= {f"unit:{x.split('=', 1)[1]}" for x in a if x.startswith("--unit=")}
+            t |= {f"relock-home:{x.split('=', 1)[1]}" for x in a if x.startswith("CASCADE_OPENSHELL_HOME=")}
+            for i, x in enumerate(a):
+                if "=" in x:
+                    continue
+                if x.endswith(("/openshell", "/openshell-gateway")):
+                    t.add(f"bin:{x}")
+                    t |= _openshell_targets(a[i + 1:]) if x.endswith("/openshell") else set()
+                    break
+                if x.endswith("openshell_rig.py"):
+                    t.add(f"relock:{' '.join(a[i + 1:])}")
+                    break
+        elif a[0].endswith("/openshell"):
+            t.add(f"bin:{a[0]}")
+            t |= _openshell_targets(a[1:])
+        elif a[0] != "docker":
+            raise AssertionError(f"unexpected child {a}")
+    return t
+
+
+def _expected_targets(home: Path, i: dict, relock: str) -> set[str]:
+    b = home / "0.1.3" / "bin"
+    return {
+        f"unit:{i['gateway_unit']}", f"gateway:{i['gateway_name']}@https://127.0.0.1:{i['gateway_port']}",
+        f"unit:{i['chat_unit']}", f"forward:{i['sandbox']}@127.0.0.1:{i['chat_port']}",
+        f"unit:{i['relock_unit']}", f"unit:{i['relock_unit']}.timer", f"unit:{i['relock_unit']}.service",
+        f"relock:{relock}", f"relock-home:{home}",
+        f"profile:{i['brain_provider']}", f"profile:{i['robot_provider']}",
+        f"provider:{i['brain_provider']}", f"provider:{i['robot_provider']}",
+        f"sandbox:{i['sandbox']}", f"bin:{b / 'openshell'}", f"bin:{b / 'openshell-gateway'}",
+    }
+
+
+def test_golden_the_default_route_targets_exactly_todays_units_providers_and_sandbox(host):
+    """gateway start, up, status, chat-url, unlock, lock, down --gateway of
+    the default instance act on today's names and nothing else, keep
+    today's home and state file, and save today's settings (a settings
+    diff would recreate the live sandbox on the next `up`)."""
+    home = host.install(host.user / ".cascade" / "openshell")
+    host.drive()
+    assert _targets(host.argvs) == _expected_targets(home, TODAY, relock="motion lock")
+    state = json.loads((home / "deployed.json").read_text())
+    assert state["settings"] == TODAY_SETTINGS
+    assert sorted(p.name for p in (host.user / ".cascade").iterdir()) == ["nemoclaw", "openshell"]
+    upd = [a for a in host.argvs if a[1:4] == ["provider", "profile", "update"]]
+    brain = json.loads(Path(next(a for a in upd if a[-1] == "cascade-brain")[5]).read_text())
+    assert _profile_sha({k: v for k, v in brain.items() if k != "resource_version"}) == TODAY_PROFILE_SHA["cascade-brain"]
+    # byte for byte: every systemctl call, in order, and the re-lock unit
+    relock = ["systemctl", "--user", "stop", "cascade-openshell-relock.timer"], \
+        ["systemctl", "--user", "stop", "cascade-openshell-relock.service"], \
+        ["systemctl", "--user", "reset-failed", "cascade-openshell-relock.timer", "cascade-openshell-relock.service"]
+    assert [a for a in host.argvs if a[0] == "systemctl"] == [
+        ["systemctl", "--user", "is-active", "--quiet", "cascade-openshell-gateway"],     # gateway start
+        ["systemctl", "--user", "stop", "cascade-openshell-gateway"],
+        ["systemctl", "--user", "reset-failed", "cascade-openshell-gateway"],
+        *relock,                                                                        # up
+        ["systemctl", "--user", "stop", "cascade-openshell-chat"],
+        ["systemctl", "--user", "reset-failed", "cascade-openshell-chat"],
+        ["systemctl", "--user", "is-active", "--quiet", "cascade-openshell-chat"],        # status
+        *relock,                                                                        # unlock
+        *relock,                                                                        # lock
+        ["systemctl", "--user", "stop", "cascade-openshell-chat"],                       # down --gateway
+        ["systemctl", "--user", "stop", "cascade-openshell-gateway"]]
+    assert [a for a in host.argvs if a[0] == "systemd-run" and "--on-active=90" in a] == [[
+        "systemd-run", "--user", "--unit=cascade-openshell-relock", "--collect", "--on-active=90",
+        "-E", f"CASCADE_OPENSHELL_HOME={home}", "-E", "CASCADE_OPENSHELL_RELOCK=1",
+        sys.executable, str(SCRIPT.resolve()), "motion", "lock"]]
+
+
+#: The documented scheme for an example named instance `sim`: slot
+#: 1 + sha256("sim") mod 99 = 40, so ports 17670+40, 17770+40, 17870+40.
+SIM = {
+    "gateway_name": "cascade-sim", "gateway_port": 17710,
+    "gateway_unit": "cascade-openshell-sim-gateway", "chat_unit": "cascade-openshell-sim-chat",
+    "relock_unit": "cascade-openshell-sim-relock", "sandbox_label": "cascade-openshell-sim",
+    "brain_provider": "cascade-sim-brain", "robot_provider": "cascade-sim-robot",
+    "sandbox": "cascade-sim-agent", "mcp_port": 17810, "chat_port": 17910,
+}
+
+
+def test_golden_the_default_instance_is_todays_route(monkeypatch, tmp_path):
+    """No --instance, no CASCADE_OPENSHELL_INSTANCE: the live rig's route,
+    with today's names, ports, units, ids, home and settings."""
+    rig = _load()
+    d = rig.instance("")
+    assert asdict(d) == {"name": "", **TODAY, "mcp_unit": "cascade-openshell-mcp", "home_name": "openshell"}
+    assert rig.DEFAULT_INSTANCE == d
+    assert rig.resolve_instance(None, env={}) == d
+    assert rig.resolve_instance(None, env={"CASCADE_OPENSHELL_INSTANCE": ""}) == d
+    assert d.settings() == rig.Settings() and asdict(d.settings()) == TODAY_SETTINGS
+    assert rig.gateway_toml(d) == TODAY_TOML
+    for p in (rig.brain_profile(inst=d), rig.robot_profile(inst=d)):
+        assert _profile_sha(p) == TODAY_PROFILE_SHA[p["id"]]
+    assert rig.sandbox_create_argv(d.settings(), "IMG", inst=d) == TODAY_SANDBOX_ARGV
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("CASCADE_OPENSHELL_HOME", raising=False)
+    assert d.home() == rig.home_dir() == tmp_path / ".cascade" / "openshell"
+    assert rig._state_file(d.home()) == tmp_path / ".cascade" / "openshell" / "deployed.json"
+
+
+def test_the_sim_instance_follows_the_documented_scheme(monkeypatch, tmp_path):
+    rig = _load()
+    s = rig.instance("sim")
+    assert asdict(s) == {"name": "sim", **SIM, "mcp_unit": "cascade-openshell-sim-mcp", "home_name": "openshell-sim"}
+    assert rig.port_slot("sim") == 40
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("CASCADE_OPENSHELL_HOME", raising=False)
+    assert s.home() == rig.home_dir(s) == tmp_path / ".cascade" / "openshell-sim"
+    monkeypatch.setenv("CASCADE_OPENSHELL_HOME", str(tmp_path / "x"))
+    assert s.home() == tmp_path / "x", "an explicit CASCADE_OPENSHELL_HOME still wins"
+
+
+def test_a_named_instance_shares_no_name_port_unit_id_or_home_with_the_default(monkeypatch, tmp_path):
+    """Every field of the instance (so a field added later is covered too)
+    differs from the default's, and so do the home, the gateway config, the
+    provider profile ids and the sandbox's providers. The brain is shared on
+    purpose: one host LLM serves every instance."""
+    rig = _load()
+    d, s = rig.instance(""), rig.instance("sim")
+    dv = {k: v for k, v in asdict(d).items() if k != "name"}
+    sv = {k: v for k, v in asdict(s).items() if k != "name"}
+    assert dv.keys() == sv.keys()
+    assert set(dv.values()).isdisjoint(sv.values()), set(dv.values()) & set(sv.values())
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("CASCADE_OPENSHELL_HOME", raising=False)
+    assert d.home() != s.home() and not s.home().is_relative_to(d.home())
+    dt, st = (tomllib.loads(rig.gateway_toml(i))["openshell"] for i in (d, s))
+    assert dt["gateway"]["name"] != st["gateway"]["name"]
+    assert dt["gateway"]["bind_address"] != st["gateway"]["bind_address"] == f"127.0.0.1:{s.gateway_port}"
+    assert st["drivers"]["docker"]["sandbox_label"] == s.sandbox_label != d.sandbox_label
+    assert {rig.brain_profile(inst=s)["id"], rig.robot_profile(inst=s)["id"]} == {"cascade-sim-brain", "cascade-sim-robot"}
+    argv = rig.sandbox_create_argv(s.settings(), "IMG", inst=s)
+    assert [argv[i + 1] for i, a in enumerate(argv) if a in ("--name", "--provider")] == [
+        "cascade-sim-agent", "cascade-sim-brain", "cascade-sim-robot"]
+    assert {"CASCADE_MCP_PORT=17810", "CASCADE_CHAT_PORT=17910", "CASCADE_BRAIN_PORT=8081"} <= set(argv)
+
+
+def test_named_instances_never_collide_with_each_other_or_a_known_listener():
+    """Per field, two names never map to the same unit, id, label or sandbox
+    (roles are one word, so `a` + `-chat` never meets `a-chat`), and the
+    port bands of all 99 slots are pairwise distinct and clear of every
+    port the rig, NemoClaw and OpenClaw already use."""
+    rig = _load()
+    names = ["", "a", "a-chat", "a-relock", "a-gateway", "a-mcp", "a-brain", "a-robot", "a-agent",
+             "chat", "brain", "openshell", "sim", "sim-2", "x" * 16]
+    rows = [asdict(rig.instance(n)) for n in names]
+    for field in rows[0]:
+        if field.endswith("_port"):
+            continue
+        values = [r[field] for r in rows]
+        assert len(set(values)) == len(values), field
+    known = {17670, 18741, 18799, 18740, 18789, 18790, 18791, 18080, 18877, 18878,
+             8080, 8081, 8090, 8092, 5556, 5557}
+    ports = [p for k in range(1, 100) for p in rig.named_ports(k)]
+    assert len(set(ports)) == len(ports) == 3 * 99
+    assert not set(ports) & known
+    assert {rig.port_slot(n) for n in names[1:]} <= set(range(1, 100))
+
+
+@pytest.mark.parametrize("bad", ["Sim", "1sim", "-sim", "sim_1", "sim.1", "sim 1", "x" * 17, "sim\n",
+                                 "../sim", "sim/x", "default"])
+def test_invalid_instance_names_are_refused(bad):
+    rig = _load()
+    with pytest.raises(SystemExit, match="instance"):
+        rig.resolve_instance(bad, env={})
+    with pytest.raises(SystemExit, match="instance"):
+        rig.resolve_instance(None, env={"CASCADE_OPENSHELL_INSTANCE": bad})
+
+
+def test_the_instance_comes_from_the_cli_or_the_environment_and_the_cli_wins():
+    rig = _load()
+    env = {"CASCADE_OPENSHELL_INSTANCE": "sim"}
+    assert rig.resolve_instance(None, env=env).name == "sim"
+    assert rig.resolve_instance("dev", env=env).name == "dev"
+    assert rig.resolve_instance("", env=env) == rig.DEFAULT_INSTANCE, "--instance '' selects the default"
+    assert rig.resolve_instance("x" * 16, env={}).name == "x" * 16
+
+
+SIM_SETTINGS = {**TODAY_SETTINGS, "mcp_port": 17810, "chat_port": 17910, "sandbox": "cascade-sim-agent"}
+
+
+def test_golden_default_status_reads_as_before(host, capsys):
+    home = host.install(host.user / ".cascade" / "openshell")
+    host.gateways_up.add(str(home / "0.1.3" / "bin" / "openshell"))
+    assert host.rig.main(["status"]) == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "             openshell: 0.1.3 installed",
+        "               gateway: healthy on 127.0.0.1:17670",
+        "               sandbox: cascade-agent: Ready",
+        "provider cascade-brain: present",
+        "provider cascade-robot: present",
+        "          chat forward: 127.0.0.1:18799 (down)",
+        "                motion: allowed",
+        "                 brain: 127.0.0.1:8081 -> 200",
+        "             robot MCP: 127.0.0.1:18741 -> 200"]
+
+
+def test_a_named_route_only_ever_targets_its_own_units_providers_and_sandbox(host, capsys):
+    """gateway start, up, status, chat-url, unlock, lock, down --gateway of
+    `--instance sim` act on sim's units, gateway, providers, profiles,
+    sandbox, binaries and home, and on nothing of the default route."""
+    home = host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    host.drive("--instance", "sim")
+    got = _targets(host.argvs)
+    assert got == _expected_targets(home, SIM, relock="--instance sim motion lock")
+    assert got.isdisjoint(_expected_targets(host.user / ".cascade" / "openshell", TODAY, relock="motion lock"))
+    assert json.loads((home / "deployed.json").read_text())["settings"] == SIM_SETTINGS
+    assert sorted(p.name for p in (host.user / ".cascade").iterdir()) == ["nemoclaw", "openshell-sim"]
+    out = capsys.readouterr().out
+    assert "scripts/openshell_rig.py --instance sim chat-url" in out, "hints name the instance"
+    status = [line.strip() for line in out.splitlines()]
+    assert f"instance: sim ({home})" in status, "status says which instance it reports"
+    assert {"gateway: healthy on 127.0.0.1:17710", "sandbox: cascade-sim-agent: Ready",
+            "provider cascade-sim-brain: present", "provider cascade-sim-robot: present",
+            "chat forward: 127.0.0.1:17910 (down)", "robot MCP: 127.0.0.1:17810 -> 200"} <= set(status)
+
+
+@pytest.mark.parametrize("env, pre, post", [("sim", [], []), ("dev", ["--instance", "sim"], []),
+                                            ("dev", [], ["--instance", "sim"])])
+def test_the_instance_comes_from_the_cli_or_the_environment_and_the_cli_wins_end_to_end(
+        host, monkeypatch, env, pre, post):
+    monkeypatch.setenv("CASCADE_OPENSHELL_INSTANCE", env)
+    home = host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    host.gateways_up.add(str(home / "0.1.3" / "bin" / "openshell"))
+    for cmd in (["status"], ["motion", "unlock", "--for", "90s"], ["motion", "lock"], ["down"]):
+        assert host.rig.main([*pre, *cmd, *post]) == 0
+    assert _targets(host.argvs) <= _expected_targets(home, SIM, relock="--instance sim motion lock")
+    assert "unit:cascade-openshell-sim-relock.timer" in _targets(host.argvs)
+
+
+def test_locking_or_unlocking_one_instance_never_touches_anothers_relock(host):
+    """Each instance's re-lock is its own timer: `motion lock` of sim must
+    not cancel the default route's pending re-lock (that would leave the
+    live arm unlocked with no expiry), and vice versa."""
+    default_home = host.install(host.user / ".cascade" / "openshell")
+    host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    main = host.rig.main
+    assert main(["motion", "unlock", "--for", "90s"]) == 0
+    n = len(host.argvs)
+    assert main(["--instance", "sim", "motion", "unlock", "--for", "90s"]) == 0
+    assert main(["--instance", "sim", "motion", "lock"]) == 0
+    sim = _targets(host.argvs[n:])
+    assert {t for t in sim if t.startswith("unit:")} == {
+        "unit:cascade-openshell-sim-relock", "unit:cascade-openshell-sim-relock.timer",
+        "unit:cascade-openshell-sim-relock.service"}
+    assert {t for t in sim if t.startswith(("profile:", "provider:"))} == {"profile:cascade-sim-robot"}
+    n = len(host.argvs)
+    assert main(["motion", "lock"]) == 0
+    assert {t for t in _targets(host.argvs[n:]) if t.startswith(("unit:", "profile:"))} == {
+        "unit:cascade-openshell-relock.timer", "unit:cascade-openshell-relock.service", "profile:cascade-robot"}
+    assert host.rig.motion_locked(default_home)
+
+
+def test_the_relock_timer_locks_the_instance_that_scheduled_it(host, monkeypatch):
+    """The timer re-enters this CLI with `--instance sim`, so it locks sim
+    even if the unit's environment names another instance."""
+    rig = host.rig
+    home = host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    assert rig.main(["--instance", "sim", "motion", "unlock", "--for", "90s"]) == 0
+    (unit,) = [a for a in host.argvs if a[0] == "systemd-run"]
+    assert unit[:5] == ["systemd-run", "--user", "--unit=cascade-openshell-sim-relock", "--collect", "--on-active=90"]
+    assert f"CASCADE_OPENSHELL_HOME={home}" in unit
+    tail = unit[unit.index(str(SCRIPT.resolve())) + 1:]
+    assert tail == ["--instance", "sim", "motion", "lock"]
+    seen = []
+    monkeypatch.setattr(rig, "cmd_motion", lambda inst, h, args: seen.append((inst.name, h, args.action)) or 0)
+    monkeypatch.setenv("CASCADE_OPENSHELL_INSTANCE", "dev")
+    monkeypatch.setenv("CASCADE_OPENSHELL_HOME", str(home))
+    assert rig.main(tail) == 0
+    assert seen == [("sim", home, "lock")]
+
+
+def test_explicit_flags_still_win_over_the_instance_defaults(host):
+    rig = host.rig
+    home = host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    host.gateways_up.add(str(home / "0.1.3" / "bin" / "openshell"))
+    assert rig.main(["--instance", "sim", "up", "--mcp-port", "17999", "--chat-port", "17998",
+                     "--sandbox", "my-agent"]) == 0
+    saved = json.loads((home / "deployed.json").read_text())["settings"]
+    assert saved == {**SIM_SETTINGS, "mcp_port": 17999, "chat_port": 17998, "sandbox": "my-agent"}
+    assert "forward:my-agent@127.0.0.1:17998" in _targets(host.argvs)
+    # ...and are remembered by the instance, never by the default route
+    assert rig._load_settings(home, types.SimpleNamespace(), rig.instance("sim")) == rig.Settings(**saved)
+    assert rig._load_settings(tmp := host.tmp / "empty", types.SimpleNamespace(), rig.instance("")) == rig.Settings()
+    assert not tmp.exists()
+
+
+# ── nothing outside the instance table names a default ────────────────────
+
+#: The default instance's table: only `instance()` / `named_ports()` (and the
+#: Settings field defaults, which equal the default instance) may read it.
+_TABLE = {"GATEWAY_NAME", "GATEWAY_PORT", "GATEWAY_UNIT", "CHAT_UNIT", "RELOCK_UNIT", "MCP_UNIT",
+          "SANDBOX_LABEL", "BRAIN_PROVIDER", "ROBOT_PROVIDER", "HOME_NAME",
+          "DEFAULT_SANDBOX", "DEFAULT_MCP_PORT", "DEFAULT_CHAT_PORT"}
+_TABLE_READERS = {"instance", "named_ports", "Settings"}
+_DEFAULT_STRINGS = ("cascade-brain", "cascade-robot", "cascade-agent", "cascade-openshell-gateway",
+                    "cascade-openshell-chat", "cascade-openshell-relock", "cascade-openshell-mcp")
+
+
+def _top_level_owners(tree):
+    """(node, name of the top-level def/class holding it, or None)."""
+    for top in tree.body:
+        owner = top.name if isinstance(top, (ast.FunctionDef, ast.ClassDef)) else None
+        for node in ast.walk(top):
+            yield node, owner, top
+
+
+def test_nothing_outside_the_instance_table_hardcodes_a_default_name_or_port():
+    tree = ast.parse(SCRIPT.read_text())
+    docstrings = {id(n.value) for n in ast.walk(tree) if isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant)}
+    bad = []
+    for node, owner, top in _top_level_owners(tree):
+        table_def = isinstance(top, ast.Assign) and all(getattr(t, "id", "") in _TABLE for t in top.targets)
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id in _TABLE \
+                and owner not in _TABLE_READERS:
+            bad.append((node.lineno, node.id))
+        if isinstance(node, ast.Constant) and id(node) not in docstrings and not table_def:
+            v = node.value
+            if (isinstance(v, str) and any(s in v for s in _DEFAULT_STRINGS)) \
+                    or (isinstance(v, int) and not isinstance(v, bool) and v in (17670, 18741, 18799)):
+                bad.append((node.lineno, v))
+    assert not bad, f"default names outside the instance table: {bad}"
+
+
+def test_every_call_inside_the_module_passes_its_instance():
+    """A forgotten `inst=` would silently act on the default (live) route."""
+    tree = ast.parse(SCRIPT.read_text())
+    takes = {}
+    for f in tree.body:
+        if isinstance(f, ast.FunctionDef):
+            pos = [a.arg for a in f.args.args]
+            if "inst" in pos or "inst" in [a.arg for a in f.args.kwonlyargs]:
+                takes[f.name] = pos.index("inst") if "inst" in pos else None
+    assert {"gateway_toml", "brain_profile", "robot_profile", "sandbox_create_argv", "home_dir", "set_motion_lock",
+            "_cancel_relock", "unlock_motion", "lock_motion", "_load_settings", "cmd_up", "cmd_gateway"} <= set(takes)
+    missing = []
+    for c in ast.walk(tree):
+        if isinstance(c, ast.Call) and isinstance(c.func, ast.Name) and c.func.id in takes:
+            i = takes[c.func.id]
+            if not any(k.arg == "inst" for k in c.keywords) and not (i is not None and len(c.args) > i):
+                missing.append((c.lineno, c.func.id))
+    assert not missing, f"calls that fall back to the default instance: {missing}"
+
+
+# ── one home, one instance ────────────────────────────────────────────────
+
+
+def test_a_named_instance_never_adopts_the_live_routes_home(host, monkeypatch):
+    """CASCADE_OPENSHELL_HOME overrides the home of any instance, so a stray
+    export could point `--instance sim` at the live route's state (its
+    token, its lock, its gateway). A named instance only claims an empty
+    home or its own; nothing runs and nothing is written otherwise."""
+    rig = host.rig
+    live = host.install(host.user / ".cascade" / "openshell")
+    rig._write_state(live, motion_locked=True)
+    before = {p: p.read_bytes() for p in live.rglob("*") if p.is_file()}
+    monkeypatch.setenv("CASCADE_OPENSHELL_HOME", str(live))
+    for cmd in (["status"], ["motion", "unlock"], ["motion", "lock"], ["up"], ["down", "--gateway"],
+                ["gateway", "start"], ["install"]):
+        with pytest.raises(SystemExit, match="default instance"):
+            rig.main(["--instance", "sim", *cmd])
+    assert host.argvs == []
+    assert {p: p.read_bytes() for p in live.rglob("*") if p.is_file()} == before
+
+
+def test_the_default_route_never_adopts_a_named_instances_home(host, monkeypatch):
+    rig = host.rig
+    sim = host.tmp / "sim-home"
+    monkeypatch.setenv("CASCADE_OPENSHELL_HOME", str(sim))
+    assert rig.main(["--instance", "sim", "motion", "status"]) == 0, "an empty home is claimed"
+    assert rig.main(["--instance", "sim", "motion", "status"]) == 0, "and stays its instance's"
+    for pre in ([], ["--instance", "dev"]):
+        with pytest.raises(SystemExit, match="instance 'sim'"):
+            rig.main([*pre, "motion", "lock"])
+    assert host.argvs == []
+
+
+def test_the_instance_command_prints_the_scheme_and_touches_nothing(host, capsys):
+    rig = host.rig
+    assert rig.main(["--instance", "sim", "instance"]) == 0
+    shown = json.loads(capsys.readouterr().out)
+    assert shown == {"name": "sim", **SIM, "mcp_unit": "cascade-openshell-sim-mcp", "home_name": "openshell-sim",
+                     "home": str(host.user / ".cascade" / "openshell-sim")}
+    assert rig.main(["instance"]) == 0
+    assert json.loads(capsys.readouterr().out)["gateway_port"] == 17670
+    assert not (host.user / ".cascade" / "openshell-sim").exists() and host.argvs == []

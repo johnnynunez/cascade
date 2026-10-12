@@ -1,0 +1,650 @@
+[
+ {
+  "run": "backstage1",
+  "scenario": "backstage_obstacles",
+  "sim_time_s": 20.1,
+  "wall_s": 212.4,
+  "llm_calls": 23,
+  "reverified": true,
+  "robots": {
+   "duck_a": {
+    "passed_at_run": false,
+    "passed_current_verifier": false,
+    "verify_type": "reach",
+    "final_pose": {
+     "x": 0.242,
+     "y": -0.466,
+     "z": 0.118
+    },
+    "distance_m": 2.45,
+    "fallen": false,
+    "agent_claimed_success": false,
+    "min_clearance_m": 0.315,
+    "possible_contact": false
+   }
+  },
+  "note": "first agentic run: plumbing check, agent too timid (no waypoint tools yet)"
+ },
+ {
+  "run": "stage1",
+  "scenario": "stage_edge",
+  "sim_time_s": 20.4,
+  "wall_s": 133.6,
+  "llm_calls": 12,
+  "reverified": true,
+  "robots": {
+   "duck_a": {
+    "passed_at_run": false,
+    "passed_current_verifier": true,
+    "verify_type": "region",
+    "final_pose": {
+     "x": 1.723,
+     "y": -0.313,
+     "z": 0.419
+    },
+    "distance_m": null,
+    "fallen": false,
+    "agent_claimed_success": false,
+    "min_clearance_m": 0.094,
+    "possible_contact": false
+   }
+  },
+  "note": "verifier changed AFTER this run (point -> edge band); old verdict kept"
+ },
+ {
+  "run": "backstage3",
+  "scenario": "backstage_obstacles",
+  "sim_time_s": 49.3,
+  "wall_s": 283.7,
+  "llm_calls": 26,
+  "reverified": true,
+  "robots": {
+   "duck_a": {
+    "passed_at_run": false,
+    "passed_current_verifier": false,
+    "verify_type": "reach",
+    "final_pose": {
+     "x": 0.962,
+     "y": 0.339,
+     "z": 0.116
+    },
+    "distance_m": 1.644,
+    "fallen": false,
+    "agent_claimed_success": false,
+    "min_clearance_m": 0.006,
+    "possible_contact": true
+   }
+  },
+  "note": "go_to_waypoint added; budget spent on bearing_to/scan, backtrack"
+ },
+ {
+  "run": "stage2",
+  "scenario": "stage_edge",
+  "sim_time_s": 19.5,
+  "wall_s": 127.9,
+  "llm_calls": 11,
+  "reverified": true,
+  "robots": {
+   "duck_a": {
+    "passed_at_run": true,
+    "passed_current_verifier": true,
+    "verify_type": "region",
+    "final_pose": {
+     "x": 1.75,
+     "y": -0.116,
+     "z": 0.418
+    },
+    "distance_m": null,
+    "fallen": false,
+    "agent_claimed_success": false,
+    "min_clearance_m": 0.247,
+    "possible_contact": false
+   }
+  },
+  "note": "fresh run under the edge-band verifier"
+ },
+ {
+  "run": "backstage4",
+  "scenario": "backstage_obstacles",
+  "sim_time_s": 39.2,
+  "wall_s": 299.4,
+  "llm_calls": 27,
+  "reverified": true,
+  "robots": {
+   "duck_a": {
+    "passed_at_run": true,
+    "passed_current_verifier": false,
+    "verify_type": "reach",
+    "final_pose": {
+     "x": 2.296,
+     "y": 0.072,
+     "z": 0.113
+    },
+    "distance_m": 0.329,
+    "fallen": false,
+    "agent_claimed_success": false,
+    "min_clearance_m": 0.009,
+    "possible_contact": true
+   }
+  },
+  "note": "reached, but body origin 9 mm from the FlightCase box: task says no contact (no_contact not yet in verifier)"
+ },
+ {
+  "run": "multiroom1",
+  "scenario": "multi_room_fetch",
+  "sim_time_s": 135.2,
+  "wall_s": 342.7,
+  "llm_calls": 89,
+  "reverified": true,
+  "robots": {
+   "duck_a": {
+    "passed_at_run": false,
+    "passed_current_verifier": false,
+    "verify_type": "near_object",
+    "final_pose": {
+     "x": 2.783,
+     "y": -0.412,
+     "z": 0.119
+    },
+    "distance_m": 0.948,
+    "fallen": false,
+    "agent_claimed_success": false,
+    "min_clearance_m": 0.067,
+    "possible_contact": false
+   },
+   "duck_b": {
+    "passed_at_run": true,
+    "passed_current_verifier": true,
+    "verify_type": "upright",
+    "final_pose": {
+     "x": 2.368,
+     "y": -0.451,
+     "z": 0.117
+    },
+    "distance_m": null,
+    "fallen": false,
+    "agent_claimed_success": false,
+    "min_clearance_m": 0.021,
+    "possible_contact": true
+   },
+   "duck_c": {
+    "passed_at_run": false,
+    "passed_current_verifier": false,
+    "verify_type": "near_object",
+    "final_pose": {
+     "x": 1.486,
+     "y": 0.282,
+     "z": 0.117
+    },
+    "distance_m": 0.468,
+    "fallen": false,
+    "agent_claimed_success": false,
+    "min_clearance_m": 0.191,
+    "possible_contact": false
+   }
+  },
+  "note": "no detector stand-in yet: agents cannot identify the boxes"
+ },
+ {
+  "run": "multiroom2",
+  "scenario": "multi_room_fetch",
+  "sim_time_s": 196.5,
+  "wall_s": 566.4,
+  "llm_calls": 102,
+  "reverified": true,
+  "robots": {
+   "duck_a": {
+    "passed_at_run": false,
+    "passed_current_verifier": false,
+    "verify_type": "near_object",
+    "final_pose": {
+     "x": 3.281,
+     "y": -0.776,
+     "z": 0.117
+    },
+    "distance_m": 0.419,
+    "fallen": false,
+    "agent_claimed_success": true,
+    "min_clearance_m": 0.026,
+    "possible_contact": true
+   },
+   "duck_b": {
+    "passed_at_run": true,
+    "passed_current_verifier": true,
+    "verify_type": "upright",
+    "final_pose": {
+     "x": 3.964,
+     "y": -0.289,
+     "z": 0.119
+    },
+    "distance_m": null,
+    "fallen": false,
+    "agent_claimed_success": false,
+    "min_clearance_m": 0.098,
+    "possible_contact": false
+   },
+   "duck_c": {
+    "passed_at_run": true,
+    "passed_current_verifier": true,
+    "verify_type": "near_object",
+    "final_pose": {
+     "x": 1.137,
+     "y": 0.705,
+     "z": 0.117
+    },
+    "distance_m": 0.217,
+    "fallen": false,
+    "agent_claimed_success": true,
+    "min_clearance_m": 0.166,
+    "possible_contact": false
+   }
+  },
+  "note": "detector stand-in; centre-radius verifier at run time"
+ },
+ {
+  "run": "gym1",
+  "scenario": "creative_gym",
+  "sim_time_s": 43.7,
+  "wall_s": 266.0,
+  "llm_calls": 23,
+  "reverified": true,
+  "robots": {
+   "duck_a": {
+    "passed_at_run": false,
+    "passed_current_verifier": false,
+    "verify_type": "reach",
+    "final_pose": {
+     "x": -2.571,
+     "y": 0.254,
+     "z": 0.134
+    },
+    "distance_m": 1.777,
+    "fallen": false,
+    "agent_claimed_success": false,
+    "min_clearance_m": null,
+    "possible_contact": false
+   }
+  },
+  "note": "extra scenario: onboard_hero fell on the ridge, get_up recovered, stuck tilted"
+ },
+ {
+  "run": "backstage5",
+  "scenario": "backstage_obstacles",
+  "sim_time_s": 68.1,
+  "wall_s": 553.0,
+  "llm_calls": 41,
+  "reverified": true,
+  "robots": {
+   "duck_a": {
+    "passed_at_run": false,
+    "passed_current_verifier": false,
+    "verify_type": "reach",
+    "final_pose": {
+     "x": 1.508,
+     "y": -0.014,
+     "z": 0.119
+    },
+    "distance_m": 1.113,
+    "fallen": false,
+    "agent_claimed_success": false,
+    "min_clearance_m": 0.044,
+    "possible_contact": false
+   }
+  },
+  "note": "no_contact verifier from here on; budget exhausted"
+ },
+ {
+  "run": "multiroom3",
+  "scenario": "multi_room_fetch",
+  "sim_time_s": 64.8,
+  "wall_s": 182.9,
+  "llm_calls": 45,
+  "reverified": true,
+  "robots": {
+   "duck_a": {
+    "passed_at_run": false,
+    "passed_current_verifier": false,
+    "verify_type": "near_object",
+    "final_pose": {
+     "x": 1.613,
+     "y": -0.142,
+     "z": 0.117
+    },
+    "distance_m": 2.148,
+    "fallen": false,
+    "agent_claimed_success": false,
+    "min_clearance_m": 0.257,
+    "possible_contact": false
+   },
+   "duck_b": {
+    "passed_at_run": true,
+    "passed_current_verifier": true,
+    "verify_type": "upright",
+    "final_pose": {
+     "x": 1.429,
+     "y": 0.302,
+     "z": 0.118
+    },
+    "distance_m": null,
+    "fallen": false,
+    "agent_claimed_success": false,
+    "min_clearance_m": 0.202,
+    "possible_contact": false
+   },
+   "duck_c": {
+    "passed_at_run": false,
+    "passed_current_verifier": true,
+    "verify_type": "near_object",
+    "final_pose": {
+     "x": 1.01,
+     "y": 0.546,
+     "z": 0.116
+    },
+    "distance_m": 0.396,
+    "fallen": false,
+    "agent_claimed_success": true,
+    "min_clearance_m": 0.261,
+    "possible_contact": false
+   }
+  },
+  "note": "planner with 0.25 m inflation closed the 0.5 m doorway: agents gave up"
+ },
+ {
+  "run": "backstage6",
+  "scenario": "backstage_obstacles",
+  "sim_time_s": 62.4,
+  "wall_s": 383.5,
+  "llm_calls": 41,
+  "reverified": true,
+  "robots": {
+   "duck_a": {
+    "passed_at_run": false,
+    "passed_current_verifier": false,
+    "verify_type": "reach",
+    "final_pose": {
+     "x": 1.02,
+     "y": 0.404,
+     "z": 0.116
+    },
+    "distance_m": 1.593,
+    "fallen": false,
+    "agent_claimed_success": false,
+    "min_clearance_m": 0.085,
+    "possible_contact": false
+   }
+  },
+  "note": "agent requested 0.25-0.30 m inflation: no path through 0.36-0.39 m gaps"
+ },
+ {
+  "run": "multiroom4",
+  "scenario": "multi_room_fetch",
+  "sim_time_s": 149.7,
+  "wall_s": 339.3,
+  "llm_calls": 63,
+  "reverified": true,
+  "robots": {
+   "duck_a": {
+    "passed_at_run": true,
+    "passed_current_verifier": true,
+    "verify_type": "near_object",
+    "final_pose": {
+     "x": 3.302,
+     "y": -0.744,
+     "z": 0.117
+    },
+    "distance_m": 0.398,
+    "fallen": false,
+    "agent_claimed_success": true,
+    "min_clearance_m": 0.066,
+    "possible_contact": false
+   },
+   "duck_b": {
+    "passed_at_run": true,
+    "passed_current_verifier": true,
+    "verify_type": "upright",
+    "final_pose": {
+     "x": 4.091,
+     "y": 0.475,
+     "z": 0.118
+    },
+    "distance_m": null,
+    "fallen": false,
+    "agent_claimed_success": true,
+    "min_clearance_m": 0.068,
+    "possible_contact": false
+   },
+   "duck_c": {
+    "passed_at_run": false,
+    "passed_current_verifier": false,
+    "verify_type": "near_object",
+    "final_pose": {
+     "x": 0.948,
+     "y": 0.692,
+     "z": 0.117
+    },
+    "distance_m": 0.406,
+    "fallen": false,
+    "agent_claimed_success": true,
+    "min_clearance_m": 0.261,
+    "possible_contact": false
+   }
+  },
+  "note": "planner 0.18 m; centre-radius verifier at run time"
+ },
+ {
+  "run": "backstage7",
+  "scenario": "backstage_obstacles",
+  "sim_time_s": 49.0,
+  "wall_s": 265.9,
+  "llm_calls": 27,
+  "reverified": true,
+  "robots": {
+   "duck_a": {
+    "passed_at_run": false,
+    "passed_current_verifier": false,
+    "verify_type": "reach",
+    "final_pose": {
+     "x": 1.513,
+     "y": 0.171,
+     "z": 0.116
+    },
+    "distance_m": 1.087,
+    "fallen": false,
+    "agent_claimed_success": false,
+    "min_clearance_m": 0.137,
+    "possible_contact": false
+   }
+  },
+  "note": "stopped by me mid-run (old planner superseded)"
+ },
+ {
+  "run": "backstage8",
+  "scenario": "backstage_obstacles",
+  "sim_time_s": 23.4,
+  "wall_s": 134.2,
+  "llm_calls": 11,
+  "reverified": true,
+  "robots": {
+   "duck_a": {
+    "passed_at_run": false,
+    "passed_current_verifier": false,
+    "verify_type": "reach",
+    "final_pose": {
+     "x": 1.059,
+     "y": -0.365,
+     "z": 0.119
+    },
+    "distance_m": 1.642,
+    "fallen": false,
+    "agent_claimed_success": false,
+    "min_clearance_m": 0.136,
+    "possible_contact": false
+   }
+  },
+  "note": "gave up after two no-path plans at 0.30/0.25 m (before automatic retry)"
+ },
+ {
+  "run": "multiroom5",
+  "scenario": "multi_room_fetch",
+  "sim_time_s": 190.7,
+  "wall_s": 413.4,
+  "llm_calls": 83,
+  "reverified": true,
+  "robots": {
+   "duck_a": {
+    "passed_at_run": true,
+    "passed_current_verifier": true,
+    "verify_type": "near_object",
+    "final_pose": {
+     "x": 3.306,
+     "y": -0.796,
+     "z": 0.117
+    },
+    "distance_m": 0.394,
+    "fallen": false,
+    "agent_claimed_success": true,
+    "min_clearance_m": 0.114,
+    "possible_contact": false
+   },
+   "duck_b": {
+    "passed_at_run": true,
+    "passed_current_verifier": true,
+    "verify_type": "upright",
+    "final_pose": {
+     "x": 3.927,
+     "y": -0.053,
+     "z": 0.119
+    },
+    "distance_m": null,
+    "fallen": false,
+    "agent_claimed_success": true,
+    "min_clearance_m": 0.0,
+    "possible_contact": true
+   },
+   "duck_c": {
+    "passed_at_run": false,
+    "passed_current_verifier": true,
+    "verify_type": "near_object",
+    "final_pose": {
+     "x": 0.967,
+     "y": 0.686,
+     "z": 0.117
+    },
+    "distance_m": 0.388,
+    "fallen": false,
+    "agent_claimed_success": true,
+    "min_clearance_m": 0.261,
+    "possible_contact": false
+   }
+  },
+  "note": "centre-radius verifier at run time; 3/3 under the corrected base-to-surface verifier"
+ },
+ {
+  "run": "backstage9",
+  "scenario": "backstage_obstacles",
+  "sim_time_s": 51.0,
+  "wall_s": 210.2,
+  "llm_calls": 21,
+  "reverified": true,
+  "robots": {
+   "duck_a": {
+    "passed_at_run": true,
+    "passed_current_verifier": true,
+    "verify_type": "reach",
+    "final_pose": {
+     "x": 2.361,
+     "y": 0.14,
+     "z": 0.116
+    },
+    "distance_m": 0.247,
+    "fallen": false,
+    "agent_claimed_success": false,
+    "min_clearance_m": 0.056,
+    "possible_contact": false
+   }
+  },
+  "note": "planner auto-retry + base-to-surface prompt"
+ },
+ {
+  "run": "backstage10",
+  "scenario": "backstage_obstacles",
+  "sim_time_s": 76.1,
+  "wall_s": 257.5,
+  "llm_calls": 25,
+  "reverified": true,
+  "robots": {
+   "duck_a": {
+    "passed_at_run": false,
+    "passed_current_verifier": false,
+    "verify_type": "reach",
+    "final_pose": {
+     "x": 2.336,
+     "y": 0.157,
+     "z": 0.119
+    },
+    "distance_m": 0.268,
+    "fallen": false,
+    "agent_claimed_success": false,
+    "min_clearance_m": 0.0,
+    "possible_contact": true
+   }
+  },
+  "note": "parallel attempt with the same code as backstage9"
+ },
+ {
+  "run": "multiroom6",
+  "scenario": "multi_room_fetch",
+  "sim_time_s": 178.3,
+  "wall_s": 445.7,
+  "llm_calls": 70,
+  "reverified": true,
+  "robots": {
+   "duck_a": {
+    "passed_at_run": true,
+    "passed_current_verifier": true,
+    "verify_type": "near_object",
+    "final_pose": {
+     "x": 3.337,
+     "y": -0.796,
+     "z": 0.117
+    },
+    "distance_m": 0.363,
+    "fallen": false,
+    "agent_claimed_success": true,
+    "min_clearance_m": 0.011,
+    "possible_contact": true
+   },
+   "duck_b": {
+    "passed_at_run": true,
+    "passed_current_verifier": true,
+    "verify_type": "upright",
+    "final_pose": {
+     "x": 3.997,
+     "y": -0.233,
+     "z": 0.119
+    },
+    "distance_m": null,
+    "fallen": false,
+    "agent_claimed_success": true,
+    "min_clearance_m": 0.0,
+    "possible_contact": true
+   },
+   "duck_c": {
+    "passed_at_run": true,
+    "passed_current_verifier": true,
+    "verify_type": "near_object",
+    "final_pose": {
+     "x": 0.988,
+     "y": 0.654,
+     "z": 0.117
+    },
+    "distance_m": 0.375,
+    "fallen": false,
+    "agent_claimed_success": true,
+    "min_clearance_m": 0.252,
+    "possible_contact": false
+   }
+  },
+  "note": "fresh run under the near_object (base-to-surface) verifier"
+ }
+]

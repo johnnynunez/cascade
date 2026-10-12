@@ -1,0 +1,42 @@
+# Three MicroDucks, two rooms joined by a doorway; each robot has its own memory and its own ToF map.
+version: 1
+name: multi_room_fetch
+title: "Two rooms, three ducks: find the red and the blue box"
+scene: demo/microduck_agentic/multi_room_fetch.usda
+bounds: [-0.6, -1.35, 4.6, 1.35]
+floor_z: 0.0
+settle_s: 1.0
+max_sim_s: 240
+max_steps: 45
+context: >-
+  Scene: two rooms side by side (room A x < 2.0, room B x > 2.0), separated by a wall with one doorway about 0.5 m
+  wide; walls are 0.25 m tall. Other MicroDucks work here too, but they are in separate simulated worlds: you cannot
+  see them with your sensors and cannot bump into them. Use the fleet board to coordinate.
+robots:
+  - name: duck_a
+    spawn: {x: 0.0, y: -0.6, yaw_deg: 0}
+    task: >-
+      Find the RED box (it is not in your starting room) and stop within 0.4 m of it. Post on the fleet board what you
+      find on the way.
+  - name: duck_b
+    spawn: {x: 0.0, y: 0.6, yaw_deg: 0}
+    task: >-
+      Explore and map: find the doorway, map the second room, and post every coloured object you see with its
+      approximate position on the fleet board. End when room B is mapped.
+  - name: duck_c
+    spawn: {x: 0.5, y: 0.25, yaw_deg: 90, fallen: back}
+    task: >-
+      You start somewhere in room A, maybe not upright. Find the BLUE box and stop within 0.4 m of it. Check the fleet
+      board for hints.
+# Object identity comes from a disclosed detector stand-in (simulator ground truth inside the head camera's field of
+# view, 2.5 m, walls occlude): the 48x36 head RGB only draws the first 1.5 m and renders the floor cyan-blue.
+detectable: {RedBox: red box, BlueBox: blue box, Crate: wooden crate, CaseB: flight case}
+occluders: [Outer, Inner]
+verify:
+  # base-to-box-surface distance (the task says "within 0.4 m of it"); footprints from build_scenes.py (0.2 m boxes)
+  duck_a: {type: near_object, object: RedBox, footprint: [3.70, -0.85, 3.90, -0.65], max_m: 0.4}
+  duck_b: {type: upright}
+  duck_c: {type: near_object, object: BlueBox, footprint: [1.35, 0.75, 1.55, 0.95], max_m: 0.4}
+render:
+  overview: {eye: [2.0, -3.6, 3.4], target: [2.0, 0.0, 0.0]}
+  follow: {distance: 0.9, height: 0.6}

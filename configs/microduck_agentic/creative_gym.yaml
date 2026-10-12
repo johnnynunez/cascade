@@ -1,0 +1,34 @@
+# Single MicroDuck in the Creative MicroDuck Gym (physics course derived from the Creative gym asset by the gym100
+# workstream). The course is NOT vendored: point CASCADE_MICRODUCK_GYM_COURSE at gym_course.py's course_single.usda;
+# the run refuses any other file (sha256 pin below).
+version: 1
+name: creative_gym
+title: "Creative MicroDuck Gym: cross the gentle-ridge lane"
+scene_env: CASCADE_MICRODUCK_GYM_COURSE
+scene_sha256: 8251438ac836c6220f992ab9e4fe47c7613fbfa71b40095e287874d06ca831c7
+# OVRTX replay only: course_single.usda holds guide-purpose (non-rendered) collision meshes, so the review video renders
+# its source asset, the Creative gym collision USD (same frame), pinned by sha256 and named by env var.
+render_scene_env: CASCADE_MICRODUCK_GYM_VISUAL
+render_scene_sha256: bdc0acabdace287a8dbb49ff69dc0dcac4977ff36f287afbf4d80409c7417f15
+bounds: [-3.4, -3.0, 2.4, 2.2]
+floor_z: 0.0
+settle_s: 1.0
+max_sim_s: 150
+max_steps: 28
+context: >-
+  Scene: the MicroDuck Gym, a 5 x 5 m training floor with seven parallel training lanes along +x (ramps, ridges,
+  steps, surface changes). Lane surfaces rise up to 0.10-0.22 m; the ToF reports raised surfaces as obstacles
+  because they are higher than the floor you stand on, but gentle ramps can be walked over. The onboard perception
+  policy was trained on ramp/step lanes like these; the velocity walker was trained on flat ground.
+robots:
+  - name: duck_a
+    spawn: {x: -3.0, y: 0.4, yaw_deg: 0}
+    task: >-
+      You stand just before the start of the gentle-ridge training lane (a ~10 cm high ramp up and down, 0.4 m wide,
+      running along +x from x = -2.7 to x = -1.1 at y = 0.4). Cross the whole lane and stop on the open floor past its
+      end, near (-0.8, 0.4), upright. Pick the controller you think fits the terrain.
+verify:
+  duck_a: {type: reach, x: -0.8, y: 0.4, radius: 0.3}
+render:
+  overview: {eye: [-1.0, -2.6, 2.0], target: [-1.9, 0.4, 0.0]}
+  follow: {distance: 0.9, height: 0.55}

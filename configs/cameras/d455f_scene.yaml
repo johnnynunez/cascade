@@ -5,8 +5,11 @@
 # serial binds to whichever unit librealsense enumerates first, which is
 # arbitrary and can flip between boots.
 #
-# Firmware 5.17.0.10 (updated 2026-08-15). Min depth ~0.52 m at 1280x720 --
-# keep the tripod far enough back; below it depth returns 0 (invalid).
+# Firmware 5.17.0.10 (updated 2026-08-15). width/height select COLOR;
+# the backend lets librealsense choose native depth, then aligns it to color.
+# This mounting was collected at depth 848x480 / color 1280x720, both 30 fps.
+# min_depth_m still rejects unreliable close-range data; do not lower it
+# to recover cropped/invalid arm points during calibration.
 type: realsense
 serial: "261522301814"
 width: 1280
@@ -18,7 +21,7 @@ warmup_frames: 15
 
 extrinsics:
   mode: eye_to_hand
-  # PLACEHOLDER T_cam2base copied from d455f.yaml. Calibrate on the rig
+  # Fixed-camera calibration for this rig. Recalibrate after any mount change
   # (marker on top of the gripper, docs/HANDEYE_CALIBRATION.md):
   #   python scripts/calibrate_handeye.py --camera d455f_scene --arm rebot_rs
   # or markerless (no marker: the arm's meshes fitted in depth; this T is
@@ -26,19 +29,22 @@ extrinsics:
   #   python scripts/calibrate_handeye.py --camera d455f_scene --arm rebot_rs --method markerless
   # then enable the record (it takes precedence over T below; a missing or
   # rejected record turns 3D fusion OFF for this camera rather than fall back):
-  # Calibrated on THIS rig 2026-10-11 (markerless, 37/37 poses, rmse 3.3 mm):
+  # Accepted on THIS fixed mounting, 2026-10-12: native markerless sweep,
+  # 21/21 preselected observable poses; 70.6% inliers, RMSE 3.1 mm,
+  # maximum per-pose disagreement 0.81 deg. No post-fit sample exclusions.
+  # Moving either the camera mount or robot base invalidates this record.
+  # The accepted record overrides the rough starting T below.
   hand_eye_json: ${repo}/configs/calib/d455f_scene_rebot_rs.handeye.json
-  # ROUGH starting guess on the NEW table (2026-10-12), not a calibration:
-  # 180 cm table, arm on the back long edge 45 cm from the left end, camera
-  # beyond that end ~45 cm up looking along the table (operator's sketch) +
-  # the table plane in depth (43.3 cm up, 22.3 deg down, roll -2.1 deg) + a
-  # single-view fit of the arm at rest (explains 57 % of the visible arm; four
-  # starts converge to camera (0.385, -0.698, 0.417) m in base, yaw 87 deg).
-  # Refine with --method markerless.
+  # ROUGH START ONLY: current fixed mounting after repositioning/re-aiming.
+  # Read-only RGB-D and joint capture 2026-10-12 19:01; table plane gives
+  # 46.1 cm height, matching the operator's 45-46 cm lens-centre measurement.
+  # Four single-pose refinements agree: (0.311, -0.567, 0.465) m in base,
+  # explaining 74.7% of the visible arm. This is NOT an accepted calibration.
+  # The supervised sweep's accepted result is in hand_eye_json above.
   T:
-    - [ 0.99634, -0.07313,  0.04432,  0.38457]
-    - [-0.06814, -0.36598,  0.92812, -0.69783]
-    - [-0.05165, -0.92774, -0.36962,  0.41696]
+    - [ 0.99676, -0.05288, -0.06054,  0.31097]
+    - [ 0.02148, -0.55047,  0.83458, -0.56678]
+    - [-0.07746, -0.83318, -0.54756,  0.46483]
     - [ 0.00000,  0.00000,  0.00000,  1.00000]
   # Runtime extrinsic drift monitor (docs/HANDEYE_CALIBRATION.md): while the
   # arm is static, checks that depth still matches the arm at FK through

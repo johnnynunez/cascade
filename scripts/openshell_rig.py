@@ -36,6 +36,12 @@ Everything this route owns lives under $CASCADE_OPENSHELL_HOME (default
 ~/.cascade/openshell, 0700), including its own XDG config/state: NemoClaw's
 0.0.116 CLI keeps its gateway registry in ~/.config/openshell, and two CLI
 generations sharing one registry would overwrite each other's active gateway.
+
+The names, ports, units, provider ids and home above are the default
+instance's. `--instance NAME` (or $CASCADE_OPENSHELL_INSTANCE) runs another,
+isolated route next to it with its own of each (docs/OPENSHELL.md, Instances):
+
+    scripts/openshell_rig.py --instance sim instance   # print its scheme, touch nothing
 """
 
 from __future__ import annotations
@@ -45,6 +51,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import secrets
 import stat
 import subprocess
@@ -53,6 +60,7 @@ import tarfile
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 
@@ -76,11 +84,21 @@ ARTIFACTS = {
 }
 BINARY = {"cli": "openshell", "gateway": "openshell-gateway"}
 
+# The default instance: the route exactly as it ran before instances existed
+# (the live rig's). A named instance derives each of these from its name in
+# `instance()`; everything else reaches them only through an `Instance`.
 GATEWAY_NAME = "cascade"
 GATEWAY_PORT = 17670
 GATEWAY_UNIT = "cascade-openshell-gateway"
 CHAT_UNIT = "cascade-openshell-chat"
+#: The transient systemd user timer that runs `motion lock` at expiry.
+RELOCK_UNIT = "cascade-openshell-relock"
+#: The unit docs/OPENSHELL.md runs `serve-mcp` under (this script never starts it).
+MCP_UNIT = "cascade-openshell-mcp"
 SANDBOX_LABEL = "cascade-openshell"
+BRAIN_PROVIDER = "cascade-brain"   # provider name = its profile id = its --type
+ROBOT_PROVIDER = "cascade-robot"
+HOME_NAME = "openshell"            # ~/.cascade/<HOME_NAME>
 
 HOST_ALIAS = "host.openshell.internal"   # the supervisor maps it to the host's loopback
 BRAIN_KEY_ENV = "CASCADE_BRAIN_API_KEY"
@@ -113,8 +131,114 @@ class Settings:
     sandbox: str = DEFAULT_SANDBOX
 
 
-def home_dir() -> Path:
-    return Path(os.environ.get("CASCADE_OPENSHELL_HOME", Path.home() / ".cascade" / "openshell"))
+# ── instances: several isolated routes on one host ────────────────────────
+
+INSTANCE_ENV = "CASCADE_OPENSHELL_INSTANCE"
+_INSTANCE_NAME = re.compile(r"[a-z][a-z0-9-]{0,15}")
+#: A named instance's ports come from one of this many slots (sha256 of its name).
+PORT_SLOTS = 99
+
+
+@dataclass(frozen=True)
+class Instance:
+    """Everything that tells one route apart from another on a shared host.
+    Provider ids are global per gateway and units per user, so a second
+    route reusing any of these would update or stop the first one's."""
+    name: str               # "" = the default instance
+    gateway_name: str
+    gateway_port: int
+    gateway_unit: str
+    chat_unit: str
+    relock_unit: str
+    mcp_unit: str
+    sandbox_label: str
+    brain_provider: str
+    robot_provider: str
+    sandbox: str            # default for --sandbox
+    mcp_port: int           # default for --mcp-port
+    chat_port: int          # default for --chat-port
+    home_name: str          # ~/.cascade/<home_name>
+
+    def home(self) -> Path:
+        """Its state directory; CASCADE_OPENSHELL_HOME still overrides it."""
+        return Path(os.environ.get("CASCADE_OPENSHELL_HOME", Path.home() / ".cascade" / self.home_name))
+
+    def settings(self) -> Settings:
+        """The settings `up` uses when neither a flag nor a saved value says otherwise."""
+        return Settings(mcp_port=self.mcp_port, chat_port=self.chat_port, sandbox=self.sandbox)
+
+    def cli(self) -> str:
+        """How to address this instance in a hint to the operator."""
+        return "scripts/openshell_rig.py" + (f" --instance {self.name}" if self.name else "")
+
+
+def port_slot(name: str) -> int:
+    """1..PORT_SLOTS, the same on every run and host (sha256, not hash())."""
+    return 1 + int(hashlib.sha256(name.encode()).hexdigest(), 16) % PORT_SLOTS
+
+
+def named_ports(slot: int) -> tuple[int, int, int]:
+    """(gateway, MCP, chat) of a named instance: one band of 100 per role
+    right above the default gateway (17671.., 17771.., 17871..), clear of
+    the default route (17670, 18741, 18799), NemoClaw (18740, 18789) and
+    OpenClaw (18790, 18791)."""
+    return GATEWAY_PORT + slot, GATEWAY_PORT + 100 + slot, GATEWAY_PORT + 200 + slot
+
+
+def instance(name: str = "") -> Instance:
+    """The instance table. "" is the default instance: today's names,
+    ports, units, ids and home. A named instance derives every one of them
+    from its name (see docs/OPENSHELL.md, Instances)."""
+    if not name:
+        return Instance(name="", gateway_name=GATEWAY_NAME, gateway_port=GATEWAY_PORT,
+                        gateway_unit=GATEWAY_UNIT, chat_unit=CHAT_UNIT, relock_unit=RELOCK_UNIT,
+                        mcp_unit=MCP_UNIT, sandbox_label=SANDBOX_LABEL, brain_provider=BRAIN_PROVIDER,
+                        robot_provider=ROBOT_PROVIDER, sandbox=DEFAULT_SANDBOX, mcp_port=DEFAULT_MCP_PORT,
+                        chat_port=DEFAULT_CHAT_PORT, home_name=HOME_NAME)
+    if name == "default" or not _INSTANCE_NAME.fullmatch(name):
+        raise SystemExit(f"invalid instance name {name!r}: use 1-16 of a-z, 0-9 and '-', starting with a letter "
+                         "('default' is reserved: omit --instance and CASCADE_OPENSHELL_INSTANCE for the default instance)")
+    gateway_port, mcp_port, chat_port = named_ports(port_slot(name))
+    return Instance(name=name, gateway_name=f"cascade-{name}", gateway_port=gateway_port,
+                    gateway_unit=f"cascade-openshell-{name}-gateway", chat_unit=f"cascade-openshell-{name}-chat",
+                    relock_unit=f"cascade-openshell-{name}-relock", mcp_unit=f"cascade-openshell-{name}-mcp",
+                    sandbox_label=f"cascade-openshell-{name}", brain_provider=f"cascade-{name}-brain",
+                    robot_provider=f"cascade-{name}-robot", sandbox=f"cascade-{name}-agent",
+                    mcp_port=mcp_port, chat_port=chat_port, home_name=f"openshell-{name}")
+
+
+DEFAULT_INSTANCE = instance("")
+
+
+def resolve_instance(cli: str | None, env: Mapping[str, str] | None = None) -> Instance:
+    """--instance wins over $CASCADE_OPENSHELL_INSTANCE; empty or absent
+    selects the default instance (so `--instance ''` overrides the env)."""
+    environ = os.environ if env is None else env
+    return instance(cli if cli is not None else environ.get(INSTANCE_ENV, ""))
+
+
+def home_dir(inst: Instance = DEFAULT_INSTANCE) -> Path:
+    return inst.home()
+
+
+def claim_home(inst: Instance, home: Path) -> None:
+    """One home, one instance. CASCADE_OPENSHELL_HOME overrides the home of
+    any instance, so a stray export could point a named instance at the
+    live route's state (its token, its lock, its gateway). A named instance
+    marks its home with an `instance` file and only claims an empty home or
+    its own; the default route (whose home carries no mark, as before)
+    refuses a marked one."""
+    marker = home / "instance"
+    owner = marker.read_text().strip() if marker.is_file() else ""
+    if owner == inst.name:
+        return
+    if owner or (inst.name and home.is_dir() and any(home.iterdir())):
+        theirs = f"instance {owner!r}" if owner else "the default instance"
+        ours = f"instance {inst.name!r}" if inst.name else "the default instance"
+        raise SystemExit(f"{home} belongs to {theirs}, not to {ours}: unset CASCADE_OPENSHELL_HOME "
+                         "or point it at this instance's own directory")
+    home.mkdir(parents=True, exist_ok=True, mode=0o700)
+    marker.write_text(inst.name + "\n")
 
 
 def artifact(machine: str, kind: str) -> tuple[str, str]:
@@ -168,26 +292,27 @@ def openshell_env(home: Path, base: dict | None = None) -> dict:
     return env
 
 
-def gateway_toml() -> str:
-    """Schema v2 gateway config: Docker driver, a 127.0.0.1:17670 listener,
-    sandboxes labelled apart from NemoClaw's."""
+def gateway_toml(inst: Instance = DEFAULT_INSTANCE) -> str:
+    """Schema v2 gateway config: Docker driver, the instance's loopback
+    listener, sandboxes labelled apart from NemoClaw's and other instances'."""
     return (
         "[openshell]\n"
         "version = 2\n\n"
         "[openshell.gateway]\n"
-        f'name = "{GATEWAY_NAME}"\n'
+        f'name = "{inst.gateway_name}"\n'
         'compute_driver = "docker"\n'
-        f'bind_address = "127.0.0.1:{GATEWAY_PORT}"\n\n'
+        f'bind_address = "127.0.0.1:{inst.gateway_port}"\n\n'
         "[openshell.drivers.docker]\n"
-        f'sandbox_label = "{SANDBOX_LABEL}"\n'
+        f'sandbox_label = "{inst.sandbox_label}"\n'
     )
 
 
-def brain_profile(port: int = DEFAULT_BRAIN_PORT) -> dict:
+def brain_profile(port: int = DEFAULT_BRAIN_PORT, *, inst: Instance = DEFAULT_INSTANCE) -> dict:
     """Provider profile for the host brain: its bearer key is substituted only
-    on requests to host.openshell.internal:<port> from the agent's node."""
+    on requests to host.openshell.internal:<port> from the agent's node.
+    The brain itself is shared: every instance reaches the same host LLM."""
     return {
-        "id": "cascade-brain",
+        "id": inst.brain_provider,
         "display_name": "cascade brain (host OpenAI-compatible server)",
         "description": "Qwen3.8 on the host (vLLM or llama-server), bearer-protected, loopback-only",
         "category": "inference",
@@ -206,13 +331,16 @@ def brain_profile(port: int = DEFAULT_BRAIN_PORT) -> dict:
     }
 
 
-def robot_profile(port: int = DEFAULT_MCP_PORT, deny: tuple[str, ...] = DEFAULT_DENY_TOOLS) -> dict:
+def robot_profile(port: int | None = None, deny: tuple[str, ...] = DEFAULT_DENY_TOOLS, *,
+                  inst: Instance = DEFAULT_INSTANCE) -> dict:
     """Provider profile for cascade's MCP server: the bearer token is
-    substituted only on MCP requests to host.openshell.internal:<port>/mcp,
-    and OpenShell itself refuses `tools/call` of every denied tool (L7,
-    403 policy_denied) before the request leaves the sandbox."""
+    substituted only on MCP requests to host.openshell.internal:<port>/mcp
+    (default: the instance's MCP port), and OpenShell itself refuses
+    `tools/call` of every denied tool (L7, 403 policy_denied) before the
+    request leaves the sandbox."""
+    port = inst.mcp_port if port is None else port
     return {
-        "id": "cascade-robot",
+        "id": inst.robot_provider,
         "display_name": "cascade robot tools (MCP)",
         "description": "cascade's MCP server on the host loopback (arm + cameras), bearer-protected",
         "category": "other",
@@ -307,13 +435,13 @@ def image_tag(ctx: Path = DEPLOY) -> str:
     return f"cascade/openclaw-sandbox:{pin}-{h.hexdigest()[:12]}"
 
 
-def sandbox_create_argv(cfg: Settings, image: str) -> list[str]:
+def sandbox_create_argv(cfg: Settings, image: str, *, inst: Instance = DEFAULT_INSTANCE) -> list[str]:
     """`openshell sandbox create` for the agent. Only non-secret values go
-    through --env; both credentials ride the providers."""
+    through --env; both credentials ride the instance's providers."""
     env = {"CASCADE_BRAIN_PORT": cfg.brain_port, "CASCADE_MCP_PORT": cfg.mcp_port,
            "CASCADE_CHAT_PORT": cfg.chat_port, "CASCADE_MODEL": cfg.model}
     argv = ["sandbox", "create", "--name", cfg.sandbox, "--from", image,
-            "--provider", "cascade-brain", "--provider", "cascade-robot"]
+            "--provider", inst.brain_provider, "--provider", inst.robot_provider]
     for k, v in env.items():
         argv += ["--env", f"{k}={v}"]
     return argv + ["--restart-policy", "on-failure", "--detach", "--", "cascade-openclaw"]
@@ -500,7 +628,7 @@ def motion_locked(home: Path) -> bool:
 
 
 def set_motion_lock(home: Path, cfg: Settings, locked: bool, extra: tuple[str, ...] | None = None,
-                    run=_default_run) -> tuple[str, ...]:
+                    run=_default_run, *, inst: Instance = DEFAULT_INSTANCE) -> tuple[str, ...]:
     """Lock (observe-only) or unlock the arm at the OpenShell layer by
     updating the robot profile's deny rules. Live 0.1.3 propagates a profile
     update to the running sandbox within seconds, so neither the agent nor
@@ -512,7 +640,7 @@ def set_motion_lock(home: Path, cfg: Settings, locked: bool, extra: tuple[str, .
     if extra is None:
         extra = tuple(_read_state(home).get("deny_extra", ()))
     deny = deny_set(observe_only=locked, extra=extra)
-    sync_profile(home, robot_profile(cfg.mcp_port, deny), run=run)
+    sync_profile(home, robot_profile(cfg.mcp_port, deny, inst=inst), run=run)
     _write_state(home, motion_locked=locked, deny=list(deny), deny_extra=list(extra))
     return deny
 
@@ -525,8 +653,6 @@ DEFAULT_UNLOCK_S = 20 * 60
 #: and a re-lock mid-talk makes the agent refuse motion on stage), never a
 #: standing permission -- a rig left running overnight is observe-only again.
 MAX_UNLOCK_S = 12 * 3600
-#: The transient systemd user timer that runs `motion lock` at expiry.
-RELOCK_UNIT = "cascade-openshell-relock"
 #: Set in the re-lock unit's environment, so `motion lock` there does not
 #: stop its own service halfway through.
 RELOCK_ENV = "CASCADE_OPENSHELL_RELOCK"
@@ -548,44 +674,51 @@ def parse_duration(text: str) -> int:
     return value
 
 
-def _cancel_relock(run=_default_run) -> None:
-    """Drop a pending re-lock. Inside the re-lock unit itself (found live:
-    stopping its own .service killed `motion lock` halfway), only the timer
-    is touched; systemd collects the finished service."""
-    run(["systemctl", "--user", "stop", f"{RELOCK_UNIT}.timer"], capture_output=True, check=False)
+def _cancel_relock(run=_default_run, *, inst: Instance = DEFAULT_INSTANCE) -> None:
+    """Drop this instance's pending re-lock (never another instance's).
+    Inside the re-lock unit itself (found live: stopping its own .service
+    killed `motion lock` halfway), only the timer is touched; systemd
+    collects the finished service."""
+    unit = inst.relock_unit
+    run(["systemctl", "--user", "stop", f"{unit}.timer"], capture_output=True, check=False)
     if os.environ.get(RELOCK_ENV) == "1":
         return
-    run(["systemctl", "--user", "stop", f"{RELOCK_UNIT}.service"], capture_output=True, check=False)
-    run(["systemctl", "--user", "reset-failed", f"{RELOCK_UNIT}.timer", f"{RELOCK_UNIT}.service"],
+    run(["systemctl", "--user", "stop", f"{unit}.service"], capture_output=True, check=False)
+    run(["systemctl", "--user", "reset-failed", f"{unit}.timer", f"{unit}.service"],
         capture_output=True, check=False)
 
 
-def unlock_motion(home: Path, cfg: Settings, seconds: int = DEFAULT_UNLOCK_S, run=_default_run) -> tuple[str, ...]:
+def unlock_motion(home: Path, cfg: Settings, seconds: int = DEFAULT_UNLOCK_S, run=_default_run, *,
+                  inst: Instance = DEFAULT_INSTANCE) -> tuple[str, ...]:
     """Allow motion for `seconds`, then re-lock automatically.
 
     The re-lock (a transient systemd timer running `motion lock`) is
     scheduled BEFORE the profile is unlocked: if it cannot be scheduled, the
     arm stays locked. A timer outlives this shell and a crashed agent; it
-    does not outlive a reboot, after which `up` starts observe-only anyway."""
+    does not outlive a reboot, after which `up` starts observe-only anyway.
+    The timer re-enters this script with the same instance and home, so it
+    re-locks exactly the instance that unlocked."""
     seconds = int(seconds)
     if not 0 < seconds <= MAX_UNLOCK_S:
         raise SystemExit(f"unlock duration must be > 0 and <= {MAX_UNLOCK_S} s")
-    _cancel_relock(run)
-    r = run(["systemd-run", "--user", f"--unit={RELOCK_UNIT}", "--collect", f"--on-active={seconds}",
-             "-E", f"CASCADE_OPENSHELL_HOME={home}", "-E", f"{RELOCK_ENV}=1", sys.executable, str(Path(__file__).resolve()),
-             "motion", "lock"], capture_output=True, text=True, check=False)
+    _cancel_relock(run, inst=inst)
+    relock = [sys.executable, str(Path(__file__).resolve()), *(["--instance", inst.name] if inst.name else []),
+              "motion", "lock"]
+    r = run(["systemd-run", "--user", f"--unit={inst.relock_unit}", "--collect", f"--on-active={seconds}",
+             "-E", f"CASCADE_OPENSHELL_HOME={home}", "-E", f"{RELOCK_ENV}=1", *relock],
+            capture_output=True, text=True, check=False)
     if r.returncode != 0:
         raise SystemExit(f"could not schedule the automatic re-lock ({(r.stderr or '').strip()[:200]}); "
                          "motion stays LOCKED")
-    deny = set_motion_lock(home, cfg, locked=False, run=run)
+    deny = set_motion_lock(home, cfg, locked=False, run=run, inst=inst)
     _write_state(home, motion_unlocked_until=time.time() + seconds)
     return deny
 
 
-def lock_motion(home: Path, cfg: Settings, run=_default_run) -> tuple[str, ...]:
-    """Observe-only now (first), then drop any pending re-lock timer."""
-    deny = set_motion_lock(home, cfg, locked=True, run=run)
-    _cancel_relock(run)
+def lock_motion(home: Path, cfg: Settings, run=_default_run, *, inst: Instance = DEFAULT_INSTANCE) -> tuple[str, ...]:
+    """Observe-only now (first), then drop this instance's pending re-lock timer."""
+    deny = set_motion_lock(home, cfg, locked=True, run=run, inst=inst)
+    _cancel_relock(run, inst=inst)
     _drop_state(home, "motion_unlocked_until")
     return deny
 
@@ -610,9 +743,10 @@ def startup_locked(home: Path, *, observe_only: bool, allow_motion: bool) -> boo
     return not allow_motion or observe_only
 
 
-def _load_settings(home: Path, args) -> Settings:
+def _load_settings(home: Path, args, inst: Instance) -> Settings:
+    """A flag wins over the saved value, which wins over the instance's default."""
     saved = _read_state(home).get("settings", {})
-    base = Settings(**saved)
+    base = Settings(**{**asdict(inst.settings()), **saved})
     pick = {f: getattr(args, f, None) for f in asdict(base)}
     return Settings(**{k: (v if v is not None else getattr(base, k)) for k, v in pick.items()})
 
@@ -620,7 +754,7 @@ def _load_settings(home: Path, args) -> Settings:
 # ── commands ──────────────────────────────────────────────────────────────
 
 
-def cmd_install(home: Path, args) -> int:
+def cmd_install(inst: Instance, home: Path, args) -> int:
     if sys.platform != "linux":
         raise SystemExit("this profile needs native Linux (Docker driver, host.openshell.internal -> loopback)")
     home.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -638,43 +772,43 @@ def cmd_install(home: Path, args) -> int:
     env = openshell_env(home)
     conf = home / "config" / "openshell" / "gateway.toml"
     conf.parent.mkdir(parents=True, exist_ok=True)
-    conf.write_text(gateway_toml())
+    conf.write_text(gateway_toml(inst))
     tls = Path(env["OPENSHELL_LOCAL_TLS_DIR"])
     if not (tls / "ca.crt").exists():  # mTLS between this CLI and this gateway only
         tls.mkdir(parents=True, exist_ok=True, mode=0o700)
         subprocess.run([str(bindir / "openshell-gateway"), "generate-certs", "--output-dir", str(tls),
                         "--server-san", HOST_ALIAS], env=env, check=True)
     print(f"OpenShell {OPENSHELL_VERSION} in {bindir} (sha256 verified); gateway config {conf}")
-    print("next: scripts/openshell_rig.py gateway start")
+    print(f"next: {inst.cli()} gateway start")
     return 0
 
 
-def cmd_gateway(home: Path, args) -> int:
+def cmd_gateway(inst: Instance, home: Path, args) -> int:
     env = openshell_env(home)
     if args.action == "stop":
-        subprocess.run(["systemctl", "--user", "stop", GATEWAY_UNIT], capture_output=True, check=False)
-        print(f"{GATEWAY_UNIT} stopped")
+        subprocess.run(["systemctl", "--user", "stop", inst.gateway_unit], capture_output=True, check=False)
+        print(f"{inst.gateway_unit} stopped")
         return 0
     gw = home / OPENSHELL_VERSION / "bin" / "openshell-gateway"
     if not gw.exists():
-        raise SystemExit("OpenShell is not installed: scripts/openshell_rig.py install")
-    if args.action == "start" and not _unit_active(GATEWAY_UNIT):
-        _systemd_run(GATEWAY_UNIT, [str(gw)], env, home / "gateway.log")
+        raise SystemExit(f"OpenShell is not installed: {inst.cli()} install")
+    if args.action == "start" and not _unit_active(inst.gateway_unit):
+        _systemd_run(inst.gateway_unit, [str(gw)], env, home / "gateway.log")
     for _ in range(60):
         if _openshell(home, "status", check=False).returncode == 0:
             break
-        if _openshell(home, "gateway", "add", f"https://127.0.0.1:{GATEWAY_PORT}", "--name", GATEWAY_NAME,
+        if _openshell(home, "gateway", "add", f"https://127.0.0.1:{inst.gateway_port}", "--name", inst.gateway_name,
                       "--local", check=False).returncode == 0:
             continue
         time.sleep(1)
     else:
         raise SystemExit(f"gateway not healthy; see {home / 'gateway.log'}")
-    print(f"gateway `{GATEWAY_NAME}` healthy on 127.0.0.1:{GATEWAY_PORT} (unit {GATEWAY_UNIT})")
+    print(f"gateway `{inst.gateway_name}` healthy on 127.0.0.1:{inst.gateway_port} (unit {inst.gateway_unit})")
     return 0
 
 
-def cmd_serve_mcp(home: Path, args) -> int:
-    cfg = _load_settings(home, args)
+def cmd_serve_mcp(inst: Instance, home: Path, args) -> int:
+    cfg = _load_settings(home, args, inst)
     token_file = Path(args.mcp_token_file or home / "mcp.token")
     ensure_token(token_file)
     argv = serve_mcp_argv(cfg, token_file)
@@ -684,14 +818,14 @@ def cmd_serve_mcp(home: Path, args) -> int:
     return 0  # pragma: no cover
 
 
-def cmd_up(home: Path, args) -> int:
-    cfg = _load_settings(home, args)
+def cmd_up(inst: Instance, home: Path, args) -> int:
+    cfg = _load_settings(home, args, inst)
     brain_key_file = Path(args.brain_key_file).expanduser()
     token_file = Path(args.mcp_token_file or home / "mcp.token")
     if not (home / OPENSHELL_VERSION / "bin" / "openshell").exists():
-        raise SystemExit("OpenShell is not installed: scripts/openshell_rig.py install")
+        raise SystemExit(f"OpenShell is not installed: {inst.cli()} install")
     if _openshell(home, "status", check=False).returncode != 0:
-        raise SystemExit("cascade's OpenShell gateway is down: scripts/openshell_rig.py gateway start")
+        raise SystemExit(f"cascade's OpenShell gateway is down: {inst.cli()} gateway start")
     # Preflight on the host loopback: what the supervisor will reach.
     brain = _check_brain(cfg, read_secret(brain_key_file))
     if brain != 200:
@@ -700,22 +834,22 @@ def cmd_up(home: Path, args) -> int:
     mcp = _check_mcp(cfg, read_secret(token_file) if token_file.exists() else "")
     if mcp != 200:
         raise SystemExit(f"cascade MCP on 127.0.0.1:{cfg.mcp_port} answered {mcp}; start "
-                         "`scripts/openshell_rig.py serve-mcp` (under systemd-run, see docs/OPENSHELL.md)")
+                         f"`{inst.cli()} serve-mcp` (under systemd-run, see docs/OPENSHELL.md)")
     tag = image_tag()
     if subprocess.run(["docker", "image", "inspect", tag], capture_output=True, check=False).returncode != 0:
         print(f"building {tag}")
         subprocess.run(["docker", "build", "-t", tag, str(DEPLOY)], check=True)
-    sync_profile(home, brain_profile(cfg.brain_port))
+    sync_profile(home, brain_profile(cfg.brain_port, inst=inst))
     locked = startup_locked(home, observe_only=args.observe_only, allow_motion=args.allow_motion)
     if locked:
-        deny = set_motion_lock(home, cfg, True, extra=tuple(args.deny_tool or ()))
-        _cancel_relock()
+        deny = set_motion_lock(home, cfg, True, extra=tuple(args.deny_tool or ()), inst=inst)
+        _cancel_relock(inst=inst)
         _drop_state(home, "motion_unlocked_until")
     else:
         _write_state(home, deny_extra=list(args.deny_tool or ()))
-        deny = unlock_motion(home, cfg, parse_duration(args.for_) if args.for_ else DEFAULT_UNLOCK_S)
-    sync_provider(home, "cascade-brain", BRAIN_KEY_ENV, brain_key_file)
-    sync_provider(home, "cascade-robot", MCP_TOKEN_ENV, token_file)
+        deny = unlock_motion(home, cfg, parse_duration(args.for_) if args.for_ else DEFAULT_UNLOCK_S, inst=inst)
+    sync_provider(home, inst.brain_provider, BRAIN_KEY_ENV, brain_key_file)
+    sync_provider(home, inst.robot_provider, MCP_TOKEN_ENV, token_file)
     state = _read_state(home)
     phase = sandbox_phase(home, cfg.sandbox)
     stale = phase is not None and (args.recreate or state.get("image") != tag
@@ -725,7 +859,7 @@ def cmd_up(home: Path, args) -> int:
         _openshell(home, "sandbox", "delete", cfg.sandbox)
         phase = None
     if phase is None:
-        _openshell(home, *sandbox_create_argv(cfg, tag))
+        _openshell(home, *sandbox_create_argv(cfg, tag, inst=inst))
     for _ in range(90):
         phase = sandbox_phase(home, cfg.sandbox)
         if phase in ("Ready", "Error"):
@@ -735,24 +869,24 @@ def cmd_up(home: Path, args) -> int:
         raise SystemExit(f"sandbox {cfg.sandbox} is {phase}; see `{home}/os logs {cfg.sandbox}`")
     _write_state(home, image=tag, settings=asdict(cfg))
     env = openshell_env(home)
-    _systemd_run(CHAT_UNIT, [str(home / OPENSHELL_VERSION / "bin" / "openshell"), *forward_argv(cfg)],
+    _systemd_run(inst.chat_unit, [str(home / OPENSHELL_VERSION / "bin" / "openshell"), *forward_argv(cfg)],
                  env, home / "chat-forward.log")
     print(f"sandbox {cfg.sandbox} Ready ({tag}); chat on http://127.0.0.1:{cfg.chat_port}/")
     print(f"motion: {'LOCKED by OpenShell (observe-only)' if locked else motion_status(home)}; "
           f"denied at L7: {', '.join(deny) if len(deny) < 4 else f'{len(deny)} tools'}")
-    print("open it with the token: scripts/openshell_rig.py chat-url  (prints a secret)")
+    print(f"open it with the token: {inst.cli()} chat-url  (prints a secret)")
     return 0
 
 
-def cmd_motion(home: Path, args) -> int:
-    cfg = _load_settings(home, args)
+def cmd_motion(inst: Instance, home: Path, args) -> int:
+    cfg = _load_settings(home, args, inst)
     if args.action == "status":
         print(motion_status(home))
         return 0
     if args.action == "lock":
-        deny = lock_motion(home, cfg)
+        deny = lock_motion(home, cfg, inst=inst)
     else:
-        deny = unlock_motion(home, cfg, parse_duration(args.for_) if args.for_ else DEFAULT_UNLOCK_S)
+        deny = unlock_motion(home, cfg, parse_duration(args.for_) if args.for_ else DEFAULT_UNLOCK_S, inst=inst)
     print(f"motion {motion_status(home)}: OpenShell denies {', '.join(deny)}")
     print("takes effect in the running sandbox within ~10 s; emergency_stop and halt_motion always work")
     return 0
@@ -785,29 +919,30 @@ def open_chat(home: Path, cfg: Settings, run=_default_run, opener=None) -> None:
           "(click the extension, then Connect cameras)")
 
 
-def cmd_open(home: Path, args) -> int:
-    open_chat(home, _load_settings(home, args))
+def cmd_open(inst: Instance, home: Path, args) -> int:
+    open_chat(home, _load_settings(home, args, inst))
     return 0
 
 
-def cmd_chat_url(home: Path, args) -> int:
-    print(chat_url(home, _load_settings(home, args)))
+def cmd_chat_url(inst: Instance, home: Path, args) -> int:
+    print(chat_url(home, _load_settings(home, args, inst)))
     return 0
 
 
-def cmd_status(home: Path, args) -> int:
-    cfg = _load_settings(home, args)
+def cmd_status(inst: Instance, home: Path, args) -> int:
+    cfg = _load_settings(home, args, inst)
     installed = (home / OPENSHELL_VERSION / "bin" / "openshell").exists()
-    rows = [("openshell", f"{OPENSHELL_VERSION} installed" if installed else "not installed")]
+    rows = [("instance", f"{inst.name} ({home})")] if inst.name else []
+    rows.append(("openshell", f"{OPENSHELL_VERSION} installed" if installed else "not installed"))
     if installed:
         gw = _openshell(home, "status", check=False).returncode == 0
-        rows.append(("gateway", f"healthy on 127.0.0.1:{GATEWAY_PORT}" if gw else "down"))
+        rows.append(("gateway", f"healthy on 127.0.0.1:{inst.gateway_port}" if gw else "down"))
         if gw:
             rows.append(("sandbox", f"{cfg.sandbox}: {sandbox_phase(home, cfg.sandbox) or 'absent'}"))
-            for p in ("cascade-brain", "cascade-robot"):
+            for p in (inst.brain_provider, inst.robot_provider):
                 ok = _openshell(home, "provider", "get", p, check=False).returncode == 0
                 rows.append((f"provider {p}", "present" if ok else "absent"))
-    rows.append(("chat forward", f"127.0.0.1:{cfg.chat_port} ({'up' if _unit_active(CHAT_UNIT) else 'down'})"))
+    rows.append(("chat forward", f"127.0.0.1:{cfg.chat_port} ({'up' if _unit_active(inst.chat_unit) else 'down'})"))
     rows.append(("motion", "LOCKED by OpenShell (observe-only)" if motion_locked(home) else "allowed"))
     key_file = Path(args.brain_key_file).expanduser()
     brain = _check_brain(cfg, read_secret(key_file)) if key_file.exists() else "no key file"
@@ -820,14 +955,14 @@ def cmd_status(home: Path, args) -> int:
     return 0
 
 
-def cmd_down(home: Path, args) -> int:
-    cfg = _load_settings(home, args)
-    subprocess.run(["systemctl", "--user", "stop", CHAT_UNIT], capture_output=True, check=False)
+def cmd_down(inst: Instance, home: Path, args) -> int:
+    cfg = _load_settings(home, args, inst)
+    subprocess.run(["systemctl", "--user", "stop", inst.chat_unit], capture_output=True, check=False)
     if sandbox_phase(home, cfg.sandbox) is not None:
         _openshell(home, "sandbox", "delete", cfg.sandbox)
     print(f"chat forward stopped, sandbox {cfg.sandbox} deleted")
     if args.gateway:
-        return cmd_gateway(home, argparse.Namespace(action="stop"))
+        return cmd_gateway(inst, home, argparse.Namespace(action="stop"))
     return 0
 
 
@@ -835,21 +970,33 @@ def main(argv: list[str] | None = None) -> int:
     doc = __doc__ or ""
     ap = argparse.ArgumentParser(description=doc.split("\n\n")[0],
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
+    instance_help = (f"route instance (default ${INSTANCE_ENV}, else the default instance): its own home, "
+                     "gateway, units, providers, sandbox and ports; see docs/OPENSHELL.md, Instances")
+    ap.add_argument("--instance", default=None, metavar="NAME", help=instance_help)
     sub = ap.add_subparsers(dest="cmd", required=True)
 
+    def add(name, help_):
+        p = sub.add_parser(name, help=help_)
+        # also accepted after the command; absent there, the global value stands
+        p.add_argument("--instance", default=argparse.SUPPRESS, metavar="NAME", help=instance_help)
+        return p
+
+    d = DEFAULT_INSTANCE
+
     def settings_flags(p):
-        p.add_argument("--sandbox", default=None, help=f"sandbox name (default {DEFAULT_SANDBOX})")
+        p.add_argument("--sandbox", default=None, help=f"sandbox name (default: the instance's; {d.sandbox})")
         p.add_argument("--brain-port", type=int, default=None, help=f"host brain port (default {DEFAULT_BRAIN_PORT})")
-        p.add_argument("--mcp-port", type=int, default=None, help=f"host MCP port (default {DEFAULT_MCP_PORT})")
-        p.add_argument("--chat-port", type=int, default=None, help=f"host chat port (default {DEFAULT_CHAT_PORT})")
+        p.add_argument("--mcp-port", type=int, default=None, help=f"host MCP port (default: the instance's; {d.mcp_port})")
+        p.add_argument("--chat-port", type=int, default=None,
+                       help=f"host chat port (default: the instance's; {d.chat_port})")
         p.add_argument("--model", default=None, help=f"served model id (default {DEFAULT_MODEL})")
         p.add_argument("--brain-key-file", default=os.environ.get(
             "CASCADE_BRAIN_KEY_FILE", str(Path.home() / ".cascade" / "nemoclaw" / "llama.key")),
             help="0600 file with the brain's bearer key")
         p.add_argument("--mcp-token-file", default=None, help="0600 MCP token file (default <home>/mcp.token)")
 
-    sub.add_parser("install", help="download + verify OpenShell, write gateway config and certs")
-    g = sub.add_parser("gateway", help="cascade's own OpenShell gateway (systemd user unit)")
+    add("install", "download + verify OpenShell, write gateway config and certs")
+    g = add("gateway", "cascade's own OpenShell gateway (systemd user unit)")
     g.add_argument("action", choices=["start", "stop", "check"])
     for name, help_ in (("serve-mcp", "run cascade's MCP server on loopback (foreground)"),
                         ("up", "image, profiles, providers, sandbox, chat forward"),
@@ -857,7 +1004,7 @@ def main(argv: list[str] | None = None) -> int:
                         ("chat-url", "print the chat URL with its token (a secret)"),
                         ("status", "read-only health of every piece"),
                         ("down", "stop the chat forward and delete the sandbox")):
-        p = sub.add_parser(name, help=help_)
+        p = add(name, help_)
         settings_flags(p)
         if name == "up":
             p.add_argument("--recreate", action="store_true", help="delete and recreate the sandbox")
@@ -870,16 +1017,22 @@ def main(argv: list[str] | None = None) -> int:
             p.add_argument("--for", dest="for_", help="with --allow-motion: unlock duration (90s, 15m, 1h)")
         if name == "down":
             p.add_argument("--gateway", action="store_true", help="also stop the gateway")
-    m = sub.add_parser("motion", help="lock/unlock the arm at the OpenShell layer, live")
+    m = add("motion", "lock/unlock the arm at the OpenShell layer, live")
     m.add_argument("action", choices=["lock", "unlock", "status"])
     m.add_argument("--for", dest="for_", help="unlock duration (90s, 15m, 8h; default 20m, max 12h); "
                                              "every unlock re-locks itself")
     settings_flags(m)
+    add("instance", "print this instance's names, ports, units and home (JSON); touches nothing")
     args = ap.parse_args(argv)
-    home = home_dir()
+    inst = resolve_instance(args.instance)
+    home = home_dir(inst)
+    if args.cmd == "instance":
+        print(json.dumps({**asdict(inst), "home": str(home)}, indent=2))
+        return 0
+    claim_home(inst, home)
     return {"install": cmd_install, "gateway": cmd_gateway, "serve-mcp": cmd_serve_mcp, "up": cmd_up,
             "chat-url": cmd_chat_url, "open": cmd_open, "status": cmd_status, "down": cmd_down,
-            "motion": cmd_motion}[args.cmd](home, args)
+            "motion": cmd_motion}[args.cmd](inst, home, args)
 
 
 if __name__ == "__main__":

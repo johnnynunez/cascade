@@ -125,6 +125,70 @@ registry.
 `down` stops the chat forward and deletes the sandbox; `down --gateway` also
 stops the gateway.
 
+## Instances
+
+Everything above describes the **default instance**, which is the live rig's
+route. `--instance NAME` (or `CASCADE_OPENSHELL_INSTANCE=NAME`) runs another
+route next to it, fully isolated, for example a simulator agent beside the
+real robot. The flag wins over the variable, and `--instance ''` selects the
+default instance. A name is 1 to 16 characters from `a-z`, `0-9` and `-`,
+starting with a letter. `default` is reserved.
+
+| | default instance | named instance `<name>` | example: `sim` |
+|---|---|---|---|
+| home | `~/.cascade/openshell` | `~/.cascade/openshell-<name>` | `~/.cascade/openshell-sim` |
+| gateway | `cascade`, 127.0.0.1:17670 | `cascade-<name>`, 17670 + slot | `cascade-sim`, 17710 |
+| systemd units | `cascade-openshell-{gateway,chat,relock,mcp}` | `cascade-openshell-<name>-{gateway,chat,relock,mcp}` | `cascade-openshell-sim-gateway`, … |
+| providers = profile ids | `cascade-brain`, `cascade-robot` | `cascade-<name>-brain`, `cascade-<name>-robot` | `cascade-sim-brain`, `cascade-sim-robot` |
+| sandbox, Docker label | `cascade-agent`, `cascade-openshell` | `cascade-<name>-agent`, `cascade-openshell-<name>` | `cascade-sim-agent`, `cascade-openshell-sim` |
+| MCP port | 18741 | 17770 + slot | 17810 |
+| chat port | 18799 | 17870 + slot | 17910 |
+
+`slot = 1 + sha256(name) mod 99`, so `sim` gets slot 40. The three port bands
+(17671-17769, 17771-17869, 17871-17969) stay clear of the default route,
+NemoClaw (18740, 18789) and OpenClaw (18790, 18791). `scripts/openshell_rig.py
+--instance sim instance` prints a name's whole scheme as JSON and touches
+nothing. Two names can land on the same slot (about 1 in 99). Check with
+`instance` and pick another name: `--mcp-port` and `--chat-port` move those
+two ports, but the gateway port has no flag.
+
+- **Shared on purpose:** the brain (one host LLM: `--brain-port`, the key
+  file), the model and the sandbox image.
+- **Explicit flags still win.** `--sandbox`, `--mcp-port`, `--chat-port`,
+  `--brain-port`, `--model` and the token/key files override the instance's
+  defaults. They are remembered in that instance's `deployed.json` only.
+- **Each instance has its own re-lock.** `motion unlock` schedules that
+  instance's timer, which re-runs `--instance <name> motion lock` with that
+  instance's home. `motion lock` of one instance never cancels another
+  instance's timer. The deny list (every motion tool when locked,
+  `reset_stop` always, the stop tools never) is the same for every instance.
+- **One home, one instance.** A named instance writes an `instance` file into
+  its home. It refuses a home that holds another instance's state, for
+  example when `CASCADE_OPENSHELL_HOME` still points at the live route's
+  home. The default route, whose home carries no such file, refuses a marked
+  home.
+- **The MCP server behind a named instance is a second robot runtime.** Only
+  one process may own the CAN bus and the cameras, so give it the mock arm
+  and cameras (or other hardware). Give it its own state too:
+  `CASCADE_STREAM=0` (the live view's 8090 and the Spark camera service's
+  8091 belong to the live rig, and the camera extension always shows 8090),
+  `CASCADE_OCCUPANCY=0`, and private `CASCADE_BELIEFS_PATH`,
+  `CASCADE_GRASP_MEMORY_PATH`, `CASCADE_ENVELOPE_PATH`, `CASCADE_EPISODIC_PATH`
+  and `CASCADE_RUN_DIR`, so simulated outcomes never reach the real robot's
+  learned stores.
+
+```bash
+I=sim; RIG=(scripts/openshell_rig.py --instance "$I"); S=~/.cascade/openshell-$I
+"${RIG[@]}" install && "${RIG[@]}" gateway start      # 127.0.0.1:17710, unit cascade-openshell-sim-gateway
+systemd-run --user --unit=cascade-openshell-$I-mcp --collect -p MemoryMax=infinity \
+    -E CASCADE_OPENSHELL_INSTANCE=$I -E CASCADE_ARM=mock -E CASCADE_CAMERA=mock \
+    -E CASCADE_STREAM=0 -E CASCADE_OCCUPANCY=0 -E CASCADE_RUN_DIR=$S/runs \
+    -E CASCADE_BELIEFS_PATH=$S/beliefs.json -E CASCADE_GRASP_MEMORY_PATH=$S/grasp_memory.json \
+    -E CASCADE_ENVELOPE_PATH=$S/envelope.json -E CASCADE_EPISODIC_PATH=$S/episodic.json \
+    "$PWD/.venv/bin/python" "$PWD/scripts/openshell_rig.py" serve-mcp   # MCP on 127.0.0.1:17810
+"${RIG[@]}" up && "${RIG[@]}" status                     # sandbox cascade-sim-agent, chat on 17910
+```
+
 ## The demo's screen
 
 OpenClaw's own web UI (the sandbox's gateway, forwarded to 127.0.0.1) in the
@@ -167,10 +231,10 @@ OpenShell's default filesystem policy lets the agent read `/usr` and write
 
 | Path | What |
 |---|---|
-| `scripts/openshell_rig.py` | the route: install, gateway, serve-mcp, up, motion, open, chat-url, status, down |
+| `scripts/openshell_rig.py` | the route: install, gateway, serve-mcp, up, motion, open, chat-url, status, down, instance |
 | `deploy/openshell/Dockerfile` | agent image (node 24 by digest, OpenClaw pinned, Landlock-safe layout) |
 | `deploy/openshell/openclaw.json` | OpenClaw config template: placeholders, never secrets |
 | `deploy/openshell/render-config.mjs` | first-start render: ports, model, chat origin, chat token |
 | `deploy/openshell/cascade-openclaw` | entrypoint: render, then `openclaw gateway` on the sandbox loopback |
-| `tests/test_openshell_rig.py` | the contract above (33 tests; runs `render-config.mjs` with the host's node) |
-| `~/.cascade/openshell/` | OpenShell binaries, gateway config + mTLS, profiles, `mcp.token`, `deployed.json` |
+| `tests/test_openshell_rig.py` | the contract above, including the default instance's golden values and the isolation of a named one (runs `render-config.mjs` with the host's node) |
+| `~/.cascade/openshell/` | OpenShell binaries, gateway config + mTLS, profiles, `mcp.token`, `deployed.json` (a named instance: `~/.cascade/openshell-<name>/`, plus its `instance` file) |

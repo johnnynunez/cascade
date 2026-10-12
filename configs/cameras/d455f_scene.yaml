@@ -28,14 +28,17 @@ extrinsics:
   # rejected record turns 3D fusion OFF for this camera rather than fall back):
   # Calibrated on THIS rig 2026-10-11 (markerless, 37/37 poses, rmse 3.3 mm):
   hand_eye_json: ${repo}/configs/calib/d455f_scene_rebot_rs.handeye.json
-  # ROUGH starting guess on THIS rig (2026-10-10), not a calibration: tape
-  # measurements (camera ~48 cm up, on the far edge of the table, looking back
-  # at the arm) + the table plane in depth + a single-view fit of the arm at
-  # rest (explains 74 % of the visible arm). Refine with --method markerless.
+  # ROUGH starting guess on the NEW table (2026-10-12), not a calibration:
+  # 180 cm table, arm on the back long edge 45 cm from the left end, camera
+  # beyond that end ~45 cm up looking along the table (operator's sketch) +
+  # the table plane in depth (43.3 cm up, 22.3 deg down, roll -2.1 deg) + a
+  # single-view fit of the arm at rest (explains 57 % of the visible arm; four
+  # starts converge to camera (0.385, -0.698, 0.417) m in base, yaw 87 deg).
+  # Refine with --method markerless.
   T:
-    - [-0.99151,  0.12855, -0.01949,  0.23383]
-    - [ 0.06771,  0.38250, -0.92147,  0.54274]
-    - [-0.11100, -0.91497, -0.38796,  0.46806]
+    - [ 0.99634, -0.07313,  0.04432,  0.38457]
+    - [-0.06814, -0.36598,  0.92812, -0.69783]
+    - [-0.05165, -0.92774, -0.36962,  0.41696]
     - [ 0.00000,  0.00000,  0.00000,  1.00000]
   # Runtime extrinsic drift monitor (docs/HANDEYE_CALIBRATION.md): while the
   # arm is static, checks that depth still matches the arm at FK through

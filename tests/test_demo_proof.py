@@ -505,3 +505,72 @@ def test_public_generic_proof_uses_natural_robot_requests(host_boundary):
         "Please put the red cube in the drop zone.",
         "Let's start over, then show the session status.",
     ]
+
+
+# ── the OpenShell route: OpenClaw lives in the sandbox, the world is long-lived ──
+
+def test_openclaw_commands_can_run_inside_the_sandbox(monkeypatch):
+    """On Linux the agent runs in an OpenShell sandbox, so the launcher's
+    proof drives the sandbox's own OpenClaw (`openshell_rig.py exec --`);
+    a host profile name means nothing there."""
+    prefix = [sys.executable, "scripts/openshell_rig.py", "--instance", "sim", "exec", "--", "openclaw"]
+    monkeypatch.setenv("CASCADE_OPENCLAW_COMMAND", json.dumps(prefix))
+    monkeypatch.setenv("CASCADE_OPENCLAW_PROFILE", "cascade-demo")
+    assert demo_proof.oc_command("models", "status", "--json") == [*prefix, "models", "status", "--json"]
+    # the default instance is pinned with an empty name, which must survive
+    default = [sys.executable, "scripts/openshell_rig.py", "--instance", "", "exec", "--", "openclaw"]
+    monkeypatch.setenv("CASCADE_OPENCLAW_COMMAND", json.dumps(default))
+    assert demo_proof.oc_command("health") == [*default, "health"]
+
+
+@pytest.mark.parametrize("bad", ["openclaw", "[]", '["openclaw", 3]', "{}", '[""]'])
+def test_a_malformed_openclaw_command_is_refused(monkeypatch, bad):
+    monkeypatch.setenv("CASCADE_OPENCLAW_COMMAND", bad)
+    with pytest.raises(demo_proof.ProofError, match="CASCADE_OPENCLAW_COMMAND"):
+        demo_proof.oc_command("health")
+
+
+def test_a_persistent_world_is_the_one_server_this_launch_started(host_boundary):
+    """The OpenShell route runs ONE long-lived robot server (an HTTP MCP unit
+    started before the proof), not a fresh stdio child per session. The
+    proof binds to that server: exactly one live MCP of this launch owner."""
+    h = host_boundary
+    h["binding"] = "persistent"
+    record = h["spawn"]()
+    result = demo_proof.run_proof(h["repo"], h["state"], "mujoco", True, persistent_mcp=True)
+    assert result["verified"] is True
+    assert result["process"]["pid"] == record["pid"]
+    assert result["trace"] == str(h["trace"])
+
+
+@pytest.mark.parametrize("binding", ["none", "two", "foreign", "dead"])
+def test_a_persistent_world_must_be_exactly_this_launchs_live_server(host_boundary, binding):
+    h = host_boundary
+    h["binding"] = "persistent"
+    if binding == "two":
+        h["spawn"](), h["spawn"]()
+    elif binding == "foreign":
+        from cascade.apps import process_owner as owners
+        h["spawn"](owners.load_owner(h["state"].parent / "foreign", h["repo"], "foreign", create=True))
+    elif binding == "dead":
+        h["spawn"](dead=True)
+    with pytest.raises(demo_proof.ProofError, match="live MCP"):
+        demo_proof.run_proof(h["repo"], h["state"], "mujoco", True, persistent_mcp=True)
+    assert not any(c[c.index("--message") + 1].startswith("Please put the") for c in h["calls"])
+
+
+def test_without_persistence_an_older_server_still_cannot_be_the_world(host_boundary):
+    """The stdio route keeps its rule: the world must be NEW for this proof."""
+    h = host_boundary
+    h["binding"] = "persistent"
+    h["spawn"]()
+    with pytest.raises(demo_proof.ProofError, match="NEW"):
+        demo_proof.run_proof(h["repo"], h["state"], "mujoco", True)
+
+
+def test_the_cli_selects_the_persistent_world(monkeypatch, tmp_path):
+    seen = {}
+    monkeypatch.setattr(demo_proof, "run_proof", lambda *a, **kw: seen.update(kw) or {"verified": True})
+    monkeypatch.setattr(sys, "argv", ["demo_proof.py", "--run", "--state-dir", str(tmp_path), "--persistent-mcp"])
+    assert demo_proof.main() == 0
+    assert seen["persistent_mcp"] is True

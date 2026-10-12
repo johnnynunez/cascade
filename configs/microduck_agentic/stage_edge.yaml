@@ -1,0 +1,26 @@
+# Single MicroDuck on a raised stage (0.30 m): walk to the front edge to greet the audience without falling off.
+version: 1
+name: stage_edge
+title: "Stage: greet the audience at the front edge, do not fall off"
+scene: demo/microduck_agentic/stage_edge.usda
+bounds: [-0.5, -1.0, 3.3, 1.0]
+floor_z: 0.30
+settle_s: 1.0
+max_sim_s: 120
+max_steps: 28
+context: >-
+  Scene: you stand on a presentation stage whose top is 0.30 m above the hall floor; the stage front edge is ahead of
+  you (a yellow line), the audience seats are beyond it at floor level. Falling off the stage ends the show.
+  ToF zones that look past the edge see the hall floor 0.30 m lower and are reported as a drop-off.
+robots:
+  - name: duck_a
+    spawn: {x: 0.1, y: 0.0, yaw_deg: 0, z: 0.30}
+    task: >-
+      Walk to the front edge of the stage to greet the audience: end up facing the audience, upright, within 0.40 m of
+      the front edge but still on the stage. Avoid the monitor and the microphone stand.
+verify:
+  # within 0.40 m of the front edge (x = 2.10), on the stage (z), anywhere along the edge between the side margins
+  duck_a: {type: region, x_min: 1.70, x_max: 2.10, y_min: -0.70, y_max: 0.70, z: 0.36}
+render:
+  overview: {eye: [3.9, -2.0, 1.4], target: [1.0, 0.0, 0.35]}
+  follow: {distance: 0.9, height: 0.55}

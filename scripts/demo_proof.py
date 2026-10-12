@@ -32,6 +32,21 @@ class EndpointUnavailable(ProofError):
 
 
 def oc_command(*args: str) -> list[str]:
+    """The OpenClaw CLI the proof drives. On the OpenShell route (Linux) it is
+    the sandbox's own CLI, given as a JSON argv prefix in
+    CASCADE_OPENCLAW_COMMAND (`openshell_rig.py --instance I exec -- openclaw`);
+    a host profile name means nothing inside the sandbox."""
+    raw = os.environ.get("CASCADE_OPENCLAW_COMMAND")
+    if raw is not None:
+        try:
+            prefix = json.loads(raw)
+        except ValueError:
+            prefix = None
+        # An empty argument is legitimate (`--instance ''` pins the default
+        # instance); only the program itself must be named.
+        if not isinstance(prefix, list) or not prefix or not prefix[0] or not all(isinstance(a, str) for a in prefix):
+            raise ProofError("CASCADE_OPENCLAW_COMMAND must be a JSON list of strings (the OpenClaw command)")
+        return [*prefix, *args]
     profile = os.environ.get("CASCADE_OPENCLAW_PROFILE", "")
     return ["openclaw", *(["--profile", profile] if profile else []), *args]
 
@@ -276,14 +291,25 @@ def _write_receipt(report: dict, state_dir) -> None:
     temporary.replace(state_dir / "proof.json")
 
 
-def _bound_world(state_dir, owner, baseline, started, expected=None) -> dict:
+def _bound_world(state_dir, owner, baseline, started, expected=None, *, persistent=False) -> dict:
+    """The one robot server this proof's session talks to. A stdio host
+    spawns a fresh server per session, so the world must be NEW for this
+    proof. The OpenShell route runs ONE long-lived HTTP server, started by
+    this launch before the proof (`persistent`): exactly one live MCP of
+    this launch owner, the same one throughout."""
     from pathlib import Path
     from cascade.apps.process_owner import live_records
 
-    fresh = [r for r in live_records(state_dir, owner, role="mcp")
-             if r.get("instance_id") not in baseline and r.get("registered_at", 0) >= started]
-    if len(fresh) != 1 or (expected and fresh[0] != expected):
-        raise ProofError("expected exactly one NEW live MCP of this launch owner; cannot bind the session to a world")
+    if persistent:
+        fresh = live_records(state_dir, owner, role="mcp")
+        if len(fresh) != 1 or (expected and fresh[0] != expected):
+            raise ProofError("expected exactly one live MCP of this launch owner (its persistent robot "
+                             "server); cannot bind the session to a world")
+    else:
+        fresh = [r for r in live_records(state_dir, owner, role="mcp")
+                 if r.get("instance_id") not in baseline and r.get("registered_at", 0) >= started]
+        if len(fresh) != 1 or (expected and fresh[0] != expected):
+            raise ProofError("expected exactly one NEW live MCP of this launch owner; cannot bind the session to a world")
     record = fresh[0]
     run_dir = Path(record.get("run_dir", "")).resolve()
     if run_dir.parent != (Path(owner["repo"]) / "runs").resolve() or not run_dir.name.startswith(f"mcp_{record['pid']}_"):
@@ -304,7 +330,7 @@ def make_spark_witness(repo, evidence, *, object_name, destination_name):
         port=int(os.environ.get("CASCADE_BRIDGE_PORT", "8611")))
 
 
-def _run_spark_cases(repo, state_dir, evidence, report, owner, baseline):
+def _run_spark_cases(repo, state_dir, evidence, report, owner, baseline, *, persistent=False):
     """Native OpenClaw orders, each followed by an observed same-world reset."""
     from pathlib import Path
     import time
@@ -338,7 +364,7 @@ def _run_spark_cases(repo, state_dir, evidence, report, owner, baseline):
         return result
 
     turn("What can you see on the table?", "describe_scene", evidence / "01-scene.json")
-    process = _bound_world(state_dir, owner, baseline, report["started_at"])
+    process = _bound_world(state_dir, owner, baseline, report["started_at"], persistent=persistent)
     trace = Path(process["run_dir"]) / "trace.jsonl"
     report.update(process=process, trace=str(trace), cases=[])
     for number, (target, destination, message) in enumerate(orders, 1):
@@ -350,18 +376,18 @@ def _run_spark_cases(repo, state_dir, evidence, report, owner, baseline):
             witness.mark("pick_begin")
             started = time.time()
             turn(message, "pick_and_place", case_dir / "02-pick.json", NATIVE_TURN_TIMEOUT_S)
-            _bound_world(state_dir, owner, baseline, report["started_at"], process)
+            _bound_world(state_dir, owner, baseline, report["started_at"], process, persistent=persistent)
             witness.settle(wall_timeout=90)
             witness.mark("pick_end")
             witness.capture_frames("placed")
             reset_started = time.time()
             witness.mark("reset_begin")
             turn("Let's start over.", "reset_scene", case_dir / "03-reset.json", 240)
-            _bound_world(state_dir, owner, baseline, report["started_at"], process)
+            _bound_world(state_dir, owner, baseline, report["started_at"], process, persistent=persistent)
             props = validate_reset_trace(trace, reset_started, "isaac", target)
             turn("What is the session status?", "world_state", case_dir / "04-world-reset.json")
             turn("What can you see on the table?", "describe_scene", case_dir / "05-inspect-reset.json")
-            _bound_world(state_dir, owner, baseline, report["started_at"], process)
+            _bound_world(state_dir, owner, baseline, report["started_at"], process, persistent=persistent)
             witness.settle(wall_timeout=90)
             witness.mark("reset_end")
             witness.capture_frames("reset")
@@ -374,7 +400,8 @@ def _run_spark_cases(repo, state_dir, evidence, report, owner, baseline):
     report.update(verified=True, props_reset=report["cases"][-1]["props_reset"])
 
 
-def run_proof(repo, state_dir, sim: str, robot_turn: bool = True, *, spark_case_set: str | None = None) -> dict:
+def run_proof(repo, state_dir, sim: str, robot_turn: bool = True, *, spark_case_set: str | None = None,
+              persistent_mcp: bool = False) -> dict:
     """Run the REAL host, keeping pick and reset in one persistent session."""
     from pathlib import Path
     import time
@@ -408,7 +435,7 @@ def run_proof(repo, state_dir, sim: str, robot_turn: bool = True, *, spark_case_
     report["model"] = model
     print(f"[proof] brain={model} session={session}", file=sys.stderr, flush=True)
     if spark:
-        _run_spark_cases(repo, state_dir, evidence, report, owner, baseline)
+        _run_spark_cases(repo, state_dir, evidence, report, owner, baseline, persistent=persistent_mcp)
         (evidence / "proof.json").write_text(json.dumps(report, indent=2) + "\n")
         _write_receipt(report, state_dir)
         return report
@@ -420,7 +447,7 @@ def run_proof(repo, state_dir, sim: str, robot_turn: bool = True, *, spark_case_
         target = "pink cube" if sim == "isaac" else "red cube"
         agent_turn(session, model,
                    "What is the session status?", evidence / "02-world.json", 150, "world_state")
-        process = _bound_world(state_dir, owner, baseline, report["started_at"])
+        process = _bound_world(state_dir, owner, baseline, report["started_at"], persistent=persistent_mcp)
         trace = Path(process["run_dir"]) / "trace.jsonl"
         report["process"] = process
         started = time.time()
@@ -428,14 +455,14 @@ def run_proof(repo, state_dir, sim: str, robot_turn: bool = True, *, spark_case_
         agent_turn(session, model,
                    f"Please put the {target} in the drop zone.",
                    evidence / "03-pick.json", NATIVE_TURN_TIMEOUT_S, "pick_and_place")
-        _bound_world(state_dir, owner, baseline, report["started_at"], process)
+        _bound_world(state_dir, owner, baseline, report["started_at"], process, persistent=persistent_mcp)
         validate_pick_trace(trace, started, target)
         reset_started = time.time()
         print("[proof] resetting the SAME world", file=sys.stderr, flush=True)
         agent_turn(session, model,
                    "Let's start over, then show the session status.",
                    evidence / "04-reset.json", 150, ("reset_scene", "world_state"))
-        _bound_world(state_dir, owner, baseline, report["started_at"], process)
+        _bound_world(state_dir, owner, baseline, report["started_at"], process, persistent=persistent_mcp)
         props = validate_reset_trace(trace, reset_started, sim, target)
         report.update(verified=True, trace=str(trace), props_reset=props)
     else:
@@ -461,6 +488,8 @@ def main() -> int:
     p.add_argument("--state-dir", type=Path)
     p.add_argument("--sim", choices=["isaac", "mujoco", "none"], default="mujoco")
     p.add_argument("--no-robot-turn", action="store_true")
+    p.add_argument("--persistent-mcp", action="store_true",
+                   help="the world is this launch's one long-lived robot server (the OpenShell route)")
     p.add_argument("--spark-cases", choices=("standard", "all"),
                    help="Kitchen coverage; defaults to CASCADE_SPARK_PROOF_CASES or standard (two objects)")
     args = p.parse_args()
@@ -479,7 +508,7 @@ def main() -> int:
                 os.environ.get("CASCADE_OPENCLAW_PROFILE", ""),
             )
             result = run_proof(args.repo, state_dir, args.sim, not args.no_robot_turn,
-                               spark_case_set=args.spark_cases)
+                               spark_case_set=args.spark_cases, persistent_mcp=args.persistent_mcp)
         print(json.dumps(result))
     except (ProofError, OSError, subprocess.TimeoutExpired) as exc:
         print(str(exc), file=sys.stderr)

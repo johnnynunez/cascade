@@ -210,6 +210,18 @@ fi
 [[ "$GRASPGENX" != local && "$GRASPGENX" != external ]] || export CASCADE_GRASP_BACKEND=graspgenx
 export CASCADE_GRASPGENX_PORT="$GGX_PORT"
 
+# Where the agent runs. On Linux ALWAYS inside an NVIDIA OpenShell sandbox
+# (docs/OPENSHELL.md), with a simulator or the real robot: the agent reaches
+# the brain and cascade's robot server only through OpenShell provider
+# profiles, credentials stay on the host, and OpenShell itself can refuse the
+# motion tools. There is no switch: the platform decides. macOS has no
+# OpenShell Docker driver, so the agent runs on the host there.
+if [[ "$(uname -s)" == Linux ]]; then AGENT_ROUTE=openshell; else AGENT_ROUTE=host; fi
+# The Spark kitchen's chat setup (its prompt plugin, visitor tools and
+# instructions, the demo UI) still lives in a host OpenClaw profile; it moves
+# into the sandbox next (docs/OPENSHELL.md, "Every Linux run").
+[[ "${CASCADE_INSTALL_PROFILE:-}" != spark ]] || AGENT_ROUTE=host
+
 log()  { printf '[launch] %s\n' "$*"; }
 warn() { printf '[launch] WARNING: %s\n' "$*" >&2; }
 die()  { printf '[launch] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -299,6 +311,22 @@ PYEOF
 
 # ── --down: stop what a previous run started, nothing else ──────────────────
 if [[ $DOWN == 1 ]]; then
+    # The OpenShell route records the instance it brought up; tear down
+    # exactly that one (a named instance with its gateway; the default
+    # instance, the real robot's, keeps its gateway).
+    if [[ -f "$STATE_DIR/openshell-instance" ]]; then
+        DOWN_INSTANCE="$(cat "$STATE_DIR/openshell-instance")"
+        DOWN_GATEWAY=""
+        [[ -z "$DOWN_INSTANCE" ]] || DOWN_GATEWAY="--gateway"
+        if [[ $DRY == 1 || $CHECK == 1 ]]; then
+            log "would tear down OpenShell instance '${DOWN_INSTANCE:-default}' $DOWN_GATEWAY"
+        else
+            # shellcheck disable=SC2086
+            "$PY" "$REPO/scripts/openshell_rig.py" --instance "$DOWN_INSTANCE" teardown $DOWN_GATEWAY \
+                || warn "OpenShell teardown of '${DOWN_INSTANCE:-default}' failed; see scripts/openshell_rig.py status"
+            rm -f "$STATE_DIR/openshell-instance"
+        fi
+    fi
     if [[ $DRY == 1 || $CHECK == 1 ]]; then ownerctl down --dry-run
     else ownerctl down; fi
     log "down."
@@ -408,12 +436,27 @@ case "$SIM" in
     none)   [[ -n "$ARM" && -n "$CAMERAS" ]] || die "--sim none drives REAL hardware: pass --arm <profile> --cameras <profile[,profile]> explicitly (no guessing which robot is plugged in)" ;;
     *) die "unknown --sim $SIM (auto|isaac|mujoco|none)" ;;
 esac
+# The OpenShell instance (docs/OPENSHELL.md, Instances): a simulator gets its
+# own `sim` route, isolated from the real robot's (the default instance, the
+# one ~/cascade-demo.sh and the rig use). CASCADE_OPENSHELL_INSTANCE overrides.
+if [[ -n "${CASCADE_OPENSHELL_INSTANCE+x}" ]]; then OS_INSTANCE="$CASCADE_OPENSHELL_INSTANCE"
+elif [[ "$SIM" == none ]]; then OS_INSTANCE=""
+else OS_INSTANCE=sim; fi
 log "plan: sim=$SIM arm=$ARM cameras=$CAMERAS brain=$BRAIN python=$PY"
+if [[ "$AGENT_ROUTE" == openshell ]]; then
+    log "agent: OpenClaw inside OpenShell (instance ${OS_INSTANCE:-default}); this host runs no agent"
+else
+    log "agent: OpenClaw on this host"
+fi
 [[ "$SIM" != isaac ]] || log "Isaac startup budget=${ISAAC_WAIT_S}s (cold collision preprocessing/shaders); ISAAC_WAIT_S overrides it"
 [[ "$SIM" != isaac ]] || log "Isaac selection: engine=${ISAAC_ENGINE:-newton (bridge default)} scene-config=${SCENE_CONFIG:-default} sha256=${SCENE_CONFIG_SHA256:-none} renderer=${CASCADE_CAMERA_RENDERER:-isaac}"
 [[ $DRY == 1 ]] && log "(dry run: commands are printed, nothing is executed)"
 if [[ $DRY == 1 ]]; then
-    log "would install missing extras/assets, start $SIM and sidecars, register OpenClaw, verify brain + motion + reset, then open chat"
+    if [[ "$AGENT_ROUTE" == openshell ]]; then
+        log "would install missing extras/assets, start $SIM and sidecars, start the robot server and the OpenClaw sandbox (OpenShell), verify brain + motion + reset, then open chat"
+    else
+        log "would install missing extras/assets, start $SIM and sidecars, register OpenClaw, verify brain + motion + reset, then open chat"
+    fi
     log "Isaac target: selected source 6.1/6.2 or managed wheel 6.1.0.0; metadata not checked; profile=${CASCADE_OPENCLAW_PROFILE:-default}; no commands executed"
     exit 0
 fi
@@ -551,7 +594,18 @@ if [[ $CHECK == 1 ]]; then
     echo "[launch] preflight for sim=$SIM (python=$PY)"
     "$PY" -c "import cascade" >/dev/null 2>&1 && ok "cascade importable" || bad "cascade not importable (--setup)"
     [[ -z "$MISSING_MODS" ]] && ok "python extras [$EXTRAS]" || bad "python modules: $MISSING_MODS (--setup)"
-    command -v openclaw >/dev/null 2>&1 && ok "openclaw $(oc --version 2>/dev/null | grep -oE '20[0-9]{2}\.[0-9]+\.[0-9]+' | head -1)" || bad "openclaw CLI (--setup installs it)"
+    if [[ "$AGENT_ROUTE" == openshell ]]; then
+        docker info >/dev/null 2>&1 && ok "Docker (the OpenShell sandbox runtime)" \
+            || bad "Docker: OpenShell runs the agent in a container; install Docker and add $USER to the docker group"
+        if [[ -x "$("$PY" "$REPO/scripts/openshell_rig.py" --instance "$OS_INSTANCE" instance 2>/dev/null \
+                | "$PY" -c 'import json,sys; print(json.load(sys.stdin)["home"])' 2>/dev/null)/0.1.3/bin/openshell" ]]; then
+            ok "OpenShell installed (instance ${OS_INSTANCE:-default})"
+        else
+            ok "OpenShell not installed yet (instance ${OS_INSTANCE:-default}); launch installs it (pinned, sha256-checked)"
+        fi
+    else
+        command -v openclaw >/dev/null 2>&1 && ok "openclaw $(oc --version 2>/dev/null | grep -oE '20[0-9]{2}\.[0-9]+\.[0-9]+' | head -1)" || bad "openclaw CLI (--setup installs it)"
+    fi
     if [[ "$SIM" == "isaac" ]]; then
         if [[ -n "$ISAAC_PY" ]]; then
             if ISAAC_INFO="$(isaac_metadata_check 2>&1)"; then ok "Isaac Sim: $ISAAC_INFO"
@@ -788,70 +842,8 @@ if [[ "$GRASPGENX" == local || "$GRASPGENX" == external ]]; then
 fi
 
 # ── 4. openclaw ─────────────────────────────────────────────────────────────
-if ! command -v openclaw >/dev/null 2>&1; then
-    [[ $SETUP == 1 ]] || die "OpenClaw CLI missing; run the installer or launch with --setup"
-    log "installing pinned OpenClaw 2026.9.3 in $REPO/.openclaw-cli"
-    OC_INSTALLER="$STATE_DIR/openclaw-install-cli.sh"
-    curl --fail --show-error --location --retry 3 --connect-timeout 15 \
-        https://openclaw.ai/install-cli.sh -o "$OC_INSTALLER" || die "OpenClaw installer download failed"
-    bash "$OC_INSTALLER" --prefix "$REPO/.openclaw-cli" --version 2026.9.3 \
-        || die "OpenClaw installation failed"
-    export PATH="$REPO/.openclaw-cli/bin:$PATH"
-fi
-OC_VER="$(oc --version 2>/dev/null | grep -oE '20[0-9]{2}\.[0-9]+\.[0-9]+' | head -1 || true)"
-[[ -n "$OC_VER" ]] || die "cannot determine OpenClaw version"
-"$PY" -c "import sys; y,m,_=map(int,'$OC_VER'.split('.')); sys.exit(0 if (y,m)>=(2026,8) else 1)" \
-    || die "OpenClaw $OC_VER is unsupported; use the pinned installer (no automatic global migrations)"
-log "OpenClaw $OC_VER (profile=${CASCADE_OPENCLAW_PROFILE:-default})"
-
-# Use exactly the same resolver as --check, including endpoint overrides.
-# An answering endpoint with the wrong model is a hard error, not permission
-# to switch providers. Resolve before touching the gateway configuration.
-BRAIN_INFO="$("$PY" "$REPO/scripts/demo_proof.py" --check-brain "$BRAIN")" \
-    || die "brain resolution failed; configure the selected model/endpoint explicitly"
-log "brain resolution: $BRAIN_INFO"
-
-# gateway up (needed before onboarding and before the probe)
-GATEWAY_OWNED=0
-if ownerctl owns-gateway; then GATEWAY_OWNED=1; fi
-SPARK_GATEWAY_STARTED=0
-spark_gateway() {
-    "$PY" "$REPO/scripts/openclaw_gateway.py" "$1" --repo "$REPO" \
-        --state-dir "$STATE_DIR" --profile "$CASCADE_OPENCLAW_PROFILE" --port "$GATEWAY_PORT"
-}
-if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark ]]; then
-    run spark_gateway prepare || die "cannot prepare this checkout's OpenClaw gateway"
-    spark_gateway_cleanup() {
-        local status=$?
-        if [[ $status != 0 && $SPARK_GATEWAY_STARTED == 1 ]]; then
-            spark_gateway stop || warn "owned gateway cleanup failed; inspect $STATE_DIR/openclaw-gateway.log"
-        fi
-        return "$status"
-    }
-    trap spark_gateway_cleanup EXIT
-    trap 'exit 143' TERM
-    trap 'exit 129' HUP
-fi
-run oc config set gateway.mode local >/dev/null
-run oc config set gateway.port "$GATEWAY_PORT" --strict-json >/dev/null
-if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark ]]; then
-    log "configuring the checkout's OpenClaw profile before foreground startup"
-elif port_open "$GATEWAY_PORT"; then
-    "$PY" "$REPO/scripts/demo_proof.py" --wait-gateway 45 >/dev/null \
-        || die "port :$GATEWAY_PORT does not answer for this OpenClaw profile; not touching that process"
-    log "gateway already healthy on :$GATEWAY_PORT"
-else
-    log "starting gateway"
-    run oc gateway install || die "OpenClaw gateway installation failed; inspect the diagnostic above"
-    run oc gateway start || die "OpenClaw gateway start failed; inspect the diagnostic above"
-    if [[ $DRY == 0 ]]; then
-        wait_port "$GATEWAY_PORT" 30 "OpenClaw gateway" || die "gateway never came up on :$GATEWAY_PORT (openclaw gateway status)"
-        ownerctl record-gateway >/dev/null || die "cannot identify the gateway we started"
-        GATEWAY_OWNED=1
-    fi
-fi
-
-# register the MCP server -- idempotent (`mcp set` replaces; `mcp add` errors on an existing name)
+# The robot MCP server's command and environment, for either route
+# (registered with OpenClaw on the host, or run as the OpenShell instance's unit).
 DETECTOR="${CASCADE_DETECTOR_MODEL:-$REPO/models/yoloe-11s-seg.pt}"
 CLASSES="${CASCADE_DETECT_CLASSES:-}"
 if [[ -n "${CASCADE_OPENCLAW_PROFILE:-}" ]]; then
@@ -921,6 +913,130 @@ print(json.dumps({
 }))
 PYEOF
 )"
+
+# The tool probe only LISTS tools; the robot stack is built on the first
+# call. Build it once, with the exact env the MCP server gets, so "pinocchio
+# missing" / "asset not found" / "camera failed" surface in the launcher and
+# not in the visitor's first chat message. Both routes call it.
+runtime_check() {
+    log "building the robot runtime once (cameras=$CAMERAS arm=$ARM) -- proves the stack, not just the tool list"
+    if [[ "$SIM" == "isaac" && -z "$ISAAC_PY" ]]; then
+        warn "no Isaac python: skipping the runtime build check"
+    else
+        RUNTIME_CHECK="$(cd "$REPO/models" && CASCADE_CAMERAS="$CAMERAS" CASCADE_ARM="$ARM" CASCADE_DETECTOR_MODEL="$DETECTOR" \
+            CASCADE_DETECT_CLASSES="$CLASSES" YOLO_OFFLINE=True ULTRALYTICS_OFFLINE=True CASCADE_STREAM=0 CASCADE_VIEW=0 CASCADE_BELIEFS=0 \
+            "$PY" - <<'PYEOF' 2>&1 | tee "$STATE_DIR/runtime-check.log" | grep -v "ARB_clip\|linesearch\|^Warp\|Module .* load\|^$" | tail -5
+import json, os, sys, tempfile
+from cascade.config import load_demo_config
+from cascade.apps.demo import build_runtime, shutdown_runtime
+cams = os.environ["CASCADE_CAMERAS"].split(",")
+cfg = load_demo_config(cameras=cams, arm=os.environ["CASCADE_ARM"], llm="mock")
+rt, arm = build_runtime(cfg, tempfile.mkdtemp(prefix="cascade-check-"), view=False, lazy_arm=True, serve=False)
+try:
+    if cfg.arm.get("type") == "isaac":
+        from cascade.sim.startup_readiness import prepare_isaac_verification
+        print("[launch] Isaac verification readiness:", json.dumps(prepare_isaac_verification(rt)))
+    print("[launch] runtime builds:", rt.backends())
+finally:
+    shutdown_runtime(rt, arm)
+PYEOF
+)" || {
+            printf '%s\n' "$RUNTIME_CHECK" >&2
+            die "the robot runtime check failed; full diagnostic: $STATE_DIR/runtime-check.log"
+        }
+        printf '%s\n' "$RUNTIME_CHECK" | sed 's/^/        /'
+        [[ "$RUNTIME_CHECK" == *"runtime builds:"* ]] || die "the robot runtime does not build with cameras=$CAMERAS arm=$ARM -- see the error above (missing extra? asset? camera?)"
+    fi
+}
+
+# The opt-in advisory judge over the proof turn (both routes).
+judge_pass() {
+    # >>> judge pass
+    JUDGE_NOTE=""
+    if [[ "$JUDGE" != off ]]; then
+        log "judging the proof turn with --judge $JUDGE (advisory metric, never the readiness gate)"
+        JUDGE_NOTE="$("$PY" "$REPO/scripts/judge_proof.py" --proof "$STATE_DIR/proof.json" --judge "$JUDGE" \
+            --repo "$REPO" 2>>"$STATE_DIR/judge-pass.log" || true)"
+        [[ -n "$JUDGE_NOTE" ]] \
+            || JUDGE_NOTE="unavailable (the judge pass did not report; see $STATE_DIR/judge-pass.log); advisory only, the physics verdict stands"
+        log "judge: $JUDGE_NOTE"
+    fi
+    # <<< judge pass
+}
+
+# On Linux the agent lives in an OpenShell sandbox: steps 4-6 of that route
+# (robot server as the instance's unit, sandbox, proof inside it, chat) are
+# scripts/launch_openshell.sh, which ends the launch.
+if [[ "$AGENT_ROUTE" == openshell ]]; then
+    # shellcheck source=scripts/launch_openshell.sh
+    . "$REPO/scripts/launch_openshell.sh"
+    exit 0
+fi
+
+if ! command -v openclaw >/dev/null 2>&1; then
+    [[ $SETUP == 1 ]] || die "OpenClaw CLI missing; run the installer or launch with --setup"
+    log "installing pinned OpenClaw 2026.9.3 in $REPO/.openclaw-cli"
+    OC_INSTALLER="$STATE_DIR/openclaw-install-cli.sh"
+    curl --fail --show-error --location --retry 3 --connect-timeout 15 \
+        https://openclaw.ai/install-cli.sh -o "$OC_INSTALLER" || die "OpenClaw installer download failed"
+    bash "$OC_INSTALLER" --prefix "$REPO/.openclaw-cli" --version 2026.9.3 \
+        || die "OpenClaw installation failed"
+    export PATH="$REPO/.openclaw-cli/bin:$PATH"
+fi
+OC_VER="$(oc --version 2>/dev/null | grep -oE '20[0-9]{2}\.[0-9]+\.[0-9]+' | head -1 || true)"
+[[ -n "$OC_VER" ]] || die "cannot determine OpenClaw version"
+"$PY" -c "import sys; y,m,_=map(int,'$OC_VER'.split('.')); sys.exit(0 if (y,m)>=(2026,8) else 1)" \
+    || die "OpenClaw $OC_VER is unsupported; use the pinned installer (no automatic global migrations)"
+log "OpenClaw $OC_VER (profile=${CASCADE_OPENCLAW_PROFILE:-default})"
+
+# Use exactly the same resolver as --check, including endpoint overrides.
+# An answering endpoint with the wrong model is a hard error, not permission
+# to switch providers. Resolve before touching the gateway configuration.
+BRAIN_INFO="$("$PY" "$REPO/scripts/demo_proof.py" --check-brain "$BRAIN")" \
+    || die "brain resolution failed; configure the selected model/endpoint explicitly"
+log "brain resolution: $BRAIN_INFO"
+
+# gateway up (needed before onboarding and before the probe)
+GATEWAY_OWNED=0
+if ownerctl owns-gateway; then GATEWAY_OWNED=1; fi
+SPARK_GATEWAY_STARTED=0
+spark_gateway() {
+    "$PY" "$REPO/scripts/openclaw_gateway.py" "$1" --repo "$REPO" \
+        --state-dir "$STATE_DIR" --profile "$CASCADE_OPENCLAW_PROFILE" --port "$GATEWAY_PORT"
+}
+if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark ]]; then
+    run spark_gateway prepare || die "cannot prepare this checkout's OpenClaw gateway"
+    spark_gateway_cleanup() {
+        local status=$?
+        if [[ $status != 0 && $SPARK_GATEWAY_STARTED == 1 ]]; then
+            spark_gateway stop || warn "owned gateway cleanup failed; inspect $STATE_DIR/openclaw-gateway.log"
+        fi
+        return "$status"
+    }
+    trap spark_gateway_cleanup EXIT
+    trap 'exit 143' TERM
+    trap 'exit 129' HUP
+fi
+run oc config set gateway.mode local >/dev/null
+run oc config set gateway.port "$GATEWAY_PORT" --strict-json >/dev/null
+if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark ]]; then
+    log "configuring the checkout's OpenClaw profile before foreground startup"
+elif port_open "$GATEWAY_PORT"; then
+    "$PY" "$REPO/scripts/demo_proof.py" --wait-gateway 45 >/dev/null \
+        || die "port :$GATEWAY_PORT does not answer for this OpenClaw profile; not touching that process"
+    log "gateway already healthy on :$GATEWAY_PORT"
+else
+    log "starting gateway"
+    run oc gateway install || die "OpenClaw gateway installation failed; inspect the diagnostic above"
+    run oc gateway start || die "OpenClaw gateway start failed; inspect the diagnostic above"
+    if [[ $DRY == 0 ]]; then
+        wait_port "$GATEWAY_PORT" 30 "OpenClaw gateway" || die "gateway never came up on :$GATEWAY_PORT (openclaw gateway status)"
+        ownerctl record-gateway >/dev/null || die "cannot identify the gateway we started"
+        GATEWAY_OWNED=1
+    fi
+fi
+
+# register the MCP server -- idempotent (`mcp set` replaces; `mcp add` errors on an existing name)
 # Replace only this demo entry. Unrelated MCP servers belong to their owner;
 # a dedicated Spark profile starts empty and does not need global pruning.
 log "registering MCP server '$MCP_NAME' (cameras=$CAMERAS arm=$ARM)"
@@ -1075,34 +1191,7 @@ if [[ $DRY == 0 ]]; then
     # call. Build it once here, with the exact env the MCP server gets, so
     # "pinocchio missing" / "asset not found" / "camera failed" surface in
     # the launcher and not in the visitor's first chat message.
-    log "building the robot runtime once (cameras=$CAMERAS arm=$ARM) -- proves the stack, not just the tool list"
-    if [[ "$SIM" == "isaac" && -z "$ISAAC_PY" ]]; then
-        warn "no Isaac python: skipping the runtime build check"
-    else
-        RUNTIME_CHECK="$(cd "$REPO/models" && CASCADE_CAMERAS="$CAMERAS" CASCADE_ARM="$ARM" CASCADE_DETECTOR_MODEL="$DETECTOR" \
-            CASCADE_DETECT_CLASSES="$CLASSES" YOLO_OFFLINE=True ULTRALYTICS_OFFLINE=True CASCADE_STREAM=0 CASCADE_VIEW=0 CASCADE_BELIEFS=0 \
-            "$PY" - <<'PYEOF' 2>&1 | tee "$STATE_DIR/runtime-check.log" | grep -v "ARB_clip\|linesearch\|^Warp\|Module .* load\|^$" | tail -5
-import json, os, sys, tempfile
-from cascade.config import load_demo_config
-from cascade.apps.demo import build_runtime, shutdown_runtime
-cams = os.environ["CASCADE_CAMERAS"].split(",")
-cfg = load_demo_config(cameras=cams, arm=os.environ["CASCADE_ARM"], llm="mock")
-rt, arm = build_runtime(cfg, tempfile.mkdtemp(prefix="cascade-check-"), view=False, lazy_arm=True, serve=False)
-try:
-    if cfg.arm.get("type") == "isaac":
-        from cascade.sim.startup_readiness import prepare_isaac_verification
-        print("[launch] Isaac verification readiness:", json.dumps(prepare_isaac_verification(rt)))
-    print("[launch] runtime builds:", rt.backends())
-finally:
-    shutdown_runtime(rt, arm)
-PYEOF
-)" || {
-            printf '%s\n' "$RUNTIME_CHECK" >&2
-            die "the robot runtime check failed; full diagnostic: $STATE_DIR/runtime-check.log"
-        }
-        printf '%s\n' "$RUNTIME_CHECK" | sed 's/^/        /'
-        [[ "$RUNTIME_CHECK" == *"runtime builds:"* ]] || die "the robot runtime does not build with cameras=$CAMERAS arm=$ARM -- see the error above (missing extra? asset? camera?)"
-    fi
+    runtime_check
     log "probing MCP tools"
     # 2.0's plain `mcp probe` prints only a COUNT; `--json` carries the names,
     # namespaced as <server>__<tool>.
@@ -1145,17 +1234,7 @@ print(len(tools), int(need <= set(tools)))
     # into <evidence>/run-summary.json. Physics is the gate: READY and the
     # exit status never depend on this block, and every failure reads
     # "unavailable". tests/test_judge_proof_turn.py runs this block verbatim.
-    # >>> judge pass
-    JUDGE_NOTE=""
-    if [[ "$JUDGE" != off ]]; then
-        log "judging the proof turn with --judge $JUDGE (advisory metric, never the readiness gate)"
-        JUDGE_NOTE="$("$PY" "$REPO/scripts/judge_proof.py" --proof "$STATE_DIR/proof.json" --judge "$JUDGE" \
-            --repo "$REPO" 2>>"$STATE_DIR/judge-pass.log" || true)"
-        [[ -n "$JUDGE_NOTE" ]] \
-            || JUDGE_NOTE="unavailable (the judge pass did not report; see $STATE_DIR/judge-pass.log); advisory only, the physics verdict stands"
-        log "judge: $JUDGE_NOTE"
-    fi
-    # <<< judge pass
+    judge_pass
 fi
 
 # ── 6. chat ─────────────────────────────────────────────────────────────────

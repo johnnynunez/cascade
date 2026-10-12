@@ -255,6 +255,12 @@ elif args[:1]==['agent']:
     curl = bindir / "curl"
     curl.write_text('#!/bin/bash\nexit 1\n')  # make hardcoded discovery probes fail deterministically
     curl.chmod(0o755)
+    # These tests drive the HOST route (OpenClaw on this machine), which is
+    # macOS's. On Linux the launcher always runs the agent inside OpenShell
+    # (tests/test_launch_openshell_route.py), so the platform reads as macOS.
+    uname = bindir / "uname"
+    uname.write_text('#!/bin/bash\nif [[ "${1:-}" == -s ]]; then echo Darwin; exit 0; fi\nexec /usr/bin/uname "$@"\n')
+    uname.chmod(0o755)
     h = model_http_boundary
     env = {**os.environ, "PATH": str(bindir) + os.pathsep + os.environ["PATH"], "PY": str(py), "REAL_PY": sys.executable,
            "CASCADE_OPENCLAW_PROFILE": "isolated-test", "CASCADE_LAUNCH_STATE": str(tmp_path / "state"),

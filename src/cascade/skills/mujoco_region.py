@@ -58,7 +58,7 @@ def select(runtime, *, retain_aim=False):
         center = history.scratch.xpos[body].copy()
         lo, hi = lower[geoms].min(axis=0), upper[geoms].max(axis=0)
         offsets = np.array([lo[:2]-center[:2], hi[:2]-center[:2]])
-        q = world.data.qpos[raw._qadr].copy()
+        q = world.data.qpos[backend._qadr].copy()
         from .mujoco_placement_aim import capture, RegionPlan
         aim = capture(runtime, q, deadline=deadline)
         if aim is None:

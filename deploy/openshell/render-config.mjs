@@ -42,6 +42,13 @@ const brain = port("CASCADE_BRAIN_PORT", 8081);
 const mcp = port("CASCADE_MCP_PORT", 18741);
 const chat = port("CASCADE_CHAT_PORT", 18789);
 const model = env.CASCADE_MODEL || "qwen3.8-27b";
+// The brain's context window: OpenClaw sizes every prompt from it, so a 32k
+// brain (Cosmos, the Spark's Qwen) declared as the template's 64k overflows.
+const rawWindow = env.CASCADE_CONTEXT_WINDOW;
+const contextWindow = rawWindow === undefined ? null : Number(rawWindow);
+if (rawWindow !== undefined && (!/^\d{4,7}$/.test(rawWindow) || contextWindow < 4096 || contextWindow > 2097152)) {
+  die(`CASCADE_CONTEXT_WINDOW=${JSON.stringify(rawWindow)} is not a context window (4096..2097152 tokens)`);
+}
 // OpenClaw splits `provider/model` on the first '/', so an id that looks like
 // a path (Qwen/Qwen3.8-27B) would name a provider that does not exist.
 if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(model)) die(`CASCADE_MODEL=${JSON.stringify(model)} must be a bare id`);
@@ -50,6 +57,7 @@ const cfg = JSON.parse(fs.readFileSync(template, "utf8"));
 const provider = cfg.models.providers.cascade;
 provider.baseUrl = `http://host.openshell.internal:${brain}/v1`;
 provider.models[0].id = model;
+if (contextWindow !== null) provider.models[0].contextWindow = contextWindow;
 cfg.agents.defaults.model.primary = `cascade/${model}`;
 cfg.mcp.servers.cascade.url = `http://host.openshell.internal:${mcp}/mcp`;
 cfg.gateway.auth.token = crypto.randomBytes(24).toString("hex");

@@ -666,7 +666,10 @@ TODAY_SANDBOX_ARGV = [
     "--env", "CASCADE_CHAT_PORT=18799", "--env", "CASCADE_MODEL=qwen3.8-27b",
     "--restart-policy", "on-failure", "--detach", "--", "cascade-openclaw"]
 TODAY_SETTINGS = {"brain_port": 8081, "mcp_port": 18741, "chat_port": 18799,
-                  "model": "qwen3.8-27b", "sandbox": "cascade-agent"}
+                  "model": "qwen3.8-27b", "sandbox": "cascade-agent",
+                  # added with the launcher route; a deployed.json written before it
+                  # carries no such key and is NOT stale for it (see the test below)
+                  "context_window": 65536}
 #: sha256 of json.dumps(profile, sort_keys=True): the profiles the live
 #: gateway holds. Any change here is an update pushed to the running sandbox.
 TODAY_PROFILE_SHA = {
@@ -708,7 +711,13 @@ class Host:
     def __init__(self, rig, tmp_path):
         self.rig, self.tmp, self.user = rig, tmp_path, tmp_path / "user"
         self.argvs: list[list[str]] = []
-        self.gateways_up: set[str] = set()   # openshell binaries whose gateway was added
+        self.gateways_up: set[str] = set()   # openshell binaries whose gateway is added and active
+        self.registered: dict[str, str] = {}   # openshell binary -> its registered gateway's name
+
+    def gateway_name(self, binary: str) -> str:
+        """The gateway a home's CLI has active (its instance's, by default)."""
+        home = Path(binary).parents[2]
+        return self.registered.get(binary, "cascade" + home.name.removeprefix("openshell"))
 
     def run(self, argv, env=None, **kw):
         argv = [str(a) for a in argv]
@@ -722,8 +731,22 @@ class Host:
         if argv[0].endswith("/openshell"):
             args = argv[1:]
             if args == ["status"]:
-                return (0 if argv[0] in self.gateways_up else 1), ""
+                # As 0.1.3 answers: exit 0 even with no gateway registered
+                # (found live on a fresh instance home); only the text tells.
+                if argv[0] in self.registered and argv[0] not in self.gateways_up:
+                    return 1, DOWN_STATUS   # registered, its gateway not running
+                if argv[0] not in self.gateways_up:
+                    return 0, "Gateway Status\n\n  Status: No gateway configured.\n"
+                return 0, (f"Server Status\n\n  Gateway: {self.gateway_name(argv[0])}\n"
+                           "  Server: https://127.0.0.1\n  Status: Connected\n")
+            if args[:2] == ["gateway", "list"]:
+                rows = "".join(f"* {n}  https://127.0.0.1  local  user  mtls\n"
+                               for b, n in self.registered.items() if b == argv[0])
+                return 0, "  NAME  ENDPOINT  TYPE  SOURCE  AUTH\n" + rows if rows else NO_GATEWAYS
+            if args[:2] == ["gateway", "select"]:
+                self.gateways_up.add(argv[0])
             if args[:2] == ["gateway", "add"]:
+                self.registered[argv[0]] = args[args.index("--name") + 1]
                 self.gateways_up.add(argv[0])
             if args[:2] == ["sandbox", "get"]:
                 return 0, "Phase: Ready\n"
@@ -1192,3 +1215,310 @@ def test_the_instance_command_prints_the_scheme_and_touches_nothing(host, capsys
     assert rig.main(["instance"]) == 0
     assert json.loads(capsys.readouterr().out)["gateway_port"] == 17670
     assert not (host.user / ".cascade" / "openshell-sim").exists() and host.argvs == []
+
+
+# ── the launcher's route: exec, mcp-start, teardown ───────────────────────
+# scripts/launch.sh drives an instance end to end on Linux: it starts the
+# robot MCP server as the instance's unit, brings the sandbox up, runs the
+# OpenClaw CLI INSIDE the sandbox for its proof, and tears it all down.
+
+
+def _rig_exec(host, monkeypatch):
+    seen = []
+    monkeypatch.setattr(host.rig, "_replace_process", lambda argv, env: seen.append((argv, env)) or 0)
+    return seen
+
+
+def test_exec_runs_the_command_inside_the_instances_sandbox(host, monkeypatch):
+    """The launcher's proof drives OpenClaw where the agent lives: the
+    process is REPLACED by `openshell sandbox exec` (stdout and the exit
+    code are the remote command's), never run on the host."""
+    seen = _rig_exec(host, monkeypatch)
+    home = host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    assert host.rig.main(["--instance", "sim", "exec", "--", "openclaw", "agent", "--json"]) == 0
+    ((argv, env),) = seen
+    assert argv == [str(home / "0.1.3" / "bin" / "openshell"), "sandbox", "exec", "--name", "cascade-sim-agent",
+                    "--no-tty", "--", "openclaw", "agent", "--json"]
+    assert env["XDG_CONFIG_HOME"] == str(home / "config"), "this instance's gateway registry"
+    assert host.argvs == []
+
+
+def test_exec_needs_a_command(host, monkeypatch):
+    _rig_exec(host, monkeypatch)
+    host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    with pytest.raises(SystemExit, match="command"):
+        host.rig.main(["--instance", "sim", "exec"])
+
+
+def test_only_exec_serve_mcp_and_mcp_start_take_a_trailing_command(host):
+    host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    with pytest.raises(SystemExit, match="status"):
+        host.rig.main(["--instance", "sim", "status", "--", "rm", "-rf", "/"])
+    assert host.argvs == []
+
+
+def _env_file(tmp_path, env):
+    f = tmp_path / "mcp-env.json"
+    f.write_text(json.dumps(env))
+    f.chmod(0o600)
+    return f
+
+
+def test_mcp_start_runs_serve_mcp_as_the_instances_unit(host, tmp_path, capsys):
+    """One long-lived robot server per instance, on the instance's MCP port,
+    with the launcher's runtime environment (from a private file, never the
+    unit's argv) and its launch-owner flags passed through."""
+    home = host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    f = _env_file(tmp_path, {"CASCADE_ARM": "so101_mujoco", "CASCADE_CAMERAS": "mujoco_scene"})
+    assert host.rig.main(["--instance", "sim", "mcp-start", "--env-file", str(f), "--replace",
+                          "--", "--launch-owner", "o1", "--launch-state-dir", "/state"]) == 0
+    (unit,) = [a for a in host.argvs if a[0] == "systemd-run"]
+    assert "--unit=cascade-openshell-sim-mcp" in unit and "MemoryMax=infinity" in unit
+    tail = unit[unit.index(str(SCRIPT.resolve())) + 1:]
+    saved = home / "mcp-env.json"
+    assert tail == ["--instance", "sim", "serve-mcp", "--mcp-port", "17810", "--mcp-token-file",
+                    str(home / "mcp.token"), "--env-file", str(saved),
+                    "--", "--launch-owner", "o1", "--launch-state-dir", "/state"]
+    assert json.loads(saved.read_text()) == {"CASCADE_ARM": "so101_mujoco", "CASCADE_CAMERAS": "mujoco_scene"}
+    assert saved.stat().st_mode & 0o777 == 0o600
+    assert not any("so101_mujoco" in a for a in unit), "the environment never rides the unit's argv"
+    assert "127.0.0.1:17810" in capsys.readouterr().out
+
+
+def test_mcp_start_never_replaces_a_running_server_unless_asked(host, monkeypatch):
+    """The default instance's MCP unit is the live robot's server: starting
+    over it would cut torque mid-motion. Without --replace a running unit
+    is refused and nothing is touched."""
+    host.install(host.user / ".cascade" / "openshell")
+    answer = host.answer
+    monkeypatch.setattr(host, "answer", lambda argv: (0, "") if argv[:4] == [
+        "systemctl", "--user", "is-active", "--quiet"] and argv[-1] == "cascade-openshell-mcp" else answer(argv))
+    with pytest.raises(SystemExit, match="cascade-openshell-mcp is already running"):
+        host.rig.main(["mcp-start"])
+    assert [a for a in host.argvs if a[0] != "systemctl" or "is-active" not in a] == []
+
+
+def test_mcp_start_waits_for_the_server_to_answer(host, monkeypatch):
+    host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    codes = iter(["down (refused)", "down (refused)", 200])
+    monkeypatch.setattr(host.rig, "_check_mcp", lambda cfg, token: next(codes))
+    answer = host.answer
+    monkeypatch.setattr(host, "answer", lambda argv: (0, "") if "is-active" in argv and argv[-1].endswith("-mcp")
+                        and any(a[0] == "systemd-run" for a in host.argvs) else answer(argv))
+    assert host.rig.main(["--instance", "sim", "mcp-start", "--replace"]) == 0
+    with pytest.raises(StopIteration):
+        next(codes)
+
+
+def test_mcp_start_fails_with_the_log_when_the_server_dies(host, monkeypatch):
+    home = host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    (home / "mcp-server.log").write_text("ImportError: no module named mujoco\n")
+    monkeypatch.setattr(host.rig, "_check_mcp", lambda cfg, token: "down (refused)")
+    with pytest.raises(SystemExit, match="(?s)exited.*no module named mujoco"):
+        host.rig.main(["--instance", "sim", "mcp-start", "--replace"])
+
+
+def test_mcp_start_gives_up_after_its_wait(host, monkeypatch):
+    host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    monkeypatch.setattr(host.rig, "_check_mcp", lambda cfg, token: 401)
+    answer = host.answer
+    monkeypatch.setattr(host, "answer", lambda argv: (0, "") if "is-active" in argv and argv[-1].endswith("-mcp")
+                        and any(a[0] == "systemd-run" for a in host.argvs) else answer(argv))
+    with pytest.raises(SystemExit, match="did not answer within 3 s.*401"):
+        host.rig.main(["--instance", "sim", "mcp-start", "--replace", "--wait", "3"])
+
+
+@pytest.mark.parametrize("bad", ['["not", "a", "dict"]', '{"CASCADE_ARM": 3}', "not json"])
+def test_mcp_start_refuses_a_malformed_environment_file(host, tmp_path, bad):
+    host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    f = tmp_path / "env.json"
+    f.write_text(bad)
+    with pytest.raises(SystemExit, match="env-file"):
+        host.rig.main(["--instance", "sim", "mcp-start", "--replace", "--env-file", str(f)])
+    assert host.argvs == []
+
+
+def test_serve_mcp_applies_the_environment_file_and_the_owner_flags(host, monkeypatch, tmp_path):
+    seen = _rig_exec(host, monkeypatch)
+    monkeypatch.setattr(host.rig.os, "chdir", lambda p: None)
+    home = host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    f = _env_file(tmp_path, {"CASCADE_ARM": "so101_mujoco", "CASCADE_MCP_TOKEN": "leak"})
+    monkeypatch.setenv("CASCADE_ARM", "rebot_rs")
+    assert host.rig.main(["--instance", "sim", "serve-mcp", "--env-file", str(f),
+                          "--", "--launch-owner", "o1", "--launch-state-dir", "/state"]) == 0
+    ((argv, env),) = seen
+    assert argv[1:] == ["-m", "cascade.apps.mcp_server", "--http", "127.0.0.1:17810", "--token-file",
+                        str(home / "mcp.token"), "--launch-owner", "o1", "--launch-state-dir", "/state"]
+    assert env["CASCADE_ARM"] == "so101_mujoco", "the launcher's runtime wins over the unit's environment"
+    assert "CASCADE_MCP_TOKEN" not in env, "the token file stays the only source"
+
+
+def test_teardown_stops_only_the_instances_own_pieces(host):
+    """`launch.sh --down` of a sim run: chat forward, sandbox, robot server,
+    pending re-lock and (with --gateway) the gateway -- all sim's."""
+    home = host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    host.rig._write_state(home, motion_unlocked_until=2000.0)
+    assert host.rig.main(["--instance", "sim", "teardown", "--gateway"]) == 0
+    stopped = [a[3:] for a in host.argvs if a[:3] == ["systemctl", "--user", "stop"]]
+    assert stopped == [["cascade-openshell-sim-chat"], ["cascade-openshell-sim-mcp"],
+                       ["cascade-openshell-sim-relock.timer"], ["cascade-openshell-sim-relock.service"],
+                       ["cascade-openshell-sim-gateway"]]
+    assert [a[1:4] for a in host.argvs if a[0].endswith("/openshell")][-1] == ["sandbox", "delete", "cascade-sim-agent"]
+    assert "motion_unlocked_until" not in host.rig._read_state(home)
+    assert _targets(host.argvs).isdisjoint(_expected_targets(host.user / ".cascade" / "openshell", TODAY,
+                                                             relock="motion lock"))
+
+
+# ── the brain's context window reaches the sandbox's OpenClaw ─────────────
+
+def test_render_sets_the_brains_context_window(tmp_path):
+    """OpenClaw sizes its prompt from the model's contextWindow: a 32k brain
+    (Cosmos, the Spark's Qwen) configured as 64k overflows mid-session."""
+    assert _render(tmp_path, CASCADE_CONTEXT_WINDOW="32768").returncode == 0
+    cfg = json.loads((tmp_path / ".openclaw" / "openclaw.json").read_text())
+    assert cfg["models"]["providers"]["cascade"]["models"][0]["contextWindow"] == 32768
+
+
+def test_render_keeps_the_templates_context_window_by_default(tmp_path):
+    assert _render(tmp_path).returncode == 0
+    cfg = json.loads((tmp_path / ".openclaw" / "openclaw.json").read_text())
+    template = json.loads((DEPLOY / "openclaw.json").read_text())
+    assert cfg["models"]["providers"]["cascade"]["models"][0]["contextWindow"] == \
+        template["models"]["providers"]["cascade"]["models"][0]["contextWindow"] == 65536
+
+
+@pytest.mark.parametrize("bad", ["32k", "1024", "4194304", ""])
+def test_render_refuses_an_implausible_context_window(tmp_path, bad):
+    r = _render(tmp_path, CASCADE_CONTEXT_WINDOW=bad)
+    assert r.returncode != 0 and "CASCADE_CONTEXT_WINDOW" in r.stderr
+    assert not (tmp_path / ".openclaw" / "openclaw.json").exists()
+
+
+def test_a_non_default_context_window_rides_the_sandbox_env():
+    rig = _load()
+    argv = rig.sandbox_create_argv(rig.Settings(context_window=32768), image="t")
+    assert "CASCADE_CONTEXT_WINDOW=32768" in argv
+    assert not any(a.startswith("CASCADE_CONTEXT_WINDOW") for a in rig.sandbox_create_argv(rig.Settings(), image="t")), \
+        "the default sandbox argv is unchanged"
+
+
+def test_settings_saved_before_the_context_window_existed_are_not_stale(host):
+    """The live rig's deployed.json predates `context_window`: reading it
+    must not count as a settings change, which would recreate its sandbox
+    (and rotate the chat token) on the next `up`."""
+    rig = host.rig
+    home = host.install(host.user / ".cascade" / "openshell")
+    host.gateways_up.add(str(home / "0.1.3" / "bin" / "openshell"))
+    old = {k: v for k, v in TODAY_SETTINGS.items() if k != "context_window"}
+    rig._write_state(home, image=rig.image_tag(), settings=old)
+    assert rig.main(["up"]) == 0
+    assert not [a for a in host.argvs if a[0].endswith("/openshell") and a[1:3] in (["sandbox", "delete"],
+                                                                                     ["sandbox", "create"])]
+    assert rig.main(["up", "--context-window", "32768"]) == 0
+    assert [a[1:3] for a in host.argvs if a[0].endswith("/openshell") and a[1] == "sandbox"
+            and a[2] in ("delete", "create")] == [["sandbox", "delete"], ["sandbox", "create"]], \
+        "a real change recreates it"
+
+
+# ── `gateway start` on a fresh home (found live: 0.1.3's `status` exits 0) ──
+
+def test_a_fresh_home_registers_its_gateway_before_calling_it_healthy(host, capsys):
+    """0.1.3's `openshell status` exits 0 with "No gateway configured", so
+    an exit code cannot say the gateway is up. A fresh instance must
+    register ITS gateway (add sets it active) and see it Connected."""
+    home = host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    assert host.rig.main(["--instance", "sim", "gateway", "start"]) == 0
+    adds = [a[1:] for a in host.argvs if a[0].endswith("/openshell") and a[1:3] == ["gateway", "add"]]
+    assert adds == [["gateway", "add", "https://127.0.0.1:17710", "--name", "cascade-sim", "--local"]]
+    assert host.gateway_name(str(home / "0.1.3" / "bin" / "openshell")) == "cascade-sim"
+    assert "gateway `cascade-sim` healthy on 127.0.0.1:17710" in capsys.readouterr().out
+
+
+def test_another_active_gateway_is_not_this_instances(host):
+    """A home whose CLI has another gateway active (NemoClaw's `openshell`,
+    say) is not healthy for this instance: its own gateway is selected."""
+    home = host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    binary = str(home / "0.1.3" / "bin" / "openshell")
+    host.registered[binary] = "openshell"
+    host.gateways_up.add(binary)
+    answer = host.answer
+
+    def two_registered(argv):
+        if argv[0] == binary and argv[1:3] == ["gateway", "list"]:
+            return 0, "  NAME  ENDPOINT\n* openshell  https://127.0.0.1:8080\n  cascade-sim  https://127.0.0.1:17710\n"
+        if argv[0] == binary and argv[1:3] == ["gateway", "select"]:
+            host.registered[binary] = argv[3]
+        return answer(argv)
+    host.answer = two_registered
+    assert host.rig.main(["--instance", "sim", "gateway", "start"]) == 0
+    assert [a[1:] for a in host.argvs if a[0] == binary and a[1:3] == ["gateway", "select"]] == [
+        ["gateway", "select", "cascade-sim"]]
+    assert not [a for a in host.argvs if a[0] == binary and a[1:3] == ["gateway", "add"]]
+
+
+def test_up_refuses_a_home_with_no_gateway_registered(host):
+    host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    with pytest.raises(SystemExit, match="gateway is down"):
+        host.rig.main(["--instance", "sim", "up"])
+    assert not [a for a in host.argvs if a[0].endswith("/openshell") and a[1] in ("provider", "sandbox")]
+
+
+def test_status_reports_an_unregistered_gateway_as_down(host, capsys):
+    host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    assert host.rig.main(["--instance", "sim", "status"]) == 0
+    assert "gateway: down" in [line.strip() for line in capsys.readouterr().out.splitlines()]
+
+
+# ── the sandboxed agent: the robot's tools, nothing else ──────────────────
+
+def test_the_sandboxed_agent_sees_only_the_robots_tools():
+    """Measured live (MuJoCo, Qwen3.8-27B, 2026-10-12): with OpenClaw's own
+    tools exposed, "What is the session status?" called OpenClaw's
+    `session_status` instead of cascade's `world_state`, and a two-call turn
+    sent 73k prompt tokens; limited to the robot's tools it called
+    `world_state` and sent 22.5k. The host route's dedicated profile has
+    always set this allowlist (scripts/launch.sh)."""
+    cfg = json.loads((DEPLOY / "openclaw.json").read_text())
+    (server,) = cfg["mcp"]["servers"]
+    assert cfg["tools"]["allow"] == [f"{server}__*"]
+    assert "alsoAllow" not in cfg["tools"], "OpenClaw refuses allow and alsoAllow in one scope"
+    assert cfg["agents"]["defaults"]["skills"] == [], "no general-purpose skills in the robot's prompt"
+
+
+def test_the_rendered_config_keeps_the_allowlist(tmp_path):
+    assert _render(tmp_path).returncode == 0
+    cfg = json.loads((tmp_path / ".openclaw" / "openclaw.json").read_text())
+    assert cfg["tools"]["allow"] == ["cascade__*"] and cfg["agents"]["defaults"]["skills"] == []
+
+
+# 0.1.3's own words (captured 2026-10-12 from the real CLI on this host).
+NO_GATEWAYS = "No gateways found.\n\nRegister a gateway with: openshell gateway add <endpoint>\n"
+DOWN_STATUS = ("Error:   \u00d7 client error (Connect)\n  \u251c\u2500\u25b6 tcp connect error\n"
+               "  \u2570\u2500\u25b6 Connection refused (os error 111)\n")
+CONNECTED = "Server Status\n\n  Gateway: cascade-sim\n  Server: https://127.0.0.1:17710\n  Status: Connected\n"
+
+
+def _done(argv, rc, out):
+    return subprocess.CompletedProcess(argv, rc, stdout=out, stderr="")
+
+
+def test_gateway_list_parses_only_its_table():
+    """The empty answer is prose, not a table: "Register" is no gateway."""
+    rig = _load()
+    home = Path("/nonexistent")
+    assert rig.registered_gateways(home, run=lambda argv, **kw: _done(argv, 0, NO_GATEWAYS)) == set()
+    table = "  NAME         ENDPOINT                 TYPE   SOURCE  AUTH\n* cascade-sim  https://127.0.0.1:17710  local  user    mtls\n"
+    assert rig.registered_gateways(home, run=lambda argv, **kw: _done(argv, 0, table)) == {"cascade-sim"}
+
+
+@pytest.mark.parametrize("rc, out, healthy", [
+    (0, CONNECTED, True),
+    (1, DOWN_STATUS, False),                                          # registered, not running
+    (0, "Gateway Status\n\n  Status: No gateway configured.\n", False),
+    (0, CONNECTED.replace("cascade-sim", "openshell"), False),         # another gateway is active
+    (0, CONNECTED.replace("Status: Connected", "Status: Connecting"), False),
+])
+def test_gateway_health_is_the_instance_named_and_connected(rc, out, healthy):
+    rig = _load()
+    inst = rig.instance("sim")
+    assert rig.gateway_healthy(Path("/nonexistent"), inst, run=lambda argv, **kw: _done(argv, rc, out)) is healthy

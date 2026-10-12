@@ -4,6 +4,7 @@
       "model": {"primary": "cascade/qwen3.8-27b"},
       "timeoutSeconds": 600,
       "skipBootstrap": true,
+      "skills": [],
       "thinkingDefault": "off",
       "workspace": "/sandbox/.openclaw/workspace"
     }
@@ -32,7 +33,7 @@
     }
   },
   "tools": {
-    "alsoAllow": ["bundle-mcp"],
+    "allow": ["cascade__*"],
     "toolSearch": {"enabled": false},
     "web": {"fetch": {"enabled": false}, "search": {"enabled": false}}
   },

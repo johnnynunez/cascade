@@ -107,6 +107,7 @@ DEFAULT_BRAIN_PORT = 8081   # the authenticated brain of docs/NEMOCLAW.md
 DEFAULT_MCP_PORT = 18741    # loopback, plain HTTP + bearer (NemoClaw's TLS listener is 18740)
 DEFAULT_CHAT_PORT = 18799   # NemoClaw's dashboard forward holds 18789
 DEFAULT_MODEL = "qwen3.8-27b"
+DEFAULT_CONTEXT_WINDOW = 65536   # deploy/openshell/openclaw.json's contextWindow
 DEFAULT_SANDBOX = "cascade-agent"   # NemoClaw's sandbox is `cascade`
 SANDBOX_CHAT_PORT = 18789   # OpenClaw's gateway, on the sandbox's own loopback
 DEFAULT_DENY_TOOLS = ("reset_stop",)  # clearing an e-stop is staff-only (BOOTH_RUNBOOK.md)
@@ -129,6 +130,9 @@ class Settings:
     chat_port: int = DEFAULT_CHAT_PORT
     model: str = DEFAULT_MODEL
     sandbox: str = DEFAULT_SANDBOX
+    #: the brain's context window, as the sandbox's OpenClaw must size prompts
+    #: (deploy/openshell/openclaw.json carries this default)
+    context_window: int = DEFAULT_CONTEXT_WINDOW
 
 
 # ── instances: several isolated routes on one host ────────────────────────
@@ -440,6 +444,8 @@ def sandbox_create_argv(cfg: Settings, image: str, *, inst: Instance = DEFAULT_I
     through --env; both credentials ride the instance's providers."""
     env = {"CASCADE_BRAIN_PORT": cfg.brain_port, "CASCADE_MCP_PORT": cfg.mcp_port,
            "CASCADE_CHAT_PORT": cfg.chat_port, "CASCADE_MODEL": cfg.model}
+    if cfg.context_window != DEFAULT_CONTEXT_WINDOW:   # the template's value needs no variable
+        env["CASCADE_CONTEXT_WINDOW"] = cfg.context_window
     argv = ["sandbox", "create", "--name", cfg.sandbox, "--from", image,
             "--provider", inst.brain_provider, "--provider", inst.robot_provider]
     for k, v in env.items():
@@ -554,6 +560,23 @@ def sandbox_phase(home: Path, name: str, run=_default_run) -> str | None:
 def machine() -> str:
     m = platform.machine().lower()
     return {"arm64": "aarch64", "amd64": "x86_64"}.get(m, m)
+
+
+def gateway_healthy(home: Path, inst: Instance, run=_default_run) -> bool:
+    """This instance's gateway is the CLI's active one and Connected. 0.1.3's
+    `openshell status` exits 0 even with no gateway registered ("No gateway
+    configured", found live on a fresh instance home), so only its text tells."""
+    r = _openshell(home, "status", run=run, check=False)
+    lines = {line.strip() for line in (r.stdout or "").splitlines()}
+    return f"Gateway: {inst.gateway_name}" in lines and "Status: Connected" in lines
+
+
+def registered_gateways(home: Path, run=_default_run) -> set[str]:
+    """Names in `openshell gateway list` (its table: NAME first, `*` = active)."""
+    out = (_openshell(home, "gateway", "list", run=run, check=False).stdout or "").splitlines()
+    if not out or "NAME" not in out[0]:
+        return set()
+    return {cols[0] for cols in (line.replace("*", " ").split() for line in out[1:]) if cols}
 
 
 def _systemd_run(unit: str, argv: list[str], env: dict, log: Path) -> None:
@@ -795,11 +818,16 @@ def cmd_gateway(inst: Instance, home: Path, args) -> int:
     if args.action == "start" and not _unit_active(inst.gateway_unit):
         _systemd_run(inst.gateway_unit, [str(gw)], env, home / "gateway.log")
     for _ in range(60):
-        if _openshell(home, "status", check=False).returncode == 0:
+        if gateway_healthy(home, inst):
             break
-        if _openshell(home, "gateway", "add", f"https://127.0.0.1:{inst.gateway_port}", "--name", inst.gateway_name,
-                      "--local", check=False).returncode == 0:
-            continue
+        # A fresh home has no gateway registered (`add` also selects it); a
+        # home whose CLI has another one active needs ours selected.
+        if inst.gateway_name not in registered_gateways(home):
+            if _openshell(home, "gateway", "add", f"https://127.0.0.1:{inst.gateway_port}", "--name", inst.gateway_name,
+                          "--local", check=False).returncode == 0:
+                continue
+        else:
+            _openshell(home, "gateway", "select", inst.gateway_name, check=False)
         time.sleep(1)
     else:
         raise SystemExit(f"gateway not healthy; see {home / 'gateway.log'}")
@@ -807,15 +835,114 @@ def cmd_gateway(inst: Instance, home: Path, args) -> int:
     return 0
 
 
+def _replace_process(argv: list[str], env: dict) -> int:
+    """exec(2): this process becomes `argv` (its output and exit code are the
+    caller's), the way a wrapper must hand over a long-running command."""
+    os.execve(argv[0], argv, env)
+    return 0  # pragma: no cover
+
+
+def read_env_file(path: Path) -> dict[str, str]:
+    """A launcher's runtime environment for the robot server: one JSON
+    object of strings, from a private file (never a unit's argv)."""
+    try:
+        data = json.loads(Path(path).read_text())
+    except (OSError, ValueError) as exc:
+        raise SystemExit(f"--env-file {path}: not a readable JSON object ({exc})") from None
+    if not isinstance(data, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in data.items()):
+        raise SystemExit(f"--env-file {path}: must be one JSON object of string values")
+    return data
+
+
 def cmd_serve_mcp(inst: Instance, home: Path, args) -> int:
     cfg = _load_settings(home, args, inst)
     token_file = Path(args.mcp_token_file or home / "mcp.token")
     ensure_token(token_file)
-    argv = serve_mcp_argv(cfg, token_file)
+    argv = serve_mcp_argv(cfg, token_file) + list(args.extra)
+    base = dict(os.environ)
+    if args.env_file:
+        base.update(read_env_file(Path(args.env_file)))
     serve_mcp_cwd().mkdir(exist_ok=True)
     os.chdir(serve_mcp_cwd())
-    os.execvpe(argv[0], argv, serve_mcp_env())
-    return 0  # pragma: no cover
+    return _replace_process(argv, serve_mcp_env(base))
+
+
+def _log_tail(log: Path, lines: int = 8) -> str:
+    try:
+        return "\n".join(log.read_text(errors="replace").splitlines()[-lines:])
+    except OSError:
+        return "(no log)"
+
+
+def cmd_mcp_start(inst: Instance, home: Path, args) -> int:
+    """cascade's robot MCP server as this instance's transient user unit
+    (`serve-mcp` under systemd-run), then wait until it answers. The
+    launcher's runtime environment comes from --env-file; the arguments
+    after `--` (its launch-owner flags) reach the server unchanged."""
+    cfg = _load_settings(home, args, inst)
+    runtime_env = read_env_file(Path(args.env_file)) if args.env_file else None
+    unit = inst.mcp_unit
+    if not args.replace and _unit_active(unit):
+        raise SystemExit(f"{unit} is already running (another route's robot server?); stop it first, "
+                         f"or pass --replace if this launcher owns it")
+    token_file = Path(args.mcp_token_file or home / "mcp.token")
+    token = ensure_token(token_file)
+    saved = home / "mcp-env.json"
+    saved.unlink(missing_ok=True)
+    serve = [sys.executable, str(Path(__file__).resolve()), *(["--instance", inst.name] if inst.name else []),
+             "serve-mcp", "--mcp-port", str(cfg.mcp_port), "--mcp-token-file", str(token_file)]
+    if runtime_env is not None:
+        fd = os.open(saved, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w") as f:
+            json.dump(runtime_env, f)
+        serve += ["--env-file", str(saved)]
+    log = home / "mcp-server.log"
+    _systemd_run(unit, [*serve, "--", *args.extra] if args.extra else serve, openshell_env(home), log)
+    code: int | str = "not probed"
+    for _ in range(max(1, int(args.wait))):
+        code = _check_mcp(cfg, token)
+        if code == 200:
+            print(f"robot MCP server on 127.0.0.1:{cfg.mcp_port} (unit {unit}, log {log})")
+            return 0
+        if not _unit_active(unit):
+            raise SystemExit(f"{unit} exited before answering; last lines of {log}:\n{_log_tail(log)}")
+        time.sleep(1)
+    raise SystemExit(f"{unit} did not answer within {int(args.wait)} s (last answer: {code}); see {log}")
+
+
+def exec_argv(home: Path, cfg: Settings, command: list[str]) -> list[str]:
+    """`openshell sandbox exec` of `command` in this instance's sandbox."""
+    return [str(home / OPENSHELL_VERSION / "bin" / "openshell"), "sandbox", "exec", "--name", cfg.sandbox,
+            "--no-tty", "--", *command]
+
+
+def cmd_exec(inst: Instance, home: Path, args) -> int:
+    """Run one command INSIDE the sandbox (the launcher's OpenClaw CLI for
+    its proof): this process is replaced, so the caller sees the remote
+    command's output and exit code."""
+    if not args.extra:
+        raise SystemExit(f"exec needs a command after --, e.g. {inst.cli()} exec -- openclaw health --json")
+    cfg = _load_settings(home, args, inst)
+    if not (home / OPENSHELL_VERSION / "bin" / "openshell").exists():
+        raise SystemExit(f"OpenShell is not installed: {inst.cli()} install")
+    return _replace_process(exec_argv(home, cfg, list(args.extra)), openshell_env(home))
+
+
+def cmd_teardown(inst: Instance, home: Path, args) -> int:
+    """Everything a launcher started for this instance: the chat forward,
+    the sandbox, the robot MCP server, a pending re-lock, and with
+    --gateway the gateway. Nothing of another instance."""
+    cfg = _load_settings(home, args, inst)
+    subprocess.run(["systemctl", "--user", "stop", inst.chat_unit], capture_output=True, check=False)
+    if (home / OPENSHELL_VERSION / "bin" / "openshell").exists() and sandbox_phase(home, cfg.sandbox) is not None:
+        _openshell(home, "sandbox", "delete", cfg.sandbox)
+    subprocess.run(["systemctl", "--user", "stop", inst.mcp_unit], capture_output=True, check=False)
+    _cancel_relock(inst=inst)
+    _drop_state(home, "motion_unlocked_until")
+    print(f"{inst.cli()}: chat forward, sandbox {cfg.sandbox}, robot server and re-lock stopped")
+    if args.gateway:
+        return cmd_gateway(inst, home, argparse.Namespace(action="stop"))
+    return 0
 
 
 def cmd_up(inst: Instance, home: Path, args) -> int:
@@ -824,7 +951,7 @@ def cmd_up(inst: Instance, home: Path, args) -> int:
     token_file = Path(args.mcp_token_file or home / "mcp.token")
     if not (home / OPENSHELL_VERSION / "bin" / "openshell").exists():
         raise SystemExit(f"OpenShell is not installed: {inst.cli()} install")
-    if _openshell(home, "status", check=False).returncode != 0:
+    if not gateway_healthy(home, inst):
         raise SystemExit(f"cascade's OpenShell gateway is down: {inst.cli()} gateway start")
     # Preflight on the host loopback: what the supervisor will reach.
     brain = _check_brain(cfg, read_secret(brain_key_file))
@@ -852,8 +979,10 @@ def cmd_up(inst: Instance, home: Path, args) -> int:
     sync_provider(home, inst.robot_provider, MCP_TOKEN_ENV, token_file)
     state = _read_state(home)
     phase = sandbox_phase(home, cfg.sandbox)
+    # A state file older than a settings field holds that field's default.
+    deployed = {**asdict(Settings()), **state.get("settings", {})} if "settings" in state else None
     stale = phase is not None and (args.recreate or state.get("image") != tag
-                                   or state.get("settings") != asdict(cfg) or phase == "Error")
+                                   or deployed != asdict(cfg) or phase == "Error")
     if stale:
         print(f"recreating sandbox {cfg.sandbox} (phase {phase})")
         _openshell(home, "sandbox", "delete", cfg.sandbox)
@@ -935,7 +1064,7 @@ def cmd_status(inst: Instance, home: Path, args) -> int:
     rows = [("instance", f"{inst.name} ({home})")] if inst.name else []
     rows.append(("openshell", f"{OPENSHELL_VERSION} installed" if installed else "not installed"))
     if installed:
-        gw = _openshell(home, "status", check=False).returncode == 0
+        gw = gateway_healthy(home, inst)
         rows.append(("gateway", f"healthy on 127.0.0.1:{inst.gateway_port}" if gw else "down"))
         if gw:
             rows.append(("sandbox", f"{cfg.sandbox}: {sandbox_phase(home, cfg.sandbox) or 'absent'}"))
@@ -966,6 +1095,10 @@ def cmd_down(inst: Instance, home: Path, args) -> int:
     return 0
 
 
+#: Commands that take a command or server arguments after `--`.
+TRAILING_COMMAND = ("exec", "serve-mcp", "mcp-start")
+
+
 def main(argv: list[str] | None = None) -> int:
     doc = __doc__ or ""
     ap = argparse.ArgumentParser(description=doc.split("\n\n")[0],
@@ -990,6 +1123,8 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--chat-port", type=int, default=None,
                        help=f"host chat port (default: the instance's; {d.chat_port})")
         p.add_argument("--model", default=None, help=f"served model id (default {DEFAULT_MODEL})")
+        p.add_argument("--context-window", type=int, default=None,
+                       help=f"the brain's context window in tokens (default {DEFAULT_CONTEXT_WINDOW})")
         p.add_argument("--brain-key-file", default=os.environ.get(
             "CASCADE_BRAIN_KEY_FILE", str(Path.home() / ".cascade" / "nemoclaw" / "llama.key")),
             help="0600 file with the brain's bearer key")
@@ -1017,13 +1152,33 @@ def main(argv: list[str] | None = None) -> int:
             p.add_argument("--for", dest="for_", help="with --allow-motion: unlock duration (90s, 15m, 1h)")
         if name == "down":
             p.add_argument("--gateway", action="store_true", help="also stop the gateway")
+        if name == "serve-mcp":
+            p.add_argument("--env-file", help="JSON object of the server's runtime environment (0600)")
+    ms = add("mcp-start", "serve-mcp as this instance's user unit, then wait until it answers; "
+                          "`-- ARGS` reach the server (e.g. its launch-owner flags)")
+    settings_flags(ms)
+    ms.add_argument("--env-file", help="JSON object of the server's runtime environment (copied 0600 into the home)")
+    ms.add_argument("--replace", action="store_true", help="restart the unit if it runs (only if you own it)")
+    ms.add_argument("--wait", type=int, default=180, help="seconds to wait for the server to answer (default 180)")
+    ex = add("exec", "run `-- COMMAND` inside this instance's sandbox (the launcher's OpenClaw CLI)")
+    settings_flags(ex)
+    td = add("teardown", "stop the chat forward, delete the sandbox, stop the robot server and the re-lock")
+    settings_flags(td)
+    td.add_argument("--gateway", action="store_true", help="also stop the gateway")
     m = add("motion", "lock/unlock the arm at the OpenShell layer, live")
     m.add_argument("action", choices=["lock", "unlock", "status"])
     m.add_argument("--for", dest="for_", help="unlock duration (90s, 15m, 8h; default 20m, max 12h); "
                                              "every unlock re-locks itself")
     settings_flags(m)
     add("instance", "print this instance's names, ports, units and home (JSON); touches nothing")
+    argv = list(sys.argv[1:] if argv is None else argv)
+    extra: list[str] = []
+    if "--" in argv:
+        argv, extra = argv[:argv.index("--")], argv[argv.index("--") + 1:]
     args = ap.parse_args(argv)
+    if extra and args.cmd not in TRAILING_COMMAND:
+        raise SystemExit(f"`{args.cmd}` takes no command after --")
+    args.extra = extra
     inst = resolve_instance(args.instance)
     home = home_dir(inst)
     if args.cmd == "instance":
@@ -1032,7 +1187,8 @@ def main(argv: list[str] | None = None) -> int:
     claim_home(inst, home)
     return {"install": cmd_install, "gateway": cmd_gateway, "serve-mcp": cmd_serve_mcp, "up": cmd_up,
             "chat-url": cmd_chat_url, "open": cmd_open, "status": cmd_status, "down": cmd_down,
-            "motion": cmd_motion}[args.cmd](inst, home, args)
+            "motion": cmd_motion, "mcp-start": cmd_mcp_start, "exec": cmd_exec,
+            "teardown": cmd_teardown}[args.cmd](inst, home, args)
 
 
 if __name__ == "__main__":

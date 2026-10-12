@@ -26,10 +26,18 @@
   let enlarged=false, left=false;
   const layout = () => {
     const full=enlarged&&!frame.hidden;
-    host.style.setProperty('inset',full?'12px':left?'84px auto auto 12px':'84px 16px auto auto','important');
-    host.style.setProperty('width',frame.hidden?'auto':full?'calc(100vw - 24px)':'min(440px,calc(100vw - 24px))','important');
-    host.style.setProperty('height',frame.hidden?'auto':full?'calc(100dvh - 24px)':'min(560px,calc(100dvh - 250px))','important');
+    const tall=innerHeight>innerWidth;
+    host.style.setProperty('inset',full?'12px':tall?'12px 12px auto 12px':left?'84px auto auto 12px':'84px 16px auto auto','important');
+    host.style.setProperty('width',frame.hidden?'auto':full||tall?'calc(100vw - 24px)':'min(440px,calc(100vw - 24px))','important');
+    host.style.setProperty('height',frame.hidden?'auto':full?'calc(100dvh - 24px)':tall?'min(calc((100vw - 56px)*9/16 + 200px),52dvh)':'min(560px,calc(100dvh - 250px))','important');
+    // Portrait: the camera spans the top, so push the chat below it.
+    let room=document.getElementById('paai-cam-room');
+    if(tall&&!frame.hidden&&!full){
+      if(!room){room=document.createElement('style');room.id='paai-cam-room';document.head.append(room);}
+      room.textContent='main.content{padding-top:calc(min(calc((100vw - 56px)*9/16 + 200px),52dvh) + 28px)!important;box-sizing:border-box!important}';
+    }else room?.remove();
   };
+  addEventListener('resize',layout);
   const expand = () => { frame.hidden = false; launcher.hidden = true; layout(); frame.contentWindow.postMessage({cascade:'resume'}, chrome.runtime.getURL('').slice(0,-1)); };
   const collapse = () => { enlarged=false; frame.contentWindow.postMessage({cascade:'pause'}, chrome.runtime.getURL('').slice(0,-1)); frame.hidden=true; launcher.hidden=false;layout();launcher.focus(); };
   launcher.addEventListener('click', expand); host.addEventListener('cascade-expand', expand);
@@ -48,7 +56,7 @@
     }
   };
   window.addEventListener('keydown',escape,true);
-  const cleanup = () => { chrome.runtime.onMessage.removeListener(listener); window.removeEventListener('keydown',escape,true); observer.disconnect(); host.remove(); };
+  const cleanup = () => { chrome.runtime.onMessage.removeListener(listener); window.removeEventListener('keydown',escape,true); observer.disconnect(); removeEventListener('resize',layout); host.remove(); document.getElementById('paai-cam-room')?.remove(); };
   chrome.runtime.onMessage.addListener(listener);
   // Remove our overlay if a SPA replaces the app with an unrelated surface.
   const observer = new MutationObserver(() => { if (!app.isConnected || !host.isConnected) cleanup(); });

@@ -27,8 +27,17 @@ def coordinate_binding(runtime, raw):
             runtime._grip_open, runtime._grip_closed, raw._ctrl.dtype.str)
 
 
+def _backend(arm):
+    """The materialized driver behind the safety wrapper. The MCP server's arm
+    is a LazyArm, which refuses private probes; unmaterialized, there is none
+    (and probing must not connect it)."""
+    from ..control.lazy_arm import LazyArm
+    raw = getattr(arm, "raw", None)
+    return raw.__dict__.get("_arm") if isinstance(raw, LazyArm) else raw
+
+
 def prepare(runtime, release_pose, *, carry_goals=None, deadline=None):
-    raw = getattr(runtime.arm, "raw", None)
+    raw = _backend(runtime.arm)
     name = getattr(raw, "_cfg", {}).get("mj_release_tool_body")
     if name is None:
         return None
@@ -38,7 +47,7 @@ def prepare(runtime, release_pose, *, carry_goals=None, deadline=None):
 class Withdrawal:
     def __init__(self, runtime, tool_body, release_pose, *, carry_goals=None, deadline=None):
         self.runtime, self.arm = runtime, runtime.arm
-        self.raw, self.kin, self.harness = self.arm.raw, runtime.kin, self.arm.harness
+        self.raw, self.kin, self.harness = _backend(self.arm), runtime.kin, self.arm.harness
         self.world = self.raw.world
         if (self.world is None or self.raw._engine.kind != "mjc"
                 or self.arm.motion_planner is not None):
@@ -252,7 +261,7 @@ class Withdrawal:
         return False
 
     def _binding_guard(self):
-        if (self.runtime.arm is not self.arm or self.arm.raw is not self.raw
+        if (self.runtime.arm is not self.arm or _backend(self.arm) is not self.raw
                 or self.raw.world is not self.world or self.world.model is not self.model
                 or self.arm.harness is not self.harness or self.runtime.kin is not self.kin
                 or self.raw._engine is not self._bound_engine

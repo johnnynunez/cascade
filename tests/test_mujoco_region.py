@@ -533,3 +533,39 @@ def test_plain_robot_scene_can_connect_but_cannot_invent_region_objects():
             history.read('invented cube')
     finally:
         arm.disconnect()
+
+
+def test_region_reads_the_materialized_backend_behind_a_lazy_arm(model_runtime):
+    """The MCP server builds its arm lazily (`build_runtime(lazy_arm=True)`),
+    and LazyArm refuses private attribute probes. Region planning must read
+    the materialized backend's joint addresses. Found live (MuJoCo through
+    the OpenShell sandbox, 2026-10-12): every pick_and_place failed with
+    `AttributeError: _qadr` right after a verified 2.5 cm lift."""
+    from cascade.control.lazy_arm import LazyArm
+    from cascade.safety.harness import SafeArm
+    from cascade.skills.mujoco_region import select
+    rt = model_runtime
+    backend = rt.arm.raw
+    lazy = LazyArm(lambda: backend, n_joints=backend.n_joints, profile_type='mujoco')
+    lazy._arm = backend   # materialized (the grasp moved it), never connected twice
+    rt.arm = SafeArm(lazy, rt.arm.harness)
+    rt._tool_axis_order = 'open_down'
+    rt._supported_release_height = lambda support, fallback: fallback
+    captured(rt, CAPTURE[0]['rows'][0])
+    result = select(rt)
+    assert result['destination_kind'] == 'configured_region'
+
+
+def test_release_geometry_never_materializes_a_lazy_arm(model_runtime):
+    """An unmaterialized lazy arm has no release geometry yet: preparing a
+    release must not connect it (the MCP server's motors stay untouched
+    until the first motion command)."""
+    from cascade.control.lazy_arm import LazyArm
+    from cascade.safety.harness import SafeArm
+    from cascade.skills import mujoco_withdrawal
+    rt = model_runtime
+    calls = []
+    lazy = LazyArm(lambda: calls.append(1) or rt.arm.raw, n_joints=rt.arm.raw.n_joints, profile_type='mujoco')
+    rt.arm = SafeArm(lazy, rt.arm.harness)
+    assert mujoco_withdrawal.prepare(rt, np.eye(4)) is None
+    assert calls == [] and lazy.__dict__.get('_arm') is None

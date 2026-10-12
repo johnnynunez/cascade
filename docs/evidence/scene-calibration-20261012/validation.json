@@ -1,0 +1,248 @@
+{
+  "record": "configs/calib/d455f_scene_rebot_rs.handeye.json",
+  "record_sha256": "47d94e43f0ecc2a03680751b9b3d09babe344159b2e1ff87ed44041ce453f5c9",
+  "run_id": "20261012_192623_d455f_scene",
+  "source_base_commit": "3dd5a10b4f43984b0db1e90e6fff597bee59119c",
+  "native_cli_exit_code": 0,
+  "post_fit_exclusions": [],
+  "n_planned": 21,
+  "n_collected": 21,
+  "n_saved": 21,
+  "metrics": {
+    "n_poses": 21.0,
+    "n_poses_used": 21.0,
+    "n_inliers": 40968.0,
+    "n_visible": 58026.0,
+    "inlier_fraction": 0.7060283321269776,
+    "rmse_m": 0.0031123301722663014,
+    "pose_offset_max_m": 0.0023376595929256723,
+    "pose_offset_max_deg": 0.8066045578113804,
+    "pose_offset_rms_m": 0.0016126755928152106,
+    "degeneracy_min_eig": 0.14027579629738768,
+    "condition_number": 3.5542792058791592,
+    "weakest_sigma_m": 4.105555337429456e-05,
+    "tcp_spread_m": 0.02118509482893015,
+    "rotation_spread_deg": 18.583597807442178,
+    "fitness": 0.7060283321269776,
+    "n_starts": 13.0,
+    "cloud_radius_m": 0.17009274683521544
+  },
+  "runtime_loader_accepted": true,
+  "wrong_serial_refused": true,
+  "selected_original_pose_indices": [
+    0,
+    1,
+    3,
+    4,
+    5,
+    6,
+    7,
+    9,
+    11,
+    16,
+    17,
+    18,
+    20,
+    21,
+    22,
+    24,
+    26,
+    29,
+    31,
+    35,
+    37
+  ],
+  "selection_criteria": "a priori in-frame >=97%; 5th percentile visible model optical depth >=0.42m; unchanged IK/harness gates",
+  "holdouts": [
+    {
+      "capture": "before_sweep",
+      "explained_fraction": 0.7139845397048489,
+      "offset_check": {
+        "conclusive": true,
+        "reason": "ok",
+        "offset_m": 0.0035600033534409965,
+        "offset_deg": 0.6322485561146864,
+        "camera_shift_m": 0.0062529907720688255,
+        "n_visible": 2846,
+        "n_inliers_before": 2032,
+        "n_inliers_after": 2149,
+        "fraction_before": 0.7139845397048489,
+        "fraction_after": 0.7469586374695864,
+        "fraction_front": 0.04767103347889374,
+        "rmse_m": 0.003272486932887079
+      },
+      "max_rest_error_rad": 0.021859217435121536,
+      "table_check": {
+        "height_at_base_m": 0.002591485404929047,
+        "slope_forward_deg": -0.012614531204734164,
+        "slope_left_deg": -0.6861880702103426,
+        "n_points": 14963
+      }
+    },
+    {
+      "capture": "after_sweep",
+      "explained_fraction": 0.7277397260273972,
+      "offset_check": {
+        "conclusive": true,
+        "reason": "ok",
+        "offset_m": 0.0029929823417790755,
+        "offset_deg": 0.7830661884659864,
+        "camera_shift_m": 0.008440255424918792,
+        "n_visible": 2920,
+        "n_inliers_before": 2125,
+        "n_inliers_after": 2167,
+        "fraction_before": 0.7277397260273972,
+        "fraction_after": 0.7423775265501884,
+        "fraction_front": 0.03866619368570415,
+        "rmse_m": 0.0032496722980754895
+      },
+      "max_rest_error_rad": 0.015680691227316856,
+      "table_check": {
+        "height_at_base_m": 0.0013231644862595636,
+        "slope_forward_deg": -0.04934339883428033,
+        "slope_left_deg": -0.9925707145970396,
+        "n_points": 15202
+      }
+    }
+  ],
+  "depth_captures": [
+    {
+      "label": "pose_08",
+      "depth_file": "captures/pose_08_depth.png",
+      "sha256": "ae3906b161629fe3db476d3cdd36e4fb18e715109c0f8cfee8ce9e5df203da53",
+      "bytes": 253590
+    },
+    {
+      "label": "pose_06",
+      "depth_file": "captures/pose_06_depth.png",
+      "sha256": "89a85e066c814c9ff7a39a6a941a9faf68dde05479d3f934892ad7d7d6add9f0",
+      "bytes": 255492
+    },
+    {
+      "label": "pose_16",
+      "depth_file": "captures/pose_16_depth.png",
+      "sha256": "3914dd9ca3ed012c00eecf4c4d2b1388ddceba9943733c8113f334abe46a070a",
+      "bytes": 256545
+    },
+    {
+      "label": "pose_13",
+      "depth_file": "captures/pose_13_depth.png",
+      "sha256": "a29e857a6d0f9d94256d8c3b4c9f335f0987adca86ff57113123b7047ba2d5f1",
+      "bytes": 256521
+    },
+    {
+      "label": "pose_12",
+      "depth_file": "captures/pose_12_depth.png",
+      "sha256": "9cd20a3cda21431cf7625dff50369e822d26d825d97813243b8c512f6971c071",
+      "bytes": 260694
+    },
+    {
+      "label": "pose_01",
+      "depth_file": "captures/pose_01_depth.png",
+      "sha256": "e87b2c3a715f70985cf12720a62949a7001b370e5073bf35f8a526f5f0848d75",
+      "bytes": 260922
+    },
+    {
+      "label": "pose_04",
+      "depth_file": "captures/pose_04_depth.png",
+      "sha256": "2d51100d724d44afe9efdd95f2a6b717c1648c10aa9ca8f791e5a3388f2f14d8",
+      "bytes": 261657
+    },
+    {
+      "label": "pose_05",
+      "depth_file": "captures/pose_05_depth.png",
+      "sha256": "ed02439e9e7afc19df395d7e4bd84fd23c0c6e546f8333b3c8c0812eab92f2b3",
+      "bytes": 261332
+    },
+    {
+      "label": "pose_11",
+      "depth_file": "captures/pose_11_depth.png",
+      "sha256": "1b2c7e8d089efedcdfbce166a661bb8c0acd583bb4beab36388c920619ef09bc",
+      "bytes": 262481
+    },
+    {
+      "label": "pose_03",
+      "depth_file": "captures/pose_03_depth.png",
+      "sha256": "fb9936e4d1d2040fae9d53d9754895cca857b31fa7f128997b32341821df03b4",
+      "bytes": 261546
+    },
+    {
+      "label": "pose_02",
+      "depth_file": "captures/pose_02_depth.png",
+      "sha256": "d714e0d8db52cd546c2e2d3d8a99f93694d7d74208002a7392b5d1707a2f060e",
+      "bytes": 262557
+    },
+    {
+      "label": "pose_14",
+      "depth_file": "captures/pose_14_depth.png",
+      "sha256": "6f0de1deea1742aaa48868de24da43db87e95fa8a63ae739cef1091d33203e8d",
+      "bytes": 255212
+    },
+    {
+      "label": "pose_09",
+      "depth_file": "captures/pose_09_depth.png",
+      "sha256": "b7900be837fb40f03485d7ea85f76e18619fc3bd5801269acfbbc66fdc62943d",
+      "bytes": 255830
+    },
+    {
+      "label": "pose_19",
+      "depth_file": "captures/pose_19_depth.png",
+      "sha256": "ee1e198a940d5338982c77582e9c7e90b42ad3a263d508266ba206b4b3ecfdfd",
+      "bytes": 251326
+    },
+    {
+      "label": "pose_20",
+      "depth_file": "captures/pose_20_depth.png",
+      "sha256": "0ec18c7ac5a10358b2241d3f08f6a8576c9761a2fe9363a79806cceb5395c0c4",
+      "bytes": 251686
+    },
+    {
+      "label": "pose_10",
+      "depth_file": "captures/pose_10_depth.png",
+      "sha256": "50efaf68da71e90188f94fec26ea659ca0a4f5a6e7643964492d1d455e30dac2",
+      "bytes": 251215
+    },
+    {
+      "label": "pose_07",
+      "depth_file": "captures/pose_07_depth.png",
+      "sha256": "dfa42cb3891f13b1aed6974bcbf382960beeac1bcc60780344ecc5df0e3c28c8",
+      "bytes": 251865
+    },
+    {
+      "label": "pose_15",
+      "depth_file": "captures/pose_15_depth.png",
+      "sha256": "4b64e2cb4b2f9b8f8c88c62ec6ce550b9ab5ed574b73a0ee8c0b4698c99b8353",
+      "bytes": 256463
+    },
+    {
+      "label": "pose_00",
+      "depth_file": "captures/pose_00_depth.png",
+      "sha256": "c139f71e2541ec4c7df0e6a548f0e210bd348c348a00c43c79d10193037d19ba",
+      "bytes": 256622
+    },
+    {
+      "label": "pose_18",
+      "depth_file": "captures/pose_18_depth.png",
+      "sha256": "138b47276ada28905e334c21c50cdacd400aed507342c03578e729c052a6a024",
+      "bytes": 253271
+    },
+    {
+      "label": "pose_17",
+      "depth_file": "captures/pose_17_depth.png",
+      "sha256": "d90007aaf94f157d182f26a95044322aaa58cac11a7b2265c20df66c09d5ba83",
+      "bytes": 257634
+    }
+  ],
+  "physical_pick_tested": false,
+  "independent_fiducial_accuracy_tested": false,
+  "live_checkout_updated": false,
+  "record_promotion": "Byte-identical native CLI record promoted from temporary per-mount output to the canonical profile path after acceptance.",
+  "raw_capture_policy": "Raw camera/depth captures retained privately on the rig; only calibration data, hashes and numeric validation are committed.",
+  "tests": {
+    "tests": 278,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "scope": "15 camera/profile/hand-eye/markerless/regression test files"
+  }
+}

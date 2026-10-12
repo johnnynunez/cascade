@@ -29,6 +29,13 @@ class OvrtxError(RuntimeError):
     pass
 
 
+#: The SDK pair this adapter was validated with (pyproject ``ovrtx`` extra).
+PINNED_SDK = (("ovrtx", "0.5.0.377615"), ("ovstage", "0.2.0.377349"))
+#: Additional pairs accepted ONLY when a caller names them explicitly (``sdk_versions=``): the Isaac Lab 3.0 venv
+#: ships OVRTX 0.5.1, measured with the MicroDuck replay renderer (docs/MICRODUCK_AGENTIC_DEMOS.md).
+KNOWN_SDK = {PINNED_SDK, (("ovrtx", "0.5.1.385782"), ("ovstage", "0.2.1.385922"))}
+
+
 def _finite(value, name, *, positive=False):
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise OvrtxError(f"{name} must be a finite number")
@@ -212,7 +219,8 @@ class OvrtxRenderer:
     a hard startup deadline. Errors poison the owner until close, no retries.
     """
     def __init__(self, scene, cameras, *, dynamic_paths=(), device=0, render_dt=1/30,
-                 meters_per_unit=1., semantic_paths=None, world_paths=(), instance_paths=(), _modules=None):
+                 meters_per_unit=1., semantic_paths=None, world_paths=(), instance_paths=(), _modules=None,
+                 sdk_versions=PINNED_SDK):
         self.scene = Path(scene).expanduser().resolve(strict=True)
         if not self.scene.is_file() or meters_per_unit != 1.:
             raise OvrtxError("OVRTX scenes must be local files authored in metres (meters_per_unit=1)")
@@ -236,6 +244,9 @@ class OvrtxRenderer:
             from .ovrtx_masks import semantic_layer
             semantic_layer(self.semantic_paths)  # Validate before native creation.
         self.render_dt = _finite(render_dt, "render_dt", positive=True)
+        self.sdk_versions = tuple(tuple(p) for p in sdk_versions)
+        if self.sdk_versions not in KNOWN_SDK:
+            raise OvrtxError(f"Unknown OVRTX SDK pair {self.sdk_versions}; known: {sorted(KNOWN_SDK)}")
         self._modules = _modules  # Dependency injection for CPU contract tests only.
         self._lock = threading.RLock()
         self._renderer = self._stage = self._dictionary = None
@@ -259,7 +270,7 @@ class OvrtxRenderer:
                 if self._modules is None:
                     if not (3, 10) <= sys.version_info[:2] < (3, 14):
                         raise OvrtxError("OVRTX 0.5 requires Python 3.10-3.13")
-                    for package, expected in (("ovrtx", "0.5.0.377615"), ("ovstage", "0.2.0.377349")):
+                    for package, expected in self.sdk_versions:
                         if importlib.metadata.version(package) != expected:
                             raise OvrtxError(f"Expected {package}=={expected}; use the ovrtx extra")
                     self._ovrtx, self._ovstage = (importlib.import_module(p) for p in ("ovrtx", "ovstage"))

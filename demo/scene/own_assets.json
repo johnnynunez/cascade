@@ -15,8 +15,8 @@
       "size_bytes": 13949
     },
     "src/cascade/sim/ovrtx_renderer.py": {
-      "sha256": "d6f968e61936373e765dbe0ba38a2e8ad72667bc57441abfec8da5614054d461",
-      "size_bytes": 22900
+      "sha256": "87f142450fe53677459a9ba03117b13291e581585cf0faa912e1d97a2f2d1acc",
+      "size_bytes": 23567
     },
     "src/cascade/sim/ovrtx_masks.py": {
       "sha256": "6617df824187143ff9b87ad853369e9cc1836590cc57cd49ba7b99ecc439da19",

@@ -447,3 +447,80 @@ def test_the_rig_check_moves_only_the_gripper_and_only_from_rest(clock, q0, code
 def test_the_rig_check_needs_yes(capsys):
     assert _check_script().main([]) == 2
     assert "Nothing done" in capsys.readouterr().out
+
+
+# ── --reference-only: the startup check run by the operator's `up` ───────
+#
+# Rig 2026-10-12: the gripper's zero no longer matched its closed stop (a rack
+# had jumped teeth on the pinion after the 00:21 over-open), and nothing said
+# so until the agent's first grasp failed mid-demo. The startup check finds it
+# before the robot server starts: the arm must already be folded at rest (read
+# with NO motor enabled), then only the gripper closes onto its stop.
+
+
+def _rig_arm(jaw, q0=(0.0,) * 6):
+    arm = sdk_arm(jaw)
+    arm.get_state = lambda: types.SimpleNamespace(q=np.asarray(q0, float).copy())
+    arm.send_joint_target = lambda q: None
+    return arm
+
+
+def test_the_startup_check_references_and_leaves_the_jaws_closed(clock):
+    jaw = clock(Jaw(0.0, -TWO_PI))                                   # closed, one turn off
+    out = []
+    assert _check_script().run(_rig_arm(jaw), np.zeros(6), log=out.append, reference_only=True) == 0
+    assert max(jaw.sent) <= -TWO_PI + 1e-9, "the startup check only ever closes"
+    assert jaw.x == pytest.approx(0.0, abs=0.02) and jaw.press["open_end"] == 0.0
+    assert any("offset -1 turn(s)" in line for line in out)
+    assert out[-1].startswith("[+] gripper referenced")
+
+
+def test_the_startup_check_fails_on_a_zero_that_no_longer_matches_the_closed_stop(clock):
+    jaw = clock(Jaw(0.0, -2.78))                                     # tonight's shifted zero
+    out = []
+    assert _check_script().run(_rig_arm(jaw), np.zeros(6), log=out.append, reference_only=True) == 1
+    assert "GripperFault" in out[-1] and "closed stop" in out[-1]
+    assert max(jaw.sent) <= -2.78 + 1e-9, "a failed reference must not open the jaws"
+
+
+class _ArmFactory:
+    """Stands in for RebotRSArm in main(): records whether torque was ever
+    asked for (connect) and released (disconnect)."""
+
+    def __init__(self, arm):
+        self.arm, self.calls = arm, []
+        arm.connect = lambda: self.calls.append("connect")
+        arm.disconnect = lambda: self.calls.append("disconnect")
+        arm.stop = lambda: self.calls.append("stop")
+
+    def __call__(self, cfg):
+        self.calls.append("construct")
+        return self.arm
+
+
+@pytest.mark.parametrize(("q", "why"), [([0, 1.2, 1.2, 0, 0, 0], "not folded at rest"),
+                                        ([0, 0, None, 0, 0, 0], "could not read every arm joint")],
+                         ids=["raised", "unreadable"])
+@pytest.mark.parametrize("mode", [["--reference-only"], []], ids=["startup", "full"])
+def test_the_check_refuses_before_any_torque_unless_the_arm_rests(clock, monkeypatch, capsys, q, why, mode):
+    jaw = clock(Jaw(0.0))
+    factory = _ArmFactory(_rig_arm(jaw))
+    mod = _check_script()
+    monkeypatch.setattr(mod, "read_rest_pose", lambda: q)
+    monkeypatch.setattr(rs, "RebotRSArm", factory)
+    assert mod.main(["--yes", *mode]) == 2
+    assert factory.calls == [] and jaw.sent == []
+    out = capsys.readouterr().out
+    assert why in out and "Nothing energized" in out
+
+
+def test_the_startup_check_connects_references_and_releases_torque(clock, monkeypatch, capsys):
+    jaw = clock(Jaw(0.0, -TWO_PI))
+    factory = _ArmFactory(_rig_arm(jaw))
+    mod = _check_script()
+    monkeypatch.setattr(mod, "read_rest_pose", lambda: [0.001, 0.0, -0.002, 0.0, 0.0, 0.003])
+    monkeypatch.setattr(rs, "RebotRSArm", factory)
+    assert mod.main(["--yes", "--reference-only"]) == 0
+    assert factory.calls == ["construct", "connect", "disconnect"]
+    assert max(jaw.sent) <= -TWO_PI + 1e-9
+    assert "torque released" in capsys.readouterr().out

@@ -5,13 +5,13 @@ route is not a continuous collision proof and never replaces streaming checks.
 """
 from __future__ import annotations
 
-from contextlib import contextmanager
 import time
+from contextlib import contextmanager
 
 import numpy as np
 
 from ..control.motion_profile import nominal_profile, profile_counts
-from ..types import SkillError, SafetyViolation
+from ..types import SafetyViolation, SkillError
 
 PLAN_BUDGET_S = 3.0
 MAX_ROUTE_CANDIDATES = 15
@@ -84,10 +84,13 @@ def vet_route(harness, start, goals, duration_s, *, deadline=None, rate_hz=50.0)
 
 
 def plan_route(harness, start, goal, duration_s=3.0, *, rate_hz=50.0):
-    """Try a direct route, then joint-first/joint-last corners, without retries.
+    """Try direct, joint-first/last corners, then at most two TCP lifts.
 
-    Corners use only the measured start and requested goal. Every segment must
-    pass before any part can execute; candidate count and wall time are capped.
+    Corners use only the measured start and requested goal, in their original
+    order. Lifts request +3/+6 cm in base z at the start orientation, using
+    only remaining candidate slots and bounded, seed-only model IK. The shared
+    deadline is checked around IK; an individual solver call is not preempted.
+    Every segment must pass before any part can execute.
     """
     start, goal = _joints(start, goal)
     deadline = time.monotonic() + PLAN_BUDGET_S
@@ -103,6 +106,29 @@ def plan_route(harness, start, goal, duration_s=3.0, *, rate_hz=50.0):
             last = goal.copy()
             last[joint] = start[joint]
             yield [last, goal.copy()]
+
+        # Model-only fallback, after every existing corner has failed. Raising
+        # the TCP endpoint does NOT make the interpolated joint path vertical;
+        # both legs still pass through the same full-route vetting below.
+        kin = getattr(harness, "kin", None)
+        if not callable(getattr(kin, "fk", None)) or not callable(getattr(kin, "ik", None)):
+            return
+        used = 1 + 2 * int(np.count_nonzero(np.abs(goal - start) >= 1e-9))
+        if used >= MAX_ROUTE_CANDIDATES:
+            return
+        if time.monotonic() >= deadline:
+            raise SkillError("route preflight exceeded its time budget; no route authorized")
+        pose = kin.fk(start)
+        for height in (.03, .06)[:MAX_ROUTE_CANDIDATES - used]:
+            if time.monotonic() >= deadline:
+                raise SkillError("route preflight exceeded its time budget; no route authorized")
+            target = pose.copy()
+            target[2, 3] += height
+            lift = kin.ik(target, q_init=start.copy(), max_iter=80, retries=0)
+            if time.monotonic() >= deadline:
+                raise SkillError("route preflight exceeded its time budget; no route authorized")
+            if lift.success:
+                yield [lift.q, goal.copy()]
 
     first_reason = None
     with geometry_guard(harness, deadline=deadline):

@@ -152,7 +152,10 @@ HONEST_PROMPT = """HONEST ONBOARD MODE: you only know what this robot itself sen
 * detect_objects runs a real image detector (YOLOE) on your camera image. It was trained on real photos, so its names
   for simple props can be odd (a dark box may come back as "pulpit"); judge by colour, size and position. Its range
   comes from your ToF when the object is in the ToF's 45 deg cone, otherwise from the floor contact point (rougher).
-* The image you receive is your own head camera (640x360, downscaled)."""
+* The image you receive is your own head camera (640x360, downscaled).
+* Do not give up while you are upright and have steps left: certainty is never available on a real robot. If you
+  cannot verify something, get closer and look again; call task_done only when you believe the task is done or you
+  cannot continue."""
 HONEST_DETECT = _spec("detect_objects", "Run the onboard object detector (YOLOE, open vocabulary) on your current head "
                                         "camera image: label (with dominant colour), confidence, bearing, distance and "
                                         "position in your own start frame (from your pose estimate). Real detector: it "

@@ -45,7 +45,10 @@ SKATE_HONEST_PROMPT = """HONEST ONBOARD MODE: you only know what this robot itse
   side); keep legs short (1-2 m) near objects.
 * Do not give up while you are upright and have steps left: certainty is never available on a real robot. If an
   obstacle blocks the way, roll slowly (throttle 0.25-0.3) with a heading 40-60 deg toward the clear side for 1-2 s,
-  then detect again. Call task_done only when the course is done or you have fallen."""
+  then detect again. Call task_done only when the course is done or you have fallen.
+* Your camera only sees about +-40 deg ahead. To find an object you expect somewhere (e.g. the coach's position for
+  the next cone), first carve so that its expected bearing comes inside +-30 deg, then detect. Choose the side on
+  which you pass furniture so that the next target stays in view (pass on the side toward it)."""
 
 SKATE_PROMPT = """You are the onboard agent of ONE MicroDuck, a 30 cm bipedal duck robot on ROLLER SKATES, in a physics
 simulation. You decide what the robot does by calling exactly one tool per turn; a learned skating policy moves the

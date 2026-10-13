@@ -70,9 +70,27 @@ class ToFReading:
         return "; ".join(parts)
 
 
+def _tilt_beams(d, delta_rad):
+    """Rotate each beam's elevation by ``delta_rad`` (negative = more downward), keeping its azimuth."""
+    z = d[:, 2:3]
+    hor = d.copy()
+    hor[:, 2] = 0.0
+    n = np.linalg.norm(hor, axis=1, keepdims=True)
+    hor = np.where(n > 1e-9, hor / np.maximum(n, 1e-9), np.array([[1.0, 0.0, 0.0]]))
+    e = np.arcsin(np.clip(z, -1.0, 1.0)) + delta_rad
+    out = hor * np.cos(e)
+    out[:, 2:3] = np.sin(e)
+    return out
+
+
 def classify_frame(distance_mm, status, sensor_pos_w, beam_dir_w, *, floor_z: float = 0.0,
-                   obstacle_min_height_m: float = 0.03):
-    """Per-zone arrays: kind (0 unusable, 1 floor, 2 obstacle, 3 no-target free, 4 drop), hit points (64, 3)."""
+                   obstacle_min_height_m: float = 0.03, zone_half_rad: float = math.radians(45.0 / 16)):
+    """Per-zone arrays: kind (0 unusable, 1 floor, 2 obstacle, 3 no-target free, 4 drop), hit points (64, 3).
+
+    A zone of the VL53L8CX spans 5.6 deg; its reported range is consistent with the floor when ANY ray within the
+    zone's elevation extent meets the floor at that range. So a return is an obstacle only if even the zone's lowest
+    ray would place it above the floor, and a drop only if even its highest ray places it below the floor (a grazing
+    floor zone otherwise looks a few cm "above" the floor along its centre ray)."""
     mm = np.asarray(distance_mm, dtype=np.float64).reshape(64)
     st = np.asarray(status).reshape(64)
     d = np.asarray(beam_dir_w, dtype=np.float64).reshape(64, 3)
@@ -81,10 +99,11 @@ def classify_frame(distance_mm, status, sensor_pos_w, beam_dir_w, *, floor_z: fl
     rng = mm / 1000.0
     hits = p0[None] + d * rng[:, None]
     kind = np.zeros(64, np.int8)
-    height = hits[:, 2] - floor_z
-    kind[valid & (height <= obstacle_min_height_m)] = 1
-    kind[valid & (height > obstacle_min_height_m)] = 2
-    kind[valid & (height < -0.05)] = 4  # the floor is lower than the robot's floor: an edge / drop-off
+    h_low = p0[2] + _tilt_beams(d, -zone_half_rad)[:, 2] * rng - floor_z   # lowest ray of the zone
+    h_high = p0[2] + _tilt_beams(d, zone_half_rad)[:, 2] * rng - floor_z   # highest ray of the zone
+    kind[valid & (h_low <= obstacle_min_height_m)] = 1
+    kind[valid & (h_low > obstacle_min_height_m)] = 2
+    kind[valid & (h_high < -0.05)] = 4  # the floor is lower than the robot's floor: an edge / drop-off
     down = d[:, 2] < -1e-3
     t_floor = np.where(down, (floor_z - p0[2]) / np.where(down, d[:, 2], -1.0), np.inf)
     expect_floor = down & (t_floor > 0) & (t_floor < MAX_RANGE_M * 0.9)

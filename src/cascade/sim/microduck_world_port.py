@@ -73,6 +73,10 @@ class WorldPort:
         self._events_path = Path(events_path) if events_path else None
         self._fh = open(self._events_path, "a", encoding="utf-8") if self._events_path else None
         self.on_step = []  # callables(world) run on the owner after every physics step
+        # Optional: callable returning the robot indices whose agents are still running. When set, the world only steps
+        # while EVERY such robot has an active motion, i.e. simulation time is paused whenever any agent is thinking
+        # (used by the shared-world skating demos, where a robot waiting for its LLM would otherwise lose race time).
+        self.sync_running = None
 
     # ---------------------------------------------------------------- agent side
     def log_event(self, robot: str, kind: str, text: str = "", **data) -> dict:
@@ -166,7 +170,9 @@ class WorldPort:
             "traveled_m": round(math.hypot(end["x"] - s0["x"], end["y"] - s0["y"]), 3),
             "yaw_change_deg": round(math.degrees(angle_diff(end["yaw_rad"], s0["yaw_rad"])), 1),
             "fallen": end["fallen"], "tilt_deg": round(end["tilt_deg"], 1),
-            "verification": "end pose read from the completed physics state, not integrated from the command",
+            "verification": ("end pose = the robot's own pose estimate (onboard visual odometry), read after the motion"
+                             if hasattr(w, "camera_rgb") else
+                             "end pose read from the completed physics state, not integrated from the command"),
         }
         del self._jobs[job.robot]
         job.request.result = receipt
@@ -176,9 +182,10 @@ class WorldPort:
         """Owner loop. Returns why it stopped: 'agents_done' or 'sim_time_limit'."""
         w = self.world
         try:
+            waiting = False
             while True:
                 try:
-                    req = self._q.get(timeout=0.02 if not self._jobs else 0.0)
+                    req = self._q.get(timeout=0.02 if (not self._jobs or waiting) else 0.0)
                 except queue.Empty:
                     req = None
                 while req is not None:
@@ -199,6 +206,12 @@ class WorldPort:
                     if not agents_alive():
                         return "agents_done"
                     continue
+                if self.sync_running is not None:
+                    waiting = any(i not in self._jobs for i in self.sync_running())
+                    if waiting:
+                        if not agents_alive():
+                            return "agents_done"
+                        continue
                 if w.time_s >= self.max_sim_s:
                     for job in list(self._jobs.values()):
                         self._finish(job, "sim_time_limit")

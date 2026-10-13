@@ -28,6 +28,246 @@ def Xform "Course"
         uniform token subdivisionScheme = "none"
     }
 
+    def Mesh "DressPoster_Wall_y0_0_0_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.325, -1.028, 0.025), (-0.225, -1.028, 0.025), (-0.225, -1.026, 0.025), (-0.325, -1.026, 0.025), (-0.325, -1.028, 0.095), (-0.225, -1.028, 0.095), (-0.225, -1.026, 0.095), (-0.325, -1.026, 0.095)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y0_0_0_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.325, -0.974, 0.025), (-0.225, -0.974, 0.025), (-0.225, -0.972, 0.025), (-0.325, -0.972, 0.025), (-0.325, -0.974, 0.095), (-0.225, -0.974, 0.095), (-0.225, -0.972, 0.095), (-0.325, -0.972, 0.095)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y0_0_1_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.105, -1.028, 0.06), (0.245, -1.028, 0.06), (0.245, -1.026, 0.06), (0.105, -1.026, 0.06), (0.105, -1.028, 0.16), (0.245, -1.028, 0.16), (0.245, -1.026, 0.16), (0.105, -1.026, 0.16)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y0_0_1_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.105, -0.974, 0.06), (0.245, -0.974, 0.06), (0.245, -0.972, 0.06), (0.105, -0.972, 0.06), (0.105, -0.974, 0.16), (0.245, -0.974, 0.16), (0.245, -0.972, 0.16), (0.105, -0.972, 0.16)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y0_0_2_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.535, -1.028, 0.125), (0.715, -1.028, 0.125), (0.715, -1.026, 0.125), (0.535, -1.026, 0.125), (0.535, -1.028, 0.195), (0.715, -1.028, 0.195), (0.715, -1.026, 0.195), (0.535, -1.026, 0.195)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y0_0_2_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.535, -0.974, 0.125), (0.715, -0.974, 0.125), (0.715, -0.972, 0.125), (0.535, -0.972, 0.125), (0.535, -0.974, 0.195), (0.715, -0.974, 0.195), (0.715, -0.972, 0.195), (0.535, -0.972, 0.195)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y0_0_3_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.025, -1.028, 0.01), (1.125, -1.028, 0.01), (1.125, -1.026, 0.01), (1.025, -1.026, 0.01), (1.025, -1.028, 0.11), (1.125, -1.028, 0.11), (1.125, -1.026, 0.11), (1.025, -1.026, 0.11)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y0_0_3_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.025, -0.974, 0.01), (1.125, -0.974, 0.01), (1.125, -0.972, 0.01), (1.025, -0.972, 0.01), (1.025, -0.974, 0.11), (1.125, -0.974, 0.11), (1.125, -0.972, 0.11), (1.025, -0.972, 0.11)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y0_0_4_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.455, -1.028, 0.075), (1.595, -1.028, 0.075), (1.595, -1.026, 0.075), (1.455, -1.026, 0.075), (1.455, -1.028, 0.145), (1.595, -1.028, 0.145), (1.595, -1.026, 0.145), (1.455, -1.026, 0.145)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y0_0_4_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.455, -0.974, 0.075), (1.595, -0.974, 0.075), (1.595, -0.972, 0.075), (1.455, -0.972, 0.075), (1.455, -0.974, 0.145), (1.595, -0.974, 0.145), (1.595, -0.972, 0.145), (1.455, -0.972, 0.145)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y0_0_5_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.885, -1.028, 0.11), (2.065, -1.028, 0.11), (2.065, -1.026, 0.11), (1.885, -1.026, 0.11), (1.885, -1.028, 0.21), (2.065, -1.028, 0.21), (2.065, -1.026, 0.21), (1.885, -1.026, 0.21)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y0_0_5_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.885, -0.974, 0.11), (2.065, -0.974, 0.11), (2.065, -0.972, 0.11), (1.885, -0.972, 0.11), (1.885, -0.974, 0.21), (2.065, -0.974, 0.21), (2.065, -0.972, 0.21), (1.885, -0.972, 0.21)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y0_0_6_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.25, 0.55, 0.3)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.375, -1.028, 0.025), (2.475, -1.028, 0.025), (2.475, -1.026, 0.025), (2.375, -1.026, 0.025), (2.375, -1.028, 0.095), (2.475, -1.028, 0.095), (2.475, -1.026, 0.095), (2.375, -1.026, 0.095)]
+        color3f[] primvars:displayColor = [(0.25, 0.55, 0.3)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y0_0_6_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.25, 0.55, 0.3)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.375, -0.974, 0.025), (2.475, -0.974, 0.025), (2.475, -0.972, 0.025), (2.375, -0.972, 0.025), (2.375, -0.974, 0.095), (2.475, -0.974, 0.095), (2.475, -0.972, 0.095), (2.375, -0.972, 0.095)]
+        color3f[] primvars:displayColor = [(0.25, 0.55, 0.3)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y0_0_7_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.805, -1.028, 0.06), (2.945, -1.028, 0.06), (2.945, -1.026, 0.06), (2.805, -1.026, 0.06), (2.805, -1.028, 0.16), (2.945, -1.028, 0.16), (2.945, -1.026, 0.16), (2.805, -1.026, 0.16)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y0_0_7_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.805, -0.974, 0.06), (2.945, -0.974, 0.06), (2.945, -0.972, 0.06), (2.805, -0.972, 0.06), (2.805, -0.974, 0.16), (2.945, -0.974, 0.16), (2.945, -0.972, 0.16), (2.805, -0.972, 0.16)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
     def Mesh "Wall_y1_0" (
         prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
         customData = {
@@ -42,6 +282,246 @@ def Xform "Course"
         uniform token physics:approximation = "convexHull"
         point3f[] points = [(-0.5, 0.975, 0), (3.1, 0.975, 0), (3.1, 1.025, 0), (-0.5, 1.025, 0), (-0.5, 0.975, 0.25), (3.1, 0.975, 0.25), (3.1, 1.025, 0.25), (-0.5, 1.025, 0.25)]
         color3f[] primvars:displayColor = [(0.8, 0.78, 0.74)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y1_0_0_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.325, 0.972, 0.025), (-0.225, 0.972, 0.025), (-0.225, 0.974, 0.025), (-0.325, 0.974, 0.025), (-0.325, 0.972, 0.095), (-0.225, 0.972, 0.095), (-0.225, 0.974, 0.095), (-0.325, 0.974, 0.095)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y1_0_0_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.325, 1.026, 0.025), (-0.225, 1.026, 0.025), (-0.225, 1.028, 0.025), (-0.325, 1.028, 0.025), (-0.325, 1.026, 0.095), (-0.225, 1.026, 0.095), (-0.225, 1.028, 0.095), (-0.325, 1.028, 0.095)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y1_0_1_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.105, 0.972, 0.06), (0.245, 0.972, 0.06), (0.245, 0.974, 0.06), (0.105, 0.974, 0.06), (0.105, 0.972, 0.16), (0.245, 0.972, 0.16), (0.245, 0.974, 0.16), (0.105, 0.974, 0.16)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y1_0_1_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.105, 1.026, 0.06), (0.245, 1.026, 0.06), (0.245, 1.028, 0.06), (0.105, 1.028, 0.06), (0.105, 1.026, 0.16), (0.245, 1.026, 0.16), (0.245, 1.028, 0.16), (0.105, 1.028, 0.16)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y1_0_2_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.535, 0.972, 0.125), (0.715, 0.972, 0.125), (0.715, 0.974, 0.125), (0.535, 0.974, 0.125), (0.535, 0.972, 0.195), (0.715, 0.972, 0.195), (0.715, 0.974, 0.195), (0.535, 0.974, 0.195)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y1_0_2_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.535, 1.026, 0.125), (0.715, 1.026, 0.125), (0.715, 1.028, 0.125), (0.535, 1.028, 0.125), (0.535, 1.026, 0.195), (0.715, 1.026, 0.195), (0.715, 1.028, 0.195), (0.535, 1.028, 0.195)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y1_0_3_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.25, 0.55, 0.3)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.025, 0.972, 0.01), (1.125, 0.972, 0.01), (1.125, 0.974, 0.01), (1.025, 0.974, 0.01), (1.025, 0.972, 0.11), (1.125, 0.972, 0.11), (1.125, 0.974, 0.11), (1.025, 0.974, 0.11)]
+        color3f[] primvars:displayColor = [(0.25, 0.55, 0.3)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y1_0_3_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.25, 0.55, 0.3)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.025, 1.026, 0.01), (1.125, 1.026, 0.01), (1.125, 1.028, 0.01), (1.025, 1.028, 0.01), (1.025, 1.026, 0.11), (1.125, 1.026, 0.11), (1.125, 1.028, 0.11), (1.025, 1.028, 0.11)]
+        color3f[] primvars:displayColor = [(0.25, 0.55, 0.3)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y1_0_4_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.455, 0.972, 0.075), (1.595, 0.972, 0.075), (1.595, 0.974, 0.075), (1.455, 0.974, 0.075), (1.455, 0.972, 0.145), (1.595, 0.972, 0.145), (1.595, 0.974, 0.145), (1.455, 0.974, 0.145)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y1_0_4_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.455, 1.026, 0.075), (1.595, 1.026, 0.075), (1.595, 1.028, 0.075), (1.455, 1.028, 0.075), (1.455, 1.026, 0.145), (1.595, 1.026, 0.145), (1.595, 1.028, 0.145), (1.455, 1.028, 0.145)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y1_0_5_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.885, 0.972, 0.11), (2.065, 0.972, 0.11), (2.065, 0.974, 0.11), (1.885, 0.974, 0.11), (1.885, 0.972, 0.21), (2.065, 0.972, 0.21), (2.065, 0.974, 0.21), (1.885, 0.974, 0.21)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y1_0_5_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.885, 1.026, 0.11), (2.065, 1.026, 0.11), (2.065, 1.028, 0.11), (1.885, 1.028, 0.11), (1.885, 1.026, 0.21), (2.065, 1.026, 0.21), (2.065, 1.028, 0.21), (1.885, 1.028, 0.21)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y1_0_6_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.375, 0.972, 0.025), (2.475, 0.972, 0.025), (2.475, 0.974, 0.025), (2.375, 0.974, 0.025), (2.375, 0.972, 0.095), (2.475, 0.972, 0.095), (2.475, 0.974, 0.095), (2.375, 0.974, 0.095)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y1_0_6_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.375, 1.026, 0.025), (2.475, 1.026, 0.025), (2.475, 1.028, 0.025), (2.375, 1.028, 0.025), (2.375, 1.026, 0.095), (2.475, 1.026, 0.095), (2.475, 1.028, 0.095), (2.375, 1.028, 0.095)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y1_0_7_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.805, 0.972, 0.06), (2.945, 0.972, 0.06), (2.945, 0.974, 0.06), (2.805, 0.974, 0.06), (2.805, 0.972, 0.16), (2.945, 0.972, 0.16), (2.945, 0.974, 0.16), (2.805, 0.974, 0.16)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_y1_0_7_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.805, 1.026, 0.06), (2.945, 1.026, 0.06), (2.945, 1.028, 0.06), (2.805, 1.028, 0.06), (2.805, 1.026, 0.16), (2.945, 1.026, 0.16), (2.945, 1.028, 0.16), (2.805, 1.028, 0.16)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
         uniform token subdivisionScheme = "none"
     }
 
@@ -62,6 +542,126 @@ def Xform "Course"
         uniform token subdivisionScheme = "none"
     }
 
+    def Mesh "DressPoster_Wall_x0_0_0_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.528, -0.8, 0.025), (-0.526, -0.8, 0.025), (-0.526, -0.7, 0.025), (-0.528, -0.7, 0.025), (-0.528, -0.8, 0.095), (-0.526, -0.8, 0.095), (-0.526, -0.7, 0.095), (-0.528, -0.7, 0.095)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_x0_0_0_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.474, -0.8, 0.025), (-0.472, -0.8, 0.025), (-0.472, -0.7, 0.025), (-0.474, -0.7, 0.025), (-0.474, -0.8, 0.095), (-0.472, -0.8, 0.095), (-0.472, -0.7, 0.095), (-0.474, -0.7, 0.095)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_x0_0_1_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.528, -0.32, 0.06), (-0.526, -0.32, 0.06), (-0.526, -0.18, 0.06), (-0.528, -0.18, 0.06), (-0.528, -0.32, 0.16), (-0.526, -0.32, 0.16), (-0.526, -0.18, 0.16), (-0.528, -0.18, 0.16)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_x0_0_1_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.474, -0.32, 0.06), (-0.472, -0.32, 0.06), (-0.472, -0.18, 0.06), (-0.474, -0.18, 0.06), (-0.474, -0.32, 0.16), (-0.472, -0.32, 0.16), (-0.472, -0.18, 0.16), (-0.474, -0.18, 0.16)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_x0_0_2_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.528, 0.16, 0.125), (-0.526, 0.16, 0.125), (-0.526, 0.34, 0.125), (-0.528, 0.34, 0.125), (-0.528, 0.16, 0.195), (-0.526, 0.16, 0.195), (-0.526, 0.34, 0.195), (-0.528, 0.34, 0.195)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_x0_0_2_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.474, 0.16, 0.125), (-0.472, 0.16, 0.125), (-0.472, 0.34, 0.125), (-0.474, 0.34, 0.125), (-0.474, 0.16, 0.195), (-0.472, 0.16, 0.195), (-0.472, 0.34, 0.195), (-0.474, 0.34, 0.195)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_x0_0_3_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.528, 0.7, 0.01), (-0.526, 0.7, 0.01), (-0.526, 0.8, 0.01), (-0.528, 0.8, 0.01), (-0.528, 0.7, 0.11), (-0.526, 0.7, 0.11), (-0.526, 0.8, 0.11), (-0.528, 0.8, 0.11)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_x0_0_3_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.474, 0.7, 0.01), (-0.472, 0.7, 0.01), (-0.472, 0.8, 0.01), (-0.474, 0.8, 0.01), (-0.474, 0.7, 0.11), (-0.472, 0.7, 0.11), (-0.472, 0.8, 0.11), (-0.474, 0.8, 0.11)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
     def Mesh "Wall_x1_0" (
         prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
         customData = {
@@ -76,6 +676,126 @@ def Xform "Course"
         uniform token physics:approximation = "convexHull"
         point3f[] points = [(3.075, -1, 0), (3.125, -1, 0), (3.125, 1, 0), (3.075, 1, 0), (3.075, -1, 0.25), (3.125, -1, 0.25), (3.125, 1, 0.25), (3.075, 1, 0.25)]
         color3f[] primvars:displayColor = [(0.8, 0.78, 0.74)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_x1_0_0_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.072, -0.8, 0.025), (3.074, -0.8, 0.025), (3.074, -0.7, 0.025), (3.072, -0.7, 0.025), (3.072, -0.8, 0.095), (3.074, -0.8, 0.095), (3.074, -0.7, 0.095), (3.072, -0.7, 0.095)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_x1_0_0_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.126, -0.8, 0.025), (3.128, -0.8, 0.025), (3.128, -0.7, 0.025), (3.126, -0.7, 0.025), (3.126, -0.8, 0.095), (3.128, -0.8, 0.095), (3.128, -0.7, 0.095), (3.126, -0.7, 0.095)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_x1_0_1_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.072, -0.32, 0.06), (3.074, -0.32, 0.06), (3.074, -0.18, 0.06), (3.072, -0.18, 0.06), (3.072, -0.32, 0.16), (3.074, -0.32, 0.16), (3.074, -0.18, 0.16), (3.072, -0.18, 0.16)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_x1_0_1_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.126, -0.32, 0.06), (3.128, -0.32, 0.06), (3.128, -0.18, 0.06), (3.126, -0.18, 0.06), (3.126, -0.32, 0.16), (3.128, -0.32, 0.16), (3.128, -0.18, 0.16), (3.126, -0.18, 0.16)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_x1_0_2_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.072, 0.16, 0.125), (3.074, 0.16, 0.125), (3.074, 0.34, 0.125), (3.072, 0.34, 0.125), (3.072, 0.16, 0.195), (3.074, 0.16, 0.195), (3.074, 0.34, 0.195), (3.072, 0.34, 0.195)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_x1_0_2_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.126, 0.16, 0.125), (3.128, 0.16, 0.125), (3.128, 0.34, 0.125), (3.126, 0.34, 0.125), (3.126, 0.16, 0.195), (3.128, 0.16, 0.195), (3.128, 0.34, 0.195), (3.126, 0.34, 0.195)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_x1_0_3_a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.25, 0.55, 0.3)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.072, 0.7, 0.01), (3.074, 0.7, 0.01), (3.074, 0.8, 0.01), (3.072, 0.8, 0.01), (3.072, 0.7, 0.11), (3.074, 0.7, 0.11), (3.074, 0.8, 0.11), (3.072, 0.8, 0.11)]
+        color3f[] primvars:displayColor = [(0.25, 0.55, 0.3)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressPoster_Wall_x1_0_3_b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.25, 0.55, 0.3)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.126, 0.7, 0.01), (3.128, 0.7, 0.01), (3.128, 0.8, 0.01), (3.126, 0.8, 0.01), (3.126, 0.7, 0.11), (3.128, 0.7, 0.11), (3.128, 0.8, 0.11), (3.126, 0.8, 0.11)]
+        color3f[] primvars:displayColor = [(0.25, 0.55, 0.3)]
         uniform token subdivisionScheme = "none"
     }
 
@@ -176,6 +896,2286 @@ def Xform "Course"
         uniform token physics:approximation = "convexHull"
         point3f[] points = [(2.9, 0.2, 0), (2.8975527, 0.21545085, 0), (2.890451, 0.22938927, 0), (2.8793893, 0.24045084, 0), (2.8654509, 0.24755283, 0), (2.85, 0.25, 0), (2.8345492, 0.24755283, 0), (2.8206108, 0.24045084, 0), (2.809549, 0.22938927, 0), (2.802447, 0.21545085, 0), (2.8, 0.2, 0), (2.802447, 0.18454915, 0), (2.809549, 0.17061074, 0), (2.8206108, 0.15954915, 0), (2.8345492, 0.15244718, 0), (2.85, 0.15, 0), (2.8654509, 0.15244718, 0), (2.8793893, 0.15954915, 0), (2.890451, 0.17061074, 0), (2.8975527, 0.18454915, 0), (2.9, 0.2, 0.4), (2.8975527, 0.21545085, 0.4), (2.890451, 0.22938927, 0.4), (2.8793893, 0.24045084, 0.4), (2.8654509, 0.24755283, 0.4), (2.85, 0.25, 0.4), (2.8345492, 0.24755283, 0.4), (2.8206108, 0.24045084, 0.4), (2.809549, 0.22938927, 0.4), (2.802447, 0.21545085, 0.4), (2.8, 0.2, 0.4), (2.802447, 0.18454915, 0.4), (2.809549, 0.17061074, 0.4), (2.8206108, 0.15954915, 0.4), (2.8345492, 0.15244718, 0.4), (2.85, 0.15, 0.4), (2.8654509, 0.15244718, 0.4), (2.8793893, 0.15954915, 0.4), (2.890451, 0.17061074, 0.4), (2.8975527, 0.18454915, 0.4)]
         color3f[] primvars:displayColor = [(0.1, 0.75, 0.25)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor000a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.02939, 0.19852616, 0), (1.0430675, 0.32477823, 0), (1.0182128, 0.32747084, 0), (1.0045354, 0.20121875, 0), (1.02939, 0.19852616, 0.001), (1.0430675, 0.32477823, 0.001), (1.0182128, 0.32747084, 0.001), (1.0045354, 0.20121875, 0.001)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor000b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.0882738, 0.26858708, 0), (0.96202165, 0.2822645, 0), (0.95932907, 0.25740993, 0), (1.0855812, 0.2437325, 0), (1.0882738, 0.26858708, 0.001), (0.96202165, 0.2822645, 0.001), (0.95932907, 0.25740993, 0.001), (1.0855812, 0.2437325, 0.001)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor001" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.25, 0.55, 0.3)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.46875653, -0.06781216, 0.0001), (-0.5624485, 0.18261068, 0.0001), (-0.5891835, 0.17260818, 0.0001), (-0.4954915, -0.07781466, 0.0001), (-0.46875653, -0.06781216, 0.0011), (-0.5624485, 0.18261068, 0.0011), (-0.5891835, 0.17260818, 0.0011), (-0.4954915, -0.07781466, 0.0011)]
+        color3f[] primvars:displayColor = [(0.25, 0.55, 0.3)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor002" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.21155627, 0.3646487, 0.18180008)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.3704406, 1.5808986, 0.0002), (1.7086811, 1.6256598, 0.0002), (1.6784041, 1.8544497, 0.0002), (1.3401636, 1.8096884, 0.0002), (1.3704406, 1.5808986, 0.0012), (1.7086811, 1.6256598, 0.0012), (1.6784041, 1.8544497, 0.0012), (1.3401636, 1.8096884, 0.0012)]
+        color3f[] primvars:displayColor = [(0.21155627, 0.3646487, 0.18180008)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor003a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.5353227, -1.9526322, 0.0003), (1.403135, -1.9000863, 0.0003), (1.3939, -1.923318, 0.0003), (1.5260878, -1.975864, 0.0003), (1.5353227, -1.9526322, 0.0013), (1.403135, -1.9000863, 0.0013), (1.3939, -1.923318, 0.0013), (1.5260878, -1.975864, 0.0013)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor003b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.4792684, -1.8672638, 0.0003), (1.4267225, -1.9994516, 0.0003), (1.4499543, -2.0086865, 0.0003), (1.5025002, -1.8764987, 0.0003), (1.4792684, -1.8672638, 0.0013), (1.4267225, -1.9994516, 0.0013), (1.4499543, -2.0086865, 0.0013), (1.5025002, -1.8764987, 0.0013)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor004a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.308581, 0.34108943, 0.0004), (0.3013768, 0.4608548, 0.0004), (0.2764219, 0.4593537, 0.0004), (0.2836261, 0.3395883, 0.0004), (0.308581, 0.34108943, 0.0014), (0.3013768, 0.4608548, 0.0014), (0.2764219, 0.4593537, 0.0014), (0.2836261, 0.3395883, 0.0014)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor004b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.35163358, 0.4163011, 0.0004), (0.23186821, 0.4090969, 0.0004), (0.2333693, 0.384142, 0.0004), (0.3531347, 0.39134622, 0.0004), (0.35163358, 0.4163011, 0.0014), (0.23186821, 0.4090969, 0.0014), (0.2333693, 0.384142, 0.0014), (0.3531347, 0.39134622, 0.0014)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor005a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.2318683, -0.26533467, 0.0005), (2.2764816, -0.11737975, 0.0005), (2.2525463, -0.110162385, 0.0005), (2.2079327, -0.2581173, 0.0005), (2.2318683, -0.26533467, 0.0015), (2.2764816, -0.11737975, 0.0015), (2.2525463, -0.110162385, 0.0015), (2.2079327, -0.2581173, 0.0015)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor005b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.3197935, -0.19808745, 0.0005), (2.1718385, -0.15347406, 0.0005), (2.164621, -0.17740959, 0.0005), (2.312576, -0.22202298, 0.0005), (2.3197935, -0.19808745, 0.0015), (2.1718385, -0.15347406, 0.0015), (2.164621, -0.17740959, 0.0015), (2.312576, -0.22202298, 0.0015)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor006" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-1.1565841, -1.1462847, 0.0006), (-1.0490886, -1.051715, 0.0006), (-1.0782555, -1.0185616, 0.0006), (-1.1857511, -1.1131313, 0.0006), (-1.1565841, -1.1462847, 0.0016), (-1.0490886, -1.051715, 0.0016), (-1.0782555, -1.0185616, 0.0016), (-1.1857511, -1.1131313, 0.0016)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor007" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.5562707, 1.4740769, 0), (0.89468944, 1.5461876, 0), (0.888367, 1.5758591, 0), (0.5499483, 1.5037483, 0), (0.5562707, 1.4740769, 0.001), (0.89468944, 1.5461876, 0.001), (0.888367, 1.5758591, 0.001), (0.5499483, 1.5037483, 0.001)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor008" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.8500147, -1.9538943, 0.0001), (3.7061863, -1.9450082, 0.0001), (3.7036743, -1.985667, 0.0001), (3.8475027, -1.9945531, 0.0001), (3.8500147, -1.9538943, 0.0011), (3.7061863, -1.9450082, 0.0011), (3.7036743, -1.985667, 0.0011), (3.8475027, -1.9945531, 0.0011)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor009" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.8639407, -1.1322775, 0.0002), (3.0066464, -0.9205661, 0.0002), (2.9667854, -0.8936973, 0.0002), (2.8240795, -1.1054088, 0.0002), (2.8639407, -1.1322775, 0.0012), (3.0066464, -0.9205661, 0.0012), (2.9667854, -0.8936973, 0.0012), (2.8240795, -1.1054088, 0.0012)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor010" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.062317595, 0.054101903, 0.08034819)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.8704614, 0.79330367, 0.0003), (-0.72859085, 0.8203177, 0.0003), (-0.7682196, 1.0284374, 0.0003), (-0.9100901, 1.0014234, 0.0003), (-0.8704614, 0.79330367, 0.0013), (-0.72859085, 0.8203177, 0.0013), (-0.7682196, 1.0284374, 0.0013), (-0.9100901, 1.0014234, 0.0013)]
+        color3f[] primvars:displayColor = [(0.062317595, 0.054101903, 0.08034819)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor011" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.079195425, 0.0669677, 0.08992454)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.7275704, 0.54074144, 0.0004), (-0.6950969, 0.6354464, 0.0004), (-0.9532114, 0.72395164, 0.0004), (-0.98568493, 0.62924665, 0.0004), (-0.7275704, 0.54074144, 0.0014), (-0.6950969, 0.6354464, 0.0014), (-0.9532114, 0.72395164, 0.0014), (-0.98568493, 0.62924665, 0.0014)]
+        color3f[] primvars:displayColor = [(0.079195425, 0.0669677, 0.08992454)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor012a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-1.4611461, -1.4114712, 0.0005), (-1.4874107, -1.332348, 0.0005), (-1.5111376, -1.340224, 0.0005), (-1.484873, -1.4193473, 0.0005), (-1.4611461, -1.4114712, 0.0015), (-1.4874107, -1.332348, 0.0015), (-1.5111376, -1.340224, 0.0015), (-1.484873, -1.4193473, 0.0015)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor012b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-1.4505183, -1.3508519, 0.0005), (-1.5296415, -1.3771164, 0.0005), (-1.5217655, -1.4008434, 0.0005), (-1.4426422, -1.3745788, 0.0005), (-1.4505183, -1.3508519, 0.0015), (-1.5296415, -1.3771164, 0.0015), (-1.5217655, -1.4008434, 0.0015), (-1.4426422, -1.3745788, 0.0015)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor013" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.66004443, -0.31839722, 0.0006), (-0.8246202, -0.17575753, 0.0006), (-0.84219575, -0.19603597, 0.0006), (-0.67762, -0.33867568, 0.0006), (-0.66004443, -0.31839722, 0.0016), (-0.8246202, -0.17575753, 0.0016), (-0.84219575, -0.19603597, 0.0016), (-0.67762, -0.33867568, 0.0016)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor014" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-1.2390957, 0.34203765, 0), (-0.91417253, 0.3578815, 0), (-0.91554505, 0.38602856, 0), (-1.2404683, 0.37018475, 0), (-1.2390957, 0.34203765, 0.001), (-0.91417253, 0.3578815, 0.001), (-0.91554505, 0.38602856, 0.001), (-1.2404683, 0.37018475, 0.001)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor015" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.8939167, 1.4493861, 0.0001), (1.737855, 1.5189523, 0.0001), (1.7184299, 1.475375, 0.0001), (1.8744918, 1.4058089, 0.0001), (1.8939167, 1.4493861, 0.0011), (1.737855, 1.5189523, 0.0011), (1.7184299, 1.475375, 0.0011), (1.8744918, 1.4058089, 0.0011)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor016a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.094609, -1.1428722, 0.0002), (3.2038324, -1.0835055, 0.0002), (3.1918936, -1.0615405, 0.0002), (3.0826702, -1.1209071, 0.0002), (3.094609, -1.1428722, 0.0012), (3.2038324, -1.0835055, 0.0012), (3.1918936, -1.0615405, 0.0012), (3.0826702, -1.1209071, 0.0012)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor016b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.183917, -1.1508485, 0.0002), (3.1245506, -1.0416254, 0.0002), (3.1025856, -1.0535641, 0.0002), (3.161952, -1.1627873, 0.0002), (3.183917, -1.1508485, 0.0012), (3.1245506, -1.0416254, 0.0012), (3.1025856, -1.0535641, 0.0012), (3.161952, -1.1627873, 0.0012)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor017" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.4214008, -0.5608164, 0.0003), (2.3721035, -0.41463804, 0.0003), (2.3474977, -0.4229361, 0.0003), (2.3967948, -0.5691145, 0.0003), (2.4214008, -0.5608164, 0.0013), (2.3721035, -0.41463804, 0.0013), (2.3474977, -0.4229361, 0.0013), (2.3967948, -0.5691145, 0.0013)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor018" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.25, 0.55, 0.3)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.9312212, -1.3545116, 0.0004), (4.071019, -0.9599539, 0.0004), (4.0358844, -0.9475051, 0.0004), (3.8960865, -1.3420628, 0.0004), (3.9312212, -1.3545116, 0.0014), (4.071019, -0.9599539, 0.0014), (4.0358844, -0.9475051, 0.0014), (3.8960865, -1.3420628, 0.0014)]
+        color3f[] primvars:displayColor = [(0.25, 0.55, 0.3)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor019a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.360271, 1.8515326, 0.0005), (1.4822584, 1.9026912, 0.0005), (1.4725899, 1.9257458, 0.0005), (1.3506024, 1.8745872, 0.0005), (1.360271, 1.8515326, 0.0015), (1.4822584, 1.9026912, 0.0015), (1.4725899, 1.9257458, 0.0015), (1.3506024, 1.8745872, 0.0015)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor019b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.4535371, 1.8324797, 0.0005), (1.4023784, 1.9544673, 0.0005), (1.3793237, 1.9447987, 0.0005), (1.4304824, 1.8228111, 0.0005), (1.4535371, 1.8324797, 0.0015), (1.4023784, 1.9544673, 0.0015), (1.3793237, 1.9447987, 0.0015), (1.4304824, 1.8228111, 0.0015)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor020" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.0367544, -1.8745553, 0.0006), (1.9154896, -1.8423455, 0.0006), (1.907344, -1.8730121, 0.0006), (2.0286088, -1.9052218, 0.0006), (2.0367544, -1.8745553, 0.0016), (1.9154896, -1.8423455, 0.0016), (1.907344, -1.8730121, 0.0016), (2.0286088, -1.9052218, 0.0016)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor021a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.94484097, -2.0030236, 0), (1.0447037, -1.8807839, 0), (1.0253431, -1.8649673, 0), (0.92548025, -1.987207, 0), (0.94484097, -2.0030236, 0.001), (1.0447037, -1.8807839, 0.001), (1.0253431, -1.8649673, 0.001), (0.92548025, -1.987207, 0.001)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor021b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.0541201, -1.9742465, 0), (0.9318805, -1.8743837, 0), (0.9160639, -1.8937443, 0), (1.0383035, -1.9936072, 0), (1.0541201, -1.9742465, 0.001), (0.9318805, -1.8743837, 0.001), (0.9160639, -1.8937443, 0.001), (1.0383035, -1.9936072, 0.001)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor022a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.99699825, -1.58267, 0.0001), (-1.132042, -1.5743839, 0.0001), (-1.133573, -1.599337, 0.0001), (-0.9985294, -1.607623, 0.0001), (-0.99699825, -1.58267, 0.0011), (-1.132042, -1.5743839, 0.0011), (-1.133573, -1.599337, 0.0011), (-0.9985294, -1.607623, 0.0011)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor022b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-1.0736191, -1.522716, 0.0001), (-1.0819052, -1.6577598, 0.0001), (-1.0569522, -1.6592909, 0.0001), (-1.0486661, -1.524247, 0.0001), (-1.0736191, -1.522716, 0.0011), (-1.0819052, -1.6577598, 0.0011), (-1.0569522, -1.6592909, 0.0011), (-1.0486661, -1.524247, 0.0011)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor023a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.8454673, -1.5832409, 0.0002), (1.7399837, -1.5574208, 0.0002), (1.7340398, -1.5817039, 0.0002), (1.8395234, -1.6075239, 0.0002), (1.8454673, -1.5832409, 0.0012), (1.7399837, -1.5574208, 0.0012), (1.7340398, -1.5817039, 0.0012), (1.8395234, -1.6075239, 0.0012)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor023b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.790522, -1.5267586, 0.0002), (1.764702, -1.6322422, 0.0002), (1.7889851, -1.6381862, 0.0002), (1.8148052, -1.5327026, 0.0002), (1.790522, -1.5267586, 0.0012), (1.764702, -1.6322422, 0.0012), (1.7889851, -1.6381862, 0.0012), (1.8148052, -1.5327026, 0.0012)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor024a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.24856016, -2.1102104, 0.0003), (0.19112104, -1.9842488, 0.0003), (0.1683744, -1.9946213, 0.0003), (0.22581352, -2.120583, 0.0003), (0.24856016, -2.1102104, 0.0013), (0.19112104, -1.9842488, 0.0013), (0.1683744, -1.9946213, 0.0013), (0.22581352, -2.120583, 0.0013)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor024b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.26626182, -2.012323, 0.0003), (0.14030017, -2.069762, 0.0003), (0.15067275, -2.0925088, 0.0003), (0.2766344, -2.0350697, 0.0003), (0.26626182, -2.012323, 0.0013), (0.14030017, -2.069762, 0.0013), (0.15067275, -2.0925088, 0.0013), (0.2766344, -2.0350697, 0.0013)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor025" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.2636993, 2.1270127, 0.0004), (0.28347433, 2.2602265, 0.0004), (0.23559278, 2.2673342, 0.0004), (0.21581776, 2.1341207, 0.0004), (0.2636993, 2.1270127, 0.0014), (0.28347433, 2.2602265, 0.0014), (0.23559278, 2.2673342, 0.0014), (0.21581776, 2.1341207, 0.0014)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor026a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.6525085, -1.703559, 0.0005), (2.7207634, -1.567671, 0.0005), (2.6984234, -1.5564498, 0.0005), (2.6301682, -1.6923379, 0.0005), (2.6525085, -1.703559, 0.0015), (2.7207634, -1.567671, 0.0015), (2.6984234, -1.5564498, 0.0015), (2.6301682, -1.6923379, 0.0015)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor026b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.7490206, -1.6529619, 0.0005), (2.6131325, -1.5847068, 0.0005), (2.6019113, -1.607047, 0.0005), (2.7377994, -1.675302, 0.0005), (2.7490206, -1.6529619, 0.0015), (2.6131325, -1.5847068, 0.0015), (2.6019113, -1.607047, 0.0015), (2.7377994, -1.675302, 0.0015)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor027a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.4131763, -0.38082296, 0.0006), (3.493972, -0.37311643, 0.0006), (3.4915984, -0.34822938, 0.0006), (3.4108024, -0.3559359, 0.0006), (3.4131763, -0.38082296, 0.0016), (3.493972, -0.37311643, 0.0016), (3.4915984, -0.34822938, 0.0016), (3.4108024, -0.3559359, 0.0016)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor027b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.4686842, -0.40373722, 0.0006), (3.4609776, -0.32294133, 0.0006), (3.4360905, -0.32531512, 0.0006), (3.443797, -0.40611103, 0.0006), (3.4686842, -0.40373722, 0.0016), (3.4609776, -0.32294133, 0.0016), (3.4360905, -0.32531512, 0.0016), (3.443797, -0.40611103, 0.0016)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor028" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.320119, -0.67918307, 0), (2.2091048, -0.36735114, 0), (2.162158, -0.38406447, 0), (2.2731721, -0.6958964, 0), (2.320119, -0.67918307, 0.001), (2.2091048, -0.36735114, 0.001), (2.162158, -0.38406447, 0.001), (2.2731721, -0.6958964, 0.001)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor029a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.562427, 1.0043867, 0.0001), (3.4482856, 1.0283042, 0.0001), (3.4431581, 1.0038357, 0.0001), (3.5572999, 0.97991806, 0.0001), (3.562427, 1.0043867, 0.0011), (3.4482856, 1.0283042, 0.0011), (3.4431581, 1.0038357, 0.0011), (3.5572999, 0.97991806, 0.0011)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor029b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.5025172, 1.0637455, 0.0001), (3.4785995, 0.94960403, 0.0001), (3.503068, 0.9444768, 0.0001), (3.5269856, 1.0586183, 0.0001), (3.5025172, 1.0637455, 0.0011), (3.4785995, 0.94960403, 0.0011), (3.503068, 0.9444768, 0.0011), (3.5269856, 1.0586183, 0.0011)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor030" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.2089444, 0.082101054, 0.0002), (0.98363596, 0.30711222, 0.0002), (0.9574734, 0.28091505, 0.0002), (1.1827819, 0.05590391, 0.0002), (1.2089444, 0.082101054, 0.0012), (0.98363596, 0.30711222, 0.0012), (0.9574734, 0.28091505, 0.0012), (1.1827819, 0.05590391, 0.0012)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor031a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.21094298, 0.84439886, 0.0003), (-0.3025471, 0.9202065, 0.0003), (-0.31848595, 0.9009463, 0.0003), (-0.22688183, 0.8251387, 0.0003), (-0.21094298, 0.84439886, 0.0013), (-0.3025471, 0.9202065, 0.0013), (-0.31848595, 0.9009463, 0.0013), (-0.22688183, 0.8251387, 0.0013)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor031b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.23644072, 0.92644405, 0.0003), (-0.31224835, 0.83483994, 0.0003), (-0.2929882, 0.8189011, 0.0003), (-0.21718058, 0.91050524, 0.0003), (-0.23644072, 0.92644405, 0.0013), (-0.31224835, 0.83483994, 0.0013), (-0.2929882, 0.8189011, 0.0013), (-0.21718058, 0.91050524, 0.0013)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor032" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.6661239, -0.6429308, 0.0004), (3.5727053, -0.49380478, 0.0004), (3.5323303, -0.5190973, 0.0004), (3.6257486, -0.6682233, 0.0004), (3.6661239, -0.6429308, 0.0014), (3.5727053, -0.49380478, 0.0014), (3.5323303, -0.5190973, 0.0014), (3.6257486, -0.6682233, 0.0014)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor033a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.2138436, -0.30299184, 0.0005), (2.2634366, -0.22093327, 0.0005), (2.2420404, -0.20800234, 0.0005), (2.1924474, -0.2900609, 0.0005), (2.2138436, -0.30299184, 0.0015), (2.2634366, -0.22093327, 0.0015), (2.2420404, -0.20800234, 0.0015), (2.1924474, -0.2900609, 0.0015)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor033b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.2754369, -0.2695955, 0.0005), (2.1933782, -0.2200026, 0.0005), (2.1804473, -0.24139866, 0.0005), (2.2625058, -0.29099157, 0.0005), (2.2754369, -0.2695955, 0.0015), (2.1933782, -0.2200026, 0.0015), (2.1804473, -0.24139866, 0.0015), (2.2625058, -0.29099157, 0.0015)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor034" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.050529, 1.3042716, 0.0006), (0.75994617, 1.4190376, 0.0006), (0.74785626, 1.3884263, 0.0006), (1.038439, 1.2736604, 0.0006), (1.050529, 1.3042716, 0.0016), (0.75994617, 1.4190376, 0.0016), (0.74785626, 1.3884263, 0.0016), (1.038439, 1.2736604, 0.0016)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor035" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.73538274, -0.014834771, 0), (-0.8690312, 0.030617272, 0), (-0.8849719, -0.016255263, 0), (-0.7513234, -0.061707307, 0), (-0.73538274, -0.014834771, 0.001), (-0.8690312, 0.030617272, 0.001), (-0.8849719, -0.016255263, 0.001), (-0.7513234, -0.061707307, 0.001)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor036" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.0989547, -1.814349, 0.0001), (3.265513, -1.6191323, 0.0001), (3.2345939, -1.5927523, 0.0001), (3.0680356, -1.7879692, 0.0001), (3.0989547, -1.814349, 0.0011), (3.265513, -1.6191323, 0.0011), (3.2345939, -1.5927523, 0.0011), (3.0680356, -1.7879692, 0.0011)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor037a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.3168658, -0.8265414, 0.0002), (1.2240012, -0.7762089, 0.0002), (1.2120885, -0.7981881, 0.0002), (1.3049531, -0.84852064, 0.0002), (1.3168658, -0.8265414, 0.0012), (1.2240012, -0.7762089, 0.0012), (1.2120885, -0.7981881, 0.0012), (1.3049531, -0.84852064, 0.0012)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor037b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.2786537, -0.7599761, 0.0002), (1.2283212, -0.8528407, 0.0002), (1.2503005, -0.8647535, 0.0002), (1.300633, -0.7718888, 0.0002), (1.2786537, -0.7599761, 0.0012), (1.2283212, -0.8528407, 0.0012), (1.2503005, -0.8647535, 0.0012), (1.300633, -0.7718888, 0.0012)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor038a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.145953, -0.99681485, 0.0003), (3.2705338, -0.9804844, 0.0003), (3.2672844, -0.95569646, 0.0003), (3.1427035, -0.9720269, 0.0003), (3.145953, -0.99681485, 0.0013), (3.2705338, -0.9804844, 0.0013), (3.2672844, -0.95569646, 0.0013), (3.1427035, -0.9720269, 0.0013)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor038b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.2271779, -1.0369214, 0.0003), (3.2108474, -0.91234064, 0.0003), (3.1860595, -0.9155899, 0.0003), (3.20239, -1.0401707, 0.0003), (3.2271779, -1.0369214, 0.0013), (3.2108474, -0.91234064, 0.0013), (3.1860595, -0.9155899, 0.0013), (3.20239, -1.0401707, 0.0013)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor039" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.2515021, 1.2096146, 0.0004), (0.17321229, 1.3746606, 0.0004), (0.13324998, 1.3557044, 0.0004), (0.21153979, 1.1906585, 0.0004), (0.2515021, 1.2096146, 0.0014), (0.17321229, 1.3746606, 0.0014), (0.13324998, 1.3557044, 0.0014), (0.21153979, 1.1906585, 0.0014)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor040a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.11020194, 1.2078526, 0.0005), (0.0042604343, 1.2248564, 0.0005), (0.00058692315, 1.249585, 0.0005), (-0.113875456, 1.2325813, 0.0005), (-0.11020194, 1.2078526, 0.0015), (0.0042604343, 1.2248564, 0.0015), (0.00058692315, 1.249585, 0.0015), (-0.113875456, 1.2325813, 0.0015)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor040b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.033941332, 1.1733243, 0.0005), (-0.050945055, 1.2877867, 0.0005), (-0.075673684, 1.2841133, 0.0005), (-0.058669966, 1.1696509, 0.0005), (-0.033941332, 1.1733243, 0.0015), (-0.050945055, 1.2877867, 0.0015), (-0.075673684, 1.2841133, 0.0015), (-0.058669966, 1.1696509, 0.0015)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor041" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.0375192, 0.5881458, 0.0006), (2.1118364, 0.7579517, 0.0006), (2.0700657, 0.77623296, 0.0006), (1.9957486, 0.6064271, 0.0006), (2.0375192, 0.5881458, 0.0016), (2.1118364, 0.7579517, 0.0016), (2.0700657, 0.77623296, 0.0016), (1.9957486, 0.6064271, 0.0016)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor042a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.10661673, 0.89450634, 0), (-0.0983888, 0.98847467, 0), (-0.12329351, 0.99065536, 0), (-0.13152143, 0.896687, 0), (-0.10661673, 0.89450634, 0.001), (-0.0983888, 0.98847467, 0.001), (-0.12329351, 0.99065536, 0.001), (-0.13152143, 0.896687, 0.001)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor042b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.0668806, 0.9509192, 0), (-0.16084898, 0.95914716, 0), (-0.16302964, 0.9342424, 0), (-0.069061264, 0.9260145, 0), (-0.0668806, 0.9509192, 0.001), (-0.16084898, 0.95914716, 0.001), (-0.16302964, 0.9342424, 0.001), (-0.069061264, 0.9260145, 0.001)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor043a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.25, 0.55, 0.3)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.06049753, -0.6797027, 0.0001), (-0.09702283, -0.65313756, 0.0001), (-0.10118026, -0.67778945, 0.0001), (0.05634009, -0.7043546, 0.0001), (0.06049753, -0.6797027, 0.0011), (-0.09702283, -0.65313756, 0.0011), (-0.10118026, -0.67778945, 0.0011), (0.05634009, -0.7043546, 0.0011)]
+        color3f[] primvars:displayColor = [(0.25, 0.55, 0.3)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor043b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.25, 0.55, 0.3)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.019384742, -0.5979072, 0.0001), (-0.045949887, -0.75542754, 0.0001), (-0.021297995, -0.75958496, 0.0001), (0.0052671484, -0.6020646, 0.0001), (-0.019384742, -0.5979072, 0.0011), (-0.045949887, -0.75542754, 0.0011), (-0.021297995, -0.75958496, 0.0011), (0.0052671484, -0.6020646, 0.0011)]
+        color3f[] primvars:displayColor = [(0.25, 0.55, 0.3)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor044" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.25, 0.55, 0.3)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.4657662, 1.4930601, 0.0002), (-0.8751012, 1.6172489, 0.0002), (-0.8876024, 1.5760441, 0.0002), (-0.47826737, 1.4518553, 0.0002), (-0.4657662, 1.4930601, 0.0012), (-0.8751012, 1.6172489, 0.0012), (-0.8876024, 1.5760441, 0.0012), (-0.47826737, 1.4518553, 0.0012)]
+        color3f[] primvars:displayColor = [(0.25, 0.55, 0.3)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor045" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.25, 0.55, 0.3)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.69795585, -0.23731855, 0.0003), (-0.9807674, -0.13280801, 0.0003), (-0.9950891, -0.1715633, 0.0003), (-0.7122775, -0.2760738, 0.0003), (-0.69795585, -0.23731855, 0.0013), (-0.9807674, -0.13280801, 0.0013), (-0.9950891, -0.1715633, 0.0013), (-0.7122775, -0.2760738, 0.0013)]
+        color3f[] primvars:displayColor = [(0.25, 0.55, 0.3)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor046a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.322308, 1.3562748, 0.0004), (1.3332744, 1.4520406, 0.0004), (1.3084366, 1.4548848, 0.0004), (1.2974703, 1.359119, 0.0004), (1.322308, 1.3562748, 0.0014), (1.3332744, 1.4520406, 0.0014), (1.3084366, 1.4548848, 0.0014), (1.2974703, 1.359119, 0.0014)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor046b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.3646773, 1.4125155, 0.0004), (1.2689116, 1.4234818, 0.0004), (1.2660674, 1.3986442, 0.0004), (1.3618331, 1.3876778, 0.0004), (1.3646773, 1.4125155, 0.0014), (1.2689116, 1.4234818, 0.0014), (1.2660674, 1.3986442, 0.0014), (1.3618331, 1.3876778, 0.0014)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor047" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.25, 0.55, 0.3)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.6884835, 1.3940338, 0.0005), (2.4941654, 1.4411825, 0.0005), (2.48597, 1.407407, 0.0005), (2.6802883, 1.3602582, 0.0005), (2.6884835, 1.3940338, 0.0015), (2.4941654, 1.4411825, 0.0015), (2.48597, 1.407407, 0.0015), (2.6802883, 1.3602582, 0.0015)]
+        color3f[] primvars:displayColor = [(0.25, 0.55, 0.3)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor048" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.913345, -0.8619157, 0.0006), (-1.2623216, -0.7865188, 0.0006), (-1.2676836, -0.8113374, 0.0006), (-0.9187071, -0.88673425, 0.0006), (-0.913345, -0.8619157, 0.0016), (-1.2623216, -0.7865188, 0.0016), (-1.2676836, -0.8113374, 0.0016), (-0.9187071, -0.88673425, 0.0016)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor049" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.87747324, 0.5004982, 0.0919944)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.3970116, -2.1378396, 0), (1.3620969, -1.9187423, 0), (1.2577317, -1.9353735, 0), (1.2926464, -2.154471, 0), (1.3970116, -2.1378396, 0.001), (1.3620969, -1.9187423, 0.001), (1.2577317, -1.9353735, 0.001), (1.2926464, -2.154471, 0.001)]
+        color3f[] primvars:displayColor = [(0.87747324, 0.5004982, 0.0919944)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor050a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.51671696, -0.73477733, 0.0001), (-0.6711654, -0.6930499, 0.0001), (-0.67768586, -0.71718454, 0.0001), (-0.52323747, -0.758912, 0.0001), (-0.51671696, -0.73477733, 0.0011), (-0.6711654, -0.6930499, 0.0011), (-0.67768586, -0.71718454, 0.0011), (-0.52323747, -0.758912, 0.0011)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor050b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.588405, -0.6454965, 0.0001), (-0.6301325, -0.79994494, 0.0001), (-0.6059978, -0.8064654, 0.0001), (-0.5642703, -0.652017, 0.0001), (-0.588405, -0.6454965, 0.0011), (-0.6301325, -0.79994494, 0.0011), (-0.6059978, -0.8064654, 0.0011), (-0.5642703, -0.652017, 0.0011)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor051" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15860236, 0.3787111, 0.2431996)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.805838, 0.06894926, 0.0002), (3.6807764, 0.2537557, 0.0002), (3.4407418, 0.09132018, 0.0002), (3.5658035, -0.09348626, 0.0002), (3.805838, 0.06894926, 0.0012), (3.6807764, 0.2537557, 0.0012), (3.4407418, 0.09132018, 0.0012), (3.5658035, -0.09348626, 0.0012)]
+        color3f[] primvars:displayColor = [(0.15860236, 0.3787111, 0.2431996)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor052a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.25, 0.55, 0.3)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.022811597, 0.9583771, 0.0003), (0.15549877, 1.033702, 0.0003), (0.14315666, 1.055443, 0.0003), (0.01046948, 0.98011816, 0.0003), (0.022811597, 0.9583771, 0.0013), (0.15549877, 1.033702, 0.0013), (0.14315666, 1.055443, 0.0013), (0.01046948, 0.98011816, 0.0013)]
+        color3f[] primvars:displayColor = [(0.25, 0.55, 0.3)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor052b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.25, 0.55, 0.3)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.1315171, 0.9467375, 0.0003), (0.056192186, 1.0794247, 0.0003), (0.03445116, 1.0670826, 0.0003), (0.10977607, 0.93439543, 0.0003), (0.1315171, 0.9467375, 0.0013), (0.056192186, 1.0794247, 0.0013), (0.03445116, 1.0670826, 0.0013), (0.10977607, 0.93439543, 0.0013)]
+        color3f[] primvars:displayColor = [(0.25, 0.55, 0.3)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor053a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.059369143, 0.7444751, 0.0004), (-0.15515187, 0.7858991, 0.0004), (-0.16507554, 0.76295304, 0.0004), (-0.069292806, 0.72152907, 0.0004), (-0.059369143, 0.7444751, 0.0014), (-0.15515187, 0.7858991, 0.0014), (-0.16507554, 0.76295304, 0.0014), (-0.069292806, 0.72152907, 0.0014)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor053b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.1029834, 0.8065673, 0.0004), (-0.14440733, 0.71078455, 0.0004), (-0.12146129, 0.70086086, 0.0004), (-0.080037355, 0.7966436, 0.0004), (-0.1029834, 0.8065673, 0.0014), (-0.14440733, 0.71078455, 0.0014), (-0.12146129, 0.70086086, 0.0014), (-0.080037355, 0.7966436, 0.0014)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor054" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.72929376, 0.056464583, 0.0005), (-0.7967667, 0.34554288, 0.0005), (-0.8333624, 0.33700117, 0.0005), (-0.76588947, 0.04792288, 0.0005), (-0.72929376, 0.056464583, 0.0015), (-0.7967667, 0.34554288, 0.0015), (-0.8333624, 0.33700117, 0.0015), (-0.76588947, 0.04792288, 0.0015)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor055" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.9394985, -2.268826, 0.0006), (1.9201655, -1.88496, 0.0006), (1.8811433, -1.8869253, 0.0006), (1.9004763, -2.2707915, 0.0006), (1.9394985, -2.268826, 0.0016), (1.9201655, -1.88496, 0.0016), (1.8811433, -1.8869253, 0.0016), (1.9004763, -2.2707915, 0.0016)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor056a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.3257539, 0.8359821, 0), (1.1757056, 0.8691134, 0), (1.1703153, 0.8447014, 0), (1.3203636, 0.8115701, 0), (1.3257539, 0.8359821, 0.001), (1.1757056, 0.8691134, 0.001), (1.1703153, 0.8447014, 0.001), (1.3203636, 0.8115701, 0.001)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor056b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.2523942, 0.9180611, 0), (1.219263, 0.7680127, 0), (1.243675, 0.7626224, 0), (1.2768062, 0.91267085, 0), (1.2523942, 0.9180611, 0.001), (1.219263, 0.7680127, 0.001), (1.243675, 0.7626224, 0.001), (1.2768062, 0.91267085, 0.001)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor057" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.0538225, -0.5546996, 0.0001), (3.075981, -0.2925207, 0.0001), (3.0307493, -0.2886979, 0.0001), (3.008591, -0.5508768, 0.0001), (3.0538225, -0.5546996, 0.0011), (3.075981, -0.2925207, 0.0011), (3.0307493, -0.2886979, 0.0011), (3.008591, -0.5508768, 0.0011)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor058" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.5673788, -0.13980296, 0.0002), (3.6896076, -0.09639832, 0.0002), (3.6790648, -0.06670913, 0.0002), (3.556836, -0.11011378, 0.0002), (3.5673788, -0.13980296, 0.0012), (3.6896076, -0.09639832, 0.0012), (3.6790648, -0.06670913, 0.0012), (3.556836, -0.11011378, 0.0012)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor059" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.339569, 1.9872012, 0.0003), (2.6237974, 2.1857708, 0.0003), (2.6048684, 2.2128656, 0.0003), (2.32064, 2.014296, 0.0003), (2.339569, 1.9872012, 0.0013), (2.6237974, 2.1857708, 0.0013), (2.6048684, 2.2128656, 0.0013), (2.32064, 2.014296, 0.0013)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor060a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.47343782, 0.45288247, 0.0004), (0.47358844, 0.6010359, 0.0004), (0.44858843, 0.6010613, 0.0004), (0.44843784, 0.4529079, 0.0004), (0.47343782, 0.45288247, 0.0014), (0.47358844, 0.6010359, 0.0014), (0.44858843, 0.6010613, 0.0014), (0.44843784, 0.4529079, 0.0014)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor060b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.53510255, 0.5393966, 0.0004), (0.38694912, 0.5395472, 0.0004), (0.3869237, 0.51454717, 0.0004), (0.53507715, 0.5143966, 0.0004), (0.53510255, 0.5393966, 0.0014), (0.38694912, 0.5395472, 0.0014), (0.3869237, 0.51454717, 0.0014), (0.53507715, 0.5143966, 0.0014)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor061" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.25, 0.55, 0.3)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.0456529, 0.83810323, 0.0005), (2.0224226, 1.0809878, 0.0005), (1.9872481, 1.0776236, 0.0005), (2.0104783, 0.834739, 0.0005), (2.0456529, 0.83810323, 0.0015), (2.0224226, 1.0809878, 0.0015), (1.9872481, 1.0776236, 0.0015), (2.0104783, 0.834739, 0.0015)]
+        color3f[] primvars:displayColor = [(0.25, 0.55, 0.3)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor062a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.5197448, -1.5060374, 0.0006), (1.4310595, -1.4656044, 0.0006), (1.4206885, -1.4883518, 0.0006), (1.5093739, -1.5287848, 0.0006), (1.5197448, -1.5060374, 0.0016), (1.4310595, -1.4656044, 0.0016), (1.4206885, -1.4883518, 0.0016), (1.5093739, -1.5287848, 0.0016)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor062b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.4790595, -1.4476665, 0.0006), (1.4386264, -1.5363518, 0.0006), (1.4613738, -1.5467227, 0.0006), (1.5018069, -1.4580374, 0.0006), (1.4790595, -1.4476665, 0.0016), (1.4386264, -1.5363518, 0.0016), (1.4613738, -1.5467227, 0.0016), (1.5018069, -1.4580374, 0.0016)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor063" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.17227548, 0.13005939, 0), (-0.5004494, 0.2885808, 0), (-0.52013665, 0.24782391, 0), (-0.19196272, 0.08930249, 0), (-0.17227548, 0.13005939, 0.001), (-0.5004494, 0.2885808, 0.001), (-0.52013665, 0.24782391, 0.001), (-0.19196272, 0.08930249, 0.001)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor064" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.8179703, -0.8595637, 0.0001), (3.463148, -0.73262846, 0.0001), (3.453089, -0.7607469, 0.0001), (3.8079112, -0.8876821, 0.0001), (3.8179703, -0.8595637, 0.0011), (3.463148, -0.73262846, 0.0011), (3.453089, -0.7607469, 0.0011), (3.8079112, -0.8876821, 0.0011)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor065" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.971212, 1.6688802, 0.0002), (-1.0705093, 1.7839831, 0.0002), (-1.1051913, 1.7540636, 0.0002), (-1.0058941, 1.6389606, 0.0002), (-0.971212, 1.6688802, 0.0012), (-1.0705093, 1.7839831, 0.0012), (-1.1051913, 1.7540636, 0.0012), (-1.0058941, 1.6389606, 0.0012)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor066a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.79469895, 1.2232082, 0.0003), (0.9109516, 1.3080316, 0.0003), (0.896216, 1.3282272, 0.0003), (0.7799633, 1.2434037, 0.0003), (0.79469895, 1.2232082, 0.0013), (0.9109516, 1.3080316, 0.0013), (0.896216, 1.3282272, 0.0013), (0.7799633, 1.2434037, 0.0013)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor066b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.8979669, 1.2249591, 0.0003), (0.81314355, 1.3412118, 0.0003), (0.79294795, 1.3264761, 0.0003), (0.8777714, 1.2102234, 0.0003), (0.8979669, 1.2249591, 0.0013), (0.81314355, 1.3412118, 0.0013), (0.79294795, 1.3264761, 0.0013), (0.8777714, 1.2102234, 0.0013)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor067" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8580987, 0.6408913, 0.0874273)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.95328444, 0.3865479, 0.0004), (-1.0771747, 0.4219626, 0.0004), (-1.1324563, 0.22857252, 0.0004), (-1.008566, 0.19315785, 0.0004), (-0.95328444, 0.3865479, 0.0014), (-1.0771747, 0.4219626, 0.0014), (-1.1324563, 0.22857252, 0.0014), (-1.008566, 0.19315785, 0.0014)]
+        color3f[] primvars:displayColor = [(0.8580987, 0.6408913, 0.0874273)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor068" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.063400865, 0.054066278, 0.05813809)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.6193408, -2.0393338, 0.0005), (-0.36673808, -2.0200088, 0.0005), (-0.38817468, -1.7398074, 0.0005), (-0.6407774, -1.7591325, 0.0005), (-0.6193408, -2.0393338, 0.0015), (-0.36673808, -2.0200088, 0.0015), (-0.38817468, -1.7398074, 0.0015), (-0.6407774, -1.7591325, 0.0015)]
+        color3f[] primvars:displayColor = [(0.063400865, 0.054066278, 0.05813809)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor069" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.52561796, -1.4969134, 0.0006), (-0.6623719, -1.4649403, 0.0006), (-0.67347884, -1.5124466, 0.0006), (-0.5367249, -1.5444196, 0.0006), (-0.52561796, -1.4969134, 0.0016), (-0.6623719, -1.4649403, 0.0016), (-0.67347884, -1.5124466, 0.0016), (-0.5367249, -1.5444196, 0.0016)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor070" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.0544244, 1.0480766, 0), (1.1340882, 1.2712952, 0), (1.1055962, 1.2814636, 0), (1.0259324, 1.0582451, 0), (1.0544244, 1.0480766, 0.001), (1.1340882, 1.2712952, 0.001), (1.1055962, 1.2814636, 0.001), (1.0259324, 1.0582451, 0.001)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor071" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.69358605, 0.54541814, 0.0001), (0.45543572, 0.6722193, 0.0001), (0.43499964, 0.6338374, 0.0001), (0.67315, 0.50703627, 0.0001), (0.69358605, 0.54541814, 0.0011), (0.45543572, 0.6722193, 0.0011), (0.43499964, 0.6338374, 0.0011), (0.67315, 0.50703627, 0.0011)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor072" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8711892, 0.88373333, 0.86714673)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.6814339, -1.4238995, 0.0002), (0.8543931, -1.3708082, 0.0002), (0.8200703, -1.2589926, 0.0002), (0.6471112, -1.3120837, 0.0002), (0.6814339, -1.4238995, 0.0012), (0.8543931, -1.3708082, 0.0012), (0.8200703, -1.2589926, 0.0012), (0.6471112, -1.3120837, 0.0012)]
+        color3f[] primvars:displayColor = [(0.8711892, 0.88373333, 0.86714673)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor073" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.89700323, 0.83492976, 0.8200757)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.9274507, 0.15704201, 0.0003), (3.9233925, 0.45822003, 0.0003), (3.7717535, 0.45617682, 0.0003), (3.7758117, 0.15499881, 0.0003), (3.9274507, 0.15704201, 0.0013), (3.9233925, 0.45822003, 0.0013), (3.7717535, 0.45617682, 0.0013), (3.7758117, 0.15499881, 0.0013)]
+        color3f[] primvars:displayColor = [(0.89700323, 0.83492976, 0.8200757)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor074a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.195243, -0.4296345, 0.0004), (3.0638156, -0.37752303, 0.0004), (3.054601, -0.40076286, 0.0004), (3.1860282, -0.45287433, 0.0004), (3.195243, -0.4296345, 0.0014), (3.0638156, -0.37752303, 0.0014), (3.054601, -0.40076286, 0.0014), (3.1860282, -0.45287433, 0.0014)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor074b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.1393578, -0.34487766, 0.0004), (3.0872464, -0.476305, 0.0004), (3.1104863, -0.4855197, 0.0004), (3.1625977, -0.35409236, 0.0004), (3.1393578, -0.34487766, 0.0014), (3.0872464, -0.476305, 0.0014), (3.1104863, -0.4855197, 0.0014), (3.1625977, -0.35409236, 0.0014)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor075" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.23880482, 0.5479274, 0.28832456)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.7979517, -0.51307267, 0.0005), (2.944626, -0.4168459, 0.0005), (2.8787062, -0.31636688, 0.0005), (2.7320318, -0.41259363, 0.0005), (2.7979517, -0.51307267, 0.0015), (2.944626, -0.4168459, 0.0015), (2.8787062, -0.31636688, 0.0015), (2.7320318, -0.41259363, 0.0015)]
+        color3f[] primvars:displayColor = [(0.23880482, 0.5479274, 0.28832456)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor076" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.25, 0.55, 0.3)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-1.3755944, -1.1101226, 0.0006), (-1.2255522, -0.90514636, 0.0006), (-1.2493958, -0.88769287, 0.0006), (-1.399438, -1.092669, 0.0006), (-1.3755944, -1.1101226, 0.0016), (-1.2255522, -0.90514636, 0.0016), (-1.2493958, -0.88769287, 0.0016), (-1.399438, -1.092669, 0.0016)]
+        color3f[] primvars:displayColor = [(0.25, 0.55, 0.3)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor077a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-1.1126333, 0.006526666, 0), (-1.1735483, 0.13362196, 0), (-1.1960927, 0.12281677, 0), (-1.1351777, -0.004278526, 0), (-1.1126333, 0.006526666, 0.001), (-1.1735483, 0.13362196, 0.001), (-1.1960927, 0.12281677, 0.001), (-1.1351777, -0.004278526, 0.001)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor077b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-1.096218, 0.10640139, 0), (-1.2233132, 0.045486398, 0), (-1.2125081, 0.022942046, 0), (-1.0854127, 0.08385704, 0), (-1.096218, 0.10640139, 0.001), (-1.2233132, 0.045486398, 0.001), (-1.2125081, 0.022942046, 0.001), (-1.0854127, 0.08385704, 0.001)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor078" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.9651663, -2.1616807, 0.0001), (4.2163663, -2.072971, 0.0001), (4.2038393, -2.037499, 0.0001), (3.9526396, -2.1262085, 0.0001), (3.9651663, -2.1616807, 0.0011), (4.2163663, -2.072971, 0.0011), (4.2038393, -2.037499, 0.0011), (3.9526396, -2.1262085, 0.0011)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor079" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.6219742, 0.5690393, 0.0002), (3.0209618, 0.69653237, 0.0002), (3.0091667, 0.7334451, 0.0002), (2.6101792, 0.605952, 0.0002), (2.6219742, 0.5690393, 0.0012), (3.0209618, 0.69653237, 0.0012), (3.0091667, 0.7334451, 0.0012), (2.6101792, 0.605952, 0.0012)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor080" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.4729843, 2.0117402, 0.0003), (1.2368022, 2.1354797, 0.0003), (1.217721, 2.099059, 0.0003), (1.4539031, 1.9753196, 0.0003), (1.4729843, 2.0117402, 0.0013), (1.2368022, 2.1354797, 0.0013), (1.217721, 2.099059, 0.0013), (1.4539031, 1.9753196, 0.0013)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor081" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.07538152, 0.065342516, 0.075476244)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.6900448, 0.59769034, 0.0004), (1.7586716, 0.7817909, 0.0004), (1.4831761, 0.8844869, 0.0004), (1.4145494, 0.7003863, 0.0004), (1.6900448, 0.59769034, 0.0014), (1.7586716, 0.7817909, 0.0014), (1.4831761, 0.8844869, 0.0014), (1.4145494, 0.7003863, 0.0014)]
+        color3f[] primvars:displayColor = [(0.07538152, 0.065342516, 0.075476244)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor082a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.90859646, -0.07743482, 0.0005), (0.89942366, 0.03142543, 0.0005), (0.87451196, 0.029326318, 0.0005), (0.88368475, -0.079533935, 0.0005), (0.90859646, -0.07743482, 0.0015), (0.89942366, 0.03142543, 0.0015), (0.87451196, 0.029326318, 0.0015), (0.88368475, -0.079533935, 0.0015)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor082b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.9449348, -0.0070119966, 0.0005), (0.83607453, -0.016184786, 0.0005), (0.8381736, -0.041096505, 0.0005), (0.9470339, -0.031923715, 0.0005), (0.9449348, -0.0070119966, 0.0015), (0.83607453, -0.016184786, 0.0015), (0.8381736, -0.041096505, 0.0015), (0.9470339, -0.031923715, 0.0015)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor083a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.12830035, 0.6793224, 0.0006), (-0.008101759, 0.7100481, 0.0006), (-0.013595545, 0.68565917, 0.0006), (0.12280657, 0.6549335, 0.0006), (0.12830035, 0.6793224, 0.0016), (-0.008101759, 0.7100481, 0.0016), (-0.013595545, 0.68565917, 0.0016), (0.12280657, 0.6549335, 0.0016)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor083b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.060520772, 0.7534388, 0.0006), (0.029795147, 0.61703664, 0.0006), (0.054184046, 0.6115428, 0.0006), (0.08490967, 0.74794495, 0.0006), (0.060520772, 0.7534388, 0.0016), (0.029795147, 0.61703664, 0.0016), (0.054184046, 0.6115428, 0.0016), (0.08490967, 0.74794495, 0.0016)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor084" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-1.6247295, 1.1570088, 0), (-1.2590238, 1.2064497, 0), (-1.2636793, 1.2408854, 0), (-1.629385, 1.1914444, 0), (-1.6247295, 1.1570088, 0.001), (-1.2590238, 1.2064497, 0.001), (-1.2636793, 1.2408854, 0.001), (-1.629385, 1.1914444, 0.001)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor085a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.6312377, 1.0449338, 0.0001), (3.6044307, 1.1470116, 0.0001), (3.5802507, 1.1406617, 0.0001), (3.6070578, 1.0385838, 0.0001), (3.6312377, 1.0449338, 0.0011), (3.6044307, 1.1470116, 0.0011), (3.5802507, 1.1406617, 0.0011), (3.6070578, 1.0385838, 0.0011)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor085b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.6536083, 1.1182913, 0.0001), (3.5515304, 1.0914843, 0.0001), (3.5578804, 1.0673041, 0.0001), (3.6599581, 1.0941112, 0.0001), (3.6536083, 1.1182913, 0.0011), (3.5515304, 1.0914843, 0.0011), (3.5578804, 1.0673041, 0.0011), (3.6599581, 1.0941112, 0.0011)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor086" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.24372709, 0.48900232, 0.23620205)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.1224587, -1.3031555, 0.0002), (3.1337698, -1.1426265, 0.0002), (2.929604, -1.1282407, 0.0002), (2.918293, -1.2887697, 0.0002), (3.1224587, -1.3031555, 0.0012), (3.1337698, -1.1426265, 0.0012), (2.929604, -1.1282407, 0.0012), (2.918293, -1.2887697, 0.0012)]
+        color3f[] primvars:displayColor = [(0.24372709, 0.48900232, 0.23620205)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor087" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(4.1661057, 1.2992209, 0.0003), (4.0104914, 1.504584, 0.0003), (3.9882154, 1.4877043, 0.0003), (4.14383, 1.2823411, 0.0003), (4.1661057, 1.2992209, 0.0013), (4.0104914, 1.504584, 0.0013), (3.9882154, 1.4877043, 0.0013), (4.14383, 1.2823411, 0.0013)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor088" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.2440922, -0.7121574, 0.0004), (3.5588598, -0.58255666, 0.0004), (3.5450056, -0.54890835, 0.0004), (3.230238, -0.67850906, 0.0004), (3.2440922, -0.7121574, 0.0014), (3.5588598, -0.58255666, 0.0014), (3.5450056, -0.54890835, 0.0014), (3.230238, -0.67850906, 0.0014)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor089a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.0983545, 0.2905819, 0.0005), (-0.03819106, 0.42274266, 0.0005), (-0.06094436, 0.43310064, 0.0005), (-0.1211078, 0.3009399, 0.0005), (-0.0983545, 0.2905819, 0.0015), (-0.03819106, 0.42274266, 0.0015), (-0.06094436, 0.43310064, 0.0015), (-0.1211078, 0.3009399, 0.0015)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor089b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.008390071, 0.3431362, 0.0005), (-0.14055082, 0.40329963, 0.0005), (-0.1509088, 0.38054633, 0.0005), (-0.018748038, 0.3203829, 0.0005), (-0.008390071, 0.3431362, 0.0015), (-0.14055082, 0.40329963, 0.0015), (-0.1509088, 0.38054633, 0.0015), (-0.018748038, 0.3203829, 0.0015)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor090" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.94218564, -1.0809143, 0.0006), (-0.638549, -0.7986195, 0.0006), (-0.66892236, -0.76594985, 0.0006), (-0.97255903, -1.0482446, 0.0006), (-0.94218564, -1.0809143, 0.0016), (-0.638549, -0.7986195, 0.0016), (-0.66892236, -0.76594985, 0.0016), (-0.97255903, -1.0482446, 0.0016)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor091a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.0596094, -0.6793213, 0), (2.0136442, -0.55140615, 0), (1.990117, -0.5598604, 0), (2.0360825, -0.6877756, 0), (2.0596094, -0.6793213, 0.001), (2.0136442, -0.55140615, 0.001), (1.990117, -0.5598604, 0.001), (2.0360825, -0.6877756, 0.001)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor091b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.0845938, -0.5848446, 0), (1.9566785, -0.63081, 0), (1.9651328, -0.6543371, 0), (2.093048, -0.60837173, 0), (2.0845938, -0.5848446, 0.001), (1.9566785, -0.63081, 0.001), (1.9651328, -0.6543371, 0.001), (2.093048, -0.60837173, 0.001)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor092" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.6678065, -1.1182762, 0.0001), (-0.30101076, -0.8693129, 0.0001), (-0.32790765, -0.82968587, 0.0001), (-0.6947034, -1.0786493, 0.0001), (-0.6678065, -1.1182762, 0.0011), (-0.30101076, -0.8693129, 0.0011), (-0.32790765, -0.82968587, 0.0011), (-0.6947034, -1.0786493, 0.0011)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor093" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.08, 0.08, 0.09)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.4328787, -2.041053, 0.0002), (3.5616999, -2.0372171, 0.0002), (3.5609276, -2.0112774, 0.0002), (3.4321063, -2.0151136, 0.0002), (3.4328787, -2.041053, 0.0012), (3.5616999, -2.0372171, 0.0012), (3.5609276, -2.0112774, 0.0012), (3.4321063, -2.0151136, 0.0012)]
+        color3f[] primvars:displayColor = [(0.08, 0.08, 0.09)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor094a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.3655438, -1.0042106, 0.0003), (-0.24603969, -0.97093546, 0.0003), (-0.25274566, -0.9468516, 0.0003), (-0.3722498, -0.9801268, 0.0003), (-0.3655438, -1.0042106, 0.0013), (-0.24603969, -0.97093546, 0.0013), (-0.25274566, -0.9468516, 0.0013), (-0.3722498, -0.9801268, 0.0013)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor094b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.45, 0.3, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.28046525, -1.0319302, 0.0003), (-0.31374043, -0.91242605, 0.0003), (-0.33782423, -0.91913205, 0.0003), (-0.30454907, -1.0386362, 0.0003), (-0.28046525, -1.0319302, 0.0013), (-0.31374043, -0.91242605, 0.0013), (-0.33782423, -0.91913205, 0.0013), (-0.30454907, -1.0386362, 0.0013)]
+        color3f[] primvars:displayColor = [(0.45, 0.3, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor095" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.0104713, -0.69122404, 0.0004), (2.135761, -0.43729752, 0.0004), (2.1103516, -0.4247603, 0.0004), (1.985062, -0.6786868, 0.0004), (2.0104713, -0.69122404, 0.0014), (2.135761, -0.43729752, 0.0014), (2.1103516, -0.4247603, 0.0014), (1.985062, -0.6786868, 0.0014)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor096a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.5091946, 1.3003143, 0.0005), (3.3923671, 1.3801492, 0.0005), (3.378262, 1.3595084, 0.0005), (3.4950895, 1.2796735, 0.0005), (3.5091946, 1.3003143, 0.0015), (3.3923671, 1.3801492, 0.0015), (3.378262, 1.3595084, 0.0015), (3.4950895, 1.2796735, 0.0015)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor096b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.4733255, 1.3953776, 0.0005), (3.3934903, 1.2785501, 0.0005), (3.4141314, 1.2644451, 0.0005), (3.4939663, 1.3812726, 0.0005), (3.4733255, 1.3953776, 0.0015), (3.3934903, 1.2785501, 0.0015), (3.4141314, 1.2644451, 0.0015), (3.4939663, 1.3812726, 0.0015)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor097" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.95, 0.8, 0.1)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.3709148, -0.42087072, 0.0006), (-0.31317458, -0.2602923, 0.0006), (-0.35637522, -0.24475835, 0.0006), (-0.41411543, -0.40533677, 0.0006), (-0.3709148, -0.42087072, 0.0016), (-0.31317458, -0.2602923, 0.0016), (-0.35637522, -0.24475835, 0.0016), (-0.41411543, -0.40533677, 0.0016)]
+        color3f[] primvars:displayColor = [(0.95, 0.8, 0.1)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor098" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.28746304, 0.2850214, 0.1262806)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(1.9950739, -0.93343836, 0), (1.8505656, -0.78534925, 0), (1.7261385, -0.9067677, 0), (1.8706468, -1.0548568, 0), (1.9950739, -0.93343836, 0.001), (1.8505656, -0.78534925, 0.001), (1.7261385, -0.9067677, 0.001), (1.8706468, -1.0548568, 0.001)]
+        color3f[] primvars:displayColor = [(0.28746304, 0.2850214, 0.1262806)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor099a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-1.0506214, 0.25301778, 0.0001), (-1.1726242, 0.33299384, 0.0001), (-1.1863301, 0.31208572, 0.0001), (-1.0643271, 0.23210964, 0.0001), (-1.0506214, 0.25301778, 0.0011), (-1.1726242, 0.33299384, 0.0011), (-1.1863301, 0.31208572, 0.0011), (-1.0643271, 0.23210964, 0.0011)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor099b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-1.0889418, 0.3504061, 0.0001), (-1.1689178, 0.2284032, 0.0001), (-1.1480097, 0.21469736, 0.0001), (-1.0680336, 0.3367003, 0.0001), (-1.0889418, 0.3504061, 0.0011), (-1.1689178, 0.2284032, 0.0011), (-1.1480097, 0.21469736, 0.0011), (-1.0680336, 0.3367003, 0.0011)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor100a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.25, 0.55, 0.3)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-1.5151211, -0.8880015, 0.0002), (-1.5533998, -0.7747128, 0.0002), (-1.5770843, -0.7827155, 0.0002), (-1.5388056, -0.8960042, 0.0002), (-1.5151211, -0.8880015, 0.0012), (-1.5533998, -0.7747128, 0.0012), (-1.5770843, -0.7827155, 0.0012), (-1.5388056, -0.8960042, 0.0012)]
+        color3f[] primvars:displayColor = [(0.25, 0.55, 0.3)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor100b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.25, 0.55, 0.3)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-1.4934597, -0.80437684, 0.0002), (-1.6067485, -0.8426556, 0.0002), (-1.5987457, -0.8663401, 0.0002), (-1.4854571, -0.8280614, 0.0002), (-1.4934597, -0.80437684, 0.0012), (-1.6067485, -0.8426556, 0.0012), (-1.5987457, -0.8663401, 0.0012), (-1.4854571, -0.8280614, 0.0012)]
+        color3f[] primvars:displayColor = [(0.25, 0.55, 0.3)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor101a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.7989597, -0.8003611, 0.0003), (2.881026, -0.7330099, 0.0003), (2.8651662, -0.71368474, 0.0003), (2.7831, -0.78103596, 0.0003), (2.7989597, -0.8003611, 0.0013), (2.881026, -0.7330099, 0.0013), (2.8651662, -0.71368474, 0.0013), (2.7831, -0.78103596, 0.0013)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor101b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.93, 0.93, 0.9)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.8754013, -0.790126, 0.0003), (2.80805, -0.7080598, 0.0003), (2.788725, -0.72391975, 0.0003), (2.856076, -0.80598605, 0.0003), (2.8754013, -0.790126, 0.0013), (2.80805, -0.7080598, 0.0013), (2.788725, -0.72391975, 0.0013), (2.856076, -0.80598605, 0.0013)]
+        color3f[] primvars:displayColor = [(0.93, 0.93, 0.9)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor102" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.116279565, 0.32242692, 0.57752466)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.8305752, -0.91426474, 0.0004), (3.758246, -0.5871826, 0.0004), (3.482239, -0.6482174, 0.0004), (3.554568, -0.97529954, 0.0004), (3.8305752, -0.91426474, 0.0014), (3.758246, -0.5871826, 0.0014), (3.482239, -0.6482174, 0.0014), (3.554568, -0.97529954, 0.0014)]
+        color3f[] primvars:displayColor = [(0.116279565, 0.32242692, 0.57752466)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor103" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.25, 0.55, 0.3)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.3609284, -0.46451524, 0.0005), (0.13454074, -0.3867888, 0.0005), (0.12345483, -0.4190778, 0.0005), (0.3498425, -0.49680427, 0.0005), (0.3609284, -0.46451524, 0.0015), (0.13454074, -0.3867888, 0.0015), (0.12345483, -0.4190778, 0.0015), (0.3498425, -0.49680427, 0.0015)]
+        color3f[] primvars:displayColor = [(0.25, 0.55, 0.3)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor104a" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.5585611, -0.48200047, 0.0006), (0.47079498, -0.41658983, 0.0006), (0.45585555, -0.43663514, 0.0006), (0.54362166, -0.50204575, 0.0006), (0.5585611, -0.48200047, 0.0016), (0.47079498, -0.41658983, 0.0016), (0.45585555, -0.43663514, 0.0016), (0.54362166, -0.50204575, 0.0016)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor104b" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.529891, -0.407965, 0.0006), (0.46448037, -0.49573115, 0.0006), (0.48452565, -0.5106706, 0.0006), (0.5499363, -0.42290443, 0.0006), (0.529891, -0.407965, 0.0016), (0.46448037, -0.49573115, 0.0016), (0.48452565, -0.5106706, 0.0016), (0.5499363, -0.42290443, 0.0016)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor105" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(0.72277695, -1.6959677, 0), (0.65018654, -1.3326968, 0), (0.6040757, -1.3419108, 0), (0.6766661, -1.7051817, 0), (0.72277695, -1.6959677, 0.001), (0.65018654, -1.3326968, 0.001), (0.6040757, -1.3419108, 0.001), (0.6766661, -1.7051817, 0.001)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor106" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.8, 0.25, 0.2)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(-0.07229183, -2.1343844, 0.0001), (0.14177899, -2.09513, 0.0001), (0.13716915, -2.0699906, 0.0001), (-0.07690167, -2.109245, 0.0001), (-0.07229183, -2.1343844, 0.0011), (0.14177899, -2.09513, 0.0011), (0.13716915, -2.0699906, 0.0011), (-0.07690167, -2.109245, 0.0011)]
+        color3f[] primvars:displayColor = [(0.8, 0.25, 0.2)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor107" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.7158592, 0.23990719, 0.126776)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.3481958, -0.39125016, 0.0002), (3.3304617, -0.27154508, 0.0002), (3.2153833, -0.28859362, 0.0002), (3.2331173, -0.40829867, 0.0002), (3.3481958, -0.39125016, 0.0012), (3.3304617, -0.27154508, 0.0012), (3.2153833, -0.28859362, 0.0012), (3.2331173, -0.40829867, 0.0012)]
+        color3f[] primvars:displayColor = [(0.7158592, 0.23990719, 0.126776)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor108" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.25, 0.55, 0.3)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(2.2368493, -1.6482152, 0.0003), (1.9393507, -1.4544657, 0.0003), (1.9190358, -1.485659, 0.0003), (2.2165341, -1.6794084, 0.0003), (2.2368493, -1.6482152, 0.0013), (1.9393507, -1.4544657, 0.0013), (1.9190358, -1.485659, 0.0013), (2.2165341, -1.6794084, 0.0013)]
+        color3f[] primvars:displayColor = [(0.25, 0.55, 0.3)]
+        uniform token subdivisionScheme = "none"
+    }
+
+    def Mesh "DressFloor109" (
+        customData = {
+            dictionary cascade = {
+                float3 color = (0.15, 0.35, 0.8)
+            }
+        }
+    )
+    {
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7]
+        point3f[] points = [(3.6130512, -0.9266473, 0.0004), (3.7562287, -0.51109177, 0.0004), (3.7166996, -0.49747217, 0.0004), (3.5735219, -0.91302776, 0.0004), (3.6130512, -0.9266473, 0.0014), (3.7562287, -0.51109177, 0.0014), (3.7166996, -0.49747217, 0.0014), (3.5735219, -0.91302776, 0.0014)]
+        color3f[] primvars:displayColor = [(0.15, 0.35, 0.8)]
         uniform token subdivisionScheme = "none"
     }
 }

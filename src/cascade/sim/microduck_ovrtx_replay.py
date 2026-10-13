@@ -19,6 +19,11 @@ from pathlib import Path
 import numpy as np
 
 MICRODUCK_USD_SHA256 = "feca1ff67d2e4140df48469cbe51fad69886c9447929941fc056a0e668b31235"
+# Skate-wheel variant the skating policies were trained on (Isaac Lab asset Robots/MicroDuck/microduck_rollers.usd):
+# the same robot plus four passive wheels (tire bodies) under the feet; it differs from MicroDuck.usd by the skates.
+MICRODUCK_ROLLERS_USD_SHA256 = "cd117510525c4d867b077e0b82e3fc539c1163205f127bc676cf95cb7b0ffdd4"
+ROBOT_VARIANTS = {MICRODUCK_USD_SHA256: ("canonical MicroDuck.usd", 16),
+                  MICRODUCK_ROLLERS_USD_SHA256: ("skate-wheel variant microduck_rollers.usd", 19)}
 
 
 def quat_xyzw_to_matrix(q) -> np.ndarray:
@@ -61,14 +66,17 @@ def look_at(eye, target, up=(0.0, 0.0, 1.0)) -> np.ndarray:
 
 
 def build_render_scene(out_path: Path, *, course_usd: Path | None, microduck_usd: Path, robots: list[str],
-                       floor_color=(0.62, 0.63, 0.66), floor_size=12.0, extra_course_offset=(0.0, 0.0, 0.0)) -> dict:
+                       floor_color=(0.62, 0.63, 0.66), floor_size=12.0, extra_course_offset=(0.0, 0.0, 0.0),
+                       light_scale: float = 1.0) -> dict:
     """Write a flattened render scene; returns the body prim layout ({robot: {body: prim_path}}, parents, sentinel)."""
     from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux, UsdPhysics, UsdShade
 
     microduck_usd = Path(microduck_usd).resolve(strict=True)
     digest = hashlib.sha256(microduck_usd.read_bytes()).hexdigest()
-    if digest != MICRODUCK_USD_SHA256:
-        raise ValueError(f"MicroDuck.usd sha256 {digest} is not the canonical {MICRODUCK_USD_SHA256}")
+    if digest not in ROBOT_VARIANTS:
+        raise ValueError(f"robot USD sha256 {digest} is neither the canonical MicroDuck.usd {MICRODUCK_USD_SHA256} "
+                         f"nor another pinned variant {sorted(ROBOT_VARIANTS)}")
+    variant_label, n_bodies = ROBOT_VARIANTS[digest]
     st = Usd.Stage.CreateInMemory()
     UsdGeom.SetStageUpAxis(st, "Z")
     UsdGeom.SetStageMetersPerUnit(st, 1.0)
@@ -103,10 +111,10 @@ def build_render_scene(out_path: Path, *, course_usd: Path | None, microduck_usd
         prim = st.DefinePrim(f"/World/Ducks/{r}", "Xform")
         prim.GetReferences().AddReference(str(microduck_usd))
     dome = UsdLux.DomeLight.Define(st, "/World/Lights/Dome")
-    dome.CreateIntensityAttr(700.0)
+    dome.CreateIntensityAttr(700.0 * light_scale)
     dome.CreateColorAttr(Gf.Vec3f(0.86, 0.89, 0.95))
     key = UsdLux.DistantLight.Define(st, "/World/Lights/Key")
-    key.CreateIntensityAttr(2600.0)
+    key.CreateIntensityAttr(2600.0 * light_scale)
     key.CreateAngleAttr(2.5)
     key.CreateColorAttr(Gf.Vec3f(1.0, 0.96, 0.9))
     UsdGeom.Xformable(key).AddRotateXYZOp().Set(Gf.Vec3f(40.0, 0.0, -30.0))
@@ -147,8 +155,8 @@ def build_render_scene(out_path: Path, *, course_usd: Path | None, microduck_usd
         for prim in Usd.PrimRange(root):
             if prim.HasAPI(UsdPhysics.RigidBodyAPI):
                 found[prim.GetName()] = prim
-        if len(found) != 16:
-            raise ValueError(f"{r}: expected 16 rigid bodies in MicroDuck.usd, found {len(found)}")
+        if len(found) != n_bodies:
+            raise ValueError(f"{r}: expected {n_bodies} rigid bodies in {variant_label}, found {len(found)}")
         # One FLAT Xform per body under /World/DuckBodies/<robot>/<body>, carrying that body's own visual subtree
         # (children that are not themselves bodies or joints). Each flat body then receives its recorded WORLD pose
         # directly, so no frame depends on a parent's written transform (one stale write cannot drag a subtree).
@@ -172,7 +180,7 @@ def build_render_scene(out_path: Path, *, course_usd: Path | None, microduck_usd
     out_path = Path(out_path)
     out.GetRootLayer().Export(str(out_path))
     return {"bodies": bodies, "parents": parents, "course_materials": n_mat, "microduck_usd_sha256": digest,
-            "sentinel": SENTINEL_PATH}
+            "robot_variant": variant_label, "sentinel": SENTINEL_PATH}
 
 
 SENTINEL_PATH = "/World/ReplayWriteSentinel"
@@ -220,4 +228,5 @@ class ReplayPoses:
         return local
 
 
-__all__ = ["build_render_scene", "ReplayPoses", "look_at", "pose_matrix", "MICRODUCK_USD_SHA256"]
+__all__ = ["build_render_scene", "ReplayPoses", "look_at", "pose_matrix", "MICRODUCK_USD_SHA256",
+           "MICRODUCK_ROLLERS_USD_SHA256", "ROBOT_VARIANTS"]

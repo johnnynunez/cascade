@@ -139,6 +139,20 @@ FLEET_TOOLS = [
           ("message",)),
     _spec("read_fleet_board", "Read the messages other robots posted (with their positions at posting time)."),
 ]
+HONEST_PROMPT = """HONEST ONBOARD MODE: you only know what this robot itself senses.
+* Your pose is your OWN estimate: cuVSLAM visual odometry on your head camera with depth from your ToF, in YOUR START
+  FRAME: (0, 0) is where you started, +x your initial forward direction, +y your initial left. It drifts (expect
+  tens of centimetres over a few metres, more after fast turns); "LOST" means the odometry failed: slow down, turn
+  slowly toward textured things and re-observe. Distances in your task are given in this start frame.
+* Fast in-place turns hurt your odometry; prefer slow turns and smooth arcs.
+* detect_objects runs a real image detector (YOLOE) on your camera image. It was trained on real photos, so its names
+  for simple props can be odd (a dark box may come back as "pulpit"); judge by colour, size and position. Its range
+  comes from your ToF when the object is in the ToF's 45 deg cone, otherwise from the floor contact point (rougher).
+* The image you receive is your own head camera (640x360, downscaled)."""
+HONEST_DETECT = _spec("detect_objects", "Run the onboard object detector (YOLOE, open vocabulary) on your current head "
+                                        "camera image: label (with dominant colour), confidence, bearing, distance and "
+                                        "position in your own start frame (from your pose estimate). Real detector: it "
+                                        "can miss things or give odd names. Detections become landmarks in your map.")
 MOTION_TOOLS = frozenset({"walk", "turn", "go_to_waypoint", "follow_route", "walk_with_onboard_perception", "navigate_to", "get_up",
                           "scan_surroundings"})
 
@@ -163,7 +177,7 @@ class MicroduckAgentRuntime:
 
     def __init__(self, name: str, index: int, port: WorldPort, run_dir: Path, *, bounds_xy, floor_z: float = 0.0,
                  fleet: FleetBoard | None = None, has_nav: bool = True, has_getup: bool = True,
-                 extra_prompt: str = "", detector=None):
+                 extra_prompt: str = "", detector=None, honest: bool = False):
         self.name, self.index, self.port = name, int(index), port
         self.detector = detector
         self.run_dir = Path(run_dir)
@@ -187,6 +201,13 @@ class MicroduckAgentRuntime:
         self.tool_specs = tools
         self.system_prompt = SYSTEM_PROMPT + f"\nYou are robot '{name}'." + (("\n" + extra_prompt) if extra_prompt else "")
         self.done = None
+        self.honest = bool(honest)
+        if self.honest:
+            self.tool_specs = [HONEST_DETECT if t["name"] == "detect_objects" else t for t in self.tool_specs
+                               if t["name"] != "navigate_to"]
+            self.system_prompt = (SYSTEM_PROMPT.replace("Use detected world positions and your pose", "Use detections "
+                                  "and your own pose estimate") + "\n" + HONEST_PROMPT + f"\nYou are robot '{name}'."
+                                  + (("\n" + extra_prompt) if extra_prompt else ""))
 
     # -------------------------------------------------------------- helpers
     def frame_jpeg(self):
@@ -194,7 +215,9 @@ class MicroduckAgentRuntime:
             return None
         import cv2
 
-        img = cv2.resize(self.last_frame, (192, 144), interpolation=cv2.INTER_NEAREST)
+        big = self.last_frame.shape[1] > 100
+        img = cv2.resize(self.last_frame, (320, 180) if big else (192, 144),
+                         interpolation=cv2.INTER_AREA if big else cv2.INTER_NEAREST)
         ok, buf = cv2.imencode(".jpg", img[..., ::-1], [cv2.IMWRITE_JPEG_QUALITY, 90])
         return buf.tobytes() if ok else None
 
@@ -202,9 +225,10 @@ class MicroduckAgentRuntime:
         i = self.index
 
         def read(w):
-            return w.base_state(i), w.tof_frame(i), w.policy_rgb(i)
+            cam = w.camera_rgb(i) if hasattr(w, "camera_rgb") else None
+            return w.base_state(i), w.tof_frame(i), w.policy_rgb(i), cam
 
-        state, tof, rgb = self.port.call(read)
+        state, tof, rgb, cam = self.port.call(read)
         if integrate:
             self.map.integrate(tof["distance_mm"], tof["status"], tof["sensor_pos_w"], tof["beam_dir_w"],
                                floor_z=self.floor_z)
@@ -212,21 +236,27 @@ class MicroduckAgentRuntime:
             self.map_snapshots.append((state["sim_time_s"], self.map.snapshot()))
         reading = summarize_frame(tof["distance_mm"], tof["status"], tof["sensor_pos_w"], tof["beam_dir_w"],
                                   state["yaw_rad"], floor_z=self.floor_z)
-        self.last_frame = rgb
+        self.last_frame = cam if cam is not None else rgb
         return state, reading, rgb
 
     @staticmethod
     def _pose(state):
-        return {"x": round(state["x"], 2), "y": round(state["y"], 2), "yaw_deg": round(math.degrees(state["yaw_rad"]), 1),
-                "posture": "FALLEN" if state["fallen"] else "upright", "tilt_deg": round(state["tilt_deg"], 1)}
+        out = {"x": round(state["x"], 2), "y": round(state["y"], 2), "yaw_deg": round(math.degrees(state["yaw_rad"]), 1),
+               "posture": "FALLEN" if state["fallen"] else "upright", "tilt_deg": round(state["tilt_deg"], 1)}
+        if "localization" in state:
+            out["localization"] = state["localization"]
+            out["pose_source"] = "your own visual odometry estimate (start frame)"
+        return out
 
     def _after_motion(self, receipt, name):
         state, reading, rgb = self._sense()
         receipt["after"] = {"pose": self._pose(state), "tof": reading.text()}
         if self.detector is not None:
             receipt["after"]["objects_in_view"] = [
-                f"{d['label']} {d['distance_m']} m at {d['bearing_deg']} deg -> world {d['world_xy']}"
-                for d in self._detections(state)["detections"]] or "none (detector stand-in)"
+                f"{d['label']} {d['distance_m']} m at {d['bearing_deg']} deg -> "
+                f"{'your frame' if self.honest else 'world'} {d['world_xy']}"
+                for d in self._detections(state)["detections"]] or (
+                "none detected" if self.honest else "none (detector stand-in)")
         verdict = "confirmed" if receipt.get("ok") and not state["fallen"] else "unverified"
         self.memory.add("action", f"{name}: {receipt.get('stop_reason')} -> at ({state['x']:.2f},{state['y']:.2f}), "
                                   f"{'FALLEN' if state['fallen'] else 'upright'}",
@@ -272,8 +302,10 @@ class MicroduckAgentRuntime:
             return None
         d = self.detector.detect(state["x"], state["y"], state["yaw_rad"])
         for det in d["detections"]:
+            if det.get("world_xy") is None:
+                continue
             self.map.add_landmark(det["label"], det["world_xy"][0], det["world_xy"][1], state["sim_time_s"],
-                                  note="detector stand-in")
+                                  note="onboard detector" if self.honest else "detector stand-in")
         return d
 
     def tool_detect_objects(self, args):

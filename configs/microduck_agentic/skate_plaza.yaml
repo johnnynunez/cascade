@@ -1,0 +1,46 @@
+# One MicroDuck on roller skates: a plaza slalom with a stop mark. Learned skating policy (natural_roller, iteration
+# 193) on the skate-wheel MicroDuck; the agent picks throttle, targets and when to brake.
+version: 1
+name: skate_plaza
+title: "Skate plaza: three cones in order, around the bench and planter, stop on the mark"
+scene: demo/microduck_agentic/skate_plaza.usda
+skate_policy: natural_roller
+bounds: [-0.8, -1.8, 7.8, 1.8]
+settle_s: 1.0
+max_sim_s: 120
+max_steps: 22
+context: >-
+  Course sheet (world metres): orange cones ConeA ~(1.6, 0.5), ConeB ~(3.4, -0.5), ConeC ~(5.2, 0.4), each 0.14 m wide
+  and 0.22 m tall; a wooden bench 0.70 x 0.25 m centred ~(2.5, 0.0) (long side along x); a round planter 0.4 m wide at
+  ~(4.3, -0.05); the yellow stop mark ~(6.6, 0.0). The straight line from one cone to the next runs through the bench
+  or the planter. Confirm positions with detect_objects.
+context_honest: >-
+  A skate plaza with paving and markings. A coach told you: three orange cones A, B and C stand roughly at (1.6, 0.5),
+  (3.4, -0.5) and (5.2, 0.4) in your start frame, and a yellow stop mark lies on the floor about 6.6 m straight ahead.
+  There is street furniture (for example a bench and a planter) somewhere along the way: you have to find it yourself
+  with your camera and ToF. Positions are approximate and so is your own pose estimate.
+robots:
+  - name: duck_a
+    spawn: {x: 0.0, y: 0.0, yaw_deg: 0}
+    task: >-
+      Skate the plaza course: pass within 0.45 m of ConeA, then ConeB, then ConeC, in that order, without touching any
+      cone, the bench or the planter, then come to a full stop on the yellow stop mark (within 0.35 m of its centre).
+      You start standing still at (0, 0) facing +x.
+    task_honest: >-
+      Skate the plaza course: pass within 0.45 m of cone A, then cone B, then cone C, in that order, without touching
+      any cone or street furniture, then come to a full stop on the yellow stop mark (within 0.35 m of its centre).
+      You start standing still at (0, 0) of your start frame, facing +x.
+detectable: {ConeA: orange cone A, ConeB: orange cone B, ConeC: orange cone C, Bench: wooden bench, Planter: planter,
+             StopMark: yellow stop mark}
+detector_range_m: 3.0
+verify:
+  duck_a:
+    type: slalom
+    pass_radius_m: 0.45
+    cones: [{name: ConeA, x: 1.6, y: 0.5}, {name: ConeB, x: 3.4, y: -0.5}, {name: ConeC, x: 5.2, y: 0.4}]
+    stop: {x: 6.6, y: 0.0, radius: 0.35}
+    max_final_speed_m_s: 0.05
+    no_contact: true
+render:
+  overview: {eye: [3.3, -2.5, 2.0], target: [3.3, 0.2, 0.0]}
+  follow: {distance: 1.0, height: 0.6}

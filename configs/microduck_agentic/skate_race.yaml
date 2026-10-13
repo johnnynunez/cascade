@@ -1,0 +1,58 @@
+# Three MicroDucks on roller skates race one lap of an oval in ONE shared Newton world (they can collide). Each has its
+# own Cascade agent, memory and trace; they coordinate only through the fleet board. Learned race policy
+# (oval_roller, iteration 289); the lane steering is the delivered race pilot (scripted); the agents pick lanes, pace
+# and when to change lanes.
+version: 1
+name: skate_race
+title: "Skate race: three ducks, one lap, each with its own agent"
+scene: demo/microduck_agentic/skate_race.usda
+skate_policy: oval_roller
+bounds: [-3.0, -1.9, 3.0, 1.9]
+settle_s: 1.0
+max_sim_s: 90
+max_steps: 12
+oval: {half: 1.5, lanes: [0.6, 0.9, 1.2], finish_x: 0.0}
+context: >-
+  Race rules: one lap counter-clockwise on the oval (3.0 m straights between x -1.5 and 1.5, bends around (+-1.5, 0)).
+  Lanes are 0.3 m wide with centre radii 0.6 (lane 1, inner), 0.9 (lane 2) and 1.2 m (lane 3): a lap is 9.8 m in
+  lane 1, 11.7 m in lane 2, 13.5 m in lane 3, so inner lanes are shorter. Your lap ends when you have gone once
+  around from your start point (race_status shows your progress). You may change lanes, but the other skaters are real
+  bodies in the same physics world: a collision can make you fall, and a fall ends your race (no get-up on skates).
+  Use skate_lane to race; share your lane plan and lane changes on the fleet board and read it before cutting in.
+  The race clock starts when the agents start.
+# Onboard-only mode: the track map and each skater's start pose on it come from the operator (like a navigation
+# stack's map + initial pose); after that each skater localizes itself (AHRS + camera odometry, drifting) and
+# skate_lane steers on that estimate. Other skaters are seen only through camera and ToF.
+honest_initial_pose: operator
+max_steps_honest: 30  # honest skaters spend steps on looking and the fleet board (H2 ran out at 20)
+context_honest: >-
+  Race rules: one lap counter-clockwise on the oval (operator's track map: 3.0 m straights between x -1.5 and 1.5,
+  bends around (+-1.5, 0)). Lanes are 0.3 m wide with centre radii 0.6 (lane 1, inner), 0.9 (lane 2) and 1.2 m
+  (lane 3): a lap is 9.8 m in lane 1, 11.7 m in lane 2, 13.5 m in lane 3. skate_lane steers along a lane using YOUR
+  OWN pose estimate, which starts at the start pose the operator gave you and drifts (several % of the distance), so
+  your lane keeping is only as good as your localization. The other skaters are real bodies in the same physics
+  world, seen only by your camera and ToF; a collision can make you fall, and a fall ends your race (no get-up on
+  skates). Share your lane plan and lane changes on the fleet board and read it before cutting in. The race clock
+  starts when the agents start.
+robots:
+  - name: duck_a
+    spawn: {x: -0.6, y: -0.6, yaw_deg: 0}
+    task: Race one lap as fast as you can without falling. You start in lane 1 (inner).
+    task_honest: The operator placed you at (-0.6, -0.6) facing +x, in lane 1 (inner). Race one lap as fast as you can without falling.
+  - name: duck_b
+    spawn: {x: -0.6, y: -0.9, yaw_deg: 0}
+    task: Race one lap as fast as you can without falling. You start in lane 2.
+    task_honest: The operator placed you at (-0.6, -0.9) facing +x, in lane 2. Race one lap as fast as you can without falling.
+  - name: duck_c
+    spawn: {x: -0.6, y: -1.2, yaw_deg: 0}
+    task: Race one lap as fast as you can without falling. You start in lane 3 (outer).
+    task_honest: The operator placed you at (-0.6, -1.2) facing +x, in lane 3 (outer). Race one lap as fast as you can without falling.
+detectable: {FinishLine: finish line}
+detector_range_m: 3.0
+verify:
+  duck_a: {type: race_lap, track_r_min: 0.45, track_r_max: 1.35, no_contact: true}
+  duck_b: {type: race_lap, track_r_min: 0.45, track_r_max: 1.35, no_contact: true}
+  duck_c: {type: race_lap, track_r_min: 0.45, track_r_max: 1.35, no_contact: true}
+render:
+  overview: {eye: [0.0, -4.6, 3.8], target: [0.0, 0.0, 0.0]}
+  follow: {distance: 1.0, height: 0.6}

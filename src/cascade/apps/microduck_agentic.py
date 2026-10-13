@@ -127,6 +127,37 @@ def verify(scenario: dict, finals: dict) -> dict:
     return out
 
 
+def localization_eval(rig, world, truth_start, robots) -> dict:
+    """OFFLINE: the robot's own estimate (start frame E) against simulator truth mapped into E. Never fed back."""
+    import numpy as np
+
+    rec_t = np.asarray(world.rec["time_s"])
+    root = np.asarray(world.rec["body_pose"])[:, :, 0, :3]
+    out = {}
+    init = getattr(rig, "init_poses", None)
+    for i, r in enumerate(robots):
+        s0 = truth_start[r["name"]]
+        if init is not None:  # estimate lives in the shared map frame (= course frame): compare directly
+            s0 = {"x": 0.0, "y": 0.0, "yaw_rad": 0.0}
+        c, s_ = math.cos(s0["yaw_rad"]), math.sin(s0["yaw_rad"])
+        est = np.asarray(rig.est_log[r["name"]], np.float64)
+        if len(est) == 0:
+            out[r["name"]] = {"frames": 0}
+            continue
+        k = np.clip(np.searchsorted(rec_t, est[:, 0]), 0, len(rec_t) - 1)
+        dx, dy = root[k, i, 0] - s0["x"], root[k, i, 1] - s0["y"]
+        tx, ty = c * dx + s_ * dy, -s_ * dx + c * dy
+        err = np.hypot(est[:, 1] - tx, est[:, 2] - ty)
+        path = float(np.hypot(np.diff(tx), np.diff(ty)).sum())
+        out[r["name"]] = {"frames": int(len(est)), "tracking_frames": int(est[:, 4].sum()),
+                          "position_error_final_m": round(float(err[-1]), 3), "position_error_max_m": round(float(err.max()), 3),
+                          "position_error_rms_m": round(float(np.sqrt((err ** 2).mean())), 3),
+                          "true_path_m": round(path, 2),
+                          "method": ("simulator truth in the shared map frame (operator start pose)" if init is not None
+                                     else "simulator truth mapped into the robot's start frame") + "; offline only"}
+    return out
+
+
 def main(argv=None):
     from isaaclab.app import add_launcher_args, launch_simulation
 
@@ -146,6 +177,7 @@ def main(argv=None):
     p.add_argument("--handoff_root", type=Path, default=home / "Projects/microducks/deliveries/johnny_handoff")
     p.add_argument("--wall_deadline_s", type=float, default=1800.0)
     p.add_argument("--seed", type=int, default=7)
+    p.add_argument("--honest", action="store_true", help="onboard-only robot/agent loop (see microduck_honest.py)")
     add_launcher_args(p)
     p.set_defaults(visualizer=[])
     args = p.parse_args(argv)
@@ -155,7 +187,8 @@ def main(argv=None):
     (out / "scenario.yaml").write_text(Path(scenario["source"]).read_text())
     (out / "scenario_resolved.json").write_text(json.dumps(scenario, indent=1, default=str) + "\n")
     H = args.handoff_root
-    use_nav = bool(scenario.get("navigation_policy", True))
+    honest = bool(args.honest or scenario.get("honest"))
+    use_nav = bool(scenario.get("navigation_policy", True)) and not honest  # depth nav needs a depth camera
     policies = PolicyFiles(
         walker_onnx=H / "microduck_johnny_navigation_v1/policies/walking_velocity_flat_existing/velocity_flat_existing.onnx",
         hero_pt=H / "microduck_johnny_perception_v1/policies/onboard_hero/onboard_hero.pt",
@@ -178,8 +211,27 @@ def main(argv=None):
                              course_usd=scenario.get("scene_path"),
                              meta={"scenario": scenario["name"], "llm": llm_cfg.type,
                                    "llm_model": getattr(llm_cfg, "model", None) if hasattr(llm_cfg, "model") else None})
-        world.step(int(scenario.get("settle_s", 1.0) / CONTROL_DT_S))  # stand/settle before the agents start
-        port = WorldPort(world, out / "events.jsonl", floor_z=floor_z,
+        rig = None
+        if honest:
+            from ..sim.microduck_honest import HonestWorld, OnboardDetector, OnboardRig, WalkerAdapter, load_yoloe
+
+            rig = OnboardRig(WalkerAdapter(world), [r["name"] for r in robots], course_usd=scenario.get("scene_path"),
+                             robot_usd=home / "Projects/microducks/microduck_gtceu/assets/MicroDuck.usd",
+                             dt=CONTROL_DT_S, log_path=out / "sensors.log", video_dir=out)
+            for _ in range(int(scenario.get("settle_s", 1.0) / CONTROL_DT_S)):
+                world.step(1)
+                rig.imu_tick()
+            op_pose = scenario.get("honest_initial_pose") == "operator"
+            init_poses = ([(r["spawn"]["x"], r["spawn"]["y"], math.radians(r["spawn"].get("yaw_deg", 0.0)))
+                           for r in robots] if op_pose else None)
+            rig.start(world.time_s, [float(r.get("start_floor_z", floor_z)) for r in robots], init_poses=init_poses)
+            truth_start = {r["name"]: world.base_state(i) for i, r in enumerate(robots)}  # offline evaluation only
+            agent_world = HonestWorld(world, rig)
+            yolo = load_yoloe(_repo_root())
+        else:
+            world.step(int(scenario.get("settle_s", 1.0) / CONTROL_DT_S))  # stand/settle before the agents start
+            agent_world = world
+        port = WorldPort(agent_world, out / "events.jsonl", floor_z=0.0 if honest else floor_z,
                          max_sim_s=world.time_s + float(scenario.get("max_sim_s", 180.0)), control_dt_s=CONTROL_DT_S)
         fleet = FleetBoard() if len(robots) > 1 else None
         detector = None
@@ -191,14 +243,24 @@ def main(argv=None):
             detector = ObjectDetectorStandIn(objs, occ, max_range_m=float(scenario.get("detector_range_m", 2.5)))
         runtimes, reports, threads, clients = {}, {}, [], {}
         for i, r in enumerate(robots):
-            rt = MicroduckAgentRuntime(r["name"], i, port, out / f"trace_{r['name']}", bounds_xy=scenario["bounds"],
-                                       floor_z=floor_z, fleet=fleet, has_nav=use_nav, has_getup=True,
-                                       extra_prompt=scenario.get("context", ""), detector=detector)
+            if honest:
+                rt = MicroduckAgentRuntime(r["name"], i, port, out / f"trace_{r['name']}",
+                                           bounds_xy=(scenario["bounds"] if op_pose else
+                                                      scenario.get("map_bounds_start_frame", [-1.5, -2.5, 5.0, 2.5])),
+                                           floor_z=0.0, fleet=fleet, has_nav=False, has_getup=True,
+                                           extra_prompt=scenario.get("context_honest", ""),
+                                           detector=OnboardDetector(agent_world, i, yolo), honest=True)
+                r = dict(r, task=r.get("task_honest", r["task"]))
+            else:
+                rt = MicroduckAgentRuntime(r["name"], i, port, out / f"trace_{r['name']}", bounds_xy=scenario["bounds"],
+                                           floor_z=floor_z, fleet=fleet, has_nav=use_nav, has_getup=True,
+                                           extra_prompt=scenario.get("context", ""), detector=detector)
             runtimes[r["name"]] = rt
             client = MockLLM() if llm_cfg.type == "mock" else make_llm(llm_cfg)
             llm = LoggedLLM(client, port, r["name"])
             clients[r["name"]] = llm
-            orch = AgentOrchestrator(llm, rt, max_steps=int(scenario.get("max_steps", 24)), decompose=True,
+            orch = AgentOrchestrator(llm, rt, max_steps=int(scenario.get("max_steps_honest" if honest else "max_steps",
+                                                                           scenario.get("max_steps", 24))), decompose=True,
                                      attach_images=bool(getattr(client, "supports_vision", False)),
                                      verify_milestones=False, memory_frames_k=2)
 
@@ -246,10 +308,21 @@ def main(argv=None):
                    "llm": {n: {"calls": c.calls, "wall_s": round(c.wall_s, 1)} for n, c in clients.items()},
                    "llm_profile": args.llm, "min_pairwise_root_distance_m": min_pair, "clearance": clearance,
                    "maps": {n: rt.map.summary() for n, rt in runtimes.items()},
-                   "honesty": ["robots are separate Newton worlds: no robot-robot contact, robots invisible to each "
-                               "other's onboard sensors",
-                               "map pose source: simulator base pose (stand-in for SLAM)",
-                               "simulation time is paused while every agent is waiting for its LLM (lockstep)"]}
+                   "honesty": (["ONBOARD-ONLY loop: the agent and every controller used the robot's own sensors and its "
+                                "own cuVSLAM pose estimate (start frame); simulator truth only in the offline checks",
+                                "sensors: OVRTX head RGB 640x360 15 Hz, gtceu VL53L8CX ToF model, trunk IMU model; "
+                                "detector YOLOE prompt-free on the head image",
+                                "simulation time is paused while every agent is waiting for its LLM (lockstep)"]
+                               if honest else
+                               ["PRIVILEGED-STATE PROTOTYPE: simulator pose / ground-truth detector stand-in",
+                                "robots are separate Newton worlds: no robot-robot contact, robots invisible to each "
+                                "other's onboard sensors",
+                                "map pose source: simulator base pose (stand-in for SLAM)",
+                                "simulation time is paused while every agent is waiting for its LLM (lockstep)"])}
+        if honest:
+            episode["localization_eval"] = localization_eval(rig, world, truth_start, robots)
+            episode["onboard_calibration"] = rig.calibration
+            episode["camera_frames"] = rig.cam_frames
         (out / "episode.json").write_text(json.dumps(episode, indent=1, default=str) + "\n")
         world.save(out / "recording.npz", {"episode": episode})
         import numpy as np
@@ -262,6 +335,12 @@ def main(argv=None):
                                 bounds=np.asarray(scenario["bounds"]), res=rt.map.res,
                                 visited=np.asarray(json.dumps([s[1]["visited"] for s in snaps])),
                                 landmarks=np.asarray(json.dumps([s[1]["landmarks"] for s in snaps])))
+        if rig is not None:
+            np.savez_compressed(out / "onboard.npz", **{f"est_{n}": np.asarray(v, np.float64)
+                                                         for n, v in rig.est_log.items()},
+                                **{f"tof_{n}": np.asarray(v, np.int32) for n, v in rig.tof_log.items()},
+                                cam_times=np.asarray(rig.cam_times))
+            rig.close()
         for c in clients.values():
             try:
                 c.close()

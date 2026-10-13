@@ -12,22 +12,41 @@ context: >-
   Scene: two rooms side by side (room A x < 2.0, room B x > 2.0), separated by a wall with one doorway about 0.5 m
   wide; walls are 0.25 m tall. Other MicroDucks work here too, but they are in separate simulated worlds: you cannot
   see them with your sensors and cannot bump into them. Use the fleet board to coordinate.
+# Onboard-only mode: each robot starts from the start pose the operator gives it on the shared map (like setting the
+# initial pose of a navigation stack); after that it localizes itself (drifting). Object positions are NOT given.
+honest_initial_pose: operator
+max_steps_honest: 45
+context_honest: >-
+  Operator's map (shared by the fleet, x forward along the rooms, y left, metres): two rooms side by side, room A for
+  x < 2.0 and room B for x > 2.0, separated by a wall with one doorway about 0.5 m wide; the walls are 0.25 m tall and
+  the rooms span about -1.3 < y < 1.3. Your pose estimate starts from the start pose the operator gave you on this map
+  (stated in your task) and then drifts. Other MicroDucks work here too, but in separate simulated worlds: you cannot
+  see or bump into them. Positions posted on the fleet board are each robot's own estimates on the shared map.
 robots:
   - name: duck_a
     spawn: {x: 0.0, y: -0.6, yaw_deg: 0}
     task: >-
       Find the RED box (it is not in your starting room) and stop within 0.4 m of it. Post on the fleet board what you
       find on the way.
+    task_honest: >-
+      The operator placed you at (0.0, -0.6) facing +x. Find the RED box (it is not in your starting room) and stop
+      within 0.4 m of it. Post on the fleet board what you find on the way.
   - name: duck_b
     spawn: {x: 0.0, y: 0.6, yaw_deg: 0}
     task: >-
       Explore and map: find the doorway, map the second room, and post every coloured object you see with its
       approximate position on the fleet board. End when room B is mapped.
+    task_honest: >-
+      The operator placed you at (0.0, 0.6) facing +x. Explore and map: find the doorway, map the second room, and post
+      every coloured object you see with its approximate position on the fleet board. End when room B is mapped.
   - name: duck_c
     spawn: {x: 0.5, y: 0.25, yaw_deg: 90, fallen: back}
     task: >-
       You start somewhere in room A, maybe not upright. Find the BLUE box and stop within 0.4 m of it. Check the fleet
       board for hints.
+    task_honest: >-
+      The operator placed you at about (0.5, 0.25) facing +y; you may not be upright. Find the BLUE box and stop within
+      0.4 m of it. Check the fleet board for hints.
 # Object identity comes from a disclosed detector stand-in (simulator ground truth inside the head camera's field of
 # view, 2.5 m, walls occlude): the 48x36 head RGB only draws the first 1.5 m and renders the floor cyan-blue.
 detectable: {RedBox: red box, BlueBox: blue box, Crate: wooden crate, CaseB: flight case}

@@ -139,6 +139,30 @@ FLEET_TOOLS = [
           ("message",)),
     _spec("read_fleet_board", "Read the messages other robots posted (with their positions at posting time)."),
 ]
+HONEST_PROMPT = """HONEST ONBOARD MODE: you only know what this robot itself senses.
+* Your pose is your OWN estimate in YOUR START FRAME: (0, 0) is where you started, +x your initial forward direction,
+  +y your initial left. Heading from your IMU (good); position from leg odometry (joint encoders) corrected by visual
+  odometry on your head camera with ToF depth. It drifts: expect 2-4 % of the distance walked (tens of centimetres
+  over a course). "LOST" means the camera odometry failed: slow down and re-observe. Task distances are in this frame.
+* Your map is built with that drifting pose, so an obstacle you saw a while ago may be 0.1-0.3 m off where your map
+  shows it, and your ToF only sees a 45 deg cone AHEAD: it cannot see equipment beside you while you walk past it.
+  So pass equipment with margin: plan with inflation_m 0.20-0.25 where the gap allows; when you must squeeze through
+  a narrow gap, first face it and observe it from close by, then walk straight through.
+* While you walk to a waypoint, a map guard stops you ("map_guard") when your own map shows equipment within 0.13 m of
+  your body and you are getting closer (it covers your blind sides). After a map_guard stop, turn to look at it and
+  re-plan with more clearance.
+* Fast in-place turns hurt your odometry; prefer slow turns and smooth arcs.
+* detect_objects runs a real image detector (YOLOE) on your camera image. It was trained on real photos, so its names
+  for simple props can be odd (a dark box may come back as "pulpit"); judge by colour, size and position. Its range
+  comes from your ToF when the object is in the ToF's 45 deg cone, otherwise from the floor contact point (rougher).
+* The image you receive is your own head camera (640x360, downscaled).
+* Do not give up while you are upright and have steps left: certainty is never available on a real robot. If you
+  cannot verify something, get closer and look again; call task_done only when you believe the task is done or you
+  cannot continue."""
+HONEST_DETECT = _spec("detect_objects", "Run the onboard object detector (YOLOE, open vocabulary) on your current head "
+                                        "camera image: label (with dominant colour), confidence, bearing, distance and "
+                                        "position in your own start frame (from your pose estimate). Real detector: it "
+                                        "can miss things or give odd names. Detections become landmarks in your map.")
 MOTION_TOOLS = frozenset({"walk", "turn", "go_to_waypoint", "follow_route", "walk_with_onboard_perception", "navigate_to", "get_up",
                           "scan_surroundings"})
 
@@ -163,7 +187,7 @@ class MicroduckAgentRuntime:
 
     def __init__(self, name: str, index: int, port: WorldPort, run_dir: Path, *, bounds_xy, floor_z: float = 0.0,
                  fleet: FleetBoard | None = None, has_nav: bool = True, has_getup: bool = True,
-                 extra_prompt: str = "", detector=None):
+                 extra_prompt: str = "", detector=None, honest: bool = False):
         self.name, self.index, self.port = name, int(index), port
         self.detector = detector
         self.run_dir = Path(run_dir)
@@ -187,6 +211,14 @@ class MicroduckAgentRuntime:
         self.tool_specs = tools
         self.system_prompt = SYSTEM_PROMPT + f"\nYou are robot '{name}'." + (("\n" + extra_prompt) if extra_prompt else "")
         self.done = None
+        self.honest = bool(honest)
+        self._map_d0 = {}
+        if self.honest:
+            self.tool_specs = [HONEST_DETECT if t["name"] == "detect_objects" else t for t in self.tool_specs
+                               if t["name"] != "navigate_to"]
+            self.system_prompt = (SYSTEM_PROMPT.replace("Use detected world positions and your pose", "Use detections "
+                                  "and your own pose estimate") + "\n" + HONEST_PROMPT + f"\nYou are robot '{name}'."
+                                  + (("\n" + extra_prompt) if extra_prompt else ""))
 
     # -------------------------------------------------------------- helpers
     def frame_jpeg(self):
@@ -194,7 +226,9 @@ class MicroduckAgentRuntime:
             return None
         import cv2
 
-        img = cv2.resize(self.last_frame, (192, 144), interpolation=cv2.INTER_NEAREST)
+        big = self.last_frame.shape[1] > 100
+        img = cv2.resize(self.last_frame, (320, 180) if big else (192, 144),
+                         interpolation=cv2.INTER_AREA if big else cv2.INTER_NEAREST)
         ok, buf = cv2.imencode(".jpg", img[..., ::-1], [cv2.IMWRITE_JPEG_QUALITY, 90])
         return buf.tobytes() if ok else None
 
@@ -202,9 +236,10 @@ class MicroduckAgentRuntime:
         i = self.index
 
         def read(w):
-            return w.base_state(i), w.tof_frame(i), w.policy_rgb(i)
+            cam = w.camera_rgb(i) if hasattr(w, "camera_rgb") else None
+            return w.base_state(i), w.tof_frame(i), w.policy_rgb(i), cam
 
-        state, tof, rgb = self.port.call(read)
+        state, tof, rgb, cam = self.port.call(read)
         if integrate:
             self.map.integrate(tof["distance_mm"], tof["status"], tof["sensor_pos_w"], tof["beam_dir_w"],
                                floor_z=self.floor_z)
@@ -212,21 +247,27 @@ class MicroduckAgentRuntime:
             self.map_snapshots.append((state["sim_time_s"], self.map.snapshot()))
         reading = summarize_frame(tof["distance_mm"], tof["status"], tof["sensor_pos_w"], tof["beam_dir_w"],
                                   state["yaw_rad"], floor_z=self.floor_z)
-        self.last_frame = rgb
+        self.last_frame = cam if cam is not None else rgb
         return state, reading, rgb
 
     @staticmethod
     def _pose(state):
-        return {"x": round(state["x"], 2), "y": round(state["y"], 2), "yaw_deg": round(math.degrees(state["yaw_rad"]), 1),
-                "posture": "FALLEN" if state["fallen"] else "upright", "tilt_deg": round(state["tilt_deg"], 1)}
+        out = {"x": round(state["x"], 2), "y": round(state["y"], 2), "yaw_deg": round(math.degrees(state["yaw_rad"]), 1),
+               "posture": "FALLEN" if state["fallen"] else "upright", "tilt_deg": round(state["tilt_deg"], 1)}
+        if "localization" in state:
+            out["localization"] = state["localization"]
+            out["pose_source"] = "your own visual odometry estimate (start frame)"
+        return out
 
     def _after_motion(self, receipt, name):
         state, reading, rgb = self._sense()
         receipt["after"] = {"pose": self._pose(state), "tof": reading.text()}
         if self.detector is not None:
             receipt["after"]["objects_in_view"] = [
-                f"{d['label']} {d['distance_m']} m at {d['bearing_deg']} deg -> world {d['world_xy']}"
-                for d in self._detections(state)["detections"]] or "none (detector stand-in)"
+                f"{d['label']} {d['distance_m']} m at {d['bearing_deg']} deg -> "
+                f"{'your frame' if self.honest else 'world'} {d['world_xy']}"
+                for d in self._detections(state)["detections"]] or (
+                "none detected" if self.honest else "none (detector stand-in)")
         verdict = "confirmed" if receipt.get("ok") and not state["fallen"] else "unverified"
         self.memory.add("action", f"{name}: {receipt.get('stop_reason')} -> at ({state['x']:.2f},{state['y']:.2f}), "
                                   f"{'FALLEN' if state['fallen'] else 'upright'}",
@@ -272,8 +313,10 @@ class MicroduckAgentRuntime:
             return None
         d = self.detector.detect(state["x"], state["y"], state["yaw_rad"])
         for det in d["detections"]:
+            if det.get("world_xy") is None:
+                continue
             self.map.add_landmark(det["label"], det["world_xy"][0], det["world_xy"][1], state["sim_time_s"],
-                                  note="detector stand-in")
+                                  note="onboard detector" if self.honest else "detector stand-in")
         return d
 
     def tool_detect_objects(self, args):
@@ -305,6 +348,10 @@ class MicroduckAgentRuntime:
             dist = math.hypot(dx, dy)
             if dist < 0.15:
                 return "goal_reached"
+            if getattr(self, "honest", False) and (w.step_index - job.start_step) % 5 == 0:
+                hit = self._map_proximity(st, job)
+                if hit is not None:
+                    return hit
             err = angle_diff(math.atan2(dy, dx), st["yaw_rad"])
             wz = max(-0.9, min(0.9, 1.6 * err))
             vx = 0.0 if abs(err) > 0.7 else min(0.25, 0.6 * dist + 0.08) * (1.0 - abs(err) / 0.7) ** 0.5
@@ -319,6 +366,39 @@ class MicroduckAgentRuntime:
         r = self._after_motion(r, "go_to_waypoint")
         r["distance_to_waypoint_m"] = round(math.hypot(r["end_pose"]["x"] - gx, r["end_pose"]["y"] - gy), 3)
         return r
+
+    def _map_nearest(self, st, radius_m=0.2, ahead_m=0.05):
+        """Nearest occupied cell of the robot's OWN map within ``radius_m`` of a point slightly ahead of the body:
+        (distance, bearing_deg) or None."""
+        occ = self.map.occupied()
+        cx = st["x"] + ahead_m * math.cos(st["yaw_rad"])
+        cy = st["y"] + ahead_m * math.sin(st["yaw_rad"])
+        n = int(math.ceil(radius_m / self.map.res))
+        i0, j0 = self.map.cell(cx, cy)
+        best = None
+        for j in range(j0 - n, j0 + n + 1):
+            for i in range(i0 - n, i0 + n + 1):
+                if self.map._inside(i, j) and occ[j, i]:
+                    x = self.map.x0 + (i + 0.5) * self.map.res
+                    y = self.map.y0 + (j + 0.5) * self.map.res
+                    d = math.hypot(x - cx, y - cy)
+                    if d < radius_m and (best is None or d < best[0]):
+                        best = (d, math.degrees(angle_diff(math.atan2(y - st["y"], x - st["x"]), st["yaw_rad"])))
+        return best
+
+    def _map_proximity(self, st, job, radius_m=0.13):
+        """Side guard from memory (honest mode): the ToF only sees ahead, so while walking, stop when the robot's OWN
+        map (built from its ToF on its own estimate; same drifting frame, so recently mapped equipment is consistent)
+        has an obstacle within ``radius_m`` of the body AND the robot is getting closer to it (so it can always walk
+        away from something it is already near)."""
+        near = self._map_nearest(st)
+        key = (job.robot, job.start_step)
+        if key not in self._map_d0:
+            self._map_d0 = {key: near[0] if near else 9.0}
+            return None
+        if near is not None and near[0] < radius_m and near[0] < self._map_d0[key] - 0.01:
+            return f"map_guard: mapped obstacle {near[0]:.2f} m from the body at {near[1]:+.0f} deg (own map)"
+        return None
 
     def tool_plan_route_on_my_map(self, args):
         gx, gy = _num(args, "x", 0.0, -50, 50), _num(args, "y", 0.0, -50, 50)

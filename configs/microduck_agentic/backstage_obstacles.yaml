@@ -11,6 +11,11 @@ max_steps: 40
 context: >-
   Scene: a backstage corridor about 3.5 m long and 2 m wide with low walls, flight cases, a yellow cable reel and a
   speaker box on the floor. Tools that hand control to a learned policy report what happened; check the receipt.
+context_honest: >-
+  Scene (as a stage manager would describe it): a backstage corridor about 3.5 m long and 2 m wide with low walls
+  (0.25 m), flight cases, a yellow cable reel and a speaker box on the floor, tape marks on the floor. You start at
+  one end facing along the corridor. Tools that hand control to a learned policy report what happened; check the
+  receipt. Your map and positions are your own estimates.
 robots:
   - name: duck_a
     spawn: {x: 0.0, y: 0.0, yaw_deg: 0}

@@ -481,11 +481,18 @@ class Onboard:
     def _R_level_b(self):
         return _Rz(-self.yaw_f) @ self.R_att  # body -> level frame (heading = yaw of the body x axis)
 
-    def start(self, T_base_cam, h0):
-        """Start frame E from the IMU gravity (roll/pitch), yaw 0, base at height h0 above the floor."""
+    def start(self, T_base_cam, h0, init_pose=None):
+        """Start frame E from the IMU gravity (roll/pitch), yaw 0, base at height h0 above the floor. ``init_pose``
+        (x, y, yaw) = an operator-provided start pose in a shared map frame (like setting the initial pose of a
+        navigation stack); E is then that map frame."""
         self.T_base_cam = np.array(T_base_cam)
         self.T_cam_base = T_inv(self.T_base_cam)
         self.h0 = float(h0)
+        if init_pose is not None:
+            x0, y0, yaw0 = (float(v) for v in init_pose)
+            self.R_att = _Rz(yaw0) @ self.R_att
+            self.yaw_f = math.atan2(self.R_att[1, 0], self.R_att[0, 0])
+            self.p_f = np.array([x0, y0])
         if getattr(self, "_contact_depth", None) is not None:
             self.contact_offset = self.h0 - self._contact_depth
             self.h_cur = self.h0

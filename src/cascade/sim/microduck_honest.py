@@ -32,6 +32,7 @@ class WalkerAdapter:
     """Reads the live state of :class:`cascade.sim.microduck_lab_world.MicroduckLabWorld` for SENSOR SIMULATION."""
 
     tof_from_depth = False
+    separate_worlds = True  # one Isaac Lab env per walker (the walker demos never shared a physics world)
 
     def __init__(self, world):
         self.w = world
@@ -154,14 +155,16 @@ class OnboardRig:
                 ob.leg_step(self.a.contacts_b(bp, i))
         return bp
 
-    def start(self, t_s, floor_z_world):
-        """Start frame E for every robot: IMU gravity + standing trunk height (calibration constant)."""
+    def start(self, t_s, floor_z_world, init_poses=None):
+        """Start frame E for every robot: IMU gravity + standing trunk height (calibration constant). ``init_poses``:
+        optional operator-provided start poses (x, y, yaw) in a shared map frame (disclosed; not simulator state)."""
         bp = self.a.body_pose()
         self.calibration = {}
+        self.init_poses = init_poses
         for i, ob in enumerate(self.onboard):
             T_base_cam = T_inv(self.a.trunk_T(bp, i)) @ self.a.lens_T(bp, i)  # forward kinematics of the head
             h0 = float(bp[i, self.a.trunk, 2] - floor_z_world[i])
-            ob.start(T_base_cam, h0)
+            ob.start(T_base_cam, h0, None if init_poses is None else init_poses[i])
             self.calibration[self.names[i]] = {"standing_trunk_height_m": round(h0, 4)}
         self.started = True
         self.next_cam_t = t_s
@@ -174,7 +177,16 @@ class OnboardRig:
                 return
             self.next_cam_t += 1.0 / CAM_HZ
             cams = [self.a.lens_T(bp, i) for i in range(len(self.names))]
-            out = self.sensors.render(t_s, bp, cams)
+            if getattr(self.a, "separate_worlds", False) and len(self.names) > 1:
+                # robots simulated in separate physics worlds: each camera sees only its own world (others hidden),
+                # so vision never shows a robot the body cannot bump into
+                out = []
+                for i in range(len(self.names)):
+                    bpi = bp.copy()
+                    bpi[[j for j in range(len(self.names)) if j != i], :, 2] -= 100.0
+                    out.append(self.sensors.render(t_s, bpi, cams)[i])
+            else:
+                out = self.sensors.render(t_s, bp, cams)
             self.cam_frames += 1
             self.cam_times.append(t_s)
             for i, ob in enumerate(self.onboard):

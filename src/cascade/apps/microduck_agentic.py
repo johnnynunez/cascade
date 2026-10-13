@@ -134,8 +134,11 @@ def localization_eval(rig, world, truth_start, robots) -> dict:
     rec_t = np.asarray(world.rec["time_s"])
     root = np.asarray(world.rec["body_pose"])[:, :, 0, :3]
     out = {}
+    init = getattr(rig, "init_poses", None)
     for i, r in enumerate(robots):
         s0 = truth_start[r["name"]]
+        if init is not None:  # estimate lives in the shared map frame (= course frame): compare directly
+            s0 = {"x": 0.0, "y": 0.0, "yaw_rad": 0.0}
         c, s_ = math.cos(s0["yaw_rad"]), math.sin(s0["yaw_rad"])
         est = np.asarray(rig.est_log[r["name"]], np.float64)
         if len(est) == 0:
@@ -150,7 +153,8 @@ def localization_eval(rig, world, truth_start, robots) -> dict:
                           "position_error_final_m": round(float(err[-1]), 3), "position_error_max_m": round(float(err.max()), 3),
                           "position_error_rms_m": round(float(np.sqrt((err ** 2).mean())), 3),
                           "true_path_m": round(path, 2),
-                          "method": "simulator truth mapped into the robot's start frame; offline only"}
+                          "method": ("simulator truth in the shared map frame (operator start pose)" if init is not None
+                                     else "simulator truth mapped into the robot's start frame") + "; offline only"}
     return out
 
 
@@ -217,7 +221,10 @@ def main(argv=None):
             for _ in range(int(scenario.get("settle_s", 1.0) / CONTROL_DT_S)):
                 world.step(1)
                 rig.imu_tick()
-            rig.start(world.time_s, [float(r.get("start_floor_z", floor_z)) for r in robots])
+            op_pose = scenario.get("honest_initial_pose") == "operator"
+            init_poses = ([(r["spawn"]["x"], r["spawn"]["y"], math.radians(r["spawn"].get("yaw_deg", 0.0)))
+                           for r in robots] if op_pose else None)
+            rig.start(world.time_s, [float(r.get("start_floor_z", floor_z)) for r in robots], init_poses=init_poses)
             truth_start = {r["name"]: world.base_state(i) for i, r in enumerate(robots)}  # offline evaluation only
             agent_world = HonestWorld(world, rig)
             yolo = load_yoloe(_repo_root())
@@ -238,7 +245,8 @@ def main(argv=None):
         for i, r in enumerate(robots):
             if honest:
                 rt = MicroduckAgentRuntime(r["name"], i, port, out / f"trace_{r['name']}",
-                                           bounds_xy=scenario.get("map_bounds_start_frame", [-1.5, -2.5, 5.0, 2.5]),
+                                           bounds_xy=(scenario["bounds"] if op_pose else
+                                                      scenario.get("map_bounds_start_frame", [-1.5, -2.5, 5.0, 2.5])),
                                            floor_z=0.0, fleet=fleet, has_nav=False, has_getup=True,
                                            extra_prompt=scenario.get("context_honest", ""),
                                            detector=OnboardDetector(agent_world, i, yolo), honest=True)
@@ -251,7 +259,8 @@ def main(argv=None):
             client = MockLLM() if llm_cfg.type == "mock" else make_llm(llm_cfg)
             llm = LoggedLLM(client, port, r["name"])
             clients[r["name"]] = llm
-            orch = AgentOrchestrator(llm, rt, max_steps=int(scenario.get("max_steps", 24)), decompose=True,
+            orch = AgentOrchestrator(llm, rt, max_steps=int(scenario.get("max_steps_honest" if honest else "max_steps",
+                                                                           scenario.get("max_steps", 24))), decompose=True,
                                      attach_images=bool(getattr(client, "supports_vision", False)),
                                      verify_milestones=False, memory_frames_k=2)
 

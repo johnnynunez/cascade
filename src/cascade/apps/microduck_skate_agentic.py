@@ -163,12 +163,16 @@ def main(argv=None):
             for _ in range(int(scenario.get("settle_s", 1.0) / CONTROL_DT_S)):
                 world.step(1)
                 rig.imu_tick()
-            rig.start(world.time_s, [0.0] * len(names))
+            op_pose = scenario.get("honest_initial_pose") == "operator"
+            rig.start(world.time_s, [0.0] * len(names),
+                      init_poses=([(r["spawn"]["x"], r["spawn"]["y"], math.radians(r["spawn"].get("yaw_deg", 0.0)))
+                                   for r in robots] if op_pose else None))
             world.heading_source = lambda i: rig.onboard[i].yaw_f  # heading error from the robot's own gyro estimate
             truth_start = {n: world.base_state(i) for i, n in enumerate(names)}  # offline evaluation only
             agent_world = HonestWorld(world, rig)
             yolo = load_yoloe(_repo_root())
-            oval = None  # no track map is handed to an honest robot
+            if not op_pose:
+                oval = None  # without an operator map and start pose there is no track map in the robot's frame
         else:
             world.step(int(scenario.get("settle_s", 1.0) / CONTROL_DT_S))  # coast in place before the agents start
             agent_world = world
@@ -187,9 +191,10 @@ def main(argv=None):
         for i, r in enumerate(robots):
             if honest:
                 rt = MicroduckSkateRuntime(r["name"], i, port, out / f"trace_{r['name']}",
-                                           bounds_xy=scenario.get("map_bounds_start_frame", [-1.5, -3.0, 9.0, 3.0]),
+                                           bounds_xy=(scenario["bounds"] if op_pose else
+                                                      scenario.get("map_bounds_start_frame", [-1.5, -3.0, 9.0, 3.0])),
                                            geometry=Geometry({}), fleet=fleet,
-                                           detector=OnboardDetector(agent_world, i, yolo), oval=None,
+                                           detector=OnboardDetector(agent_world, i, yolo), oval=oval,
                                            extra_prompt=scenario.get("context_honest", ""), robot_names=names,
                                            honest=True)
                 r = dict(r, task=r.get("task_honest", r["task"]))

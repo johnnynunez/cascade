@@ -140,10 +140,14 @@ FLEET_TOOLS = [
     _spec("read_fleet_board", "Read the messages other robots posted (with their positions at posting time)."),
 ]
 HONEST_PROMPT = """HONEST ONBOARD MODE: you only know what this robot itself senses.
-* Your pose is your OWN estimate: cuVSLAM visual odometry on your head camera with depth from your ToF, in YOUR START
-  FRAME: (0, 0) is where you started, +x your initial forward direction, +y your initial left. It drifts (expect
-  tens of centimetres over a few metres, more after fast turns); "LOST" means the odometry failed: slow down, turn
-  slowly toward textured things and re-observe. Distances in your task are given in this start frame.
+* Your pose is your OWN estimate in YOUR START FRAME: (0, 0) is where you started, +x your initial forward direction,
+  +y your initial left. Heading from your IMU (good); position from leg odometry (joint encoders) corrected by visual
+  odometry on your head camera with ToF depth. It drifts: expect 2-4 % of the distance walked (tens of centimetres
+  over a course). "LOST" means the camera odometry failed: slow down and re-observe. Task distances are in this frame.
+* Your map is built with that drifting pose, so an obstacle you saw a while ago may be 0.1-0.3 m off where your map
+  shows it, and your ToF only sees a 45 deg cone AHEAD: it cannot see equipment beside you while you walk past it.
+  So pass equipment with margin: plan with inflation_m 0.20-0.25 where the gap allows; when you must squeeze through
+  a narrow gap, first face it and observe it from close by, then walk straight through.
 * Fast in-place turns hurt your odometry; prefer slow turns and smooth arcs.
 * detect_objects runs a real image detector (YOLOE) on your camera image. It was trained on real photos, so its names
   for simple props can be odd (a dark box may come back as "pulpit"); judge by colour, size and position. Its range

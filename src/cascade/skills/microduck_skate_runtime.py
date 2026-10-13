@@ -212,8 +212,9 @@ class MicroduckSkateRuntime(MicroduckAgentRuntime):
         self.system_prompt = SKATE_PROMPT + f"\nYou are robot '{name}'." + (("\n" + extra_prompt) if extra_prompt else "")
         self.honest = bool(honest)
         if self.honest:
+            drop = ("race_status",) if oval is not None else ("skate_lane", "race_status")  # lanes need the track map
             self.tool_specs = [HONEST_DETECT if t["name"] == "detect_objects" else t for t in self.tool_specs
-                               if t["name"] not in ("skate_lane", "race_status")]
+                               if t["name"] not in drop]
             self.system_prompt = (SKATE_PROMPT.replace(
                 "Your senses: your pose and speed (from the simulator, a stand-in for onboard localization), detect_objects (objects in\n"
                 "your head camera's 82 deg field of view, simulator ground truth, a detector stand-in) and a range-ahead reading.",

@@ -143,7 +143,10 @@ class _Server:
         for name in ("CASCADE_MCP_READONLY_LANE", "CASCADE_HIDE_TOOLS", "CASCADE_PROGRAMS",
                      "CASCADE_ROBOT", "CASCADE_BASE", "CASCADE_CAMERAS", "CASCADE_ARMS"):
             env.pop(name, None)
-        env.update(PYTHONPATH=str(REPO / "src"), CASCADE_CAMERA="mock", CASCADE_ARM="mock",
+        # Bind this checkout while retaining environment-owned dependencies
+        # (e.g. Pinocchio supplied by the sourced ROS installation).
+        python_path = os.pathsep.join(filter(None, (str(REPO / "src"), env.get("PYTHONPATH", ""))))
+        env.update(PYTHONPATH=python_path, CASCADE_CAMERA="mock", CASCADE_ARM="mock",
                    CASCADE_RUN_DIR=str(tmp_path / "run"), CASCADE_STREAM="0", CASCADE_VIEW="0",
                    CASCADE_PREWARM="0", CASCADE_OCCUPANCY="0", B46_BARRIER_DIR=str(self.dir),
                    **_PORTS)
@@ -307,7 +310,7 @@ def _started(s: _Server) -> _Server:
                              "clientInfo": {"name": "pytest-b46", "version": "0"}})
     s.notify("notifications/initialized")
     payload, is_err = _payload(s.request("tools/call", {"name": "world_state", "arguments": {}}))
-    assert not is_err and payload["ok"]
+    assert not is_err and payload["ok"], payload
     assert "served_during_motion" not in payload  # nothing was moving
     return s
 

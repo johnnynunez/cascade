@@ -545,10 +545,14 @@ def test_find_resolves_another_cameras_exact_name_before_neighbours():
 
 
 def test_per_camera_names_survive_a_restart(tmp_path):
+    import time
+
     (top, mt), (side, ms) = _bin_frames()
     store = BeliefStore()
-    store.update_frame([_obs("isaac", top, mt, "orange", "bin")], t=1.0)
-    store.update_frame([_obs("isaac_side", side, ms, "yellow", "bin")], t=1.5)
+    # Exercise persistence of fresh observations independently of host uptime.
+    now = time.monotonic()
+    store.update_frame([_obs("isaac", top, mt, "orange", "bin")], t=now - .5)
+    store.update_frame([_obs("isaac_side", side, ms, "yellow", "bin")], t=now)
     path = tmp_path / "beliefs.json"
     store.save(path)
     again = BeliefStore()

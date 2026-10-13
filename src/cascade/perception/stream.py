@@ -17,21 +17,42 @@ semantics, set_overlay, warm_up) so it drops into SkillRuntime unchanged.
 
 from __future__ import annotations
 
+import logging
 import sys
 import threading
 import time
+from typing import Callable
+
+import numpy as np
 
 from ..types import Frame
 from .freshness import capture_marker
 from .thread_join import join_thread
 
+_LOG = logging.getLogger(__name__)
+
 
 class CameraStream:
     """One camera + one pump thread + the latest frame."""
 
-    def __init__(self, camera, name: str = "cam", rate_hz: float = 30.0):
+    def __init__(
+        self,
+        camera,
+        name: str = "cam",
+        rate_hz: float = 30.0,
+        capture_transform: Callable[[], np.ndarray | None] | None = None,
+        capture_geometry: Callable[[], tuple[np.ndarray, dict]] | None = None,
+    ):
+        """Optionally snapshot camera->base just after each frame arrives.
+
+        This associates a pose with the observation before perception runs;
+        it does not synchronize robot state to the camera's device clock.
+        A pose supplied by the camera itself takes precedence.
+        """
         self.name = name
         self._camera = camera
+        self._capture_transform = capture_transform
+        self._capture_geometry = capture_geometry
         self._period = 1.0 / max(rate_hz, 1.0)
         self._cond = threading.Condition()
         self._latest: Frame | None = None
@@ -177,12 +198,42 @@ class CameraStream:
             self._fps = 0.9 * self._fps + 0.1 * measured if self._fps else measured
             self._fps_capture_received = now
 
+    def _stamp_transform(self, frame: Frame) -> None:
+        if ((self._capture_transform is None and self._capture_geometry is None)
+                or getattr(frame, "T_base_cam", None) is not None):
+            return
+        try:
+            joints = None
+            if self._capture_geometry is not None:
+                pose, positions = self._capture_geometry()
+                joints = {name: np.array(q, dtype=float, copy=True) for name, q in positions.items()}
+                if any(q.ndim != 1 or not len(q) or not np.isfinite(q).all() for q in joints.values()):
+                    raise ValueError("invalid captured robot joint positions")
+            else:
+                pose = self._capture_transform()
+            T = np.array(pose, dtype=float, copy=True)
+            if T.shape != (4, 4) or not np.isfinite(T).all():
+                raise ValueError("camera transform must be a finite 4x4 matrix")
+            if not np.allclose(T[3], [0, 0, 0, 1], atol=1e-8):
+                raise ValueError("camera transform must have a homogeneous last row")
+            R = T[:3, :3]
+            if (not np.allclose(R.T @ R, np.eye(3), atol=1e-5)
+                    or not np.isclose(np.linalg.det(R), 1.0, atol=1e-5)):
+                raise ValueError("camera transform must contain a proper rotation")
+            frame.T_base_cam = T
+            frame.robot_joint_positions = joints
+        except Exception as e:
+            # A standby arm or temporarily unavailable FK must not stop RGB.
+            # Leave the pose absent so consumers can use their usual fallback.
+            _LOG.debug("camera %s pose unavailable at frame receipt: %s", self.name, e)
+
     def _loop(self) -> None:
         t_prev = time.monotonic()
         while not self._stop:
             t0 = time.monotonic()
             try:
                 frame = self._camera.get_frame()
+                self._stamp_transform(frame)
                 self._last_error = None
             except Exception as e:
                 self._last_error = str(e)

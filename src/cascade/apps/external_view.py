@@ -43,5 +43,6 @@ class ExternalLiveViewController:
         return self.status().get('open',False)
 
     def note_poll(self):pass
-    def set_task_fn(self,fn):pass
+    def set_task_fn(self,fn,*,cancel_aware=False):pass
     def set_cancel_fn(self,fn):pass
+    def set_resume_fn(self,fn):pass

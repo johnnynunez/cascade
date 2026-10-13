@@ -144,6 +144,9 @@ def test_multi_arm_execution_cannot_confirm_with_primary_arms_placement_reader(r
     # the independent-reader boundary and tracing, with a mock motion body.
     with monkeypatch.context() as patch:
         patch.setattr(runtime, "arm_rig", rig)
+        patch.setitem(runtime.cfg._data, "arms", [
+            {**runtime.cfg.arm.as_dict(), "name": name} for name in ("first", "second")
+        ])
         patch.setattr(runtime, "skill_pick_and_place", motion)
         args = {"object": "orange", "destination": "open box"}
         if selected is not None:

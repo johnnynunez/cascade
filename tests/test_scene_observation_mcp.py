@@ -18,6 +18,7 @@ from test_reset_capture_freshness import camera, packet, runtime, offline_cpu
 def scene_runtime(monkeypatch):
     cam, current, requests = camera(monkeypatch)
     rt = runtime(cam)
+    rt.arm.harness.estopped = False
     rt.cfg = Cfg({"grasp": {
         "drop_zone": [.14, -.27], "drop_zone_name": "green square",
         "open_box": {"center_xy_m": [.3, -.14], "release_height_m": .104},

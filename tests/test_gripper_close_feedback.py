@@ -15,7 +15,8 @@ def runtime(monkeypatch, feedback, timeout=8.):
     monkeypatch.setattr('cascade.skills.runtime.time.monotonic', lambda: clock[0])
     monkeypatch.setattr('cascade.skills.runtime.time.sleep', lambda dt: clock.__setitem__(0, clock[0] + dt))
     rt = SkillRuntime.__new__(SkillRuntime)
-    rt.cfg = SimpleNamespace(grasp={'close_settle_s': .4, 'close_feedback_timeout_s': timeout})
+    rt.cfg = SimpleNamespace(arm={'type': 'mock'},
+                             grasp={'close_settle_s': .4, 'close_feedback_timeout_s': timeout})
     rt._grip_open, rt._grip_closed = 1., 0.
     commands = []
     # A SafeArm always supplies this guard; an idle harness has no retained

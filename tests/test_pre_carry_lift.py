@@ -69,6 +69,11 @@ def test_grasp_selection_rejects_an_unliftable_candidate_before_closing(monkeypa
     rt = SimpleNamespace(cfg=cfg, arm=arm, kin=Kin(), _max_width=.09,
                          held_object=None, _reconcile_held=lambda: None,
                          _plan_grasps=lambda *args, **kwargs: candidates)
+    # Keep the real composed motion hooks in this deliberately small runtime double.
+    from types import MethodType
+    for method in ("_home_policy_enabled", "_joint_segment_rejection", "_move_joints",
+                   "_set_gripper", "_move_planned", "_move_carry", "_mark_motion_started"):
+        setattr(rt, method, MethodType(getattr(module.SkillRuntime, method), rt))
     with pytest.raises(Selected):
         module.SkillRuntime.skill_grasp_object(
             rt, "orange", _fix=SimpleNamespace(detection=SimpleNamespace(label="orange")),

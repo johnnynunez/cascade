@@ -15,7 +15,8 @@ REPO = Path(__file__).resolve().parents[1]
 
 def test_cli_base_mock_observation_real_subprocess(tmp_path):
     env = {k: v for k, v in os.environ.items() if not k.startswith("CASCADE_")}
-    env.update(CUDA_VISIBLE_DEVICES="-1", PYTHONPATH=str(REPO / "src"))
+    env.update(CUDA_VISIBLE_DEVICES="-1", PYTHONPATH=os.pathsep.join(
+        p for p in (str(REPO / "src"), env.get("PYTHONPATH", "")) if p))
     result = subprocess.run([sys.executable, "-m", "cascade.apps.demo", "--base", "microduck_mock",
                              "--llm", "mock", "--no-view", "--no-serve", "--run-dir", str(tmp_path),
                              "--task", "observe the mobile base"], cwd=REPO, env=env,

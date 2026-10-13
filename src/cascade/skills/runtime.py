@@ -13,6 +13,7 @@ from ..control import motion_evidence
 
 import contextlib
 import logging
+from contextlib import nullcontext
 import math
 import os
 import sys
@@ -48,7 +49,7 @@ if TYPE_CHECKING:  # annotation only; the runtime import stays local (import cyc
     from ..control.arm_rig import ArmRig
     from ..perception.link_mask import LinkSelfMask
     from ..types import ObjectFix
-from ..types import (ContactDetected, Detection, Frame, SafetyViolation, SkillError, SkillStuck,
+from ..types import (ContactDetected, Detection, Frame, GraspFailed, SafetyViolation, SkillError, SkillStuck,
                      make_transform, transform_points)
 
 logger = logging.getLogger(__name__)
@@ -114,7 +115,7 @@ _MOTION_SKILLS = {
     "grasp_object", "place_at", "place_on_object", "push_object",
     "open_gripper", "close_gripper", "move_home", "pick_and_place",
     "point_at", "wave", "handover", "sort_by_color", "move_relative",
-    "throw", "grasp_at_pixel", "turn_screw", "reset_scene",
+    "throw", "grasp_at_pixel", "turn_screw", "reset_scene", "rotate_joint",
     # natural-language spatial nudges (skills/spatial_moves.py): every one
     # streams through SafeArm, so `motion lock` must deny it too
     "undo_move", "rotate_gripper", "move_near_object",
@@ -268,6 +269,9 @@ class SkillRuntime:
         #: frames on a reader thread while a skill runs on a worker: a plain
         #: attribute would let one thread's arm selection leak into another's.
         self._arm_override = threading.local()
+        self._motion_scope = threading.local()
+        # Optional task cancellation hook supplied by the orchestrator.
+        self.motion_cancel_requested = None
         self.memory = memory
         self.beliefs = beliefs
         self.trace = trace
@@ -439,6 +443,8 @@ class SkillRuntime:
     #: runtimes that way and only set the handful of fields they exercise.
     _arm = None
     _arm_override = None
+    _motion_scope = None
+    motion_cancel_requested = None
     arm_rig = None
     _call_measurements = None
     #: LinkSelfMask | None (B39): set by the app wiring when
@@ -701,6 +707,117 @@ class SkillRuntime:
         """Detached task/actor-bound evidence for inspection, never an agent reset."""
         return self._task_effects.snapshot()
 
+    def _move_joints(self, *args, **kwargs):
+        context = getattr(getattr(self, "_motion_scope", None), "context", None)
+        if context is not None:
+            context["motion_started"] = True
+        return self.arm.move_joints(*args, **kwargs)
+
+    def _set_gripper(self, *args, **kwargs):
+        context = getattr(getattr(self, "_motion_scope", None), "context", None)
+        if context is not None:
+            context["motion_started"] = True
+        return self.arm.set_gripper(*args, **kwargs)
+
+    def _mark_motion_started(self):
+        context = getattr(getattr(self, "_motion_scope", None), "context", None)
+        if context is not None:
+            context["motion_started"] = True
+
+    def _move_planned(self, *args, **kwargs):
+        self._mark_motion_started()
+        return getattr(self.arm, "move_planned", self.arm.move_joints)(*args, **kwargs)
+
+    def _move_carry(self, *args, **kwargs):
+        self._mark_motion_started()
+        return carry_attachment.move(self, *args, **kwargs)
+
+    def _home_policy_enabled(self) -> bool:
+        scope = getattr(self, "_motion_scope", None)
+        context = getattr(scope, "context", None)
+        if context is not None:
+            return bool(context["enabled"])
+        return bool(self.cfg.arm.get("return_home_after_motion", False))
+
+    def _home_return_skip_reason(self, failure=None) -> str | None:
+        if failure is not None and not isinstance(failure, Exception):
+            return "command interrupted"
+        if isinstance(failure, SafetyViolation):
+            return f"safety abort: {failure}"
+        cancel = getattr(self, "motion_cancel_requested", None)
+        if callable(cancel):
+            try:
+                if cancel():
+                    return "command cancelled"
+            except Exception as exc:
+                return f"cannot determine cancellation state: {exc}"
+        harness = self.arm.harness
+        if getattr(harness, "estopped", False):
+            return "e-stop latched"
+        if getattr(harness, "halted", None):
+            return f"motion halted: {harness.halted}"
+        context = getattr(getattr(self, "_motion_scope", None), "context", None)
+        violations = getattr(harness, "violations", ())
+        if context is not None and len(violations) > context["violations_before"]:
+            return "safety violation during this motion"
+        raw = getattr(self.arm, "raw", None)
+        if getattr(raw, "_stopped", False):
+            return "arm stop latched"
+        if callable(getattr(type(raw), "ensure_motion_ready", None)):
+            try:
+                raw.ensure_motion_ready()
+            except Exception as exc:
+                return str(exc)
+        return None
+
+    def _return_to_view_home(self, home: np.ndarray, profile: dict, failure=None) -> dict:
+        """Return without changing the jaws or clearing any safety latch."""
+        reason = self._home_return_skip_reason(failure)
+        if reason:
+            return {"ok": False, "status": "skipped", "reason": reason}
+        try:
+            state = self.arm.get_state()
+            q = np.asarray(state.q, dtype=float).reshape(-1)
+            if len(q) != len(home) or not np.isfinite(q).all():
+                raise RuntimeError("invalid joint feedback")
+        except Exception as exc:
+            return {"ok": False, "status": "skipped", "reason": f"joint feedback unavailable: {exc}"}
+        tol = float(profile.get("settle_tol", 0.03))
+        target = home.tolist()
+        if np.max(np.abs(q - home)) <= tol:
+            return {"ok": True, "status": "already_home", "home_q": target}
+        # The watcher remains paused during the whole action. Obtain real
+        # perception before starting another trajectory, so a long grasp
+        # cannot enter the return with an expired perception watchdog.
+        try:
+            self.observe(require_fresh=True)
+        except Exception as exc:
+            return {"ok": False, "status": "skipped", "reason": f"home perception unavailable: {exc}"}
+        reason = self._home_return_skip_reason(failure)
+        if reason:
+            return {"ok": False, "status": "skipped", "reason": reason}
+        try:
+            self._show_status("Returning to the saved camera-view home")
+            carry_attachment.check(self)
+            if not self._move_carry(home, duration_s=3.0):
+                raise SkillError("did not settle at the saved home pose")
+            reason = self._home_return_skip_reason()
+            if reason:
+                raise SkillError(reason)
+            final_q = np.asarray(self.arm.get_state().q, dtype=float).reshape(-1)
+            if len(final_q) != len(home) or not np.isfinite(final_q).all():
+                raise SkillError("invalid joint feedback after returning home")
+            error = float(np.max(np.abs(final_q - home)))
+            if error > tol:
+                raise SkillError(f"home feedback error {error:.4f} rad exceeds {tol:.4f} rad")
+            return {"ok": True, "status": "returned", "home_q": target, "joint_error_rad": error}
+        except Exception as exc:
+            try:
+                self.arm.stop()
+            except Exception as stop_error:
+                logger.error("Stopping after a failed home return failed: %s", stop_error)
+            return {"ok": False, "status": "failed", "error": f"{type(exc).__name__}: {exc}"}
+
     def execute(self, name: str, args: dict) -> dict:
         """Dispatch with task obligations covering all tiers and preparation faults.
 
@@ -777,6 +894,40 @@ class SkillRuntime:
         contact_harnesses = self._contact_harnesses()
         for harness in contact_harnesses:
             harness.drain_contact_reports()
+        from ..robot_context import arm_profiles
+
+        profiles = arm_profiles(self.cfg)
+        profile = profiles[0]
+        if selected is not None:
+            profile = next(p for p in profiles if p.get("name") == arm_name)
+        if name in profile.get("unsupported_skills", []):
+            return {"ok": False, "error": f"skill {name!r} is unsupported on {profile.get('name', 'this arm')}"}
+        if name in _MOTION_SKILLS:
+            raw = getattr(selected if selected is not None else self.arm, "raw", None)
+            # Class lookup leaves a deferred LazyArm untouched. Real Franka
+            # transports refuse the skill before opening the hand or moving
+            # home when native feedback reports a hardware fault.
+            if callable(getattr(type(raw), "ensure_motion_ready", None)):
+                try:
+                    raw.ensure_motion_ready()
+                except RuntimeError as exc:
+                    error = f"SkillError: {exc}"
+                    self._show_status(error)
+                    # STOP, native faults and stale feedback require operator
+                    # intervention, not a different model-generated plan.
+                    return {"ok": False, "error": error, "motion_blocked": True}
+        home_snapshot = None
+        return_enabled = name in _MOTION_SKILLS and bool(profile.get("return_home_after_motion", False))
+        if return_enabled:
+            try:
+                import inspect
+
+                inspect.signature(fn).bind(**args)
+                home_snapshot = np.asarray(profile.get("home_q"), dtype=float).reshape(-1).copy()
+                if len(home_snapshot) != int(profile["n_joints"]) or not np.isfinite(home_snapshot).all():
+                    raise ValueError("home_q must contain one finite value per arm joint")
+            except (TypeError, ValueError) as exc:
+                return {"ok": False, "error": f"cannot start {name}: {exc}"}
         self._show_status(f"{name}({_short(args)})")
         # BEFORE keyframe. `last_frame` is only set by observe(), so the first
         # skill of a run used to record `keyframe_before: null` -- exactly the
@@ -784,7 +935,7 @@ class SkillRuntime:
         # frame when none exists yet; never let a camera hiccup block a skill.
         if self.last_frame is None:
             try:
-                self.observe()
+                self.observe(require_fresh=return_enabled)
             except Exception:  # noqa: BLE001
                 pass
         # Vesta keeps "the first frame ... to preserve the initial state". A
@@ -861,6 +1012,8 @@ class SkillRuntime:
                       and getattr(self.memory, "embedder", None) is not None)
         if owns_crops:
             self._call_crops = {}
+        home_return = None
+        result = None
         try:
             import contextlib
 
@@ -877,27 +1030,56 @@ class SkillRuntime:
             # second arm can never leave every later skill pointed at it.
             prev_arm = getattr(self._arm_override, "arm", None)
             self._arm_override.arm = selected
-            with motion_evidence.record_skill(name, resolved_arm, trace_context,
-                                              enabled=name in _MOTION_SKILLS), hold:
-                try:
-                    from ..planning.backend_evidence import ordinary_call
-                    selection = (ordinary_call(self, name, trace_context) if name in _MOTION_SKILLS
-                                 else contextlib.nullcontext())
-                    with selection:
-                        if name in _MOTION_SKILLS:
-                            carry_attachment.check(self)
-                        result = fn(**args)
-                finally:
-                    self._arm_override.arm = prev_arm
-                    if owns_epoch:
-                        self._motion_t0 = None
-                        self._last_reobserve_t = None
-                    # Sync the held-object ignore BEFORE fusion resumes, or
-                    # one tick could register the object dangling mid-air.
-                    if self.watcher is not None:
-                        self.watcher.ignore_label(
-                            self._held_det_label if self.held_object else None
-                        )
+            if self._motion_scope is None:
+                self._motion_scope = threading.local()
+            scope = self._motion_scope
+            previous_context = getattr(scope, "context", None)
+            owns_motion_scope = name in _MOTION_SKILLS and previous_context is None
+            if owns_motion_scope:
+                scope.context = {
+                    "enabled": return_enabled, "home": home_snapshot,
+                    "profile": profile, "root_skill": name,
+                    "violations_before": (len(getattr(self.arm.harness, "violations", ()))
+                                          if return_enabled else 0),
+                    "motion_started": False,
+                }
+            try:
+                with motion_evidence.record_skill(name, resolved_arm, trace_context,
+                                                  enabled=name in _MOTION_SKILLS), hold:
+                    failure = None
+                    try:
+                        from ..planning.backend_evidence import ordinary_call
+                        selection = (ordinary_call(self, name, trace_context) if name in _MOTION_SKILLS
+                                     else contextlib.nullcontext())
+                        with selection:
+                            if name in _MOTION_SKILLS:
+                                carry_attachment.check(self)
+                            result = fn(**args)
+                    except BaseException as exc:
+                        failure = exc
+                        raise
+                    finally:
+                        if (owns_motion_scope and return_enabled and scope.context["motion_started"]
+                                and name not in {"move_home", "move_to_rest", "reset_scene"}
+                                and not (isinstance(result, dict) and result.get("home_skipped"))):
+                            try:
+                                home_return = self._return_to_view_home(home_snapshot, profile, failure)
+                            except Exception as exc:
+                                home_return = {"ok": False, "status": "failed",
+                                               "error": f"{type(exc).__name__}: {exc}"}
+                        # Sync the held-object ignore BEFORE fusion resumes,
+                        # including when a failed grasp provisionally holds.
+                        if self.watcher is not None:
+                            self.watcher.ignore_label(
+                                self._held_det_label if self.held_object else None
+                            )
+            finally:
+                if owns_motion_scope:
+                    scope.context = previous_context
+                self._arm_override.arm = prev_arm
+                if owns_epoch:
+                    self._motion_t0 = None
+                    self._last_reobserve_t = None
             if "ok" not in result:
                 result["ok"] = True
         except (SkillError, SafetyViolation) as e:
@@ -924,6 +1106,34 @@ class SkillRuntime:
                 "hint": "hardware/runtime fault; consider task_done(success=false)",
             }
             traceback.print_exc()
+        if home_return is not None:
+            result["return_home"] = home_return
+            if not home_return["ok"] and result.get("ok", False):
+                result["action_ok"] = True
+                result["ok"] = False
+                reason = home_return.get("error") or home_return.get("reason")
+                result["error"] = f"return to saved home {home_return['status']}: {reason}"
+        if name in _MOTION_SKILLS:
+            # Readiness can fail DURING a motion as well as before it. A
+            # trajectory abort latches STOP; handing that failure back to
+            # the planner would invite retries while the arm cannot move.
+            # Use the selected arm after its temporary binding is restored.
+            raw = getattr(selected if selected is not None else self.arm, "raw", None)
+            blocked = "arm stop latched" if getattr(raw, "_stopped", False) is True else None
+            if callable(getattr(type(raw), "ensure_motion_ready", None)):
+                try:
+                    raw.ensure_motion_ready()
+                except RuntimeError as exc:
+                    blocked = str(exc)
+            if blocked:
+                result["motion_blocked"] = True
+                result["motion_block_reason"] = blocked
+                # Keep the original controller failure, which explains WHY
+                # it stopped, instead of replacing it with the STOP symptom.
+                if result.get("ok"):
+                    result["action_ok"] = True
+                    result["ok"] = False
+                    result["error"] = blocked
         dur = (time.monotonic() - t0) * 1000
         # Every result carries one of three outcomes. Stamped BEFORE the
         # postcondition fold so `annotate_result` can see a stuck step and
@@ -951,7 +1161,10 @@ class SkillRuntime:
             from ..agent.effects import UNVERIFIED, Postcondition, PostconditionChecker, annotate_result
 
             try:
-                if self.effects is None:
+                if result.get("motion_blocked"):
+                    pc = Postcondition(skill=name, kind="motion", status=UNVERIFIED,
+                                       evidence="motion interrupted; completion was not verified")
+                elif self.effects is None:
                     # Bare runtimes also lack the admitted fastener observer;
                     # omitting optional verification must not credit fastening.
                     pc = PostconditionChecker().verify(name, args, result, before=pre_state)
@@ -1040,7 +1253,7 @@ class SkillRuntime:
         # outcome judge, shown no change, scored 0 % on a confirmed pick.
         if name in _MOTION_SKILLS:
             try:
-                self.observe()
+                self.observe(require_fresh=return_enabled)
             except Exception:  # noqa: BLE001 -- camera hiccup: keep the stale frame
                 pass
         after = self.trace.save_keyframe(
@@ -1099,9 +1312,14 @@ class SkillRuntime:
         )
         return result
 
-    def observe(self) -> Frame:
+    def observe(self, *, require_fresh: bool = False) -> Frame:
         frame = self.camera.get_frame()
         frame = self.depth.ensure_depth(frame)
+        if require_fresh:
+            age = time.monotonic() - float(frame.t)
+            watchdog_s = float(self.arm.harness.limits.watchdog_s)
+            if not np.isfinite(age) or age < 0 or age > watchdog_s:
+                raise RuntimeError(f"camera frame is stale or invalid (age {age:.3f}s)")
         self.last_frame = frame
         self.arm.harness.heartbeat()
         return frame
@@ -1436,6 +1654,10 @@ class SkillRuntime:
             # Reference failed (something between the jaws) or the jaws were
             # blocked opening: another attempt would only press again.
             return "gripper fault: not retrying until the jaws are cleared"
+        if self._home_policy_enabled():
+            reason = self._home_return_skip_reason()
+            if reason:
+                return f"{reason}; not retrying"
         if attempt >= 2 and "no detections" in last_err and self.beliefs.find(object) is None:
             return "never seen after re-scans; giving up early"
         if _every_candidate_too_wide(last_err):
@@ -1655,16 +1877,16 @@ class SkillRuntime:
             "configured_description": visual_query != query,
         }
 
-    def _plan_grasps(self, fix, label: str | None = None, *,
+    def _plan_grasps(self, fix, label: str | None = None, frame=None, *,
                      _deadline=None, _check=None, _prior_snapshot=None, _frame=None) -> list:
         """Grasp candidates: learned 6-DoF (GraspGen-X server) when
         configured. The Spark profile requires the real model; other profiles
         can use an explicit, visible analytic fallback.
 
         `grasp.backend: hug` (opt-in) plans from HUG human hands instead and
-        needs `_frame`, the RGB-D frame the fix was localized in; callers
-        pass it only for that backend, so every other backend is called
-        exactly as before.
+        needs `_frame`, the RGB-D frame the fix was localized in. The same
+        captured frame supplies measured support height for calibrated
+        RGB-D grasp profiles.
 
         Fake-RL layer: past-attempt memory re-ranks the candidates so grasp
         geometry that historically WORKED for this object profile goes first
@@ -1677,6 +1899,12 @@ class SkillRuntime:
         # (the reach profiles, e.g. arms/rebot_rs_reach.yaml). Unset/empty
         # leaves the planner call exactly as before.
         tilts = gcfg.get("angled_approach_tilts_deg")
+        support_z = None
+        if str(gcfg.get("support_height_source", "configured")) == "depth":
+            from ..perception.support_surface import estimate_support_z
+
+            support_z = estimate_support_z(frame if frame is not None else _frame, fix)
+            self.memory.add("note", f"grasp support measured from depth: z={support_z:.4f} m")
         obb = plan_grasps_from_fix(
             fix,
             table_z=float(self.cfg.safety.get("table_z", 0.0)),
@@ -1691,6 +1919,8 @@ class SkillRuntime:
             width_pad_m=float(gcfg.get("width_pad_m", 0.015)),
             axis_order=self._tool_axis_order,
             **({"angled_tilts_deg": tilts} if tilts else {}),
+            support_z=support_z,
+            min_grasp_z_above_table=float(gcfg.get("min_grasp_z_m", .008)),
         )
         if str(gcfg.get("backend", "obb")) == "hug":
             grasps = SkillRuntime._hug_candidates(self, fix, obb, _frame, _deadline, _check)
@@ -1757,7 +1987,8 @@ class SkillRuntime:
                 grasps = (self.grasp_memory.rerank(grasps, lbl, fix) if _prior_snapshot is None
                           else self.grasp_memory.rerank_with_prior(grasps, fix, prior))
                 grasp_evidence.event("memory_reranked_candidates", grasps=grasps)
-                dz = float(prior["nudges"].get("grasp_z_delta", 0.0))
+                dz = (float(prior["nudges"].get("grasp_z_delta", 0.0))
+                      if bool(gcfg.get("apply_learned_z_nudge", True)) else 0.0)
                 if abs(dz) > 1e-4:
                     for g in grasps:
                         p = np.asarray(g.position, dtype=float).copy()
@@ -2023,6 +2254,7 @@ class SkillRuntime:
                     and np.all(point <= workspace_bounds[1]))
         frame = None
         last_err: SkillError | None = None
+        reserve = getattr(self.detector, "reserve", nullcontext)
 
         def analyze(cframe, ext):
             # Bound the age of the image actually analyzed, including lazy
@@ -2044,9 +2276,12 @@ class SkillRuntime:
 
         tries = int(self.cfg.get("perception_loop", {}).get("localize_frames", 3))
         for _ in range(max(tries, 1)):
-            frame = self.observe()
             try:
-                fix = analyze(frame, self.extrinsics)
+                # Waiting behind the watcher consumes request time, not the
+                # lifetime of an image selected before inference is available.
+                with reserve():
+                    frame = self.observe()
+                    fix = analyze(frame, self.extrinsics)
                 return self._note_localized(query, frame, fix)
             except SlowPerceptionError:
                 raise  # Not detector flicker; do not fall back to memory.
@@ -2064,12 +2299,13 @@ class SkillRuntime:
 
         for cam in self._other_cams():
             try:
-                cframe = cam.depth.ensure_depth(cam.stream.get_frame())
-                if not cframe.has_depth:
-                    continue
-                ext = (_Ext(T=cframe.T_base_cam)
-                       if cframe.T_base_cam is not None else cam.extrinsics)
-                fix = analyze(cframe, ext)
+                with reserve():
+                    cframe = cam.depth.ensure_depth(cam.stream.get_frame())
+                    if not cframe.has_depth:
+                        continue
+                    ext = (_Ext(T=cframe.T_base_cam)
+                           if cframe.T_base_cam is not None else cam.extrinsics)
+                    fix = analyze(cframe, ext)
                 if (os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1"
                         and cframe.T_base_cam is None and ext.mode == "eye_to_hand"):
                     # Bind the secondary view's actual static calibration to
@@ -2154,6 +2390,9 @@ class SkillRuntime:
         original detector failure. A successful result keeps its actual view;
         slow analysis is terminal rather than a miss on another camera."""
         gcfg = self.cfg.get("grounder", None)
+        llm_cfg = self.cfg.get("llm", {})
+        if not gcfg and llm_cfg.get("grounding_fallback", False):
+            gcfg = llm_cfg
         if not gcfg:
             return None
         if frame is not None:
@@ -2165,9 +2404,10 @@ class SkillRuntime:
                 from ..perception.vlm_ground import VLMGrounder
 
                 self._grounder = VLMGrounder(
-                    base_url=str(gcfg.base_url),
+                    base_url=str(gcfg.get("base_url")),
                     model=str(gcfg.get("model", "")),
                     timeout_s=float(gcfg.get("timeout_s", 45.0)),
+                    enable_thinking=gcfg.get("enable_thinking"),
                 )
             # Views to try: (frame, cam->base T). Primary first, then the
             # other fusing cameras with their own extrinsics.
@@ -2436,6 +2676,8 @@ class SkillRuntime:
                                 "or released at rest by move_to_rest)"),
                      "live_arm_feedback": False,
                      "holding": self.held_object}
+        if getattr(type(self.arm.raw), "motion_status", None) is not None:
+            robot["motion_control"] = self.arm.raw.motion_status
         return {
             "objects_visible": objects,
             # The fused store includes both recent and remembered objects.
@@ -2534,10 +2776,11 @@ class SkillRuntime:
         decide before committing -- the observe-then-act loop, not blind
         execution. Follow with grasp_object to actually execute it."""
         frame, fix = self._localize(label, spatial_hint=spatial_hint)
-        # Only the frame backends (HUG, camera_frame) consume the RGB-D frame;
-        # other backends' calls are unchanged.
+        # Frame-backed candidates and measured support use the same RGB-D
+        # capture as localization; do not fetch a later wrist-camera pose.
         grasps = self._plan_grasps(fix, label=label, **(
             {"_frame": frame} if str(self.cfg.grasp.get("backend", "obb")) in _FRAME_GRASP_BACKENDS
+                or str(self.cfg.grasp.get("support_height_source", "configured")) == "depth"
             else {}))
         if not grasps:
             return {"ok": False, "error": f"no grasp candidates for {label!r}"}
@@ -2672,8 +2915,9 @@ class SkillRuntime:
                 candidates = self._plan_grasps(fix, label=label, **({} if search is None else {
                     "_deadline": search.deadline, "_check": search.check,
                     "_prior_snapshot": frozen_prior}), **(
-                    # only the frame backends consume the RGB-D frame the fix came from
+                    # Observed support and frame backends share the localization capture.
                     {"_frame": frame} if str(gcfg.get("backend", "obb")) in _FRAME_GRASP_BACKENDS
+                        or str(gcfg.get("support_height_source", "configured")) == "depth"
                     else {}))
             except NoEligibleGrasps as exc:
                 if search is None:
@@ -2778,6 +3022,7 @@ class SkillRuntime:
         # angled candidates (None unless grasp.angled_clearance_vet is set).
         clearance_check = (self._angled_clearance_check(fix)
                            if gcfg.get("angled_clearance_vet", False) is not False else None)
+        preserve_view_home = self._home_policy_enabled()
 
         def _vet(g, q_pre, q_grasp):
             planner = getattr(self.arm, "motion_planner", None)
@@ -2855,19 +3100,22 @@ class SkillRuntime:
             # narrow XY radius still confines this to directly over the
             # target, so allowing a small sub-table dip there is safe.
             z_min = float(harness.limits.table_z) - 0.06
-            # Sample the q_pre -> q_grasp segment densely: min-jerk streaming
-            # generates many intermediate waypoints, and a coarse 4-sample vet
-            # can miss a mid-segment configuration where the elbow dips below
-            # the table (IK multi-solution: the interpolated path can bow down
-            # even when both endpoints are safe).
-            for s in (0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1.0):
-                q = q_pre + s * (np.asarray(q_grasp) - np.asarray(q_pre))
+            # Retain the shared study/runtime diagnostic samples, then vet
+            # the entire descent more densely for long seven-joint sweeps.
+            for fraction in (0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1.0):
+                q = q_pre + fraction * (np.asarray(q_grasp) - np.asarray(q_pre))
                 reason = harness.vet_pose(
                     q, exempt_xy=g.position[:2],
                     exempt_radius_m=exempt_r, exempt_z_min=z_min,
                 )
                 if reason:
                     return f"descent unsafe: {reason}"
+            reason = self._joint_segment_rejection(
+                q_pre, q_grasp, exempt_xy=g.position[:2],
+                exempt_radius_m=exempt_r, exempt_z_min=z_min,
+            )
+            if reason:
+                return f"descent unsafe: {reason}"
             if clearance_check is not None and isinstance(g, AngledGrasp):
                 # The harness proxies above are joint origins, exempt inside
                 # the grasp cylinder; a leaning approach can still put the
@@ -2915,12 +3163,13 @@ class SkillRuntime:
         # an arbitrary current configuration can converge to an elbow-down IK
         # branch whose approach path dips a link under the table.
         _home = self.cfg.arm.get("home_q")
-        _seed = np.asarray(_home, dtype=float) if _home is not None else state.q
+        _seed = (np.asarray(_home, dtype=float)
+                 if _home is not None and not preserve_view_home else state.q)
         if scene_enabled:
             from ..grasping.observed_scene import for_runtime
             _scene_cancel()
             scene_gate = for_runtime(self, frame, fix, state)
-            if _home is not None:
+            if _home is not None and not preserve_view_home:
                 conflict = _scene_path(state.q, _seed, 1.5)
                 if conflict:
                     raise SafetyViolation(f"home finger trajectory intersects observed surface: {conflict}")
@@ -2943,7 +3192,7 @@ class SkillRuntime:
                     search.check()
                     scene_gate.feedback(state)  # same captured epoch, never a new gate
                     _scene_cancel()
-                    if _home is not None:
+                    if _home is not None and not preserve_view_home:
                         conflict = _scene_path(state.q, _seed, 1.5)
                         if conflict:
                             raise SafetyViolation(f"home finger trajectory intersects observed surface: {conflict}")
@@ -2958,6 +3207,7 @@ class SkillRuntime:
                         pregrasp_min_z=pregrasp_min_z,
                         validate=_vet,
                         preserve_order=True,
+                        parallel_jaw_symmetry=(self.cfg.arm.get("gripper") or {}).get("parallel_jaw_symmetry"),
                         # Single-hinge jaw datum (TOOL frame): the fixed jaw's contact
                         # point and the closing direction toward the moving jaw. Per
                         # arm, like every other jaw dimension: the SO-101 beak closes
@@ -3023,25 +3273,31 @@ class SkillRuntime:
             from ..grasping.force import pregrasp_open_position
             open_pos = pregrasp_open_position(
                 grasp.width_m, margin, self._grip_open, self._grip_closed, self._max_width)
-        self.arm.set_gripper(open_pos, effort=0.8,
+        self._set_gripper(open_pos, effort=0.8,
                              **({"_halt_generation": scene_halt_generation} if scene_enabled else {}))
         _home = self.cfg.arm.get("home_q")
-        if _home is not None:
+        if _home is not None and not preserve_view_home:
             grasp_evidence.phase("home")
             grasp_evidence.event("move_target", q=_home, duration_s=1.5)
             if scene_gate is not None:
-                if not self.arm.move_joints(np.asarray(_home, dtype=float), duration_s=1.5,
+                if not self._move_joints(np.asarray(_home, dtype=float), duration_s=1.5,
                                             **_scene_motion(np.asarray(_home, dtype=float))):
                     raise SkillError("did not settle at required observed-finger home pose")
             else:
-                if not self.arm.move_planned(np.asarray(_home, dtype=float), duration_s=1.5):
-                    raise SkillError("did not settle at home before grasp approach")
+                try:
+                    settled_home = self._move_planned(np.asarray(_home, dtype=float), duration_s=1.5)
+                except Exception as exc:
+                    self.arm.stop()
+                    raise SkillError(f"home move failed before pregrasp: {exc}") from exc
+                if not settled_home:
+                    self.arm.stop()
+                    raise SkillError("did not settle at home pose before pregrasp")
         grasp_evidence.phase("pregrasp")
         grasp_evidence.event("move_target", q=q_pre, duration_s=gcfg.get("move_duration_s", 2.5))
         # The observed gate vets the exact direct profile; the mapping-only
         # path retains its fully vetted deterministic route from measured pose.
         if scene_gate is not None:
-            approached = self.arm.move_joints(q_pre,
+            approached = self._move_joints(q_pre,
                 duration_s=float(gcfg.get("move_duration_s", 2.5)), **_scene_motion(q_pre))
         else:
             column = _target_column(gcfg, self.arm.harness, grasp, fix)
@@ -3049,7 +3305,7 @@ class SkillRuntime:
                 grasp_evidence.event("approach_target_column", center_xy=column[0],
                                      radius_m=column[1], z_min=column[2])
             with _column_exemption(self.arm.harness, column):
-                approached = self.arm.move_planned(q_pre,
+                approached = self._move_planned(q_pre,
                     duration_s=float(gcfg.get("move_duration_s", 2.5)))
         if not approached:
             raise SkillError("did not settle at pregrasp pose")
@@ -3069,7 +3325,7 @@ class SkillRuntime:
         grasp_evidence.event("move_target", q=q_grasp,
                              duration_s=gcfg.get("descend_duration_s", 2.0), bias_compensate=True)
         try:
-            if not self.arm.move_joints(q_grasp,
+            if not self._move_joints(q_grasp,
                                         duration_s=float(gcfg.get("descend_duration_s", 2.0)),
                                         bias_compensate=True, _linear_tool_path=True,
                                         **_scene_motion(q_grasp)):
@@ -3123,10 +3379,21 @@ class SkillRuntime:
             else:
                 episode = contact_episode.begin(self, q_pre)
                 self._held_provisional = provisional
-            close_hold_open = SkillRuntime._grasp_close(
-                self, profile, hold_squeeze,
-                **({"_halt_generation": scene_halt_generation,
-                    "_before_close": close_guard} if scene_enabled else {}))
+            try:
+                close_hold_open = SkillRuntime._grasp_close(
+                    self, profile, hold_squeeze,
+                    **({"_halt_generation": scene_halt_generation,
+                        "_before_close": close_guard} if scene_enabled else {}))
+            except GraspFailed:
+                if not self._force_contact_close_enabled() or episode is not None:
+                    raise
+                # Native Grasp completed without securing an object. Retrace
+                # its vetted descent, with the original contact exemption;
+                # preserve jaws/provisional state and let STOP/fault checks win.
+                if not self._move_joints(q_pre, duration_s=float(gcfg.get("descend_duration_s", 2.0))):
+                    self.arm.stop()
+                    raise SkillError("did not settle while retreating after failed grasp")
+                raise
             contact_episode.wait_geometry(self, episode)
             self._held_support_offset_m = None
             # Approximate aiming compensation uses the closed grasp pose,
@@ -3188,7 +3455,7 @@ class SkillRuntime:
                 from ..planning.runtime import contact_lift_target
                 q_lift = contact_lift_target(self.kin, close_state.q, q_pre)
             grasp_evidence.event("move_target", q=q_lift, duration_s=lift_dur)
-            if not carry_attachment.move(self, q_lift, duration_s=lift_dur,
+            if not self._move_carry(q_lift, duration_s=lift_dur,
                     _linear_tool_path=True,
                     **({"_halt_generation": scene_halt_generation} if scene_enabled else {})):
                 raise SkillError("did not settle at grasp lift pose")
@@ -3203,12 +3470,12 @@ class SkillRuntime:
                     and getattr(harness, "_halt", None) is None):
                 try:
                     if scene_gate is not None:
-                        settled = self.arm.move_joints(q_pre,
+                        settled = self._move_joints(q_pre,
                             duration_s=float(gcfg.get("descend_duration_s", 2.0)),
                             _linear_tool_path=True,
                             **_scene_motion(q_pre))
                     else:
-                        settled = self.arm.move_planned(
+                        settled = self._move_planned(
                             q_pre, duration_s=float(gcfg.get("descend_duration_s", 2.0)))
                     recovery = "completed" if settled else "did not settle"
                 except (SkillError, SafetyViolation) as retreat_error:
@@ -3234,7 +3501,8 @@ class SkillRuntime:
             # the hold opening, not the stage-2 one; an object lost in the lift
             # leaves them THERE, so that is the opening "nothing resisted" is
             # judged against (else the hold would blind this check).
-            commanded_open = (close_hold_open if close_hold_open is not None
+            commanded_open = (0.0 if self._force_contact_close_enabled()
+                              else close_hold_open if close_hold_open is not None
                               else max(1.0 - profile.close_frac_stage2, 0.0))
             expected_open = min(grasp.width_m / self._max_width, 1.0)
             air_grasp = self._air_grasp(width_after_lift, commanded_open, expected_open)
@@ -3348,9 +3616,9 @@ class SkillRuntime:
         executor = self.vla_executor
         client = executor.connect()  # VLAUnavailable: nothing has moved
         try:
-            self.arm.set_gripper(self._grip_open, effort=0.8, _halt_generation=halt_generation)
+            self._set_gripper(self._grip_open, effort=0.8, _halt_generation=halt_generation)
             home = self.cfg.arm.get("home_q")
-            if home is not None and not self.arm.move_planned(
+            if home is not None and not self._move_planned(
                     np.asarray(home, dtype=float), duration_s=1.5, _halt_generation=halt_generation):
                 raise SkillError("did not settle at home before the VLA episode")
             provisional = (label, fix.detection.label, detection_color(frame.rgb, fix.detection))
@@ -3409,6 +3677,10 @@ class SkillRuntime:
             "executor": "vla",
             "vla": summary,
         }
+    def _force_contact_close_enabled(self) -> bool:
+        return (self.cfg.arm.get("type") == "ros2"
+                and bool(self.cfg.arm.get("ros_gripper_grasp_action"))
+                and bool((self.cfg.arm.get("gripper") or {}).get("force_contact_close", False)))
 
     def _grasp_support_height(self, points) -> float:
         support = self.cfg.grasp.get("source_support_top_z_m")
@@ -3452,10 +3724,17 @@ class SkillRuntime:
         check = getattr(self.arm.harness, "check_model_withdrawal", None)
         if check is not None:
             check(command=True, gripper=True)
+        if self._force_contact_close_enabled():
+            if _before_close is not None:
+                _before_close()
+            self._set_gripper(self._grip_closed, effort=profile.effort,
+                              **({"_halt_generation": _halt_generation} if _halt_generation is not None else {}))
+            return
         raw = self.arm.raw
         if hasattr(raw, "close_gripper_two_stage"):
             if _before_close is not None:
                 raise SafetyViolation("observed-finger closing requires individually guarded stages")
+            self._mark_motion_started()
             raw.close_gripper_two_stage(
                 width_frac_stage1=profile.close_frac_stage1,
                 width_frac_stage2=profile.close_frac_stage2,
@@ -3476,7 +3755,7 @@ class SkillRuntime:
                 _before_close()
             grasp_evidence.event("close_stage", closed_frac=frac, effort=eff,
                                  target_pos=self._grip_open + span * frac)
-            self.arm.set_gripper(self._grip_open + span * frac, effort=eff,
+            self._set_gripper(self._grip_open + span * frac, effort=eff,
                                  **({"_halt_generation": _halt_generation} if _halt_generation is not None else {}))
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
             if timeout is not None:
@@ -3641,6 +3920,35 @@ class SkillRuntime:
             raise SkillError("placement support clearance must be finite and nonnegative")
         return float(support_z) + float(offset) + clearance
 
+    def _joint_segment_rejection(self, q_start, q_end, **exemption) -> str | None:
+        """Vet the joint-interpolated segment without commanding or latching STOP.
+
+        Clear endpoints do not imply a clear path: the wrist can sweep the
+        TCP down toward the table while rotating between them. Sample at most
+        0.01 rad per joint; transport approval still gates the whole trajectory
+        and actual feedback at execution time.
+        """
+        start, end = np.asarray(q_start, float), np.asarray(q_end, float)
+        steps = max(2, int(np.ceil(np.max(np.abs(end - start)) / 0.01)))
+        for fraction in np.linspace(0., 1., steps + 1):
+            cancel = getattr(self, "motion_cancel_requested", None)
+            if callable(cancel) and cancel():
+                raise SkillError("motion planning cancelled")
+            reason = self.arm.harness.vet_pose(start + fraction * (end - start), **exemption)
+            if reason:
+                return reason
+        return None
+
+    def _place_geometry_rejection(self, q_now, pre, low, retreat, target):
+        reason = self._joint_segment_rejection(q_now, pre.q)
+        exemption = dict(exempt_xy=target[:2], exempt_radius_m=0.07,
+                         exempt_z_min=float(target[2]) - 0.02)
+        if reason is None:
+            reason = self._joint_segment_rejection(pre.q, low.q, **exemption)
+        if reason is None and retreat is not None:
+            reason = self._joint_segment_rejection(low.q, retreat.q, **exemption)
+        return reason
+
     def skill_place_at(self, x: float, y: float, z: float | None = None, *, _model_plan=None) -> dict:
         from .mujoco_placement_aim import RegionPlan
         if _model_plan is not None:
@@ -3648,6 +3956,8 @@ class SkillRuntime:
                 raise SkillError('placement requires its private bound region plan')
             _model_plan.aim.guard(self)
         carry_attachment.check(self)
+        if self._native_wrist_camera():
+            self._reconcile_held()
         self._adopt_unknown_held()
         if not self.held_object:
             raise SkillError("not holding anything")
@@ -3734,7 +4044,7 @@ class SkillRuntime:
                 if observation_generation is None:
                     raise SkillError("observed carry slip lacks a gripper authorization context")
                 try:
-                    self.arm.set_gripper(self._grip_open, effort=0.6,
+                    self._set_gripper(self._grip_open, effort=0.6,
                                          _halt_generation=observation_generation)
                 except SafetyViolation as exc:
                     raise HeldObservationInvalid("observed-slip opening was cancelled") from exc
@@ -3762,6 +4072,8 @@ class SkillRuntime:
         else:
             geometry = plan_geometry(self, q_now, target, x=x, y=y,
                                      release_z=release_z, z_cap=z_cap,
+                                     **({'validate': self._place_geometry_rejection}
+                                        if self._force_contact_close_enabled() else {}),
                                      **({} if aim is None else {'attachment_translation_tool': aim.translation}))
         if aim is not None:
             aim.guard(self, q_now)
@@ -3793,7 +4105,7 @@ class SkillRuntime:
             raise _PostPlaceRetreatPlanError(str(exc)) from exc
         if lift is not None:
             try:
-                lifted = carry_attachment.move(self,
+                lifted = self._move_carry(
                     lift.q, duration_s=float(gcfg.get("descend_duration_s", 2.0)),
                     **({} if aim is None else aim.motion_arguments()),
                 )
@@ -3804,7 +4116,7 @@ class SkillRuntime:
             if not lifted:
                 raise _PreCarryLiftError("pre-carry lift did not settle; keeping the grasp")
             self.memory.add("action", f"reached planned carry height {hover[2]:.3f} m before horizontal transport")
-        if not carry_attachment.move(self, pre.q, duration_s=float(gcfg.get("move_duration_s", 2.5)),
+        if not self._move_carry(pre.q, duration_s=float(gcfg.get("move_duration_s", 2.5)),
                                      **({} if aim is None else aim.motion_arguments())):
             raise SkillError("did not settle above the place target")
         self.arm.harness.allow_grasp_descent(target[:2], z_min=release_z - 0.02)
@@ -3814,7 +4126,7 @@ class SkillRuntime:
         planned_release_generation = None
         withdrawal_completed = False
         try:
-            if not carry_attachment.move(self, low.q, duration_s=float(gcfg.get("descend_duration_s", 2.0)),
+            if not self._move_carry(low.q, duration_s=float(gcfg.get("descend_duration_s", 2.0)),
                                          **({} if aim is None else aim.motion_arguments())):
                 raise SkillError("did not settle at place pose")
             # A grasp ceiling must not collapse withdrawal onto release. An
@@ -3920,7 +4232,7 @@ class SkillRuntime:
                 elif model_withdrawal is not None:
                     ascended = release_error is None and model_withdrawal.withdraw()
                 else:
-                    ascended = release_error is None and self.arm.move_joints(
+                    ascended = release_error is None and self._move_joints(
                         retreat.q if retreat is not None else pre.q,
                         duration_s=float(gcfg.get("descend_duration_s", 2.0)),
                         **({} if planned_release_generation is None else
@@ -4012,7 +4324,36 @@ class SkillRuntime:
         except Exception:
             return None
 
+    def _native_wrist_camera(self) -> bool:
+        cfg = getattr(self, "cfg", None)
+        camera = getattr(cfg, "camera", {})
+        return (camera.get("extrinsics", {}).get("mode") == "eye_in_hand"
+                and self._force_contact_close_enabled())
+
+    def _overview_destination(self, label: str):
+        """Resolve once from the saved overview, keeping the jaws unchanged."""
+        self.skill_move_home()
+        self.observe(require_fresh=True)
+        reason = self._home_return_skip_reason()
+        if reason:
+            raise SkillError(f"destination lookup stopped: {reason}")
+        fresh = self._destination_fix(label)
+        if fresh is None:
+            raise SkillError(f"cannot locate destination {label!r} from the overview; object was not released")
+        pos, top = fresh
+        pos = np.asarray(pos, dtype=float).reshape(-1).copy()
+        if pos.shape != (3,) or not np.isfinite(pos).all() or not np.isfinite(top):
+            raise SkillError(f"invalid position for destination {label!r}")
+        return pos, float(top)
+
+    def _place_at_destination(self, fix) -> dict:
+        pos, top = fix
+        drop = top + float(self.cfg.grasp.get("release_clearance_m", 0.06))
+        return self.skill_place_at(float(pos[0]), float(pos[1]), drop)
+
     def skill_place_on_object(self, label: str) -> dict:
+        if self._native_wrist_camera():
+            self._reconcile_held()
         self._adopt_unknown_held()
         if not self.held_object:
             raise SkillError("not holding anything")
@@ -4035,6 +4376,8 @@ class SkillRuntime:
                 release = self._supported_release_height(support_z, release)
             result = self.skill_place_at(float(center[0]), float(center[1]), release)
             return {**result, "destination": "open box", "destination_kind": "configured_point"}
+        if self._native_wrist_camera():
+            return self._place_at_destination(self._overview_destination(label))
         # Re-check the destination immediately before committing to a drop
         # point. The belief may be stale: it was seeded when the task started
         # and the world does not hold still, which is the whole premise of the
@@ -4052,7 +4395,9 @@ class SkillRuntime:
                     top_z=float(fix.points[:, 2].max()),
                     color=detection_color(frame.rgb, fix.detection),
                 )
-                belief = self.beliefs.find(label)
+                # The detector's label may differ from the user's query.
+                return self._place_at_destination(
+                    (fix.position, float(fix.points[:, 2].max())))
             # Use the actually observed highest point of the target, never OBB
             # extents (those are eigenvalue-ordered, not axis-aligned).
             pos = belief.position
@@ -4096,15 +4441,15 @@ class SkillRuntime:
         ik_end = self.kin.ik(make_transform(R, end), ik_start.q if ik_start.success else q_now)
         if not (ik_hover.success and ik_start.success and ik_end.success):
             raise SkillError("push poses unreachable")
-        self.arm.set_gripper(self._grip_closed, effort=0.8)  # push with closed jaws
-        self.arm.move_joints(ik_hover.q, duration_s=2.0)
+        self._set_gripper(self._grip_closed, effort=0.8)  # push with closed jaws
+        self._move_joints(ik_hover.q, duration_s=2.0)
         center = (start[:2] + end[:2]) / 2
         radius = float(np.linalg.norm(end[:2] - start[:2]) / 2 + 0.10)
         self.arm.harness.allow_grasp_descent(center, radius_m=radius, z_min=push_z - 0.02)
         try:
-            self.arm.move_joints(ik_start.q, duration_s=1.5)
-            self.arm.move_joints(ik_end.q, duration_s=2.0)
-            self.arm.move_joints(ik_hover.q, duration_s=1.5)
+            self._move_joints(ik_start.q, duration_s=1.5)
+            self._move_joints(ik_end.q, duration_s=2.0)
+            self._move_joints(ik_hover.q, duration_s=1.5)
         finally:
             self.arm.harness.clear_grasp_exemption()
         self.beliefs.update(label, end, 0.6)
@@ -4199,6 +4544,12 @@ class SkillRuntime:
                     "ask": _stuck_ask(object, "persistence budget exhausted", 0),
                 }
             deadline = min(deadline, task_deadline)
+
+        # Keep a base-frame destination for this operation while the wrist
+        # camera approaches the object. Separate commands never reuse it.
+        destination_fix = None
+        if destination and not _names_drop_zone(destination) and self._native_wrist_camera():
+            destination_fix = self._overview_destination(destination)
 
         grasp = (
             {"held": already_held, "grip_verified": None, "grip_profile": None}
@@ -4296,10 +4647,11 @@ class SkillRuntime:
             if grasp is None:
                 # Never leave the arm hanging mid-pose over the table after a
                 # failed attempt -- park it (best effort, nothing is held).
-                try:
-                    self.skill_move_home()
-                except (SkillError, SafetyViolation):
-                    pass
+                if not self._home_policy_enabled():
+                    try:
+                        self.skill_move_home()
+                    except (SkillError, SafetyViolation):
+                        pass
                 out = {
                     **failure_destination,
                     "ok": False, "stage": "grasp",
@@ -4342,7 +4694,10 @@ class SkillRuntime:
                     place_generation = (place_harness._halt_generation
                                         if getattr(occupancy, "tracks_payload", False) else None)
                     if destination and not _names_drop_zone(destination):
-                        res = self.skill_place_on_object(destination)
+                        if destination_fix is not None and p_attempt == 1:
+                            res = self._place_at_destination(destination_fix)
+                        else:
+                            res = self.skill_place_on_object(destination)
                     else:
                         from .mujoco_region import select as select_region
                         region_plan = select_region(self, retain_aim=True)
@@ -4387,6 +4742,11 @@ class SkillRuntime:
                     self.memory.add(
                         "outcome", f"place attempt {p_attempt} failed: {place_err[:100]}"
                     )
+                    if self._native_wrist_camera():
+                        # Repeating an unobservable target or a refused motion
+                        # cannot repair it. Preserve the grasp and report the
+                        # reason instead of spending minutes retrying.
+                        break
                     if self.arm.harness.estopped:
                         place_err += " (e-stop latched; not retrying)"
                         break
@@ -4439,7 +4799,8 @@ class SkillRuntime:
         if placed.get("home_skipped", False):
             return_home["reason"] = f"{placed.get('stage', 'retreat')}_failed"
         if (not placed.get("home_skipped", False)
-                and bool(self.cfg.grasp.get("home_after_place", True))):
+                and bool(self.cfg.grasp.get("home_after_place", True))
+                and not self._home_policy_enabled()):
             try:  # clear the camera view for the next command; best effort
                 if place_generation is None:
                     self.skill_move_home()
@@ -4560,8 +4921,8 @@ class SkillRuntime:
         if ik is None:
             raise SkillError(f"cannot reach a pointing pose above {label!r}")
         if not self.held_object:
-            self.arm.set_gripper(self._grip_closed, effort=0.6)
-        if not self.arm.move_joints(ik.q, duration_s=2.0):
+            self._set_gripper(self._grip_closed, effort=0.6)
+        if not self._move_joints(ik.q, duration_s=2.0):
             raise SkillError("did not settle at the pointing pose")
         time.sleep(float(self.cfg.get("gesture", {}).get("point_hold_s", 1.2)))
         self.memory.add("action", f"pointed at {label!r}")
@@ -4571,7 +4932,7 @@ class SkillRuntime:
         """Greeting gesture: wag the base + wrist around home. Every
         waypoint still goes through the safety harness."""
         home = self._profile_q("home_q", "wave")
-        if not self.arm.move_joints(home, duration_s=2.0):
+        if not self._move_joints(home, duration_s=2.0):
             raise SkillError("could not reach home to wave")
         cycles = int(np.clip(cycles, 1, 4))
         wrist = self._gesture_joint
@@ -4579,8 +4940,8 @@ class SkillRuntime:
             q = home.copy()
             q[0] += 0.25 * side
             q[wrist] += 0.30 * side
-            self.arm.move_joints(q, duration_s=0.7)
-        self.arm.move_joints(home, duration_s=0.8)
+            self._move_joints(q, duration_s=0.7)
+        self._move_joints(home, duration_s=0.8)
         self.memory.add("action", "waved at the audience")
         return {"waved": True, "cycles": cycles}
 
@@ -4604,7 +4965,7 @@ class SkillRuntime:
                     out["ask"] = res.get("ask")
                 return out
         hand_q = self._profile_q("handover_q", "present the object to a human")
-        if not self.arm.move_joints(hand_q, duration_s=2.0):
+        if not self._move_joints(hand_q, duration_s=2.0):
             raise SkillError("did not settle at the handover pose")
         self.memory.add("action", f"offering {self.held_object!r} to the human")
         return {
@@ -4659,12 +5020,12 @@ class SkillRuntime:
         #    so we get the quickest *safe* swing) and pop the jaws open at
         #    the peak. Releasing while the wrist is still moving imparts the
         #    launch impulse.
-        if not self.arm.move_joints(windup, duration_s=1.5):
+        if not self._move_joints(windup, duration_s=1.5):
             raise SkillError("did not settle at the wind-up pose")
         self.memory.add("action", f"winding up to throw {thrown!r} {direction}")
         # kick off the swing in a background stream and release mid-arc.
-        self.arm.move_joints(release, duration_s=0.6)
-        self.arm.set_gripper(self._grip_open, effort=1.0)  # let it fly
+        self._move_joints(release, duration_s=0.6)
+        self._set_gripper(self._grip_open, effort=1.0)  # let it fly
         released_obj = self.held_object
         self.held_object = None
         self._held_det_label = None
@@ -4755,9 +5116,9 @@ class SkillRuntime:
         # The roll joint provides the spin, so the TCP orientation only has
         # to put the approach vertical; seed from home like every grasp.
         home = self._profile_q("home_q", "turn a screw")
-        if not self.arm.move_joints(home, duration_s=2.0):
+        if not self._move_joints(home, duration_s=2.0):
             raise SkillError("could not reach home to start the screw motion")
-        self.arm.set_gripper(self._grip_open, effort=0.8)
+        self._set_gripper(self._grip_open, effort=0.8)
         yaw0 = float(np.arctan2(engage[1], engage[0]))
         ik_hover = None
         engage_yaw = yaw0
@@ -4771,7 +5132,7 @@ class SkillRuntime:
                 break
         if ik_hover is None:
             raise SkillError(f"cannot reach a pose above {label!r} to work the screw")
-        if not self.arm.move_joints(ik_hover.q, duration_s=2.0):
+        if not self._move_joints(ik_hover.q, duration_s=2.0):
             raise SkillError("did not settle above the screw")
 
         # Stroke span: the roll joint's free travel inside its limits, split
@@ -4805,8 +5166,8 @@ class SkillRuntime:
             # 1) jaws open, wind the roll back to the stroke start
             q_start = q_engage.copy()
             q_start[joint] -= sign * min(start_back, room_back)
-            self.arm.set_gripper(self._grip_open, effort=0.8)
-            if not self.arm.move_joints(q_start, duration_s=1.0):
+            self._set_gripper(self._grip_open, effort=0.8)
+            if not self._move_joints(q_start, duration_s=1.0):
                 raise SkillError("did not settle at the stroke start")
             # 2) engage the head (two-stage close, force from the material)
             self._close_two_stage(profile)
@@ -4816,19 +5177,19 @@ class SkillRuntime:
                          (hi[joint] - margin - q_start[joint]) if sign > 0
                          else (q_start[joint] - (lo[joint] + margin)))
             if stroke <= 0.02:
-                self.arm.set_gripper(self._grip_open, effort=0.8)
+                self._set_gripper(self._grip_open, effort=0.8)
                 break
             q_end[joint] += sign * stroke
-            if not self.arm.move_joints(q_end, duration_s=max(0.8, stroke / 1.5)):
-                self.arm.set_gripper(self._grip_open, effort=0.8)
+            if not self._move_joints(q_end, duration_s=max(0.8, stroke / 1.5)):
+                self._set_gripper(self._grip_open, effort=0.8)
                 raise SkillError("stroke did not settle; stopping the screw task")
             # 4) disengage
-            self.arm.set_gripper(self._grip_open, effort=0.8)
+            self._set_gripper(self._grip_open, effort=0.8)
             done += stroke
             strokes += 1
 
         # retreat to hover, then home so the camera view clears
-        self.arm.move_joints(ik_hover.q, duration_s=1.0)
+        self._move_joints(ik_hover.q, duration_s=1.0)
         try:
             self.skill_move_home()
         except (SkillError, SafetyViolation):
@@ -5471,6 +5832,27 @@ class SkillRuntime:
         self.memory.add("outcome", f"search for {query!r} failed: {error[:100]}")
         return result
 
+    def skill_rotate_joint(self, joint: int, degrees: float) -> dict:
+        """Rotate one numbered joint by a signed relative angle, through SafeArm."""
+        if isinstance(joint, bool) or not isinstance(joint, int) or not 1 <= joint <= self.arm.n_joints:
+            raise SkillError(f"joint must be an integer from 1 to {self.arm.n_joints}")
+        degrees = float(degrees)
+        if not np.isfinite(degrees) or not 0 < abs(degrees) <= 90:
+            raise SkillError("degrees must be finite, nonzero, and between -90 and 90")
+        q = self.arm.get_state().q.copy()
+        q[joint - 1] += np.deg2rad(degrees)
+        lo, hi = self.kin.joint_limits
+        margin = self.arm.harness.limits.joint_margin
+        if not lo[joint - 1] + margin <= q[joint - 1] <= hi[joint - 1] - margin:
+            raise SkillError("requested rotation exceeds the joint limits; no motion sent")
+        # Conservative 10 deg/s peak for the minimum-jerk profile.
+        duration = max(2.0, 1.875 * abs(degrees) / 10.0)
+        if not self._move_joints(q, duration_s=duration):
+            raise SkillError("joint rotation did not settle; do not retry automatically")
+        measured = self.arm.get_state().q
+        return {"joint": joint, "relative_degrees": degrees,
+                "measured_degrees": float(np.rad2deg(measured[joint - 1]))}
+
     def skill_move_relative(self, direction: str | None = None, distance_m: float | None = None,
                             amount: str | None = None, frame: str | None = None,
                             vector: list | None = None) -> dict:
@@ -5498,9 +5880,9 @@ class SkillRuntime:
 
         Roll (clockwise/counterclockwise, about the gripper's own axis, as
         seen looking along the jaws) or tilt (the jaws swing toward a
-        direction), at most 30 deg per call, about the TCP point. The wrist
-        camera sits on top of the reBot gripper (TCP +z): no roll or tilt may
-        turn it below horizontal -- "upside down" is refused by name. See
+        direction), at most 30 deg per call, about the TCP point. The rig's
+        configured wrist-camera orientation and clearance gates apply;
+        "upside down" is refused by name. See
         `spatial_moves.rotate_gripper`.
         """
         from . import spatial_moves
@@ -5542,7 +5924,7 @@ class SkillRuntime:
         return spatial_moves.undo_move(self, steps=steps)
 
     def skill_open_gripper(self) -> dict:
-        self.arm.set_gripper(self._grip_open, effort=0.8)
+        self._set_gripper(self._grip_open, effort=0.8)
         if self.held_object:
             self.memory.add("action", f"released {self.held_object!r}")
             self.held_object = None
@@ -5757,7 +6139,7 @@ class SkillRuntime:
         if self.held_object:
             try:
                 kwargs = {} if recovery_generation is None else {"_halt_generation": recovery_generation}
-                self.arm.set_gripper(1.0, **kwargs)
+                self._set_gripper(1.0, **kwargs)
             except Exception as exc:  # noqa: BLE001
                 if recovery_generation is not None:
                     out.update(ok=False, stage="reset_recovery", recovery_error=str(exc),
@@ -5878,7 +6260,19 @@ class SkillRuntime:
             result = withdrawal.home()
             withdrawal.complete()
             return result
-        home = self._profile_q("home_q", "move home")
+        context = getattr(getattr(self, "_motion_scope", None), "context", None)
+        if context is not None and context["enabled"] and context["root_skill"] != "move_home":
+            reason = self._home_return_skip_reason()
+            if reason:
+                raise SkillError(f"home return suppressed: {reason}")
+            home = context["home"]
+        else:
+            home = self._profile_q("home_q", "move home")
+        if self._home_policy_enabled():
+            result = self._return_to_view_home(home, self.cfg.arm)
+            if not result["ok"]:
+                raise SkillError(result.get("error", result.get("reason", "home return failed")))
+            return {"at": "home", "return_home": result}
         # SafeArm plans the complete return before motion and re-vets against
         # actual feedback/map state at every segment. Legacy test doubles may
         # expose only move_joints; all real runtime arms are SafeArms.
@@ -6069,7 +6463,7 @@ class SkillRuntime:
         """
         from dataclasses import replace
 
-        from ..perception.visual_interface import VisualInterface, annotate_frame
+        from ..perception.visual_interface import VisualInterface, annotate_frame, configured_reach_x
 
         self.last_annotated_frame = None
         frame = self.observe_fresh()
@@ -6080,6 +6474,12 @@ class SkillRuntime:
         path = self.trace.save_keyframe(img, "annotated_view")
         if hasattr(self.camera, "set_overlay"):
             self.camera.set_overlay(status="annotated view")
+        note = (
+            "Objects carry numbered badges; grid values are robot base-frame "
+            "coordinates in metres (X forward, Y left, Z up), not camera range."
+        )
+        if configured_reach_x(self.cfg) is not None:
+            note += " The green band shows the explicitly configured top-down IK band."
         return {
             "key": VisualInterface.describe(marks),
             "objects": [m.as_dict() for m in marks],
@@ -6088,7 +6488,7 @@ class SkillRuntime:
                 "Badges describe tracked estimates, which may be stale or mislabeled. "
                 "No badges does not mean the scene is empty. This refreshes the "
                 "camera image, not object detection; use get_observation to refresh "
-                "tracking. Any shaded grasp band is a "
+                "tracking. Grid coordinates use the robot base frame (+X forward, +Y left, +Z up). Any shaded grasp band is a "
                 "configured display hint, not an IK or grasp-reachability check."
             ),
         }
@@ -6524,7 +6924,7 @@ TOOL_SPECS: list[dict] = [
         "description": (
             "Render the annotated camera view: tracked positions projected inside the image "
             "get numbered badges; entries outside the image are flagged in the key. "
-            "with a 5 cm base-frame grid and any explicitly configured display band. "
+            "With a 5 cm base-frame grid (+X forward, +Y left, +Z up) and any explicitly configured display band. "
             "MCP returns the annotated image and a text key mapping each number to its "
             "tracked label and 3D position. Badges are tracked estimates; this refreshes "
             "the camera frame, not object detection. Use get_observation to refresh tracking. "
@@ -6834,6 +7234,18 @@ TOOL_SPECS: list[dict] = [
         },
     },
     {
+        "name": "rotate_joint",
+        "description": "Rotate exactly one joint by a signed RELATIVE angle in degrees. Joint numbers start at 1. Maximum 90 degrees per command. Never substitute a grasp, reset, or Cartesian motion, and never retry a failed relative rotation.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "joint": {"type": "integer", "minimum": 1},
+                "degrees": {"type": "number", "minimum": -90, "maximum": 90},
+            },
+            "required": ["joint", "degrees"],
+        },
+    },
+    {
         "name": "move_relative",
         "description": (
             "Move the gripper -- and anything it holds -- a short straight distance, then report "
@@ -6852,8 +7264,8 @@ TOOL_SPECS: list[dict] = [
             "camera. in/out move along the gripper's pointing direction. up/down are always "
             "vertical. 'back' is a direction, NOT undo: for 'go back to where it was' / 'undo "
             "that' call undo_move. While holding an object it moves slower, never opens or "
-            "closes the jaws, and keeps the object's bottom off the table; the wrist camera that sticks "
-            "out ~8 cm on top of the gripper is always kept off the table too. Tell the person the "
+            "closes the jaws, and keeps the object's bottom off the table. The rig's configured "
+            "wrist-camera orientation and volume checks also apply. Tell the person the "
             "`interpretation` (and `as_seen_on_screen`). If refused (ok=false), the arm did NOT "
             "move: relay the reason; if `feasible_distance_m` is given, offer that smaller move."
         ),
@@ -6893,10 +7305,10 @@ TOOL_SPECS: list[dict] = [
             "counterclockwise; 'tilt it down a little' -> down, amount=small; 'point it toward me' "
             "-> toward_viewer; 'a bit more' -> direction=again. SIZE: amount tiny=5, small=10, "
             "medium=15 (default), large=30 deg; or angle_deg 1-30 (at most 30 deg per call). "
-            "SAFETY: the wrist camera is mounted on TOP of the gripper, sticks out ~8 cm and must "
-            "always stay up: never offer to turn the gripper upside down or roll it past sideways -- "
-            "such requests are refused, and so is any turn that would bring the camera itself near "
-            "the table or into a keep-out zone. While holding an object it turns slower and never opens the jaws. If "
+            "SAFETY: obey the rig's configured wrist-camera orientation and clearance limits; "
+            "never offer to turn the gripper upside down. Camera volume checks apply only when "
+            "the profile declares that geometry. While holding an object it turns slower and "
+            "never opens the jaws. If "
             "refused (ok=false), the arm did NOT move; relay the reason and, if given, offer "
             "`feasible_angle_deg`. 'undo_move' turns it back."
         ),
@@ -6990,7 +7402,9 @@ TOOL_SPECS: list[dict] = [
     {
         "name": "move_home",
         "description": (
-            "Move the arm to its INITIAL (ready) pose: raised, motors on, gripper forward, "
+            "Return the arm to its configured INITIAL (ready) pose. Reobserve after moving "
+            "an eye-in-hand camera. On a rig with a separate rest pose this means raised, "
+            "motors on, gripper forward, "
             "ready for the next task -- what the user means by 'initial pose', 'ready pose', "
             "'start pose', 'starting position' (Spanish: 'pose inicial', 'posición inicial', "
             "'vuelve al inicio'). Also clears the camera view. 'home', 'go home', 'pose 0', "
@@ -7185,3 +7599,69 @@ for _spec in TOOL_SPECS:
             ),
         }
 del _spec
+
+
+def tool_specs_for_config(cfg=None):
+    """Independent schemas for the selected rig; never mutate the shared catalog."""
+    import copy
+    from ..robot_context import arm_profiles
+
+    specs = copy.deepcopy(TOOL_SPECS)
+    if cfg is None:
+        return specs
+    arms = arm_profiles(cfg)
+    cameras = cfg.get("cameras") or [cfg.camera]
+    camera_names = [c.get("name") for c in cameras if c.get("name")]
+    unsupported = set.intersection(*(set(a.get("unsupported_skills", [])) for a in arms))
+    specs = [s for s in specs if s["name"] not in unsupported]
+    home_arms = [a.get("name", "primary") for a in arms if a.get("return_home_after_motion")]
+    summary = "; ".join(f"{a.get('name', 'primary')}: {a.get('display_name', a.get('name', 'arm'))}, "
+                        f"{a['n_joints']}-DOF, TCP {a.get('ee_frame')}" for a in arms)
+    for spec in specs:
+        if home_arms and len(home_arms) == len(arms) and spec["name"] == "move_home":
+            spec["description"] = (
+                "Return the arm to the saved operator camera-view home, preserving the gripper "
+                "state. This is the overview pose meant by 'home' on this rig. The wrist "
+                "camera moves with the arm; reobserve afterward. STOP, cancellation and "
+                "hardware/safety faults prevent the return."
+            )
+        if home_arms and len(home_arms) == len(arms) and spec["name"] == "move_to_rest":
+            spec["description"] = (
+                "Move to a declared folded rest pose if the arm has one. Without a configured "
+                "park_q, return to the saved camera-view home while preserving the gripper "
+                "state and keeping the motors on; safe_to_power_off remains false. Never "
+                "infer a zero-joint rest pose or claim torque was released."
+            )
+        parameters = spec["parameters"]
+        parameters["additionalProperties"] = False
+        for field, prop in parameters.get("properties", {}).items():
+            if field == "camera" and camera_names:
+                prop["enum"] = camera_names
+            if field in {"label", "object", "query"} and prop.get("type") == "string":
+                prop.update(minLength=1, pattern=r"^[^<>]+$")
+        if spec["name"] in _MOTION_SKILLS or spec["name"] in {"list_arms", "get_observation"}:
+            spec["description"] += " Configured arms: " + summary + "."
+        if spec["name"] in _MOTION_SKILLS - {"move_home", "move_to_rest", "reset_scene"}:
+            if home_arms:
+                spec["description"] += (
+                    " On " + ", ".join(home_arms)
+                    + ", this top-level action returns to the saved operator camera-view home, "
+                    "including ordinary grasp failures. Composite pick/place phases stay together. "
+                    "STOP, cancellation and hardware/safety faults suppress the return. "
+                    "Read return_home for the actual return status; any reported action pose "
+                    "was reached before that return."
+                )
+        if spec["name"] == "rotate_joint":
+            spec["parameters"]["properties"]["joint"]["maximum"] = max(int(a['n_joints']) for a in arms)
+        if spec["name"] in {"open_gripper", "close_gripper", "grasp_object", "grasp_at_pixel", "preview_grasp"}:
+            for arm in arms:
+                grip = arm.get("gripper", {})
+                spec["description"] += (f" {arm.get('name', 'primary')} gripper: "
+                    f"{grip.get('name', 'profile gripper')}, maximum aperture {grip.get('max_width_m')} m. "
+                    + str(grip.get("position_description", "")))
+        if spec["name"] == "move_relative":
+            spec["description"] += (
+                " Bare directions default to the robot base frame; use an explicit frame "
+                "for viewer- or tool-relative requests."
+            )
+    return specs

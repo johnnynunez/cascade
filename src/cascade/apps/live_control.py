@@ -70,21 +70,36 @@ class LiveViewController:
         #: callbacks handed to each freshly built server (chat wiring survives
         #: close/open cycles -- otherwise the second open has a dead chat box)
         self._task_fn = None
+        self._task_cancel_aware = False
         self._cancel_fn = None
+        self._resume_fn = None
 
     # ── wiring that must survive re-opens ────────────────────────────────
 
-    def set_task_fn(self, fn) -> None:
+    def set_task_fn(self, fn, *, cancel_aware: bool = False) -> None:
         self._task_fn = fn
+        self._task_cancel_aware = cancel_aware
         with self._lock:
             if self._server is not None:
-                self._server.set_task_fn(fn)
+                self._wire_task(self._server)
+
+    def _wire_task(self, server) -> None:
+        if self._task_cancel_aware:
+            server.set_task_fn(self._task_fn, cancel_aware=True)
+        else:
+            server.set_task_fn(self._task_fn)
 
     def set_cancel_fn(self, fn) -> None:
         self._cancel_fn = fn
         with self._lock:
             if self._server is not None:
                 self._server.set_cancel_fn(fn)
+
+    def set_resume_fn(self, fn) -> None:
+        self._resume_fn = fn
+        with self._lock:
+            if self._server is not None:
+                self._server.set_resume_fn(fn)
 
     # ── state ────────────────────────────────────────────────────────────
 
@@ -151,9 +166,11 @@ class LiveViewController:
             try:
                 server = self._factory()
                 if self._task_fn is not None:
-                    server.set_task_fn(self._task_fn)
+                    self._wire_task(server)
                 if self._cancel_fn is not None:
                     server.set_cancel_fn(self._cancel_fn)
+                if self._resume_fn is not None:
+                    server.set_resume_fn(self._resume_fn)
                 server.start()
             except OSError as e:
                 return {

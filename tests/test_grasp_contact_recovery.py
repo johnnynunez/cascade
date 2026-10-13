@@ -76,6 +76,11 @@ def fixture(monkeypatch, failure):
         grasp_memory=SimpleNamespace(record=lambda *a, **kw: None),
         _close_two_stage=lambda profile: jaws.append(("close",)),
     )
+    # Keep the real composed motion hooks in this deliberately small runtime double.
+    from types import MethodType
+    for method in ("_home_policy_enabled", "_joint_segment_rejection", "_move_joints",
+                   "_set_gripper", "_move_planned", "_move_carry", "_mark_motion_started"):
+        setattr(rt, method, MethodType(getattr(module.SkillRuntime, method), rt))
     def run():
         return module.SkillRuntime.skill_grasp_object(
             rt, "orange", _fix=SimpleNamespace(detection=SimpleNamespace(label="orange")),

@@ -76,11 +76,13 @@ class OpenVocabDetector(Detector):
         # pinned, rather than loading the promptable one and replacing it.
         pf = self._pf_path() if (prompt_free and not classes) else None
         self._model = YOLO(pf or model_path)
+        self._closed_set = not callable(getattr(self._model, "set_classes", None))
         self._prepare_cuda_model()
         # Keep the two model modes resident. A watcher alternates open-world
         # detection with foreground prompts; replacing either checkpoint on
         # every switch also discards its predictor and repeats cold startup.
         self._models = {str(pf or model_path): self._model}
+        self._warmed_models: set[int] = set()
         self._text_embeddings = OrderedDict()
         self._prompt_classes = []
         self._prompt_filter_only = False
@@ -101,6 +103,10 @@ class OpenVocabDetector(Detector):
         missing `-pf` checkpoint logs and leaves the model as it was.
         """
         if self._prompt_free:
+            return
+        if self._closed_set:
+            self._classes = []
+            self._filter_only = False
             return
         pf_path = self._pf_path()
         if pf_path is None:
@@ -134,13 +140,19 @@ class OpenVocabDetector(Detector):
             self._model = model
 
     def prepare(self, classes: list[str] | None) -> None:
-        """Load vocabulary resources before choosing an image to analyze.
+        """Load vocabulary and cold inference resources before selecting a frame.
 
-        This supplies no detections or geometry. detect() still selects its
-        own vocabulary and analyzes its actual frame with normal age guards.
-        Shared callers serialize preparation through LockedDetector.
+        A discarded blank inference initializes the predictor/CUDA kernels;
+        text preparation alone leaves that work inside the first real image's
+        freshness budget. It is never parsed or published as an observation.
+        The two resident models each warm once; actual images are always run
+        again by detect(), under their unchanged freshness guards.
         """
         self.set_classes(classes)
+        identity = id(self._model)
+        if identity not in self._warmed_models:
+            self._predict_image(np.zeros((640, 640, 3), dtype=np.uint8))
+            self._warmed_models.add(identity)
 
     def _pf_path(self) -> str | None:
         """`yoloe-11s-seg.pt` -> `yoloe-11s-seg-pf.pt`, if that name is usable.
@@ -227,8 +239,21 @@ class OpenVocabDetector(Detector):
         # Otherwise one targeted search hides every other prop from the
         # shared watcher and subsequent get_observation calls indefinitely.
         self.set_classes(classes)
+        results = self._predict_image(frame.rgb)
+        dets = self._parse(results[0], frame)
+        if self._filter_only and self._classes:
+            # Loose word-overlap match so "red cup" still finds COCO's "cup".
+            wanted = {w for c in self._classes for w in c.lower().split()}
+            dets = [d for d in dets if wanted & set(d.label.lower().split())]
+        return dets
+
+    def _predict_image(self, bgr):
+        """Shared inference settings/attestation, including discarded warmup."""
         results = self._model.predict(
-            frame.rgb, conf=self._conf, device=self._device, verbose=False
+            bgr, conf=self._conf, device=self._device, verbose=False,
+            # Return masks in original image pixels. Resizing the padded
+            # 384x640 inference mask directly to 720x1280 shifts depth ROIs.
+            retina_masks=True,
         )
         import os
         if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
@@ -238,12 +263,7 @@ class OpenVocabDetector(Detector):
                 raise RuntimeError("GPU detector prediction did not return CUDA tensors; CPU fallback is forbidden")
             from .cuda_math import record
             record("neural_detector_outputs", *tensors)
-        dets = self._parse(results[0], frame)
-        if self._filter_only and self._classes:
-            # Loose word-overlap match so "red cup" still finds COCO's "cup".
-            wanted = {w for c in self._classes for w in c.lower().split()}
-            dets = [d for d in dets if wanted & set(d.label.lower().split())]
-        return dets
+        return results
 
     def _parse(self, result, frame: Frame) -> list[Detection]:
         import os

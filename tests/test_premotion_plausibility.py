@@ -457,7 +457,9 @@ def test_opt_out_is_byte_identical_to_the_pre_change_path():
     rt, llm, report = _run_stub(None)
 
     assert rt.calls == [(name, args) for name, args in ((c.name, c.arguments) for c in _SCRIPT)]
-    assert rt.sets == [("current_tier", "llm"), ("current_tier", None)] * 3 + [("last_path", "llm")]
+    assert rt.sets == ([("current_task", "stub task")]
+                       + [("current_tier", "llm"), ("current_tier", None)] * 3
+                       + [("last_path", "llm"), ("current_task", None)])
     assert rt.memory.added == []
     assert report.success is True and report.steps == 3 and report.path == "llm"
     assert report.tool_log == [
@@ -491,7 +493,7 @@ def test_critic_on_the_stub_adds_only_the_advisory_and_still_dispatches_unchange
     assert rt.calls == [(name, args) for name, args in ((c.name, c.arguments) for c in _SCRIPT)]
     writes = [k for k, _ in rt.sets]
     assert [k for k in writes if k != "pending_plausibility"] == (
-        ["current_tier", "current_tier"] * 3 + ["last_path"]
+        ["current_task"] + ["current_tier", "current_tier"] * 3 + ["last_path", "current_task"]
     )
     # The hand-off is set before and cleared after each interrogated motion.
     assert [v for k, v in rt.sets if k == "pending_plausibility" and v is None] == [None, None]
@@ -524,6 +526,8 @@ def test_bare_runtime_without_the_hand_off_attribute_still_dispatches(tmp_path):
     from cascade.skills.runtime import SkillRuntime
 
     rt: Any = SkillRuntime.__new__(SkillRuntime)
+    from cascade.config import load_demo_config
+    rt.cfg = load_demo_config(camera="mock", arm="mock", llm="mock")
     rt._task_effects = TaskEffects()
     rt._arm = object()
     rt._arm_override = threading.local()

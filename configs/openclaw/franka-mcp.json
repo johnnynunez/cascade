@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "cascade": {
+      "type": "http",
+      "url": "http://127.0.0.1:18740/mcp",
+      "headers": {
+        "Authorization": "Bearer ${CASCADE_MCP_TOKEN}"
+      }
+    }
+  }
+}

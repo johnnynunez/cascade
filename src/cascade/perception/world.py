@@ -21,6 +21,7 @@ It also:
 from __future__ import annotations
 
 import contextlib
+import logging
 import sys
 import threading
 import time
@@ -36,6 +37,8 @@ from .workspace import WorkspaceFilter
 from ..memory.beliefs import FrameObservation, camera_source
 from ..types import Frame, transform_points
 
+logger = logging.getLogger(__name__)
+
 
 class LockedDetector:
     """Serialize detector access across threads (YOLO predict is not
@@ -43,11 +46,35 @@ class LockedDetector:
 
     def __init__(self, detector):
         self._detector = detector
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
+
+    @contextlib.contextmanager
+    def reserve(self):
+        """Wait for inference ownership BEFORE selecting an observation.
+
+        The foreground caller captures inside this scope and can then call
+        detect() reentrantly. Background inference cannot age that selected
+        frame while it waits for the detector. This never refreshes timestamps
+        or admits images whose actual analysis exceeds their freshness limit.
+        """
+        started = time.monotonic()
+        with self._lock:
+            waited = time.monotonic() - started
+            if waited > .25:
+                logger.info("Detector reservation waited %.3fs before frame selection", waited)
+            yield
 
     def detect(self, frame, classes=None):
+        started = time.monotonic()
         with self._lock:
-            return self._detector.detect(frame, classes=classes)
+            acquired = time.monotonic()
+            try:
+                return self._detector.detect(frame, classes=classes)
+            finally:
+                elapsed = time.monotonic() - acquired
+                if elapsed + acquired - started > 1.:
+                    logger.info("Detector timing: lock wait %.3fs, inference %.3fs, classes=%r",
+                                acquired - started, elapsed, classes)
 
     def set_classes(self, classes) -> None:
         with self._lock:

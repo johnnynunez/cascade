@@ -49,6 +49,8 @@ _PREP = r"(?:in|into|inside|on|onto|to|at|en|dentro de|sobre|a)"
 _ART = r"(?:the\s+|a\s+|an\s+|el\s+|la\s+|un\s+|una\s+)?"
 
 _RULES: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"^(?:rotate|turn)\s+joint\s+(?P<joint>\d+)\s+(?:by\s+)?"
+                r"(?P<degrees>[+-]?\d+(?:\.\d+)?)\s*(?:degrees?|deg|°)$"), "rotate_joint"),
     # "place it in the bowl" (destination for the already-held object);
     # must outrank the generic place rule or the pronoun becomes the object
     (
@@ -254,7 +256,7 @@ class ReflexPlan:
 def parse_command(text: str) -> ReflexPlan | None:
     """Compile a routine command into skill calls; None -> not routine."""
     cmd = text.strip().lower()
-    cmd = re.sub(r"[.!?¡¿]+", "", cmd)
+    cmd = re.sub(r"[!?¡¿]+|(?<!\d)\.|\.(?!\d)", "", cmd)
     for _ in range(3):  # peel stacked politeness ("hey, can you please ...")
         stripped = _POLITENESS.sub("", cmd).strip()
         if stripped == cmd:
@@ -284,6 +286,10 @@ def parse_command(text: str) -> ReflexPlan | None:
         if intent is None:
             return None
         g = m.groupdict()
+        if intent == "rotate_joint":
+            return ReflexPlan(intent, [("rotate_joint", {
+                "joint": int(g["joint"]), "degrees": float(g["degrees"]),
+            })])
         obj = (g.get("obj") or "").strip() or None
         dest = (g.get("dest") or "").strip() or None
         if obj:

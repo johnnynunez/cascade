@@ -25,7 +25,8 @@ pytestmark = pytest.mark.skipif(not has_pinocchio(), reason="pinocchio not avail
 class McpClient:
     def __init__(self, tmp_run_dir: str, extra_env: dict | None = None):
         env = dict(os.environ)
-        env["PYTHONPATH"] = str(REPO / "src")
+        env["PYTHONPATH"] = os.pathsep.join(
+            p for p in (str(REPO / "src"), env.get("PYTHONPATH", "")) if p)
         env["CASCADE_CAMERA"] = "mock"
         env["CASCADE_ARM"] = "mock"
         env["CASCADE_RUN_DIR"] = tmp_run_dir

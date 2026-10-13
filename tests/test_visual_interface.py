@@ -16,7 +16,9 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from cascade.perception.visual_interface import VisualInterface, configured_grasp_band
+from cascade.perception.visual_interface import (
+    VisualInterface, configured_grasp_band, configured_reach_x,
+)
 
 # ── synthetic pinhole camera looking straight down (mirrors test_probe.py) ─
 
@@ -149,7 +151,7 @@ def test_offscreen_entries_keep_their_indices_and_count_separate_from_badges(mon
 
     assert [mark.index for mark in marks] == [1, 2]
     assert [mark.extra["projected_in_image"] for mark in marks] == [False, True]
-    assert "1 badges | 2 tracked objects | grid = 5 cm" in labels
+    assert "1 badges | 2 tracked objects | grid=5 cm at base Z=0.00m" in labels
     assert "1" not in labels and "2" in labels
 
 
@@ -157,3 +159,75 @@ def test_empty_projection_key_does_not_claim_an_empty_scene():
     key = VisualInterface.describe([])
     assert "no tracked-object projections" in key
     assert "does not establish that the scene is empty" in key
+
+def test_fr3_has_no_invented_topdown_band_and_explicit_band_still_draws():
+    from cascade.config import load_demo_config
+
+    cfg = load_demo_config(camera="d435i", arm="fr3", llm="mock")
+    assert configured_reach_x(cfg) is None
+    vi = _vi()
+    without_band, _ = vi.render(_frame(), grid=False)
+    green = lambda img: (img[:, :, 1] > img[:, :, 0]) & (img[:, :, 1] > img[:, :, 2])
+    assert not green(without_band).any()
+
+    vi.reach_x = (0.155, 0.185)
+    with_band, _ = vi.render(_frame(), grid=False)
+    assert green(with_band).any()
+
+
+def test_grid_labels_identify_base_coordinates_and_actual_plane_spacing(monkeypatch):
+    import cascade.perception.visual_interface as module
+
+    labels = []
+    monkeypatch.setattr(module, "_put_label", lambda img, text, *a, **kw: labels.append(text))
+    vi = VisualInterface(workspace={"min": [-0.1, -0.1, -0.2], "max": [0.1, 0.1, 0.5]},
+                         grid_step_m=0.025, table_z=-0.10)
+    vi.render(_frame())
+    assert "X=0.00m" in labels
+    assert any("grid=2.5 cm at base Z=-0.10m" in label for label in labels)
+    assert any("X forward | Y left | Z up" in label for label in labels)
+
+
+def test_workspace_status_checks_height_without_claiming_ik_reachability():
+    vi = VisualInterface(workspace={"min": [-1, -1, -0.01], "max": [1, 1, 0.5]})
+    belief = _belief("cube", [0.1, 0.0, 0.9], last_seen_t=100.0, observations=2)
+    _, marks = vi.render(_frame(), beliefs=[belief], now=100.0)
+    assert marks[0].reachable is None
+    assert marks[0].extra["in_workspace"] is False
+    assert marks[0].extra["ik_checked"] is False
+    assert "outside the workspace AABB" in vi.describe(marks)
+
+
+def test_dashboard_agent_view_uses_selected_camera_geometry():
+    import cv2
+    from cascade.apps.stream_server import StreamServer
+    from cascade.config import Cfg
+
+    wide_k = np.array([[500., 0, 320.], [0, 500., 240.], [0, 0, 1.]])
+    frame = SimpleNamespace(rgb=np.zeros((480, 640, 3), dtype=np.uint8), K=wide_k,
+                            T_base_cam=None)
+    over = SimpleNamespace(name="over", latest=lambda: frame)
+    side = SimpleNamespace(name="side", latest=lambda: frame)
+    side_t = T_BASE_CAM.copy()
+    side_t[0, 3] = 0.20
+    over_ext = SimpleNamespace(cam_to_base=lambda: T_BASE_CAM)
+    side_ext = SimpleNamespace(cam_to_base=lambda: side_t)
+    belief = _belief("cube", [0.1, 0., 0.1], last_seen_t=100., observations=2)
+    rig = SimpleNamespace(primary=over, get=lambda name: {"over": over, "side": side}[name])
+    runtime = SimpleNamespace(
+        cfg=Cfg({"safety": {"workspace": {}, "table_z": 0.}, "grasp": {}}),
+        extrinsics=over_ext, rig=rig,
+        watcher=SimpleNamespace(_cams=[SimpleNamespace(stream=over, extrinsics=over_ext),
+                                       SimpleNamespace(stream=side, extrinsics=side_ext)]),
+        beliefs=SimpleNamespace(all=lambda: [belief]), _tcp=lambda: None,
+    )
+    server = StreamServer(rig, runtime_fn=lambda: runtime)
+    rgb = cv2.imdecode(np.frombuffer(server.annotated_view_jpeg("side"), dtype=np.uint8), cv2.IMREAD_COLOR)
+    # The side camera sees x=.10 from its own x=.20 position: u≈264.
+    # Borrowing the primary camera's pose puts the mark at u≈376 instead.
+    # Use the lower ring, below the text that extends right from the mark.
+    patch = lambda u: rgb[248:256, u-15:u+16].astype(int)
+    selected = patch(264)
+    wrong = patch(376)
+    assert ((selected[:, :, 1] - selected[:, :, 2]) > 40).any()
+    assert not ((wrong[:, :, 1] - wrong[:, :, 2]) > 40).any()

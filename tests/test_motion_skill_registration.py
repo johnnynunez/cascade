@@ -28,7 +28,8 @@ from cascade.skills.runtime import _MOTION_SKILLS, SkillRuntime
 _MOVES = re.compile(
     r"self\.arm\.(move_joints|move_home|stream_to|set_gripper|move_relative"
     r"|move_cartesian|move_planned|move_joint_path)"
-    r"|self\.arm\.raw\."
+    r"|self\._(move_joints|move_planned|move_carry|set_gripper|close_two_stage)\("
+    r"|self\.arm\.raw\.(move_joints|stream_to|set_gripper|close_gripper_two_stage)\("
     # the natural-language motion tools delegate their whole motion path
     r"|spatial_moves\.(move_relative|rotate_gripper|undo_move|move_near_object)\("
     # ... and so does the rest pose (fold, verify, release)
@@ -64,6 +65,13 @@ def test_motion_skills_all_exist():
     names = set(_skill_names())
     unknown = sorted(_MOTION_SKILLS - names)
     assert not unknown, f"_MOTION_SKILLS names skills that do not exist: {unknown}"
+
+
+def test_registration_detector_covers_wrappers_and_excludes_readiness():
+    assert _MOVES.search("self._move_joints(q, duration_s=2.0)")
+    assert _MOVES.search("self._set_gripper(.04, effort=1.0)")
+    assert _MOVES.search("self._close_two_stage(profile)")
+    assert not _MOVES.search("robot['motion_control'] = self.arm.raw.motion_status")
 
 
 def test_grasp_at_pixel_is_a_motion_skill():

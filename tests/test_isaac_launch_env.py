@@ -220,6 +220,8 @@ def test_launch_adapter_runs_real_child_with_exit_status_and_sanitized_env(tmp_p
 
 @pytest.mark.parametrize("escaped", [False, True], ids=["private-group", "escaped-session"])
 def test_source_wrapper_waits_for_delayed_child_cleanup(tmp_path, escaped):
+    if sys.platform.startswith("linux") and not Path(f"/proc/self/task/{os.getpid()}/children").exists():
+        pytest.skip("source-shell ownership requires Linux proc child inventory, absent on this kernel")
     if escaped and not sys.platform.startswith("linux"):
         pytest.skip("orphan adoption requires the Linux subreaper")
     adapter()
@@ -278,6 +280,8 @@ def test_source_wrapper_waits_for_delayed_child_cleanup(tmp_path, escaped):
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux orphan adoption")
 def test_source_wrapper_retains_orphan_respawn_and_native_signal_failure(tmp_path):
+    if not Path(f"/proc/self/task/{os.getpid()}/children").exists():
+        pytest.skip("source-shell ownership requires Linux proc child inventory, absent on this kernel")
     worker = tmp_path / "worker.py"
     ready, respawned, release = (tmp_path / name for name in ("ready", "respawned", "release"))
     worker.write_text(

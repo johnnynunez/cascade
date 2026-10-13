@@ -107,19 +107,48 @@ def local_brain(base: str, expected: str | None) -> dict:
 
 
 def probe_native_tools(base: str, model: str) -> dict:
-    """A real inference request, never a GET /models masquerading as proof."""
+    """Prove native tool generation; no tool runs and no readiness is inferred.
+
+    Use ordinary read-only CASCADE inspection schemas and a semantic request,
+    rather than a greeting or a synthetic readiness function. The model still
+    chooses between tools with tool_choice=auto; prose is never sufficient.
+    """
     info = local_brain(base, model)
     payload = {
         "model": model, "stream": False, "temperature": 0, "max_tokens": 512,
-        "messages": [{"role": "system", "content": "Use the available tools to check readiness or explain capabilities."},
-                     {"role": "user", "content": "Are you ready?"}],
-        "tools": [{"type": "function", "function": {
-            "name": "cascade_readiness", "description": "Check whether the demo is ready. Set ready=true to request the readiness check. This diagnostic has no side effects.",
-            "parameters": {"type": "object", "properties": {"ready": {"type": "boolean"}}, "required": ["ready"]},
-        }}, {"type": "function", "function": {
-            "name": "cascade_capabilities", "description": "List the available demo capabilities when someone asks what the demo can do.",
-            "parameters": {"type": "object", "properties": {}, "required": []},
-        }}],
+        "messages": [{"role": "system", "content": "You are a robot assistant. Use the available tools to inspect the physical workspace when asked. Observations must come from tools."},
+                     {"role": "user", "content": "What objects does the tracked world model currently contain?"}],
+        "tools": [{'type': 'function',
+          'function': {'name': 'cascade__camera_snapshot',
+                       'description': 'Capture a camera frame and return it as an image, with the '
+                                      'depth source noted. Use this to SEE the workspace. Optional '
+                                      '`camera` selects a rig camera by exact name. When the user '
+                                      'provides a camera name, call this tool directly: it validates '
+                                      'availability and reports any unavailable-camera error. A prior '
+                                      'world_state call is not required. Use world_state to discover '
+                                      'names only when the request does not specify a camera.',
+                       'parameters': {'type': 'object',
+                                      'properties': {'camera': {'type': 'string'}},
+                                      'required': []}}},
+         {'type': 'function',
+          'function': {'name': 'cascade__world_state',
+                       'description': 'Read tracked objects, MCP session state and cached camera '
+                                      'statistics. session_state.agent_status is last activity text, '
+                                      'not a startup or health check. arm_connected means this '
+                                      'session opened its control connection; false is normal before '
+                                      "first control use. Perception counters describe this session's "
+                                      'detection and belief updates. This does not query simulator '
+                                      'health, arm pose or gripper contents. tracked_holding is '
+                                      'session history, not a current contact measurement. Object '
+                                      'labels and positions may be remembered: use get_observation '
+                                      'for the visible scene and localize_object for measured '
+                                      'positions. `capabilities` is what THIS rig can do as probed at '
+                                      'startup (depth chain per camera, sidecars, arms, verifier, '
+                                      'memory); `tools_withheld` names the tools not offered because '
+                                      'a precondition is unmet, with the reason, and '
+                                      '`tools_hidden_by_operator` the ones the operator removed. Do '
+                                      'not ask for a withheld tool; work with what is listed.',
+                       'parameters': {'type': 'object', 'properties': {}, 'required': []}}}],
         "tool_choice": "auto",
         "chat_template_kwargs": {"enable_thinking": False},
     }
@@ -133,8 +162,8 @@ def probe_native_tools(base: str, model: str) -> dict:
         arguments = json.loads(function.get("arguments", ""))
     except (TypeError, ValueError) as exc:
         raise ProofError("native tool arguments are not JSON") from exc
-    if calls[0].get("type") != "function" or function.get("name") != "cascade_readiness" or not isinstance(arguments, dict) or len(arguments) != 1 or arguments.get("ready") is not True:
-        raise ProofError("native tool call did not match the readiness request")
+    if calls[0].get("type") != "function" or function.get("name") != "cascade__world_state" or not isinstance(arguments, dict) or arguments:
+        raise ProofError("native tool call did not match the world-state inspection request")
     return {**info, "native_tools": True}
 
 

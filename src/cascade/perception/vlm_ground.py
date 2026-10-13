@@ -74,11 +74,14 @@ class VLMGrounder:
         model: str,
         api_key: str = "EMPTY",
         timeout_s: float = 20.0,
+        enable_thinking: bool | None = None,
     ):
         from openai import OpenAI  # lazy heavy import
 
-        self._client = OpenAI(base_url=base_url, api_key=api_key, timeout=timeout_s)
+        self._client = OpenAI(base_url=base_url, api_key=api_key, timeout=timeout_s, max_retries=0)
         self._model = model
+        self._extra_body = ({"chat_template_kwargs": {"enable_thinking": enable_thinking}}
+                            if enable_thinking is not None else {})
 
     def ground(self, frame, query: str) -> Detection | None:
         """One grounding call -> Detection with a bbox (no mask), or None."""
@@ -91,6 +94,7 @@ class VLMGrounder:
             model=self._model,
             temperature=0.0,
             max_tokens=768,  # Qwen thinking mode spends tokens before the JSON
+            extra_body=self._extra_body,
             messages=[{
                 "role": "user",
                 "content": [

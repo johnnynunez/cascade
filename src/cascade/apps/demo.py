@@ -21,10 +21,11 @@ import os
 import sys
 import time
 from pathlib import Path
+import numpy as np
 
 from ..agent.advisor import Advisor
 from ..agent.llm import make_llm, resolve_llm_profile
-from ..agent.orchestrator import AgentOrchestrator
+from ..agent.orchestrator import AgentOrchestrator, TaskBusyError
 from ..agent.reflex import ExperienceMemory, FastPlanner
 from ..agent.trace import TraceLogger
 from ..config import Cfg, PACKAGE_ROOT, load_demo_config
@@ -248,7 +249,12 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
         base_T = _base_transform(acfg)
 
         def _body_points(_arm=arm, _kin=kin, _T=base_T, _cfg=acfg, *, frame=None):
-            if frame is not None and _cfg.get("type") == "isaac":
+            if frame is not None and _cfg.get("type") == "ros2":
+                snapshots = getattr(frame, "robot_joint_positions", None) or {}
+                q = np.asarray(snapshots.get(str(_cfg.get("name", "arm"))), dtype=float)
+                if q.shape != (int(_cfg.get("n_joints", 6)),) or not np.isfinite(q).all():
+                    raise ValueError("ROS joint snapshot missing from camera frame")
+            elif frame is not None and _cfg.get("type") == "isaac":
                 from ..control.isaac_arm import IsaacArm
 
                 q = IsaacArm(_cfg).state_from_frame(frame).q
@@ -275,12 +281,12 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
             return pts
 
         frame_body = None
-        if acfg.get("type") == "isaac":
+        if acfg.get("type") in ("isaac", "ros2"):
             # Explicit backend binding. A legacy/malformed Isaac frame must
             # fail closed, not silently read today's q for yesterday's image.
             def frame_body(frame):
                 if frame is None:
-                    raise ValueError("Isaac capture snapshot required")
+                    raise ValueError("camera capture snapshot required")
                 return _body_points(frame=frame)
 
         # `body_mask: mesh` (real arms, opt in per profile): the URDF
@@ -534,10 +540,10 @@ def build_runtime(
     # streaming (WRC 37285b0, tests/test_detector_after_camera_open.py).
 
     def fk():
-        # Eye-in-hand extrinsics need live FK -- but the 3 Hz watcher must
-        # NEVER be the thing that materializes a LazyArm (that would power
-        # the motors as a side effect of starting the gateway). The watcher
-        # skips this camera until the arm is up.
+        # Eye-in-hand extrinsics need live FK, but camera streams and the
+        # watcher must never materialize a LazyArm (that would power the
+        # motors as a side effect of starting the gateway). Until the arm
+        # is up, RGB keeps streaming without a camera pose and fusion skips it.
         if not getattr(arm, "connected", True):
             from ..types import SkillError
 
@@ -545,16 +551,36 @@ def build_runtime(
         return kin.fk(arm.get_state().q)
 
     for i, ccfg in enumerate(cam_cfgs):
-        stream = CameraStream(
-            make_camera(ccfg),
-            name=str(ccfg.get("name", f"cam{i}")),
-            rate_hz=float(ccfg.get("fps", 30.0)),
-        )
-        streams.append(stream)
         extrinsics = Extrinsics.from_config(
             ccfg.get("extrinsics", _empty_cfg()), fk_tcp2base=fk,
             camera_serial=ccfg.get("serial"),
         )
+        capture_geometry = None
+        if any(a.get("type") == "ros2" for a in arm_cfgs):
+            def capture_geometry(_ext=extrinsics):
+                snapshots = {}
+                primary_q = None
+                for idx, (raw, acfg) in enumerate(zip(raw_arms, arm_cfgs)):
+                    if acfg.get("type") != "ros2":
+                        continue
+                    if not getattr(raw, "connected", True):
+                        raise RuntimeError("camera geometry needs connected ROS joint feedback")
+                    q = np.array(raw.get_state().q, dtype=float, copy=True)
+                    snapshots[str(acfg.get("name", "arm"))] = q
+                    if idx == 0:
+                        primary_q = q
+                T = (_ext.T_compensation @ kin.fk(primary_q) @ _ext.T
+                     if _ext.mode == "eye_in_hand" and primary_q is not None
+                     else _ext.cam_to_base())
+                return T, snapshots
+        stream = CameraStream(
+            make_camera(ccfg),
+            name=str(ccfg.get("name", f"cam{i}")),
+            rate_hz=float(ccfg.get("fps", 30.0)),
+            capture_transform=(extrinsics.cam_to_base if "extrinsics" in ccfg else None),
+            capture_geometry=capture_geometry if "extrinsics" in ccfg else None,
+        )
+        streams.append(stream)
         if not extrinsics.calibrated:
             print(f"[cascade] camera {stream.name}: {extrinsics.calibration_error} "
                   "-- streaming only, no 3D fusion", file=sys.stderr)
@@ -572,12 +598,27 @@ def build_runtime(
             )
         )
     rig = CameraRig(streams)
-    rig.open()
+    feedback_arms = []
     try:
+        if lazy_arm and any(c.get("extrinsics", _empty_cfg()).get("mode") == "eye_in_hand"
+                            for c in cam_cfgs):
+            # Native ROS controllers already own the drives. Ros2Arm.connect
+            # only subscribes to measured feedback and creates command handles;
+            # it sends no target, gripper, enable, or resume command. Attach it
+            # before the wrist camera so every frame can bind FK and body-mask
+            # joints from one measured snapshot, even at startup under STOP.
+            # Preserve LazyArm itself and leave every non-ROS backend untouched.
+            for raw, acfg in zip(raw_arms, arm_cfgs):
+                if acfg.get("type") == "ros2":
+                    feedback_arms.append(raw)
+                    raw.get_state()
+        rig.open()
         detector = LockedDetector(_make_detector(cfg))
         rig.primary.warm_up(int(cam_cfgs[0].get("warmup_frames", 5)))
     except Exception:
         rig.close()  # a partial build must not leak open camera streams
+        for raw in feedback_arms:
+            raw.disconnect()  # passive ROS attachment has no active goals
         raise
 
     memory = EpisodicMemory(
@@ -909,6 +950,7 @@ def _probe_hug_backend(runtime, gcfg) -> None:
 def _runtime_state(runtime) -> dict:
     """Live world state for the dashboard/MCP (never touches the lazy arm)."""
     _, status = runtime.camera.overlay() if hasattr(runtime.camera, "overlay") else ([], "n/a")
+    connected = getattr(runtime.arm.raw, "connected", True)
     out = {
         "agent_status": status,
         "task": runtime.current_task,
@@ -916,7 +958,9 @@ def _runtime_state(runtime) -> dict:
         # dispatch tier of the last command (reflex/experience/llm/mcp-host)
         "last_path": getattr(runtime, "last_path", None),
         "objects": runtime.beliefs.summary(),
-        "arm_connected": getattr(runtime.arm.raw, "connected", True),
+        "arm_connected": connected,
+        "stopped": bool(runtime.arm.harness.estopped),
+        "connection_error": None,
         # human-readable narration: newest events last (observations, skill
         # calls, outcomes) -- the dashboard renders this as the activity feed
         "events": runtime.memory.digest(max_lines=14).splitlines(),
@@ -931,6 +975,14 @@ def _runtime_state(runtime) -> dict:
     from .capabilities import capability_matrix
 
     out["capabilities"] = capability_matrix(runtime)
+    # Probe the class so LazyArm.__getattr__ cannot connect hardware merely
+    # to render the dashboard. Joint feedback alone does not imply that a
+    # Franka in Reflex can accept motion.
+    raw = runtime.arm.raw
+    if isinstance(raw, LazyArm):
+        raw = raw._arm  # existing backend only; never materialize for a dashboard
+    if getattr(type(raw), "motion_status", None) is not None:
+        out["arm_motion"] = raw.motion_status
     if runtime.watcher is not None:
         out["perception"] = runtime.watcher.stats()
     # B47: only with a wrist narrator (opt-in + a wrist stream); absent, the
@@ -1014,6 +1066,13 @@ def _park_move(arm, duration_s: float, stage: dict) -> bool:
             harness.occupancy = occupancy
 
 
+def _shutdown_park_required(raw) -> bool:
+    """Inspect only an existing backend; never connect an arm for teardown."""
+    if isinstance(raw, LazyArm):
+        raw = raw._arm
+    return getattr(raw, "shutdown_park_required", True) is not False
+
+
 def _park_arm(runtime, duration_s: float = 2.0) -> dict:
     """Slowly drive every arm to its zero pose before torque is cut.
 
@@ -1029,7 +1088,9 @@ def _park_arm(runtime, duration_s: float = 2.0) -> dict:
     never materialized) is not touched (parking it would energize the motors
     for nothing), an e-stopped arm is left exactly where it is (the latch means
     "do not move"), and any arm that cannot move simply has its torque cut by
-    the disconnect that follows.
+    the disconnect that follows. Externally controlled arms can opt out:
+    native ROS controllers retain the hold and must never receive a new park
+    or gripper command merely because this client is exiting.
     """
     # A transport-only disconnect can retain the existing simulation drives
     # without attempting task recovery. Other backends keep their existing
@@ -1055,6 +1116,9 @@ def _park_arm(runtime, duration_s: float = 2.0) -> dict:
                 continue
             if not getattr(arm.raw, "connected", True):
                 stage["skipped"] = "not_connected"
+                continue
+            if not _shutdown_park_required(arm.raw):
+                stage["skipped"] = "external_controller_retains_hold"
                 continue
             if getattr(arm.raw, "disconnect_preserves_drive_state", False) and (
                     possible_load
@@ -1542,12 +1606,15 @@ def main(argv: list[str] | None = None) -> int:
             # before acting on a first signal so cleanup cannot lose resources.
             with signals.defer():
                 runtime, arm = build_runtime(cfg, run_dir, view=view, serve=not args.no_serve)
+            if os.environ.get("CASCADE_START_STOPPED") == "1" and not mobile and not composed:
+                runtime.arm.stop()
             signals.checkpoint()
             status = _run_demo(args, cfg, runtime, mobile)
         except SignalRequest:
             # Interrupted with-blocks have released their locks. Invalidate
-            # before any logging/teardown. Arm CLI retains halt -> park, not
-            # e-stop -> torque-off; apply halt to every configured arm.
+            # before any logging/teardown. Torque-off backends retain their
+            # halt -> park policy. Controller-owned arms stop/hold immediately
+            # and disconnect without introducing a new parking motion.
             if runtime is not None:
                 if composed:
                     runtime.request_shutdown()
@@ -1557,7 +1624,10 @@ def main(argv: list[str] | None = None) -> int:
                     rig = getattr(runtime, "arm_rig", None)
                     for safe_arm in (list(rig) if rig is not None else [runtime.arm]):
                         try:
-                            safe_arm.harness.halt("signal: graceful shutdown")
+                            if _shutdown_park_required(safe_arm.raw):
+                                safe_arm.harness.halt("signal: graceful shutdown")
+                            else:
+                                safe_arm.stop()
                         except Exception:
                             pass
         finally:
@@ -1586,8 +1656,8 @@ def _run_demo(args, cfg, runtime, mobile):
             LLMResponse(tool_calls=[ToolCall("task_done", {"success": True,
                 "summary": "mock wiring check: inspected declared resources; no physical task executed"})]),
         ])
-    advisor = Advisor(llm) if (llm.supports_vision and not is_mock) else None
-    experience = None if mobile else ExperienceMemory(PACKAGE_ROOT / "runs" / "experience.json")
+    advisor = Advisor(llm, cfg=cfg) if (llm.supports_vision and not is_mock) else None
+    experience = None if mobile else ExperienceMemory(Path(cfg.memory.get("experience_path", PACKAGE_ROOT / "runs" / "experience.json")).expanduser())
     # ROADMAP #7: action<->object consolidation of tier-2 outcomes, opt-in via
     # `memory.action_objects: true` (shipped off: the planner then carries
     # nothing new). Persisted beside experience.json; advisory digest only.
@@ -1607,7 +1677,7 @@ def _run_demo(args, cfg, runtime, mobile):
     # (default 2). 1 is the explicit single-observation mode; nothing lowers
     # it silently.
     library = None if mobile else SkillLibrary(
-        PACKAGE_ROOT / "skills_library",
+        Path(cfg.memory.get("skill_library_path", PACKAGE_ROOT / "skills_library")).expanduser(),
         min_tasks=int(cfg.memory.get("skill_min_tasks", PROMOTION_MIN_TASKS)),
     )
     agent = AgentOrchestrator(
@@ -1625,19 +1695,40 @@ def _run_demo(args, cfg, runtime, mobile):
         programs=None if mobile else _program_tier(cfg, is_mock),
     )
 
-    def _run(task: str):
-        runtime.current_task = task
+    def _run(task: str, cancel_event=None):
+        # Mobile/composed runtimes have no arm camera overlay. Rendering a
+        # completion status is optional; it must not turn a valid task into
+        # an AttributeError or mask its original failure.
+        show_status = getattr(runtime, "_show_status", None)
         try:
-            return agent.run_task(task)
-        finally:
-            runtime.current_task = None
+            report = agent.run_task(task, cancel_event=cancel_event)
+            runtime.memory.add("note", report.summary)
+            if callable(show_status):
+                show_status("cancelled" if report.cancelled else
+                            ("idle" if report.success else f"failed: {report.summary}"))
+            return report
+        except TaskBusyError:
+            raise
+        except Exception as exc:
+            runtime.memory.add("note", f"command failed: {exc}")
+            if callable(show_status):
+                show_status(f"failed: {exc}")
+            raise
 
     # Wire the dashboard "send"/"stop" buttons to the live agent so you can
     # drive the robot from the browser (http://<ip>:8090) as well as the REPL.
-    _srv = getattr(runtime, "stream_server", None)
+    # The controller retains callbacks for a lazy initial open and every
+    # reopen; wiring only its current HTTP server loses STOP and Resume.
+    _srv = getattr(runtime, "live_view", None) or getattr(runtime, "stream_server", None)
     if _srv is not None:
-        _srv.set_task_fn(lambda t: _print_report(_run(t)))
-        _srv.set_cancel_fn(runtime.arm.stop)
+        def _dashboard_task(task, cancel_event):
+            report = _run(task, cancel_event)
+            _print_report(report)
+            return report
+
+        _srv.set_task_fn(_dashboard_task, cancel_aware=True)
+        _srv.set_cancel_fn(agent.cancel)
+        _srv.set_resume_fn(agent.resume)
 
     if args.interactive and mobile:
         from .mobile_runtime import run_mobile_interactive

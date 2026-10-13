@@ -1,3 +1,6 @@
 # FR3, kinematic mock transport: tests/CI, no deps, no hardware.
 extends: fr3
 type: mock
+# Deterministic simulation home, independent of a real operator-taught pose.
+home_q: [0.432, -0.284, -0.417, -2.430, -0.137, 2.164, -0.678]
+return_home_after_motion: false

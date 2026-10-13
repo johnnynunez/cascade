@@ -106,6 +106,8 @@ def test_registration_waits_for_final_exec_and_keeps_original_kernel_birth(tmp_p
 
 
 def test_source_marker_distinguishes_stable_adapter_from_final_bridge(tmp_path):
+    if not Path(f"/proc/self/task/{os.getpid()}/children").exists():
+        pytest.skip("source-shell ownership requires Linux proc child inventory, absent on this kernel")
     module = adapter()
     bridge = bridge_prefix(tmp_path)
     shell = tmp_path / "python.sh"

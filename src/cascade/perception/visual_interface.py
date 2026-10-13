@@ -85,6 +85,27 @@ def project(points_base: np.ndarray, T_base_cam: np.ndarray, K: np.ndarray) -> n
     return uv
 
 
+def configured_reach_x(cfg) -> tuple[float, float] | None:
+    """Resolve the arm's explicit display band without making an IK claim."""
+    return configured_grasp_band(cfg.get("grasp", {}) or {})
+
+
+def camera_extrinsics(runtime, camera: str | None = None):
+    """Resolve the selected stream's extrinsics without borrowing another's."""
+    if camera is None:
+        return runtime.extrinsics
+    watcher = getattr(runtime, "watcher", None)
+    for watched in getattr(watcher, "_cams", ()) or ():
+        if getattr(getattr(watched, "stream", None), "name", None) == camera:
+            return watched.extrinsics
+    rig = getattr(runtime, "rig", None)
+    primary = getattr(rig, "primary", None)
+    if (getattr(primary, "name", None) == camera
+            or getattr(getattr(runtime, "camera", None), "name", None) == camera):
+        return runtime.extrinsics
+    return None
+
+
 def _put_label(img, text, org, color, scale=0.5, thick=1):
     """Text with a dark outline so it survives any background."""
     cv2.putText(img, text, org, cv2.FONT_HERSHEY_SIMPLEX, scale, _BLACK, thick + 2, cv2.LINE_AA)
@@ -197,12 +218,13 @@ class VisualInterface:
             seg([x0, y, self.table_z], [x1, y, self.table_z], (90, 90, 90))
         cv2.addWeighted(overlay, 0.35, img, 0.65, 0, img)
 
-        # metre ticks along the near edge, so distances are readable
+        # Base X coordinate ticks along the y-max edge. Their values are
+        # coordinates, not camera depth or distance from the gripper.
         for i in range(n_x + 1):
             x = x0 + i * step
             uv = project(np.array([[x, y1, self.table_z]]), T, K)[0]
             if np.isfinite(uv).all():
-                _put_label(img, f"{x:.2f}", (int(uv[0]) - 12, int(uv[1]) + 14), (170, 170, 170), 0.36)
+                _put_label(img, f"X={x:.2f}m", (int(uv[0]) - 12, int(uv[1]) + 14), (170, 170, 170), 0.36)
 
     def _draw_envelope(self, img, T, K) -> None:
         """An explicitly configured display hint; no IK claim."""
@@ -294,9 +316,12 @@ class VisualInterface:
         h = img.shape[0]
         n_badges = sum(mark.extra["projected_in_image"] for mark in marks)
         _put_label(
-            img, f"{n_badges} badges | {len(marks)} tracked objects | grid = 5 cm",
-            (10, h - 12), _WHITE, 0.42,
+            img, (f"{n_badges} badges | {len(marks)} tracked objects | "
+                  f"grid={self.grid_step * 100:g} cm at base Z={self.table_z:.2f}m"),
+            (10, h - 28), _WHITE, 0.42,
         )
+        _put_label(img, "Base coordinates: X forward | Y left | Z up (metres)",
+                   (10, h - 12), _WHITE, 0.42)
 
     # ── helpers ──────────────────────────────────────────────────────────
 
@@ -335,6 +360,9 @@ class VisualInterface:
                 flag += "  [projects outside this camera image; no badge]"
             if not m.confirmed:
                 flag += "  [UNCONFIRMED: one stale sighting, may not be real]"
+            age = m.extra.get("age_s", 0)
+            if age > 15:
+                flag += f"  [REMEMBERED, last seen {age:.1f}s ago; re-observe before acting]"
             lines.append(
                 f"  {m.index}. {m.label} at ({m.position[0]:.3f}, "
                 f"{m.position[1]:.3f}, {m.position[2]:.3f}){flag}"
@@ -363,7 +391,6 @@ def annotate_frame(runtime, **kwargs) -> tuple[np.ndarray | None, list[Mark]]:
     if frame is None:
         return None, []
     cfg = runtime.cfg
-    grasp_cfg = cfg.grasp if hasattr(cfg, "grasp") else {}
     # `Cfg` is an attr/dict hybrid but NOT iterable, so dict(...) on a nested
     # block raises "'Cfg' object is not iterable". `_data` is the sanctioned
     # accessor for the raw mapping (same idiom as apps/mcp_server.py).
@@ -373,7 +400,7 @@ def annotate_frame(runtime, **kwargs) -> tuple[np.ndarray | None, list[Mark]]:
         extrinsics=runtime.extrinsics,
         workspace=workspace,
         table_z=float(cfg.safety.get("table_z", 0.0)),
-        reach_x=configured_grasp_band(grasp_cfg),
+        reach_x=configured_reach_x(cfg),
     )
     try:
         tcp = runtime._tcp_if_awake()  # a look never powers a standby arm

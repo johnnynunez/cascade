@@ -14,10 +14,15 @@ from .prompts import ADVISOR_SYSTEM, ADVISOR_USER, MATERIAL_USER
 
 
 class Advisor:
-    def __init__(self, llm: LLMClient, min_failures: int = 1):
+    def __init__(self, llm: LLMClient, min_failures: int = 1, cfg=None):
         self._llm = llm
         self._min_failures = min_failures
         self.failures = 0
+        self.system_prompt = ADVISOR_SYSTEM
+        if cfg is not None:
+            from ..robot_context import describe_robot
+
+            self.system_prompt += "\n" + describe_robot(cfg)
 
     def note_outcome(self, success: bool) -> None:
         self.failures = 0 if success else self.failures + 1
@@ -31,7 +36,7 @@ class Advisor:
             f"The previous attempt failed: {failure}\n" if failure else ""
         )
         resp = self._llm.chat(
-            system=ADVISOR_SYSTEM,
+            system=self.system_prompt,
             messages=[
                 {
                     "role": "user",
@@ -47,7 +52,7 @@ class Advisor:
         if not self._llm.supports_vision:
             return None
         resp = self._llm.chat(
-            system=ADVISOR_SYSTEM,
+            system=self.system_prompt,
             messages=[
                 {
                     "role": "user",

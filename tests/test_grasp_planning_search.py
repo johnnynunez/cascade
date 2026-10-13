@@ -14,7 +14,7 @@ from cascade.types import MotionHalted, SafetyViolation
 from test_observed_finger_runtime import runtime, fake_gate, real_harness
 
 
-def setup(monkeypatch):
+def planning_fixture(monkeypatch):
     checks = fake_gate(monkeypatch)
     rt, calls, fix, frame = runtime(monkeypatch)
     cfg = rt.cfg.as_dict()
@@ -41,7 +41,7 @@ def setup(monkeypatch):
 
 
 def test_two_batches_share_snapshot_prior_deadline_and_do_not_act_between_them(monkeypatch):
-    rt, calls, fix, frame, h, batches, opts, prior, reads, records, _ = setup(monkeypatch)
+    rt, calls, fix, frame, h, batches, opts, prior, reads, records, _ = planning_fixture(monkeypatch)
     def vet(*a, **kw):
         if len(batches) == 1:
             prior['nudges']['grasp_z_delta'] = .123  # concurrent outcome update
@@ -59,7 +59,7 @@ def test_two_batches_share_snapshot_prior_deadline_and_do_not_act_between_them(m
 
 
 def test_three_feasibility_failures_exhaust_without_any_actuation(monkeypatch):
-    rt, calls, fix, frame, h, batches, _, _, _, records, _ = setup(monkeypatch)
+    rt, calls, fix, frame, h, batches, _, _, _, records, _ = planning_fixture(monkeypatch)
     h.vet_pose = lambda *a, **kw: 'blocked'
     with pytest.raises(NoExecutableGrasp, match='blocked'):
         rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
@@ -71,7 +71,7 @@ def test_three_feasibility_failures_exhaust_without_any_actuation(monkeypatch):
 @pytest.mark.parametrize('error', [GraspGenXError('transport'), RuntimeError('model'),
                                   SafetyViolation('epoch changed'), MotionHalted('stop')])
 def test_non_feasibility_errors_are_not_retried(monkeypatch, error):
-    rt, calls, fix, frame, _, batches, _, _, _, _, _ = setup(monkeypatch)
+    rt, calls, fix, frame, _, batches, _, _, _, _, _ = planning_fixture(monkeypatch)
     def failed(*a, **kw):
         batches.append(1)
         raise error
@@ -82,7 +82,7 @@ def test_non_feasibility_errors_are_not_retried(monkeypatch, error):
 
 
 def test_valid_batch_filtered_to_zero_can_be_followed_by_valid_batch(monkeypatch):
-    rt, calls, fix, frame, _, batches, _, _, _, _, _ = setup(monkeypatch)
+    rt, calls, fix, frame, _, batches, _, _, _, _, _ = planning_fixture(monkeypatch)
     plan = rt._plan_grasps
     def generate(*a, **kw):
         gs = plan(*a, **kw)
@@ -96,7 +96,7 @@ def test_valid_batch_filtered_to_zero_can_be_followed_by_valid_batch(monkeypatch
 
 @pytest.mark.parametrize('where', ['after_backend', 'after_ik', 'after_vet', 'between_batches'])
 def test_halt_at_every_planning_boundary_prevents_commands_and_new_batch(monkeypatch, where):
-    rt, calls, fix, frame, h, batches, _, _, _, _, _ = setup(monkeypatch)
+    rt, calls, fix, frame, h, batches, _, _, _, _, _ = planning_fixture(monkeypatch)
     if where == 'after_backend':
         original = rt._plan_grasps
         def run(*a, **kw):
@@ -119,7 +119,7 @@ def test_halt_at_every_planning_boundary_prevents_commands_and_new_batch(monkeyp
 
 @pytest.mark.parametrize('where', ['backend', 'ik', 'vet'])
 def test_late_results_are_not_used_even_if_the_last_native_call_returns_success(monkeypatch, where):
-    rt, calls, fix, frame, h, batches, _, _, _, _, _ = setup(monkeypatch)
+    rt, calls, fix, frame, h, batches, _, _, _, _, _ = planning_fixture(monkeypatch)
     if where == 'backend':
         original = rt._plan_grasps
         def late(*a, **kw):
@@ -140,7 +140,7 @@ def test_late_results_are_not_used_even_if_the_last_native_call_returns_success(
 
 
 def test_parent_pick_and_task_deadlines_cap_the_same_planning_deadline(monkeypatch):
-    rt, calls, fix, frame, _, _, opts, _, _, _, _ = setup(monkeypatch)
+    rt, calls, fix, frame, _, _, opts, _, _, _, _ = planning_fixture(monkeypatch)
     rt._task_deadline = 3.
     # Planning completes inside its narrower deadline, but the mocked motion
     # advances past the task budget before the new pre-command closing veto.
@@ -158,7 +158,7 @@ def test_invalid_budget_fails_closed(batches, seconds):
 
 
 def test_between_batch_feedback_failure_never_starts_next_inference(monkeypatch):
-    rt, calls, fix, frame, h, batches, _, _, _, _, _ = setup(monkeypatch)
+    rt, calls, fix, frame, h, batches, _, _, _, _, _ = planning_fixture(monkeypatch)
     from cascade.grasping import observed_scene
     gate = observed_scene.for_runtime()
     gate.feedback = lambda state: (_ for _ in ()).throw(SafetyViolation('epoch mismatch'))
@@ -169,7 +169,7 @@ def test_between_batch_feedback_failure_never_starts_next_inference(monkeypatch)
 
 
 def test_budget_includes_final_feedback_and_opening_veto(monkeypatch):
-    rt, calls, fix, frame, _, batches, _, _, _, _, _ = setup(monkeypatch)
+    rt, calls, fix, frame, _, batches, _, _, _, _, _ = planning_fixture(monkeypatch)
     from cascade.grasping import observed_scene
     gate = observed_scene.for_runtime()
     def slow_pose(q):
@@ -183,7 +183,7 @@ def test_budget_includes_final_feedback_and_opening_veto(monkeypatch):
 
 @pytest.mark.parametrize('disabled', ['gate', 'backend'])
 def test_disabled_mode_never_passes_new_planning_kwargs(monkeypatch, disabled):
-    rt, calls, fix, frame, _, batches, opts, _, reads, _, _ = setup(monkeypatch)
+    rt, calls, fix, frame, _, batches, opts, _, reads, _, _ = planning_fixture(monkeypatch)
     if disabled == 'gate':
         monkeypatch.setenv('CASCADE_OBSERVED_FINGER_GATE', '0')
     else:
@@ -194,7 +194,7 @@ def test_disabled_mode_never_passes_new_planning_kwargs(monkeypatch, disabled):
 
 
 def test_additional_state_reads_never_enlarge_normal_rpc_timeout(monkeypatch):
-    rt, _, fix, frame, h, batches, _, _, _, _, _ = setup(monkeypatch)
+    rt, _, fix, frame, h, batches, _, _, _, _, _ = planning_fixture(monkeypatch)
     h.vet_pose = lambda *a, **kw: 'blocked' if len(batches) == 1 else None
     budgets = []
     read = rt.arm.get_state
@@ -209,7 +209,7 @@ def test_additional_state_reads_never_enlarge_normal_rpc_timeout(monkeypatch):
 
 
 def test_persistence_helper_passes_its_shorter_absolute_deadline(monkeypatch):
-    rt, calls, fix, frame, _, batches, opts, _, _, _, _ = setup(monkeypatch)
+    rt, calls, fix, frame, _, batches, opts, _, _, _, _ = planning_fixture(monkeypatch)
     rt._localize = lambda *a, **kw: (frame, fix)
     plan = rt._plan_grasps
     def slow(*a, **kw):
@@ -224,7 +224,7 @@ def test_persistence_helper_passes_its_shorter_absolute_deadline(monkeypatch):
 
 
 def test_halt_after_last_twin_ik_prevents_using_original_success(monkeypatch):
-    rt, calls, fix, frame, h, batches, _, _, _, _, _ = setup(monkeypatch)
+    rt, calls, fix, frame, h, batches, _, _, _, _, _ = planning_fixture(monkeypatch)
     solve = rt.kin.ik
     count = []
     def ik(*a, **kw):

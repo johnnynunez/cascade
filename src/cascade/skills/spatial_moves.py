@@ -480,6 +480,12 @@ def execute_route(rt, route: Route, duration: float, *, tool: str, words: str,
     kin = _kin(rt)
     try:
         for i, seg in enumerate(route.segments):
+            # The dispatcher may restore a saved camera-view home after
+            # motion. Mark only execution of an already vetted segment;
+            # planning refusals and an empty route must send no home goal.
+            mark_started = getattr(rt, "_mark_motion_started", None)
+            if callable(mark_started):
+                mark_started()
             if route.cartesian:
                 ok = rt.arm.move_cartesian(seg.T_goal, duration_s=duration)
             else:

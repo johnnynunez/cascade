@@ -65,7 +65,11 @@ def runtime(tmp_path):
     rt: Any = SkillRuntime.__new__(SkillRuntime)
     from cascade.agent.task_effects import TaskEffects
     rt._task_effects = TaskEffects()
-    rt._arm = object()
+    from cascade.config import load_demo_config
+    rt.cfg = load_demo_config(camera="mock", arm="mock", llm="mock")
+    rt.cfg._data["arms"] = [{**rt.cfg.arm.as_dict(), "name": name}
+                             for name in ("left", "right")]
+    rt._arm = SimpleNamespace(harness=SimpleNamespace(violations=[]))
     rt._arm_override = threading.local()
     rt.arm_rig = None
     rt.held_object = None
@@ -73,7 +77,7 @@ def runtime(tmp_path):
     rt.current_tier = "test"
     rt.memory = SimpleNamespace(memory_frames=lambda _: [], add=lambda *a, **kw: None)
     rt.envelope = SimpleNamespace(record=lambda *a, **kw: None)
-    rt.observe = lambda: None
+    rt.observe = lambda **kwargs: None
     rt._show_status = lambda _: None
     rt.trace = TraceLogger(tmp_path / "producer")
     return rt
@@ -86,7 +90,8 @@ def runtime(tmp_path):
 ])
 def test_dispatch_trace_preserves_resolved_arm_and_pre_call_subject(runtime, selectors, expected_arms):
     """Real dispatch/verifier/logger; only physical work is a data-only callback."""
-    left, right = SimpleNamespace(name="left"), SimpleNamespace(name="right")
+    left = SimpleNamespace(name="left", harness=SimpleNamespace(violations=[]))
+    right = SimpleNamespace(name="right", harness=SimpleNamespace(violations=[]))
     runtime._arm = left
     runtime.arm_rig = ArmRig([left, right], ["left", "right"])
     poses = {"cube": [0.2, 0.1, 0.03]}

@@ -104,6 +104,8 @@ def serving_plan(env=None):
         json.dumps({"size": {"shortest_edge": 65536, "longest_edge": 1048576}}),
         "--enable-auto-tool-choice",
         "--tool-call-parser",
+        # vLLM 0.29.0 registers this alias to Qwen3EngineToolParser, whose
+        # schema-constrained auto-tool grammar is checked below.
         "qwen3_coder",
         "--reasoning-parser",
         "qwen3",

@@ -187,6 +187,35 @@ def test_probe_without_a_configured_band_never_invents_one():
     assert "topdown_ik_band_x" not in out["reachable"]
 
 
+def test_probe_without_measured_band_reports_only_workspace_status():
+    from cascade.config import Cfg
+
+    rt = _runtime(beliefs=[_belief("cube", [0.28, 0.0, 0.10])])
+    rt.cfg = Cfg({"safety": rt.cfg.safety.as_dict(), "grasp": {}})
+    probe = PointProbe(rt)
+    out = probe.probe(*probe.locate_pixel("cube")["pixel"])
+    assert out["reachable"]["in_workspace"] is True
+    assert out["reachable"]["workspace_source"] == "configuration"
+    assert out["reachable"]["ik_checked"] is False
+    assert out["reachable"]["grasp_checked"] is False
+    assert "topdown_ik_band_x" not in out["reachable"]
+
+
+def test_probe_selected_camera_uses_its_own_extrinsics():
+    rt = _runtime()
+    frame = _frame()
+    frame.T_base_cam = None
+    side_t = T_BASE_CAM.copy()
+    side_t[0, 3] = .30
+    side = SimpleNamespace(name="side", latest=lambda: frame)
+    rt.rig = SimpleNamespace(get=lambda camera: side, primary=rt.camera)
+    rt.watcher = SimpleNamespace(_cams=[SimpleNamespace(
+        stream=side, extrinsics=SimpleNamespace(cam_to_base=lambda: side_t),
+    )])
+    out = PointProbe(rt).probe(W / 2, H / 2, camera="side")
+    assert out["position"][0] == pytest.approx(.30)
+
+
 def test_probe_flags_a_point_outside_the_workspace():
     rt = _runtime(workspace={"min": [0.10, -0.05, -0.01], "max": [0.20, 0.05, 0.55]},
                   beliefs=[_belief("cube", [0.18, 0.20, 0.10])])

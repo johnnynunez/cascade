@@ -139,11 +139,11 @@ def test_public_native_probe_uses_plain_english_with_two_available_actions(monke
             return {"data": [{"id": "model"}]}
         requests.append(payload)
         return {"choices": [{"message": {"tool_calls": [{"type": "function", "function": {
-            "name": "cascade_readiness", "arguments": '{"ready":true}'}}]}}]}
+            "name": "cascade__world_state", "arguments": '{}'}}]}}]}
     monkeypatch.setattr(demo_proof, "request_json", request)
     assert demo_proof.probe_native_tools("http://localhost:8080/v1", "model")["native_tools"]
     wire = requests[0]
-    assert wire["messages"][-1]["content"] == "Are you ready?"
+    assert wire["messages"][-1]["content"] == "What objects does the tracked world model currently contain?"
     assert len(wire["tools"]) >= 2
     assert wire["tool_choice"] == "auto"
 

@@ -82,6 +82,7 @@ def main():
     p.add_argument("--fps", type=int, default=25)
     p.add_argument("--hold_s", type=float, default=0.8)
     p.add_argument("--max_frames", type=int, default=0)
+    p.add_argument("--robot", default="", help="robot to follow in a multi-robot run (default: the first)")
     p.add_argument("--llm_label", default="GPT-6-Astra via Codex CLI (Cascade codex_astra profile)")
     a = p.parse_args()
     run = a.run
@@ -95,7 +96,8 @@ def main():
     skate = meta.get("robot_kind") == "skates"
     robot_usd = SKATE_USD if skate else WALK_USD
     robots = [str(r) for r in rec["robot_names"]]
-    r0 = robots[0]
+    r0 = a.robot or robots[0]
+    ri = robots.index(r0)
     modes = [str(m) for m in rec["modes"]]
     times = rec["time_s"]
     body_pose = rec["body_pose"]
@@ -108,11 +110,12 @@ def main():
     n_cam = min(len(cam), len(est))
     # truth in the robot's start frame (evaluation only)
     k0 = int(np.searchsorted(times, est[0, 0]))
-    s0 = body_pose[k0, 0, 0]
+    init = (episode.get("localization_eval") or {}).get(r0, {}).get("method", "").startswith("simulator truth in the shared")
+    s0 = np.array([0, 0, 0, 0, 0, 0, 1.0]) if init else body_pose[k0, ri, 0]
     yaw0 = yaw_of(s0[3:7])
     c, s_ = math.cos(yaw0), math.sin(yaw0)
     kk = np.clip(np.searchsorted(times, est[:n_cam, 0]), 0, T - 1)
-    dx, dy = body_pose[kk, 0, 0, 0] - s0[0], body_pose[kk, 0, 0, 1] - s0[1]
+    dx, dy = body_pose[kk, ri, 0, 0] - s0[0], body_pose[kk, ri, 0, 1] - s0[1]
     truth = np.stack([c * dx + s_ * dy, -s_ * dx + c * dy], 1)
     maps = {}
     with np.load(run / f"maps_{r0}.npz") as z:
@@ -130,7 +133,7 @@ def main():
     fol = scen.get("render", {}).get("follow", {"distance": 1.0, "height": 0.6})
     step = max(1, int(round(1.0 / (a.fps * float(times[1] - times[0])))))
     frames_idx = list(range(0, T, step))[: a.max_frames or None]
-    decisions = [e for e in events.rows if e["kind"] == "llm_reply"]
+    decisions = [e for e in events.rows if e["kind"] == "llm_reply" and e["robot"] == r0]
     ff = subprocess.Popen(["ffmpeg", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r",
                            str(a.fps), "-i", "-", "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-pix_fmt",
                            "yuv420p", "-movflags", "+faststart", str(a.output)], stdin=subprocess.PIPE)
@@ -141,7 +144,7 @@ def main():
                        sdk_versions=SDK_051) as renderer:
         for n, k in enumerate(frames_idx):
             t = float(times[k])
-            root = body_pose[k, 0, 0]
+            root = body_pose[k, ri, 0]
             yaw = yaw_of(root[3:7])
             yaw_s = yaw if yaw_s is None else yaw_s + 0.08 * ((yaw - yaw_s + math.pi) % (2 * math.pi) - math.pi)
             eye = root[:3] + np.array([-fol["distance"] * math.cos(yaw_s - 0.5), -fol["distance"] * math.sin(yaw_s - 0.5),
@@ -158,7 +161,7 @@ def main():
                 dec_ptr += 1
             for dec, nhold in ([(dd, int(a.hold_s * a.fps)) for dd in new] or [(None, 1)]):
                 img = compose(W, H, main_v, rec, k, t, r0, modes, maps, events, scen, a.llm_label, dec, cam, ke, est,
-                              truth, tofs, skate)
+                              truth, tofs, skate, ri)
                 buf = np.asarray(img, np.uint8).tobytes()
                 for _ in range(nhold):
                     ff.stdin.write(buf)
@@ -184,11 +187,13 @@ def last_detection(events, t, r):
     return (rows[-1].get("result") or {}).get("detections") or []
 
 
-def compose(W, H, main_v, rec, k, t, r, modes, maps, events, scen, llm_label, thinking, cam, ke, est, truth, tofs, skate):
+def compose(W, H, main_v, rec, k, t, r, modes, maps, events, scen, llm_label, thinking, cam, ke, est, truth, tofs, skate,
+            ri=0):
     img = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(img)
     d.rectangle([0, 0, W, 58], fill=(12, 13, 17))
-    d.text((16, 6), scen.get("title", scen["name"]) + "  -  ONBOARD-ONLY RUN", fill=TXT, font=font(25, bold=True))
+    d.text((16, 6), scen.get("title", scen["name"]) + "  -  ONBOARD-ONLY RUN" + (f"  -  {r}" if len(rec["robot_names"]) > 1 else ""),
+           fill=TXT, font=font(25, bold=True))
     d.text((16, 38), f"Cascade agent ({llm_label}). The agent and every controller used only this robot's own camera, "
                      f"ToF, IMU and joint encoders. Isaac Lab 3.0 + Newton physics.", fill=DIM, font=font(14))
     d.text((W - 270, 14), f"sim time {t:6.2f} s", fill=YEL, font=font(24, bold=True, mono=True))
@@ -217,7 +222,7 @@ def compose(W, H, main_v, rec, k, t, r, modes, maps, events, scen, llm_label, th
     if tofs is not None and ke >= 0 and ke < len(tofs):
         img.paste(tof_panel(tofs[ke][:64], tofs[ke][64:], 200), (x0 + 6, y + 20))
     elif not skate:
-        img.paste(tof_panel(rec["tof_mm"][k, 0], rec["tof_status"][k, 0], 200), (x0 + 6, y + 20))
+        img.paste(tof_panel(rec["tof_mm"][k, ri], rec["tof_status"][k, ri], 200), (x0 + 6, y + 20))
     d.text((x0 + 220, y), "OWN POSE ESTIMATE (blue) vs SIMULATOR TRUTH", fill=YEL, font=font(13, bold=True))
     d.text((x0 + 220, y + 16), "(grey, evaluation only - never shown to the robot)", fill=DIM, font=font(11))
     img.paste(traj_panel((410, 186), est, truth, ke), (x0 + 222, y + 34))
@@ -232,7 +237,7 @@ def compose(W, H, main_v, rec, k, t, r, modes, maps, events, scen, llm_label, th
         mi = map_image(snap, maps[r]["bounds"], maps[r]["res"], (est[ke, 1], est[ke, 2], est[ke, 3]),
                        (630, 1080 - y2 - 26), lms, visited, (255, 170, 40))
         img.paste(mi, (x0 + 4, y2 + 20))
-    agent_panel(img, rec, k, t, r, modes, events, thinking, skate)
+    agent_panel(img, rec, k, t, r, modes, events, thinking, skate, ri)
     return img
 
 
@@ -247,12 +252,12 @@ def summarize_result(e):
     return f"{e['text']}: " + ("ok" if rr.get("ok") else str(rr.get("error", ""))[:90])
 
 
-def agent_panel(img, rec, k, t, r, modes, events, thinking, skate):
+def agent_panel(img, rec, k, t, r, modes, events, thinking, skate, ri=0):
     d = ImageDraw.Draw(img)
     x0, y0, x1 = 0, 784, 1280
     d.rectangle([x0, y0, x1, 1080], fill=PANEL)
-    mode = modes[int(rec["mode"][k, 0])]
-    c = rec["command"][k, 0]
+    mode = modes[int(rec["mode"][k, ri])]
+    c = rec["command"][k, ri]
     extra = (f"   throttle {c[0]:+.2f}, heading error {math.degrees(c[2]):+.0f} deg" if skate else
              (f"   command vx={c[0]:+.2f} vy={c[1]:+.2f} wz={c[2]:+.2f}" if mode == "walk" else ""))
     d.rectangle([x0 + 10, y0 + 8, x1 - 10, y0 + 36], fill=(50, 80, 50) if mode not in ("stand", "coast") else (60, 60, 70))
@@ -297,6 +302,13 @@ def end_card(W, H, scen, episode, r, llm_label, skate):
     lines = []
     if v.get("type") == "reach":
         lines.append(f"final distance to the goal centre {v.get('distance_m')} m (limit {v.get('radius_m')} m)")
+    if v.get("type") == "near_object":
+        lines.append(f"distance to the {v.get('object')} surface {v.get('distance_to_surface_m')} m (limit {v.get('max_m')} m)")
+    if v.get("type") == "upright":
+        lines.append("task: explore and stay upright (no position check)")
+    if v.get("type") == "race_lap":
+        lines.append(f"laps {v.get('laps_done')}, off-track {v.get('off_track_fraction')}"
+                     + (f", race time {v.get('race_time_s')} s" if v.get("race_time_s") else ""))
     if v.get("type") == "slalom":
         lines.append("cones (closest approach, need <= 0.45 m): " + ", ".join(
             f"{c['cone']} {c['closest_m']} m {'ok' if c['passed'] else 'MISSED'}" for c in v.get("cones", [])))

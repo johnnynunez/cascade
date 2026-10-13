@@ -148,6 +148,9 @@ HONEST_PROMPT = """HONEST ONBOARD MODE: you only know what this robot itself sen
   shows it, and your ToF only sees a 45 deg cone AHEAD: it cannot see equipment beside you while you walk past it.
   So pass equipment with margin: plan with inflation_m 0.20-0.25 where the gap allows; when you must squeeze through
   a narrow gap, first face it and observe it from close by, then walk straight through.
+* While you walk to a waypoint, a map guard stops you ("map_guard") when your own map shows equipment within 0.13 m of
+  your body and you are getting closer (it covers your blind sides). After a map_guard stop, turn to look at it and
+  re-plan with more clearance.
 * Fast in-place turns hurt your odometry; prefer slow turns and smooth arcs.
 * detect_objects runs a real image detector (YOLOE) on your camera image. It was trained on real photos, so its names
   for simple props can be odd (a dark box may come back as "pulpit"); judge by colour, size and position. Its range
@@ -209,6 +212,7 @@ class MicroduckAgentRuntime:
         self.system_prompt = SYSTEM_PROMPT + f"\nYou are robot '{name}'." + (("\n" + extra_prompt) if extra_prompt else "")
         self.done = None
         self.honest = bool(honest)
+        self._map_d0 = {}
         if self.honest:
             self.tool_specs = [HONEST_DETECT if t["name"] == "detect_objects" else t for t in self.tool_specs
                                if t["name"] != "navigate_to"]
@@ -344,6 +348,10 @@ class MicroduckAgentRuntime:
             dist = math.hypot(dx, dy)
             if dist < 0.15:
                 return "goal_reached"
+            if getattr(self, "honest", False) and (w.step_index - job.start_step) % 5 == 0:
+                hit = self._map_proximity(st, job)
+                if hit is not None:
+                    return hit
             err = angle_diff(math.atan2(dy, dx), st["yaw_rad"])
             wz = max(-0.9, min(0.9, 1.6 * err))
             vx = 0.0 if abs(err) > 0.7 else min(0.25, 0.6 * dist + 0.08) * (1.0 - abs(err) / 0.7) ** 0.5
@@ -358,6 +366,39 @@ class MicroduckAgentRuntime:
         r = self._after_motion(r, "go_to_waypoint")
         r["distance_to_waypoint_m"] = round(math.hypot(r["end_pose"]["x"] - gx, r["end_pose"]["y"] - gy), 3)
         return r
+
+    def _map_nearest(self, st, radius_m=0.2, ahead_m=0.05):
+        """Nearest occupied cell of the robot's OWN map within ``radius_m`` of a point slightly ahead of the body:
+        (distance, bearing_deg) or None."""
+        occ = self.map.occupied()
+        cx = st["x"] + ahead_m * math.cos(st["yaw_rad"])
+        cy = st["y"] + ahead_m * math.sin(st["yaw_rad"])
+        n = int(math.ceil(radius_m / self.map.res))
+        i0, j0 = self.map.cell(cx, cy)
+        best = None
+        for j in range(j0 - n, j0 + n + 1):
+            for i in range(i0 - n, i0 + n + 1):
+                if self.map._inside(i, j) and occ[j, i]:
+                    x = self.map.x0 + (i + 0.5) * self.map.res
+                    y = self.map.y0 + (j + 0.5) * self.map.res
+                    d = math.hypot(x - cx, y - cy)
+                    if d < radius_m and (best is None or d < best[0]):
+                        best = (d, math.degrees(angle_diff(math.atan2(y - st["y"], x - st["x"]), st["yaw_rad"])))
+        return best
+
+    def _map_proximity(self, st, job, radius_m=0.13):
+        """Side guard from memory (honest mode): the ToF only sees ahead, so while walking, stop when the robot's OWN
+        map (built from its ToF on its own estimate; same drifting frame, so recently mapped equipment is consistent)
+        has an obstacle within ``radius_m`` of the body AND the robot is getting closer to it (so it can always walk
+        away from something it is already near)."""
+        near = self._map_nearest(st)
+        key = (job.robot, job.start_step)
+        if key not in self._map_d0:
+            self._map_d0 = {key: near[0] if near else 9.0}
+            return None
+        if near is not None and near[0] < radius_m and near[0] < self._map_d0[key] - 0.01:
+            return f"map_guard: mapped obstacle {near[0]:.2f} m from the body at {near[1]:+.0f} deg (own map)"
+        return None
 
     def tool_plan_route_on_my_map(self, args):
         gx, gy = _num(args, "x", 0.0, -50, 50), _num(args, "y", 0.0, -50, 50)

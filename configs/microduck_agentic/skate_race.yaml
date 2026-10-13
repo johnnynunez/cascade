@@ -24,7 +24,7 @@ context: >-
 # stack's map + initial pose); after that each skater localizes itself (AHRS + camera odometry, drifting) and
 # skate_lane steers on that estimate. Other skaters are seen only through camera and ToF.
 honest_initial_pose: operator
-max_steps_honest: 20
+max_steps_honest: 30  # honest skaters spend steps on looking and the fleet board (H2 ran out at 20)
 context_honest: >-
   Race rules: one lap counter-clockwise on the oval (operator's track map: 3.0 m straights between x -1.5 and 1.5,
   bends around (+-1.5, 0)). Lanes are 0.3 m wide with centre radii 0.6 (lane 1, inner), 0.9 (lane 2) and 1.2 m

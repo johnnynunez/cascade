@@ -417,6 +417,10 @@ class Onboard:
         # (runs/honest_smoke3: 0.632 m true vs 0.531 m estimated), like a lab calibration; never adapted in episodes.
         self.leg_scale = 1.19
         self.zone_kind = None
+        self.vel_E = None  # last accepted VO velocity in E (skates)
+        self.coast_s = 0.0
+        self.max_coast_s = 0.6
+        self.rej_reasons = {"fast": 0, "yaw": 0}
         self.vo_weight = 1.0  # fraction of the VO-minus-leg difference applied at each camera frame
 
     # ------------------------------------------------------------------ IMU
@@ -516,17 +520,28 @@ class Onboard:
                 dyaw_vo = _wrap(cur[2] - self.vo_prev[2])
                 dyaw_g = _wrap(self.yaw_f - self.yaw_at_prev)
                 d_vo = _Rz(self.yaw_at_prev)[:2, :2] @ dl  # increment rotated into E with the gyro heading
-                jump = np.linalg.norm(dl) > self.max_speed * dt_cam + 0.02 or abs(_wrap(dyaw_vo - dyaw_g)) > self.max_yaw_dis
+                fast = np.linalg.norm(dl) > self.max_speed * dt_cam + 0.02
+                yaw_bad = abs(_wrap(dyaw_vo - dyaw_g)) > self.max_yaw_dis
+                self.rej_reasons["fast"] += int(fast)
+                self.rej_reasons["yaw"] += int(yaw_bad)
+                jump = fast or yaw_bad
                 if self.has_leg_odom and not jump:
                     jump = np.linalg.norm(d_vo - self.leg_since_frame) > 0.06  # disagrees with leg odometry
                 if jump:
                     self.vo_rejected += 1
+                    if not self.has_leg_odom and self.vel_E is not None and self.coast_s < self.max_coast_s:
+                        # no leg odometry (skates): carry the last accepted velocity through a short rejected stretch,
+                        # instead of freezing the position (constant-velocity prediction, as in VO front ends)
+                        self.p_f = self.p_f + self.vel_E * dt_cam
+                        self.coast_s += dt_cam
                 elif self.has_leg_odom:
                     self.p_f = self.p_f + self.vo_weight * (d_vo - self.leg_since_frame)
                     self.vo_accepted += 1
                 else:
                     self.p_f = self.p_f + d_vo
                     self.vo_accepted += 1
+                    self.vel_E = d_vo / max(dt_cam, 1e-3)
+                    self.coast_s = 0.0
             self.vo_prev = cur
         self.yaw_at_prev = self.yaw_f
         self.leg_since_frame = np.zeros(2)

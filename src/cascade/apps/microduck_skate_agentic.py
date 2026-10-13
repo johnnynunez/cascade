@@ -201,7 +201,8 @@ def main(argv=None):
             client = MockLLM() if llm_cfg.type == "mock" else make_llm(llm_cfg)
             llm = LoggedLLM(client, port, r["name"])
             clients[r["name"]] = llm
-            orch = AgentOrchestrator(llm, rt, max_steps=int(scenario.get("max_steps", 20)), decompose=True,
+            orch = AgentOrchestrator(llm, rt, max_steps=int(scenario.get("max_steps_honest" if honest else "max_steps",
+                                                                           scenario.get("max_steps", 20))), decompose=True,
                                      attach_images=bool(honest and getattr(client, "supports_vision", False)),
                                      verify_milestones=False, memory_frames_k=0)
 

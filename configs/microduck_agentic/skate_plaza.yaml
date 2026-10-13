@@ -9,6 +9,7 @@ bounds: [-0.8, -1.8, 7.8, 1.8]
 settle_s: 1.0
 max_sim_s: 120
 max_steps: 22
+max_steps_honest: 40  # onboard-only: the agent has to look before every leg
 context: >-
   Course sheet (world metres): orange cones ConeA ~(1.6, 0.5), ConeB ~(3.4, -0.5), ConeC ~(5.2, 0.4), each 0.14 m wide
   and 0.22 m tall; a wooden bench 0.70 x 0.25 m centred ~(2.5, 0.0) (long side along x); a round planter 0.4 m wide at

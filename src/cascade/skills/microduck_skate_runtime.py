@@ -38,7 +38,14 @@ SKATE_HONEST_PROMPT = """HONEST ONBOARD MODE: you only know what this robot itse
 * "ahead" and the brake reflex come from your own ToF (8x8 zones, 45 deg cone, 4 m). It cannot see beside you.
 * detect_objects runs a real image detector (YOLOE) on your camera image; names for simple props can be odd; judge by
   colour, size and position. Its range comes from your ToF or from the floor contact point.
-* The image you receive is your own head camera."""
+* The image you receive is your own head camera.
+* Navigate by what you SEE: a fresh detection's world_xy is computed from your current estimate, so it is consistent
+  with where you think you are right now, while coordinates you were told (or remembered) drift away from it as you
+  skate. Before each short leg, detect again and aim relative to the fresh detection (e.g. pass a cone 0.3 m to its
+  side); keep legs short (1-2 m) near objects.
+* Do not give up while you are upright and have steps left: certainty is never available on a real robot. If an
+  obstacle blocks the way, roll slowly (throttle 0.25-0.3) with a heading 40-60 deg toward the clear side for 1-2 s,
+  then detect again. Call task_done only when the course is done or you have fallen."""
 
 SKATE_PROMPT = """You are the onboard agent of ONE MicroDuck, a 30 cm bipedal duck robot on ROLLER SKATES, in a physics
 simulation. You decide what the robot does by calling exactly one tool per turn; a learned skating policy moves the

@@ -1,5 +1,21 @@
 # Evidence: agentic MicroDuck demos (2026-10-13)
 
+> **PRIVILEGED-STATE PROTOTYPES, NOT DEMOS (relabelled 2026-10-13).** Every episode documented in this PR fed the
+> agent and its controllers privileged simulator information that the real MicroDuck does not have:
+> * the simulator base pose (no SLAM);
+> * a ground-truth object detector stand-in;
+> * waypoint loops closed on simulator truth.
+>
+> They show the agent/tool plumbing, but they are not real robot behaviour. They must not be presented as demos.
+> The replacement is the onboard-only ("honest") loop on the stacked branch `feat/microduck-agentic-skating`. Its
+> parts:
+> * own sensors: OVRTX head camera 640x360 at 15 Hz, VL53L8CX ToF model, IMU model, joint encoders;
+> * own localization: gyro heading, leg odometry, cuVSLAM RGBD;
+> * a real detector (YOLOE) on the camera image.
+>
+> Simulator truth is used only in the offline checks.
+
+
 Workstation: 2x RTX PRO 6000 Blackwell. Isaac Lab 3.0 + Newton, in the Isaac Lab venv (Python 3.12). Every physics
 episode and every render ran through `heavyrun` (memory-capped systemd units, TAG cascade). The LLM is GPT-6-Astra
 through the Codex CLI (Cascade `codex_astra` profile), with 7-15 s per call. While the LLM thinks, the simulation is

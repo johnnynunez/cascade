@@ -184,7 +184,7 @@ class OnboardRig:
                 for i in range(len(self.names)):
                     bpi = bp.copy()
                     bpi[[j for j in range(len(self.names)) if j != i], :, 2] -= 100.0
-                    out.append(self.sensors.render(t_s, bpi, cams)[i])
+                    out.append(self.sensors.render(t_s + 1e-6 * i, bpi, cams)[i])  # renderer clock must advance
             else:
                 out = self.sensors.render(t_s, bp, cams)
             self.cam_frames += 1

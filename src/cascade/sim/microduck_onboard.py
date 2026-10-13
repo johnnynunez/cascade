@@ -307,6 +307,77 @@ def _serve(port):
     renderer.__exit__(None, None, None)
 
 
+# ---------------------------------------------------------------------------------------------- floor flow
+class FloorFlow:
+    """Planar visual odometry on the floor (the classic ground-robot method): corners on the floor are tracked with
+    pyramidal Lucas-Kanade between consecutive head-camera frames and intersected with the floor plane using each
+    frame's ESTIMATED camera pose (AHRS attitude, head forward kinematics, contact-FK height). Back-projecting the
+    new pixels from the camera placed at the PREVIOUS base position shifts every floor point by minus the base's
+    horizontal motion, so the motion is the robust median of the point shifts. Pixels of ToF obstacle zones are
+    excluded; outliers (things above the floor) are rejected by their distance to the median."""
+
+    def __init__(self, min_points=12, near_m=0.2, far_m=2.0):
+        import cv2
+
+        self.cv2 = cv2
+        self.prev = None  # (gray, T_E_cam at that frame)
+        self.min_points = min_points
+        self.near_m, self.far_m = near_m, far_m
+        u, v = np.meshgrid(np.arange(CAM_W, dtype=np.float64), np.arange(CAM_H, dtype=np.float64))
+        self.rays = np.stack([(u - (CAM_W - 1) / 2) / CAM_FX, (v - (CAM_H - 1) / 2) / CAM_FX, np.ones_like(u)], -1)
+        self.last = {}
+
+    def _floor_hit(self, pts, T):
+        r = np.stack([(pts[:, 0] - (CAM_W - 1) / 2) / CAM_FX, (pts[:, 1] - (CAM_H - 1) / 2) / CAM_FX,
+                      np.ones(len(pts))], 1) @ T[:3, :3].T
+        with np.errstate(divide="ignore", invalid="ignore"):
+            t = np.where(r[:, 2] < -1e-3, -T[2, 3] / r[:, 2], np.inf)
+        X = T[:3, 3][None] + r * t[:, None]
+        dist = np.hypot(X[:, 0] - T[0, 3], X[:, 1] - T[1, 3])
+        return X[:, :2], (t > 0) & (dist > self.near_m) & (dist < self.far_m)
+
+    def step(self, rgb, T_now_prevpos, obstacle_mask=None):
+        """rgb: current frame; T_now_prevpos: current camera pose with the base at its PREVIOUS position.
+        Returns the base's horizontal motion (2,) in E since the previous frame, or None."""
+        cv2 = self.cv2
+        gray = cv2.cvtColor(np.ascontiguousarray(rgb), cv2.COLOR_RGB2GRAY)
+        out = None
+        self.last = {"points": 0, "inliers": 0}
+        if self.prev is not None:
+            g0, T0 = self.prev
+            r = self.rays @ T0[:3, :3].T
+            with np.errstate(divide="ignore", invalid="ignore"):
+                t = np.where(r[..., 2] < -1e-3, -T0[2, 3] / r[..., 2], np.inf)
+            mask = ((t * np.hypot(r[..., 0], r[..., 1]) > self.near_m)
+                    & (t * np.hypot(r[..., 0], r[..., 1]) < self.far_m)).astype(np.uint8) * 255
+            if obstacle_mask is not None:
+                mask[obstacle_mask] = 0
+            p0 = cv2.goodFeaturesToTrack(g0, maxCorners=300, qualityLevel=0.01, minDistance=7, mask=mask)
+            if p0 is not None and len(p0) >= self.min_points:
+                p1, st1, _ = cv2.calcOpticalFlowPyrLK(g0, gray, p0, None, winSize=(21, 21), maxLevel=3)
+                pb, st2, _ = cv2.calcOpticalFlowPyrLK(gray, g0, p1, None, winSize=(21, 21), maxLevel=3)
+                ok = (st1[:, 0] == 1) & (st2[:, 0] == 1) & (np.linalg.norm((pb - p0)[:, 0], axis=1) < 1.0)
+                a, b = p0[ok, 0].astype(np.float64), p1[ok, 0].astype(np.float64)
+                X0, v0 = self._floor_hit(a, T0)
+                X1, v1 = self._floor_hit(b, T_now_prevpos)
+                sel = v0 & v1
+                self.last["points"] = int(sel.sum())
+                if sel.sum() >= self.min_points:
+                    d = X0[sel] - X1[sel]
+                    med = np.median(d, axis=0)
+                    res = np.linalg.norm(d - med, axis=1)
+                    inl = res < max(0.01, 2.5 * np.median(res))
+                    self.last["inliers"] = int(inl.sum())
+                    if inl.sum() >= self.min_points:
+                        out = np.median(d[inl], axis=0)
+        self.prev = (gray, None)
+        return out
+
+    def set_prev_pose(self, T):
+        if self.prev is not None:
+            self.prev = (self.prev[0], np.array(T))
+
+
 # ---------------------------------------------------------------------------------------------- localization
 class OnboardLocalizer:
     """cuVSLAM RGBD odometry (head RGB + depth from the robot's own ToF) expressed in the robot's start frame E."""
@@ -381,6 +452,9 @@ class Onboard:
         self.imu = ImuModel(dt, seed)
         self.loc = OnboardLocalizer(name)
         self.tof_model = TofFromDepth(seed) if tof_from_depth else None
+        # skaters (no leg odometry): floor-flow odometry is the primary translation source, cuVSLAM the fallback
+        self.flow = FloorFlow() if tof_from_depth else None
+        self.flow_used = 0
         self.rgb = None
         self.depth = None
         self.tof = None  # (mm, status)
@@ -513,12 +587,19 @@ class Onboard:
         kind, _, _ = classify_frame(tof[0], tof[1], pos, beams, floor_z=0.0)
         self.zone_kind = kind
         depth_img = tof_floor_depth_image(tof[0], tof[1], self.T_E_cam(), kind)
+        d_flow = None
+        if self.flow is not None and self.started:
+            obst = tof_depth_image(tof[0], np.where(np.asarray(kind).reshape(64) == 2, tof[1], 255)) > 0
+            d_flow = self.flow.step(rgb, self.T_E_cam(), obst)  # base still at its previous position here
         ok = self.loc.track(t_s, rgb, tof[0], tof[1], depth_image=depth_img)
         self.track_ok = ok
         dt_cam = (t_s - self.last_camera_t) if self.last_camera_t is not None else 1.0 / CAM_HZ
         self.last_camera_t = t_s
         if not ok:
             self.vo_lost += 1
+            if d_flow is not None and np.linalg.norm(d_flow) < self.max_speed * dt_cam + 0.02:
+                self.p_f = self.p_f + d_flow  # camera odometry lost: floor flow alone
+                self.flow_used += 1
         else:
             T = self.loc.T_E_cam @ self.T_cam_base
             cur = (float(T[0, 3]), float(T[1, 3]), yaw_of_R(T[:3, :3]))
@@ -534,7 +615,12 @@ class Onboard:
                 jump = fast or yaw_bad
                 if self.has_leg_odom and not jump:
                     jump = np.linalg.norm(d_vo - self.leg_since_frame) > 0.06  # disagrees with leg odometry
-                if jump:
+                if d_flow is not None and np.linalg.norm(d_flow) < self.max_speed * dt_cam + 0.02:
+                    self.p_f = self.p_f + d_flow  # floor flow wins on skates; cuVSLAM kept as the fallback
+                    self.vel_E = d_flow / max(dt_cam, 1e-3)
+                    self.coast_s = 0.0
+                    self.flow_used += 1
+                elif jump:
                     self.vo_rejected += 1
                     if not self.has_leg_odom and self.vel_E is not None and self.coast_s < self.max_coast_s:
                         # no leg odometry (skates): carry the last accepted velocity through a short rejected stretch,
@@ -550,6 +636,8 @@ class Onboard:
                     self.vel_E = d_vo / max(dt_cam, 1e-3)
                     self.coast_s = 0.0
             self.vo_prev = cur
+        if self.flow is not None:
+            self.flow.set_prev_pose(self.T_E_cam())
         self.yaw_at_prev = self.yaw_f
         self.leg_since_frame = np.zeros(2)
         st = self.estimate()

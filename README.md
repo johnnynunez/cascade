@@ -230,7 +230,8 @@ explicit construction and validate its declared capabilities.
 **Any ROS2 robot without writing Python.** `type: ros2`
 ([`control/ros2_arm.py`](src/cascade/control/ros2_arm.py)) speaks the two
 interfaces every `ros2_control` deployment already has — `sensor_msgs/JointState`
-in, `trajectory_msgs/JointTrajectory` (or `Float64MultiArray` for a forward
+in, `FollowJointTrajectory` actions when `ros_trajectory_action` is configured,
+otherwise `trajectory_msgs/JointTrajectory` (or `Float64MultiArray` for a forward
 position controller) out, joints addressed **by name** so driver-defined
 `JointState` order can never shift the mapping. Adding a robot = copying
 [`configs/arms/ros2_generic.yaml`](configs/arms/ros2_generic.yaml) and filling
@@ -241,6 +242,51 @@ tabletop skills — locomotion stays with Unitree's own controller, and a
 handless arm declares `max_width_m: 0` so grasps are *refused honestly*
 instead of mimed. See [`docs/ROS2_BACKEND_BRIEF.md`](docs/ROS2_BACKEND_BRIEF.md)
 for the design rationale (QoS, streaming trade, stop semantics).
+
+For a real Franka Research 3, use the [OpenClaw and Chrome camera workflow](docs/FRANKA_OPENCLAW.md). It connects Cosmos to one shared native MCP runtime and starts with STOP latched.
+
+The `fr3` profile uses `franka_bringup`, the native effort controller's
+`FollowJointTrajectory` action, and Franka Gripper `Move`/`Grasp` actions.
+Each arm move submits one quintic trajectory, validates its sampled path
+before dispatch, and monitors safety and feedback during execution. Native
+Franka faults and stale feedback block further motion and appear in the
+dashboard and observation tools. FCI must be active; a hardware reflex requires
+operator recovery in Franka Desk before restarting bringup. CASCADE's stop reset
+does not clear a hardware fault.
+
+In the CASCADE demo dashboard, click **Resume & Home** beside **stop** to clear
+the software STOP latch and return to the saved home pose while keeping the
+gripper unchanged. Wait for any cancelled command to finish first. Resume
+checks fresh arm/gripper feedback and an active trajectory controller, then
+runs the checked home motion. STOP can interrupt the return. A failed return
+leaves the arm stopped and shows its reason in the chat panel. It does not
+restart ROS or replay the previous command. The same operator action is
+`POST /resume`.
+
+For the Franka wrist camera, named pick-and-place destinations are measured
+from the overview pose before pickup and retained in the base frame for that
+operation. Standalone placement returns to the overview before locating its
+destination. If lookup or placement fails, Cascade reports the failure while
+preserving the held object.
+
+The real FR3 `home_q` is the operator-taught camera overview pose. With
+`return_home_after_motion: true`, top-level motion commands return there after
+success or an ordinary failed grasp, while keeping the gripper state. A STOP,
+hardware fault, stale feedback, or safety rejection blocks automatic return.
+The mock and MuJoCo profiles keep their deterministic simulation home.
+
+The planner acquires a fresh camera image before each vision turn. The local
+Cosmos profile sends one current image, constrains camera names and tool
+arguments, and uses Cosmos visual grounding when YOLOE misses a named object.
+Grounding uses RealSense depth and the capture-time camera transform for 3D
+coordinates. Targeted detector queries restore open-world detection afterward;
+remembered objects are identified separately from current detections.
+
+[`scripts/record_franka_motion.py`](scripts/record_franka_motion.py) records
+native state, controller reference/feedback and action feedback without sending
+commands. After sourcing ROS and the Franka workspace, run it with
+`--output <new-file.jsonl> --rate 100`; force and torque peaks between saved
+samples are retained. Use `--duration <seconds>` to bound a recording.
 
 > **Scope, honestly:** ROS2 still drives **arms** only, and the `h1` /
 > `h1_2` / `g1` arm profiles drive the arm of a standing robot. Mobility is a
@@ -729,19 +775,19 @@ MCP-capable host can drive.
 
 The whole skill runtime is also exposed as an **MCP stdio server**
 (`cascade/apps/mcp_server.py`) — so instead of the built-in loop, any
-MCP-capable agent platform can drive the arm. The agent gets the same 41
+MCP-capable agent platform can drive the arm. The agent gets the same 42
 safety-gated skills (only the loop-internal `task_done` is excluded) plus
 eight gateway extras — `camera_snapshot` (returns a live JPEG the agent can
 *see*), `world_state`, `live_view_url`, `robot_knowledge`,
 `verify_last_action`, `task_memory` (the visual memory harness, as images),
 and `emergency_stop`/`reset_stop` — and, only with the opt-in
 [programs tier](docs/PROGRAMS_TIER.md#mcp-chat-hosts) on, `list_programs` and
-`run_program` — 51 tools total (49 with the programs tier off, its default;
+`run_program` — 52 tools total (50 with the programs tier off, its default;
 re-derive with
-`openclaw mcp probe cascade --json`; see [The 41 skills](#the-41-skills) below
+`openclaw mcp probe cascade --json`; see [The 42 skills](#the-42-skills) below
 for what each one does). That is the full catalog; what a given rig is
 offered is this minus the tools its capability matrix (described below)
-withholds (the default single-arm mock rig lists 48: `list_arms` needs two
+withholds (the default single-arm mock rig lists 49: `list_arms` needs two
 arms). Safety harness, tracing and memory are identical —
 only the brain swaps.
 
@@ -841,12 +887,12 @@ side has its own knobs (`CASCADE_USD`, `CASCADE_PHYSICS_DEVICE` — `cpu` is the
 escape hatch for GPU-PhysX boot NaNs —, `CASCADE_BRIDGE_BIND`,
 `CASCADE_BRIDGE_NO_TARGETS`, `CASCADE_COMPANION_EXTS`); see `scripts/isaac_bridge.py`.
 
-## The 41 skills
+## The 42 skills
 
 One schema source (`TOOL_SPECS` in `src/cascade/skills/runtime.py`) feeds
 every consumer — the built-in `AgentOrchestrator`, the OpenAI/Anthropic
 LLM backends, and the MCP server — so this list is exactly what any brain,
-built-in or external, can call. "moves arm" marks the 23 skills in
+built-in or external, can call. "moves arm" marks the 24 skills in
 `_MOTION_SKILLS`, the only ones that pause `WorldWatcher` belief fusion while
 they run (and the ones that record a memory frame + verdict afterwards).
 Every result carries `outcome: ok | failed | stuck`; `stuck` (always
@@ -881,6 +927,7 @@ the orchestrator relays it verbatim and does not retry the step.
 | `place_on_object` | Place the held object on/in another named object |
 | `push_object` | Push a named object along the table (too wide to grasp, or to reposition it) |
 | `move_relative` | Nudge the gripper and its load: a named direction or free vector in the robot (default), screen or gripper frame, vague sizes ("a bit" = 2 cm, max 15 cm), `again`; always reports the interpretation and how it looks on screen. [Spatial commands](docs/SPATIAL_COMMANDS.md) |
+| `rotate_joint` | Move one numbered joint by a signed relative angle in degrees (maximum 90°), with profile-specific joint bounds and the same motion safety checks |
 | `rotate_gripper` | Bounded roll / tilt nudge (≤ 30°) about the gripper tip; the wrist camera always stays on top, so upside-down rolls are refused |
 | `undo_move` | "Go back": retrace the last 1-5 nudges through their recorded waypoints, re-vetted; refuses if anything else moved the arm since |
 | `move_near_object` | Position the gripper and its load `above` / `just_above` / `next_to` / `closer` to a named object or the table, keeping a held object's bottom over the target's measured top |

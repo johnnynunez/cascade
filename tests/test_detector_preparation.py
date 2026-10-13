@@ -52,7 +52,9 @@ def frame(value=0):
 def test_preparation_survives_intervening_watcher_without_caching_images(models):
     d = models.detector
     d.prepare(["orange"])
-    assert not models.predicted
+    assert len(models.predicted) == 1  # Discarded, image-independent startup.
+    assert models.predicted[0][2].shape == (640, 640, 3)
+    assert not models.predicted[0][2].any()
     first, second = frame(), frame(1)
     assert d.detect(first) == ["cube", "can", "lemon"]
     assert d.detect(second, ["orange"]) == ["orange"]
@@ -61,9 +63,58 @@ def test_preparation_survives_intervening_watcher_without_caching_images(models)
     assert [m.path for m in models.loaded] == ["scene-pf.pt", "scene.pt"]
     assert models.encoded == [("orange",)]
     assert models.loaded[1].applied == [("orange",)]
-    assert len(models.predicted) == 4
-    assert models.predicted[1][2] is second.rgb
-    assert models.predicted[3][2] is second.rgb
+    assert len(models.predicted) == 5
+    assert models.predicted[2][2] is second.rgb
+    assert models.predicted[4][2] is second.rgb
+
+
+def test_warmup_never_parses_or_publishes_synthetic_detections(models, monkeypatch):
+    d = models.detector
+    monkeypatch.setattr(d, "_parse", lambda *a: pytest.fail("parsed warmup as an observation"))
+    d.prepare(["orange"])
+    d.prepare(["can"])
+    d.prepare(None)
+    d.prepare(["orange"])
+    assert [p[0] for p in models.predicted] == ["scene.pt", "scene-pf.pt"]
+    assert len(d._warmed_models) == 2
+
+
+def test_failed_warmup_is_not_cached(models, monkeypatch):
+    d = models.detector
+    def fail(*a, **kw):
+        raise RuntimeError("predictor unavailable")
+    original = type(d._model).predict
+    monkeypatch.setattr(type(d._model), "predict", fail)
+    with pytest.raises(RuntimeError, match="predictor unavailable"):
+        d.prepare(["orange"])
+    assert not d._warmed_models
+    monkeypatch.setattr(type(d._model), "predict", original)
+    d.prepare(["orange"])
+    assert len(d._warmed_models) == 1 and len(models.predicted) == 1
+
+
+def test_warmup_preserves_cuda_output_attestation(models, monkeypatch):
+    monkeypatch.setenv("CASCADE_REQUIRE_CUDA", "1")
+    with pytest.raises(RuntimeError, match="prediction did not return CUDA"):
+        models.detector.prepare(None)
+    assert not models.detector._warmed_models
+
+
+def test_reservation_is_reentrant_and_releases_after_failure():
+    detected = threading.Event()
+    d = LockedDetector(SimpleNamespace(detect=lambda *a, **kw: detected.set()))
+    worker = threading.Thread(target=d.detect, args=(frame(),))
+    with pytest.raises(RuntimeError, match="capture failed"):
+        with d.reserve():
+            d.prepare(["orange"])
+            d.detect(frame())  # Same thread must not deadlock on its own lease.
+            assert detected.is_set()
+            detected.clear()
+            worker.start()
+            assert not detected.wait(.02)
+            raise RuntimeError("capture failed")
+    worker.join(2.)
+    assert not worker.is_alive() and detected.is_set()
 
 
 def test_embedding_cache_is_bounded_and_eviction_reencodes(models):

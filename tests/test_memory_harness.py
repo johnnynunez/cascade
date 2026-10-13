@@ -191,9 +191,10 @@ def test_orchestrator_injects_captioned_frames_once_per_request(runtime_and_arm)
     assert "grasp_object(" in text and "place_at(" in text
     assert text.rstrip().endswith("current view (now)") or "current view (now)" in text
     assert "Observation" in text and "Progress" in text and "Reasoning" in text
-    # before anything was observed there is no frame at all -- no image
-    # message is fabricated
-    assert not [m for m in llm.requests[0]["messages"] if m.get("images")]
+    # The planner now acquires a real current frame before its first turn;
+    # it no longer starts blind or reuses the previous task's image.
+    initial = [m for m in llm.requests[0]["messages"] if m.get("images")]
+    assert len(initial) == 1 and len(initial[0]["images"]) == 1
     # after get_observation: exactly the frame just seen (memory frame 1 ==
     # current view content-wise, still two slots: history and now)
     req2 = [m for m in llm.requests[1]["messages"] if m.get("images")]

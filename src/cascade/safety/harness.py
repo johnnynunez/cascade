@@ -214,8 +214,15 @@ class SafetyHarness:
             self._observation_cancel_generation += 1
         self.violations.append(f"ESTOP: {reason}")
 
-    def reset_estop(self) -> None:
+    def reset_estop(self, *, halt_generation: int | None = None) -> None:
         with self._observation_lock:
+            # An explicit operator Resume may supersede the halt observed
+            # before its readiness check. Never erase a newer concurrent halt,
+            # and never roll back either monotonic cancellation generation.
+            if halt_generation is not None:
+                if halt_generation != self._halt_generation:
+                    raise MotionHalted("HALT requested during resume; arm remains stopped")
+                self._halt = None
             self._estopped = False
 
     def check_motion_cancellation(self, token: int | None) -> None:
@@ -1017,7 +1024,8 @@ class SafetyHarness:
                 return (f"point {i} has unobserved clearance (occupancy map)"
                         f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]")
             if d < min_c and not self._in_cylinder(p, exempt):
-                return (f"point {i} clearance {d:.3f} m below {min_c:.3f} m (occupancy map)"
+                return (f"point {i} clearance {d:.9f} m below {min_c:.9f} m "
+                        f"(shortfall {(min_c - d) * 1000:.6f} mm; occupancy map)"
                         f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]")
         return None
 

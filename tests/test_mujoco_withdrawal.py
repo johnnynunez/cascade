@@ -139,6 +139,7 @@ def test_closed_jaw_feedback_does_not_authorize_escape(model_runtime):
 def test_another_arm_does_not_consume_the_pending_clearance_plan():
     from cascade.skills.runtime import SkillRuntime
     rt = SkillRuntime.__new__(SkillRuntime)
+    rt.cfg = SimpleNamespace(arm={'type': 'mock', 'home_q': [0.]})
     first, second = object(), SimpleNamespace(move_joints=lambda *a, **kw: True)
     rt.arm = second
     rt._profile_q = lambda *_: np.zeros(1)

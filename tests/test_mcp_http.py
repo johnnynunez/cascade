@@ -39,7 +39,8 @@ class HttpMcp:
     def __init__(self, tmp_path: Path, *, token: str | None = TOKEN, bind: str = "127.0.0.1:0",
                  extra_args=(), extra_env: dict | None = None, tls: ssl.SSLContext | None = None):
         env = dict(os.environ)
-        env["PYTHONPATH"] = str(REPO / "src")
+        env["PYTHONPATH"] = os.pathsep.join(
+            path for path in (str(REPO / "src"), env.get("PYTHONPATH", "")) if path)
         env["CASCADE_CAMERA"] = "mock"
         env["CASCADE_ARM"] = "mock"
         env["CASCADE_RUN_DIR"] = str(tmp_path / "run")

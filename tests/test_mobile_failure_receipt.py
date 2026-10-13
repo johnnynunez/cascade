@@ -41,7 +41,7 @@ class RecordedBase(MockMobileBase):
         return result
 
 
-def setup(raw):
+def connected_safe_base(raw):
     safe = SafeBase(raw, limits(max_duration_s=3., max_state_age_s=.5, max_no_progress_s=.5),
                     distance_control=distance_limits())
     raw.safe=safe
@@ -51,7 +51,7 @@ def setup(raw):
 
 @pytest.mark.parametrize('uncertain', [False, True])
 def test_three_sim_second_distance_failure_keeps_admission_separate_from_stop(uncertain):
-    raw=RecordedBase(stop_uncertain=uncertain);safe=setup(raw)
+    raw=RecordedBase(stop_uncertain=uncertain);safe=connected_safe_base(raw)
     try:
         result=safe.walk_distance(.025)
         assert result['error']=='measured distance did not reach target before simulation deadline'
@@ -73,7 +73,7 @@ def test_three_sim_second_distance_failure_keeps_admission_separate_from_stop(un
 
 
 def test_cancel_after_validated_admission_keeps_original_receipt():
-    raw=RecordedBase(cancel_after_ack=True);safe=setup(raw)
+    raw=RecordedBase(cancel_after_ack=True);safe=connected_safe_base(raw)
     try:
         result=safe.walk_distance(.025)
         assert result['error']=='cancelled by stop'
@@ -85,7 +85,7 @@ def test_cancel_after_validated_admission_keeps_original_receipt():
 
 
 def test_invalid_admission_is_not_promoted_to_a_preserved_validated_ack():
-    raw=RecordedBase(invalid_ack=True);safe=setup(raw)
+    raw=RecordedBase(invalid_ack=True);safe=connected_safe_base(raw)
     try:
         result=safe.walk_distance(.025)
         assert result['error']=='ACK generation mismatch'

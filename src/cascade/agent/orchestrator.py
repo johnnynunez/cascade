@@ -28,17 +28,18 @@ robotics study's latency lesson:
 from __future__ import annotations
 
 import json
+import threading
 import time
 from dataclasses import dataclass, field
 
 from ..conversation.receipts import agent_tool_output
 from ..memory import recipes
-from ..skills.runtime import TOOL_SPECS, SkillRuntime, _MOTION_SKILLS
+from ..skills.runtime import SkillRuntime, _MOTION_SKILLS, tool_specs_for_config
 from .advisor import Advisor
 from .aspire import retrieve as retrieve_skills
 from .llm import LLMClient, LLMResponse
 from .milestones import IMPLAUSIBLE, SKIPPED, MilestoneTracker, PlausibilityChecker, make_vlm_verifier
-from .prompts import DECOMPOSE_PROMPT, SYSTEM_PROMPT, VERIFY_USER
+from .prompts import DECOMPOSE_PROMPT, build_system_prompt, VERIFY_USER
 from .reflex import FastPlanner
 
 
@@ -51,6 +52,14 @@ def _as_bool(value) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in ("true", "yes", "1")
     return bool(value)
+
+
+class _TaskCancelled(Exception):
+    """Internal control flow: a stopped task must never resume its plan."""
+
+
+class TaskBusyError(RuntimeError):
+    """Another caller already owns the orchestrator and shared runtime."""
 
 
 @dataclass
@@ -72,6 +81,7 @@ class TaskReport:
     #: status): {"skill", "args", "ask"} -- the ask is the human-actionable
     #: request, relayed verbatim; the step was NOT retried
     stuck: dict | None = None
+    cancelled: bool = False
 
 
 class AgentOrchestrator:
@@ -103,8 +113,8 @@ class AgentOrchestrator:
             self.system_prompt = getattr(runtime, "system_prompt", MOBILE_PROMPT)
             self.tool_specs = runtime.tool_specs
         else:
-            self.system_prompt = SYSTEM_PROMPT
-            self.tool_specs = TOOL_SPECS
+            self.system_prompt = build_system_prompt(getattr(runtime, "cfg", None))
+            self.tool_specs = tool_specs_for_config(getattr(runtime, "cfg", None))
         self.advisor = advisor
         self.max_steps = max_steps
         self.decompose = decompose
@@ -122,6 +132,13 @@ class AgentOrchestrator:
         # consult that library for another morphology.
         self.fast_planner = None if self._mobile else fast_planner
         self.skill_library = None if self._mobile else skill_library
+        self._run_lock = threading.Lock()
+        self._resume_lock = threading.Lock()
+        self._stop_generation = 0
+        self._stops_in_progress = 0
+        self._cancel_event: threading.Event | None = None
+        if hasattr(runtime, "motion_cancel_requested"):
+            runtime.motion_cancel_requested = self.cancellation_requested
         #: Pigey/Agentic-VLA milestone verification. The symbolic tier reads
         #: the belief store directly (free); the visual tier costs one VLM
         #: turn and is rate-limited inside the tracker.
@@ -151,26 +168,123 @@ class AgentOrchestrator:
         #: fast planner: programs encode manipulation skills.
         self.programs = None if self._mobile else programs
 
-    def run_task(self, task: str) -> TaskReport:
+    def cancel(self) -> None:
+        """Cancel the current plan and hold the arm, including during inference."""
+        with self._resume_lock:
+            self._stop_generation += 1
+            self._stops_in_progress += 1
+        event = self._cancel_event
+        if event is not None:
+            event.set()
+        try:
+            self.runtime.arm.stop()
+        finally:
+            with self._resume_lock:
+                self._stops_in_progress -= 1
+                self._stop_generation += 1
+
+    def resume(self) -> dict:
+        """Clear STOP and return home; never replay the cancelled task."""
+        if not self._run_lock.acquire(blocking=False):
+            raise TaskBusyError("Wait for the current command to finish before resuming")
+        previous_event = self._cancel_event
+        resume_event = threading.Event()
+        cleared = False
+        try:
+            with self._resume_lock:
+                if self._stops_in_progress:
+                    raise RuntimeError("STOP is still in progress; wait before resuming")
+                generation = self._stop_generation
+            raw = self.runtime.arm.raw
+            harness = self.runtime.arm.harness
+            halt_generation = getattr(harness, "_halt_generation", None)
+            check = getattr(raw, "check_resume_ready", None)
+            if callable(check):
+                check()
+            else:
+                self.runtime.arm.get_state()
+            with self._resume_lock:
+                if generation != self._stop_generation:
+                    raise RuntimeError("STOP requested during resume; arm remains stopped")
+                self._cancel_event = resume_event
+                raw.resume()
+                cleared = True
+                harness.reset_estop(**({"halt_generation": halt_generation}
+                                      if type(halt_generation) is int else {}))
+            self.runtime._show_status("Returning to saved home; gripper unchanged")
+            result = self.runtime.execute("move_home", {})
+            if not result.get("ok", False):
+                raise RuntimeError(f"Resume home return failed: {result.get('error', 'motion refused')}")
+            with self._resume_lock:
+                if generation != self._stop_generation or resume_event.is_set():
+                    raise RuntimeError("STOP requested during home return; arm remains stopped")
+                self.runtime._show_status("At home; ready for a new command")
+                return {"resumed": True, "home": result,
+                        "message": "Returned home; gripper unchanged. Ready for a new command."}
+        except Exception:
+            if cleared:
+                self.runtime.arm.stop()
+            raise
+        finally:
+            self._cancel_event = previous_event
+            self._run_lock.release()
+
+    def cancellation_requested(self) -> bool:
+        """Expose cancellation before the hardware stop finishes dispatching."""
+        event = getattr(self, "_cancel_event", None)
+        return event is not None and event.is_set()
+
+    def _check_cancelled(self) -> None:
+        if self.cancellation_requested():
+            raise _TaskCancelled()
+
+    def run_task(self, task: str, cancel_event: threading.Event | None = None) -> TaskReport:
+        if not self._run_lock.acquire(blocking=False):
+            raise TaskBusyError("busy with another command")
+        self._cancel_event = cancel_event if cancel_event is not None else threading.Event()
+        self.runtime.current_task = task
+        self._task_tool_log: list[dict] = []
+        t_start = time.monotonic()
         # One persistence budget for the WHOLE task, across tiers: the reflex
         # tier's pick_and_place, then the LLM tier's retry of the same call,
         # share it instead of each bringing a fresh `persist_seconds`.
         begin_task = getattr(self.runtime, "begin_task", None)
-        if begin_task is not None:
-            begin_task()
         begin = getattr(self.runtime, "begin_task_budget", None)
-        if begin is not None:
-            begin()
         try:
-            report = self._run_task(task)
+            if begin_task is not None:
+                begin_task()
+            if begin is not None:
+                begin()
+            try:
+                try:
+                    self._check_cancelled()
+                    report = self._run_task(task)
+                    self._check_cancelled()
+                except Exception:
+                    # A stopped HTTP request may finish by raising instead
+                    # of returning a response. It is still cancellation.
+                    self._check_cancelled()
+                    raise
+            except _TaskCancelled:
+                report = TaskReport(
+                    task, False, "command cancelled; no further actions will run",
+                    len(self._task_tool_log), tool_log=list(self._task_tool_log),
+                    duration_s=round(time.monotonic() - t_start, 2), cancelled=True,
+                )
+                self.runtime.trace.finish(f"task: {task}\nsuccess: false\n{report.summary}")
+            # which tier actually served the command -- rendered as the
+            # dashboard's "via:" chip, so habit/reflex hits are visibly LLM-free
+            self.runtime.last_path = report.path
+            return report
         finally:
-            end = getattr(self.runtime, "end_task_budget", None)
-            if end is not None:
-                end()
-        # which tier actually served the command -- rendered as the
-        # dashboard's "via:" chip, so habit/reflex hits are visibly LLM-free
-        self.runtime.last_path = report.path
-        return report
+            try:
+                end = getattr(self.runtime, "end_task_budget", None)
+                if end is not None:
+                    end()
+            finally:
+                self.runtime.current_task = None
+                self._cancel_event = None
+                self._run_lock.release()
 
     def _run_task(self, task: str) -> TaskReport:
         t_start = time.monotonic()
@@ -178,6 +292,7 @@ class AgentOrchestrator:
         tool_log: list[dict] = []
         if self.fast_planner is not None:
             report, fast_note = self._try_fast_path(task, t_start, tool_log=tool_log)
+            self._check_cancelled()
             if report is not None:
                 return report
         # ROADMAP #8 programs tier (opt-in): consulted only when tiers 1/2 had
@@ -186,10 +301,12 @@ class AgentOrchestrator:
         # next_action to the LLM tier the same way.
         if self.programs is not None and fast_note is None:
             report, fast_note = self._try_program_tier(task, t_start, tool_log=tool_log)
+            self._check_cancelled()
             if report is not None:
                 return report
 
         milestones = self._decompose(task) if self.decompose else []
+        self._check_cancelled()
         if self.tracker is not None:
             self.tracker.reset(milestones)
         if self.plausibility is not None:
@@ -255,19 +372,44 @@ class AgentOrchestrator:
         messages.append({"role": "user", "content": intro})
 
         consecutive_failures = 0
+        consecutive_no_tools = 0
         stalled_turns = 0
         #: Task-Specific Memory: the scene as perceived BEFORE the first
         #: motion, so a successful run can be stored with its coordinates
         #: expressed relative to objects (memory/recipes.py), never raw.
         scene0: list[dict] | None = None
         for step in range(1, self.max_steps + 1):
+            self._check_cancelled()
+            # Read-only tools need not call observe(). Without this refresh,
+            # their next planner turn reuses a previous task's camera image
+            # while labelling it "current view (now)".
+            observe = getattr(self.runtime, "observe", None)
+            if self.attach_images and callable(observe):
+                try:
+                    observe(require_fresh=True)
+                except Exception as exc:
+                    self._check_cancelled()
+                    summary = f"fresh camera observation unavailable: {exc}"
+                    self.runtime.trace.finish(f"task: {task}\nsuccess: false\n{summary}")
+                    return TaskReport(task, False, summary, step - 1, milestones, tool_log,
+                                      duration_s=round(time.monotonic() - t_start, 2))
+            self._check_cancelled()
             resp = self.llm.chat(
                 system=self.system_prompt,
                 messages=self._with_memory_harness(messages),
                 tools=self.tool_specs,
                 max_tokens=1024,
             )
+            self._check_cancelled()
             if not resp.tool_calls:
+                consecutive_no_tools += 1
+                if consecutive_no_tools >= 3:
+                    summary = "planner returned no tool calls for 3 consecutive turns; command stopped"
+                    self.runtime.trace.finish(f"task: {task}\nsuccess: false\n{summary}")
+                    return TaskReport(
+                        task, False, summary, step, milestones, tool_log,
+                        duration_s=round(time.monotonic() - t_start, 2),
+                    )
                 messages.append({"role": "assistant", "content": resp.text or "(no text)"})
                 messages.append(
                     {
@@ -276,6 +418,7 @@ class AgentOrchestrator:
                     }
                 )
                 continue
+            consecutive_no_tools = 0
 
             # Execute only the first call, but echo ALL calls and answer each
             # one -- OpenAI-style APIs reject the next request if any
@@ -296,6 +439,7 @@ class AgentOrchestrator:
                 # (the `current_tier` pattern); cleared in the finally below.
                 self.runtime.pending_plausibility = advisory
             try:
+                self._check_cancelled()
                 result = self.runtime.execute(call.name, call.arguments)
             finally:
                 self.runtime.current_tier = None
@@ -305,6 +449,16 @@ class AgentOrchestrator:
                 result["plausibility"] = advisory  # untraced early return: attach here
             tool_log.append({"step": step, "tier": "llm", "tool": call.name,
                              "args": call.arguments, "result": result})
+            self._task_tool_log = tool_log
+            self._check_cancelled()
+
+            if result.get("motion_blocked"):
+                summary = str(result.get("error", "arm is not ready for motion"))
+                self.runtime.trace.finish(f"task: {task}\nsuccess: false\n{summary}")
+                return TaskReport(
+                    task, False, summary, step, milestones, tool_log,
+                    duration_s=round(time.monotonic() - t_start, 2),
+                )
 
             if call.name == "task_done" and result.get("task_complete"):
                 summary = str(call.arguments.get("summary", ""))
@@ -313,6 +467,7 @@ class AgentOrchestrator:
                 if task_verifier is not None:
                     success = success and result.get("success") is True
                 report = self._finish_report(task, success, summary, step, milestones, tool_log, t_start)
+                self._check_cancelled()
                 if report.success:
                     # Only a VERIFIED success is worth remembering: the
                     # report's success already folds in every unverified
@@ -388,6 +543,7 @@ class AgentOrchestrator:
 
             # ── Pigey closed loop: re-verify progress after every motion ──
             progress = self._check_progress(call.name)
+            self._check_cancelled()
             if progress is not None:
                 stalled_turns = stalled_turns + 1 if progress.stalled else 0
                 board = self.tracker.digest()
@@ -435,11 +591,13 @@ class AgentOrchestrator:
 
             # Failure escalation: one visual suggestion from the advisor.
             if not ok and self.advisor is not None and self.advisor.should_consult:
+                self._check_cancelled()
                 jpeg = self.runtime.frame_jpeg()
                 if jpeg:
                     suggestion = self.advisor.suggest(
                         task, jpeg, failure=str(result.get("error", ""))
                     )
+                    self._check_cancelled()
                     if suggestion:
                         self.runtime.memory.add("note", f"advisor: {suggestion}")
                         messages.append(
@@ -558,10 +716,13 @@ class AgentOrchestrator:
         if skill_name not in _MOTION_SKILLS:
             return None
         jpeg = self.runtime.frame_jpeg() if self.attach_images else None
+        self._check_cancelled()
         try:
-            return self.tracker.update(jpeg)
+            progress = self.tracker.update(jpeg)
         except Exception:
             return None
+        self._check_cancelled()
+        return progress
 
     def _final_check(self, claimed_success: bool) -> tuple[list[dict], list[str]]:
         """Last verification pass before the report is written.
@@ -572,18 +733,23 @@ class AgentOrchestrator:
         """
         if self.tracker is None or not self.tracker.active:
             return [], []
+        self._check_cancelled()
         try:
             jpeg = self.runtime.frame_jpeg() if (claimed_success and self.attach_images) else None
             self.tracker.update(jpeg, allow_visual=claimed_success)
-            return self.tracker.as_list(), (self.tracker.unverified() if claimed_success else [])
+            result = self.tracker.as_list(), (self.tracker.unverified() if claimed_success else [])
         except Exception:
             return [], []
+        self._check_cancelled()
+        return result
 
     def _try_fast_path(self, task: str, t_start: float, *, tool_log=None) -> tuple[TaskReport | None, str | None]:
         """Reflex/experience execution; (report, None) on success, or
         (None, note-for-the-LLM) when the fast attempt failed or no fast
         plan exists."""
+        self._check_cancelled()
         plan = self.fast_planner.plan(task)
+        self._check_cancelled()
         if plan is None:
             return None, None
         if tool_log is None:
@@ -608,6 +774,7 @@ class AgentOrchestrator:
                 return None, note
         offset = len(tool_log)
         for i, (name, args) in enumerate(calls, start=1):
+            self._check_cancelled()
             self.runtime.current_tier = str(plan.source)  # reflex | experience
             try:
                 result = self.runtime.execute(name, args)
@@ -615,6 +782,8 @@ class AgentOrchestrator:
                 self.runtime.current_tier = None
             tool_log.append({"step": offset + i, "tier": str(plan.source), "tool": name,
                              "args": args, "result": result})
+            self._task_tool_log = tool_log
+            self._check_cancelled()
             if isinstance(result, dict) and result.get("outcome") == "stuck":
                 # The fast tier's step needs a human. Escalating to the LLM
                 # would only buy the same pick a fresh persistence budget --
@@ -635,6 +804,14 @@ class AgentOrchestrator:
                     task, plan.calls, False, time.monotonic() - t_start
                 )
                 self._note_action_objects(task, plan.calls, False, failed_at=i - 1)
+                if name == "rotate_joint" or result.get("motion_blocked"):
+                    summary = str(result.get("error", "motion failed"))
+                    self.runtime.trace.finish(f"task: {task}\nsuccess: false\n{summary}")
+                    return TaskReport(
+                        task, False, summary,
+                        i, tool_log=tool_log, path=plan.source,
+                        duration_s=round(time.monotonic() - t_start, 2),
+                    ), None
                 note = (
                     f"(A fast {plan.source} plan was tried first and FAILED at "
                     f"{name}({json.dumps(args)}): {str(result.get('error') or '; '.join(unverified))[:200]}. "
@@ -904,10 +1081,14 @@ class AgentOrchestrator:
         # stays true. Text-only planners get the JSON result alone.
         recall = self._pending_recall if self.attach_images else []
         self._pending_recall = []
-        if self.memory_frames_k <= 0 and not recall:
+        if not self.attach_images:
             return pruned
+        history_count = self.memory_frames_k
+        frame_limit = getattr(self.llm, "max_frames", None)
+        if isinstance(frame_limit, int) and frame_limit > 0:
+            history_count = min(history_count, frame_limit - 1)
         try:
-            frames = self.runtime.memory.memory_frames(self.memory_frames_k) if self.memory_frames_k > 0 else []
+            frames = self.runtime.memory.memory_frames(history_count) if history_count else []
         except AttributeError:
             frames = []
         images = [f["jpeg"] for f in frames]
@@ -933,6 +1114,12 @@ class AgentOrchestrator:
         if recall:
             text += ("\nThe 'recalled' image(s) are the keyframes recorded around the past "
                      "step you asked about, shown once; they are not the current view.")
+        beliefs = getattr(self.runtime, "beliefs", None)
+        if beliefs is not None:
+            visible = [o for o in beliefs.summary() if o.get("state") == "visible"]
+            text += ("\nCurrent detector observations (labels may be imperfect): "
+                     + json.dumps(visible) + "\nRemembered objects are not current detections; "
+                     "verify them in the current image before choosing a target.")
         # Strip any image the pruned history still carries: the harness is
         # now the single place images enter the request.
         pruned = [
@@ -959,6 +1146,7 @@ class AgentOrchestrator:
         return pruned
 
     def _decompose(self, task: str) -> list[str]:
+        self._check_cancelled()
         try:
             resp: LLMResponse = self.llm.chat(
                 system=self.system_prompt,
@@ -968,7 +1156,9 @@ class AgentOrchestrator:
                 max_tokens=300,
             )
         except Exception:
+            self._check_cancelled()
             return []
+        self._check_cancelled()
         lines = []
         for raw in resp.text.splitlines():
             line = raw.strip().lstrip("0123456789.-* ").strip()

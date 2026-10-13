@@ -50,10 +50,14 @@ Serving (see ``scripts/serve_cosmos_vllm.sh``)::
 from __future__ import annotations
 
 import json
+import logging
 import re
+from copy import deepcopy
 from typing import Any
 
 from .llm import LLMResponse, OpenAICompatClient, ToolCall
+
+logger = logging.getLogger(__name__)
 
 #: <tool_call> ... </tool_call>, tolerant of whitespace and missing closer
 _TOOL_BLOCK = re.compile(r"<tool_call>(.*?)(?:</tool_call>|\Z)", re.S | re.I)
@@ -146,6 +150,8 @@ class Cosmos3EdgeClient(OpenAICompatClient):
         temperature: float = 0.2,
         enable_thinking: bool = False,
         max_frames: int = 1,
+        request_timeout_s: float = 60.0,
+        max_retries: int = 0,
     ):
         super().__init__(
             model=model,
@@ -153,6 +159,8 @@ class Cosmos3EdgeClient(OpenAICompatClient):
             api_key=api_key,
             supports_vision=supports_vision,
             temperature=temperature,
+            request_timeout_s=request_timeout_s,
+            max_retries=max_retries,
         )
         #: The template defaults enable_thinking=True. On a booth clock a
         #: reasoning preamble costs seconds per turn for no visible gain, so
@@ -163,16 +171,68 @@ class Cosmos3EdgeClient(OpenAICompatClient):
         self.max_frames = max(1, int(max_frames))
 
     def chat(self, system, messages, tools=None, max_tokens=1024) -> LLMResponse:
+        logger.debug("Cosmos request: messages=%d tools=%d max_tokens=%d",
+                     len(messages), len(tools or []), max_tokens)
+        resp = self._chat_inner(system, messages, tools, max_tokens)
+        logger.debug("Cosmos response: text_chars=%d tools=%s", len(resp.text),
+                     [call.name for call in resp.tool_calls])
+        return resp
+
+    @staticmethod
+    def prettify_dict(dictionary: dict)-> str:
+        return json.dumps(dictionary, indent = 4)
+
+    def _chat_inner(self, system, messages, tools=None, max_tokens=1024) -> LLMResponse:
+        tools = deepcopy(tools) if tools else None
+        for spec in tools or []:
+            spec["strict"] = True
         resp = super().chat(system, messages, tools=tools, max_tokens=max_tokens)
         if resp.tool_calls:
             resp.text = strip_reasoning(resp.text)
-            return resp
+            return self._validate_calls(resp, tools)
         calls = parse_xml_tool_calls(resp.text, tools)
         if calls:
             # Keep only the prose before the first tool block as narration.
             head = re.split(r"<tool_call>|<function=", resp.text, maxsplit=1)[0]
-            return LLMResponse(text=strip_reasoning(head), tool_calls=calls)
+            return self._validate_calls(LLMResponse(text=strip_reasoning(head), tool_calls=calls), tools)
         return LLMResponse(text=strip_reasoning(resp.text), tool_calls=[])
+
+    @staticmethod
+    def _validate_calls(response, tools):
+        """Reject malformed identifiers at the model boundary, before dispatch.
+
+        Decoder constraints are not a substitute for checking the received
+        call: truncated or XML fallback output may still contain broken tags.
+        """
+        if tools is None:
+            return response
+        catalog = {spec["name"]: spec["parameters"] for spec in tools}
+        for call in response.tool_calls:
+            schema = catalog.get(call.name)
+            args = call.arguments
+            error = None
+            if schema is None or not isinstance(args, dict):
+                error = "unknown tool or invalid argument object"
+            else:
+                props = schema.get("properties", {})
+                if set(schema.get("required", [])) - set(args):
+                    error = "missing required arguments"
+                elif schema.get("additionalProperties") is False and set(args) - set(props):
+                    error = "unknown arguments"
+                for name, value in args.items():
+                    prop = props.get(name, {})
+                    if "enum" in prop and value not in prop["enum"]:
+                        error = f"invalid {name}; allowed values: {prop['enum']}"
+                    if prop.get("type") == "string":
+                        if not isinstance(value, str):
+                            error = f"{name} must be a string"
+                        elif (len(value) < prop.get("minLength", 0)
+                              or (prop.get("pattern") and not re.fullmatch(prop["pattern"], value))):
+                            error = f"{name} must be a nonempty description without XML tags"
+            if error:
+                return LLMResponse(text=f"Invalid model tool call {call.name}: {error}. "
+                                        "Choose one tool with arguments matching its schema.", tool_calls=[])
+        return response
 
     def _extra_body(self) -> dict:
         return {"chat_template_kwargs": {"enable_thinking": self.enable_thinking}}
@@ -188,4 +248,6 @@ def make_cosmos3_client(cfg) -> Cosmos3EdgeClient:
         temperature=float(cfg.get("temperature", 0.2)),
         enable_thinking=bool(cfg.get("enable_thinking", False)),
         max_frames=int(cfg.get("max_frames", 1)),
+        request_timeout_s=float(cfg.get("request_timeout_s", 60.0)),
+        max_retries=int(cfg.get("max_retries", 0)),
     )

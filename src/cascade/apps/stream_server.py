@@ -120,6 +120,7 @@ _INDEX_HTML = """<!doctype html>
    .cam h2 {{ font-size: 15px; }}
    .views button {{ padding: 7px 10px; min-height: 34px; }}
  }}{wrist_css}
+ button:disabled {{ opacity:.45; cursor:default !important; }}
 </style></head><body>
 <header><h1>Physical Agentic AI &middot; OpenClaw Demo</h1>
  <span id="task">{initial_task}</span>
@@ -138,11 +139,14 @@ _INDEX_HTML = """<!doctype html>
     <input id="cmd" {command_disabled} placeholder="Pick up the green cube and place it in the target area"
       style="flex:1;background:#f7f6f2;border:1px solid #b3b9a8;border-radius:6px;
              color:#242722;padding:7px 10px;font:13px system-ui">
-    <button {command_disabled} style="background:#b4e35a;border:0;border-radius:6px;color:#242722;
+    <button id="send" {command_disabled} style="background:#b4e35a;border:0;border-radius:6px;color:#242722;
                    font-weight:700;padding:0 14px;cursor:pointer">Send</button>
     <button type="button" id="stopbtn" {command_disabled}
       style="background:#fff0e9;border:0;border-radius:6px;color:#833b24;
              font-weight:700;padding:0 14px;cursor:pointer">Stop</button>
+    <button type="button" id="resumebtn" disabled hidden
+      title="Clear STOP and return to saved home, keeping the gripper unchanged"
+      style="background:#b4e35a;border:0;border-radius:6px;padding:0 10px;cursor:pointer">Resume &amp; Home</button>
    </form><div id="chatmsg" style="font:11px ui-monospace,monospace;color:#65695e;
                                    margin-top:6px;max-height:14vh;overflow-y:auto"></div></div>
   <div class="panel runtime-panel" {command_hidden}><h3>Robot activity</h3><div id="feed">Waiting for the next action…</div></div>
@@ -249,9 +253,22 @@ _INDEX_HTML = """<!doctype html>
    if (readOnly) return;
    try {{
      const r = await (await fetch('/cancel', {{method: 'POST'}})).json();
-     log(r.cancelled ? 'cancelled - the arm is stopping' : (r.error || 'cancel failed'),
-         r.cancelled ? '#795a29' : '#aa3523');
-   }} catch (e) {{ log('error: ' + e, '#aa3523'); }}
+     log(r.cancelled ? 'stop requested - waiting for the command to finish' : (r.error || 'cancel failed'),
+         r.cancelled ? '#f0b429' : '#ff7b72');
+   }} catch (e) {{ log('error: ' + e, '#ff7b72'); }}
+ }});
+ let resuming = false;
+ document.getElementById('resumebtn').addEventListener('click', async () => {{
+   if (readOnly) return;
+   resuming = true;
+   document.getElementById('resumebtn').disabled = true;
+   log('Checking readiness and returning to saved home...', '#f0b429');
+   try {{
+     const r = await (await fetch('/resume', {{method: 'POST'}})).json();
+     log(r.resumed ? r.message : (r.error || 'resume failed'),
+         r.resumed ? '#7ee787' : '#ff7b72');
+   }} catch (e) {{ log('resume failed: ' + e, '#ff7b72'); }}
+   finally {{ resuming = false; tick(); }}
  }});
  document.getElementById('chat').addEventListener('submit', async (ev) => {{
    ev.preventDefault();
@@ -286,7 +303,17 @@ _INDEX_HTML = """<!doctype html>
    const hasHolding = Object.prototype.hasOwnProperty.call(s, 'holding');
    const hasArm = typeof s.arm_connected === 'boolean';
    if (hasHolding) parts.push(`holding: ${{s.holding || '-'}}`);
-   if (hasArm) parts.push(`arm: ${{s.arm_connected ? 'up' : 'standby'}}`);
+   if (hasArm) {{
+     const motion = s.arm_motion;
+     const armStatus = motion
+       ? (motion.motion_ready && s.arm_connected ? 'ready' :
+          (motion.current_errors || []).join(', ') || motion.motion_error ||
+          (motion.stopped ? 'stopped' : !s.arm_connected ? 'feedback unavailable' :
+           ['Idle', 'Move'].includes(motion.robot_mode) ? 'native state unavailable' :
+           motion.robot_mode || 'unavailable'))
+       : (s.arm_connected ? 'up' : 'standby');
+     parts.push(`arm: ${{armStatus}}`);
+   }}
    if (s.last_path) parts.push(`via: ${{s.last_path}}`);
    if (!hasHolding && !hasArm) parts.push('Robot state unavailable');
    if (s.agent_status) parts.push(s.agent_status);
@@ -309,8 +336,18 @@ _INDEX_HTML = """<!doctype html>
      document.getElementById('command-panel').hidden = readOnly;
      document.querySelectorAll('.runtime-panel').forEach(el => el.hidden = readOnly);
      document.querySelectorAll('#chat input, #chat button').forEach(el => el.disabled = readOnly);
-     document.getElementById('task').textContent = readOnly ? 'Live cameras · send orders in OpenClaw' :
-       (s.task ? `task: ${{s.task}}` : 'idle - waiting for a command');
+     document.getElementById('task').textContent = readOnly
+       ? 'Live cameras · send orders in OpenClaw'
+       : (s.busy
+          ? `${{s.cancel_requested ? 'stopping' : 'running'}} (${{s.command_elapsed_s}}s): ${{s.active_command}}`
+          : (s.task ? `task: ${{s.task}}` :
+             (s.last_command && s.last_command.success === false
+              ? s.last_command.summary : 'idle - waiting for a command')));
+     document.getElementById('send').disabled = readOnly || !!s.busy;
+     const motion = s.arm_motion;
+     const resume = document.getElementById('resumebtn');
+     resume.hidden = !s.resume_supported;
+     resume.disabled = readOnly || resuming || !!s.busy || (motion && !motion.stopped);
      updateCameraStatus();{wrist_tick}
      document.getElementById('gmem').textContent =
        (s.grasp_memory || []).join('\\n') || 'empty';
@@ -459,16 +496,118 @@ class StreamServer:
         # Optional chat: POST /task hands a natural-language command to this
         # callback (the app wires it to its orchestrator). One at a time.
         self._task_fn = None
+        self._task_cancel_aware = False
         self._cancel_fn = None
+        self._resume_fn = None
         self._task_busy = threading.Lock()
+        self._task_state_lock = threading.Lock()
+        self._task_cancel_event: threading.Event | None = None
+        self._active_command: str | None = None
+        self._command_started_at: float | None = None
+        self._command_started_monotonic: float | None = None
+        self._last_command: dict | None = None
 
-    def set_task_fn(self, fn) -> None:
-        """fn(task_text) runs a command; called from a worker thread."""
+    def set_task_fn(self, fn, *, cancel_aware: bool = False) -> None:
+        """Run fn(task_text[, cancel_event]) in a single command worker."""
         self._task_fn = fn
+        self._task_cancel_aware = cancel_aware
 
     def set_cancel_fn(self, fn) -> None:
         """fn() aborts the running command (POST /cancel, the STOP button)."""
         self._cancel_fn = fn
+
+    def command_state(self) -> dict:
+        """Command ownership is independent of camera overlays and arm motion."""
+        with self._task_state_lock:
+            return {
+                "resume_supported": self._resume_fn is not None,
+                "busy": self._task_busy.locked(),
+                "active_command": self._active_command,
+                "command_started_at": self._command_started_at,
+                "command_elapsed_s": (
+                    round(time.monotonic() - self._command_started_monotonic, 1)
+                    if self._command_started_monotonic is not None else None
+                ),
+                "cancel_requested": bool(
+                    self._task_cancel_event is not None and self._task_cancel_event.is_set()
+                ),
+                "last_command": self._last_command,
+            }
+
+    def submit_task(self, task: str) -> dict:
+        """Keep ownership until the worker exits, including after STOP."""
+        with self._task_state_lock:
+            if not self._task_busy.acquire(blocking=False):
+                return {"accepted": False, "error": "busy with another command",
+                        "active_command": self._active_command}
+            cancel_event = threading.Event()
+            self._task_cancel_event = cancel_event
+            self._active_command = task
+            self._command_started_at = time.time()
+            self._command_started_monotonic = time.monotonic()
+            task_fn, cancel_aware = self._task_fn, self._task_cancel_aware
+
+        def _run():
+            outcome = {"task": task, "success": None, "summary": "command finished"}
+            try:
+                result = task_fn(task, cancel_event) if cancel_aware else task_fn(task)
+                if result is not None:
+                    outcome.update(success=getattr(result, "success", None),
+                                   summary=getattr(result, "summary", "command finished"))
+            except Exception as exc:
+                outcome.update(success=False, error=str(exc), summary=f"command failed: {exc}")
+                print(f"[stream] task failed: {exc}", file=sys.stderr)
+            finally:
+                outcome["cancelled"] = cancel_event.is_set()
+                with self._task_state_lock:
+                    self._last_command = outcome
+                    self._active_command = None
+                    self._command_started_at = None
+                    self._command_started_monotonic = None
+                    self._task_cancel_event = None
+                    self._task_busy.release()
+
+        try:
+            threading.Thread(target=_run, daemon=True, name="dashboard-task").start()
+        except Exception:
+            with self._task_state_lock:
+                self._active_command = None
+                self._command_started_at = None
+                self._command_started_monotonic = None
+                self._task_cancel_event = None
+                self._task_busy.release()
+            raise
+        return {"accepted": True, "task": task}
+
+    def cancel_task(self) -> dict:
+        if self._cancel_fn is None:
+            return {"cancelled": False, "error": "no cancel handler wired"}
+        # Publish cancellation before holding the arm: the worker sees it
+        # even if the hardware stop takes time or the worker has not started.
+        with self._task_state_lock:
+            if self._task_cancel_event is not None:
+                self._task_cancel_event.set()
+        try:
+            self._cancel_fn()
+            return {"cancelled": True, "busy": self.command_state()["busy"]}
+        except Exception as exc:
+            return {"cancelled": False, "error": str(exc)[:120]}
+
+    def set_resume_fn(self, fn) -> None:
+        """Wire an operator-only reset; it must not replay a command."""
+        self._resume_fn = fn
+
+    def resume_task(self) -> dict:
+        if self._resume_fn is None:
+            return {"resumed": False, "error": "no resume handler wired"}
+        if not self._task_busy.acquire(blocking=False):
+            return {"resumed": False, "error": "Wait for the current command to finish before resuming"}
+        try:
+            return self._resume_fn()
+        except Exception as exc:
+            return {"resumed": False, "error": str(exc)}
+        finally:
+            self._task_busy.release()
 
     # ── lifecycle ────────────────────────────────────────────────────────
 
@@ -535,6 +674,7 @@ class StreamServer:
             base.update(self._state_fn() or {})
         except Exception as e:
             base["state_error"] = str(e)
+        base.update(self.command_state())
         base.setdefault("agent_status", "idle")
         tile = self._map_tile
         if tile is not None:
@@ -600,7 +740,7 @@ class StreamServer:
         if runtime is None:
             return self.annotated_jpeg(name)
         try:
-            from ..perception.visual_interface import VisualInterface, configured_grasp_band
+            from ..perception.visual_interface import VisualInterface, camera_extrinsics, configured_reach_x
 
             stream = self._rig.get(name)
             frame = stream.latest()
@@ -608,12 +748,11 @@ class StreamServer:
                 return None
             cfg = runtime.cfg
             ws_raw = cfg.safety.get("workspace", {}) or {}
-            grasp_cfg = cfg.grasp if hasattr(cfg, "grasp") else {}
             vi = VisualInterface(
-                extrinsics=runtime.extrinsics,
+                extrinsics=camera_extrinsics(runtime, name),
                 workspace=dict(getattr(ws_raw, "_data", ws_raw)),
                 table_z=float(cfg.safety.get("table_z", 0.0)),
-                reach_x=configured_grasp_band(grasp_cfg),
+                reach_x=configured_reach_x(cfg),
             )
             try:
                 # a viewer never powers a standby arm (any LAN browser can
@@ -751,14 +890,12 @@ def _make_handler(server: StreamServer):
             # API endpoints always answer JSON (even on error) so the
             # dashboard's fetch().json() never chokes on an HTML error page.
             if self.path.rstrip("/") == "/cancel":
-                if server._cancel_fn is None:
-                    return self._json({"cancelled": False,
-                                       "error": "no cancel handler wired"}, code=501)
-                try:
-                    server._cancel_fn()
-                    return self._json({"cancelled": True})
-                except Exception as e:
-                    return self._json({"cancelled": False, "error": str(e)[:120]})
+                return self._json(server.cancel_task(),
+                                  code=501 if server._cancel_fn is None else 200)
+            if self.path.rstrip("/") == "/resume":
+                result = server.resume_task()
+                return self._json(result, code=200 if result.get("resumed") else
+                                  (501 if server._resume_fn is None else 409))
             if self.path.rstrip("/") != "/task":
                 return self._json({"error": "unknown path"}, code=404)
             if not command_allowed(self.client_address[0], server._lan_commands):
@@ -778,19 +915,10 @@ def _make_handler(server: StreamServer):
                                    "error": 'body must be JSON {"task": ...}'}, code=400)
             if not task:
                 return self._json({"accepted": False, "error": "empty task"}, code=400)
-            if not server._task_busy.acquire(blocking=False):
-                return self._json({"accepted": False, "error": "busy with another command"})
-
-            def _run():
-                try:
-                    server._task_fn(task)
-                except Exception as e:
-                    print(f"[stream] task failed: {e}", file=sys.stderr)
-                finally:
-                    server._task_busy.release()
-
-            threading.Thread(target=_run, daemon=True, name="dashboard-task").start()
-            self._json({"accepted": True, "task": task})
+            try:
+                self._json(server.submit_task(task))
+            except Exception as exc:
+                self._json({"accepted": False, "error": str(exc)}, code=500)
 
         def _index(self):
             read_only = server.state().get("read_only") is True

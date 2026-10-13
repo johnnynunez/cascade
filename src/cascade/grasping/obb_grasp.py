@@ -382,6 +382,7 @@ def plan_grasps_from_fix(
     width_pad_m: float = 0.015,
     axis_order: str = "down_open",
     angled_tilts_deg=(),
+    support_z: float | None = None,
 ) -> list[Grasp]:
     """-> ranked candidate grasps (primary yaw first, then alternates).
 
@@ -407,8 +408,13 @@ def plan_grasps_from_fix(
     horiz.sort(key=lambda t: t[0])  # narrowest horizontal extent first
 
     obj_top_z = float(fix.points[:, 2].max())
-    # A top-only cloud cannot locate the bottom (see object_vertical_span).
-    obj_bottom_z, _ = object_vertical_span(fix.points, table_z)
+    if support_z is not None:
+        # Measured RGB-D support overrides any configured table prior.
+        obj_bottom_z = float(support_z)
+        table_z = float(support_z)
+    else:
+        # A top-only cloud cannot locate the bottom (see object_vertical_span).
+        obj_bottom_z, _ = object_vertical_span(fix.points, table_z)
     height = max(obj_top_z - obj_bottom_z, 0.01)
     grasp_z = max(
         obj_top_z - depth_fraction * height,

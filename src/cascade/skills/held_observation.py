@@ -201,6 +201,13 @@ def measure(runtime, localize) -> HeldOffset:
                 return HeldOffset(_offset(positions[0], tcp), "legacy_pose")
         except Exception as exc:
             rejected.append(str(exc))
+    wrist_camera = getattr(runtime, "_native_wrist_camera", None)
+    if callable(wrist_camera) and wrist_camera():
+        # The Franka's wrist RGB-D sensor cannot observe inside its minimum
+        # range. Table detections and cached pickup offsets cannot establish
+        # current in-jaw pose or slip. Independent observations above retain
+        # their own evidence/authority; native jaw feedback tracks possession.
+        return HeldOffset(None, "wrist_unobserved", evidence={"rejected": rejected})
     try:
         frame = runtime.observe()
         if getattr(runtime, "_held_observation_floor", None) is not None:

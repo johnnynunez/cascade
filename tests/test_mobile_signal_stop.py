@@ -12,9 +12,15 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 
 
+def source_pythonpath():
+    # ROS may supply Pinocchio outside the interpreter's site-packages.
+    return os.pathsep.join(path for path in
+                           (str(REPO / "src"), os.environ.get("PYTHONPATH", "")) if path)
+
+
 def run_child(tmp_path, entrypoint, site="gate", signum=signal.SIGINT):
     env = {k: v for k, v in os.environ.items() if not k.startswith("CASCADE_")}
-    env.update(PYTHONPATH=str(REPO / "src"), CUDA_VISIBLE_DEVICES="-1", OMP_NUM_THREADS="1",
+    env.update(PYTHONPATH=source_pythonpath(), CUDA_VISIBLE_DEVICES="-1", OMP_NUM_THREADS="1",
                CASCADE_BASE="microduck_mock", CASCADE_LLM="mock", CASCADE_PREWARM="0",
                CASCADE_STREAM="0", CASCADE_VIEW="0", CASCADE_BELIEFS="0",
                CASCADE_BELIEFS_PATH=str(tmp_path / "beliefs.json"),
@@ -146,7 +152,7 @@ raise SystemExit(demo.main(["--arm", "mock", "--camera", "mock", "--llm", "mock"
                            "--no-serve", "--run-dir", sys.argv[1]]))
 '''
     env = {k: v for k, v in os.environ.items() if not k.startswith("CASCADE_")}
-    env.update(CUDA_VISIBLE_DEVICES="-1", OMP_NUM_THREADS="1", PYTHONPATH=str(REPO / "src"),
+    env.update(CUDA_VISIBLE_DEVICES="-1", OMP_NUM_THREADS="1", PYTHONPATH=source_pythonpath(),
                CASCADE_BELIEFS="0", CASCADE_BELIEFS_PATH=str(tmp_path / "beliefs.json"),
                CASCADE_GRASP_MEMORY_PATH=str(tmp_path / "grasp.json"),
                CASCADE_ENVELOPE_PATH=str(tmp_path / "envelope.json"))
@@ -174,7 +180,7 @@ with StopSignals(staff_reset=True) as signals:
         raise AssertionError("lost shutdown request")
 '''
     result = subprocess.run([sys.executable, "-c", code, str(int(signum))], cwd=REPO,
-                            env={**os.environ, "PYTHONPATH": str(REPO / "src"), "CUDA_VISIBLE_DEVICES": "-1",
+                            env={**os.environ, "PYTHONPATH": source_pythonpath(), "CUDA_VISIBLE_DEVICES": "-1",
                                  "OMP_NUM_THREADS": "1"}, capture_output=True, text=True, timeout=4)
     assert result.returncode == 0, result.stderr
 

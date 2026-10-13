@@ -34,7 +34,7 @@ def runtime(tmp_path):
     # Keep the real dispatcher and stores; this fixture has no actuation.
     rt = SkillRuntime(
         camera=None, depth_provider=None, detector=None, extrinsics=None,
-        kin=None, safe_arm=SimpleNamespace(), memory=EpisodicMemory(),
+        kin=None, safe_arm=SimpleNamespace(harness=SimpleNamespace(violations=[])), memory=EpisodicMemory(),
         beliefs=BeliefStore(), trace=TraceLogger(tmp_path / "run"),
         cfg=load_demo_config(camera="mock", arm="mock", llm="mock"),
     )

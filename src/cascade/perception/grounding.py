@@ -432,7 +432,8 @@ def localize_object(
     """
     from .colors import color_matches, detection_color
 
-    T_cam2base = extrinsics.cam_to_base()
+    T_cam2base = (frame.T_base_cam if frame.T_base_cam is not None
+                  else extrinsics.cam_to_base())
     if workspace_bounds is not None:
         workspace_min, workspace_max = [
             np.asarray(bound, dtype=float).reshape(3) for bound in workspace_bounds

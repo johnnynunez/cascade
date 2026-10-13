@@ -151,3 +151,27 @@ def test_fr3_mujoco_profile_names_exist_in_the_composed_scene():
         assert m.actuator(n).id >= 0
     assert m.joint(cfg.arm.mj_gripper_joint).id >= 0
     assert m.actuator(cfg.arm.mj_gripper_actuator).id >= 0
+
+
+def test_measured_wood_grasp_uses_equivalent_short_wrist_rotation(kin):
+    """Replay measured October 5 poses through IK only; no hardware motion."""
+    from cascade.grasping import select_grasp
+    from cascade.types import Grasp
+    seed = np.array([-.05810824, -.61432391, -.05216531, -2.27150893,
+                     .11798029, 2.11902976, .76639742])
+    measured = np.array([.53654903, .75504869, -.64237761, -2.00469375,
+                         .75917810, 2.50166368, -2.40344644])
+    T = kin.fk(measured)
+    g = Grasp(T[:3, 3], T[:3, :3], .03, T[:3, 2], 1., 'wood')
+    _, old_pre, _ = select_grasp([g], kin, seed, pregrasp_offset_m=.08,
+                                  parallel_jaw_symmetry=False)
+    chosen, pre, grasp = select_grasp([g], kin, seed, pregrasp_offset_m=.08,
+                                      parallel_jaw_symmetry=True)
+    assert abs(np.rad2deg(old_pre[-1] - seed[-1])) > 150
+    assert abs(np.rad2deg(pre[-1] - seed[-1])) < 35
+    actual = kin.fk(grasp)
+    np.testing.assert_allclose(actual[:3, 3], T[:3, 3], atol=1e-4)
+    np.testing.assert_allclose(actual[:3, 2], T[:3, 2], atol=1e-4)
+    np.testing.assert_allclose(actual[:3, 1], -T[:3, 1], atol=1e-4)
+    lo, hi = kin.joint_limits
+    assert np.all(grasp > lo) and np.all(grasp < hi)

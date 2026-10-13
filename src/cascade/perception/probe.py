@@ -53,6 +53,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from .visual_interface import camera_extrinsics
+
 #: Radius (px) of the median window used to read depth, so one dead pixel in
 #: a sensor depth map does not produce a wild 3D point.
 PATCH_R = 3
@@ -115,7 +117,10 @@ class PointProbe:
             raise ValueError("no frame available yet")
         T = frame.T_base_cam
         if T is None:
-            T = self.rt.extrinsics.cam_to_base()
+            extrinsics = camera_extrinsics(self.rt, camera)
+            if extrinsics is None:
+                raise ValueError(f"no extrinsics available for camera {camera!r}")
+            T = extrinsics.cam_to_base()
         return frame, np.asarray(T, dtype=float)
 
     def _workspace(self) -> dict:

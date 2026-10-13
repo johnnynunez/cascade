@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from cascade.grasping.force import select_profile
 from cascade.grasping.obb_grasp import _yaw_rotation, plan_grasps_from_fix
@@ -55,6 +56,36 @@ def test_grasp_z_clamped_above_table():
     fix = make_fix(size=(0.06, 0.03, 0.008))  # very flat object
     grasps = plan_grasps_from_fix(fix, table_z=0.0, min_grasp_z_above_table=0.005)
     assert grasps[0].position[2] >= 0.005 - 1e-9
+
+
+@pytest.mark.parametrize("stored_z", [.017, -.005])
+def test_franka_memory_cannot_shift_measured_grasp_height(stored_z, monkeypatch):
+    from unittest.mock import Mock
+    from cascade.config import load_demo_config
+    from cascade.skills.runtime import SkillRuntime
+
+    rt = SkillRuntime.__new__(SkillRuntime)
+    rt.cfg = load_demo_config(arm="fr3", camera="d435i", llm="mock")
+    rt._max_width = .08
+    rt.memory = Mock()
+    rt.grasp_memory = Mock()
+    rt.grasp_memory.prior.return_value = {
+        "nudges": {"grasp_z_delta": stored_z}, "profile": "wood",
+        "wins": 0, "losses": 4, "success_rate": 0.,
+    }
+    rt.grasp_memory.rerank.side_effect = lambda grasps, *args: list(reversed(grasps))
+    monkeypatch.setattr("cascade.perception.support_surface.estimate_support_z", lambda frame, fix: 0.)
+    fix = make_fix(size=(.10, .03, .035))
+    expected = plan_grasps_from_fix(
+        fix, table_z=0., max_width_m=.08,
+        depth_fraction=rt.cfg.grasp.depth_fraction, axis_order="third_open_down",
+    )
+    got = rt._plan_grasps(fix, "wood piece")
+    assert rt._last_grasp_z_nudge == 0.
+    rt.grasp_memory.rerank.assert_called_once()
+    for actual, original in zip(got, reversed(expected)):
+        np.testing.assert_allclose(actual.position, original.position)
+        np.testing.assert_allclose(actual.rotation, original.rotation)
 
 
 def test_yaw_rotation_orthonormal():
@@ -161,3 +192,39 @@ def test_select_grasp_offsets_a_single_hinge_jaw():
     assert abs(shift - g_off.width_m / 2) < 1e-9, (
         "the offset must be half the closing width along the close direction"
     )
+
+
+def test_parallel_finger_swap_prefers_short_bounded_joint_motion():
+    from types import SimpleNamespace
+    from cascade.grasping import select_grasp
+    from cascade.types import Grasp
+    g = Grasp(np.array([.5, 0., .03]), _yaw_rotation(0., axis_order='third_open_down'),
+              .03, np.array([0., 0., -1.]), 1., 'wood')
+    seed = np.zeros(7); seed[-1] = .7
+    class Kin:
+        joint_limits = (np.full(7, -2.9), np.full(7, 2.9))
+        def ik(self, T, q):
+            result = np.zeros(7)
+            result[-1] = -2.8 if T[0, 1] > 0 else 1.05
+            return SimpleNamespace(success=True, error=0., q=result)
+    visited = []
+    def vet(g, pre, grasp):
+        visited.append(pre[-1])
+    selected, pre, grasp = select_grasp([g], Kin(), seed, validate=vet, parallel_jaw_symmetry=True)
+    assert visited == [-2.8, 1.05]
+    assert abs(pre[-1] - seed[-1]) < np.deg2rad(21)
+    np.testing.assert_allclose(selected.rotation[:, 1], -g.rotation[:, 1])
+    np.testing.assert_allclose(selected.rotation[:, 2], g.rotation[:, 2])
+    np.testing.assert_array_equal(selected.position, g.position)
+    assert selected.width_m == g.width_m
+    # A camera/collision rejection must win over shorter travel.
+    _, pre, _ = select_grasp([g], Kin(), seed, parallel_jaw_symmetry=True,
+                            validate=lambda g, pre, q: 'camera collision' if pre[-1] > 0 else None)
+    assert pre[-1] == -2.8
+    # Upstream also chooses the shorter twin for generic parallel jaws.
+    _, pre, _ = select_grasp([g], Kin(), seed)
+    assert pre[-1] == 1.05
+    # An explicitly asymmetric fixed-jaw datum is never flipped.
+    _, pre, _ = select_grasp([g], Kin(), seed,
+                            jaw_fixed_tip_m=[0., 0., 0.], jaw_close_dir=[0., 1., 0.])
+    assert pre[-1] == -2.8

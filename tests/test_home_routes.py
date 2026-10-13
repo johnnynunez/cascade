@@ -113,7 +113,7 @@ def test_blocked_or_unknown_payload_never_authorizes_home(clearance):
 def test_empty_tool_at_19mm_fails_before_any_home_command():
     occupancy = SimpleNamespace(clearance=lambda p: np.full(len(p), .019))
     safe, raw, harness = case(occupancy=occupancy)
-    with pytest.raises(SkillError, match="0.019 m below 0.030 m"):
+    with pytest.raises(SkillError, match=r"0\.019000000 m below 0\.030000000 m"):
         safe.move_planned([.4, 0., .4])
     assert not raw.commands and not harness.violations
     assert harness._grasp_exempt is None
@@ -151,7 +151,7 @@ def test_live_map_gate_still_stops_an_obstacle_appearing_during_stream():
             occupancy.clearance = lambda p: np.full(len(p), .019)
 
     raw.send_joint_target = changed
-    with pytest.raises(SafetyViolation, match="0.019 m below 0.030 m"):
+    with pytest.raises(SafetyViolation, match=r"0\.019000000 m below 0\.030000000 m"):
         safe.move_planned([.4, 0., .4])
     assert len(raw.commands) == 10
     assert len(harness.violations) == 1 and not harness._motion_active

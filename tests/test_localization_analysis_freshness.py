@@ -1,5 +1,7 @@
 """Localization must expire the image it analyzed, without actuating or retrying."""
 from types import SimpleNamespace
+from contextlib import contextmanager
+import threading
 
 import numpy as np
 import pytest
@@ -10,6 +12,7 @@ from cascade.control.lazy_arm import LazyArm
 from cascade.memory import BeliefStore, EpisodicMemory
 from cascade.perception.depth_provider import DepthProvider
 from cascade.perception.grounding import Extrinsics
+from cascade.perception.world import LockedDetector
 from cascade.skills import runtime as module
 from cascade.skills.runtime import SkillRuntime, SlowPerceptionError
 from cascade.types import Detection, Frame, SkillError
@@ -128,6 +131,79 @@ def test_preparation_failure_is_terminal_before_any_observation(rig):
     assert not rig.calls and not rig.lazy.connected
 
 
+def test_watcher_wait_finishes_before_selecting_localization_image(rig):
+    """A watcher can claim inference between preparation and image selection."""
+    watcher_entered, release_watcher = threading.Event(), threading.Event()
+    reservation_entered, captured = threading.Event(), threading.Event()
+    foreground_done = threading.Event()
+    original_detect = rig.rt.detector.detect
+    def detect(frame, **kwargs):
+        if frame is None:
+            watcher_entered.set()
+            assert release_watcher.wait(2.)
+            rig.clock.now += 8.
+            return []
+        return original_detect(frame, **kwargs)
+    d = LockedDetector(SimpleNamespace(detect=detect))
+    watcher = threading.Thread(target=d.detect, args=(None,))
+    def prepare(classes):
+        watcher.start()
+        assert watcher_entered.wait(2.)
+    d.prepare = prepare
+    reserve = d.reserve
+    @contextmanager
+    def reservation():
+        reservation_entered.set()
+        with reserve():
+            yield
+    d.reserve = reservation
+    rig.rt.detector = d
+    def capture():
+        captured.set()
+        return image(t=rig.clock.now)
+    rig.rt.camera.get_frame = capture
+    outcome = []
+    def localize():
+        try:
+            outcome.append(rig.rt._localize("object"))
+        except BaseException as exc:
+            outcome.append(exc)
+        finally:
+            foreground_done.set()
+    foreground = threading.Thread(target=localize)
+    foreground.start()
+    try:
+        assert reservation_entered.wait(2.)
+        assert not captured.is_set()
+    finally:
+        release_watcher.set()
+        foreground.join(2.)
+        if watcher.ident is not None:
+            watcher.join(2.)
+    assert foreground_done.is_set() and not watcher.is_alive()
+    assert len(outcome) == 1 and not isinstance(outcome[0], BaseException), outcome
+    frame, fix = outcome[0]
+    assert frame.t == 108. and fix.detection.label == "object"
+    assert rig.calls == [frame] and not rig.lazy.connected
+
+
+@pytest.mark.parametrize("old_image", [True, False])
+def test_reservation_never_retimestamps_or_extends_analysis_budget(rig, old_image):
+    @contextmanager
+    def reserve():
+        rig.clock.now += 8.
+        yield
+    rig.detector(delay=6.)
+    rig.rt.detector.reserve = reserve
+    if not old_image:
+        rig.rt.camera.get_frame = lambda: image(t=rig.clock.now)
+    with pytest.raises(SkillError, match="old|6.0s"):
+        rig.rt._localize("object")
+    assert rig.primary.t == 100.
+    assert len(rig.calls) == (0 if old_image else 1)
+    assert not rig.lazy.connected
+
+
 @pytest.mark.parametrize("vocab,prompts,expected", [
     (["one", "two"], ["unused"], [["one", "two"]]),
     (None, ["red cup", "cup"], [["red cup"], ["cup"]]),
@@ -147,6 +223,38 @@ def secondary(rig):
                           depth=rig.rt.depth, extrinsics=Extrinsics(T=frame.T_base_cam))
     rig.rt._other_cams = lambda: [cam]
     return frame
+
+
+def test_secondary_camera_is_also_captured_only_after_reservation(rig):
+    held = False
+    captures = []
+    @contextmanager
+    def reserve():
+        nonlocal held
+        rig.clock.now += 7.
+        held = True
+        try:
+            yield
+        finally:
+            held = False
+    def capture(x):
+        assert held
+        frame = image(t=rig.clock.now, x=x)
+        captures.append(frame)
+        return frame
+    rig.rt.cfg._data["perception_loop"]["localize_frames"] = 1
+    rig.rt.camera.get_frame = lambda: capture(0.)
+    cam = SimpleNamespace(stream=SimpleNamespace(get_frame=lambda: capture(.3), name="side"),
+                          depth=rig.rt.depth, extrinsics=Extrinsics())
+    rig.rt._other_cams = lambda: [cam]
+    def detect(frame, **kwargs):
+        assert held
+        return [detection()] if frame.T_base_cam[0, 3] else []
+    rig.rt.detector = SimpleNamespace(detect=detect, reserve=reserve)
+    frame, fix = rig.rt._localize("object")
+    assert len(captures) == 2 and frame is captures[1]
+    assert [f.t for f in captures] == [107., 114.]
+    assert fix.position[0] > .25 and not held and not rig.lazy.connected
 
 
 @pytest.mark.parametrize("delay", [.5, 6.])

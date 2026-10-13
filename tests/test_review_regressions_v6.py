@@ -130,6 +130,8 @@ def test_task_boundary_is_host_only_and_does_not_reset_payload(runtime):
 def test_arm_identity_and_detached_records_cannot_erase_another_actor_failure(runtime):
     left, right = runtime._arm, SimpleNamespace()
     runtime.arm_rig = ArmRig([left, right], ['left', 'right'])
+    runtime.cfg._data['arms'] = [{**runtime.cfg.arm.as_dict(), 'name': name}
+                                for name in ('left', 'right')]
     runtime.skill_turn_screw = completed_strokes
     runtime.skill_move_home = lambda: {}
     result = runtime.execute('turn_screw', {'label': 'nut', 'arm': 'right'})

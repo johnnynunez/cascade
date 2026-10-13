@@ -13,8 +13,8 @@ unverified, a refuted one refuted; no wrist camera = no panel at all.
 Everything runs on the mock stack through the real `build_runtime` /
 `SkillRuntime.execute` / `StreamServer` path (no MuJoCo, no GPU). The wrist
 camera is the mock camera declared `role: wrist`, as in tests/test_keyframes.py.
-Premise / golden tests pass on main by design: the flag defaults off, and off
-is byte-identical (dashboard HTML sha256, /state keys, no narrator object).
+The flag defaults off, and its absence and false value retain the same
+dashboard contract (HTML sha256, /state keys, no narrator object).
 """
 
 from __future__ import annotations
@@ -34,14 +34,15 @@ from cascade.apps.demo import _runtime_state, build_runtime, shutdown_runtime
 from cascade.config import load_demo_config
 
 #: sha256 of GET / for the mock wrist rig (tiles `mock_small`, `mock`; not
-#: read-only), measured on origin/main be57535 before this change. The flag
-#: off (absent or false) must serve exactly these bytes.
-GOLDEN_INDEX_SHA256 = "7b753a830b44a534b2d5b41ee3e025e38576841a2e782f7802d2e47ca4337385"
+#: read-only), measured after integrating command readiness and Resume & Home
+#: controls. The narration flag off (absent or false) serves these same bytes.
+GOLDEN_INDEX_SHA256 = "a268f598bfecc895dc97a586a3927b3aba722ba4a9948381c9fa04c12e1286ff"
 
-#: `_runtime_state` keys on main for a mock rig with a watcher (flag off).
+#: `_runtime_state` keys for a mock rig with a watcher (narration flag off).
 GOLDEN_STATE_KEYS = {
     "agent_status", "task", "holding", "last_path", "objects", "arm_connected",
     "events", "grasp_memory", "backends", "capabilities", "perception",
+    "stopped", "connection_error",
 }
 
 
@@ -158,8 +159,8 @@ def test_premise_the_mock_rig_declares_exactly_one_wrist_stream(make_runtime):
 @pytest.mark.parametrize("narration", [None, False])
 def test_golden_flag_off_is_byte_identical(make_runtime, narration):
     """Key absent (the code default) or false (what configs/demo.yaml ships):
-    no narrator, the exact /state keys of main, and the exact dashboard bytes
-    of main (sha256 measured on be57535)."""
+    no narrator and the same /state keys and dashboard bytes, including the
+    command readiness and Resume & Home controls."""
     runtime, _ = make_runtime(narration=narration)
     assert getattr(runtime, "wrist_narrator", None) is None
     assert set(_runtime_state(runtime)) == GOLDEN_STATE_KEYS

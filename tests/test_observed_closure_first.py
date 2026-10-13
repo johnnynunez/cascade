@@ -1,5 +1,6 @@
 """Cheap closure rejection must never authorize or bypass route validation."""
 from dataclasses import replace
+from itertools import groupby
 from types import SimpleNamespace
 import time
 
@@ -103,10 +104,15 @@ def test_accepted_candidate_runs_all_checks_and_preserves_selector_result(monkey
         assert actual[0] is expected[0]
         np.testing.assert_array_equal(actual[1], expected[1])
         np.testing.assert_array_equal(actual[2], expected[2])
-        per_orientation = (['pregrasp_pose', 'closing'] + ['occlusion'] * 3
-                           + ['harness_route'] + ['descent_pose'] * 7
-                           + ['scene_profile'] * 2)
-        assert events == per_orientation * 2
+        # Dense joint-space admission may inspect more than the original seven
+        # descent poses. Every gate must still run in the same order for both
+        # orientations, with no reduction in descent coverage.
+        groups = [(event, len(list(rows))) for event, rows in groupby(events)]
+        per_orientation = [('pregrasp_pose', 1), ('closing', 1), ('occlusion', 3),
+                           ('harness_route', 1), ('descent_pose', 7), ('scene_profile', 2)]
+        assert [name for name, _ in groups] == [name for name, _ in per_orientation] * 2
+        for (event, count), (_, minimum) in zip(groups, per_orientation * 2):
+            assert count >= minimum if event == 'descent_pose' else count == minimum
         raise SelectionComplete
     monkeypatch.setattr(module, 'select_grasp', selecting)
     with pytest.raises(SelectionComplete):

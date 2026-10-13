@@ -77,7 +77,9 @@ class _FakeServer:
         self.started = False
         self.stopped = False
         self.task_fn = None
+        self.task_cancel_aware = False
         self.cancel_fn = None
+        self.resume_fn = None
         self._fail = fail
         _FakeServer.instances.append(self)
 
@@ -89,11 +91,15 @@ class _FakeServer:
     def stop(self):
         self.stopped = True
 
-    def set_task_fn(self, fn):
+    def set_task_fn(self, fn, *, cancel_aware=False):
         self.task_fn = fn
+        self.task_cancel_aware = cancel_aware
 
     def set_cancel_fn(self, fn):
         self.cancel_fn = fn
+
+    def set_resume_fn(self, fn):
+        self.resume_fn = fn
 
     @property
     def url(self):
@@ -180,6 +186,24 @@ def test_set_task_fn_reaches_an_already_open_server():
     fn = lambda t: None  # noqa: E731
     ctl.set_task_fn(fn)
     assert _FakeServer.instances[0].task_fn is fn
+
+
+@pytest.mark.parametrize("initially_open", [False, True])
+def test_resume_and_cancellation_wiring_survive_lazy_open_and_reopen(initially_open):
+    ctl = LiveViewController(_FakeServer, mode=MODE_LAZY, idle_timeout_s=0)
+    if initially_open:
+        ctl.open()
+    task, stop, resume = (lambda task, event: None), (lambda: None), (lambda: None)
+    ctl.set_task_fn(task, cancel_aware=True)
+    ctl.set_cancel_fn(stop)
+    ctl.set_resume_fn(resume)
+    for _ in range(2):
+        ctl.open()
+        assert ctl.server.task_fn is task
+        assert ctl.server.task_cancel_aware is True
+        assert ctl.server.cancel_fn is stop
+        assert ctl.server.resume_fn is resume
+        ctl.close()
 
 
 def test_idle_view_auto_closes_and_activity_keeps_it_alive():
@@ -440,7 +464,7 @@ def test_the_agent_view_never_powers_a_standby_arm():
     from cascade.config import Cfg
 
     class StandbyRuntime:
-        cfg = SimpleNamespace(safety=Cfg({"table_z": 0.0}), grasp=Cfg({}))
+        cfg = Cfg({"safety": {"table_z": 0.0}, "grasp": {}})
         extrinsics = None
         beliefs = SimpleNamespace(all=list)
         looked = 0

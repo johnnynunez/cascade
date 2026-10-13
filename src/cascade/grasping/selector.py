@@ -59,6 +59,7 @@ def select_grasp(
     check=None,
     preserve_order: bool = False,
     pregrasp_min_z: float | None = None,
+    parallel_jaw_symmetry: bool | None = None,
 ) -> tuple[Grasp, np.ndarray, np.ndarray]:
     """-> (grasp, q_pregrasp, q_grasp) for the best executable candidate.
 
@@ -85,6 +86,9 @@ def select_grasp(
     Both orientations independently pass IK and validation, even when the
     original fails; rejecting one must not discard its feasible twin.
     Single-hinge jaws (below) are not symmetric and keep their pose.
+    ``parallel_jaw_symmetry=None`` preserves this default twin selection;
+    explicit False disables it. Explicit True additionally ranks travel
+    through contact and penalizes proximity to bounded joint limits (FR3).
 
     `jaw_fixed_tip_m` + `jaw_close_dir` (both TOOL frame) describe a
     single-hinge jaw whose closing point is not symmetric about the tool
@@ -173,7 +177,15 @@ def select_grasp(
                 return f"{g.label}: {reason}"
         return pre.q, grasp.q
 
-    def _travel(q_pre) -> float:
+    def _travel(q_pre, q_grasp) -> float:
+        if parallel_jaw_symmetry:
+            travel = float(np.linalg.norm(q_pre - q_ref) + np.linalg.norm(q_grasp - q_pre))
+            if hasattr(kin, "joint_limits"):
+                lo, hi = kin.joint_limits
+                margin = np.minimum(np.minimum(q_pre - lo, hi - q_pre),
+                                    np.minimum(q_grasp - lo, hi - q_grasp))
+                travel += float(np.sum(np.maximum(0.0, 1.0 - margin / 0.25) ** 2))
+            return travel
         q = np.asarray(q_pre, dtype=float).reshape(-1)
         n = min(q.size, q_ref.size)
         return float(np.max(np.abs(q[:n] - q_ref[:n]))) if n else 0.0
@@ -200,12 +212,12 @@ def select_grasp(
             reasons.append(solved)
         else:
             best = (g, *solved)
-        if fixed_tip is None:
+        if fixed_tip is None and parallel_jaw_symmetry is not False:
             twin = _flip_twin(g)
             twin_solved = _solve(twin)
             if isinstance(twin_solved, str):
                 reasons.append(twin_solved)
-            elif best is None or _travel(twin_solved[0]) < _travel(best[1]):
+            elif best is None or _travel(*twin_solved) < _travel(best[1], best[2]):
                 best = (twin, *twin_solved)
         _check()
         if best is not None:

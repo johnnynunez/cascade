@@ -41,6 +41,10 @@ class Frame:
     payload_mask: np.ndarray | None = None
     prop_masks: dict[str, np.ndarray] | None = None
 
+    # ROS joint snapshots taken with the receipt-time camera transform.
+    # Body masking must not substitute a newer pose for this observation.
+    robot_joint_positions: dict[str, np.ndarray] | None = None
+
     @property
     def has_depth(self) -> bool:
         return self.depth_m is not None
@@ -137,6 +141,10 @@ class SkillStuck(SkillError):
     def __init__(self, message: str, ask: str):
         super().__init__(message)
         self.ask = str(ask)
+
+
+class GraspFailed(SkillError):
+    """A completed native grasp did not secure an object; transport is healthy."""
 
 
 class SafetyViolation(RuntimeError):

@@ -22,7 +22,7 @@ class PlaceGeometry:
 
 
 def plan(runtime, q_now, target, *, x, y, release_z, z_cap,
-         attachment_translation_tool=None):
+         attachment_translation_tool=None, validate=None):
     # Error classes remain those of the ordinary skill: refusal has exactly
     # the same terminal carry/retreat semantics for point and area requests.
     from .runtime import _PostPlaceRetreatPlanError, _PreCarryLiftError
@@ -90,6 +90,7 @@ def plan(runtime, q_now, target, *, x, y, release_z, z_cap,
             near_yaws.extend((held_yaw - delta, held_yaw + delta))
         yaws = near_yaws + yaws
     pre = low = retreat = None
+    rejected = []
     for yaw in yaws:
         R = _yaw_rotation(yaw, axis_order=runtime._tool_axis_order)
         # The observed attachment is geometric aiming evidence only. Rotate
@@ -119,6 +120,11 @@ def plan(runtime, q_now, target, *, x, y, release_z, z_cap,
                 if (not cand_retreat.success
                         or np.max(np.abs(cand_retreat.q - cand_low.q)) > np.pi):
                     continue
+            if validate is not None:
+                reason = validate(carry_start, cand_pre, cand_low, cand_retreat, candidate_target)
+                if reason:
+                    rejected.append(f"yaw {yaw:.3f}: {reason}")
+                    continue
             pre, low, retreat = cand_pre, cand_low, cand_retreat
             target, hover, retreat_target = candidate_target, candidate_hover, candidate_retreat
             break
@@ -126,6 +132,8 @@ def plan(runtime, q_now, target, *, x, y, release_z, z_cap,
         retreat_detail = (f", post-place retreat {retreat_target.round(3).tolist()}"
                           if retreat_target is not None else "")
         error_type = _PostPlaceRetreatPlanError if retreat_target is not None else SkillError
+        if rejected:
+            raise error_type("no collision-free place path; " + "; ".join(rejected))
         raise error_type(
             f"place pose unreachable at {target.round(3).tolist()} "
             f"(hover {hover.round(3).tolist()}{retreat_detail}, all yaws tried)"

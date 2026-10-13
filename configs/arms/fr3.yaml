@@ -11,35 +11,64 @@
 # tighter than the Menagerie MJCF ranges (e.g. joint1 +-2.9007 vs +-2.7437
 # there -- the MJCF is the more conservative; libfranka enforces its own).
 #
-# !!! UNVERIFIED ON HARDWARE. Every number below was measured on the URDF,
-# not on a robot: check `ros2 topic echo /joint_states` names, then the
-# jog scripts, before the first motion.
+# Kinematics and workspace dimensions come from the URDF. The overview home
+# below is saved from native robot feedback; controller and gripper discovery
+# have been checked on hardware. Physical pick success is still unverified.
 
 type: ros2
+robot_model: fr3
+display_name: Franka Research 3
+base_frame: fr3_link0
+# The existing throw primitive uses a reBot-specific shoulder/elbow swing.
+unsupported_skills: [throw]
+gesture_joint: 5
+screw_joint: 6
 
 # ── transport (ros2_arm.py contract) ─────────────────────────────────────
 # franka_ros2: `ros2 launch franka_bringup franka.launch.py robot_type:=fr3
-# robot_ip:=... namespace:=<ns>` + the fr3_ros_controllers.yaml controller
+# robot_ip:=... namespace:=<ns>` + configs/ros2/fr3_controllers.yaml controller
 # set (`fr3_arm_controller`, JTC over the 7 arm joints). An empty namespace
 # puts everything at the root, which is what franka.launch.py does by default.
 ros_namespace: ""
 ros_command: trajectory
-ros_state_topic: joint_states
+ros_state_topic: franka/joint_states
 ros_command_topic: fr3_arm_controller/joint_trajectory
+# Queue a complete quintic motion through the native controller action.
+# Position-only 20 ms replacement goals introduce velocity/effort jumps.
+ros_trajectory_action: fr3_arm_controller/follow_joint_trajectory
+ros_robot_state_topic: franka_robot_state_broadcaster/robot_state
+# Time-scale every native quintic (including return home) from measured q.
+# Keep tracking headroom below the separate 1.0 rad/s measured-motion stop.
+# Scalars apply to all seven joints; per-joint lists are also supported.
+ros_max_joint_velocity_rad_s: 0.5
+ros_max_joint_acceleration_rad_s2: 0.5
 ros_joints: [fr3_joint1, fr3_joint2, fr3_joint3, fr3_joint4,
              fr3_joint5, fr3_joint6, fr3_joint7]
 # The Franka Hand is NOT a JTC joint: franka_gripper exposes ACTION servers
 # (~/move, ~/grasp, ~/gripper_action) and publishes its own JointState on
 # franka_gripper/joint_states with fr3_finger_joint1/2 (each 0..0.04 m).
-# ros_gripper: action drives it through control_msgs/GripperCommand, where
-# `command.position` is ONE finger's travel (the server doubles it to width).
+# The framework position is ONE finger's travel. Opening uses native Move;
+# closing uses native Grasp, both with twice that position as total width.
+# Explicit Move prevents a slightly over-open encoder reading from turning
+# an open command into a force grasp through the generic action server.
+# Both wait for completion before the next skill step.
 ros_gripper: action
 ros_gripper_action: franka_gripper/gripper_action
+ros_gripper_move_action: franka_gripper/move
+# Native grasp accepts contact across the full aperture; the generic action's
+# default 5 mm outer tolerance rejects a close-on-object target of zero.
+ros_gripper_grasp_action: franka_gripper/grasp
+ros_gripper_wait_s: 5.0
+ros_gripper_speed_m_s: 0.1
+ros_gripper_epsilon_inner_m: 0.005
+ros_gripper_epsilon_outer_m: 0.08
 ros_gripper_joint: fr3_finger_joint1
 ros_gripper_state_topic: franka_gripper/joint_states
-# A 1 kHz effort-interface JTC tracks tightly; settle accordingly.
+# Keep the final-position requirement; allow the bounded joint7 integral
+# correction to settle after wrist reversals/post-grasp lifts. A measured
+# 0.02023 rad error narrowly exceeded 0.02000 rad at the old 4 s deadline.
 settle_tol: 0.02
-settle_timeout_s: 4.0
+settle_timeout_s: 8.0
 state_timeout_s: 1.0
 wait_state_s: 5.0
 
@@ -58,10 +87,11 @@ joint_signs: [1, 1, 1, 1, 1, 1, 1]
 tool_axis_order: third_open_down
 
 # ── poses ────────────────────────────────────────────────────────────────
-# Strict top-down TCP at base [0.45, 0.00, 0.30], approach [0,0,-1], min
-# joint margin 0.65 rad -- DERIVED by IK on the URDF from libfranka's
-# documented "ready" pose, not tuned on hardware.
-home_q: [0.432, -0.284, -0.417, -2.430, -0.137, 2.164, -0.678]
+# Operator-taught overview pose, read directly from FR3 on 2026-10-02.
+# TCP base position [0.37509, -0.05117, 0.52250] m; camera tilted 25.61 deg
+# from vertical to view the work area. Preserve this pose after commands.
+home_q: [-0.0745063, -0.818056, -0.096778, -2.42278, 0.101696, 2.02208, 0.703762]
+return_home_after_motion: true
 # Top-down, high and forward-right toward the operator: TCP [0.55, -0.25,
 # 0.45], min margin 1.26 rad.
 handover_q: [0.434, 0.221, -0.969, -1.580, 0.183, 1.704, -1.333]
@@ -71,6 +101,12 @@ ready_q: [0.0, -0.785, 0.0, -2.356, 0.0, 1.571, 0.785]
 
 # ── gripper: Franka Hand, two prismatic fingers ──────────────────────────
 gripper:
+  name: Franka Gripper (Franka Hand)
+  # Native Grasp closes until contact; staged motor travel is not an object
+  # width estimate and can fail before the second close ever runs.
+  force_contact_close: true
+  parallel_jaw_symmetry: true
+  position_description: "Position is one finger's travel in metres (0..0.04); total jaw width is twice that. Closing force is clamped to 20..70 N."
   # Convention of this framework: open_pos..closed_pos is the motor travel
   # the skills interpolate. For the Franka Hand the natural coordinate is
   # ONE finger's travel in metres (fr3_finger_joint1: 0 = closed, 0.04 =
@@ -82,12 +118,29 @@ gripper:
   # Franka Hand continuous grasp force range is 20..70 N; cascade's `effort`
   # (0..1) scales into this. libfranka refuses > 70 N.
   max_effort_n: 70.0
+  min_effort_n: 20.0
 
 # ── rig geometry (BASE frame at fr3_link0: x forward, y left, z up) ──────
 # The base sits ON the table (table_z = 0). Strict top-down reach measured
 # on the URDF: full solve rate for r 0.30..0.75 at z <= 0.30, drops to 0 at
 # r >= 0.85; inner radius ~0.25 at table height. Box below = that annulus.
 overrides:
+  relative_motion:
+    # FR3 approaches along TCP +Z, so the wristward/up direction is -Z.
+    # Keep this axis above horizontal during spatial moves; the reBot's +Z
+    # camera-up convention would reject a correct top-down Franka grasp.
+    tool_up_axis: [0.0, 0.0, -1.0]
+    tool_up_min_z: 0.0
+    # The reBot padded D455F box does not describe this D435i printed mount.
+    # Its physical envelope has not been measured/modelled. The optical T
+    # in d435i.yaml is the only camera extrinsic, not a collision-body size.
+    # Native TCP, joint, table and occupancy gates remain active; no camera
+    # body-volume collision coverage is claimed for this profile.
+    wrist_camera: null
+  memory:
+    envelope_path: ${repo}/runs/fr3/envelope.json
+    experience_path: ${repo}/runs/fr3/experience.json
+    skill_library_path: ${repo}/runs/fr3/skills_library
   safety:
     workspace:
       min: [0.20, -0.60, -0.01]
@@ -98,6 +151,16 @@ overrides:
     # far below that. 1.0 keeps a demo calm on a 7-axis arm this size.
     max_joint_vel: 1.0
   grasp:
+    backend: obb
+    memory_path: ${repo}/runs/fr3/grasp_memory.json
+    # Pregrasp/occupancy failures do not measure a TCP height error. Do not
+    # turn them into persistent Z offsets (the wood profile reached +17 mm).
+    # Keep candidate ranking, but derive height from current object geometry.
+    apply_learned_z_nudge: false
+    # Franka's TCP is at the fingertips. Grasp halfway between the observed
+    # object top and its support, measured in the same RGB-D frame.
+    support_height_source: depth
+    depth_fraction: 0.5
     # Highest z at which a STRICT top-down pose still solves everywhere in
     # the annulus (measured 1.00 at z=0.45 out to r=0.70).
     topdown_z_max: 0.45

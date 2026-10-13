@@ -358,14 +358,20 @@ def test_brain_only_turn_can_omit_tool_summary():
     assert demo_proof.validate_envelope({"status": "ok", "result": result}) == result
 
 
-def test_cosmos_native_probe_rejects_xml_in_prose(monkeypatch):
+@pytest.mark.parametrize("prose", [
+    "Yes, I am ready.",
+    "<tool_call><function=cascade__world_state></function></tool_call>",
+])
+def test_cosmos_native_probe_rejects_prose_including_xml(monkeypatch, prose):
     check = getattr(demo_proof, "probe_native_tools", None)
     assert callable(check), "OpenClaw bypasses Cosmos3EdgeClient; probe native tool_calls"
     def answer(url, payload=None, timeout=5):
         if url.endswith("/models"):
             return {"data": [{"id": "cosmos3-edge"}]}
-        assert payload["tools"][0]["function"]["name"] == "cascade_readiness"
-        return {"choices": [{"message": {"content": "<tool_call><function=cascade_readiness></function></tool_call>"}}]}
+        assert {tool["function"]["name"] for tool in payload["tools"]} == {
+            "cascade__world_state", "cascade__camera_snapshot",
+        }
+        return {"choices": [{"message": {"content": prose}}]}
     monkeypatch.setattr(demo_proof, "request_json", answer)
     with pytest.raises(demo_proof.ProofError, match="native"):
         check("http://127.0.0.1:8082/v1", "cosmos3-edge")
@@ -458,7 +464,7 @@ def model_http_boundary():
             data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             state["requests"].append(data)
             payload = {"choices": [{"message": {"tool_calls": [{"type": "function", "function": {
-                "name": "cascade_readiness", "arguments": '{"ready":true}',
+                "name": "cascade__world_state", "arguments": '{}',
             }}]}}]}
             self.send_response(200)
             self.end_headers()
@@ -574,3 +580,17 @@ def test_the_cli_selects_the_persistent_world(monkeypatch, tmp_path):
     monkeypatch.setattr(sys, "argv", ["demo_proof.py", "--run", "--state-dir", str(tmp_path), "--persistent-mcp"])
     assert demo_proof.main() == 0
     assert seen["persistent_mcp"] is True
+
+
+def test_native_probe_requests_diagnostic_evidence_without_forcing_tool_choice(model_http_boundary):
+    boundary = model_http_boundary
+    result = demo_proof.probe_native_tools(boundary["base_url"], "cosmos3-edge")
+    assert result["native_tools"] is True
+    request = boundary["requests"][-1]
+    assert request["tool_choice"] == "auto"
+    assert len(request["tools"]) == 2
+    prompt = request["messages"][-1]["content"].lower()
+    assert prompt == "what objects does the tracked world model currently contain?"
+    assert all(tool["function"]["name"] not in prompt for tool in request["tools"])
+    assert boundary["requests"][0] == "/v1/models"
+    assert len(boundary["requests"]) == 2  # GET model + generation; no tool execution.

@@ -916,7 +916,11 @@ def _golden_run(prefix=(), **kw):
 
 def _assert_golden(rt, llm, report, offset=0):
     assert rt.calls == [(c.name, c.arguments) for c in _GOLDEN_SCRIPT]
-    assert rt.sets == [("current_tier", "llm"), ("current_tier", None)] * 3 + [("last_path", "llm")]
+    assert rt.sets == (
+        [("current_task", "stub task")]
+        + [("current_tier", "llm"), ("current_tier", None)] * 3
+        + [("last_path", "llm"), ("current_task", None)]
+    )
     assert rt.memory.added == []
     assert report.success is True and report.steps == 3 and report.path == "llm"
     assert report.tool_log == [

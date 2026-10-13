@@ -7,6 +7,9 @@
 extends: fr3
 
 type: mujoco
+# Deterministic simulation home, independent of a real operator-taught pose.
+home_q: [0.432, -0.284, -0.417, -2.430, -0.137, 2.164, -0.678]
+return_home_after_motion: false
 
 # Menagerie ships franka_fr3 WITHOUT a hand. The fetcher attaches the Franka
 # Hand (franka_emika_panda/hand.xml) to link7 at franka_description's mount

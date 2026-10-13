@@ -71,8 +71,10 @@ server is the pre-tier one byte for byte.
 
 Latency contract (why this server is fast): perception pre-warms in the
 background the moment the gateway starts -- N camera streams, the detector,
-and the WorldWatcher that keeps the belief store hot. The ARM stays
-unpowered until the first motion tool call (LazyArm). A routine command like
+and the WorldWatcher that keeps the belief store hot. LazyArm defers hardware
+initialization for backends that own the drives. Native ROS feedback attaches
+before wrist-camera startup; external ROS controllers retain drive ownership.
+Reading an eye-in-hand camera's pose requires current joint feedback. A routine command like
 "pick and place pink object" is ONE pick_and_place tool call that resolves
 against the warm world model and runs deterministically: no LLM round-trips
 inside the loop, total time ~ arm motion time.
@@ -210,7 +212,7 @@ _EXTRA_TOOLS = [
     },
     {
         "name": "reset_stop",
-        "description": "Clear a previous emergency_stop so motion tools work again.",
+        "description": "Clear CASCADE's application stop latch. This does not clear hardware faults, activate controllers, or enable Franka FCI.",
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
     {
@@ -492,6 +494,10 @@ class McpSkillServer:
         self._input_closed = False
         self._stop_serial = 0
         self._stop_lock = threading.Lock()
+        # A queued arm call keeps its receive-time STOP generation through
+        # dispatch and execution-lock acquisition. Dashboard calls run on
+        # other threads and must not inherit this worker's receipt.
+        self._dispatch_context = threading.local()
         self._init_error: str | None = None
         self._init_lock = threading.Lock()
         # (request id, tool name) the worker is executing right now; read by
@@ -511,7 +517,8 @@ class McpSkillServer:
         # critical). Set BEFORE reading _runtime in stop_now(); checked
         # AFTER assigning _runtime in _ensure_runtime(); cleared only by
         # reset_now().
-        self._stop_pending = False
+        self._stop_pending = os.environ.get("CASCADE_START_STOPPED") == "1"
+        self._stops_in_progress = 0
         # one arm, one command: the worker's skill execution and the
         # dashboard reflex chat are the only two threads that can drive the
         # arm in MCP mode -- they must never overlap (concurrent streaming
@@ -600,6 +607,47 @@ class McpSkillServer:
 
     # ── runtime lifecycle ────────────────────────────────────────────────
 
+    def robot_config(self):
+        from ..config import load_demo_config
+
+        if self._runtime is not None:
+            return self._runtime.cfg
+        if self._bounded:
+            return self._get_mobile_config()
+        cfg = load_demo_config(**self._arm_config_kwargs())
+        self._configure_grounder(cfg)
+        return cfg
+
+    @staticmethod
+    def _configure_grounder(cfg):
+        """Select optional perception without creating a second chat brain.
+
+        The MCP host owns orchestration, so cfg.llm remains mock. Physical
+        launchers can explicitly reuse one vision profile for detector misses;
+        generic/mock MCP launches stay offline unless explicitly configured.
+        """
+        profile = os.environ.get("CASCADE_GROUNDING_LLM_PROFILE", "").strip()
+        if not profile:
+            return
+        from ..config import load_profile
+
+        grounder = load_profile("llm", profile).as_dict()
+        if not grounder.get("supports_vision") or not all(
+                isinstance(grounder.get(key), str) and grounder[key].strip()
+                for key in ("base_url", "model")):
+            raise ValueError(f"grounding profile {profile!r} requires vision, base_url and model")
+        if "timeout_s" not in grounder and "request_timeout_s" in grounder:
+            grounder["timeout_s"] = grounder["request_timeout_s"]
+        cfg._data["grounder"] = grounder
+
+    def instructions(self):
+        from ..agent.prompts import build_system_prompt
+
+        if self._bounded:
+            return "Use the configured robot tools and their observed evidence. STOP overrides motion."
+        return build_system_prompt(self.robot_config()).replace(
+            "call task_done with an honest", "give the user an honest")
+
     def _ensure_runtime(self, _poison: bool = True):
         with self._init_lock:
             if self._runtime is not None:
@@ -631,6 +679,8 @@ class McpSkillServer:
                 with contextlib.redirect_stdout(sys.stderr):
                     cfg = (self._get_mobile_config() if self._bounded else
                            load_demo_config(cameras=cameras, arms=arms, llm="mock"))
+                    if not self._bounded:
+                        self._configure_grounder(cfg)
                     det_model = os.environ.get("CASCADE_DETECTOR_MODEL")
                     if det_model and not self._bounded:
                         cfg._data["detector"]["model"] = det_model
@@ -646,8 +696,8 @@ class McpSkillServer:
                         os.environ.get("DISPLAY")
                     )
                     serve = os.environ.get("CASCADE_STREAM", "1") != "0"
-                    # lazy_arm: perception comes up now; motors stay untouched
-                    # until the first motion command.
+                    # lazy_arm: defer drive-owning backends; native ROS may
+                    # attach passive feedback for an eye-in-hand camera.
                     signals = (getattr(self, "_signals", None)
                                if threading.current_thread() is threading.main_thread() else None)
                     with signals.defer() if signals is not None else contextlib.nullcontext():
@@ -659,31 +709,40 @@ class McpSkillServer:
                             # sees it without its programs tier (no-op off)
                             self._attach_program_tier(runtime, cfg)
                         self._runtime, self._arm = runtime, arm
+                        if not self._bounded:
+                            self._runtime.motion_cancel_requested = lambda: self._stop_pending
+                        if self._stop_pending:
+                            # Publish before checking, so a concurrent STOP
+                            # is caught here or by stop_now(). Latch before
+                            # exposing dashboard commands: native ROS feedback
+                            # may already be connected when the build returns.
+                            if self._composed and self._input_closed:
+                                self._runtime.request_shutdown()
+                            elif self._bounded:
+                                self._runtime.stop()
+                            else:
+                                self._runtime.arm.stop()
                     if signals is not None and threading.current_thread() is threading.main_thread():
                         signals.checkpoint()
-                    if self._runtime.stream_server is not None:
+                    dashboard = (getattr(self._runtime, "live_view", None)
+                                 or self._runtime.stream_server)
+                    if dashboard is not None:
                         # Staff stop channel that bypasses stdio entirely:
                         # the dashboard STOP button freezes the arm from any
                         # browser on the LAN, even mid-tool-call. (The demo
                         # CLI wires this in main(); MCP mode must do it here
                         # or the button is dead.)
-                        self._runtime.stream_server.set_cancel_fn(
-                            self._runtime.arm.stop
+                        dashboard.set_cancel_fn(
+                            self.stop_now
                         )
                         # Dashboard chat: tier-1 reflex grammar only, zero
                         # LLM -- the booth's MCP-host-outage fallback.
-                        self._runtime.stream_server.set_task_fn(
+                        dashboard.set_task_fn(
                             self._reflex_chat_task
                         )
-                    if self._stop_pending:
-                        # a stop acknowledged during the build: latch now,
-                        # before any queued motion call can run
-                        if self._composed and self._input_closed:
-                            self._runtime.request_shutdown()
-                        elif self._bounded:
-                            self._runtime.stop()
-                        else:
-                            self._runtime.arm.stop()
+                    if not self._bounded:
+                        if dashboard is not None:
+                            dashboard.set_resume_fn(self._resume_dashboard)
                 url = (
                     self._runtime.stream_server.url
                     if self._runtime.stream_server is not None else "disabled"
@@ -737,6 +796,7 @@ class McpSkillServer:
     def shutdown(self):
         from ..lifecycle import retain_teardown_attempt, teardown_receipt, teardown_step
 
+        self._close_admission()
         previous = getattr(self, "_shutdown_receipt", None)
         retry = (isinstance(previous, dict)
                  and getattr(self._runtime, "robot_mode", None) in {"mobile", "composed"}
@@ -795,6 +855,8 @@ class McpSkillServer:
             self._stop_pending = True
             self._stop_serial += 1
             stop_serial = self._stop_serial
+            if not self._bounded:
+                self._stops_in_progress += 1
         rt = self._runtime
         if self._bounded:
             if rt is None:
@@ -808,6 +870,9 @@ class McpSkillServer:
             result = rt.execute("stop_navigation" if navigation else "emergency_stop", {})
             return _text_result(result, is_error=not result.get("ok", False))
         if rt is None:
+            with self._stop_lock:
+                self._stops_in_progress -= 1
+                self._stop_serial += 1
             print("[cascade-mcp] EMERGENCY STOP latched (runtime still starting)",
                   file=sys.stderr)
             return _text_result(
@@ -816,8 +881,13 @@ class McpSkillServer:
                          "runtime that finishes starting comes up stopped -- "
                          "staff clears it via reset_stop / SIGUSR1"}
             )
-        with contextlib.redirect_stdout(sys.stderr):
-            rt.arm.stop()
+        try:
+            with contextlib.redirect_stdout(sys.stderr):
+                rt.arm.stop()
+        finally:
+            with self._stop_lock:
+                self._stops_in_progress -= 1
+                self._stop_serial += 1
         print("[cascade-mcp] EMERGENCY STOP latched (out-of-band)", file=sys.stderr)
         return _text_result(
             {"ok": True, "stopped": True,
@@ -846,19 +916,70 @@ class McpSkillServer:
                 rt.stop()
                 result = {"ok": False, "latched": True, "error": "stop raced reset"}
             return _text_result(result, is_error=not result.get("ok", False))
-        self._stop_pending = False
+        if not self._exec_lock.acquire(blocking=False):
+            return _text_result({"ok": False, "resumed": False,
+                                 "error": "Wait for the current command to finish before resuming"}, is_error=True)
+        cleared = False
         rt = self._runtime
-        if rt is None:
-            return _text_result({"ok": True, "stopped": False,
-                                 "note": "no runtime yet: nothing to clear"})
-        with contextlib.redirect_stdout(sys.stderr):
-            rt.arm.harness.reset_estop()
-            raw = rt.arm.raw
-            if hasattr(raw, "resume"):
-                raw.resume()
-            elif hasattr(raw, "_stopped"):
-                raw._stopped = False
-        return _text_result({"ok": True, "stopped": False})
+        try:
+            rejected = self._queued_arm_error("reset_stop")
+            if rejected is not None:
+                raise RuntimeError(rejected)
+            with self._stop_lock:
+                if self._input_closed:
+                    raise RuntimeError("input closed or server shutting down; resume refused")
+                if self._stops_in_progress:
+                    raise RuntimeError("STOP is still in progress; wait before resuming")
+                serial = self._stop_serial
+            if rt is None:
+                # Never discard a startup STOP while the runtime is still building.
+                if self._stop_pending:
+                    raise RuntimeError("Runtime starting; wait before resuming")
+                return _text_result({"ok": True, "stopped": False, "note": "no runtime yet: nothing to clear"})
+            with contextlib.redirect_stdout(sys.stderr):
+                home = bool(rt.cfg.arm.get("return_home_after_motion", False))
+                raw = rt.arm.raw
+                harness = rt.arm.harness
+                halt_generation = getattr(harness, "_halt_generation", None)
+                if home:
+                    check = getattr(raw, "check_resume_ready", None)
+                    if callable(check):
+                        check()
+                    else:
+                        rt.arm.get_state()
+                with self._stop_lock:
+                    if self._input_closed or serial != self._stop_serial or self._stops_in_progress:
+                        raise RuntimeError("STOP requested during resume; arm remains stopped")
+                    if hasattr(raw, "resume"):
+                        raw.resume()
+                    elif hasattr(raw, "_stopped"):
+                        raw._stopped = False
+                    cleared = True
+                    harness.reset_estop(**({"halt_generation": halt_generation}
+                                          if type(halt_generation) is int else {}))
+                    self._stop_pending = False
+                result = {"ok": True, "resumed": True, "stopped": False}
+                if home:
+                    rt._show_status("Returning to saved home; gripper unchanged")
+                    returned = rt.execute("move_home", {})
+                    if not returned.get("ok", False):
+                        raise RuntimeError(f"Resume home return failed: {returned.get('error', 'motion refused')}")
+                    result.update(home=returned, message="Returned home; gripper unchanged. Ready for a new command.")
+                with self._stop_lock:
+                    if self._input_closed or serial != self._stop_serial or self._stop_pending:
+                        raise RuntimeError("STOP requested during home return; arm remains stopped")
+                return _text_result(result)
+        except Exception as exc:
+            if cleared:
+                self.stop_now()
+            return _text_result({"ok": False, "resumed": False, "error": str(exc)}, is_error=True)
+        finally:
+            self._exec_lock.release()
+
+    def _resume_dashboard(self) -> dict:
+        """Operator button uses exactly the serialized MCP reset/home policy."""
+        response = self.reset_now()
+        return json.loads(next(b["text"] for b in response["content"] if b["type"] == "text"))
 
     def _reflex_chat_task(self, text: str) -> None:
         """Dashboard chat in MCP mode: tier-1 reflex grammar only, zero LLM
@@ -889,6 +1010,9 @@ class McpSkillServer:
             return
         rt.current_task = text
         try:
+            if self._input_closed:
+                rt.memory.add("note", "chat: server is shutting down; command refused")
+                return
             # this thread's prints must never reach the protocol stream
             with contextlib.redirect_stdout(sys.stderr):
                 rt.current_tier = str(getattr(plan, "source", "reflex"))
@@ -931,7 +1055,7 @@ class McpSkillServer:
 
             # a program run moves the arm step after step: cancelling it
             # mid-run is "stop the robot" exactly like for a motion skill
-            if name in motion_skills or (name in _PROGRAM_MOTION_TOOLS and self._programs_on()):
+            if name in motion_skills or name == "reset_stop" or (name in _PROGRAM_MOTION_TOOLS and self._programs_on()):
                 print(
                     f"[cascade-mcp] client cancelled {name!r} mid-motion -> e-stop. "
                     "If this arrived at a round number of seconds the HOST's "
@@ -956,8 +1080,36 @@ class McpSkillServer:
             from .robot_runtime import robot_tool_descriptors
             return frozenset(n for n, t in robot_tool_descriptors(self._get_mobile_config()).items()
                              if t.effect == "motion")
+        if not self._mobile:
+            from ..skills.runtime import _MOTION_SKILLS
+            return _MOTION_SKILLS | _PROGRAM_MOTION_TOOLS
         from ..skills.mobile_runtime import MOTION_SKILLS
         return MOTION_SKILLS
+
+    def _queued_arm_error(self, name):
+        """Fence queued motion without building a runtime or probing the arm.
+
+        Check both before dispatch and while holding the execution lock: a
+        dashboard STOP/Resume can otherwise revive a call waiting for that
+        lock. Fresh explicit reset_stop is allowed while stopped, but an old
+        reset must not clear a newer STOP.
+        """
+        if self._bounded:
+            return None
+        if name != "reset_stop" and name not in self._motion_tools():
+            return None
+        if self._input_closed:
+            return "input closed or server shutting down; motion refused"
+        receipt = getattr(self._dispatch_context, "arm_receipt", None)
+        if receipt is None:
+            return None
+        serial, was_stopped = receipt
+        with self._stop_lock:
+            if serial != self._stop_serial:
+                return "queued motion invalidated by stop; re-issue a new command explicitly"
+        if was_stopped and name != "reset_stop":
+            return "e-stop was latched when this motion was received; resume then issue a new command"
+        return None
 
     def _stop_tools(self):
         if self._composed:
@@ -1043,11 +1195,18 @@ class McpSkillServer:
 
             candidates = tool_specs_for_profiles(self._get_mobile_config().bases)
         else:
-            from ..skills.runtime import TOOL_SPECS
+            from ..skills.runtime import tool_specs_for_config
 
             extras = (_EXTRA_TOOLS if self._programs_on()
                       else [t for t in _EXTRA_TOOLS if t["name"] not in _PROGRAM_TOOLS])
-            candidates = TOOL_SPECS + extras
+            cfg = self.robot_config()
+            if cfg.arm.get("return_home_after_motion", False):
+                extras = [dict(t, description=(
+                    "Resume and return to the operator-taught home pose, preserving the gripper. "
+                    "Requires current command completion and native controller readiness. "
+                    "STOP interrupts return; failure relatches STOP. Does not recover hardware faults or enable FCI."
+                )) if t["name"] == "reset_stop" else t for t in extras]
+            candidates = tool_specs_for_config(cfg) + extras
         # three independent filters: loop-internal, operator override, and
         # what the probed rig cannot do (empty until the runtime is built).
         # Computed and published under _surface_lock so a build finishing
@@ -1151,6 +1310,10 @@ class McpSkillServer:
             if name in _PROGRAM_TOOLS and self._programs_on():
                 return self._program_call(runtime, name, arguments)
             with self._exec_lock:  # never overlap with a reflex-chat motion
+                rejected = self._queued_arm_error(name)
+                if rejected is not None:
+                    return _text_result({"ok": False, "execution_ok": False,
+                                         "error": rejected}, is_error=True)
                 runtime.current_tier = "mcp-host"  # the chat host's brain chose this call
                 if name == "pick_and_place":  # narrate on the dashboard
                     obj = (arguments or {}).get("object", "?")
@@ -1276,9 +1439,13 @@ class McpSkillServer:
         content.append({"type": "text", "text": json.dumps(summary)})
         return {"content": content, "isError": not result.get("ok", False)}
 
+    def _close_admission(self):
+        with self._stop_lock:
+            self._input_closed = True
+
     def input_closed(self):
         """EOF is a safety event on the READER, never queued behind motion."""
-        self._input_closed = True
+        self._close_admission()
         if self._composed:
             self._request_composed_shutdown()
         elif self._mobile:
@@ -1550,6 +1717,9 @@ class McpSkillServer:
         # one arm, one command: the whole program holds the lock a single
         # tool call holds (the reflex chat refuses while it runs)
         with self._exec_lock:
+            rejected = self._queued_arm_error("run_program")
+            if rejected is not None:
+                return refuse(rejected)
             runtime.current_task = f"program {proposal.program.name}: {task}"
             try:
                 run = tier.run(proposal, runtime, tool_log=[], halt=self._program_halt(runtime))
@@ -1766,6 +1936,7 @@ def handle_message(server: McpSkillServer, msg: dict) -> dict | None:
                     # trimmed it the host is told to re-fetch
                     "capabilities": {"tools": {"listChanged": True}},
                     "serverInfo": SERVER_INFO,
+                    "instructions": server.instructions(),
                 },
             )
         if method in ("notifications/initialized", "initialized"):
@@ -2022,6 +2193,7 @@ def _serve_stdio(server, signals):
     finally:
         # Event.set is safe HERE, after the signal handler has returned.
         with signals.defer():
+            server._close_admission()
             if server._composed and signals.signum is None:
                 server._request_composed_shutdown()
             elif server._mobile or signals.signum is not None:
@@ -2062,6 +2234,10 @@ def _admit(server, m: dict, send) -> bool:
         # caller-provided value on the wire.
         with server._stop_lock:
             m["_mobile_stop_serial"] = server._stop_serial
+    else:
+        with server._stop_lock:
+            m["_arm_stop_serial"] = server._stop_serial
+            m["_arm_stop_pending"] = server._stop_pending
     return False
 
 
@@ -2091,23 +2267,35 @@ def _worker_loop(server, signals, inbox, eof) -> int:
                         (msg.get("params") or {}).get("name") if is_call else None,
                     )
             if cancelled:
+                # Complete the transport's waiting slot too. In HTTP mode a
+                # dropped frame leaves done.wait()/the SSE handler alive forever.
+                send(_response(req_id, _text_result(
+                    {"ok": False, "execution_ok": False, "cancelled": True,
+                     "error": "request cancelled before execution"}, is_error=True)))
                 continue  # client gave up before we started; never move
             try:
                 stale_motion = False
+                arm_error = None
                 if server._bounded and is_call:
                     motion_skills = server._motion_tools()
 
                     with server._stop_lock:
                         stale_motion = ((msg.get("params") or {}).get("name") in motion_skills
                                         and msg.get("_mobile_stop_serial") != server._stop_serial)
-                if stale_motion:
+                elif is_call:
+                    server._dispatch_context.arm_receipt = (
+                        msg.get("_arm_stop_serial"), msg.get("_arm_stop_pending"),
+                    )
+                    arm_error = server._queued_arm_error((msg.get("params") or {}).get("name"))
+                if stale_motion or arm_error:
                     resp = _response(req_id, _text_result(
                         {"ok": False, "execution_ok": False,
-                         "error": "queued motion invalidated by stop; re-issue a new command explicitly"},
+                         "error": arm_error or "queued motion invalidated by stop; re-issue a new command explicitly"},
                         is_error=True))
                 else:
                     resp = handle_message(server, msg)
             finally:
+                server._dispatch_context.arm_receipt = None
                 with server._cancel_lock:
                     server._inflight = None
                     if req_id is not None:
@@ -2385,6 +2573,7 @@ def _serve_http(server, signals, *, host, port, path, token, cert=None, key=None
         return _worker_loop(server, signals, inbox, _EOF)
     finally:
         with signals.defer():
+            server._close_admission()
             server.stop_now()
             httpd.shutdown()
             httpd.server_close()

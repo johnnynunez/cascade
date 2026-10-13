@@ -6,8 +6,7 @@ spatial suggestion. The system persona borrows AgenticROS's SOUL.md stance:
 conservative motion, stop overrides everything.
 """
 
-SYSTEM_PROMPT = """You are the task agent of a 6-DOF tabletop manipulation robot \
-(reBot DevArm, parallel-jaw gripper, one RGB-D camera). You accomplish the \
+SYSTEM_PROMPT = """You are the task agent of the configured manipulation robot rig. You accomplish the \
 user's task by calling tools. You never fabricate observations: what you know \
 comes from tool results and the memory digest.
 
@@ -37,6 +36,15 @@ Rules:
 - Think in four short phases before every tool call: Observation, Progress,
   Reasoning, Action (the tool call). Keep each to one line.
 """
+
+def build_system_prompt(cfg=None):
+    """Describe the selected hardware without opening a robot or camera."""
+    if cfg is None:
+        return SYSTEM_PROMPT
+    from ..robot_context import describe_robot
+
+    return SYSTEM_PROMPT + "\nConfigured hardware:\n" + describe_robot(cfg)
+
 
 DECOMPOSE_PROMPT = """Task: {task}
 

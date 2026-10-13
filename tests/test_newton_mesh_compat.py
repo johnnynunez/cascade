@@ -46,7 +46,7 @@ def test_external_mesh_compiles_without_changing_geometry_or_body_inertia():
 
 
 def test_installed_guard_is_idempotent_and_reaches_the_real_compiler(monkeypatch):
-    import mujoco
+    mujoco = pytest.importorskip("mujoco")
     import newton_mesh_compat as compat
 
     class SolverBoundary:
@@ -106,7 +106,7 @@ def test_native_mujoco_contact_meshes_are_not_reinterpreted(masks):
 
 @pytest.mark.parametrize("infer", ["body", "compiler"])
 def test_inferred_physical_inertia_is_not_changed(infer):
-    import mujoco
+    mujoco = pytest.importorskip("mujoco")
     from newton_mesh_compat import compile_newton_spec
 
     spec, mesh, body, _ = tiny_mesh_spec()
@@ -121,7 +121,7 @@ def test_inferred_physical_inertia_is_not_changed(infer):
 
 
 def test_unknown_later_failure_restores_prior_mesh_changes():
-    import mujoco
+    mujoco = pytest.importorskip("mujoco")
     from newton_mesh_compat import compile_newton_spec
 
     spec, mesh, _, _ = tiny_mesh_spec()
@@ -139,4 +139,3 @@ def test_unknown_later_failure_restores_prior_mesh_changes():
         compile_newton_spec(spec, compiler)
     assert calls == 2
     assert mesh.inertia == inertia
-

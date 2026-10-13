@@ -74,6 +74,8 @@ class OpenAICompatClient(LLMClient):
         api_key_env: str | None = None,
         supports_vision: bool = True,
         temperature: float = 0.2,
+        request_timeout_s: float | None = None,
+        max_retries: int | None = None,
     ):
         import os
 
@@ -94,7 +96,18 @@ class OpenAICompatClient(LLMClient):
         # fall through to the OPENAI_API_KEY environment variable.
         if api_key is None and base_url is not None and "OPENAI_API_KEY" not in os.environ:
             api_key = "EMPTY"
-        self._client = OpenAI(base_url=base_url, api_key=api_key)
+        transport_options = {}
+        if request_timeout_s is not None:
+            import math
+
+            if not math.isfinite(request_timeout_s) or request_timeout_s <= 0:
+                raise ValueError("request_timeout_s must be a positive finite number")
+            transport_options["timeout"] = request_timeout_s
+        if max_retries is not None:
+            if max_retries < 0:
+                raise ValueError("max_retries must be nonnegative")
+            transport_options["max_retries"] = max_retries
+        self._client = OpenAI(base_url=base_url, api_key=api_key, **transport_options)
         self.model = model
         self.supports_vision = supports_vision
         self.temperature = temperature
@@ -795,6 +808,8 @@ def make_llm(cfg: Cfg) -> LLMClient:
             api_key_env=cfg.get("api_key_env"),
             supports_vision=bool(cfg.get("supports_vision", True)),
             temperature=float(cfg.get("temperature", 0.2)),
+            request_timeout_s=cfg.get("request_timeout_s"),
+            max_retries=cfg.get("max_retries"),
         )
     if kind == "cosmos3":
         # NVIDIA Cosmos3-Edge speaks OpenAI-compatible HTTP but emits XML

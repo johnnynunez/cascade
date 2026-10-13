@@ -29,7 +29,9 @@ class Client:
                    CASCADE_BELIEFS_PATH=str(directory / "beliefs.json"),
                    CASCADE_GRASP_MEMORY_PATH=str(directory / "grasp.json"),
                    CASCADE_ENVELOPE_PATH=str(directory / "envelope.json"),
-                   PYTHONPATH=str(REPO / "src"), CUDA_VISIBLE_DEVICES="-1")
+                   PYTHONPATH=os.pathsep.join(
+                       p for p in (str(REPO / "src"), env.get("PYTHONPATH", "")) if p),
+                   CUDA_VISIBLE_DEVICES="-1")
         self.proc = subprocess.Popen([sys.executable, "-m", "cascade.apps.mcp_server"],
             cwd=REPO, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE, text=True, bufsize=1)

@@ -228,6 +228,11 @@ new arrives, and the video says so (0 voxels or a stale map). On the Spark a
 
 ## Robot body mask on real arms (`body_mask: mesh`)
 
+Robot self-mask leakage and a limited route search are different faults. The
+[bounded lift-first joint-route fallback](CLEARANCE_LIFT_ROUTES.md) can propose
+additional fully vetted paths without changing the clearance limit; it neither
+removes residual robot points nor makes an invalid map authoritative.
+
 The camera sees the arm, so every depth frame is masked before integration.
 Isaac frames carry a render self-mask. Real arms used capsules instead: each
 pixel's 3D point was tested against `body_mask_radius_m` (6 cm) around the

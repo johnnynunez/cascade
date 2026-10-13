@@ -196,7 +196,10 @@ class ImuModel:
     def __init__(self, dt, seed=0):
         self.dt = float(dt)
         self.rng = np.random.default_rng(seed)
-        self.gyro_bias = self.rng.normal(0, 0.002, 3)
+        # Residual gyro bias AFTER the standard at-boot calibration (the robot held still while the IMU averages its
+        # gyro). The calibration itself is not simulated: the simulated robot cannot be held still before its start
+        # (it settles on its feet/wheels). An uncalibrated MEMS turn-on bias would be ~0.002 rad/s (used until v7).
+        self.gyro_bias = self.rng.normal(0, 0.0002, 3)
         self.acc_bias = self.rng.normal(0, 0.02, 3)
         self.prev_v = None
         self.prev_R = None

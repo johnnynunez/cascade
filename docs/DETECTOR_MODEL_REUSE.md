@@ -1,5 +1,11 @@
 # Detector preparation and model reuse
 
+> **Superseded (2026-10-15).** This page describes model and text-embedding reuse for the YOLOE
+> detector, which was removed. The local Qwen3.8-27B brain now names and boxes objects and SAM 2.1-L
+> masks them (`perception/brain_detector.py`); it has no vocabulary to prepare, and the watcher never
+> waits for it. Why: [perception bake-off](evidence/perception-bakeoff-20261015/REPORT.md). Kept as a
+> historical record.
+
 The open-world watcher and prompted localization share one locked detector.
 Previously, switching between their modes constructed a new YOLO checkpoint;
 changing a query also rebuilt its text embeddings. Localization could spend

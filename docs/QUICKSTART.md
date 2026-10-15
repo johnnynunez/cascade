@@ -209,8 +209,12 @@ cd models && python -m cascade.apps.demo \
     --task "pick and place the pink cube in the box" --no-view
 ```
 
-> `cd models` is required for the YOLOE detector: it looks for
-> `mobileclip_blt.ts` in the CWD. Mock/MuJoCo cameras do not require it.
+> `cd models` lets SAM find `sam2.1_l.pt` there; elsewhere the brain
+> detector's boxes come without masks. Object names come from the Qwen brain at
+> `CASCADE_PERCEPTION_URL` (default `http://127.0.0.1:8081/v1`, the Qwen3.8
+> server). With only `serve_qwen_llamacpp.sh` on :8080, export
+> `CASCADE_PERCEPTION_URL=http://127.0.0.1:8080/v1` first (Qwen3.6 there was not
+> part of the bake-off). Mock/MuJoCo cameras need neither.
 
 Brain profiles: `--llm hermes` (Nous Portal, `NOUS_API_KEY`) |
 `local_qwen` | `local_cosmos` | `local_cosmos_sglang` | `anthropic` |
@@ -301,7 +305,10 @@ tail -f runs/mcp_*/server.log                 # each host tools/call and its res
 - **Port 8090 is busy** → an earlier run is still active. Use
   `CASCADE_STREAM_PORT=8097`.
 - **`no frame yet`** → the rig is still warming up; allow 2–3 seconds.
-- **YOLOE cannot find its weights** → start from `models/`.
+- **Objects come without masks** → start from `models/` (SAM resolves
+  `sam2.1_l.pt` relative to the CWD).
+- **`world_state` lists no objects on a real or Isaac camera** → the Qwen brain at
+  `CASCADE_PERCEPTION_URL` is down, or `CASCADE_PERCEPTION_KEY_FILE` is wrong.
 - **The agent does not call tools with Cosmos** → the profile must use
   `type: cosmos3`, rather than `openai_compat`, because it emits XML tool calls.
 - **The tool list is stale after registration changes** → run `openclaw

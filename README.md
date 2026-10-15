@@ -277,7 +277,7 @@ The mock and MuJoCo profiles keep their deterministic simulation home.
 
 The planner acquires a fresh camera image before each vision turn. The local
 Cosmos profile sends one current image, constrains camera names and tool
-arguments, and uses Cosmos visual grounding when YOLOE misses a named object.
+arguments, and uses Cosmos visual grounding when the detector misses a named object.
 Grounding uses RealSense depth and the capture-time camera transform for 3D
 coordinates. Targeted detector queries restore open-world detection afterward;
 remembered objects are identified separately from current detections.
@@ -416,7 +416,7 @@ capability, because none of them are wanted on all hosts:
 | extra | brings | when |
 |---|---|---|
 | `kinematics` | `pin` (Pinocchio) | always |
-| `perception` | `ultralytics` | real cameras / open-vocabulary detection |
+| `perception` | `ultralytics` | real cameras: SAM 2.1-L masks for the brain detector's boxes |
 | `llm` | `openai`, `anthropic` | any real brain over an API (also covers Nous Portal and local servers); the `codex_astra` profile needs no extra, only the Codex CLI |
 | `sim` | `mujoco` | hardware-free physics on any host |
 | `sim-warp` | `mujoco-warp`, `warp-lang` | the same MJCF on the MuJoCo Warp GPU runtime (`engine: warp`); CPU-capable, so it installs anywhere |
@@ -454,8 +454,8 @@ curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/main/scripts/in
 bash scripts/install.sh --profile laptop --brain keep --prepare-only --dir "$PWD"
 ```
 
-See the [installation notes](#setup-notes) below for pyrealsense2, YOLOE's
-text encoder, and other rig-specific gotchas.
+See the [installation notes](#setup-notes) below for pyrealsense2, the
+perception brain and SAM weights, and other rig-specific gotchas.
 
 ## One click
 
@@ -670,7 +670,9 @@ command. Name a profile explicitly (`--llm mock`) to pin it, or set
   backend yields `Frame` objects with float32 *metric* depth aligned to
   color. Cameras without depth fall through a strategy chain (sensor →
   optional mono-depth plugin → table-plane ray-casting), so an RGB-only
-  webcam still grasps tabletop objects.
+  webcam still grasps tabletop objects. With real and Isaac cameras the local
+  Qwen3.8-27B brain names and boxes the objects and SAM 2.1-L masks them
+  ([Setup notes](#setup-notes)); mock and MuJoCo cameras use the mock detector.
 - **[Safety](src/cascade/safety/)** is a fail-closed `SafetyHarness` that
   vets every streamed waypoint (joint limits, velocity caps, workspace AABB,
   table-plane clearance, keep-out zones, perception watchdog, e-stop latch,
@@ -865,8 +867,9 @@ runtime is probed; a catalog listed before that is refreshed via
 operator override on top. Env knobs:
 `CASCADE_CAMERAS` (comma list, first = manipulation camera), `CASCADE_CAMERA`
 (single-camera fallback), `CASCADE_ARMS` (comma list, first = manipulation
-arm, builds the `ArmRig`), `CASCADE_ARM` (single-arm fallback), `CASCADE_DETECTOR_MODEL`,
-`CASCADE_DETECT_CLASSES`, `CASCADE_HIDE_TOOLS`, `CASCADE_MCP_READONLY_LANE`
+arm, builds the `ArmRig`), `CASCADE_ARM` (single-arm fallback),
+`CASCADE_PERCEPTION_URL` / `_MODEL` / `_KEY_FILE` (the brain that identifies objects, see
+[Setup notes](#setup-notes)), `CASCADE_DETECT_CLASSES`, `CASCADE_HIDE_TOOLS`, `CASCADE_MCP_READONLY_LANE`
 (1/0, the read-only lane above), `CASCADE_VIEW` (cv2 camera window),
 `CASCADE_MJ_VIEW` (MuJoCo physics window; the launcher sets it in sim modes),
 `CASCADE_PREWARM`, `CASCADE_STREAM`, `CASCADE_STREAM_PORT`, `CASCADE_RUN_DIR`
@@ -1036,28 +1039,36 @@ first motion:
 
 ## Setup notes
 
-These apply only when you attach a real camera; none of them are needed for
+These apply only when you attach a real (or Isaac) camera; none of them are needed for
 the mock or MuJoCo stacks.
 
 `scripts/setup_env.sh` installs into a shared uv venv (pass
 `PY=/path/to/python` — its default is a rig-specific path). pyrealsense2 comes
 from the local [librealsense fork](https://github.com/johnnynunez/librealsense)
 build -- shared by every RealSense profile (D455F, D435i, ...), not just one
-model. Open-vocabulary text prompts (YOLOE/YOLO-World) additionally need
-`uv pip install git+https://github.com/ultralytics/CLIP.git`; the closed-set
-`yolo11n.pt` works without it.
+model.
 
-YOLOE also needs a MobileCLIP text encoder — for the shipped
-`yoloe-11s-seg.pt` that is `mobileclip_blt.ts` (~572 MB, too big for
-GitHub, so it is gitignored; this checkout carries it at
-`models/mobileclip_blt.ts`). Ultralytics resolves it **relative to the
-working directory** and auto-downloads it there on first use — launch from
-`models/` (or copy the `.ts` next to your CWD), otherwise every detection
-silently vanishes.
+Object identity comes from the local **Qwen3.8-27B** brain (`detector: type: brain`
+in `configs/demo.yaml`); **SAM 2.1-L** masks its boxes
+([bake-off evidence](docs/evidence/perception-bakeoff-20261015/REPORT.md)):
+
+1. Brain endpoint: `CASCADE_PERCEPTION_URL` (default `http://127.0.0.1:8081/v1`),
+   `CASCADE_PERCEPTION_MODEL` (`qwen3.8-27b`), `CASCADE_PERCEPTION_KEY_FILE`
+   (`~/.cascade/nemoclaw/llama.key`; the path is forwarded, never the key).
+   `launch.sh --brain qwen` and OpenShell instances saved with the Qwen brain set them; any
+   other `--brain` prints a notice that identification still goes to the Qwen brain.
+2. SAM weights: `models/sam2.1_l.pt` (~450 MB), placed by `scripts/install.sh --profile spark`.
+   The launchers run ultralytics offline (`YOLO_OFFLINE=True`), and it resolves the file
+   **relative to the working directory**: launch from `models/`, or the boxes come without masks.
+3. The watcher never waits for the brain (`detect_nowait`): SAM tracks the cached
+   boxes and the brain refreshes them in the background. If the brain is down,
+   known objects keep being tracked while the scene is unchanged; nothing new is named.
+4. "Find the X" asks the brain directly (~2 s), then SAM masks the answer.
 
 ## Docs
 
-- [Detector preparation and GPU comparison](docs/DETECTOR_MODEL_REUSE.md) — bounded model/vocabulary reuse, unchanged image expiry and retained comparison results.
+- [Perception bake-off](docs/evidence/perception-bakeoff-20261015/REPORT.md) — why the Qwen3.8 brain names objects and SAM 2.1-L masks them (47 booth frames, 157 objects).
+- [Detector preparation and GPU comparison](docs/DETECTOR_MODEL_REUSE.md) — superseded: YOLOE model/vocabulary reuse, removed with YOLOE.
 - [Frame encoding measurements](docs/ISAAC_FRAME_ENCODING.md) — passive observer timings, CPU replay and native acceptance limits.
 - [Isaac bridge profiling](docs/ISAAC_BRIDGE_PROFILING.md) — optional Python zones, clock binding and limits of retained CPU/GPU measurements.
 - [Local conversation gateway](docs/CONVERSATION.md) — browser audio, HF-compatible Realtime transport and bounded typed robot tools; protocol tests use synthetic audio and sensors.

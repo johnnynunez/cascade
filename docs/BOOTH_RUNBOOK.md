@@ -77,12 +77,12 @@ copy-pasteable on the rig.
      it, an attendee's model will helpfully call `reset_stop` and resume
      motion after staff froze the arm. (`emergency_stop` is never hideable.)
    - Offline env (`YOLO_OFFLINE`/`ULTRALYTICS_OFFLINE`) is now emitted by
-     default — online ultralytics phones GitHub on class re-embeds and
-     stalls the perception watcher for seconds per tick.
+     default — online ultralytics (SAM) looks its assets up on GitHub and can
+     stall the perception watcher for seconds per tick.
 
 3. **Pre-download everything that fetches on first run:** the Qwen GGUF +
    mmproj (`scripts/serve_qwen_llamacpp.sh` clones/builds/downloads),
-   GraspGen-X checkpoints, and detector weights. Then verify with the
+   GraspGen-X checkpoints, and the SAM weights (`models/sam2.1_l.pt`). Then verify with the
    network cable pulled.
 
 4. **Dry-run the offline brain:** `scripts/booth_rehearsal.py --llm
@@ -122,12 +122,18 @@ its `warm-up inference ... before binding` line before the first pick; once
 the port answers, the model is warm. A `WARNING: warm-up inference failed`
 line means it bound cold (the old start-up): restart it before the booth opens.
 The Spark presenter profile requires the real model and reports an error instead.
-A wrong launch directory makes every detection vanish
-(YOLOE's text encoder resolves relative to the CWD), and online ultralytics
-can stall the watcher. The script checks all of it, snapshots the morning
+A wrong launch directory leaves the brain detector's boxes without SAM masks
+(`sam2.1_l.pt` resolves relative to the CWD), and online ultralytics
+can stall the watcher. The script checks the offline flags, snapshots the morning
 grasp-memory baseline, and prints the dashboard URL for the big screen —
 use *that* URL, not `live_view_url`'s best-effort LAN probe, on an
 air-gapped booth LAN.
+
+Object names come from the Qwen brain at `CASCADE_PERCEPTION_URL` (default
+`http://127.0.0.1:8081/v1`). With the llama.cpp brain above on :8080, set
+`CASCADE_PERCEPTION_URL=http://127.0.0.1:8080/v1` in the robot server's
+environment, or no object gets a name. `booth_up.sh` checks neither the SAM
+weights nor this endpoint.
 
 Then open the attendee terminal: `cd <repo> && claude`. Perception
 pre-warms immediately; motors stay unpowered until the first motion command.

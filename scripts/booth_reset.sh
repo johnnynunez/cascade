@@ -72,7 +72,8 @@ state = json.load(sys.stdin)
 objs = state.get("objects", [])
 if not objs:
     print("[!] world model EMPTY: check props on table, then the silent killers:")
-    print("    encoder CWD + YOLO_OFFLINE (scripts/booth_up.sh checks both)")
+    print("    an empty world model usually means the perception brain is down or the")
+    print("    SAM weights are missing -- run scripts/booth_up.sh (it checks both)")
     sys.exit(1)
 stale = [o for o in objs if o.get("state") == "remembered"]
 print(f"[+] {len(objs)} objects in the world model:")

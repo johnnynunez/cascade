@@ -176,3 +176,14 @@ def test_no_key_file_sends_no_header(booth):
     _, calls = booth.run()
     call = _perception_call(calls)
     assert "-H" not in call["argv"] and call["stdin"] is None
+
+
+def test_graspgenx_check_defaults_to_5556_without_the_port_variable(monkeypatch):
+    """Text-level (a run without CASCADE_GRASPGENX_PORT would dial this host's
+    :5556): unset, the check dials 5556, the port demo.yaml gives the robot server."""
+    monkeypatch.delenv("CASCADE_GRASPGENX_PORT", raising=False)
+    lines = SCRIPT.read_text().splitlines()
+    assigned = [line.split("#")[0].strip() for line in lines if line.startswith("GGX_PORT=")]
+    assert assigned == ['GGX_PORT="${CASCADE_GRASPGENX_PORT:-5556}"']
+    assert load_demo_config(camera="isaac").grasp.graspgenx.port == 5556
+    assert any('"/dev/tcp/127.0.0.1/$GGX_PORT"' in line for line in lines)

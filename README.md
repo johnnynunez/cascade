@@ -416,7 +416,7 @@ capability, because none of them are wanted on all hosts:
 | extra | brings | when |
 |---|---|---|
 | `kinematics` | `pin` (Pinocchio) | always |
-| `perception` | `ultralytics` | real cameras: SAM 2.1-L masks for the brain detector's boxes |
+| `perception` | `ultralytics`, `openai` | real cameras: SAM 2.1-L masks (ultralytics) and the brain client that names and boxes objects (openai) |
 | `llm` | `openai`, `anthropic` | any real brain over an API (also covers Nous Portal and local servers); the `codex_astra` profile needs no extra, only the Codex CLI |
 | `sim` | `mujoco` | hardware-free physics on any host |
 | `sim-warp` | `mujoco-warp`, `warp-lang` | the same MJCF on the MuJoCo Warp GPU runtime (`engine: warp`); CPU-capable, so it installs anywhere |

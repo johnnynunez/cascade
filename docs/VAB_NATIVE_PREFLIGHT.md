@@ -356,8 +356,10 @@ remain unverified and are not passed to the detector. Every view gets its own
 brain answer (no scene cache); zero detections are a valid empty observation,
 and a failed brain call also yields an empty view.
 
-Use an absolute local SAM checkpoint and its SHA256; the brain defaults to
-`configs/demo.yaml`'s endpoint:
+Use an absolute local SAM checkpoint and its SHA256. `--base-url` defaults to
+`demo.BRAIN_BASE_URL` (`http://127.0.0.1:8080/v1`), the same default as
+`configs/demo.yaml`; the command does not read `CASCADE_PERCEPTION_URL`, so pass
+`--base-url` for any other brain:
 `PYTHONPATH=src:. python -m benchmark.vab.detect_rgb RUN/public-rgb NEW_REPORT.json --weights /absolute/sam2.1_l.pt --weights-sha256 SHA256 --device cpu [--base-url URL --model NAME --api-key-file PATH]`.
 The report records the checkpoint, device, brain endpoint and model, and library versions.
 Predicted labels and pixel masks supply no verified object identity, depth,

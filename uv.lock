@@ -308,6 +308,7 @@ ovrtx = [
     { name = "ovstage" },
 ]
 perception = [
+    { name = "openai" },
     { name = "ultralytics" },
 ]
 sim = [
@@ -340,6 +341,7 @@ requires-dist = [
     { name = "mujoco-warp", marker = "extra == 'sim-warp'", specifier = ">=3.1" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "openai", marker = "extra == 'llm'", specifier = ">=1.50" },
+    { name = "openai", marker = "extra == 'perception'", specifier = ">=1.50" },
     { name = "opencv-python-headless", specifier = ">=4.8" },
     { name = "ovrtx", marker = "extra == 'ovrtx'", specifier = "==0.5.0.377615" },
     { name = "ovstage", marker = "extra == 'ovrtx'", specifier = "==0.2.0.377349" },

@@ -212,8 +212,9 @@ cd models && python -m cascade.apps.demo \
 > Object names come from the Qwen brain at `CASCADE_PERCEPTION_URL` (default
 > `http://127.0.0.1:8080/v1`, where `serve_qwen_llamacpp.sh` listens); SAM loads
 > `models/sam2.1_l.pt` by absolute path. The rig's OpenShell instance uses its
-> own brain port (:8081). Perception was measured on Qwen3.8-27B; a Qwen3.6
-> llama.cpp brain works but is unmeasured. Mock/MuJoCo cameras need neither.
+> own brain port (:8081). Measured on Qwen3.8-27B NVFP4 (vLLM); the llama.cpp Q4
+> GGUF (`scripts/serve_qwen_llamacpp.sh`) serves the same model but was not
+> measured. Mock/MuJoCo cameras need neither.
 
 Brain profiles: `--llm hermes` (Nous Portal, `NOUS_API_KEY`) |
 `local_qwen` | `local_cosmos` | `local_cosmos_sglang` | `anthropic` |

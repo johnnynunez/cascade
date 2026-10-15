@@ -239,13 +239,24 @@ def test_the_factory_warms_sam_on_a_daemon_thread_without_blocking(key_file, mon
         assert segmenter is det._segmenter
         assert thread is not threading.current_thread() and thread.daemon
         assert thread.is_alive()
+        # The detector owns the thread: its close() (a shutdown stage) joins it.
+        assert det.warm_up_thread is thread and thread.name == "sam-warm-up"
     finally:
         release.set()
 
 
 def test_warm_up_false_starts_no_warm_up(key_file, no_warm_up):
-    demo._make_detector(brain_cfg(), warm_up=False)
+    det = demo._make_detector(brain_cfg(), warm_up=False)
     assert no_warm_up == []
+    assert det.warm_up_thread is None
+
+
+def test_a_block_without_a_type_is_refused(env):
+    """`type: brain` is what configs/demo.yaml ships, not an implicit default."""
+    with pytest.raises(ValueError, match="unknown detector type ''"):
+        demo._make_detector(brain_cfg(base_url="http://b/v1", model="m"), warm_up=False)
+    doc = demo._make_detector.__doc__ or ""
+    assert "(the default)" not in doc and "without a `type`" in doc
 
 
 class _FakeSegmenter:

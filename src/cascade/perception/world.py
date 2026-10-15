@@ -62,6 +62,11 @@ class LockedDetector:
     one (the brain detector: answers from its cache, asks the brain in the
     background) gets it, under the same lock rule as detect(); any other
     detector gets detect() as before.
+
+    close() (a shutdown stage, after the watcher stopped) forwards to the
+    detector's close() when its CLASS defines one (the brain detector joins
+    its refresh threads and SAM warm-up there), under the same lock rule as
+    detect(); a no-op otherwise.
     """
 
     def __init__(self, detector):
@@ -69,6 +74,12 @@ class LockedDetector:
         self._lock = threading.RLock()
         self._concurrent_safe = bool(getattr(type(detector), "concurrent_safe", False))
         self._has_nowait = _has_detect_nowait(detector)
+        self._has_close = callable(getattr(type(detector), "close", None))
+
+    @property
+    def closable(self) -> bool:
+        """The detector's CLASS defines close(): close() has work to do."""
+        return self._has_close
 
     @contextlib.contextmanager
     def reserve(self):
@@ -118,6 +129,15 @@ class LockedDetector:
             return self._detector.detect_nowait(frame, classes=classes)
         with self._lock:
             return self._detector.detect_nowait(frame, classes=classes)
+
+    def close(self) -> None:
+        if not self._has_close:
+            return
+        if self._concurrent_safe:
+            self._detector.close()
+            return
+        with self._lock:
+            self._detector.close()
 
     def set_classes(self, classes) -> None:
         with self._lock:

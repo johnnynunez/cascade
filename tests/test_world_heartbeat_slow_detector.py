@@ -469,3 +469,88 @@ def test_a_raising_detector_still_sent_the_heartbeat(make):
     # not hold motion through the watchdog (a dead camera still does).
     assert harness.beats == 1
     assert watcher.ticks == 0 and "cam" not in watcher.last_dets
+
+
+# ── 5. shutdown: LockedDetector.close() forwards to a detector that has one ──
+
+
+class _Closable(_InventoryBlocks):
+    def __init__(self):
+        super().__init__()
+        self.closed = 0
+
+    def close(self):
+        self.closed += 1
+
+
+class _SafeClosable(_Closable):
+    concurrent_safe = True
+
+
+@pytest.mark.parametrize("make", [_Closable, _SafeClosable], ids=["locked", "concurrent-safe"])
+def test_locked_close_forwards_to_a_detector_class_that_defines_close(make):
+    inner = make()
+    locked = LockedDetector(inner)
+    assert locked.closable is True
+    assert locked.close() is None
+    assert inner.closed == 1
+
+
+def _instance_close_only():
+    d = _InventoryBlocks()
+    d.close = Mock()
+    return d
+
+
+@pytest.mark.parametrize("make", [_InventoryBlocks, lambda: Mock(detect=Mock(return_value=[])),
+                                  _instance_close_only],
+                         ids=["no-close", "mock", "instance-close-only"])
+def test_locked_close_without_a_class_close_is_a_no_op(make):
+    inner = make()
+    locked = LockedDetector(inner)
+    assert locked.closable is False
+    assert locked.close() is None
+    if isinstance(getattr(inner, "close", None), Mock):
+        inner.close.assert_not_called()  # a Mock (or instance attribute) is not the class contract
+
+
+class _PrepareBlocksClosable(_PrepareBlocks):
+    def __init__(self):
+        super().__init__()
+        self.closed = 0
+
+    def close(self):
+        self.closed += 1
+
+
+class _SafePrepareBlocksClosable(_PrepareBlocksClosable):
+    concurrent_safe = True
+
+
+def test_locked_close_of_a_concurrent_safe_detector_takes_no_lock():
+    # Same lock rule as detect(): the brain detector's close() synchronizes
+    # itself, so shutdown never queues behind a locked call.
+    inner = _SafePrepareBlocksClosable()
+    locked, holder = _hold_the_lock_in_prepare(inner)
+    try:
+        done, _ = _in_background(locked.close)
+        assert done.wait(1.0), "close() of a concurrent-safe detector waited for the lock"
+        assert inner.closed == 1 and holder.is_alive()
+    finally:
+        inner.release.set()
+        holder.join(2.0)
+
+
+def test_locked_close_of_other_detectors_waits_for_the_lock():
+    # A detector that is not concurrent-safe never sees two calls at once,
+    # close() included: it waits for the call in flight.
+    inner = _PrepareBlocksClosable()
+    locked, holder = _hold_the_lock_in_prepare(inner)
+    try:
+        done, _ = _in_background(locked.close)
+        assert not done.wait(0.1), "close() ran while a locked call was in flight"
+        assert inner.closed == 0
+    finally:
+        inner.release.set()
+        holder.join(2.0)
+    assert done.wait(2.0) and inner.closed == 1

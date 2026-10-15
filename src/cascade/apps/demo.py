@@ -1172,6 +1172,12 @@ def owned_threads(runtime) -> list:
     rig = getattr(runtime, "rig", None)
     for stream in (list(rig) if rig is not None else []):
         add(f"stream-{getattr(stream, 'name', '?')}", stream)
+    # The brain detector's SAM warm-up (LockedDetector wraps the detector):
+    # joined by the "detector" stage, listed here in case its bound expires.
+    detector = getattr(runtime, "detector", None)
+    warm_up = getattr(getattr(detector, "_detector", detector), "warm_up_thread", None)
+    if isinstance(warm_up, threading.Thread):
+        out.append(("sam-warm-up", warm_up))
     return out
 
 
@@ -1186,7 +1192,10 @@ def shutdown_runtime(runtime, arm) -> dict:
 
     Order: park (needs the watcher's heartbeat) -> save beliefs -> drift
     monitors (they read the watcher's streams and the arm's joints) ->
-    watcher (the consumer of the camera streams) -> dashboard -> viewer ->
+    watcher (the consumer of the camera streams) -> detector (only one that
+    defines close(), i.e. the brain detector: it starts no further refresh
+    and joins those in flight and its SAM warm-up, each with a bound; a
+    warm-up past it is listed in pending_threads) -> dashboard -> viewer ->
     camera streams (producers) -> arms. Each thread owner WAITS for its thread's
     in-flight work; a bounded join here once let the watcher's first cold
     YOLOE inference (> 5 s) outlive shutdown and abort the launcher's
@@ -1236,6 +1245,17 @@ def shutdown_runtime(runtime, arm) -> dict:
             return rig.disconnect()  # includes the primary and per-arm results
         return arm.disconnect()
 
+    detector = getattr(runtime, "detector", None)
+
+    def _close_detector():
+        # Logged here, recorded in the receipt by teardown_step; never raised.
+        try:
+            detector.close()
+        except Exception as e:
+            logger.warning("closing the detector failed (%s: %s); shutdown goes on",
+                           type(e).__name__, e)
+            raise
+
     stages = []
     for name, step in (
         ("park", lambda: _park_arm(runtime)),
@@ -1249,6 +1269,9 @@ def shutdown_runtime(runtime, arm) -> dict:
         *((("drift_monitors", _stop_drift_monitors),)
           if getattr(runtime, "drift_monitors", None) else ()),
         ("watcher", lambda: runtime.watcher.stop() if runtime.watcher is not None else None),
+        # likewise only for a detector with a close() (the brain detector),
+        # after the watcher so no new background refresh starts
+        *((("detector", _close_detector),) if getattr(detector, "closable", False) is True else ()),
         ("stream_server", lambda: runtime.stream_server.stop() if getattr(runtime, "stream_server", None) else None),
         ("viewer", lambda: runtime.viewer.stop() if getattr(runtime, "viewer", None) else None),
         ("cameras", lambda: runtime.rig.close() if getattr(runtime, "rig", None) else runtime.camera.close()),
@@ -1518,8 +1541,11 @@ _WARM_UP_SHAPE = (240, 320)
 
 
 def _make_detector(cfg, *, warm_up: bool = True):
-    """The detector the config names. `type: brain` (the default) also starts
-    the SAM warm-up thread unless `warm_up` is False (tests)."""
+    """The detector the config names: `type: brain` (what configs/demo.yaml
+    ships), `mock`, or the deprecated `vlm`. A block without a `type` is
+    refused. `type: brain` with a segmenter also starts the SAM warm-up
+    thread unless `warm_up` is False (tests); the detector owns that thread
+    (its close() joins it)."""
     # A camera profile may pin its own detector (the mock camera uses the
     # mock detector so offline runs never load model weights).
     dcfg = cfg.camera.get("detector") or cfg.detector
@@ -1585,8 +1611,12 @@ def _make_brain_detector(cfg, dcfg, *, warm_up: bool):
         scene_change=float(dcfg.get("scene_change", 6.0)),
     )
     if warm_up and segmenter is not None:
-        threading.Thread(target=_warm_box_segmenter, args=(segmenter,),
-                         name="sam-warm-up", daemon=True).start()
+        # Handed to the detector: its close() (a shutdown stage) joins it and
+        # owned_threads names it, so SAM's native load/predict is never still
+        # running at interpreter exit.
+        detector.warm_up_thread = threading.Thread(target=_warm_box_segmenter, args=(segmenter,),
+                                                   name="sam-warm-up", daemon=True)
+        detector.warm_up_thread.start()
     return detector
 
 

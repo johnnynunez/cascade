@@ -144,6 +144,10 @@ _THUMB_SIZE = (64, 36)
 _WARN_EVERY_S = 30.0
 #: close() waits this long beyond the request timeout for a refresh to finish.
 _CLOSE_MARGIN_S = 5.0
+#: close() waits this long for the SAM warm-up (weights load + the first,
+#: cold CUDA predict): the same minute thread_join.EXIT_JOIN_S allows the
+#: slowest cold tick measured. Past it, shutdown names the thread instead.
+_WARM_UP_JOIN_S = 60.0
 
 
 class _Entry(NamedTuple):
@@ -244,6 +248,11 @@ class BrainDetector(Detector):
         self._threads: set[threading.Thread] = set()
         self._closed = False
         self._last_warn: float | None = None
+        # The SAM warm-up on this detector's segmenter. apps.demo starts it
+        # and hands it over here: close() joins it and shutdown_runtime names
+        # it while it runs (SAM load + a CUDA predict are native code that
+        # must not still be running at interpreter exit).
+        self.warm_up_thread: threading.Thread | None = None
 
     def __repr__(self) -> str:
         seg = type(self._segmenter).__name__ if self._segmenter is not None else None
@@ -304,12 +313,16 @@ class BrainDetector(Detector):
             return []
 
     def close(self) -> None:
-        """Join the refresh threads in flight; later refreshes do not start."""
+        """Join the refresh threads in flight and the SAM warm-up, each with
+        a bound; later refreshes do not start. A thread past its bound keeps
+        running and is reported on stderr; shutdown_runtime lists a warm-up
+        still alive in its pending threads."""
         with self._lock:
             self._closed = True
             threads = list(self._threads)
         for thread in threads:
             join_thread(thread, what="brain detector", timeout_s=self._timeout_s + _CLOSE_MARGIN_S)
+        join_thread(self.warm_up_thread, what="brain detector", timeout_s=_WARM_UP_JOIN_S)
 
     # -- brain transport ----------------------------------------------------
 

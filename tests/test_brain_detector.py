@@ -399,6 +399,64 @@ def test_close_stops_later_refreshes(make):
     assert _brain_threads() == []
 
 
+def _blocked_warm_up(det: BrainDetector):
+    """A SAM warm-up (apps.demo starts it, the detector owns it) blocked on an Event."""
+    started, release, finished = threading.Event(), threading.Event(), threading.Event()
+
+    def warm_up():
+        started.set()
+        release.wait(10)
+        finished.set()
+
+    det.warm_up_thread = threading.Thread(target=warm_up, name="sam-warm-up", daemon=True)
+    det.warm_up_thread.start()
+    assert started.wait(5)
+    return release, finished
+
+
+def test_a_detector_starts_without_a_warm_up_thread(make):
+    det, _, _ = make()
+    assert det.warm_up_thread is None
+
+
+def test_close_waits_for_the_sam_warm_up(make):
+    det, _, _ = make()
+    release, finished = _blocked_warm_up(det)
+    thread = det.warm_up_thread
+    done = threading.Event()
+    at_return = {}
+
+    def close():
+        det.close()
+        at_return.update(finished=finished.is_set(), alive=thread.is_alive())
+        done.set()
+
+    threading.Thread(target=close, daemon=True, name="test-close").start()
+    try:
+        early = done.wait(0.3)
+    finally:
+        release.set()
+    assert not early, "close() returned while the SAM warm-up was still running"
+    assert done.wait(5)
+    assert at_return == {"finished": True, "alive": False}
+
+
+def test_close_gives_up_on_a_warm_up_past_its_bound_and_keeps_the_handle(make, monkeypatch, capsys):
+    from cascade.perception import brain_detector
+
+    monkeypatch.setattr(brain_detector, "_WARM_UP_JOIN_S", 0.2)
+    det, _, _ = make()
+    release, _ = _blocked_warm_up(det)
+    thread = det.warm_up_thread
+    try:
+        det.close()  # returns after the bound; the thread is still in its warm-up
+        assert thread.is_alive() and det.warm_up_thread is thread
+        assert "thread 'sam-warm-up' still running after" in capsys.readouterr().err
+    finally:
+        release.set()
+        thread.join(5)
+
+
 def _join_refreshes(timeout_s: float = 5.0) -> None:
     """Wait for the refresh threads WITHOUT close(): they must clear their own bookkeeping."""
     for thread in _brain_threads():

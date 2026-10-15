@@ -1,8 +1,10 @@
-"""VLM-only perception (perception/vlm_detector.py): the "quitar YOLOE,
-full cosmos3-edge" path.
+"""VLMDetector (perception/vlm_detector.py): the deprecated cosmos3-edge alias.
 
-The parser is pure text -> Detection and is tested exhaustively; the client
-construction is tested against a stub `openai` module injected into
+It is now a thin BrainDetector subclass with the old defaults (cosmos3-edge on
+:8082, no segmenter) and the old constructor kwargs; the reply parser lives in
+brain_detector.parse_boxes and is tested in test_brain_detector_parse.py.
+
+The client construction is tested against a stub `openai` module injected into
 sys.modules (CI installs no `openai` -- same convention as
 test_hermes_brain.py, per the conftest note "do not gate a test on an
 optional extra when the contract can be faked").
@@ -16,91 +18,14 @@ import types
 import numpy as np
 import pytest
 
-from cascade.perception.vlm_detector import parse_detections, _extract_json_array
+from cascade.perception.brain_detector import (
+    INVENTORY_PROMPT,
+    REFER_PROMPT,
+    BrainDetector,
+)
 from cascade.types import Frame
 
-
 W, H = 640, 480
-
-
-def test_parse_plain_array():
-    text = (
-        '[{"label": "red cube", "bbox_2d": [100, 100, 300, 300], "confidence": 0.9},'
-        ' {"label": "banana", "bbox_2d": [500, 400, 700, 600], "confidence": 0.7}]'
-    )
-    dets = parse_detections(text, W, H)
-    assert [d.label for d in dets] == ["red cube", "banana"]
-    # 0-1000 normalized -> pixels
-    np.testing.assert_allclose(dets[0].bbox, [64, 48, 192, 144], atol=0.5)
-    assert dets[0].conf == pytest.approx(0.9)
-    # a VLM returns boxes, not masks -- grounding must fall back to bbox mask
-    assert dets[0].mask is None
-
-
-def test_parse_tolerates_fences_prose_and_thinking():
-    text = (
-        "<think>I see two objects, let me quote the format: "
-        '[{"label": "example", "bbox_2d": [0, 0, 10, 10]}]</think>\n'
-        "Here is the result:\n```json\n"
-        '[{"label": "cup", "bbox_2d": [200, 200, 400, 500], "confidence": 0.8}]'
-        "\n```"
-    )
-    dets = parse_detections(text, W, H)
-    assert [d.label for d in dets] == ["cup"]
-
-
-def test_parse_takes_last_array_when_reasoning_quotes_one():
-    # No <think> tags, but the reply quotes an example array before the answer.
-    text = (
-        'Example format: [{"label": "x", "bbox_2d": [0, 0, 100, 100]}]\n'
-        'Answer: [{"label": "bottle", "bbox_2d": [100, 100, 200, 200], "confidence": 1.0}]'
-    )
-    dets = parse_detections(text, W, H)
-    assert [d.label for d in dets] == ["bottle"]
-
-
-def test_parse_empty_scene_and_garbage():
-    assert parse_detections("[]", W, H) == []
-    assert parse_detections("no objects visible", W, H) == []
-    assert parse_detections('{"label": "not-an-array"}', W, H) == []
-    assert parse_detections("", W, H) == []
-
-
-def test_parse_rejects_malformed_entries():
-    text = (
-        "["
-        '{"label": "", "bbox_2d": [0, 0, 500, 500]},'          # empty label
-        '{"label": "a", "bbox_2d": [100, 100]},'               # short bbox
-        '{"label": "b", "bbox_2d": ["x", 0, 500, 500]},'       # non-numeric
-        '{"label": "tiny", "bbox_2d": [500, 500, 501, 501]},'  # degenerate box
-        '{"label": "ok", "bbox_2d": [0, 0, 500, 500], "confidence": 0.5}'
-        "]"
-    )
-    dets = parse_detections(text, W, H)
-    assert [d.label for d in dets] == ["ok"]
-
-
-def test_parse_clips_and_orders_coordinates():
-    text = '[{"label": "spill", "bbox_2d": [900, 800, 1200, -50], "confidence": 0.6}]'
-    (d,) = parse_detections(text, W, H)
-    x0, y0, x1, y1 = d.bbox
-    assert 0 <= x0 <= x1 <= W
-    assert 0 <= y0 <= y1 <= H
-
-
-def test_parse_applies_min_conf():
-    text = (
-        '[{"label": "faint", "bbox_2d": [0, 0, 500, 500], "confidence": 0.1},'
-        ' {"label": "solid", "bbox_2d": [0, 0, 500, 500], "confidence": 0.9}]'
-    )
-    dets = parse_detections(text, W, H, min_conf=0.25)
-    assert [d.label for d in dets] == ["solid"]
-
-
-def test_extract_json_array_survives_unbalanced_bracket():
-    # A truncated reply must not hang or crash the walker.
-    assert _extract_json_array("[ this never closes") is None
-    assert _extract_json_array("junk ][ more junk") is None
 
 
 class _FakeCompletions:
@@ -109,20 +34,22 @@ class _FakeCompletions:
 
     def create(self, **kwargs):
         self._owner.requests.append(kwargs)
-        if self._owner.fail:
+        if _FakeOpenAI.fail:
             raise RuntimeError("server down")
-        msg = types.SimpleNamespace(content=self._owner.reply)
+        msg = types.SimpleNamespace(content=_FakeOpenAI.reply)
         return types.SimpleNamespace(choices=[types.SimpleNamespace(message=msg)])
 
 
 class _FakeOpenAI:
+    fail = False
+    reply = "[]"
+    last = None
+
     def __init__(self, base_url=None, api_key=None, timeout=None):
         self.base_url = base_url
         self.api_key = api_key
         self.timeout = timeout
         self.requests: list[dict] = []
-        self.fail = False
-        self.reply = "[]"
         self.chat = types.SimpleNamespace(completions=_FakeCompletions(self))
         _FakeOpenAI.last = self
 
@@ -132,6 +59,9 @@ def stub_openai(monkeypatch):
     mod = types.ModuleType("openai")
     mod.OpenAI = _FakeOpenAI
     monkeypatch.setitem(sys.modules, "openai", mod)
+    monkeypatch.setattr(_FakeOpenAI, "fail", False)
+    monkeypatch.setattr(_FakeOpenAI, "reply", "[]")
+    monkeypatch.setattr(_FakeOpenAI, "last", None)
     return mod
 
 
@@ -142,37 +72,52 @@ def _frame(w=W, h=H):
     return Frame(rgb=rgb, depth_m=None, K=K)
 
 
-def test_vlm_detector_detects_via_stub(stub_openai):
+def test_vlm_detector_is_a_brain_detector_with_the_old_defaults(stub_openai):
     from cascade.perception.vlm_detector import VLMDetector
 
-    det = VLMDetector(base_url="http://x/v1", model="cosmos3-edge")
+    det = VLMDetector()
+    _FakeOpenAI.reply = '[{"label": "red cube", "bbox_2d": [156, 208, 312, 417]}]'
+    (d,) = det.detect(_frame())
+    det.close()
+    assert isinstance(det, BrainDetector)
     client = _FakeOpenAI.last
-    client.reply = '[{"label": "red cube", "bbox_2d": [156, 208, 312, 417], "confidence": 0.9}]'
-    dets = det.detect(_frame())
-    assert [d.label for d in dets] == ["red cube"]
+    assert client.base_url == "http://127.0.0.1:8082/v1"
+    assert client.api_key == "EMPTY"
     req = client.requests[-1]
     assert req["model"] == "cosmos3-edge"
-    assert req["temperature"] == 0.0
-    # image + text parts present
+    assert req["temperature"] == 0
     parts = req["messages"][0]["content"]
-    assert parts[0]["type"] == "image_url"
     assert parts[0]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+    assert parts[1]["text"] == INVENTORY_PROMPT
+    assert d.label == "red cube"
+    np.testing.assert_allclose(d.bbox, [99.84, 99.84, 199.68, 200.16], rtol=1e-5)
+    # no segmenter by default: grounding falls back to the bbox mask
+    assert d.mask is None
 
 
-def test_vlm_detector_class_restriction_is_prompt_text(stub_openai):
+def test_vlm_detector_maps_the_old_constructor_kwargs(stub_openai):
+    from cascade.perception.vlm_detector import VLMDetector
+
+    det = VLMDetector(base_url="http://x/v1", model="m", api_key="abc", timeout_s=3.0, conf=0.3)
+    det.detect(_frame())
+    det.close()
+    client = _FakeOpenAI.last
+    assert (client.base_url, client.api_key, client.timeout) == ("http://x/v1", "abc", 3.0)
+    assert client.requests[-1]["model"] == "m"
+    assert "abc" not in repr(det)
+
+
+def test_vlm_detector_classes_are_refer_prompts(stub_openai):
     from cascade.perception.vlm_detector import VLMDetector
 
     det = VLMDetector(base_url="http://x/v1", model="m")
-    client = _FakeOpenAI.last
-    det.set_classes(["banana", "cup"])
-    det.detect(_frame())
-    text = client.requests[-1]["messages"][0]["content"][1]["text"]
-    assert "banana, cup" in text
-    # None restores open-world: the restriction line disappears
-    det.set_classes(None)
-    det.detect(_frame())
-    text = client.requests[-1]["messages"][0]["content"][1]["text"]
-    assert "banana" not in text
+    det.detect(_frame(), ["banana", "cup"])
+    texts = [r["messages"][0]["content"][1]["text"] for r in _FakeOpenAI.last.requests]
+    assert texts == [REFER_PROMPT.format(q="banana"), REFER_PROMPT.format(q="cup")]
+    # None restores open-world: the inventory prompt
+    det.detect(_frame(), None)
+    det.close()
+    assert _FakeOpenAI.last.requests[-1]["messages"][0]["content"][1]["text"] == INVENTORY_PROMPT
 
 
 def test_vlm_detector_booth_rule_on_server_failure(stub_openai):
@@ -181,8 +126,9 @@ def test_vlm_detector_booth_rule_on_server_failure(stub_openai):
     from cascade.perception.vlm_detector import VLMDetector
 
     det = VLMDetector(base_url="http://x/v1", model="m")
-    _FakeOpenAI.last.fail = True
+    _FakeOpenAI.fail = True
     assert det.detect(_frame()) == []
+    det.close()
 
 
 def test_demo_wiring_builds_vlm_detector(stub_openai, demo_cfg):
@@ -199,4 +145,6 @@ def test_demo_wiring_builds_vlm_detector(stub_openai, demo_cfg):
     demo_cfg._data["camera"].pop("detector", None)
     det = _make_detector(demo_cfg)
     assert isinstance(det, VLMDetector)
+    det.detect(_frame())
+    det.close()
     assert _FakeOpenAI.last.base_url == "http://127.0.0.1:8082/v1"

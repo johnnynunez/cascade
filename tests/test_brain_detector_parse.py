@@ -117,6 +117,24 @@ def test_garbage_is_empty():
     assert parse_boxes("", 640, 480) == []
 
 
+def test_huge_integer_coordinate_is_clamped_not_raised():
+    # 10**309 does not fit a float; JSON ints are finite, so it clamps to 1000.
+    text = '[{"label": "cup", "bbox_2d": [1' + "0" * 309 + ', 0, 500, 500]}]'
+    (label, box), = parse_boxes(text, 1000, 1000)
+    assert label == "cup"
+    np.testing.assert_allclose(box, [500, 0, 1000, 500])
+
+
+def test_float_overflow_coordinate_is_dropped():
+    # 1e400 decodes to inf: not a coordinate.
+    assert parse_boxes('[{"label": "cup", "bbox_2d": [1e400, 0, 500, 500]}]', 1000, 1000) == []
+
+
+def test_pathologically_nested_reply_is_empty():
+    # Deep nesting makes the JSON decoder raise RecursionError, not JSONDecodeError.
+    assert parse_boxes("[" * 100000 + "]" * 100000, 640, 480) == []
+
+
 def test_refer_prompt_takes_the_query():
     prompt = REFER_PROMPT.format(q="paper cup")
     assert 'Locate every instance of "paper cup"' in prompt

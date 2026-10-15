@@ -26,7 +26,9 @@ since B68 the two shell registrars too (``scripts/hermes_demo.sh`` and
   ``--hide-tools``); or
 * in `NOT_FORWARDED`, with a category from `CATEGORIES` and the reason.
 
-``tests/test_mcp_env_forwarding.py`` scans ``src/cascade`` and fails when the
+``tests/test_mcp_env_forwarding.py`` scans ``src/cascade`` (and the
+``${CASCADE_*:-default}`` placeholders of the shipped ``configs/``, which the
+config loader expands from the server's environment) and fails when the
 runtime reads a ``CASCADE_*`` variable listed in neither, or when an entry
 here is no longer read. Credentials are never forwarded: a persisted MCP
 config (``~/.hermes/config.yaml``, ``.mcp.json``, OpenClaw's profile) must not
@@ -93,6 +95,12 @@ FORWARDED: dict[str, str] = {
     # ---- landed on main while B63 was open ----
     "CASCADE_MCP_READONLY_LANE": "read-only MCP lane on/off (B46), read by the server itself",
     "CASCADE_NVBLOX_MAP": "live-view nvblox map tile (0|1|auto, apps/map_tile.py)",
+    # ---- brain perception: the robot server's own client of the brain ----
+    # read through configs/demo.yaml `detector:` (`${NAME:-default}`); the
+    # launcher points them at the brain the agent uses
+    "CASCADE_PERCEPTION_URL": "brain endpoint that identifies objects (detector.base_url)",
+    "CASCADE_PERCEPTION_MODEL": "served brain model that identifies objects (detector.model)",
+    "CASCADE_PERCEPTION_KEY_FILE": "path of the brain's api key file (detector.api_key_file), never the key",
 }
 
 #: why a variable the runtime reads is not copied from the registering shell

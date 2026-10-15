@@ -450,6 +450,22 @@ else
 fi
 [[ "$SIM" != isaac ]] || log "Isaac startup budget=${ISAAC_WAIT_S}s (cold collision preprocessing/shaders); ISAAC_WAIT_S overrides it"
 [[ "$SIM" != isaac ]] || log "Isaac selection: engine=${ISAAC_ENGINE:-newton (bridge default)} scene-config=${SCENE_CONFIG:-default} sha256=${SCENE_CONFIG_SHA256:-none} renderer=${CASCADE_CAMERA_RENDERER:-isaac}"
+# The robot server identifies objects with the brain (configs/demo.yaml
+# `detector: type: brain` at ${CASCADE_PERCEPTION_URL:-...}). --brain qwen
+# points it at the Qwen brain this launch resolves: the CASCADE_QWEN_BASE_URL
+# endpoint, the repo-wide served id (configs/llm/local_qwen.yaml; vLLM always
+# serves it, llama.cpp ignores the name) and the brain key FILE, never the
+# key. An operator's own value wins; an empty one counts as unset, as in
+# demo.yaml. Every other brain leaves perception on the configured Qwen brain.
+if [[ "$BRAIN" == qwen ]]; then
+    export CASCADE_PERCEPTION_URL="${CASCADE_PERCEPTION_URL:-${CASCADE_QWEN_BASE_URL:-http://127.0.0.1:8080/v1}}"
+    export CASCADE_PERCEPTION_MODEL="${CASCADE_PERCEPTION_MODEL:-Qwen/Qwen3.8-27B}"
+    export CASCADE_PERCEPTION_KEY_FILE="${CASCADE_PERCEPTION_KEY_FILE:-${CASCADE_BRAIN_KEY_FILE:-$HOME/.cascade/nemoclaw/llama.key}}"
+    log "perception: $CASCADE_PERCEPTION_MODEL at $CASCADE_PERCEPTION_URL (key file $CASCADE_PERCEPTION_KEY_FILE)"
+else
+    printf '[launch] NOTE: --brain %s: object identification uses the local Qwen3.8 brain at %s, which must be running\n' \
+        "$BRAIN" "${CASCADE_PERCEPTION_URL:-http://127.0.0.1:8081/v1 (configs/demo.yaml default)}" >&2
+fi
 [[ $DRY == 1 ]] && log "(dry run: commands are printed, nothing is executed)"
 if [[ $DRY == 1 ]]; then
     if [[ "$AGENT_ROUTE" == openshell ]]; then

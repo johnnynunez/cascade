@@ -44,8 +44,14 @@ launcher_boundary = _launcher_boundary  # the real launch.sh; only host CLI/mode
 model_http_boundary = _model_http_boundary
 
 SRC = REPO / "src" / "cascade"
+CONFIGS = REPO / "configs"
 LAUNCH = REPO / "scripts" / "launch.sh"
 NAME = re.compile(r"CASCADE_[A-Z0-9_]+")
+#: `${NAME:-default}` in a shipped profile: `config._resolve_paths` reads NAME
+#: from the server's environment when it loads that profile
+PLACEHOLDER = re.compile(r"\$\{(CASCADE_[A-Z0-9_]+):-")
+#: the brain endpoint the detector profile reads (configs/demo.yaml `detector:`)
+PERCEPTION = ("CASCADE_PERCEPTION_URL", "CASCADE_PERCEPTION_MODEL", "CASCADE_PERCEPTION_KEY_FILE")
 #: names that would be a credential; none may ever be forwarded
 SECRET = re.compile(r"TOKEN|SECRET|PASSW|CREDENTIAL|API_KEY|(?:^|_)KEY$")
 #: this item's port block; the launcher's sidecar ports are always set inside it
@@ -95,6 +101,15 @@ def _runtime_literals() -> dict[str, set[str]]:
     return found
 
 
+def _config_placeholders() -> dict[str, set[str]]:
+    """Every `${CASCADE_*:-default}` in a shipped profile -> the files naming it."""
+    found: dict[str, set[str]] = {}
+    for path in sorted(CONFIGS.rglob("*.yaml")):
+        for name in PLACEHOLDER.findall(path.read_text()):
+            found.setdefault(name, set()).add(str(path.relative_to(CONFIGS)))
+    return found
+
+
 def _families() -> dict[str, list[str]]:
     """Names composed at run time: a prefix literal -> the names its reader builds."""
     from cascade import config
@@ -113,7 +128,7 @@ def _runtime_reads() -> set[str]:
             names.update(families[name])
         else:
             names.add(name)
-    return names
+    return names | set(_config_placeholders())
 
 
 def test_premise_the_scan_sees_the_reads_this_item_is_about():
@@ -124,6 +139,16 @@ def test_premise_the_scan_sees_the_reads_this_item_is_about():
     assert "config.py" in literals["CASCADE_GRASP_EXECUTOR"]
     assert "CASCADE_MICRODUCK_" in literals
     assert len(literals) >= 50
+
+
+def test_premise_the_scan_sees_the_brain_endpoint_the_detector_profile_reads():
+    # The brain detector's endpoint is read through the profile, not a Python
+    # literal: configs/demo.yaml says `${CASCADE_PERCEPTION_URL:-...}` and the
+    # config loader expands it from the server's environment. The guard counts
+    # those placeholders as runtime reads, so they must be classified too.
+    placeholders = _config_placeholders()
+    assert {name: placeholders.get(name) for name in PERCEPTION} == {name: {"demo.yaml"} for name in PERCEPTION}
+    assert set(PERCEPTION) <= _runtime_reads()
 
 
 # ── the registry (one source of truth) ────────────────────────────────────
@@ -222,7 +247,20 @@ def test_the_forwarded_set_is_pinned():
         "CASCADE_MEMORY_EMBEDDER_MODEL", "CASCADE_MOTION_EVIDENCE_DIR", "CASCADE_GPU_PERCEPTION_EVIDENCE_DIR",
         "CASCADE_MICRODUCK_ASSET_SHA256", "CASCADE_MICRODUCK_POLICY_SHA256",
         "CASCADE_MICRODUCK_MODEL_IDENTITY_SHA256", "CASCADE_MICRODUCK_BRIDGE_PORT", "CASCADE_MICRODUCK_ENGINE",
-        "CASCADE_MICRODUCK_DEVICE", "CASCADE_MCP_READONLY_LANE", "CASCADE_NVBLOX_MAP"}
+        "CASCADE_MICRODUCK_DEVICE", "CASCADE_MCP_READONLY_LANE", "CASCADE_NVBLOX_MAP",
+        "CASCADE_PERCEPTION_URL", "CASCADE_PERCEPTION_MODEL", "CASCADE_PERCEPTION_KEY_FILE"}
+
+
+def test_the_brain_endpoint_reaches_the_robot_server_and_the_key_never_does():
+    # The robot server identifies objects with the brain (configs/demo.yaml
+    # `detector: type: brain`), so a registration copies the endpoint the
+    # launcher chose: URL, served model and the key FILE path. The key itself
+    # rides no variable a registration could copy.
+    reg = _registry()
+    environ = {"CASCADE_PERCEPTION_URL": "http://127.0.0.1:46598/v1", "CASCADE_PERCEPTION_MODEL": "qwen3.8-27b",
+               "CASCADE_PERCEPTION_KEY_FILE": "/b63/brain.key", "CASCADE_BRAIN_API_KEY": "b63-brain-key-5e1",
+               "CASCADE_MODEL_API_KEY": "b63-model-key-77d1"}
+    assert reg.forwarded_env(environ) == {name: environ[name] for name in PERCEPTION}
 
 
 def test_the_old_launch_order_comes_first():

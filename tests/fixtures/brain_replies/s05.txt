@@ -1,0 +1,11 @@
+```json
+[
+  {"label": "black computer tower", "bbox_2d": [333, 137, 446, 408]},
+  {"label": "silver computer tower", "bbox_2d": [362, 358, 508, 461]},
+  {"label": "red plush lobster", "bbox_2d": [462, 312, 523, 384]},
+  {"label": "black computer mouse", "bbox_2d": [496, 275, 543, 325]},
+  {"label": "paper cup", "bbox_2d": [514, 396, 554, 500]},
+  {"label": "white box", "bbox_2d": [486, 604, 542, 743]},
+  {"label": "gray plastic basket", "bbox_2d": [566, 452, 830, 998]}
+]
+```

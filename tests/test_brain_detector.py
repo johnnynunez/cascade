@@ -65,6 +65,7 @@ class FakeClient:
         self.error: BaseException | None = None
         self.refresh_error: BaseException | None = None
         self.gate: threading.Event | None = None
+        self.finish_reason = "stop"
         self.entered = threading.Event()
         self.blocked = 0
         self._lock = threading.Lock()
@@ -91,7 +92,7 @@ class FakeClient:
         else:
             reply = next((r for q, r in self.refer.items() if prompt == REFER_PROMPT.format(q=q)), "[]")
         msg = SimpleNamespace(content=reply)
-        return SimpleNamespace(choices=[SimpleNamespace(message=msg)])
+        return SimpleNamespace(choices=[SimpleNamespace(message=msg, finish_reason=self.finish_reason)])
 
     def prompts(self) -> list[str]:
         with self._lock:
@@ -396,6 +397,31 @@ def test_close_stops_later_refreshes(make):
     assert _brain_threads() == []
 
 
+def _join_refreshes(timeout_s: float = 5.0) -> None:
+    """Wait for the refresh threads WITHOUT close(): they must clear their own bookkeeping."""
+    for thread in _brain_threads():
+        thread.join(timeout_s)
+    assert _brain_threads() == []
+
+
+def test_a_finished_refresh_lets_a_later_aged_call_start_a_new_one(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP)
+    det.detect(_frame(), None)
+    clock.now = 5.0
+    det.detect(_frame(), None)  # aged: refresh #1, entry now dates from 5.0
+    _join_refreshes()
+    assert client.inventory_calls() == 2
+    client.inventory = _reply(BALL)
+    clock.now = 10.0  # aged again
+    assert [d.label for d in det.detect(_frame(), None)] == ["paper cup"]
+    _join_refreshes()
+    assert client.inventory_calls() == 3, "the finished refresh left its camera marked in flight"
+    clock.now = 11.0
+    assert [d.label for d in det.detect(_frame(), None)] == ["red ball"]
+
+
 def test_refer_returns_while_a_refresh_is_in_flight(make):
     clock = Clock()
     det, client, _ = make(clock=clock)
@@ -490,8 +516,8 @@ def test_brain_failure_is_empty_and_warns_at_most_every_30s(make, caplog):
             clock.now = t
             assert det.detect(_frame(), None) == []
         assert len(caplog.records) == 1
-        clock.now = 30.0
-        assert det.detect(_frame(), None) == []
+        clock.now = 30.0  # the other camera: this one backs off since its 29.9 failure
+        assert det.detect(_frame(fx=600.0), None) == []
         assert len(caplog.records) == 2
         client.error = RuntimeError("connection refused")
         clock.now = 31.0
@@ -511,7 +537,7 @@ def test_garbled_or_missing_reply_is_empty_with_a_warning(make, caplog):
         client.refer["paper cup"] = None  # message.content may be None
         assert det.detect(_frame(), ["paper cup"]) == []
         assert len(caplog.records) == 2
-        assert all("no JSON list" in r.getMessage() for r in caplog.records)
+        assert all("garbled reply" in r.getMessage() for r in caplog.records)
         # A garbled reply is a failed call: nothing was cached.
         client.inventory = "[]"
         clock.now = 60.0
@@ -522,6 +548,181 @@ def test_garbled_or_missing_reply_is_empty_with_a_warning(make, caplog):
         assert det.detect(_frame(), None) == []
         assert client.inventory_calls() == 2
         assert len(caplog.records) == 2
+
+
+def test_truncated_reply_is_garbled_and_not_cached(make, caplog):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.finish_reason = "length"  # cut at max_tokens
+    client.inventory = _reply(CUP, BALL)[:-30]
+    with caplog.at_level(logging.WARNING, logger="cascade.perception.brain_detector"):
+        assert det.detect(_frame(), None) == []
+        # A list that closed before the cut is still a cut answer: the brain had more to list.
+        client.inventory = _reply(CUP) + "\nAlso a red ball at [5"
+        assert det.detect(_frame(fx=600.0), None) == []
+    (record,) = caplog.records  # one per 30 s
+    assert "truncated" in record.getMessage()
+    # Nothing was cached: once the backoff is over both cameras ask again.
+    client.finish_reason = "stop"
+    client.inventory = _reply(CUP, BALL)
+    clock.now = 4.5
+    assert [d.label for d in det.detect(_frame(), None)] == ["paper cup", "red ball"]
+    assert [d.label for d in det.detect(_frame(fx=600.0), None)] == ["paper cup", "red ball"]
+    assert client.inventory_calls() == 4
+
+
+def test_prose_reply_is_garbled_and_not_cached(make, caplog):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = 'I can see [a paper cup] next to a ball.'
+    with caplog.at_level(logging.WARNING, logger="cascade.perception.brain_detector"):
+        assert det.detect(_frame(), None) == []
+        client.inventory = '["paper cup", "red ball"]'  # names, no boxes
+        assert det.detect(_frame(fx=600.0), None) == []
+    (record,) = caplog.records
+    assert "garbled reply" in record.getMessage()
+    client.inventory = _reply(CUP)
+    clock.now = 4.5
+    assert [d.label for d in det.detect(_frame(), None)] == ["paper cup"]
+    assert [d.label for d in det.detect(_frame(fx=600.0), None)] == ["paper cup"]
+    assert client.inventory_calls() == 4
+
+
+def test_bare_empty_list_is_a_cached_empty_table(make, caplog):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    replies = {500.0: "[]", 600.0: "```json\n[ ]\n```", 700.0: "<think>nothing there</think>\n[]"}
+    with caplog.at_level(logging.WARNING, logger="cascade.perception.brain_detector"):
+        for fx, reply in replies.items():
+            client.inventory = reply
+            assert det.detect(_frame(fx=fx), None) == []
+        client.inventory = _reply(CUP)
+        clock.now = 1.0
+        for fx in replies:
+            assert det.detect(_frame(fx=fx), None) == []  # the cached empty table, no request
+    assert client.inventory_calls() == 3
+    assert caplog.records == []
+
+
+# --- brain outage: keep tracking what is known, back off -------------------
+
+
+def test_outage_keeps_tracking_known_objects_past_max_age_with_backoff(make, caplog):
+    clock = Clock()
+    det, client, seg = make(clock=clock)
+    client.inventory = _reply(CUP, BALL)
+    det.detect(_frame(), None)
+    client.error = APITimeoutError("Request timed out.")
+    with caplog.at_level(logging.WARNING, logger="cascade.perception.brain_detector"):
+        for t in (31.0, 32.0, 34.9):  # the entry is older than max_cache_age_s; same scene
+            clock.now = t
+            frame = _frame()
+            assert [d.label for d in det.detect(frame, None)] == ["paper cup", "red ball"], t
+            seg_frame, boxes = seg.calls[-1]
+            assert seg_frame is frame  # a track step on THIS frame
+            np.testing.assert_allclose(boxes, [_px(CUP[1]), _px(BALL[1])], rtol=1e-6)
+        assert client.inventory_calls() == 2, "no backoff: every call asked the down brain"
+        clock.now = 35.0  # refresh_s after the failure: ask again
+        assert [d.label for d in det.detect(_frame(), None)] == ["paper cup", "red ball"]
+        assert client.inventory_calls() == 3
+    assert len(caplog.records) == 1
+    assert _brain_threads() == []
+
+
+def test_outage_on_a_changed_scene_is_empty_and_backs_off(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP)
+    det.detect(_frame(level=0), None)
+    client.error = RuntimeError("connection refused")
+    clock.now = 1.0
+    # Old boxes on a changed table would put old labels on new things.
+    assert det.detect(_frame(level=20), None) == []
+    clock.now = 2.0
+    assert det.detect(_frame(level=20), None) == []
+    clock.now = 3.0  # back on the cached scene: an ordinary track step
+    assert [d.label for d in det.detect(_frame(level=0), None)] == ["paper cup"]
+    clock.now = 4.9
+    assert det.detect(_frame(level=20), None) == []
+    assert client.inventory_calls() == 2
+    clock.now = 5.0
+    assert det.detect(_frame(level=20), None) == []
+    assert client.inventory_calls() == 3
+
+
+def test_outage_backoff_is_per_camera(make):
+    det, client, _ = make()
+    client.error = RuntimeError("connection refused")
+    assert det.detect(_frame(fx=500.0), None) == []
+    assert det.detect(_frame(fx=500.0), None) == []
+    assert client.inventory_calls() == 1
+    assert det.detect(_frame(fx=600.0), None) == []  # the wrist camera asks for itself
+    assert client.inventory_calls() == 2
+
+
+def test_after_the_backoff_a_successful_call_replaces_the_entry(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP)
+    det.detect(_frame(), None)
+    client.error = RuntimeError("connection refused")
+    clock.now = 31.0
+    assert [d.label for d in det.detect(_frame(), None)] == ["paper cup"]
+    client.error = None  # the brain is back
+    client.inventory = _reply(BALL)
+    clock.now = 33.0  # still backing off
+    assert [d.label for d in det.detect(_frame(), None)] == ["paper cup"]
+    assert client.inventory_calls() == 2
+    clock.now = 35.0
+    assert [d.label for d in det.detect(_frame(), None)] == ["red ball"]
+    assert client.inventory_calls() == 3
+    clock.now = 36.0  # the new entry is fresh: a track step, no request
+    assert [d.label for d in det.detect(_frame(), None)] == ["red ball"]
+    assert client.inventory_calls() == 3
+
+
+def test_backoff_counts_from_the_failure_not_the_request(make):
+    # A hung brain times out after timeout_s: counted from the request, the
+    # backoff would be over before the call returned and every tick would block.
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.error = APITimeoutError("Request timed out.")
+    create = client.chat.completions.create
+
+    def slow_create(**kwargs):
+        clock.now += 20.0  # timeout_s passes inside the call
+        return create(**kwargs)
+
+    client.chat.completions.create = slow_create
+    assert det.detect(_frame(), None) == []  # asked at 0, failed at 20
+    clock.now = 22.0
+    assert det.detect(_frame(), None) == []
+    assert client.inventory_calls() == 1
+
+
+def test_a_success_clears_the_backoff(make):
+    # Two synchronous calls for one camera overlap: the later one fails, then
+    # the earlier one answers. The brain is up, so a scene change asks at once.
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP)
+    client.gate = threading.Event()
+    slow = threading.Thread(target=det.detect, args=(_frame(level=0), None))
+    slow.start()
+    try:
+        assert client.entered.wait(5)
+        client.error = RuntimeError("connection reset")
+        clock.now = 1.0
+        assert det.detect(_frame(level=0), None) == []  # fails: backoff from t=1
+        client.error = None
+    finally:
+        client.gate.set()
+        slow.join(5)
+    client.gate = None
+    client.inventory = _reply(BALL)
+    clock.now = 2.0
+    assert [d.label for d in det.detect(_frame(level=40), None)] == ["red ball"]
+    assert client.inventory_calls() == 3
 
 
 def test_unparseable_reply_never_raises(make):
@@ -571,7 +772,9 @@ def test_key_from_file_never_logged_nor_in_repr(tmp_path, stub_openai, caplog):
         assert det.detect(_frame(), None) == []
         assert det.detect(_frame(), ["paper cup"]) == []
     det.close()
-    assert stub.built == [{"base_url": "http://brain/v1", "api_key": key, "timeout": 7.5}]
+    # max_retries=0: the next watcher tick is the retry; openai's default 2
+    # would block a synchronous detect for ~3x timeout_s on a hung brain.
+    assert stub.built == [{"base_url": "http://brain/v1", "api_key": key, "timeout": 7.5, "max_retries": 0}]
     assert caplog.records, "the failure was not logged"
     for record in caplog.records:
         assert key not in record.getMessage()

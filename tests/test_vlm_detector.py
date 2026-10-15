@@ -45,10 +45,11 @@ class _FakeOpenAI:
     reply = "[]"
     last = None
 
-    def __init__(self, base_url=None, api_key=None, timeout=None):
+    def __init__(self, base_url=None, api_key=None, timeout=None, max_retries=None):
         self.base_url = base_url
         self.api_key = api_key
         self.timeout = timeout
+        self.max_retries = max_retries
         self.requests: list[dict] = []
         self.chat = types.SimpleNamespace(completions=_FakeCompletions(self))
         _FakeOpenAI.last = self
@@ -83,6 +84,7 @@ def test_vlm_detector_is_a_brain_detector_with_the_old_defaults(stub_openai):
     client = _FakeOpenAI.last
     assert client.base_url == "http://127.0.0.1:8082/v1"
     assert client.api_key == "EMPTY"
+    assert client.max_retries == 0  # the next detect is the retry
     req = client.requests[-1]
     assert req["model"] == "cosmos3-edge"
     assert req["temperature"] == 0
@@ -102,7 +104,7 @@ def test_vlm_detector_maps_the_old_constructor_kwargs(stub_openai):
     det.detect(_frame())
     det.close()
     client = _FakeOpenAI.last
-    assert (client.base_url, client.api_key, client.timeout) == ("http://x/v1", "abc", 3.0)
+    assert (client.base_url, client.api_key, client.timeout, client.max_retries) == ("http://x/v1", "abc", 3.0, 0)
     assert client.requests[-1]["model"] == "m"
     assert "abc" not in repr(det)
 

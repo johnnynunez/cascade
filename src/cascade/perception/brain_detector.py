@@ -80,22 +80,34 @@ def _is_coord(v) -> bool:
     return isinstance(v, int) or (isinstance(v, float) and math.isfinite(v))
 
 
-def parse_boxes(text: str, width: int, height: int) -> list[tuple[str, np.ndarray]]:
-    """Brain reply -> [(label, float32 xyxy pixel box)].
-
-    Thinking blocks (closed, unterminated, or only closed because the template
-    opened them) and code fences are stripped first. Coordinates are clamped to
-    0..1000, corners ordered, then scaled to pixels; entries without a label or
-    with a malformed or zero-area box are dropped. Never raises on any string.
-    """
+def _reply_body(text: str) -> str:
+    """The reply without thinking blocks (closed, unterminated, or only closed
+    because the template opened them) and code fences."""
     text = _THINK_BLOCK.sub("", text)
     if "</think>" in text:
         text = text.rsplit("</think>", 1)[1]
-    # Defensive only: raw_decode starts at '[' anyway, so fences never reach it.
-    text = _FENCE.sub("", text)
+    # raw_decode starts at '[' anyway; fences only matter to the bare-[] check.
+    return _FENCE.sub("", text)
 
+
+def _is_answer(text: str) -> bool:
+    """A reply holding a box list, or exactly an empty list ("[]"): the two
+    shapes both prompts ask for. Anything else (prose, a list of names) is garbled."""
+    body = _reply_body(text).strip()
+    if body.startswith("[") and body.endswith("]") and not body[1:-1].strip():
+        return True
+    return bool(_answer_list(body))
+
+
+def parse_boxes(text: str, width: int, height: int) -> list[tuple[str, np.ndarray]]:
+    """Brain reply -> [(label, float32 xyxy pixel box)].
+
+    Thinking blocks and code fences are stripped first. Coordinates are clamped to
+    0..1000, corners ordered, then scaled to pixels; entries without a label or
+    with a malformed or zero-area box are dropped. Never raises on any string.
+    """
     out: list[tuple[str, np.ndarray]] = []
-    for item in _answer_list(text):
+    for item in _answer_list(_reply_body(text)):
         if not isinstance(item, dict):
             continue
         label = item.get("label")
@@ -169,10 +181,16 @@ class BrainDetector(Detector):
     the entry is older than `refresh_s`, starts one background refresh.
     Otherwise it asks the brain synchronously.
 
-    Booth rule: a down/slow/garbled brain yields [] and a rate-limited warning,
-    never an exception. Safe to call from several threads at once: the cache
-    lock is never held across the brain or SAM call, and the segmenter
-    serializes its own model calls.
+    Booth rule: a down/slow/garbled brain yields a rate-limited warning, never
+    an exception. A failed refer yields []. A failed synchronous inventory
+    keeps tracking the known objects: the cached entry's track step at any age
+    while this frame still shows its scene, [] once the scene changed. After
+    such a failure that camera makes no synchronous brain call for `refresh_s`
+    (backoff, same fallback meanwhile); a success ends it.
+
+    Safe to call from several threads at once: the cache lock is never held
+    across the brain or SAM call, and the segmenter serializes its own model
+    calls.
     """
 
     concurrent_safe = True
@@ -197,6 +215,8 @@ class BrainDetector(Detector):
         self._lock = threading.Lock()
         self._cache: dict[tuple[int, int, int, int], _Entry] = {}
         self._refreshing: set[tuple[int, int, int, int]] = set()
+        # Clock time of the last failed synchronous inventory per camera (backoff).
+        self._failed_at: dict[tuple[int, int, int, int], float] = {}
         self._threads: set[threading.Thread] = set()
         self._closed = False
         self._last_warn: float | None = None
@@ -250,8 +270,11 @@ class BrainDetector(Detector):
             if self._client is None:
                 from openai import OpenAI  # lazy: CI's minimal install has no openai
 
+                # max_retries=0: the next detect is the retry. openai's default 2
+                # would hold a synchronous detect ~3x timeout_s on a hung brain
+                # and outlive close()'s join.
                 self._client = OpenAI(base_url=self._base_url, api_key=self._api_key,
-                                      timeout=self._timeout_s)
+                                      timeout=self._timeout_s, max_retries=0)
             return self._client
 
     def _ask(self, image_url: str, prompt: str) -> str:
@@ -268,11 +291,15 @@ class BrainDetector(Detector):
             }],
             extra_body={"chat_template_kwargs": {"enable_thinking": False}},
         )
-        text = resp.choices[0].message.content or ""
-        # Both prompts ask for a JSON list ("[]" when nothing is there): a reply
-        # without one is garbled, a failed call rather than an empty table.
-        if "[" not in text:
-            raise ValueError(f"reply holds no JSON list: {text[:80]!r}")
+        choice = resp.choices[0]
+        text = choice.message.content or ""
+        # A garbled reply is a failed call, never an empty table: cut at
+        # max_tokens (even if a list closed before the cut), or neither a box
+        # list nor exactly "[]" (what both prompts ask for when nothing is there).
+        if getattr(choice, "finish_reason", None) == "length":
+            raise ValueError(f"garbled reply, truncated at max_tokens={self._max_tokens}")
+        if not _is_answer(text):
+            raise ValueError(f"garbled reply, no box list: {text[:80]!r}")
         return text
 
     # -- refer and inventory ------------------------------------------------
@@ -308,15 +335,34 @@ class BrainDetector(Detector):
         now = self._clock()
         with self._lock:
             entry = self._cache.get(key)
-        if entry is not None and (now - entry.t > self._max_cache_age_s
-                                  or _scene_diff(entry.thumb, thumb) > self._scene_change):
-            entry = None
-        if entry is None:
+            failed_at = self._failed_at.get(key)
+        if (entry is not None and now - entry.t <= self._max_cache_age_s
+                and _scene_diff(entry.thumb, thumb) <= self._scene_change):
+            if now - entry.t > self._refresh_s:
+                self._start_refresh(key, frame, thumb, now)
+            return self._detections(frame, entry.labels, entry.boxes, track=True)
+        if failed_at is not None and now - failed_at < self._refresh_s:
+            return self._outage_fallback(key, frame, thumb)  # backoff: no brain call
+        try:
             entry = self._ask_inventory(frame, thumb, now)
-            self._store(key, entry)
-            return self._detections(frame, entry.labels, entry.boxes, track=False)
-        if now - entry.t > self._refresh_s:
-            self._start_refresh(key, frame, thumb, now)
+        except Exception as e:  # noqa: BLE001 - booth rule: keep tracking, never raise
+            with self._lock:
+                self._failed_at[key] = self._clock()
+            self._warn("inventory failed; tracking the known objects", e)
+            return self._outage_fallback(key, frame, thumb)
+        with self._lock:
+            self._failed_at.pop(key, None)
+        self._store(key, entry)
+        return self._detections(frame, entry.labels, entry.boxes, track=False)
+
+    def _outage_fallback(self, key, frame: Frame, thumb: np.ndarray) -> list[Detection]:
+        """The cached entry's track step at ANY age while this frame still shows
+        its scene; [] once the scene changed (old boxes would put old labels on
+        new things; refer bypasses the cache, so picking is unaffected)."""
+        with self._lock:
+            entry = self._cache.get(key)
+        if entry is None or _scene_diff(entry.thumb, thumb) > self._scene_change:
+            return []
         return self._detections(frame, entry.labels, entry.boxes, track=True)
 
     def _start_refresh(self, key, frame: Frame, thumb: np.ndarray, t: float) -> None:

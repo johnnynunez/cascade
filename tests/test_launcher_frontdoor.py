@@ -356,8 +356,8 @@ def test_reused_isaac_bridge_is_probed_not_accepted_on_port_alone(launcher_bound
 # ── the robot server identifies objects with the brain this launch uses ─────
 # configs/demo.yaml: `detector: type: brain` at ${CASCADE_PERCEPTION_URL:-...}.
 # `--brain qwen` points it at the Qwen brain the launch resolves (the
-# CASCADE_QWEN_BASE_URL endpoint, the repo-wide served name, the brain key
-# FILE); any other brain leaves perception on the configured Qwen brain and
+# CASCADE_QWEN_BASE_URL endpoint, the bare served id qwen3.8-27b, the brain
+# key FILE); any other brain leaves perception on the configured Qwen brain and
 # says so. Only a path to the key ever travels.
 
 PERCEPTION = ("CASCADE_PERCEPTION_URL", "CASCADE_PERCEPTION_MODEL", "CASCADE_PERCEPTION_KEY_FILE")
@@ -388,7 +388,7 @@ def test_linux_brain_qwen_points_the_robot_servers_perception_at_that_brain(linu
     assert result.returncode == 0, result.stdout + result.stderr
     seen = _seen_robot_env(h)
     assert {name: seen.get(name) for name in PERCEPTION} == {
-        "CASCADE_PERCEPTION_URL": h["http"]["base_url"], "CASCADE_PERCEPTION_MODEL": "Qwen/Qwen3.8-27B",
+        "CASCADE_PERCEPTION_URL": h["http"]["base_url"], "CASCADE_PERCEPTION_MODEL": "qwen3.8-27b",
         "CASCADE_PERCEPTION_KEY_FILE": str(tmp_path / "home" / ".cascade" / "nemoclaw" / "llama.key")}
     assert PERCEPTION_NOTE not in result.stderr
 
@@ -399,12 +399,12 @@ def test_linux_brain_qwen_follows_the_brain_key_file_and_an_explicit_choice_wins
     key = tmp_path / "brain.key"
     key.write_text("launch-brain-key-3f9\n")
     key.chmod(0o600)
-    env.update(CASCADE_BRAIN_KEY_FILE=str(key), CASCADE_PERCEPTION_MODEL="qwen3.8-27b")
+    env.update(CASCADE_BRAIN_KEY_FILE=str(key), CASCADE_PERCEPTION_MODEL="qwen3.8-27b-q8")
     result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=120)
     assert result.returncode == 0, result.stdout + result.stderr
     seen = _seen_robot_env(h)
     assert {name: seen.get(name) for name in PERCEPTION} == {
-        "CASCADE_PERCEPTION_URL": h["http"]["base_url"], "CASCADE_PERCEPTION_MODEL": "qwen3.8-27b",
+        "CASCADE_PERCEPTION_URL": h["http"]["base_url"], "CASCADE_PERCEPTION_MODEL": "qwen3.8-27b-q8",
         "CASCADE_PERCEPTION_KEY_FILE": str(key)}
     rig_calls = Path(h["env"]["RIG_LOG"]).read_text()
     for text in (json.dumps(seen), rig_calls, result.stdout, result.stderr):
@@ -428,7 +428,7 @@ def test_host_route_brain_qwen_registers_the_perception_endpoint(launcher_bounda
     assert result.returncode == 0, result.stdout + result.stderr
     registered = json.loads(Path(h["env"]["MCP_CONFIG"]).read_text())["env"]
     assert {name: registered.get(name) for name in PERCEPTION} == {
-        "CASCADE_PERCEPTION_URL": h["http"]["base_url"], "CASCADE_PERCEPTION_MODEL": "Qwen/Qwen3.8-27B",
+        "CASCADE_PERCEPTION_URL": h["http"]["base_url"], "CASCADE_PERCEPTION_MODEL": "qwen3.8-27b",
         "CASCADE_PERCEPTION_KEY_FILE": str(tmp_path / "home" / ".cascade" / "nemoclaw" / "llama.key")}
 
 
@@ -437,4 +437,4 @@ def test_the_dry_run_plan_names_the_perception_endpoint(linux_launcher, tmp_path
     command, env = _with_brain(h, "qwen", tmp_path / "home")
     result = subprocess.run([*command, "--dry-run"], env=env, capture_output=True, text=True, timeout=60)
     assert result.returncode == 0, result.stdout + result.stderr
-    assert f"perception: Qwen/Qwen3.8-27B at {h['http']['base_url']}" in result.stdout
+    assert f"perception: qwen3.8-27b at {h['http']['base_url']}" in result.stdout

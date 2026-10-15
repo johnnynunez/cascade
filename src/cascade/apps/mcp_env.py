@@ -27,8 +27,9 @@ since B68 the two shell registrars too (``scripts/hermes_demo.sh`` and
 * in `NOT_FORWARDED`, with a category from `CATEGORIES` and the reason.
 
 ``tests/test_mcp_env_forwarding.py`` scans ``src/cascade`` (and the
-``${CASCADE_*:-default}`` placeholders of the shipped ``configs/``, which the
-config loader expands from the server's environment) and fails when the
+``${CASCADE_*:-default}`` placeholders in the string values of the
+``configs/`` profiles the config loader expands from the server's
+environment; comments do not count) and fails when the
 runtime reads a ``CASCADE_*`` variable listed in neither, or when an entry
 here is no longer read. Credentials are never forwarded: a persisted MCP
 config (``~/.hermes/config.yaml``, ``.mcp.json``, OpenClaw's profile) must not

@@ -481,10 +481,14 @@ def serve_mcp_env(base: dict | None = None, cfg: Settings = Settings(),
     and no CASCADE_MCP_TOKEN, so the token file is the only source.
 
     The server identifies objects with the brain (configs/demo.yaml
-    `detector: type: brain`). Unless the launcher or the operator named an
-    endpoint (an empty value counts as unset, as in demo.yaml), it asks the
-    brain this instance's sandbox uses: `cfg.brain_port`, the Qwen model id
-    and the brain key FILE. The key itself never enters the environment."""
+    `detector: type: brain`). When this instance's saved brain is the Qwen
+    served id (`cfg.model == DEFAULT_MODEL`), it asks that brain:
+    `cfg.brain_port`, the Qwen model id and the brain key FILE, each unless
+    the launcher or the operator named it (an empty value counts as unset,
+    as in demo.yaml). Any other saved brain (Cosmos, ...) sets none of the
+    three, so demo.yaml's defaults apply and that brain never gets the Qwen
+    grounding prompt; an operator's own values still reach the server. The
+    key itself never enters the environment."""
     env = dict(os.environ if base is None else base)
     env.pop(MCP_TOKEN_ENV, None)
     env["PYTHONPATH"] = os.pathsep.join(p for p in (str(REPO / "src"), env.get("PYTHONPATH", "")) if p)
@@ -494,6 +498,8 @@ def serve_mcp_env(base: dict | None = None, cfg: Settings = Settings(),
     # pops an OpenCV window next to the demo. The demo's screen is OpenClaw's
     # web UI with the camera extension (`open`), fed by the live-view server.
     env.setdefault("CASCADE_VIEW", "0")
+    if cfg.model != DEFAULT_MODEL:
+        return env
     brain = {"CASCADE_PERCEPTION_URL": f"http://127.0.0.1:{cfg.brain_port}/v1",
              "CASCADE_PERCEPTION_MODEL": DEFAULT_MODEL,
              "CASCADE_PERCEPTION_KEY_FILE": str(brain_key_file or default_brain_key_file())}

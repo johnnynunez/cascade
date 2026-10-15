@@ -47,9 +47,9 @@ SRC = REPO / "src" / "cascade"
 CONFIGS = REPO / "configs"
 LAUNCH = REPO / "scripts" / "launch.sh"
 NAME = re.compile(r"CASCADE_[A-Z0-9_]+")
-#: `${NAME:-default}` in a shipped profile: `config._resolve_paths` reads NAME
-#: from the server's environment when it loads that profile
-PLACEHOLDER = re.compile(r"\$\{(CASCADE_[A-Z0-9_]+):-")
+#: the top-level files `config.load_demo_config` expands (`${NAME:-default}`
+#: in their string values is read from the server's environment)
+LOADER_FILES = ("demo.yaml", "booth.yaml")
 #: the brain endpoint the detector profile reads (configs/demo.yaml `detector:`)
 PERCEPTION = ("CASCADE_PERCEPTION_URL", "CASCADE_PERCEPTION_MODEL", "CASCADE_PERCEPTION_KEY_FILE")
 #: names that would be a credential; none may ever be forwarded
@@ -101,12 +101,53 @@ def _runtime_literals() -> dict[str, set[str]]:
     return found
 
 
-def _config_placeholders() -> dict[str, set[str]]:
-    """Every `${CASCADE_*:-default}` in a shipped profile -> the files naming it."""
+def _loader_kinds() -> set[str]:
+    """The profile kinds the runtime loads through `config.load_profile`
+    (configs/<kind>/<name>.yaml): the first argument of every call in src/cascade."""
+    kinds: set[str] = set()
+    for path in sorted(SRC.rglob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text(), str(path))):
+            if not (isinstance(node, ast.Call) and node.args):
+                continue
+            func = node.func.id if isinstance(node.func, ast.Name) else getattr(node.func, "attr", None)
+            first = node.args[0]
+            if func == "load_profile" and isinstance(first, ast.Constant) and isinstance(first.value, str):
+                kinds.add(first.value)
+    return kinds
+
+
+def _expanded_strings(data):
+    """The strings `config._resolve_paths` expands: values, never mapping keys."""
+    if isinstance(data, dict):
+        for value in data.values():
+            yield from _expanded_strings(value)
+    elif isinstance(data, list):
+        for value in data:
+            yield from _expanded_strings(value)
+    elif isinstance(data, str):
+        yield data
+
+
+def _config_placeholders(root: Path = CONFIGS) -> dict[str, set[str]]:
+    """Every `${CASCADE_*:-default}` the config loader expands -> the files naming it.
+
+    Only parsed string values of the files the loader expands count:
+    `load_demo_config`'s demo.yaml and booth.yaml, and every profile of a
+    `load_profile` kind. A comment, a mapping key or a YAML file the loader
+    never opens is no read, so it cannot keep a stale registry entry alive."""
+    import yaml
+
+    from cascade import config
+
+    paths = [root / name for name in LOADER_FILES if (root / name).is_file()]
+    for kind in sorted(_loader_kinds()):
+        paths.extend(sorted((root / kind).glob("*.yaml")))
     found: dict[str, set[str]] = {}
-    for path in sorted(CONFIGS.rglob("*.yaml")):
-        for name in PLACEHOLDER.findall(path.read_text()):
-            found.setdefault(name, set()).add(str(path.relative_to(CONFIGS)))
+    for path in paths:
+        for text in _expanded_strings(yaml.safe_load(path.read_text())):
+            for name, _default in config._ENV_DEFAULT_RE.findall(text):
+                if NAME.fullmatch(name):
+                    found.setdefault(name, set()).add(str(path.relative_to(root)))
     return found
 
 
@@ -146,9 +187,32 @@ def test_premise_the_scan_sees_the_brain_endpoint_the_detector_profile_reads():
     # literal: configs/demo.yaml says `${CASCADE_PERCEPTION_URL:-...}` and the
     # config loader expands it from the server's environment. The guard counts
     # those placeholders as runtime reads, so they must be classified too.
-    placeholders = _config_placeholders()
-    assert {name: placeholders.get(name) for name in PERCEPTION} == {name: {"demo.yaml"} for name in PERCEPTION}
+    # The complete current set is pinned: a new placeholder is a new read.
+    assert {"cameras", "arms", "llm", "bases", "robots"} <= _loader_kinds()
+    assert _config_placeholders() == {name: {"demo.yaml"} for name in PERCEPTION}
     assert set(PERCEPTION) <= _runtime_reads()
+
+
+def test_a_placeholder_counts_only_in_a_value_the_config_loader_expands(tmp_path):
+    # The guard counts what config._resolve_paths reads: `${CASCADE_*:-...}` in
+    # a STRING VALUE of a file the loader expands (demo.yaml, booth.yaml, a
+    # load_profile kind such as cameras/). A comment, a mapping key or a YAML
+    # file the loader never opens is no read, so a stale FORWARDED entry cannot
+    # hide behind one.
+    assert "cameras" in _loader_kinds() and "isaac" not in _loader_kinds()
+    (tmp_path / "demo.yaml").write_text(
+        "# ${CASCADE_IN_A_COMMENT:-x}\n"
+        "detector:\n"
+        "  base_url: ${CASCADE_IN_A_VALUE:-http://127.0.0.1:1/v1}   # ${CASCADE_TRAILING_COMMENT:-y}\n"
+        "  ${CASCADE_IN_A_KEY:-k}: 1\n"
+        "  hosts: [a, \"${CASCADE_IN_A_LIST:-b}\"]\n")
+    (tmp_path / "cameras").mkdir()
+    (tmp_path / "cameras" / "cam.yaml").write_text("# ${CASCADE_CAMERA_COMMENT:-c}\nserial: ${CASCADE_IN_A_PROFILE:-0}\n")
+    (tmp_path / "isaac").mkdir()
+    (tmp_path / "isaac" / "scene.yaml").write_text("usd: ${CASCADE_NOT_LOADED:-scene.usd}\n")
+    assert _config_placeholders(tmp_path) == {
+        "CASCADE_IN_A_VALUE": {"demo.yaml"}, "CASCADE_IN_A_LIST": {"demo.yaml"},
+        "CASCADE_IN_A_PROFILE": {"cameras/cam.yaml"}}
 
 
 # ── the registry (one source of truth) ────────────────────────────────────

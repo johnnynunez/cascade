@@ -453,13 +453,14 @@ fi
 # The robot server identifies objects with the brain (configs/demo.yaml
 # `detector: type: brain` at ${CASCADE_PERCEPTION_URL:-...}). --brain qwen
 # points it at the Qwen brain this launch resolves: the CASCADE_QWEN_BASE_URL
-# endpoint, the repo-wide served id (configs/llm/local_qwen.yaml; vLLM always
-# serves it, llama.cpp ignores the name) and the brain key FILE, never the
+# endpoint, the bare served id qwen3.8-27b (configs/demo.yaml's and the
+# OpenShell sandbox's id; serve_qwen_vllm.sh's default SERVED_NAME,
+# llama.cpp ignores the name) and the brain key FILE, never the
 # key. An operator's own value wins; an empty one counts as unset, as in
 # demo.yaml. Every other brain leaves perception on the configured Qwen brain.
 if [[ "$BRAIN" == qwen ]]; then
     export CASCADE_PERCEPTION_URL="${CASCADE_PERCEPTION_URL:-${CASCADE_QWEN_BASE_URL:-http://127.0.0.1:8080/v1}}"
-    export CASCADE_PERCEPTION_MODEL="${CASCADE_PERCEPTION_MODEL:-Qwen/Qwen3.8-27B}"
+    export CASCADE_PERCEPTION_MODEL="${CASCADE_PERCEPTION_MODEL:-qwen3.8-27b}"
     export CASCADE_PERCEPTION_KEY_FILE="${CASCADE_PERCEPTION_KEY_FILE:-${CASCADE_BRAIN_KEY_FILE:-$HOME/.cascade/nemoclaw/llama.key}}"
     log "perception: $CASCADE_PERCEPTION_MODEL at $CASCADE_PERCEPTION_URL (key file $CASCADE_PERCEPTION_KEY_FILE)"
 else

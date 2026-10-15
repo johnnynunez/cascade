@@ -1407,6 +1407,29 @@ def test_a_named_instance_points_perception_at_its_own_brain(host, monkeypatch):
     assert env["CASCADE_PERCEPTION_KEY_FILE"] == str(host.user / ".cascade" / "nemoclaw" / "llama.key")
 
 
+def test_an_instance_saved_with_another_brain_leaves_perception_to_the_profile(host, monkeypatch):
+    """Ruling 20: serve-mcp fills in the endpoint only for an instance whose
+    saved brain is the Qwen served id. A sim instance last brought up on
+    Cosmos (:8082, cosmos3-edge) sets none of the three, so configs/demo.yaml's
+    defaults (the local Qwen brain) apply and Cosmos never gets the Qwen
+    grounding prompt. An operator's own value still reaches the server."""
+    for name in PERCEPTION:
+        monkeypatch.delenv(name, raising=False)
+    home = host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    host.gateways_up.add(str(home / "0.1.3" / "bin" / "openshell"))
+    assert host.rig.main(["--instance", "sim", "up", "--brain-port", "8082", "--model", "cosmos3-edge"]) == 0
+    saved = json.loads((home / "deployed.json").read_text())["settings"]
+    assert (saved["brain_port"], saved["model"]) == (8082, "cosmos3-edge")
+    argv, env = _serve(host, monkeypatch, "--instance", "sim", "serve-mcp")
+    assert argv[argv.index("--http") + 1] == "127.0.0.1:17810"
+    assert sorted(set(PERCEPTION) & set(env)) == []
+    monkeypatch.setenv("CASCADE_PERCEPTION_URL", "http://10.0.0.7:8000/v1")
+    _, env = _serve(host, monkeypatch, "--instance", "sim", "serve-mcp")
+    assert {name: env.get(name) for name in PERCEPTION} == {
+        "CASCADE_PERCEPTION_URL": "http://10.0.0.7:8000/v1", "CASCADE_PERCEPTION_MODEL": None,
+        "CASCADE_PERCEPTION_KEY_FILE": None}
+
+
 def test_a_brain_port_flag_reaches_perception(host, monkeypatch):
     for name in PERCEPTION:
         monkeypatch.delenv(name, raising=False)

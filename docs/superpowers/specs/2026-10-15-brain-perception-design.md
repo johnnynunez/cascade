@@ -30,8 +30,8 @@ The owner's requirement: object identity comes from the brain backend, and that 
 In:
 1. A `brain` detector backend: Qwen3.8-27B inventory + refer prompts, SAM 2.1 masks from its boxes.
 2. Robot server wiring so it reaches the same brain (URL, served model name, key file).
-3. A WorldWatcher that keeps the safety heartbeat and occupancy refresh independent of
-   the (now slow) detector, and keeps beliefs fresh between brain calls.
+3. An inventory cache + SAM tracking step inside the detector, and a watcher heartbeat
+   that no longer waits for detection, so the slow brain never trips the watchdog or the 5 s age limit.
 4. Remove YOLOE entirely (class, configs, weights, installer assets, launcher checks, docs, tests).
 
 Out (follow-up PR, same design): UniPose9D 9D pose replacing the PCA box behind
@@ -41,15 +41,11 @@ Out: DINOv3 exemplar re-identification (weights gated, not measured yet).
 ## 3. Architecture
 
 ```
-camera frame ──► WorldWatcher tick (every frame, cheap)
-                   ├─ depth + occupancy refresh            (unchanged)
-                   ├─ harness.heartbeat()                  (MOVED: before/independent of detection)
-                   └─ track step: SAM box prompts from the last brain boxes → masks → fusion
-                                                   ▲
-brain worker (own thread, per fusing camera) ─────┘ every refresh_s or on scene change:
-   Qwen3.8 inventory prompt → [{label, bbox_2d 0-1000}] → SAM masks → beliefs
-
-localize_object / pick ("find the X")  ──► Qwen3.8 refer prompt → boxes → SAM masks → ObjectFix
+watcher tick / describe_scene / _reobserve ──► BrainDetector.detect(frame, None)
+     │ (heartbeat first)                           ├─ cache fresh + scene unchanged → SAM box prompts on this frame (~0.3 s)
+     │                                             ├─ cache aged (> refresh_s)       → same, + background brain refresh
+     │                                             └─ no cache / scene changed       → Qwen3.8 inventory now (~5 s) → SAM
+localize / pick "the X" ─────────────────────► BrainDetector.detect(frame, ["X"]) → Qwen3.8 refer (~2 s) → SAM
 ```
 
 ### 3.1 `perception/brain_detector.py` — `BrainDetector(Detector)`
@@ -85,20 +81,28 @@ Replaces `vlm_detector.VLMDetector` (absorbs it; `type: vlm` stays an alias for 
 - `segmenter.model` config key; SAM 3.1 stays a measured, optional alternative (gated weights,
   native code needed) and is not wired in this PR.
 
-### 3.3 WorldWatcher changes (`perception/world.py`)
+### 3.3 Inventory cache + tracking (inside `BrainDetector`) and the heartbeat
 
-1. Heartbeat: `harness.heartbeat()` moves ahead of `detector.detect` and fires for every new
-   processed frame (depth/occupancy path). Semantics stay "perception pipeline is alive";
-   a dead camera still stops the heartbeat and the watchdog still halts motion.
-2. Brain refresh: per fusing camera a worker calls `detect(frame, classes=detect_classes or None)`
-   when `now - last >= refresh_s` (default 4 s) or the frame changed (grayscale 64x36 mean
-   abs diff > `scene_change` threshold, default 6.0) — never more than one in flight per camera.
-3. Track step on every tick: SAM box prompts seeded with the latest boxes (a moved object's box
-   is re-derived from its new mask, dilated 10 %), giving masks at tick rate (~0.3 s on GB10)
-   so `belief_fallback_age_s` and fusion freshness keep working between brain passes.
-   Tracks whose mask vanishes for `track_drop_frames` (default 3) are dropped until the brain
-   sees them again. Fusion stays paused during motion exactly as today.
-4. `set_overlay` keeps showing the current tracked detections.
+`detect(frame, classes=None)` is called synchronously by the watcher AND by the skill runtime
+(`describe_scene`, `_reobserve`, `_localize`), all under the 5 s analysed-image age limit
+(`skills/runtime._analyzed_frame_age_s`). A 5.4 s inventory per call would trip it. So:
+
+1. Inventory cache per camera, keyed by `(H, W, round(fx), round(cx))` (scene and wrist differ;
+   `Frame` carries no camera name). Each entry keeps the brain's boxes, the 64x36 grayscale
+   thumbnail of the frame they came from, and its time.
+2. `detect(frame, None)` with a cache entry that is younger than `max_cache_age_s` (default 30)
+   and whose thumbnail differs from this frame by mean abs diff <= `scene_change` (default 6.0):
+   **track step** — SAM box prompts with the cached boxes on THIS frame (~0.3 s on GB10),
+   returned at once. A box whose mask comes back empty is dropped from the result.
+3. Otherwise, or when the entry is older than `refresh_s` (default 4 s): the stale case
+   (scene changed, no entry) runs the brain synchronously; the merely-aged case returns the track
+   step and starts a background refresh. At most one brain request in flight per camera key.
+4. `detect(frame, classes=[q, ...])` (refer) never uses the cache: brain refer prompt, synchronous.
+5. Heartbeat (`perception/world.py`): `harness.heartbeat()` moves ahead of `detector.detect`,
+   still once per new processed frame (`frame_id`/capture marker dedupe unchanged), so a slow
+   or failing brain cannot starve the watchdog. A dead camera still stops it.
+6. Everything else in the watcher is unchanged: link-mask sampling before inference, overlay,
+   fusion pause during motion.
 
 ### 3.4 Wiring: robot server ↔ brain
 
@@ -151,8 +155,10 @@ Replaces `vlm_detector.VLMDetector` (absorbs it; `type: vlm` stays an alias for 
   `[]`, thinking block, reversed boxes, empty answer).
 - BrainDetector against an in-process fake OpenAI server: inventory, refer, timeout → `[]`,
   key read from file and never logged.
-- WorldWatcher: heartbeat continues while a fake detector blocks 10 s; one in-flight request per
-  camera; track step keeps beliefs younger than `belief_fallback_age_s`; scene-change trigger.
+- WorldWatcher: heartbeat fires while a fake detector blocks 10 s.
+- BrainDetector cache: track step served from cache on an unchanged scene (no brain call);
+  scene change or no entry → synchronous brain; aged entry → cache result + exactly one
+  background refresh; scene and wrist intrinsics get separate entries; refer bypasses the cache.
 - Wiring: mcp_env golden env, openshell_rig env (default instance values pinned), config
   expansion of `${VAR:-default}` and `~`.
 - Removal: tests that pinned YOLOE (`test_detector_*`, `test_spark_install` MODEL_ASSETS,

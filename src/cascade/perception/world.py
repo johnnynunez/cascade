@@ -42,11 +42,21 @@ logger = logging.getLogger(__name__)
 
 class LockedDetector:
     """Serialize detector access across threads (YOLO predict is not
-    re-entrant); shared by the watcher and the skill runtime."""
+    re-entrant); shared by the watcher and the skill runtime.
+
+    A detector whose CLASS declares a truthy `concurrent_safe` (the brain
+    detector: concurrent HTTP requests; it locks its own cache and the shared
+    SAM model) is called without this lock, and reserve() does not wait: a
+    foreground refer must not queue behind a multi-second background
+    inventory and trip the analysed-image age limit. set_classes()/prepare()
+    stay locked. Only the class attribute counts: a Mock answers every
+    attribute truthily.
+    """
 
     def __init__(self, detector):
         self._detector = detector
         self._lock = threading.RLock()
+        self._concurrent_safe = bool(getattr(type(detector), "concurrent_safe", False))
 
     @contextlib.contextmanager
     def reserve(self):
@@ -56,7 +66,11 @@ class LockedDetector:
         detect() reentrantly. Background inference cannot age that selected
         frame while it waits for the detector. This never refreshes timestamps
         or admits images whose actual analysis exceeds their freshness limit.
+        A concurrent-safe detector has no ownership to wait for.
         """
+        if self._concurrent_safe:
+            yield
+            return
         started = time.monotonic()
         with self._lock:
             waited = time.monotonic() - started
@@ -65,6 +79,15 @@ class LockedDetector:
             yield
 
     def detect(self, frame, classes=None):
+        if self._concurrent_safe:
+            started = time.monotonic()
+            try:
+                return self._detector.detect(frame, classes=classes)
+            finally:
+                elapsed = time.monotonic() - started
+                if elapsed > 1.:
+                    logger.info("Detector timing: lock wait %.3fs, inference %.3fs, classes=%r",
+                                0., elapsed, classes)
         started = time.monotonic()
         with self._lock:
             acquired = time.monotonic()
@@ -361,15 +384,19 @@ class WorldWatcher:
             link = None
         else:
             link.sample()
+        # Perception is alive: a NEW frame was processed (the dedupe above),
+        # independent of semantic inference. Sent BEFORE detect(): this
+        # frame's heartbeat neither waits for the detector nor depends on its
+        # success (the next one still waits for this tick to end); a dead
+        # camera still stops it. Also with an empty table or the arm
+        # mid-motion (motion skills outlast the watchdog window and rely on
+        # this).
+        if self._harness is not None:
+            self._harness.heartbeat()
         dets = self._detector.detect(frame, classes=self._classes)
         cam.stream.set_overlay(detections=dets)
         self.last_dets[cam.stream.name] = dets
         self.ticks += 1
-        # Perception is alive: a processed frame is a heartbeat even with an
-        # empty table or the arm mid-motion (motion skills outlast the
-        # watchdog window and rely on this).
-        if self._harness is not None:
-            self._harness.heartbeat()
         if T is None or not fuse:
             return
         # The robot's own pixels (render self-mask minus a held payload; B39:

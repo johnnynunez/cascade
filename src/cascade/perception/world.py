@@ -40,6 +40,12 @@ from ..types import Frame, transform_points
 logger = logging.getLogger(__name__)
 
 
+def _has_detect_nowait(detector) -> bool:
+    """The detector's CLASS defines detect_nowait (a Mock answers every
+    attribute, so an instance lookup would call a Mock and fuse its result)."""
+    return callable(getattr(type(detector), "detect_nowait", None))
+
+
 class LockedDetector:
     """Serialize detector access across threads (YOLO predict is not
     re-entrant); shared by the watcher and the skill runtime.
@@ -51,12 +57,18 @@ class LockedDetector:
     inventory and trip the analysed-image age limit. set_classes()/prepare()
     stay locked. Only the class attribute counts: a Mock answers every
     attribute truthily.
+
+    detect_nowait() is the watcher's call: a detector whose CLASS defines
+    one (the brain detector: answers from its cache, asks the brain in the
+    background) gets it, under the same lock rule as detect(); any other
+    detector gets detect() as before.
     """
 
     def __init__(self, detector):
         self._detector = detector
         self._lock = threading.RLock()
         self._concurrent_safe = bool(getattr(type(detector), "concurrent_safe", False))
+        self._has_nowait = _has_detect_nowait(detector)
 
     @contextlib.contextmanager
     def reserve(self):
@@ -98,6 +110,14 @@ class LockedDetector:
                 if elapsed + acquired - started > 1.:
                     logger.info("Detector timing: lock wait %.3fs, inference %.3fs, classes=%r",
                                 acquired - started, elapsed, classes)
+
+    def detect_nowait(self, frame, classes=None):
+        if not self._has_nowait:
+            return self.detect(frame, classes=classes)
+        if self._concurrent_safe:
+            return self._detector.detect_nowait(frame, classes=classes)
+        with self._lock:
+            return self._detector.detect_nowait(frame, classes=classes)
 
     def set_classes(self, classes) -> None:
         with self._lock:
@@ -385,15 +405,21 @@ class WorldWatcher:
         else:
             link.sample()
         # Perception is alive: a NEW frame was processed (the dedupe above),
-        # independent of semantic inference. Sent BEFORE detect(): this
-        # frame's heartbeat neither waits for the detector nor depends on its
-        # success (the next one still waits for this tick to end); a dead
-        # camera still stops it. Also with an empty table or the arm
-        # mid-motion (motion skills outlast the watchdog window and rely on
-        # this).
+        # independent of semantic inference. Sent BEFORE the detector call:
+        # this frame's heartbeat neither waits for the detector nor depends on
+        # its success; a dead camera still stops it. Also with an empty table
+        # or the arm mid-motion (motion skills outlast the watchdog window and
+        # rely on this).
         if self._harness is not None:
             self._harness.heartbeat()
-        dets = self._detector.detect(frame, classes=self._classes)
+        # One heartbeat per tick: a call that blocks for the watchdog window
+        # (5 s) would starve it all the same. detect_nowait never waits for a
+        # slow backend (the brain detector answers from its cache and asks the
+        # brain in the background); other detectors keep detect().
+        if _has_detect_nowait(self._detector):
+            dets = self._detector.detect_nowait(frame, classes=self._classes)
+        else:
+            dets = self._detector.detect(frame, classes=self._classes)
         cam.stream.set_overlay(detections=dets)
         self.last_dets[cam.stream.name] = dets
         self.ticks += 1

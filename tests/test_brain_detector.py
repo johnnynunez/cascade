@@ -68,6 +68,7 @@ class FakeClient:
         self.finish_reason = "stop"
         self.entered = threading.Event()
         self.blocked = 0
+        self.threads: list[str] = []  # name of the thread that sent each request
         self._lock = threading.Lock()
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
 
@@ -75,6 +76,7 @@ class FakeClient:
         prompt = kwargs["messages"][0]["content"][1]["text"]
         with self._lock:
             self.requests.append(kwargs)
+            self.threads.append(threading.current_thread().name)
         if self.error is not None:
             raise self.error
         if prompt == INVENTORY_PROMPT:
@@ -848,6 +850,176 @@ def test_pathologically_nested_reply_is_a_garbled_reply(make, caplog):
         assert det.detect(_frame(), None) == []
     (record,) = caplog.records
     assert "garbled reply" in record.getMessage()
+
+
+# --- detect_nowait: the watcher's call never waits for the brain -------------
+#
+# The watcher sends the motion watchdog's heartbeat once per tick (5 s
+# watchdog), so its detector call must never block on a ~5 s inventory or a
+# hung brain: detect_nowait answers from the cache and asks the brain only on
+# a refresh thread.
+
+
+def _on_refresh_threads(client: FakeClient) -> bool:
+    return bool(client.threads) and all(name.startswith("brain-refresh") for name in client.threads)
+
+
+def test_nowait_without_an_entry_is_empty_and_asks_once_in_the_background(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP, BALL)
+    client.gate = threading.Event()
+    for i in range(10):
+        assert det.detect_nowait(_frame()) == [], i  # returns while the brain is still busy
+    assert client.entered.wait(5), "no background request started"
+    assert client.inventory_calls() == 1 and client.blocked == 1
+    assert _on_refresh_threads(client), f"the brain was asked on {client.threads}"
+    client.gate.set()
+    _join_refreshes()
+    clock.now = 1.0
+    assert [d.label for d in det.detect_nowait(_frame())] == ["paper cup", "red ball"]
+    assert client.inventory_calls() == 1
+
+
+def test_nowait_same_scene_is_a_track_step_without_a_brain_call(make):
+    clock = Clock()
+    det, client, seg = make(clock=clock)
+    client.inventory = _reply(CUP, BALL)
+    det.detect(_frame(), None)  # a synchronous inventory fills the same (camera, None) entry
+    clock.now = 4.0  # exactly refresh_s old: not aged yet
+    frame = _frame(level=6)  # mean abs diff 6.0: the same scene
+    dets = det.detect_nowait(frame)
+    assert [d.label for d in dets] == ["paper cup", "red ball"]
+    seg_frame, boxes = seg.calls[-1]
+    assert seg_frame is frame  # a track step on THIS frame
+    np.testing.assert_allclose(boxes, [_px(CUP[1]), _px(BALL[1])], rtol=1e-6)
+    assert [d.label for d in det.detect_nowait(frame, [])] == ["paper cup", "red ball"]  # [] is None
+    assert client.inventory_calls() == 1
+    assert _brain_threads() == []
+
+
+def test_nowait_tracks_an_aged_entry_at_any_age_and_refreshes_once(make):
+    clock = Clock()
+    det, client, seg = make(clock=clock)
+    client.inventory = _reply(CUP)
+    det.detect(_frame(), None)
+    client.gate = threading.Event()
+    client.inventory = _reply(BALL)
+    clock.now = 100.0  # past max_cache_age_s too: detect() would ask synchronously here
+    for i in range(10):
+        frame = _frame()
+        assert [d.label for d in det.detect_nowait(frame)] == ["paper cup"], i
+        assert seg.calls[-1][0] is frame
+    assert client.entered.wait(5), "no background refresh started"
+    assert client.inventory_calls() == 2 and client.blocked == 1 and len(_brain_threads()) == 1
+    assert client.threads[1].startswith("brain-refresh")
+    client.gate.set()
+    _join_refreshes()
+    clock.now = 101.0  # the refreshed entry dates from 100.0
+    assert [d.label for d in det.detect_nowait(_frame())] == ["red ball"]
+    assert client.inventory_calls() == 2
+
+
+def test_nowait_on_a_changed_scene_is_empty_and_refreshes_in_the_background(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP)
+    det.detect(_frame(level=0), None)
+    client.gate = threading.Event()
+    client.inventory = _reply(BALL)
+    clock.now = 1.0
+    for i in range(5):
+        assert det.detect_nowait(_frame(level=7)) == [], i  # 7.0 > scene_change: old boxes do not apply
+    assert client.entered.wait(5), "no background refresh started"
+    assert client.inventory_calls() == 2
+    assert client.threads[1].startswith("brain-refresh")
+    # The cached scene still tracks while its replacement is being asked for.
+    assert [d.label for d in det.detect_nowait(_frame(level=0))] == ["paper cup"]
+    client.gate.set()
+    _join_refreshes()
+    clock.now = 2.0
+    assert [d.label for d in det.detect_nowait(_frame(level=7))] == ["red ball"]
+    assert client.inventory_calls() == 2
+
+
+def test_nowait_refer_asks_in_the_background_under_its_own_key(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(SPOOL)
+    client.refer["paper cup"] = _reply(("cup", CUP[1]))
+    client.refer["red ball"] = _reply(("ball", BALL[1]), ("ball", SPOOL[1]))
+    det.detect(_frame(), None)  # the inventory entry is not the refer's
+    queries = ["paper cup", "red ball"]
+    assert det.detect_nowait(_frame(), queries) == []
+    _join_refreshes()
+    assert client.prompts() == [INVENTORY_PROMPT, REFER_PROMPT.format(q="paper cup"),
+                                REFER_PROMPT.format(q="red ball")]
+    assert all(name.startswith("brain-refresh") for name in client.threads[1:]), client.threads
+    clock.now = 1.0
+    dets = det.detect_nowait(_frame(), queries)
+    assert [d.label for d in dets] == ["paper cup", "red ball", "red ball"]  # the queries, not the brain's labels
+    np.testing.assert_allclose([d.bbox for d in dets], [_px(CUP[1]), _px(BALL[1]), _px(SPOOL[1])], rtol=1e-6)
+    assert len(client.requests) == 3
+    assert [d.label for d in det.detect_nowait(_frame())] == ["green filament spool"]  # inventory untouched
+    assert det.detect_nowait(_frame(), ["red ball"]) == []  # another query list is another key
+    _join_refreshes()
+    assert client.prompts()[3:] == [REFER_PROMPT.format(q="red ball")]
+    # The synchronous refer stays uncached: it asks the brain every time.
+    assert [d.label for d in det.detect(_frame(), queries)] == ["paper cup", "red ball", "red ball"]
+    assert len(client.requests) == 6
+
+
+def test_nowait_refreshes_an_aged_refer_entry_with_refer_prompts(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.refer["paper cup"] = _reply(CUP)
+    det.detect_nowait(_frame(), ["paper cup"])
+    _join_refreshes()
+    client.refer["paper cup"] = _reply(BALL)  # the cup moved
+    clock.now = 5.0
+    assert [d.label for d in det.detect_nowait(_frame(), ["paper cup"])] == ["paper cup"]
+    _join_refreshes()
+    clock.now = 6.0
+    (d,) = det.detect_nowait(_frame(), ["paper cup"])
+    np.testing.assert_allclose(d.bbox, _px(BALL[1]), rtol=1e-6)
+    assert client.prompts() == [REFER_PROMPT.format(q="paper cup")] * 2
+    assert _on_refresh_threads(client)
+
+
+def test_a_nowait_refresh_ends_the_inventory_backoff(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.error = RuntimeError("connection refused")
+    assert det.detect(_frame(level=0), None) == []  # a failed synchronous call: backoff until 4.0
+    client.error = None
+    client.inventory = _reply(CUP)
+    clock.now = 1.0
+    assert det.detect_nowait(_frame(level=0)) == []
+    _join_refreshes()
+    client.inventory = _reply(BALL)
+    clock.now = 2.0  # the brain answered: a changed scene asks at once
+    assert [d.label for d in det.detect(_frame(level=40), None)] == ["red ball"]
+    assert client.inventory_calls() == 3
+
+
+def test_nowait_after_close_asks_nothing(make):
+    det, client, _ = make()
+    det.close()
+    assert det.detect_nowait(_frame()) == []
+    assert det.detect_nowait(_frame(), ["paper cup"]) == []
+    assert client.requests == [] and _brain_threads() == []
+
+
+def test_nowait_never_raises(make, caplog):
+    from cascade.types import Frame
+
+    det, client, _ = make()
+    gray = Frame(rgb=np.zeros((H, W), dtype=np.uint8), depth_m=None, K=_frame().K)  # BGR2GRAY fails
+    with caplog.at_level(logging.WARNING, logger="cascade.perception.brain_detector"):
+        assert det.detect_nowait(gray) == []
+    (record,) = caplog.records
+    assert "detection failed" in record.getMessage()
+    assert client.requests == []
 
 
 # --- transport and key hygiene ---------------------------------------------

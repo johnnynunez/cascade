@@ -147,7 +147,8 @@ _CLOSE_MARGIN_S = 5.0
 
 
 class _Entry(NamedTuple):
-    """One camera's inventory: the brain's boxes and the frame they came from."""
+    """One cache entry (a camera's inventory, or a refer cached by
+    detect_nowait): the brain's boxes and the frame they came from."""
 
     labels: tuple[str, ...]
     boxes: np.ndarray  # (N, 4) float32 xyxy pixels, read-only
@@ -159,6 +160,12 @@ def _camera_key(frame: Frame) -> tuple[int, int, int, int]:
     """Frame carries no camera name; image size + intrinsics tell scene from wrist."""
     h, w = frame.rgb.shape[:2]
     return h, w, round(float(frame.K[0, 0])), round(float(frame.K[0, 2]))
+
+
+def _cache_key(frame: Frame, queries: tuple[str, ...] | None):
+    """(camera key, queries): None is the camera's open-world inventory; a
+    tuple of refer queries is an entry only detect_nowait fills and reads."""
+    return _camera_key(frame), queries
 
 
 def _thumbnail(frame: Frame) -> np.ndarray:
@@ -198,6 +205,10 @@ class BrainDetector(Detector):
     (backoff, same fallback meanwhile); any successful inventory answer, a
     synchronous one or a background refresh, ends it.
 
+    `detect_nowait` (the watcher's call: its tick also sends the 5 s motion
+    watchdog's heartbeat) never asks the brain on the caller's thread: it
+    answers from the cache and refreshes in the background.
+
     Safe to call from several threads at once: the cache lock is never held
     across the brain or SAM call, and the segmenter serializes its own model
     calls.
@@ -222,11 +233,12 @@ class BrainDetector(Detector):
         self._client = client
         self._client_lock = threading.Lock()
         # Guards the cache, the refresh bookkeeping and the warning clock only.
+        # Keyed by _cache_key: (camera key, None) is the camera's inventory.
         self._lock = threading.Lock()
-        self._cache: dict[tuple[int, int, int, int], _Entry] = {}
-        self._refreshing: set[tuple[int, int, int, int]] = set()
+        self._cache: dict[tuple, _Entry] = {}
+        self._refreshing: set[tuple] = set()
         # Clock time of the last failed synchronous inventory per camera (backoff).
-        self._failed_at: dict[tuple[int, int, int, int], float] = {}
+        self._failed_at: dict[tuple, float] = {}
         self._threads: set[threading.Thread] = set()
         self._closed = False
         self._last_warn: float | None = None
@@ -261,6 +273,29 @@ class BrainDetector(Detector):
             if classes:
                 return self._refer(frame, [str(q) for q in classes])
             return self._inventory(frame)
+        except Exception as e:  # noqa: BLE001 - booth rule: degrade, never crash the caller
+            self._warn("detection failed; returning no detections", e)
+            return []
+
+    def detect_nowait(self, frame: Frame, classes: list[str] | None = None) -> list[Detection]:
+        """detect() without ever waiting for the brain, for the watcher thread.
+
+        One cache entry per (camera, classes): None/[] is the inventory entry
+        detect(frame, None) shares; a list of queries has its own entry,
+        filled by refer calls (labels = the queries). While this frame shows
+        the entry's scene, its track step at any age, plus one background
+        refresh once the entry is older than `refresh_s`. No entry or a
+        changed scene: [] now, and a background refresh asks the brain.
+        """
+        try:
+            queries = tuple(str(q) for q in classes) if classes else None
+            key = _cache_key(frame, queries)
+            thumb = _thumbnail(frame)
+            now = self._clock()
+            known = self._known_entry(key, thumb)
+            if known is None or now - known.t > self._refresh_s:
+                self._start_refresh(key, frame, thumb, now)
+            return self._track_known(frame, known)
         except Exception as e:  # noqa: BLE001 - booth rule: degrade, never crash the caller
             self._warn("detection failed; returning no detections", e)
             return []
@@ -316,6 +351,11 @@ class BrainDetector(Detector):
     # -- refer and inventory ------------------------------------------------
 
     def _refer(self, frame: Frame, queries: list[str]) -> list[Detection]:
+        labels, boxes = self._ask_refer(frame, queries)
+        return self._detections(frame, labels, boxes, track=False)
+
+    def _ask_refer(self, frame: Frame, queries) -> tuple[list[str], np.ndarray]:
+        """One request per query, concatenated; labels are the queries."""
         h, w = frame.rgb.shape[:2]
         image_url = _jpeg_data_url(frame)
         labels: list[str] = []
@@ -324,7 +364,7 @@ class BrainDetector(Detector):
             for _, box in parse_boxes(self._ask(image_url, REFER_PROMPT.format(q=q)), w, h):
                 labels.append(q)
                 boxes.append(box)
-        return self._detections(frame, labels, np.array(boxes, dtype=np.float32).reshape(-1, 4), track=False)
+        return labels, np.array(boxes, dtype=np.float32).reshape(-1, 4)
 
     def _ask_inventory(self, frame: Frame, thumb: np.ndarray, t: float) -> _Entry:
         h, w = frame.rgb.shape[:2]
@@ -333,10 +373,20 @@ class BrainDetector(Detector):
         boxes.setflags(write=False)
         return _Entry(tuple(label for label, _ in found), boxes, thumb, t)
 
+    def _ask_entry(self, key, frame: Frame, thumb: np.ndarray, t: float) -> _Entry:
+        """The brain call behind a cache key: the inventory prompt for
+        (camera, None), the refer loop for (camera, queries)."""
+        queries = key[1]
+        if queries is None:
+            return self._ask_inventory(frame, thumb, t)
+        labels, boxes = self._ask_refer(frame, queries)
+        boxes.setflags(write=False)
+        return _Entry(tuple(labels), boxes, thumb, t)
+
     def _store(self, key, entry: _Entry) -> None:
-        """A successful inventory answer (synchronous or refresh): the brain is
-        up, so the camera's backoff ends; the entry is stored unless the cached
-        one comes from a newer frame."""
+        """A successful answer for a key (a synchronous inventory or a
+        refresh): the brain is up, so that key's backoff ends; the entry is
+        stored unless the cached one comes from a newer frame."""
         with self._lock:
             self._failed_at.pop(key, None)
             old = self._cache.get(key)
@@ -345,7 +395,7 @@ class BrainDetector(Detector):
                 self._cache[key] = entry
 
     def _inventory(self, frame: Frame) -> list[Detection]:
-        key = _camera_key(frame)
+        key = _cache_key(frame, None)
         thumb = _thumbnail(frame)
         now = self._clock()
         with self._lock:
@@ -373,9 +423,10 @@ class BrainDetector(Detector):
         return self._detections(frame, entry.labels, entry.boxes, track=False)
 
     def _known_entry(self, key, thumb: np.ndarray) -> _Entry | None:
-        """Outage fallback: the cached entry at ANY age while this frame still
-        shows its scene; None once the scene changed (old boxes would put old
-        labels on new things; refer bypasses the cache, so picking is unaffected)."""
+        """The cached entry at ANY age while this frame still shows its scene;
+        None once the scene changed (old boxes would put old labels on new
+        things; the synchronous refer bypasses the cache, so picking is
+        unaffected). The outage fallback, and detect_nowait's answer."""
         with self._lock:
             entry = self._cache.get(key)
         if entry is None or _scene_diff(entry.thumb, thumb) > self._scene_change:
@@ -403,9 +454,10 @@ class BrainDetector(Detector):
         try:
             # Replaces the entry only on success; a failure keeps the old one,
             # which still ages out after max_cache_age_s.
-            self._store(key, self._ask_inventory(frame, thumb, t))
+            self._store(key, self._ask_entry(key, frame, thumb, t))
         except Exception as e:  # noqa: BLE001 - background thread: log, never raise
-            self._warn("inventory refresh failed; keeping the cached boxes", e)
+            what = "inventory" if key[1] is None else "refer"
+            self._warn(f"{what} refresh failed; keeping the cached boxes", e)
         finally:
             with self._lock:
                 self._refreshing.discard(key)

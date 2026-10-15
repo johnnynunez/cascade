@@ -201,9 +201,10 @@ class BrainDetector(Detector):
     an exception. A failed refer yields []. A failed synchronous inventory
     keeps tracking the known objects: the cached entry's track step at any age
     while this frame still shows its scene, [] once the scene changed. After
-    such a failure that camera makes no synchronous brain call for `refresh_s`
-    (backoff, same fallback meanwhile); any successful inventory answer, a
-    synchronous one or a background refresh, ends it.
+    any failed brain call for a cache key, a synchronous inventory or a
+    background refresh, that key makes no brain call on either path for
+    `refresh_s` (backoff, same fallback meanwhile); any successful answer for
+    the key, synchronous or background, ends it.
 
     `detect_nowait` (the watcher's call: its tick also sends the 5 s motion
     watchdog's heartbeat) never asks the brain on the caller's thread: it
@@ -237,7 +238,8 @@ class BrainDetector(Detector):
         self._lock = threading.Lock()
         self._cache: dict[tuple, _Entry] = {}
         self._refreshing: set[tuple] = set()
-        # Clock time of the last failed synchronous inventory per camera (backoff).
+        # Clock time of the last failed brain call per cache key, synchronous or
+        # background: the backoff both paths obey. A success for the key clears it.
         self._failed_at: dict[tuple, float] = {}
         self._threads: set[threading.Thread] = set()
         self._closed = False
@@ -286,6 +288,7 @@ class BrainDetector(Detector):
         the entry's scene, its track step at any age, plus one background
         refresh once the entry is older than `refresh_s`. No entry or a
         changed scene: [] now, and a background refresh asks the brain.
+        No refresh starts while the key backs off after a failed call.
         """
         try:
             queries = tuple(str(q) for q in classes) if classes else None
@@ -439,9 +442,15 @@ class BrainDetector(Detector):
         return self._detections(frame, known.labels, known.boxes, track=True)
 
     def _start_refresh(self, key, frame: Frame, thumb: np.ndarray, t: float) -> None:
+        """One background refresh per key, unless one is in flight, the
+        detector is closed, or the key is backing off: `t` (the caller's clock
+        reading) is within `refresh_s` of the key's last failed brain call."""
         with self._lock:
             if self._closed or key in self._refreshing:
                 return
+            failed_at = self._failed_at.get(key)
+            if failed_at is not None and t - failed_at < self._refresh_s:
+                return  # backoff: one per key, shared with the synchronous inventory
             thread = threading.Thread(target=self._refresh, args=(key, frame, thumb, t),
                                       name=f"brain-refresh-{key}", daemon=True)
             # Started under the lock: close() never misses it, and the thread
@@ -456,6 +465,11 @@ class BrainDetector(Detector):
             # which still ages out after max_cache_age_s.
             self._store(key, self._ask_entry(key, frame, thumb, t))
         except Exception as e:  # noqa: BLE001 - background thread: log, never raise
+            # The key backs off from the failure (not the request), as after a
+            # failed synchronous inventory. Recorded before the in-flight mark
+            # is cleared below, so no refresh slips in between.
+            with self._lock:
+                self._failed_at[key] = self._clock()
             what = "inventory" if key[1] is None else "refer"
             self._warn(f"{what} refresh failed; keeping the cached boxes", e)
         finally:

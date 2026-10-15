@@ -787,22 +787,27 @@ def test_a_success_clears_the_backoff(make):
 
 
 def test_a_successful_refresh_clears_the_backoff(make):
+    # One backoff per key, shared by synchronous and background calls: a
+    # refresh already running when a synchronous call failed ends it by answering.
     clock = Clock()
     det, client, _ = make(clock=clock)
     client.inventory = _reply(CUP)
     det.detect(_frame(level=0), None)
-    client.error = RuntimeError("connection refused")
-    clock.now = 1.0
-    assert det.detect(_frame(level=20), None) == []  # scene changed, call failed: backoff until 5.0
-    assert client.inventory_calls() == 2
-    client.error = None  # the brain is back
+    client.gate = threading.Event()
     client.inventory = _reply(BALL)
-    clock.now = 4.5  # within the backoff, the cup entry is aged: a track step starts a refresh
+    clock.now = 5.0  # the cup entry is aged: a track step starts a refresh, which hangs
     assert [d.label for d in det.detect(_frame(level=0), None)] == ["paper cup"]
-    _join_refreshes()
+    assert client.entered.wait(5)
+    client.error = RuntimeError("connection refused")
+    clock.now = 5.5
+    assert det.detect(_frame(level=20), None) == []  # scene changed, call failed: backoff until 9.5
+    client.error = None  # the brain is back
+    client.gate.set()
+    _join_refreshes()  # the refresh answers
+    client.gate = None
     assert client.inventory_calls() == 3
     client.inventory = _reply(SPOOL)
-    clock.now = 4.6  # the refresh answered: a changed scene asks at once
+    clock.now = 6.0  # the refresh answered: a changed scene asks at once
     assert [d.label for d in det.detect(_frame(level=40), None)] == ["green filament spool"]
     assert client.inventory_calls() == 4
 
@@ -989,15 +994,19 @@ def test_nowait_refreshes_an_aged_refer_entry_with_refer_prompts(make):
 def test_a_nowait_refresh_ends_the_inventory_backoff(make):
     clock = Clock()
     det, client, _ = make(clock=clock)
-    client.error = RuntimeError("connection refused")
-    assert det.detect(_frame(level=0), None) == []  # a failed synchronous call: backoff until 4.0
-    client.error = None
     client.inventory = _reply(CUP)
-    clock.now = 1.0
-    assert det.detect_nowait(_frame(level=0)) == []
-    _join_refreshes()
+    client.gate = threading.Event()
+    assert det.detect_nowait(_frame(level=0)) == []  # a background inventory, hanging
+    assert client.entered.wait(5)
+    client.error = RuntimeError("connection refused")
+    clock.now = 0.5
+    assert det.detect(_frame(level=0), None) == []  # a failed synchronous call: backoff until 4.5
+    client.error = None
+    client.gate.set()
+    _join_refreshes()  # the background inventory answers
+    client.gate = None
     client.inventory = _reply(BALL)
-    clock.now = 2.0  # the brain answered: a changed scene asks at once
+    clock.now = 1.0  # the brain answered: a changed scene asks at once
     assert [d.label for d in det.detect(_frame(level=40), None)] == ["red ball"]
     assert client.inventory_calls() == 3
 
@@ -1020,6 +1029,175 @@ def test_nowait_never_raises(make, caplog):
     (record,) = caplog.records
     assert "detection failed" in record.getMessage()
     assert client.requests == []
+
+
+# --- one failure backoff per cache key, synchronous or background ------------
+#
+# Every failed brain call for a key (a synchronous inventory or a refresh
+# thread) starts that key's backoff: no new brain call for the key, from either
+# path, for refresh_s. Without it detect_nowait starts a request per watcher
+# tick (~3/s per camera) against a refusing brain. Any answer for the key ends it.
+
+
+def _fail(client: FakeClient, how: str) -> None:
+    if how == "refused":
+        client.error = RuntimeError("connection refused")  # fails at once, like a closed port
+    else:
+        client.inventory = "I cannot see a table here."  # garbled: a failed call too
+
+
+@pytest.mark.parametrize("how", ["refused", "garbled"])
+@pytest.mark.parametrize("caller", ["nowait-cold", "nowait-aged", "detect-aged"])
+def test_a_failing_brain_gets_one_background_request_per_refresh_s(make, caller, how):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    if caller == "nowait-cold":
+        t0, expected = 0.0, []
+    else:
+        client.inventory = _reply(CUP)
+        det.detect(_frame(), None)  # the entry dates from t=0
+        t0, expected = 5.0, ["paper cup"]  # aged (> refresh_s), younger than max_cache_age_s
+    call = det.detect_nowait if caller.startswith("nowait") else (lambda frame: det.detect(frame, None))
+    asked = client.inventory_calls()
+    _fail(client, how)
+    for i in range(9):  # watcher ticks within refresh_s of the first failure
+        clock.now = t0 + 0.4 * i
+        assert [d.label for d in call(_frame())] == expected, i
+        _join_refreshes()  # a fast-failing brain: each refresh is over before the next tick
+    assert client.inventory_calls() == asked + 1, "a new background request per tick against a failing brain"
+    clock.now = t0 + 4.0  # refresh_s after the failure: one more request
+    assert [d.label for d in call(_frame())] == expected
+    assert [d.label for d in call(_frame())] == expected
+    _join_refreshes()
+    assert client.inventory_calls() == asked + 2
+    assert all(name.startswith("brain-refresh") for name in client.threads[asked:]), client.threads
+
+
+def test_a_background_backoff_counts_from_the_failure_not_the_request(make):
+    # A hung brain fails after timeout_s: counted from the request, the backoff
+    # would already be over and the next tick would ask the hung brain at once.
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.error = APITimeoutError("Request timed out.")
+    create = client.chat.completions.create
+
+    def slow_create(**kwargs):
+        clock.now += 20.0  # timeout_s passes inside the call, on the refresh thread
+        return create(**kwargs)
+
+    client.chat.completions.create = slow_create
+    assert det.detect_nowait(_frame()) == []  # asked at 0, failed at 20
+    _join_refreshes()
+    clock.now = 22.0
+    assert det.detect_nowait(_frame()) == []
+    _join_refreshes()
+    assert client.inventory_calls() == 1
+    clock.now = 24.0  # refresh_s after the failure
+    assert det.detect_nowait(_frame()) == []
+    _join_refreshes()
+    assert client.inventory_calls() == 2
+
+
+@pytest.mark.parametrize("tick", ["aged", "changed"])
+def test_a_success_ends_the_shared_backoff_for_the_next_nowait_tick(make, tick):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP)
+    det.detect(_frame(level=0), None)
+    client.gate = threading.Event()
+    client.inventory = _reply(BALL)
+    clock.now = 5.0  # aged: the refresh of the t=5 frame hangs
+    assert [d.label for d in det.detect_nowait(_frame(level=0))] == ["paper cup"]
+    assert client.entered.wait(5)
+    client.error = RuntimeError("connection reset")
+    clock.now = 9.0
+    assert det.detect(_frame(level=20), None) == []  # a failed call for the key: backoff until 13.0
+    client.error = None
+    client.gate.set()
+    _join_refreshes()  # the t=5 refresh answers: the brain is up, the backoff ends
+    client.gate = None
+    assert client.inventory_calls() == 3
+    client.inventory = _reply(SPOOL)
+    clock.now = 9.5
+    if tick == "aged":  # the refreshed entry dates from 5.0
+        assert [d.label for d in det.detect_nowait(_frame(level=0))] == ["red ball"]
+    else:
+        assert det.detect_nowait(_frame(level=40)) == []
+    _join_refreshes()
+    assert client.inventory_calls() == 4, "the backoff outlived a successful answer"
+    clock.now = 10.0
+    frame = _frame(level=0 if tick == "aged" else 40)
+    assert [d.label for d in det.detect_nowait(frame)] == ["green filament spool"]
+
+
+def test_a_failed_refer_refresh_backs_off_only_its_own_key(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.refer["paper cup"] = "I cannot see a paper cup."  # garbled: the refer refresh fails
+    client.inventory = _reply(BALL)
+    assert det.detect_nowait(_frame(), ["paper cup"]) == []
+    _join_refreshes()
+    clock.now = 1.0
+    assert det.detect_nowait(_frame(), ["paper cup"]) == []  # its key backs off: no request
+    _join_refreshes()
+    assert client.prompts() == [REFER_PROMPT.format(q="paper cup")]
+    # The same camera's inventory key is not backed off, on either path.
+    assert [d.label for d in det.detect(_frame(), None)] == ["red ball"]
+    assert det.detect_nowait(_frame(level=40)) == []  # changed scene: a background refresh at once
+    _join_refreshes()
+    assert client.prompts()[1:] == [INVENTORY_PROMPT, INVENTORY_PROMPT]
+    clock.now = 4.0  # refresh_s after the refer failure
+    assert det.detect_nowait(_frame(), ["paper cup"]) == []
+    _join_refreshes()
+    assert client.prompts()[3:] == [REFER_PROMPT.format(q="paper cup")]
+
+
+@pytest.mark.parametrize("scene", ["cold", "known", "changed"])
+def test_a_failed_background_refresh_backs_off_the_synchronous_inventory(make, scene):
+    clock = Clock()
+    det, client, seg = make(clock=clock)
+    if scene != "cold":
+        client.inventory = _reply(CUP)
+        det.detect(_frame(level=0), None)
+    frame = _frame(level=20 if scene == "changed" else 0)
+    expected = ["paper cup"] if scene == "known" else []
+    client.error = RuntimeError("connection refused")
+    clock.now = 31.0  # past max_cache_age_s: detect() would ask the brain synchronously
+    assert [d.label for d in det.detect_nowait(frame)] == expected  # its refresh fails
+    _join_refreshes()
+    asked = client.inventory_calls()
+    for t in (32.0, 34.9):
+        clock.now = t
+        assert [d.label for d in det.detect(frame, None)] == expected, t  # the outage fallback
+        if expected:
+            assert seg.calls[-1][0] is frame  # a track step on THIS frame
+    assert client.inventory_calls() == asked, "a synchronous brain call during the key's backoff"
+    assert _brain_threads() == []
+    clock.now = 35.0  # refresh_s after the background failure: detect asks again
+    assert [d.label for d in det.detect(frame, None)] == expected
+    assert client.inventory_calls() == asked + 1
+
+
+def test_a_failed_synchronous_inventory_also_holds_back_background_refreshes(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP)
+    det.detect(_frame(level=0), None)
+    client.error = RuntimeError("connection refused")
+    clock.now = 1.0
+    assert det.detect(_frame(level=20), None) == []  # scene changed, the call failed: backoff until 5.0
+    client.error = None  # the brain is back, but the key is backing off
+    for t in (4.5, 4.9):  # the cup entry is aged: both paths would refresh it
+        clock.now = t
+        assert [d.label for d in det.detect(_frame(level=0), None)] == ["paper cup"]
+        assert [d.label for d in det.detect_nowait(_frame(level=0))] == ["paper cup"]
+        assert det.detect_nowait(_frame(level=20)) == []
+        assert _brain_threads() == []
+    assert client.inventory_calls() == 2
+    clock.now = 5.0
+    assert [d.label for d in det.detect_nowait(_frame(level=0))] == ["paper cup"]
+    _join_refreshes()
+    assert client.inventory_calls() == 3
 
 
 # --- transport and key hygiene ---------------------------------------------

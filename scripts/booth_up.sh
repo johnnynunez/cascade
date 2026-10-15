@@ -14,6 +14,7 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 PY="${PY:-$(cd "$REPO/.." && pwd)/.demo/bin/python}"
 ARM="${ARM:-rebot_rs}"
 PORT="${CASCADE_STREAM_PORT:-8090}"
+GGX_PORT="${CASCADE_GRASPGENX_PORT:-5556}"   # the port the robot server dials
 FAIL=0
 
 ok()   { echo "[+] $*"; }
@@ -65,11 +66,11 @@ fi
 # 4. GraspGen-X server: grasping SILENTLY falls back to the analytic OBB
 #    planner when :5556 is down (booth rule) -- quality drops and each pick
 #    gains the client timeout in dead air. Loud is the whole point:
-if (exec 3<>/dev/tcp/127.0.0.1/5556) 2>/dev/null; then
+if (exec 3<>"/dev/tcp/127.0.0.1/$GGX_PORT") 2>/dev/null; then
     exec 3>&- 2>/dev/null || true
-    ok "GraspGen-X server on :5556"
+    ok "GraspGen-X server on :$GGX_PORT"
 else
-    warn "GraspGen-X DOWN on :5556 -- learned grasps unavailable, silent OBB" \
+    warn "GraspGen-X DOWN on :$GGX_PORT -- learned grasps unavailable, silent OBB" \
          "fallback active. Start it: scripts/serve_graspgenx.sh"
 fi
 
@@ -79,6 +80,40 @@ if curl -sf -m 2 "http://127.0.0.1:8080/health" >/dev/null 2>&1; then
 else
     warn "local Qwen NOT serving on :8080 -- no offline brain if venue" \
          "internet drops. Start it: scripts/serve_qwen_llamacpp.sh"
+fi
+
+# 5b. SAM weights (configs/demo.yaml segmenter.model = <repo>/models/sam2.1_l.pt):
+#     without them the brain's boxes carry no masks (observed-finger gate,
+#     colour identity and learned grasp clouds degrade), and offline
+#     ultralytics never downloads them.
+SAM="$REPO/models/sam2.1_l.pt"
+if [[ -s "$SAM" ]]; then
+    ok "SAM weights: $SAM"
+else
+    warn "no SAM weights: detections without masks; run the installer" \
+         "(scripts/install.sh --profile spark places $SAM)"
+fi
+
+# 5c. perception brain: object names come from the Qwen brain at
+#     configs/demo.yaml's endpoint (same variable, same default). The key
+#     FILE goes the way the detector sends it -- on stdin, never in argv.
+PERCEPTION_URL="${CASCADE_PERCEPTION_URL:-http://127.0.0.1:8080/v1}"
+PERCEPTION_KEY_FILE="${CASCADE_PERCEPTION_KEY_FILE:-$HOME/.cascade/nemoclaw/llama.key}"
+PERCEPTION_KEY_FILE="${PERCEPTION_KEY_FILE/#\~/$HOME}"
+PERCEPTION_MODELS="${PERCEPTION_URL%/}/models"
+perception_answers() {
+    if [[ -r "$PERCEPTION_KEY_FILE" ]]; then
+        printf 'Authorization: Bearer %s\n' "$(<"$PERCEPTION_KEY_FILE")" \
+            | curl -sf -m 2 -H @- -o /dev/null "$PERCEPTION_MODELS" 2>/dev/null
+    else
+        curl -sf -m 2 -o /dev/null "$PERCEPTION_MODELS" 2>/dev/null
+    fi
+}
+if perception_answers; then
+    ok "perception brain answers at $PERCEPTION_URL"
+else
+    warn "no object names: start a Qwen brain or set CASCADE_PERCEPTION_URL" \
+         "($PERCEPTION_MODELS did not answer within 2 s)"
 fi
 
 # 6. CAN bus (real arm only)

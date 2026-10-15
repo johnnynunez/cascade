@@ -13,10 +13,9 @@ REPO = Path(__file__).resolve().parents[1]
 # 3 Hz watcher).
 os.environ.setdefault("YOLO_OFFLINE", "True")
 os.environ.setdefault("ULTRALYTICS_OFFLINE", "True")
-# The SAM weights (`segmenter.model`, sam2.1_l.pt) resolve relative to the
-# CWD: a runner launched from the wrong directory loses every mask. The
-# installer puts them in <repo>/models -- pin the CWD there instead of
-# hardcoding one machine's home.
+# models/ as the CWD, like the other launch routes. No longer needed for
+# SAM: configs/demo.yaml loads the weights by absolute path
+# (`segmenter.model: ${repo}/models/sam2.1_l.pt`).
 os.chdir(REPO / "models")
 
 sys.path.insert(0, str(REPO / "src"))

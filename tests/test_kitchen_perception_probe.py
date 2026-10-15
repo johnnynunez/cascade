@@ -57,7 +57,7 @@ def test_the_probe_builds_demo_yaml_brain_detector_with_sam_on_cuda0(probe):
     det = probe.make_probe_detector()
     try:
         assert type(det) is BrainDetector
-        assert (det._base_url, det._model) == ("http://127.0.0.1:8081/v1", "qwen3.8-27b")
+        assert (det._base_url, det._model) == ("http://127.0.0.1:8080/v1", "qwen3.8-27b")
         assert type(det._segmenter) is BoxSegmenter
         model = load_demo_config(camera="isaac").segmenter.get("model")
         assert (det._segmenter._model_path, det._segmenter._device_spec) == (model, "cuda:0")

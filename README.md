@@ -1052,14 +1052,16 @@ Object identity comes from the local **Qwen3.8-27B** brain (`detector: type: bra
 in `configs/demo.yaml`); **SAM 2.1-L** masks its boxes
 ([bake-off evidence](docs/evidence/perception-bakeoff-20261015/REPORT.md)):
 
-1. Brain endpoint: `CASCADE_PERCEPTION_URL` (default `http://127.0.0.1:8081/v1`),
-   `CASCADE_PERCEPTION_MODEL` (`qwen3.8-27b`), `CASCADE_PERCEPTION_KEY_FILE`
-   (`~/.cascade/nemoclaw/llama.key`; the path is forwarded, never the key).
-   `launch.sh --brain qwen` and OpenShell instances saved with the Qwen brain set them; any
-   other `--brain` prints a notice that identification still goes to the Qwen brain.
+1. Brain endpoint: `CASCADE_PERCEPTION_URL` (default `http://127.0.0.1:8080/v1`, the port
+   `scripts/serve_qwen_*.sh` start on), `CASCADE_PERCEPTION_MODEL` (`qwen3.8-27b`),
+   `CASCADE_PERCEPTION_KEY_FILE` (`~/.cascade/nemoclaw/llama.key`; the path is forwarded, never
+   the key). `launch.sh --brain qwen` and OpenShell instances saved with the Qwen brain set them
+   (the rig's OpenShell instance: its own brain on :8081); any other `--brain` prints a notice
+   that identification still goes to the Qwen brain.
 2. SAM weights: `models/sam2.1_l.pt` (~450 MB), placed by `scripts/install.sh --profile spark`.
-   The launchers run ultralytics offline (`YOLO_OFFLINE=True`), and it resolves the file
-   **relative to the working directory**: launch from `models/`, or the boxes come without masks.
+   `configs/demo.yaml` names it by absolute path (`${repo}/models/sam2.1_l.pt`), so any working
+   directory finds it; ultralytics runs offline (`YOLO_OFFLINE=True`) and never downloads it.
+   Missing file: boxes without masks (`scripts/booth_up.sh` warns).
 3. The watcher never waits for the brain (`detect_nowait`): SAM tracks the cached
    boxes and the brain refreshes them in the background. If the brain is down,
    known objects keep being tracked while the scene is unchanged; nothing new is named.

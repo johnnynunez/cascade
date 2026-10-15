@@ -425,7 +425,7 @@ def test_linux_other_brain_exports_no_perception_endpoint_and_says_where_it_goes
     assert result.returncode == 0, result.stdout + result.stderr
     assert sorted(set(PERCEPTION) & set(_seen_robot_env(h))) == []
     [note] = [line for line in result.stderr.splitlines() if PERCEPTION_NOTE in line]
-    assert "http://127.0.0.1:8081/v1" in note and "must be running" in note
+    assert "http://127.0.0.1:8080/v1" in note and "must be running" in note
 
 
 def test_host_route_brain_qwen_registers_the_perception_endpoint(launcher_boundary, tmp_path):

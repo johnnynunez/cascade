@@ -4,7 +4,7 @@ The deployment serves its Qwen3.8 brain with llama.cpp on 127.0.0.1:8041
 (`deploy/runtime/brain.py`, alias = the production model id) and starts the
 robot MCP server with every CASCADE_* variable of `runtime_environment()`.
 configs/demo.yaml identifies objects with the brain at
-`${CASCADE_PERCEPTION_URL:-http://127.0.0.1:8081/v1}` -- a port this
+`${CASCADE_PERCEPTION_URL:-http://127.0.0.1:8080/v1}` -- a port this
 deployment does not serve -- so the environment must name the deployment's
 own brain and its served model. Stdlib only: deploy/runtime/tests needs
 aiohttp, which the CI test job does not install.

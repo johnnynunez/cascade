@@ -380,8 +380,8 @@ chat command ("pick and place the red cube")
 - **Brain-driven perception** (`perception/brain_detector.py`, `detector:
   type: brain`). The local Qwen3.8-27B brain names and boxes every object
   (inventory) or the one asked for (refer, "find the X"); SAM 2.1-L
-  (`segmenter.model: sam2.1_l.pt`) masks the boxes. Endpoint:
-  `CASCADE_PERCEPTION_URL` / `_MODEL` / `_KEY_FILE` (defaults :8081,
+  (`segmenter.model: ${repo}/models/sam2.1_l.pt`) masks the boxes. Endpoint:
+  `CASCADE_PERCEPTION_URL` / `_MODEL` / `_KEY_FILE` (defaults :8080,
   `qwen3.8-27b`, `~/.cascade/nemoclaw/llama.key`). A per-camera inventory
   cache lets SAM track the brain's last boxes while the scene is unchanged and
   refreshes them in the background after `refresh_s`. The watcher calls

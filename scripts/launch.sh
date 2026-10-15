@@ -465,7 +465,7 @@ if [[ "$BRAIN" == qwen ]]; then
     log "perception: $CASCADE_PERCEPTION_MODEL at $CASCADE_PERCEPTION_URL (key file $CASCADE_PERCEPTION_KEY_FILE)"
 else
     printf '[launch] NOTE: --brain %s: object identification uses the local Qwen3.8 brain at %s, which must be running\n' \
-        "$BRAIN" "${CASCADE_PERCEPTION_URL:-http://127.0.0.1:8081/v1 (configs/demo.yaml default)}" >&2
+        "$BRAIN" "${CASCADE_PERCEPTION_URL:-http://127.0.0.1:8080/v1 (configs/demo.yaml default)}" >&2
 fi
 [[ $DRY == 1 ]] && log "(dry run: commands are printed, nothing is executed)"
 if [[ $DRY == 1 ]]; then
@@ -921,7 +921,7 @@ if sim == "mujoco":
 # reported as cancelled. Budget = persistence + place + home, with margin.
 print(json.dumps({
     "command": py, "args": ["-m", "cascade.apps.mcp_server", "--launch-owner", owner, "--launch-state-dir", state_dir],
-    "cwd": os.path.join(repo, "models"),   # SAM weights (segmenter.model) resolve relative to cwd
+    "cwd": os.path.join(repo, "models"),   # the cwd of every route; SAM loads by absolute path
     "env": env, "connectionTimeoutMs": 120000, "requestTimeoutMs": 300000,
 }))
 PYEOF

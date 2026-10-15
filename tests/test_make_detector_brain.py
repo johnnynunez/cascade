@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -68,17 +69,35 @@ def brain_cfg(**detector):
 # -- type: brain from configs/demo.yaml -------------------------------------
 
 
+#: Ruling 24: both repo Qwen serve scripts default to PORT=8080, so the
+#: perception default asks that port; the rig's OpenShell instance (:8081)
+#: sets CASCADE_PERCEPTION_URL itself (scripts/openshell_rig.serve_mcp_env).
+DEFAULT_PERCEPTION_URL = "http://127.0.0.1:8080/v1"
+#: Ruling 25: SAM by absolute path under the repo, whatever the server's CWD.
+SHIPPED_SAM = str(REPO / "models" / "sam2.1_l.pt")
+
+
 def test_demo_yaml_builds_the_brain_detector_with_sam_l(key_file):
     det = demo._make_detector(brain_cfg(), warm_up=False)
     assert type(det) is BrainDetector
-    assert det._base_url == "http://127.0.0.1:8081/v1"
+    assert det._base_url == DEFAULT_PERCEPTION_URL
     assert det._model == "qwen3.8-27b"
     assert det._api_key == "sk-test-0123"
     assert (det._timeout_s, det._max_tokens) == (20.0, 1500)
     assert (det._refresh_s, det._max_cache_age_s, det._scene_change) == (4.0, 30.0, 6.0)
     assert type(det._segmenter) is BoxSegmenter
-    assert (det._segmenter._model_path, det._segmenter._device_spec) == ("sam2.1_l.pt", "auto")
+    assert (det._segmenter._model_path, det._segmenter._device_spec) == (SHIPPED_SAM, "auto")
     assert det._segmenter._model is None, "SAM must load lazily (or in the warm-up thread)"
+
+
+def test_one_perception_default_on_the_qwen_serve_scripts_port(env):
+    """The demo.yaml default, the factory's default for a bare block and the
+    PORT both Qwen serve scripts start on are one endpoint (Ruling 24)."""
+    assert load_demo_config(camera="isaac").detector.base_url == DEFAULT_PERCEPTION_URL
+    assert demo.BRAIN_BASE_URL == DEFAULT_PERCEPTION_URL
+    for script in ("serve_qwen_llamacpp.sh", "serve_qwen_vllm.sh"):
+        ports = re.findall(r'^PORT="\$\{PORT:-(\d+)\}"$', (REPO / "scripts" / script).read_text(), re.M)
+        assert ports == ["8080"], script
 
 
 def test_the_perception_variables_reach_the_detector(key_file, env):
@@ -157,7 +176,7 @@ def test_a_bare_brain_block_takes_the_documented_defaults(env, tmp_path):
     key.parent.mkdir(parents=True)
     key.write_text("from-default-path")
     det = demo._make_detector(brain_cfg(type="brain"), warm_up=False)
-    assert (det._base_url, det._model, det._api_key) == ("http://127.0.0.1:8081/v1", "qwen3.8-27b",
+    assert (det._base_url, det._model, det._api_key) == (DEFAULT_PERCEPTION_URL, "qwen3.8-27b",
                                                          "from-default-path")
     assert (det._timeout_s, det._max_tokens, det._refresh_s, det._max_cache_age_s, det._scene_change) == (
         20.0, 1500, 4.0, 30.0, 6.0)
@@ -216,6 +235,29 @@ def test_box_and_point_segmenters_share_one_model(tmp_path, key_file, segmenter)
     assert type(point) is PointSegmenter and type(box) is BoxSegmenter
     assert (box._model_path, box._device_spec) == (point._model_path, point._device_spec)
     assert box._device_spec == "auto"
+    assert box._shared is point._shared
+
+
+def test_shipped_sam_is_one_absolute_repo_path_whatever_the_cwd(tmp_path, key_file, monkeypatch):
+    """Ruling 25: configs/demo.yaml names SAM as ${repo}/models/sam2.1_l.pt, so
+    a server started outside models/ (.mcp.json, setup_agents, hermes_demo)
+    still finds the weights offline, and both segmenters get that identical
+    absolute string: one shared cache entry, one loaded SAM."""
+    pytest.importorskip("pinocchio")
+    monkeypatch.chdir(tmp_path)  # neither the repo root nor models/
+    cfg = load_demo_config(camera="mock", arm="mock", llm="mock")
+    assert cfg.segmenter.model == SHIPPED_SAM
+    runtime, arm = demo.build_runtime(cfg, tmp_path / "run", view=False, serve=False)
+    try:
+        point = runtime._segmenter
+    finally:
+        demo.shutdown_runtime(runtime, arm)
+    cfg._data["camera"].pop("detector")  # the mock camera pins the mock detector
+    box = demo._make_detector(cfg, warm_up=False)._segmenter
+    assert type(point) is PointSegmenter and type(box) is BoxSegmenter
+    assert box._model_path == point._model_path == SHIPPED_SAM
+    assert Path(box._model_path).is_absolute()
+    assert Path(box._model_path).relative_to(REPO) == Path("models/sam2.1_l.pt")
     assert box._shared is point._shared
 
 

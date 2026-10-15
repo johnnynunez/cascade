@@ -1532,8 +1532,9 @@ def _program_tier(cfg, is_mock: bool):
 
 
 #: `detector.type: brain` defaults, also used for keys the block omits:
-#: the local vision LLM on :8081 and the key file the launcher writes.
-BRAIN_BASE_URL = "http://127.0.0.1:8081/v1"
+#: the local vision LLM on :8080 (the PORT both scripts/serve_qwen_*.sh start
+#: on, = configs/demo.yaml's default) and the key file the launcher writes.
+BRAIN_BASE_URL = "http://127.0.0.1:8080/v1"
 BRAIN_MODEL = "qwen3.8-27b"
 BRAIN_KEY_FILE = "~/.cascade/nemoclaw/llama.key"
 

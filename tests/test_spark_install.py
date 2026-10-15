@@ -503,13 +503,15 @@ def test_model_asset_fetch_retries_truncation_then_reuses_complete_zip(
 
 def test_spark_assets_manifest_contains_only_the_sam_weights():
     # The brain names and boxes the objects; SAM 2.1-L (configs/demo.yaml
-    # segmenter.model) masks them. The server runs offline from models/, so
-    # the installer must place it: byte count of the v8.3.0 release asset.
+    # segmenter.model, the absolute ${repo}/models/sam2.1_l.pt) masks them.
+    # The server runs ultralytics offline, so the installer must place the
+    # file exactly there: byte count of the v8.3.0 release asset.
     support = support_module()
     assert support.MODEL_ASSETS == {"sam2.1_l.pt": 449239354}
     assert support.MODEL_RELEASE == "https://github.com/ultralytics/assets/releases/download/v8.3.0"
     from cascade.config import load_demo_config
-    assert (load_demo_config().get("segmenter") or {}).get("model") in support.MODEL_ASSETS
+    configured = (load_demo_config().get("segmenter") or {}).get("model")
+    assert configured in {str(ROOT / "models" / name) for name in support.MODEL_ASSETS}
     assert support.scene_problems(ROOT) == []
 
 

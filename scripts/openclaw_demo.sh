@@ -23,10 +23,10 @@
 #   - OpenClaw BLOCKS the PYTHONPATH env for stdio servers ("startup safety"
 #     policy, blockedEverywhereKeys), so cascade must be editable-installed
 #     in the venv (done below).
-#   - `--cwd <repo>/models`: the SAM weights (`segmenter.model`, sam2.1_l.pt,
-#     placed by the installer) resolve RELATIVE TO CWD, and with YOLO_OFFLINE
-#     ultralytics will not download them. Without them the brain detector's
-#     boxes carry no SAM masks.
+#   - `--cwd <repo>/models`: the cwd of every launch route. No longer needed
+#     for SAM: configs/demo.yaml loads the weights by absolute path
+#     (`${repo}/models/sam2.1_l.pt`, placed by the installer; YOLO_OFFLINE
+#     never downloads them). Without them the boxes carry no SAM masks.
 #   - A half-onboarded config (missing gateway.mode) blocks gateway start.
 #   - The gateway must be RUNNING before `openclaw onboard --non-interactive`,
 #     and must be RESTARTED after `openclaw mcp add` or it serves a stale tool

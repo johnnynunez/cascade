@@ -510,9 +510,9 @@ def serve_mcp_env(base: dict | None = None, cfg: Settings = Settings(),
 
 
 def serve_mcp_cwd() -> Path:
-    """models/: the SAM weights (`segmenter.model`, sam2.1_l.pt) resolve
-    relative to the cwd (launch.sh runs the runtime there too); from the repo
-    root offline ultralytics cannot find them and masks are lost."""
+    """models/, the cwd every launch route gives the server (launch.sh runs
+    the runtime there too). No longer needed for SAM: configs/demo.yaml loads
+    the weights by absolute path (`${repo}/models/sam2.1_l.pt`)."""
     return REPO / "models"
 
 

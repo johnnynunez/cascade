@@ -1,7 +1,7 @@
 """Profile string expansion: `${NAME:-default}` from the environment and a leading `~`.
 
 The brain detector's endpoint lives in configs/demo.yaml as
-`${CASCADE_PERCEPTION_URL:-http://127.0.0.1:8081/v1}` and its key file as
+`${CASCADE_PERCEPTION_URL:-http://127.0.0.1:8080/v1}` and its key file as
 `${CASCADE_PERCEPTION_KEY_FILE:-~/.cascade/nemoclaw/llama.key}`, so the loader
 must resolve both forms; `${repo}` / `${assets}` keep working as before.
 """
@@ -134,7 +134,7 @@ def perception_env(monkeypatch):
 def test_demo_yaml_brain_detector_defaults(perception_env, home):
     det = load_demo_config().detector
     assert det.type == "brain"
-    assert det.base_url == "http://127.0.0.1:8081/v1"
+    assert det.base_url == "http://127.0.0.1:8080/v1"
     assert det.model == "qwen3.8-27b"
     assert det.api_key_file == str(home / ".cascade" / "nemoclaw" / "llama.key")
 

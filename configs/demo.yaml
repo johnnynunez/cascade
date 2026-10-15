@@ -546,8 +546,10 @@ detector:
   # SAM of `segmenter:` below masks the boxes. Bake-off evidence:
   # docs/evidence/perception-bakeoff-20261015/. The api key is read from
   # api_key_file (a missing file sends none); CASCADE_PERCEPTION_* override.
+  # Default :8080 = the PORT both scripts/serve_qwen_*.sh start on; the rig's
+  # OpenShell instance sets CASCADE_PERCEPTION_URL to its own brain (:8081).
   type: brain
-  base_url: ${CASCADE_PERCEPTION_URL:-http://127.0.0.1:8081/v1}
+  base_url: ${CASCADE_PERCEPTION_URL:-http://127.0.0.1:8080/v1}
   model: ${CASCADE_PERCEPTION_MODEL:-qwen3.8-27b}
   api_key_file: ${CASCADE_PERCEPTION_KEY_FILE:-~/.cascade/nemoclaw/llama.key}
   timeout_s: 20
@@ -574,9 +576,11 @@ detect_classes: []
 # boxes in the bake-off; 2.1-L needs no gated download (Apache-2.0).
 # `sam3.pt` stays selectable (it needs `timm` and a gated HF download; its use
 # in a publication must acknowledge SAM, SAM License 1.b.ii).
+# Absolute path (placed by `scripts/install.sh --profile spark`): the server
+# finds it from any working directory, also with ultralytics offline.
 segmenter:
   enabled: true
-  model: sam2.1_l.pt
+  model: ${repo}/models/sam2.1_l.pt
   # `auto` probes the host at startup: CUDA/ROCm, else Apple MPS, else CPU.
   # Pin an explicit device (cuda:1, cpu, mps) only to override that choice --
   # an explicit device that this host does not have degrades to the best

@@ -116,12 +116,15 @@ Replaces `vlm_detector.VLMDetector` (absorbs it; `type: vlm` stays an alias for 
   ```yaml
   detector:
     type: brain
-    base_url: ${CASCADE_PERCEPTION_URL:-http://127.0.0.1:8081/v1}
+    base_url: ${CASCADE_PERCEPTION_URL:-http://127.0.0.1:8080/v1}
     model: ${CASCADE_PERCEPTION_MODEL:-qwen3.8-27b}
     api_key_file: ${CASCADE_PERCEPTION_KEY_FILE:-~/.cascade/nemoclaw/llama.key}
     refresh_s: 4.0
-  segmenter: {model: sam2.1_l.pt}
+  segmenter: {model: ${repo}/models/sam2.1_l.pt}
   ```
+  Default port :8080 = `scripts/serve_qwen_*.sh`'s PORT; the rig's OpenShell instance sets
+  `CASCADE_PERCEPTION_URL` to its own brain (:8081). SAM by absolute path: any working
+  directory finds it (Rulings 24/25).
   The config loader learns `${VAR:-default}` and `~` expansion for these keys only (today it
   expands `${repo}`/`${assets}`).
 - `apps/mcp_env.FORWARDED` gains the three `CASCADE_PERCEPTION_*` variables (golden JSON test

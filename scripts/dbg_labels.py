@@ -1,8 +1,10 @@
-"""What does the prompt-free detector actually report on the Isaac scene?
+"""What does the demo's detector actually report on the Isaac scene?
 
-eval_detector.py scores beliefs against physics truth but does not say which
-labels the phantoms carry. That distinction decides whether 48% phantoms is a
-detector failure or the scene genuinely containing more than 3 objects.
+The brain detector (Qwen3.8 names the objects, open vocabulary), asked for its
+open-world inventory of one frame. eval_detector.py scores beliefs against
+physics truth but does not say which labels the phantoms carry. That
+distinction decides whether 48% phantoms is a detector failure or the scene
+genuinely containing more than 3 objects.
 """
 
 import sys

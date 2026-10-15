@@ -71,12 +71,14 @@ def main(argv: list[str] | None = None) -> int:
         cam.close()
         raise
     win = f"cascade :: {args.camera}"
-    cv2.namedWindow(win, cv2.WINDOW_NORMAL)
 
     detect_on = detector is not None
     fps, t_prev = 0.0, time.monotonic()
-    print(f"[cascade-view] streaming {args.camera}; q/ESC to quit", file=sys.stderr)
     try:
+        # Inside the try: a headless OpenCV build raises here, and the camera
+        # and the detector must still be released.
+        cv2.namedWindow(win, cv2.WINDOW_NORMAL)
+        print(f"[cascade-view] streaming {args.camera}; q/ESC to quit", file=sys.stderr)
         while True:
             frame = cam.get_frame()
             now = time.monotonic()
@@ -125,10 +127,13 @@ def main(argv: list[str] | None = None) -> int:
                 detect_on = not detect_on and detector is not None
     finally:
         cam.close()
-        cv2.destroyAllWindows()
         close = getattr(type(detector), "close", None)
         if close is not None:
             close(detector)  # the brain detector joins its refreshes and SAM warm-up
+        try:
+            cv2.destroyAllWindows()
+        except cv2.error:
+            pass  # headless build: no window exists, and namedWindow's error is the one to show
     return 0
 
 

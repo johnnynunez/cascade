@@ -585,9 +585,9 @@ segmenter:
   device: auto
 
 # Geometric gate on detections, applied AFTER lifting a mask to 3D. It is
-# what makes an open vocabulary usable: a ~4.5k-concept detector correctly
-# names the arm ("transformer", "amplifier") and the scene ("studio shot"),
-# and those must not enter the world model as graspable objects.
+# what makes an open vocabulary usable: the brain detector names whatever it
+# sees, which can include the arm, the table or the whole scene, and those
+# must not enter the world model as graspable objects.
 # Every value describes the RIG, never the objects, so it stays valid for
 # objects nobody has seen before.
 workspace_filter:

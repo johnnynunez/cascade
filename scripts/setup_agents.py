@@ -123,8 +123,8 @@ def server_env(
     # and --hide-tools.
     env.update(inherited_env(skip={kv.partition("=")[0].strip() for kv in extra or []}))
     if offline:
-        # without these, ultralytics phones GitHub on class re-embeds and
-        # stalls the perception watcher for seconds -- never at a venue
+        # without these, ultralytics (SAM) may contact GitHub for assets and
+        # update checks and stall the perception watcher -- never at a venue
         env["YOLO_OFFLINE"] = "True"
         env["ULTRALYTICS_OFFLINE"] = "True"
     if detect_classes:

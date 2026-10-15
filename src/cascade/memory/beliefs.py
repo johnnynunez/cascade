@@ -433,9 +433,10 @@ class BeliefStore:
         """Fuse one 3D observation into the world model.
 
         Matching is by PROXIMITY, and by default ignores the label entirely.
-        That matters for open-vocabulary perception: a ~4.5k-concept detector
-        names the same physical object differently between frames (a bin came
-        back as both "storage box" and "building block", a cube as "cube" and
+        That matters for open-vocabulary perception: the detector can name the
+        same physical object differently between frames (the brain detector
+        words every answer afresh; the former open-vocabulary detector returned
+        a bin as both "storage box" and "building block", a cube as "cube" and
         "hassock"). Matching on label alone would register each alias as a
         separate object sitting at the same place, so a table with 3 things on
         it reports 10.

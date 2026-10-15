@@ -9,7 +9,10 @@ that way, so a multi-second brain call never freezes the window.
 
 from __future__ import annotations
 
+import types
+
 import numpy as np
+import pytest
 
 from cascade.apps import viewer
 from cascade.perception.detector import MockDetector
@@ -66,3 +69,49 @@ def test_a_detector_without_detect_nowait_runs_detect_with_the_classes():
 
     assert viewer.viewer_detections(Plain(), _frame(), ["bowl"]) == []
     assert calls == [["bowl"]]
+
+
+class _CvError(Exception):
+    """Stand-in for cv2.error."""
+
+
+def test_a_headless_window_failure_still_closes_the_camera_and_the_detector(monkeypatch):
+    """opencv-python-headless raises from namedWindow (and from
+    destroyAllWindows): the camera and the detector (its brain refreshes, the
+    SAM warm-up) are released anyway, and the window error is what surfaces."""
+    events = []
+
+    class Cam:
+        def open(self):
+            events.append("cam open")
+
+        def warm_up(self, n):
+            pass
+
+        def get_frame(self):
+            raise AssertionError("no frame is read without a window")
+
+        def close(self):
+            events.append("cam close")
+
+    class Det:
+        def detect(self, frame, classes=None):
+            return []
+
+        def close(self):
+            events.append("detector close")
+
+    def no_gui(*args, **kwargs):
+        raise _CvError("namedWindow: the function is not implemented (headless build)")
+
+    def no_gui_destroy():
+        raise _CvError("destroyAllWindows: the function is not implemented (headless build)")
+
+    fake_cv2 = types.SimpleNamespace(WINDOW_NORMAL=0, error=_CvError, namedWindow=no_gui,
+                                     destroyAllWindows=no_gui_destroy)
+    monkeypatch.setattr(viewer, "cv2", fake_cv2)
+    monkeypatch.setattr(viewer, "make_camera", lambda profile: Cam())
+    monkeypatch.setattr(viewer, "make_viewer_detector", lambda camera: Det())
+    with pytest.raises(_CvError, match="namedWindow"):
+        viewer.main(["--camera", "mock", "--detect"])
+    assert events == ["cam open", "cam close", "detector close"]

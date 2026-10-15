@@ -41,7 +41,7 @@ def test_arbitrary_objects_are_accepted(name, center, extent):
 @pytest.mark.parametrize(
     "name,center,extent,mask_frac,reason",
     [
-        # the arm itself, named "transformer"/"amplifier" by a 4.5k vocabulary
+        # the arm itself, named "transformer"/"amplifier" by the former open-vocabulary detector
         ("robot base", [0.029, -0.008, 0.116], [0.10, 0.10, 0.20], 0.05, "robot"),
         # the whole scene as one detection
         ("studio shot", [0.25, 0.0, 0.08], [0.90, 0.60, 0.30], 0.80, "scene"),

@@ -2,9 +2,9 @@
 
 Open-vocabulary perception is a hard requirement for a public booth: a visitor
 puts an arbitrary object on the table and the robot has to see it without
-anyone having listed it in advance.  The cost is that a ~4.5k-concept
-vocabulary happily names things that are not manipulands.  Measured on the
-Isaac scene with 3 real props, one frame:
+anyone having listed it in advance.  The cost is that an open vocabulary
+happily names things that are not manipulands.  Measured with the former
+open-vocabulary detector on the Isaac scene with 3 real props, one frame:
 
     studio shot     0.756   the whole scene, as one detection
     storage box     0.713   the bin           (real)

@@ -41,11 +41,12 @@ Out: DINOv3 exemplar re-identification (weights gated, not measured yet).
 ## 3. Architecture
 
 ```
-watcher tick / describe_scene / _reobserve ──► BrainDetector.detect(frame, None)
-     │ (heartbeat first)                           ├─ cache fresh + scene unchanged → SAM box prompts on this frame (~0.3 s)
-     │                                             ├─ cache aged (> refresh_s)       → same, + background brain refresh
-     │                                             └─ no cache / scene changed       → Qwen3.8 inventory now (~5 s) → SAM
-localize / pick "the X" ─────────────────────► BrainDetector.detect(frame, ["X"]) → Qwen3.8 refer (~2 s) → SAM
+watcher tick (heartbeat first) ──► detect_nowait(frame)   never calls the brain on its own thread
+                                     ├─ same scene as the cached entry → SAM box prompts on this frame (~0.3 s)
+                                     ├─ entry older than refresh_s     → same, + background brain refresh
+                                     └─ no entry / scene changed       → [] now, background refresh (objects next tick)
+describe_scene / _reobserve ─────► detect(frame, None)      same cache; no entry / scene changed → Qwen3.8 now (~5 s)
+localize / pick "the X" ─────────► detect(frame, ["X"])     Qwen3.8 refer (~2 s, uncached) → SAM
 ```
 
 ### 3.1 `perception/brain_detector.py` — `BrainDetector(Detector)`
@@ -83,8 +84,8 @@ Replaces `vlm_detector.VLMDetector` (absorbs it; `type: vlm` stays an alias for 
 
 ### 3.3 Inventory cache + tracking (inside `BrainDetector`) and the heartbeat
 
-`detect(frame, classes=None)` is called synchronously by the watcher AND by the skill runtime
-(`describe_scene`, `_reobserve`, `_localize`), all under the 5 s analysed-image age limit
+`detect(frame, classes=None)` is called synchronously by the skill runtime
+(`describe_scene`, `_reobserve`, `_localize`; the watcher uses `detect_nowait`, item 4a), all under the 5 s analysed-image age limit
 (`skills/runtime._analyzed_frame_age_s`). A 5.4 s inventory per call would trip it. So:
 
 1. Inventory cache per camera, keyed by `(H, W, round(fx), round(cx))` (scene and wrist differ;
@@ -95,10 +96,15 @@ Replaces `vlm_detector.VLMDetector` (absorbs it; `type: vlm` stays an alias for 
    **track step** — SAM box prompts with the cached boxes on THIS frame (~0.3 s on GB10),
    returned at once. A box whose mask comes back empty is dropped from the result.
 3. Otherwise, or when the entry is older than `refresh_s` (default 4 s): the stale case
-   (scene changed, no entry) runs the brain synchronously; the merely-aged case returns the track
-   step and starts a background refresh. At most one brain request in flight per camera key.
+   (scene changed, no entry) runs the brain synchronously for `detect`; the merely-aged case returns the track
+   step and starts a background refresh. At most one background request in flight per cache key.
 4. `detect(frame, classes=[q, ...])` (refer) never uses the cache: brain refer prompt, synchronous.
-5. Heartbeat (`perception/world.py`): `harness.heartbeat()` moves ahead of `detector.detect`,
+4a. `detect_nowait(frame, classes=None)` (the watcher's call) never calls the brain on the caller's thread:
+   cached track step when the scene matches, else `[]` plus a background refresh. Cache keys are
+   `(camera key, None | tuple(classes))`, so a watcher vocabulary gets its own refer-based entry.
+4b. Failure backoff: after any failed brain call for a key (synchronous or background), no new call for that key
+   for `refresh_s`; during the backoff the fallback is the track step of a same-scene entry at any age, else `[]`.
+5. Heartbeat (`perception/world.py`): `harness.heartbeat()` moves ahead of the detector call,
    still once per new processed frame (`frame_id`/capture marker dedupe unchanged), so a slow
    or failing brain cannot starve the watchdog. A dead camera still stops it.
 6. Everything else in the watcher is unchanged: link-mask sampling before inference, overlay,
@@ -144,7 +150,8 @@ Replaces `vlm_detector.VLMDetector` (absorbs it; `type: vlm` stays an alias for 
 | Situation | Behaviour |
 |---|---|
 | Brain down / timeout / garbled | `[]`; watcher keeps heartbeat + tracking of known objects; refer returns empty → existing belief fallback / VLM grounder path; agent sees "not found" |
-| Brain slow (> refresh_s) | at most one request in flight per camera; ticks keep tracking |
+| Brain slow (> refresh_s) | watcher never waits (detect_nowait); at most one background request per key; ticks keep tracking |
+| Concurrent-safe detector | `LockedDetector` skips its global lock (`concurrent_safe = True`), so a refer never queues behind an inventory |
 | SAM unavailable | detections keep bbox masks (today's maskless path); Isaac observed-finger gate refuses as today (it requires a mask) |
 | Refer while inventory running | independent HTTP request, no shared lock; SAM step serialized (~50 ms) |
 | Wrong label from the brain | 6 % measured; beliefs keep aliases; agent can re-ask with refer |

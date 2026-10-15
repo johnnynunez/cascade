@@ -604,6 +604,65 @@ def test_bare_empty_list_is_a_cached_empty_table(make, caplog):
     assert caplog.records == []
 
 
+# Qwen's trailing-[] habit, and an empty answer followed by a remark.
+EMPTY_WITH_TRAILING_TEXT = ("[]\n[]", "[]\n\nNo manipulable objects are visible.")
+
+
+@pytest.mark.parametrize("reply", EMPTY_WITH_TRAILING_TEXT)
+def test_empty_list_with_trailing_text_is_a_cached_empty_table(make, caplog, reply):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP)
+    det.detect(_frame(), None)
+    client.inventory = reply
+    with caplog.at_level(logging.WARNING, logger="cascade.perception.brain_detector"):
+        clock.now = 31.0  # the cup entry aged out: a synchronous call, the table is empty now
+        assert det.detect(_frame(), None) == []
+        assert client.inventory_calls() == 2
+        clock.now = 32.0  # the empty table replaced the cup: no request, the cup is gone
+        assert det.detect(_frame(), None) == []
+        assert client.inventory_calls() == 2
+        # Not a failure, so no backoff: a changed scene asks at once.
+        client.inventory = _reply(BALL)
+        assert [d.label for d in det.detect(_frame(level=20), None)] == ["red ball"]
+        assert client.inventory_calls() == 3
+    assert caplog.records == []
+
+
+@pytest.mark.parametrize("reply", EMPTY_WITH_TRAILING_TEXT)
+def test_a_refresh_answering_an_empty_list_with_trailing_text_clears_the_table(make, caplog, reply):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP)
+    det.detect(_frame(), None)
+    client.inventory = reply
+    with caplog.at_level(logging.WARNING, logger="cascade.perception.brain_detector"):
+        clock.now = 5.0
+        assert [d.label for d in det.detect(_frame(), None)] == ["paper cup"]  # track; refresh starts
+        _join_refreshes()
+        clock.now = 6.0  # the refreshed entry (from 5.0) is the empty table
+        assert det.detect(_frame(), None) == []
+    assert client.inventory_calls() == 2
+    assert caplog.records == []
+
+
+def test_truncated_reply_opening_with_an_empty_list_is_still_garbled(make, caplog):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP)
+    det.detect(_frame(), None)
+    client.finish_reason = "length"
+    client.inventory = '[]\n[{"label": "red ball", "bbox_2d": [5'
+    with caplog.at_level(logging.WARNING, logger="cascade.perception.brain_detector"):
+        clock.now = 31.0  # a failed call: nothing cached, the outage fallback tracks the cup
+        assert [d.label for d in det.detect(_frame(), None)] == ["paper cup"]
+        clock.now = 32.0  # and the camera backs off
+        assert [d.label for d in det.detect(_frame(), None)] == ["paper cup"]
+    assert client.inventory_calls() == 2
+    (record,) = caplog.records
+    assert "truncated" in record.getMessage()
+
+
 # --- brain outage: keep tracking what is known, back off -------------------
 
 
@@ -725,12 +784,70 @@ def test_a_success_clears_the_backoff(make):
     assert client.inventory_calls() == 3
 
 
+def test_a_successful_refresh_clears_the_backoff(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP)
+    det.detect(_frame(level=0), None)
+    client.error = RuntimeError("connection refused")
+    clock.now = 1.0
+    assert det.detect(_frame(level=20), None) == []  # scene changed, call failed: backoff until 5.0
+    assert client.inventory_calls() == 2
+    client.error = None  # the brain is back
+    client.inventory = _reply(BALL)
+    clock.now = 4.5  # within the backoff, the cup entry is aged: a track step starts a refresh
+    assert [d.label for d in det.detect(_frame(level=0), None)] == ["paper cup"]
+    _join_refreshes()
+    assert client.inventory_calls() == 3
+    client.inventory = _reply(SPOOL)
+    clock.now = 4.6  # the refresh answered: a changed scene asks at once
+    assert [d.label for d in det.detect(_frame(level=40), None)] == ["green filament spool"]
+    assert client.inventory_calls() == 4
+
+
+def test_failure_warning_says_what_the_fallback_returns(make, caplog, tmp_path):
+    key = "sk-fallback-wording-0123456789"
+    (tmp_path / "k").write_text(key)
+    clock = Clock()
+    det, client, _ = make(clock=clock, api_key_file=str(tmp_path / "k"))
+    client.inventory = _reply(CUP)
+    det.detect(_frame(fx=600.0), None)  # the wrist camera knows a cup
+    client.error = RuntimeError(f"connection refused (key {key})")
+    with caplog.at_level(logging.WARNING, logger="cascade.perception.brain_detector"):
+        assert det.detect(_frame(fx=500.0), None) == []  # nothing known for this camera
+        clock.now = 30.0
+        assert det.detect(_frame(fx=600.0, level=20), None) == []  # the scene changed
+        clock.now = 60.0
+        assert [d.label for d in det.detect(_frame(fx=600.0), None)] == ["paper cup"]  # same scene
+        clock.now = 61.0  # one limiter for both wordings
+        assert det.detect(_frame(fx=500.0), None) == []
+    assert client.inventory_calls() == 5
+    empty_no_entry, empty_changed, tracking = (r.getMessage() for r in caplog.records)
+    for message in (empty_no_entry, empty_changed):
+        assert "tracking" not in message
+        assert "returning no detections" in message
+    assert "tracking the known objects" in tracking
+    assert "connection refused" in tracking
+    assert all(key not in r.getMessage() for r in caplog.records)
+
+
 def test_unparseable_reply_never_raises(make):
     det, client, _ = make()
     client.refer["paper cup"] = '[{"label": "cup", "bbox_2d": [1' + "0" * 309 + ', 0, 500, 500]}]'
     client.inventory = "[" * 100000 + "]" * 100000
     det.detect(_frame(), ["paper cup"])
     assert det.detect(_frame(), None) == []
+
+
+def test_pathologically_nested_reply_is_a_garbled_reply(make, caplog):
+    # Nesting beyond the decoder's recursion is garbage like any other: the
+    # garbled-reply failure, not a RecursionError escaping the reply check.
+    det, client, _ = make()
+    client.inventory = "[" * 100000 + "]" * 100000
+    with caplog.at_level(logging.WARNING, logger="cascade.perception.brain_detector"):
+        assert det.detect(_frame(), None) == []
+    (record,) = caplog.records
+    assert "garbled reply" in record.getMessage()
 
 
 # --- transport and key hygiene ---------------------------------------------

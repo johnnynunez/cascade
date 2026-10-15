@@ -86,17 +86,26 @@ def _reply_body(text: str) -> str:
     text = _THINK_BLOCK.sub("", text)
     if "</think>" in text:
         text = text.rsplit("</think>", 1)[1]
-    # raw_decode starts at '[' anyway; fences only matter to the bare-[] check.
+    # raw_decode starts at '[' anyway; fences only matter to the opening-[] check.
     return _FENCE.sub("", text)
 
 
+def _opens_with_empty_list(body: str) -> bool:
+    """The reply's first JSON value is an empty list, whatever text follows it
+    (Qwen's trailing "[]", or a remark such as "No objects are visible.")."""
+    try:
+        value, _ = json.JSONDecoder().raw_decode(body.strip())
+    except (json.JSONDecodeError, RecursionError):
+        return False
+    return isinstance(value, list) and not value
+
+
 def _is_answer(text: str) -> bool:
-    """A reply holding a box list, or exactly an empty list ("[]"): the two
-    shapes both prompts ask for. Anything else (prose, a list of names) is garbled."""
-    body = _reply_body(text).strip()
-    if body.startswith("[") and body.endswith("]") and not body[1:-1].strip():
-        return True
-    return bool(_answer_list(body))
+    """A reply holding a box list (the first one wins), or one that opens with
+    an empty list: the two shapes both prompts ask for. Anything else (prose,
+    a list of names) is garbled."""
+    body = _reply_body(text)
+    return bool(_answer_list(body)) or _opens_with_empty_list(body)
 
 
 def parse_boxes(text: str, width: int, height: int) -> list[tuple[str, np.ndarray]]:
@@ -186,7 +195,8 @@ class BrainDetector(Detector):
     keeps tracking the known objects: the cached entry's track step at any age
     while this frame still shows its scene, [] once the scene changed. After
     such a failure that camera makes no synchronous brain call for `refresh_s`
-    (backoff, same fallback meanwhile); a success ends it.
+    (backoff, same fallback meanwhile); any successful inventory answer, a
+    synchronous one or a background refresh, ends it.
 
     Safe to call from several threads at once: the cache lock is never held
     across the brain or SAM call, and the segmenter serializes its own model
@@ -295,7 +305,8 @@ class BrainDetector(Detector):
         text = choice.message.content or ""
         # A garbled reply is a failed call, never an empty table: cut at
         # max_tokens (even if a list closed before the cut), or neither a box
-        # list nor exactly "[]" (what both prompts ask for when nothing is there).
+        # list nor a reply opening with "[]" (what both prompts ask for when
+        # nothing is there).
         if getattr(choice, "finish_reason", None) == "length":
             raise ValueError(f"garbled reply, truncated at max_tokens={self._max_tokens}")
         if not _is_answer(text):
@@ -323,7 +334,11 @@ class BrainDetector(Detector):
         return _Entry(tuple(label for label, _ in found), boxes, thumb, t)
 
     def _store(self, key, entry: _Entry) -> None:
+        """A successful inventory answer (synchronous or refresh): the brain is
+        up, so the camera's backoff ends; the entry is stored unless the cached
+        one comes from a newer frame."""
         with self._lock:
+            self._failed_at.pop(key, None)
             old = self._cache.get(key)
             # A slow refresh must not overwrite an entry from a newer frame.
             if old is None or entry.t >= old.t:
@@ -342,28 +357,35 @@ class BrainDetector(Detector):
                 self._start_refresh(key, frame, thumb, now)
             return self._detections(frame, entry.labels, entry.boxes, track=True)
         if failed_at is not None and now - failed_at < self._refresh_s:
-            return self._outage_fallback(key, frame, thumb)  # backoff: no brain call
+            return self._track_known(frame, self._known_entry(key, thumb))  # backoff: no brain call
         try:
             entry = self._ask_inventory(frame, thumb, now)
         except Exception as e:  # noqa: BLE001 - booth rule: keep tracking, never raise
             with self._lock:
                 self._failed_at[key] = self._clock()
-            self._warn("inventory failed; tracking the known objects", e)
-            return self._outage_fallback(key, frame, thumb)
-        with self._lock:
-            self._failed_at.pop(key, None)
+            known = self._known_entry(key, thumb)
+            if known is None:
+                self._warn("inventory failed; nothing known for this scene, returning no detections", e)
+            else:
+                self._warn("inventory failed; tracking the known objects", e)
+            return self._track_known(frame, known)
         self._store(key, entry)
         return self._detections(frame, entry.labels, entry.boxes, track=False)
 
-    def _outage_fallback(self, key, frame: Frame, thumb: np.ndarray) -> list[Detection]:
-        """The cached entry's track step at ANY age while this frame still shows
-        its scene; [] once the scene changed (old boxes would put old labels on
-        new things; refer bypasses the cache, so picking is unaffected)."""
+    def _known_entry(self, key, thumb: np.ndarray) -> _Entry | None:
+        """Outage fallback: the cached entry at ANY age while this frame still
+        shows its scene; None once the scene changed (old boxes would put old
+        labels on new things; refer bypasses the cache, so picking is unaffected)."""
         with self._lock:
             entry = self._cache.get(key)
         if entry is None or _scene_diff(entry.thumb, thumb) > self._scene_change:
+            return None
+        return entry
+
+    def _track_known(self, frame: Frame, known: _Entry | None) -> list[Detection]:
+        if known is None:
             return []
-        return self._detections(frame, entry.labels, entry.boxes, track=True)
+        return self._detections(frame, known.labels, known.boxes, track=True)
 
     def _start_refresh(self, key, frame: Frame, thumb: np.ndarray, t: float) -> None:
         with self._lock:

@@ -51,6 +51,9 @@ published research that uses it. Any paper using this path must cite it.
 from __future__ import annotations
 
 import logging
+import os
+import threading
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -64,19 +67,43 @@ logger = logging.getLogger(__name__)
 #: interactive path where latency is visible to a booth visitor.
 DEFAULT_MODEL = "sam2.1_t.pt"
 
+#: Box-prompted default: SAM 2.1-L (Apache-2.0, no gated download). The demo
+#: passes its `segmenter.model` to both segmenters so they share one copy.
+BOX_MODEL = "sam2.1_l.pt"
 
-class PointSegmenter:
-    """Segment the object under a pixel, with a learned model.
 
-    Lazily loads on first use: a booth that never invokes pixel addressing
-    should not pay for the weights.
-    """
+@dataclass
+class _SharedSam:
+    """One loaded SAM and the lock that serializes every call into it:
+    ultralytics predict is not re-entrant (prompts are predictor state)."""
 
-    def __init__(self, model_path: str = DEFAULT_MODEL, device: str = "auto"):
+    lock: threading.Lock = field(default_factory=threading.Lock)
+    model: object | None = None
+
+
+#: Process-wide, keyed by checkpoint path: a point and a box segmenter on the
+#: same checkpoint share one GPU copy and one lock.
+_SHARED: dict[str, _SharedSam] = {}
+_SHARED_GUARD = threading.Lock()
+
+
+def _shared(model_path: str) -> _SharedSam:
+    with _SHARED_GUARD:
+        entry = _SHARED.get(model_path)
+        if entry is None:
+            entry = _SHARED[model_path] = _SharedSam()
+        return entry
+
+
+class _SamSegmenter:
+    """Lazy ultralytics SAM model and device, shared by the prompt styles."""
+
+    def __init__(self, model_path: str, device: str = "auto"):
         self._model_path = model_path
         self._device_spec = device
         self._device: str | None = None
         self._model = None
+        self._shared = _shared(model_path)
 
     @property
     def device(self) -> str:
@@ -91,35 +118,99 @@ class PointSegmenter:
 
     def _load(self):
         if self._model is None:
-            from ultralytics import SAM  # lazy heavy import
+            with self._shared.lock:
+                if self._shared.model is None:
+                    from ultralytics import SAM  # lazy heavy import
 
-            self._model = SAM(self._model_path)
+                    self._shared.model = SAM(self._model_path)
+            self._model = self._shared.model
         return self._model
+
+    def _predict(self, frame: Frame, **prompts):
+        """One model call, serialized with every other user of this model."""
+        model = self._load()
+        with self._shared.lock:
+            return model(frame.rgb, device=self.device, verbose=False, **prompts)
+
+
+def _frame_mask(data, shape: tuple[int, int]):
+    """One SAM mask tensor as a full-frame bool mask.
+
+    Strict GPU mode keeps it a CUDA tensor; otherwise it becomes a numpy
+    array at the frame's resolution.
+    """
+    if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+        if data.device.type != "cuda":
+            raise RuntimeError("GPU segmenter prediction did not return CUDA tensors; CPU fallback is forbidden")
+        from .cuda_math import segment_mask
+        return segment_mask(data, shape)
+
+    mask = data.cpu().numpy().astype(bool)
+    h, w = shape
+    if mask.shape != (h, w):
+        # Ultralytics may return the mask at the model's working
+        # resolution; nearest-neighbour keeps it boolean.
+        import cv2
+
+        mask = cv2.resize(mask.astype(np.uint8), (w, h),
+                          interpolation=cv2.INTER_NEAREST).astype(bool)
+    return mask
+
+
+class PointSegmenter(_SamSegmenter):
+    """Segment the object under a pixel, with a learned model.
+
+    Lazily loads on first use: a booth that never invokes pixel addressing
+    should not pay for the weights.
+    """
+
+    def __init__(self, model_path: str = DEFAULT_MODEL, device: str = "auto"):
+        super().__init__(model_path, device)
 
     def mask_at(self, frame: Frame, u: int, v: int) -> np.ndarray:
         """Boolean mask of the object at (u, v), full frame resolution."""
-        model = self._load()
-        res = model(frame.rgb, points=[[int(u), int(v)]], labels=[1],
-                    device=self.device, verbose=False)
+        res = self._predict(frame, points=[[int(u), int(v)]], labels=[1])
         if not res or res[0].masks is None or len(res[0].masks.data) == 0:
             raise SkillError(f"segmenter returned no mask at ({u}, {v})")
-        import os
-        if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
-            if res[0].masks.data.device.type != "cuda":
-                raise RuntimeError("GPU segmenter prediction did not return CUDA tensors; CPU fallback is forbidden")
-            from .cuda_math import segment_mask
-            return segment_mask(res[0].masks.data[0], frame.rgb.shape[:2])
+        return _frame_mask(res[0].masks.data[0], frame.rgb.shape[:2])
 
-        mask = res[0].masks.data[0].cpu().numpy().astype(bool)
-        h, w = frame.rgb.shape[:2]
-        if mask.shape != (h, w):
-            # Ultralytics may return the mask at the model's working
-            # resolution; nearest-neighbour keeps it boolean.
-            import cv2
 
-            mask = cv2.resize(mask.astype(np.uint8), (w, h),
-                              interpolation=cv2.INTER_NEAREST).astype(bool)
-        return mask
+class BoxSegmenter(_SamSegmenter):
+    """One full-frame mask per box, from a single box-prompted SAM pass.
+
+    The brain detector returns labelled boxes; the observed-finger gate,
+    belief identity and grasp clouds need same-frame masks, so every box of a
+    frame is segmented in one model call.
+    """
+
+    def __init__(self, model_path: str = BOX_MODEL, device: str = "auto"):
+        super().__init__(model_path, device)
+
+    def masks(self, frame: Frame, boxes: np.ndarray) -> list[np.ndarray | None]:
+        """Masks for (N, 4) xyxy pixel `boxes`, in box order.
+
+        An entry is None where SAM returned no mask for that box or an empty
+        one. No boxes means no model call (and no model load).
+        """
+        boxes = np.asarray(boxes, dtype=np.float64).reshape(-1, 4)
+        n = len(boxes)
+        if n == 0:
+            return []
+        res = self._predict(frame, bboxes=boxes.tolist())
+        out: list[np.ndarray | None] = [None] * n
+        if not res or res[0].masks is None:
+            return out
+        data = res[0].masks.data
+        # ultralytics drops low-score masks; each survivor's prompt index
+        # rides in `boxes.cls`, so a dropped box cannot shift the rest.
+        cls = getattr(getattr(res[0], "boxes", None), "cls", None)
+        prompts = [int(i) for i in cls.tolist()] if cls is not None else range(len(data))
+        shape = frame.rgb.shape[:2]
+        for k, box_index in zip(range(len(data)), prompts):
+            if 0 <= box_index < n:
+                mask = _frame_mask(data[k], shape)
+                out[box_index] = mask if bool(mask.any()) else None
+        return out
 
 
 def fix_at_pixel(

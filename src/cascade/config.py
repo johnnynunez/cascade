@@ -61,17 +61,33 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     return data
 
 
+#: `${NAME:-default}`: the environment variable NAME, or `default` when NAME is
+#: unset or empty (the shell's rule). A bare `${NAME}` is not matched.
+_ENV_DEFAULT_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*):-([^}]*)\}")
+
+
+def _env_or_default(match: re.Match) -> str:
+    return os.environ.get(match.group(1)) or match.group(2)
+
+
 def _resolve_paths(data: Any, base: Path) -> Any:
-    """Expand `${assets}` and `${repo}` placeholders in string values."""
+    """Expand placeholders in string values, in this order: `${assets}` and
+    `${repo}`; `${NAME:-default}` from the environment (a variable's value is
+    not searched for further placeholders); then a leading `~` when the string
+    is exactly `~` or starts with `~/`. Other `${...}` and `~user` stay literal."""
     if isinstance(data, dict):
         return {k: _resolve_paths(v, base) for k, v in data.items()}
     if isinstance(data, list):
         return [_resolve_paths(v, base) for v in data]
     if isinstance(data, str):
-        return (
+        text = (
             data.replace("${assets}", str(ASSET_DIR))
             .replace("${repo}", str(PACKAGE_ROOT))
         )
+        text = _ENV_DEFAULT_RE.sub(_env_or_default, text)
+        if text == "~" or text.startswith("~/"):
+            text = os.path.expanduser(text)
+        return text
     return data
 
 

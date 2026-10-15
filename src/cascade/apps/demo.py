@@ -16,9 +16,11 @@ path without an LLM call; only novel tasks reach the model.
 from __future__ import annotations
 
 import argparse
+import logging
 import math
 import os
 import sys
+import threading
 import time
 from pathlib import Path
 import numpy as np
@@ -44,6 +46,9 @@ from ..perception.workspace import WorkspaceFilter
 from ..safety.harness import SafeArm, SafetyHarness, SafetyLimits
 from ..safety.tool_volume import build_tool_volume
 from ..skills.runtime import SkillRuntime
+from ..types import Frame
+
+logger = logging.getLogger(__name__)
 
 
 def _camera_cfgs(cfg) -> list[Cfg]:
@@ -1502,11 +1507,24 @@ def _program_tier(cfg, is_mock: bool):
     return ProgramTier(_program_library(cfg))
 
 
-def _make_detector(cfg):
+#: `detector.type: brain` defaults, also used for keys the block omits:
+#: the local vision LLM on :8081 and the key file the launcher writes.
+BRAIN_BASE_URL = "http://127.0.0.1:8081/v1"
+BRAIN_MODEL = "qwen3.8-27b"
+BRAIN_KEY_FILE = "~/.cascade/nemoclaw/llama.key"
+
+#: Blank frame of the SAM warm-up (shape only; the result is discarded).
+_WARM_UP_SHAPE = (240, 320)
+
+
+def _make_detector(cfg, *, warm_up: bool = True):
+    """The detector the config names. `type: brain` (the default) also starts
+    the SAM warm-up thread unless `warm_up` is False (tests)."""
     # A camera profile may pin its own detector (the mock camera uses the
     # mock detector so offline runs never load model weights).
     dcfg = cfg.camera.get("detector") or cfg.detector
-    if dcfg.type == "mock":
+    dtype = str(dcfg.get("type", ""))
+    if dtype == "mock":
         from ..perception.detector import MockDetector
 
         # extra_props on the camera profile (multi-prop scenes for the
@@ -1518,10 +1536,11 @@ def _make_detector(cfg):
         ]
         return MockDetector(label=dcfg.get("label", "red cube"), extra_labels=extra,
                             instances=bool(dcfg.get("instances", False)))
-    if dcfg.type == "vlm":
-        # Full-VLM perception (cosmos3-edge or any OpenAI-compatible vision
-        # server): no YOLOE, no ultralytics import. ~1-3 s per pass on a
-        # local vLLM -- see perception/vlm_detector.py for the trade.
+    if dtype == "brain":
+        return _make_brain_detector(cfg, dcfg, warm_up=warm_up)
+    if dtype == "vlm":
+        # Deprecated alias: the BrainDetector shim with the old cosmos3-edge
+        # defaults and no segmenter (box-only detections).
         from ..perception.vlm_detector import VLMDetector
 
         return VLMDetector(
@@ -1531,14 +1550,59 @@ def _make_detector(cfg):
             timeout_s=float(dcfg.get("timeout_s", 20.0)),
             conf=float(dcfg.get("conf", 0.25)),
         )
-    from ..perception.detector import OpenVocabDetector
+    if dtype == "yoloe":
+        raise ValueError(
+            "detector `type: yoloe` was removed: use `type: brain` (the vision LLM names and boxes "
+            "the objects, SAM masks them; see configs/demo.yaml), or `type: mock` offline")
+    raise ValueError(f"unknown detector type {dtype!r}: use `type: brain`, `type: mock` or `type: vlm`")
 
-    return OpenVocabDetector(
-        model_path=dcfg.model,
-        device=dcfg.get("device", "auto"),
-        conf=float(dcfg.get("conf", 0.25)),
-        prompt_free=bool(dcfg.get("prompt_free", True)),
+
+def _make_brain_detector(cfg, dcfg, *, warm_up: bool):
+    """BrainDetector from the detector block, with a BoxSegmenter built from
+    the same `segmenter:` strings as the click PointSegmenter (skills/runtime),
+    so both share one loaded SAM. No segmenter when `segmenter.enabled` is
+    false or absent: box-only detections."""
+    from ..perception.brain_detector import BrainDetector
+
+    segmenter = None
+    scfg = cfg.get("segmenter") or {}
+    if scfg.get("enabled"):
+        from ..perception.segmenter import BoxSegmenter, configured_segmenter
+
+        model_path, device = configured_segmenter(scfg)
+        segmenter = BoxSegmenter(model_path=model_path, device=device)
+    key_file = dcfg.get("api_key_file", BRAIN_KEY_FILE)
+    detector = BrainDetector(
+        base_url=str(dcfg.get("base_url", BRAIN_BASE_URL)),
+        model=str(dcfg.get("model", BRAIN_MODEL)),
+        # The key is read from this file, never from the config text.
+        api_key_file=os.path.expanduser(str(key_file)) if key_file else None,
+        timeout_s=float(dcfg.get("timeout_s", 20.0)),
+        max_tokens=int(dcfg.get("max_tokens", 1500)),
+        segmenter=segmenter,
+        refresh_s=float(dcfg.get("refresh_s", 4.0)),
+        max_cache_age_s=float(dcfg.get("max_cache_age_s", 30.0)),
+        scene_change=float(dcfg.get("scene_change", 6.0)),
     )
+    if warm_up and segmenter is not None:
+        threading.Thread(target=_warm_box_segmenter, args=(segmenter,),
+                         name="sam-warm-up", daemon=True).start()
+    return detector
+
+
+def _warm_box_segmenter(segmenter) -> None:
+    """Load SAM and run one box predict on a blank frame, so the watcher's
+    first track step does not pay the cold start (weights + first CUDA
+    predict) under the shared model lock. Best effort: one warning on
+    failure, never raises; the first real detection then loads it."""
+    try:
+        h, w = _WARM_UP_SHAPE
+        frame = Frame(rgb=np.zeros((h, w, 3), np.uint8), depth_m=None,
+                      K=np.array([[w, 0.0, w / 2], [0.0, w, h / 2], [0.0, 0.0, 1.0]]))
+        segmenter.masks(frame, np.array([[w / 4, h / 4, 3 * w / 4, 3 * h / 4]], np.float32))
+    except Exception as e:  # noqa: BLE001 - a warm-up must never fail startup
+        logger.warning("SAM warm-up failed; the first detection loads it instead (%s: %s)",
+                       type(e).__name__, e)
 
 
 def main(argv: list[str] | None = None) -> int:

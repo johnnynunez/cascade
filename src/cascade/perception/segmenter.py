@@ -72,6 +72,17 @@ DEFAULT_MODEL = "sam2.1_t.pt"
 BOX_MODEL = "sam2.1_l.pt"
 
 
+def configured_segmenter(scfg) -> tuple[str, str]:
+    """(model path, device) of a `segmenter:` config block (dict or Cfg).
+
+    Every segmenter built from the block -- the click `PointSegmenter` and
+    the brain detector's `BoxSegmenter` -- takes exactly these strings: the
+    shared model is keyed by the path string, and a second device string
+    would make ultralytics set the shared model up again.
+    """
+    return str(scfg.get("model") or DEFAULT_MODEL), str(scfg.get("device") or "auto")
+
+
 @dataclass
 class _SharedSam:
     """One loaded SAM and the lock that serializes every call into it:

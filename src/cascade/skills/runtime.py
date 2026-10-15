@@ -421,18 +421,17 @@ class SkillRuntime:
         # SET and hides everything else -- benchmarks only, never the booth.
         self._default_classes = list(cfg.get("detect_classes") or []) or None
         self._workspace = WorkspaceFilter.from_config(cfg.get("workspace_filter"))
-        # Learned point segmenter for pixel addressing. Off by default: it
-        # costs a 74 MB checkpoint and only the pixel path uses it, so a booth
-        # that never clicks pays nothing. When absent, `fix_at_pixel` falls
+        # Learned point segmenter for pixel addressing, loaded on first use.
+        # Off unless `segmenter.enabled`. When absent, `fix_at_pixel` falls
         # back to depth connectivity, which cannot separate touching objects.
         scfg = cfg.get("segmenter") or {}
         if scfg.get("enabled"):
-            from ..perception.segmenter import PointSegmenter
+            from ..perception.segmenter import PointSegmenter, configured_segmenter
 
-            self._segmenter = PointSegmenter(
-                model_path=str(scfg.get("model", "sam2.1_t.pt")),
-                device=str(scfg.get("device", "auto")),
-            )
+            # The same strings as the brain detector's BoxSegmenter
+            # (apps/demo._make_detector): both share one loaded SAM.
+            model_path, device = configured_segmenter(scfg)
+            self._segmenter = PointSegmenter(model_path=model_path, device=device)
         else:
             self._segmenter = None
 

@@ -20,8 +20,9 @@ Configuration via environment (set in the MCP server entry):
                         ArmRig exactly like the CLI's --arms)
     CASCADE_RUN_DIR         trace directory (default: <repo>/runs/mcp_<pid>)
     CASCADE_GRASP_EVIDENCE_DIR  opt-in per-attempt JSON + NPZ evidence directory
-    CASCADE_DETECTOR_MODEL  override detector weights (e.g. a yolo11n.pt path
-                        for closed-set COCO until the CLIP fork is installed)
+    CASCADE_PERCEPTION_URL, CASCADE_PERCEPTION_MODEL, CASCADE_PERCEPTION_KEY_FILE
+                        the brain detector's endpoint, served model name and
+                        api key file (`detector:` in configs/demo.yaml)
     CASCADE_DETECT_CLASSES  comma-separated default vocabulary for observations
     CASCADE_VIEW            "0" disables the live camera window (default: open it
                         whenever DISPLAY is set, so the audience always sees
@@ -681,9 +682,6 @@ class McpSkillServer:
                            load_demo_config(cameras=cameras, arms=arms, llm="mock"))
                     if not self._bounded:
                         self._configure_grounder(cfg)
-                    det_model = os.environ.get("CASCADE_DETECTOR_MODEL")
-                    if det_model and not self._bounded:
-                        cfg._data["detector"]["model"] = det_model
                     classes = os.environ.get("CASCADE_DETECT_CLASSES")
                     if classes:
                         cfg._data["detect_classes"] = [

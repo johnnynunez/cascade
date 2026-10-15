@@ -1,8 +1,8 @@
 # Isaac Sim side/audience camera (bridge camera "side"). Full perception
 # citizen since 2026-07-18: RGB-D + calibrated extrinsics (printed by the
 # bridge at boot), so the WorldWatcher fuses its detections into 3D beliefs.
-# This matters: cam0 sees some objects too small for YOLOE (the YCB banana
-# at ~40 px), while this closer view detects them fine.
+# This matters: cam0 sees some objects small (the YCB banana at ~40 px),
+# while this closer view gives the brain detector a larger view of them.
 type: isaac
 bridge_host: 127.0.0.1
 bridge_port: 8611

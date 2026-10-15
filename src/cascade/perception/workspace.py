@@ -63,8 +63,9 @@ class WorkspaceFilter:
         self_mask: consult the frame's render self-mask (``Frame.robot_mask``
             minus a held ``payload_mask``) when it carries one. The base
             cylinder only covers the links near the base: on Isaac the side
-            camera sees the upper arm 0.42 m up and 0.32 m out, and YOLOE
-            named it "biplane", which became a belief (backlog B32).
+            camera sees the upper arm 0.42 m up and 0.32 m out, and the
+            detector of the time named it "biplane", which became a belief
+            (backlog B32).
         self_mask_max_frac: a detection with more than this fraction of its
             pixels on the robot IS the robot, wherever it is. Measured on
             Isaac (both demo cameras, 24 rounds): robot detections 0.885 to

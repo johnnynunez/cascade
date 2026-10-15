@@ -59,7 +59,7 @@ log "profile=$PROFILE brain=$BRAIN source=$REF dir=$DIR"
 log "CASCADE: Python 3.12 in $DIR/.venv; source changes are preserved"
 if [[ "$PROFILE" == spark ]]; then
     log "Isaac Sim 6.1.0: isaacsim[all,extscache]==6.1.0.0 in $DIR/.isaacsim (Python 3.12); explicit ISAACSIM_PATH is honored"
-    log "YOLOE: CUDA aarch64 cu130 torch + torchvision, promptable/prompt-free weights + mobileclip_blt.ts"
+    log "Perception: CUDA aarch64 cu130 torch + torchvision, SAM 2.1-L mask weights (models/sam2.1_l.pt); the brain names the objects"
     log "GraspGen-X: pinned upstream model + CUDA 13 in private .graspgenx environment"
     log "Qwen Q4 + vision projector: pinned downloads in $DIR/models/qwen3.8-27b; verified CUDA llama.cpp in $DIR/.llama.cpp, loopback :8080"
     log 'Kitchen: fetch and verify the pinned Cocina Asier release and original prop sources.'
@@ -188,8 +188,6 @@ if [[ "$PROFILE" == ci ]]; then
     exit 0
 fi
 if [[ "$PROFILE" == spark ]]; then
-    # MobileCLIPTS uses this tokenizer; no training/mobileclip stack is needed.
-    retry uv pip install --python "$PY" 'git+https://github.com/ultralytics/CLIP.git@a13192f8cb767260d7dfd98c843b0716593169e7'
     "$PY" -B -c 'import torch, torchvision
 assert torch.__version__ == "2.14.0+cu130", torch.__version__
 assert torchvision.__version__ == "0.29.0+cu130", torchvision.__version__

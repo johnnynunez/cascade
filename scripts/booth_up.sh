@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Booth pre-flight: catch every silent-degradation mode BEFORE the first
 # attendee group, and print exactly what to launch. This script changes no
-# state except ensuring the YOLOE text encoder is reachable from the repo
-# root (where MCP hosts launch the server).
+# state.
 #
 #   ./scripts/booth_up.sh                 # full pre-flight, mock arm assumed
 #   ARM=rebot_rs ./scripts/booth_up.sh    # also checks can0
@@ -29,24 +28,8 @@ else
     warn "no working interpreter at $PY (set PY=... to your .demo venv)"
 fi
 
-# 2. YOLOE text encoder must be reachable from the LAUNCH CWD. MCP hosts
-#    start the server from the repo root; ultralytics resolves the encoder
-#    relative to CWD and every detection silently vanishes if it's missing.
-if [[ -e "$REPO/mobileclip_blt.ts" ]]; then
-    ok "text encoder reachable from repo root"
-elif [[ -e "$REPO/models/mobileclip_blt.ts" ]]; then
-    if ln -s "models/mobileclip_blt.ts" "$REPO/mobileclip_blt.ts" 2>/dev/null; then
-        ok "text encoder symlinked into repo root (launch dir for MCP hosts)"
-    else
-        warn "could not symlink the text encoder into $REPO (permissions?)"
-    fi
-else
-    warn "models/mobileclip_blt.ts MISSING: open-vocab detections will all" \
-         "silently vanish (it is gitignored -- copy it from another rig)"
-fi
-
-# 3. offline mode: without these, ultralytics phones GitHub on class
-#    re-embeds and stalls the 3 Hz watcher for seconds per tick.
+# 2. offline mode: without these, ultralytics (SAM) looks its assets up on
+#    GitHub and can stall the 3 Hz watcher for seconds per tick.
 if grep -q "YOLO_OFFLINE" "$REPO/.mcp.json" 2>/dev/null; then
     ok ".mcp.json exports YOLO_OFFLINE"
 else
@@ -55,7 +38,7 @@ else
          "--detect-classes '<prop nouns>' --hide-tools reset_stop --write"
 fi
 
-# 3b. booth tuning overlay: bounded worst cases for 15-min sessions
+# 2b. booth tuning overlay: bounded worst cases for 15-min sessions
 #     (configs/booth.yaml via CASCADE_BOOTH; see BOOTH_RUNBOOK.md §1)
 if [[ ! -f "$REPO/configs/booth.yaml" ]]; then
     warn "configs/booth.yaml MISSING (broken checkout) -- the MCP server" \
@@ -71,7 +54,7 @@ case "$BOOTH_VAL" in
     *)  ok "booth tuning active (CASCADE_BOOTH=$BOOTH_VAL in .mcp.json)" ;;
 esac
 
-# 4. .mcp.json must pin the rig you mean to drive (it has pinned the Isaac
+# 3. .mcp.json must pin the rig you mean to drive (it has pinned the Isaac
 #    sim stack before -- confusing, though harmless).
 if grep -q '"CASCADE_ARM": "'"$ARM"'"' "$REPO/.mcp.json" 2>/dev/null; then
     ok ".mcp.json arm profile: $ARM"
@@ -79,7 +62,7 @@ else
     warn ".mcp.json CASCADE_ARM is not '$ARM' -- attendees would drive the wrong arm"
 fi
 
-# 5. GraspGen-X server: grasping SILENTLY falls back to the analytic OBB
+# 4. GraspGen-X server: grasping SILENTLY falls back to the analytic OBB
 #    planner when :5556 is down (booth rule) -- quality drops and each pick
 #    gains the client timeout in dead air. Loud is the whole point:
 if (exec 3<>/dev/tcp/127.0.0.1/5556) 2>/dev/null; then
@@ -90,7 +73,7 @@ else
          "fallback active. Start it: scripts/serve_graspgenx.sh"
 fi
 
-# 6. local LLM fallback (venue internet dies -> point the MCP host here)
+# 5. local LLM fallback (venue internet dies -> point the MCP host here)
 if curl -sf -m 2 "http://127.0.0.1:8080/health" >/dev/null 2>&1; then
     ok "local Qwen serving on :8080"
 else
@@ -98,7 +81,7 @@ else
          "internet drops. Start it: scripts/serve_qwen_llamacpp.sh"
 fi
 
-# 7. CAN bus (real arm only)
+# 6. CAN bus (real arm only)
 if [[ "$ARM" == "rebot_rs" ]]; then
     if ip link show can0 2>/dev/null | grep -q "state UP"; then
         ok "can0 up"
@@ -108,7 +91,7 @@ if [[ "$ARM" == "rebot_rs" ]]; then
     fi
 fi
 
-# 8. learned state: the day-long learning arc is part of the demo -- keep
+# 7. learned state: the day-long learning arc is part of the demo -- keep
 #    it, but snapshot the morning baseline so a bad rehearsal can be undone
 #    (scripts/booth_reset.sh --restore-brain).
 GM="$HOME/.cascade/grasp_memory.json"
@@ -121,7 +104,7 @@ else
     ok "no grasp memory yet (fresh brain: today's first groups are the control group)"
 fi
 
-# 9. dashboard URL for the big screen / host phone. lan_ip() inside the
+# 8. dashboard URL for the big screen / host phone. lan_ip() inside the
 #    server probes 8.8.8.8 and can return 127.0.0.1 on an air-gapped LAN --
 #    trust this instead:
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"

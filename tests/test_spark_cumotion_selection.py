@@ -107,7 +107,6 @@ def test_selection_reaches_real_mcp_registration_without_budget_change(
             "/fixture/repo",
             "isaac,isaac_side,isaac_proof",
             "isaac_kitchen_cumotion",
-            "/fixture/detector",
             "",
             "isaac",
             "/fixture/state",

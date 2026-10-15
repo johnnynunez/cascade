@@ -237,8 +237,8 @@ _BOX_TRIM_PCT = 2.0
 _MIN_BOX_POINTS = 10
 
 #: ...and it ignores the cloud's lowest centimetre (above its own 2nd-percentile
-#: z), B32c. Measured live (Isaac 6.2 PhysX + YOLOE, 86 decisions between the
-#: two cameras' views of the bin): the masks take in table pixels at the
+#: z), B32c. Measured live (Isaac 6.2 PhysX, segmentation masks, 86 decisions
+#: between the two cameras' views of the bin): the masks take in table pixels at the
 #: object's own lowest height (median 35 % of the side camera's bin cloud, 12 %
 #: of the top camera's; the top box ran 3.5 cm past the near wall), so the
 #: whole-cloud box gave 0.708-0.926 (median 0.744) against the 0.75 threshold

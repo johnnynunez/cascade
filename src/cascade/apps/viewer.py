@@ -1,7 +1,12 @@
 """Live perception viewer: what the demo's camera stack actually sees.
 
-    cascade-view --camera l515                       # RGB + depth colormap
-    cascade-view --camera l515 --detect yolo11n.pt   # + detection overlays
+    cascade-view --camera l515                            # RGB + depth colormap
+    cascade-view --camera l515 --detect                   # + the demo detector's overlays
+    cascade-view --camera l515 --detect --classes "red cup,bowl"   # find these only
+
+The detector is the one the demo config names for that camera
+(`apps.demo._make_detector`: the brain detector from configs/demo.yaml, the
+mock detector on the mock camera).
 
 Left pane: RGB with detection boxes/labels (and center-pixel depth readout).
 Right pane: depth colormap (JET, near=red) with invalid pixels black.
@@ -22,27 +27,49 @@ from ..perception.camera_base import make_camera
 from .live_view import depth_colormap, draw_detections, draw_hud
 
 
+def make_viewer_detector(camera: str):
+    """The detector the demo config builds for `camera` (camera-pinned
+    detectors win, as in the demo). Named objects are passed per call as
+    `detect(frame, classes)`: refer queries for the brain detector."""
+    from ..config import load_demo_config
+    from .demo import _make_detector
+
+    return _make_detector(load_demo_config(camera=camera))
+
+
+def viewer_detections(detector, frame, classes):
+    """One display frame's detections. A detector whose CLASS defines
+    `detect_nowait` (the brain detector) answers from its cache and asks the
+    brain in the background, so a multi-second brain call never freezes the
+    window; others run `detect` inline."""
+    nowait = getattr(type(detector), "detect_nowait", None)
+    if nowait is not None:
+        return nowait(detector, frame, classes)
+    return detector.detect(frame, classes=classes)
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="live camera/perception viewer")
     p.add_argument("--camera", default="l515")
-    p.add_argument("--detect", default=None, help="YOLO weights path to overlay detections")
+    p.add_argument("--detect", action="store_true",
+                   help="overlay the detections of the demo config's detector for this camera")
     p.add_argument("--classes", default=None,
-                   help="comma-separated open-vocab classes (needs YOLOE/world model)")
+                   help="comma-separated object names to look for (default: everything on the table)")
     p.add_argument("--scale", type=float, default=0.75, help="display scale")
     args = p.parse_args(argv)
 
-    detector = None
-    if args.detect:
-        from ..perception.detector import OpenVocabDetector
-
-        classes = [c.strip() for c in args.classes.split(",")] if args.classes else None
-        detector = OpenVocabDetector(args.detect, conf=0.35)
-        if classes:
-            detector.set_classes(classes)
+    classes = [c.strip() for c in args.classes.split(",") if c.strip()] if args.classes else None
 
     cam = make_camera(load_profile("cameras", args.camera))
     cam.open()
     cam.warm_up(5)
+    # After the camera streams, as in the demo: loading CUDA (the SAM warm-up)
+    # before the depth cameras stream reset their USB link on the WRC rig.
+    try:
+        detector = make_viewer_detector(args.camera) if args.detect else None
+    except BaseException:
+        cam.close()
+        raise
     win = f"cascade :: {args.camera}"
     cv2.namedWindow(win, cv2.WINDOW_NORMAL)
 
@@ -60,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
             dets = []
             if detect_on and detector is not None:
                 try:
-                    dets = detector.detect(frame, classes=classes)
+                    dets = viewer_detections(detector, frame, classes)
                 except Exception as e:
                     detect_on = False
                     print(f"[cascade-view] detection disabled: {e}", file=sys.stderr)
@@ -99,6 +126,9 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         cam.close()
         cv2.destroyAllWindows()
+        close = getattr(type(detector), "close", None)
+        if close is not None:
+            close(detector)  # the brain detector joins its refreshes and SAM warm-up
     return 0
 
 

@@ -23,15 +23,10 @@
 #   - OpenClaw BLOCKS the PYTHONPATH env for stdio servers ("startup safety"
 #     policy, blockedEverywhereKeys), so cascade must be editable-installed
 #     in the venv (done below).
-#   - `--cwd <repo>/models` matters, and it must be models/ NOT the repo root:
-#     YOLOE resolves its `mobileclip_blt.ts` text encoder RELATIVE TO CWD. From
-#     the repo root ultralytics cannot see the 600 MB file in models/, tries to
-#     download it (even with YOLO_OFFLINE=True), writes a truncated 9 MB file
-#     into the repo root, and every get_observation then dies with
-#     "PytorchStreamReader failed reading zip archive". The agent surfaces that
-#     as "a runtime error loading a checkpoint" and quietly stops perceiving.
-#     If you hit it: rm the stray mobileclip_blt.ts from the repo root.
-#     (Moot under `detector: {type: vlm}` -- no ultralytics in the loop.)
+#   - `--cwd <repo>/models`: the SAM weights (`segmenter.model`, sam2.1_l.pt,
+#     placed by the installer) resolve RELATIVE TO CWD, and with YOLO_OFFLINE
+#     ultralytics will not download them. Without them the brain detector's
+#     boxes carry no SAM masks.
 #   - A half-onboarded config (missing gateway.mode) blocks gateway start.
 #   - The gateway must be RUNNING before `openclaw onboard --non-interactive`,
 #     and must be RESTARTED after `openclaw mcp add` or it serves a stale tool
@@ -48,7 +43,6 @@ ARM="isaac"
 BRAIN="cosmos"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 PY="${PY:-$(cd "$REPO/.." && pwd)/.demo/bin/python}"
-DETECTOR="${CASCADE_DETECTOR_MODEL:-$REPO/models/yoloe-11s-seg.pt}"
 CLASSES="${CASCADE_DETECT_CLASSES:-cube,banana,bottle,cup,bowl,box,plate,toy}"
 
 while [[ $# -gt 0 ]]; do
@@ -67,8 +61,8 @@ if ! "$PY" -c "import cascade" 2>/dev/null; then
 fi
 
 # 1. Register the MCP server (probes the connection before saving).
-# cwd is models/ because YOLOE's text encoder resolves relative to it (see the
-# header note); DETECTOR is passed absolute so it works from anywhere.
+# cwd is models/ because the SAM weights resolve relative to it (see the
+# header note).
 # OpenClaw starts the server with the env registered here, not with this
 # shell, so every runtime switch set in this shell (CASCADE_GRASP_EXECUTOR=vla,
 # CASCADE_VLA_PORT, CASCADE_MCP_READONLY_LANE, memory paths, sidecar ports,
@@ -78,7 +72,7 @@ fi
 echo "[+] registering MCP server (cameras=$CAMERAS arm=$ARM)"
 MCP_ENV_WORDS="$(PYTHONPATH="$REPO/src" "$PY" -m cascade.apps.mcp_env \
     "CASCADE_CAMERAS=$CAMERAS" "CASCADE_ARM=$ARM" \
-    "CASCADE_DETECTOR_MODEL=$DETECTOR" "CASCADE_DETECT_CLASSES=$CLASSES" \
+    "CASCADE_DETECT_CLASSES=$CLASSES" \
     "YOLO_OFFLINE=True" "ULTRALYTICS_OFFLINE=True" "DISPLAY=${DISPLAY:-:1}")"
 eval "MCP_ENV=($MCP_ENV_WORDS)"   # shell-quoted KEY=VALUE words (shlex.quote)
 OC_ENV=()
@@ -163,7 +157,7 @@ openclaw config validate
 #    OpenClaw 2.0's `mcp doctor --probe` adds static checks (cwd exists,
 #    command resolves, literal-secret warnings) on top of the live probe;
 #    fall back to plain `mcp probe` on 2026.7.x.
-echo "[+] probing MCP tools (Isaac + YOLOE load takes ~40 s on first call)"
+echo "[+] probing MCP tools (Isaac + SAM load takes ~40 s on first call)"
 openclaw mcp doctor cascade --probe 2>/dev/null | tail -3 \
     || openclaw mcp probe cascade 2>&1 | tail -3
 

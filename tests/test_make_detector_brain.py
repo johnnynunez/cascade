@@ -294,7 +294,7 @@ def test_a_failed_warm_up_warns_once_and_never_raises(caplog):
 
 
 def test_mcp_server_no_longer_overrides_the_detector_model(env, key_file, monkeypatch):
-    """CASCADE_DETECTOR_MODEL used to write a YOLOE .pt path into
+    """CASCADE_DETECTOR_MODEL used to write a detector weights .pt path into
     detector.model, which is now the brain's served model name."""
     from cascade.apps.mcp_server import McpSkillServer
 
@@ -302,7 +302,7 @@ def test_mcp_server_no_longer_overrides_the_detector_model(env, key_file, monkey
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("CASCADE_ARM", "mock")
     monkeypatch.setenv("CASCADE_CAMERA", "mock")
-    monkeypatch.setenv("CASCADE_DETECTOR_MODEL", "/models/yoloe-11s-seg.pt")
+    monkeypatch.setenv("CASCADE_DETECTOR_MODEL", "/models/old-detector-weights.pt")
     monkeypatch.setenv("CASCADE_DETECT_CLASSES", "paper cup, red lobster ,")
     built = []
 

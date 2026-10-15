@@ -3,7 +3,7 @@
 The launcher's runtime check aborted with "terminate called without an
 active exception" in 3 of 20 kitchen launches (3 of 3 with a cold CUDA kernel
 cache). WorldWatcher.stop() joined the watcher with timeout=5 and returned
-while the first YOLOE inference was still running. The thread then died
+while the detector's first CUDA inference was still running. The thread then died
 inside torch at interpreter exit (perception/thread_join.py has the gdb
 evidence). These tests pin the contract with fakes that block inside a tick:
 

@@ -227,8 +227,8 @@ def openclaw_command(python: str, env: dict[str, str]) -> str:
     import shlex
 
     # OpenClaw blocks PYTHONPATH for stdio servers ("startup safety") — the
-    # package must be editable-installed in the venv instead. `--cwd` keeps
-    # YOLOE's CWD-relative text-encoder resolution working.
+    # package must be editable-installed in the venv instead. `--cwd` pins
+    # the server's working directory to the checkout.
     envs = " ".join(
         f"--env {shlex.quote(f'{k}={v}')}" for k, v in env.items() if k != "PYTHONPATH"
     )

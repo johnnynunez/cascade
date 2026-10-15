@@ -510,8 +510,9 @@ def serve_mcp_env(base: dict | None = None, cfg: Settings = Settings(),
 
 
 def serve_mcp_cwd() -> Path:
-    """models/: YOLOE resolves its text encoder relative to the cwd (launch.sh
-    runs the runtime there too); from the repo root offline detection fails."""
+    """models/: the SAM weights (`segmenter.model`, sam2.1_l.pt) resolve
+    relative to the cwd (launch.sh runs the runtime there too); from the repo
+    root offline ultralytics cannot find them and masks are lost."""
     return REPO / "models"
 
 

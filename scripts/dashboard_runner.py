@@ -8,15 +8,15 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 
-# YOLOE re-embeds text prompts on class-list changes; without offline mode
-# ultralytics phones GitHub on those paths (rate-limited at the booth ->
-# seconds-long stalls that starve the 3 Hz watcher).
+# SAM runs through ultralytics; without offline mode it can reach GitHub for
+# assets (rate-limited at the booth -> seconds-long stalls that starve the
+# 3 Hz watcher).
 os.environ.setdefault("YOLO_OFFLINE", "True")
 os.environ.setdefault("ULTRALYTICS_OFFLINE", "True")
-# YOLOE's text encoder (mobileclip*.ts) is resolved relative to the CWD:
-# a runner launched from the wrong directory silently loses ALL detections
-# ("...does not exist" per watcher tick). The encoder ships in <repo>/models
-# on this rig -- pin the CWD there instead of hardcoding one machine's home.
+# The SAM weights (`segmenter.model`, sam2.1_l.pt) resolve relative to the
+# CWD: a runner launched from the wrong directory loses every mask. The
+# installer puts them in <repo>/models -- pin the CWD there instead of
+# hardcoding one machine's home.
 os.chdir(REPO / "models")
 
 sys.path.insert(0, str(REPO / "src"))
@@ -45,10 +45,9 @@ print(f"LLM TIER: {llm_profile}", flush=True)
 cfg = load_demo_config(cameras=["isaac", "isaac_side", "isaac_wrist"],
                        arm="isaac", llm=llm_profile)
 if qwen_up:
-    # VLM grounding: 2nd perception filter when YOLOE misses (slow path only)
+    # VLM grounding: 2nd perception filter when the detector misses (slow path only)
     cfg._data["grounder"] = {"base_url": "http://127.0.0.1:8080/v1",
                              "model": "Qwen/Qwen3.8-27B"}
-cfg._data["detector"]["conf"] = 0.12  # pastel cubes on RTX renders sit ~0.15
 # name the booth objects explicitly: beliefs are stored under DETECTOR
 # labels, and "banana" cannot resolve a belief labeled "fruit"
 cfg._data["detect_classes"] = [

@@ -10,6 +10,7 @@ import sys
 
 import pytest
 
+from owned_server import held_dead_port
 from test_launch_delivery import launcher_boundary as _launcher_boundary
 from test_launch_delivery import model_http_boundary as _model_http_boundary
 from test_launch_openshell_route import linux_launcher as _linux_launcher
@@ -30,12 +31,13 @@ def test_private_delivery_artifacts_are_ignored_without_hiding_manifests(tmp_pat
         "models/Cosmos3-Edge-hf/config.json", "models/.Cosmos3-Edge-hf.lock",
         "models/.Cosmos3-Edge-hf.staging-test/model.safetensors",
         ".llama.cpp/build/bin/llama-server", "models/qwen3.8-27b/LICENSE",
+        "models/sam2.1_l.pt",  # placed by the Spark installer; must never dirty the tree
     ]
     result = subprocess.run(["git", "check-ignore", "--stdin"], cwd=tmp_path,
                             input="\n".join(artifacts) + "\n", capture_output=True, text=True)
     assert set(result.stdout.splitlines()) == set(artifacts)
     visible = ["pyproject.toml", "uv.lock", "package.json", "package-lock.json",
-               "models/manifest.json", "models/yoloe-11s-seg.pt", "models/yoloe-11s-seg-pf.pt"]
+               "models/manifest.json", "models/README.md"]
     result = subprocess.run(["git", "check-ignore", "--stdin"], cwd=tmp_path,
                             input="\n".join(visible) + "\n", capture_output=True, text=True)
     assert result.returncode == 1 and not result.stdout
@@ -158,9 +160,14 @@ def test_launch_failure_before_proof_invalidates_previous_green_receipt(launcher
     state = Path(h["env"]["CASCADE_LAUNCH_STATE"]) / "profile-isolated-test"
     state.mkdir(parents=True)
     (state / "proof.json").write_text('{"verified":true,"session_id":"old"}')
-    # Fail after dependency checks but before the proof runner is invoked.
-    h["env"]["CASCADE_DETECTOR_MODEL"] = str(h["repo"] / "missing.pt")
-    result = subprocess.run(h["command"], env=h["env"], capture_output=True, text=True, timeout=60)
+    # Fail after dependency checks but before the proof runner is invoked: an
+    # external GraspGen-X server that never answers.
+    command = list(h["command"])
+    command[command.index("--graspgenx") + 1] = "external"
+    with held_dead_port() as dead:
+        h["env"]["CASCADE_GRASPGENX_PORT"] = str(dead)
+        result = subprocess.run(command, env=h["env"], capture_output=True, text=True, timeout=60)
+    assert "no GraspGen-X server" in result.stdout + result.stderr
     assert result.returncode != 0
     assert json.loads((state / "proof.json").read_text())["verified"] is False
 

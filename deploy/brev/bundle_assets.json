@@ -246,24 +246,9 @@
       "size_bytes": 5045,
       "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
     },
-    "models/mobileclip_blt.ts": {
-      "sha256": "a67804d1b0f07b8b9a20c1761ec0847f34660f5fa338ec70e8f3fce68ed95e54",
-      "size_bytes": 599764649,
-      "provenance": "Pinned CASCADE perception weights supplied separately"
-    },
-    "models/sam2.1_t.pt": {
-      "sha256": "3c1e81ca9b037dd39d70a014ddb9a813d6c4c4e12555420db7eaff31689bd4e3",
-      "size_bytes": 78105722,
-      "provenance": "Pinned CASCADE perception weights supplied separately"
-    },
-    "models/yoloe-11s-seg-pf.pt": {
-      "sha256": "292bdf157a9ec7315f34b567cb93467c5043cd1889a1cc18abbfdeb88d7a948d",
-      "size_bytes": 27948751,
-      "provenance": "Pinned CASCADE perception weights supplied separately"
-    },
-    "models/yoloe-11s-seg.pt": {
-      "sha256": "8e439445c87338b79d9ce21dec109f4621e26df67e94d26ea1a98c1e64dce3e3",
-      "size_bytes": 27803986,
+    "models/sam2.1_l.pt": {
+      "sha256": "ab7e1ac9cb9f6eb3bcf197ece044f06a707ec49129361a2b47e93e1db6989efd",
+      "size_bytes": 449239354,
       "provenance": "Pinned CASCADE perception weights supplied separately"
     },
     "web/openclaw-ui/assets/control-ui-core-BRgpioGt.css": {

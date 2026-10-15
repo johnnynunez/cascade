@@ -174,12 +174,19 @@ def test_b63_runs_are_pinned_and_used_one_registration():
         assert set(r["server_env_keys"]) == set(r["entry"]["env"]) | {"PATH", "HOME", "PYTHONPATH"}
 
 
+#: names the recorded entries carry that registrations no longer write: the
+#: detector weights path, gone with the weights-file detector (the brain names
+#: and boxes the objects now; nothing reads the variable).
+RETIRED_SINCE_RECORDED = {"CASCADE_DETECTOR_MODEL"}
+
+
 def test_b63_every_runtime_variable_in_an_entry_is_forwarded_or_written_by_the_registration():
     from cascade.apps.mcp_env import FORWARDED, NOT_FORWARDED
 
     written = {k for k, (cat, _) in NOT_FORWARDED.items() if cat == "registration"}
+    assert not RETIRED_SINCE_RECORDED & (set(FORWARDED) | set(NOT_FORWARDED))
     for r in _b63():
-        names = {k for k in r["entry"]["env"] if k.startswith(("CASCADE_", "CUDA_"))}
+        names = {k for k in r["entry"]["env"] if k.startswith(("CASCADE_", "CUDA_"))} - RETIRED_SINCE_RECORDED
         assert names <= set(FORWARDED) | written, (r["tag"], names - set(FORWARDED) - written)
 
 

@@ -217,8 +217,8 @@ def _det(label, mask, conf=0.6):
 def _scene(q=Q_A, *, t=None, T_on_frame=True, render_mask=False):
     """The side camera looking at the synthetic arm and one red 5 cm cube.
 
-    The detector names the upper link "biplane" (what YOLOE called the reBot's
-    upper link on Isaac, B32). Depth: the table plane, the cube at its centre's
+    The detector names the upper link "biplane" (what the former detector
+    called the reBot's upper link on Isaac, B32). Depth: the table plane, the cube at its centre's
     camera depth, every robot pixel at the upper link's centroid depth.
     """
     cam = _cam("isaac_side")

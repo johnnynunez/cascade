@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Perception extras (open-vocabulary detection). torch comes from the host env
+# Perception extras: SAM masks for the brain detector's boxes (ultralytics). torch comes from the host env
 # on purpose: the right build is per-platform (CUDA, ROCm, Jetson wheels, MPS,
 # CPU) and pinning one here would fight the host. See cascade/device.py.
 perception = ["ultralytics>=8.3"]

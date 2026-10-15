@@ -154,7 +154,7 @@ def cmd_serve(args) -> int:
     env.setdefault("YOLO_OFFLINE", "True")
     env.setdefault("ULTRALYTICS_OFFLINE", "True")
     (REPO / "models").mkdir(exist_ok=True)
-    os.chdir(REPO / "models")  # YOLOE resolves its text encoder relative to cwd (launch.sh)
+    os.chdir(REPO / "models")  # SAM weights (segmenter.model) resolve relative to cwd (launch.sh)
     argv = server_argv(host, port, d)
     os.execvpe(argv[0], argv, env)
     return 0  # unreachable

@@ -194,8 +194,7 @@ def launcher_boundary(tmp_path, model_http_boundary):
     repo = launcher_copy(tmp_path)
     bindir = tmp_path / "bin"
     bindir.mkdir()
-    (repo / "models").mkdir()
-    (repo / "models/yoloe-11s-seg.pt").write_text("test placeholder; never loaded by a model")
+    (repo / "models").mkdir()  # tracked in the checkout (models/README.md): the server's cwd
     py = bindir / "python"
     py.write_text(f'#!{sys.executable}\n' + '''import os,subprocess,sys
 args=sys.argv[1:]

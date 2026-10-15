@@ -246,7 +246,7 @@ class WorldWatcher:
     def stop(self, timeout_s: float | None = None) -> None:
         """Stop the loop and WAIT until the tick in flight has finished.
 
-        A tick runs native code (YOLOE/torch/CUDA, cv2, the occupancy
+        A tick runs native code (SAM/torch/CUDA, cv2, the occupancy
         client). This used to be `join(timeout=5)`, which returned while the
         first inference of a cold process (> 5 s while CUDA JIT-compiles its
         kernels) was still running. The launcher's runtime check then reached

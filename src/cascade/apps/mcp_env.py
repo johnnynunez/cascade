@@ -70,7 +70,6 @@ FORWARDED: dict[str, str] = {
     "CASCADE_GRASP_EXECUTOR": "grasp executor (analytic|vla, B49)",
     "CASCADE_VLA_PORT": "VLA policy server port (B49)",
     "CASCADE_BOOTH": "booth tuning overlay (configs/booth.yaml)",
-    "CASCADE_DETECTOR_MODEL": "detector weights (launch.sh writes its own resolution first)",
     "CASCADE_DETECT_CLASSES": "detector vocabulary (--detect-classes wins)",
     "CASCADE_HIDE_TOOLS": "tools delisted from the catalog (--hide-tools wins)",
     "CASCADE_STREAM": "dashboard stream mode (0|eager|lazy|off)",

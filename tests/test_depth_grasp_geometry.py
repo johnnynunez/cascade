@@ -4,7 +4,6 @@ import numpy as np
 import pytest
 
 from cascade.grasping.obb_grasp import plan_grasps_from_fix
-from cascade.perception.detector import OpenVocabDetector
 from cascade.perception.support_surface import estimate_support_z
 from cascade.types import Detection, Frame, ObjectFix, SkillError
 
@@ -51,22 +50,6 @@ def test_support_fit_ignores_neighbor_depth_outliers():
     noise = (rng.random(frame.depth_m.shape) < .2) & ~fix.detection.mask
     frame.depth_m[noise] -= rng.uniform(.05,.15,noise.sum())
     assert estimate_support_z(frame,fix) == pytest.approx(.018, abs=.001)
-
-
-def test_letterbox_mask_is_unpadded_before_depth_sampling():
-    import torch
-    # Original object occupies y=500..560. At half scale, padded by 12 rows.
-    mask = torch.zeros((1,384,640)); mask[0,262:292,200:260] = 1
-    boxes = SimpleNamespace(cls=[0], conf=[.9], xyxy=[torch.tensor([400,500,520,560])])
-    class Boxes:
-        cls,conf,xyxy = boxes.cls,boxes.conf,boxes.xyxy
-        def __len__(self): return 1
-    result = SimpleNamespace(names={0:'block'},boxes=Boxes(),
-                             masks=SimpleNamespace(data=mask),obb=None)
-    frame=Frame(np.zeros((720,1280,3),np.uint8),None,np.eye(3))
-    det=OpenVocabDetector.__new__(OpenVocabDetector)._parse(result,frame)[0]
-    yy,xx=np.nonzero(det.mask)
-    assert [xx.min(),yy.min(),xx.max()+1,yy.max()+1]==[400,500,520,560]
 
 
 @pytest.mark.parametrize('frame_arg', ['frame', '_frame'])

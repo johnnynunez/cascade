@@ -9,11 +9,6 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 echo "[+] installing cascade (editable) + extras into $PY"
 uv pip install --python "$PY" -e "$REPO" ultralytics openai anthropic motorbridge pytest
 
-# YOLOE / YOLO-World open-vocabulary text prompts need ultralytics' CLIP fork
-# (closed-set yolo11n.pt works without it):
-uv pip install --python "$PY" "git+https://github.com/ultralytics/CLIP.git" || \
-    echo "[!] CLIP install skipped - open-vocab prompts unavailable until installed"
-
 cat <<'EOF'
 [+] done. Reminders for the live rig:
   - pyrealsense2 comes from the librealsense L515 fork build:

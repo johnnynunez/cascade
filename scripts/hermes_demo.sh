@@ -28,33 +28,16 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 # shared uv venv sits next to the checkout (…/Projects/demo/.demo) on every
 # rig; override with PY=... for a non-standard layout
 PY="${PY:-$(cd "$REPO/.." && pwd)/.demo/bin/python}"
-# closed-set fallback; ultralytics auto-downloads it into models/ on first
-# (online) use if absent. DETECTOR_SET tracks an explicit user choice so the
-# CLIP branch below never overrides --detector / CASCADE_DETECTOR_MODEL.
-DETECTOR="${CASCADE_DETECTOR_MODEL:-$REPO/models/yolo11n.pt}"
-DETECTOR_SET="${CASCADE_DETECTOR_MODEL:+1}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --camera) CAMERA="$2"; shift 2 ;;
         --arm) ARM="$2"; shift 2 ;;
-        --detector) DETECTOR="$2"; DETECTOR_SET=1; shift 2 ;;
         --model) MODEL="$2"; shift 2 ;;
         --provider) PROVIDER="$2"; shift 2 ;;
         *) echo "unknown flag $1"; exit 1 ;;
     esac
 done
-
-# If the ultralytics CLIP fork is installed, prefer the open-vocabulary
-# YOLOE model (free-text vocabulary); otherwise stay on closed-set yolo11n.
-if "$PY" -c "import clip" 2>/dev/null; then
-    [[ -z "${DETECTOR_SET:-}" ]] && DETECTOR="$REPO/models/yoloe-11s-seg.pt"
-    echo "[+] CLIP available: using open-vocabulary detector $DETECTOR"
-else
-    echo "[i] CLIP fork not installed: using closed-set COCO detector."
-    echo "    For YOUR OWN vocabulary (any object by name), run once:"
-    echo "    uv pip install --python $PY 'git+https://github.com/ultralytics/CLIP.git'"
-fi
 
 echo "[+] registering MCP server (camera=$CAMERA arm=$ARM)"
 # Hermes starts the server with the env registered here, not with this shell,
@@ -66,7 +49,7 @@ echo "[+] registering MCP server (camera=$CAMERA arm=$ARM)"
 # removed: if the registry cannot run, set -e stops here and nothing changes.
 MCP_ENV_WORDS="$(PYTHONPATH="$REPO/src" "$PY" -m cascade.apps.mcp_env \
     "PYTHONPATH=$REPO/src" "CASCADE_CAMERAS=$CAMERA" "CASCADE_ARM=$ARM" \
-    "CASCADE_DETECTOR_MODEL=$DETECTOR" "DISPLAY=${DISPLAY:-:1}" \
+    "DISPLAY=${DISPLAY:-:1}" \
     "YOLO_OFFLINE=True" "ULTRALYTICS_OFFLINE=True")"
 eval "MCP_ENV=($MCP_ENV_WORDS)"   # shell-quoted KEY=VALUE words (shlex.quote)
 hermes mcp remove cascade >/dev/null 2>&1 || true

@@ -304,7 +304,7 @@ def test_the_forwarded_set_is_pinned():
         "CASCADE_OCCUPANCY_PORT", "CASCADE_HUG_PORT", "CASCADE_HUG_HOST", "CASCADE_GRASP_EVIDENCE_DIR",
         "CASCADE_OBSERVED_FINGER_GATE", "CASCADE_KITCHEN_CAMERA_RENDERER", "CUDA_VISIBLE_DEVICES",
         "CUDA_DEVICE_ORDER", "CASCADE_DEVICE", "CASCADE_REQUIRE_CUDA", "CASCADE_OCCUPANCY",
-        "CASCADE_GRASP_EXECUTOR", "CASCADE_VLA_PORT", "CASCADE_BOOTH", "CASCADE_DETECTOR_MODEL",
+        "CASCADE_GRASP_EXECUTOR", "CASCADE_VLA_PORT", "CASCADE_BOOTH",
         "CASCADE_DETECT_CLASSES", "CASCADE_HIDE_TOOLS", "CASCADE_STREAM", "CASCADE_STREAM_PORT", "CASCADE_VIEW",
         "CASCADE_MJ_VIEW", "CASCADE_PREWARM", "CASCADE_EXTERNAL_VIEW_URL", "CASCADE_EPISODIC",
         "CASCADE_EPISODIC_PATH", "CASCADE_PROGRAMS", "CASCADE_PROGRAMS_PATH", "CASCADE_MEMORY_EMBEDDER",
@@ -353,9 +353,6 @@ def _values(names, tmp_path: Path) -> dict[str, str]:
         "CUDA_VISIBLE_DEVICES": "", "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
         "CASCADE_MICRODUCK_ENGINE": "physx", "CASCADE_MICRODUCK_DEVICE": "cuda:0",
     }
-    detector = tmp_path / "b63-detector.pt"
-    detector.write_text("b63 placeholder; never loaded")  # launch.sh refuses a missing weights file
-    special["CASCADE_DETECTOR_MODEL"] = str(detector)
     values, port = {}, 46520
     for name in names:
         if name in special:
@@ -411,12 +408,12 @@ def _server_grasp(env: dict) -> dict:
     return json.loads(child.stdout)
 
 
-def _in_process_registration(monkeypatch, capsys, *, sim="none", detector="/fixture/model", classes="",
+def _in_process_registration(monkeypatch, capsys, *, sim="none", classes="",
                              gui="0", occupancy="auto") -> dict:
     """launch.sh's registration heredoc, executed verbatim in this process."""
     blocks = re.findall(r"<<'PYEOF'[^\n]*\n(.*?)\nPYEOF", LAUNCH.read_text(), re.DOTALL)
     [registration] = [block for block in blocks if '"requestTimeoutMs"' in block]
-    monkeypatch.setattr(sys, "argv", ["-", "/fixture/python", "/fixture/repo", "mock", "mock", detector, classes,
+    monkeypatch.setattr(sys, "argv", ["-", "/fixture/python", "/fixture/repo", "mock", "mock", classes,
                                       sim, "/fixture/state", "f" * 32, gui, occupancy])
     exec(compile(registration, str(LAUNCH), "exec"), {})
     return json.loads(capsys.readouterr().out)
@@ -490,25 +487,28 @@ def test_launch_never_registers_selectors_internals_or_secrets(launcher_boundary
 
 
 def test_launch_flags_still_win_over_inherited_values(launcher_boundary):
-    # True on main: --occupancy none / --graspgenx none and the launcher's own
-    # detector resolution beat an inherited value of the same variable.
+    # True on main: --occupancy none / --graspgenx none beat an inherited value
+    # of the same variable. CASCADE_DETECTOR_MODEL (detector weights) is no
+    # longer read by anything: an inherited one is never registered.
     h = _scrubbed(launcher_boundary)
-    h["env"].update(CASCADE_OCCUPANCY="1", CASCADE_GRASP_BACKEND="graspgenx", CASCADE_DETECTOR_MODEL="",
+    h["env"].update(CASCADE_OCCUPANCY="1", CASCADE_GRASP_BACKEND="graspgenx",
+                    CASCADE_DETECTOR_MODEL="/b63/old-detector-weights.pt",
                     CASCADE_CAMERAS="b63_cameras", CASCADE_ARM="b63_arm")
     env = _launch(h)[1]["env"]
     assert env["CASCADE_OCCUPANCY"] == "0"
     assert env["CASCADE_GRASP_BACKEND"] == "obb"
-    assert env["CASCADE_DETECTOR_MODEL"] == str(h["repo"] / "models" / "yoloe-11s-seg.pt")
+    assert "CASCADE_DETECTOR_MODEL" not in env
     assert (env["CASCADE_CAMERAS"], env["CASCADE_ARM"]) == ("mock", "mock")
 
 
 #: launch.sh --sim none --arm mock --cameras mock --occupancy none --graspgenx none,
-#: profile isolated-test, nothing else inherited (captured from main be57535)
+#: profile isolated-test, nothing else inherited (captured from main be57535,
+#: minus the CASCADE_DETECTOR_MODEL weights path the launcher no longer writes)
 GOLDEN_LAUNCH = (
     '{"command": "<TMP>/bin/python", "args": ["-m", "cascade.apps.mcp_server", "--launch-owner", '
     '"<OWNER>", "--launch-state-dir", "<TMP>/state/profile-isolated-test"], '
     '"cwd": "<TMP>/repo/models", "env": {"CASCADE_CAMERAS": "mock", "CASCADE_ARM": "mock", '
-    '"CASCADE_DETECTOR_MODEL": "<TMP>/repo/models/yoloe-11s-seg.pt", "YOLO_OFFLINE": "True", '
+    '"YOLO_OFFLINE": "True", '
     '"ULTRALYTICS_OFFLINE": "True", "CASCADE_OPENCLAW_PROFILE": "isolated-test", '
     '"CASCADE_GRASP_MEMORY_PATH": "<TMP>/state/profile-isolated-test/memory/grasp_memory.json", '
     '"CASCADE_ENVELOPE_PATH": "<TMP>/state/profile-isolated-test/memory/envelope.json", '
@@ -527,11 +527,12 @@ def test_launch_default_registration_is_byte_identical(launcher_boundary, tmp_pa
 
 #: the registration heredoc for the Isaac/Spark shape (sim isaac, no GUI,
 #: occupancy none) with the Spark's CUDA requirement, captured from main be57535
+#: (minus the CASCADE_DETECTOR_MODEL weights path)
 GOLDEN_ISAAC = (
     '{"command": "/fixture/python", "args": ["-m", "cascade.apps.mcp_server", "--launch-owner", '
     '"ffffffffffffffffffffffffffffffff", "--launch-state-dir", "/fixture/state"], '
     '"cwd": "/fixture/repo/models", "env": {"CASCADE_CAMERAS": "mock", "CASCADE_ARM": "mock", '
-    '"CASCADE_DETECTOR_MODEL": "/fixture/model", "YOLO_OFFLINE": "True", '
+    '"YOLO_OFFLINE": "True", '
     '"ULTRALYTICS_OFFLINE": "True", "CASCADE_OPENCLAW_PROFILE": "cascade-demo", '
     '"CASCADE_GRASPGENX_PORT": "46501", "CASCADE_BRIDGE_PORT": "46503", '
     '"CASCADE_OCCUPANCY_PORT": "46502", "CASCADE_HUG_PORT": "46504", '
@@ -548,6 +549,17 @@ def test_isaac_registration_is_byte_identical(monkeypatch, capsys):
     monkeypatch.setattr(sys, "platform", "linux")
     config = _in_process_registration(monkeypatch, capsys, sim="isaac", occupancy="none")
     assert json.dumps(config) == GOLDEN_ISAAC
+
+
+@pytest.mark.parametrize("sim, switch", [("isaac", "CASCADE_VIEW"), ("mujoco", "CASCADE_MJ_VIEW")])
+def test_the_gui_argument_drives_the_viewer_switches(monkeypatch, capsys, sim, switch):
+    # The heredoc reads the GUI flag and the occupancy mode by position: with
+    # the detector argument gone both moved one slot, so pin both values.
+    _scrub_process(monkeypatch)
+    shown = _in_process_registration(monkeypatch, capsys, sim=sim, gui="1", occupancy="auto")["env"]
+    hidden = _in_process_registration(monkeypatch, capsys, sim=sim, gui="0", occupancy="none")["env"]
+    assert (shown[switch], hidden[switch]) == ("1", "0")
+    assert ("CASCADE_OCCUPANCY" not in shown, hidden["CASCADE_OCCUPANCY"]) == (True, "0")
 
 
 def _command_substitution_heredocs(text: str) -> list[tuple[int, str]]:
@@ -689,8 +701,7 @@ def test_launch_and_setup_agents_forward_identically(monkeypatch, capsys, tmp_pa
     values = _values(reg.FORWARDED, tmp_path)
     for name, value in values.items():
         monkeypatch.setenv(name, value)
-    launched = _in_process_registration(monkeypatch, capsys, detector=values["CASCADE_DETECTOR_MODEL"],
-                                        classes=values["CASCADE_DETECT_CLASSES"])["env"]
+    launched = _in_process_registration(monkeypatch, capsys, classes=values["CASCADE_DETECT_CLASSES"])["env"]
     registered = setup_agents.server_env("mock", "mock", ":1")
     assert {n: launched.get(n) for n in reg.FORWARDED} == {n: registered.get(n) for n in reg.FORWARDED} == values
 

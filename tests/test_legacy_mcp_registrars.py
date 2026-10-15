@@ -40,9 +40,9 @@ HERMES, OPENCLAW = "hermes_demo.sh", "openclaw_demo.sh"
 #: the flags every run passes: OpenClaw's --brain skip keeps the run off any model server
 BASE_ARGS = {HERMES: [], OPENCLAW: ["--brain", "skip"]}
 #: what each script writes itself (its flags and its own resolution), never replaced by the shell
-OWN = {HERMES: ["PYTHONPATH", "CASCADE_CAMERAS", "CASCADE_ARM", "CASCADE_DETECTOR_MODEL", "DISPLAY",
+OWN = {HERMES: ["PYTHONPATH", "CASCADE_CAMERAS", "CASCADE_ARM", "DISPLAY",
                 "YOLO_OFFLINE", "ULTRALYTICS_OFFLINE"],
-       OPENCLAW: ["CASCADE_CAMERAS", "CASCADE_ARM", "CASCADE_DETECTOR_MODEL", "CASCADE_DETECT_CLASSES",
+       OPENCLAW: ["CASCADE_CAMERAS", "CASCADE_ARM", "CASCADE_DETECT_CLASSES",
                   "YOLO_OFFLINE", "ULTRALYTICS_OFFLINE", "DISPLAY"]}
 BLOCK = range(46900, 47000)
 #: this item's sidecar ports; set in the shell of every run that builds a runtime from the entry
@@ -72,8 +72,6 @@ sys.exit(int(os.environ.get("B68_EXIT_" + os.path.basename(sys.argv[0]).upper(),
 #: checkout), never from whichever cascade the venv has installed.
 _PYTHON = """import os, sys
 args = sys.argv[1:]
-if args == ["-c", "import clip"]:
-    sys.exit(1)  # no CLIP fork: hermes_demo.sh stays on the closed-set detector (deterministic)
 if args == ["-c", "import cascade"]:
     sys.exit(0)  # stands in for the editable install openclaw_demo.sh checks for
 if os.environ.get("B68_REGISTRY_FAILS") and args[:2] == ["-m", "cascade.apps.mcp_env"]:
@@ -166,7 +164,6 @@ def _values(names, tmp_path: Path) -> dict[str, str]:
         "CASCADE_MEMORY_EMBEDDER_MODEL": "b68 model's \"$HOME\" `id` $(id) * ~ {a,b}\nsecond line",
         "CASCADE_MCP_READONLY_LANE": "1", "CUDA_VISIBLE_DEVICES": "", "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
         "CASCADE_MICRODUCK_ENGINE": "physx", "CASCADE_MICRODUCK_DEVICE": "cuda:0",
-        "CASCADE_DETECTOR_MODEL": str(tmp_path / "b68 detector.pt"),
     }
     values, port = {}, 46920
     for name in names:
@@ -199,10 +196,10 @@ def _forwarded():
 def test_registration_env_puts_the_registrar_values_first_and_lets_them_win():
     from cascade.apps import mcp_env
 
-    environ = {"CASCADE_VLA_PORT": "46911", "CASCADE_DETECTOR_MODEL": "/shell", "CASCADE_ARMS": "a,b",
+    environ = {"CASCADE_VLA_PORT": "46911", "CASCADE_DETECT_CLASSES": "shell", "CASCADE_ARMS": "a,b",
                "CASCADE_MCP_TOKEN": "b68-never", "CASCADE_GRASP_EXECUTOR": "vla"}
-    env = mcp_env.registration_env({"CASCADE_ARM": "mock", "CASCADE_DETECTOR_MODEL": "/own"}, environ)
-    assert list(env.items()) == [("CASCADE_ARM", "mock"), ("CASCADE_DETECTOR_MODEL", "/own"),
+    env = mcp_env.registration_env({"CASCADE_ARM": "mock", "CASCADE_DETECT_CLASSES": "own"}, environ)
+    assert list(env.items()) == [("CASCADE_ARM", "mock"), ("CASCADE_DETECT_CLASSES", "own"),
                                  ("CASCADE_GRASP_EXECUTOR", "vla"), ("CASCADE_VLA_PORT", "46911")]
 
 
@@ -249,10 +246,8 @@ def test_selectors_internals_and_secrets_are_never_registered(host, script):
 
 
 def test_hermes_flags_still_win_over_inherited_values(host):
-    env = _registered(host, HERMES, "--detector", "/b68/flag-model.pt", "--camera", "d455f", "--arm", "mock",
-                      shell={"CASCADE_DETECTOR_MODEL": "/b68/shell-model.pt", "CASCADE_CAMERAS": "b68_cams",
-                             "CASCADE_ARM": "b68_arm", "DISPLAY": ":7"})
-    assert env["CASCADE_DETECTOR_MODEL"] == "/b68/flag-model.pt"
+    env = _registered(host, HERMES, "--camera", "d455f", "--arm", "mock",
+                      shell={"CASCADE_CAMERAS": "b68_cams", "CASCADE_ARM": "b68_arm", "DISPLAY": ":7"})
     assert (env["CASCADE_CAMERAS"], env["CASCADE_ARM"], env["DISPLAY"]) == ("d455f", "mock", ":7")
     assert env["PYTHONPATH"] == str(REPO / "src")
 
@@ -269,12 +264,13 @@ def test_openclaw_flags_and_defaults_still_win_over_inherited_values(host):
 
 
 #: the host calls of a default run (nothing CASCADE_* / CUDA_* / DISPLAY inherited),
-#: captured from main 86373d7 under bash 5 with the same doubles
+#: captured from main 86373d7 under bash 5 with the same doubles, minus the
+#: CASCADE_DETECTOR_MODEL entry the detector weights path used to add
 GOLDEN_CALLS = {
     HERMES: [
         ["hermes", "mcp", "remove", "cascade"],
         ["hermes", "mcp", "add", "cascade", "--command", "<TMP>/bin/python", "--env", "PYTHONPATH=<REPO>/src",
-         "CASCADE_CAMERAS=d455f", "CASCADE_ARM=mock", "CASCADE_DETECTOR_MODEL=<REPO>/models/yolo11n.pt",
+         "CASCADE_CAMERAS=d455f", "CASCADE_ARM=mock",
          "DISPLAY=:1", "YOLO_OFFLINE=True", "ULTRALYTICS_OFFLINE=True", "--args", "-m", "cascade.apps.mcp_server"],
         ["hermes", "mcp", "test", "cascade"],
         ["hermes", "chat"],
@@ -283,7 +279,6 @@ GOLDEN_CALLS = {
         ["openclaw", "mcp", "add", "cascade", "--command", "<TMP>/bin/python", "--arg", "-m", "--arg",
          "cascade.apps.mcp_server", "--cwd", "<REPO>/models", "--connect-timeout", "120",
          "--env", "CASCADE_CAMERAS=isaac,isaac_side", "--env", "CASCADE_ARM=isaac",
-         "--env", "CASCADE_DETECTOR_MODEL=<REPO>/models/yoloe-11s-seg.pt",
          "--env", "CASCADE_DETECT_CLASSES=cube,banana,bottle,cup,bowl,box,plate,toy",
          "--env", "YOLO_OFFLINE=True", "--env", "ULTRALYTICS_OFFLINE=True", "--env", "DISPLAY=:1"],
         ["openclaw", "config", "set", "gateway.mode", "local"],
@@ -361,10 +356,12 @@ def test_every_registry_variable_reaches_the_entry_verbatim(host, script):
 
 @pytest.mark.parametrize("script", [HERMES, OPENCLAW])
 def test_the_script_names_what_it_copied_from_the_shell(host, script):
-    # The note must not claim a value the script replaced with its own.
-    args = ["--detector", "/b68/flag-model.pt"] if script == HERMES else []
-    shell = {**SWITCHES, "CASCADE_DETECTOR_MODEL": "/b68/shell-model.pt"}
-    result, _ = _run(host, script, *args, shell=shell)
+    # The note must not claim a value the script replaced with its own: the
+    # vocabulary openclaw_demo.sh writes itself, the camera rig hermes_demo.sh
+    # writes from its flag (a selector, never copied either way).
+    own = {"CASCADE_DETECT_CLASSES": "b68 shell vocabulary"} if script == OPENCLAW else {"CASCADE_CAMERAS": "b68_cams"}
+    shell = {**SWITCHES, **own}
+    result, _ = _run(host, script, shell=shell)
     assert result.returncode == 0, result.stdout + result.stderr
     [line] = [ln for ln in (result.stdout + result.stderr).splitlines() if "forwarded from this shell" in ln]
     named = {token.split("=", 1)[0] for token in line.split(": ", 1)[1].split()}

@@ -244,6 +244,22 @@ def test_refer_bypasses_the_inventory_cache(make):
     assert client.inventory_calls() == 1
 
 
+@pytest.mark.parametrize("open_request", [None, []])
+def test_a_refer_never_narrows_the_next_open_world_call(make, open_request):
+    # Moved from the removed open-vocabulary detector's query-scope test: a
+    # targeted search must not hide unrelated objects from later open looks.
+    det, client, _ = make()
+    client.inventory = _reply(CUP, BALL, SPOOL)
+    client.refer["red ball"] = _reply(BALL)
+    client.refer["paper cup"] = _reply(CUP)
+    everything = ["paper cup", "red ball", "green filament spool"]
+    assert [d.label for d in det.detect(_frame(), None)] == everything
+    assert [d.label for d in det.detect(_frame(), ["red ball"])] == ["red ball"]
+    assert [d.label for d in det.detect(_frame(), open_request)] == everything
+    assert [d.label for d in det.detect(_frame(), ["paper cup"])] == ["paper cup"]
+    assert [d.label for d in det.detect(_frame(), open_request)] == everything
+
+
 # --- inventory cache -------------------------------------------------------
 
 

@@ -4,8 +4,8 @@ Why this module exists (measured on the kitchen launcher). The launcher's
 runtime check aborted with ``terminate called without an active exception``
 (also seen: ``free(): invalid size``) in 3 of 20 kitchen runs, and in 3 of 3
 with a cold CUDA kernel cache. ``WorldWatcher.stop()`` joined its daemon
-thread with ``timeout=5`` and returned while the first YOLOE inference (more
-than 5 s while CUDA JIT-compiles its kernels) was still running. The main
+thread with ``timeout=5`` and returned while the detector's first CUDA
+inference (more than 5 s while CUDA JIT-compiles its kernels) was still running. The main
 thread went on to interpreter exit. When the daemon thread came back from its
 GIL-released torch op, CPython 3.12 ``pthread_exit``-ed it from inside
 pybind11's ``gil_scoped_release`` destructor, and the forced unwind through
@@ -34,8 +34,8 @@ import time
 import weakref
 
 #: Upper bound for the atexit safety net only (see stop_before_exit). The
-#: slowest tick measured is the first cold YOLOE inference (> 5 s with the
-#: CUDA kernel cache disabled); a minute leaves a wide margin.
+#: slowest tick measured is the first cold CUDA detector inference (> 5 s with
+#: the CUDA kernel cache disabled); a minute leaves a wide margin.
 EXIT_JOIN_S = 60.0
 
 

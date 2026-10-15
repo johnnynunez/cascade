@@ -5,7 +5,7 @@ Streams the isaac cam0 + side + wrist cameras while a background agent task
 runs,
 writing annotated frames to /tmp/wrc_frames, then muxes them to
 /tmp/wrc_graspgenx_demo.mp4 with ffmpeg.
-Run from the models/ dir (mobileclip CWD dependency) with PYTHONPATH=../src.
+Run from the models/ dir (SAM weights resolve relative to the CWD) with PYTHONPATH=../src.
 """
 import subprocess
 import sys

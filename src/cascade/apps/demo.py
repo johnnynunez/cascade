@@ -541,8 +541,9 @@ def build_runtime(
     cam_cfgs = _camera_cfgs(cfg)
     streams, watched = [], []
     # The detector is built AFTER rig.open() (below): Seeed's WRC rig reset
-    # the depth cameras' USB link when YOLOE/CUDA loaded before they were
-    # streaming (WRC 37285b0, tests/test_detector_after_camera_open.py).
+    # the depth cameras' USB link when the detector's CUDA model loaded before
+    # they were streaming (WRC 37285b0; the SAM warm-up loads CUDA the same
+    # way, tests/test_detector_after_camera_open.py).
 
     def fk():
         # Eye-in-hand extrinsics need live FK, but camera streams and the
@@ -1198,7 +1199,7 @@ def shutdown_runtime(runtime, arm) -> dict:
     warm-up past it is listed in pending_threads) -> dashboard -> viewer ->
     camera streams (producers) -> arms. Each thread owner WAITS for its thread's
     in-flight work; a bounded join here once let the watcher's first cold
-    YOLOE inference (> 5 s) outlive shutdown and abort the launcher's
+    CUDA detector inference (> 5 s) outlive shutdown and abort the launcher's
     runtime check at interpreter exit.
     """
     import copy

@@ -427,9 +427,9 @@ def test_the_robot_mcp_server_is_served_on_loopback_with_a_token_file(tmp_path):
 
 def test_the_mcp_server_runs_like_the_other_routes_run_it():
     """Same contract as nemoclaw_mcp.py serve and launch.sh: cwd models/
-    (YOLOE resolves its text encoder relative to cwd, so from the repo root
-    open-vocab detection fails offline), offline hub flags, and the token
-    file as the only token source."""
+    (the SAM weights resolve relative to cwd, so from the repo root offline
+    ultralytics cannot find them), offline hub flags, and the token file as
+    the only token source."""
     rig = _load()
     env = rig.serve_mcp_env({"CASCADE_MCP_TOKEN": "leak", "YOLO_OFFLINE": "False", "PATH": "/bin"})
     assert "CASCADE_MCP_TOKEN" not in env

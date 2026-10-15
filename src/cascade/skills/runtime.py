@@ -1858,8 +1858,7 @@ class SkillRuntime:
         elif belief is not None and (color is None or belief.color == color):
             # Warm path: the world model already knows the answer. When the
             # class is in a restricted vocabulary, detect with the WHOLE
-            # vocabulary (no set_classes churn -- YOLOE re-embeds text on
-            # every class change) and prefer that label among candidates.
+            # vocabulary and prefer that label among candidates.
             # Open-world (no restriction) needs neither: just ask by name.
             if self._default_classes and belief.label in self._default_classes:
                 vocab, prefer = self._default_classes, belief.label
@@ -2366,9 +2365,8 @@ class SkillRuntime:
                 f"{time.monotonic() - belief.last_seen_t:.1f}s old)",
             )
             return frame, self._fix_from_belief(query, belief)
-        # Last filter: VLM grounding. YOLOE's text embeddings miss what a
-        # full VLM reads easily; one slow call only ever runs on this
-        # failure path.
+        # Last filter: VLM grounding of this one query, when the detector
+        # missed it; one slow call only ever runs on this failure path.
         _analyzed_frame_age_s(frame, time.monotonic() - localization_started)
         grounded = self._vlm_ground_fix(frame, query)
         if grounded is not None and in_workspace(grounded[1].position):
@@ -2453,7 +2451,7 @@ class SkillRuntime:
 
             self.memory.add(
                 "note",
-                f"YOLOE missed {query!r}; the VLM (2nd filter) found it at "
+                f"the detector missed {query!r}; the VLM (2nd filter) found it at "
                 f"{[round(float(v), 2) for v in center]}",
             )
             fix = ObjectFix(

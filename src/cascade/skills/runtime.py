@@ -419,6 +419,24 @@ class ReanchorError(SkillError):
     replaced by the box: a box cloud includes table pixels."""
 
 
+def _perception_stop(exc: BaseException, attempt: int) -> str | None:
+    """The note of a grasp retry loop (pick_and_place, `_grasp_with_persistence`)
+    that must end on this refusal with no automatic motion recovery, or None
+    when the attempt is a miss to retry. Slow perception and a scene change
+    end it at once (another attempt only repeats them); a failed re-anchor is
+    a miss once (re-homing clears the arm out of the view), and ends it from
+    the second attempt on."""
+    if isinstance(exc, SceneChangedError):
+        what = "the scene changed while the object was localized"
+    elif isinstance(exc, SlowPerceptionError):
+        what = "localization analysis expired"
+    elif isinstance(exc, ReanchorError) and attempt >= 2:
+        what = "the object could not be re-anchored on a fresh image, again after a re-scan"
+    else:
+        return None
+    return f"{what}; no automatic motion recovery"
+
+
 #: Two-phase localization: frame0 -> frame1 limits within which the brain's
 #: box from frame0 still describes frame1 (spec 2026-10-16 B1 step 4/6).
 _REANCHOR_CAMERA_SHIFT_M = 0.002
@@ -2116,14 +2134,15 @@ class SkillRuntime:
                     **({"_planning_deadline": deadline}
                        if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1" else {}))
             except (SkillError, SafetyViolation) as e:
-                if isinstance(e, (SlowPerceptionError, SceneChangedError)):
-                    # Same rule as pick_and_place: an expired analysis (or a
-                    # scene that changed under the two-phase localization,
-                    # already retried once) is not a miss to cure with a
-                    # re-home and a re-scan; another attempt only repeats it.
+                note = _perception_stop(e, attempt)
+                if note is not None:
+                    # Same rule as pick_and_place: an expired analysis, a scene
+                    # that changed under the two-phase localization (already
+                    # retried once) or a re-anchor that failed again after a
+                    # re-scan is not a miss to cure with another re-home and
+                    # re-scan; another attempt only repeats it.
                     return {"ok": False, "held": False, "error": f"{type(e).__name__}: {e}",
-                            "home_skipped": True, "grasp_attempts": attempt,
-                            "note": "localization analysis expired; no automatic motion recovery"}
+                            "home_skipped": True, "grasp_attempts": attempt, "note": note}
                 res = {"ok": False, "error": f"{type(e).__name__}: {e}"}
             if res.get("ok", True) and res.get("held"):
                 res["grasp_attempts"] = attempt
@@ -5416,11 +5435,11 @@ class SkillRuntime:
                     if isinstance(e, carry_attachment.AttachmentInvalid):
                         return carry_attachment.failure_result(self, e,
                             **failure_destination, grasp_attempts=attempt, place_attempts=0)
-                    if isinstance(e, (SlowPerceptionError, SceneChangedError)):
+                    note = _perception_stop(e, attempt)
+                    if note is not None:
                         return {**failure_destination, "ok": False, "stage": "grasp",
                                 "error": str(e), "home_skipped": True,
-                                "grasp_attempts": attempt,
-                                "note": "localization analysis expired; no automatic motion recovery"}
+                                "grasp_attempts": attempt, "note": note}
                     res = {"ok": False, "error": f"{type(e).__name__}: {e}"}
                     if isinstance(getattr(e, "observed_selection", None), dict):
                         res["observed_selection"] = e.observed_selection

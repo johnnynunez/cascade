@@ -1892,3 +1892,80 @@ def test_a_whole_object_naming_mask_around_a_tight_box_is_still_re_anchored(tp, 
     tp.sam.default = _whole_objects
     _, timings, _ = _as_main(tp, "red cube", "whole", accept=True)
     assert tp.brain.refers == 1, timings
+
+
+# -- follow-ups M1 + M3: the retry loops name the refusal; a re-anchor that fails
+# -- again after a re-scan ends the loop -----------------------------------------
+
+
+def _never_reanchors(t):
+    """Every re-anchor on a fresh frame fails (SAM finds no mask there): each
+    localization costs a retry with a fresh refer, then ReanchorError."""
+    from cascade.perception.brain_detector import ReanchorResult
+
+    t.detector.reanchor = lambda frame, det, **_: ReanchorResult(  # instance attribute: the class defines it
+        None, False, "SAM returned no mask for the box", 0.0, 0.0)
+
+
+def _slow_names(t):
+    t.brain.refer_s = 2.5  # 25 s live > semantic_max_age_s 20 s
+
+
+def _keeps_moving(t):
+    t.brain.on_refer = lambda n: t.scene.toggle("box", HOME_BOX, MOVED_BOX)
+
+
+#: kind -> (setup, the attempts the loop makes, what its note says, what it must not say)
+PERCEPTION_STOPS = {
+    "slow perception": (_slow_names, 1, "localization analysis expired", ("scene changed", "re-anchor")),
+    "scene changed": (_keeps_moving, 1, "the scene changed", ("expired", "re-anchor")),
+    "re-anchor failed": (_never_reanchors, 2, "could not be re-anchored", ("expired", "scene changed")),
+}
+
+
+def _grasp_spy(t):
+    """Wraps skill_grasp_object: the arm's command count at each refusal."""
+    orig, refusals = t.rt.skill_grasp_object, []
+
+    def spy(*args, **kwargs):
+        try:
+            return orig(*args, **kwargs)
+        except SkillError:
+            refusals.append(_commands(t))
+            raise
+
+    t.rt.skill_grasp_object = spy  # instance attribute
+    return refusals
+
+
+@pytest.mark.parametrize("kind", sorted(PERCEPTION_STOPS))
+def test_pick_and_place_names_the_perception_refusal_that_ended_it(tp, kind):
+    """M1 + M3: the loop's note says WHICH refusal ended it (it said
+    'localization analysis expired' for a scene change too). A failed
+    re-anchor is a miss once (re-home, re-scan, a second attempt: an arm in
+    the view can hide the object), but a second one ends the loop at once,
+    like a scene change: bd5e80f re-homed and re-scanned up to
+    max_pick_attempts (8) times. Nothing moves after the refusal."""
+    setup, attempts, says, never = PERCEPTION_STOPS[kind]
+    setup(tp)
+    refusals = _grasp_spy(tp)
+    result = tp.rt.execute("pick_and_place", {"object": "red cube"})
+    assert result["ok"] is False and result["grasp_attempts"] == attempts, result
+    assert result["home_skipped"] is True, result
+    assert says in result["note"] and not any(word in result["note"] for word in never), result["note"]
+    assert len(refusals) == attempts and _commands(tp) == refusals[-1], "no motion after the last refusal"
+    if kind != "slow perception":  # each localization: one refer and the one retry
+        assert tp.brain.queries.count("red cube") == 2 * attempts, tp.brain.queries
+
+
+@pytest.mark.parametrize("kind", sorted(PERCEPTION_STOPS))
+def test_grasp_persistence_names_the_perception_refusal_that_ended_it(tp, kind):
+    """M1 + M3 for handover and sort_by_color's grasp loop."""
+    setup, attempts, says, never = PERCEPTION_STOPS[kind]
+    setup(tp)
+    refusals = _grasp_spy(tp)
+    result = tp.rt._grasp_with_persistence("red cube")
+    assert result["ok"] is False and result["grasp_attempts"] == attempts, result
+    assert result["home_skipped"] is True, result
+    assert says in result["note"] and not any(word in result["note"] for word in never), result["note"]
+    assert len(refusals) == attempts and _commands(tp) == refusals[-1], "no motion after the last refusal"

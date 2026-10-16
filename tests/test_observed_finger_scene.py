@@ -304,3 +304,73 @@ def test_factory_rejects_invalid_clock_before_loading_geometry(monkeypatch, engi
     monkeypatch.setattr(observed_scene, 'FingerGeometry', forbidden)
     with pytest.raises(SafetyViolation):
         observed_scene.for_runtime(*runtime_factory_inputs(engine, clock_name))
+
+
+# ── a refusal names the tracked object it would hit (r3, 16 Oct kitchen run:
+# "other observed surface" + coordinates; the agent blamed the cube's corner,
+# the finger was in the lemon) ──────────────────────────────────────────────
+
+
+def _neighbour_scene(geometry, tracked):
+    from cascade.grasping.observed_scene import TrackedObject
+    env = geometry.envelopes(np.ones(2) * .05, np.ones(2) * .05)
+    point = np.asarray(env[1][5], dtype=float)  # inside finger component 1
+    frame, mask, T = scene_at(point, target=False)
+    objects = [TrackedObject(label, np.asarray([point + offset]), radius) for label, offset, radius in tracked]
+    scene = ObservedScene(frame, mask, T, source=('fake', 1), robot_id='/robot', epoch='epoch', tracked=objects)
+    return scene, env, point
+
+
+def test_a_neighbour_refusal_names_the_tracked_object_it_would_enter(geometry):
+    scene, env, point = _neighbour_scene(geometry, [('bowl', [.20, 0, 0], .0), ('lemon', [.012, 0, 0], .0)])
+    hit = scene.conflict(np.eye(4), env)
+    assert hit['surface'] == 'other observed surface'
+    assert hit['near'] == f"finger would enter the lemon at {[round(float(x), 3) for x in point]}"
+
+
+def test_a_tracked_centre_counts_its_radius(geometry):
+    # a belief without a cloud: centre 4.5 cm away, 3 cm radius -> 1.5 cm gap
+    scene, env, _ = _neighbour_scene(geometry, [('lemon', [0, .045, 0], .03)])
+    assert scene.conflict(np.eye(4), env)['near'].startswith('finger would enter the lemon at')
+
+
+def test_no_object_is_named_beyond_a_few_centimetres(geometry):
+    scene, env, _ = _neighbour_scene(geometry, [('bowl', [.05, 0, 0], .0)])
+    hit = scene.conflict(np.eye(4), env)
+    assert hit is not None and 'near' not in hit
+
+
+def test_a_target_surface_hit_never_names_a_neighbour(geometry):
+    from cascade.grasping.observed_scene import TrackedObject
+    env = geometry.envelopes(np.ones(2) * .05, np.ones(2) * .05)
+    point = np.asarray(env[1][5], dtype=float)
+    frame, mask, T = scene_at(point, target=True)
+    scene = ObservedScene(frame, mask, T, source=('fake', 1), robot_id='/robot', epoch='epoch',
+                          tracked=[TrackedObject('lemon', point[None] + [.005, 0, 0], 0.)])
+    hit = scene.conflict(np.eye(4), env)
+    assert hit['surface'] == 'target' and 'near' not in hit
+
+
+def test_the_gate_refusal_text_names_the_object_and_still_refuses(geometry):
+    scene, _, _ = _neighbour_scene(geometry, [('lemon', [.005, 0, 0], .0)])
+    kin = SimpleNamespace(fk=lambda q: np.eye(4))
+    clock = dict(version=1, engine='physx', clock='SimulationManager', source=('fake', 1),
+                 robot_id='/robot', epoch='epoch', sim_time=0., physics_step=0, physics_dt_s=.01)
+    state = RobotState(np.zeros(1), physics_clock=clock, gripper_joints=snapshot((.05, .05)))
+    with pytest.raises(SafetyViolation, match=r'measured finger intersects observed surface: .*'
+                                              r'finger would enter the lemon at'):
+        ObservedFingerGate(scene, geometry, kin, state)
+
+
+def test_the_factory_tracks_neighbours_but_not_the_target():
+    from cascade.grasping.observed_scene import for_runtime
+    runtime, frame, fix, state = runtime_factory_inputs()
+    target = SimpleNamespace(label='green cube', position=np.array([.24, .01, .03]), points=None,
+                             diameter_m=.06, extent=None)
+    lemon = SimpleNamespace(label='lemon', position=np.array([.316, .011, .03]),
+                            points=np.array([[.30, .01, .04], [.33, .01, .04]]), diameter_m=None, extent=None)
+    runtime.beliefs = SimpleNamespace(all=lambda: [target, lemon])
+    fix.position = np.array([.241, .012, .03])
+    gate = for_runtime(runtime, frame, fix, state)
+    assert [t.label for t in gate.scene.tracked] == ['lemon']
+

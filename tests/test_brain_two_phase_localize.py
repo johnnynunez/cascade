@@ -21,6 +21,7 @@ import json
 import re
 import threading
 import time
+import warnings
 from types import SimpleNamespace
 
 import cv2
@@ -144,7 +145,7 @@ class _Scene:
 
     def __init__(self, camera: MockCamera):
         self.state = dict(box=HOME_BOX, depth_shift=0.0, patch=None, colour=None, K=None, T=None, capture=None,
-                          dest=None, neighbour=None, lift=0.0)
+                          dest=None, neighbour=None, lift=0.0, window=None, gain=None)
         camera._render = self._render  # instance attribute: MockCamera._grab calls self._render()
 
     def set(self, **changes) -> None:
@@ -171,6 +172,12 @@ class _Scene:
             x0, y0, x1, y1, bgr = s["neighbour"]
             frame.rgb[y0:y1, x0:x1] = bgr
             frame.depth_m[y0:y1, x0:x1] = np.float32(0.6 - 0.05)
+        if s["window"] is not None:  # a bright window: saturated white
+            x0, y0, x1, y1 = s["window"]
+            frame.rgb[y0:y1, x0:x1] = 255
+        if s["gain"] is not None:  # an exposure / white-balance step: every pixel, per B, G, R channel
+            gain = np.broadcast_to(np.asarray(s["gain"], dtype=np.float64), (3,))
+            frame.rgb = np.clip(frame.rgb * gain, 0, 255).round().astype(np.uint8)
         if s["depth_shift"]:
             frame.depth_m = frame.depth_m + np.float32(s["depth_shift"])
         if s["K"] is not None:
@@ -338,14 +345,17 @@ def test_a_global_change_retries_and_finds_the_new_position(tp):
     assert np.linalg.norm(xy - _cube_xy(tp, HOME_BOX)) > 0.05, "never the old one"
 
 
-def test_a_global_change_alone_is_a_scene_change(tp):
-    # Only far from the cube: the local check and the geometry see nothing.
+def test_a_global_change_alone_is_logged_not_refused(tp):
+    """Follow-up I1b: only far from the cube (a visitor in the background):
+    the local check and the geometry see nothing. The whole-view diff is
+    evidence only inside a re-anchor (it cost a retry on bd5e80f, and a
+    permanent refusal with traffic in both windows)."""
     _moves_once(tp, patch=(0, 0, 200, 480, 40))
     result = tp.rt.execute("localize_object", {"label": "red cube"})
     assert result["ok"], result.get("error")
-    assert tp.brain.refers == 2, "the global change cost one retry"
+    assert tp.brain.refers == 1, "no retry for a change far from the object"
     timing = result["perception_timing"]
-    assert timing["scene_diff_global"] <= 6.0 and timing["scene_diff_local"] <= 8.0
+    assert timing["scene_diff_global"] > 6.0 and timing["scene_diff_local"] <= 8.0, timing
 
 
 def test_a_cube_moved_twice_raises_scene_changed_and_never_moves(tp):
@@ -1711,3 +1721,269 @@ def test_reanchor_measures_the_clipped_mask_and_compares_the_unclipped_ones():
     found = detector.reanchor(b, Detection("red cube", 1.0, det.bbox), since=a, reference=ref)
     assert (found.detection, found.scene_changed) == (None, False) and "named on" in found.reason, found
     assert len(sam.calls) == calls
+
+
+# -- follow-ups (post-merge review of #340, I1): exposure steps and visitors ------
+#
+# A real camera adds what the mock never shows: an auto-exposure / white
+# balance gain STEP between frame0 and frame1 (2-6 s apart), and visitors
+# entering or leaving the background. On a rig keyframe a x1.06 step read a
+# colour local diff of 8.45 (> 8) and a visitor leaving a whole-view diff of
+# 28 (> 6): a retry each, a permanent refusal when it repeats.
+
+#: A booth: a bright window (saturated white) at the left of the view and a
+#: visitor in black at the right, both far from the cube.
+BOOTH = dict(window=(0, 0, 120, 480), patch=(520, 0, 640, 360, 30))
+
+
+@pytest.mark.parametrize("gain", [1.06, 1.10, 0.94, (1.08, 1.0, 0.95)], ids=str)
+@pytest.mark.parametrize("booth", [False, True], ids=["table", "booth"])
+def test_an_exposure_step_on_a_still_scene_is_accepted_at_once(tp, gain, booth):
+    """I1a: the camera's gain steps (here by 6-10 %, or the white balance per
+    channel) while the brain names the cube. bd5e80f read the step as a
+    change around the cube (colour local diff 11-19 > 8) and asked the brain
+    again. The per-channel gain, measured outside the box on unsaturated
+    pixels, is divided out first: accepted at once, measured where it is."""
+    if booth:
+        _show(tp, **BOOTH)
+    _moves_once(tp, gain=gain)
+    result = tp.rt.execute("localize_object", {"label": "red cube"})
+    assert result["ok"], result.get("error")
+    timing = result["perception_timing"]
+    assert tp.brain.refers == 1, timing
+    expected = np.broadcast_to(np.asarray(gain, dtype=float), (3,))
+    assert timing["scene_gain"] == pytest.approx(expected.tolist(), abs=0.01), timing
+    assert timing["scene_diff_local"] <= 2.0, timing
+    assert np.linalg.norm(np.asarray(result["position"])[:2] - _cube_xy(tp, HOME_BOX)) < 0.003
+
+
+@pytest.mark.parametrize("gain", [None, 1.06], ids=["same exposure", "and a gain step"])
+def test_a_visitor_leaving_the_view_is_not_a_scene_change(tp, gain):
+    """I1b: a visitor in black leaves the right of the view while the brain
+    names the cube (whole-view diff ~22, ~31 with a gain step; > the cache's
+    6): nothing changed around the cube, so it is accepted at once; the diff
+    stays in the timing as evidence."""
+    _show(tp, **BOOTH)
+    _moves_once(tp, patch=None, gain=gain)
+    result = tp.rt.execute("localize_object", {"label": "red cube"})
+    assert result["ok"], result.get("error")
+    timing = result["perception_timing"]
+    assert tp.brain.refers == 1, timing
+    assert timing["scene_diff_global"] > 6.0, timing
+    assert np.linalg.norm(np.asarray(result["position"])[:2] - _cube_xy(tp, HOME_BOX)) < 0.003
+
+
+@pytest.mark.parametrize("cm", [1.0, 3.0])
+@pytest.mark.parametrize("gain", [1.08, 0.94, None], ids=str)
+def test_a_slide_during_an_exposure_step_or_a_visitor_is_still_a_scene_change(tp, gain, cm):
+    """What the gain correction and the log-only whole-view diff must still
+    catch: the iso-luminant cube slides 1-3 cm while the gain steps (or a
+    visitor leaves the view). One retry, then the NEW position."""
+    _show(tp, colour=ISO, **({} if gain is not None else BOOTH))
+    new = _slid(round(cm * PX_PER_CM))
+    _moves_once(tp, box=new, **({"gain": gain} if gain is not None else {"patch": None}))
+    result = tp.rt.execute("localize_object", {"label": "orange cube"})
+    assert result["ok"], result.get("error")
+    assert tp.brain.refers == 2, "the slide is a scene change: one retry on a new frame"
+    assert "scene_changed" in _first_timing(tp), _first_timing(tp)
+    assert np.linalg.norm(np.asarray(result["position"])[:2] - _cube_xy(tp, new)) < 0.003
+
+
+def _scaled(frame, gain):
+    frame.rgb = np.clip(frame.rgb * np.broadcast_to(np.asarray(gain, dtype=float), (3,)), 0, 255).round().astype(
+        np.uint8)
+    return frame
+
+
+def _named(frame, box=HOME_BOX):
+    from cascade.types import Detection
+
+    return Detection("red cube", 1.0, np.array(box, np.float32), mask=_object_mask(frame.rgb))
+
+
+@pytest.mark.parametrize(("gain", "accepted"), [(2.0, False), (0.5, False), (1.5, False), (0.65, False),
+                                                (1.35, True), (0.75, True)])
+def test_a_brightness_change_past_the_gain_range_is_a_scene_change(gain, accepted):
+    """I1a's limit: a gain outside 0.7-1.4 is a real change of the scene
+    (lights, a shadow over the table), never normalised away. Inside it, a
+    still scene is re-anchored. Both frames stay unsaturated (frame0 dimmed
+    first), so only the range decides."""
+    first = 0.5 if gain > 1.0 else 1.0
+    a, b = _scaled(synthetic_tabletop(), first), _scaled(synthetic_tabletop(), first * gain)
+    found = BrainDetector(base_url="http://b/v1", model="m", segmenter=_ObjectSam()).reanchor(b, _named(a), since=a)
+    assert found.gain == pytest.approx((gain,) * 3, abs=0.02), found
+    if accepted:
+        assert found.detection is not None and found.scene_diff_local <= 2.0, found
+    else:
+        assert (found.detection, found.scene_changed) == (None, True), found
+        assert "brightness" in found.reason and "0.7" in found.reason and "1.4" in found.reason, found.reason
+
+
+def test_the_gain_is_measured_outside_the_box_on_unsaturated_pixels():
+    """The gain estimate: B, G, R medians of frame1/frame0 over the pixels
+    outside the local check's box. A bright window that stays saturated
+    (here 60 % of the view) says nothing about the gain; the object never
+    sets it: one whose own pixels brighten (it changed, the view did not)
+    is a change around it, not an exposure step."""
+    from cascade.perception.brain_detector import _exposure_gain
+
+    a = synthetic_tabletop()
+    a.rgb[:, :384] = 255  # the window (over the cube's box too: that is never sampled)
+    b = _scaled(synthetic_tabletop(), 1.1)
+    b.rgb[:, :384] = 255
+    assert _exposure_gain(a, b, HOME_BOX) == pytest.approx((1.1,) * 3, abs=0.01)
+
+    # A bright wall (240) over 60 % of the view clips at 255 on the brighter
+    # frame: 255/240 is the camera's ceiling, not its gain.
+    a, b = synthetic_tabletop(), _scaled(synthetic_tabletop(), 1.1)
+    a.rgb[:, :384], b.rgb[:, :384] = 240, 255
+    assert _exposure_gain(a, b, HOME_BOX) == pytest.approx((1.1,) * 3, abs=0.01)
+    # A black monitor (0 on both frames) over a third of the view: its
+    # ratios are 0/0, never part of the median.
+    a, b = synthetic_tabletop(), _scaled(synthetic_tabletop(), 1.06)
+    a.rgb[:160], b.rgb[:160] = 0, 0
+    assert _exposure_gain(a, b, HOME_BOX) == pytest.approx((1.06,) * 3, abs=0.01)
+    # Nothing measurable outside the box (all saturated): no correction.
+    a, b = synthetic_tabletop(), _scaled(synthetic_tabletop(), 1.06)
+    a.rgb[:] = b.rgb[:] = 255
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert _exposure_gain(a, b, HOME_BOX) == (1.0, 1.0, 1.0)
+
+    # A close-up: the box covers 60 % of the view and only the object in it
+    # brightens by 1.3 (a different object, or the same one turned).
+    big = (60, 40, 580, 440)
+    a = synthetic_tabletop(box_px=big)
+    b = synthetic_tabletop(box_px=big)
+    inside = np.all(b.rgb == RED, axis=-1)
+    b.rgb[inside] = np.clip(b.rgb[inside] * 1.3, 0, 255).astype(np.uint8)
+    assert _exposure_gain(a, b, big) == pytest.approx((1.0,) * 3, abs=0.01)
+    found = BrainDetector(base_url="http://b/v1", model="m", segmenter=_ObjectSam()).reanchor(
+        b, _named(a, big), since=a)
+    assert (found.detection, found.scene_changed) == (None, True), found
+    assert "colour difference" in found.reason, found.reason
+
+
+def test_a_saturated_object_stays_unchanged_under_a_gain_step():
+    """The local check compares frame1 with frame0 scaled by the gain and
+    clipped like the camera: a white object that saturates on both frames
+    reads no change (dividing frame1 by the gain read 255/1.1 vs 255)."""
+    from cascade.perception.brain_detector import _local_diff
+
+    a = synthetic_tabletop()
+    a.rgb[200:260, 280:360] = 250  # a white box, almost saturated
+    b = _scaled(synthetic_tabletop(), 1.1)
+    b.rgb[200:260, 280:360] = 255
+    assert _local_diff(a, b, HOME_BOX, (1.1, 1.1, 1.1)) < 0.5
+    assert _local_diff(a, b, HOME_BOX) > 5.0, "uncorrected: the step itself"
+
+
+# -- follow-up M5: a naming mask that took in a neighbour is never re-anchored ---
+
+
+def test_a_naming_mask_far_past_the_brains_box_is_a_failed_re_anchor(tp):
+    """M5: SAM's mask for the brain's box (the naming mask) took in a thin
+    neighbour touching the cube (a whole-object SAM): its box overlaps the
+    brain's by IoU ~0.4 < 0.5. Such a mask measures the cube with the
+    neighbour, so it is refused before any re-mask (a failed re-anchor: one
+    fresh refer, then ReanchorError naming it), and the arm never moves."""
+    x0, y0, x1, y1 = HOME_BOX
+    _show(tp, neighbour=(x1, y0 + 27, x1 + 120, y0 + 33, GREEN))  # a 120x6 px bar against the cube's right side
+    tp.brain.region = _red_only
+    tp.sam.default = _whole_objects
+    n0 = _commands(tp)
+    with pytest.raises(tp.mod.ReanchorError, match="mask for the brain's box") as err:
+        tp.rt.skill_grasp_object("red cube")
+    assert "IoU 0.4" in str(err.value), err.value
+    assert _commands(tp) == n0
+    assert tp.brain.refers == 2, "one retry with a fresh refer"
+    assert len(tp.sam.calls) == 2, "the naming masks only: no re-mask, no fresh frame"
+
+
+@pytest.mark.parametrize("k", [1, 3, 8])
+def test_a_whole_object_naming_mask_around_a_tight_box_is_still_re_anchored(tp, k):
+    """M5's benign side: a brain box k px inside the cube with a SAM that
+    returns the whole object: the naming mask reaches past the box on every
+    side (80x60 cube, k = 8: box IoU ~0.6), the object alone. Accepted at
+    once, as before."""
+    tp.brain.region = _tight(HOME_BOX, k)
+    tp.sam.default = _whole_objects
+    _, timings, _ = _as_main(tp, "red cube", "whole", accept=True)
+    assert tp.brain.refers == 1, timings
+
+
+# -- follow-ups M1 + M3: the retry loops name the refusal; a re-anchor that fails
+# -- again after a re-scan ends the loop -----------------------------------------
+
+
+def _never_reanchors(t):
+    """Every re-anchor on a fresh frame fails (SAM finds no mask there): each
+    localization costs a retry with a fresh refer, then ReanchorError."""
+    from cascade.perception.brain_detector import ReanchorResult
+
+    t.detector.reanchor = lambda frame, det, **_: ReanchorResult(  # instance attribute: the class defines it
+        None, False, "SAM returned no mask for the box", 0.0, 0.0)
+
+
+def _slow_names(t):
+    t.brain.refer_s = 2.5  # 25 s live > semantic_max_age_s 20 s
+
+
+def _keeps_moving(t):
+    t.brain.on_refer = lambda n: t.scene.toggle("box", HOME_BOX, MOVED_BOX)
+
+
+#: kind -> (setup, the attempts the loop makes, what its note says, what it must not say)
+PERCEPTION_STOPS = {
+    "slow perception": (_slow_names, 1, "localization analysis expired", ("scene changed", "re-anchor")),
+    "scene changed": (_keeps_moving, 1, "the scene changed", ("expired", "re-anchor")),
+    "re-anchor failed": (_never_reanchors, 2, "could not be re-anchored", ("expired", "scene changed")),
+}
+
+
+def _grasp_spy(t):
+    """Wraps skill_grasp_object: the arm's command count at each refusal."""
+    orig, refusals = t.rt.skill_grasp_object, []
+
+    def spy(*args, **kwargs):
+        try:
+            return orig(*args, **kwargs)
+        except SkillError:
+            refusals.append(_commands(t))
+            raise
+
+    t.rt.skill_grasp_object = spy  # instance attribute
+    return refusals
+
+
+@pytest.mark.parametrize("kind", sorted(PERCEPTION_STOPS))
+def test_pick_and_place_names_the_perception_refusal_that_ended_it(tp, kind):
+    """M1 + M3: the loop's note says WHICH refusal ended it (it said
+    'localization analysis expired' for a scene change too). A failed
+    re-anchor is a miss once (re-home, re-scan, a second attempt: an arm in
+    the view can hide the object), but a second one ends the loop at once,
+    like a scene change: bd5e80f re-homed and re-scanned up to
+    max_pick_attempts (8) times. Nothing moves after the refusal."""
+    setup, attempts, says, never = PERCEPTION_STOPS[kind]
+    setup(tp)
+    refusals = _grasp_spy(tp)
+    result = tp.rt.execute("pick_and_place", {"object": "red cube"})
+    assert result["ok"] is False and result["grasp_attempts"] == attempts, result
+    assert result["home_skipped"] is True, result
+    assert says in result["note"] and not any(word in result["note"] for word in never), result["note"]
+    assert len(refusals) == attempts and _commands(tp) == refusals[-1], "no motion after the last refusal"
+    if kind != "slow perception":  # each localization: one refer and the one retry
+        assert tp.brain.queries.count("red cube") == 2 * attempts, tp.brain.queries
+
+
+@pytest.mark.parametrize("kind", sorted(PERCEPTION_STOPS))
+def test_grasp_persistence_names_the_perception_refusal_that_ended_it(tp, kind):
+    """M1 + M3 for handover and sort_by_color's grasp loop."""
+    setup, attempts, says, never = PERCEPTION_STOPS[kind]
+    setup(tp)
+    refusals = _grasp_spy(tp)
+    result = tp.rt._grasp_with_persistence("red cube")
+    assert result["ok"] is False and result["grasp_attempts"] == attempts, result
+    assert result["home_skipped"] is True, result
+    assert says in result["note"] and not any(word in result["note"] for word in never), result["note"]
+    assert len(refusals) == attempts and _commands(tp) == refusals[-1], "no motion after the last refusal"

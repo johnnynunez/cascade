@@ -5002,7 +5002,8 @@ class SkillRuntime:
                 if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1":
                     return {**failure_destination, "ok": False, "stage": "grasp",
                             "error": last_err, "home_skipped": True, "grasp_attempts": attempt,
-                            "note": "observed-finger attempt failed; automatic recovery was not geometrically checked"}
+                            "note": "observed-finger attempt failed; automatic recovery was not geometrically checked",
+                            "next_action": _REFUSED_GRASP_LEFT_IN_PLACE}
                 self.memory.add("outcome", f"pick attempt {attempt} failed: {last_err[:100]}")
                 # B36: an attempt can fail AFTER the close took the object
                 # (measured on Isaac: "did not settle at grasp lift pose" with
@@ -7144,6 +7145,14 @@ _FAILED_ERROR_CHARS = 240
 #: refuted placement) gets the failure instructions instead, never this.
 _PICK_REPORT_NEXT_ACTION = ("Report this result, including any return_home failure, and await the next "
                             "user order. Do not add another movement to this request.")
+#: An observed-finger refusal inside pick_and_place returns without the
+#: automatic home (that recovery is not geometrically checked), so the arm can
+#: stay at the refused grasp pose and the next grasp is refused at the same
+#: point. Measured on the kitchen run: 3 identical refusals until move_home.
+_REFUSED_GRASP_LEFT_IN_PLACE = (
+    "The arm was not moved back after this refused grasp (home_skipped): it stays where the "
+    "attempt stopped, possibly at the refused grasp pose next to other objects: call move_home "
+    "before any other grasp.")
 
 
 def _with_failure_instruction(result: dict) -> dict:

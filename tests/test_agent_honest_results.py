@@ -19,6 +19,7 @@ import pytest
 
 from cascade.agent.effects import Postcondition
 from cascade.config import load_demo_config
+from cascade.types import SafetyViolation
 
 #: o3 (trace.jsonl:9 of the 16 Oct kitchen run): the motion routine reported
 #: success, physics refuted the placement, the agent answered "Done".
@@ -30,6 +31,11 @@ O3_MOTION = {
                     "next user order. Do not add another movement to this request."),
 }
 O3_EVIDENCE = "orange ended 3.2 cm from lemon (at [0.284, 0.012], lemon is at [0.316, 0.011])"
+
+#: r3 (trace.jsonl:27): the observed-finger gate refused the grasp next to the lemon.
+R3_REFUSAL = ("measured finger intersects observed surface: {'finger': 'joint_right', 'component': 8, "
+              "'surface': 'other observed surface', 'pixel_rc': [335, 663], "
+              "'point_base_m': [0.3008, 0.0063, 0.0393]}")
 
 
 @pytest.fixture
@@ -131,3 +137,38 @@ def test_a_stuck_result_still_relays_the_ask_first(runtime):
     action = result["next_action"]
     assert action.startswith("STUCK: relay `ask`")
     assert "This attempt FAILED: out of reach." in action
+
+
+# ── 3. a refused grasp that left the arm in place says how to recover ────
+
+
+def test_an_observed_finger_refusal_tells_the_agent_to_move_home_first(runtime, monkeypatch):
+    monkeypatch.setenv("CASCADE_OBSERVED_FINGER_GATE", "1")
+    attempts = []
+
+    def refused(*a, **kw):
+        attempts.append(1)
+        raise SafetyViolation(R3_REFUSAL)
+
+    runtime.skill_grasp_object = refused
+    result = runtime.execute("pick_and_place", {"object": "green cube", "destination": "green square"})
+    assert result["ok"] is False and result["home_skipped"] is True and attempts == [1]
+    action = result["next_action"]
+    assert action.startswith("This attempt FAILED: SafetyViolation: measured finger intersects")
+    assert "call move_home before any other grasp" in action
+    assert "then stop" in action  # the shared pick guidance is kept, after the recovery step
+    assert action.index("move_home") < action.index("then stop")
+
+
+def test_a_failed_pick_that_went_home_does_not_ask_for_move_home(runtime, monkeypatch):
+    monkeypatch.delenv("CASCADE_OBSERVED_FINGER_GATE", raising=False)
+    runtime.cfg._data["grasp"]["max_pick_attempts"] = 1
+
+    def refused(*a, **kw):
+        raise SafetyViolation("grasp pose refused by the harness")
+
+    runtime.skill_grasp_object = refused
+    result = runtime.execute("pick_and_place", {"object": "red object"})
+    assert result["ok"] is False and not result.get("home_skipped")
+    assert "This attempt FAILED" in result["next_action"]
+    assert "move_home" not in result["next_action"]

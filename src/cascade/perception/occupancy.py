@@ -1382,10 +1382,11 @@ class OccupancyMap:
         OBSTACLE is rather than where the sample is.
 
         Occupied voxels at or below `below_z` (the table plane) and inside
-        `cylinder` = (center_xy, radius, z_min) (the grasp target) are not
-        obstacles here. Every other one is, so a neighbour just outside the
-        target's cylinder still blocks a camera sample that hangs inside it,
-        while the target's own wall does not block a sample just outside.
+        `cylinder` = (center_xy, radius, z_min[, z_max]) (the grasp target;
+        no z_max = unbounded above) are not obstacles here. Every other one
+        is, so a neighbour just outside the target's cylinder still blocks a
+        camera sample that hangs inside it, while the target's own wall does
+        not block a sample just outside.
 
         The distance grid cannot say which obstacle is nearest, so samples
         whose grid clearance is below `within` are re-measured against the
@@ -1412,9 +1413,11 @@ class OccupancyMap:
             if below_z is not None:
                 cand = cand[cand[:, 2] > float(below_z)]
             if cylinder is not None and len(cand):
-                center, radius, z_min = cylinder
+                center, radius, z_min = cylinder[:3]
                 inside = ((np.linalg.norm(cand[:, :2] - np.asarray(center, dtype=float)[:2], axis=1)
                            <= float(radius)) & (cand[:, 2] >= float(z_min) - 1e-6))
+                if len(cylinder) > 3:
+                    inside &= cand[:, 2] <= float(cylinder[3]) + 1e-6   # z_max: the ceiling
                 cand = cand[~inside]
         exact = _nearest_distance(sub, cand, reach)
         exact = np.where(np.isfinite(exact), np.maximum(exact - voxel / 2.0, 0.0), float(within))

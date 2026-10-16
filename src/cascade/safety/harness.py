@@ -207,7 +207,8 @@ class SafetyHarness:
         # geometry; this common gate remains SDK-independent.
         self._pending_model_withdrawal = None
         self._model_withdrawal_scope = threading.local()
-        self._grasp_exempt: tuple[np.ndarray, float, float] | None = None
+        #: (center_xy, radius, z_min) or, with a ceiling, (..., z_max)
+        self._grasp_exempt: tuple | None = None
         self._last_heartbeat = time.monotonic()
         self._motion_active = False
         self.violations: list[str] = []
@@ -314,7 +315,7 @@ class SafetyHarness:
         self._grasp_exempt = candidate
 
     @contextmanager
-    def target_column_exemption(self, cylinder):
+    def target_column_exemption(self, cylinder, z_max: float | None = None):
         """Exempt the column directly above a grasp target for one block.
 
         The pregrasp sits above the target and is vetted and approached
@@ -329,6 +330,11 @@ class SafetyHarness:
         target's footprint. Everything outside, and every other gate, is
         unchanged.
 
+        `z_max` caps the column: arm points and voxels above it are checked
+        at full strength (the air-grasp exit passes the hover TCP z + 5 mm,
+        so it never lifts into something above its hover). None = unbounded,
+        today's column; the exemption then stays the 3-tuple.
+
         Yields False and changes nothing when `cylinder` is None, or while a
         retained model withdrawal or release episode owns the exemption.
         """
@@ -339,6 +345,8 @@ class SafetyHarness:
         center, radius, z_min = cylinder
         previous = self._grasp_exempt
         self._grasp_exempt = (np.asarray(center, dtype=float)[:2].copy(), float(radius), float(z_min))
+        if z_max is not None:
+            self._grasp_exempt += (float(z_max),)
         try:
             yield True
         finally:
@@ -1233,12 +1241,16 @@ class SafetyHarness:
 
     @staticmethod
     def _in_cylinder(p: np.ndarray, exempt: tuple | None) -> bool:
+        """`p` lies in `exempt` = (center_xy, radius, z_min[, z_max]); no
+        z_max = unbounded above."""
         if exempt is None:
             return False
-        center_xy, radius, z_min = exempt
+        center_xy, radius, z_min = exempt[:3]
+        z_max = exempt[3] if len(exempt) > 3 else np.inf
         return (
             np.linalg.norm(np.asarray(p[:2]) - center_xy) <= radius
             and p[2] >= z_min - 1e-6
+            and p[2] <= z_max + 1e-6
         )
 
     def _reject(self, reason: str) -> None:

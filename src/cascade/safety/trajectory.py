@@ -15,6 +15,9 @@ from ..types import SafetyViolation, SkillError
 
 PLAN_BUDGET_S = 3.0
 MAX_ROUTE_CANDIDATES = 15
+#: TCP lifts in base z, in order: plan_route's model-only fallback and the
+#: air-grasp exit (`SkillRuntime.AIR_GRASP_EXIT_LIFTS_M`) share them.
+ROUTE_LIFT_HEIGHTS_M = (0.03, 0.06)
 
 
 def motion_duration(harness, start, goal, duration_s):
@@ -154,7 +157,7 @@ def plan_route(harness, start, goal, duration_s=3.0, *, rate_hz=50.0):
         if time.monotonic() >= deadline:
             raise SkillError("route preflight exceeded its time budget; no route authorized")
         pose = kin.fk(start)
-        for height in (.03, .06)[:MAX_ROUTE_CANDIDATES - used]:
+        for height in ROUTE_LIFT_HEIGHTS_M[:MAX_ROUTE_CANDIDATES - used]:
             if time.monotonic() >= deadline:
                 raise SkillError("route preflight exceeded its time budget; no route authorized")
             lift = lift_ik(kin, start, height, pose=pose)

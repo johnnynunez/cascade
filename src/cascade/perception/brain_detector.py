@@ -768,7 +768,9 @@ class BrainDetector(Detector):
         Of the re-mask only the connected components that overlap the naming
         mask are kept (a neighbour the wider prompt takes in is not the
         object). Refused, as a failed re-anchor (one image: nothing moved),
-        when no segmenter is configured, `det` has no mask, SAM gives no mask
+        when no segmenter is configured, `det` has no mask, the naming mask's
+        box overlaps the brain's box by IoU < REANCHOR_MIN_IOU (SAM merged a
+        neighbour into it: checked before the re-mask's SAM call), SAM gives no mask
         or an empty one, no part of it overlaps the naming mask, the kept
         mask's box overlaps the brain's box by IoU < REANCHOR_MIN_IOU, or under
         `reanchor_mask_agreement` of the naming mask's pixels lie within the
@@ -785,6 +787,13 @@ class BrainDetector(Detector):
         named_box = _mask_box(det.mask) if det.mask is not None else None
         if named_box is None:
             return ReanchorReference(None, f"the object has no mask {where}")
+        # M5: a naming mask far past the brain's box took in more than the
+        # object (a neighbour SAM merged with it). Refused before any re-mask.
+        named_iou = _box_iou(named_box, det.bbox)
+        if not named_iou >= REANCHOR_MIN_IOU:
+            return ReanchorReference(None, f"SAM's mask for the brain's box reaches far past that box (box IoU "
+                                           f"{named_iou:.2f} < {REANCHOR_MIN_IOU:g}) {where}: it took in more "
+                                           "than the object")
         prompt_box = _reanchor_prompt(det.bbox, frame.rgb.shape)
         prompt = np.asarray(prompt_box, dtype=np.float32).reshape(1, 4)
         found = self._detections(frame, [det.label], prompt, track=True)

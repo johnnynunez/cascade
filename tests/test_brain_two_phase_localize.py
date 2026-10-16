@@ -1858,3 +1858,37 @@ def test_a_saturated_object_stays_unchanged_under_a_gain_step():
     b.rgb[200:260, 280:360] = 255
     assert _local_diff(a, b, HOME_BOX, (1.1, 1.1, 1.1)) < 0.5
     assert _local_diff(a, b, HOME_BOX) > 5.0, "uncorrected: the step itself"
+
+
+# -- follow-up M5: a naming mask that took in a neighbour is never re-anchored ---
+
+
+def test_a_naming_mask_far_past_the_brains_box_is_a_failed_re_anchor(tp):
+    """M5: SAM's mask for the brain's box (the naming mask) took in a thin
+    neighbour touching the cube (a whole-object SAM): its box overlaps the
+    brain's by IoU ~0.4 < 0.5. Such a mask measures the cube with the
+    neighbour, so it is refused before any re-mask (a failed re-anchor: one
+    fresh refer, then ReanchorError naming it), and the arm never moves."""
+    x0, y0, x1, y1 = HOME_BOX
+    _show(tp, neighbour=(x1, y0 + 27, x1 + 120, y0 + 33, GREEN))  # a 120x6 px bar against the cube's right side
+    tp.brain.region = _red_only
+    tp.sam.default = _whole_objects
+    n0 = _commands(tp)
+    with pytest.raises(tp.mod.ReanchorError, match="mask for the brain's box") as err:
+        tp.rt.skill_grasp_object("red cube")
+    assert "IoU 0.4" in str(err.value), err.value
+    assert _commands(tp) == n0
+    assert tp.brain.refers == 2, "one retry with a fresh refer"
+    assert len(tp.sam.calls) == 2, "the naming masks only: no re-mask, no fresh frame"
+
+
+@pytest.mark.parametrize("k", [1, 3, 8])
+def test_a_whole_object_naming_mask_around_a_tight_box_is_still_re_anchored(tp, k):
+    """M5's benign side: a brain box k px inside the cube with a SAM that
+    returns the whole object: the naming mask reaches past the box on every
+    side (80x60 cube, k = 8: box IoU ~0.6), the object alone. Accepted at
+    once, as before."""
+    tp.brain.region = _tight(HOME_BOX, k)
+    tp.sam.default = _whole_objects
+    _, timings, _ = _as_main(tp, "red cube", "whole", accept=True)
+    assert tp.brain.refers == 1, timings

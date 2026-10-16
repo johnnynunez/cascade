@@ -476,6 +476,83 @@ def test_next_candidate_retries_are_bounded_to_two(monkeypatch):
     assert selection["first_refusal"].startswith("closing fingers occluded by non-target depth")
 
 
+def _count_motions(env):
+    """The harness double counts arm motions as SafetyHarness does
+    (`motions_begun`: once per motion, at its first approved command), and
+    returns the runtime's actuation counts the effects verifier diffs."""
+    h = env.harness
+    h.motions_begun, h.uncounted = 0, False
+
+    def begin(**k):
+        h.uncounted = True
+
+    def end():
+        h.uncounted = False
+
+    def approve(*a, **k):
+        if h.uncounted:
+            h.uncounted = False
+            h.motions_begun += 1
+    h.begin_motion, h.end_motion, h.approve = begin, end, approve
+    return lambda: {"arm_motions": h.motions_begun, "gripper_closes": env.rt._gripper_closes_commanded,
+                    "gripper_opens": env.rt._gripper_opens_completed}
+
+
+def _always_refuse_close(monkeypatch):
+    original = observed_scene.for_runtime
+
+    def make(*args):
+        gate = original(*args)
+
+        def close(state, **kw):
+            raise _precommand("closing fingers occluded by non-target depth", {"injected": True})
+        gate.require_closing = close
+        return gate
+    monkeypatch.setattr(observed_scene, "for_runtime", make)
+
+
+@pytest.mark.parametrize("case", ["next_candidate_grasps", "every_candidate_refused"])
+def test_a_next_candidate_keeps_the_verifier_counts_of_the_call_honest(monkeypatch, case):
+    """The effects verifier diffs the runtime's counts around ONE call
+    (arm motions started, gripper closes completed). Across the next-candidate
+    re-entry: a vetoed close was never sent and is not counted; the next
+    candidate's close stages and the motions of every candidate are. When
+    every candidate is refused before contact the arm moved but no jaw
+    closed: the verdict is neither "no grasp was attempted" nor "the jaw
+    closed"."""
+    from cascade.agent.effects import CONFIRMED, REFUTED, PostconditionChecker
+    single = build(monkeypatch, neighbour=False)
+    single_counts = _count_motions(single)
+    assert grasp(single)["held"] == "cube"
+    yaws = [(k * np.pi / 6, .95 - .01 * k, f"c{k}") for k in range(5)]
+    env = build(monkeypatch, neighbour=False, **({} if case == "next_candidate_grasps" else {"grasps": yaws}))
+    if case == "next_candidate_grasps":
+        _refuse_first_close(monkeypatch)
+    else:
+        _always_refuse_close(monkeypatch)
+    poses = {"cube": TARGET.tolist()}
+    checker = PostconditionChecker(belief_pose=lambda label: poses.get(label),
+                                   gripper_frac=lambda: env.bridge.gripper_pos, actuation=_count_motions(env))
+    before = checker.snapshot("cube")
+    if case == "next_candidate_grasps":
+        result = grasp(env)
+        poses["cube"] = (TARGET + [0., 0., .1]).tolist()
+    else:
+        with pytest.raises(SafetyViolation, match="3 grasp candidates refused before contact") as err:
+            grasp(env)
+        result = {"ok": False, "error": f"SafetyViolation: {err.value}"}
+    acted = checker._actuation_delta(before)
+    sent = [c for c in env.calls if c[0] == "gripper" and c[1] < 1.]
+    assert acted["gripper_closes"] == len(sent) == (2 if case == "next_candidate_grasps" else 0)
+    assert acted["arm_motions"] > single_counts()["arm_motions"] > 0   # the refused candidates moved too
+    pc = checker.verify("grasp_object", {"label": "cube"}, result, before=before)
+    assert "no grasp was attempted" not in pc.evidence
+    if case == "next_candidate_grasps":
+        assert pc.status == CONFIRMED
+    else:
+        assert pc.status == REFUTED and "did not rise" in pc.evidence and "closed" not in pc.evidence
+
+
 def test_measured_finger_refusal_is_not_retried(monkeypatch):
     """A finger that already met an observed surface may have touched it;
     the scene the next candidate would be vetted against is then stale."""
@@ -723,26 +800,41 @@ def test_a_candidate_ranked_last_is_still_tried_when_nothing_else_fits(monkeypat
     assert selection["attempts"] == [{"candidate": 0, "outcome": "grasped"}]
 
 
-def test_ranking_checks_both_jaw_orientations_the_selector_may_execute():
-    """The selector may execute a candidate's jaws-swapped twin (yaw + pi
-    about the approach). A candidate whose TWIN alone comes near a neighbour
-    is ranked last too (a gate double: only the twin's rotation conflicts)."""
+@pytest.mark.parametrize("near, ranked", [("neither", False), ("planned", False), ("twin", False),
+                                           ("both", True)])
+def test_ranking_uses_the_better_jaw_orientation(near, ranked):
+    """The executor may run either jaw orientation (the jaws-swapped twin,
+    yaw + pi about the approach), so a candidate is ranked by the BETTER one:
+    it goes last only when BOTH orientations come near a neighbour. A tilted
+    kitchen candidate whose planned orientation dips 0.2 mm under the table
+    plane while its twin clears it (main executed the twin) keeps its place.
+    A planned orientation that is clear needs no twin queries."""
     from cascade.grasping.observed_scene import neighbour_ranked
     from cascade.grasping.selector import _flip_twin
-    near, far = candidate(0., .9, "near twin"), candidate(np.pi / 4, .8, "far")
-    twin = _flip_twin(near).rotation
+    cand, far = candidate(0., .9, "cand"), candidate(np.pi / 4, .8, "far")
+    rotations = {"planned": [cand.rotation], "twin": [_flip_twin(cand).rotation], "neither": [],
+                 "both": [cand.rotation, _flip_twin(cand).rotation]}[near]
     seen = []
 
     def proximity(T, lateral_m, *, closing=False):
         seen.append(T[:3, :3].copy())
-        return {"surface": "other observed surface"} if np.allclose(T[:3, :3], twin, atol=1e-9) else None
-    gate = SimpleNamespace(neighbour_proximity=proximity)
-    ranked = []
-    order = list(neighbour_ranked([near, far], gate, lateral_m=.01, pregrasp_offset_m=.1,
-                                  ranked_last=lambda i, g, why: ranked.append((i, why))))
-    assert [g.label for g in order] == ["far", "near twin"]
-    assert ranked and ranked[0][0] == 0 and ranked[0][1].startswith("pregrasp fingers within 10 mm")
-    assert any(np.allclose(R, near.rotation) for R in seen)
+        if any(np.allclose(T[:3, :3], R, atol=1e-9) for R in rotations):
+            return {"surface": "other observed surface"}
+        return None
+    ranked_last = []
+    order = list(neighbour_ranked([cand, far], SimpleNamespace(neighbour_proximity=proximity), lateral_m=.01,
+                                  pregrasp_offset_m=.1, ranked_last=lambda i, g, why: ranked_last.append((i, why))))
+    assert [g.label for g in order] == (["far", "cand"] if ranked else ["cand", "far"])
+    assert [i for i, _ in ranked_last] == ([0] if ranked else [])
+    if ranked:
+        assert ranked_last[0][1].startswith("pregrasp fingers within 10 mm of an observed neighbour in both "
+                                            "jaw orientations")
+    mine = seen[:-4]                   # `far` is clear: its planned orientation's 4 queries
+    twin_queried = any(np.allclose(R, _flip_twin(cand).rotation, atol=1e-9) for R in mine)
+    assert twin_queried == (near in ("planned", "both"))   # a near planned orientation consults the twin
+    # Queries before a verdict: clear planned orientation 4; near planned (first query) + twin 4;
+    # both near: one query each.
+    assert len(mine) == {"neither": 4, "twin": 4, "planned": 5, "both": 2}[near]
 
 
 def test_float32_learned_rotations_are_ranked_not_refused(monkeypatch):
@@ -829,15 +921,16 @@ def _tilted_scene_gate(monkeypatch, cands):
 
 
 def _lowest_finger_z(gate, grasp_):
-    """Oracle: lowest base z of either jaw orientation's open or closing
-    finger volume at the grasp pose."""
+    """Oracle: lowest base z of the open or closing finger volume at the
+    grasp pose, in the candidate's BETTER jaw orientation (the higher of the
+    two orientations' lowest points: the ranking judges the better one)."""
     from cascade.grasping.selector import _flip_twin
-    lows = []
+    best = []
     for g in (grasp_, _flip_twin(grasp_)):
         R = np.asarray(g.rotation, float)
-        for envelopes in (gate.envelopes, gate.closing_envelopes):
-            lows.append(min(float(np.min(c @ R[2])) for c in _finger_corners(envelopes)))
-    return min(lows) + float(grasp_.position[2])
+        best.append(min(float(np.min(c @ R[2])) for envelopes in (gate.envelopes, gate.closing_envelopes)
+                        for c in _finger_corners(envelopes)))
+    return max(best) + float(grasp_.position[2])
 
 
 def test_table_is_not_a_neighbour_for_tilted_low_grasps(monkeypatch):
@@ -845,7 +938,9 @@ def test_table_is_not_a_neighbour_for_tilted_low_grasps(monkeypatch):
     tilted 5-18 deg with the TCP 10 mm above the table. Moving the finger
     planes out horizontally also reached up to lateral * sin(2 tilt) BELOW a
     tilted finger, so the table ranked such candidates last. Every candidate
-    whose fingers stay above the table now keeps its planned place."""
+    whose fingers stay above the table in either jaw orientation keeps its
+    planned place (t0: planned orientation 0.2 mm under the table plane, its
+    twin above it)."""
     cands = tilted_set(32, z=.010)
     env, gate = _tilted_scene_gate(monkeypatch, cands)
     ranked = []
@@ -853,12 +948,16 @@ def test_table_is_not_a_neighbour_for_tilted_low_grasps(monkeypatch):
                                          ranked_last=lambda i, g, why: ranked.append(i)))
     above = [i for i, g in enumerate(cands) if _lowest_finger_z(gate, g) > 0.]
     assert len(above) >= 20                      # precondition: most of the set clears the table
+    assert 0 in above                            # precondition: t0, the better orientation clears it
     assert sorted(set(ranked) & set(above)) == []
 
 
-# Measured on main (ad4786f) with the same scene and doubles: the candidate
-# executed, all bridge calls and the joint targets streamed.
-_TILTED_MAIN = {1: ("t1", 287, 58), 12: ("t12", 271, 54), 15: ("t15", 271, 54), 18: ("t18", 279, 56)}
+# Measured on main (ad4786f, again on c9f8465) with the same scene and
+# doubles: the candidate executed, all bridge calls and the joint targets
+# streamed. Main executes t0 as its jaws-swapped twin (t0's planned
+# orientation dips 0.2 mm under the table plane, the twin clears it).
+_TILTED_MAIN = {0: ("t0", 275, 55), 1: ("t1", 287, 58), 12: ("t12", 271, 54), 15: ("t15", 271, 54),
+                18: ("t18", 279, 56)}
 
 
 @pytest.mark.parametrize("top", sorted(_TILTED_MAIN))
@@ -904,8 +1003,10 @@ def test_ranking_stops_after_the_candidate_limit_and_keeps_planned_order(monkeyp
 
 def test_ranking_stops_after_its_time_slice():
     """The ranking's own work is capped (checked before every query): with
-    50 ms per query and a 0.3 s slice, six queries run, the unfinished
-    candidate and every later one keep their planned order unranked."""
+    50 ms per query and a 0.3 s slice, six queries run. c0 is clear in its
+    planned jaw orientation after four (ranked; its twin is not queried), c1
+    is unfinished after two more: it and every later one keep their planned
+    order unranked."""
     from cascade.grasping.observed_scene import NeighbourRanking
     now = [0.]
 
@@ -916,7 +1017,7 @@ def test_ranking_stops_after_its_time_slice():
                                pregrasp_offset_m=.1, max_candidates=32, time_slice_s=.3, clock=lambda: now[0])
     planned = [candidate(k * .1, .9, f"c{k}") for k in range(5)]
     assert [g.label for g in ranking.order(planned)] == [g.label for g in planned]
-    assert ranking.summary() == {"ranked": 0, "queries": 6, "ranking_s": .3, "stopped": "time slice of 0.3 s"}
+    assert ranking.summary() == {"ranked": 1, "queries": 6, "ranking_s": .3, "stopped": "time slice of 0.3 s"}
 
 
 def test_next_candidate_reuses_the_first_ranking(monkeypatch):

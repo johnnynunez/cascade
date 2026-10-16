@@ -533,11 +533,16 @@ class NeighbourRanking:
     """Bounded neighbour ranking of ONE grasp's candidates (ranking only).
 
     A candidate whose fingers come within `lateral_m` of an observed
-    neighbour goes after every other candidate. Both jaw orientations are
-    checked (the selector may execute either), at the pregrasp, mid-descent
-    and grasp poses with open fingers and at the grasp pose with the closing
-    stroke. Every candidate is still yielded: the selector's exact checks
-    (IK, harness, the observed-finger vet) admit or drop it as before.
+    neighbour goes after every other candidate, checked at the pregrasp,
+    mid-descent and grasp poses with open fingers and at the grasp pose with
+    the closing stroke. The executor may run either jaw orientation (the
+    jaws-swapped twin), so a candidate is judged by its BETTER one: it goes
+    last only when BOTH orientations come that close (a tilted grasp whose
+    planned orientation dips under the table plane while its twin clears it
+    keeps its place; main executed the twin). The twin is queried only when
+    the planned orientation comes close. Every candidate is still yielded:
+    the selector's exact checks (IK, harness, the observed-finger vet) admit
+    or drop it as before.
 
     The work is bounded so the choice stays inside the approach deadline: at
     most `max_candidates` candidates are ranked and ranking stops once its own
@@ -585,8 +590,9 @@ class NeighbourRanking:
             return None, False  # the selector's own checks decide; nothing to rank on
         approach = approach / norm
         twin = (2. * np.outer(approach, approach) - np.eye(3)) @ rotation  # selector._flip_twin
-        reason = None
+        near = []  # (phase, conflict) of each orientation that comes close
         for R in (rotation, twin):
+            hit = None
             for phase, offset, closing in (("pregrasp", self.pregrasp_offset_m, False),
                                            ("descent", self.pregrasp_offset_m / 2, False),
                                            ("grasp", 0., False), ("closing", 0., True)):
@@ -603,11 +609,16 @@ class NeighbourRanking:
                 self.seconds += max(0., self._now() - started)
                 self.queries += 1
                 if conflict:
-                    reason = (f"{phase} fingers within {self.lateral_m * 1000:.0f} mm of an observed "
-                              f"neighbour: {conflict}")
+                    hit = (phase, conflict)
                     break
-            if reason:
-                break
+            if hit is None:
+                break  # this orientation is clear: the better one decides
+            near.append(hit)
+        reason = None
+        if len(near) == 2:
+            (phase, conflict), (twin_phase, _) = near
+            reason = (f"{phase} fingers within {self.lateral_m * 1000:.0f} mm of an observed neighbour in "
+                      f"both jaw orientations (swapped: {twin_phase}): {conflict}")
         self.ranked += 1
         self._verdicts[id(grasp)] = (grasp, reason)
         return reason, True

@@ -17,10 +17,17 @@ attachment: "do not invent an empty-tool recovery"), with a latched e-stop or
 a halt received since the grasp started (a halt during the close included).
 A contact, a halt or an e-stop during the exit ends it at once and propagates
 as the structured exception, after the column is released; any other refusal
-stays in the outcome string. Only a preflight refusal (SkillError) or an
-unreachable lift moves on to the next height.
+stays in the outcome string (unless a halt landed in the same move). Only a
+preflight refusal (SkillError) or an unreachable lift moves on to the next
+height.
 
-Every test runs the real runtime with the mock arm (no hardware, no GPU).
+An operator stop during the close ends the grasp skill (A3 review round 2;
+pre-existing on main): the grasp's own lift carries the grasp-start halt
+generation, and the persistence loops around grasp_object never re-home,
+re-scan or try again after a halt or an e-stop; a halt reaches execute().
+
+Every test runs the real runtime with the mock arm and analytic (OBB) grasps
+(no hardware, no GPU, never the host's GraspGen-X server).
 """
 from __future__ import annotations
 
@@ -41,6 +48,7 @@ from cascade.skills.runtime import SkillRuntime
 from cascade.types import ContactDetected, MotionHalted, SafetyViolation, SkillError
 from conftest import needs_pin
 from occupancy_grid_bridge import TABLE, GridBridge, centred_box, depth_frame, make_map
+from owned_server import held_dead_port
 from test_b36_pick_recovery import _fail_first_lift
 
 pytestmark = needs_pin
@@ -53,13 +61,17 @@ CEILING_M = 0.005
 @pytest.fixture
 def rt(tmp_path, monkeypatch):
     monkeypatch.setenv("CASCADE_OCCUPANCY", "0")
-    cfg = load_demo_config(camera="mock", arm="mock", llm="mock")
-    runtime, arm = build_runtime(cfg, tmp_path / "run", view=False, serve=False)
-    arm.object_stop_frac = None  # nothing stops the jaws: every close is an air grasp
-    try:
-        yield runtime
-    finally:
-        shutdown_runtime(runtime, arm)
+    # Analytic grasps only: never the host's GraspGen-X server (a held dead port).
+    monkeypatch.setenv("CASCADE_GRASP_BACKEND", "obb")
+    with held_dead_port() as port:
+        monkeypatch.setenv("CASCADE_GRASPGENX_PORT", str(port))
+        cfg = load_demo_config(camera="mock", arm="mock", llm="mock")
+        runtime, arm = build_runtime(cfg, tmp_path / "run", view=False, serve=False)
+        arm.object_stop_frac = None  # nothing stops the jaws: every close is an air grasp
+        try:
+            yield runtime
+        finally:
+            shutdown_runtime(runtime, arm)
 
 
 def tcp(rt, q=None):
@@ -454,6 +466,25 @@ def test_a_refusal_that_is_not_a_stop_stays_in_the_outcome(rt, reason):
     assert len(calls) == 1 and commands(rt) == n0 and rt.arm.harness._grasp_exempt is None
 
 
+@pytest.mark.parametrize("cleared", [False, True], ids=["halted", "halt cleared"])
+def test_a_halt_that_lands_with_a_refusal_is_raised(rt, cleared):
+    """A lift refused for another reason (the route became unsafe) while the
+    operator's halt arrived in the same move: the halt propagates, it is not
+    folded into a "refused" string."""
+    harness = rt.arm.harness
+
+    def refused_under_a_halt(q):
+        harness.halt("operator")
+        if cleared:
+            harness.clear_halt()      # withdrawn again: only its generation remains
+        raise SafetyViolation("planned route became unsafe: point 3 clearance 0.010 m below 0.030 m")
+
+    calls, n0 = [], commands(rt)
+    with pytest.raises(MotionHalted, match="^halt received$" if cleared else "^motion halted: operator$"):
+        rt._air_grasp_exit(column_at_tcp(rt), planned(rt, calls, refused_under_a_halt))
+    assert len(calls) == 1 and commands(rt) == n0 and harness._grasp_exempt is None
+
+
 @pytest.mark.parametrize("stop", ["e-stop", "halt"])
 def test_a_stop_during_a_refused_first_lift_never_tries_6cm(rt, stop):
     harness = rt.arm.harness
@@ -523,32 +554,6 @@ def test_a_contact_during_the_exit_reaches_the_result_with_its_record(rt, monkey
     assert harness._grasp_exempt is None
 
 
-def test_a_halt_during_the_close_stops_the_exit(rt, monkeypatch):
-    """STOP pressed while the jaws close: the lift back to the hover is the
-    grasp's own, but no NEW motion (the exit) starts after it."""
-    harness, real_close = rt.arm.harness, SkillRuntime._grasp_close
-
-    def close(self, *a, **kw):
-        out = real_close(self, *a, **kw)
-        harness.halt("operator")
-        return out
-
-    monkeypatch.setattr(SkillRuntime, "_grasp_close", close)
-    moved, real_exit = [], rt._air_grasp_exit
-
-    def spy(column, move, **kw):
-        n0 = commands(rt)
-        try:
-            return real_exit(column, move, **kw)
-        finally:
-            moved.append(commands(rt) - n0)
-
-    monkeypatch.setattr(rt, "_air_grasp_exit", spy)
-    res = rt.skill_grasp_object("red cube")
-    assert res["exit_withdrawal"] == "skipped: halt received" and moved == [0]
-    assert res["error"] == AIR
-
-
 def test_a_halt_while_the_exit_solves_its_lift_moves_nothing(rt, monkeypatch):
     """A halt after the exit's own stop check: its move carries the grasp's
     halt generation and refuses before the first command."""
@@ -600,6 +605,173 @@ def test_the_exit_phase_is_recorded_only_when_the_exit_runs(rt, monkeypatch, ran
 def test_the_exit_lifts_are_the_route_planners_lifts():
     assert SkillRuntime.AIR_GRASP_EXIT_LIFTS_M is trajectory.ROUTE_LIFT_HEIGHTS_M
     assert trajectory.ROUTE_LIFT_HEIGHTS_M == (0.03, 0.06)
+
+
+# ── an operator stop during the close ends the grasp (A3 review, round 2) ───
+#
+# Pre-existing on main: on the mapping-only path the grasp's own lift after the
+# close cleared a halt raised during the close (`begin_motion`), and the
+# persistence loops then re-homed and retried after an operator STOP.
+
+
+def stop_during_the_close(rt, monkeypatch, stop):
+    """Press STOP (`halt`) or the e-stop while the jaws close. Returns the arm
+    command count at the end of every close."""
+    harness, real_close = rt.arm.harness, SkillRuntime._grasp_close
+    after_close = []
+
+    def close(self, *a, **kw):
+        out = real_close(self, *a, **kw)
+        harness.halt("operator") if stop == "halt" else harness.estop("operator")
+        after_close.append(commands(rt))
+        return out
+
+    monkeypatch.setattr(SkillRuntime, "_grasp_close", close)
+    return after_close
+
+
+def recovery_spies(rt, monkeypatch):
+    """Count grasp attempts, re-homes and re-scans; each spy calls the real one."""
+    seen = {"grasps": 0, "homes": 0, "rescans": 0}
+    for name, key in (("skill_grasp_object", "grasps"), ("skill_move_home", "homes"),
+                      ("_reobserve", "rescans")):
+        def spy(*a, _real=getattr(rt, name), _key=key, **k):
+            seen[_key] += 1
+            return _real(*a, **k)
+
+        monkeypatch.setattr(rt, name, spy)
+    return seen
+
+
+#: the halt the grasp's own lift meets (begin_motion with the grasp-start generation)
+LIFT_HALT = "halt received during route planning or execution"
+
+
+def stop_error(res, stop, halt=f"MotionHalted: {LIFT_HALT}"):
+    """The execute() result carries the stop: the propagated halt (the
+    original exception, as is), or the latched e-stop."""
+    assert res["ok"] is False, res
+    if stop == "halt":
+        assert res["error"] == halt, res["error"]
+    else:
+        assert "e-stop latched" in res["error"], res["error"]
+
+
+GRASP = ("grasp_object", {"label": "red cube"})
+HANDOVER = ("handover", {"label": "red cube"})            # _grasp_with_persistence
+PICK = ("pick_and_place", {"object": "red cube"})         # its own persistence loop
+
+
+@pytest.mark.parametrize("stop", ["halt", "e-stop"])
+def test_a_stop_during_the_close_ends_the_grasp_before_its_lift(rt, monkeypatch, stop):
+    """STOP (or the e-stop) while the jaws close: the grasp's own lift back to
+    the hover carries the grasp-start halt generation, is refused before its
+    first command, and the stop propagates. The exit never runs."""
+    after_close = stop_during_the_close(rt, monkeypatch, stop)
+    exits = []
+    monkeypatch.setattr(rt, "_air_grasp_exit", lambda *a, **kw: exits.append(a) or "completed (+3 cm)")
+    expected = (MotionHalted, f"^{LIFT_HALT}$") if stop == "halt" else (SafetyViolation, "^e-stop latched$")
+    with pytest.raises(expected[0], match=expected[1]) as info:
+        rt.skill_grasp_object("red cube")
+    assert isinstance(info.value, MotionHalted) == (stop == "halt")
+    assert len(after_close) == 1 and commands(rt) == after_close[0] and exits == []
+    harness = rt.arm.harness
+    assert harness.halted == ("operator" if stop == "halt" else None)   # no motion cleared it
+    assert rt._held_provisional is not None     # the jaws' state is reconciled by the next skill
+    harness.reset_estop()
+
+
+@pytest.mark.parametrize("stop", ["halt", "e-stop"])
+@pytest.mark.parametrize("skill, args", [GRASP, HANDOVER, PICK], ids=["grasp_object", "handover", "pick_and_place"])
+def test_a_stop_during_the_close_ends_the_skill(rt, monkeypatch, skill, args, stop):
+    """Through execute(): one attempt, no re-home, no re-scan, no command
+    after the close, and the result names the stop."""
+    after_close = stop_during_the_close(rt, monkeypatch, stop)
+    seen = recovery_spies(rt, monkeypatch)
+    res = rt.execute(skill, args)
+    stop_error(res, stop)
+    assert seen == {"grasps": 1, "homes": 0, "rescans": 0}
+    assert len(after_close) == 1 and commands(rt) == after_close[0]
+    rt.arm.harness.reset_estop()
+
+
+@pytest.mark.parametrize("stop", ["halt", "e-stop"])
+def test_a_stop_during_the_close_never_rehomes_a_scene_move(rt, monkeypatch, stop):
+    """`_move_object_to` (restore_scene, search_for_object) re-homes after a
+    failed grasp: not after an operator stop."""
+    after_close = stop_during_the_close(rt, monkeypatch, stop)
+    seen = recovery_spies(rt, monkeypatch)
+    if stop == "halt":
+        with pytest.raises(MotionHalted, match=f"^{LIFT_HALT}$"):
+            rt._move_object_to("red cube", (0.30, 0.10), budget_s=30.0, kind="park")
+    else:
+        rec = rt._move_object_to("red cube", (0.30, 0.10), budget_s=30.0, kind="park")
+        assert rec["ok"] is False and "e-stop latched" in rec["error"]
+    assert seen == {"grasps": 1, "homes": 0, "rescans": 0}
+    assert len(after_close) == 1 and commands(rt) == after_close[0]
+    rt.arm.harness.reset_estop()
+
+
+@pytest.mark.parametrize("stop", ["halt", "e-stop", "e-stop raised"])
+def test_a_stop_ends_sort_by_color_before_the_next_object(rt, monkeypatch, stop):
+    """sort_by_color grasps object after object: a stop during one ends the sort."""
+    harness, calls = rt.arm.harness, []
+    cubes = [SimpleNamespace(label="red cube", color="red", position=np.array([.29, .0, .037])),
+             SimpleNamespace(label="blue cube", color="blue", position=np.array([.29, .08, .037]))]
+    monkeypatch.setattr(rt.beliefs, "all", lambda: list(cubes))
+
+    def grasp(query, **kw):
+        calls.append(query)
+        if stop == "halt":
+            harness.halt("operator")
+            raise MotionHalted(LIFT_HALT)
+        harness.estop("operator")
+        if stop == "e-stop raised":
+            raise SafetyViolation("e-stop latched")
+        return {"ok": False, "held": False, "error": "SafetyViolation: e-stop latched (e-stop latched; not retrying)"}
+
+    monkeypatch.setattr(rt, "_grasp_with_persistence", grasp)
+    seen = recovery_spies(rt, monkeypatch)
+    res = rt.execute("sort_by_color", {})
+    stop_error(res, "halt" if stop == "halt" else "e-stop")
+    assert calls == ["red red cube"] and seen["homes"] == 0
+    harness.reset_estop()
+
+
+@pytest.mark.parametrize("cleared", [False, True], ids=["halted", "halt cleared"])
+@pytest.mark.parametrize("skill, args", [HANDOVER, PICK], ids=["handover", "pick_and_place"])
+def test_an_exit_skipped_by_a_halt_ends_the_persistence(rt, monkeypatch, skill, args, cleared):
+    """A halt after the grasp's lift (while the jaws are checked): the exit is
+    skipped, and the persistence loop neither re-homes nor tries again."""
+    harness, real_exit, outcomes, at_exit = rt.arm.harness, rt._air_grasp_exit, [], []
+
+    def halting_exit(column, move, **kw):
+        harness.halt("operator")
+        if cleared:
+            harness.clear_halt()     # withdrawn again (a Resume): only its generation remains
+        at_exit.append(commands(rt))
+        outcomes.append(real_exit(column, move, **kw))
+        return outcomes[-1]
+
+    monkeypatch.setattr(rt, "_air_grasp_exit", halting_exit)
+    seen = recovery_spies(rt, monkeypatch)
+    res = rt.execute(skill, args)
+    assert outcomes == ["skipped: halt received" if cleared else "skipped: motion halted: operator"]
+    stop_error(res, "halt", halt="MotionHalted: " + ("halt received during the grasp; not retrying" if cleared
+                                                    else "motion halted: operator; not retrying"))
+    assert seen == {"grasps": 1, "homes": 0, "rescans": 0}
+    assert commands(rt) == at_exit[0]
+
+
+@pytest.mark.parametrize("skill, args, homes", [(*HANDOVER, 1), (*PICK, 2)], ids=["handover", "pick_and_place"])
+def test_a_failed_grasp_without_a_stop_still_retries(rt, monkeypatch, skill, args, homes):
+    """Pin: an air grasp without any stop keeps today's persistence (re-home,
+    re-scan, a fresh attempt; pick_and_place also parks after its last)."""
+    rt.cfg.grasp._data["max_pick_attempts"] = 2
+    seen = recovery_spies(rt, monkeypatch)
+    res = rt.execute(skill, args)
+    assert res["ok"] is False and AIR in res["error"], res
+    assert seen == {"grasps": 2, "homes": homes, "rescans": 1}
 
 
 # ── a refused or unreachable +3 cm lift tries +6 cm ─────────────────────────

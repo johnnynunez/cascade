@@ -1734,6 +1734,31 @@ class SkillRuntime:
             return "object wider than the jaws; use push_object; giving up early"
         return None
 
+    def _halt_generation_now(self):
+        """The harness's halt generation now: the baseline a composite grasp
+        skill takes at its start for `_end_on_halt`."""
+        return getattr(getattr(self.arm, "harness", None), "_halt_generation", None)
+
+    def _end_on_halt(self, halt_generation) -> None:
+        """Raise MotionHalted if the operator's halt arrived since
+        `halt_generation` (taken when a composite grasp skill started).
+
+        A halt ends the whole skill, not only the motion in flight: the
+        persistence loops (pick_and_place, `_grasp_with_persistence` and the
+        composites around it) never re-home, re-scan or try again after one,
+        and the halt reaches execute() (A3 review). Their re-home's
+        begin_motion used to clear the halt, so the arm went on after an
+        operator STOP. The generation also catches a halt cleared again (a
+        Resume) and an air grasp whose exit the halt skipped. An e-stop needs
+        no check here: `_grasp_retry_verdict` stops on the latch, and the
+        harness refuses every command under it."""
+        harness = getattr(self.arm, "harness", None)
+        if halt_generation is None or getattr(harness, "_halt_generation", None) == halt_generation:
+            return
+        reason = getattr(harness, "halted", None)
+        raise MotionHalted(f"motion halted: {reason}; not retrying" if reason
+                           else "halt received during the grasp; not retrying")
+
     def _held_after_failed_attempt(self, object: str) -> tuple[bool, str] | None:
         """B36: after a grasp attempt FAILED, ask the jaws whether the close
         took the object anyway. Returns None when nothing is held (the retry
@@ -1779,6 +1804,7 @@ class SkillRuntime:
         last_err = "grasp failed"
         attempt = 0
         stop = None  # why the loop stopped early (None = budget spent)
+        halt_generation = self._halt_generation_now()  # an operator halt since now ends it
         while attempt < max_attempts:
             attempt += 1
             if attempt > 1:
@@ -1796,11 +1822,14 @@ class SkillRuntime:
                 res = self.skill_grasp_object(object, material=material,
                     **({"_planning_deadline": deadline}
                        if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1" else {}))
+            except MotionHalted:
+                raise  # the operator's halt ends this skill: no re-home, no retry
             except (SkillError, SafetyViolation) as e:
                 res = {"ok": False, "error": f"{type(e).__name__}: {e}"}
             if res.get("ok", True) and res.get("held"):
                 res["grasp_attempts"] = attempt
                 return res
+            self._end_on_halt(halt_generation)
             last_err = str(res.get("error", "grasp failed"))
             if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1":
                 return {**res, "ok": False, "home_skipped": True, "grasp_attempts": attempt,
@@ -3523,9 +3552,12 @@ class SkillRuntime:
                 from ..planning.runtime import contact_lift_target
                 q_lift = contact_lift_target(self.kin, close_state.q, q_pre)
             grasp_evidence.event("move_target", q=q_lift, duration_s=lift_dur)
+            # A halt since this grasp started (the close included) refuses the
+            # lift before its first command, on every path: without the
+            # baseline, begin_motion would clear a halt raised during the close
+            # and the arm would rise after an operator STOP (A3 review).
             if not self._move_carry(q_lift, duration_s=lift_dur,
-                    _linear_tool_path=True,
-                    **({"_halt_generation": scene_halt_generation} if scene_enabled else {})):
+                    _linear_tool_path=True, _halt_generation=scene_halt_generation):
                 raise SkillError("did not settle at grasp lift pose")
             contact_completed = True
         except (SkillError, SafetyViolation) as exc:
@@ -3681,10 +3713,11 @@ class SkillRuntime:
         on to the next height. A stop ends the exit at once and propagates
         after the column is released: a contact, a halt or a SafetyViolation
         under a latched e-stop as the original exception; an e-stop or a
-        halt seen after a refused lift as SafetyViolation("e-stop latched")
-        / MotionHalted. Any other SafetyViolation (a route that became
-        unsafe, the perception watchdog) and a move that does not settle end
-        it with a string.
+        halt seen after a refused lift (or that landed in the same move as
+        any other SafetyViolation) as SafetyViolation("e-stop latched") /
+        MotionHalted. Any other SafetyViolation (a route that became unsafe,
+        the perception watchdog) and a move that does not settle end it with
+        a string.
 
         Nothing moves with a possible payload (`_held_provisional`, an active
         carry attachment): no empty-tool recovery is invented for jaws that
@@ -3714,6 +3747,10 @@ class SkillRuntime:
                 return "halt received"
             return None
 
+        def stop_exception(stop):
+            return (SafetyViolation(stop) if getattr(harness, "estopped", False)
+                    else MotionHalted(stop))
+
         stop = stopped()
         if stop:
             return f"skipped: {stop}"
@@ -3740,7 +3777,14 @@ class SkillRuntime:
                     except SafetyViolation as exc:
                         if not (isinstance(exc, (ContactDetected, MotionHalted))
                                 or getattr(harness, "estopped", False)):
-                            return f"refused: {lift}: {exc}"
+                            # A halt that landed in the same move is a stop,
+                            # not a refusal: it is raised, never a string.
+                            stop = stopped()
+                            if not stop:
+                                return f"refused: {lift}: {exc}"
+                            stop_error = stop_exception(stop)
+                            stop_error.__cause__ = exc
+                            break
                         stop_error = exc
                         break
                     else:
@@ -3748,8 +3792,7 @@ class SkillRuntime:
                 # An e-stop or a halt that arrived while this lift was refused.
                 stop = stopped()
                 if stop:
-                    stop_error = (SafetyViolation(stop) if getattr(harness, "estopped", False)
-                                  else MotionHalted(stop))
+                    stop_error = stop_exception(stop)
                     break
         if stop_error is not None:
             raise stop_error   # after the column is released, as the original
@@ -4664,6 +4707,8 @@ class SkillRuntime:
         persistence budget (grasp.persist_seconds / grasp.max_pick_attempts)
         runs out. No LLM in the loop; this is the reflex the web chat calls
         for "pick and place pink object"."""
+        # An operator halt from here on ends the grasp stage (`_end_on_halt`).
+        halt_generation = self._halt_generation_now()
         try:
             carry_attachment.check(self)
             self._reconcile_held()
@@ -4788,6 +4833,8 @@ class SkillRuntime:
                     res = self.skill_grasp_object(object, material=material,
                         **({"_planning_deadline": deadline}
                            if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1" else {}))
+                except MotionHalted:
+                    raise  # the operator's halt ends this skill: no re-home, no retry
                 except (SkillError, SafetyViolation) as e:
                     if isinstance(e, carry_attachment.AttachmentInvalid):
                         return carry_attachment.failure_result(self, e,
@@ -4802,6 +4849,7 @@ class SkillRuntime:
                 if res.get("ok", True) and res.get("held"):
                     grasp = res
                     break
+                self._end_on_halt(halt_generation)
                 last_err = str(res.get("error", "grasp failed"))
                 if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1":
                     return {**failure_destination, "ok": False, "stage": "grasp",
@@ -4841,7 +4889,8 @@ class SkillRuntime:
             if grasp is None:
                 # Never leave the arm hanging mid-pose over the table after a
                 # failed attempt -- park it (best effort, nothing is held).
-                if not self._home_policy_enabled():
+                # Not under a latched e-stop: the operator stopped the arm.
+                if not self._home_policy_enabled() and not self._estopped():
                     try:
                         self.skill_move_home()
                     except (SkillError, SafetyViolation):
@@ -5439,14 +5488,20 @@ class SkillRuntime:
                 # not eat the whole sort
                 res = self._grasp_with_persistence(
                     query, budget_s=float(self.cfg.grasp.get("sort_object_persist_seconds", 40.0)))
+            except MotionHalted:
+                raise  # the operator's halt ends the sort, not just this object
             except (SkillError, SafetyViolation) as e:
                 failed.append({"label": query, "error": str(e)})
+                if self._estopped():
+                    break  # the operator stopped the arm: no next object
                 continue
             if not res.get("ok", True) or not res.get("held"):
                 entry = {"label": query, "error": str(res.get("error", "?"))}
                 if res.get("outcome") == OUTCOME_STUCK:
                     entry["ask"] = str(res.get("ask") or "")
                 failed.append(entry)
+                if self._estopped():
+                    break  # the operator stopped the arm: no next object
                 continue
             try:
                 self.skill_place_at(zx, zy)
@@ -5613,12 +5668,14 @@ class SkillRuntime:
         before = self.effects.snapshot(query) if self.effects is not None else {}
         try:
             res = self._grasp_with_persistence(query, budget_s=budget_s)
+        except MotionHalted:
+            raise  # the operator's halt ends the composite: no re-home (A3 review)
         except (SkillError, SafetyViolation) as e:
             res = {"ok": False, "held": False, "error": f"{type(e).__name__}: {e}"}
         rec["grasp_attempts"] = res.get("grasp_attempts")
         if not res.get("ok", True) or not res.get("held"):
             rec["error"] = f"grasp: {res.get('error', 'grasp failed')}"
-            if not res.get("home_skipped"):
+            if not res.get("home_skipped") and not self._estopped():
                 try:  # never leave the arm over the table after a failed attempt
                     self.skill_move_home()
                 except (SkillError, SafetyViolation):

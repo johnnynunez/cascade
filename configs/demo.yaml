@@ -161,6 +161,8 @@ grasp:
   # of the highest occupied voxel in the target's own column, + half a voxel),
   # raised by at most 2 cm. The hover only ever rises; no map, a stale or
   # failed map, or an empty column keep the observed top. false = observed top.
+  # The half voxel counts at most 5 mm. A raised hover that is unreachable or
+  # refused falls back to the observed-top hover before pregrasp_offset_m.
   pregrasp_map_top: false
   depth_fraction: 0.15      # grasp this far down from the object's TOP. Low
                             # value = grasp near the top face, which keeps the

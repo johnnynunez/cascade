@@ -116,20 +116,29 @@ def _column_geometry(gcfg, harness, center_xy, points) -> tuple | None:
 #: observed top. The recorded gaps were 0.2-0.9 cm (NVBLOX.md measured ~1.5 cm
 #: on a cup); one residue voxel must not push the hover out of reach.
 MAP_TOP_RAISE_CAP_M = 0.02
+#: Bound on the half-voxel term added to the map's hover. The rig's voxels
+#: are 1 cm (+5 mm, the full half voxel); a coarse bridge (5 cm voxels) must
+#: not add +2.5 cm on top of the 2 cm cap.
+MAP_TOP_HALF_VOXEL_CAP_M = 0.005
 
 
-def _pregrasp_min_z(gcfg, harness, fix) -> float | None:
+def _pregrasp_min_z(gcfg, harness, fix) -> float | tuple[float, float] | None:
     """Lowest pregrasp TCP z for a top-down approach (select_grasp's
     `pregrasp_min_z`), or None (off: the fixed `pregrasp_offset_m`).
 
     `grasp.pregrasp_clear_top_m` null -> None. Otherwise the hover clears
-    the object's observed top by that much. With `grasp.pregrasp_map_top`
-    (opt-in per profile) it counts from the target's top in the occupancy
-    MAP when that is higher: the top face of the highest occupied voxel in
-    the target's own column (`_column_geometry` around the fix XY),
-    raised by at most MAP_TOP_RAISE_CAP_M, plus half a voxel. The hover only
-    ever rises compared with the observed top; no map, a stale or failed map
-    or an empty column keep it there. The harness still vets the result.
+    the object's observed top by that much (today's hover, a float). With
+    `grasp.pregrasp_map_top` (opt-in per profile) it counts from the
+    target's top in the occupancy MAP when that is higher: the top face of
+    the highest occupied voxel in the target's own column
+    (`_column_geometry` around the fix XY), raised by at most
+    MAP_TOP_RAISE_CAP_M, plus half a voxel (at most
+    MAP_TOP_HALF_VOXEL_CAP_M). A raised hover comes back as the ladder
+    (map hover, today's hover): select_grasp tries the map hover first and
+    falls back to today's hover before the fixed offset, so the pose that
+    executes is never lower than today's. No map, a stale or failed map, an
+    empty column or a non-finite answer keep today's hover. The harness
+    still vets the result.
     """
     clear_top = gcfg.get("pregrasp_clear_top_m")
     if clear_top is None:
@@ -150,7 +159,11 @@ def _pregrasp_min_z(gcfg, harness, fix) -> float | None:
     if found is None:
         return hover
     map_top, voxel = found
-    return hover + min(max(float(map_top) - top, 0.0), MAP_TOP_RAISE_CAP_M) + float(voxel) / 2.0
+    lift = (min(max(float(map_top) - top, 0.0), MAP_TOP_RAISE_CAP_M)
+            + min(float(voxel) / 2.0, MAP_TOP_HALF_VOXEL_CAP_M))
+    if not lift > 0.0:   # also NaN: a non-finite map answer keeps today's hover
+        return hover
+    return (hover + lift, hover)
 
 
 def _column_kw(column) -> dict:
@@ -3227,8 +3240,9 @@ class SkillRuntime:
         from ..grasping.selector import NoExecutableGrasp
         # Opt-in: pregrasp (and so the lift) at least this far above the
         # object's top (observed, or as mapped with grasp.pregrasp_map_top),
-        # so the jaws leave it before the exemption closes. See
-        # select_grasp(pregrasp_min_z=...) and _pregrasp_min_z.
+        # so the jaws leave it before the exemption closes. A map-raised
+        # hover is a ladder (map hover, today's hover): never executed lower
+        # than today's. See select_grasp(pregrasp_min_z=...) and _pregrasp_min_z.
         pregrasp_min_z = _pregrasp_min_z(gcfg, harness, fix)
         try:
             for batch in range(1 if search is None else search.max_batches):

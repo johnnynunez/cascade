@@ -114,7 +114,8 @@ overrides:
     # On the rig the map's top of a target sat 0.2-0.9 cm above the observed
     # top, so the +3 cm counts from the map's top (pregrasp_map_top: raise
     # capped at 2 cm, + half a voxel; a stale map or an empty column keeps
-    # the observed top).
+    # the observed top). If that raised hover is unreachable or refused, the
+    # observed-top hover is tried before the fixed offset.
     pregrasp_clear_top_m: 0.03
     pregrasp_map_top: true
 

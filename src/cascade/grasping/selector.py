@@ -58,7 +58,7 @@ def select_grasp(
     jaw_close_dir=None,
     check=None,
     preserve_order: bool = False,
-    pregrasp_min_z: float | None = None,
+    pregrasp_min_z: float | tuple[float, ...] | None = None,
     parallel_jaw_symmetry: bool | None = None,
 ) -> tuple[Grasp, np.ndarray, np.ndarray]:
     """-> (grasp, q_pregrasp, q_grasp) for the best executable candidate.
@@ -113,6 +113,16 @@ def select_grasp(
     offset left the fingertips at the 9.3 cm rim after the lift, inside the
     occupancy margin, and every motion home was refused. A raised pregrasp
     that fails IK or validation falls back to `pregrasp_offset_m`.
+
+    `pregrasp_min_z` may also be a LADDER: a tuple of candidate heights,
+    tried highest first; the first that passes IK and validation wins, and
+    only when all fail does the pregrasp fall to `pregrasp_offset_m`. The
+    runtime passes (hover from the map's top, hover from the observed top)
+    so a map hover that misses IK or vetting executes the observed-top
+    hover, never lower (spec §3.2 rule 4). With a ladder, an orientation on
+    a hover rung also beats its jaws-swapped twin at the fixed offset
+    whatever their travel; between rungs travel decides as usual. A single
+    float keeps the behaviour above exactly.
     """
     reasons: list[str] = []
     fixed_tip = None
@@ -127,6 +137,14 @@ def select_grasp(
         if n > 1e-9:
             close_dir = close_dir / n
     q_ref = np.asarray(q_current, dtype=float).reshape(-1)
+    # A float is one rung (today's behaviour); a ladder is tried highest
+    # first. A non-finite rung can never be solved: a float one fails the
+    # `raised >` comparison below, a ladder drops it here (NaN breaks sorting).
+    ladder = pregrasp_min_z is not None and np.ndim(pregrasp_min_z) > 0
+    if not ladder:
+        rungs = () if pregrasp_min_z is None else (pregrasp_min_z,)
+    else:
+        rungs = tuple(sorted((float(z) for z in pregrasp_min_z if np.isfinite(float(z))), reverse=True))
     evidence.event("jaw_datum", fixed_tip_m=fixed_tip, close_dir=close_dir,
                    max_width_m=max_width_m, pregrasp_offset_m=pregrasp_offset_m)
 
@@ -135,22 +153,25 @@ def select_grasp(
             check()
 
     def _solve(g: Grasp):
-        """-> (q_pre, q_grasp) or a failure reason string."""
+        """-> (q_pre, q_grasp, on_hover) or a failure reason string;
+        `on_hover` is False when the pregrasp fell to `pregrasp_offset_m`."""
         _check()
         p_grasp = g.position
         if fixed_tip is not None and close_dir is not None:
             off = fixed_tip + close_dir * (float(g.width_m) / 2.0)
             p_grasp = g.position - g.rotation @ off
         down = -float(np.asarray(g.approach, dtype=float)[2])
-        if pregrasp_min_z is not None and down > 0.5:
-            raised = (float(pregrasp_min_z) - float(p_grasp[2])) / down
-            if raised > pregrasp_offset_m + 1e-3:
-                solved = _solve_at(g, p_grasp, raised)
-                evidence.event("raised_pregrasp", offset_m=raised, min_z=pregrasp_min_z,
-                               result=solved if isinstance(solved, str) else "ok")
-                if not isinstance(solved, str):
-                    return solved
-        return _solve_at(g, p_grasp, pregrasp_offset_m)
+        if rungs and down > 0.5:
+            for min_z in rungs:
+                raised = (float(min_z) - float(p_grasp[2])) / down
+                if raised > pregrasp_offset_m + 1e-3:
+                    solved = _solve_at(g, p_grasp, raised)
+                    evidence.event("raised_pregrasp", offset_m=raised, min_z=min_z,
+                                   result=solved if isinstance(solved, str) else "ok")
+                    if not isinstance(solved, str):
+                        return (*solved, True)
+        solved = _solve_at(g, p_grasp, pregrasp_offset_m)
+        return solved if isinstance(solved, str) else (*solved, False)
 
     def _solve_at(g: Grasp, p_grasp, offset_m: float):
         T_grasp = make_transform(g.rotation, p_grasp)
@@ -190,6 +211,14 @@ def select_grasp(
         n = min(q.size, q_ref.size)
         return float(np.max(np.abs(q[:n] - q_ref[:n]))) if n else 0.0
 
+    def _better(new, old) -> bool:
+        """Does solution `new` (q_pre, q_grasp, on_hover) beat `old`?"""
+        if ladder and new[2] != old[2]:
+            # A hover rung never loses to the fixed offset: that would execute
+            # below the hover the caller's last rung (today's) guarantees.
+            return bool(new[2])
+        return _travel(new[0], new[1]) < _travel(old[0], old[1])
+
     _check()
     too_wide = 0
     narrowest: float | None = None
@@ -217,11 +246,11 @@ def select_grasp(
             twin_solved = _solve(twin)
             if isinstance(twin_solved, str):
                 reasons.append(twin_solved)
-            elif best is None or _travel(*twin_solved) < _travel(best[1], best[2]):
+            elif best is None or _better(twin_solved, best[1:]):
                 best = (twin, *twin_solved)
         _check()
         if best is not None:
-            return best
+            return best[:3]
     _check()
     # Over-width is an OBJECT property: re-scanning cannot shrink it, so the
     # persistence loops stop on it. Say so explicitly, with the measurement

@@ -1432,21 +1432,26 @@ class OccupancyMap:
         cache under `_refresh_lock` (never `view_snapshot()`, display only).
         Never raises: None when the map has no fresh, healthy answer (stale,
         a failed refresh, a latched body-mask fault) or the column is empty;
-        the caller then keeps the hover from the observed top."""
+        the caller then keeps the hover from the observed top.
+
+        The health checks and the array references are taken under the
+        lock; the column scan runs outside it. `_commit_grid` installs new
+        arrays and never mutates the old ones, so the scan reads one
+        consistent query and a refresh never waits for it."""
         with self._refresh_lock:
             if self._body_error is not None or self.last_error is not None or self.is_stale():
                 return None
-            cloud = self._occupied
-            if cloud is None or not len(cloud):
-                return None
-            voxel = float(self._grid_voxel or 0.0)
-            pts = np.asarray(cloud, dtype=float)
-            center = np.asarray(center_xy, dtype=float)[:2]
-            inside = ((np.linalg.norm(pts[:, :2] - center, axis=1) <= float(radius_m))
-                      & (pts[:, 2] >= float(z_min)))
-            if not inside.any():
-                return None
-            return float(pts[inside, 2].max()) + voxel / 2.0, voxel
+            cloud, voxel = self._occupied, self._grid_voxel
+        if cloud is None or not len(cloud):
+            return None
+        voxel = float(voxel or 0.0)
+        pts = np.asarray(cloud, dtype=float)
+        center = np.asarray(center_xy, dtype=float)[:2]
+        inside = ((np.linalg.norm(pts[:, :2] - center, axis=1) <= float(radius_m))
+                  & (pts[:, 2] >= float(z_min)))
+        if not inside.any():
+            return None
+        return float(pts[inside, 2].max()) + voxel / 2.0, voxel
 
     def _check_required_age(self) -> None:
         """Interpolation must finish inside the same observation lifetime."""

@@ -89,9 +89,10 @@ PUSH_MIN_FRAC = 0.3
 #: (fraction of its travel) wider after a completed open than before the
 #: call. Smaller changes are reading jitter, not an object let go.
 RELEASE_WIDTH_EPS = 0.02
-#: Postcondition kinds judged by `_check_released`: their snapshot also
-#: records the jaw width and whether the jaws held something before the call.
-_RELEASE_KINDS = ("empty", "released")
+#: Postcondition kinds judged by the release rule (`_release_measured`):
+#: their snapshot also records the jaw width and whether the jaws held
+#: something before the call.
+_RELEASE_KINDS = ("empty", "released", "released_at")
 #: Counts the runtime's ``actuation`` hook reports (see PostconditionChecker).
 _ACTUATION_KEYS = ("arm_motions", "gripper_closes", "gripper_opens")
 #: Longest skill error quoted in a "no grasp was attempted" verdict.
@@ -262,6 +263,24 @@ class PostconditionChecker:
         False: evidence may say "released" / "opened" only after one."""
         acted = self._actuation_delta(before)
         return acted is not None and acted["gripper_opens"] > 0
+
+    @staticmethod
+    def _release_measured(before: dict, frac: float | None) -> bool | None:
+        """The release rule, after an open counted in this call: True when a
+        jaw that held something (or may have: unknown counts as maybe) reads
+        more than RELEASE_WIDTH_EPS wider than before the call; False when it
+        does not (the open completed, the jaw still reads the width it held
+        the object at); None when it cannot be judged (nothing was held, or
+        no jaw width before or after the call)."""
+        frac0 = before.get("gripper_frac")
+        if before.get("holding") is False or frac is None or frac0 is None:
+            return None
+        return frac > frac0 + RELEASE_WIDTH_EPS
+
+    @staticmethod
+    def _no_release(before: dict, frac: float) -> str:
+        return (f"jaw width unchanged at {frac:.2f} after the open command "
+                f"(was {before['gripper_frac']:.2f}): no release measured")
 
     def _no_open_completed(self, pc, result: dict, before: dict, frac: float | None) -> bool:
         """A release-kind call (open_gripper, place_at, place_on_object,
@@ -702,15 +721,20 @@ class PostconditionChecker:
             return
         # No drop point to compare against: "it moved" is NOT evidence that it
         # went where it was asked to go. Say so instead of confirming, and say
-        # "moved" only when a comparable start measured the move.
+        # "moved" only when a comparable start measured the move. Without a
+        # close counted in this call nothing could have carried it (M2: a
+        # failed pick that never closed the jaws): it was FOUND, never
+        # "re-located", which reads as moved.
+        unmeasured = ("its start was not measured in the same channel and no drop point was reported, so "
+                      "'placed correctly' could not be verified")
         pc.status = UNVERIFIED
-        pc.evidence = (
-            f"{label} moved {moved*100:.1f} cm, but no drop point was reported, so "
-            "'placed correctly' could not be verified"
-            if moved is not None
-            else f"{label} was re-located, but its start was not measured in the same channel "
-                 "and no drop point was reported, so 'placed correctly' could not be verified"
-        )
+        if moved is not None:
+            pc.evidence = (f"{label} moved {moved*100:.1f} cm, but no drop point was reported, so "
+                           "'placed correctly' could not be verified")
+        elif self._close_commanded(before):
+            pc.evidence = f"{label} was re-located, but {unmeasured}"
+        else:
+            pc.evidence = f"found {label} at {[round(float(v), 3) for v in pose[:2]]}; {unmeasured}"
 
     def _check_released_at(self, pc, args, result, before) -> None:
         label = str(before.get("label") or result.get("object") or "")
@@ -719,6 +743,11 @@ class PostconditionChecker:
         if self._no_open_completed(pc, result, before, frac):
             return
         opened = self._open_commanded(before)
+        # M6: "released" only by the release rule open_gripper obeys (a
+        # measured widening of a jaw that held something); `released` is
+        # False when the open completed but the jaw still reads its holding
+        # width, None when it cannot be judged.
+        released = self._release_measured(before, frac) if opened else None
         if self._refute_if_lost(pc, label):
             return
         pose, channel = self._best_pose(label) if label else (None, "")
@@ -726,8 +755,10 @@ class PostconditionChecker:
             pc.status = UNVERIFIED
             if frac is None:
                 pc.evidence = "release not independently observed"
-            elif opened:
+            elif released:
                 pc.evidence = f"gripper opened to {frac:.2f} but the released object was not re-located"
+            elif released is False:
+                pc.evidence = f"{self._no_release(before, frac)}; {label or 'the object'} was not re-located"
             else:
                 pc.evidence = f"jaw at {frac:.2f} but {label or 'the object'} was not re-located"
             return
@@ -736,14 +767,24 @@ class PostconditionChecker:
             err = _dist(pose[:2], [float(want[0]), float(want[1])])
             pc.measured = {"target_err_m": round(err, 4), "z": round(pose[2], 4)}
             pc.status = CONFIRMED if err <= SAME_PLACE_M * 2 else REFUTED
+            if pc.status == CONFIRMED and released is False:
+                # At the point, but still in the jaws as far as they measure.
+                pc.status = UNVERIFIED
+                pc.evidence = (f"{label} is {err*100:.1f} cm from the requested point ({channel}), "
+                               f"but the {self._no_release(before, frac)}")
+                return
             pc.evidence = (
                 f"{label} rests {err*100:.1f} cm from the requested point ({channel})"
                 if pc.status == CONFIRMED
                 else f"{label} ended {err*100:.1f} cm from the requested point"
             )
             return
+        if released is False:
+            pc.status = UNVERIFIED
+            pc.evidence = f"{label} located ({channel}); {self._no_release(before, frac)}"
+            return
         pc.status = CONFIRMED
-        pc.evidence = f"{label} located after release ({channel})" if opened else f"{label} located ({channel})"
+        pc.evidence = f"{label} located after release ({channel})" if released else f"{label} located ({channel})"
 
     def _check_released_on(self, pc, args, result, before) -> None:
         # The HELD object is the subject; `label` is the DESTINATION. Reading
@@ -843,21 +884,20 @@ class PostconditionChecker:
             pc.status, pc.evidence = REFUTED, f"gripper still closed at {frac:.2f}"
             return
         pc.status, pc.evidence = CONFIRMED, f"gripper open at {frac:.2f}"  # the reading only
-        frac0 = before.get("gripper_frac")
         # "Released" needs a counted open, something in the jaws before the
         # call (unknown counts as maybe) and the jaw measured wider than it
         # was: nothing held (T3-c) or no pre-call width keeps the reading.
-        if not self._open_commanded(before) or before.get("holding") is False or frac0 is None:
+        released = self._release_measured(before, frac) if self._open_commanded(before) else None
+        if released is None:
             return
-        pc.measured["gripper_frac_before"] = frac0
-        if frac > frac0 + RELEASE_WIDTH_EPS:
+        pc.measured["gripper_frac_before"] = before["gripper_frac"]
+        if released:
             pc.evidence = f"gripper open at {frac:.2f}: the object was released"
             return
         # The open completed but the jaw still reads the width it held the
         # object at (Qwen E2E: 0.389 before and after): no measured release.
         pc.status = UNVERIFIED
-        pc.evidence = (f"jaw width unchanged at {frac:.2f} after the open command "
-                       f"(was {frac0:.2f}): no release measured")
+        pc.evidence = self._no_release(before, frac)
 
     def _check_empty(self, pc, args, result, before) -> None:
         self._check_released(pc, args, result, before)

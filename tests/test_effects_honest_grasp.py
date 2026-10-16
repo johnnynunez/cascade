@@ -1073,3 +1073,97 @@ def test_relocated_wording_names_a_move_only_when_one_was_counted(motions, wordi
     poses.pop("cube")
     pc = checker.verify("pick_and_place", {"object": "cube"}, {"ok": True}, before=before)
     assert pc.status == UNVERIFIED and pc.evidence == wording, pc
+
+
+# -- follow-up M2: a pick that never closed the jaws found the object ----------
+
+
+@pytest.mark.parametrize("ok, closes, tallied", [(False, 0, True), (True, 0, True), (False, 0, False), (False, 1, True)],
+                         ids=["failed, no close", "self-reported, no close", "unknown actuation", "a counted close"])
+def test_a_pick_that_never_closed_the_jaws_found_the_object(ok, closes, tallied):
+    """M2: the arm moved (a counted motion), the object had no pose before
+    the call and has one after. Without a counted close nothing could have
+    carried it: the verdict says where it was FOUND, never 're-located'
+    (which reads as moved). A counted close keeps main's wording."""
+    tally = _Tally() if tallied else None
+    poses: dict = {}
+    checker = PostconditionChecker(belief_pose=lambda label: poses.get(label), actuation=tally)
+    before = checker.snapshot("cube")
+    if tally is not None:
+        tally.counts["arm_motions"] += 2
+        tally.counts["gripper_closes"] += closes
+    poses["cube"] = [0.3125, -0.0412, 0.02]
+    result = {"ok": ok} if ok else {"ok": False, "error": "grasp failed after 1 attempts: approach blocked"}
+    pc = checker.verify("pick_and_place", {"object": "cube"}, result, before=before)
+    assert pc.status == UNVERIFIED, pc
+    tail = ("its start was not measured in the same channel and no drop point was reported, so 'placed "
+            "correctly' could not be verified")
+    if closes:
+        assert pc.evidence == f"cube was re-located, but {tail}", pc
+    else:
+        assert pc.evidence == f"found cube at [0.312, -0.041]; {tail}", pc
+        assert "re-located" not in pc.evidence
+
+
+# -- follow-up M6: place_at claims a release only after a measured widening -----
+
+
+def _place_checker(before_frac, holding, pose):
+    """place_at on a checker: the object tracked in the jaws before the call,
+    at `pose` after it (None: not found); the call counted an open."""
+    tally = _Tally()
+    jaw = {"frac": before_frac}
+    poses = {"cube": [0.2, 0.0, 0.15]}
+    checker = PostconditionChecker(belief_pose=lambda label: poses.get(label), gripper_frac=lambda: jaw["frac"],
+                                   actuation=tally, holding=lambda: holding)
+    before = checker.snapshot("cube", skill="place_at")
+    tally.counts["arm_motions"] += 3
+    tally.counts["gripper_opens"] += 1
+    poses.pop("cube")
+    if pose is not None:
+        poses["cube"] = pose
+    return checker, before, jaw
+
+
+@pytest.mark.parametrize("args", [{"x": 0.3, "y": 0.1}, {}], ids=["at a point", "no point"])
+@pytest.mark.parametrize("found", [True, False], ids=["object found", "object not found"])
+@pytest.mark.parametrize("rise", [0.0, 0.01, 0.4], ids=["jaw unchanged", "jitter", "widened"])
+def test_place_at_claims_a_release_only_after_a_measured_widening(rise, found, args):
+    """M6: like open_gripper (T3-d), place_at's 'gripper opened ... released
+    object' / 'located after release' / 'rests at the point' need the jaw
+    measured more than 0.02 wider than before the call, on a jaw that held
+    something (Qwen E2E: held at 0.389, open completed, 0.389 after). The
+    object found right under a jaw that did not open is not placed."""
+    checker, before, jaw = _place_checker(0.389, True, [0.3, 0.1, 0.02] if found else None)
+    assert before["gripper_frac"] == pytest.approx(0.389) and before["holding"] is True
+    jaw["frac"] = 0.389 + rise
+    pc = checker.verify("place_at", args, {"ok": True}, before=before)
+    released = rise > 0.02
+    unchanged = f"jaw width unchanged at {0.389 + rise:.2f} after the open command (was 0.39): no release measured"
+    if not found:
+        assert pc.status == UNVERIFIED, pc
+        assert pc.evidence == ("gripper opened to 0.79 but the released object was not re-located" if released
+                               else f"{unchanged}; cube was not re-located"), pc
+    elif args:
+        assert pc.status == (CONFIRMED if released else UNVERIFIED), pc
+        assert pc.evidence == ("cube rests 0.0 cm from the requested point (belief)" if released
+                               else f"cube is 0.0 cm from the requested point (belief), but the {unchanged}"), pc
+    else:
+        assert pc.status == (CONFIRMED if released else UNVERIFIED), pc
+        assert pc.evidence == ("cube located after release (belief)" if released
+                               else f"cube located (belief); {unchanged}"), pc
+    if not released:
+        assert "release (" not in pc.evidence and "released object" not in pc.evidence, pc
+
+
+def test_place_at_with_nothing_held_never_claims_a_release():
+    """M6: nothing in the jaws before the call (T3-c): the completed open
+    released nothing, so the object found is only 'located'."""
+    checker, before, jaw = _place_checker(0.0, False, [0.3, 0.1, 0.02])
+    jaw["frac"] = 1.0
+    pc = checker.verify("place_at", {}, {"ok": True}, before=before)
+    assert pc.status == CONFIRMED and pc.evidence == "cube located (belief)", pc
+    checker, before, jaw = _place_checker(0.0, False, None)
+    jaw["frac"] = 1.0
+    pc = checker.verify("place_at", {}, {"ok": True}, before=before)
+    assert pc.status == UNVERIFIED and pc.evidence == "jaw at 1.00 but cube was not re-located", pc

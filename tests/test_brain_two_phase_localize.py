@@ -519,6 +519,8 @@ SAM_FAILURES = {
     "outside": _outside,
     "few_points": _corners,
 }
+SAM_FAILURE_REASONS = {"none": "no mask", "empty": "empty mask", "outside": "off the box",
+                       "few_points": "valid depth points"}
 
 
 @pytest.mark.parametrize("failure", sorted(SAM_FAILURES))
@@ -527,6 +529,7 @@ def test_no_usable_mask_on_frame1_is_refused_after_one_fresh_refer(tp, failure):
     n0 = _commands(tp)
     with pytest.raises(SkillError, match="could not re-anchor 'red cube' on a fresh image") as err:
         tp.rt.skill_grasp_object("red cube")
+    assert SAM_FAILURE_REASONS[failure] in str(err.value), err.value
     assert not isinstance(err.value, (tp.mod.SlowPerceptionError, tp.mod.SceneChangedError))
     assert _commands(tp) == n0, "no box fallback, no motion"
     assert tp.brain.refers == 2 and len(tp.sam.calls) == 4, "one retry with a fresh refer"
@@ -536,6 +539,48 @@ def test_one_failed_reanchor_is_retried_with_a_fresh_refer(tp):
     tp.sam.script[2] = SAM_FAILURES["none"]
     frame, fix = tp.rt._localize("red cube")
     assert tp.brain.refers == 2 and frame.frame_id == tp.sam.calls[3][0]
+
+
+def test_a_reanchored_detection_without_a_mask_is_never_measured_as_its_box(tp):
+    """Whatever a detector's reanchor() returns, the runtime measures frame1
+    only through a mask: a box cloud includes table pixels."""
+    from cascade.perception.brain_detector import ReanchorResult
+    from cascade.types import Detection
+
+    def maskless(frame, det, *, since):
+        return ReanchorResult(Detection(det.label, det.conf, np.array(det.bbox, np.float32)), False, "", 0.0, 0.0)
+
+    tp.detector.reanchor = maskless  # instance attribute: the class still defines reanchor
+    with pytest.raises(tp.mod.ReanchorError):
+        tp.rt._localize("red cube")
+
+
+def test_a_fix_that_leaves_the_workspace_on_frame1_is_never_used(tp):
+    # The cube rises 1 cm (identical pixels, less than the 2 cm move limit)
+    # across the workspace's top while the brain thinks.
+    frame, fix = tp.rt._localize("red cube")
+    lo = np.array([-1.0, -1.0, -1.0])
+    hi = np.array([1.0, 1.0, float(fix.position[2]) + 0.005])
+    tp.rt._localization_workspace_bounds = lambda: (lo, hi)
+    refers = tp.brain.refers
+    tp.brain.on_refer = lambda n: tp.scene.set(depth_shift=-0.01) if n == refers + 1 else None
+    with pytest.raises(SkillError, match="outside the active arm workspace"):
+        tp.rt._localize("red cube")
+
+
+def test_reanchor_refuses_without_a_segmenter_or_across_image_sizes():
+    from cascade.types import Detection
+
+    det = Detection("red cube", 1.0, np.array(HOME_BOX, np.float32))
+    a, b = synthetic_tabletop(), synthetic_tabletop()
+    bare = BrainDetector(base_url="http://b/v1", model="m")
+    found = bare.reanchor(b, det, since=a)
+    assert (found.detection, found.scene_changed) == (None, False) and "segmenter" in found.reason
+    with_sam = BrainDetector(base_url="http://b/v1", model="m", segmenter=_ObjectSam())
+    assert with_sam.reanchor(b, det, since=a).detection is not None
+    other = synthetic_tabletop(width=320, height=240)
+    found = with_sam.reanchor(other, det, since=a)
+    assert (found.detection, found.scene_changed) == (None, True)
 
 
 # -- config (B5, the keys B1 reads) ----------------------------------------------

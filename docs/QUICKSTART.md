@@ -1,196 +1,83 @@
 # Opening the demo
 
-For a live Build-a-Claw presentation, use the [presenter card](BOOTH_RUNBOOK.md#9-simulated-kitchen-on-dgx-spark-presenter-card).
+Live presentation: use the [presenter card](BOOTH_RUNBOOK.md#9-simulated-kitchen-on-dgx-spark-presenter-card).
+Prepared DGX Spark: run `python3 scripts/desktop.py launch --repo "$PWD"` from the
+checkout and wait for READY plus three advancing cameras. Brev RTX PRO 6000
+profile (PhysX, Qwen3.8-27B Q8_0): [Brev instructions](BREV.md). A Mac is a
+development platform; its results do not certify Spark execution. Measured scope
+per capability: [capability status](ROADMAP.md).
 
-The PAAI event profile uses **DGX Spark/Linux + Isaac Sim 6.1 + PhysX CUDA +
-real GraspGen-X + Qwen Q4 + OpenClaw**. Use the [DGX Spark setup guide](DGX_SPARK_SETUP.md)
-for the current source pin, measured scope, startup and recovery commands.
-[Project status](ROADMAP.md) distinguishes current software
-validation, current physical acceptance and the historical September delivery.
-The Mac is a development platform; its results do not certify Spark execution.
+## 1. DGX Spark (event profile)
 
-For the **Brev RTX PRO 6000 profile with PhysX and Qwen3.8-27B Q8_0**, see
-[the Brev instructions](BREV.md). They describe the tested deployment and its
-remaining acceptance limits.
-The performance and test counts below describe earlier development runs,
-not a Spark or Brev certification.
+The profile is **DGX Spark/Linux + Isaac Sim 6.1 + PhysX CUDA + real GraspGen-X +
+Qwen Q4 + OpenClaw**, with the dedicated `cascade-demo` chat profile. It installs
+no Cosmos; occupancy/nvblox is disabled and JEv is a separate experiment.
 
----
+1. Install with the single command in [DGX Spark setup](DGX_SPARK_SETUP.md#2-install) (it pins the source commit).
+2. Start: `python3 scripts/desktop.py launch --repo "$PWD"` (also starts Qwen; Isaac is headless unless `--gui`, which needs its own rehearsal).
+3. Wait for READY and advancing cameras. The Isaac runtime check prepares the read-only physics verifier and requires new RGB-D captures from every camera; a failure lands in `runtime-check.log` and stops startup ([readiness check](ARCHITECTURE.md#grasp-pipeline)).
+4. Between visitors: **Start over**, **Reset** in the PAAI OpenClaw interface, or send **"Reset the scene."**; services keep running and startup tests are not repeated.
 
-## 0. One click for visitors
+Lower-level restart, only while Qwen is running:
+`./run.sh isaac --engine physx --graspgenx local --no-robot-turn --no-judge`.
+It skips the startup manipulation tests (banner: `STARTED (UNVERIFIED: robot proof
+skipped)`) and gives none of the desktop launcher's model supervision; see the
+[presenter recovery limits](BOOTH_RUNBOOK.md#9-simulated-kitchen-on-dgx-spark-presenter-card)
+and [quick recovery](DGX_SPARK_SETUP.md#ready-checks-and-quick-recovery).
 
-### DGX Spark
-
-Run the single install command in [DGX Spark setup](DGX_SPARK_SETUP.md#2-install).
-It pins the source commit and installs the runtime, GraspGen-X, Qwen Q4, OpenClaw and
-verified kitchen assets. Follow that guide to start and check the demo.
-The event flow uses the dedicated `cascade-demo` profile and installs no Cosmos.
-Occupancy/nvblox is disabled; JEv is a separate research experiment.
-Use **Start over** or **"Reset the scene."** between visitors to reset props
-without restarting services or repeating startup manipulation tests. For a
-complete first start, use the desktop launcher, which also starts Qwen:
-
-```bash
-python3 scripts/desktop.py launch --repo "$PWD"
-```
-
-Run this from the prepared Spark checkout. Isaac is headless by default;
-optional `--gui` requires a separate rehearsal. The earlier September pin passed
-a fresh-destination installation and READY proof on GB10, with Chromium and the
-extension checked on a virtual display. That result does not certify a later
-checkout. Wait for this machine's READY and advancing cameras.
-See [DGX Spark setup](DGX_SPARK_SETUP.md) for the pinned install and READY checks.
-
-### Development on a Mac or an installed rig
+## 2. Laptop or installed rig (MuJoCo + OpenClaw)
 
 ```bash
 git clone https://github.com/johnnynunez/cascade && cd cascade
-./run.sh mujoco --brain keep     # use authentication already configured in OpenClaw
+./run.sh mujoco --brain keep                  # use the auth already configured in OpenClaw
 ./run.sh mujoco --cameras mujoco_scene_two    # two-cube scene for the memory demo
-./run.sh check isaac            # report missing requirements without installing or downloading
-./run.sh down                   # stop owned sidecars and MCP servers from earlier sessions
+./run.sh check isaac                          # report missing requirements; installs nothing
+./run.sh down                                 # stop owned sidecars and stale MCP servers
 ```
 
-The first run creates the venv, installs the mode's extras, downloads robot
-meshes, installs or updates the OpenClaw CLI, starts the sidecars
-(occupancy :5557, GraspGen-X stub :5556), and registers the robot tools.
-It **checks the stack before reporting READY**: it builds the runtime with
-the same environment as the server, lists the 42 tools, requests a simple
-brain response, and performs pick and reset within one session.
-The `proof.json` receipt must bind the model, session, and MCP process to
-the physical result and restoration of the manipulated object. An open
-port, a model response, or another session's trace is insufficient.
-With `--no-robot-turn`, the status is STARTED / UNVERIFIED, never READY.
-Subsequent runs reuse downloaded packages and assets.
+The first run creates the venv, installs the mode's extras and robot meshes,
+installs or updates the OpenClaw CLI, starts the sidecars (occupancy :5557,
+GraspGen-X stub :5556) and registers the robot tools; later runs reuse all of it.
+READY needs the full proof ([README → One click](../README.md#one-click)); the
+banner names the occupancy backend, grasp planner (stub or model), tool count and
+chat URL.
 
-To run a stack beside one that already holds the default ports, export
-`CASCADE_BRIDGE_PORT`, `CASCADE_OCCUPANCY_PORT` and `CASCADE_GRASPGENX_PORT`
-before launching. The launcher starts the Isaac bridge and the sidecars on
-them, registers them with the MCP server, and the runtime dials the same
-ports (they beat every config layer). A malformed value stops startup with an
-error naming the variable; an empty one means the default.
-`CASCADE_HUG_PORT`, `CASCADE_GRASPGENX_HOST` and `CASCADE_HUG_HOST` follow the
-same rules for a HUG server, or a GraspGen-X / HUG server on another machine.
-Registering with `scripts/setup_agents.py` (or `scripts/hermes_demo.sh` /
-`scripts/openclaw_demo.sh`) from the same shell copies them, and
-every other runtime switch that is set (`CASCADE_GRASP_EXECUTOR`,
-`CASCADE_VLA_PORT`, `CASCADE_BOOTH`, ...; the list is
-`src/cascade/apps/mcp_env.py`), into each host's server entry, exactly as the
-launcher does.
-
-For Isaac, the runtime check also prepares the read-only physics verifier and
-requires new RGB-D captures from every configured camera before proof starts.
-A failure is recorded in `runtime-check.log` and stops startup. This
-[readiness check](ARCHITECTURE.md#grasp-pipeline) does not move the arm or establish
-that a later manipulation will succeed.
-
-For a lower-level restart, append `--no-robot-turn --no-judge`
-to your usual command, keeping the same engine and scene flags. On the installed
-Spark profile, use `./run.sh isaac --engine physx --graspgenx local --no-robot-turn --no-judge`
-only while Qwen is running. This skips the
-startup manipulation tests; connection and model checks still run, and the
-banner says `STARTED (UNVERIFIED: robot proof skipped)`.
-These flags do not provide the desktop launcher's model supervision or a new
-verified camera/chat attachment; see the [presenter recovery limits](BOOTH_RUNBOOK.md#9-simulated-kitchen-on-dgx-spark-presenter-card).
-If the stack is already running, use **Start over** in the Spark demo chat,
-**Reset** in the PAAI OpenClaw interface, or send **"Reset the scene."** to
-restore the scene without restarting the services. See
-[quick recovery](DGX_SPARK_SETUP.md#ready-checks-and-quick-recovery).
-
-The READY banner reports the actual occupancy backend, grasp planner
-(stub or model), tool count, chat URL, and whether the MuJoCo window is
-open. If the display was locked at startup, it explains why the window
-was deferred; the window opens on the first movement after the display wakes.
-
-Then open `http://127.0.0.1:18789/` and chat, or use the terminal:
+Then chat at `http://127.0.0.1:18789/` or from the terminal, one session keeping memory:
 
 ```bash
-openclaw agent exec "what do you see?"
-openclaw agent exec "pick and place the red object"
-openclaw agent exec "did it actually move?"
-# One session retaining memory between turns, as the dashboard does:
-openclaw agent -m "put both cubes in the drop zone, one at a time; call task_memory before each action" --session-id demo-1
-openclaw agent -m "how many did you move and how do you know?" --session-id demo-1
-openclaw agent -m "reset the scene" --session-id demo-1
+openclaw agent --session-id demo-1 -m "put both cubes in the drop zone, one at a time; call task_memory before each action"
+openclaw agent --session-id demo-1 -m "how many did you move and how do you know?"
+openclaw agent --session-id demo-1 -m "reset the scene"
 ```
 
-Every host tool call is recorded in `runs/mcp_<pid>/server.log`.
-OpenClaw itself shows only a failure counter.
+The brain sees up to K=4 frames of its earlier actions (initial state, views after
+each action, physics verdicts) beside the current view, so its answer cites those
+verdicts (recorded development run: 2 physics-confirmed `pick_and_place`, 0
+failures, ~100 s). "Reset the scene" or "start over" homes the arm, returns props
+to spawn and clears the world model and task memory; Isaac requires each prop's
+measured pose within the spawn tolerance.
 
-For a selected GPU, export `CUDA_VISIBLE_DEVICES` before launching or running
-`scripts/setup_agents.py`. Both registrations preserve that value along with
-`CUDA_DEVICE_ORDER`, `CASCADE_DEVICE` and `CASCADE_REQUIRE_CUDA` when present,
-because a stdio host may discard inherited environment variables. Values are
-copied unchanged: an empty visibility string stays empty, and `cuda:0` remains
-an ordinal within the visible devices. `setup_agents.py --env KEY=VALUE` takes
-precedence over an inherited value. Registration does not attest the GPU used
-by an already running server; restart that owned server and check its admission.
+- **Second stack beside a running one:** export `CASCADE_BRIDGE_PORT`, `CASCADE_OCCUPANCY_PORT` and `CASCADE_GRASPGENX_PORT` before launching; the launcher, the MCP registration and the runtime all use them. A malformed value stops startup naming the variable; empty means the default. `CASCADE_HUG_PORT`, `CASCADE_GRASPGENX_HOST` and `CASCADE_HUG_HOST` follow the same rules.
+- **Pick a GPU:** export `CUDA_VISIBLE_DEVICES` before launching or running `scripts/setup_agents.py`; registration copies it (and `CUDA_DEVICE_ORDER`, `CASCADE_DEVICE`, `CASCADE_REQUIRE_CUDA`) unchanged. It does not attest the GPU of an already running server: restart that server.
+- **Other hosts:** `scripts/setup_agents.py`, `scripts/hermes_demo.sh` and `scripts/openclaw_demo.sh` copy every runtime switch set in the shell (list: `src/cascade/apps/mcp_env.py`) into the host's entry, as the launcher does.
 
-### Memory demo with two cubes
+## 3. Reference rig: reBot / Isaac Sim with a local brain
 
-A single pick-and-place is Markovian, so it does not visibly demonstrate
-memory. With two props, the current view after the first pick alone does
-not establish whether one object or neither has moved. Ask in chat:
-
-> Put both cubes in the drop zone, one at a time. Before each action call
-> task_memory to see what you already did, and when both are done tell me
-> how many cubes you moved and how you know.
-
-The brain receives up to K=4 frames from its earlier actions: the initial
-state, views after actions, and physics verdicts, alongside the current
-view. Its answer cites those verdicts. Recorded development result:
-2 physics-confirmed `pick_and_place` actions, 0 failures, approximately 100 s.
-
-Between visitors, ask **"reset the scene"** or "start over". The arm
-returns home, props return to spawn, and the world model and task memory
-are cleared. Isaac requires finite physical readback of each prop within
-the spawn tolerance. The reflex works without an LLM in the CASCADE CLI;
-in OpenClaw chat, the host model still chooses the tool.
-
----
-
-## 0b. Without hardware, a GPU, servers, or OpenClaw
-
-```bash
-uv venv && uv pip install -e '.[dev,kinematics]' && source .venv/bin/activate
-python -m cascade.apps.demo --arm so101_mock --camera mock_small \
-    --task "pick and place the red object"
-```
-
-This runs the complete cascade on a kinematically simulated five-axis
-SO-101. With `.[sim]` and `python scripts/fetch_robot_assets.py so101`,
-use MuJoCo physics via `--arm so101_mujoco --camera mujoco_scene`.
-The camera renders the same world as the arm, and the postcondition reads
-the prop's physical pose: `postcondition: confirmed (channel: physics)`.
-With `.[sim-warp]`, `--arm so101_mjwarp` uses the same MJCF in MuJoCo Warp
-on the GPU. Its CPU path was approximately 650× slower than the C engine
-in the recorded comparison; use it for developing that path, not presenting
-the demo.
-
----
-
-## 1. Reference rig: reBot / Isaac Sim with a local brain
-
-Start each required component once, in its own terminal. Choose one of the
-two brain servers shown below. These commands retain the original local
-server profiles; use the Spark or Brev guide for the complete Qwen3.8 profile.
+Start each component once, in its own terminal (one brain server):
 
 ```bash
 export ISAACSIM_PATH=~/Projects/isaac/IsaacSim/_build/linux-x86_64/release
-./run.sh isaac                          # start the bridge (:8611) and the rest of the stack
-# Or start the bridge manually:
-$ISAACSIM_PATH/python.sh scripts/isaac_bridge.py     # Newton by default; --engine physx
-
-scripts/serve_qwen_llamacpp.sh          # Qwen3.6 -> :8080   (choose one brain server)
-scripts/serve_cosmos_vllm.sh            # Cosmos3-Edge -> :8082
+./run.sh isaac                          # bridge :8611 and the rest of the stack
+$ISAACSIM_PATH/python.sh scripts/isaac_bridge.py     # or the bridge alone (Newton by default; --engine physx)
+scripts/serve_qwen_llamacpp.sh          # Qwen -> :8080
+scripts/serve_cosmos_vllm.sh            # or Cosmos3-Edge -> :8082
 TORCH_CUDA_ARCH_LIST=12.0 scripts/serve_graspgenx.sh franka_panda 5556   # learned 6-DoF grasps
 ```
 
-Check service reachability without relying on `ss`, which macOS does not
-provide. This is a connectivity check, not a readiness certificate:
+Connectivity check (works on macOS, which has no `ss`; not a readiness certificate):
 
 ```bash
-python - <<'EOF'
+python3 - <<'EOF'
 import socket
 for p in (8611, 8080, 8082, 5556, 5557, 18789):
     s = socket.socket(); s.settimeout(0.3)
@@ -198,118 +85,76 @@ for p in (8611, 8080, 8082, 5556, 5557, 18789):
 EOF
 ```
 
-`./run.sh isaac --brain auto` uses the local server when it responds;
-otherwise, it uses authentication already configured in OpenClaw.
+`./run.sh isaac --brain auto` uses the local server when it answers, else
+OpenClaw's existing auth. Real arm instead of Isaac: `sudo ip link set can0 up
+type can bitrate 1000000`, then `./scripts/launch.sh --sim none --arm rebot_rs
+--cameras l515` (read the [safety notes](../README.md#safety-notes-for-a-live-rig) first).
 
-## 2. One terminal command without a chat host
-
-```bash
-cd models && python -m cascade.apps.demo \
-    --cameras isaac,isaac_side --arm isaac --llm local_qwen \
-    --task "pick and place the pink cube in the box" --no-view
-```
-
-> Object names come from the Qwen brain at `CASCADE_PERCEPTION_URL` (default
-> `http://127.0.0.1:8080/v1`, where `serve_qwen_llamacpp.sh` listens); SAM loads
-> `models/sam2.1_l.pt` by absolute path. The rig's OpenShell instance uses its
-> own brain port (:8081). Measured on Qwen3.8-27B NVFP4 (vLLM); the llama.cpp Q4
-> GGUF (`scripts/serve_qwen_llamacpp.sh`) serves the same model but was not
-> measured. Mock/MuJoCo cameras need neither.
-
-Brain profiles: `--llm hermes` (Nous Portal, `NOUS_API_KEY`) |
-`local_qwen` | `local_cosmos` | `local_cosmos_sglang` | `anthropic` |
-`openai` | `mock` (wiring check without an LLM). The default is `auto`:
-Hermes, Anthropic, or OpenAI according to the exported key; without a key,
-it uses `mock`. The CLI runs all three layers: reflex → habit → LLM.
-The chat host runs only its own layer.
-
-## 3. Interactive terminal chat
+## 4. CLI without a chat host
 
 ```bash
-cd models && python -m cascade.apps.demo \
-    --cameras isaac,isaac_side --arm isaac --llm local_qwen --interactive
+cd models     # the cwd of every launch route; uv still finds the project one level up
+uv run python -m cascade.apps.demo --cameras isaac,isaac_side --arm isaac --llm local_qwen \
+    --task "pick and place the pink cube in the box" --no-view       # one task
+uv run python -m cascade.apps.demo --cameras isaac,isaac_side --arm isaac --llm local_qwen --interactive
 ```
 
-Use normal English, naming objects and destinations from the current scene:
-`What can you see on the table?` · `Could you put the green cube in the green
-square?` · `Please put the orange in the open box.` · `Let's start over.`
+Ask in plain English with names from the scene: `What can you see on the table?` ·
+`Could you put the green cube in the green square?` · `Please put the orange in the
+open box.` · `Let's start over.` The CLI runs all three tiers (reflex → habit →
+LLM); a chat host runs only its own. `--llm` takes `codex_astra`, `hermes`,
+`local_qwen`, `local_cosmos`, `local_cosmos_sglang`, `anthropic`, `openai` or `mock`
+([LLM backends](../README.md#llm-backends)). Object names come from the Qwen brain
+at `CASCADE_PERCEPTION_URL` (default `http://127.0.0.1:8080/v1`; the rig's OpenShell
+instance uses :8081); mock and MuJoCo cameras need no brain.
 
----
+## Cameras and the dashboard
 
-## Cameras open on request
+Perception always runs; the viewer binds no port until someone asks.
 
-Perception **keeps running**: the rig supplies frames and the world model
-stays current. The viewer does not bind a port until someone requests it.
-
-| Skill | Behavior |
+| tool | does |
 |---|---|
-| `describe_scene` / `get_observation` | Capture a fresh view; MCP attaches the image for the chat to inspect |
-| `analyze_scene` | Detector estimates and depth diagnostics without opening a viewer |
-| `open_live_view` / `close_live_view` / `live_view_status` | Open, close, or inspect the browser dashboard; closing releases its port |
-| `probe_point(u,v)` | Measure a pixel's depth, base-frame position and workspace membership; no IK or grasp check |
-| `annotated_view` | A fresh annotated image in MCP, with tracked-object badges and a 5 cm grid; badges may be stale or mislabeled |
-| `task_memory` (MCP only) | Up to K frames from earlier actions in this task, with verdicts |
-| `world_state` (MCP only) | Tracked objects, session activity and cached camera statistics; does not measure home pose or gripper contents |
+| `describe_scene` / `get_observation` | fresh view; MCP attaches the image |
+| `annotated_view` / `analyze_scene` | badges + 5 cm grid (badges may be stale) / detector estimates and depth diagnostics |
+| `open_live_view` / `close_live_view` / `live_view_status` | browser dashboard; closing releases the port |
+| `probe_point(u,v)` | a pixel's depth, base-frame position and workspace membership; no IK or grasp check |
+| `task_memory` / `world_state` (MCP only) | up to K frames of earlier actions with verdicts / tracked objects and session state |
 
-The dashboard **closes automatically after 15 minutes** without a viewer.
-Views include **rgb** (detector and HUD), **depth** (colormap,
-minimum/median/maximum, and valid percentage), and **agent** (markers,
-grid, and an optional configured display band). It also provides an analysis panel, world model,
-narration, and chat controlling the same arm.
-
-Set `stream.mode` in `configs/demo.yaml`; `CASCADE_STREAM` takes precedence:
-`lazy` (default) · `eager` (bind at startup; selected by `booth.yaml`) ·
-`off` (`CASCADE_STREAM=0`, kill switch). `CASCADE_BOOTH=1` enables booth mode.
-
-The native **MuJoCo** window opens with `CASCADE_MJ_VIEW=1`, which the
-launcher sets in simulation mode, using `mjpython` on macOS. If the
-display is locked at startup, the launcher logs the reason for deferring
-the window and opens it on the first movement after the display wakes.
-Opening it while the display was locked caused server segmentation faults.
-The server does not open a cv2 camera window on macOS because Cocoa
-requires the main thread; use the dashboard.
-
----
+The dashboard (port 8090) closes after 15 minutes without a viewer and shows rgb,
+depth and agent views, the world model, narration and a chat that drives the same
+arm. `stream.mode` in `configs/demo.yaml`: `lazy` (default) · `eager` (bind at
+startup; set by `booth.yaml`) · `off`; `CASCADE_STREAM` overrides it
+(`CASCADE_STREAM=0` is the kill switch) and `CASCADE_BOOTH=1` enables booth mode. The
+native MuJoCo window opens with `CASCADE_MJ_VIEW=1` (set by the launcher in sim
+modes, under `mjpython` on macOS); with the display locked at startup it opens on
+the first motion after wake. macOS has no cv2 camera window from the server: use the dashboard.
 
 ## Stopping the arm
 
-- Dashboard: red **stop** button.
-- MCP/OpenClaw: `emergency_stop` acts out of band, without waiting for the
-  movement to finish. `reset_stop` clears it; `CASCADE_HIDE_TOOLS=reset_stop`
-  reserves that operation for staff.
+- Dashboard: red **stop** button, from any browser on the LAN.
+- MCP/OpenClaw: `emergency_stop` acts out of band; `reset_stop` clears it (`CASCADE_HIDE_TOOLS=reset_stop` makes that staff-only).
 - Terminal: `Ctrl+C` soft-stops; press it again to exit.
-- Canceling a host turn during movement also freezes the arm and leaves
-  the emergency stop engaged. Use `reset_stop` before the next movement.
-
----
+- Cancelling a host turn mid-motion freezes the arm and leaves the e-stop engaged: `reset_stop` before the next motion.
 
 ## Troubleshooting
 
 ```bash
-python -m pytest tests/ -q                    # historical run: 737 passed / 2 deselected / 0 skipped, ~4 min
-python scripts/learn_from_runs.py --report    # recent failures and their causes
-./run.sh check mujoco                         # read-only preflight
-tail -f runs/mcp_*/server.log                 # each host tools/call and its result
+./run.sh check mujoco                                   # read-only preflight
+tail -f runs/mcp_*/server.log                           # every host tools/call and its result
+uv run python scripts/learn_from_runs.py --dry-run --report   # recent failures and causes; no notes or envelope writes
 ```
 
-- **A visitor turn fails with "Connection closed"** → the MCP server
-  exited during the call. Check `~/Library/Logs/DiagnosticReports/mjpython-*.ips`
-  on macOS and `/tmp/openclaw/openclaw-<date>.log`. A known, resolved cause
-  was opening the MuJoCo window while the display was asleep.
-- **A pick is canceled after 60 s and later calls fail with e-stop** → the
-  host still has the default 60-second `requestTimeoutMs`; the launcher
-  registers 300 seconds. Register again with `./run.sh <mode>` and use
-  `reset_stop`.
-- **Every turn takes an extra 10 s** → a dead MCP entry remains in
-  `~/.openclaw/openclaw.json`; the launcher prunes these at startup.
-- **Port 8090 is busy** → an earlier run is still active. Use
-  `CASCADE_STREAM_PORT=8097`.
-- **`no frame yet`** → the rig is still warming up; allow 2–3 seconds.
-- **Objects come without masks** → `models/sam2.1_l.pt` is missing: run
-  `scripts/install.sh --profile spark` (`scripts/booth_up.sh` checks it).
-- **`world_state` lists no objects on a real or Isaac camera** → the Qwen brain at
-  `CASCADE_PERCEPTION_URL` is down, or `CASCADE_PERCEPTION_KEY_FILE` is wrong.
-- **The agent does not call tools with Cosmos** → the profile must use
-  `type: cosmos3`, rather than `openai_compat`, because it emits XML tool calls.
-- **The tool list is stale after registration changes** → run `openclaw
-  gateway restart`; the launcher does this automatically.
+Chat host and MCP:
+
+- **"Connection closed"** on a turn: the MCP server exited mid-call. Read `/tmp/openclaw/openclaw-<date>.log` (macOS: also `~/Library/Logs/DiagnosticReports/mjpython-*.ips`).
+- **Pick cancelled after 60 s, then e-stop errors:** the host kept the default `requestTimeoutMs`; re-register with `./run.sh <mode>` (300 s) and call `reset_stop`.
+- **Every turn 10 s slower:** a dead MCP entry in `~/.openclaw/openclaw.json`; the launcher prunes these at startup.
+- **Stale tool list:** `openclaw gateway restart` (the launcher does it).
+- **No tool calls with Cosmos:** the profile needs `type: cosmos3`, not `openai_compat` (XML tool calls).
+
+Perception and display:
+
+- **Port 8090 busy:** an earlier run is alive; use `CASCADE_STREAM_PORT=8097`.
+- **`no frame yet`:** the rig is warming up; wait 2–3 s.
+- **Objects without masks:** `models/sam2.1_l.pt` is missing; run `scripts/install.sh --profile spark` (`scripts/booth_up.sh` checks it).
+- **`world_state` lists no objects on a real or Isaac camera:** the Qwen brain at `CASCADE_PERCEPTION_URL` is down or `CASCADE_PERCEPTION_KEY_FILE` is wrong.

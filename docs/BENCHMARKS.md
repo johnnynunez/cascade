@@ -1,7 +1,7 @@
 # Benchmarks
 
 Results are scoped to their recorded source, dataset, hardware and execution
-path. The [current acceptance index](ROADMAP.md) separates full
+path. The [capability status](ROADMAP.md) separates full
 software tests, native two-object proof, five-object campaign and restart.
 The Jev/Kev ten-outcome replay is offline evaluation and found
 no decision-quality advantage over its rule baseline; it adds no motion authority.

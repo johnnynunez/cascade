@@ -1,7 +1,7 @@
 # Chrome camera companion
 
 Browser delivery and physical acceptance are separate. The dated browser checks
-below retain their original source; the [current acceptance index](ROADMAP.md)
+below retain their original source; the [capability status](ROADMAP.md)
 identifies today's source/proof. A connected chat or advancing camera widget does
 not establish successful manipulation, a complete campaign or restart acceptance.
 

@@ -1,7 +1,7 @@
 # Booth runbook — hands-on expo session
 
 For the installed DGX Spark presenter, start with [Spark setup](DGX_SPARK_SETUP.md)
-and the [current acceptance index](ROADMAP.md). This runbook also
+and the [capability status](ROADMAP.md). This runbook also
 covers generic/local profiles; their fallback and reset behavior must not be
 used to bypass required GGX, a latched stop or a retained payload episode.
 

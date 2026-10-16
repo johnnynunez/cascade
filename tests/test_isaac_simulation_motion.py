@@ -1,14 +1,42 @@
 """Physics time is the motion clock, including under pause and slow transport."""
+import time
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
 from cascade.config import Cfg
+from cascade.control import arm_base, simulation_motion
 from cascade.control.isaac_arm import IsaacArm
 from cascade.control.simulation_motion import PhysicsClock, SimulationMotion
+from cascade.planning import runtime as planning_runtime
+from cascade.safety import harness as safety_harness
 from cascade.sim.bridge_client import BridgeError
 from cascade.types import RobotState, SafetyViolation
+
+# Every module that reads a Sim's wall clock (traced over all Sim tests):
+# stream pacing + wall budget, the preflight rebind budget, the harness
+# heartbeat age, the contact-stability deadline.
+SIM_CLOCKED = (simulation_motion, arm_base, safety_harness, planning_runtime)
+
+
+class SimWall:
+    """`time` of SIM_CLOCKED only: `monotonic` is the Sim's wall, which moves
+    only through the Sim's reads and the code under test's `sleep`. Patching
+    the process-wide `time.sleep` instead handed this clock to every thread:
+    a CameraStream leaked by an earlier test kept calling time.sleep(1/30),
+    each call added 33 ms of fake wall without blocking, and the 10 s motion
+    budget expired mid-stream (CI: "simulation motion exceeded its wall-time
+    budget" in place of the workspace refusal)."""
+
+    def __init__(self, sim, sleep):
+        self._sim, self.sleep = sim, sleep
+
+    def monotonic(self):
+        return self._sim.wall
+
+    def __getattr__(self, name):
+        return getattr(time, name)
 
 
 def clock(step=0, **changes):
@@ -40,8 +68,9 @@ class Sim:
         self.reads = []
         self.send_steps = 0
         self.on_read = None
-        monkeypatch.setattr('time.monotonic', lambda: self.wall)
-        monkeypatch.setattr('time.sleep', self.sleep)
+        wall = SimWall(self, self.sleep)
+        for module in SIM_CLOCKED:
+            monkeypatch.setattr(module, 'time', wall)
 
     def sleep(self, dt):
         self.wall += dt

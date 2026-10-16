@@ -10,7 +10,7 @@ a pinned and checksummed OpenShell, its own gateway, the agent image in
 [`deploy/openshell/`](../deploy/openshell/), two provider profiles, the
 sandbox and the chat forward.
 
-Why a second route next to [NEMOCLAW.md](NEMOCLAW.md): NemoClaw v0.0.124 pins
+Why a second route next to [NemoClaw](#nemoclaw-route-opt-in): NemoClaw v0.0.124 pins
 OpenShell 0.0.116 and its managed `inference.local`. OpenShell 0.1.x replaced
 that with **provider profiles**, which let the policy describe exactly what
 cascade needs: two endpoints, two credentials and a per-tool MCP rule. The
@@ -264,6 +264,19 @@ OpenShell's default filesystem policy lets the agent read `/usr` and write
 - **The chat token** is minted inside the sandbox at first start, in a 0600
   file. It is never on a host argv. A restart keeps it, so an open tab stays
   valid.
+
+## NemoClaw route (opt-in)
+
+NemoClaw v0.0.124 reaches the robot through `cascade.apps.mcp_server --http`
+(TLS from a private CA, bearer token in OpenShell's provider store).
+`scripts/nemoclaw_mcp.py` does the operator side:
+
+1. `python scripts/nemoclaw_mcp.py certs`, then
+   `export NEMOCLAW_CORPORATE_CA_BUNDLE="$(python scripts/nemoclaw_mcp.py ca-path)"` before onboarding.
+2. `python scripts/nemoclaw_mcp.py serve` with the usual `CASCADE_*` env.
+3. `python scripts/nemoclaw_mcp.py register --sandbox <name>`, then `configure-agent --sandbox <name>`.
+
+Keep the model id bare (`qwen3.8-27b`): OpenClaw splits provider/model on `/`.
 
 ## Files
 

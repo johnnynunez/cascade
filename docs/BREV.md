@@ -267,6 +267,8 @@ object trials above used separate camera and physics audits of those outcomes.
 The DGX Spark is arm64/GB10. It needs architecture-specific Isaac and model
 serving setup; the x86_64 container is not a Spark image. Upstream's
 Cosmos3-Edge profile remains separate and has no certification from the
-Qwen deployment. See [the Spark plan](DGX_SPARK_BREV.md).
+Qwen deployment. Share only the scene, CASCADE tool API, guide, extension and
+source-level health checks with a Spark; install it with
+[DGX Spark setup](DGX_SPARK_SETUP.md).
 
 For booth support, contact Johnny Núñez and Asier Arranz on Slack.

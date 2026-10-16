@@ -20,7 +20,7 @@ any release command. The mechanical cause remains unresolved. The [campaign rece
 retains the failure, reset and camera measurements. Neither run establishes
 five-object or presenter acceptance.
 
-The [retained carry attachment guard](NVBLOX_CARRY_ATTACHMENT.md) checks the
+The [retained carry attachment guard](#payload-and-release-contracts) checks the
 original post-close attachment in existing Isaac state feedback. Lost or
 unavailable evidence stops further transport and preserves a terminal failure;
 it does not authorize an automatic open, reset, retry or return home. This
@@ -52,6 +52,24 @@ unverified. Camera witnesses passed, and administrative closure preserved
 the failure. The [NV15 report](LOCAL_RTX_VALIDATION.md#nvblox-environment-15-release-feedback-movement)
 records the measured drift and the separate 352.74-second direct case; it
 does not establish presenter deadline or campaign acceptance.
+
+## Payload and release contracts
+
+1. Carry attachment: with `CASCADE_ISAAC_CONTACT_MASK=1` the bridge reuses the
+   contacts captured after each completed update. Lost or unknown attachment
+   during lift or transport is terminal: no automatic open, retry, home or reset.
+2. Release retreat: `skills/release_episode.wait_open` waits for open jaws and
+   stable measured joints held for `settle_hold_s` (0.1 s, `configs/arms/isaac.yaml`);
+   once open and free of bilateral attachment, regressing either is terminal.
+3. Retained anchors: for a confirmed attachment,
+   `_reset_camera_frames(scene_changed=False)` invalidates the cached map and
+   replays only measured depth history; a prop reset calls `begin_scene_reset()`
+   and drops all history.
+4. Truth views: `TruthPoseReader` (`sim/truth.py`) builds `RigidPrim` views with
+   `reset_xform_properties=False` and `prepare_contact_sensors=False`.
+5. Mapper reset: a clear replaces the nvblox mapper
+   (`perception/occupancy_backends.py`) and keeps it unavailable until
+   construction and CUDA synchronization succeed; queries never see the old map.
 
 ## Status (2026-09-30)
 

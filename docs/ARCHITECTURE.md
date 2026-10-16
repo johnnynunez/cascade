@@ -15,7 +15,7 @@ Isaac Sim, MuJoCo and hardware drivers are adapter implementations. Robot
 profiles select capabilities, policies, sensors and limits; deployment guides
 and validation records carry the concrete dependency versions and source pins.
 
-[Embodiment declarations](EMBODIMENT.md) describe links, joints, transmissions
+[Embodiment declarations](ROBOT_MODULARITY.md#declared-embodiment-embodiment) describe links, joints, transmissions
 and sensor attachments. [Measured frame trees](SPATIAL_PROVIDERS.md) separately
 bind transforms to capture time, map and epoch. Neither substitutes for the
 other. Mixed physical actuation remains refused until dynamic frames, shared
@@ -28,7 +28,7 @@ software evidence and refuses every physical mounted composition.
 The optional [spatial domain](SPATIAL_PROVIDERS.md) resolves source-bound
 capture transforms and landmark memory and plans on immutable planar maps.
 Its synthetic replay uses the same composed MCP route without actuator resources;
-the [RGB-D observation domain](RGBD_SPATIAL_OBSERVATIONS.md) adds retained surface
+the [RGB-D observation domain](SPATIAL_PROVIDERS.md#retained-rgb-d-surface-observations) adds retained surface
 annotations. The optional cuVSLAM provider estimates local RGB-D poses in an
 isolated process with capture, calibration and map-epoch checks; a live
 native simulation stream tracked 12 real captures, with pose uncertainty
@@ -71,7 +71,7 @@ its private USD stage: editing another live `UsdStage` inside Kit can emit globa
 PhysX notices and invalidate the simulator. RGB-D, semantic masks and captured
 joint/contact metadata share an epoch, physical step and snapshot digest.
 
-The separate [Factory assembly controller](FACTORY_THREAD_CONTACT.md) drives
+The separate [Factory assembly controller](FACTORY_FASTENING_RUNTIME.md#thread-contact-fixture) drives
 SO-101 joints and a motorized hex socket in Newton; the nut moves through solved
 thread/tool contacts. Read-only verifiers measure advancement, actual seating
 contact and zero-motor retention. This experiment does not change the ordinary
@@ -404,6 +404,9 @@ chat command ("pick and place the red cube")
   camera waits `refresh_s` before asking again; meanwhile a same-scene entry
   is still tracked, otherwise the result is `[]`. Evidence:
   [perception bake-off](evidence/perception-bakeoff-20261015/REPORT.md).
+  Why Qwen + SAM: on 47 real reBot keyframes it identified 83 % of the
+  objects (YOLOE-11s: 25 %) and found 94 % of referred objects (40 %).
+  If SAM fails, a detection keeps its box as the mask.
 - **Colour without CLIP** (`perception/colors.py`): median mask HSV → colour
   word, stored on beliefs, matched against colour words in queries.
 - **LazyArm** (`control/lazy_arm.py`): the MCP server pre-warms cameras,
@@ -567,7 +570,7 @@ closure. See [OVRTX rendering and platform evidence](OVRTX_RENDERER.md).
 
 ### Optional bridge timing
 
-The Isaac bridge has disabled-by-default [Python profiling zones](ISAAC_BRIDGE_PROFILING.md)
+The Isaac bridge has disabled-by-default Python profiling zones
 around its existing target, update, frame-history, camera and execution-queue
 operations. The standard-library helper imports Carbonite only when enabled
 after application creation. Its initial clock anchor and periodic main-thread
@@ -575,13 +578,19 @@ samples bind captured CPU event order to bounded monotonic intervals;
 profiler logs and timings never authorize motion or renew camera freshness.
 Profiler errors invalidate diagnostics while the
 original operation and safety behavior remain intact.
+Enable the zones with `CASCADE_ISAAC_PYTHON_SPANS=1` and the timing summaries
+(with collector accounting) with `CASCADE_ISAAC_PYTHON_TIMINGS=1`.
+`scripts/isaac_bridge.py --gc-policy freeze-startup-heap` (or
+`CASCADE_ISAAC_GC_POLICY`) applies `src/cascade/sim/heap_freeze.py` after
+startup and before the first main-loop step; `ping` reports it as `gc_policy`.
 
 ### Lazy frame encoding
 
-The [component-encoding candidate](ISAAC_FRAME_ENCODING.md) gives RGB JPEG and
+The bridge's `_LazyFrame` (`scripts/isaac_bridge.py`) gives RGB JPEG and
 compressed depth separate locks and caches. An RGB-only reader does not start
 depth compression or acquire its lock. `wire()` still returns both components
-with their original encoding and field order. Camera buffers retain their
+with their original encoding and field order (JPEG quality 90, depth zlib
+level 3). Camera buffers retain their
 existing render/history identity; codec completion never updates timestamps,
 epochs or measured joints. Unused raw components remain owned by the retained
 frame until requested or released. Live performance and native acceptance
@@ -625,8 +634,16 @@ Isaac defaults to 30 Hz nominal targets paced by authoritative physical time.
 The common profile preserves every complete legacy 50 Hz edge with its original
 dt, adds actual command edges and checks intervening subedges. Hardware retains
 its existing 50 Hz default. This is sampled coverage, not continuous collision
-certification. Settling and bounded state/command RPCs are described in
-[Isaac motion clock](ISAAC_MOTION_CLOCK.md).
+certification. Trajectories and settling run on simulation seconds read with
+q/dq on the simulation thread (`physics_clock`); there is no wall-clock
+fallback, and `IsaacArm.validate_simulation_clock()` checks the clock in one
+read-only call. `motion_wall_timeout_s` (120 s) bounds each stream/settle and
+`motion_rpc_timeout_s` (1 s) caps each RPC (`configs/arms/isaac.yaml`).
+
+Optional command evidence (off by default): `CASCADE_ISAAC_TARGET_RECEIPTS=1`
+in the bridge plus `CASCADE_MOTION_EVIDENCE_DIR=<private dir>` in the MCP
+process record each queued command, its SDK setter receipt and the later
+state. None of these alone proves motion.
 
 Optional non-payload occupancy may report no data for an absent/stale cache;
 that is not evidence of free space. Profiles opting into `occupancy.required`
@@ -640,7 +657,7 @@ correct source/epoch/contact binding and successful fresh commits from all
 required cameras. Unknown payload samples and the configured 30 mm clearance
 remain rejection conditions. Contact/release episodes retain narrowly scoped
 recovery authority after failure; another command cannot borrow their cylinder.
-See [nvblox](NVBLOX.md) and [release recovery](NVBLOX_RELEASE_RETREAT.md).
+See [nvblox](NVBLOX.md) and [release recovery](NVBLOX.md#payload-and-release-contracts).
 
 The reBot requires its map (`rebot_rs` `overrides.occupancy`): the watcher
 refreshes it with mesh-masked depth on every perception tick, also during a
@@ -651,7 +668,7 @@ volume (`safety.tool_volume`: the wrist camera box of
 the grasp target's own voxels attributed away, so a neighbour of the target
 blocks the camera. See [nvblox, always-on occupancy](NVBLOX.md#always-on-occupancy-on-the-rebot).
 
-The [NV carry attachment guard](NVBLOX_CARRY_ATTACHMENT.md) retains the original
+The [NV carry attachment guard](NVBLOX.md#payload-and-release-contracts) retains the original
 post-close attachment through lift and placement transport. Isaac state reuses
 the same completed-update contact history; existing feedback reads validate
 source, epoch, step, joints and jaws before further targets. Loss or unknown
@@ -660,19 +677,23 @@ capability is armed only by the NV payload barrier, not by occupancy-off or
 legacy backends, and it does not correct mechanical slip.
 
 Gripper commands retain stop/generation and pending-episode checks. On the
-observed-finger path, each close stage also has an actual-pose, full-stroke
-preflight against non-target observed surfaces. That check does not continuously
-brake an already submitted gripper command. The [approach gate](observed-finger-gate.md)
+observed-finger path (`CASCADE_OBSERVED_FINGER_GATE=1`, set by the Spark
+install), each close stage also has an actual-pose, full-stroke
+preflight against non-target observed surfaces (grasp-evidence event
+`observed_finger_close_preflight`). That check does not continuously
+brake an already submitted gripper command. The approach gate
 keeps target points in the scene and covers the two calibrated finger links,
 not the palm, whole arm or unobserved space. For a validated PhysX clock,
-[the finger envelope](physx-finger-envelope.md) retains eight nominal components
+the finger envelope (`assets/grasp_geometry/rebot_rs_fingers_physx.json`;
+rebuild or check it with `scripts/build_physx_finger_geometry.py [--check]`)
+retains eight nominal components
 and adds sixteen derived cooking components from each of the x86 and ARM
 exports, giving forty components per finger. Source hashes and
 kinematic metadata bind that choice. This changes the checked geometric envelope,
 not the physical colliders, 0.1 mm opening interval or occupancy clearance.
 Local representation admission and physical acceptance are separate evidence.
 
-The additional [endpoint occlusion veto](observed-finger-occlusion.md) clips
+The additional endpoint occlusion veto clips
 those convex envelopes against captured pixel rays and rejects portions behind
 valid non-target, non-robot depth. It covers pregrasp/grasp endpoints and measured
 pre-close poses; it does not certify invalid depth, masked regions, inter-ray
@@ -681,12 +702,15 @@ independently, within the existing planning deadlines and preserved ranking.
 
 ### Grasp pipeline
 
-[Localization freshness](LOCALIZATION_FRESHNESS.md) checks the analyzed image's
+Localization freshness checks the analyzed image's
 client-local age before and after detector or VLM work, including accumulated
-fallback time. An expired result cannot authorize a grasp or an automatic home
+fallback time (`skills/runtime._analyzed_frame_age_s`: past 5 s it raises
+`SlowPerceptionError`). An expired result cannot authorize a grasp or an automatic home
 retry. A secondary-camera VLM fix keeps its actual image and calibration.
-The separate [Isaac startup check](ISAAC_STARTUP_READINESS.md) prepares the native
+The separate Isaac startup check prepares the native
 read-only verifier and waits for newer camera captures before proof starts.
+Its `TruthPoseReader` probe (`sim/truth.py`) builds `RigidPrim` views with
+`reset_xform_properties=False` and `prepare_contact_sensors=False`.
 
 ```
 localize ─▶ ObjectFix (base-frame OBB; de-biased centre, verified on 2 engines)
@@ -730,11 +754,14 @@ With GGX and the observed-finger gate, infeasible planning may request at most
 three batches within eight seconds, using the same saved scene and frozen prior.
 No motion separates these batches. Transport, malformed data, cancellation and
 clock errors are terminal, rather than reasons to regenerate candidates.
-[Planning search](grasp-planning-search.md) and [memory ranking](grasp-memory-ranking.md)
-define the selector contract.
+The limits are `grasp.graspgenx.feasibility_max_batches: 3` and
+`feasibility_timeout_s: 8.0` (`configs/arms/isaac_kitchen_gpu.yaml`). The
+runtime orders by quality before applying memory and calls `select_grasp`
+with `preserve_order=True`, so the memory ranking survives; direct callers
+keep quality order.
 
 A cached offset or an unbound legacy position can aim a carried object but cannot
-prove slip or authorize opening. [Held-object observations](HELD_OBJECT_OBSERVATION.md)
+prove slip or authorize opening. Held-object observations
 require identified, temporally coherent evidence and the driver's actual joint
 convention. Camera geometry uses the TCP at capture time, not a later TCP.
 Identity/epoch/stop failures remain terminal. Optional retry behavior elsewhere
@@ -810,8 +837,11 @@ same-step articulation/base/clock evidence. MuJoCo resets restore `qpos0` under
 the world lock. Isaac resets restore backend physical state and require the
 appropriate fresh-camera/map barrier before subsequent motion. Its renderer
 publishes only a token bound to recorded state, so reading an old render cannot
-make that image current by assigning a new timestamp. See
-[frame history](isaac-render-frame-history.md).
+make that image current by assigning a new timestamp. The bridge reads
+cameras back every `--cam-every` iterations (`CASCADE_ISAAC_CAM_EVERY`) and
+after 0.5 wall seconds; each wire frame carries `render_reference`, kept in
+`Frame.capture`. `scripts/isaac_frame_history.py` binds render time to the
+completed physics snapshot.
 
 ### Memory
 
@@ -897,6 +927,17 @@ shipped default), the watcher, the memory and the teardown receipt are
 exactly B21's. Fleet: a global `CASCADE_EPISODIC_PATH` is refused for two
 manipulation robots, `episodic_path` joins the store-file exclusivity check,
 and composed manipulation domains get `stores/episodic.json`.
+
+### Lifecycle and task receipts
+
+1. `shutdown_runtime(runtime, arm)` returns a software receipt (`scope:
+   software_teardown`, `physical_rest_verified: false`); a failed stage or a
+   live owned thread makes `ok` false. MCP saves it as `teardown.json` in its
+   run directory.
+2. The legacy `SkillRuntime` keeps a task ledger for every skill in
+   `agent/effects.POSTCONDITIONS`: an unknown effect blocks
+   `task_done(success=true)` and stays in `TaskReport.unverified`.
+   `begin_task()` is a host API, not a tool.
 
 ### Evaluation
 
@@ -1289,7 +1330,8 @@ UNVERIFIED, not READY. The MCP server is registered with
 `requestTimeoutMs: 300000`. Native visitor turns and proof pick turns share a 360-second
 whole-turn budget, including a 60-second host reserve around the per-tool limit,
 plus a 30-second CLI return margin; an expired motion still
-latches e-stop. See [turn budgets](native-visitor-turn-budget.md). Dead MCP entries are
+latches e-stop. `scripts/native_turn_budget.py` owns these constants
+(`NATIVE_TURN_TIMEOUT_S = 360`, `AGENT_EXIT_GRACE_S = 30`). Dead MCP entries are
 pruned, and on macOS the server runs under `mjpython` so the MuJoCo window
 can open -- when a display is active; a sleeping display is detected and
 the window retried on the next motion instead of segfaulting the server.
@@ -1367,7 +1409,7 @@ store), because NemoClaw registers only authenticated HTTP MCP servers. The
 robot runtime stays on the host; the transport shares the stdio server's
 serial worker and receive-side stop channel (`_admit`), and namespaces
 JSON-RPC ids per session. `scripts/nemoclaw_mcp.py` issues the certificate,
-token and registration; see [NEMOCLAW.md](NEMOCLAW.md). The standalone
+token and registration; see [OPENSHELL.md](OPENSHELL.md#nemoclaw-route-opt-in). The standalone
 OpenShell 0.1.x route (`scripts/openshell_rig.py`, [OPENSHELL.md](OPENSHELL.md))
 serves the same MCP server on the host loopback instead, and on Linux it is
 where `launch.sh` always runs the agent (simulators and the real robot alike);

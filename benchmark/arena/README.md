@@ -55,7 +55,9 @@ tools and its configured resource claims are not physical or safety admission.
 
 The committed lock selects Python3.12/Linux x86_64, Isaac Sim6.1.0.0,
 PyTorch2.11/CUDA12.8 and Newton1.5.2; README badges are not a dependency lock.
-The optional [native foundation](../../docs/ARENA_NATIVE_PREFLIGHT.md) exercised
+The optional native foundation (`native_preflight.py --out <dir> ...` under Isaac's
+`python.sh`, hashed deps in `private_dependencies.txt`;
+[receipt](../../docs/evidence/arena-native/20261002.json)) exercised
 real Arena/PhysX through the ordinary CASCADE runtime on an explicitly different,
 existing6.1rc26 SDK. It preserves task-unverified results and tests cancellation
 at the final action consumer. It establishes no benchmark task success,
@@ -103,7 +105,8 @@ original task configuration and must be recorded as a variant. Oracle object
 poses must not enter benchmark policy observations.
 
 Native execution remains optional. The later
-[VAB CPU preflight](../../docs/VAB_NATIVE_PREFLIGHT.md) runs an explicit
+VAB CPU preflight (`python -m benchmark.vab.native_preflight <vab-checkout> <out>
+[--cancel-after-step 8]`, locked by `benchmark/vab/requirements-native-lock.txt`) runs an explicit
 floor/Panda runtime factory through real MuJoCo, ordinary CASCADE relative
 motion and an independent solved-state witness. It also exercises cancellation;
 it is not a grasp/placement task result. Reproduction requires the

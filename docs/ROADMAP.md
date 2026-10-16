@@ -1,8 +1,10 @@
 # Roadmap
 
 The active scope covers the capabilities below. The
-[capability index](PROJECT_STATUS_20261003.md) records measured results and the
-[architecture](ROBOT_MODULARITY.md) describes shared interfaces. Dated entries
+[architecture](ROBOT_MODULARITY.md) describes shared interfaces. Measured so far
+(5 October index): one five-object OpenClaw/Qwen Isaac campaign (source `d2b78586`),
+one native [mounted turn-and-rest](FACTORY_FASTENING_RUNTIME.md#native-mounted-turn-and-rest-2026-10-04)
+and twelve [live cuVSLAM tracks](SPATIAL_PROVIDERS.md#live-native-rgb-d-stream). Dated entries
 below this table preserve historical decisions; they are not the current backlog.
 
 ## Remaining capabilities

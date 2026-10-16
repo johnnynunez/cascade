@@ -3,7 +3,7 @@
 MicroDuck is an opt-in mobile base with a bounded velocity interface. It does
 not instantiate an arm, inverse kinematics, grasping, or the kitchen scene.
 The implementation is a candidate: general walking and turning have not passed
-physical admission. The optional [geometric distance candidate](MICRODUCK_DISTANCE_CANDIDATE.md)
+physical admission. The optional [geometric distance candidate](#implemented-contract)
 retains four historically confirmed native fresh-start ±30 mm receipts. A later
 [observation audit](evidence/voice-reply-recovery-20261004/guarded-continuation.json)
 finds heading drift after completion in both forward cases, exceeding the
@@ -178,6 +178,18 @@ profiler label. Native and scope exits were zero, all eight observed births
 were absent, and no signals or forced closure occurred. This measures the
 current recipe, not the historical gait's effective options, and does not
 establish an integrator cause, training alignment, locomotion or physical rest.
+
+## Implemented contract
+
+`walk_distance(distance_m=...)` exists only in a configured mobile profile
+(`configs/bases/microduck_distance_candidate.yaml`). SafeBase integrates
+displacement and lateral/heading drift from the first completed post-ACK
+sample; the independent checker compares the signed displacement with the
+request, and progress after the physical deadline never completes it. The
+opt-in pair `max_admission_lateral_m` / `max_admission_heading_rad` bounds the
+change from the last pre-ACK sample to that baseline: set both in
+`distance_control` and `verifier` (one-sided disables the verifier). No value
+is measured yet.
 
 ## Evidence and identity
 

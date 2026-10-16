@@ -259,3 +259,11 @@ numbers above are stale for the reason in the box, not because of that fix.
 are kept because the *method* is reusable: each one kills a specific
 hypothesis, and together they show how a "retry resets the scene" symptom
 turned out to be a resource leak in the verification probe.
+
+## LIBERO layer attribution (measured 2026-08-09)
+
+`benchmark/libero/run_wrc.py` on `libero_spatial` (10 tasks x 10 seeds): the
+no-op floor is 0/50 and every condition scores 0/100. With oracle perception the
+postcondition check cuts false success claims from 48 to 5
+(`benchmark/results/proto_spatial_oracle.json`); camera perception never names
+the bowl, so those rows measure a detector domain gap.

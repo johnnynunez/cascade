@@ -110,8 +110,12 @@ Outputs of a run:
 
 ## OVRTX notes
 
-The replay path (SDK pair opt-in, flat world-space body prims, and the first-write sentinel for ovrtx 0.5.1) is
-documented in `docs/MICRODUCK_OVRTX_REPLAY.md`.
+1. `src/cascade/sim/microduck_ovrtx_replay.py`: `build_render_scene(...)` writes one flat Z-up USD with each of the
+   16 bodies at `/World/DuckBodies/<robot>/<body>`; `ReplayPoses(...).transforms(frame)` feeds `SceneSnapshot`.
+2. `OvrtxRenderer(..., sdk_versions=...)` accepts only `KNOWN_SDK` pairs (`sim/ovrtx_renderer.py`).
+3. On ovrtx 0.5.1 / ovstage 0.2.1 the first single-prim write stops updating after frame 1, so the replay writes an
+   identity `/World/ReplayWriteSentinel` first on every frame. Evidence and probe:
+   [`evidence/microduck-ovrtx-replay-20261013/`](evidence/microduck-ovrtx-replay-20261013/).
 
 ## Honesty labels burned into the videos
 

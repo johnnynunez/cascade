@@ -111,3 +111,12 @@ Chrome for Testing is suitable for automated unpacked-extension checks;
 regular Chrome installations should use **Load unpacked** in the extensions
 page. Opening the side panel requires a user gesture, as documented by
 [Chrome](https://developer.chrome.com/docs/extensions/reference/api/sidePanel).
+
+## Firefox
+
+The same companion runs in Firefox 140 or later; only the manifest differs.
+
+1. Run `python3 extensions/firefox/package.py` (writes `extensions/firefox/build/` and the `.xpi`).
+2. Open `about:debugging`, choose **This Firefox**, click **Load Temporary Add-on** and pick the `.xpi`.
+3. Firefox drops temporary add-ons on restart; a permanent install needs an AMO-signed package
+   (`web-ext sign --channel=unlisted`).

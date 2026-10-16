@@ -345,7 +345,7 @@ actor connection or advancing the simulation.
 The registry and generic payloads are implemented; a humanoid tactile device
 driver, calibration procedure and task-specific tactile verifier are not.
 
-The opt-in [camera-only RGB-D path](OBSERVED_RGBD.md) connects the native mobile
+The opt-in [camera-only RGB-D path](SPATIAL_PROVIDERS.md#camera-only-rgb-d-domain-mobile_rgbd) connects the native mobile
 producer to passive sensing/runtime/MCP without constructing an arm. It retains
 capture clocks, model/calibration pins, RGB8, metric optical-axis depth and the
 static overview camera's optical-to-world transform. It is software-tested;
@@ -542,7 +542,7 @@ The [HomeBody comparison](HOMEBODY_COMPARISON.md) extends this design with six
 proposed increments: source-bound spatial memory, dynamic transforms,
 auditable reconstruction, bounded local correction, actuator health and one
 whole-body command owner. The first increment now has [passive spatial replay](SPATIAL_PROVIDERS.md)
-and [retained RGB-D annotations](RGBD_SPATIAL_OBSERVATIONS.md), with explicit
+and [retained RGB-D annotations](SPATIAL_PROVIDERS.md#retained-rgb-d-surface-observations), with explicit
 map/transform invalidation. Physical SLAM, reconstruction and whole-body
 execution remain design work; the comparison separates HomeBody's presentation
 from its pending robot-code release and separately available components.
@@ -707,3 +707,17 @@ MicroDuck's [current evidence index](PROJECT_STATUS_20261003.md#fastening-and-lo
 includes historical short-distance passes alongside retained failed commands.
 Those episode-specific results do not establish general walking, twelve-robot
 operation or admission of a later source/model combination.
+
+## Declared embodiment (`embodiment:`)
+
+An optional `embodiment` section in `configs/robots/*.yaml` declares links,
+joints (`loop_closure: true` for loop constraints), transmissions and sensor
+attachments. `list_resources` returns it with `embodiment_sha256`
+(`robotics/embodiment.py`); an absent section changes nothing.
+
+## Fixed LEAP hand (`leap_hand_right_mujoco`)
+
+`configs/robots/leap_hand_right_mujoco.yaml` exposes 16 finger joints through
+`hand.get_hand_state`, `hand.move_fingers` and `hand.set_hand_posture`
+(`skills/hand_runtime.py`). It covers bounded free finger motion only: no grasp,
+tactile calibration, moving wrist or hardware.

@@ -5,7 +5,7 @@ landmark memory and planar route planning. The `spatial_replay` robot profile
 exercises the real composed runtime and MCP with synthetic observations. It has
 no actuator resources and exposes no navigation execution tool.
 
-The separate [retained RGB-D path](RGBD_SPATIAL_OBSERVATIONS.md) now connects an
+The separate [retained RGB-D path](#retained-rgb-d-surface-observations) now connects an
 explicit `SensorHub` to these same transform and memory contracts. It records
 selected surface pixels as caller annotations, using capture-bound calibration
 and provenance. It does not construct a grid or expose route planning.
@@ -33,9 +33,9 @@ initialize an isolated SDK process; it admits no pose or image. After warmup,
 captures within the configured gap independently of LLM response time.
 `get_localization` reads its last still-fresh estimate. Neither tool acquires a
 frame or steps physics. CPU contracts and a 12-frame native synthetic RGB-D
-replay pass; [the native validation record](CUVSLAM_NATIVE_VALIDATION.md) binds
+replay pass; [the native validation record](#live-native-rgb-d-stream) binds
 the build, inputs, estimates and cleanup, and also records a
-[live native simulation stream](CUVSLAM_NATIVE_VALIDATION.md#live-native-rgb-d-stream)
+[live native simulation stream](#live-native-rgb-d-stream)
 that tracked 12 captures from a MicroDuck producer with unknown pose
 uncertainty. Physical localization remains pending.
 
@@ -249,6 +249,32 @@ Recall `cup`, or resolve `spatial_replay/camera` into `world/map`. A sample rout
 uses start `[0.45, 0.45]`, goal `[2.65, 1.45]`, radius `0.1`, clearance `0.02`
 and position error `0.01`, in meters. It crosses the measured opening in the
 synthetic wall. Stop/reset preserves the map epoch and does not replay motion.
+
+## Live native RGB-D stream
+
+The [stream receipt](evidence/spatial/cuvslam-live-stream-20261004.json) records
+an Isaac/Newton MicroDuck producer (320 solves, zero policy commands) whose first
+12 real RGB-D captures cuVSLAM tracked; `emergency_stop` invalidated the map epoch.
+The [12-frame synthetic replay](evidence/spatial/cuvslam-native-20261004.json)
+ended with 0.01178 m translation error. To rebuild natively, apply
+`evidence/spatial/cunls-thrust-tuple.patch` to the SDK's cuNLS sources, then run
+`scripts/validate_cuvslam_rgbd.py --sdk-checkout <dir> --output <json>`.
+
+## Camera-only RGB-D domain (`mobile_rgbd`)
+
+Add `--camera-rgbd` to an owned `scripts/isaac_microduck_bridge.py` run: the
+static, world-mounted overview camera then feeds the `mobile_rgbd` sensor
+provider. That profile builds no arm, controller or map, and stays
+`admission: unvalidated`.
+
+## Retained RGB-D surface observations
+
+1. Configure `spatial.rgbd` with `sensor_domain`, `sensor_id`, `map_id`,
+   `world_frame_id` and `capacity` (it reads the `mobile_rgbd` provider above).
+2. Call `sensing.read_sensor` with `{"sensor_id": "overview"}`.
+3. Call `spatial.annotate_pixel` with the returned epoch, sequence and digest.
+   The result is an observed surface point, not an object class; it never
+   admits motion and adds no grid, route planner or `go_to`.
 
 ## Validation and next boundary
 

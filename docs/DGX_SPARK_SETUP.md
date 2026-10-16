@@ -60,7 +60,7 @@ complete legacy 50 Hz safety edges retained; this is not measured throughput.
 Explicit supported overrides remain effective. Occupancy/nvblox
 is disabled, and JEv is not part of the installer or presenter runtime.
 Newton remains an explicit engine option under separate validation.
-See the [presenter card](PRESENTER_QUICKSTART.md) for the short demo and recovery.
+See the [presenter card](BOOTH_RUNBOOK.md#9-simulated-kitchen-on-dgx-spark-presenter-card) for the short demo and recovery.
 
 ## Quick path
 
@@ -467,7 +467,16 @@ or create a fresh READY receipt, and it is not a complete desktop restart:
 the current desktop camera/chat attachment requires a verified proof.
 Use the normal desktop launch when Qwen or those surfaces also need recovery.
 The desktop command does not accept the two skip flags. See
-[recovery details](SPARK_DELIVERY.md#quick-recovery-during-the-demo).
+[recovery details](#ready-checks-and-quick-recovery).
+
+## READY checks and quick recovery
+
+READY needs both startup orders (green cube to the green square, orange into the
+open box) placed through OpenClaw, confirmed by the independent physics observer,
+and each followed by a reset; `--no-robot-turn` stays STARTED / UNVERIFIED. To put
+objects back, use **Start over**, **Reset** or "Reset the scene." (Isaac, Qwen and
+OpenClaw keep running). After a crash, add `--no-robot-turn --no-judge` to the
+usual launch, e.g. `./run.sh isaac --engine physx --graspgenx local --no-robot-turn --no-judge`.
 
 ## Agent checklist
 

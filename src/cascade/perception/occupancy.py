@@ -715,6 +715,17 @@ class OccupancyMap:
         logger.warning("occupancy: cleared the bridge map at session start (clear_on_start)")
         return True
 
+    def close_client(self) -> None:
+        """Close this process's bridge client (its REQ socket).
+
+        The bridge itself (scripts/serve_occupancy.sh) and the map it holds
+        are not this runtime's: nothing is sent to it, so its map survives
+        for the next runtime. A later request would reconnect lazily.
+        """
+        close = getattr(self._client, "close", None)
+        if callable(close):
+            close()
+
     def probe(self, timeout_ms: int = 300) -> dict | None:
         """One startup round trip that names the backend (or records that
         nothing answered). Never raises."""

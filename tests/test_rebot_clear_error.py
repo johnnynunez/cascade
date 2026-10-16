@@ -20,6 +20,7 @@ Fully offline: the SDK (`reBotArm_control_py`) and motorbridge are faked in
 from __future__ import annotations
 
 import sys
+import time
 import types
 
 import numpy as np
@@ -135,13 +136,36 @@ def _rs_arm():
     return RebotRSArm(Cfg({"hw_yaml": "rebotarm_rs.yaml", "n_joints": 6}))
 
 
+class _ConnectClock:
+    """`time` of the connect code under test only (robstride's clear-retry
+    loop, both RS arm modules): `sleep` records and advances `monotonic`,
+    never blocks. Patching the process-wide `time.sleep` instead recorded
+    every thread's sleeps: a CameraStream leaked by an earlier test logged
+    its 30 Hz frame wait (0.033 s) as a connect retry on CI."""
+
+    def __init__(self):
+        self.now = 0.0
+        self.slept = []
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, s):
+        self.slept.append(s)
+        self.now += max(0.0, s)
+
+    def __getattr__(self, name):
+        return getattr(time, name)
+
+
 @pytest.fixture
 def no_sleep(monkeypatch):
-    from cascade.control import robstride
+    from cascade.control import rebot_rs_arm, rebot_rs_mb_arm, robstride
 
-    slept = []
-    monkeypatch.setattr(robstride.time, "sleep", lambda s: slept.append(s))
-    return slept
+    clock = _ConnectClock()
+    for module in (robstride, rebot_rs_arm, rebot_rs_mb_arm):
+        monkeypatch.setattr(module, "time", clock)
+    return clock.slept
 
 
 def test_rs_sdk_connect_clears_every_motor_before_enable(monkeypatch, no_sleep):

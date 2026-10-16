@@ -528,6 +528,36 @@ class _ClosableDetector:
             raise self.error
 
 
+def test_a_failed_watcher_stop_still_closes_the_detector_at_shutdown(tmp_path, monkeypatch):
+    """Normal shutdown has no bound: a watcher.stop() that raises is recorded
+    in its stage and the detector is closed anyway, as before the failed-build
+    teardown existed. Only a BOUNDED teardown leaves the detector open to a
+    watcher that is still inside it."""
+    pytest.importorskip("pinocchio")
+    from cascade.apps import demo
+    from cascade.config import load_demo_config
+
+    detector = _ClosableDetector()
+    monkeypatch.setattr(demo, "_make_detector", lambda cfg: detector)
+    runtime, arm = demo.build_runtime(load_demo_config(camera="mock", arm="mock", llm="mock"),
+                                      tmp_path / "run", view=False, serve=False)
+    watcher = runtime.watcher
+    real_stop = watcher.stop
+
+    def broken_stop(timeout_s=None):
+        raise RuntimeError("watcher stop broke")
+
+    watcher.stop = broken_stop  # the loop keeps running: the stop never reached it
+    try:
+        receipt = shutdown_runtime(runtime, arm)
+    finally:
+        real_stop()
+    stages = {s["stage"]: s for s in receipt["stages"]}
+    assert stages["watcher"]["ok"] is False
+    assert detector.closed == 1, "a failed watcher stop left the detector open at shutdown"
+    assert stages["detector"]["ok"] is True
+
+
 @pytest.mark.parametrize("close_error", [None, RuntimeError("close broke too")], ids=["close-ok", "close-raises"])
 def test_a_build_failure_after_the_detector_closes_it(tmp_path, monkeypatch, close_error):
     pytest.importorskip("pinocchio")

@@ -471,6 +471,35 @@ def build_runtime(
 
         return build_mobile_runtime(cfg, run_dir)
 
+    # Every owner the build starts is recorded here AS it starts, so a step
+    # that raises later (a misspelled `stream.nvblox_map`, a required
+    # GraspGen-X that is down) stops exactly those before its error goes up:
+    # a failed start must not keep a camera device or a thread running.
+    from types import SimpleNamespace
+
+    started = SimpleNamespace(rig=None, detector=None, watcher=None, drift_monitors=[],
+                              live_view=None, viewer=None, feedback_arms=[], occupancy=None)
+    try:
+        return _build_runtime(cfg, run_dir, view=view, lazy_arm=lazy_arm, serve=serve, started=started)
+    except BaseException:
+        _abandon_build(started)  # never raises: the build's own error is the one re-raised
+        raise
+
+
+#: Per-owner join bound of a FAILED build's teardown (_abandon_build). A
+#: watcher stuck in a cold first inference or a hung grab then delays the
+#: build's error by this much, instead of hiding it; the thread is named, and
+#: the watcher's atexit join (perception/thread_join.py) still catches it.
+#: Per owner, not in total: worst case 15 s each for the watcher, the viewer,
+#: every drift monitor and every camera stream, plus up to 5 s for the live
+#: view's server, up to 3 s per ROS feedback arm detach and the brain
+#: detector's own close() bounds (refresh timeout + margin, up to 60 s of SAM
+#: warm-up). A reaper that bounds the whole teardown is a follow-up.
+_FAILED_BUILD_JOIN_S = 15.0
+
+
+def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: bool,
+                   started) -> tuple[SkillRuntime, object]:
     from ..planning.backend_evidence import selection_from_environment
     kitchen_renderer = selection_from_environment(cfg, os.environ)
 
@@ -507,6 +536,7 @@ def build_runtime(
         workspace_min=[min(v[i] for v in ws_min) for i in range(3)],
         workspace_max=[max(v[i] for v in ws_max) for i in range(3)],
     )
+    started.occupancy = occupancy
 
     raw_arms, safe_arms, arm_names, kins = [], [], [], []
     for i, acfg in enumerate(arm_cfgs):
@@ -604,38 +634,29 @@ def build_runtime(
             )
         )
     rig = CameraRig(streams)
-    feedback_arms = []
-    detector = None
-    try:
-        if lazy_arm and any(c.get("extrinsics", _empty_cfg()).get("mode") == "eye_in_hand"
-                            for c in cam_cfgs):
-            # Native ROS controllers already own the drives. Ros2Arm.connect
-            # only subscribes to measured feedback and creates command handles;
-            # it sends no target, gripper, enable, or resume command. Attach it
-            # before the wrist camera so every frame can bind FK and body-mask
-            # joints from one measured snapshot, even at startup under STOP.
-            # Preserve LazyArm itself and leave every non-ROS backend untouched.
-            for raw, acfg in zip(raw_arms, arm_cfgs):
-                if acfg.get("type") == "ros2":
-                    feedback_arms.append(raw)
-                    raw.get_state()
-        rig.open()
-        detector = LockedDetector(_make_detector(cfg))
-        rig.primary.warm_up(int(cam_cfgs[0].get("warmup_frames", 5)))
-    except Exception:
-        rig.close()  # a partial build must not leak open camera streams
-        for raw in feedback_arms:
-            raw.disconnect()  # passive ROS attachment has no active goals
-        if detector is not None:
-            # Nor the detector's threads (the brain detector's SAM warm-up and
-            # refreshes): its close() joins them with a bound. Last, as in
-            # shutdown_runtime; a close failure must not hide the build's error.
-            try:
-                detector.close()
-            except Exception as e:  # noqa: BLE001 - the build's own error is re-raised below
-                logger.warning("closing the detector after a failed build failed (%s: %s)",
-                               type(e).__name__, e)
-        raise
+    # From here a failure closes the rig (build_runtime -> _abandon_build):
+    # a partial build must not leak open camera streams, even when the ROS
+    # attach or rig.open() itself is what failed.
+    started.rig = rig
+    feedback_arms = started.feedback_arms
+    if lazy_arm and any(c.get("extrinsics", _empty_cfg()).get("mode") == "eye_in_hand"
+                        for c in cam_cfgs):
+        # Native ROS controllers already own the drives. Ros2Arm.connect
+        # only subscribes to measured feedback and creates command handles;
+        # it sends no target, gripper, enable, or resume command. Attach it
+        # before the wrist camera so every frame can bind FK and body-mask
+        # joints from one measured snapshot, even at startup under STOP.
+        # Preserve LazyArm itself and leave every non-ROS backend untouched.
+        # A failed build detaches them again (passive: no active goals).
+        for raw, acfg in zip(raw_arms, arm_cfgs):
+            if acfg.get("type") == "ros2":
+                feedback_arms.append(raw)
+                raw.get_state()
+    rig.open()
+    # The detector's threads (the brain detector's SAM warm-up and refreshes)
+    # are joined, bounded, by its close(): a failed build closes it last.
+    detector = started.detector = LockedDetector(_make_detector(cfg))
+    rig.primary.warm_up(int(cam_cfgs[0].get("warmup_frames", 5)))
 
     memory = EpisodicMemory(
         horizon_s=float(cfg.memory.get("horizon_s", 15.0)),
@@ -738,6 +759,7 @@ def build_runtime(
             **({"visual_recall": _detection_recorder(memory, visual_recall["detections"])}
                if visual_recall["detections"] is not None else {}),
         )
+        started.watcher = watcher
         watcher.start()
         runtime.watcher = watcher
 
@@ -763,6 +785,7 @@ def build_runtime(
         motion_fn=_moving, run_dir=trace.run_dir, memory=memory,
         arm_name=str(arm_cfgs[0].get("name", "") or ""),
         ee_frame=str(arm_cfgs[0].get("ee_frame", "") or ""))
+    started.drift_monitors = runtime.drift_monitors
     for mon in runtime.drift_monitors:
         mon.start()
         c = mon.config
@@ -841,6 +864,11 @@ def build_runtime(
         runtime.live_view = LiveViewController(
             _make_stream_server, mode=mode, idle_timeout_s=idle_timeout
         )
+        # Ours, recorded BEFORE open() binds: an error after the bind (a
+        # Ctrl+C, a reaper thread that cannot start) still closes it and
+        # frees the port. An external view is a supervised service: never
+        # recorded, never closed by a failed build.
+        started.live_view = runtime.live_view
     if mode == "eager":
         opened = runtime.live_view.open(reason="stream.mode: eager")
         if not opened.get("ok"):
@@ -860,6 +888,7 @@ def build_runtime(
             # Default to the dashboard's depth range so both views agree.
             depth_max_m=float(vcfg.get("depth_max_m", scfg.get("depth_max_m", 2.0))),
         )
+        started.viewer = runtime.viewer
         runtime.viewer.start()
 
     # Verified-backend banner. GraspGen-X is probed HERE (300 ms) rather
@@ -1248,26 +1277,11 @@ def shutdown_runtime(runtime, arm) -> dict:
         n = runtime.memory.save_visual(path)
         print(f"[cascade] remembered {n} appearance(s) -> {path}")
 
-    def _stop_drift_monitors():
-        for mon in getattr(runtime, "drift_monitors", None) or []:
-            mon.stop()
-
     def _disconnect_arms():
         rig = getattr(runtime, "arm_rig", None)
         if rig is not None:
             return rig.disconnect()  # includes the primary and per-arm results
         return arm.disconnect()
-
-    detector = getattr(runtime, "detector", None)
-
-    def _close_detector():
-        # Logged here, recorded in the receipt by teardown_step; never raised.
-        try:
-            detector.close()
-        except Exception as e:
-            logger.warning("closing the detector failed (%s: %s); shutdown goes on",
-                           type(e).__name__, e)
-            raise
 
     stages = []
     for name, step in (
@@ -1277,36 +1291,169 @@ def shutdown_runtime(runtime, arm) -> dict:
         # receipt keeps exactly its stages
         *((("episodic", _save_episodic),) if getattr(runtime, "episodic_path", None) is not None
           else ()),
+        *_owner_stages(runtime, arms=_disconnect_arms),
+    ):
+        stages.append(teardown_step(name, step))
+
+    receipt = teardown_receipt(stages, pending_threads=_pending_threads(threads, after="shutdown"))
+    runtime._shutdown_receipt = copy.deepcopy(receipt)
+    return receipt
+
+
+def _still_running(owner) -> bool:
+    thread = getattr(owner, "_thread", None) if owner is not None else None
+    return isinstance(thread, threading.Thread) and thread.is_alive()
+
+
+def _owner_stages(runtime, *, arms=None, live_view=None, timeout_s: float | None = None) -> list:
+    """The thread/device owners' stages of a teardown, as (name, step) pairs.
+
+    Shared by shutdown_runtime (after park/beliefs/episodic, `arms` = every
+    arm's disconnect, no bound) and a failed build's _abandon_build (`arms` =
+    only passive ROS feedback attachments, `live_view` = the build's own
+    LiveViewController, closed instead of `runtime.stream_server`, and the
+    owners' joins bounded by `timeout_s`).
+    Order: drift monitors (they read the watcher's streams and the arm's
+    joints) -> watcher (the consumer of the camera streams) -> dashboard ->
+    viewer -> camera streams (producers) -> arms -> detector. Stages for the
+    opt-in drift monitors and a closable detector are present only when they
+    exist, so the default receipt keeps exactly its stages.
+    """
+    def bounded(stop):
+        return stop() if timeout_s is None else stop(timeout_s=timeout_s)
+
+    def _stop_drift_monitors():
+        for mon in getattr(runtime, "drift_monitors", None) or []:
+            bounded(mon.stop)
+
+    def _stop_stream_server():
+        if live_view is not None:
+            # close() stops the server the controller holds, including one
+            # that bound before open() raised (its own join: up to 5 s).
+            closed = live_view.close(reason="failed build")
+            if not closed.get("ok"):
+                raise RuntimeError(closed.get("error"))
+            return None
+        server = getattr(runtime, "stream_server", None)
+        return server.stop() if server else None
+
+    def _close_cameras():
+        rig = getattr(runtime, "rig", None)
+        if rig:
+            return bounded(rig.close)
+        camera = getattr(runtime, "camera", None)
+        return camera.close() if camera is not None else None
+
+    detector = getattr(runtime, "detector", None)
+
+    def _close_detector():
+        # A failed build's BOUNDED teardown can get here with the watcher
+        # still running (its bound expired inside a detector call), and
+        # LockedDetector.close() would wait for that call under the detector
+        # lock: leave it open. shutdown_runtime has no bound and closes the
+        # detector whatever the watcher stage reported, as it always did.
+        if timeout_s is not None and _still_running(getattr(runtime, "watcher", None)):
+            raise RuntimeError("the watcher is still inside the detector; detector left open")
+        # Logged here, recorded in the receipt by teardown_step; never raised.
+        try:
+            detector.close()
+        except Exception as e:
+            logger.warning("closing the detector failed (%s: %s); shutdown goes on",
+                           type(e).__name__, e)
+            raise
+
+    return [
         # likewise only with a drift monitor (opt-in, extrinsics.drift_monitor):
         # they read the watcher's streams and the arm's joints, so stop first
         *((("drift_monitors", _stop_drift_monitors),)
           if getattr(runtime, "drift_monitors", None) else ()),
-        ("watcher", lambda: runtime.watcher.stop() if runtime.watcher is not None else None),
-        ("stream_server", lambda: runtime.stream_server.stop() if getattr(runtime, "stream_server", None) else None),
-        ("viewer", lambda: runtime.viewer.stop() if getattr(runtime, "viewer", None) else None),
-        ("cameras", lambda: runtime.rig.close() if getattr(runtime, "rig", None) else runtime.camera.close()),
-        ("arms", _disconnect_arms),
+        ("watcher", lambda: bounded(runtime.watcher.stop) if runtime.watcher is not None else None),
+        ("stream_server", _stop_stream_server),
+        ("viewer", lambda: bounded(runtime.viewer.stop) if getattr(runtime, "viewer", None) else None),
+        ("cameras", _close_cameras),
+        *((("arms", arms),) if arms is not None else ()),
         # likewise only for a detector with a close() (the brain detector):
         # after the watcher (no new background refresh starts) and LAST, so
         # the arms' disconnect never waits behind a brain request
         *((("detector", _close_detector),) if getattr(detector, "closable", False) is True else ()),
-    ):
-        stages.append(teardown_step(name, step))
+    ]
 
+
+def _pending_threads(threads, *, after: str) -> list:
+    """Owned threads still alive once their owners' stages ran, each named."""
     pending = []
     for label, thread in threads:
         if thread.is_alive():
             pending.append({"owner": label, "thread": thread.name})
             # The owners above wait without a bound, except the brain
-            # detector (bounded joins of its refreshes and SAM warm-up): this
-            # fires when such a bound expired, or an owner regressed to one.
-            # Name it: the alternative is an unexplained abort at interpreter exit.
+            # detector (bounded joins of its refreshes and SAM warm-up) and a
+            # failed build's teardown: this fires when such a bound expired,
+            # or an owner regressed to one. Name it: the alternative is an
+            # unexplained abort at interpreter exit.
             print(f"[cascade] WARNING: {label} thread {thread.name!r} is still running "
-                  "after shutdown; native code may abort the process at exit",
+                  f"after {after}; native code may abort the process at exit",
                   file=sys.stderr)
-    receipt = teardown_receipt(stages, pending_threads=pending)
-    runtime._shutdown_receipt = copy.deepcopy(receipt)
-    return receipt
+    return pending
+
+
+def _abandon_build(started) -> None:
+    """Stop what a failed build_runtime had started. Never raises.
+
+    `started` holds only owners this build started, recorded as each one
+    started. They go through the same owner stages as shutdown_runtime, then
+    this build's occupancy bridge client is closed (only the socket: the
+    bridge and its map are not ours). The arms are left as they are, except
+    the passive ROS feedback attachments, which are detached: no park can run
+    here, and cutting an arm's torque without one is not a failed start's
+    decision. A thread still alive past its bound is named; a stage that
+    failed is logged.
+
+    The bound is per owner, not for the whole teardown: worst case, the
+    build's error waits _FAILED_BUILD_JOIN_S (15 s) for EACH of the watcher,
+    the viewer, every drift monitor and every camera stream, up to 5 s for
+    the live view's own server join, up to 3 s per ROS feedback arm detach,
+    plus the brain detector's own close() bounds (refresh timeout + margin,
+    and up to 60 s of SAM warm-up).
+    """
+    from ..lifecycle import teardown_receipt, teardown_step
+
+    try:
+        live_view = started.live_view
+        # For owned_threads' naming only; live_view.close() stops it.
+        started.stream_server = live_view.server if live_view is not None else None
+        threads = owned_threads(started)
+        feedback = list(started.feedback_arms)
+
+        def _detach_feedback_arms():
+            errors = []
+            for raw in feedback:  # passive ROS attachment: no active goals
+                try:
+                    raw.disconnect()
+                except Exception as e:  # noqa: BLE001 - the next arm still detaches
+                    errors.append(e)
+            if errors:
+                raise errors[0]
+
+        def _close_occupancy_client():
+            # The watcher's refresh is its only other user and would reconnect.
+            if _still_running(started.watcher):
+                raise RuntimeError("the watcher is still running; occupancy client left open")
+            started.occupancy.close_client()
+
+        steps = _owner_stages(started, arms=_detach_feedback_arms if feedback else None,
+                              live_view=live_view, timeout_s=_FAILED_BUILD_JOIN_S)
+        if started.occupancy is not None:
+            steps.append(("occupancy_client", _close_occupancy_client))
+        stages = [teardown_step(name, step) for name, step in steps]
+        receipt = teardown_receipt(
+            stages, pending_threads=_pending_threads(threads, after="the failed build's teardown"))
+    except Exception as e:  # noqa: BLE001 - the build's own error is the one re-raised
+        logger.warning("tearing down a failed build failed (%s: %s)", type(e).__name__, e)
+        return
+    if not receipt["ok"]:
+        failed = [s["stage"] for s in receipt["stages"] if not s.get("ok")]
+        logger.warning("a failed build could not stop everything it started: stages %s, "
+                       "threads still running %s", failed, receipt["pending_threads"])
 
 
 def _empty_cfg():

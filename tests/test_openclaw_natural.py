@@ -74,6 +74,20 @@ console.log(JSON.stringify({choice: result.tool_choice, names: result.tools.map(
     assert result == {"choice": "auto", "names": ["cascade__" + name for name in NAMES]}
 
 
+def test_attendee_pick_and_place_puts_on_or_in_and_cannot_place_beside():
+    """16 Oct kitchen run: "next to the lemon" was executed as ON the lemon.
+    The attendee route lists no grasp_object/place_at, so "next to X" is
+    something to tell the visitor, not a pick_and_place call."""
+    tools = json.loads((ROOT / "demo/kitchen/openclaw-plugin/attendee-tools.json").read_text())
+    place = next(t for t in tools if t["name"] == "pick_and_place")
+    text = place["description"]
+    assert "ON/IN" in text
+    assert "next to" in text and "not available" in text and "tell the visitor" in text
+    assert "grasp_object" not in text and "place_at" not in text  # not on this route
+    assert "ON/IN" in place["parameters"]["properties"]["destination"]["description"]
+    assert len(text) < 650
+
+
 def test_short_schemas_explain_natural_inspect_place_reset_and_parameters(tmp_path):
     result = run_hook(tmp_path, SETUP + r'''
 console.log(JSON.stringify((await stream(model, {messages, tools: nativeTools}, {})).tools));

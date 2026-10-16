@@ -43,7 +43,11 @@ jobs:
       # the observed-finger collision tests on each architecture. `vla` is the
       # VLA policy client (websockets + msgpack, B49), so grasp_object's opt-in
       # VLA route runs against scripts/serve_vla_stub.py instead of skipping.
-      - run: uv sync --extra dev --extra kinematics --extra arm-feetech --extra sim --extra sim-warp --extra grasping --extra grasp-safety --extra conversation --extra vla
+      # `llm` (openai + anthropic, pure Python) backs the OpenAI-compatible
+      # brain clients (Cosmos, the perception grounder, the judges), whose
+      # payload/transport tests import the real SDK. The minimal-install job
+      # below stays without it.
+      - run: uv sync --extra dev --extra kinematics --extra arm-feetech --extra sim --extra sim-warp --extra grasping --extra grasp-safety --extra conversation --extra vla --extra llm
       - name: install and verify pinned kitchen release without a simulator
         run: uv run python scripts/kitchen_assets.py
       - run: uv run pytest tests/ deploy/brev/tests/test_public_visitor.py deploy/brev/tests/test_visitor_video.py -q

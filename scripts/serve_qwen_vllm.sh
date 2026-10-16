@@ -124,6 +124,9 @@ case "$SPEC" in
     mtp)    SPEC_ARGS=(--speculative-config "{\"method\":\"mtp\",\"num_speculative_tokens\":$NSPEC}") ;;
     none)   SPEC_ARGS=() ;;
 esac
+# SPEC_ARGS is empty for none: expand it as ${A[@]+"${A[@]}"} below, since
+# bash 3.2 (macOS /bin/bash) under set -u calls a plain "${A[@]}" of an
+# empty array unbound.
 
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 export VLLM_CACHE_ROOT="${VLLM_CACHE_ROOT:-$HOME/.cache/vllm}"
@@ -158,5 +161,5 @@ exec "$VENV/bin/vllm" serve "$TARGET" \
     --enable-auto-tool-choice --tool-call-parser qwen3_coder \
     --reasoning-parser qwen3 \
     --default-chat-template-kwargs '{"enable_thinking": false}' \
-    "${SPEC_ARGS[@]}" \
+    ${SPEC_ARGS[@]+"${SPEC_ARGS[@]}"} \
     ${EXTRA_ARGS:-}

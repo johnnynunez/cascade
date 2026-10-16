@@ -45,9 +45,10 @@ cuda_arch() {
         printf '%s' "$CASCADE_LLAMA_CUDA_ARCH"
         return 0
     fi
+    # selector may stay empty: bash 3.2 + set -u needs the ${A[@]+"${A[@]}"} form.
     local selector=() cap
     [[ "${CUDA_VISIBLE_DEVICES:-}" == GPU-* ]] && selector=(--id="${CUDA_VISIBLE_DEVICES%%,*}")
-    cap="$(nvidia-smi "${selector[@]}" --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -n1 | tr -d ' .')"
+    cap="$(nvidia-smi ${selector[@]+"${selector[@]}"} --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -n1 | tr -d ' .')"
     [[ "$cap" =~ ^[0-9]{2,3}$ ]] || {
         printf 'Cannot read the CUDA compute capability from nvidia-smi; set CASCADE_LLAMA_CUDA_ARCH (120 for RTX PRO 6000 Blackwell, 121 for the GB10 Spark).\n' >&2
         return 1; }

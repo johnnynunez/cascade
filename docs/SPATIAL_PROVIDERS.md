@@ -256,7 +256,10 @@ The [stream receipt](evidence/spatial/cuvslam-live-stream-20261004.json) records
 an Isaac/Newton MicroDuck producer (320 solves, zero policy commands) whose first
 12 real RGB-D captures cuVSLAM tracked; `emergency_stop` invalidated the map epoch.
 The [12-frame synthetic replay](evidence/spatial/cuvslam-native-20261004.json)
-ended with 0.01178 m translation error. To rebuild natively, apply
+ended with 0.01178 m translation error. The [covariance record](evidence/spatial/cuvslam-covariance-native-20261004.json)
+replayed that fixture and carried all twelve 36-value odometry covariance matrices
+unchanged through the worker IPC; they are diagnostics, not a calibrated error bound.
+To rebuild natively, apply
 `evidence/spatial/cunls-thrust-tuple.patch` to the SDK's cuNLS sources, then run
 `scripts/validate_cuvslam_rgbd.py --sdk-checkout <dir> --output <json>`.
 
@@ -265,12 +268,16 @@ ended with 0.01178 m translation error. To rebuild natively, apply
 Add `--camera-rgbd` to an owned `scripts/isaac_microduck_bridge.py` run: the
 static, world-mounted overview camera then feeds the `mobile_rgbd` sensor
 provider. That profile builds no arm, controller or map, and stays
-`admission: unvalidated`.
+`admission: unvalidated`. A camera on a rig body needs a calibrated mount:
+`--camera-rgbd --camera-mount /absolute/mount.json --camera-mount-sha256 <SHA-256>`,
+only on the `isaac62_48b2d951` recipe (the bridge refuses a file without its SHA).
 
 ## Retained RGB-D surface observations
 
 1. Configure `spatial.rgbd` with `sensor_domain`, `sensor_id`, `map_id`,
    `world_frame_id` and `capacity` (it reads the `mobile_rgbd` provider above).
+   The provider's calibration needs an explicit SHA-256, or the domain refuses
+   to build; a capture in another world frame is refused.
 2. Call `sensing.read_sensor` with `{"sensor_id": "overview"}`.
 3. Call `spatial.annotate_pixel` with the returned epoch, sequence and digest.
    The result is an observed surface point, not an object class; it never

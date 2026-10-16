@@ -35,8 +35,8 @@ architecture does not depend on a particular Isaac Sim build or robot shape.
 [The capability table](#remaining-capabilities) supersedes the
 historical status lists below. Previous command baseline for physical validation `ff8d58b` includes the
 retained NV carry guard, explicit MCP GPU registration, verifier startup
-readiness and localization freshness checks. Source-bound software results are
-recorded in that index. Spark uses the
+readiness and localization freshness checks. The capability table holds no
+source-bound software results. Spark uses the
 installed PhysX/Qwen/real-GGX profile, physical-time joint motion, render-bound
 camera state, observed-finger approach/closing preflight, bounded planning,
 preserved memory ranking, coherent held-object observations, release-opening

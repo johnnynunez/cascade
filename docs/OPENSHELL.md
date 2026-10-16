@@ -272,9 +272,10 @@ NemoClaw v0.0.124 reaches the robot through `cascade.apps.mcp_server --http`
 `scripts/nemoclaw_mcp.py` does the operator side:
 
 1. `python scripts/nemoclaw_mcp.py certs`, then
-   `export NEMOCLAW_CORPORATE_CA_BUNDLE="$(python scripts/nemoclaw_mcp.py ca-path)"` before onboarding.
-2. `python scripts/nemoclaw_mcp.py serve` with the usual `CASCADE_*` env.
-3. `python scripts/nemoclaw_mcp.py register --sandbox <name>`, then `configure-agent --sandbox <name>`.
+   `export NEMOCLAW_CORPORATE_CA_BUNDLE="$(python scripts/nemoclaw_mcp.py ca-path)"`.
+2. `nemoclaw onboard` (an existing sandbox: `nemoclaw <name> rebuild`), so the sandbox trusts that CA.
+3. `python scripts/nemoclaw_mcp.py serve` with the usual `CASCADE_*` env.
+4. `python scripts/nemoclaw_mcp.py register --sandbox <name>`, then `configure-agent --sandbox <name>`.
 
 Keep the model id bare (`qwen3.8-27b`): OpenClaw splits provider/model on `/`.
 

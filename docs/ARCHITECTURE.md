@@ -404,7 +404,9 @@ chat command ("pick and place the red cube")
   [perception bake-off](evidence/perception-bakeoff-20261015/REPORT.md).
   Why Qwen + SAM: on 47 real reBot keyframes it identified 83 % of the
   objects (YOLOE-11s: 25 %) and found 94 % of referred objects (40 %).
-  If SAM fails, a detection keeps its box as the mask.
+  If SAM fails (or drops a box's mask), the detection's `mask` stays `None` and
+  consumers fall back to its box; in a track step with a working segmenter, a
+  box without a mask is dropped (`BrainDetector._detections`).
 - **Colour without CLIP** (`perception/colors.py`): median mask HSV → colour
   word, stored on beliefs, matched against colour words in queries.
 - **LazyArm** (`control/lazy_arm.py`): the MCP server pre-warms cameras,

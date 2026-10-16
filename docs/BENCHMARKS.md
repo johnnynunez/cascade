@@ -265,5 +265,6 @@ turned out to be a resource leak in the verification probe.
 `benchmark/libero/run_wrc.py` on `libero_spatial` (10 tasks x 10 seeds): the
 no-op floor is 0/50 and every condition scores 0/100. With oracle perception the
 postcondition check cuts false success claims from 48 to 5
-(`benchmark/results/proto_spatial_oracle.json`); camera perception never names
-the bowl, so those rows measure a detector domain gap.
+(`benchmark/results/proto_spatial_oracle.json`); in camera mode the
+open-vocabulary detector of that run emitted 38-44 detections per LIBERO frame
+and never named the bowl, so those rows measure a detector domain gap.

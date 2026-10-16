@@ -299,12 +299,17 @@ recovery."
 ## 9. Simulated kitchen on DGX Spark (presenter card)
 
 1. Start: `python3 scripts/desktop.py launch --repo "$PWD"` from the installed checkout (Spark profile, Qwen brain).
+   Wait for **READY**, then check the cameras and the `grasp_planner=graspgenx (learned 6-DoF)` banner.
 2. Demo: one request at a time, e.g. "What can you see on the table?", then
    "Could you put the green cube in the green square?", then "Let's start over."
 3. Restore objects: **Start over** in the Spark chat, **Reset** in PAAI OpenClaw, or "Reset the scene."
+   Wait for the running order's result first.
 4. After a crash with Qwen still up: `./run.sh isaac --engine physx --graspgenx local --no-robot-turn --no-judge`
-   (STARTED / UNVERIFIED, no READY).
+   (STARTED / UNVERIFIED, no READY). Do not start a second model on an occupied port 8080.
 5. Stop: `./run.sh down`.
+
+Move props in Isaac only while the arm is idle and physics is playing.
+If a reset fails or a placement is unverified, check the cameras and the reported error before any further movement.
 
 ## 10. PAAI on Brev (staff guide)
 

@@ -14,6 +14,8 @@ Contract pinned here, all on the mock stack (no socket to a live port):
 * the detector is closed once, the occupancy client socket is closed;
 * nothing the runtime did not start is stopped (the bridge's map is never
   cleared, an external live view is never closed);
+* its own live view is recorded before it binds: a raise right after the
+  bind still releases the port;
 * the teardown is bounded: a watcher stuck in its tick delays the error by
   the bound only, and is named instead of waited for.
 """
@@ -163,6 +165,50 @@ def test_a_late_probe_failure_stops_the_live_view_watcher_cameras_and_detector(
     port = servers[0].port
     with pytest.raises(OSError):  # the live-view port was released
         socket.create_connection(("127.0.0.1", port), timeout=1).close()
+
+
+@pytest.mark.parametrize("where", ["inside-start", "after-start"])
+def test_a_raise_right_after_the_live_view_binds_still_releases_its_port(
+        tmp_path, monkeypatch, cameras, new_threads, where):
+    """The live view is recorded BEFORE it opens: an error (a Ctrl+C, a reaper
+    thread that cannot start) between the bind and the end of open() must not
+    keep the dashboard thread serving or the port bound."""
+    from cascade.apps.live_control import LiveViewController
+    from cascade.apps.stream_server import StreamServer
+
+    monkeypatch.setenv("CASCADE_STREAM", "eager")  # the dashboard binds during the build
+    servers = []
+    real_start = StreamServer.start
+
+    def start(self):
+        real_start(self)
+        servers.append(self)
+        if where == "inside-start":
+            raise RuntimeError("interrupted right after the bind")
+
+    monkeypatch.setattr(StreamServer, "start", start)
+    controllers = []
+    real_open = LiveViewController.open
+
+    def recording_open(self, reason=""):
+        controllers.append(self)
+        return real_open(self, reason)
+
+    monkeypatch.setattr(LiveViewController, "open", recording_open)
+    if where == "after-start":
+        def reaper_down(self):
+            raise RuntimeError("can't start new thread")
+
+        monkeypatch.setattr(LiveViewController, "_start_reaper", reaper_down)
+    with pytest.raises(RuntimeError, match="right after the bind|can't start new thread"):
+        demo.build_runtime(_cfg(), tmp_path / "run", serve=True)
+    assert servers, "the live view never bound"
+    assert "stream-server" not in new_threads(), "the dashboard thread outlived the failed build"
+    assert new_threads() == []
+    assert [c.close_calls for c in cameras] == [1] * len(cameras)
+    assert not controllers[0].is_open, "torn down behind the controller's back: it still reports open"
+    with pytest.raises(OSError):  # the live-view port was released
+        socket.create_connection(("127.0.0.1", servers[0].port), timeout=1).close()
 
 
 def test_a_failed_build_never_closes_an_external_live_view(tmp_path, monkeypatch, cameras, new_threads):

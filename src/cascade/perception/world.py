@@ -270,8 +270,9 @@ class WorldWatcher:
         cache; see perception/thread_join.py). Every call in a tick is
         bounded by its own I/O timeout or by compute, so waiting is the safe
         stop; join_thread logs where the thread is every 10 s meanwhile.
-        `timeout_s` exists for the atexit safety net only; if it expires the
-        thread handle is kept, so a later stop() can still join it.
+        `timeout_s` bounds the wait for the atexit safety net and for a failed
+        build's teardown (apps/demo._abandon_build); if it expires the thread
+        handle is kept, so a later stop() can still join it.
         """
         self._stop = True
         self._wake.set()

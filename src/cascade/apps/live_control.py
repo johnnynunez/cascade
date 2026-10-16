@@ -163,6 +163,7 @@ class LiveViewController:
                 self.note_poll()
                 return {"ok": True, "open": True, "url": self._server.url,
                         "note": "already open"}
+            server = None
             try:
                 server = self._factory()
                 if self._task_fn is not None:
@@ -172,7 +173,17 @@ class LiveViewController:
                 if self._resume_fn is not None:
                     server.set_resume_fn(self._resume_fn)
                 server.start()
-            except OSError as e:
+            except BaseException as e:
+                # A start that raised AFTER its bind (a Ctrl+C, a thread that
+                # could not start) must not keep the port or the serving
+                # thread: nothing holds this server yet, so stop it here.
+                if server is not None:
+                    try:
+                        server.stop()
+                    except Exception:  # noqa: BLE001 - the start's own error wins
+                        pass
+                if not isinstance(e, OSError):
+                    raise
                 return {
                     "ok": False,
                     "open": False,

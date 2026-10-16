@@ -2135,7 +2135,7 @@ def test_a_whole_object_naming_mask_around_a_tight_box_is_still_re_anchored(tp, 
 
 
 # -- follow-ups M1 + M3: the retry loops name the refusal; a re-anchor that fails
-# -- again after a re-scan ends the loop -----------------------------------------
+# -- again after re-homing ends the loop -----------------------------------------
 
 
 def _never_reanchors(t):
@@ -2159,7 +2159,8 @@ def _keeps_moving(t):
 PERCEPTION_STOPS = {
     "slow perception": (_slow_names, 1, "localization analysis expired", ("scene changed", "re-anchor")),
     "scene changed": (_keeps_moving, 1, "the scene changed", ("expired", "re-anchor")),
-    "re-anchor failed": (_never_reanchors, 2, "could not be re-anchored", ("expired", "scene changed")),
+    "re-anchor failed": (_never_reanchors, 2, "could not be re-anchored on a fresh image after re-homing",
+                         ("expired", "scene changed", "re-scan")),
 }
 
 

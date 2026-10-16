@@ -431,7 +431,7 @@ def _perception_stop(exc: BaseException, attempt: int) -> str | None:
     elif isinstance(exc, SlowPerceptionError):
         what = "localization analysis expired"
     elif isinstance(exc, ReanchorError) and attempt >= 2:
-        what = "the object could not be re-anchored on a fresh image, again after a re-scan"
+        what = "the object could not be re-anchored on a fresh image after re-homing"
     else:
         return None
     return f"{what}; no automatic motion recovery"

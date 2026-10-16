@@ -142,6 +142,118 @@ def test_a_stuck_result_still_relays_the_ask_first(runtime):
     assert "This attempt FAILED: out of reach." in action
 
 
+@pytest.mark.parametrize("ok", [None, 0, ""])
+def test_any_falsy_ok_is_a_failure_that_says_so(runtime, ok):
+    """Review minor 2: `_normalize_outcome` calls every falsy ok a failure;
+    the instruction keyed on `ok is False` skipped ok=None / ok=0."""
+    runtime.skill_wave = lambda cycles=2: {"ok": ok, "error": "odd ok"}
+    result = runtime.execute("wave", {})
+    assert result["outcome"] == "failed"
+    assert result["next_action"].startswith("This attempt FAILED: odd ok.")
+
+
+# ── 1b. refusals the MCP server answers itself (review minor 1) ──────────
+
+
+def _text_payload(out):
+    return json.loads(next(b["text"] for b in out["content"] if b["type"] == "text"))
+
+
+def test_a_server_error_result_carries_the_failure_instruction():
+    from cascade.apps.mcp_server import _text_result
+
+    payload = {"ok": False, "execution_ok": False, "cancelled": True,
+               "error": "request cancelled before execution"}
+    out = _text_payload(_text_result(payload, is_error=True))
+    assert out["next_action"].startswith("This attempt FAILED: request cancelled before execution. "
+                                         "Tell the user it failed")
+    assert "next_action" not in payload  # the caller's dict is not rewritten
+    # an error result that already carries it is unchanged; a success never gets it
+    assert _text_payload(_text_result(out, is_error=True))["next_action"] == out["next_action"]
+    assert "next_action" not in _text_payload(_text_result({"ok": True, "url": "x"}))
+
+
+def test_a_hidden_tool_refusal_says_it_failed(monkeypatch):
+    from cascade.apps.mcp_server import McpSkillServer
+
+    monkeypatch.setenv("CASCADE_HIDE_TOOLS", "pick_and_place")
+    out = McpSkillServer().call_tool("pick_and_place", {"object": "orange"})
+    assert out["isError"] is True
+    assert _text_payload(out)["next_action"].startswith(
+        "This attempt FAILED: tool 'pick_and_place' is disabled by the operator")
+
+
+def test_a_withheld_tool_refusal_says_it_failed(monkeypatch):
+    from cascade.apps.mcp_server import McpSkillServer
+
+    server = McpSkillServer()
+    monkeypatch.setattr(server, "withheld_tools", lambda: {"probe_point": "no depth camera"})
+    monkeypatch.setattr(server, "capabilities", lambda: {})
+    out = server._reject_withheld("probe_point")
+    assert out["isError"] is True
+    assert _text_payload(out)["next_action"].startswith(
+        "This attempt FAILED: tool 'probe_point' is not available on this rig: no depth camera.")
+
+
+def test_a_reset_refused_while_a_command_runs_says_it_failed():
+    from cascade.apps.mcp_server import McpSkillServer
+
+    server = McpSkillServer()
+    assert server._exec_lock.acquire(blocking=False)
+    try:
+        out = server.reset_now()
+    finally:
+        server._exec_lock.release()
+    assert out["isError"] is True
+    assert _text_payload(out)["next_action"].startswith(
+        "This attempt FAILED: Wait for the current command to finish before resuming.")
+
+
+def test_a_camera_snapshot_error_says_it_failed():
+    from cascade.apps.mcp_server import McpSkillServer
+
+    def unavailable():
+        raise RuntimeError("camera 'isaac_side' is not streaming")
+
+    out = McpSkillServer()._camera_snapshot(SimpleNamespace(rig=None, observe_fresh=unavailable))
+    assert out["isError"] is True
+    assert _text_payload(out)["next_action"].startswith(
+        "This attempt FAILED: camera 'isaac_side' is not streaming.")
+
+
+def _worker_replies(server, *messages):
+    import queue
+
+    from cascade.apps.mcp_server import _worker_loop
+
+    inbox, eof, replies = queue.Queue(), object(), []
+    for message in messages:
+        inbox.put((message, replies.append))
+    inbox.put(eof)
+    assert _worker_loop(server, SimpleNamespace(checkpoint=lambda: None), inbox, eof) == 0
+    return {r["id"]: r["result"] for r in replies}
+
+
+def test_calls_the_transport_refuses_itself_say_they_failed(monkeypatch):
+    """A call queued behind a STOP and a call cancelled before it ran are
+    answered by the transport, never by the runtime."""
+    from cascade.apps.mcp_server import McpSkillServer
+
+    server = McpSkillServer()
+    monkeypatch.setattr(server, "_queued_arm_error",
+                        lambda name: "queued motion invalidated by stop; re-issue a new command explicitly")
+    server._cancelled_ids.add(8)
+
+    def call(request_id):
+        return {"jsonrpc": "2.0", "id": request_id, "method": "tools/call",
+                "params": {"name": "move_home", "arguments": {}}}
+
+    replies = _worker_replies(server, call(7), call(8))
+    for request_id, error in ((7, "queued motion invalidated by stop"), (8, "request cancelled before execution")):
+        assert replies[request_id]["isError"] is True
+        assert _text_payload(replies[request_id])["next_action"].startswith(f"This attempt FAILED: {error}")
+
+
 # ── 3. a refused grasp that left the arm in place says how to recover ────
 
 

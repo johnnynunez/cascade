@@ -7206,14 +7206,15 @@ def _with_move_home_first(result: dict) -> dict:
 def _with_failure_instruction(result: dict) -> dict:
     """Prepend the unconditional failure instruction to a failed result.
 
-    Every result with ``ok: false`` (a refused or failed call, and a self-
-    reported success the postcondition REFUTED) starts its ``next_action`` with
-    what happened and the rule to report it as a failure. Measured on the
+    Every result whose ``ok`` is falsy (a refused or failed call, a self-
+    reported success the postcondition REFUTED, and ok=None/0 the way
+    `_normalize_outcome` reads them) starts its ``next_action`` with what
+    happened and the rule to report it as a failure. Measured on the
     OpenClaw kitchen run: a refuted pick_and_place carried only the "if the
     user said 'then stop'" guidance and the agent answered "Done". A skill's
     own guidance follows unchanged; a success is untouched. Idempotent.
     """
-    if not isinstance(result, dict) or result.get("ok") is not False:
+    if not isinstance(result, dict) or result.get("ok"):
         return result
     own = str(result.get("next_action") or "").strip()
     if FAILED_INSTRUCTION in own:

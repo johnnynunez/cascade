@@ -376,7 +376,14 @@ def _local_diff(a: Frame, b: Frame, box, gain=None) -> float:
     Colour, not grey: an object as bright as the table moves unseen in grey.
     With `gain` (`_exposure_gain(a, b, box)`), `b` is compared with `a`
     scaled by it and clipped to 255 as the camera clips it, in `a`'s units:
-    an exposure step alone reads no difference, a saturated pixel included."""
+    an exposure step alone reads no difference on an unclipped pixel. A pixel
+    of `a` at _GAIN_SATURATED or more is only a LOWER bound of its true value
+    (the sensor clipped it): there `b` at or above the prediction is no
+    difference (a white object brighter than the sensor stays white under a
+    darkening step) and only a shortfall counts. Such pixels are never
+    dropped: the strip a sliding white object leaves behind reads the table
+    under the prediction.
+    """
     xa, ya, xb, yb = _grown_box(box, a.rgb.shape)
     if xb <= xa or yb <= ya:
         return math.inf
@@ -386,7 +393,8 @@ def _local_diff(a: Frame, b: Frame, box, gain=None) -> float:
     else:
         g = np.asarray(gain, dtype=np.float32).reshape(-1)
         g = g if pa.ndim == 3 else g[:1]
-        diff = np.abs(np.minimum(pa * g, 255.0) - pb) / g
+        predicted = np.minimum(pa * g, 255.0)
+        diff = np.where(pa >= _GAIN_SATURATED, np.maximum(predicted - pb, 0.0), np.abs(predicted - pb)) / g
     return float(diff.reshape(-1, diff.shape[2] if diff.ndim == 3 else 1).mean(axis=0).max())
 
 

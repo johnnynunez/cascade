@@ -145,7 +145,7 @@ class _Scene:
 
     def __init__(self, camera: MockCamera):
         self.state = dict(box=HOME_BOX, depth_shift=0.0, patch=None, colour=None, K=None, T=None, capture=None,
-                          dest=None, neighbour=None, lift=0.0, window=None, gain=None)
+                          dest=None, neighbour=None, lift=0.0, window=None, gain=None, white=None)
         camera._render = self._render  # instance attribute: MockCamera._grab calls self._render()
 
     def set(self, **changes) -> None:
@@ -157,6 +157,7 @@ class _Scene:
     def _render(self):
         s = self.state
         frame = synthetic_tabletop(box_px=s["box"])
+        cube = np.all(frame.rgb == RED, axis=-1) if s["white"] is not None else None
         if s["colour"] is not None:
             frame.rgb[np.all(frame.rgb == RED, axis=-1)] = s["colour"]
         if s["patch"] is not None:
@@ -178,6 +179,9 @@ class _Scene:
         if s["gain"] is not None:  # an exposure / white-balance step: every pixel, per B, G, R channel
             gain = np.broadcast_to(np.asarray(s["gain"], dtype=np.float64), (3,))
             frame.rgb = np.clip(frame.rgb * gain, 0, 255).round().astype(np.uint8)
+        if cube is not None:  # a white cube of TRUE brightness `white` (past 255: the sensor clips it), after the gain
+            gain = np.broadcast_to(np.asarray(1.0 if s["gain"] is None else s["gain"], dtype=np.float64), (3,))
+            frame.rgb[cube] = np.clip(float(s["white"]) * gain, 0, 255).round().astype(np.uint8)
         if s["depth_shift"]:
             frame.depth_m = frame.depth_m + np.float32(s["depth_shift"])
         if s["K"] is not None:
@@ -1876,6 +1880,119 @@ def test_a_saturated_object_stays_unchanged_under_a_gain_step():
     b.rgb[200:260, 280:360] = 255
     assert _local_diff(a, b, HOME_BOX, (1.1, 1.1, 1.1)) < 0.5
     assert _local_diff(a, b, HOME_BOX) > 5.0, "uncorrected: the step itself"
+
+
+# -- follow-ups fix round 1: a white object the camera clips at 255 ---------------
+#
+# A frame0 pixel at the sensor's ceiling is a LOWER bound of its true value:
+# under a darkening step x g its frame1 value is anything from min(255 g, 255)
+# up. The two-sided |min(a g, 255) - b| / g read a still white object as
+# changed (x0.85: 21-39 > 8, where bd5e80f's uncorrected diff read 3.5-18):
+# a retry each, permanent under AE hunting.
+
+#: True brightness of the white cube: 280 clips on frame0 only once the view
+#: darkens; 360 clips on both frames down to x0.71.
+WHITES = {"clipped on frame0": 280, "clipped on both": 360}
+
+
+def _white(query, bgr):
+    """The white cube under any gain step: low-chroma pixels well above the
+    view's median grey (the table)."""
+    v = bgr.astype(int)
+    return (v.max(axis=-1) - v.min(axis=-1) < 30) & (v.min(axis=-1) > np.median(v[..., 1]) + 20)
+
+
+def _sam_of(region):
+    """A box-prompted SAM fake masking `region`'s pixels inside each prompt box."""
+    def answer(frame, boxes):
+        obj = region("", frame.rgb)
+        h, w = obj.shape
+        out = []
+        for x0, y0, x1, y1 in boxes:
+            m = np.zeros((h, w), dtype=bool)
+            xa, ya = max(int(np.floor(x0)), 0), max(int(np.floor(y0)), 0)
+            xb, yb = min(int(np.ceil(x1)), w), min(int(np.ceil(y1)), h)
+            m[ya:yb, xa:xb] = obj[ya:yb, xa:xb]
+            out.append(m if m.any() else None)
+        return out
+    return answer
+
+
+def _white_cube(t, true):
+    t.brain.region = _white
+    t.sam.default = _sam_of(_white)
+    _show(t, white=true)
+
+
+@pytest.mark.parametrize("true", list(WHITES.values()), ids=list(WHITES))
+@pytest.mark.parametrize("gain", [0.95, 0.85, 0.75])
+def test_a_still_white_object_the_camera_clips_is_accepted_under_a_darkening_step(tp, gain, true):
+    """A white cube brighter than the sensor (255 on frame0) stays still
+    while the view darkens by 5-25 %: frame1 reads at least what its true
+    value gives under the gain, so the local check reads no change and it is
+    accepted at once, measured where it is."""
+    _white_cube(tp, true)
+    _moves_once(tp, gain=gain)
+    result = tp.rt.execute("localize_object", {"label": "white cube"})
+    assert result["ok"], result.get("error")
+    timing = result["perception_timing"]
+    assert tp.brain.refers == 1, timing
+    assert timing["scene_gain"] == pytest.approx([gain] * 3, abs=0.01), timing
+    assert timing["scene_diff_local"] <= 1.0, timing
+    assert np.linalg.norm(np.asarray(result["position"])[:2] - _cube_xy(tp, HOME_BOX)) < 0.003
+
+
+@pytest.mark.parametrize("px", [3, 6, 12])
+@pytest.mark.parametrize("gain", [0.95, 0.85])
+def test_a_white_object_the_camera_clips_sliding_under_a_darkening_step_is_measured_where_it_is(tp, gain, px):
+    """What the one-sided comparison must still see: the clipped white cube
+    slides 3-12 px (0.3-1.1 cm) while the view darkens. Both strips count:
+    the one it left (255 on frame0, table on frame1: under the prediction)
+    and the one it entered. 12 px reads ~12, past 8: a scene change caught
+    by the colour check itself (dropping clipped pixels from the diff
+    leaves only the entered strip and the masks). 3 px reads ~4.5, under 8:
+    re-anchored at once on SAM's fresh mask; 6 px reads ~8, either side.
+    Every outcome measures the cube where it is now."""
+    _white_cube(tp, WHITES["clipped on frame0"])
+    new = _slid(px)
+    _moves_once(tp, box=new, gain=gain)
+    result = tp.rt.execute("localize_object", {"label": "white cube"})
+    assert result["ok"], result.get("error")
+    first = _first_timing(tp)
+    assert first["scene_diff_local"] >= 4.0, first
+    if px == 3:
+        assert tp.brain.refers == 1, first
+    if px == 12:
+        assert tp.brain.refers == 2, first
+        assert "colour difference" in first.get("scene_changed", ""), first
+    assert np.linalg.norm(np.asarray(result["position"])[:2] - _cube_xy(tp, new)) < 0.003, "where it is NOW"
+
+
+def test_a_clipped_pixel_is_a_lower_bound_of_its_true_value():
+    """`_local_diff` itself: on a frame0 pixel at the ceiling, a frame1 value
+    at or above the gain's prediction is no change, one under it differs by
+    the shortfall; every unclipped pixel is compared both ways."""
+    from cascade.perception.brain_detector import _local_diff
+
+    def white(true, gain, box=HOME_BOX):
+        f = synthetic_tabletop(box_px=box)
+        cube = np.all(f.rgb == RED, axis=-1)
+        f = _scaled(f, gain)
+        f.rgb[cube] = min(round(true * gain), 255)
+        return f
+
+    for gain in (0.95, 0.85, 0.75):
+        g = (gain,) * 3
+        for true in WHITES.values():
+            assert _local_diff(white(true, 1.0), white(true, gain), HOME_BOX, g) < 0.5, (true, gain)
+        # Darker than the prediction: a grey cube took the white one's place.
+        grey = white(190, gain)
+        assert _local_diff(white(360, 1.0), grey, HOME_BOX, g) > 20.0, gain
+        # A 12 px slide: the strip left behind (255 -> table) counts too.
+        assert _local_diff(white(280, 1.0), white(280, gain, _slid(12)), HOME_BOX, g) > 9.0, gain
+    # Brightening is unchanged: a clipped pixel still reads 0, a slide both strips.
+    assert _local_diff(white(280, 1.0), white(280, 1.15), HOME_BOX, (1.15,) * 3) < 0.5
+    assert _local_diff(white(280, 1.0), white(280, 1.15, _slid(12)), HOME_BOX, (1.15,) * 3) > 4.5
 
 
 # -- follow-up M5: a naming mask that took in a neighbour is never re-anchored ---

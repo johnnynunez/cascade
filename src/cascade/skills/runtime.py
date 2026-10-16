@@ -1124,7 +1124,7 @@ class SkillRuntime:
                     or self.held_object
                     or None
                 )
-            pre_state = self.effects.snapshot(target_label, skill=name)
+            pre_state = self.effects.snapshot(target_label, name)
         region_context = None
         region_context_error = None
         if name == "place_at":

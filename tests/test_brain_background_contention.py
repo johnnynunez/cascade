@@ -403,6 +403,52 @@ def test_a_refresh_cancelled_after_its_scope_ended_restarts_at_once(make, monkey
     assert brain.streams[0].closed and det._failed_at == {}
 
 
+def test_a_refresh_cancelled_before_its_request_sends_nothing(make, monkeypatch):
+    """Cancelled while still encoding its image: no request reaches the brain
+    (the server would prefill it only to have it aborted at the first chunk)."""
+    monkeypatch.setattr(brain_mod, "_CANCEL_WAIT_S", 0.05)
+    gate, encoding = threading.Event(), threading.Event()
+    encode = brain_mod._jpeg_data_url
+
+    def slow_encode(frame):
+        if threading.current_thread().name.startswith("brain-refresh"):
+            encoding.set()
+            gate.wait(5)
+        return encode(frame)
+
+    monkeypatch.setattr(brain_mod, "_jpeg_data_url", slow_encode)
+    det, brain = make(brain=_Brain(hold=True))
+    det.detect_nowait(_frame(40))
+    assert encoding.wait(1.0)
+    with det.foreground():
+        gate.set()
+        assert _wait_for(lambda: _refresh_threads() == [], 1.0)
+        assert brain.requests == [], "a cancelled refresh still sent its request"
+    assert _wait_for(lambda: len(brain.background()) == 1, 1.0)  # requeued, sent after the scope
+
+
+def test_close_waits_up_to_inventory_timeout_for_a_request_in_prefill(make, monkeypatch):
+    """A request still waiting for its first chunk cannot see the cancel:
+    close() bounds its join by the BACKGROUND timeout, not timeout_s."""
+    monkeypatch.setattr(brain_mod, "_CLOSE_MARGIN_S", 0.0)
+    entered = threading.Event()
+    brain = _Brain(hold=True)
+    create = brain._create
+
+    def prefill(**kwargs):
+        entered.set()
+        time.sleep(0.4)  # longer than timeout_s, shorter than inventory_timeout_s
+        return create(**kwargs)
+
+    brain.chat.completions.create = prefill
+    det, _ = make(brain=brain, timeout_s=0.1, inventory_timeout_s=2.0)
+    det.detect_nowait(_frame(40))
+    assert entered.wait(1.0)
+    det.close()
+    assert _refresh_threads() == [], "close() returned while the refresh was still in prefill"
+    assert brain.streams[0].closed
+
+
 def test_close_cancels_the_stream_before_its_bounded_join(make):
     det, brain = make(brain=_Brain(hold=True), timeout_s=2.0, inventory_timeout_s=2.0)
     det.detect_nowait(_frame(40))

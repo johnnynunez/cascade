@@ -150,6 +150,12 @@ _CLOSE_MARGIN_S = 5.0
 #: cold CUDA predict): the same minute thread_join.EXIT_JOIN_S allows the
 #: slowest cold tick measured. Past it, shutdown names the thread instead.
 _WARM_UP_JOIN_S = 60.0
+#: reanchor(): the local scene check compares the prompt box grown by this
+#: fraction of its width and height (half on each side).
+_REANCHOR_BOX_GROWTH = 0.10
+#: reanchor(): the new mask's bounding box must overlap the prompt box by at
+#: least this IoU, or SAM masked something else than the brain's box.
+REANCHOR_MIN_IOU = 0.5
 
 
 class _Entry(NamedTuple):
@@ -169,6 +175,22 @@ class _Request(NamedTuple):
     frame: Frame  # the key's latest frame: the refresh asks the brain about this one
     thumb: np.ndarray
     t: float  # clock time of that latest ask
+
+
+class ReanchorResult(NamedTuple):
+    """What `BrainDetector.reanchor` found on the newer frame.
+
+    `detection` is the brain's detection with a SAM mask on the newer frame,
+    or None: then `scene_changed` says whether the image changed around it
+    (the brain's box no longer describes this frame) or SAM found no usable
+    mask in it, and `reason` says which. The two diffs are always measured
+    (mean absolute grey levels: thumbnails, and the grown prompt box)."""
+
+    detection: Detection | None
+    scene_changed: bool
+    reason: str
+    scene_diff_global: float
+    scene_diff_local: float
 
 
 def _camera_key(frame: Frame) -> tuple[int, int, int, int]:
@@ -191,6 +213,49 @@ def _thumbnail(frame: Frame) -> np.ndarray:
 
 def _scene_diff(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.mean(np.abs(a.astype(np.float32) - b.astype(np.float32))))
+
+
+def _local_diff(a: Frame, b: Frame, box) -> float:
+    """Mean absolute grey difference of two same-size frames inside `box`
+    (xyxy pixels) grown by _REANCHOR_BOX_GROWTH; inf when nothing of it is
+    inside the image."""
+    h, w = a.rgb.shape[:2]
+    x0, y0, x1, y1 = (float(v) for v in np.asarray(box, dtype=np.float64).reshape(-1)[:4])
+    gx, gy = (x1 - x0) * _REANCHOR_BOX_GROWTH / 2, (y1 - y0) * _REANCHOR_BOX_GROWTH / 2
+    xa, ya = max(int(math.floor(x0 - gx)), 0), max(int(math.floor(y0 - gy)), 0)
+    xb, yb = min(int(math.ceil(x1 + gx)), w), min(int(math.ceil(y1 + gy)), h)
+    if xb <= xa or yb <= ya:
+        return math.inf
+    ga = cv2.cvtColor(np.ascontiguousarray(a.rgb[ya:yb, xa:xb]), cv2.COLOR_BGR2GRAY)
+    gb = cv2.cvtColor(np.ascontiguousarray(b.rgb[ya:yb, xa:xb]), cv2.COLOR_BGR2GRAY)
+    return _scene_diff(ga, gb)
+
+
+def _host_bools(v) -> np.ndarray:
+    """A 1-D bool projection of a mask as numpy. A CUDA tensor (strict GPU
+    mode) copies only this row/column projection to the host, never the mask."""
+    cpu = getattr(v, "cpu", None)
+    if callable(cpu):
+        v = cpu().numpy()
+    return np.asarray(v, dtype=bool).reshape(-1)
+
+
+def _mask_box(mask) -> np.ndarray | None:
+    """xyxy pixel box of an opaque mask (numpy or torch), None when empty."""
+    rows, cols = _host_bools(mask.any(1)), _host_bools(mask.any(0))
+    if not rows.any():
+        return None
+    ys, xs = np.flatnonzero(rows), np.flatnonzero(cols)
+    return np.array([xs[0], ys[0], xs[-1] + 1, ys[-1] + 1], dtype=np.float64)
+
+
+def _box_iou(a, b) -> float:
+    ax0, ay0, ax1, ay1 = (float(v) for v in np.asarray(a, dtype=np.float64).reshape(-1)[:4])
+    bx0, by0, bx1, by1 = (float(v) for v in np.asarray(b, dtype=np.float64).reshape(-1)[:4])
+    iw, ih = min(ax1, bx1) - max(ax0, bx0), min(ay1, by1) - max(ay0, by0)
+    inter = max(iw, 0.0) * max(ih, 0.0)
+    union = (ax1 - ax0) * (ay1 - ay0) + (bx1 - bx0) * (by1 - by0) - inter
+    return inter / union if union > 0 else 0.0
 
 
 def _jpeg_data_url(frame: Frame) -> str:
@@ -247,6 +312,12 @@ class BrainDetector(Detector):
     watchdog's heartbeat) never asks the brain on the caller's thread: it
     answers from the cache and refreshes in the background.
 
+    `reanchor` (two-phase localization) re-finds one detection the brain
+    named on an older frame in a newer frame of the same camera: SAM on the
+    brain's box, no brain call, refused when the image changed around it
+    (`scene_change` over the whole view, `reanchor_local_diff` inside the
+    box grown by 10 %) or when the mask is missing, empty or off the box.
+
     Safe to call from several threads at once: the cache lock is never held
     across the brain or SAM call, and the segmenter serializes its own model
     calls.
@@ -257,7 +328,8 @@ class BrainDetector(Detector):
     def __init__(self, *, base_url: str, model: str, api_key_file: str | None = None,
                  timeout_s: float = 20.0, max_tokens: int = 1500, segmenter: BoxSegmenter | None = None,
                  refresh_s: float = 4.0, max_cache_age_s: float = 30.0, scene_change: float = 6.0,
-                 idle_refresh_s: float = 30.0, client=None, clock=time.monotonic):
+                 idle_refresh_s: float = 30.0, reanchor_local_diff: float = 8.0, client=None,
+                 clock=time.monotonic):
         self._base_url = str(base_url)
         self._model = str(model)
         self._timeout_s = float(timeout_s)
@@ -267,6 +339,7 @@ class BrainDetector(Detector):
         self._idle_refresh_s = float(idle_refresh_s)
         self._max_cache_age_s = float(max_cache_age_s)
         self._scene_change = float(scene_change)
+        self._reanchor_local_diff = float(reanchor_local_diff)
         self._clock = clock
         self._api_key = self._read_key(api_key_file)
         self._client = client
@@ -365,6 +438,51 @@ class BrainDetector(Detector):
         except Exception as e:  # noqa: BLE001 - booth rule: degrade, never crash the caller
             self._warn("detection failed; returning no detections", e)
             return []
+
+    def can_reanchor(self) -> bool:
+        """reanchor() can mask a box on a new frame: a segmenter is configured."""
+        return self._segmenter is not None
+
+    def reanchor(self, frame: Frame, det: Detection, *, since: Frame) -> ReanchorResult:
+        """Re-find `det`, which the brain named on `since`, in the newer
+        `frame` of the same camera, without asking the brain.
+
+        Refused as a scene change, with no SAM call, when the thumbnails of the
+        two frames differ by more than `scene_change` or the grey levels inside
+        the box grown by 10 % by more than `reanchor_local_diff`. Otherwise SAM
+        masks the box on `frame` (the track step); refused when SAM gives no
+        mask, an empty one, or one whose bounding box overlaps the prompt box
+        by IoU < REANCHOR_MIN_IOU. Never falls back to the box: a box cloud
+        includes table pixels. Masks stay opaque (numpy or CUDA tensors)."""
+        if frame.rgb.shape != since.rgb.shape:
+            return ReanchorResult(None, True, "the image size changed", math.inf, math.inf)
+        diff_global = _scene_diff(_thumbnail(since), _thumbnail(frame))
+        diff_local = _local_diff(since, frame, det.bbox)
+
+        def refused(scene_changed: bool, reason: str) -> ReanchorResult:
+            return ReanchorResult(None, scene_changed, reason, diff_global, diff_local)
+
+        if not diff_global <= self._scene_change:
+            return refused(True, f"the view changed (mean grey difference {diff_global:.1f} > "
+                                 f"{self._scene_change:g})")
+        if not diff_local <= self._reanchor_local_diff:
+            return refused(True, f"the image around the object changed (mean grey difference "
+                                 f"{diff_local:.1f} > {self._reanchor_local_diff:g})")
+        if self._segmenter is None:
+            return refused(False, "no segmenter is configured")
+        box = np.asarray(det.bbox, dtype=np.float32).reshape(1, 4)
+        found = self._detections(frame, [det.label], box, track=True)
+        mask = found[0].mask if found else None
+        if mask is None:
+            return refused(False, "SAM returned no mask for the box")
+        mask_box = _mask_box(mask)
+        if mask_box is None:
+            return refused(False, "SAM returned an empty mask for the box")
+        iou = _box_iou(mask_box, box[0])
+        if not iou >= REANCHOR_MIN_IOU:
+            return refused(False, f"SAM's mask lies off the box (IoU {iou:.2f} < {REANCHOR_MIN_IOU:g})")
+        detection = Detection(label=det.label, conf=det.conf, bbox=np.array(box[0], dtype=np.float32), mask=mask)
+        return ReanchorResult(detection, False, "", diff_global, diff_local)
 
     def close(self) -> None:
         """Join the refresh threads in flight and the SAM warm-up, each with

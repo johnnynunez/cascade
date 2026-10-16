@@ -33,14 +33,16 @@ from . import carry_attachment
 from ..memory import BeliefStore, EpisodicMemory, FrameObservation
 from ..memory.beliefs import camera_source
 from ..perception.colors import detection_color, parse_color_query
-from ..perception.detector import detect_vocabulary
+from ..perception.detector import can_reanchor, detect_vocabulary
 from ..perception.reference import ReferenceResolutionError, parse_reference
 from typing import TYPE_CHECKING, Any
 
 from ..perception.workspace import WorkspaceFilter
 
 from ..perception.grounding import (
+    DetectionRejected,
     Extrinsics,
+    fix_from_detection,
     localize_object,
     mask_to_points_cam,
     oriented_bbox,
@@ -173,6 +175,81 @@ def _analyzed_frame_age_s(frame: Frame, analysis_s: float, max_age_s: float = 5.
             f"result is {age:.1f}s old; the camera is live -- retry the observation"
         )
     return age
+
+
+class SceneChangedError(SkillError):
+    """Two-phase localization: the scene changed between the image the brain
+    named the object on and the fresh image its geometry comes from, again
+    after one retry. Like SlowPerceptionError it is not detector flicker:
+    no memory fallback, no motion recovery."""
+
+
+class ReanchorError(SkillError):
+    """Two-phase localization: SAM could not re-find the object the brain
+    named on a fresh image (no mask, an empty one, one off the brain's box,
+    too few depth points), again after one retry with a fresh refer. Never
+    replaced by the box: a box cloud includes table pixels."""
+
+
+#: Two-phase localization: frame0 -> frame1 limits within which the brain's
+#: box from frame0 still describes frame1 (spec 2026-10-16 B1 step 4/6).
+_REANCHOR_CAMERA_SHIFT_M = 0.002
+_REANCHOR_CAMERA_TURN_DEG = 0.5
+_REANCHOR_MAX_MOVE_M = 0.02
+
+
+def _semantic_age_s(frame: Frame, analysis_s: float, max_age_s: float) -> float:
+    """The brain's naming step (two-phase localization) under its own cap
+    `perception_loop.semantic_max_age_s`: nothing measured on this frame is
+    acted on, so the 5 s analysed-frame limit applies to the fresh frame."""
+    age = _frame_age_s(frame, max_age_s=float("inf"))
+    if not age <= max_age_s:
+        raise SlowPerceptionError(
+            f"Perception took {analysis_s:.1f}s to name the object on a frame that was fresh at "
+            f"capture, so the semantic step is {age:.1f}s old (limit {max_age_s:g}s); the camera is "
+            "live -- retry the observation"
+        )
+    return age
+
+
+def _view_change(frame0: Frame, frame1: Frame) -> str | None:
+    """Why `frame1` does not show the view `frame0` showed (another camera,
+    other intrinsics, a camera pose moved past 2 mm / 0.5 deg), or None."""
+    if frame0.rgb.shape[:2] != frame1.rgb.shape[:2] or not np.allclose(frame0.K, frame1.K):
+        return "the camera intrinsics changed"
+
+    def identity(frame):
+        capture = getattr(frame, "capture", None)
+        return (capture.get("source"), capture.get("camera")) if isinstance(capture, dict) else None
+
+    if identity(frame0) != identity(frame1):
+        return "the image came from another camera"
+    T0, T1 = frame0.T_base_cam, frame1.T_base_cam
+    if (T0 is None) != (T1 is None):
+        return "the camera pose is known for one image only"
+    if T0 is not None:
+        T0, T1 = np.asarray(T0, dtype=float), np.asarray(T1, dtype=float)
+        shift = float(np.linalg.norm(T1[:3, 3] - T0[:3, 3]))
+        if not shift <= _REANCHOR_CAMERA_SHIFT_M:
+            return f"the camera moved {shift * 1000:.1f} mm"
+        cos = (float(np.trace(T0[:3, :3].T @ T1[:3, :3])) - 1.0) / 2.0
+        turn = math.degrees(math.acos(min(max(cos, -1.0), 1.0))) if math.isfinite(cos) else math.inf
+        if not turn <= _REANCHOR_CAMERA_TURN_DEG:
+            return f"the camera turned {turn:.2f} deg"
+    return None
+
+
+class _SceneChanged(Exception):
+    """One two-phase attempt saw the scene change (retried once)."""
+
+
+class _ReanchorFailed(Exception):
+    """One two-phase attempt could not re-anchor (retried once)."""
+
+
+def _rounded(value, digits: int):
+    value = float(value)
+    return round(value, digits) if math.isfinite(value) else None
 
 
 def _fresh_camera_frame(camera, previous: Frame | None = None) -> Frame:
@@ -1012,6 +1089,11 @@ class SkillRuntime:
                       and getattr(self.memory, "embedder", None) is not None)
         if owns_crops:
             self._call_crops = {}
+        # Same ownership for two-phase localization timings (B1): the
+        # outermost call collects every localization it ran.
+        owns_perception_timings = getattr(self, "_call_perception_timings", None) is None
+        if owns_perception_timings:
+            self._call_perception_timings = []
         home_return = None
         result = None
         try:
@@ -1150,6 +1232,9 @@ class SkillRuntime:
         call_crops = None
         if owns_crops:
             call_crops, self._call_crops = self._call_crops, None
+        perception_timings = None
+        if owns_perception_timings:
+            perception_timings, self._call_perception_timings = self._call_perception_timings, None
         from ..memory.envelope import DERIVED_FEATURES
         if name not in DERIVED_FEATURES:
             measured = None
@@ -1275,6 +1360,11 @@ class SkillRuntime:
         contact_reports = [r for h in contact_harnesses for r in h.drain_contact_reports()]
         if contact_reports:
             trace_context["contact_monitor"] = contact_reports
+        if perception_timings:
+            # Two-phase localization (B1): where the time went, the last
+            # localization in the result, every one of them in the trace.
+            result["perception_timing"] = dict(perception_timings[-1])
+            trace_context["perception_timings"] = [dict(t) for t in perception_timings]
         self.trace.record(name, args, result, dur, before, after,
                           tier=self.current_tier, context=trace_context,
                           keyframe_before_wrists=before_wrists, keyframe_after_wrists=after_wrists)
@@ -2216,6 +2306,16 @@ class SkillRuntime:
                 pass
         return frame, fix
 
+    def _note_perception_timing(self, timing: dict) -> None:
+        """Hand one two-phase localization's timing dict (filled in as it
+        runs, so a refused one still says how far it got) to the dispatched
+        call: execute() puts the last one in the skill result as
+        `perception_timing` and every one in the trace context. A no-op
+        outside a dispatched call."""
+        timings = getattr(self, "_call_perception_timings", None)
+        if timings is not None:
+            timings.append(timing)
+
     def _localize(self, query: str, spatial_hint: str | None = None):
         """Fresh frame + color/proximity-aware 3D fix for a user phrase.
 
@@ -2254,6 +2354,14 @@ class SkillRuntime:
         frame = None
         last_err: SkillError | None = None
         reserve = getattr(self.detector, "reserve", nullcontext)
+        loop_cfg = self.cfg.get("perception_loop", {})
+        # B1 (spec 2026-10-16): with a detector that can re-anchor (the brain
+        # detector with a segmenter), the brain only NAMES the object on one
+        # frame; every geometry acted on comes from a fresh frame. Any other
+        # detector keeps the single-frame path below, unchanged.
+        two_phase = can_reanchor(self.detector)
+        semantic_max_age_s = float(loop_cfg.get("semantic_max_age_s", 20.0))
+        retried = {"scene": 0, "reanchor": 0}
 
         def analyze(cframe, ext):
             # Bound the age of the image actually analyzed, including lazy
@@ -2273,17 +2381,122 @@ class SkillRuntime:
             finally:
                 _analyzed_frame_age_s(cframe, time.monotonic() - started)
 
-        tries = int(self.cfg.get("perception_loop", {}).get("localize_frames", 3))
+        def name_object(cframe, ext):
+            # Two-phase step 2: today's localize_object on frame0 (the brain's
+            # refer, SAM, colour/reference/workspace rules) picks the object.
+            # Nothing measured here is acted on: the semantic cap, not 5 s.
+            _frame_age_s(cframe)
+            started = time.monotonic()
+            try:
+                return localize_object(
+                    cframe, query, self.detector, ext,
+                    prompts=r["prompts"], spatial_hint=spatial_hint,
+                    color=r["color"], near_xyz=r["near_xyz"], vocab=r["vocab"],
+                    prefer_label=r["prefer_label"],
+                    workspace_bounds=workspace_bounds,
+                    require_unique=r["configured_description"],
+                )
+            finally:
+                _semantic_age_s(cframe, time.monotonic() - started, semantic_max_age_s)
+
+        def measure_again(frame0, fix0, frame1, ext1, timing):
+            # Steps 4-7 on frame1: the same view, the brain's box re-anchored
+            # by SAM, the geometry from frame1 alone, and the 5 s rule on it.
+            started1 = time.monotonic()
+            try:
+                changed = _view_change(frame0, frame1)
+                if changed:
+                    raise _SceneChanged(changed)
+                timing["frame0_age_at_reanchor_s"] = round(started1 - float(frame0.t), 3)
+                try:
+                    found = self.detector.reanchor(frame1, fix0.detection, since=frame0)
+                except Exception as exc:  # noqa: BLE001 -- a failed SAM call is a failed re-anchor
+                    raise _ReanchorFailed(f"{type(exc).__name__}: {exc}") from exc
+                finally:
+                    timing["reanchor_s"] = round(time.monotonic() - started1, 3)
+                timing["scene_diff_global"] = _rounded(found.scene_diff_global, 2)
+                timing["scene_diff_local"] = _rounded(found.scene_diff_local, 2)
+                if found.scene_changed:
+                    raise _SceneChanged(found.reason)
+                if found.detection is None or found.detection.mask is None:
+                    raise _ReanchorFailed(found.reason or "SAM returned no mask")
+                try:
+                    fix1 = fix_from_detection(frame1, found.detection, ext1, label=query, color=r["color"],
+                                              workspace_bounds=workspace_bounds)
+                except DetectionRejected as rejected:
+                    if rejected.kind == "points":
+                        raise _ReanchorFailed(rejected.reason) from None
+                    raise _SceneChanged(rejected.reason) from None  # colour, or out of the workspace now
+                moved = float(np.linalg.norm(np.asarray(fix1.position, float) - np.asarray(fix0.position, float)))
+                timing["moved_m"] = _rounded(moved, 4)
+                if not moved <= _REANCHOR_MAX_MOVE_M:
+                    raise _SceneChanged(f"the object moved {moved * 100:.1f} cm between the two images")
+                return fix1
+            finally:
+                timing["frame1_age_s"] = round(time.monotonic() - float(frame1.t), 3)
+                _analyzed_frame_age_s(frame1, time.monotonic() - started1)
+
+        def localize_two_phase(take_frame0, take_frame1, extrinsics_of):
+            """frame0 -> name the object; a fresh frame1 -> measure it. ONE
+            retry (a new frame0 and a fresh refer) after a scene change, and
+            one after a failed re-anchor, per localization; the second of a
+            kind raises SceneChangedError / ReanchorError. Returns (frame1,
+            fix1)."""
+            for attempt in range(1, 4):  # at most one retry of each kind
+                frame0 = take_frame0()
+                timing = {"query": query, "attempt": attempt}
+                self._note_perception_timing(timing)
+                started0 = time.monotonic()
+                try:
+                    fix0 = name_object(frame0, extrinsics_of(frame0))
+                finally:
+                    timing["semantic_s"] = round(time.monotonic() - started0, 3)
+                frame1 = take_frame1(frame0)
+                try:
+                    return frame1, measure_again(frame0, fix0, frame1, extrinsics_of(frame1), timing)
+                except _SceneChanged as exc:
+                    timing["scene_changed"] = str(exc)
+                    retried["scene"] += 1
+                    if retried["scene"] > 1:
+                        raise SceneChangedError(
+                            f"scene changed during perception of {query!r}: {exc}; the image the object "
+                            "was named on no longer matches the fresh one -- hold the scene still and retry"
+                        ) from None
+                except _ReanchorFailed as exc:
+                    timing["reanchor_failed"] = str(exc)
+                    retried["reanchor"] += 1
+                    if retried["reanchor"] > 1:
+                        raise ReanchorError(f"could not re-anchor {query!r} on a fresh image: {exc}") from None
+            raise ReanchorError(f"could not re-anchor {query!r} on a fresh image")
+
+        def primary_frame0():
+            nonlocal frame
+            frame = self.observe()
+            return frame
+
+        def primary_frame1(frame0):
+            fresh = self.depth.ensure_depth(_fresh_camera_frame(self.camera, previous=frame0))
+            self.last_frame = fresh
+            self.arm.harness.heartbeat()
+            return fresh
+
+        tries = int(loop_cfg.get("localize_frames", 3))
         for _ in range(max(tries, 1)):
             try:
                 # Waiting behind the watcher consumes request time, not the
                 # lifetime of an image selected before inference is available.
                 with reserve():
+                    if two_phase:
+                        analyzed, fix = localize_two_phase(primary_frame0, primary_frame1,
+                                                           lambda _frame: self.extrinsics)
+                        return self._note_localized(query, analyzed, fix)
                     frame = self.observe()
                     fix = analyze(frame, self.extrinsics)
                 return self._note_localized(query, frame, fix)
             except SlowPerceptionError:
                 raise  # Not detector flicker; do not fall back to memory.
+            except (SceneChangedError, ReanchorError):
+                raise  # The object was named; its fresh geometry is refused, not missed.
             except ReferenceResolutionError:
                 # An unsatisfied identity constraint is not detector flicker.
                 # Retrying/falling back to a remembered noun can select a
@@ -2296,15 +2509,32 @@ class SkillRuntime:
         # or wrist camera; each pass costs one detector call.
         from ..perception.grounding import Extrinsics as _Ext
 
+        class _NoDepth(Exception):
+            pass
+
         for cam in self._other_cams():
+            def ext_of(cframe, cam=cam):
+                return (_Ext(T=cframe.T_base_cam)
+                        if cframe.T_base_cam is not None else cam.extrinsics)
+
+            def side_frame0(cam=cam):
+                cframe = cam.depth.ensure_depth(cam.stream.get_frame())
+                if not cframe.has_depth:
+                    raise _NoDepth
+                return cframe
+
+            def side_frame1(frame0, cam=cam):
+                return cam.depth.ensure_depth(_fresh_camera_frame(cam.stream, previous=frame0))
+
             try:
                 with reserve():
-                    cframe = cam.depth.ensure_depth(cam.stream.get_frame())
-                    if not cframe.has_depth:
-                        continue
-                    ext = (_Ext(T=cframe.T_base_cam)
-                           if cframe.T_base_cam is not None else cam.extrinsics)
-                    fix = analyze(cframe, ext)
+                    if two_phase:
+                        cframe, fix = localize_two_phase(side_frame0, side_frame1, ext_of)
+                        ext = ext_of(cframe)
+                    else:
+                        cframe = side_frame0()
+                        ext = ext_of(cframe)
+                        fix = analyze(cframe, ext)
                 if (os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1"
                         and cframe.T_base_cam is None and ext.mode == "eye_to_hand"):
                     # Bind the secondary view's actual static calibration to
@@ -2317,7 +2547,11 @@ class SkillRuntime:
                     f"through {getattr(cam.stream, 'name', 'another camera')}",
                 )
                 return self._note_localized(query, cframe, fix)
+            except _NoDepth:
+                continue
             except SlowPerceptionError:
+                raise
+            except (SceneChangedError, ReanchorError):
                 raise
             except ReferenceResolutionError:
                 raise
@@ -4596,7 +4830,7 @@ class SkillRuntime:
                     if isinstance(e, carry_attachment.AttachmentInvalid):
                         return carry_attachment.failure_result(self, e,
                             **failure_destination, grasp_attempts=attempt, place_attempts=0)
-                    if isinstance(e, SlowPerceptionError):
+                    if isinstance(e, (SlowPerceptionError, SceneChangedError)):
                         return {**failure_destination, "ok": False, "stage": "grasp",
                                 "error": str(e), "home_skipped": True,
                                 "grasp_attempts": attempt,

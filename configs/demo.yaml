@@ -464,6 +464,10 @@ perception_loop:
                               # seen this recently BEFORE the motion started
   localize_frames: 3        # detector passes per localize before falling
                             # back to the belief store (single frames flicker)
+  semantic_max_age_s: 20.0  # brain detector with SAM: the brain names the object on
+                            # one frame (may take up to this long, its timeout), SAM
+                            # re-measures it on a FRESH frame, and only that geometry
+                            # is used, under the unchanged 5 s analysed-frame limit
 
 # Browser dashboard (stdlib HTTP). HEADLESS BY DEFAULT: the chat client
 # (Hermes / OpenClaw / any MCP host) is the interface, and this view is a
@@ -565,6 +569,10 @@ detector:
   idle_refresh_s: 30.0
   max_cache_age_s: 30
   scene_change: 6.0
+  # Localization re-measures the named object on a fresh frame only while the
+  # view is unchanged: scene_change over the whole image, and this mean grey
+  # difference inside the object's box (grown by 10 %).
+  reanchor_local_diff: 8.0
 
 # Optional vocabulary restriction for the always-on watcher and
 # get_observation. LEAVE EMPTY for a public demo: a non-empty list makes

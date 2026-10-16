@@ -46,6 +46,19 @@ def detect_vocabulary(detector, frame: Frame, classes: list[str] | None) -> list
     return detector.detect(frame, classes=classes)
 
 
+def can_reanchor(detector) -> bool:
+    """Two-phase localization is available: the detector's CLASS defines
+    `reanchor` (the brain detector, and `world.LockedDetector` forwarding it)
+    and, when the class also defines `can_reanchor()`, that says yes (the
+    brain detector: a segmenter is configured). Only the class counts: a Mock
+    answers every attribute."""
+    cls = type(detector)
+    if not callable(getattr(cls, "reanchor", None)):
+        return False
+    check = getattr(cls, "can_reanchor", None)
+    return bool(detector.can_reanchor()) if callable(check) else True
+
+
 def _rule_red(bgr: np.ndarray) -> np.ndarray:
     b, g, r = (bgr[:, :, i].astype(int) for i in range(3))
     return (r - b > 60) & (r - g > 60)

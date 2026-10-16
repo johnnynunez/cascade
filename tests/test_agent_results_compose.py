@@ -5,11 +5,18 @@ it: T3's UNVERIFIED "no grasp was attempted", T1's two-phase SceneChangedError
 / ReanchorError and SlowPerceptionError. A success never does. The move_home
 step follows the arm motions T3 counts: a grasp that moved nothing (perception
 refused it, or its only motion was refused before its first command) never
-tells the agent the arm stays at a refused grasp pose.
+tells the agent the arm stays at a refused grasp pose, with the observed-
+finger gate off or on (the Spark default), through every composite that
+passes the step on. #341's next-candidate retry runs inside ONE call: a retry
+that grasps carries neither line, a grasp whose every candidate was refused
+carries each once.
 """
 
 from __future__ import annotations
 
+import contextlib
+import copy
+import inspect
 import json
 import time
 from functools import partial
@@ -21,6 +28,7 @@ from conftest import needs_pin
 from owned_server import held_dead_port
 
 from cascade.agent.effects import UNVERIFIED
+from cascade.grasping import observed_scene
 from cascade.types import SafetyViolation, SkillError
 
 pytestmark = needs_pin
@@ -29,8 +37,67 @@ FAILED = "This attempt FAILED"
 MOVE_HOME_FIRST = "call move_home before any other grasp"
 
 
-@pytest.fixture
-def mock_runtime(monkeypatch, tmp_path):
+GATE = ("gate off", "gate on")
+
+
+class _GateDouble:
+    """The observed-finger gate's interface on the mock stack (no Isaac
+    capture): every vet passes; the first `refuse` live closing checks veto
+    BEFORE the jaw command, tagged exactly as the real gate tags them
+    (`precommand_refusal`), so #341's next-candidate retry runs for real."""
+
+    closing_lower = closing_upper = (0.0, 0.0)
+
+    def __init__(self, refuse=0):
+        self.refuse, self.closes = refuse, 0
+
+    def feedback(self, state):
+        return None
+
+    def pose(self, q):
+        return None
+
+    def closing_pose(self, q):
+        return None
+
+    def occluded_pose(self, q, *, closing=False, check=None):
+        return None
+
+    def profile(self, *_a, **_k):
+        return None
+
+    def require_profile(self, *_a, **_k):
+        return None
+
+    def require_closing(self, state, *, check=None):
+        self.closes += 1
+        if self.closes <= self.refuse:
+            raise observed_scene.precommand_refusal(
+                "closing fingers intersects observed non-target surface",
+                {"finger": "joint_left", "surface": "other observed surface", "injected": True})
+
+
+def _gate_on(monkeypatch, arm, refuse=0):
+    """CASCADE_OBSERVED_FINGER_GATE=1 on the mock stack: the gate double, and a
+    mock stream that runs the gate's feedback guard (MockArm.stream_to takes
+    preflight/before_stream itself; other backend hints are dropped, as SafeArm
+    does for a backend that lacks them)."""
+    monkeypatch.setenv("CASCADE_OBSERVED_FINGER_GATE", "1")
+    gate = _GateDouble(refuse)
+    monkeypatch.setattr(observed_scene, "for_runtime", lambda *_a: gate)
+    stream = arm.stream_to
+    accepted = set(inspect.signature(stream).parameters)
+
+    def guarded(q_target, duration_s, *, feedback_guard=None, **kw):
+        if feedback_guard is not None:
+            feedback_guard(arm.get_state())
+        return stream(q_target, duration_s, **{k: v for k, v in kw.items() if k in accepted})
+    monkeypatch.setattr(arm, "stream_to", guarded)
+    return gate
+
+
+@contextlib.contextmanager
+def _mock_stack(monkeypatch, tmp_path):
     """The real mock stack; no GraspGen-X server is ever reached."""
     from cascade.apps.demo import build_runtime, shutdown_runtime
     from cascade.config import load_demo_config
@@ -46,6 +113,20 @@ def mock_runtime(monkeypatch, tmp_path):
             yield runtime, arm
         finally:
             shutdown_runtime(runtime, arm)
+
+
+@pytest.fixture(params=GATE)
+def mock_runtime(request, monkeypatch, tmp_path):
+    """The mock stack with the observed-finger gate off, or on (the Spark
+    default) with every vet passing."""
+    with _mock_stack(monkeypatch, tmp_path) as (runtime, arm):
+        if request.param == "gate on":
+            _gate_on(monkeypatch, arm)
+        yield runtime, arm
+
+
+def _gated(request) -> bool:
+    return request.node.callspec.params.get("mock_runtime") == "gate on"
 
 
 def _seen(runtime, label="red cube"):
@@ -254,3 +335,198 @@ def test_a_held_grasp_carries_no_failure_line(mock_runtime, skill):
     assert result["ok"] is True, result
     text = json.dumps(result, default=str)
     assert FAILED not in text and MOVE_HOME_FIRST not in text
+
+
+# ── the move_home step through every composite, gate off and on ─────────
+#
+# With the observed-finger gate on, pick_and_place and the persistence loop
+# (handover, sort_by_color, _move_object_to -> restore_scene /
+# search_for_object) skip the automatic home after a failed grasp. They may
+# pass move_home on only when that grasp moved the arm (an arm motion the
+# harness counted), never after a refused route, a gripper-only call, a
+# SkillError before motion or a two-phase ReanchorError.
+
+
+#: How the failed grasp ended. None of the first four moved the arm.
+NO_ARM_MOTION = ("refused route", "gripper open", "SkillError", "ReanchorError")
+
+
+def _failing_grasp(runtime, first):
+    import cascade.skills.runtime as runtime_mod
+
+    def refused(*_a, **_k):
+        if first == "moved":
+            assert runtime._move_joints(_nudged(runtime), duration_s=0.3)
+            raise SafetyViolation("finger trajectory intersects observed surface: test")
+        if first == "ReanchorError":
+            raise runtime_mod.ReanchorError("ReanchorError test: the named object's fresh geometry was refused")
+        if first == "refused route":
+            runtime._move_joints(_nudged(runtime), duration_s=0.3, _preflight=_refuse_route)
+        if first in ("refused route", "gripper open"):
+            runtime._set_gripper(runtime._grip_open, effort=0.8)
+        raise SkillError("no IK solution for any grasp candidate")
+    return refused
+
+
+COMPOSITES = {"pick_and_place": ARGS["pick_and_place"], "handover": ARGS["handover"], "sort_by_color": {}}
+
+
+def _run_composite(runtime, monkeypatch, skill, first):
+    _seen(runtime)
+    runtime.cfg._data["grasp"]["max_pick_attempts"] = 1
+    runtime.skill_grasp_object = _failing_grasp(runtime, first)
+    if skill == "sort_by_color":
+        monkeypatch.setattr(runtime.beliefs, "all", lambda: [_red()])
+    return runtime.execute(skill, COMPOSITES[skill])
+
+
+@pytest.mark.parametrize("first", NO_ARM_MOTION)
+@pytest.mark.parametrize("skill", sorted(COMPOSITES))
+def test_a_composite_whose_grasp_moved_no_arm_asks_no_move_home(mock_runtime, monkeypatch, request, skill, first):
+    runtime, arm = mock_runtime
+    result = _run_composite(runtime, monkeypatch, skill, first)
+    action = _failed_once(result)
+    assert MOVE_HOME_FIRST not in action, "no arm motion was counted: no move_home step"
+    assert not result.get("arm_left_in_place"), result
+    if skill == "pick_and_place" and _gated(request):
+        assert result["home_skipped"] is True, "the unchecked automatic home stays skipped"
+
+
+@pytest.mark.parametrize("first", NO_ARM_MOTION + ("moved",))
+def test_the_persistence_loop_asks_for_move_home_only_after_a_counted_motion(mock_runtime, request, first):
+    runtime, arm = mock_runtime
+    _seen(runtime)
+    runtime.cfg._data["grasp"]["max_pick_attempts"] = 1
+    runtime.skill_grasp_object = _failing_grasp(runtime, first)
+    res = runtime._grasp_with_persistence("red cube")
+    assert res["ok"] is False
+    left = _gated(request) and first == "moved"
+    assert (MOVE_HOME_FIRST in str(res.get("next_action"))) is left, res
+    assert bool(res.get("arm_left_in_place")) is left, res
+    if _gated(request):
+        assert res["home_skipped"] is True, "the unchecked automatic home stays skipped either way"
+
+
+@pytest.mark.parametrize("mock_runtime", ["gate on"], indirect=True)
+@pytest.mark.parametrize("skill", sorted(COMPOSITES) + ["grasp_object", "throw"])
+def test_a_grasp_that_moved_the_arm_asks_for_move_home_once_with_the_gate_on(mock_runtime, monkeypatch, skill):
+    runtime, arm = mock_runtime
+    result = _run_composite(runtime, monkeypatch, skill, "moved") if skill in COMPOSITES else None
+    if result is None:
+        _seen(runtime)
+        runtime.skill_grasp_object = _failing_grasp(runtime, "moved")
+        result = runtime.execute(skill, ARGS[skill])
+    action = _failed_once(result)
+    assert json.dumps(result, default=str).count(MOVE_HOME_FIRST) == 1, result
+    assert action.index(FAILED) < action.index(MOVE_HOME_FIRST)
+    assert result["arm_left_in_place"] is True
+
+
+def _stub_with_real_persistence(rt, first):
+    """test_pigey_scene_memory's stub with the REAL `_grasp_with_persistence`
+    (gate on); its grasp double counts an arm motion only when it moved."""
+    del rt.__dict__["_grasp_with_persistence"]
+    motions = [0]
+    rt._actuation_counts = lambda: {"arm_motions": motions[0], "gripper_closes": 0, "gripper_opens": 0}
+
+    def grasp(*_a, **_k):
+        import cascade.skills.runtime as runtime_mod
+        if first == "moved":
+            motions[0] += 1
+            raise SafetyViolation("finger trajectory intersects observed surface: test")
+        if first == "ReanchorError":
+            raise runtime_mod.ReanchorError("ReanchorError test: the named object's fresh geometry was refused")
+        raise SkillError("no IK solution for any grasp candidate")
+    rt.skill_grasp_object = grasp
+    return rt
+
+
+@pytest.mark.parametrize("first", ["SkillError", "ReanchorError", "moved"])
+@pytest.mark.parametrize("composite", ["restore_scene", "search_for_object"])
+def test_restore_and_search_pass_move_home_on_only_after_a_counted_motion(monkeypatch, composite, first):
+    from test_pigey_scene_memory import A, BOUNDS, _cluttered, _stub, _two_cubes
+
+    monkeypatch.setenv("CASCADE_OBSERVED_FINGER_GATE", "1")
+    if composite == "restore_scene":
+        bs = _two_cubes(time.monotonic())
+        rt = _stub(bs, bounds=BOUNDS)
+        rt.skill_snapshot_scene(name="t")
+        bs.find("red cube").position = np.array(A) + np.array([0.0, 0.08, 0.0])
+        _stub_with_real_persistence(rt, first)
+        out = rt.skill_restore_scene(name="t")
+    else:
+        rt = _stub_with_real_persistence(_stub(_cluttered(time.monotonic()), bounds=BOUNDS), first)
+        out = rt.skill_search_for_object(label="green cube", max_occluders=1)
+    assert out["ok"] is False, out
+    left = first == "moved"
+    assert (MOVE_HOME_FIRST in str(out.get("next_action"))) is left, out
+    assert bool(out.get("home_skipped")) is left and bool(out.get("arm_left_in_place")) is left, out
+    assert rt.log.homes == 0, "never an unchecked automatic home with the gate on"
+
+
+# ── #341's next-candidate retry inside ONE grasp call ───────────────────
+
+
+def _turned_candidates(runtime, n):
+    """The OBB plan's executable grasp and n-1 copies turned about its
+    approach in 30 deg steps: separate candidates (never near-copies of a
+    refused one), same width."""
+    from scipy.spatial.transform import Rotation
+
+    plan = runtime._plan_grasps
+
+    def planned(*a, **k):
+        base = next(g for g in plan(*a, **k) if g.width_m <= runtime._max_width)
+        axis = np.asarray(base.approach, float) / np.linalg.norm(base.approach)
+        out = []
+        for i in range(n):
+            g = copy.deepcopy(base)
+            g.rotation = Rotation.from_rotvec(axis * np.deg2rad(30. * i)).as_matrix() @ np.asarray(base.rotation, float)
+            out.append(g)
+        return out
+    runtime._plan_grasps = planned
+
+
+@pytest.fixture
+def next_candidate(monkeypatch, tmp_path):
+    """The mock stack, gate on, a plan of `candidates` grasps whose first
+    `refuse` live closing checks are vetoed before the jaw command."""
+    with _mock_stack(monkeypatch, tmp_path) as (runtime, arm):
+        def arrange(*, refuse, candidates):
+            gate = _gate_on(monkeypatch, arm, refuse)
+            _seen(runtime)
+            arm.object_stop_frac = 0.5  # the jaws jam on the object: held
+            _turned_candidates(runtime, candidates)
+            return runtime, arm, gate
+        yield arrange
+
+
+def test_a_next_candidate_that_grasps_carries_no_failed_line_and_no_move_home(next_candidate):
+    runtime, arm, gate = next_candidate(refuse=1, candidates=3)
+    result = runtime.execute("grasp_object", {"label": "red cube"})
+    assert result["ok"] is True and result["held"] == "red cube", result
+    selection = result["observed_selection"]
+    assert [a["candidate"] for a in selection["attempts"]] == [0, 1]
+    assert selection["attempts"][0]["outcome"].startswith("refused before contact: closing fingers")
+    assert selection["succeeded_attempt"] == 2
+    text = json.dumps(result, default=str)
+    assert FAILED not in text and MOVE_HOME_FIRST not in text, result
+    assert "arm_left_in_place" not in result
+
+
+@pytest.mark.parametrize("skill", ["grasp_object", "pick_and_place", "handover"])
+def test_every_candidate_refused_says_failed_once_and_move_home_once(next_candidate, skill):
+    runtime, arm, gate = next_candidate(refuse=99, candidates=4)
+    result = runtime.execute(skill, ARGS[skill])
+    assert gate.closes == 3, "the first candidate and at most two more"
+    action = _failed_once(result)
+    text = json.dumps(result, default=str)
+    # Once for the whole call, after the retry loop: never per attempt.
+    assert text.count(FAILED) == 1 and text.count(MOVE_HOME_FIRST) == 1, result
+    assert action.index(FAILED) < action.index(MOVE_HOME_FIRST)
+    # #341's note about the refused earlier candidates stays in the error.
+    assert "3 grasp candidates refused before contact and withdrew" in result["error"]
+    assert "first refusal: closing fingers intersects observed non-target surface" in result["error"]
+    assert result["arm_left_in_place"] is True
+    if skill != "handover":
+        assert [a["candidate"] for a in result["observed_selection"]["attempts"]] == [0, 1, 2]

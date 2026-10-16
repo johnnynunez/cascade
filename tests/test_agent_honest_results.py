@@ -260,12 +260,8 @@ def test_calls_the_transport_refuses_itself_say_they_failed(monkeypatch):
 def test_an_observed_finger_refusal_tells_the_agent_to_move_home_first(runtime, monkeypatch):
     monkeypatch.setenv("CASCADE_OBSERVED_FINGER_GATE", "1")
     attempts = []
-
-    def refused(*a, **kw):
-        attempts.append(1)
-        raise SafetyViolation(R3_REFUSAL)
-
-    runtime.skill_grasp_object = refused
+    # the refused attempt moved the arm (a counted motion): it stays there
+    runtime.skill_grasp_object = _refuse_after_moving(runtime, then=lambda: attempts.append(1))
     result = runtime.execute("pick_and_place", {"object": "green cube", "destination": "green square"})
     assert result["ok"] is False and result["home_skipped"] is True and attempts == [1]
     action = result["next_action"]
@@ -371,11 +367,9 @@ def test_a_failed_grasp_that_holds_something_does_not_ask_for_move_home(runtime)
 
 def _gate_refuses_every_grasp(runtime, monkeypatch):
     monkeypatch.setenv("CASCADE_OBSERVED_FINGER_GATE", "1")
-
-    def refused(*a, **kw):  # no motion marked: the hint must come from the result itself
-        raise SafetyViolation(R3_REFUSAL)
-
-    runtime.skill_grasp_object = refused
+    # The refused attempt moved the arm (counted). Without a counted motion
+    # no composite asks for move_home (test_agent_results_compose).
+    runtime.skill_grasp_object = _refuse_after_moving(runtime)
 
 
 def test_the_persistence_loop_refusal_asks_for_move_home(runtime, monkeypatch):
@@ -449,9 +443,10 @@ def test_a_sort_that_moved_on_after_a_refused_grasp_does_not_ask(runtime, monkey
 
 
 def _refused_persistence(query, material=None, budget_s=None):
-    from cascade.skills.runtime import _REFUSED_GRASP_LEFT_IN_PLACE
-    return {"ok": False, "held": False, "error": "SafetyViolation: " + R3_REFUSAL, "home_skipped": True,
-            "grasp_attempts": 1, "next_action": _REFUSED_GRASP_LEFT_IN_PLACE}
+    """The persistence loop's result after a refused grasp that moved the arm."""
+    from cascade.skills.runtime import _with_move_home_first
+    return _with_move_home_first({"ok": False, "held": False, "error": "SafetyViolation: " + R3_REFUSAL,
+                                  "home_skipped": True, "grasp_attempts": 1})
 
 
 def test_a_restore_that_ended_at_a_refused_grasp_asks_for_move_home():

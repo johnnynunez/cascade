@@ -2158,6 +2158,9 @@ class SkillRuntime:
                 except (SkillError, SafetyViolation):
                     pass
                 self._reobserve()
+            # Arm motions counted before this attempt: only an attempt that
+            # moved the arm can have left it at a refused grasp pose.
+            motions_before = self._arm_motions_counted()
             try:
                 res = self.skill_grasp_object(object, material=material,
                     **({"_planning_deadline": deadline}
@@ -2177,9 +2180,14 @@ class SkillRuntime:
                 return res
             last_err = str(res.get("error", "grasp failed"))
             if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1":
-                return _with_move_home_first(
-                    {**res, "ok": False, "home_skipped": True, "grasp_attempts": attempt,
-                     "note": "observed-finger attempt failed; automatic recovery was not geometrically checked"})
+                out = {**res, "ok": False, "home_skipped": True, "grasp_attempts": attempt,
+                       "note": "observed-finger attempt failed; automatic recovery was not geometrically checked"}
+                if self._arm_moved_since(motions_before):
+                    # The refused attempt moved the arm and nothing brought it
+                    # back. A refused route, a gripper-only call, a SkillError
+                    # or ReanchorError before motion left it where it was.
+                    _with_move_home_first(out)
+                return out
             self.memory.add("outcome", f"grasp attempt {attempt} failed: {last_err[:100]}")
             # B36: a failed attempt that still put the object in the jaws is a
             # grasp, not a miss (a retry would only refuse "already holding").
@@ -5453,6 +5461,7 @@ class SkillRuntime:
                         pass
                     self._reobserve()
                 tg = time.monotonic()
+                grasp_motions_before = self._arm_motions_counted()  # see _grasp_with_persistence
                 try:
                     res = self.skill_grasp_object(object, material=material,
                         **({"_planning_deadline": deadline}
@@ -5475,12 +5484,14 @@ class SkillRuntime:
                     break
                 last_err = str(res.get("error", "grasp failed"))
                 if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1":
-                    return {**failure_destination, "ok": False, "stage": "grasp",
-                            "error": last_err, "home_skipped": True, "grasp_attempts": attempt,
-                            "note": "observed-finger attempt failed; automatic recovery was not geometrically checked",
-                            "next_action": _REFUSED_GRASP_LEFT_IN_PLACE,
-                            **({"observed_selection": res["observed_selection"]}
-                               if "observed_selection" in res else {})}
+                    out = {**failure_destination, "ok": False, "stage": "grasp",
+                           "error": last_err, "home_skipped": True, "grasp_attempts": attempt,
+                           "note": "observed-finger attempt failed; automatic recovery was not geometrically checked",
+                           **({"observed_selection": res["observed_selection"]}
+                              if "observed_selection" in res else {})}
+                    if self._arm_moved_since(grasp_motions_before):
+                        _with_move_home_first(out)  # the refused attempt moved the arm
+                    return out
                 self.memory.add("outcome", f"pick attempt {attempt} failed: {last_err[:100]}")
                 # B36: an attempt can fail AFTER the close took the object
                 # (measured on Isaac: "did not settle at grasp lift pose" with
@@ -7662,20 +7673,21 @@ _GRASP_ENTRY_SKILLS = frozenset({"grasp_object", "grasp_at_pixel", "handover", "
 
 def _with_move_home_first(result: dict) -> dict:
     """Put the move_home recovery step first in `next_action` of a result
-    whose last grasp attempt left the arm where it stopped. Idempotent."""
+    whose last grasp attempt moved the arm (a counted arm motion) and left it
+    where it stopped, and mark it `arm_left_in_place`. Idempotent."""
     own = str(result.get("next_action") or "").strip()
     if _REFUSED_GRASP_LEFT_IN_PLACE not in own:
         result["next_action"] = _REFUSED_GRASP_LEFT_IN_PLACE + (f" {own}" if own else "")
+    result["arm_left_in_place"] = True
     return result
 
 
 def _left_in_place(result: dict) -> bool:
-    """A grasp result that asks for move_home (`_with_move_home_first`): the
-    composites pass that step on. `home_skipped` alone is not enough: the
-    persistence loop's perception refusal (SlowPerceptionError /
-    SceneChangedError) also skips the automatic home, but it left the arm
-    where the loop had it (untouched, or at home after a re-home)."""
-    return _REFUSED_GRASP_LEFT_IN_PLACE in str(result.get("next_action") or "")
+    """A grasp result marked by `_with_move_home_first`: the composites pass
+    the move_home step on. `home_skipped` alone is not enough: a grasp that
+    moved no arm (perception refusal, a refused route, a SkillError before
+    motion) also skips the automatic home, but the arm is where it was."""
+    return bool(result.get("arm_left_in_place"))
 
 
 def _with_failure_instruction(result: dict) -> dict:

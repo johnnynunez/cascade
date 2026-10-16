@@ -1611,6 +1611,30 @@ def test_an_iso_slide_is_measured_where_the_cube_is_now(tp, size, px):
     assert np.linalg.norm(np.asarray(fix.position)[:2] - _cube_xy(tp, new)) <= MAIN_XY_M, timings
 
 
+SLACK_SLIDES = {"long bar 240x12, 16 px": ((200, 230, 440, 242), 16),
+                "cube 160x120, 12 px": ((240, 180, 400, 300), 12)}
+
+
+@pytest.mark.parametrize("case", sorted(SLACK_SLIDES))
+def test_an_object_sliding_within_the_agreement_slack_is_measured_where_it_is(tp, case):
+    """The agreement lets up to 5 % of frame1's pixels lie past the tolerance:
+    on a long or large object that is a slide well past the tolerance (an
+    iso bar 240 px long, tolerance 7 px, slid 16 px along its length; a
+    160x120 cube, tolerance 6 px, slid 12 px), under the prompt border and
+    the colour check: accepted at once, as on c1be487. Those leading pixels
+    are new on frame1 (far from frame0's re-mask): the geometry keeps them,
+    so the object is measured where it is now (cutting everything past the
+    naming mask's tolerance put it 0.3-0.4 cm back toward where it was)."""
+    box, px = SLACK_SLIDES[case]
+    _show(tp, box=box, colour=ISO)
+    new = (box[0] + px, box[1], box[2] + px, box[3])
+    _moves_once(tp, box=new)
+    outcome, timings, _ = _as_main(tp, "orange cube", "clip", accept=True)
+    frame, fix = outcome
+    assert tp.brain.refers == 1 and 0.95 <= timings[0]["mask_agreement"] < 1.0, timings
+    assert np.linalg.norm(np.asarray(fix.position)[:2] - _cube_xy(tp, new)) <= MAIN_XY_M, timings
+
+
 def test_a_slow_re_mask_past_the_semantic_cap_is_refused_before_frame1(tp):
     """Round-4 re-review minor: the semantic cap is checked again after
     frame0's re-mask, before the fresh frame is taken: a 25 s re-mask (2.5 s

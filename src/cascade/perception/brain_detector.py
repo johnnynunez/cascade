@@ -178,6 +178,8 @@ _REANCHOR_COMPONENT_REACH_PX = 2.0
 #: each one's pixels lie within this tolerance of the other: max(the floor,
 #: the fraction x the diagonal of the old mask's box) pixels. SAM's 1-2 px
 #: edge jitter and a brain box a few px tight stay inside it on any size.
+#: The same tolerance bounds the geometry: what is measured is SAM's mask
+#: without its pixels farther than it from the naming mask.
 _REANCHOR_TOL_MIN_PX = 2.0
 _REANCHOR_TOL_FRAC = 0.03
 
@@ -215,7 +217,11 @@ class ReanchorResult(NamedTuple):
     same-prompt mask of the image the object was named on (its re-mask,
     `ReanchorReference`); `mask_agreement`, the smaller of the two shares of
     each mask's pixels within the size-aware tolerance of the other; `dropped_components`, how many separate parts of SAM's newer mask
-    (neighbours) were dropped before any of that."""
+    (neighbours) were dropped before any of that; `clipped_px`, how many
+    pixels of the kept mask lay farther than that tolerance from the naming
+    mask and are not in the detection's mask (the geometry: a neighbour SAM
+    merged under the grown prompt, or the ring a tight box cut off beyond
+    the tolerance)."""
 
     detection: Detection | None
     scene_changed: bool
@@ -226,6 +232,7 @@ class ReanchorResult(NamedTuple):
     mask_iou: float = math.nan
     mask_agreement: float = math.nan
     dropped_components: int = 0
+    clipped_px: int = 0
 
 
 class ReanchorReference(NamedTuple):
@@ -235,12 +242,17 @@ class ReanchorReference(NamedTuple):
     overlap the naming mask) and that mask's box, or None with `reason` (a
     failed re-anchor). `prompt_box` is that prompt (xyxy pixels); `coverage`
     the share of the naming mask's pixels within the tolerance of the
-    re-mask."""
+    re-mask. `detection` is what reanchor() COMPARES the fresh mask with;
+    `geometry` is what the runtime MEASURES on this image (the 2 cm move
+    check's frame0 side): the same re-mask without its pixels farther than
+    the agreement tolerance from the naming mask, as reanchor() clips the
+    fresh mask."""
 
     detection: Detection | None
     reason: str
     prompt_box: tuple[int, int, int, int] | None = None
     coverage: float = math.nan
+    geometry: Detection | None = None
 
 
 def _camera_key(frame: Frame) -> tuple[int, int, int, int]:
@@ -296,6 +308,48 @@ def _local_diff(a: Frame, b: Frame, box) -> float:
     return float(diff.reshape(-1, diff.shape[2] if diff.ndim == 3 else 1).mean(axis=0).max())
 
 
+def _tolerance_px(box) -> float:
+    """The agreement tolerance of a mask with box `box` (xyxy pixels):
+    max(_REANCHOR_TOL_MIN_PX, _REANCHOR_TOL_FRAC x its diagonal)."""
+    return max(_REANCHOR_TOL_MIN_PX, _REANCHOR_TOL_FRAC * math.hypot(box[2] - box[0], box[3] - box[1]))
+
+
+class _Clip(NamedTuple):
+    """`_clip_to_naming`: the clipped mask (`mask`: the input itself, still
+    opaque, when nothing was cut; else a host bool mask of its size), its
+    box (frame xyxy; None when nothing is left) and the pixels cut."""
+
+    mask: object
+    box: np.ndarray | None
+    removed: int
+
+
+def _clip_to_naming(mask, mask_box, naming, naming_box, tol_px: float) -> _Clip:
+    """`mask` without its pixels farther than `tol_px` (Euclidean) from the
+    naming mask `naming`: the naming mask dilated by the tolerance, on the
+    crop covering both boxes (one host copy per mask, sliced on the device
+    for a CUDA tensor). The geometry rule of a re-anchor: an object SAM
+    re-found within the agreement tolerance moved less than about that, so
+    the cut loses at most a sliver of it, and removes what SAM merged with
+    it under the grown prompt (a touching neighbour) and the part of the
+    object a tight brain box cut from the naming mask beyond the tolerance,
+    as main's single-frame mask lacks it."""
+    x0, y0 = int(min(mask_box[0], naming_box[0])), int(min(mask_box[1], naming_box[1]))
+    x1, y1 = int(max(mask_box[2], naming_box[2])), int(max(mask_box[3], naming_box[3]))
+    named, crop = _host_crop(naming, x0, y0, x1, y1), _host_crop(mask, x0, y0, x1, y1)
+    near = cv2.distanceTransform((~named).astype(np.uint8), cv2.DIST_L2, cv2.DIST_MASK_PRECISE) <= tol_px
+    removed = int(np.count_nonzero(crop & ~near))
+    if not removed:
+        return _Clip(mask, np.asarray(mask_box, dtype=np.float64), 0)
+    kept = crop & near
+    box = _mask_box(kept)
+    if box is None:
+        return _Clip(None, None, removed)
+    out = np.zeros(tuple(mask.shape), dtype=bool)
+    out[y0:y1, x0:x1] = kept
+    return _Clip(out, box + np.array([x0, y0, x0, y0], dtype=np.float64), removed)
+
+
 class _MaskMatch(NamedTuple):
     """`_match_masks`: the newer mask's kept components (`kept`, host bools on
     the crop at `origin`, None when no component is near the old mask) and
@@ -329,8 +383,7 @@ def _match_masks(old, old_box, new, new_box, *, reach_px: float = _REANCHOR_COMP
     x0, y0 = int(min(old_box[0], new_box[0])), int(min(old_box[1], new_box[1]))
     x1, y1 = int(max(old_box[2], new_box[2])), int(max(old_box[3], new_box[3]))
     a, b = _host_crop(old, x0, y0, x1, y1), _host_crop(new, x0, y0, x1, y1)
-    tol_px = max(_REANCHOR_TOL_MIN_PX, _REANCHOR_TOL_FRAC * math.hypot(old_box[2] - old_box[0],
-                                                                        old_box[3] - old_box[1]))
+    tol_px = _tolerance_px(old_box)
     # Euclidean distance of every crop pixel to the nearest pixel of `old`.
     to_old = cv2.distanceTransform((~a).astype(np.uint8), cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
     count, labels = cv2.connectedComponents(b.astype(np.uint8), connectivity=8)
@@ -597,7 +650,10 @@ class BrainDetector(Detector):
         tolerance (as reanchor's) of the kept mask: SAM masked only part of
         the object, and two such masks would agree with each other and
         measure that part. The re-mask may reach past the naming mask: that
-        ring is what a tight box cut off."""
+        ring is what a tight box cut off. The reference's `geometry` is the
+        kept re-mask clipped as reanchor() clips the fresh mask (to the naming
+        mask dilated by the agreement tolerance of the kept re-mask's box):
+        the frame0 side of the runtime's move check."""
         where = "on the image the object was named on"
         if self._segmenter is None:
             return ReanchorReference(None, "no segmenter is configured")
@@ -626,9 +682,14 @@ class BrainDetector(Detector):
             return ReanchorReference(None, f"SAM's mask for the grown box covers only {match.old_near:.2f} of the "
                                            f"object's mask {where} (< {self._reanchor_mask_agreement:g} of its "
                                            f"pixels within {match.tol_px:.1f} px)", prompt_box, match.old_near)
-        detection = Detection(label=det.label, conf=det.conf, bbox=kept_box.astype(np.float32),
-                              mask=_kept_mask(mask, match))
-        return ReanchorReference(detection, "", prompt_box, match.old_near)
+        kept = _kept_mask(mask, match)
+        detection = Detection(label=det.label, conf=det.conf, bbox=kept_box.astype(np.float32), mask=kept)
+        clip = _clip_to_naming(kept, kept_box, det.mask, named_box, _tolerance_px(kept_box))
+        if clip.box is None:  # unreachable while the kept mask overlaps the naming mask; fail closed
+            return ReanchorReference(None, f"no part of SAM's mask for the grown box lies near the object's mask "
+                                           f"{where}", prompt_box, match.old_near)
+        geometry = Detection(label=det.label, conf=det.conf, bbox=clip.box.astype(np.float32), mask=clip.mask)
+        return ReanchorReference(detection, "", prompt_box, match.old_near, geometry)
 
     def reanchor(self, frame: Frame, det: Detection, *, since: Frame,
                  reference: ReanchorReference | None = None) -> ReanchorResult:
@@ -657,11 +718,19 @@ class BrainDetector(Detector):
         or when under `reanchor_mask_agreement` of its pixels lie within the
         tolerance (max(2 px, 3 % of the reference mask box's diagonal)) of the
         reference mask, or of the reference mask's pixels within it of the
-        kept one. The detection returned carries the kept mask and ITS
-        bounding box. Never falls back to the box: a box cloud includes table
-        pixels. Masks stay opaque (numpy or CUDA tensors): only projections
-        and one crop per mask are copied to the host; a mask with dropped
-        components comes back as a host bool mask."""
+        kept one. All of these compare SAM's own (unclipped) masks. The
+        detection returned is the GEOMETRY: the kept mask without its pixels
+        farther than that tolerance from `det`'s naming mask (the naming mask
+        dilated by it), and that mask's bounding box. A neighbour SAM merged
+        with the object under the grown prompt on both images agrees with
+        itself, and is cut off here; an object that moved less than the
+        tolerance loses at most a sliver; a tight brain box gives main's
+        single-frame geometry. Refused as a failed re-anchor when `det` has
+        no naming mask or nothing of the kept mask is left. Never falls back
+        to the box: a box cloud includes table pixels. Masks stay opaque
+        (numpy or CUDA tensors): only projections and one crop per mask are
+        copied to the host; a mask with dropped components or clipped pixels
+        comes back as a host bool mask."""
         if frame.rgb.shape != since.rgb.shape:
             return ReanchorResult(None, True, "the image size changed", math.inf, math.inf)
         diff_global = _scene_diff(_thumbnail(since), _thumbnail(frame))
@@ -686,6 +755,9 @@ class BrainDetector(Detector):
         ref = reference.detection
         if ref is None or ref.mask is None:
             return refused(False, reference.reason or "the object was not re-masked on the image it was named on")
+        named_box = _mask_box(det.mask) if det.mask is not None else None
+        if named_box is None:
+            return refused(False, "the object has no mask on the image it was named on")
         ref_box = np.asarray(ref.bbox, dtype=np.float64).reshape(-1)[:4]
         prompt_box = _reanchor_prompt(det.bbox, frame.rgb.shape)
         prompt = np.asarray(prompt_box, dtype=np.float32).reshape(1, 4)
@@ -716,9 +788,13 @@ class BrainDetector(Detector):
                                  f"{self._reanchor_mask_agreement:g}: the smaller share of either mask's "
                                  f"pixels within {match.tol_px:.1f} px of the other, with its same-prompt mask on "
                                  f"the image it was named on; pixel IoU {match.iou:.2f})")
-        detection = Detection(label=det.label, conf=det.conf, bbox=mask_box.astype(np.float32), mask=mask)
+        clip = _clip_to_naming(mask, mask_box, det.mask, named_box, match.tol_px)
+        if clip.box is None:
+            return refused(False, f"no part of SAM's mask lies within {match.tol_px:.1f} px of the object's mask on "
+                                  "the image it was named on")
+        detection = Detection(label=det.label, conf=det.conf, bbox=clip.box.astype(np.float32), mask=clip.mask)
         return ReanchorResult(detection, False, "", diff_global, diff_local, prompt_box, match.iou,
-                              match.agreement, match.dropped)
+                              match.agreement, match.dropped, clip.removed)
 
     def close(self) -> None:
         """Join the refresh threads in flight and the SAM warm-up, each with

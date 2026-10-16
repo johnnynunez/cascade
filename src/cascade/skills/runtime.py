@@ -199,14 +199,15 @@ _REANCHOR_CAMERA_TURN_DEG = 0.5
 _REANCHOR_MAX_MOVE_M = 0.02
 
 
-def _semantic_age_s(frame: Frame, analysis_s: float, max_age_s: float) -> float:
-    """The brain's naming step (two-phase localization) under its own cap
-    `perception_loop.semantic_max_age_s`: nothing measured on this frame is
-    acted on, so the 5 s analysed-frame limit applies to the fresh frame."""
+def _semantic_age_s(frame: Frame, analysis_s: float, max_age_s: float, what: str = "to name the object") -> float:
+    """The brain's naming step (two-phase localization) and frame0's re-mask
+    under their own cap `perception_loop.semantic_max_age_s`: nothing
+    measured on this frame is acted on, so the 5 s analysed-frame limit
+    applies to the fresh frame."""
     age = _frame_age_s(frame, max_age_s=float("inf"))
     if not age <= max_age_s:
         raise SlowPerceptionError(
-            f"Perception took {analysis_s:.1f}s to name the object on a frame that was fresh at "
+            f"Perception took {analysis_s:.1f}s {what} on a frame that was fresh at "
             f"capture, so the semantic step is {age:.1f}s old (limit {max_age_s:g}s); the camera is "
             "live -- retry the observation"
         )
@@ -2461,6 +2462,7 @@ class SkillRuntime:
                 timing["mask_iou"] = _rounded(getattr(found, "mask_iou", math.nan), 3)
                 timing["mask_agreement"] = _rounded(getattr(found, "mask_agreement", math.nan), 3)
                 timing["mask_components_dropped"] = int(getattr(found, "dropped_components", 0))
+                timing["mask_clipped_px"] = int(getattr(found, "clipped_px", 0))
                 if found.scene_changed:
                     raise _SceneChanged(found.reason)
                 if found.detection is None or found.detection.mask is None:
@@ -2473,11 +2475,15 @@ class SkillRuntime:
                         raise _ReanchorFailed(rejected.reason) from None
                     raise _SceneChanged(rejected.reason) from None  # colour, or out of the workspace now
                 # Both positions measured the same robust way (medians inside
-                # the masks eroded by 2 px; frame0's is its same-prompt
-                # re-mask): a pixel of SAM edge jitter onto the table tilts
-                # the fixes' OBB centres by ~2 cm.
+                # the masks eroded by 2 px), on the masks the geometry uses:
+                # frame1's clipped to the naming mask, and frame0's same-prompt
+                # re-mask clipped alike (a neighbour merged under the grown
+                # prompt is in neither). A pixel of SAM edge jitter onto the
+                # table tilts the fixes' OBB centres by ~2 cm.
+                then = getattr(reference, "geometry", None)
+                then = reference.detection if then is None else then
                 moved = float(np.linalg.norm(median_point(frame1, found.detection, ext1)
-                                             - median_point(frame0, reference.detection, ext0)))
+                                             - median_point(frame0, then, ext0)))
                 timing["moved_m"] = _rounded(moved, 4)
                 if not moved <= _REANCHOR_MAX_MOVE_M:
                     raise _SceneChanged(f"the object moved {moved * 100:.1f} cm between the two images")
@@ -2506,6 +2512,10 @@ class SkillRuntime:
                     timing["semantic_s"] = round(time.monotonic() - started0, 3)
                 try:
                     reference = re_mask(frame0, fix0, timing)
+                    # The re-mask's SAM call counts against the naming step's
+                    # cap, not against the fresh frame's 5 s.
+                    _semantic_age_s(frame0, time.monotonic() - started0, semantic_max_age_s,
+                                    what="to name the object and re-mask it")
                     frame1 = take_frame1(frame0)
                     return frame1, measure_again(frame0, fix0, reference, ext0, frame1, extrinsics_of(frame1),
                                                  timing)

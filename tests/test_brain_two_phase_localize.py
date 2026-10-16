@@ -1389,8 +1389,9 @@ def test_the_move_check_measures_frame0_on_its_re_mask(tp):
     """The 2 cm move check's frame0 position comes from the same-prompt
     re-mask as well: the brain's box cuts 20 px off the cube's left side, so
     the naming mask's median sits ~3 px (~2.7 mm) right of the re-mask's
-    (both are clipped at their prompts). Measured on the re-mask, a still
-    cube reads no move at all."""
+    (both are clipped at their prompts). Measured on the re-mask (fix round
+    5: clipped to the naming mask exactly as frame1's mask is), a still cube
+    reads no move at all."""
     x0, y0, x1, y1 = HOME_BOX[0] - 1, HOME_BOX[1] - 1, HOME_BOX[2] + 1, HOME_BOX[3] + 1
 
     def cut_left(query, bgr):
@@ -1429,3 +1430,253 @@ def test_two_phase_needs_a_class_defined_re_mask_too():
     assert can_reanchor(Both()) and can_reanchor(LockedDetector(Both()))
     with pytest.raises(TypeError, match="reanchor_reference"):
         LockedDetector(OnlyReanchor()).reanchor_reference(None, None)
+
+
+
+# -- fix round 5: the geometry is the re-anchored mask clipped to the naming mask --
+
+
+def _localize_timed(t, query):
+    """One localization: ((frame, fix) or the exception it raised, its
+    perception_timing dicts as execute() collects them)."""
+    t.rt._call_perception_timings = []
+    try:
+        outcome = t.rt._localize(query)
+    except SkillError as exc:
+        outcome = exc
+    finally:
+        timings, t.rt._call_perception_timings = t.rt._call_perception_timings, None
+    return outcome, timings
+
+
+def _main_fix(t, frame, query, sam_kind):
+    """Main's single-frame fix of `frame`: a fresh fake brain with the test
+    brain's box rule and a fresh SAM of `sam_kind` (the runtime's own fakes
+    keep their call counts)."""
+    from cascade.perception.grounding import localize_object
+
+    brain, seg = _ImageBrain(), _ObjectSam()
+    brain.region, seg.default = t.brain.region, SAM_KINDS[sam_kind]
+    detector = BrainDetector(base_url="http://b/v1", model="m", client=brain, segmenter=seg)
+    return localize_object(frame, query, detector, t.rt.extrinsics)
+
+
+def _next_to(box, gap):
+    """A green 30 px wide object `gap` table columns right of the cube at
+    `box` (0: touching it, 8-connected; negative: painted over its last
+    columns), over the middle two thirds of its rows."""
+    x0, y0, x1, y1 = box
+    h = y1 - y0
+    return (x1 + gap, y0 + h // 6, x1 + gap + 30, y1 - h // 6, GREEN)
+
+
+def _loose(box, k):
+    """The brain's box `k` px outside the object painted at `box` (with its
+    1 px skirt) on every side."""
+    x0, y0, x1, y1 = box[0] - 1 - k, box[1] - 1 - k, box[2] + 1 + k, box[3] + 1 + k
+
+    def region(query, bgr):
+        m = np.zeros(bgr.shape[:2], dtype=bool)
+        m[y0:y1, x0:x1] = True
+        return m
+    return region
+
+
+#: The acceptance bar of fix round 5 for a scene the arm acts on: an accepted
+#: fix lies within 0.2 cm (XY) of main's single-frame fix of the returned frame.
+MAIN_XY_M = 0.002
+
+
+def _as_main(t, query, sam_kind, *, accept: bool):
+    """Localize once. A refusal is allowed unless `accept`; an accepted fix
+    must be main's single-frame fix of the returned frame within MAIN_XY_M
+    (XY). Returns (outcome, timings, XY error vs main or None)."""
+    outcome, timings = _localize_timed(t, query)
+    if isinstance(outcome, SkillError):
+        assert not accept, f"a still scene refused: {outcome} ({timings})"
+        return outcome, timings, None
+    frame, fix = outcome
+    main = _main_fix(t, frame, query, sam_kind)
+    err = float(np.linalg.norm(np.asarray(fix.position)[:2] - np.asarray(main.position)[:2]))
+    assert err <= MAIN_XY_M, f"accepted {err * 100:.2f} cm (XY) from main's single-frame fix ({timings})"
+    return outcome, timings, err
+
+
+TOUCHING = {"still touch": (0, 0), "still 1 px": (1, 1), "into contact": (16, 0), "to 1 px": (16, 1),
+            "3 px onto the cube": (16, -3)}
+
+
+@pytest.mark.parametrize("sam", sorted(SAM_KINDS))
+@pytest.mark.parametrize("case", sorted(TOUCHING))
+@pytest.mark.parametrize("size", sorted(SIZES))
+def test_a_touching_neighbour_never_enters_the_geometry(tp, size, case, sam):
+    """Round-3 re-review Important: a neighbour touching the cube (or sliding
+    into contact, or onto it) joined the grown-prompt masks on BOTH frames
+    (the clipping SAM's part of it, or the whole object), which then agreed:
+    accepted with the neighbour in the geometry, 0.2-0.3 cm and an extent
+    0.5-1.3 cm off main's single-frame fix. The comparisons stay as they
+    were; the GEOMETRY is frame1's mask clipped to the naming mask dilated by
+    the agreement tolerance, so it is main's within 0.2 cm. A still scene is
+    accepted; the whole-object SAM's 24x18 case is refused as before (its
+    naming mask already holds the neighbour: the grown-prompt re-mask's box
+    fails the IoU check)."""
+    box = SIZES[size]
+    first, last = TOUCHING[case]
+    _show(tp, box=box, neighbour=_next_to(box, first))
+    tp.brain.region = _red_only
+    tp.sam.default = SAM_KINDS[sam]
+    if first != last:
+        _moves_once(tp, neighbour=_next_to(box, last))
+    still = first == last and not (sam == "whole" and size == "24x18")
+    outcome, timings, _ = _as_main(tp, "red cube", sam, accept=still)
+    if still:
+        assert tp.brain.refers == 1, timings
+        if sam == "clip":
+            frame, fix = outcome
+            red = np.all(frame.rgb == RED, axis=-1)
+            # The largest tolerance any re-mask here can get (its box is at
+            # most the prompt box), plus the 2 px the JPEG box may be loose.
+            w, h = box[2] - box[0] + 2, box[3] - box[1] + 2
+            tol = max(2.0, 0.03 * float(np.hypot(1.2 * w + 12, 1.2 * h + 12)))
+            far = cv2.distanceTransform((~red).astype(np.uint8), cv2.DIST_L2, cv2.DIST_MASK_PRECISE) > tol + 2
+            assert not (np.asarray(fix.detection.mask, dtype=bool) & far).any(), (
+                "no part of the neighbour beyond the tolerance sliver")
+            assert timings[0]["mask_clipped_px"] > 0, timings
+
+
+@pytest.mark.parametrize("sam", sorted(SAM_KINDS))
+@pytest.mark.parametrize("loose", [0, 2])
+@pytest.mark.parametrize("gap", [0, 1, 2])
+@pytest.mark.parametrize("size", sorted(SIZES))
+def test_a_loose_box_beside_a_neighbour_is_measured_as_main(tp, size, gap, loose, sam):
+    """Round-3 re-review probe: the brain's box 0-2 px loose beside a
+    neighbour 0-2 px away. Accepted only within 0.2 cm of main's
+    single-frame fix (a box reaching the neighbour gives a whole-object SAM
+    the neighbour on main too: main's own error, not the re-anchor's)."""
+    box = SIZES[size]
+    _show(tp, box=box, neighbour=_next_to(box, gap))
+    tp.brain.region = _loose(box, loose)
+    tp.sam.default = SAM_KINDS[sam]
+    _as_main(tp, "red cube", sam, accept=False)
+
+
+def test_the_move_check_measures_both_frames_on_the_clipped_masks(tp):
+    """A neighbour as big as the cube, in contact: SAM keeps the brain's
+    box for the naming mask (cube only) but merges the neighbour under the
+    grown prompt on frame0's re-mask and on frame1 alike (the comparisons
+    agree: a still scene). Measured on the unclipped re-mask, frame0's
+    median sits ~3 cm right of frame1's clipped one: a false move, refused
+    twice. Both medians come from masks clipped to the naming mask: no move,
+    accepted at once, as main measures the cube."""
+    x0, y0, x1, y1 = HOME_BOX
+    _show(tp, neighbour=(x1, y0, x1 + 60, y1, GREEN))
+    tp.brain.region = _red_only
+    for call in (REF, FRESH):
+        tp.sam.script[call] = _whole_objects
+    outcome, timings, _ = _as_main(tp, "red cube", "clip", accept=True)
+    assert tp.brain.refers == 1 and timings[0]["moved_m"] < 0.002, timings
+    assert timings[0]["mask_agreement"] == pytest.approx(1.0), "the comparisons see the merged masks"
+
+
+@pytest.mark.parametrize(("size", "k"), [("80x60", k) for k in (1, 2, 3, 5, 8)]
+                         + [(size, k) for size in ("40x30", "24x18") for k in (1, 2, 3)])
+@pytest.mark.parametrize("sam", sorted(SAM_KINDS))
+def test_a_tight_brain_box_is_accepted_at_once_and_measured_as_main(tp, size, k, sam):
+    """A brain box 1-8 px inside the object (80x60) or 1-3 px (40x30, 24x18):
+    accepted at once as on c1be487 (the comparisons use the same-prompt
+    re-mask, not the clip: a reference clipped to a naming mask cut more than
+    twice the tolerance would refuse at the border), and the clipped geometry
+    is main's single-frame fix within 0.2 cm."""
+    box = SIZES[size]
+    _show(tp, box=box)
+    tp.brain.region = _tight(box, k)
+    tp.sam.default = SAM_KINDS[sam]
+    _, timings, _ = _as_main(tp, "red cube", sam, accept=True)
+    assert tp.brain.refers == 1 and timings[0]["mask_agreement"] >= 0.95, timings
+
+
+@pytest.mark.parametrize(("size", "px"), [("80x60", 2), ("80x60", 5), ("120x90", 3), ("120x90", 6)])
+def test_an_iso_slide_is_measured_where_the_cube_is_now(tp, size, px):
+    """Round-4 iso slides: an iso-luminant cube slides 2-6 px (0.18-0.55 cm)
+    while the brain thinks. Accepted (at once, or after one retry), the
+    clipped geometry loses at most the leading sliver past the tolerance:
+    within 0.2 cm of main's fix of the returned frame and of the cube's
+    new centre."""
+    box = {"120x90": (260, 195, 380, 285)}.get(size) or SIZES[size]
+    _show(tp, box=box, colour=ISO)
+    new = (box[0] + px, box[1], box[2] + px, box[3])
+    _moves_once(tp, box=new)
+    outcome, timings, _ = _as_main(tp, "orange cube", "clip", accept=True)
+    frame, fix = outcome
+    assert np.linalg.norm(np.asarray(fix.position)[:2] - _cube_xy(tp, new)) <= MAIN_XY_M, timings
+
+
+def test_a_slow_re_mask_past_the_semantic_cap_is_refused_before_frame1(tp):
+    """Round-4 re-review minor: the semantic cap is checked again after
+    frame0's re-mask, before the fresh frame is taken: a 25 s re-mask (2.5 s
+    scaled, cap 2.0) is SlowPerceptionError naming the semantic step, with no
+    SAM call on a fresh frame, no retry and no motion."""
+    def slow(frame, boxes):
+        time.sleep(2.5)
+        return None  # then the normal mask
+
+    tp.sam.script[REF] = slow
+    n0 = _commands(tp)
+    with pytest.raises(tp.mod.SlowPerceptionError, match="semantic step") as err:
+        tp.rt.skill_grasp_object("red cube")
+    assert "re-mask" in str(err.value), err.value
+    assert len(tp.sam.calls) == REF and tp.brain.refers == 1, "no SAM call on a fresh frame, no retry"
+    assert _commands(tp) == n0
+
+
+def test_reanchor_measures_the_clipped_mask_and_compares_the_unclipped_ones():
+    """reanchor(): the component filter, border and agreement compare SAM's
+    own masks (frame0's same-prompt re-mask and frame1's), exactly as before;
+    the detection it returns (the geometry) is frame1's mask without the
+    pixels farther than the agreement tolerance from the NAMING mask. A
+    whole-object SAM merges a touching neighbour under the grown prompt on
+    both frames: they agree (1.0), the geometry is the cube plus a sliver of
+    at most the tolerance. reanchor_reference's `geometry` is frame0's
+    re-mask clipped the same way (the move check's frame0 side); its
+    `detection` keeps SAM's mask. Masks stay opaque: crops only."""
+    from cascade.perception.brain_detector import _mask_box
+    from cascade.types import Detection
+
+    copies: list[int] = []
+    a, b = synthetic_tabletop(), synthetic_tabletop()
+    for frame in (a, b):
+        frame.rgb[210:250, 361:391] = GREEN  # touching the cube's right side (8-connected)
+    obj = _object_mask(a.rgb) & ~np.all(a.rgb == GREEN, axis=-1)
+    naming = _DeviceMask(obj, copies)
+    sam = _ObjectSam()
+    sam.default = lambda frame, boxes: [_DeviceMask(_whole_objects(frame, boxes)[0], copies)]
+    det = Detection("red cube", 1.0, np.array((279, 199, 361, 261), np.float32), mask=naming)
+    detector = BrainDetector(base_url="http://b/v1", model="m", segmenter=sam)
+    tol = max(2.0, 0.03 * float(np.hypot(391 - 279, 261 - 199)))  # the re-mask's box: cube + neighbour
+    far = cv2.distanceTransform((~obj).astype(np.uint8), cv2.DIST_L2, cv2.DIST_MASK_PRECISE) > tol
+    green = np.all(a.rgb == GREEN, axis=-1)
+
+    ref = detector.reanchor_reference(a, det)
+    assert ref.detection is not None, ref.reason
+    assert (np.asarray(ref.detection.mask._a if isinstance(ref.detection.mask, _DeviceMask) else ref.detection.mask,
+                       dtype=bool) & green).sum() == green.sum(), "the comparison's re-mask keeps SAM's mask"
+    geometry = np.asarray(ref.geometry.mask, dtype=bool)
+    assert geometry[obj].all() and not (geometry & far).any(), "frame0's geometry: clipped to the naming mask"
+    assert ref.geometry.bbox.tolist() == _mask_box(geometry).tolist()
+
+    copies.clear()
+    found = detector.reanchor(b, det, since=a, reference=ref)
+    assert found.detection is not None, found.reason
+    assert found.mask_agreement == pytest.approx(1.0) and found.dropped_components == 0, found
+    mask = np.asarray(found.detection.mask, dtype=bool)
+    assert mask[obj].all(), "the whole cube stays"
+    assert not (mask & far).any(), "nothing farther than the tolerance from the naming mask"
+    assert found.clipped_px == int((green & far).sum()) > 0, found.clipped_px
+    assert found.detection.bbox.tolist() == _mask_box(mask).tolist(), "the clipped mask's own box"
+    assert copies and max(copies) <= 120 * 70 < obj.size, copies
+
+    # Nothing to clip: the mask SAM gave stays the (opaque) detection mask.
+    sam.default = lambda frame, boxes: [_DeviceMask(_ObjectSam.masks(_ObjectSam(), frame, boxes)[0] & obj, copies)]
+    found = detector.reanchor(b, det, since=a)
+    assert found.detection is not None and found.clipped_px == 0, found.reason
+    assert isinstance(found.detection.mask, _DeviceMask), "masks stay opaque"

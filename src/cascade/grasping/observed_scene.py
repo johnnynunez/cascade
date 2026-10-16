@@ -343,7 +343,13 @@ class ObservedScene:
                         "robot_pixels_excluded": int(robot.sum()),
                         "scope": "observed surfaces only; no occlusion or continuous-path certificate"}
 
-    def conflict(self, T_base_tcp, envelopes, *, allow_target_contact=False):
+    def conflict(self, T_base_tcp, envelopes, *, allow_target_contact=False, name_near=True):
+        """First observed point inside `envelopes` at this TCP pose, or None.
+
+        `name_near=False`: no tracked-object name (`_near`) for a non-target
+        hit. For queries whose volume is not the finger itself (the neighbour
+        ranking's grown volume): "the finger would enter the lemon" would be
+        false there. The hit itself never depends on it."""
         T = _array(T_base_tcp, (4, 4), "TCP transform")
         R, t = T[:3, :3], T[:3, 3]
         if (not np.array_equal(T[3], [0, 0, 0, 1]) or np.linalg.det(R) <= 0
@@ -371,7 +377,7 @@ class ObservedScene:
                     target = bool(self.is_target[i])
                     return {"finger": name, "component": part,
                             "surface": "target" if target else "other observed surface",
-                            **({} if target else self._near(self.points[i], "enter", "hit")),
+                            **({} if target or not name_near else self._near(self.points[i], "enter", "hit")),
                             "pixel_rc": self.pixels[i].tolist(), "point_base_m": self.points[i].tolist()}
         return None
 
@@ -604,7 +610,9 @@ class ObservedFingerGate:
         the tool). A candidate that clears a neighbour by less than that passes
         the planned-pose vet and is then refused at the measured pose. Same
         surfaces and conflict test as `pose`/`closing_pose`; the target is
-        excluded so a scene without neighbours ranks exactly as before.
+        excluded so a scene without neighbours ranks exactly as before. The
+        grown volume only comes NEAR its hit, so the hit names no tracked
+        object (a refusal's "finger would enter the lemon" would be false).
         """
         T = _array(T_base_tcp, (4, 4), "TCP transform")
         if type(lateral_m) not in (int, float) or not np.isfinite(lateral_m) or lateral_m < 0:
@@ -612,7 +620,7 @@ class ObservedFingerGate:
         envelopes = self.closing_envelopes if closing else self.envelopes
         return self.scene.conflict(
             T, _horizontal_dilation(envelopes, T[:3, :3], float(lateral_m), _envelope_vertices(envelopes)),
-            allow_target_contact=True)
+            allow_target_contact=True, name_near=False)
 
 
 def _rigid(rotation):

@@ -17,9 +17,12 @@ Pinned here, on the real mock-stack runtime with the verifier wired by
 
 from __future__ import annotations
 
+import contextlib
+import dataclasses
 import json
 from functools import partial
 
+import numpy as np
 import pytest
 
 from conftest import needs_pin
@@ -96,7 +99,7 @@ def test_refused_before_motion_is_no_grasp_attempt(mock_runtime, monkeypatch, sk
     assert pc["channel"] == "skill"
     assert pc["evidence"].startswith("no grasp was attempted: "), pc
     assert "Perception took" in pc["evidence"]
-    assert pc["measured"] == {"arm_motions": 0, "gripper_closes": 0}
+    assert pc["measured"] == {"arm_motions": 0, "gripper_closes": 0, "gripper_opens": 0}
     text = _texts(runtime, result)
     assert "jaw closed" not in text and "did not rise" not in text
     assert result["verified"] is False
@@ -156,10 +159,10 @@ def test_real_held_grasp_is_judged_as_before(mock_runtime):
     assert len(arm.commands) > n0
     assert result["ok"] is True and result["held"] == "red cube", result
     pc = result["postcondition"]
-    # The static mock camera cannot see the lift: the same verdict and
-    # evidence main produced, with the jaw claim backed by a real close.
+    # The static mock camera cannot see the lift: the same verdict as main,
+    # and the evidence states the measured jaw ("held" is not measured).
     assert pc["status"] == UNVERIFIED and pc["channel"] == "gripper", pc
-    assert pc["evidence"].startswith("jaw held at 0.500 but red cube could not be re-located"), pc
+    assert pc["evidence"].startswith("jaw at 0.500 but red cube could not be re-located"), pc
 
 
 # ── the checker on its own: the actuation hook decides the wording ─────────
@@ -167,7 +170,7 @@ def test_real_held_grasp_is_judged_as_before(mock_runtime):
 
 class _Tally:
     def __init__(self):
-        self.counts = {"arm_motions": 0, "gripper_closes": 0}
+        self.counts = {"arm_motions": 0, "gripper_closes": 0, "gripper_opens": 0}
 
     def __call__(self):
         return dict(self.counts)
@@ -189,7 +192,7 @@ def test_no_motion_no_close_failed_grasp_is_unverified():
                         {"ok": False, "error": "SkillError: no IK solution\nsecond line"}, before=before)
     assert pc.status == UNVERIFIED and pc.channel == "skill"
     assert pc.evidence == "no grasp was attempted: SkillError: no IK solution"
-    assert pc.measured == {"arm_motions": 0, "gripper_closes": 0}
+    assert pc.measured == {"arm_motions": 0, "gripper_closes": 0, "gripper_opens": 0}
 
 
 def test_long_error_is_shortened_in_the_no_attempt_evidence():
@@ -296,14 +299,16 @@ def test_only_a_safety_harness_counts_motions():
     from cascade.skills.runtime import SkillRuntime
 
     def runtime_with(harness):
-        return SimpleNamespace(arm_rig=None, _arm=SimpleNamespace(harness=harness),
-                               _gripper_closes_commanded=0)
+        rt = SkillRuntime.__new__(SkillRuntime)
+        rt._arm = SimpleNamespace(harness=harness)
+        return rt
 
     foreign = SimpleNamespace(motions_begun=0)
-    assert SkillRuntime._actuation_counts(runtime_with(foreign)) is None
+    assert runtime_with(foreign)._actuation_counts() is None
     real = SafetyHarness.__new__(SafetyHarness)
     real.motions_begun = 4
-    assert SkillRuntime._actuation_counts(runtime_with(real)) == {"arm_motions": 4, "gripper_closes": 0}
+    assert runtime_with(real)._actuation_counts() == {
+        "arm_motions": 4, "gripper_closes": 0, "gripper_opens": 0}
 
 
 def test_close_gripper_skill_counts_its_close(mock_runtime):
@@ -355,3 +360,434 @@ def test_refused_close_gripper_is_not_verified_closed(mock_runtime):
     pc = result["postcondition"]
     assert pc["status"] == UNVERIFIED, pc
     assert "closed on" not in pc["evidence"] and result["verified"] is False
+
+
+# ── fix round 1: no verdict asserts a release, home or throw that did not happen ──
+#
+# The same actuation hook counts completed RELEASE opens (open_gripper, the
+# place_at release, the throw's release). Measured on the mock stack before
+# this round: an open refused by the e-stop while holding came back CONFIRMED
+# "the object was released" (object still in the jaws), a handover that never
+# grasped as "the object was released", a refused place_at as "gripper opened
+# to 0.50", a refused move_home as CONFIRMED "arm commanded home", a throw
+# refused mid-swing as CONFIRMED "no longer on the table".
+
+_EVENT_WORDS = ("released", "opened", "placed", "thrown", "the throw", "no longer on the table",
+                "arm commanded home", "jaw closed", "jaw held")
+
+
+def _hold(runtime, arm, label="red cube"):
+    """A real held grasp on the mock (the jaws jam at 0.5 on the object)."""
+    _seen(runtime, label)
+    arm.object_stop_frac = 0.5
+    result = runtime.execute("grasp_object", {"label": label})
+    assert result["ok"] is True and result["held"] == label, result
+
+
+def _assert_no_event(runtime, result):
+    pc = result["postcondition"]
+    for word in _EVENT_WORDS:
+        assert word not in pc["evidence"], pc
+    assert result["verified"] is False, result
+
+
+def test_open_refused_while_holding_is_not_a_release(mock_runtime):
+    runtime, arm = mock_runtime
+    _hold(runtime, arm)
+    runtime.arm.harness.estop("test: latched while holding")
+    n0 = len(arm.commands)
+
+    result = runtime.execute("open_gripper", {})
+
+    assert result["ok"] is False and "e-stop latched" in result["error"], result
+    assert len(arm.commands) == n0
+    assert runtime.held_object == "red cube", "the object is still in the jaws"
+    assert runtime._gripper_width_frac() == pytest.approx(0.5)
+    pc = result["postcondition"]
+    assert pc["status"] == UNVERIFIED and pc["channel"] == "skill", pc
+    assert pc["evidence"] == "no open command completed: SafetyViolation: e-stop latched; jaw at 0.50", pc
+    assert pc["measured"]["gripper_opens"] == 0 and pc["measured"]["gripper_frac"] == pytest.approx(0.5)
+    _assert_no_event(runtime, result)
+
+
+def test_open_refused_with_open_jaws_is_not_a_release(mock_runtime):
+    """Jaws already open, nothing held, the open refused: an open reading is
+    not a release this call made."""
+    runtime, arm = mock_runtime
+    runtime.arm.harness.estop("test: latched")
+
+    result = runtime.execute("open_gripper", {})
+
+    assert result["ok"] is False
+    pc = result["postcondition"]
+    assert pc["status"] == UNVERIFIED, pc
+    assert pc["evidence"].startswith("no open command completed: ") and pc["evidence"].endswith("jaw at 1.00"), pc
+    _assert_no_event(runtime, result)
+
+
+def test_open_that_releases_is_confirmed_as_before(mock_runtime):
+    runtime, arm = mock_runtime
+    _hold(runtime, arm)
+
+    result = runtime.execute("open_gripper", {})
+
+    assert result["ok"] is True and runtime.held_object is None
+    pc = result["postcondition"]
+    assert pc["status"] == CONFIRMED and pc["channel"] == "gripper", pc
+    assert pc["evidence"] == "gripper open at 1.00: the object was released", pc
+
+
+def test_place_refused_while_holding_is_not_a_release(mock_runtime):
+    runtime, arm = mock_runtime
+    _hold(runtime, arm)
+    runtime.arm.harness.estop("test: latched while holding")
+    n0 = len(arm.commands)
+
+    result = runtime.execute("place_at", {"x": 0.3, "y": 0.1})
+
+    assert result["ok"] is False and "e-stop latched" in result["error"], result
+    assert len(arm.commands) == n0
+    assert runtime.held_object == "red cube", "the object is still in the jaws"
+    pc = result["postcondition"]
+    assert pc["status"] == UNVERIFIED and pc["channel"] == "skill", pc
+    assert pc["evidence"] == "no open command completed: SafetyViolation: e-stop latched; jaw at 0.50", pc
+    _assert_no_event(runtime, result)
+
+
+def test_place_that_releases_is_judged_as_before(mock_runtime):
+    runtime, arm = mock_runtime
+    _hold(runtime, arm)
+
+    result = runtime.execute("place_at", {"x": 0.3, "y": 0.1})
+
+    assert result["ok"] is True and runtime.held_object is None, result
+    pc = result["postcondition"]
+    # Main's verdict word for word: the release was commanded and counted.
+    assert pc["status"] == UNVERIFIED, pc
+    assert pc["evidence"] == "gripper opened to 1.00 but the released object was not re-located", pc
+
+
+def test_handover_refused_by_slow_perception_stops_and_releases_nothing(mock_runtime, monkeypatch):
+    """Like pick_and_place: the first SlowPerceptionError ends the handover
+    (no re-home per retry), and the verdict claims no release."""
+    runtime, arm = mock_runtime
+    _seen(runtime)
+    _slow_perception(monkeypatch)
+    n0 = len(arm.commands)
+
+    result = runtime.execute("handover", {"label": "red cube"})
+
+    assert result["ok"] is False and "Perception took" in result["error"], result
+    assert result["grasp_attempts"] == 1, result
+    assert len(arm.commands) == n0, "no automatic re-home after an expired analysis"
+    pc = result["postcondition"]
+    assert pc["status"] == UNVERIFIED, pc
+    assert pc["evidence"].startswith("no open command completed: could not grasp 'red cube' for handover: "), pc
+    _assert_no_event(runtime, result)
+    assert "was released" not in _texts(runtime, result)
+
+
+def test_handover_that_keeps_holding_is_not_a_release(mock_runtime):
+    """handover presents the object and KEEPS holding it: jaws at 0.50 on the
+    object are not 'the object was released'."""
+    runtime, arm = mock_runtime
+    _seen(runtime)
+    arm.object_stop_frac = 0.5
+
+    result = runtime.execute("handover", {"label": "red cube"})
+
+    assert result["ok"] is not False and result["offering"] == "red cube", result
+    assert runtime.held_object == "red cube"
+    pc = result["postcondition"]
+    assert pc["status"] == UNVERIFIED, pc
+    assert pc["evidence"] == "no open command completed; jaw at 0.50", pc
+    assert "released" not in pc["evidence"]
+
+
+def test_throw_refused_before_motion_is_not_a_throw(mock_runtime, monkeypatch):
+    runtime, arm = mock_runtime
+    _seen(runtime)
+    _slow_perception(monkeypatch)
+    n0 = len(arm.commands)
+
+    result = runtime.execute("throw", {"label": "red cube"})
+
+    assert result["ok"] is False and len(arm.commands) == n0, result
+    pc = result["postcondition"]
+    assert pc["status"] == UNVERIFIED, pc
+    assert pc["evidence"].startswith("no open command completed: SlowPerceptionError: Perception took"), pc
+    _assert_no_event(runtime, result)
+    assert "travelled" not in pc["evidence"]
+
+
+def test_throw_refused_mid_swing_keeps_the_object_and_says_so(mock_runtime):
+    """On the mock the swing leaves the workspace and the harness stops it
+    before the release: the object is still in the jaws."""
+    runtime, arm = mock_runtime
+    _hold(runtime, arm)
+    n0 = len(arm.commands)
+
+    result = runtime.execute("throw", {"label": "red cube"})
+
+    assert len(arm.commands) > n0, "the wind-up moved the arm"
+    assert result["ok"] is False and "outside workspace" in result["error"], result
+    assert runtime.held_object == "red cube"
+    pc = result["postcondition"]
+    assert pc["status"] == UNVERIFIED, pc
+    assert pc["evidence"].startswith("no open command completed: SafetyViolation: TCP"), pc
+    assert pc["evidence"].endswith("; jaw at 0.50"), pc
+    _assert_no_event(runtime, result)
+
+
+def test_throw_that_releases_is_judged_by_the_object(mock_runtime, monkeypatch):
+    """The release completes and is counted: the verdict rests on the object,
+    which is not re-located (no "gone" claim). The mock profile's wind-up
+    pose dips under the table clearance, so the swing itself is stubbed; the
+    release is the real gripper command."""
+    runtime, arm = mock_runtime
+    _hold(runtime, arm)
+    monkeypatch.setattr(runtime, "_move_joints", lambda *_a, **_k: True)
+
+    result = runtime.execute("throw", {"label": "red cube"})
+
+    assert result["ok"] is True and result["thrown"] == "red cube", result
+    assert runtime.held_object is None
+    assert runtime._gripper_width_frac() == pytest.approx(1.0)
+    pc = result["postcondition"]
+    assert pc["status"] == CONFIRMED and pc["evidence"] == "red cube could not be re-located", pc
+
+
+def test_place_drop_after_a_slip_is_a_completed_open(mock_runtime, monkeypatch):
+    """place_at sees the object far below the jaws (it slipped in the carry)
+    and opens to drop it: that open completed, so the verdict is judged on
+    the jaws/object, never "no open command completed"."""
+    from cascade.skills.held_observation import HeldOffset
+
+    runtime, arm = mock_runtime
+    _hold(runtime, arm)
+    monkeypatch.setattr(runtime, "_held_object_observation",
+                        lambda: HeldOffset(np.array([0.0, 0.0, -0.10]), "test", True))
+
+    result = runtime.execute("place_at", {"x": 0.3, "y": 0.1})
+
+    assert result["ok"] is False and "slipped out of the gripper" in result["error"], result
+    assert runtime.held_object is None
+    assert runtime._gripper_width_frac() == pytest.approx(1.0)
+    pc = result["postcondition"]
+    assert pc["status"] == UNVERIFIED, pc
+    assert pc["evidence"] == "gripper opened to 1.00 but the released object was not re-located", pc
+
+
+def test_move_home_refused_by_the_estop_is_not_home(mock_runtime):
+    runtime, arm = mock_runtime
+    runtime.arm.harness.estop("test: latched")
+    n0 = len(arm.commands)
+
+    result = runtime.execute("move_home", {})
+
+    assert result["ok"] is False and len(arm.commands) == n0, result
+    pc = result["postcondition"]
+    assert pc["status"] == UNVERIFIED and pc["channel"] == "skill", pc
+    assert pc["evidence"].startswith("no motion completed: SkillError: no safe joint route found"), pc
+    assert "e-stop latched" in pc["evidence"]
+    _assert_no_event(runtime, result)
+
+
+def test_move_home_that_moves_is_confirmed_as_before(mock_runtime):
+    runtime, arm = mock_runtime
+    n0 = len(arm.commands)
+
+    result = runtime.execute("move_home", {})
+
+    assert result["ok"] is True and len(arm.commands) > n0
+    pc = result["postcondition"]
+    assert pc["status"] == CONFIRMED and pc["channel"] == "arm", pc
+    assert pc["evidence"] == "arm commanded home (streamed waypoints approved by the harness)"
+
+
+# ── an arm motion counts when its stream starts (first approved command) ──
+
+
+def _nudged(runtime, dq=0.05):
+    q = np.asarray(runtime.arm.get_state().q, dtype=float).copy()
+    q[0] += dq
+    return q
+
+
+def _refuse_route(start, duration_s):
+    from cascade.types import SafetyViolation
+
+    raise SafetyViolation("test: route refused by its preflight; no motion sent")
+
+
+@pytest.mark.parametrize("refusal", ["estop", "watchdog", "halt", "preflight"])
+def test_a_refused_motion_is_not_counted(mock_runtime, refusal):
+    """begin_motion's own checks (e-stop, watchdog, halt generation) and a
+    route preflight after it all refuse before the first command: nothing
+    moved, nothing is counted, and a later bare approve() (no motion in
+    flight) does not count it either."""
+    from cascade.types import SafetyViolation
+
+    runtime, arm = mock_runtime
+    h = runtime.arm.harness
+    q0 = np.asarray(runtime.arm.get_state().q, dtype=float).copy()
+    limits = h.limits
+    kwargs = {}
+    if refusal == "estop":
+        h.estop("test: latched")
+    elif refusal == "watchdog":
+        h.limits = dataclasses.replace(limits, watchdog_s=-1.0)
+    elif refusal == "halt":
+        kwargs["_halt_generation"] = h._halt_generation + 1
+    else:
+        kwargs["_preflight"] = _refuse_route
+    n0, m0 = len(arm.commands), h.motions_begun
+
+    with pytest.raises(SafetyViolation):
+        runtime.arm.move_joints(_nudged(runtime), duration_s=0.5, **kwargs)
+
+    assert len(arm.commands) == n0, "refused: no command left"
+    assert h.motions_begun == m0, "a refused motion is not an arm motion"
+    h.limits = limits
+    h.heartbeat()
+    with contextlib.suppress(SafetyViolation):
+        h.approve(q0, q0, 0.02)          # a bare vet, no motion in flight
+    assert h.motions_begun == m0
+
+
+def test_a_stream_counts_once(mock_runtime):
+    runtime, arm = mock_runtime
+    h = runtime.arm.harness
+    n0, m0 = len(arm.commands), h.motions_begun
+
+    assert runtime.arm.move_joints(_nudged(runtime), duration_s=0.5)
+
+    assert len(arm.commands) - n0 > 2, "many approved waypoints"
+    assert h.motions_begun == m0 + 1, "one stream, one motion"
+    q0 = np.asarray(runtime.arm.get_state().q, dtype=float).copy()
+    h.heartbeat()
+    h.approve(q0, q0, 0.02)              # after the stream ended: not a new motion
+    assert h.motions_begun == m0 + 1
+
+
+# ── the checker on its own: release, throw, home and relocation wording ──
+
+
+def _release_checker(tally, frac=0.97, poses=None):
+    poses = {"cube": [0.3, 0.0, 0.04], "plate": [0.3, 0.1, 0.02]} if poses is None else poses
+    checker = PostconditionChecker(belief_pose=lambda label: poses.get(label),
+                                   gripper_frac=lambda: frac, actuation=tally)
+    return checker, poses
+
+
+@pytest.mark.parametrize("skill, args, result", [
+    ("open_gripper", {}, {"ok": False, "error": "SafetyViolation: e-stop latched"}),
+    ("handover", {"label": "cube"}, {"ok": False, "error": "SafetyViolation: e-stop latched"}),
+    ("place_at", {"x": 0.3, "y": 0.0}, {"ok": False, "error": "SafetyViolation: e-stop latched"}),
+    ("place_on_object", {"label": "plate"}, {"ok": False, "placed": "cube",
+                                             "error": "SafetyViolation: e-stop latched"}),
+    ("throw", {"label": "cube"}, {"ok": False, "error": "SafetyViolation: e-stop latched"}),
+])
+def test_no_counted_open_is_never_a_release(skill, args, result):
+    tally = _Tally()
+    checker, _ = _release_checker(tally, frac=0.5)
+    before = checker.snapshot("cube")
+    tally.counts["arm_motions"] += 2            # moved, but never opened
+    pc = checker.verify(skill, args, result, before=before)
+    assert pc.status == UNVERIFIED and pc.channel == "skill", pc
+    assert pc.evidence == "no open command completed: SafetyViolation: e-stop latched; jaw at 0.50", pc
+    assert pc.measured == {"arm_motions": 2, "gripper_closes": 0, "gripper_opens": 0, "gripper_frac": 0.5}
+
+
+def test_a_counted_open_keeps_the_release_wording():
+    tally = _Tally()
+    checker, _ = _release_checker(tally)
+    before = checker.snapshot(None)
+    tally.counts["gripper_opens"] += 1
+    pc = checker.verify("open_gripper", {}, {"ok": True}, before=before)
+    assert pc.status == CONFIRMED and pc.evidence == "gripper open at 0.97: the object was released"
+
+
+def test_unknown_actuation_never_claims_a_release():
+    checker = PostconditionChecker(gripper_frac=lambda: 0.97)
+    pc = checker.verify("open_gripper", {}, {"ok": True}, before=checker.snapshot(None))
+    assert pc.status == CONFIRMED and pc.evidence == "gripper open at 0.97", pc
+
+
+def test_released_at_wording_after_a_counted_open():
+    tally = _Tally()
+    checker, poses = _release_checker(tally)
+    before = checker.snapshot("cube")
+    tally.counts["gripper_opens"] += 1
+    poses["cube"] = [0.3, 0.3, 0.02]            # 30 cm from the requested point
+    pc = checker.verify("place_at", {"x": 0.3, "y": 0.0}, {"ok": True}, before=before)
+    assert pc.status == REFUTED, pc
+    assert pc.evidence == "cube ended 30.0 cm from the requested point", pc
+
+
+def test_unknown_actuation_released_at_states_the_reading():
+    poses = {"cube": [0.3, 0.0, 0.04]}
+    checker = PostconditionChecker(belief_pose=lambda label: poses.get(label), gripper_frac=lambda: 0.97)
+    before = checker.snapshot("cube")
+    poses.pop("cube")
+    pc = checker.verify("place_at", {"x": 0.3, "y": 0.0}, {"ok": True}, before=before)
+    assert pc.status == UNVERIFIED and pc.evidence == "jaw at 0.97 but cube was not re-located", pc
+
+
+def test_reopened_jaw_is_described_not_held():
+    """A close was commanded, then the skill re-opened the jaws (the air-grasp
+    re-open to 0.15): the measured jaw is not a hold."""
+    tally = _Tally()
+    poses = {"cube": [0.3, 0.0, 0.04]}
+    checker = PostconditionChecker(belief_pose=lambda label: poses.get(label),
+                                   gripper_frac=lambda: 0.15, actuation=tally)
+    before = checker.snapshot("cube")
+    poses.pop("cube")                           # not re-located after the call
+    tally.counts["arm_motions"] += 3
+    tally.counts["gripper_closes"] += 1
+    pc = checker.verify("grasp_object", {"label": "cube"}, {"ok": False, "error": "air grasp"}, before=before)
+    assert pc.status == UNVERIFIED and pc.channel == "gripper", pc
+    assert pc.evidence == ("jaw at 0.150 but cube could not be re-located, so the lift is unconfirmed"), pc
+
+
+def test_throw_with_a_counted_release_states_measurements():
+    tally = _Tally()
+    checker, poses = _release_checker(tally)
+    before = checker.snapshot("cube")
+    tally.counts["arm_motions"] += 3
+    tally.counts["gripper_opens"] += 1
+    pc = checker.verify("throw", {"label": "cube"}, {"ok": True}, before=before)
+    assert pc.status == REFUTED and pc.evidence == "cube only travelled 0 cm", pc
+    poses.pop("cube")
+    pc = checker.verify("throw", {"label": "cube"}, {"ok": True}, before=before)
+    assert pc.status == CONFIRMED and pc.evidence == "cube could not be re-located", pc
+
+
+def test_move_home_counts_decide_the_home_verdict():
+    tally = _Tally()
+    checker = PostconditionChecker(actuation=tally)
+    before = checker.snapshot(None)
+    pc = checker.verify("move_home", {}, {"ok": False, "error": "SafetyViolation: e-stop latched"}, before=before)
+    assert pc.status == UNVERIFIED and pc.evidence == "no motion completed: SafetyViolation: e-stop latched", pc
+    tally.counts["arm_motions"] += 1
+    pc = checker.verify("move_home", {}, {"ok": True}, before=before)
+    assert pc.status == CONFIRMED and pc.evidence.startswith("arm commanded home"), pc
+
+
+def test_relocated_without_a_comparable_start_claims_no_move():
+    tally = _Tally()
+    poses = {}
+    checker = PostconditionChecker(belief_pose=lambda label: poses.get(label), actuation=tally)
+    before = checker.snapshot("cube")           # not located before the call
+    tally.counts["arm_motions"] += 3
+    tally.counts["gripper_closes"] += 1
+    poses["cube"] = [0.3, 0.1, 0.02]
+    pc = checker.verify("pick_and_place", {"object": "cube"}, {"ok": True}, before=before)
+    assert pc.status == UNVERIFIED, pc
+    assert "moved" not in pc.evidence and pc.evidence.startswith("cube was re-located"), pc
+    # With a comparable start the move is measured, and said.
+    poses["cube"] = [0.3, 0.0, 0.02]
+    before = checker.snapshot("cube")
+    poses["cube"] = [0.3, 0.2, 0.02]
+    pc = checker.verify("pick_and_place", {"object": "cube"}, {"ok": True}, before=before)
+    assert pc.status == UNVERIFIED and pc.evidence.startswith("cube moved 20.0 cm, but no drop point"), pc

@@ -86,7 +86,7 @@ DEST_TOLERANCE_M = 0.03
 #: A push must displace the object by at least this fraction of the request.
 PUSH_MIN_FRAC = 0.3
 #: Counts the runtime's ``actuation`` hook reports (see PostconditionChecker).
-_ACTUATION_KEYS = ("arm_motions", "gripper_closes")
+_ACTUATION_KEYS = ("arm_motions", "gripper_closes", "gripper_opens")
 #: Longest skill error quoted in a "no grasp was attempted" verdict.
 _ERROR_QUOTE_CHARS = 160
 
@@ -99,7 +99,11 @@ class Postcondition:
     kind: str
     status: str = UNVERIFIED
     evidence: str = ""
-    channel: str = ""        # "physics" | "belief" | "gripper" | ""
+    #: "physics" | "belief" | "gripper" | "visual_diff" | "arm" | "" -- or
+    #: "skill": the verdict rests on what THIS call commanded (the runtime's
+    #: actuation counts), e.g. "no grasp was attempted" / "no open command
+    #: completed" / "no motion completed".
+    channel: str = ""
     measured: dict = field(default_factory=dict)
     t: float = field(default_factory=time.time)
 
@@ -141,12 +145,13 @@ class PostconditionChecker:
         Jaw opening fraction (0 closed .. 1 open).
     ``reobserve() -> None``
         Force a fresh detector pass before reading beliefs.
-    ``actuation() -> {"arm_motions": int, "gripper_closes": int} | None``
-        Monotonic counts of the arm motions and gripper close commands the
-        runtime issued. ``snapshot()`` records them and ``verify()`` takes the
-        difference, so a check knows whether THIS call moved the arm or
-        closed the jaws. None (or no hook) = unknown: the check then neither
-        reports "no grasp was attempted" nor asserts that the jaw closed.
+    ``actuation() -> {"arm_motions": int, "gripper_closes": int, "gripper_opens": int} | None``
+        Monotonic counts of the arm motions started, gripper closes and
+        release opens the runtime completed. ``snapshot()`` records them and
+        ``verify()`` takes the difference, so a check knows whether THIS call
+        moved the arm, closed the jaws or released. None (or no hook) =
+        unknown: the check then never reports "nothing was commanded" and
+        never asserts a close, a release or a commanded home.
     """
 
     def __init__(
@@ -220,10 +225,40 @@ class PostconditionChecker:
         acted = self._actuation_delta(before)
         return acted is not None and acted["gripper_closes"] > 0
 
+    def _open_commanded(self, before: dict) -> bool:
+        """True only when a release open was COUNTED in this call. Unknown is
+        False: evidence may say "released" / "opened" only after one."""
+        acted = self._actuation_delta(before)
+        return acted is not None and acted["gripper_opens"] > 0
+
+    def _no_open_completed(self, pc, result: dict, before: dict, frac: float | None) -> bool:
+        """A release-kind call (open_gripper, place_at, place_on_object,
+        handover, throw) whose open never completed released nothing, whatever
+        the jaws or the object's pose read: UNVERIFIED, never "released".
+
+        Measured on the mock stack: an open refused by the e-stop while the
+        jaws held an object at 0.50 came back CONFIRMED "the object was
+        released"; a handover that never grasped, the same; a place_at
+        refused before motion, "gripper opened to 0.50". A handover keeps
+        holding by design, so it lands here too: it released nothing.
+        Unknown actuation is left to the checks below.
+        """
+        acted = self._actuation_delta(before)
+        if acted is None or acted["gripper_opens"]:
+            return False
+        pc.status, pc.channel = UNVERIFIED, "skill"
+        pc.measured = dict(acted, **({"gripper_frac": frac} if frac is not None else {}))
+        reason = _shorten(result.get("error"))
+        jaw = f"jaw at {frac:.2f}" if frac is not None else "jaw opening unknown"
+        pc.evidence = f"no open command completed{': ' + reason if reason else ''}; {jaw}"
+        return True
+
     def _no_grasp_attempted(self, pc, result: dict, before: dict) -> bool:
         """A grasp/pick that failed before commanding any arm motion or
-        gripper close (perception refused it, planning found nothing, the
-        harness refused the first move) has no physical effect to judge.
+        gripper close has no physical effect to judge: perception refused it,
+        planning found nothing, or the harness / a route preflight refused
+        the first move before its first command (a motion counts once its
+        first waypoint is approved, `SafetyHarness.motions_begun`).
 
         Measured on the Spark kitchen: such refusals (gripper still open,
         0 arm commands) came back REFUTED with "the jaw closed but the
@@ -434,8 +469,10 @@ class PostconditionChecker:
         pose, channel = self._best_pose(label) if label else (None, "")
         if pose is None:
             pc.status, pc.channel = UNVERIFIED, "gripper"
+            # The measured jaw, never "held": the skill may have re-opened
+            # after its close (the air-grasp re-open to 0.15).
             pc.evidence = (
-                f"jaw {'held' if closed else 'measured'} at {frac:.3f} but {label or 'the object'} "
+                f"jaw at {frac:.3f} but {label or 'the object'} "
                 "could not be re-located, so the lift is unconfirmed"
                 if frac is not None
                 else "no independent channel could confirm the grasp"
@@ -545,6 +582,7 @@ class PostconditionChecker:
             return
         pc.channel = channel
         start = self._comparable_start(before, channel)
+        moved = None
         if start is not None:
             moved = _dist(pose, start)
             pc.measured = {"moved_m": round(moved, 4), "final": [round(v, 4) for v in pose]}
@@ -628,26 +666,35 @@ class PostconditionChecker:
             pc.evidence = f"{label} is {err*100:.1f} cm from the {point_name} center ({channel})"
             return
         # No drop point to compare against: "it moved" is NOT evidence that it
-        # went where it was asked to go. Say so instead of confirming.
+        # went where it was asked to go. Say so instead of confirming, and say
+        # "moved" only when a comparable start measured the move.
         pc.status = UNVERIFIED
         pc.evidence = (
-            f"{label} moved, but no drop point was reported, so 'placed correctly' "
-            "could not be verified"
+            f"{label} moved {moved*100:.1f} cm, but no drop point was reported, so "
+            "'placed correctly' could not be verified"
+            if moved is not None
+            else f"{label} was re-located, but its start was not measured in the same channel "
+                 "and no drop point was reported, so 'placed correctly' could not be verified"
         )
 
     def _check_released_at(self, pc, args, result, before) -> None:
         label = str(before.get("label") or result.get("object") or "")
         want = [args.get("x"), args.get("y")]
+        frac = self._frac()
+        if self._no_open_completed(pc, result, before, frac):
+            return
+        opened = self._open_commanded(before)
         if self._refute_if_lost(pc, label):
             return
         pose, channel = self._best_pose(label) if label else (None, "")
-        frac = self._frac()
         if pose is None:
             pc.status = UNVERIFIED
-            pc.evidence = (
-                f"gripper opened to {frac:.2f} but the released object was not re-located"
-                if frac is not None else "release not independently observed"
-            )
+            if frac is None:
+                pc.evidence = "release not independently observed"
+            elif opened:
+                pc.evidence = f"gripper opened to {frac:.2f} but the released object was not re-located"
+            else:
+                pc.evidence = f"jaw at {frac:.2f} but {label or 'the object'} was not re-located"
             return
         pc.channel = channel
         if want[0] is not None and want[1] is not None:
@@ -657,10 +704,11 @@ class PostconditionChecker:
             pc.evidence = (
                 f"{label} rests {err*100:.1f} cm from the requested point ({channel})"
                 if pc.status == CONFIRMED
-                else f"{label} ended {err*100:.1f} cm away from where it was placed"
+                else f"{label} ended {err*100:.1f} cm from the requested point"
             )
             return
-        pc.status, pc.evidence = CONFIRMED, f"{label} located after release ({channel})"
+        pc.status = CONFIRMED
+        pc.evidence = f"{label} located after release ({channel})" if opened else f"{label} located ({channel})"
 
     def _check_released_on(self, pc, args, result, before) -> None:
         # The HELD object is the subject; `label` is the DESTINATION. Reading
@@ -670,6 +718,8 @@ class PostconditionChecker:
         # the cube landed at (0.272, 0.084), well outside the bin, while this
         # check said confirmed). `result["placed"]` is what the skill actually
         # released; fall back to the snapshot only when it is absent.
+        if self._no_open_completed(pc, result, before, self._frac()):
+            return
         target = str(args.get("label") or "")
         held = str(
             result.get("placed")
@@ -722,12 +772,17 @@ class PostconditionChecker:
             pc.evidence = f"{label} barely moved ({moved*100:.1f} cm of {want*100:.0f} cm requested)"
 
     def _check_gone(self, pc, args, result, before) -> None:
+        # A throw whose release never completed (refused before the swing, or
+        # mid-swing by the harness) threw nothing: the object is still held.
+        if self._no_open_completed(pc, result, before, self._frac()):
+            return
         label = str(args.get("label") or before.get("label") or "")
         pose, channel = self._best_pose(label) if label else (None, "")
         start = before.get("pose")
         if pose is None:
+            # Not finding it is not seeing it gone: state what was measured.
             pc.status, pc.channel = CONFIRMED, "belief"
-            pc.evidence = f"{label} is no longer on the table"
+            pc.evidence = f"{label} could not be re-located"
             return
         pc.channel = channel
         if start is not None:
@@ -736,22 +791,26 @@ class PostconditionChecker:
             pc.status = CONFIRMED if moved >= SAME_PLACE_M * 2 else REFUTED
             pc.evidence = (
                 f"{label} travelled {moved*100:.0f} cm" if pc.status == CONFIRMED
-                else f"{label} only travelled {moved*100:.0f} cm: the throw did not release"
+                else f"{label} only travelled {moved*100:.0f} cm"
             )
             return
         pc.status, pc.evidence = UNVERIFIED, f"{label} still tracked; displacement unknown"
 
     def _check_released(self, pc, args, result, before) -> None:
         frac = self._frac()
+        if self._no_open_completed(pc, result, before, frac):
+            return
         if frac is None:
             pc.status, pc.evidence = UNVERIFIED, "gripper state unavailable"
             return
         pc.channel, pc.measured = "gripper", {"gripper_frac": frac}
         pc.status = CONFIRMED if frac > self.air_grasp_frac * 2 else REFUTED
-        pc.evidence = (
-            f"gripper open at {frac:.2f}: the object was released"
-            if pc.status == CONFIRMED else f"gripper still closed at {frac:.2f}"
-        )
+        if pc.status == REFUTED:
+            pc.evidence = f"gripper still closed at {frac:.2f}"
+        elif self._open_commanded(before):
+            pc.evidence = f"gripper open at {frac:.2f}: the object was released"
+        else:
+            pc.evidence = f"gripper open at {frac:.2f}"    # unknown actuation: the reading only
 
     def _check_empty(self, pc, args, result, before) -> None:
         self._check_released(pc, args, result, before)
@@ -787,6 +846,14 @@ class PostconditionChecker:
         )
 
     def _check_at_home(self, pc, args, result, before) -> None:
+        acted = self._actuation_delta(before)
+        if acted is not None and not acted["arm_motions"]:
+            # Refused before its first command (e-stop, halt, no route): the
+            # arm did not move, so nothing was "commanded home".
+            pc.status, pc.channel, pc.measured = UNVERIFIED, "skill", acted
+            reason = _shorten(result.get("error"))
+            pc.evidence = f"no motion completed{': ' + reason if reason else ''}"
+            return
         pc.status, pc.channel = CONFIRMED, "arm"
         pc.evidence = "arm commanded home (streamed waypoints approved by the harness)"
 

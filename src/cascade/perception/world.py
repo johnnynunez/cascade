@@ -473,9 +473,12 @@ class WorldWatcher:
         # (5 s) would starve it all the same. detect_nowait never waits for a
         # slow backend (the brain detector answers from its cache and asks the
         # brain in the background); other detectors keep detect().
-        if not fuse and _fusing_cameras_only(self._detector):
+        if not fuse and cam is not self._cams[0] and _fusing_cameras_only(self._detector):
             # Nothing of a non-fusing camera reaches the beliefs: no background
             # inventory and no SAM step for an overlay (the brain detector).
+            # The PRIMARY camera is exempt: describe_scene and localization
+            # read its cache entry, which a missing or rejected hand-eye
+            # record (fuse=False) must not leave to synchronous inventories.
             dets = []
         elif _has_detect_nowait(self._detector):
             dets = self._detector.detect_nowait(frame, classes=self._classes)

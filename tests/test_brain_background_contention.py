@@ -427,6 +427,124 @@ def test_a_refresh_cancelled_before_its_request_sends_nothing(make, monkeypatch)
     assert _wait_for(lambda: len(brain.background()) == 1, 1.0)  # requeued, sent after the scope
 
 
+def _in_prefill(brain: _Brain, gate: threading.Event, entered: threading.Event, error: Exception | None = None):
+    """brain's create() waits for `gate` before it answers (a request in
+    prefill: no chunk yet, so it cannot see a cancel), then answers as before
+    or raises `error` (a hung brain's timeout)."""
+    create = brain._create
+
+    def prefill(**kwargs):
+        entered.set()
+        gate.wait(5)
+        if error is not None:
+            with brain._lock:
+                brain.requests.append(dict(kwargs, _thread=threading.current_thread().name, _t=time.monotonic(),
+                                           _background=threading.current_thread().name.startswith("brain-refresh")))
+            raise error
+        return create(**kwargs)
+
+    brain.chat.completions.create = prefill
+
+
+def test_a_scene_change_during_the_scope_reaches_the_restarted_refresh(make, monkeypatch):
+    """The scene changed while the cancelled request was still in prefill: the
+    requeued refresh asks about the NEW frame, not the one it started with
+    (that answer would be one wasted inventory, 25 s in the kitchen)."""
+    monkeypatch.setattr(brain_mod, "_CANCEL_WAIT_S", 0.05)
+    gate, entered = threading.Event(), threading.Event()
+    brain = _Brain(hold=True)
+    _in_prefill(brain, gate, entered)
+    det, _ = make(brain=brain)
+    det.detect_nowait(_frame(40))
+    assert entered.wait(1.0), "the refresh never sent its request"
+    with det.foreground():
+        assert len(_refresh_threads()) == 1  # still in prefill: it cannot see the cancel yet
+        assert det.detect_nowait(_frame(120)) == []  # the watcher's tick: the scene changed
+        gate.set()  # the first chunk arrives: the refresh sees the cancel and is requeued
+        assert _wait_for(lambda: _refresh_threads() == [], 1.0)
+    assert _wait_for(lambda: len(brain.background()) == 2, 1.0), "the cancelled request was not requeued"
+    assert [round(_image_level(r)) for r in brain.background()] == [40, 120], "the restart sent the old scene"
+    assert det._failed_at == {}
+
+
+def test_a_cancelled_refresh_that_then_fails_is_no_failure_and_the_next_one_is(make, monkeypatch, caplog):
+    """A request cancelled in prefill that then ends with an error (a hung
+    brain's timeout) is still a cancelled refresh: requeued, no backoff, no
+    warning. The hung brain is detected by the next, uncancelled refresh."""
+    monkeypatch.setattr(brain_mod, "_CANCEL_WAIT_S", 0.05)
+    gate, entered = threading.Event(), threading.Event()
+    brain = _Brain(hold=True)
+    _in_prefill(brain, gate, entered, error=TimeoutError("Request timed out."))
+    det, _ = make(brain=brain)
+    frame = _frame(40)
+    with caplog.at_level(logging.WARNING, logger="cascade.perception.brain_detector"):
+        det.detect_nowait(frame)
+        assert entered.wait(1.0), "the refresh never sent its request"
+        with det.foreground():
+            gate.set()  # the hung request times out after the scope cancelled it
+            assert _wait_for(lambda: _refresh_threads() == [], 1.0)
+            assert det._failed_at == {}, "a cancelled refresh was recorded as a failure"
+            assert not caplog.records, [r.getMessage() for r in caplog.records]
+        # The scope ended: the requeued refresh runs uncancelled and fails.
+        assert _wait_for(lambda: brain_mod._cache_key(frame, None) in det._failed_at, 1.0), \
+            "the hung brain was never detected"
+    assert len(brain.background()) == 2
+    assert [r.getMessage() for r in caplog.records if "refresh failed" in r.getMessage()]
+
+
+def test_every_scope_entry_waits_for_a_cancelled_stream_still_open(make, monkeypatch):
+    """The outer scope's bounded wait ran out while the cancelled request was
+    in prefill. A nested scope (or another thread's) waits again, bounded,
+    so its foreground work does not overlap that stream's last chunk."""
+    monkeypatch.setattr(brain_mod, "_CANCEL_WAIT_S", 0.3)
+    gate, entered = threading.Event(), threading.Event()
+    brain = _Brain(hold=True)
+    _in_prefill(brain, gate, entered)
+    det, _ = make(brain=brain)
+    det.detect_nowait(_frame(40))
+    assert entered.wait(1.0), "the refresh never sent its request"
+    with det.foreground():
+        assert len(_refresh_threads()) == 1  # the outer wait ran out: still in prefill
+        timer = threading.Timer(0.1, gate.set)  # its first chunk arrives during the inner wait
+        timer.start()
+        started = time.monotonic()
+        with LockedDetector(det).foreground():
+            waited = time.monotonic() - started
+            assert _refresh_threads() == [], "the nested entry did not wait for the cancelled stream"
+        timer.join()
+        assert waited < 0.3 + 0.2
+        # Bounded: a stream that never closes costs a nested entry at most _CANCEL_WAIT_S.
+    det_2, brain_2 = make(brain=_Brain(hold=True))
+    gate_2, entered_2 = threading.Event(), threading.Event()
+    _in_prefill(brain_2, gate_2, entered_2)
+    det_2.detect_nowait(_frame(40))
+    assert entered_2.wait(1.0)
+    with det_2.foreground():
+        started = time.monotonic()
+        with det_2.foreground():
+            assert 0.25 <= time.monotonic() - started < 0.3 + 0.2
+    gate_2.set()
+
+
+def test_a_scope_interrupted_right_after_its_count_went_up_still_ends(make):
+    """An asynchronous KeyboardInterrupt that lands just after the count went
+    up (here: raised by a cancel Event's set()) must not leave the scope held,
+    or background work would stop for good."""
+    det, brain = make()
+
+    class _Interrupting(threading.Event):
+        def set(self):
+            raise KeyboardInterrupt
+
+    det._cancels[("not", "a key")] = _Interrupting()
+    with pytest.raises(KeyboardInterrupt), det.foreground():
+        pass
+    del det._cancels[("not", "a key")]
+    assert det._foreground == 0, "the interrupted scope leaked its count"
+    det.detect_nowait(_frame(40))
+    assert _wait_for(lambda: len(brain.background()) == 1, 1.0), "background work stayed stopped"
+
+
 def test_close_waits_up_to_inventory_timeout_for_a_request_in_prefill(make, monkeypatch):
     """A request still waiting for its first chunk cannot see the cancel:
     close() bounds its join by the BACKGROUND timeout, not timeout_s."""
@@ -575,6 +693,82 @@ def test_build_runtime_warns_about_two_mock_cameras_sharing_a_key(tmp_path, monk
         demo.shutdown_runtime(runtime, arm)
 
 
+def test_the_build_time_key_check_never_fails_on_a_bad_camera(make):
+    """A diagnostic never fails build_runtime: a camera whose K is NaN, or
+    whose stream raises, is left out of the comparison."""
+    from cascade.apps.demo import _warn_shared_camera_keys
+
+    det, _ = make()
+    nan_k = _frame(50)
+    nan_k.K[0, 0] = float("nan")
+
+    def broken():
+        raise RuntimeError("camera gone")
+
+    streams = [SimpleNamespace(name="scene", latest=lambda: _frame(50), wait_newer=None),
+               SimpleNamespace(name="nan", latest=lambda: nan_k, wait_newer=None),
+               SimpleNamespace(name="broken", latest=broken, wait_newer=None),
+               SimpleNamespace(name="wrist", latest=lambda: _frame(50), wait_newer=None)]
+    assert _warn_shared_camera_keys(LockedDetector(det), streams) == [["scene", "wrist"]]
+
+    class _Nameless:
+        @property
+        def name(self):
+            raise RuntimeError("no name")
+
+    assert _warn_shared_camera_keys(LockedDetector(det), [_Nameless(), _Nameless()]) == []
+
+
+def test_the_build_time_key_check_logs_every_key_and_compares_only_served_cameras(make, caplog):
+    """Every camera's key, and every camera left out, is logged at INFO. A
+    camera the watcher asks nothing about (`skip`: non-fusing, not the
+    primary) cannot invalidate another camera's entry, so it is not compared."""
+    from cascade.apps.demo import _warn_shared_camera_keys
+
+    det, _ = make()
+    streams = [SimpleNamespace(name=n, latest=lambda: _frame(50), wait_newer=None) for n in ("scene", "proof")]
+    with caplog.at_level(logging.INFO, logger="cascade.apps.demo"):
+        assert _warn_shared_camera_keys(LockedDetector(det), streams, skip={"proof"}) == []
+    messages = [r.getMessage() for r in caplog.records]
+    assert all(r.levelno == logging.INFO for r in caplog.records), messages
+    assert [m for m in messages if "scene" in m and str(BrainDetector.camera_key(_frame(50))) in m], messages
+    assert [m for m in messages if "proof" in m and "left out" in m], messages
+    caplog.clear()
+    nan_k = _frame(50)
+    nan_k.K[0, 0] = float("nan")
+    streams.append(SimpleNamespace(name="nan", latest=lambda: nan_k, wait_newer=None))
+    with caplog.at_level(logging.INFO, logger="cascade.apps.demo"):
+        _warn_shared_camera_keys(LockedDetector(det), streams)
+    assert [r for r in caplog.records if "nan" in r.getMessage() and "left out" in r.getMessage()
+            and "ValueError" in r.getMessage() and r.levelno == logging.INFO]
+
+
+@pytest.mark.parametrize("fuse", [(True, False), (False, True)], ids=["second-does-not-fuse", "primary-does-not-fuse"])
+def test_build_runtime_compares_the_keys_of_the_cameras_the_watcher_serves(tmp_path, monkeypatch, caplog, fuse):
+    """The watcher serves the primary and every fusing camera: two mock
+    cameras share a key, which matters only when both are served."""
+    pytest.importorskip("pinocchio")
+    from cascade.apps import demo
+    from cascade.config import load_demo_config
+
+    detector = BrainDetector(base_url="http://brain/v1", model="qwen3.8-27b", api_key_file=None, client=_Brain())
+    monkeypatch.setattr(demo, "_make_detector", lambda cfg: detector)
+    cfg = load_demo_config(cameras=["mock", "mock"], arm="mock", llm="mock")
+    cfg._data["perception_loop"] = {"enabled": False}
+    cfg._data["cameras"] = [dict(c, fuse_beliefs=f) for c, f in zip(cfg._data["cameras"], fuse, strict=True)]
+    with caplog.at_level(logging.INFO, logger="cascade.apps.demo"):
+        runtime, arm = demo.build_runtime(cfg, tmp_path / "run", view=False, serve=False)
+    try:
+        shared = [r.getMessage() for r in caplog.records if "share one brain-detector cache key" in r.getMessage()]
+        if fuse == (True, False):
+            assert shared == []
+            assert [r for r in caplog.records if "mock1" in r.getMessage() and "left out" in r.getMessage()]
+        else:
+            assert len(shared) == 1 and "mock0 and mock1" in shared[0], shared
+    finally:
+        demo.shutdown_runtime(runtime, arm)
+
+
 # --- 9: no background work for a non-fusing camera ------------------------------
 
 
@@ -603,6 +797,24 @@ def test_a_non_fusing_camera_gets_no_brain_request_and_no_sam_step(make):
     assert "proof" not in seg.calls
     assert watcher.last_dets["proof"] == []
     assert beats.n >= 10  # both cameras' ticks still beat
+
+
+def test_a_primary_camera_that_does_not_fuse_keeps_its_background_inventory(make):
+    """The primary's fuse=False (a missing or rejected hand-eye record) must
+    not cost it its cache: describe_scene and localization read that entry,
+    and without the watcher's inventory each of them would ask the brain
+    synchronously. Other non-fusing cameras still get nothing."""
+    seg = _Segmenter()
+    det, brain = make(segmenter=seg)
+    watcher = _watch(det, (_Stream("cam0", 50), False), (_Stream("proof", 120), False))
+    watcher.start()
+    try:
+        assert _wait_for(lambda: seg.calls.count("cam0") >= 3, 5.0), seg.calls
+    finally:
+        watcher.stop()
+    assert _wait_for(lambda: _refresh_threads() == [], 1.0)
+    assert [round(_image_level(r)) for r in brain.requests] == [50]
+    assert "proof" not in seg.calls
 
 
 # --- 10: detect_nowait inside the scope: [] and no SAM -------------------------------
@@ -649,3 +861,79 @@ def test_inventory_timeout_comes_from_the_config(monkeypatch):
     cfg._data["detector"].pop("inventory_timeout_s", None)
     cfg._data["detector"]["timeout_s"] = 12
     assert _make_detector(cfg, warm_up=False)._inventory_timeout_s == 12.0  # absent: timeout_s
+
+
+_PERCEPTION_ENV = ("CASCADE_PERCEPTION_URL", "CASCADE_PERCEPTION_MODEL", "CASCADE_PERCEPTION_KEY_FILE",
+                   "CASCADE_BOOTH", "CASCADE_ROBOT", "CASCADE_BASE")
+
+
+def test_every_shipped_profile_keeps_its_cache_until_the_idle_refresh_is_due(monkeypatch):
+    """max_cache_age_s >= idle_refresh_s for every profile that loads a brain
+    detector (demo.yaml plus each configs/arms overlay). An unchanged scene's
+    entry then ages out only once the watcher's idle refresh is pending, so
+    the cached path keeps tracking it (Ruling 35) instead of asking the brain
+    synchronously on the caller's thread."""
+    from cascade.apps.demo import _make_detector
+    from cascade.config import CONFIG_DIR, load_demo_config
+
+    for name in _PERCEPTION_ENV:
+        monkeypatch.delenv(name, raising=False)
+    checked, broken = [], []
+    for arm in sorted(p.stem for p in (CONFIG_DIR / "arms").glob("*.yaml")):
+        det = _make_detector(load_demo_config(camera="isaac", arm=arm), warm_up=False)
+        if not isinstance(det, BrainDetector):
+            continue
+        checked.append(arm)
+        if det._max_cache_age_s < det._idle_refresh_s:
+            broken.append((arm, det._max_cache_age_s, det._idle_refresh_s))
+        det.close()
+    assert {"mock", "isaac", "rebot_rs", "isaac_kitchen_gpu"} <= set(checked), checked
+    assert broken == [], "max_cache_age_s < idle_refresh_s: a synchronous inventory on an unchanged scene"
+
+
+def test_the_kitchen_never_asks_synchronously_about_an_unchanged_scene(monkeypatch):
+    """isaac_kitchen_gpu (idle_refresh_s 120): the caller's cached inventory
+    (describe_scene, _reobserve, the localization vocabulary pass) of an
+    unchanged scene costs no brain call on the caller's thread at any age,
+    before the watcher's idle refresh (31/60/119 s) or after it (121 s).
+    Fake clock; one fresh detector per age."""
+    from cascade.apps.demo import _make_detector
+    from cascade.config import load_demo_config
+
+    for name in _PERCEPTION_ENV:
+        monkeypatch.delenv(name, raising=False)
+    cfg = load_demo_config(camera="isaac", arm="isaac_kitchen_gpu")
+    rows = []
+    for age in (31, 60, 119, 121):
+        now = [1000.0]
+        det = _make_detector(cfg, warm_up=False)
+        assert isinstance(det, BrainDetector)
+        brain = _Brain(hold=True)  # a background inventory decodes until released
+        det._client, det._clock, det._segmenter = brain, (lambda now=now: now[0]), None
+        try:
+            det.detect(_frame(40, "cam0", 1), None)  # the cached inventory, taken at t=1000
+            seeded = len(brain.requests)
+            now[0] += age
+            det.detect_nowait(_frame(40, "cam0", 2))  # the watcher's tick: same scene
+            assert [d.label for d in det.detect_vocabulary(_frame(40, "cam0", 3), None)] == ["paper cup"]
+            on_caller = [r for r in brain.requests[seeded:] if not r["_background"]]
+            rows.append((age, len(on_caller)))
+        finally:
+            brain.release.set()
+            det.close()
+    assert rows == [(31, 0), (60, 0), (119, 0), (121, 0)], rows
+
+
+def test_a_synchronous_inventory_waits_inventory_timeout_and_an_agent_refer_timeout_s(make):
+    """A cache miss on the caller's thread (no entry, a changed scene, a
+    vocabulary pass) asks for as many tokens as a background inventory: it
+    gets `inventory_timeout_s` (timeout_s 20 s cannot fit the kitchen's 25 s
+    inventory). An agent's own query stays a refer under `timeout_s`."""
+    det, brain = make(timeout_s=7.0, inventory_timeout_s=33.0)
+    det.detect(_frame(40), None)  # no entry
+    det.detect(_frame(120), None)  # the scene changed
+    det.detect_vocabulary(_frame(40, "cam0"), ["paper cup"])  # a vocabulary pass, no entry
+    det.detect(_frame(40), ["paper cup"])  # the agent's own query
+    on_caller = [r for r in brain.requests if not r["_background"]]
+    assert [(r.get("stream"), r.get("timeout")) for r in on_caller[:3]] == [(None, 33.0)] * 3
+    assert len(on_caller) == 4 and "timeout" not in on_caller[3] and "stream" not in on_caller[3]

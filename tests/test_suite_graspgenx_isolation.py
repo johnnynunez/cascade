@@ -17,6 +17,34 @@ import pytest
 
 from cascade.config import load_demo_config
 
+# What import-time code of a test module sees (collection runs before any fixture).
+_AT_IMPORT = (os.environ.get("CASCADE_GRASPGENX_PORT"), os.environ.get("CASCADE_GRASPGENX_HOST"))
+
+
+@pytest.fixture(scope="module")
+def module_scoped_view():
+    """What a module- or session-scoped fixture sees: it is set up before any
+    function-scoped fixture (the per-test pin) runs."""
+    ggx = load_demo_config(camera="mock", arm="mock", llm="mock").grasp.graspgenx
+    return (os.environ.get("CASCADE_GRASPGENX_PORT"), os.environ.get("CASCADE_GRASPGENX_HOST"),
+            (ggx.host, ggx.port))
+
+
+def test_module_fixtures_and_import_time_code_never_see_5556(module_scoped_view):
+    port, host, endpoint = module_scoped_view
+    assert port is not None, "a module-scoped fixture saw no pinned port: it would dial 5556"
+    assert _AT_IMPORT == (port, None), _AT_IMPORT
+    assert host is None and int(port) != 5556
+    assert endpoint == ("127.0.0.1", int(port))
+    with pytest.raises(ConnectionRefusedError):  # held for the whole session, not listening
+        socket.create_connection(("127.0.0.1", int(port)), timeout=1).close()
+    probe = socket.socket()
+    try:
+        with pytest.raises(OSError):
+            probe.bind(("127.0.0.1", int(port)))
+    finally:
+        probe.close()
+
 
 def test_every_test_dials_a_held_dead_port_instead_of_5556():
     port = int(os.environ["CASCADE_GRASPGENX_PORT"])

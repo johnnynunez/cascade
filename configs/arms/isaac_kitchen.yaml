@@ -11,6 +11,11 @@ overrides:
     # refresh; a changed scene still refreshes at once.
     inventory_timeout_s: 45
     idle_refresh_s: 120
+    # Must stay >= idle_refresh_s: an unchanged scene's entry may age out
+    # only once the watcher's idle refresh is pending (then it is tracked
+    # until that answer lands); with 30 every describe_scene/localization
+    # between 30 and 120 s asked the brain synchronously.
+    max_cache_age_s: 125
   # Named fruit targets use measured color and depth when detector labels vary.
   object_descriptions:
     lemon: yellow object

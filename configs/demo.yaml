@@ -565,7 +565,9 @@ detector:
   # calls are not capped); waiting cameras are served oldest-first.
   # describe_scene/localization refresh in the background after refresh_s,
   # which is also the wait after a failed brain call. Past max_cache_age_s
-  # they ask synchronously, unless that entry's refresh is already pending.
+  # they ask synchronously (under inventory_timeout_s), unless that entry's
+  # refresh is already pending: keep max_cache_age_s >= idle_refresh_s in
+  # every profile, so an unchanged scene never costs a synchronous inventory.
   refresh_s: 4.0
   idle_refresh_s: 30.0
   max_cache_age_s: 30

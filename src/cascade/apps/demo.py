@@ -657,7 +657,10 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
     # are joined, bounded, by its close(): a failed build closes it last.
     detector = started.detector = LockedDetector(_make_detector(cfg))
     rig.primary.warm_up(int(cam_cfgs[0].get("warmup_frames", 5)))
-    _warn_shared_camera_keys(detector, [cam.stream for cam in watched])
+    # Compared: the cameras the watcher asks the detector about (the primary
+    # and every fusing camera; world.WorldWatcher B4 skips the rest).
+    _warn_shared_camera_keys(detector, [cam.stream for cam in watched],
+                             skip={str(cam.stream.name) for cam in watched[1:] if not cam.fuse})
 
     memory = EpisodicMemory(
         horizon_s=float(cfg.memory.get("horizon_s", 15.0)),
@@ -1713,34 +1716,58 @@ _WARM_UP_SHAPE = (240, 320)
 _CAMERA_KEY_WAIT_S = 2.0
 
 
-def _warn_shared_camera_keys(detector, streams, *, wait_s: float = _CAMERA_KEY_WAIT_S) -> list[list[str]]:
+def _warn_shared_camera_keys(detector, streams, *, wait_s: float = _CAMERA_KEY_WAIT_S,
+                             skip=()) -> list[list[str]]:
     """One WARNING when two watched cameras' first frames give a detector
     that keys its cache per camera (the brain detector's CLASS defines
     `camera_key`) the same key: they would share one cache entry, and each
     camera's tick would invalidate the other's inventory. Frames without a
     capture identity key by image size + K only (two identical RealSense
-    models). Returns the groups of camera names that share a key. A camera
-    without a frame within `wait_s` (shared) is left out."""
-    inner = getattr(detector, "_detector", detector)
-    camera_key = getattr(type(inner), "camera_key", None)
-    if not callable(camera_key) or len(streams) < 2:
+    models). Returns the groups of camera names that share a key.
+
+    Only cameras the watcher asks the detector about are compared: `skip`
+    names the others (non-fusing and not the primary, world.WorldWatcher B4).
+    Every compared camera's key, and every camera left out (skipped, no frame
+    within `wait_s` in total, or a frame or key that fails, e.g. a NaN K), is
+    logged at INFO. A diagnostic: it never raises into build_runtime."""
+    try:
+        inner = getattr(detector, "_detector", detector)
+        camera_key = getattr(type(inner), "camera_key", None)
+        if not callable(camera_key) or len(streams) < 2:
+            return []
+        deadline = time.monotonic() + wait_s
+        names_by_key: dict = {}
+        for stream in streams:
+            name = str(getattr(stream, "name", stream))
+            if name in skip:
+                logger.info("camera %s: left out of the brain-detector cache key check (no background "
+                            "inventory: it does not fuse and is not the primary camera)", name)
+                continue
+            try:
+                frame = stream.latest()
+                if frame is None:
+                    frame, _ = stream.wait_newer(0, timeout_s=max(0.0, deadline - time.monotonic()))
+                if frame is None:
+                    logger.info("camera %s: left out of the brain-detector cache key check (no frame within "
+                                "%.1f s)", name, wait_s)
+                    continue
+                key = camera_key(frame)
+                names_by_key.setdefault(key, []).append(name)
+            except Exception as e:  # noqa: BLE001 - a diagnostic never fails the build
+                logger.info("camera %s: left out of the brain-detector cache key check (%s: %s)",
+                            name, type(e).__name__, e)
+                continue
+            logger.info("camera %s: brain-detector cache key %s", name, key)
+        shared = [names for names in names_by_key.values() if len(names) > 1]
+        if shared:
+            logger.warning(
+                "cameras %s share one brain-detector cache key (same image size and intrinsics, no capture "
+                "identity): their inventories invalidate each other on every watcher tick",
+                "; ".join(" and ".join(names) for names in shared))
+        return shared
+    except Exception as e:  # noqa: BLE001 - a diagnostic never fails the build
+        logger.warning("brain-detector cache key check skipped (%s: %s)", type(e).__name__, e)
         return []
-    deadline = time.monotonic() + wait_s
-    names_by_key: dict = {}
-    for stream in streams:
-        frame = stream.latest()
-        if frame is None:
-            frame, _ = stream.wait_newer(0, timeout_s=max(0.0, deadline - time.monotonic()))
-        if frame is None:
-            continue
-        names_by_key.setdefault(camera_key(frame), []).append(str(stream.name))
-    shared = [names for names in names_by_key.values() if len(names) > 1]
-    if shared:
-        logger.warning(
-            "cameras %s share one brain-detector cache key (same image size and intrinsics, no capture "
-            "identity): their inventories invalidate each other on every watcher tick",
-            "; ".join(" and ".join(names) for names in shared))
-    return shared
 
 
 def _make_detector(cfg, *, warm_up: bool = True):

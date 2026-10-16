@@ -379,3 +379,9 @@ Keep green: `tests/test_brain_detector.py`, `test_brain_vocabulary_runtime.py`, 
   frame1, component filter, border + agreement checks), plus: the GEOMETRY mask on frame1 is the re-anchored mask intersected with
   the naming mask dilated by tol_px (comparisons unchanged), so a neighbour merged under the grown prompt never enters the geometry
   and a tight brain box gives main's single-frame geometry; the semantic cap is re-checked after the re-mask.
+- P9 (after T1 round 5). The geometry clip removes only frame1 pixels farther than tol_px from the naming mask that frame0's
+  same-prompt re-mask ALSO contains (a neighbour merged under the grown prompt, the ring a tight box cut off); pixels new on
+  frame1 stay (the agreement admits 5 % past tol_px, so a long object can slide past it; the literal clip measured it up to
+  0.64 cm back toward the old place). Acceptance probe (698 cases): moved objects 0/378 accepted > 0.5 cm XY vs main (max 0.13);
+  still scenes incl. a touching neighbour within main + 0.12 cm; tight boxes 52/52; noise sigma 1-4 70/70. The E2E logs
+  `mask_clipped_px`.

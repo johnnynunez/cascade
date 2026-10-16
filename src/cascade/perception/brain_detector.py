@@ -197,6 +197,11 @@ _REANCHOR_PROMPT_MIN_PX = 6.0
 #: reanchor(): the new mask's bounding box must overlap the brain's box by at
 #: least this IoU, or SAM masked something else than the brain's box.
 REANCHOR_MIN_IOU = 0.5
+#: reanchor_reference(), evidence only (perception_timing): a naming-mask
+#: pixel outside the brain's box is of a FOREIGN colour when one of its B, G,
+#: R values lies more than this many levels from the median of the mask's
+#: pixels inside the box.
+_FOREIGN_COLOUR_DIFF = 40
 #: reanchor(): of the new mask, only the connected components that come
 #: within this many pixels of the old mask (the old mask dilated by it) are
 #: the object; the rest (a neighbour inside SAM's grown prompt) is dropped
@@ -279,13 +284,24 @@ class ReanchorReference(NamedTuple):
     `geometry` is what the runtime MEASURES on this image (the 2 cm move
     check's frame0 side): the same re-mask without its pixels farther than
     the agreement tolerance from the naming mask, as reanchor() clips the
-    fresh mask."""
+    fresh mask.
+
+    Evidence only, refused or not (once the naming mask has a box; never a
+    refusal): `naming_overhang`, how far the naming mask's box passes each
+    side of the brain's box (left, top, right, bottom), as a fraction of
+    that box's width or height, negative where it stops short of the side;
+    `naming_foreign_share`, the share of the naming mask's pixels that lie
+    outside the brain's box with a colour foreign to the object
+    (_FOREIGN_COLOUR_DIFF), NaN with no mask pixel inside the box. The rig's
+    data decides between a refusal on them and clipping (follow-ups M5)."""
 
     detection: Detection | None
     reason: str
     prompt_box: tuple[int, int, int, int] | None = None
     coverage: float = math.nan
     geometry: Detection | None = None
+    naming_overhang: tuple[float, float, float, float] | None = None
+    naming_foreign_share: float = math.nan
 
 
 class _Cancelled(Exception):
@@ -536,6 +552,37 @@ def _box_iou(a, b) -> float:
     return inter / union if union > 0 else 0.0
 
 
+def _naming_evidence(frame: Frame, mask, mask_box, box) -> tuple[tuple[float, float, float, float] | None, float]:
+    """`ReanchorReference.naming_overhang` and `.naming_foreign_share` of a
+    naming mask (opaque, its box `mask_box`) for the brain's box `box` (xyxy
+    pixels) on `frame`: evidence only. On the mask's own box crop: one host
+    copy. (None, NaN) when it cannot be measured; never raises."""
+    try:
+        bx0, by0, bx1, by1 = (float(v) for v in np.asarray(box, dtype=np.float64).reshape(-1)[:4])
+        mx0, my0, mx1, my1 = (int(v) for v in mask_box)
+        bw, bh = bx1 - bx0, by1 - by0
+        if not (bw > 0 and bh > 0):
+            return None, math.nan
+        overhang = ((bx0 - mx0) / bw, (by0 - my0) / bh, (mx1 - bx1) / bw, (my1 - by1) / bh)
+        crop = _host_crop(mask, mx0, my0, mx1, my1)
+        pixels = int(np.count_nonzero(crop))
+        if not pixels or frame.rgb.ndim != 3:
+            return overhang, math.nan
+        # Pixel centres inside the brain's box (a 0.5 px border either way).
+        xs = np.arange(mx0, mx1) + 0.5
+        ys = np.arange(my0, my1) + 0.5
+        inside = ((ys >= by0) & (ys < by1))[:, None] & ((xs >= bx0) & (xs < bx1))[None, :]
+        colours = frame.rgb[my0:my1, mx0:mx1].astype(np.int16)
+        own = crop & inside
+        if not own.any():
+            return overhang, math.nan
+        ref = np.median(colours[own], axis=0)
+        foreign = crop & ~inside & (np.abs(colours - ref).max(axis=-1) > _FOREIGN_COLOUR_DIFF)
+        return overhang, float(np.count_nonzero(foreign) / pixels)
+    except Exception:  # noqa: BLE001 -- evidence never fails a re-anchor
+        return None, math.nan
+
+
 def _jpeg_data_url(frame: Frame) -> str:
     # Frame.rgb is BGR (OpenCV) despite the name and imencode expects BGR:
     # no channel swap, or the brain sees wrong colours.
@@ -784,8 +831,10 @@ class BrainDetector(Detector):
         mask are kept (a neighbour the wider prompt takes in is not the
         object). Refused, as a failed re-anchor (one image: nothing moved),
         when no segmenter is configured, `det` has no mask, the naming mask's
-        box overlaps the brain's box by IoU < REANCHOR_MIN_IOU (SAM merged a
-        neighbour into it: checked before the re-mask's SAM call), SAM gives no mask
+        box overlaps the brain's box by IoU < REANCHOR_MIN_IOU (SAM's mask
+        and the brain's box disagree: a neighbour merged into the mask, only
+        part of the object masked, an offset; checked before the re-mask's
+        SAM call), SAM gives no mask
         or an empty one, no part of it overlaps the naming mask, the kept
         mask's box overlaps the brain's box by IoU < REANCHOR_MIN_IOU, or under
         `reanchor_mask_agreement` of the naming mask's pixels lie within the
@@ -795,50 +844,58 @@ class BrainDetector(Detector):
         ring is what a tight box cut off. The reference's `geometry` is the
         kept re-mask clipped as reanchor() clips the fresh mask (to the naming
         mask dilated by the agreement tolerance of the kept re-mask's box):
-        the frame0 side of the runtime's move check."""
+        the frame0 side of the runtime's move check. Every reference made
+        once the naming mask has a box, refused or not, carries the naming
+        mask's overhang and foreign-colour share (evidence only)."""
         where = "on the image the object was named on"
         if self._segmenter is None:
             return ReanchorReference(None, "no segmenter is configured")
         named_box = _mask_box(det.mask) if det.mask is not None else None
         if named_box is None:
             return ReanchorReference(None, f"the object has no mask {where}")
-        # M5: a naming mask far past the brain's box took in more than the
-        # object (a neighbour SAM merged with it). Refused before any re-mask.
+        evidence = _naming_evidence(frame, det.mask, named_box, det.bbox)
+
+        def out(detection, reason, prompt_box=None, coverage=math.nan, geometry=None) -> ReanchorReference:
+            return ReanchorReference(detection, reason, prompt_box, coverage, geometry, *evidence)
+
+        # M5: the naming mask's box and the brain's box disagree (SAM merged
+        # a neighbour, masked part of the object, or the mask is offset): a
+        # coarse fail-closed guard, refused before any re-mask. The overhang
+        # and foreign share above are logged for a finer rule (owner ruling).
         named_iou = _box_iou(named_box, det.bbox)
         if not named_iou >= REANCHOR_MIN_IOU:
-            return ReanchorReference(None, f"SAM's mask for the brain's box reaches far past that box (box IoU "
-                                           f"{named_iou:.2f} < {REANCHOR_MIN_IOU:g}) {where}: it took in more "
-                                           "than the object")
+            return out(None, f"SAM's mask and the brain's box disagree (box IoU {named_iou:.2f} < "
+                             f"{REANCHOR_MIN_IOU:g}) {where}")
         prompt_box = _reanchor_prompt(det.bbox, frame.rgb.shape)
         prompt = np.asarray(prompt_box, dtype=np.float32).reshape(1, 4)
         found = self._detections(frame, [det.label], prompt, track=True)
         mask = found[0].mask if found else None
         if mask is None:
-            return ReanchorReference(None, f"SAM returned no mask for the grown box {where}", prompt_box)
+            return out(None, f"SAM returned no mask for the grown box {where}", prompt_box)
         mask_box = _mask_box(mask)
         if mask_box is None:
-            return ReanchorReference(None, f"SAM returned an empty mask for the grown box {where}", prompt_box)
+            return out(None, f"SAM returned an empty mask for the grown box {where}", prompt_box)
         match = _match_masks(det.mask, named_box, mask, mask_box, reach_px=0.0)
         if match.kept is None:
-            return ReanchorReference(None, f"SAM's mask lies off the box: no part of it overlaps the object's mask "
-                                           f"{where}", prompt_box)
+            return out(None, f"SAM's mask lies off the box: no part of it overlaps the object's mask {where}",
+                       prompt_box)
         kept_box = _mask_box(match.kept) + np.array([*match.origin, *match.origin], dtype=np.float64)
         iou = _box_iou(kept_box, det.bbox)
         if not iou >= REANCHOR_MIN_IOU:
-            return ReanchorReference(None, f"SAM's mask lies off the box (IoU {iou:.2f} < {REANCHOR_MIN_IOU:g}) "
-                                           f"{where}", prompt_box)
+            return out(None, f"SAM's mask lies off the box (IoU {iou:.2f} < {REANCHOR_MIN_IOU:g}) {where}",
+                       prompt_box)
         if not match.old_near >= self._reanchor_mask_agreement:
-            return ReanchorReference(None, f"SAM's mask for the grown box covers only {match.old_near:.2f} of the "
-                                           f"object's mask {where} (< {self._reanchor_mask_agreement:g} of its "
-                                           f"pixels within {match.tol_px:.1f} px)", prompt_box, match.old_near)
+            return out(None, f"SAM's mask for the grown box covers only {match.old_near:.2f} of the object's mask "
+                             f"{where} (< {self._reanchor_mask_agreement:g} of its pixels within "
+                             f"{match.tol_px:.1f} px)", prompt_box, match.old_near)
         kept = _kept_mask(mask, match)
         detection = Detection(label=det.label, conf=det.conf, bbox=kept_box.astype(np.float32), mask=kept)
         clip = _clip_to_naming(kept, kept_box, det.mask, named_box, _tolerance_px(kept_box))
         if clip.box is None:  # unreachable while the kept mask overlaps the naming mask; fail closed
-            return ReanchorReference(None, f"no part of SAM's mask for the grown box lies near the object's mask "
-                                           f"{where}", prompt_box, match.old_near)
+            return out(None, f"no part of SAM's mask for the grown box lies near the object's mask {where}",
+                       prompt_box, match.old_near)
         geometry = Detection(label=det.label, conf=det.conf, bbox=clip.box.astype(np.float32), mask=clip.mask)
-        return ReanchorReference(detection, "", prompt_box, match.old_near, geometry)
+        return out(detection, "", prompt_box, match.old_near, geometry)
 
     def reanchor(self, frame: Frame, det: Detection, *, since: Frame,
                  reference: ReanchorReference | None = None) -> ReanchorResult:

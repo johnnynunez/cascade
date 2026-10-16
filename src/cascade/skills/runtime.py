@@ -2750,6 +2750,12 @@ class SkillRuntime:
                 raise _ReanchorFailed(f"{type(exc).__name__}: {exc}") from exc
             finally:
                 timing["reference_s"] = round(time.monotonic() - started, 3)
+            # Evidence only (follow-ups M5): how the naming mask sits against
+            # the brain's box, for the rig data that decides a finer rule.
+            overhang = getattr(reference, "naming_overhang", None)
+            if overhang is not None:
+                timing["naming_overhang"] = [_rounded(v, 3) for v in overhang]
+                timing["naming_foreign_share"] = _rounded(getattr(reference, "naming_foreign_share", math.nan), 3)
             if reference.detection is None or reference.detection.mask is None:
                 raise _ReanchorFailed(reference.reason or "SAM returned no mask on the image the object was named on")
             return reference

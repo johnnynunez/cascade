@@ -2009,12 +2009,117 @@ def test_a_naming_mask_far_past_the_brains_box_is_a_failed_re_anchor(tp):
     tp.brain.region = _red_only
     tp.sam.default = _whole_objects
     n0 = _commands(tp)
-    with pytest.raises(tp.mod.ReanchorError, match="mask for the brain's box") as err:
+    with pytest.raises(tp.mod.ReanchorError, match="SAM's mask and the brain's box disagree") as err:
         tp.rt.skill_grasp_object("red cube")
-    assert "IoU 0.4" in str(err.value), err.value
+    assert "box IoU 0.4" in str(err.value), err.value
+    assert "took in more" not in str(err.value), "neutral: the mask can be larger, smaller or offset"
     assert _commands(tp) == n0
     assert tp.brain.refers == 2, "one retry with a fresh refer"
     assert len(tp.sam.calls) == 2, "the naming masks only: no re-mask, no fresh frame"
+
+
+def _partial_naming(t, frac):
+    """SAM masks only the left `frac` of the object for the brain's own box
+    (the naming call: the first SAM call after each refer) and the whole
+    object for the grown prompts (the re-mask and the fresh frame)."""
+    seen = {"refers": 0}
+
+    def answer(frame, boxes):
+        whole = _ObjectSam.masks(_ObjectSam(), frame, boxes)
+        if t.brain.refers == seen["refers"] or whole[0] is None:
+            return whole
+        seen["refers"] = t.brain.refers
+        m = whole[0].copy()
+        xs = np.flatnonzero(m.any(0))
+        m[:, xs[0] + int(round(frac * xs.size)):] = False
+        return [m]
+    return answer
+
+
+@pytest.mark.parametrize("frac", [0.30, 0.45])
+@pytest.mark.parametrize("size", ["80x60", "24x18"])
+def test_a_naming_mask_on_part_of_the_object_is_a_failed_re_anchor(tp, size, frac):
+    """What M5 alone catches (fix round 1 pin; never drop it as redundant
+    with the re-mask's box check): SAM masks only the left 30-45 % of the
+    object for the brain's box, the whole object for the grown prompts. The
+    re-mask covers that naming mask and agrees with frame1's, and the
+    geometry, clipped to the naming mask, measures the part: bd5e80f accepted
+    it 0.6-2.6 cm off (main's single-frame fix is off alike). Its box
+    overlaps the brain's by IoU <= 0.46 < 0.5: refused before any re-mask,
+    one fresh refer, then ReanchorError; the arm never moves."""
+    _show(tp, box=SIZES[size])
+    tp.sam.default = _partial_naming(tp, frac)
+    n0 = _commands(tp)
+    with pytest.raises(tp.mod.ReanchorError, match="SAM's mask and the brain's box disagree") as err:
+        tp.rt.skill_grasp_object("red cube")
+    assert _commands(tp) == n0, err.value
+    assert tp.brain.refers == 2, "one retry with a fresh refer"
+    assert len(tp.sam.calls) == 2, "the naming masks only: no re-mask, no fresh frame"
+
+
+def test_the_naming_mask_overhang_and_foreign_colour_are_evidence_only():
+    """Fix round 1 (M5 c): `reanchor_reference` reports, refused or not, how
+    far the naming mask's box passes each side of the brain's box (left, top,
+    right, bottom; a fraction of the box's width / height, negative when it
+    stops short) and the share of its pixels outside the brain's box whose
+    colour is foreign to the object (more than 40 levels off, in a B/G/R
+    channel, the median of its pixels inside the box). Logged for the rig
+    data that will decide a refusal rule; no new refusal."""
+    from cascade.types import Detection
+
+    a = synthetic_tabletop()  # the cube with its 1 px skirt: columns 279-360, rows 199-260 (82x62)
+    obj = _object_mask(a.rgb)
+    detector = BrainDetector(base_url="http://b/v1", model="m", segmenter=_ObjectSam())
+
+    def reference(frame, box, mask):
+        return detector.reanchor_reference(frame, Detection("red cube", 1.0, np.array(box, np.float32), mask=mask))
+
+    # A whole-object naming mask around a brain box 8 px tight: past every side, the object's colour only.
+    ref = reference(a, (287, 207, 353, 253), obj)
+    assert ref.detection is not None, ref.reason
+    assert ref.naming_overhang == pytest.approx((8 / 66, 8 / 46, 8 / 66, 8 / 46), abs=1e-6)
+    assert ref.naming_foreign_share == 0.0
+    # A 120x6 px green bar merged on the right: M5 refuses it (box IoU 0.41), the evidence stays.
+    b = synthetic_tabletop()
+    b.rgb[227:233, 361:481] = GREEN
+    ref = reference(b, (279, 199, 361, 261), obj | np.all(b.rgb == GREEN, axis=-1))
+    assert ref.detection is None and "disagree" in ref.reason, ref
+    assert ref.naming_overhang == pytest.approx((0.0, 0.0, 120 / 82, 0.0), abs=1e-6)
+    assert ref.naming_foreign_share == pytest.approx(720 / (obj.sum() + 720), abs=1e-6)
+    # A two-tone object: the part outside a tight box in its other colour reads foreign too
+    # (the rule the rig data must price), and the part inside a box never does.
+    c = synthetic_tabletop()
+    c.rgb[199:261, 341:361] = GREEN
+    green_part = obj & np.all(c.rgb == GREEN, axis=-1)
+    ref = reference(c, (279, 199, 341, 261), obj)
+    assert ref.naming_overhang == pytest.approx((0.0, 0.0, 20 / 62, 0.0), abs=1e-6)
+    assert ref.naming_foreign_share == pytest.approx(green_part.sum() / obj.sum(), abs=1e-6)
+    ref = reference(c, (279, 199, 361, 261), obj)
+    assert ref.naming_overhang == pytest.approx((0.0,) * 4, abs=1e-6) and ref.naming_foreign_share == 0.0
+    # The left 45 % only (the partial naming mask): short of the right side by ~55 %.
+    part = obj.copy()
+    part[:, 279 + 37:] = False
+    ref = reference(a, (279, 199, 361, 261), part)
+    assert ref.detection is None and "disagree" in ref.reason, ref
+    assert ref.naming_overhang == pytest.approx((0.0, 0.0, -45 / 82, 0.0), abs=1e-6)
+    assert ref.naming_foreign_share == 0.0
+
+
+def test_perception_timing_logs_the_naming_mask_evidence(tp):
+    """The runtime copies that evidence into perception_timing (an accepted
+    pick and a refused one alike), never refusing on it."""
+    result = tp.rt.execute("localize_object", {"label": "red cube"})
+    assert result["ok"], result.get("error")
+    timing = result["perception_timing"]
+    assert len(timing["naming_overhang"]) == 4 and max(map(abs, timing["naming_overhang"])) <= 0.05, timing
+    assert timing["naming_foreign_share"] == 0.0, timing
+
+    tp.sam.default = _partial_naming(tp, 0.45)
+    result = tp.rt.execute("localize_object", {"label": "red cube"})
+    assert result["ok"] is False and "disagree" in result["error"], result
+    timing = result["perception_timing"]
+    assert timing["naming_overhang"][2] == pytest.approx(-0.55, abs=0.05), timing
+    assert timing["naming_foreign_share"] == 0.0, timing
 
 
 @pytest.mark.parametrize("k", [1, 3, 8])

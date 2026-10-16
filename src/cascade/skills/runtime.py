@@ -7513,7 +7513,9 @@ TOOL_SPECS: list[dict] = [
             "(pass 'green square' for the kitchen's marked green square or "
             "'open box' for its calibrated beige box; "
             "omit `destination` or pass 'drop zone' for the configured placement "
-            "point), returns home, and reports stage timings. The result "
+            "point), returns home, and reports stage timings. `destination` puts "
+            "the object ON/IN that object; for 'next to / beside / near X' use "
+            "grasp_object, then place_at at a free spot beside X. The result "
             "includes return_home: do not call move_home again after this "
             "tool. When the user says 'then stop', report the result and "
             "end the turn without any further movement tool, including when "
@@ -7530,7 +7532,7 @@ TOOL_SPECS: list[dict] = [
             "type": "object",
             "properties": {
                 "object": {"type": "string", "description": "what to pick, e.g. 'pink object', 'red mug'"},
-                "destination": {"type": "string", "description": "'green square' for the marked kitchen target; 'open box' for the calibrated beige box; another named object to place on/in; omit for the configured placement point"},
+                "destination": {"type": "string", "description": "'green square' for the marked kitchen target; 'open box' for the calibrated beige box; another named object to place ON/IN; omit for the configured placement point"},
                 "material": {
                     "type": "string",
                     "enum": ["rigid", "fragile", "soft", "deformable", "slippery", "heavy"],

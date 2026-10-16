@@ -172,3 +172,17 @@ def test_a_failed_pick_that_went_home_does_not_ask_for_move_home(runtime, monkey
     assert result["ok"] is False and not result.get("home_skipped")
     assert "This attempt FAILED" in result["next_action"]
     assert "move_home" not in result["next_action"]
+
+
+# ── 2. "next to X" is not "on X" ─────────────────────────────────────────
+
+
+def test_pick_and_place_says_destination_is_on_or_in_and_how_to_place_beside():
+    from cascade.skills.runtime import TOOL_SPECS
+
+    spec = next(t for t in TOOL_SPECS if t["name"] == "pick_and_place")
+    text = spec["description"]
+    assert "ON/IN" in text
+    assert "next to" in text and "beside" in text
+    assert "grasp_object" in text and "place_at" in text
+    assert "ON/IN" in spec["parameters"]["properties"]["destination"]["description"]

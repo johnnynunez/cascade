@@ -1,9 +1,9 @@
 # GraspGen-X on DGX Spark
 
 For current installation and acceptance use [Spark setup](DGX_SPARK_SETUP.md)
-and [project status](PROJECT_STATUS_20261001.md). The presenter requires real
+and [project status](ROADMAP.md). The presenter requires real
 CUDA inference; optional-profile OBB fallback does not apply to that path.
-[Planning search](grasp-planning-search.md) and [memory ranking](grasp-memory-ranking.md)
+[Planning search](ARCHITECTURE.md#grasp-pipeline) and [memory ranking](ARCHITECTURE.md#grasp-pipeline)
 run after model responses without relaxing geometric vetoes.
 
 The Spark profile uses the **real GraspGen-X CUDA model**. It starts a local
@@ -44,7 +44,7 @@ It skips the physical startup proof and prints **STARTED
 (UNVERIFIED: robot proof skipped)**. Use it after rehearsing the normal READY
 startup. It is a lower-level stack restart, not a replacement for the desktop's
 verified camera/chat attachment. The desktop `--gui` option shows Isaac. See the
-[presenter card](PRESENTER_QUICKSTART.md) for scene reset and the demo script.
+[presenter card](BOOTH_RUNBOOK.md#9-simulated-kitchen-on-dgx-spark-presenter-card) for scene reset and the demo script.
 
 ## What was broken
 

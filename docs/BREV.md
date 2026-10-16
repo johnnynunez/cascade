@@ -1,7 +1,7 @@
 # Brev kitchen deployment
 
 This x86_64 deployment guide has its own acceptance boundary. The merged
-1 October [project status](PROJECT_STATUS_20261001.md) separates Spark aarch64
+1 October [project status](ROADMAP.md) separates Spark aarch64
 native proof, RTX mapping experiments and historical Brev measurements. Do not
 apply Spark defaults or a later source's acceptance to this profile without its
 own deployment check.
@@ -230,7 +230,7 @@ can reduce the ordinary `maxTokens` setting to one token. OpenClaw retains
 2,048 recent tokens when compacting a conversation. Model requests time out
 after 180 seconds. Old conversations can still give poor replies; start a new
 session for each attendee, after the reset finishes. The
-[staff guide](BOOTH_GUIDE.md) covers recovery.
+[staff guide](BOOTH_RUNBOOK.md#10-paai-on-brev-staff-guide) covers recovery.
 
 If the browser disconnects during Reset, reconnect and read the original tool
 result before trying again. The button does not resend an uncertain order.
@@ -267,6 +267,8 @@ object trials above used separate camera and physics audits of those outcomes.
 The DGX Spark is arm64/GB10. It needs architecture-specific Isaac and model
 serving setup; the x86_64 container is not a Spark image. Upstream's
 Cosmos3-Edge profile remains separate and has no certification from the
-Qwen deployment. See [the Spark plan](DGX_SPARK_BREV.md).
+Qwen deployment. Share only the scene, CASCADE tool API, guide, extension and
+source-level health checks with a Spark; install it with
+[DGX Spark setup](DGX_SPARK_SETUP.md).
 
 For booth support, contact Johnny Núñez and Asier Arranz on Slack.

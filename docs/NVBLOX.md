@@ -3,7 +3,7 @@
 Current integration: PR #27 is merged, including payload/contact and release
 recovery, retained anchors, mapper replacement on clear and historical renderer
 state. PR #49 adds bounded synchronization of actual jaw opening and newer
-camera captures before establishing release geometry. See [current source and acceptance](PROJECT_STATUS_20261001.md) for the
+camera captures before establishing release geometry. See [current source and acceptance](ROADMAP.md) for the
 MAIN pin and separate RTX diagnostic/campaign results. The measurements below
 retain their original dates and sources; nvblox remains disabled in the normal
 Spark presenter profile.
@@ -20,38 +20,50 @@ any release command. The mechanical cause remains unresolved. The [campaign rece
 retains the failure, reset and camera measurements. Neither run establishes
 five-object or presenter acceptance.
 
-The [retained carry attachment guard](NVBLOX_CARRY_ATTACHMENT.md) checks the
+The [retained carry attachment guard](#payload-and-release-contracts) checks the
 original post-close attachment in existing Isaac state feedback. Lost or
 unavailable evidence stops further transport and preserves a terminal failure;
 it does not authorize an automatic open, reset, retry or return home. This
 guard does not correct mechanical slip and is not enabled by occupancy-off
-presenter runs. [Local RTX validation](LOCAL_RTX_VALIDATION.md) records the
-subsequent software checks, administrative closure and separate PC diagnostics.
+presenter runs.
 
 Environment 13 on `f9cb6b8e` passed passive admission and read-only truth readiness,
 then failed its first orange route preflight before any actuator command. No
 reset or transport followed. Localization retained a roughly 104-second-old
 image while a missing model downloaded; independently fresh camera witnesses
 did not make that analyzed image fresh. The subsequent three-second route
-budget began after grasp generation. See the
-[separate NV result](LOCAL_RTX_VALIDATION.md#separate-nv-result) for the retained
-failure, timing limits and independent review.
+budget began after grasp generation.
 
 Environment 14 on `0a27bda2` passed passive admission and native read-only
 readiness with local model files already present. Its first orange localization
 then exceeded the five-second image lifetime (9.5 seconds of analysis) and
 stopped before actuation, without home or reset. Witness cameras remained
 fresh; this did not validate the expired analysis image. The environment was
-closed administratively with its failure retained. See the
-[NV14 result and detector follow-up](LOCAL_RTX_VALIDATION.md#detector-reuse-and-nvblox-environment-14).
+closed administratively with its failure retained.
 
 Environment 15 on `c9147db8` passed perception and carried the orange to the
 box, then failed the unchanged 1 mrad release-feedback guard while waiting
 for geometry. Home and reset were not attempted; placement remained
 unverified. Camera witnesses passed, and administrative closure preserved
-the failure. The [NV15 report](LOCAL_RTX_VALIDATION.md#nvblox-environment-15-release-feedback-movement)
-records the measured drift and the separate 352.74-second direct case; it
-does not establish presenter deadline or campaign acceptance.
+the failure. The run does not establish presenter deadline or campaign acceptance.
+
+## Payload and release contracts
+
+1. Carry attachment: with `CASCADE_ISAAC_CONTACT_MASK=1` the bridge reuses the
+   contacts captured after each completed update. Lost or unknown attachment
+   during lift or transport is terminal: no automatic open, retry, home or reset.
+2. Release retreat: `skills/release_episode.wait_open` waits for open jaws and
+   stable measured joints held for `settle_hold_s` (0.1 s, `configs/arms/isaac.yaml`);
+   once open and free of bilateral attachment, regressing either is terminal.
+3. Retained anchors: for a confirmed attachment,
+   `_reset_camera_frames(scene_changed=False)` invalidates the cached map and
+   replays only measured depth history; a prop reset calls `begin_scene_reset()`
+   and drops all history.
+4. Truth views: `TruthPoseReader` (`sim/truth.py`) builds `RigidPrim` views with
+   `reset_xform_properties=False` and `prepare_contact_sensors=False`.
+5. Mapper reset: a clear replaces the nvblox mapper
+   (`perception/occupancy_backends.py`) and keeps it unavailable until
+   construction and CUDA synchronization succeed; queries never see the old map.
 
 ## Status (2026-09-30)
 

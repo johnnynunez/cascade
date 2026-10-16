@@ -1,7 +1,7 @@
 # Composable robots, observations and validation
 
 The diagram and module table describe the implemented composition, with proposed
-extensions marked explicitly. The [capability and acceptance index](PROJECT_STATUS_20261003.md)
+extensions marked explicitly. The [capability and acceptance index](ROADMAP.md)
 holds source-bound physical results; this page describes interfaces rather than
 repeating campaign history. The research references and dated software results
 below retain their original 2 October scope.
@@ -85,7 +85,7 @@ guarantee or continued motion of unaffected peers is established.
 | `apps/robot_runtime.py` | Explicit manipulation, locomotion, fastening, sensing and spatial composition through `--robot` / `CASCADE_ROBOT`; a manipulation domain `mounted_on` a locomotion base under a `whole_body` contract | Mixed physical actuation is refused; whole-body compositions with any physical actuating resource are refused with the missing gates named |
 | `conversation/`, `apps/conversation.py` | Browser media, Realtime provider, allowlisted semantic intents, deadlines and priority interruption | Supervisor above one robot runtime; no joint writer, implicit stop reset or hosted-service deployment |
 | `sensing/` | Typed passive observations, provenance, freshness, bounded readers/history | Reading cannot step physics or claim actuator ownership |
-| `spatial/` | Capture-time frame lookup, source-bound memory, synthetic route proposals, observed RGB-D annotations, an optional [cuVSLAM RGB-D provider](SPATIAL_PROVIDERS.md#optional-cuvslam-localization) and an opt-in [`go_to` route runner](SPATIAL_PROVIDERS.md#opt-in-observed-route-execution) (`spatial/navigation.py`) | cuVSLAM has CPU contract coverage, a 12-frame native synthetic RGB-D replay and a [live native simulation stream](CUVSLAM_NATIVE_VALIDATION.md#live-native-rgb-d-stream) of 12 tracked captures, with uncalibrated pose uncertainty; `go_to` has CPU tests only and no shipped provider; physical localization and native route execution remain pending; annotations are not a collision map |
+| `spatial/` | Capture-time frame lookup, source-bound memory, synthetic route proposals, observed RGB-D annotations, an optional [cuVSLAM RGB-D provider](SPATIAL_PROVIDERS.md#optional-cuvslam-localization) and an opt-in [`go_to` route runner](SPATIAL_PROVIDERS.md#opt-in-observed-route-execution) (`spatial/navigation.py`) | cuVSLAM has CPU contract coverage, a 12-frame native synthetic RGB-D replay and a [live native simulation stream](SPATIAL_PROVIDERS.md#live-native-rgb-d-stream) of 12 tracked captures, with uncalibrated pose uncertainty; `go_to` has CPU tests only and no shipped provider; physical localization and native route execution remain pending; annotations are not a collision map |
 | `control/microduck_policy.py`, `sim/microduck_stepper.py` | Pinned ONNX contract and physics-clock policy application | Robot-specific implementation; no generic humanoid policy loader or second writer to head joints |
 | `robotics/graph.py` | Immutable bounded DAG of registered skills, outcome and data edges | No graph-generated code, online self-editing or automatic stop reset |
 | `eval/vab.py`, `eval/arena.py`, `eval/trials.py` | Optional external API adapters and bound independent verdicts | Upstream success alone does not grant physical admission |
@@ -345,7 +345,7 @@ actor connection or advancing the simulation.
 The registry and generic payloads are implemented; a humanoid tactile device
 driver, calibration procedure and task-specific tactile verifier are not.
 
-The opt-in [camera-only RGB-D path](OBSERVED_RGBD.md) connects the native mobile
+The opt-in [camera-only RGB-D path](SPATIAL_PROVIDERS.md#camera-only-rgb-d-domain-mobile_rgbd) connects the native mobile
 producer to passive sensing/runtime/MCP without constructing an arm. It retains
 capture clocks, model/calibration pins, RGB8, metric optical-axis depth and the
 static overview camera's optical-to-world transform. It is software-tested;
@@ -534,15 +534,15 @@ selected tool calls into this capability catalog, with speech interruption and
 disconnection propagating cancellation. Audio timing remains separate from the policy clock.
 Reachy's motion blending and head poses cannot be transferred to policy-owned
 MicroDuck joints. Local inference/browser and a synthetic-input native-motion
-recording have [separate measured results](PROJECT_STATUS_20261003.md#rgb-d-geometry-speech-and-evaluation).
+recording have [separate measured results](ROADMAP.md).
 A public hosted voice service, hardware audio and general task reliability remain
 unvalidated; the recorded motion episode has no spoken robot reply.
 
-The [HomeBody comparison](HOMEBODY_COMPARISON.md) extends this design with six
+A HomeBody comparison extended this design with six
 proposed increments: source-bound spatial memory, dynamic transforms,
 auditable reconstruction, bounded local correction, actuator health and one
 whole-body command owner. The first increment now has [passive spatial replay](SPATIAL_PROVIDERS.md)
-and [retained RGB-D annotations](RGBD_SPATIAL_OBSERVATIONS.md), with explicit
+and [retained RGB-D annotations](SPATIAL_PROVIDERS.md#retained-rgb-d-surface-observations), with explicit
 map/transform invalidation. Physical SLAM, reconstruction and whole-body
 execution remain design work; the comparison separates HomeBody's presentation
 from its pending robot-code release and separately available components.
@@ -575,7 +575,7 @@ multi-agent learning harness and does not copy its benchmark success claims.
 
 ## VAB, VABAR and Arena
 
-Follow-up: the optional [real Arena preflight](ARENA_NATIVE_PREFLIGHT.md) now
+Follow-up: the optional [real Arena preflight](../benchmark/arena/README.md) now
 exercises ordinary runtime dispatch, native PhysX observation and final-consumer
 cancellation. Its task and physical-stop verdicts remain unverified. The
 original software-contract validation below retains its historical scope.
@@ -617,7 +617,7 @@ See [the benchmark adapter guide](../benchmark/arena/README.md) for the concrete
 APIs, pinned manifests, source caveats and execution requirements.
 
 The initial composition refactor did not execute either simulator. The later
-[native VAB CPU preflight](VAB_NATIVE_PREFLIGHT.md) exercised ordinary CASCADE
+[native VAB CPU preflight](../benchmark/arena/README.md) exercised ordinary CASCADE
 relative motion, independent physical readback and in-flight cancellation in
 the pinned Panda environment. It did not complete a benchmark task or execute
 Arena. Simulator dependencies remain optional and isolated from the working
@@ -703,7 +703,21 @@ nothing is admitted physically. Required work includes:
    Arena can organize variation; independent measurements and video must bind
    to the same episode. Physical deployment requires its own staged validation.
 
-MicroDuck's [current evidence index](PROJECT_STATUS_20261003.md#fastening-and-locomotion)
+MicroDuck's [current evidence index](ROADMAP.md)
 includes historical short-distance passes alongside retained failed commands.
 Those episode-specific results do not establish general walking, twelve-robot
 operation or admission of a later source/model combination.
+
+## Declared embodiment (`embodiment:`)
+
+An optional `embodiment` section in `configs/robots/*.yaml` declares links,
+joints (`loop_closure: true` for loop constraints), transmissions and sensor
+attachments. `list_resources` returns it with `embodiment_sha256`
+(`robotics/embodiment.py`); an absent section changes nothing.
+
+## Fixed LEAP hand (`leap_hand_right_mujoco`)
+
+`configs/robots/leap_hand_right_mujoco.yaml` exposes 16 finger joints through
+`hand.get_hand_state`, `hand.move_fingers` and `hand.set_hand_posture`
+(`skills/hand_runtime.py`). It covers bounded free finger motion only: no grasp,
+tactile calibration, moving wrist or hardware.

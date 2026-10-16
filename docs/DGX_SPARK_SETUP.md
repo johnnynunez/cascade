@@ -2,7 +2,7 @@
 
 **Source pin for these commands: reviewed runtime `ff8d58b`, 1 October 2026.**
 Source-bound software checks, native proof, five-object campaign and restart results are tracked
-separately in [project status](PROJECT_STATUS_20261001.md).
+separately in [project status](ROADMAP.md).
 The September installation measurements below remain historical.
 
 PAAI means Physical Agentic AI. This installs the Build a Claw kitchen demo:
@@ -16,8 +16,7 @@ SHA-256 hashes. See the [scene notice](../demo/scene/NOTICE.md).
 
 ## Validated release and scope
 
-The commands pin `ff8d58be1ae8e000bbecb19cd8db1551ac54be73`. Software checks and
-their source-bound CI are recorded in [local validation](LOCAL_RTX_VALIDATION.md).
+The commands pin `ff8d58be1ae8e000bbecb19cd8db1551ac54be73`.
 This does not establish a fresh installation. Current physical stages
 are recorded in the status index above. On 30 September 2026, the earlier source
 `9cf540279f09df8197eda6541311b41edb455243` completed a fresh installation, a read-only installation
@@ -28,8 +27,7 @@ audits, resets and all three cameras passing. See the
 
 On the earlier `28061a6` pin, an upgraded existing installation passed the two-object
 native desktop proof, strict confirmation and READY, with the original browser
-showing three advancing cameras. See the [earlier proof](SPARK_DELIVERY.md#earlier-two-object-proof-on-28061a6)
-for measured results and limits. The following timing table remains the
+showing three advancing cameras. The following timing table remains the
 September fresh-destination run.
 
 | Stage | Measured result |
@@ -60,7 +58,7 @@ complete legacy 50 Hz safety edges retained; this is not measured throughput.
 Explicit supported overrides remain effective. Occupancy/nvblox
 is disabled, and JEv is not part of the installer or presenter runtime.
 Newton remains an explicit engine option under separate validation.
-See the [presenter card](PRESENTER_QUICKSTART.md) for the short demo and recovery.
+See the [presenter card](BOOTH_RUNBOOK.md#9-simulated-kitchen-on-dgx-spark-presenter-card) for the short demo and recovery.
 
 ## Quick path
 
@@ -324,8 +322,7 @@ Keep that historical tool result distinct from the READY receipt.
 A separate direct-runtime campaign on the real Spark completed all five
 kitchen objects with **5/5 `confirmed` placement verdicts** and passing
 external physical audits and resets. See the
-[placement-verdict receipt](../benchmark/results/spark_placement_verdict_20261001.json)
-and [delivery scope](SPARK_DELIVERY.md#development-placement-verdict-1-october-2026).
+[placement-verdict receipt](../benchmark/results/spark_placement_verdict_20261001.json).
 This is evidence for the new single-arm kitchen verifier: fresh physics checks
 the final object's full containment, release, support and settling in the
 configured green square or open box. Its verdict does not establish lift,
@@ -467,7 +464,16 @@ or create a fresh READY receipt, and it is not a complete desktop restart:
 the current desktop camera/chat attachment requires a verified proof.
 Use the normal desktop launch when Qwen or those surfaces also need recovery.
 The desktop command does not accept the two skip flags. See
-[recovery details](SPARK_DELIVERY.md#quick-recovery-during-the-demo).
+[recovery details](#ready-checks-and-quick-recovery).
+
+## READY checks and quick recovery
+
+READY needs both startup orders (green cube to the green square, orange into the
+open box) placed through OpenClaw, confirmed by the independent physics observer,
+and each followed by a reset; `--no-robot-turn` stays STARTED / UNVERIFIED. To put
+objects back, use **Start over**, **Reset** or "Reset the scene." (Isaac, Qwen and
+OpenClaw keep running). After a crash, add `--no-robot-turn --no-judge` to the
+usual launch, e.g. `./run.sh isaac --engine physx --graspgenx local --no-robot-turn --no-judge`.
 
 ## Agent checklist
 
@@ -479,8 +485,6 @@ The desktop command does not accept the two skip flags. See
    chat, loaded extension and cameras. Send a natural-English order and reset.
 6. Require clean stop exit 0 and no `would stop` entries. Preserve evidence
    and unrelated services. Report failed or unverified results honestly.
-
-See [Spark delivery](SPARK_DELIVERY.md) for file identities and acceptance details.
 
 ## Bonus Track: Always-on demo on ngrok for testing purposes
 

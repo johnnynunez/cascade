@@ -4,7 +4,7 @@ The optional mounted domain passed one native turn-and-rest episode on
 2026-10-04 through the ordinary configuration/MCP route. The explicit SDK recipe,
 source/model identity and measured limits are recorded below. Shipped profiles
 remain inert with unresolved device/model pins. The separate
-[ordinary wrist routine](FASTENING_RUNTIME_GAP.md) remains unverified.
+[ordinary wrist routine](#ordinary-turn_screw-result) remains unverified.
 
 ## Native mounted turn and rest, 2026-10-04
 
@@ -64,6 +64,29 @@ video was not captured. The [measurement figure](evidence/factory-turn-rest-2026
 uses this episode's retained observations. The [compact receipt](evidence/factory-turn-rest-20261004/receipt.json)
 retains the live verdicts, original source/model/epoch, closure and local artifact
 hashes, including the earlier pre-launch refusal for a new GPU occupant.
+
+## Thread contact fixture
+
+Run `scripts/validate_screw_contact.py --robot-asset <usd> --output <json> --cache <dir>`:
+an SO-101 drives a motorized hex socket in Newton and the nut moves only through
+solved thread/tool contacts; `sim/threading_verification.py` judges the result.
+`--no-drive` commands zero socket torque, `--misaligned` moves the socket off
+the bolt axis.
+
+## Ordinary `turn_screw` result
+
+`agent/effects.POSTCONDITIONS` registers `turn_screw` as `threaded`. No fastener
+observer exists in the ordinary runtime, so a completed wrist routine stays
+`unverified` (`verified: false`) and never trains a reflex.
+
+## CPU candidates (not selected by any native profile)
+
+1. Process boundary: `sim/factory_process_wire.py` and
+   `sim/factory_process_protocol.py` carry the private CPU adapter's transport;
+   launchers keep their existing owner, journal and queue.
+2. Precompilation: `configs/robots/factory_m20_precompile_writer_v3.yaml` is an
+   opt-in compiler-preparation variant with `device` and
+   `model_identity_sha256` left `null`; a rejection is saved as `precompile.json`.
 
 ## Historical implementation checkpoints, 2026-10-03
 

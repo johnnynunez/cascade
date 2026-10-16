@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Score the detector against Isaac physics ground truth.
 
-Step 1 of the synthetic-augmentation plan (docs/SYNTHETIC_RGBD_PIPELINE.md):
+Step 1 of the synthetic-augmentation plan:
 before improving a detector you need a number that says whether you improved
 it. This is that number.
 

@@ -4,7 +4,7 @@ VIA (arXiv:2607.11119, line 169) withholds perception APIs entirely and has the
 agent click in an RGB-D point cloud, because a frontier model can already see
 the object; what it lacks is a metric way to address it.
 
-The measured motivation is in docs/SOTA_PERCEPTION_AND_EVALUATION.md: on LIBERO
+The measured motivation (docs/BENCHMARKS.md, LIBERO layer attribution): on LIBERO
 frames the open-vocabulary detector emits 38-44 detections and never once says
 `bowl`, so a label-addressed interface cannot express the task while the object
 is plainly visible.

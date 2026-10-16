@@ -1,11 +1,11 @@
 # Opening the demo
 
-For a live Build-a-Claw presentation, use the [presenter card](PRESENTER_QUICKSTART.md).
+For a live Build-a-Claw presentation, use the [presenter card](BOOTH_RUNBOOK.md#9-simulated-kitchen-on-dgx-spark-presenter-card).
 
 The PAAI event profile uses **DGX Spark/Linux + Isaac Sim 6.1 + PhysX CUDA +
 real GraspGen-X + Qwen Q4 + OpenClaw**. Use the [DGX Spark setup guide](DGX_SPARK_SETUP.md)
 for the current source pin, measured scope, startup and recovery commands.
-[Project status](PROJECT_STATUS_20261003.md) distinguishes current software
+[Project status](ROADMAP.md) distinguishes current software
 validation, current physical acceptance and the historical September delivery.
 The Mac is a development platform; its results do not certify Spark execution.
 
@@ -39,7 +39,7 @@ optional `--gui` requires a separate rehearsal. The earlier September pin passed
 a fresh-destination installation and READY proof on GB10, with Chromium and the
 extension checked on a virtual display. That result does not certify a later
 checkout. Wait for this machine's READY and advancing cameras.
-See [Spark delivery](SPARK_DELIVERY.md) for file identities and acceptance details.
+See [DGX Spark setup](DGX_SPARK_SETUP.md) for the pinned install and READY checks.
 
 ### Development on a Mac or an installed rig
 
@@ -81,7 +81,7 @@ launcher does.
 For Isaac, the runtime check also prepares the read-only physics verifier and
 requires new RGB-D captures from every configured camera before proof starts.
 A failure is recorded in `runtime-check.log` and stops startup. This
-[readiness check](ISAAC_STARTUP_READINESS.md) does not move the arm or establish
+[readiness check](ARCHITECTURE.md#grasp-pipeline) does not move the arm or establish
 that a later manipulation will succeed.
 
 For a lower-level restart, append `--no-robot-turn --no-judge`
@@ -91,11 +91,11 @@ only while Qwen is running. This skips the
 startup manipulation tests; connection and model checks still run, and the
 banner says `STARTED (UNVERIFIED: robot proof skipped)`.
 These flags do not provide the desktop launcher's model supervision or a new
-verified camera/chat attachment; see the [presenter recovery limits](PRESENTER_QUICKSTART.md#3-recover-during-the-presentation).
+verified camera/chat attachment; see the [presenter recovery limits](BOOTH_RUNBOOK.md#9-simulated-kitchen-on-dgx-spark-presenter-card).
 If the stack is already running, use **Start over** in the Spark demo chat,
 **Reset** in the PAAI OpenClaw interface, or send **"Reset the scene."** to
 restore the scene without restarting the services. See
-[quick recovery](SPARK_DELIVERY.md#quick-recovery-during-the-demo).
+[quick recovery](DGX_SPARK_SETUP.md#ready-checks-and-quick-recovery).
 
 The READY banner reports the actual occupancy backend, grasp planner
 (stub or model), tool count, chat URL, and whether the MuJoCo window is

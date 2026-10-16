@@ -24,7 +24,7 @@ distance_control:
   # pre-ACK sample to the post-ACK distance baseline, which is otherwise absorbed.
   # Set both (positive, <= the drift bounds above) here AND in `verifier`; a
   # one-sided pair disables the independent verifier. No value is measured yet
-  # (docs/MICRODUCK_DISTANCE_CANDIDATE.md, "Implemented contract").
+  # (docs/MICRODUCK.md, "Implemented contract").
 turn_control:
   max_translation_path_m: 0.02
   min_height_m: 0.06

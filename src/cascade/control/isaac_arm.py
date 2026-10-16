@@ -194,7 +194,7 @@ class IsaacArm(ArmBase):
 
     def stream_path(self, *args, **kwargs) -> bool:
         """Refused: ArmBase's wall-clock path streamer would bypass this
-        backend's simulator-time motion contract (docs/ISAAC_MOTION_CLOCK.md).
+        backend's simulator-time motion contract (docs/ARCHITECTURE.md, motion safety path).
         Cartesian lines on Isaac belong to the cuMotion `linear_tool_path`."""
         raise SafetyViolation(
             "joint-path streaming is not available on the Isaac motion clock; no motion sent")

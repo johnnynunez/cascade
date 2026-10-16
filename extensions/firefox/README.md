@@ -30,4 +30,4 @@ gateway advertises no cameras, so discovery falls back to port 8091, as in
 Chrome.
 
 Run `node --test tests/*.test.mjs` for the Firefox manifest and package checks.
-See [installation and verification](../../docs/FIREFOX_EXTENSION.md).
+See [installation and verification](../../docs/CHROME_EXTENSION.md#firefox).

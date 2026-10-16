@@ -4,7 +4,7 @@ A CPython full (generation-2) collection traverses every tracked container in
 the oldest generation. Inside an Isaac Kit process the SDK, extension and scene
 startup heap dominates that set, so each automatic generation-2 collection has
 paused the owner thread for hundreds of milliseconds inside readiness and
-control windows (docs/MICRODUCK.md, docs/PROJECT_STATUS_20261003.md).
+control windows (docs/MICRODUCK.md, docs/ROADMAP.md).
 Reducing per-attempt garbage changes how often those collections start; only
 reducing the *retained* tracked population shortens them, and the startup heap
 is the dominant retained population.

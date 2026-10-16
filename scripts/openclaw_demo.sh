@@ -19,7 +19,7 @@
 # Verified on OpenClaw 2026.7.1-2 (2026-07-21); re-audited against OpenClaw
 # 2.0 (= v2026.8.1/.2, CalVer continues) on 2026-09-03 -- every command and
 # flag below survives 2.0 unrenamed, and the three platform gotchas PERSIST
-# (source-diffed at both tags; see docs/OPENCLAW_2.0_INTEGRATION_BRIEF.md):
+# (source-diffed at both tags):
 #   - OpenClaw BLOCKS the PYTHONPATH env for stdio servers ("startup safety"
 #     policy, blockedEverywhereKeys), so cascade must be editable-installed
 #     in the venv (done below).

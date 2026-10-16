@@ -7,7 +7,7 @@ lights, and the canonical ``MicroDuck.usd`` (sha256 pinned) per robot. Each of t
 pose directly and no frame depends on a parent's written transform. Course gprims without a material get a
 UsdPreviewSurface from their displayColor (or one neutral blue-grey). An empty ``/World/ReplayWriteSentinel`` prim is
 written first on every frame: with ovrtx 0.5.1 / ovstage 0.2.1 the first single-prim write query of a renderer only
-takes effect on frame 1 (see docs/MICRODUCK_OVRTX_REPLAY.md). ``ReplayPoses`` turns recorded body poses into the
+takes effect on frame 1 (see docs/MICRODUCK_AGENTIC_DEMOS.md). ``ReplayPoses`` turns recorded body poses into the
 transforms :class:`cascade.sim.ovrtx_renderer.SceneSnapshot` requires.
 """
 from __future__ import annotations

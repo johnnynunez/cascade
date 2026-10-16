@@ -86,19 +86,71 @@ def _target_column(gcfg, harness, grasp, fix) -> tuple | None:
         return None
     if not callable(getattr(harness, "target_column_exemption", None)):
         return None
-    points = getattr(fix, "points", None)
+    return _column_geometry(gcfg, harness, grasp.position[:2], getattr(fix, "points", None))
+
+
+def _column_geometry(gcfg, harness, center_xy, points) -> tuple | None:
+    """(center_xy, radius, z_min) of the target's own column around
+    `center_xy`, or None when `points` (the target's observed points) are
+    missing, empty or not finite.
+
+    Radius: the 95th-percentile horizontal spread of `points` around
+    `center_xy` + 1 cm, clipped to [2 cm, `exempt_radius_m`]. Floor: 2 cm
+    below the highest point, never below table_z + table_clearance.
+    """
     if points is None:
         return None
     points = np.asarray(points, dtype=float).reshape(-1, 3)
     if not len(points) or not np.isfinite(points).all():
         return None
-    center = np.asarray(grasp.position, dtype=float)[:2]
+    center = np.asarray(center_xy, dtype=float)[:2]
     spread = float(np.percentile(np.linalg.norm(points[:, :2] - center, axis=1), 95))
     radius = float(np.clip(spread + 0.01, 0.02, float(gcfg.get("exempt_radius_m", 0.07))))
     limits = harness.limits
     floor = float(limits.table_z) + float(getattr(limits, "table_clearance", 0.0))
     z_min = max(float(points[:, 2].max()) - 0.02, floor)
     return (center, radius, z_min)
+
+
+#: How far the map's top of the target may raise the pregrasp hover above the
+#: observed top. The recorded gaps were 0.2-0.9 cm (NVBLOX.md measured ~1.5 cm
+#: on a cup); one residue voxel must not push the hover out of reach.
+MAP_TOP_RAISE_CAP_M = 0.02
+
+
+def _pregrasp_min_z(gcfg, harness, fix) -> float | None:
+    """Lowest pregrasp TCP z for a top-down approach (select_grasp's
+    `pregrasp_min_z`), or None (off: the fixed `pregrasp_offset_m`).
+
+    `grasp.pregrasp_clear_top_m` null -> None. Otherwise the hover clears
+    the object's observed top by that much. With `grasp.pregrasp_map_top`
+    (opt-in per profile) it counts from the target's top in the occupancy
+    MAP when that is higher: the top face of the highest occupied voxel in
+    the target's own column (`_column_geometry` around the fix XY),
+    raised by at most MAP_TOP_RAISE_CAP_M, plus half a voxel. The hover only
+    ever rises compared with the observed top; no map, a stale or failed map
+    or an empty column keep it there. The harness still vets the result.
+    """
+    clear_top = gcfg.get("pregrasp_clear_top_m")
+    if clear_top is None:
+        return None
+    top = float(np.max(fix.points[:, 2])) if len(fix.points) else float("nan")
+    if not (np.isfinite(top) and np.isfinite(float(clear_top))):
+        return None
+    hover = top + float(clear_top)
+    if not bool(gcfg.get("pregrasp_map_top", False)):
+        return hover
+    column_top = getattr(getattr(harness, "occupancy", None), "column_top", None)
+    if not callable(column_top):
+        return hover
+    column = _column_geometry(gcfg, harness, fix.position[:2], fix.points)
+    if column is None:
+        return hover
+    found = column_top(*column)
+    if found is None:
+        return hover
+    map_top, voxel = found
+    return hover + min(max(float(map_top) - top, 0.0), MAP_TOP_RAISE_CAP_M) + float(voxel) / 2.0
 
 
 def _column_kw(column) -> dict:
@@ -3174,14 +3226,10 @@ class SkillRuntime:
         grasp_evidence.event("selection_input", state=state, seed_q=_seed)
         from ..grasping.selector import NoExecutableGrasp
         # Opt-in: pregrasp (and so the lift) at least this far above the
-        # object's observed top, so the jaws leave it before the exemption
-        # closes. See select_grasp(pregrasp_min_z=...).
-        pregrasp_min_z = None
-        clear_top = gcfg.get("pregrasp_clear_top_m")
-        if clear_top is not None:
-            top = float(np.max(fix.points[:, 2])) if len(fix.points) else float("nan")
-            if np.isfinite(top) and np.isfinite(float(clear_top)):
-                pregrasp_min_z = top + float(clear_top)
+        # object's top (observed, or as mapped with grasp.pregrasp_map_top),
+        # so the jaws leave it before the exemption closes. See
+        # select_grasp(pregrasp_min_z=...) and _pregrasp_min_z.
+        pregrasp_min_z = _pregrasp_min_z(gcfg, harness, fix)
         try:
             for batch in range(1 if search is None else search.max_batches):
                 if batch:

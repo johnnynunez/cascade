@@ -1421,6 +1421,33 @@ class OccupancyMap:
         dist[near] = exact
         return dist
 
+    def column_top(self, center_xy, radius_m: float, z_min: float) -> tuple[float, float] | None:
+        """(top face z, voxel_m) of what the map holds in one vertical column:
+        the highest occupied voxel centre within `radius_m` horizontally of
+        `center_xy` and at or above `z_min`, plus half a voxel.
+
+        The grasp runtime raises its pregrasp hover to the target's top AS
+        MAPPED (spec §3.2): on the reBot the map's top of a target sat
+        0.2-0.9 cm above the top perception measured. It reads the safety
+        cache under `_refresh_lock` (never `view_snapshot()`, display only).
+        Never raises: None when the map has no fresh, healthy answer (stale,
+        a failed refresh, a latched body-mask fault) or the column is empty;
+        the caller then keeps the hover from the observed top."""
+        with self._refresh_lock:
+            if self._body_error is not None or self.last_error is not None or self.is_stale():
+                return None
+            cloud = self._occupied
+            if cloud is None or not len(cloud):
+                return None
+            voxel = float(self._grid_voxel or 0.0)
+            pts = np.asarray(cloud, dtype=float)
+            center = np.asarray(center_xy, dtype=float)[:2]
+            inside = ((np.linalg.norm(pts[:, :2] - center, axis=1) <= float(radius_m))
+                      & (pts[:, 2] >= float(z_min)))
+            if not inside.any():
+                return None
+            return float(pts[inside, 2].max()) + voxel / 2.0, voxel
+
     def _check_required_age(self) -> None:
         """Interpolation must finish inside the same observation lifetime."""
         if self.required and self.is_stale():

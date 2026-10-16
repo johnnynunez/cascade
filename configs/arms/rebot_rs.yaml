@@ -111,7 +111,12 @@ overrides:
     # Lift the jaws clear of the object's top (+3 cm = the occupancy margin):
     # a cup grasped at 5.2 cm with the 4 cm offset left the fingertips at its
     # 9.3 cm rim, inside the margin, and every route home was refused.
+    # On the rig the map's top of a target sat 0.2-0.9 cm above the observed
+    # top, so the +3 cm counts from the map's top (pregrasp_map_top: raise
+    # capped at 2 cm, + half a voxel; a stale map or an empty column keeps
+    # the observed top).
     pregrasp_clear_top_m: 0.03
+    pregrasp_map_top: true
 
 # MIT gains per joint (null = use the SDK's rebotarm_rs.yaml values).
 mit_kp: null

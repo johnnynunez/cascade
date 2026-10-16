@@ -156,6 +156,12 @@ grasp:
   # the object's observed top, falling back to pregrasp_offset_m when the
   # raised pose is unreachable. null = off (fixed offset only).
   pregrasp_clear_top_m: null
+  # With pregrasp_clear_top_m set: count that clearance from the target's top
+  # in the occupancy MAP when it is higher than the observed top (the top face
+  # of the highest occupied voxel in the target's own column, + half a voxel),
+  # raised by at most 2 cm. The hover only ever rises; no map, a stale or
+  # failed map, or an empty column keep the observed top. false = observed top.
+  pregrasp_map_top: false
   depth_fraction: 0.15      # grasp this far down from the object's TOP. Low
                             # value = grasp near the top face, which keeps the
                             # gripper fingers (they extend ~5cm below the TCP)

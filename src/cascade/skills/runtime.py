@@ -646,7 +646,13 @@ class SkillRuntime:
             air_grasp_frac=float(self.cfg.grasp.get("air_grasp_frac", 0.04)),
             placement_check=self._verify_configured_placement,
             actuation=self._actuation_counts,
+            holding=self._jaws_may_hold,
         )
+
+    def _jaws_may_hold(self) -> bool:
+        """The verifier's pre-call holding state: an object is held, or a
+        provisional (unconfirmed) grasp may have one in the jaws."""
+        return bool(self.held_object) or getattr(self, "_held_provisional", None) is not None
 
     def _actuation_counts(self) -> dict | None:
         """Monotonic counts of what this runtime commanded, for the verifier.
@@ -1118,7 +1124,7 @@ class SkillRuntime:
                     or self.held_object
                     or None
                 )
-            pre_state = self.effects.snapshot(target_label)
+            pre_state = self.effects.snapshot(target_label, skill=name)
         region_context = None
         region_context_error = None
         if name == "place_at":

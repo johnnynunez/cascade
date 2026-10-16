@@ -85,6 +85,13 @@ SAME_PLACE_M = 0.05
 DEST_TOLERANCE_M = 0.03
 #: A push must displace the object by at least this fraction of the request.
 PUSH_MIN_FRAC = 0.3
+#: A release is a measured widening: the jaw must read more than this
+#: (fraction of its travel) wider after a completed open than before the
+#: call. Smaller changes are reading jitter, not an object let go.
+RELEASE_WIDTH_EPS = 0.02
+#: Postcondition kinds judged by `_check_released`: their snapshot also
+#: records the jaw width and whether the jaws held something before the call.
+_RELEASE_KINDS = ("empty", "released")
 #: Counts the runtime's ``actuation`` hook reports (see PostconditionChecker).
 _ACTUATION_KEYS = ("arm_motions", "gripper_closes", "gripper_opens")
 #: Longest skill error quoted in a "no grasp was attempted" verdict.
@@ -152,6 +159,11 @@ class PostconditionChecker:
         moved the arm, closed the jaws or released. None (or no hook) =
         unknown: the check then never reports "nothing was commanded" and
         never asserts a close, a release or a commanded home.
+    ``holding() -> bool | None``
+        Whether the jaws hold (or may hold) an object right now. Read by
+        ``snapshot()`` for release skills only, with the jaw width: "the
+        object was released" needs something held before the call and the
+        jaw measured wider after it. None (or no hook) = unknown.
     """
 
     def __init__(
@@ -165,6 +177,7 @@ class PostconditionChecker:
         air_grasp_frac: float = 0.04,
         placement_check: Callable[[str, str | None], dict | None] | None = None,
         actuation: Callable[[], dict | None] | None = None,
+        holding: Callable[[], bool | None] | None = None,
     ):
         self._object_pose = object_pose
         self._belief_pose = belief_pose
@@ -177,17 +190,27 @@ class PostconditionChecker:
         self.air_grasp_frac = float(air_grasp_frac)
         self._placement_check = placement_check
         self._actuation = actuation
+        self._holding = holding
         self.history: list[Postcondition] = []
 
     # ── snapshots ────────────────────────────────────────────────────────
 
-    def snapshot(self, label: str | None) -> dict:
+    def snapshot(self, label: str | None, skill: str | None = None) -> dict:
         """Pose of ``label`` before a motion, from the best channel available,
-        plus the actuation counts (when the hook is wired) the check diffs."""
+        plus the actuation counts (when the hook is wired) the check diffs.
+        For a release skill (``skill`` judged by `_check_released`) also the
+        jaw width and whether the jaws held something, before the call."""
         snap: dict = {}
         counts = self._actuation_counts()
         if counts is not None:
             snap["actuation"] = counts
+        if POSTCONDITIONS.get(skill or "") in _RELEASE_KINDS:
+            frac = self._frac()
+            if frac is not None:
+                snap["gripper_frac"] = frac
+            held = self._held()
+            if held is not None:
+                snap["holding"] = held
         if not label:
             return snap
         pose, channel = self._best_pose(label)
@@ -195,6 +218,15 @@ class PostconditionChecker:
             return snap
         snap.update({"label": label, "pose": list(pose), "channel": channel})
         return snap
+
+    def _held(self) -> bool | None:
+        if self._holding is None:
+            return None
+        try:
+            held = self._holding()
+            return None if held is None else bool(held)
+        except Exception:
+            return None
 
     def _actuation_counts(self) -> dict | None:
         if self._actuation is None:
@@ -804,13 +836,25 @@ class PostconditionChecker:
             pc.status, pc.evidence = UNVERIFIED, "gripper state unavailable"
             return
         pc.channel, pc.measured = "gripper", {"gripper_frac": frac}
-        pc.status = CONFIRMED if frac > self.air_grasp_frac * 2 else REFUTED
-        if pc.status == REFUTED:
-            pc.evidence = f"gripper still closed at {frac:.2f}"
-        elif self._open_commanded(before):
+        if frac <= self.air_grasp_frac * 2:
+            pc.status, pc.evidence = REFUTED, f"gripper still closed at {frac:.2f}"
+            return
+        pc.status, pc.evidence = CONFIRMED, f"gripper open at {frac:.2f}"  # the reading only
+        frac0 = before.get("gripper_frac")
+        # "Released" needs a counted open, something in the jaws before the
+        # call (unknown counts as maybe) and the jaw measured wider than it
+        # was: nothing held (T3-c) or no pre-call width keeps the reading.
+        if not self._open_commanded(before) or before.get("holding") is False or frac0 is None:
+            return
+        pc.measured["gripper_frac_before"] = frac0
+        if frac > frac0 + RELEASE_WIDTH_EPS:
             pc.evidence = f"gripper open at {frac:.2f}: the object was released"
-        else:
-            pc.evidence = f"gripper open at {frac:.2f}"    # unknown actuation: the reading only
+            return
+        # The open completed but the jaw still reads the width it held the
+        # object at (Qwen E2E: 0.389 before and after): no measured release.
+        pc.status = UNVERIFIED
+        pc.evidence = (f"jaw width unchanged at {frac:.2f} after the open command "
+                       f"(was {frac0:.2f}): no release measured")
 
     def _check_empty(self, pc, args, result, before) -> None:
         self._check_released(pc, args, result, before)

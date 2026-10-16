@@ -700,17 +700,32 @@ def test_no_counted_open_is_never_a_release(skill, args, result):
 
 
 def test_a_counted_open_keeps_the_release_wording():
+    """Held, a counted open, and the jaws measured wider than before the call."""
     tally = _Tally()
-    checker, _ = _release_checker(tally)
-    before = checker.snapshot(None)
+    jaw = {"frac": 0.5}
+    checker = PostconditionChecker(gripper_frac=lambda: jaw["frac"], actuation=tally, holding=lambda: True)
+    before = checker.snapshot(None, skill="open_gripper")
     tally.counts["gripper_opens"] += 1
+    jaw["frac"] = 0.97
     pc = checker.verify("open_gripper", {}, {"ok": True}, before=before)
     assert pc.status == CONFIRMED and pc.evidence == "gripper open at 0.97: the object was released"
+    assert pc.measured == {"gripper_frac": 0.97, "gripper_frac_before": 0.5}, pc
 
 
 def test_unknown_actuation_never_claims_a_release():
     checker = PostconditionChecker(gripper_frac=lambda: 0.97)
     pc = checker.verify("open_gripper", {}, {"ok": True}, before=checker.snapshot(None))
+    assert pc.status == CONFIRMED and pc.evidence == "gripper open at 0.97", pc
+
+
+def test_unknown_actuation_never_claims_a_release_even_after_a_widening():
+    """Held, and the jaw measured wider, but no actuation hook: nothing says
+    THIS call opened the jaws, so the reading only."""
+    jaw = {"frac": 0.5}
+    checker = PostconditionChecker(gripper_frac=lambda: jaw["frac"], holding=lambda: True)
+    before = checker.snapshot(None, skill="open_gripper")
+    jaw["frac"] = 0.97
+    pc = checker.verify("open_gripper", {}, {"ok": True}, before=before)
     assert pc.status == CONFIRMED and pc.evidence == "gripper open at 0.97", pc
 
 
@@ -915,3 +930,127 @@ def test_a_failed_move_home_is_never_confirmed(tally):
     pc = checker.verify("move_home", {}, {"ok": False, "error": "MotionHalted: operator halt"}, before=before)
     assert pc.status == UNVERIFIED and pc.channel == "skill", pc
     assert pc.evidence == "the move home did not complete: MotionHalted: operator halt", pc
+
+
+def _jaw_checker(tally, before_frac, holding):
+    jaw = {"frac": before_frac}
+    checker = PostconditionChecker(gripper_frac=lambda: jaw["frac"], actuation=tally,
+                                   holding=None if holding is None else (lambda: holding))
+    return checker, jaw
+
+
+@pytest.mark.parametrize("before_frac", [0.0, 1.0], ids=["closed on air", "already open"])
+def test_open_with_nothing_held_states_the_jaw_only(before_frac):
+    """T3-c: nothing was held, so a completed open released nothing: the
+    reading, never 'the object was released' (and an already-open jaw is not
+    an unverified release either)."""
+    tally = _Tally()
+    checker, jaw = _jaw_checker(tally, before_frac, holding=False)
+    before = checker.snapshot(None, skill="open_gripper")
+    tally.counts["gripper_opens"] += 1
+    jaw["frac"] = 1.0
+    pc = checker.verify("open_gripper", {}, {"ok": True}, before=before)
+    assert pc.status == CONFIRMED and pc.channel == "gripper", pc
+    assert pc.evidence == "gripper open at 1.00", pc
+
+
+@pytest.mark.parametrize("rise, released", [(0.0, False), (0.01, False), (0.03, True)])
+def test_a_release_is_a_measured_widening(rise, released):
+    """T3-d (Qwen E2E o4): held at 0.389, the open completed, the jaw still
+    read 0.389: not 'released'. Only a rise above the pre-call width is."""
+    tally = _Tally()
+    checker, jaw = _jaw_checker(tally, 0.389, holding=True)
+    before = checker.snapshot(None, skill="open_gripper")
+    tally.counts["gripper_opens"] += 1
+    jaw["frac"] = 0.389 + rise
+    pc = checker.verify("open_gripper", {}, {"ok": True}, before=before)
+    if released:
+        assert pc.status == CONFIRMED and pc.evidence == "gripper open at 0.42: the object was released", pc
+        return
+    assert pc.status == UNVERIFIED and pc.channel == "gripper", pc
+    assert pc.evidence == (f"jaw width unchanged at {0.389 + rise:.2f} after the open command "
+                           "(was 0.39): no release measured"), pc
+    assert pc.measured == {"gripper_frac": 0.389 + rise, "gripper_frac_before": 0.389}, pc
+
+
+def test_a_release_with_unknown_holding_still_needs_the_widening():
+    tally = _Tally()
+    checker, jaw = _jaw_checker(tally, 0.5, holding=None)
+    before = checker.snapshot(None, skill="open_gripper")
+    tally.counts["gripper_opens"] += 1
+    pc = checker.verify("open_gripper", {}, {"ok": True}, before=before)
+    assert pc.status == UNVERIFIED and pc.evidence.startswith("jaw width unchanged at 0.50"), pc
+    jaw["frac"] = 0.97
+    pc = checker.verify("open_gripper", {}, {"ok": True}, before=before)
+    assert pc.status == CONFIRMED and pc.evidence.endswith("the object was released"), pc
+
+
+def test_no_pre_call_width_never_claims_a_release():
+    """A snapshot without the jaw width (a skill that is not a release, or
+    no reading): the counted open is stated as the reading only."""
+    tally = _Tally()
+    checker, jaw = _jaw_checker(tally, 0.5, holding=True)
+    before = checker.snapshot(None)
+    tally.counts["gripper_opens"] += 1
+    jaw["frac"] = 0.97
+    pc = checker.verify("open_gripper", {}, {"ok": True}, before=before)
+    assert pc.status == CONFIRMED and pc.evidence == "gripper open at 0.97", pc
+
+
+def test_only_release_skills_read_the_jaw_before_the_call():
+    reads = []
+    checker = PostconditionChecker(gripper_frac=lambda: reads.append(1) or 0.5, holding=lambda: True)
+    assert "gripper_frac" not in checker.snapshot("cube", skill="grasp_object")
+    assert "holding" not in checker.snapshot("cube", skill="grasp_object")
+    assert reads == [], "a non-release skill's snapshot reads no jaw"
+    snap = checker.snapshot(None, skill="open_gripper")
+    assert snap["gripper_frac"] == 0.5 and snap["holding"] is True and reads == [1]
+
+
+@pytest.mark.parametrize("close_first", [False, True], ids=["already open", "closed on air"])
+def test_open_gripper_with_nothing_held_is_not_a_release(mock_runtime, close_first):
+    runtime, arm = mock_runtime
+    assert runtime.held_object is None
+    if close_first:
+        runtime.execute("close_gripper", {})
+        assert runtime._gripper_width_frac() < 0.5, "the open below must widen the jaw"
+        assert runtime.held_object is None
+
+    result = runtime.execute("open_gripper", {})
+
+    assert result["ok"] is True
+    pc = result["postcondition"]
+    assert pc["status"] == CONFIRMED and pc["evidence"] == "gripper open at 1.00", pc
+    assert "released" not in _texts(runtime, result)
+
+
+def test_open_gripper_whose_jaw_did_not_move_is_not_a_release(mock_runtime, monkeypatch):
+    """The open command completed (counted) but the jaw still reads the width
+    it held the object at: UNVERIFIED 'jaw width unchanged', never released."""
+    runtime, arm = mock_runtime
+    _hold(runtime, arm)
+    sent = []
+    monkeypatch.setattr(arm, "set_gripper", lambda pos, effort=1.0: sent.append(pos))
+
+    result = runtime.execute("open_gripper", {})
+
+    assert result["ok"] is True and len(sent) == 1, result
+    assert runtime._gripper_width_frac() == pytest.approx(0.5)
+    pc = result["postcondition"]
+    assert pc["status"] == UNVERIFIED and pc["channel"] == "gripper", pc
+    assert pc["evidence"] == "jaw width unchanged at 0.50 after the open command (was 0.50): no release measured", pc
+    _assert_no_event(runtime, result)
+
+
+def test_a_provisional_grasp_may_hold_for_the_verifier():
+    """An interrupted grasp leaves a provisional hold: the jaws may hold the
+    object, so a later measured widening may be its release."""
+    from cascade.skills.runtime import SkillRuntime
+
+    rt = SkillRuntime.__new__(SkillRuntime)
+    rt.held_object, rt._held_provisional = None, None
+    assert rt._jaws_may_hold() is False
+    rt._held_provisional = object()
+    assert rt._jaws_may_hold() is True
+    rt.held_object, rt._held_provisional = "cup", None
+    assert rt._jaws_may_hold() is True

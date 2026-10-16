@@ -13,14 +13,17 @@ check the result payloads the agent reads.
 from __future__ import annotations
 
 import json
+import time
 from copy import deepcopy
+from types import SimpleNamespace
 
+import numpy as np
 import pytest
 from conftest import needs_pin
 
 from cascade.agent.effects import Postcondition
 from cascade.config import load_demo_config
-from cascade.types import SafetyViolation
+from cascade.types import SafetyViolation, SkillError
 
 #: o3 (trace.jsonl:9 of the 16 Oct kitchen run): the motion routine reported
 #: success, physics refuted the placement, the agent answered "Done".
@@ -108,7 +111,6 @@ def test_any_failed_skill_carries_the_instruction_before_its_own(runtime):
 
 def test_a_raised_skill_error_carries_the_instruction(runtime):
     def boom(cycles=2):
-        from cascade.skills.runtime import SkillError
         raise SkillError("could not reach home to wave")
     runtime.skill_wave = boom
     result = runtime.execute("wave", {})
@@ -182,6 +184,173 @@ def test_a_failed_pick_that_went_home_does_not_ask_for_move_home(runtime, monkey
     assert result["ok"] is False and not result.get("home_skipped")
     assert "This attempt FAILED" in result["next_action"]
     assert "move_home" not in result["next_action"]
+
+
+#: the recovery step every refused grasp that left the arm in place carries
+MOVE_HOME_FIRST = "call move_home before any other grasp"
+
+
+def _refuse_after_moving(runtime, error=R3_REFUSAL, exc=SafetyViolation, then=None):
+    def refused(*a, **kw):
+        runtime._mark_motion_started()  # the attempt commanded the arm
+        if then is not None:
+            then()
+        raise exc(error)
+    return refused
+
+
+@pytest.mark.parametrize("name, args", [
+    ("grasp_object", {"label": "green cube"}),
+    ("grasp_at_pixel", {"u": 320, "v": 240}),
+    ("handover", {"label": "green cube"}),
+])
+def test_a_grasp_that_left_the_arm_in_place_asks_for_move_home(runtime, name, args):
+    """Review minor 8: the kitchen run's repeated refusals came from grasps
+    started where the refused attempt had stopped; only pick_and_place said
+    to call move_home first."""
+    setattr(runtime, f"skill_{name}", _refuse_after_moving(runtime))
+    result = runtime.execute(name, args)
+    assert result["ok"] is False and "return_home" not in result
+    action = result["next_action"]
+    assert action.startswith("This attempt FAILED: SafetyViolation: measured finger intersects")
+    assert MOVE_HOME_FIRST in action
+
+
+def test_a_grasp_that_failed_before_moving_does_not_ask_for_move_home(runtime):
+    def not_found(*a, **kw):
+        raise SkillError("no detections for 'green cube'")
+    runtime.skill_grasp_object = not_found
+    result = runtime.execute("grasp_object", {"label": "green cube"})
+    assert result["ok"] is False and MOVE_HOME_FIRST not in result["next_action"]
+
+
+def test_a_failed_grasp_that_went_home_does_not_ask_for_move_home(runtime):
+    runtime.cfg._data["arm"]["return_home_after_motion"] = True
+    runtime.skill_grasp_object = _refuse_after_moving(
+        runtime, "air grasp: gripper closed fully, object not held", SkillError)
+    result = runtime.execute("grasp_object", {"label": "green cube"})
+    assert result["ok"] is False and result["return_home"]["ok"] is True, result
+    assert MOVE_HOME_FIRST not in result["next_action"]
+
+
+def test_a_failed_grasp_under_a_latched_stop_does_not_ask_for_move_home(runtime):
+    harness = runtime.arm.harness
+    runtime.skill_grasp_object = _refuse_after_moving(runtime, then=lambda: harness.estop("operator"))
+    try:
+        result = runtime.execute("grasp_object", {"label": "green cube"})
+    finally:
+        harness.reset_estop()
+    assert result["ok"] is False and MOVE_HOME_FIRST not in result["next_action"]
+
+
+def test_a_failed_grasp_that_holds_something_does_not_ask_for_move_home(runtime):
+    def holding():
+        runtime.held_object = "green cube"
+    runtime.skill_grasp_object = _refuse_after_moving(runtime, then=holding)
+    try:
+        result = runtime.execute("grasp_object", {"label": "green cube"})
+    finally:
+        runtime.held_object = None
+    assert result["ok"] is False and MOVE_HOME_FIRST not in result["next_action"]
+
+
+def _gate_refuses_every_grasp(runtime, monkeypatch):
+    monkeypatch.setenv("CASCADE_OBSERVED_FINGER_GATE", "1")
+
+    def refused(*a, **kw):  # no motion marked: the hint must come from the result itself
+        raise SafetyViolation(R3_REFUSAL)
+
+    runtime.skill_grasp_object = refused
+
+
+def test_the_persistence_loop_refusal_asks_for_move_home(runtime, monkeypatch):
+    _gate_refuses_every_grasp(runtime, monkeypatch)
+    res = runtime._grasp_with_persistence("green cube")
+    assert res["ok"] is False and res["home_skipped"] is True
+    assert MOVE_HOME_FIRST in res["next_action"]
+
+
+def test_a_handover_whose_grasp_was_refused_asks_for_move_home(runtime, monkeypatch):
+    _gate_refuses_every_grasp(runtime, monkeypatch)
+    result = runtime.execute("handover", {"label": "green cube"})
+    assert result["ok"] is False and result["home_skipped"] is True
+    assert result["next_action"].startswith("This attempt FAILED: could not grasp 'green cube' for handover")
+    assert MOVE_HOME_FIRST in result["next_action"]
+
+
+def test_the_move_home_step_is_given_once(runtime, monkeypatch):
+    """A handover whose refused grasp moved the arm hits both rules (its own
+    result and the dispatcher's): the agent reads the step once."""
+    monkeypatch.setenv("CASCADE_OBSERVED_FINGER_GATE", "1")
+    runtime.skill_grasp_object = _refuse_after_moving(runtime)
+    result = runtime.execute("handover", {"label": "green cube"})
+    assert result["next_action"].count(MOVE_HOME_FIRST) == 1
+
+
+def _red(label="cube", color="red", at=(0.36, 0.12, 0.02)):
+    return SimpleNamespace(label=label, color=color, position=np.array(at))
+
+
+def test_a_sort_that_ended_at_a_refused_grasp_asks_for_move_home(runtime, monkeypatch):
+    _gate_refuses_every_grasp(runtime, monkeypatch)
+    monkeypatch.setattr(runtime.beliefs, "all", lambda: [_red()])
+    result = runtime.execute("sort_by_color", {})
+    assert result["ok"] is False and result["home_skipped"] is True, result
+    assert MOVE_HOME_FIRST in result["next_action"]
+
+
+def test_a_sort_that_moved_on_after_a_refused_grasp_does_not_ask(runtime, monkeypatch):
+    monkeypatch.setenv("CASCADE_OBSERVED_FINGER_GATE", "1")
+    tries = []
+
+    def grasp(query, material=None, budget_s=None):
+        tries.append(query)
+        if len(tries) == 1:
+            return {"ok": False, "held": False, "error": "refused", "home_skipped": True}
+        runtime.held_object = query
+        return {"held": query, "grasp_attempts": 1}
+
+    def place_at(x, y, z=None):
+        runtime.held_object = None
+        return {"placed": True, "at": [x, y, 0.05]}
+
+    monkeypatch.setattr(runtime.beliefs, "all", lambda: [_red(), _red("ball", "blue", (0.36, -0.12, 0.02))])
+    runtime._grasp_with_persistence = grasp
+    runtime.skill_place_at = place_at
+    out = runtime.skill_sort_by_color()
+    assert len(tries) == 2 and len(out["moved"]) == 1, out
+    assert not out.get("home_skipped") and MOVE_HOME_FIRST not in str(out.get("next_action"))
+
+
+def _refused_persistence(query, material=None, budget_s=None):
+    from cascade.skills.runtime import _REFUSED_GRASP_LEFT_IN_PLACE
+    return {"ok": False, "held": False, "error": "SafetyViolation: " + R3_REFUSAL, "home_skipped": True,
+            "grasp_attempts": 1, "next_action": _REFUSED_GRASP_LEFT_IN_PLACE}
+
+
+def test_a_restore_that_ended_at_a_refused_grasp_asks_for_move_home():
+    from test_pigey_scene_memory import A, BOUNDS, _stub, _two_cubes
+
+    bs = _two_cubes(time.monotonic())
+    rt = _stub(bs, bounds=BOUNDS)
+    rt.skill_snapshot_scene(name="t")
+    bs.find("red cube").position = np.array(A) + np.array([0.0, 0.08, 0.0])
+    rt._grasp_with_persistence = _refused_persistence
+    out = rt.skill_restore_scene(name="t")
+    assert out["ok"] is False and out["home_skipped"] is True, out
+    assert MOVE_HOME_FIRST in out["next_action"]
+    assert rt.log.homes == 0  # still no unchecked automatic home
+
+
+def test_a_search_that_ended_at_a_refused_grasp_asks_for_move_home():
+    from test_pigey_scene_memory import BOUNDS, _cluttered, _stub
+
+    rt = _stub(_cluttered(time.monotonic()), bounds=BOUNDS)
+    rt._grasp_with_persistence = _refused_persistence
+    out = rt.skill_search_for_object(label="green cube", max_occluders=1)
+    assert out["ok"] is False and out["home_skipped"] is True, out
+    assert MOVE_HOME_FIRST in out["next_action"] and "look-alike" in out["next_action"]
+    assert rt.log.homes == 0
 
 
 # ── 2. "next to X" is not "on X" ─────────────────────────────────────────

@@ -873,6 +873,12 @@ class SkillRuntime:
             return bool(context["enabled"])
         return bool(self.cfg.arm.get("return_home_after_motion", False))
 
+    @staticmethod
+    def _stop_latched(arm) -> bool:
+        """E-stop or operator halt on this arm: move_home is not the next step."""
+        harness = getattr(arm, "harness", None)
+        return bool(getattr(harness, "estopped", False) or getattr(harness, "halted", None))
+
     def _home_return_skip_reason(self, failure=None) -> str | None:
         if failure is not None and not isinstance(failure, Exception):
             return "command interrupted"
@@ -1159,6 +1165,7 @@ class SkillRuntime:
         if owns_perception_timings:
             self._call_perception_timings = []
         home_return = None
+        call_moved = False  # this call commanded the arm or gripper (motion scope owner only)
         result = None
         try:
             import contextlib
@@ -1209,6 +1216,7 @@ class SkillRuntime:
                         failure = exc
                         raise
                     finally:
+                        call_moved = owns_motion_scope and bool(scope.context["motion_started"])
                         if (owns_motion_scope and return_enabled and scope.context["motion_started"]
                                 and name not in {"move_home", "move_to_rest", "reset_scene"}
                                 and not (isinstance(result, dict) and result.get("home_skipped"))):
@@ -1284,6 +1292,12 @@ class SkillRuntime:
                     result["action_ok"] = True
                     result["ok"] = False
                     result["error"] = blocked
+        if (name in _GRASP_ENTRY_SKILLS and call_moved and not result.get("ok")
+                and not (home_return or {}).get("ok") and not result.get("motion_blocked")
+                and not self.held_object and not self._stop_latched(effective_arm)):
+            # The failed grasp moved the arm and nothing brought it back: the
+            # next grasp would start (and be refused) where this one stopped.
+            _with_move_home_first(result)
         dur = (time.monotonic() - t0) * 1000
         # Every result carries one of three outcomes. Stamped BEFORE the
         # postcondition fold so `annotate_result` can see a stuck step and
@@ -1916,8 +1930,9 @@ class SkillRuntime:
                 return res
             last_err = str(res.get("error", "grasp failed"))
             if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1":
-                return {**res, "ok": False, "home_skipped": True, "grasp_attempts": attempt,
-                        "note": "observed-finger attempt failed; automatic recovery was not geometrically checked"}
+                return _with_move_home_first(
+                    {**res, "ok": False, "home_skipped": True, "grasp_attempts": attempt,
+                     "note": "observed-finger attempt failed; automatic recovery was not geometrically checked"})
             self.memory.add("outcome", f"grasp attempt {attempt} failed: {last_err[:100]}")
             # B36: a failed attempt that still put the object in the jaws is a
             # grasp, not a miss (a retry would only refuse "already holding").
@@ -5350,6 +5365,9 @@ class SkillRuntime:
                     "error": f"could not grasp {label!r} for handover: {res.get('error')}",
                     "grasp_attempts": res.get("grasp_attempts"),
                 }
+                if res.get("home_skipped"):
+                    out["home_skipped"] = True
+                    _with_move_home_first(out)
                 if res.get("outcome") == OUTCOME_STUCK:
                     # the persistence loop asked the human; pass the ask through
                     out["outcome"] = OUTCOME_STUCK
@@ -5621,6 +5639,7 @@ class SkillRuntime:
         zone_x = float(self.cfg.grasp.get("drop_zone", [0.30, -0.20])[0])
         colors: dict[str, tuple[float, float]] = {}
         moved, failed = [], []
+        left_in_place = False  # the last grasp attempt left the arm where it stopped
         for b in list(self.beliefs.all())[: int(max_objects)]:
             color = b.color or "unknown"
             if color not in colors:
@@ -5640,6 +5659,7 @@ class SkillRuntime:
             except (SkillError, SafetyViolation) as e:
                 failed.append({"label": query, "error": str(e)})
                 continue
+            left_in_place = bool(res.get("home_skipped"))
             if not res.get("ok", True) or not res.get("held"):
                 entry = {"label": query, "error": str(res.get("error", "?"))}
                 if res.get("outcome") == OUTCOME_STUCK:
@@ -5670,6 +5690,9 @@ class SkillRuntime:
                 # the sort is stuck, every per-object ask relayed verbatim
                 out["outcome"] = OUTCOME_STUCK
                 out["ask"] = " ".join(asks)
+        if left_in_place:
+            out["home_skipped"] = True
+            _with_move_home_first(out)
         return out
 
     # ── Pigey scene memory: composites over the belief store ────────────
@@ -5816,7 +5839,9 @@ class SkillRuntime:
         rec["grasp_attempts"] = res.get("grasp_attempts")
         if not res.get("ok", True) or not res.get("held"):
             rec["error"] = f"grasp: {res.get('error', 'grasp failed')}"
-            if not res.get("home_skipped"):
+            if res.get("home_skipped"):
+                rec["home_skipped"] = True  # the arm stays where the attempt stopped
+            else:
                 try:  # never leave the arm over the table after a failed attempt
                     self.skill_move_home()
                 except (SkillError, SafetyViolation):
@@ -5996,6 +6021,7 @@ class SkillRuntime:
         failed: list[dict] = []
         skip: set[str] = set()
         error = stage = None
+        left_in_place = False  # the last grasp attempt left the arm where it stopped
         plan = self._restore_plan(snap, tolerance_m, skip, seen_after)
         initial_displaced = [{k: v for k, v in r.items() if k not in ("belief", "entry", "query")}
                              for r in plan["displaced"]]
@@ -6027,6 +6053,7 @@ class SkillRuntime:
             rec = self._move_object_to(step["query"], step["to"], budget_s=budget_s, kind=step["kind"])
             rec["label"] = step["label"]
             moves.append(rec)
+            left_in_place = bool(rec.get("home_skipped"))
             if rec.get("holding"):
                 error, stage = rec.get("error", "place failed"), "place"
                 break
@@ -6073,6 +6100,9 @@ class SkillRuntime:
                     "coordinates (or open_gripper over a safe spot), then retry; do not report "
                     "the scene as restored."
                 )
+        if left_in_place:
+            result["home_skipped"] = True
+            _with_move_home_first(result)
         self.memory.add("action", f"restore_scene {name!r}: {len(moves)} move(s), "
                                   f"{len(still)} still displaced, {len(final['missing'])} missing")
         return result
@@ -6138,6 +6168,7 @@ class SkillRuntime:
         attempts = 0
         found = None
         error = stage = None
+        left_in_place = False  # the last grasp attempt left the arm where it stopped
         while attempts < max_occluders and found is None:
             if self._task_budget_exhausted():
                 error = "task persistence budget exhausted (an earlier tier already spent it)"
@@ -6178,6 +6209,7 @@ class SkillRuntime:
             rec["label"] = str(occ.label)
             rec["from"] = [round(float(v), 3) for v in np.asarray(occ.position, dtype=float)[:2]]
             moved.append(rec)
+            left_in_place = bool(rec.get("home_skipped"))
             if rec.get("holding"):
                 error, stage = rec.get("error", "park failed"), "park"
                 break
@@ -6221,6 +6253,9 @@ class SkillRuntime:
                 "Put it down with place_at at explicit free coordinates (or open_gripper over a safe "
                 "spot) before anything else; the search is stuck."
             )
+        if left_in_place:
+            result["home_skipped"] = True
+            _with_move_home_first(result)
         self.memory.add("outcome", f"search for {query!r} failed: {error[:100]}")
         return result
 
@@ -7145,14 +7180,27 @@ _FAILED_ERROR_CHARS = 240
 #: refuted placement) gets the failure instructions instead, never this.
 _PICK_REPORT_NEXT_ACTION = ("Report this result, including any return_home failure, and await the next "
                             "user order. Do not add another movement to this request.")
-#: An observed-finger refusal inside pick_and_place returns without the
-#: automatic home (that recovery is not geometrically checked), so the arm can
-#: stay at the refused grasp pose and the next grasp is refused at the same
-#: point. Measured on the kitchen run: 3 identical refusals until move_home.
+#: A failed grasp that did not withdraw (an observed-finger refusal returns
+#: without the automatic home, which is not geometrically checked; a refused
+#: grasp_object never goes home on a rig without return_home_after_motion)
+#: leaves the arm where the attempt stopped, and the next grasp is refused at
+#: the same point. Measured on the kitchen run: 3 identical refusals until
+#: move_home.
 _REFUSED_GRASP_LEFT_IN_PLACE = (
-    "The arm was not moved back after this refused grasp (home_skipped): it stays where the "
-    "attempt stopped, possibly at the refused grasp pose next to other objects: call move_home "
-    "before any other grasp.")
+    "The arm was not moved back after the last failed grasp attempt: it stays where that attempt "
+    "stopped, possibly at the refused grasp pose next to other objects: call move_home before any "
+    "other grasp.")
+#: Skills whose failure is a failed grasp the agent's next grasp would start from.
+_GRASP_ENTRY_SKILLS = frozenset({"grasp_object", "grasp_at_pixel", "handover"})
+
+
+def _with_move_home_first(result: dict) -> dict:
+    """Put the move_home recovery step first in `next_action` of a result
+    whose last grasp attempt left the arm where it stopped. Idempotent."""
+    own = str(result.get("next_action") or "").strip()
+    if _REFUSED_GRASP_LEFT_IN_PLACE not in own:
+        result["next_action"] = _REFUSED_GRASP_LEFT_IN_PLACE + (f" {own}" if own else "")
+    return result
 
 
 def _with_failure_instruction(result: dict) -> dict:

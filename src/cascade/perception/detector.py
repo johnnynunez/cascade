@@ -10,6 +10,7 @@ by `apps.demo._make_detector`.
 from __future__ import annotations
 
 import abc
+import contextlib
 
 import numpy as np
 
@@ -28,6 +29,17 @@ class Detector(abc.ABC):
     @abc.abstractmethod
     def set_classes(self, classes: list[str] | None) -> None:
         """Restrict the vocabulary; `None`/`[]` restores open-world detection."""
+
+
+def foreground(detector):
+    """The detector's foreground-perception scope: a detector whose CLASS
+    defines `foreground` (the brain detector, and `world.LockedDetector`
+    forwarding it) holds off its background work inside it; any other
+    detector gets a no-op scope. Only the class counts: a Mock answers every
+    attribute."""
+    if callable(getattr(type(detector), "foreground", None)):
+        return detector.foreground()
+    return contextlib.nullcontext()
 
 
 def detect_vocabulary(detector, frame: Frame, classes: list[str] | None) -> list[Detection]:

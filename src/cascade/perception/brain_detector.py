@@ -11,6 +11,7 @@ with coordinates normalized to 0-1000 of the full image.
 from __future__ import annotations
 
 import base64
+import contextlib
 import json
 import logging
 import math
@@ -146,8 +147,14 @@ _JPEG_QUALITY = 85
 _THUMB_SIZE = (64, 36)
 #: At most one failure warning per detector in this many seconds.
 _WARN_EVERY_S = 30.0
-#: close() waits this long beyond the request timeout for a refresh to finish.
+#: close() waits this long beyond the background request timeout for a
+#: refresh to finish (after cancelling it, a stream ends at its next chunk).
 _CLOSE_MARGIN_S = 5.0
+#: Every foreground() scope entry waits at most this long for a cancelled
+#: background request to close its stream before the foreground work starts
+#: (BEFORE the skill takes its frame, so it never ages that frame). A request
+#: still waiting for its first chunk (prefill) may outlast it.
+_CANCEL_WAIT_S = 0.5
 #: close() waits this long for the SAM warm-up (weights load + the first,
 #: cold CUDA predict): the same minute thread_join.EXIT_JOIN_S allows the
 #: slowest cold tick measured. Past it, shutdown names the thread instead.
@@ -256,10 +263,26 @@ class ReanchorReference(NamedTuple):
     geometry: Detection | None = None
 
 
-def _camera_key(frame: Frame) -> tuple[int, int, int, int]:
-    """Frame carries no camera name; image size + intrinsics tell scene from wrist."""
+class _Cancelled(Exception):
+    """A background refresh closed by a foreground scope or close(): not a
+    failure (no backoff, no warning); the scope's exit requeues it."""
+
+
+def _camera_key(frame: Frame) -> tuple:
+    """Image size + intrinsics tell scene from wrist; a frame whose capture
+    names its camera (Isaac bridge, OVRTX) also keys by (source, camera): two
+    simulated cameras with the same size and K (the kitchen's cam0 and side)
+    would otherwise share one cache entry and invalidate each other's
+    inventory on every tick. Frames without that identity (RealSense, mock)
+    keep the size + K key."""
     h, w = frame.rgb.shape[:2]
-    return h, w, round(float(frame.K[0, 0])), round(float(frame.K[0, 2]))
+    key = (h, w, round(float(frame.K[0, 0])), round(float(frame.K[0, 2])))
+    capture = getattr(frame, "capture", None)
+    if isinstance(capture, dict) and isinstance(capture.get("camera"), str):
+        # str(): the bridge's source is a (host, port) tuple; any other shape
+        # must not make the key unhashable.
+        return key + (str(capture.get("source")), capture["camera"])
+    return key
 
 
 def _cache_key(frame: Frame, queries: tuple[str, ...] | None):
@@ -469,9 +492,13 @@ class BrainDetector(Detector):
     they return a track step (SAM on the cached boxes in THIS frame) and, once
     the entry is older than `refresh_s`, start a background refresh.
     Otherwise (no entry, scene changed, too old) they ask the brain
-    synchronously and store the answer. One exception (Ruling 35): an entry
-    past `max_cache_age_s` whose scene is unchanged keeps being tracked while
-    that key's background refresh is in flight or waiting for the slot.
+    synchronously, under `inventory_timeout_s` (the same tokens as a
+    background inventory), and store the answer. One exception (Ruling 35):
+    an entry past `max_cache_age_s` whose scene is unchanged keeps being
+    tracked while that key's background refresh is in flight or waiting for
+    the slot. Keep `max_cache_age_s >= idle_refresh_s` (every shipped profile
+    does): an unchanged scene's entry then ages out only once the watcher's
+    idle refresh is pending, so it never costs a synchronous inventory.
 
     Two clocks:
     - `refresh_s` (default 4 s): the synchronous path's freshness threshold
@@ -513,21 +540,42 @@ class BrainDetector(Detector):
     (size-aware) of the other; refused as a failed re-anchor when the mask is
     missing, empty or off the box.
 
+    Foreground scope (`foreground()`, re-entrant; the runtime holds it for
+    motion skills, preview_grasp and localize_object): background work never
+    competes with a foreground localization for the brain or SAM. While it
+    is held, no background refresh starts (requests still queue, keeping
+    their latest frame), the one in flight is cancelled (background requests
+    stream with `inventory_timeout_s`; a cancelled stream is closed, which
+    aborts the request on the server, and goes back to the queue with the
+    key's newest frame: no backoff, no warning, whatever error ends it), and
+    `detect_nowait` returns [] without a SAM call. When the outermost scope
+    ends, the oldest waiting request starts. An agent's refers stay single
+    non-streaming requests (`timeout_s`).
+
     Safe to call from several threads at once: the cache lock is never held
     across the brain or SAM call, and the segmenter serializes its own model
     calls.
     """
 
     concurrent_safe = True
+    #: world.WorldWatcher asks a non-fusing camera (fuse=False: the sim's proof
+    #: camera, the rig's wrist) nothing: no background inventory, no SAM step.
+    #: The primary camera is exempt (its entry serves describe_scene and
+    #: localization).
+    background_fusing_cameras_only = True
 
     def __init__(self, *, base_url: str, model: str, api_key_file: str | None = None,
                  timeout_s: float = 20.0, max_tokens: int = 1500, segmenter: BoxSegmenter | None = None,
                  refresh_s: float = 4.0, max_cache_age_s: float = 30.0, scene_change: float = 6.0,
-                 idle_refresh_s: float = 30.0, reanchor_local_diff: float = 8.0,
-                 reanchor_mask_agreement: float = 0.95, client=None, clock=time.monotonic):
+                 idle_refresh_s: float = 30.0, inventory_timeout_s: float | None = None,
+                 reanchor_local_diff: float = 8.0, reanchor_mask_agreement: float = 0.95,
+                 client=None, clock=time.monotonic):
         self._base_url = str(base_url)
         self._model = str(model)
         self._timeout_s = float(timeout_s)
+        # Background (streamed) requests: the whole request, first byte to last
+        # chunk. Defaults to timeout_s; a slow brain's inventory needs more.
+        self._inventory_timeout_s = float(timeout_s if inventory_timeout_s is None else inventory_timeout_s)
         self._max_tokens = int(max_tokens)
         self._segmenter = segmenter
         self._refresh_s = float(refresh_s)
@@ -552,6 +600,10 @@ class BrainDetector(Detector):
         # background: the backoff both paths obey. A success for the key clears it.
         self._failed_at: dict[tuple, float] = {}
         self._threads: set[threading.Thread] = set()
+        # The cancel Event of each background request in flight (by key).
+        self._cancels: dict[tuple, threading.Event] = {}
+        # Depth of foreground() scopes held right now (re-entrant, any thread).
+        self._foreground = 0
         self._closed = False
         self._last_warn: float | None = None
         # The SAM warm-up on this detector's segmenter. apps.demo starts it
@@ -621,6 +673,9 @@ class BrainDetector(Detector):
         background refresh asks the brain at once. No refresh starts while
         the key backs off after a failed call; while another refresh runs,
         the request waits for the slot (served oldest-first).
+
+        Inside a foreground() scope: [] without any SAM call; a refresh the
+        frame needs is queued (with this frame) and starts after the scope.
         """
         try:
             queries = tuple(str(q) for q in classes) if classes else None
@@ -630,6 +685,9 @@ class BrainDetector(Detector):
             known = self._known_entry(key, thumb)
             if known is None or now - known.t > self._idle_refresh_s:
                 self._start_refresh(key, frame, thumb, now)
+            with self._lock:
+                if self._foreground:
+                    return []  # the GPU belongs to the foreground localization
             return self._track_known(frame, known)
         except Exception as e:  # noqa: BLE001 - booth rule: degrade, never crash the caller
             self._warn("detection failed; returning no detections", e)
@@ -808,17 +866,61 @@ class BrainDetector(Detector):
         return ReanchorResult(detection, False, "", diff_global, diff_local, prompt_box, match.iou,
                               match.agreement, match.dropped, clip.removed)
 
+    @contextlib.contextmanager
+    def foreground(self):
+        """Hold off background work while a foreground localization runs
+        (re-entrant, from any thread; see the class docstring). Every entry
+        cancels the background request in flight and waits up to
+        `_CANCEL_WAIT_S` for a cancelled stream still open (one in prefill
+        outlives the outermost scope's wait; a nested or another thread's
+        scope must not overlap its last chunk either). Leaving the outermost
+        scope (also by an exception) starts the oldest waiting refresh."""
+        entered = False
+        try:
+            with self._lock:
+                # Counted inside the try: an asynchronous KeyboardInterrupt
+                # after this line still ends the scope in the finally.
+                self._foreground += 1
+                entered = True
+                for cancel in self._cancels.values():
+                    cancel.set()
+                threads = list(self._threads)
+            if threads:
+                deadline = time.monotonic() + _CANCEL_WAIT_S
+                for thread in threads:
+                    thread.join(max(0.0, deadline - time.monotonic()))
+            yield
+        finally:
+            if entered:
+                with self._lock:
+                    self._foreground -= 1
+                    self._start_next(self._clock())
+
+    @staticmethod
+    def camera_key(frame: Frame) -> tuple:
+        """The camera part of this frame's cache key (apps.demo warns when
+        two watched cameras share one)."""
+        return _camera_key(frame)
+
+    def refresh_threads(self) -> list[threading.Thread]:
+        """The background refresh threads in flight (apps.demo.owned_threads)."""
+        with self._lock:
+            return list(self._threads)
+
     def close(self) -> None:
-        """Join the refresh threads in flight and the SAM warm-up, each with
-        a bound; later refreshes do not start. A thread past its bound keeps
-        running and is reported on stderr; shutdown_runtime lists a warm-up
-        still alive in its pending threads."""
+        """Cancel the background request in flight (its stream closes at
+        the next chunk), then join the refresh threads and the SAM warm-up,
+        each with a bound; later refreshes do not start. A thread past its
+        bound keeps running and is reported on stderr; shutdown_runtime lists
+        one still alive in its pending threads."""
         with self._lock:
             self._closed = True
             self._waiting.clear()  # no later refresh; drops their frames
+            for cancel in self._cancels.values():
+                cancel.set()
             threads = list(self._threads)
         for thread in threads:
-            join_thread(thread, what="brain detector", timeout_s=self._timeout_s + _CLOSE_MARGIN_S)
+            join_thread(thread, what="brain detector", timeout_s=self._inventory_timeout_s + _CLOSE_MARGIN_S)
         join_thread(self.warm_up_thread, what="brain detector", timeout_s=_WARM_UP_JOIN_S)
 
     # -- brain transport ----------------------------------------------------
@@ -835,8 +937,13 @@ class BrainDetector(Detector):
                                       timeout=self._timeout_s, max_retries=0)
             return self._client
 
-    def _ask(self, image_url: str, prompt: str) -> str:
-        resp = self._get_client().chat.completions.create(
+    def _ask(self, image_url: str, prompt: str, cancel: threading.Event | None = None,
+             timeout: float | None = None) -> str:
+        """One brain request. Foreground (`cancel` None): a single
+        non-streaming completion under `timeout` (None: the client's
+        `timeout_s`, an agent's refer). Background (a refresh's cancel
+        Event): streamed under `inventory_timeout_s`, see `_ask_streamed`."""
+        request = dict(
             model=self._model,
             temperature=0,
             max_tokens=self._max_tokens,
@@ -849,17 +956,51 @@ class BrainDetector(Detector):
             }],
             extra_body={"chat_template_kwargs": {"enable_thinking": False}},
         )
-        choice = resp.choices[0]
-        text = choice.message.content or ""
+        if cancel is None:
+            per_request = {} if timeout is None else {"timeout": timeout}
+            choice = self._get_client().chat.completions.create(**request, **per_request).choices[0]
+            text, finish_reason = choice.message.content or "", getattr(choice, "finish_reason", None)
+        else:
+            text, finish_reason = self._ask_streamed(request, cancel)
         # A garbled reply is a failed call, never an empty table: cut at
         # max_tokens (even if a list closed before the cut), or neither a box
         # list nor a reply opening with "[]" (what both prompts ask for when
         # nothing is there).
-        if getattr(choice, "finish_reason", None) == "length":
+        if finish_reason == "length":
             raise ValueError(f"garbled reply, truncated at max_tokens={self._max_tokens}")
         if not _is_answer(text):
             raise ValueError(f"garbled reply, no box list: {text[:80]!r}")
         return text
+
+    def _ask_streamed(self, request: dict, cancel: threading.Event) -> tuple[str, str | None]:
+        """A background request: `stream=True` with the per-request timeout
+        `inventory_timeout_s` (openai applies it per read), plus the same
+        bound on the whole stream, checked between chunks. `cancel` is
+        checked before the request and between chunks: once set, the stream
+        is closed (the server aborts the request) and _Cancelled raised. A
+        stream that already ended is kept: the server's work is done.
+        -> (reply text, finish reason)."""
+        if cancel.is_set():
+            raise _Cancelled
+        deadline = time.monotonic() + self._inventory_timeout_s
+        stream = self._get_client().chat.completions.create(
+            **request, stream=True, timeout=self._inventory_timeout_s)
+        parts: list[str] = []
+        finish_reason = None
+        try:
+            for chunk in stream:
+                if cancel.is_set():
+                    raise _Cancelled
+                if time.monotonic() > deadline:
+                    raise TimeoutError(f"background request exceeded {self._inventory_timeout_s:g} s")
+                for choice in getattr(chunk, "choices", None) or ():
+                    content = getattr(getattr(choice, "delta", None), "content", None)
+                    if content:
+                        parts.append(content)
+                    finish_reason = getattr(choice, "finish_reason", None) or finish_reason
+        finally:
+            stream.close()
+        return "".join(parts), finish_reason
 
     # -- refer and inventory ------------------------------------------------
 
@@ -867,32 +1008,37 @@ class BrainDetector(Detector):
         labels, boxes = self._ask_refer(frame, queries)
         return self._detections(frame, labels, boxes, track=False)
 
-    def _ask_refer(self, frame: Frame, queries) -> tuple[list[str], np.ndarray]:
+    def _ask_refer(self, frame: Frame, queries, cancel: threading.Event | None = None,
+                   timeout: float | None = None) -> tuple[list[str], np.ndarray]:
         """One request per query, concatenated; labels are the queries."""
         h, w = frame.rgb.shape[:2]
         image_url = _jpeg_data_url(frame)
         labels: list[str] = []
         boxes: list[np.ndarray] = []
         for q in queries:
-            for _, box in parse_boxes(self._ask(image_url, REFER_PROMPT.format(q=q)), w, h):
+            for _, box in parse_boxes(self._ask(image_url, REFER_PROMPT.format(q=q), cancel, timeout), w, h):
                 labels.append(q)
                 boxes.append(box)
         return labels, np.array(boxes, dtype=np.float32).reshape(-1, 4)
 
-    def _ask_inventory(self, frame: Frame, thumb: np.ndarray, t: float) -> _Entry:
+    def _ask_inventory(self, frame: Frame, thumb: np.ndarray, t: float,
+                       cancel: threading.Event | None = None, timeout: float | None = None) -> _Entry:
         h, w = frame.rgb.shape[:2]
-        found = parse_boxes(self._ask(_jpeg_data_url(frame), INVENTORY_PROMPT), w, h)
+        found = parse_boxes(self._ask(_jpeg_data_url(frame), INVENTORY_PROMPT, cancel, timeout), w, h)
         boxes = np.array([box for _, box in found], dtype=np.float32).reshape(-1, 4)
         boxes.setflags(write=False)
         return _Entry(tuple(label for label, _ in found), boxes, thumb, t)
 
-    def _ask_entry(self, key, frame: Frame, thumb: np.ndarray, t: float) -> _Entry:
+    def _ask_entry(self, key, frame: Frame, thumb: np.ndarray, t: float,
+                   cancel: threading.Event | None = None, timeout: float | None = None) -> _Entry:
         """The brain call behind a cache key: the inventory prompt for
-        (camera, None), the refer loop for (camera, queries)."""
+        (camera, None), the refer loop for (camera, queries). `cancel`: a
+        background refresh (streamed, cancellable); `timeout`: a synchronous
+        pass's per-request timeout."""
         queries = key[1]
         if queries is None:
-            return self._ask_inventory(frame, thumb, t)
-        labels, boxes = self._ask_refer(frame, queries)
+            return self._ask_inventory(frame, thumb, t, cancel, timeout)
+        labels, boxes = self._ask_refer(frame, queries, cancel, timeout)
         boxes.setflags(write=False)
         return _Entry(tuple(labels), boxes, thumb, t)
 
@@ -935,7 +1081,10 @@ class BrainDetector(Detector):
             self._start_refresh(key, frame, thumb, now)
             return self._detections(frame, entry.labels, entry.boxes, track=True)
         try:
-            entry = self._ask_entry(key, frame, thumb, now)
+            # A synchronous inventory decodes as many tokens as a background
+            # one: it gets inventory_timeout_s, not an agent refer's timeout_s
+            # (the kitchen's 25 s inventory never fits timeout_s 20).
+            entry = self._ask_entry(key, frame, thumb, now, timeout=self._inventory_timeout_s)
         except Exception as e:  # noqa: BLE001 - booth rule: keep tracking, never raise
             with self._lock:
                 self._failed_at[key] = self._clock()
@@ -978,30 +1127,46 @@ class BrainDetector(Detector):
         goes to the key that has waited longest (ties: first asked) and is
         not backing off, with that key's own latest frame, whichever caller
         found the slot free. A waiting key leaves the queue when its refresh
-        starts, when an answer for it is stored, or on close().
+        starts, when an answer for it is stored, or on close(). Inside a
+        foreground() scope the request only queues (see `_start_next`).
+        A key whose own refresh was cancelled but is still closing (a request
+        in prefill sees the cancel only at its first chunk) queues this newer
+        frame: that refresh is requeued with it (`_refresh`).
         """
         with self._lock:
-            if self._closed or key in self._refreshing or self._backs_off(key, t):
+            if self._closed or self._backs_off(key, t):
                 return
+            cancel = self._cancels.get(key)
+            if key in self._refreshing and (cancel is None or not cancel.is_set()):
+                return  # its own refresh is in flight and will answer
             waiting = self._waiting.get(key)
             # Asking again keeps the key's place (dict order: first ask) and
             # updates its frame.
             self._waiting[key] = _Request(t if waiting is None else waiting.since, frame, thumb, t)
-            if self._refreshing:
-                return  # the slot is busy: wait for a turn
-            # The caller's own key qualifies, so there is always a choice;
-            # min() keeps the first of equal times, i.e. the first asked.
-            chosen, request = min(((k, r) for k, r in self._waiting.items() if not self._backs_off(k, t)),
-                                  key=lambda item: item[1].since)
-            del self._waiting[chosen]
-            thread = threading.Thread(target=self._refresh,
-                                      args=(chosen, request.frame, request.thumb, request.t),
-                                      name=f"brain-refresh-{chosen}", daemon=True)
-            # Started under the lock: close() never misses it, and the thread
-            # cannot reach its own bookkeeping before this block has recorded it.
-            thread.start()
-            self._refreshing.add(chosen)
-            self._threads.add(thread)
+            self._start_next(t)
+
+    def _start_next(self, t: float) -> None:
+        """Start the oldest waiting refresh that does not back off at `t`
+        (ties: first asked), if the slot is free, no foreground() scope is
+        held and the detector is open. The caller holds the lock."""
+        if self._closed or self._foreground or self._refreshing:
+            return  # closed, the GPU belongs to the foreground, or the slot is busy
+        # min() keeps the first of equal times, i.e. the first asked.
+        chosen, request = min(((k, r) for k, r in self._waiting.items() if not self._backs_off(k, t)),
+                              key=lambda item: item[1].since, default=(None, None))
+        if request is None:
+            return
+        del self._waiting[chosen]
+        cancel = threading.Event()
+        thread = threading.Thread(target=self._refresh, args=(chosen, request, cancel),
+                                  name=f"brain-refresh-{chosen}", daemon=True)
+        # Started under the lock: close() and foreground() never miss it, and
+        # the thread cannot reach its own bookkeeping before this block has
+        # recorded it.
+        thread.start()
+        self._refreshing.add(chosen)
+        self._threads.add(thread)
+        self._cancels[chosen] = cancel
 
     def _backs_off(self, key, t: float) -> bool:
         """`key` had a failed brain call less than `refresh_s` before `t`.
@@ -1009,23 +1174,43 @@ class BrainDetector(Detector):
         failed_at = self._failed_at.get(key)
         return failed_at is not None and t - failed_at < self._refresh_s
 
-    def _refresh(self, key, frame: Frame, thumb: np.ndarray, t: float) -> None:
+    def _refresh(self, key, request: _Request, cancel: threading.Event) -> None:
+        cancelled = False
         try:
             # Replaces the entry only on success; a failure keeps the old one,
             # which still ages out after max_cache_age_s.
-            self._store(key, self._ask_entry(key, frame, thumb, t))
+            self._store(key, self._ask_entry(key, request.frame, request.thumb, request.t, cancel))
         except Exception as e:  # noqa: BLE001 - background thread: log, never raise
-            # The key backs off from the failure (not the request), as after a
-            # failed synchronous inventory. Recorded before the in-flight mark
-            # is cleared below, so no refresh slips in between.
+            # A refresh whose cancel was set is never a failure, whatever
+            # ended it (_Cancelled, or a request cancelled in prefill that then
+            # timed out or broke): a foreground scope (or close) took the
+            # brain. A hung brain is caught by the next uncancelled refresh.
+            cancelled = isinstance(e, _Cancelled) or cancel.is_set()
             with self._lock:
-                self._failed_at[key] = self._clock()
-            what = "inventory" if key[1] is None else "vocabulary refer"
-            self._warn(f"{what} refresh failed; keeping the cached boxes", e)
+                if cancelled:
+                    # Back to the queue with its place and the newest frame (a
+                    # scene change seen while it was closing queued that one,
+                    # see _start_refresh). close() drops it instead.
+                    if not self._closed:
+                        newer = self._waiting.get(key)
+                        self._waiting[key] = request if newer is None else newer._replace(
+                            since=min(newer.since, request.since))
+                else:
+                    # The key backs off from the failure (not the request), as
+                    # after a failed synchronous inventory. Recorded before the
+                    # in-flight mark is cleared below, so no refresh slips in.
+                    self._failed_at[key] = self._clock()
+            if not cancelled:
+                what = "inventory" if key[1] is None else "vocabulary refer"
+                self._warn(f"{what} refresh failed; keeping the cached boxes", e)
         finally:
             with self._lock:
                 self._refreshing.discard(key)
                 self._threads.discard(threading.current_thread())
+                self._cancels.pop(key, None)
+                if cancelled:
+                    # The scope may have ended while this stream was closing.
+                    self._start_next(self._clock())
 
     # -- masks ----------------------------------------------------------------
 

@@ -26,6 +26,7 @@ from cascade.perception.brain_detector import (
     REFER_PROMPT,
     BrainDetector,
 )
+from fake_brain_stream import reply as answer
 
 W, H = 320, 180  # thumbnail 64x36 is an exact 5x area reduction
 
@@ -101,8 +102,8 @@ class FakeClient:
             reply = self.inventory
         else:
             reply = next((r for q, r in self.refer.items() if prompt == REFER_PROMPT.format(q=q)), "[]")
-        msg = SimpleNamespace(content=reply)
-        return SimpleNamespace(choices=[SimpleNamespace(message=msg, finish_reason=self.finish_reason)])
+        # A background refresh streams (stream=True): the same reply as chunks.
+        return answer(kwargs, reply, self.finish_reason)
 
     def prompts(self) -> list[str]:
         with self._lock:
@@ -363,7 +364,7 @@ def test_refresh_replaces_the_entry_on_success(make):
     client.inventory = _reply(BALL)
     clock.now = 5.0
     assert [d.label for d in det.detect(_frame(), None)] == ["paper cup"]
-    det.close()  # joins the refresh
+    _join_refreshes()  # not close(): close() cancels a refresh in flight
     clock.now = 6.0  # the new entry dates from 5.0: fresh
     assert [d.label for d in det.detect(_frame(), None)] == ["red ball"]
     np.testing.assert_allclose(seg.calls[-1][1], [_px(BALL[1])], rtol=1e-6)
@@ -381,7 +382,7 @@ def test_failed_refresh_keeps_the_old_entry(make, caplog):
     clock.now = 5.0
     with caplog.at_level(logging.WARNING, logger="cascade.perception.brain_detector"):
         det.detect(_frame(), None)
-        det.close()
+        _join_refreshes()  # not close(): close() cancels a refresh in flight
     assert client.inventory_calls() == 2
     assert len(caplog.records) == 1
     clock.now = 6.0

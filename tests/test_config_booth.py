@@ -17,6 +17,8 @@ def test_dev_defaults_without_booth_env(monkeypatch):
 
 def test_booth_overlay_applies_and_merges(monkeypatch):
     monkeypatch.setenv("CASCADE_BOOTH", "1")
+    # demo.yaml's own port (conftest points every test at a dead one)
+    monkeypatch.delenv("CASCADE_GRASPGENX_PORT", raising=False)
     cfg = load_demo_config()
     assert cfg.booth_mode is True
     # the five runbook §1 overrides

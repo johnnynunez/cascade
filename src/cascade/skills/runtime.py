@@ -6281,6 +6281,11 @@ class SkillRuntime:
                 except (SkillError, SafetyViolation):
                     pass
             return rec
+        if self.effects is not None:
+            # The place's own jaw width, holding state and actuation counts
+            # (place_at's release rule), taken now: the grasp-time snapshot
+            # above predates the close (nothing held, no width).
+            before = {**before, **self.effects.snapshot(None, "place_at")}
         try:
             place = self.skill_place_at(x, y)
         except (SkillError, SafetyViolation) as e:

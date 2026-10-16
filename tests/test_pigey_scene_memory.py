@@ -489,6 +489,11 @@ def test_snapshot_then_restore_on_the_mock_stack_moves_through_the_harness_and_s
     # the static mock camera and the belief the skill itself wrote cannot
     # independently confirm the layout
     assert out["moves"][0]["postcondition"]["skill"] == "place_at"
+    # ... judged on the place's own jaw width and counted open, like the
+    # primitive (follow-ups fix 1, minor 4: a width unknown before the call
+    # is "gripper state unavailable", never a confirmed placement)
+    move_pc = out["moves"][0]["postcondition"]
+    assert move_pc["status"] == "confirmed" and "rests" in move_pc["evidence"], move_pc
     pc = out["postcondition"]
     assert pc["kind"] == "restored" and pc["status"] == "unverified", pc
     assert "verification_note" in out

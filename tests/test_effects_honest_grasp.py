@@ -1158,12 +1158,50 @@ def test_place_at_claims_a_release_only_after_a_measured_widening(rise, found, a
 
 def test_place_at_with_nothing_held_never_claims_a_release():
     """M6: nothing in the jaws before the call (T3-c): the completed open
-    released nothing, so the object found is only 'located'."""
+    released nothing, so the object found is only 'located', UNVERIFIED as a
+    placement (fix round 1, minor 4)."""
     checker, before, jaw = _place_checker(0.0, False, [0.3, 0.1, 0.02])
     jaw["frac"] = 1.0
     pc = checker.verify("place_at", {}, {"ok": True}, before=before)
-    assert pc.status == CONFIRMED and pc.evidence == "cube located (belief)", pc
+    assert pc.status == UNVERIFIED and pc.evidence == "cube located (belief); nothing was held: no release measured", pc
     checker, before, jaw = _place_checker(0.0, False, None)
     jaw["frac"] = 1.0
     pc = checker.verify("place_at", {}, {"ok": True}, before=before)
     assert pc.status == UNVERIFIED and pc.evidence == "jaw at 1.00 but cube was not re-located", pc
+
+
+@pytest.mark.parametrize("args", [{"x": 0.3, "y": 0.1}, {}], ids=["at a point", "no point"])
+@pytest.mark.parametrize(("before_frac", "after_frac", "holding", "why"), [
+    (None, 0.79, True, "gripper state unavailable"),
+    (0.389, None, True, "gripper state unavailable"),
+    (None, None, True, "gripper state unavailable"),
+    (None, None, None, "gripper state unavailable"),
+    (0.0, 1.0, False, "nothing was held"),
+    (None, None, False, "nothing was held"),
+], ids=["width unknown before", "width unknown after", "width unknown", "nothing known", "nothing held",
+        "nothing held, width unknown"])
+def test_place_at_without_a_measurable_release_is_unverified(args, before_frac, after_frac, holding, why):
+    """Fix round 1 (minor 4, pre-existing): a counted open whose release
+    cannot be measured (the jaw width unknown before the call, after it or
+    both; nothing in the jaws) never confirms a placement: UNVERIFIED with
+    the reason open_gripper gives, never CONFIRMED 'rests 0.0 cm from the
+    requested point' (the object found at the point may never have left
+    the jaws). The distance stays measured."""
+    checker, before, jaw = _place_checker(before_frac, holding, [0.3, 0.1, 0.02])
+    jaw["frac"] = after_frac
+    pc = checker.verify("place_at", args, {"ok": True}, before=before)
+    assert pc.status == UNVERIFIED, pc
+    if args:
+        assert pc.evidence == f"cube is 0.0 cm from the requested point (belief), but {why}: no release measured", pc
+        assert pc.measured["target_err_m"] == 0.0, pc
+    else:
+        assert pc.evidence == f"cube located (belief); {why}: no release measured", pc
+
+
+def test_place_at_far_from_the_point_is_refuted_whatever_the_jaws_read():
+    """The release rule only withholds a CONFIRMED placement: an object
+    found 20 cm from the requested point is REFUTED, measured or not."""
+    checker, before, jaw = _place_checker(None, True, [0.3, 0.3, 0.02])
+    jaw["frac"] = None
+    pc = checker.verify("place_at", {"x": 0.3, "y": 0.1}, {"ok": True}, before=before)
+    assert pc.status == REFUTED and pc.evidence == "cube ended 20.0 cm from the requested point", pc

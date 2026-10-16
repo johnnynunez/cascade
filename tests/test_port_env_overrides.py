@@ -4,7 +4,7 @@ scripts/launch.sh starts the Isaac bridge and the GraspGen-X and occupancy sidec
 these ports. Before B34 only GraspGenXPlanner read its variable: the bridge clients and
 the occupancy client dialled the profile / demo.yaml values (8611 / 5557), so a launch on
 private ports left the runtime talking to whatever held the defaults
-(docs/LOCAL_RTX_VALIDATION.md, profiling attempt 07). load_demo_config now applies the
+(local profiling attempt 07). load_demo_config now applies the
 three variables LAST, over every layer and every arm's `resolved` view; unset or empty
 keeps the configured port; a malformed value raises naming the variable.
 

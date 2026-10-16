@@ -2,7 +2,7 @@
 
 This is an engine-specific validation matrix. The installed Spark presenter
 currently defaults to PhysX; the raw bridge still defaults to Newton. See
-[profile defaults and current acceptance](PROJECT_STATUS_20261001.md).
+[profile defaults and current acceptance](ROADMAP.md).
 Results for one engine, asset or architecture do not certify another.
 
 `scripts/isaac_bridge.py` defaults to `--engine newton`. The Spark launcher
@@ -130,7 +130,7 @@ Explicit `place_at(z=...)` commands retain their requested height. If no valid
 held geometry exists, the configured release height remains the fallback.
 These historical trials used truth-assisted held-object XY/slip compensation
 and were not perception-only; the passive witness itself never fed the controller.
-Current slip authority additionally follows the [coherent observation contract](HELD_OBJECT_OBSERVATION.md); cached compensation alone cannot authorize release.
+Current slip authority additionally follows the [coherent observation contract](ARCHITECTURE.md#grasp-pipeline); cached compensation alone cannot authorize release.
 
 Transport has its own 140 mm clearance and vertical pre-lift, independent of
 the final descent. Before retreat the runtime waits for at least 98% measured

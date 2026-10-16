@@ -49,9 +49,7 @@ walking candidate ([HUMANOID_H2.md](HUMANOID_H2.md)) uses the same
 `MobileBase` / `SafeBase` / verifier path through its own owner process;
 neither robot is admitted physically.
 
-See the [capability and acceptance index](PROJECT_STATUS_20261003.md) for merged
-changes, software validation and physical runs, and the
-[integration report](MANIPULATION_ASSEMBLY_20261002.md) for earlier experiments.
+See the [roadmap](ROADMAP.md) for measured results and remaining work.
 Counts are derived at the end of this document; dated benchmark measurements
 retain their original scope.
 Read this after the README and before `AGENTS.md`.
@@ -1504,7 +1502,7 @@ barriers.
 
 - Historical pre-delivery baseline: **737 passed, 2 deselected (hardware),
   0 skipped**, ~4 min. This is not the final count after installer changes;
-  current delivery checks are recorded in `docs/SPARK_DELIVERY.md`.
+  current delivery checks are in `docs/DGX_SPARK_SETUP.md`.
 - Real chat path, one gateway session (the dashboard path): two-cube
   memory task -- 2 `pick_and_place` confirmed on the physics channel,
   0 tool failures, the brain's answer cites the memory frames' verdicts;

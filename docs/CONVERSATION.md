@@ -11,8 +11,7 @@ servers, generated PCM/WAV audio, a synthetic sensor profile and the actual CLI.
 A separate owned GPU run also exercised local HF speech-model inference and
 readonly tools. Its small three-phrase recipe completed speech input/output for
 all three phrases but satisfied only two requested intents; an incorrect
-success narration remains a recorded failure. See the
-[native speech evidence and recipes](CONVERSATION_NATIVE_20261002.md).
+success narration remains a recorded failure.
 A separate Chromium 153 run on source `4d8c350` exercises the actual browser,
 AudioWorklet, AudioContext, HTTP/WebSocket gateway and composed sensor runtime.
 A fake microphone WAV produced ten nonzero PCM chunks; an explicit tool call
@@ -29,7 +28,7 @@ deadline, so this does not admit CPU speech tools or practical interactive
 latency. Hardware audio, general listening accuracy and physical task success
 remain unvalidated.
 
-The later [voice-to-MicroDuck recording](PROJECT_STATUS_20261003.md#rgb-d-geometry-speech-and-evaluation)
+The later [voice-to-MicroDuck recording](ROADMAP.md)
 binds synthetic input speech, a real provider tool decision and a short native
 motion in one episode. That recording has no spoken robot reply and does not
 establish general walking or dialogue reliability. The [architecture diagram](ROBOT_MODULARITY.md)
@@ -778,7 +777,7 @@ from the lightweight gateway installation.
 The referenced Reachy Space is an installation/source landing page. Its app's
 allocator path is not a generic free endpoint, and this implementation does not
 call it or present a fabricated Reachy identity. The earlier
-[conversation research](MICRODUCK_CONVERSATION_DESIGN.md) preserves the exact
+conversation research preserved the exact
 application, SDK and allocator pins and the distinction between hosting and
 inference.
 

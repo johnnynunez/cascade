@@ -151,7 +151,7 @@ def test_premise_only_a_fault_first_seen_at_the_post_ack_baseline_escapes_the_dr
     """Pins the cause, not a desired property (flag off passes on main by design).
 
     SafeBase integrates lateral/heading drift from the first completed post-ACK
-    sample (docs/MICRODUCK_DISTANCE_CANDIDATE.md, "Implemented contract"). A
+    sample (docs/MICRODUCK.md, "Implemented contract"). A
     constant lateral/heading offset first seen AT that baseline is part of it and
     the walk completes; the same offset one sample later is vetoed. Posture
     (low/tilt) is checked on every sample, baseline included, so it is vetoed at

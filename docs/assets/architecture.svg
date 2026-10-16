@@ -670,7 +670,7 @@ L 1128.96 753.84
     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #ac620a" x="1123.2" y="852.198281" transform="rotate(-0 1123.2 852.198281)">Dashed arrows: task validation pending</text>
    </g>
    <g id="text_72">
-    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="39.6" y="896.878125" transform="rotate(-0 39.6 896.878125)">Module availability is not physical validation. See docs/PROJECT_STATUS_20261003.md for source-bound results.</text>
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="39.6" y="896.878125" transform="rotate(-0 39.6 896.878125)">Module availability is not physical validation. See docs/ROADMAP.md for measured results.</text>
    </g>
    <g id="text_73">
     <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52647b" x="39.6" y="919.498359" transform="rotate(-0 39.6 919.498359)">Architecture source: docs/ROBOT_MODULARITY.md  •  Editable SVG + PNG  •  No claim of general human-level capability</text>

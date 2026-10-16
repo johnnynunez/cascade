@@ -13,12 +13,11 @@ composed reverse motion and larger or positive turns still have retained failure
 PhysX BAM, scene reset, hardware, and hosted conversation
 are not delivered by this locomotion change.
 
-The implementation continues the [approved design](superpowers/plans/2026-10-01-microduck.md)
-and the [dated review](MICRODUCK_DESIGN_REVIEW_20261002.md). That review describes
-an earlier source snapshot; the current continuation adds inference cancellation
+The implementation continues the approved 2026-10-01 design and its dated
+review. That review described an earlier source snapshot; the current
+continuation adds inference cancellation
 fencing, explicit solved support, and complete effective-model identity.
-The [continuation report](MICRODUCK_CONTINUATION_20261002.md) preserves its
-original native MCP outcomes and failures. The [current capability index](PROJECT_STATUS_20261003.md)
+The [current capability index](ROADMAP.md)
 links later distance and conversation results, with their source/model limits.
 The [modular architecture](ROBOT_MODULARITY.md) separates single-robot control
 from shared-scene ownership; the ordinary native bridge still owns one robot.
@@ -246,8 +245,7 @@ pending/unverified. A separate observer can later confirm or refute that stop,
 with the same receipt ID. It cannot repair the outcome of an earlier failed
 motion. Late, pending and duplicate observations cannot supply positive settling
 evidence, but their faults, residual motion and support failures still veto an
-earlier quiet window. See [stop verification and native finalization](MICRODUCK_STOP_VERIFICATION.md)
-for this distinction, signal handling and provisional SDK-shutdown receipts.
+earlier quiet window.
 `reset_stop` only restores command permission; it does not reset the
 physics world or prove a new scene epoch.
 
@@ -666,13 +664,10 @@ The current real MCP campaign confirms supported standing and a separately
 observed stop. Forward/reverse tracking is refuted and both turns expire.
 Interruption and disconnect invalidate admitted commands; braking from an
 established gait remains unproved. Small forward and reverse commands also
-failed tracking in an earlier upstream reference. The
-[startup research](research/microduck-policy-startup-2026-10-02.md) reports a
-related upstream issue and its limits; the
-[BAM follow-up](research/microduck-bam-2026-10-02.md) distinguishes the pinned
-actuator from incompatible newer fits. Neither establishes a remedy.
-The [full-mjlab diagnostic](research/microduck-fullenv-startup-2026-10-02.md)
-also records negligible +0.1 m/s motion from rest and after a +0.3 phase,
+failed tracking in an earlier upstream reference. The 2026-10-02 startup
+research found a related upstream issue and showed that the pinned actuator
+differs from incompatible newer fits; neither establishes a remedy. A
+full-mjlab diagnostic also recorded negligible +0.1 m/s motion from rest and after a +0.3 phase,
 with the same official policy and unchanged production limits.
 
 Required acceptance includes current-source equilibrium, forward/reverse
@@ -686,7 +681,7 @@ Models remain external: their notices declare BY-SA-NC without a version;
 code, weights and the BAM implementation retain their separate notices.
 This change does not vendor meshes, USD or ONNX files. The implemented
 [conversation gateway](CONVERSATION.md) retains the ownership boundary from the
-[earlier hosted conversation design](MICRODUCK_CONVERSATION_DESIGN.md).
+earlier hosted conversation design.
 
 ### Shared-scene implementation boundary
 

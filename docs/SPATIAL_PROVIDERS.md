@@ -10,8 +10,8 @@ explicit `SensorHub` to these same transform and memory contracts. It records
 selected surface pixels as caller annotations, using capture-bound calibration
 and provenance. It does not construct a grid or expose route planning.
 
-The replay implements the first increment proposed in
-[the HomeBody comparison](HOMEBODY_COMPARISON.md). It is not a HomeBody port,
+The replay implements the first increment of the HomeBody comparison. It is
+not a HomeBody port,
 physical localization source or admitted mobile-manipulation stack.
 
 ## Optional cuVSLAM localization

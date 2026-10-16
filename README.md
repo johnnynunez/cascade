@@ -14,13 +14,11 @@ independently of model latency. See the [architecture diagram and capability
 boundaries](docs/ROBOT_MODULARITY.md) for the implemented modules and proposed
 multi-robot layer.
 
-[Current capability and acceptance status](docs/PROJECT_STATUS_20261003.md)
+[Current capability and acceptance status](docs/ROADMAP.md)
 separates implemented features, source-bound measurements and pending validation.
 Local results do not establish complete kitchen or Spark runtime acceptance,
-hardware fastening or calibrated preload. See the
-[manipulation and assembly evidence](docs/MANIPULATION_ASSEMBLY_20261002.md) and
-[local validation history](docs/LOCAL_RTX_VALIDATION.md) for retained successes
-and failures, and [Architecture](docs/ARCHITECTURE.md) for the runtime design.
+hardware fastening or calibrated preload. See
+[Architecture](docs/ARCHITECTURE.md) for the runtime design.
 
 The optional [MicroDuck mobile runtime](docs/MICRODUCK.md) adds bounded base
 commands, a native Newton policy loop, independent support verification and
@@ -46,7 +44,7 @@ plaintext on loopback by default, [opt-in TLS with a pinned CA](docs/CONVERSATIO
 
 The read-only [spatial domain](docs/SPATIAL_PROVIDERS.md) adds capture-time
 transforms, landmark memory and synthetic planar route proposals. The separate
-[observed RGB-D path](docs/RGBD_SPATIAL_OBSERVATIONS.md) retains calibrated
+[observed RGB-D path](docs/SPATIAL_PROVIDERS.md#retained-rgb-d-surface-observations) retains calibrated
 surface annotations. An optional cuVSLAM provider estimates local RGB-D poses in
 an isolated process (a live native simulation stream tracked 12 captures; pose
 uncertainty is uncalibrated); calibrated localization and native route
@@ -68,7 +66,7 @@ home poses, tool-frame convention, reach and gripper travel come from that
 profile, and the skills, safety harness and grasp planner read them. Backend
 capabilities remain explicit: Isaac motion requires a physical clock, and its
 observed-finger and held-object guards require bound capture metadata. The
-[NV carry guard](docs/NVBLOX_CARRY_ATTACHMENT.md) stops transport when its
+[NV carry guard](docs/NVBLOX.md#payload-and-release-contracts) stops transport when its
 retained attachment is lost or unavailable; it does not cure mechanical slip. Model
 device selection uses [`resolve_device()`](src/cascade/device.py), which probes the
 host; required CUDA or learned-inference profiles fail when that capability
@@ -85,7 +83,7 @@ multimodal traces + skill library) and
 advisor + experience memory), in the same
 service-oriented/composable spirit as [RPent](https://github.com/RLinf/RPent).
 
-[PAAI staff guide](docs/BOOTH_GUIDE.md) · [DGX Spark setup](docs/DGX_SPARK_SETUP.md) · [Spark delivery](docs/SPARK_DELIVERY.md) · [Architecture](docs/ARCHITECTURE.md) · [Quickstart](docs/QUICKSTART.md) · [Physical rig runbook](docs/BOOTH_RUNBOOK.md) · [Roadmap](docs/ROADMAP.md) · [Agent guide](AGENTS.md)
+[PAAI staff guide](docs/BOOTH_RUNBOOK.md#10-paai-on-brev-staff-guide) · [DGX Spark setup](docs/DGX_SPARK_SETUP.md) · [READY checks](docs/DGX_SPARK_SETUP.md#ready-checks-and-quick-recovery) · [Architecture](docs/ARCHITECTURE.md) · [Quickstart](docs/QUICKSTART.md) · [Physical rig runbook](docs/BOOTH_RUNBOOK.md) · [Roadmap](docs/ROADMAP.md) · [Agent guide](AGENTS.md)
 
 The optional [OVRTX renderer](docs/OVRTX_RENDERER.md) can now supply the Isaac
 bridge's live RGB-D and robot/prop masks from physics-owned snapshots. Rendering
@@ -95,12 +93,12 @@ and body transforms to the same physical step.
 The optional [cuMotion planner](docs/CUMOTION.md) now participates in ordinary
 skills through the `isaac_cumotion` arm profile. SafeArm vets and streams its
 native curves with the existing motion, contact and cancellation gates.
-The [Factory fastening experiment](docs/FACTORY_THREAD_CONTACT.md) provides
+The [Factory fastening experiment](docs/FACTORY_FASTENING_RUNTIME.md#thread-contact-fixture) provides
 physical thread and seating evidence using a mounted hex socket and a fixed
 bolt fixture. The ordinary `turn_screw` skill still reports physical tightening
 as unverified; its commanded wrist travel is not a thread measurement.
 
-The [fixed LEAP hand runtime](docs/ARTICULATED_HAND.md) adds sixteen-joint
+The [fixed LEAP hand runtime](docs/ROBOT_MODULARITY.md#fixed-leap-hand-leap_hand_right_mujoco) adds sixteen-joint
 free finger motion with source-pinned MuJoCo models and observed retained-rest
 verification. Loaded contact rejects this first recipe; dexterous grasping and
 calibrated tactile sensing remain pending.
@@ -126,7 +124,7 @@ the result.
 
 The authenticated attendee page shows cameras. A separate `/staff/` page
 explains the prompts, result checks and recovery steps. See the
-[booth guide](docs/BOOTH_GUIDE.md) for the staff walkthrough.
+[booth guide](docs/BOOTH_RUNBOOK.md#10-paai-on-brev-staff-guide) for the staff walkthrough.
 
 ## Roadmap
 
@@ -142,7 +140,7 @@ passes attendee evaluation. Until then, Qwen remains the event path.
 
 Optional **ovrtx** RGBD now runs on x86 and ARM with separate rendering evidence;
 it is not included in the historical `477c88f` runtime baseline. Automatic
-physics producers remain future work. [Jev/Kev](docs/JEV_DECISIONS.md) remains
+physics producers remain future work. Jev/Kev remains
 offline decision research.
 
 ## Brev deployment
@@ -194,12 +192,12 @@ A Firefox build of the same companion lives in
 [`extensions/firefox`](extensions/firefox). Build it with
 `python3 extensions/firefox/package.py`, then load the `.xpi` from
 `about:debugging` as a temporary add-on. See the
-[Firefox instructions](docs/FIREFOX_EXTENSION.md).
+[Firefox instructions](docs/CHROME_EXTENSION.md#firefox).
 
 ## What it runs on
 
 **Robots.** Select a [composed profile](configs/robots/) for domain capabilities
-and an optional [embodiment](docs/EMBODIMENT.md) for structure and sensor bindings.
+and an optional [embodiment](docs/ROBOT_MODULARITY.md#declared-embodiment-embodiment) for structure and sensor bindings.
 An arm driver subclasses `ArmBase` (six methods) and uses a
 YAML profile in `configs/arms/` — see
 [the arm interface](src/cascade/control/arm_base.py). Register the backend in
@@ -240,8 +238,7 @@ stack above (safety harness, IK, grasping, skills, MCP tools) drives it
 unchanged. The humanoid profiles drive the ARM of a standing H1/H1-2 for
 tabletop skills — locomotion stays with Unitree's own controller, and a
 handless arm declares `max_width_m: 0` so grasps are *refused honestly*
-instead of mimed. See [`docs/ROS2_BACKEND_BRIEF.md`](docs/ROS2_BACKEND_BRIEF.md)
-for the design rationale (QoS, streaming trade, stop semantics).
+instead of mimed.
 
 For a real Franka Research 3, use the [OpenClaw and Chrome camera workflow](docs/FRANKA_OPENCLAW.md). It connects Cosmos to one shared native MCP runtime and starts with STOP latched.
 
@@ -300,9 +297,7 @@ samples are retained. Use `--duration <seconds>` to bound a recording.
 > interface (Twist / Nav2), no collision map built from a base's own
 > sensors, no whole-body controller and no hardware base. Current state, with
 > code paths and evidence:
-> [Architecture → ROS2, humanoids, and what is NOT here yet](docs/ARCHITECTURE.md#ros2-humanoids-and-what-is-not-here-yet);
-> the original design is
-> [`docs/MOBILITY_AND_NAVIGATION_DESIGN.md`](docs/MOBILITY_AND_NAVIGATION_DESIGN.md).
+> [Architecture → ROS2, humanoids, and what is NOT here yet](docs/ARCHITECTURE.md#ros2-humanoids-and-what-is-not-here-yet).
 
 <a id="multi-arm"></a>
 **Multi-arm.** `--arms a,b` builds an `ArmRig` (first = manipulation arm, the
@@ -385,7 +380,7 @@ passed a fresh-destination installation and its first desktop READY proof on GB1
 **12 min 21 s** to install with reused download caches and **12 min 12 s**
 for startup and both placement/reset checks. Real Chromium with the shipped
 extension showed three advancing cameras and connected chat on an Xvfb display. These timings and successes do not
-certify the current MAIN pin; see [current acceptance](docs/PROJECT_STATUS_20261003.md).
+certify the current MAIN pin; see [current acceptance](docs/ROADMAP.md).
 GNOME app-grid interaction and the visible Isaac editor were not tested.
 The same installed stack then passed **5/5 kitchen objects through native
 visitor chat**, with independent physical placement checks and resets.
@@ -398,7 +393,7 @@ The presenter profile uses **PhysX on CUDA**, the three kitchen cameras and
 learned GraspGen-X grasps. Occupancy/nvblox and JEv are separate experiments;
 neither is required or enabled by this installation. Newton is an explicit
 engine option, with separate validation. Use the
-[presenter card](docs/PRESENTER_QUICKSTART.md) for the demo and recovery.
+[presenter card](docs/BOOTH_RUNBOOK.md#9-simulated-kitchen-on-dgx-spark-presenter-card) for the demo and recovery.
 Scene reset keeps services running and does not repeat the startup tests.
 Skipping startup proof reports `STARTED / UNVERIFIED`; it does not establish READY.
 
@@ -477,8 +472,8 @@ python3 scripts/desktop.py launch --repo "$PWD"  # prepared Spark, full stack
 
 The Spark installer creates a private app environment, managed Isaac runtime,
 OpenClaw CLI and model runtime. It downloads Qwen Q4, its vision projector,
-robot assets and kitchen files. See [Spark delivery](docs/SPARK_DELIVERY.md)
-for the pinned identities and isolation rules.
+robot assets and kitchen files. See [DGX Spark setup](docs/DGX_SPARK_SETUP.md)
+for the pinned install and isolation rules.
 
 `./run.sh` is a thin wrapper: `scripts/launch.sh --setup --sim <mode>` when
 setup is needed, `scripts/launch.sh --sim <mode>` afterwards. Before it
@@ -508,7 +503,7 @@ The pre-delivery laptop launcher was exercised from a fresh export on
 macOS: installed extras/assets, exposed the robot tools and completed a
 physics-confirmed pick and reset. That historical result is not a Spark
 certificate or evidence for a later edited launcher. Current evidence and
-remaining target checks belong in [SPARK_DELIVERY](docs/SPARK_DELIVERY.md).
+remaining target checks belong in [DGX Spark setup](docs/DGX_SPARK_SETUP.md#ready-checks-and-quick-recovery).
 `./run.sh check <mode>` is read-only (it never installs or fetches) and
 `./run.sh down` also reaps the per-session MCP servers the chat host leaves
 behind.
@@ -937,7 +932,7 @@ the orchestrator relays it verbatim and does not retry the step.
 | `open_gripper` / `close_gripper` | Open (drops what's held) / close with the default grip profile |
 | `move_home` | The raised INITIAL / ready pose (`home_q`, motors on): "initial pose", "ready pose", "pose inicial"; also clears the camera view. Not "home" / "pose 0" -- see `move_to_rest` |
 | `move_to_rest` | "Home", "go home", "pose 0", "rest", "park", "fold it", "so I can turn it off": fold onto the rest pose (`park_q`, links on their stops) through SafeArm, verify it there by measurement, close the gripper and switch the motors off (`safe_to_power_off: true`); refuses while holding or e-stopped, and keeps the motors on if the arm is not measured at rest. The next motion re-energizes it. [Initial vs rest pose](docs/SPATIAL_COMMANDS.md#initial-pose-vs-rest-pose-home-pose-0-and-powering-off) |
-| `turn_screw` | Command harness-vetted wrist-roll strokes; actual thread advancement and tightening torque are not verified. [Assembly research](docs/SCREW_MANIPULATION_RESEARCH.md). |
+| `turn_screw` | Command harness-vetted wrist-roll strokes; actual thread advancement and tightening torque are not verified. |
 | `halt_motion` | Stop the in-flight motion because it's no longer the right action (wrong object, scene changed, subgoal already met) -- no motion itself |
 
 **Social / gesture (moves arm)**
@@ -1070,55 +1065,36 @@ in `configs/demo.yaml`); **SAM 2.1-L** masks its boxes
 ## Docs
 
 - [Perception bake-off](docs/evidence/perception-bakeoff-20261015/REPORT.md) — why the Qwen3.8 brain names objects and SAM 2.1-L masks them (47 booth frames, 157 objects).
-- [Detector preparation and GPU comparison](docs/DETECTOR_MODEL_REUSE.md) — superseded: YOLOE model/vocabulary reuse, removed with YOLOE.
-- [Frame encoding measurements](docs/ISAAC_FRAME_ENCODING.md) — passive observer timings, CPU replay and native acceptance limits.
-- [Isaac bridge profiling](docs/ISAAC_BRIDGE_PROFILING.md) — optional Python zones, clock binding and limits of retained CPU/GPU measurements.
+- [Lazy frame encoding](docs/ARCHITECTURE.md#lazy-frame-encoding) — independent RGB/depth encoding in the Isaac bridge.
+- [Isaac bridge profiling](docs/ARCHITECTURE.md#optional-bridge-timing) — optional Python zones and the opt-in startup-heap freeze.
 - [Local conversation gateway](docs/CONVERSATION.md) — browser audio, HF-compatible Realtime transport and bounded typed robot tools; protocol tests use synthetic audio and sensors.
-- [MicroDuck design and conversation review](docs/MICRODUCK_DESIGN_REVIEW_20261002.md) — external implementation snapshot, open findings and a proposed hosted voice interface; physical acceptance remains pending.
 
 Browse the [documentation index](docs/README.md) for all operating guides,
 runtime contracts, historical measurements and research notes.
 
-- [Current source and acceptance](docs/PROJECT_STATUS_20261003.md) — merged
+- [Current source and acceptance](docs/ROADMAP.md) — merged
   changes, per-profile defaults, historical failures and current physical stages
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — the runtime end to end
   (tiers, the `execute()` choke point, verification channels, sim as an
   instrument, memory stores), module map, decisions, verification status
 - [docs/QUICKSTART.md](docs/QUICKSTART.md) — launch the demo, use the chat host,
   CLI and cameras, stop services and troubleshoot failures
-- [docs/SPARK_DELIVERY.md](docs/SPARK_DELIVERY.md) — default Spark install,
-  license consent, isolated services, proof receipts and GPU acceptance gate
+- [docs/DGX_SPARK_SETUP.md](docs/DGX_SPARK_SETUP.md) — default Spark install,
+  license consent, isolated services, READY checks and quick recovery
 - [docs/BOOTH_RUNBOOK.md](docs/BOOTH_RUNBOOK.md) — the 15-minute hands-on
   booth session: script, safety rules, fallback ladders, reset procedure
   (`scripts/booth_up.sh` / `scripts/booth_reset.sh`)
 - [docs/ROADMAP.md](docs/ROADMAP.md) — what landed when and why (dated
   sections with the SOTA delta each time), the audit findings, what was
   deliberately not built, and what is next
-- [docs/BENCHMARKS.md](docs/BENCHMARKS.md) · [docs/LAYER_ATTRIBUTION_LIBERO.md](docs/LAYER_ATTRIBUTION_LIBERO.md)
+- [docs/BENCHMARKS.md](docs/BENCHMARKS.md)
   — LIBERO numbers and which layer of the stack each point of success comes from
-- [docs/AGENTIC_UPGRADES.md](docs/AGENTIC_UPGRADES.md) — the Pigey/Harness-VLA/
-  Claude-plays-robotics mechanisms (verification, envelope, cursor) and the
-  pitfalls each one cost
 - [docs/DREAM_RSI_ADAPTATION.md](docs/DREAM_RSI_ADAPTATION.md) — scoped retry
   admission, trace context, offline learning commands and verification limits
-- [docs/JEV_DECISIONS.md](docs/JEV_DECISIONS.md) — Jev and Qwen-based decision
-  models, an offline routing pilot, and measured local Kev results
-- [docs/MOBILITY_AND_NAVIGATION_DESIGN.md](docs/MOBILITY_AND_NAVIGATION_DESIGN.md)
-  — the 2026-09-10 design for mobile bases, humanoid locomotion and navigation
-  (`MobileBase`, Vesta's nav verbs, Nav2 / Warp planner backends, G1 in Isaac
-  first); partly implemented since with a velocity-level interface — its
-  status note and [Architecture](docs/ARCHITECTURE.md#ros2-humanoids-and-what-is-not-here-yet)
-  say what landed
-- [docs/ROS2_BACKEND_BRIEF.md](docs/ROS2_BACKEND_BRIEF.md) · [docs/NEWTON_ENGINE.md](docs/NEWTON_ENGINE.md)
-  · [docs/BRIDGE_DEGRADATION.md](docs/BRIDGE_DEGRADATION.md) — backend briefs
+- [docs/NEWTON_ENGINE.md](docs/NEWTON_ENGINE.md) — Newton physics backend
 - [docs/VLA_EXECUTOR.md](docs/VLA_EXECUTOR.md) — the opt-in VLA executor
   behind `grasp_object`: protocol, harness gating, deadlines, stop latch,
   what is measured (stub only) and the live steps owed with real weights
-- Research notes: [SOTA_PERCEPTION_AND_EVALUATION](docs/SOTA_PERCEPTION_AND_EVALUATION.md),
-  [COMPARISON_TO_PUBLISHED_WORK](docs/COMPARISON_TO_PUBLISHED_WORK.md),
-  [PERCEPTION_AND_EXECUTION_RESEARCH](docs/PERCEPTION_AND_EXECUTION_RESEARCH.md),
-  [SOTA_CONTRIBUTION_ANALYSIS](docs/SOTA_CONTRIBUTION_ANALYSIS.md),
-  [SYNTHETIC_RGBD_PIPELINE](docs/SYNTHETIC_RGBD_PIPELINE.md)
 - [AGENTS.md](AGENTS.md) — working guide for AI coding agents (commands,
   invariants, gotchas, doc status)
 

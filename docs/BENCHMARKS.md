@@ -1,9 +1,9 @@
 # Benchmarks
 
 Results are scoped to their recorded source, dataset, hardware and execution
-path. The [current acceptance index](PROJECT_STATUS_20261001.md) separates full
+path. The [current acceptance index](ROADMAP.md) separates full
 software tests, native two-object proof, five-object campaign and restart.
-The [Jev/Kev ten-outcome replay](JEV_DECISIONS.md) is offline evaluation and found
+The Jev/Kev ten-outcome replay is offline evaluation and found
 no decision-quality advantage over its rule baseline; it adds no motion authority.
 
 Everything needed to measure this repo against the manipulation benchmarks the
@@ -103,7 +103,7 @@ cd models && PYTHONPATH=../src python ../benchmark/rig/ablation.py \
     --conditions skill_only,verify_only,verify_retry --states 10
 ```
 
-**Restart the bridge first.** See `docs/BRIDGE_DEGRADATION.md`: a bridge that
+**Restart the bridge first:** a bridge that
 has served hundreds of episodes degrades and its verification channel starts
 reporting stale poses.
 
@@ -186,7 +186,7 @@ log.
 claims in condition C. They were not the robot — the bridge had been up for
 hours and its truth channel was returning stale poses. On a fresh bridge those
 3 became 0. Chasing them found two real bugs, both fixed and now covered by
-`tests/test_truth_channel.py`; see `docs/BRIDGE_DEGRADATION.md`. This run alone
+`tests/test_truth_channel.py`. This run alone
 still produced **four impossible poses** (up to 3171 m of "displacement"),
 which the new sanity guard rejects.
 

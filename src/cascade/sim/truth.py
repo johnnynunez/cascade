@@ -94,7 +94,7 @@ if _dynamic:
         # hour of verification polling that is thousands of them, and it
         # degrades the bridge: probe latency grew 20 ms -> 85 ms over 400 calls
         # and the TCP thread eventually died while the process stayed alive
-        # (docs/BRIDGE_DEGRADATION.md). The views are stable for a given prim
+        # (measured on the Isaac bridge). The views are stable for a given prim
         # path, so they are safe to reuse.
         _cache = globals().setdefault("_CASCADE_RIGIDPRIM_VIEWS", {})
         for _name, _path in _dynamic:

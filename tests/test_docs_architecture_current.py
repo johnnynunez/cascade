@@ -238,7 +238,7 @@ def test_checkers_find_known_violations_in_synthetic_docs(tmp_path):
     assert _duplicates(["a", "b", "a", "a", "c"]) == ["a"]
     section = (f"{SECTION}\n\nIntro.\n\n**ROS2 today = arms.** `control/ros2_arm.py`. **Unverified on hardware.**\n\n"
                "**Mobile bases.** It exists, trust us.\n\n**Not here: a mobile base, navigation, `go_to`.**\n"
-               "- `stop_navigation` is not navigation in MOBILITY_AND_NAVIGATION_DESIGN.md, nor `nav_msgs/Odometry`\n\n"
+               "- `stop_navigation` is not navigation in OLD_NAVIGATION_DESIGN.md, nor `nav_msgs/Odometry`\n\n"
                "**After.** measured `control/no_such_module.py`\n")
     claims, block = _split_not_here(section)
     assert block.startswith("**Not here") and "**After.**" not in block and "**After.**" in claims

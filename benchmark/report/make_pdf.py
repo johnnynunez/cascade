@@ -605,7 +605,7 @@ def page_finding(pdf, abl):
 def main():
     # Prefer the run made on a FRESH bridge. The first ablation was taken on a
     # bridge that had been up for hours, and its verification channel was
-    # returning stale poses by the end (docs/BRIDGE_DEGRADATION.md) -- three of
+    # returning stale poses by the end (see sim/truth.py) -- three of
     # its "false claims" were the instrument, not the robot.
     # ablation_v2 = measured AFTER the perception fix (_recentre_by_size,
     # c129161). The older files were measured while the grasp target carried a

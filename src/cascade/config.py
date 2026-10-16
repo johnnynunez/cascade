@@ -176,8 +176,8 @@ def _deep_merge(base: dict, overlay: dict) -> None:
 # Runtime endpoint overrides. scripts/launch.sh starts the Isaac bridge and the
 # GraspGen-X and occupancy sidecars on these ports (defaults 8611/5556/5557);
 # the runtime must dial the same ones, or a stack on private ports silently
-# talks to whatever holds the defaults (docs/LOCAL_RTX_VALIDATION.md,
-# profiling attempt 07: the bridge moved, the camera profiles did not). A set
+# talks to whatever holds the defaults (local profiling attempt 07: the
+# bridge moved, the camera profiles did not). A set
 # variable beats every config layer (demo.yaml, booth.yaml, profiles, an arm's
 # `overrides:`); unset or empty leaves the configured value untouched.
 BRIDGE_PORT_ENV = "CASCADE_BRIDGE_PORT"

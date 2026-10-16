@@ -297,7 +297,7 @@ def test_render_keeps_an_existing_config(tmp_path):
                                  {"CASCADE_MODEL": "Qwen/Qwen3.8-27B"}])
 def test_render_refuses_values_that_would_break_the_config(tmp_path, env):
     """Ports must be ports, and the model id must not look like a path
-    (OpenClaw splits provider/model on '/': docs/NEMOCLAW.md)."""
+    (OpenClaw splits provider/model on '/': docs/OPENSHELL.md)."""
     r = _render(tmp_path, **env)
     assert r.returncode != 0
     assert not (tmp_path / ".openclaw" / "openclaw.json").exists()

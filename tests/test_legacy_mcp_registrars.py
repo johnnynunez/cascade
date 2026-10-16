@@ -3,8 +3,8 @@
 `scripts/hermes_demo.sh` (Hermes: register + test + chat, README's Hermes
 row) and `scripts/openclaw_demo.sh` (OpenClaw, local-brain variant) are still
 documented entry points: README's quick start and platform table,
-install_hermes.sh's closing banner, `setup_agents.py --host hermes` and
-docs/OPENCLAW_2.0_INTEGRATION_BRIEF.md point at them, and launch.sh (OpenClaw
+install_hermes.sh's closing banner and `setup_agents.py --host hermes`
+point at them, and launch.sh (OpenClaw
 only) has no Hermes path. Until B68 each registered a FIXED env (cameras, arm,
 detector, offline flags, DISPLAY). A stdio MCP host starts the server with the
 registered env, not the registering shell, so a runtime switch exported there

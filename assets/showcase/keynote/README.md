@@ -17,8 +17,7 @@ python validate_assets.py --out assets
 
 The committed `assets/` are the generator's deterministic output (validator report `pass`,
 0 physics APIs, presenter 1.77 m, 52 authored mesh vertices + 12 analytic primitives). The
-generator and validator were produced by Codex from the briefs in `TASKS.md`; the review
-notes that drove v2 are there too.
+generator and validator were produced by Codex.
 
 Textures use the installed DejaVu Sans regular and bold fonts with Pillow; no
 network, random values, timestamps, or absolute asset paths enter generated USD.

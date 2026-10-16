@@ -5,7 +5,7 @@
 # an RS-specific home pose. The harness then patched kinematics, joint limits,
 # table height, workspace and topdown_z_max at runtime to undo the mismatch,
 # and every value it FORGOT to patch stayed silently wrong. Two of those cost
-# a full benchmark run each (see docs/LAYER_ATTRIBUTION_LIBERO.md).
+# a full benchmark run each (see docs/BENCHMARKS.md, LIBERO layer attribution).
 #
 # A robot the code supports should be described by a profile, not by a list of
 # runtime monkey-patches in a benchmark script.

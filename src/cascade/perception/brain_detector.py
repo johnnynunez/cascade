@@ -150,6 +150,10 @@ _WARN_EVERY_S = 30.0
 #: close() waits this long beyond the background request timeout for a
 #: refresh to finish (after cancelling it, a stream ends at its next chunk).
 _CLOSE_MARGIN_S = 5.0
+#: The default max_cache_age_s is idle_refresh_s plus this: the watcher's
+#: tick that starts the idle refresh, so an unchanged scene's entry ages out
+#: only once that refresh is pending (never a synchronous inventory).
+_IDLE_REFRESH_MARGIN_S = 5.0
 #: Every foreground() scope entry waits at most this long for a cancelled
 #: background request to close its stream before the foreground work starts
 #: (BEFORE the skill takes its frame, so it never ages that frame). A request
@@ -550,8 +554,8 @@ class BrainDetector(Detector):
     background inventory), and store the answer. One exception (Ruling 35):
     an entry past `max_cache_age_s` whose scene is unchanged keeps being
     tracked while that key's background refresh is in flight or waiting for
-    the slot. Keep `max_cache_age_s >= idle_refresh_s + 5 s` (every shipped
-    profile does; the 5 s cover the watcher's tick that starts the idle
+    the slot. Keep `max_cache_age_s >= idle_refresh_s + 5 s` (its default,
+    None, is exactly that; every shipped profile keeps it; the 5 s cover the watcher's tick that starts the idle
     refresh): an unchanged scene's entry then ages out only once the
     watcher's idle refresh is pending, so it never costs a synchronous
     inventory.
@@ -624,7 +628,7 @@ class BrainDetector(Detector):
 
     def __init__(self, *, base_url: str, model: str, api_key_file: str | None = None,
                  timeout_s: float = 20.0, max_tokens: int = 1500, segmenter: BoxSegmenter | None = None,
-                 refresh_s: float = 4.0, max_cache_age_s: float = 30.0, scene_change: float = 6.0,
+                 refresh_s: float = 4.0, max_cache_age_s: float | None = None, scene_change: float = 6.0,
                  idle_refresh_s: float = 30.0, inventory_timeout_s: float | None = None,
                  reanchor_local_diff: float = 8.0, reanchor_mask_agreement: float = 0.95,
                  client=None, clock=time.monotonic):
@@ -638,7 +642,10 @@ class BrainDetector(Detector):
         self._segmenter = segmenter
         self._refresh_s = float(refresh_s)
         self._idle_refresh_s = float(idle_refresh_s)
-        self._max_cache_age_s = float(max_cache_age_s)
+        # None: idle_refresh_s + _IDLE_REFRESH_MARGIN_S, the invariant every
+        # shipped profile keeps (see the class docstring).
+        self._max_cache_age_s = float(self._idle_refresh_s + _IDLE_REFRESH_MARGIN_S if max_cache_age_s is None
+                                      else max_cache_age_s)
         self._scene_change = float(scene_change)
         self._reanchor_local_diff = float(reanchor_local_diff)
         self._reanchor_mask_agreement = float(reanchor_mask_agreement)

@@ -1829,6 +1829,8 @@ def _make_brain_detector(cfg, dcfg, *, warm_up: bool):
         segmenter = BoxSegmenter(model_path=model_path, device=device)
     key_file = dcfg.get("api_key_file", BRAIN_KEY_FILE)
     timeout_s = float(dcfg.get("timeout_s", 20.0))
+    # Absent: the detector's default, idle_refresh_s + 5 s.
+    max_cache_age_s = dcfg.get("max_cache_age_s")
     detector = BrainDetector(
         base_url=str(dcfg.get("base_url", BRAIN_BASE_URL)),
         model=str(dcfg.get("model", BRAIN_MODEL)),
@@ -1841,7 +1843,7 @@ def _make_brain_detector(cfg, dcfg, *, warm_up: bool):
         max_tokens=int(dcfg.get("max_tokens", 1500)),
         segmenter=segmenter,
         refresh_s=float(dcfg.get("refresh_s", 4.0)),
-        max_cache_age_s=float(dcfg.get("max_cache_age_s", 30.0)),
+        max_cache_age_s=None if max_cache_age_s is None else float(max_cache_age_s),
         scene_change=float(dcfg.get("scene_change", 6.0)),
         idle_refresh_s=float(dcfg.get("idle_refresh_s", 30.0)),
         reanchor_local_diff=float(dcfg.get("reanchor_local_diff", 8.0)),

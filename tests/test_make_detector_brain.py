@@ -184,8 +184,22 @@ def test_a_bare_brain_block_takes_the_documented_defaults(env, tmp_path):
     assert (det._base_url, det._model, det._api_key) == (DEFAULT_PERCEPTION_URL, "qwen3.8-27b",
                                                          "from-default-path")
     assert (det._timeout_s, det._max_tokens, det._refresh_s, det._max_cache_age_s, det._scene_change) == (
-        20.0, 1500, 4.0, 30.0, 6.0)
+        20.0, 1500, 4.0, 35.0, 6.0)
     assert det._idle_refresh_s == 30.0
+    # Follow-up M4: a bare block keeps max_cache_age_s >= idle_refresh_s + 5,
+    # as every shipped profile does (bd5e80f defaulted both to 30 s).
+    assert det._max_cache_age_s >= det._idle_refresh_s + 5.0
+
+
+@pytest.mark.parametrize(("block", "age"), [({"idle_refresh_s": 120}, 125.0), ({"idle_refresh_s": "60"}, 65.0),
+                                            ({"idle_refresh_s": 120, "max_cache_age_s": 200}, 200.0),
+                                            ({"max_cache_age_s": 12}, 12.0)])
+def test_the_cache_age_follows_the_idle_refresh_unless_set(env, block, age):
+    """Follow-up M4: absent, max_cache_age_s is idle_refresh_s + 5 s (the
+    watcher's idle refresh is pending before an unchanged scene's entry ages
+    out); a value the block sets is kept as given."""
+    det = demo._make_detector(brain_cfg(type="brain", **block), warm_up=False)
+    assert det._max_cache_age_s == age
 
 
 def test_a_tilde_key_file_in_a_hand_made_block_is_expanded(env, tmp_path):

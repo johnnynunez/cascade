@@ -589,6 +589,16 @@ class SkillRuntime:
                 stack.enter_context(harness.skill_halt_baseline(generation))
             return stack.pop_all()
 
+    @staticmethod
+    def _skill_halt_reason(baselines) -> str | None:
+        """The operator's halt that arrived at one of these harnesses since
+        the skill started (`_skill_halt_baselines`), else None."""
+        for harness, generation in baselines:
+            if harness._halt_generation != generation:
+                halted = harness.halted
+                return f"halted: {halted}" if halted else "halt received during route planning or execution"
+        return None
+
     def _select_arm(self, name):
         """Resolve an arm name to a SafeArm, or raise SkillError.
 
@@ -852,9 +862,16 @@ class SkillRuntime:
         harness = self.arm.harness
         if getattr(harness, "estopped", False):
             return "e-stop latched"
-        if getattr(harness, "halted", None):
-            return f"motion halted: {harness.halted}"
         context = getattr(getattr(self, "_motion_scope", None), "context", None)
+        if getattr(harness, "halted", None):
+            # Only a halt raised since the running skill started skips the
+            # return. A halt from before it (e.g. left pending by a skill that
+            # ended on it) keeps the usual rule: the next motion clears it.
+            # Without that baseline (no skill scope), any pending halt skips.
+            baseline = next((generation for h, generation in (context or {}).get("halt_baselines", ())
+                             if h is harness), None)
+            if baseline is None or harness._halt_generation != baseline:
+                return f"motion halted: {harness.halted}"
         violations = getattr(harness, "violations", ())
         if context is not None and len(violations) > context["violations_before"]:
             return "safety violation during this motion"
@@ -909,6 +926,10 @@ class SkillRuntime:
             if error > tol:
                 raise SkillError(f"home feedback error {error:.4f} rad exceeds {tol:.4f} rad")
             return {"ok": True, "status": "returned", "home_q": target, "joint_error_rad": error}
+        except MotionHalted as exc:
+            # The operator's halt stops the return and stays a halt: no stop
+            # latch on the arm (A3 review; a halt is not the e-stop).
+            return {"ok": False, "status": "halted", "reason": str(exc)}
         except Exception as exc:
             try:
                 self.arm.stop()
@@ -1118,6 +1139,7 @@ class SkillRuntime:
             self._call_crops = {}
         home_return = None
         result = None
+        halted_in_skill = None
         try:
             import contextlib
 
@@ -1146,6 +1168,9 @@ class SkillRuntime:
                     "violations_before": (len(getattr(self.arm.harness, "violations", ()))
                                           if return_enabled else 0),
                     "motion_started": False,
+                    # the halt generations when the skill started: only a halt
+                    # since then skips a home return (_home_return_skip_reason)
+                    "halt_baselines": skill_halt,
                 }
             try:
                 with motion_evidence.record_skill(name, resolved_arm, trace_context,
@@ -1159,6 +1184,7 @@ class SkillRuntime:
                             if name in _MOTION_SKILLS:
                                 carry_attachment.check(self)
                             result = fn(**args)
+                            halted_in_skill = self._skill_halt_reason(skill_halt)
                     except BaseException as exc:
                         failure = exc
                         raise
@@ -1186,6 +1212,15 @@ class SkillRuntime:
                     self._last_reobserve_t = None
             if "ok" not in result:
                 result["ok"] = True
+            if halted_in_skill is not None and result.get("ok"):
+                # The operator halted this skill after it started, and the
+                # skill swallowed the halt (a best-effort home, a sort keeping
+                # what it moved): never report that as a success (A3 review).
+                # Every other field stays; an object still in the jaws is named.
+                result["ok"] = False
+                result["error"] = f"MotionHalted: {halted_in_skill}"
+                if self.held_object:
+                    result.setdefault("holding", self.held_object)
         except (SkillError, SafetyViolation) as e:
             if isinstance(e, SkillStuck):
                 # The skill ran out of what it can do on its own and names
@@ -4288,6 +4323,11 @@ class SkillRuntime:
             if observation_generation is not None:
                 observation_harness._check_halt_generation(observation_generation)
         except (SafetyViolation, HeldObservationInvalid) as exc:
+            if isinstance(exc, MotionHalted) and getattr(observation_harness, "halted", None):
+                # The operator's STOP is pending: the skill ends on the halt
+                # itself, the held observation and state untouched (A3 review).
+                # A halt already withdrawn still invalidates the observation.
+                raise
             held_observation.invalidated = True
             held_observation.release_authority = False
             held_observation.evidence.setdefault("rejected", []).append(str(exc))
@@ -6571,6 +6611,8 @@ class SkillRuntime:
         if self._home_policy_enabled():
             result = self._return_to_view_home(home, self.cfg.arm)
             if not result["ok"]:
+                if result["status"] == "halted":
+                    raise MotionHalted(result["reason"])     # a halt stays a halt
                 raise SkillError(result.get("error", result.get("reason", "home return failed")))
             return {"at": "home", "return_home": result}
         # SafeArm plans the complete return before motion and re-vets against

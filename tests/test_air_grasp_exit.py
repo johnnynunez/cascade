@@ -32,11 +32,19 @@ starts and every motion of the skill carries it, so a halt while the grasp
 plans, homes, approaches or re-homes refuses the next motion before its first
 command, stays a halt (no e-stop latch) and reaches execute().
 
+A halted skill never reports ok (A3 review round 4; pre-existing on main):
+execute() reports a skill that swallowed a halt raised after it started as
+ok: false with the halt as its error. place_at keeps a STOP pending during its
+held observation a halt, and on the FR3 a halt during the saved-home return
+stays a halt (no stop latch) while a halt from before move_home started no
+longer refuses it.
+
 Every test runs the real runtime with the mock arm and analytic (OBB) grasps
 (no hardware, no GPU, never the host's GraspGen-X server).
 """
 from __future__ import annotations
 
+import copy
 import dataclasses
 from types import SimpleNamespace
 
@@ -1058,6 +1066,234 @@ def test_a_halt_before_the_attachment_is_reported_as_a_halt(pending):
     assert carry_attachment.active(att_rt).failure == f"halted: {reason}"
     with pytest.raises(carry_attachment.AttachmentInvalid, match=f"^halted: {reason}$"):
         carry_attachment.move(att_rt, state.q)            # the failure is latched
+
+
+# ── a halted skill never reports ok; place_at and the FR3 home stay halts (A3 review, round 4) ──
+#
+# Pre-existing on main: a skill that swallowed the operator's halt (pick_and_place's
+# best-effort home after the release, sort_by_color keeping the cubes it already
+# moved) returned ok: true. execute() now reports a motion skill halted after it
+# started as ok: false with the halt as its error, every other field kept (what it
+# placed, what it still holds, return_home). place_at keeps a STOP raised while it
+# observes the held object a halt (not an invalid held observation). On the FR3
+# (`return_home_after_motion`) a halt during the saved-home return stays a halt (no
+# stop latch), and a halt from before move_home started no longer refuses it.
+
+#: the result of a skill that ended with the operator's halt still pending
+HALTED_SKILL = "MotionHalted: halted: operator"
+
+
+def halt_after(rt, monkeypatch, name):
+    """Press STOP once, right after runtime method `name` first returns.
+    Returns the arm command count at the halt."""
+    real, at_halt = getattr(rt, name), []
+
+    def spy(*a, **k):
+        out = real(*a, **k)
+        if not at_halt:
+            rt.arm.harness.halt("operator")
+            at_halt.append(commands(rt))
+        return out
+
+    monkeypatch.setattr(rt, name, spy)
+    return at_halt
+
+
+def test_a_pick_and_place_halted_after_the_release_is_not_ok(rt, monkeypatch):
+    """STOP right after the release: the best-effort home is refused and the
+    result names the halt instead of ok: true; what was placed is kept."""
+    rt.arm.raw.object_stop_frac = 0.5                     # the jaws stall on the cube: held
+    at_halt = halt_after(rt, monkeypatch, "skill_place_at")
+    res = rt.execute(*PICK)
+    stop_error(res, "halt", halt=HALTED_SKILL)
+    assert res["picked"] == "red cube" and res["placed_at"] is not None, res
+    assert res["return_home"]["attempted"] is True and res["return_home"]["ok"] is False
+    assert "holding" not in res and rt.held_object is None
+    assert commands(rt) == at_halt[0] and rt.arm.harness.estopped is False
+
+
+def test_a_sort_halted_before_the_second_place_is_not_ok(rt, monkeypatch):
+    """sort_by_color moved one cube; STOP before the second place: the place
+    is refused, and the result is not ok, keeps what moved and names the cube
+    still in the jaws."""
+    cubes = [SimpleNamespace(label="red cube", color="red", position=np.array([.29, .0, .037])),
+             SimpleNamespace(label="blue cube", color="blue", position=np.array([.29, .08, .037]))]
+    monkeypatch.setattr(rt.beliefs, "all", lambda: list(cubes))
+
+    def grasp(query, **kw):                               # held, without moving (not under test)
+        rt.held_object = rt._held_det_label = query
+        return {"ok": True, "held": True}
+
+    monkeypatch.setattr(rt, "_grasp_with_persistence", grasp)
+    real_place, places, at_halt = rt.skill_place_at, [], []
+
+    def place(*a, **k):
+        places.append(rt.held_object)
+        if len(places) == 1:                              # the first cube: placed
+            rt.held_object = rt._held_det_label = None
+            return {"placed": True}
+        rt.arm.harness.halt("operator")
+        at_halt.append(commands(rt))
+        return real_place(*a, **k)
+
+    monkeypatch.setattr(rt, "skill_place_at", place)
+    res = rt.execute("sort_by_color", {})
+    stop_error(res, "halt", halt=HALTED_SKILL)
+    assert places == ["red red cube", "blue blue cube"]
+    assert [m["label"] for m in res["moved"]] == ["red red cube"]
+    assert [f["label"] for f in res["failed"]] == ["blue blue cube"]
+    assert res["holding"] == rt.held_object == "blue blue cube"
+    assert commands(rt) == at_halt[0] and rt.arm.harness.estopped is False
+
+
+@pytest.mark.parametrize("before", [None, "pending"], ids=["no halt", "halt before the skill"])
+def test_a_pick_and_place_with_no_halt_during_it_stays_ok(rt, before):
+    """Pin: no halt during the skill (none at all, or one raised before it
+    started, which its first motion clears): ok, nothing added."""
+    rt.arm.raw.object_stop_frac = 0.5
+    if before:
+        rt.arm.harness.halt("earlier")
+    res = rt.execute(*PICK)
+    assert res["ok"] is True and "error" not in res and "holding" not in res, res
+    assert res["return_home"] == {"attempted": True, "ok": True, "at": "home"}
+    assert rt.arm.harness.halted is None and rt.held_object is None
+
+
+@pytest.mark.parametrize("skill", ["place_at", "pick_and_place"])
+def test_a_halt_while_place_at_observes_the_held_object_stays_a_halt(rt, monkeypatch, skill):
+    """STOP while place_at looks at the cube in the jaws (before the carry):
+    the skill ends on the halt itself, not on an invalidated held observation;
+    nothing moves, the cube stays held and the observation stays valid."""
+    rt.arm.raw.object_stop_frac = 0.5
+    if skill == "place_at":
+        res = rt.execute(*GRASP)
+        assert res["ok"] is True and rt.held_object == "red cube", res
+    real_place, placing = rt.skill_place_at, [False]
+
+    def place(*a, **k):
+        placing[0] = True
+        try:
+            return real_place(*a, **k)
+        finally:
+            placing[0] = False
+
+    monkeypatch.setattr(rt, "skill_place_at", place)
+    real_observe, seen, at_halt = rt._held_object_observation, [], []
+
+    def observe():
+        out = real_observe()
+        if placing[0] and not at_halt:
+            seen.append((out, copy.deepcopy(out.evidence), out.release_authority))
+            rt.arm.harness.halt("operator")
+            at_halt.append(commands(rt))
+        return out
+
+    monkeypatch.setattr(rt, "_held_object_observation", observe)
+    res = rt.execute(skill, {"x": 0.30, "y": -0.20} if skill == "place_at" else PICK[1])
+    stop_error(res, "halt", halt=SKILL_HALT)
+    assert commands(rt) == at_halt[0] and rt.held_object == "red cube"
+    observation, evidence, authority = seen[0]            # as the observation left it
+    assert observation.invalidated is False and observation.evidence == evidence
+    assert observation.release_authority == authority
+    assert rt.arm.harness.estopped is False
+
+
+def fr3(tmp_path, q):
+    """The FR3 profile (`return_home_after_motion: true`) on
+    test_return_home_policy's local doubles: a 7-joint arm with a real
+    SafetyHarness; no controller, no hardware."""
+    from test_return_home_policy import _runtime
+
+    return _runtime(tmp_path, q=q)
+
+
+AWAY = np.ones(7) * .2                                    # away from the saved home (zeros)
+
+
+def halt_mid_home_move(arm):
+    """STOP while the move to the saved home (zeros) streams: approve raises."""
+    real_move = arm.move_joints
+
+    def move(q, **kw):
+        if not np.allclose(q, 0.):
+            return real_move(q, **kw)
+        arm.harness.begin_motion()
+        arm.harness.halt("operator")
+        arm.harness.end_motion()
+        raise MotionHalted("halted: operator")
+
+    arm.move_joints = move
+
+
+@pytest.mark.parametrize("skill, when", [("move_home", "mid-stream"), ("move_home", "before the move"),
+                                         ("wave", "mid-stream")])
+def test_a_halt_during_the_fr3_home_return_stays_a_halt(tmp_path, skill, when):
+    """FR3 returns to its saved view home after a motion skill (and move_home
+    is that return): STOP during the return ends it as a halt, with no stop
+    latched on the arm."""
+    runtime, arm, _ = fr3(tmp_path, AWAY)
+    if when == "mid-stream":
+        halt_mid_home_move(arm)
+    else:                                                 # after the last skip check, before the move
+        real_status = runtime._show_status
+
+        def status(msg):
+            if msg.startswith("Returning to the saved camera-view home"):
+                arm.harness.halt("operator")
+            return real_status(msg)
+
+        runtime._show_status = status
+    if skill == "wave":
+        runtime.skill_wave = lambda: runtime._move_joints(np.ones(7) * .3) and {}
+    res = runtime.execute(skill, {})
+    assert arm.stops == 0 and arm.raw._stopped is False and arm.harness.estopped is False, res
+    assert arm.harness.halted == "operator" and "motion_blocked" not in res
+    if skill == "move_home":
+        stop_error(res, "halt", halt=HALTED_SKILL if when == "mid-stream" else SKILL_HALT)
+    else:
+        assert res["return_home"] == {"ok": False, "status": "halted", "reason": "halted: operator"}, res
+        assert res["ok"] is False and res["action_ok"] is True
+        assert res["error"] == "return to saved home halted: halted: operator"
+
+
+def test_after_a_halted_skill_the_next_fr3_move_home_runs(tmp_path):
+    """A skill that ended on a halt leaves it pending (nothing cleared it).
+    The next move_home on the FR3 started after that halt: it runs (its
+    first motion clears the halt) instead of being refused every time."""
+    runtime, arm, _ = fr3(tmp_path, AWAY)
+    harness = arm.harness
+
+    def wave():
+        harness.halt("operator")
+        runtime._move_joints(np.ones(7) * .3)             # refused: the skill ends on the halt
+        return {}
+
+    runtime.skill_wave = wave
+    stop_error(runtime.execute("wave", {}), "halt", halt=SKILL_HALT)
+    assert arm.moves == [] and harness.halted == "operator"
+    res = runtime.execute("move_home", {})
+    assert res["ok"] is True and res["return_home"]["status"] == "returned", res
+    assert len(arm.moves) == 1 and harness.halted is None and arm.stops == 0
+    np.testing.assert_array_equal(arm.q, np.zeros(7))
+
+
+def test_a_halt_after_fr3_move_home_started_still_skips_it(tmp_path):
+    """Pin: a halt raised after move_home started (here while execute()
+    refreshes perception) still skips the home return: nothing moves."""
+    runtime, arm, _ = fr3(tmp_path, AWAY)
+    real_observe, halted = runtime.observe, []
+
+    def observe(**kw):
+        out = real_observe(**kw)
+        if not halted:
+            arm.harness.halt("operator")
+            halted.append(True)
+        return out
+
+    runtime.observe = observe
+    res = runtime.execute("move_home", {})
+    assert halted and res["ok"] is False and res["error"] == "SkillError: motion halted: operator", res
+    assert arm.moves == [] and arm.stops == 0 and arm.harness.halted == "operator"
 
 
 # ── a refused or unreachable +3 cm lift tries +6 cm ─────────────────────────

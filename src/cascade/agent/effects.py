@@ -85,6 +85,10 @@ SAME_PLACE_M = 0.05
 DEST_TOLERANCE_M = 0.03
 #: A push must displace the object by at least this fraction of the request.
 PUSH_MIN_FRAC = 0.3
+#: Counts the runtime's ``actuation`` hook reports (see PostconditionChecker).
+_ACTUATION_KEYS = ("arm_motions", "gripper_closes")
+#: Longest skill error quoted in a "no grasp was attempted" verdict.
+_ERROR_QUOTE_CHARS = 160
 
 
 @dataclass
@@ -137,6 +141,12 @@ class PostconditionChecker:
         Jaw opening fraction (0 closed .. 1 open).
     ``reobserve() -> None``
         Force a fresh detector pass before reading beliefs.
+    ``actuation() -> {"arm_motions": int, "gripper_closes": int} | None``
+        Monotonic counts of the arm motions and gripper close commands the
+        runtime issued. ``snapshot()`` records them and ``verify()`` takes the
+        difference, so a check knows whether THIS call moved the arm or
+        closed the jaws. None (or no hook) = unknown: the check then neither
+        reports "no grasp was attempted" nor asserts that the jaw closed.
     """
 
     def __init__(
@@ -149,6 +159,7 @@ class PostconditionChecker:
         table_z: float = 0.0,
         air_grasp_frac: float = 0.04,
         placement_check: Callable[[str, str | None], dict | None] | None = None,
+        actuation: Callable[[], dict | None] | None = None,
     ):
         self._object_pose = object_pose
         self._belief_pose = belief_pose
@@ -160,18 +171,75 @@ class PostconditionChecker:
         self.table_z = float(table_z)
         self.air_grasp_frac = float(air_grasp_frac)
         self._placement_check = placement_check
+        self._actuation = actuation
         self.history: list[Postcondition] = []
 
     # ── snapshots ────────────────────────────────────────────────────────
 
     def snapshot(self, label: str | None) -> dict:
-        """Pose of ``label`` before a motion, from the best channel available."""
+        """Pose of ``label`` before a motion, from the best channel available,
+        plus the actuation counts (when the hook is wired) the check diffs."""
+        snap: dict = {}
+        counts = self._actuation_counts()
+        if counts is not None:
+            snap["actuation"] = counts
         if not label:
-            return {}
+            return snap
         pose, channel = self._best_pose(label)
         if pose is None:
-            return {}
-        return {"label": label, "pose": list(pose), "channel": channel}
+            return snap
+        snap.update({"label": label, "pose": list(pose), "channel": channel})
+        return snap
+
+    def _actuation_counts(self) -> dict | None:
+        if self._actuation is None:
+            return None
+        try:
+            counts = self._actuation()
+            if counts is None:
+                return None
+            return {key: int(counts[key]) for key in _ACTUATION_KEYS}
+        except Exception:
+            return None
+
+    def _actuation_delta(self, before: dict) -> dict | None:
+        """What this call commanded: after minus the snapshot's counts, or
+        None when either reading is unavailable."""
+        start = before.get("actuation")
+        now = self._actuation_counts()
+        if not isinstance(start, dict) or now is None:
+            return None
+        try:
+            return {key: now[key] - int(start[key]) for key in _ACTUATION_KEYS}
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    def _close_commanded(self, before: dict) -> bool:
+        """True only when a close was COUNTED in this call. Unknown is False:
+        evidence may say "the jaw closed" only on a commanded close."""
+        acted = self._actuation_delta(before)
+        return acted is not None and acted["gripper_closes"] > 0
+
+    def _no_grasp_attempted(self, pc, result: dict, before: dict) -> bool:
+        """A grasp/pick that failed before commanding any arm motion or
+        gripper close (perception refused it, planning found nothing, the
+        harness refused the first move) has no physical effect to judge.
+
+        Measured on the Spark kitchen: such refusals (gripper still open,
+        0 arm commands) came back REFUTED with "the jaw closed but the
+        object stayed on the table", and the agent repeated it. Only a
+        failed call qualifies: a self-reported success with nothing counted
+        is still judged by the independent channels below, never softened.
+        """
+        if result.get("ok") is True:
+            return False
+        acted = self._actuation_delta(before)
+        if acted is None or acted["arm_motions"] or acted["gripper_closes"]:
+            return False
+        pc.status, pc.channel, pc.measured = UNVERIFIED, "skill", acted
+        reason = _shorten(result.get("error")) or "the skill stopped before any arm motion or gripper close"
+        pc.evidence = f"no grasp was attempted: {reason}"
+        return True
 
     @staticmethod
     def _comparable_start(before: dict, channel_after: str):
@@ -344,12 +412,21 @@ class PostconditionChecker:
 
         The jaw fraction alone cannot show this -- it is necessary, not
         sufficient.  We require a measured rise in the object's own pose.
+        "The jaw closed" is said only when this call commanded a close;
+        otherwise the evidence states the measured jaw opening.
         """
+        if self._no_grasp_attempted(pc, result, before):
+            return
+        closed = self._close_commanded(before)
         label = str(args.get("label") or result.get("object") or before.get("label") or "")
         frac = self._frac()
         if frac is not None and frac <= self.air_grasp_frac:
             pc.status, pc.channel = REFUTED, "gripper"
-            pc.evidence = f"jaw closed to {frac:.3f} (<= air-grasp threshold): nothing between the fingers"
+            pc.evidence = (
+                f"jaw closed to {frac:.3f} (<= air-grasp threshold): nothing between the fingers"
+                if closed
+                else f"jaw at {frac:.3f} (<= air-grasp threshold): nothing between the fingers"
+            )
             pc.measured = {"gripper_frac": frac}
             return
         if self._refute_if_lost(pc, label):
@@ -358,8 +435,8 @@ class PostconditionChecker:
         if pose is None:
             pc.status, pc.channel = UNVERIFIED, "gripper"
             pc.evidence = (
-                f"jaw held at {frac:.3f} but {label or 'the object'} could not be "
-                "re-located, so the lift is unconfirmed"
+                f"jaw {'held' if closed else 'measured'} at {frac:.3f} but {label or 'the object'} "
+                "could not be re-located, so the lift is unconfirmed"
                 if frac is not None
                 else "no independent channel could confirm the grasp"
             )
@@ -374,14 +451,20 @@ class PostconditionChecker:
         if rise >= LIFT_EPS_M:
             pc.status = CONFIRMED
             pc.evidence = f"{label} rose {rise*100:.1f} cm off the table ({channel} pose)"
-        else:
+        elif closed:
             pc.status = REFUTED
             pc.evidence = (
                 f"{label} did not rise (dz={rise*100:+.1f} cm): the jaw closed but "
                 "the object stayed on the table"
             )
+        else:
+            pc.status = REFUTED
+            jaw = f"jaw at {frac:.2f}" if frac is not None else "jaw opening unknown"
+            pc.evidence = f"{label} did not rise (dz={rise*100:+.1f} cm; {jaw})"
 
     def _check_relocated(self, pc, args, result, before) -> None:
+        if self._no_grasp_attempted(pc, result, before):
+            return
         # Bounded kitchen destinations need the complete collider, support,
         # actual release and a settling window. Query after motion; never
         # accept a verdict or geometry returned by the motion routine itself.
@@ -679,7 +762,24 @@ class PostconditionChecker:
             pc.status, pc.evidence = UNVERIFIED, "gripper state unavailable"
             return
         pc.channel, pc.measured = "gripper", {"gripper_frac": frac}
+        acted = self._actuation_delta(before)
+        if acted is not None and not acted["gripper_closes"]:
+            # No close command completed in this call (refused before the
+            # jaws by an e-stop or halt, or the driver raised): whatever the
+            # jaws measure, this call cannot be credited with closing them.
+            pc.status = UNVERIFIED
+            reason = _shorten(result.get("error"))
+            pc.evidence = f"no close command completed{': ' + reason if reason else ''}; jaw at {frac:.2f}"
+            return
         pc.status = CONFIRMED
+        if acted is None:
+            # Unknown whether this call closed anything: state the reading.
+            pc.evidence = (
+                f"jaw at {frac:.2f} (above the air-grasp threshold)"
+                if frac > self.air_grasp_frac
+                else f"jaw at {frac:.2f} (<= air-grasp threshold): nothing between the fingers"
+            )
+            return
         pc.evidence = (
             f"jaw at {frac:.2f}: closed on something"
             if frac > self.air_grasp_frac
@@ -853,6 +953,15 @@ class PostconditionChecker:
 
 def _dist(a, b) -> float:
     return sum((float(x) - float(y)) ** 2 for x, y in zip(a, b)) ** 0.5
+
+
+def _shorten(error) -> str:
+    """First line of a skill error, cut to ``_ERROR_QUOTE_CHARS``."""
+    text = str(error or "").strip().splitlines()
+    line = text[0].strip() if text else ""
+    if len(line) > _ERROR_QUOTE_CHARS:
+        line = line[:_ERROR_QUOTE_CHARS - 3].rstrip() + "..."
+    return line
 
 
 def annotate_result(result: dict, pc: Postcondition | None) -> dict:

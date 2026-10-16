@@ -161,6 +161,10 @@ def test_ordinary_failed_pick_trace_retains_diagnostic_without_new_verdict(runti
     rt.arm.harness._pending_model_withdrawal = pending
 
     def failed(**args):
+        # A release can only be refused after the grasp and carry moved the
+        # arm; record that motion so the verifier judges an attempted pick
+        # (a pick that commanded nothing is "no grasp was attempted").
+        rt.arm.harness.motions_begun += 1
         if failure == 'exception':
             raise SkillError('release route refused')
         return {'ok': False, 'error': 'release route refused', 'home_skipped': True}

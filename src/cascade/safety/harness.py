@@ -141,6 +141,12 @@ def _unknown_blocks(occupancy) -> bool:
 
 
 class SafetyHarness:
+    #: Motions this harness authorized (begin_motion passed its checks).
+    #: Monotonic and read-only to everyone else: the effects verifier compares
+    #: it before/after a skill call to tell "the arm moved" from "refused
+    #: before any motion" without trusting the skill's own report.
+    motions_begun: int = 0
+
     def __init__(self, limits: SafetyLimits, kinematics=None, occupancy=None,
                  base_pose=None, tool_volume=None):
         self.limits = limits
@@ -678,6 +684,7 @@ class SafetyHarness:
         if age > self.limits.watchdog_s:
             self._reject(f"perception watchdog: last observation {age:.1f}s old")
         self._motion_active = True
+        self.motions_begun += 1
 
     def end_motion(self) -> None:
         self._motion_active = False

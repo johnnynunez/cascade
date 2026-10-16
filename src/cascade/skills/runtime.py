@@ -447,6 +447,10 @@ class SkillRuntime:
     motion_cancel_requested = None
     arm_rig = None
     _call_measurements = None
+    #: Gripper close commands this runtime completed (`_close_two_stage`),
+    #: monotonic. With each harness's `motions_begun` it is the verifier's
+    #: "did this call act at all" signal (`_actuation_counts`).
+    _gripper_closes_commanded = 0
     #: LinkSelfMask | None (B39): set by the app wiring when
     #: `workspace_filter.link_self_mask` is on; see perception/link_mask.py.
     _link_self_mask: "LinkSelfMask | None" = None
@@ -540,7 +544,37 @@ class SkillRuntime:
             table_z=float(self.cfg.safety.get("table_z", 0.0)),
             air_grasp_frac=float(self.cfg.grasp.get("air_grasp_frac", 0.04)),
             placement_check=self._verify_configured_placement,
+            actuation=self._actuation_counts,
         )
+
+    def _actuation_counts(self) -> dict | None:
+        """Monotonic counts of what this runtime commanded, for the verifier.
+
+        ``arm_motions`` sums `motions_begun` over every arm's harness (the
+        rig's arms and the bound primary; SafeArm, `move_planned`, cartesian
+        paths and planner-bound streams all pass `begin_motion`). Read from
+        the instance dict, never `getattr` on the arm: bookkeeping must not
+        materialize a LazyArm. ``gripper_closes`` counts completed close
+        commands (`_close_two_stage`). None when any arm lacks a counting
+        harness (a test double): the verifier then claims neither "no
+        attempt" nor a close.
+        """
+        from ..safety.harness import SafetyHarness
+
+        arms = list(self.arm_rig.arms.values()) if getattr(self, "arm_rig", None) is not None else []
+        arms.append(getattr(self, "_arm", None))
+        harnesses = {}
+        for arm in arms:
+            if arm is None:
+                continue
+            harness = (getattr(arm, "__dict__", None) or {}).get("harness")
+            if not isinstance(harness, SafetyHarness) or type(harness.motions_begun) is not int:
+                return None
+            harnesses[id(harness)] = harness
+        if not harnesses:
+            return None
+        return {"arm_motions": sum(h.motions_begun for h in harnesses.values()),
+                "gripper_closes": int(self._gripper_closes_commanded)}
 
     def _verify_configured_placement(self, label, destination):
         """Resolve the requested area in configuration, then read physics only."""
@@ -3727,6 +3761,7 @@ class SkillRuntime:
                 _before_close()
             self._set_gripper(self._grip_closed, effort=profile.effort,
                               **({"_halt_generation": _halt_generation} if _halt_generation is not None else {}))
+            self._gripper_closes_commanded += 1
             return
         raw = self.arm.raw
         if hasattr(raw, "close_gripper_two_stage"):
@@ -3738,6 +3773,7 @@ class SkillRuntime:
                 width_frac_stage2=profile.close_frac_stage2,
                 effort=profile.effort,
             )
+            self._gripper_closes_commanded += 1
             return
         timeout = self.cfg.grasp.get("close_feedback_timeout_s")
         if timeout is not None:
@@ -3755,6 +3791,9 @@ class SkillRuntime:
                                  target_pos=self._grip_open + span * frac)
             self._set_gripper(self._grip_open + span * frac, effort=eff,
                                  **({"_halt_generation": _halt_generation} if _halt_generation is not None else {}))
+            # Counted once the command is accepted: the verifier may then say
+            # "the jaw closed" (a refused stage leaves the count unchanged).
+            self._gripper_closes_commanded += 1
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
             if timeout is not None:
                 self._wait_gripper_closed(1.0 - frac, timeout)

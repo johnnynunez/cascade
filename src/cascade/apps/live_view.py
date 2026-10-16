@@ -158,15 +158,16 @@ class RigViewer:
         self._thread = threading.Thread(target=self._loop, daemon=True, name="rig-viewer")
         self._thread.start()
 
-    def stop(self) -> None:
+    def stop(self, timeout_s: float | None = None) -> None:
         # The loop is inside cv2 (imshow/waitKey/resize, GIL released) most of
         # the time; returning before it ends lets that native code race the
-        # interpreter's exit (see perception/thread_join.py).
+        # interpreter's exit (see perception/thread_join.py). `timeout_s` is
+        # for a failed build's bounded teardown only (the handle is kept).
         from ..perception.thread_join import join_thread
 
         self._stop = True
         thread = self._thread
-        if thread is not None and join_thread(thread, what="rig-viewer"):
+        if thread is not None and join_thread(thread, what="rig-viewer", timeout_s=timeout_s):
             self._thread = None
 
     def _render_tile(self, stream) -> np.ndarray | None:

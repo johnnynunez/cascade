@@ -81,15 +81,21 @@ class CameraStream:
         )
         self._thread.start()
 
-    def close(self) -> None:
+    def close(self, timeout_s: float | None = None) -> None:
         # Wait for the grab in flight (a bridge `frame` request is bounded by
         # its socket timeout, then decodes in cv2) BEFORE closing the camera:
         # a pump thread still inside native code at interpreter exit aborts
         # the process (see perception/thread_join.py).
+        # `timeout_s` is for a failed build's bounded teardown only: if it
+        # expires, the camera is NOT closed under the grab, the handle is kept
+        # (a later close() can still join it) and the stage reports it.
         self._stop = True
         thread = self._thread
-        if thread is not None and join_thread(thread, what=f"stream-{self.name}"):
+        if thread is not None and join_thread(thread, what=f"stream-{self.name}", timeout_s=timeout_s):
             self._thread = None
+        if self._thread is not None and timeout_s is not None:
+            raise TimeoutError(f"stream-{self.name}: grab still in flight after {timeout_s:g} s; "
+                               "camera left open")
         self._camera.close()
 
     def warm_up(self, n: int = 10) -> None:
@@ -299,13 +305,17 @@ class CameraRig:
                     pass
             raise
 
-    def close(self) -> dict:
-        """Close all streams, retaining errors without skipping later streams."""
+    def close(self, timeout_s: float | None = None) -> dict:
+        """Close all streams, retaining errors without skipping later streams.
+
+        `timeout_s` bounds each stream's join (a failed build's teardown);
+        None waits for every grab in flight, as shutdown does."""
         from ..lifecycle import teardown_receipt, teardown_step
 
         stages = []
         for s in self:
-            stage = teardown_step(s.name, s.close)
+            close = s.close if timeout_s is None else (lambda s=s: s.close(timeout_s=timeout_s))
+            stage = teardown_step(s.name, close)
             stages.append(stage)
             if not stage["ok"]:
                 print(f"[rig] close {s.name}: {stage}", file=sys.stderr)

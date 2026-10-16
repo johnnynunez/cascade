@@ -51,9 +51,9 @@ def test_a_detector_that_fails_to_load_closes_the_open_rig(tmp_path, monkeypatch
     closed = []
     real_close = CameraRig.close
 
-    def spy_close(rig):
+    def spy_close(rig, **kwargs):  # a failed build bounds the join (timeout_s)
         closed.append(rig)
-        return real_close(rig)
+        return real_close(rig, **kwargs)
 
     def broken(cfg):
         raise RuntimeError("weights missing")

@@ -77,7 +77,7 @@ TORCH_CUDA_ARCH_LIST=12.0 scripts/serve_graspgenx.sh franka_panda 5556   # learn
 Connectivity check (works on macOS, which has no `ss`; not a readiness certificate):
 
 ```bash
-python - <<'EOF'
+python3 - <<'EOF'
 import socket
 for p in (8611, 8080, 8082, 5556, 5557, 18789):
     s = socket.socket(); s.settimeout(0.3)
@@ -93,9 +93,10 @@ type can bitrate 1000000`, then `./scripts/launch.sh --sim none --arm rebot_rs
 ## 4. CLI without a chat host
 
 ```bash
-cd models && python -m cascade.apps.demo --cameras isaac,isaac_side --arm isaac --llm local_qwen \
+cd models     # the cwd of every launch route; uv still finds the project one level up
+uv run python -m cascade.apps.demo --cameras isaac,isaac_side --arm isaac --llm local_qwen \
     --task "pick and place the pink cube in the box" --no-view       # one task
-cd models && python -m cascade.apps.demo --cameras isaac,isaac_side --arm isaac --llm local_qwen --interactive
+uv run python -m cascade.apps.demo --cameras isaac,isaac_side --arm isaac --llm local_qwen --interactive
 ```
 
 Ask in plain English with names from the scene: `What can you see on the table?` ·
@@ -140,7 +141,7 @@ the first motion after wake. macOS has no cv2 camera window from the server: use
 ```bash
 ./run.sh check mujoco                                   # read-only preflight
 tail -f runs/mcp_*/server.log                           # every host tools/call and its result
-python scripts/learn_from_runs.py --dry-run --report    # recent failures and causes; no notes or envelope writes
+uv run python scripts/learn_from_runs.py --dry-run --report   # recent failures and causes; no notes or envelope writes
 ```
 
 Chat host and MCP:

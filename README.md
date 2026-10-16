@@ -4,9 +4,13 @@ Run the whole cascade with no robot, GPU or credentials:
 
 ```bash
 git clone https://github.com/johnnynunez/cascade.git && cd cascade
-uv venv && uv pip install -e '.[dev,kinematics]'
-python -m cascade.apps.demo --task "pick and place pink object"
+uv sync --extra dev --extra kinematics     # creates .venv; every `uv run` below uses it
+uv run python -m cascade.apps.demo --task "pick and place the red object"
 ```
+
+The mock jaws hold nothing, so the task report says `success: False` with the
+postcondition refuted: the verifier at work. Real physics: the MuJoCo lines in
+[Quick start](#quick-start).
 
 CASCADE is a modular framework for agentic robotics. An LLM, or a chat host over
 MCP, drives curated, safety-gated robot skills. Routine commands resolve through a
@@ -92,7 +96,9 @@ assets), then `python3 scripts/desktop.py launch --repo "$PWD"`. READY requires 
 native OpenClaw orders (green cube to green square, orange to open box), each with
 a verified reset; logs stay under `runs/.install/` and `runs/.launch/profile-cascade-demo/`.
 
-For development, add one extra per capability (`uv pip install -e '.[sim,grasping]'`):
+For development, list every extra you need in one `uv sync` (it removes the ones
+you leave out), e.g. `uv sync --extra dev --extra kinematics --extra sim --extra grasping`;
+`uv run --extra sim ...` adds one for a single command:
 
 | extra | brings | when |
 |---|---|---|
@@ -101,12 +107,12 @@ For development, add one extra per capability (`uv pip install -e '.[sim,graspin
 | `llm` | `openai`, `anthropic` | any real brain over an API (`codex_astra` needs only the Codex CLI) |
 | `sim` / `sim-warp` | `mujoco` / `mujoco-warp`, `warp-lang` | hardware-free physics; the same MJCF on MuJoCo Warp (`engine: warp`) |
 | `arm` / `arm-feetech` | `motorbridge` / `pyserial` | RobStride over SocketCAN / Feetech-servo arms (SO-101) |
-| `grasping` | `pyzmq`, `msgpack-numpy` | the GraspGen-X / HUG / nvblox **client** wire (models run in their own venvs) |
+| `grasping` | `pyzmq`, `msgpack-numpy` | the GraspGen-X / HUG / nvblox **client** wire (models run in their own venvs); without it the default `graspgenx` backend falls back to the analytic OBB planner on every grasp |
 | `vla` | `websockets`, `msgpack` | the opt-in VLA policy client ([VLA executor](docs/VLA_EXECUTOR.md)) |
 
 torch is deliberately not a dependency: install your platform's build and
 [`cascade/device.py`](src/cascade/device.py) finds it. Robot meshes come from a
-pinned upstream commit (`python scripts/fetch_robot_assets.py --list`; `so101` is
+pinned upstream commit (`uv run python scripts/fetch_robot_assets.py --list`; `so101` is
 ~17 MB). Optional: `./scripts/install_hermes.sh --portal` (Hermes host and
 robot registration); `bash scripts/install.sh --profile laptop --brain keep
 --prepare-only --dir "$PWD"` (CPU/laptop prep, never installs Isaac or Cosmos).
@@ -137,27 +143,27 @@ changes READY. Every chat-host tool call is logged to `runs/mcp_<pid>/server.log
 
 ```bash
 # SO-101 (5 DoF) on the mock stack; mock_small fits its 55 mm jaw
-python -m cascade.apps.demo --arm so101_mock --camera mock_small --task "pick and place the red object"
-# real physics, no robot or GPU (.[sim]): postcondition channel = physics; add mujoco_wrist for a wrist camera
-python scripts/fetch_robot_assets.py so101
-python -m cascade.apps.demo --arm so101_mujoco --cameras mujoco_scene,mujoco_wrist --interactive
+uv run python -m cascade.apps.demo --arm so101_mock --camera mock_small --task "pick and place the red object"
+# real physics, no robot or GPU: postcondition channel = physics; add mujoco_wrist for a wrist camera
+uv run python scripts/fetch_robot_assets.py so101
+uv run --extra sim python -m cascade.apps.demo --arm so101_mujoco --cameras mujoco_scene,mujoco_wrist --interactive
 # two arms; another robot; any ROS2 robot (sourced ROS2 env + ros2_control bringup)
-python -m cascade.apps.demo --arms so101_left,so101_right --camera mock_small --interactive
-python -m cascade.apps.demo --arm piper_mock --camera mock_small --task "pick and place the red object"
-python -m cascade.apps.demo --arm so101_ros2
+uv run python -m cascade.apps.demo --arms so101_left,so101_right --camera mock_small --interactive
+uv run python -m cascade.apps.demo --arm piper_mock --camera mock_small --task "pick and place the red object"
+uv run python -m cascade.apps.demo --arm so101_ros2
 # one click through OpenClaw; --sim none for a real arm; --dry-run prints the plan
 ./scripts/launch.sh --sim none --arm rebot_rs --cameras l515
 # learned grasps (CUDA server warms up ~20 s before opening :5556) or the analytic stub (NOT the model)
-scripts/serve_graspgenx.sh                 # or: python scripts/serve_graspgenx_stub.py
+scripts/serve_graspgenx.sh                 # or: uv run --extra grasping python scripts/serve_graspgenx_stub.py
 ./scripts/serve_occupancy.sh               # occupancy bridge :5557, auto: nvblox > warp > voxel
-# real rig: CAN up, then N cameras (first = manipulation camera)
+# real rig (rig packages: see Setup notes): CAN up, then N cameras (first = manipulation camera)
 sudo ip link set can0 up type can bitrate 1000000
-python -m cascade.apps.demo --interactive --cameras d455f,uvc4k --arm rebot_rs --llm anthropic
+uv run python -m cascade.apps.demo --interactive --cameras d455f,uvc4k --arm rebot_rs --llm anthropic
 # chat hosts instead of the CLI loop
 ./scripts/hermes_demo.sh                # Hermes: register + test + chat
 ./scripts/openclaw_demo.sh              # OpenClaw, local-brain variant (Cosmos3-Edge / Qwen servers)
 # tests (live-hardware tests deselected; -m hardware needs a RealSense l515 + can0 up, read-only)
-python -m pytest tests/ -q
+uv run python -m pytest tests/ -q
 ```
 
 `--llm` defaults to `auto`: a logged-in Codex CLI (`codex_astra`), then Hermes
@@ -182,7 +188,7 @@ frame, reach and gripper travel come from the profile, not the code.
 
 - **Any ROS2 robot without Python:** `type: ros2` speaks `JointState` in and `FollowJointTrajectory` (or `JointTrajectory` / `Float64MultiArray`) out, joints by name.
 - **Franka FR3:** STOP is latched at start; **Resume & Home** (`POST /resume`) clears it and returns to the taught overview `home_q`; `return_home_after_motion: true` returns there after success or an ordinary failed grasp. Record native state without commanding: `scripts/record_franka_motion.py --output <new.jsonl> --rate 100 [--duration <s>]`.
-- <a id="multi-arm"></a>**Multi-arm:** `--arms a,b` builds an `ArmRig` (first = manipulation arm); motion skills take `arm="<name>"`. Each arm keeps its own `SafetyHarness`; with `base_pose` on both, link capsules (`safety.link_radii_m`) are gated by `safety.neighbor_clearance_m`. A wrong `base_pose` makes the distance confidently wrong: measure your table.
+- <a id="multi-arm"></a>**Multi-arm:** `--arms a,b` builds an `ArmRig` (first = manipulation arm); motion skills take `arm="<name>"`. Each arm keeps its own `SafetyHarness`; with `base_pose` on both, link capsules (`safety.link_radii_m`) are gated by `safety.neighbor_clearance_m`. A wrong `base_pose` makes the distance confidently wrong: measure your table. A standby LazyArm neighbour (under the MCP server: before its first motion and after `move_to_rest`) cannot be read, so the gate SKIPs it instead of blocking and the arms are unprotected for that window; before two real arms move, connect both (the CLI default) ([`so101_left.yaml` header](configs/arms/so101_left.yaml#L38-L45)).
 - **Gripper sweep:** an arm whose gripper differs from the reBot's 90 mm jaw must override `grasp.graspgenx.sweep` (see [`configs/arms/so101.yaml`](configs/arms/so101.yaml), 55 mm), or grasps come back too wide to close.
 - **Compute:** `device: auto` probes CUDA/ROCm → Apple MPS → CPU and degrades with a warning; `CASCADE_DEVICE=cpu` forces CPU. The mock and MuJoCo stacks import no accelerator library. `so101_mjwarp` runs the same MJCF on MuJoCo Warp (~650× slower than the C engine on CPU).
 
@@ -215,10 +221,10 @@ default single-arm mock rig lists 49: `list_arms` needs two arms), with reasons 
 
 | host | register |
 |---|---|
-| **OpenClaw** | `./scripts/launch.sh` (on Linux the agent runs in [OpenShell](docs/OPENSHELL.md#every-linux-launch-scriptslaunchsh)), `./scripts/bootstrap.sh` (fresh Spark) or `./scripts/openclaw_demo.sh` |
+| **OpenClaw** | `./scripts/launch.sh` (on Linux the agent runs in [OpenShell](docs/OPENSHELL.md#every-linux-launch-scriptslaunchsh)), `./scripts/bootstrap.sh` (fresh Spark) or `./scripts/openclaw_demo.sh`; OpenClaw blocks `PYTHONPATH`, so cascade must be editable-installed in the venv (`uv sync` and these scripts do it) |
 | **Hermes** *(default)* | `./scripts/install_hermes.sh --portal`, then `./scripts/hermes_demo.sh` |
-| **Claude Code / Desktop** | project `.mcp.json`; `python scripts/setup_agents.py --host claude --camera isaac,isaac_side --arm isaac --write` |
-| **Codex CLI** | `python scripts/setup_agents.py --host codex --write` (add `--codex-profile robot` for a layer only `codex -p robot` loads) |
+| **Claude Code / Desktop** | project `.mcp.json`; `uv run python scripts/setup_agents.py --host claude --camera isaac,isaac_side --arm isaac --python "$PWD/.venv/bin/python" --write` (the entry stores that interpreter path; the default is `<checkout-parent>/.demo/bin/python`) |
+| **Codex CLI** | `uv run python scripts/setup_agents.py --host codex --python "$PWD/.venv/bin/python" --write`, then check with `codex mcp list` (add `--codex-profile robot` for a layer only `codex -p robot` loads; list it with `codex -p robot mcp list`) |
 
 - **Host vs brain:** as a host the platform's LLM picks tools and cascade's reflex/habit tiers are bypassed (`mcp_server.py` pins `llm='mock'`); as a brain (`--llm ...`) cascade runs its own loop with all tiers.
 - **Registration env:** every runtime switch set in the registering shell is copied into the host's entry from one list, `src/cascade/apps/mcp_env.py`; rig selectors (`CASCADE_ROBOT`, `CASCADE_BASE`, `CASCADE_ARMS`) and secrets (`CASCADE_MCP_TOKEN`) never are. `--env KEY=VALUE` overrides.
@@ -265,15 +271,16 @@ memory frame + verdict. Every result carries `outcome: ok | failed | stuck`;
 - The **top-down envelope** is small: below z ≈ 0.15 m on the B601-RS; on the SO-101 an annulus r ≈ 0.12–0.28 m under a hard z ≈ 0.09 m ceiling (`configs/arms/so101.yaml`).
 - **reBot B601:** `configs/arms/rebot_rs.yaml` gripper travel (0 → +6.39 rad, closed at 0) disagrees with Seeed's WRC angle↔width scale: re-verify jaw width and stall before the first grasp ([onsite checks](docs/WRC_CONTROL_PORT.md)). Never run `motorbridge-gateway` / MotorBridge Studio during the demo (CAN host-id 0xFD conflict).
 - **SO-101 (`--arm so101`): the serial driver has never run on hardware.** Before the first motion:
-  1. `python scripts/diag_so101.py --port <port>`: read-only scan of ids, angles, voltage, temperature.
-  2. `python scripts/diag_so101.py --port <port> --jog 1`: moves one joint a few degrees and names the `wire_signs` entry to flip.
+  1. `uv run --extra arm-feetech python scripts/diag_so101.py --port <port>`: read-only scan of ids, angles, voltage, temperature.
+  2. `uv run --extra arm-feetech python scripts/diag_so101.py --port <port> --jog 1`: moves one joint a few degrees and names the `wire_signs` entry to flip.
   3. Re-measure the gripper travel and set `gripper.*`.
   4. Park with `move_home` before disconnecting: `disconnect()` cuts torque and a loaded arm drops.
 
 ## Setup notes
 
-Only for a real or Isaac camera. `scripts/setup_env.sh` installs into a shared uv
-venv (pass `PY=/path/to/python`); pyrealsense2 comes from the
+Only for a real or Isaac camera. `PY="$PWD/.venv/bin/python" bash scripts/setup_env.sh`
+adds the rig packages (ultralytics, openai, anthropic, motorbridge) to the `uv sync`
+venv (without `PY` it targets the reference rig's own venv); pyrealsense2 comes from the
 [librealsense fork](https://github.com/johnnynunez/librealsense). The local
 **Qwen3.8-27B** brain names objects (`detector: type: brain`) and **SAM 2.1-L**
 masks its boxes ([bake-off evidence](docs/evidence/perception-bakeoff-20261015/REPORT.md)):

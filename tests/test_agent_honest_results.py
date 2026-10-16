@@ -365,6 +365,10 @@ def test_pick_and_place_says_destination_is_on_or_in_and_how_to_place_beside():
     assert "next to" in text and "beside" in text
     assert "grasp_object" in text and "place_at" in text
     assert "ON/IN" in spec["parameters"]["properties"]["destination"]["description"]
+    # ... and how: where X is (localize_object), and how far beside it (review minor 5)
+    how = text[text.index("next to"):]
+    assert how.index("localize_object") < how.index("place_at")
+    assert "1.5x" in how and "extent_m" in how and "free side" in how
 
 
 # ── 6. which frame "left" used, and how it looks on the screen ───────────

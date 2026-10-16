@@ -1030,8 +1030,8 @@ class SkillRuntime:
             )
             from ..perception.detector import foreground as perception_foreground
 
-            perceiving = (perception_foreground(self.detector) if name in _FOREGROUND_PERCEPTION_SKILLS
-                          else contextlib.nullcontext())
+            perceiving = (perception_foreground(getattr(self, "detector", None))
+                          if name in _FOREGROUND_PERCEPTION_SKILLS else contextlib.nullcontext())
             owns_epoch = name in _MOTION_SKILLS and self._motion_t0 is None
             if owns_epoch:
                 self._motion_t0 = time.monotonic()

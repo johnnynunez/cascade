@@ -139,6 +139,13 @@ CLEARANCE_ESCAPE_TOL_M = 1e-9
 #: Appended to a TCP/link map-clearance refusal when the arm already started
 #: inside the margin, so the reason says why a small move was refused.
 ESCAPE_NOTE = " (inside the margin: only a strictly retreating step is allowed)"
+#: A step admitted by that escape is also sampled between its ends, so one
+#: long step cannot jump a voxel: interior points at most half a voxel apart,
+#: using the bridge's default 1 cm voxel (`serve_occupancy_bridge.py
+#: --voxel-size`) or the map's reported voxel when it is finer.
+ESCAPE_SAMPLE_VOXEL_M = 0.01
+#: At most this many interior configurations per escaping step.
+ESCAPE_MAX_INTERIOR_SAMPLES = 16
 
 
 def _unknown_blocks(occupancy) -> bool:
@@ -882,13 +889,15 @@ class SafetyHarness:
 
         if self.occupancy is not None:
             # The same TCP + links at q_prev, read in the same map query, so
-            # an arm already inside the margin may strictly retreat (spec 3.1).
-            prev_points = np.vstack([self.kin.fk(q_prev)[:3, 3][None, :],
-                                     self.kin.link_positions(q_prev)[1:]])
+            # an arm already inside the margin may strictly retreat (spec 3.1);
+            # an escaping step is also sampled along its interior.
+            points = np.vstack([tcp[None, :], links[1:]])
+            prev_points = self._clearance_points(q_prev)
             reason = self._occupancy_violation(
-                np.vstack([tcp[None, :], links[1:]]), self._grasp_exempt,
+                points, self._grasp_exempt,
                 prev_points=prev_points,
                 hold=bool(np.allclose(q_prev, q_next, rtol=0.0, atol=1e-9)),
+                interior=lambda: self._step_interior(q_prev, q_next, points, prev_points),
             )
             if reason is not None:
                 reject(reason)
@@ -1036,7 +1045,8 @@ class SafetyHarness:
         return f"attached object {reason}" if reason else None
 
     def _occupancy_violation(self, points: np.ndarray, exempt: tuple | None, *, attached=False,
-                             prev_points: np.ndarray | None = None, hold: bool = False) -> str | None:
+                             prev_points: np.ndarray | None = None, hold: bool = False,
+                             interior=None) -> str | None:
         """Occupancy-map check: any query point closer than min_clearance_m
         to a cached obstacle, outside the active grasp exemption.
 
@@ -1051,40 +1061,106 @@ class SafetyHarness:
         points at q_prev; never for attached payloads or static vets): a
         point inside the margin at q_next is admitted only when it was
         already inside at q_prev AND its clearance grows by more than
-        CLEARANCE_ESCAPE_TOL_M, or the step is an exact `hold`. Both
-        distances come from ONE map read. A NaN/unobserved clearance never
-        escapes (NaN is never below the margin, never larger).
+        CLEARANCE_ESCAPE_TOL_M, or the step is an exact `hold` that lowers
+        no such point's clearance. A NaN/unobserved clearance never escapes
+        (NaN is never below the margin, never larger).
+
+        A step that admits any point this way is also checked along the
+        step: `interior()` returns the same points at configurations between
+        q_prev and q_next, shape (k, n, 3), and no escaping point may read
+        less there than at q_prev (no voxel jumped). That decision comes from
+        ONE read of the ends and the interior together. The first read of the
+        ends only finds the escaping points, so a step with none keeps its
+        single read and computes no interior FK.
         """
+        if attached and prev_points is not None:
+            return "attached-payload samples never escape (prev_points given with attached=True)"
+        reason, escaping = self._clearance_read(points, exempt, attached, prev_points, hold)
+        if reason is None and escaping.any() and interior is not None:
+            mid = interior()
+            if mid.size:
+                # Decide on a new read of the ends WITH the interior: a map
+                # refresh between two reads must never mix two grids.
+                reason, _ = self._clearance_read(points, exempt, attached, prev_points, hold, mid)
+        return reason
+
+    def _clearance_read(self, points, exempt, attached, prev_points, hold, mid=None):
+        """One map read for `_occupancy_violation`: (refusal or None, the
+        mask of points admitted only by the escape). `mid` (k, n, 3) adds
+        the step's interior samples to the same read."""
         query = self.occupancy.payload_clearance if attached else self.occupancy.clearance
         observed_required = attached or _unknown_blocks(self.occupancy)
         n = len(points)
+        escaping = np.zeros(n, dtype=bool)
         if prev_points is None:
             dist = query(points)
         else:
-            dist = query(np.vstack([points, prev_points]))
+            rows = [points, prev_points] if mid is None else [points, prev_points, mid.reshape(-1, 3)]
+            dist = query(np.vstack(rows))
         if dist is None:
-            return "clearance unavailable (fresh observed distance grid required)" if observed_required else None
+            reason = "clearance unavailable (fresh observed distance grid required)"
+            return (reason if observed_required else None), escaping
         min_c = self.limits.min_clearance_m
         retreating = inside_before = None
         if prev_points is not None:
             dist = np.asarray(dist, dtype=float)
-            dist, before = dist[:n], dist[n:]
+            dist, before, mid_dist = dist[:n], dist[n:2 * n], dist[2 * n:]
             inside_before = before < min_c                # NaN compares False: never inside
-            retreating = inside_before & (hold | (dist > before + CLEARANCE_ESCAPE_TOL_M))
+            retreating = inside_before & ((hold & (dist >= before))
+                                          | (dist > before + CLEARANCE_ESCAPE_TOL_M))
         for i, (p, d) in enumerate(zip(points, dist)):
             if not np.isfinite(d) and observed_required and not self._in_cylinder(p, exempt):
                 return (f"point {i} has unobserved clearance (occupancy map)"
-                        f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]")
+                        f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]"), escaping
             if d < min_c and not self._in_cylinder(p, exempt):
                 if retreating is not None and retreating[i]:
+                    escaping[i] = True
                     continue
                 started_inside = inside_before is not None and any(
                     inside_before[j] and not self._in_cylinder(b, exempt)
                     for j, b in enumerate(prev_points))
                 return (f"point {i} clearance {d:.9f} m below {min_c:.9f} m "
                         f"(shortfall {(min_c - d) * 1000:.6f} mm; occupancy map)"
-                        f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]") + (ESCAPE_NOTE if started_inside else "")
-        return None
+                        f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]"
+                        + (ESCAPE_NOTE if started_inside else "")), escaping
+        if mid is not None:
+            # Interior samples get no grasp exemption: an escaping point is
+            # outside it at q_next, and NaN never passes `>=`.
+            mid_dist = mid_dist.reshape(len(mid), n)
+            for i in np.flatnonzero(escaping):
+                bad = np.flatnonzero(~(mid_dist[:, i] >= before[i]))
+                if len(bad):
+                    p, d = mid[bad[0], i], mid_dist[bad[0], i]
+                    where = f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]"
+                    if np.isnan(d):
+                        return f"point {i} has unobserved clearance (occupancy map, mid-step){where}", escaping
+                    return (f"point {i} clearance {d:.9f} m below {min_c:.9f} m "
+                            f"(shortfall {(min_c - d) * 1000:.6f} mm; occupancy map, mid-step)"
+                            f"{where}" + ESCAPE_NOTE), escaping
+        return None, escaping
+
+    def _clearance_points(self, q: np.ndarray) -> np.ndarray:
+        """The TCP and joint origins (`links[1:]`) at joint pose `q`."""
+        return np.vstack([self.kin.fk(q)[:3, 3][None, :], self.kin.link_positions(q)[1:]])
+
+    def _step_interior(self, q_prev, q_next, points, prev_points) -> np.ndarray:
+        """The same clearance points at k configurations strictly between
+        q_prev and q_next (FK of the interpolated joint vector), shape
+        (k, n, 3). k = ceil(largest point displacement / half a voxel), at
+        most ESCAPE_MAX_INTERIOR_SAMPLES; 0 for an exact hold."""
+        shift = float(np.max(np.linalg.norm(points - prev_points, axis=1), initial=0.0))
+        k = min(ESCAPE_MAX_INTERIOR_SAMPLES, int(np.ceil(shift / (self._escape_voxel_m() / 2.0))))
+        mids = [self._clearance_points(q_prev + (s / (k + 1)) * (q_next - q_prev)) for s in range(1, k + 1)]
+        return np.array(mids, dtype=float).reshape(k, len(points), 3)
+
+    def _escape_voxel_m(self) -> float:
+        """ESCAPE_SAMPLE_VOXEL_M, or the map's reported voxel when finer."""
+        status = getattr(self.occupancy, "status", None)
+        try:
+            voxel = float(status.get("voxel")) if isinstance(status, dict) else float("nan")
+        except (TypeError, ValueError):
+            voxel = float("nan")
+        return min(ESCAPE_SAMPLE_VOXEL_M, voxel) if np.isfinite(voxel) and voxel > 0 else ESCAPE_SAMPLE_VOXEL_M
 
     def _tool_volume_clearance(self, T_tcp: np.ndarray, exempt: tuple | None):
         """(samples, clearance) of the tool volume at TCP pose `T_tcp`

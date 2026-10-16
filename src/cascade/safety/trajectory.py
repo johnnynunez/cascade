@@ -77,8 +77,10 @@ def route_end_reason(harness, end):
     """Why a route may not end at joint pose `end`, or None (spec 3.1).
 
     A step may retreat inside the map margin, but a route must never leave
-    the arm there. Harnesses without `route_end_violation` (GeometryHarness,
-    test doubles) have no such escape and need no end check.
+    the arm there. A GeometryHarness (`mujoco_withdrawal.py`) forwards
+    attribute lookups to the arm's harness, so the check resolves there.
+    Harnesses without `route_end_violation` (test doubles) have no such
+    escape and need no end check.
     """
     check = getattr(harness, "route_end_violation", None)
     reason = check(end) if check is not None else None

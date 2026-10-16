@@ -24,6 +24,7 @@ class PointsMap:
     """Occupancy stand-in: distance to the nearest of a few obstacle points."""
 
     required = False
+    status = None                                         # OccupancyMap.status: the bridge's probe reply
 
     def __init__(self, *voxels, unknown_blocks=False):
         self.voxels = np.asarray(voxels, dtype=float).reshape(-1, 3)
@@ -112,8 +113,103 @@ def test_a_point_entering_the_margin_refuses_although_another_retreats():
 def test_prev_and_next_points_share_one_map_read():
     occupancy = points_map(VOXEL)
     _, _, h = case(occupancy=occupancy); q = np.array([.3, 0., .3])
+    assert h.vet_step(q + [0., 0., .1], q + [0., 0., .101], .02) is None
+    assert occupancy.queries == [4]       # outside the margin: TCP + link, at q_next and q_prev
+    occupancy.queries.clear()
+    assert h.vet_step(q, q, .02) is None
+    assert occupancy.queries == [4]       # an exact hold has no interior to sample
+    occupancy.queries.clear()
     assert h.vet_step(q, q + [0., 0., .001], .02) is None
-    assert occupancy.queries == [4]                       # TCP + link, at q_next and q_prev
+    # an escape: the ends, then ONE deciding read of the ends plus 1 interior configuration
+    assert occupancy.queries == [4, 4 + 2]
+
+
+def test_closing_holds_are_refused_at_the_first_one():
+    # review probe 1e: each 0.9 nm step is a "hold" (joints within 1e-9), 1000 of them close 0.9 um
+    _, _, h = case(occupancy=points_map(VOXEL)); q = np.array([.3, 0., .3])
+    step, admitted = np.array([0., 0., -.9e-9]), 0
+    for _ in range(1000):
+        reason = h.vet_step(q, q + step, .02)
+        if reason is not None:
+            break
+        q, admitted = q + step, admitted + 1
+    assert admitted == 0, f"{admitted} closing holds admitted"
+    assert reason.startswith("point 0 clearance 0.027999999") and reason.endswith(ESCAPE_NOTE)
+    # a hold that does not close in stays admitted
+    assert h.vet_step(q, q + [0., 0., .9e-9], .02) is None
+
+
+@pytest.mark.parametrize("dt", [.02, 0.])
+def test_an_escape_step_that_jumps_a_voxel_is_refused(dt):
+    # review probe 1g: 5 mm above a point voxel -> 6 mm below it in one 1.1 cm step;
+    # both ends "retreat" (5 -> 6 mm), the interior passes through the voxel
+    voxel = np.array([.3, 0., .25])
+    occupancy = points_map(voxel)
+    _, _, h = case(occupancy=occupancy)
+    reason = h.vet_step(voxel + [0., 0., .005], voxel - [0., 0., .006], dt)
+    assert reason.startswith("point 0 clearance 0.002250000 m below 0.030000000 m")
+    assert "mid-step" in reason and reason.endswith(ESCAPE_NOTE)
+    assert occupancy.queries == [4, 4 + 2 * 3]             # 1.1 cm at 5 mm spacing: 3 interior samples
+
+
+def test_an_honest_escape_is_sampled_along_the_step_and_admitted():
+    occupancy = points_map([.3, 0., .3 - .015])
+    _, _, h = case(occupancy=occupancy); q = np.array([.3, 0., .3])
+    assert h.vet_step(q, q + [0., 0., .012], .02) is None  # 15 -> 27 mm; 18, 21, 24 mm between
+    assert occupancy.queries == [4, 4 + 2 * 3]
+
+
+def test_an_escape_is_decided_on_one_map_read():
+    # The map refreshes between the two reads. On the new grid the step dips mid-way
+    # (29.0 -> 28.5 -> 29.5 mm). Mixing in the first grid's q_prev value (28.0 mm) would admit it.
+    grids = [lambda z: z - .272,
+             lambda z: np.interp(z, [.3, .3005, .301], [.029, .0285, .0295])]
+    reads = []
+
+    def clearance(p):
+        reads.append(len(p))
+        return grids[min(len(reads), 2) - 1](np.asarray(p, dtype=float)[:, 2])
+
+    _, _, h = case(occupancy=SimpleNamespace(clearance=clearance)); q = np.array([.3, 0., .3])
+    reason = h.vet_step(q, q + [0., 0., .001], .02)
+    assert reads == [4, 6]
+    assert reason.startswith("point 0 clearance 0.028500000") and "mid-step" in reason
+
+
+def test_interior_spacing_follows_a_finer_reported_voxel_and_is_capped():
+    occupancy = points_map(VOXEL); occupancy.status = {"voxel": .001}
+    _, _, h = case(occupancy=occupancy); q = np.array([.3, 0., .3])
+    assert h.vet_step(q, q + [0., 0., .0012], .02) is None
+    assert occupancy.queries == [4, 4 + 2 * 3]             # 1.2 mm at 0.5 mm spacing
+    occupancy.queries.clear(); occupancy.status = {"voxel": .05}
+    occupancy.voxels = np.array([[.3, 0., .28]])
+    assert h.vet_step(q, q + [0., 0., .006], .02) is None  # 20 -> 26 mm
+    assert occupancy.queries == [4, 4 + 2 * 2]             # a coarser voxel never thins the 5 mm spacing
+    occupancy.queries.clear(); occupancy.status = {"voxel": .001}
+    occupancy.voxels = np.array([[.3, 0., .29]])
+    assert h.vet_step(q, q + [0., 0., .019], 0.) is None   # 10 -> 29 mm needs 38: capped at 16
+    assert occupancy.queries == [4, 4 + 2 * 16]
+
+
+def test_an_unobserved_interior_sample_refuses_the_escape():
+    # `unobserved: blocked`: both ends are observed and retreat, the middle of the step is not
+    def clearance(p):
+        z = np.asarray(p, dtype=float)[:, 2]
+        return np.where((z > .3002) & (z < .3008), np.nan, z - .272)
+
+    occupancy = SimpleNamespace(clearance=clearance, required=True, unknown_blocks=True)
+    _, _, h = case(occupancy=occupancy); q = np.array([.3, 0., .3])
+    reason = h.vet_step(q, q + [0., 0., .001], .02)
+    assert reason.startswith("point 0 has unobserved clearance (occupancy map, mid-step)")
+
+
+def test_attached_samples_refuse_prev_points_locally():
+    occupancy = SimpleNamespace(clearance=lambda p: np.full(len(p), .1),
+                                payload_clearance=lambda p: np.full(len(p), .1))
+    _, _, h = case(occupancy=occupancy); pts = np.array([[.3, 0., .3]])
+    assert h._occupancy_violation(pts, None, attached=True) is None
+    reason = h._occupancy_violation(pts, None, attached=True, prev_points=pts, hold=True)
+    assert reason is not None and "never escape" in reason
 
 
 def test_route_ending_inside_the_margin_is_refused():

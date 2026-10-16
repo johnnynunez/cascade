@@ -19,6 +19,7 @@ nominal duration.
 """
 from __future__ import annotations
 
+import dataclasses
 import logging
 import threading
 import time
@@ -34,6 +35,7 @@ from cascade.perception.mock_camera import MockCamera
 from cascade.perception.stream import CameraStream
 from cascade.perception.world import LockedDetector, WatchedCamera, WorldWatcher
 from cascade.types import Frame
+from fake_brain_stream import reply as answer
 
 
 def _frame(frame_id: int = 1) -> Frame:
@@ -268,8 +270,7 @@ class _HungBrain:
         self.threads.append(threading.current_thread().name)
         self.entered.set()
         self.gate.wait(5.0)
-        message = SimpleNamespace(content=self.REPLY)
-        return SimpleNamespace(choices=[SimpleNamespace(message=message, finish_reason="stop")])
+        return answer(kwargs, self.REPLY)  # streamed for a background refresh
 
 
 class _BoxMasks:
@@ -306,7 +307,10 @@ def test_watcher_keeps_beating_while_the_brain_request_hangs():
                              segmenter=_BoxMasks())
     stream = CameraStream(MockCamera(), name="cam", rate_hz=60.0)
     harness = _TimedHarness()
-    cam = WatchedCamera(stream, SimpleNamespace(ensure_depth=lambda f: f), None, fuse=False)
+    # A fusing camera (the brain detector skips non-fusing ones); without
+    # depth its ticks fuse nothing, so no extrinsics are needed.
+    cam = WatchedCamera(stream, SimpleNamespace(ensure_depth=lambda f: dataclasses.replace(f, depth_m=None)),
+                        None, fuse=True)
     watcher = WorldWatcher([cam], LockedDetector(detector), SimpleNamespace(), rate_hz=30.0,
                            harness=harness)
     stream.open()

@@ -657,6 +657,7 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
     # are joined, bounded, by its close(): a failed build closes it last.
     detector = started.detector = LockedDetector(_make_detector(cfg))
     rig.primary.warm_up(int(cam_cfgs[0].get("warmup_frames", 5)))
+    _warn_shared_camera_keys(detector, [cam.stream for cam in watched])
 
     memory = EpisodicMemory(
         horizon_s=float(cfg.memory.get("horizon_s", 15.0)),
@@ -1212,12 +1213,16 @@ def owned_threads(runtime) -> list:
     rig = getattr(runtime, "rig", None)
     for stream in (list(rig) if rig is not None else []):
         add(f"stream-{getattr(stream, 'name', '?')}", stream)
-    # The brain detector's SAM warm-up (LockedDetector wraps the detector):
-    # joined by the "detector" stage, listed here in case its bound expires.
+    # The brain detector's SAM warm-up and background refreshes (LockedDetector
+    # wraps the detector): joined by the "detector" stage, listed here in case
+    # a bound expires.
     detector = getattr(runtime, "detector", None)
-    warm_up = getattr(getattr(detector, "_detector", detector), "warm_up_thread", None)
+    inner = getattr(detector, "_detector", detector)
+    warm_up = getattr(inner, "warm_up_thread", None)
     if isinstance(warm_up, threading.Thread):
         out.append(("sam-warm-up", warm_up))
+    if callable(getattr(type(inner), "refresh_threads", None)):  # class only: a Mock answers anything
+        out.extend(("brain-refresh", t) for t in inner.refresh_threads() if isinstance(t, threading.Thread))
     return out
 
 
@@ -1703,6 +1708,41 @@ BRAIN_KEY_FILE = "~/.cascade/nemoclaw/llama.key"
 _WARM_UP_SHAPE = (240, 320)
 
 
+#: build_runtime waits at most this long, in total, for the first frame of
+#: each watched camera that has none yet before comparing their cache keys.
+_CAMERA_KEY_WAIT_S = 2.0
+
+
+def _warn_shared_camera_keys(detector, streams, *, wait_s: float = _CAMERA_KEY_WAIT_S) -> list[list[str]]:
+    """One WARNING when two watched cameras' first frames give a detector
+    that keys its cache per camera (the brain detector's CLASS defines
+    `camera_key`) the same key: they would share one cache entry, and each
+    camera's tick would invalidate the other's inventory. Frames without a
+    capture identity key by image size + K only (two identical RealSense
+    models). Returns the groups of camera names that share a key. A camera
+    without a frame within `wait_s` (shared) is left out."""
+    inner = getattr(detector, "_detector", detector)
+    camera_key = getattr(type(inner), "camera_key", None)
+    if not callable(camera_key) or len(streams) < 2:
+        return []
+    deadline = time.monotonic() + wait_s
+    names_by_key: dict = {}
+    for stream in streams:
+        frame = stream.latest()
+        if frame is None:
+            frame, _ = stream.wait_newer(0, timeout_s=max(0.0, deadline - time.monotonic()))
+        if frame is None:
+            continue
+        names_by_key.setdefault(camera_key(frame), []).append(str(stream.name))
+    shared = [names for names in names_by_key.values() if len(names) > 1]
+    if shared:
+        logger.warning(
+            "cameras %s share one brain-detector cache key (same image size and intrinsics, no capture "
+            "identity): their inventories invalidate each other on every watcher tick",
+            "; ".join(" and ".join(names) for names in shared))
+    return shared
+
+
 def _make_detector(cfg, *, warm_up: bool = True):
     """The detector the config names: `type: brain` (what configs/demo.yaml
     ships), `mock`, or the deprecated `vlm`. A block without a `type` is
@@ -1761,12 +1801,16 @@ def _make_brain_detector(cfg, dcfg, *, warm_up: bool):
         model_path, device = configured_segmenter(scfg)
         segmenter = BoxSegmenter(model_path=model_path, device=device)
     key_file = dcfg.get("api_key_file", BRAIN_KEY_FILE)
+    timeout_s = float(dcfg.get("timeout_s", 20.0))
     detector = BrainDetector(
         base_url=str(dcfg.get("base_url", BRAIN_BASE_URL)),
         model=str(dcfg.get("model", BRAIN_MODEL)),
         # The key is read from this file, never from the config text.
         api_key_file=os.path.expanduser(str(key_file)) if key_file else None,
-        timeout_s=float(dcfg.get("timeout_s", 20.0)),
+        timeout_s=timeout_s,
+        # Background (watcher) requests: an open-world inventory decodes far
+        # more tokens than a refer. Absent: the foreground timeout_s.
+        inventory_timeout_s=float(dcfg.get("inventory_timeout_s", timeout_s)),
         max_tokens=int(dcfg.get("max_tokens", 1500)),
         segmenter=segmenter,
         refresh_s=float(dcfg.get("refresh_s", 4.0)),

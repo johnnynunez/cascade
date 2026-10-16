@@ -129,6 +129,12 @@ _MOTION_SKILLS = {
     "restore_scene", "search_for_object",
 }
 
+#: Skills that run inside the detector's foreground-perception scope
+#: (perception.detector.foreground): every motion skill plus the `_localize`
+#: callers that move nothing. Background detector work (the brain's watcher
+#: inventories, SAM track steps) never competes with their localization.
+_FOREGROUND_PERCEPTION_SKILLS = _MOTION_SKILLS | {"preview_grasp", "localize_object"}
+
 #: Labels that name hollow things -- what Pigey's occlusion search lifts
 #: first ("start with the largest/hollowest container (bowl, basket, box),
 #: since those hide the most; then taller objects"). Size breaks ties.
@@ -1022,6 +1028,10 @@ class SkillRuntime:
                 if (self.watcher is not None and name in _MOTION_SKILLS)
                 else contextlib.nullcontext()
             )
+            from ..perception.detector import foreground as perception_foreground
+
+            perceiving = (perception_foreground(self.detector) if name in _FOREGROUND_PERCEPTION_SKILLS
+                          else contextlib.nullcontext())
             owns_epoch = name in _MOTION_SKILLS and self._motion_t0 is None
             if owns_epoch:
                 self._motion_t0 = time.monotonic()
@@ -1045,7 +1055,7 @@ class SkillRuntime:
                 }
             try:
                 with motion_evidence.record_skill(name, resolved_arm, trace_context,
-                                                  enabled=name in _MOTION_SKILLS), hold:
+                                                  enabled=name in _MOTION_SKILLS), hold, perceiving:
                     failure = None
                     try:
                         from ..planning.backend_evidence import ordinary_call

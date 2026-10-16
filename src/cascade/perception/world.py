@@ -46,6 +46,14 @@ def _has_detect_nowait(detector) -> bool:
     return callable(getattr(type(detector), "detect_nowait", None))
 
 
+def _fusing_cameras_only(detector) -> bool:
+    """The detector's CLASS sets `background_fusing_cameras_only` (the brain
+    detector); LockedDetector answers for the detector it wraps."""
+    if isinstance(detector, LockedDetector):
+        return detector.background_fusing_cameras_only
+    return bool(getattr(type(detector), "background_fusing_cameras_only", False))
+
+
 class LockedDetector:
     """Serialize detector access across threads (YOLO predict is not
     re-entrant); shared by the watcher and the skill runtime.
@@ -72,6 +80,12 @@ class LockedDetector:
     detector's close() when its CLASS defines one (the brain detector joins
     its refresh threads and SAM warm-up there), under the same lock rule as
     detect(); a no-op otherwise.
+
+    foreground() (the runtime's scope around a foreground localization)
+    forwards to the detector's foreground() when its CLASS defines one (the
+    brain detector holds off its background work), else a no-op scope; it
+    never takes the lock. `background_fusing_cameras_only` is the wrapped
+    detector's class flag (the watcher skips its non-fusing cameras).
     """
 
     def __init__(self, detector):
@@ -81,6 +95,9 @@ class LockedDetector:
         self._has_nowait = _has_detect_nowait(detector)
         self._has_vocabulary = callable(getattr(type(detector), "detect_vocabulary", None))
         self._has_close = callable(getattr(type(detector), "close", None))
+        self._has_foreground = callable(getattr(type(detector), "foreground", None))
+        self.background_fusing_cameras_only = bool(
+            getattr(type(detector), "background_fusing_cameras_only", False))
 
     @property
     def closable(self) -> bool:
@@ -143,6 +160,11 @@ class LockedDetector:
             return self._detector.detect_vocabulary(frame, classes=classes)
         with self._lock:
             return self._detector.detect_vocabulary(frame, classes=classes)
+
+    def foreground(self):
+        if not self._has_foreground:
+            return contextlib.nullcontext()
+        return self._detector.foreground()
 
     def close(self) -> None:
         if not self._has_close:
@@ -451,7 +473,11 @@ class WorldWatcher:
         # (5 s) would starve it all the same. detect_nowait never waits for a
         # slow backend (the brain detector answers from its cache and asks the
         # brain in the background); other detectors keep detect().
-        if _has_detect_nowait(self._detector):
+        if not fuse and _fusing_cameras_only(self._detector):
+            # Nothing of a non-fusing camera reaches the beliefs: no background
+            # inventory and no SAM step for an overlay (the brain detector).
+            dets = []
+        elif _has_detect_nowait(self._detector):
             dets = self._detector.detect_nowait(frame, classes=self._classes)
         else:
             dets = self._detector.detect(frame, classes=self._classes)

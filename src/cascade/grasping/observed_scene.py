@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import itertools
 import json
+import time
 from pathlib import Path
 
 import numpy as np
@@ -27,6 +28,95 @@ PHYSX_GEOMETRY = ROOT / "assets/grasp_geometry/rebot_rs_fingers_physx.json"
 # See docs/evidence/observed-finger-gate/open-jaw-tracking.json. Not a universal
 # actuator-noise bound; departures abort, never expand it adaptively.
 OPEN_TRACKING_ENVELOPE_M = .0001
+
+
+def precommand_refusal(message, conflict):
+    """The gate's veto of a step BEFORE that step's command was sent.
+
+    A planned stream profile (before its first target) or the jaw close at the
+    measured pose (before the jaw command). Nothing of that step moved, so the
+    observed scene is still the one every candidate was vetted against. A
+    refusal of MEASURED feedback during a stream is not tagged: a finger
+    already met an observed surface and may have moved what it touched.
+    """
+    exc = SafetyViolation(f"{message}: {conflict}")
+    exc.observed_precommand_conflict = dict(conflict)
+    return exc
+
+
+def precommand_conflict(exc):
+    """The conflict of a `precommand_refusal`, else None."""
+    conflict = getattr(exc, "observed_precommand_conflict", None)
+    return conflict if isinstance(conflict, dict) else None
+
+
+def _horizontal_dilation(envelopes, R, lateral_m, vertices):
+    """Outer envelope of each part displaced horizontally (base x/y) by any
+    vector up to `lateral_m`, never lower than the part itself.
+
+    A point p (TCP frame) lies in the displaced part iff n.p + d <= n.s_tcp for
+    some horizontal base vector s, |s| <= lateral_m; the largest n.s_tcp is
+    lateral_m * |horizontal part of R n|. Moving every unit-normal plane out by
+    that support is conservative (like `FingerGeometry.envelopes`). For a
+    TILTED tool those moved planes also reach below the finger (up to
+    lateral_m * sin(2 tilt)), where the table is: a horizontal displacement
+    keeps every base z, so each part is also clipped at its own lowest base
+    z (`vertices`: the part's corners, TCP frame). Bounds grow by lateral_m
+    on every TCP axis.
+    """
+    down = R[2]  # base z of a TCP-frame point p is down . p + t_z
+    result = []
+    for (name, part, planes, lo, hi, _center, _radius), corners in zip(envelopes, vertices, strict=True):
+        support = lateral_m * np.linalg.norm((planes[:, :3] @ R.T)[:, :2], axis=1)
+        planes = planes.copy()
+        planes[:, 3] -= support
+        floor = float(np.min(corners @ down))
+        planes = np.concatenate((planes, np.r_[-down, floor][None]))  # down . p >= floor
+        lo, hi = lo - lateral_m, hi + lateral_m
+        result.append((name, part, planes, lo, hi, (lo + hi) / 2, float(np.linalg.norm(hi - lo) / 2)))
+    return result
+
+
+_VERTEX_CACHE: dict = {}
+_VERTEX_CACHE_MAX = 8
+
+
+def _part_vertices(planes, lo, hi):
+    """Corners of one envelope part (TCP frame): the intersection of its
+    halfspaces. Falls back to the part's bounding-box corners, which lie at or
+    below its lowest point, so a clip at their lowest z never cuts the part."""
+    try:
+        from scipy.optimize import linprog
+        from scipy.spatial import HalfspaceIntersection
+
+        A, b = planes[:, :3], planes[:, 3]
+        # Chebyshev centre: a strictly interior point for the intersection.
+        centre = linprog(np.r_[0., 0., 0., -1.], A_ub=np.c_[A, np.linalg.norm(A, axis=1)], b_ub=-b,
+                         bounds=[(None, None)] * 3 + [(0, None)])
+        if centre.status == 0 and centre.x[3] > 1e-9:
+            corners = HalfspaceIntersection(planes, centre.x[:3]).intersections
+            if corners.ndim == 2 and corners.shape[1] == 3 and len(corners) and np.isfinite(corners).all():
+                return corners
+    except Exception:  # noqa: BLE001 -- ranking aid only; the box corners are a valid lower floor
+        pass
+    return np.array(list(itertools.product(*zip(lo, hi))), dtype=float)
+
+
+def _envelope_vertices(envelopes):
+    """Per-part corners of `envelopes`, cached by content (one calibrated
+    geometry and stroke interval computes them once per process)."""
+    digest = hashlib.sha256()
+    for _name, _part, planes, *_rest in envelopes:
+        digest.update(np.asarray(planes.shape).tobytes())
+        digest.update(np.ascontiguousarray(planes).tobytes())
+    key = digest.hexdigest()
+    corners = _VERTEX_CACHE.get(key)
+    if corners is None:
+        corners = tuple(_part_vertices(planes, lo, hi) for _name, _part, planes, lo, hi, *_rest in envelopes)
+        while len(_VERTEX_CACHE) >= _VERTEX_CACHE_MAX:
+            _VERTEX_CACHE.pop(next(iter(_VERTEX_CACHE)), None)
+        _VERTEX_CACHE[key] = corners
+    return corners
 
 
 def _array(value, shape, name):
@@ -384,10 +474,10 @@ class ObservedFingerGate:
             raise SafetyViolation("finger feedback left the geometrically checked closing interval")
         conflict = self.closing_pose(q)
         if conflict:
-            raise SafetyViolation(f"closing fingers intersects observed non-target surface: {conflict}")
+            raise precommand_refusal("closing fingers intersects observed non-target surface", conflict)
         conflict = self.occluded_pose(q, closing=True, check=check)
         if conflict:
-            raise SafetyViolation(f"closing fingers occluded by non-target depth: {conflict}")
+            raise precommand_refusal("closing fingers occluded by non-target depth", conflict)
         self._remember(state, q, strokes)
 
     def profile(self, start, target, duration_s, rate_hz, *, check=None):
@@ -405,7 +495,162 @@ class ObservedFingerGate:
     def require_profile(self, start, target, duration_s, rate_hz, *, check=None):
         conflict = self.profile(start, target, duration_s, rate_hz, check=check)
         if conflict:
-            raise SafetyViolation(f"finger trajectory intersects observed surface: {conflict}")
+            raise precommand_refusal("finger trajectory intersects observed surface", conflict)
+
+    def neighbour_proximity(self, T_base_tcp, lateral_m, *, closing=False):
+        """Ranking only, never admission: an observed NON-target surface within
+        `lateral_m` (horizontally) of the finger volume at this TCP pose.
+
+        The live gate checks MEASURED feedback, and the arm settles within its
+        joint tolerance of the plan (Isaac: 0.02 rad per joint, millimetres at
+        the tool). A candidate that clears a neighbour by less than that passes
+        the planned-pose vet and is then refused at the measured pose. Same
+        surfaces and conflict test as `pose`/`closing_pose`; the target is
+        excluded so a scene without neighbours ranks exactly as before.
+        """
+        T = _array(T_base_tcp, (4, 4), "TCP transform")
+        if type(lateral_m) not in (int, float) or not np.isfinite(lateral_m) or lateral_m < 0:
+            raise SafetyViolation("neighbour ranking distance must be finite and nonnegative")
+        envelopes = self.closing_envelopes if closing else self.envelopes
+        return self.scene.conflict(
+            T, _horizontal_dilation(envelopes, T[:3, :3], float(lateral_m), _envelope_vertices(envelopes)),
+            allow_target_contact=True)
+
+
+def _rigid(rotation):
+    # Learned rotations arrive in float32; `conflict` requires a rigid
+    # transform to 1e-9. Project for this ranking only (IK and the exact vet
+    # still see the candidate as planned). Unusable -> no ranking.
+    R = np.asarray(rotation, dtype=float)
+    if R.shape != (3, 3) or not np.isfinite(R).all():
+        return None
+    U, _, Vt = np.linalg.svd(R)
+    R = U @ Vt
+    return R if np.linalg.det(R) > 0 else None
+
+
+class NeighbourRanking:
+    """Bounded neighbour ranking of ONE grasp's candidates (ranking only).
+
+    A candidate whose fingers come within `lateral_m` of an observed
+    neighbour goes after every other candidate, checked at the pregrasp,
+    mid-descent and grasp poses with open fingers and at the grasp pose with
+    the closing stroke. The executor may run either jaw orientation (the
+    jaws-swapped twin), so a candidate is judged by its BETTER one: it goes
+    last only when BOTH orientations come that close (a tilted grasp whose
+    planned orientation dips under the table plane while its twin clears it
+    keeps its place; main executed the twin). The twin is queried only when
+    the planned orientation comes close. Every candidate is still yielded:
+    the selector's exact checks (IK, harness, the observed-finger vet) admit
+    or drop it as before.
+
+    The work is bounded so the choice stays inside the approach deadline: at
+    most `max_candidates` candidates are ranked and ranking stops once its own
+    work reaches `time_slice_s` (checked after every query, so it overruns by
+    at most one query). Candidates past either bound keep their planned order
+    (before the ones ranked last). Verdicts are kept: the re-entry for the
+    next candidate after a refusal reuses them, and the same budget.
+    """
+
+    def __init__(self, gate, *, lateral_m, pregrasp_offset_m, max_candidates, time_slice_s, clock=None):
+        self.gate, self.lateral_m, self.pregrasp_offset_m = gate, lateral_m, pregrasp_offset_m
+        self.max_candidates, self.time_slice_s = int(max_candidates), float(time_slice_s)
+        self._clock = clock
+        self._verdicts = {}  # id(grasp) -> (grasp, reason or None)
+        self.ranked, self.queries, self.seconds = 0, 0, 0.
+        self.stopped = None
+
+    def _now(self):
+        return (self._clock or time.monotonic)()
+
+    def summary(self):
+        return {"ranked": self.ranked, "queries": self.queries, "ranking_s": round(self.seconds, 3),
+                "stopped": self.stopped}
+
+    def _room(self):
+        if self.ranked >= self.max_candidates:
+            self.stopped = self.stopped or f"limit of {self.max_candidates} ranked candidates"
+        elif self.seconds >= self.time_slice_s:
+            self.stopped = self.stopped or f"time slice of {self.time_slice_s:g} s"
+        return self.stopped is None
+
+    def verdict(self, grasp, check=None):
+        """-> (reason ranked last or None, newly ranked)."""
+        known = self._verdicts.get(id(grasp))
+        if known is not None and known[0] is grasp:
+            return known[1], False
+        if not self._room():
+            return None, False
+        approach = np.asarray(grasp.approach, dtype=float).reshape(-1)
+        position = np.asarray(grasp.position, dtype=float).reshape(-1)
+        rotation = _rigid(grasp.rotation)
+        norm = float(np.linalg.norm(approach)) if approach.shape == (3,) else 0.
+        if (rotation is None or position.shape != (3,) or not np.isfinite(position).all()
+                or not np.isfinite(norm) or norm < 1e-9):
+            return None, False  # the selector's own checks decide; nothing to rank on
+        approach = approach / norm
+        twin = (2. * np.outer(approach, approach) - np.eye(3)) @ rotation  # selector._flip_twin
+        near = []  # (phase, conflict) of each orientation that comes close
+        for R in (rotation, twin):
+            hit = None
+            for phase, offset, closing in (("pregrasp", self.pregrasp_offset_m, False),
+                                           ("descent", self.pregrasp_offset_m / 2, False),
+                                           ("grasp", 0., False), ("closing", 0., True)):
+                if check is not None:
+                    check()
+                if self.seconds >= self.time_slice_s:
+                    self._room()
+                    return None, False  # unfinished: keeps its planned order
+                T = np.eye(4)
+                T[:3, :3] = R
+                T[:3, 3] = position - approach * offset
+                started = self._now()
+                conflict = self.gate.neighbour_proximity(T, self.lateral_m, closing=closing)
+                self.seconds += max(0., self._now() - started)
+                self.queries += 1
+                if conflict:
+                    hit = (phase, conflict)
+                    break
+            if hit is None:
+                break  # this orientation is clear: the better one decides
+            near.append(hit)
+        reason = None
+        if len(near) == 2:
+            (phase, conflict), (twin_phase, _) = near
+            reason = (f"{phase} fingers within {self.lateral_m * 1000:.0f} mm of an observed neighbour in "
+                      f"both jaw orientations (swapped: {twin_phase}): {conflict}")
+        self.ranked += 1
+        self._verdicts[id(grasp)] = (grasp, reason)
+        return reason, True
+
+    def order(self, grasps, *, check=None, ranked_last=None):
+        """Yield `grasps`, those near a neighbour last; lazy, so a selector
+        that stops at the first executable candidate pays only for the
+        candidates it reaches. `ranked_last(index, grasp, reason)` records each
+        candidate newly moved back."""
+        deferred = []
+        for index, grasp in enumerate(grasps):
+            if check is not None:
+                check()
+            reason, new = self.verdict(grasp, check)
+            if reason is None:
+                yield grasp
+                continue
+            deferred.append(grasp)
+            if new and ranked_last is not None:
+                ranked_last(index, grasp, reason)
+        for grasp in deferred:
+            if check is not None:
+                check()
+            yield grasp
+
+
+def neighbour_ranked(grasps, gate, *, lateral_m, pregrasp_offset_m, check=None, ranked_last=None,
+                     max_candidates=32, time_slice_s=.3):
+    """One-shot `NeighbourRanking(...).order(grasps)`."""
+    return NeighbourRanking(gate, lateral_m=lateral_m, pregrasp_offset_m=pregrasp_offset_m,
+                            max_candidates=max_candidates, time_slice_s=time_slice_s
+                            ).order(grasps, check=check, ranked_last=ranked_last)
 
 
 def for_runtime(runtime, frame, fix, state):

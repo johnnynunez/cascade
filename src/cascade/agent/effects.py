@@ -847,11 +847,33 @@ class PostconditionChecker:
 
     def _check_at_home(self, pc, args, result, before) -> None:
         acted = self._actuation_delta(before)
+        reason = _shorten(result.get("error"))
+        if result.get("ok") is False:
+            # Refused, halted or stopped short of home: whatever was
+            # commanded first, the arm is not known to be home.
+            pc.status, pc.channel, pc.measured = UNVERIFIED, "skill", acted or {}
+            pc.evidence = (
+                f"no motion completed{': ' + reason if reason else ''}"
+                if acted is not None and not acted["arm_motions"]
+                else f"the move home did not complete{': ' + reason if reason else ''}"
+            )
+            return
+        if acted is None or not acted["arm_motions"]:
+            # The saved view home sends no motion when the arm is already
+            # there: the joints measured within the settle tolerance are the
+            # evidence (fr3 `already_home`).
+            measured = _already_home(result)
+            if measured is not None:
+                pc.status, pc.channel, pc.measured = CONFIRMED, "arm", measured
+                pc.evidence = (
+                    f"arm already at home: measured joint error {measured['joint_error_rad']:.3f} rad "
+                    f"(<= {measured['settle_tol_rad']:.3f} rad); no motion needed"
+                )
+                return
         if acted is not None and not acted["arm_motions"]:
             # Refused before its first command (e-stop, halt, no route): the
             # arm did not move, so nothing was "commanded home".
             pc.status, pc.channel, pc.measured = UNVERIFIED, "skill", acted
-            reason = _shorten(result.get("error"))
             pc.evidence = f"no motion completed{': ' + reason if reason else ''}"
             return
         pc.status, pc.channel = CONFIRMED, "arm"
@@ -1020,6 +1042,22 @@ class PostconditionChecker:
 
 def _dist(a, b) -> float:
     return sum((float(x) - float(y)) ** 2 for x, y in zip(a, b)) ** 0.5
+
+
+def _already_home(result: dict) -> dict | None:
+    """move_home's saved-view-home report that the arm was ALREADY home
+    (no motion sent), with the joint error it measured inside the settle
+    tolerance; None when the report is absent, failed or not within it."""
+    home = result.get("return_home")
+    if not isinstance(home, dict) or home.get("ok") is not True or home.get("status") != "already_home":
+        return None
+    try:
+        error, tol = float(home["joint_error_rad"]), float(home["settle_tol_rad"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not (math.isfinite(tol) and 0.0 <= error <= tol):  # NaN fails the comparison
+        return None
+    return {"joint_error_rad": error, "settle_tol_rad": tol}
 
 
 def _shorten(error) -> str:

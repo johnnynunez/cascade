@@ -912,8 +912,12 @@ class SkillRuntime:
             return {"ok": False, "status": "skipped", "reason": f"joint feedback unavailable: {exc}"}
         tol = float(profile.get("settle_tol", 0.03))
         target = home.tolist()
-        if np.max(np.abs(q - home)) <= tol:
-            return {"ok": True, "status": "already_home", "home_q": target}
+        error = float(np.max(np.abs(q - home)))
+        if error <= tol:
+            # The measured joints are the evidence (effects._check_at_home):
+            # no motion is sent, so no stream is counted.
+            return {"ok": True, "status": "already_home", "home_q": target,
+                    "joint_error_rad": round(error, 4), "settle_tol_rad": tol}
         # The watcher remains paused during the whole action. Obtain real
         # perception before starting another trajectory, so a long grasp
         # cannot enter the return with an expired perception watchdog.

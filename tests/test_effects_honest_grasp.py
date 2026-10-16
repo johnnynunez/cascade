@@ -822,3 +822,96 @@ def test_a_scene_change_ends_a_persistent_grasp_like_slow_perception(mock_runtim
     assert len(calls) == 1, f"{len(calls)} grasp attempts after a scene change"
     assert len(arm.commands) == n0, "no automatic re-home after a scene change"
     assert result["ok"] is False and "scene changed during perception" in result["error"], result
+
+
+# ── polish round (integration 1): home and release verdicts follow what was measured ──
+
+
+def _view_home_runtime(tmp_path, q):
+    """The fr3 saved camera-view home (`_return_to_view_home`) on local
+    doubles, with the verifier wired as the app wires it."""
+    from test_return_home_policy import _runtime
+
+    runtime, arm, _events = _runtime(tmp_path, q=q)
+    runtime.attach_verifier()
+    return runtime, arm
+
+
+def test_move_home_already_at_home_is_confirmed_from_the_measured_pose(tmp_path):
+    """T3-a: the arm is already within settle_tol of home, so the view-home
+    return sends no motion. The measured joints prove the postcondition:
+    CONFIRMED, never 'no motion completed'."""
+    runtime, arm = _view_home_runtime(tmp_path, q=np.full(7, 0.004))
+    tol = float(runtime.cfg.arm.get("settle_tol", 0.03))       # fr3_mock: 0.02
+    assert tol > 0.004
+
+    result = runtime.execute("move_home", {})
+
+    assert result["ok"] is True and result["return_home"]["status"] == "already_home", result
+    assert arm.moves == [], "already home: no motion sent"
+    pc = result["postcondition"]
+    assert pc["status"] == CONFIRMED and pc["channel"] == "arm", pc
+    assert pc["evidence"] == (f"arm already at home: measured joint error 0.004 rad (<= {tol:.3f} rad); "
+                              "no motion needed"), pc
+    assert pc["measured"] == {"joint_error_rad": 0.004, "settle_tol_rad": tol}, pc
+    assert result["verified"] is True
+
+
+@pytest.mark.parametrize("home, why", [
+    ({"ok": True, "status": "already_home", "home_q": [0.0] * 7}, "no measurement"),
+    ({"ok": True, "status": "already_home", "joint_error_rad": 0.05, "settle_tol_rad": 0.03}, "outside tol"),
+    ({"ok": True, "status": "already_home", "joint_error_rad": float("nan"), "settle_tol_rad": 0.03}, "nan"),
+    ({"ok": True, "status": "already_home", "joint_error_rad": 0.5, "settle_tol_rad": float("inf")}, "inf tol"),
+    ({"ok": True, "status": "already_home", "joint_error_rad": -0.01, "settle_tol_rad": 0.03}, "negative"),
+    ({"ok": True, "status": "returned", "joint_error_rad": 0.0, "settle_tol_rad": 0.03}, "not already home"),
+    ({"ok": False, "status": "already_home", "joint_error_rad": 0.0, "settle_tol_rad": 0.03}, "not ok"),
+])
+def test_already_home_needs_a_measurement_within_tolerance(home, why):
+    tally = _Tally()
+    checker = PostconditionChecker(actuation=tally)
+    before = checker.snapshot(None)
+    pc = checker.verify("move_home", {}, {"ok": True, "at": "home", "return_home": home}, before=before)
+    assert pc.status == UNVERIFIED and pc.evidence == "no motion completed", (why, pc)
+
+
+def test_already_home_is_confirmed_with_unknown_actuation():
+    checker = PostconditionChecker()
+    home = {"ok": True, "status": "already_home", "joint_error_rad": 0.01, "settle_tol_rad": 0.03}
+    pc = checker.verify("move_home", {}, {"ok": True, "at": "home", "return_home": home}, before={})
+    assert pc.status == CONFIRMED and pc.evidence.startswith("arm already at home: measured joint error 0.010"), pc
+
+
+def test_move_home_stopped_mid_route_is_never_home(mock_runtime, monkeypatch):
+    """T3-b: the stream started (a counted motion) but the move ended short
+    of home (ok False): never CONFIRMED, never 'arm commanded home'."""
+    runtime, arm = mock_runtime
+    assert runtime.arm.move_joints(_nudged(runtime, 0.3), duration_s=1.0)
+    real = runtime.arm.move_planned
+
+    def stopped_short(q, **kwargs):
+        real(q, **kwargs)              # streams toward home (counted)...
+        return False                   # ...but did not settle there
+
+    monkeypatch.setattr(runtime.arm, "move_planned", stopped_short)
+    h = runtime.arm.harness
+    n0, m0 = len(arm.commands), h.motions_begun
+
+    result = runtime.execute("move_home", {})
+
+    assert h.motions_begun == m0 + 1 and len(arm.commands) > n0, "the arm moved"
+    assert result["ok"] is False and "did not settle at home" in result["error"], result
+    pc = result["postcondition"]
+    assert pc["status"] == UNVERIFIED and pc["channel"] == "skill", pc
+    assert pc["evidence"] == "the move home did not complete: SkillError: did not settle at home", pc
+    _assert_no_event(runtime, result)
+
+
+@pytest.mark.parametrize("tally", [_Tally(), None], ids=["counted", "unknown actuation"])
+def test_a_failed_move_home_is_never_confirmed(tally):
+    checker = PostconditionChecker(actuation=tally)
+    before = checker.snapshot(None)
+    if tally is not None:
+        tally.counts["arm_motions"] += 1
+    pc = checker.verify("move_home", {}, {"ok": False, "error": "MotionHalted: operator halt"}, before=before)
+    assert pc.status == UNVERIFIED and pc.channel == "skill", pc
+    assert pc.evidence == "the move home did not complete: MotionHalted: operator halt", pc

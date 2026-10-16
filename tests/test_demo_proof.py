@@ -325,6 +325,10 @@ def test_proof_uses_one_session_and_checks_real_trace(host_boundary):
 
 @pytest.mark.parametrize("reply", [
     "OK", "OK\n.\n.", "ok", "Ok.", "  OK  ", "**OK**", "`OK`", "\n\nOK\n", "OK!", "OK . .", "\"OK\"",
+    # Unicode whitespace and punctuation (fix round 1, minor 6): NBSP, the
+    # ideographic space, curly and angle quotes, an ellipsis, a CJK full stop.
+    "\u00a0OK\u00a0", "\u3000OK", "\u2018OK\u2019", "\u201cOK\u201d", "\u00abOK\u00bb", "OK\u2026", "OK\u3002",
+    "\u201c**OK**\u201d\n.",
 ])
 def test_the_readiness_reply_is_ok_on_its_first_non_empty_line(reply):
     # Qwen3.8-27B answered "OK\n.\n." in the merged-head E2E: the launcher
@@ -335,6 +339,8 @@ def test_the_readiness_reply_is_ok_on_its_first_non_empty_line(reply):
 @pytest.mark.parametrize("reply", [
     "", "  \n ", ".", ".\n.", "not ok", "NOT OK", "No.", "OKAY", "I am OK", "OK, but the tools are down",
     "Error: upstream request timed out", "error\nOK", "O.K.",
+    "\u2018OK, but the tools are down\u2019", "\u00a0not ok", "\u201cO.K.\u201d", "\u201cOKAY\u201d", "\u00a0\n\u2026",
+    "\u201cnot ok\u201d\nOK",
 ])
 def test_anything_but_ok_on_the_first_line_is_not_ready(reply):
     assert demo_proof.brain_said_ok(reply) is False

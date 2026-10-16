@@ -15,6 +15,7 @@ import runpy
 import string
 import subprocess
 import sys
+import unicodedata
 from urllib.parse import urlsplit
 from urllib.error import HTTPError, URLError
 from urllib.request import ProxyHandler, Request, build_opener
@@ -262,11 +263,25 @@ def _first_line(text: str) -> str:
     return next((line for line in text.splitlines() if line.strip()), "")
 
 
+def _edge(ch: str) -> bool:
+    """Whitespace or punctuation, Unicode-aware: NBSP, the ideographic space,
+    curly and angle quotes, an ellipsis, a CJK full stop, and the ASCII
+    marks (`string.punctuation` also holds the symbols * ` ^ ~ | + < = >)."""
+    return ch.isspace() or ch in string.punctuation or unicodedata.category(ch).startswith("P")
+
+
 def brain_said_ok(text: str) -> bool:
     """The readiness answer: the first non-empty line, stripped of surrounding
-    whitespace and punctuation and case-folded, is "ok". Qwen3.8-27B answers
-    "OK\\n.\\n." at random; "not ok", an error or nothing stays NOT READY."""
-    return _first_line(text).strip(string.whitespace + string.punctuation).casefold() == "ok"
+    whitespace and punctuation (Unicode: NBSP, curly quotes, ...) and
+    case-folded, is "ok". Qwen3.8-27B answers "OK\\n.\\n." at random; "not
+    ok", "OKAY", "O.K.", an error or nothing stays NOT READY."""
+    line = _first_line(text)
+    start, end = 0, len(line)
+    while start < end and _edge(line[start]):
+        start += 1
+    while end > start and _edge(line[end - 1]):
+        end -= 1
+    return line[start:end].casefold() == "ok"
 
 
 def validate_envelope(data: dict, required_tool: str | tuple[str, ...] | None = None) -> dict:

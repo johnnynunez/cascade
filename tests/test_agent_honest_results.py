@@ -216,3 +216,34 @@ def test_no_viewer_offer_without_a_screen_mapping():
 
     text = _frame_report("base", "2.0 cm to the robot's left (+y)", "screen mapping unavailable (no camera)")
     assert "robot's own directions" in text and "frame='viewer'" not in text
+
+
+# ── 7. a client cancel only stops the call it names ──────────────────────
+
+
+def _server(monkeypatch, inflight):
+    from cascade.apps.mcp_server import McpSkillServer
+
+    server = McpSkillServer()
+    stops = []
+    monkeypatch.setattr(server, "stop_now", lambda *a, **k: stops.append(1) or {"stopped": True})
+    server._inflight = inflight
+    return server, stops
+
+
+def test_a_cancel_for_another_request_id_never_stops_a_running_pick(monkeypatch):
+    """OpenClaw sends notifications/cancelled ~120 s after each session's
+    initialize (connectionTimeoutMs), i.e. for the INITIALIZE request id,
+    while a ~140 s pick of the same session is in flight."""
+    server, stops = _server(monkeypatch, ("session|3", "pick_and_place"))
+    server.cancel_request("session|0")
+    assert stops == []
+    assert "session|0" in server._cancelled_ids  # dropped if it is ever queued, never a stop
+    server.cancel_request("other|3")  # the same JSON-RPC id from another session
+    assert stops == []
+
+
+def test_a_cancel_of_the_running_pick_is_the_designed_stop(monkeypatch):
+    server, stops = _server(monkeypatch, ("session|3", "pick_and_place"))
+    server.cancel_request("session|3")
+    assert stops == [1]

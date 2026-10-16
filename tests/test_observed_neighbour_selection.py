@@ -22,6 +22,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from scipy.spatial.transform import Rotation
 
 from cascade.config import Cfg
 from cascade.control.isaac_arm import IsaacArm
@@ -30,8 +31,15 @@ from cascade.grasping.obb_grasp import _yaw_rotation
 from cascade.grasping.observed_scene import (OPEN_TRACKING_ENVELOPE_M, PHYSX_GEOMETRY, FingerGeometry,
                                              ObservedFingerGate, ObservedScene)
 from cascade.safety.harness import SafeArm, SafetyHarness
-from cascade.skills.runtime import OBSERVED_RANK_LATERAL_M, SkillRuntime
+from cascade.skills import runtime as runtime_mod
+from cascade.skills.runtime import SkillRuntime
 from cascade.types import Detection, Frame, Grasp, MotionHalted, ObjectFix, SafetyViolation, SkillError
+
+OBSERVED_RANK_LATERAL_M = getattr(runtime_mod, "OBSERVED_RANK_LATERAL_M", .01)
+# Fix round 1 bounds (read through the module so this file still imports on
+# the commit before them and every new test fails on its own).
+RANK_MAX_CANDIDATES = getattr(runtime_mod, "OBSERVED_RANK_MAX_CANDIDATES", 32)
+RANK_TIME_SLICE_S = getattr(runtime_mod, "OBSERVED_RANK_TIME_SLICE_S", .3)
 
 GEOMETRY = FingerGeometry(PHYSX_GEOMETRY, expected_engine="physx")
 TARGET = np.array([.30, 0., .03])      # centre of a 4 x 4 x 6 cm box on the table (z = 0)
@@ -67,20 +75,64 @@ class Kin:
         return SimpleNamespace(q=q, success=ok, error=0. if ok else 1.)
 
 
-def render(neighbour=True, size=240, height=1., fov_m=.4, half=(HALF, HALF), neighbour_dx=None):
-    """Top-down pinhole depth of table + box + optional sphere (base frame)."""
-    f = size / fov_m
-    K = np.array([[f, 0., size / 2], [0., f, size / 2], [0., 0., 1.]])
+class TiltKin:
+    """q = (x, y, z, rx, ry, rz): the TCP position and the rotation vector of
+    the tool relative to pointing straight down, so learned-style TILTED
+    candidates (kitchen: up to 18 degrees from vertical) solve."""
+
+    ee_frame = "gripper_end"
+    R0 = _yaw_rotation(0.)
+
+    def fk(self, q):
+        T = np.eye(4)
+        T[:3, :3] = Rotation.from_rotvec(np.asarray(q[3:6], float)).as_matrix() @ self.R0
+        T[:3, 3] = q[:3]
+        return T
+
+    def ik(self, pose, seed):
+        q = np.r_[pose[:3, 3], Rotation.from_matrix(pose[:3, :3] @ self.R0.T).as_rotvec()]
+        ok = bool(np.allclose(self.fk(q)[:3, :3], pose[:3, :3], rtol=0, atol=1e-9))
+        return SimpleNamespace(q=q, success=ok, error=0. if ok else 1.)
+
+
+TILT_HOME = np.r_[HOME[:3], 0., 0., 0.]
+
+
+def tilted(k, *, tilt_deg, yaw, tilt_axis, z, width=.03, quality=None):
+    """Candidate k: tool tilted `tilt_deg` about a horizontal axis, approach = tool +x."""
+    axis = np.array([np.cos(tilt_axis), np.sin(tilt_axis), 0.])
+    R = Rotation.from_rotvec(axis * np.deg2rad(tilt_deg)).as_matrix() @ _yaw_rotation(yaw)
+    return Grasp(np.r_[TARGET[:2], z], R, width, R[:, 0].copy(), .95 - .001 * k if quality is None else quality,
+                 f"t{k}")
+
+
+def tilted_set(n=32, *, z=.010, seed=7):
+    """`n` learned-style candidates on a low box: tilts 5-18 deg, any yaw."""
+    rng = np.random.default_rng(seed)
+    return [tilted(k, tilt_deg=rng.uniform(5., 18.), yaw=rng.uniform(-np.pi, np.pi),
+                   tilt_axis=rng.uniform(0., 2 * np.pi), z=z) for k in range(n)]
+
+
+def render(neighbour=True, size=240, height=1., fov_m=.4, half=(HALF, HALF), neighbour_dx=None,
+           box_top=2 * TARGET[2], ring=None):
+    """Top-down pinhole depth of table + box + optional sphere (base frame).
+
+    `size` is square or (rows, cols) (720 x 1280 = the kitchen camera, 921k
+    observed points). `ring=(r_in, r_out, z)` adds a flat observed annulus
+    around the target at height z: a neighbour on every side."""
+    rows_n, cols_n = (size, size) if np.isscalar(size) else size
+    f = cols_n / fov_m
+    K = np.array([[f, 0., cols_n / 2], [0., f, rows_n / 2], [0., 0., 1.]])
     T = np.eye(4)
     T[:3, :3] = np.diag([1., -1., -1.])       # camera looks straight down
     T[:3, 3] = [TARGET[0], TARGET[1], height]
-    rows, cols = np.mgrid[0:size, 0:size]
+    rows, cols = np.mgrid[0:rows_n, 0:cols_n]
     rays_cam = np.stack([(cols - K[0, 2]) / f, (rows - K[1, 2]) / f, np.ones_like(cols, float)], -1)
     d = rays_cam @ T[:3, :3].T                # base-frame direction, camera-z component 1
     o = T[:3, 3]
     t_table = np.full(d.shape[:2], o[2] / -d[..., 2])
     lo = np.array([TARGET[0] - half[0], TARGET[1] - half[1], 0.])
-    hi = np.array([TARGET[0] + half[0], TARGET[1] + half[1], 2 * TARGET[2]])
+    hi = np.array([TARGET[0] + half[0], TARGET[1] + half[1], box_top])
     with np.errstate(divide="ignore", invalid="ignore"):
         t0, t1 = (lo - o) / d, (hi - o) / d
     tnear = np.nanmax(np.minimum(t0, t1), -1)
@@ -95,18 +147,25 @@ def render(neighbour=True, size=240, height=1., fov_m=.4, half=(HALF, HALF), nei
         disc = b * b - 4 * a * (oc @ oc - NEIGHBOUR_R ** 2)
         hit = disc >= 0
         t_sphere[hit] = ((-b[hit] - np.sqrt(disc[hit])) / (2 * a[hit]))
+    if ring is not None:
+        r_in, r_out, z_ring = ring
+        t_flat = (o[2] - z_ring) / -d[..., 2]
+        xy = o[:2] + t_flat[..., None] * d[..., :2]
+        r = np.linalg.norm(xy - TARGET[:2], axis=-1)
+        t_sphere = np.minimum(t_sphere, np.where((r >= r_in) & (r <= r_out), t_flat, np.inf))
     depth = np.minimum(np.minimum(t_table, t_cube), t_sphere).astype(np.float32)
     target = (t_cube <= t_table) & (t_cube <= t_sphere)
     capture = dict(backend="isaac", source=SOURCE, camera="cam", t=15., proprioception=dict(
         version=1, backend="isaac", robot_id="/robot", joint_convention="asset",
         producer_epoch="test", t=15., time_source="physics_loop_monotonic"))
-    frame = Frame(np.zeros((size, size, 3), np.uint8), depth, K, frame_id=42, depth_source="sensor",
-                  T_base_cam=T, capture=capture, robot_mask=np.zeros((size, size), bool))
+    frame = Frame(np.zeros((rows_n, cols_n, 3), np.uint8), depth, K, frame_id=42, depth_source="sensor",
+                  T_base_cam=T, capture=capture, robot_mask=np.zeros((rows_n, cols_n), bool))
     rays = np.c_[cols[target], rows[target], np.ones(target.sum())] @ np.linalg.inv(K).T
     points = (rays * depth[target][:, None]) @ T[:3, :3].T + T[:3, 3]
     ys, xs = np.nonzero(target)
     det = Detection("cube", .95, np.array([xs.min(), ys.min(), xs.max(), ys.max()], np.float32), mask=target)
-    fix = ObjectFix("cube", TARGET.copy(), points, det, np.array([.06, 2 * half[0], 2 * half[1]]), np.eye(3))
+    fix = ObjectFix("cube", np.r_[TARGET[:2], box_top / 2], points, det,
+                    np.array([box_top, 2 * half[0], 2 * half[1]]), np.eye(3))
     return frame, fix
 
 
@@ -119,18 +178,23 @@ B = (np.pi / 2, .90, "B: closes along y")
 
 
 def build(monkeypatch, *, neighbour=True, sag=None, grasps=(A, B), half=(HALF, HALF), grasp_cfg=None,
-          neighbour_dx=None):
+          neighbour_dx=None, kin=None, home=HOME, real_time=False, size=240, box_top=2 * TARGET[2], ring=None):
+    """`grasps`: (yaw, quality, label[, width]) tuples or Grasp objects.
+    `real_time=True` keeps the real clock (timing tests); otherwise time is
+    a fake clock that advances only with bridge reads and sleeps."""
     clock = [0.]
-    monkeypatch.setattr("time.monotonic", lambda: clock[0])
-    monkeypatch.setattr("time.sleep", lambda dt: clock.__setitem__(0, clock[0] + dt))
+    if not real_time:
+        monkeypatch.setattr("time.monotonic", lambda: clock[0])
+        monkeypatch.setattr("time.sleep", lambda dt: clock.__setitem__(0, clock[0] + dt))
     monkeypatch.setenv("CASCADE_OBSERVED_FINGER_GATE", "1")
     calls = []
     upper = [float(v) for v in GEOMETRY.upper]
+    n_joints = len(home)
 
     class Bridge:
         _addr = SOURCE
         step = 0
-        q = HOME.copy()
+        q = np.asarray(home, float).copy()
         gripper_pos = 1.
 
         def state(self, *, timeout_s=None):
@@ -138,7 +202,7 @@ def build(monkeypatch, *, neighbour=True, sag=None, grasps=(A, B), half=(HALF, H
             clock[0] += .02
             calls.append(("read", self.q.tolist(), self.gripper_pos))
             stroke = [u * self.gripper_pos for u in upper]
-            return {"q": self.q.copy(), "dq": np.zeros(4), "gripper_pos": self.gripper_pos, "t": clock[0],
+            return {"q": self.q.copy(), "dq": np.zeros(n_joints), "gripper_pos": self.gripper_pos, "t": clock[0],
                     "physics_clock": {"version": 1, "engine": "physx", "clock": "SimulationManager",
                                       "robot_id": "/robot", "epoch": "test", "sim_time": self.step * .02,
                                       "physics_step": self.step, "physics_dt_s": .02},
@@ -155,7 +219,7 @@ def build(monkeypatch, *, neighbour=True, sag=None, grasps=(A, B), half=(HALF, H
             calls.append(("gripper", pos, effort))
             self.gripper_pos = max(.35, pos)   # deterministic object contact double
 
-    raw = IsaacArm(Cfg({"n_joints": 4, "bridge_robot_id": "/robot"}))
+    raw = IsaacArm(Cfg({"n_joints": n_joints, "bridge_robot_id": "/robot"}))
     raw._client = Bridge()
     harness = SimpleNamespace(
         limits=SimpleNamespace(workspace_min=[0, -.3, 0], table_z=0., max_joint_vel=10.),
@@ -169,8 +233,8 @@ def build(monkeypatch, *, neighbour=True, sag=None, grasps=(A, B), half=(HALF, H
     harness._pending_model_withdrawal = None
     harness.check_model_withdrawal = SafetyHarness.check_model_withdrawal.__get__(harness)
     rt = SkillRuntime.__new__(SkillRuntime)
-    rt.arm, rt.kin = SafeArm(raw, harness), Kin()
-    rt.cfg = Cfg({"arm": {"home_q": HOME.tolist(), "gripper": {}},
+    rt.arm, rt.kin = SafeArm(raw, harness), (kin or Kin())
+    rt.cfg = Cfg({"arm": {"home_q": np.asarray(home, float).tolist(), "gripper": {}},
                   "grasp": {"pregrasp_offset_m": .1, "move_duration_s": .1,
                             "descend_duration_s": .1, "close_feedback_timeout_s": 2.,
                             **(grasp_cfg or {})}})
@@ -179,15 +243,15 @@ def build(monkeypatch, *, neighbour=True, sag=None, grasps=(A, B), half=(HALF, H
     rt.memory = SimpleNamespace(add=lambda *a, **k: None)
     rt.beliefs = SimpleNamespace(mark_removed=lambda *a, **k: None)
     rt.grasp_memory = SimpleNamespace(record=lambda *a, **k: None, prior=lambda *a, **k: None)
-    planned = [candidate(*g) for g in grasps]
+    planned = [g if isinstance(g, Grasp) else candidate(*g) for g in grasps]
     plans = []
 
     def plan(*a, **k):
         plans.append(1)
         return copy.deepcopy(planned)
     rt._plan_grasps = plan
-    frame, fix = render(neighbour, half=half, neighbour_dx=neighbour_dx)
-    gates, refusals = [], []
+    frame, fix = render(neighbour, half=half, neighbour_dx=neighbour_dx, size=size, box_top=box_top, ring=ring)
+    gates, refusals, proximity = [], [], []
 
     def real_gate(runtime, frame_, fix_, state):
         scene = ObservedScene(frame_, fix_.detection.mask, frame_.T_base_cam, source=SOURCE,
@@ -203,12 +267,19 @@ def build(monkeypatch, *, neighbour=True, sag=None, grasps=(A, B), half=(HALF, H
                     refusals.append((_name, str(exc)))
                     raise
             setattr(gate, name, recorded)
+        near = getattr(gate, "neighbour_proximity", None)
+
+        def counted(T, *a, **k):
+            proximity.append(np.asarray(T, float).copy())
+            return near(T, *a, **k)
+        if near is not None:
+            gate.neighbour_proximity = counted
         gates.append(gate)
         return gate
 
     monkeypatch.setattr(observed_scene, "for_runtime", real_gate)
     return SimpleNamespace(rt=rt, calls=calls, frame=frame, fix=fix, gates=gates, refusals=refusals,
-                           bridge=raw._client, harness=harness, plans=plans)
+                           bridge=raw._client, harness=harness, plans=plans, proximity=proximity, clock=clock)
 
 
 def grasp(env):
@@ -397,6 +468,12 @@ def test_next_candidate_retries_are_bounded_to_two(monkeypatch):
     assert len(closes) == 3                          # the first candidate + at most 2 more
     assert "3 grasp candidates refused before contact" in str(err.value)
     assert not [c for c in env.calls if c[0] == "gripper" and c[1] < 1.]
+    # The final veto carries the whole choice record and names the first refusal.
+    assert "; first refusal: closing fingers occluded by non-target depth" in str(err.value)
+    selection = err.value.observed_selection
+    assert [a["candidate"] for a in selection["attempts"]] == [0, 1, 2]
+    assert all(a["outcome"].startswith("refused before contact") for a in selection["attempts"])
+    assert selection["first_refusal"].startswith("closing fingers occluded by non-target depth")
 
 
 def test_measured_finger_refusal_is_not_retried(monkeypatch):
@@ -438,19 +515,39 @@ def test_halt_after_withdrawal_ends_the_skill_without_another_candidate(monkeypa
             env.harness._halt_generation += 1        # operator halt right after the withdrawal
         return result
     env.rt._move_joints = moved
-    with pytest.raises(MotionHalted):
+    with pytest.raises(MotionHalted, match=r"^halt received during route planning or execution$"):
         grasp(env)
     assert len(moves) == 4
     assert [c for c in env.calls if c[0] == "gripper"] == [("gripper", 1., .8)]
 
 
-def test_rank_lateral_validation_fails_closed_before_motion(monkeypatch):
+def _with_grasp_cfg(env, **values):
+    env.rt.cfg = Cfg({**env.rt.cfg.as_dict(), "grasp": {**env.rt.cfg.as_dict()["grasp"], **values}})
+
+
+@pytest.mark.parametrize("key,value", [
+    ("observed_rank_lateral_m", float("nan")), ("observed_rank_lateral_m", 0.),
+    ("observed_rank_lateral_m", -.01), ("observed_rank_lateral_m", .0301), ("observed_rank_lateral_m", .5),
+    ("observed_rank_lateral_m", True), ("observed_rank_lateral_m", "0.01"),
+    ("observed_rank_max_candidates", -1), ("observed_rank_max_candidates", 1.5),
+    ("observed_rank_max_candidates", True), ("observed_rank_max_candidates", "32"),
+])
+def test_rank_settings_validation_fails_closed_before_motion(monkeypatch, key, value):
+    """Ranking distance: 0 < value <= 0.03 m (a larger one would rank every
+    candidate last). Candidate limit: an integer >= 0 (0 = no ranking)."""
     env = build(monkeypatch)
-    env.rt.cfg = Cfg({**env.rt.cfg.as_dict(), "grasp": {**env.rt.cfg.as_dict()["grasp"],
-                                                        "observed_rank_lateral_m": float("nan")}})
-    with pytest.raises(SkillError, match="observed_rank_lateral_m"):
+    _with_grasp_cfg(env, **{key: value})
+    with pytest.raises(SkillError, match=key):
         grasp(env)
     assert all(c[0] == "read" for c in env.calls)
+
+
+@pytest.mark.parametrize("values", [{"observed_rank_lateral_m": .03}, {"observed_rank_max_candidates": 0},
+                                    {"observed_rank_lateral_m": .005, "observed_rank_max_candidates": 1}])
+def test_rank_settings_at_their_bounds_are_accepted(monkeypatch, values):
+    env = build(monkeypatch)
+    _with_grasp_cfg(env, **values)
+    assert grasp(env)["held"] == "cube"
 
 
 def test_tight_fit_on_the_target_alone_does_not_reorder(monkeypatch):
@@ -520,10 +617,33 @@ def test_next_candidate_rule_on_its_own(monkeypatch, case, expected):
     assert _refusal_state(monkeypatch, **case) == expected
 
 
+def _part_corners(planes):
+    """Test oracle, independent of the code under test: the corners of one
+    envelope part (intersection of its halfspaces), TCP frame."""
+    from scipy.optimize import linprog
+    from scipy.spatial import HalfspaceIntersection
+    A_, b_ = planes[:, :3], planes[:, 3]
+    centre = linprog(np.r_[0., 0., 0., -1.], A_ub=np.c_[A_, np.linalg.norm(A_, axis=1)], b_ub=-b_,
+                     bounds=[(None, None)] * 3 + [(0, None)])
+    assert centre.status == 0 and centre.x[3] > 1e-6
+    return HalfspaceIntersection(planes, centre.x[:3]).intersections
+
+
+_CORNERS = {}
+
+
+def _finger_corners(envelopes):
+    key = id(envelopes)
+    if key not in _CORNERS:
+        _CORNERS[key] = (envelopes, [_part_corners(e[2]) for e in envelopes])
+    return _CORNERS[key][1]
+
+
 def test_horizontal_dilation_contains_every_horizontal_shift_and_never_grows_down():
-    from cascade.grasping.observed_scene import _horizontal_dilation
+    from cascade.grasping.observed_scene import _envelope_vertices, _horizontal_dilation
     rng = np.random.default_rng(4)
     exact = GEOMETRY.envelopes(GEOMETRY.upper, GEOMETRY.upper)
+    corners = _finger_corners(exact)
     lateral = .01
     angles = np.linspace(0, 2 * np.pi, 16, endpoint=False)
     shifts = np.concatenate([np.zeros((1, 3))] + [
@@ -532,27 +652,29 @@ def test_horizontal_dilation_contains_every_horizontal_shift_and_never_grows_dow
     def inside(parts, p):
         return any(np.all(parts_planes[:, :3] @ p + parts_planes[:, 3] <= 1e-12)
                    for _, _, parts_planes, *_ in parts)
-    for yaw, tilt in ((0., 0.), (.7, 0.), (2.1, .2)):
+    for yaw, tilt in ((0., 0.), (.7, 0.), (2.1, .2), (-1.3, np.deg2rad(18.)), (.4, np.deg2rad(9.))):
         R = _yaw_rotation(yaw)
         if tilt:
             c, s_ = np.cos(tilt), np.sin(tilt)
             R = np.array([[1, 0, 0], [0, c, -s_], [0, s_, c]]) @ R
-        dilated = _horizontal_dilation(exact, R, lateral)
+        dilated = _horizontal_dilation(exact, R, lateral, _envelope_vertices(exact))
         lo = np.min([e[3] for e in exact], axis=0)
         hi = np.max([e[4] for e in exact], axis=0)
-        for _ in range(300):
+        for _ in range(180):
             p_tcp = rng.uniform(lo - .012, hi + .012)
             p_base = R @ p_tcp
             hit = any(inside(exact, R.T @ (p_base - s)) for s in shifts)
             if hit:   # conservative: every horizontally displaced finger point is inside
                 assert inside(dilated, p_tcp)
-        if not tilt:
-            # A vertical tool: nothing below the finger tip (base z) is ever added.
-            bottom = min(float((R @ v)[2]) for e in exact for v in (e[3], e[4]))
-            for _ in range(200):
-                p_base = R @ rng.uniform(lo - .012, hi + .012)
-                p_base[2] = bottom - rng.uniform(1e-4, .01)
-                assert not inside(dilated, R.T @ p_base)
+        # Tilted or not, nothing below a part's own lowest point (base z) is
+        # added: the table under a low grasp is not a neighbour. Probe right
+        # under each part's lowest corner, inside the horizontal reach.
+        for (name, part, *_), dilated_part, part_corners in zip(exact, dilated, corners):
+            low = part_corners[np.argmin(part_corners @ R[2])]
+            for _ in range(25):
+                r, a = lateral * np.sqrt(rng.uniform()), rng.uniform(0., 2 * np.pi)
+                p_base = R @ low + [r * np.cos(a), r * np.sin(a), -rng.uniform(1e-5, .004)]
+                assert not inside([dilated_part], R.T @ p_base), (name, part, yaw, tilt)
 
 
 def test_only_vetoes_issued_before_their_command_are_tagged(monkeypatch):
@@ -667,22 +789,390 @@ def test_the_choice_record_names_candidates_the_vet_dropped(monkeypatch):
     assert selection["attempts"] == [{"candidate": 1, "outcome": "grasped"}]
 
 
-@pytest.mark.parametrize("lateral", [OBSERVED_RANK_LATERAL_M, 0.])
-def test_planned_finger_inside_the_neighbour_never_reaches_the_live_gate(monkeypatch, lateral):
+@pytest.mark.parametrize("ranking", [True, False])
+def test_planned_finger_inside_the_neighbour_never_reaches_the_live_gate(monkeypatch, ranking):
     """The neighbour 2 cm closer: A's PLANNED fingers enter it. With ranking
-    A goes last and is never vetted (B is executable); with ranking off the
-    static pre-vet (the same closing envelope as the live gate, no motion)
-    drops A and records why. Either way B runs and the gate never refuses."""
-    env = build(monkeypatch, neighbour_dx=NEIGHBOUR_DX - .02, grasp_cfg={"observed_rank_lateral_m": lateral})
+    A goes last and is never vetted (B is executable); with ranking off
+    (`observed_rank_max_candidates: 0`) the static pre-vet (the same closing
+    envelope as the live gate, no motion) drops A and records why. Either way
+    B runs and the gate never refuses."""
+    env = build(monkeypatch, neighbour_dx=NEIGHBOUR_DX - .02,
+                grasp_cfg={} if ranking else {"observed_rank_max_candidates": 0})
     assert _bare_gate(env).closing_pose(np.r_[TARGET, 0.]) is not None   # precondition
     result = grasp(env)
     assert result["held"] == "cube" and env.refusals == []
     assert descents(env) == pytest.approx([np.pi / 2])
     selection = result["observed_selection"]
-    if lateral:
+    if ranking:
         assert [r["candidate"] for r in selection["ranked_last"]] == [0] and selection["dropped"] == []
     else:
         assert selection["ranked_last"] == [] and [d["candidate"] for d in selection["dropped"]] == [0]
         assert "observed non-target surface" in selection["dropped"][0]["reason"]
+        assert env.proximity == []
     assert selection["attempts"] == [{"candidate": 1, "outcome": "grasped"}]
     assert selection["succeeded_attempt"] == 1
+
+
+
+# ── fix round 1 (review deleg_12d67c17) ──────────────────────────────────────
+
+
+def _tilted_scene_gate(monkeypatch, cands):
+    """No neighbour, a 2 x 2 x 2 cm box, the real gate (tilting kinematics)."""
+    env = build(monkeypatch, neighbour=False, grasps=cands, kin=TiltKin(), home=TILT_HOME, half=(.01, .01),
+                box_top=.02)
+    scene = ObservedScene(env.frame, env.fix.detection.mask, env.frame.T_base_cam, source=SOURCE,
+                          robot_id="/robot", epoch="test")
+    gate = ObservedFingerGate(scene, GEOMETRY, TiltKin(), env.rt.arm.get_state(),
+                              uncertainty_m=OPEN_TRACKING_ENVELOPE_M)
+    return env, gate
+
+
+def _lowest_finger_z(gate, grasp_):
+    """Oracle: lowest base z of either jaw orientation's open or closing
+    finger volume at the grasp pose."""
+    from cascade.grasping.selector import _flip_twin
+    lows = []
+    for g in (grasp_, _flip_twin(grasp_)):
+        R = np.asarray(g.rotation, float)
+        for envelopes in (gate.envelopes, gate.closing_envelopes):
+            lows.append(min(float(np.min(c @ R[2])) for c in _finger_corners(envelopes)))
+    return min(lows) + float(grasp_.position[2])
+
+
+def test_table_is_not_a_neighbour_for_tilted_low_grasps(monkeypatch):
+    """Reviewer probe: no neighbour, a 2 cm box, 32 learned-style candidates
+    tilted 5-18 deg with the TCP 10 mm above the table. Moving the finger
+    planes out horizontally also reached up to lateral * sin(2 tilt) BELOW a
+    tilted finger, so the table ranked such candidates last. Every candidate
+    whose fingers stay above the table now keeps its planned place."""
+    cands = tilted_set(32, z=.010)
+    env, gate = _tilted_scene_gate(monkeypatch, cands)
+    ranked = []
+    list(observed_scene.neighbour_ranked(cands, gate, lateral_m=OBSERVED_RANK_LATERAL_M, pregrasp_offset_m=.1,
+                                         ranked_last=lambda i, g, why: ranked.append(i)))
+    above = [i for i, g in enumerate(cands) if _lowest_finger_z(gate, g) > 0.]
+    assert len(above) >= 20                      # precondition: most of the set clears the table
+    assert sorted(set(ranked) & set(above)) == []
+
+
+# Measured on main (ad4786f) with the same scene and doubles: the candidate
+# executed, all bridge calls and the joint targets streamed.
+_TILTED_MAIN = {1: ("t1", 287, 58), 12: ("t12", 271, 54), 15: ("t15", 271, 54), 18: ("t18", 279, 56)}
+
+
+@pytest.mark.parametrize("top", sorted(_TILTED_MAIN))
+def test_tilted_low_grasp_without_neighbour_keeps_main_choice_and_commands(monkeypatch, top):
+    """Pin (the reviewer's 6/6 divergence): no neighbour, 32 tilted
+    candidates on a 2 cm box, the planned list starting at `top`. The choice,
+    every bridge call and the jaw sequence equal main's."""
+    cands = tilted_set(32, z=.010)
+    order = cands[top:] + cands[:top]
+    env = build(monkeypatch, neighbour=False, grasps=order, kin=TiltKin(), home=TILT_HOME, half=(.01, .01),
+                box_top=.02)
+    result = grasp(env)
+    label, n_calls, n_targets = _TILTED_MAIN[top]
+    assert result["held"] == "cube" and env.refusals == []
+    selection = result["observed_selection"]
+    assert selection["ranked_last"] == []
+    assert order[selection["attempts"][0]["candidate"]].label == label
+    assert len(env.calls) == n_calls and len(joint_targets(env)) == n_targets
+    assert [c for c in env.calls if c[0] == "gripper"] == [
+        ("gripper", 1., .8), ("gripper", .5, pytest.approx(.49)), ("gripper", pytest.approx(.15), .7)]
+
+
+def _near_copies(n):
+    """`n` copies of A (beside the neighbour), 0.1 mm apart along y."""
+    return [Grasp(TARGET + [0., 1e-4 * k, 0.], _yaw_rotation(0.), .04, np.array([0., 0., -1.]),
+                  .95 - 1e-3 * k, f"A{k}") for k in range(n)]
+
+
+def test_ranking_stops_after_the_candidate_limit_and_keeps_planned_order(monkeypatch):
+    """More candidates beside the neighbour than the limit: the first
+    `observed_rank_max_candidates` go last, the next keeps its planned place
+    and is chosen; B (clear, planned after them) is not reached. An unbounded
+    ranking would reach B."""
+    env = build(monkeypatch, grasps=_near_copies(RANK_MAX_CANDIDATES + 8) + [candidate(*B)])
+    result = grasp(env)
+    selection = result["observed_selection"]
+    assert result["held"] == "cube" and env.refusals == []
+    assert selection["ranking"]["ranked"] == RANK_MAX_CANDIDATES
+    assert selection["ranking"]["stopped"] == f"limit of {RANK_MAX_CANDIDATES} ranked candidates"
+    assert selection["attempts"] == [{"candidate": RANK_MAX_CANDIDATES, "outcome": "grasped"}]
+    assert descents(env) == pytest.approx([0.])
+
+
+def test_ranking_stops_after_its_time_slice():
+    """The ranking's own work is capped (checked before every query): with
+    50 ms per query and a 0.3 s slice, six queries run, the unfinished
+    candidate and every later one keep their planned order unranked."""
+    from cascade.grasping.observed_scene import NeighbourRanking
+    now = [0.]
+
+    def proximity(T, lateral_m, *, closing=False):
+        now[0] += .05
+        return None
+    ranking = NeighbourRanking(SimpleNamespace(neighbour_proximity=proximity), lateral_m=.01,
+                               pregrasp_offset_m=.1, max_candidates=32, time_slice_s=.3, clock=lambda: now[0])
+    planned = [candidate(k * .1, .9, f"c{k}") for k in range(5)]
+    assert [g.label for g in ranking.order(planned)] == [g.label for g in planned]
+    assert ranking.summary() == {"ranked": 0, "queries": 6, "ranking_s": .3, "stopped": "time slice of 0.3 s"}
+
+
+def test_next_candidate_reuses_the_first_ranking(monkeypatch):
+    """A (beside the neighbour) is ranked once, in the first call. After B's
+    pre-contact refusal the re-entry orders the rest from that ranking (A
+    stays last) and queries only the candidate it had not ranked yet (C)."""
+    C = (2 * np.pi / 3, .85, "C: closes at 120 degrees")
+    env = build(monkeypatch, grasps=(A, B, C))
+    marks = []
+    original = observed_scene.for_runtime
+
+    def make(*args):
+        gate = original(*args)
+        require_closing = gate.require_closing
+
+        def close(state, **kw):
+            if not marks:
+                marks.append(len(env.proximity))
+                raise _precommand("closing fingers intersects observed non-target surface", {"injected": True})
+            return require_closing(state, **kw)
+        gate.require_closing = close
+        return gate
+    monkeypatch.setattr(observed_scene, "for_runtime", make)
+    result = grasp(env)
+    assert result["held"] == "cube"
+    assert [round(y % np.pi, 6) for y in descents(env)] == [round(np.pi / 2, 6), round(2 * np.pi / 3, 6)]
+    selection = result["observed_selection"]
+    assert [a["candidate"] for a in selection["attempts"]] == [1, 2]
+    assert [r["candidate"] for r in selection["ranked_last"]] == [0]
+    first, again = env.proximity[:marks[0]], env.proximity[marks[0]:]
+    assert {_jaw_axis(T) for T in first} == {0., round(np.pi / 2, 6)}
+    assert again and {_jaw_axis(T) for T in again} == {round(2 * np.pi / 3, 6)}
+
+
+def _jaw_axis(T):
+    """Yaw of the closing axis mod pi (a grasp and its jaws-swapped twin agree)."""
+    a = yaw_of(np.asarray(T)[:3, :3]) % np.pi
+    return 0. if np.isclose(a, 0., atol=1e-6) or np.isclose(a, np.pi, atol=1e-6) else round(a, 6)
+
+
+class _Selected(Exception):
+    """Raised at the first actuation: the choice is made."""
+
+
+def _select_only(monkeypatch, grasps, grasp_cfg, **scene):
+    env = build(monkeypatch, real_time=True, size=(720, 1280), grasps=grasps, grasp_cfg=grasp_cfg, **scene)
+
+    def first_actuation(*a, **k):
+        raise _Selected()
+    env.rt._set_gripper = first_actuation
+    with pytest.raises(_Selected) as err:
+        grasp(env)
+    return err.value.observed_selection
+
+
+_RING = (.0725, .10, .05)   # inner edge 7.25 cm from the target: exact-clear, within 1 cm
+
+
+@pytest.mark.parametrize("case", ["near_ring", "ik_failures"])
+def test_bounded_ranking_stays_inside_the_approach_budget_at_kitchen_resolution(monkeypatch, case):
+    """Real clock, 720 x 1280 depth (921k observed points), 400 candidates:
+    all beside a ring-shaped neighbour, or 399 that fail IK before the one
+    that solves. Unbounded, ranking took seconds and the approach deadline
+    (PLAN_BUDGET_S) refused every route; bounded, the choice costs at most
+    0.4 s more than with ranking off."""
+    if case == "near_ring":
+        grasps = [(k * np.pi / 400, .95 - 1e-4 * k, f"r{k}") for k in range(400)]
+        scene = {"neighbour": False, "ring": _RING}
+    else:
+        rng = np.random.default_rng(3)
+        grasps = [tilted(k, tilt_deg=rng.uniform(5., 18.), yaw=rng.uniform(-np.pi, np.pi),
+                         tilt_axis=rng.uniform(0., 2 * np.pi), z=TARGET[2], width=.04) for k in range(399)]
+        grasps.append(candidate(0., .5, "the one that solves"))
+        scene = {"neighbour": False}
+    off = _select_only(monkeypatch, grasps, {"observed_rank_max_candidates": 0}, **scene)
+    on = _select_only(monkeypatch, grasps, {}, **scene)
+    assert off.get("ranking") is None
+    assert 0 < on["ranking"]["ranked"] <= RANK_MAX_CANDIDATES
+    assert on["ranking"]["ranking_s"] <= RANK_TIME_SLICE_S + .1
+    assert on["selection_s"] - off["selection_s"] < .4, (on["selection_s"], off["selection_s"], on["ranking"])
+    if case == "near_ring":
+        assert on["ranked_last"]                  # the ring was seen
+
+
+@pytest.mark.parametrize("blocked_yaw,executed_yaw", [(np.pi, 0.), (0., np.pi)])
+def test_a_refused_jaw_orientation_is_not_a_drop_when_the_other_passes(monkeypatch, blocked_yaw, executed_yaw):
+    """A drop is recorded only when NEITHER jaw orientation passes the vet."""
+    env = build(monkeypatch, neighbour=False)
+    vet = env.harness.vet_pose
+    env.harness.vet_pose = lambda q, **k: ("blocked orientation" if np.isclose(abs(q[3]), blocked_yaw)
+                                          else vet(q, **k))
+    result = grasp(env)
+    assert result["held"] == "cube" and abs(descents(env)[0]) == pytest.approx(executed_yaw)
+    selection = result["observed_selection"]
+    assert selection["dropped"] == [] and selection["dropped_count"] == 0
+    assert selection["attempts"] == [{"candidate": 0, "outcome": "grasped"}]
+
+
+def test_no_executable_grasp_carries_the_choice_record(monkeypatch):
+    from cascade.grasping.selector import NoExecutableGrasp
+    env = build(monkeypatch, neighbour=False)
+    env.harness.vet_pose = lambda q, **k: "blocked"
+    with pytest.raises(NoExecutableGrasp) as err:
+        grasp(env)
+    selection = err.value.observed_selection
+    assert [d["candidate"] for d in selection["dropped"]] == [0, 1] and selection["dropped_count"] == 2
+    assert selection["attempts"] == []
+    assert all(c[0] == "read" for c in env.calls)
+
+
+@pytest.mark.parametrize("failure", ["route budget", "home did not settle"])
+def test_a_failed_next_candidate_names_the_first_refusal(monkeypatch, failure):
+    """After a pre-contact refusal and withdrawal, any failure of the next
+    candidate keeps its own error and adds the first refusal, the count of
+    refused candidates and the choice record."""
+    env = build(monkeypatch, neighbour=False)
+    closes = _refuse_first_close(monkeypatch)
+    if failure == "route budget":
+        vet = env.harness.vet_pose
+        late = []
+
+        def slow_vet(q, **k):
+            if closes and not late:
+                late.append(1)
+                env.clock[0] += 4.            # the next candidate's route vet outlives PLAN_BUDGET_S
+            return vet(q, **k)
+        env.harness.vet_pose = slow_vet
+        expected, attempts = "route preflight exceeded its time budget", 1
+    else:
+        move = env.rt._move_joints
+        moves = []
+
+        def moved(*a, **k):
+            moves.append(1)
+            return False if len(moves) == 5 else move(*a, **k)   # the next candidate's home move
+        env.rt._move_joints = moved
+        expected, attempts = "did not settle at required observed-finger home pose", 2
+    with pytest.raises(SkillError, match=expected) as err:
+        grasp(env)
+    assert ("; after 1 earlier grasp candidate refused before contact and withdrew "
+            "(first refusal: closing fingers intersects observed non-target surface") in str(err.value)
+    selection = err.value.observed_selection
+    assert len(selection["attempts"]) == attempts
+    assert selection["attempts"][0]["outcome"].startswith("refused before contact")
+    if attempts == 2:
+        assert selection["attempts"][1]["outcome"].startswith(f"failed: {expected}")
+    assert not [c for c in env.calls if c[0] == "gripper" and c[1] < 1.]
+
+
+def _refuse_every_close(monkeypatch):
+    original = observed_scene.for_runtime
+    closes = []
+
+    def make(*args):
+        gate = original(*args)
+
+        def close(state, **kw):
+            closes.append(state.q.copy())
+            raise _precommand("closing fingers occluded by non-target depth",
+                              {"finger": "joint_right", "injected": True})
+        gate.require_closing = close
+        return gate
+    monkeypatch.setattr(observed_scene, "for_runtime", make)
+    return closes
+
+
+def test_pick_and_place_failure_result_carries_the_choice_record(monkeypatch):
+    yaws = [(k * np.pi / 6, .95 - .01 * k, f"c{k}") for k in range(5)]
+    env = build(monkeypatch, neighbour=False, grasps=yaws)
+    env.rt._localize = lambda label, spatial_hint=None: (env.frame, env.fix)
+    closes = _refuse_every_close(monkeypatch)
+    result = SkillRuntime.skill_pick_and_place(env.rt, "cube")
+    assert result["ok"] is False and result["stage"] == "grasp" and len(closes) == 3
+    assert "3 grasp candidates refused before contact" in result["error"]
+    selection = result["observed_selection"]
+    assert [a["candidate"] for a in selection["attempts"]] == [0, 1, 2]
+    assert selection["first_refusal"].startswith("closing fingers occluded")
+
+
+def test_grasp_object_failure_result_carries_the_choice_record(monkeypatch, tmp_path):
+    from owned_server import held_dead_port
+
+    from cascade.apps.demo import build_runtime, shutdown_runtime
+    from cascade.config import load_demo_config
+    record = {"ranked_last": [], "dropped": [{"candidate": 0, "reason": "blocked"}], "dropped_count": 1,
+              "attempts": []}
+    with held_dead_port() as port:
+        monkeypatch.setenv("CASCADE_GRASP_BACKEND", "obb")
+        monkeypatch.setenv("CASCADE_GRASPGENX_PORT", str(port))
+        runtime, arm = build_runtime(load_demo_config(camera="mock", arm="mock", llm="mock"), tmp_path / "run")
+        try:
+            def refused(label, **kw):
+                exc = SafetyViolation("closing fingers intersects observed non-target surface: {}")
+                exc.observed_selection = record
+                raise exc
+            runtime.skill_grasp_object = refused
+            result = runtime.execute("grasp_object", {"label": "red cube"})
+        finally:
+            shutdown_runtime(runtime, arm)
+    assert result["ok"] is False and "closing fingers intersects" in result["error"]
+    assert result["observed_selection"] == record
+
+
+@pytest.mark.parametrize("offset_m,yaw_deg,skipped", [(.003, 5., True), (.003, 20., False), (.012, 5., False)])
+def test_a_near_copy_of_the_refused_candidate_is_not_tried_next(monkeypatch, offset_m, yaw_deg, skipped):
+    """Learned planners propose near-copies of one grasp; after A's
+    pre-contact refusal a copy with its TCP within 1 cm and its jaws within
+    15 deg (approach included) would be refused the same way, so the retry
+    skips it. A grasp at the same centre with the jaws turned (B) is not a
+    copy: it puts the fingers elsewhere."""
+    copy_a = Grasp(TARGET + [offset_m, 0., 0.], _yaw_rotation(np.deg2rad(yaw_deg)), .04, np.array([0., 0., -1.]),
+                   .94, "A': a copy of A?")
+    env = build(monkeypatch, neighbour=False, grasps=(A, copy_a, B))
+    _refuse_first_close(monkeypatch)
+    result = grasp(env)
+    assert result["held"] == "cube"
+    attempts = [a["candidate"] for a in result["observed_selection"]["attempts"]]
+    if skipped:
+        assert attempts == [0, 2] and descents(env) == pytest.approx([0., np.pi / 2])
+    else:
+        assert attempts == [0, 1] and descents(env) == pytest.approx([0., np.deg2rad(yaw_deg)])
+
+
+def test_the_same_grasp_descending_along_another_approach_is_not_a_copy(monkeypatch):
+    """Same TCP and jaws as A but approached 20 deg off vertical: its
+    pregrasp and descent (along `approach`) sweep the fingers elsewhere, so
+    it stays a candidate after A's refusal."""
+    tilt = np.deg2rad(20.)
+    slanted = Grasp(TARGET.copy(), _yaw_rotation(0.), .04, np.array([np.sin(tilt), 0., -np.cos(tilt)]), .94,
+                    "A along a slanted approach")
+    env = build(monkeypatch, neighbour=False, grasps=(A, slanted))
+    _refuse_first_close(monkeypatch)
+    result = grasp(env)
+    assert result["held"] == "cube"
+    assert [a["candidate"] for a in result["observed_selection"]["attempts"]] == [0, 1]
+    pre_slanted = TARGET - .1 * slanted.approach
+    assert any(np.allclose(q[:3], pre_slanted) for q in joint_targets(env))   # its own pregrasp
+
+
+def test_a_halt_during_the_pre_close_retreat_ends_the_skill_as_a_halt(monkeypatch):
+    """Pre-existing on the edited block: the withdrawal's halt refusal was
+    folded into the veto's SafetyViolation text. It now propagates as the
+    MotionHalted it is, before anything of the withdrawal streams."""
+    env = build(monkeypatch, neighbour=False)
+    _refuse_first_close(monkeypatch)
+    move = env.rt._move_joints
+    moves = []
+
+    def moved(*a, **k):
+        moves.append(1)
+        if len(moves) == 4:                          # home, pregrasp, descent, then the withdrawal
+            env.harness._halt_generation += 1        # operator halt as the withdrawal starts
+        return move(*a, **k)
+    env.rt._move_joints = moved
+    with pytest.raises(MotionHalted, match=r"^halt received during route planning or execution$"):
+        grasp(env)
+    assert len(moves) == 4
+    assert [c for c in env.calls if c[0] == "gripper"] == [("gripper", 1., .8)]
+    assert len(joint_targets(env)) == 51             # home, pregrasp, descent; the withdrawal never streamed

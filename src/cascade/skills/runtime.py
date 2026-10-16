@@ -12,6 +12,7 @@ from __future__ import annotations
 from ..control import motion_evidence
 
 import contextlib
+import functools
 import logging
 from contextlib import nullcontext
 import math
@@ -53,8 +54,8 @@ if TYPE_CHECKING:  # annotation only; the runtime import stays local (import cyc
     from ..control.arm_rig import ArmRig
     from ..perception.link_mask import LinkSelfMask
     from ..types import ObjectFix
-from ..types import (ContactDetected, Detection, Frame, GraspFailed, SafetyViolation, SkillError, SkillStuck,
-                     make_transform, transform_points)
+from ..types import (ContactDetected, Detection, Frame, GraspFailed, MotionHalted, SafetyViolation, SkillError,
+                     SkillStuck, make_transform, transform_points)
 
 logger = logging.getLogger(__name__)
 
@@ -124,9 +125,29 @@ def _column_exemption(harness, column):
 #: rounded up. The early kitchen E2E (attempt C3) chose a grasp whose planned
 #: fingers cleared a lemon, then was refused at the MEASURED pose beside it.
 OBSERVED_RANK_LATERAL_M = 0.01
+#: Upper bound of `grasp.observed_rank_lateral_m`: a wider distance ranks
+#: nearly every candidate last, which only reorders them at full cost.
+OBSERVED_RANK_LATERAL_MAX_M = 0.03
+#: The ranking runs inside the approach deadline (`PLAN_BUDGET_S`, also the
+#: route vet's budget), so it is bounded: at most this many candidates of one
+#: grasp are ranked (`grasp.observed_rank_max_candidates`, 0 = no ranking; the
+#: kitchen's GraspGen-X hands over `topk` 32 per batch) ...
+OBSERVED_RANK_MAX_CANDIDATES = 32
+#: ... and ranking stops once its own work reaches this time slice. The rest
+#: keep their planned order. Measured at 720 x 1280: 1-5 ms per query, up to
+#: 8 queries per candidate.
+OBSERVED_RANK_TIME_SLICE_S = 0.3
 #: After a pre-command veto with a completed vetted withdrawal, at most this
 #: many further candidates of the same plan are tried.
 OBSERVED_NEXT_CANDIDATES = 2
+#: The next candidate is never a near-copy of a refused one (learned planners
+#: propose clusters of them; the copy would be refused the same way): TCP
+#: within this distance ...
+OBSERVED_NEAR_COPY_M = 0.01
+#: ... with its approach AND its jaws within this angle (either jaw
+#: orientation). A grasp at the same centre with the jaws turned further puts
+#: the fingers elsewhere and stays a candidate.
+OBSERVED_NEAR_COPY_DEG = 15.
 
 
 def _same_grasp(a, b) -> bool:
@@ -146,21 +167,54 @@ def _same_grasp(a, b) -> bool:
         return False
 
 
+def _near_copy(a, b) -> bool:
+    """`b` puts the fingers where refused candidate `a` (or its jaws-swapped
+    twin) did: TCP within `OBSERVED_NEAR_COPY_M`, approach and the whole tool
+    rotation within `OBSERVED_NEAR_COPY_DEG`."""
+    from ..grasping.selector import _flip_twin
+    try:
+        if not float(np.linalg.norm(np.asarray(a.position, float) - np.asarray(b.position, float))) \
+                <= OBSERVED_NEAR_COPY_M:
+            return False
+        limit = math.cos(math.radians(OBSERVED_NEAR_COPY_DEG))
+        da, db = np.asarray(a.approach, float).reshape(3), np.asarray(b.approach, float).reshape(3)
+        if not float(da @ db) >= limit * float(np.linalg.norm(da) * np.linalg.norm(db)):
+            return False
+        rb = np.asarray(b.rotation, float)
+        # cos(rotation angle) = (trace(Ra^T Rb) - 1) / 2
+        return any((float(np.trace(np.asarray(ra, float).T @ rb)) - 1.) / 2. >= limit
+                   for ra in (a.rotation, _flip_twin(a).rotation))
+    except (TypeError, ValueError, AttributeError):
+        return False
+
+
 class _ObservedSelection:
     """Which candidates the observed-finger grasp ranked last, dropped and
-    attempted (the result's `observed_selection` and the grasp trace).
-    Indices count every planned candidate of this grasp, batches in order."""
+    attempted (the result's `observed_selection`, failures' exception
+    attribute of the same name, and the grasp trace). Indices count every
+    planned candidate of this grasp, batches in order. Shared by the
+    re-entries for the next candidate, with the bounded neighbour ranking."""
 
     _MAX_LISTED = 5
 
     def __init__(self):
         self.candidates, self.attempts = [], []
+        self._ids = {}
         self._ranked_last, self._dropped = {}, {}
+        self._pending = []          # vet failures of the candidate the selector is on
+        self.ranking = None         # observed_scene.NeighbourRanking, once the gate exists
+        self.selection_s = 0.
+        self.first_refusal = None
 
     def add_batch(self, grasps):
-        self.candidates.extend(grasps)
+        for grasp in grasps:
+            self._ids.setdefault(id(grasp), len(self.candidates))
+            self.candidates.append(grasp)
 
     def index(self, grasp):
+        known = self._ids.get(id(grasp))
+        if known is not None and self.candidates[known] is grasp:
+            return known
         return next((i for i, c in enumerate(self.candidates) if _same_grasp(c, grasp)), None)
 
     def ranked(self, grasp, reason):
@@ -169,9 +223,32 @@ class _ObservedSelection:
             self._ranked_last[index] = reason
             grasp_evidence.event("observed_neighbour_ranked_last", candidate=index, reason=reason)
 
-    def dropped(self, grasp, reason):
-        index = self.index(grasp)
-        self._dropped.setdefault(index, str(reason))
+    def track(self, grasps):
+        """Hand `grasps` to the selector. It asks for the next candidate only
+        when neither jaw orientation of the current one passed: then (and
+        only then) the current one's vet refusals are drops."""
+        for grasp in grasps:
+            self._settle()
+            yield grasp
+
+    def vet_failed(self, grasp, reason):
+        self._pending.append((grasp, str(reason)))
+
+    def _settle(self):
+        for grasp, reason in self._pending:
+            self._dropped.setdefault(self.index(grasp), reason)
+        self._pending = []
+
+    def end_select(self, seconds, *, exhausted):
+        """One `select_grasp` call ended: a candidate was chosen (its other
+        orientation's refusal is no drop), every one failed (`exhausted`), or
+        it was interrupted (undecided: no drop)."""
+        if exhausted:
+            self._settle()
+        self._pending = []
+        self.selection_s += max(0., float(seconds))
+        grasp_evidence.event("observed_selection_time", selection_s=round(self.selection_s, 3),
+                             **({} if self.ranking is None else self.ranking.summary()))
 
     def attempt(self, grasp):
         self.attempts.append({"candidate": self.index(grasp), "outcome": "started"})
@@ -183,14 +260,72 @@ class _ObservedSelection:
         return any(_same_grasp(self.candidates[a["candidate"]], grasp)
                    for a in self.attempts if a["candidate"] is not None)
 
+    def untried(self, grasps):
+        """Candidates the next attempt may use: never attempted, and not a
+        near-copy of an attempted (refused) one."""
+        tried = [self.candidates[a["candidate"]] for a in self.attempts if a["candidate"] is not None]
+        return [c for c in grasps
+                if not any(_same_grasp(t, c) or _near_copy(t, c) for t in tried)]
+
+    def refused(self):
+        return sum(1 for a in self.attempts if a["outcome"].startswith("refused before contact"))
+
+    def note(self, why_not=None):
+        """Suffix of a failure after candidates of this plan were refused
+        before contact and withdrew (empty when none was: the message then
+        stays exactly as it was before retries). `why_not`: the final veto
+        itself withdrew and no further candidate is tried."""
+        refused = self.refused()
+        plural = "s" if refused != 1 else ""
+        if why_not is not None and refused:
+            first = f"; first refusal: {self.first_refusal}" if refused > 1 else ""
+            return (f"; {refused} grasp candidate{plural} refused before contact and withdrew; "
+                    f"no further candidate ({why_not}){first}")
+        if refused:
+            return (f"; after {refused} earlier grasp candidate{plural} refused before contact and withdrew "
+                    f"(first refusal: {self.first_refusal})")
+        return ""
+
+    def annotate(self, exc):
+        """Attach the choice record to an exception leaving the grasp."""
+        if self.attempts and self.attempts[-1]["outcome"] == "started":
+            self.attempts[-1]["outcome"] = f"failed: {str(exc)[:200]}"
+        try:
+            exc.observed_selection = self.summary()
+        except AttributeError:
+            pass
+
     def summary(self):
         def listed(items):
             return [{"candidate": i, "reason": r[:160]} for i, r in list(items.items())[:self._MAX_LISTED]]
         out = {"ranked_last": listed(self._ranked_last), "dropped": listed(self._dropped),
-               "dropped_count": len(self._dropped), "attempts": [dict(a) for a in self.attempts]}
+               "dropped_count": len(self._dropped), "attempts": [dict(a) for a in self.attempts],
+               "ranking": None if self.ranking is None else self.ranking.summary(),
+               "selection_s": round(self.selection_s, 3)}
+        if self.first_refusal is not None:
+            out["first_refusal"] = self.first_refusal
         if self.attempts and self.attempts[-1]["outcome"] == "grasped":
             out["succeeded_attempt"] = len(self.attempts)
         return out
+
+
+def _observed_selection_on_failure(function):
+    """Every exception leaving `skill_grasp_object` once its observed-finger
+    choice record exists carries that record (`exc.observed_selection`), so
+    the grasp_object / pick_and_place failure results can report it."""
+    @functools.wraps(function)
+    def wrapped(self, *args, **kwargs):
+        record = kwargs.get("_observed_record")
+        if record is None:
+            record = kwargs["_observed_record"] = {}
+        try:
+            return function(self, *args, **kwargs)
+        except Exception as exc:
+            selection = record.get("selection")
+            if selection is not None:
+                selection.annotate(exc)
+            raise
+    return wrapped
 
 
 class _ObservedNextCandidate:
@@ -1327,6 +1462,10 @@ class SkillRuntime:
                           else {"ok": False, "error": f"{type(e).__name__}: {e}"})
                 if isinstance(e, ContactDetected):
                     result.update(_contact_result(effective_arm))
+                if isinstance(getattr(e, "observed_selection", None), dict):
+                    # Observed-finger grasp: ranked last / dropped / attempted
+                    # candidates of the failed choice (grasp_object).
+                    result["observed_selection"] = e.observed_selection
         except TypeError as e:
             result = {"ok": False, "error": f"bad arguments for {name}: {e}"}
         except Exception as e:  # camera dropouts, CAN loss, ... : the agent
@@ -3277,6 +3416,7 @@ class SkillRuntime:
         return out
 
     @grasp_evidence.record_attempt
+    @_observed_selection_on_failure
     def skill_grasp_object(
         self,
         label: str,
@@ -3286,6 +3426,7 @@ class SkillRuntime:
         _frame=None,
         _planning_deadline=None,
         _next_candidate=None,
+        _observed_record=None,
     ) -> dict:
         """Grasp a named object.
 
@@ -3300,8 +3441,10 @@ class SkillRuntime:
         candidate the live gate vetoed before its step was commanded (nothing
         touched) and that withdrew to its pregrasp over a vetted route
         re-enters here for the next vetted candidate of the SAME plan, with
-        the same immutable observed scene and the halt baseline of the first
-        call (`_ObservedNextCandidate`).
+        the same immutable observed scene, the halt baseline of the first
+        call and the first call's bounded neighbour ranking
+        (`_ObservedNextCandidate`). `_observed_record` is filled by the
+        `_observed_selection_on_failure` wrapper.
         """
         scene_enabled = os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1"
         carry_attachment.check(self)
@@ -3349,13 +3492,18 @@ class SkillRuntime:
         # Ranking distance for candidates beside an observed neighbour, read
         # and validated before anything moves. Ranking only: it never admits
         # or refuses a candidate (0 = rank as main).
-        rank_lateral_m = None
+        rank_lateral_m = rank_max = None
         if scene_enabled:
             rank_lateral_m = gcfg.get("observed_rank_lateral_m", OBSERVED_RANK_LATERAL_M)
             if (isinstance(rank_lateral_m, bool) or not isinstance(rank_lateral_m, (int, float))
-                    or not math.isfinite(rank_lateral_m) or rank_lateral_m < 0):
-                raise SkillError("grasp.observed_rank_lateral_m must be a finite distance >= 0 m")
+                    or not math.isfinite(rank_lateral_m)
+                    or not 0 < rank_lateral_m <= OBSERVED_RANK_LATERAL_MAX_M):
+                raise SkillError("grasp.observed_rank_lateral_m must be a distance in "
+                                 f"(0, {OBSERVED_RANK_LATERAL_MAX_M}] m")
             rank_lateral_m = float(rank_lateral_m)
+            rank_max = gcfg.get("observed_rank_max_candidates", OBSERVED_RANK_MAX_CANDIDATES)
+            if isinstance(rank_max, bool) or not isinstance(rank_max, int) or rank_max < 0:
+                raise SkillError("grasp.observed_rank_max_candidates must be an integer >= 0 (0 = no ranking)")
         grasp_evidence.phase("planning")
         search = None
         planning_active = False
@@ -3435,6 +3583,8 @@ class SkillRuntime:
         # by the vet, and each attempted candidate. Shared by re-entries.
         selection = (_next_candidate.selection if _next_candidate is not None
                      else _ObservedSelection() if scene_enabled else None)
+        if selection is not None and _observed_record is not None:
+            _observed_record["selection"] = selection
         if _next_candidate is not None:
             grasps = list(_next_candidate.remaining)  # no new plan: the next vetted candidate
         else:
@@ -3675,23 +3825,31 @@ class SkillRuntime:
                     raise SafetyViolation(f"home finger trajectory intersects observed surface: {conflict}")
         grasp_evidence.event("selection_input", state=state, seed_q=_seed)
         from ..grasping.selector import NoExecutableGrasp
-        from ..grasping.observed_scene import ObservedFingerGate, neighbour_ranked
+        from ..grasping.observed_scene import NeighbourRanking, ObservedFingerGate
         pregrasp_offset_m = float(gcfg.get("pregrasp_offset_m", 0.12))
-
-        def _candidates(batch_grasps):
+        if (selection is not None and selection.ranking is None and rank_max
+                and isinstance(scene_gate, ObservedFingerGate)):
             # Beside an observed neighbour, candidates whose fingers clear it
             # by less than the settle error go last (ranking only; the exact
-            # vet below still admits or drops every candidate).
-            if not isinstance(scene_gate, ObservedFingerGate) or not rank_lateral_m:
+            # vet below still admits or drops every candidate). Bounded so the
+            # choice stays inside `approach_deadline`; a re-entry for the next
+            # candidate reuses this ranking (same gate, same budget).
+            selection.ranking = NeighbourRanking(
+                scene_gate, lateral_m=rank_lateral_m, pregrasp_offset_m=pregrasp_offset_m,
+                max_candidates=rank_max, time_slice_s=OBSERVED_RANK_TIME_SLICE_S)
+
+        def _candidates(batch_grasps):
+            if selection is None:
                 return batch_grasps
-            return neighbour_ranked(batch_grasps, scene_gate, lateral_m=rank_lateral_m,
-                                    pregrasp_offset_m=pregrasp_offset_m, check=_scene_cancel,
-                                    ranked_last=lambda i, g, why: selection.ranked(g, why))
+            ordered = (batch_grasps if selection.ranking is None
+                       else selection.ranking.order(batch_grasps, check=_scene_cancel,
+                                                    ranked_last=lambda i, g, why: selection.ranked(g, why)))
+            return selection.track(ordered)
 
         def _validate(g, q_pre, q_grasp):
             reason = _vet(g, q_pre, q_grasp)
             if reason and selection is not None:
-                selection.dropped(g, reason)
+                selection.vet_failed(g, reason)
             return reason
         # Opt-in: pregrasp (and so the lift) at least this far above the
         # object's observed top, so the jaws leave it before the exemption
@@ -3717,6 +3875,7 @@ class SkillRuntime:
                     grasps = generate_batch(batch)
                     if selection is not None:
                         selection.add_batch(grasps)
+                selecting, exhausted = time.monotonic(), False
                 try:
                     grasp, q_pre, q_grasp = select_grasp(
                         _candidates(grasps),
@@ -3742,12 +3901,19 @@ class SkillRuntime:
                         grasp_evidence.event("planning_batch_selected", batch=batch + 1)
                     break
                 except NoExecutableGrasp as exc:
+                    exhausted = True
                     if search is None:
                         raise
                     search.check()
                     grasp_evidence.event("planning_batch_rejected", batch=batch + 1, reason=str(exc))
                     if batch + 1 == search.max_batches:
                         raise
+                finally:
+                    if selection is not None:
+                        # Choice time (ranking included) for the result/trace;
+                        # vet refusals become drops only when every candidate
+                        # of the batch failed.
+                        selection.end_select(time.monotonic() - selecting, exhausted=exhausted)
         except (SkillError, SafetyViolation) as e:
             # No candidate survived IK + harness vetting. Log it against the
             # object profile so the fake-RL memory learns to bias future
@@ -4001,6 +4167,14 @@ class SkillRuntime:
                         settled = self._move_planned(
                             q_pre, duration_s=float(gcfg.get("descend_duration_s", 2.0)))
                     recovery = "completed" if settled else "did not settle"
+                except MotionHalted:
+                    # An operator halt during the withdrawal ends the skill as
+                    # the halt it is, never folded into the veto's text (the
+                    # e-stop and every other refusal are reported below).
+                    self.memory.add("outcome", f"grasp descent failed: {exc}; pre-close retreat halted")
+                    if selection is not None:
+                        selection.finish(f"failed: {str(exc)[:200]}; pre-close retreat halted")
+                    raise
                 except (SkillError, SafetyViolation) as retreat_error:
                     recovery = f"refused: {retreat_error}"
                 self.memory.add("outcome", f"grasp descent failed: {exc}; pre-close retreat {recovery}")
@@ -4012,15 +4186,19 @@ class SkillRuntime:
                 why_not, withdrawn = SkillRuntime._observed_next_candidate_refusal(
                     self, exc, recovery, episode, selection, grasps, _planning_deadline)
                 if selection is not None:
+                    if withdrawn and selection.first_refusal is None:
+                        selection.first_refusal = str(exc)[:200]
                     selection.finish(f"refused before contact: {str(exc)[:200]}; withdrew to pregrasp"
                                      if withdrawn else
                                      f"failed: {str(exc)[:200]}; pre-close retreat {recovery[:80]}")
                 if why_not is None:
                     next_after = exc
                 else:
-                    raise type(exc)(f"{exc}; pre-close retreat {recovery}"
-                                    + SkillRuntime._observed_attempts_note(selection, why_not, withdrawn)
-                                    ) from exc
+                    failure = type(exc)(f"{exc}; pre-close retreat {recovery}"
+                                        + ("" if selection is None
+                                           else selection.note(why_not if withdrawn else None)))
+                    failure._observed_noted = True
+                    raise failure from exc
             else:
                 raise
         finally:
@@ -4105,22 +4283,6 @@ class SkillRuntime:
             **({"observed_selection": selection.summary()} if selection is not None else {}),
         }
 
-    @staticmethod
-    def _observed_attempts_note(selection, why_not, withdrawn) -> str:
-        """Suffix of the final refusal naming earlier candidates of this plan.
-        Empty when this was the only candidate and it did not withdraw before
-        contact: the message then stays exactly as it was before retries."""
-        if selection is None:
-            return ""
-        refused = sum(1 for a in selection.attempts if a["outcome"].startswith("refused before contact"))
-        if withdrawn:
-            plural = "s" if refused != 1 else ""
-            return f"; {refused} grasp candidate{plural} refused before contact and withdrew; no further candidate ({why_not})"
-        if refused:
-            plural = "s" if refused != 1 else ""
-            return f"; after {refused} earlier grasp candidate{plural} refused before contact and withdrew"
-        return ""
-
     def _observed_next_candidate_refusal(self, exc, recovery, episode, selection, grasps, planning_deadline):
         """-> (why no next candidate or None, withdrew-before-contact).
 
@@ -4130,8 +4292,10 @@ class SkillRuntime:
         pre-close retreat COMPLETED over its vetted route. Then the next
         candidate needs: attempts left (`OBSERVED_NEXT_CANDIDATES`), a
         candidate of this plan not yet attempted, and time before the
-        persistence and task deadlines. A measured-feedback refusal, a refused
-        or unsettled withdrawal, a contact, halt or e-stop never qualify."""
+        persistence and task deadlines. Near-copies of an attempted candidate
+        do not count (`_ObservedSelection.untried`). A measured-feedback
+        refusal, a refused or unsettled withdrawal, a contact, halt or e-stop
+        never qualify."""
         from ..grasping.observed_scene import precommand_conflict
 
         if selection is None:
@@ -4147,7 +4311,7 @@ class SkillRuntime:
         deadlines = [d for d in (planning_deadline, getattr(self, "_task_deadline", None)) if d is not None]
         if deadlines and time.monotonic() >= min(deadlines):
             return "grasp time budget spent", True
-        if not [c for c in grasps if not selection.attempted(c)]:
+        if not selection.untried(grasps):
             return "no other candidate in this plan", True
         return None, True
 
@@ -4156,17 +4320,22 @@ class SkillRuntime:
                                        selection, grasps) -> dict:
         """The previous candidate withdrew over its vetted route after a
         pre-command veto: select the next vetted candidate of the same plan
-        (same observed scene, same halt baseline) and execute it through the
-        full `skill_grasp_object` path, home move included."""
+        (same observed scene, same halt baseline, same neighbour ranking) and
+        execute it through the full `skill_grasp_object` path, home move
+        included. Any failure of that attempt keeps its own error and type and
+        names the first refusal and how many candidates were refused (a halt
+        stays the bare MotionHalted)."""
         from ..grasping.planning_budget import PlanningBudgetExceeded
         from ..grasping.selector import NoExecutableGrasp
 
-        remaining = [c for c in grasps if not selection.attempted(c)]
+        remaining = selection.untried(grasps)
         attempt = len(selection.attempts) + 1
         self.memory.add("note", f"grasp candidate {attempt - 1} was refused before contact and withdrew; "
                                 f"trying the next vetted candidate ({attempt}/{1 + OBSERVED_NEXT_CANDIDATES})")
         grasp_evidence.event("observed_next_candidate", attempt=attempt, refusal=str(refusal),
-                             remaining=len(remaining))
+                             remaining=len(remaining),
+                             near_copies_skipped=sum(1 for c in grasps if not selection.attempted(c))
+                             - len(remaining))
         context = _ObservedNextCandidate(gate=gate, halt_generation=halt_generation,
                                          remaining=remaining, selection=selection)
         try:
@@ -4175,10 +4344,17 @@ class SkillRuntime:
                 _planning_deadline=planning_deadline, _next_candidate=context)
         except (NoExecutableGrasp, PlanningBudgetExceeded) as none_left:
             # Nothing moved after the withdrawal: report the original veto.
-            raise type(refusal)(
-                f"{refusal}; pre-close retreat completed"
-                + SkillRuntime._observed_attempts_note(selection, f"next candidate: {none_left}", True)
-            ) from none_left
+            failure = type(refusal)(f"{refusal}; pre-close retreat completed"
+                                    + selection.note(f"next candidate: {none_left}"))
+            failure._observed_noted = True
+            raise failure from none_left
+        except MotionHalted:
+            raise
+        except (SkillError, SafetyViolation) as failed:
+            if not getattr(failed, "_observed_noted", False):
+                failed.args = (f"{failed}{selection.note()}",)
+                failed._observed_noted = True
+            raise
         if _fix is None or _frame is None:
             # The first call localized by description; its resolution stands.
             result = {**result, **self._target_resolution(label, frame, fix)}
@@ -5243,6 +5419,8 @@ class SkillRuntime:
                                 "grasp_attempts": attempt,
                                 "note": "localization analysis expired; no automatic motion recovery"}
                     res = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+                    if isinstance(getattr(e, "observed_selection", None), dict):
+                        res["observed_selection"] = e.observed_selection
                 timings[f"grasp_attempt{attempt}_s"] = round(time.monotonic() - tg, 2)
                 if res.get("ok", True) and res.get("held"):
                     grasp = res
@@ -5251,7 +5429,9 @@ class SkillRuntime:
                 if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1":
                     return {**failure_destination, "ok": False, "stage": "grasp",
                             "error": last_err, "home_skipped": True, "grasp_attempts": attempt,
-                            "note": "observed-finger attempt failed; automatic recovery was not geometrically checked"}
+                            "note": "observed-finger attempt failed; automatic recovery was not geometrically checked",
+                            **({"observed_selection": res["observed_selection"]}
+                               if "observed_selection" in res else {})}
                 self.memory.add("outcome", f"pick attempt {attempt} failed: {last_err[:100]}")
                 # B36: an attempt can fail AFTER the close took the object
                 # (measured on Isaac: "did not settle at grasp lift pose" with

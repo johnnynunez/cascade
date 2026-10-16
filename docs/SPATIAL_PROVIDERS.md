@@ -1,241 +1,133 @@
 # Spatial providers, grounded memory and route replay
 
-The optional `spatial` domain supplies capture-time transforms, source-bound
-landmark memory and planar route planning. The `spatial_replay` robot profile
-exercises the real composed runtime and MCP with synthetic observations. It has
-no actuator resources and exposes no navigation execution tool.
-
-The separate [retained RGB-D path](#retained-rgb-d-surface-observations) now connects an
-explicit `SensorHub` to these same transform and memory contracts. It records
-selected surface pixels as caller annotations, using capture-bound calibration
-and provenance. It does not construct a grid or expose route planning.
-
-The replay implements the first increment of the HomeBody comparison. It is
-not a HomeBody port,
-physical localization source or admitted mobile-manipulation stack.
-
-## Optional cuVSLAM localization
-
-The `spatial` domain also accepts a `cuvslam` configuration for an optional
-RGB-D SLAM estimator. Its [reviewed Python API](https://github.com/nvidia-isaac/cuVSLAM/blob/b405f132b8fb1d861a570f3aea64c2c5d4b59525/python/cuvslam2.cpp)
-is cuVSLAM 17.0.0; it is not installed or imported by default. A profile contains
-`kind: spatial`, `robot_id` and `cuvslam`, whose required settings are
-`sensor_domain`, `sensor_id`, `map_id`, `map_epoch`, `map_frame_id`,
-`binding_sha256` (the installed `pycuvslam*.so`) and `max_gap_s` (0–5 seconds,
-exclusive of zero); `max_poses` defaults to 256 and is capped at 4096. Optional
-`timeout_s` bounds each SDK call, including warmup (default 5 seconds, maximum 60).
-The configured `map_epoch` is a label; each domain creates and reports a unique
-session epoch, so restarting with the same profile cannot reuse a map origin.
-Construction only binds the robot's existing calibrated SensorHub.
-`warmup_localization` first uses an exact retained capture's calibration to
-initialize an isolated SDK process; it admits no pose or image. After warmup,
-`track_capture` consumes fresh `{epoch, sequence, capture_sha256}` captures; an application must feed
-captures within the configured gap independently of LLM response time.
-`get_localization` reads its last still-fresh estimate. Neither tool acquires a
-frame or steps physics. CPU contracts and a 12-frame native synthetic RGB-D
-replay pass; [the native validation record](#live-native-rgb-d-stream) binds
-the build, inputs, estimates and cleanup, and also records a
-[live native simulation stream](#live-native-rgb-d-stream)
-that tracked 12 captures from a MicroDuck producer with unknown pose
-uncertainty. Physical localization remains pending.
-
-An explicit `preparation_intrinsics` configuration additionally exposes
-`prepare_localization({})` for applications that must initialize the SDK before
-starting image acquisition. Construction and tool discovery remain passive.
-The configuration uses schema `cascade.rgbd-localization-intrinsics.v1` and
-requires `width`, `height`, `intrinsics` (nine values),
-`pixel_center_offset_uv` (`null`, `[0, 0]` or `[0.5, 0.5]`), `frame_id`,
-`calibration_id` and `model_identity_sha256`. The three identity fields must
-equal the existing sensor descriptor; the intrinsics remain a declaration,
-not a calibration measurement. Preparation passes only size and intrinsics
-to the same bounded worker and supplies no image, timestamp, pose or map origin.
-
-The first real retained capture must match the declared intrinsics and sensor
-identity exactly and must have been captured after preparation completed.
-It establishes the sensor epoch and sequence for the usual continuity checks.
-Replay, epoch changes, stale captures, tracking loss and stop retain their
-existing invalidation behavior; no capture age is renewed. A changed declaration
-requires a new domain and map epoch. This preparation path has CPU contract
-tests only; it does not admit native stream localization or navigation.
-
-The estimator uses synchronous odometry/SLAM with an in-memory pose graph and
-reports an estimated optical-camera pose in a new local map frame, with unknown
-uncertainty and possible loop-closure jumps. It ignores simulated
-`world_from_camera`, never supplies obstacle/free-space geometry, and grants no
-motion admission. Registered pinhole RGB-D must have zero skew; explicit pixel
-center offsets are preserved. The Python binding requires `uint16` depth, so
-meters are rounded to millimeters; overflow, positive depths rounding to zero
-and all-invalid frames are rejected. Calibration changes, lost tracking,
-capture gaps, stale results or stop invalidate the map session; rebuild with a
-new map epoch to resume. Native tracking runs in one owned process so the SDK's
-GIL does not block actuator threads. IPC deadlines and stop invalidate results
-and terminate that worker; close has a bounded kill/reap path and reports
-incomplete cleanup if still busy. The installed
-extension hash and library version are checked, while the upstream source pin
-documents the reviewed API rather than certifying all linked SDK libraries.
-
-An optional `cuvslam.base_registration` binds a **rigid** optical-camera mount
-to a robot base. Its exact fields are `schema: cascade.rigid-camera-base.v1`,
-`robot_id`, `model_identity_sha256`, `camera_calibration_sha256`,
-`camera_frame_id`, `base_frame_id`, `translation_m`, `rotation_wxyz`,
-`position_error_m`, `angular_error_rad` and `sha256`. The robot, non-null model,
-camera calibration and optical frame must match the configured sensor descriptor.
-Translation and unit wxyz rotation describe **T_camera_base**, mapping base
-coordinates into the optical camera frame; obtain these from an independently
-established mount calibration. Error bounds are nonnegative meters/radians or
-explicitly `null` when unknown. Hash the complete record excluding `sha256` with
-`cascade.spatial.frames.sha256(record)`; that hash binds the declaration, not its
-physical accuracy. A moving head or joint-mounted camera needs capture-aligned
-kinematics and cannot use this static registration.
-
-When configured, `track_capture` and `get_localization` retain their optical
-`pose` and additionally return `base_pose` and `base_registration_sha256`.
-Both poses use the same capture timestamp/hash and map session. The base stamp's
-calibration hash binds the whole mount record, which includes the original
-camera calibration. Rotation moves the base origin through the mount's lever
-arm; its positional error bound includes this effect and both translation error
-bounds. Angular errors add conservatively; unknown terms remain unknown.
-Freshness is checked again after composition. Tracking loss, replay, calibration
-change and stop invalidate both poses together. CPU composition and composed
-runtime tests exercise this optional path; no physical mount or base trajectory
-has been admitted. cuVSLAM still supplies unknown error bounds, so registration
-alone cannot enable navigation.
-
-## Opt-in observed route execution
-
-`build_mobile_runtime(..., navigation_source=source, navigation_settings=settings)`
-can wrap a configured mobile controller with `NavigationDomain`. The composed
-builder accepts the same explicit objects as
-`navigation_bindings={domain_name: {"source": source, "settings": settings}}`.
-This replaces exposed free-motion tools with `go_to(goal_xy_m, map_epoch,
-map_sha256)` and keeps the existing controller, generation fences and independent
-mobile verifier. Default profiles and the read-only spatial replay are unchanged.
-
-The borrowed provider must implement bounded `read(deadline_monotonic_s=...)`
-and `swept_clearance(query, deadline_monotonic_s=...)`. Reads return a typed
-`NavigationSample`: a registered map-from-base pose with known error bounds,
-robot/model/body/calibration identities, sensor epoch and capture sequence,
-transport age, exact `GridSnapshot`, and immutable collision-volume hash.
-Clearance returns `VolumeClearance` bound to the entire query and volume hash;
-unknown space fails closed. Point samples or free planar cells cannot establish
-clearance of the complete swept cylinder. Native providers must release the GIL
-or isolate blocking work in a process; the Python watchdog cannot preempt native
-code that holds it. A stuck provider is quarantined instead of spawning more readers.
-The provider owner retains responsibility for its lifecycle.
-
-Settings require the exact base/frame, geometry/calibration hashes, whole-body
-cylinder radius and vertical extents (including payload and every permitted
-articulation), clearance and stopping margins, localization error bounds, goal
-tolerance, map age, route length, command count and wall deadline. The query
-inflates that envelope for admitted tilt, localization error, controller heading
-and lateral drift, observation latency and stop drift. It continuously checks
-both the current body and the selected corridor. Expired captures, map/volume
-revision changes, unknown uncertainty and localization jumps stop the route;
-new observations cannot renew its original wall deadline.
-
-Physical navigation also requires `settings.robot_volume`, parsed by
-`spatial.robot_volume.RobotVolume.from_dict`; the older cylinder-only fixture is
-restricted to mock bases. This record binds the robot/model, source geometry
-hash, embodiment, complete collider inventory, local bounding boxes with known
-error, and the permitted base-relative origin range of every link. Each link
-and collider must be covered, including body, limbs and attached payloads. The
-configuration's `geometry_sha256` must equal the canonical record digest, and
-its cylinder must enclose every local box through the entire declared reach
-range and all rotations. The adapter cannot infer these ranges or mesh bounds
-from one pose. A model adapter must establish their coverage before native use;
-the configuration and an embodiment description alone do not attest it.
-
-Every registered `NavigationSample.robot_volume` carries a `RobotVolumeSample`
-with complete base-relative link transforms at the same capture time, sequence,
-sensor epoch, map epoch and clock as the base pose. The separate link-pose
-source and calibration are pinned by the volume record. Unknown error, stale
-captures, omitted links, static substitutions and uncertainty extending beyond
-a declared reach bound refuse the route. Clearance revalidates the retained
-sample and binds its digest into the query. Origin ranges include pose error,
-not just nominal joint origins. Both base and geometry ages are rechecked after
-geometry work, around clearance, before publication and during motion authority
-checks; a fresh base cannot renew an older limb capture. The swept cylinder continues to
-cover the full articulation range even when all limbs currently lie close to
-the base. Instantaneous boxes include angular uncertainty about each link
-origin, including its lever arm; they are diagnostic and never replace that
-full swept envelope. These additions provide software geometry guards, not a
-new collision-map provider or calibrated native reach evidence.
-
-`SafeBase` rechecks the passive route authority around feedback reads and before
-dispatch; revocation delivers a latched stop. Final arrival requires a complete
-fresh settling window, bounded translation and full-orientation speed and drift.
-Stop and failed-route obligations survive until the explicit task boundary.
-Synthetic runs retain `ok: false`, even when `software_complete: true`.
-
-These are CPU software contracts, not native navigation admission. No shipped
-provider currently supplies the complete registered-base and whole-volume
-contract. In particular cuVSLAM's optical pose has unknown uncertainty, and its
-output alone cannot activate this runner. Dynamic-map replanning, foothold/terrain
-planning and physical end-to-end acceptance remain pending.
-
-## Contracts
-
-`SpatialStamp` identifies a map, reset epoch, capture clock, capture time, source,
-source SHA-256, calibration and measurement kind. Clock names never imply a
-conversion to host time. The replay uses its recorded `replay-seconds` clock;
-its t=2 capture does not become fresh physical data when this file is opened.
-
-`FrameTree` stores a bounded history of rigid transforms. `T_parent_child`
-maps child points into the parent frame, using meters and a unit wxyz quaternion.
-It resolves only samples at or before the requested capture time and refuses
-dynamic edges older than the requested bound. Static extrinsics remain bound to
-their calibration and epoch. A changed parent, provider, calibration or reset
-requires a new tree. Unknown frames do not alias to `base` or `world`.
-Relative transforms depend only on their path through the common ancestor;
-a stale world pose cannot invalidate an otherwise valid camera-to-torso static
-extrinsic, but it still blocks that camera's map transform.
-
-`SpatialMemory` stores the original capture point and its transformed map point,
-plus every transform used. Two observations with the same label remain distinct.
-The example sees one cup before and after the base moves, and another cup with
-the same label. These are observation identities, not automatic object tracking.
-Queries reject another map epoch/clock and omit old/future observations. Recall
-returns search hints requiring a fresh observation before an action; it cannot
-authorize a grasp from a remembered point. This increment is bounded in-memory
-replay, not persistent storage with restart-age recovery.
-
-`GridSnapshot` is immutable and hashes geometry and provenance. Cells explicitly
-mean unknown, free or occupied. `integrate_scan` consumes a horizontal planar
-range capture and the transform at its capture time. Its DDA uses continuous
-endpoints: a corner touch never clears an adjacent cell. `None` specifically
-means an observed clear ray up to the maximum range; invalid/missing rays must
-be omitted. All occupied returns dominate free rays within that capture.
-Endpoints outside the declared map and tilted scan planes are refused.
-
-A partial scan retains old capture sources and their oldest time. It cannot
-refresh unrelated free geometry. This whole-map age policy is deliberately
-conservative: rebuilding a complete snapshot is necessary to discard old
-contributions. There is no per-cell aging or dynamic-object forgetting yet.
-Transform provenance is retained, but map/transform uncertainty is not estimated
-or aggregated into a probabilistic occupancy model.
-
-`plan_route` runs bounded cardinal A* with unknown cells blocked. It checks the
-exact map digest, epoch, clock and oldest contribution age. Inflation accounts
-for a declared circumscribed body/payload radius, clearance, position error and
-the traversed cell extent. Map boundaries block the complete footprint. The
-radius must cover the whole projected robot; an inscribed radius is insufficient.
-The result is a path proposal, with `execution: not_executed` and
-`physical_admission: false`. A 2D clear path does not establish support, footholds,
-stairs, overhead clearance, balance, obstacle dynamics or controller tracking.
-
-## MCP replay
-
-Launch the normal server with task-specific state paths:
+**Next action:** start the MCP server on the synthetic spatial replay (seconds; no simulator):
 
 ```bash
 CASCADE_ROBOT=spatial_replay CASCADE_RUN_DIR=/tmp/cascade-spatial/run \
 CASCADE_BELIEFS_PATH=/tmp/cascade-spatial/beliefs.json \
 CASCADE_GRASP_MEMORY_PATH=/tmp/cascade-spatial/grasp.json \
 CASCADE_ENVELOPE_PATH=/tmp/cascade-spatial/envelope.json \
-python -m cascade.apps.mcp_server
+uv run python -m cascade.apps.mcp_server
 ```
 
-The domain exposes four read/plan tools:
+Then call the [replay tools](#mcp-replay). The optional `spatial` domain supplies capture-time
+transforms, source-bound landmark memory and planar route planning; `spatial_replay` exercises the
+real composed runtime and MCP with synthetic observations, has no actuator resources and exposes no
+navigation execution tool.
+
+Status:
+
+1. **Works (software):** replay, contracts and MCP dispatch (CPU tests); cuVSLAM in a 12-frame
+   native synthetic replay and a [live native simulation stream](#live-native-rgb-d-stream) with
+   unknown pose uncertainty; [retained RGB-D surface observations](#retained-rgb-d-surface-observations).
+2. **CPU tests only:** the opt-in [`go_to` route runner](#opt-in-observed-route-execution), cuVSLAM
+   preparation and base registration.
+3. **Not shown:** physical localization, a shipped provider meeting the navigation contract, native
+   route execution, an admitted mobile-manipulation stack.
+
+## Optional cuVSLAM localization
+
+The `spatial` domain accepts a `cuvslam` block for an optional RGB-D SLAM estimator (cuVSLAM
+17.0.0, [reviewed Python API](https://github.com/nvidia-isaac/cuVSLAM/blob/b405f132b8fb1d861a570f3aea64c2c5d4b59525/python/cuvslam2.cpp);
+not installed or imported by default).
+
+1. **Profile:** `kind: spatial`, `robot_id` and `cuvslam` with required `sensor_domain`,
+   `sensor_id`, `map_id`, `map_epoch`, `map_frame_id`, `binding_sha256` (the installed
+   `pycuvslam*.so`) and `max_gap_s` (0–5 s, exclusive of zero); `max_poses` defaults to 256 (cap
+   4096); `timeout_s` bounds each SDK call including warmup (default 5 s, max 60). `map_epoch` is a
+   label: each domain reports a unique session epoch, so a restart cannot reuse a map origin.
+2. **Tools:** `warmup_localization` initializes an isolated SDK process from an exact retained
+   capture's calibration (admits no pose or image); `track_capture` consumes fresh `{epoch,
+   sequence, capture_sha256}` captures, which the application must feed within `max_gap_s`
+   independently of LLM latency; `get_localization` reads the last still-fresh estimate. None
+   acquires a frame or steps physics.
+3. **Preparation** (`preparation_intrinsics`, schema `cascade.rgbd-localization-intrinsics.v1`:
+   `width`, `height`, nine `intrinsics`, `pixel_center_offset_uv` (`null`, `[0, 0]` or `[0.5,
+   0.5]`), `frame_id`, `calibration_id`, `model_identity_sha256` equal to the sensor descriptor)
+   exposes `prepare_localization({})` to initialize the SDK before acquisition. The first real
+   capture must match exactly and be captured after preparation; a changed declaration needs a new
+   domain and map epoch.
+4. **Estimator limits:** synchronous odometry/SLAM with an in-memory pose graph; an optical-camera
+   pose in a new local map frame with unknown uncertainty and possible loop-closure jumps; ignores
+   simulated `world_from_camera`; never supplies obstacle geometry or motion admission. Registered
+   pinhole RGB-D needs zero skew; depth is rounded to `uint16` millimetres (overflow, zero-rounded
+   and all-invalid frames rejected). Calibration change, tracking loss, gaps, stale results or stop
+   invalidate the session; rebuild with a new map epoch.
+5. **Process isolation:** tracking runs in one owned process (the SDK's GIL cannot block actuator
+   threads); IPC deadlines and stop terminate the worker; close has a bounded kill/reap path and
+   reports incomplete cleanup. The extension hash and library version are checked.
+
+Optional `cuvslam.base_registration` binds a **rigid** camera mount to the base: `schema:
+cascade.rigid-camera-base.v1`, `robot_id`, `model_identity_sha256`, `camera_calibration_sha256`,
+`camera_frame_id`, `base_frame_id`, `translation_m`, `rotation_wxyz` (**T_camera_base**, base into
+optical frame, from an independent mount calibration), `position_error_m`, `angular_error_rad`
+(nonnegative or explicit `null`) and `sha256` (`cascade.spatial.frames.sha256(record)` over the
+record without `sha256`; it binds the declaration, not its accuracy). `track_capture` and
+`get_localization` then also return `base_pose` and `base_registration_sha256` from the same capture
+and session; errors propagate conservatively (lever arm included, unknown stays unknown); both poses
+invalidate together. A moving or joint-mounted camera cannot use it. With cuVSLAM's unknown error
+bounds, registration alone cannot enable navigation.
+
+## Opt-in observed route execution
+
+`build_mobile_runtime(..., navigation_source=source, navigation_settings=settings)` (composed:
+`navigation_bindings={domain_name: {"source": source, "settings": settings}}`) wraps a mobile
+controller with `NavigationDomain`, replacing free-motion tools with `go_to(goal_xy_m, map_epoch,
+map_sha256)` while keeping the controller, generation fences and independent mobile verifier.
+Defaults and the read-only replay are unchanged.
+
+1. **Provider:** bounded `read(deadline_monotonic_s=...)` returning a typed `NavigationSample`
+   (registered map-from-base pose with known error bounds, identities, sensor epoch and sequence,
+   transport age, exact `GridSnapshot`, collision-volume hash) and `swept_clearance(query,
+   deadline_monotonic_s=...)` returning `VolumeClearance` bound to the query and volume hash.
+   Unknown space fails closed; point samples cannot clear a swept cylinder. Native providers must
+   release the GIL or isolate blocking work; a stuck provider is quarantined.
+2. **Settings** bind base/frame, geometry and calibration hashes, whole-body cylinder (payload and
+   every permitted articulation), clearance and stopping margins, localization error, goal
+   tolerance, map age, route length, command count and wall deadline; the query inflates for tilt,
+   localization error, heading/lateral drift, latency and stop drift, and checks both the current
+   body and the corridor continuously. Expired captures, map/volume changes, unknown uncertainty and
+   localization jumps stop the route; new observations never renew the wall deadline.
+3. **Robot volume:** physical navigation also requires `settings.robot_volume`
+   (`spatial.robot_volume.RobotVolume.from_dict`; the cylinder-only fixture is mock-only) covering
+   every link, collider and payload with error-bounded boxes and origin ranges; `geometry_sha256`
+   must equal its digest and the cylinder must enclose every box over the whole reach range.
+4. **Per-sample link poses:** each `NavigationSample.robot_volume` carries a `RobotVolumeSample` at
+   the base pose's capture time, sequence, epochs and clock; unknown error, stale captures, omitted
+   links, static substitutions or uncertainty beyond a reach bound refuse the route, and a fresh
+   base cannot renew an older limb capture.
+5. **Execution:** `SafeBase` rechecks route authority around feedback reads and before dispatch
+   (revocation delivers a latched stop); arrival needs a full fresh settling window; stop and
+   failed-route obligations survive until the task boundary; synthetic runs keep `ok: false` even
+   with `software_complete: true`.
+
+These are CPU software contracts, not native navigation admission: no shipped provider supplies
+the complete registered-base and whole-volume contract (cuVSLAM's pose alone cannot activate the
+runner). Dynamic-map replanning, foothold/terrain planning and physical acceptance remain pending.
+
+## Contracts
+
+1. `SpatialStamp`: map, reset epoch, capture clock and time, source and its SHA-256, calibration and
+   measurement kind; clock names never imply conversion to host time (the replay's
+   `replay-seconds` t=2 capture never becomes fresh physical data).
+2. `FrameTree`: bounded history of rigid transforms (`T_parent_child` maps child points into the
+   parent; metres, unit wxyz). Resolves only samples at or before the capture time, refuses dynamic
+   edges older than the bound; a changed parent, provider, calibration or reset needs a new tree;
+   unknown frames never alias to `base` or `world`.
+3. `SpatialMemory`: the original capture point, its map point and every transform used; equal labels
+   stay distinct observations (not object tracking). Queries reject foreign epochs/clocks and
+   old/future observations; recall returns search hints that need a fresh observation before any
+   action. In-memory only.
+4. `GridSnapshot`: immutable, hashed, cells unknown/free/occupied. `integrate_scan` consumes a
+   horizontal planar range capture with its capture-time transform (continuous-endpoint DDA: a corner
+   touch never clears a neighbour; `None` means an observed clear ray to max range; occupied
+   dominates). A partial scan keeps its oldest contribution time; no per-cell aging or uncertainty.
+5. `plan_route`: bounded cardinal A* with unknown blocked, checking map digest, epoch, clock and
+   oldest contribution; inflation covers the circumscribed body/payload radius, clearance, position
+   error and cell extent. Results are `execution: not_executed`, `physical_admission: false`: a 2D
+   path proves no support, footholds, overhead clearance, balance or tracking.
+
+## MCP replay
 
 | Tool | Request |
 | --- | --- |
@@ -244,11 +136,10 @@ The domain exposes four read/plan tools:
 | `spatial.recall` | `label`, `time_s`, `epoch`, `clock_id`, optional `max_age_s`. |
 | `spatial.plan_route` | `start_xy_m`, `goal_xy_m`, `footprint_radius_m`, `clearance_m`, `position_error_m`, the context and exact `expected_map_sha256`. |
 
-For the example use `time_s: 2`, `epoch: episode-1`, `clock_id: replay-seconds`.
-Recall `cup`, or resolve `spatial_replay/camera` into `world/map`. A sample route
-uses start `[0.45, 0.45]`, goal `[2.65, 1.45]`, radius `0.1`, clearance `0.02`
-and position error `0.01`, in meters. It crosses the measured opening in the
-synthetic wall. Stop/reset preserves the map epoch and does not replay motion.
+For the example use `time_s: 2`, `epoch: episode-1`, `clock_id: replay-seconds`. Recall `cup`, or
+resolve `spatial_replay/camera` into `world/map`. A sample route: start `[0.45, 0.45]`, goal `[2.65,
+1.45]`, radius `0.1`, clearance `0.02`, position error `0.01` (metres); it crosses the measured
+opening in the synthetic wall. Stop/reset keeps the map epoch and replays no motion.
 
 ## Live native RGB-D stream
 
@@ -285,19 +176,11 @@ only on the `isaac62_48b2d951` recipe (the bridge refuses a file without its SHA
 
 ## Validation and next boundary
 
-Replay CPU regressions cover transform direction/inversion, moving-base capture time,
-stale/foreign clocks and map resets, calibration changes, distinct equal-label
-observations, bounded history, subcell ray traversal, partial-map age retention,
-blocked unknown space, swept footprint clearance and real stdio MCP dispatch.
-Review found and corrected both subcell ray over-clearing and partial-refresh
-age loss before this delivery. Receipts are in
-[the spatial evidence](evidence/spatial/software-validation.json).
-
-Native navigation still needs a measured localization provider, live map source,
-body/terrain admission and a controller that follows a bounded geometric goal.
-Neither a replay path nor the existing arm-local nvblox collision map supplies
-those missing proofs. The opt-in executor retains the existing actuator owner,
-priority stop, cancellation generation and independent effect verifier. Its CPU
-regressions additionally cover real mock-controller route execution, source
-loss during travel, revocation after command ACK, blocked-reader quarantine,
-delayed reset, full-orientation rest and composed-runtime task obligations.
+CPU regressions cover transform direction, moving-base capture time, stale/foreign clocks, map
+resets, calibration changes, distinct equal-label observations, bounded history, subcell ray
+traversal, partial-map age, blocked unknown space, swept footprint clearance and real stdio MCP
+dispatch ([receipts](evidence/spatial/software-validation.json)); the executor's add real
+mock-controller routes, source loss, revocation after ACK, reader quarantine, delayed reset and
+composed-runtime obligations. Native navigation still needs a measured localization provider, a
+live map source, body/terrain admission and a controller following a bounded geometric goal;
+neither the replay nor the arm-local nvblox map supplies them.

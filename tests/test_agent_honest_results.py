@@ -304,7 +304,10 @@ MOVE_HOME_FIRST = "call move_home before any other grasp"
 
 def _refuse_after_moving(runtime, error=R3_REFUSAL, exc=SafetyViolation, then=None):
     def refused(*a, **kw):
-        runtime._mark_motion_started()  # the attempt commanded the arm
+        # the attempt moved the arm: one motion the harness approves and counts
+        q = np.asarray(runtime.arm.get_state().q, dtype=float).copy()
+        q[0] += 0.05
+        assert runtime._move_joints(q, duration_s=0.3)
         if then is not None:
             then()
         raise exc(error)

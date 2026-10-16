@@ -873,6 +873,21 @@ class SkillRuntime:
             return bool(context["enabled"])
         return bool(self.cfg.arm.get("return_home_after_motion", False))
 
+    def _arm_motions_counted(self) -> int | None:
+        """Arm motions counted so far over every arm (`_actuation_counts`),
+        or None when any arm lacks a counting harness."""
+        try:
+            counts = self._actuation_counts()
+        except Exception:  # noqa: BLE001 -- bookkeeping never fails a call
+            return None
+        return None if counts is None else int(counts["arm_motions"])
+
+    def _arm_moved_since(self, before: int | None) -> bool:
+        """An arm motion was counted since `before`; unknown counts say yes
+        (the caller's own motion-started rule then decides alone)."""
+        now = self._arm_motions_counted()
+        return before is None or now is None or now > before
+
     @staticmethod
     def _stop_latched(arm) -> bool:
         """E-stop or operator halt on this arm: move_home is not the next step."""
@@ -1166,6 +1181,9 @@ class SkillRuntime:
             self._call_perception_timings = []
         home_return = None
         call_moved = False  # this call commanded the arm or gripper (motion scope owner only)
+        # Arm motions counted before a grasp entry: its move_home hint needs
+        # one counted in this call (None = no counting harness).
+        arm_motions_before = self._arm_motions_counted() if name in _GRASP_ENTRY_SKILLS else None
         result = None
         try:
             import contextlib
@@ -1294,9 +1312,13 @@ class SkillRuntime:
                     result["error"] = blocked
         if (name in _GRASP_ENTRY_SKILLS and call_moved and not result.get("ok")
                 and not (home_return or {}).get("ok") and not result.get("motion_blocked")
-                and not self.held_object and not self._stop_latched(effective_arm)):
+                and not self.held_object and not self._stop_latched(effective_arm)
+                and self._arm_moved_since(arm_motions_before)):
             # The failed grasp moved the arm and nothing brought it back: the
             # next grasp would start (and be refused) where this one stopped.
+            # A call whose only command was a gripper open or a motion refused
+            # before its first command left the arm where it was (the
+            # verifier's "no grasp was attempted"): no hint.
             _with_move_home_first(result)
         dur = (time.monotonic() - t0) * 1000
         # Every result carries one of three outcomes. Stamped BEFORE the
@@ -5365,7 +5387,7 @@ class SkillRuntime:
                     "error": f"could not grasp {label!r} for handover: {res.get('error')}",
                     "grasp_attempts": res.get("grasp_attempts"),
                 }
-                if res.get("home_skipped"):
+                if _left_in_place(res):
                     out["home_skipped"] = True
                     _with_move_home_first(out)
                 if res.get("outcome") == OUTCOME_STUCK:
@@ -5659,7 +5681,7 @@ class SkillRuntime:
             except (SkillError, SafetyViolation) as e:
                 failed.append({"label": query, "error": str(e)})
                 continue
-            left_in_place = bool(res.get("home_skipped"))
+            left_in_place = _left_in_place(res)
             if not res.get("ok", True) or not res.get("held"):
                 entry = {"label": query, "error": str(res.get("error", "?"))}
                 if res.get("outcome") == OUTCOME_STUCK:
@@ -5840,7 +5862,8 @@ class SkillRuntime:
         if not res.get("ok", True) or not res.get("held"):
             rec["error"] = f"grasp: {res.get('error', 'grasp failed')}"
             if res.get("home_skipped"):
-                rec["home_skipped"] = True  # the arm stays where the attempt stopped
+                if _left_in_place(res):
+                    rec["home_skipped"] = True  # the arm stays where the attempt stopped
             else:
                 try:  # never leave the arm over the table after a failed attempt
                     self.skill_move_home()
@@ -7201,6 +7224,15 @@ def _with_move_home_first(result: dict) -> dict:
     if _REFUSED_GRASP_LEFT_IN_PLACE not in own:
         result["next_action"] = _REFUSED_GRASP_LEFT_IN_PLACE + (f" {own}" if own else "")
     return result
+
+
+def _left_in_place(result: dict) -> bool:
+    """A grasp result that asks for move_home (`_with_move_home_first`): the
+    composites pass that step on. `home_skipped` alone is not enough: the
+    persistence loop's perception refusal (SlowPerceptionError /
+    SceneChangedError) also skips the automatic home, but it left the arm
+    where the loop had it (untouched, or at home after a re-home)."""
+    return _REFUSED_GRASP_LEFT_IN_PLACE in str(result.get("next_action") or "")
 
 
 def _with_failure_instruction(result: dict) -> dict:

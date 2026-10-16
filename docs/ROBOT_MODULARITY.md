@@ -1,31 +1,34 @@
 # Composable robots, observations and validation
 
-The diagram and module table describe the implemented composition, with proposed
-extensions marked explicitly. The [capability status](ROADMAP.md)
-holds source-bound physical results; this page describes interfaces rather than
-repeating campaign history. The research references and dated software results
-below retain their original 2 October scope.
+**Next action:** run the composed software path on mocks (about 1 min):
 
-Existing arm and mobile entrypoints remain available alongside the opt-in
-composed runtime. Passive multi-DoF observations do not admit whole-body control;
-mixed physical actuation remains refused. `mixed_mock` is a synthetic example.
-`mobile_manipulator_mock` composes a mock arm mounted on a mock base under the
-explicit [whole-body contract](#multi-domain-embodiments-mounted-arms); it is
-software evidence, not physical admission.
+```bash
+uv run python -m cascade.apps.demo --robot mixed_mock --llm mock --no-view --no-serve
+CASCADE_ROBOT=mixed_mock uv run python -m cascade.apps.mcp_server
+uv run python -m cascade.apps.skill_graph --robot mixed_mock \
+  --graph configs/graphs/inspect_sensors.json --run-dir /tmp/cascade-graph-review
+uv run pytest tests/test_robot_contracts.py tests/test_robot_runtime.py \
+  tests/test_robot_mcp.py tests/test_skill_graph.py tests/test_sensing*.py \
+  tests/test_vab*.py tests/test_arena*.py -q
+```
+
+`mixed_mock` uses mock actuators and a synthetic IMU; the graph example reads one synthetic IMU
+capture into `graph-result.json` (not locomotion evidence). Composed domain runs get separate
+directories and learned-store defaults; explicit store env overrides still win.
+
+This page describes interfaces; physical results live in the [capability status](ROADMAP.md).
+Existing arm and mobile entrypoints stay available next to the opt-in composed runtime. Passive
+multi-DoF observations do not admit whole-body control, and mixed physical actuation stays
+refused. `mobile_manipulator_mock` composes a mock arm on a mock base under the explicit
+[whole-body contract](#multi-domain-embodiments-mounted-arms): software evidence, not admission.
 
 ## Architecture and the implemented boundary
 
-Robot identity is not a class hierarchy of arm, duck and humanoid. A profile
-declares domains and resources. The coordinator registers the tools those
-domains actually implement. Perception, locomotion, manipulation and tactile
-measurements can therefore evolve independently while retaining the existing
-runtime, MCP, traces and memory.
-
-The architecture is independent of a robot model or simulator release. Isaac
-Sim, MuJoCo and hardware drivers implement backend-specific adapters behind
-shared contracts. MicroDuck is one embodiment; its policy and actuator model
-do not define locomotion for every robot. Dependency versions and build
-identities belong to deployment configuration and validation records.
+Robot identity is not a class hierarchy of arm, duck and humanoid. A profile declares domains and
+resources, and the coordinator registers the tools those domains implement, so perception,
+locomotion, manipulation and touch evolve independently behind the same runtime, MCP, traces and
+memory. Isaac Sim, MuJoCo and hardware drivers are backend adapters behind shared contracts;
+MicroDuck's policy and actuator model do not define locomotion for every robot.
 
 [Architecture image (SVG)](assets/architecture.svg) · [PNG](assets/architecture.png)
 
@@ -59,23 +62,13 @@ flowchart TD
   Evidence --> Gate
 ```
 
-Solid arrows describe existing interfaces, not admission of every combination.
-The fleet runtime routes concurrent tasks to isolated robot runtimes; the
-optional shared MicroDuck backend now owns one scene for up to twelve robots.
-It reads one physical step, evaluates each robot's policy/BAM, performs one
-scene solve and publishes observations with separate robot identities. Native
-zero-command episodes with one, two and twelve robots passed the
-[foundation checks](evidence/microduck-shared-20261004/foundation.json).
-The [endpoint candidate](MICRODUCK.md#shared-scene-implementation-boundary)
-stages policy results without mutating their histories. A command change before
-cohort admission discards all previews and permits one retry from the same
-completed observation. The owner captures native state channels once per solve
-and returns detached robot views. One- and two-robot native endpoint episodes
-passed; the twelve-robot zero-command execution failed its unchanged feedback
-progress limit even though all 800 scene solves completed and ownership closed
-normally. Independent agent motion, collision coordination and physical
-per-robot/global stop still require native validation. No real-time performance
-guarantee or continued motion of unaffected peers is established.
+Solid arrows are existing interfaces, not admission of every combination. The optional shared
+MicroDuck backend owns one scene for up to twelve robots (one solve, separate identities;
+[foundation checks](evidence/microduck-shared-20261004/foundation.json) passed with 1, 2 and 12
+robots); its [endpoint candidate](MICRODUCK.md#shared-scene-implementation-boundary) passed 1- and
+2-robot native episodes, while twelve-robot execution failed its unchanged feedback progress limit.
+Independent agent motion, collision coordination and physical per-robot/global stop still need
+native validation.
 
 | Module | Implemented responsibility | Deliberate boundary |
 | --- | --- | --- |
@@ -83,7 +76,7 @@ guarantee or continued motion of unaffected peers is established.
 | `robotics/runtime.py` | Namespaced dispatch, global stop latch, generation invalidation, domain lifecycle; per-domain latches and an explicit per-domain `reset_stop(domain=...)` for whole-body profiles | Domain controllers retain transport leases, physical timing and safety |
 | `robotics/whole_body.py` | Opt-in whole-body contract: disjoint command endpoints, a capture-time `world ← base ← arm_base` frame chain, `exclusive`/`concurrent` coordination and world-frame verdicts with the frame valid at command start | Mock compositions only; a declared mount is not a calibration; no whole-body controller, balance, self-collision or moving-frame arm limits |
 | `apps/robot_runtime.py` | Explicit manipulation, locomotion, fastening, sensing and spatial composition through `--robot` / `CASCADE_ROBOT`; a manipulation domain `mounted_on` a locomotion base under a `whole_body` contract | Mixed physical actuation is refused; whole-body compositions with any physical actuating resource are refused with the missing gates named |
-| `conversation/`, `apps/conversation.py` | Browser media, Realtime provider, allowlisted semantic intents, deadlines and priority interruption | Supervisor above one robot runtime; no joint writer, implicit stop reset or hosted-service deployment |
+| `conversation/`, `apps/conversation.py` | Browser media, Realtime provider, allowlisted semantic intents, deadlines and priority interruption ([CONVERSATION](CONVERSATION.md)) | Supervisor above one robot runtime; no joint writer, implicit stop reset or hosted-service deployment |
 | `sensing/` | Typed passive observations, provenance, freshness, bounded readers/history | Reading cannot step physics or claim actuator ownership |
 | `spatial/` | Capture-time frame lookup, source-bound memory, synthetic route proposals, observed RGB-D annotations, an optional [cuVSLAM RGB-D provider](SPATIAL_PROVIDERS.md#optional-cuvslam-localization) and an opt-in [`go_to` route runner](SPATIAL_PROVIDERS.md#opt-in-observed-route-execution) (`spatial/navigation.py`) | cuVSLAM has CPU contract coverage, a 12-frame native synthetic RGB-D replay and a [live native simulation stream](SPATIAL_PROVIDERS.md#live-native-rgb-d-stream) of 12 tracked captures, with uncalibrated pose uncertainty; `go_to` has CPU tests only and no shipped provider; physical localization and native route execution remain pending; annotations are not a collision map |
 | `control/microduck_policy.py`, `sim/microduck_stepper.py` | Pinned ONNX contract and physics-clock policy application | Robot-specific implementation; no generic humanoid policy loader or second writer to head joints |
@@ -105,143 +98,71 @@ guarantee or continued motion of unaffected peers is established.
 | Sense touch | Contact, estimated-force and tactile-image contracts | Calibrated tactile device drivers and task-specific tactile verification |
 | Coordinate twelve robots | Concurrent fleet runtime, agent CLI/MCP and one shared native scene; separate identities and zero-command support measured for twelve robots | Resolve measured feedback latency, then validate independent native agent tasks, collision interaction and physical fleet stop/reset |
 
-`ResourceDescriptor.admission` is declared metadata (for example `unvalidated`
-or `software_only`), not an automatic certificate state
-machine. Keep capability declaration, software execution and physical evidence
-distinct. Every fleet must preserve each robot's source/model/epoch and
-unresolved outcomes; a successful aggregate response cannot promote another
-robot's unverified result.
+Runtime rules every composition keeps:
 
-The agent clock chooses goals and semantic tools. The controller clock applies
-bounded actions and watchdogs. For the current MicroDuck recipe, the measured
-physics step is 5 ms and policy evaluation occurs every four completed solves;
-rendering and LLM latency cannot manufacture extra solves. Speech never writes
-the policy-owned neck/head joints. These contracts must be rebound for each new
-robot rather than imposing MicroDuck's rates on every humanoid.
-
-Tools are namespaced, for example `manipulation.open_gripper`,
-`locomotion.get_base_state` and `sensing.read_sensor`. Global resource discovery,
-stop, explicit stop reset and task completion remain global. A MicroDuck-only
-profile has no arm domain and therefore advertises no fictional arm or gripper.
-Configuration is explicit; there is no import-scanning plugin discovery that
-could initialize hardware during tool listing.
-
-The ownership unit is the **command endpoint**, not merely a joint subset. The
-existing Unitree arm driver publishes an entire `LowCmd`, including unselected
-slots. Two writers with disjoint joint names can still interfere. The catalog
-rejects multiple writers for one controller; known transports have conservative
-endpoint mappings. These local claims do not replace cross-process admission.
-
-Stop invalidates dispatch before waiting for transport IO. Each domain has at
-most one stop worker and one replaceable pending request. A blocked transport
-does not prevent another domain receiving stop. Pending stop is reported, reset
-is refused while stop IO remains pending, and a late motion result is invalidated.
-A stop receipt is not proof of physical rest. Biped controllers must maintain
-their own balance-preserving stop behavior.
+1. `ResourceDescriptor.admission` (e.g. `unvalidated`, `software_only`) is declared metadata, not a
+   certificate. Keep declaration, software execution and physical evidence distinct; a fleet's
+   aggregate success never promotes another robot's unverified result.
+2. The agent clock chooses goals; the controller clock applies bounded actions and watchdogs
+   (MicroDuck: 5 ms physics, policy every four solves; rendering and LLM latency add no solves).
+   Speech never writes policy-owned joints. Rebind these per robot.
+3. Tools are namespaced (`manipulation.open_gripper`, `locomotion.get_base_state`,
+   `sensing.read_sensor`); discovery, stop, explicit stop reset and task completion stay global. A
+   profile without an arm advertises no arm. Configuration is explicit: no import-scanning plugin
+   discovery that could initialize hardware while listing tools.
+4. The ownership unit is the **command endpoint**, not a joint subset (the Unitree arm driver
+   publishes a whole `LowCmd`, so disjoint joint names can still interfere). The catalog rejects
+   multiple writers for one controller; this does not replace cross-process admission.
+5. Stop invalidates dispatch before waiting for transport IO, with at most one stop worker and one
+   pending request per domain, so a blocked transport cannot block another domain's stop. Reset is
+   refused while stop IO is pending; a late motion result is invalidated. A stop receipt is not
+   proof of rest; biped controllers must keep their own balance-preserving stop.
 
 ### Independent robot fleets
 
-`robotics.fleet.FleetRuntime` composes already configured `RobotRuntime`
-instances using explicit robot IDs. `execute(robot_id, tool, arguments)` routes
-the member's unchanged tool catalog; different robots can act concurrently,
-while each retains its own operation gate, generation, verification debt,
-memory and trace directory. Duplicate robot/episode identities, shared runtime
-state or store files and conflicting controller endpoints are refused. Configure
-each robot's resource identity and controller explicitly before composition; renaming a
-resource does not create another physical controller.
-
-`stop(robot_id)` targets one member; `stop()` invalidates all members before
-waiting for their existing stop workers with a shared half-second receipt
-deadline. A blocked RPC remains pending and cannot hold up the other robots.
-Only an explicit per-robot `reset_stop` restores dispatch permission; receipts
-do not prove physical rest. Teardown queues cancellation for every robot before
-waiting on any member's existing timeout and parking policy. CPU tests exercise
-twelve concurrent synthetic robot runtimes, isolated stops, late dispatch
-rejection and independent traces/debts.
-
-This coordination API does not itself create a physical scene. The optional
-shared MicroDuck backend provides that scene owner; composition still requires
-one admitted simulation owner with distinct robot states, policy histories, contact registries and
-perception/verifier identities, plus shared-space collision coordination.
-The existing refusal of mixed physical actuation inside one robot is unchanged.
-
-Run independent agent episodes with:
+`robotics.fleet.FleetRuntime` composes configured `RobotRuntime`s by explicit robot ID.
+`execute(robot_id, tool, arguments)` routes each member's unchanged catalog; robots act
+concurrently while each keeps its own gate, generation, verification debt, memory and trace.
+Duplicate identities, shared state or store files and conflicting controller endpoints are refused.
+`stop(robot_id)` targets one member; `stop()` invalidates all with a shared 0.5 s receipt deadline
+(a blocked RPC cannot hold up the others); only an explicit per-robot `reset_stop` restores
+dispatch. The fleet API creates no physical scene (the shared MicroDuck backend does).
 
 ```bash
-python -m cascade.apps.fleet --fleet microduck_mock12 --llm mock \
+uv run python -m cascade.apps.fleet --fleet microduck_mock12 --llm mock \
   --task "inspect and move briefly" --run-dir runs/fleet-example
-```
-
-The coordinator delegates one explicit task to each robot's `AgentOrchestrator`.
-Clients, conversation histories and runtime evidence stay separate; configured
-workers bound concurrent inference. `--llm mock` is a labelled scripted diagnostic
-inside the agent loop. Its short kinematic movement is not physical locomotion
-or a model deciding to walk. A real LLM profile uses the existing client API.
-
-`--fleet` also accepts a YAML file with `version: 1`, `robots`, `deadline_s`,
-`max_workers` and `max_steps`. Each robot entry selects `profile` and optionally
-`config_dir` and `task`; relative config directories resolve beside that file.
-Native profiles retain their exact backend IDs, connection endpoints and model
-pins. `mock_id` is only available for unmounted mock mobile fixtures. The entire
-resource graph is checked before any robot is built. No simulator or model
-server is launched by this application.
-
-`FleetAgents.stop(robot_id)` cancels one agent; `stop()` and SIGINT/SIGTERM cancel
-all. The original episode generation and deadline fence every tool call and late
-inference result. HTTP already in flight may remain pending; the report records
-that instead of claiming cancellation. `catalog.json`, per-robot trace directories
-and `report.json` retain assignments, outcomes, unresolved actions and shutdown.
-Use a new run directory for each episode. Shared-world collision coordination,
-physical fleet admission remain separate work.
-
-The fleet MCP frontend lets an external agent host use these independent robot
-episodes directly:
-
-```bash
-python -m cascade.apps.fleet_mcp --fleet microduck_mock12 \
+uv run python -m cascade.apps.fleet_mcp --fleet microduck_mock12 \
   --run-dir runs/fleet-mcp-example --max-pending 64
 ```
 
-The installed CLI is `cascade-fleet-mcp`. It speaks newline-delimited JSON-RPC
-on stdio; stdout is reserved for protocol frames. `fleet.catalog` returns exact
-robot IDs, distinct episode IDs and the local namespaced tool schemas.
-`fleet.execute` requires `{robot_id, episode_id, tool, arguments}`; for example,
-`tool: locomotion.get_base_state` selects that member's locomotion domain.
-The MCP host owns conversations and agent inference. No LLM, simulator or model
-server is started by this frontend, and no task-history reset is exposed.
-
-`fleet.stop({robot_id})` stops one robot; `fleet.stop({})` stops all. Stops,
-cancellation notifications and keepalive requests bypass ordinary work.
-Cancellation of queued/running motion or control invalidates that robot's
-generation and latches its existing stop path. `fleet.reset_stop({robot_id})`
-requires a new explicit operator request; `CASCADE_HIDE_TOOLS=reset_stop` hides
-and rejects it. Stops remain available even if a hiding list names them.
-
-The existing profile's `max_workers` bounds concurrent requests; `--max-pending`
-bounds queued plus running work (default 64, maximum 128). Over-capacity requests
-are rejected without actuation. One robot still admits one ordinary operation.
-Each request retains the server-received generation and original `deadline_s`
-budget. Expiry cancels motion/control; delayed results cannot become success.
-A blocked domain retains its slot until it returns, and incomplete shutdown is
-reported rather than spawning replacement workers. Input frames are capped at
-256 KiB. EOF and signals fence the whole fleet and use existing domain teardown
-policies; `mcp-report.json` records closure and pending workers.
-
-Software tests exercise actual child-process stdio, twelve synthetic robots with
-separate traces, per-robot stop/cancel during blocked work with an unaffected
-peer, capacity refusal, queued-request cancellation, stale reset rejection and
-SIGTERM with stdin still open. These do not establish shared-scene physics or
-physical collision/stop performance.
+1. `apps.fleet` runs one `AgentOrchestrator` episode per robot (separate clients, histories and
+   evidence; `--llm mock` is a labelled scripted diagnostic, not a model deciding to walk).
+   `--fleet` also takes a YAML file (`version: 1`, `robots`, `deadline_s`, `max_workers`,
+   `max_steps`; per robot `profile`, optional `config_dir` and `task`; `mock_id` only for unmounted
+   mock mobile fixtures). The whole resource graph is checked before any robot is built; no
+   simulator or model server is launched.
+2. `FleetAgents.stop(robot_id)` cancels one agent; `stop()` and SIGINT/SIGTERM cancel all. The
+   episode generation and deadline fence every tool call; in-flight HTTP is reported pending.
+   `catalog.json`, per-robot traces and `report.json` keep assignments and outcomes. Use a new run
+   directory per episode.
+3. `cascade-fleet-mcp` (`apps.fleet_mcp`) speaks newline-delimited JSON-RPC on stdio:
+   `fleet.catalog`, `fleet.execute` (`{robot_id, episode_id, tool, arguments}`), `fleet.stop`
+   (`{robot_id}` or `{}`), `fleet.reset_stop({robot_id})` (a new explicit operator request;
+   `CASCADE_HIDE_TOOLS=reset_stop` hides and rejects it; stops are never hideable). The host owns
+   conversations and inference.
+4. Stops, cancellations and keepalives bypass ordinary work; cancelling queued or running motion
+   latches that robot's stop. `max_workers` bounds concurrency, `--max-pending` queued plus running
+   work (default 64, max 128; over capacity is rejected without actuation); input frames are capped
+   at 256 KiB; EOF and signals fence the whole fleet; `mcp-report.json` records closure.
+5. Software tests cover child-process stdio, twelve synthetic robots, per-robot stop during blocked
+   work with an unaffected peer, capacity refusal, stale reset rejection and SIGTERM. Shared-scene
+   physics and physical collision/stop are not covered.
 
 ## Multi-domain embodiments: mounted arms
 
-Design of 7 October 2026 (backlog B30), implemented with mocks on 8 October
-2026. Before it, `apps/robot_runtime.py`
-refused every composition with more than one physical actuating domain and
-every `mounted_on` declaration. A robot profile can now opt into an explicit
-**whole-body contract** that composes a locomotion base and a manipulation arm
-mounted on it. Without a `whole_body:` block every earlier refusal, tool schema
-and reset rule is unchanged.
+B30, implemented with mocks (8 October 2026). Without a `whole_body:` block every earlier refusal
+(more than one physical actuating domain, any `mounted_on`), tool schema and reset rule is
+unchanged. With it, a profile composes a locomotion base and a manipulation arm mounted on it:
 
 ```yaml
 version: 1
@@ -278,97 +199,55 @@ domains:
 | World-frame postconditions | Every mounted-arm motion records the frame valid at command start and re-reads the base pose after the command. `manipulation.reach_world_point` resolves its world target once with the start frame, solves IK in the arm base frame and checks the achieved TCP in world with that same frame | Mount drift beyond tolerance refutes the outcome (downgrading `ok`, keeping `self_reported_ok`); a missing, stale or re-epoched end frame leaves it `unverified`; synthetic channels (kinematic mock base or arm) can refute but never confirm |
 | Physical admission | Not admitted. A whole-body composition with any physical actuating resource is refused and the error names the missing gates | Always, until a measured mount calibration, an independent base-pose source, moving-frame arm limits and a validated whole-body controller with balance-preserving stop exist |
 
-Mounted domains add two namespaced tools: `manipulation.get_arm_world_pose`
-(read) and `manipulation.reach_world_point` (motion through `SafeArm`; the
-harness remains the sole authority that refuses motion). The global
-`reset_stop` gains a required `domain` enum only for whole-body profiles. The
-opt-in profile is `configs/robots/mobile_manipulator_mock.yaml`
-(`--robot mobile_manipulator_mock` / `CASCADE_ROBOT=mobile_manipulator_mock`).
-These two tools are composition tools of `robotics/whole_body.py`, not
-`TOOL_SPECS` skills: arm-only profiles and the README skill counts are
-unchanged. `reach_world_point` is one IK solve that keeps the current tool
-orientation plus one harness-vetted `move_joints`; it refuses while an object
-is held and does no grasping, carrying or path planning. Every mounted-arm
-motion also requires the base resource in its descriptor `requires`.
+Mounted domains add two composition tools of `robotics/whole_body.py` (not `TOOL_SPECS` skills, so
+README skill counts are unchanged): `manipulation.get_arm_world_pose` (read) and
+`manipulation.reach_world_point` (one IK solve keeping the tool orientation plus one harness-vetted
+`move_joints` through `SafeArm`; refused while holding an object; no grasping, carrying or path
+planning). Profile: `configs/robots/mobile_manipulator_mock.yaml` (`--robot
+mobile_manipulator_mock` / `CASCADE_ROBOT=mobile_manipulator_mock`).
 
-Operational notes (friction points):
+1. `get_arm_world_pose` reports the TCP only when the lazy arm is already connected; it never
+   powers an arm to answer.
+2. The frame chain reads the base's own validated state (`passive_state`, as
+   `locomotion.get_base_state`); an independent base-pose source is an admission gate, not an input.
+3. A latched base reports `ready`, so after a global stop the arm can be reset and used while the
+   base stays latched; resetting the base is a separate call.
+4. Over MCP, `reset_stop` without `domain` and the argument-free SIGUSR1 staff reset are refused for
+   whole-body profiles; the server stop latch clears only when no domain remains latched.
+5. Navigation bindings are refused for whole-body compositions (a second, asynchronous base writer).
 
-- `get_arm_world_pose` reports the TCP only when the lazy arm is already
-  connected; it never powers an arm to answer a pose query.
-- The frame chain reads the base's own validated state (`passive_state`, the
-  same read as `locomotion.get_base_state`); an independent base-pose source
-  is one of the physical admission gates, not an implemented input.
-- A latched base reports `ready`, so after a global stop the arm can be reset
-  and used while the base stays latched; resetting the base is a separate call.
-- Over MCP, `reset_stop` with no `domain` is refused for whole-body profiles,
-  and so is the argument-free SIGUSR1 staff reset; the server-level stop latch
-  clears only once no domain remains latched.
-- `RobotRuntime` still admits one ordinary tool call at a time, so
-  `concurrent` only lifts the vetoes on the other domain's in-flight
-  controller state. The mount-drift check still refutes an arm outcome whose
-  start frame moved.
-- Navigation bindings are refused for whole-body compositions; navigation
-  would add a second, asynchronous base writer to the coordination policy.
-
-Measured (software only, `tests/test_whole_body_domains.py`, 43 tests): overlap
-refusal names both claimants and the endpoint; the arm-base pose after a 4 cm
-base walk equals the base pose composed with the mount, and a world target is
-re-expressed with the moved frame (+4 cm along the yawed arm's y axis) and
-reached within 1 mm; stale and missing base poses refuse arm motion before the
-lazy arm connects; both coordination policies; global stop with per-domain
-reset and re-latch on a failed reset; the stdio MCP listing and reset; and
-golden resource/global-tool digests for all 15 earlier robot profiles
-(computed on `origin/main` a459429; one pins its existing refusal message).
-
-Not claimed: physical whole-body control, balance, Unitree H2 arm physics,
-arm/base self-collision, world collision for the mounted arm (its workspace and
-table limits remain arm-base-frame assumptions) or a calibrated mount.
+Measured (software only, `tests/test_whole_body_domains.py`, 43 tests): endpoint-overlap refusal;
+after a 4 cm base walk the arm-base pose equals base ∘ mount and a world target is re-expressed and
+reached within 1 mm; stale and missing base poses refuse before the lazy arm connects; both
+coordination policies; per-domain reset and re-latch; golden digests of all 15 earlier robot
+profiles. Not claimed: physical whole-body control, balance, H2 arm physics, arm/base
+self-collision, world collision for the mounted arm or a calibrated mount.
 
 ## Observation and policy contracts
 
-An observation carries sensor/source identity, schema, epoch, sequence, capture
-time, clock domain, local receipt time, producer age, measurement kind and model
-identity. Payloads include frame, units, calibration and saturation metadata.
-The hub rejects replay, stale data, changed epochs and mismatched identities.
-It limits provider count, payload bytes and retained history. A timed-out reader
-is quarantined; repeated reads do not spawn unlimited workers. Closing reports
-an uncooperative reader instead of claiming it was cancelled.
-
-The implementation distinguishes IMU, proprioception, solved contact,
-estimated tactile force, tactile image, RGB and RGB-D. A force estimate is not
-a solver reaction or proof of foot support. An image is not a force measurement.
-Missing acceleration/contact/depth stays unknown; it does not become zero.
-Legacy camera data is BGR and depth is metric; adapters preserve those semantics.
-Mobile providers read independent truth/frame endpoints without opening the
-actor connection or advancing the simulation.
-
-The registry and generic payloads are implemented; a humanoid tactile device
-driver, calibration procedure and task-specific tactile verifier are not.
-
-The opt-in [camera-only RGB-D path](SPATIAL_PROVIDERS.md#camera-only-rgb-d-domain-mobile_rgbd) connects the native mobile
-producer to passive sensing/runtime/MCP without constructing an arm. It retains
-capture clocks, model/calibration pins, RGB8, metric optical-axis depth and the
-static overview camera's optical-to-world transform. It is software-tested;
-the new native recipe requires separate admission and GPU validation.
-An injected provider is trusted integration code, not sandboxed untrusted code.
-Production providers must demonstrate passive behavior and independent clocks.
-
-For future policy adapters, shape alone is insufficient. Admission must bind
-joint and observation ordering, units, frames, normalization, history/horizon,
-action representation, limits, policy rate/physics decimation, model hash and
-the exclusive controller. This PR does not add a generic policy loader.
-MicroDuck retains its existing audited 61-observation/14-action native contract.
-Its head/neck joints belong to that policy; the mouth lies outside it. A speech
-app must not obtain a second writer to policy-owned joints.
+1. An observation carries sensor/source identity, schema, epoch, sequence, capture time, clock
+   domain, local receipt time, producer age, measurement kind and model identity; payloads add
+   frame, units, calibration and saturation. The hub rejects replay, stale data, changed epochs and
+   mismatched identities, bounds providers, bytes and history, and quarantines a timed-out reader.
+2. Kinds: IMU, proprioception, solved contact, estimated tactile force, tactile image, RGB, RGB-D. A
+   force estimate is not a solver reaction or foot-support proof; missing data stays unknown, never
+   zero. Legacy camera data is BGR and depth metric. Mobile providers read independent truth/frame
+   endpoints without opening the actor connection or stepping the simulation.
+3. The tactile registry and payloads exist; a humanoid tactile driver, calibration and verifier do
+   not. The opt-in [camera-only RGB-D path](SPATIAL_PROVIDERS.md#camera-only-rgb-d-domain-mobile_rgbd)
+   connects the native mobile producer to sensing/MCP without an arm (software-tested).
+4. Injected providers are trusted integration code, not sandboxed; production providers must show
+   passive behavior and independent clocks.
+5. A future policy adapter must bind joint and observation ordering, units, frames, normalization,
+   history, action representation, limits, rate/decimation, model hash and the exclusive
+   controller; there is no generic policy loader. MicroDuck keeps its audited 61-observation /
+   14-action contract.
 
 ### Capture-time alignment (B50, opt-in)
 
-A camera capture and an IMU or joint sample describe one instant only when
-they were captured at (nearly) the same time on one clock. `read_sensor`
-returns each sensor's latest capture independently: on the loopback mobile
-bridge, a camera read at physics step 10 followed by an IMU read returns steps
-10 and 11, and nothing says so. An `alignment:` block in a sensors domain adds
-the read-only tool `read_aligned` (absent: the catalog is byte-identical):
+`read_sensor` returns each sensor's latest capture independently (a camera read at step 10 then an
+IMU read returns steps 10 and 11, silently). An `alignment:` block in a sensors domain adds the
+read-only tool `read_aligned` (absent: the catalog is byte-identical):
 
 ```yaml
 sensing:
@@ -380,61 +259,32 @@ sensing:
   providers: [...]
 ```
 
-`sensing.read_aligned(reference="overview", sensor_ids=["imu", "joints"])`
-(default: every other sensor) reads ONE fresh reference capture. A failed or
-repeated reference read refuses the call; no older capture is substituted. Each
-paired sensor is read once (a refusal, such as a replay when its producer has
-nothing newer, is reported as `read_error`, not fatal) and paired with its
-admitted capture in the hub's bounded history nearest the reference's capture
-time (`src/cascade/sensing/alignment.py`):
+`sensing.read_aligned(reference="overview", sensor_ids=["imu", "joints"])` (default: every other
+sensor) reads ONE fresh reference capture (a failed or repeated read refuses the call), reads each
+paired sensor once (a refusal is reported as `read_error`) and pairs it with the admitted capture
+nearest the reference time (`src/cascade/sensing/alignment.py`):
 
-- Only comparable clocks are paired by skew: the same clock domain and the same
-  epoch (a reset world restarts simulation time). The process-local
-  `monotonic` domain is shared by every in-process provider across epochs.
-- `aligned`: |skew| ≤ `max_skew_s`.
-- `uncertain`: the observation is returned but flagged. `clock_not_comparable`
-  (no comparable capture; the latest one, skew unknown, while younger than the
-  sensor's `max_age_s`), `saturated` (the payload's own flag) or
-  `motion_exceeds_tolerance`: the sample's own measured rate × |skew| (|gyro|
-  for an IMU, the fastest joint per unit for joint payloads) exceeds the
-  declared tolerance. That is a first-order estimate, not a bound.
-- `stale`: |skew| > `max_skew_s`, or an incomparable capture older than
-  `max_age_s`. Sequence, epoch, capture time, skew and capture SHA-256 are
-  reported; the observation is withheld.
-- `missing`: no admitted capture. Nothing is made up.
+1. Only the same clock domain and epoch are compared by skew (the process-local `monotonic` domain
+   is shared across epochs).
+2. `aligned`: |skew| ≤ `max_skew_s`.
+3. `uncertain` (returned, flagged): `clock_not_comparable` (latest capture younger than the
+   sensor's `max_age_s`), `saturated`, or `motion_exceeds_tolerance` (measured rate × |skew| above
+   the declared tolerance; a first-order estimate, not a bound).
+4. `stale` (withheld; sequence, epoch, capture time, skew and SHA-256 reported): |skew| >
+   `max_skew_s` or an incomparable capture older than `max_age_s`. `missing`: no admitted capture.
+5. Nothing is interpolated or extrapolated: a returned observation is one admitted capture byte for
+   byte (`capture_sha256`), ties keep the earlier capture, unmeasured channels are listed as
+   `absent`. B39's link self-mask uses the same buffer and classification.
 
-Nothing is interpolated or extrapolated: a returned observation is one admitted
-capture, byte for byte (its `capture_sha256` is the hub's). Ties keep the
-earlier capture. Channels a producer did not measure stay absent and are listed
-(`absent`: e.g. the mobile IMU's `linear_acceleration_m_s2`, `effort_nm`). B39's
-link self-mask pairs camera frames with joint samples through the same buffer
-and classification.
-
-Measured (software only, `tests/test_proprio_time_alignment.py`, 42 tests;
-RED on `origin/main` be57535: 35 failed, 7 premise/golden passed): on the real
-loopback mobile bridge (state socket and RGB-D frame cache) through the MCP
-composed-robot path, a step-10 camera capture pairs with the step-11 IMU and
-proprioception samples at +5 ms (aligned under 7.5 ms); a step-14 capture finds
-only step 11 (−15 ms: stale, withheld, `replay` reported); a 3 rad/s yaw rate
-5 ms from the capture is uncertain (0.015 rad > 0.01 rad). Only reader-role
-`hello`/`state`/`frame` requests reach the bridge and no actuator is built.
-Without `alignment:` the sensors-domain catalog of every shipped robot profile
-keeps its golden digest.
-
-Not claimed: IMU/proprioception fusion (no estimator consumes the pairings),
-the skew distribution of a native Isaac producer, ~~producer-rate sampling (the
-history holds only captures that reads admitted, at most 32 captures / 16 MB
-shared by all sensors, so one large RGB-D capture can evict IMU samples)~~
-(opt-in since B72, below), hardware clock synchronization, or the accuracy of
-the first-order motion estimate.
+Measured in software (`tests/test_proprio_time_alignment.py`, 42 tests, real loopback mobile bridge
+through MCP): a step-10 capture pairs with step-11 IMU at +5 ms (aligned under 7.5 ms), a step-14
+capture finds only step 11 (stale, withheld). Not claimed: a fusion estimator, native Isaac skew,
+hardware clock sync, accuracy of the motion estimate.
 
 ### Producer-rate sampling (B72, opt-in)
 
-Without it, `read_aligned` pairs among the captures that READS admitted, so the
-skew depends on when the caller reads: the IMU can have produced a sample at
-the camera's capture instant that no read ever saw, and the pairing then takes
-a farther capture, often stale. With `producer_history` the pairing also sees
-every sample the producer recorded as it published it:
+Without it, `read_aligned` pairs only among captures that reads admitted, so skew depends on when
+the caller reads. `producer_history` adds every sample the producer recorded at publication:
 
 ```yaml
 sensing:
@@ -445,73 +295,26 @@ sensing:
   providers: [...]
 ```
 
-- Producers record at publication, bounded and opt-in. The mobile bridge
-  (`MobileBridgeController(state_history=N)`, CLI `--state-history N`, 1..256)
-  keeps its last N completed states exactly as `state` would serve them, each
-  with its own publication time, advertises `state_history` in `hello`, and
-  serves them to reader channels as `state_history(after_step)`: copies of
-  history, never a refresh; a new epoch empties it; without the option nothing
-  changes and the operation is refused. In process,
-  `BufferedSensorProvider(descriptor, history=N)` records its last N
-  publications. Other providers record nothing and keep read-time sampling.
-- The reader (`BaseTruthReader.history`) checks the advertised bound, the
-  reply's epoch, every state's identity, and that steps and physics times
-  strictly advance after `after_step`. One reply has one local receipt time;
-  every age includes the round trip.
-- The hub admits each fetch through the sensor's own bounded worker, deadline
-  and quarantine, under the read rules: identity, one epoch per sensor
-  (shared with reads), strictly increasing sequence, capture time and receipt.
-  A violating batch is refused whole. A sample older than the sensor's
-  `max_age_s` or above the packet bound is seen but never admitted, not even
-  when presented again. Each sensor's ring holds at most `producer_history`
-  samples and `max_history_bytes`, apart from the shared read history, so a
-  large RGB-D capture cannot evict IMU samples from it.
-- `read_aligned` still reads each paired sensor once, then fetches its
-  producer history (a refusal is reported as `producer_error`) and pairs among
-  both, ordered by capture time, one copy per capture (the read one). The
-  classification is B50's: nothing interpolated, ties keep the earlier sample,
-  stale and missing values withheld, another epoch or clock domain never
-  aligned, saturation or rate × skew uncertain. Each pairing reports
-  `from_producer` (true when only the producer's history held the chosen
-  capture) and the policy reports `producer_history`. Without the key the
-  output is byte-identical (golden digest).
+1. The mobile bridge (`MobileBridgeController(state_history=N)`, CLI `--state-history N`, 1..256)
+   keeps its last N completed states as `state` would serve them, advertises `state_history` in
+   `hello` and serves `state_history(after_step)` copies (a new epoch empties it; without the option
+   the operation is refused). In process: `BufferedSensorProvider(descriptor, history=N)`.
+2. `BaseTruthReader.history` checks the advertised bound, epoch, identities and strictly advancing
+   steps and physics times; every age includes the round trip.
+3. The hub admits each fetch through the sensor's own bounded worker, deadline and quarantine; a
+   violating batch is refused whole; per-sensor rings are bounded by `producer_history` and
+   `max_history_bytes`, separate from the shared read history (a large RGB-D capture cannot evict
+   IMU samples).
+4. Pairing reports `from_producer` and the policy `producer_history`; a history fetch refusal is
+   reported as `producer_error`; classification is B50's. Without the key the output is
+   byte-identical (golden digest).
+5. Measured in software (`tests/test_producer_rate_alignment.py`, 60 tests): with 200 Hz IMU/joints
+   all 48 pairings aligned at 0 ms vs 12 of 48 with read-time sampling. Not claimed: native Isaac
+   skew, fusion, hardware sync, history through `--state-reader process` (it refuses
+   `state_history`, so pairing falls back to read time), a `--state-history` flag on the H2 owner,
+   RGB/RGB-D producer history.
 
-Measured (software only, `tests/test_producer_rate_alignment.py`, 60 tests;
-RED on `origin/main` 38f6d08: 55 failed, 5 premise/golden passed): through MCP
-on the real loopback mobile bridge, a read-time domain and a producer-history
-domain on the same bridge, one camera capture every 6 physics steps (33.3 Hz
-at 5 ms), 24 captures, `read_aligned` called 0–5 steps (0–25 ms) after each
-capture (each delay 4×), `max_skew_s` 7.5 ms, `max_rotation_rad` 0.01, IMU yaw
-≈3 rad/s, joints 0.5 rad/s:
-
-- IMU and joints produced every step (200 Hz, as the MicroDuck stepper
-  publishes): read-time sampling paired the IMU 4 aligned / 4 uncertain /
-  16 stale and the joints 8 aligned / 16 stale, |skew| mean 9.167 ms, median
-  10 ms, max 15 ms. With the ring all 48 pairings were aligned at 0 ms. In 40
-  of the 48, read-time sampling had paired a farther capture than one already
-  produced: 32 of those were stale and 4 (IMU, +5 ms at 3 rad/s) uncertain.
-- IMU and joints produced every 4 steps (50 Hz): read-time sampling 8 aligned /
-  16 stale per sensor (|skew| mean 8.333 ms, max 20 ms); with the ring
-  12 aligned at 0 ms and 12 stale at −10 ms per sensor. A capture that falls
-  between two samples stays stale; the ring never paired a farther capture than
-  read-time sampling.
-
-The bridge runner (`scripts/isaac_microduck_bridge.py --state-history 8`, CPU
-software backend) records every completed step it publishes; without the flag
-its recorded arguments and `hello` are unchanged.
-
-Not claimed: the native skew distribution on Isaac, with or without the ring;
-a fusion estimator that consumes the pairings; hardware clock
-synchronization; producer history through the off-GIL `--state-reader process`
-reader (a handed-off reader channel refuses `state_history`, so the pairing
-reports `producer_error` and falls back to read-time sampling); a
-`--state-history` flag on the H2 owner; producer history for RGB/RGB-D
-providers (the reference is read fresh).
-
-## Why these research directions fit
-
-This is a focused survey of relevant primary implementations, not a claim that
-one framework already solves deployment for every humanoid.
+## Research directions and external benchmarks
 
 | Primary source and inspected revision | Transfer to CASCADE |
 | --- | --- |
@@ -524,161 +327,36 @@ one framework already solves deployment for every humanoid.
 | [Isaac Lab contact semantics](https://isaac-sim.github.io/IsaacLab/v3.0.0-EA/source/concepts/sensors/contact_sensor.html) and [TacSL sensor APIs](https://isaac-sim.github.io/IsaacLab/main/source/api/lab_contrib/isaaclab_contrib.sensors.html) | Declare backend force semantics, contact-pair coverage and estimated versus solved forces explicitly |
 | [DORA dataflow](https://github.com/dora-rs/dora/blob/b2df5ec2be1fc0f2755eca80316c679e94132283/guide/src/concepts/dataflow-yaml.md) | Bounded queues and transport separation are useful optional infrastructure; transport is not authority to command actuators |
 | [ROS4HRI standard](https://ros4hri.github.io/standard.html) | Human interaction can be a separate typed domain. Speech produces bounded intent, not joint targets |
+| [Reachy conversation app](https://github.com/pollen-robotics/reachy_mini_conversation_app/tree/5ab905d018de8d88f07444ca57677b2ffbe762ca), [HF speech-to-speech](https://github.com/huggingface/speech-to-speech/tree/411399d34555b2169823a6eaeb7f8ff192db89db) | Realtime conversation separate from motion; implemented as the [conversation supervisor](CONVERSATION.md). Reachy's head poses cannot drive policy-owned MicroDuck joints |
 
-The requested [Reachy conversation app](https://github.com/pollen-robotics/reachy_mini_conversation_app/tree/5ab905d018de8d88f07444ca57677b2ffbe762ca)
-separates realtime conversation, vision/tools and choreographed motion. Its
-local endpoint mode connects to the independently hostable
-[Hugging Face speech-to-speech server](https://github.com/huggingface/speech-to-speech/tree/411399d34555b2169823a6eaeb7f8ff192db89db).
-The implemented [conversation client and supervisor](CONVERSATION.md) translate
-selected tool calls into this capability catalog, with speech interruption and
-disconnection propagating cancellation. Audio timing remains separate from the policy clock.
-Reachy's motion blending and head poses cannot be transferred to policy-owned
-MicroDuck joints. Local inference/browser and a synthetic-input native-motion
-recording have [separate measured results](ROADMAP.md).
-A public hosted voice service, hardware audio and general task reliability remain
-unvalidated; the recorded motion episode has no spoken robot reply.
-
-A HomeBody comparison extended this design with six
-proposed increments: source-bound spatial memory, dynamic transforms,
-auditable reconstruction, bounded local correction, actuator health and one
-whole-body command owner. The first increment now has [passive spatial replay](SPATIAL_PROVIDERS.md)
-and [retained RGB-D annotations](SPATIAL_PROVIDERS.md#retained-rgb-d-surface-observations), with explicit
-map/transform invalidation. Physical SLAM, reconstruction and whole-body
-execution remain design work; the comparison separates HomeBody's presentation
-from its pending robot-code release and separately available components.
-
-## Graph-as-policy: useful above the domain runtimes
-
-The relevant paper is [GaP: A Graph-as-Policy Multi-Agent Self-Learning Harness
-For Variational Automation Tasks, arXiv:2607.05369v1](https://arxiv.org/html/2607.05369v1).
-It composes perception, planning, control and verification skills into graphs,
-then uses rehearsal and failure analysis to improve them. Its evaluated
-automation tasks motivate reusable skill contracts and offline graph revision;
-they do not establish humanoid locomotion validity.
-
-CASCADE now has a small execution substrate for that direction. It validates
-an entire immutable graph before dispatch, hashes the graph and tool catalog,
-and uses the same `runtime.execute()` boundary as MCP. Every motion explicitly
-routes `confirmed`, `refuted`, `unverified` and `error`. Read nodes route
-`success` and `error`. `$result` references must come from a node that precedes
-the consumer on every execution path. Resolved arguments are schema-checked
-before calling the destination tool; legacy tools without result schemas do
-not receive an invented static output guarantee.
-
-Graphs are acyclic and bounded by steps and elapsed time. Cancellation/deadline
-requests priority stop. Python cannot forcibly unwind arbitrary native IO;
-the backend still needs its own deadline or a supervised process boundary.
-Graph cleanup and a successful terminal cannot erase a failed or synthetic
-motion. Reports always retain `physical_admission: false`; deployment decisions
-require a separate episode/campaign gate. The implementation is not GaP's
-multi-agent learning harness and does not copy its benchmark success claims.
-
-## VAB, VABAR and Arena
-
-Follow-up: the optional [real Arena preflight](../benchmark/arena/README.md) now
-exercises ordinary runtime dispatch, native PhysX observation and final-consumer
-cancellation. Its task and physical-stop verdicts remain unverified. The
-original software-contract validation below retains its historical scope.
-
-The supplied public repository is [Variational-Automation-Benchmark (VAB)](https://github.com/ehehee/Variational-Automation-Benchmark),
-inspected at `edcc4bf005446839c0c6f43f8a3bf416702af030`. The proposed name VABAR
-does not establish a public API or feature set; this integration targets the
-available VAB code. GaP's inspected vendored VAB revision is different:
-`fd2bc0f63369ba39137df018bbca8f6b372ffa0b`.
-
-The retained [source inspection](evidence/robot-modularity/vab-source-inspection.json)
-enumerates 62 task YAMLs and 3,052 initial states. The narrow adapter accepts 40
-task manifests and excludes 22; those are configuration checks, not rollouts.
-
-VAB is useful for manipulation task variation and repeatable initializations.
-Some tasks teleport delivered objects off scene, and some success predicates
-only inspect the last stage. Preserve the upstream criterion as
-`benchmark_success`, then separately check the physical behavior requested by
-CASCADE. The existing LIBERO runtime builder cannot simply be reused: it has
-table/workspace/camera assumptions incompatible with the inspected VAB scenes.
-The adapter therefore requires an explicit reviewed runtime factory.
-
-[Isaac Lab Arena](https://github.com/isaac-sim/IsaacLab-Arena), inspected at
-`c8d04e2199b86abbbb301bb22cec0effd83c4e63`, supplies scene, embodiment, task and
-policy boundaries plus structured campaign results. That is a useful place to
-rehearse a robot-specific admission matrix before real deployment. The adapter
-imports its actual experiment result schema and can lazily construct a
-`PolicyBase` subclass inside an installed Arena environment. A supplied,
-explicitly owned controller remains responsible for low-level action tensors.
-API compatibility is not a validated controller or a physical rollout.
-The imported `source_revision` identifies the reviewed API revision selected by
-the caller; Arena's result file does not itself attest the producer commit.
-
-Independent verdicts bind the exact external artifact and record, configuration,
-model, epoch, physical step/time window and independent snapshots. Missing or
-mismatched evidence remains unverified. A verifier callback is a trusted
-measurement boundary, not cryptographic proof that measurements are truthful.
-See [the benchmark adapter guide](../benchmark/arena/README.md) for the concrete
-APIs, pinned manifests, source caveats and execution requirements.
-
-The initial composition refactor did not execute either simulator. The later
-[native VAB CPU preflight](../benchmark/arena/README.md) exercised ordinary CASCADE
-relative motion, independent physical readback and in-flight cancellation in
-the pinned Panda environment. It did not complete a benchmark task or execute
-Arena. Simulator dependencies remain optional and isolated from the working
-MicroDuck environment. The current Arena dependency recipe must be checked separately
-before installation; it is not interchangeable with the existing Newton recipe.
-
-## Try the composed software path
-
-Use an installed CASCADE environment with development dependencies. The example
-profile explicitly uses mock actuators and a synthetic IMU:
-
-```bash
-uv run python -m cascade.apps.demo --robot mixed_mock --llm mock --no-view --no-serve
-CASCADE_ROBOT=mixed_mock uv run python -m cascade.apps.mcp_server
-uv run python -m cascade.apps.skill_graph --robot mixed_mock \
-  --graph configs/graphs/inspect_sensors.json --run-dir /tmp/cascade-graph-review
-uv run pytest tests/test_robot_contracts.py tests/test_robot_runtime.py \
-  tests/test_robot_mcp.py tests/test_skill_graph.py tests/test_sensing*.py \
-  tests/test_vab*.py tests/test_arena*.py -q
-```
-
-The graph example discovers sensors and reads one synthetic IMU capture. It
-produces `graph-result.json`; successful read flow is not locomotion evidence.
-Composed domain runs have separate directories and learned-store defaults.
-Explicit store environment overrides remain authoritative.
-
-## Software validation
-
-The retained [local validation receipt](evidence/robot-modularity/software-validation.json)
-records a frozen-source full run: 5,178 passed, 252 skipped, four hardware cases
-deselected and three failures. All three failures were existing mobile stop
-tests whose independent loopback reads exceeded their configured deadlines;
-their verdicts remained unverified. The five cases covering those parametrized
-tests passed unchanged in an isolated rerun. This does not erase the full-run
-failures or establish their scheduler/GC root cause.
-
-The same source passed 62 packaging checks. The new composed MCP route and
-synthetic sensor graph were exercised directly; no native Arena/VAB episode or
-new physical sensor/locomotion result is included. Source hashes and protected
-shared learned state were unchanged during the retained test runs. PR CI
-provides the separate checks against the committed source on supported runners.
-
-Initial CI at `d7f706c` passed Linux x86, minimal installation and browser checks;
-ARM failed one freshness case and macOS failed two healthy late-read cases. The
-same macOS failure also occurred on the base with unchanged relevant code.
-The [CI follow-up receipt](evidence/robot-modularity/ci-followup.json) retains
-those results. A controlled cyclic-GC injection reproduced a reader veto;
-test-only isolation now keeps such collection outside two bounded
-healthy-channel functions. Their focused suite passed 192 cases, including
-unchanged stale/timeout negatives. macOS gains a compact failure diagnostic.
-Neither adjustment establishes the original CI cause or a green full rerun.
-
-The next CI (`3dae06a`) passed both Linux architectures; macOS's new diagnostics
-identified stale held replies in the two late-read tests. The
-[bounded-wait follow-up](evidence/robot-modularity/macos-late-read-fix.json)
-retains that failure and a controlled before/after comparison. The TCP fixture
-now yields until its fixed target and retains the original detached packet;
-production timing and freshness checks are unchanged. Six deterministic cases
-exercise the actual sampler's late fresh/fault/stale returns, including the
-stale channel's quarantine. All 198 focused cases passed with source and shared
-learned state unchanged. Hosted CI remains a separate result on the PR.
+1. **Graph-as-policy** ([GaP, arXiv:2607.05369v1](https://arxiv.org/html/2607.05369v1)): CASCADE has
+   the execution substrate only. `robotics/graph.py` validates the whole immutable graph before
+   dispatch, hashes graph and catalog, calls the same `runtime.execute()` as MCP, routes every motion
+   through `confirmed`/`refuted`/`unverified`/`error` (reads: `success`/`error`), schema-checks
+   `$result` references from dominating nodes, and is acyclic and bounded in steps and time.
+   Cancellation requests priority stop; reports keep `physical_admission: false`. Not GaP's
+   learning harness.
+2. **VAB and Arena**: adapters target the public
+   [VAB](https://github.com/ehehee/Variational-Automation-Benchmark) at
+   `edcc4bf005446839c0c6f43f8a3bf416702af030` (VABAR names no public API; GaP vendors
+   `fd2bc0f63369ba39137df018bbca8f6b372ffa0b`) and
+   [Isaac Lab Arena](https://github.com/isaac-sim/IsaacLab-Arena) at
+   `c8d04e2199b86abbbb301bb22cec0effd83c4e63`. The
+   [source inspection](evidence/robot-modularity/vab-source-inspection.json) found 62 task YAMLs and
+   3,052 initial states; the adapter accepts 40 manifests. Upstream success is kept as
+   `benchmark_success` and CASCADE checks physical behavior separately (some VAB tasks teleport
+   objects or check only the last stage); VAB needs an explicit reviewed runtime factory.
+3. Independent verdicts bind the exact artifact, configuration, model, epoch, physical window and
+   snapshots; missing or mismatched evidence stays unverified; a verifier callback is a trusted
+   measurement boundary. Arena's `source_revision` is caller-selected, not attested.
+4. Native preflights (VAB CPU Panda relative motion and cancellation; Arena PhysX observation and
+   cancellation) are in [the benchmark adapter guide](../benchmark/arena/README.md); no benchmark
+   task completed and task/stop verdicts stay unverified. Simulator dependencies stay optional and
+   isolated.
+5. Software validation receipts: [full run](evidence/robot-modularity/software-validation.json)
+   (5,178 passed; three mobile stop tests exceeded loopback deadlines),
+   [CI follow-up](evidence/robot-modularity/ci-followup.json),
+   [macOS late-read fix](evidence/robot-modularity/macos-late-read-fix.json).
 
 ## Admission work for an actual humanoid
 
@@ -703,10 +381,9 @@ nothing is admitted physically. Required work includes:
    Arena can organize variation; independent measurements and video must bind
    to the same episode. Physical deployment requires its own staged validation.
 
-MicroDuck's [current evidence index](ROADMAP.md)
-includes historical short-distance passes alongside retained failed commands.
-Those episode-specific results do not establish general walking, twelve-robot
-operation or admission of a later source/model combination.
+MicroDuck's historical short-distance passes sit beside retained failed commands
+([MICRODUCK](MICRODUCK.md)); they establish neither general walking, twelve-robot operation nor
+admission of a later source/model combination.
 
 ## Declared embodiment (`embodiment:`)
 

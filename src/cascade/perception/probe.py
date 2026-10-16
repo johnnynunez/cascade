@@ -63,44 +63,124 @@ PATCH_R = 3
 #: as being "on" that object.
 HIT_RADIUS_M = 0.06
 
-#: Words that end the object part of a query ("can of tomatoes" -> "can",
-#: "mug on the shelf" -> "mug").
+#: Words that end the object part of a query ("mug on the shelf" -> "mug").
+#: "of" does not end it: "bag of chips" names the bag AND the chips.
 _RELATION_WORDS = frozenset({"on", "in", "inside", "near", "next", "beside", "by", "at", "under",
-                             "behind", "above", "below", "with", "from", "to", "of"})
+                             "behind", "above", "below", "with", "from", "to"})
+#: Two words for the same object, matched both ways ("green block" = "green cube").
+_SYNONYMS = (frozenset({"cube", "block"}), frozenset({"cup", "mug"}))
+#: Plurals the -s / -es rule misses.
+_IRREGULAR_PLURALS = {"cherries": "cherry", "berries": "berry", "strawberries": "strawberry",
+                      "knives": "knife", "leaves": "leaf", "loaves": "loaf",
+                      "tomatoes": "tomato", "potatoes": "potato"}
+#: Category nouns: in "orange fruit" the colour word IS the object's name, so
+#: a label "orange" matches. "orange cube" keeps "orange" a colour only.
+_CATEGORY_NOUNS = frozenset({"fruit", "fruits", "vegetable", "vegetables", "food", "snack", "produce"})
+_PUNCTUATION = ".,;:!?\"'()[]{}"
+
+
+def _words(text: str) -> list[str]:
+    """The words of a query or a label: lower case, "light blue" -> "cyan",
+    punctuation stripped from each word, counts ("2", "#3") dropped."""
+    text = str(text).lower().replace("light-blue", "cyan").replace("light blue", "cyan")
+    out = []
+    for w in text.replace(",", " ").split():
+        w = w.strip(_PUNCTUATION)
+        if w and not w.lstrip("#").replace(".", "", 1).isdigit():
+            out.append(w)
+    return out
+
+
+def _object_part(words: list[str]) -> list[str]:
+    """The words before a relation ("red mug on the shelf" -> red mug)."""
+    out = []
+    for w in words:
+        if w in _RELATION_WORDS:
+            break
+        out.append(w)
+    return out
 
 
 def _forms(word: str) -> set[str]:
-    """A word and its singular guesses ("cubes" -> cube, "boxes" -> box)."""
-    out = {word}
+    """A word, its singular guesses ("cubes" -> cube, "knives" -> knife) and
+    its synonyms ("block" -> cube)."""
+    out = {word, _IRREGULAR_PLURALS.get(word, word)}
     if len(word) > 3 and word.endswith("s"):
         out.add(word[:-1])
     if len(word) > 4 and word.endswith("es"):
         out.add(word[:-2])
+    for group in _SYNONYMS:
+        if out & group:
+            out |= group
     return out
 
 
-def _queried_kind(query: str) -> tuple[str | None, str | None]:
-    """(head noun, colour) a label must agree with; None = no constraint.
-    "green cube" -> ("cube", "green"); "pink object" -> (None, "pink")."""
-    from .colors import parse_color_query
-
-    color, noun = parse_color_query(query)
-    words = []
-    for w in (noun or "").split():
-        if w in _RELATION_WORDS:
-            break
-        words.append(w)
-    return (words[-1] if words else None), color
+def _shares(word: str, words) -> bool:
+    forms = _forms(word)
+    return any(forms & _forms(w) for w in words)
 
 
-def _names_kind(words: set[str], head: str | None, color: str | None) -> bool:
-    """Does a label (its words) name the queried kind? The head noun must be
-    one of its words, and a colour the label states must be the queried one."""
+def _content(words: list[str]) -> list[str]:
+    """Words that can name an object (no articles, relations or "of")."""
+    from .colors import _ARTICLES
+
+    return [w for w in words if w not in _ARTICLES and w not in _RELATION_WORDS and w != "of"]
+
+
+def _head_noun(words: list[str]) -> str | None:
+    """The last word naming the object, before any "of" ("bag of chips" ->
+    bag); a label's colour word counts ("orange" -> orange)."""
+    from .colors import GENERIC_NOUNS
+
+    part = _object_part(words)
+    if "of" in part:
+        part = part[:part.index("of")]
+    names = [w for w in _content(part) if w not in GENERIC_NOUNS]
+    return names[-1] if names else None
+
+
+def _queried_kind(query: str) -> tuple[str | None, str | None, list[str]]:
+    """(head noun, colour, nouns) a label must agree with; None = no constraint.
+    "green cube" -> ("cube", "green", [cube]); "pink object" -> (None, "pink", []);
+    "bag of chips" -> ("bag", None, [bag, chips])."""
+    from .colors import _ARTICLES, GENERIC_NOUNS, canonical_color
+
+    color = color_word = None
+    nouns: list[str] = []
+    before_of: list[str] = []
+    seen_of = False
+    for w in _object_part(_words(query)):
+        if w == "of":
+            seen_of = True
+            continue
+        if w in _ARTICLES:
+            continue
+        c = canonical_color(w)
+        if c is not None and color is None:
+            color, color_word = c, w
+        elif w not in GENERIC_NOUNS:
+            nouns.append(w)
+            if not seen_of:
+                before_of.append(w)
+    head = (before_of or nouns or [None])[-1]
+    if head in _CATEGORY_NOUNS and color_word is not None:
+        nouns.append(color_word)
+    return head, color, nouns
+
+
+def _names_kind(name: str, head: str | None, color: str | None, nouns=()) -> bool:
+    """Does a label name the queried kind? The query's head noun is one of its
+    words, or its own head noun is one of the query's nouns ("orange fruit"
+    -> orange, "bag of chips" -> chips); and a colour it states is the
+    queried one."""
     from .colors import canonical_color
 
-    if head is not None and not any(_forms(head) & _forms(w) for w in words):
-        return False
-    stated = {c for c in (canonical_color(w) for w in words) if c is not None}
+    words = _words(name)
+    if head is not None and not _shares(head, words):
+        own = _head_noun(words)
+        if own is None or not _shares(own, nouns):
+            return False
+    stated = {c for c in (canonical_color(w) for w in _object_part(words)) if c is not None}
     return color is None or not stated or color in stated
 
 
@@ -295,8 +375,8 @@ class PointProbe:
         """
         frame, T = self._frame_and_extrinsics(camera)
         h, w = frame.rgb.shape[:2]
-        want = set(str(label).lower().split())
-        head, color = _queried_kind(str(label))
+        want = _content(_words(label))
+        head, color, nouns = _queried_kind(str(label))
         best, score = None, 0
         near: list[tuple[int, str]] = []  # labels sharing a word but naming another kind
         try:
@@ -305,13 +385,13 @@ class PointProbe:
                 names += sorted(str(a) for a in (getattr(b, "aliases", None) or ()))
                 overlap = 0
                 for name in names:
-                    have = set(name.lower().split())
-                    s = len(want & have)
+                    have = _content(_words(name))
+                    s = sum(1 for w in set(want) if _shares(w, have))
                     overlap = max(overlap, s)
                     # r3 (kitchen run): "green cube" answered ok as the green
                     # translucent square on the colour word alone, and the
                     # agent grasped there. A match must name the queried kind.
-                    if s > score and _names_kind(have, head, color):
+                    if s > score and _names_kind(name, head, color, nouns):
                         best, score = b, s
                 if overlap:
                     near.append((overlap, names[0]))

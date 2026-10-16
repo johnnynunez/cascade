@@ -356,9 +356,61 @@ def test_locate_pixel_refuses_another_colour_of_the_same_noun():
 
 
 def test_locate_pixel_matches_a_detector_alias():
-    block = SimpleNamespace(label="green block", position=[0.18, 0.06, 0.10], aliases={"green cube"})
-    out = PointProbe(_runtime(beliefs=[block])).locate_pixel("green cube")
-    assert out["ok"] and out["label"] == "green block"
+    toy = SimpleNamespace(label="green toy", position=[0.18, 0.06, 0.10], aliases={"green cube"})
+    out = PointProbe(_runtime(beliefs=[toy])).locate_pixel("green cube")
+    assert out["ok"] and out["label"] == "green toy"
+
+
+# Review p3: the noun check refused the right object when the agent's words
+# and the detector's differ only in form (punctuation, a count, a synonym, a
+# plural, the object named inside a longer phrase).
+@pytest.mark.parametrize("query, label", [
+    ("green cube?", "green cube"),          # trailing punctuation
+    ("the green cube.", "green cube"),
+    ("green cube 2", "green cube"),         # a count or index is not the noun
+    ("2 green cubes", "green cube"),
+    ("green cube", "green block"),          # synonyms, both ways
+    ("green block", "green cube"),
+    ("cube", "block"),
+    ("red cup", "red mug"),
+    ("red mug", "red cup"),
+    ("cyan mug", "light blue mug"),         # colour synonym, both ways
+    ("light blue mug", "cyan mug"),
+    ("grey cube", "gray cube"),
+    ("orange fruit", "orange"),             # the label's head noun is a query noun
+    ("bag of chips", "chips"),
+    ("cherries", "cherry"),                 # irregular plurals, both ways
+    ("red cherry", "cherries"),
+    ("knives", "knife"),
+    ("tomatoes", "tomato"),
+    ("mug on the red shelf", "white mug"),  # the relation's colour is not the mug's
+])
+def test_locate_pixel_accepts_another_form_of_the_same_name(query, label):
+    out = PointProbe(_runtime(beliefs=[_belief(label, [0.18, 0.06, 0.10])])).locate_pixel(query)
+    assert out["ok"], out
+    assert out["label"] == label
+
+
+@pytest.mark.parametrize("query, label", [
+    ("green cube", "green translucent square"),  # r3: another object of that colour
+    ("green cube", "red cube"),                  # another colour of the same noun
+    ("green cube", "red block"),                 # a synonym never excuses the colour
+    ("cyan mug", "blue mug"),
+    ("orange cube", "orange"),                   # the colour word is not the fruit
+    ("orange fruit", "orange cube"),
+    ("red mug on the shelf", "shelf"),           # the relation's object is not the query
+    ("lemon next to the orange", "orange"),
+])
+def test_locate_pixel_still_refuses_another_object(query, label):
+    out = PointProbe(_runtime(beliefs=[_belief(label, [0.18, 0.06, 0.10])])).locate_pixel(query)
+    assert out["ok"] is False and out["candidates"] == [label], out
+
+
+def test_a_count_in_the_query_is_not_a_name():
+    out = PointProbe(_runtime(beliefs=[SQUARE])).locate_pixel("green cube 2")
+    assert out["ok"] is False and "no tracked object is a 'green cube'" in out["error"]
+    out = PointProbe(_runtime(beliefs=[_belief("tray 2", [0.18, 0.06, 0.10])])).locate_pixel("cube 2")
+    assert out["ok"] is False and "candidates" not in out  # a shared count is no shared word
 
 
 # ── the human-facing mark stays separate from the agent's numbers ────────

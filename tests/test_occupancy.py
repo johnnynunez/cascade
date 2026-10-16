@@ -162,10 +162,13 @@ def test_harness_grasp_exemption_covers_occupancy_too():
     occ.refresh(_frame(), T_base_cam=np.eye(4))
     h = SafetyHarness(limits(), kinematics=FakeKin(), occupancy=occ)
     near = np.array([0.3, 0.0, 0.21, 0, 0, 0])
+    # Step INTO the margin from 10 cm above: a hold at `near` is the
+    # strict-retreat escape's exact hold and is admitted (spec 3.1).
+    far = np.array([0.3, 0.0, 0.30, 0, 0, 0])
     with pytest.raises(SafetyViolation, match="occupancy"):
-        h.approve(near, near, dt=1e9)
+        h.approve(far, near, dt=1e9)
     h.allow_grasp_descent(np.array([0.3, 0.0]), radius_m=0.1, z_min=-1.0)
-    h.approve(near, near, dt=1e9)
+    h.approve(far, near, dt=1e9)
 
 
 def test_vet_pose_reports_occupancy_violation():

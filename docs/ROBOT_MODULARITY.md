@@ -1,7 +1,7 @@
 # Composable robots, observations and validation
 
 The diagram and module table describe the implemented composition, with proposed
-extensions marked explicitly. The [capability and acceptance index](ROADMAP.md)
+extensions marked explicitly. The [capability status](ROADMAP.md)
 holds source-bound physical results; this page describes interfaces rather than
 repeating campaign history. The research references and dated software results
 below retain their original 2 October scope.

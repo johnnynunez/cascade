@@ -193,6 +193,9 @@ class SafetyHarness:
         self._estopped = False
         self._halt: str | None = None
         self._halt_generation = 0
+        #: per thread: the halt generation taken when the running motion
+        #: skill started (`skill_halt_baseline`), None outside a skill
+        self._skill_halt = threading.local()
         # A passive goal ledger can commit under this short lock after doing
         # all geometry, SDK reads and I/O outside it. Lock order: world then
         # this lock; stop/reset never acquire a world lock. This token also
@@ -274,7 +277,9 @@ class SafetyHarness:
         motion is no longer the right thing to do", clears itself when the next
         motion begins, and leaves the arm powered and controllable. Conflating
         the two would either make halting dangerous to recover from or make the
-        e-stop too easy to clear.
+        e-stop too easy to clear. Inside a motion skill, the next motion of the
+        SAME skill does not clear it: the skill ends (skill_halt_baseline), and
+        the next skill's first motion clears it.
 
         Checked inside `approve()`, so it takes effect within one 50 Hz
         waypoint (20 ms) rather than at the end of the trajectory.
@@ -634,8 +639,42 @@ class SafetyHarness:
         return None  # already inside, not closing in on anyone: retreat
 
     def _check_halt_generation(self, expected: int | None) -> None:
-        if expected is not None and expected != self._halt_generation:
-            raise MotionHalted("halt received during route planning or execution")
+        """Raise MotionHalted if a halt arrived since `expected` (None: no
+        explicit baseline) or since the motion skill running on this thread
+        started (`skill_halt_baseline`), whichever applies."""
+        # getattr: telemetry doubles bind this method to a plain namespace.
+        skill = getattr(getattr(self, "_skill_halt", None), "generation", None)
+        for baseline in (expected, skill):
+            if baseline is not None and baseline != self._halt_generation:
+                raise MotionHalted("halt received during route planning or execution")
+
+    @contextmanager
+    def skill_halt_baseline(self, generation: int | None = None):
+        """Scope one motion skill on this thread: every halt-generation check
+        it makes (begin_motion, check_stream_start, SafeArm's jaws, a planned
+        route) also requires `generation` (default: now), taken when the skill
+        started. A halt raised at ANY point of the skill -- while it localizes
+        or plans, between two of its moves -- then refuses its next motion
+        before the first command, instead of being cleared by that motion's
+        begin_motion. A halt raised before the skill started keeps today's
+        rule (its first motion clears it).
+
+        Per thread: the operator's halt arrives on another thread (the MCP
+        reader), and a motion another thread issues is not this skill's. A
+        nested skill keeps the outermost (oldest) baseline. Released on every
+        path, so the next skill starts clean.
+        """
+        scope = getattr(self, "_skill_halt", None)
+        if scope is None:  # a harness built without __init__ (test doubles)
+            scope = self._skill_halt = threading.local()
+        if getattr(scope, "generation", None) is not None:
+            yield
+            return
+        scope.generation = self._halt_generation if generation is None else int(generation)
+        try:
+            yield
+        finally:
+            scope.generation = None
 
     def check_contact_episode(self, *, gripper=False) -> None:
         """A failed close remains stationary until its explicit reset retreat.
@@ -692,7 +731,9 @@ class SafetyHarness:
         if self._estopped:
             raise SafetyViolation("e-stop latched")
         # A halt before the caller started is recoverable; a new halt during
-        # route planning or between its segments must cancel that same route.
+        # route planning or between its segments must cancel that same route,
+        # and a halt since the running motion skill started cancels every
+        # later motion of that skill (skill_halt_baseline).
         # A halt applies to the motion that was in flight when it was raised,
         # not to every future one. Clearing here (rather than making the caller
         # remember) is what keeps halt recoverable and distinct from e-stop:

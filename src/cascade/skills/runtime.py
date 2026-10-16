@@ -561,6 +561,34 @@ class SkillRuntime:
                 out.append(harness)
         return out
 
+    def _skill_halt_baselines(self, arm) -> list:
+        """(harness, its halt generation now) for `arm` and every rig arm:
+        taken when execute() starts a motion skill (registry only, like
+        `_contact_harnesses`: never materializes a standby LazyArm). Harness
+        doubles without `skill_halt_baseline` (class-defined) are skipped."""
+        arms = [arm, getattr(self, "_arm", None)]
+        if getattr(self, "arm_rig", None) is not None:
+            arms += list(self.arm_rig.arms.values())
+        out, seen = [], set()
+        for candidate in arms:
+            harness = (getattr(candidate, "__dict__", None) or {}).get("harness")
+            if (harness is None or id(harness) in seen
+                    or not callable(getattr(type(harness), "skill_halt_baseline", None))):
+                continue
+            seen.add(id(harness))
+            out.append((harness, harness._halt_generation))
+        return out
+
+    @staticmethod
+    def _skill_halt_scope(baselines):
+        """Hold each harness's skill baseline while the skill body runs."""
+        import contextlib
+
+        with contextlib.ExitStack() as stack:
+            for harness, generation in baselines:
+                stack.enter_context(harness.skill_halt_baseline(generation))
+            return stack.pop_all()
+
     def _select_arm(self, name):
         """Resolve an arm name to a SafeArm, or raise SkillError.
 
@@ -972,6 +1000,12 @@ class SkillRuntime:
             profile = next(p for p in profiles if p.get("name") == arm_name)
         if name in profile.get("unsupported_skills", []):
             return {"ok": False, "error": f"skill {name!r} is unsupported on {profile.get('name', 'this arm')}"}
+        # The skill starts here: an operator halt raised from now on (while it
+        # localizes or plans, between two of its moves) ends it. Every motion
+        # the skill body issues carries this halt generation (the harness's
+        # skill_halt_baseline), so the halt refuses its next motion before the
+        # first command instead of being cleared by it (A3 review).
+        skill_halt = self._skill_halt_baselines(effective_arm) if name in _MOTION_SKILLS else ()
         if name in _MOTION_SKILLS:
             raw = getattr(selected if selected is not None else self.arm, "raw", None)
             # Class lookup leaves a deferred LazyArm untouched. Real Franka
@@ -1121,7 +1155,7 @@ class SkillRuntime:
                         from ..planning.backend_evidence import ordinary_call
                         selection = (ordinary_call(self, name, trace_context) if name in _MOTION_SKILLS
                                      else contextlib.nullcontext())
-                        with selection:
+                        with selection, self._skill_halt_scope(skill_halt):
                             if name in _MOTION_SKILLS:
                                 carry_attachment.check(self)
                             result = fn(**args)
@@ -1815,6 +1849,8 @@ class SkillRuntime:
                 self.memory.add("note", f"not giving up: attempt {attempt}/{max_attempts} on {object!r}")
                 try:
                     self.skill_move_home()
+                except MotionHalted:
+                    raise  # STOP during the re-home ends this skill too: no re-scan, no retry
                 except (SkillError, SafetyViolation):
                     pass
                 self._reobserve()
@@ -3380,6 +3416,10 @@ class SkillRuntime:
             else:
                 try:
                     settled_home = self._move_planned(np.asarray(_home, dtype=float), duration_s=1.5)
+                except MotionHalted:
+                    # The operator pressed STOP, not the e-stop: the halt
+                    # ends the grasp as itself, without latching (A3 review).
+                    raise
                 except Exception as exc:
                     self.arm.stop()
                     raise SkillError(f"home move failed before pregrasp: {exc}") from exc
@@ -3971,6 +4011,11 @@ class SkillRuntime:
         if hasattr(raw, "close_gripper_two_stage"):
             if _before_close is not None:
                 raise SafetyViolation("observed-finger closing requires individually guarded stages")
+            # The backend's own close bypasses SafeArm.set_gripper: a halt
+            # since the running skill started keeps the jaws open (A3 review).
+            check_halt = getattr(self.arm.harness, "_check_halt_generation", None)
+            if callable(check_halt):
+                check_halt(_halt_generation)
             self._mark_motion_started()
             raw.close_gripper_two_stage(
                 width_frac_stage1=profile.close_frac_stage1,
@@ -4825,6 +4870,8 @@ class SkillRuntime:
                     )
                     try:  # clear the camera view so the re-scan actually sees
                         self.skill_move_home()
+                    except MotionHalted:
+                        raise  # STOP during the re-home ends this skill too: no re-scan, no retry
                     except (SkillError, SafetyViolation):
                         pass
                     self._reobserve()
@@ -4965,6 +5012,8 @@ class SkillRuntime:
                     break
                 except (SkillError, SafetyViolation) as e:
                     place_err = f"{type(e).__name__}: {e}"
+                    if isinstance(e, MotionHalted):
+                        raise  # the operator's halt ends this skill: no re-home, no place retry
                     if isinstance(e, carry_attachment.AttachmentInvalid):
                         return carry_attachment.failure_result(self, e,
                             **failure_destination, grasp_attempts=attempt, place_attempts=p_attempt)

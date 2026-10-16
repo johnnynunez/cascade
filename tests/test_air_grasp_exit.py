@@ -26,6 +26,12 @@ pre-existing on main): the grasp's own lift carries the grasp-start halt
 generation, and the persistence loops around grasp_object never re-home,
 re-scan or try again after a halt or an e-stop; a halt reaches execute().
 
+An operator halt at ANY point of a motion skill ends it (A3 review round 3;
+pre-existing on main): execute() takes the halt generation when the skill
+starts and every motion of the skill carries it, so a halt while the grasp
+plans, homes, approaches or re-homes refuses the next motion before its first
+command, stays a halt (no e-stop latch) and reaches execute().
+
 Every test runs the real runtime with the mock arm and analytic (OBB) grasps
 (no hardware, no GPU, never the host's GraspGen-X server).
 """
@@ -772,6 +778,286 @@ def test_a_failed_grasp_without_a_stop_still_retries(rt, monkeypatch, skill, arg
     res = rt.execute(skill, args)
     assert res["ok"] is False and AIR in res["error"], res
     assert seen == {"grasps": 2, "homes": homes, "rescans": 1}
+
+
+# ── an operator halt at any point of a motion skill ends it (A3 review, round 3) ──
+#
+# Pre-existing on main: a halt raised while grasp_object PLANNED was cleared by
+# the next motion's begin_motion, so the opening, home, approach, descent and
+# close still ran (310 commands) and only the lift refused. execute() now takes
+# the halt generation when a motion skill starts, and every motion the skill
+# issues carries it (the harness's halt-generation check, SafeArm's jaws and the
+# backend's own two-stage close included). A halt is never escalated to an
+# e-stop latch, and a halt raised before the skill started keeps today's rule
+# (the skill's first motion clears it).
+
+#: a normal mock grasp_object through execute(): opening, home (75), pregrasp,
+#: descent, close, lift and the +3 cm exit (measured on 6275636)
+NORMAL_GRASP_COMMANDS = 510
+#: the halt a motion meets at its start (the skill's baseline)
+SKILL_HALT = f"MotionHalted: {LIFT_HALT}"
+#: the halt a streaming motion meets mid-stream (approve)
+STREAM_HALT = "MotionHalted: halted: operator"
+
+
+def jaw_commands(rt, monkeypatch):
+    """Every command the jaws receive (the raw backend's set_gripper)."""
+    raw, seen = rt.arm.raw, []
+    real = raw.set_gripper
+
+    def set_gripper(pos, *a, **k):
+        seen.append(pos)
+        return real(pos, *a, **k)
+
+    monkeypatch.setattr(raw, "set_gripper", set_gripper)
+    return seen
+
+
+def halt_during_planning(rt, monkeypatch, jaws):
+    """Press STOP once while grasp_object plans: after the skill started,
+    before its first motion. Returns the (arm, jaw) command counts at the halt."""
+    real_plan, at_halt = rt._plan_grasps, []
+
+    def plan(*a, **k):
+        out = real_plan(*a, **k)
+        if not at_halt:
+            rt.arm.harness.halt("operator")
+            at_halt.append((commands(rt), len(jaws)))
+        return out
+
+    monkeypatch.setattr(rt, "_plan_grasps", plan)
+    return at_halt
+
+
+def halt_mid_stream(rt, monkeypatch, jaws, streaming, tick=5):
+    """Press STOP at the `tick`-th approved step of the first move for which
+    `streaming()` is true. Returns the (arm, jaw) command counts at the halt."""
+    harness, at_halt, ticks = rt.arm.harness, [], [0]
+    real_approve = harness.approve
+
+    def approve(q_prev, q_next, dt, **kw):
+        if streaming() and not at_halt:
+            ticks[0] += 1
+            if ticks[0] == tick:
+                harness.halt("operator")
+                at_halt.append((commands(rt), len(jaws)))
+        return real_approve(q_prev, q_next, dt, **kw)
+
+    monkeypatch.setattr(harness, "approve", approve)
+    return at_halt
+
+
+def grasp_phase(monkeypatch):
+    """The grasp's current evidence phase ("home", "pregrasp", ...)."""
+    current, real = [None], grasp_evidence.phase
+
+    def phase(name, *a, **k):
+        current[0] = name
+        return real(name, *a, **k)
+
+    monkeypatch.setattr(grasp_evidence, "phase", phase)
+    return current
+
+
+def nothing_after_the_halt(rt, at_halt, jaws):
+    assert len(at_halt) == 1, at_halt
+    assert (commands(rt), len(jaws)) == at_halt[0]        # no arm or jaw command after the halt
+    assert rt.arm.harness.estopped is False               # STOP is not the e-stop
+
+
+@pytest.mark.parametrize("skill, args", [GRASP, HANDOVER, PICK], ids=["grasp_object", "handover", "pick_and_place"])
+def test_a_halt_during_grasp_planning_ends_the_skill(rt, monkeypatch, skill, args):
+    """STOP while the grasp plans: the opening is refused before the jaws
+    move, nothing moves after it, the halt reaches execute() as itself and
+    nothing re-homes, re-scans or tries again."""
+    jaws = jaw_commands(rt, monkeypatch)
+    at_halt = halt_during_planning(rt, monkeypatch, jaws)
+    seen = recovery_spies(rt, monkeypatch)
+    res = rt.execute(skill, args)
+    stop_error(res, "halt", halt=SKILL_HALT)
+    nothing_after_the_halt(rt, at_halt, jaws)
+    assert at_halt[0] == (0, 0)
+    assert rt.arm.harness.halted == "operator"            # no motion cleared it
+    assert seen == {"grasps": 1, "homes": 0, "rescans": 0}
+
+
+@pytest.mark.parametrize("skill, args", [GRASP, HANDOVER, PICK], ids=["grasp_object", "handover", "pick_and_place"])
+def test_a_halt_during_the_grasps_home_move_stays_a_halt(rt, monkeypatch, skill, args):
+    """STOP while the grasp's home move (before the pregrasp) streams: the
+    move stops, its error handler does not latch the e-stop, and the halt
+    propagates as MotionHalted with nothing moving after it."""
+    jaws = jaw_commands(rt, monkeypatch)
+    phase = grasp_phase(monkeypatch)
+    at_halt = halt_mid_stream(rt, monkeypatch, jaws, lambda: phase[0] == "home")
+    seen = recovery_spies(rt, monkeypatch)
+    res = rt.execute(skill, args)
+    stop_error(res, "halt", halt=STREAM_HALT)
+    nothing_after_the_halt(rt, at_halt, jaws)
+    assert at_halt[0][1] == 1                             # only the opening before the home move
+    assert seen == {"grasps": 1, "homes": 0, "rescans": 0}
+
+
+@pytest.mark.parametrize("skill, args", [HANDOVER, PICK], ids=["handover", "pick_and_place"])
+def test_a_halt_during_the_persistence_rehome_ends_the_skill(rt, monkeypatch, skill, args):
+    """STOP while the retry loop re-homes after a failed (air) grasp: the
+    re-home stops, the halt propagates, no re-scan and no second attempt."""
+    rt.cfg.grasp._data["max_pick_attempts"] = 2
+    jaws = jaw_commands(rt, monkeypatch)
+    seen = recovery_spies(rt, monkeypatch)
+    spy_home, rehoming = rt.skill_move_home, [False]
+
+    def home(*a, **k):
+        rehoming[0] = True
+        try:
+            return spy_home(*a, **k)
+        finally:
+            rehoming[0] = False
+
+    monkeypatch.setattr(rt, "skill_move_home", home)
+    at_halt = halt_mid_stream(rt, monkeypatch, jaws, lambda: rehoming[0])
+    res = rt.execute(skill, args)
+    stop_error(res, "halt", halt=STREAM_HALT)
+    nothing_after_the_halt(rt, at_halt, jaws)
+    assert seen == {"grasps": 1, "homes": 1, "rescans": 0}
+
+
+def test_a_halt_before_the_raw_two_stage_close_keeps_the_jaws_open(rt, monkeypatch):
+    """The real reBot closes through its backend's own two-stage close
+    (outside SafeArm.set_gripper): a halt after the descent never closes it."""
+    raw, closes = rt.arm.raw, []
+    monkeypatch.setattr(raw, "close_gripper_two_stage", lambda **kw: closes.append(kw), raising=False)
+    jaws = jaw_commands(rt, monkeypatch)
+    real_move, at_halt = rt._move_joints, []
+
+    def move(q, *a, **kw):
+        out = real_move(q, *a, **kw)
+        if kw.get("bias_compensate"):                     # the descent
+            rt.arm.harness.halt("operator")
+            at_halt.append((commands(rt), len(jaws)))
+        return out
+
+    monkeypatch.setattr(rt, "_move_joints", move)
+    res = rt.execute(*GRASP)
+    stop_error(res, "halt", halt=SKILL_HALT)
+    nothing_after_the_halt(rt, at_halt, jaws)
+    assert closes == []
+
+
+def test_a_halt_while_execute_prepares_the_skill_ends_it(rt, monkeypatch):
+    """The skill starts when execute() takes it: a halt while execute() saves
+    the BEFORE keyframe (the skill body has not run yet) ends it too."""
+    jaws = jaw_commands(rt, monkeypatch)
+    real_save, at_halt = rt.trace.save_keyframe, []
+
+    def save(rgb, name, *a, **k):
+        out = real_save(rgb, name, *a, **k)
+        if name == "grasp_object_before":
+            rt.arm.harness.halt("operator")
+            at_halt.append((commands(rt), len(jaws)))
+        return out
+
+    monkeypatch.setattr(rt.trace, "save_keyframe", save)
+    res = rt.execute(*GRASP)
+    stop_error(res, "halt", halt=SKILL_HALT)
+    nothing_after_the_halt(rt, at_halt, jaws)
+
+
+def test_a_halt_while_pick_and_place_carries_ends_the_skill(rt, monkeypatch):
+    """pick_and_place holds the cube and carries it to the place: a STOP
+    during the carry ends the skill with the cube held, instead of a re-home
+    and a place retry."""
+    rt.arm.raw.object_stop_frac = 0.5                     # the jaws stall on the cube: held
+    jaws = jaw_commands(rt, monkeypatch)
+    seen = recovery_spies(rt, monkeypatch)
+    real_place, placing = rt.skill_place_at, [False]
+
+    def place(*a, **k):
+        placing[0] = True
+        try:
+            return real_place(*a, **k)
+        finally:
+            placing[0] = False
+
+    monkeypatch.setattr(rt, "skill_place_at", place)
+    at_halt = halt_mid_stream(rt, monkeypatch, jaws, lambda: placing[0])
+    res = rt.execute(*PICK)
+    stop_error(res, "halt", halt=STREAM_HALT)
+    nothing_after_the_halt(rt, at_halt, jaws)
+    assert seen == {"grasps": 1, "homes": 0, "rescans": 0} and rt.held_object == "red cube"
+
+
+def test_a_nested_motion_skill_keeps_the_outer_skills_baseline(rt, monkeypatch):
+    """A motion skill dispatched inside another keeps the OUTER skill's start:
+    a halt between the two starts refuses the inner skill's motion and, after
+    it returns, the outer skill's next motion."""
+    harness, seen = rt.arm.harness, {}
+    home = np.asarray(rt.cfg.arm.get("home_q"), dtype=float)
+
+    def wave(*a, **k):
+        harness.halt("operator")
+        seen["inner"] = rt.execute("move_home", {})
+        seen["after inner"] = commands(rt)
+        rt._move_planned(home, duration_s=1.0)
+        return {"ok": True}
+
+    monkeypatch.setattr(rt, "skill_wave", wave)
+    n0 = commands(rt)
+    res = rt.execute("wave", {})
+    assert seen["inner"]["ok"] is False and seen["inner"]["error"] == SKILL_HALT, seen["inner"]
+    stop_error(res, "halt", halt=SKILL_HALT)
+    assert commands(rt) == seen["after inner"] == n0 and harness.estopped is False
+
+
+@pytest.mark.parametrize("before", ["pending", "cleared by a motion", "after a halted skill"])
+def test_a_halt_before_the_skill_started_does_not_block_it(rt, monkeypatch, before):
+    """Pin today's rule: a halt raised before the skill started (pending, or
+    cleared by an earlier motion) does not block it, and a skill that ended
+    on a halt leaves no baseline behind. The grasp runs exactly as a normal
+    one (same command count)."""
+    harness = rt.arm.harness
+    if before == "after a halted skill":
+        jaws = jaw_commands(rt, monkeypatch)
+        halt_during_planning(rt, monkeypatch, jaws)       # halts the first planning only
+        stop_error(rt.execute(*GRASP), "halt", halt=SKILL_HALT)
+    else:
+        harness.halt("earlier")
+        if before == "cleared by a motion":
+            assert rt.execute("move_home", {})["ok"] is True and harness.halted is None
+    n0 = commands(rt)
+    res = rt.execute(*GRASP)
+    assert res["ok"] is False and AIR in res["error"] and res["exit_withdrawal"] == "completed (+3 cm)", res
+    assert commands(rt) - n0 == NORMAL_GRASP_COMMANDS and harness.estopped is False
+
+
+def test_a_normal_grasp_is_unchanged(rt):
+    """Pin: a grasp without any stop streams the same commands as before."""
+    res = rt.execute(*GRASP)
+    assert res["ok"] is False and AIR in res["error"] and res["exit_withdrawal"] == "completed (+3 cm)", res
+    assert commands(rt) == NORMAL_GRASP_COMMANDS
+
+
+@pytest.mark.parametrize("pending", [True, False], ids=["halted", "halt cleared"])
+def test_a_halt_before_the_attachment_is_reported_as_a_halt(pending):
+    """Isaac carry attachment: a caller whose baseline predates the attachment
+    (a halt arrived before the close) is refused as a halt, not as a
+    mismatched token, and the attachment stays failed (fail closed)."""
+    from test_carry_attachment import add_attachment, episode, runtime
+
+    att_rt = runtime()
+    harness = att_rt.arm.harness
+    grasp_start = harness._halt_generation
+    harness.halt("operator")
+    if not pending:
+        harness.clear_halt()                              # a motion cleared it before the close
+    state = add_attachment(att_rt.arm.get_state(), att_rt.arm.raw._signs)
+    carry_attachment.arm(att_rt, episode(att_rt, state), state)
+    att_rt.arm.move_joints = lambda *a, **k: pytest.fail("no motion after a halt")
+    reason = "operator" if pending else LIFT_HALT
+    with pytest.raises(carry_attachment.AttachmentInvalid, match=f"^halted: {reason}$"):
+        carry_attachment.move(att_rt, state.q, _halt_generation=grasp_start)
+    assert carry_attachment.active(att_rt).failure == f"halted: {reason}"
+    with pytest.raises(carry_attachment.AttachmentInvalid, match=f"^halted: {reason}$"):
+        carry_attachment.move(att_rt, state.q)            # the failure is latched
 
 
 # ── a refused or unreachable +3 cm lift tries +6 cm ─────────────────────────

@@ -532,6 +532,17 @@ class SkillRuntime:
     motion_cancel_requested = None
     arm_rig = None
     _call_measurements = None
+    #: Gripper close commands this runtime completed (`_close_two_stage`),
+    #: monotonic. With each harness's `motions_begun` it is the verifier's
+    #: "did this call act at all" signal (`_actuation_counts`).
+    _gripper_closes_commanded = 0
+    #: RELEASE opens this runtime completed, monotonic: counted after the
+    #: open command returns in open_gripper, place_at (its release and the
+    #: observed-slip drop) and throw. A handover keeps holding, so it ends
+    #: through open_gripper. Grasp-internal opens (pre-grasp, re-open after
+    #: a miss, screw strokes) are not releases and are not counted. The
+    #: verifier says "released" / "opened" only after a counted open.
+    _gripper_opens_completed = 0
     #: LinkSelfMask | None (B39): set by the app wiring when
     #: `workspace_filter.link_self_mask` is on; see perception/link_mask.py.
     _link_self_mask: "LinkSelfMask | None" = None
@@ -562,19 +573,28 @@ class SkillRuntime:
         """Rebind the PRIMARY arm (tests and harnesses do this directly)."""
         self._arm = value
 
-    def _contact_harnesses(self) -> list:
-        """Harnesses of every arm that files contact-monitor reports
-        (registry only: never materializes a standby LazyArm)."""
-        arms = list(self.arm_rig.arms.values()) if getattr(self, "arm_rig", None) is not None \
-            else [getattr(self, "_arm", None)]
-        out = []
+    def _arm_harnesses(self) -> list:
+        """The harness of every arm this runtime can command: the rig's arms,
+        then the bound primary, each harness once (None for an arm without
+        one). Registry only: read from each arm's instance dict, never
+        `getattr`, so bookkeeping never reaches a backend's __getattr__ (that
+        can probe or materialize a standby LazyArm)."""
+        arms = list(self.arm_rig.arms.values()) if getattr(self, "arm_rig", None) is not None else []
+        arms.append(getattr(self, "_arm", None))
+        out, seen = [], set()
         for arm in arms:
-            # The instance dict, not getattr: bookkeeping must never reach a
-            # backend's __getattr__ (that can probe or materialize an arm).
+            if arm is None:
+                continue
             harness = (getattr(arm, "__dict__", None) or {}).get("harness")
-            if harness is not None and callable(getattr(harness, "drain_contact_reports", None)):
+            if id(harness) not in seen:
+                seen.add(id(harness))
                 out.append(harness)
         return out
+
+    def _contact_harnesses(self) -> list:
+        """Harnesses of every arm that files contact-monitor reports."""
+        return [h for h in self._arm_harnesses()
+                if h is not None and callable(getattr(h, "drain_contact_reports", None))]
 
     def _select_arm(self, name):
         """Resolve an arm name to a SafeArm, or raise SkillError.
@@ -625,7 +645,30 @@ class SkillRuntime:
             table_z=float(self.cfg.safety.get("table_z", 0.0)),
             air_grasp_frac=float(self.cfg.grasp.get("air_grasp_frac", 0.04)),
             placement_check=self._verify_configured_placement,
+            actuation=self._actuation_counts,
         )
+
+    def _actuation_counts(self) -> dict | None:
+        """Monotonic counts of what this runtime commanded, for the verifier.
+
+        ``arm_motions`` sums `motions_begun` over every arm's harness
+        (`_arm_harnesses`): motions whose stream started (first approved
+        command; SafeArm, `move_planned`, cartesian paths and planner-bound
+        streams all approve each command in the harness). ``gripper_closes``
+        counts completed close commands (`_close_two_stage`),
+        ``gripper_opens`` completed release opens (`_gripper_opens_completed`).
+        None when any arm lacks a counting harness (a test double): the
+        verifier then claims neither "nothing happened" nor a close/release.
+        """
+        from ..safety.harness import SafetyHarness
+
+        harnesses = self._arm_harnesses()
+        if not harnesses or any(not isinstance(h, SafetyHarness) or type(h.motions_begun) is not int
+                                for h in harnesses):
+            return None
+        return {"arm_motions": sum(h.motions_begun for h in harnesses),
+                "gripper_closes": int(self._gripper_closes_commanded),
+                "gripper_opens": int(self._gripper_opens_completed)}
 
     def _verify_configured_placement(self, label, destination):
         """Resolve the requested area in configuration, then read physics only."""
@@ -1838,6 +1881,13 @@ class SkillRuntime:
                     **({"_planning_deadline": deadline}
                        if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1" else {}))
             except (SkillError, SafetyViolation) as e:
+                if isinstance(e, SlowPerceptionError):
+                    # Same rule as pick_and_place: an expired analysis is not
+                    # a miss to cure with a re-home and a re-scan; another
+                    # attempt only repeats it (one re-home per retry).
+                    return {"ok": False, "held": False, "error": f"{type(e).__name__}: {e}",
+                            "home_skipped": True, "grasp_attempts": attempt,
+                            "note": "localization analysis expired; no automatic motion recovery"}
                 res = {"ok": False, "error": f"{type(e).__name__}: {e}"}
             if res.get("ok", True) and res.get("held"):
                 res["grasp_attempts"] = attempt
@@ -4040,6 +4090,7 @@ class SkillRuntime:
                 _before_close()
             self._set_gripper(self._grip_closed, effort=profile.effort,
                               **({"_halt_generation": _halt_generation} if _halt_generation is not None else {}))
+            self._gripper_closes_commanded += 1
             return
         raw = self.arm.raw
         if hasattr(raw, "close_gripper_two_stage"):
@@ -4051,6 +4102,7 @@ class SkillRuntime:
                 width_frac_stage2=profile.close_frac_stage2,
                 effort=profile.effort,
             )
+            self._gripper_closes_commanded += 1
             return
         timeout = self.cfg.grasp.get("close_feedback_timeout_s")
         if timeout is not None:
@@ -4068,6 +4120,9 @@ class SkillRuntime:
                                  target_pos=self._grip_open + span * frac)
             self._set_gripper(self._grip_open + span * frac, effort=eff,
                                  **({"_halt_generation": _halt_generation} if _halt_generation is not None else {}))
+            # Counted once the command is accepted: the verifier may then say
+            # "the jaw closed" (a refused stage leaves the count unchanged).
+            self._gripper_closes_commanded += 1
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
             if timeout is not None:
                 self._wait_gripper_closed(1.0 - frac, timeout)
@@ -4359,6 +4414,7 @@ class SkillRuntime:
                                          _halt_generation=observation_generation)
                 except SafetyViolation as exc:
                     raise HeldObservationInvalid("observed-slip opening was cancelled") from exc
+                self._gripper_opens_completed += 1
                 slipped = self.held_object
                 self.held_object = None
                 self._held_det_label = None
@@ -4483,6 +4539,7 @@ class SkillRuntime:
                 raise
             # This is the native intentional release, after the separate
             # release-episode identity/geometry checks. It ends carry scope.
+            self._gripper_opens_completed += 1
             self._carry_attachment = None
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
             if release_timeout is not None and release is not None:
@@ -5337,6 +5394,7 @@ class SkillRuntime:
         # kick off the swing in a background stream and release mid-arc.
         self._move_joints(release, duration_s=0.6)
         self._set_gripper(self._grip_open, effort=1.0)  # let it fly
+        self._gripper_opens_completed += 1
         released_obj = self.held_object
         self.held_object = None
         self._held_det_label = None
@@ -6236,6 +6294,7 @@ class SkillRuntime:
 
     def skill_open_gripper(self) -> dict:
         self._set_gripper(self._grip_open, effort=0.8)
+        self._gripper_opens_completed += 1
         if self.held_object:
             self.memory.add("action", f"released {self.held_object!r}")
             self.held_object = None

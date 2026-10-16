@@ -356,3 +356,11 @@ Keep green: `tests/test_brain_detector.py`, `test_brain_vocabulary_runtime.py`, 
   check; 10 % growth refuses the 0.25 cm slide that must pass). A named detection without a mask is refused (fail closed).
   The two-phase path stops retrying once `semantic_max_age_s` has elapsed (absent object, 6 s brain, 2 other cameras:
   24.9 s instead of 61.9 s). The end-to-end run logs `mask_iou` per pick to check 0.85 against real SAM.
+- P6 (after T1 rounds 2-3). Still scenes must pass, moved objects must be caught. The comparison is like with like: frame0 is
+  re-masked by SAM with the same grown prompt as frame1 (`BrainDetector.reanchor_reference`, before frame1 is taken, so
+  frame1's age is unchanged; `reanchor(frame1, det, *, since=frame0, reference=...)`; LockedDetector forwards both, class-only).
+  Frame1's mask keeps only components overlapping the frame0 re-mask (dilated 2 px); the re-mask keeps only components
+  overlapping the naming mask and must cover >= 0.95 of it. Agreement replaces raw IoU: with tol_px = max(2, 0.03 x diagonal),
+  >= `reanchor_mask_agreement` (0.95) of each mask lies within tol_px of the other. The 2 cm move check compares medians of
+  depth points inside 2 px-eroded masks on both frames. SAM prompt margin >= 6 px a side. 3 SAM calls per attempt (naming,
+  re-mask, frame1). Mock probes: still scenes 76/76 accepted; moved slides 108/108 end at the new position (<= 0.17 cm).

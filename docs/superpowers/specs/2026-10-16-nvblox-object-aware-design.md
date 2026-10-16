@@ -634,7 +634,19 @@ Append to **Motion safety path** (AGENTS.md:61):
 > payload and unknown voxels keep `min_clearance_m` everywhere. Stale or doubtful labels are
 > "unknown"; never fall back to the legacy column silently.
 
-## 11. Open questions for the owner
+## 11. Owner decisions (2026-10-16: "Ok all" on the recommended answers)
+
+- **Q1: (a).** Corridor floor 1.0 cm, enabled only after the fit-error measurement (§4.6) passes; until
+  then the corridor margin equals `min_clearance_m` (3 cm), so PR-B ships with no margin change.
+- **Q2: yes.** The corridor ends when the lift has retraced the descent back to `q_pre`; the
+  pregrasp pose itself keeps 3 cm.
+- **Q3: yes, as the next PR** (adaptive pre-grasp opening), out of scope here.
+- **Q4: report-only.** `robot`-labelled voxels are reported, never exempt, in this spec.
+- **Q5:** calipers and the 20-minute no-motion capture are pending owner input; lever 4 and the
+  corridor-margin value wait for them, nothing else does.
+
+The original questions, for the record:
+
 
 1. **Q1, corridor margin below the 2 cm body mask.** New frames hide anything within ~2 cm of the
    fingers (§1.3.4). Below 2 cm, `m_corr` holds against the frozen prism only, so a neighbour

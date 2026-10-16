@@ -11,6 +11,7 @@ with coordinates normalized to 0-1000 of the full image.
 from __future__ import annotations
 
 import base64
+import contextlib
 import json
 import logging
 import math
@@ -25,6 +26,8 @@ import numpy as np
 
 from ..types import Detection, Frame
 from .detector import Detector
+from .grounding import host_crop as _host_crop
+from .grounding import mask_box as _mask_box
 from .thread_join import join_thread
 
 if TYPE_CHECKING:
@@ -144,12 +147,49 @@ _JPEG_QUALITY = 85
 _THUMB_SIZE = (64, 36)
 #: At most one failure warning per detector in this many seconds.
 _WARN_EVERY_S = 30.0
-#: close() waits this long beyond the request timeout for a refresh to finish.
+#: close() waits this long beyond the background request timeout for a
+#: refresh to finish (after cancelling it, a stream ends at its next chunk).
 _CLOSE_MARGIN_S = 5.0
+#: Every foreground() scope entry waits at most this long for a cancelled
+#: background request to close its stream before the foreground work starts
+#: (BEFORE the skill takes its frame, so it never ages that frame). A request
+#: still waiting for its first chunk (prefill) may outlast it.
+_CANCEL_WAIT_S = 0.5
 #: close() waits this long for the SAM warm-up (weights load + the first,
 #: cold CUDA predict): the same minute thread_join.EXIT_JOIN_S allows the
 #: slowest cold tick measured. Past it, shutdown names the thread instead.
 _WARM_UP_JOIN_S = 60.0
+#: reanchor(): the local image check compares the brain's box grown by this
+#: fraction of its width and height (half on each side).
+_REANCHOR_BOX_GROWTH = 0.10
+#: reanchor(): SAM's prompt on the fresh frame (and on the named frame for
+#: the mask it is compared with: reanchor_reference) is the brain's box grown
+#: by this fraction (half on each side), at least _REANCHOR_PROMPT_MIN_PX on
+#: each side, and a fresh mask must not newly reach its border. A mask clipped
+#: by a stale prompt always touches it; the margin (8 px on an 80 px box)
+#: keeps a still object, SAM jitter and a box a pixel tight off it.
+_REANCHOR_PROMPT_GROWTH = 0.20
+#: ...the floor of that margin: on a 24x18 px object 20 % is 2 px, which a
+#: still object's mask reaches with 2 px of SAM jitter or a brain box 2 px
+#: tight. Neighbours the wider prompt takes in are dropped by components.
+_REANCHOR_PROMPT_MIN_PX = 6.0
+#: reanchor(): the new mask's bounding box must overlap the brain's box by at
+#: least this IoU, or SAM masked something else than the brain's box.
+REANCHOR_MIN_IOU = 0.5
+#: reanchor(): of the new mask, only the connected components that come
+#: within this many pixels of the old mask (the old mask dilated by it) are
+#: the object; the rest (a neighbour inside SAM's grown prompt) is dropped
+#: before the border, agreement and geometry see the mask.
+_REANCHOR_COMPONENT_REACH_PX = 2.0
+#: reanchor(): the two masks agree when at least `reanchor_mask_agreement` of
+#: each one's pixels lie within this tolerance of the other: max(the floor,
+#: the fraction x the diagonal of the old mask's box) pixels. SAM's 1-2 px
+#: edge jitter and a brain box a few px tight stay inside it on any size.
+#: The same tolerance bounds the geometry: what is measured is SAM's mask
+#: without what both images' same-prompt masks add farther than it from the
+#: naming mask (a merged neighbour, the ring a tight brain box cut off).
+_REANCHOR_TOL_MIN_PX = 2.0
+_REANCHOR_TOL_FRAC = 0.03
 
 
 class _Entry(NamedTuple):
@@ -171,10 +211,78 @@ class _Request(NamedTuple):
     t: float  # clock time of that latest ask
 
 
-def _camera_key(frame: Frame) -> tuple[int, int, int, int]:
-    """Frame carries no camera name; image size + intrinsics tell scene from wrist."""
+class ReanchorResult(NamedTuple):
+    """What `BrainDetector.reanchor` found on the newer frame.
+
+    `detection` is the brain's detection with a SAM mask on the newer frame
+    and that mask's bounding box, or None: then `scene_changed` says whether
+    the image changed around it (the brain's box no longer describes this
+    frame) or SAM found no usable mask in it, and `reason` says which. The
+    two diffs are always measured (mean absolute grey levels of the
+    thumbnails; the largest B/G/R mean absolute difference in the grown
+    box). Evidence once known: `prompt_box`, the grown box SAM was prompted
+    with (xyxy pixels); `mask_iou`, the pixel IoU of the newer mask with the
+    same-prompt mask of the image the object was named on (its re-mask,
+    `ReanchorReference`); `mask_agreement`, the smaller of the two shares of
+    each mask's pixels within the size-aware tolerance of the other; `dropped_components`, how many separate parts of SAM's newer mask
+    (neighbours) were dropped before any of that; `clipped_px`, how many
+    pixels of the kept mask are not in the detection's mask (the geometry):
+    those farther than that tolerance from the naming mask that the
+    reference mask also has (a neighbour SAM merged under the grown prompt
+    on both images, or the ring a tight box cut off beyond the tolerance)."""
+
+    detection: Detection | None
+    scene_changed: bool
+    reason: str
+    scene_diff_global: float
+    scene_diff_local: float
+    prompt_box: tuple[int, int, int, int] | None = None
+    mask_iou: float = math.nan
+    mask_agreement: float = math.nan
+    dropped_components: int = 0
+    clipped_px: int = 0
+
+
+class ReanchorReference(NamedTuple):
+    """What `BrainDetector.reanchor_reference` made of the image the object
+    was named on: `detection` is the named detection with SAM's mask for the
+    grown prompt reanchor() gives the fresh image (only its parts that
+    overlap the naming mask) and that mask's box, or None with `reason` (a
+    failed re-anchor). `prompt_box` is that prompt (xyxy pixels); `coverage`
+    the share of the naming mask's pixels within the tolerance of the
+    re-mask. `detection` is what reanchor() COMPARES the fresh mask with;
+    `geometry` is what the runtime MEASURES on this image (the 2 cm move
+    check's frame0 side): the same re-mask without its pixels farther than
+    the agreement tolerance from the naming mask, as reanchor() clips the
+    fresh mask."""
+
+    detection: Detection | None
+    reason: str
+    prompt_box: tuple[int, int, int, int] | None = None
+    coverage: float = math.nan
+    geometry: Detection | None = None
+
+
+class _Cancelled(Exception):
+    """A background refresh closed by a foreground scope or close(): not a
+    failure (no backoff, no warning); the scope's exit requeues it."""
+
+
+def _camera_key(frame: Frame) -> tuple:
+    """Image size + intrinsics tell scene from wrist; a frame whose capture
+    names its camera (Isaac bridge, OVRTX) also keys by (source, camera): two
+    simulated cameras with the same size and K (the kitchen's cam0 and side)
+    would otherwise share one cache entry and invalidate each other's
+    inventory on every tick. Frames without that identity (RealSense, mock)
+    keep the size + K key."""
     h, w = frame.rgb.shape[:2]
-    return h, w, round(float(frame.K[0, 0])), round(float(frame.K[0, 2]))
+    key = (h, w, round(float(frame.K[0, 0])), round(float(frame.K[0, 2])))
+    capture = getattr(frame, "capture", None)
+    if isinstance(capture, dict) and isinstance(capture.get("camera"), str):
+        # str(): the bridge's source is a (host, port) tuple; any other shape
+        # must not make the key unhashable.
+        return key + (str(capture.get("source")), capture["camera"])
+    return key
 
 
 def _cache_key(frame: Frame, queries: tuple[str, ...] | None):
@@ -191,6 +299,175 @@ def _thumbnail(frame: Frame) -> np.ndarray:
 
 def _scene_diff(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.mean(np.abs(a.astype(np.float32) - b.astype(np.float32))))
+
+
+def _grown_box(box, shape, growth: float = _REANCHOR_BOX_GROWTH, min_px: float = 0.0) -> tuple[int, int, int, int]:
+    """`box` (xyxy pixels) grown by `growth` of its width and height (half on
+    each side, at least `min_px` on each side), outward to whole pixels,
+    clipped to an image of `shape` (h, w, ...): integer xyxy, the end
+    exclusive."""
+    h, w = shape[:2]
+    x0, y0, x1, y1 = (float(v) for v in np.asarray(box, dtype=np.float64).reshape(-1)[:4])
+    gx, gy = max((x1 - x0) * growth / 2, min_px), max((y1 - y0) * growth / 2, min_px)
+    return (max(int(math.floor(x0 - gx)), 0), max(int(math.floor(y0 - gy)), 0),
+            min(int(math.ceil(x1 + gx)), w), min(int(math.ceil(y1 + gy)), h))
+
+
+def _reanchor_prompt(box, shape) -> tuple[int, int, int, int]:
+    """SAM's prompt for a re-anchor, on the fresh frame and on the named one
+    alike: `box` grown by _REANCHOR_PROMPT_GROWTH, at least
+    _REANCHOR_PROMPT_MIN_PX a side."""
+    return _grown_box(box, shape, _REANCHOR_PROMPT_GROWTH, _REANCHOR_PROMPT_MIN_PX)
+
+
+def _local_diff(a: Frame, b: Frame, box) -> float:
+    """The largest of the B, G and R mean absolute differences of two
+    same-size frames inside `box` (xyxy pixels) grown by
+    _REANCHOR_BOX_GROWTH; inf when nothing of it is inside the image.
+    Colour, not grey: an object as bright as the table moves unseen in grey."""
+    xa, ya, xb, yb = _grown_box(box, a.rgb.shape)
+    if xb <= xa or yb <= ya:
+        return math.inf
+    diff = np.abs(a.rgb[ya:yb, xa:xb].astype(np.float32) - b.rgb[ya:yb, xa:xb].astype(np.float32))
+    return float(diff.reshape(-1, diff.shape[2] if diff.ndim == 3 else 1).mean(axis=0).max())
+
+
+def _tolerance_px(box) -> float:
+    """The agreement tolerance of a mask with box `box` (xyxy pixels):
+    max(_REANCHOR_TOL_MIN_PX, _REANCHOR_TOL_FRAC x its diagonal)."""
+    return max(_REANCHOR_TOL_MIN_PX, _REANCHOR_TOL_FRAC * math.hypot(box[2] - box[0], box[3] - box[1]))
+
+
+class _Clip(NamedTuple):
+    """`_clip_to_naming`: the clipped mask (`mask`: the input itself, still
+    opaque, when nothing was cut; else a host bool mask of its size), its
+    box (frame xyxy; None when nothing is left) and the pixels cut."""
+
+    mask: object
+    box: np.ndarray | None
+    removed: int
+
+
+def _clip_to_naming(mask, mask_box, naming, naming_box, tol_px: float, reference=None,
+                    reference_box=None) -> _Clip:
+    """`mask` without its pixels farther than `tol_px` (Euclidean) from the
+    naming mask `naming` (the naming mask dilated by the tolerance) that
+    `reference`, the other image's same-prompt mask, ALSO has within the
+    tolerance: what SAM's grown prompt adds beyond the naming mask on both
+    images alike (a neighbour merged with the object, the ring a tight brain
+    box cut off), which main's single-frame mask lacks too. Pixels new on
+    this image (farther than the tolerance from `reference`: the object
+    where it moved to, within the agreement's slack) stay: cutting them
+    would measure a slid object where it was. Without `reference`, every
+    pixel farther than the tolerance from the naming mask is cut. On the
+    crop covering the boxes: one host copy per mask, sliced on the device
+    for a CUDA tensor."""
+    boxes = [mask_box, naming_box] + ([reference_box] if reference is not None else [])
+    x0, y0 = int(min(b[0] for b in boxes)), int(min(b[1] for b in boxes))
+    x1, y1 = int(max(b[2] for b in boxes)), int(max(b[3] for b in boxes))
+    named, crop = _host_crop(naming, x0, y0, x1, y1), _host_crop(mask, x0, y0, x1, y1)
+    near = cv2.distanceTransform((~named).astype(np.uint8), cv2.DIST_L2, cv2.DIST_MASK_PRECISE) <= tol_px
+    if reference is not None:
+        ref = _host_crop(reference, x0, y0, x1, y1)
+        near |= cv2.distanceTransform((~ref).astype(np.uint8), cv2.DIST_L2, cv2.DIST_MASK_PRECISE) > tol_px
+    removed = int(np.count_nonzero(crop & ~near))
+    if not removed:
+        return _Clip(mask, np.asarray(mask_box, dtype=np.float64), 0)
+    kept = crop & near
+    box = _mask_box(kept)
+    if box is None:
+        return _Clip(None, None, removed)
+    out = np.zeros(tuple(mask.shape), dtype=bool)
+    out[y0:y1, x0:x1] = kept
+    return _Clip(out, box + np.array([x0, y0, x0, y0], dtype=np.float64), removed)
+
+
+class _MaskMatch(NamedTuple):
+    """`_match_masks`: the newer mask's kept components (`kept`, host bools on
+    the crop at `origin`, None when no component is near the old mask) and
+    how the kept mask compares with the old one."""
+
+    kept: np.ndarray | None
+    origin: tuple[int, int]
+    dropped: int
+    agreement: float
+    iou: float
+    tol_px: float
+    new_near: float = math.nan  # share of the kept mask's pixels within tol_px of `old`
+    old_near: float = math.nan  # share of `old`'s pixels within tol_px of the kept mask
+
+
+def _match_masks(old, old_box, new, new_box, *, reach_px: float = _REANCHOR_COMPONENT_REACH_PX) -> _MaskMatch:
+    """Compare an older mask `old` with a newer mask `new` (same size,
+    opaque, non-empty, with their boxes) on the crop covering both, at full
+    resolution: one host copy per mask, sliced on the device for a CUDA
+    tensor.
+
+    First the component filter: of `new`, only the 8-connected components
+    with a pixel within `reach_px` of `old` are kept (0: overlapping it; by
+    default _REANCHOR_COMPONENT_REACH_PX: a still neighbour inside SAM's
+    grown prompt is a separate component; a neighbour that moved into
+    contact is part of the object's). Then, for the kept mask: `new_near`,
+    the share of its pixels within `tol_px` of `old`; `old_near`, the share
+    of `old`'s pixels within `tol_px` of it; `agreement`, the smaller of the
+    two, with tol_px = max(_REANCHOR_TOL_MIN_PX, _REANCHOR_TOL_FRAC x the
+    diagonal of `old`'s box); `iou`, their raw pixel IoU (evidence)."""
+    x0, y0 = int(min(old_box[0], new_box[0])), int(min(old_box[1], new_box[1]))
+    x1, y1 = int(max(old_box[2], new_box[2])), int(max(old_box[3], new_box[3]))
+    a, b = _host_crop(old, x0, y0, x1, y1), _host_crop(new, x0, y0, x1, y1)
+    tol_px = _tolerance_px(old_box)
+    # Euclidean distance of every crop pixel to the nearest pixel of `old`.
+    to_old = cv2.distanceTransform((~a).astype(np.uint8), cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+    count, labels = cv2.connectedComponents(b.astype(np.uint8), connectivity=8)
+    near = np.unique(labels[b & (to_old <= reach_px)])
+    near = near[near != 0]
+    dropped = count - 1 - near.size
+    if near.size == 0:
+        return _MaskMatch(None, (x0, y0), dropped, math.nan, math.nan, tol_px)
+    kept = np.isin(labels, near)
+    to_kept = cv2.distanceTransform((~kept).astype(np.uint8), cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+    new_near = np.count_nonzero(to_old[kept] <= tol_px) / np.count_nonzero(kept)
+    old_near = np.count_nonzero(to_kept[a] <= tol_px) / np.count_nonzero(a)
+    iou = np.count_nonzero(a & kept) / np.count_nonzero(a | kept)
+    return _MaskMatch(kept, (x0, y0), dropped, float(min(new_near, old_near)), float(iou), tol_px,
+                      float(new_near), float(old_near))
+
+
+def _kept_mask(new, match: _MaskMatch):
+    """frame1's mask with only the kept components: `new` itself (still
+    opaque) when nothing was dropped, else a host bool mask of its size."""
+    if not match.dropped:
+        return new
+    out = np.zeros(tuple(new.shape), dtype=bool)
+    x0, y0 = match.origin
+    h, w = match.kept.shape
+    out[y0:y0 + h, x0:x0 + w] = match.kept
+    return out
+
+
+def _touched_sides(mask_box, grown) -> set[str]:
+    """The sides of the integer box `grown` that a mask with box `mask_box`
+    reaches (or crosses)."""
+    xa, ya, xb, yb = grown
+    sides = set()
+    if mask_box[0] <= xa:
+        sides.add("left")
+    if mask_box[1] <= ya:
+        sides.add("top")
+    if mask_box[2] >= xb:
+        sides.add("right")
+    if mask_box[3] >= yb:
+        sides.add("bottom")
+    return sides
+
+
+def _box_iou(a, b) -> float:
+    ax0, ay0, ax1, ay1 = (float(v) for v in np.asarray(a, dtype=np.float64).reshape(-1)[:4])
+    bx0, by0, bx1, by1 = (float(v) for v in np.asarray(b, dtype=np.float64).reshape(-1)[:4])
+    iw, ih = min(ax1, bx1) - max(ax0, bx0), min(ay1, by1) - max(ay0, by0)
+    inter = max(iw, 0.0) * max(ih, 0.0)
+    union = (ax1 - ax0) * (ay1 - ay0) + (bx1 - bx0) * (by1 - by0) - inter
+    return inter / union if union > 0 else 0.0
 
 
 def _jpeg_data_url(frame: Frame) -> str:
@@ -215,9 +492,15 @@ class BrainDetector(Detector):
     they return a track step (SAM on the cached boxes in THIS frame) and, once
     the entry is older than `refresh_s`, start a background refresh.
     Otherwise (no entry, scene changed, too old) they ask the brain
-    synchronously and store the answer. One exception (Ruling 35): an entry
-    past `max_cache_age_s` whose scene is unchanged keeps being tracked while
-    that key's background refresh is in flight or waiting for the slot.
+    synchronously, under `inventory_timeout_s` (the same tokens as a
+    background inventory), and store the answer. One exception (Ruling 35):
+    an entry past `max_cache_age_s` whose scene is unchanged keeps being
+    tracked while that key's background refresh is in flight or waiting for
+    the slot. Keep `max_cache_age_s >= idle_refresh_s + 5 s` (every shipped
+    profile does; the 5 s cover the watcher's tick that starts the idle
+    refresh): an unchanged scene's entry then ages out only once the
+    watcher's idle refresh is pending, so it never costs a synchronous
+    inventory.
 
     Two clocks:
     - `refresh_s` (default 4 s): the synchronous path's freshness threshold
@@ -247,26 +530,62 @@ class BrainDetector(Detector):
     watchdog's heartbeat) never asks the brain on the caller's thread: it
     answers from the cache and refreshes in the background.
 
+    `reanchor` (two-phase localization) re-finds one detection the brain
+    named on an older frame in a newer frame of the same camera: SAM on the
+    brain's box grown by 20 % (at least 6 px a side), no brain call; parts of
+    the new mask not connected to the old mask's place (a neighbour) are
+    dropped. Refused as a scene change when the image changed around it
+    (`scene_change` over the whole view, `reanchor_local_diff` in colour
+    inside the box grown by 10 %), when the new mask reaches a border of
+    SAM's prompt box the old mask did not, or when under
+    `reanchor_mask_agreement` of either mask's pixels lie within a few pixels
+    (size-aware) of the other; refused as a failed re-anchor when the mask is
+    missing, empty or off the box.
+
+    Foreground scope (`foreground()`, re-entrant; the runtime holds it for
+    motion skills, preview_grasp and localize_object): background work never
+    competes with a foreground localization for the brain or SAM. While it
+    is held, no background refresh starts (requests still queue, keeping
+    their latest frame), the one in flight is cancelled (background requests
+    stream with `inventory_timeout_s`; a cancelled stream is closed, which
+    aborts the request on the server, and goes back to the queue with the
+    key's newest frame: no backoff, no warning, whatever error ends it), and
+    `detect_nowait` returns [] without a SAM call. When the outermost scope
+    ends, the oldest waiting request starts. An agent's refers stay single
+    non-streaming requests (`timeout_s`).
+
     Safe to call from several threads at once: the cache lock is never held
     across the brain or SAM call, and the segmenter serializes its own model
     calls.
     """
 
     concurrent_safe = True
+    #: world.WorldWatcher asks a non-fusing camera (fuse=False: the sim's proof
+    #: camera, the rig's wrist) nothing: no background inventory, no SAM step.
+    #: The primary camera is exempt (its entry serves describe_scene and
+    #: localization).
+    background_fusing_cameras_only = True
 
     def __init__(self, *, base_url: str, model: str, api_key_file: str | None = None,
                  timeout_s: float = 20.0, max_tokens: int = 1500, segmenter: BoxSegmenter | None = None,
                  refresh_s: float = 4.0, max_cache_age_s: float = 30.0, scene_change: float = 6.0,
-                 idle_refresh_s: float = 30.0, client=None, clock=time.monotonic):
+                 idle_refresh_s: float = 30.0, inventory_timeout_s: float | None = None,
+                 reanchor_local_diff: float = 8.0, reanchor_mask_agreement: float = 0.95,
+                 client=None, clock=time.monotonic):
         self._base_url = str(base_url)
         self._model = str(model)
         self._timeout_s = float(timeout_s)
+        # Background (streamed) requests: the whole request, first byte to last
+        # chunk. Defaults to timeout_s; a slow brain's inventory needs more.
+        self._inventory_timeout_s = float(timeout_s if inventory_timeout_s is None else inventory_timeout_s)
         self._max_tokens = int(max_tokens)
         self._segmenter = segmenter
         self._refresh_s = float(refresh_s)
         self._idle_refresh_s = float(idle_refresh_s)
         self._max_cache_age_s = float(max_cache_age_s)
         self._scene_change = float(scene_change)
+        self._reanchor_local_diff = float(reanchor_local_diff)
+        self._reanchor_mask_agreement = float(reanchor_mask_agreement)
         self._clock = clock
         self._api_key = self._read_key(api_key_file)
         self._client = client
@@ -283,6 +602,10 @@ class BrainDetector(Detector):
         # background: the backoff both paths obey. A success for the key clears it.
         self._failed_at: dict[tuple, float] = {}
         self._threads: set[threading.Thread] = set()
+        # The cancel Event of each background request in flight (by key).
+        self._cancels: dict[tuple, threading.Event] = {}
+        # Depth of foreground() scopes held right now (re-entrant, any thread).
+        self._foreground = 0
         self._closed = False
         self._last_warn: float | None = None
         # The SAM warm-up on this detector's segmenter. apps.demo starts it
@@ -352,6 +675,9 @@ class BrainDetector(Detector):
         background refresh asks the brain at once. No refresh starts while
         the key backs off after a failed call; while another refresh runs,
         the request waits for the slot (served oldest-first).
+
+        Inside a foreground() scope: [] without any SAM call; a refresh the
+        frame needs is queued (with this frame) and starts after the scope.
         """
         try:
             queries = tuple(str(q) for q in classes) if classes else None
@@ -361,22 +687,242 @@ class BrainDetector(Detector):
             known = self._known_entry(key, thumb)
             if known is None or now - known.t > self._idle_refresh_s:
                 self._start_refresh(key, frame, thumb, now)
+            with self._lock:
+                if self._foreground:
+                    return []  # the GPU belongs to the foreground localization
             return self._track_known(frame, known)
         except Exception as e:  # noqa: BLE001 - booth rule: degrade, never crash the caller
             self._warn("detection failed; returning no detections", e)
             return []
 
+    def can_reanchor(self) -> bool:
+        """reanchor() can mask a box on a new frame: a segmenter is configured."""
+        return self._segmenter is not None
+
+    def reanchor_reference(self, frame: Frame, det: Detection) -> ReanchorReference:
+        """The mask reanchor() compares a fresh image's mask with: SAM
+        re-masks `det` on `frame`, the image the brain named it on, with the
+        SAME prompt reanchor() gives the fresh image (the brain's box grown
+        20 %, at least _REANCHOR_PROMPT_MIN_PX a side). SAM keeps a mask inside
+        its prompt, so a brain box that cuts the object clips the naming mask
+        but neither of these two: the checks compare like with like. Call it
+        BEFORE taking the fresh image: its SAM call is no part of that image's
+        age.
+
+        Of the re-mask only the connected components that overlap the naming
+        mask are kept (a neighbour the wider prompt takes in is not the
+        object). Refused, as a failed re-anchor (one image: nothing moved),
+        when no segmenter is configured, `det` has no mask, SAM gives no mask
+        or an empty one, no part of it overlaps the naming mask, the kept
+        mask's box overlaps the brain's box by IoU < REANCHOR_MIN_IOU, or under
+        `reanchor_mask_agreement` of the naming mask's pixels lie within the
+        tolerance (as reanchor's) of the kept mask: SAM masked only part of
+        the object, and two such masks would agree with each other and
+        measure that part. The re-mask may reach past the naming mask: that
+        ring is what a tight box cut off. The reference's `geometry` is the
+        kept re-mask clipped as reanchor() clips the fresh mask (to the naming
+        mask dilated by the agreement tolerance of the kept re-mask's box):
+        the frame0 side of the runtime's move check."""
+        where = "on the image the object was named on"
+        if self._segmenter is None:
+            return ReanchorReference(None, "no segmenter is configured")
+        named_box = _mask_box(det.mask) if det.mask is not None else None
+        if named_box is None:
+            return ReanchorReference(None, f"the object has no mask {where}")
+        prompt_box = _reanchor_prompt(det.bbox, frame.rgb.shape)
+        prompt = np.asarray(prompt_box, dtype=np.float32).reshape(1, 4)
+        found = self._detections(frame, [det.label], prompt, track=True)
+        mask = found[0].mask if found else None
+        if mask is None:
+            return ReanchorReference(None, f"SAM returned no mask for the grown box {where}", prompt_box)
+        mask_box = _mask_box(mask)
+        if mask_box is None:
+            return ReanchorReference(None, f"SAM returned an empty mask for the grown box {where}", prompt_box)
+        match = _match_masks(det.mask, named_box, mask, mask_box, reach_px=0.0)
+        if match.kept is None:
+            return ReanchorReference(None, f"SAM's mask lies off the box: no part of it overlaps the object's mask "
+                                           f"{where}", prompt_box)
+        kept_box = _mask_box(match.kept) + np.array([*match.origin, *match.origin], dtype=np.float64)
+        iou = _box_iou(kept_box, det.bbox)
+        if not iou >= REANCHOR_MIN_IOU:
+            return ReanchorReference(None, f"SAM's mask lies off the box (IoU {iou:.2f} < {REANCHOR_MIN_IOU:g}) "
+                                           f"{where}", prompt_box)
+        if not match.old_near >= self._reanchor_mask_agreement:
+            return ReanchorReference(None, f"SAM's mask for the grown box covers only {match.old_near:.2f} of the "
+                                           f"object's mask {where} (< {self._reanchor_mask_agreement:g} of its "
+                                           f"pixels within {match.tol_px:.1f} px)", prompt_box, match.old_near)
+        kept = _kept_mask(mask, match)
+        detection = Detection(label=det.label, conf=det.conf, bbox=kept_box.astype(np.float32), mask=kept)
+        clip = _clip_to_naming(kept, kept_box, det.mask, named_box, _tolerance_px(kept_box))
+        if clip.box is None:  # unreachable while the kept mask overlaps the naming mask; fail closed
+            return ReanchorReference(None, f"no part of SAM's mask for the grown box lies near the object's mask "
+                                           f"{where}", prompt_box, match.old_near)
+        geometry = Detection(label=det.label, conf=det.conf, bbox=clip.box.astype(np.float32), mask=clip.mask)
+        return ReanchorReference(detection, "", prompt_box, match.old_near, geometry)
+
+    def reanchor(self, frame: Frame, det: Detection, *, since: Frame,
+                 reference: ReanchorReference | None = None) -> ReanchorResult:
+        """Re-find `det`, which the brain named on `since` (with SAM's mask
+        there), in the newer `frame` of the same camera, without asking the
+        brain. `reference` is `reanchor_reference(since, det)`, taken before
+        `frame` was (None: made here, its SAM call inside this frame's age).
+
+        Refused as a scene change, with no SAM call, when the thumbnails of the
+        two frames differ by more than `scene_change` or, inside the brain's
+        box grown by 10 %, the largest B/G/R mean difference exceeds
+        `reanchor_local_diff`. Refused as a failed re-anchor when the
+        reference was refused. Otherwise SAM masks the brain's box grown by
+        20 %, at least _REANCHOR_PROMPT_MIN_PX a side, on `frame` (the track
+        step): the reference's prompt, so both masks are made alike and
+        compared with each other. Of the new mask only the connected
+        components within 2 px of the reference mask are kept (a still
+        neighbour inside the prompt is dropped before any check and the
+        geometry; one that moved into contact is part of the object's
+        component). Refused as a failed re-anchor when SAM gives no mask, an
+        empty one, none of it near the reference mask, or a kept mask whose
+        bounding box overlaps the brain's box by IoU < REANCHOR_MIN_IOU.
+        Refused as a scene change when the kept mask reaches a side of the
+        prompt box the reference mask did not reach (the object extends past
+        the box it was named in; a mask clipped by a stale prompt touches it),
+        or when under `reanchor_mask_agreement` of its pixels lie within the
+        tolerance (max(2 px, 3 % of the reference mask box's diagonal)) of the
+        reference mask, or of the reference mask's pixels within it of the
+        kept one. All of these compare SAM's own (unclipped) masks. The
+        detection returned is the GEOMETRY: the kept mask without its pixels
+        that lie farther than that tolerance from `det`'s naming mask (the
+        naming mask dilated by it) and within it of the reference mask, and
+        that mask's bounding box. A neighbour SAM merged with the object
+        under the grown prompt on both images agrees with itself and is cut
+        off here, and a tight brain box gives main's single-frame geometry;
+        pixels new on `frame` (an object that slid within the agreement's
+        slack: up to 5 % of a long object's pixels past the tolerance) stay,
+        so a slid object is measured where it is. Refused as a failed
+        re-anchor when `det` has no naming mask or nothing of the kept mask
+        is left. Never falls back
+        to the box: a box cloud includes table pixels. Masks stay opaque
+        (numpy or CUDA tensors): only projections and one crop per mask are
+        copied to the host; a mask with dropped components or clipped pixels
+        comes back as a host bool mask."""
+        if frame.rgb.shape != since.rgb.shape:
+            return ReanchorResult(None, True, "the image size changed", math.inf, math.inf)
+        diff_global = _scene_diff(_thumbnail(since), _thumbnail(frame))
+        diff_local = _local_diff(since, frame, det.bbox)
+        prompt_box = None
+        match = None
+
+        def refused(scene_changed: bool, reason: str) -> ReanchorResult:
+            evidence = (match.iou, match.agreement, match.dropped) if match is not None else (math.nan, math.nan, 0)
+            return ReanchorResult(None, scene_changed, reason, diff_global, diff_local, prompt_box, *evidence)
+
+        if not diff_global <= self._scene_change:
+            return refused(True, f"the view changed (mean grey difference {diff_global:.1f} > "
+                                 f"{self._scene_change:g})")
+        if not diff_local <= self._reanchor_local_diff:
+            return refused(True, f"the image around the object changed (mean colour difference "
+                                 f"{diff_local:.1f} > {self._reanchor_local_diff:g})")
+        if self._segmenter is None:
+            return refused(False, "no segmenter is configured")
+        if reference is None:
+            reference = self.reanchor_reference(since, det)
+        ref = reference.detection
+        if ref is None or ref.mask is None:
+            return refused(False, reference.reason or "the object was not re-masked on the image it was named on")
+        named_box = _mask_box(det.mask) if det.mask is not None else None
+        if named_box is None:
+            return refused(False, "the object has no mask on the image it was named on")
+        ref_box = np.asarray(ref.bbox, dtype=np.float64).reshape(-1)[:4]
+        prompt_box = _reanchor_prompt(det.bbox, frame.rgb.shape)
+        prompt = np.asarray(prompt_box, dtype=np.float32).reshape(1, 4)
+        found = self._detections(frame, [det.label], prompt, track=True)
+        mask = found[0].mask if found else None
+        if mask is None:
+            return refused(False, "SAM returned no mask for the box")
+        mask_box = _mask_box(mask)
+        if mask_box is None:
+            return refused(False, "SAM returned an empty mask for the box")
+        match = _match_masks(ref.mask, ref_box, mask, mask_box)
+        if match.kept is None:
+            return refused(False, f"SAM's mask lies off the box: no part of it comes within "
+                                  f"{_REANCHOR_COMPONENT_REACH_PX:g} px of the object's mask on the image it "
+                                  "was named on")
+        mask = _kept_mask(mask, match)
+        mask_box = _mask_box(match.kept) + np.array([*match.origin, *match.origin], dtype=np.float64)
+        iou = _box_iou(mask_box, det.bbox)
+        if not iou >= REANCHOR_MIN_IOU:
+            return refused(False, f"SAM's mask lies off the box (IoU {iou:.2f} < {REANCHOR_MIN_IOU:g})")
+        crossed = _touched_sides(mask_box, prompt_box) - _touched_sides(ref_box, prompt_box)
+        if crossed:
+            return refused(True, f"the object's mask now reaches the {'/'.join(sorted(crossed))} border of the "
+                                 "box it was named in (grown 20 %, at least "
+                                 f"{_REANCHOR_PROMPT_MIN_PX:g} px a side): it extends past that box")
+        if not match.agreement >= self._reanchor_mask_agreement:
+            return refused(True, f"the object's mask changed (mask agreement {match.agreement:.2f} < "
+                                 f"{self._reanchor_mask_agreement:g}: the smaller share of either mask's "
+                                 f"pixels within {match.tol_px:.1f} px of the other, with its same-prompt mask on "
+                                 f"the image it was named on; pixel IoU {match.iou:.2f})")
+        clip = _clip_to_naming(mask, mask_box, det.mask, named_box, match.tol_px, ref.mask, ref_box)
+        if clip.box is None:
+            return refused(False, f"no part of SAM's mask lies within {match.tol_px:.1f} px of the object's mask on "
+                                  "the image it was named on")
+        detection = Detection(label=det.label, conf=det.conf, bbox=clip.box.astype(np.float32), mask=clip.mask)
+        return ReanchorResult(detection, False, "", diff_global, diff_local, prompt_box, match.iou,
+                              match.agreement, match.dropped, clip.removed)
+
+    @contextlib.contextmanager
+    def foreground(self):
+        """Hold off background work while a foreground localization runs
+        (re-entrant, from any thread; see the class docstring). Every entry
+        cancels the background request in flight and waits up to
+        `_CANCEL_WAIT_S` for a cancelled stream still open (one in prefill
+        outlives the outermost scope's wait; a nested or another thread's
+        scope must not overlap its last chunk either). Leaving the outermost
+        scope (also by an exception) starts the oldest waiting refresh."""
+        entered = False
+        try:
+            with self._lock:
+                # Counted inside the try: an asynchronous KeyboardInterrupt
+                # after this line still ends the scope in the finally.
+                self._foreground += 1
+                entered = True
+                for cancel in self._cancels.values():
+                    cancel.set()
+                threads = list(self._threads)
+            if threads:
+                deadline = time.monotonic() + _CANCEL_WAIT_S
+                for thread in threads:
+                    thread.join(max(0.0, deadline - time.monotonic()))
+            yield
+        finally:
+            if entered:
+                with self._lock:
+                    self._foreground -= 1
+                    self._start_next(self._clock())
+
+    @staticmethod
+    def camera_key(frame: Frame) -> tuple:
+        """The camera part of this frame's cache key (apps.demo warns when
+        two watched cameras share one)."""
+        return _camera_key(frame)
+
+    def refresh_threads(self) -> list[threading.Thread]:
+        """The background refresh threads in flight (apps.demo.owned_threads)."""
+        with self._lock:
+            return list(self._threads)
+
     def close(self) -> None:
-        """Join the refresh threads in flight and the SAM warm-up, each with
-        a bound; later refreshes do not start. A thread past its bound keeps
-        running and is reported on stderr; shutdown_runtime lists a warm-up
-        still alive in its pending threads."""
+        """Cancel the background request in flight (its stream closes at
+        the next chunk), then join the refresh threads and the SAM warm-up,
+        each with a bound; later refreshes do not start. A thread past its
+        bound keeps running and is reported on stderr; shutdown_runtime lists
+        one still alive in its pending threads."""
         with self._lock:
             self._closed = True
             self._waiting.clear()  # no later refresh; drops their frames
+            for cancel in self._cancels.values():
+                cancel.set()
             threads = list(self._threads)
         for thread in threads:
-            join_thread(thread, what="brain detector", timeout_s=self._timeout_s + _CLOSE_MARGIN_S)
+            join_thread(thread, what="brain detector", timeout_s=self._inventory_timeout_s + _CLOSE_MARGIN_S)
         join_thread(self.warm_up_thread, what="brain detector", timeout_s=_WARM_UP_JOIN_S)
 
     # -- brain transport ----------------------------------------------------
@@ -393,8 +939,13 @@ class BrainDetector(Detector):
                                       timeout=self._timeout_s, max_retries=0)
             return self._client
 
-    def _ask(self, image_url: str, prompt: str) -> str:
-        resp = self._get_client().chat.completions.create(
+    def _ask(self, image_url: str, prompt: str, cancel: threading.Event | None = None,
+             timeout: float | None = None) -> str:
+        """One brain request. Foreground (`cancel` None): a single
+        non-streaming completion under `timeout` (None: the client's
+        `timeout_s`, an agent's refer). Background (a refresh's cancel
+        Event): streamed under `inventory_timeout_s`, see `_ask_streamed`."""
+        request = dict(
             model=self._model,
             temperature=0,
             max_tokens=self._max_tokens,
@@ -407,17 +958,51 @@ class BrainDetector(Detector):
             }],
             extra_body={"chat_template_kwargs": {"enable_thinking": False}},
         )
-        choice = resp.choices[0]
-        text = choice.message.content or ""
+        if cancel is None:
+            per_request = {} if timeout is None else {"timeout": timeout}
+            choice = self._get_client().chat.completions.create(**request, **per_request).choices[0]
+            text, finish_reason = choice.message.content or "", getattr(choice, "finish_reason", None)
+        else:
+            text, finish_reason = self._ask_streamed(request, cancel)
         # A garbled reply is a failed call, never an empty table: cut at
         # max_tokens (even if a list closed before the cut), or neither a box
         # list nor a reply opening with "[]" (what both prompts ask for when
         # nothing is there).
-        if getattr(choice, "finish_reason", None) == "length":
+        if finish_reason == "length":
             raise ValueError(f"garbled reply, truncated at max_tokens={self._max_tokens}")
         if not _is_answer(text):
             raise ValueError(f"garbled reply, no box list: {text[:80]!r}")
         return text
+
+    def _ask_streamed(self, request: dict, cancel: threading.Event) -> tuple[str, str | None]:
+        """A background request: `stream=True` with the per-request timeout
+        `inventory_timeout_s` (openai applies it per read), plus the same
+        bound on the whole stream, checked between chunks. `cancel` is
+        checked before the request and between chunks: once set, the stream
+        is closed (the server aborts the request) and _Cancelled raised. A
+        stream that already ended is kept: the server's work is done.
+        -> (reply text, finish reason)."""
+        if cancel.is_set():
+            raise _Cancelled
+        deadline = time.monotonic() + self._inventory_timeout_s
+        stream = self._get_client().chat.completions.create(
+            **request, stream=True, timeout=self._inventory_timeout_s)
+        parts: list[str] = []
+        finish_reason = None
+        try:
+            for chunk in stream:
+                if cancel.is_set():
+                    raise _Cancelled
+                if time.monotonic() > deadline:
+                    raise TimeoutError(f"background request exceeded {self._inventory_timeout_s:g} s")
+                for choice in getattr(chunk, "choices", None) or ():
+                    content = getattr(getattr(choice, "delta", None), "content", None)
+                    if content:
+                        parts.append(content)
+                    finish_reason = getattr(choice, "finish_reason", None) or finish_reason
+        finally:
+            stream.close()
+        return "".join(parts), finish_reason
 
     # -- refer and inventory ------------------------------------------------
 
@@ -425,32 +1010,37 @@ class BrainDetector(Detector):
         labels, boxes = self._ask_refer(frame, queries)
         return self._detections(frame, labels, boxes, track=False)
 
-    def _ask_refer(self, frame: Frame, queries) -> tuple[list[str], np.ndarray]:
+    def _ask_refer(self, frame: Frame, queries, cancel: threading.Event | None = None,
+                   timeout: float | None = None) -> tuple[list[str], np.ndarray]:
         """One request per query, concatenated; labels are the queries."""
         h, w = frame.rgb.shape[:2]
         image_url = _jpeg_data_url(frame)
         labels: list[str] = []
         boxes: list[np.ndarray] = []
         for q in queries:
-            for _, box in parse_boxes(self._ask(image_url, REFER_PROMPT.format(q=q)), w, h):
+            for _, box in parse_boxes(self._ask(image_url, REFER_PROMPT.format(q=q), cancel, timeout), w, h):
                 labels.append(q)
                 boxes.append(box)
         return labels, np.array(boxes, dtype=np.float32).reshape(-1, 4)
 
-    def _ask_inventory(self, frame: Frame, thumb: np.ndarray, t: float) -> _Entry:
+    def _ask_inventory(self, frame: Frame, thumb: np.ndarray, t: float,
+                       cancel: threading.Event | None = None, timeout: float | None = None) -> _Entry:
         h, w = frame.rgb.shape[:2]
-        found = parse_boxes(self._ask(_jpeg_data_url(frame), INVENTORY_PROMPT), w, h)
+        found = parse_boxes(self._ask(_jpeg_data_url(frame), INVENTORY_PROMPT, cancel, timeout), w, h)
         boxes = np.array([box for _, box in found], dtype=np.float32).reshape(-1, 4)
         boxes.setflags(write=False)
         return _Entry(tuple(label for label, _ in found), boxes, thumb, t)
 
-    def _ask_entry(self, key, frame: Frame, thumb: np.ndarray, t: float) -> _Entry:
+    def _ask_entry(self, key, frame: Frame, thumb: np.ndarray, t: float,
+                   cancel: threading.Event | None = None, timeout: float | None = None) -> _Entry:
         """The brain call behind a cache key: the inventory prompt for
-        (camera, None), the refer loop for (camera, queries)."""
+        (camera, None), the refer loop for (camera, queries). `cancel`: a
+        background refresh (streamed, cancellable); `timeout`: a synchronous
+        pass's per-request timeout."""
         queries = key[1]
         if queries is None:
-            return self._ask_inventory(frame, thumb, t)
-        labels, boxes = self._ask_refer(frame, queries)
+            return self._ask_inventory(frame, thumb, t, cancel, timeout)
+        labels, boxes = self._ask_refer(frame, queries, cancel, timeout)
         boxes.setflags(write=False)
         return _Entry(tuple(labels), boxes, thumb, t)
 
@@ -493,7 +1083,10 @@ class BrainDetector(Detector):
             self._start_refresh(key, frame, thumb, now)
             return self._detections(frame, entry.labels, entry.boxes, track=True)
         try:
-            entry = self._ask_entry(key, frame, thumb, now)
+            # A synchronous inventory decodes as many tokens as a background
+            # one: it gets inventory_timeout_s, not an agent refer's timeout_s
+            # (the kitchen's 25 s inventory never fits timeout_s 20).
+            entry = self._ask_entry(key, frame, thumb, now, timeout=self._inventory_timeout_s)
         except Exception as e:  # noqa: BLE001 - booth rule: keep tracking, never raise
             with self._lock:
                 self._failed_at[key] = self._clock()
@@ -536,30 +1129,46 @@ class BrainDetector(Detector):
         goes to the key that has waited longest (ties: first asked) and is
         not backing off, with that key's own latest frame, whichever caller
         found the slot free. A waiting key leaves the queue when its refresh
-        starts, when an answer for it is stored, or on close().
+        starts, when an answer for it is stored, or on close(). Inside a
+        foreground() scope the request only queues (see `_start_next`).
+        A key whose own refresh was cancelled but is still closing (a request
+        in prefill sees the cancel only at its first chunk) queues this newer
+        frame: that refresh is requeued with it (`_refresh`).
         """
         with self._lock:
-            if self._closed or key in self._refreshing or self._backs_off(key, t):
+            if self._closed or self._backs_off(key, t):
                 return
+            cancel = self._cancels.get(key)
+            if key in self._refreshing and (cancel is None or not cancel.is_set()):
+                return  # its own refresh is in flight and will answer
             waiting = self._waiting.get(key)
             # Asking again keeps the key's place (dict order: first ask) and
             # updates its frame.
             self._waiting[key] = _Request(t if waiting is None else waiting.since, frame, thumb, t)
-            if self._refreshing:
-                return  # the slot is busy: wait for a turn
-            # The caller's own key qualifies, so there is always a choice;
-            # min() keeps the first of equal times, i.e. the first asked.
-            chosen, request = min(((k, r) for k, r in self._waiting.items() if not self._backs_off(k, t)),
-                                  key=lambda item: item[1].since)
-            del self._waiting[chosen]
-            thread = threading.Thread(target=self._refresh,
-                                      args=(chosen, request.frame, request.thumb, request.t),
-                                      name=f"brain-refresh-{chosen}", daemon=True)
-            # Started under the lock: close() never misses it, and the thread
-            # cannot reach its own bookkeeping before this block has recorded it.
-            thread.start()
-            self._refreshing.add(chosen)
-            self._threads.add(thread)
+            self._start_next(t)
+
+    def _start_next(self, t: float) -> None:
+        """Start the oldest waiting refresh that does not back off at `t`
+        (ties: first asked), if the slot is free, no foreground() scope is
+        held and the detector is open. The caller holds the lock."""
+        if self._closed or self._foreground or self._refreshing:
+            return  # closed, the GPU belongs to the foreground, or the slot is busy
+        # min() keeps the first of equal times, i.e. the first asked.
+        chosen, request = min(((k, r) for k, r in self._waiting.items() if not self._backs_off(k, t)),
+                              key=lambda item: item[1].since, default=(None, None))
+        if request is None:
+            return
+        del self._waiting[chosen]
+        cancel = threading.Event()
+        thread = threading.Thread(target=self._refresh, args=(chosen, request, cancel),
+                                  name=f"brain-refresh-{chosen}", daemon=True)
+        # Started under the lock: close() and foreground() never miss it, and
+        # the thread cannot reach its own bookkeeping before this block has
+        # recorded it.
+        thread.start()
+        self._refreshing.add(chosen)
+        self._threads.add(thread)
+        self._cancels[chosen] = cancel
 
     def _backs_off(self, key, t: float) -> bool:
         """`key` had a failed brain call less than `refresh_s` before `t`.
@@ -567,23 +1176,43 @@ class BrainDetector(Detector):
         failed_at = self._failed_at.get(key)
         return failed_at is not None and t - failed_at < self._refresh_s
 
-    def _refresh(self, key, frame: Frame, thumb: np.ndarray, t: float) -> None:
+    def _refresh(self, key, request: _Request, cancel: threading.Event) -> None:
+        cancelled = False
         try:
             # Replaces the entry only on success; a failure keeps the old one,
             # which still ages out after max_cache_age_s.
-            self._store(key, self._ask_entry(key, frame, thumb, t))
+            self._store(key, self._ask_entry(key, request.frame, request.thumb, request.t, cancel))
         except Exception as e:  # noqa: BLE001 - background thread: log, never raise
-            # The key backs off from the failure (not the request), as after a
-            # failed synchronous inventory. Recorded before the in-flight mark
-            # is cleared below, so no refresh slips in between.
+            # A refresh whose cancel was set is never a failure, whatever
+            # ended it (_Cancelled, or a request cancelled in prefill that then
+            # timed out or broke): a foreground scope (or close) took the
+            # brain. A hung brain is caught by the next uncancelled refresh.
+            cancelled = isinstance(e, _Cancelled) or cancel.is_set()
             with self._lock:
-                self._failed_at[key] = self._clock()
-            what = "inventory" if key[1] is None else "vocabulary refer"
-            self._warn(f"{what} refresh failed; keeping the cached boxes", e)
+                if cancelled:
+                    # Back to the queue with its place and the newest frame (a
+                    # scene change seen while it was closing queued that one,
+                    # see _start_refresh). close() drops it instead.
+                    if not self._closed:
+                        newer = self._waiting.get(key)
+                        self._waiting[key] = request if newer is None else newer._replace(
+                            since=min(newer.since, request.since))
+                else:
+                    # The key backs off from the failure (not the request), as
+                    # after a failed synchronous inventory. Recorded before the
+                    # in-flight mark is cleared below, so no refresh slips in.
+                    self._failed_at[key] = self._clock()
+            if not cancelled:
+                what = "inventory" if key[1] is None else "vocabulary refer"
+                self._warn(f"{what} refresh failed; keeping the cached boxes", e)
         finally:
             with self._lock:
                 self._refreshing.discard(key)
                 self._threads.discard(threading.current_thread())
+                self._cancels.pop(key, None)
+                if cancelled:
+                    # The scope may have ended while this stream was closing.
+                    self._start_next(self._clock())
 
     # -- masks ----------------------------------------------------------------
 

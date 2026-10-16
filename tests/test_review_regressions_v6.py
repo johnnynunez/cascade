@@ -193,7 +193,14 @@ def test_effect_execution_error_is_not_hidden_by_confirming_checker(runtime):
         raise SkillError('transport failed')
     runtime.skill_move_home = fail
     result = runtime.execute('move_home', {})
-    assert result['postcondition']['status'] == CONFIRMED  # existing checker contract, preserved
+    # The real checker never confirms a move_home that failed (it is not home).
+    assert result['postcondition']['status'] == UNVERIFIED
+    assert result['ok'] is False and done(runtime)['success'] is False
+    # A checker that confirms anyway still cannot hide the execution error.
+    runtime.begin_task()
+    runtime.effects.verify = lambda *_a, **_k: Postcondition('move_home', 'at_home', CONFIRMED, 'stub')
+    result = runtime.execute('move_home', {})
+    assert result['postcondition']['status'] == CONFIRMED
     assert result['ok'] is False and done(runtime)['success'] is False
 
 

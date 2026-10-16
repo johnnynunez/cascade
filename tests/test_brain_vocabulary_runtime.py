@@ -25,6 +25,7 @@ import pytest
 
 from cascade.perception.brain_detector import REFER_PROMPT, BrainDetector
 from cascade.perception.world import LockedDetector
+from fake_brain_stream import reply as answer
 
 SCALE = 0.1  # seconds in this test per second live
 VOCAB = ["red cube", "banana", "disc", "box", "bowl", "cup", "green cube"]
@@ -49,8 +50,7 @@ class _SlowBrain:
         reply = "[]"
         if query == "red cube" and self.box_1000 is not None:
             reply = json.dumps([{"label": "red cube", "bbox_2d": self.box_1000}])
-        message = SimpleNamespace(content=reply)
-        return SimpleNamespace(choices=[SimpleNamespace(message=message, finish_reason="stop")])
+        return answer(kwargs, reply)  # streamed for a background refresh
 
     def foreground(self) -> list[str]:
         """Queries asked on the caller's thread (not a background refresh)."""

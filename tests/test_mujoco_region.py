@@ -503,7 +503,14 @@ def test_only_external_point_dispatch_can_replace_region_goal(request, monkeypat
     monkeypatch.setattr(mujoco_region, 'finish_explicit', finish)
     rt.held_object = 'red cube'
     rt.attach_verifier(object_pose=lambda _: [.3, -.12, .02])
-    rt.skill_place_at = lambda **_: {'placed': 'red cube', 'at': [.3, -.12, .02]}
+
+    def placed(**_):
+        # The release a real place_at commands; a stub that opened nothing
+        # is, correctly, "no open command completed".
+        rt._gripper_opens_completed += 1
+        return {'placed': 'red cube', 'at': [.3, -.12, .02]}
+
+    rt.skill_place_at = placed
     direct = rt.execute('place_at', {'x': .3, 'y': -.12})
     assert seen == [('context', 'red cube', {'x': .3, 'y': -.12}), ('finish', 'physics')]
     assert direct['region_obligation']['synthetic_wiring_control']

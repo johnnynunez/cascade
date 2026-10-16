@@ -141,6 +141,20 @@ def _unknown_blocks(occupancy) -> bool:
 
 
 class SafetyHarness:
+    #: Arm motions this harness STARTED: counted once per motion, at the
+    #: first waypoint approve() passes after begin_motion (every stream --
+    #: SafeArm.move_joints, move_joint_path, planner-bound profiles -- vets
+    #: each command there before sending it). A motion refused by
+    #: begin_motion's own checks or by a route preflight before its first
+    #: command is never counted. Monotonic and read-only to everyone else:
+    #: the effects verifier compares it before/after a skill call to tell
+    #: "the arm moved" from "refused before any motion" without trusting the
+    #: skill's own report.
+    motions_begun: int = 0
+    #: True from a successful begin_motion until that motion's first
+    #: approved waypoint (or its end_motion).
+    _motion_uncounted: bool = False
+
     def __init__(self, limits: SafetyLimits, kinematics=None, occupancy=None,
                  base_pose=None, tool_volume=None):
         self.limits = limits
@@ -678,9 +692,11 @@ class SafetyHarness:
         if age > self.limits.watchdog_s:
             self._reject(f"perception watchdog: last observation {age:.1f}s old")
         self._motion_active = True
+        self._motion_uncounted = True
 
     def end_motion(self) -> None:
         self._motion_active = False
+        self._motion_uncounted = False
 
     @property
     def motion_active(self) -> bool:
@@ -713,6 +729,10 @@ class SafetyHarness:
         neighbours) still runs at full strength.
         """
         self._approve_step(q_prev, q_next, dt, joint_margin, self._reject, True)
+        if self._motion_uncounted:
+            # The motion's first command is cleared to go: it has started.
+            self._motion_uncounted = False
+            self.motions_begun += 1
 
     def vet_step(self, q_prev: np.ndarray, q_next: np.ndarray, dt: float,
                  joint_margin: float | None = None) -> str | None:

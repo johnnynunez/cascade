@@ -84,7 +84,7 @@ def test_demo_yaml_builds_the_brain_detector_with_sam_l(key_file):
     assert det._model == "qwen3.8-27b"
     assert det._api_key == "sk-test-0123"
     assert (det._timeout_s, det._max_tokens) == (20.0, 1500)
-    assert (det._refresh_s, det._max_cache_age_s, det._scene_change) == (4.0, 30.0, 6.0)
+    assert (det._refresh_s, det._max_cache_age_s, det._scene_change) == (4.0, 35.0, 6.0)
     # Ruling 31: the watcher refreshes an unchanged scene every 30 s, set in demo.yaml.
     assert det._idle_refresh_s == 30.0
     assert load_demo_config(camera="isaac").detector.idle_refresh_s == 30.0

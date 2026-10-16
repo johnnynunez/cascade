@@ -1,6 +1,7 @@
 import ast
 import copy
 import math
+import os
 import runpy
 import uuid
 import select
@@ -233,6 +234,60 @@ def _no_ambient_occupancy(monkeypatch):
     by tests/test_occupancy.py (FakeClient + a live bridge subprocess), which
     opts back in via monkeypatch/en-bloc construction."""
     monkeypatch.setenv("CASCADE_OCCUPANCY", "0")
+
+
+@pytest.fixture(autouse=True)
+def _no_live_graspgenx(monkeypatch):
+    """No test reaches a live GraspGen-X server. demo.yaml's grasp backend is
+    `graspgenx` on 127.0.0.1:5556, and every mock-profile build_runtime probes
+    it at startup: on a host that serves the model (the Spark, the rig) the
+    suite's probes and plans landed on the real server, beside the robot's own
+    requests. CASCADE_GRASPGENX_PORT beats every config layer, so it points at
+    a port this process holds bound but not listening (nothing answers: the
+    startup probe gives up after its short probe timeout, as on CI where
+    nothing listens on 5556), and an ambient
+    CASCADE_GRASPGENX_HOST is dropped so that port is local. A test that needs
+    a server starts a fake one and sets its own port (monkeypatch.setenv /
+    delenv override this); the port stays held until the test ends.
+    pytest_configure below pins the same for the whole session, so module and
+    session fixtures and import-time code never see 5556 either."""
+    from owned_server import held_dead_port
+
+    monkeypatch.delenv("CASCADE_GRASPGENX_HOST", raising=False)
+    with held_dead_port() as port:
+        monkeypatch.setenv("CASCADE_GRASPGENX_PORT", str(port))
+        yield
+
+
+_GRASPGENX_ENV = ("CASCADE_GRASPGENX_PORT", "CASCADE_GRASPGENX_HOST")
+
+
+def pytest_configure(config):
+    """Session-wide B6 pin, set before collection: test modules' import-time
+    code and module/session-scoped fixtures run before the per-test
+    `_no_live_graspgenx`, so they get a held dead port of their own (held
+    until the session ends) and no ambient host. The ambient values come back
+    in pytest_unconfigure."""
+    from owned_server import held_dead_port
+
+    hold = held_dead_port()
+    port = hold.__enter__()
+    config._cascade_graspgenx_pin = (hold, {name: os.environ.get(name) for name in _GRASPGENX_ENV})
+    os.environ.pop("CASCADE_GRASPGENX_HOST", None)
+    os.environ["CASCADE_GRASPGENX_PORT"] = str(port)
+
+
+def pytest_unconfigure(config):
+    pin = getattr(config, "_cascade_graspgenx_pin", None)
+    if pin is None:
+        return
+    hold, ambient = pin
+    for name, value in ambient.items():
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = value
+    hold.__exit__(None, None, None)
 
 
 @pytest.fixture

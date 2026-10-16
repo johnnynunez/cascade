@@ -189,6 +189,75 @@ def _compensation_transform(comp) -> np.ndarray:
     return T
 
 
+def _host_array(v) -> np.ndarray:
+    """`v` as host numpy: a CUDA tensor (strict GPU mode) is copied, so pass
+    only what is small (a projection, a crop)."""
+    cpu = getattr(v, "cpu", None)
+    if callable(cpu):
+        v = cpu().numpy()
+    return np.asarray(v)
+
+
+def host_crop(mask, x0: int, y0: int, x1: int, y1: int) -> np.ndarray:
+    """mask[y0:y1, x0:x1] as host numpy bools: a CUDA tensor is sliced on the
+    device and only that crop is copied, once."""
+    return _host_array(mask[y0:y1, x0:x1]).astype(bool, copy=False)
+
+
+def mask_box(mask) -> np.ndarray | None:
+    """xyxy pixel box (end exclusive) of an opaque mask (numpy, or a CUDA
+    tensor in strict GPU mode), None when empty. Only its row and column
+    projections reach the host, never the mask."""
+    rows = _host_array(mask.any(1)).astype(bool, copy=False).reshape(-1)
+    cols = _host_array(mask.any(0)).astype(bool, copy=False).reshape(-1)
+    if not rows.any():
+        return None
+    ys, xs = np.flatnonzero(rows), np.flatnonzero(cols)
+    return np.array([xs[0], ys[0], xs[-1] + 1, ys[-1] + 1], dtype=np.float64)
+
+
+def median_point(frame: Frame, det: Detection, extrinsics: Extrinsics, *, erode_px: int = 2,
+                 min_points: int = 10) -> np.ndarray:
+    """Where `det` is on `frame`, measured the same robust way on any frame,
+    for comparing two frames of one object: the per-axis median of the
+    base-frame points of the valid-depth pixels inside its mask (its box
+    without one) eroded by `erode_px` pixels. A pixel more or less of the
+    mask's edge (table, skirt) moves neither the erosion's inside nor the
+    median, where it tilts the OBB centre of the whole cloud by centimetres.
+    The un-eroded mask only when erosion leaves fewer than `min_points` such
+    pixels; NaN without any. Host numpy on the mask's box crop: a CUDA mask
+    is sliced on the device and copied once."""
+    import cv2
+
+    if not frame.has_depth:
+        return np.full(3, np.nan)
+    mask = det.mask if det.mask is not None else _bbox_mask(frame, det)
+    box = mask_box(mask)
+    if box is None:
+        return np.full(3, np.nan)
+    h, w = frame.depth_m.shape[:2]
+    pad = int(erode_px) + 1  # the crop's own border must erode too
+    x0, y0 = max(int(box[0]) - pad, 0), max(int(box[1]) - pad, 0)
+    x1, y1 = min(int(box[2]) + pad, w), min(int(box[3]) + pad, h)
+    crop = host_crop(mask, x0, y0, x1, y1)
+    depth = _host_array(frame.depth_m[y0:y1, x0:x1]).astype(np.float64)
+    valid = np.isfinite(depth) & (depth > 0)
+    size = 2 * int(erode_px) + 1
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (size, size))
+    eroded = cv2.erode(crop.astype(np.uint8), kernel, borderType=cv2.BORDER_CONSTANT, borderValue=0).astype(bool)
+    pick = eroded & valid
+    if np.count_nonzero(pick) < min_points:
+        pick = crop & valid
+    ys, xs = np.nonzero(pick)
+    if ys.size == 0:
+        return np.full(3, np.nan)
+    zs = depth[ys, xs]
+    K = np.asarray(frame.K, dtype=np.float64)
+    cam = np.stack([(xs + x0 - K[0, 2]) / K[0, 0] * zs, (ys + y0 - K[1, 2]) / K[1, 1] * zs, zs], axis=-1)
+    T = np.asarray(frame.T_base_cam if frame.T_base_cam is not None else extrinsics.cam_to_base(), dtype=np.float64)
+    return np.median(cam @ T[:3, :3].T + T[:3, 3], axis=0)
+
+
 def mask_to_points_cam(
     frame: Frame,
     mask: np.ndarray,
@@ -407,6 +476,112 @@ _SPATIAL_AXES = {
 }
 
 
+class DetectionRejected(SkillError):
+    """`fix_from_detection` refused a detection. `kind` names the rule:
+    "color" (strict colour mismatch), "points" (too few valid depth points)
+    or "workspace" (its centre is outside the active arm workspace)."""
+
+    def __init__(self, reason: str, kind: str):
+        super().__init__(reason)
+        self.reason = reason
+        self.kind = kind
+
+
+def _checked_workspace(workspace_bounds) -> tuple[np.ndarray, np.ndarray] | None:
+    if workspace_bounds is None:
+        return None
+    workspace_min, workspace_max = [
+        np.asarray(bound, dtype=float).reshape(3) for bound in workspace_bounds
+    ]
+    if (not np.all(np.isfinite([workspace_min, workspace_max]))
+            or np.any(workspace_min > workspace_max)):
+        raise SkillError("invalid localization workspace bounds")
+    return workspace_min, workspace_max
+
+
+def _measure_detection(frame: Frame, det: Detection, T_cam2base: np.ndarray, *, label: str, what: str,
+                       color: str | None, min_points: int,
+                       workspace: tuple[np.ndarray, np.ndarray] | None) -> tuple[ObjectFix, str | None]:
+    """One detection -> (base-frame fix, its colour name or None when no
+    colour was asked). Raises DetectionRejected with localize_object's reason."""
+    from .colors import color_matches, detection_color
+
+    det_color = None
+    if color is not None:
+        # detection_color uses the mask when present, else the bbox
+        # CENTER (whole-box medians let the background veto objects).
+        # STRICT here: grabbing the red box when asked for the pink
+        # one is a visible error; neighbor tolerance is for verbal
+        # recall (beliefs.find), not for choosing a grasp target.
+        det_color = detection_color(frame.rgb, det)
+        if not color_matches(color, det_color, strict=True):
+            raise DetectionRejected(f"saw {det.label!r} but it is {det_color}, not {color}", "color")
+    mask = det.mask if det.mask is not None else _bbox_mask(frame, det)
+    pts_cam = mask_to_points_cam(frame, mask)
+    if pts_cam.shape[0] < min_points:
+        raise DetectionRejected(
+            f"detected {what!r} but only {pts_cam.shape[0]} valid depth "
+            f"points (<{min_points}); object may be out of depth range", "points")
+    pts_base = transform_points(T_cam2base, pts_cam)
+    center, extents, axes = oriented_bbox(pts_base)
+    center = _recentre_by_size(center, pts_base, extents,
+                               T_cam2base[:3, 3])
+    if (os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1"
+            and "can" in str(det.label).lower().replace("_", " ").split()):
+        # A partial cylindrical shell is not a box of the same
+        # thickness. Use only observed shape evidence; uncertain
+        # cylinders and all other objects retain the prior centre.
+        from .cuda_math import refine_upright_cylinder
+        center, _ = refine_upright_cylinder(center, pts_base)
+    else:
+        # Shape evidence only (no label): a ball's visible cap defeats
+        # the view-ray step above. Non-spherical clouds are untouched.
+        center, _ = refine_sphere_center(center, pts_base)
+    # Rank only actionable measured candidates. A high-confidence
+    # background fruit must not hide a lower-confidence countertop
+    # prop, nor prevent the caller trying another camera/prompt.
+    if workspace is not None and (
+            not np.all(np.isfinite(center))
+            or np.any(center < workspace[0]) or np.any(center > workspace[1])):
+        raise DetectionRejected(
+            f"detected {det.label!r} at {np.round(center, 3).tolist()} "
+            "outside the active arm workspace", "workspace")
+    fix = ObjectFix(
+        label=label,
+        position=center,
+        points=pts_base,
+        detection=det,
+        extent=extents,
+        axes=axes,
+    )
+    return fix, det_color
+
+
+def fix_from_detection(
+    frame: Frame,
+    det: Detection,
+    extrinsics: Extrinsics,
+    *,
+    label: str | None = None,
+    color: str | None = None,
+    min_points: int = 10,
+    workspace_bounds: tuple[np.ndarray, np.ndarray] | None = None,
+) -> ObjectFix:
+    """The base-frame 3D fix of ONE detection in `frame`, under
+    localize_object's per-detection rules: strict colour match on its mask,
+    at least `min_points` valid depth points, OBB, re-centring and shape
+    refinement, workspace bounds. `label` (default: the detection's) names
+    the fix. Raises DetectionRejected (`kind` says which rule) otherwise.
+    Two-phase localization measures the re-anchored detection on the fresh
+    frame with it; localize_object runs the same code for every candidate."""
+    T_cam2base = (frame.T_base_cam if frame.T_base_cam is not None
+                  else extrinsics.cam_to_base())
+    fix, _ = _measure_detection(frame, det, T_cam2base, label=det.label if label is None else label,
+                                what=det.label, color=color, min_points=min_points,
+                                workspace=_checked_workspace(workspace_bounds))
+    return fix
+
+
 def localize_object(
     frame: Frame,
     label: str,
@@ -431,17 +606,9 @@ def localize_object(
     ("left", "front", ...), and/or proximity to a remembered position
     (`near_xyz`). Raises SkillError with an agent-readable reason on failure.
     """
-    from .colors import color_matches, detection_color
-
     T_cam2base = (frame.T_base_cam if frame.T_base_cam is not None
                   else extrinsics.cam_to_base())
-    if workspace_bounds is not None:
-        workspace_min, workspace_max = [
-            np.asarray(bound, dtype=float).reshape(3) for bound in workspace_bounds
-        ]
-        if (not np.all(np.isfinite([workspace_min, workspace_max]))
-                or np.any(workspace_min > workspace_max)):
-            raise SkillError("invalid localization workspace bounds")
+    workspace = _checked_workspace(workspace_bounds)
     # (classes, name for messages, is the configured vocabulary round). The
     # round kind is the flag, never the name: an agent may ask for any word.
     if vocab:
@@ -462,59 +629,12 @@ def localize_object(
         exact: list[ObjectFix] = []   # color matches the palette band
         loose: list[ObjectFix] = []   # neighbor band / unknown color
         for det in sorted(dets, key=lambda d: -d.conf):
-            det_color = None
-            if color is not None:
-                # detection_color uses the mask when present, else the bbox
-                # CENTER (whole-box medians let the background veto objects).
-                # STRICT here: grabbing the red box when asked for the pink
-                # one is a visible error; neighbor tolerance is for verbal
-                # recall (beliefs.find), not for choosing a grasp target.
-                det_color = detection_color(frame.rgb, det)
-                if not color_matches(color, det_color, strict=True):
-                    last_reason = f"saw {det.label!r} but it is {det_color}, not {color}"
-                    continue
-            mask = det.mask if det.mask is not None else _bbox_mask(frame, det)
-            pts_cam = mask_to_points_cam(frame, mask)
-            if pts_cam.shape[0] < min_points:
-                last_reason = (
-                    f"detected {what!r} but only {pts_cam.shape[0]} valid depth "
-                    f"points (<{min_points}); object may be out of depth range"
-                )
+            try:
+                fix, det_color = _measure_detection(frame, det, T_cam2base, label=label, what=what, color=color,
+                                                    min_points=min_points, workspace=workspace)
+            except DetectionRejected as rejected:
+                last_reason = rejected.reason
                 continue
-            pts_base = transform_points(T_cam2base, pts_cam)
-            center, extents, axes = oriented_bbox(pts_base)
-            center = _recentre_by_size(center, pts_base, extents,
-                                       T_cam2base[:3, 3])
-            if (os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1"
-                    and "can" in str(det.label).lower().replace("_", " ").split()):
-                # A partial cylindrical shell is not a box of the same
-                # thickness. Use only observed shape evidence; uncertain
-                # cylinders and all other objects retain the prior centre.
-                from .cuda_math import refine_upright_cylinder
-                center, _ = refine_upright_cylinder(center, pts_base)
-            else:
-                # Shape evidence only (no label): a ball's visible cap defeats
-                # the view-ray step above. Non-spherical clouds are untouched.
-                center, _ = refine_sphere_center(center, pts_base)
-            # Rank only actionable measured candidates. A high-confidence
-            # background fruit must not hide a lower-confidence countertop
-            # prop, nor prevent the caller trying another camera/prompt.
-            if workspace_bounds is not None and (
-                    not np.all(np.isfinite(center))
-                    or np.any(center < workspace_min) or np.any(center > workspace_max)):
-                last_reason = (
-                    f"detected {det.label!r} at {np.round(center, 3).tolist()} "
-                    "outside the active arm workspace"
-                )
-                continue
-            fix = ObjectFix(
-                label=label,
-                position=center,
-                points=pts_base,
-                detection=det,
-                extent=extents,
-                axes=axes,
-            )
             if color is None or det_color == color:
                 exact.append(fix)
             else:

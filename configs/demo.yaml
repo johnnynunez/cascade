@@ -464,6 +464,10 @@ perception_loop:
                               # seen this recently BEFORE the motion started
   localize_frames: 3        # detector passes per localize before falling
                             # back to the belief store (single frames flicker)
+  semantic_max_age_s: 20.0  # brain detector with SAM: the brain names the object on
+                            # one frame (may take up to this long, its timeout), SAM
+                            # re-measures it on a FRESH frame, and only that geometry
+                            # is used, under the unchanged 5 s analysed-frame limit
 
 # Browser dashboard (stdlib HTTP). HEADLESS BY DEFAULT: the chat client
 # (Hermes / OpenClaw / any MCP host) is the interface, and this view is a
@@ -553,6 +557,11 @@ detector:
   model: ${CASCADE_PERCEPTION_MODEL:-qwen3.8-27b}
   api_key_file: ${CASCADE_PERCEPTION_KEY_FILE:-~/.cascade/nemoclaw/llama.key}
   timeout_s: 20
+  # Background (watcher) requests, streamed: an open-world inventory decodes
+  # many more tokens than a refer. While a motion skill, preview_grasp or
+  # localize_object runs, no background request starts and the one in flight
+  # is cancelled (it resumes afterwards).
+  inventory_timeout_s: 20
   # Per-camera cache (the inventory, or the detect_classes vocabulary): SAM
   # tracks the cached boxes while the scene is unchanged (scene_change). The
   # watcher refreshes an unchanged scene every idle_refresh_s and a changed
@@ -560,11 +569,28 @@ detector:
   # calls are not capped); waiting cameras are served oldest-first.
   # describe_scene/localization refresh in the background after refresh_s,
   # which is also the wait after a failed brain call. Past max_cache_age_s
-  # they ask synchronously, unless that entry's refresh is already pending.
+  # they ask synchronously (under inventory_timeout_s), unless that entry's
+  # refresh is already pending: keep max_cache_age_s >= idle_refresh_s + 5 in
+  # every profile (the 5 s cover the watcher's tick that starts the idle
+  # refresh), so an unchanged scene never costs a synchronous inventory.
   refresh_s: 4.0
   idle_refresh_s: 30.0
-  max_cache_age_s: 30
+  max_cache_age_s: 35
   scene_change: 6.0
+  # Localization re-measures the named object on a fresh frame only while the
+  # view is unchanged: scene_change over the whole image, and this mean
+  # difference of the most-changed colour channel (B, G or R) inside the
+  # object's box grown by 10 % (colour: an object as bright as the table
+  # moves unseen in grey).
+  reanchor_local_diff: 8.0
+  # ...and while SAM's fresh mask (only its parts connected to where the
+  # object was: a neighbour is dropped) matches the one the object was named
+  # with: at least this share of each mask's pixels lies within max(2 px,
+  # 3 % of the object's diagonal) of the other (a still scene gives ~1.0;
+  # SAM's 1-2 px edge jitter stays inside), and no new contact with a border
+  # of SAM's prompt (the object's box grown by 20 %, at least 6 px a side):
+  # the object extends past the box it was named in.
+  reanchor_mask_agreement: 0.95
 
 # Optional vocabulary restriction for the always-on watcher and
 # get_observation. LEAVE EMPTY for a public demo: a non-empty list makes

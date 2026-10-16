@@ -33,16 +33,19 @@ from . import carry_attachment
 from ..memory import BeliefStore, EpisodicMemory, FrameObservation
 from ..memory.beliefs import camera_source
 from ..perception.colors import detection_color, parse_color_query
-from ..perception.detector import detect_vocabulary
+from ..perception.detector import can_reanchor, detect_vocabulary
 from ..perception.reference import ReferenceResolutionError, parse_reference
 from typing import TYPE_CHECKING, Any
 
 from ..perception.workspace import WorkspaceFilter
 
 from ..perception.grounding import (
+    DetectionRejected,
     Extrinsics,
+    fix_from_detection,
     localize_object,
     mask_to_points_cam,
+    median_point,
     oriented_bbox,
 )
 
@@ -129,6 +132,12 @@ _MOTION_SKILLS = {
     "restore_scene", "search_for_object",
 }
 
+#: Skills that run inside the detector's foreground-perception scope
+#: (perception.detector.foreground): every motion skill plus the `_localize`
+#: callers that move nothing. Background detector work (the brain's watcher
+#: inventories, SAM track steps) never competes with their localization.
+_FOREGROUND_PERCEPTION_SKILLS = _MOTION_SKILLS | {"preview_grasp", "localize_object"}
+
 #: Labels that name hollow things -- what Pigey's occlusion search lifts
 #: first ("start with the largest/hollowest container (bowl, basket, box),
 #: since those hide the most; then taller objects"). Size breaks ties.
@@ -173,6 +182,82 @@ def _analyzed_frame_age_s(frame: Frame, analysis_s: float, max_age_s: float = 5.
             f"result is {age:.1f}s old; the camera is live -- retry the observation"
         )
     return age
+
+
+class SceneChangedError(SkillError):
+    """Two-phase localization: the scene changed between the image the brain
+    named the object on and the fresh image its geometry comes from, again
+    after one retry. Like SlowPerceptionError it is not detector flicker:
+    no memory fallback, no motion recovery."""
+
+
+class ReanchorError(SkillError):
+    """Two-phase localization: SAM could not re-find the object the brain
+    named on a fresh image (no mask, an empty one, one off the brain's box,
+    too few depth points), again after one retry with a fresh refer. Never
+    replaced by the box: a box cloud includes table pixels."""
+
+
+#: Two-phase localization: frame0 -> frame1 limits within which the brain's
+#: box from frame0 still describes frame1 (spec 2026-10-16 B1 step 4/6).
+_REANCHOR_CAMERA_SHIFT_M = 0.002
+_REANCHOR_CAMERA_TURN_DEG = 0.5
+_REANCHOR_MAX_MOVE_M = 0.02
+
+
+def _semantic_age_s(frame: Frame, analysis_s: float, max_age_s: float, what: str = "to name the object") -> float:
+    """The brain's naming step (two-phase localization) and frame0's re-mask
+    under their own cap `perception_loop.semantic_max_age_s`: nothing
+    measured on this frame is acted on, so the 5 s analysed-frame limit
+    applies to the fresh frame."""
+    age = _frame_age_s(frame, max_age_s=float("inf"))
+    if not age <= max_age_s:
+        raise SlowPerceptionError(
+            f"Perception took {analysis_s:.1f}s {what} on a frame that was fresh at "
+            f"capture, so the semantic step is {age:.1f}s old (limit {max_age_s:g}s); the camera is "
+            "live -- retry the observation"
+        )
+    return age
+
+
+def _view_change(frame0: Frame, frame1: Frame) -> str | None:
+    """Why `frame1` does not show the view `frame0` showed (another camera,
+    other intrinsics, a camera pose moved past 2 mm / 0.5 deg), or None."""
+    if frame0.rgb.shape[:2] != frame1.rgb.shape[:2] or not np.allclose(frame0.K, frame1.K):
+        return "the camera intrinsics changed"
+
+    def identity(frame):
+        capture = getattr(frame, "capture", None)
+        return (capture.get("source"), capture.get("camera")) if isinstance(capture, dict) else None
+
+    if identity(frame0) != identity(frame1):
+        return "the image came from another camera"
+    T0, T1 = frame0.T_base_cam, frame1.T_base_cam
+    if (T0 is None) != (T1 is None):
+        return "the camera pose is known for one image only"
+    if T0 is not None:
+        T0, T1 = np.asarray(T0, dtype=float), np.asarray(T1, dtype=float)
+        shift = float(np.linalg.norm(T1[:3, 3] - T0[:3, 3]))
+        if not shift <= _REANCHOR_CAMERA_SHIFT_M:
+            return f"the camera moved {shift * 1000:.1f} mm"
+        cos = (float(np.trace(T0[:3, :3].T @ T1[:3, :3])) - 1.0) / 2.0
+        turn = math.degrees(math.acos(min(max(cos, -1.0), 1.0))) if math.isfinite(cos) else math.inf
+        if not turn <= _REANCHOR_CAMERA_TURN_DEG:
+            return f"the camera turned {turn:.2f} deg"
+    return None
+
+
+class _SceneChanged(Exception):
+    """One two-phase attempt saw the scene change (retried once)."""
+
+
+class _ReanchorFailed(Exception):
+    """One two-phase attempt could not re-anchor (retried once)."""
+
+
+def _rounded(value, digits: int):
+    value = float(value)
+    return round(value, digits) if math.isfinite(value) else None
 
 
 def _fresh_camera_frame(camera, previous: Frame | None = None) -> Frame:
@@ -447,6 +532,17 @@ class SkillRuntime:
     motion_cancel_requested = None
     arm_rig = None
     _call_measurements = None
+    #: Gripper close commands this runtime completed (`_close_two_stage`),
+    #: monotonic. With each harness's `motions_begun` it is the verifier's
+    #: "did this call act at all" signal (`_actuation_counts`).
+    _gripper_closes_commanded = 0
+    #: RELEASE opens this runtime completed, monotonic: counted after the
+    #: open command returns in open_gripper, place_at (its release and the
+    #: observed-slip drop) and throw. A handover keeps holding, so it ends
+    #: through open_gripper. Grasp-internal opens (pre-grasp, re-open after
+    #: a miss, screw strokes) are not releases and are not counted. The
+    #: verifier says "released" / "opened" only after a counted open.
+    _gripper_opens_completed = 0
     #: LinkSelfMask | None (B39): set by the app wiring when
     #: `workspace_filter.link_self_mask` is on; see perception/link_mask.py.
     _link_self_mask: "LinkSelfMask | None" = None
@@ -477,19 +573,28 @@ class SkillRuntime:
         """Rebind the PRIMARY arm (tests and harnesses do this directly)."""
         self._arm = value
 
-    def _contact_harnesses(self) -> list:
-        """Harnesses of every arm that files contact-monitor reports
-        (registry only: never materializes a standby LazyArm)."""
-        arms = list(self.arm_rig.arms.values()) if getattr(self, "arm_rig", None) is not None \
-            else [getattr(self, "_arm", None)]
-        out = []
+    def _arm_harnesses(self) -> list:
+        """The harness of every arm this runtime can command: the rig's arms,
+        then the bound primary, each harness once (None for an arm without
+        one). Registry only: read from each arm's instance dict, never
+        `getattr`, so bookkeeping never reaches a backend's __getattr__ (that
+        can probe or materialize a standby LazyArm)."""
+        arms = list(self.arm_rig.arms.values()) if getattr(self, "arm_rig", None) is not None else []
+        arms.append(getattr(self, "_arm", None))
+        out, seen = [], set()
         for arm in arms:
-            # The instance dict, not getattr: bookkeeping must never reach a
-            # backend's __getattr__ (that can probe or materialize an arm).
+            if arm is None:
+                continue
             harness = (getattr(arm, "__dict__", None) or {}).get("harness")
-            if harness is not None and callable(getattr(harness, "drain_contact_reports", None)):
+            if id(harness) not in seen:
+                seen.add(id(harness))
                 out.append(harness)
         return out
+
+    def _contact_harnesses(self) -> list:
+        """Harnesses of every arm that files contact-monitor reports."""
+        return [h for h in self._arm_harnesses()
+                if h is not None and callable(getattr(h, "drain_contact_reports", None))]
 
     def _select_arm(self, name):
         """Resolve an arm name to a SafeArm, or raise SkillError.
@@ -540,7 +645,36 @@ class SkillRuntime:
             table_z=float(self.cfg.safety.get("table_z", 0.0)),
             air_grasp_frac=float(self.cfg.grasp.get("air_grasp_frac", 0.04)),
             placement_check=self._verify_configured_placement,
+            actuation=self._actuation_counts,
+            holding=self._jaws_may_hold,
         )
+
+    def _jaws_may_hold(self) -> bool:
+        """The verifier's pre-call holding state: an object is held, or a
+        provisional (unconfirmed) grasp may have one in the jaws."""
+        return bool(self.held_object) or getattr(self, "_held_provisional", None) is not None
+
+    def _actuation_counts(self) -> dict | None:
+        """Monotonic counts of what this runtime commanded, for the verifier.
+
+        ``arm_motions`` sums `motions_begun` over every arm's harness
+        (`_arm_harnesses`): motions whose stream started (first approved
+        command; SafeArm, `move_planned`, cartesian paths and planner-bound
+        streams all approve each command in the harness). ``gripper_closes``
+        counts completed close commands (`_close_two_stage`),
+        ``gripper_opens`` completed release opens (`_gripper_opens_completed`).
+        None when any arm lacks a counting harness (a test double): the
+        verifier then claims neither "nothing happened" nor a close/release.
+        """
+        from ..safety.harness import SafetyHarness
+
+        harnesses = self._arm_harnesses()
+        if not harnesses or any(not isinstance(h, SafetyHarness) or type(h.motions_begun) is not int
+                                for h in harnesses):
+            return None
+        return {"arm_motions": sum(h.motions_begun for h in harnesses),
+                "gripper_closes": int(self._gripper_closes_commanded),
+                "gripper_opens": int(self._gripper_opens_completed)}
 
     def _verify_configured_placement(self, label, destination):
         """Resolve the requested area in configuration, then read physics only."""
@@ -784,8 +918,12 @@ class SkillRuntime:
             return {"ok": False, "status": "skipped", "reason": f"joint feedback unavailable: {exc}"}
         tol = float(profile.get("settle_tol", 0.03))
         target = home.tolist()
-        if np.max(np.abs(q - home)) <= tol:
-            return {"ok": True, "status": "already_home", "home_q": target}
+        error = float(np.max(np.abs(q - home)))
+        if error <= tol:
+            # The measured joints are the evidence (effects._check_at_home):
+            # no motion is sent, so no stream is counted.
+            return {"ok": True, "status": "already_home", "home_q": target,
+                    "joint_error_rad": round(error, 4), "settle_tol_rad": tol}
         # The watcher remains paused during the whole action. Obtain real
         # perception before starting another trajectory, so a long grasp
         # cannot enter the return with an expired perception watchdog.
@@ -986,7 +1124,7 @@ class SkillRuntime:
                     or self.held_object
                     or None
                 )
-            pre_state = self.effects.snapshot(target_label)
+            pre_state = self.effects.snapshot(target_label, name)
         region_context = None
         region_context_error = None
         if name == "place_at":
@@ -1012,6 +1150,11 @@ class SkillRuntime:
                       and getattr(self.memory, "embedder", None) is not None)
         if owns_crops:
             self._call_crops = {}
+        # Same ownership for two-phase localization timings (B1): the
+        # outermost call collects every localization it ran.
+        owns_perception_timings = getattr(self, "_call_perception_timings", None) is None
+        if owns_perception_timings:
+            self._call_perception_timings = []
         home_return = None
         result = None
         try:
@@ -1022,6 +1165,10 @@ class SkillRuntime:
                 if (self.watcher is not None and name in _MOTION_SKILLS)
                 else contextlib.nullcontext()
             )
+            from ..perception.detector import foreground as perception_foreground
+
+            perceiving = (perception_foreground(getattr(self, "detector", None))
+                          if name in _FOREGROUND_PERCEPTION_SKILLS else contextlib.nullcontext())
             owns_epoch = name in _MOTION_SKILLS and self._motion_t0 is None
             if owns_epoch:
                 self._motion_t0 = time.monotonic()
@@ -1045,7 +1192,7 @@ class SkillRuntime:
                 }
             try:
                 with motion_evidence.record_skill(name, resolved_arm, trace_context,
-                                                  enabled=name in _MOTION_SKILLS), hold:
+                                                  enabled=name in _MOTION_SKILLS), hold, perceiving:
                     failure = None
                     try:
                         from ..planning.backend_evidence import ordinary_call
@@ -1150,6 +1297,9 @@ class SkillRuntime:
         call_crops = None
         if owns_crops:
             call_crops, self._call_crops = self._call_crops, None
+        perception_timings = None
+        if owns_perception_timings:
+            perception_timings, self._call_perception_timings = self._call_perception_timings, None
         from ..memory.envelope import DERIVED_FEATURES
         if name not in DERIVED_FEATURES:
             measured = None
@@ -1275,6 +1425,20 @@ class SkillRuntime:
         contact_reports = [r for h in contact_harnesses for r in h.drain_contact_reports()]
         if contact_reports:
             trace_context["contact_monitor"] = contact_reports
+        if perception_timings:
+            # Two-phase localization (B1): where the time went. The result
+            # carries the latest localization of the object the call names
+            # (`label` / `object` / `query`, matched by query: the eye-in-hand
+            # pick_and_place localizes its destination FIRST); a call naming
+            # none of the localized queries, the first one it localized. The
+            # trace carries every one of them.
+            subject = args.get("label") or args.get("object") or args.get("query")
+            mine = [t for t in perception_timings if subject is not None and t.get("query") == str(subject)]
+            if not mine:
+                first = perception_timings[0].get("query")
+                mine = [t for t in perception_timings if t.get("query") == first]
+            result["perception_timing"] = dict(mine[-1])
+            trace_context["perception_timings"] = [dict(t) for t in perception_timings]
         self.trace.record(name, args, result, dur, before, after,
                           tier=self.current_tier, context=trace_context,
                           keyframe_before_wrists=before_wrists, keyframe_after_wrists=after_wrists)
@@ -1727,6 +1891,14 @@ class SkillRuntime:
                     **({"_planning_deadline": deadline}
                        if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1" else {}))
             except (SkillError, SafetyViolation) as e:
+                if isinstance(e, (SlowPerceptionError, SceneChangedError)):
+                    # Same rule as pick_and_place: an expired analysis (or a
+                    # scene that changed under the two-phase localization,
+                    # already retried once) is not a miss to cure with a
+                    # re-home and a re-scan; another attempt only repeats it.
+                    return {"ok": False, "held": False, "error": f"{type(e).__name__}: {e}",
+                            "home_skipped": True, "grasp_attempts": attempt,
+                            "note": "localization analysis expired; no automatic motion recovery"}
                 res = {"ok": False, "error": f"{type(e).__name__}: {e}"}
             if res.get("ok", True) and res.get("held"):
                 res["grasp_attempts"] = attempt
@@ -2216,6 +2388,16 @@ class SkillRuntime:
                 pass
         return frame, fix
 
+    def _note_perception_timing(self, timing: dict) -> None:
+        """Hand one two-phase localization's timing dict (filled in as it
+        runs, so a refused one still says how far it got) to the dispatched
+        call: execute() puts the latest one of the object the call names in
+        the skill result as `perception_timing` (matched by query) and every
+        one in the trace context. A no-op outside a dispatched call."""
+        timings = getattr(self, "_call_perception_timings", None)
+        if timings is not None:
+            timings.append(timing)
+
     def _localize(self, query: str, spatial_hint: str | None = None):
         """Fresh frame + color/proximity-aware 3D fix for a user phrase.
 
@@ -2254,6 +2436,27 @@ class SkillRuntime:
         frame = None
         last_err: SkillError | None = None
         reserve = getattr(self.detector, "reserve", nullcontext)
+        loop_cfg = self.cfg.get("perception_loop", {})
+        # B1 (spec 2026-10-16): with a detector that can re-anchor (the brain
+        # detector with a segmenter), the brain only NAMES the object on one
+        # frame; every geometry acted on comes from a fresh frame. Any other
+        # detector keeps the single-frame path below, unchanged.
+        two_phase = can_reanchor(self.detector)
+        semantic_max_age_s = float(loop_cfg.get("semantic_max_age_s", 20.0))
+        retried = {"scene": 0, "reanchor": 0}
+
+        def localize_once(cframe, ext):
+            # Today's per-frame localization: the detector's refer, SAM,
+            # colour/reference/workspace rules (single-frame path and the
+            # two-phase naming step alike).
+            return localize_object(
+                cframe, query, self.detector, ext,
+                prompts=r["prompts"], spatial_hint=spatial_hint,
+                color=r["color"], near_xyz=r["near_xyz"], vocab=r["vocab"],
+                prefer_label=r["prefer_label"],
+                workspace_bounds=workspace_bounds,
+                require_unique=r["configured_description"],
+            )
 
         def analyze(cframe, ext):
             # Bound the age of the image actually analyzed, including lazy
@@ -2262,28 +2465,176 @@ class SkillRuntime:
             _frame_age_s(cframe)
             started = time.monotonic()
             try:
-                return localize_object(
-                    cframe, query, self.detector, ext,
-                    prompts=r["prompts"], spatial_hint=spatial_hint,
-                    color=r["color"], near_xyz=r["near_xyz"], vocab=r["vocab"],
-                    prefer_label=r["prefer_label"],
-                    workspace_bounds=workspace_bounds,
-                    require_unique=r["configured_description"],
-                )
+                return localize_once(cframe, ext)
             finally:
                 _analyzed_frame_age_s(cframe, time.monotonic() - started)
 
-        tries = int(self.cfg.get("perception_loop", {}).get("localize_frames", 3))
-        for _ in range(max(tries, 1)):
+        def name_object(cframe, ext):
+            # Two-phase step 2: today's localize_object on frame0 (the brain's
+            # refer, SAM, colour/reference/workspace rules) picks the object.
+            # Nothing measured here is acted on: the semantic cap, not 5 s.
+            _frame_age_s(cframe)
+            started = time.monotonic()
+            try:
+                return localize_once(cframe, ext)
+            finally:
+                _semantic_age_s(cframe, time.monotonic() - started, semantic_max_age_s)
+
+        def check_time_left():
+            # Two-phase only (review I2): the naming step may take up to
+            # semantic_max_age_s, so no NEW frame or camera starts once the
+            # localization is older than that; a slow miss is refused in
+            # about one cap plus one naming round, as SlowPerceptionError.
+            elapsed = time.monotonic() - localization_started
+            if two_phase and not elapsed <= semantic_max_age_s:
+                raise SlowPerceptionError(
+                    f"Perception took {elapsed:.1f}s without a fresh fix of {query!r} (limit "
+                    f"{semantic_max_age_s:g}s to name it and re-measure it on a fresh frame); the camera "
+                    "is live -- retry the observation"
+                )
+
+        def re_mask(frame0, fix0, timing):
+            # Before frame1 is taken (its age is the 5 s rule's, this SAM call
+            # is no part of it): frame0 re-masked with the prompt frame1 will
+            # get, so every check compares masks made alike. The brain's
+            # detection still names the object; a failed re-mask is a failed
+            # re-anchor.
+            started = time.monotonic()
+            try:
+                reference = self.detector.reanchor_reference(frame0, fix0.detection)
+            except Exception as exc:  # noqa: BLE001 -- a failed SAM call is a failed re-anchor
+                raise _ReanchorFailed(f"{type(exc).__name__}: {exc}") from exc
+            finally:
+                timing["reference_s"] = round(time.monotonic() - started, 3)
+            if reference.detection is None or reference.detection.mask is None:
+                raise _ReanchorFailed(reference.reason or "SAM returned no mask on the image the object was named on")
+            return reference
+
+        def measure_again(frame0, fix0, reference, ext0, frame1, ext1, timing):
+            # Steps 4-7 on frame1: the same view, the brain's box re-anchored
+            # by SAM, the geometry from frame1 alone, and the 5 s rule on it.
+            started1 = time.monotonic()
+            try:
+                changed = _view_change(frame0, frame1)
+                if changed:
+                    raise _SceneChanged(changed)
+                timing["frame0_age_at_reanchor_s"] = round(started1 - float(frame0.t), 3)
+                try:
+                    found = self.detector.reanchor(frame1, fix0.detection, since=frame0, reference=reference)
+                except Exception as exc:  # noqa: BLE001 -- a failed SAM call is a failed re-anchor
+                    raise _ReanchorFailed(f"{type(exc).__name__}: {exc}") from exc
+                finally:
+                    timing["reanchor_s"] = round(time.monotonic() - started1, 3)
+                timing["scene_diff_global"] = _rounded(found.scene_diff_global, 2)
+                timing["scene_diff_local"] = _rounded(found.scene_diff_local, 2)
+                prompt_box = getattr(found, "prompt_box", None)
+                if prompt_box is not None:
+                    timing["reanchor_prompt_box"] = [int(v) for v in prompt_box]
+                timing["mask_iou"] = _rounded(getattr(found, "mask_iou", math.nan), 3)
+                timing["mask_agreement"] = _rounded(getattr(found, "mask_agreement", math.nan), 3)
+                timing["mask_components_dropped"] = int(getattr(found, "dropped_components", 0))
+                timing["mask_clipped_px"] = int(getattr(found, "clipped_px", 0))
+                if found.scene_changed:
+                    raise _SceneChanged(found.reason)
+                if found.detection is None or found.detection.mask is None:
+                    raise _ReanchorFailed(found.reason or "SAM returned no mask")
+                try:
+                    fix1 = fix_from_detection(frame1, found.detection, ext1, label=query, color=r["color"],
+                                              workspace_bounds=workspace_bounds)
+                except DetectionRejected as rejected:
+                    if rejected.kind == "points":
+                        raise _ReanchorFailed(rejected.reason) from None
+                    raise _SceneChanged(rejected.reason) from None  # colour, or out of the workspace now
+                # Both positions measured the same robust way (medians inside
+                # the masks eroded by 2 px), on the masks the geometry uses:
+                # frame1's clipped to the naming mask, and frame0's same-prompt
+                # re-mask clipped alike (a neighbour merged under the grown
+                # prompt is in neither). A pixel of SAM edge jitter onto the
+                # table tilts the fixes' OBB centres by ~2 cm.
+                then = getattr(reference, "geometry", None)
+                then = reference.detection if then is None else then
+                moved = float(np.linalg.norm(median_point(frame1, found.detection, ext1)
+                                             - median_point(frame0, then, ext0)))
+                timing["moved_m"] = _rounded(moved, 4)
+                if not moved <= _REANCHOR_MAX_MOVE_M:
+                    raise _SceneChanged(f"the object moved {moved * 100:.1f} cm between the two images")
+                return fix1
+            finally:
+                timing["frame1_age_s"] = round(time.monotonic() - float(frame1.t), 3)
+                _analyzed_frame_age_s(frame1, time.monotonic() - started1)
+
+        def localize_two_phase(take_frame0, take_frame1, extrinsics_of):
+            """frame0 -> name the object; a fresh frame1 -> measure it. ONE
+            retry (a new frame0 and a fresh refer) after a scene change, and
+            one after a failed re-anchor, per localization; the second of a
+            kind raises SceneChangedError / ReanchorError. Returns (frame1,
+            fix1)."""
+            for attempt in range(1, 4):  # at most one retry of each kind
+                if attempt > 1:
+                    check_time_left()
+                frame0 = take_frame0()
+                timing = {"query": query, "attempt": attempt}
+                self._note_perception_timing(timing)
+                started0 = time.monotonic()
+                ext0 = extrinsics_of(frame0)
+                try:
+                    fix0 = name_object(frame0, ext0)
+                finally:
+                    timing["semantic_s"] = round(time.monotonic() - started0, 3)
+                try:
+                    reference = re_mask(frame0, fix0, timing)
+                    # The re-mask's SAM call counts against the naming step's
+                    # cap, not against the fresh frame's 5 s.
+                    _semantic_age_s(frame0, time.monotonic() - started0, semantic_max_age_s,
+                                    what="to name the object and re-mask it")
+                    frame1 = take_frame1(frame0)
+                    return frame1, measure_again(frame0, fix0, reference, ext0, frame1, extrinsics_of(frame1),
+                                                 timing)
+                except _SceneChanged as exc:
+                    timing["scene_changed"] = str(exc)
+                    retried["scene"] += 1
+                    if retried["scene"] > 1:
+                        raise SceneChangedError(
+                            f"scene changed during perception of {query!r}: {exc}; the image the object "
+                            "was named on no longer matches the fresh one -- hold the scene still and retry"
+                        ) from None
+                except _ReanchorFailed as exc:
+                    timing["reanchor_failed"] = str(exc)
+                    retried["reanchor"] += 1
+                    if retried["reanchor"] > 1:
+                        raise ReanchorError(f"could not re-anchor {query!r} on a fresh image: {exc}") from None
+            raise ReanchorError(f"could not re-anchor {query!r} on a fresh image")
+
+        def primary_frame0():
+            nonlocal frame
+            frame = self.observe()
+            return frame
+
+        def primary_frame1(frame0):
+            fresh = self.depth.ensure_depth(_fresh_camera_frame(self.camera, previous=frame0))
+            self.last_frame = fresh
+            self.arm.harness.heartbeat()
+            return fresh
+
+        tries = int(loop_cfg.get("localize_frames", 3))
+        for frame_try in range(max(tries, 1)):
+            if frame_try:
+                check_time_left()
             try:
                 # Waiting behind the watcher consumes request time, not the
                 # lifetime of an image selected before inference is available.
                 with reserve():
+                    if two_phase:
+                        analyzed, fix = localize_two_phase(primary_frame0, primary_frame1,
+                                                           lambda _frame: self.extrinsics)
+                        return self._note_localized(query, analyzed, fix)
                     frame = self.observe()
                     fix = analyze(frame, self.extrinsics)
                 return self._note_localized(query, frame, fix)
             except SlowPerceptionError:
                 raise  # Not detector flicker; do not fall back to memory.
+            except (SceneChangedError, ReanchorError):
+                raise  # The object was named; its fresh geometry is refused, not missed.
             except ReferenceResolutionError:
                 # An unsatisfied identity constraint is not detector flicker.
                 # Retrying/falling back to a remembered noun can select a
@@ -2296,15 +2647,34 @@ class SkillRuntime:
         # or wrist camera; each pass costs one detector call.
         from ..perception.grounding import Extrinsics as _Ext
 
+        class _NoDepth(Exception):
+            pass
+
         for cam in self._other_cams():
+            check_time_left()
+
+            def ext_of(cframe, cam=cam):
+                return (_Ext(T=cframe.T_base_cam)
+                        if cframe.T_base_cam is not None else cam.extrinsics)
+
+            def side_frame0(cam=cam):
+                cframe = cam.depth.ensure_depth(cam.stream.get_frame())
+                if not cframe.has_depth:
+                    raise _NoDepth
+                return cframe
+
+            def side_frame1(frame0, cam=cam):
+                return cam.depth.ensure_depth(_fresh_camera_frame(cam.stream, previous=frame0))
+
             try:
                 with reserve():
-                    cframe = cam.depth.ensure_depth(cam.stream.get_frame())
-                    if not cframe.has_depth:
-                        continue
-                    ext = (_Ext(T=cframe.T_base_cam)
-                           if cframe.T_base_cam is not None else cam.extrinsics)
-                    fix = analyze(cframe, ext)
+                    if two_phase:
+                        cframe, fix = localize_two_phase(side_frame0, side_frame1, ext_of)
+                        ext = ext_of(cframe)
+                    else:
+                        cframe = side_frame0()
+                        ext = ext_of(cframe)
+                        fix = analyze(cframe, ext)
                 if (os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1"
                         and cframe.T_base_cam is None and ext.mode == "eye_to_hand"):
                     # Bind the secondary view's actual static calibration to
@@ -2317,7 +2687,11 @@ class SkillRuntime:
                     f"through {getattr(cam.stream, 'name', 'another camera')}",
                 )
                 return self._note_localized(query, cframe, fix)
+            except _NoDepth:
+                continue
             except SlowPerceptionError:
+                raise
+            except (SceneChangedError, ReanchorError):
                 raise
             except ReferenceResolutionError:
                 raise
@@ -3727,6 +4101,7 @@ class SkillRuntime:
                 _before_close()
             self._set_gripper(self._grip_closed, effort=profile.effort,
                               **({"_halt_generation": _halt_generation} if _halt_generation is not None else {}))
+            self._gripper_closes_commanded += 1
             return
         raw = self.arm.raw
         if hasattr(raw, "close_gripper_two_stage"):
@@ -3738,6 +4113,7 @@ class SkillRuntime:
                 width_frac_stage2=profile.close_frac_stage2,
                 effort=profile.effort,
             )
+            self._gripper_closes_commanded += 1
             return
         timeout = self.cfg.grasp.get("close_feedback_timeout_s")
         if timeout is not None:
@@ -3755,6 +4131,9 @@ class SkillRuntime:
                                  target_pos=self._grip_open + span * frac)
             self._set_gripper(self._grip_open + span * frac, effort=eff,
                                  **({"_halt_generation": _halt_generation} if _halt_generation is not None else {}))
+            # Counted once the command is accepted: the verifier may then say
+            # "the jaw closed" (a refused stage leaves the count unchanged).
+            self._gripper_closes_commanded += 1
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
             if timeout is not None:
                 self._wait_gripper_closed(1.0 - frac, timeout)
@@ -4046,6 +4425,7 @@ class SkillRuntime:
                                          _halt_generation=observation_generation)
                 except SafetyViolation as exc:
                     raise HeldObservationInvalid("observed-slip opening was cancelled") from exc
+                self._gripper_opens_completed += 1
                 slipped = self.held_object
                 self.held_object = None
                 self._held_det_label = None
@@ -4170,6 +4550,7 @@ class SkillRuntime:
                 raise
             # This is the native intentional release, after the separate
             # release-episode identity/geometry checks. It ends carry scope.
+            self._gripper_opens_completed += 1
             self._carry_attachment = None
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
             if release_timeout is not None and release is not None:
@@ -4596,7 +4977,7 @@ class SkillRuntime:
                     if isinstance(e, carry_attachment.AttachmentInvalid):
                         return carry_attachment.failure_result(self, e,
                             **failure_destination, grasp_attempts=attempt, place_attempts=0)
-                    if isinstance(e, SlowPerceptionError):
+                    if isinstance(e, (SlowPerceptionError, SceneChangedError)):
                         return {**failure_destination, "ok": False, "stage": "grasp",
                                 "error": str(e), "home_skipped": True,
                                 "grasp_attempts": attempt,
@@ -5024,6 +5405,7 @@ class SkillRuntime:
         # kick off the swing in a background stream and release mid-arc.
         self._move_joints(release, duration_s=0.6)
         self._set_gripper(self._grip_open, effort=1.0)  # let it fly
+        self._gripper_opens_completed += 1
         released_obj = self.held_object
         self.held_object = None
         self._held_det_label = None
@@ -5923,6 +6305,7 @@ class SkillRuntime:
 
     def skill_open_gripper(self) -> dict:
         self._set_gripper(self._grip_open, effort=0.8)
+        self._gripper_opens_completed += 1
         if self.held_object:
             self.memory.add("action", f"released {self.held_object!r}")
             self.held_object = None

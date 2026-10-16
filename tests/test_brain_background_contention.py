@@ -492,37 +492,66 @@ def test_a_cancelled_refresh_that_then_fails_is_no_failure_and_the_next_one_is(m
     assert [r.getMessage() for r in caplog.records if "refresh failed" in r.getMessage()]
 
 
+def _record_joins(monkeypatch, thread: threading.Thread, on_join=None, cap_s: float = 5.0) -> list:
+    """Record the timeout of every join() on `thread` (a foreground entry's
+    bounded wait for a cancelled stream); `on_join` runs at each call. The
+    real wait is capped at `cap_s`, so a mutant that waits without a bound
+    fails on the recorded timeout instead of hanging the run."""
+    timeouts = []
+    real = thread.join
+
+    def join(timeout=None):
+        timeouts.append(timeout)
+        if on_join is not None:
+            on_join()
+        real(cap_s if timeout is None else min(timeout, cap_s))
+
+    monkeypatch.setattr(thread, "join", join)
+    return timeouts
+
+
 def test_every_scope_entry_waits_for_a_cancelled_stream_still_open(make, monkeypatch):
     """The outer scope's bounded wait ran out while the cancelled request was
     in prefill. A nested scope (or another thread's) waits again, bounded,
-    so its foreground work does not overlap that stream's last chunk."""
+    so its foreground work does not overlap that stream's last chunk.
+
+    Event-based, no wall-clock window: the stream's first chunk is released
+    when the nested entry starts waiting for its thread, and the bound is the
+    timeout each entry hands to join(). A runner that stalls a thread for
+    0.3 s (sys.setswitchinterval(0.12) plus an injected sleep) cannot fail it.
+    """
     monkeypatch.setattr(brain_mod, "_CANCEL_WAIT_S", 0.3)
     gate, entered = threading.Event(), threading.Event()
     brain = _Brain(hold=True)
     _in_prefill(brain, gate, entered)
     det, _ = make(brain=brain)
     det.detect_nowait(_frame(40))
-    assert entered.wait(1.0), "the refresh never sent its request"
+    assert entered.wait(5.0), "the refresh never sent its request"
+    (refresh,) = det.refresh_threads()
     with det.foreground():
-        assert len(_refresh_threads()) == 1  # the outer wait ran out: still in prefill
-        timer = threading.Timer(0.1, gate.set)  # its first chunk arrives during the inner wait
-        timer.start()
-        started = time.monotonic()
+        assert refresh.is_alive()  # the outer wait ran out: still in prefill
+        # Its first chunk arrives once the nested entry waits for it; only the
+        # stream's end may end that wait (a bound far above any runner stall).
+        joins = _record_joins(monkeypatch, refresh, on_join=gate.set)
+        monkeypatch.setattr(brain_mod, "_CANCEL_WAIT_S", 30.0)
         with LockedDetector(det).foreground():
-            waited = time.monotonic() - started
-            assert _refresh_threads() == [], "the nested entry did not wait for the cancelled stream"
-        timer.join()
-        assert waited < 0.3 + 0.2
-        # Bounded: a stream that never closes costs a nested entry at most _CANCEL_WAIT_S.
+            assert joins, "the nested entry did not wait for the cancelled stream"
+            assert not refresh.is_alive(), "the nested entry returned before the cancelled stream closed"
+        assert all(t is not None and 0.0 <= t <= 30.0 for t in joins), joins
+    # Bounded: a stream that never closes costs a nested entry at most _CANCEL_WAIT_S.
+    monkeypatch.setattr(brain_mod, "_CANCEL_WAIT_S", 0.3)
     det_2, brain_2 = make(brain=_Brain(hold=True))
     gate_2, entered_2 = threading.Event(), threading.Event()
     _in_prefill(brain_2, gate_2, entered_2)
     det_2.detect_nowait(_frame(40))
-    assert entered_2.wait(1.0)
+    assert entered_2.wait(5.0)
+    (refresh_2,) = det_2.refresh_threads()
     with det_2.foreground():
-        started = time.monotonic()
+        joins_2 = _record_joins(monkeypatch, refresh_2)
         with det_2.foreground():
-            assert 0.25 <= time.monotonic() - started < 0.3 + 0.2
+            assert refresh_2.is_alive(), "the stream is still in prefill"
+        assert joins_2, "the nested entry did not wait for the stream still open"
+        assert all(t is not None and 0.0 <= t <= 0.3 for t in joins_2), joins_2
     gate_2.set()
 
 

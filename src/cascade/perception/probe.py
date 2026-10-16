@@ -51,6 +51,7 @@ where the top face is exactly what you want (grasp depth).
 
 from __future__ import annotations
 
+import re
 from typing import NamedTuple
 
 import numpy as np
@@ -79,15 +80,18 @@ _IRREGULAR_PLURALS = {"cherries": "cherry", "berries": "berry", "strawberries": 
 #: a label "orange" matches. "orange cube" keeps "orange" a colour only.
 _CATEGORY_NOUNS = frozenset({"fruit", "fruits", "vegetable", "vegetables", "food", "snack", "produce"})
 #: Shade words: "dark green" is a shade of green, "light blue" one of blue (and
-#: it also reads as cyan, `_words`). A shade is compatible with its base colour.
-_SHADES = frozenset({"light", "dark", "pale", "deep", "bright"})
+#: it also reads as cyan, `_words`). A shade is compatible with its base colour;
+#: two stated shades must be the same one (pale = light, deep = dark).
+_SHADES = {"light": "light", "pale": "light", "dark": "dark", "deep": "dark", "bright": "bright"}
+#: "dark-green" reads as "dark green".
+_HYPHENATED_SHADE = re.compile(r"\b(" + "|".join(_SHADES) + r")-(?=[a-z])")
 _PUNCTUATION = ".,;:!?\"'()[]{}"
 
 
 def _words(text: str) -> list[str]:
     """The words of a query or a label: lower case, "light blue" -> "cyan",
     punctuation stripped from each word, counts ("2", "#3") dropped."""
-    text = str(text).lower().replace("light-blue", "cyan").replace("light blue", "cyan")
+    text = _HYPHENATED_SHADE.sub(r"\1 ", str(text).lower()).replace("light blue", "cyan")
     out = []
     for w in text.replace(",", " ").split():
         w = w.strip(_PUNCTUATION)
@@ -144,15 +148,22 @@ def _head_noun(words: list[str]) -> str | None:
     return names[-1] if names else None
 
 
-def _shade_bases(text: str) -> set[str]:
-    """Base colours the object part of a phrase names through a shade word:
-    "light blue mug" -> {blue}, "dark green cube" -> {green}."""
+def _shades(text: str) -> set[tuple[str, str]]:
+    """(shade, base colour) pairs the object part of a phrase states:
+    "light blue mug" -> {(light, blue)}, "dark-green cube" -> {(dark, green)},
+    "pale blue" -> {(light, blue)}."""
     from .colors import canonical_color
 
     raw = [w.strip(_PUNCTUATION) for w in str(text).lower().replace("-", " ").replace(",", " ").split()]
     part = _object_part(raw)
-    return {c for shade, word in zip(part, part[1:])
+    return {(_SHADES[shade], c) for shade, word in zip(part, part[1:])
             if shade in _SHADES and (c := canonical_color(word)) is not None}
+
+
+def _shade_bases(text: str) -> set[str]:
+    """Base colours the object part of a phrase names through a shade word:
+    "light blue mug" -> {blue}, "dark green cube" -> {green}."""
+    return {base for _shade, base in _shades(text)}
 
 
 def _stated_colours(text: str) -> set[str]:
@@ -171,6 +182,7 @@ class _Kind(NamedTuple):
     colours: frozenset        # colours a label may state; empty = no constraint
     of_nouns: frozenset       # nouns after 'of', exact form ("bag of chips" -> chips)
     category_name: str | None  # a colour word under a category head ("orange fruit" -> orange)
+    shades: frozenset = frozenset()  # (shade, base) pairs it states ("light blue" -> (light, blue))
 
 
 def _queried_kind(query: str) -> _Kind:
@@ -199,7 +211,8 @@ def _queried_kind(query: str) -> _Kind:
     head = (before_of or nouns or [None])[-1]
     colours = frozenset({color} | _shade_bases(query)) if color is not None else frozenset()
     return _Kind(head, color, colours, frozenset(after_of),
-                 color_word if head in _CATEGORY_NOUNS and color_word is not None else None)
+                 color_word if head in _CATEGORY_NOUNS and color_word is not None else None,
+                 frozenset(_shades(query)))
 
 
 def _names_kind(name: str, kind: _Kind) -> bool:
@@ -208,13 +221,18 @@ def _names_kind(name: str, kind: _Kind) -> bool:
     same form ("bag of chips" -> chips, never "can of tomatoes" -> tomato), or
     the colour word of a category query ("orange fruit" -> orange). A modifier
     word never names the object ("tomato can" is a can, not a tomato). And a
-    colour it states is a queried one (a shade counts as its base colour)."""
+    colour it states is a queried one (a shade counts as its base colour).
+    When both state a shade, it is the same one: "light blue mug" is never a
+    lone "dark blue mug"."""
     words = _words(name)
     if kind.head is not None and not _shares(kind.head, words):
         own = _head_noun(words)
         if own is None or not (own in kind.of_nouns
                                or (kind.category_name is not None and _shares(own, [kind.category_name]))):
             return False
+    own_shades = _shades(name) if kind.shades else set()
+    if own_shades and not own_shades & kind.shades:
+        return False
     stated = _stated_colours(name)
     return not kind.colours or not stated or bool(stated & kind.colours)
 

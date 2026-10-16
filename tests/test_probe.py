@@ -424,6 +424,37 @@ def test_locate_pixel_still_refuses_another_object(query, label):
     assert out["ok"] is False and out["candidates"] == [label], out
 
 
+# Re-review (minor): a shade stated on BOTH sides must match; a shade against
+# a plain base colour stays accepted both ways; a hyphenated shade reads as
+# the two words ("dark-green" = "dark green").
+@pytest.mark.parametrize("query, label", [
+    ("light blue mug", "dark blue mug"),
+    ("dark blue mug", "light blue mug"),
+    ("light-blue mug", "dark blue mug"),
+    ("dark-green cube", "red cube"),
+    ("dark-green cube", "light green cube"),
+    ("dark green cube", "light-green cube"),
+])
+def test_two_stated_shades_must_match(query, label):
+    out = PointProbe(_runtime(beliefs=[_belief(label, [0.18, 0.06, 0.10])])).locate_pixel(query)
+    assert out["ok"] is False and out["candidates"] == [label], out
+
+
+@pytest.mark.parametrize("query, label", [
+    ("light blue mug", "blue mug"),         # a shade against its plain base colour, both ways
+    ("blue mug", "dark blue mug"),
+    ("dark-green cube", "green cube"),
+    ("green cube", "dark-green cube"),
+    ("dark-green cube", "dark green cube"),  # hyphenated or not, the same shade
+    ("dark green cube", "dark-green cube"),
+    ("pale blue mug", "light blue mug"),    # pale = light, deep = dark
+    ("deep red cup", "dark red cup"),
+])
+def test_a_shade_matches_the_same_shade_or_its_plain_base(query, label):
+    out = PointProbe(_runtime(beliefs=[_belief(label, [0.18, 0.06, 0.10])])).locate_pixel(query)
+    assert out["ok"] and out["label"] == label, out
+
+
 def test_a_count_in_the_query_is_not_a_name():
     out = PointProbe(_runtime(beliefs=[SQUARE])).locate_pixel("green cube 2")
     assert out["ok"] is False and "no tracked object is a 'green cube'" in out["error"]

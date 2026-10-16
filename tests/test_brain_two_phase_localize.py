@@ -144,7 +144,7 @@ class _Scene:
 
     def __init__(self, camera: MockCamera):
         self.state = dict(box=HOME_BOX, depth_shift=0.0, patch=None, colour=None, K=None, T=None, capture=None,
-                          dest=None, neighbour=None, lift=0.0)
+                          dest=None, neighbour=None, lift=0.0, window=None, gain=None)
         camera._render = self._render  # instance attribute: MockCamera._grab calls self._render()
 
     def set(self, **changes) -> None:
@@ -171,6 +171,12 @@ class _Scene:
             x0, y0, x1, y1, bgr = s["neighbour"]
             frame.rgb[y0:y1, x0:x1] = bgr
             frame.depth_m[y0:y1, x0:x1] = np.float32(0.6 - 0.05)
+        if s["window"] is not None:  # a bright window: saturated white
+            x0, y0, x1, y1 = s["window"]
+            frame.rgb[y0:y1, x0:x1] = 255
+        if s["gain"] is not None:  # an exposure / white-balance step: every pixel, per B, G, R channel
+            gain = np.broadcast_to(np.asarray(s["gain"], dtype=np.float64), (3,))
+            frame.rgb = np.clip(frame.rgb * gain, 0, 255).round().astype(np.uint8)
         if s["depth_shift"]:
             frame.depth_m = frame.depth_m + np.float32(s["depth_shift"])
         if s["K"] is not None:
@@ -338,14 +344,17 @@ def test_a_global_change_retries_and_finds_the_new_position(tp):
     assert np.linalg.norm(xy - _cube_xy(tp, HOME_BOX)) > 0.05, "never the old one"
 
 
-def test_a_global_change_alone_is_a_scene_change(tp):
-    # Only far from the cube: the local check and the geometry see nothing.
+def test_a_global_change_alone_is_logged_not_refused(tp):
+    """Follow-up I1b: only far from the cube (a visitor in the background):
+    the local check and the geometry see nothing. The whole-view diff is
+    evidence only inside a re-anchor (it cost a retry on bd5e80f, and a
+    permanent refusal with traffic in both windows)."""
     _moves_once(tp, patch=(0, 0, 200, 480, 40))
     result = tp.rt.execute("localize_object", {"label": "red cube"})
     assert result["ok"], result.get("error")
-    assert tp.brain.refers == 2, "the global change cost one retry"
+    assert tp.brain.refers == 1, "no retry for a change far from the object"
     timing = result["perception_timing"]
-    assert timing["scene_diff_global"] <= 6.0 and timing["scene_diff_local"] <= 8.0
+    assert timing["scene_diff_global"] > 6.0 and timing["scene_diff_local"] <= 8.0, timing
 
 
 def test_a_cube_moved_twice_raises_scene_changed_and_never_moves(tp):
@@ -1711,3 +1720,141 @@ def test_reanchor_measures_the_clipped_mask_and_compares_the_unclipped_ones():
     found = detector.reanchor(b, Detection("red cube", 1.0, det.bbox), since=a, reference=ref)
     assert (found.detection, found.scene_changed) == (None, False) and "named on" in found.reason, found
     assert len(sam.calls) == calls
+
+
+# -- follow-ups (post-merge review of #340, I1): exposure steps and visitors ------
+#
+# A real camera adds what the mock never shows: an auto-exposure / white
+# balance gain STEP between frame0 and frame1 (2-6 s apart), and visitors
+# entering or leaving the background. On a rig keyframe a x1.06 step read a
+# colour local diff of 8.45 (> 8) and a visitor leaving a whole-view diff of
+# 28 (> 6): a retry each, a permanent refusal when it repeats.
+
+#: A booth: a bright window (saturated white) at the left of the view and a
+#: visitor in black at the right, both far from the cube.
+BOOTH = dict(window=(0, 0, 120, 480), patch=(520, 0, 640, 360, 30))
+
+
+@pytest.mark.parametrize("gain", [1.06, 1.10, 0.94, (1.08, 1.0, 0.95)], ids=str)
+@pytest.mark.parametrize("booth", [False, True], ids=["table", "booth"])
+def test_an_exposure_step_on_a_still_scene_is_accepted_at_once(tp, gain, booth):
+    """I1a: the camera's gain steps (here by 6-10 %, or the white balance per
+    channel) while the brain names the cube. bd5e80f read the step as a
+    change around the cube (colour local diff 11-19 > 8) and asked the brain
+    again. The per-channel gain, measured outside the box on unsaturated
+    pixels, is divided out first: accepted at once, measured where it is."""
+    if booth:
+        _show(tp, **BOOTH)
+    _moves_once(tp, gain=gain)
+    result = tp.rt.execute("localize_object", {"label": "red cube"})
+    assert result["ok"], result.get("error")
+    timing = result["perception_timing"]
+    assert tp.brain.refers == 1, timing
+    expected = np.broadcast_to(np.asarray(gain, dtype=float), (3,))
+    assert timing["scene_gain"] == pytest.approx(expected.tolist(), abs=0.01), timing
+    assert timing["scene_diff_local"] <= 2.0, timing
+    assert np.linalg.norm(np.asarray(result["position"])[:2] - _cube_xy(tp, HOME_BOX)) < 0.003
+
+
+@pytest.mark.parametrize("gain", [None, 1.06], ids=["same exposure", "and a gain step"])
+def test_a_visitor_leaving_the_view_is_not_a_scene_change(tp, gain):
+    """I1b: a visitor in black leaves the right of the view while the brain
+    names the cube (whole-view diff ~32, > the cache's 6): nothing changed
+    around the cube, so it is accepted at once; the diff stays in the
+    timing as evidence."""
+    _show(tp, **BOOTH)
+    _moves_once(tp, patch=None, gain=gain)
+    result = tp.rt.execute("localize_object", {"label": "red cube"})
+    assert result["ok"], result.get("error")
+    timing = result["perception_timing"]
+    assert tp.brain.refers == 1, timing
+    assert timing["scene_diff_global"] > 6.0, timing
+    assert np.linalg.norm(np.asarray(result["position"])[:2] - _cube_xy(tp, HOME_BOX)) < 0.003
+
+
+@pytest.mark.parametrize("cm", [1.0, 3.0])
+@pytest.mark.parametrize("gain", [1.08, 0.94, None], ids=str)
+def test_a_slide_during_an_exposure_step_or_a_visitor_is_still_a_scene_change(tp, gain, cm):
+    """What the gain correction and the log-only whole-view diff must still
+    catch: the iso-luminant cube slides 1-3 cm while the gain steps (or a
+    visitor leaves the view). One retry, then the NEW position."""
+    _show(tp, colour=ISO, **({} if gain is not None else BOOTH))
+    new = _slid(round(cm * PX_PER_CM))
+    _moves_once(tp, box=new, **({"gain": gain} if gain is not None else {"patch": None}))
+    result = tp.rt.execute("localize_object", {"label": "orange cube"})
+    assert result["ok"], result.get("error")
+    assert tp.brain.refers == 2, "the slide is a scene change: one retry on a new frame"
+    assert "scene_changed" in _first_timing(tp), _first_timing(tp)
+    assert np.linalg.norm(np.asarray(result["position"])[:2] - _cube_xy(tp, new)) < 0.003
+
+
+def _scaled(frame, gain):
+    frame.rgb = np.clip(frame.rgb * np.broadcast_to(np.asarray(gain, dtype=float), (3,)), 0, 255).round().astype(
+        np.uint8)
+    return frame
+
+
+def _named(frame, box=HOME_BOX):
+    from cascade.types import Detection
+
+    return Detection("red cube", 1.0, np.array(box, np.float32), mask=_object_mask(frame.rgb))
+
+
+@pytest.mark.parametrize(("gain", "accepted"), [(2.0, False), (0.5, False), (1.5, False), (0.65, False),
+                                                (1.35, True), (0.75, True)])
+def test_a_brightness_change_past_the_gain_range_is_a_scene_change(gain, accepted):
+    """I1a's limit: a gain outside 0.7-1.4 is a real change of the scene
+    (lights, a shadow over the table), never normalised away. Inside it, a
+    still scene is re-anchored. Both frames stay unsaturated (frame0 dimmed
+    first), so only the range decides."""
+    first = 0.5 if gain > 1.0 else 1.0
+    a, b = _scaled(synthetic_tabletop(), first), _scaled(synthetic_tabletop(), first * gain)
+    found = BrainDetector(base_url="http://b/v1", model="m", segmenter=_ObjectSam()).reanchor(b, _named(a), since=a)
+    assert found.gain == pytest.approx((gain,) * 3, abs=0.02), found
+    if accepted:
+        assert found.detection is not None and found.scene_diff_local <= 2.0, found
+    else:
+        assert (found.detection, found.scene_changed) == (None, True), found
+        assert "brightness" in found.reason and "0.7" in found.reason and "1.4" in found.reason, found.reason
+
+
+def test_the_gain_is_measured_outside_the_box_on_unsaturated_pixels():
+    """The gain estimate: B, G, R medians of frame1/frame0 over the pixels
+    outside the local check's box. A bright window that stays saturated
+    (here 60 % of the view) says nothing about the gain; the object never
+    sets it: one whose own pixels brighten (it changed, the view did not)
+    is a change around it, not an exposure step."""
+    from cascade.perception.brain_detector import _exposure_gain
+
+    a = synthetic_tabletop()
+    a.rgb[:, :384] = 255  # the window (over the cube's box too: that is never sampled)
+    b = _scaled(synthetic_tabletop(), 1.1)
+    b.rgb[:, :384] = 255
+    assert _exposure_gain(a, b, HOME_BOX) == pytest.approx((1.1,) * 3, abs=0.01)
+
+    # A close-up: the box covers 60 % of the view and only the object in it
+    # brightens by 1.3 (a different object, or the same one turned).
+    big = (60, 40, 580, 440)
+    a = synthetic_tabletop(box_px=big)
+    b = synthetic_tabletop(box_px=big)
+    inside = np.all(b.rgb == RED, axis=-1)
+    b.rgb[inside] = np.clip(b.rgb[inside] * 1.3, 0, 255).astype(np.uint8)
+    assert _exposure_gain(a, b, big) == pytest.approx((1.0,) * 3, abs=0.01)
+    found = BrainDetector(base_url="http://b/v1", model="m", segmenter=_ObjectSam()).reanchor(
+        b, _named(a, big), since=a)
+    assert (found.detection, found.scene_changed) == (None, True), found
+    assert "colour difference" in found.reason, found.reason
+
+
+def test_a_saturated_object_stays_unchanged_under_a_gain_step():
+    """The local check compares frame1 with frame0 scaled by the gain and
+    clipped like the camera: a white object that saturates on both frames
+    reads no change (dividing frame1 by the gain read 255/1.1 vs 255)."""
+    from cascade.perception.brain_detector import _local_diff
+
+    a = synthetic_tabletop()
+    a.rgb[200:260, 280:360] = 250  # a white box, almost saturated
+    b = _scaled(synthetic_tabletop(), 1.1)
+    b.rgb[200:260, 280:360] = 255
+    assert _local_diff(a, b, HOME_BOX, (1.1, 1.1, 1.1)) < 0.5
+    assert _local_diff(a, b, HOME_BOX) > 5.0, "uncorrected: the step itself"

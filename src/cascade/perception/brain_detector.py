@@ -162,6 +162,23 @@ _WARM_UP_JOIN_S = 60.0
 #: reanchor(): the local image check compares the brain's box grown by this
 #: fraction of its width and height (half on each side).
 _REANCHOR_BOX_GROWTH = 0.10
+#: reanchor(): a real camera's auto-exposure / white balance steps between
+#: two frames seconds apart (a x1.06 step read a colour local diff of 8.45 on
+#: a rig keyframe). The B, G and R gains of the fresh frame over the named one
+#: are the medians of their pixel ratios OUTSIDE the local check's box (on a
+#: grid of every _GAIN_STRIDE-th pixel), over pixels below _GAIN_SATURATED on
+#: both frames (a saturated pixel says nothing about the gain) and at least
+#: _GAIN_DARK on the named one (a dark pixel's ratio is noise); a channel with
+#: fewer than _GAIN_MIN_SAMPLES such pixels keeps gain 1. The local check then
+#: compares the fresh frame with the named one scaled by them.
+_GAIN_STRIDE = 4
+_GAIN_SATURATED = 250
+_GAIN_DARK = 16
+_GAIN_MIN_SAMPLES = 256
+#: ...a gain outside this range is not an exposure step but a real change of
+#: the scene (lights, a shadow over the table): refused as a scene change,
+#: never normalised away.
+REANCHOR_GAIN_RANGE = (0.7, 1.4)
 #: reanchor(): SAM's prompt on the fresh frame (and on the named frame for
 #: the mask it is compared with: reanchor_reference) is the brain's box grown
 #: by this fraction (half on each side), at least _REANCHOR_PROMPT_MIN_PX on
@@ -219,8 +236,8 @@ class ReanchorResult(NamedTuple):
     the image changed around it (the brain's box no longer describes this
     frame) or SAM found no usable mask in it, and `reason` says which. The
     two diffs are always measured (mean absolute grey levels of the
-    thumbnails; the largest B/G/R mean absolute difference in the grown
-    box). Evidence once known: `prompt_box`, the grown box SAM was prompted
+    thumbnails, evidence only; the largest B/G/R mean absolute difference in
+    the grown box after the exposure gain). Evidence once known: `prompt_box`, the grown box SAM was prompted
     with (xyxy pixels); `mask_iou`, the pixel IoU of the newer mask with the
     same-prompt mask of the image the object was named on (its re-mask,
     `ReanchorReference`); `mask_agreement`, the smaller of the two shares of
@@ -229,7 +246,10 @@ class ReanchorResult(NamedTuple):
     pixels of the kept mask are not in the detection's mask (the geometry):
     those farther than that tolerance from the naming mask that the
     reference mask also has (a neighbour SAM merged under the grown prompt
-    on both images, or the ring a tight box cut off beyond the tolerance)."""
+    on both images, or the ring a tight box cut off beyond the tolerance).
+    `gain`: the newer image's exposure gain over the older one per B, G, R
+    channel (`_exposure_gain`), which the local diff divides out; the
+    whole-view (thumbnail) diff is evidence only."""
 
     detection: Detection | None
     scene_changed: bool
@@ -241,6 +261,7 @@ class ReanchorResult(NamedTuple):
     mask_agreement: float = math.nan
     dropped_components: int = 0
     clipped_px: int = 0
+    gain: tuple[float, ...] | None = None
 
 
 class ReanchorReference(NamedTuple):
@@ -320,15 +341,48 @@ def _reanchor_prompt(box, shape) -> tuple[int, int, int, int]:
     return _grown_box(box, shape, _REANCHOR_PROMPT_GROWTH, _REANCHOR_PROMPT_MIN_PX)
 
 
-def _local_diff(a: Frame, b: Frame, box) -> float:
+def _exposure_gain(a: Frame, b: Frame, box) -> tuple[float, ...]:
+    """`b`'s exposure gain over `a` (same size), per channel (B, G, R): the
+    median ratio b / a over the pixels OUTSIDE `box` (xyxy pixels) grown by
+    _REANCHOR_BOX_GROWTH, the local check's region, on a grid of every
+    _GAIN_STRIDE-th pixel. Pixels saturated on either frame or too dark on
+    `a` are skipped; 1.0 for a channel with fewer than _GAIN_MIN_SAMPLES
+    left (nothing to measure: no correction)."""
+    xa, ya, xb, yb = _grown_box(box, a.rgb.shape)
+    outside = np.ones(a.rgb.shape[:2], dtype=bool)
+    outside[ya:yb, xa:xb] = False
+    outside = outside[::_GAIN_STRIDE, ::_GAIN_STRIDE]
+    channels = a.rgb.shape[2] if a.rgb.ndim == 3 else 1
+    pa = a.rgb[::_GAIN_STRIDE, ::_GAIN_STRIDE][outside].astype(np.float32).reshape(-1, channels)
+    pb = b.rgb[::_GAIN_STRIDE, ::_GAIN_STRIDE][outside].astype(np.float32).reshape(-1, channels)
+    gains = []
+    for c in range(channels):
+        usable = (pa[:, c] >= _GAIN_DARK) & (pa[:, c] < _GAIN_SATURATED) & (pb[:, c] < _GAIN_SATURATED)
+        if np.count_nonzero(usable) < _GAIN_MIN_SAMPLES:
+            gains.append(1.0)
+        else:
+            gains.append(float(np.median(pb[usable, c] / pa[usable, c])))
+    return tuple(gains)
+
+
+def _local_diff(a: Frame, b: Frame, box, gain=None) -> float:
     """The largest of the B, G and R mean absolute differences of two
     same-size frames inside `box` (xyxy pixels) grown by
     _REANCHOR_BOX_GROWTH; inf when nothing of it is inside the image.
-    Colour, not grey: an object as bright as the table moves unseen in grey."""
+    Colour, not grey: an object as bright as the table moves unseen in grey.
+    With `gain` (`_exposure_gain(a, b, box)`), `b` is compared with `a`
+    scaled by it and clipped to 255 as the camera clips it, in `a`'s units:
+    an exposure step alone reads no difference, a saturated pixel included."""
     xa, ya, xb, yb = _grown_box(box, a.rgb.shape)
     if xb <= xa or yb <= ya:
         return math.inf
-    diff = np.abs(a.rgb[ya:yb, xa:xb].astype(np.float32) - b.rgb[ya:yb, xa:xb].astype(np.float32))
+    pa, pb = a.rgb[ya:yb, xa:xb].astype(np.float32), b.rgb[ya:yb, xa:xb].astype(np.float32)
+    if gain is None:
+        diff = np.abs(pa - pb)
+    else:
+        g = np.asarray(gain, dtype=np.float32).reshape(-1)
+        g = g if pa.ndim == 3 else g[:1]
+        diff = np.abs(np.minimum(pa * g, 255.0) - pb) / g
     return float(diff.reshape(-1, diff.shape[2] if diff.ndim == 3 else 1).mean(axis=0).max())
 
 
@@ -535,8 +589,10 @@ class BrainDetector(Detector):
     brain's box grown by 20 % (at least 6 px a side), no brain call; parts of
     the new mask not connected to the old mask's place (a neighbour) are
     dropped. Refused as a scene change when the image changed around it
-    (`scene_change` over the whole view, `reanchor_local_diff` in colour
-    inside the box grown by 10 %), when the new mask reaches a border of
+    (`reanchor_local_diff` in colour inside the box grown by 10 %, after
+    dividing out the camera's exposure gain measured outside it; a gain
+    outside REANCHOR_GAIN_RANGE is itself a change; the whole-view diff is
+    evidence only here), when the new mask reaches a border of
     SAM's prompt box the old mask did not, or when under
     `reanchor_mask_agreement` of either mask's pixels lie within a few pixels
     (size-aware) of the other; refused as a failed re-anchor when the mask is
@@ -767,10 +823,16 @@ class BrainDetector(Detector):
         brain. `reference` is `reanchor_reference(since, det)`, taken before
         `frame` was (None: made here, its SAM call inside this frame's age).
 
-        Refused as a scene change, with no SAM call, when the thumbnails of the
-        two frames differ by more than `scene_change` or, inside the brain's
-        box grown by 10 %, the largest B/G/R mean difference exceeds
-        `reanchor_local_diff`. Refused as a failed re-anchor when the
+        Refused as a scene change, with no SAM call, when the fresh frame's
+        exposure gain over `since` (B, G, R medians of their pixel ratios
+        outside the brain's box grown by 10 %, `_exposure_gain`) lies outside
+        REANCHOR_GAIN_RANGE (the light changed, not the exposure) or when,
+        inside that box, the largest B/G/R mean difference of the fresh frame
+        and `since` scaled by that gain exceeds `reanchor_local_diff`. The
+        thumbnails' whole-view difference is measured as evidence only: a
+        visitor walking behind the table changes it, the object's box does
+        not, and the checks below guard the object. Refused as a failed
+        re-anchor when the
         reference was refused. Otherwise SAM masks the brain's box grown by
         20 %, at least _REANCHOR_PROMPT_MIN_PX a side, on `frame` (the track
         step): the reference's prompt, so both masks are made alike and
@@ -805,18 +867,25 @@ class BrainDetector(Detector):
         comes back as a host bool mask."""
         if frame.rgb.shape != since.rgb.shape:
             return ReanchorResult(None, True, "the image size changed", math.inf, math.inf)
+        # Evidence only (I1b): the cache's scene check keeps it; here the
+        # local diff, components, border, agreement and the move check
+        # guard the object.
         diff_global = _scene_diff(_thumbnail(since), _thumbnail(frame))
-        diff_local = _local_diff(since, frame, det.bbox)
+        gain = _exposure_gain(since, frame, det.bbox)
+        exposure = all(REANCHOR_GAIN_RANGE[0] <= g <= REANCHOR_GAIN_RANGE[1] for g in gain)
+        diff_local = _local_diff(since, frame, det.bbox, gain if exposure else None)
         prompt_box = None
         match = None
 
         def refused(scene_changed: bool, reason: str) -> ReanchorResult:
             evidence = (match.iou, match.agreement, match.dropped) if match is not None else (math.nan, math.nan, 0)
-            return ReanchorResult(None, scene_changed, reason, diff_global, diff_local, prompt_box, *evidence)
+            return ReanchorResult(None, scene_changed, reason, diff_global, diff_local, prompt_box, *evidence,
+                                  gain=gain)
 
-        if not diff_global <= self._scene_change:
-            return refused(True, f"the view changed (mean grey difference {diff_global:.1f} > "
-                                 f"{self._scene_change:g})")
+        if not exposure:
+            return refused(True, "the brightness of the view changed (gain x"
+                                 f"{'/'.join(f'{g:.2f}' for g in gain)} outside {REANCHOR_GAIN_RANGE[0]:g}-"
+                                 f"{REANCHOR_GAIN_RANGE[1]:g}): not an exposure step")
         if not diff_local <= self._reanchor_local_diff:
             return refused(True, f"the image around the object changed (mean colour difference "
                                  f"{diff_local:.1f} > {self._reanchor_local_diff:g})")
@@ -866,7 +935,7 @@ class BrainDetector(Detector):
                                   "the image it was named on")
         detection = Detection(label=det.label, conf=det.conf, bbox=clip.box.astype(np.float32), mask=clip.mask)
         return ReanchorResult(detection, False, "", diff_global, diff_local, prompt_box, match.iou,
-                              match.agreement, match.dropped, clip.removed)
+                              match.agreement, match.dropped, clip.removed, gain)
 
     @contextlib.contextmanager
     def foreground(self):

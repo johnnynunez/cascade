@@ -2752,6 +2752,9 @@ class SkillRuntime:
                     timing["reanchor_s"] = round(time.monotonic() - started1, 3)
                 timing["scene_diff_global"] = _rounded(found.scene_diff_global, 2)
                 timing["scene_diff_local"] = _rounded(found.scene_diff_local, 2)
+                gain = getattr(found, "gain", None)
+                if gain is not None:
+                    timing["scene_gain"] = [_rounded(g, 3) for g in gain]
                 prompt_box = getattr(found, "prompt_box", None)
                 if prompt_box is not None:
                     timing["reanchor_prompt_box"] = [int(v) for v in prompt_box]

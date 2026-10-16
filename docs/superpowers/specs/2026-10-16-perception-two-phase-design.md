@@ -385,3 +385,7 @@ Keep green: `tests/test_brain_detector.py`, `test_brain_vocabulary_runtime.py`, 
   0.64 cm back toward the old place). Acceptance probe (698 cases): moved objects 0/378 accepted > 0.5 cm XY vs main (max 0.13);
   still scenes incl. a touching neighbour within main + 0.12 cm; tight boxes 52/52; noise sigma 1-4 70/70. The E2E logs
   `mask_clipped_px`.
+- P10 (integration). Every shipped profile keeps `max_cache_age_s >= idle_refresh_s + 5` (demo.yaml 35 / 30; kitchen 125 / 120),
+  so the watcher's idle refresh is always pending before an unchanged scene's entry ages out (no synchronous inventory on an
+  unchanged scene). A SceneChangedError ends handover / sort_by_color grasps like a SlowPerceptionError (no re-home loop).
+  "Released" is reported only after a measured jaw widening of >= 0.02 over the pre-call width of a jaw that held something.

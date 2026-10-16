@@ -1760,9 +1760,9 @@ def test_an_exposure_step_on_a_still_scene_is_accepted_at_once(tp, gain, booth):
 @pytest.mark.parametrize("gain", [None, 1.06], ids=["same exposure", "and a gain step"])
 def test_a_visitor_leaving_the_view_is_not_a_scene_change(tp, gain):
     """I1b: a visitor in black leaves the right of the view while the brain
-    names the cube (whole-view diff ~32, > the cache's 6): nothing changed
-    around the cube, so it is accepted at once; the diff stays in the
-    timing as evidence."""
+    names the cube (whole-view diff ~22, ~31 with a gain step; > the cache's
+    6): nothing changed around the cube, so it is accepted at once; the diff
+    stays in the timing as evidence."""
     _show(tp, **BOOTH)
     _moves_once(tp, patch=None, gain=gain)
     result = tp.rt.execute("localize_object", {"label": "red cube"})

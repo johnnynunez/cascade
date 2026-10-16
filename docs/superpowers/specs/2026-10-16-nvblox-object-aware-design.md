@@ -127,7 +127,7 @@ Rule:
 1. **Per step** (`approve`, `vet_step`): if any TCP/joint point is below `min_clearance_m` at
    `q_next`, the step is admitted only when **both** hold:
    - (a) every such point was already below the margin at `q_prev` (no new entrant);
-   - (b) its clearance **strictly** increases, `d_next > d_prev + 1e-9` (1e-6 refused every escape at its first tick: a 3 s min-jerk escape from rest gains ~9e-8 m there; the route-end rule bounds a slow creep), or the step is an exact
+   - (b) its clearance **strictly** increases, `d_next > d_prev + 1e-9` (1e-6 refused every escape at its first tick: a 3 s min-jerk escape from rest gains ~9e-8 m there; every admitted step strictly moves away, so no step creeps closer; the route-end rule guarantees that planner routes (`vet_route`, spatial `plan_route`) finish outside the margin, while direct streams, the approach, release retreat, park fold and cuMotion execute may finish inside it after retreating). A hold may not reduce any point's clearance, and an escaping step is also sampled along its interior (no voxel jumped), or the step is an exact
      hold (`q_next == q_prev` within 1e-9).
    Both distances come from the same grid in the same call.
 2. **Route end** (planner rule, `vet_route` and the spatial `plan_route`): a route is accepted

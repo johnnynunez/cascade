@@ -235,6 +235,27 @@ def _no_ambient_occupancy(monkeypatch):
     monkeypatch.setenv("CASCADE_OCCUPANCY", "0")
 
 
+@pytest.fixture(autouse=True)
+def _no_live_graspgenx(monkeypatch):
+    """No test reaches a live GraspGen-X server. demo.yaml's grasp backend is
+    `graspgenx` on 127.0.0.1:5556, and every mock-profile build_runtime probes
+    it at startup: on a host that serves the model (the Spark, the rig) the
+    suite's probes and plans landed on the real server, beside the robot's own
+    requests. CASCADE_GRASPGENX_PORT beats every config layer, so it points at
+    a port this process holds bound but not listening (nothing answers: the
+    startup probe gives up after its short probe timeout, as on CI where
+    nothing listens on 5556), and an ambient
+    CASCADE_GRASPGENX_HOST is dropped so that port is local. A test that needs
+    a server starts a fake one and sets its own port (monkeypatch.setenv /
+    delenv override this); the port stays held until the test ends."""
+    from owned_server import held_dead_port
+
+    monkeypatch.delenv("CASCADE_GRASPGENX_HOST", raising=False)
+    with held_dead_port() as port:
+        monkeypatch.setenv("CASCADE_GRASPGENX_PORT", str(port))
+        yield
+
+
 @pytest.fixture
 def demo_cfg():
     return load_demo_config(camera="mock", arm="mock", llm="mock")

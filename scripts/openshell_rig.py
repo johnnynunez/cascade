@@ -102,6 +102,7 @@ HOME_NAME = "openshell"            # ~/.cascade/<HOME_NAME>
 
 HOST_ALIAS = "host.openshell.internal"   # the supervisor maps it to the host's loopback
 BRAIN_KEY_ENV = "CASCADE_BRAIN_API_KEY"
+BRAIN_KEY_FILE_ENV = "CASCADE_BRAIN_KEY_FILE"   # the key FILE, for --brain-key-file's default
 MCP_TOKEN_ENV = "CASCADE_MCP_TOKEN"
 DEFAULT_BRAIN_PORT = 8081   # the authenticated brain of docs/NEMOCLAW.md
 DEFAULT_MCP_PORT = 18741    # loopback, plain HTTP + bearer (NemoClaw's TLS listener is 18740)
@@ -467,10 +468,27 @@ def serve_mcp_argv(cfg: Settings, token_file: Path, python: str = sys.executable
             "--token-file", str(token_file)]
 
 
-def serve_mcp_env(base: dict | None = None) -> dict:
+def default_brain_key_file() -> Path:
+    """$CASCADE_BRAIN_KEY_FILE, else NemoClaw's ~/.cascade/nemoclaw/llama.key:
+    the brain's bearer key file (0600) when --brain-key-file is not given."""
+    return Path(os.environ.get(BRAIN_KEY_FILE_ENV, str(Path.home() / ".cascade" / "nemoclaw" / "llama.key")))
+
+
+def serve_mcp_env(base: dict | None = None, cfg: Settings = Settings(),
+                  brain_key_file: Path | None = None) -> dict:
     """The server's environment, as nemoclaw_mcp.py serve and launch.sh build
     it: this checkout's src first, offline hub flags (explicit values kept),
-    and no CASCADE_MCP_TOKEN, so the token file is the only source."""
+    and no CASCADE_MCP_TOKEN, so the token file is the only source.
+
+    The server identifies objects with the brain (configs/demo.yaml
+    `detector: type: brain`). When this instance's saved brain is the Qwen
+    served id (`cfg.model == DEFAULT_MODEL`), it asks that brain:
+    `cfg.brain_port`, the Qwen model id and the brain key FILE, each unless
+    the launcher or the operator named it (an empty value counts as unset,
+    as in demo.yaml). Any other saved brain (Cosmos, ...) sets none of the
+    three, so demo.yaml's defaults apply and that brain never gets the Qwen
+    grounding prompt; an operator's own values still reach the server. The
+    key itself never enters the environment."""
     env = dict(os.environ if base is None else base)
     env.pop(MCP_TOKEN_ENV, None)
     env["PYTHONPATH"] = os.pathsep.join(p for p in (str(REPO / "src"), env.get("PYTHONPATH", "")) if p)
@@ -480,12 +498,21 @@ def serve_mcp_env(base: dict | None = None) -> dict:
     # pops an OpenCV window next to the demo. The demo's screen is OpenClaw's
     # web UI with the camera extension (`open`), fed by the live-view server.
     env.setdefault("CASCADE_VIEW", "0")
+    if cfg.model != DEFAULT_MODEL:
+        return env
+    brain = {"CASCADE_PERCEPTION_URL": f"http://127.0.0.1:{cfg.brain_port}/v1",
+             "CASCADE_PERCEPTION_MODEL": DEFAULT_MODEL,
+             "CASCADE_PERCEPTION_KEY_FILE": str(brain_key_file or default_brain_key_file())}
+    for name, value in brain.items():
+        if not env.get(name):
+            env[name] = value
     return env
 
 
 def serve_mcp_cwd() -> Path:
-    """models/: YOLOE resolves its text encoder relative to the cwd (launch.sh
-    runs the runtime there too); from the repo root offline detection fails."""
+    """models/, the cwd every launch route gives the server (launch.sh runs
+    the runtime there too). No longer needed for SAM: configs/demo.yaml loads
+    the weights by absolute path (`${repo}/models/sam2.1_l.pt`)."""
     return REPO / "models"
 
 
@@ -864,7 +891,7 @@ def cmd_serve_mcp(inst: Instance, home: Path, args) -> int:
         base.update(read_env_file(Path(args.env_file)))
     serve_mcp_cwd().mkdir(exist_ok=True)
     os.chdir(serve_mcp_cwd())
-    return _replace_process(argv, serve_mcp_env(base))
+    return _replace_process(argv, serve_mcp_env(base, cfg, Path(args.brain_key_file).expanduser()))
 
 
 def _log_tail(log: Path, lines: int = 8) -> str:
@@ -1125,8 +1152,7 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--model", default=None, help=f"served model id (default {DEFAULT_MODEL})")
         p.add_argument("--context-window", type=int, default=None,
                        help=f"the brain's context window in tokens (default {DEFAULT_CONTEXT_WINDOW})")
-        p.add_argument("--brain-key-file", default=os.environ.get(
-            "CASCADE_BRAIN_KEY_FILE", str(Path.home() / ".cascade" / "nemoclaw" / "llama.key")),
+        p.add_argument("--brain-key-file", default=str(default_brain_key_file()),
             help="0600 file with the brain's bearer key")
         p.add_argument("--mcp-token-file", default=None, help="0600 MCP token file (default <home>/mcp.token)")
 

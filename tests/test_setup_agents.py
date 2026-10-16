@@ -80,8 +80,8 @@ def test_claude_add_command_shape():
 def test_openclaw_outputs():
     cmd = openclaw_command(PY, ENV)
     # verified against OpenClaw 2026.7.1-2: the subcommand is `mcp add`
-    # (probe-before-save), args are repeatable --arg flags, and --cwd keeps
-    # YOLOE's CWD-relative text-encoder resolution working.
+    # (probe-before-save), args are repeatable --arg flags, and --cwd pins
+    # the server's working directory.
     assert cmd.startswith("openclaw mcp add cascade ")
     assert "--arg -m --arg cascade.apps.mcp_server" in cmd
     assert "--cwd" in cmd

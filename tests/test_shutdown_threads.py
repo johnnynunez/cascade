@@ -3,13 +3,16 @@
 The launcher's runtime check aborted with "terminate called without an
 active exception" in 3 of 20 kitchen launches (3 of 3 with a cold CUDA kernel
 cache). WorldWatcher.stop() joined the watcher with timeout=5 and returned
-while the first YOLOE inference was still running. The thread then died
+while the detector's first CUDA inference was still running. The thread then died
 inside torch at interpreter exit (perception/thread_join.py has the gdb
 evidence). These tests pin the contract with fakes that block inside a tick:
 
 * stop()/close() do not return while the work in flight is still running;
 * shutdown_runtime() returns with no owned thread alive;
-* a watcher that nobody stops is still joined at exit, before teardown.
+* a watcher that nobody stops is still joined at exit, before teardown;
+* the brain detector is closed after the watcher: its refresh threads and its
+  SAM warm-up are joined (bounded), and a warm-up past its bound is named in
+  the receipt's pending threads.
 
 `compressed_join_bounds` divides every finite Thread.join timeout by 100, so a
 bounded join (the old `join(timeout=5)`) gives up after 50 ms. That models a
@@ -19,6 +22,7 @@ waits on Events only, never on a (compressed) join.
 
 from __future__ import annotations
 
+import logging
 import subprocess
 import sys
 import textwrap
@@ -291,3 +295,268 @@ def test_join_thread_contract(capsys):
         assert "waiting for thread 'slow-tick' to finish" in capsys.readouterr().err
     finally:
         release.set()
+
+
+# ── the brain detector: closed after the watcher, its threads joined ──────
+
+
+class _GatedBrain:
+    """OpenAI-compatible client: every request waits for `gate`, then answers `[]`."""
+
+    def __init__(self):
+        self.gate, self.entered = threading.Event(), threading.Event()
+        self.threads: list[str] = []
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+    def _create(self, **kwargs):
+        self.threads.append(threading.current_thread().name)
+        self.entered.set()
+        self.gate.wait(10)
+        message = SimpleNamespace(content="[]")
+        return SimpleNamespace(choices=[SimpleNamespace(message=message, finish_reason="stop")])
+
+
+def _brain_refresh_threads() -> list[str]:
+    return [t.name for t in threading.enumerate() if t.name.startswith("brain-refresh") and t.is_alive()]
+
+
+def _stages(receipt) -> list[str]:
+    return [s["stage"] for s in receipt["stages"]]
+
+
+def test_shutdown_runtime_closes_the_brain_detector_and_joins_its_refreshes(tmp_path, monkeypatch):
+    pytest.importorskip("pinocchio")
+    from cascade.apps import demo
+    from cascade.config import load_demo_config
+    from cascade.perception.brain_detector import BrainDetector
+
+    closes: list[str] = []
+
+    class SpyBrain(BrainDetector):
+        def close(self):
+            closes.append(threading.current_thread().name)
+            super().close()
+
+    brain = _GatedBrain()
+    # No segmenter, so no SAM warm-up: only the watcher's background refresh.
+    detector = SpyBrain(base_url="http://brain/v1", model="qwen3.8-27b", api_key_file=None, client=brain)
+    monkeypatch.setattr(demo, "_make_detector", lambda cfg: detector)
+    runtime, arm = demo.build_runtime(load_demo_config(camera="mock", arm="mock", llm="mock"),
+                                      tmp_path / "run", view=False, serve=False)
+    at_return: dict = {}
+
+    def shutdown():
+        at_return["receipt"] = shutdown_runtime(runtime, arm)
+        at_return["refreshing"] = _brain_refresh_threads()
+
+    returned = None
+    try:
+        assert brain.entered.wait(5), "the watcher never started a brain refresh"
+        assert brain.threads[0].startswith("brain-refresh")
+        returned = _in_background(shutdown)
+        early = returned.wait(0.5)
+    finally:
+        brain.gate.set()
+        if returned is None:
+            shutdown_runtime(runtime, arm)
+    assert returned.wait(10)
+    assert not early, "shutdown_runtime returned while a brain refresh was in flight"
+    assert len(closes) == 1
+    assert at_return["refreshing"] == [], "a brain refresh outlived shutdown_runtime"
+    receipt = at_return["receipt"]
+    stages = _stages(receipt)
+    # Last: refresh threads touch neither cameras nor arms, and the arms'
+    # disconnect must never wait behind a brain request (up to timeout_s).
+    assert stages[-3:] == ["cameras", "arms", "detector"], stages
+    assert stages.index("watcher") < stages.index("detector")
+    detector_stage, = (s for s in receipt["stages"] if s["stage"] == "detector")
+    assert detector_stage["ok"] is True and receipt["pending_threads"] == []
+
+
+def test_a_detector_close_failure_is_logged_and_shutdown_goes_on(tmp_path, monkeypatch, caplog):
+    pytest.importorskip("pinocchio")
+    from cascade.apps import demo
+    from cascade.config import load_demo_config
+    from cascade.perception.brain_detector import BrainDetector
+
+    class BrokenClose(BrainDetector):
+        def close(self):
+            super().close()
+            raise RuntimeError("close broke")
+
+    detector = BrokenClose(base_url="http://brain/v1", model="m", api_key_file=None, client=_GatedBrain())
+    detector._client.gate.set()
+    monkeypatch.setattr(demo, "_make_detector", lambda cfg: detector)
+    runtime, arm = demo.build_runtime(load_demo_config(camera="mock", arm="mock", llm="mock"),
+                                      tmp_path / "run", view=False, serve=False)
+    with caplog.at_level(logging.WARNING, logger=demo.logger.name):
+        receipt = shutdown_runtime(runtime, arm)  # never raises
+    stage, = (s for s in receipt["stages"] if s["stage"] == "detector")
+    assert stage["ok"] is False and stage["errors"][0]["message"] == "close broke"
+    assert any("close broke" in m for m in caplog.messages)
+    assert _stages(receipt)[-3:] == ["cameras", "arms", "detector"]  # the arms were already off
+    assert next(s for s in receipt["stages"] if s["stage"] == "arms")["ok"] is True
+    assert next(s for s in receipt["stages"] if s["stage"] == "cameras")["ok"] is True
+
+
+class _BlockedWarmUp:
+    """Stands in for demo._warm_box_segmenter (SAM load + a CUDA predict):
+    blocks until the test releases it."""
+
+    def __init__(self):
+        self.started, self.release, self.finished = threading.Event(), threading.Event(), threading.Event()
+
+    def __call__(self, segmenter):
+        self.started.set()
+        self.release.wait(10)
+        self.finished.set()
+
+
+@pytest.fixture
+def brain_runtime(tmp_path, monkeypatch):
+    """A mock-rig runtime built by the REAL factory from configs/demo.yaml's
+    brain block, with a blocked fake SAM warm-up. No watcher, so nothing asks
+    the brain or loads SAM; a brain call would be recorded in `asked`."""
+    pytest.importorskip("pinocchio")
+    from cascade.apps import demo
+    from cascade.config import load_demo_config
+    from cascade.perception.brain_detector import BrainDetector
+
+    for name in ("CASCADE_PERCEPTION_URL", "CASCADE_PERCEPTION_MODEL", "CASCADE_BOOTH", "CASCADE_ROBOT"):
+        monkeypatch.delenv(name, raising=False)
+    key = tmp_path / "brain.key"
+    key.write_text("k")
+    monkeypatch.setenv("CASCADE_PERCEPTION_KEY_FILE", str(key))
+    asked: list[str] = []
+
+    def no_brain(self):
+        asked.append(threading.current_thread().name)
+        raise ConnectionError("tests never reach the brain")
+
+    monkeypatch.setattr(BrainDetector, "_get_client", no_brain)
+    warm = _BlockedWarmUp()
+    monkeypatch.setattr(demo, "_warm_box_segmenter", warm)
+    cfg = load_demo_config(camera="mock", arm="mock", llm="mock")
+    cfg._data["camera"].pop("detector")  # the mock camera pins the mock detector
+    cfg._data["perception_loop"] = {"enabled": False}
+    runtime, arm = demo.build_runtime(cfg, tmp_path / "run", view=False, serve=False)
+    try:
+        assert type(runtime.detector._detector) is BrainDetector
+        assert warm.started.wait(5), "the factory started no SAM warm-up"
+        yield runtime, arm, warm
+    finally:
+        warm.release.set()
+        shutdown_runtime(runtime, arm)
+    assert asked == []
+
+
+def test_owned_threads_names_the_sam_warm_up(brain_runtime):
+    runtime, _, _ = brain_runtime
+    owned = dict(owned_threads(runtime))
+    assert owned["sam-warm-up"].name == "sam-warm-up"
+    assert owned["sam-warm-up"] is runtime.detector._detector.warm_up_thread
+
+
+def test_shutdown_runtime_waits_for_the_sam_warm_up(brain_runtime):
+    runtime, arm, warm = brain_runtime
+    thread = runtime.detector._detector.warm_up_thread
+    at_return: dict = {}
+
+    def shutdown():
+        at_return["receipt"] = shutdown_runtime(runtime, arm)
+        at_return.update(finished=warm.finished.is_set(), alive=thread.is_alive())
+
+    try:
+        returned = _in_background(shutdown)
+        early = returned.wait(0.3)
+    finally:
+        warm.release.set()
+    assert returned.wait(10)
+    assert not early, "shutdown_runtime returned while the SAM warm-up was still running"
+    assert (at_return["finished"], at_return["alive"]) == (True, False)
+    receipt = at_return["receipt"]
+    assert "detector" in _stages(receipt) and receipt["pending_threads"] == []
+
+
+def test_shutdown_runtime_reports_a_sam_warm_up_that_outlasts_its_bound(brain_runtime, monkeypatch, capsys):
+    from cascade.perception import brain_detector
+
+    runtime, arm, warm = brain_runtime
+    monkeypatch.setattr(brain_detector, "_WARM_UP_JOIN_S", 0.2)
+    thread = runtime.detector._detector.warm_up_thread
+    try:
+        receipt = shutdown_runtime(runtime, arm)  # the bound expires: returns, names the thread
+        assert thread.is_alive()
+    finally:
+        warm.release.set()
+        thread.join(5)
+    assert receipt["pending_threads"] == [{"owner": "sam-warm-up", "thread": "sam-warm-up"}]
+    assert receipt["complete"] is False
+    assert "sam-warm-up thread 'sam-warm-up' is still running after shutdown" in capsys.readouterr().err
+
+
+def test_the_mock_runtime_keeps_its_teardown_stages(tmp_path):
+    pytest.importorskip("pinocchio")
+    from cascade.apps import demo
+    from cascade.config import load_demo_config
+
+    runtime, arm = demo.build_runtime(load_demo_config(camera="mock", arm="mock", llm="mock"),
+                                      tmp_path / "run", view=False, serve=False)
+    receipt = shutdown_runtime(runtime, arm)
+    assert "detector" not in _stages(receipt)  # MockDetector has no close()
+    assert "sam-warm-up" not in dict(owned_threads(runtime))
+
+
+# ── a failed build_runtime closes the detector it already made ─────────────
+
+
+class _ClosableDetector:
+    """Detector double with a class-defined close(); records each close."""
+
+    def __init__(self, error=None):
+        self.closed, self.error = 0, error
+
+    def detect(self, frame, classes=None):
+        return []
+
+    def set_classes(self, classes):
+        pass
+
+    def close(self):
+        self.closed += 1
+        if self.error is not None:
+            raise self.error
+
+
+@pytest.mark.parametrize("close_error", [None, RuntimeError("close broke too")], ids=["close-ok", "close-raises"])
+def test_a_build_failure_after_the_detector_closes_it(tmp_path, monkeypatch, close_error):
+    pytest.importorskip("pinocchio")
+    from cascade.apps import demo
+    from cascade.config import load_demo_config
+    from cascade.perception.stream import CameraStream
+
+    detector = _ClosableDetector(close_error)
+    monkeypatch.setattr(demo, "_make_detector", lambda cfg: detector)
+
+    def no_frames(self, n=10):
+        raise RuntimeError("camera never delivered a frame")
+
+    monkeypatch.setattr(CameraStream, "warm_up", no_frames)  # the step right after _make_detector
+    with pytest.raises(RuntimeError, match="camera never delivered a frame"):  # the build's own error
+        demo.build_runtime(load_demo_config(camera="mock", arm="mock", llm="mock"),
+                           tmp_path / "run", view=False, serve=False)
+    assert detector.closed == 1, "a failed build leaked the detector (its refresh threads, its SAM warm-up)"
+
+
+def test_a_build_failure_in_the_detector_factory_has_nothing_to_close(tmp_path, monkeypatch):
+    pytest.importorskip("pinocchio")
+    from cascade.apps import demo
+    from cascade.config import load_demo_config
+
+    def broken_factory(cfg):
+        raise ValueError("unknown detector type 'dino'")
+
+    monkeypatch.setattr(demo, "_make_detector", broken_factory)
+    with pytest.raises(ValueError, match="dino"):
+        demo.build_runtime(load_demo_config(camera="mock", arm="mock", llm="mock"),
+                           tmp_path / "run", view=False, serve=False)

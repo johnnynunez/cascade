@@ -89,7 +89,7 @@ def test_host_turn_reserve_does_not_extend_the_registered_mcp_call(monkeypatch, 
     blocks = re.findall(r"<<'PYEOF'[^\n]*\n(.*?)\nPYEOF", LAUNCH.read_text(), flags=re.DOTALL)
     [registration] = [block for block in blocks if '"requestTimeoutMs"' in block]
     monkeypatch.setattr(sys, "argv", ["-", sys.executable, "/fixture/repo", "isaac",
-                                     "isaac_kitchen_gpu", "/fixture/detector", "", "isaac",
+                                     "isaac_kitchen_gpu", "", "isaac",
                                      "/fixture/state", "fixture-owner", "0", "none"])
     exec(compile(registration, str(LAUNCH), "exec"), {})
     config = json.loads(capsys.readouterr().out)

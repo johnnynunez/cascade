@@ -350,7 +350,7 @@ def _registered_env(monkeypatch, capsys) -> dict:
     blocks = re.findall(r"<<'PYEOF'[^\n]*\n(.*?)\nPYEOF", LAUNCH.read_text(), re.DOTALL)
     [registration] = [block for block in blocks if '"requestTimeoutMs"' in block]
     monkeypatch.setattr(sys, "argv", ["-", sys.executable, str(REPO), "isaac,isaac_side,isaac_proof",
-                                      "isaac_kitchen_gpu", "/fixture/model", "", "isaac",
+                                      "isaac_kitchen_gpu", "", "isaac",
                                       "/fixture/state", "owner", "0", "auto"])
     exec(compile(registration, str(LAUNCH), "exec"), {})
     return json.loads(capsys.readouterr().out)["env"]
@@ -381,7 +381,7 @@ def _runtime_check_ports(tmp_path, ports: dict) -> list[str]:
     script = tmp_path / "check.sh"
     script.write_text(
         f'REPO="{tmp_path / "repo"}"; STATE_DIR="{tmp_path / "state"}"; PY="{fake_py}"\n'
-        'CAMERAS=isaac; ARM=isaac_kitchen_gpu; DETECTOR=/det.pt; CLASSES=\n'
+        'CAMERAS=isaac; ARM=isaac_kitchen_gpu; CLASSES=\n'
         'die() { echo "DIE: $*" >&2; exit 1; }\n'
         + source[begin:end] + 'printf "%s\\n" "$RUNTIME_CHECK"\n')
     env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), **ports}

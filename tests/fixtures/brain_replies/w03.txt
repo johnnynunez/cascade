@@ -1,0 +1,5 @@
+```json
+[
+	{"label": "pink plush lobster", "bbox_2d": [214, 545, 761, 1000]}
+]
+```

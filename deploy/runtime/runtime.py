@@ -291,9 +291,13 @@ def runtime_environment():
         CASCADE_BELIEFS_PATH=str(state_dir() / 'memory/beliefs.json'),
         CASCADE_GPU_PERCEPTION_EVIDENCE_DIR=str(state_dir() / 'perception'),
         CASCADE_QWEN_BASE_URL='http://127.0.0.1:8041/v1',
+        # Object identification (configs/demo.yaml `detector: type: brain`)
+        # asks this deployment's own brain: brain.py serves it on :8041 under
+        # the production model id. It runs without an api key.
+        CASCADE_PERCEPTION_URL='http://127.0.0.1:8041/v1', CASCADE_PERCEPTION_MODEL=model_identity(),
         CASCADE_JUDGE_CONFIG=str(state_dir() / 'judge.json'), CASCADE_PROOF_TIMEOUT_SCALE='2',
         CASCADE_GPU_PROFILE='qwen', CASCADE_CAMERAS='isaac,isaac_side,isaac_proof',
-        CASCADE_ARM='isaac_kitchen_gpu', CASCADE_DETECTOR_MODEL=str(perception / 'yoloe-11s-seg.pt'),
+        CASCADE_ARM='isaac_kitchen_gpu',
         YOLO_OFFLINE='True', ULTRALYTICS_OFFLINE='True', CASCADE_PREWARM='0',
         CASCADE_GPU_SERVER=str(llama),
         CASCADE_GPU_MODEL=str(configured_path('PAAI_MODEL_FILE', model_dir / 'Qwen3.8-27B-Q8_0.gguf')),

@@ -40,13 +40,52 @@ from ..types import Frame, transform_points
 logger = logging.getLogger(__name__)
 
 
+def _has_detect_nowait(detector) -> bool:
+    """The detector's CLASS defines detect_nowait (a Mock answers every
+    attribute, so an instance lookup would call a Mock and fuse its result)."""
+    return callable(getattr(type(detector), "detect_nowait", None))
+
+
 class LockedDetector:
     """Serialize detector access across threads (YOLO predict is not
-    re-entrant); shared by the watcher and the skill runtime."""
+    re-entrant); shared by the watcher and the skill runtime.
+
+    A detector whose CLASS declares a truthy `concurrent_safe` (the brain
+    detector: concurrent HTTP requests; it locks its own cache and the shared
+    SAM model) is called without this lock, and reserve() does not wait: a
+    foreground refer must not queue behind a multi-second background
+    inventory and trip the analysed-image age limit. set_classes()/prepare()
+    stay locked. Only the class attribute counts: a Mock answers every
+    attribute truthily.
+
+    detect_nowait() is the watcher's call: a detector whose CLASS defines
+    one (the brain detector: answers from its cache, asks the brain in the
+    background) gets it, under the same lock rule as detect(); any other
+    detector gets detect() as before.
+
+    detect_vocabulary() is the runtime's default-vocabulary pass
+    (perception.detector.detect_vocabulary): a detector whose CLASS defines
+    one (the brain detector's cached vocabulary entry) gets it, under the same
+    lock rule as detect(); any other detector gets detect().
+
+    close() (a shutdown stage, after the watcher stopped) forwards to the
+    detector's close() when its CLASS defines one (the brain detector joins
+    its refresh threads and SAM warm-up there), under the same lock rule as
+    detect(); a no-op otherwise.
+    """
 
     def __init__(self, detector):
         self._detector = detector
         self._lock = threading.RLock()
+        self._concurrent_safe = bool(getattr(type(detector), "concurrent_safe", False))
+        self._has_nowait = _has_detect_nowait(detector)
+        self._has_vocabulary = callable(getattr(type(detector), "detect_vocabulary", None))
+        self._has_close = callable(getattr(type(detector), "close", None))
+
+    @property
+    def closable(self) -> bool:
+        """The detector's CLASS defines close(): close() has work to do."""
+        return self._has_close
 
     @contextlib.contextmanager
     def reserve(self):
@@ -56,7 +95,11 @@ class LockedDetector:
         detect() reentrantly. Background inference cannot age that selected
         frame while it waits for the detector. This never refreshes timestamps
         or admits images whose actual analysis exceeds their freshness limit.
+        A concurrent-safe detector has no ownership to wait for.
         """
+        if self._concurrent_safe:
+            yield
+            return
         started = time.monotonic()
         with self._lock:
             waited = time.monotonic() - started
@@ -65,6 +108,15 @@ class LockedDetector:
             yield
 
     def detect(self, frame, classes=None):
+        if self._concurrent_safe:
+            started = time.monotonic()
+            try:
+                return self._detector.detect(frame, classes=classes)
+            finally:
+                elapsed = time.monotonic() - started
+                if elapsed > 1.:
+                    logger.info("Detector timing: lock wait %.3fs, inference %.3fs, classes=%r",
+                                0., elapsed, classes)
         started = time.monotonic()
         with self._lock:
             acquired = time.monotonic()
@@ -75,6 +127,31 @@ class LockedDetector:
                 if elapsed + acquired - started > 1.:
                     logger.info("Detector timing: lock wait %.3fs, inference %.3fs, classes=%r",
                                 acquired - started, elapsed, classes)
+
+    def detect_nowait(self, frame, classes=None):
+        if not self._has_nowait:
+            return self.detect(frame, classes=classes)
+        if self._concurrent_safe:
+            return self._detector.detect_nowait(frame, classes=classes)
+        with self._lock:
+            return self._detector.detect_nowait(frame, classes=classes)
+
+    def detect_vocabulary(self, frame, classes=None):
+        if not self._has_vocabulary:
+            return self.detect(frame, classes=classes)
+        if self._concurrent_safe:
+            return self._detector.detect_vocabulary(frame, classes=classes)
+        with self._lock:
+            return self._detector.detect_vocabulary(frame, classes=classes)
+
+    def close(self) -> None:
+        if not self._has_close:
+            return
+        if self._concurrent_safe:
+            self._detector.close()
+            return
+        with self._lock:
+            self._detector.close()
 
     def set_classes(self, classes) -> None:
         with self._lock:
@@ -183,7 +260,7 @@ class WorldWatcher:
     def stop(self, timeout_s: float | None = None) -> None:
         """Stop the loop and WAIT until the tick in flight has finished.
 
-        A tick runs native code (YOLOE/torch/CUDA, cv2, the occupancy
+        A tick runs native code (SAM/torch/CUDA, cv2, the occupancy
         client). This used to be `join(timeout=5)`, which returned while the
         first inference of a cold process (> 5 s while CUDA JIT-compiles its
         kernels) was still running. The launcher's runtime check then reached
@@ -361,15 +438,25 @@ class WorldWatcher:
             link = None
         else:
             link.sample()
-        dets = self._detector.detect(frame, classes=self._classes)
+        # Perception is alive: a NEW frame was processed (the dedupe above),
+        # independent of semantic inference. Sent BEFORE the detector call:
+        # this frame's heartbeat neither waits for the detector nor depends on
+        # its success; a dead camera still stops it. Also with an empty table
+        # or the arm mid-motion (motion skills outlast the watchdog window and
+        # rely on this).
+        if self._harness is not None:
+            self._harness.heartbeat()
+        # One heartbeat per tick: a call that blocks for the watchdog window
+        # (5 s) would starve it all the same. detect_nowait never waits for a
+        # slow backend (the brain detector answers from its cache and asks the
+        # brain in the background); other detectors keep detect().
+        if _has_detect_nowait(self._detector):
+            dets = self._detector.detect_nowait(frame, classes=self._classes)
+        else:
+            dets = self._detector.detect(frame, classes=self._classes)
         cam.stream.set_overlay(detections=dets)
         self.last_dets[cam.stream.name] = dets
         self.ticks += 1
-        # Perception is alive: a processed frame is a heartbeat even with an
-        # empty table or the arm mid-motion (motion skills outlast the
-        # watchdog window and rely on this).
-        if self._harness is not None:
-            self._harness.heartbeat()
         if T is None or not fuse:
             return
         # The robot's own pixels (render self-mask minus a held payload; B39:

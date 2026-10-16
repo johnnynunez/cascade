@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Finite, read-only CUDA perception probe; never constructs an arm or moves it.
 
-The live result uses real neural detections of RTX RGB-D frames. CPU reference
-geometry is evaluated only as a numeric parity test, outside demo execution.
+The live result uses real neural detections of RTX RGB-D frames: the kitchen's
+brain detector (the vision LLM of configs/demo.yaml names and boxes the
+objects, SAM masks the boxes on cuda:0), so the Isaac bridge (:8611) and the
+brain endpoint of demo.yaml must both be up. CPU reference geometry is
+evaluated only as a numeric parity test, outside demo execution.
 """
 from __future__ import annotations
 
@@ -19,6 +22,30 @@ import time
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "src"))
+
+#: The targeted (refer) query of the live check.
+TARGET = "pink cube"
+
+
+def make_probe_detector():
+    """The kitchen's detector, built by the demo's factory
+    (`apps.demo._make_detector`) from configs/demo.yaml's `detector:` (type
+    brain) and `segmenter:` blocks, with SAM pinned to cuda:0. No warm-up
+    thread: the first detect loads SAM. Refuses a config without the brain
+    detector or without SAM: the probe measures learned masks."""
+    from cascade.apps.demo import _make_detector
+    from cascade.config import load_demo_config
+    from cascade.perception.brain_detector import BrainDetector
+
+    cfg = load_demo_config(camera="isaac")
+    segmenter = cfg._data.get("segmenter") or {}
+    if not segmenter.get("enabled"):
+        raise RuntimeError("the perception probe needs SAM masks: configs/demo.yaml `segmenter.enabled` is off")
+    segmenter["device"] = "cuda:0"
+    detector = _make_detector(cfg, warm_up=False)
+    if not isinstance(detector, BrainDetector):
+        raise RuntimeError(f"the perception probe needs `detector: type: brain`, got {type(detector).__name__}")
+    return detector
 
 
 @contextmanager
@@ -57,6 +84,7 @@ def main():
                 raise TimeoutError("GPU experiment lock unavailable for 30 seconds")
             time.sleep(.1)
     receipt["gpu_lock_held"] = True
+    detector = None
     try:
         os.environ.update(CASCADE_REQUIRE_CUDA="1", CASCADE_DEVICE="cuda:0",
                           CASCADE_GPU_PERCEPTION_EVIDENCE_DIR=str(out))
@@ -65,7 +93,6 @@ def main():
         import torch
         from cascade.sim.bridge_client import BridgeClient
         from cascade.config import load_profile
-        from cascade.perception.detector import OpenVocabDetector
         from cascade.perception import colors, grounding, pixel_target, visual_diff, probe
         from cascade.perception import cuda_math as gpu
         from cascade.grasping import obb_grasp
@@ -92,14 +119,17 @@ def main():
         receipt["capture"] = {"shape": list(frame.rgb.shape), "t": frame.t,
                               "depth_source": frame.depth_source,
                               "depth_sha256": hashlib.sha256(frame.depth_m.tobytes()).hexdigest()}
-        os.chdir(ROOT/"models")  # existing text encoder resolves its installed relative asset here
-        detector = OpenVocabDetector(str(ROOT/"models/yoloe-11s-seg.pt"), classes=["pink cube"], device="cuda:0")
+        # The cwd of every launch route. Not what finds SAM: demo.yaml loads it by
+        # absolute path (`segmenter.model` = ${repo}/models/sam2.1_l.pt).
+        os.chdir(ROOT/"models")
+        detector = make_probe_detector()
+        receipt["detector"] = repr(detector)  # endpoint, model, segmenter class; never the key
         started = time.monotonic()
-        detections = detector.detect(frame, classes=["pink cube"])
+        detections = detector.detect(frame, classes=[TARGET])
         torch.cuda.synchronize()
         receipt["target_detector_seconds"] = time.monotonic() - started
         candidates = [d for d in detections if d.mask is not None and int(d.mask.sum()) >= 24]
-        assert candidates, "No actual learned object mask in live RTX frame"
+        assert candidates, f"No learned {TARGET!r} mask in the live RTX frame (brain detector answered {len(detections)})"
         det = max(candidates, key=lambda d: d.conf)
         receipt["detections"] = [{"label": d.label, "conf": d.conf, "bbox": d.bbox.tolist(),
             "mask_device": str(d.mask.device) if d.mask is not None else None} for d in detections]
@@ -147,11 +177,11 @@ def main():
         parity["probe_depth_abs_error_m"] = abs(depth_probe-ref_depth_probe)
         assert parity["visual_change_abs_error"] < 1e-12 and parity["probe_depth_abs_error_m"] < 1e-6
 
-        localized = grounding.localize_object(frame, "pink cube", SimpleNamespace(detect=lambda *args, **kwargs: detections),
+        localized = grounding.localize_object(frame, TARGET, SimpleNamespace(detect=lambda *args, **kwargs: detections),
             grounding.Extrinsics(mode="eye_to_hand", T=frame.T_base_cam))
         remembered = gpu.remember_cloud(localized.points)
-        belief = SimpleNamespace(position=localized.position, points=remembered, label="pink cube", conf=det.conf)
-        recalled = SkillRuntime._fix_from_belief("pink cube", belief)
+        belief = SimpleNamespace(position=localized.position, points=remembered, label=TARGET, conf=det.conf)
+        recalled = SkillRuntime._fix_from_belief(TARGET, belief)
         assert recalled.points.device.type == "cuda"
         receipt["localization"] = {"position_m": localized.position.tolist(), "extent_m": localized.extent.tolist(),
             "point_device": str(localized.points.device), "remembered_device": str(remembered.device),
@@ -159,7 +189,8 @@ def main():
         # Planning computes candidate geometry only; it never creates a robot.
         grasps = obb_grasp.plan_grasps_from_fix(localized, table_z=0.)
         receipt["non_actuating_grasp_candidates"] = len(grasps)
-        open_world = detector.detect(frame, classes=None)
+        # Open world: the brain's inventory of the whole frame (no query).
+        open_world = detector.detect(frame, None)
         receipt["open_world_detections"] = len(open_world)
         receipt["parity"] = parity
         receipt["nvidia_telemetry"] = subprocess.run(["nvidia-smi", "--query-compute-apps=pid,process_name,used_gpu_memory",
@@ -170,6 +201,8 @@ def main():
         receipt["error"] = f"{type(exc).__name__}: {exc}"
         raise
     finally:
+        if detector is not None:
+            detector.close()  # joins any brain refresh still in flight (bounded)
         receipt["finished_unix"] = time.time()
         (out/"receipt.json").write_text(json.dumps(receipt, indent=2, allow_nan=False)+"\n")
         fcntl.flock(lock, fcntl.LOCK_UN)

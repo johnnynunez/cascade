@@ -79,7 +79,7 @@ Set `grasp.backend: camera_frame` in a profile `overrides:` block, or export
 | `finger_drop_m` | `0.030` | Mask pixels this much nearer the camera than the mask median are dropped. These are gripper fingers segmented into the object mask. |
 | `max_fix_offset_m` | `0.03` | The planned surface point must lie inside the localized object's box plus this margin, or it is refused as a frame/extrinsic mismatch. |
 
-The planner needs a segmentation mask (YOLOE-seg or the mock detector) and
+The planner needs a segmentation mask (the brain detector's SAM masks or the mock detector) and
 measured depth (`sensor` or `mono`). It refuses plane-cast depth, because
 that puts every pixel on the table. Candidates are ordinary `Grasp`s. They
 go through the `GraspOutcomeMemory` re-rank, the selector's jaw-width check,
@@ -162,7 +162,7 @@ read-only.
 3. **Serial binding.** With both units attached, swap the profile serials and
    confirm the views swap. Unplug one unit and confirm the profile pinned to
    it fails with "not found" rather than streaming the other.
-4. **USB stability.** Start the full demo with YOLOE on CUDA and confirm no
+4. **USB stability.** Start the full demo with SAM on CUDA and confirm no
    USB reset or re-enumeration (`dmesg -w`) during model load and warm-up.
 5. **Extrinsic.** Calibrate the overhead mount (`scripts/calibrate_camera.py`)
    and replace the reference `T`. Coordinate `hand_eye_compensation_m` with

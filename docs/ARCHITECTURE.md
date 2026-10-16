@@ -207,7 +207,8 @@ N cameras ──CameraStream (thread each, latest-frame slot, drop-stale; render
    │          cameras pump at profile `fps`, 10 for MuJoCo scenes)
    │            ├── WorldWatcher (thread, ~3 Hz): detector + HSV colour tag +
    │            │     robot-body mask ──▶ BeliefStore (label + colour + 3D +
-   │            │     freshness) and occupancy integration
+   │            │     freshness) and occupancy integration; never waits for
+   │            │     the brain (detect_nowait)
    │            └── StreamServer (lazy MJPEG dashboard: rgb | depth | agent view,
    │                  narration, object table, chat, STOP; opt-in wrist-tile
    │                  highlight `stream.wrist_narration`, B47)
@@ -376,15 +377,33 @@ chat command ("pick and place the red cube")
   bridge: with IMU/joints at 200 Hz and a 33.3 Hz camera polled 0–25 ms late,
   16/24 read-time pairings per sensor were stale and all 24 aligned at 0 ms
   from the ring ([contract and numbers](ROBOT_MODULARITY.md#producer-rate-sampling-b72-opt-in)).
-- **Detector preparation.** The open-world and prompted YOLO models remain
-  resident, with up to eight successful text-embedding vocabularies retained
-  in LRU order. This adds model residency while avoiding checkpoint and text
-  encoder reloads when the watcher and a query alternate. Localization prepares
-  its vocabulary under the detector lock before selecting an image; this step
-  produces no detections or geometry. Every inference uses its own actual
-  image and the existing five-second age check. Slow inference and preparation
-  failures remain terminal for the attempted localization, with no automatic
-  movement recovery. Watcher detection and safety heartbeats continue normally.
+- **Brain-driven perception** (`perception/brain_detector.py`, `detector:
+  type: brain`). The local Qwen3.8-27B brain names and boxes every object
+  (inventory), each word of a configured `detect_classes` vocabulary (one
+  refer per class) or the one asked for (refer, "find the X"); SAM 2.1-L
+  (`segmenter.model: ${repo}/models/sam2.1_l.pt`) masks the boxes. Endpoint:
+  `CASCADE_PERCEPTION_URL` / `_MODEL` / `_KEY_FILE` (defaults :8080,
+  `qwen3.8-27b`, `~/.cascade/nemoclaw/llama.key`). A per-camera cache (the
+  inventory, or the vocabulary) lets SAM track the brain's last boxes while
+  the scene is unchanged. The watcher calls `detect_nowait`, which never
+  calls the brain on its own thread, so safety heartbeats never wait for the
+  brain: it refreshes an unchanged scene every `idle_refresh_s` (30 s) and a
+  changed one at once, at most one BACKGROUND brain request at a time per
+  detector (synchronous calls are not capped); waiting cameras are served
+  oldest-first.
+  `describe_scene`, `_reobserve` and localization's vocabulary pass read the
+  same cache: a track step while the scene is unchanged, plus a background
+  refresh once the entry is older than `refresh_s` (4 s). When nothing usable
+  is cached (no entry, a changed scene, older than `max_cache_age_s`) they
+  wait for a synchronous brain call, inside the five-second image-age check.
+  Exception: an unchanged scene past `max_cache_age_s` keeps its track step
+  while that entry's background refresh is in flight or waiting.
+  An agent's "find the X" is always a fresh synchronous refer, never cached.
+  The detector is concurrent-safe: `LockedDetector` skips its global lock, so
+  a refer never queues behind an inventory. After a failed brain call that
+  camera waits `refresh_s` before asking again; meanwhile a same-scene entry
+  is still tracked, otherwise the result is `[]`. Evidence:
+  [perception bake-off](evidence/perception-bakeoff-20261015/REPORT.md).
 - **Colour without CLIP** (`perception/colors.py`): median mask HSV → colour
   word, stored on beliefs, matched against colour words in queries.
 - **LazyArm** (`control/lazy_arm.py`): the MCP server pre-warms cameras,
@@ -936,9 +955,10 @@ src/cascade/
 │   ├── isaac_camera.py       Isaac bridge frames (RGB-D + per-frame T_base_cam)
 │   ├── ovrtx_camera.py       optional static USD RGB-D; no live robot-effect authority
 │   ├── depth_provider.py     sensor → mono plugin → table-plane ray-cast
-│   ├── detector.py           YOLOE / YOLO-World + MockDetector (open world by default)
+│   ├── detector.py           Detector ABC + MockDetector (colour blobs)
+│   ├── brain_detector.py     brain names + boxes, SAM masks (type: brain; default)
 │   ├── vlm_detector.py       VLM as detector      vlm_ground.py  second-chance grounder
-│   ├── segmenter.py          mask refinement      robot_mask.py  arm body out of depth
+│   ├── segmenter.py          SAM box/point masks  robot_mask.py  arm body out of depth
 │   ├── workspace.py          WorkspaceFilter (base cylinder, self-mask gate)  link_mask.py  self-mask from link geometry
 │   ├── grounding.py          Extrinsics + localize (colour/near-aware, de-biased OBB centre)
 │   ├── calibration.py        Kabsch camera→base fit with RMSE + degeneracy refusal
@@ -1477,7 +1497,7 @@ barriers.
   per colour at any distance (`instances: true` is opt-in), one detection
   drawn around both. New failure mode to watch: two disjoint detections of
   ONE object with no whole detection (a lid and a handle alone) are now two
-  beliefs. Live on Isaac (6.2 PhysX, YOLOE, both demo cameras; see
+  beliefs. Live on Isaac (6.2 PhysX, the former YOLOE detector, both demo cameras; see
   `docs/evidence/b31-isaac-same-colour-20261008/`): identical twins 5–9 cm
   apart were two beliefs in 9/10 runs (old store: 0/10), and the
   open-vocabulary 3-prop scene scores the same with either store
@@ -1518,8 +1538,8 @@ barriers.
   name (`source_colors`) and an observation is held to its own camera's name;
   a camera that never named a belief fuses a NEIGHBOUR name only at 3D box
   IoU >= `memory.neighbour_colour_iou` (0.75), and needs real-mask clouds on
-  both sides. The box ignores each cloud's lowest centimetre (B32c): YOLOE's
-  masks take in table pixels, and with them the bin's two live views scored a
+  both sides. The box ignores each cloud's lowest centimetre (B32c): the former YOLOE
+  detector's masks took in table pixels, and with them the bin's two live views scored a
   median of 0.744. Live on Isaac 6.2 PhysX the bare scene is now 3 beliefs for
   3 props in 5/5 runs (the one-name rule: 4 in 5/5), and a yellow prop in or
   next to the orange bin was never merged
@@ -1548,7 +1568,7 @@ barriers.
     first frame) refuses the container's full view (up to × 2.64) and the bin
     becomes two beliefs; ≥ 4 px of mask bleed onto a container makes the view
     of a prop inside it × 2.5 its size, so it is refused from the prop's own
-    belief (live YOLOE views of that prop: 0.066–0.074 m, no such bleed); and a
+    belief (live views of that prop with the former YOLOE detector: 0.066–0.074 m, no such bleed); and a
     prop's view fusing into the CONTAINER's belief is not handled (a smaller
     view always passes: it looks like an occluded view of the container).
     `memory.size_gate: false` restores the store before it, byte for byte.

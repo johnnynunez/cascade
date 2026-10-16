@@ -26,7 +26,10 @@ since B68 the two shell registrars too (``scripts/hermes_demo.sh`` and
   ``--hide-tools``); or
 * in `NOT_FORWARDED`, with a category from `CATEGORIES` and the reason.
 
-``tests/test_mcp_env_forwarding.py`` scans ``src/cascade`` and fails when the
+``tests/test_mcp_env_forwarding.py`` scans ``src/cascade`` (and the
+``${CASCADE_*:-default}`` placeholders in the string values of the
+``configs/`` profiles the config loader expands from the server's
+environment; comments do not count) and fails when the
 runtime reads a ``CASCADE_*`` variable listed in neither, or when an entry
 here is no longer read. Credentials are never forwarded: a persisted MCP
 config (``~/.hermes/config.yaml``, ``.mcp.json``, OpenClaw's profile) must not
@@ -67,7 +70,6 @@ FORWARDED: dict[str, str] = {
     "CASCADE_GRASP_EXECUTOR": "grasp executor (analytic|vla, B49)",
     "CASCADE_VLA_PORT": "VLA policy server port (B49)",
     "CASCADE_BOOTH": "booth tuning overlay (configs/booth.yaml)",
-    "CASCADE_DETECTOR_MODEL": "detector weights (launch.sh writes its own resolution first)",
     "CASCADE_DETECT_CLASSES": "detector vocabulary (--detect-classes wins)",
     "CASCADE_HIDE_TOOLS": "tools delisted from the catalog (--hide-tools wins)",
     "CASCADE_STREAM": "dashboard stream mode (0|eager|lazy|off)",
@@ -93,6 +95,12 @@ FORWARDED: dict[str, str] = {
     # ---- landed on main while B63 was open ----
     "CASCADE_MCP_READONLY_LANE": "read-only MCP lane on/off (B46), read by the server itself",
     "CASCADE_NVBLOX_MAP": "live-view nvblox map tile (0|1|auto, apps/map_tile.py)",
+    # ---- brain perception: the robot server's own client of the brain ----
+    # read through configs/demo.yaml `detector:` (`${NAME:-default}`); the
+    # launcher points them at the brain the agent uses
+    "CASCADE_PERCEPTION_URL": "brain endpoint that identifies objects (detector.base_url)",
+    "CASCADE_PERCEPTION_MODEL": "served brain model that identifies objects (detector.model)",
+    "CASCADE_PERCEPTION_KEY_FILE": "path of the brain's api key file (detector.api_key_file), never the key",
 }
 
 #: why a variable the runtime reads is not copied from the registering shell
@@ -112,6 +120,14 @@ NOT_FORWARDED: dict[str, tuple[str, str]] = {
     "CASCADE_ARM": ("registration", "the arm: launch.sh --arm / setup_agents --arm write it"),
     "CASCADE_OPENCLAW_PROFILE": ("registration", "launch.sh always writes the profile it registered under; the "
                                  "server checks it against --launch-owner, which only launch.sh passes"),
+    "CASCADE_START_STOPPED": ("registration", "only the dedicated Franka launchers (scripts/franka_openclaw.py, "
+                              "scripts/run_franka_http_mcp.sh) set it on the server they start; a generic "
+                              "registration must not inherit a latched STOP that holds every motion "
+                              "until an explicit resume"),
+    "CASCADE_GROUNDING_LLM_PROFILE": ("registration", "vision brain profile for grounding, chosen by the Franka "
+                                      "launcher (scripts/run_franka_http_mcp.sh sets local_cosmos on hardware); "
+                                      "franka_openclaw.py deliberately drops an inherited one, and generic "
+                                      "registrations stay offline"),
     "CASCADE_ARMS": ("selection", "the server prefers it over CASCADE_ARM, so an inherited list would silently "
                      "replace the arm the registration names; pass several arms with --arm a,b"),
     "CASCADE_CAMERA": ("selection", "legacy single-camera selector, read only when CASCADE_CAMERAS is unset; "

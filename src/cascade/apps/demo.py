@@ -16,9 +16,11 @@ path without an LLM call; only novel tasks reach the model.
 from __future__ import annotations
 
 import argparse
+import logging
 import math
 import os
 import sys
+import threading
 import time
 from pathlib import Path
 import numpy as np
@@ -44,6 +46,9 @@ from ..perception.workspace import WorkspaceFilter
 from ..safety.harness import SafeArm, SafetyHarness, SafetyLimits
 from ..safety.tool_volume import build_tool_volume
 from ..skills.runtime import SkillRuntime
+from ..types import Frame
+
+logger = logging.getLogger(__name__)
 
 
 def _camera_cfgs(cfg) -> list[Cfg]:
@@ -536,8 +541,9 @@ def build_runtime(
     cam_cfgs = _camera_cfgs(cfg)
     streams, watched = [], []
     # The detector is built AFTER rig.open() (below): Seeed's WRC rig reset
-    # the depth cameras' USB link when YOLOE/CUDA loaded before they were
-    # streaming (WRC 37285b0, tests/test_detector_after_camera_open.py).
+    # the depth cameras' USB link when the detector's CUDA model loaded before
+    # they were streaming (WRC 37285b0; the SAM warm-up loads CUDA the same
+    # way, tests/test_detector_after_camera_open.py).
 
     def fk():
         # Eye-in-hand extrinsics need live FK, but camera streams and the
@@ -599,6 +605,7 @@ def build_runtime(
         )
     rig = CameraRig(streams)
     feedback_arms = []
+    detector = None
     try:
         if lazy_arm and any(c.get("extrinsics", _empty_cfg()).get("mode") == "eye_in_hand"
                             for c in cam_cfgs):
@@ -619,6 +626,15 @@ def build_runtime(
         rig.close()  # a partial build must not leak open camera streams
         for raw in feedback_arms:
             raw.disconnect()  # passive ROS attachment has no active goals
+        if detector is not None:
+            # Nor the detector's threads (the brain detector's SAM warm-up and
+            # refreshes): its close() joins them with a bound. Last, as in
+            # shutdown_runtime; a close failure must not hide the build's error.
+            try:
+                detector.close()
+            except Exception as e:  # noqa: BLE001 - the build's own error is re-raised below
+                logger.warning("closing the detector after a failed build failed (%s: %s)",
+                               type(e).__name__, e)
         raise
 
     memory = EpisodicMemory(
@@ -1167,6 +1183,12 @@ def owned_threads(runtime) -> list:
     rig = getattr(runtime, "rig", None)
     for stream in (list(rig) if rig is not None else []):
         add(f"stream-{getattr(stream, 'name', '?')}", stream)
+    # The brain detector's SAM warm-up (LockedDetector wraps the detector):
+    # joined by the "detector" stage, listed here in case its bound expires.
+    detector = getattr(runtime, "detector", None)
+    warm_up = getattr(getattr(detector, "_detector", detector), "warm_up_thread", None)
+    if isinstance(warm_up, threading.Thread):
+        out.append(("sam-warm-up", warm_up))
     return out
 
 
@@ -1182,9 +1204,14 @@ def shutdown_runtime(runtime, arm) -> dict:
     Order: park (needs the watcher's heartbeat) -> save beliefs -> drift
     monitors (they read the watcher's streams and the arm's joints) ->
     watcher (the consumer of the camera streams) -> dashboard -> viewer ->
-    camera streams (producers) -> arms. Each thread owner WAITS for its thread's
+    camera streams (producers) -> arms -> detector (only one that defines
+    close(), i.e. the brain detector: it starts no further refresh and joins
+    those in flight and its SAM warm-up, each with a bound; a warm-up past it
+    is listed in pending_threads). The detector goes last: its threads touch
+    neither cameras nor arms, and disconnecting the arms must never wait
+    behind a brain request. Each thread owner WAITS for its thread's
     in-flight work; a bounded join here once let the watcher's first cold
-    YOLOE inference (> 5 s) outlive shutdown and abort the launcher's
+    CUDA detector inference (> 5 s) outlive shutdown and abort the launcher's
     runtime check at interpreter exit.
     """
     import copy
@@ -1231,6 +1258,17 @@ def shutdown_runtime(runtime, arm) -> dict:
             return rig.disconnect()  # includes the primary and per-arm results
         return arm.disconnect()
 
+    detector = getattr(runtime, "detector", None)
+
+    def _close_detector():
+        # Logged here, recorded in the receipt by teardown_step; never raised.
+        try:
+            detector.close()
+        except Exception as e:
+            logger.warning("closing the detector failed (%s: %s); shutdown goes on",
+                           type(e).__name__, e)
+            raise
+
     stages = []
     for name, step in (
         ("park", lambda: _park_arm(runtime)),
@@ -1248,6 +1286,10 @@ def shutdown_runtime(runtime, arm) -> dict:
         ("viewer", lambda: runtime.viewer.stop() if getattr(runtime, "viewer", None) else None),
         ("cameras", lambda: runtime.rig.close() if getattr(runtime, "rig", None) else runtime.camera.close()),
         ("arms", _disconnect_arms),
+        # likewise only for a detector with a close() (the brain detector):
+        # after the watcher (no new background refresh starts) and LAST, so
+        # the arms' disconnect never waits behind a brain request
+        *((("detector", _close_detector),) if getattr(detector, "closable", False) is True else ()),
     ):
         stages.append(teardown_step(name, step))
 
@@ -1255,9 +1297,10 @@ def shutdown_runtime(runtime, arm) -> dict:
     for label, thread in threads:
         if thread.is_alive():
             pending.append({"owner": label, "thread": thread.name})
-            # Every owner above waits without a bound, so this only fires if
-            # an owner regresses to a bounded join. Name it: the alternative
-            # is an unexplained abort at interpreter exit.
+            # The owners above wait without a bound, except the brain
+            # detector (bounded joins of its refreshes and SAM warm-up): this
+            # fires when such a bound expired, or an owner regressed to one.
+            # Name it: the alternative is an unexplained abort at interpreter exit.
             print(f"[cascade] WARNING: {label} thread {thread.name!r} is still running "
                   "after shutdown; native code may abort the process at exit",
                   file=sys.stderr)
@@ -1502,11 +1545,28 @@ def _program_tier(cfg, is_mock: bool):
     return ProgramTier(_program_library(cfg))
 
 
-def _make_detector(cfg):
+#: `detector.type: brain` defaults, also used for keys the block omits:
+#: the local vision LLM on :8080 (the PORT both scripts/serve_qwen_*.sh start
+#: on, = configs/demo.yaml's default) and the key file the launcher writes.
+BRAIN_BASE_URL = "http://127.0.0.1:8080/v1"
+BRAIN_MODEL = "qwen3.8-27b"
+BRAIN_KEY_FILE = "~/.cascade/nemoclaw/llama.key"
+
+#: Blank frame of the SAM warm-up (shape only; the result is discarded).
+_WARM_UP_SHAPE = (240, 320)
+
+
+def _make_detector(cfg, *, warm_up: bool = True):
+    """The detector the config names: `type: brain` (what configs/demo.yaml
+    ships), `mock`, or the deprecated `vlm`. A block without a `type` is
+    refused. `type: brain` with a segmenter also starts the SAM warm-up
+    thread unless `warm_up` is False (tests); the detector owns that thread
+    (its close() joins it)."""
     # A camera profile may pin its own detector (the mock camera uses the
     # mock detector so offline runs never load model weights).
     dcfg = cfg.camera.get("detector") or cfg.detector
-    if dcfg.type == "mock":
+    dtype = str(dcfg.get("type", ""))
+    if dtype == "mock":
         from ..perception.detector import MockDetector
 
         # extra_props on the camera profile (multi-prop scenes for the
@@ -1518,10 +1578,11 @@ def _make_detector(cfg):
         ]
         return MockDetector(label=dcfg.get("label", "red cube"), extra_labels=extra,
                             instances=bool(dcfg.get("instances", False)))
-    if dcfg.type == "vlm":
-        # Full-VLM perception (cosmos3-edge or any OpenAI-compatible vision
-        # server): no YOLOE, no ultralytics import. ~1-3 s per pass on a
-        # local vLLM -- see perception/vlm_detector.py for the trade.
+    if dtype == "brain":
+        return _make_brain_detector(cfg, dcfg, warm_up=warm_up)
+    if dtype == "vlm":
+        # Deprecated alias: the BrainDetector shim with the old cosmos3-edge
+        # defaults and no segmenter (box-only detections).
         from ..perception.vlm_detector import VLMDetector
 
         return VLMDetector(
@@ -1531,14 +1592,64 @@ def _make_detector(cfg):
             timeout_s=float(dcfg.get("timeout_s", 20.0)),
             conf=float(dcfg.get("conf", 0.25)),
         )
-    from ..perception.detector import OpenVocabDetector
+    if dtype == "yoloe":
+        raise ValueError(
+            "detector `type: yoloe` was removed: use `type: brain` (the vision LLM names and boxes "
+            "the objects, SAM masks them; see configs/demo.yaml), or `type: mock` offline")
+    raise ValueError(f"unknown detector type {dtype!r}: use `type: brain`, `type: mock` or `type: vlm`")
 
-    return OpenVocabDetector(
-        model_path=dcfg.model,
-        device=dcfg.get("device", "auto"),
-        conf=float(dcfg.get("conf", 0.25)),
-        prompt_free=bool(dcfg.get("prompt_free", True)),
+
+def _make_brain_detector(cfg, dcfg, *, warm_up: bool):
+    """BrainDetector from the detector block, with a BoxSegmenter built from
+    the same `segmenter:` strings as the click PointSegmenter (skills/runtime),
+    so both share one loaded SAM. No segmenter when `segmenter.enabled` is
+    false or absent: box-only detections."""
+    from ..perception.brain_detector import BrainDetector
+
+    segmenter = None
+    scfg = cfg.get("segmenter") or {}
+    if scfg.get("enabled"):
+        from ..perception.segmenter import BoxSegmenter, configured_segmenter
+
+        model_path, device = configured_segmenter(scfg)
+        segmenter = BoxSegmenter(model_path=model_path, device=device)
+    key_file = dcfg.get("api_key_file", BRAIN_KEY_FILE)
+    detector = BrainDetector(
+        base_url=str(dcfg.get("base_url", BRAIN_BASE_URL)),
+        model=str(dcfg.get("model", BRAIN_MODEL)),
+        # The key is read from this file, never from the config text.
+        api_key_file=os.path.expanduser(str(key_file)) if key_file else None,
+        timeout_s=float(dcfg.get("timeout_s", 20.0)),
+        max_tokens=int(dcfg.get("max_tokens", 1500)),
+        segmenter=segmenter,
+        refresh_s=float(dcfg.get("refresh_s", 4.0)),
+        max_cache_age_s=float(dcfg.get("max_cache_age_s", 30.0)),
+        scene_change=float(dcfg.get("scene_change", 6.0)),
+        idle_refresh_s=float(dcfg.get("idle_refresh_s", 30.0)),
     )
+    if warm_up and segmenter is not None:
+        # Handed to the detector: its close() (a shutdown stage) joins it and
+        # owned_threads names it, so SAM's native load/predict is never still
+        # running at interpreter exit.
+        detector.warm_up_thread = threading.Thread(target=_warm_box_segmenter, args=(segmenter,),
+                                                   name="sam-warm-up", daemon=True)
+        detector.warm_up_thread.start()
+    return detector
+
+
+def _warm_box_segmenter(segmenter) -> None:
+    """Load SAM and run one box predict on a blank frame, so the watcher's
+    first track step does not pay the cold start (weights + first CUDA
+    predict) under the shared model lock. Best effort: one warning on
+    failure, never raises; the first real detection then loads it."""
+    try:
+        h, w = _WARM_UP_SHAPE
+        frame = Frame(rgb=np.zeros((h, w, 3), np.uint8), depth_m=None,
+                      K=np.array([[w, 0.0, w / 2], [0.0, w, h / 2], [0.0, 0.0, 1.0]]))
+        segmenter.masks(frame, np.array([[w / 4, h / 4, 3 * w / 4, 3 * h / 4]], np.float32))
+    except Exception as e:  # noqa: BLE001 - a warm-up must never fail startup
+        logger.warning("SAM warm-up failed; the first detection loads it instead (%s: %s)",
+                       type(e).__name__, e)
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -427,9 +427,8 @@ def test_the_robot_mcp_server_is_served_on_loopback_with_a_token_file(tmp_path):
 
 def test_the_mcp_server_runs_like_the_other_routes_run_it():
     """Same contract as nemoclaw_mcp.py serve and launch.sh: cwd models/
-    (YOLOE resolves its text encoder relative to cwd, so from the repo root
-    open-vocab detection fails offline), offline hub flags, and the token
-    file as the only token source."""
+    (no longer needed for SAM, which configs/demo.yaml loads by absolute
+    path), offline hub flags, and the token file as the only token source."""
     rig = _load()
     env = rig.serve_mcp_env({"CASCADE_MCP_TOKEN": "leak", "YOLO_OFFLINE": "False", "PATH": "/bin"})
     assert "CASCADE_MCP_TOKEN" not in env
@@ -1351,6 +1350,124 @@ def test_serve_mcp_applies_the_environment_file_and_the_owner_flags(host, monkey
                         str(home / "mcp.token"), "--launch-owner", "o1", "--launch-state-dir", "/state"]
     assert env["CASCADE_ARM"] == "so101_mujoco", "the launcher's runtime wins over the unit's environment"
     assert "CASCADE_MCP_TOKEN" not in env, "the token file stays the only source"
+
+
+# ── the robot server reaches the instance's brain for perception ──────────
+# configs/demo.yaml identifies objects with the brain (`detector: type: brain`)
+# at ${CASCADE_PERCEPTION_URL:-...}. serve-mcp points the robot server at the
+# brain its instance's sandbox uses; the key travels as a FILE path only.
+
+PERCEPTION = ("CASCADE_PERCEPTION_URL", "CASCADE_PERCEPTION_MODEL", "CASCADE_PERCEPTION_KEY_FILE")
+#: what serve-mcp adds to an environment that sets none of it
+SERVE_SCRUB = (*PERCEPTION, "PYTHONPATH", "YOLO_OFFLINE", "ULTRALYTICS_OFFLINE", "CASCADE_VIEW", "CASCADE_MCP_TOKEN")
+
+
+def _serve(host, monkeypatch, *args):
+    """`serve-mcp` through main(): the process it would become and its environment."""
+    seen = _rig_exec(host, monkeypatch)
+    monkeypatch.setattr(host.rig.os, "chdir", lambda p: None)
+    assert host.rig.main(list(args)) == 0
+    ((argv, env),) = seen
+    return argv, env
+
+
+def test_golden_the_default_robot_server_is_todays_plus_the_brain_endpoint(host, monkeypatch):
+    """The live rig's server (default instance, no flags): today's argv on
+    :18741 and today's environment, plus the brain its sandbox uses (:8081,
+    qwen3.8-27b, NemoClaw's key file). The key's contents appear nowhere."""
+    for name in SERVE_SCRUB:
+        monkeypatch.delenv(name, raising=False)
+    home = host.install(host.user / ".cascade" / "openshell")
+    before = dict(os.environ)
+    argv, env = _serve(host, monkeypatch, "serve-mcp")
+    assert argv == [sys.executable, "-m", "cascade.apps.mcp_server", "--http", "127.0.0.1:18741",
+                    "--token-file", str(home / "mcp.token")]
+    key = host.user / ".cascade" / "nemoclaw" / "llama.key"
+    assert env == {**before, "PYTHONPATH": str(REPO / "src"), "YOLO_OFFLINE": "True", "ULTRALYTICS_OFFLINE": "True",
+                   "CASCADE_VIEW": "0", "CASCADE_PERCEPTION_URL": "http://127.0.0.1:8081/v1",
+                   "CASCADE_PERCEPTION_MODEL": "qwen3.8-27b", "CASCADE_PERCEPTION_KEY_FILE": str(key)}
+    secret = key.read_text().strip()
+    assert secret == "brain-key"
+    assert not [k for k, v in env.items() if secret in v] and not [a for a in argv if secret in a]
+
+
+def test_a_named_instance_points_perception_at_its_own_brain(host, monkeypatch):
+    """The sim instance's server asks the brain that instance's sandbox was
+    brought up with (`up --brain-port`, saved), not the default route's."""
+    for name in PERCEPTION:
+        monkeypatch.delenv(name, raising=False)
+    home = host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    host.gateways_up.add(str(home / "0.1.3" / "bin" / "openshell"))
+    assert host.rig.main(["--instance", "sim", "up", "--brain-port", "8093"]) == 0
+    argv, env = _serve(host, monkeypatch, "--instance", "sim", "serve-mcp")
+    assert argv[argv.index("--http") + 1] == "127.0.0.1:17810"
+    assert env["CASCADE_PERCEPTION_URL"] == "http://127.0.0.1:8093/v1"
+    assert env["CASCADE_PERCEPTION_MODEL"] == "qwen3.8-27b"
+    assert env["CASCADE_PERCEPTION_KEY_FILE"] == str(host.user / ".cascade" / "nemoclaw" / "llama.key")
+
+
+def test_an_instance_saved_with_another_brain_leaves_perception_to_the_profile(host, monkeypatch):
+    """Ruling 20: serve-mcp fills in the endpoint only for an instance whose
+    saved brain is the Qwen served id. A sim instance last brought up on
+    Cosmos (:8082, cosmos3-edge) sets none of the three, so configs/demo.yaml's
+    defaults (the local Qwen brain) apply and Cosmos never gets the Qwen
+    grounding prompt. An operator's own value still reaches the server."""
+    for name in PERCEPTION:
+        monkeypatch.delenv(name, raising=False)
+    home = host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    host.gateways_up.add(str(home / "0.1.3" / "bin" / "openshell"))
+    assert host.rig.main(["--instance", "sim", "up", "--brain-port", "8082", "--model", "cosmos3-edge"]) == 0
+    saved = json.loads((home / "deployed.json").read_text())["settings"]
+    assert (saved["brain_port"], saved["model"]) == (8082, "cosmos3-edge")
+    argv, env = _serve(host, monkeypatch, "--instance", "sim", "serve-mcp")
+    assert argv[argv.index("--http") + 1] == "127.0.0.1:17810"
+    assert sorted(set(PERCEPTION) & set(env)) == []
+    monkeypatch.setenv("CASCADE_PERCEPTION_URL", "http://10.0.0.7:8000/v1")
+    _, env = _serve(host, monkeypatch, "--instance", "sim", "serve-mcp")
+    assert {name: env.get(name) for name in PERCEPTION} == {
+        "CASCADE_PERCEPTION_URL": "http://10.0.0.7:8000/v1", "CASCADE_PERCEPTION_MODEL": None,
+        "CASCADE_PERCEPTION_KEY_FILE": None}
+
+
+def test_a_brain_port_flag_reaches_perception(host, monkeypatch):
+    for name in PERCEPTION:
+        monkeypatch.delenv(name, raising=False)
+    host.install(host.user / ".cascade" / "openshell-sim", "sim")
+    _, env = _serve(host, monkeypatch, "--instance", "sim", "serve-mcp", "--brain-port", "8095")
+    assert env["CASCADE_PERCEPTION_URL"] == "http://127.0.0.1:8095/v1"
+
+
+def test_the_brain_key_file_follows_the_instances_key_setting(host, monkeypatch, tmp_path):
+    """$CASCADE_BRAIN_KEY_FILE (as the sandbox's provider reads it) and
+    --brain-key-file pick the key FILE perception names; neither puts the
+    key into the environment."""
+    for name in PERCEPTION:
+        monkeypatch.delenv(name, raising=False)
+    host.install(host.user / ".cascade" / "openshell")
+    other = tmp_path / "other.key"
+    other.write_text("other-brain-key\n")
+    monkeypatch.setenv("CASCADE_BRAIN_KEY_FILE", str(other))
+    _, env = _serve(host, monkeypatch, "serve-mcp")
+    assert env["CASCADE_PERCEPTION_KEY_FILE"] == str(other)
+    flagged = tmp_path / "flagged.key"
+    _, env = _serve(host, monkeypatch, "serve-mcp", "--brain-key-file", str(flagged))
+    assert env["CASCADE_PERCEPTION_KEY_FILE"] == str(flagged)
+    assert not [k for k, v in env.items() if "other-brain-key" in v]
+
+
+def test_an_operators_or_launchers_perception_endpoint_wins(host, monkeypatch, tmp_path):
+    """Explicit values win over the instance's brain: the unit's own
+    environment, and the launcher's --env-file over that. An empty value
+    means unset, as in configs/demo.yaml."""
+    host.install(host.user / ".cascade" / "openshell")
+    monkeypatch.setenv("CASCADE_PERCEPTION_URL", "http://10.0.0.7:8000/v1")
+    monkeypatch.setenv("CASCADE_PERCEPTION_MODEL", "")
+    monkeypatch.setenv("CASCADE_PERCEPTION_KEY_FILE", "/operator/brain.key")
+    f = _env_file(tmp_path, {"CASCADE_PERCEPTION_KEY_FILE": "/launcher/brain.key"})
+    _, env = _serve(host, monkeypatch, "serve-mcp", "--env-file", str(f))
+    assert {name: env[name] for name in PERCEPTION} == {
+        "CASCADE_PERCEPTION_URL": "http://10.0.0.7:8000/v1", "CASCADE_PERCEPTION_MODEL": "qwen3.8-27b",
+        "CASCADE_PERCEPTION_KEY_FILE": "/launcher/brain.key"}
 
 
 def test_teardown_stops_only_the_instances_own_pieces(host):

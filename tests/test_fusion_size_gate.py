@@ -152,7 +152,7 @@ def test_premise_partial_views_look_smaller_and_bleed_onto_a_container_does_not(
     view. The limit of the rule, pinned: with 1 px of mask bleed at
     320 x 180 (~4 px at the live 1280 x 720) the side camera's view of a prop
     INSIDE the bin takes in the bin's far wall and looks twice its size (live
-    YOLOE views of that prop: 0.066-0.074 m, measured)."""
+    detector views of that prop: 0.066-0.074 m, measured)."""
     import cv2
 
     props = {"bin": BIN, "prop": _prop(*LIVE_PROP_XY)}

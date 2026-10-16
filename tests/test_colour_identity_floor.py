@@ -1,12 +1,12 @@
 """B32c: the neighbour-colour overlap box ignores a cloud's lowest centimetre.
 
-Measured live (Isaac 6.2 PhysX + YOLOE, bare scene, both demo cameras; 86
+Measured live (Isaac 6.2 PhysX + the former detector, bare scene, both demo cameras; 86
 decisions logged where BeliefStore._identity_ok compared the side camera's view
 of the bin with the bin belief the top camera named): with the B32b box (the
 2nd-98th percentile of the whole cloud) the two views of the bin scored IoU
 0.708-0.926, median 0.744, so the shipped 0.75 threshold split the bin in about
 half of the first decisions (live A/B: 3 beliefs in 2/3 runs). The loss is
-one axis only: YOLOE's masks include table pixels in front of the bin (a
+one axis only: the detector's masks included table pixels in front of the bin (a
 median 35 % of the side camera's bin cloud sits at table height, 12 % of the
 top camera's), and the top camera's box ran 3.5 cm past the near wall. Those
 points sit at the object's own lowest height. Dropping every point within

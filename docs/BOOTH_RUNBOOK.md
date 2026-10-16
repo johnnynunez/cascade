@@ -65,24 +65,23 @@ copy-pasteable on the rig.
    source ../.demo/bin/activate
    python scripts/setup_agents.py --host claude --write \
        --camera l515 --arm rebot_rs \
-       --detect-classes "pink cube,green cube,banana,disc,box,bowl,cup" \
        --hide-tools reset_stop --env CASCADE_BOOTH=1
    ```
 
-   - `--detect-classes` must name **exactly what attendees will ask for**:
-     beliefs are keyed by detector labels, so "banana" cannot resolve a
-     belief labeled "fruit". Match the physical prop bin, word for word,
-     and put the same nouns on the cheat card (§4).
+   - No `--detect-classes`: the brain names whatever is on the table, and
+     "pick the X" asks it for the attendee's own words. A vocabulary makes
+     perception a closed set (anything unlisted is invisible) and costs one
+     brain request per class on every refresh.
    - `--hide-tools reset_stop` makes clearing an e-stop staff-only: without
      it, an attendee's model will helpfully call `reset_stop` and resume
      motion after staff froze the arm. (`emergency_stop` is never hideable.)
    - Offline env (`YOLO_OFFLINE`/`ULTRALYTICS_OFFLINE`) is now emitted by
-     default — online ultralytics phones GitHub on class re-embeds and
-     stalls the perception watcher for seconds per tick.
+     default — online ultralytics (SAM) looks its assets up on GitHub and can
+     stall the perception watcher for seconds per tick.
 
 3. **Pre-download everything that fetches on first run:** the Qwen GGUF +
    mmproj (`scripts/serve_qwen_llamacpp.sh` clones/builds/downloads),
-   GraspGen-X checkpoints, and detector weights. Then verify with the
+   GraspGen-X checkpoints, and the SAM weights (`models/sam2.1_l.pt`). Then verify with the
    network cable pulled.
 
 4. **Dry-run the offline brain:** `scripts/booth_rehearsal.py --llm
@@ -122,12 +121,16 @@ its `warm-up inference ... before binding` line before the first pick; once
 the port answers, the model is warm. A `WARNING: warm-up inference failed`
 line means it bound cold (the old start-up): restart it before the booth opens.
 The Spark presenter profile requires the real model and reports an error instead.
-A wrong launch directory makes every detection vanish
-(YOLOE's text encoder resolves relative to the CWD), and online ultralytics
-can stall the watcher. The script checks all of it, snapshots the morning
-grasp-memory baseline, and prints the dashboard URL for the big screen —
-use *that* URL, not `live_view_url`'s best-effort LAN probe, on an
+Online ultralytics can stall the watcher. The script checks the offline flags, the
+SAM weights (`models/sam2.1_l.pt`; missing = boxes without masks) and the perception
+brain, snapshots the morning grasp-memory baseline, and prints the dashboard URL for
+the big screen — use *that* URL, not `live_view_url`'s best-effort LAN probe, on an
 air-gapped booth LAN.
+
+Object names come from the Qwen brain at `CASCADE_PERCEPTION_URL` (default
+`http://127.0.0.1:8080/v1`, the llama.cpp brain above). The rig's OpenShell instance
+uses its own brain port (:8081). Measured on Qwen3.8-27B NVFP4 (vLLM); the llama.cpp
+Q4 GGUF (`scripts/serve_qwen_llamacpp.sh`) serves the same model but was not measured.
 
 Then open the attendee terminal: `cd <repo> && claude`. Perception
 pre-warms immediately; motors stay unpowered until the first motion command.
@@ -154,15 +157,15 @@ Q&A tail so the slot boundary is clean.
 
 ## 4. Props & cheat card
 
-- 5–7 chunky, matte props that match `CASCADE_DETECT_CLASSES` exactly; 3 vetted
-  spares in the catch bin. Taped outline zones keep attendee staging inside
+- 5–7 chunky, matte props the brain names and finds reliably (rehearse each
+  with "pick the <noun>"); 3 vetted spares in the catch bin. Taped outline zones keep attendee staging inside
   the reachable workspace (x 0.15–0.45 m, |y| ≤ 0.25 m).
 - One opaque cup (host's pocket — the object-permanence beat), one flat
   disc (the scripted-failure prop), one catch bin placed where the throw
   beat was rehearsed to land (it doubles as the prop-return bin: the laugh
   pays the reset cost).
 - A laminated **cheat card** of known-good prompts. Two constraints, both
-  load-bearing: nouns exactly match the detector vocabulary, and phrasings
+  load-bearing: nouns are the rehearsed prop names (first bullet), and phrasings
   also match the tier-1 reflex grammar verbatim ("wave", "point at the
   \<x\>", "hand me the \<x\>", "sort the objects by color", "go home",
   "open the gripper") — that makes the card double as the deepest LLM-outage

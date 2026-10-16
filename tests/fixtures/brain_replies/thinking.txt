@@ -1,0 +1,7 @@
+<think>
+The user wants every instance as JSON, for example [{"label": "red plush lobster", "bbox_2d": [10, 20, 30, 40]}]. I can see one paper cup near the center of the table.
+</think>
+
+```json
+[{"label": "paper cup", "bbox_2d": [450, 400, 550, 600]}]
+```

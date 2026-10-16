@@ -2,9 +2,9 @@
 
 Open-vocabulary perception is a hard requirement for a public booth: a visitor
 puts an arbitrary object on the table and the robot has to see it without
-anyone having listed it in advance.  The cost is that a ~4.5k-concept
-vocabulary happily names things that are not manipulands.  Measured on the
-Isaac scene with 3 real props, one frame:
+anyone having listed it in advance.  The cost is that an open vocabulary
+happily names things that are not manipulands.  Measured with the former
+open-vocabulary detector on the Isaac scene with 3 real props, one frame:
 
     studio shot     0.756   the whole scene, as one detection
     storage box     0.713   the bin           (real)
@@ -63,8 +63,9 @@ class WorkspaceFilter:
         self_mask: consult the frame's render self-mask (``Frame.robot_mask``
             minus a held ``payload_mask``) when it carries one. The base
             cylinder only covers the links near the base: on Isaac the side
-            camera sees the upper arm 0.42 m up and 0.32 m out, and YOLOE
-            named it "biplane", which became a belief (backlog B32).
+            camera sees the upper arm 0.42 m up and 0.32 m out, and the
+            detector of the time named it "biplane", which became a belief
+            (backlog B32).
         self_mask_max_frac: a detection with more than this fraction of its
             pixels on the robot IS the robot, wherever it is. Measured on
             Isaac (both demo cameras, 24 rounds): robot detections 0.885 to

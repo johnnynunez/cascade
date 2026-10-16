@@ -450,6 +450,30 @@ else
 fi
 [[ "$SIM" != isaac ]] || log "Isaac startup budget=${ISAAC_WAIT_S}s (cold collision preprocessing/shaders); ISAAC_WAIT_S overrides it"
 [[ "$SIM" != isaac ]] || log "Isaac selection: engine=${ISAAC_ENGINE:-newton (bridge default)} scene-config=${SCENE_CONFIG:-default} sha256=${SCENE_CONFIG_SHA256:-none} renderer=${CASCADE_CAMERA_RENDERER:-isaac}"
+# The robot server identifies objects with the brain (configs/demo.yaml
+# `detector: type: brain` at ${CASCADE_PERCEPTION_URL:-...}). --brain qwen
+# points it at the Qwen brain this launch resolves: the CASCADE_QWEN_BASE_URL
+# endpoint, the bare served id qwen3.8-27b (configs/demo.yaml's and the
+# OpenShell sandbox's id; serve_qwen_vllm.sh's default SERVED_NAME,
+# llama.cpp ignores the name) and the brain key FILE, never the
+# key. An operator's own value wins; an empty one counts as unset, as in
+# demo.yaml. Every other brain leaves perception on the configured Qwen brain.
+if [[ "$BRAIN" == qwen ]]; then
+    export CASCADE_PERCEPTION_URL="${CASCADE_PERCEPTION_URL:-${CASCADE_QWEN_BASE_URL:-http://127.0.0.1:8080/v1}}"
+    export CASCADE_PERCEPTION_MODEL="${CASCADE_PERCEPTION_MODEL:-qwen3.8-27b}"
+    export CASCADE_PERCEPTION_KEY_FILE="${CASCADE_PERCEPTION_KEY_FILE:-${CASCADE_BRAIN_KEY_FILE:-$HOME/.cascade/nemoclaw/llama.key}}"
+    log "perception: $CASCADE_PERCEPTION_MODEL at $CASCADE_PERCEPTION_URL (key file $CASCADE_PERCEPTION_KEY_FILE)"
+else
+    printf '[launch] NOTE: --brain %s: object identification uses the local Qwen3.8 brain at %s, which must be running\n' \
+        "$BRAIN" "${CASCADE_PERCEPTION_URL:-http://127.0.0.1:8080/v1 (configs/demo.yaml default)}" >&2
+fi
+# SAM masks the brain's boxes (configs/demo.yaml segmenter.model). Without the
+# weights Isaac detections carry no masks, and the observed-finger gate (the
+# Spark default) refuses every grasp. A warning: the brain still names objects.
+# --check lists it in its preflight report instead.
+SAM_WEIGHTS="$REPO/models/sam2.1_l.pt"
+SAM_MISSING="SAM weights missing ($SAM_WEIGHTS): detections get no masks, so the observed-finger gate refuses every grasp on Spark (scripts/install.sh --profile spark places them)"
+[[ "$SIM" != isaac || $CHECK == 1 || -s "$SAM_WEIGHTS" ]] || warn "$SAM_MISSING"
 [[ $DRY == 1 ]] && log "(dry run: commands are printed, nothing is executed)"
 if [[ $DRY == 1 ]]; then
     if [[ "$AGENT_ROUTE" == openshell ]]; then
@@ -500,9 +524,10 @@ pip_install() {  # pip_install <spec...>  -- uv when present (fast, no pip neede
 # measured: a fresh clone's first pick answered "pinocchio module is missing"
 # because only the wire extras were installed); `grasping` = the ZMQ wire for
 # the GraspGen-X / occupancy sidecars; `occupancy` = Warp+scipy backend; `llm`
-# = OpenAI client (brain + Robo-Dopamine judge); `perception` = YOLOE
-# (ultralytics; torch from the host) -- the Isaac cameras use it, the MuJoCo
-# scene uses the colour-threshold mock detector and does not. Isaac needs no
+# = OpenAI client (brain + Robo-Dopamine judge, and the brain detector);
+# `perception` = SAM masks for the brain detector's boxes (ultralytics; torch
+# from the host) -- the Isaac cameras use it, the MuJoCo scene uses the
+# colour-threshold mock detector and does not. Isaac needs no
 # `sim` extra: physics lives in Isaac's own python, cascade talks TCP.
 case "$SIM" in
     isaac)  EXTRAS="kinematics,grasping,occupancy,llm,perception" ;;
@@ -546,9 +571,9 @@ if [[ "$EXTRAS" == *perception* ]] && ! "$PY" -c "import torch" >/dev/null 2>&1;
     # the CUDA wheel from the default index too. Jetson needs NVIDIA's wheel:
     # install it first and this step is skipped.
     if [[ $CHECK == 1 && $SETUP == 0 ]]; then
-        warn "torch missing (YOLOE detector needs it; run with --setup)"
+        warn "torch missing (SAM masks need it; run with --setup)"
     else
-        log "torch missing (YOLOE detector needs it) -> installing the default build for this platform"
+        log "torch missing (SAM masks need it) -> installing the default build for this platform"
         pip_install torch torchvision || die "torch install failed -- install the wheel for this platform, then re-run"
     fi
 fi
@@ -576,8 +601,6 @@ if [[ "$SIM" == "isaac" ]]; then
     USD="${CASCADE_USD:-$REPO/assets/usd/RS-rebot-dev-arm/RS-rebot-dev-arm.usda}"
     [[ -f "$USD" || $CHECK == 1 ]] || die "Isaac scene USD missing: $USD (it is tracked in git -- is this a partial checkout? set CASCADE_USD to your asset)"
 fi
-DETECTOR_PT="${CASCADE_DETECTOR_MODEL:-$REPO/models/yoloe-11s-seg.pt}"
-[[ -f "$DETECTOR_PT" || $CHECK == 1 ]] || die "detector weights missing: $DETECTOR_PT (tracked in git; set CASCADE_DETECTOR_MODEL to override)"
 
 # ── preflight report (--check) ─────────────────────────────────────────────
 isaac_metadata_check() {
@@ -614,6 +637,7 @@ if [[ $CHECK == 1 ]]; then
             bad "Isaac Sim 6.1.0 (run scripts/install.sh --profile spark --accept-eula)"
         fi
         [[ -f "$USD" ]] && ok "scene USD: $USD" || bad "scene USD $USD"
+        if [[ -s "$SAM_WEIGHTS" ]]; then ok "SAM weights: $SAM_WEIGHTS"; else warn "$SAM_MISSING"; fi
         command -v nvidia-smi >/dev/null 2>&1 && ok "NVIDIA GPU: $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)" || bad "nvidia-smi (Isaac Sim needs an NVIDIA GPU)"
         [[ -n "${DISPLAY:-}" || "$(uname -s)" == "Darwin" || $ISAAC_GUI == 0 ]] && ok "display for the editor window (or --headless)" || bad "no DISPLAY: pass --headless or run from the desktop session"
     fi
@@ -621,7 +645,6 @@ if [[ $CHECK == 1 ]]; then
         if GGX_CHECK="$(bash "$REPO/scripts/install_graspgenx.sh" --check 2>&1)"; then ok "GraspGen-X: installed CUDA environment"
         else bad "GraspGen-X: $GGX_CHECK"; fi
     fi
-    [[ -f "$DETECTOR_PT" ]] && ok "detector weights" || bad "detector weights $DETECTOR_PT"
     if BRAIN_CHECK="$("$PY" "$REPO/scripts/demo_proof.py" --check-brain "$BRAIN" 2>&1)"; then
         ok "brain: $BRAIN_CHECK"
     else
@@ -844,7 +867,6 @@ fi
 # ── 4. openclaw ─────────────────────────────────────────────────────────────
 # The robot MCP server's command and environment, for either route
 # (registered with OpenClaw on the host, or run as the OpenShell instance's unit).
-DETECTOR="${CASCADE_DETECTOR_MODEL:-$REPO/models/yoloe-11s-seg.pt}"
 CLASSES="${CASCADE_DETECT_CLASSES:-}"
 if [[ -n "${CASCADE_OPENCLAW_PROFILE:-}" ]]; then
     export CASCADE_GRASP_MEMORY_PATH="${CASCADE_GRASP_MEMORY_PATH:-$STATE_DIR/memory/grasp_memory.json}"
@@ -860,14 +882,13 @@ if [[ "$SIM" == "mujoco" && "$(uname -s)" == "Darwin" && -x "$(dirname "$PY")/mj
     MCP_PY="$(dirname "$PY")/mjpython"
     log "macOS + mujoco: MCP server runs under mjpython so the viewer can open"
 fi
-MCP_JSON="$("$PY" - "$MCP_PY" "$REPO" "$CAMERAS" "$ARM" "$DETECTOR" "$CLASSES" "$SIM" "$STATE_DIR" "$LAUNCH_OWNER" "$ISAAC_GUI" "$OCCUPANCY" <<'PYEOF'
+MCP_JSON="$("$PY" - "$MCP_PY" "$REPO" "$CAMERAS" "$ARM" "$CLASSES" "$SIM" "$STATE_DIR" "$LAUNCH_OWNER" "$ISAAC_GUI" "$OCCUPANCY" <<'PYEOF'
 import json, os, sys
 from cascade.apps.mcp_env import forwarded_env
-py, repo, cams, arm, det, classes, sim = sys.argv[1:8]
-state_dir, owner = sys.argv[8:10]
+py, repo, cams, arm, classes, sim = sys.argv[1:7]
+state_dir, owner = sys.argv[7:9]
 env = {
     "CASCADE_CAMERAS": cams, "CASCADE_ARM": arm,
-    "CASCADE_DETECTOR_MODEL": det,
     "YOLO_OFFLINE": "True", "ULTRALYTICS_OFFLINE": "True",
     "CASCADE_OPENCLAW_PROFILE": os.environ.get("CASCADE_OPENCLAW_PROFILE", ""),
 }
@@ -882,7 +903,7 @@ if classes:
 # substitution as shell text, so an odd count breaks the whole script.
 for key, value in forwarded_env().items():
     env.setdefault(key, value)
-if sys.argv[11] == "none":
+if sys.argv[10] == "none":
     # --occupancy none is an explicit runtime opt-out, not just permission
     # to omit its server. Otherwise lazy-arm preflight still asks the dead
     # map for robot body poses and refuses every motion before connect().
@@ -891,14 +912,14 @@ if sys.argv[11] == "none":
 # DISPLAY set; macOS has no DISPLAY, so give it one -- mujoco.viewer ignores
 # the value, it only gates the "is there a screen" check).
 if sim in ("mujoco", "isaac"):
-    env["CASCADE_VIEW"] = os.environ.get("CASCADE_VIEW", "1") if sys.argv[10] == "1" else "0"
+    env["CASCADE_VIEW"] = os.environ.get("CASCADE_VIEW", "1") if sys.argv[9] == "1" else "0"
     if "DISPLAY" in os.environ:
         env["DISPLAY"] = os.environ["DISPLAY"]
     elif sys.platform == "darwin":
         env["DISPLAY"] = ":0"  # gates the macOS viewer, not an X11 connection
 if sim == "mujoco":
     # the physics window itself (the arm profile defaults to view: false)
-    env["CASCADE_MJ_VIEW"] = os.environ.get("CASCADE_MJ_VIEW", "1") if sys.argv[10] == "1" else "0"
+    env["CASCADE_MJ_VIEW"] = os.environ.get("CASCADE_MJ_VIEW", "1") if sys.argv[9] == "1" else "0"
 # requestTimeoutMs: the OpenClaw per-CALL budget (default 60 s). pick_and_place
 # PERSISTS for up to grasp.persist_seconds (120 s) by design; at 60 s the
 # host sends notifications/cancelled, the server treats a cancel mid-motion
@@ -908,7 +929,7 @@ if sim == "mujoco":
 # reported as cancelled. Budget = persistence + place + home, with margin.
 print(json.dumps({
     "command": py, "args": ["-m", "cascade.apps.mcp_server", "--launch-owner", owner, "--launch-state-dir", state_dir],
-    "cwd": os.path.join(repo, "models"),   # YOLOE resolves its text encoder relative to cwd
+    "cwd": os.path.join(repo, "models"),   # the cwd of every route; SAM loads by absolute path
     "env": env, "connectionTimeoutMs": 120000, "requestTimeoutMs": 300000,
 }))
 PYEOF
@@ -923,7 +944,7 @@ runtime_check() {
     if [[ "$SIM" == "isaac" && -z "$ISAAC_PY" ]]; then
         warn "no Isaac python: skipping the runtime build check"
     else
-        RUNTIME_CHECK="$(cd "$REPO/models" && CASCADE_CAMERAS="$CAMERAS" CASCADE_ARM="$ARM" CASCADE_DETECTOR_MODEL="$DETECTOR" \
+        RUNTIME_CHECK="$(cd "$REPO/models" && CASCADE_CAMERAS="$CAMERAS" CASCADE_ARM="$ARM" \
             CASCADE_DETECT_CLASSES="$CLASSES" YOLO_OFFLINE=True ULTRALYTICS_OFFLINE=True CASCADE_STREAM=0 CASCADE_VIEW=0 CASCADE_BELIEFS=0 \
             "$PY" - <<'PYEOF' 2>&1 | tee "$STATE_DIR/runtime-check.log" | grep -v "ARB_clip\|linesearch\|^Warp\|Module .* load\|^$" | tail -5
 import json, os, sys, tempfile

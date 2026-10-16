@@ -47,7 +47,7 @@ def boundary_env(tmp_path):
         '[project]\nname="boundary-double"\nversion="0.0.0"\n'
     )
     (source / ".gitignore").write_text(
-        ".venv/\n.isaacsim/\n.llama.cpp/\nmodels/qwen3.8-27b/\nruns/\nmodels/mobileclip_blt.ts\n"
+        ".venv/\n.isaacsim/\n.llama.cpp/\nmodels/qwen3.8-27b/\nruns/\nmodels/sam*.pt\n"
     )
     subprocess.run(
         ["/usr/bin/git", "init", "-b", "main", str(source)],
@@ -501,14 +501,17 @@ def test_model_asset_fetch_retries_truncation_then_reuses_complete_zip(
         thread.join()
 
 
-def test_spark_assets_manifest_contains_only_shipped_detector_and_encoder():
+def test_spark_assets_manifest_contains_only_the_sam_weights():
+    # The brain names and boxes the objects; SAM 2.1-L (configs/demo.yaml
+    # segmenter.model, the absolute ${repo}/models/sam2.1_l.pt) masks them.
+    # The server runs ultralytics offline, so the installer must place the
+    # file exactly there: byte count of the v8.3.0 release asset.
     support = support_module()
-    assert set(support.MODEL_ASSETS) == {
-        "yoloe-11s-seg.pt",
-        "yoloe-11s-seg-pf.pt",
-        "mobileclip_blt.ts",
-    }
-    assert support.MODEL_ASSETS["mobileclip_blt.ts"] == 599764649
+    assert support.MODEL_ASSETS == {"sam2.1_l.pt": 449239354}
+    assert support.MODEL_RELEASE == "https://github.com/ultralytics/assets/releases/download/v8.3.0"
+    from cascade.config import load_demo_config
+    configured = (load_demo_config().get("segmenter") or {}).get("model")
+    assert configured in {str(ROOT / "models" / name) for name in support.MODEL_ASSETS}
     assert support.scene_problems(ROOT) == []
 
 

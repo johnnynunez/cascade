@@ -16,7 +16,7 @@ _CASES = json.loads((_FIXTURES / "segmented_color_samples.json").read_text())
 def test_recorded_segmentation_colors(case):
     """Pastel surfaces stay chromatic without relabeling neutral controls.
 
-    These are unchanged BGR pixels selected by real YOLOE masks from two
+    These are unchanged BGR pixels selected by real masks of the former open-vocabulary detector from two
     cameras, using mask_color's deterministic 4000-pixel sampling. Detection
     names are provenance only and are never passed to the color estimator.
     """

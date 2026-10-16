@@ -1,7 +1,7 @@
 """B32b: one object seen by two cameras under neighbouring colour names is ONE
 belief; genuinely different objects stay apart.
 
-Measured on Isaac 6.2 PhysX + YOLOE (bare scene, 16 rounds of per-camera median
+Measured on Isaac 6.2 PhysX + the former detector (bare scene, 16 rounds of per-camera median
 HSV on robot-free pixels, backlog B32 report): the open bin's hue is H 22 in the
 top camera `isaac` -> "orange" (16/16 frames) and H 23 in `isaac_side` ->
 "yellow" (7/7). `classify_hsv` puts H <= 22 at orange and 23-33 at yellow, and
@@ -25,7 +25,7 @@ Geometry is the bare Isaac scene ray-cast on CPU: the bridge's open bin
 the two calibrated camera poses read from configs/cameras/isaac*.yaml and the
 bridge optics (18 mm focal length, 20.955 mm aperture) at 320 x 180. Masks are
 exact (ray hits, no detector): these are the geometric premises; the live A/B
-on Isaac checks them with YOLOE masks.
+on Isaac checks them with real detector masks.
 """
 
 from __future__ import annotations

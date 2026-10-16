@@ -14,10 +14,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Perception extras (open-vocabulary detection). torch comes from the host env
-# on purpose: the right build is per-platform (CUDA, ROCm, Jetson wheels, MPS,
-# CPU) and pinning one here would fight the host. See cascade/device.py.
-perception = ["ultralytics>=8.3"]
+# Perception extras: SAM masks for the brain detector's boxes (ultralytics) and the
+# client that asks the brain for names and boxes (openai, same constraint as `llm`).
+# torch comes from the host env on purpose: the right build is per-platform (CUDA,
+# ROCm, Jetson wheels, MPS, CPU) and pinning one here would fight the host. See
+# cascade/device.py.
+perception = ["ultralytics>=8.3", "openai>=1.50"]
 # LLM backends. The OpenAI client also covers llama.cpp / vLLM local servers
 # and any OpenAI-compatible gateway (Nous Portal -- see configs/llm/hermes.yaml).
 llm = ["openai>=1.50", "anthropic>=0.40"]

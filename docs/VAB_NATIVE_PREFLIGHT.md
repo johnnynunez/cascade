@@ -347,17 +347,21 @@ complete archive, preserves the initial unverified record and every proposed
 feature match, and creates a new report. It does not replace the separate
 native closure audit or grant manipulation or benchmark success.
 
-The separate `benchmark.vab.detect_rgb` command runs the existing prompt-free
-YOLOE detector on the observed archive views. It validates every capture before
-constructing the detector, converts the retained RGB pixels to the detector's
-BGR convention once, and binds each predicted label, box and optional mask to
-the original capture hash. The two reset images remain unverified and are not
-passed to the detector. Zero detections remain a valid empty observation;
-model errors and malformed output propagate as failures.
+The separate `benchmark.vab.detect_rgb` command runs the brain detector (the
+brain names and boxes, SAM 2.1-L masks) on the observed archive views. It
+validates every capture before constructing the detector, converts the retained
+RGB pixels to the detector's BGR convention once, and binds each predicted
+label, box and optional mask to the original capture hash. The two reset images
+remain unverified and are not passed to the detector. Every view gets its own
+brain answer (no scene cache); zero detections are a valid empty observation,
+and a failed brain call also yields an empty view.
 
-Use an absolute local `-pf.pt` checkpoint and its SHA256:
-`PYTHONPATH=src:. python -m benchmark.vab.detect_rgb RUN/public-rgb NEW_REPORT.json --weights /absolute/yoloe-11s-seg-pf.pt --weights-sha256 SHA256 --device cpu`.
-The report records the checkpoint, inference settings and library versions.
+Use an absolute local SAM checkpoint and its SHA256. `--base-url` defaults to
+`demo.BRAIN_BASE_URL` (`http://127.0.0.1:8080/v1`), the same default as
+`configs/demo.yaml`; the command does not read `CASCADE_PERCEPTION_URL`, so pass
+`--base-url` for any other brain:
+`PYTHONPATH=src:. python -m benchmark.vab.detect_rgb RUN/public-rgb NEW_REPORT.json --weights /absolute/sam2.1_l.pt --weights-sha256 SHA256 --device cpu [--base-url URL --model NAME --api-key-file PATH]`.
+The report records the checkpoint, device, brain endpoint and model, and library versions.
 Predicted labels and pixel masks supply no verified object identity, depth,
 complete geometry, clearance or grasp authorization. Archive analysis carries
 the original capture clock and makes no claim that the images are currently

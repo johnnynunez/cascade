@@ -541,25 +541,30 @@ viewer:
 verify_effects: true
 
 detector:
-  # Open-vocabulary YOLO (YOLOE / YOLO-World). Ultralytics auto-downloads
-  # the weights into ${repo}/models on first use if absent, so the demo is
-  # object-agnostic out of the box (any visitor object localizes by name).
-  # Override with $CASCADE_DETECTOR_MODEL for a hand-tuned checkpoint.
-  type: yoloe
-  model: ${repo}/models/yoloe-11s-seg.pt
-  # `auto` probes the host at startup: CUDA/ROCm, else Apple MPS, else CPU.
-  # Pin an explicit device (cuda:1, cpu, mps) only to override that choice --
-  # an explicit device that this host does not have degrades to the best
-  # available one with a warning rather than failing the run. CASCADE_DEVICE
-  # overrides every profile at once (see cascade/device.py).
-  device: auto
-  conf: 0.25
-  # Prompt-free: run YOLOE's built-in vocabulary instead of a fixed class
-  # list. This is what makes the booth genuinely object-agnostic -- a visitor
-  # can put ANYTHING on the table and it enters the world model without
-  # having been named in advance. Set false only for a task that really is
-  # "find these specific things"; it turns perception into a closed set.
-  prompt_free: true
+  # The brain identifies, SAM masks: the local vision LLM (Qwen3.8 behind an
+  # OpenAI-compatible server) names and boxes each object on the table, and the
+  # SAM of `segmenter:` below masks the boxes. Bake-off evidence:
+  # docs/evidence/perception-bakeoff-20261015/. The api key is read from
+  # api_key_file (a missing file sends none); CASCADE_PERCEPTION_* override.
+  # Default :8080 = the PORT both scripts/serve_qwen_*.sh start on; the rig's
+  # OpenShell instance sets CASCADE_PERCEPTION_URL to its own brain (:8081).
+  type: brain
+  base_url: ${CASCADE_PERCEPTION_URL:-http://127.0.0.1:8080/v1}
+  model: ${CASCADE_PERCEPTION_MODEL:-qwen3.8-27b}
+  api_key_file: ${CASCADE_PERCEPTION_KEY_FILE:-~/.cascade/nemoclaw/llama.key}
+  timeout_s: 20
+  # Per-camera cache (the inventory, or the detect_classes vocabulary): SAM
+  # tracks the cached boxes while the scene is unchanged (scene_change). The
+  # watcher refreshes an unchanged scene every idle_refresh_s and a changed
+  # one at once, at most one BACKGROUND brain request at a time (synchronous
+  # calls are not capped); waiting cameras are served oldest-first.
+  # describe_scene/localization refresh in the background after refresh_s,
+  # which is also the wait after a failed brain call. Past max_cache_age_s
+  # they ask synchronously, unless that entry's refresh is already pending.
+  refresh_s: 4.0
+  idle_refresh_s: 30.0
+  max_cache_age_s: 30
+  scene_change: 6.0
 
 # Optional vocabulary restriction for the always-on watcher and
 # get_observation. LEAVE EMPTY for a public demo: a non-empty list makes
@@ -568,34 +573,32 @@ detector:
 # controlled benchmark where the object set is known and fixed.
 detect_classes: []
 
-# Learned point segmenter for `grasp_at_pixel`. It is what makes pixel
-# addressing work on a tabletop: depth connectivity cannot separate an object
-# from the surface it rests on, and measured on a LIBERO frame against MuJoCo
-# body poses it errs by 34 cm, while SAM2.1 with the same point prompt lands
-# the bowl at 3.0 cm and the plate at 0.9 cm.
-#
-# SAM2.1-t is the default on measured grounds, not availability. With access
-# to facebook/sam3 granted, both were scored on the same frame and pixels:
-#
-#   model              bowl      plate     latency   size
-#   sam2.1_t.pt        3.0 cm    0.9 cm     60 ms     74 MB
-#   sam3.pt            3.0 cm    1.1 cm    982 ms    3.29 GB
-#
-# SAM3 is no more accurate for POINT prompts here and costs 16x the latency;
-# a second per grasp is the whole interaction budget when a visitor is waiting.
-# Set `model: sam3.pt` to switch (it needs `timm` and a gated HF download).
-# SAM3's real advantage is concept/text prompting and video tracking, so it
-# becomes worth its size only when this path stops being point-only.
-# SAM3 use in a publication must acknowledge SAM (SAM License 1.b.ii).
+# Learned segmenter: SAM 2.1-L box masks for the brain's boxes (above) and
+# point masks for the clicks of `grasp_at_pixel`; one shared model, loaded once
+# for both (the brain detector warms it in the background at startup).
+# Depth connectivity alone cannot separate an object from the surface it rests
+# on: measured on a LIBERO frame against MuJoCo body poses it errs by 34 cm,
+# while SAM2.1 with a point prompt lands the bowl at 3.0 cm and the plate at
+# 0.9 cm. SAM 2.1-L, SAM 3 and SAM 3.1 made equivalent masks from the brain's
+# boxes in the bake-off; 2.1-L needs no gated download (Apache-2.0).
+# `sam3.pt` stays selectable (it needs `timm` and a gated HF download; its use
+# in a publication must acknowledge SAM, SAM License 1.b.ii).
+# Absolute path (placed by `scripts/install.sh --profile spark`): the server
+# finds it from any working directory, also with ultralytics offline.
 segmenter:
   enabled: true
-  model: sam2.1_t.pt   # tiny, 74 MB: smallest that separates tabletop objects
-  device: auto         # see detector.device above
+  model: ${repo}/models/sam2.1_l.pt
+  # `auto` probes the host at startup: CUDA/ROCm, else Apple MPS, else CPU.
+  # Pin an explicit device (cuda:1, cpu, mps) only to override that choice --
+  # an explicit device that this host does not have degrades to the best
+  # available one with a warning rather than failing the run. CASCADE_DEVICE
+  # overrides every profile at once (see cascade/device.py).
+  device: auto
 
 # Geometric gate on detections, applied AFTER lifting a mask to 3D. It is
-# what makes an open vocabulary usable: a ~4.5k-concept detector correctly
-# names the arm ("transformer", "amplifier") and the scene ("studio shot"),
-# and those must not enter the world model as graspable objects.
+# what makes an open vocabulary usable: the brain detector names whatever it
+# sees, which can include the arm, the table or the whole scene, and those
+# must not enter the world model as graspable objects.
 # Every value describes the RIG, never the objects, so it stays valid for
 # objects nobody has seen before.
 workspace_filter:

@@ -35,7 +35,7 @@ def segment_prop(rgb_bgr: np.ndarray) -> np.ndarray:
 
     A colour threshold stands in for the detector on purpose: this bench
     measures the GEOMETRY pipeline (backprojection -> OBB -> de-bias), not
-    YOLOE's mask quality. A perfect mask is also the harder test for the
+    the detector's mask quality. A perfect mask is also the harder test for the
     correction -- it removes the shadow-inflation term and leaves only the
     density bias the fix actually claims to remove.
     """

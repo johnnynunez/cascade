@@ -237,8 +237,8 @@ _BOX_TRIM_PCT = 2.0
 _MIN_BOX_POINTS = 10
 
 #: ...and it ignores the cloud's lowest centimetre (above its own 2nd-percentile
-#: z), B32c. Measured live (Isaac 6.2 PhysX + YOLOE, 86 decisions between the
-#: two cameras' views of the bin): the masks take in table pixels at the
+#: z), B32c. Measured live (Isaac 6.2 PhysX, segmentation masks, 86 decisions
+#: between the two cameras' views of the bin): the masks take in table pixels at the
 #: object's own lowest height (median 35 % of the side camera's bin cloud, 12 %
 #: of the top camera's; the top box ran 3.5 cm past the near wall), so the
 #: whole-cloud box gave 0.708-0.926 (median 0.744) against the 0.75 threshold
@@ -433,9 +433,10 @@ class BeliefStore:
         """Fuse one 3D observation into the world model.
 
         Matching is by PROXIMITY, and by default ignores the label entirely.
-        That matters for open-vocabulary perception: a ~4.5k-concept detector
-        names the same physical object differently between frames (a bin came
-        back as both "storage box" and "building block", a cube as "cube" and
+        That matters for open-vocabulary perception: the detector can name the
+        same physical object differently between frames (the brain detector
+        words every answer afresh; the former open-vocabulary detector returned
+        a bin as both "storage box" and "building block", a cube as "cube" and
         "hassock"). Matching on label alone would register each alias as a
         separate object sitting at the same place, so a table with 3 things on
         it reports 10.

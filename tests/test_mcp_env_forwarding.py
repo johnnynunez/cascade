@@ -44,8 +44,14 @@ launcher_boundary = _launcher_boundary  # the real launch.sh; only host CLI/mode
 model_http_boundary = _model_http_boundary
 
 SRC = REPO / "src" / "cascade"
+CONFIGS = REPO / "configs"
 LAUNCH = REPO / "scripts" / "launch.sh"
 NAME = re.compile(r"CASCADE_[A-Z0-9_]+")
+#: the top-level files `config.load_demo_config` expands (`${NAME:-default}`
+#: in their string values is read from the server's environment)
+LOADER_FILES = ("demo.yaml", "booth.yaml")
+#: the brain endpoint the detector profile reads (configs/demo.yaml `detector:`)
+PERCEPTION = ("CASCADE_PERCEPTION_URL", "CASCADE_PERCEPTION_MODEL", "CASCADE_PERCEPTION_KEY_FILE")
 #: names that would be a credential; none may ever be forwarded
 SECRET = re.compile(r"TOKEN|SECRET|PASSW|CREDENTIAL|API_KEY|(?:^|_)KEY$")
 #: this item's port block; the launcher's sidecar ports are always set inside it
@@ -95,6 +101,56 @@ def _runtime_literals() -> dict[str, set[str]]:
     return found
 
 
+def _loader_kinds() -> set[str]:
+    """The profile kinds the runtime loads through `config.load_profile`
+    (configs/<kind>/<name>.yaml): the first argument of every call in src/cascade."""
+    kinds: set[str] = set()
+    for path in sorted(SRC.rglob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text(), str(path))):
+            if not (isinstance(node, ast.Call) and node.args):
+                continue
+            func = node.func.id if isinstance(node.func, ast.Name) else getattr(node.func, "attr", None)
+            first = node.args[0]
+            if func == "load_profile" and isinstance(first, ast.Constant) and isinstance(first.value, str):
+                kinds.add(first.value)
+    return kinds
+
+
+def _expanded_strings(data):
+    """The strings `config._resolve_paths` expands: values, never mapping keys."""
+    if isinstance(data, dict):
+        for value in data.values():
+            yield from _expanded_strings(value)
+    elif isinstance(data, list):
+        for value in data:
+            yield from _expanded_strings(value)
+    elif isinstance(data, str):
+        yield data
+
+
+def _config_placeholders(root: Path = CONFIGS) -> dict[str, set[str]]:
+    """Every `${CASCADE_*:-default}` the config loader expands -> the files naming it.
+
+    Only parsed string values of the files the loader expands count:
+    `load_demo_config`'s demo.yaml and booth.yaml, and every profile of a
+    `load_profile` kind. A comment, a mapping key or a YAML file the loader
+    never opens is no read, so it cannot keep a stale registry entry alive."""
+    import yaml
+
+    from cascade import config
+
+    paths = [root / name for name in LOADER_FILES if (root / name).is_file()]
+    for kind in sorted(_loader_kinds()):
+        paths.extend(sorted((root / kind).glob("*.yaml")))
+    found: dict[str, set[str]] = {}
+    for path in paths:
+        for text in _expanded_strings(yaml.safe_load(path.read_text())):
+            for name, _default in config._ENV_DEFAULT_RE.findall(text):
+                if NAME.fullmatch(name):
+                    found.setdefault(name, set()).add(str(path.relative_to(root)))
+    return found
+
+
 def _families() -> dict[str, list[str]]:
     """Names composed at run time: a prefix literal -> the names its reader builds."""
     from cascade import config
@@ -113,7 +169,7 @@ def _runtime_reads() -> set[str]:
             names.update(families[name])
         else:
             names.add(name)
-    return names
+    return names | set(_config_placeholders())
 
 
 def test_premise_the_scan_sees_the_reads_this_item_is_about():
@@ -124,6 +180,39 @@ def test_premise_the_scan_sees_the_reads_this_item_is_about():
     assert "config.py" in literals["CASCADE_GRASP_EXECUTOR"]
     assert "CASCADE_MICRODUCK_" in literals
     assert len(literals) >= 50
+
+
+def test_premise_the_scan_sees_the_brain_endpoint_the_detector_profile_reads():
+    # The brain detector's endpoint is read through the profile, not a Python
+    # literal: configs/demo.yaml says `${CASCADE_PERCEPTION_URL:-...}` and the
+    # config loader expands it from the server's environment. The guard counts
+    # those placeholders as runtime reads, so they must be classified too.
+    # The complete current set is pinned: a new placeholder is a new read.
+    assert {"cameras", "arms", "llm", "bases", "robots"} <= _loader_kinds()
+    assert _config_placeholders() == {name: {"demo.yaml"} for name in PERCEPTION}
+    assert set(PERCEPTION) <= _runtime_reads()
+
+
+def test_a_placeholder_counts_only_in_a_value_the_config_loader_expands(tmp_path):
+    # The guard counts what config._resolve_paths reads: `${CASCADE_*:-...}` in
+    # a STRING VALUE of a file the loader expands (demo.yaml, booth.yaml, a
+    # load_profile kind such as cameras/). A comment, a mapping key or a YAML
+    # file the loader never opens is no read, so a stale FORWARDED entry cannot
+    # hide behind one.
+    assert "cameras" in _loader_kinds() and "isaac" not in _loader_kinds()
+    (tmp_path / "demo.yaml").write_text(
+        "# ${CASCADE_IN_A_COMMENT:-x}\n"
+        "detector:\n"
+        "  base_url: ${CASCADE_IN_A_VALUE:-http://127.0.0.1:1/v1}   # ${CASCADE_TRAILING_COMMENT:-y}\n"
+        "  ${CASCADE_IN_A_KEY:-k}: 1\n"
+        "  hosts: [a, \"${CASCADE_IN_A_LIST:-b}\"]\n")
+    (tmp_path / "cameras").mkdir()
+    (tmp_path / "cameras" / "cam.yaml").write_text("# ${CASCADE_CAMERA_COMMENT:-c}\nserial: ${CASCADE_IN_A_PROFILE:-0}\n")
+    (tmp_path / "isaac").mkdir()
+    (tmp_path / "isaac" / "scene.yaml").write_text("usd: ${CASCADE_NOT_LOADED:-scene.usd}\n")
+    assert _config_placeholders(tmp_path) == {
+        "CASCADE_IN_A_VALUE": {"demo.yaml"}, "CASCADE_IN_A_LIST": {"demo.yaml"},
+        "CASCADE_IN_A_PROFILE": {"cameras/cam.yaml"}}
 
 
 # ── the registry (one source of truth) ────────────────────────────────────
@@ -215,14 +304,27 @@ def test_the_forwarded_set_is_pinned():
         "CASCADE_OCCUPANCY_PORT", "CASCADE_HUG_PORT", "CASCADE_HUG_HOST", "CASCADE_GRASP_EVIDENCE_DIR",
         "CASCADE_OBSERVED_FINGER_GATE", "CASCADE_KITCHEN_CAMERA_RENDERER", "CUDA_VISIBLE_DEVICES",
         "CUDA_DEVICE_ORDER", "CASCADE_DEVICE", "CASCADE_REQUIRE_CUDA", "CASCADE_OCCUPANCY",
-        "CASCADE_GRASP_EXECUTOR", "CASCADE_VLA_PORT", "CASCADE_BOOTH", "CASCADE_DETECTOR_MODEL",
+        "CASCADE_GRASP_EXECUTOR", "CASCADE_VLA_PORT", "CASCADE_BOOTH",
         "CASCADE_DETECT_CLASSES", "CASCADE_HIDE_TOOLS", "CASCADE_STREAM", "CASCADE_STREAM_PORT", "CASCADE_VIEW",
         "CASCADE_MJ_VIEW", "CASCADE_PREWARM", "CASCADE_EXTERNAL_VIEW_URL", "CASCADE_EPISODIC",
         "CASCADE_EPISODIC_PATH", "CASCADE_PROGRAMS", "CASCADE_PROGRAMS_PATH", "CASCADE_MEMORY_EMBEDDER",
         "CASCADE_MEMORY_EMBEDDER_MODEL", "CASCADE_MOTION_EVIDENCE_DIR", "CASCADE_GPU_PERCEPTION_EVIDENCE_DIR",
         "CASCADE_MICRODUCK_ASSET_SHA256", "CASCADE_MICRODUCK_POLICY_SHA256",
         "CASCADE_MICRODUCK_MODEL_IDENTITY_SHA256", "CASCADE_MICRODUCK_BRIDGE_PORT", "CASCADE_MICRODUCK_ENGINE",
-        "CASCADE_MICRODUCK_DEVICE", "CASCADE_MCP_READONLY_LANE", "CASCADE_NVBLOX_MAP"}
+        "CASCADE_MICRODUCK_DEVICE", "CASCADE_MCP_READONLY_LANE", "CASCADE_NVBLOX_MAP",
+        "CASCADE_PERCEPTION_URL", "CASCADE_PERCEPTION_MODEL", "CASCADE_PERCEPTION_KEY_FILE"}
+
+
+def test_the_brain_endpoint_reaches_the_robot_server_and_the_key_never_does():
+    # The robot server identifies objects with the brain (configs/demo.yaml
+    # `detector: type: brain`), so a registration copies the endpoint the
+    # launcher chose: URL, served model and the key FILE path. The key itself
+    # rides no variable a registration could copy.
+    reg = _registry()
+    environ = {"CASCADE_PERCEPTION_URL": "http://127.0.0.1:46598/v1", "CASCADE_PERCEPTION_MODEL": "qwen3.8-27b",
+               "CASCADE_PERCEPTION_KEY_FILE": "/b63/brain.key", "CASCADE_BRAIN_API_KEY": "b63-brain-key-5e1",
+               "CASCADE_MODEL_API_KEY": "b63-model-key-77d1"}
+    assert reg.forwarded_env(environ) == {name: environ[name] for name in PERCEPTION}
 
 
 def test_the_old_launch_order_comes_first():
@@ -251,9 +353,6 @@ def _values(names, tmp_path: Path) -> dict[str, str]:
         "CUDA_VISIBLE_DEVICES": "", "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
         "CASCADE_MICRODUCK_ENGINE": "physx", "CASCADE_MICRODUCK_DEVICE": "cuda:0",
     }
-    detector = tmp_path / "b63-detector.pt"
-    detector.write_text("b63 placeholder; never loaded")  # launch.sh refuses a missing weights file
-    special["CASCADE_DETECTOR_MODEL"] = str(detector)
     values, port = {}, 46520
     for name in names:
         if name in special:
@@ -309,12 +408,12 @@ def _server_grasp(env: dict) -> dict:
     return json.loads(child.stdout)
 
 
-def _in_process_registration(monkeypatch, capsys, *, sim="none", detector="/fixture/model", classes="",
+def _in_process_registration(monkeypatch, capsys, *, sim="none", classes="",
                              gui="0", occupancy="auto") -> dict:
     """launch.sh's registration heredoc, executed verbatim in this process."""
     blocks = re.findall(r"<<'PYEOF'[^\n]*\n(.*?)\nPYEOF", LAUNCH.read_text(), re.DOTALL)
     [registration] = [block for block in blocks if '"requestTimeoutMs"' in block]
-    monkeypatch.setattr(sys, "argv", ["-", "/fixture/python", "/fixture/repo", "mock", "mock", detector, classes,
+    monkeypatch.setattr(sys, "argv", ["-", "/fixture/python", "/fixture/repo", "mock", "mock", classes,
                                       sim, "/fixture/state", "f" * 32, gui, occupancy])
     exec(compile(registration, str(LAUNCH), "exec"), {})
     return json.loads(capsys.readouterr().out)
@@ -388,25 +487,28 @@ def test_launch_never_registers_selectors_internals_or_secrets(launcher_boundary
 
 
 def test_launch_flags_still_win_over_inherited_values(launcher_boundary):
-    # True on main: --occupancy none / --graspgenx none and the launcher's own
-    # detector resolution beat an inherited value of the same variable.
+    # True on main: --occupancy none / --graspgenx none beat an inherited value
+    # of the same variable. CASCADE_DETECTOR_MODEL (detector weights) is no
+    # longer read by anything: an inherited one is never registered.
     h = _scrubbed(launcher_boundary)
-    h["env"].update(CASCADE_OCCUPANCY="1", CASCADE_GRASP_BACKEND="graspgenx", CASCADE_DETECTOR_MODEL="",
+    h["env"].update(CASCADE_OCCUPANCY="1", CASCADE_GRASP_BACKEND="graspgenx",
+                    CASCADE_DETECTOR_MODEL="/b63/old-detector-weights.pt",
                     CASCADE_CAMERAS="b63_cameras", CASCADE_ARM="b63_arm")
     env = _launch(h)[1]["env"]
     assert env["CASCADE_OCCUPANCY"] == "0"
     assert env["CASCADE_GRASP_BACKEND"] == "obb"
-    assert env["CASCADE_DETECTOR_MODEL"] == str(h["repo"] / "models" / "yoloe-11s-seg.pt")
+    assert "CASCADE_DETECTOR_MODEL" not in env
     assert (env["CASCADE_CAMERAS"], env["CASCADE_ARM"]) == ("mock", "mock")
 
 
 #: launch.sh --sim none --arm mock --cameras mock --occupancy none --graspgenx none,
-#: profile isolated-test, nothing else inherited (captured from main be57535)
+#: profile isolated-test, nothing else inherited (captured from main be57535,
+#: minus the CASCADE_DETECTOR_MODEL weights path the launcher no longer writes)
 GOLDEN_LAUNCH = (
     '{"command": "<TMP>/bin/python", "args": ["-m", "cascade.apps.mcp_server", "--launch-owner", '
     '"<OWNER>", "--launch-state-dir", "<TMP>/state/profile-isolated-test"], '
     '"cwd": "<TMP>/repo/models", "env": {"CASCADE_CAMERAS": "mock", "CASCADE_ARM": "mock", '
-    '"CASCADE_DETECTOR_MODEL": "<TMP>/repo/models/yoloe-11s-seg.pt", "YOLO_OFFLINE": "True", '
+    '"YOLO_OFFLINE": "True", '
     '"ULTRALYTICS_OFFLINE": "True", "CASCADE_OPENCLAW_PROFILE": "isolated-test", '
     '"CASCADE_GRASP_MEMORY_PATH": "<TMP>/state/profile-isolated-test/memory/grasp_memory.json", '
     '"CASCADE_ENVELOPE_PATH": "<TMP>/state/profile-isolated-test/memory/envelope.json", '
@@ -425,11 +527,12 @@ def test_launch_default_registration_is_byte_identical(launcher_boundary, tmp_pa
 
 #: the registration heredoc for the Isaac/Spark shape (sim isaac, no GUI,
 #: occupancy none) with the Spark's CUDA requirement, captured from main be57535
+#: (minus the CASCADE_DETECTOR_MODEL weights path)
 GOLDEN_ISAAC = (
     '{"command": "/fixture/python", "args": ["-m", "cascade.apps.mcp_server", "--launch-owner", '
     '"ffffffffffffffffffffffffffffffff", "--launch-state-dir", "/fixture/state"], '
     '"cwd": "/fixture/repo/models", "env": {"CASCADE_CAMERAS": "mock", "CASCADE_ARM": "mock", '
-    '"CASCADE_DETECTOR_MODEL": "/fixture/model", "YOLO_OFFLINE": "True", '
+    '"YOLO_OFFLINE": "True", '
     '"ULTRALYTICS_OFFLINE": "True", "CASCADE_OPENCLAW_PROFILE": "cascade-demo", '
     '"CASCADE_GRASPGENX_PORT": "46501", "CASCADE_BRIDGE_PORT": "46503", '
     '"CASCADE_OCCUPANCY_PORT": "46502", "CASCADE_HUG_PORT": "46504", '
@@ -446,6 +549,17 @@ def test_isaac_registration_is_byte_identical(monkeypatch, capsys):
     monkeypatch.setattr(sys, "platform", "linux")
     config = _in_process_registration(monkeypatch, capsys, sim="isaac", occupancy="none")
     assert json.dumps(config) == GOLDEN_ISAAC
+
+
+@pytest.mark.parametrize("sim, switch", [("isaac", "CASCADE_VIEW"), ("mujoco", "CASCADE_MJ_VIEW")])
+def test_the_gui_argument_drives_the_viewer_switches(monkeypatch, capsys, sim, switch):
+    # The heredoc reads the GUI flag and the occupancy mode by position: with
+    # the detector argument gone both moved one slot, so pin both values.
+    _scrub_process(monkeypatch)
+    shown = _in_process_registration(monkeypatch, capsys, sim=sim, gui="1", occupancy="auto")["env"]
+    hidden = _in_process_registration(monkeypatch, capsys, sim=sim, gui="0", occupancy="none")["env"]
+    assert (shown[switch], hidden[switch]) == ("1", "0")
+    assert ("CASCADE_OCCUPANCY" not in shown, hidden["CASCADE_OCCUPANCY"]) == (True, "0")
 
 
 def _command_substitution_heredocs(text: str) -> list[tuple[int, str]]:
@@ -587,8 +701,7 @@ def test_launch_and_setup_agents_forward_identically(monkeypatch, capsys, tmp_pa
     values = _values(reg.FORWARDED, tmp_path)
     for name, value in values.items():
         monkeypatch.setenv(name, value)
-    launched = _in_process_registration(monkeypatch, capsys, detector=values["CASCADE_DETECTOR_MODEL"],
-                                        classes=values["CASCADE_DETECT_CLASSES"])["env"]
+    launched = _in_process_registration(monkeypatch, capsys, classes=values["CASCADE_DETECT_CLASSES"])["env"]
     registered = setup_agents.server_env("mock", "mock", ":1")
     assert {n: launched.get(n) for n in reg.FORWARDED} == {n: registered.get(n) for n in reg.FORWARDED} == values
 

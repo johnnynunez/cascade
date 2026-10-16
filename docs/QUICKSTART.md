@@ -209,8 +209,12 @@ cd models && python -m cascade.apps.demo \
     --task "pick and place the pink cube in the box" --no-view
 ```
 
-> `cd models` is required for the YOLOE detector: it looks for
-> `mobileclip_blt.ts` in the CWD. Mock/MuJoCo cameras do not require it.
+> Object names come from the Qwen brain at `CASCADE_PERCEPTION_URL` (default
+> `http://127.0.0.1:8080/v1`, where `serve_qwen_llamacpp.sh` listens); SAM loads
+> `models/sam2.1_l.pt` by absolute path. The rig's OpenShell instance uses its
+> own brain port (:8081). Measured on Qwen3.8-27B NVFP4 (vLLM); the llama.cpp Q4
+> GGUF (`scripts/serve_qwen_llamacpp.sh`) serves the same model but was not
+> measured. Mock/MuJoCo cameras need neither.
 
 Brain profiles: `--llm hermes` (Nous Portal, `NOUS_API_KEY`) |
 `local_qwen` | `local_cosmos` | `local_cosmos_sglang` | `anthropic` |
@@ -301,7 +305,10 @@ tail -f runs/mcp_*/server.log                 # each host tools/call and its res
 - **Port 8090 is busy** → an earlier run is still active. Use
   `CASCADE_STREAM_PORT=8097`.
 - **`no frame yet`** → the rig is still warming up; allow 2–3 seconds.
-- **YOLOE cannot find its weights** → start from `models/`.
+- **Objects come without masks** → `models/sam2.1_l.pt` is missing: run
+  `scripts/install.sh --profile spark` (`scripts/booth_up.sh` checks it).
+- **`world_state` lists no objects on a real or Isaac camera** → the Qwen brain at
+  `CASCADE_PERCEPTION_URL` is down, or `CASCADE_PERCEPTION_KEY_FILE` is wrong.
 - **The agent does not call tools with Cosmos** → the profile must use
   `type: cosmos3`, rather than `openai_compat`, because it emits XML tool calls.
 - **The tool list is stale after registration changes** → run `openclaw

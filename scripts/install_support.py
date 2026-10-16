@@ -34,11 +34,11 @@ from model_cache import release_clean_model_cache
 from spark_browser import ready as spark_ready, start_surfaces as start_spark_surfaces, open_browser
 
 # Release asset byte counts from github.com/ultralytics/assets v8.3.0.
-# The two YOLOE weights are already tracked; only the TS encoder is not.
+# SAM 2.1-L masks the brain detector's boxes and the grasp_at_pixel clicks
+# (configs/demo.yaml `segmenter.model`). The robot server runs with
+# YOLO_OFFLINE from cwd models/, so ultralytics cannot fetch it itself.
 MODEL_ASSETS = {
-    "yoloe-11s-seg.pt": 27803986,
-    "yoloe-11s-seg-pf.pt": 27948751,
-    "mobileclip_blt.ts": 599764649,
+    "sam2.1_l.pt": 449239354,
 }
 MODEL_RELEASE = "https://github.com/ultralytics/assets/releases/download/v8.3.0"
 SPARK_RUNTIME_DEFAULTS = {
@@ -754,7 +754,7 @@ sys.exit(bool(errors))
         problems.extend(kitchen_problems(repo))
         for name, size in MODEL_ASSETS.items():
             if not model_asset_valid(repo / "models" / name, size):
-                problems.append(f"detector/encoder asset {repo / 'models' / name}")
+                problems.append(f"perception model asset {repo / 'models' / name}")
         result = subprocess.run(
             [
                 "bash",

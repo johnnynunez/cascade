@@ -10,12 +10,15 @@ import sys
 
 import pytest
 
+from owned_server import held_dead_port
 from test_launch_delivery import launcher_boundary as _launcher_boundary
 from test_launch_delivery import model_http_boundary as _model_http_boundary
+from test_launch_openshell_route import linux_launcher as _linux_launcher
 from test_spark_install import boundary_env, commands, executable, launch_fixture, run_stdin, support_module
 
 launcher_boundary = _launcher_boundary
 model_http_boundary = _model_http_boundary
+linux_launcher = _linux_launcher  # launcher_boundary with `uname -s` = Linux: the OpenShell route
 REPO = Path(__file__).resolve().parents[1]
 
 
@@ -28,12 +31,13 @@ def test_private_delivery_artifacts_are_ignored_without_hiding_manifests(tmp_pat
         "models/Cosmos3-Edge-hf/config.json", "models/.Cosmos3-Edge-hf.lock",
         "models/.Cosmos3-Edge-hf.staging-test/model.safetensors",
         ".llama.cpp/build/bin/llama-server", "models/qwen3.8-27b/LICENSE",
+        "models/sam2.1_l.pt",  # placed by the Spark installer; must never dirty the tree
     ]
     result = subprocess.run(["git", "check-ignore", "--stdin"], cwd=tmp_path,
                             input="\n".join(artifacts) + "\n", capture_output=True, text=True)
     assert set(result.stdout.splitlines()) == set(artifacts)
     visible = ["pyproject.toml", "uv.lock", "package.json", "package-lock.json",
-               "models/manifest.json", "models/yoloe-11s-seg.pt", "models/yoloe-11s-seg-pf.pt"]
+               "models/manifest.json", "models/README.md"]
     result = subprocess.run(["git", "check-ignore", "--stdin"], cwd=tmp_path,
                             input="\n".join(visible) + "\n", capture_output=True, text=True)
     assert result.returncode == 1 and not result.stdout
@@ -156,9 +160,14 @@ def test_launch_failure_before_proof_invalidates_previous_green_receipt(launcher
     state = Path(h["env"]["CASCADE_LAUNCH_STATE"]) / "profile-isolated-test"
     state.mkdir(parents=True)
     (state / "proof.json").write_text('{"verified":true,"session_id":"old"}')
-    # Fail after dependency checks but before the proof runner is invoked.
-    h["env"]["CASCADE_DETECTOR_MODEL"] = str(h["repo"] / "missing.pt")
-    result = subprocess.run(h["command"], env=h["env"], capture_output=True, text=True, timeout=60)
+    # Fail after dependency checks but before the proof runner is invoked: an
+    # external GraspGen-X server that never answers.
+    command = list(h["command"])
+    command[command.index("--graspgenx") + 1] = "external"
+    with held_dead_port() as dead:
+        h["env"]["CASCADE_GRASPGENX_PORT"] = str(dead)
+        result = subprocess.run(command, env=h["env"], capture_output=True, text=True, timeout=60)
+    assert "no GraspGen-X server" in result.stdout + result.stderr
     assert result.returncode != 0
     assert json.loads((state / "proof.json").read_text())["verified"] is False
 
@@ -349,3 +358,90 @@ def test_reused_isaac_bridge_is_probed_not_accepted_on_port_alone(launcher_bound
             next(bridge)
         except StopIteration:
             pass
+
+
+# ── the robot server identifies objects with the brain this launch uses ─────
+# configs/demo.yaml: `detector: type: brain` at ${CASCADE_PERCEPTION_URL:-...}.
+# `--brain qwen` points it at the Qwen brain the launch resolves (the
+# CASCADE_QWEN_BASE_URL endpoint, the bare served id qwen3.8-27b, the brain
+# key FILE); any other brain leaves perception on the configured Qwen brain and
+# says so. Only a path to the key ever travels.
+
+PERCEPTION = ("CASCADE_PERCEPTION_URL", "CASCADE_PERCEPTION_MODEL", "CASCADE_PERCEPTION_KEY_FILE")
+PERCEPTION_NOTE = "object identification uses the local Qwen3.8 brain at"
+
+
+def _with_brain(h: dict, brain: str, home: Path) -> tuple[list[str], dict]:
+    """The fixture's command with `--brain <brain>`, a private HOME and no
+    inherited perception or brain-key choice; qwen answers on the model double."""
+    command = list(h["command"])
+    command[command.index("--brain") + 1] = brain
+    home.mkdir(exist_ok=True)
+    env = {**h["env"], "HOME": str(home), "CASCADE_QWEN_BASE_URL": h["http"]["base_url"]}
+    for name in (*PERCEPTION, "CASCADE_BRAIN_KEY_FILE"):
+        env.pop(name, None)
+    return command, env
+
+
+def _seen_robot_env(h: dict) -> dict:
+    """The environment file the OpenShell route handed to the robot server."""
+    return json.loads((Path(h["env"]["RIG_HOME"]) / "mcp-env.seen.json").read_text())
+
+
+def test_linux_brain_qwen_points_the_robot_servers_perception_at_that_brain(linux_launcher, tmp_path):
+    h = linux_launcher
+    command, env = _with_brain(h, "qwen", tmp_path / "home")
+    result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stdout + result.stderr
+    seen = _seen_robot_env(h)
+    assert {name: seen.get(name) for name in PERCEPTION} == {
+        "CASCADE_PERCEPTION_URL": h["http"]["base_url"], "CASCADE_PERCEPTION_MODEL": "qwen3.8-27b",
+        "CASCADE_PERCEPTION_KEY_FILE": str(tmp_path / "home" / ".cascade" / "nemoclaw" / "llama.key")}
+    assert PERCEPTION_NOTE not in result.stderr
+
+
+def test_linux_brain_qwen_follows_the_brain_key_file_and_an_explicit_choice_wins(linux_launcher, tmp_path):
+    h = linux_launcher
+    command, env = _with_brain(h, "qwen", tmp_path / "home")
+    key = tmp_path / "brain.key"
+    key.write_text("launch-brain-key-3f9\n")
+    key.chmod(0o600)
+    env.update(CASCADE_BRAIN_KEY_FILE=str(key), CASCADE_PERCEPTION_MODEL="qwen3.8-27b-q8")
+    result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stdout + result.stderr
+    seen = _seen_robot_env(h)
+    assert {name: seen.get(name) for name in PERCEPTION} == {
+        "CASCADE_PERCEPTION_URL": h["http"]["base_url"], "CASCADE_PERCEPTION_MODEL": "qwen3.8-27b-q8",
+        "CASCADE_PERCEPTION_KEY_FILE": str(key)}
+    rig_calls = Path(h["env"]["RIG_LOG"]).read_text()
+    for text in (json.dumps(seen), rig_calls, result.stdout, result.stderr):
+        assert "launch-brain-key-3f9" not in text
+
+
+def test_linux_other_brain_exports_no_perception_endpoint_and_says_where_it_goes(linux_launcher, tmp_path):
+    h = linux_launcher
+    command, env = _with_brain(h, "auto", tmp_path / "home")   # resolves to the cosmos double
+    result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert sorted(set(PERCEPTION) & set(_seen_robot_env(h))) == []
+    [note] = [line for line in result.stderr.splitlines() if PERCEPTION_NOTE in line]
+    assert "http://127.0.0.1:8080/v1" in note and "must be running" in note
+
+
+def test_host_route_brain_qwen_registers_the_perception_endpoint(launcher_boundary, tmp_path):
+    h = launcher_boundary   # `uname -s` = Darwin: OpenClaw on this host
+    command, env = _with_brain(h, "qwen", tmp_path / "home")
+    result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stdout + result.stderr
+    registered = json.loads(Path(h["env"]["MCP_CONFIG"]).read_text())["env"]
+    assert {name: registered.get(name) for name in PERCEPTION} == {
+        "CASCADE_PERCEPTION_URL": h["http"]["base_url"], "CASCADE_PERCEPTION_MODEL": "qwen3.8-27b",
+        "CASCADE_PERCEPTION_KEY_FILE": str(tmp_path / "home" / ".cascade" / "nemoclaw" / "llama.key")}
+
+
+def test_the_dry_run_plan_names_the_perception_endpoint(linux_launcher, tmp_path):
+    h = linux_launcher
+    command, env = _with_brain(h, "qwen", tmp_path / "home")
+    result = subprocess.run([*command, "--dry-run"], env=env, capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert f"perception: qwen3.8-27b at {h['http']['base_url']}" in result.stdout

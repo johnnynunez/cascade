@@ -10,6 +10,7 @@ without bus reads left a 50 Hz loop's largest gap at 22 ms (20 ms without).
 """
 
 import threading
+import time
 from types import SimpleNamespace
 
 import numpy as np
@@ -17,6 +18,7 @@ import pytest
 
 from cascade.apps.demo import _body_mask_q
 from cascade.config import Cfg
+from cascade.control import arm_base
 from cascade.control import rebot_rs_arm as rs
 from cascade.control.lazy_arm import LazyArm
 from cascade.control.rebot_rs_arm import RebotRSArm
@@ -80,41 +82,86 @@ def test_safety_feedback_still_reads_the_bus_while_streaming(monkeypatch, clock)
     assert len(reads) == 1
 
 
-def test_no_bus_reads_while_the_mask_is_queried_during_a_real_stream(monkeypatch):
-    arm, sends, reads = connected_arm(monkeypatch)
-    in_stream = threading.Event()
-    reads_in_stream = []
+class PacedClock:
+    """`time` of the arm and of its stream loop: `monotonic` advances only in
+    `sleep`, by exactly the time asked for. The arm calls a target older than
+    `STREAM_ACTIVE_S` (0.1 s) "not streaming" and may then read the bus. A
+    stalled runner (macOS CI; or the flat-out watcher below holding the GIL)
+    delays the stream's next target past that, so with the wall clock the arm
+    read the bus between two targets of a starved stream: the test measured
+    the runner, not the arm (reproduced with sys.setswitchinterval(0.12)).
+    Here the stream stays on its 50 Hz schedule whatever the runner does."""
+
+    def __init__(self):
+        self.now = time.monotonic()
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, s):
+        # the last target ages a full tick at once, before the watcher runs:
+        # every query during the wait sees it as old as it ever gets
+        self.now += max(0.0, s)
+        time.sleep(max(0.0, s))
+
+    def __getattr__(self, name):
+        return getattr(time, name)
+
+
+def assert_no_mask_bus_reads_during_a_real_stream(monkeypatch, arm, arm_module):
+    """Stream 25 targets at 50 Hz while a watcher queries the body mask flat
+    out. A query that STARTS while the stream is sending (after its first
+    target, before its last) must not read the bus. stream_to's own reads
+    (start pose before the first target, settle after the last) are outside
+    that window."""
+    clock = PacedClock()
+    monkeypatch.setattr(arm_base, "time", clock)
+    monkeypatch.setattr(arm_module, "time", clock)
+    steps = 25                                   # 0.5 s at 50 Hz
+    targets, streaming, stop = [], threading.Event(), threading.Event()
+    in_query = threading.local()
+    reads_in_stream, masks = [], []
     send = arm.send_joint_target
 
     def tracked_send(q):
-        in_stream.set()
-        send(q)
+        send(q)                                  # the arm records the target first
+        targets.append(1)
+        if len(targets) == 1:
+            streaming.set()
+        if len(targets) == steps:
+            streaming.clear()                    # last target out: what follows is the settle
     monkeypatch.setattr(arm, "send_joint_target", tracked_send)
     orig = arm._read_positions
 
     def tracked_read():
-        if in_stream.is_set() and len(sends) < 25:     # strictly inside the stream
-            reads_in_stream.append(1)
+        if getattr(in_query, "active", False):
+            reads_in_stream.append(len(targets))
         return orig()
     monkeypatch.setattr(arm, "_read_positions", tracked_read)
 
-    stop = threading.Event()
-    masks = []
-
-    def watcher():                                      # the occupancy refresh, flat out
+    def watcher():                               # the occupancy refresh, flat out
         while not stop.is_set():
-            if in_stream.is_set() and len(sends) < 25:
-                masks.append(arm.body_mask_q())
-
+            if streaming.is_set():
+                in_query.active = True
+                try:
+                    masks.append(arm.body_mask_q())
+                finally:
+                    in_query.active = False
     t = threading.Thread(target=watcher, daemon=True)
     t.start()
     try:
         arm.stream_to(MEASURED + 0.05, duration_s=0.5, rate_hz=50.0, settle_tol=1.0)
     finally:
+        streaming.clear()
         stop.set()
         t.join(2)
-    assert len(sends) == 25 and masks, "the mask was never queried during the stream"
-    assert reads_in_stream == []
+    assert len(targets) == steps and masks, "the mask was never queried during the stream"
+    assert reads_in_stream == [], f"bus reads after targets {sorted(set(reads_in_stream))}"
+
+
+def test_no_bus_reads_while_the_mask_is_queried_during_a_real_stream(monkeypatch):
+    arm, _, _ = connected_arm(monkeypatch)
+    assert_no_mask_bus_reads_during_a_real_stream(monkeypatch, arm, rs)
 
 
 # ── the mesh body mask (`body_mask: mesh`) needs the gripper too ─────────
@@ -243,33 +290,7 @@ def test_mb_streaming_mask_uses_the_target_and_idle_reads(monkeypatch):
 
 
 def test_mb_no_bus_reads_while_the_mask_is_queried_during_a_real_stream(monkeypatch):
-    arm, sends, reads = mb_arm(monkeypatch)
-    in_stream, reads_in_stream, masks = threading.Event(), [], []
-    send = arm.send_joint_target
+    import cascade.control.rebot_rs_mb_arm as mb
 
-    def tracked_send(q):
-        in_stream.set()
-        send(q)
-    monkeypatch.setattr(arm, "send_joint_target", tracked_send)
-    orig = arm._read_positions
-
-    def tracked_read():
-        if in_stream.is_set() and len(sends) < 6 * 25:
-            reads_in_stream.append(1)
-        return orig()
-    monkeypatch.setattr(arm, "_read_positions", tracked_read)
-    stop = threading.Event()
-
-    def watcher():
-        while not stop.is_set():
-            if in_stream.is_set() and len(sends) < 6 * 25:
-                masks.append(arm.body_mask_q())
-    t = threading.Thread(target=watcher, daemon=True)
-    t.start()
-    try:
-        arm.stream_to(MEASURED + 0.05, duration_s=0.5, rate_hz=50.0, settle_tol=1.0)
-    finally:
-        stop.set()
-        t.join(2)
-    assert masks, "the mask was never queried during the stream"
-    assert reads_in_stream == []
+    arm, _, _ = mb_arm(monkeypatch)
+    assert_no_mask_bus_reads_during_a_real_stream(monkeypatch, arm, mb)

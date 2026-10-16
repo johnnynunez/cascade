@@ -1,0 +1,4 @@
+[{"label": "black box with circular pattern", "bbox_2d": [314, 255, 396, 406]}, {"label": "white robotic arm", "bbox_2d": [316, 298, 372, 394]}, {"label": "black power adapter", "bbox_2d": [356, 394, 441, 465]}, {"label": "white paper cup", "bbox_2d": [414, 445, 446, 505]}, {"label": "black pouch", "bbox_2d": [461, 389, 570, 502]}, {"label": "red plush lobster", "bbox_2d": [504, 477, 592, 552]}, {"label": "black smartphone", "bbox_2d": [422, 525, 493, 606]}, {"label": "green ball", "bbox_2d": [467, 575, 526, 671]}, {"label": "green handle", "bbox_2d": [520, 552, 592, 611]}, {"label": "black remote control", "bbox_2d": [525, 628, 586, 671]}, {"label": "brown cardboard sheet", "bbox_2d": [252, 638, 725, 1000]}, {"label": "white box with 'AVELINES' text", "bbox_2d": [519, 802, 870, 1000]}]
+
+
+[]

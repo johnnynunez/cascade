@@ -1,9 +1,10 @@
 """Detector model load happens AFTER the camera rig is open (WRC 37285b0).
 
 Seeed's WRC fork moved `_make_detector` behind `rig.open()` after bring-up on
-their rig: loading YOLOE (CUDA init + weights) before the USB depth cameras
-were streaming reset the cameras' USB link ("demo bring-up issues (USB
-stability, ...)", commit 37285b0). The model load costs seconds either way;
+their rig: loading the detector's CUDA model (CUDA init + weights) before the
+USB depth cameras were streaming reset the cameras' USB link ("demo bring-up
+issues (USB stability, ...)", commit 37285b0); the brain detector's SAM
+warm-up loads CUDA the same way. The model load costs seconds either way;
 doing it with the cameras already streaming is the order the rig was
 verified with. A detector that fails to load must not leak the open rig.
 """

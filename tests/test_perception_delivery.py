@@ -1,63 +1,12 @@
 """Live perception must not inherit a previous target or previous task image."""
 from types import SimpleNamespace
 from unittest.mock import Mock
-import sys
 
 import numpy as np
 
 from cascade.agent.llm import LLMResponse, MockLLM, ToolCall
 from cascade.agent.orchestrator import AgentOrchestrator
 from cascade.memory import EpisodicMemory
-from cascade.perception.detector import OpenVocabDetector
-
-
-def test_open_scan_restores_all_objects_without_reloading_weights(monkeypatch):
-    loaded = []
-
-    class Model:
-        def __init__(self, path):
-            loaded.append(self)
-            self.classes = ['cup', 'ball']
-            self.embeddings = []
-
-        def get_text_pe(self, classes):
-            self.embeddings.append(list(classes))
-            return object()
-
-        def set_classes(self, classes, embeddings):
-            self.classes = list(classes)
-
-        def predict(self, image, **kwargs):
-            return [list(self.classes)]
-
-    monkeypatch.setitem(sys.modules, 'ultralytics', SimpleNamespace(YOLO=Model))
-    detector = OpenVocabDetector('yoloe-11s-seg.pt', device='cpu')
-    detector._parse = lambda result, frame: result
-    frame = SimpleNamespace(rgb=np.zeros((2, 2, 3), np.uint8))
-    assert detector.detect(frame) == ['cup', 'ball']
-    assert detector.detect(frame, ['ball']) == ['ball']
-    for _ in range(3):
-        assert detector.detect(frame) == ['cup', 'ball']
-        assert detector.detect(frame, ['ball']) == ['ball']
-    assert len(loaded) == 2
-    assert loaded[1].embeddings == [['ball']]
-
-
-def test_closed_set_open_scan_clears_previous_filter(monkeypatch):
-    class Model:
-        def __init__(self, path):
-            assert path == 'yolo11n.pt', 'must not load a nonexistent prompt-free checkpoint'
-
-        def predict(self, image, **kwargs):
-            return [[SimpleNamespace(label='cup'), SimpleNamespace(label='ball')]]
-
-    monkeypatch.setitem(sys.modules, 'ultralytics', SimpleNamespace(YOLO=Model))
-    detector = OpenVocabDetector('yolo11n.pt', device='cpu', prompt_free=False)
-    detector._parse = lambda result, frame: result
-    frame = SimpleNamespace(rgb=np.zeros((2, 2, 3), np.uint8))
-    assert [d.label for d in detector.detect(frame, ['ball'])] == ['ball']
-    for _ in range(2):
-        assert [d.label for d in detector.detect(frame)] == ['cup', 'ball']
 
 
 def planner_runtime():

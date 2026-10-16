@@ -45,7 +45,7 @@ def registration_env(monkeypatch, capsys):
     blocks = re.findall(r"<<'PYEOF'[^\n]*\n(.*?)\nPYEOF", launch.read_text(), re.DOTALL)
     [registration] = [block for block in blocks if '"requestTimeoutMs"' in block]
     monkeypatch.setattr(sys, "argv", ["-", sys.executable, str(REPO), "isaac", "isaac_kitchen_gpu",
-                                     "/fixture/model", "", "isaac", "/fixture/state", "owner", "0", "none"])
+                                     "", "isaac", "/fixture/state", "owner", "0", "none"])
     exec(compile(registration, str(launch), "exec"), {})
     return json.loads(capsys.readouterr().out)["env"]
 

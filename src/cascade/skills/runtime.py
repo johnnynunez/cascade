@@ -33,6 +33,7 @@ from . import carry_attachment
 from ..memory import BeliefStore, EpisodicMemory, FrameObservation
 from ..memory.beliefs import camera_source
 from ..perception.colors import detection_color, parse_color_query
+from ..perception.detector import detect_vocabulary
 from ..perception.reference import ReferenceResolutionError, parse_reference
 from typing import TYPE_CHECKING, Any
 
@@ -421,18 +422,17 @@ class SkillRuntime:
         # SET and hides everything else -- benchmarks only, never the booth.
         self._default_classes = list(cfg.get("detect_classes") or []) or None
         self._workspace = WorkspaceFilter.from_config(cfg.get("workspace_filter"))
-        # Learned point segmenter for pixel addressing. Off by default: it
-        # costs a 74 MB checkpoint and only the pixel path uses it, so a booth
-        # that never clicks pays nothing. When absent, `fix_at_pixel` falls
+        # Learned point segmenter for pixel addressing, loaded on first use.
+        # Off unless `segmenter.enabled`. When absent, `fix_at_pixel` falls
         # back to depth connectivity, which cannot separate touching objects.
         scfg = cfg.get("segmenter") or {}
         if scfg.get("enabled"):
-            from ..perception.segmenter import PointSegmenter
+            from ..perception.segmenter import PointSegmenter, configured_segmenter
 
-            self._segmenter = PointSegmenter(
-                model_path=str(scfg.get("model", "sam2.1_t.pt")),
-                device=str(scfg.get("device", "auto")),
-            )
+            # The same strings as the brain detector's BoxSegmenter
+            # (apps/demo._make_detector): both share one loaded SAM.
+            model_path, device = configured_segmenter(scfg)
+            self._segmenter = PointSegmenter(model_path=model_path, device=device)
         else:
             self._segmenter = None
 
@@ -1859,8 +1859,7 @@ class SkillRuntime:
         elif belief is not None and (color is None or belief.color == color):
             # Warm path: the world model already knows the answer. When the
             # class is in a restricted vocabulary, detect with the WHOLE
-            # vocabulary (no set_classes churn -- YOLOE re-embeds text on
-            # every class change) and prefer that label among candidates.
+            # vocabulary and prefer that label among candidates.
             # Open-world (no restriction) needs neither: just ask by name.
             if self._default_classes and belief.label in self._default_classes:
                 vocab, prefer = self._default_classes, belief.label
@@ -2367,9 +2366,8 @@ class SkillRuntime:
                 f"{time.monotonic() - belief.last_seen_t:.1f}s old)",
             )
             return frame, self._fix_from_belief(query, belief)
-        # Last filter: VLM grounding. YOLOE's text embeddings miss what a
-        # full VLM reads easily; one slow call only ever runs on this
-        # failure path.
+        # Last filter: VLM grounding of this one query, when the detector
+        # missed it; one slow call only ever runs on this failure path.
         _analyzed_frame_age_s(frame, time.monotonic() - localization_started)
         grounded = self._vlm_ground_fix(frame, query)
         if grounded is not None and in_workspace(grounded[1].position):
@@ -2454,7 +2452,7 @@ class SkillRuntime:
 
             self.memory.add(
                 "note",
-                f"YOLOE missed {query!r}; the VLM (2nd filter) found it at "
+                f"the detector missed {query!r}; the VLM (2nd filter) found it at "
                 f"{[round(float(v), 2) for v in center]}",
             )
             fix = ObjectFix(
@@ -2508,7 +2506,7 @@ class SkillRuntime:
             try:
                 frame = self.observe()
                 self._sample_link_state(frame)
-                dets = self.detector.detect(frame, classes=self._default_classes)
+                dets = detect_vocabulary(self.detector, frame, self._default_classes)
                 if held is not None:
                     dets = [d for d in dets if d.label != held]
                 self._show_detections(dets)
@@ -2522,7 +2520,7 @@ class SkillRuntime:
                 if not frame.has_depth:
                     continue
                 self._sample_link_state(frame)
-                dets = self.detector.detect(frame, classes=self._default_classes)
+                dets = detect_vocabulary(self.detector, frame, self._default_classes)
                 if held is not None:
                     dets = [d for d in dets if d.label != held]
                 T = (frame.T_base_cam if frame.T_base_cam is not None
@@ -2651,7 +2649,7 @@ class SkillRuntime:
         _frame_age_s(frame)
         self._sample_link_state(frame)  # B39: the arm's pose for THIS image
         analysis_started = time.monotonic()
-        dets = self.detector.detect(frame, classes=self._default_classes)
+        dets = detect_vocabulary(self.detector, frame, self._default_classes)
         self._show_detections(dets)
         objects = self._update_beliefs_from_frame(frame, dets)
         self.memory.add(

@@ -134,17 +134,11 @@ def build_wrc_runtime(env, task_language: str, perception: str = "oracle"):
     cfg.camera._data["type"] = "libero"
     # Detector choice follows the perception mode. Oracle mode keeps the mock
     # detector (poses arrive via seed_beliefs, and the LIBERO venv has no
-    # ultralytics). Camera mode runs the real open-vocabulary detector on the
-    # rendered frames, which is what makes a number comparable to systems that
-    # perceive their own scene.
-    det = {"type": "mock"} if perception == "oracle" else {
-        "type": "yoloe",
-        "model": str(_Path(__file__).resolve().parents[2] / "models"
-                     / "yoloe-11s-seg.pt"),
-        "device": "auto",
-        "conf": 0.25,
-        "prompt_free": True,
-    }
+    # ultralytics). Camera mode runs the real detector configs/demo.yaml ships
+    # (`type: brain`: the brain names and boxes the objects, SAM masks them;
+    # needs the brain endpoint up) on the rendered frames, which is what makes
+    # a number comparable to systems that perceive their own scene.
+    det = {"type": "mock"} if perception == "oracle" else {**cfg._data["detector"], "type": "brain"}
     cfg.camera._data["detector"] = det
     cfg._data["detector"] = det
 

@@ -1,8 +1,8 @@
 """B32: semantic fusion must not turn the robot's own body into an object.
 
-Measured on Isaac 6.2 PhysX with YOLOE prompt-free (`docs/evidence/
+Measured on Isaac 6.2 PhysX with the former open-vocabulary detector (`docs/evidence/
 b32-fusion-self-mask-20261008/`): the side camera sees the arm's upper link at
-the top of its image, YOLOE names it "biplane"/"fighter jet", 98-99 % of the
+the top of its image, the detector named it "biplane"/"fighter jet", 98-99 % of the
 detection's pixels are robot pixels in the bridge's render self-mask, and the
 link is outside the workspace filter's base cylinder. Fusion never consulted
 the self-mask, so the link became a belief 0.42 m above the table (all of the

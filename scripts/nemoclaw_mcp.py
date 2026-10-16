@@ -154,7 +154,9 @@ def cmd_serve(args) -> int:
     env.setdefault("YOLO_OFFLINE", "True")
     env.setdefault("ULTRALYTICS_OFFLINE", "True")
     (REPO / "models").mkdir(exist_ok=True)
-    os.chdir(REPO / "models")  # YOLOE resolves its text encoder relative to cwd (launch.sh)
+    # The cwd of every launch route (launch.sh). Not what finds SAM: demo.yaml
+    # loads it by absolute path (segmenter.model = ${repo}/models/sam2.1_l.pt).
+    os.chdir(REPO / "models")
     argv = server_argv(host, port, d)
     os.execvpe(argv[0], argv, env)
     return 0  # unreachable

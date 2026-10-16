@@ -1,11 +1,12 @@
 """Dependency-free color naming for detections and color-word queries.
 
-Why this exists: the rig's detector may be closed-set (yolo11n COCO labels
-until the ultralytics CLIP fork is installed), so "pink object" is not a
-detectable class. Color is recovered *after* detection from the mask pixels
-(median HSV -> a small named palette), attached to beliefs, and matched
-against color words in the user's query. This keeps "pick and place pink
-object" working with any detector backend.
+Why this exists: a detector's label need not carry the colour, and the same
+object's label can change between frames: the brain detector (Qwen3.8 names
+the objects, open vocabulary) picks its own words in every answer. Color is
+recovered *after* detection from the mask pixels (median HSV -> a small named
+palette), attached to beliefs, and matched against color words in the user's
+query. This keeps "pick and place pink object" working with any detector
+backend.
 """
 
 from __future__ import annotations

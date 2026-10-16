@@ -1,11 +1,10 @@
 """VLM open-vocabulary grounding: the SECOND perception filter.
 
-YOLOE is the fast first filter (~30 ms/frame), but its text embeddings miss
-things a full VLM reads easily: renders at small scale (the YCB banana at
-~40 px), unusual booth objects, free-form phrases. When the detector misses,
-ask a vision LLM for the bounding box directly. One call costs ~1-3 s on the
-local Qwen server and only happens on the failure path, so the hot path
-stays fast.
+The detector (`perception.brain_detector`) is the first filter. When it
+misses (a render at small scale such as the YCB banana at ~40 px, an unusual
+booth object, a free-form phrase), ask a vision LLM for the bounding box of
+that one query directly. One call costs ~1-3 s on the local Qwen server and
+only happens on the failure path.
 """
 
 from __future__ import annotations

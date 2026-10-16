@@ -8,8 +8,6 @@ overrides:
   object_descriptions:
     lemon: yellow object
     orange: orange fruit
-  detector:
-    device: cpu
   grasp:
     max_pick_attempts: 2
     drop_zone: [0.14, -0.27]

@@ -33,6 +33,7 @@ from . import carry_attachment
 from ..memory import BeliefStore, EpisodicMemory, FrameObservation
 from ..memory.beliefs import camera_source
 from ..perception.colors import detection_color, parse_color_query
+from ..perception.detector import detect_vocabulary
 from ..perception.reference import ReferenceResolutionError, parse_reference
 from typing import TYPE_CHECKING, Any
 
@@ -2505,7 +2506,7 @@ class SkillRuntime:
             try:
                 frame = self.observe()
                 self._sample_link_state(frame)
-                dets = self.detector.detect(frame, classes=self._default_classes)
+                dets = detect_vocabulary(self.detector, frame, self._default_classes)
                 if held is not None:
                     dets = [d for d in dets if d.label != held]
                 self._show_detections(dets)
@@ -2519,7 +2520,7 @@ class SkillRuntime:
                 if not frame.has_depth:
                     continue
                 self._sample_link_state(frame)
-                dets = self.detector.detect(frame, classes=self._default_classes)
+                dets = detect_vocabulary(self.detector, frame, self._default_classes)
                 if held is not None:
                     dets = [d for d in dets if d.label != held]
                 T = (frame.T_base_cam if frame.T_base_cam is not None
@@ -2648,7 +2649,7 @@ class SkillRuntime:
         _frame_age_s(frame)
         self._sample_link_state(frame)  # B39: the arm's pose for THIS image
         analysis_started = time.monotonic()
-        dets = self.detector.detect(frame, classes=self._default_classes)
+        dets = detect_vocabulary(self.detector, frame, self._default_classes)
         self._show_detections(dets)
         objects = self._update_beliefs_from_frame(frame, dets)
         self.memory.add(

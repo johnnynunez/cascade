@@ -65,14 +65,13 @@ copy-pasteable on the rig.
    source ../.demo/bin/activate
    python scripts/setup_agents.py --host claude --write \
        --camera l515 --arm rebot_rs \
-       --detect-classes "pink cube,green cube,banana,disc,box,bowl,cup" \
        --hide-tools reset_stop --env CASCADE_BOOTH=1
    ```
 
-   - `--detect-classes` must name **exactly what attendees will ask for**:
-     beliefs are keyed by detector labels, so "banana" cannot resolve a
-     belief labeled "fruit". Match the physical prop bin, word for word,
-     and put the same nouns on the cheat card (§4).
+   - No `--detect-classes`: the brain names whatever is on the table, and
+     "pick the X" asks it for the attendee's own words. A vocabulary makes
+     perception a closed set (anything unlisted is invisible) and costs one
+     brain request per class on every refresh.
    - `--hide-tools reset_stop` makes clearing an e-stop staff-only: without
      it, an attendee's model will helpfully call `reset_stop` and resume
      motion after staff froze the arm. (`emergency_stop` is never hideable.)
@@ -158,15 +157,15 @@ Q&A tail so the slot boundary is clean.
 
 ## 4. Props & cheat card
 
-- 5–7 chunky, matte props that match `CASCADE_DETECT_CLASSES` exactly; 3 vetted
-  spares in the catch bin. Taped outline zones keep attendee staging inside
+- 5–7 chunky, matte props the brain names and finds reliably (rehearse each
+  with "pick the <noun>"); 3 vetted spares in the catch bin. Taped outline zones keep attendee staging inside
   the reachable workspace (x 0.15–0.45 m, |y| ≤ 0.25 m).
 - One opaque cup (host's pocket — the object-permanence beat), one flat
   disc (the scripted-failure prop), one catch bin placed where the throw
   beat was rehearsed to land (it doubles as the prop-return bin: the laugh
   pays the reset cost).
 - A laminated **cheat card** of known-good prompts. Two constraints, both
-  load-bearing: nouns exactly match the detector vocabulary, and phrasings
+  load-bearing: nouns are the rehearsed prop names (first bullet), and phrasings
   also match the tier-1 reflex grammar verbatim ("wave", "point at the
   \<x\>", "hand me the \<x\>", "sort the objects by color", "go home",
   "open the gripper") — that makes the card double as the deepest LLM-outage

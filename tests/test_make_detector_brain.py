@@ -85,6 +85,9 @@ def test_demo_yaml_builds_the_brain_detector_with_sam_l(key_file):
     assert det._api_key == "sk-test-0123"
     assert (det._timeout_s, det._max_tokens) == (20.0, 1500)
     assert (det._refresh_s, det._max_cache_age_s, det._scene_change) == (4.0, 30.0, 6.0)
+    # Ruling 31: the watcher refreshes an unchanged scene every 30 s, set in demo.yaml.
+    assert det._idle_refresh_s == 30.0
+    assert load_demo_config(camera="isaac").detector.idle_refresh_s == 30.0
     assert type(det._segmenter) is BoxSegmenter
     assert (det._segmenter._model_path, det._segmenter._device_spec) == (SHIPPED_SAM, "auto")
     assert det._segmenter._model is None, "SAM must load lazily (or in the warm-up thread)"
@@ -165,9 +168,11 @@ def test_numeric_fields_are_cast(key_file):
     det = demo._make_detector(brain_cfg(
         type="brain", base_url="http://b/v1", model="m", api_key_file=str(key_file),
         timeout_s="7.5", max_tokens="900", refresh_s="2", max_cache_age_s="12", scene_change="3.5",
+        idle_refresh_s="9.5",
     ), warm_up=False)
     assert (det._timeout_s, det._max_tokens, det._refresh_s, det._max_cache_age_s, det._scene_change) == (
         7.5, 900, 2.0, 12.0, 3.5)
+    assert det._idle_refresh_s == 9.5
     assert type(det._max_tokens) is int
 
 
@@ -180,6 +185,7 @@ def test_a_bare_brain_block_takes_the_documented_defaults(env, tmp_path):
                                                          "from-default-path")
     assert (det._timeout_s, det._max_tokens, det._refresh_s, det._max_cache_age_s, det._scene_change) == (
         20.0, 1500, 4.0, 30.0, 6.0)
+    assert det._idle_refresh_s == 30.0
 
 
 def test_a_tilde_key_file_in_a_hand_made_block_is_expanded(env, tmp_path):

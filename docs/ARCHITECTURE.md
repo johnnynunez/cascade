@@ -379,14 +379,23 @@ chat command ("pick and place the red cube")
   from the ring ([contract and numbers](ROBOT_MODULARITY.md#producer-rate-sampling-b72-opt-in)).
 - **Brain-driven perception** (`perception/brain_detector.py`, `detector:
   type: brain`). The local Qwen3.8-27B brain names and boxes every object
-  (inventory) or the one asked for (refer, "find the X"); SAM 2.1-L
+  (inventory), each word of a configured `detect_classes` vocabulary (one
+  refer per class) or the one asked for (refer, "find the X"); SAM 2.1-L
   (`segmenter.model: ${repo}/models/sam2.1_l.pt`) masks the boxes. Endpoint:
   `CASCADE_PERCEPTION_URL` / `_MODEL` / `_KEY_FILE` (defaults :8080,
-  `qwen3.8-27b`, `~/.cascade/nemoclaw/llama.key`). A per-camera inventory
-  cache lets SAM track the brain's last boxes while the scene is unchanged and
-  refreshes them in the background after `refresh_s`. The watcher calls
-  `detect_nowait`, which never calls the brain on its own thread, so safety
-  heartbeats and the five-second image-age check never wait for the brain.
+  `qwen3.8-27b`, `~/.cascade/nemoclaw/llama.key`). A per-camera cache (the
+  inventory, or the vocabulary) lets SAM track the brain's last boxes while
+  the scene is unchanged. The watcher calls `detect_nowait`, which never
+  calls the brain on its own thread, so safety heartbeats never wait for the
+  brain: it refreshes an unchanged scene every `idle_refresh_s` (30 s) and a
+  changed one at once, with at most one background brain request in flight
+  per detector (another camera's refresh starts on a later tick).
+  `describe_scene`, `_reobserve` and localization's vocabulary pass read the
+  same cache: a track step while the scene is unchanged, plus a background
+  refresh once the entry is older than `refresh_s` (4 s). When nothing usable
+  is cached (no entry, a changed scene, older than `max_cache_age_s`) they
+  wait for a synchronous brain call, inside the five-second image-age check.
+  An agent's "find the X" is always a fresh synchronous refer, never cached.
   The detector is concurrent-safe: `LockedDetector` skips its global lock, so
   a refer never queues behind an inventory. After a failed brain call that
   camera waits `refresh_s` before asking again; meanwhile a same-scene entry

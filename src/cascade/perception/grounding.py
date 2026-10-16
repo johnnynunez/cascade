@@ -22,6 +22,7 @@ from typing import Callable
 import numpy as np
 
 from ..types import Detection, Frame, ObjectFix, SkillError, transform_points
+from .detector import detect_vocabulary
 from .reference import Reference, ReferenceResolutionError, apply_reference, parse_reference
 
 
@@ -448,7 +449,12 @@ def localize_object(
 
     last_reason = f"no detections for {vocab or prompts or [label]}"
     for classes, what in rounds:
-        dets = [d for d in detector.detect(frame, classes=classes) if d.conf > 0]
+        # The vocabulary round is the configured default vocabulary: the
+        # detector's cached pass (the brain keeps it per camera). A prompt
+        # round is the agent's own words: always a fresh detect().
+        found = (detect_vocabulary(detector, frame, classes) if what == "vocabulary"
+                 else detector.detect(frame, classes=classes))
+        dets = [d for d in found if d.conf > 0]
         if not dets:
             continue
         exact: list[ObjectFix] = []   # color matches the palette band

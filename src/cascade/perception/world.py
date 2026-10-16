@@ -63,6 +63,11 @@ class LockedDetector:
     background) gets it, under the same lock rule as detect(); any other
     detector gets detect() as before.
 
+    detect_vocabulary() is the runtime's default-vocabulary pass
+    (perception.detector.detect_vocabulary): a detector whose CLASS defines
+    one (the brain detector's cached vocabulary entry) gets it, under the same
+    lock rule as detect(); any other detector gets detect().
+
     close() (a shutdown stage, after the watcher stopped) forwards to the
     detector's close() when its CLASS defines one (the brain detector joins
     its refresh threads and SAM warm-up there), under the same lock rule as
@@ -74,6 +79,7 @@ class LockedDetector:
         self._lock = threading.RLock()
         self._concurrent_safe = bool(getattr(type(detector), "concurrent_safe", False))
         self._has_nowait = _has_detect_nowait(detector)
+        self._has_vocabulary = callable(getattr(type(detector), "detect_vocabulary", None))
         self._has_close = callable(getattr(type(detector), "close", None))
 
     @property
@@ -129,6 +135,14 @@ class LockedDetector:
             return self._detector.detect_nowait(frame, classes=classes)
         with self._lock:
             return self._detector.detect_nowait(frame, classes=classes)
+
+    def detect_vocabulary(self, frame, classes=None):
+        if not self._has_vocabulary:
+            return self.detect(frame, classes=classes)
+        if self._concurrent_safe:
+            return self._detector.detect_vocabulary(frame, classes=classes)
+        with self._lock:
+            return self._detector.detect_vocabulary(frame, classes=classes)
 
     def close(self) -> None:
         if not self._has_close:

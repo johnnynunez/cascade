@@ -30,6 +30,22 @@ class Detector(abc.ABC):
         """Restrict the vocabulary; `None`/`[]` restores open-world detection."""
 
 
+def detect_vocabulary(detector, frame: Frame, classes: list[str] | None) -> list[Detection]:
+    """One pass over the configured default vocabulary (`detect_classes`;
+    None = open world), for the runtime's own looks: describe_scene,
+    _reobserve, the localization vocabulary round.
+
+    A detector whose CLASS defines `detect_vocabulary` (the brain detector,
+    and `world.LockedDetector` forwarding it) serves it from its per-camera
+    cache, the entry the watcher keeps warm; any other detector gets
+    `detect()`. Only the class counts: a Mock answers every attribute. Never
+    for an agent's own query: "find the X" stays a fresh `detect(frame, [X])`.
+    """
+    if callable(getattr(type(detector), "detect_vocabulary", None)):
+        return detector.detect_vocabulary(frame, classes=classes)
+    return detector.detect(frame, classes=classes)
+
+
 def _rule_red(bgr: np.ndarray) -> np.ndarray:
     b, g, r = (bgr[:, :, i].astype(int) for i in range(3))
     return (r - b > 60) & (r - g > 60)

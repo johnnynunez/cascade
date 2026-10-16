@@ -1611,6 +1611,7 @@ def _make_brain_detector(cfg, dcfg, *, warm_up: bool):
         refresh_s=float(dcfg.get("refresh_s", 4.0)),
         max_cache_age_s=float(dcfg.get("max_cache_age_s", 30.0)),
         scene_change=float(dcfg.get("scene_change", 6.0)),
+        idle_refresh_s=float(dcfg.get("idle_refresh_s", 30.0)),
     )
     if warm_up and segmenter is not None:
         # Handed to the detector: its close() (a shutdown stage) joins it and

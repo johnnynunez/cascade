@@ -554,3 +554,81 @@ def test_locked_close_of_other_detectors_waits_for_the_lock():
         inner.release.set()
         holder.join(2.0)
     assert done.wait(2.0) and inner.closed == 1
+
+
+# ── 6. detect_vocabulary: the runtime's default-vocabulary pass (Ruling 30) ──
+#
+# describe_scene, _reobserve and the localization vocabulary round go through
+# perception.detector.detect_vocabulary: a detector whose CLASS defines
+# detect_vocabulary (the brain detector: its (camera, classes) cache) gets it,
+# under LockedDetector's usual lock rule; any other detector gets detect().
+
+
+class _VocabPrepareBlocks(_PrepareBlocks):
+    def detect_vocabulary(self, frame, classes=None):
+        return [f"vocab:{classes}"]
+
+
+class _SafeVocabPrepareBlocks(_VocabPrepareBlocks):
+    concurrent_safe = True
+
+
+def test_locked_vocabulary_on_a_concurrent_safe_detector_takes_no_lock():
+    inner = _SafeVocabPrepareBlocks()
+    locked, holder = _hold_the_lock_in_prepare(inner)
+    try:
+        done, out = _in_background(lambda: locked.detect_vocabulary(_frame(), classes=["cup"]))
+        assert done.wait(1.0), "detect_vocabulary waited for the detector lock"
+        assert out["value"] == ["vocab:['cup']"]
+        assert holder.is_alive(), "prepare() must still hold the lock"
+    finally:
+        inner.release.set()
+        holder.join(2.0)
+
+
+def test_locked_vocabulary_on_other_detectors_runs_under_the_lock():
+    inner = _VocabPrepareBlocks()
+    locked, holder = _hold_the_lock_in_prepare(inner)
+    try:
+        done, out = _in_background(lambda: locked.detect_vocabulary(_frame(), classes=["cup"]))
+        assert not done.wait(0.1), "detect_vocabulary of a non-concurrent-safe detector skipped the lock"
+    finally:
+        inner.release.set()
+        holder.join(2.0)
+    assert done.wait(2.0) and out["value"] == ["vocab:['cup']"]
+
+
+def test_locked_vocabulary_without_one_falls_back_to_detect_under_the_lock():
+    inner = _InventoryBlocks()  # no flag, no detect_vocabulary
+    locked, background = _start_inventory(inner)  # holds the RLock inside detect
+    try:
+        done, out = _in_background(lambda: locked.detect_vocabulary(_frame(), classes=["cup"]))
+        assert not done.wait(0.1), "the fallback detect skipped the lock"
+    finally:
+        inner.release.set()
+        background.join(2.0)
+    assert done.wait(2.0) and out["value"] == ["refer:cup"]
+
+
+def _instance_vocabulary_only():
+    d = SimpleNamespace(detect=lambda frame, classes=None: ["detect"])
+    d.detect_vocabulary = lambda frame, classes=None: ["vocab"]
+    return d
+
+
+@pytest.mark.parametrize("make", [lambda: Mock(detect=Mock(return_value=["detect"])), _instance_vocabulary_only],
+                         ids=["mock", "instance-attribute"])
+def test_vocabulary_is_the_class_contract_only(make):
+    from cascade.perception.detector import detect_vocabulary
+
+    assert detect_vocabulary(make(), _frame(), ["cup"]) == ["detect"]
+    assert LockedDetector(make()).detect_vocabulary(_frame(), classes=["cup"]) == ["detect"]
+
+
+@pytest.mark.parametrize("make", [_VocabPrepareBlocks, lambda: LockedDetector(_VocabPrepareBlocks())],
+                         ids=["bare", "locked"])
+def test_the_vocabulary_helper_calls_a_class_defined_detect_vocabulary(make):
+    from cascade.perception.detector import detect_vocabulary
+
+    assert detect_vocabulary(make(), _frame(), ["cup"]) == ["vocab:['cup']"]
+    assert detect_vocabulary(make(), _frame(), None) == ["vocab:None"]

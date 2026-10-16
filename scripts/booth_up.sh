@@ -36,7 +36,7 @@ if grep -q "YOLO_OFFLINE" "$REPO/.mcp.json" 2>/dev/null; then
 else
     warn ".mcp.json lacks YOLO_OFFLINE -- regenerate:" \
          "$PY scripts/setup_agents.py --host claude --camera l515 --arm $ARM" \
-         "--detect-classes '<prop nouns>' --hide-tools reset_stop --write"
+         "--hide-tools reset_stop --write"
 fi
 
 # 2b. booth tuning overlay: bounded worst cases for 15-min sessions

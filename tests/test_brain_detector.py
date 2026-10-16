@@ -1055,10 +1055,10 @@ def test_nowait_refreshes_an_aged_refer_entry_with_refer_prompts(make):
     det.detect_nowait(_frame(), ["paper cup"])
     _join_refreshes()
     client.refer["paper cup"] = _reply(BALL)  # the cup moved
-    clock.now = 5.0
+    clock.now = 30.5  # older than idle_refresh_s: the watcher's refresh of an unchanged scene
     assert [d.label for d in det.detect_nowait(_frame(), ["paper cup"])] == ["paper cup"]
     _join_refreshes()
-    clock.now = 6.0
+    clock.now = 31.0
     (d,) = det.detect_nowait(_frame(), ["paper cup"])
     np.testing.assert_allclose(d.bbox, _px(BALL[1]), rtol=1e-6)
     assert client.prompts() == [REFER_PROMPT.format(q="paper cup")] * 2
@@ -1124,7 +1124,8 @@ def _fail(client: FakeClient, how: str) -> None:
 @pytest.mark.parametrize("caller", ["nowait-cold", "nowait-aged", "detect-aged"])
 def test_a_failing_brain_gets_one_background_request_per_refresh_s(make, caller, how):
     clock = Clock()
-    det, client, _ = make(clock=clock)
+    # idle_refresh_s = refresh_s: an aged entry refreshes on both paths, so the backoff decides.
+    det, client, _ = make(clock=clock, idle_refresh_s=4.0)
     if caller == "nowait-cold":
         t0, expected = 0.0, []
     else:
@@ -1175,7 +1176,7 @@ def test_a_background_backoff_counts_from_the_failure_not_the_request(make):
 @pytest.mark.parametrize("tick", ["aged", "changed"])
 def test_a_success_ends_the_shared_backoff_for_the_next_nowait_tick(make, tick):
     clock = Clock()
-    det, client, _ = make(clock=clock)
+    det, client, _ = make(clock=clock, idle_refresh_s=4.0)  # the watcher refreshes an aged entry
     client.inventory = _reply(CUP)
     det.detect(_frame(level=0), None)
     client.gate = threading.Event()
@@ -1254,7 +1255,7 @@ def test_a_failed_background_refresh_backs_off_the_synchronous_inventory(make, s
 
 def test_a_failed_synchronous_inventory_also_holds_back_background_refreshes(make):
     clock = Clock()
-    det, client, _ = make(clock=clock)
+    det, client, _ = make(clock=clock, idle_refresh_s=4.0)  # the watcher refreshes an aged entry
     client.inventory = _reply(CUP)
     det.detect(_frame(level=0), None)
     client.error = RuntimeError("connection refused")
@@ -1342,3 +1343,265 @@ def test_injected_client_never_imports_openai(monkeypatch):
     det = BrainDetector(base_url="http://brain/v1", model="m", client=client, clock=Clock())
     assert [d.label for d in det.detect(_frame(), None)] == ["paper cup"]
     det.close()
+
+
+# --- the configured default vocabulary: cached like the inventory (Ruling 30) ---
+#
+# The runtime's own vocabulary passes (describe_scene, _reobserve, the
+# localization vocabulary round) call detect_vocabulary(frame, detect_classes):
+# the (camera, tuple(classes)) entry the watcher's detect_nowait keeps warm,
+# under the inventory's rules. An agent's own query stays detect(frame, [q]):
+# a fresh, synchronous refer every time.
+
+VOCAB = ["paper cup", "red ball"]
+
+
+def _vocab_prompts(vocab=VOCAB) -> list[str]:
+    return [REFER_PROMPT.format(q=q) for q in vocab]
+
+
+def _vocab_client(client: FakeClient) -> FakeClient:
+    client.refer["paper cup"] = _reply(("cup", CUP[1]))
+    client.refer["red ball"] = _reply(("ball", BALL[1]))
+    return client
+
+
+def test_vocabulary_cold_asks_every_class_synchronously_then_tracks(make):
+    clock = Clock()
+    det, client, seg = make(clock=clock)
+    _vocab_client(client)
+    dets = det.detect_vocabulary(_frame(), VOCAB)
+    assert [d.label for d in dets] == VOCAB  # the configured words, not the brain's labels
+    assert client.prompts() == _vocab_prompts()
+    assert not any(name.startswith("brain-refresh") for name in client.threads), client.threads
+    clock.now = 3.9  # younger than refresh_s, the same scene: a track step, no request
+    frame = _frame(level=6)
+    dets = det.detect_vocabulary(frame, VOCAB)
+    assert [d.label for d in dets] == VOCAB
+    seg_frame, boxes = seg.calls[-1]
+    assert seg_frame is frame
+    np.testing.assert_allclose(boxes, [_px(CUP[1]), _px(BALL[1])], rtol=1e-6)
+    assert len(client.requests) == 2
+    assert _brain_threads() == []
+
+
+def test_vocabulary_reads_the_entry_the_watcher_keeps_warm(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    _vocab_client(client)
+    assert det.detect_nowait(_frame(), VOCAB) == []  # the watcher's tick: a background refer
+    _join_refreshes()
+    assert client.prompts() == _vocab_prompts()
+    clock.now = 1.0
+    assert [d.label for d in det.detect_vocabulary(_frame(), VOCAB)] == VOCAB
+    assert len(client.requests) == 2, "the synchronous vocabulary pass asked the brain again"
+    # And the other way round: the synchronous pass fills the watcher's entry.
+    other = ["red ball"]
+    assert [d.label for d in det.detect_vocabulary(_frame(), other)] == ["red ball"]
+    assert [d.label for d in det.detect_nowait(_frame(), other)] == ["red ball"]
+    _join_refreshes()
+    assert len(client.requests) == 3
+
+
+def test_an_aged_vocabulary_entry_tracks_and_refreshes_in_the_background(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    _vocab_client(client)
+    det.detect_vocabulary(_frame(), VOCAB)
+    client.refer["paper cup"] = _reply(("cup", SPOOL[1]))  # the cup moved
+    clock.now = 5.0  # older than refresh_s: the cached boxes now, the brain in the background
+    (cup, ball) = det.detect_vocabulary(_frame(), VOCAB)
+    np.testing.assert_allclose(cup.bbox, _px(CUP[1]), rtol=1e-6)
+    _join_refreshes()
+    assert client.prompts() == _vocab_prompts() * 2
+    assert all(name.startswith("brain-refresh") for name in client.threads[2:]), client.threads
+    clock.now = 6.0
+    (cup, ball) = det.detect_vocabulary(_frame(), VOCAB)
+    np.testing.assert_allclose(cup.bbox, _px(SPOOL[1]), rtol=1e-6)
+    assert len(client.requests) == 4
+
+
+def test_vocabulary_on_a_changed_scene_or_past_max_age_asks_synchronously(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    _vocab_client(client)
+    det.detect_vocabulary(_frame(level=0), VOCAB)
+    clock.now = 1.0
+    assert [d.label for d in det.detect_vocabulary(_frame(level=7), VOCAB)] == VOCAB
+    assert len(client.requests) == 4
+    clock.now = 31.5  # the t=1 entry is older than max_cache_age_s
+    assert [d.label for d in det.detect_vocabulary(_frame(level=7), VOCAB)] == VOCAB
+    assert len(client.requests) == 6
+    assert not any(name.startswith("brain-refresh") for name in client.threads), client.threads
+    assert _brain_threads() == []
+
+
+def test_a_failed_vocabulary_pass_tracks_known_objects_and_shares_the_backoff(make, caplog):
+    clock = Clock()
+    det, client, seg = make(clock=clock)
+    _vocab_client(client)
+    det.detect_vocabulary(_frame(), VOCAB)
+    client.error = RuntimeError("connection refused")
+    with caplog.at_level(logging.WARNING, logger="cascade.perception.brain_detector"):
+        clock.now = 31.0  # past max_cache_age_s: a synchronous pass, which fails
+        frame = _frame()
+        assert [d.label for d in det.detect_vocabulary(frame, VOCAB)] == VOCAB
+        assert seg.calls[-1][0] is frame  # the outage fallback: a track step on THIS frame
+        assert len(client.requests) == 3  # the first class's request failed, the pass stopped
+        for t in (32.0, 34.9):  # backing off on both paths
+            clock.now = t
+            assert [d.label for d in det.detect_vocabulary(_frame(), VOCAB)] == VOCAB
+            assert [d.label for d in det.detect_nowait(_frame(), VOCAB)] == VOCAB
+            assert det.detect_vocabulary(_frame(level=20), VOCAB) == []  # changed scene: nothing known
+            assert _brain_threads() == []
+        assert len(client.requests) == 3
+    (record,) = caplog.records
+    assert "vocabulary" in record.getMessage() and "tracking the known objects" in record.getMessage()
+    client.error = None
+    clock.now = 35.0  # refresh_s after the failure: the synchronous pass asks again
+    assert [d.label for d in det.detect_vocabulary(_frame(level=20), VOCAB)] == VOCAB
+    assert len(client.requests) == 5
+
+
+def test_a_failed_background_vocabulary_refresh_backs_off_the_synchronous_pass(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    _vocab_client(client)
+    client.error = RuntimeError("connection refused")
+    assert det.detect_nowait(_frame(), VOCAB) == []  # its refresh fails
+    _join_refreshes()
+    asked = len(client.requests)
+    clock.now = 1.0
+    assert det.detect_vocabulary(_frame(), VOCAB) == []  # backoff: no synchronous call
+    assert len(client.requests) == asked
+
+
+def test_a_single_query_refer_stays_uncached_next_to_a_vocabulary_entry(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    _vocab_client(client)
+    det.detect_vocabulary(_frame(), ["paper cup"])  # a one-word vocabulary has an entry
+    for t in (0.5, 1.0):
+        clock.now = t
+        assert [d.label for d in det.detect(_frame(), ["paper cup"])] == ["paper cup"]
+    assert client.prompts() == [REFER_PROMPT.format(q="paper cup")] * 3, "an agent's query was served from a cache"
+
+
+@pytest.mark.parametrize("vocab", [None, []])
+def test_no_vocabulary_is_the_inventory(make, vocab):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP)
+    assert [d.label for d in det.detect_vocabulary(_frame(), vocab)] == ["paper cup"]
+    clock.now = 1.0
+    assert [d.label for d in det.detect(_frame(), None)] == ["paper cup"]
+    assert [d.label for d in det.detect_vocabulary(_frame(), vocab)] == ["paper cup"]
+    assert client.prompts() == [INVENTORY_PROMPT]
+
+
+def test_vocabulary_never_raises(make, caplog):
+    from cascade.types import Frame
+
+    det, client, _ = make()
+    gray = Frame(rgb=np.zeros((H, W), dtype=np.uint8), depth_m=None, K=_frame().K)  # BGR2GRAY fails
+    with caplog.at_level(logging.WARNING, logger="cascade.perception.brain_detector"):
+        assert det.detect_vocabulary(gray, VOCAB) == []
+    (record,) = caplog.records
+    assert "detection failed" in record.getMessage()
+    assert client.requests == []
+
+
+# --- the watcher's cadence: idle refresh and one request in flight (Ruling 31) ---
+#
+# On an unchanged scene detect_nowait refreshes only after idle_refresh_s
+# (default 30 s): the watcher no longer asks the brain every refresh_s for a
+# table nobody touched. A changed scene (or no entry) asks at once. At most one
+# background request is in flight per detector, across cameras and keys.
+
+
+def test_idle_refresh_s_defaults_to_30_s(make):
+    det, _, _ = make()
+    assert det._idle_refresh_s == 30.0
+
+
+@pytest.mark.parametrize("idle", [None, 10.0])
+def test_nowait_on_an_unchanged_scene_refreshes_only_after_idle_refresh_s(make, idle):
+    clock = Clock()
+    det, client, _ = make(clock=clock, **({} if idle is None else {"idle_refresh_s": idle}))
+    idle = 30.0 if idle is None else idle
+    client.inventory = _reply(CUP)
+    det.detect(_frame(), None)  # the entry dates from t=0
+    for t in (4.5, idle / 2, idle):  # older than refresh_s, not older than idle_refresh_s
+        clock.now = t
+        assert [d.label for d in det.detect_nowait(_frame(level=3))] == ["paper cup"], t
+        _join_refreshes()
+    assert client.inventory_calls() == 1, "the watcher refreshed an unchanged scene before idle_refresh_s"
+    clock.now = idle + 0.1
+    assert [d.label for d in det.detect_nowait(_frame(level=3))] == ["paper cup"]
+    _join_refreshes()
+    assert client.inventory_calls() == 2
+    assert client.threads[1].startswith("brain-refresh")
+
+
+def test_nowait_on_a_changed_scene_refreshes_at_once(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP)
+    det.detect(_frame(level=0), None)
+    client.inventory = _reply(BALL)
+    clock.now = 0.5  # far younger than refresh_s and idle_refresh_s
+    assert det.detect_nowait(_frame(level=20)) == []
+    _join_refreshes()
+    assert client.inventory_calls() == 2
+    clock.now = 1.0
+    assert [d.label for d in det.detect_nowait(_frame(level=20))] == ["red ball"]
+
+
+def test_the_synchronous_path_still_refreshes_after_refresh_s(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP)
+    det.detect(_frame(), None)
+    clock.now = 4.5  # older than refresh_s, younger than idle_refresh_s
+    assert [d.label for d in det.detect(_frame(), None)] == ["paper cup"]
+    _join_refreshes()
+    assert client.inventory_calls() == 2
+
+
+def test_one_background_request_in_flight_across_cameras_and_keys(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP)
+    client.refer["paper cup"] = _reply(CUP)
+    client.gate = threading.Event()
+    assert det.detect_nowait(_frame(fx=500.0)) == []  # camera A: its refresh starts and hangs
+    assert client.entered.wait(5)
+    for i in range(5):  # camera B and a vocabulary key need one too: no second request
+        assert det.detect_nowait(_frame(fx=600.0)) == [], i
+        assert det.detect_nowait(_frame(fx=500.0), ["paper cup"]) == [], i
+    assert len(client.requests) == 1 and len(_brain_threads()) == 1
+    client.gate.set()
+    _join_refreshes()
+    client.gate = None
+    assert det.detect_nowait(_frame(fx=600.0)) == []  # the next tick: camera B's turn
+    _join_refreshes()
+    assert client.inventory_calls() == 2
+    clock.now = 1.0
+    assert [d.label for d in det.detect_nowait(_frame(fx=600.0))] == ["paper cup"]
+    assert [d.label for d in det.detect_nowait(_frame(fx=500.0))] == ["paper cup"]
+    assert all(name.startswith("brain-refresh") for name in client.threads), client.threads
+
+
+def test_an_aged_synchronous_track_step_waits_for_the_refresh_in_flight(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP)
+    det.detect(_frame(fx=600.0), None)  # the wrist camera's entry dates from t=0
+    client.gate = threading.Event()
+    assert det.detect_nowait(_frame(fx=500.0)) == []  # the scene camera's refresh hangs
+    assert client.entered.wait(5)
+    clock.now = 5.0  # the wrist entry is aged: its track step would refresh, but one is in flight
+    assert [d.label for d in det.detect(_frame(fx=600.0), None)] == ["paper cup"]
+    assert client.inventory_calls() == 2 and len(_brain_threads()) == 1
+    client.gate.set()
+    _join_refreshes()

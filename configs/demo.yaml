@@ -556,9 +556,11 @@ detector:
   # Per-camera cache (the inventory, or the detect_classes vocabulary): SAM
   # tracks the cached boxes while the scene is unchanged (scene_change). The
   # watcher refreshes an unchanged scene every idle_refresh_s and a changed
-  # one at once, one brain request at a time; describe_scene/localization
-  # refresh in the background after refresh_s, which is also the wait after
-  # a failed brain call.
+  # one at once, at most one BACKGROUND brain request at a time (synchronous
+  # calls are not capped); waiting cameras are served oldest-first.
+  # describe_scene/localization refresh in the background after refresh_s,
+  # which is also the wait after a failed brain call. Past max_cache_age_s
+  # they ask synchronously, unless that entry's refresh is already pending.
   refresh_s: 4.0
   idle_refresh_s: 30.0
   max_cache_age_s: 30

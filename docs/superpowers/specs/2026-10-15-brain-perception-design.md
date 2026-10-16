@@ -45,7 +45,8 @@ watcher tick (heartbeat first) ──► detect_nowait(frame)   never calls the 
                                      ├─ same scene as the cached entry  → SAM box prompts on this frame (~0.3 s)
                                      ├─ entry older than idle_refresh_s → same, + background brain refresh
                                      └─ no entry / scene changed        → [] now, background refresh (objects next tick)
-                                     (one background brain request in flight per detector, all cameras)
+                                     (at most one BACKGROUND brain request at a time per detector, all cameras;
+                                      synchronous calls are not capped; waiting cameras served oldest-first)
 describe_scene / _reobserve ─────► detect(frame, None) or  same cache; older than refresh_s → + background refresh;
   (+ localization's vocabulary)    detect_vocabulary(frame, detect_classes)   no entry / scene changed → Qwen3.8 now (~5 s)
 localize / pick "the X" ─────────► detect(frame, ["X"])     Qwen3.8 refer (~2 s, uncached) → SAM
@@ -97,10 +98,16 @@ Replaces `vlm_detector.VLMDetector` (absorbs it; `type: vlm` stays an alias for 
    and whose thumbnail differs from this frame by mean abs diff <= `scene_change` (default 6.0):
    **track step** — SAM box prompts with the cached boxes on THIS frame (~0.3 s on GB10),
    returned at once. A box whose mask comes back empty is dropped from the result.
+   Exception (Ruling 35): an entry past `max_cache_age_s` whose scene is unchanged keeps the track step
+   while that key's background refresh is in flight or waiting for the slot, instead of a second,
+   synchronous brain call (`max_cache_age_s` stays 30).
 3. Otherwise, or when the entry is older than `refresh_s` (default 4 s): the stale case
    (scene changed, no entry) runs the brain synchronously for `detect`; the merely-aged case returns the track
-   step and starts a background refresh. At most ONE background request in flight per detector, across all
-   cameras and keys: while one runs no other refresh starts, and the next caller retries.
+   step and starts a background refresh. At most ONE background request at a time per detector, across all
+   cameras and keys (synchronous calls are not capped). A key that asks while it runs waits for the slot,
+   from its first ask, with its latest frame; a free slot goes to the key that has waited longest (ties:
+   first asked), whichever caller finds it free (Ruling 34). A waiting key leaves the queue when its
+   refresh starts, when an answer for it is stored, or on close(); one backing off keeps its place.
 4. `detect(frame, classes=[q, ...])` (refer: an agent's own words) never uses the cache: brain refer prompt,
    synchronous.
 4a. `detect_nowait(frame, classes=None)` (the watcher's call) never calls the brain on the caller's thread:
@@ -162,7 +169,7 @@ Replaces `vlm_detector.VLMDetector` (absorbs it; `type: vlm` stays an alias for 
 | Situation | Behaviour |
 |---|---|
 | Brain down / timeout / garbled | `[]`; watcher keeps heartbeat + tracking of known objects; refer returns empty → existing belief fallback / VLM grounder path; agent sees "not found" |
-| Brain slow (> refresh_s) | watcher never waits (detect_nowait); at most one background request per detector; ticks keep tracking |
+| Brain slow (> refresh_s) | watcher never waits (detect_nowait); at most one background request at a time per detector (synchronous calls are not capped), waiting cameras served oldest-first; ticks keep tracking |
 | Concurrent-safe detector | `LockedDetector` skips its global lock (`concurrent_safe = True`), so a refer never queues behind an inventory |
 | SAM unavailable | detections keep bbox masks (today's maskless path); Isaac observed-finger gate refuses as today (it requires a mask) |
 | Refer while inventory running | independent HTTP request, no shared lock; SAM step serialized (~50 ms) |
@@ -193,11 +200,14 @@ Replaces `vlm_detector.VLMDetector` (absorbs it; `type: vlm` stays an alias for 
 - Brain load: each inventory adds prefill (~900 visual tokens) to the agent's own brain traffic,
   and a configured vocabulary costs one refer per class per refresh. The watcher refreshes an
   unchanged scene only every `idle_refresh_s` (30 s) and a changed scene at once, with at most one
-  background brain request in flight per detector (a second camera's refresh waits for the next
-  tick); `describe_scene`/localization refresh in the background after `refresh_s` (4 s) when they
+  BACKGROUND brain request at a time per detector (synchronous calls are not capped); waiting
+  cameras are served oldest-first, so a camera whose scene changes every tick cannot starve the
+  others. `describe_scene`/localization refresh in the background after `refresh_s` (4 s) when they
   run. Measured single-stream; the agent's own turns pause nothing (separate requests).
 - Cadence vs cache age: with `idle_refresh_s` = `max_cache_age_s` (both 30 s), a `describe_scene`
   that lands while the watcher's idle refresh is in flight (entry 30 s to 30 s + one brain pass old)
-  finds the entry too old and asks the brain synchronously (~5 s; one slow-perception retry).
+  finds the entry past `max_cache_age_s`. On an unchanged scene it tracks the cached entry while that
+  refresh is in flight or waiting (Ruling 35); without a pending refresh (watcher off) or on a
+  changed scene it still asks the brain synchronously (~5 s; one slow-perception retry).
 - Small/dark objects: the dark brown spool was missed by every method; no regression vs YOLOE.
 - Latency of "find the X": 1.9 s + SAM vs 0.8 s today, but today it fails 60 % of the time.

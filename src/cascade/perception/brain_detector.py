@@ -162,6 +162,15 @@ class _Entry(NamedTuple):
     t: float  # clock time of the frame the brain saw
 
 
+class _Request(NamedTuple):
+    """A background refresh waiting for the detector's single slot."""
+
+    since: float  # clock time of the key's first ask while it waits: its place in the queue
+    frame: Frame  # the key's latest frame: the refresh asks the brain about this one
+    thumb: np.ndarray
+    t: float  # clock time of that latest ask
+
+
 def _camera_key(frame: Frame) -> tuple[int, int, int, int]:
     """Frame carries no camera name; image size + intrinsics tell scene from wrist."""
     h, w = frame.rgb.shape[:2]
@@ -206,7 +215,9 @@ class BrainDetector(Detector):
     they return a track step (SAM on the cached boxes in THIS frame) and, once
     the entry is older than `refresh_s`, start a background refresh.
     Otherwise (no entry, scene changed, too old) they ask the brain
-    synchronously and store the answer.
+    synchronously and store the answer. One exception (Ruling 35): an entry
+    past `max_cache_age_s` whose scene is unchanged keeps being tracked while
+    that key's background refresh is in flight or waiting for the slot.
 
     Two clocks:
     - `refresh_s` (default 4 s): the synchronous path's freshness threshold
@@ -217,8 +228,11 @@ class BrainDetector(Detector):
       changed scene or a missing entry starts a refresh at once.
 
     At most ONE background brain request is in flight per detector, across
-    every camera and key: while one runs, no other refresh starts (no thread);
-    the next caller (the watcher's next tick) retries.
+    every camera and key (synchronous calls are not capped). A key that asks
+    while it runs waits for the slot, from its first ask, holding its latest
+    frame; a free slot goes to the key that has waited longest (ties: first
+    asked), whichever caller finds it free (Ruling 34). So a camera whose
+    scene changes on every watcher tick cannot starve the cameras after it.
 
     Booth rule: a down/slow/garbled brain yields a rate-limited warning, never
     an exception. A failed refer yields []. A failed synchronous inventory or
@@ -263,6 +277,8 @@ class BrainDetector(Detector):
         self._cache: dict[tuple, _Entry] = {}
         # The keys with a background refresh in flight: at most one at a time.
         self._refreshing: set[tuple] = set()
+        # Refreshes waiting for that slot, in ask order: served oldest-first.
+        self._waiting: dict[tuple, _Request] = {}
         # Clock time of the last failed brain call per cache key, synchronous or
         # background: the backoff both paths obey. A success for the key clears it.
         self._failed_at: dict[tuple, float] = {}
@@ -314,8 +330,9 @@ class BrainDetector(Detector):
         served from the cache entry detect_nowait keeps for the same
         (camera, tuple(classes)), under the inventory's rules: a track step
         while the scene is unchanged (plus a background refresh once the
-        entry is older than `refresh_s`), else one synchronous refer per
-        class, stored. None/[] is the inventory, as in detect(). Never for an
+        entry is older than `refresh_s`; past `max_cache_age_s` only while
+        that refresh is pending), else one synchronous refer per class,
+        stored. None/[] is the inventory, as in detect(). Never for an
         agent's own query: that stays a fresh detect(frame, [q])."""
         try:
             return self._cached(frame, tuple(str(q) for q in classes) if classes else None)
@@ -333,7 +350,8 @@ class BrainDetector(Detector):
         step at any age, plus one background refresh once the entry is older
         than `idle_refresh_s`. No entry or a changed scene: [] now, and a
         background refresh asks the brain at once. No refresh starts while
-        the key backs off after a failed call or while another refresh runs.
+        the key backs off after a failed call; while another refresh runs,
+        the request waits for the slot (served oldest-first).
         """
         try:
             queries = tuple(str(q) for q in classes) if classes else None
@@ -355,6 +373,7 @@ class BrainDetector(Detector):
         still alive in its pending threads."""
         with self._lock:
             self._closed = True
+            self._waiting.clear()  # no later refresh; drops their frames
             threads = list(self._threads)
         for thread in threads:
             join_thread(thread, what="brain detector", timeout_s=self._timeout_s + _CLOSE_MARGIN_S)
@@ -441,6 +460,8 @@ class BrainDetector(Detector):
         unless the cached one comes from a newer frame."""
         with self._lock:
             self._failed_at.pop(key, None)
+            # The key no longer needs the refresh it may be waiting for.
+            self._waiting.pop(key, None)
             old = self._cache.get(key)
             # A slow refresh must not overwrite an entry from a newer frame.
             if old is None or entry.t >= old.t:
@@ -455,13 +476,22 @@ class BrainDetector(Detector):
         with self._lock:
             entry = self._cache.get(key)
             failed_at = self._failed_at.get(key)
-        if (entry is not None and now - entry.t <= self._max_cache_age_s
-                and _scene_diff(entry.thumb, thumb) <= self._scene_change):
+            pending = key in self._refreshing or key in self._waiting
+        same_scene = entry is not None and _scene_diff(entry.thumb, thumb) <= self._scene_change
+        if same_scene and now - entry.t <= self._max_cache_age_s:
             if now - entry.t > self._refresh_s:
                 self._start_refresh(key, frame, thumb, now)
             return self._detections(frame, entry.labels, entry.boxes, track=True)
         if failed_at is not None and now - failed_at < self._refresh_s:
             return self._track_known(frame, self._known_entry(key, thumb))  # backoff: no brain call
+        if same_scene and pending:
+            # Too old, but this key's background refresh is in flight or
+            # waiting for the slot (Ruling 35): track the cached boxes instead
+            # of a second, synchronous brain call. _start_refresh also hands a
+            # free slot to the oldest waiting request, so this key's turn
+            # comes even without watcher ticks.
+            self._start_refresh(key, frame, thumb, now)
+            return self._detections(frame, entry.labels, entry.boxes, track=True)
         try:
             entry = self._ask_entry(key, frame, thumb, now)
         except Exception as e:  # noqa: BLE001 - booth rule: keep tracking, never raise
@@ -494,24 +524,48 @@ class BrainDetector(Detector):
         return self._detections(frame, known.labels, known.boxes, track=True)
 
     def _start_refresh(self, key, frame: Frame, thumb: np.ndarray, t: float) -> None:
-        """One background refresh for `key`, unless the detector is closed,
-        ANY refresh is in flight (one background brain request per detector,
-        across cameras and keys: the next caller retries), or the key is
-        backing off: `t` (the caller's clock reading) is within `refresh_s` of
-        the key's last failed brain call."""
+        """Ask for one background refresh of `key` with this frame; `t` is the
+        caller's clock reading. Nothing happens if the detector is closed, the
+        key's own refresh is in flight, or the key backs off (`t` within
+        `refresh_s` of its last failed brain call, shared with the
+        synchronous path).
+
+        One background brain request per detector, across cameras and keys,
+        served oldest-first: the request waits in `_waiting`, which keeps the
+        key's first-ask time and its latest frame. When the slot is free, it
+        goes to the key that has waited longest (ties: first asked) and is
+        not backing off, with that key's own latest frame, whichever caller
+        found the slot free. A waiting key leaves the queue when its refresh
+        starts, when an answer for it is stored, or on close().
+        """
         with self._lock:
-            if self._closed or self._refreshing:
+            if self._closed or key in self._refreshing or self._backs_off(key, t):
                 return
-            failed_at = self._failed_at.get(key)
-            if failed_at is not None and t - failed_at < self._refresh_s:
-                return  # backoff: one per key, shared with the synchronous path
-            thread = threading.Thread(target=self._refresh, args=(key, frame, thumb, t),
-                                      name=f"brain-refresh-{key}", daemon=True)
+            waiting = self._waiting.get(key)
+            # Asking again keeps the key's place (dict order: first ask) and
+            # updates its frame.
+            self._waiting[key] = _Request(t if waiting is None else waiting.since, frame, thumb, t)
+            if self._refreshing:
+                return  # the slot is busy: wait for a turn
+            # The caller's own key qualifies, so there is always a choice;
+            # min() keeps the first of equal times, i.e. the first asked.
+            chosen, request = min(((k, r) for k, r in self._waiting.items() if not self._backs_off(k, t)),
+                                  key=lambda item: item[1].since)
+            del self._waiting[chosen]
+            thread = threading.Thread(target=self._refresh,
+                                      args=(chosen, request.frame, request.thumb, request.t),
+                                      name=f"brain-refresh-{chosen}", daemon=True)
             # Started under the lock: close() never misses it, and the thread
             # cannot reach its own bookkeeping before this block has recorded it.
             thread.start()
-            self._refreshing.add(key)
+            self._refreshing.add(chosen)
             self._threads.add(thread)
+
+    def _backs_off(self, key, t: float) -> bool:
+        """`key` had a failed brain call less than `refresh_s` before `t`.
+        The caller holds the lock."""
+        failed_at = self._failed_at.get(key)
+        return failed_at is not None and t - failed_at < self._refresh_s
 
     def _refresh(self, key, frame: Frame, thumb: np.ndarray, t: float) -> None:
         try:

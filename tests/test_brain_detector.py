@@ -12,6 +12,7 @@ import json
 import logging
 import sys
 import threading
+import time
 import types
 from types import SimpleNamespace
 from typing import ClassVar
@@ -65,6 +66,9 @@ class FakeClient:
         self.error: BaseException | None = None
         self.refresh_error: BaseException | None = None
         self.gate: threading.Event | None = None
+        # Every request on a background refresh thread (inventory or refer)
+        # waits for one release: the test answers in-flight requests one by one.
+        self.refresh_slot: threading.Semaphore | None = None
         self.finish_reason = "stop"
         self.entered = threading.Event()
         self.blocked = 0
@@ -77,6 +81,10 @@ class FakeClient:
         with self._lock:
             self.requests.append(kwargs)
             self.threads.append(threading.current_thread().name)
+        slot = self.refresh_slot
+        if slot is not None and threading.current_thread().name.startswith("brain-refresh"):
+            self.entered.set()
+            slot.acquire(timeout=10)
         if self.error is not None:
             raise self.error
         if prompt == INVENTORY_PROMPT:
@@ -159,6 +167,8 @@ def make():
     for det, client in built:
         if client.gate is not None:
             client.gate.set()
+        if client.refresh_slot is not None:
+            client.refresh_slot.release(1000)
         det.close()
     assert _brain_threads() == [], "a refresh thread outlived close()"
 
@@ -1605,3 +1615,257 @@ def test_an_aged_synchronous_track_step_waits_for_the_refresh_in_flight(make):
     assert client.inventory_calls() == 2 and len(_brain_threads()) == 1
     client.gate.set()
     _join_refreshes()
+
+
+# --- the refresh slot is served oldest-first (Ruling 34) ---
+#
+# One background request at a time must not let one camera keep the slot. The
+# watcher ticks its cameras in order: a first camera whose scene changes every
+# tick took the free slot again on its very next tick, and a later camera never
+# got a refresh. Every key that asks while the slot is busy now waits, from its
+# first ask; a free slot goes to the longest waiter (ties: first asked), with
+# that waiter's latest frame, whichever caller finds it free.
+
+
+def _background(client: FakeClient) -> list[tuple[int, int]]:
+    """(camera fx, frame level) of each background request: the camera from its
+    refresh thread's name, the level from the image the brain was sent."""
+    with client._lock:
+        sent = list(zip(client.threads, client.requests))
+    out = []
+    for name, request in sent:
+        if not name.startswith("brain-refresh"):
+            continue
+        fx = next(fx for fx in (500, 600, 700, 800) if f", {fx}, " in name)
+        url = request["messages"][0]["content"][0]["image_url"]["url"]
+        jpeg = np.frombuffer(base64.b64decode(url.split(",", 1)[1]), dtype=np.uint8)
+        out.append((fx, round(float(cv2.imdecode(jpeg, cv2.IMREAD_GRAYSCALE).mean()))))
+    return out
+
+
+def _sent(client: FakeClient, n: int, timeout_s: float = 5.0) -> None:
+    """Wait until `n` requests reached the fake brain: a refresh thread just
+    started may not have sent its request yet."""
+    deadline = time.monotonic() + timeout_s
+    while len(client.requests) < n and time.monotonic() < deadline:
+        time.sleep(0.005)
+    assert len(client.requests) == n, client.threads
+
+
+def _foreground(client: FakeClient) -> list[str]:
+    """Requests sent on the caller's thread (not a background refresh)."""
+    with client._lock:
+        return [name for name in client.threads if not name.startswith("brain-refresh")]
+
+
+def test_a_camera_whose_scene_changes_every_tick_cannot_starve_the_next_one(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP)
+    det.detect(_frame(level=0, fx=500.0), None)  # both cameras' entries date from t=0
+    det.detect(_frame(level=0, fx=600.0), None)
+    client.refresh_slot = threading.Semaphore(0)
+    level_a = 0
+    for _cycle in range(4):  # the request in flight answers after three watcher ticks
+        for _tick in range(3):  # the watcher's order: camera A (fx 500), then camera B (fx 600)
+            clock.now += 0.3
+            level_a += 20
+            assert det.detect_nowait(_frame(level=level_a, fx=500.0)) == []  # A: a new scene every tick
+            det.detect_nowait(_frame(level=100, fx=600.0))  # B: its scene changed once, then still
+            assert len(_brain_threads()) == 1
+        client.refresh_slot.release()
+        _join_refreshes()
+    cameras = [fx for fx, _ in _background(client)]
+    # A's request in flight answers, then it is B's turn.
+    assert cameras[:2] == [500, 600], f"camera B starved behind camera A: {cameras}"
+    assert cameras.count(600) == 1 and _background(client)[1] == (600, 100)  # B's own latest frame
+    clock.now += 0.3
+    assert [d.label for d in det.detect_nowait(_frame(level=100, fx=600.0))] == ["paper cup"]
+
+
+def test_a_free_slot_goes_to_the_longest_waiter_with_its_latest_frame(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP)
+    client.refresh_slot = threading.Semaphore(0)
+    det.detect_nowait(_frame(level=10, fx=500.0))  # camera 500 takes the slot
+    clock.now = 1.0
+    det.detect_nowait(_frame(level=40, fx=600.0))  # 600 and 700 wait from t=1: a tie, 600 asked first
+    det.detect_nowait(_frame(level=80, fx=700.0))
+    clock.now = 2.0
+    det.detect_nowait(_frame(level=60, fx=600.0))  # 600 again: still waiting since t=1, with this frame
+    client.refresh_slot.release()
+    _join_refreshes()
+    clock.now = 3.0
+    det.detect_nowait(_frame(level=90, fx=800.0))  # 800 finds the slot free: 600 has waited longest
+    _sent(client, 2)
+    assert [fx for fx, _ in _background(client)] == [500, 600]
+    client.refresh_slot.release()
+    _join_refreshes()
+    clock.now = 3.5
+    # 600's entry comes from its t=2 frame: a fresh track step, no request.
+    assert [d.label for d in det.detect(_frame(level=60, fx=600.0), None)] == ["paper cup"]
+    det.detect_nowait(_frame(level=90, fx=800.0))  # 800 asks again: 700 (waiting since t=1) goes first
+    client.refresh_slot.release()
+    _join_refreshes()
+    det.detect_nowait(_frame(level=90, fx=800.0))  # then 800
+    client.refresh_slot.release()
+    _join_refreshes()
+    assert _background(client) == [(500, 10), (600, 60), (700, 80), (800, 90)]
+    assert len(client.requests) == 4
+
+
+def test_a_waiting_camera_that_gets_a_fresh_entry_stops_waiting(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP)
+    client.refresh_slot = threading.Semaphore(0)
+    det.detect_nowait(_frame(fx=500.0))  # camera 500 takes the slot
+    assert det.detect_nowait(_frame(fx=600.0)) == []  # camera 600 waits
+    assert [d.label for d in det.detect(_frame(fx=600.0), None)] == ["paper cup"]  # a synchronous pass stores it
+    client.refresh_slot.release()
+    _join_refreshes()
+    clock.now = 1.0
+    det.detect_nowait(_frame(fx=700.0))  # the free slot: 600 needs no refresh any more
+    _sent(client, 3)
+    assert [fx for fx, _ in _background(client)] == [500, 700]
+
+
+def test_a_waiting_key_that_backs_off_keeps_its_turn_for_after_the_backoff(make):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP)
+    client.refresh_slot = threading.Semaphore(0)
+    det.detect_nowait(_frame(fx=500.0))  # camera 500 takes the slot
+    det.detect_nowait(_frame(fx=600.0))  # camera 600 waits from t=0
+    client.error = RuntimeError("connection refused")
+    assert det.detect(_frame(fx=600.0), None) == []  # its synchronous pass fails: 600 backs off until t=4
+    client.error = None
+    client.refresh_slot.release()
+    _join_refreshes()
+    clock.now = 1.0
+    det.detect_nowait(_frame(fx=700.0))  # a free slot during 600's backoff: no call for 600, 700 goes
+    client.refresh_slot.release()
+    _join_refreshes()
+    clock.now = 4.0  # refresh_s after the failure: 600 (waiting since t=0) goes before 800
+    det.detect_nowait(_frame(fx=800.0))
+    client.refresh_slot.release()
+    _join_refreshes()
+    assert [fx for fx, _ in _background(client)] == [500, 700, 600]
+
+
+def test_a_key_asking_again_while_its_own_refresh_runs_is_not_queued_twice(make):
+    # Its request is the one being served: after a failed refresh the key asks
+    # again on its own next tick, behind the keys that waited meanwhile.
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.refresh_slot = threading.Semaphore(0)
+    client.error = RuntimeError("connection refused")
+    det.detect_nowait(_frame(fx=500.0))  # 500's refresh is in flight; it will fail
+    det.detect_nowait(_frame(fx=500.0))  # 500's next tick: nothing new is queued
+    clock.now = 1.0
+    det.detect_nowait(_frame(fx=600.0))  # 600 waits from t=1
+    client.refresh_slot.release()
+    _join_refreshes()  # 500 fails at t=1: it backs off until t=5
+    client.error = None
+    clock.now = 5.0
+    det.detect_nowait(_frame(fx=700.0))  # a free slot: 600 has waited longest
+    client.refresh_slot.release()
+    _join_refreshes()
+    assert [fx for fx, _ in _background(client)] == [500, 600]
+
+
+def test_close_drops_the_waiting_requests(make):
+    det, client, _ = make()
+    client.refresh_slot = threading.Semaphore(0)
+    det.detect_nowait(_frame(fx=500.0))
+    det.detect_nowait(_frame(fx=600.0))  # waits, holding its frame
+    assert list(det._waiting) == [((H, W, 600, W // 2), None)]
+    client.refresh_slot.release()
+    det.close()
+    assert det._waiting == {}
+
+
+# --- an entry past max_cache_age_s serves while its refresh runs (Ruling 35) ---
+#
+# idle_refresh_s = max_cache_age_s = 30 s: a describe_scene landing while the
+# watcher's idle refresh runs found the entry too old and asked the brain
+# synchronously. While the scene is unchanged and that key's background refresh
+# is in flight or waiting for the slot, the synchronous path tracks the cached
+# entry instead. max_cache_age_s stays 30.
+
+VOCAB7 = ["red cube", "banana", "disc", "box", "bowl", "cup", "green cube"]
+
+
+@pytest.mark.parametrize("pending", ["in flight", "waiting for the slot"])
+def test_an_inventory_past_max_age_tracks_while_its_refresh_is_pending(make, pending):
+    clock = Clock()
+    det, client, seg = make(clock=clock)
+    client.inventory = _reply(CUP)
+    det.detect(_frame(fx=500.0), None)  # the entry dates from t=0
+    client.refresh_slot = threading.Semaphore(0)
+    clock.now = 50.0  # past max_cache_age_s
+    if pending == "waiting for the slot":
+        det.detect_nowait(_frame(level=40, fx=600.0))  # another camera's refresh holds the slot
+    det.detect_nowait(_frame(level=3, fx=500.0))  # the watcher's idle refresh for this key
+    assert client.entered.wait(5)
+    frame = _frame(level=3, fx=500.0)
+    assert [d.label for d in det.detect(frame, None)] == ["paper cup"]
+    assert seg.calls[-1][0] is frame  # a track step on THIS frame
+    assert len(_foreground(client)) == 1, "a synchronous brain call while the key's refresh was pending"
+    assert len(_brain_threads()) == 1
+
+
+@pytest.mark.parametrize("case", ["nothing in flight", "another camera in flight", "changed scene"])
+def test_an_inventory_past_max_age_asks_synchronously_without_a_pending_refresh(make, case):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP)
+    det.detect(_frame(fx=500.0), None)
+    client.refresh_slot = threading.Semaphore(0)
+    clock.now = 50.0
+    if case == "another camera in flight":
+        det.detect_nowait(_frame(level=40, fx=600.0))
+    elif case == "changed scene":
+        det.detect_nowait(_frame(level=3, fx=500.0))  # this key's refresh is in flight, for the old scene
+    client.inventory = _reply(BALL)
+    level = 40 if case == "changed scene" else 3
+    assert [d.label for d in det.detect(_frame(level=level, fx=500.0), None)] == ["red ball"]
+    assert len(_foreground(client)) == 2
+
+
+def test_a_pending_track_step_hands_a_free_slot_to_its_waiting_refresh(make):
+    # No watcher tick comes (perception loop off): the synchronous caller's own
+    # track step must not leave its waiting refresh queued forever.
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    client.inventory = _reply(CUP)
+    det.detect(_frame(fx=500.0), None)
+    client.refresh_slot = threading.Semaphore(0)
+    clock.now = 50.0
+    det.detect_nowait(_frame(level=40, fx=600.0))  # 600 holds the slot
+    det.detect_nowait(_frame(level=3, fx=500.0))  # 500's refresh waits
+    client.refresh_slot.release()
+    _join_refreshes()  # the slot is free; nobody ticks
+    clock.now = 51.0
+    assert [d.label for d in det.detect(_frame(level=3, fx=500.0), None)] == ["paper cup"]
+    _sent(client, 3)
+    assert [fx for fx, _ in _background(client)] == [600, 500]
+    assert len(_foreground(client)) == 1
+
+
+@pytest.mark.parametrize("in_flight", [True, False])
+def test_a_vocabulary_past_max_age_tracks_while_its_refresh_is_in_flight(make, in_flight):
+    clock = Clock()
+    det, client, _ = make(clock=clock)
+    for q in VOCAB7:
+        client.refer[q] = _reply((q, CUP[1]))
+    det.detect_vocabulary(_frame(), VOCAB7)  # 7 synchronous refers at t=0
+    client.refresh_slot = threading.Semaphore(0)
+    clock.now = 61.0  # past max_cache_age_s
+    if in_flight:
+        det.detect_nowait(_frame(level=3), VOCAB7)  # the watcher's idle refresh: its first refer hangs
+        assert client.entered.wait(5)
+    assert [d.label for d in det.detect_vocabulary(_frame(level=3), VOCAB7)] == VOCAB7
+    # In flight: no synchronous request. Without one: a synchronous pass, as before.
+    assert len(_foreground(client)) == (7 if in_flight else 14)

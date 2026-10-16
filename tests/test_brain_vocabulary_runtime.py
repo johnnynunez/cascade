@@ -182,3 +182,24 @@ def test_a_noun_query_stays_a_plain_detect(recording_runtime, monkeypatch):
         runtime._localize("red cube")
     assert recording.calls and all(c == ("detect", ["red cube"]) or c == ("detect", ["cube"])
                                    for c in recording.calls), recording.calls
+
+
+def test_an_agent_query_that_is_literally_vocabulary_is_a_fresh_refer():
+    # The localization round kind is a flag, not its display name: an agent
+    # asking for the word "vocabulary" gets a plain detect like any other noun.
+    import numpy as np
+
+    from cascade.perception.grounding import Extrinsics, localize_object
+    from cascade.perception.mock_camera import synthetic_tabletop
+    from cascade.types import SkillError
+
+    recording = _Recording()
+    frame = synthetic_tabletop()
+    extrinsics = Extrinsics(mode="eye_to_hand", T=np.eye(4))
+    for kwargs in ({}, {"prompts": ["vocabulary"]}):
+        with pytest.raises(SkillError):
+            localize_object(frame, "vocabulary", recording, extrinsics, **kwargs)
+    assert recording.calls == [("detect", ["vocabulary"])] * 2, recording.calls
+    with pytest.raises(SkillError):  # the configured vocabulary round still reads the cache
+        localize_object(frame, "pink object", recording, extrinsics, vocab=["vocabulary"])
+    assert recording.calls[2:] == [("vocabulary", ["vocabulary"])], recording.calls

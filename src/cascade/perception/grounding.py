@@ -442,17 +442,19 @@ def localize_object(
         if (not np.all(np.isfinite([workspace_min, workspace_max]))
                 or np.any(workspace_min > workspace_max)):
             raise SkillError("invalid localization workspace bounds")
+    # (classes, name for messages, is the configured vocabulary round). The
+    # round kind is the flag, never the name: an agent may ask for any word.
     if vocab:
-        rounds = [(vocab, "vocabulary")]
+        rounds = [(vocab, "vocabulary", True)]
     else:
-        rounds = [([p], p) for p in (prompts or [label])]
+        rounds = [([p], p, False) for p in (prompts or [label])]
 
     last_reason = f"no detections for {vocab or prompts or [label]}"
-    for classes, what in rounds:
+    for classes, what, vocabulary_round in rounds:
         # The vocabulary round is the configured default vocabulary: the
         # detector's cached pass (the brain keeps it per camera). A prompt
         # round is the agent's own words: always a fresh detect().
-        found = (detect_vocabulary(detector, frame, classes) if what == "vocabulary"
+        found = (detect_vocabulary(detector, frame, classes) if vocabulary_round
                  else detector.detect(frame, classes=classes))
         dets = [d for d in found if d.conf > 0]
         if not dets:

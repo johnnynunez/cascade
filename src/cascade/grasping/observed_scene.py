@@ -29,6 +29,47 @@ PHYSX_GEOMETRY = ROOT / "assets/grasp_geometry/rebot_rs_fingers_physx.json"
 OPEN_TRACKING_ENVELOPE_M = .0001
 
 
+def precommand_refusal(message, conflict):
+    """The gate's veto of a step BEFORE that step's command was sent.
+
+    A planned stream profile (before its first target) or the jaw close at the
+    measured pose (before the jaw command). Nothing of that step moved, so the
+    observed scene is still the one every candidate was vetted against. A
+    refusal of MEASURED feedback during a stream is not tagged: a finger
+    already met an observed surface and may have moved what it touched.
+    """
+    exc = SafetyViolation(f"{message}: {conflict}")
+    exc.observed_precommand_conflict = dict(conflict)
+    return exc
+
+
+def precommand_conflict(exc):
+    """The conflict of a `precommand_refusal`, else None."""
+    conflict = getattr(exc, "observed_precommand_conflict", None)
+    return conflict if isinstance(conflict, dict) else None
+
+
+def _horizontal_dilation(envelopes, R, lateral_m):
+    """Outer envelope of each part displaced horizontally (base x/y) by any
+    vector up to `lateral_m`.
+
+    A point p (TCP frame) lies in the displaced part iff n.p + d <= n.s_tcp for
+    some horizontal base vector s, |s| <= lateral_m; the largest n.s_tcp is
+    lateral_m * |horizontal part of R n|. Moving every unit-normal plane out by
+    that support is conservative (like `FingerGeometry.envelopes`): a plane
+    whose base normal is vertical does not move, so a horizontal-bottomed
+    finger never grows downward. Bounds grow by lateral_m on every TCP axis.
+    """
+    result = []
+    for name, part, planes, lo, hi, _center, _radius in envelopes:
+        support = lateral_m * np.linalg.norm((planes[:, :3] @ R.T)[:, :2], axis=1)
+        planes = planes.copy()
+        planes[:, 3] -= support
+        lo, hi = lo - lateral_m, hi + lateral_m
+        result.append((name, part, planes, lo, hi, (lo + hi) / 2, float(np.linalg.norm(hi - lo) / 2)))
+    return result
+
+
 def _array(value, shape, name):
     a = np.asarray(value)
     if a.shape != shape or a.dtype.kind not in "fiu" or not np.isfinite(a).all():
@@ -384,10 +425,10 @@ class ObservedFingerGate:
             raise SafetyViolation("finger feedback left the geometrically checked closing interval")
         conflict = self.closing_pose(q)
         if conflict:
-            raise SafetyViolation(f"closing fingers intersects observed non-target surface: {conflict}")
+            raise precommand_refusal("closing fingers intersects observed non-target surface", conflict)
         conflict = self.occluded_pose(q, closing=True, check=check)
         if conflict:
-            raise SafetyViolation(f"closing fingers occluded by non-target depth: {conflict}")
+            raise precommand_refusal("closing fingers occluded by non-target depth", conflict)
         self._remember(state, q, strokes)
 
     def profile(self, start, target, duration_s, rate_hz, *, check=None):
@@ -405,7 +446,90 @@ class ObservedFingerGate:
     def require_profile(self, start, target, duration_s, rate_hz, *, check=None):
         conflict = self.profile(start, target, duration_s, rate_hz, check=check)
         if conflict:
-            raise SafetyViolation(f"finger trajectory intersects observed surface: {conflict}")
+            raise precommand_refusal("finger trajectory intersects observed surface", conflict)
+
+    def neighbour_proximity(self, T_base_tcp, lateral_m, *, closing=False):
+        """Ranking only, never admission: an observed NON-target surface within
+        `lateral_m` (horizontally) of the finger volume at this TCP pose.
+
+        The live gate checks MEASURED feedback, and the arm settles within its
+        joint tolerance of the plan (Isaac: 0.02 rad per joint, millimetres at
+        the tool). A candidate that clears a neighbour by less than that passes
+        the planned-pose vet and is then refused at the measured pose. Same
+        surfaces and conflict test as `pose`/`closing_pose`; the target is
+        excluded so a scene without neighbours ranks exactly as before.
+        """
+        T = _array(T_base_tcp, (4, 4), "TCP transform")
+        if type(lateral_m) not in (int, float) or not np.isfinite(lateral_m) or lateral_m < 0:
+            raise SafetyViolation("neighbour ranking distance must be finite and nonnegative")
+        envelopes = self.closing_envelopes if closing else self.envelopes
+        return self.scene.conflict(T, _horizontal_dilation(envelopes, T[:3, :3], float(lateral_m)),
+                                   allow_target_contact=True)
+
+
+def neighbour_ranked(grasps, gate, *, lateral_m, pregrasp_offset_m, check=None, ranked_last=None):
+    """Yield `grasps` with every candidate whose fingers come within
+    `lateral_m` of an observed neighbour moved after all the others.
+
+    Each group keeps its order and every candidate is still yielded: the
+    selector's exact checks (IK, harness, the observed-finger vet) admit or
+    drop it as before. Both jaw orientations are checked (the selector may
+    execute either), at the pregrasp, mid-descent and grasp poses with open
+    fingers and at the grasp pose with the closing stroke. Lazy, so a
+    selector that stops at the first executable candidate pays only for the
+    candidates it reaches. `ranked_last(index, grasp, reason)` records each
+    candidate moved back.
+    """
+    def rigid(rotation):
+        # Learned rotations arrive in float32; `conflict` requires a rigid
+        # transform to 1e-9. Project for this ranking only (IK and the exact
+        # vet still see the candidate as planned). Unusable -> no ranking.
+        R = np.asarray(rotation, dtype=float)
+        if R.shape != (3, 3) or not np.isfinite(R).all():
+            return None
+        U, _, Vt = np.linalg.svd(R)
+        R = U @ Vt
+        return R if np.linalg.det(R) > 0 else None
+
+    deferred = []
+    for index, grasp in enumerate(grasps):
+        if check is not None:
+            check()
+        reason = None
+        approach = np.asarray(grasp.approach, dtype=float).reshape(-1)
+        position = np.asarray(grasp.position, dtype=float).reshape(-1)
+        rotation = rigid(grasp.rotation)
+        norm = float(np.linalg.norm(approach)) if approach.shape == (3,) else 0.
+        if (rotation is None or position.shape != (3,) or not np.isfinite(position).all()
+                or not np.isfinite(norm) or norm < 1e-9):
+            yield grasp  # the selector's own checks decide; nothing to rank on
+            continue
+        approach = approach / norm
+        twin = (2. * np.outer(approach, approach) - np.eye(3)) @ rotation  # selector._flip_twin
+        for R in (rotation, twin):
+            for phase, offset, closing in (("pregrasp", pregrasp_offset_m, False),
+                                           ("descent", pregrasp_offset_m / 2, False),
+                                           ("grasp", 0., False), ("closing", 0., True)):
+                T = np.eye(4)
+                T[:3, :3] = R
+                T[:3, 3] = position - approach * offset
+                conflict = gate.neighbour_proximity(T, lateral_m, closing=closing)
+                if conflict:
+                    reason = (f"{phase} fingers within {lateral_m * 1000:.0f} mm of an observed neighbour: "
+                              f"{conflict}")
+                    break
+            if reason:
+                break
+        if reason is None:
+            yield grasp
+            continue
+        deferred.append(grasp)
+        if ranked_last is not None:
+            ranked_last(index, grasp, reason)
+    for grasp in deferred:
+        if check is not None:
+            check()
+        yield grasp
 
 
 def for_runtime(runtime, frame, fix, state):

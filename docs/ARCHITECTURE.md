@@ -1147,9 +1147,7 @@ no robot), or *unverified on hardware* (written against a real interface,
 never run on a robot). `tests/test_docs_architecture_current.py` fails when
 the "Still not here" list names a capability whose module exists, when a
 present capability's module is not cited here, or when a cited path is gone.
-The wider design direction stays in `docs/MOBILITY_AND_NAVIGATION_DESIGN.md`
-(its status note says which parts landed and how they differ); open work is
-in the ROADMAP rows "Locomotion", "Mapping and navigation" and "Whole-body
+Open work is in the ROADMAP rows "Locomotion", "Mapping and navigation" and "Whole-body
 humanoids".
 
 **ROS2 today = arms.** `type: ros2` (`control/ros2_arm.py`) speaks the two
@@ -1163,9 +1161,7 @@ the robot's URDF, joint names, keyframes, gripper travel and workspace; the
 harness, IK, grasping, skills and MCP tools drive it unchanged. `rclpy` is
 imported inside `connect()`, so the mock stack and CI without ROS2 still
 collect the module; the unit tests inject stub `rclpy` modules. Shipped
-profiles: `so101_ros2`, `piper`, `h1`, `h1_2`, `fr3`. Design rationale (QoS,
-streaming vs. single trajectory, stop semantics, licence notes) in
-`docs/ROS2_BACKEND_BRIEF.md`. **Unverified on hardware.**
+profiles: `so101_ros2`, `piper`, `h1`, `h1_2`, `fr3`. **Unverified on hardware.**
 
 **Humanoid arms on a standing robot.** `type: unitree_arm`
 (`control/unitree_arm.py`) drives an arm of a G1 / H1 / H1-2 over Unitree's
@@ -1209,7 +1205,7 @@ before it is never progress. The opt-in pair `max_admission_lateral_m` /
 also bounds the lateral/heading change that baseline would absorb: SafeBase
 vetoes and latches on it from the last pre-ACK sample through every delivery
 sample, and the checker refutes a confirmation on it from its last sample at
-or before the admission clock ([contract](MICRODUCK_DISTANCE_CANDIDATE.md#implemented-contract)).
+or before the admission clock ([contract](MICRODUCK.md#implemented-contract)).
 CPU tests only; no shipped profile sets the pair.
 
 **Legged robots on that layer: MicroDuck and the Unitree H2 (simulation
@@ -1251,9 +1247,9 @@ retained RGB-D captures through `warmup_localization` / `track_capture` /
 `get_localization`; it never acquires a frame or moves anything, and
 cuVSLAM is not installed by default. `spatial/cuvslam_uncertainty.py` keeps
 the SDK's odometry covariance apart from the SLAM pose. Measured natively
-([record](CUVSLAM_NATIVE_VALIDATION.md)): a 12-frame synthetic replay
+([record](SPATIAL_PROVIDERS.md#live-native-rgb-d-stream)): a 12-frame synthetic replay
 (final translation error 0.01178 m), a
-[live stream](CUVSLAM_NATIVE_VALIDATION.md#live-native-rgb-d-stream) that
+[live stream](SPATIAL_PROVIDERS.md#live-native-rgb-d-stream) that
 tracked 12 real captures from a 320-solve Isaac/Newton MicroDuck producer
 under zero policy commands, with `emergency_stop` invalidating the map
 epoch, and 12 of 12 odometry covariance matrices through the worker IPC.

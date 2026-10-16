@@ -132,7 +132,7 @@ explains the prompts, result checks and recovery steps. See the
 
 With the Sparks disconnected, source-bound validation continues on the local
 dual-RTX Pro PC. Native proof and nvblox normal-campaign failures remain to be
-resolved before five-object acceptance and the same-version restart. See [current status](docs/PROJECT_STATUS_20261003.md).
+resolved before five-object acceptance and the same-version restart. See [current status](docs/ROADMAP.md).
 
 **Newton parity.** Installed Spark defaults to CUDA PhysX. Newton remains
 explicit, with separate engine/asset validation.

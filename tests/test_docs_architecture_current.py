@@ -55,7 +55,7 @@ STALE_CLAIMS = (
     (r"(?i)bridge \(to build\)|owner architecture \(to build", "scripts/isaac_h2_bridge.py"),
 )
 CURRENT_DOCS = ("README.md", "docs/ARCHITECTURE.md", "docs/ROADMAP.md", "docs/ROBOT_MODULARITY.md",
-                "docs/MOBILITY_AND_NAVIGATION_DESIGN.md", "docs/HUMANOID_H2.md", "docs/SPATIAL_PROVIDERS.md")
+                "docs/HUMANOID_H2.md", "docs/SPATIAL_PROVIDERS.md")
 NO_GATE_PASSED = re.compile(r"(?i)\bno (?:admission )?gate (?:below )?(?:is |has )?(?:been )?passed\b")
 EVIDENCE = re.compile(r"(?i)\bmeasured\b|\bmock-only\b|\bunverified\s+on\s+hardware\b|\bCPU\s+tests?\b"
                       r"|\bsoftware\s+only\b|\bsimulation\s+only\b|\bnot\s+admitted\b|\bno\s+physical\s+admission\b")

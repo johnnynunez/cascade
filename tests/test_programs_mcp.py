@@ -256,7 +256,10 @@ def test_tier_off_catalog_calls_and_matrix_are_byte_identical(tmp_path, monkeypa
             payload, is_err = _tool_payload(c.request("tools/call", {
                 "name": name, "arguments": {"program": "x", "task": "y", "query": "z"}}))
             assert is_err
-            assert payload == {**unknown, "error": unknown["error"].replace("warp_drive", name)}
+            # exactly the unknown-tool result, its name in the error and the
+            # failure instruction quoting that error
+            assert payload == {k: v.replace("warp_drive", name) if isinstance(v, str) else v
+                               for k, v in unknown.items()}
     finally:
         c.close()
     assert not (tmp_path / "programs.jsonl").exists(), "the tier off touches no program store"

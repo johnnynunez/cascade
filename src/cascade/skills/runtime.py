@@ -968,11 +968,14 @@ class SkillRuntime:
         alters args, the result, or whether the skill runs."""
         narrator = getattr(self, "wrist_narrator", None)
         if narrator is None or name not in _MOTION_SKILLS:
-            return self._execute_with_obligations(name, args)
+            # Every failed result tells the agent so, including the ones the
+            # dispatcher refuses before the skill runs (idempotent: results
+            # that went through the full fold already carry it).
+            return _with_failure_instruction(self._execute_with_obligations(name, args))
         owns = narrator.begin(self, name, args)
         result = None
         try:
-            result = self._execute_with_obligations(name, args)
+            result = _with_failure_instruction(self._execute_with_obligations(name, args))
             return result
         finally:
             if owns:
@@ -1350,8 +1353,15 @@ class SkillRuntime:
             if diagnostic is not None:
                 result["placement_diagnostic"] = diagnostic
         if name == "pick_and_place" and result.get("ok") is False:
+            # Keep a failure path's own recovery step (the observed-finger
+            # refusal's move_home); the routine's success wording never
+            # speaks for a failed or refuted pick.
+            own = str(result.get("next_action") or "").strip()
+            if own == _PICK_REPORT_NEXT_ACTION:
+                own = ""
             result["next_action"] = (
-                "If the user said 'then stop', report this failure and end the turn. "
+                (f"{own} " if own else "")
+                + "If the user said 'then stop', report this failure and end the turn. "
                 "Do not start another pick, rename the requested object or destination, "
                 "or invent a placement using manual coordinates."
             )
@@ -1374,10 +1384,11 @@ class SkillRuntime:
         # outcome survives the fold and overrides any per-skill next_action:
         # the ask goes to the human, verbatim, and this step is not retried.
         result = _normalize_outcome(result, name)
+        result = _with_failure_instruction(result)
         if result.get("outcome") == OUTCOME_STUCK:
             # Prepend, never replace: a skill's own guidance (pick_and_place's
             # "if the user said 'then stop' ... do not start another pick")
-            # still applies; the relay instruction comes first.
+            # and the failure line still apply; the relay instruction comes first.
             own = str(result.get("next_action") or "").strip()
             result["next_action"] = (
                 "STUCK: relay `ask` to the human verbatim and stop; do not retry this step "
@@ -5205,7 +5216,7 @@ class SkillRuntime:
             "duration_s": total,
             "timings": timings,
             "return_home": return_home,
-            "next_action": "Report this result, including any return_home failure, and await the next user order. Do not add another movement to this request.",
+            "next_action": _PICK_REPORT_NEXT_ACTION,
         }
         if "target_resolution" in grasp:
             result["target_resolution"] = grasp["target_resolution"]
@@ -7122,6 +7133,40 @@ def _normalize_outcome(result: dict, name: str) -> dict:
             result["verified"] = False
         return result
     result["outcome"] = OUTCOME_OK if result.get("ok") else OUTCOME_FAILED
+    return result
+
+
+#: The first words of the instruction every failed result carries.
+FAILED_INSTRUCTION = "This attempt FAILED"
+#: Error text quoted in that instruction; the full text stays in `error`.
+_FAILED_ERROR_CHARS = 240
+#: pick_and_place's next_action for a completed routine. A failure (including a
+#: refuted placement) gets the failure instructions instead, never this.
+_PICK_REPORT_NEXT_ACTION = ("Report this result, including any return_home failure, and await the next "
+                            "user order. Do not add another movement to this request.")
+
+
+def _with_failure_instruction(result: dict) -> dict:
+    """Prepend the unconditional failure instruction to a failed result.
+
+    Every result with ``ok: false`` (a refused or failed call, and a self-
+    reported success the postcondition REFUTED) starts its ``next_action`` with
+    what happened and the rule to report it as a failure. Measured on the
+    OpenClaw kitchen run: a refuted pick_and_place carried only the "if the
+    user said 'then stop'" guidance and the agent answered "Done". A skill's
+    own guidance follows unchanged; a success is untouched. Idempotent.
+    """
+    if not isinstance(result, dict) or result.get("ok") is not False:
+        return result
+    own = str(result.get("next_action") or "").strip()
+    if FAILED_INSTRUCTION in own:
+        return result
+    error = " ".join(str(result.get("error") or "the call reported ok=false").split())
+    if len(error) > _FAILED_ERROR_CHARS:
+        error = error[:_FAILED_ERROR_CHARS].rstrip() + " (truncated; see error)"
+    line = (f"{FAILED_INSTRUCTION}: {error.rstrip('.')}. Tell the user it failed; never report a "
+            "failed or refuted result as success.")
+    result["next_action"] = line + (f" {own}" if own else "")
     return result
 
 

@@ -45,6 +45,7 @@ from ..perception.grounding import (
     fix_from_detection,
     localize_object,
     mask_to_points_cam,
+    median_point,
     oriented_bbox,
 )
 
@@ -1362,11 +1363,17 @@ class SkillRuntime:
             trace_context["contact_monitor"] = contact_reports
         if perception_timings:
             # Two-phase localization (B1): where the time went. The result
-            # carries the latest localization of the FIRST thing the call
-            # localized (pick_and_place: the object, not its destination);
-            # the trace carries every one of them.
-            first = perception_timings[0].get("query")
-            result["perception_timing"] = dict([t for t in perception_timings if t.get("query") == first][-1])
+            # carries the latest localization of the object the call names
+            # (`label` / `object` / `query`, matched by query: the eye-in-hand
+            # pick_and_place localizes its destination FIRST); a call naming
+            # none of the localized queries, the first one it localized. The
+            # trace carries every one of them.
+            subject = args.get("label") or args.get("object") or args.get("query")
+            mine = [t for t in perception_timings if subject is not None and t.get("query") == str(subject)]
+            if not mine:
+                first = perception_timings[0].get("query")
+                mine = [t for t in perception_timings if t.get("query") == first]
+            result["perception_timing"] = dict(mine[-1])
             trace_context["perception_timings"] = [dict(t) for t in perception_timings]
         self.trace.record(name, args, result, dur, before, after,
                           tier=self.current_tier, context=trace_context,
@@ -2312,9 +2319,9 @@ class SkillRuntime:
     def _note_perception_timing(self, timing: dict) -> None:
         """Hand one two-phase localization's timing dict (filled in as it
         runs, so a refused one still says how far it got) to the dispatched
-        call: execute() puts the last one in the skill result as
-        `perception_timing` and every one in the trace context. A no-op
-        outside a dispatched call."""
+        call: execute() puts the latest one of the object the call names in
+        the skill result as `perception_timing` (matched by query) and every
+        one in the trace context. A no-op outside a dispatched call."""
         timings = getattr(self, "_call_perception_timings", None)
         if timings is not None:
             timings.append(timing)
@@ -2414,7 +2421,7 @@ class SkillRuntime:
                     "is live -- retry the observation"
                 )
 
-        def measure_again(frame0, fix0, frame1, ext1, timing):
+        def measure_again(frame0, fix0, ext0, frame1, ext1, timing):
             # Steps 4-7 on frame1: the same view, the brain's box re-anchored
             # by SAM, the geometry from frame1 alone, and the 5 s rule on it.
             started1 = time.monotonic()
@@ -2435,6 +2442,8 @@ class SkillRuntime:
                 if prompt_box is not None:
                     timing["reanchor_prompt_box"] = [int(v) for v in prompt_box]
                 timing["mask_iou"] = _rounded(getattr(found, "mask_iou", math.nan), 3)
+                timing["mask_agreement"] = _rounded(getattr(found, "mask_agreement", math.nan), 3)
+                timing["mask_components_dropped"] = int(getattr(found, "dropped_components", 0))
                 if found.scene_changed:
                     raise _SceneChanged(found.reason)
                 if found.detection is None or found.detection.mask is None:
@@ -2446,7 +2455,11 @@ class SkillRuntime:
                     if rejected.kind == "points":
                         raise _ReanchorFailed(rejected.reason) from None
                     raise _SceneChanged(rejected.reason) from None  # colour, or out of the workspace now
-                moved = float(np.linalg.norm(np.asarray(fix1.position, float) - np.asarray(fix0.position, float)))
+                # Both positions measured the same robust way (medians inside
+                # the masks eroded by 2 px): a pixel of SAM edge jitter onto
+                # the table tilts the fixes' OBB centres by ~2 cm.
+                moved = float(np.linalg.norm(median_point(frame1, found.detection, ext1)
+                                             - median_point(frame0, fix0.detection, ext0)))
                 timing["moved_m"] = _rounded(moved, 4)
                 if not moved <= _REANCHOR_MAX_MOVE_M:
                     raise _SceneChanged(f"the object moved {moved * 100:.1f} cm between the two images")
@@ -2468,13 +2481,14 @@ class SkillRuntime:
                 timing = {"query": query, "attempt": attempt}
                 self._note_perception_timing(timing)
                 started0 = time.monotonic()
+                ext0 = extrinsics_of(frame0)
                 try:
-                    fix0 = name_object(frame0, extrinsics_of(frame0))
+                    fix0 = name_object(frame0, ext0)
                 finally:
                     timing["semantic_s"] = round(time.monotonic() - started0, 3)
                 frame1 = take_frame1(frame0)
                 try:
-                    return frame1, measure_again(frame0, fix0, frame1, extrinsics_of(frame1), timing)
+                    return frame1, measure_again(frame0, fix0, ext0, frame1, extrinsics_of(frame1), timing)
                 except _SceneChanged as exc:
                     timing["scene_changed"] = str(exc)
                     retried["scene"] += 1

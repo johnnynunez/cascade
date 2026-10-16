@@ -25,6 +25,8 @@ import numpy as np
 
 from ..types import Detection, Frame
 from .detector import Detector
+from .grounding import host_crop as _host_crop
+from .grounding import mask_box as _mask_box
 from .thread_join import join_thread
 
 if TYPE_CHECKING:
@@ -154,17 +156,29 @@ _WARM_UP_JOIN_S = 60.0
 #: fraction of its width and height (half on each side).
 _REANCHOR_BOX_GROWTH = 0.10
 #: reanchor(): SAM's prompt on the fresh frame is the brain's box grown by
-#: this fraction (half on each side), and a fresh mask must not newly reach
-#: its border. A mask clipped by a stale prompt always touches it; the margin
-#: (8 px on an 80 px box) keeps a still object, SAM jitter and a box a pixel
-#: tight off it.
+#: this fraction (half on each side), at least _REANCHOR_PROMPT_MIN_PX on each
+#: side, and a fresh mask must not newly reach its border. A mask clipped by
+#: a stale prompt always touches it; the margin (8 px on an 80 px box) keeps
+#: a still object, SAM jitter and a box a pixel tight off it.
 _REANCHOR_PROMPT_GROWTH = 0.20
+#: ...the floor of that margin: on a 24x18 px object 20 % is 2 px, which a
+#: still object's mask reaches with 2 px of SAM jitter or a brain box 2 px
+#: tight. Neighbours the wider prompt takes in are dropped by components.
+_REANCHOR_PROMPT_MIN_PX = 6.0
 #: reanchor(): the new mask's bounding box must overlap the brain's box by at
 #: least this IoU, or SAM masked something else than the brain's box.
 REANCHOR_MIN_IOU = 0.5
-#: reanchor(): the pixel IoU of the two masks is computed on at most about
-#: this many pixels (a strided crop), copied to the host once per mask.
-_REANCHOR_IOU_MAX_PX = 1 << 16
+#: reanchor(): of the new mask, only the connected components that come
+#: within this many pixels of the old mask (the old mask dilated by it) are
+#: the object; the rest (a neighbour inside SAM's grown prompt) is dropped
+#: before the border, agreement and geometry see the mask.
+_REANCHOR_COMPONENT_REACH_PX = 2.0
+#: reanchor(): the two masks agree when at least `reanchor_mask_agreement` of
+#: each one's pixels lie within this tolerance of the other: max(the floor,
+#: the fraction x the diagonal of the old mask's box) pixels. SAM's 1-2 px
+#: edge jitter and a brain box a few px tight stay inside it on any size.
+_REANCHOR_TOL_MIN_PX = 2.0
+_REANCHOR_TOL_FRAC = 0.03
 
 
 class _Entry(NamedTuple):
@@ -196,8 +210,11 @@ class ReanchorResult(NamedTuple):
     two diffs are always measured (mean absolute grey levels of the
     thumbnails; the largest B/G/R mean absolute difference in the grown
     box). Evidence once known: `prompt_box`, the grown box SAM was prompted
-    with (xyxy pixels), and `mask_iou`, the pixel IoU of the newer mask with
-    the mask the object was named with."""
+    with (xyxy pixels); `mask_iou`, the pixel IoU of the newer mask with the
+    mask the object was named with; `mask_agreement`, the smaller of the two
+    shares of each mask's pixels within the size-aware tolerance of the
+    other; `dropped_components`, how many separate parts of SAM's newer mask
+    (neighbours) were dropped before any of that."""
 
     detection: Detection | None
     scene_changed: bool
@@ -206,6 +223,8 @@ class ReanchorResult(NamedTuple):
     scene_diff_local: float
     prompt_box: tuple[int, int, int, int] | None = None
     mask_iou: float = math.nan
+    mask_agreement: float = math.nan
+    dropped_components: int = 0
 
 
 def _camera_key(frame: Frame) -> tuple[int, int, int, int]:
@@ -230,13 +249,14 @@ def _scene_diff(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.mean(np.abs(a.astype(np.float32) - b.astype(np.float32))))
 
 
-def _grown_box(box, shape, growth: float = _REANCHOR_BOX_GROWTH) -> tuple[int, int, int, int]:
+def _grown_box(box, shape, growth: float = _REANCHOR_BOX_GROWTH, min_px: float = 0.0) -> tuple[int, int, int, int]:
     """`box` (xyxy pixels) grown by `growth` of its width and height (half on
-    each side), outward to whole pixels, clipped to an image of `shape`
-    (h, w, ...): integer xyxy, the end exclusive."""
+    each side, at least `min_px` on each side), outward to whole pixels,
+    clipped to an image of `shape` (h, w, ...): integer xyxy, the end
+    exclusive."""
     h, w = shape[:2]
     x0, y0, x1, y1 = (float(v) for v in np.asarray(box, dtype=np.float64).reshape(-1)[:4])
-    gx, gy = (x1 - x0) * growth / 2, (y1 - y0) * growth / 2
+    gx, gy = max((x1 - x0) * growth / 2, min_px), max((y1 - y0) * growth / 2, min_px)
     return (max(int(math.floor(x0 - gx)), 0), max(int(math.floor(y0 - gy)), 0),
             min(int(math.ceil(x1 + gx)), w), min(int(math.ceil(y1 + gy)), h))
 
@@ -253,43 +273,64 @@ def _local_diff(a: Frame, b: Frame, box) -> float:
     return float(diff.reshape(-1, diff.shape[2] if diff.ndim == 3 else 1).mean(axis=0).max())
 
 
-def _host_bools(v) -> np.ndarray:
-    """A 1-D bool projection of a mask as numpy. A CUDA tensor (strict GPU
-    mode) copies only this row/column projection to the host, never the mask."""
-    cpu = getattr(v, "cpu", None)
-    if callable(cpu):
-        v = cpu().numpy()
-    return np.asarray(v, dtype=bool).reshape(-1)
+class _MaskMatch(NamedTuple):
+    """`_match_masks`: the newer mask's kept components (`kept`, host bools on
+    the crop at `origin`, None when no component is near the old mask) and
+    how the kept mask compares with the old one."""
+
+    kept: np.ndarray | None
+    origin: tuple[int, int]
+    dropped: int
+    agreement: float
+    iou: float
+    tol_px: float
 
 
-def _host_crop(mask, x0: int, y0: int, x1: int, y1: int, step: int) -> np.ndarray:
-    """mask[y0:y1:step, x0:x1:step] as host numpy bools: a CUDA tensor is
-    sliced on the device and only that crop is copied, once."""
-    crop = mask[y0:y1:step, x0:x1:step]
-    cpu = getattr(crop, "cpu", None)
-    if callable(cpu):
-        crop = cpu().numpy()
-    return np.asarray(crop, dtype=bool)
+def _match_masks(old, old_box, new, new_box) -> _MaskMatch:
+    """Compare frame0's mask `old` with frame1's mask `new` (same size,
+    opaque, non-empty, with their boxes) on the crop covering both, at full
+    resolution: one host copy per mask, sliced on the device for a CUDA
+    tensor.
+
+    First the component filter: of `new`, only the 8-connected components
+    with a pixel within _REANCHOR_COMPONENT_REACH_PX of `old` are kept (a
+    still neighbour inside SAM's grown prompt is a separate component; a
+    neighbour that moved into contact is part of the object's). Then, for
+    the kept mask: `agreement` = the smaller of the share of its pixels within
+    `tol_px` of `old` and the share of `old`'s pixels within `tol_px` of it,
+    with tol_px = max(_REANCHOR_TOL_MIN_PX, _REANCHOR_TOL_FRAC x the
+    diagonal of `old`'s box); `iou`, their raw pixel IoU (evidence)."""
+    x0, y0 = int(min(old_box[0], new_box[0])), int(min(old_box[1], new_box[1]))
+    x1, y1 = int(max(old_box[2], new_box[2])), int(max(old_box[3], new_box[3]))
+    a, b = _host_crop(old, x0, y0, x1, y1), _host_crop(new, x0, y0, x1, y1)
+    tol_px = max(_REANCHOR_TOL_MIN_PX, _REANCHOR_TOL_FRAC * math.hypot(old_box[2] - old_box[0],
+                                                                        old_box[3] - old_box[1]))
+    # Euclidean distance of every crop pixel to the nearest pixel of `old`.
+    to_old = cv2.distanceTransform((~a).astype(np.uint8), cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+    count, labels = cv2.connectedComponents(b.astype(np.uint8), connectivity=8)
+    near = np.unique(labels[b & (to_old <= _REANCHOR_COMPONENT_REACH_PX)])
+    near = near[near != 0]
+    dropped = count - 1 - near.size
+    if near.size == 0:
+        return _MaskMatch(None, (x0, y0), dropped, math.nan, math.nan, tol_px)
+    kept = np.isin(labels, near)
+    to_kept = cv2.distanceTransform((~kept).astype(np.uint8), cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+    new_near = np.count_nonzero(to_old[kept] <= tol_px) / np.count_nonzero(kept)
+    old_near = np.count_nonzero(to_kept[a] <= tol_px) / np.count_nonzero(a)
+    iou = np.count_nonzero(a & kept) / np.count_nonzero(a | kept)
+    return _MaskMatch(kept, (x0, y0), dropped, float(min(new_near, old_near)), float(iou), tol_px)
 
 
-def _mask_box(mask) -> np.ndarray | None:
-    """xyxy pixel box of an opaque mask (numpy or torch), None when empty."""
-    rows, cols = _host_bools(mask.any(1)), _host_bools(mask.any(0))
-    if not rows.any():
-        return None
-    ys, xs = np.flatnonzero(rows), np.flatnonzero(cols)
-    return np.array([xs[0], ys[0], xs[-1] + 1, ys[-1] + 1], dtype=np.float64)
-
-
-def _mask_iou(a, a_box, b, b_box) -> float:
-    """Pixel IoU of two same-size opaque masks with their (non-empty) boxes,
-    on the crop covering both, strided down to about _REANCHOR_IOU_MAX_PX."""
-    x0, y0 = int(min(a_box[0], b_box[0])), int(min(a_box[1], b_box[1]))
-    x1, y1 = int(max(a_box[2], b_box[2])), int(max(a_box[3], b_box[3]))
-    step = max(1, math.ceil(math.sqrt((x1 - x0) * (y1 - y0) / _REANCHOR_IOU_MAX_PX)))
-    ca, cb = _host_crop(a, x0, y0, x1, y1, step), _host_crop(b, x0, y0, x1, y1, step)
-    union = int(np.count_nonzero(ca | cb))
-    return int(np.count_nonzero(ca & cb)) / union if union else 0.0
+def _kept_mask(new, match: _MaskMatch):
+    """frame1's mask with only the kept components: `new` itself (still
+    opaque) when nothing was dropped, else a host bool mask of its size."""
+    if not match.dropped:
+        return new
+    out = np.zeros(tuple(new.shape), dtype=bool)
+    x0, y0 = match.origin
+    h, w = match.kept.shape
+    out[y0:y0 + h, x0:x0 + w] = match.kept
+    return out
 
 
 def _touched_sides(mask_box, grown) -> set[str]:
@@ -373,13 +414,15 @@ class BrainDetector(Detector):
 
     `reanchor` (two-phase localization) re-finds one detection the brain
     named on an older frame in a newer frame of the same camera: SAM on the
-    brain's box grown by 20 %, no brain call. Refused as a scene change when
-    the image changed around it (`scene_change` over the whole view,
-    `reanchor_local_diff` in colour inside the box grown by 10 %), when the
-    new mask reaches a border of SAM's prompt box the old mask did not, or
-    when the two masks overlap by a pixel IoU under `reanchor_mask_iou`;
-    refused as a failed re-anchor when the mask is missing, empty or off the
-    box.
+    brain's box grown by 20 % (at least 6 px a side), no brain call; parts of
+    the new mask not connected to the old mask's place (a neighbour) are
+    dropped. Refused as a scene change when the image changed around it
+    (`scene_change` over the whole view, `reanchor_local_diff` in colour
+    inside the box grown by 10 %), when the new mask reaches a border of
+    SAM's prompt box the old mask did not, or when under
+    `reanchor_mask_agreement` of either mask's pixels lie within a few pixels
+    (size-aware) of the other; refused as a failed re-anchor when the mask is
+    missing, empty or off the box.
 
     Safe to call from several threads at once: the cache lock is never held
     across the brain or SAM call, and the segmenter serializes its own model
@@ -392,7 +435,7 @@ class BrainDetector(Detector):
                  timeout_s: float = 20.0, max_tokens: int = 1500, segmenter: BoxSegmenter | None = None,
                  refresh_s: float = 4.0, max_cache_age_s: float = 30.0, scene_change: float = 6.0,
                  idle_refresh_s: float = 30.0, reanchor_local_diff: float = 8.0,
-                 reanchor_mask_iou: float = 0.85, client=None, clock=time.monotonic):
+                 reanchor_mask_agreement: float = 0.95, client=None, clock=time.monotonic):
         self._base_url = str(base_url)
         self._model = str(model)
         self._timeout_s = float(timeout_s)
@@ -403,7 +446,7 @@ class BrainDetector(Detector):
         self._max_cache_age_s = float(max_cache_age_s)
         self._scene_change = float(scene_change)
         self._reanchor_local_diff = float(reanchor_local_diff)
-        self._reanchor_mask_iou = float(reanchor_mask_iou)
+        self._reanchor_mask_agreement = float(reanchor_mask_agreement)
         self._clock = clock
         self._api_key = self._read_key(api_key_file)
         self._client = client
@@ -516,25 +559,34 @@ class BrainDetector(Detector):
         two frames differ by more than `scene_change` or, inside the brain's
         box grown by 10 %, the largest B/G/R mean difference exceeds
         `reanchor_local_diff`. Otherwise SAM masks the brain's box grown by
-        20 % on `frame` (the track step). Refused as a failed re-anchor when
-        `det` has no mask, or SAM gives no mask, an empty one, or one whose
-        bounding box overlaps the brain's box by IoU < REANCHOR_MIN_IOU.
-        Refused as a scene change when the new mask reaches a side of that
-        prompt box the old mask did not reach (the object extends past the box
-        it was named in; a mask clipped by a stale prompt touches it), or when
-        the two masks overlap by a pixel IoU < `reanchor_mask_iou`. The detection
-        returned carries the new mask and ITS bounding box. Never falls back
-        to the box: a box cloud includes table pixels. Masks stay opaque
-        (numpy or CUDA tensors): only projections and one crop per mask are
-        copied to the host."""
+        20 %, at least _REANCHOR_PROMPT_MIN_PX a side, on `frame` (the track
+        step). Of that mask only the connected components within 2 px of the
+        old mask are kept (a still neighbour inside the prompt is dropped
+        before any check and the geometry; one that moved into contact is
+        part of the object's component). Refused as a failed re-anchor when
+        `det` has no mask, or SAM gives no mask, an empty one, none of it near
+        the old mask, or a kept mask whose bounding box overlaps the brain's
+        box by IoU < REANCHOR_MIN_IOU. Refused as a scene change when the kept
+        mask reaches a side of the prompt box the old mask did not reach (the
+        object extends past the box it was named in; a mask clipped by a
+        stale prompt touches it), or when under `reanchor_mask_agreement` of
+        its pixels lie within the tolerance (max(2 px, 3 % of the old mask
+        box's diagonal)) of the old mask, or of the old mask's pixels within
+        it of the kept one. The detection returned carries the kept mask and
+        ITS bounding box. Never falls back to the box: a box cloud includes
+        table pixels. Masks stay opaque (numpy or CUDA tensors): only
+        projections and one crop per mask are copied to the host; a mask
+        with dropped components comes back as a host bool mask."""
         if frame.rgb.shape != since.rgb.shape:
             return ReanchorResult(None, True, "the image size changed", math.inf, math.inf)
         diff_global = _scene_diff(_thumbnail(since), _thumbnail(frame))
         diff_local = _local_diff(since, frame, det.bbox)
         prompt_box = None
+        match = None
 
-        def refused(scene_changed: bool, reason: str, mask_iou: float = math.nan) -> ReanchorResult:
-            return ReanchorResult(None, scene_changed, reason, diff_global, diff_local, prompt_box, mask_iou)
+        def refused(scene_changed: bool, reason: str) -> ReanchorResult:
+            evidence = (match.iou, match.agreement, match.dropped) if match is not None else (math.nan, math.nan, 0)
+            return ReanchorResult(None, scene_changed, reason, diff_global, diff_local, prompt_box, *evidence)
 
         if not diff_global <= self._scene_change:
             return refused(True, f"the view changed (mean grey difference {diff_global:.1f} > "
@@ -547,7 +599,7 @@ class BrainDetector(Detector):
         old_box = _mask_box(det.mask) if det.mask is not None else None
         if old_box is None:
             return refused(False, "the object has no mask on the image it was named on")
-        prompt_box = _grown_box(det.bbox, frame.rgb.shape, _REANCHOR_PROMPT_GROWTH)
+        prompt_box = _grown_box(det.bbox, frame.rgb.shape, _REANCHOR_PROMPT_GROWTH, _REANCHOR_PROMPT_MIN_PX)
         prompt = np.asarray(prompt_box, dtype=np.float32).reshape(1, 4)
         found = self._detections(frame, [det.label], prompt, track=True)
         mask = found[0].mask if found else None
@@ -556,19 +608,29 @@ class BrainDetector(Detector):
         mask_box = _mask_box(mask)
         if mask_box is None:
             return refused(False, "SAM returned an empty mask for the box")
+        match = _match_masks(det.mask, old_box, mask, mask_box)
+        if match.kept is None:
+            return refused(False, f"SAM's mask lies off the box: no part of it comes within "
+                                  f"{_REANCHOR_COMPONENT_REACH_PX:g} px of the object's mask on the image it "
+                                  "was named on")
+        mask = _kept_mask(mask, match)
+        mask_box = _mask_box(match.kept) + np.array([*match.origin, *match.origin], dtype=np.float64)
         iou = _box_iou(mask_box, det.bbox)
         if not iou >= REANCHOR_MIN_IOU:
             return refused(False, f"SAM's mask lies off the box (IoU {iou:.2f} < {REANCHOR_MIN_IOU:g})")
-        mask_iou = _mask_iou(det.mask, old_box, mask, mask_box)
         crossed = _touched_sides(mask_box, prompt_box) - _touched_sides(old_box, prompt_box)
         if crossed:
             return refused(True, f"the object's mask now reaches the {'/'.join(sorted(crossed))} border of the "
-                                 "box it was named in (grown 20 %): it extends past that box", mask_iou)
-        if not mask_iou >= self._reanchor_mask_iou:
-            return refused(True, f"the object's mask changed (pixel IoU {mask_iou:.2f} < "
-                                 f"{self._reanchor_mask_iou:g} with its mask on the image it was named on)", mask_iou)
+                                 "box it was named in (grown 20 %, at least "
+                                 f"{_REANCHOR_PROMPT_MIN_PX:g} px a side): it extends past that box")
+        if not match.agreement >= self._reanchor_mask_agreement:
+            return refused(True, f"the object's mask changed (mask agreement {match.agreement:.2f} < "
+                                 f"{self._reanchor_mask_agreement:g}: the smaller share of either mask's "
+                                 f"pixels within {match.tol_px:.1f} px of the other, with its mask on the image "
+                                 f"it was named on; pixel IoU {match.iou:.2f})")
         detection = Detection(label=det.label, conf=det.conf, bbox=mask_box.astype(np.float32), mask=mask)
-        return ReanchorResult(detection, False, "", diff_global, diff_local, prompt_box, mask_iou)
+        return ReanchorResult(detection, False, "", diff_global, diff_local, prompt_box, match.iou,
+                              match.agreement, match.dropped)
 
     def close(self) -> None:
         """Join the refresh threads in flight and the SAM warm-up, each with

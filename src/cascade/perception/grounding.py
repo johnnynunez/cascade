@@ -189,6 +189,75 @@ def _compensation_transform(comp) -> np.ndarray:
     return T
 
 
+def _host_array(v) -> np.ndarray:
+    """`v` as host numpy: a CUDA tensor (strict GPU mode) is copied, so pass
+    only what is small (a projection, a crop)."""
+    cpu = getattr(v, "cpu", None)
+    if callable(cpu):
+        v = cpu().numpy()
+    return np.asarray(v)
+
+
+def host_crop(mask, x0: int, y0: int, x1: int, y1: int) -> np.ndarray:
+    """mask[y0:y1, x0:x1] as host numpy bools: a CUDA tensor is sliced on the
+    device and only that crop is copied, once."""
+    return _host_array(mask[y0:y1, x0:x1]).astype(bool, copy=False)
+
+
+def mask_box(mask) -> np.ndarray | None:
+    """xyxy pixel box (end exclusive) of an opaque mask (numpy, or a CUDA
+    tensor in strict GPU mode), None when empty. Only its row and column
+    projections reach the host, never the mask."""
+    rows = _host_array(mask.any(1)).astype(bool, copy=False).reshape(-1)
+    cols = _host_array(mask.any(0)).astype(bool, copy=False).reshape(-1)
+    if not rows.any():
+        return None
+    ys, xs = np.flatnonzero(rows), np.flatnonzero(cols)
+    return np.array([xs[0], ys[0], xs[-1] + 1, ys[-1] + 1], dtype=np.float64)
+
+
+def median_point(frame: Frame, det: Detection, extrinsics: Extrinsics, *, erode_px: int = 2,
+                 min_points: int = 10) -> np.ndarray:
+    """Where `det` is on `frame`, measured the same robust way on any frame,
+    for comparing two frames of one object: the per-axis median of the
+    base-frame points of the valid-depth pixels inside its mask (its box
+    without one) eroded by `erode_px` pixels. A pixel more or less of the
+    mask's edge (table, skirt) moves neither the erosion's inside nor the
+    median, where it tilts the OBB centre of the whole cloud by centimetres.
+    The un-eroded mask only when erosion leaves fewer than `min_points` such
+    pixels; NaN without any. Host numpy on the mask's box crop: a CUDA mask
+    is sliced on the device and copied once."""
+    import cv2
+
+    if not frame.has_depth:
+        return np.full(3, np.nan)
+    mask = det.mask if det.mask is not None else _bbox_mask(frame, det)
+    box = mask_box(mask)
+    if box is None:
+        return np.full(3, np.nan)
+    h, w = frame.depth_m.shape[:2]
+    pad = int(erode_px) + 1  # the crop's own border must erode too
+    x0, y0 = max(int(box[0]) - pad, 0), max(int(box[1]) - pad, 0)
+    x1, y1 = min(int(box[2]) + pad, w), min(int(box[3]) + pad, h)
+    crop = host_crop(mask, x0, y0, x1, y1)
+    depth = _host_array(frame.depth_m[y0:y1, x0:x1]).astype(np.float64)
+    valid = np.isfinite(depth) & (depth > 0)
+    size = 2 * int(erode_px) + 1
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (size, size))
+    eroded = cv2.erode(crop.astype(np.uint8), kernel, borderType=cv2.BORDER_CONSTANT, borderValue=0).astype(bool)
+    pick = eroded & valid
+    if np.count_nonzero(pick) < min_points:
+        pick = crop & valid
+    ys, xs = np.nonzero(pick)
+    if ys.size == 0:
+        return np.full(3, np.nan)
+    zs = depth[ys, xs]
+    K = np.asarray(frame.K, dtype=np.float64)
+    cam = np.stack([(xs + x0 - K[0, 2]) / K[0, 0] * zs, (ys + y0 - K[1, 2]) / K[1, 1] * zs, zs], axis=-1)
+    T = np.asarray(frame.T_base_cam if frame.T_base_cam is not None else extrinsics.cam_to_base(), dtype=np.float64)
+    return np.median(cam @ T[:3, :3].T + T[:3, 3], axis=0)
+
+
 def mask_to_points_cam(
     frame: Frame,
     mask: np.ndarray,

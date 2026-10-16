@@ -138,7 +138,7 @@ class _Scene:
 
     def __init__(self, camera: MockCamera):
         self.state = dict(box=HOME_BOX, depth_shift=0.0, patch=None, colour=None, K=None, T=None, capture=None,
-                          dest=None)
+                          dest=None, neighbour=None, lift=0.0)
         camera._render = self._render  # instance attribute: MockCamera._grab calls self._render()
 
     def set(self, **changes) -> None:
@@ -158,6 +158,13 @@ class _Scene:
         if s["dest"] is not None:  # a flat coloured pad on the table (a place destination)
             x0, y0, x1, y1, bgr = s["dest"]
             frame.rgb[y0:y1, x0:x1] = bgr
+        if s["lift"]:  # the cube alone (its pixels and skirt) rises; the table stays
+            x0, y0, x1, y1 = s["box"]
+            frame.depth_m[y0 - 1:y1 + 1, x0 - 1:x1 + 1] -= np.float32(s["lift"])
+        if s["neighbour"] is not None:  # a second, 5 cm tall object
+            x0, y0, x1, y1, bgr = s["neighbour"]
+            frame.rgb[y0:y1, x0:x1] = bgr
+            frame.depth_m[y0:y1, x0:x1] = np.float32(0.6 - 0.05)
         if s["depth_shift"]:
             frame.depth_m = frame.depth_m + np.float32(s["depth_shift"])
         if s["K"] is not None:
@@ -624,13 +631,14 @@ def test_the_two_phase_config_keys_ship_with_their_defaults():
         cfg = load_demo_config(camera=camera)
         assert cfg.perception_loop.semantic_max_age_s == 20.0
         assert cfg.detector.reanchor_local_diff == 8.0
-        assert cfg.detector.reanchor_mask_iou == 0.85
+        assert cfg.detector.reanchor_mask_agreement == 0.95
+        assert cfg.detector.get("reanchor_mask_iou") is None, "replaced by reanchor_mask_agreement"
     det = demo._make_brain_detector(Cfg({}), {"type": "brain", "api_key_file": None, "reanchor_local_diff": "3.5",
-                                              "reanchor_mask_iou": "0.7"}, warm_up=False)
+                                              "reanchor_mask_agreement": "0.7"}, warm_up=False)
     assert det._reanchor_local_diff == 3.5
-    assert det._reanchor_mask_iou == 0.7
+    assert det._reanchor_mask_agreement == 0.7
     assert BrainDetector(base_url="http://b/v1", model="m")._reanchor_local_diff == 8.0
-    assert BrainDetector(base_url="http://b/v1", model="m")._reanchor_mask_iou == 0.85
+    assert BrainDetector(base_url="http://b/v1", model="m")._reanchor_mask_agreement == 0.95
 
 
 
@@ -653,7 +661,7 @@ def _first_timing(t) -> dict:
     return t.rt.trace.rows()[-1]["context"]["perception_timings"][0]
 
 
-@pytest.mark.parametrize("cm", [1.0, 1.5, 3.0])
+@pytest.mark.parametrize("cm", [0.75, 1.0, 1.5, 3.0])
 def test_an_iso_luminant_slide_is_never_measured_on_the_stale_box(tp, cm):
     """Review I1: the cube slides while the brain thinks and SAM keeps its
     mask inside the box it is prompted with. On 199b6af the grey checks
@@ -706,11 +714,12 @@ def test_a_sam_stuck_on_the_old_mask_is_caught_by_the_colour_check(tp):
 
 
 def test_a_mask_on_part_of_the_object_is_a_scene_change(tp):
-    """Only the MASK IoU sees this: the scene is still, but SAM masks just the
-    left 60 % of the cube on frame1 (a face, a label). The mask lies on the
-    box (box IoU 0.6 >= 0.5) and the image did not change, but its pixels
-    match frame0's mask by IoU 0.6 < reanchor_mask_iou 0.85; measured, the
-    cube would sit 1.5 cm left of its centre."""
+    """Only the MASK AGREEMENT sees this: the scene is still, but SAM masks
+    just the left 60 % of the cube on frame1 (a face, a label). The mask lies
+    on the box (box IoU 0.6 >= 0.5) and the image did not change, but only
+    ~64 % of frame0's mask lies within the tolerance of it (< 0.95, the
+    frame0 -> frame1 direction); measured, the cube would sit 1.5 cm left of
+    its centre."""
     def part(frame, boxes):
         x0, y0, x1, y1 = (int(round(v)) for v in boxes[0])
         m = np.zeros(frame.rgb.shape[:2], dtype=bool)
@@ -723,7 +732,8 @@ def test_a_mask_on_part_of_the_object_is_a_scene_change(tp):
     result = tp.rt.execute("localize_object", {"label": "red cube"})
     assert result["ok"], result.get("error")
     assert tp.brain.refers == 2, "a scene change: one retry"
-    assert "IoU" in _first_timing(tp)["scene_changed"], _first_timing(tp)
+    assert "agreement" in _first_timing(tp)["scene_changed"], _first_timing(tp)
+    assert _first_timing(tp)["mask_agreement"] < 0.7, _first_timing(tp)
     assert np.linalg.norm(np.asarray(result["position"])[:2] - _cube_xy(tp, HOME_BOX)) < 0.003
 
 
@@ -841,6 +851,20 @@ def test_reanchor_checks_device_masks_without_copying_them_to_the_host():
     assert found.detection.bbox.tolist() == [279.0, 199.0, 361.0, 261.0], "frame1's mask box"
     assert found.prompt_box == (260, 182, 380, 278), "the prompt box (grown 20 %), for evidence"
     assert found.mask_iou == pytest.approx(1.0)
+    assert found.mask_agreement == pytest.approx(1.0)
+    assert copies and max(copies) <= 110 * 88 < obj.size, copies
+
+    # A neighbour inside the prompt (4 px right of the cube): its component is
+    # dropped on the host crop; the detection's mask is the cube's pixels only.
+    copies.clear()
+    beside = obj.copy()
+    beside[205:255, 365:376] = True
+    sam.default = lambda frame, boxes: [_DeviceMask(beside, copies)]
+    found = detector.reanchor(b, det, since=a)
+    assert found.detection is not None, found.reason
+    assert np.array_equal(np.asarray(found.detection.mask, dtype=bool), obj), "the neighbour is dropped"
+    assert found.detection.bbox.tolist() == [279.0, 199.0, 361.0, 261.0]
+    assert found.mask_agreement == pytest.approx(1.0)
     assert copies and max(copies) <= 110 * 88 < obj.size, copies
 
     tight = Detection("red cube", 1.0, np.array((279, 199, 361, 261), np.float32), mask=_DeviceMask(obj, copies))
@@ -950,3 +974,279 @@ def test_pick_and_place_reports_the_objects_timing_and_traces_every_localization
     assert "red cube" in queries and "blue square" in queries, (queries, result.get("error"))
     assert queries.index("red cube") < queries.index("blue square")
     assert result["perception_timing"] == [t for t in timings if t["query"] == "red cube"][-1]
+
+
+
+def test_pick_and_place_reports_the_objects_timing_when_the_destination_comes_first(tp):
+    """Review minor (fix round 2): the eye-in-hand (ROS 2) pick_and_place
+    localizes the DESTINATION from the overview before the object. The
+    result's perception_timing is still the object's: matched by the query
+    the call names (`object` / `label`), not by order."""
+    blue = (200, 60, 40)
+    tp.scene.set(dest=(400, 290, 460, 350, blue))
+    tp.rt.camera.get_frame()
+    tp.rt.camera.get_frame()
+
+    def region(query, bgr):
+        b, r = bgr[..., 0].astype(int), bgr[..., 2].astype(int)
+        return (b - r > 60) if "blue" in query else (r - b > 60)
+
+    tp.brain.region = region
+    tp.arm.object_stop_frac = 0.5
+    tp.rt._native_wrist_camera = lambda: True  # the overview-destination flow of the eye-in-hand rig
+    result = tp.rt.execute("pick_and_place", {"object": "red cube", "destination": "blue square"})
+    timings = tp.rt.trace.rows()[-1]["context"]["perception_timings"]
+    queries = [t["query"] for t in timings]
+    assert queries[0] == "blue square" and "red cube" in queries, (queries, result.get("error"))
+    assert result["perception_timing"] == [t for t in timings if t["query"] == "red cube"][-1]
+
+
+# -- fix round 2 (re-review): still scenes pass, moved objects are still caught --
+
+GREEN = (40, 160, 40)  # BGR: a second object, coloured, never red
+SIZES = {"80x60": HOME_BOX, "40x30": (300, 215, 340, 245), "24x18": (308, 221, 332, 239)}
+
+
+def _red_only(query, bgr):
+    """The brain names the red cube only (never the green neighbour)."""
+    b, g, r = (bgr[..., i].astype(int) for i in range(3))
+    return (r - b > 60) & (r - g > 60)
+
+
+def _whole_objects(frame, boxes):
+    """A SAM that returns whole objects: every coloured connected component
+    with a pixel inside the prompt box, never clipped at the box."""
+    obj = _object_mask(frame.rgb).astype(np.uint8)
+    _, labels = cv2.connectedComponents(obj, connectivity=8)
+    h, w = obj.shape
+    out = []
+    for x0, y0, x1, y1 in np.asarray(boxes, dtype=np.float64).reshape(-1, 4):
+        xa, ya = max(int(np.floor(x0)), 0), max(int(np.floor(y0)), 0)
+        xb, yb = min(int(np.ceil(x1)), w), min(int(np.ceil(y1)), h)
+        ids = np.unique(labels[ya:yb, xa:xb])
+        m = np.isin(labels, ids[ids != 0])
+        out.append(m if m.any() else None)
+    return out
+
+
+SAM_KINDS = {"clip": None, "whole": _whole_objects}  # None: _ObjectSam's own answer, clipped at the prompt
+
+
+def _beside(gap: int):
+    """A green 30x50 px object `gap` px right of the cube's last column (360)."""
+    return (361 + gap, 205, 391 + gap, 255, GREEN)
+
+
+def _morphed(px: int):
+    """SAM's normal (clipped) answer grown (px > 0) or shrunk (px < 0) by |px| pixels."""
+    def answer(frame, boxes):
+        m = _ObjectSam.masks(_ObjectSam(), frame, boxes)[0]
+        k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * abs(px) + 1, 2 * abs(px) + 1))
+        op = cv2.dilate if px > 0 else cv2.erode
+        return [op(m.astype(np.uint8), k).astype(bool)]
+    return answer
+
+
+def _tight(box, k: int):
+    """The brain's box `k` px inside the object painted at `box` (with its
+    1 px skirt) on every side: measured on the true object, not on the JPEG
+    the brain decodes (its chroma bleeds a pixel or two)."""
+    x0, y0, x1, y1 = box[0] - 1, box[1] - 1, box[2] + 1, box[3] + 1
+
+    def region(query, bgr):
+        m = np.zeros(bgr.shape[:2], dtype=bool)
+        m[y0 + k:y1 - k, x0 + k:x1 - k] = True
+        return m
+    return region
+
+
+def _show(t, box=None, **scene):
+    t.scene.set(**({"box": box} if box is not None else {}), **scene)
+    t.rt.camera.get_frame()
+    t.rt.camera.get_frame()
+
+
+@pytest.mark.parametrize("sam", sorted(SAM_KINDS))
+@pytest.mark.parametrize("gap", [2, 4, 8, 16])
+def test_a_still_neighbour_inside_the_prompt_margin_is_not_a_scene_change(tp, gap, sam):
+    """Re-review Important: a still neighbour inside SAM's grown prompt box
+    joined frame1's mask (the clipping SAM's part of it, or the whole object),
+    reached the box border and refused a STILL scene twice. Now only frame1
+    components within 2 px of frame0's mask are the object: accepted at once,
+    measured exactly as the single-frame path measures that frame."""
+    from cascade.perception.grounding import localize_object
+
+    tp.brain.region = _red_only
+    tp.sam.default = SAM_KINDS[sam]
+    _show(tp, neighbour=_beside(gap))
+    frame, fix = tp.rt._localize("red cube")
+    assert tp.brain.refers == 1, "a still scene: no retry"
+    green = np.all(frame.rgb == GREEN, axis=-1)
+    assert green.any() and not (np.asarray(fix.detection.mask, dtype=bool) & green).any(), "the neighbour is dropped"
+    single = localize_object(frame, "red cube", tp.detector, tp.rt.extrinsics)
+    assert np.allclose(fix.position, single.position, atol=1e-3), (fix.position, single.position)
+    assert np.allclose(fix.extent, single.extent, atol=2e-3), (fix.extent, single.extent)
+
+
+@pytest.mark.parametrize("sam", sorted(SAM_KINDS))
+def test_a_neighbour_moving_into_contact_is_still_caught(tp, sam):
+    """The component filter keeps whatever is CONNECTED to the object: a
+    neighbour that slides into contact while the brain thinks becomes part
+    of the target's component on frame1 and is a scene change (one retry;
+    it moved away again, so the retry measures the cube alone). Filtering
+    pixel by pixel would keep its first 2 px and measure the cube with them."""
+    tp.brain.region = _red_only
+    tp.sam.default = SAM_KINDS[sam]
+    _show(tp, neighbour=_beside(16))
+    tp.brain.on_refer = lambda n: tp.scene.set(neighbour=_beside(0)) if n == 1 else None
+    orig, seen = tp.detector.reanchor, []
+
+    def spy(frame, det, *, since):
+        seen.append(orig(frame, det, since=since))
+        if len(seen) == 1:
+            _show(tp, neighbour=_beside(16))  # and away again before the retry's frame0
+        return seen[-1]
+
+    tp.detector.reanchor = spy  # instance attribute: the class still defines reanchor
+    result = tp.rt.execute("localize_object", {"label": "red cube"})
+    assert result["ok"], result.get("error")
+    assert seen[0].scene_changed and seen[0].detection is None, seen[0].reason
+    assert tp.brain.refers == 2, "the contact is a scene change: one retry"
+    assert "scene_changed" in _first_timing(tp), _first_timing(tp)
+    assert np.linalg.norm(np.asarray(result["position"])[:2] - _cube_xy(tp, HOME_BOX)) < 0.003
+
+
+@pytest.mark.parametrize(("size", "px"), [(size, px) for size in sorted(SIZES) for px in (-2, -1, 1, 2)]
+                         + [("80x60", -3), ("80x60", 3)])
+def test_sam_mask_jitter_on_a_still_object_is_accepted(tp, size, px):
+    """Re-review minor: SAM's frame1 mask 1-2 px larger or smaller than
+    frame0's (real SAM between two calls) read a pixel IoU under 0.85 on
+    small objects. The size-aware agreement (tol max(2 px, 3 % of the
+    diagonal), both ways) accepts it on 80x60, 40x30 and 24x18 objects, and
+    3 px on the 80x60 one (its tolerance is 3.1 px: 3 % of its diagonal)."""
+    _show(tp, box=SIZES[size])
+    tp.sam.script[2] = _morphed(px)
+    result = tp.rt.execute("localize_object", {"label": "red cube"})
+    assert result["ok"], result.get("error")
+    timing = result["perception_timing"]
+    assert tp.brain.refers == 1, timing
+    assert timing["mask_agreement"] >= 0.95, timing
+
+
+@pytest.mark.parametrize(("size", "k"), [("80x60", 2), ("80x60", 3), ("40x30", 2), ("24x18", 2)])
+def test_a_tight_brain_box_on_a_still_object_is_accepted(tp, size, k):
+    """Re-review minor: the brain's box k px inside the object on every side
+    and the SAM that clips at its prompt: frame0's mask lacks a k px ring
+    that frame1's (grown prompt, at least 6 px a side) has. Within the
+    tolerance (max(2 px, 3 % of the diagonal): 3.1 px on 80x60): accepted.
+    Without the 6 px floor the 24x18 object's frame1 mask reached the 20 %
+    prompt's 2 px border."""
+    _show(tp, box=SIZES[size])
+    tp.brain.region = _tight(SIZES[size], k)
+    result = tp.rt.execute("localize_object", {"label": "red cube"})
+    assert result["ok"], result.get("error")
+    timing = result["perception_timing"]
+    assert tp.brain.refers == 1, timing
+    assert timing["mask_agreement"] >= 0.95, timing
+
+
+def test_a_mask_grown_onto_the_table_is_a_scene_change(tp):
+    """Only the frame1 -> frame0 direction of the agreement sees this: on a
+    still scene SAM's frame1 mask is the cube plus a 5 px halo of table,
+    inside the prompt box (no border reached) and covering all of frame0's
+    mask, but ~9 % of its pixels lie farther than the tolerance from it."""
+    tp.sam.script[2] = _morphed(5)
+    result = tp.rt.execute("localize_object", {"label": "red cube"})
+    assert result["ok"], result.get("error")
+    assert tp.brain.refers == 2, "a scene change: one retry"
+    assert "agreement" in _first_timing(tp)["scene_changed"], _first_timing(tp)
+    assert np.linalg.norm(np.asarray(result["position"])[:2] - _cube_xy(tp, HOME_BOX)) < 0.003
+
+
+def test_mask_jitter_between_the_frames_is_not_a_move(tp):
+    """Re-review (the 2 cm move check): frame0's mask 1 px eroded, frame1's
+    1 px grown onto the table. The two fixes' centres read a ~2 cm move
+    (frame1's cloud takes in table pixels); the medians of the depth points
+    inside each mask eroded by 2 px agree."""
+    tp.sam.script[1] = _morphed(-1)
+    tp.sam.script[2] = _morphed(1)
+    result = tp.rt.execute("localize_object", {"label": "red cube"})
+    assert result["ok"], result.get("error")
+    timing = result["perception_timing"]
+    assert tp.brain.refers == 1, timing
+    assert timing["moved_m"] < 0.005, timing
+
+
+def test_a_3cm_rise_is_still_caught_through_mask_jitter(tp):
+    """The robust move check still sees a real move: the cube alone rises
+    3 cm (identical pixels) while the brain thinks, on top of the same 1 px
+    mask jitter: refused, no motion."""
+    tp.sam.script[1] = tp.sam.script[3] = _morphed(-1)
+    tp.sam.script[2] = tp.sam.script[4] = _morphed(1)
+    tp.brain.on_refer = lambda n: tp.scene.toggle("lift", 0.0, 0.03)
+    n0 = _commands(tp)
+    result = tp.rt.execute("grasp_object", {"label": "red cube"})
+    assert result["ok"] is False and "SceneChangedError" in result["error"], result.get("error")
+    assert result["perception_timing"]["moved_m"] == pytest.approx(0.03, abs=0.005)
+    assert _commands(tp) == n0
+
+
+
+def test_median_point_erodes_falls_back_for_thin_masks_and_uses_the_frames_pose():
+    """median_point, the move check's position: the median inside the mask
+    eroded by 2 px (the skirt and any edge pixel on the table never count);
+    the whole mask when erosion leaves fewer than min_points pixels (a 3 px
+    wide strip); the frame's own camera pose when it carries one."""
+    from cascade.perception.grounding import Extrinsics, median_point
+    from cascade.types import Detection
+
+    frame = synthetic_tabletop()
+    ext = Extrinsics(T=np.eye(4))
+    cube = _object_mask(frame.rgb)
+    grown = cv2.dilate(cube.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool)  # 1 px onto the table
+    top = median_point(frame, Detection("cube", 1.0, np.array(HOME_BOX, np.float32), mask=cube), ext)
+    assert top[2] == pytest.approx(0.55), "the top face only: the skirt is eroded away"
+    edge = median_point(frame, Detection("cube", 1.0, np.array(HOME_BOX, np.float32), mask=grown), ext)
+    assert np.allclose(edge, top, atol=1e-3), "a pixel of table at the edge changes nothing"
+
+    strip = np.zeros_like(cube)
+    strip[150:160, 100:103] = True  # 3 px wide: nothing survives a 2 px erosion
+    frame.depth_m[150:160, 100:103] = 0.5
+    thin = median_point(frame, Detection("strip", 1.0, np.array((100, 150, 103, 160), np.float32), mask=strip), ext)
+    assert np.isfinite(thin).all() and thin[2] == pytest.approx(0.5), "the un-eroded mask"
+
+    # A 4 px wide object whose frame1 mask took in 2 px of table on each
+    # side: half its pixels are table. Eroded, the median is the object's top.
+    frame.depth_m[100:160, 200:204] = 0.5
+    wide = np.zeros_like(cube)
+    wide[100:160, 198:206] = True
+    rod = median_point(frame, Detection("rod", 1.0, np.array((198, 100, 206, 160), np.float32), mask=wide), ext)
+    assert rod[2] == pytest.approx(0.5), "the 2 px of table on each side are eroded away"
+
+    moved = np.eye(4)
+    moved[:3, 3] = (1.0, 2.0, 3.0)
+    frame.T_base_cam = moved
+    posed = median_point(frame, Detection("cube", 1.0, np.array(HOME_BOX, np.float32), mask=cube), ext)
+    assert np.allclose(posed - top, (1.0, 2.0, 3.0)), "the frame's own pose, as fix_from_detection uses"
+
+
+
+def test_a_mask_part_within_two_px_of_the_named_mask_is_the_object():
+    """The component filter keeps what comes within 2 px of the old mask (the
+    old mask dilated by 2 px), not only what overlaps it: a part of SAM's
+    mask 1 px off the object (a handle, a neighbour pressed against it) is
+    judged with the object. Here it is 10 px wide: the agreement refuses it
+    as a scene change, where dropping it would have measured the object
+    without it."""
+    from cascade.types import Detection
+
+    a, b = synthetic_tabletop(), synthetic_tabletop()
+    obj = _object_mask(a.rgb)  # columns 279..360
+    near = obj.copy()
+    near[205:255, 362:372] = True  # column 361 empty: 2 px from the object
+    sam = _ObjectSam()
+    sam.default = lambda frame, boxes: [near.copy()]
+    det = Detection("red cube", 1.0, np.array((270, 190, 370, 270), np.float32), mask=obj)
+    found = BrainDetector(base_url="http://b/v1", model="m", segmenter=sam).reanchor(b, det, since=a)
+    assert (found.detection, found.scene_changed) == (None, True), found.reason
+    assert found.dropped_components == 0 and "agreement" in found.reason, found

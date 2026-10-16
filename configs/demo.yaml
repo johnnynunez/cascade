@@ -575,11 +575,14 @@ detector:
   # object's box grown by 10 % (colour: an object as bright as the table
   # moves unseen in grey).
   reanchor_local_diff: 8.0
-  # ...and while SAM's fresh mask matches the one the object was named with:
-  # pixel IoU at least this (a still sim scene gives ~1.0), and no new contact
-  # with a border of SAM's prompt (the object's box grown by 20 %): the
-  # object extends past the box it was named in.
-  reanchor_mask_iou: 0.85
+  # ...and while SAM's fresh mask (only its parts connected to where the
+  # object was: a neighbour is dropped) matches the one the object was named
+  # with: at least this share of each mask's pixels lies within max(2 px,
+  # 3 % of the object's diagonal) of the other (a still scene gives ~1.0;
+  # SAM's 1-2 px edge jitter stays inside), and no new contact with a border
+  # of SAM's prompt (the object's box grown by 20 %, at least 6 px a side):
+  # the object extends past the box it was named in.
+  reanchor_mask_agreement: 0.95
 
 # Optional vocabulary restriction for the always-on watcher and
 # get_observation. LEAVE EMPTY for a public demo: a non-empty list makes

@@ -496,9 +496,11 @@ class BrainDetector(Detector):
     background inventory), and store the answer. One exception (Ruling 35):
     an entry past `max_cache_age_s` whose scene is unchanged keeps being
     tracked while that key's background refresh is in flight or waiting for
-    the slot. Keep `max_cache_age_s >= idle_refresh_s` (every shipped profile
-    does): an unchanged scene's entry then ages out only once the watcher's
-    idle refresh is pending, so it never costs a synchronous inventory.
+    the slot. Keep `max_cache_age_s >= idle_refresh_s + 5 s` (every shipped
+    profile does; the 5 s cover the watcher's tick that starts the idle
+    refresh): an unchanged scene's entry then ages out only once the
+    watcher's idle refresh is pending, so it never costs a synchronous
+    inventory.
 
     Two clocks:
     - `refresh_s` (default 4 s): the synchronous path's freshness threshold

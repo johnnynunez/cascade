@@ -896,12 +896,21 @@ _PERCEPTION_ENV = ("CASCADE_PERCEPTION_URL", "CASCADE_PERCEPTION_MODEL", "CASCAD
                    "CASCADE_BOOTH", "CASCADE_ROBOT", "CASCADE_BASE")
 
 
+#: How long after the idle refresh is due an unchanged scene's entry must still
+#: be served: the watcher registers that refresh on its next tick for the
+#: camera (~0.3 s, longer behind another camera's slow tick or a foreground
+#: scope), and until it is pending an entry past max_cache_age_s costs a
+#: synchronous inventory on the caller's thread.
+_IDLE_REFRESH_START_MARGIN_S = 5.0
+
+
 def test_every_shipped_profile_keeps_its_cache_until_the_idle_refresh_is_due(monkeypatch):
-    """max_cache_age_s >= idle_refresh_s for every profile that loads a brain
-    detector (demo.yaml plus each configs/arms overlay). An unchanged scene's
-    entry then ages out only once the watcher's idle refresh is pending, so
-    the cached path keeps tracking it (Ruling 35) instead of asking the brain
-    synchronously on the caller's thread."""
+    """max_cache_age_s >= idle_refresh_s + 5 s for every profile that loads a
+    brain detector (demo.yaml plus each configs/arms overlay). An unchanged
+    scene's entry then ages out only once the watcher's idle refresh is
+    pending, so the cached path keeps tracking it (Ruling 35) instead of
+    asking the brain synchronously on the caller's thread; the 5 s cover the
+    watcher's tick between the refresh falling due and its start."""
     from cascade.apps.demo import _make_detector
     from cascade.config import CONFIG_DIR, load_demo_config
 
@@ -913,11 +922,12 @@ def test_every_shipped_profile_keeps_its_cache_until_the_idle_refresh_is_due(mon
         if not isinstance(det, BrainDetector):
             continue
         checked.append(arm)
-        if det._max_cache_age_s < det._idle_refresh_s:
+        if det._max_cache_age_s < det._idle_refresh_s + _IDLE_REFRESH_START_MARGIN_S:
             broken.append((arm, det._max_cache_age_s, det._idle_refresh_s))
         det.close()
     assert {"mock", "isaac", "rebot_rs", "isaac_kitchen_gpu"} <= set(checked), checked
-    assert broken == [], "max_cache_age_s < idle_refresh_s: a synchronous inventory on an unchanged scene"
+    assert broken == [], ("max_cache_age_s < idle_refresh_s + 5 s: a synchronous inventory on an unchanged "
+                          "scene before the idle refresh starts")
 
 
 def test_the_kitchen_never_asks_synchronously_about_an_unchanged_scene(monkeypatch):

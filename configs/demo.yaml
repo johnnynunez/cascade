@@ -570,11 +570,12 @@ detector:
   # describe_scene/localization refresh in the background after refresh_s,
   # which is also the wait after a failed brain call. Past max_cache_age_s
   # they ask synchronously (under inventory_timeout_s), unless that entry's
-  # refresh is already pending: keep max_cache_age_s >= idle_refresh_s in
-  # every profile, so an unchanged scene never costs a synchronous inventory.
+  # refresh is already pending: keep max_cache_age_s >= idle_refresh_s + 5 in
+  # every profile (the 5 s cover the watcher's tick that starts the idle
+  # refresh), so an unchanged scene never costs a synchronous inventory.
   refresh_s: 4.0
   idle_refresh_s: 30.0
-  max_cache_age_s: 30
+  max_cache_age_s: 35
   scene_change: 6.0
   # Localization re-measures the named object on a fresh frame only while the
   # view is unchanged: scene_change over the whole image, and this mean

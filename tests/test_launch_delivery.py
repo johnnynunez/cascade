@@ -335,3 +335,57 @@ def test_standalone_proof_uses_same_profile_state_root_as_launcher(launcher_boun
     state = Path(h["env"]["CASCADE_LAUNCH_STATE"]) / "profile-isolated-test"
     assert (state / "proof.json").exists(), "proof default ignored the launch state/profile contract"
     assert json.loads((state / "proof.json").read_text())["profile"] == "isolated-test"
+
+
+SAM_MISSING = "SAM weights missing"
+
+
+def _isaac_launcher(tmp_path, *, weights: bool):
+    """The launcher copy on a Linux host double without Isaac: no docker, no
+    network, no installs; `models/sam2.1_l.pt` present or not."""
+    from test_spark_install import executable, host_env
+
+    repo = launcher_copy(tmp_path)
+    (repo / "models").mkdir()
+    sam = repo / "models" / "sam2.1_l.pt"
+    if weights:
+        sam.write_bytes(b"\0" * 64)
+    usd = tmp_path / "scene.usda"
+    usd.write_text("#usda 1.0\n")
+    env = {**os.environ, **host_env(tmp_path), "HOME": str(tmp_path / "home"), "PY": sys.executable,
+           "CASCADE_LAUNCH_STATE": str(tmp_path / "state"), "CASCADE_OPENCLAW_PROFILE": "",
+           "CASCADE_COSMOS_BASE_URL": "http://127.0.0.1:0/v1", "CASCADE_USD": str(usd)}
+    for name in ("ISAACSIM_PATH", "ISAACSIM_PYTHON_EXE", "CASCADE_INSTALL_PROFILE"):
+        env.pop(name, None)
+    executable(tmp_path / "bin" / "docker", "#!/bin/bash\nexit 1\n")  # never the host's docker
+    return repo, sam, env
+
+
+@pytest.mark.parametrize("weights", [True, False], ids=["present", "missing"])
+def test_check_isaac_reports_the_sam_weights(tmp_path, weights):
+    # Without SAM the brain's boxes carry no masks, and the observed-finger
+    # gate (the Spark default) refuses every grasp: a warning, not a failure.
+    repo, sam, env = _isaac_launcher(tmp_path, weights=weights)
+    p = subprocess.run(["bash", str(repo / "scripts/launch.sh"), "--check", "--sim", "isaac", "--brain", "cosmos"],
+                       env=env, text=True, capture_output=True, timeout=60)
+    out = p.stdout + p.stderr
+    assert "preflight for sim=isaac" in p.stdout, out
+    if weights:
+        assert f"[ok]      SAM weights: {sam}" in p.stdout, out
+        assert SAM_MISSING not in out
+    else:
+        (line,) = [ln for ln in p.stderr.splitlines() if SAM_MISSING in ln]
+        assert line.startswith("[launch] WARNING:") and str(sam) in line
+        assert "observed-finger gate" in line
+        assert "[MISSING] SAM" not in p.stdout  # a warning, not a preflight failure
+
+
+@pytest.mark.parametrize("weights", [True, False], ids=["present", "missing"])
+def test_an_isaac_launch_warns_when_the_sam_weights_are_missing(tmp_path, weights):
+    repo, sam, env = _isaac_launcher(tmp_path, weights=weights)
+    # --dry-run prints the plan and exits; the warning comes before that, on
+    # the same path a real launch takes.
+    p = subprocess.run(["bash", str(repo / "scripts/launch.sh"), "--dry-run", "--sim", "isaac", "--brain", "cosmos",
+                        "--no-open"], env=env, text=True, capture_output=True, timeout=60)
+    warnings = [ln for ln in p.stderr.splitlines() if SAM_MISSING in ln]
+    assert len(warnings) == (0 if weights else 1), p.stdout + p.stderr

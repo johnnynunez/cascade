@@ -365,7 +365,10 @@ def test_shutdown_runtime_closes_the_brain_detector_and_joins_its_refreshes(tmp_
     assert at_return["refreshing"] == [], "a brain refresh outlived shutdown_runtime"
     receipt = at_return["receipt"]
     stages = _stages(receipt)
-    assert stages.index("watcher") < stages.index("detector") < stages.index("cameras")
+    # Last: refresh threads touch neither cameras nor arms, and the arms'
+    # disconnect must never wait behind a brain request (up to timeout_s).
+    assert stages[-3:] == ["cameras", "arms", "detector"], stages
+    assert stages.index("watcher") < stages.index("detector")
     detector_stage, = (s for s in receipt["stages"] if s["stage"] == "detector")
     assert detector_stage["ok"] is True and receipt["pending_threads"] == []
 
@@ -391,8 +394,9 @@ def test_a_detector_close_failure_is_logged_and_shutdown_goes_on(tmp_path, monke
     stage, = (s for s in receipt["stages"] if s["stage"] == "detector")
     assert stage["ok"] is False and stage["errors"][0]["message"] == "close broke"
     assert any("close broke" in m for m in caplog.messages)
-    assert _stages(receipt)[-2:] == ["cameras", "arms"]  # the later stages still ran
+    assert _stages(receipt)[-3:] == ["cameras", "arms", "detector"]  # the arms were already off
     assert next(s for s in receipt["stages"] if s["stage"] == "arms")["ok"] is True
+    assert next(s for s in receipt["stages"] if s["stage"] == "cameras")["ok"] is True
 
 
 class _BlockedWarmUp:
@@ -501,3 +505,58 @@ def test_the_mock_runtime_keeps_its_teardown_stages(tmp_path):
     receipt = shutdown_runtime(runtime, arm)
     assert "detector" not in _stages(receipt)  # MockDetector has no close()
     assert "sam-warm-up" not in dict(owned_threads(runtime))
+
+
+# ── a failed build_runtime closes the detector it already made ─────────────
+
+
+class _ClosableDetector:
+    """Detector double with a class-defined close(); records each close."""
+
+    def __init__(self, error=None):
+        self.closed, self.error = 0, error
+
+    def detect(self, frame, classes=None):
+        return []
+
+    def set_classes(self, classes):
+        pass
+
+    def close(self):
+        self.closed += 1
+        if self.error is not None:
+            raise self.error
+
+
+@pytest.mark.parametrize("close_error", [None, RuntimeError("close broke too")], ids=["close-ok", "close-raises"])
+def test_a_build_failure_after_the_detector_closes_it(tmp_path, monkeypatch, close_error):
+    pytest.importorskip("pinocchio")
+    from cascade.apps import demo
+    from cascade.config import load_demo_config
+    from cascade.perception.stream import CameraStream
+
+    detector = _ClosableDetector(close_error)
+    monkeypatch.setattr(demo, "_make_detector", lambda cfg: detector)
+
+    def no_frames(self, n=10):
+        raise RuntimeError("camera never delivered a frame")
+
+    monkeypatch.setattr(CameraStream, "warm_up", no_frames)  # the step right after _make_detector
+    with pytest.raises(RuntimeError, match="camera never delivered a frame"):  # the build's own error
+        demo.build_runtime(load_demo_config(camera="mock", arm="mock", llm="mock"),
+                           tmp_path / "run", view=False, serve=False)
+    assert detector.closed == 1, "a failed build leaked the detector (its refresh threads, its SAM warm-up)"
+
+
+def test_a_build_failure_in_the_detector_factory_has_nothing_to_close(tmp_path, monkeypatch):
+    pytest.importorskip("pinocchio")
+    from cascade.apps import demo
+    from cascade.config import load_demo_config
+
+    def broken_factory(cfg):
+        raise ValueError("unknown detector type 'dino'")
+
+    monkeypatch.setattr(demo, "_make_detector", broken_factory)
+    with pytest.raises(ValueError, match="dino"):
+        demo.build_runtime(load_demo_config(camera="mock", arm="mock", llm="mock"),
+                           tmp_path / "run", view=False, serve=False)

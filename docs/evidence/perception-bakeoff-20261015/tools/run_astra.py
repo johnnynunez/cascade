@@ -4,7 +4,6 @@
 Absolute pixel coordinates (GPT-family models localize best in pixels). No GPU, no robot.
 """
 import concurrent.futures as cf
-import json
 import pathlib
 import subprocess
 import sys

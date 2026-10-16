@@ -130,6 +130,23 @@ def test_float_overflow_coordinate_is_dropped():
     assert parse_boxes('[{"label": "cup", "bbox_2d": [1e400, 0, 500, 500]}]', 1000, 1000) == []
 
 
+def test_an_integer_past_the_int_conversion_limit_is_garbage_not_an_exception():
+    # Python refuses to convert int literals longer than 4300 digits (a plain
+    # ValueError from the JSON decoder, not a JSONDecodeError): parse_boxes
+    # never raises, and a later valid list still wins.
+    huge = "1" + "0" * 5000
+    assert parse_boxes('[{"label": "cup", "bbox_2d": [' + huge + ', 0, 500, 500]}]', 1000, 1000) == []
+    assert parse_boxes("[" + huge + "]", 1000, 1000) == []
+    text = "[" + huge + ']\n[{"label": "cup", "bbox_2d": [0, 0, 500, 500]}]'
+    assert _labels(parse_boxes(text, 1000, 1000)) == ["cup"]
+
+
+def test_an_answer_opening_with_a_huge_integer_is_garbled_not_an_exception():
+    from cascade.perception.brain_detector import _is_answer
+
+    assert _is_answer("[1" + "0" * 5000 + "]") is False
+
+
 def test_pathologically_nested_reply_is_empty():
     # Deep nesting makes the JSON decoder raise RecursionError, not JSONDecodeError.
     assert parse_boxes("[" * 100000 + "]" * 100000, 640, 480) == []

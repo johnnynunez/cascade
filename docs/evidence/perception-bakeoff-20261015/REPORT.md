@@ -142,7 +142,8 @@ queries): not reported.
 ## Re-run
 
 The bake-off workspace (`~/Projects/perception-bakeoff`: `frames/`, `gt/`, `weights/`, `out/pred/`) is
-local to the Spark and stays there: the frames show people. Only the scripts are archived here, unchanged.
+local to the Spark and stays there: the frames show people. Only the scripts are archived here, lint-cleaned
+(unused imports removed; no behaviour change).
 
 1. Put `tools/` next to `frames/` (JPEGs + `manifest.json`), `gt/<id>.json` and `weights/`
    (torch 2.14.0+cu130, ultralytics 8.4.177, transformers 5.19.0; LLMDet in a transformers 4.x venv).

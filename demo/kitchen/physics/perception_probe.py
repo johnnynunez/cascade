@@ -119,8 +119,8 @@ def main():
         receipt["capture"] = {"shape": list(frame.rgb.shape), "t": frame.t,
                               "depth_source": frame.depth_source,
                               "depth_sha256": hashlib.sha256(frame.depth_m.tobytes()).hexdigest()}
-        # SAM's weights (demo.yaml `segmenter.model`, a bare file name) resolve
-        # relative to the working directory: the installer places them in models/.
+        # The cwd of every launch route. Not what finds SAM: demo.yaml loads it by
+        # absolute path (`segmenter.model` = ${repo}/models/sam2.1_l.pt).
         os.chdir(ROOT/"models")
         detector = make_probe_detector()
         receipt["detector"] = repr(detector)  # endpoint, model, segmenter class; never the key

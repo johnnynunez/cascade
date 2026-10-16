@@ -21,7 +21,6 @@ import pathlib
 import re
 import sys
 
-import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))

@@ -467,6 +467,13 @@ else
     printf '[launch] NOTE: --brain %s: object identification uses the local Qwen3.8 brain at %s, which must be running\n' \
         "$BRAIN" "${CASCADE_PERCEPTION_URL:-http://127.0.0.1:8080/v1 (configs/demo.yaml default)}" >&2
 fi
+# SAM masks the brain's boxes (configs/demo.yaml segmenter.model). Without the
+# weights Isaac detections carry no masks, and the observed-finger gate (the
+# Spark default) refuses every grasp. A warning: the brain still names objects.
+# --check lists it in its preflight report instead.
+SAM_WEIGHTS="$REPO/models/sam2.1_l.pt"
+SAM_MISSING="SAM weights missing ($SAM_WEIGHTS): detections get no masks, so the observed-finger gate refuses every grasp on Spark (scripts/install.sh --profile spark places them)"
+[[ "$SIM" != isaac || $CHECK == 1 || -s "$SAM_WEIGHTS" ]] || warn "$SAM_MISSING"
 [[ $DRY == 1 ]] && log "(dry run: commands are printed, nothing is executed)"
 if [[ $DRY == 1 ]]; then
     if [[ "$AGENT_ROUTE" == openshell ]]; then
@@ -630,6 +637,7 @@ if [[ $CHECK == 1 ]]; then
             bad "Isaac Sim 6.1.0 (run scripts/install.sh --profile spark --accept-eula)"
         fi
         [[ -f "$USD" ]] && ok "scene USD: $USD" || bad "scene USD $USD"
+        if [[ -s "$SAM_WEIGHTS" ]]; then ok "SAM weights: $SAM_WEIGHTS"; else warn "$SAM_MISSING"; fi
         command -v nvidia-smi >/dev/null 2>&1 && ok "NVIDIA GPU: $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)" || bad "nvidia-smi (Isaac Sim needs an NVIDIA GPU)"
         [[ -n "${DISPLAY:-}" || "$(uname -s)" == "Darwin" || $ISAAC_GUI == 0 ]] && ok "display for the editor window (or --headless)" || bad "no DISPLAY: pass --headless or run from the desktop session"
     fi

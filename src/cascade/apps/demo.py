@@ -605,6 +605,7 @@ def build_runtime(
         )
     rig = CameraRig(streams)
     feedback_arms = []
+    detector = None
     try:
         if lazy_arm and any(c.get("extrinsics", _empty_cfg()).get("mode") == "eye_in_hand"
                             for c in cam_cfgs):
@@ -625,6 +626,15 @@ def build_runtime(
         rig.close()  # a partial build must not leak open camera streams
         for raw in feedback_arms:
             raw.disconnect()  # passive ROS attachment has no active goals
+        if detector is not None:
+            # Nor the detector's threads (the brain detector's SAM warm-up and
+            # refreshes): its close() joins them with a bound. Last, as in
+            # shutdown_runtime; a close failure must not hide the build's error.
+            try:
+                detector.close()
+            except Exception as e:  # noqa: BLE001 - the build's own error is re-raised below
+                logger.warning("closing the detector after a failed build failed (%s: %s)",
+                               type(e).__name__, e)
         raise
 
     memory = EpisodicMemory(
@@ -1193,11 +1203,13 @@ def shutdown_runtime(runtime, arm) -> dict:
 
     Order: park (needs the watcher's heartbeat) -> save beliefs -> drift
     monitors (they read the watcher's streams and the arm's joints) ->
-    watcher (the consumer of the camera streams) -> detector (only one that
-    defines close(), i.e. the brain detector: it starts no further refresh
-    and joins those in flight and its SAM warm-up, each with a bound; a
-    warm-up past it is listed in pending_threads) -> dashboard -> viewer ->
-    camera streams (producers) -> arms. Each thread owner WAITS for its thread's
+    watcher (the consumer of the camera streams) -> dashboard -> viewer ->
+    camera streams (producers) -> arms -> detector (only one that defines
+    close(), i.e. the brain detector: it starts no further refresh and joins
+    those in flight and its SAM warm-up, each with a bound; a warm-up past it
+    is listed in pending_threads). The detector goes last: its threads touch
+    neither cameras nor arms, and disconnecting the arms must never wait
+    behind a brain request. Each thread owner WAITS for its thread's
     in-flight work; a bounded join here once let the watcher's first cold
     CUDA detector inference (> 5 s) outlive shutdown and abort the launcher's
     runtime check at interpreter exit.
@@ -1270,13 +1282,14 @@ def shutdown_runtime(runtime, arm) -> dict:
         *((("drift_monitors", _stop_drift_monitors),)
           if getattr(runtime, "drift_monitors", None) else ()),
         ("watcher", lambda: runtime.watcher.stop() if runtime.watcher is not None else None),
-        # likewise only for a detector with a close() (the brain detector),
-        # after the watcher so no new background refresh starts
-        *((("detector", _close_detector),) if getattr(detector, "closable", False) is True else ()),
         ("stream_server", lambda: runtime.stream_server.stop() if getattr(runtime, "stream_server", None) else None),
         ("viewer", lambda: runtime.viewer.stop() if getattr(runtime, "viewer", None) else None),
         ("cameras", lambda: runtime.rig.close() if getattr(runtime, "rig", None) else runtime.camera.close()),
         ("arms", _disconnect_arms),
+        # likewise only for a detector with a close() (the brain detector):
+        # after the watcher (no new background refresh starts) and LAST, so
+        # the arms' disconnect never waits behind a brain request
+        *((("detector", _close_detector),) if getattr(detector, "closable", False) is True else ()),
     ):
         stages.append(teardown_step(name, step))
 
@@ -1284,9 +1297,10 @@ def shutdown_runtime(runtime, arm) -> dict:
     for label, thread in threads:
         if thread.is_alive():
             pending.append({"owner": label, "thread": thread.name})
-            # Every owner above waits without a bound, so this only fires if
-            # an owner regresses to a bounded join. Name it: the alternative
-            # is an unexplained abort at interpreter exit.
+            # The owners above wait without a bound, except the brain
+            # detector (bounded joins of its refreshes and SAM warm-up): this
+            # fires when such a bound expired, or an owner regressed to one.
+            # Name it: the alternative is an unexplained abort at interpreter exit.
             print(f"[cascade] WARNING: {label} thread {thread.name!r} is still running "
                   "after shutdown; native code may abort the process at exit",
                   file=sys.stderr)

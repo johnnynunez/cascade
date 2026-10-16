@@ -61,8 +61,8 @@ if ! "$PY" -c "import cascade" 2>/dev/null; then
 fi
 
 # 1. Register the MCP server (probes the connection before saving).
-# cwd is models/ because the SAM weights resolve relative to it (see the
-# header note).
+# cwd is models/, as on every launch route (see the header note); SAM loads
+# by absolute path (${repo}/models/sam2.1_l.pt), whatever the cwd.
 # OpenClaw starts the server with the env registered here, not with this
 # shell, so every runtime switch set in this shell (CASCADE_GRASP_EXECUTOR=vla,
 # CASCADE_VLA_PORT, CASCADE_MCP_READONLY_LANE, memory paths, sidecar ports,

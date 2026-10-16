@@ -62,7 +62,9 @@ def _answer_list(text: str) -> list:
     for match in re.finditer(r"\[", text):
         try:
             value, _ = decoder.raw_decode(text, match.start())
-        except json.JSONDecodeError:
+        except ValueError:
+            # JSONDecodeError, or an int literal past Python's 4300-digit
+            # conversion limit (a plain ValueError): not a list here.
             continue
         except RecursionError:
             # Nested deeper than the decoder recurses: garbage, and every later
@@ -95,7 +97,7 @@ def _opens_with_empty_list(body: str) -> bool:
     (Qwen's trailing "[]", or a remark such as "No objects are visible.")."""
     try:
         value, _ = json.JSONDecoder().raw_decode(body.strip())
-    except (json.JSONDecodeError, RecursionError):
+    except (ValueError, RecursionError):  # JSONDecodeError, or a >4300-digit int
         return False
     return isinstance(value, list) and not value
 

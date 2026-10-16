@@ -502,11 +502,16 @@ def test_only_external_point_dispatch_can_replace_region_goal(request, monkeypat
     monkeypatch.setattr(mujoco_region, 'explicit_context', context)
     monkeypatch.setattr(mujoco_region, 'finish_explicit', finish)
     rt.held_object = 'red cube'
+    # The jaws on the cube (half closed): place_at's verdict claims a release
+    # only after a measured widening (follow-up M6).
+    rt.arm.set_gripper(rt._grip_open + 0.5 * (rt._grip_closed - rt._grip_open))
     rt.attach_verifier(object_pose=lambda _: [.3, -.12, .02])
 
     def placed(**_):
         # The release a real place_at commands; a stub that opened nothing
-        # is, correctly, "no open command completed".
+        # is, correctly, "no open command completed", and one whose jaw never
+        # widened "no release measured".
+        rt.arm.set_gripper(rt._grip_open)
         rt._gripper_opens_completed += 1
         return {'placed': 'red cube', 'at': [.3, -.12, .02]}
 

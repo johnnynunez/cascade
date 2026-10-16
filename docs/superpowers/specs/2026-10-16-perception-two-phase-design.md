@@ -364,3 +364,12 @@ Keep green: `tests/test_brain_detector.py`, `test_brain_vocabulary_runtime.py`, 
   >= `reanchor_mask_agreement` (0.95) of each mask lies within tol_px of the other. The 2 cm move check compares medians of
   depth points inside 2 px-eroded masks on both frames. SAM prompt margin >= 6 px a side. 3 SAM calls per attempt (naming,
   re-mask, frame1). Mock probes: still scenes 76/76 accepted; moved slides 108/108 end at the new position (<= 0.17 cm).
+- P7 (after T1 round 4). Two paths. Order: name the object on frame0 (brain + SAM), take frame1, measure the global and colour
+  local diffs (no SAM call). STILL path (global <= scene_change and colour local diff <= `detector.reanchor_still_diff`, 2.0):
+  reuse the naming mask on frame1's depth (main's single-frame mask; no extra SAM call); the eroded-median 2 cm move check and
+  the 5 s rule on frame1 still apply. SAM path (still_diff < local diff <= reanchor_local_diff): re-mask frame0 with the grown
+  prompt (reference clipped to the naming mask dilated by tol_px, so a touching neighbour never enters it), re-check the
+  semantic cap, take a NEW frame1, SAM on it, component filter, border and agreement checks. Mock probe (420 cases): 0 accepted
+  with XY error > 0.5 cm vs main's single-frame fix; still scenes 132/132 accepted via the still path; 156 moved slides end at
+  the new position (<= 0.18 cm). Known (same as main): when SAM merges a touching neighbour into the naming mask itself, the
+  still path inherits main's ~1 cm error (follow-up: refuse a naming mask whose box disagrees with the brain's box).

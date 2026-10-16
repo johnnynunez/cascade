@@ -96,8 +96,10 @@ changed. No shipped profile selects it (the Spark presenter requires GraspGen-X)
 
 ## Hardware verification still owed
 
-Phased per the real-robot bring-up rules. Steps 1–2 are read-only and step 3 commands no motion.
-Steps 4 and 6 **move the arm**: a person stays at the arm with the e-stop in hand for them.
+Phased per the real-robot bring-up rules. Steps 1–2 are read-only. Steps 3–6 run the demo CLI with
+the real arm connected: quitting it (empty line or Ctrl+C) **parks the arm and closes the gripper**,
+and steps 4 and 6 **move the arm** on purpose. From step 3 on, a person stays at the arm with the
+e-stop in hand. For a camera-only step 3 or 5, pass `--arm mock` (nothing moves).
 
 1. **SDK, enumeration, serials** (read-only). One entry per Gemini 2 with the right serials, USB 3
    link (USB 2 may not offer 1280x720 colour). With both units attached, swap the profile serials
@@ -108,14 +110,14 @@ Steps 4 and 6 **move the arm**: a person stays at the arm with the e-stop in han
    matches the factory intrinsics; a refused HW D2C logs the software fallback. Depth opens only
    as Y16: packed-only firmware (Y11/Y12/RLE) fails with "no depth stream profile" (enable SDK
    conversion or extend `_pick_video_profile` with a decoder and a test).
-3. **USB stability** (no motion commanded). Full demo with SAM on CUDA: no USB reset or
-   re-enumeration (`dmesg -w`) during model load and warm-up.
+3. **USB stability** (no motion until you quit; quitting parks the arm). Full demo with SAM on CUDA:
+   no USB reset or re-enumeration (`dmesg -w`) during model load and warm-up.
 4. **Extrinsic: MOVES THE ARM.** Operator at the e-stop, workspace cleared. Calibrate the overhead
    mount with `.venv/bin/python scripts/calibrate_camera.py --arm <arm> --camera orbbec_overhead
    --out <json>` (it drives the arm through a grid of poses; the harness refuses unsafe ones) or
    [hand-eye](HANDEYE_CALIBRATION.md), then replace the reference `T`. Coordinate
    `hand_eye_compensation_m` with the calibration work.
-5. **Camera-frame planner, dry** (no motion). `preview_grasp` with `grasp.backend: camera_frame` on
+5. **Camera-frame planner, dry** (no motion until you quit; quitting parks the arm). `preview_grasp` with `grasp.backend: camera_frame` on
    real objects: approach tilt matches the camera ray (memory note reports degrees off vertical),
    jaw width = calipers + 15 mm, and an open gripper in view does not pull the grasp centre.
 6. **Supervised motion: MOVES THE ARM**, at reduced velocity: one `grasp_object`, record

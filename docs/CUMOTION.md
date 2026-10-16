@@ -127,11 +127,12 @@ Missing SDK/model/coordinate bindings fail before the lazy arm is materialized.
 ## Kitchen selection (`isaac_kitchen_cumotion`, no native kitchen acceptance)
 
 It extends `isaac_kitchen_gpu` (grasp, placement, safety, occupancy, timing) with the same planner
-recipe and park pose. Campaign from the installed checkout with its `.venv` (the interpreter the
-script's docstring names), with the producer and SDK already configured:
+recipe and park pose. The profile imports the cuMotion SDK in-process, so run the campaign with the
+interpreter that has cuMotion 1.1.0 installed (step 1 of Install and configure; without it the planner
+fails closed with "cuMotion SDK unavailable"), from the installed checkout, producer configured:
 
 ```bash
-.venv/bin/python benchmark/diagnostics/kitchen_acceptance.py --port 8681 --engine physx \
+/path/to/cumotion-env/bin/python benchmark/diagnostics/kitchen_acceptance.py --port 8681 --engine physx \
   --arm-profile isaac_kitchen_cumotion --camera-renderer ovrtx \
   --objects green_cube --rounds 1 --fail-fast --output runs/kitchen-cumotion-01
 ```
@@ -139,12 +140,13 @@ script's docstring names), with the producer and SDK already configured:
 Explicit Spark launcher selection (installer and default launcher keep `isaac_kitchen_gpu`):
 
 ```bash
-CASCADE_INSTALL_PROFILE=spark ./scripts/launch.sh --sim isaac --engine physx \
+PY=/path/to/cumotion-env/bin/python CASCADE_INSTALL_PROFILE=spark ./scripts/launch.sh --sim isaac --engine physx \
   --arm isaac_kitchen_cumotion --camera-renderer isaac \
   --scene-config demo/scene/kitchen_config.json --occupancy none
 ```
 
-1. The renderer argument is an expectation, not an override; the launcher requires it for this arm
+1. `PY=` points the launcher at the interpreter with cuMotion installed (`launch.sh` tries `$PY` first).
+   The renderer argument is an expectation, not an override; the launcher requires it for this arm
    and rejects a conflicting inherited renderer. `ovrtx` also needs an existing
    `CASCADE_OVRTX_PYTHON` and a fresh `CASCADE_OVRTX_OUTPUT`.
 2. `CASCADE_KITCHEN_CAMERA_RENDERER` carries the expectation into the builder, which rejects a

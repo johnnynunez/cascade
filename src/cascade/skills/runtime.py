@@ -199,15 +199,14 @@ _REANCHOR_CAMERA_TURN_DEG = 0.5
 _REANCHOR_MAX_MOVE_M = 0.02
 
 
-def _semantic_age_s(frame: Frame, analysis_s: float, max_age_s: float, what: str = "to name the object") -> float:
-    """The brain's naming step (two-phase localization; with the SAM path,
-    also frame0's re-mask) under its own cap
+def _semantic_age_s(frame: Frame, analysis_s: float, max_age_s: float) -> float:
+    """The brain's naming step (two-phase localization) under its own cap
     `perception_loop.semantic_max_age_s`: nothing measured on this frame is
     acted on, so the 5 s analysed-frame limit applies to the fresh frame."""
     age = _frame_age_s(frame, max_age_s=float("inf"))
     if not age <= max_age_s:
         raise SlowPerceptionError(
-            f"Perception took {analysis_s:.1f}s {what} on a frame that was fresh at "
+            f"Perception took {analysis_s:.1f}s to name the object on a frame that was fresh at "
             f"capture, so the semantic step is {age:.1f}s old (limit {max_age_s:g}s); the camera is "
             "live -- retry the observation"
         )
@@ -2423,11 +2422,11 @@ class SkillRuntime:
                 )
 
         def re_mask(frame0, fix0, timing):
-            # The SAM path, before its frame1 is taken (that frame's age is the
-            # 5 s rule's, this SAM call is no part of it): frame0 re-masked
-            # with the prompt frame1 will get, so every check compares masks
-            # made alike. The brain's detection still names the object; a
-            # failed re-mask is a failed re-anchor.
+            # Before frame1 is taken (its age is the 5 s rule's, this SAM call
+            # is no part of it): frame0 re-masked with the prompt frame1 will
+            # get, so every check compares masks made alike. The brain's
+            # detection still names the object; a failed re-mask is a failed
+            # re-anchor.
             started = time.monotonic()
             try:
                 reference = self.detector.reanchor_reference(frame0, fix0.detection)
@@ -2440,36 +2439,22 @@ class SkillRuntime:
             return reference
 
         def measure_again(frame0, fix0, reference, ext0, frame1, ext1, timing):
-            # Steps 4-7 on frame1: the same view, the object re-found, the
-            # geometry from frame1 alone, and the 5 s rule on it. The still
-            # path (the region's colours did not change): the naming mask on
-            # frame1's depth, no SAM call. The SAM path: SAM's frame1 mask,
-            # compared with frame0's same-prompt `reference`; without one
-            # (None), a region that changed a little returns None here, and
-            # the caller re-masks frame0 and takes a new frame1.
+            # Steps 4-7 on frame1: the same view, the brain's box re-anchored
+            # by SAM, the geometry from frame1 alone, and the 5 s rule on it.
             started1 = time.monotonic()
-            measured = True
             try:
                 changed = _view_change(frame0, frame1)
                 if changed:
                     raise _SceneChanged(changed)
                 timing["frame0_age_at_reanchor_s"] = round(started1 - float(frame0.t), 3)
                 try:
-                    found = self.detector.reanchor(frame1, fix0.detection, since=frame0, reference=reference,
-                                                   segment=reference is not None)
+                    found = self.detector.reanchor(frame1, fix0.detection, since=frame0, reference=reference)
                 except Exception as exc:  # noqa: BLE001 -- a failed SAM call is a failed re-anchor
                     raise _ReanchorFailed(f"{type(exc).__name__}: {exc}") from exc
                 finally:
                     timing["reanchor_s"] = round(time.monotonic() - started1, 3)
                 timing["scene_diff_global"] = _rounded(found.scene_diff_global, 2)
                 timing["scene_diff_local"] = _rounded(found.scene_diff_local, 2)
-                path = getattr(found, "path", "")
-                if path:
-                    timing["path"] = path
-                if (reference is None and path == "sam" and found.detection is None
-                        and not found.scene_changed):
-                    measured = False  # nothing measured on this frame: the SAM path takes another
-                    return None
                 prompt_box = getattr(found, "prompt_box", None)
                 if prompt_box is not None:
                     timing["reanchor_prompt_box"] = [int(v) for v in prompt_box]
@@ -2488,29 +2473,25 @@ class SkillRuntime:
                         raise _ReanchorFailed(rejected.reason) from None
                     raise _SceneChanged(rejected.reason) from None  # colour, or out of the workspace now
                 # Both positions measured the same robust way (medians inside
-                # the masks eroded by 2 px), frame0's on the mask frame1's is
-                # compared with: the naming mask itself on the still path,
-                # the same-prompt re-mask on the SAM path. A pixel of SAM edge
-                # jitter onto the table tilts the fixes' OBB centres by ~2 cm.
-                then = fix0.detection if path == "still" or reference is None else reference.detection
+                # the masks eroded by 2 px; frame0's is its same-prompt
+                # re-mask): a pixel of SAM edge jitter onto the table tilts
+                # the fixes' OBB centres by ~2 cm.
                 moved = float(np.linalg.norm(median_point(frame1, found.detection, ext1)
-                                             - median_point(frame0, then, ext0)))
+                                             - median_point(frame0, reference.detection, ext0)))
                 timing["moved_m"] = _rounded(moved, 4)
                 if not moved <= _REANCHOR_MAX_MOVE_M:
                     raise _SceneChanged(f"the object moved {moved * 100:.1f} cm between the two images")
                 return fix1
             finally:
-                if measured:
-                    timing["frame1_age_s"] = round(time.monotonic() - float(frame1.t), 3)
-                    _analyzed_frame_age_s(frame1, time.monotonic() - started1)
+                timing["frame1_age_s"] = round(time.monotonic() - float(frame1.t), 3)
+                _analyzed_frame_age_s(frame1, time.monotonic() - started1)
 
         def localize_two_phase(take_frame0, take_frame1, extrinsics_of):
-            """frame0 -> name the object; a fresh frame1 -> measure it (the
-            still path), or, when the region changed a little, re-mask frame0
-            and measure a frame1 taken after that (the SAM path). ONE retry
-            (a new frame0 and a fresh refer) after a scene change, and one
-            after a failed re-anchor, per localization; the second of a kind
-            raises SceneChangedError / ReanchorError. Returns (frame1, fix1)."""
+            """frame0 -> name the object; a fresh frame1 -> measure it. ONE
+            retry (a new frame0 and a fresh refer) after a scene change, and
+            one after a failed re-anchor, per localization; the second of a
+            kind raises SceneChangedError / ReanchorError. Returns (frame1,
+            fix1)."""
             for attempt in range(1, 4):  # at most one retry of each kind
                 if attempt > 1:
                     check_time_left()
@@ -2524,18 +2505,10 @@ class SkillRuntime:
                 finally:
                     timing["semantic_s"] = round(time.monotonic() - started0, 3)
                 try:
+                    reference = re_mask(frame0, fix0, timing)
                     frame1 = take_frame1(frame0)
-                    fix1 = measure_again(frame0, fix0, None, ext0, frame1, extrinsics_of(frame1), timing)
-                    if fix1 is None:
-                        # The SAM path: frame0 re-masked with the prompt the
-                        # fresh frame gets BEFORE that frame is taken (this SAM
-                        # call is no part of its age), under the semantic cap.
-                        reference = re_mask(frame0, fix0, timing)
-                        _semantic_age_s(frame0, time.monotonic() - started0, semantic_max_age_s,
-                                        what="to name the object and re-mask it")
-                        frame1 = take_frame1(frame1)
-                        fix1 = measure_again(frame0, fix0, reference, ext0, frame1, extrinsics_of(frame1), timing)
-                    return frame1, fix1
+                    return frame1, measure_again(frame0, fix0, reference, ext0, frame1, extrinsics_of(frame1),
+                                                 timing)
                 except _SceneChanged as exc:
                     timing["scene_changed"] = str(exc)
                     retried["scene"] += 1

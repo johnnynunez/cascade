@@ -165,13 +165,13 @@ class LockedDetector:
         with self._lock:
             return self._detector.reanchor_reference(frame, det)
 
-    def reanchor(self, frame, det, *, since, reference=None, segment=True):
+    def reanchor(self, frame, det, *, since, reference=None):
         if not self._has_reanchor:
             raise TypeError(f"{type(self._detector).__name__} does not define reanchor()")
         if self._concurrent_safe:
-            return self._detector.reanchor(frame, det, since=since, reference=reference, segment=segment)
+            return self._detector.reanchor(frame, det, since=since, reference=reference)
         with self._lock:
-            return self._detector.reanchor(frame, det, since=since, reference=reference, segment=segment)
+            return self._detector.reanchor(frame, det, since=since, reference=reference)
 
     def close(self) -> None:
         if not self._has_close:

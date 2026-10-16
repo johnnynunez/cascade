@@ -38,23 +38,13 @@ MOVED_BOX = (380, 200, 460, 260)  # 100 px to the right: ~9 cm on the table
 ISO = (150, 190, 230)  # BGR orange whose grey level (~197) is the table's (190): iso-luminant
 PX_PER_CM = 600.0 * 0.01 / 0.55  # mock fx 600 px at the cube's top face (0.55 m): ~10.9 px per cm
 TIMING_KEYS = {"semantic_s", "frame0_age_at_reanchor_s", "reanchor_s", "frame1_age_s",
-               "scene_diff_global", "scene_diff_local", "moved_m", "path"}
-# SAM calls of one two-phase attempt on the SAM path, in order
-# (`_ObjectSam.script` keys, 1-based): the naming mask on frame0 (prompt: the
-# brain's box), frame0 re-masked with the grown prompt (fix round 3), frame1
-# with that same prompt. A retry after a scene change or a failed frame1
-# re-anchor adds RETRY. The still path (fix round 4) makes the naming call
-# only.
+               "scene_diff_global", "scene_diff_local", "moved_m"}
+# SAM calls of one two-phase attempt, in order (`_ObjectSam.script` keys,
+# 1-based): the naming mask on frame0 (prompt: the brain's box), frame0
+# re-masked with the grown prompt (fix round 3), frame1 with that same prompt.
+# A retry after a scene change or a failed frame1 re-anchor adds RETRY.
 NAME, REF, FRESH = 1, 2, 3
 RETRY = 3
-
-
-def _sam_path(t):
-    """Fix round 4: a region whose colours did not change between the two
-    frames takes the STILL path (the naming mask measured on frame1's depth,
-    no SAM call on frame1). A test of the SAM path's own checks on a still
-    scene switches the still path off."""
-    t.detector._reanchor_still_diff = -1.0
 
 
 def _object_mask(bgr: np.ndarray) -> np.ndarray:
@@ -270,8 +260,8 @@ def test_slow_refer_localizes_on_a_fresh_frame_and_grasps(tp):
     frame, fix = tp.rt._localize("red cube")
     semantic_frame = tp.sam.calls[0][0]  # SAM masks the brain's boxes on the brain's frame
     assert frame.frame_id > semantic_frame, "the geometry must come from a frame newer than the brain's"
-    assert [c[0] for c in tp.sam.calls] == [semantic_frame], (
-        "a still scene: the naming mask on the brain's frame, measured on the returned frame's depth (no SAM there)")
+    assert [c[0] for c in tp.sam.calls] == [semantic_frame, semantic_frame, frame.frame_id], (
+        "the naming mask and its same-prompt re-mask on the brain's frame, one re-anchor on the returned frame")
     assert tp.brain.refers == 1
     assert np.linalg.norm(np.asarray(fix.position)[:2] - _cube_xy(tp, HOME_BOX)) < 0.01
 
@@ -284,7 +274,7 @@ def test_slow_refer_localizes_on_a_fresh_frame_and_grasps(tp):
     assert TIMING_KEYS <= set(timing), timing
     assert timing["frame1_age_s"] < 5.0 * SCALE
     assert timing["semantic_s"] >= 0.65 and timing["frame0_age_at_reanchor_s"] >= 0.65
-    assert timing["moved_m"] < 0.005 and timing["path"] == "still"
+    assert timing["moved_m"] < 0.005
     assert tp.rt.trace.rows()[-1]["result"]["perception_timing"] == timing, "the trace carries it too"
 
 
@@ -308,7 +298,6 @@ def test_a_slow_reanchor_is_still_refused_by_the_frame1_limit(tp):
         time.sleep(0.6)  # 6 s live: SAM + lift on frame1 past the 5 s limit
         return None  # then the normal masks
 
-    _sam_path(tp)
     tp.sam.script[FRESH] = slow
     n0 = _commands(tp)
     with pytest.raises(tp.mod.SlowPerceptionError, match="Perception took"):
@@ -393,28 +382,19 @@ def test_a_cube_moved_3cm_with_identical_pixels_is_refused(tp):
     assert _commands(tp) == n0
 
 
-@pytest.mark.parametrize("path", ["sam", "still"])
-def test_a_colour_change_on_frame1_is_never_grasped(tp, path):
+def test_a_colour_change_on_frame1_is_never_grasped(tp):
     # Same grey level, another colour: frame1's mask is green, so the red cube
     # the brain named is not what frame1 shows. The colour local check sees
     # this change before SAM runs; with it out of the way the frame1 colour
-    # rule alone still refuses, on the SAM path and on the still path (fix
-    # round 4: there the naming mask is measured on frame1).
+    # rule alone still refuses.
     tp.detector._reanchor_local_diff = float("inf")
-    if path == "still":
-        tp.detector._reanchor_still_diff = float("inf")
     _moves_once(tp, colour=(40, 121, 40))
     n0 = _commands(tp)
-    result = tp.rt.execute("grasp_object", {"label": "red cube"})
-    assert result["ok"] is False and "green" in result["error"], result.get("error")
+    with pytest.raises(SkillError) as err:
+        tp.rt.skill_grasp_object("red cube")
+    assert "green" in str(err.value), err.value
     assert _commands(tp) == n0
-    assert "green" in _first_timing(tp)["scene_changed"], "the first attempt's frame1 colour rule refused"
-    if path == "sam":
-        assert len(tp.sam.calls) >= FRESH and tp.sam.calls[FRESH - 1][0] > tp.sam.calls[NAME - 1][0], (
-            "frame1 was re-anchored")
-    else:
-        assert len(tp.sam.calls) == tp.brain.refers, "one naming call per brain answer: no SAM on frame1"
-    assert _first_timing(tp).get("path") == path
+    assert len(tp.sam.calls) >= FRESH and tp.sam.calls[FRESH - 1][0] > tp.sam.calls[NAME - 1][0], "frame1 was re-anchored"
 
 
 @pytest.mark.parametrize("change", ["intrinsics", "camera", "shift", "turn"])
@@ -588,7 +568,6 @@ SAM_FAILURE_REASONS = {"none": "no mask", "empty": "empty mask", "outside": "off
 
 @pytest.mark.parametrize("failure", sorted(SAM_FAILURES))
 def test_no_usable_mask_on_frame1_is_refused_after_one_fresh_refer(tp, failure):
-    _sam_path(tp)
     tp.sam.script[FRESH] = tp.sam.script[FRESH + RETRY] = SAM_FAILURES[failure]
     n0 = _commands(tp)
     with pytest.raises(SkillError, match="could not re-anchor 'red cube' on a fresh image") as err:
@@ -600,7 +579,6 @@ def test_no_usable_mask_on_frame1_is_refused_after_one_fresh_refer(tp, failure):
 
 
 def test_one_failed_reanchor_is_retried_with_a_fresh_refer(tp):
-    _sam_path(tp)
     tp.sam.script[FRESH] = SAM_FAILURES["none"]
     frame, fix = tp.rt._localize("red cube")
     assert tp.brain.refers == 2 and frame.frame_id == tp.sam.calls[FRESH + RETRY - 1][0]
@@ -661,17 +639,13 @@ def test_the_two_phase_config_keys_ship_with_their_defaults():
         assert cfg.perception_loop.semantic_max_age_s == 20.0
         assert cfg.detector.reanchor_local_diff == 8.0
         assert cfg.detector.reanchor_mask_agreement == 0.95
-        assert cfg.detector.reanchor_still_diff == 2.0
         assert cfg.detector.get("reanchor_mask_iou") is None, "replaced by reanchor_mask_agreement"
     det = demo._make_brain_detector(Cfg({}), {"type": "brain", "api_key_file": None, "reanchor_local_diff": "3.5",
-                                              "reanchor_mask_agreement": "0.7", "reanchor_still_diff": "1.5"},
-                                    warm_up=False)
+                                              "reanchor_mask_agreement": "0.7"}, warm_up=False)
     assert det._reanchor_local_diff == 3.5
     assert det._reanchor_mask_agreement == 0.7
-    assert det._reanchor_still_diff == 1.5
     assert BrainDetector(base_url="http://b/v1", model="m")._reanchor_local_diff == 8.0
     assert BrainDetector(base_url="http://b/v1", model="m")._reanchor_mask_agreement == 0.95
-    assert BrainDetector(base_url="http://b/v1", model="m")._reanchor_still_diff == 2.0
 
 
 
@@ -761,7 +735,6 @@ def test_a_mask_on_part_of_the_object_is_a_scene_change(tp):
         m[:, xs[0] + int(0.6 * xs.size):] = False
         return [m]
 
-    _sam_path(tp)
     tp.sam.script[FRESH] = part
     result = tp.rt.execute("localize_object", {"label": "red cube"})
     assert result["ok"], result.get("error")
@@ -789,7 +762,6 @@ def test_a_mask_reaching_past_its_prompt_box_is_a_scene_change(tp):
     brain's box grown by 20 %). The image and the mask IoU (~0.99) agree with
     frame0, but the mask now reaches a border frame0's did not: it describes
     more than the object the brain named."""
-    _sam_path(tp)
     tp.sam.script[FRESH] = _with_strip(lambda boxes: int(boxes[0][2]) + 3)
     result = tp.rt.execute("localize_object", {"label": "red cube"})
     assert result["ok"], result.get("error")
@@ -804,7 +776,6 @@ def test_a_mask_already_past_the_box_on_the_named_image_is_no_change(tp):
     """The border rule compares with frame0: a mask that already reached past
     the box on the image the object was named on (a cable, a handle SAM
     keeps) is the same object on frame1, not a scene change."""
-    _sam_path(tp)
     tp.sam.default = _with_strip(lambda boxes: 420)
     frame, fix = tp.rt._localize("red cube")
     assert tp.brain.refers == 1, "no retry"
@@ -879,7 +850,6 @@ def test_reanchor_checks_device_masks_without_copying_them_to_the_host():
     sam.default = lambda frame, boxes: [_DeviceMask(_ObjectSam.masks(_ObjectSam(), frame, boxes)[0], copies)]
     det = Detection("red cube", 1.0, np.array((270, 190, 370, 270), np.float32), mask=_DeviceMask(obj, copies))
     detector = BrainDetector(base_url="http://b/v1", model="m", segmenter=sam)
-    detector._reanchor_still_diff = -1.0  # the SAM path on a still pair of frames (fix round 4)
 
     assert _mask_box(det.mask).tolist() == [279.0, 199.0, 361.0, 261.0]
     found = detector.reanchor(b, det, since=a)
@@ -1139,12 +1109,10 @@ def test_a_neighbour_moving_into_contact_is_still_caught(tp, sam):
     orig, seen = tp.detector.reanchor, []
 
     def spy(frame, det, **kw):
-        found = orig(frame, det, **kw)
-        if kw.get("segment", True):  # fix round 4: a still-path probe (segment=False) runs no SAM
-            seen.append(found)
-            if len(seen) == 1:
-                _show(tp, neighbour=_beside(16))  # and away again before the retry's frame0
-        return found
+        seen.append(orig(frame, det, **kw))
+        if len(seen) == 1:
+            _show(tp, neighbour=_beside(16))  # and away again before the retry's frame0
+        return seen[-1]
 
     tp.detector.reanchor = spy  # instance attribute: the class still defines reanchor
     result = tp.rt.execute("localize_object", {"label": "red cube"})
@@ -1164,7 +1132,6 @@ def test_sam_mask_jitter_on_a_still_object_is_accepted(tp, size, px):
     diagonal), both ways) accepts it on 80x60, 40x30 and 24x18 objects, and
     3 px on the 80x60 one (its tolerance is 3.1 px: 3 % of its diagonal)."""
     _show(tp, box=SIZES[size])
-    _sam_path(tp)
     tp.sam.script[FRESH] = _morphed(px)
     result = tp.rt.execute("localize_object", {"label": "red cube"})
     assert result["ok"], result.get("error")
@@ -1183,7 +1150,6 @@ def test_a_tight_brain_box_on_a_still_object_is_accepted(tp, size, k):
     accepted at once, measured whole. Without the 6 px prompt floor the
     24x18 object's frame1 mask reached the 20 % prompt's 2 px border."""
     _show(tp, box=SIZES[size])
-    _sam_path(tp)
     tp.brain.region = _tight(SIZES[size], k)
     result = tp.rt.execute("localize_object", {"label": "red cube"})
     assert result["ok"], result.get("error")
@@ -1198,7 +1164,6 @@ def test_a_mask_grown_onto_the_table_is_a_scene_change(tp):
     still scene SAM's frame1 mask is the cube plus a 5 px halo of table,
     inside the prompt box (no border reached) and covering all of frame0's
     mask, but ~9 % of its pixels lie farther than the tolerance from it."""
-    _sam_path(tp)
     tp.sam.script[FRESH] = _morphed(5)
     result = tp.rt.execute("localize_object", {"label": "red cube"})
     assert result["ok"], result.get("error")
@@ -1212,7 +1177,6 @@ def test_mask_jitter_between_the_frames_is_not_a_move(tp):
     1 px grown onto the table. The two fixes' centres read a ~2 cm move
     (frame1's cloud takes in table pixels); the medians of the depth points
     inside each mask eroded by 2 px agree."""
-    _sam_path(tp)
     tp.sam.script[NAME] = tp.sam.script[REF] = _morphed(-1)
     tp.sam.script[FRESH] = _morphed(1)
     result = tp.rt.execute("localize_object", {"label": "red cube"})
@@ -1226,7 +1190,6 @@ def test_a_3cm_rise_is_still_caught_through_mask_jitter(tp):
     """The robust move check still sees a real move: the cube alone rises
     3 cm (identical pixels) while the brain thinks, on top of the same 1 px
     mask jitter: refused, no motion."""
-    _sam_path(tp)
     for attempt in (0, RETRY):
         tp.sam.script[NAME + attempt] = tp.sam.script[REF + attempt] = _morphed(-1)
         tp.sam.script[FRESH + attempt] = _morphed(1)
@@ -1294,21 +1257,17 @@ def test_a_mask_part_within_two_px_of_the_named_mask_is_the_object():
     sam = _ObjectSam()
     sam.default = lambda frame, boxes: [near.copy()]
     det = Detection("red cube", 1.0, np.array((270, 190, 370, 270), np.float32), mask=obj)
-    detector = BrainDetector(base_url="http://b/v1", model="m", segmenter=sam)
-    detector._reanchor_still_diff = -1.0  # the SAM path on a still pair of frames (fix round 4)
-    found = detector.reanchor(b, det, since=a)
+    found = BrainDetector(base_url="http://b/v1", model="m", segmenter=sam).reanchor(b, det, since=a)
     assert (found.detection, found.scene_changed) == (None, True), found.reason
     assert found.dropped_components == 0 and "agreement" in found.reason, found
 
     # Fix round 3: the 2 px reach is measured from frame0's same-prompt
     # re-mask (the whole object), not from a naming mask a tight brain box
-    # clipped 1 px inside it (from which the part lies 3 px away). Fix round
-    # 4 clips the re-mask to the naming mask dilated by the tolerance (2 px
-    # here): the 1 px ring a tight box cut off stays in it.
-    clipped = cv2.erode(obj.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool)
-    tight = Detection("red cube", 1.0, np.array((280, 200, 360, 260), np.float32), mask=clipped)
+    # clipped 3 px inside it (from which the part lies 5 px away).
+    clipped = cv2.erode(obj.astype(np.uint8), np.ones((7, 7), np.uint8)).astype(bool)
+    tight = Detection("red cube", 1.0, np.array((282, 202, 358, 258), np.float32), mask=clipped)
     sam.default = lambda frame, boxes: [(near if frame is b else obj).copy()]
-    found = detector.reanchor(b, tight, since=a)
+    found = BrainDetector(base_url="http://b/v1", model="m", segmenter=sam).reanchor(b, tight, since=a)
     assert (found.detection, found.scene_changed) == (None, True), found.reason
     assert found.dropped_components == 0, found
 
@@ -1326,7 +1285,6 @@ def test_frame0_is_re_masked_with_frame1s_prompt_before_frame1_is_taken(tp):
         time.sleep(0.6)
         return None  # then the normal mask
 
-    _sam_path(tp)
     tp.sam.script[REF] = slow
     result = tp.rt.execute("localize_object", {"label": "red cube"})
     assert result["ok"], result.get("error")
@@ -1348,7 +1306,6 @@ def test_sam_jitter_on_a_still_iso_luminant_object_is_accepted(tp, size, px, cal
     re-mask only the jitter is left: accepted at once, whichever frame's
     mask jitters."""
     _show(tp, box=SIZES[size], colour=ISO)
-    _sam_path(tp)
     tp.sam.script[REF if call == "frame0" else FRESH] = _morphed(px)
     result = tp.rt.execute("localize_object", {"label": "orange cube"})
     assert result["ok"], result.get("error")
@@ -1375,7 +1332,6 @@ def test_a_failed_re_mask_of_frame0_is_a_failed_re_anchor(tp, failure):
     it on the object, or its box off the brain's) means nothing to compare
     frame1 with: a failed re-anchor (one retry with a fresh refer, then
     ReanchorError), never a scene change, and frame1 is never masked."""
-    _sam_path(tp)
     tp.sam.script[REF] = tp.sam.script[2 * REF] = REF_FAILURES[failure]  # a failed re-mask skips frame1's call
     n0 = _commands(tp)
     result = tp.rt.execute("grasp_object", {"label": "red cube"})
@@ -1397,7 +1353,6 @@ def test_an_error_in_the_re_mask_is_a_failed_re_anchor(tp):
     def boom(frame, det):
         raise RuntimeError("SAM lost its CUDA context")
 
-    _sam_path(tp)
     tp.detector.reanchor_reference = boom  # instance attribute: the class still defines it
     n0 = _commands(tp)
     with pytest.raises(tp.mod.ReanchorError, match="RuntimeError: SAM lost its CUDA context"):
@@ -1421,7 +1376,6 @@ def test_a_re_mask_on_part_of_the_named_object_is_never_measured(tp):
         m[:, xs[0] + int(0.6 * xs.size):] = False
         return [m]
 
-    _sam_path(tp)
     tp.sam.default = part_with_grown_prompt
     n0 = _commands(tp)
     with pytest.raises(tp.mod.ReanchorError, match="covers only") as err:
@@ -1431,15 +1385,12 @@ def test_a_re_mask_on_part_of_the_named_object_is_never_measured(tp):
     assert tp.brain.refers == 2
 
 
-def test_a_box_cutting_the_object_is_measured_as_main_on_the_still_path(tp):
-    """Fix round 4 (was round 3's move check on the re-mask): the brain's box
-    cuts 20 px off the cube's left side. A still scene takes the still path:
-    the naming mask (clipped there: exactly main's single-frame mask) is
-    measured on frame1's depth, no move, main's geometry of frame1. The SAM
-    path clips its frame0 re-mask to the naming mask dilated by the
-    tolerance, so there a cut wider than that refuses (fail closed)."""
-    from cascade.perception.grounding import localize_object
-
+def test_the_move_check_measures_frame0_on_its_re_mask(tp):
+    """The 2 cm move check's frame0 position comes from the same-prompt
+    re-mask as well: the brain's box cuts 20 px off the cube's left side, so
+    the naming mask's median sits ~3 px (~2.7 mm) right of the re-mask's
+    (both are clipped at their prompts). Measured on the re-mask, a still
+    cube reads no move at all."""
     x0, y0, x1, y1 = HOME_BOX[0] - 1, HOME_BOX[1] - 1, HOME_BOX[2] + 1, HOME_BOX[3] + 1
 
     def cut_left(query, bgr):
@@ -1448,10 +1399,11 @@ def test_a_box_cutting_the_object_is_measured_as_main_on_the_still_path(tp):
         return m
 
     tp.brain.region = cut_left
-    frame, fix = tp.rt._localize("red cube")
-    assert tp.brain.refers == 1 and len(tp.sam.calls) == 1, "no retry, no SAM call on frame1"
-    single = localize_object(frame, "red cube", tp.detector, tp.rt.extrinsics)
-    assert np.allclose(fix.position, single.position, atol=1e-9), (fix.position, single.position)
+    result = tp.rt.execute("localize_object", {"label": "red cube"})
+    assert result["ok"], result.get("error")
+    timing = result["perception_timing"]
+    assert tp.brain.refers == 1, timing
+    assert timing["moved_m"] < 0.001, timing
 
 
 def test_two_phase_needs_a_class_defined_re_mask_too():
@@ -1477,321 +1429,3 @@ def test_two_phase_needs_a_class_defined_re_mask_too():
     assert can_reanchor(Both()) and can_reanchor(LockedDetector(Both()))
     with pytest.raises(TypeError, match="reanchor_reference"):
         LockedDetector(OnlyReanchor()).reanchor_reference(None, None)
-
-
-# -- fix round 4: a still region reuses the naming mask; neighbours never enter the reference --
-
-
-def _localize_timed(t, query):
-    """One localization: ((frame, fix) or the exception it raised, its
-    perception_timing dicts as execute() collects them)."""
-    t.rt._call_perception_timings = []
-    try:
-        outcome = t.rt._localize(query)
-    except SkillError as exc:
-        outcome = exc
-    finally:
-        timings, t.rt._call_perception_timings = t.rt._call_perception_timings, None
-    return outcome, timings
-
-
-def _main_fix(t, frame, query, sam_kind):
-    """Main's single-frame fix of `frame`: a fresh fake brain with the test
-    brain's box rule and a fresh SAM of `sam_kind` (the runtime's own fakes
-    keep their call counts)."""
-    from cascade.perception.grounding import localize_object
-
-    brain, seg = _ImageBrain(), _ObjectSam()
-    brain.region, seg.default = t.brain.region, SAM_KINDS[sam_kind]
-    detector = BrainDetector(base_url="http://b/v1", model="m", client=brain, segmenter=seg)
-    return localize_object(frame, query, detector, t.rt.extrinsics)
-
-
-def _next_to(box, gap):
-    """A green 30 px wide object `gap` table columns right of the cube at
-    `box` (0: touching it, 8-connected; negative: painted over its last
-    columns), over the middle two thirds of its rows."""
-    x0, y0, x1, y1 = box
-    h = y1 - y0
-    return (x1 + gap, y0 + h // 6, x1 + gap + 30, y1 - h // 6, GREEN)
-
-
-def _loose(box, k):
-    """The brain's box `k` px outside the object painted at `box` (with its
-    1 px skirt) on every side."""
-    x0, y0, x1, y1 = box[0] - 1 - k, box[1] - 1 - k, box[2] + 1 + k, box[3] + 1 + k
-
-    def region(query, bgr):
-        m = np.zeros(bgr.shape[:2], dtype=bool)
-        m[y0:y1, x0:x1] = True
-        return m
-    return region
-
-
-STILL_SCENES = ["plain", "iso", "tight 3 px", "neighbour 2 px"]
-
-
-@pytest.mark.parametrize("sam", sorted(SAM_KINDS))
-@pytest.mark.parametrize("scene", STILL_SCENES)
-@pytest.mark.parametrize("size", sorted(SIZES))
-def test_a_still_scene_is_measured_on_frame1_with_the_naming_mask(tp, size, scene, sam):
-    """Fix round 4, still path: the colours around the object did not change
-    between frame0 and frame1 (global <= scene_change, local <= 2.0), so its
-    naming mask (main's single-frame mask) is measured on frame1's depth: no
-    re-mask, no SAM call on frame1, main's geometry of frame1 exactly."""
-    box = SIZES[size]
-    _show(tp, box=box, **({"colour": ISO} if scene == "iso" else {}),
-          **({"neighbour": _next_to(box, 2)} if scene == "neighbour 2 px" else {}))
-    tp.sam.default = SAM_KINDS[sam]
-    if scene == "tight 3 px":
-        tp.brain.region = _tight(box, 3)
-    elif scene == "neighbour 2 px":
-        tp.brain.region = _red_only
-    query = "orange cube" if scene == "iso" else "red cube"
-    (frame, fix), timings = _localize_timed(tp, query)
-    assert tp.brain.refers == 1, timings
-    assert len(tp.sam.calls) == 1 and tp.sam.calls[0][0] < frame.frame_id, (
-        "the naming call on the brain's frame only: no re-mask, no SAM call on frame1")
-    main = _main_fix(tp, frame, query, sam)
-    assert np.allclose(fix.position, main.position, atol=1e-9), (fix.position, main.position)
-    assert np.allclose(fix.extent, main.extent, atol=1e-9), (fix.extent, main.extent)
-    assert [t.get("path") for t in timings] == ["still"], timings
-    assert timings[0]["moved_m"] == 0.0 and timings[0]["scene_diff_local"] <= 2.0, timings
-
-
-@pytest.mark.parametrize(("cm", "accepted"), [(1.5, True), (2.5, False)])
-def test_a_depth_only_rise_is_measured_on_frame1_or_refused_on_the_still_path(tp, cm, accepted):
-    """The still path keeps the 2 cm move check (eroded-mask medians, frame0
-    vs frame1 depth, the same mask): the cube alone rises with identical
-    pixels while the brain thinks. 1.5 cm: accepted at once, measured on
-    frame1 (1.5 cm higher than frame0 shows it); 2.5 cm (and back on the
-    retry): a scene change twice, no motion."""
-    from cascade.perception.grounding import localize_object
-
-    lift = cm / 100
-    before = localize_object(tp.rt.camera.get_frame(), "red cube", tp.detector, tp.rt.extrinsics)
-    refers = tp.brain.refers
-    if accepted:
-        tp.brain.on_refer = lambda n: tp.scene.set(lift=lift) if n == refers + 1 else None
-    else:
-        tp.brain.on_refer = lambda n: tp.scene.toggle("lift", 0.0, lift)
-    n0 = _commands(tp)
-    sam0 = len(tp.sam.calls)
-    outcome, timings = _localize_timed(tp, "red cube")
-    assert len(tp.sam.calls) - sam0 == tp.brain.refers - refers, "naming calls only: no SAM call on frame1"
-    assert timings[0]["moved_m"] == pytest.approx(lift, abs=0.003), timings
-    assert {t.get("path") for t in timings} == {"still"}, timings
-    assert _commands(tp) == n0
-    if accepted:
-        frame, fix = outcome
-        assert tp.brain.refers == refers + 1, "no retry"
-        assert fix.position[2] - before.position[2] == pytest.approx(lift, abs=0.003), "frame1's depth"
-    else:
-        assert isinstance(outcome, tp.mod.SceneChangedError), outcome
-        assert "moved" in str(outcome) and tp.brain.refers == refers + 2, outcome
-
-
-@pytest.mark.parametrize(("size", "px"), [("80x60", 2), ("120x90", 3)])
-def test_a_slide_under_the_still_threshold_is_measured_within_its_bound(tp, size, px):
-    """The still path's cost (ruling): an iso-luminant slide too small to
-    raise the colour difference over reanchor_still_diff (2.0) is measured
-    with the naming mask, where the cube was. Its error is bounded by that
-    slide: 2 px (0.18 cm) on 80x60, 3 px (0.28 cm) on a 120x90 cube, both
-    within 0.35 cm of where the cube is now."""
-    box = {"120x90": (260, 195, 380, 285)}.get(size) or SIZES[size]
-    _show(tp, box=box, colour=ISO)
-    new = (box[0] + px, box[1], box[2] + px, box[3])
-    _moves_once(tp, box=new)
-    (frame, fix), timings = _localize_timed(tp, "orange cube")
-    assert len(tp.sam.calls) == 1, "the naming call only"
-    assert 0.0 < timings[0]["scene_diff_local"] <= 2.0, timings
-    assert np.linalg.norm(np.asarray(fix.position)[:2] - _cube_xy(tp, new)) <= 0.0035
-    assert [t.get("path") for t in timings] == ["still"], timings
-
-
-def test_a_region_that_changed_a_little_goes_to_sam(tp):
-    """Above reanchor_still_diff (and up to reanchor_local_diff) the region
-    changed: the SAM path re-masks frame0 and masks a fresh frame1 with the
-    grown prompt. An iso-luminant 0.46 cm (5 px) slide reads a colour
-    difference of ~3.4: SAM measures the cube where it is now (the naming
-    mask, where it was, would be 0.46 cm off)."""
-    _iso_cube(tp)
-    new = _slid(5)
-    _moves_once(tp, box=new)
-    (frame, fix), timings = _localize_timed(tp, "orange cube")
-    assert 2.0 < timings[0]["scene_diff_local"] <= 8.0, timings
-    assert len(tp.sam.calls) == FRESH and tp.sam.calls[FRESH - 1][0] == frame.frame_id, "SAM on the returned frame"
-    assert np.linalg.norm(np.asarray(fix.position)[:2] - _cube_xy(tp, new)) < 0.002, "where the cube is now"
-    assert [t.get("path") for t in timings] == ["sam"], timings
-
-
-TOUCHING = {"still touch": (0, 0), "still 1 px": (1, 1), "into contact": (16, 0), "to 1 px": (16, 1),
-            "3 px onto the cube": (16, -3)}
-
-
-def _never_accepted_off_main(t, query, sam_kind):
-    """The touching-neighbour rule (fix round 4): a localization either
-    refuses or returns what main's single-frame localization measures on the
-    returned frame (position within 1 mm, extent within 2 mm: far inside the
-    0.5 cm bar); an accepted one took the still path (the SAM path refuses
-    whatever merged a neighbour)."""
-    outcome, timings = _localize_timed(t, query)
-    if isinstance(outcome, SkillError):
-        return outcome, timings
-    frame, fix = outcome
-    main = _main_fix(t, frame, query, sam_kind)
-    err = float(np.linalg.norm(np.asarray(fix.position) - np.asarray(main.position)))
-    ext = float(np.max(np.abs(np.asarray(fix.extent) - np.asarray(main.extent))))
-    assert err <= 0.001 and ext <= 0.002, (f"accepted {err * 100:.2f} cm (extent {ext * 100:.2f} cm) from main's "
-                                           f"single-frame fix ({timings})")
-    assert timings[-1].get("path") == "still", timings
-    return outcome, timings
-
-
-@pytest.mark.parametrize("case", sorted(TOUCHING))
-@pytest.mark.parametrize("size", sorted(SIZES))
-def test_a_touching_neighbour_is_never_measured_with_the_object(tp, size, case):
-    """Re-review Important (round 3): with the SAM that clips at its prompt a
-    neighbour touching the cube (or sliding into contact, or onto it) joined
-    the grown-prompt masks on BOTH frames, which then agreed: accepted with
-    the neighbour in the geometry. Now a still region keeps main's naming
-    mask and the SAM path's reference never reaches past the naming mask."""
-    box = SIZES[size]
-    first, last = TOUCHING[case]
-    _show(tp, box=box, neighbour=_next_to(box, first))
-    tp.brain.region = _red_only
-    if first != last:
-        _moves_once(tp, neighbour=_next_to(box, last))
-    _never_accepted_off_main(tp, "red cube", "clip")
-
-
-@pytest.mark.parametrize("sam", sorted(SAM_KINDS))
-@pytest.mark.parametrize("loose", [0, 2])
-@pytest.mark.parametrize("gap", [0, 1, 2])
-@pytest.mark.parametrize("size", sorted(SIZES))
-def test_a_loose_box_beside_a_neighbour_is_never_measured_off_main(tp, size, gap, loose, sam):
-    """Re-review probe: the brain's box 0-2 px loose beside a neighbour 0-2 px
-    away. Never accepted off main's single-frame geometry (a box reaching the
-    neighbour gives a whole-object SAM the neighbour on main too)."""
-    box = SIZES[size]
-    _show(tp, box=box, neighbour=_next_to(box, gap))
-    tp.brain.region = _loose(box, loose)
-    tp.sam.default = SAM_KINDS[sam]
-    _never_accepted_off_main(tp, "red cube", sam)
-
-
-@pytest.mark.parametrize("sam", sorted(SAM_KINDS))
-def test_the_sam_path_never_lets_a_touching_neighbour_into_its_reference(tp, sam):
-    """The SAM path alone (a region that changed a little): frame0's
-    grown-prompt re-mask is clipped to the naming mask dilated by the
-    tolerance, so a neighbour in contact that the clipping SAM merges under
-    the grown prompt stays out of the reference; frame1's mask, which still
-    merges it, then reaches the prompt border the reference does not: a
-    scene change, twice, no motion (round 3 accepted it with the neighbour).
-    A whole-object SAM puts it in the naming mask (main's mask) already."""
-    _sam_path(tp)
-    _show(tp, neighbour=_next_to(HOME_BOX, 0))
-    tp.brain.region = _red_only
-    tp.sam.default = SAM_KINDS[sam]
-    n0 = _commands(tp)
-    outcome, timings = _localize_timed(tp, "red cube")
-    if sam == "clip":
-        assert isinstance(outcome, tp.mod.SceneChangedError), "never accepted with the neighbour"
-        assert all("border" in t.get("scene_changed", "") for t in timings), timings
-    else:
-        # The whole-object SAM merges it into the NAMING mask already (main's
-        # own single-frame mask): accepted only as main measures that frame.
-        frame, fix = outcome
-        main = _main_fix(tp, frame, "red cube", sam)
-        assert np.allclose(fix.position, main.position, atol=1e-3), (fix.position, main.position)
-        assert np.allclose(fix.extent, main.extent, atol=2e-3), (fix.extent, main.extent)
-    assert _commands(tp) == n0
-
-
-def test_the_re_mask_is_clipped_to_the_naming_mask_dilated_by_the_tolerance():
-    """reanchor_reference keeps, of SAM's grown-prompt mask, only what lies
-    within the tolerance (max(2 px, 3 % of the naming mask box's diagonal))
-    of the naming mask: a neighbour merged with the object (one connected
-    component) under the grown prompt never enters the reference."""
-    from cascade.perception.brain_detector import _mask_box
-    from cascade.types import Detection
-
-    a = synthetic_tabletop()
-    a.rgb[210:250, 360:390] = GREEN  # touching the cube's right side
-    obj = _object_mask(a.rgb)
-    naming = np.zeros_like(obj)
-    naming[200:260, 280:362] = obj[200:260, 280:362]  # the brain's box 2 px past the cube: 2 columns of green
-    sam = _ObjectSam()
-    sam.default = _whole_objects
-    det = Detection("red cube", 1.0, np.array((278, 198, 362, 262), np.float32), mask=naming)
-    ref = BrainDetector(base_url="http://b/v1", model="m", segmenter=sam).reanchor_reference(a, det)
-    assert ref.detection is not None, ref.reason
-    mask = np.asarray(ref.detection.mask, dtype=bool)
-    tol = max(2.0, 0.03 * float(np.hypot(*(np.diff(_mask_box(naming).reshape(2, 2), axis=0)[0]))))
-    far = cv2.distanceTransform((~naming).astype(np.uint8), cv2.DIST_L2, cv2.DIST_MASK_PRECISE) > tol
-    assert mask.any() and not (mask & far).any(), "nothing farther than the tolerance from the naming mask"
-    assert mask[200:260, 280:360].all(), "the whole cube stays"
-    assert ref.detection.bbox[2] <= 362 + tol + 1, ref.detection.bbox
-
-
-def test_a_slow_re_mask_past_the_semantic_cap_is_refused_before_frame1(tp):
-    """Re-review minor: the semantic cap is checked again after frame0's
-    re-mask (SAM path), before the fresh frame is taken: a 25 s re-mask
-    (2.5 s scaled, cap 2.0) is SlowPerceptionError naming the semantic step,
-    with no SAM call on a fresh frame and no motion."""
-    _sam_path(tp)
-
-    def slow(frame, boxes):
-        time.sleep(2.5)
-        return None  # then the normal mask
-
-    tp.sam.script[REF] = slow
-    n0 = _commands(tp)
-    with pytest.raises(tp.mod.SlowPerceptionError, match="semantic step"):
-        tp.rt.skill_grasp_object("red cube")
-    assert len(tp.sam.calls) == REF and tp.brain.refers == 1, "no SAM call on a fresh frame, no retry"
-    assert _commands(tp) == n0
-
-
-def test_the_still_path_keeps_the_frame1_limit(tp, monkeypatch):
-    """The unchanged 5 s rule applies to the still path's frame1 too: its
-    measurement takes 0.6 s (6 s live) -> SlowPerceptionError, no retry, no
-    SAM call on frame1."""
-    real = tp.mod.fix_from_detection
-
-    def slow(*args, **kwargs):
-        time.sleep(0.6)
-        return real(*args, **kwargs)
-
-    monkeypatch.setattr(tp.mod, "fix_from_detection", slow)
-    n0 = _commands(tp)
-    with pytest.raises(tp.mod.SlowPerceptionError, match="Perception took"):
-        tp.rt.skill_grasp_object("red cube")
-    assert len(tp.sam.calls) == 1 and tp.brain.refers == 1
-    assert _commands(tp) == n0
-
-
-def test_the_still_path_reuses_the_naming_mask_without_any_sam_call():
-    """reanchor() on a still pair of frames: the named detection's own mask
-    (opaque, never copied to the host beyond its row/column projections) and
-    box, no SAM call, path "still"; a region that changed a little goes to
-    SAM (path "sam")."""
-    from cascade.types import Detection
-
-    copies: list[int] = []
-    a, b = synthetic_tabletop(), synthetic_tabletop()
-    sam = _ObjectSam()
-    det = Detection("red cube", 1.0, np.array((278, 198, 362, 262), np.float32),
-                    mask=_DeviceMask(_object_mask(a.rgb), copies))
-    detector = BrainDetector(base_url="http://b/v1", model="m", segmenter=sam)
-    found = detector.reanchor(b, det, since=a)
-    assert (found.path, found.scene_changed) == ("still", False), found
-    assert found.detection.mask is det.mask and found.detection.bbox.tolist() == det.bbox.tolist()
-    assert sam.calls == [] and max(copies, default=0) <= max(a.rgb.shape[:2]), copies
-    # The cube iso-luminant, then 3 px to the right: colour difference ~2.5.
-    moved = synthetic_tabletop(box_px=(283, 200, 363, 260))
-    moved.rgb[np.all(moved.rgb == RED, axis=-1)] = ISO
-    a.rgb[np.all(a.rgb == RED, axis=-1)] = ISO
-    found = detector.reanchor(moved, det, since=a, segment=False)
-    assert (found.path, found.detection, found.scene_changed) == ("sam", None, False), found
-    assert sam.calls == [], "segment=False: the caller re-masks frame0 first"

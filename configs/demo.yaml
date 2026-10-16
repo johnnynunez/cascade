@@ -583,12 +583,6 @@ detector:
   # of SAM's prompt (the object's box grown by 20 %, at least 6 px a side):
   # the object extends past the box it was named in.
   reanchor_mask_agreement: 0.95
-  # A region whose colours changed by at most this much (same measure as
-  # reanchor_local_diff) did not change at all: the object's mask from the
-  # image it was named on is measured on the fresh image's depth, no SAM call
-  # there (a static scene; the 2 cm move check and the 5 s rule still apply).
-  # Between this and reanchor_local_diff SAM re-anchors it (above).
-  reanchor_still_diff: 2.0
 
 # Optional vocabulary restriction for the always-on watcher and
 # get_observation. LEAVE EMPTY for a public demo: a non-empty list makes

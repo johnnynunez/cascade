@@ -1833,6 +1833,11 @@ def test_the_gain_is_measured_outside_the_box_on_unsaturated_pixels():
     b.rgb[:, :384] = 255
     assert _exposure_gain(a, b, HOME_BOX) == pytest.approx((1.1,) * 3, abs=0.01)
 
+    # A bright wall (240) over 60 % of the view clips at 255 on the brighter
+    # frame: 255/240 is the camera's ceiling, not its gain.
+    a, b = synthetic_tabletop(), _scaled(synthetic_tabletop(), 1.1)
+    a.rgb[:, :384], b.rgb[:, :384] = 240, 255
+    assert _exposure_gain(a, b, HOME_BOX) == pytest.approx((1.1,) * 3, abs=0.01)
     # A black monitor (0 on both frames) over a third of the view: its
     # ratios are 0/0, never part of the median.
     a, b = synthetic_tabletop(), _scaled(synthetic_tabletop(), 1.06)

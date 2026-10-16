@@ -11,17 +11,17 @@ on:
 
 jobs:
   tests:
-    # The framework claims to run on whatever box is available -- x86 servers,
-    # Jetson-class aarch64, Apple Silicon laptops -- so CI proves it on all
-    # three architectures rather than asserting it in the README. `pin`,
-    # `mujoco` and `pyserial` all publish wheels for these three, so the whole
-    # matrix runs the same extras.
+    # CI proves the framework on both Linux architectures it ships on: x86
+    # servers and aarch64 (DGX Spark, Jetson-class). macOS is not run in CI
+    # (an ~80 min job whose failures were runner timing, not code). `pin`,
+    # `mujoco` and `pyserial` publish wheels for both, so the whole matrix
+    # runs the same extras.
     name: ${{ matrix.os }} / py${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm]
         python-version: ["3.12"]
     steps:
       - uses: actions/checkout@v4

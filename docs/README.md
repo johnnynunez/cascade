@@ -1,86 +1,39 @@
 # Documentation index
 
-Start with the [roadmap](ROADMAP.md): what is measured and what remains.
-The install examples pin the physical source; a later documentation-only commit
-does not change which code produced those measurements.
+Start here: [capability status](ROADMAP.md) says what is measured and what remains;
+[Quickstart](QUICKSTART.md) opens the demo. A dated measurement keeps its original
+source and scope; it does not certify a later checkout.
 
 ## Operate and deploy
 
-- [PAAI on NVIDIA DGX Spark](DGX_SPARK_SETUP.md)
-- [Booth runbook — hands-on expo session](BOOTH_RUNBOOK.md)
-- [Opening the demo](QUICKSTART.md)
-- [GraspGen-X on DGX Spark](GRASPGENX_SPARK.md)
-- [HUG, an opt-in second grasp backend](HUG.md)
-- [Brev kitchen deployment](BREV.md)
-- [Chrome camera companion](CHROME_EXTENSION.md)
+- [PAAI on NVIDIA DGX Spark](DGX_SPARK_SETUP.md): install, READY checks, quick recovery
+- [Booth runbook](BOOTH_RUNBOOK.md) and the offline [presenter page](spark-presenter/index.html) (copyable commands; connects to no robot)
+- [Opening the demo](QUICKSTART.md), [Brev kitchen deployment](BREV.md), [OpenShell](OPENSHELL.md)
+- [Chrome / Firefox camera companion](CHROME_EXTENSION.md), [Franka FR3 with OpenClaw](FRANKA_OPENCLAW.md)
+- Grasp servers: [GraspGen-X on DGX Spark](GRASPGENX_SPARK.md), [HUG](HUG.md), [VLA executor](VLA_EXECUTOR.md)
+
+## Real arm bring-up
+
+- [Hand-eye calibration](HANDEYE_CALIBRATION.md)
+- [WRC control port (reBot B601-RS)](WRC_CONTROL_PORT.md) and [WRC perception port](WRC_PERCEPTION_PORT.md)
+- [reBot gripper squeeze cap](REBOT_GRIP_SQUEEZE_CAP.md), [contact stop](CONTACT_STOP.md)
+- [Reach envelope](REACH_ENVELOPE.md), [lift-first clearance routes](CLEARANCE_LIFT_ROUTES.md)
 
 ## Runtime contracts
 
-- [Architecture](ARCHITECTURE.md)
-- [WRC control port for the reBot B601-RS: fault clear, park, gripper, Cartesian moves, onsite checks](WRC_CONTROL_PORT.md)
-- [reBot RS gripper: opt-in contact-relative squeeze cap and its hardware protocol (B38)](REBOT_GRIP_SQUEEZE_CAP.md)
-- [Composable robots, typed sensors, skill graphs and Arena/VAB validation](ROBOT_MODULARITY.md)
-- [Local conversation gateway and typed robot speech tools](CONVERSATION.md)
-- [Capture-time frames, spatial memory and planar route replay](SPATIAL_PROVIDERS.md)
-- [Scoped retry evidence admission](DREAM_RSI_ADAPTATION.md)
-- [Programs tier: authored and distilled task scripts under one admission rule (opt-in)](PROGRAMS_TIER.md)
-- [Natural-language spatial commands: frames, vague sizes, undo, object-relative moves, wrist camera on top](SPATIAL_COMMANDS.md)
+- [Architecture](ARCHITECTURE.md): tiers, `execute()`, safety path, module map, known limitations
+- [Composable robots](ROBOT_MODULARITY.md), [spatial providers](SPATIAL_PROVIDERS.md), [spatial commands](SPATIAL_COMMANDS.md)
+- [Conversation gateway](CONVERSATION.md), [programs tier](PROGRAMS_TIER.md), [retry evidence admission](DREAM_RSI_ADAPTATION.md)
 
-## Mapping and engine experiments
+## Simulators, mapping and other robots
 
-- [nvblox and the kitchen cameras](NVBLOX.md)
-- [Optional OVRTX RGBD renderer: x86/ARM evidence and limits](OVRTX_RENDERER.md)
-- [Optional cuMotion planner: native x86/ARM GPU evidence and candidate-only API](CUMOTION.md)
-- [Newton physics engine: setup and validation](NEWTON_ENGINE.md)
+- [Newton engine](NEWTON_ENGINE.md), [OVRTX renderer](OVRTX_RENDERER.md), [cuMotion](CUMOTION.md), [nvblox](NVBLOX.md)
+- [MicroDuck](MICRODUCK.md) and its [agentic demos](MICRODUCK_AGENTIC_DEMOS.md), [Unitree H2](HUMANOID_H2.md)
+- [Factory fastening](FACTORY_FASTENING_RUNTIME.md), [benchmarks](BENCHMARKS.md) (LIBERO layer attribution)
 
-## Historical measurements
+## Elsewhere in the repo
 
-These reports retain their original source, failed cases and scope. They do not
-certify a later checkout.
-
-- [Benchmarks](BENCHMARKS.md)
-
-## Research and future work
-
-A design or paper comparison is not an enabled runtime feature. In particular,
-Jev/Kev is offline evaluation. OVRTX is an implemented optional renderer listed
-above; automatic physics producers and its kitchen acceptance remain future work.
-
-- [Roadmap](ROADMAP.md)
-
-## Other documentation locations
-
-- [Offline presenter page](spark-presenter/index.html): copyable installation and
-  operation instructions; its page does not connect to a robot.
-- [Chrome companion](../extensions/chrome/README.md) and
-  [Firefox companion](../extensions/firefox/README.md): browser packaging and
-  permissions. A Live camera widget is not manipulation acceptance.
-- [Optional Brev streaming](../deploy/brev/streaming/README.md) and
-  [optional video viewer](../deploy/runtime/web/camera-player/README.md): separate
-  x86 deployment contracts, not default Spark streaming claims.
-- [reBot provenance](../assets/REBOT_PROVENANCE.md), per-asset `PROVENANCE.md`,
-  [kitchen notice](../demo/scene/NOTICE.md), licenses and vendored validation
-  reports: ownership and original asset evidence are preserved.
-- [Repository development guide](../AGENTS.md): factual runtime conventions and
-  existing contributor instructions. Locally installed authoring skills are
-  not runtime dependencies.
-
-## Documentation verification
-
-The documentation-only PR #43 audit on 1 October inventoried tracked Markdown, readmes, historical plans,
-asset documentation and the standalone presenter page. It inspected profile,
-launcher and installer definitions before updating defaults and examples.
-Runtime prompts, test fixtures, licenses, configuration and executable source
-were kept unchanged. The vendored validation guide now identifies two upstream
-references as unavailable in this snapshot instead of linking missing files;
-no asset result or threshold was invented to replace them.
-
-Offline checks cover local links/anchors, shell-block syntax and the existing
-presenter/setup/consent/English tests. They do not execute installation, launch,
-reset, motion or external commands copied from the guides. That audit compared
-all non-documentary tracked files with physical MAIN `477c88f`, including Git LFS
-content hashes and sizes; its presenter JavaScript and CSS were unchanged.
-The later PhysX-envelope and OVRTX integration changes executable source and has
-its own source-bound software and rendering evidence. This documentation update
-distinguishes those contracts from the retained physical runs; it does not
-extend the earlier documentation-only equivalence claim to new runtime code.
+- [Chrome](../extensions/chrome/README.md) and [Firefox](../extensions/firefox/README.md) companion packaging and permissions
+- [Optional Brev streaming](../deploy/brev/streaming/README.md) and the [video viewer](../deploy/runtime/web/camera-player/README.md) (x86 deployment contracts)
+- [reBot provenance](../assets/REBOT_PROVENANCE.md), per-asset `PROVENANCE.md` and the [kitchen notice](../demo/scene/NOTICE.md)
+- [AGENTS.md](../AGENTS.md): contributor and coding-agent conventions

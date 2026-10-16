@@ -51,6 +51,8 @@ where the top face is exactly what you want (grasp depth).
 
 from __future__ import annotations
 
+from typing import NamedTuple
+
 import numpy as np
 
 from .visual_interface import camera_extrinsics
@@ -76,6 +78,9 @@ _IRREGULAR_PLURALS = {"cherries": "cherry", "berries": "berry", "strawberries": 
 #: Category nouns: in "orange fruit" the colour word IS the object's name, so
 #: a label "orange" matches. "orange cube" keeps "orange" a colour only.
 _CATEGORY_NOUNS = frozenset({"fruit", "fruits", "vegetable", "vegetables", "food", "snack", "produce"})
+#: Shade words: "dark green" is a shade of green, "light blue" one of blue (and
+#: it also reads as cyan, `_words`). A shade is compatible with its base colour.
+_SHADES = frozenset({"light", "dark", "pale", "deep", "bright"})
 _PUNCTUATION = ".,;:!?\"'()[]{}"
 
 
@@ -139,15 +144,45 @@ def _head_noun(words: list[str]) -> str | None:
     return names[-1] if names else None
 
 
-def _queried_kind(query: str) -> tuple[str | None, str | None, list[str]]:
-    """(head noun, colour, nouns) a label must agree with; None = no constraint.
-    "green cube" -> ("cube", "green", [cube]); "pink object" -> (None, "pink", []);
-    "bag of chips" -> ("bag", None, [bag, chips])."""
+def _shade_bases(text: str) -> set[str]:
+    """Base colours the object part of a phrase names through a shade word:
+    "light blue mug" -> {blue}, "dark green cube" -> {green}."""
+    from .colors import canonical_color
+
+    raw = [w.strip(_PUNCTUATION) for w in str(text).lower().replace("-", " ").replace(",", " ").split()]
+    part = _object_part(raw)
+    return {c for shade, word in zip(part, part[1:])
+            if shade in _SHADES and (c := canonical_color(word)) is not None}
+
+
+def _stated_colours(text: str) -> set[str]:
+    """The colours the object part of a phrase states, each shade with its
+    base colour ("light blue mug" -> {cyan, blue})."""
+    from .colors import canonical_color
+
+    stated = {c for c in (canonical_color(w) for w in _object_part(_words(text))) if c is not None}
+    return stated | _shade_bases(text)
+
+
+class _Kind(NamedTuple):
+    """What a label must agree with to name the queried object."""
+    head: str | None          # the query's head noun; None = any object
+    color: str | None         # its first colour (named in a refusal)
+    colours: frozenset        # colours a label may state; empty = no constraint
+    of_nouns: frozenset       # nouns after 'of', exact form ("bag of chips" -> chips)
+    category_name: str | None  # a colour word under a category head ("orange fruit" -> orange)
+
+
+def _queried_kind(query: str) -> _Kind:
+    """What a label must agree with: "green cube" -> head cube, colour green;
+    "pink object" -> no head, colour pink; "bag of chips" -> head bag,
+    contents chips; "light blue mug" -> head mug, colours cyan or blue."""
     from .colors import _ARTICLES, GENERIC_NOUNS, canonical_color
 
     color = color_word = None
     nouns: list[str] = []
     before_of: list[str] = []
+    after_of: list[str] = []
     seen_of = False
     for w in _object_part(_words(query)):
         if w == "of":
@@ -160,28 +195,28 @@ def _queried_kind(query: str) -> tuple[str | None, str | None, list[str]]:
             color, color_word = c, w
         elif w not in GENERIC_NOUNS:
             nouns.append(w)
-            if not seen_of:
-                before_of.append(w)
+            (after_of if seen_of else before_of).append(w)
     head = (before_of or nouns or [None])[-1]
-    if head in _CATEGORY_NOUNS and color_word is not None:
-        nouns.append(color_word)
-    return head, color, nouns
+    colours = frozenset({color} | _shade_bases(query)) if color is not None else frozenset()
+    return _Kind(head, color, colours, frozenset(after_of),
+                 color_word if head in _CATEGORY_NOUNS and color_word is not None else None)
 
 
-def _names_kind(name: str, head: str | None, color: str | None, nouns=()) -> bool:
+def _names_kind(name: str, kind: _Kind) -> bool:
     """Does a label name the queried kind? The query's head noun is one of its
-    words, or its own head noun is one of the query's nouns ("orange fruit"
-    -> orange, "bag of chips" -> chips); and a colour it states is the
-    queried one."""
-    from .colors import canonical_color
-
+    words; or its own head noun is a noun the query names after 'of' in the
+    same form ("bag of chips" -> chips, never "can of tomatoes" -> tomato), or
+    the colour word of a category query ("orange fruit" -> orange). A modifier
+    word never names the object ("tomato can" is a can, not a tomato). And a
+    colour it states is a queried one (a shade counts as its base colour)."""
     words = _words(name)
-    if head is not None and not _shares(head, words):
+    if kind.head is not None and not _shares(kind.head, words):
         own = _head_noun(words)
-        if own is None or not _shares(own, nouns):
+        if own is None or not (own in kind.of_nouns
+                               or (kind.category_name is not None and _shares(own, [kind.category_name]))):
             return False
-    stated = {c for c in (canonical_color(w) for w in _object_part(words)) if c is not None}
-    return color is None or not stated or color in stated
+    stated = _stated_colours(name)
+    return not kind.colours or not stated or bool(stated & kind.colours)
 
 
 def _median_depth(depth: np.ndarray, u: int, v: int, r: int = PATCH_R) -> float | None:
@@ -376,7 +411,7 @@ class PointProbe:
         frame, T = self._frame_and_extrinsics(camera)
         h, w = frame.rgb.shape[:2]
         want = _content(_words(label))
-        head, color, nouns = _queried_kind(str(label))
+        kind = _queried_kind(str(label))
         best, score = None, 0
         near: list[tuple[int, str]] = []  # labels sharing a word but naming another kind
         try:
@@ -391,7 +426,7 @@ class PointProbe:
                     # r3 (kitchen run): "green cube" answered ok as the green
                     # translucent square on the colour word alone, and the
                     # agent grasped there. A match must name the queried kind.
-                    if s > score and _names_kind(name, head, color, nouns):
+                    if s > score and _names_kind(name, kind):
                         best, score = b, s
                 if overlap:
                     near.append((overlap, names[0]))
@@ -402,9 +437,9 @@ class PointProbe:
                    "hint": "call get_observation or localize_object first"}
             if near:
                 candidates = list(dict.fromkeys(n for _, n in sorted(near, key=lambda x: (-x[0], x[1]))))
-                kind = " ".join(x for x in (color, head) if x)
+                asked = " ".join(x for x in (kind.color, kind.head) if x)
                 out.update(
-                    error=f"{label!r} is not in the world model: no tracked object is a {kind!r}",
+                    error=f"{label!r} is not in the world model: no tracked object is a {asked!r}",
                     candidates=candidates,
                     hint=("these tracked labels share a word but name another object; use one only if "
                           "it IS the requested object, else call localize_object or get_observation"))

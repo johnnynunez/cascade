@@ -402,6 +402,17 @@ def test_the_move_home_step_is_given_once(runtime, monkeypatch):
     assert result["next_action"].count(MOVE_HOME_FIRST) == 1
 
 
+def test_a_throw_whose_grasp_moved_and_was_refused_asks_for_move_home_once(runtime):
+    """Re-review minor 3: throw grasps first; its refused inner grasp after
+    the arm moved leaves the arm where that attempt stopped, like grasp_object."""
+    runtime.skill_grasp_object = _refuse_after_moving(runtime)
+    result = runtime.execute("throw", {"label": "green cube"})
+    assert result["ok"] is False and runtime.held_object is None
+    action = result["next_action"]
+    assert action.startswith("This attempt FAILED: SafetyViolation: measured finger intersects")
+    assert action.count(MOVE_HOME_FIRST) == 1
+
+
 def _red(label="cube", color="red", at=(0.36, 0.12, 0.02)):
     return SimpleNamespace(label=label, color=color, position=np.array(at))
 

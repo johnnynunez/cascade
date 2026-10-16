@@ -447,9 +447,20 @@ def test_a_duplicate_of_the_target_label_is_the_other_one():
     tracked = tracked_objects([_cube(.24), _cube(.32), _cube(.40, 'lemon')], [.241, .012, .03],
                               target_label='green cube')
     assert [t.label for t in tracked] == ['other green cube', 'lemon']
-    # without the fix's label, the target's own belief (at the target) names it
+    # without the fix's label nothing is "the other" one: a belief at the
+    # target is not the target's name (re-review minor 4)
     tracked = tracked_objects([_cube(.24, 'Green Cube'), _cube(.32)], [.241, .012, .03])
-    assert [t.label for t in tracked] == ['other green cube']
+    assert [t.label for t in tracked] == ['green cube']
+
+
+def test_a_belief_touching_the_target_never_renames_its_neighbours():
+    """Re-review minor 4: a lemon whose centre lies within 3 cm of the grasped
+    green cube is skipped as the target, but its label is not the target's:
+    the second lemon is 'the lemon', never 'the other lemon'."""
+    from cascade.grasping.observed_scene import tracked_objects
+    tracked = tracked_objects([_cube(.24), _cube(.265, 'lemon'), _cube(.32, 'lemon')], [.241, .012, .03],
+                              target_label='green cube')
+    assert [t.label for t in tracked] == ['lemon']
 
 
 def test_a_refusal_at_the_duplicate_names_the_other_green_cube(geometry):

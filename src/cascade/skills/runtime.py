@@ -7214,7 +7214,7 @@ _REFUSED_GRASP_LEFT_IN_PLACE = (
     "stopped, possibly at the refused grasp pose next to other objects: call move_home before any "
     "other grasp.")
 #: Skills whose failure is a failed grasp the agent's next grasp would start from.
-_GRASP_ENTRY_SKILLS = frozenset({"grasp_object", "grasp_at_pixel", "handover"})
+_GRASP_ENTRY_SKILLS = frozenset({"grasp_object", "grasp_at_pixel", "handover", "throw"})
 
 
 def _with_move_home_first(result: dict) -> dict:

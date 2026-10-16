@@ -384,6 +384,10 @@ def test_locate_pixel_matches_a_detector_alias():
     ("knives", "knife"),
     ("tomatoes", "tomato"),
     ("mug on the red shelf", "white mug"),  # the relation's colour is not the mug's
+    ("can of tomatoes", "tomatoes"),        # the contents after 'of', in the same number
+    ("light blue mug", "blue mug"),         # a shade is compatible with its base colour
+    ("blue mug", "light blue mug"),
+    ("dark green cube", "green cube"),
 ])
 def test_locate_pixel_accepts_another_form_of_the_same_name(query, label):
     out = PointProbe(_runtime(beliefs=[_belief(label, [0.18, 0.06, 0.10])])).locate_pixel(query)
@@ -400,6 +404,20 @@ def test_locate_pixel_accepts_another_form_of_the_same_name(query, label):
     ("orange fruit", "orange cube"),
     ("red mug on the shelf", "shelf"),           # the relation's object is not the query
     ("lemon next to the orange", "orange"),
+    # Re-review: a modifier word names another object than the head noun
+    # ("tomato can" is a can); only the contents after 'of', in the same
+    # number, and a colour word under a category head name the object.
+    ("tomato can", "tomato"),
+    ("can of tomatoes", "tomato"),
+    ("apple box", "apple"),
+    ("lemon squeezer", "lemon"),
+    ("cube tray", "green cube"),
+    ("mug rack", "red mug"),
+    ("lemon juice", "lemon"),
+    # a shade keeps its base colour, never another one
+    ("light blue mug", "red mug"),
+    ("blue mug", "cyan mug"),
+    ("dark green cube", "red cube"),
 ])
 def test_locate_pixel_still_refuses_another_object(query, label):
     out = PointProbe(_runtime(beliefs=[_belief(label, [0.18, 0.06, 0.10])])).locate_pixel(query)

@@ -89,13 +89,14 @@ ARGS = {
     "grasp_object": {"label": "red cube"},
     "pick_and_place": {"object": "red cube"},
     "handover": {"label": "red cube"},
+    "throw": {"label": "red cube"},
 }
 
 
 # ── T3 + T1 refusals before any motion: FAILED once, no move_home step ──
 
 
-@pytest.mark.parametrize("skill", ["grasp_object", "pick_and_place", "handover"])
+@pytest.mark.parametrize("skill", ["grasp_object", "pick_and_place", "handover", "throw"])
 def test_a_slow_perception_refusal_says_failed_once_and_asks_no_move_home(mock_runtime, monkeypatch, skill):
     runtime, arm = mock_runtime
     _seen(runtime)
@@ -110,7 +111,8 @@ def test_a_slow_perception_refusal_says_failed_once_and_asks_no_move_home(mock_r
     assert MOVE_HOME_FIRST not in action, "the arm never left where the call found it"
     evidence = result["postcondition"]["evidence"]
     assert result["postcondition"]["status"] == UNVERIFIED
-    assert evidence.startswith("no open command completed" if skill == "handover" else "no grasp was attempted")
+    released = skill in {"handover", "throw"}  # release kinds: T3 says no open completed
+    assert evidence.startswith("no open command completed" if released else "no grasp was attempted")
 
 
 def _red(label="cube", color="red", at=(0.36, 0.12, 0.02)):

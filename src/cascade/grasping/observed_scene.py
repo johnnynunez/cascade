@@ -54,10 +54,12 @@ class TrackedObject:
 def tracked_objects(beliefs, target_position=None, target_label=None) -> list[TrackedObject]:
     """World-model beliefs -> TrackedObjects, without the grasped target.
 
-    The target is every belief within SAME_OBJECT_M of `target_position`.
-    Another belief with the target's label (`target_label`, or the label of
-    a belief at the target) is named "other <label>": "the finger would
-    enter the green cube" reads as the cube the agent asked for."""
+    The target is every belief within SAME_OBJECT_M of `target_position`
+    (skipped, never named). Another belief with the target's own label
+    (`target_label`: the fix's / detection's label) is named "other <label>":
+    "the finger would enter the green cube" reads as the cube the agent asked
+    for. A belief near the target lends it no label: a second lemon touching
+    the grasped cube is "the lemon", never "the other lemon"."""
     out = []
     target = None if target_position is None else np.asarray(target_position, dtype=float)[:3]
     target_labels = {str(target_label).strip().lower()} if target_label else set()
@@ -68,7 +70,6 @@ def tracked_objects(beliefs, target_position=None, target_label=None) -> list[Tr
             if centre.shape != (3,) or not np.isfinite(centre).all():
                 continue
             if target is not None and np.linalg.norm(centre - target) < SAME_OBJECT_M:
-                target_labels.add(str(b.label).strip().lower())
                 continue
             kept.append((b, centre))
         except (AttributeError, TypeError, ValueError):

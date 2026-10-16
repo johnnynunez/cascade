@@ -1623,6 +1623,8 @@ def test_a_region_that_changed_a_little_goes_to_sam(tp):
     assert len(tp.sam.calls) == FRESH and tp.sam.calls[FRESH - 1][0] == frame.frame_id, "SAM on the returned frame"
     assert np.linalg.norm(np.asarray(fix.position)[:2] - _cube_xy(tp, new)) < 0.002, "where the cube is now"
     assert [t.get("path") for t in timings] == ["sam"], timings
+    # The move check measures frame0 on its own (same-prompt) mask: it logs the slide.
+    assert timings[0]["moved_m"] == pytest.approx(5 / PX_PER_CM / 100, abs=0.0015), timings
 
 
 TOUCHING = {"still touch": (0, 0), "still 1 px": (1, 1), "into contact": (16, 0), "to 1 px": (16, 1),

@@ -1704,3 +1704,10 @@ def test_reanchor_measures_the_clipped_mask_and_compares_the_unclipped_ones():
     found = detector.reanchor(b, det, since=a)
     assert found.detection is not None and found.clipped_px == 0, found.reason
     assert isinstance(found.detection.mask, _DeviceMask), "masks stay opaque"
+
+    # A reference handed in with a detection that has no naming mask: nothing
+    # to clip the geometry to, a failed re-anchor before any SAM call.
+    calls = len(sam.calls)
+    found = detector.reanchor(b, Detection("red cube", 1.0, det.bbox), since=a, reference=ref)
+    assert (found.detection, found.scene_changed) == (None, False) and "named on" in found.reason, found
+    assert len(sam.calls) == calls

@@ -350,3 +350,9 @@ Keep green: `tests/test_brain_detector.py`, `test_brain_vocabulary_runtime.py`, 
   local, camera-pose and <= 2 cm position checks; every geometry the arm uses is from frame1 under the unchanged 5 s rule.
 - P4. Unchanged: the 5 s analysed-frame limit, the 8 s planning budget, GraspGen-X settings. If PlanningBudgetExceeded
   remains in the end-to-end run, it is reported to the owner with measured inference times (separate decision).
+- P5 (after T1 review). Re-anchor checks: local diff on colour (max over B,G,R) inside fix0's box grown 10 %; frame0/frame1
+  mask IoU >= `detector.reanchor_mask_iou` (0.85); a frame1 mask touching the prompt-box border where frame0's did not = scene
+  change; SAM on frame1 is prompted with fix0's box grown 20 % (with the plain box a 1 cm iso-luminant slide passes every
+  check; 10 % growth refuses the 0.25 cm slide that must pass). A named detection without a mask is refused (fail closed).
+  The two-phase path stops retrying once `semantic_max_age_s` has elapsed (absent object, 6 s brain, 2 other cameras:
+  24.9 s instead of 61.9 s). The end-to-end run logs `mask_iou` per pick to check 0.85 against real SAM.

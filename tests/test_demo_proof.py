@@ -111,7 +111,8 @@ def host_boundary(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
     state = tmp_path / "state"
     owner = owners.load_owner(state, repo, "", create=True)
-    info = {"repo": repo, "state": state, "owner": owner, "calls": [], "binding": "new", "children": [], "drop_world_state": False}
+    info = {"repo": repo, "state": state, "owner": owner, "calls": [], "binding": "new", "children": [], "drop_world_state": False,
+            "reply": "OK"}
     original_run = subprocess.run
 
     def spawn(record_owner=owner, dead=False):
@@ -150,7 +151,7 @@ def host_boundary(tmp_path, monkeypatch):
         info["calls"].append(cmd)
         message = cmd[cmd.index("--message") + 1]
         tools = []
-        text = "OK"
+        text = info["reply"]
         if "pick_and_place" in message or message.startswith("Please put the"):
             tools = ["cascade__pick_and_place"]
             trace = info.get("trace", repo / "runs/mcp_foreign/trace.jsonl")
@@ -320,6 +321,40 @@ def test_proof_uses_one_session_and_checks_real_trace(host_boundary):
     assert all("exec" not in cmd for cmd in calls)
     assert calls[1][calls[1].index("--message") + 1] == "What is the session status?"
     assert result["process"]["pid"] == h["record"]["pid"]
+
+
+@pytest.mark.parametrize("reply", [
+    "OK", "OK\n.\n.", "ok", "Ok.", "  OK  ", "**OK**", "`OK`", "\n\nOK\n", "OK!", "OK . .", "\"OK\"",
+])
+def test_the_readiness_reply_is_ok_on_its_first_non_empty_line(reply):
+    # Qwen3.8-27B answered "OK\n.\n." in the merged-head E2E: the launcher
+    # reported NOT READY at random for a brain that had answered.
+    assert demo_proof.brain_said_ok(reply) is True
+
+
+@pytest.mark.parametrize("reply", [
+    "", "  \n ", ".", ".\n.", "not ok", "NOT OK", "No.", "OKAY", "I am OK", "OK, but the tools are down",
+    "Error: upstream request timed out", "error\nOK", "O.K.",
+])
+def test_anything_but_ok_on_the_first_line_is_not_ready(reply):
+    assert demo_proof.brain_said_ok(reply) is False
+
+
+def test_a_brain_that_answers_ok_with_trailing_dots_passes_the_proof(host_boundary):
+    h = host_boundary
+    h["reply"] = "OK\n.\n."
+    result = demo_proof.run_proof(h["repo"], h["state"], "mujoco", True)
+    assert result["verified"] is True
+
+
+@pytest.mark.parametrize("reply", ["not ok", "", "Error: upstream request timed out"])
+def test_a_brain_that_does_not_answer_ok_fails_the_proof_before_any_motion(host_boundary, reply):
+    h = host_boundary
+    h["reply"] = reply
+    with pytest.raises(demo_proof.ProofError, match="did not answer OK"):
+        demo_proof.run_proof(h["repo"], h["state"], "mujoco", True)
+    assert len(h["calls"]) == 1  # the readiness turn only
+    assert json.loads((h["state"] / "proof.json").read_text())["verified"] is False
 
 
 @pytest.mark.parametrize("binding", ["foreign", "old", "unregistered", "ambiguous", "dead"])

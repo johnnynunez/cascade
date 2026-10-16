@@ -373,3 +373,9 @@ Keep green: `tests/test_brain_detector.py`, `test_brain_vocabulary_runtime.py`, 
   with XY error > 0.5 cm vs main's single-frame fix; still scenes 132/132 accepted via the still path; 156 moved slides end at
   the new position (<= 0.18 cm). Known (same as main): when SAM merges a touching neighbour into the naming mask itself, the
   still path inherits main's ~1 cm error (follow-up: refuse a naming mask whose box disagrees with the brain's box).
+- P8 (supersedes P7; after the round-4 re-review). The still path is WITHDRAWN: a mean colour diff over the brain box cannot see a
+  thin diagonal or low-contrast object sliding (mock probe: 47/166 moved cases accepted, up to 5.8 cm off), and real camera noise
+  (still-frame diff ~1.13 sigma) disables it anyway. The flow is P6's (same-prompt re-anchor: re-mask frame0 before frame1, SAM on
+  frame1, component filter, border + agreement checks), plus: the GEOMETRY mask on frame1 is the re-anchored mask intersected with
+  the naming mask dilated by tol_px (comparisons unchanged), so a neighbour merged under the grown prompt never enters the geometry
+  and a tight brain box gives main's single-frame geometry; the semantic cap is re-checked after the re-mask.

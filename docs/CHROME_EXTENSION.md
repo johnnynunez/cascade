@@ -56,10 +56,13 @@ camera); in **Show in chat** it expands in the tab. The stream keeps running acr
    [screenshot](../benchmark/results/images/spark_clean_three_cameras_20260930.png),
    [after restart](../benchmark/results/images/spark_clean_three_cameras_after_restart_20260930.png)).
    GNOME app grid and a visible Isaac editor were not exercised.
-2. **Brev, 14–15 September 2026:** Chrome for Testing 151/153 loaded the unpacked extension and
-   its native side panel (host permission accepted via the browser UI); all three cameras decoded
-   960 × 540 and advanced. Enlarge/return passed with mouse, Enter, Space, Escape and window close,
-   fit a 1366 × 768 window, and reused the same image element without a new MJPEG request.
+2. **Brev, two separate runs.** On 14 September 2026, Chrome for Testing 153 on the Brev RTX PRO
+   6000 loaded the unpacked extension and opened its native side panel (host permission accepted
+   via the browser UI); Kitchen, Worktop and Side decoded 960 × 540 and advanced. On 15 September,
+   Chrome for Testing 151 on the controller, connected to the running Brev demo, passed
+   enlarge/return with mouse, Enter, Space, Escape and window close, fit a 1366 × 768 window, and
+   reused the same image element without a new MJPEG request. The native side panel was shown
+   only in the 153 run.
 3. **OpenClaw pages:** opening the side panel from the guide's **Open OpenClaw** kept the
    authenticated chat connected (no message or robot command sent); **Show in chat** passed move,
    collapse, restore and refresh inside the real OpenClaw login page.

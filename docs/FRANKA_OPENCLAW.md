@@ -1,6 +1,7 @@
 # Franka Research 3 with OpenClaw and the Chrome camera companion
 
-**Next action:** with ROS bringup, Cosmos and occupancy already running, start the interface
+**Next action:** with the interface [prepared once](#prepare-the-interface-once-10-min) (`configure`
+runs before `start`) and ROS bringup, Cosmos and occupancy already running, start the interface
 (it comes up STOPPED; about 1 min):
 
 ```bash
@@ -98,6 +99,7 @@ PYTHONPATH="$PWD/src${PYTHONPATH:+:$PYTHONPATH}" taskset -c 0-7 \
 
 CPU sets keep this Thor's assignment: Cascade, Cosmos and occupancy on CPUs 0–7; ROS bringup on
 8–13 with controller priority 97 (children inherit the affinity; adjust for another machine).
+Leave the existing model and occupancy services on their current CPUs.
 
 What startup checks and does:
 

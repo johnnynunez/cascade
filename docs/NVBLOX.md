@@ -80,7 +80,8 @@ guard). None establishes campaign or presenter acceptance.
 1. `occupancy.required: true` (opt-in; default `false`) needs a reachable bridge at startup;
    missing wire dependencies, `enabled: false` or `CASCADE_OCCUPANCY=0` then fail startup. During
    motion an absent or expired grid or a failed refresh raises `SafetyViolation`, cleared only by a
-   successful depth refresh. The age bound must be finite and positive.
+   successful depth refresh. The age bound must be finite and positive. Payload and body-mask
+   guards keep their stricter contracts whether the map is required or not.
 2. Queries outside the grid or with unknown interpolation support reject waypoints and pose
    candidates outside the local contact exemption, which cannot override a missing, stale or
    failed map.
@@ -187,10 +188,11 @@ Measured on the real capture (24 frames, 640x360 after stride 2, q = 0, fingers 
 
 The 197 far masked points sit on the wrist camera box and an elbow cable (robot parts the URDF
 lacks). Margin study (unmasked points within 3 cm, 2 px): 417 at 0 cm, 214 at 0.5, 108 at 1, 37 at
-1.5, 0 at 2 cm. Re-validate on any rig without the robot or a bridge:
+1.5, 0 at 2 cm. Re-validate on any rig without the robot or a bridge (`kinematics` brings
+pinocchio; `occupancy` brings scipy and the warp TSDF):
 
 ```bash
-uv run python scripts/eval_body_mask.py capture.npz --arm rebot_rs --q 0 0 0 0 0 0 [--gripper RAD] [--tsdf]
+uv run --extra kinematics --extra occupancy python scripts/eval_body_mask.py capture.npz --arm rebot_rs --q 0 0 0 0 0 0 [--gripper RAD] [--tsdf]
 ```
 
 The capture is a `.npz` with `depth` (N,H,W) in metres, `K` and `T_cam2base` (per frame for a wrist

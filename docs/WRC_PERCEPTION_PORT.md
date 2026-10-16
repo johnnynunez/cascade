@@ -1,11 +1,14 @@
 # WRC perception + grasp port (Orbbec Gemini 2, camera-frame planner)
 
-**Next action:** on the rig venv, list the attached Orbbec units (read-only, opens no stream;
-seconds):
+**Next action:** on the rig, from the repo root, list the attached Orbbec units (read-only, opens
+no stream; seconds):
 
 ```bash
-python -c 'from cascade.perception.orbbec_camera import list_orbbec_devices as l; print(l())'
+.venv/bin/python -c 'from cascade.perception.orbbec_camera import list_orbbec_devices as l; print(l())'
 ```
+
+Rig commands here use the rig venv's interpreter, `.venv/bin/python`: the rig has no bare `python`,
+and `uv run` would re-sync the live `.venv`.
 
 Seeed's WRC repo (`wrc_demo`) forked cascade at `389a18d`; this records which of its real-rig
 perception and grasp changes (`git log 389a18d..8a0c9e3` in WRC) cascade ported, how to enable
@@ -45,9 +48,9 @@ Changes against WRC's Orbbec code, each pinned by a test:
    and udev rules **into the rig venv only** (cascade and CI never install them).
 2. List the units (command at the top).
 3. Put the serial in `configs/cameras/orbbec_overhead.yaml` (or a copy); required with two units.
-4. Calibrate the mount (`scripts/calibrate_camera.py` or [hand-eye](HANDEYE_CALIBRATION.md)) and
-   replace the reference `T`.
-5. Run `python -m cascade.apps.demo --cameras orbbec_overhead[,orbbec_wrist] --arm ...`.
+4. Calibrate the mount and replace the reference `T` ([step 4 below](#hardware-verification-still-owed):
+   it **moves the arm**).
+5. Run `.venv/bin/python -m cascade.apps.demo --cameras orbbec_overhead[,orbbec_wrist] --arm ...`.
 
 ### Camera-frame planner
 
@@ -93,23 +96,28 @@ changed. No shipped profile selects it (the Spark presenter requires GraspGen-X)
 
 ## Hardware verification still owed
 
-Phased per the real-robot bring-up rules. Nothing moves the arm until a human is at the e-stop;
-steps 1–3 are read-only.
+Phased per the real-robot bring-up rules. Steps 1–2 are read-only and step 3 commands no motion.
+Steps 4 and 6 **move the arm**: a person stays at the arm with the e-stop in hand for them.
 
-1. **SDK, enumeration, serials.** One entry per Gemini 2 with the right serials, USB 3 link (USB 2
-   may not offer 1280x720 colour). With both units attached, swap the profile serials and
-   confirm the views swap; unplug one and confirm its profile fails with "not found".
-2. **Stream contract.** Open `orbbec_overhead` (and `orbbec_wrist`): colour format inspectable
-   (MJPG expected at 1280x720); a red object reads red in BGR; `depth_m` has the colour shape
-   and the tape-measured distance (`get_depth_scale()` 1.0 at default precision); `K` matches
-   the factory intrinsics; a refused HW D2C logs the software fallback. Depth opens only as Y16:
-   packed-only firmware (Y11/Y12/RLE) fails with "no depth stream profile" (enable SDK
+1. **SDK, enumeration, serials** (read-only). One entry per Gemini 2 with the right serials, USB 3
+   link (USB 2 may not offer 1280x720 colour). With both units attached, swap the profile serials
+   and confirm the views swap; unplug one and confirm its profile fails with "not found".
+2. **Stream contract** (read-only). Open `orbbec_overhead` (and `orbbec_wrist`): colour format
+   inspectable (MJPG expected at 1280x720); a red object reads red in BGR; `depth_m` has the colour
+   shape and the tape-measured distance (`get_depth_scale()` 1.0 at default precision); `K`
+   matches the factory intrinsics; a refused HW D2C logs the software fallback. Depth opens only
+   as Y16: packed-only firmware (Y11/Y12/RLE) fails with "no depth stream profile" (enable SDK
    conversion or extend `_pick_video_profile` with a decoder and a test).
-3. **USB stability.** Full demo with SAM on CUDA: no USB reset or re-enumeration (`dmesg -w`)
-   during model load and warm-up. Then calibrate the overhead extrinsic.
-4. **Camera-frame planner, dry.** `preview_grasp` with `grasp.backend: camera_frame` on real
-   objects: approach tilt matches the camera ray (memory note reports degrees off vertical), jaw
-   width = calipers + 15 mm, and an open gripper in view does not pull the grasp centre.
-5. **Supervised motion** at reduced velocity: one `grasp_object`, record `grip_verified`,
-   `gripper_open_frac` and the evidence trace; only then tune `insertion_depth_m` with the
-   extrinsic. Never relax `max_fix_offset_m` to make a grasp pass.
+3. **USB stability** (no motion commanded). Full demo with SAM on CUDA: no USB reset or
+   re-enumeration (`dmesg -w`) during model load and warm-up.
+4. **Extrinsic: MOVES THE ARM.** Operator at the e-stop, workspace cleared. Calibrate the overhead
+   mount with `.venv/bin/python scripts/calibrate_camera.py --arm <arm> --camera orbbec_overhead
+   --out <json>` (it drives the arm through a grid of poses; the harness refuses unsafe ones) or
+   [hand-eye](HANDEYE_CALIBRATION.md), then replace the reference `T`. Coordinate
+   `hand_eye_compensation_m` with the calibration work.
+5. **Camera-frame planner, dry** (no motion). `preview_grasp` with `grasp.backend: camera_frame` on
+   real objects: approach tilt matches the camera ray (memory note reports degrees off vertical),
+   jaw width = calipers + 15 mm, and an open gripper in view does not pull the grasp centre.
+6. **Supervised motion: MOVES THE ARM**, at reduced velocity: one `grasp_object`, record
+   `grip_verified`, `gripper_open_frac` and the evidence trace; only then tune `insertion_depth_m`
+   with the extrinsic. Never relax `max_fix_offset_m` to make a grasp pass.

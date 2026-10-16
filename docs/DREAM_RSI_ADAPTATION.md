@@ -93,7 +93,7 @@ evidence that a note causes success.
 ## Verify the contract
 
 ```bash
-uv run pytest tests/test_agentic_upgrades.py \
+uv run --extra dev --extra kinematics pytest tests/test_agentic_upgrades.py \
   tests/test_aspire_admission.py tests/test_aspire_promotion.py \
   tests/test_llm_and_library.py tests/test_arm_rig.py tests/test_verifier_crash.py -q
 ```
@@ -101,8 +101,8 @@ uv run pytest tests/test_agentic_upgrades.py \
 Synthetic trace fixtures with real dispatch, checker, logger and library integration cover negative
 admission cases, resolved aliases, pre-placement possession, boundaries, evidence retention and the
 promotion gate; a backend-probe sentinel checks that logging never touches lazy hardware. These are
-not physical trials or measured success-rate improvements; the broader non-hardware suite is
-`uv run pytest tests/ -q`.
+not physical trials or measured success-rate improvements; the broader non-hardware suite is CI's
+`uv run pytest tests/ -q` after its `uv sync` with every extra (`.github/workflows/ci.yml`).
 
 ## Boundaries and research provenance
 

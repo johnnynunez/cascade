@@ -1,10 +1,15 @@
 # Hand-eye calibration (ArUco or markerless; eye-to-hand and eye-in-hand)
 
-**Next action:** rehearse without hardware (5–20 s), from the repo root:
+**Next action:** rehearse without hardware (5–20 s), from the repo root (`--extra kinematics`
+brings pinocchio for the arm model):
 
 ```bash
-uv run python scripts/calibrate_handeye.py --dry-run
+uv run --extra kinematics python scripts/calibrate_handeye.py --dry-run
 ```
+
+Hardware runs (`--list`, `--bind`, the sweep, `--verify`) talk to the rig's cameras and arm: run
+them from the repo root with the rig venv's `.venv/bin/python` (the rig has no bare `python`, and
+`uv run` would re-sync the live `.venv`).
 
 `scripts/calibrate_handeye.py` (also `cascade-calib-handeye`) finds where a camera sits
 relative to the arm, so 3D beliefs from that camera land where the gripper will go. Ported from
@@ -32,8 +37,8 @@ runs at runtime as the opt-in [extrinsic drift monitor](#extrinsic-drift-monitor
    **Measure the black square with a ruler** and pass it as `--marker-size` (metres): a 2 %
    size error is a 2 % depth error in every sample.
 2. **Bind the camera serial.** The rig's two D455Fs differ only by serial:
-   `uv run python scripts/calibrate_handeye.py --list`, then
-   `uv run python scripts/calibrate_handeye.py --bind d455f_scene --serial 261522301814`.
+   `.venv/bin/python scripts/calibrate_handeye.py --list`, then
+   `.venv/bin/python scripts/calibrate_handeye.py --bind d455f_scene --serial 261522301814`.
    `--bind` refuses a serial that is not connected and keeps the profile's comments; a real
    run refuses a RealSense/Orbbec profile with no serial.
 3. **Clear the workspace and keep the e-stop in reach.** The sweep covers the whole preset set
@@ -47,9 +52,9 @@ runs at runtime as the opt-in [extrinsic drift monitor](#extrinsic-drift-monitor
 
 ```bash
 # fixed overhead camera, marker on the gripper
-uv run python scripts/calibrate_handeye.py --camera d455f_scene --arm rebot_rs --marker-size 0.0995
+.venv/bin/python scripts/calibrate_handeye.py --camera d455f_scene --arm rebot_rs --marker-size 0.0995
 # wrist camera, marker on the table
-uv run python scripts/calibrate_handeye.py --camera d455f_wrist --arm rebot_rs --marker-size 0.0995
+.venv/bin/python scripts/calibrate_handeye.py --camera d455f_wrist --arm rebot_rs --marker-size 0.0995
 ```
 
 It prints the mounting instructions and waits for `yes`. Then, per run (a few minutes):
@@ -122,10 +127,10 @@ The solve's residual is not an independent check. Verify against measured positi
 
 ```bash
 # eye_to_hand: lay the marker flat at known base-frame points, ENTER at each
-uv run python scripts/calibrate_handeye.py --verify configs/calib/d455f_scene_rebot_rs.handeye.json \
+.venv/bin/python scripts/calibrate_handeye.py --verify configs/calib/d455f_scene_rebot_rs.handeye.json \
     --camera d455f_scene --known-points "0.30,0,0;0.25,-0.05,0;0.35,0.05,0"
 # eye_in_hand: the measured centre of the table marker used in the sweep
-uv run python scripts/calibrate_handeye.py --verify configs/calib/d455f_wrist_rebot_rs.handeye.json \
+.venv/bin/python scripts/calibrate_handeye.py --verify configs/calib/d455f_wrist_rebot_rs.handeye.json \
     --known-points "0.45,0,0"
 ```
 
@@ -136,8 +141,8 @@ profile's.
 ## Markerless eye-to-hand (depth, no marker)
 
 ```bash
-uv run python scripts/calibrate_handeye.py --camera d455f_scene --arm rebot_rs --method markerless
-uv run python scripts/calibrate_handeye.py --dry-run --method markerless   # synthetic, MockArm
+.venv/bin/python scripts/calibrate_handeye.py --camera d455f_scene --arm rebot_rs --method markerless
+uv run --extra kinematics python scripts/calibrate_handeye.py --dry-run --method markerless   # synthetic, MockArm
 ```
 
 The arm is the target (Hydra-style, arXiv 2504.20584; pure numpy in `calibration/markerless.py`):

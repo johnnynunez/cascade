@@ -4,7 +4,7 @@
 robot):
 
 ```bash
-uv run pytest tests/test_relative_motion.py tests/test_spatial_commands.py \
+uv run --extra dev --extra kinematics pytest tests/test_relative_motion.py tests/test_spatial_commands.py \
   tests/test_spatial_commands_registration.py tests/test_move_to_rest.py \
   tests/test_move_to_rest_registration.py -q
 ```

@@ -103,7 +103,9 @@ Missing SDK/model/coordinate bindings fail before the lazy arm is materialized.
    not measured jaw strokes; `obstacles: []` adds no static obstacles. Table, workspace,
    observed-finger and occupancy/payload vetoes keep authority.
 2. Grasp selection checks pregrasp, grasp and carry-lift endpoints against the same model (limits,
-   margin, self collision, static obstacles) before any command; inspector failure is terminal.
+   margin, self collision, static obstacles) before any command. A rejected endpoint lets selection
+   try another independently vetted candidate (still before any gripper or joint command);
+   inspector failure is terminal.
 3. `SafeArm.move_joints` / `move_planned` get one native curve, slowed uniformly to the requested
    duration and copied onto the 30 Hz command and 50 Hz safety grids, then validated before
    streaming. Clock/epoch binding, start feedback, approvals, stop generation, watchdog and
@@ -113,8 +115,9 @@ Missing SDK/model/coordinate bindings fail before the lazy arm is materialized.
    orientation (contact optimizer from a direct joint path, `trajopt/pbo/enabled=false`, PBO/L-BFGS
    weights 600000/50000000): copied samples more than 1 mm off the closed TCP segment or 0.025 rad
    off the terminal orientation are rejected. After closing, ≥ 0.5 s of advancing physics with
-   ≤ 0.5 mrad joint range is required (half the 1 mrad start-drift bound); lift IK uses the measured
-   orientation (FK agreement within 0.1 mm / 0.1 mrad).
+   ≤ 0.5 mrad joint range is required (half the 1 mrad start-drift bound); halt and attachment
+   authority stay active during that wait. Lift IK uses the measured orientation (FK agreement
+   within 0.1 mm / 0.1 mrad).
 5. A runtime solve has the 3 s planning budget, checked before actuation. Default joint margin 0.025
    rad (a per-motion harness margin propagates into every check and the request hash). The folded
    mechanical zero self-collides in the sphere model, so the profile declares the validated home as
@@ -124,10 +127,11 @@ Missing SDK/model/coordinate bindings fail before the lazy arm is materialized.
 ## Kitchen selection (`isaac_kitchen_cumotion`, no native kitchen acceptance)
 
 It extends `isaac_kitchen_gpu` (grasp, placement, safety, occupancy, timing) with the same planner
-recipe and park pose. Campaign, with the producer and SDK already configured:
+recipe and park pose. Campaign from the installed checkout with its `.venv` (the interpreter the
+script's docstring names), with the producer and SDK already configured:
 
 ```bash
-python benchmark/diagnostics/kitchen_acceptance.py --port 8681 --engine physx \
+.venv/bin/python benchmark/diagnostics/kitchen_acceptance.py --port 8681 --engine physx \
   --arm-profile isaac_kitchen_cumotion --camera-renderer ovrtx \
   --objects green_cube --rounds 1 --fail-fast --output runs/kitchen-cumotion-01
 ```

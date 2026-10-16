@@ -3,7 +3,7 @@
 **Next action:** run the CPU contract and turn-ramp tests (no Isaac; about 30 s):
 
 ```bash
-uv run pytest tests/test_h2_policy_contract.py tests/test_turn_goal_ramp.py tests/test_turn_goal_ramp_budget.py -q
+uv run --extra dev pytest tests/test_h2_policy_contract.py tests/test_turn_goal_ramp.py tests/test_turn_goal_ramp_budget.py -q
 ```
 
 **Status: candidate; gate 1 (binding) passed in simulation on 7 October 2026, no physical

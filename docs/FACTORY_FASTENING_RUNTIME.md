@@ -1,11 +1,18 @@
 # Mounted Factory fastening runtime
 
 **Next action:** run the thread-contact fixture (an SO-101 drives a hex socket in Newton; a few
-minutes on a GPU host):
+minutes on a GPU host) in a standalone Newton environment, not cascade's `.venv`:
 
 ```bash
-uv run python scripts/validate_screw_contact.py --robot-asset <usd> --output <json> --cache <dir>
+<newton-env>/bin/python scripts/validate_screw_contact.py \
+  --robot-asset assets/mjcf/so101/so101.xml --output runs/thread-contact-01 --cache <dir>
 ```
+
+`<newton-env>` is a separate venv built per [Newton's install guide](https://newton-physics.github.io/newton/1.6.0/guide/installation.html)
+with the recorded run's packages ([environment](evidence/factory-thread-contact/environment.json):
+newton 1.6.0, warp-lang 1.17.0, mujoco and mujoco-warp 3.12.0, scipy, trimesh). Newton and trimesh
+are not cascade extras, so `uv run` cannot supply them; the script puts `src/` on `sys.path`
+itself. `--output` is a new directory (an existing one is refused).
 
 Status:
 
@@ -49,11 +56,11 @@ handler ran in-process (no stdio or LLM); socket mounted and nut pre-engaged
 
 ## Thread contact fixture
 
-Run `scripts/validate_screw_contact.py --robot-asset <usd> --output <json> --cache <dir>`:
-an SO-101 drives a motorized hex socket in Newton and the nut moves only through
-solved thread/tool contacts; `sim/threading_verification.py` judges the result.
-`--no-drive` commands zero socket torque, `--misaligned` moves the socket off
-the bolt axis.
+The command is at the top: an SO-101 (MJCF, from `fetch_robot_assets.py so101`) drives a motorized
+hex socket in Newton against the Factory nut and bolt (`--assets`, default `assets/factory/nut_bolt`
+from `fetch_factory_assets.py`), and the nut moves only through solved thread/tool contacts;
+`sim/threading_verification.py` judges the result. `--no-drive` commands zero socket torque,
+`--misaligned` moves the socket off the bolt axis.
 
 ## Ordinary `turn_screw` result
 
@@ -120,7 +127,9 @@ observer exists in the ordinary runtime, so a completed wrist routine stays
    `observation_age` payload (capture/check times, limit, stage, step, generation, epoch, hashes).
    Raw `backend.advance` values are retained as private pickle-protocol-5 records created only by
    the trusted in-process backend (20,000-record capacity; encode cost counts against the age
-   limit; expansion failure latches stop).
+   limit; expansion failure latches stop). No file, transport or caller-supplied byte stream is
+   ever decoded: adding an encoded-byte API or accepting untrusted objects with pickle reducers
+   would break that premise (Python encapsulation is no in-process security boundary).
 
 Write-guard limits (initial candidate contract; physical and host budgets are distinct and claim no
 real-time operation):

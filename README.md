@@ -157,9 +157,10 @@ uv run python -m cascade.apps.demo --arm so101_ros2
 # learned grasps (CUDA server warms up ~20 s before opening :5556) or the analytic stub (NOT the model)
 scripts/serve_graspgenx.sh                 # or: uv run --extra grasping python scripts/serve_graspgenx_stub.py
 ./scripts/serve_occupancy.sh               # occupancy bridge :5557, auto: nvblox > warp > voxel
-# real rig (rig packages: see Setup notes): CAN up, then N cameras (first = manipulation camera)
+# real rig (rig packages: see Setup notes): CAN up, then N cameras (first = manipulation camera);
+# the rig venv's interpreter, never `uv run` (it would re-sync the live .venv against uv.lock)
 sudo ip link set can0 up type can bitrate 1000000
-uv run python -m cascade.apps.demo --interactive --cameras d455f,uvc4k --arm rebot_rs --llm anthropic
+.venv/bin/python -m cascade.apps.demo --interactive --cameras d455f,uvc4k --arm rebot_rs --llm anthropic
 # chat hosts instead of the CLI loop
 ./scripts/hermes_demo.sh                # Hermes: register + test + chat
 ./scripts/openclaw_demo.sh              # OpenClaw, local-brain variant (Cosmos3-Edge / Qwen servers)

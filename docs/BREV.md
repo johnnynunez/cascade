@@ -130,8 +130,10 @@ user, the profile holds only its path:
 
 ## Operating the kitchen
 
-1. **Sessions.** One operator chat at a time: all sessions share the physical scene. Start a new
-   session per attendee after the reset. Recovery: [staff guide](BOOTH_RUNBOOK.md#10-paai-on-brev-staff-guide).
+1. **Sessions.** One operator chat at a time: all sessions share the physical scene, and another
+   session can move a restored object after your reset. Check the tool history and cameras before
+   calling a later moved object a reset failure. Start a new session per attendee after the reset.
+   Recovery: [staff guide](BOOTH_RUNBOOK.md#10-paai-on-brev-staff-guide).
 2. **Reset.** If the browser disconnects during Reset, reconnect and read the original result
    before retrying (the button never resends an uncertain order; a reload never replays an
    accepted reset). The readiness check can briefly report `BridgeError` (2 s bridge timeouts

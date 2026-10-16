@@ -3,7 +3,7 @@
 **Next action:** run the contact-stop tests offline (about 1 min, no robot):
 
 ```bash
-uv run pytest tests/test_contact_*.py tests/test_home_rebot_rs.py -q
+uv run --extra dev --extra kinematics pytest tests/test_contact_*.py tests/test_home_rebot_rs.py -q
 ```
 
 The arm stops, holds where it is and reports a `SafetyViolation` when something nobody modelled
@@ -143,15 +143,17 @@ rigid obstacle):
 
 ## On-rig calibration
 
-The operator stays at the e-stop throughout (about 30 min).
+The operator stays at the e-stop throughout (about 30 min). Rig commands run from the repo root
+with the rig venv's `.venv/bin/python` (the rig has no bare `python`, and `uv run` would re-sync the
+live `.venv`).
 
 1. Set `mode: measure` (keep `enabled: true`) in `configs/arms/rebot_rs.yaml` under
    `overrides.safety.contact_monitor`; restart the MCP server (`~/cascade-demo.sh reset`).
-2. Run normal moves in a clear workspace: `uv run python scripts/home_rebot_rs.py --yes
+2. Run normal moves in a clear workspace: `.venv/bin/python scripts/home_rebot_rs.py --yes
    --contact-log rig.jsonl` (rest -> home -> rest, 8 slow segments), `move_home`, a few
    `move_relative` nudges, two or three `grasp_object` / `pick_and_place` runs (top-down and
    angled) and at least one move at the 0.8 rad/s cap.
-3. Summarise: `uv run python scripts/contact_calibrate.py rig.jsonl runs/*/trace.jsonl`. Per joint
+3. Summarise: `.venv/bin/python scripts/contact_calibrate.py rig.jsonl runs/*/trace.jsonl`. Per joint
    it prints the worst lag-compensated and raw errors, the longest lag and the lowest stall advance
    ratio, plus read rate, feedback gaps and every motion that WOULD have tripped; it suggests
    `lag_s` (1.5× the longest lag, 0.10-0.40 s) and per-joint `track_tol_rad` (3× the worst error,

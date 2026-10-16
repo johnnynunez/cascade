@@ -27,7 +27,7 @@ run after the model responds without relaxing geometric vetoes. Capability statu
    upstream model code is unchanged.
 2. Quick restart keeps the inference check but skips the physical proof (expects Qwen running;
    prints **STARTED (UNVERIFIED: robot proof skipped)**; a lower-level restart, not the desktop's
-   verified camera/chat attachment):
+   verified camera/chat attachment). Use it only after rehearsing the normal READY start:
 
 ```sh
 ./run.sh isaac --engine physx --no-robot-turn --no-judge

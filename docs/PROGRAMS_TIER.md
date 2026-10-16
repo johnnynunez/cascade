@@ -3,7 +3,7 @@
 **Next action:** run the tier's tests on the mock stack (about 1 min):
 
 ```bash
-uv run pytest tests/test_programs_tier.py tests/test_programs_mcp.py -q
+uv run --extra dev --extra kinematics pytest tests/test_programs_tier.py tests/test_programs_mcp.py -q
 ```
 
 Enable it with `CASCADE_PROGRAMS=1` (or `agent.programs: true`); the default is

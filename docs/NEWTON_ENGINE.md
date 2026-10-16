@@ -1,12 +1,21 @@
 # Newton physics engine: setup and validation
 
-**Next action:** start a clean Newton bridge, then run the kitchen acceptance campaign from this
-checkout (25 cases; roughly an hour, estimated from the 289 s two-case launcher recording below):
+**Next action:** start a clean (freshly started) Newton bridge on the kitchen scene, then run the
+kitchen acceptance campaign from this checkout with its `.venv` (the interpreter the script's
+docstring names; 25 cases, roughly an hour, estimated from the 289 s two-case launcher recording
+below):
 
 ```sh
-uv run python benchmark/diagnostics/kitchen_acceptance.py \
+# terminal 1: Isaac Sim's Python; wait until the bridge listens on :8681
+$ISAACSIM_PATH/python.sh scripts/isaac_bridge.py --engine newton --port 8681 \
+  --scene-config demo/scene/kitchen_config.json
+# terminal 2
+.venv/bin/python benchmark/diagnostics/kitchen_acceptance.py \
   --port 8681 --engine newton --rounds 5 --output runs/acceptance-newton5
 ```
+
+On a Spark (aarch64) `launch.sh` also preloads `/lib/aarch64-linux-gnu/libgomp.so.1` for the
+bridge; export the same `LD_PRELOAD` when you start it by hand.
 
 The exit status is nonzero for any failed case. Results for one engine, asset or architecture do
 not certify another; see [profile defaults and current acceptance](ROADMAP.md).
@@ -16,9 +25,9 @@ not certify another; see [profile defaults and current acceptance](ROADMAP.md).
 1. `scripts/isaac_bridge.py` defaults to `--engine newton`; the Spark launcher defaults to PhysX,
    so select Newton explicitly with `./run.sh isaac --engine newton` (or `launch.sh --engine
    newton`).
-2. Substeps: `--newton-substeps` (default 5). The bridge refuses a count whose parity hits
-   [Isaac's Newton stepping bug](#4b-isaacs-newton-stepping-bug-use-an-odd-substep-count) (odd with
-   the CUDA graph on, even with it off).
+2. Substeps: `--newton-substeps` (default 5). Use an odd substep count with the CUDA graph on (the
+   default, so 5), an even one with it off: the bridge refuses the other parity, which hits
+   [Isaac's Newton stepping bug](#4b-isaacs-newton-stepping-bug-use-an-odd-substep-count).
 3. Contact buffers: MJWarp contacts 32768 (recorded peak 30,955) and 132272 constraint rows, set
    before initialization and re-checked on the live stage; the bridge fails if they are smaller.
    `--newton-contacts mujoco` is a diagnostic in which MJWarp detects its own contacts.

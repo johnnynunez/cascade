@@ -64,15 +64,17 @@ Setup traps:
 2. **OpenVLA reference:** `bash benchmark/libero/sweep.sh` (all four suites), then
    `$CASCADE_BENCH_VENV benchmark/report/report.py` (table vs published).
 3. **Layer ablation on the Isaac rig** (bridge on `:8611`; **restart the bridge first**: one that
-   has served hundreds of episodes reports stale poses):
+   has served hundreds of episodes reports stale poses). It builds the full demo runtime, so run it
+   with the checkout's installed `.venv` (kinematics, the GraspGen-X client, perception):
 
    ```bash
-   cd models && PYTHONPATH=../src uv run python ../benchmark/rig/ablation.py \
+   cd models && PYTHONPATH=../src ../.venv/bin/python ../benchmark/rig/ablation.py \
        --conditions skill_only,verify_only,verify_retry --states 10
    ```
 
-4. **Reports:** `uv run python benchmark/report/comparison_table.py` (console),
-   `uv run python benchmark/report/make_pdf.py` (PDF).
+4. **Reports:** `uv run python benchmark/report/comparison_table.py` (console, stdlib only),
+   `uv run --with matplotlib python benchmark/report/make_pdf.py` (PDF; matplotlib is no cascade
+   extra, `--with` adds it for that run only).
 
 | cascade contract | LIBERO implementation | validated |
 |---|---|---|

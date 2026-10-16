@@ -90,10 +90,12 @@ Follow the `real-robot-bringup` phases. **Nothing below may run until a person i
 with the e-stop or power cut within reach.** Support the arm before anything enables it: after
 a clean shutdown it is limp. Never reconnect anything while the arm is raised: `connect()`
 clears latched faults with a stop frame that cuts torque (support it, e-stop, lower by hand).
+Run every command from the repo root with the rig venv's `.venv/bin/python` (the rig has no bare
+`python`, and `uv run` would re-sync the live `.venv`).
 
 1. **Read-only probe (no torque).** Stop motorbridge-gateway and MotorBridge Studio (same host id
-   0xFD). Run `python scripts/diag_rebot_mb.py`, then `--snapshot rest`; record joints 2 and 3
-   (WRC +0.004, cascade's rig −0.0009) and confirm every joint is inside its URDF limits.
+   0xFD). Run `.venv/bin/python scripts/diag_rebot_mb.py`, then `--snapshot rest`; record joints 2
+   and 3 (WRC +0.004, cascade's rig −0.0009) and confirm every joint is inside its URDF limits.
    **Incident 2026-10-10**: `sign_check_rebot_mb.py --joints 2,3` drove the shoulder into its
    end at full stiffness (a mechPos read of +2.3e18 became the stall-guard target, and joints
    1-3 were registered `rs-00` instead of `rs-06`). Both bring-up scripts now vet every reading
@@ -101,22 +103,20 @@ clears latched faults with a stop frame that cuts torque (support it, e-stop, lo
    last commanded pose (never a reading), stop holding on an implausible reading and refuse
    without the SDK's per-motor models (`tests/test_rebot_probe_reading_guard.py`). Do not loosen
    any of these.
-2. **Fault clear.** `python scripts/jog_rebot_mb.py --joint 1 --hold-only` (clears faults after
-   the mode write, before enable): no `clear_error failed`, hold drift under 50 mrad. A failed
-   clear: stop, power-cycle, probe again.
-3. **First low-velocity home move, e-stop in hand.** Either lower
-   `overrides.safety.max_joint_vel` in `rebot_rs.yaml` (e.g. 0.3; only ever lower), run
-   `python -m cascade.apps.demo --arm rebot_rs --camera mock --llm mock --interactive --no-serve`
-   and type `go to the initial pose` (a reflex; `go home` is `move_to_rest`), or run the scripted
-   `python scripts/home_rebot_rs.py --yes` (rest -> home -> rest at 0.4 rad/s, 4 measured steps
-   per leg, soft-stop and hold with torque ON on a failed check; rehearse with `--dry-run
-   --camera mock`). The move must start without a harness rejection (Finding #3); exit with an
-   empty line or one Ctrl+C and confirm the receipt shows park `complete` at `park_q = 0`.
-   Measured 2026-10-11: every step within 0.013 rad, home (0.452, -0.001, 0.432) m vs nominal
-   (0.452, 0, 0.438). The 5 s perception watchdog refuses motion without a running fixed camera
-   (it stopped half-way up). Joint 3 cannot be sign-checked from rest (~6.7 N·m of gravity vs
-   the probe's 3.6 N·m abort): with motors limp, unfold the forearm by hand and check
-   `diag_rebot_mb.py --snapshot` rises.
+2. **Fault clear.** `.venv/bin/python scripts/jog_rebot_mb.py --joint 1 --hold-only` (clears
+   faults after the mode write, before enable): no `clear_error failed`, hold drift under 50 mrad.
+   A failed clear: stop, power-cycle, probe again.
+3. **First low-velocity home move, e-stop in hand.** Pick ONE of the two paths; each must start
+   without a harness rejection (Finding #3):
+   1. **Demo CLI.** Lower `overrides.safety.max_joint_vel` in `rebot_rs.yaml` (e.g. 0.3; only
+      ever lower), run `.venv/bin/python -m cascade.apps.demo --arm rebot_rs --camera mock
+      --llm mock --interactive --no-serve` and type `go to the initial pose` (a reflex; `go home`
+      is `move_to_rest`). Exit with an empty line or one Ctrl+C and confirm the receipt shows park
+      `complete` at `park_q = 0`.
+   2. **Scripted.** `.venv/bin/python scripts/home_rebot_rs.py --yes`: rest -> home -> rest at
+      0.4 rad/s, 4 measured steps per leg, soft-stop and hold with torque ON on a failed check
+      (rehearse first with `--dry-run --camera mock`). It ends with `back at rest ...; torque
+      released`.
 4. **Gripper travel and stall.** Hand-sweep with `diag_rebot_mb.py` (0 → +6.39 rad); measure the
    opening in mm at ~1.5, 3.0, 4.5, 6.2 rad to settle the 5.0-vs-6.2 rad ≙ 90 mm disagreement and
    fix `max_width_m` / `open_pos`; run the park close (`close_gripper_torque`) on air and on a
@@ -129,3 +129,11 @@ clears latched faults with a stop frame that cuts torque (support it, e-stop, lo
    travel straight (revert on doubt). If large moves report "did not settle" while visibly
    moving, raise `settle_timeout_s` in the profile (WRC needed 4–6 s); never touch `settle_tol`
    or the velocity cap to compensate.
+
+From the 2026-10-11 home move (`home_rebot_rs.py`): every step within 0.013 rad, and home measured
+at (0.452, -0.001, 0.432) m vs nominal (0.452, 0, 0.438). Two traps from that run:
+
+1. The 5 s perception watchdog refuses motion without a running fixed camera (the first attempt
+   stopped half-way up); `home_rebot_rs.py` now waits for real frames before connecting the arm.
+2. Joint 3 cannot be sign-checked from rest (~6.7 N·m of gravity vs the probe's 3.6 N·m abort):
+   with motors limp, unfold the forearm by hand and check `diag_rebot_mb.py --snapshot` rises.

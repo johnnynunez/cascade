@@ -7,6 +7,11 @@ PYTHONPATH="$PWD/src" CASCADE_BASE=microduck_mock CASCADE_LLM=mock \
   uv run python -m cascade.apps.mcp_server
 ```
 
+Expect `[cascade-mcp] cascade MCP server on stdio (log: …)` and, once the prewarm builds the
+runtime, `[cascade-mcp] mobile runtime up: bases=…` on stderr. Then it blocks: it is a stdio MCP
+server waiting for a client's JSON-RPC lines on stdin (register it in an MCP host to call the
+tools). Ctrl+C or closing stdin ends it.
+
 MicroDuck is an opt-in mobile base with a bounded velocity interface. It instantiates no arm,
 IK, grasping or kitchen scene. **Status: candidate.** General walking and turning have not passed
 physical admission.
@@ -37,7 +42,8 @@ heading drift after completion beyond the unchanged 0.08 rad bound. Capability s
    MJWarp with the pinned native BAM actuator. The official `velstand.onnx` takes 61 observations
    and emits 14 actions. Physics steps nominally every 5 ms, the policy every four completed
    solves (the actual timestep is recorded); camera and LLM latency never advance the policy
-   clock. Neck and head joints belong to the policy; the mouth is outside its action vector.
+   clock. Neck and head joints belong to the policy and another controller must not write them;
+   the mouth is outside its action vector.
 3. Inference previews never mutate policy history. Before committing a result the bridge
    rechecks command, generation, episode, physical clocks and wall deadlines.
 4. **Stop** invalidates walking intent while the policy and actuators keep balance. It does not
@@ -337,7 +343,10 @@ mirrors `marshal.dumps(state())` into a shared-memory slot per robot under the c
 after every step and permission change (seqlock + CRC32, monotonic publication count, bound robot
 id and identity); the server recomputes only `state_age_s` / `state.producer_age_s` from the
 publish time, so an owner stall still ages the reply and the unchanged `max_state_age_s` check
-refuses it. Failure is closed (`off-GIL state unavailable`, never an older reply). CPU only: ~6 ms
+refuses it. A stop ACK is never followed by a pre-stop reply (every permission change republishes
+before its ACK). Failure is closed (`off-GIL state unavailable`, never an older reply); owner exit
+or death closes the server and every handed-off channel; owner and server must run the same
+Python minor version and marshal format, or the server refuses to start. CPU only: ~6 ms
 per-step publication cost with no clients; with polling clients the owner step stops depending on
 the poll rate (`tests/test_mobile_state_server.py`). No real-owner speedup is claimed.
 

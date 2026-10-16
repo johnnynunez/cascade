@@ -1,11 +1,10 @@
 # Local conversation and robot tools
 
-**Next action:** install the optional transport and start a private run against a running
-Realtime provider (2 min):
+**Next action:** start a private run against a running Realtime provider (2 min; `--extra
+conversation` adds the optional transport):
 
 ```bash
-uv sync --extra conversation
-uv run cascade-conversation \
+uv run --extra conversation cascade-conversation \
   --robot conversation_mock \
   --provider-url ws://127.0.0.1:8765/v1/realtime \
   --allow-tool sensing.list_sensors \
@@ -59,13 +58,16 @@ What works today (simulation and loopback only):
    "bounded_hand"`) defers construction until the operator clicks **Start robot session** (one
    construction, the stopped-readiness check, a real reset at the observed generation, a new
    provider conversation; only that session gets microphone PCM; nothing is replayed). Supply the
-   prepared hand profile and its exact model pin. The hand keeps its 30 s lifetime from owner start;
-   Start has its own 10 s deadline; neither renews; an expired episode needs a new service run.
+   prepared hand profile and its exact model pin. A disconnect or stop during construction cancels
+   admission (a late constructor is kept until its cleanup finishes). The hand keeps its 30 s
+   lifetime from owner start; Start has its own 10 s deadline; neither renews; an expired episode
+   needs a new service run.
 5. **MicroDuck.** `--robot microduck_conversation_mock` is a base-only `kinematic_mock` fixture
    (allow only `locomotion.get_base_state` for a passive first connection).
    `microduck_conversation_native` composes `microduck_isaac` and needs every pin in
-   [MicroDuck](MICRODUCK.md#running-the-candidate); start with observation-only tools. No speech
-   timing enters a control loop; the locomotion policy keeps its head and leg actions.
+   [MicroDuck](MICRODUCK.md#running-the-candidate); missing pins fail before connecting. Start with
+   observation-only tools. No speech timing enters a control loop; the locomotion policy keeps its
+   head and leg actions.
 
 ### Installed service
 
@@ -84,10 +86,10 @@ A versioned JSON configuration can live outside the checkout:
 }
 ```
 
-1. Run `uv run cascade-conversation --config /absolute/path/service.json`. Paths are relative to the
-   file; `profiles` holds the selected `robots/*.yaml` and `llm/*.yaml`. CLI options override
-   fields. Choose exactly one of `run_dir` / `run_root` (a new private child per start). Unknown,
-   duplicate or ambiguous fields are rejected.
+1. Run `uv run --extra conversation cascade-conversation --config /absolute/path/service.json`.
+   Paths are relative to the file; `profiles` holds the selected `robots/*.yaml` and `llm/*.yaml`.
+   CLI options override fields. Choose exactly one of `run_dir` / `run_root` (a new private child
+   per start). Unknown, duplicate or ambiguous fields are rejected.
 2. `intent_timeout_s` / `execution_timeout_s` (also CLI): defaults 10/30 s, maxima 60/300 s. The
    intent budget starts at the input origin and is never renewed by a model response or tool
    continuation; it does not extend any actuator's own admission deadline.
@@ -112,10 +114,10 @@ dependency:
 ```bash
 export CASCADE_ROBOT_ENDPOINT_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 # Robot side (base install): owns the runtime, harnesses, verifiers and trace.
-cascade-robot-service --robot conversation_mock --port 8781 \
+uv run cascade-robot-service --robot conversation_mock --port 8781 \
   --token-env CASCADE_ROBOT_ENDPOINT_TOKEN --run-root runs/robot
 # Conversation side (`conversation` extra): builds no robot.
-cascade-conversation --config configs/conversation/remote_robot.json
+uv run --extra conversation cascade-conversation --config configs/conversation/remote_robot.json
 ```
 
 1. [`configs/conversation/remote_robot.json`](../configs/conversation/remote_robot.json) is the
@@ -170,11 +172,11 @@ and reset rules are unchanged: TLS adds who the robot is, not who may command it
 ```bash
 # Robot host: a private CA (stays here) and a certificate for the address the conversation dials.
 uv run python scripts/robot_endpoint_certs.py --out runs/robot-tls --san IP:192.0.2.10
-cascade-robot-service --robot conversation_mock --host 192.0.2.10 --port 8781 \
+uv run cascade-robot-service --robot conversation_mock --host 192.0.2.10 --port 8781 \
   --tls-cert runs/robot-tls/server.pem --tls-key runs/robot-tls/server.key \
   --token-env CASCADE_ROBOT_ENDPOINT_TOKEN --run-root runs/robot
 # Conversation host: copy ca.pem only (never ca.key or server.key) and set the token.
-cascade-conversation --config configs/conversation/remote_robot_tls.json
+uv run --extra conversation cascade-conversation --config configs/conversation/remote_robot_tls.json
 ```
 
 1. [`scripts/robot_endpoint_certs.py`](../scripts/robot_endpoint_certs.py) (the B35 openssl recipe
@@ -224,14 +226,21 @@ full handshake per call). One host's loopback numbers with other suites running.
    the runtime cancellation generation and a local deadline. Audio authority starts at local
    receipt of `speech_started` (unique item ID); text at local submission; continuations keep the
    original deadline. `response.create` carries a nonce the response must echo; arguments are
-   staged until `response.done` is `completed`. Budgets per session: 256 responses, 256 calls, 8
-   calls per response, 30 min. `RealtimeWebSocket` lazily imports `aiohttp`, bounds sizes and
-   send/open time, never reconnects silently.
+   staged until `response.done` is `completed`, and cancelled, failed or incomplete responses never
+   run staged calls. Requests are deduplicated at session and dispatch. Budgets per session: 256
+   responses, 256 calls, 8 calls per response, 30 min; an exhausted budget needs a new session.
+   After an external stop/reset, a new response ID gets no fresh authority in the old connection.
+   `RealtimeWebSocket` lazily imports `aiohttp`, bounds sizes and send/open time, never reconnects
+   silently.
 3. **Dispatch.** `ConversationDomain` owns at most one action thread; timeout asks the runtime to
    stop and reports uncertain delivery. A tool declared `effect="stop"` takes the coalesced
    priority stop path even while that thread is busy, is traced like `RobotRuntime.execute`, and
    its ACK stays `physical_stop_verified=False`. A completed response may stage a motion plus an
-   adjacent stop: the stop is dispatched before either result goes to a slow provider.
+   adjacent stop: the stop is dispatched before either result goes to a slow provider, and the
+   reply continuation after that stop cannot renew motion authority. A successful close is
+   terminal: a later stop is refused (`conversation domain closed; no new stop delivered`), never
+   answered with a cached ACK. `close()` revokes authority and discards pending input before
+   teardown.
 4. **Interruption.** Default barge-in invalidates pending speech/tool contexts and stops active or
    pending robot work (idle initial speech does not latch a stop). `speech_only` interruption is
    allowed only without motion authority. Ambiguous VAD ownership after an interruption revokes
@@ -313,8 +322,7 @@ reproduces the old immediate-reconnect HTTP 502).
 ## Verification
 
 ```bash
-uv sync --extra dev --extra conversation
-uv run pytest tests/test_conversation_contracts.py \
+uv run --extra dev --extra conversation pytest tests/test_conversation_contracts.py \
   tests/test_conversation_protocol.py tests/test_conversation_input_origin.py \
   tests/test_conversation_frontend.py tests/test_conversation_split_service.py -q
 ```

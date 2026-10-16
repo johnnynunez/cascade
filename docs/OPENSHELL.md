@@ -75,7 +75,9 @@ systemd-run --user --unit=cascade-brain-vllm --collect -p MemoryMax=infinity \
 # 1. OpenShell 0.1.3: downloaded, sha256-checked against the pinned digests, extracted
 #    under ~/.cascade/openshell (its own XDG config/state; NemoClaw's is untouched)
 scripts/openshell_rig.py install
-scripts/openshell_rig.py gateway start     # systemd user unit, 127.0.0.1:17670
+scripts/openshell_rig.py gateway start     # systemd user unit, 127.0.0.1:17670; registers the
+                                           # gateway on a fresh home (`gateway add` also selects
+                                           # it) or selects it when another gateway is active
 
 # 2. cascade's MCP server on loopback (the robot runtime; one owner of the CAN bus
 #    and cameras: stop the NemoClaw route's `nemoclaw_mcp.py serve` first)
@@ -141,14 +143,17 @@ move two ports, the gateway port has no flag).
 1. **Shared on purpose:** the brain (`--brain-port`, the key file), the model and the image.
 2. **Explicit flags win** (`--sandbox`, `--mcp-port`, `--chat-port`, `--brain-port`, `--model`,
    token/key files) and are remembered in that instance's `deployed.json` only.
-3. **Each instance has its own re-lock timer**; `motion lock` of one never cancels another's.
-   The deny list (motion tools when locked, `reset_stop` always, stop tools never) is the same.
+3. **Each instance has its own re-lock timer**: `motion unlock` schedules one that re-runs
+   `--instance <name> motion lock` with that instance's home; `motion lock` of one never cancels
+   another's. The deny list (motion tools when locked, `reset_stop` always, stop tools never) is
+   the same.
 4. **One home, one instance.** A named instance writes an `instance` file into its home and
    refuses a home holding another instance's state (e.g. `CASCADE_OPENSHELL_HOME` still pointing
    at the live route); the default route refuses a marked home.
 5. **A named instance's MCP server is a second robot runtime.** Only one process may own the CAN
    bus and cameras: give it the mock arm and cameras (or other hardware), `CASCADE_STREAM=0`
-   (8090/8091 belong to the live rig), `CASCADE_OCCUPANCY=0` and private
+   (the live view's 8090 and the Spark camera service's 8091 belong to the live rig, and the
+   camera extension always shows 8090), `CASCADE_OCCUPANCY=0` and private
    `CASCADE_BELIEFS_PATH`, `CASCADE_GRASP_MEMORY_PATH`, `CASCADE_ENVELOPE_PATH`,
    `CASCADE_EPISODIC_PATH`, `CASCADE_RUN_DIR`, so simulated outcomes never reach the real
    robot's learned stores:
@@ -210,13 +215,16 @@ host OpenClaw profile.
 ## NemoClaw route (opt-in)
 
 NemoClaw v0.0.124 reaches the robot through `cascade.apps.mcp_server --http` (TLS from a private
-CA, bearer token in OpenShell's provider store). `scripts/nemoclaw_mcp.py` does the operator side:
+CA, bearer token in OpenShell's provider store). `scripts/nemoclaw_mcp.py` does the operator side,
+run from the repo root with the rig venv's interpreter (`serve` starts the robot server with that
+same interpreter; `uv run` would re-sync the live `.venv`):
 
-1. `uv run python scripts/nemoclaw_mcp.py certs`, then
-   `export NEMOCLAW_CORPORATE_CA_BUNDLE="$(uv run python scripts/nemoclaw_mcp.py ca-path)"`.
+1. `.venv/bin/python scripts/nemoclaw_mcp.py certs`, then
+   `export NEMOCLAW_CORPORATE_CA_BUNDLE="$(.venv/bin/python scripts/nemoclaw_mcp.py ca-path)"`.
 2. `nemoclaw onboard` (an existing sandbox: `nemoclaw <name> rebuild`), so the sandbox trusts that CA.
-3. `uv run python scripts/nemoclaw_mcp.py serve` with the usual `CASCADE_*` env.
-4. `uv run python scripts/nemoclaw_mcp.py register --sandbox <name>`, then `configure-agent --sandbox <name>`.
+3. `.venv/bin/python scripts/nemoclaw_mcp.py serve` with the usual `CASCADE_*` env.
+4. `.venv/bin/python scripts/nemoclaw_mcp.py register --sandbox <name>`, then
+   `configure-agent --sandbox <name>`.
 
 Keep the model id bare (`qwen3.8-27b`): OpenClaw splits provider/model on `/`.
 

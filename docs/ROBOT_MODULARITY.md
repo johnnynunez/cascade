@@ -1,13 +1,14 @@
 # Composable robots, observations and validation
 
-**Next action:** run the composed software path on mocks (about 1 min):
+**Next action:** run the composed software path on mocks (about 1 min; `--extra kinematics`
+brings pinocchio for the SO-101 mock arm, `--extra dev` pytest):
 
 ```bash
-uv run python -m cascade.apps.demo --robot mixed_mock --llm mock --no-view --no-serve
-CASCADE_ROBOT=mixed_mock uv run python -m cascade.apps.mcp_server
-uv run python -m cascade.apps.skill_graph --robot mixed_mock \
+uv run --extra kinematics python -m cascade.apps.demo --robot mixed_mock --llm mock --no-view --no-serve
+CASCADE_ROBOT=mixed_mock uv run --extra kinematics python -m cascade.apps.mcp_server   # stdio: waits for a client; Ctrl+C
+uv run --extra kinematics python -m cascade.apps.skill_graph --robot mixed_mock \
   --graph configs/graphs/inspect_sensors.json --run-dir /tmp/cascade-graph-review
-uv run pytest tests/test_robot_contracts.py tests/test_robot_runtime.py \
+uv run --extra dev --extra kinematics pytest tests/test_robot_contracts.py tests/test_robot_runtime.py \
   tests/test_robot_mcp.py tests/test_skill_graph.py tests/test_sensing*.py \
   tests/test_vab*.py tests/test_arena*.py -q
 ```

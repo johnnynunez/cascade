@@ -244,9 +244,9 @@ Step 4 validates `runs/.install/desktop-latest.json` and
 
 `PREPARED` means the dependencies are ready. `READY` requires the physical proof.
 `STARTED (UNVERIFIED: robot proof skipped)` is not an accepted result. An old receipt or an
-English success message is not proof. (The OpenClaw tool can still report "Placement
-unverified" on a correct placement on the 9cf5402 source: it checked only the object's centre.
-The physical audit decides.) A later 5/5 direct-runtime verdict campaign is in the
+English success message is not proof. (Historical, 9cf5402 source only: its OpenClaw tool could
+report "Placement unverified" on a correct placement because it checked only the object's
+centre. The physical audit decides.) A later 5/5 direct-runtime verdict campaign is in the
 [placement-verdict receipt](../benchmark/results/spark_placement_verdict_20261001.json); it is
 not a native chat acceptance.
 

@@ -77,11 +77,13 @@ four-value `env.step(action)`).
    128 px, no depth): never call it unchanged. A reviewed factory binds kinematics, camera
    calibration, scene/workspace geometry and perception mode and keeps SafeArm/SafetyHarness;
    enabling depth is a recorded variant; oracle object poses never enter policy observations.
-5. **Native CPU preflight:** `python -m benchmark.vab.native_preflight <vab-checkout> <out>
-   [--cancel-after-step 8]` in a separate env locked by `benchmark/vab/requirements-native-lock.txt`
-   (robosuite 1.4.0, MuJoCo 2.3.7; original task bytes, RGB-only) runs an explicit floor/Panda
-   factory through real MuJoCo, CASCADE relative motion and an independent solved-state witness,
-   including cancellation; not a grasp/placement result. It needs the full pinned VAB checkout and
+5. **Native CPU preflight:** from the repo root, `<vab-env>/bin/python -m
+   benchmark.vab.native_preflight <vab-checkout> <out> [--cancel-after-step 8]` with the pinned VAB
+   checkout and `src/` on `PYTHONPATH`, where `<vab-env>` is a separate venv installed from
+   `benchmark/vab/requirements-native-lock.txt` (robosuite 1.4.0, MuJoCo 2.3.7; original task
+   bytes, RGB-only). It runs an explicit floor/Panda factory through real MuJoCo, CASCADE relative
+   motion and an independent solved-state witness, including cancellation; not a grasp/placement
+   result. It needs the full pinned VAB checkout and
    assets, an offscreen renderer, a private `LIBERO_CONFIG_PATH/config.yaml` and private CASCADE
    memory/output paths. The legacy local env (robosuite 1.4.1 / MuJoCo 3.2.3) was not changed or
    certified.

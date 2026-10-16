@@ -1,12 +1,12 @@
 # VLA executor (`grasp.executor: vla`, opt-in)
 
-**Next action:** install the client extra and start the protocol stub, then point the executor at
-it (about 2 min, no GPU; the stub replays scripted chunks and never looks at the image):
+**Next action:** start the protocol stub, then point the executor at it (about 2 min, no GPU; the
+stub replays scripted chunks and never looks at the image). `--extra vla` adds the client wire
+(websockets + msgpack; nothing else, no torch):
 
 ```bash
-uv sync --extra vla      # websockets + msgpack; nothing else, no torch
-uv run python scripts/serve_vla_stub.py --port 8000                       # holds: echoes the state
-uv run python scripts/serve_vla_stub.py --port 8000 --chunks chunks.json  # request N -> chunk N
+uv run --extra vla python scripts/serve_vla_stub.py --port 8000                       # holds: echoes the state
+uv run --extra vla python scripts/serve_vla_stub.py --port 8000 --chunks chunks.json  # request N -> chunk N
 ```
 
 Status: landed 2026-10-09 (B49, ROADMAP mid term "VLA policy backend"), measured on the mock stack
@@ -141,8 +141,8 @@ None of this has run yet, and the stub is not evidence for any of it.
 # openpi (its own checkout and env; serves on 8000)
 uv run scripts/serve_policy.py policy:checkpoint \
     --policy.config=<config> --policy.dir=<checkpoint dir>
-# LingBot-VLA-v2 (its own checkout and env)
-python -m deploy.lingbot_vla_v2_policy --model_path <ckpt> --port 8006 --use_length 50
+# LingBot-VLA-v2 (from its own checkout, with its own env's interpreter)
+<lingbot-env>/bin/python -m deploy.lingbot_vla_v2_policy --model_path <ckpt> --port 8006 --use_length 50
 # cascade (both variables are registered with the MCP server, B63)
 CASCADE_GRASP_EXECUTOR=vla CASCADE_VLA_PORT=<port> ./run.sh <profile>
 ```

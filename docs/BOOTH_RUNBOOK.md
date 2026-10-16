@@ -42,12 +42,11 @@ Design constraints:
    | `perception_loop.belief_fallback_age_s` | 3.0 | **20** | "point at where it was" accepts the remembered belief after the cup covered it >3 s |
    | `stream.mode` | lazy | **eager** | the big screen is live before doors open and stays up between visitors |
 
-2. **Regenerate `.mcp.json` for the real rig** (the checked-in file pins the Isaac sim stack;
-   the rig has no bare `python`, use the shared venv):
+2. **Regenerate `.mcp.json` for the real rig** from the repo root (the checked-in file pins the
+   Isaac sim stack; the rig has no bare `python`, so call the shared booth venv `../.demo` directly):
 
    ```bash
-   source ../.demo/bin/activate
-   python scripts/setup_agents.py --host claude --write \
+   ../.demo/bin/python scripts/setup_agents.py --host claude --write \
        --camera l515 --arm rebot_rs \
        --hide-tools reset_stop --env CASCADE_BOOTH=1
    ```
@@ -64,7 +63,8 @@ Design constraints:
    builds, downloads), GraspGen-X checkpoints, SAM weights (`models/sam2.1_l.pt`). Verify with
    the network cable pulled.
 
-4. **Dry-run the offline brain**: `.demo/bin/python scripts/booth_rehearsal.py --llm local_qwen`
+4. **Dry-run the offline brain**, from the repo root with the same venv:
+   `../.demo/bin/python scripts/booth_rehearsal.py --llm local_qwen`
    runs the session prompts through the real orchestrator on the mock stack (booth tuning on,
    learned memory isolated to the run dir) and reports tool calls, steps and outcome per prompt.
    Re-run with the final cheat-card nouns (`--prompts card.txt`) before shipping the rig. (First
@@ -122,7 +122,8 @@ attendees/hour/pod; the reset (§7) runs during the Q&A tail.
    throw was rehearsed to land (doubles as the prop-return bin).
 3. A laminated **cheat card**: nouns are the rehearsed prop names, and phrasings match the tier-1
    reflex grammar verbatim ("wave", "point at the \<x\>", "hand me the \<x\>", "sort the objects
-   by color", "go home", "open the gripper"), so the card is also the LLM-outage fallback (§8).
+   by color", "go home", "open the gripper"), so the card is also the LLM-outage fallback (§8):
+   those exact strings run LLM-free in the dashboard chat box and the demo CLI.
 
 ## 5. The 15-minute script
 
@@ -191,7 +192,8 @@ to the morning baseline after a bad streak (restart the server to load the resto
 4. **LLM stalls (G1 ladder, one-way):** cloud dead → pre-warmed local Qwen session (same MCP
    server). Local model loops → the **dashboard chat box** (MCP mode runs the tier-1 reflex
    grammar with zero LLM: every cheat-card motion beat survives; narrate the preview/where-is
-   beats from the grasp-memory panel; never type in both chats). Total loss → host-driven
+   beats from the grasp-memory panel; never type in both chats). Dashboard unreachable → the demo
+   CLI REPL is the equivalent fallback (same LLM-free strings). Total loss → host-driven
    scripted pick plus architecture talk; `scripts/record_demo.py` output as the attract loop.
 5. **Detections missing:** off-card noun → "the words are on the card"; one prop boxless →
    nudge it 2 cm or swap the spare; *all* boxes gone → wrong CWD / offline-stall signature:

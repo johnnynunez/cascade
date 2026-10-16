@@ -20,7 +20,7 @@ LLM agents on Cascade's `AgentOrchestrator` drive the **unchanged learned MicroD
 Isaac Lab 3.0 with Newton physics; each robot has its own agent, episodic memory, ToF occupancy map
 and trace. The recorded physics is replayed through `OvrtxRenderer` into 1080p review videos that
 show what the agent saw and decided and label what is illustrative. CPU tests:
-`uv run pytest tests/test_microduck_agentic.py -q` (no Isaac Lab).
+`uv run --extra dev pytest tests/test_microduck_agentic.py -q` (no Isaac Lab).
 
 ## What runs where
 
@@ -93,6 +93,10 @@ Run outputs: `recording.npz` / `.json` (50 Hz; 16 body poses per robot, controll
 and `episode.json` (reports, verification, LLM call counts, wall time). `reverify.py` re-runs the
 current verifier on the recorded final state (keeping the old verdict); `clearance.py` recomputes a
 finished run's clearance. Physics paths are exercised only by the episode runs themselves.
+
+The 13 October 2026 runs (18 attempts: verdict at run time and under the current verifier, agent
+claim, clearance, LLM calls, wall time, a note per run) are recorded in
+[`evidence/microduck-agentic-20261013/attempts.json`](evidence/microduck-agentic-20261013/attempts.json).
 
 ## OVRTX notes
 

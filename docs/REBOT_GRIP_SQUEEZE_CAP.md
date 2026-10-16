@@ -6,7 +6,7 @@ objects); until then `gripper.max_contact_squeeze_rad` ships `null` in `configs/
 and `rebot_rs_mb.yaml`. Offline check, no robot (seconds):
 
 ```bash
-uv run pytest tests/test_rebot_grip_squeeze_cap.py -q
+uv run --extra dev pytest tests/test_rebot_grip_squeeze_cap.py -q
 ```
 
 Status: measured only on a simulated jaw with the **unverified** linear width map; no hardware
@@ -107,8 +107,9 @@ fingers out of the jaws: place each object, take your hand away, then press Ente
 
 Objects: a 3 cm prop (rigid), the 5 cm booth cube (rigid reference), an empty 7.5 cm paper cup
 (deformable), an ≈ 8.5 cm rigid box or bottle that fits the 9 cm opening, an ≈ 6.6 cm drink can
-(slippery). Open a Python session from the repo root (`uv run python`); it uses the motorbridge
-transport, whose `connect()` holds the live pose before enabling torque:
+(slippery). Open a Python session from the repo root with the rig venv's interpreter
+(`.venv/bin/python`; the rig has no bare `python`, and `uv run` would re-sync the live `.venv`); it
+uses the motorbridge transport, whose `connect()` holds the live pose before enabling torque:
 
 ```python
 import time

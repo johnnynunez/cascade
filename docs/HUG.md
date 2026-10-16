@@ -1,11 +1,16 @@
 # HUG — an opt-in second grasp backend
 
-**Next action:** try the whole client path with the analytic protocol double (no torch, weights
-or MANO; seconds):
+**Next action:** start the analytic protocol double (no torch, weights or MANO; seconds; the
+`grasping` extra brings its zmq/msgpack wire):
 
 ```bash
-uv run python scripts/serve_hug.py --stub
+uv run --extra grasping python scripts/serve_hug.py --stub
 ```
+
+It only starts a stub server on `127.0.0.1:5558` (or `$CASCADE_HUG_PORT`): no grasp happens until
+a client dials it, and only a profile with `grasp.hug.required: false` accepts it. The default
+(`required: true`) and the `isaac_kitchen_hug` profile reject the stub (`real HUG required;
+analytic protocol stub rejected`); the CPU tests below drive it.
 
 [HUG (Human Universal Grasping)](https://grasping.io/) predicts how a **human right hand** would
 grasp the object under one query pixel of one RGB-D frame. CASCADE can use it as a second learned
@@ -89,8 +94,9 @@ hf download kevinywu/hug hug_full.safetensors \
     --revision 1415c9eaab4408cf2defdf8cb98e4d0d06b9b063 --local-dir .hug-src/checkpoints/
 echo "515b5c3bc7987739aec019e754c15df5fbf3eff9daefb93924da098ae4bd1eae  .hug-src/checkpoints/hug_full.safetensors" | sha256sum -c
 
-# serve (CUDA required; --device cpu only when you mean it)
-python scripts/serve_hug.py --checkpoint .hug-src/checkpoints/hug_full.safetensors --port 5558
+# serve from the checkout with the HUG env's interpreter (CUDA required; --device cpu only
+# when you mean it)
+./.hug/bin/python scripts/serve_hug.py --checkpoint .hug-src/checkpoints/hug_full.safetensors --port 5558
 ```
 
 1. The server exits 2 when CUDA is absent without `--device cpu` (checked before HUG or weights

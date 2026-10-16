@@ -1,11 +1,18 @@
 # HUG — an opt-in second grasp backend
 
-[HUG (Human Universal Grasping)](https://grasping.io/) predicts how a **human
-right hand** would grasp the object under one query pixel of one RGB-D frame.
-CASCADE can use it as a second learned grasp backend next to GraspGen-X:
-`grasp.backend: hug`, selected only by the `isaac_kitchen_hug` arm profile or
-an explicit `CASCADE_GRASP_BACKEND=hug`. Every other profile keeps its
-GraspGen-X / OBB behaviour unchanged, and tests pin that.
+**Next action:** try the whole client path with the analytic protocol double (no torch, weights
+or MANO; seconds):
+
+```bash
+uv run python scripts/serve_hug.py --stub
+```
+
+[HUG (Human Universal Grasping)](https://grasping.io/) predicts how a **human right hand** would
+grasp the object under one query pixel of one RGB-D frame. CASCADE can use it as a second learned
+grasp backend next to GraspGen-X: `grasp.backend: hug`, selected only by the `isaac_kitchen_hug`
+arm profile or an explicit `CASCADE_GRASP_BACKEND=hug`. Every other profile keeps its
+GraspGen-X / OBB behaviour (tests pin it). Status: CPU-tested against the stub only; the real
+engine has **never run** against real HUG, weights or MANO here.
 
 | | pinned release |
 |---|---|
@@ -16,73 +23,50 @@ GraspGen-X / OBB behaviour unchanged, and tests pin that.
 
 ## What HUG provides and what CASCADE adds
 
-HUG ships inference code and a click-to-grasp app. Per sample it returns a
-99-D MANO vector, which its own `mano_params_to_grasp_dict` turns into 21
-camera-frame hand landmarks plus `T_camera_wrist`. It does **not** provide a
-server, a confidence score or a parallel-jaw retargeting. These parts are
-CASCADE's, and the code labels them as such:
+HUG returns per sample a 99-D MANO vector that its `mano_params_to_grasp_dict` turns into 21
+camera-frame hand landmarks plus `T_camera_wrist`. It has no server, confidence score or
+parallel-jaw retargeting; those are CASCADE's:
 
 | CASCADE addition | where | note |
 |---|---|---|
-| REQ/REP msgpack server shaped like GraspGen-X's | `scripts/serve_hug.py` | wraps HUG's documented path: `prepare_pkl` → `GraspDataset.get_inference_data` → the `hug.app.handle_click` body → `model.sample` → `mano_params_to_grasp_dict`; asserts HUG's own `K_224` equals ours |
-| N samples of one query per request | server | one batched `model.sample`; the app samples one per click (the paper names many-candidates as the natural extension) |
-| `crop: query` | server | opt-in; pre-crops the square containing the query before HUG's centre crop. Default `center` = HUG's own preprocessing; a query outside the crop is **refused**, never clamped |
-| hand → parallel-jaw **pinch** | `grasping/hug_backend.py::pinch_from_landmarks` | **our assumption**: jaws close along thumb tip (4) → index tip (8) (`index_middle`: mean of index + middle tips); TCP = their midpoint; approach = palm centre (wrist + 4 MCPs) → pinch, orthogonalised to the jaw axis; `pinch_approach: vertical` keeps the contacts and approaches top-down |
-| `Grasp.quality` | `HugPlanner.plan` | **CASCADE's geometric score**, `1 / (1 + lateral/1 cm + off-centre/5 cm)`: how far the pinch centre sits, across the approach, from the observed object and from its middle. Not a HUG output |
-| filters | `HugPlanner.plan` | `approach_z_max` (same tabletop rule as GraspGen-X), `max_lateral_offset_m` (jaws would close beside the object), `surface_tolerance_m` (pinch in front of the first surface closes on air); counts recorded as `hug_filtered_counts` evidence |
-| ranking | runtime | the same `GraspOutcomeMemory` re-rank and z-nudge every backend gets; then `select_grasp` (width ▸ IK ▸ harness pre-vet). The SafetyHarness remains the sole motion authority: a HUG pinch is a proposal |
+| REQ/REP msgpack server shaped like GraspGen-X's | `scripts/serve_hug.py` | HUG's documented path (`prepare_pkl` → `GraspDataset.get_inference_data` → `hug.app.handle_click` body → `model.sample` → `mano_params_to_grasp_dict`); asserts HUG's `K_224` equals ours; N samples per request in one batched `model.sample` |
+| `crop: query` | server | opt-in pre-crop around the query before HUG's centre crop. Default `center` = HUG's preprocessing; a query outside the crop is **refused**, never clamped |
+| hand → parallel-jaw **pinch** | `grasping/hug_backend.py::pinch_from_landmarks` | **our assumption**: jaws close along thumb tip (4) → index tip (8) (`index_middle`: mean of index + middle tips); TCP = midpoint; approach = palm centre (wrist + 4 MCPs) → pinch, orthogonalised; `pinch_approach: vertical` keeps the contacts and approaches top-down |
+| `Grasp.quality`, filters | `HugPlanner.plan` | **CASCADE's geometric score** `1 / (1 + lateral/1 cm + off-centre/5 cm)`, not a HUG output; filters `approach_z_max`, `max_lateral_offset_m`, `surface_tolerance_m`, counts in `hug_filtered_counts` |
+| ranking | runtime | same `GraspOutcomeMemory` re-rank and z-nudge, then `select_grasp` (width ▸ IK ▸ harness pre-vet). The SafetyHarness is the sole motion authority: a HUG pinch is a proposal |
 
 ## Selection and failure contract (same as GraspGen-X)
 
-- **Required** (`grasp.hug.required: true`, the default and the profile's
-  setting): a missing server, the analytic protocol stub, a malformed batch
-  or a failed request is an error at startup and per grasp. It is **never**
-  replaced by OBB or GraspGen-X. Required profiles retry on the next command.
-- **Optional** (`required: false`): a failure is reported as
-  `obb (hug down)` and retried after a 5 s cooldown. When HUG answers, OBB
-  candidates are appended (`learned + obb`, as for GraspGen-X) and the
-  pre-existing quality sort orders the mix. That sort compares CASCADE's
-  geometric score with OBB's analytic quality, so an OBB candidate can
-  outrank HUG pinches. Use the required profile for an A/B.
-- Inside `grasp_object`'s bounded search, the search deadline and
-  cancellation check reach the probe and the request. Transport, malformed
-  or cancellation errors propagate unlatched. An all-filtered batch is
-  GraspGen-X's `NoEligibleGrasps` (an empty batch), so the search may draw
-  fresh hands; HUG sampling is stochastic.
-- `backends()` / the capability matrix name what answered:
-  `hug (learned human hand -> cascade pinch, cuda:0)`, `hug-stub (analytic
-  protocol double)` (never reported as learned), or `obb (hug down)`.
-- Only HUG is handed the RGB-D frame. Other backends are called exactly as
-  before, and a test pins the call shape.
+1. **Required** (`grasp.hug.required: true`, default and the profile's setting): a missing
+   server, the stub, a malformed batch or a failed request is an error at startup and per grasp,
+   **never** replaced by OBB or GraspGen-X; retried on the next command.
+2. **Optional** (`required: false`): a failure reports `obb (hug down)` and retries after a 5 s
+   cooldown. When HUG answers, OBB candidates are appended (`learned + obb`) and the quality sort
+   compares CASCADE's geometric score with OBB's, so OBB can outrank HUG: use the required
+   profile for an A/B.
+3. `grasp_object`'s search deadline and cancellation reach the probe and the request; transport,
+   malformed or cancellation errors propagate unlatched; an all-filtered batch is
+   `NoEligibleGrasps`, so the search may draw fresh (stochastic) hands.
+4. `backends()` / the capability matrix name what answered: `hug (learned human hand -> cascade
+   pinch, cuda:0)`, `hug-stub (analytic protocol double)` (never reported as learned) or
+   `obb (hug down)`. Only HUG receives the RGB-D frame (a test pins the other backends' calls).
 
 ## Inputs and frames
 
-The client sends what HUG's app expects:
+1. The client sends RGB (not CASCADE's BGR); depth as uint16 **millimetres** (NaN, inf,
+   non-positive and ≥ 65.535 m become 0 = invalid); `K` at the RGB resolution; and a query pixel:
+   the valid-depth pixel of the 3×3-eroded mask nearest its centroid (a mug's centroid lies in its
+   hole).
+2. Only measured depth (`sensor` / `mono`); plane-cast depth would feed fabricated geometry.
+3. HUG answers in that camera's OpenCV frame (the 224 px crop changes `K`, not the frame), so
+   landmarks map to base with the same `T_base_cam` that lifted the mask points. Before any
+   request the planner checks the transform back-projects the query onto the fix's own points
+   (`max_query_offset_m`), refusing a secondary camera paired with the primary extrinsic.
 
-- RGB, not CASCADE's BGR;
-- depth as uint16 **millimetres**, where NaN, inf, non-positive and
-  ≥ 65.535 m all become 0 (= invalid);
-- `K` at the RGB resolution;
-- a query pixel on the object: the pixel of the 3×3-eroded detection mask
-  with valid depth that is nearest the mask centroid. HUG trains on query
-  points from a 3×3-eroded mask. A mug's centroid lies in its hole.
+## Install and run (operator; CUDA host, ~30 min)
 
-Only measured depth (`sensor` / `mono`) is accepted. Plane-cast depth would
-feed fabricated geometry.
-
-HUG answers in the OpenCV frame of that camera. The 224 px crop changes `K`,
-not the 3-D frame. Landmarks therefore map to the base frame with the same
-`T_base_cam` that lifted the object's mask points. Before any request, the
-planner checks that this transform back-projects the query pixel onto the
-fix's own points (`max_query_offset_m`). This refuses a secondary camera's
-frame paired with the primary extrinsic.
-
-## Install and run (operator; CUDA host)
-
-HUG needs Python 3.10, torch 2.9.1 (cu128), torch-cluster, chumpy and
-manotorch. That stack is incompatible with CASCADE's Python 3.12 venv, so it
-lives in its own environment (`.hug/`, `.hug-src/`, both git-ignored), like
-`.graspgenx`.
+HUG needs Python 3.10, torch 2.9.1 (cu128), torch-cluster, chumpy and manotorch, incompatible
+with CASCADE's 3.12 venv, so it gets its own env (`.hug/`, `.hug-src/`, git-ignored):
 
 ```bash
 # from the cascade checkout
@@ -109,70 +93,34 @@ echo "515b5c3bc7987739aec019e754c15df5fbf3eff9daefb93924da098ae4bd1eae  .hug-src
 python scripts/serve_hug.py --checkpoint .hug-src/checkpoints/hug_full.safetensors --port 5558
 ```
 
-The server refuses to start, with exit code 2, in any of these cases:
-
-- CUDA is absent and `--device cpu` was not passed (HUG's own app would
-  silently use the CPU). This check runs before HUG or the weights are
-  touched.
-- MANO is missing.
-- The checkpoint digest differs from the pinned one. `--checkpoint-sha256 ''`
-  disables the pin, and `health` then reports `pinned: false`.
-
-`health` reports `stub`, `device`, `gpu`, `checkpoint_sha256`, `pinned`,
-`hug_commit` (vs the expected one) and `sampling_steps`. The default is 1,
-HUG's app default since `8d1c52d`.
-
-`python scripts/serve_hug.py --stub` is an analytic protocol double. It needs
-no torch, weights or MANO, so the whole client path runs on any machine. A
-required profile rejects it.
-
-Selecting HUG:
-
-- `CASCADE_HUG_PORT` / `CASCADE_HUG_HOST` override `grasp.hug.port/host`:
-  `load_demo_config` applies them last, to every arm's view (empty = unset; a
-  malformed port or host is refused, naming the variable), and
-  `serve_hug.py` reads `CASCADE_HUG_PORT` by the same rule when `--port` is
-  not given. The launcher and `scripts/setup_agents.py` forward both to the
-  MCP server.
-- `scripts/launch.sh` has no HUG sidecar; start the server yourself.
-- With `--arm isaac_kitchen_hug`, the launcher refuses `--graspgenx
-  local|external|none` and any non-`hug` `CASCADE_GRASP_BACKEND`, because
-  those export a backend override that would replace HUG. Use the default
-  `auto` or `stub`.
-- The Spark delivery path (`CASCADE_INSTALL_PROFILE=spark`) accepts only its
-  delivery arms. No kitchen admission is claimed for HUG.
+1. The server exits 2 when CUDA is absent without `--device cpu` (checked before HUG or weights
+   load), when MANO is missing, or when the checkpoint digest differs (`--checkpoint-sha256 ''`
+   disables the pin; `health` then reports `pinned: false`).
+2. `health` reports `stub`, `device`, `gpu`, `checkpoint_sha256`, `pinned`, `hug_commit` and
+   `sampling_steps` (default 1, HUG's app default since `8d1c52d`).
+3. `CASCADE_HUG_PORT` / `CASCADE_HUG_HOST` override `grasp.hug.port/host` (applied last by
+   `load_demo_config` to every arm's view; empty = unset; malformed is refused naming the
+   variable); `serve_hug.py` reads `CASCADE_HUG_PORT` when `--port` is absent. The launcher and
+   `scripts/setup_agents.py` forward both to the MCP server.
+4. `scripts/launch.sh` has no HUG sidecar: start the server yourself. With
+   `--arm isaac_kitchen_hug` it refuses `--graspgenx local|external|none` and any non-`hug`
+   `CASCADE_GRASP_BACKEND` (use the default `auto` or `stub`).
+5. The Spark delivery path (`CASCADE_INSTALL_PROFILE=spark`) accepts only its delivery arms; no
+   kitchen admission is claimed for HUG.
 
 ## Validation status
 
-- **CPU-tested against the stub, no weights:** `tests/test_hug_backend.py`
-  and `tests/test_hug_runtime.py`. They cover:
-  - the wire protocol and bounded requests;
-  - BGR→RGB and the mm-depth conversion;
-  - centre/query crop arithmetic against HUG's `prepare_inputs`;
-  - pinch mapping and the tool-axis conventions;
-  - geometric ranking and its filters;
-  - refusals: crop, extrinsics, plane depth, malformed batches;
-  - the CUDA/MANO/sha256 server policy;
-  - the real-engine wrapper, driven through a fake `hug` package;
-  - config and profile wiring and the launcher guard;
-  - required/optional failure paths and the memory re-rank;
-  - golden backends for every existing profile;
-  - a mock-stack `grasp_object` that executes a HUG pinch through
-    `select_grasp` and the harness.
-- **Measured on the mock SO-101 (5-DoF):** pregrasp IK fails for every stub
-  pinch that keeps the palm's ~8° tilted approach. `pinch_approach: vertical`
-  makes them reachable, and the end-to-end test uses it. Whether real HUG
-  hands clear a given arm's IK envelope is exactly what the live run must
-  measure.
-- **Not claimed:**
-  - grasp quality or success rates of real HUG hands;
-  - latency on any GPU;
-  - that the thumb/index pinch is the right retargeting for a parallel jaw;
-  - any comparison with GraspGen-X.
-
-  The real-engine wrapper has never run against real HUG, real weights or
-  MANO here.
-- **Open (parent):** real weights + MANO on a CUDA host, then a live Isaac
-  A/B: `isaac_kitchen_hug` against `isaac_kitchen_gpu`. The two profiles
-  differ only in `grasp.backend` and the `grasp.hug` block, and a test pins
-  that.
+1. **CPU-tested against the stub, no weights** (`tests/test_hug_backend.py`,
+   `tests/test_hug_runtime.py`): wire protocol and bounded requests, BGR→RGB and mm depth,
+   crop arithmetic against HUG's `prepare_inputs`, pinch mapping and tool axes, ranking and
+   filters, every refusal, the CUDA/MANO/sha256 policy, the real-engine wrapper through a fake
+   `hug` package, config/launcher wiring, failure paths, golden backends for every profile and a
+   mock `grasp_object` executing a HUG pinch through `select_grasp` and the harness.
+2. **Measured on the mock SO-101 (5-DoF):** pregrasp IK fails for every stub pinch with the
+   palm's ~8° tilted approach; `pinch_approach: vertical` makes them reachable (the end-to-end
+   test uses it).
+3. **Not claimed:** real HUG grasp quality or success rates, GPU latency, that thumb/index is the
+   right parallel-jaw retargeting, any comparison with GraspGen-X.
+4. **Open:** real weights + MANO on a CUDA host, then a live Isaac A/B of `isaac_kitchen_hug`
+   vs `isaac_kitchen_gpu` (they differ only in `grasp.backend` and the `grasp.hug` block; a test
+   pins that).

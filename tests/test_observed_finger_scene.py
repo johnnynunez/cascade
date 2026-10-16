@@ -309,35 +309,73 @@ def test_factory_rejects_invalid_clock_before_loading_geometry(monkeypatch, engi
 # ── a refusal names the tracked object it would hit (r3, 16 Oct kitchen run:
 # "other observed surface" + coordinates; the agent blamed the cube's corner,
 # the finger was in the lemon) ──────────────────────────────────────────────
+# Graded by the gap between the refused point and the object's tracked surface:
+# within 5 mm the point IS that object ("enter the lemon"); up to 3 cm it is an
+# observed surface near it ("hit an observed surface N cm from the lemon"):
+# naming it as entered blamed an object the finger never touched (review p2 C);
+# beyond 3 cm nothing is named.
+
+
+def _at(point):
+    return [round(float(x), 3) + 0. for x in point]  # never "-0.0"
 
 
 def _neighbour_scene(geometry, tracked):
+    """tracked: (label, cloud offsets from the refused point, radius)."""
     from cascade.grasping.observed_scene import TrackedObject
     env = geometry.envelopes(np.ones(2) * .05, np.ones(2) * .05)
     point = np.asarray(env[1][5], dtype=float)  # inside finger component 1
     frame, mask, T = scene_at(point, target=False)
-    objects = [TrackedObject(label, np.asarray([point + offset]), radius) for label, offset, radius in tracked]
+    objects = [TrackedObject(label, point + np.asarray(offsets, dtype=float).reshape(-1, 3), radius)
+               for label, offsets, radius in tracked]
     scene = ObservedScene(frame, mask, T, source=('fake', 1), robot_id='/robot', epoch='epoch', tracked=objects)
     return scene, env, point
 
 
-def test_a_neighbour_refusal_names_the_tracked_object_it_would_enter(geometry):
-    scene, env, point = _neighbour_scene(geometry, [('bowl', [.20, 0, 0], .0), ('lemon', [.012, 0, 0], .0)])
+#: a lemon cloud (2 cm across) whose nearest sample lies `gap` beside the refused point
+def _lemon_beside(gap):
+    return [[gap, 0, 0], [gap + .02, 0, 0], [gap + .01, .01, 0], [gap + .01, -.01, 0]]
+
+
+def test_a_point_inside_the_lemon_cloud_names_the_lemon_as_entered(geometry):
+    inside = [[.002, 0, 0], [-.01, 0, 0], [0, .01, .002], [0, -.01, 0]]
+    scene, env, point = _neighbour_scene(geometry, [('bowl', [[.20, 0, 0]], .0), ('lemon', inside, .0)])
     hit = scene.conflict(np.eye(4), env)
     assert hit['surface'] == 'other observed surface'
-    assert hit['near'] == f"finger would enter the lemon at {[round(float(x), 3) for x in point]}"
+    assert hit['near'] == f"finger would enter the lemon at {_at(point)}"
+
+
+@pytest.mark.parametrize('gap_cm', [0.5, 1.0, 2.0])
+def test_a_surface_beside_the_lemon_is_not_named_as_the_lemon(geometry, gap_cm):
+    """Review p2 C: an untracked surface 0.5-2 cm beside the lemon read
+    "finger would enter the lemon"; the finger never reached the lemon."""
+    scene, env, point = _neighbour_scene(geometry, [('lemon', _lemon_beside(gap_cm / 100), .0)])
+    hit = scene.conflict(np.eye(4), env)
+    assert hit['near'] == (f"finger would hit an observed surface {gap_cm:.1f} cm from the lemon "
+                           f"at {_at(point)}")
 
 
 def test_a_tracked_centre_counts_its_radius(geometry):
     # a belief without a cloud: centre 4.5 cm away, 3 cm radius -> 1.5 cm gap
-    scene, env, _ = _neighbour_scene(geometry, [('lemon', [0, .045, 0], .03)])
-    assert scene.conflict(np.eye(4), env)['near'].startswith('finger would enter the lemon at')
+    scene, env, point = _neighbour_scene(geometry, [('lemon', [[0, .045, 0]], .03)])
+    assert scene.conflict(np.eye(4), env)['near'] == (
+        f"finger would hit an observed surface 1.5 cm from the lemon at {_at(point)}")
+    # the refused point inside that radius is the lemon itself
+    scene, env, point = _neighbour_scene(geometry, [('lemon', [[0, .02, 0]], .03)])
+    assert scene.conflict(np.eye(4), env)['near'] == f"finger would enter the lemon at {_at(point)}"
 
 
 def test_no_object_is_named_beyond_a_few_centimetres(geometry):
-    scene, env, _ = _neighbour_scene(geometry, [('bowl', [.05, 0, 0], .0)])
+    scene, env, _ = _neighbour_scene(geometry, [('bowl', [[.05, 0, 0]], .0)])
     hit = scene.conflict(np.eye(4), env)
     assert hit is not None and 'near' not in hit
+
+
+def test_the_nearest_tracked_object_is_the_one_named(geometry):
+    scene, env, point = _neighbour_scene(
+        geometry, [('orange', _lemon_beside(.012), .0), ('lemon', _lemon_beside(.008), .0)])
+    assert scene.conflict(np.eye(4), env)['near'] == (
+        f"finger would hit an observed surface 0.8 cm from the lemon at {_at(point)}")
 
 
 def test_a_target_surface_hit_never_names_a_neighbour(geometry):
@@ -346,13 +384,33 @@ def test_a_target_surface_hit_never_names_a_neighbour(geometry):
     point = np.asarray(env[1][5], dtype=float)
     frame, mask, T = scene_at(point, target=True)
     scene = ObservedScene(frame, mask, T, source=('fake', 1), robot_id='/robot', epoch='epoch',
-                          tracked=[TrackedObject('lemon', point[None] + [.005, 0, 0], 0.)])
+                          tracked=[TrackedObject('lemon', point[None] + [.002, 0, 0], 0.)])
     hit = scene.conflict(np.eye(4), env)
     assert hit['surface'] == 'target' and 'near' not in hit
 
 
+@pytest.mark.parametrize('tracked', [
+    [('lemon', [[.002, 0, 0]], .0)],     # entered
+    [('lemon', _lemon_beside(.01), .0)],  # beside
+    [('lemon', [[0, .045, 0]], .03)],     # centre + radius
+    [('bowl', [[.05, 0, 0]], .0)],        # beyond the naming range
+])
+def test_naming_never_changes_the_decision(geometry, tracked):
+    """The tracked objects only word the refusal: every veto, hit or miss,
+    is identical without them."""
+    named, env, point = _neighbour_scene(geometry, tracked)
+    plain, _, _ = _neighbour_scene(geometry, [])
+    hit = named.conflict(np.eye(4), env)
+    assert 'near' in hit or tracked[0][0] == 'bowl'
+    assert {k: v for k, v in hit.items() if k != 'near'} == plain.conflict(np.eye(4), env)
+    away = np.eye(4); away[:3, 3] = [.5, .5, .5]
+    assert named.conflict(away, env) is None and plain.conflict(away, env) is None
+    assert named.conflict(np.eye(4), env, allow_target_contact=True)['finger'] == \
+        plain.conflict(np.eye(4), env, allow_target_contact=True)['finger']
+
+
 def test_the_gate_refusal_text_names_the_object_and_still_refuses(geometry):
-    scene, _, _ = _neighbour_scene(geometry, [('lemon', [.005, 0, 0], .0)])
+    scene, _, _ = _neighbour_scene(geometry, [('lemon', [[.002, 0, 0]], .0)])
     kin = SimpleNamespace(fk=lambda q: np.eye(4))
     clock = dict(version=1, engine='physx', clock='SimulationManager', source=('fake', 1),
                  robot_id='/robot', epoch='epoch', sim_time=0., physics_step=0, physics_dt_s=.01)
@@ -374,3 +432,42 @@ def test_the_factory_tracks_neighbours_but_not_the_target():
     gate = for_runtime(runtime, frame, fix, state)
     assert [t.label for t in gate.scene.tracked] == ['lemon']
 
+
+# A second object with the target's own label is "the other green cube":
+# "finger would enter the green cube" reads as the target the agent asked for.
+
+
+def _cube(x, label='green cube'):
+    return SimpleNamespace(label=label, position=np.array([x, .01, .03]), points=None,
+                           diameter_m=.05, extent=None)
+
+
+def test_a_duplicate_of_the_target_label_is_the_other_one():
+    from cascade.grasping.observed_scene import tracked_objects
+    tracked = tracked_objects([_cube(.24), _cube(.32), _cube(.40, 'lemon')], [.241, .012, .03],
+                              target_label='green cube')
+    assert [t.label for t in tracked] == ['other green cube', 'lemon']
+    # without the fix's label, the target's own belief (at the target) names it
+    tracked = tracked_objects([_cube(.24, 'Green Cube'), _cube(.32)], [.241, .012, .03])
+    assert [t.label for t in tracked] == ['other green cube']
+
+
+def test_a_refusal_at_the_duplicate_names_the_other_green_cube(geometry):
+    from cascade.grasping.observed_scene import tracked_objects
+    env = geometry.envelopes(np.ones(2) * .05, np.ones(2) * .05)
+    point = np.asarray(env[1][5], dtype=float)
+    frame, mask, T = scene_at(point, target=False)
+    duplicate = SimpleNamespace(label='green cube', position=point + [.02, 0, 0], points=None,
+                                diameter_m=.05, extent=None)
+    tracked = tracked_objects([duplicate], point + [.2, 0, 0], target_label='green cube')
+    scene = ObservedScene(frame, mask, T, source=('fake', 1), robot_id='/robot', epoch='epoch', tracked=tracked)
+    assert scene.conflict(np.eye(4), env)['near'] == f"finger would enter the other green cube at {_at(point)}"
+
+
+def test_the_factory_passes_the_target_label():
+    from cascade.grasping.observed_scene import for_runtime
+    runtime, frame, fix, state = runtime_factory_inputs()
+    runtime.beliefs = SimpleNamespace(all=lambda: [_cube(.32)])
+    fix.position, fix.label = np.array([.241, .012, .03]), 'green cube'
+    gate = for_runtime(runtime, frame, fix, state)
+    assert [t.label for t in gate.scene.tracked] == ['other green cube']

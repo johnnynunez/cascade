@@ -32,6 +32,11 @@ OPEN_TRACKING_ENVELOPE_M = .0001
 # of the refused point; farther away the text names nothing. Wording only:
 # the veto itself never reads tracked objects.
 NEAR_OBJECT_M = .03
+# Within this gap the refused point IS that object's surface ("finger would
+# enter the lemon"); farther out it is another surface near it ("would hit an
+# observed surface 1.0 cm from the lemon"). Calling a neighbouring surface the
+# lemon made the agent blame an object the finger never reached.
+ON_OBJECT_M = .005
 # A tracked object whose centre lies this close to the grasped target's is the
 # target itself (never named as the obstacle).
 SAME_OBJECT_M = .03
@@ -46,29 +51,45 @@ class TrackedObject:
     radius_m: float = 0.  # 0 for a cloud; half its size when only a centre is known
 
 
-def tracked_objects(beliefs, target_position=None) -> list[TrackedObject]:
-    """World-model beliefs -> TrackedObjects, without the grasped target."""
+def tracked_objects(beliefs, target_position=None, target_label=None) -> list[TrackedObject]:
+    """World-model beliefs -> TrackedObjects, without the grasped target.
+
+    The target is every belief within SAME_OBJECT_M of `target_position`.
+    Another belief with the target's label (`target_label`, or the label of
+    a belief at the target) is named "other <label>": "the finger would
+    enter the green cube" reads as the cube the agent asked for."""
     out = []
     target = None if target_position is None else np.asarray(target_position, dtype=float)[:3]
+    target_labels = {str(target_label).strip().lower()} if target_label else set()
+    kept = []
     for b in beliefs:
         try:
             centre = np.asarray(b.position, dtype=float)[:3]
             if centre.shape != (3,) or not np.isfinite(centre).all():
                 continue
             if target is not None and np.linalg.norm(centre - target) < SAME_OBJECT_M:
+                target_labels.add(str(b.label).strip().lower())
                 continue
+            kept.append((b, centre))
+        except (AttributeError, TypeError, ValueError):
+            continue  # a malformed belief only loses its name in a refusal text
+    for b, centre in kept:
+        try:
+            label = str(b.label)
+            if label.strip().lower() in target_labels:
+                label = f"other {label}"
             cloud = getattr(b, "points", None)
             cloud = None if cloud is None else np.asarray(cloud, dtype=float).reshape(-1, 3)
             if cloud is not None and len(cloud) and np.isfinite(cloud).all():
-                out.append(TrackedObject(str(b.label), cloud.copy(), 0.))
+                out.append(TrackedObject(label, cloud.copy(), 0.))
                 continue
             size = getattr(b, "diameter_m", None)
             if size is None and getattr(b, "extent", None) is not None:
                 size = float(np.max(np.asarray(b.extent, dtype=float)))
             radius = float(size) / 2 if size is not None and np.isfinite(float(size)) else 0.
-            out.append(TrackedObject(str(b.label), centre[None].copy(), max(radius, 0.)))
+            out.append(TrackedObject(label, centre[None].copy(), max(radius, 0.)))
         except (AttributeError, TypeError, ValueError):
-            continue  # a malformed belief only loses its name in a refusal text
+            continue
     return out
 
 
@@ -259,16 +280,20 @@ class ObservedScene:
                     target = bool(self.is_target[i])
                     return {"finger": name, "component": part,
                             "surface": "target" if target else "other observed surface",
-                            **({} if target else self._near(self.points[i], "enter")),
+                            **({} if target else self._near(self.points[i], "enter", "hit")),
                             "pixel_rc": self.pixels[i].tolist(), "point_base_m": self.points[i].tolist()}
         return None
 
-    def _near(self, point, verb):
-        """{"near": "finger would <verb> the lemon at [x, y, z]"} for the
-        tracked object whose surface is nearest the refused point, within
-        NEAR_OBJECT_M; {} otherwise. The agent relays this text: on the
-        kitchen run "other observed surface" plus coordinates made it blame
-        the target's corner while the finger was in the neighbouring lemon."""
+    def _near(self, point, on, beside):
+        """{"near": ...} naming the tracked object whose surface is nearest
+        the refused point, graded by that gap; {} beyond NEAR_OBJECT_M.
+
+        Within ON_OBJECT_M the point is that object: "finger would <on> the
+        lemon at [x, y, z]". Farther out it is only near it: "finger would
+        <beside> an observed surface 1.0 cm from the lemon at [x, y, z]". The
+        agent relays this text: on the kitchen run 'other observed surface'
+        plus coordinates made it blame the target's corner while the finger
+        was in the neighbouring lemon."""
         point = np.asarray(point, dtype=float)
         best = None
         for obj in self.tracked:
@@ -277,7 +302,13 @@ class ObservedScene:
                 best = (gap, obj.label)
         if best is None:
             return {}
-        return {"near": f"finger would {verb} the {best[1]} at {[round(float(x), 3) for x in point]}"}
+        gap, label = best
+        at = [round(float(x), 3) + 0. for x in point]
+        # Graded at 0.1 mm so a point placed exactly ON_OBJECT_M away reads
+        # the same however the subtraction rounds.
+        if round(gap, 4) < ON_OBJECT_M:
+            return {"near": f"finger would {on} the {label} at {at}"}
+        return {"near": f"finger would {beside} an observed surface {gap * 100:.1f} cm from the {label} at {at}"}
 
     def occluded(self, T_base_tcp, envelopes, *, check=None):
         """Find a finger ray interval behind observed non-target depth.
@@ -349,7 +380,7 @@ class ObservedScene:
                     seen = self._T_base_cam[:3, :3] @ (rays[i] * z) + self._T_base_cam[:3, 3]
                     return {"finger": name, "component": part,
                             "surface": "occluded behind observed non-target depth",
-                            **self._near(seen, "pass behind"),
+                            **self._near(seen, "pass behind", "pass behind"),
                             "pixel_rc": [int(rr[i]), int(cc[i])],
                             "observed_depth_z_m": z,
                             "finger_ray_near_z_m": float(near[i]),
@@ -512,7 +543,8 @@ def for_runtime(runtime, frame, fix, state):
             T = ext.T
     try:  # names for refusal texts only; a world-model fault never blocks the gate
         beliefs = runtime.beliefs.all() if getattr(runtime, "beliefs", None) is not None else ()
-        tracked = tracked_objects(beliefs, getattr(fix, "position", None))
+        target_label = getattr(fix, "label", None) or getattr(getattr(fix, "detection", None), "label", None)
+        tracked = tracked_objects(beliefs, getattr(fix, "position", None), target_label)
     except Exception:  # noqa: BLE001
         tracked = ()
     scene = ObservedScene(frame, fix.detection.mask, T, source=raw._client._addr,

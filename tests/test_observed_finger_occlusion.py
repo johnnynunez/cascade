@@ -32,12 +32,24 @@ def test_hidden_convex_has_no_surface_point_but_endpoint_is_rejected():
     assert 'near' not in hit  # no tracked object: nothing is named
 
 
-def test_an_occlusion_names_the_tracked_object_in_front_of_the_finger():
+def _tracked_scene(cloud):
     from cascade.grasping.observed_scene import ObservedScene, TrackedObject
     frame, mask, T = scene_at([0, 0, 1], target=False)
-    lemon = TrackedObject('lemon', np.array([[0., .01, 1.02]]), 0.)
-    s = ObservedScene(frame, mask, T, source=('fake', 1), robot_id='/robot', epoch='epoch', tracked=[lemon])
+    lemon = TrackedObject('lemon', np.array(cloud, dtype=float), 0.)
+    return ObservedScene(frame, mask, T, source=('fake', 1), robot_id='/robot', epoch='epoch', tracked=[lemon])
+
+
+def test_an_occlusion_names_the_tracked_object_in_front_of_the_finger():
+    s = _tracked_scene([[0., .003, 1.], [0., .02, 1.01]])  # the occluding point is on the lemon
     assert s.occluded(np.eye(4), box())['near'] == 'finger would pass behind the lemon at [0.0, 0.0, 1.0]'
+
+
+def test_an_occluder_beside_the_lemon_is_not_named_as_the_lemon():
+    s = _tracked_scene([[0., .01, 1.02]])  # 2.2 cm from the occluding point
+    hit = s.occluded(np.eye(4), box())
+    assert hit['near'] == ('finger would pass behind an observed surface 2.2 cm from the lemon '
+                           'at [0.0, 0.0, 1.0]')
+    assert {k: v for k, v in hit.items() if k != 'near'} == scene().occluded(np.eye(4), box())
 
 
 @pytest.mark.parametrize('lo,hi,hit', [

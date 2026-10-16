@@ -48,12 +48,12 @@ def detect_vocabulary(detector, frame: Frame, classes: list[str] | None) -> list
 
 def can_reanchor(detector) -> bool:
     """Two-phase localization is available: the detector's CLASS defines
-    `reanchor` (the brain detector, and `world.LockedDetector` forwarding it)
-    and, when the class also defines `can_reanchor()`, that says yes (the
-    brain detector: a segmenter is configured). Only the class counts: a Mock
-    answers every attribute."""
+    `reanchor` and `reanchor_reference` (the brain detector, and
+    `world.LockedDetector` forwarding them) and, when the class also defines
+    `can_reanchor()`, that says yes (the brain detector: a segmenter is
+    configured). Only the class counts: a Mock answers every attribute."""
     cls = type(detector)
-    if not callable(getattr(cls, "reanchor", None)):
+    if not (callable(getattr(cls, "reanchor", None)) and callable(getattr(cls, "reanchor_reference", None))):
         return False
     check = getattr(cls, "can_reanchor", None)
     return bool(detector.can_reanchor()) if callable(check) else True

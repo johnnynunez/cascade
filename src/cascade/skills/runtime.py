@@ -2421,7 +2421,24 @@ class SkillRuntime:
                     "is live -- retry the observation"
                 )
 
-        def measure_again(frame0, fix0, ext0, frame1, ext1, timing):
+        def re_mask(frame0, fix0, timing):
+            # Before frame1 is taken (its age is the 5 s rule's, this SAM call
+            # is no part of it): frame0 re-masked with the prompt frame1 will
+            # get, so every check compares masks made alike. The brain's
+            # detection still names the object; a failed re-mask is a failed
+            # re-anchor.
+            started = time.monotonic()
+            try:
+                reference = self.detector.reanchor_reference(frame0, fix0.detection)
+            except Exception as exc:  # noqa: BLE001 -- a failed SAM call is a failed re-anchor
+                raise _ReanchorFailed(f"{type(exc).__name__}: {exc}") from exc
+            finally:
+                timing["reference_s"] = round(time.monotonic() - started, 3)
+            if reference.detection is None or reference.detection.mask is None:
+                raise _ReanchorFailed(reference.reason or "SAM returned no mask on the image the object was named on")
+            return reference
+
+        def measure_again(frame0, fix0, reference, ext0, frame1, ext1, timing):
             # Steps 4-7 on frame1: the same view, the brain's box re-anchored
             # by SAM, the geometry from frame1 alone, and the 5 s rule on it.
             started1 = time.monotonic()
@@ -2431,7 +2448,7 @@ class SkillRuntime:
                     raise _SceneChanged(changed)
                 timing["frame0_age_at_reanchor_s"] = round(started1 - float(frame0.t), 3)
                 try:
-                    found = self.detector.reanchor(frame1, fix0.detection, since=frame0)
+                    found = self.detector.reanchor(frame1, fix0.detection, since=frame0, reference=reference)
                 except Exception as exc:  # noqa: BLE001 -- a failed SAM call is a failed re-anchor
                     raise _ReanchorFailed(f"{type(exc).__name__}: {exc}") from exc
                 finally:
@@ -2456,10 +2473,11 @@ class SkillRuntime:
                         raise _ReanchorFailed(rejected.reason) from None
                     raise _SceneChanged(rejected.reason) from None  # colour, or out of the workspace now
                 # Both positions measured the same robust way (medians inside
-                # the masks eroded by 2 px): a pixel of SAM edge jitter onto
-                # the table tilts the fixes' OBB centres by ~2 cm.
+                # the masks eroded by 2 px; frame0's is its same-prompt
+                # re-mask): a pixel of SAM edge jitter onto the table tilts
+                # the fixes' OBB centres by ~2 cm.
                 moved = float(np.linalg.norm(median_point(frame1, found.detection, ext1)
-                                             - median_point(frame0, fix0.detection, ext0)))
+                                             - median_point(frame0, reference.detection, ext0)))
                 timing["moved_m"] = _rounded(moved, 4)
                 if not moved <= _REANCHOR_MAX_MOVE_M:
                     raise _SceneChanged(f"the object moved {moved * 100:.1f} cm between the two images")
@@ -2486,9 +2504,11 @@ class SkillRuntime:
                     fix0 = name_object(frame0, ext0)
                 finally:
                     timing["semantic_s"] = round(time.monotonic() - started0, 3)
-                frame1 = take_frame1(frame0)
                 try:
-                    return frame1, measure_again(frame0, fix0, ext0, frame1, extrinsics_of(frame1), timing)
+                    reference = re_mask(frame0, fix0, timing)
+                    frame1 = take_frame1(frame0)
+                    return frame1, measure_again(frame0, fix0, reference, ext0, frame1, extrinsics_of(frame1),
+                                                 timing)
                 except _SceneChanged as exc:
                     timing["scene_changed"] = str(exc)
                     retried["scene"] += 1

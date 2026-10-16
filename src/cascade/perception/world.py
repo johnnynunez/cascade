@@ -69,11 +69,12 @@ class LockedDetector:
     one (the brain detector's cached vocabulary entry) gets it, under the same
     lock rule as detect(); any other detector gets detect().
 
-    reanchor() / can_reanchor() are two-phase localization's (perception.
-    detector.can_reanchor): forwarded to a CLASS-defined reanchor (the brain
-    detector: SAM on the brain's box in a fresh frame) under the same lock
-    rule as detect(); can_reanchor() is False for any other detector, which
-    keeps the single-frame localization.
+    reanchor() / reanchor_reference() / can_reanchor() are two-phase
+    localization's (perception.detector.can_reanchor): forwarded to a
+    CLASS-defined reanchor and reanchor_reference (the brain detector: SAM on
+    the brain's grown box in the named frame, then in a fresh one) under the
+    same lock rule as detect(); can_reanchor() is False for any other
+    detector, which keeps the single-frame localization.
 
     close() (a shutdown stage, after the watcher stopped) forwards to the
     detector's close() when its CLASS defines one (the brain detector joins
@@ -87,7 +88,8 @@ class LockedDetector:
         self._concurrent_safe = bool(getattr(type(detector), "concurrent_safe", False))
         self._has_nowait = _has_detect_nowait(detector)
         self._has_vocabulary = callable(getattr(type(detector), "detect_vocabulary", None))
-        self._has_reanchor = callable(getattr(type(detector), "reanchor", None))
+        self._has_reanchor = (callable(getattr(type(detector), "reanchor", None))
+                              and callable(getattr(type(detector), "reanchor_reference", None)))
         self._has_close = callable(getattr(type(detector), "close", None))
 
     @property
@@ -155,13 +157,21 @@ class LockedDetector:
     def can_reanchor(self) -> bool:
         return self._has_reanchor and can_reanchor(self._detector)
 
-    def reanchor(self, frame, det, *, since):
+    def reanchor_reference(self, frame, det):
+        if not self._has_reanchor:
+            raise TypeError(f"{type(self._detector).__name__} does not define reanchor_reference()")
+        if self._concurrent_safe:
+            return self._detector.reanchor_reference(frame, det)
+        with self._lock:
+            return self._detector.reanchor_reference(frame, det)
+
+    def reanchor(self, frame, det, *, since, reference=None):
         if not self._has_reanchor:
             raise TypeError(f"{type(self._detector).__name__} does not define reanchor()")
         if self._concurrent_safe:
-            return self._detector.reanchor(frame, det, since=since)
+            return self._detector.reanchor(frame, det, since=since, reference=reference)
         with self._lock:
-            return self._detector.reanchor(frame, det, since=since)
+            return self._detector.reanchor(frame, det, since=since, reference=reference)
 
     def close(self) -> None:
         if not self._has_close:

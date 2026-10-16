@@ -130,6 +130,17 @@ def _wrist_camera_up(block) -> dict:
     return {"tool_up_axis": tuple(float(v) for v in axis / n), "min_tool_up_z": min_z}
 
 
+#: A TCP/link point already inside `min_clearance_m` may take a step only when
+#: its map clearance grows by MORE than this (or the step is an exact hold).
+#: A float-noise floor, as for the below-table escape (`prev_z + 1e-9`): a
+#: min-jerk stream from rest starts with sub-micrometre ticks (a 3 cm lift's
+#: first 50 Hz tick gains 8.8e-8 m), so 1e-6 would refuse every escape.
+CLEARANCE_ESCAPE_TOL_M = 1e-9
+#: Appended to a TCP/link map-clearance refusal when the arm already started
+#: inside the margin, so the reason says why a small move was refused.
+ESCAPE_NOTE = " (inside the margin: only a strictly retreating step is allowed)"
+
+
 def _unknown_blocks(occupancy) -> bool:
     """Does this map treat unobserved space as an obstacle? An OccupancyMap
     says so itself (`unobserved: blocked`); a stand-in without the property
@@ -870,8 +881,14 @@ class SafetyHarness:
                 reject(f"link/joint {i} at z={p[2]:.3f} would hit the table")
 
         if self.occupancy is not None:
+            # The same TCP + links at q_prev, read in the same map query, so
+            # an arm already inside the margin may strictly retreat (spec 3.1).
+            prev_points = np.vstack([self.kin.fk(q_prev)[:3, 3][None, :],
+                                     self.kin.link_positions(q_prev)[1:]])
             reason = self._occupancy_violation(
-                np.vstack([tcp[None, :], links[1:]]), self._grasp_exempt
+                np.vstack([tcp[None, :], links[1:]]), self._grasp_exempt,
+                prev_points=prev_points,
+                hold=bool(np.allclose(q_prev, q_next, rtol=0.0, atol=1e-9)),
             )
             if reason is not None:
                 reject(reason)
@@ -989,6 +1006,22 @@ class SafetyHarness:
         # ranking time instead of failing mid-descent.
         return self._neighbor_violation(q)
 
+    def route_end_violation(self, q: np.ndarray) -> str | None:
+        """Why a planned route may not END at joint pose `q`, or None.
+
+        The static TCP + joint-origin occupancy check under the active grasp
+        exemption, with no escape: a step may retreat while still inside
+        `min_clearance_m`, but a route that leaves the arm inside it is never
+        chosen. The only entry for this check (`trajectory.route_end_reason`
+        calls it for every planner). None without kinematics or a map.
+        """
+        if self.kin is None or self.occupancy is None:
+            return None
+        q = np.asarray(q, dtype=float)
+        links = self.kin.link_positions(q)
+        return self._occupancy_violation(
+            np.vstack([self.kin.fk(q)[:3, 3][None, :], links[1:]]), self._grasp_exempt)
+
     def _payload_occupancy_violation(self, q, exempt):
         points_fn = getattr(self.occupancy, "payload_points", None)
         if points_fn is None:
@@ -1002,7 +1035,8 @@ class SafetyHarness:
         reason = self._occupancy_violation(points, exempt, attached=True)
         return f"attached object {reason}" if reason else None
 
-    def _occupancy_violation(self, points: np.ndarray, exempt: tuple | None, *, attached=False) -> str | None:
+    def _occupancy_violation(self, points: np.ndarray, exempt: tuple | None, *, attached=False,
+                             prev_points: np.ndarray | None = None, hold: bool = False) -> str | None:
         """Occupancy-map check: any query point closer than min_clearance_m
         to a cached obstacle, outside the active grasp exemption.
 
@@ -1012,21 +1046,44 @@ class SafetyHarness:
         instead (they raise). Carried surfaces, and maps whose policy is
         `unobserved: blocked`, need observed distance-grid support; their
         unknown observations must not admit motion.
+
+        Escape rule (a streamed/vetted STEP only: `prev_points` are the same
+        points at q_prev; never for attached payloads or static vets): a
+        point inside the margin at q_next is admitted only when it was
+        already inside at q_prev AND its clearance grows by more than
+        CLEARANCE_ESCAPE_TOL_M, or the step is an exact `hold`. Both
+        distances come from ONE map read. A NaN/unobserved clearance never
+        escapes (NaN is never below the margin, never larger).
         """
         query = self.occupancy.payload_clearance if attached else self.occupancy.clearance
         observed_required = attached or _unknown_blocks(self.occupancy)
-        dist = query(points)
+        n = len(points)
+        if prev_points is None:
+            dist = query(points)
+        else:
+            dist = query(np.vstack([points, prev_points]))
         if dist is None:
             return "clearance unavailable (fresh observed distance grid required)" if observed_required else None
         min_c = self.limits.min_clearance_m
+        retreating = inside_before = None
+        if prev_points is not None:
+            dist = np.asarray(dist, dtype=float)
+            dist, before = dist[:n], dist[n:]
+            inside_before = before < min_c                # NaN compares False: never inside
+            retreating = inside_before & (hold | (dist > before + CLEARANCE_ESCAPE_TOL_M))
         for i, (p, d) in enumerate(zip(points, dist)):
             if not np.isfinite(d) and observed_required and not self._in_cylinder(p, exempt):
                 return (f"point {i} has unobserved clearance (occupancy map)"
                         f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]")
             if d < min_c and not self._in_cylinder(p, exempt):
+                if retreating is not None and retreating[i]:
+                    continue
+                started_inside = inside_before is not None and any(
+                    inside_before[j] and not self._in_cylinder(b, exempt)
+                    for j, b in enumerate(prev_points))
                 return (f"point {i} clearance {d:.9f} m below {min_c:.9f} m "
                         f"(shortfall {(min_c - d) * 1000:.6f} mm; occupancy map)"
-                        f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]")
+                        f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]") + (ESCAPE_NOTE if started_inside else "")
         return None
 
     def _tool_volume_clearance(self, T_tcp: np.ndarray, exempt: tuple | None):

@@ -397,7 +397,7 @@ def plan_route(rt, q_start, goals, *, load: Carried, s: Settings, duration: floa
     `goals` is a list of ("pose", T_4x4) or ("joints", q). Raises `Refused`
     on the first failing segment; never commands anything.
     """
-    from ..safety.trajectory import geometry_guard, vet_segment
+    from ..safety.trajectory import geometry_guard, route_end_reason, vet_segment
 
     kin, harness = _kin(rt), rt.arm.harness
     cart = _cartesian(rt)
@@ -450,6 +450,10 @@ def plan_route(rt, q_start, goals, *, load: Carried, s: Settings, duration: floa
                 raise Refused(found[0], found[1], i)
             segments.append(Segment(q.copy(), q_goal, T_goal))
             q = q_goal
+        # A step may retreat inside the map margin; the route may not end there.
+        reason = route_end_reason(harness, q)
+        if reason:
+            raise Refused("safety_harness", reason, len(goals) - 1)
     return Route(segments, cart)
 
 

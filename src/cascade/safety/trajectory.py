@@ -73,6 +73,18 @@ def vet_segment(harness, start, goal, duration_s, *, deadline=None, stretch=True
     return None
 
 
+def route_end_reason(harness, end):
+    """Why a route may not end at joint pose `end`, or None (spec 3.1).
+
+    A step may retreat inside the map margin, but a route must never leave
+    the arm there. Harnesses without `route_end_violation` (GeometryHarness,
+    test doubles) have no such escape and need no end check.
+    """
+    check = getattr(harness, "route_end_violation", None)
+    reason = check(end) if check is not None else None
+    return None if reason is None else "route ends inside the margin: " + reason
+
+
 def vet_route(harness, start, goals, duration_s, *, deadline=None, rate_hz=50.0):
     previous = start
     for goal in goals:
@@ -80,7 +92,7 @@ def vet_route(harness, start, goals, duration_s, *, deadline=None, rate_hz=50.0)
         if reason:
             return reason
         previous = goal
-    return None
+    return route_end_reason(harness, goals[-1] if len(goals) else start)
 
 
 def plan_route(harness, start, goal, duration_s=3.0, *, rate_hz=50.0):

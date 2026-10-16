@@ -1,171 +1,139 @@
 # WRC control port (reBot B601-RS)
 
-Seeed Studio's WRC fork (`wrc_demo`, forked from the July-2026 baseline at
-`389a18d`) ran the reBot B601-RS on a real rig and found and fixed control
-problems. This document records which of those fixes cascade now has, where
-they live, what was deliberately left out and why, how WRC's constants differ
-from cascade's, and the onsite checks still needed. Everything below was
-developed and tested offline: fakes stand in for the SDK, motorbridge and the
-motors. **No change here has run on hardware.**
+**Next action:** before any onsite step, read [Onsite hardware verification](#onsite-hardware-verification-still-required)
+and put a person at the arm with the e-stop or power cut within reach.
 
-Sources: `git -C wrc log 389a18d..HEAD`, WRC
+Seeed's WRC fork (`wrc_demo`, forked at `389a18d`) ran the reBot B601-RS on a real rig and fixed
+control problems. This records which fixes cascade has, what was left out and why, the constant
+differences and the owed onsite checks. Sources: `git -C wrc log 389a18d..HEAD`, WRC
 `docs/HARDWARE_VERIFICATION_HANDOVER.md`, `docs/adr/0001..0005`,
-`docs/specs/teach_record_replay.md`.
+`docs/specs/teach_record_replay.md`. The port was developed offline against fakes (SDK,
+motorbridge, motors); except the scripted home move below, it is **unverified on hardware**.
 
 ## Ported
 
 | WRC source | What | cascade location | Tests |
 |---|---|---|---|
-| Handover Finding #1; `control/__init__.py::make_arm` | RobStride motors keep fault bits (`fault_raw 0x4`) across sessions, and the SDK's `enable_all()` does not clear them. A faulted motor ignores MIT commands without reporting an error. The fix clears every motor (joints and gripper) with bounded retries on a late `comm_type=4` ack. Any other failure raises `RuntimeError` before torque is enabled and releases the bus. | `control/robstride.py::clear_motor_faults`; `RebotRSArm.connect`, `RebotRSMotorBridgeArm.connect`, `scripts/jog_rebot_mb.py`, `scripts/sign_check_rebot_mb.py` | `test_rebot_clear_error.py`, `test_rebot_bringup_scripts_clear.py` |
-| Handover Finding #2 | The SDK's `RebotArmEndPose` 500 Hz `_loop_cb` overwrites any direct `send_mit` within 2 ms. **This does not apply to cascade.** Neither RS driver starts that loop, and each sends one MIT frame per harness-approved 50 Hz waypoint. A test pins this so a later refactor cannot add a second writer. | `rebot_rs_arm.py` docstring | `test_rebot_rs_sdk_loop.py` (AST check plus fake SDK; verified by mutation) |
-| Handover Finding #3 | At mechanical zero, joint 2 reads +0.004 rad, below its limit (0) plus the 0.02 margin. WRC's workaround skipped the harness for the first waypoint. **That bypass is not ported.** cascade's directional escape rule already handles this case: a joint outside its margin may move strictly back toward the valid band, while holding or moving deeper is still refused. Tests on the real RS kinematics and harness show this is sufficient. | none needed (`SafetyHarness.approve` escape rule) | `test_rebot_rest_and_park.py` |
-| Found while testing #3 | `rebot_rs.yaml` set `park_q` joint 3 to −0.05, below the joint's URDF lower limit of 0. The park only relaxes the margin, so the harness refused it at joint 3 = −0.001 while joint 2 was still about 0.05 rad up. The gripper park then never ran, and teardown reported `ParkIncomplete`. `park_q` is now exactly `[0]*6`, and a test keeps every profile's `park_q` inside its URDF limits. | `configs/arms/rebot_rs.yaml` | `test_rebot_rest_and_park.py` |
-| `control/gripper.py` (`WrcGripper._send_gripper_mit` clip) | Gripper targets are clamped to the profile's travel `[min(open,closed), max(open,closed)]` on both RS transports, including the light-hold path. | `robstride.clamp_to_travel`; `rebot_rs_arm.py`, `rebot_rs_mb_arm.py` | `test_rebot_gripper_travel.py` |
-| e3b0b2a (gripper sign convention) | `RebotRSArm` still fell back to the DM build's `open_pos=-6.8` when a profile had no gripper block. It now uses the measured RS default (6.2/0), which `rebot_rs_mb` already used. The stale RS polarity note in AGENTS.md is also fixed. | `rebot_rs_arm.py`, `AGENTS.md` | `test_rebot_gripper_travel.py` |
-| a2d5950 (adaptive opening) | Opt-in pre-grasp opening to the grasp width plus a margin. It goes through `SafeArm.set_gripper` and is never narrower than the grasp width. A negative or non-finite margin is a config error. An unknown width means fully open. | `grasping/force.py::pregrasp_open_position`; `skill_grasp_object`; profile key `gripper.pregrasp_open_margin_m` (rebot_rs: `null`) | `test_pregrasp_adaptive_open.py` |
-| e97998c, ba4e110 (settle window) | `RebotRSArm` now reads `settle_timeout_s` from the profile, as the motorbridge backend already did. Defaults and shipped values are unchanged. | `rebot_rs_arm.py` | `test_rebot_settle_config.py` |
-| e97998c (`planning/cartesian_planner.py`, `SafeArm.move_joints_path/move_cartesian`) | Straight-line TCP motion; details below the table. | `planning/cartesian.py`, `ArmBase.stream_path`, `SafeArm.move_cartesian/move_joint_path`, `skill_move_relative` (profile key `cartesian_relative_moves`, rebot_rs: `false`) | `test_cartesian_path.py` |
-| b70f3a0 (reflex) | "return (to the) home", "back home" and "go back home" are now reflexes -- since `move_to_rest`, of the folded rest pose (`move_to_rest`); the raised `move_home` is the "initial pose" (see SPATIAL_COMMANDS.md). | `agent/reflex.py` | `test_reflex_return_home.py` |
+| Handover Finding #1 | RobStride motors keep fault bits (`fault_raw 0x4`) across sessions and `enable_all()` does not clear them; a faulted motor silently ignores MIT. Every motor (joints + gripper) is cleared with bounded retries on a late `comm_type=4` ack; any other failure raises `RuntimeError` before torque and releases the bus. | `control/robstride.py::clear_motor_faults`; `RebotRSArm.connect`, `RebotRSMotorBridgeArm.connect`, `scripts/jog_rebot_mb.py`, `scripts/sign_check_rebot_mb.py` | `test_rebot_clear_error.py`, `test_rebot_bringup_scripts_clear.py` |
+| Handover Finding #2 | The SDK's 500 Hz `RebotArmEndPose._loop_cb` overwrites a direct `send_mit` within 2 ms. **Does not apply**: neither RS driver starts it; each sends one MIT frame per harness-approved 50 Hz waypoint. Pinned so no refactor adds a second writer. | `rebot_rs_arm.py` docstring | `test_rebot_rs_sdk_loop.py` (AST + fake SDK, mutation-verified) |
+| Handover Finding #3 | At mechanical zero joint 2 reads +0.004 rad, below limit 0 + 0.02 margin. WRC's first-waypoint harness bypass is **not ported**: the harness escape rule lets a joint outside its margin move strictly back toward the band, while holding or going deeper is refused. | `SafetyHarness.approve` escape rule | `test_rebot_rest_and_park.py` |
+| Found with #3 | `park_q` joint 3 was −0.05, below its URDF limit 0, so park stalled and teardown reported `ParkIncomplete`. `park_q` is now `[0]*6`; a test keeps every profile's `park_q` inside URDF limits. | `configs/arms/rebot_rs.yaml` | `test_rebot_rest_and_park.py` |
+| `WrcGripper._send_gripper_mit` clip; e3b0b2a | Gripper targets clamped to `[min(open,closed), max(open,closed)]` on both RS transports incl. light hold; `RebotRSArm` without a gripper block uses the measured RS default (6.2/0), not the DM `open_pos=-6.8`. | `robstride.clamp_to_travel`; `rebot_rs_arm.py`, `rebot_rs_mb_arm.py` | `test_rebot_gripper_travel.py` |
+| a2d5950 | Opt-in pre-grasp opening to grasp width + margin through `SafeArm.set_gripper`, never narrower than the width; negative/non-finite margin = config error; unknown width = fully open. | `grasping/force.py::pregrasp_open_position`, `gripper.pregrasp_open_margin_m` (rebot_rs: `null`) | `test_pregrasp_adaptive_open.py` |
+| e97998c, ba4e110 | `RebotRSArm` reads `settle_timeout_s` from the profile (defaults unchanged). | `rebot_rs_arm.py` | `test_rebot_settle_config.py` |
+| e97998c (`cartesian_planner.py`) | Straight-line TCP motion (below). | `planning/cartesian.py`, `ArmBase.stream_path`, `SafeArm.move_cartesian/move_joint_path`, `skill_move_relative` (`cartesian_relative_moves`, rebot_rs: `false`) | `test_cartesian_path.py` |
+| b70f3a0 | "return (to the) home", "back home", "go back home" are reflexes for `move_to_rest` (folded rest); `move_home` is the raised "initial pose" ([SPATIAL_COMMANDS.md](SPATIAL_COMMANDS.md)). | `agent/reflex.py` | `test_reflex_return_home.py` |
 
-How the Cartesian port works:
+Cartesian moves use cascade's `Kinematics` (no SDK) and are stricter than WRC's:
 
-- It does not depend on the SDK. It uses cascade's own `Kinematics` with numpy SE(3) interpolation.
-- It is stricter than WRC's version:
-  - WRC accepted up to 5 % unconverged IK samples. Here every 5 mm sample must solve, seeded from the previous one with no restarts.
-  - A joint jump above 0.1 rad means the IK changed branch, and the motion is refused.
-- Execution:
-  - The path streams as one continuous motion, min-jerk in arc length, with the same velocity stretch as `move_joints`.
-  - The exact ticks are preflighted with `vet_step` before the first command, and every tick then goes through `approve()`.
-- It refuses to run on arms bound to a motion planner and on Isaac, which has its own clock.
-- If a Cartesian move is refused, the arm does not silently fall back to a joint-space move.
+1. Every 5 mm sample must solve, seeded from the previous one with no restarts (WRC accepted 5 %
+   unconverged); a joint jump above 0.1 rad (branch change) refuses the motion.
+2. One continuous min-jerk stream in arc length with `move_joints`' velocity stretch; the exact
+   ticks are preflighted with `vet_step`, then every tick goes through `approve()`.
+3. Refused on arms bound to a motion planner and on Isaac (own clock); a refused Cartesian move
+   never falls back to joint space.
 
 ## Not ported, and why
 
-- **WRC's first-waypoint harness bypass** (`SafeArm._make_hook` `first_seen`). This is a safety bypass, and cascade's escape rule makes it unnecessary (Finding #3 above).
-- **WRC e-stop auto-reset** (b70f3a0 calls `harness.reset_estop()` before every interactive task). It would silently clear a latched e-stop. cascade keeps `reset_stop` explicit and staff-only. The problem it worked around does not occur here either: Ctrl+C in the cascade CLI is a halt followed by a park, not an e-stop latch, and `StopSignals` defers signals while teardown runs. A *repeated* Ctrl+C still force-exits a stuck teardown; that is deliberate in cascade. WRC's other b70f3a0 change (`suppress(KeyboardInterrupt)` around disconnect) would swallow that escape, so it is not ported. A forced exit skips `disconnect()`, which leaves the motors holding their last MIT command rather than cutting torque.
-- **"back to zero", "zero position" and "reset" mapped to home** (b70f3a0, 6b926fe, f916acc).
-  - "Zero" is the park pose, not home, so mapping it to home would move the arm somewhere the user did not ask for.
-  - "reset" is already `reset_scene` in cascade.
-  - WRC itself deleted `move_to_joint_zero` on 2026-08-13.
-  - cascade's shutdown park already drives the arm to `park_q` through the harness.
-- **`scripts/emergency_stow.py`.** Its docstring says "no harness", although the code calls `SafeArm.move_joints(zeros)`; in cascade that call would be refused at joints 2 and 3 without the park's margin relaxation. cascade's teardown (`shutdown_runtime` → `_park_arm`) already parks through the harness, with only the margin relaxed, before torque off. A standalone stow script would also have to decide how to treat the perception watchdog (feeding a fake heartbeat would be a bypass). That decision is left for later.
-- **`_calib_cleanup.safe_park_and_disconnect`.** This is calibration-script plumbing tied to WRC's calibration CLIs. cascade's teardown receipt (`lifecycle.teardown_step`) already enforces "never raise, always disconnect".
-- **WRC's 10 ms gripper re-send loop** (a2d5950).
-  - Its `set_gripper` ignores `effort` and always sends full `kp`, which would override cascade's `hold_kp` light hold after contact.
-  - It competes for the bus lock with the 50 Hz arm stream and the mechPos reads.
-  - It re-sends the same target, so it does not make the motion smoother.
-  - RobStride MIT already holds the last command.
-- **`WrcGripper` state machine** (IDLE→POSITION→CLOSING→HOLDING, torque-mode close at 1.5 N·m, stall when `|vel| < 0.12`, hard-stop = empty grasp).
-  - It depends on a 500 Hz loop plus `get_state()` velocity and torque feedback. cascade measured that RS `get_state()` is not decoded on this firmware and that mechVel (0x701A) is not in rad/s, so the stall detector would read noise.
-  - cascade already covers what it does: `close_gripper_torque` (stall on mechPos, then `hold_kp` light hold) and the skill-level `air_grasp_frac` empty-grasp check.
-- **Width-aware close** (`grasping/force.py::compute_close_target`, `tests/test_gripper_width_aware_close.py`). WRC iterated v2 0.75 → v5 0.30 with `effort` 1.0, so the constants are not settled. They are also tuned against WRC's 5.0 rad ≙ 95 mm map, which disagrees with cascade's, and under MIT the squeeze force still scales with object width. This is not demonstrably better than cascade's fixed fractions, which since B38 can be bounded by the opt-in contact-relative squeeze cap `gripper.max_contact_squeeze_rad` ([REBOT_GRIP_SQUEEZE_CAP.md](REBOT_GRIP_SQUEEZE_CAP.md)); the light hold (`hold_kp`) runs only in the park close. Revisit after onsite force measurements.
-- **ADR-0002 `force=1.0`.** This is a torque-mode hold value for `GraspDriver.grasp()`. cascade closes in position mode with kp-scaled effort, so the number has no equivalent here.
-- **home_q changes** (e3b0b2a, ba4e110, f6fca0d, ADR-0001).
-  - WRC tried three different home poses and settled on `[0, 0.1684, 0.6226, -0.4543, 0, 0]` (TCP 0.25/0/0.35, identity rotation).
-  - cascade's `home_q` `[0, 1.2, 1.2, 0, 0, 0]` (TCP 0.452/0/0.438, facing forward) is pinned by `test_rebot_initial_pose.py` and matches the Isaac ready pose. It also seeds grasp IK, so changing it changes which IK branch grasps use.
-  - It stays as it is. WRC's pose is available as an onsite option.
-- **`kinematics.py` and `arm_base.py` diffs.**
-  - WRC removed USD support and inlined `apply_joint_signs`. cascade keeps USD support.
-  - WRC raised `settle_timeout_s` from 2.0 to 6.0 s in code. cascade instead takes it from the profile (see Ported) and does not change the default.
-- **`make_arm` SDK stack** (`RebotArmEndPose` + `WrcGripper` + `RebotGraspBridge`). cascade's drivers own the MIT stream so the harness sees every waypoint (Finding #2).
-- **Teach record/replay** (`skills/teach.py`, `skills/master_arm.py`, `docs/specs/teach_record_replay.md`). **Remaining.**
-  - WRC's version drives the follower arm with raw SDK `send_pos_vel` at `vlim=15 rad/s`, and replays through `RebotArmEndPose` and `safe_home()`, all outside any harness.
-  - It needs `fashionstar-uart-sdk` (the PiPER Mate leader arm) and `pynput`, neither of which is installed here.
-  - A cascade port would need these parts:
-    - Record: every follower command goes through `harness.approve()` at the stream rate. The leader arm is a lazy, optional backend.
-    - Replay: through `SafeArm.move_joint_path`, which this port added.
-    - Skills: both added under the five-step checklist in AGENTS.md (TOOL_SPECS in both directions, `_MOTION_SKILLS`, a plausibility question, `TOOL_REQUIREMENTS` for the leader arm, README counts).
-    - Rig data: the leader→follower joint map (WRC hard-codes joints 1, 4 and 6 negated and does no calibration) must be measured on the rig.
+1. **Safety bypasses.** WRC's first-waypoint harness bypass (`SafeArm._make_hook` `first_seen`;
+   the escape rule makes it unnecessary) and its e-stop auto-reset (b70f3a0 calls
+   `harness.reset_estop()` before every task): `reset_stop` stays explicit and staff-only. In
+   cascade Ctrl+C is halt + park, `StopSignals` defers signals during teardown, and a *repeated*
+   Ctrl+C deliberately force-exits a stuck teardown (WRC's `suppress(KeyboardInterrupt)` would
+   swallow that). A forced exit skips `disconnect()`: motors hold their last MIT command.
+2. **"back to zero" / "zero position" / "reset" → home** (b70f3a0, 6b926fe, f916acc): zero is the
+   park pose, "reset" is `reset_scene`, WRC deleted `move_to_joint_zero` itself, and shutdown
+   already parks through the harness. **`scripts/emergency_stow.py`** and
+   **`_calib_cleanup.safe_park_and_disconnect`**: teardown (`shutdown_runtime` → `_park_arm`,
+   margin relaxed only; `lifecycle.teardown_step` never raises, always disconnects) already does
+   this; a stow script would also need a watchdog decision (a fake heartbeat is a bypass).
+3. **Gripper control.** The 10 ms re-send loop (ignores `effort`, overrides `hold_kp`, fights the
+   50 Hz stream for the bus lock; MIT already holds the last command). The `WrcGripper` state
+   machine (torque close at 1.5 N·m, stall on `|vel| < 0.12`): RS `get_state()` is not decoded on
+   this firmware and mechVel (0x701A) is not rad/s; cascade has `close_gripper_torque` (stall on
+   mechPos, then `hold_kp`) and the `air_grasp_frac` empty-grasp check. Width-aware close
+   (`compute_close_target`, unsettled v2 0.75 → v5 0.30 at effort 1.0, a disagreeing width map):
+   cascade keeps fixed fractions, bounded by the opt-in `gripper.max_contact_squeeze_rad`
+   ([REBOT_GRIP_SQUEEZE_CAP.md](REBOT_GRIP_SQUEEZE_CAP.md)); ADR-0002 `force=1.0` is a torque-mode
+   value with no position-mode equivalent.
+4. **Poses and drivers.** WRC's `home_q` `[0, 0.1684, 0.6226, -0.4543, 0, 0]` (TCP 0.25/0/0.35):
+   cascade keeps `[0, 1.2, 1.2, 0, 0, 0]` (TCP 0.452/0/0.438, pinned by
+   `test_rebot_initial_pose.py`, matches Isaac, seeds grasp IK); WRC's is an onsite option.
+   `kinematics.py` / `arm_base.py` diffs (USD removal; `settle_timeout_s` 2.0 → 6.0 in code)
+   and the `make_arm` SDK stack (`RebotArmEndPose` + `WrcGripper` + `RebotGraspBridge`): cascade's
+   drivers own the MIT stream so the harness sees every waypoint.
+5. **Teach record/replay — remaining.** WRC drives the follower with raw `send_pos_vel` at
+   `vlim=15 rad/s` and replays outside any harness; it needs `fashionstar-uart-sdk` and `pynput`.
+   A port needs: recording through `harness.approve()` at stream rate with a lazy optional leader
+   backend; replay through `SafeArm.move_joint_path`; skills added per the AGENTS.md checklist;
+   a measured leader→follower joint map (WRC negates joints 1, 4, 6 uncalibrated).
 
 ## Constant discrepancies (WRC vs cascade `configs/arms/rebot_rs.yaml`)
 
 | Quantity | WRC | cascade | Note |
 |---|---|---|---|
 | Gripper open angle | `_RS_ANGLE_OPEN = 5.0` rad (`open_pos: 5.0`) | `open_pos: 6.2` (travel 0 → +6.39 measured) | Same polarity, different scale |
-| Gripper width at open | 0.09 m (`GRIPPER_MAX_DISTANCE_M`); `max_width_m: 0.095` in the profile | `max_width_m: 0.09` | With the linear map, 5.0 rad ≙ 0.09–0.095 m in WRC versus 6.2 rad ≙ 0.09 m in cascade. At least one of these maps is wrong, so measure it before enabling `pregrasp_open_margin_m` |
+| Gripper width at open | 0.09 m (`GRIPPER_MAX_DISTANCE_M`); `max_width_m: 0.095` | `max_width_m: 0.09` | 5.0 rad ≙ 0.09–0.095 m vs 6.2 rad ≙ 0.09 m: one map is wrong; measure before enabling `pregrasp_open_margin_m` |
 | Gripper close | torque mode, `close_torque 1.5`, `tau_max 1.5` N·m | position mode, `kp 2.0` × effort | Different force models |
 | Hold | `default_force 0.30` (ADR-0002: 1.0) torque | `hold_kp 0.01` position stiffness | Not comparable |
-| Stall | `|vel| < 0.12` rad/s, startup travel 0.30 rad | mechPos change < 0.03 rad per 150 ms | cascade avoids the velocity feedback that is not decoded |
+| Stall | `|vel| < 0.12` rad/s, startup travel 0.30 rad | mechPos change < 0.03 rad per 150 ms | cascade avoids undecoded velocity |
 | Arm settle tolerance | 0.05 (final; 0.08–0.15 tried) | `settle_tol` default 0.05 | Same |
-| Settle timeout | 6.0 s (code default) | 2.0 s (ArmBase), profile-overridable | Tune onsite only if large moves report "did not settle" |
+| Settle timeout | 6.0 s (code default) | 2.0 s (ArmBase), profile-overridable | Tune onsite only on "did not settle" |
 | home_q | `[0, .1684, .6226, -.4543, 0, 0]` | `[0, 1.2, 1.2, 0, 0, 0]` | See above |
 | Zero / park | `[0]*6` | `park_q [0]*6` (was −0.05 on joint 3) | Now the same |
-| Joint frame | asset URDF with axes flipped, no `joint_signs` | URDF + `joint_signs [-1]*6` (local) | Equivalent (FK of WRC home = 0.25/0/0.35 in cascade's local frame) |
+| Joint frame | asset URDF with axes flipped, no `joint_signs` | URDF + `joint_signs [-1]*6` (local) | Equivalent (WRC home FK = 0.25/0/0.35 in cascade's local frame) |
 | `max_joint_vel` | 1.2 (demo.yaml) | 0.8 (RS override) | cascade's lower cap is kept |
 
 ## Onsite hardware verification still required
 
-Follow the phases in the `real-robot-bringup` checklist. **Nothing below may
-run until a person is at the arm with the e-stop or power cut within reach.**
-Support the arm before anything enables it: after a clean shutdown it is limp.
+Follow the `real-robot-bringup` phases. **Nothing below may run until a person is at the arm
+with the e-stop or power cut within reach.** Support the arm before anything enables it: after
+a clean shutdown it is limp. Never reconnect anything while the arm is raised: `connect()`
+clears latched faults with a stop frame that cuts torque (support it, e-stop, lower by hand).
+Run every command from the repo root with the rig venv's `.venv/bin/python` (the rig has no bare
+`python`, and `uv run` would re-sync the live `.venv`).
 
-1. **Read-only probe (no torque).** Stop motorbridge-gateway and MotorBridge
-   Studio (they use the same host id, 0xFD). Run `python scripts/diag_rebot_mb.py`
-   then `--snapshot rest`. Record joints 2 and 3 at rest (WRC saw +0.004;
-   cascade's rig saw −0.0009) and confirm every joint is inside the URDF limits.
-   **Incident 2026-10-10.** `sign_check_rebot_mb.py --joints 2,3` drove the
-   shoulder into its end at full stiffness, and the operator cut power. The
-   cause was a mechPos read of +2.3e18 on joint 2's way back: the stall guard
-   commanded the motor to that value. In addition, every motor had been
-   registered as `rs-00` although joints 1-3 are `rs-06`, which put the MIT
-   gains on the wrong scale. Both bring-up scripts now:
-   - vet every reading (`robstride.plausible_position`);
-   - clamp every target to the probe envelope;
-   - ramp back from the last commanded pose, never from a reading;
-   - stop the run, holding that pose, on an implausible reading;
-   - refuse without the SDK's per-motor models.
+1. **Read-only probe (no torque).** Stop motorbridge-gateway and MotorBridge Studio (same host id
+   0xFD). Run `.venv/bin/python scripts/diag_rebot_mb.py`, then `--snapshot rest`; record joints 2
+   and 3 (WRC +0.004, cascade's rig −0.0009) and confirm every joint is inside its URDF limits.
+   **Incident 2026-10-10**: `sign_check_rebot_mb.py --joints 2,3` drove the shoulder into its
+   end at full stiffness (a mechPos read of +2.3e18 became the stall-guard target, and joints
+   1-3 were registered `rs-00` instead of `rs-06`). Both bring-up scripts now vet every reading
+   (`robstride.plausible_position`), clamp targets to the probe envelope, ramp back from the
+   last commanded pose (never a reading), stop holding on an implausible reading and refuse
+   without the SDK's per-motor models (`tests/test_rebot_probe_reading_guard.py`). Do not loosen
+   any of these.
+2. **Fault clear.** `.venv/bin/python scripts/jog_rebot_mb.py --joint 1 --hold-only` (clears
+   faults after the mode write, before enable): no `clear_error failed`, hold drift under 50 mrad.
+   A failed clear: stop, power-cycle, probe again.
+3. **First low-velocity home move, e-stop in hand.** Pick ONE of the two paths; each must start
+   without a harness rejection (Finding #3):
+   1. **Demo CLI.** Lower `overrides.safety.max_joint_vel` in `rebot_rs.yaml` (e.g. 0.3; only
+      ever lower), run `.venv/bin/python -m cascade.apps.demo --arm rebot_rs --camera mock
+      --llm mock --interactive --no-serve` and type `go to the initial pose` (a reflex; `go home`
+      is `move_to_rest`). Exit with an empty line or one Ctrl+C and confirm the receipt shows park
+      `complete` at `park_q = 0`.
+   2. **Scripted.** `.venv/bin/python scripts/home_rebot_rs.py --yes`: rest -> home -> rest at
+      0.4 rad/s, 4 measured steps per leg, soft-stop and hold with torque ON on a failed check
+      (rehearse first with `--dry-run --camera mock`). It ends with `back at rest ...; torque
+      released`.
+4. **Gripper travel and stall.** Hand-sweep with `diag_rebot_mb.py` (0 → +6.39 rad); measure the
+   opening in mm at ~1.5, 3.0, 4.5, 6.2 rad to settle the 5.0-vs-6.2 rad ≙ 90 mm disagreement and
+   fix `max_width_m` / `open_pos`; run the park close (`close_gripper_torque`) on air and on a
+   ~30 mm object (`[rebot] grip contact` only for the object). Only then consider
+   `gripper.pregrasp_open_margin_m: 0.01`, and run the squeeze protocol in
+   [REBOT_GRIP_SQUEEZE_CAP.md](REBOT_GRIP_SQUEEZE_CAP.md) before setting
+   `gripper.max_contact_squeeze_rad`.
+5. **Cartesian nudge and settle (optional).** At the lowered cap, set
+   `cartesian_relative_moves: true`, issue `move down a bit` / `move up a bit` and watch the TCP
+   travel straight (revert on doubt). If large moves report "did not settle" while visibly
+   moving, raise `settle_timeout_s` in the profile (WRC needed 4–6 s); never touch `settle_tol`
+   or the velocity cap to compensate.
 
-   See `tests/test_rebot_probe_reading_guard.py`. Do not loosen any of these.
-2. **Fault clear.** Use `python scripts/jog_rebot_mb.py --joint 1 --hold-only`
-   (it now clears faults after the mode write and before enable). Confirm that
-   no `clear_error failed` is raised and that the hold drift is under 50 mrad.
-   If a clear fails, stop: power-cycle the arm and probe again.
-3. **First low-velocity home move, e-stop in hand.** Temporarily lower
-   `overrides.safety.max_joint_vel` in `rebot_rs.yaml` (for example to 0.3;
-   only ever lower it). Start
-   `python -m cascade.apps.demo --arm rebot_rs --camera mock --llm mock --interactive --no-serve`
-   and type `go to the initial pose` (a reflex: no LLM involved; `go home`
-   now means the rest pose, `move_to_rest`) from the rest pose. Report
-   the measured joint state.
-   This is the real test of Finding #3: the move must start without any
-   harness rejection. Then exit with an empty line (or one Ctrl+C) and confirm
-   the teardown receipt shows the park `complete` at `park_q = 0`.
+From the 2026-10-11 home move (`home_rebot_rs.py`): every step within 0.013 rad, and home measured
+at (0.452, -0.001, 0.432) m vs nominal (0.452, 0, 0.438). Two traps from that run:
 
-   **Scripted alternative:** `python scripts/home_rebot_rs.py --yes`. It needs no profile
-   edit and moves rest -> home -> rest at 0.4 rad/s.
-   - **Measured checks:** each leg runs in 4 steps, and the arm's measured position is
-     checked after every step. If a step fails the check, the arm soft-stops and holds
-     with torque ON.
-   - **Rehearsal:** run `--dry-run --camera mock` first.
-   - **Result on the rig, 2026-10-11:** every step tracked within 0.013 rad. Home was
-     measured at (0.452, -0.001, 0.432) m, against a nominal (0.452, 0, 0.438).
-
-   Two traps:
-   - **The perception watchdog (5 s) refuses motion when no camera is running.** The tool
-     beats it only from frames that actually arrive from the fixed camera. Without a
-     camera, it stopped half-way up.
-   - **Never reconnect anything while the arm is raised.** `connect()` clears latched
-     faults with a stop frame that cuts torque. Support the arm, press the e-stop and lower
-     it by hand instead.
-
-   Joint 3 cannot be sign-checked from rest: about 6.7 N·m of gravity holds it on its stop,
-   which is above the probe's 3.6 N·m abort. Check it with the motors limp instead: unfold
-   the forearm by hand and compare `diag_rebot_mb.py --snapshot` before and after. The
-   value must rise.
-4. **Gripper travel and stall re-verification.**
-   - Hand-sweep the jaw with `diag_rebot_mb.py` and confirm 0 → +6.39 rad.
-   - Measure the jaw opening in mm at about 1.5, 3.0, 4.5 and 6.2 rad to settle
-     the 5.0-versus-6.2 rad ≙ 90 mm disagreement, and fix `max_width_m`/`open_pos`.
-   - Run the park close (`close_gripper_torque`) on air and on a ~30 mm object,
-     and confirm the `[rebot] grip contact` line appears only for the object.
-   - Only after the width map is confirmed, consider
-     `gripper.pregrasp_open_margin_m: 0.01`.
-   - Then run the pick-close squeeze protocol in
-     [REBOT_GRIP_SQUEEZE_CAP.md](REBOT_GRIP_SQUEEZE_CAP.md) (B38) before
-     setting `gripper.max_contact_squeeze_rad`.
-5. **Cartesian nudge (optional).** At the lowered velocity cap, set
-   `cartesian_relative_moves: true` and issue `move down a bit` and `move up a bit`.
-   Watch that the TCP travels straight. Revert the setting if anything looks wrong.
-6. **Settle window.** If large moves report "did not settle" while the arm is
-   visibly on its way, raise `settle_timeout_s` in the profile (WRC needed 4–6 s).
-   Never touch `settle_tol` or the velocity cap to compensate.
+1. The 5 s perception watchdog refuses motion without a running fixed camera (the first attempt
+   stopped half-way up); `home_rebot_rs.py` now waits for real frames before connecting the arm.
+2. Joint 3 cannot be sign-checked from rest (~6.7 N·m of gravity vs the probe's 3.6 N·m abort):
+   with motors limp, unfold the forearm by hand and check `diag_rebot_mb.py --snapshot` rises.

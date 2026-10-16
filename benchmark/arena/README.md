@@ -1,134 +1,99 @@
 # External evaluation adapters
 
-These optional adapters connect reviewed external formats to CASCADE's runtime
-and independent verification boundary. Their CPU tests establish serialization,
-dispatch and provenance contracts. No native VAB or Arena episode was run for
-this change; they do not establish humanoid locomotion or contact performance.
-
-## Isaac Lab-Arena
-
-Inspected source: [`c8d04e2199b86abbbb301bb22cec0effd83c4e63`](https://github.com/isaac-sim/IsaacLab-Arena/tree/c8d04e2199b86abbbb301bb22cec0effd83c4e63).
-The real `ArenaExperimentResult.to_dict()` format is
-`runs -> rebuilds -> episodes`. The episode recorder includes environment and
-episode indices, seed, success (which may be null), episode length, language,
-timestamp, variations and progress. The importer is deliberately stricter than
-the upstream collector: malformed, failed, empty or duplicate campaigns reject.
+**Next action:** import an Arena result or inspect one VAB trial on the CPU (seconds; no simulator):
 
 ```sh
-python benchmark/arena/import_results.py /path/to/arena_experiment_result.json
-```
-
-Arena's success field lacks a physical model identity, epoch and observation
-binding. This CLI therefore reports **unverified**, even for `success: true`.
-`import_experiment(..., bindings=..., bound_artifact_sha256=...)` accepts an
-external observer's per-record sidecar only for the exact result file. Record
-IDs are JSON arrays `[run_name,rebuild_index,env_id,episode_in_env]`.
-The selected `source_revision` labels the reviewed import API; the upstream
-JSON does not itself attest the producer's source commit.
-
-`ArenaPolicyAdapter` delegates `get_action(env, observation)`, `reset(env_ids)`
-and `close()` to an explicitly supplied action controller. Its
-`execute_skill(name,args)` calls the ordinary composed CASCADE runtime. Tool
-results never become action tensors. `make_policy_type(runtime_factory,
-controller_factory, command_resources=..., actuation_owner="arena_policy")` lazily returns an actual subclass of
-Arena's `PolicyBase` for registration in an installed Arena application. The
-controller must provide the embodiment's existing actuation and safety path;
-this adapter does not approve raw tensors or supply a whole-body controller.
-The external owner must additionally implement `stop()` and `reset_stop()`;
-the latter must return literal `True` to acknowledge an explicit CASCADE stop
-reset. Generation/latch checks surround action computation. Cancellation raises
-and stops the external owner; it never invents a zero action for a biped.
-`reset(env_ids)` alone cannot clear a stop. The rollout must abort on an adapter
-exception, and its action consumer retains responsibility for cancellation at
-the final `env.step` boundary: a previously returned tensor cannot be revoked.
-`ArenaControllerDomain(controller, command_resources=...)` must be registered in `RobotRuntime` before
-constructing the adapter; `actuation_owner` is that exact domain ID. Direct MCP
-stop therefore reaches the controller through the existing priority mailbox even
-while action computation blocks. `runtime_factory(config, owner)` must include
-that supplied owner; `controller_factory(config)` constructs it first. Each
-command resource is an explicit `ResourceDescriptor` with the reviewed command
-endpoint (`controller_id`) and single writer (`writer_id`). No endpoint is inferred
-from a live driver. ResourceCatalog rejects another writer on that endpoint,
-including a separate arm using the same whole-body DDS command. Failed
-construction releases acquired resources. The stop-only domain exposes no motion
-tools and its configured resource claims are not physical or safety admission.
-
-The committed lock selects Python3.12/Linux x86_64, Isaac Sim6.1.0.0,
-PyTorch2.11/CUDA12.8 and Newton1.5.2; README badges are not a dependency lock.
-The optional native foundation (`native_preflight.py --out <dir> ...` under Isaac's
-`python.sh`, hashed deps in `private_dependencies.txt`;
-[receipt](../../docs/evidence/arena-native/20261002.json)) exercised
-real Arena/PhysX through the ordinary CASCADE runtime on an explicitly different,
-existing6.1rc26 SDK. It preserves task-unverified results and tests cancellation
-at the final action consumer. It establishes no benchmark task success,
-SafeArm tracking, Newton parity or physical braking. Source code is Apache-2.0;
-simulator components, models and assets retain their respective licenses.
-
-## VAB
-
-Inspected source: [`edcc4bf005446839c0c6f43f8a3bf416702af030`](https://github.com/ehehee/Variational-Automation-Benchmark/tree/edcc4bf005446839c0c6f43f8a3bf416702af030).
-The upstream calls are `libero.vab.load_task(path)`, `task.make_env()`,
-`env.reset(init_index=i)` and the four-value `env.step(action)`.
-
-```sh
-python benchmark/vab/inspect_trials.py /path/to/VAB \
+uv run python benchmark/arena/import_results.py /path/to/arena_experiment_result.json
+uv run python benchmark/vab/inspect_trials.py /path/to/VAB \
   tasks/libero_object_all_variance/pick_up_the_alphabet_soup_and_place_it_in_the_basket.yaml \
   --init-index 0
 ```
 
-Inspection binds the Git revision, unchanged YAML bytes, initial-state index,
-control frequency, horizon and controller assumptions. It executes no upstream
-Python. This adapter admits single-Panda OSC_POSE containment trials only.
-Packing teleports delivered objects upstream; popcorn and crate tasks have
-partial final predicates. Those tasks reject, rather than inheriting an invalid
-physical interpretation. Even `contained_in` checks body-center proximity,
-not contact, release or retained support.
+These optional adapters connect reviewed external formats to CASCADE's runtime and independent
+verification boundary. CPU tests establish serialization, dispatch and provenance contracts. Native
+preflights below exercised real simulators but **no benchmark task completed**; nothing here
+establishes humanoid locomotion, contact performance or task success.
 
-`VabLiberoView` translates only public RGB/proprioception into the flat keys
-used by `benchmark/libero/backend.py`'s `LiberoArm` and `LiberoCamera`. It keeps
-depth absent when absent, validates native action dimensions/limits and enforces
-the episode horizon independently of upstream `done` semantics.
+## Isaac Lab-Arena
 
-`run_trial(trial, runtime_factory=..., skill_plan=..., output_path=...)` resets a
-fresh environment, builds the supplied CASCADE runtime, calls its `begin_task`
-and namespaced `execute`, and closes owned resources while retaining failures.
-It never substitutes a benchmark-specific grasp controller. The factory receives
-`(view, trial, trial_id)` and returns `(runtime, cleanup)`.
+Inspected source: [`c8d04e2199b86abbbb301bb22cec0effd83c4e63`](https://github.com/isaac-sim/IsaacLab-Arena/tree/c8d04e2199b86abbbb301bb22cec0effd83c4e63).
 
-**A geometry-specific runtime factory remains required.** The historical
-`build_wrc_runtime` assumes a table at z=.80m, camera256px, a shared output path
-and global factory patches; VAB floor tasks have z≈0 and128px cameras, and omit
-depth by default. Do not call that builder unchanged. A reviewed factory must
-bind the exact kinematics, camera calibration, scene/workspace geometry and
-perception mode, and preserve SafeArm/SafetyHarness. Enabling depth changes the
-original task configuration and must be recorded as a variant. Oracle object
-poses must not enter benchmark policy observations.
+1. **Import:** `ArenaExperimentResult.to_dict()` is `runs -> rebuilds -> episodes` (environment
+   and episode indices, seed, success (may be null), length, language, timestamp, variations,
+   progress). The importer is stricter than upstream: malformed, failed, empty or duplicate
+   campaigns reject. Arena's success lacks model identity, epoch and observation binding, so the
+   CLI reports **unverified** even for `success: true`; `import_experiment(..., bindings=...,
+   bound_artifact_sha256=...)` accepts an external observer's per-record sidecar only for the exact
+   result file (record IDs `[run_name,rebuild_index,env_id,episode_in_env]`). `source_revision`
+   labels the reviewed API; the JSON does not attest the producer's commit.
+2. **Policy adapter:** `ArenaPolicyAdapter` delegates `get_action(env, observation)`,
+   `reset(env_ids)` and `close()` to an explicit action controller; `execute_skill(name,args)` calls
+   the composed CASCADE runtime and tool results never become action tensors.
+   `make_policy_type(runtime_factory, controller_factory, command_resources=...,
+   actuation_owner="arena_policy")` lazily returns a real `PolicyBase` subclass. The controller
+   provides the embodiment's actuation and safety path; the adapter approves no raw tensors and
+   supplies no whole-body controller.
+3. **Stop:** the external owner implements `stop()` and `reset_stop()` (which must return literal
+   `True`). Generation/latch checks surround action computation; cancellation raises and stops the
+   owner and never invents a zero action for a biped; `reset(env_ids)` alone cannot clear a stop.
+   The rollout must abort on an adapter exception, and the action consumer owns cancellation at the
+   final `env.step` (a returned tensor cannot be revoked).
+4. **Ownership:** register `ArenaControllerDomain(controller, command_resources=...)` in
+   `RobotRuntime` first (`actuation_owner` is its domain ID) so direct MCP stop reaches the
+   controller through the priority mailbox. `controller_factory(config)` builds the owner and
+   `runtime_factory(config, owner)` must include it. Each command resource is an explicit
+   `ResourceDescriptor` (`controller_id`, single `writer_id`); `ResourceCatalog` rejects another
+   writer on that endpoint. The stop-only domain exposes no motion tools; its claims are not
+   physical or safety admission.
+5. **Native foundation:** the committed lock selects Python 3.12 / Linux x86_64, Isaac Sim 6.1.0.0,
+   PyTorch 2.11 / CUDA 12.8 and Newton 1.5.2 (README badges are not a lock). `native_preflight.py
+   --out <dir> ...` under Isaac's `python.sh` (hashed deps in `private_dependencies.txt`;
+   [receipt](../../docs/evidence/arena-native/20261002.json)) exercised real Arena/PhysX through
+   the CASCADE runtime on an existing 6.1rc26 SDK, preserved task-unverified results and tested
+   cancellation at the final action consumer. No task success, SafeArm tracking, Newton parity or
+   physical braking. Code is Apache-2.0; simulator components, models and assets keep their
+   licenses.
 
-Native execution remains optional. The later
-VAB CPU preflight (`python -m benchmark.vab.native_preflight <vab-checkout> <out>
-[--cancel-after-step 8]`, locked by `benchmark/vab/requirements-native-lock.txt`) runs an explicit
-floor/Panda runtime factory through real MuJoCo, ordinary CASCADE relative
-motion and an independent solved-state witness. It also exercises cancellation;
-it is not a grasp/placement task result. Reproduction requires the
-complete pinned VAB checkout/assets, compatible robosuite/MuJoCo packages and
-offscreen renderer, an explicit private `LIBERO_CONFIG_PATH/config.yaml`
-pointing at those assets, private CASCADE memory/output paths, and the reviewed
-runtime factory. The inspected VAB requirements pin robosuite1.4.0; the existing
-local legacy environment has1.4.1/MuJoCo3.2.3 and was not changed or certified.
-The preflight uses a separate locked environment with robosuite1.4.0 and
-MuJoCo2.3.7, preserving every original task byte and RGB-only observations.
+## VAB
+
+Inspected source: [`edcc4bf005446839c0c6f43f8a3bf416702af030`](https://github.com/ehehee/Variational-Automation-Benchmark/tree/edcc4bf005446839c0c6f43f8a3bf416702af030)
+(upstream calls `libero.vab.load_task(path)`, `task.make_env()`, `env.reset(init_index=i)`, the
+four-value `env.step(action)`).
+
+1. **Inspection** binds the Git revision, unchanged YAML bytes, initial-state index, control
+   frequency, horizon and controller assumptions, and executes no upstream Python. Only single-Panda
+   OSC_POSE containment trials are admitted; packing (teleports delivered objects), popcorn and crate
+   (partial final predicates) reject. Even `contained_in` checks body-centre proximity, not contact,
+   release or support.
+2. **View:** `VabLiberoView` maps only public RGB/proprioception to the keys of
+   `benchmark/libero/backend.py`'s `LiberoArm` and `LiberoCamera`, keeps absent depth absent,
+   validates action dimensions/limits and enforces the horizon independently of upstream `done`.
+3. **Trials:** `run_trial(trial, runtime_factory=..., skill_plan=..., output_path=...)` resets a
+   fresh env, builds the supplied runtime (factory gets `(view, trial, trial_id)`, returns
+   `(runtime, cleanup)`), calls `begin_task` and namespaced `execute`, and closes owned resources
+   while retaining failures; it never substitutes a benchmark-specific grasp controller.
+4. **A geometry-specific runtime factory is required.** The historical `build_wrc_runtime` assumes a
+   table at z=0.80 m, 256 px cameras, a shared output path and global patches (VAB floor tasks: z≈0,
+   128 px, no depth): never call it unchanged. A reviewed factory binds kinematics, camera
+   calibration, scene/workspace geometry and perception mode and keeps SafeArm/SafetyHarness;
+   enabling depth is a recorded variant; oracle object poses never enter policy observations.
+5. **Native CPU preflight:** from the repo root, `<vab-env>/bin/python -m
+   benchmark.vab.native_preflight <vab-checkout> <out> [--cancel-after-step 8]` with the pinned VAB
+   checkout and `src/` on `PYTHONPATH`, where `<vab-env>` is a separate venv installed from
+   `benchmark/vab/requirements-native-lock.txt` (robosuite 1.4.0, MuJoCo 2.3.7; original task
+   bytes, RGB-only). It runs an explicit floor/Panda factory through real MuJoCo, CASCADE relative
+   motion and an independent solved-state witness, including cancellation; not a grasp/placement
+   result. It needs the full pinned VAB checkout and
+   assets, an offscreen renderer, a private `LIBERO_CONFIG_PATH/config.yaml` and private CASCADE
+   memory/output paths. The legacy local env (robosuite 1.4.1 / MuJoCo 3.2.3) was not changed or
+   certified.
 
 ## Independent admission
 
-`cascade.eval.trials.verify_episode` consumes a trusted independent verifier
-callback and explicit required checks. Its receipt must match the exact trial,
-configuration, model identity, epoch, physical step/time window, two observation
-digests, external file hash and record hash. Both evidence files must remain
-present and unchanged. Missing/mismatched/partial evidence stays unverified;
-measured refutations remain refuted.
-
-The callback owns measurement semantics. Contract validation does not establish
-that a caller-authored receipt represents physical contact. Required checks
-must be chosen before the run for the actual task, including support/contact,
-retained placement or stop where applicable. CASCADE's existing physics
+`cascade.eval.trials.verify_episode` consumes a trusted independent verifier callback and explicit
+required checks. Its receipt must match the exact trial, configuration, model identity, epoch,
+physical step/time window, two observation digests, external file hash and record hash, and both
+evidence files must remain present and unchanged; missing, mismatched or partial evidence stays
+unverified and measured refutations stay refuted. The callback owns measurement semantics: choose
+required checks (support/contact, retained placement, stop) before the run. CASCADE's physics
 verifiers remain authoritative; upstream benchmark success never replaces them.

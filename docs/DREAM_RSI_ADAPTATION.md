@@ -1,15 +1,32 @@
 # Scoped retry evidence admission
 
-A later successful action is not necessarily a repair of an earlier failure.
-CASCADE's ASPIRE trace-to-library path now requires matching context and a
-measured confirmation before writing a new guidance note. This is an
-admission safeguard, not a policy optimizer or a change to robot control.
+**Next action:** inspect what the ASPIRE harvest would admit from your recorded runs, without
+writing notes (seconds; `runs/` is the CLI default and must hold reviewed sessions with
+`trace.jsonl`):
+
+```bash
+uv run python scripts/learn_from_runs.py --runs runs --dry-run --report
+```
+
+After reviewing the selected sessions, write notes and envelope updates:
+
+```bash
+uv run python scripts/learn_from_runs.py --runs runs \
+  --library skills_library --envelope ~/.cascade/envelope.json --json
+```
+
+A later success is not necessarily a repair of an earlier failure: the ASPIRE trace-to-library path
+writes a guidance note only with matching context and a measured confirmation. This is an admission
+safeguard, not a policy optimizer or a change to robot control. Keep unrelated robot or deployment
+histories in separate directories. A dry run may create an empty library directory (`--report`
+alone is not read-only), and `--export-md` always writes its export. The script also feeds the
+operating envelope (a separate path this gate does not modify); it never runs a robot or replays
+actions.
 
 ## Admission contract
 
-[`agent/aspire.py`](../src/cascade/agent/aspire.py) examines at most the next
-six trace rows after a failed call (`REPAIR_WINDOW`). A candidate must pass
-all of these checks:
+[`agent/aspire.py`](../src/cascade/agent/aspire.py) examines at most the next six trace rows after
+a failed call (`REPAIR_WINDOW`). A candidate must pass all of these:
 
 | Check | Required evidence |
 |---|---|
@@ -20,56 +37,35 @@ all of these checks:
 | Context | Explicit matching resolved arm identity and pre-call held-object label |
 | Boundary | No intervening `reset_scene`, `task_done` or result with `task_complete: true` |
 
-Goal comparison preserves the recorded values of `object`, `label`, `query`,
-`destination`, `arm`, `spatial_hint`, `camera`, `x`, `y`, `z`, `direction` and
-`distance_m`. It does not infer that differently named targets are the same.
-Other parameters can differ, and their recorded delta is included in the note.
-For `place_at`, `place_on_object`, `throw` and `handover`, the held-object label
-must be nonempty on both calls; equal missing possession is not enough.
-
-Examples of the admission decision (illustrative, not robot measurements):
-
-- Failed red-cube grasp, followed by a physics-confirmed red-cube grasp on the
-  same arm with matching pre-call possession: eligible.
-- Failed red-cube grasp, followed by a successful blue-cube grasp: rejected.
-- Same request but a different arm, different held subject, absent context,
-  unverified outcome or contradictory `verified: false`: rejected.
-- A matching success after an explicit scene reset or task end: rejected.
+1. Goal comparison uses the recorded `object`, `label`, `query`, `destination`, `arm`,
+   `spatial_hint`, `camera`, `x`, `y`, `z`, `direction` and `distance_m`; differently named
+   targets are never inferred equal. Other parameters may differ; their delta goes into the note.
+2. For `place_at`, `place_on_object`, `throw` and `handover` the held-object label must be
+   nonempty on both calls.
+3. Examples: a failed then physics-confirmed red-cube grasp on the same arm with matching
+   possession is eligible; a blue-cube success after a red-cube failure, a different arm or held
+   subject, absent context, an unverified or `verified: false` outcome, or a success after a scene
+   reset or task end is rejected.
 
 ## Trace context and generated notes
 
-[`SkillRuntime.execute()`](../src/cascade/skills/runtime.py) records context
-before the skill body runs, separately from its arguments. For example, a
-placement can record `{"arm": "left", "held_object": "red cube"}` even when
-it clears `held_object` after opening the gripper. These are recorded labels,
-not independently sensed object-instance identities.
-
-Omitted, default and primary selectors resolve through the arm registry before
-logging. Logging does not probe a lazy arm backend or power hardware. Skill
-arguments and routing behavior are unchanged.
-
-[`TraceLogger.record()`](../src/cascade/agent/trace.py) keeps `context` optional
-for caller compatibility. Reading legacy traces remains supported, but absent
-or incomplete arm/possession context cannot produce new notes. Do not fill in
-missing historical context by guessing the robot or object.
-
-`diagnose()` retains both contexts and the confirmation receipt. `distil()`
-rechecks their compatibility before writing a note with the observed error,
-argument delta and evidence. The note calls this a recorded association: it
-must not claim that the parameter change caused success, invent a
-re-observation or prescribe fixed workspace values from another robot.
-
-`harvest()` folds every eligible run into the note for its `(skill, signature)`
-(the title-derived slug); there is no migration, bulk deletion or historical
-revalidation. Retrieval still matches keywords, not arm/scene compatibility.
-Recorded scope is guidance for the reader, not an enforced retrieval filter.
+1. [`SkillRuntime.execute()`](../src/cascade/skills/runtime.py) records context (e.g. `{"arm":
+   "left", "held_object": "red cube"}`) before the skill body runs, separately from arguments;
+   these are recorded labels, not sensed object identities. Selectors resolve through the arm
+   registry without probing a lazy backend or powering hardware.
+2. [`TraceLogger.record()`](../src/cascade/agent/trace.py) keeps `context` optional; legacy traces
+   still load, but absent or incomplete arm/possession context cannot produce notes. Never fill in
+   missing historical context by guessing.
+3. `diagnose()` keeps both contexts and the confirmation receipt; `distil()` rechecks compatibility
+   and writes the observed error, argument delta and evidence as a recorded association (never a
+   causal claim, an invented re-observation or another robot's workspace values).
+4. `harvest()` folds every eligible run into the note for its `(skill, signature)`; no migration,
+   bulk deletion or revalidation. Retrieval matches keywords, not arm/scene compatibility.
 
 ## Cross-task promotion gate
 
-One confirmed retry is an observed association in one task. Upstream ASPIRE
-(`aspire/sim/cap/skills/library.py`) tracks `occurrences` and `source_tasks`
-per distilled skill and promotes it to the active library only once it recurs
-beyond a single task; CASCADE applies the distinct-task reading of that rule:
+Upstream ASPIRE (`aspire/sim/cap/skills/library.py`) promotes a distilled skill only once it recurs
+beyond a single task; CASCADE applies the distinct-task reading:
 
 | Field (front matter of `skills_library/<slug>.md`) | Meaning |
 |---|---|
@@ -78,116 +74,52 @@ beyond a single task; CASCADE applies the distinct-task reading of that rule:
 | `source_runs` | The contributing run names; a run already listed is never counted again |
 | `status` | `promoted` when `len(source_tasks) >= min_tasks` (default `PROMOTION_MIN_TASKS = 2`), else `candidate` |
 
-- **Promoted** notes are what `aspire.retrieve()` injects into the tier-3
-  context at task start, each prefixed with its evidence
-  (`[promoted: recurred in 2 distinct tasks, 3 confirmed runs]`).
-- **Candidate** notes (one task, however many runs; a run without a recorded
-  task adds an occurrence but no task) stay on disk, are listed by
-  `SkillLibrary.entries()`/`records()`/`relevant()` for inspection, and never
-  reach the agent context.
-- **Legacy files** without front matter parse as one occurrence from an
-  unknown task and are candidates. A later distinct task folds into them like
-  any other note; the unknown first task never counts, and because their
-  contributing run is unknown, re-harvesting that same run adds one occurrence
-  (never a second task, so it cannot promote them).
-- **Idempotent harvests.** Re-running `learn_from_runs.py` over the same runs
-  changes nothing (`learned: 0`); new runs advance the counters, which persist
-  in the file across sessions.
-- **Explicit relaxation only.** `SkillLibrary(root, min_tasks=1)` — via
-  `memory.skill_min_tasks: 1` in `configs/demo.yaml` or
-  `learn_from_runs.py --min-tasks 1` — restores retrieval after one confirmed
-  retry, tagged `[admitted by explicit min_tasks=1 ...; not cross-task
-  validated]`. `status` in the file is informational; retrieval recomputes it
-  with the configured threshold, so a stored `promoted` never overrides a
-  stricter configuration. Values below 1 are rejected.
+1. **Promoted** notes are what `aspire.retrieve()` injects into the tier-3 context at task start,
+   prefixed with their evidence (`[promoted: recurred in 2 distinct tasks, 3 confirmed runs]`).
+2. **Candidate** notes stay on disk and are listed by `SkillLibrary.entries()` / `records()` /
+   `relevant()`, but never reach the agent context (a run without a recorded task adds an
+   occurrence but no task).
+3. **Legacy files** without front matter are one occurrence from an unknown task (candidates); the
+   unknown task never counts, and re-harvesting that run cannot promote them.
+4. **Idempotent:** re-running over the same runs changes nothing (`learned: 0`); counters persist.
+5. **Explicit relaxation only:** `SkillLibrary(root, min_tasks=1)` via `memory.skill_min_tasks: 1`
+   in `configs/demo.yaml` or `learn_from_runs.py --min-tasks 1`, tagged `[admitted by explicit
+   min_tasks=1 ...; not cross-task validated]`. Retrieval recomputes `status` with the configured
+   threshold; values below 1 are rejected.
 
-Promotion counts distinct recorded task strings. It does not establish that the
-tasks were different scenes, objects or calibrations, and it is not evidence
-that the note causes success; it only withholds single-task associations from
-the prompt, as upstream does.
-
-## Inspect and harvest offline
-
-Run from the checkout root with the development environment installed. Choose
-a directory whose immediate children are reviewed sessions containing
-`trace.jsonl`; keep unrelated robot/deployment histories separate. The example
-uses `runs/`, the CLI default:
-
-```bash
-# Inspect first: no library notes or persisted envelope updates.
-.venv/bin/python scripts/learn_from_runs.py --runs runs --dry-run --report
-
-# After reviewing the selected sessions, write notes and envelope updates.
-.venv/bin/python scripts/learn_from_runs.py --runs runs \
-  --library skills_library --envelope ~/.cascade/envelope.json --json
-```
-
-The script also ingests outcomes into the operating envelope, a separate
-learning path that this admission change does not modify. A dry run may create
-an empty library directory; `--report` alone is not read-only. Do not combine
-`--dry-run` with `--export-md` when avoiding file output, because that option
-explicitly writes an export.
-
-The built-in orchestrator retrieves keyword-matched, promoted library notes at
-task start (see the cross-task promotion gate above). Harvesting stays between
-sessions; this script neither runs a robot nor replays the recorded actions in
-a simulator.
+Promotion counts distinct task strings, not distinct scenes, objects or calibrations, and is not
+evidence that a note causes success.
 
 ## Verify the contract
 
 ```bash
-.venv/bin/python -m pytest tests/test_agentic_upgrades.py \
+uv run --extra dev --extra kinematics pytest tests/test_agentic_upgrades.py \
   tests/test_aspire_admission.py tests/test_aspire_promotion.py \
   tests/test_llm_and_library.py tests/test_arm_rig.py tests/test_verifier_crash.py -q
-
-# Broader non-hardware regression suite.
-.venv/bin/python -m pytest tests/ -q
 ```
 
-The admission tests use synthetic trace fixtures and real dispatch, checker,
-logger and library integration with data-only physical callbacks. They cover
-negative admission cases, resolved aliases, pre-placement possession,
-explicit boundaries, retention of evidence, and the promotion gate (second
-distinct task promotes; same task twice, unknown tasks and legacy files do
-not; counters persist and re-harvests are idempotent; `min_tasks=1` is the
-only relaxation). A backend-probe sentinel checks
-that logging alone never accesses lazy hardware. These tests are not physical
-trials or measured improvements in robot success rate.
-
-A MuJoCo pick-and-place/reset run can separately check that manipulation still
-works and produces scoped traces. It does not establish that this gate learns
-better policies, and it does not certify the Isaac/CUDA/OpenClaw deployment.
+Synthetic trace fixtures with real dispatch, checker, logger and library integration cover negative
+admission cases, resolved aliases, pre-placement possession, boundaries, evidence retention and the
+promotion gate; a backend-probe sentinel checks that logging never touches lazy hardware. These are
+not physical trials or measured success-rate improvements; the broader non-hardware suite is CI's
+`uv run pytest tests/ -q` after its `uv sync` with every extra (`.github/workflows/ci.yml`).
 
 ## Boundaries and research provenance
 
-- No changes to model weights, motion commands, IK, safety limits or the
-  postcondition evaluator. Experience-memory and operating-envelope admission
-  remain separate and unchanged by this gate. (Both grew on 2026-10-07 on
-  their own terms — tier-2 recipes that re-ground coordinates through live
-  perception, and runtime-measured envelope features; neither reads this
-  gate's receipts, and neither is a claim of learned improvement.)
-- The gate trusts historical verifier receipts structurally; it does not
-  re-evaluate their measurements or establish equality of hidden state,
-  scene, object instance, model revision or calibration.
-- Held-object context is the runtime's existing global label, not a new
-  per-arm possession model. Hosts without explicit task/reset records still
-  lack proven episode boundaries; a run directory alone is not one.
-- Notes are guidance, not transferable controllers. Matching one retry does
-  not prove causality, cross-task generalization or better future performance.
-  Promotion after two distinct recorded tasks is upstream ASPIRE's recurrence
-  threshold, not a validation of either claim.
-
-Dream-RSI motivates restricting claims to recorded continuations. Its paper
-evaluates exploration controllers with fixed underlying models and execution
-interfaces (Section 3, pages 4–6); the experiments concern algorithm
-engineering, mathematics and GPU kernels, not robotics.[1] Its semantic-guidance
-comparison is specific to ConvDiv (Section 5.1, page 11), not evidence that
-repair memory is generally harmful. The pinned repository has no released
-implementation or reproduction scripts.[2]
-
-CASCADE does not implement Dream-RSI's policy optimizer. Further work would
-need explicit state/episode lineage, held-out episodes and independently
-measured new trials before claiming online improvement.
+1. No changes to model weights, motion commands, IK, safety limits or the postcondition evaluator;
+   experience memory (tier-2 recipes) and operating-envelope admission are separate and do not read
+   this gate's receipts.
+2. Historical verifier receipts are trusted structurally, not re-measured; hidden state, scene,
+   object instance, model revision and calibration are not proven equal.
+3. Held-object context is the runtime's global label, not a per-arm possession model; a run
+   directory alone is not a proven episode boundary.
+4. Notes are guidance, not controllers; two distinct tasks is upstream's recurrence threshold, not
+   proof of causality or generalization.
+5. Dream-RSI motivates restricting claims to recorded continuations; its experiments (algorithm
+   engineering, mathematics, GPU kernels) are not robotics, its semantic-guidance result is specific
+   to ConvDiv, and its pinned repository has no released implementation.[1][2] CASCADE does not
+   implement its policy optimizer; online improvement would need episode lineage, held-out episodes
+   and independently measured new trials.
 
 [1] [Dream-RSI paper, pinned revision](https://github.com/zhengkid/Dream-RSI/blob/4149ea9181ab1db80f85717ffda2c9f0f130e85b/papers/Dream-RSI.pdf)
 [2] [Dream-RSI repository, same revision](https://github.com/zhengkid/Dream-RSI/tree/4149ea9181ab1db80f85717ffda2c9f0f130e85b)

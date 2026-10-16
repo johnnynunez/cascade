@@ -1,116 +1,74 @@
 # Chrome camera companion
 
-Browser delivery and physical acceptance are separate. The dated browser checks
-below retain their original source; the [capability status](ROADMAP.md)
-identifies today's source/proof. A connected chat or advancing camera widget does
-not establish successful manipulation, a complete campaign or restart acceptance.
-
-The optional extension places live Kitchen, Worktop and Side cameras in a
-Chrome side panel or a movable panel inside OpenClaw. Robot orders still go
-through OpenClaw. The public camera page works without this extension.
+**Next action:** load the extension (2 min):
 
 1. Open `chrome://extensions` in Chrome 116 or later and enable **Developer mode**.
 2. Select **Load unpacked** and choose this checkout's `extensions/chrome` directory.
-3. Open the private demo's `/guide/` page, click **Open OpenClaw**, and wait for
-   the connection monitor to show **Ready**. In the connected chat tab, click
-   the extension icon, or press **Ctrl+Shift+Y** (**Command+Shift+Y** on macOS).
+3. Open the private demo's `/guide/` page, click **Open OpenClaw** and wait for **Ready**. In the
+   connected chat tab click the extension icon or press **Ctrl+Shift+Y** (**Command+Shift+Y** on
+   macOS).
 4. Click **Connect cameras** and allow access to that demo's host.
-5. Select **Side panel** or **Show in chat**, then choose a camera. Use
-   **Reconnect** after a server restart. Reload the extension after source changes.
+5. Select **Side panel** or **Show in chat**, then a camera. Use **Reconnect** after a server
+   restart; reload the extension after source changes.
 
-Click the camera image to enlarge it. Click again or press **Escape** to return.
-With the keyboard, Tab to the image and press **Enter** or **Space**. In the side
-panel, it opens in a larger window; closing that window also returns the camera.
-In **Show in chat**, the camera expands within the current tab. The stream keeps
-running while you switch sizes.
+The optional extension puts live Kitchen, Worktop and Side cameras in a Chrome side panel or a
+movable panel inside OpenClaw. Orders still go through OpenClaw; the public camera page works
+without it. A connected chat or advancing camera is not evidence of a successful manipulation,
+campaign or restart (capability status: [ROADMAP](ROADMAP.md)).
 
-**Real rig (no Spark camera server).** On a loopback OpenClaw page on any
-port, for example NemoClaw's Control UI on `127.0.0.1:18789`, discovery first
-tries the page itself. When that page advertises no cameras, the extension
-tries the Spark camera server (`127.0.0.1:8091`), then cascade's own live view
-(`127.0.0.1:8090/state`, served by `apps/stream_server.py`). The live view
-lists the real cameras, for example `d455f_scene` and `d455f_wrist`, and
-streams them as MJPEG. All three use the same `http://127.0.0.1/*` grant.
+Click the image (or Tab to it and press **Enter** / **Space**) to enlarge; click again or press
+**Escape** to return. In the side panel it opens a larger window (closing it returns the
+camera); in **Show in chat** it expands in the tab. The stream keeps running across sizes.
 
-Start the live view with the runtime by setting `CASCADE_STREAM=eager`. The
-default `lazy` opens it only when the agent calls `open_live_view`. The
-fallback never applies to remote, `localhost` or https pages, or to the camera
-servers themselves.
+## Discovery
 
-**The nvblox map as a view.** When the runtime has an occupancy map, the live
-view also announces `nvblox_map`, listed after the real cameras and labelled
-**3D map (nvblox)**: the occupied voxels in a slow 3-D orbit with the safety
-workspace, a top-down height map with the objects, and the map's age. It is
-MJPEG like the cameras, rendered only while a view shows it, and says plainly
-when there is nothing to show (occupancy off, bridge not answering, arm in
-standby). Its `/state` entry is marked `"virtual": true, "kind": "map"`; the
-agent's camera tools never list it. `CASCADE_NVBLOX_MAP=1` shows it even with
-occupancy off, `0` hides it. See [the map as a live-view tile](NVBLOX.md#the-map-as-a-live-view-tile-nvblox_map).
-
-The page may advertise its status endpoint with
-`<meta name="openclaw-demo" content="/api/status">`. Otherwise discovery
-uses the active page's origin, including its port. All discovered camera
-URLs must share the status host and scheme. The extension stores only
-camera configuration and its selected view; it does not read chat messages
-or store gateway credentials. Its history permission removes only exact
-OpenClaw token-fragment visits on recognized origins.
-
-The extension uses MJPEG camera endpoints. The ngrok visitor is a separate,
-authenticated video and snapshot view; it does not provide the extension's MJPEG
-transport or gateway administration. Use the private demo for the camera
-companion.
+1. The page may advertise its status endpoint with
+   `<meta name="openclaw-demo" content="/api/status">`; otherwise discovery uses the active
+   page's origin and port. Every camera URL must share the status host and scheme.
+2. **Real rig (no Spark camera server):** on a loopback OpenClaw page on any port (e.g.
+   NemoClaw's Control UI on `127.0.0.1:18789`) that advertises no cameras, the extension tries
+   the Spark camera server (`127.0.0.1:8091`), then cascade's live view (`127.0.0.1:8090/state`,
+   `apps/stream_server.py`), which lists the real cameras (e.g. `d455f_scene`, `d455f_wrist`) as
+   MJPEG. All three share the `http://127.0.0.1/*` grant. The fallback never applies to remote,
+   `localhost` or https pages, or to the camera servers themselves.
+3. Start the live view with the runtime via `CASCADE_STREAM=eager`; the default `lazy` opens it
+   only when the agent calls `open_live_view`.
+4. **The nvblox map as a view:** with an occupancy map, the live view also announces
+   `nvblox_map` (after the real cameras, labelled **3D map (nvblox)**): occupied voxels in a slow
+   orbit with the safety workspace, a top-down height map with objects, and the map's age; MJPEG,
+   rendered only while shown, and plain about having nothing to show. Its `/state` entry is
+   `"virtual": true, "kind": "map"` and the agent's camera tools never list it.
+   `CASCADE_NVBLOX_MAP=1` shows it with occupancy off, `0` hides it
+   ([details](NVBLOX.md#the-map-as-a-live-view-tile-nvblox_map)).
+5. **Privacy:** it stores only camera configuration and the selected view, never reads chat or
+   stores gateway credentials, and camera requests omit credentials. Its history permission
+   removes only exact OpenClaw token-fragment visits on recognized origins. The authenticated
+   ngrok visitor is separate (its own H.264 video and JPEG fallback, no MJPEG, no gateway admin):
+   use the private demo for the companion.
 
 ## Verification status
 
-On 30 September 2026, actual Chromium on the fresh DGX Spark installation
-loaded the shipped extension under an Xvfb virtual display. Kitchen, Worktop
-and Side each decoded **1280 × 720** images and advanced from frame 10 to 13.
-The PAAI chat reported its OpenClaw connection, with Send and Start over enabled.
-See the [release receipt](../benchmark/results/spark_clean_delivery_20260930.json)
-and [actual browser screenshot](../benchmark/results/images/spark_clean_three_cameras_20260930.png).
-This checked the Spark's real browser and extension; GNOME app-grid interaction
-and the visible Isaac editor were not exercised.
-After a full demo stop and second READY launch, the same open page recovered
-connected chat and all three cameras without a reload. Frames advanced from
-51 to 55 at the same resolution; the
-[post-restart capture](../benchmark/results/images/spark_clean_three_cameras_after_restart_20260930.png)
-records that check. During a native robot order, Send and Start over were
-both disabled while the visitor API reported the session busy.
-
-On 15 September 2026, the extension was loaded in Chrome for Testing 151 on
-the controller, connected to the running Brev demo. All three cameras enlarged
-and returned with live 960 × 540 images. Mouse, Enter, Space, Escape and closing
-the larger window were checked. The larger view fit a 1366 × 768 browser window.
-Repeated toggles kept the same image element and did not start another MJPEG
-request or abort the existing one. The embedded view also passed repeated
-enlarge/return checks. The rendered views were inspected.
-
-On 14 September 2026, Chrome for Testing 153 on the Brev RTX PRO 6000
-loaded the unpacked extension and opened its genuine native side panel.
-The Chrome host-permission dialog was accepted through the browser UI.
-Kitchen, Worktop and Side each decoded 960 × 540 images with advancing
-source frame IDs. Current desktop screenshots and a short recording verified
-the extension itself. The test installed missing Chrome display libraries;
-it did not require a second simulator or a model restart.
-
-A subsequent Brev check used the guide's **Open OpenClaw** button, confirmed
-the native authenticated connection and enabled message box, then opened the
-camera side panel while the chat stayed connected. The revised PAAI text and
-light theme rendered in the native popup and panel. This check reused the host
-grant and sent no chat message or robot command.
-
-**Show in chat** was also exercised inside the real OpenClaw login page on
-the controller, including movement, collapse, restore and refresh. This is a
-camera companion. The guide establishes OpenClaw's authenticated connection;
-the extension does not supply or store its credentials.
-Camera requests omit credentials, so use the private demo's supported MJPEG
-endpoints. The authenticated public visitor has its own H.264 video and JPEG
-fallback and does not use this extension.
-
-Chrome for Testing is suitable for automated unpacked-extension checks;
-regular Chrome installations should use **Load unpacked** in the extensions
-page. Opening the side panel requires a user gesture, as documented by
-[Chrome](https://developer.chrome.com/docs/extensions/reference/api/sidePanel).
+1. **DGX Spark, 30 September 2026:** real Chromium on the fresh install (Xvfb) loaded the shipped
+   extension; Kitchen, Worktop and Side decoded **1280 × 720** and advanced; chat connected with
+   Send and Start over enabled (both disabled while a native order ran). After a full stop and a
+   second READY launch the open page recovered chat and cameras without a reload
+   ([receipt](../benchmark/results/spark_clean_delivery_20260930.json),
+   [screenshot](../benchmark/results/images/spark_clean_three_cameras_20260930.png),
+   [after restart](../benchmark/results/images/spark_clean_three_cameras_after_restart_20260930.png)).
+   GNOME app grid and a visible Isaac editor were not exercised.
+2. **Brev, two separate runs.** On 14 September 2026, Chrome for Testing 153 on the Brev RTX PRO
+   6000 loaded the unpacked extension and opened its native side panel (host permission accepted
+   via the browser UI); Kitchen, Worktop and Side decoded 960 × 540 and advanced. On 15 September,
+   Chrome for Testing 151 on the controller, connected to the running Brev demo, passed
+   enlarge/return with mouse, Enter, Space, Escape and window close, fit a 1366 × 768 window, and
+   reused the same image element without a new MJPEG request. The native side panel was shown
+   only in the 153 run.
+3. **OpenClaw pages:** opening the side panel from the guide's **Open OpenClaw** kept the
+   authenticated chat connected (no message or robot command sent); **Show in chat** passed move,
+   collapse, restore and refresh inside the real OpenClaw login page.
+4. Chrome for Testing suits automated unpacked checks; regular Chrome uses **Load unpacked**.
+   Opening the side panel needs a user gesture
+   ([Chrome docs](https://developer.chrome.com/docs/extensions/reference/api/sidePanel)).
 
 ## Firefox
 

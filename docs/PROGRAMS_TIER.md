@@ -1,65 +1,47 @@
 # Programs tier (Waddle "programs", ROADMAP follow-up #8)
 
-Status: implemented behind an opt-in flag (`agent.programs: false` by default,
-`CASCADE_PROGRAMS=1` to enable) on 2026-10-08; measured on the mock stack with
-scripted brains only. Nothing here was run on a physical rig or in Isaac.
-2026-10-09 (B42): the same switch exposes the tier to MCP chat hosts
-(`list_programs`, `run_program`; see [MCP chat hosts](#mcp-chat-hosts)), and an
-opt-in memory embedder ranks programs by text embedding; again mock stack and
-the dependency-free `hash` embedder only.
+**Next action:** run the tier's tests on the mock stack (about 1 min):
 
-## The question
+```bash
+uv run --extra dev --extra kinematics pytest tests/test_programs_tier.py tests/test_programs_mcp.py -q
+```
 
-Waddle Labs describes three tiers: `primitives` (fixed platform functions) →
-`skills` (agent-authored, reusable, composed from primitives) → `programs`
-("full task-specific policies composed from skills, written fresh per
-instruction"). CASCADE had the first two (`TOOL_SPECS`, and the ASPIRE notes in
-`skills_library/*.md`) and nothing above a skill: every multi-step task was
-either a reflex/habit replay (tiers 1–2) or a turn-by-turn LLM tool loop
-(tier 3). ROADMAP #8 asked one scoping question before anything landed: is a
-program **distilled** the way ASPIRE distils a note (diagnose a successful
-multi-skill run, persist it), or **authored proactively** by the agent?
+Enable it with `CASCADE_PROGRAMS=1` (or `agent.programs: true`); the default is
+`agent.programs: false`.
+
+Status: implemented behind the opt-in flag (2026-10-08) and exposed to MCP chat hosts as
+`list_programs` / `run_program` with opt-in embedding retrieval (2026-10-09, B42). Measured on the
+mock stack with scripted brains and the dependency-free `hash` embedder only; nothing ran on a
+physical rig or in Isaac.
 
 ## Decision: both, under one admission rule
 
-A program can come from either path, and the path it came from never decides
-whether it is trusted:
+Waddle's tiers are primitives → skills → programs ("full task-specific policies composed from
+skills, written fresh per instruction"). CASCADE had nothing above a skill: a task was a
+reflex/habit replay (tiers 1–2) or a turn-by-turn LLM loop (tier 3). A program can be **authored**
+or **distilled**, and the path never decides trust:
 
 | path | when | what is produced |
 | --- | --- | --- |
 | authored | the program tier is consulted for a task no reflex/habit plan covers: one LLM text turn writes a program for THIS instruction (Waddle's "written fresh per instruction") | a validated program, executed now |
 | distilled | a tier-3 LLM run ends in a VERIFIED success (same trigger as a tier-2 recipe) | the run's motion steps as a program: coordinates → perception queries (`memory/recipes.py`), labels → parameters |
 
-**One admission rule for both:** authorship is never evidence. A program enters
-the library (`runs/programs.jsonl`) only from an execution in which every
-registered effect was CONFIRMED by an independent channel (the per-task
-effects ledger, not the step's own result), and no motion step lacked a
-postcondition. That makes it a stored **candidate**. It is **offered for reuse**
-only once **promoted**: verified in at least `PROMOTION_MIN_TASKS` (2) distinct
-tasks -- upstream ASPIRE's cross-task rule, the same constant
-`skills/library.py` uses -- and while its verified executions outnumber its
-failed ones. Authored and distilled programs with the same structure fold into
-one record (one signature), so a program the agent wrote for one instruction
-and the same structure distilled from a verified LLM run of another
-instruction are two distinct tasks of evidence for one program.
+**One admission rule for both:** authorship is never evidence.
 
-Why not one path only:
-
-- **Distillation only** re-packages what the turn-by-turn loop already did; it
-  never saves the LLM turns of the first run and cannot express a program the
-  loop has not stumbled into. It is still worth keeping: a verified LLM run is
-  free evidence for a program the agent may later reuse.
-- **Authoring only** (Waddle) throws that verified work away, and on its own
-  invites the failure the ROADMAP warned about: a program trusted because its
-  author wrote it. Waddle's thin single `verify(...)` is the contrast, not the
-  model.
-- Under one admission rule the origin is metadata (`origins: [authored,
-  distilled]`), and trust comes only from independent verification across
-  distinct tasks.
+1. A program enters the library (`runs/programs.jsonl`) as a **candidate** only from an execution
+   in which every registered effect was CONFIRMED by an independent channel (the per-task effects
+   ledger, not the step's own result) and no motion step lacked a postcondition.
+2. It is **offered for reuse** only once **promoted**: verified in at least `PROMOTION_MIN_TASKS`
+   (2) distinct tasks (upstream ASPIRE's cross-task rule, as in `skills/library.py`) and while its
+   verified executions outnumber its failed ones.
+3. Authored and distilled programs with the same structure fold into one record (one signature);
+   the origin is metadata (`origins: [authored, distilled]`).
+4. Distillation alone never saves the first run's LLM turns; authoring alone throws verified work
+   away and invites trusting a program because its author wrote it.
 
 ## What a program is, and what it is not
 
-A program is a declarative JSON object, not code:
+A declarative JSON object, not code:
 
 ```json
 {"version": 1,
@@ -73,194 +55,92 @@ A program is a declarative JSON object, not code:
  ]}
 ```
 
-- **Registered tools only.** Every step names a `TOOL_SPECS` tool and its
-  arguments are checked against that tool's schema (unknown keys, missing
-  required keys, wrong types, values outside an `enum` or bounds are refused).
-  Tools that are not task steps are refused with a reason: `task_done` (a
-  program never declares its own success), `reset_scene` (undoes a task),
-  `halt_motion` (acts on an in-flight motion), `grasp_at_pixel` /
-  `probe_point` (a pixel is a scene-bound coordinate), `recall_step` and the
-  live-view tools. The MCP stop channel (`emergency_stop`, `reset_stop`) is not
-  in `TOOL_SPECS`, so a program can neither stop nor reset stop permission.
-- **No stored raw coordinates.** `place_at`'s `x`/`y`/`z` may only come from a
-  `$target` perception query (Task-Specific Memory, `memory/recipes.py`):
-  `localize_object(label) + offset_m`, offset within the recipe anchor radius
-  (0.40 m in xy). A literal coordinate is refused at validation; nothing is
-  ever stored or executed from a remembered position.
-- **Parameters are labels.** `{"$param": name}` may only fill a free-form string
-  argument; bindings must be non-empty strings. A number cannot be smuggled in
-  through a parameter.
-- **Bounded:** at most 12 steps, 6 parameters, no loops, no branches. (A
-  branching, outcome-routed plan is what `robotics/graph.py`'s bounded skill
-  graphs are for, on the composed `RobotRuntime`; a program is the
-  manipulation runtime's straight-line task script.)
-- **Not a skill.** A program is not in `TOOL_SPECS` and never runs inside a
-  `SkillRuntime.execute()` call. The orchestrator executes it as a sequence of
-  TOP-LEVEL `execute()` calls, so every step gets exactly what an LLM-issued
-  call gets: its own trace row (`tier: program`), BEFORE/AFTER keyframes, watcher
-  pause, three-state postcondition, task-effects obligation, Vesta memory frame
-  and envelope row. Nesting a program inside one tool call would hide its steps
-  from all of that; that is why there is no `run_program` SKILL. (The MCP
-  server's `run_program` is a host-side tool like `world_state`, not a skill:
-  it hands the program to the same runner, which issues the same top-level
-  `execute()` calls -- see [MCP chat hosts](#mcp-chat-hosts).)
-- **Not a second control path.** The runner has no motion API. The
-  SafetyHarness, reached through each skill's `SafeArm`, remains the sole
-  authority that refuses motion; the program validator only decides whether a
-  program is well formed, never whether a motion is safe.
+1. **Registered tools only**, each checked against its `TOOL_SPECS` schema. Refused as steps:
+   `task_done` (a program never declares its own success), `reset_scene`, `halt_motion`,
+   `grasp_at_pixel` / `probe_point` (scene-bound pixels), `recall_step` and the live-view tools.
+   The MCP stop channel (`emergency_stop`, `reset_stop`) is not in `TOOL_SPECS`, so a program can
+   neither stop nor reset stop permission.
+2. **No stored raw coordinates:** `place_at`'s `x`/`y`/`z` come only from a `$target` perception
+   query (`localize_object(label) + offset_m`, offset within the recipe anchor radius, 0.40 m in
+   xy). **Parameters are labels:** `{"$param": name}` fills only free-form strings.
+3. **Bounded:** at most 12 steps, 6 parameters, no loops or branches (outcome routing is
+   `robotics/graph.py`'s job on the composed `RobotRuntime`).
+4. **Not a skill:** the orchestrator runs it as TOP-LEVEL `execute()` calls, so every step gets its
+   own trace row (`tier: program`), keyframes, watcher pause, postcondition, effects obligation,
+   memory frame and envelope row. The MCP `run_program` is a host-side tool like `world_state`.
+5. **Not a second control path:** the runner has no motion API; the SafetyHarness, through each
+   skill's `SafeArm`, stays the sole authority that refuses motion.
 
 ## Lifecycle
 
-1. **Consult.** `AgentOrchestrator.run_task` runs tier 1/2 first. Only when
-   neither had a plan (no reflex, no habit/recipe) is the program tier
-   consulted; a habit that failed goes straight to tier 3, which can see the
-   failure.
-2. **Author (one LLM turn).** The prompt carries the composable tool catalog,
-   the world model as labels only (no positions: a program must not be written
-   from coordinates), and at most three PROMOTED programs whose words overlap
-   the task, each with its evidence tag. The brain answers with a fresh
-   program plus bindings, `{"use": <name>, "bind": {...}}` for a promoted one,
-   or `NONE` (a question, or a task that needs to look before deciding).
-   Candidates and demoted programs are never offered, and a `use` of one is
-   refused.
-3. **Validate and bind** (above). A rejected program changes nothing in the
-   world; the task falls through to tier 3 with the reason.
-4. **Ground before anything runs.** Every `$target` query is resolved through
-   the runtime's own `localize_object` (perception, not motion) before step 1.
-   One query that does not resolve aborts the program with ZERO motion; there
-   is no stored coordinate to fall back to, by construction.
-5. **Execute** each step through `runtime.execute()` with `current_tier =
-   "program"`. Per step, the verdict is read from the task-effects ledger rows
-   that step added -- the checker's own verdict -- never from the result's
-   self-report. A result that merely says `postcondition: confirmed` is not
-   evidence.
-6. **Stop honestly.** The program stops at the first step that is failed,
-   refused by the harness, refuted, or a registered effect left UNVERIFIED (a
-   program does not build later steps on an effect nobody confirmed --
-   continuing would make the program's own authorship the evidence for the
-   earlier step). The run carries a `next_action` (what executed, what the arm
-   holds, do not re-run the program) and the task falls through to tier 3
-   with that note. A `stuck` step ends the task like it does in every tier: the
-   ask is relayed verbatim, no retry.
-7. **Report and admit.** A completed program is a task success only through
-   the existing report contract (`_finish_report` folds every unverified
-   obligation in). It is admitted to the library only when its verdict is
-   CONFIRMED: completed, at least one registered effect, every registered
-   effect confirmed, and no motion step without a postcondition (`wave`,
-   `point_at`, `move_relative`, `sort_by_color` never stop a program, but their
-   self-report is the only evidence for them, so they keep it out of the
-   library). A verified run is also stored as a tier-2 recipe of the same
-   instruction, the same rule as a verified LLM-tier run. An execution of an
-   ADMITTED program (same signature, whether reused or written again) that ran
-   steps without verifying counts a loss; a run aborted before step 1 (zero
-   motion, e.g. its anchor is not on this table) counts nothing. Per-run receipt:
-   `<run>/programs/<n>_<name>.json` (spec, sha256, bindings, grounded queries,
-   per-step verdicts). A distilled run is admitted only when the task-effects
-   ledger has at least one row and every row is CONFIRMED; a run with no
-   ledger verdict is skipped silently (no evidence, nothing to narrate).
+1. **Consult** only when tiers 1/2 had no plan (a failed habit goes straight to tier 3).
+2. **Author (one LLM turn):** the prompt carries the composable catalog, the world model as labels
+   only (no positions) and at most three PROMOTED programs; the brain answers with a program plus
+   bindings, `{"use": <name>, "bind": {...}}`, or `NONE`. Candidates and demoted programs are never
+   offered and a `use` of one is refused.
+3. **Validate, bind and ground before anything runs:** every `$target` resolves through
+   `localize_object` before step 1; one unresolved query aborts with ZERO motion.
+4. **Execute and stop honestly:** each step's verdict is read from the effects-ledger rows it added,
+   never its self-report. The program stops at the first failed, refused, refuted or UNVERIFIED
+   step with a `next_action` (what executed, what the arm holds, do not re-run) and falls through
+   to tier 3; a `stuck` step ends the task with the ask relayed verbatim.
+5. **Report and admit:** success only through the existing report contract (`_finish_report`).
+   Admission needs completion, ≥ 1 registered effect, all confirmed, and no motion step without a
+   postcondition (`wave`, `point_at`, `move_relative`, `sort_by_color` keep it out). An admitted
+   program that ran steps without verifying counts a loss; an abort before step 1 counts nothing.
+   Receipt: `<run>/programs/<n>_<name>.json` (spec, sha256, bindings, grounded queries, per-step
+   verdicts).
 
 ## Storage and retrieval
 
-`memory/programs.py::ProgramLibrary`, one JSON object per line in
-`runs/programs.jsonl` (`memory.programs_path`, `CASCADE_PROGRAMS_PATH`),
-written atomically. Each record: `signature` (sha256 of the canonical skeleton:
-parameter names replaced by position of first use, offsets quantized to 1 cm,
-name/description excluded), the program as first admitted, `occurrences`
-(distinct verified executions, idempotent per run/task id), `source_tasks`,
-`source_runs`, `origins`, `losses`, `summary`. Promotion and retrieval:
-`n_tasks >= min_tasks` and `occurrences > losses`; `agent.program_min_tasks: 1`
-is the explicit relaxation and must be >= 1. A corrupt line costs only itself.
+`memory/programs.py::ProgramLibrary`: one JSON object per line in `runs/programs.jsonl`
+(`memory.programs_path`, `CASCADE_PROGRAMS_PATH`), written atomically. A record holds `signature`
+(sha256 of the canonical skeleton: parameters by position of first use, offsets quantized to 1 cm,
+name/description excluded), the program, `occurrences`, `source_tasks`, `source_runs`, `origins`,
+`losses`, `summary`. Promotion: `n_tasks >= min_tasks` and `occurrences > losses`
+(`agent.program_min_tasks: 1` is the explicit relaxation, must be >= 1). A corrupt line costs only
+itself.
 
-Retrieval for a task (the authoring prompt's offered programs, and the MCP
-`list_programs` with a `query`) has two modes, behind the promotion gate either
-way -- a candidate or demoted record is never ranked, however similar:
+Retrieval (authoring prompt, MCP `list_programs` with a `query`) sits behind the promotion gate:
 
-- **keyword overlap** (default): records sharing a content word with the task,
-  by overlap then evidence -- the pre-B42 ranking exactly.
-- **text embedding** (opt-in, B42): with a memory embedder configured
-  (`memory.embedder`, `CASCADE_MEMORY_EMBEDDER`; backends `hash` | `siglip` |
-  `clip`), the task is compared in the embedder's TEXT space with the closest of
-  the record's own name + description and each instruction it was verified on.
-  A record qualifies at the embedder's `text_floor` OR on a shared content word
-  -- the skill library's floor-or-guard rule -- so switching an embedder on can
-  add a paraphrase the keywords missed ("shifting cubes frontwards" finds the
-  program verified on "shift the green cube front-left") but never drops a
-  keyword match. Measured with the dependency-free `hash` embedder (stemmed
-  hashed bag of words, floor 0.3); the SigLIP/CLIP text floors are not
-  calibrated on real weights (the same caveat as the skill-library notes).
-
-Several processes may share one store -- the CLI and one MCP server per chat
-session (OpenClaw). Every write takes an advisory lock (`<store>.lock`),
-re-reads the store and applies its change to the CURRENT records, so no process
-erases another's records, occurrences or losses; a reader adopts other
-processes' writes with `refresh()` (a stat when nothing changed), which
-`list_programs` and `run_program(program=...)` call first. On main before B42
-the last writer rewrote the file from its own stale view.
+1. **keyword overlap** (default): records sharing a content word, by overlap then evidence.
+2. **text embedding** (opt-in, B42): with `memory.embedder` / `CASCADE_MEMORY_EMBEDDER` (`hash` |
+   `siglip` | `clip`), a record qualifies at the embedder's `text_floor` OR on a shared content word
+   (the skill library's floor-or-guard rule), so an embedder can add a paraphrase but never drop a
+   keyword match. Measured with `hash` (floor 0.3) only; SigLIP/CLIP text floors are uncalibrated.
+3. Several processes may share one store (the CLI and one MCP server per chat session): every write
+   takes an advisory lock (`<store>.lock`), re-reads and applies its change to the current records;
+   readers adopt others' writes with `refresh()`.
 
 ## MCP chat hosts
 
-With the tier on (`agent.programs: true` / `CASCADE_PROGRAMS=1`, the CLI's
-switch; arm servers only, never mobile/composed), the MCP server offers two
-host-side tools. The host is the brain here, so the CLI's mock-brain exclusion
-does not apply: the host's `run_program` call takes the place of the authoring
-turn and everything after it is the CLI's own code (`ProgramTier`,
-`run_program`, `account`).
+With the tier on (`agent.programs: true` / `CASCADE_PROGRAMS=1`; arm servers only, never
+mobile/composed) the MCP server offers two host-side tools; the host's `run_program` call replaces
+the authoring turn and everything after it is the CLI's code.
 
-- **`list_programs(query?, limit?)`** -- the PROMOTED programs only, ranked for
-  `query` as above (all promoted, most evidence first, without one), each with
-  its parameters, normalized steps, `describe()` summary, evidence
-  (`distinct_tasks`, `verified_runs`, `failed_runs`) and a ready `run_with`.
-  Programs are re-validated against the current catalog; one that names a
-  tool this server withholds or the operator hid carries an `unavailable`
-  reason. The source instructions are not exposed (other sessions' words).
-- **`run_program(program | spec, bindings, task)`** -- exactly one of
-  `program` (a promoted program's name or signature) or `spec` (a new program,
-  validated like an authored one; a JSON-encoded string is accepted). `task`
-  is required: it is the user's instruction and the key for distinct-task
-  promotion. A `program` that is a candidate, demoted or unknown is refused
-  with zero motion, like a `use` of one.
-- **Storage and promotion: the same rule.** A submitted spec runs once. It is
-  stored -- as a candidate -- only if that execution was fully CONFIRMED by the
-  task-effects ledger; the program's own `verdict` is the only evidence (a
-  chat host's claim of success is not consulted). It is offered by
-  `list_programs` and runnable by name only once verified in >= 2 distinct
-  tasks and more often than it failed. An execution of an admitted structure
-  (by name, or the same structure resubmitted) that ran steps without
-  verifying counts a loss. A host can therefore never promote a program by
-  writing it, only by running it to a confirmed effect in two different tasks.
-- **The served surface binds programs too.** The runner calls `execute()`
-  directly, so before anything runs the server refuses a program whose step
-  or `$target` grounding query (`localize_object`) is withheld by the
-  capability matrix (e.g. 3D tools on an RGB-only rig) or hidden by
-  `CASCADE_HIDE_TOOLS`. Capability cells: `list_programs` needs `programs`
-  (the library opened); `run_program` needs `programs` and `verifier` --
-  without the verifier no step could ever be confirmed. The `programs` cell
-  exists only when the tier is attached, so with the tier off the matrix,
-  banner and `tools_withheld` are the pre-tier ones.
-- **Stop.** A program run moves the arm, so `run_program` is treated like a
-  motion tool: `notifications/cancelled` for an in-flight `run_program`
-  latches the e-stop (the stdin reader, never queued), as do `emergency_stop`,
-  the dashboard STOP and SIGINT. The runner gets a halt check
-  (`run_program(..., halt=...)`) evaluated before grounding and before every
-  step: once a stop is latched no further step is dispatched; a step in flight
-  is refused (or its effect refuted) by the harness/ledger. The result is
-  `status: stopped` with `estop_latched: true` and a `next_action`; nothing
-  resumes until `reset_stop`. A latched e-stop before the call means the
-  program never starts (`aborted`, zero motion). The whole program holds the
-  server's execution lock, so the dashboard reflex chat cannot interleave a
-  motion. With the opt-in read-only lane (`mcp.readonly_lane`, B46) a
-  `run_program` in flight counts as a motion: `world_state`,
-  `robot_knowledge`, `verify_last_action` and `camera_snapshot` answer during
-  it (marked `served_during_motion`); every other call still waits for the
-  whole program.
-- **Result.** `ok` is true only for a completed, CONFIRMED run; otherwise
-  `isError` with `status` (`completed` | `stopped` | `aborted` | `stuck` |
-  `refused`), per-step verdicts and evidence, `stopped_at`, `reason`,
-  `next_action` (what executed, what the gripper holds, "do not re-run"),
-  `grounded` queries, `library` (`outcome`: admitted / loss / not admitted,
-  the record's status and evidence) and the per-run receipt path
-  (`<run>/programs/<n>_<name>.json`, as for the CLI). Each step is its own
-  trace row with `tier: program`; `last_path` is `program`.
+1. **`list_programs(query?, limit?)`**: PROMOTED programs only, ranked as above, with parameters,
+   normalized steps, evidence (`distinct_tasks`, `verified_runs`, `failed_runs`) and a ready
+   `run_with`; one naming a tool this server withholds or the operator hid carries an
+   `unavailable` reason. Source instructions are not exposed.
+2. **`run_program(program | spec, bindings, task)`**: exactly one of `program` (a promoted name or
+   signature) or `spec` (validated like an authored one; a JSON string is accepted); `task` is
+   required. **Storage and promotion: the same rule.** A submitted spec runs once and is stored as a
+   candidate only if the ledger CONFIRMED it; a host's claim of success is not consulted. A host
+   can never promote a program by writing it, only by running it to a confirmed effect in two
+   different tasks.
+3. **The served surface binds programs:** a step or `$target` query withheld by the capability
+   matrix or hidden by `CASCADE_HIDE_TOOLS` is refused before anything runs. `list_programs` needs
+   the `programs` cell; `run_program` needs `programs` and `verifier`.
+4. **Stop:** `run_program` is a motion tool: `notifications/cancelled` for it latches the e-stop,
+   as do `emergency_stop`, the dashboard STOP and SIGINT. A halt check runs before grounding and
+   before every step; the result is `status: stopped`, `estop_latched: true` and nothing resumes
+   until `reset_stop`. The program holds the server's execution lock; with the read-only lane
+   (`mcp.readonly_lane`, B46) only `world_state`, `robot_knowledge`, `verify_last_action` and
+   `camera_snapshot` answer during it.
+5. **Result:** `ok` only for a completed, CONFIRMED run; otherwise `isError` with `status`
+   (`completed` | `stopped` | `aborted` | `stuck` | `refused`), per-step verdicts, `stopped_at`,
+   `reason`, `next_action`, `grounded`, `library` (`outcome`: admitted / loss / not admitted) and the
+   receipt path; `last_path` is `program`.
 
 ## Refusal and stop cases
 
@@ -278,37 +158,25 @@ turn and everything after it is the CLI's own code (`ProgramTier`,
 | MCP: a step or `$target` query the capability matrix withholds or the operator hid | served surface | refused, zero motion |
 | MCP: a stop latched before the call, or arriving while it runs (cancel, `emergency_stop`, dashboard STOP, SIGINT) | halt check + harness | `aborted` with zero motion / `stopped`, no later step dispatched, `next_action`; an admitted program that ran steps counts a loss |
 
-Advisory pieces never veto: library rank, promotion and the evidence tags only
-decide what is OFFERED to the brain. The pre-motion plausibility critic is not
-consulted for program steps (the tier is LLM-free after its authoring turn,
-like tier 2), and the milestone tracker is not run on it.
+Advisory pieces never veto: rank, promotion and evidence tags only decide what is OFFERED. The
+plausibility critic and milestone tracker do not run on program steps.
 
 ## Opt-in, and what "off" means
 
-`agent.programs: false` (default) or `CASCADE_PROGRAMS=0` gives
-`AgentOrchestrator(programs=None)`, whose dispatch is the pre-change path
-exactly: no authoring turn, no extra runtime write, no extra message, no store
-touched (pinned against a golden in `tests/test_programs_tier.py`). Mobile and
-composed runtimes never get the tier and the mock brain (a labelled script)
-never gets it from the CLI. On the MCP server, off means `list_programs` and
-`run_program` are not catalog candidates (a call is an unknown tool, exactly
-as before), the runtime carries no tier, the capability matrix has no
-`programs` cell, a cancel of a call named `run_program` is not a motion
-cancel, and no store is touched (golden-pinned in
-`tests/test_programs_mcp.py`).
+`agent.programs: false` (default) or `CASCADE_PROGRAMS=0` gives `AgentOrchestrator(programs=None)`:
+the pre-change dispatch exactly, no store touched (golden-pinned in `tests/test_programs_tier.py`).
+On the MCP server, off means `list_programs` and `run_program` are not catalog candidates, there is
+no `programs` capability cell, and a cancel of a call named `run_program` is not a motion cancel
+(golden-pinned in `tests/test_programs_mcp.py`). Mobile and composed runtimes, and the CLI's mock
+brain, never get the tier.
 
 ## Not claimed, and still open
 
-- No physical or simulator acceptance: every measurement is the mock stack with
-  scripted brains and, where a test needs a confirmed effect, the stand-in
-  physics channel the recipe tests use. No claim that programs raise task
-  success or that a real brain writes valid programs.
-- ~~Not exposed to MCP chat hosts~~ (landed 2026-10-09, B42: `list_programs` /
-  `run_program`, above). Not measured with a real host brain: whether a local
-  Qwen writes valid specs over MCP, or reuses promoted ones, is unmeasured.
-- No branching or loops (skill graphs cover outcome routing on the composed
-  runtime); motions without a registered postcondition can never make a
-  program admissible.
-- ~~Retrieval is keyword overlap, not embedding~~ (landed 2026-10-09, B42: opt-in
-  `memory.embedder`, floor-or-guard). Measured with the `hash` embedder only;
-  the SigLIP/CLIP text floors are uncalibrated on real weights.
+1. No physical or simulator acceptance; no claim that programs raise task success or that a real
+   brain writes valid programs.
+2. ~~Not exposed to MCP chat hosts~~ (landed 2026-10-09, B42); whether a local Qwen writes valid
+   specs over MCP, or reuses promoted ones, is unmeasured.
+3. No branching or loops; motions without a registered postcondition never make a program
+   admissible.
+4. ~~Retrieval is keyword overlap, not embedding~~ (landed 2026-10-09, B42: opt-in
+   `memory.embedder`, floor-or-guard); SigLIP/CLIP text floors are uncalibrated on real weights.

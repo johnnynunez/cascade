@@ -97,8 +97,9 @@ native OpenClaw orders (green cube to green square, orange to open box), each wi
 a verified reset; logs stay under `runs/.install/` and `runs/.launch/profile-cascade-demo/`.
 
 For development, list every extra you need in one `uv sync` (it removes the ones
-you leave out), e.g. `uv sync --extra dev --extra kinematics --extra sim --extra grasping`;
-`uv run --extra sim ...` adds one for a single command:
+you leave out, and also the packages `scripts/setup_env.sh` added), e.g.
+`uv sync --extra dev --extra kinematics --extra sim --extra grasping`;
+`uv run --extra sim ...` installs one extra, which stays in `.venv` until the next `uv sync`:
 
 | extra | brings | when |
 |---|---|---|
@@ -156,9 +157,10 @@ uv run python -m cascade.apps.demo --arm so101_ros2
 # learned grasps (CUDA server warms up ~20 s before opening :5556) or the analytic stub (NOT the model)
 scripts/serve_graspgenx.sh                 # or: uv run --extra grasping python scripts/serve_graspgenx_stub.py
 ./scripts/serve_occupancy.sh               # occupancy bridge :5557, auto: nvblox > warp > voxel
-# real rig (rig packages: see Setup notes): CAN up, then N cameras (first = manipulation camera)
+# real rig (rig packages: see Setup notes): CAN up, then N cameras (first = manipulation camera);
+# the rig venv's interpreter, never `uv run` (it would re-sync the live .venv against uv.lock)
 sudo ip link set can0 up type can bitrate 1000000
-uv run python -m cascade.apps.demo --interactive --cameras d455f,uvc4k --arm rebot_rs --llm anthropic
+.venv/bin/python -m cascade.apps.demo --interactive --cameras d455f,uvc4k --arm rebot_rs --llm anthropic
 # chat hosts instead of the CLI loop
 ./scripts/hermes_demo.sh                # Hermes: register + test + chat
 ./scripts/openclaw_demo.sh              # OpenClaw, local-brain variant (Cosmos3-Edge / Qwen servers)
@@ -187,7 +189,7 @@ frame, reach and gripper travel come from the profile, not the code.
 | `libero_panda`, `mock`, `ros2_generic` | Franka Panda in LIBERO; kinematic stand-in; **template** for any `ros2_control` robot | benchmark harness; none; ROS2 | template: copy, fill in, drop `template: true` |
 
 - **Any ROS2 robot without Python:** `type: ros2` speaks `JointState` in and `FollowJointTrajectory` (or `JointTrajectory` / `Float64MultiArray`) out, joints by name.
-- **Franka FR3:** STOP is latched at start; **Resume & Home** (`POST /resume`) clears it and returns to the taught overview `home_q`; `return_home_after_motion: true` returns there after success or an ordinary failed grasp. Record native state without commanding: `scripts/record_franka_motion.py --output <new.jsonl> --rate 100 [--duration <s>]`.
+- **Franka FR3:** STOP is latched at start; **Resume & Home** (`POST /resume`) clears it and returns to the taught overview `home_q`; `return_home_after_motion: true` returns there after success or an ordinary failed grasp. Record native state without commanding (subscribe-only), after sourcing ROS and the Franka workspace (`source /opt/ros/jazzy/setup.bash` and the workspace's `install/setup.bash`): `ROS_DOMAIN_ID=31 .venv-hardware/bin/python scripts/record_franka_motion.py --output <new.jsonl> --rate 100 [--duration <s>]` (the rig's ROS-capable venv, as in [Franka OpenClaw](docs/FRANKA_OPENCLAW.md)).
 - <a id="multi-arm"></a>**Multi-arm:** `--arms a,b` builds an `ArmRig` (first = manipulation arm); motion skills take `arm="<name>"`. Each arm keeps its own `SafetyHarness`; with `base_pose` on both, link capsules (`safety.link_radii_m`) are gated by `safety.neighbor_clearance_m`. A wrong `base_pose` makes the distance confidently wrong: measure your table. A standby LazyArm neighbour (under the MCP server: before its first motion and after `move_to_rest`) cannot be read, so the gate SKIPs it instead of blocking and the arms are unprotected for that window; before two real arms move, connect both (the CLI default) ([`so101_left.yaml` header](configs/arms/so101_left.yaml#L38-L45)).
 - **Gripper sweep:** an arm whose gripper differs from the reBot's 90 mm jaw must override `grasp.graspgenx.sweep` (see [`configs/arms/so101.yaml`](configs/arms/so101.yaml), 55 mm), or grasps come back too wide to close.
 - **Compute:** `device: auto` probes CUDA/ROCm → Apple MPS → CPU and degrades with a warning; `CASCADE_DEVICE=cpu` forces CPU. The mock and MuJoCo stacks import no accelerator library. `so101_mjwarp` runs the same MJCF on MuJoCo Warp (~650× slower than the C engine on CPU).

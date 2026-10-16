@@ -168,7 +168,7 @@ Rule:
    `runtime.py:3376-3379`). This follows `runtime.py:3462-3466` ("do not invent an empty-tool
    recovery") and AGENTS.md:61. Lever 1 handles the TCP part once the operator opens the jaws.
 3. **Hover from the map's top.**
-   - `pregrasp_min_z = max(fix_top, map_top) + pregrasp_clear_top_m + voxel/2`.
+   - `pregrasp_min_z = max(fix_top, map_top) + pregrasp_clear_top_m + min(voxel/2, 0.005)` (the half-voxel term is bounded at 5 mm: a coarse bridge must not add a large raise).
    - `map_top` is the top face of the highest occupied voxel inside the target column, read under
      `_refresh_lock`.
    - It is never `view_snapshot()`, which is "display only, never a safety input"
@@ -176,7 +176,10 @@ Rule:
    - The raise over `fix_top` is capped at 2 cm, so one residue voxel cannot push the hover out of
      reach. The recorded gaps were 0.2-0.9 cm; `NVBLOX.md:556` measured ~1.5 cm on a cup. Beyond
      the cap, the exit withdrawal (rule 1) still frees the arm.
-4. The hover only ever goes up compared with today, and the harness still vets the result.
+4. The hover only ever goes up compared with today, and the harness still vets the result. This holds for the
+   pose that EXECUTES: `select_grasp` tries a descending ladder, map-top hover -> today's fix-top hover -> the
+   fixed `pregrasp_offset_m`; the first rung that passes IK and the vet wins. Among candidates, a hover always
+   beats the fixed offset (a jaws-swapped twin at the offset may not win on travel); travel decides between hovers.
 
 Code:
 - `runtime.py:3176-3184`: `pregrasp_min_z`.

@@ -16,6 +16,7 @@ import json
 from copy import deepcopy
 
 import pytest
+from conftest import needs_pin
 
 from cascade.agent.effects import Postcondition
 from cascade.config import load_demo_config
@@ -186,3 +187,32 @@ def test_pick_and_place_says_destination_is_on_or_in_and_how_to_place_beside():
     assert "next to" in text and "beside" in text
     assert "grasp_object" in text and "place_at" in text
     assert "ON/IN" in spec["parameters"]["properties"]["destination"]["description"]
+
+
+# ── 6. which frame "left" used, and how it looks on the screen ───────────
+
+
+@needs_pin
+def test_move_relative_tells_the_agent_its_frame_and_the_screen_view(runtime):
+    r = runtime.execute("move_relative", {"direction": "left", "amount": "small"})
+    assert r["ok"], r
+    action = r["next_action"]
+    assert "robot's own directions" in action
+    assert r["as_seen_on_screen"] in action
+    assert "frame='viewer'" in action
+
+
+@needs_pin
+def test_a_viewer_frame_move_names_the_camera_view(runtime):
+    r = runtime.execute("move_relative", {"direction": "toward_viewer", "distance_m": 0.03})
+    assert r["ok"], r
+    action = r["next_action"]
+    assert "as seen on the camera" in action and r["as_seen_on_screen"] in action
+    assert "frame='viewer'" not in action
+
+
+def test_no_viewer_offer_without_a_screen_mapping():
+    from cascade.skills.spatial_moves import _frame_report
+
+    text = _frame_report("base", "2.0 cm to the robot's left (+y)", "screen mapping unavailable (no camera)")
+    assert "robot's own directions" in text and "frame='viewer'" not in text

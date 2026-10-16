@@ -161,6 +161,15 @@ def test_an_observed_finger_refusal_tells_the_agent_to_move_home_first(runtime, 
     assert action.index("move_home") < action.index("then stop")
 
 
+def test_the_pick_description_lets_a_result_ask_for_move_home():
+    """The description forbids move_home after the pick (it returns home itself);
+    that rule must yield to a result that did NOT go home and asks for it."""
+    from cascade.skills.runtime import TOOL_SPECS
+
+    text = next(t for t in TOOL_SPECS if t["name"] == "pick_and_place")["description"]
+    assert "do not call move_home again after this tool unless its next_action asks for it" in text
+
+
 def test_a_failed_pick_that_went_home_does_not_ask_for_move_home(runtime, monkeypatch):
     monkeypatch.delenv("CASCADE_OBSERVED_FINGER_GATE", raising=False)
     runtime.cfg._data["grasp"]["max_pick_attempts"] = 1

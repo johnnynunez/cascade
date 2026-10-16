@@ -178,8 +178,9 @@ Rule:
      the cap, the exit withdrawal (rule 1) still frees the arm.
 4. The hover only ever goes up compared with today, and the harness still vets the result. This holds for the
    pose that EXECUTES: `select_grasp` tries a descending ladder, map-top hover -> today's fix-top hover -> the
-   fixed `pregrasp_offset_m`; the first rung that passes IK and the vet wins. Among candidates, a hover always
-   beats the fixed offset (a jaws-swapped twin at the offset may not win on travel); travel decides between hovers.
+   fixed `pregrasp_offset_m`; the first rung that passes IK and the vet wins. Between a candidate and its
+   jaws-swapped twin, a hover always beats the fixed offset (the twin at the offset may not win on travel); travel decides
+   between hovers. Ranked candidates keep their order, as today.
 
 Code:
 - `runtime.py:3176-3184`: `pregrasp_min_z`.

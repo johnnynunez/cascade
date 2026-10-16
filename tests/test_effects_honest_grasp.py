@@ -791,3 +791,34 @@ def test_relocated_without_a_comparable_start_claims_no_move():
     poses["cube"] = [0.3, 0.2, 0.02]
     pc = checker.verify("pick_and_place", {"object": "cube"}, {"ok": True}, before=before)
     assert pc.status == UNVERIFIED and pc.evidence.startswith("cube moved 20.0 cm, but no drop point"), pc
+
+
+# ── integration seam: the two-phase SceneChangedError (T1) meets T3's handover rule ──
+
+
+@pytest.mark.parametrize("entry", ["handover", "persistence loop"])
+def test_a_scene_change_ends_a_persistent_grasp_like_slow_perception(mock_runtime, entry):
+    """SceneChangedError is handled like SlowPerceptionError (spec 7.3): no
+    automatic re-home and re-scan per retry. pick_and_place stops on both;
+    the shared persistence loop (handover, sort_by_color) must too."""
+    from cascade.skills.runtime import SceneChangedError
+
+    runtime, arm = mock_runtime
+    _seen(runtime)
+    calls = []
+
+    def scene_changed(*_a, **_k):
+        calls.append(1)
+        raise SceneChangedError("scene changed during perception: test")
+
+    runtime.skill_grasp_object = scene_changed
+    n0 = len(arm.commands)
+
+    if entry == "handover":
+        result = runtime.execute("handover", {"label": "red cube"})
+    else:
+        result = runtime._grasp_with_persistence("red cube")
+
+    assert len(calls) == 1, f"{len(calls)} grasp attempts after a scene change"
+    assert len(arm.commands) == n0, "no automatic re-home after a scene change"
+    assert result["ok"] is False and "scene changed during perception" in result["error"], result

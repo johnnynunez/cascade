@@ -1881,10 +1881,11 @@ class SkillRuntime:
                     **({"_planning_deadline": deadline}
                        if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1" else {}))
             except (SkillError, SafetyViolation) as e:
-                if isinstance(e, SlowPerceptionError):
-                    # Same rule as pick_and_place: an expired analysis is not
-                    # a miss to cure with a re-home and a re-scan; another
-                    # attempt only repeats it (one re-home per retry).
+                if isinstance(e, (SlowPerceptionError, SceneChangedError)):
+                    # Same rule as pick_and_place: an expired analysis (or a
+                    # scene that changed under the two-phase localization,
+                    # already retried once) is not a miss to cure with a
+                    # re-home and a re-scan; another attempt only repeats it.
                     return {"ok": False, "held": False, "error": f"{type(e).__name__}: {e}",
                             "home_skipped": True, "grasp_attempts": attempt,
                             "note": "localization analysis expired; no automatic motion recovery"}

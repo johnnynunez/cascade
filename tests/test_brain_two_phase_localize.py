@@ -21,6 +21,7 @@ import json
 import re
 import threading
 import time
+import warnings
 from types import SimpleNamespace
 
 import cv2
@@ -1831,6 +1832,18 @@ def test_the_gain_is_measured_outside_the_box_on_unsaturated_pixels():
     b = _scaled(synthetic_tabletop(), 1.1)
     b.rgb[:, :384] = 255
     assert _exposure_gain(a, b, HOME_BOX) == pytest.approx((1.1,) * 3, abs=0.01)
+
+    # A black monitor (0 on both frames) over a third of the view: its
+    # ratios are 0/0, never part of the median.
+    a, b = synthetic_tabletop(), _scaled(synthetic_tabletop(), 1.06)
+    a.rgb[:160], b.rgb[:160] = 0, 0
+    assert _exposure_gain(a, b, HOME_BOX) == pytest.approx((1.06,) * 3, abs=0.01)
+    # Nothing measurable outside the box (all saturated): no correction.
+    a, b = synthetic_tabletop(), _scaled(synthetic_tabletop(), 1.06)
+    a.rgb[:] = b.rgb[:] = 255
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert _exposure_gain(a, b, HOME_BOX) == (1.0, 1.0, 1.0)
 
     # A close-up: the box covers 60 % of the view and only the object in it
     # brightens by 1.3 (a different object, or the same one turned).

@@ -1774,6 +1774,7 @@ def _make_brain_detector(cfg, dcfg, *, warm_up: bool):
         scene_change=float(dcfg.get("scene_change", 6.0)),
         idle_refresh_s=float(dcfg.get("idle_refresh_s", 30.0)),
         reanchor_local_diff=float(dcfg.get("reanchor_local_diff", 8.0)),
+        reanchor_mask_iou=float(dcfg.get("reanchor_mask_iou", 0.85)),
     )
     if warm_up and segmenter is not None:
         # Handed to the detector: its close() (a shutdown stage) joins it and

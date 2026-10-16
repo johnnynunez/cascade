@@ -1361,9 +1361,12 @@ class SkillRuntime:
         if contact_reports:
             trace_context["contact_monitor"] = contact_reports
         if perception_timings:
-            # Two-phase localization (B1): where the time went, the last
-            # localization in the result, every one of them in the trace.
-            result["perception_timing"] = dict(perception_timings[-1])
+            # Two-phase localization (B1): where the time went. The result
+            # carries the latest localization of the FIRST thing the call
+            # localized (pick_and_place: the object, not its destination);
+            # the trace carries every one of them.
+            first = perception_timings[0].get("query")
+            result["perception_timing"] = dict([t for t in perception_timings if t.get("query") == first][-1])
             trace_context["perception_timings"] = [dict(t) for t in perception_timings]
         self.trace.record(name, args, result, dur, before, after,
                           tier=self.current_tier, context=trace_context,
@@ -2363,6 +2366,19 @@ class SkillRuntime:
         semantic_max_age_s = float(loop_cfg.get("semantic_max_age_s", 20.0))
         retried = {"scene": 0, "reanchor": 0}
 
+        def localize_once(cframe, ext):
+            # Today's per-frame localization: the detector's refer, SAM,
+            # colour/reference/workspace rules (single-frame path and the
+            # two-phase naming step alike).
+            return localize_object(
+                cframe, query, self.detector, ext,
+                prompts=r["prompts"], spatial_hint=spatial_hint,
+                color=r["color"], near_xyz=r["near_xyz"], vocab=r["vocab"],
+                prefer_label=r["prefer_label"],
+                workspace_bounds=workspace_bounds,
+                require_unique=r["configured_description"],
+            )
+
         def analyze(cframe, ext):
             # Bound the age of the image actually analyzed, including lazy
             # detector loading and a slow miss. Capture clocks may be remote;
@@ -2370,14 +2386,7 @@ class SkillRuntime:
             _frame_age_s(cframe)
             started = time.monotonic()
             try:
-                return localize_object(
-                    cframe, query, self.detector, ext,
-                    prompts=r["prompts"], spatial_hint=spatial_hint,
-                    color=r["color"], near_xyz=r["near_xyz"], vocab=r["vocab"],
-                    prefer_label=r["prefer_label"],
-                    workspace_bounds=workspace_bounds,
-                    require_unique=r["configured_description"],
-                )
+                return localize_once(cframe, ext)
             finally:
                 _analyzed_frame_age_s(cframe, time.monotonic() - started)
 
@@ -2388,16 +2397,22 @@ class SkillRuntime:
             _frame_age_s(cframe)
             started = time.monotonic()
             try:
-                return localize_object(
-                    cframe, query, self.detector, ext,
-                    prompts=r["prompts"], spatial_hint=spatial_hint,
-                    color=r["color"], near_xyz=r["near_xyz"], vocab=r["vocab"],
-                    prefer_label=r["prefer_label"],
-                    workspace_bounds=workspace_bounds,
-                    require_unique=r["configured_description"],
-                )
+                return localize_once(cframe, ext)
             finally:
                 _semantic_age_s(cframe, time.monotonic() - started, semantic_max_age_s)
+
+        def check_time_left():
+            # Two-phase only (review I2): the naming step may take up to
+            # semantic_max_age_s, so no NEW frame or camera starts once the
+            # localization is older than that; a slow miss is refused in
+            # about one cap plus one naming round, as SlowPerceptionError.
+            elapsed = time.monotonic() - localization_started
+            if two_phase and not elapsed <= semantic_max_age_s:
+                raise SlowPerceptionError(
+                    f"Perception took {elapsed:.1f}s without a fresh fix of {query!r} (limit "
+                    f"{semantic_max_age_s:g}s to name it and re-measure it on a fresh frame); the camera "
+                    "is live -- retry the observation"
+                )
 
         def measure_again(frame0, fix0, frame1, ext1, timing):
             # Steps 4-7 on frame1: the same view, the brain's box re-anchored
@@ -2416,6 +2431,10 @@ class SkillRuntime:
                     timing["reanchor_s"] = round(time.monotonic() - started1, 3)
                 timing["scene_diff_global"] = _rounded(found.scene_diff_global, 2)
                 timing["scene_diff_local"] = _rounded(found.scene_diff_local, 2)
+                prompt_box = getattr(found, "prompt_box", None)
+                if prompt_box is not None:
+                    timing["reanchor_prompt_box"] = [int(v) for v in prompt_box]
+                timing["mask_iou"] = _rounded(getattr(found, "mask_iou", math.nan), 3)
                 if found.scene_changed:
                     raise _SceneChanged(found.reason)
                 if found.detection is None or found.detection.mask is None:
@@ -2443,6 +2462,8 @@ class SkillRuntime:
             kind raises SceneChangedError / ReanchorError. Returns (frame1,
             fix1)."""
             for attempt in range(1, 4):  # at most one retry of each kind
+                if attempt > 1:
+                    check_time_left()
                 frame0 = take_frame0()
                 timing = {"query": query, "attempt": attempt}
                 self._note_perception_timing(timing)
@@ -2481,7 +2502,9 @@ class SkillRuntime:
             return fresh
 
         tries = int(loop_cfg.get("localize_frames", 3))
-        for _ in range(max(tries, 1)):
+        for frame_try in range(max(tries, 1)):
+            if frame_try:
+                check_time_left()
             try:
                 # Waiting behind the watcher consumes request time, not the
                 # lifetime of an image selected before inference is available.
@@ -2513,6 +2536,8 @@ class SkillRuntime:
             pass
 
         for cam in self._other_cams():
+            check_time_left()
+
             def ext_of(cframe, cam=cam):
                 return (_Ext(T=cframe.T_base_cam)
                         if cframe.T_base_cam is not None else cam.extrinsics)

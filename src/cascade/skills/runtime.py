@@ -35,7 +35,7 @@ from ..memory.beliefs import camera_source
 from ..perception.colors import detection_color, parse_color_query
 from ..perception.detector import detect_vocabulary
 from ..perception.reference import ReferenceResolutionError, parse_reference
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from ..perception.workspace import WorkspaceFilter
 
@@ -3356,11 +3356,14 @@ class SkillRuntime:
         grasp_evidence.event("move_target", q=q_pre, duration_s=gcfg.get("move_duration_s", 2.5))
         # The observed gate vets the exact direct profile; the mapping-only
         # path retains its fully vetted deterministic route from measured pose.
+        # `approach_column`: the target column this approach entered, which an
+        # air grasp's exit withdrawal re-enters (None: strict checks).
+        approach_column = None
         if scene_gate is not None:
             approached = self._move_joints(q_pre,
                 duration_s=float(gcfg.get("move_duration_s", 2.5)), **_scene_motion(q_pre))
         else:
-            column = _target_column(gcfg, self.arm.harness, grasp, fix)
+            column = approach_column = _target_column(gcfg, self.arm.harness, grasp, fix)
             if column is not None:
                 grasp_evidence.event("approach_target_column", center_xy=column[0],
                                      radius_m=column[1], z_min=column[2])
@@ -3578,10 +3581,28 @@ class SkillRuntime:
                         z_nudge_applied=getattr(self, "_last_grasp_z_nudge", 0.0))
                 except Exception:
                     pass
+                # Spec §3.2 rule 1: the jaws are verified empty and the arm
+                # sits at the pregrasp hover; withdraw up through the column
+                # this approach entered, with the pre-close retreat's motion.
+                descend_s = float(gcfg.get("descend_duration_s", 2.0))
+
+                def exit_move(q):
+                    if scene_gate is not None:
+                        return self._move_joints(q, duration_s=descend_s,
+                                                 _linear_tool_path=True, **_scene_motion(q))
+                    return self._move_planned(q, duration_s=descend_s)
+
+                grasp_evidence.phase("exit_withdrawal")
+                recovery = self._air_grasp_exit(approach_column, exit_move)
+                grasp_evidence.event("exit_withdrawal", outcome=recovery)
+                error = "air grasp: gripper closed fully, object not held"
+                if recovery.startswith(("refused", "did not settle")):
+                    error += f"; exit withdrawal {recovery}"
                 return {
                     "ok": False,
-                    "error": "air grasp: gripper closed fully, object not held",
+                    "error": error,
                     "suggestion": "re-localize the object or try the alternate yaw",
+                    "exit_withdrawal": recovery,
                 }
         # The held width as MEASURED (jaw stall after the lift); the planned
         # width stands in when feedback was unavailable. `_reconcile_held`
@@ -3620,6 +3641,84 @@ class SkillRuntime:
             width_after <= commanded_open + 0.03
             and expected_open >= commanded_open + 0.07
         )
+
+    #: TCP lifts the air-grasp exit tries, in order (spec §3.2 rule 1): the
+    #: same heights as the route planner's lift fallback (`plan_route`).
+    AIR_GRASP_EXIT_LIFTS_M = (0.03, 0.06)
+
+    def _air_grasp_exit(self, column, move: Callable[[np.ndarray], bool]) -> str:
+        """Withdraw the empty tool upward after an air grasp (spec §3.2
+        rules 1-2) and say how it went.
+
+        The arm sits at the pregrasp hover, above the target. Inside
+        `_column_exemption(harness, column)`, the column this grasp's
+        approach entered (None: strict checks), try a TCP lift of +3 cm,
+        then +6 cm, from the measured pose (`lift_ik` with the harness's
+        model, as plan_route). `move(q)` executes
+        a lift through the same vetted motion as the pre-close retreat;
+        every gate other than the column keeps its strength. The column is
+        released on every path, an exception included.
+
+        Only an unreachable lift or a preflight refusal (SkillError) moves
+        on to the next height. A SafetyViolation (a halt, an e-stop, a
+        contact or a refused step), a move that does not settle, or an
+        e-stop or halt raised meanwhile ends the exit at once.
+
+        Nothing moves with a possible payload (`_held_provisional`, an active
+        carry attachment): no empty-tool recovery is invented for jaws that
+        may hold the object. Nor with a latched e-stop, a pending halt, or a
+        harness without a kinematic model.
+
+        Returns "completed (+N cm)", "refused: <reasons>", "did not settle"
+        or "skipped: <why>".
+        """
+        from ..safety.trajectory import lift_ik
+
+        if getattr(self, "_held_provisional", None) is not None:
+            return "skipped: provisional hold (the jaws may hold the object)"
+        if carry_attachment.active(self) is not None:
+            return "skipped: carry attachment active (the jaws may hold the object)"
+        harness = self.arm.harness
+        generation = getattr(harness, "_halt_generation", None)
+
+        def stopped():
+            if getattr(harness, "estopped", False):
+                return "e-stop latched"
+            if getattr(harness, "halted", None):
+                return f"motion halted: {harness.halted}"
+            if getattr(harness, "_halt_generation", None) != generation:
+                return "halt received"
+            return None
+
+        stop = stopped()
+        if stop:
+            return f"skipped: {stop}"
+        # The harness's own model proposes the lift, as in plan_route: the
+        # same model then vets every route to it.
+        kin = getattr(harness, "kin", None)
+        if not (callable(getattr(kin, "fk", None)) and callable(getattr(kin, "ik", None))):
+            return "skipped: the safety harness has no kinematic model"
+        refusals = []
+        with _column_exemption(harness, column):
+            for height in self.AIR_GRASP_EXIT_LIFTS_M:
+                lift = f"+{height * 100:.0f} cm"
+                stop = stopped() if refusals else None
+                if stop:
+                    refusals.append(f"{lift} not tried: {stop}")
+                    break
+                q = lift_ik(kin, self.arm.get_state().q, height)
+                if q is None:
+                    refusals.append(f"{lift}: no IK solution")
+                    continue
+                try:
+                    settled = move(q)
+                except SkillError as exc:
+                    refusals.append(f"{lift}: {exc}")
+                    continue
+                except SafetyViolation as exc:
+                    return f"refused: {lift}: {exc}"
+                return f"completed ({lift})" if settled else "did not settle"
+        return "refused: " + "; ".join(refusals)
 
     def _promote_held(self, label, frame, fix, *, held_width_m, held_offset) -> None:
         """Record a grasp the jaw check accepted: the held flag, its identity,

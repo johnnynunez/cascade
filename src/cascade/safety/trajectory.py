@@ -97,6 +97,27 @@ def vet_route(harness, start, goals, duration_s, *, deadline=None, rate_hz=50.0)
     return route_end_reason(harness, goals[-1] if len(goals) else start)
 
 
+def lift_ik(kin, start, height_m: float, *, pose=None) -> np.ndarray | None:
+    """Joint pose that raises the TCP of `start` by `height_m` in base z at
+    the start orientation, or None.
+
+    Bounded, seed-only model IK (one solve from `start`, no random
+    restarts), shared by plan_route's lift fallback and the runtime's
+    air-grasp exit. None when the solve fails or its result is not finite.
+    The pose is a proposal only: every route to it is vetted. `pose` is
+    FK of `start` when the caller already has it (plan_route computes it
+    once, inside its deadline checks).
+    """
+    start = np.asarray(start, dtype=float)
+    target = np.array(kin.fk(start) if pose is None else pose, dtype=float)
+    target[2, 3] += float(height_m)
+    lift = kin.ik(target, q_init=start.copy(), max_iter=80, retries=0)
+    if not lift.success:
+        return None
+    q = np.asarray(lift.q, dtype=float)
+    return q if np.isfinite(q).all() else None
+
+
 def plan_route(harness, start, goal, duration_s=3.0, *, rate_hz=50.0):
     """Try direct, joint-first/last corners, then at most two TCP lifts.
 
@@ -136,13 +157,11 @@ def plan_route(harness, start, goal, duration_s=3.0, *, rate_hz=50.0):
         for height in (.03, .06)[:MAX_ROUTE_CANDIDATES - used]:
             if time.monotonic() >= deadline:
                 raise SkillError("route preflight exceeded its time budget; no route authorized")
-            target = pose.copy()
-            target[2, 3] += height
-            lift = kin.ik(target, q_init=start.copy(), max_iter=80, retries=0)
+            lift = lift_ik(kin, start, height, pose=pose)
             if time.monotonic() >= deadline:
                 raise SkillError("route preflight exceeded its time budget; no route authorized")
-            if lift.success:
-                yield [lift.q, goal.copy()]
+            if lift is not None:
+                yield [lift, goal.copy()]
 
     first_reason = None
     with geometry_guard(harness, deadline=deadline):

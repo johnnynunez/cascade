@@ -63,6 +63,46 @@ PATCH_R = 3
 #: as being "on" that object.
 HIT_RADIUS_M = 0.06
 
+#: Words that end the object part of a query ("can of tomatoes" -> "can",
+#: "mug on the shelf" -> "mug").
+_RELATION_WORDS = frozenset({"on", "in", "inside", "near", "next", "beside", "by", "at", "under",
+                             "behind", "above", "below", "with", "from", "to", "of"})
+
+
+def _forms(word: str) -> set[str]:
+    """A word and its singular guesses ("cubes" -> cube, "boxes" -> box)."""
+    out = {word}
+    if len(word) > 3 and word.endswith("s"):
+        out.add(word[:-1])
+    if len(word) > 4 and word.endswith("es"):
+        out.add(word[:-2])
+    return out
+
+
+def _queried_kind(query: str) -> tuple[str | None, str | None]:
+    """(head noun, colour) a label must agree with; None = no constraint.
+    "green cube" -> ("cube", "green"); "pink object" -> (None, "pink")."""
+    from .colors import parse_color_query
+
+    color, noun = parse_color_query(query)
+    words = []
+    for w in (noun or "").split():
+        if w in _RELATION_WORDS:
+            break
+        words.append(w)
+    return (words[-1] if words else None), color
+
+
+def _names_kind(words: set[str], head: str | None, color: str | None) -> bool:
+    """Does a label (its words) name the queried kind? The head noun must be
+    one of its words, and a colour the label states must be the queried one."""
+    from .colors import canonical_color
+
+    if head is not None and not any(_forms(head) & _forms(w) for w in words):
+        return False
+    stated = {c for c in (canonical_color(w) for w in words) if c is not None}
+    return color is None or not stated or color in stated
+
 
 def _median_depth(depth: np.ndarray, u: int, v: int, r: int = PATCH_R) -> float | None:
     """Median of the valid depth samples in a small window around (u, v).
@@ -256,18 +296,39 @@ class PointProbe:
         frame, T = self._frame_and_extrinsics(camera)
         h, w = frame.rgb.shape[:2]
         want = set(str(label).lower().split())
+        head, color = _queried_kind(str(label))
         best, score = None, 0
+        near: list[tuple[int, str]] = []  # labels sharing a word but naming another kind
         try:
             for b in self.rt.beliefs.all():
-                have = set(str(getattr(b, "label", "")).lower().split())
-                s = len(want & have)
-                if s > score:
-                    best, score = b, s
+                names = [str(getattr(b, "label", ""))]
+                names += sorted(str(a) for a in (getattr(b, "aliases", None) or ()))
+                overlap = 0
+                for name in names:
+                    have = set(name.lower().split())
+                    s = len(want & have)
+                    overlap = max(overlap, s)
+                    # r3 (kitchen run): "green cube" answered ok as the green
+                    # translucent square on the colour word alone, and the
+                    # agent grasped there. A match must name the queried kind.
+                    if s > score and _names_kind(have, head, color):
+                        best, score = b, s
+                if overlap:
+                    near.append((overlap, names[0]))
         except Exception:
             pass
         if best is None:
-            return {"ok": False, "error": f"{label!r} is not in the world model",
-                    "hint": "call get_observation or localize_object first"}
+            out = {"ok": False, "error": f"{label!r} is not in the world model",
+                   "hint": "call get_observation or localize_object first"}
+            if near:
+                candidates = list(dict.fromkeys(n for _, n in sorted(near, key=lambda x: (-x[0], x[1]))))
+                kind = " ".join(x for x in (color, head) if x)
+                out.update(
+                    error=f"{label!r} is not in the world model: no tracked object is a {kind!r}",
+                    candidates=candidates,
+                    hint=("these tracked labels share a word but name another object; use one only if "
+                          "it IS the requested object, else call localize_object or get_observation"))
+            return out
 
         p_base = np.asarray(best.position, dtype=float)[:3]
         p_cam = (np.linalg.inv(T) @ np.append(p_base, 1.0))[:3]

@@ -315,6 +315,52 @@ def test_locate_pixel_returns_both_pixel_and_normalized():
     assert out["normalized"][1] == pytest.approx(v / (H - 1), abs=1e-3)
 
 
+# ── locate_pixel never answers ok with a different kind of object ─────────
+
+
+SQUARE = _belief("green translucent square", [0.14, -0.27, 0.02])
+
+
+def test_locate_pixel_refuses_a_label_that_lacks_the_query_noun():
+    """r3 (16 Oct kitchen run): "green cube" came back ok=true as the green
+    translucent square (one shared word, the colour), and the agent grasped
+    at that pixel."""
+    out = PointProbe(_runtime(beliefs=[SQUARE])).locate_pixel("green cube")
+    assert out["ok"] is False
+    assert "green cube" in out["error"]
+    assert out["candidates"] == ["green translucent square"]
+    assert "pixel" not in out
+
+
+def test_locate_pixel_prefers_the_object_that_has_the_noun():
+    cube = _belief("green cube", [0.18, 0.06, 0.10])
+    out = PointProbe(_runtime(beliefs=[SQUARE, cube])).locate_pixel("green cube")
+    assert out["ok"] and out["label"] == "green cube"
+
+
+@pytest.mark.parametrize("query, label", [
+    ("cube", "green cube"),                 # no colour asked: any cube
+    ("green cubes", "green cube"),          # plural query
+    ("pink object", "pink cube"),           # a generic noun constrains nothing but the colour
+    ("the red mug", "red coffee mug"),      # article, extra label words
+    ("red mug on the shelf", "red mug"),    # a relation ends the object part of the query
+])
+def test_locate_pixel_still_finds_matching_names(query, label):
+    out = PointProbe(_runtime(beliefs=[_belief(label, [0.18, 0.06, 0.10])])).locate_pixel(query)
+    assert out["ok"] and out["label"] == label
+
+
+def test_locate_pixel_refuses_another_colour_of_the_same_noun():
+    out = PointProbe(_runtime(beliefs=[_belief("red cube", [0.18, 0.06, 0.10])])).locate_pixel("green cube")
+    assert out["ok"] is False and out["candidates"] == ["red cube"]
+
+
+def test_locate_pixel_matches_a_detector_alias():
+    block = SimpleNamespace(label="green block", position=[0.18, 0.06, 0.10], aliases={"green cube"})
+    out = PointProbe(_runtime(beliefs=[block])).locate_pixel("green cube")
+    assert out["ok"] and out["label"] == "green block"
+
+
 # ── the human-facing mark stays separate from the agent's numbers ────────
 
 

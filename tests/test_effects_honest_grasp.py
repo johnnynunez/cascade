@@ -1054,3 +1054,22 @@ def test_a_provisional_grasp_may_hold_for_the_verifier():
     assert rt._jaws_may_hold() is True
     rt.held_object, rt._held_provisional = "cup", None
     assert rt._jaws_may_hold() is True
+
+
+@pytest.mark.parametrize("motions, wording", [
+    (None, "cube not re-located after this call"),     # unknown actuation
+    (0, "cube not re-located after this call"),        # a self-reported success with no motion
+    (3, "cube not re-located after the move"),         # a counted motion
+])
+def test_relocated_wording_names_a_move_only_when_one_was_counted(motions, wording):
+    """T3-e: 'after the move' asserts a motion; say it only when one was
+    counted in this call."""
+    tally = None if motions is None else _Tally()
+    poses = {"cube": [0.3, 0.0, 0.02]}
+    checker = PostconditionChecker(belief_pose=lambda label: poses.get(label), actuation=tally)
+    before = checker.snapshot("cube")
+    if tally is not None:
+        tally.counts["arm_motions"] += motions
+    poses.pop("cube")
+    pc = checker.verify("pick_and_place", {"object": "cube"}, {"ok": True}, before=before)
+    assert pc.status == UNVERIFIED and pc.evidence == wording, pc

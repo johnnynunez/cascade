@@ -610,7 +610,10 @@ class PostconditionChecker:
             return
         pose, channel = self._best_pose(label) if label else (None, "")
         if pose is None:
-            pc.status, pc.evidence = UNVERIFIED, f"{label or 'object'} not re-located after the move"
+            # "After the move" asserts a motion: only when this call counted one.
+            acted = self._actuation_delta(before)
+            when = "the move" if acted is not None and acted["arm_motions"] > 0 else "this call"
+            pc.status, pc.evidence = UNVERIFIED, f"{label or 'object'} not re-located after {when}"
             return
         pc.channel = channel
         start = self._comparable_start(before, channel)

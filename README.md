@@ -28,24 +28,25 @@ providers are replaceable. The reference deployment, a Seeed reBot DevArm B601
   <a href="docs/ARCHITECTURE.md"><img src="https://img.shields.io/badge/docs-architecture-informational?style=flat-square" alt="Architecture docs"></a>
 </p>
 
-**How the PAAI kitchen demo works:** a visitor chats, the local LLM picks a tool, MCP
-carries the call to CASCADE, the arm moves in Isaac Sim and the result is verified
-before the answer goes back.
+## Simplified architecture
+
+You chat, the local LLM picks a robot tool, MCP carries the call to CASCADE, the arm moves
+in a simulated kitchen and the result is checked before the answer comes back.
 
 [![How the CASCADE demo works: you chat, the AI picks an action, MCP carries it to CASCADE, the robot acts in a simulated kitchen and the result is double-checked](docs/assets/paai_demo_simple_light.png)](docs/assets/paai_demo_simple_light.png)
 
-<details>
-<summary><b>Under the hood:</b> cameras, detection, 3D localization, grasp choice, IK, trajectory and the joint targets sent to the simulator</summary>
+## In-depth architecture
 
-[![Inside the CASCADE demo: the full pipeline from one sentence to joint targets in Isaac Sim, then verification](docs/assets/paai_demo_pipeline_light.png)](docs/assets/paai_demo_pipeline_light.png)
+The same request, block by block: cameras, detection and 3D localization, the grasp choice,
+then how a grasp pose becomes joint targets sent to Isaac Sim. NVIDIA OpenShell bounds the
+agent and the CASCADE safety harness checks every motion sample.
 
-</details>
+[![Inside the CASCADE demo: the full pipeline from one chat request to joint targets in Isaac Sim, then verification](docs/assets/paai_demo_pipeline_light.png)](docs/assets/paai_demo_pipeline_light.png)
 
-Dark versions: [simple](docs/assets/paai_demo_simple_dark.png) · [pipeline](docs/assets/paai_demo_pipeline_dark.png).
-
-[![CASCADE modular architecture: robot runtimes, fleet coordination and backend adapters](docs/assets/architecture.svg)](docs/ROBOT_MODULARITY.md)
-
-[Download PNG](docs/assets/architecture.png). Dashed boxes mark work still in progress.
+Dark versions: [simplified](docs/assets/paai_demo_simple_dark.png) ·
+[in depth](docs/assets/paai_demo_pipeline_dark.png). The
+[modular architecture](docs/ROBOT_MODULARITY.md#architecture-and-the-implemented-boundary)
+(robot runtimes, fleet coordination and backend adapters) lives in its own doc.
 
 ## Pick your path
 
@@ -73,6 +74,9 @@ simulated kitchen and ask the arm to move prepared objects in NVIDIA Isaac Sim
 result. The authenticated attendee page shows cameras; a separate `/staff/` page
 explains prompts, result checks and recovery. Staff walkthrough:
 [booth guide](docs/BOOTH_RUNBOOK.md#10-paai-on-brev-staff-guide).
+
+How the demo works: [simplified](#simplified-architecture) and
+[in-depth](#in-depth-architecture) architecture at the top of this page.
 
 ## Roadmap
 

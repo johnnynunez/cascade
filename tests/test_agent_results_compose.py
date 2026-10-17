@@ -464,6 +464,99 @@ def test_restore_and_search_pass_move_home_on_only_after_a_counted_motion(monkey
     assert rt.log.homes == 0, "never an unchecked automatic home with the gate on"
 
 
+# ── no move_home step after an operator halt / e-stop or while holding ──
+#
+# execute()'s own rule never asks for move_home when the harness is halted or
+# e-stopped (the next motion is the operator's call: a halt clears at the
+# next motion) or when an object is held. The gate-on returns of
+# pick_and_place and the persistence loop (handover, sort_by_color) apply the
+# same checks, so an agent never moves the arm after an operator halt.
+
+
+#: Why the failed grasp, which moved the arm, must not ask for move_home.
+NO_HINT_AFTER = ("operator halt", "e-stop", "holding")
+
+
+def _moved_then(runtime, arm, why):
+    """A grasp double whose arm motion is counted, then: the operator halts
+    the arm mid-grasp, the e-stop latches, the close took the object and the
+    lift failed (`held_object` set), or the route was refused (the control)."""
+    from cascade.types import MotionHalted
+
+    def grasp(*_a, **_k):
+        assert runtime._move_joints(_nudged(runtime), duration_s=0.3)
+        harness = runtime.arm.harness
+        if why == "operator halt":
+            harness.halt("operator: test halt")
+            raise MotionHalted("halt received during route planning or execution")
+        if why == "e-stop":
+            harness.estop("test e-stop")
+            raise SafetyViolation("e-stop latched: test")
+        if why == "holding":
+            arm.object_stop_frac = 0.5  # the jaws stall on the object
+            runtime._set_gripper(runtime._grip_closed, effort=0.8)
+            runtime.held_object = "red cube"
+            raise SafetyViolation("did not settle at grasp lift pose: test")
+        raise SafetyViolation("finger trajectory intersects observed surface: test")
+    return grasp
+
+
+@pytest.mark.parametrize("why", NO_HINT_AFTER)
+@pytest.mark.parametrize("skill", sorted(COMPOSITES) + ["grasp_object"])
+def test_no_move_home_step_after_a_halt_or_while_holding(mock_runtime, monkeypatch, request, skill, why):
+    runtime, arm = mock_runtime
+    _seen(runtime)
+    runtime.cfg._data["grasp"]["max_pick_attempts"] = 1
+    runtime.skill_grasp_object = _moved_then(runtime, arm, why)
+    if skill == "sort_by_color":
+        monkeypatch.setattr(runtime.beliefs, "all", lambda: [_red()])
+    n0 = runtime._arm_motions_counted()
+
+    result = runtime.execute(skill, COMPOSITES.get(skill, ARGS.get(skill)))
+
+    assert runtime._arm_motions_counted() > n0, "the failed grasp moved the arm"
+    text = json.dumps(result, default=str)
+    assert MOVE_HOME_FIRST not in text, result
+    assert not result.get("arm_left_in_place"), result
+    if result["ok"] is False:
+        _failed_once(result)
+    else:  # gate off, a held object goes on to be placed / handed over (B36)
+        assert why == "holding" and not _gated(request), result
+
+
+@pytest.mark.parametrize("why", NO_HINT_AFTER + ("refused",))
+def test_the_persistence_loop_asks_no_move_home_after_a_halt_or_while_holding(mock_runtime, request, why):
+    runtime, arm = mock_runtime
+    _seen(runtime)
+    runtime.cfg._data["grasp"]["max_pick_attempts"] = 1
+    runtime.skill_grasp_object = _moved_then(runtime, arm, why)
+    res = runtime._grasp_with_persistence("red cube")
+    left = _gated(request) and why == "refused"
+    assert (MOVE_HOME_FIRST in str(res.get("next_action"))) is left, res
+    assert bool(res.get("arm_left_in_place")) is left, res
+
+
+@pytest.mark.parametrize("mock_runtime", ["gate on"], indirect=True)
+@pytest.mark.parametrize("why", NO_HINT_AFTER + ("refused",))
+def test_pick_and_place_gate_on_asks_move_home_only_without_halt_or_hold(mock_runtime, why):
+    """The control row (a refused grasp that moved the arm) still gets the
+    step exactly once, after the FAILED line."""
+    runtime, arm = mock_runtime
+    _seen(runtime)
+    runtime.skill_grasp_object = _moved_then(runtime, arm, why)
+    result = runtime.execute("pick_and_place", ARGS["pick_and_place"])
+    action = _failed_once(result)
+    text = json.dumps(result, default=str)
+    assert result["home_skipped"] is True, "the unchecked automatic home stays skipped"
+    if why == "refused":
+        assert text.count(MOVE_HOME_FIRST) == 1, result
+        assert action.index(FAILED) < action.index(MOVE_HOME_FIRST)
+        assert result["arm_left_in_place"] is True
+    else:
+        assert MOVE_HOME_FIRST not in text, result
+        assert not result.get("arm_left_in_place"), result
+
+
 # ── #341's next-candidate retry inside ONE grasp call ───────────────────
 
 

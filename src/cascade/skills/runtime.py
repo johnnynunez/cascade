@@ -1133,6 +1133,17 @@ class SkillRuntime:
         harness = getattr(arm, "harness", None)
         return bool(getattr(harness, "estopped", False) or getattr(harness, "halted", None))
 
+    def _may_ask_move_home(self, before: int | None, arm=None) -> bool:
+        """A failed grasp may ask the agent to call move_home first: an arm
+        motion was counted since `before` (unknown counts say yes), nothing is
+        held, and no operator halt or e-stop is latched (a halt clears at the
+        next motion, so the next move is the operator's call). One rule for
+        execute() and the gate-on returns of the persistence loop and
+        pick_and_place."""
+        arm = self.arm if arm is None else arm
+        return (not self.held_object and not self._stop_latched(arm)
+                and self._arm_moved_since(before))
+
     def _home_return_skip_reason(self, failure=None) -> str | None:
         if failure is not None and not isinstance(failure, Exception):
             return "command interrupted"
@@ -1555,8 +1566,7 @@ class SkillRuntime:
                     result["error"] = blocked
         if (name in _GRASP_ENTRY_SKILLS and call_moved and not result.get("ok")
                 and not (home_return or {}).get("ok") and not result.get("motion_blocked")
-                and not self.held_object and not self._stop_latched(effective_arm)
-                and self._arm_moved_since(arm_motions_before)):
+                and self._may_ask_move_home(arm_motions_before, effective_arm)):
             # The failed grasp moved the arm and nothing brought it back: the
             # next grasp would start (and be refused) where this one stopped.
             # A call whose only command was a gripper open or a motion refused
@@ -2201,10 +2211,12 @@ class SkillRuntime:
             if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1":
                 out = {**res, "ok": False, "home_skipped": True, "grasp_attempts": attempt,
                        "note": "observed-finger attempt failed; automatic recovery was not geometrically checked"}
-                if self._arm_moved_since(motions_before):
+                if self._may_ask_move_home(motions_before):
                     # The refused attempt moved the arm and nothing brought it
                     # back. A refused route, a gripper-only call, a SkillError
-                    # or ReanchorError before motion left it where it was.
+                    # or ReanchorError before motion left it where it was; after
+                    # an operator halt or e-stop, or with an object held, the
+                    # next move is not the agent's (execute()'s same rule).
                     _with_move_home_first(out)
                 return out
             self.memory.add("outcome", f"grasp attempt {attempt} failed: {last_err[:100]}")
@@ -5511,8 +5523,8 @@ class SkillRuntime:
                            "note": "observed-finger attempt failed; automatic recovery was not geometrically checked",
                            **({"observed_selection": res["observed_selection"]}
                               if "observed_selection" in res else {})}
-                    if self._arm_moved_since(grasp_motions_before):
-                        _with_move_home_first(out)  # the refused attempt moved the arm
+                    if self._may_ask_move_home(grasp_motions_before):
+                        _with_move_home_first(out)  # moved the arm; no halt, nothing held
                     return out
                 self.memory.add("outcome", f"pick attempt {attempt} failed: {last_err[:100]}")
                 # B36: an attempt can fail AFTER the close took the object

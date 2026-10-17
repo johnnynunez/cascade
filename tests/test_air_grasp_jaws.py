@@ -605,6 +605,98 @@ def test_the_opening_before_selection_leaves_the_route_budget_whole(monkeypatch,
         assert np.all(r.gates[1].lower >= UPPER - 2 * OPEN_TRACKING_ENVELOPE_M)   # selection saw them open
 
 
+#: the kitchen profile that plans with GraspGen-X on the GPU service under a
+#: per-attempt planning budget (`graspgenx.feasibility_timeout_s`)
+KITCHEN_GPU = "isaac_kitchen_gpu"
+#: a normal GraspGen-X planning batch, well inside that budget
+PLANNING_S = 2.
+
+
+def _kitchen_gpu(r):
+    """The rig with the kitchen GPU profile's GraspGen-X planning budget and
+    Isaac's jaw wait (both read from the profile, not restated here)."""
+    from cascade.config import load_demo_config
+
+    kitchen = load_demo_config(arm=KITCHEN_GPU, camera="mock", llm="mock").grasp
+    search = kitchen.get("graspgenx")
+    r.rt.cfg._data["grasp"].update(
+        backend="graspgenx", open_wait_timeout_s=kitchen.get("open_wait_timeout_s"),
+        graspgenx={key: search.get(key) for key in ("feasibility_max_batches", "feasibility_timeout_s")})
+    r.rt.grasp_memory = SimpleNamespace(prior=lambda *a: None, record=lambda *a, **k: None)
+    return r.rt.cfg._data["grasp"]
+
+
+@pytest.mark.parametrize("jaws", ["open", "closed"])
+def test_the_opening_before_planning_leaves_the_kitchen_planning_budget_whole(monkeypatch, jaws):
+    """Round 2b (controller ruling): closed empty jaws open before every
+    per-attempt budget clock starts, the GraspGen-X planning budget of the
+    kitchen GPU profile (8 s) included. Worst case on Isaac: the jaws confirm
+    open just inside the 12 s jaw wait; then a normal planning batch: the
+    grasp is held, as with open jaws (RED: "grasp planning budget exhausted
+    before actuation", after the jaws had moved)."""
+    r = rig(monkeypatch, stall_at=.35)
+    grasp_cfg = _kitchen_gpu(r)
+    budget, wait = grasp_cfg["graspgenx"]["feasibility_timeout_s"], grasp_cfg["open_wait_timeout_s"]
+    assert wait > budget > PLANNING_S, (wait, budget)              # premise: the profile's values
+    clock = runtime_mod.time.monotonic
+    commanded_at, opened_at, planned_at = [], [], []
+    if jaws == "closed":
+        r.bridge.gripper_pos = .15
+        newton, read = r.bridge.gripper, r.bridge.state
+        moving = []
+
+        def gripper(pos, effort):
+            if pos == 1. and r.bridge.gripper_pos < .5:   # the slowest opening the jaw wait accepts
+                r.calls.append(("gripper", pos, effort))
+                commanded_at.append(clock())
+                moving.append(True)
+                return
+            return newton(pos, effort)
+
+        def state(*, timeout_s=None):   # closed -> open over (wait - 0.1) s
+            if moving:
+                r.bridge.gripper_pos = min(1., .15 + .85 * (clock() - commanded_at[0]) / (wait - .1))
+                if r.bridge.gripper_pos == 1.:
+                    moving.clear()
+            return read(timeout_s=timeout_s)
+        r.bridge.gripper, r.bridge.state = gripper, state
+        confirms = ObservedFingerGate.fingers_open
+
+        def confirmed(self, measured):   # when the grasp's wait confirms the jaws open
+            verdict = confirms(self, measured)
+            if verdict and not opened_at:
+                opened_at.append(clock())
+            return verdict
+        monkeypatch.setattr(ObservedFingerGate, "fingers_open", confirmed)
+    plan = r.rt._plan_grasps
+
+    def graspgenx(*a, **k):
+        planned_at.append(clock())
+        runtime_mod.time.sleep(PLANNING_S)
+        return plan(*a, **k)
+    r.rt._plan_grasps = graspgenx
+    res = grasp(r)
+    assert res["held"] == "orange", res
+    assert len(planned_at) == 1                                    # one batch: no replanning
+    if jaws == "closed":
+        # premise: the opening, in the jaw wait's last 0.5 s, alone outlasts the planning budget
+        assert wait > opened_at[0] - commanded_at[0] >= wait - .5 > budget, opened_at[0] - commanded_at[0]
+        assert planned_at[0] >= opened_at[0]                       # planning after the opening
+        assert np.all(r.gates[1].lower >= UPPER - 2 * OPEN_TRACKING_ENVELOPE_M)   # selection saw them open
+
+
+@pytest.mark.parametrize("key,bad", [("feasibility_max_batches", 0), ("feasibility_timeout_s", float("nan"))])
+def test_an_invalid_planning_budget_refuses_the_grasp_before_closed_jaws_open(monkeypatch, key, bad):
+    """Round 2b: the planning budget starts after the opening, but its
+    settings are still checked before anything moves."""
+    r = rig(monkeypatch, stall_at=.35)
+    r.bridge.gripper_pos = .15
+    _kitchen_gpu(r)["graspgenx"][key] = bad
+    with pytest.raises(SkillError, match=f"^grasp {key} must be"):
+        grasp(r)
+    assert commands(r.calls) == []
+
+
 def test_unknown_jaws_are_left_as_they_are_at_the_grasp_start(monkeypatch):
     r = rig(monkeypatch, stall_at=.35)
     read = r.bridge.state

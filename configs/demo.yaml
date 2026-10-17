@@ -206,8 +206,8 @@ grasp:
   # the skill returns, so its postcondition reads the jaws after they moved.
   # null = return as soon as the target is sent (sims that open instantly).
   # The same key bounds the wait for EMPTY jaws to open after an air grasp
-  # (before the exit withdrawal) and for closed jaws opened before a grasp's
-  # selection; null there = 3 s (JAWS_OPEN_TIMEOUT_S, real time). The Isaac
+  # (before the exit withdrawal) and for closed jaws opened at a grasp's start
+  # (before its planning and route budgets start); null there = 3 s (JAWS_OPEN_TIMEOUT_S, real time). The Isaac
   # profiles set 12 s for Newton's slow motion (configs/arms/isaac.yaml).
   # Unset or a finite positive number of seconds; anything else fails the
   # build (and the skill, before anything moves).

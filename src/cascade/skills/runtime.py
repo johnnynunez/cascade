@@ -3865,22 +3865,39 @@ class SkillRuntime:
             rank_max = gcfg.get("observed_rank_max_candidates", OBSERVED_RANK_MAX_CANDIDATES)
             if isinstance(rank_max, bool) or not isinstance(rank_max, int) or rank_max < 0:
                 raise SkillError("grasp.observed_rank_max_candidates must be an integer >= 0 (0 = no ranking)")
+        search_cfg = gcfg.get("graspgenx") or {}
+        search_limits = None
+        if (scene_enabled and str(gcfg.get("backend", "obb")) == "graspgenx"
+                and search_cfg.get("feasibility_max_batches") is not None):
+            from ..grasping.planning_budget import check_limits
+            # The next candidate comes from the plan already made: one batch,
+            # a fresh feasibility budget, the same outer deadlines. Checked
+            # before anything moves; the budget's clock starts after the
+            # opening below.
+            search_limits = (1 if _next_candidate is not None else search_cfg.get("feasibility_max_batches"),
+                             search_cfg.get("feasibility_timeout_s"))
+            check_limits(*search_limits)
+        start_state = None
+        if scene_enabled and _next_candidate is None:
+            # Jaws round 2b (controller ruling): closed empty jaws open before
+            # every per-attempt budget clock starts, the GraspGen-X planning
+            # budget below and the route budget (`approach_deadline`): their
+            # travel (up to `open_wait_timeout_s`, 12 s on Isaac) is never
+            # charged to planning. The budgets stay as the profile sets them.
+            start_state = self.arm.get_state()
+            if SkillRuntime._open_closed_jaws_before_selection(
+                    self, frame, fix, scene_halt_generation, start_state):
+                start_state = None   # selection reads the opened jaws again
         grasp_evidence.phase("planning")
         search = None
         planning_active = False
-        search_cfg = gcfg.get("graspgenx") or {}
-        if (scene_enabled and str(gcfg.get("backend", "obb")) == "graspgenx"
-                and search_cfg.get("feasibility_max_batches") is not None):
+        if search_limits is not None:
             from ..grasping.planning_budget import PlanningBudget
             def search_cancel():
                 if self.arm.harness.estopped:
                     raise SafetyViolation("e-stop during grasp planning")
                 self.arm.harness._check_halt_generation(scene_halt_generation)
-            # The next candidate comes from the plan already made: one batch,
-            # a fresh feasibility budget, the same outer deadlines.
-            search = PlanningBudget(1 if _next_candidate is not None
-                                    else search_cfg.get("feasibility_max_batches"),
-                search_cfg.get("feasibility_timeout_s"),
+            search = PlanningBudget(*search_limits,
                 deadlines=(_planning_deadline, getattr(self, "_task_deadline", None)),
                 cancel=search_cancel)
             planning_active = True
@@ -4018,21 +4035,15 @@ class SkillRuntime:
             return {"preflight": preflight, "before_stream": before_stream,
                     "feedback_guard": scene_gate.feedback, "_halt_generation": scene_halt_generation,
                     "_trajectory_preflight": trajectory_preflight}
-        state = planning_state()
+        # Selection's state: the grasp-start read when the jaws were left as
+        # they were (PR-A jaws round: open jaws get no extra read and no extra
+        # command), else a read of the opened jaws.
+        state = start_state if start_state is not None else planning_state()
         if search is not None:
             search.check()
-        if (scene_enabled and _next_candidate is None
-                and SkillRuntime._open_closed_jaws_before_selection(
-                    self, frame, fix, scene_halt_generation, state)):
-            # PR-A jaws round, ruling 2: the observed-finger gate models the
-            # MEASURED jaws; closed empty jaws were opened, so selection reads
-            # them again (open jaws: no extra read, no extra command).
-            state = planning_state()
-            if search is not None:
-                search.check()
-        # The route budget starts after that opening (jaws round 2, I1): on
-        # Newton the jaws take ~1.5 s to open from closed, and selection
-        # needs its whole budget after them.
+        # The route budget starts here, after the grasp-start opening above
+        # (jaws round 2, I1; round 2b): on Newton the jaws take ~1.5 s to open
+        # from closed, and selection needs its whole budget after them.
         from ..safety.trajectory import PLAN_BUDGET_S, geometry_guard, vet_segment
         approach_deadline = time.monotonic() + PLAN_BUDGET_S
         # B73 opt-in: forearm/wrist/gripper clearance of the analytic planner's
@@ -4999,16 +5010,18 @@ class SkillRuntime:
 
     def _open_closed_jaws_before_selection(self, frame, fix, halt_generation, state) -> bool:
         """A grasp that starts empty-handed with closed jaws opens them before
-        its selection (PR-A jaws round, ruling 2; observed-finger gate).
+        its planning and selection (PR-A jaws round, ruling 2; observed-finger
+        gate), and before any per-attempt budget clock starts (round 2b).
 
         The gate models the MEASURED fingers: built from closed jaws it sweeps
         them closed..open on every candidate's descent and drops them all
         ("descent finger intersects observed surface: target"). So: a gate on
         this grasp's own observed scene and the measured closed jaws (`state`,
-        selection's own read) vets the opening at the measured pose
+        the grasp's start read) vets the opening at the measured pose
         (`require_reopening`) before the jaw command, and the grasp goes on
-        once both fingers read open (`fingers_open`); its selection gate is
-        then built from the open jaws. Returns True when it opened them.
+        once both fingers read open (`fingers_open`); selection reads the
+        jaws again and builds its gate from the open jaws. Returns True when
+        it opened them.
 
         Jaws that read open (the `_reconcile_held` rule) or unknown are left as
         they are. Never with a possible payload (`_held_provisional`, an active
@@ -5044,7 +5057,6 @@ class SkillRuntime:
                                     halt_generation=halt_generation, check=check)
         if why is not None:
             raise SkillError(f"the jaws were closed and were not confirmed open before this grasp: {why}")
-        grasp_evidence.phase("planning")   # selection goes on with the opened jaws
         return True
 
     def _open_frac_of(self, pos: float) -> float:

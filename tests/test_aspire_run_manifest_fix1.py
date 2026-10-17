@@ -156,6 +156,10 @@ def test_the_cli_library_view_is_read_only_and_never_creates_its_directory(tmp_p
     assert notes.served_library(load_snapshot(gone, "sim"), 2) is None and not gone.parent.exists()
     assert notes.served_library(None, 2) is None
     assert notes.served_library(load_snapshot(lib, "real"), 2) is None       # real serves none of them
+    for p in lib.iterdir():                                                  # gone after the snapshot: no view
+        p.unlink()
+    lib.rmdir()
+    assert notes.served_library(snap, 2) is None and not lib.exists()
 
 
 def test_the_legacy_library_still_creates_its_directory_for_writers(tmp_path):
@@ -317,6 +321,21 @@ def test_a_snapshot_whose_manifest_raises_serves_nothing_and_the_build_succeeds(
     assert (meta["served_notes"], meta["block_notes"], meta["library_root"]) == ([], [], None)
     assert meta["library_error"] == "RuntimeError: tag broke"
     assert "tag broke" in caplog.text and "serving no note" in caplog.text
+
+
+def test_a_manifest_that_always_raises_never_fails_the_build(tmp_path, monkeypatch, caplog):
+    # even the empty snapshot's manifest raising (no run record can be made) only costs the notes
+    lib = _two_served_notes(tmp_path / "lib")
+
+    def broken(self):
+        raise RuntimeError("manifest broke")
+
+    monkeypatch.setattr(notes.LibrarySnapshot, "manifest", broken)
+    with caplog.at_level(logging.WARNING), _built(_mock_cfg(lib), tmp_path / "run") as rt:
+        assert rt.learned.served == ()
+        rt.execute("move_home", {})
+        assert rt.trace.rows()[-1]["library_sha"] is None
+    assert not (tmp_path / "run" / "run.json").exists() and "manifest broke" in caplog.text
 
 
 # ── 5: a rebuild keeps the earlier run.json ─────────────────────────────────

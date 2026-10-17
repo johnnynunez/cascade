@@ -5005,7 +5005,9 @@ class SkillRuntime:
         Returns "reopened", "refused: <why>" (the jaws were not confirmed open:
         refused before the command, or commanded but not confirmed; a jaw
         fault that is not a SafetyViolation is "refused: jaw command failed:
-        <error>") or "skipped: <why>".
+        <error>", or "refused: jaw state could not be read: <error>" when the
+        gate's read before the command failed and nothing was sent) or
+        "skipped: <why>".
         """
         if getattr(self, "_held_provisional", None) is not None:
             return "skipped: provisional hold (the jaws may hold the object)"
@@ -5034,9 +5036,12 @@ class SkillRuntime:
                 return width is not None and width >= wanted - air
 
         grasp_evidence.phase("jaws_reopen")
+        measured = gate is None   # with the gate, the jaws are read before the command
         try:
             if gate is not None:
-                gate.require_reopening(self.arm.get_state(), check=check)
+                state = self.arm.get_state()
+                measured = True
+                gate.require_reopening(state, check=check)
             why = self._open_empty_jaws(open_pos, opened, halt_generation=generation, check=check)
         except SafetyViolation as exc:
             if isinstance(exc, MotionHalted):
@@ -5052,6 +5057,8 @@ class SkillRuntime:
             stop = _air_grasp_stop(harness, generation)
             if stop:
                 raise _air_grasp_stop_error(harness, stop) from exc
+            if not measured:   # review N2: the read before the command failed; nothing was sent
+                return f"refused: jaw state could not be read: {exc}"
             return f"refused: jaw command failed: {exc}"
         return "reopened" if why is None else f"refused: {why}"
 

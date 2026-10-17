@@ -359,6 +359,47 @@ def test_a_jaw_fault_while_the_jaws_reopen_is_a_reopen_that_was_not_confirmed(mo
     np.testing.assert_allclose(r.bridge.q, HOVER, atol=1e-9)
 
 
+UNREAD = "jaw state could not be read: gripper feedback timed out"
+
+
+def _unreadable(*, timeout_s=None):
+    raise RuntimeError("gripper feedback timed out")
+
+
+def test_a_fault_in_the_read_before_the_reopen_says_the_jaws_could_not_be_read(monkeypatch):
+    """Review N2: with the gate, the reopen reads the jaws BEFORE its command
+    (the reopening sweep is vetted at the measured pose). A fault in that read
+    sent no command, so the text says the jaw state could not be read, never
+    that a jaw command failed."""
+    r = rig(monkeypatch)
+    gate = _gate_at(r, TARGET, HOVER)
+    r.bridge.state = _unreadable
+    n0 = len(r.calls)
+    out = r.rt._air_grasp_reopen(1., gate, halt_generation=0)
+    assert out == f"refused: {UNREAD}", out
+    assert commands(r.calls[n0:]) == [] and fingers(r) == pytest.approx(.15 * UPPER)
+
+
+def test_a_grasp_whose_pre_reopen_read_fails_keeps_the_air_grasp_result(monkeypatch):
+    r = rig(monkeypatch)
+    read, reopen = r.bridge.state, r.rt._air_grasp_reopen
+    at = []
+
+    def reopen_unread(*a, **k):
+        r.bridge.state = _unreadable
+        at.append(len(r.calls))
+        try:
+            return reopen(*a, **k)
+        finally:
+            r.bridge.state = read
+    monkeypatch.setattr(r.rt, "_air_grasp_reopen", reopen_unread)
+    res = grasp(r)
+    assert res["jaws_reopen"] == f"refused: {UNREAD}", res
+    assert res["exit_withdrawal"] == SKIPPED
+    assert res["error"] == f"{AIR}; {NOT_OPEN}: {UNREAD}"
+    assert at and commands(r.calls[at[0]:]) == [], "a command after the failed read"
+
+
 # ── a halt or an e-stop: 0 further commands, the jaws included ──────────────
 
 

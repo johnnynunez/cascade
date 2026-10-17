@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from cascade.config import Cfg
 from cascade.perception.occupancy import OccupancyError
 from cascade.types import SafetyViolation
 from test_occupancy_payload import PROP, frame, mapping
@@ -234,6 +235,9 @@ def runtime_case():
         streams.append(SimpleNamespace(name=name, get_fresh_frame=fresh))
     rt = bare_runtime(streams[0])
     rt._arm = safe
+    # An Isaac rig (simulation clock, payload map): reset_scene releases a
+    # held object at home only on a simulated arm type.
+    rt.cfg = Cfg({'arm': {'type': 'isaac'}})
     rt.held_object = 'tomato can'
     extrinsics = SimpleNamespace(cam_to_base=lambda: np.eye(4))
     rt.watcher = WorldWatcher([WatchedCamera(stream, rt.depth, extrinsics) for stream in streams],

@@ -189,6 +189,22 @@ def test_sim_held_object_gets_exactly_one_opening_to_the_open_position(rig, prof
     assert r.runtime.held_object is None and "jaws_open_commanded" not in out
 
 
+@pytest.mark.parametrize("call", ["execute", "direct"])
+@pytest.mark.parametrize("profile", SIM)
+def test_slow_jaws_after_the_release_get_no_second_opening(rig, profile, call):
+    """Slow jaws: the release command is recorded but the jaws still read
+    closed when the reset looks at them next. The release already was the
+    one jaw command at home, so they never get a second (empty-jaws) one."""
+    r = rig(profile)
+    _start(r, "held")
+    r.arms[0].fault = lambda arm, pos, effort: None   # recorded; the jaws have not moved yet
+    out = r.runtime.execute("reset_scene", {}) if call == "execute" else r.runtime.skill_reset_scene()
+    assert out["ok"], out
+    assert r.runtime._gripper_width_frac() < r.runtime._reset_open_frac()   # still read closed
+    assert _jaws(r) == [(pytest.approx(r.runtime._grip_open), 0.8)], _jaws(r)
+    assert r.runtime.held_object is None and "jaws_open_commanded" not in out
+
+
 @pytest.mark.parametrize("profile", REAL)
 def test_real_held_object_refuses_before_any_command(rig, profile):
     r = rig(profile)

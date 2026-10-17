@@ -37,7 +37,6 @@ from __future__ import annotations
 import errno
 import functools
 import hashlib
-import itertools
 import logging
 import os
 import re
@@ -327,10 +326,13 @@ def library_sha(root: Path | None) -> str:
 #   2. characters: no control or format character (Cc/Cf), NFKC-stable, and only
 #      printable ASCII letters, digits, space and `_PUNCTUATION`, plus `_TYPOGRAPHY`
 #      (so no homoglyph, CJK, fullwidth, zero-width, markup or code character);
-#   3. structure: every word lower, Title or UPPER case; then over the field read as
-#      words (`_View`) -- (a) the words split at camelCase humps, digits and any
-#      separator, (b) the unsplit runs of letters and digits, and (c) at each word the
-#      2-3 words that join into one whole phrase word (`re set`, `ig nore`, `DIS-able`)
+#   3. structure: every word lower, Title or UPPER case; the field's letters-only
+#      skeleton (`_skeleton`: every space, punctuation mark and digit deleted) spells
+#      none of the hard stems (`_HARD_STEMS`: reset, emergency stop, halt motion, the
+#      override verbs, start over, system prompt) however they are split; then over the
+#      field read as words (`_View`) -- (a) the words split at camelCase humps, digits
+#      and any separator, (b) the unsplit runs of letters and digits, and (c) at each
+#      word the 2-3 words that join into one whole phrase word (`dis able`, `DIS-able`)
 #      -- no URL, no unknown identifier, no letter-digit mix, no dotted name, no
 #      spelled-out word, no role or chat-template marker, nothing that imitates the
 #      provenance tag, at most one number (digits or number words) and no measurement
@@ -357,14 +359,31 @@ _HEX_MIN_CHARS = 6
 
 # Phrases over the words of a field: "word" matches exactly, "stem*" any word
 # starting with the stem (compiled once by `_Phrases`).
-#: followed by ":" or a dash ("Assistant - Done"), or by one word and ":" ("user said:")
+#: a role marker: one of these followed by ":" or a dash ("Assistant - Done"), or by a
+#: `_SPEECH` verb and ":" ("user said:")
 _ROLE_WORDS = frozenset({"assistant", "user", "system", "developer", "human", "tool", "observation", "function",
                          "output", "operator", "owner"})
-#: chat-template and prompt-injection markers, refused wherever they stand
-_TEMPLATE = (("im", "start"), ("im", "end"), ("system", "prompt*"), ("developer", "mode*"), ("new", "instruction*"))
-#: reset_scene / reset_stop in any spelling, "reset the scene" and phrasings that only
-#: mean a reset: a reset clears the retry ledger (R4)
-_RESET = (("reset*",), ("respawn*",), ("begin*", "again"), ("start*", "from", "scratch"))
+_SPEECH = frozenset({"said", "says"})
+#: the two-word role markers: followed by ":" at the field's start or after a sentence break
+_ROLE_PAIRS = frozenset({("function", "result"), ("tool", "result")})
+#: chat-template and prompt-injection markers, refused wherever they stand (and "system
+#: prompt" through `_HARD_STEMS`)
+_TEMPLATE = (("im", "start"), ("im", "end"), ("developer", "mode*"), ("new", "instruction*"))
+#: letters-only stems refused wherever the field's skeleton (`_skeleton`) contains them --
+#: across any space, punctuation mark, digit or case ("Re/set", "I g no re", "Emer'gency
+#: stop", "SYSTEMPROMPT") -- each with the rule it refuses under: reset_scene / reset_stop,
+#: emergency_stop / halt_motion in any spelling, the override verbs, "start over" and
+#: "system prompt". A word that merely contains one is refused too ("Resettle", "Ignore
+#: the crumbs": accepted over-blocks)
+_HARD_STEMS = (("reset", "reset"), ("emergencystop", "stop"), ("haltmotion", "stop"), ("ignor", "override"),
+               ("disregard", "override"), ("bypass", "override"), ("circumvent", "override"),
+               ("overrid", "override"), ("startover", "loop"), ("systemprompt", "role_marker"))
+#: whole words the skeleton leaves out (their neighbours still join): the measured
+#: cross-word false hits of the legit corpora ("You're set to place the cup")
+_SKELETON_ALLOW = frozenset({"you're"})
+#: phrasings that only mean a reset (and "reset" through `_HARD_STEMS`): a reset clears
+#: the retry ledger (R4)
+_RESET = (("respawn*",), ("begin*", "again"), ("start*", "from", "scratch"))
 #: a reset only with a `_SCENE` noun as their object ("restart the scene", "redo everything")
 _RESET_VERBS = (("restart*",), ("reload*",), ("redo*",), ("redid",), ("reinitialis*",), ("reinitializ*",),
                 ("restor*",))
@@ -372,24 +391,29 @@ _SCENE = (("scene*",), ("layout*",), ("table*",), ("everything",), ("kitchen*",)
 _PROVENANCE = (("verifier*",), ("verified",), ("promoted",), ("provenance",), ("authored",), ("passing", "seed*"),
                ("tested", "in"), ("tested", "on"), ("tested", "by"), ("newton*",), ("physx",))
 _LEARNED = (("learn*", "in"), ("learn*", "on"))
-_STOPS = (("emergenc*", "stop*"), ("e", "stop*"), ("estop*",), ("emergencystop*",), ("halt*", "motion*"),
-          ("halt*", "the", "motion*"), ("haltmotion*",), ("stop", "latch*"), ("emergenc*", "button*"))
+_STOPS = (("emergenc*", "stop*"), ("e", "stop*"), ("estop*",), ("halt*", "motion*"), ("halt*", "the", "motion*"),
+          ("stop", "latch*"), ("emergenc*", "button*"))
 _NEGATORS = (("never",), ("not",), ("no",), ("don",), ("dont",), ("without",), ("cannot",))
 _HALTS = (("stop*",), ("halt*",), ("paus*",))
-_LOOPS = (("start", "over"), ("try", "again", "until"), ("repeat*", "until"), ("until", "it", "succe*"),
+_LOOPS = (("try", "again", "until"), ("repeat*", "until"), ("until", "it", "succe*"),
           ("until", "it", "work*"), ("until", "succe*"), ("keep", "call*"), ("keep", "try*"), ("keep", "retr*"),
           ("keep", "going"), ("retr*", "until"), ("retr*", "till"), ("forever",), ("over", "and", "over"),
           ("never", "give", "up"), ("no", "limit*"), ("as", "many", "times"))
-#: refused wherever they stand: no plain advice needs them
-_OVERRIDES = (("ignor*",), ("disregard*",), ("bypass*",), ("by", "pass*"), ("circumvent*",), ("overrid*",),
-              ("over", "rid*"))
-#: refused when one of `_GUARDS` is their direct object (`_direct_object`)
-_WEAKEN = (("disabl*",), ("turn*", "off"), ("switch*", "off"), ("shut*", "off"), ("skip*",), ("lower*",),
-           ("relax*",), ("reduc*",), ("shrink*",), ("rais*",), ("smaller",), ("decreas*",), ("loosen*",),
-           ("suppress*",), ("silenc*",), ("mute*",), ("weaken*",), ("work*", "around"), ("get*", "around"),
-           ("cut*",), ("drop*",), ("zero*",), ("waiv*",), ("tighten*",), ("remov*",), ("neglect*",), ("dismiss*",),
-           ("forget*",), ("forgot*",), ("overrul*",), ("defeat*",), ("sidestep*",), ("never", "mind"),
-           ("set*", "aside"), ("look*", "past"), ("get*", "past"), ("pay*", "no", "attention", "to"))
+#: refused when one of `_GUARDS` is in their direct object (`_direct_object`)
+_WEAKEN = (("disabl*",), ("turn*", "off"), ("switch*", "off"), ("shut*", "off"), ("shut*", "down"), ("skip*",),
+           ("lower*",), ("relax*",), ("reduc*",), ("shrink*",), ("rais*",), ("smaller",), ("decreas*",),
+           ("loosen*",), ("suppress*",), ("silenc*",), ("mute*",), ("weaken*",), ("work*", "around"),
+           ("get*", "around"))
+#: verbs with everyday kitchen objects ("cut the safety seal"): refused only when a
+#: `_GUARDS` noun is the HEAD of their direct object (`_ends_object`)
+_WEAKEN_HEAD = (("cut*",), ("drop*",), ("zero*",), ("waiv*",), ("tighten*",), ("remov*",), ("neglect*",),
+                ("dismiss*",), ("forget*",), ("forgot*",), ("overrul*",), ("defeat*",), ("sidestep*",),
+                ("never", "mind"), ("set*", "aside"), ("look*", "past"), ("get*", "past"),
+                ("pay*", "no", "attention", "to"))
+#: phrasal verbs split around their object ("turn the gate off", "shut the interlock
+#: down"): refused when a `_GUARDS` noun is the object's head and the particle follows
+_PHRASAL_OFF = (("turn*",), ("switch*",), ("shut*",))
+_PHRASAL_DOWN = (("shut*",),)
 _GUARDS = (("gate*",), ("check*",), ("refus*",), ("warn*",), ("veto*",), ("clearanc*",), ("margin*",),
            ("limit*",), ("safet*",), ("collis*",), ("collid*",), ("stop*",), ("halt*",), ("guard*",),
            ("harness*",), ("interlock*",), ("watchdog*",), ("threshold*",), ("toleranc*",))
@@ -403,24 +427,40 @@ _UNITS = (("mm",), ("cm",), ("um",), ("ft",), ("deg",), ("degs",), ("rad",), ("r
           ("centimet*",), ("micromet*",), ("micron*",), ("metre*",), ("meter*",), ("inch*",), ("foot",),
           ("feet",), ("degree*",), ("radian*",), ("percent*",), ("dm",), ("decimet*",), ("km",), ("kilomet*",),
           ("yard*",), ("yd",), ("yds",), ("rev",), ("revs",), ("revolution*",), ("mrad",), ("milliradian*",),
-          ("thou",), ("mil",), ("mils",), ("pct",))  # "per cent" joins into "percent" (`_View`)
+          ("thou",), ("mil",), ("mils",), ("pct",),  # "per cent" joins into "percent" (`_View`)
+          ("mms",), ("cms",), ("kms",), ("mrads",), ("dms",), ("ums",), ("nm",), ("nms",), ("nanomet*",),
+          ("mile",), ("miles",), ("arcmin*",), ("grad",), ("grads",))
 #: a unit only right after a number ("3 m", "2 in"; and "50%")
 _NUMBER_UNITS = frozenset({"m", "in"})
-#: a unit only right after a number, digits or words ("2 turns", "a quarter turn")
+#: a unit when a number (digits or words: "half", "quarter" too) or a `_TURN_QUALIFIERS`
+#: word stands among the `_TURN_REACH` words before it, in its clause ("half a turn", "one
+#: full turn", "three quarters of a turn", "2 more turns"; not "wait your turn")
 _TURNS = frozenset({"turn", "turns"})
+_TURN_QUALIFIERS = frozenset({"full", "quarters"})
+_TURN_REACH = 3
 #: every family a word or a join of words is read against (`_View`)
 _FAMILIES = (_TEMPLATE, _RESET, _RESET_VERBS, _SCENE, _PROVENANCE, _LEARNED, _STOPS, _NEGATORS, _HALTS, _LOOPS,
-             _OVERRIDES, _WEAKEN, _GUARDS, _CLAIM_AS, _CLAIM_SAY, _SUCCESS, _UNITS)
+             _WEAKEN, _WEAKEN_HEAD, _PHRASAL_OFF, _GUARDS, _CLAIM_AS, _CLAIM_SAY, _SUCCESS, _UNITS)
 #: spelled-out numbers: two in one field ("one" aside: "pick the one on top"), two side
-#: by side ("minus one", "twenty-one") or one after an axis letter is refused
+#: by side ("minus one", "twenty-one") or one after an axis letter is refused; "point" is
+#: a number only next to a number ("point five", "2 point 5"; not "point at the bowl")
 _NUMBER_WORDS = frozenset({
     "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve",
     "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty", "thirty", "forty",
     "fifty", "sixty", "seventy", "eighty", "ninety", "hundred", "thousand", "million",
     "point", "half", "quarter", "minus", "negative"})
-#: tool parameters a note may not set (`name:`), besides every single-word parameter of a tool
+_POINT = "point"
+#: tool parameters a note may not set: refused before ":" (`name:`) wherever they stand
 _PARAMETERS = frozenset({"object", "destination", "target", "x", "y", "z", "arm", "force", "speed", "frame", "pose",
                          "position", "grasp", "offset"})
+#: every other single-word parameter of a tool (TOOL_SPECS and the MCP server's own tools,
+#: frozen here: a new tool parameter never changes which notes are served): an argument
+#: only in a field with at least `_NAME_PAIRS` `name:` pairs ("Side: grasp across" is a title)
+_TOOL_PARAMETERS = frozenset({
+    "amount", "bindings", "camera", "cycles", "degrees", "direction", "joint", "k", "label", "limit", "material",
+    "n", "name", "normalized", "program", "query", "reason", "relation", "side", "spec", "steps", "success",
+    "summary", "task", "turns", "u", "v", "vector"})
+_NAME_PAIRS = 2
 #: the plain endings a joined word may have after a stem ("ig nore" = ignor + e); a
 #: join that only STARTS like a stem ("in check" ~ inch...) is no word
 _ENDINGS = ("", "s", "e", "es", "ed", "d", "t", "ing", "er", "ers", "y", "ies", "ied", "ion", "ions", "ance",
@@ -434,6 +474,20 @@ _MORE_OBJECTS = 2  # "disable the light, the gate and the check": listed objects
 _DETERMINERS = frozenset({"the", "a", "an", "its", "their", "this", "that", "these", "those", "your", "my", "our",
                           "his", "her", "every", "each", "all", "any", "some", "both"})
 _CLAUSE_ENDS = frozenset({"and", "to", "for", "then", "so", "but"})
+#: closed-class words that end a noun phrase (as do punctuation, a clause end, a
+#: preposition, a determiner, a number and any "-ly" adverb): the word before is the
+#: phrase's HEAD noun (`_ends_object`; "the safety check", not "the safety seal")
+_OBJECT_TAIL = frozenset({
+    "off", "on", "out", "up", "down", "away", "back", "aside", "first", "again", "now", "next", "too", "also",
+    "here", "there", "anyway", "altogether", "instead", "once", "twice", "today", "always", "never", "ever",
+    "still", "already", "just", "only", "even", "more", "less", "please",
+    "if", "when", "whenever", "while", "because", "unless", "until", "till", "since", "as", "though",
+    "although", "before", "after", "where", "or", "nor", "yet", "than", "which", "who",
+    "it", "them", "they", "you", "we", "i", "he", "she", "him", "us", "me",
+    "is", "are", "was", "were", "be", "been", "can", "could", "will", "would", "should", "may", "might",
+    "must", "do", "does", "did", "has", "have", "had"})
+#: a split phrasal verb's particle: among the words right after its object's head
+_PARTICLE_REACH = 4  # "turn the clearance gate fully off"
 _PREPOSITIONS = frozenset({"near", "over", "under", "onto", "into", "on", "in", "at", "by", "with", "from", "above",
                            "below", "beside", "behind", "past", "around", "through", "across", "toward", "towards",
                            "along", "against", "beyond", "inside", "outside", "upon", "via", "within", "between",
@@ -451,18 +505,6 @@ def _tool_names() -> frozenset[str]:
     from .runtime import TOOL_SPECS
 
     return frozenset(spec["name"] for spec in TOOL_SPECS) | frozenset(t["name"] for t in _EXTRA_TOOLS)
-
-
-@functools.lru_cache(maxsize=1)
-def _parameter_names() -> frozenset[str]:
-    """`_PARAMETERS` plus every single-word parameter of a tool ("label", "query")."""
-    from ..apps.mcp_server import _EXTRA_TOOLS
-    from .runtime import TOOL_SPECS
-
-    names = set(_PARAMETERS)
-    for spec in (*TOOL_SPECS, *_EXTRA_TOOLS):
-        names.update(p for p in (spec.get("parameters") or {}).get("properties", {}) if "_" not in p)
-    return frozenset(names)
 
 
 class _Words:
@@ -529,6 +571,28 @@ def _character_problem(text: str) -> str | None:
     return None
 
 
+_SKELETON_LETTERS_RE = re.compile(r"[a-z]+")
+
+
+def _skeleton(text: str) -> str:
+    """The field's letters only: NFKC, lower case, every space, punctuation mark and
+    digit deleted -- without the `_SKELETON_ALLOW` words (left out whole, so the words
+    around one still join)."""
+    text = unicodedata.normalize("NFKC", text).lower().replace("\u2019", "'")
+    kept = "".join(word for word in text.split() if word.strip(_EDGE_PUNCTUATION) not in _SKELETON_ALLOW)
+    return "".join(_SKELETON_LETTERS_RE.findall(kept))
+
+
+def _hard_stems(text: str) -> dict[str, str]:
+    """rule -> the first `_HARD_STEMS` stem the field's skeleton contains."""
+    skeleton = _skeleton(text)
+    found: dict[str, str] = {}
+    for stem, rule in _HARD_STEMS:
+        if stem in skeleton:
+            found.setdefault(rule, stem)
+    return found
+
+
 def _mixed_case(text: str) -> str | None:
     """The first word that is neither lower, Title nor UPPER case ("reSet", "iGnore")."""
     for m in _LETTERS_RE.finditer(text):
@@ -567,10 +631,11 @@ class _View:
     start at word i: the word itself, then the 2-3 words from i joined when only
     spaces or dashes separate them, word i is no contraction tail and the join reads
     as one phrase word (`_whole_word`), each with the number of words it covers.
-    `breaks[i]` is what separates word i from the word before it (`_break`) and
-    `live` the positions where some phrase of some family can start (`_heads`)."""
+    `breaks[i]` is what separates word i from the word before it (`_break`),
+    `live` the positions where some phrase of some family can start (`_heads`) and
+    `by_key` those positions by the first letter of their readings."""
 
-    __slots__ = ("breaks", "cands", "live", "words")
+    __slots__ = ("breaks", "by_key", "cands", "live", "words")
 
     def __init__(self, text: str, spans: list[tuple[str, int, int]]):
         self.words = [word for word, _, _ in spans]
@@ -590,17 +655,28 @@ class _View:
             self.cands.append(here)
         heads = _heads()
         self.live = [i for i, here in enumerate(self.cands) if any(heads.starts(word) for word, _ in here)]
+        self.by_key: dict[str, list[int]] = {}
+        for i in self.live:
+            for key in {word[0] for word, _ in self.cands[i]}:
+                self.by_key.setdefault(key, []).append(i)
 
 
 class _Phrases:
     """A family of phrases, compiled: each part is (text, is_stem); a word can start
-    a match only if it equals an exact first part or starts with a stem one."""
+    a match only if it equals an exact first part or starts with a stem one, so only at
+    a live position whose reading starts with a first part's first letter (`starts`)."""
 
     def __init__(self, phrases):
         self.phrases = tuple(tuple((p[:-1], True) if p.endswith("*") else (p, False) for p in phrase)
                              for phrase in phrases)
         self.exact = frozenset(ph[0][0] for ph in self.phrases if not ph[0][1])
         self.stems = tuple(ph[0][0] for ph in self.phrases if ph[0][1])
+        self.keys = frozenset(ph[0][0][0] for ph in self.phrases)
+
+    def starts(self, view: _View) -> list[int]:
+        """The live positions of `view` where a phrase of this family can start, in order."""
+        found = [view.by_key[key] for key in self.keys if key in view.by_key]
+        return found[0] if len(found) == 1 else sorted(set().union(*found))
 
     def at(self, view: _View, i: int) -> int:
         """The number of words the first phrase matching at word `i` covers, else 0."""
@@ -633,7 +709,7 @@ def _compiled(phrases: tuple) -> _Phrases:
 
 def _first(view: _View, phrases) -> str | None:
     family = _compiled(phrases)
-    for i in view.live:
+    for i in family.starts(view):
         n = family.at(view, i)
         if n:
             return " ".join(view.words[i:i + n])
@@ -644,7 +720,7 @@ def _followed(view: _View, heads, tails, reach: int) -> tuple[str, str] | None:
     """The first (head, tail) where a `tails` phrase starts among the `reach` words
     right after a `heads` phrase; None when there is none."""
     head_family, tail_family = _compiled(heads), _compiled(tails)
-    for i in view.live:
+    for i in head_family.starts(view):
         n = head_family.at(view, i)
         if not n:
             continue
@@ -655,11 +731,24 @@ def _followed(view: _View, heads, tails, reach: int) -> tuple[str, str] | None:
     return None
 
 
-def _direct_object(view: _View, start: int, nouns: _Phrases) -> tuple[int, int] | None:
+def _ends_object(view: _View, k: int) -> bool:
+    """Word `k` ends the noun phrase before it, so the word before is that phrase's head:
+    the end of the field, punctuation, a clause end, a preposition, a determiner, an
+    `_OBJECT_TAIL` word, an "-ly" adverb or a number ("the safety check first"; in "the
+    safety seal" the guard word is no head)."""
+    if k >= len(view.words) or view.breaks[k]:
+        return True
+    word = view.words[k]
+    return (word in _CLAUSE_ENDS or word in _PREPOSITIONS or word in _DETERMINERS or word in _OBJECT_TAIL
+            or word.endswith("ly") or _is_number(word))
+
+
+def _direct_object(view: _View, start: int, nouns: _Phrases, head: bool = False) -> tuple[int, int] | None:
     """(position, size) of a `nouns` phrase in the object that starts at word
     `start` -- among its first `_OBJECT_REACH` words, before a preposition and the end
-    of the clause (punctuation, `_CLAUSE_ENDS`). "and" or a comma before a
-    determiner lists another object ("the light and the gate")."""
+    of the clause (punctuation, `_CLAUSE_ENDS`); with `head`, only as the HEAD noun of
+    its phrase (`_ends_object`). "and" or a comma before a determiner lists another
+    object ("the light and the gate")."""
     words, breaks, n = view.words, view.breaks, len(view.words)
     j, seen, more = start, 0, _MORE_OBJECTS
     while j < n and seen < _OBJECT_REACH:
@@ -678,21 +767,43 @@ def _direct_object(view: _View, start: int, nouns: _Phrases) -> tuple[int, int] 
         if word in _PREPOSITIONS:
             return None
         size = nouns.at(view, j)
-        if size:
+        if size and (not head or _ends_object(view, j + size)):
             return j, size
         j, seen = j + 1, seen + 1
     return None
 
 
-def _verb_object(view: _View, verbs, nouns) -> tuple[str, str] | None:
-    """The first (verb, noun) where a `nouns` phrase is the direct object of a `verbs` phrase."""
+def _verb_object(view: _View, verbs, nouns, head: bool = False) -> tuple[str, str] | None:
+    """The first (verb, noun) where a `nouns` phrase is the direct object (with `head`:
+    the object's head noun) of a `verbs` phrase."""
     verb_family, noun_family = _compiled(verbs), _compiled(nouns)
-    for i in view.live:
+    for i in verb_family.starts(view):
         size = verb_family.at(view, i)
         if size:
-            hit = _direct_object(view, i + size, noun_family)
+            hit = _direct_object(view, i + size, noun_family, head)
             if hit:
                 return " ".join(view.words[i:i + size]), " ".join(view.words[hit[0]:hit[0] + hit[1]])
+    return None
+
+
+def _split_phrasal(view: _View) -> tuple[str, str] | None:
+    """The first ('<verb> ... <particle>', noun) where a split phrasal verb's object has a
+    `_GUARDS` head and its particle follows among the next `_PARTICLE_REACH` words, before
+    any punctuation: "turn the clearance gate off", "shut the safety interlock down"."""
+    nouns = _compiled(_GUARDS)
+    for verbs, particle in ((_PHRASAL_OFF, "off"), (_PHRASAL_DOWN, "down")):
+        family = _compiled(verbs)
+        for i in family.starts(view):
+            size = family.at(view, i)
+            hit = _direct_object(view, i + size, nouns, head=True) if size else None
+            if not hit:
+                continue
+            end = hit[0] + hit[1]
+            for k in range(end, min(end + _PARTICLE_REACH, len(view.words))):
+                if view.breaks[k]:
+                    break
+                if view.words[k] == particle:
+                    return f"{' '.join(view.words[i:i + size])} ... {particle}", " ".join(view.words[hit[0]:end])
     return None
 
 
@@ -730,11 +841,20 @@ def _is_number(word: str) -> bool:
     return word.isdigit() or word in _NUMBER_WORDS
 
 
+def _number_flags(words: list[str]) -> list[bool]:
+    """Which words are numbers: digits and `_NUMBER_WORDS`, "point" only next to another
+    number ("point five", "2 point 5"; "point at the bowl" is a verb)."""
+    plain = [word.isdigit() or (word in _NUMBER_WORDS and word != _POINT) for word in words]
+    return [plain[k] or (word == _POINT and ((k > 0 and plain[k - 1]) or (k + 1 < len(words) and plain[k + 1])))
+            for k, word in enumerate(words)]
+
+
 def _adjacent(text: str, spans, first, second, gap: str = " -\u2013") -> str | None:
-    """'<a> <b>' for the first two neighbouring words with first(a) and second(b),
-    separated only by `gap` characters."""
-    for (a, _, end), (b, start, _) in itertools.pairwise(spans):
-        if first(a) and second(b) and set(text[end:start]) <= set(gap):
+    """'<a> <b>' for the first two neighbouring words k, k + 1 with first(k) and
+    second(k + 1), separated only by `gap` characters."""
+    for k in range(len(spans) - 1):
+        (a, _, end), (b, start, _) = spans[k], spans[k + 1]
+        if first(k) and second(k + 1) and set(text[end:start]) <= set(gap):
             return f"{a} {b}"
     return None
 
@@ -748,23 +868,29 @@ def _score(words: list[str]) -> str | None:
 
 
 def _role_marker(text: str, spans) -> str | None:
-    """'<role>:' -- a `_ROLE_WORDS` word followed by ':' or a dash, or by one word and ':'."""
-    for k, (word, _, end) in enumerate(spans):
+    """'<role>:' -- a `_ROLE_WORDS` word followed by ':' or a dash, or by a `_SPEECH`
+    verb and ':' ("user said:"); or an exact two-word marker (`_ROLE_PAIRS`, "tool
+    result:") at the field's start or after a sentence break. Any other role word + word
+    + ':' is plain English ("Use the tool rack: ...", "Ask the user why: ...")."""
+    for k, (word, start, end) in enumerate(spans):
         if word not in _ROLE_WORDS:
             continue
         after = _next_char(text, end)
         if after == ":" or (after and after in "\u2013\u2014") or (after == "-" and text[end] == " "):
             return f"{word}:"
-        if k + 1 < len(spans):
-            nxt, start, nxt_end = spans[k + 1]
-            if not text[end:start].strip(" ") and _next_char(text, nxt_end) == ":":
-                return f"{word} {nxt}:"
+        if k + 1 == len(spans):
+            continue
+        nxt, nxt_start, nxt_end = spans[k + 1]
+        if text[end:nxt_start].strip(" ") or _next_char(text, nxt_end) != ":":
+            continue
+        opens = k == 0 or _break(text[spans[k - 1][2]:start]) == "."
+        if nxt in _SPEECH or ((word, nxt) in _ROLE_PAIRS and opens):
+            return f"{word} {nxt}:"
     return None
 
 
-def _measurement(text: str, numbers, spans) -> str | None:
-    """'<number> <unit>': a number followed by "%", a `_NUMBER_UNITS` word or (digits
-    or a number word) a `_TURNS` word."""
+def _measurement(text: str, numbers) -> str | None:
+    """'<number> <unit>': a number followed by "%" or a `_NUMBER_UNITS` word."""
     for m in numbers:
         i = m.end()
         while i < len(text) and text[i] == " ":
@@ -774,16 +900,34 @@ def _measurement(text: str, numbers, spans) -> str | None:
         unit = _LETTERS_RE.match(text, i)
         if unit and unit.group(0).lower() in _NUMBER_UNITS:
             return f"{m.group(0)} {unit.group(0)}"
-    return _adjacent(text, spans, _is_number, _TURNS.__contains__)
+    return None
+
+
+def _qualified_turn(view: _View, number: list[bool]) -> str | None:
+    """'<qualifier> ... turn': a `_TURNS` word with a number (digits or words) or a
+    `_TURN_QUALIFIERS` word among the `_TURN_REACH` words before it, in its clause."""
+    words, breaks = view.words, view.breaks
+    for k, word in enumerate(words):
+        if word not in _TURNS:
+            continue
+        for j in range(k - 1, max(k - 1 - _TURN_REACH, -1), -1):
+            if breaks[j + 1] or words[j] in _CLAUSE_ENDS:
+                break
+            if number[j] or words[j] in _TURN_QUALIFIERS:
+                return " ".join(words[j:k + 1])
+    return None
 
 
 def _identifier_problems(text: str, skill: str) -> list[tuple[str, str]]:
     """Identifiers (unsplit `_IDENT_RE` runs, any case): every snake_case one is a
     tool, read-only or the note's own skill and never a forbidden one; no identifier
-    or tool parameter is followed by ':' (arguments)."""
-    tools, parameters = _tool_names(), _parameter_names()
+    or `_PARAMETERS` name is followed by ':' (arguments), nor a `_TOOL_PARAMETERS` name
+    in a field with `_NAME_PAIRS` or more `name:` pairs ("=" is a refused character)."""
+    tools = _tool_names()
     found: dict[str, str] = {}
-    for m in _IDENT_RE.finditer(text):
+    idents = [(m, _next_char(text, m.end()) == ":") for m in _IDENT_RE.finditer(text)]
+    pairs = sum(colon for _, colon in idents)
+    for m, colon in idents:
         raw = m.group(0)
         name = raw.lower()
         if "_" in name:
@@ -793,7 +937,7 @@ def _identifier_problems(text: str, skill: str) -> list[tuple[str, str]]:
                 found.setdefault("identifier", f"{raw} is not a tool name")
             elif name != skill and name not in READ_ONLY_TOOLS:
                 found.setdefault("tool", f"names {name}, which is neither read-only nor this note's skill")
-        if ("_" in name or name in parameters) and _next_char(text, m.end()) == ":":
+        if colon and ("_" in name or name in _PARAMETERS or (name in _TOOL_PARAMETERS and pairs >= _NAME_PAIRS)):
             found.setdefault("arguments", f"gives arguments ('{raw}:'; a note names a tool, never how to call it)")
     return list(found.items())
 
@@ -807,13 +951,15 @@ def _structure_problems(text: str, skill: str) -> list[tuple[str, str]]:
     if [w for w, _, _ in run_spans] != words:  # (b): only a camelCase or digit split differs
         views.append(_View(text, run_spans))
     numbers = list(_NUMBER_RE.finditer(text))
+    number = _number_flags(words)
+    hidden = _hard_stems(text)
     found: list[tuple[str, str | None]] = []
 
     def phrase(family) -> str | None:
         return next((hit for view in views if (hit := _first(view, family))), None)
 
-    def verb_object(verbs, nouns) -> tuple[str, str] | None:
-        return next((hit for view in views if (hit := _verb_object(view, verbs, nouns))), None)
+    def verb_object(verbs, nouns, head: bool = False) -> tuple[str, str] | None:
+        return next((hit for view in views if (hit := _verb_object(view, verbs, nouns, head))), None)
 
     def followed(heads, tails, reach) -> tuple[str, str] | None:
         return next((hit for view in views if (hit := _followed(view, heads, tails, reach))), None)
@@ -832,7 +978,7 @@ def _structure_problems(text: str, skill: str) -> list[tuple[str, str]]:
     found.append(("spelled_out", "spells a word out letter by letter" if _spelled_out(words) else None))
     role = _role_marker(text, spans)
     found.append(("role_marker", f"carries the role marker '{role}'" if role else None))
-    template = phrase(_TEMPLATE)
+    template = hidden.get("role_marker") or phrase(_TEMPLATE)
     found.append(("role_marker", f"carries the chat-template marker '{template}'" if template else None))
     # look-alikes of the provenance tag
     tag = phrase(_PROVENANCE)
@@ -847,33 +993,38 @@ def _structure_problems(text: str, skill: str) -> list[tuple[str, str]]:
     score = _score(words)
     found.append(("provenance", f"claims a score ('{score}')" if score else None))
     # numbers and measurements
-    counted = len(numbers) + sum(1 for w in words if w in _NUMBER_WORDS and w != "one")
-    spelled = _adjacent(text, spans, _NUMBER_WORDS.__contains__, _NUMBER_WORDS.__contains__)
+    def number_word(k: int) -> bool:
+        return number[k] and not words[k].isdigit()
+
+    counted = len(numbers) + sum(1 for k, w in enumerate(words) if number_word(k) and w != "one")
+    spelled = _adjacent(text, spans, number_word, number_word)
     found.append(("numbers", f"carries {counted} numbers (at most one)" if counted > 1
                   else f"spells out the number '{spelled}'" if spelled else None))
-    measured = _measurement(text, numbers, spans)
+    measured = _measurement(text, numbers) or _qualified_turn(views[0], number)
     found.append(("measurement", f"carries the measurement '{measured}'" if measured else None))
     unit = phrase(_UNITS)
     found.append(("unit", f"names the unit '{unit}'" if unit else None))
-    coordinate = _adjacent(text, spans, ("x", "y", "z").__contains__, _is_number, " :=+-")
+    coordinate = _adjacent(text, spans, lambda k: words[k] in ("x", "y", "z"), number.__getitem__,
+                           " :=+-\u2013\u2014/")
     found.append(("coordinate", f"carries the coordinate '{coordinate}'" if coordinate else None))
     # tools: read-only ones and the note's own skill, as identifiers, without arguments
     found.append(("tool", identifiers.get("tool")))
     found.append(("arguments", identifiers.get("arguments")))
     # advice a note may never give
-    reset = phrase(_RESET)
+    reset = hidden.get("reset") or phrase(_RESET)
     if not reset and (scene := verb_object(_RESET_VERBS, _SCENE)):
         reset = f"{scene[0]} ... {scene[1]}"
     found.append(("reset", f"advises a reset ('{reset}')" if reset else None))
-    stop = phrase(_STOPS)
+    stop = hidden.get("stop") or phrase(_STOPS)
     found.append(("stop", f"advises a stop ('{stop}')" if stop else None))
     negated = followed(_NEGATORS, _HALTS, _NEGATION_REACH)
     found.append(("negated_stop", f"tells the agent not to stop ('{negated[0]} {negated[1]}')" if negated else None))
-    loop = phrase(_LOOPS)
+    loop = hidden.get("loop") or phrase(_LOOPS)
     found.append(("loop", f"advises an unbounded retry ('{loop}')" if loop else None))
-    override = phrase(_OVERRIDES)
+    override = hidden.get("override")
     found.append(("override", f"advises an override ('{override}')" if override else None))
-    weakened = verb_object(_WEAKEN, _GUARDS)
+    weakened = (verb_object(_WEAKEN, _GUARDS) or verb_object(_WEAKEN_HEAD, _GUARDS, head=True)
+                or next((hit for view in views if (hit := _split_phrasal(view))), None))
     found.append(("weaken", f"'{weakened[0]}' near '{weakened[1]}'" if weakened else None))
     claim = followed(_CLAIM_AS, _SUCCESS, _TREAT_REACH) or followed(_CLAIM_SAY, _SUCCESS, _SAY_REACH)
     found.append(("success_claim", f"claims success ('{claim[0]}' ... '{claim[1]}')" if claim else None))

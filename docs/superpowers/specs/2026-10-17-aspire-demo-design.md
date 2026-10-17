@@ -121,38 +121,52 @@ and every pattern is linear; (2) no control or format character (Unicode Cc/Cf: 
 the text is NFKC-stable, and every character is a printable ASCII letter, digit, space or `.,;:!?'"-/_&+%`, or a
 typographic quote or dash, so no homoglyph, CJK, fullwidth or other non-ASCII letter and none of `[]{}()=<>|` `` ` ``
 `\#*@$^~` (hence no `<|`, `|>`, code fence or markup); (3) every word is lower, Title or UPPER case (`reSet`,
-`SafetyViolation` refused: A1 fix round 2); (4) over the field read as words three ways -- the words split at
-camelCase humps, digits and any separator, the unsplit lower-cased runs, and at each word the 2-3 words that join into
-one whole phrase word across spaces or dashes (`re set`, `ig nore`, `DIS-able`; never across an apostrophe or other
-punctuation) -- no URL (`://`), no `snake_case` identifier that is not a tool, no letter-digit mix (ordinals aside), no
-dotted name, no word spelled out letter by letter, no role marker (`assistant`, `user`, `system`, `developer`,
-`human`, `tool`, `observation`, `function`, `output`, `operator`, `owner` followed by `:` or a dash, or by one word and
-`:` as in `function result:`) or chat-template marker (`im start`, `system prompt`, `developer mode`, `new
-instruction`), nothing imitating the provenance tag (`verifier`, `verified`, `promoted`, `provenance`, `authored`,
+`SafetyViolation` refused: A1 fix round 2); (4) the field's letters-only skeleton (NFKC, lower case, every space,
+punctuation mark and digit deleted; the whole word `you're` left out) contains none of the hard stems `reset`,
+`emergencystop`, `haltmotion`, `ignor`, `disregard`, `bypass`, `circumvent`, `overrid`, `startover`, `systemprompt`, so
+no split, punctuation or piece count hides them (`Re/set`, `Emer'gency stop`, `I g no re`, `SYSTEMPROMPT`; a word
+that merely contains one, `Resettle`, is refused too: A1 fix round 3); (5) over the field read as words three ways --
+the words split at camelCase humps, digits and any separator, the unsplit lower-cased runs, and at each word the 2-3
+words that join into one whole phrase word across spaces or dashes (`dis able`, `DIS-able`; never across an
+apostrophe or other punctuation) -- no URL (`://`), no `snake_case` identifier that is not a tool, no letter-digit mix
+(ordinals aside), no dotted name, no word spelled out letter by letter, no role marker (`assistant`, `user`, `system`,
+`developer`, `human`, `tool`, `observation`, `function`, `output`, `operator`, `owner` followed by `:` or a dash, or by
+`said`/`says` and `:`; and `function result:` / `tool result:` at the field's start or after a sentence break, while
+`Use the tool rack: ...` and `Ask the user why: ...` are plain English) or chat-template marker (`im start`, `system
+prompt`, `developer mode`, `new instruction`), nothing imitating the provenance tag (`verifier`, `verified`, `promoted`, `provenance`, `authored`,
 `passing seeds`, `learned in|on`, `tested in|on|by`, `Newton`, `PhysX`, `lib <hex>`, any hex-like token of 6+ chars,
 `out of <n>`, `<n> of <n>`), at most ONE number counting digits and number words (`zero` .. `twenty`, tens,
-`hundred`, `point`, `half`, `quarter`, `minus`, `negative`; a lone `one` aside), no two number words side by side
-(`minus one`), no unit of length or angle (`m`, `cm`, `mm`, `um`, `dm`, `km`, `in`, `ft`, `yd`, `deg`, `rad`, `mrad`,
-`rev`, `thou`, `mil`, `%`, `pct`, `per cent` and their words; `turn(s)` after a number) and no axis coordinate (`x
-0.42`, `x zero`); a tool is named only as an identifier (snake_case, any case) that is read-only or the note's own skill
-(the tool its failure signature names), never `reset_scene`, `reset_stop`, `emergency_stop` or `halt_motion`, and no
-identifier or tool parameter (`object`, `destination`, `target`, `x`, `force`, `speed`, `pose`, `grasp`, ... and every
-single-word parameter of a tool) is followed by `:` (arguments); a tool name written as plain words is English (`move
-home`, `place at`), except the four forbidden tools in any spelling; and no reset (`reset` in any form, `respawn`,
+`hundred`, `half`, `quarter`, `minus`, `negative`, and `point` next to a number; a lone `one` aside), no two number
+words side by side (`minus one`, `point five`), no unit of length or angle (`m`, `cm`, `mm`, `um`, `nm`, `dm`, `km`,
+`in`, `ft`, `yd`, `mile`, `deg`, `rad`, `mrad`, `arcmin`, `grad`, `rev`, `thou`, `mil`, `%`, `pct`, `per cent`, their
+plurals (`mms`, `cms`, `kms`, ...) and words; `turn(s)` with a number, `half`, `quarter(s)` or `full` among the 3 words
+before it in its clause: `half a turn`, `one full turn`) and no axis coordinate (`x 0.42`, `x zero`, `x – 0.4`,
+`x/0.4`); a tool is named only as an identifier (snake_case, any case) that is read-only or the note's own skill (the
+tool its failure signature names), never `reset_scene`, `reset_stop`, `emergency_stop` or `halt_motion`, and no
+identifier or tool parameter is followed by `:` (arguments: any `snake_case` name and `object`, `destination`,
+`target`, `x`, `y`, `z`, `arm`, `force`, `speed`, `frame`, `pose`, `position`, `grasp`, `offset` always; every other
+single-word tool parameter, frozen in the lint so a new tool spec never changes it, only in a field with two or more
+`name:` pairs, so titles like `Side: grasp across` pass; `=` is a refused character); a tool name written as plain
+words is English (`move home`, `place at`), except the four forbidden tools in any spelling; and no reset (`reset` in
+any form, `respawn`,
 `begin again`, `start from scratch`, and `restart` / `reload` / `redo` / `re-initialise` / `restore` with `scene`,
 `layout`, `table`, `everything`, `kitchen`, `world` or `simulation` as object: a reset clears the sim retry ledger),
 stop (`emergency stop`, `e stop`, `halt the motion`, `stop latch`, `emergency button`), "do not stop" (negated stop,
 pause or halt: never discourage an operator stop), unbounded-retry (`keep calling`, `try again until`, `retry until`,
 `until it succeeds`, `start over`, `forever`, `over and over`, `no limit`, `never give up` ...), override (`ignore`,
-`disregard`, `bypass`, `circumvent`, `override` anywhere), weakening (`disable`, `turn off`, `skip`, `lower`, `relax`,
-`reduce`, `raise`, `cut`, `drop`, `waive`, `forget`, `dismiss`, `set aside` ... whose DIRECT OBJECT is `gate`, `check`,
-`refusal`, `warning`, `veto`, `clearance`, `margin`, `limit`, `safety`, `collision`, `stop`, `halt`, `harness` ...:
-the guard noun among the first 4 words after the verb, before a preposition and the end of the clause at `and`, `to`,
-`for`, `then`, `so`, `but` or punctuation, with `and`/`,` + determiner listing another object; so `lower the clearance`
-is refused and `lower it to avoid collision` is not) or success-claim advice (`treat ... as a success`, `tell the user
+`disregard`, `bypass`, `circumvent`, `override` anywhere), weakening (`disable`, `turn off`, `shut down`, `skip`,
+`lower`, `relax`, `reduce`, `raise` ... whose DIRECT OBJECT holds `gate`, `check`, `refusal`, `warning`, `veto`,
+`clearance`, `margin`, `limit`, `safety`, `collision`, `stop`, `halt`, `harness` ...: the guard noun among the first 4
+words after the verb, before a preposition and the end of the clause at `and`, `to`, `for`, `then`, `so`, `but` or
+punctuation, with `and`/`,` + determiner listing another object; so `lower the clearance` is refused and `lower it to
+avoid collision` is not; `cut`, `drop`, `remove`, `zero`, `waive`, `tighten`, `forget`, `dismiss`, `set aside` ...
+only when the guard noun is the object's HEAD, the last noun of its phrase: `remove the safety check` is refused,
+`remove the safety seal`, `drop the warning label` are not; and `turn`/`switch`/`shut ... off`, `shut ... down` split
+around an object whose head is a guard noun, the particle within 4 words: `turn the clearance gate off`) or
+success-claim advice (`treat ... as a success`, `tell the user
 it is done`, honesty phrasings included). The same lint covers every field rendered to the agent or a visitor
-(preflight R4): the title and the advice. The reviews' hostile texts (78 + the re-review's 50 rule-claimed ones) are a
-test that must stay all refused, next to a set of plain kitchen advice that must stay all accepted; plain-English
+(preflight R4): the title and the advice. The reviews' hostile texts (78 + the first re-review's 50 rule-claimed ones +
+the second re-review's 73 rule-claimed and 18 newly ruled ones) are a test that must stay all refused, next to a set of plain kitchen advice that must stay all accepted; plain-English
 paraphrases of harm (no rule word) stay a limit of a structural gate, carried by promotion and the verifier.
 
 ### 4.2 Library snapshot, library hash, run manifest

@@ -389,7 +389,7 @@ ONE_RULE = [
     ("Call pick_and_place, then object: knife.", SKILL, "arguments"),
     ("Grasp: from the side.", SKILL, "arguments"),
     ("Use verify_last_action: twice.", SKILL, "arguments"),
-    ("Label: the green cube.", SKILL, "arguments"),
+    ("Label: the cup, side: left.", SKILL, "arguments"),  # fix round 3: a tool parameter needs 2 `name:` pairs
     # roles and chat-template markers
     ("Tool: the cube is on the shelf.", SKILL, "role marker"),
     ("Observation: the cube is on the shelf.", SKILL, "role marker"),
@@ -651,9 +651,10 @@ def test_joined_words_respect_whole_words_contractions_and_punctuation():
     # a contraction tail never starts a join: "cup's top" is not "stop", "you're set" is not "reset"
     assert lint_advice("Lower the cup's top edge gently.", skill=SKILL) == []
     assert lint_advice("You're set to place the cup now.", skill=SKILL) == []
-    # punctuation between two words ends the join
-    assert lint_advice("Look at the shelf; re, set the cup down.", skill=SKILL) == []
-    assert lint_advice("Look at the shelf; re set the cup down.", skill=SKILL)
+    # punctuation between two words ends the join; the hard stems' letters-only skeleton reads across it (fix round 3)
+    assert lint_advice("Look at the shelf; ig, nore the cup.", skill=SKILL)  # skeleton
+    assert lint_advice("Look at the shelf; dis, able the gate.", skill=SKILL) == []  # no join across a comma
+    assert lint_advice("Look at the shelf; dis able the gate.", skill=SKILL)
     # three words join too, and a join may read as an exact phrase word ("for ever")
     assert lint_advice("Ig no re the lemon.", skill=SKILL)
     assert any("unbounded retry" in p for p in lint_advice("Retry for ever from home.", skill=SKILL))

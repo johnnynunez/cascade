@@ -1,4 +1,5 @@
-"""`reset_scene` releases a held object with the profile's OPEN jaw position.
+"""`reset_scene` and a held object: a simulated arm releases it with the
+profile's OPEN jaw position; a real arm refuses before any motion.
 
 Found during the PR-A fix round (#354): reset_scene's release sent the raw
 gripper position 1.0. Jaw positions are motor travel in each profile's own
@@ -9,9 +10,20 @@ it go. On the mock (open 0.0, closed 1.0) it is fully closed, on the SO-101
 (open 0.60) past the open stop, on the FR3 (open 0.04 m) 25 times the
 travel. Only Isaac (open 1.0) happened to be right.
 
-The opening carries the reset's halt generation: a halt, an e-stop or a
-gripper gate that refuses after the home move sends no jaw command (and no
-arm command), keeps the object in the runtime's hands and ends the reset.
+The release happens at HOME: on a real arm a correct opening drops the object
+from home height (reBot home TCP at 0.44 m). So a REAL profile (the arm type
+the runtime builds is not isaac*, mujoco* or mock*; an unknown type counts as
+real) refuses a reset while holding, before any motion, and asks for place_at
+first. Simulated and mock arms keep releasing at home.
+
+The reset takes its halt generation when it starts (before its carry check)
+and passes it to the home move and to the opening: a halt anywhere in the
+reset sends no further arm or jaw command. A refusal by SafeArm's own checks
+(halt, e-stop, a gripper gate) is raised before any jaw command: the object
+stays held. A driver `GripperFault` comes AFTER commands went out (opening
+blocked part-way): the result reports the measured jaw width and keeps the
+object unless that width proves the jaws open. A non-safety driver error
+keeps the object too, with the error recorded.
 
 Real `build_runtime` wiring (LazyArm -> SafeArm -> SafetyHarness of each
 profile) over a MockArm that records every jaw command; no driver, no bus.
@@ -19,32 +31,53 @@ profile) over a MockArm that records every jaw command; no driver, no bus.
 
 from __future__ import annotations
 
+import dataclasses
+import sys
+from types import SimpleNamespace
+
 import pytest
 
 from cascade.control.mock_arm import MockArm
-from cascade.types import SafetyViolation
+from cascade.types import GripperFault, SafetyViolation
 
-#: (profile, the open position its YAML declares). Literals on purpose: the
-#: test pins the semantic open, independently of how the runtime reads it.
-PROFILES = [
-    ("rebot_rs", 6.2),
+#: Simulated / mock arms and the open position their YAML declares. Literals
+#: on purpose: the test pins the semantic open, independently of how the
+#: runtime reads it.
+SIM_PROFILES = [
     ("so101_mock", 0.60),
+    ("so101_mujoco", 0.60),
     ("isaac_kitchen", 1.0),
-    ("fr3", 0.04),
+    ("fr3_mock", 0.04),
     ("mock", 0.0),
 ]
+#: Real grippers, one per hardware arm type: rebot_rs, rebot_rs_mb, so101
+#: (Feetech), ros2 (FR3) and unitree_arm.
+REAL_PROFILES = ["rebot_rs", "rebot_rs_mb", "so101", "fr3", "g1"]
+
+REFUSAL = "holding red cube: place it first (place_at), then reset"
 
 
 class _JawArm(MockArm):
-    """MockArm that records every jaw position it is commanded."""
+    """MockArm that records every jaw command; `fault(arm, pos, effort)`
+    replaces the driver's reply when set, `jaw_unknown` fails the jaw read."""
 
-    def __init__(self, cfg, kinematics, jaws):
+    def __init__(self, cfg, kinematics, log):
         super().__init__(cfg, kinematics)
-        self.jaws = jaws
+        self.log = log
+        self.fault = None
+        self.jaw_unknown = False
 
     def set_gripper(self, pos, effort=1.0):
-        self.jaws.append(float(pos))
+        self.log.jaws.append(float(pos))
+        self.log.efforts.append(float(effort))
+        if self.fault is not None:
+            self.fault(self, pos, effort)
+            return
         super().set_gripper(pos, effort)
+
+    def get_state(self):
+        state = super().get_state()
+        return dataclasses.replace(state, gripper_valid=False) if self.jaw_unknown else state
 
 
 @pytest.fixture
@@ -63,31 +96,33 @@ def rig(monkeypatch, tmp_path):
         occ = cfg._data.get("occupancy")
         if isinstance(occ, dict) and occ.get("required"):
             occ["required"] = False
-        jaws, arms = [], []
+        r = SimpleNamespace(cfg=cfg, jaws=[], efforts=[], arms=[])
 
         def make_arm(acfg, kinematics=None):
-            arm = _JawArm(acfg, kinematics, jaws)
-            arms.append(arm)
+            arm = _JawArm(acfg, kinematics, r)
+            r.arms.append(arm)
             return arm
 
         # Replaced BEFORE the build: no real driver is ever constructed.
         monkeypatch.setattr(demo, "make_arm", make_arm)
-        runtime, arm = demo.build_runtime(cfg, tmp_path / profile, lazy_arm=True)
-        built.append((runtime, arm))
-        return runtime, cfg, jaws, arms
+        r.runtime, arm = demo.build_runtime(cfg, tmp_path / profile, lazy_arm=True)
+        built.append((r.runtime, arm))
+        return r
 
     yield build
     for runtime, arm in built:
         shutdown_runtime(runtime, arm)
 
 
-def _holding(runtime, cfg):
+def _holding(r):
     """The jaws half closed on an object the runtime knows it holds."""
-    g = cfg.arm.gripper
+    g = r.cfg.arm.gripper
     half = g.open_pos + 0.5 * (g.closed_pos - g.open_pos)
-    runtime.arm.set_gripper(half)
-    runtime.held_object = "red cube"
-    runtime._held_det_label = "cube"
+    r.runtime.arm.set_gripper(half)
+    r.runtime.held_object = "red cube"
+    r.runtime._held_det_label = "cube"
+    r.jaws.clear()
+    r.efforts.clear()
     return half
 
 
@@ -95,20 +130,66 @@ def _arm_commands(arms) -> int:
     return sum(len(a.commands) for a in arms)
 
 
-@pytest.mark.parametrize("profile, open_pos", PROFILES, ids=[p for p, _ in PROFILES])
-def test_reset_releases_with_the_profiles_open_position(rig, profile, open_pos):
-    runtime, cfg, jaws, _ = rig(profile)
-    assert cfg.arm.gripper.open_pos == pytest.approx(open_pos)
-    _holding(runtime, cfg)
-    jaws.clear()
+def _assert_still_held(r, out):
+    assert r.runtime.held_object == "red cube" and r.runtime._held_det_label == "cube"
+    assert out["beliefs_forgotten"] == 0 and not out["observation_refreshed"], out
 
-    out = runtime.execute("reset_scene", {})
+
+@pytest.mark.parametrize("profile, open_pos", SIM_PROFILES, ids=[p for p, _ in SIM_PROFILES])
+def test_sim_reset_releases_with_the_profiles_open_position(rig, profile, open_pos):
+    r = rig(profile)
+    assert r.cfg.arm.gripper.open_pos == pytest.approx(open_pos)
+    _holding(r)
+
+    out = r.runtime.execute("reset_scene", {})
 
     assert out["ok"], out
-    assert jaws == [pytest.approx(open_pos)], jaws  # one jaw command: the release, fully open
-    assert runtime.arm.get_state().gripper_pos == pytest.approx(open_pos)
-    assert runtime._gripper_width_frac() == pytest.approx(1.0)
-    assert runtime.held_object is None and runtime._held_det_label is None
+    assert r.jaws == [pytest.approx(open_pos)], r.jaws  # one jaw command: the release, fully open
+    assert r.efforts == [pytest.approx(0.8)], r.efforts  # the effort of every other opening
+    assert r.runtime.arm.get_state().gripper_pos == pytest.approx(open_pos)
+    assert r.runtime._gripper_width_frac() == pytest.approx(1.0)
+    assert r.runtime.held_object is None and r.runtime._held_det_label is None
+
+
+@pytest.mark.parametrize("profile", REAL_PROFILES)
+def test_real_reset_while_holding_refuses_before_any_motion(rig, profile):
+    r = rig(profile)
+    half = _holding(r)
+    arm_before = _arm_commands(r.arms)
+
+    out = r.runtime.execute("reset_scene", {})
+
+    assert out["ok"] is False and out["stage"] == "release", out
+    assert REFUSAL in out["error"], out
+    assert r.jaws == [] and _arm_commands(r.arms) == arm_before  # no jaw, no arm command
+    _assert_still_held(r, out)
+    assert r.runtime.arm.get_state().gripper_pos == pytest.approx(half)
+
+
+@pytest.mark.parametrize("kind", ["acme_arm", None], ids=["unknown", "missing"])
+def test_an_unknown_arm_type_counts_as_a_real_gripper(rig, kind):
+    r = rig("mock")
+    _holding(r)
+    arm = r.runtime.cfg._data["arm"]
+    if kind is None:
+        del arm["type"]
+    else:
+        arm["type"] = kind
+
+    out = r.runtime.execute("reset_scene", {})
+
+    assert out["ok"] is False and REFUSAL in out["error"], out
+    assert r.jaws == [] and _arm_commands(r.arms) == 0
+    _assert_still_held(r, out)
+
+
+def test_real_reset_with_empty_jaws_still_resets(rig):
+    r = rig("rebot_rs")
+
+    out = r.runtime.execute("reset_scene", {})
+
+    assert out["ok"], out
+    assert r.jaws == [] and out["observation_refreshed"]
 
 
 def _stop(runtime, kind):
@@ -129,30 +210,147 @@ def _stop(runtime, kind):
 
 
 @pytest.mark.parametrize("kind", ["halt", "estop", "gate"])
-@pytest.mark.parametrize("profile", ["rebot_rs", "mock"])
+@pytest.mark.parametrize("profile", ["so101_mock", "mock"])
 def test_a_stop_after_home_sends_nothing_and_keeps_the_object(rig, monkeypatch, profile, kind):
-    runtime, cfg, jaws, arms = rig(profile)
-    half = _holding(runtime, cfg)
-    jaws.clear()
-    home = runtime.skill_move_home
+    r = rig(profile)
+    half = _holding(r)
+    home = r.runtime.skill_move_home
     at_stop = {}
 
     def home_then_stop(**kwargs):
         result = home(**kwargs)
-        _stop(runtime, kind)
-        at_stop.update(arm=_arm_commands(arms), jaws=len(jaws))
+        _stop(r.runtime, kind)
+        at_stop.update(arm=_arm_commands(r.arms), jaws=len(r.jaws))
         return result
 
-    monkeypatch.setattr(runtime, "skill_move_home", home_then_stop)
+    monkeypatch.setattr(r.runtime, "skill_move_home", home_then_stop)
 
-    out = runtime.execute("reset_scene", {})
+    out = r.runtime.execute("reset_scene", {})
 
     assert at_stop, "reset_scene never reached its home move"
-    assert len(jaws) == at_stop["jaws"] == 0, jaws          # no jaw command after the stop
-    assert _arm_commands(arms) == at_stop["arm"]           # nor any arm command
+    assert len(r.jaws) == at_stop["jaws"] == 0, r.jaws      # no jaw command after the stop
+    assert _arm_commands(r.arms) == at_stop["arm"]           # nor any arm command
     assert out["ok"] is False and out["stage"] == "release", out
-    assert out["beliefs_forgotten"] == 0 and not out["observation_refreshed"], out
-    assert "release" in out["error"] and out["release_error"], out
-    # The object is still in the jaws: the runtime keeps it.
-    assert runtime.held_object == "red cube" and runtime._held_det_label == "cube"
-    assert runtime.arm.get_state().gripper_pos == pytest.approx(half)
+    # SafeArm refused before the driver: nothing moved, and the text says so.
+    assert "stopped before the release" in out["error"] and out["release_error"], out
+    _assert_still_held(r, out)
+    assert r.runtime.arm.get_state().gripper_pos == pytest.approx(half)
+
+
+@pytest.mark.parametrize("profile, holding", [("rebot_rs", False), ("mock", False), ("mock", True)])
+def test_a_halt_before_home_sends_no_arm_command(rig, monkeypatch, profile, holding):
+    """The halt lands inside the reset's OWN carry check: the generation the
+    reset carries was taken before it, so the home move refuses."""
+    from cascade.skills import carry_attachment
+
+    r = rig(profile)
+    if holding:
+        _holding(r)
+    check = carry_attachment.check
+    at_halt = {}
+
+    def check_then_halt(runtime):
+        check(runtime)
+        if not at_halt and sys._getframe(1).f_code.co_name == "skill_reset_scene":
+            runtime.arm.harness.halt("operator: stop")
+            at_halt.update(arm=_arm_commands(r.arms), jaws=len(r.jaws))
+
+    monkeypatch.setattr(carry_attachment, "check", check_then_halt)
+
+    out = r.runtime.execute("reset_scene", {})
+
+    assert at_halt, "reset_scene never ran its own carry check"
+    assert _arm_commands(r.arms) == at_halt["arm"], "an arm command went out after the halt"
+    assert len(r.jaws) == at_halt["jaws"] == 0
+    assert out["ok"] is False and out["stage"] == "home", out
+    assert out["home_error"] == "halt received during route planning or execution", out
+    if holding:
+        _assert_still_held(r, out)
+
+
+def _fault(width_frac: float | None, exc: BaseException):
+    """A driver that moves the jaws to `width_frac` (None: not at all), then raises."""
+
+    def fault(arm, pos, effort):
+        if width_frac is not None:
+            span = arm._grip_closed - arm._grip_open
+            MockArm.set_gripper(arm, arm._grip_open + (1.0 - width_frac) * span, effort)
+        raise exc
+
+    return fault
+
+
+BLOCKED = GripperFault("gripper blocked while opening at 4.34 rad (target 6.20): "
+                       "holding there instead of pushing. Check what is against the jaws.")
+
+
+@pytest.mark.parametrize("profile", ["mock", "so101_mock"])
+def test_a_gripper_fault_part_way_keeps_the_object_and_reports_the_width(rig, profile):
+    r = rig(profile)
+    _holding(r)
+    for arm in r.arms:
+        arm.fault = _fault(0.7, BLOCKED)
+
+    out = r.runtime.execute("reset_scene", {})
+
+    assert r.jaws == [pytest.approx(r.runtime._grip_open)]  # the command went out
+    assert out["ok"] is False and out["stage"] == "release", out
+    assert out["release_error"] == str(BLOCKED), out
+    assert out["gripper_open_frac"] == pytest.approx(0.7), out
+    assert "stopped before the release" not in out["error"], out
+    assert "may have dropped" in out["error"] and "70%" in out["error"], out
+    _assert_still_held(r, out)
+
+
+def test_a_gripper_fault_with_an_unknown_jaw_width_keeps_the_object(rig):
+    r = rig("mock")
+    _holding(r)
+
+    def fault(arm, pos, effort):
+        arm.jaw_unknown = True
+        raise BLOCKED
+
+    for arm in r.arms:
+        arm.fault = fault
+
+    out = r.runtime.execute("reset_scene", {})
+
+    assert out["ok"] is False and out["stage"] == "release", out
+    assert out["gripper_open_frac"] == "unknown", out
+    assert "may have dropped" in out["error"], out
+    _assert_still_held(r, out)
+
+
+@pytest.mark.parametrize("width", [0.98, 1.0])
+def test_a_gripper_fault_after_the_jaws_measured_open_releases_the_object(rig, width):
+    r = rig("mock")
+    _holding(r)
+    for arm in r.arms:
+        arm.fault = _fault(width, BLOCKED)
+
+    out = r.runtime.execute("reset_scene", {})
+
+    assert out["ok"] is False and out["stage"] == "release", out  # the fault is reported
+    assert out["release_error"] == str(BLOCKED), out
+    assert out["gripper_open_frac"] == pytest.approx(width), out
+    assert "stopped before the release" not in out["error"], out
+    assert r.runtime.held_object is None and r.runtime._held_det_label is None
+
+
+@pytest.mark.parametrize("width", [None, 1.0], ids=["jaws-still", "jaws-moved-open"])
+def test_a_non_safety_jaw_error_keeps_the_object(rig, width):
+    """Whatever the jaws read afterwards: a bus or bridge error says nothing
+    reliable about the release, so the object is never forgotten."""
+    r = rig("mock")
+    half = _holding(r)
+    for arm in r.arms:
+        arm.fault = _fault(width, RuntimeError("gripper bus timeout"))
+
+    out = r.runtime.execute("reset_scene", {})
+
+    assert out["ok"] is False and out["stage"] == "release", out
+    assert out["release_error"] == "gripper bus timeout", out
+    assert "gripper bus timeout" in out["error"], out
+    _assert_still_held(r, out)
+    if width is None:
+        assert r.runtime.arm.get_state().gripper_pos == pytest.approx(half)

@@ -54,8 +54,8 @@ if TYPE_CHECKING:  # annotation only; the runtime import stays local (import cyc
     from ..control.arm_rig import ArmRig
     from ..perception.link_mask import LinkSelfMask
     from ..types import ObjectFix
-from ..types import (ContactDetected, Detection, Frame, GraspFailed, MotionHalted, SafetyViolation, SkillError,
-                     SkillStuck, make_transform, transform_points)
+from ..types import (ContactDetected, Detection, Frame, GraspFailed, GripperFault, MotionHalted, SafetyViolation,
+                     SkillError, SkillStuck, make_transform, transform_points)
 
 logger = logging.getLogger(__name__)
 
@@ -7057,13 +7057,20 @@ class SkillRuntime:
         the jaws."""
         out: dict = {"props_reset": [], "world": None, "observation_refreshed": False,
                      "objects_visible": []}
+        # A halt from here on ends the reset: the home move and the jaw
+        # opening below carry this generation.
+        reset_generation = getattr(self.arm.harness, "_halt_generation", None)
         try:
             carry_attachment.check(self)
         except carry_attachment.AttachmentInvalid as exc:
             return {**out, **carry_attachment.failure_result(self, exc)}
+        if self.held_object and self._drives_real_gripper():
+            # The release happens at home: a real gripper would drop the
+            # object from there (~0.44 m on the reBot). Refuse before any
+            # motion; the object stays held.
+            return {**out, "ok": False, "stage": "release", "home_skipped": True, "beliefs_forgotten": 0,
+                    "error": f"holding {self.held_object}: place it first (place_at), then reset"}
         occupancy = getattr(self.arm.harness, "occupancy", None)
-        # A halt from here on refuses the release of a held object (below).
-        reset_generation = getattr(self.arm.harness, "_halt_generation", None)
         recovery_generation = None
         recovery_cancellation = None
         def recovery_cancelled():
@@ -7134,41 +7141,32 @@ class SkillRuntime:
                 recovery_generation = out["withdrawal_recovery"]["generation"]
                 recovery_cancellation = out["withdrawal_recovery"]["cancellation"]
             else:
-                self.skill_move_home(_halt_generation=recovery_generation) if recovery_generation is not None else self.skill_move_home()
+                generation = recovery_generation if recovery_generation is not None else reset_generation
+                self.skill_move_home(_halt_generation=generation) if generation is not None else self.skill_move_home()
         except (SkillError, SafetyViolation) as e:
             out.update(ok=False, stage="home", home_error=str(e), beliefs_forgotten=0,
                        error=f"Scene reset could not reach home: {e}")
             return out
         if recovery_cancelled():
             return out
-        # release anything the runtime still thinks it holds: a reset while
-        # carrying is the operator's decision that the episode is over. The
-        # profile's OPEN position (gripper.open_pos): jaw positions are motor
-        # travel in each profile's units, so a raw 1.0 was nearly closed on
-        # the reBot (open 6.2) and fully closed on the mock (open 0.0).
+        # release anything the runtime still thinks it holds (simulated and
+        # mock arms only, see above): a reset while carrying is the
+        # operator's decision that the episode is over. The profile's OPEN
+        # position (gripper.open_pos): jaw positions are motor travel in each
+        # profile's units, so a raw 1.0 was nearly closed on the reBot (open
+        # 6.2) and fully closed on the mock (open 0.0).
         if self.held_object:
             generation = recovery_generation if recovery_generation is not None else reset_generation
             try:
                 kwargs = {} if generation is None else {"_halt_generation": generation}
-                self._set_gripper(self._grip_open, **kwargs)
+                self._set_gripper(self._grip_open, effort=0.8, **kwargs)
             except Exception as exc:  # noqa: BLE001
                 if recovery_generation is not None:
                     out.update(ok=False, stage="reset_recovery", recovery_error=str(exc),
                                beliefs_forgotten=0, error=f"Scene recovery could not release safely: {exc}")
                     return out
-                if isinstance(exc, SafetyViolation):
-                    # A halt since the reset started, an e-stop or a gripper
-                    # gate refused the opening before any command: the object
-                    # is still in the jaws, so the runtime keeps it.
-                    out.update(ok=False, stage="release", release_error=str(exc), beliefs_forgotten=0,
-                               error=f"Scene reset stopped before the release: {exc}")
-                    return out
-            self.held_object = None
-            self._held_det_label = None
-            self._held_color = None
-            self._held_offset = None
-            self._held_width_m = None
-            self._held_support_offset_m = None
+                return self._reset_release_failed(out, exc)
+            self._forget_held_object()
         world = None
         raw = getattr(self.arm, "raw", None)
         # MujocoArm exposes its shared world; a LazyArm that never
@@ -7266,6 +7264,68 @@ class SkillRuntime:
                                                     cancellation=recovery_cancellation)
                     except (SkillError, SafetyViolation) as exc:
                         return {**out, "ok": False, "stage": "reset_completion", "error": str(exc)}
+        return out
+
+    #: Arm types (configs/arms `type:`) whose jaws open in a simulator or a
+    #: mock. Every other type -- and an unknown or missing one -- drives a
+    #: real gripper.
+    _SIM_ARM_TYPES = ("isaac", "mujoco", "mock")
+
+    def _drives_real_gripper(self) -> bool:
+        """The arm the runtime builds has a real gripper (not isaac*, mujoco*
+        or mock*; unknown counts as real)."""
+        arm = self.cfg.get("arm") or {}
+        return not str(arm.get("type") or "").startswith(self._SIM_ARM_TYPES)
+
+    def _forget_held_object(self) -> None:
+        """The jaws let the held object go: clear every held-object field."""
+        self.held_object = None
+        self._held_det_label = None
+        self._held_color = None
+        self._held_offset = None
+        self._held_width_m = None
+        self._held_support_offset_m = None
+
+    def _reset_release_failed(self, out: dict, exc: Exception) -> dict:
+        """End reset_scene after its jaw opening raised; the reset goes no
+        further. Only a measured open jaw lets the runtime forget the object.
+
+        - Any other SafetyViolation: SafeArm refused before the driver (a
+          halt since the reset started, an e-stop, a gripper gate), so nothing
+          moved and the object is still held.
+        - GripperFault: the driver raised AFTER its commands went out (opening
+          blocked part-way, referencing closed onto the object). The jaws may
+          have moved: report the measured width; the object stays held unless
+          that width shows the jaws open.
+        - Any other error (bus or bridge timeout): the object stays held and
+          the error is recorded.
+        """
+        obj = self.held_object
+        out.update(ok=False, stage="release", release_error=str(exc), beliefs_forgotten=0)
+        if isinstance(exc, SafetyViolation) and not isinstance(exc, GripperFault):
+            out["error"] = f"Scene reset stopped before the release: {exc}"
+            return out
+        if not isinstance(exc, GripperFault):
+            out["error"] = (f"Scene reset could not release {obj}: {exc}. It is kept as held "
+                            "(whether the jaws moved is unknown); check the gripper.")
+            return out
+        try:
+            width = self._gripper_width_frac()
+        except Exception:  # noqa: BLE001 -- unknown width: keep the object
+            width = None
+        out["gripper_open_frac"] = round(width, 2) if width is not None else "unknown"
+        measured = f"{width:.0%} open" if width is not None else "at an unknown width"
+        # The tolerance _reconcile_held uses for jaws AT the open position.
+        open_frac = 1.0 - float((self.cfg.get("grasp") or {}).get("air_grasp_frac", 0.04))
+        if width is not None and width >= open_frac:
+            self._forget_held_object()
+            out["error"] = (f"Scene reset: the gripper faulted while releasing {obj}: {exc}. "
+                            f"The jaws measured {measured}, so {obj} is no longer held; it may have "
+                            "dropped from home height. The reset stopped here.")
+        else:
+            out["error"] = (f"Scene reset: the gripper faulted while releasing {obj}: {exc}. "
+                            f"The jaws measured {measured}; {obj} may have dropped. It is kept as "
+                            "held until the gripper is checked. The reset stopped here.")
         return out
 
     @motion_evidence.phase("home")

@@ -344,6 +344,58 @@ def test_refusals_without_a_measured_clearance():
     assert r["voxels"] == [] and "snapshot_error" not in r and r["reason"] == reason
 
 
+def test_a_mid_step_refusal_reports_its_interior_sample():
+    from test_clearance_escape import points_map
+
+    voxel = np.array([.3, 0., .25])            # 5 mm above it -> 6 mm below it in one step
+    _, _, h = case(occupancy=points_map(voxel))
+    q_prev, q = voxel + [0., 0., .005], voxel - [0., 0., .006]
+    reason = h.vet_step(q_prev, q, .02)
+    assert "mid-step" in reason
+    (r,) = h.drain_clearance_reports()
+    assert r["gate"] == "tcp" and r["clearance_m"] == pytest.approx(.00225)
+    assert f"[{r['sample'][0]:.4f}, {r['sample'][1]:.4f}, {r['sample'][2]:.4f}]" in reason
+    assert q[2] < r["sample"][2] < q_prev[2]               # the interior sample, not an end
+
+
+@needs_pin
+def test_a_tool_volume_without_an_answer_names_its_set(rebot):
+    from types import SimpleNamespace
+
+    occupancy = SimpleNamespace(clearance=lambda p: np.full(len(p), 1.), clearance_excluding=lambda p, **_k: None,
+                                required=True, unknown_blocks=True)
+    h = SafetyHarness(SafetyLimits.from_config(rebot.cfg.safety), kinematics=rebot.kin, occupancy=occupancy,
+                      tool_volume=rebot.volume)
+    reason = h.vet_pose(rebot.home)
+    assert reason.startswith("tool volume clearance unavailable")
+    (r,) = h.drain_clearance_reports()
+    assert r["gate"] == "tool volume" and r["sample"] is None and r["reason"] == reason
+
+
+def test_the_map_record_and_its_voxels_are_one_commit(monkeypatch):
+    """A refresh that tries to commit while the report is built waits for
+    it: the report's refresh count and its voxels belong to the same map."""
+    occ = live_map(UNDER)
+    _, _, h = case(occupancy=occ)
+    original = occ.nearby_occupied
+    occ.bridge.boxes[:] = [centred_box([.3, .2, .26], [.04, .04, .04])]     # the next map moves it away
+    refresher = []
+
+    def racing(*args, **kwargs):
+        if not refresher:
+            refresher.append(threading.Thread(target=occ.refresh, args=(depth_frame(), T_CAM)))
+            refresher[0].start()
+            refresher[0].join(1.0)                # commits now unless the report holds the map
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(occ, "nearby_occupied", racing)
+    assert h.vet_pose(np.array([.3, 0., .3]))
+    refresher[0].join(10)
+    (r,) = h.drain_clearance_reports()
+    assert occ.refreshes == 2 and r["map"]["refreshes"] == 1
+    assert r["voxels"] and all(abs(v[1]) < .05 for v in r["voxels"])        # the first map's box
+
+
 def test_a_map_without_nearby_occupied_still_refuses_and_reports():
     from test_clearance_escape import VOXEL, points_map
 

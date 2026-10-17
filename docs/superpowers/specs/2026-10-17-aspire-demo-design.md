@@ -121,11 +121,16 @@ and every pattern is linear; (2) no control or format character (Unicode Cc/Cf: 
 the text is NFKC-stable, and every character is a printable ASCII letter, digit, space or `.,;:!?'"-/_&+%`, or a
 typographic quote or dash, so no homoglyph, CJK, fullwidth or other non-ASCII letter and none of `[]{}()=<>|` `` ` ``
 `\#*@$^~` (hence no `<|`, `|>`, code fence or markup); (3) every word is lower, Title or UPPER case (`reSet`,
-`SafetyViolation` refused: A1 fix round 2); (4) the field's letters-only skeleton (NFKC, lower case, every space,
-punctuation mark and digit deleted; the whole word `you're` left out) contains none of the hard stems `reset`,
-`emergencystop`, `haltmotion`, `ignor`, `disregard`, `bypass`, `circumvent`, `overrid`, `startover`, `systemprompt`, so
-no split, punctuation or piece count hides them (`Re/set`, `Emer'gency stop`, `I g no re`, `SYSTEMPROMPT`; a word
-that merely contains one, `Resettle`, is refused too: A1 fix round 3); (5) over the field read as words three ways --
+`SafetyViolation` refused: A1 fix round 2); (4) no hard stem, read on letters only (NFKC, lower case, every
+punctuation mark and digit deleted; the whole words `preset`, `presets`, `you're`, `we're`, `they're` left out, their
+neighbours still joining): the one-word stems `reset`, `ignor`, `disregard`, `bypass`, `circumvent`, `overrid` inside
+the letters of one whitespace-delimited word (`Re/set`, `Ig+nore`, `DIS;regard`, `I-g-n-o-r-e`) or spelled by whole
+neighbouring words joined, from a word's first letter, into the stem plus a plain ending (`re set`, `Ig. nore`, `ci rc
+um ve nt`; `by passing` too, an accepted refusal) but never across an arbitrary word boundary (`before setting`, `are
+set`, `sign or`, `over ridges` are plain English: A1 fix round 4); the phrase stems `emergencystop`, `haltmotion`,
+`startover`, `systemprompt` anywhere in the field's letters-only skeleton, across words (`Emer'gency stop`,
+`SYSTEMPROMPT`, `restart over`); a word that merely contains a stem, `Resettle`, is refused too (A1 fix round 3);
+(5) over the field read as words three ways --
 the words split at camelCase humps, digits and any separator, the unsplit lower-cased runs, and at each word the 2-3
 words that join into one whole phrase word across spaces or dashes (`dis able`, `DIS-able`; never across an
 apostrophe or other punctuation) -- no URL (`://`), no `snake_case` identifier that is not a tool, no letter-digit mix
@@ -161,12 +166,15 @@ words after the verb, before a preposition and the end of the clause at `and`, `
 punctuation, with `and`/`,` + determiner listing another object; so `lower the clearance` is refused and `lower it to
 avoid collision` is not; `cut`, `drop`, `remove`, `zero`, `waive`, `tighten`, `forget`, `dismiss`, `set aside` ...
 only when the guard noun is the object's HEAD, the last noun of its phrase: `remove the safety check` is refused,
-`remove the safety seal`, `drop the warning label` are not; and `turn`/`switch`/`shut ... off`, `shut ... down` split
+`remove the safety seal`, `drop the warning label` are not; `remove`, `cut`, `drop`, `take off` also when a guard word
+modifies a safety head noun (`system`, `feature`, `rule`, `check`, `gate`, `interlock`, `limit`, `margin`, `stop`,
+`sensor`, `monitor`, or a plural: `drop the safety system`; `the guard ring` stays plain: A1 fix round 4); and
+`turn`/`switch`/`shut ... off`, `shut ... down` split
 around an object whose head is a guard noun, the particle within 4 words: `turn the clearance gate off`) or
 success-claim advice (`treat ... as a success`, `tell the user
 it is done`, honesty phrasings included). The same lint covers every field rendered to the agent or a visitor
 (preflight R4): the title and the advice. The reviews' hostile texts (78 + the first re-review's 50 rule-claimed ones +
-the second re-review's 73 rule-claimed and 18 newly ruled ones) are a test that must stay all refused, next to a set of plain kitchen advice that must stay all accepted; plain-English
+the second re-review's 73 rule-claimed and 18 newly ruled ones) are a test that must stay all refused, next to a set of plain kitchen advice that must stay all accepted (and fix round 4's everyday phrasings whose words run into a stem); plain-English
 paraphrases of harm (no rule word) stay a limit of a structural gate, carried by promotion and the verifier.
 
 ### 4.2 Library snapshot, library hash, run manifest

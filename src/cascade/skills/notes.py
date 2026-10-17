@@ -326,10 +326,11 @@ def library_sha(root: Path | None) -> str:
 #   2. characters: no control or format character (Cc/Cf), NFKC-stable, and only
 #      printable ASCII letters, digits, space and `_PUNCTUATION`, plus `_TYPOGRAPHY`
 #      (so no homoglyph, CJK, fullwidth, zero-width, markup or code character);
-#   3. structure: every word lower, Title or UPPER case; the field's letters-only
-#      skeleton (`_skeleton`: every space, punctuation mark and digit deleted) spells
-#      none of the hard stems (`_HARD_STEMS`: reset, emergency stop, halt motion, the
-#      override verbs, start over, system prompt) however they are split; then over the
+#   3. structure: every word lower, Title or UPPER case; no hard stem (`_HARD_STEMS`:
+#      reset, emergency stop, halt motion, the override verbs, start over, system prompt)
+#      however it is split -- a one-word stem inside one word's letters or joined from
+#      whole neighbouring words, a phrase stem anywhere in the field's letters-only
+#      skeleton (`_hard_stems`); then over the
 #      field read as words (`_View`) -- (a) the words split at camelCase humps, digits
 #      and any separator, (b) the unsplit runs of letters and digits, and (c) at each
 #      word the 2-3 words that join into one whole phrase word (`dis able`, `DIS-able`)
@@ -369,18 +370,23 @@ _ROLE_PAIRS = frozenset({("function", "result"), ("tool", "result")})
 #: chat-template and prompt-injection markers, refused wherever they stand (and "system
 #: prompt" through `_HARD_STEMS`)
 _TEMPLATE = (("im", "start"), ("im", "end"), ("developer", "mode*"), ("new", "instruction*"))
-#: letters-only stems refused wherever the field's skeleton (`_skeleton`) contains them --
-#: across any space, punctuation mark, digit or case ("Re/set", "I g no re", "Emer'gency
-#: stop", "SYSTEMPROMPT") -- each with the rule it refuses under: reset_scene / reset_stop,
+#: letters-only stems, each with the rule it refuses under: reset_scene / reset_stop,
 #: emergency_stop / halt_motion in any spelling, the override verbs, "start over" and
-#: "system prompt". A word that merely contains one is refused too ("Resettle", "Ignore
-#: the crumbs": accepted over-blocks)
+#: "system prompt" (`_hard_stems`). A one-word stem is read inside each whitespace-delimited
+#: word, every non-letter deleted ("Re/set", "Ig+nore", "DIS;regard"), and across whole
+#: neighbouring words that join into it plus a plain ending ("re set", "ig no re", "by pass":
+#: `_joined_stems`), never across an arbitrary word boundary ("before setting", "sign or",
+#: "over ridges"). A word that merely contains one is refused too ("Resettle", "Ignore the
+#: crumbs": accepted over-blocks)
 _HARD_STEMS = (("reset", "reset"), ("emergencystop", "stop"), ("haltmotion", "stop"), ("ignor", "override"),
                ("disregard", "override"), ("bypass", "override"), ("circumvent", "override"),
                ("overrid", "override"), ("startover", "loop"), ("systemprompt", "role_marker"))
-#: whole words the skeleton leaves out (their neighbours still join): the measured
-#: cross-word false hits of the legit corpora ("You're set to place the cup")
-_SKELETON_ALLOW = frozenset({"you're"})
+#: the phrase stems: read across words, anywhere in the field's letters-only skeleton
+#: (`_skeleton`: "Emer gency stop", "SYSTEMPROMPT", "restart over")
+_PHRASE_STEMS = frozenset({"emergencystop", "haltmotion", "startover", "systemprompt"})
+#: whole words left out of every stem reading (their neighbours still join): common words
+#: that carry a one-word stem ("preset") or its first letters ("you're set")
+_SKELETON_ALLOW = frozenset({"preset", "presets", "you're", "we're", "they're"})
 #: phrasings that only mean a reset (and "reset" through `_HARD_STEMS`): a reset clears
 #: the retry ledger (R4)
 _RESET = (("respawn*",), ("begin*", "again"), ("start*", "from", "scratch"))
@@ -406,10 +412,16 @@ _WEAKEN = (("disabl*",), ("turn*", "off"), ("switch*", "off"), ("shut*", "off"),
            ("get*", "around"))
 #: verbs with everyday kitchen objects ("cut the safety seal"): refused only when a
 #: `_GUARDS` noun is the HEAD of their direct object (`_ends_object`)
-_WEAKEN_HEAD = (("cut*",), ("drop*",), ("zero*",), ("waiv*",), ("tighten*",), ("remov*",), ("neglect*",),
-                ("dismiss*",), ("forget*",), ("forgot*",), ("overrul*",), ("defeat*",), ("sidestep*",),
-                ("never", "mind"), ("set*", "aside"), ("look*", "past"), ("get*", "past"),
-                ("pay*", "no", "attention", "to"))
+_WEAKEN_HEAD = (("zero*",), ("waiv*",), ("tighten*",), ("neglect*",), ("dismiss*",), ("forget*",), ("forgot*",),
+                ("overrul*",), ("defeat*",), ("sidestep*",), ("never", "mind"), ("set*", "aside"), ("look*", "past"),
+                ("get*", "past"), ("pay*", "no", "attention", "to"))
+#: removal verbs: refused like `_WEAKEN_HEAD`, and when a `_GUARDS` word MODIFIES a
+#: `_GUARDED_HEADS` head noun (`_guarded_head`): "drop the safety system", not "drop the
+#: warning label", "cut the safety seal" or "remove the guard ring"
+_REMOVE = (("cut*",), ("drop*",), ("remov*",), ("tak*", "off"))
+#: the safety head nouns a guard word may not modify after a `_REMOVE` verb (plurals too)
+_GUARDED_HEADS = frozenset({"system", "feature", "rule", "check", "gate", "interlock", "limit", "margin", "stop",
+                            "sensor", "monitor"})
 #: phrasal verbs split around their object ("turn the gate off", "shut the interlock
 #: down"): refused when a `_GUARDS` noun is the object's head and the particle follows
 _PHRASAL_OFF = (("turn*",), ("switch*",), ("shut*",))
@@ -440,7 +452,7 @@ _TURN_QUALIFIERS = frozenset({"full", "quarters"})
 _TURN_REACH = 3
 #: every family a word or a join of words is read against (`_View`)
 _FAMILIES = (_TEMPLATE, _RESET, _RESET_VERBS, _SCENE, _PROVENANCE, _LEARNED, _STOPS, _NEGATORS, _HALTS, _LOOPS,
-             _WEAKEN, _WEAKEN_HEAD, _PHRASAL_OFF, _GUARDS, _CLAIM_AS, _CLAIM_SAY, _SUCCESS, _UNITS)
+             _WEAKEN, _WEAKEN_HEAD, _REMOVE, _PHRASAL_OFF, _GUARDS, _CLAIM_AS, _CLAIM_SAY, _SUCCESS, _UNITS)
 #: spelled-out numbers: two in one field ("one" aside: "pick the one on top"), two side
 #: by side ("minus one", "twenty-one") or one after an axis letter is refused; "point" is
 #: a number only next to a number ("point five", "2 point 5"; not "point at the bowl")
@@ -541,6 +553,10 @@ def _heads() -> _Words:
 
 _ENDING_SET = frozenset(_ENDINGS)
 _ENDING_SIZES = tuple(sorted({len(end) for end in _ENDINGS}))
+#: the one-word stems, and their first letters short of the whole stem (a join of whole
+#: words goes on while it spells only these)
+_WORD_STEMS = tuple(stem for stem, _ in _HARD_STEMS if stem not in _PHRASE_STEMS)
+_STEM_STARTS = frozenset(stem[:k] for stem in _WORD_STEMS for k in range(1, len(stem)))
 
 
 def _whole_word(joined: str) -> bool:
@@ -574,21 +590,52 @@ def _character_problem(text: str) -> str | None:
 _SKELETON_LETTERS_RE = re.compile(r"[a-z]+")
 
 
+def _word_runs(text: str) -> list[list[str]]:
+    """The runs of letters of each whitespace-delimited word of the field (NFKC, lower
+    case), without the `_SKELETON_ALLOW` words (left out whole, so the words around one
+    still join)."""
+    text = unicodedata.normalize("NFKC", text).lower().replace("\u2019", "'")
+    return [_SKELETON_LETTERS_RE.findall(word) for word in text.split()
+            if word.strip(_EDGE_PUNCTUATION) not in _SKELETON_ALLOW]
+
+
 def _skeleton(text: str) -> str:
     """The field's letters only: NFKC, lower case, every space, punctuation mark and
-    digit deleted -- without the `_SKELETON_ALLOW` words (left out whole, so the words
-    around one still join)."""
-    text = unicodedata.normalize("NFKC", text).lower().replace("\u2019", "'")
-    kept = "".join(word for word in text.split() if word.strip(_EDGE_PUNCTUATION) not in _SKELETON_ALLOW)
-    return "".join(_SKELETON_LETTERS_RE.findall(kept))
+    digit deleted, the `_SKELETON_ALLOW` words left out (the phrase stems' reading)."""
+    return "".join(run for runs in _word_runs(text) for run in runs)
+
+
+def _joined_stems(runs: list[str]) -> set[str]:
+    """The one-word stems that whole neighbouring runs of letters join into, read from a
+    run's first letter and ending in a plain ending (`_ENDINGS`): "re set", "Ig. nore",
+    "ci rc um ve nt", "by passing" -- never from inside a word, so "are set", "sign or"
+    and "over ridges" join into nothing. Each join stops once it can no longer spell one."""
+    found: set[str] = set()
+    for i, joined in enumerate(runs):
+        for k in range(i + 1, len(runs)):
+            joined += runs[k]
+            if joined in _STEM_STARTS:
+                continue
+            stem = next((s for s in _WORD_STEMS if joined.startswith(s)), None)
+            if stem is None or len(joined) > len(stem) + _ENDING_SIZES[-1]:
+                break
+            if joined[len(stem):] in _ENDING_SET:
+                found.add(stem)
+                break
+    return found
 
 
 def _hard_stems(text: str) -> dict[str, str]:
-    """rule -> the first `_HARD_STEMS` stem the field's skeleton contains."""
-    skeleton = _skeleton(text)
+    """rule -> the first `_HARD_STEMS` stem the field spells: a phrase stem anywhere in its
+    letters-only skeleton, a one-word stem inside the letters of one word or joined from
+    whole neighbouring words (`_joined_stems`)."""
+    by_word = _word_runs(text)
+    words = ["".join(runs) for runs in by_word]
+    skeleton, apart = "".join(words), " ".join(words)
+    joined = _joined_stems([run for runs in by_word for run in runs])
     found: dict[str, str] = {}
     for stem, rule in _HARD_STEMS:
-        if stem in skeleton:
+        if stem in (skeleton if stem in _PHRASE_STEMS else apart) or stem in joined:
             found.setdefault(rule, stem)
     return found
 
@@ -743,12 +790,25 @@ def _ends_object(view: _View, k: int) -> bool:
             or word.endswith("ly") or _is_number(word))
 
 
-def _direct_object(view: _View, start: int, nouns: _Phrases, head: bool = False) -> tuple[int, int] | None:
+def _guarded_head(view: _View, k: int) -> int:
+    """The end of the noun phrase that goes on at word `k` (after a guard word used as a
+    modifier) when its head noun is a `_GUARDED_HEADS` word or its plural ("the safety
+    system"), else 0 ("the safety seal")."""
+    for m in range(k + 1, k + 1 + _OBJECT_REACH):
+        if _ends_object(view, m):
+            noun = view.words[m - 1]
+            return m if noun in _GUARDED_HEADS or (noun.endswith("s") and noun[:-1] in _GUARDED_HEADS) else 0
+    return 0
+
+
+def _direct_object(view: _View, start: int, nouns: _Phrases, head: bool = False,
+                   modifier: bool = False) -> tuple[int, int] | None:
     """(position, size) of a `nouns` phrase in the object that starts at word
     `start` -- among its first `_OBJECT_REACH` words, before a preposition and the end
     of the clause (punctuation, `_CLAUSE_ENDS`); with `head`, only as the HEAD noun of
-    its phrase (`_ends_object`). "and" or a comma before a determiner lists another
-    object ("the light and the gate")."""
+    its phrase (`_ends_object`), and with `modifier` also as a modifier of a safety head
+    noun (`_guarded_head`; then the size runs to that head). "and" or a comma before a
+    determiner lists another object ("the light and the gate")."""
     words, breaks, n = view.words, view.breaks, len(view.words)
     j, seen, more = start, 0, _MORE_OBJECTS
     while j < n and seen < _OBJECT_REACH:
@@ -769,18 +829,22 @@ def _direct_object(view: _View, start: int, nouns: _Phrases, head: bool = False)
         size = nouns.at(view, j)
         if size and (not head or _ends_object(view, j + size)):
             return j, size
+        end = _guarded_head(view, j + size) if size and modifier else 0
+        if end:
+            return j, end - j
         j, seen = j + 1, seen + 1
     return None
 
 
-def _verb_object(view: _View, verbs, nouns, head: bool = False) -> tuple[str, str] | None:
+def _verb_object(view: _View, verbs, nouns, head: bool = False, modifier: bool = False) -> tuple[str, str] | None:
     """The first (verb, noun) where a `nouns` phrase is the direct object (with `head`:
-    the object's head noun) of a `verbs` phrase."""
+    the object's head noun; with `modifier`: or a modifier of a safety head noun) of a
+    `verbs` phrase."""
     verb_family, noun_family = _compiled(verbs), _compiled(nouns)
     for i in verb_family.starts(view):
         size = verb_family.at(view, i)
         if size:
-            hit = _direct_object(view, i + size, noun_family, head)
+            hit = _direct_object(view, i + size, noun_family, head, modifier)
             if hit:
                 return " ".join(view.words[i:i + size]), " ".join(view.words[hit[0]:hit[0] + hit[1]])
     return None
@@ -958,8 +1022,8 @@ def _structure_problems(text: str, skill: str) -> list[tuple[str, str]]:
     def phrase(family) -> str | None:
         return next((hit for view in views if (hit := _first(view, family))), None)
 
-    def verb_object(verbs, nouns, head: bool = False) -> tuple[str, str] | None:
-        return next((hit for view in views if (hit := _verb_object(view, verbs, nouns, head))), None)
+    def verb_object(verbs, nouns, head: bool = False, modifier: bool = False) -> tuple[str, str] | None:
+        return next((hit for view in views if (hit := _verb_object(view, verbs, nouns, head, modifier))), None)
 
     def followed(heads, tails, reach) -> tuple[str, str] | None:
         return next((hit for view in views if (hit := _followed(view, heads, tails, reach))), None)
@@ -1024,6 +1088,7 @@ def _structure_problems(text: str, skill: str) -> list[tuple[str, str]]:
     override = hidden.get("override")
     found.append(("override", f"advises an override ('{override}')" if override else None))
     weakened = (verb_object(_WEAKEN, _GUARDS) or verb_object(_WEAKEN_HEAD, _GUARDS, head=True)
+                or verb_object(_REMOVE, _GUARDS, head=True, modifier=True)
                 or next((hit for view in views if (hit := _split_phrasal(view))), None))
     found.append(("weaken", f"'{weakened[0]}' near '{weakened[1]}'" if weakened else None))
     claim = followed(_CLAIM_AS, _SUCCESS, _TREAT_REACH) or followed(_CLAIM_SAY, _SUCCESS, _SAY_REACH)

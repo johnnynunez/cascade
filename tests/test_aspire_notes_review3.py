@@ -340,12 +340,13 @@ def test_a_hard_stem_alone_names_its_rule(stem, plain, rule):
     assert len(reasons) == 1 and f"'{stem}'" in reasons[0], reasons
 
 
-def test_the_skeleton_allowlist_is_one_whole_word():
-    assert notes._SKELETON_ALLOW == frozenset({"you're"})
+def test_the_skeleton_allowlist_leaves_whole_words_out():
+    assert "you're" in notes._SKELETON_ALLOW  # fix round 4 adds preset(s), we're, they're (test_aspire_notes_fix4)
     assert lint_advice("You're set to place the cup now.", skill=SKILL) == []
     assert lint_advice("You\u2019re set to place the cup now.", skill=SKILL) == []
-    # only the whole word is left out: a split or fused spelling still reads as a reset
-    for text in ("Youre set the cube.", "You' re set the cube.", "You're/set the scene.", "R you're eset the scene."):
+    # only the whole word is left out: a split spelling still reads as a reset (fix round 4: the fused
+    # "Youre set" no longer does -- a one-word stem is never read across a word boundary)
+    for text in ("You' re set the cube.", "You're/set the scene.", "R you're eset the scene."):
         assert "reset" in _rules(text), text
 
 

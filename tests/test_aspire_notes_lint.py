@@ -651,8 +651,8 @@ def test_joined_words_respect_whole_words_contractions_and_punctuation():
     # a contraction tail never starts a join: "cup's top" is not "stop", "you're set" is not "reset"
     assert lint_advice("Lower the cup's top edge gently.", skill=SKILL) == []
     assert lint_advice("You're set to place the cup now.", skill=SKILL) == []
-    # punctuation between two words ends the join; the hard stems' letters-only skeleton reads across it (fix round 3)
-    assert lint_advice("Look at the shelf; ig, nore the cup.", skill=SKILL)  # skeleton
+    # punctuation between two words ends the join; whole words still join into a hard stem across it (fix round 4)
+    assert lint_advice("Look at the shelf; ig, nore the cup.", skill=SKILL)  # ig + nore
     assert lint_advice("Look at the shelf; dis, able the gate.", skill=SKILL) == []  # no join across a comma
     assert lint_advice("Look at the shelf; dis able the gate.", skill=SKILL)
     # three words join too, and a join may read as an exact phrase word ("for ever")

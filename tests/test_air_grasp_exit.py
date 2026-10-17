@@ -383,6 +383,34 @@ def test_the_air_grasp_error_names_a_failed_exit_only(rt, monkeypatch, case):
     assert res["error"] == (AIR if case == "skipped" else f"{AIR}; exit withdrawal {expected}")
 
 
+#: The move_home step a failed grasp that moved the arm carries (execute()).
+MOVE_HOME_FIRST = "call move_home before any other grasp"
+#: What it says when the air grasp's exit withdrawal completed (pre-PR M5) ...
+WITHDREW = "the arm withdrew above the object"
+#: ... and otherwise (the arm may still be at the refused grasp pose).
+AT_GRASP_POSE = "possibly at the refused grasp pose"
+
+
+@pytest.mark.parametrize("case", ["completed", "refused"])
+def test_the_move_home_step_after_an_air_grasp_says_where_the_exit_left_the_arm(rt, monkeypatch, case):
+    """A COMPLETED exit withdrawal leaves the arm above the object, not at the
+    refused grasp pose (pre-PR M5): the step says so, and move_home is still
+    the next call before another grasp. A refused exit keeps today's text."""
+    if case == "refused":
+        real = rt._air_grasp_exit
+        monkeypatch.setattr(rt, "_air_grasp_exit", lambda column, move, **kw: real(column, refuse, **kw))
+    res = rt.execute("grasp_object", {"label": "red cube"})
+    assert res["ok"] is False and res["exit_withdrawal"].startswith(case), res
+    action = res["next_action"]
+    assert action.count(MOVE_HOME_FIRST) == 1 and res["arm_left_in_place"] is True, res
+    if case == "completed":
+        assert WITHDREW in action and AT_GRASP_POSE not in str(res), res
+        assert res["arm_withdrew_above_object"] is True
+    else:
+        assert AT_GRASP_POSE in action and WITHDREW not in str(res), res
+        assert "arm_withdrew_above_object" not in res
+
+
 # ── no exit with a possible payload, an e-stop or a halt ────────────────────
 
 

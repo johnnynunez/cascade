@@ -464,6 +464,79 @@ def test_restore_and_search_pass_move_home_on_only_after_a_counted_motion(monkey
     assert rt.log.homes == 0, "never an unchecked automatic home with the gate on"
 
 
+# ── after a completed air-grasp exit the step says the arm withdrew (pre-PR M5) ──
+#
+# The air grasp's exit withdrawal lifts the empty tool above the object. When
+# it COMPLETED, the move_home step must not say the arm is "possibly at the
+# refused grasp pose"; it says the arm withdrew above the object, and still
+# asks for move_home before another grasp, through every composite that passes
+# the step on. A refused exit keeps the hedged text.
+
+WITHDREW = "the arm withdrew above the object"
+AT_GRASP_POSE = "possibly at the refused grasp pose"
+EXITS = ("completed (+3 cm)", "refused: +3 cm: test refusal; +6 cm: test refusal")
+
+
+def _air_grasp(exit_withdrawal, move):
+    """A grasp double: the arm moved (`move()` counts it), the jaws closed on
+    air, the exit withdrawal ended as `exit_withdrawal`."""
+    def grasp(*_a, **_k):
+        move()
+        return {"ok": False, "error": "air grasp: gripper closed fully, object not held",
+                "exit_withdrawal": exit_withdrawal}
+    return grasp
+
+
+def _says_where_the_exit_left_the_arm(result, exit_withdrawal):
+    text = json.dumps(result, default=str)
+    withdrew = exit_withdrawal.startswith("completed")
+    assert text.count(MOVE_HOME_FIRST) == 1 and result["arm_left_in_place"] is True, result
+    assert (WITHDREW in result["next_action"]) is withdrew, result
+    assert (AT_GRASP_POSE in text) is not withdrew, result
+    assert bool(result.get("arm_withdrew_above_object")) is withdrew, result
+
+
+@pytest.mark.parametrize("mock_runtime", ["gate on"], indirect=True)
+@pytest.mark.parametrize("exit_withdrawal", EXITS, ids=["completed", "refused"])
+@pytest.mark.parametrize("skill", sorted(COMPOSITES) + ["grasp_object"])
+def test_after_a_completed_exit_the_step_says_the_arm_withdrew(mock_runtime, monkeypatch, skill, exit_withdrawal):
+    runtime, arm = mock_runtime
+    _seen(runtime)
+    runtime.cfg._data["grasp"]["max_pick_attempts"] = 1
+    runtime.skill_grasp_object = _air_grasp(
+        exit_withdrawal, lambda: runtime._move_joints(_nudged(runtime), duration_s=0.3))
+    if skill == "sort_by_color":
+        monkeypatch.setattr(runtime.beliefs, "all", lambda: [_red()])
+    result = runtime.execute(skill, COMPOSITES.get(skill, ARGS.get(skill)))
+    action = _failed_once(result)
+    _says_where_the_exit_left_the_arm(result, exit_withdrawal)
+    assert action.index(FAILED) < action.index(MOVE_HOME_FIRST)
+
+
+@pytest.mark.parametrize("exit_withdrawal", EXITS, ids=["completed", "refused"])
+@pytest.mark.parametrize("composite", ["restore_scene", "search_for_object"])
+def test_restore_and_search_say_the_arm_withdrew_after_a_completed_exit(monkeypatch, composite, exit_withdrawal):
+    from test_pigey_scene_memory import A, BOUNDS, _cluttered, _stub, _two_cubes
+
+    monkeypatch.setenv("CASCADE_OBSERVED_FINGER_GATE", "1")
+    if composite == "restore_scene":
+        bs = _two_cubes(time.monotonic())
+        rt = _stub(bs, bounds=BOUNDS)
+        rt.skill_snapshot_scene(name="t")
+        bs.find("red cube").position = np.array(A) + np.array([0.0, 0.08, 0.0])
+    else:
+        rt = _stub(_cluttered(time.monotonic()), bounds=BOUNDS)
+    _stub_with_real_persistence(rt, "moved")
+    motions = [0]
+    rt._actuation_counts = lambda: {"arm_motions": motions[0], "gripper_closes": 0, "gripper_opens": 0}
+    rt.skill_grasp_object = _air_grasp(exit_withdrawal, lambda: motions.__setitem__(0, motions[0] + 1))
+    out = (rt.skill_restore_scene(name="t") if composite == "restore_scene"
+           else rt.skill_search_for_object(label="green cube", max_occluders=1))
+    assert out["ok"] is False, out
+    _says_where_the_exit_left_the_arm(out, exit_withdrawal)
+    assert rt.log.homes == 0, "never an unchecked automatic home with the gate on"
+
+
 # ── no move_home step after an operator halt / e-stop or while holding ──
 #
 # execute()'s own rule never asks for move_home when the harness is halted or

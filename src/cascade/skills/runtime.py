@@ -5917,7 +5917,7 @@ class SkillRuntime:
                            **({"observed_selection": res["observed_selection"]}
                               if "observed_selection" in res else {})}
                     if self._may_ask_move_home(grasp_motions_before):
-                        _with_move_home_first(out)  # moved the arm; no halt, nothing held
+                        _with_move_home_first(out, source=res)  # moved the arm; no halt, nothing held
                     return out
                 self.memory.add("outcome", f"pick attempt {attempt} failed: {last_err[:100]}")
                 # B36: an attempt can fail AFTER the close took the object
@@ -6273,7 +6273,7 @@ class SkillRuntime:
                 }
                 if _left_in_place(res):
                     out["home_skipped"] = True
-                    _with_move_home_first(out)
+                    _with_move_home_first(out, source=res)
                 if res.get("outcome") == OUTCOME_STUCK:
                     # the persistence loop asked the human; pass the ask through
                     out["outcome"] = OUTCOME_STUCK
@@ -6545,7 +6545,7 @@ class SkillRuntime:
         zone_x = float(self.cfg.grasp.get("drop_zone", [0.30, -0.20])[0])
         colors: dict[str, tuple[float, float]] = {}
         moved, failed = [], []
-        left_in_place = False  # the last grasp attempt left the arm where it stopped
+        left_in_place, left_by = False, None  # the last grasp attempt left the arm where it stopped
         for b in list(self.beliefs.all())[: int(max_objects)]:
             color = b.color or "unknown"
             if color not in colors:
@@ -6569,7 +6569,7 @@ class SkillRuntime:
                 if self._estopped():
                     break  # the operator stopped the arm: no next object
                 continue
-            left_in_place = _left_in_place(res)
+            left_in_place, left_by = _left_in_place(res), res
             if not res.get("ok", True) or not res.get("held"):
                 entry = {"label": query, "error": str(res.get("error", "?"))}
                 if res.get("outcome") == OUTCOME_STUCK:
@@ -6604,7 +6604,7 @@ class SkillRuntime:
                 out["ask"] = " ".join(asks)
         if left_in_place:
             out["home_skipped"] = True
-            _with_move_home_first(out)
+            _with_move_home_first(out, source=left_by)
         return out
 
     # ── Pigey scene memory: composites over the belief store ────────────
@@ -6756,6 +6756,8 @@ class SkillRuntime:
             if res.get("home_skipped"):
                 if _left_in_place(res):
                     rec["home_skipped"] = True  # the arm stays where the attempt stopped
+                    if _withdrew_above_object(res):
+                        rec["arm_withdrew_above_object"] = True
             elif not self._estopped():  # the operator stopped the arm: no re-home (A3 review)
                 try:  # never leave the arm over the table after a failed attempt
                     self.skill_move_home()
@@ -6941,7 +6943,7 @@ class SkillRuntime:
         failed: list[dict] = []
         skip: set[str] = set()
         error = stage = None
-        left_in_place = False  # the last grasp attempt left the arm where it stopped
+        left_in_place, left_by = False, None  # the last grasp attempt left the arm where it stopped
         plan = self._restore_plan(snap, tolerance_m, skip, seen_after)
         initial_displaced = [{k: v for k, v in r.items() if k not in ("belief", "entry", "query")}
                              for r in plan["displaced"]]
@@ -6973,7 +6975,7 @@ class SkillRuntime:
             rec = self._move_object_to(step["query"], step["to"], budget_s=budget_s, kind=step["kind"])
             rec["label"] = step["label"]
             moves.append(rec)
-            left_in_place = bool(rec.get("home_skipped"))
+            left_in_place, left_by = bool(rec.get("home_skipped")), rec
             if rec.get("holding"):
                 error, stage = rec.get("error", "place failed"), "place"
                 break
@@ -7022,7 +7024,7 @@ class SkillRuntime:
                 )
         if left_in_place:
             result["home_skipped"] = True
-            _with_move_home_first(result)
+            _with_move_home_first(result, source=left_by)
         self.memory.add("action", f"restore_scene {name!r}: {len(moves)} move(s), "
                                   f"{len(still)} still displaced, {len(final['missing'])} missing")
         return result
@@ -7088,7 +7090,7 @@ class SkillRuntime:
         attempts = 0
         found = None
         error = stage = None
-        left_in_place = False  # the last grasp attempt left the arm where it stopped
+        left_in_place, left_by = False, None  # the last grasp attempt left the arm where it stopped
         while attempts < max_occluders and found is None:
             if self._task_budget_exhausted():
                 error = "task persistence budget exhausted (an earlier tier already spent it)"
@@ -7129,7 +7131,7 @@ class SkillRuntime:
             rec["label"] = str(occ.label)
             rec["from"] = [round(float(v), 3) for v in np.asarray(occ.position, dtype=float)[:2]]
             moved.append(rec)
-            left_in_place = bool(rec.get("home_skipped"))
+            left_in_place, left_by = bool(rec.get("home_skipped")), rec
             if rec.get("holding"):
                 error, stage = rec.get("error", "park failed"), "park"
                 break
@@ -7175,7 +7177,7 @@ class SkillRuntime:
             )
         if left_in_place:
             result["home_skipped"] = True
-            _with_move_home_first(result)
+            _with_move_home_first(result, source=left_by)
         self.memory.add("outcome", f"search for {query!r} failed: {error[:100]}")
         return result
 
@@ -8112,18 +8114,41 @@ _REFUSED_GRASP_LEFT_IN_PLACE = (
     "The arm was not moved back after the last failed grasp attempt: it stays where that attempt "
     "stopped, possibly at the refused grasp pose next to other objects: call move_home before any "
     "other grasp.")
+#: The same step after an air grasp whose exit withdrawal COMPLETED (spec
+#: §3.2 rule 1): the empty tool lifted above the object, so the arm is not at
+#: the refused grasp pose; the next grasp still starts from home (pre-PR M5).
+_AIR_GRASP_WITHDREW_NOT_HOMED = (
+    "The last grasp attempt closed on air and the arm withdrew above the object, but it was not "
+    "moved back: call move_home before any other grasp.")
 #: Skills whose failure is a failed grasp the agent's next grasp would start from.
 _GRASP_ENTRY_SKILLS = frozenset({"grasp_object", "grasp_at_pixel", "handover", "throw"})
 
 
-def _with_move_home_first(result: dict) -> dict:
+def _withdrew_above_object(result) -> bool:
+    """The failed grasp behind `result` ended with a COMPLETED air-grasp exit
+    withdrawal: its own `exit_withdrawal`, or the `arm_withdrew_above_object`
+    mark `_with_move_home_first` left on the grasp result a composite read."""
+    if not isinstance(result, dict):
+        return False
+    return bool(result.get("arm_withdrew_above_object")) or str(
+        result.get("exit_withdrawal") or "").startswith("completed")
+
+
+def _with_move_home_first(result: dict, source: dict | None = None) -> dict:
     """Put the move_home recovery step first in `next_action` of a result
     whose last grasp attempt moved the arm (a counted arm motion) and left it
-    where it stopped, and mark it `arm_left_in_place`. Idempotent."""
+    where it stopped, and mark it `arm_left_in_place`. `source`: the grasp
+    result a composite built `result` from (default: `result` itself); when
+    its exit withdrawal completed, the step says the arm withdrew above the
+    object and `result` is marked `arm_withdrew_above_object`. Idempotent."""
+    withdrew = _withdrew_above_object(result if source is None else source)
+    step = _AIR_GRASP_WITHDREW_NOT_HOMED if withdrew else _REFUSED_GRASP_LEFT_IN_PLACE
     own = str(result.get("next_action") or "").strip()
-    if _REFUSED_GRASP_LEFT_IN_PLACE not in own:
-        result["next_action"] = _REFUSED_GRASP_LEFT_IN_PLACE + (f" {own}" if own else "")
+    if _REFUSED_GRASP_LEFT_IN_PLACE not in own and _AIR_GRASP_WITHDREW_NOT_HOMED not in own:
+        result["next_action"] = step + (f" {own}" if own else "")
     result["arm_left_in_place"] = True
+    if withdrew:
+        result["arm_withdrew_above_object"] = True
     return result
 
 

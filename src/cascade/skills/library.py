@@ -7,12 +7,15 @@ in <repo>/skills_library/<slug>.md. ``relevant(task)`` selects notes for
 ``agent.aspire.retrieve``, which the built-in orchestrator calls at task start
 and which admits only PROMOTED entries.
 
-Promotion follows upstream ASPIRE (``aspire/sim/cap/skills/library.py``): a
-distilled entry is promoted once it recurs in at least ``PROMOTION_MIN_TASKS``
-distinct tasks; an entry seen in a single task -- however many runs -- stays a
-stored CANDIDATE, visible to ``entries()``/``relevant()`` but never injected
-into the agent context. Entries without front matter (legacy files, manual
-notes) count as one occurrence from an unknown task and are candidates.
+Promotion is cascade's own rule: a distilled entry is promoted once it recurs
+in at least ``PROMOTION_MIN_TASKS`` distinct tasks; an entry seen in a single
+task -- however many runs -- stays a stored CANDIDATE, visible to
+``entries()``/``relevant()`` but never injected into the agent context. Upstream
+ASPIRE differs: v0.1 ``get_promoted_skills(min_occurrences=2)``
+(``aspire/sim/cap/skills/library.py``) counts occurrences in any task, and v1.0
+promotes on a blind verifier's verdict. Entries without front matter (legacy
+files, manual notes) count as one occurrence from an unknown task and are
+candidates.
 ``SkillLibrary(root, min_tasks=1)`` is the only relaxation and must be
 configured explicitly. Admission of newly harvested retry evidence belongs to
 ``agent.aspire``; this store also accepts manual notes and does not validate
@@ -27,9 +30,10 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-#: Upstream ASPIRE promotes a distilled skill when it recurs beyond a single
-#: task. One confirmed retry is an observed association in one task, not a
-#: pattern; the second DISTINCT task is the first cross-task evidence.
+#: Distinct tasks before a note is promoted (cascade's rule; see the module
+#: docstring for upstream). One confirmed retry is an observed association in
+#: one task, not a pattern; the second DISTINCT task is the first cross-task
+#: evidence.
 PROMOTION_MIN_TASKS = 2
 
 _FRONT_MATTER_RE = re.compile(r"\A---\n(.*?)\n---\n", re.S)
@@ -154,9 +158,10 @@ class SkillLibrary:
         already contributed (same ``source_run``) is NOT counted again, so
         re-harvesting the same runs directory is idempotent; a new run adds one
         occurrence and, when its task is new, one distinct source task. The
-        body is refreshed to the latest observation (as upstream ASPIRE does),
-        the front matter keeps the aggregate. Status is written for human
-        readers; retrieval recomputes it with the configured threshold.
+        body is refreshed to the latest observation (as upstream v0.1's
+        ``extract_from_code`` refreshes code); the front matter keeps the
+        aggregate. Status is written for human readers; retrieval recomputes it
+        with the configured threshold.
         """
         path = self._path(title)
         source_task = " ".join(str(source_task).split())

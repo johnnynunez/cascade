@@ -1,9 +1,10 @@
 """Cross-task promotion gate for distilled ASPIRE notes (ROADMAP follow-up #10).
 
-Upstream ASPIRE (``aspire/sim/cap/skills/library.py``) tracks ``occurrences``
-and ``source_tasks`` per distilled skill and promotes it to the active library
-only once it recurs beyond a single task; one lucky repair stays a candidate.
-These tests pin the port: promotion only after a second DISTINCT task, the
+The rule is cascade's own. Upstream ASPIRE v0.1
+(``aspire/sim/cap/skills/library.py``) tracks ``occurrences`` and
+``source_tasks`` but ``get_promoted_skills(min_occurrences=2)`` counts
+occurrences in any task; v1.0 promotes on a blind verifier's verdict.
+These tests pin cascade's rule: promotion only after a second DISTINCT task, the
 same task twice does not promote, legacy single-task files are stored but not
 retrieved, counters persist and stay idempotent across harvests, and the only
 relaxation is an explicit ``min_tasks=1``.

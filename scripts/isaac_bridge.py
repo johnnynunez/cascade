@@ -1333,7 +1333,10 @@ class Handler(socketserver.StreamRequestHandler):
     def _dispatch(self, req: dict) -> dict:
         op = req.get("op")
         if op == "ping":
-            return {"ok": True, "engine": engine, "dofs": names, **self.scene_identity}
+            reply = {"ok": True, "engine": engine, "dofs": names, **self.scene_identity}
+            if _RESET_SEED is not None:  # a seeded layout is armed (set_reset_seed)
+                reply["reset_seed"] = _RESET_SEED
+            return reply
         if op == "frame":
             cached = _frames.get(req.get("camera", "cam0"))
             if cached is None:
@@ -2063,6 +2066,8 @@ def _set_reset_seed(req: dict) -> dict:
 
     Null restores today's fixed spawns. A refused request keeps the previous
     seed; the layout is built once here so a seed it cannot place is refused now.
+    `ping` reports an armed seed as `reset_seed`. Harnesses set seeds only
+    through `cascade.sim.isaac_reset.seeded_reset`, which always clears them.
     """
     global _RESET_SEED
     if "seed" not in req:

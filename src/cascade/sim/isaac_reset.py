@@ -4,12 +4,15 @@ The bridge runs in its own Isaac environment. Its reset helper must report
 physics positions for EVERY returned prop, in robot-base metres, using the
 existing settle tolerance (2 cm). An old stdout-only acknowledgement is not
 a successful reset, even when its transport-level `ok` is true.
+
+`seeded_reset` is the one way a harness sets a reset seed on a bridge.
 """
 from __future__ import annotations
 
 import math
+from contextlib import contextmanager
 
-from .bridge_client import BridgeError
+from .bridge_client import BridgeClient, BridgeError
 from .scene_seed import validate_reset_seed
 
 
@@ -69,3 +72,42 @@ def _validate_seed_stamp(response: dict, names: list) -> None:
             or any(not isinstance(n, str) or n not in names for n in fallbacks)
             or len(set(fallbacks)) != len(fallbacks) or (seed is None and fallbacks)):
         raise BridgeError("Isaac reset seed_fallbacks must list unique reset props of a seeded reset")
+
+
+@contextmanager
+def seeded_reset(port, seed, *, host="127.0.0.1", timeout_s=10.0):
+    """Hold a bridge's reset seed for one block, then always clear it.
+
+    Harnesses (acceptance A11, verifier B5/B6) set seeds only through this:
+    every `reset_props` inside the block places the props on the seed's
+    layout (bridge op `set_reset_seed`), and a `finally` sends
+    `set_reset_seed null`, also when the block raises or the bridge refuses
+    the seed, so no seed leaks into a later run on that bridge. `port` has
+    no default: the live demo bridge listens on 8611, a harness names its
+    own bridge. Yields the open BridgeClient (closed after the block).
+
+    Raises ValueError for a bad port or seed (before connecting), and
+    BridgeError when the bridge refuses the seed or cannot confirm the clear.
+    """
+    if type(port) is not int or not 1 <= port <= 65535:
+        raise ValueError(f"seeded_reset needs the bridge's TCP port (an int in 1..65535), got {port!r}")
+    if validate_reset_seed(seed) is None:
+        raise ValueError("seeded_reset needs an integer reset seed; null is what it restores afterwards")
+    client = BridgeClient(host, port, timeout_s=timeout_s)
+    client.connect()
+    try:
+        try:
+            reply = client.request({"op": "set_reset_seed", "seed": seed})
+            if reply.get("seed") != seed:
+                raise BridgeError(f"bridge did not confirm reset seed {seed}: {reply!r}")
+            yield client
+        finally:
+            try:
+                client.connect()  # no-op, unless a failed request in the block closed it
+                cleared = client.request({"op": "set_reset_seed", "seed": None})
+            except BridgeError as exc:
+                raise BridgeError(f"could not clear the reset seed on port {port}: {exc}") from exc
+            if "seed" not in cleared or cleared["seed"] is not None:
+                raise BridgeError(f"bridge did not confirm the reset seed clear on port {port}: {cleared!r}")
+    finally:
+        client.close()

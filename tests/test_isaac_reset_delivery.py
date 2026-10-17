@@ -7,11 +7,14 @@ never evidence that Newton or the shipped asset works on a DGX Spark.
 """
 from __future__ import annotations
 
+import ast
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
+import inspect
 import json
 import math
 from pathlib import Path
+import socket
 import socketserver
 import sys
 import threading
@@ -21,18 +24,21 @@ from types import ModuleType, SimpleNamespace
 import numpy as np
 import pytest
 from conftest import load_isaac_bridge_definitions, loopback_host
+from owned_server import held_dead_port
 
 from cascade.agent.trace import TraceLogger
 from cascade.config import Cfg
 from cascade.control.isaac_arm import IsaacArm
 from cascade.memory import BeliefStore, EpisodicMemory
 from cascade.sim.bridge_client import BridgeError
-from cascade.sim.isaac_reset import validate_isaac_reset
+from cascade.sim.isaac_reset import seeded_reset, validate_isaac_reset
 from cascade.sim.scene_seed import kitchen_layout, seeded_spawns, validate_reset_seed
 from cascade.skills.runtime import SkillRuntime
 from cascade.types import Frame
 
-KITCHEN = json.loads((Path(__file__).resolve().parents[1] / "demo/scene/kitchen_config.json").read_text())
+REPO = Path(__file__).resolve().parents[1]
+KITCHEN = json.loads((REPO / "demo/scene/kitchen_config.json").read_text())
+BRIDGE = REPO / "scripts/isaac_bridge.py"
 
 
 class PhysicsBoundary:
@@ -580,6 +586,13 @@ def test_set_reset_seed_needs_the_kitchen_layout_of_these_props(kitchen_reset_br
     assert physics.events == []
 
 
+def test_the_bridge_boots_with_no_reset_seed():
+    # Production state the test loader mirrors (conftest): ping reads it from boot on.
+    boots = [node for node in ast.parse(BRIDGE.read_text()).body if isinstance(node, ast.Assign)
+             and [ast.unparse(t) for t in node.targets] == ["_RESET_SEED"]]
+    assert len(boots) == 1 and ast.literal_eval(boots[0].value) is None
+
+
 def test_a_seeded_reset_that_cannot_build_its_layout_moves_nothing(kitchen_reset_bridge):
     _, physics, env = kitchen_reset_bridge
     assert _dispatch(env, {"op": "set_reset_seed", "seed": 4})["ok"] is True
@@ -651,3 +664,121 @@ def test_unseeded_reset_scene_result_has_no_seed(kitchen_reset_bridge, demo_cfg,
     result = _pump_main_thread(env, lambda: runtime.execute("reset_scene", {}))
     assert result["ok"] is True, result
     assert "scene_seed" not in result and "seed" not in result
+
+
+# -- Seed visibility (ping) and the harness helper seeded_reset --------------
+
+# A kitchen identity as the bridge attaches it at startup (Handler.scene_identity).
+_IDENTITY = {"scene_config": "/repo/demo/scene/kitchen_config.json", "scene_config_sha256": "c9a41e06",
+             "scene_name": "paai-cocina-asier-v1", "scene_assets_sha256": "6c4c3cb2",
+             "scene_content_sha256": "a0031a9e"}
+
+
+def _port_of(arm):
+    return arm._client._addr[1]
+
+
+def _raw_ping(port):
+    """The exact bytes the bridge writes for one ping, on a fresh connection."""
+    with socket.create_connection((loopback_host(), port), timeout=5) as conn:
+        conn.sendall(b'{"op": "ping"}\n')
+        return conn.makefile("rb").readline()
+
+
+def test_ping_shows_a_set_reset_seed_and_is_unchanged_without_one(kitchen_reset_bridge, monkeypatch):
+    arm, _, env = kitchen_reset_bridge
+    monkeypatch.setattr(env["Handler"], "scene_identity", _IDENTITY)
+    port = _port_of(arm)
+    unseeded = _raw_ping(port)
+    # Without a seed: main's ping reply ({ok, engine, dofs, **identity}), byte for byte.
+    assert unseeded == json.dumps({"ok": True, "engine": "newton", "dofs": [], **_IDENTITY}).encode() + b"\n"
+    for seed in (5, 0):  # seed 0 is a set seed too (default layout, stamped)
+        assert _dispatch(env, {"op": "set_reset_seed", "seed": seed})["ok"] is True
+        assert json.loads(_raw_ping(port)) == {**json.loads(unseeded), "reset_seed": seed}
+    assert _dispatch(env, {"op": "set_reset_seed", "seed": None})["ok"] is True
+    assert _raw_ping(port) == unseeded
+
+
+def test_seeded_reset_sets_the_seed_for_the_block_and_clears_it_after(kitchen_reset_bridge):
+    arm, _, env = kitchen_reset_bridge
+    with seeded_reset(_port_of(arm), 5, host=loopback_host()) as client:
+        assert env["_RESET_SEED"] == 5
+        assert client.request({"op": "ping"})["reset_seed"] == 5
+        assert _dispatch(env, {"op": "reset_props"})["seed"] == 5
+    assert env["_RESET_SEED"] is None
+    assert "reset_seed" not in _dispatch(env, {"op": "ping"})
+    assert "seed" not in _dispatch(env, {"op": "reset_props"})
+
+
+def test_seeded_reset_clears_the_seed_when_the_block_raises(kitchen_reset_bridge):
+    arm, _, env = kitchen_reset_bridge
+    with pytest.raises(RuntimeError, match="harness episode failed"), \
+            seeded_reset(_port_of(arm), 7, host=loopback_host()):
+        assert env["_RESET_SEED"] == 7
+        raise RuntimeError("harness episode failed")
+    assert env["_RESET_SEED"] is None
+
+
+def test_seeded_reset_clears_over_a_new_connection_when_the_block_lost_it(kitchen_reset_bridge):
+    arm, _, env = kitchen_reset_bridge
+    with seeded_reset(_port_of(arm), 7, host=loopback_host()) as client:
+        client.close()  # what a timed-out request in the block does to the shared client
+    assert env["_RESET_SEED"] is None
+
+
+def test_seeded_reset_refused_by_the_bridge_raises_and_clears_a_leaked_seed(kitchen_reset_bridge):
+    arm, _, env = kitchen_reset_bridge
+    env["_RESET_SEED"] = 3  # left behind by an earlier client
+    env["_scene_config"] = None  # this bridge can build no seeded layout
+    entered = []
+    with pytest.raises(BridgeError, match="set_reset_seed refused"), \
+            seeded_reset(_port_of(arm), 5, host=loopback_host()):
+        entered.append(True)
+    assert entered == [] and env["_RESET_SEED"] is None
+
+
+@pytest.mark.parametrize("answer", [{"ok": False, "error": "busy"}, {"ok": True, "seed": 5}],
+                         ids=["refused", "acknowledged-without-clearing"])
+def test_seeded_reset_reports_a_seed_it_could_not_clear(kitchen_reset_bridge, monkeypatch, answer):
+    arm, _, env = kitchen_reset_bridge
+    with pytest.raises(BridgeError, match="clear"), seeded_reset(_port_of(arm), 5, host=loopback_host()):
+        monkeypatch.setitem(env, "_set_reset_seed", lambda req: answer)
+    assert env["_RESET_SEED"] == 5  # really still set: the helper must not stay silent
+
+
+def test_seeded_reset_needs_the_bridge_to_confirm_its_seed(kitchen_reset_bridge, monkeypatch):
+    arm, _, env = kitchen_reset_bridge
+    real, sent, entered = env["_set_reset_seed"], [], []
+
+    def other_seed(req):  # acknowledges a different seed than the one asked for
+        sent.append(req["seed"])
+        return real({"seed": 6}) if req["seed"] is not None else real(req)
+
+    monkeypatch.setitem(env, "_set_reset_seed", other_seed)
+    with pytest.raises(BridgeError, match="did not confirm reset seed 5"), \
+            seeded_reset(_port_of(arm), 5, host=loopback_host()):
+        entered.append(True)
+    assert entered == [] and sent == [5, None] and env["_RESET_SEED"] is None
+
+
+def test_seeded_reset_has_no_default_port():
+    # The live demo bridge listens on 8611: a harness must name its own bridge.
+    assert inspect.signature(seeded_reset).parameters["port"].default is inspect.Parameter.empty
+    with pytest.raises(TypeError):
+        seeded_reset(seed=5)
+
+
+@pytest.mark.parametrize("port", ["str", "float", None, True, 0, 65536, -1])
+def test_seeded_reset_refuses_a_bad_port_before_connecting(port):
+    with held_dead_port() as dead:
+        port = {"str": str(dead), "float": float(dead)}.get(port, port)
+        # Without the check, a str/float would reach the dead port: BridgeError, not ValueError.
+        with pytest.raises(ValueError, match="port"), seeded_reset(port, 5, timeout_s=0.5):
+            pytest.fail("the block must not run")
+
+
+@pytest.mark.parametrize("seed", [None, "5", 5.0, True, -1, 2**31])
+def test_seeded_reset_refuses_a_bad_seed_before_connecting(seed):
+    with held_dead_port() as dead, pytest.raises(ValueError, match="seed"), \
+            seeded_reset(dead, seed, timeout_s=0.5):
+        pytest.fail("the block must not run")

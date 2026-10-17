@@ -122,7 +122,8 @@ the text is NFKC-stable, and every character is a printable ASCII letter, digit,
 typographic quote or dash, so no homoglyph, CJK, fullwidth or other non-ASCII letter and none of `[]{}()=<>|` `` ` ``
 `\#*@$^~` (hence no `<|`, `|>`, code fence or markup); (3) every word is lower, Title or UPPER case (`reSet`,
 `SafetyViolation` refused: A1 fix round 2); (4) no hard stem, read on letters only (NFKC, lower case, every
-punctuation mark and digit deleted; the whole words `preset`, `presets`, `you're`, `we're`, `they're` left out, their
+punctuation mark and digit deleted; the whole words `preset`, `presets`, `pre-set`, `pre-sets`, `you're`, `we're`,
+`they're` left out, their
 neighbours still joining): the one-word stems `reset`, `ignor`, `disregard`, `bypass`, `circumvent`, `overrid` inside
 the letters of one whitespace-delimited word (`Re/set`, `Ig+nore`, `DIS;regard`, `I-g-n-o-r-e`) or spelled by whole
 neighbouring words joined, from a word's first letter, into the stem plus a plain ending (`re set`, `Ig. nore`, `ci rc
@@ -161,12 +162,15 @@ pause or halt: never discourage an operator stop), unbounded-retry (`keep callin
 `until it succeeds`, `start over`, `forever`, `over and over`, `no limit`, `never give up` ...), override (`ignore`,
 `disregard`, `bypass`, `circumvent`, `override` anywhere), weakening (`disable`, `turn off`, `shut down`, `skip`,
 `lower`, `relax`, `reduce`, `raise` ... whose DIRECT OBJECT holds `gate`, `check`, `refusal`, `warning`, `veto`,
-`clearance`, `margin`, `limit`, `safety`, `collision`, `stop`, `halt`, `harness` ...: the guard noun among the first 4
+`clearance`, `margin`, `limit`, `safety`, `collision`, `stop`, `halt`, `harness` ... (`stop` as the word `stop` /
+`stops` only: `the stopper`, `the stopwatch` are plain, A1 fix round 5): the guard noun among the first 4
 words after the verb, before a preposition and the end of the clause at `and`, `to`, `for`, `then`, `so`, `but` or
 punctuation, with `and`/`,` + determiner listing another object; so `lower the clearance` is refused and `lower it to
 avoid collision` is not; `cut`, `drop`, `remove`, `zero`, `waive`, `tighten`, `forget`, `dismiss`, `set aside` ...
 only when the guard noun is the object's HEAD, the last noun of its phrase: `remove the safety check` is refused,
-`remove the safety seal`, `drop the warning label` are not; `remove`, `cut`, `drop`, `take off` also when a guard word
+`remove the safety seal`, `drop the warning label` are not (a phrase also ends before `of`, `about`, `during`,
+`without`, `like`, `among`, `despite`, `except`, `per`, `throughout`, `amid`, `regarding`, `besides`, which do not
+end the object: `remove the safety check of the arm` is refused, A1 fix round 5); `remove`, `cut`, `drop`, `take off` also when a guard word
 modifies a safety head noun (`system`, `feature`, `rule`, `check`, `gate`, `interlock`, `limit`, `margin`, `stop`,
 `sensor`, `monitor`, or a plural: `drop the safety system`; `the guard ring` stays plain: A1 fix round 4); and
 `turn`/`switch`/`shut ... off`, `shut ... down` split

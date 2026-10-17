@@ -386,8 +386,8 @@ _HARD_STEMS = (("reset", "reset"), ("emergencystop", "stop"), ("haltmotion", "st
 #: (`_skeleton`: "Emer gency stop", "SYSTEMPROMPT", "restart over")
 _PHRASE_STEMS = frozenset({"emergencystop", "haltmotion", "startover", "systemprompt"})
 #: whole words left out of every stem reading (their neighbours still join): common words
-#: that carry a one-word stem ("preset") or its first letters ("you're set")
-_SKELETON_ALLOW = frozenset({"preset", "presets", "you're", "we're", "they're"})
+#: that carry a one-word stem ("preset", "pre-set") or its first letters ("you're set")
+_SKELETON_ALLOW = frozenset({"preset", "presets", "pre-set", "pre-sets", "you're", "we're", "they're"})
 #: phrasings that only mean a reset (and "reset" through `_HARD_STEMS`): a reset clears
 #: the retry ledger (R4)
 _RESET = (("respawn*",), ("begin*", "again"), ("start*", "from", "scratch"))
@@ -427,8 +427,10 @@ _GUARDED_HEADS = frozenset({"system", "feature", "rule", "check", "gate", "inter
 #: down"): refused when a `_GUARDS` noun is the object's head and the particle follows
 _PHRASAL_OFF = (("turn*",), ("switch*",), ("shut*",))
 _PHRASAL_DOWN = (("shut*",),)
+#: guard words; the stop guard is the word "stop" / "stops" only ("the stopper", "the
+#: stopwatch" are kitchen nouns), while "guard*" stays (accepted over-block: "the blade guard")
 _GUARDS = (("gate*",), ("check*",), ("refus*",), ("warn*",), ("veto*",), ("clearanc*",), ("margin*",),
-           ("limit*",), ("safet*",), ("collis*",), ("collid*",), ("stop*",), ("halt*",), ("guard*",),
+           ("limit*",), ("safet*",), ("collis*",), ("collid*",), ("stop",), ("stops",), ("halt*",), ("guard*",),
            ("harness*",), ("interlock*",), ("watchdog*",), ("threshold*",), ("toleranc*",))
 _CLAIM_AS = (("treat*",), ("consider*",), ("regard*",), ("declar*",), ("mark*",))
 _CLAIM_SAY = (("tell*",), ("say*",), ("said",), ("report*",), ("announc*",), ("reply",), ("replie*",),
@@ -498,7 +500,11 @@ _OBJECT_TAIL = frozenset({
     "although", "before", "after", "where", "or", "nor", "yet", "than", "which", "who",
     "it", "them", "they", "you", "we", "i", "he", "she", "him", "us", "me",
     "is", "are", "was", "were", "be", "been", "can", "could", "will", "would", "should", "may", "might",
-    "must", "do", "does", "did", "has", "have", "had"})
+    "must", "do", "does", "did", "has", "have", "had",
+    # prepositions that end a noun phrase but do not stop the object scan (`_PREPOSITIONS`
+    # do): "remove the safety check of the arm", yet "skip part of the check"
+    "of", "about", "during", "without", "like", "among", "despite", "except", "per", "throughout", "amid",
+    "regarding", "besides"})
 #: a split phrasal verb's particle: among the words right after its object's head
 _PARTICLE_REACH = 4  # "turn the clearance gate fully off"
 _PREPOSITIONS = frozenset({"near", "over", "under", "onto", "into", "on", "in", "at", "by", "with", "from", "above",

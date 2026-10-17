@@ -169,7 +169,9 @@ def test_the_stem_kinds():
 
 
 def test_the_skeleton_allowlist():
-    assert notes._SKELETON_ALLOW == frozenset({"preset", "presets", "you're", "we're", "they're"})
+    # fix round 5 adds pre-set / pre-sets (test_aspire_notes_fix5)
+    assert notes._SKELETON_ALLOW == frozenset({"preset", "presets", "pre-set", "pre-sets", "you're", "we're",
+                                               "they're"})
 
 
 def test_an_allowlisted_word_is_left_out_whole():
@@ -178,7 +180,7 @@ def test_an_allowlisted_word_is_left_out_whole():
                  "WE'RE SET once the lid is on."):
         assert lint_advice(text, skill=SKILL) == [], text
     # only the whole word: a split, fused or neighbouring spelling still reads as a reset
-    for text in ("Pre-set the scene after a refusal.", "Use the presetting scene.", "Re-preset the scene.",
+    for text in ("Pre/set the scene after a refusal.", "Use the presetting scene.", "Re-preset the scene.",
                  "You're/set the scene.", "Re we're set the scene."):
         assert "reset" in _rules(text), text
 

@@ -253,7 +253,8 @@ def test_missing_or_legacy_layout_cannot_bypass_runtime_admission(distribution, 
 @pytest.mark.parametrize("name", ["assets/REBOT_UPSTREAM_LICENSE.txt",
                                  "assets/cumotion/rebot/rebot.xrdf", "assets/cumotion/rebot/PROVENANCE.md",
                                  "scripts/isaac_ovrtx.py", "src/cascade/sim/ovrtx_masks.py",
-                                 "src/cascade/sim/ovrtx_process.py", "src/cascade/sim/ovrtx_worker.py"])
+                                 "src/cascade/sim/ovrtx_process.py", "src/cascade/sim/ovrtx_worker.py",
+                                 "src/cascade/sim/scene_seed.py"])
 def test_omitted_asset_cannot_receive_a_complete_source_receipt(distribution, name):
     here, _, _, manifest, *_ = distribution
     record = json.loads(manifest.read_text())

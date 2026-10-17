@@ -17,6 +17,7 @@ BUNDLE_REQUIRED_FILES = frozenset({"cocina_asier.usdc", "geometry-audit.json", "
 SOURCE_FILES = (
     "scripts/isaac_bridge.py",
     "src/cascade/sim/target_receipts.py",
+    "src/cascade/sim/scene_seed.py",
     "scripts/isaac_ovrtx.py",
     "src/cascade/sim/ovrtx_renderer.py",
     "src/cascade/sim/ovrtx_masks.py",

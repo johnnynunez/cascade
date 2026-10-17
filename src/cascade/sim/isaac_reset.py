@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 
 from .bridge_client import BridgeError
+from .scene_seed import validate_reset_seed
 
 
 def validate_isaac_reset(response: dict) -> dict:
@@ -49,4 +50,22 @@ def validate_isaac_reset(response: dict) -> dict:
                 or not math.isclose(measured_error, reported_error, rel_tol=1e-6, abs_tol=1e-9)
                 or check.get("finite") is not True or check.get("within_tolerance") is not True):
             raise BridgeError(f"Isaac reset {name}: read-back does not confirm spawn within tolerance")
+    if "seed" in response or "seed_fallbacks" in response:
+        _validate_seed_stamp(response, names)
     return response
+
+
+def _validate_seed_stamp(response: dict, names: list) -> None:
+    """A seeded reset (bridge op set_reset_seed) stamps its seed and the props
+    that kept their default spawn; an unseeded reply carries neither key."""
+    if "seed" not in response:
+        raise BridgeError("Isaac reset reports seed_fallbacks without a seed")
+    try:
+        seed = validate_reset_seed(response["seed"])
+    except ValueError as exc:
+        raise BridgeError(f"Isaac reset seed is invalid: {exc}") from None
+    fallbacks = response.get("seed_fallbacks", [] if seed is None else None)
+    if (not isinstance(fallbacks, list)
+            or any(not isinstance(n, str) or n not in names for n in fallbacks)
+            or len(set(fallbacks)) != len(fallbacks) or (seed is None and fallbacks)):
+        raise BridgeError("Isaac reset seed_fallbacks must list unique reset props of a seeded reset")

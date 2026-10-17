@@ -1,4 +1,5 @@
 """Pinned release admission, hostile archives, and scene identity; no GPU needed."""
+import ast
 import hashlib
 import importlib.util
 import io
@@ -50,6 +51,15 @@ def test_shipped_sources_are_complete_and_verified():
     identity.bundle_manifest(ROOT)
 
 
+def test_the_seeded_layout_module_of_the_bridge_is_a_pinned_scene_source():
+    """cascade.sim.scene_seed decides where the bridge's reset puts every
+    kitchen prop, so the scene identity hashes it with the bridge."""
+    tree = ast.parse((ROOT / "scripts/isaac_bridge.py").read_text())
+    modules = {node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)}
+    assert "cascade.sim.scene_seed" in modules
+    assert "src/cascade/sim/scene_seed.py" in identity.SOURCE_FILES
+
+
 def test_offline_prepare_leaves_all_bytes_and_mtimes_unchanged(source, monkeypatch):
     repo, _ = source
     before = {p: (p.read_bytes(), p.stat().st_mtime_ns) for p in repo.rglob("*") if p.is_file()}
@@ -60,7 +70,8 @@ def test_offline_prepare_leaves_all_bytes_and_mtimes_unchanged(source, monkeypat
 
 
 @pytest.mark.parametrize("fault", ["missing", "size", "checksum", "symlink"])
-@pytest.mark.parametrize("source_name", ["demo/own_kitchen.py", "scripts/isaac_python_spans.py"])
+@pytest.mark.parametrize("source_name", ["demo/own_kitchen.py", "scripts/isaac_python_spans.py",
+                                         "src/cascade/sim/scene_seed.py"])
 def test_tampered_source_is_rejected_before_use(source, tmp_path, fault, source_name):
     repo, config = source
     path = repo / source_name

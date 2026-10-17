@@ -8,7 +8,10 @@ never evidence that Newton or the shipped asset works on a DGX Spark.
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 import json
+import math
+from pathlib import Path
 import socketserver
 import sys
 import threading
@@ -24,15 +27,20 @@ from cascade.config import Cfg
 from cascade.control.isaac_arm import IsaacArm
 from cascade.memory import BeliefStore, EpisodicMemory
 from cascade.sim.bridge_client import BridgeError
+from cascade.sim.isaac_reset import validate_isaac_reset
+from cascade.sim.scene_seed import kitchen_layout, seeded_spawns, validate_reset_seed
 from cascade.skills.runtime import SkillRuntime
 from cascade.types import Frame
+
+KITCHEN = json.loads((Path(__file__).resolve().parents[1] / "demo/scene/kitchen_config.json").read_text())
 
 
 class PhysicsBoundary:
     """Deterministic Kit/rigid-body stand-in; it does NOT simulate physics."""
 
-    def __init__(self):
-        self.spawns = {"pink_cube": (0.17, 0.15, 0.04), "green_cube": (0.30, 0.16, 0.04)}
+    def __init__(self, spawns=None):
+        self.spawns = dict(spawns) if spawns is not None else {
+            "pink_cube": (0.17, 0.15, 0.04), "green_cube": (0.30, 0.16, 0.04)}
         self.base_z = 0.7
         self.positions = {n: np.array([0.48, -0.2, 0.74]) for n in self.spawns}
         self.events = []
@@ -81,7 +89,7 @@ def _load_bridge_definitions(monkeypatch, physics):
     its AST definitions is necessary because importing the script boots Kit.
     """
     wanted = {"Handler", "_run_exec_jobs", "_settle_props", "_zero_prop_velocity",
-              "_reset_props_verified"}
+              "_reset_props_verified", "_reset_spawns", "_set_reset_seed"}
     prims = ModuleType("isaacsim.core.experimental.prims")
     prims.RigidPrim = physics.rigid_prim
     monkeypatch.setitem(sys.modules, prims.__name__, prims)
@@ -98,6 +106,10 @@ def _load_bridge_definitions(monkeypatch, physics):
         "_newton_teleport": physics.teleport,
         "_update_wrist_cam": lambda: None, "_refresh_frames": lambda: None,
         "_annotators": {},  # This fixture has no render products/publications.
+        # Seeded-reset state: no seed and no kitchen config, as a plain bridge boots.
+        "_RESET_SEED": None, "_scene_config": None,
+        "seeded_spawns": seeded_spawns, "kitchen_layout": kitchen_layout,
+        "validate_reset_seed": validate_reset_seed,
     }
     # This suite isolates the reset step count/delivery; frame history has
     # separate real-wrapper tests and never inserts an extra Kit update.
@@ -157,21 +169,38 @@ def test_camera_readback_failure_does_not_abort_prop_reset(monkeypatch, capsys):
     assert capsys.readouterr().out.count("reset camera refresh failed") == 1
 
 
-@pytest.fixture
-def reset_bridge(monkeypatch):
-    physics = PhysicsBoundary()
+@contextmanager
+def _served_bridge(monkeypatch, physics, scene_config=None):
     env = _load_bridge_definitions(monkeypatch, physics)
+    env["_scene_config"] = scene_config
     server = socketserver.ThreadingTCPServer((loopback_host(), 0), env["Handler"])
     server.daemon_threads = True
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     arm = IsaacArm(Cfg({"bridge_host": loopback_host(), "bridge_port": server.server_address[1]}))
     arm.connect()
-    yield arm, physics, env
-    arm.disconnect()
-    server.shutdown()
-    server.server_close()
-    thread.join(timeout=2)
+    try:
+        yield arm, env
+    finally:
+        arm.disconnect()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+@pytest.fixture
+def reset_bridge(monkeypatch):
+    physics = PhysicsBoundary()
+    with _served_bridge(monkeypatch, physics) as (arm, env):
+        yield arm, physics, env
+
+
+@pytest.fixture
+def kitchen_reset_bridge(monkeypatch):
+    """The bridge with the shipped kitchen's props and scene config loaded."""
+    physics = PhysicsBoundary(kitchen_layout(KITCHEN)[0])
+    with _served_bridge(monkeypatch, physics, scene_config=KITCHEN) as (arm, env):
+        yield arm, physics, env
 
 
 def _pump_main_thread(env, call):
@@ -443,3 +472,182 @@ def test_reset_slow_capture_uses_attempt_start_without_extra_physics(monkeypatch
     assert physics.steps == len(captures) == 180
     assert np.diff(captures) == pytest.approx(np.full(179, .81))
     assert env["_last_camera_capture_started"] == pytest.approx(captures[-1] - .01)
+
+
+# -- Seeded reset (ASPIRE verifier scenes): bridge op set_reset_seed ---------
+
+
+def _dispatch(env, req):
+    handler = object.__new__(env["Handler"])
+    return _pump_main_thread(env, lambda: handler._dispatch(req))
+
+
+def _kitchen_seeded(seed):
+    spawns, footprints, keepouts = kitchen_layout(KITCHEN)
+    return seeded_spawns(spawns, seed, footprints=footprints, keepouts=keepouts)
+
+
+def _spawns_of(reply):
+    return {n: c["spawn_position_m"] for n, c in reply["reset_verification"]["props"].items()}
+
+
+def test_set_reset_seed_then_reset_places_and_verifies_seeded_spawns(kitchen_reset_bridge):
+    _, physics, env = kitchen_reset_bridge
+    assert _dispatch(env, {"op": "set_reset_seed", "seed": 5}) == {"ok": True, "seed": 5}
+    reply = _dispatch(env, {"op": "reset_props"})
+    want, fallbacks = _kitchen_seeded(5)
+    assert reply["ok"] is True, reply
+    assert reply["seed"] == 5 and reply["seed_fallbacks"] == fallbacks
+    assert _spawns_of(reply) == {n: list(p) for n, p in want.items()}
+    # One clean settle pass on the seeded spots: no retries against the old spawns.
+    assert physics.steps == 180 and "settled cleanly (attempt 1)" in reply["stdout"]
+    for name, spawn in want.items():
+        check = reply["reset_verification"]["props"][name]
+        # The settle teleported the prop to the seeded spot, and the read-back confirms it.
+        assert check["position_m"] == pytest.approx(list(spawn))
+        assert check["error_m"] <= 0.02 and check["within_tolerance"] is True
+    # The seeded layout differs from the default by more than the 2 cm tolerance.
+    assert max(math.dist(p[:2], physics.spawns[n][:2]) for n, p in want.items()) > 0.02
+    assert validate_isaac_reset(reply) is reply
+    again = _dispatch(env, {"op": "reset_props"})
+    assert again["seed"] == 5 and _spawns_of(again) == _spawns_of(reply)
+
+
+def test_no_seed_is_todays_reset(kitchen_reset_bridge):
+    _, physics, env = kitchen_reset_bridge
+    before = _dispatch(env, {"op": "reset_props"})
+    assert before["ok"] is True, before
+    assert set(before) == {"ok", "props_reset", "reset_verification", "stdout"}
+    assert _spawns_of(before) == {n: list(p) for n, p in physics.spawns.items()}
+    assert _dispatch(env, {"op": "set_reset_seed", "seed": 5})["ok"] is True
+    assert _dispatch(env, {"op": "reset_props"})["seed"] == 5
+    # Clearing the seed restores today's reset, byte for byte.
+    assert _dispatch(env, {"op": "set_reset_seed", "seed": None}) == {"ok": True, "seed": None}
+    after = _dispatch(env, {"op": "reset_props"})
+    assert json.dumps(after) == json.dumps(before)
+
+
+def test_seed_zero_is_the_default_layout_with_its_seed_stamped(kitchen_reset_bridge):
+    _, physics, env = kitchen_reset_bridge
+    assert _dispatch(env, {"op": "set_reset_seed", "seed": 0}) == {"ok": True, "seed": 0}
+    reply = _dispatch(env, {"op": "reset_props"})
+    assert reply["ok"] is True and reply["seed"] == 0 and reply["seed_fallbacks"] == []
+    assert _spawns_of(reply) == {n: list(p) for n, p in physics.spawns.items()}
+
+
+def test_a_prop_the_seed_cannot_place_stays_on_its_spawn_and_is_reported(kitchen_reset_bridge):
+    _, physics, env = kitchen_reset_bridge
+    # A (hypothetical) green square painted under the lemon: no seeded spot fits it.
+    config = json.loads(json.dumps(KITCHEN))
+    config["target_pad"].update(center_xy_m=list(physics.spawns["lemon"][:2]), outer_size_m=0.10)
+    env["_scene_config"] = config
+    spawns, footprints, keepouts = kitchen_layout(config)
+    want, fallbacks = seeded_spawns(spawns, 6, footprints=footprints, keepouts=keepouts)
+    assert fallbacks == ["lemon"]
+    assert _dispatch(env, {"op": "set_reset_seed", "seed": 6})["ok"] is True
+    reply = _dispatch(env, {"op": "reset_props"})
+    assert reply["ok"] is True and reply["seed_fallbacks"] == ["lemon"], reply
+    assert _spawns_of(reply) == {n: list(p) for n, p in want.items()}
+    assert _spawns_of(reply)["lemon"] == list(physics.spawns["lemon"])
+    assert validate_isaac_reset(reply) is reply
+
+
+@pytest.mark.parametrize("bad", [{"seed": "5"}, {"seed": 5.0}, {"seed": True}, {"seed": -1},
+                                 {"seed": 2**31}, {}],
+                         ids=["string", "float", "bool", "negative", "too-large", "missing"])
+def test_set_reset_seed_refuses_a_bad_seed_and_keeps_the_previous_one(kitchen_reset_bridge, bad):
+    _, physics, env = kitchen_reset_bridge
+    assert _dispatch(env, {"op": "set_reset_seed", "seed": 3})["ok"] is True
+    reply = _dispatch(env, {"op": "set_reset_seed", **bad})
+    assert reply["ok"] is False and "seed" in reply["error"], reply
+    assert env["_RESET_SEED"] == 3
+    assert physics.events == [], "a seed request never moves a prop"
+    assert _dispatch(env, {"op": "reset_props"})["seed"] == 3
+
+
+@pytest.mark.parametrize("scene,reason", [("no-scene-config", "--scene-config"),
+                                          ("props-differ-from-config", "differ from this bridge")])
+def test_set_reset_seed_needs_the_kitchen_layout_of_these_props(kitchen_reset_bridge, scene, reason):
+    _, physics, env = kitchen_reset_bridge
+    if scene == "no-scene-config":
+        env["_scene_config"] = None
+    else:
+        physics.spawns["pink_cube"] = (0.17, 0.15, 0.03)  # not where the config spawns it
+    reply = _dispatch(env, {"op": "set_reset_seed", "seed": 4})
+    assert reply["ok"] is False and "set_reset_seed refused" in reply["error"], reply
+    assert reason in reply["error"]
+    assert env["_RESET_SEED"] is None
+    assert physics.events == []
+
+
+def test_a_seeded_reset_that_cannot_build_its_layout_moves_nothing(kitchen_reset_bridge):
+    _, physics, env = kitchen_reset_bridge
+    assert _dispatch(env, {"op": "set_reset_seed", "seed": 4})["ok"] is True
+    env["_scene_config"] = None
+    reply = _dispatch(env, {"op": "reset_props"})
+    assert reply["ok"] is False and reply.get("props_reset", []) == [], reply
+    assert physics.events == [], "an unbuildable layout must be refused BEFORE settling"
+
+
+def test_a_seed_set_during_a_reset_applies_to_the_next_one(kitchen_reset_bridge, monkeypatch):
+    _, _, env = kitchen_reset_bridge
+    assert _dispatch(env, {"op": "set_reset_seed", "seed": 5})["ok"] is True
+    settle = env["_settle_props"]
+
+    def settle_then_reseed(*args, **kwargs):
+        assert env["_set_reset_seed"]({"seed": 9}) == {"ok": True, "seed": 9}
+        return settle(*args, **kwargs)
+
+    monkeypatch.setitem(env, "_settle_props", settle_then_reseed)
+    reply = _dispatch(env, {"op": "reset_props"})
+    assert reply["ok"] is True and reply["seed"] == 5, reply
+    assert _spawns_of(reply) == {n: list(p) for n, p in _kitchen_seeded(5)[0].items()}
+    assert env["_RESET_SEED"] == 9
+
+
+@pytest.mark.parametrize("change,valid", [
+    ({}, True),
+    ({"seed": 5, "seed_fallbacks": []}, True),
+    ({"seed": 5, "seed_fallbacks": ["pink_cube"]}, True),
+    ({"seed": 0, "seed_fallbacks": []}, True),
+    ({"seed": None}, True),
+    ({"seed": "5", "seed_fallbacks": []}, False),
+    ({"seed": 5.0, "seed_fallbacks": []}, False),
+    ({"seed": True, "seed_fallbacks": []}, False),
+    ({"seed": -1, "seed_fallbacks": []}, False),
+    ({"seed": 5}, False),
+    ({"seed_fallbacks": []}, False),
+    ({"seed": None, "seed_fallbacks": ["pink_cube"]}, False),
+    ({"seed": 5, "seed_fallbacks": "pink_cube"}, False),
+    ({"seed": 5, "seed_fallbacks": ["ghost"]}, False),
+    ({"seed": 5, "seed_fallbacks": ["pink_cube", "pink_cube"]}, False),
+])
+def test_validator_accepts_an_integer_seed_and_rejects_others(change, valid):
+    response = {**_wire_reset_result(PhysicsBoundary()), **change}
+    if valid:
+        assert validate_isaac_reset(response) is response
+    else:
+        with pytest.raises(BridgeError, match="seed"):
+            validate_isaac_reset(response)
+
+
+def test_reset_scene_result_carries_the_seed(kitchen_reset_bridge, demo_cfg, tmp_path):
+    arm, physics, env = kitchen_reset_bridge
+    assert arm._client.request({"op": "set_reset_seed", "seed": 5}) == {"ok": True, "seed": 5}
+    runtime = _runtime(arm, physics, demo_cfg, tmp_path)
+    result = _pump_main_thread(env, lambda: runtime.execute("reset_scene", {}))
+    assert result["ok"] is True, result
+    assert result["scene_seed"] == 5
+    want, _ = _kitchen_seeded(5)
+    assert {n: c["spawn_position_m"] for n, c in result["reset_verification"]["props"].items()} == {
+        n: list(p) for n, p in want.items()}
+    row = json.loads((tmp_path / "run" / "trace.jsonl").read_text())
+    assert row["result"]["scene_seed"] == 5
+
+
+def test_unseeded_reset_scene_result_has_no_seed(kitchen_reset_bridge, demo_cfg, tmp_path):
+    arm, physics, env = kitchen_reset_bridge
+    runtime = _runtime(arm, physics, demo_cfg, tmp_path)
+    result = _pump_main_thread(env, lambda: runtime.execute("reset_scene", {}))
+    assert result["ok"] is True, result
+    assert "scene_seed" not in result and "seed" not in result

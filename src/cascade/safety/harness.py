@@ -284,6 +284,9 @@ class SafetyHarness:
         #: trace by the skill runtime (`drain_clearance_reports`); bounded to
         #: the map's `refusal_snapshot.max_reports` at every append
         self._clearance_reports: deque = deque()
+        #: refusal reports NOT kept (a filing exception, eviction at the
+        #: report cap) since the last drain (`drain_clearance_lost`)
+        self._clearance_lost = 0
         #: the last contact the monitor detected (its trip event), or None
         self.last_contact: dict | None = None
         #: spots where the arm was blocked; the TCP may not re-enter one
@@ -542,6 +545,14 @@ class SafetyHarness:
             except IndexError:
                 return out
 
+    def drain_clearance_lost(self) -> int:
+        """How many refusal reports were not kept since the last drain (a
+        filing exception, or eviction at `refusal_snapshot.max_reports`),
+        and reset it: the runtime writes it as `context.clearance_lost`, so
+        a refusal without its report is counted structurally."""
+        lost, self._clearance_lost = self._clearance_lost, 0
+        return lost
+
     def _gate_ctx(self, phase: str, q, q_prev, T) -> GateCtx:
         """The report context of the map gates about to run, with the map's
         refresh count read BEFORE their first query (no lock; a lower bound
@@ -568,7 +579,7 @@ class SafetyHarness:
         try:
             self._clearance_report(ctx, gate, reason, hit, exempt, T_frame, raised)
         except Exception:  # noqa: BLE001 -- a report never changes a gate outcome
-            return
+            self._clearance_lost += 1
 
     def _clearance_report(self, ctx, gate, reason, hit, exempt, T_frame, raised) -> None:
         from ..perception.occupancy import RefusalSnapshot
@@ -604,6 +615,7 @@ class SafetyHarness:
         with lock if lock is not None else nullcontext():
             reports = self._clearance_reports
             if reports.maxlen != bounds.max_reports:
+                self._clearance_lost += max(len(reports) - bounds.max_reports, 0)
                 reports = self._clearance_reports = deque(reports, maxlen=bounds.max_reports)
             refreshes = getattr(occ, "refreshes", None)
             clears = getattr(occ, "cache_clears", None)
@@ -655,6 +667,8 @@ class SafetyHarness:
             if errors:
                 report["snapshot_error"] = "; ".join(errors)
             _flag_newer_map(report)
+            if reports.maxlen is not None and len(reports) >= reports.maxlen:
+                self._clearance_lost += 1                      # the oldest is evicted
             reports.append((key, report))
 
     @property

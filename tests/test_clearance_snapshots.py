@@ -162,7 +162,8 @@ def test_report_fields_and_bounds():
     assert r["clearance_m"] == pytest.approx(.02, abs=1e-3) and r["margin_m"] == .03
     assert r["exemption"] is None
     assert r["map"] == {"refreshes": 1, "cache_clears": 0, "age_s": r["map"]["age_s"], "voxel_m": .01,
-                        "occupied": len(occ._occupied)}
+                        "occupied": len(occ._occupied), "grid_origin": occ._grid_origin.tolist(),
+                        "grid_shape": list(occ._grid.shape)}
     assert r["gate_refreshes"] == 1 and r["gate_cache_clears"] == 0
     assert 0 <= r["map"]["age_s"] < 5
     assert 0 < len(r["voxels"]) <= 64 and len(r["voxels"]) == 64          # the box holds > 64 near voxels
@@ -909,7 +910,7 @@ def test_reports_carry_the_base_pose_and_every_gate_reads_the_map_frame():
 
 def test_clearance_record_is_the_map_state_a_report_carries(monkeypatch):
     assert OccupancyMap().clearance_record() == {"refreshes": 0, "cache_clears": 0, "age_s": None, "voxel_m": None,
-                                                 "occupied": None}
+                                                 "occupied": None, "grid_origin": None, "grid_shape": None}
     occ = live_map(UNDER)
     rec = occ.clearance_record()
     assert rec["refreshes"] == 1 and rec["voxel_m"] == .01 and rec["occupied"] == len(occ._occupied) > 0
@@ -1016,6 +1017,58 @@ def test_runtime_drains_reports_into_the_trace(demo_cfg, tmp_path):
         r = runtime.execute("move_relative", {"direction": "up", "distance_m": .02})
         assert r["ok"] is True, r
         assert "clearance" not in runtime.trace.rows()[-1]["context"]
+    finally:
+        shutdown_runtime(runtime, arm)
+
+
+def test_a_report_the_harness_could_not_file_is_counted(monkeypatch):
+    """A filing exception keeps the refusal and files nothing; the loss is
+    counted structurally (`drain_clearance_lost`), never inferred from text."""
+    occ = live_map(UNDER)
+    _, _, h = case(occupancy=occ)
+    monkeypatch.setattr(h, "_clearance_report", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    assert h.vet_pose(np.array([.3, 0., .3])).startswith("point 0 clearance")
+    assert h.drain_clearance_reports() == [] and h.drain_clearance_lost() == 1
+    assert h.drain_clearance_lost() == 0                       # drained
+
+
+def test_reports_evicted_at_the_cap_are_counted(monkeypatch):
+    from cascade.perception.occupancy import RefusalSnapshot
+
+    occ = live_map(centred_box([.3, 0., .26], [.4, .4, .04]))     # a flat top 2 cm under every pose below
+    occ.refusal_snapshot = RefusalSnapshot(max_reports=2)
+    _, _, h = case(occupancy=occ)
+    for x in (.20, .25, .30, .35):                            # four cells: two kept, two evicted
+        assert h.vet_pose(np.array([x, 0., .3]))
+    assert len(h.drain_clearance_reports()) == 2 and h.drain_clearance_lost() == 2
+    # a cap lowered while reports are on file: the ones it cuts are lost too
+    occ.refusal_snapshot = RefusalSnapshot(max_reports=32)
+    for x in (.20, .25, .30, .35):
+        assert h.vet_pose(np.array([x, 0., .3]))
+    occ.refusal_snapshot = RefusalSnapshot(max_reports=2)
+    assert h.vet_pose(np.array([.40, 0., .3]))               # 4 on file -> 2 kept, then one evicted for it
+    assert len(h.drain_clearance_reports()) == 2 and h.drain_clearance_lost() == 3
+
+
+def test_runtime_writes_the_lost_count_into_the_trace(demo_cfg, tmp_path, monkeypatch):
+    from cascade.apps.demo import build_runtime, shutdown_runtime
+
+    runtime, arm = build_runtime(demo_cfg, tmp_path / "run")
+    try:
+        h = runtime.arm.harness
+        q_home = np.asarray(runtime.arm.get_state().q, dtype=float)
+        tcp = h.kin.fk(q_home)[:3, 3]
+        h.occupancy = live_map(centred_box(tcp + [0., 0., -.08], [.04, .04, .02]))
+        monkeypatch.setattr(h, "_clearance_report", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+        r = runtime.execute("move_relative", {"direction": "down", "distance_m": .06})
+        assert r["ok"] is False
+        context = runtime.trace.rows()[-1]["context"]
+        assert context.get("clearance_lost", 0) >= 1 and "clearance" not in context
+        # a loss outside any call is stale: the next call drains it first
+        h._clearance_lost += 5
+        r = runtime.execute("move_relative", {"direction": "up", "distance_m": .02})
+        assert r["ok"] is True, r
+        assert "clearance_lost" not in runtime.trace.rows()[-1]["context"]
     finally:
         shutdown_runtime(runtime, arm)
 

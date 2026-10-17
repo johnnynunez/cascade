@@ -177,6 +177,12 @@ def _column_kw(column) -> dict:
     return {"exempt_xy": column[0], "exempt_radius_m": column[1], "exempt_z_min": column[2]}
 
 
+def _drain_clearance_lost(harness) -> int:
+    """`harness.drain_clearance_lost()`, 0 for a double without it."""
+    drain = getattr(harness, "drain_clearance_lost", None)
+    return int(drain()) if callable(drain) else 0
+
+
 def _column_exemption(harness, column, z_max=None):
     """The target column exemption, or a no-op for None. `z_max` caps it
     (the air-grasp exit); the approach passes none: today's unbounded call."""
@@ -1447,6 +1453,7 @@ class SkillRuntime:
         clearance_harnesses = self._clearance_harnesses()
         for harness in clearance_harnesses:
             harness.drain_clearance_reports()
+            _drain_clearance_lost(harness)
         from ..robot_context import arm_profiles
 
         profiles = arm_profiles(self.cfg)
@@ -1889,6 +1896,11 @@ class SkillRuntime:
         clearance_reports = [r for h in clearance_harnesses for r in h.drain_clearance_reports()]
         if clearance_reports:
             trace_context["clearance"] = clearance_reports
+        # reports the harness did not keep (a filing exception, the cap):
+        # counted, so a refusal without its report is never silent
+        clearance_lost = sum(_drain_clearance_lost(h) for h in clearance_harnesses)
+        if clearance_lost:
+            trace_context["clearance_lost"] = clearance_lost
         if perception_timings:
             # Two-phase localization (B1): where the time went. The result
             # carries the latest localization of the object the call names

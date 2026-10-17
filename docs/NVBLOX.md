@@ -274,9 +274,13 @@ never on an admitted step, from the map cache current when the report is built
 dropped the cache, between the gate's read and the report, `gate_refreshes` / `gate_cache_clears`
 differ from `map.refreshes` / `map.cache_clears` and `snapshot_newer_map` is true (the voxels are
 then approximate). A failing snapshot keeps the refusal and adds
-`snapshot_error`. Use them to tell a real neighbour from robot leftovers or stale voxels before
-touching any margin (`tests/test_clearance_snapshots.py`); `scripts/replay_clearance.py` re-vets
-them offline per lever (spec §6.3).
+`snapshot_error`; a report the harness cannot keep (a filing error, the 32 cap) is counted in the
+row's `context.clearance_lost`. Use them to tell a real neighbour from robot leftovers or stale
+voxels before touching any margin (`tests/test_clearance_snapshots.py`);
+`scripts/replay_clearance.py` re-vets them offline per lever (spec §6.3). It mirrors the live read
+(float32 grid, the region clamp from `map.grid_origin` / `grid_shape`, `base_pose`) and is exact
+only on whole-mm voxel lattices (the 1 cm default); it was checked on an EDT test bridge, never yet
+on real nvblox, and it measures `old` and certified L4, not L1/L2 (spec §12, P-A6).
 
 Offline end to end (`tests/test_rebot_occupancy_live.py`): with the capsule mask home is refused
 by the arm's own jaws; with the mesh mask rest, home and every step between are admitted, and the

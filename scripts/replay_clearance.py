@@ -32,19 +32,25 @@ its exemption cylinder in its base frame. The replay builds its harness with
 that `base_pose`, so every lever lifts exactly as the live gate did.
 
 Distance model. The live gates read `OccupancyMap.clearance`: a trilinear
-read of the bridge's grid, whose nodes are the voxel centres and whose values
-are distances between voxel centres (nvblox's ESDF, the warp / voxel EDT). The
-replay rebuilds that lattice EDT from the snapshot's centres (lattice origin
-= any centre) and reads it the same way; a tool sample below the margin is
-re-measured to the nearest centre outside the table band and the exemption
-column, minus half a voxel, as `clearance_excluding` does. That is exact on
-those backends up to the snapshot's 1 mm rounding (`replay_clearance_m` is
-the replayed read at the recorded sample). A box-distance map (the GridBridge
-test fake) cannot be recovered from voxel centres: the rebuilt grid reads
-farther there. A snapshot holds no unknown voxels: the live read takes an
-unobserved grid corner as far (1e3), the replay has no such corner, so near
-unobserved space it reads LOW (toward refused). A sample outside the live
-map's region reads +inf there, finite here (toward refused too).
+read of the bridge's grid (`_sample_grid`), whose nodes are the voxel
+centres and hold float32 distances between voxel centres (nvblox's ESDF, the
+warp / voxel EDT). The replay rebuilds that lattice EDT from the snapshot's
+centres and reads it the same way: float32 node values, and with the
+recorded grid (`map.grid_origin`, `map.grid_shape`) the same region: a
+point within half a voxel outside the border node centres is clamped to
+them, one farther out reads +inf. A tool sample below the margin is
+re-measured to the nearest float32 centre outside the table band and the
+exemption column (base frame), minus half a voxel, as `clearance_excluding`
+does. Exact (to ~1e-9 m) only where the snapshot's 1 mm rounding keeps the
+voxel lattice: whole-mm centres, such as the 1 cm default voxel at x.xx5; a
+lattice it breaks (1.5 cm voxels) or one whose centre steps share a factor
+(voxel_m a fraction of the real voxel) is not replayable. Checked against an
+EDT test bridge only, never yet against real nvblox. A box-distance map (the
+GridBridge test fake) cannot be recovered from voxel centres: the rebuilt grid
+reads farther there. A snapshot holds no unknown voxels: the live read takes
+an unobserved grid corner as far (1e3), the replay has no such corner, so
+near unobserved space it reads LOW (toward refused). A report without the
+grid record (older traces) never reads "allowed" (`NO_REGION`).
 
 Three-valued verdicts. A snapshot holds only the occupied voxels within
 `radius_m` of its query centre, at most `max_voxels` of them (the nearest);
@@ -67,15 +73,19 @@ reason>", its own bucket): a map that refused by RAISING (stale, failed, body
 mask: `raised`); a phase the harness never writes; no measured sample, no
 voxels or voxel size; an unobserved (NaN) clearance; joints that do not fit
 `--arm`; a `margin_m` other than the replaying profile's; voxel centres off a
-`voxel_m` lattice (1 mm rounding allowed); a malformed exemption, base_pose
-or snapshot record; a report entry that is not a mapping.
+`voxel_m` lattice (to 1e-6 m), off the recorded map grid, or whose steps
+share a factor; a malformed exemption, base_pose, map grid or snapshot
+record; a report entry that is not a mapping.
 
 Never connects to anything (no bridge, arm, camera or service) and never
 writes: it reads trace files and the arm profile, prints one JSON line per
 report, then the summary {lever: {allowed, refused, undecidable,
-not_replayable, no_snapshot}, model_mismatch}. `no_snapshot` counts failed
-rows whose error names a map clearance gate but that carry no
-`context.clearance` (a pre-A4 trace, a lost report): the spec §7 A2 metric.
+not_replayable, no_snapshot}, model_mismatch}. `no_snapshot` counts
+refusals without a report, the spec §7 A2 metric: structurally, the rows'
+`context.clearance_lost` (reports the harness did not keep: a filing error,
+eviction at the report cap); only for a row with neither `clearance` nor
+`clearance_lost` (a pre-A4 trace), a failed row whose error names a map
+clearance gate.
 stderr: totals; unreadable lines, malformed report entries and reports whose
 replay raised are counted there and make the exit status 1 (each such report
 still gets a not-replayable row and the run goes on).
@@ -126,8 +136,10 @@ STATIC_PHASES = ("vet_pose", "route_end")
 TAKEOVER_TOL_M = 0.002
 #: the snapshot rounds distances and centres to 1 mm
 ROUNDING_M = 0.001
-#: centres on one voxel lattice: each rounded by up to 0.5 mm
-LATTICE_TOL_M = ROUNDING_M + 1e-6
+#: centres on one voxel lattice, to this tolerance: the certificate holds
+#: only where the 1 mm rounding kept the lattice (whole-mm centres, e.g. a
+#: 1 cm voxel at x.xx5); a 1.5 cm lattice rounded to 1 mm is not replayable
+LATTICE_TOL_M = 1e-6
 #: the harness dedupes reports by their sample rounded to 1 cm: a streamed
 #: halt takes a report over from a sample in the same cell, at most its
 #: diagonal away
@@ -137,7 +149,7 @@ MAP_REFUSAL = re.compile(r"occupancy map|required occupancy unavailable|occupanc
                          r"|clearance unavailable \(fresh observed distance grid required\)")
 #: the override file's blocks
 _OVERRIDE_KEYS = {"tool_volume", "wrist_camera"}
-_COUNTS = ("skipped_lines", "malformed_entries", "no_snapshot")
+_COUNTS = ("skipped_lines", "malformed_entries", "no_snapshot", "lost")
 
 
 class ReplayMap:
@@ -170,7 +182,7 @@ class ReplayMap:
     required = False
     unknown_blocks = False
 
-    def __init__(self, voxels, voxel_m: float, *, payload_tcp=None, certified=None):
+    def __init__(self, voxels, voxel_m: float, *, payload_tcp=None, certified=None, grid=None):
         voxel_m = float(voxel_m)
         if not (np.isfinite(voxel_m) and voxel_m > 0.0):
             raise ValueError(f"voxel_m must be finite and > 0, got {voxel_m!r}")
@@ -179,7 +191,21 @@ class ReplayMap:
         if centres.shape[1] != 3 or not np.all(np.isfinite(centres)):
             raise ValueError("voxels must be finite rows [x, y, z(, d)]")
         self._occupied = np.array(centres, dtype=float)
-        self._origin = self._occupied[0].copy() if len(self._occupied) else np.zeros(3)
+        # the live cache holds float32 centres: band / cylinder exclusions and
+        # re-measures compare those (`clearance_excluding`)
+        self._occupied32 = self._occupied.astype(np.float32).astype(float)
+        self._region = None
+        if grid is not None:
+            origin, shape = grid
+            origin = np.asarray(origin, dtype=float).reshape(3)
+            shape = np.asarray(shape).reshape(3)
+            if (not np.all(np.isfinite(origin)) or shape.dtype.kind not in "iu"
+                    or not np.all(shape >= 1)):
+                raise ValueError(f"a grid is a finite origin and 3 node counts >= 1, got {grid!r}")
+            self._region = (origin, shape.astype(int))
+            self._origin = origin
+        else:
+            self._origin = self._occupied[0].copy() if len(self._occupied) else np.zeros(3)
         self._bound = None
         if certified is not None:
             centre, radius = np.asarray(certified[0], dtype=float).reshape(3), float(certified[1])
@@ -187,6 +213,9 @@ class ReplayMap:
                 raise ValueError(f"a certificate is a finite (centre, radius), got {certified!r}")
             self._bound = (centre, radius)
         self.voxel_m = voxel_m
+        # the centres as integer lattice keys: a node's EDT value is the
+        # lattice distance, v * |dk|, as the bridge computes it
+        self._keys = np.round((self._occupied - self._origin) / voxel_m)
         self.status = {"voxel": voxel_m}
         self.refreshes = 0
         self._refresh_lock = threading.RLock()
@@ -214,22 +243,46 @@ class ReplayMap:
             out[start:start + step] = np.linalg.norm(chunk[:, None, :] - centres[None, :, :], axis=-1).min(axis=1)
         return out
 
+    def _node_values(self, keys) -> np.ndarray:
+        """The live grid's node values at integer lattice `keys`: the EDT
+        distance to the nearest centre (v * |dk|, as the bridge's EDT), capped
+        by the certified bound, held in float32 as the live grid holds it; a
+        non-finite node reads 1e3, as `_sample_grid` treats an unknown one."""
+        v = self.voxel_m
+        out = np.full(len(keys), np.inf)
+        if len(self._keys):
+            step = max(1, 2 ** 18 // len(self._keys))
+            for start in range(0, len(keys), step):
+                diff = (keys[start:start + step, None, :] - self._keys[None, :, :]) * v
+                out[start:start + step] = np.sqrt((diff * diff).sum(axis=-1)).min(axis=1)
+        nodes = self._origin + keys * v
+        value = np.minimum(out, self._ruled_out(nodes)).astype(np.float32).astype(float)
+        return np.where(np.isfinite(value), value, 1e3)
+
     def _grid_read(self, points) -> np.ndarray:
+        """`OccupancyMap._sample_grid` on the rebuilt grid: with the recorded
+        region (`grid`), a point beyond half a voxel outside it reads +inf and
+        one within it is clamped to the border nodes, exactly as live."""
         pts = np.atleast_2d(np.asarray(points, dtype=float))
         if not len(self._occupied) and self._bound is None:
             return np.full(len(pts), np.inf)
-        v = self.voxel_m
-        f = (pts - self._origin) / v
+        f = (pts - self._origin) / self.voxel_m
+        inside = np.ones(len(pts), dtype=bool)
+        if self._region is not None:
+            shape = self._region[1]
+            inside = np.all((f >= -0.5) & (f <= shape - 0.5), axis=1)
+            f = np.clip(f, 0, shape - 1)
         i0 = np.floor(f)
+        i1 = i0 + 1.0 if self._region is None else np.minimum(i0 + 1.0, self._region[1] - 1)
         t = f - i0
-        corners = np.array([[dx, dy, dz] for dx in (0, 1) for dy in (0, 1) for dz in (0, 1)], dtype=float)
-        keys, inverse = np.unique((i0[:, None, :] + corners[None, :, :]).reshape(-1, 3), axis=0,
-                                  return_inverse=True)
-        nodes = self._origin + keys * v
-        value = np.minimum(self._nearest(nodes, self._occupied), self._ruled_out(nodes))
-        node_d = value[np.asarray(inverse).reshape(-1)].reshape(len(pts), 8)
-        weight = np.prod(np.where(corners[None, :, :] == 1.0, t[:, None, :], 1.0 - t[:, None, :]), axis=-1)
-        return (weight * node_d).sum(axis=1)
+        corners = np.array([[dx, dy, dz] for dx in (0, 1) for dy in (0, 1) for dz in (0, 1)], dtype=bool)
+        idx = np.where(corners[None, :, :], i1[:, None, :], i0[:, None, :])          # (n, 8, 3)
+        keys, inverse = np.unique(idx.reshape(-1, 3), axis=0, return_inverse=True)
+        node_d = self._node_values(keys)[np.asarray(inverse).reshape(-1)].reshape(len(pts), 8)
+        weight = np.prod(np.where(corners[None, :, :], t[:, None, :], 1.0 - t[:, None, :]), axis=-1)
+        out = (weight * node_d).sum(axis=1)
+        out[~inside] = np.inf
+        return out
 
     def clearance(self, points) -> np.ndarray:
         return self._grid_read(points)
@@ -244,7 +297,7 @@ class ReplayMap:
         near = np.isfinite(dist) & (dist < within)
         if not near.any() or not len(self._occupied):
             return dist
-        cand = self._occupied
+        cand = self._occupied32
         if below_z is not None:
             cand = cand[cand[:, 2] > float(below_z)]
         if cylinder is not None and len(cand):
@@ -311,6 +364,17 @@ def _row_reports(row):
     return False
 
 
+def _lost_reports(row: dict):
+    """A row's `context.clearance_lost` (reports the harness did not keep: a
+    filing exception, eviction at the report cap), 0 when absent, None when
+    it is not a count."""
+    context = row.get("context")
+    lost = context.get("clearance_lost", 0) if isinstance(context, dict) else 0
+    if isinstance(lost, bool) or not isinstance(lost, int) or lost < 0:
+        return None
+    return lost
+
+
 def _map_refusal(row: dict) -> bool:
     """Is this row a failed call whose error names a map clearance gate?"""
     result = row.get("result")
@@ -325,8 +389,11 @@ def load_reports(paths, counts: dict | None = None) -> list[dict]:
     mapping comes back as {run, step, skill, "malformed": why} (replay() says
     it is not replayable). `counts` (optional) accumulates
     `skipped_lines` (a line that is not a JSON object, or whose clearance
-    field is not a list), `malformed_entries` and `no_snapshot` (a failed row
-    naming a map clearance gate without any report)."""
+    field / lost count is malformed), `malformed_entries`, `lost` (the rows'
+    `context.clearance_lost`) and `no_snapshot`: refusals without a report,
+    counted structurally (`lost`) for a row the runtime wrote either key
+    into, and only for a row with neither key (a pre-A4 trace) by its error
+    naming a map clearance gate."""
     counts = {} if counts is None else counts
     for key in _COUNTS:
         counts.setdefault(key, 0)
@@ -340,11 +407,17 @@ def load_reports(paths, counts: dict | None = None) -> list[dict]:
                 continue
             row = _json_row(line)
             reports = None if row is None else _row_reports(row)
-            if row is None or reports is False:
+            lost = None if row is None else _lost_reports(row)
+            if row is None or reports is False or lost is None:
                 counts["skipped_lines"] += 1
                 continue
+            counts["lost"] += lost
+            counts["no_snapshot"] += lost
+            context = row.get("context")
+            structural = isinstance(context, dict) and ("clearance" in context or "clearance_lost" in context)
             if not reports:
-                counts["no_snapshot"] += int(_map_refusal(row))
+                if not structural:
+                    counts["no_snapshot"] += int(_map_refusal(row))
                 continue
             where = {"run": path.parent.name, "step": row.get("step"), "skill": row.get("skill")}
             for report in reports:
@@ -520,18 +593,47 @@ def _why_not_replayable(report: dict, model) -> str | None:
         rows = np.asarray(report["voxels"], dtype=float)
         if rows.ndim != 2 or rows.shape[1] not in (3, 4) or not np.all(np.isfinite(rows)):
             raise ValueError(f"rows of shape {rows.shape}, finite [x, y, z, d] expected")
-        ReplayMap(rows, voxel)
+        grid = _grid_record(record)
+        ReplayMap(rows, voxel, grid=grid)
     except (TypeError, ValueError) as exc:
-        return f"bad voxels: {exc}"
+        return f"bad voxels or map grid: {exc}"
     voxel = float(voxel)
     steps = (rows[:, :3] - rows[0, :3]) / voxel
     if np.any(np.abs(steps - np.round(steps)) * voxel > LATTICE_TOL_M):
-        return f"voxel centres off the {voxel:g} m lattice (voxel_m does not fit them)"
+        return f"voxel centres off the {voxel:g} m lattice (voxel_m does not fit them, or the 1 mm rounding broke it)"
+    factor = int(np.gcd.reduce(np.abs(np.round(steps).astype(np.int64)).ravel()))
+    if factor >= 2:
+        return (f"voxel centre steps share a factor {factor}: voxel_m {voxel:g} may be a fraction of the map's "
+                "voxel")
+    if grid is not None:
+        on_grid = (rows[:, :3] - np.asarray(grid[0], dtype=float)) / voxel
+        if np.any(np.abs(on_grid - np.round(on_grid)) * voxel > LATTICE_TOL_M):
+            return "voxel centres off the recorded map grid"
     try:
         _snapshot_record(report)
     except (TypeError, ValueError) as exc:
         return f"bad snapshot record: {exc}"
     return None
+
+
+def _grid_record(record):
+    """The recorded distance grid (`map.grid_origin`, `map.grid_shape`) as
+    (origin, shape), or None when the report has none (older reports).
+    Raises ValueError when it is malformed."""
+    if not isinstance(record, dict):
+        return None
+    origin, shape = record.get("grid_origin"), record.get("grid_shape")
+    if origin is None and shape is None:
+        return None
+    if (not _point(origin) or not isinstance(shape, list) or len(shape) != 3
+            or any(isinstance(n, bool) or not isinstance(n, int) or n < 1 for n in shape)):
+        raise ValueError(f"map grid {origin!r:.60} / {shape!r:.60}")
+    return np.asarray(origin, dtype=float), np.asarray(shape, dtype=int)
+
+
+#: an "allowed" the replay cannot certify without the recorded region: the
+#: live read clamps within half a voxel of a region face (older reports)
+NO_REGION = "undecidable: the report records no map grid (the live read clamps at its faces)"
 
 
 def _exemption(report: dict):
@@ -662,24 +764,29 @@ def replay(report: dict, *, arm: str, tool_volume_override=None) -> dict:
     flags = _approximate(report, sample, None if recorded is None else recorded[0])
     certificate = _certificate(report, model, sample, flags)
     bound = (certificate["centre"], certificate["radius_m"])
+    grid = _grid_record(report["map"])
 
     def harnesses(volume):
         """The same harness over the snapshot alone and over the snapshot
         with the certified bound."""
         return tuple(SafetyHarness(model.limits, kinematics=kin, base_pose=base_pose, tool_volume=volume,
                                    occupancy=ReplayMap(report["voxels"], report["map"]["voxel_m"],
-                                                       payload_tcp=payload, certified=certified))
+                                                       payload_tcp=payload, certified=certified, grid=grid))
                      for certified in (None, bound))
 
+    def verdict(snapshot_only, certified):
+        out = _verdict(snapshot_only, certified)
+        return NO_REGION if out == "allowed" and grid is None else out
+
     shipped = harnesses(model.volume)
-    old = _verdict(*(_static_reason(h, q, exempt) for h in shipped))
-    l1_model = old if q_prev is None else _verdict(*(_step_reason(h, q_prev, q, exempt) for h in shipped))
+    old = verdict(*(_static_reason(h, q, exempt) for h in shipped))
+    l1_model = old if q_prev is None else verdict(*(_step_reason(h, q_prev, q, exempt) for h in shipped))
     if phase in STEP_PHASES:
         # The live gate ran this very rule on the WHOLE map and refused.
         l1, source = f"refused: {report.get('reason')}", "recorded"
     else:
         l1, source = l1_model, "model"
-    l4 = old if tool_volume_override is None else _verdict(
+    l4 = old if tool_volume_override is None else verdict(
         *(_static_reason(h, q, exempt) for h in harnesses(tool_volume_override)))
 
     h = shipped[0]
@@ -748,7 +855,8 @@ def main(argv=None) -> int:
     print(f"{len(results)} report(s): {sum(r['replayable'] for r in results)} replayable, "
           f"{sum(bool(r['approximate']) for r in results)} approximate, "
           f"{sum(bool(r['model_mismatch']) for r in results)} model mismatch", file=sys.stderr)
-    print(f"{counts['no_snapshot']} refusal row(s) without context.clearance (spec §7 A2)", file=sys.stderr)
+    print(f"{counts['no_snapshot']} refusal row(s) without context.clearance (spec §7 A2), "
+          f"{counts['lost']} report(s) the harness did not keep (context.clearance_lost)", file=sys.stderr)
     print("L1 of an approve/vet_step refusal is its recorded verdict: L1/L2 are measured by the live "
           "acceptance (spec §7 A1), not by this replay", file=sys.stderr)
     skipped, malformed = counts["skipped_lines"], counts["malformed_entries"]

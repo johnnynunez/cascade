@@ -43,7 +43,7 @@ from occupancy_grid_bridge import TABLE, GridBridge, depth_frame, make_map
 from scipy import ndimage
 from test_harness_tool_volume import OBJ, T_CAM, side_grasp_geometry
 
-from cascade.perception.occupancy import RefusalSnapshot
+from cascade.perception.occupancy import OccupancyMap, RefusalSnapshot
 from cascade.safety.harness import SafetyHarness, SafetyLimits
 from cascade.types import SafetyViolation
 
@@ -341,7 +341,7 @@ def test_load_reports_reads_every_clearance_entry_with_its_row(rc, tmp_path):
     assert got[1]["q"] == [1.0]
     assert got[2]["malformed"] == "report entry is not a mapping: 'not a report'"
     # a broken line, a non-object line and an unreadable clearance field
-    assert counts == {"skipped_lines": 3, "malformed_entries": 1, "no_snapshot": 0}
+    assert counts == {"skipped_lines": 3, "malformed_entries": 1, "no_snapshot": 0, "lost": 0}
     assert rc.load_reports([two]) == [{**a, "run": "mcp_b", "step": 0, "skill": "move_relative"}]
 
 
@@ -403,7 +403,7 @@ def test_refusal_rows_without_a_snapshot_are_counted(rc, rebot, tmp_path, capsys
         failed(1, "SafetyViolation: required occupancy unavailable: distance grid is stale (2.00 s old, "
                   "max_age_s 1.5)", None),
         failed(2, "wrist camera clearance 0.012 m below 0.030 m (occupancy map) at [0.4, 0.0, 0.5]",
-               {"clearance": []}),
+               {"clearance": [], "clearance_lost": 1}),                 # a report the harness lost
         failed(3, "no reachable grasp: IK failed", {}),
         {"step": 4, "skill": "move_home", "context": {}, "result": {"ok": True}},
         row(5, "move_home", [good], {"ok": False, "error": good["reason"]}))
@@ -542,7 +542,11 @@ def test_a_tool_part_clearance_is_read_as_its_gate_reads_it(rc):
                          [0.305, 0.005, 0.045, 0.02],      # inside the exemption column, 2 cm above
                          [0.335, 0.005, 0.035, 0.032]]}    # the neighbour
     out = rc.replay(report, arm="rebot_rs")
-    assert out["replay_clearance_m"] == pytest.approx(np.hypot(0.03, 0.01) - V / 2, abs=1e-12)
+    # to the neighbour's centre as the live cache holds it (float32)
+    neighbour = np.asarray([0.335, 0.005, 0.035], dtype=np.float32).astype(float)
+    expected = float(np.linalg.norm(np.asarray(report["sample"]) - neighbour)) - V / 2
+    assert out["replay_clearance_m"] == pytest.approx(expected, abs=1e-12)
+    assert expected == pytest.approx(np.hypot(0.03, 0.01) - V / 2, abs=1e-8)
     assert out["approximate"] == ["exemption keys not replayed: ['episode']"]
     assert out["certified"]["bounds"] == "profile"     # no recorded bounds: the profile's
 
@@ -842,11 +846,15 @@ def test_replay_map_tool_reads_exclude_the_table_band_and_the_target_column(rc):
     column = (np.array([0.205, 0.005]), 0.03, 0.05)
     got = m.clearance_excluding(probe, below_z=0.02, cylinder=column, within=0.03)
     # the table voxel and the whole column go (nothing else in reach: `within`);
-    # the neighbour stays, re-measured to its centre minus half a voxel
-    np.testing.assert_allclose(got[:4], [0.03, 0.03, 0.03, 0.025 - V / 2], atol=1e-12)
+    # the neighbour stays, re-measured to its centre (float32, as the live
+    # cache holds it) minus half a voxel
+    def f32(z):
+        return float(np.float32(z))
+
+    np.testing.assert_allclose(got[:4], [0.03, 0.03, 0.03, 0.13 - f32(0.105) - V / 2], rtol=0, atol=1e-12)
     assert got[4] == every[4] > 0.03                                        # not below `within`: the grid read
     capped = m.clearance_excluding(probe, below_z=0.02, cylinder=(*column, 0.2), within=0.03)
-    assert capped[2] == pytest.approx(0.025 - V / 2, abs=1e-12)              # above the ceiling: counts again
+    assert capped[2] == pytest.approx(f32(0.305) - 0.28 - V / 2, abs=1e-12)  # above the ceiling: counts again
     assert capped[1] == pytest.approx(0.03, abs=1e-12)
     np.testing.assert_allclose(m.clearance_excluding(probe, within=0.03), every)
     np.testing.assert_allclose(m.clearance_excluding(probe, below_z=0.02, cylinder=column), every)
@@ -884,3 +892,166 @@ def test_replay_map_reads_are_reentrant_under_its_refresh_lock(rc):
     worker.start()
     worker.join(5.0)
     assert done == [(1, 1)]
+
+
+# ── pre-final: the replay mirrors the live read at its edges (A6 review) ────
+
+
+def _region_map(*boxes, region_max_x=0.45, snapshot=WHOLE):
+    """A live map whose region ends at x = region_max_x (last voxel centre
+    half a voxel inside it): the reBot's TCP at X_REC lies within v/2 of that
+    face, where the live read clamps to the border node."""
+    occ = OccupancyMap(client=EdtBridge(list(boxes), voxel=V), region_min=np.array([-0.30, -0.45, -0.02]),
+                       region_max=np.array([region_max_x, 0.45, 0.60]), required=True, unobserved="free")
+    occ.probe()
+    occ.refusal_snapshot = snapshot
+    occ.refresh(depth_frame(), T_CAM)
+    assert occ.last_error is None and occ.usable()
+    return occ
+
+
+@needs_pin
+def test_a_sample_in_the_region_clamp_band_replays_the_live_read(rc, rebot):
+    """Live, `_sample_grid` clamps a point within v/2 outside the border node
+    centres to the border node; an unclamped replay read 3.07 cm where the
+    live gate refused at 2.67 cm. The report records the grid (origin, shape)
+    and the replay mirrors the clamp."""
+    q = at_x(rebot, X_REC)
+    occ = _region_map(voxel_box([0.425, 0.015, 0.445]))
+    h = SafetyHarness(SafetyLimits.from_config(rebot.cfg.safety), kinematics=rebot.kin, occupancy=occ,
+                      tool_volume=rebot.volume)
+    assert h.vet_pose(q)
+    rep = json.loads(json.dumps([r for r in h.drain_clearance_reports() if r["gate"] == "tcp"][-1]))
+    assert rep["clearance_m"] < 0.03
+    out = rc.replay(rep, arm="rebot_rs")
+    assert out["replay_clearance_m"] == pytest.approx(rep["clearance_m"], abs=1e-9)
+
+
+@needs_pin
+def test_a_node_exactly_at_the_margin_reads_as_the_live_float32_grid(rc, rebot):
+    """The live grid holds float32 node values (float32(0.03) < 0.03: refused)
+    on a float32 origin; a float64 replay read 0.0300000004 for a TCP the live
+    gate refused at 0.0299999953."""
+    home = rebot.kin.fk(rebot.home)[:3, 3]
+    node = np.array([0.445, -0.005, 0.435])
+    q = at_tcp(rebot, node[0], dy=node[1] - home[1], dz=node[2] - home[2])
+    h, _ = recorder(rebot, voxel_box(node + [0.0, -0.03, 0.0]), snapshot=WHOLE)
+    assert h.vet_pose(q)
+    rep = json.loads(json.dumps(h.drain_clearance_reports()[-1]))
+    assert rep["gate"] == "tcp" and rep["clearance_m"] < 0.03
+    out = rc.replay(rep, arm="rebot_rs")
+    assert out["replay_clearance_m"] == pytest.approx(rep["clearance_m"], abs=1e-12)
+    assert out["replay_clearance_m"] < 0.03
+
+
+def test_the_replay_read_is_the_live_read_inside_and_at_the_region_faces(rc):
+    """Same voxels, same grid record: ReplayMap.clearance == OccupancyMap.clearance
+    for points inside the region, in the v/2 clamp band at every face and
+    beyond it (+inf), to float32 node precision."""
+    rng = np.random.default_rng(7)
+    boxes = [voxel_box(lattice(c)) for c in rng.uniform([0.38, -0.1, 0.3], [0.44, 0.1, 0.5], (6, 3))]
+    occ = _region_map(*boxes, region_max_x=0.45)
+    rec = occ.clearance_record()
+    rows = occ.nearby_occupied(np.array([0.41, 0.0, 0.4]), 1.0, 4096)
+    replay = rc.ReplayMap(np.round(rows, 3), V, grid=(rec["grid_origin"], rec["grid_shape"]))
+    lo = np.asarray(rec["grid_origin"], dtype=float) - V / 2
+    hi = lo + np.asarray(rec["grid_shape"]) * V
+    pts = np.vstack([rng.uniform([0.36, -0.12, 0.28], [0.45, 0.12, 0.52], (400, 3)),
+                     np.column_stack([rng.uniform(hi[0] - V, hi[0] + V, 200),                # the +x face band
+                                      rng.uniform(-0.12, 0.12, 200), rng.uniform(0.28, 0.52, 200)]),
+                     np.column_stack([rng.uniform(0.36, 0.45, 200), rng.uniform(-0.12, 0.12, 200),
+                                      rng.uniform(lo[2] - V, lo[2] + V, 200)])])             # the -z face band
+    live, mirrored = occ.clearance(pts), replay.clearance(pts)
+    assert np.array_equal(np.isinf(live), np.isinf(mirrored)) and np.isinf(live).sum() > 20
+    np.testing.assert_allclose(mirrored[np.isfinite(live)], live[np.isfinite(live)], rtol=0, atol=1e-9)
+
+
+def test_band_and_cylinder_exclusions_compare_float32_centres_as_live(rc):
+    """The live cache holds float32 voxel centres: float32(0.07) > 0.07, so a
+    centre at z 0.07 is ABOVE a band top of 0.07 (an obstacle), and a centre
+    at x 0.07 lies OUTSIDE a 0.07 m cylinder (not exempt). A float64 replay
+    dropped both (fail-open)."""
+    m = rc.ReplayMap(np.array([[0.07, 0.0, 0.07]]), V)
+    sample = np.array([[0.07, 0.0, 0.085]])                   # 1.5 cm over the centre
+    d = m.clearance_excluding(sample, below_z=0.07, cylinder=None, within=0.03)
+    assert d[0] == pytest.approx(0.015 - V / 2, abs=1e-6)        # counted: re-measured to the centre
+    d = m.clearance_excluding(sample, below_z=None, cylinder=(np.zeros(2), 0.07, 0.0), within=0.03)
+    assert d[0] == pytest.approx(0.015 - V / 2, abs=1e-6)
+
+
+def _report_with_voxels(rc, voxels, voxel_m, **grid):
+    rep = {"phase": "vet_pose", "gate": "tcp", "reason": "r", "q": [0.0] * 6, "q_prev": None,
+           "sample": list(voxels[0][:3]), "clearance_m": 0.02, "exemption": None, "margin_m": 0.03,
+           "voxels": voxels, "map": {"refreshes": 1, "age_s": 0.0, "voxel_m": voxel_m, "occupied": len(voxels),
+                                     **grid},
+           "snapshot": {"centre": list(voxels[0][:3]), "radius_m": 0.05, "max_voxels": 64}}
+    return rc._why_not_replayable(rep, rc._arm_config("rebot_rs"))
+
+
+def test_voxels_off_the_recorded_map_grid_or_a_bad_grid_are_not_replayable(rc):
+    vox = [[0.405, 0.005, 0.405], [0.415, 0.005, 0.405]]
+    assert _report_with_voxels(rc, vox, 0.01, grid_origin=[-0.295, -0.445, -0.015], grid_shape=[96, 90, 62]) is None
+    why = _report_with_voxels(rc, vox, 0.01, grid_origin=[-0.29, -0.445, -0.015], grid_shape=[96, 90, 62])
+    assert why == "voxel centres off the recorded map grid", why
+    for bad in ({"grid_origin": [0.0, 0.0], "grid_shape": [1, 1, 1]}, {"grid_origin": [0.0] * 3, "grid_shape": [0, 1, 1]},
+                {"grid_origin": [0.0] * 3, "grid_shape": None}, {"grid_origin": [0.0] * 3, "grid_shape": [1.5, 1, 1]}):
+        why = _report_with_voxels(rc, vox, 0.01, **bad)
+        assert why is not None and why.startswith("bad voxels or map grid"), (bad, why)
+
+
+@needs_pin
+def test_an_admission_without_the_recorded_grid_is_undecidable(rc, rebot):
+    """An older report (no `grid_origin` / `grid_shape`) cannot mirror the
+    live clamp at the region faces: what would certify "allowed" reads
+    undecidable."""
+    q_rec = at_x(rebot, X_REC)
+    centre = lattice(rebot.kin.fk(q_rec)[:3, 3] + [-0.015, 0.0, 0.07])
+    h, _ = recorder(rebot, voxel_box(centre), snapshot=WHOLE)
+    assert h.vet_pose(q_rec)
+    (rep,) = h.drain_clearance_reports()
+    rep = json.loads(json.dumps(rep))
+    parts = rc.tool_volume_from_override("rebot_rs", PARTS)
+    assert rc.replay(rep, arm="rebot_rs", tool_volume_override=parts)["L4"] == "allowed"
+    for key in ("grid_origin", "grid_shape"):
+        rep["map"].pop(key)
+    out = rc.replay(rep, arm="rebot_rs", tool_volume_override=parts)
+    assert out["L4"] == rc.NO_REGION and out["old"].startswith("refused")
+
+
+def test_a_lattice_the_millimetre_rounding_broke_is_not_replayable(rc):
+    """1.5 cm voxels: centres at .0075 steps, rounded to 1 mm, sit 0.5 mm off
+    the recorded lattice. A 1 mm tolerance passed them; the certificate needs
+    the lattice to ~1e-6 m."""
+    rounded = [[0.407, 0.0, 0.4], [0.422, 0.0, 0.4], [0.438, 0.0, 0.4]]   # 0.4075, 0.4225, 0.4375 at 1 mm
+    why = _report_with_voxels(rc, rounded, 0.015)
+    assert why is not None and "lattice" in why, why
+    assert _report_with_voxels(rc, [[0.405, 0.0, 0.4], [0.42, 0.0, 0.4], [0.435, 0.0, 0.4]], 0.015) is None
+
+
+def test_a_snapshot_whose_steps_share_a_factor_is_not_replayable(rc):
+    """voxel_m recorded as half the real voxel: every centre step is an even
+    number of recorded voxels. A GCD >= 2 over the integer steps catches it
+    (fail closed); one voxel, or steps with GCD 1, replay."""
+    why = _report_with_voxels(rc, [[0.405, 0.005, 0.405], [0.425, 0.005, 0.405], [0.405, 0.045, 0.405]], 0.01)
+    assert why is not None and "share a factor" in why, why
+    assert _report_with_voxels(rc, [[0.405, 0.005, 0.405], [0.415, 0.005, 0.405]], 0.01) is None
+    assert _report_with_voxels(rc, [[0.405, 0.005, 0.405]], 0.01) is None
+
+
+def test_reports_the_harness_did_not_keep_are_counted_structurally(rc, tmp_path, capsys):
+    """`context.clearance_lost` (a filing exception, eviction at the report
+    cap) counts as `no_snapshot` whatever the error text says; the wording
+    match is kept only for rows with neither key (pre-A4 traces)."""
+    trace = write_trace(
+        tmp_path / "mcp_10" / "trace.jsonl",
+        {"step": 0, "skill": "move_home", "context": {"clearance_lost": 2},
+         "result": {"ok": False, "error": "this attempt FAILED: the arm could not move"}},
+        {"step": 1, "skill": "move_home", "context": {"clearance": [], "clearance_lost": 1},
+         "result": {"ok": False, "error": "point 0 clearance 0.02 m below 0.03 m (occupancy map)"}},
+        {"step": 2, "skill": "move_home", "context": {},
+         "result": {"ok": False, "error": "point 0 clearance 0.02 m below 0.03 m (occupancy map)"}})
+    counts = {}
+    assert rc.load_reports([trace], counts) == []
+    assert counts["no_snapshot"] == 4 and counts["lost"] == 3
+    rc.main([str(trace)])
+    assert "3 report(s) the harness did not keep" in capsys.readouterr().err

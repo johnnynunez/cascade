@@ -1577,8 +1577,10 @@ class OccupancyMap:
         `SafetyHarness.drain_clearance_reports`): `refreshes` (committed
         refreshes), `cache_clears` (cache drops without a refresh,
         `_drop_cache`), `age_s` (of the cache, 1 ms; None before the first
-        commit), `voxel_m` (None before the first grid) and `occupied` (the
-        cached voxel count; None without a cache). Read under `_refresh_lock`
+        commit), `voxel_m` (None before the first grid), `occupied` (the
+        cached voxel count; None without a cache) and `grid_origin` /
+        `grid_shape` (the distance grid's first node centre, float32 as read,
+        and node counts; None without a grid). Read under `_refresh_lock`
         so that, with the harness holding the lock, it names the same commit
         as `nearby_occupied`. Attribute reads only: no bridge, no raise for a
         stale or failed map (the report of such a refusal is exactly where
@@ -1586,12 +1588,19 @@ class OccupancyMap:
         with self._refresh_lock:
             last, voxel, occupied, refreshes, clears = (self._last_refresh, self._grid_voxel, self._occupied,
                                                         self.refreshes, self.cache_clears)
+            grid, origin = self._grid, self._grid_origin
+        has_grid = grid is not None and origin is not None
         return {
             "refreshes": int(refreshes),
             "cache_clears": int(clears),
             "age_s": None if last is None else round(max(time.monotonic() - float(last), 0.0), 3),
             "voxel_m": float(voxel) if voxel else None,
             "occupied": None if occupied is None else len(occupied),
+            # the region the distance grid covers, exactly as `_sample_grid`
+            # reads it (first node centre, node counts): the offline replay
+            # mirrors its clamp within half a voxel of a face
+            "grid_origin": [float(v) for v in np.asarray(origin).reshape(3)] if has_grid else None,
+            "grid_shape": [int(n) for n in np.shape(grid)] if has_grid else None,
         }
 
     def _check_required_age(self) -> None:

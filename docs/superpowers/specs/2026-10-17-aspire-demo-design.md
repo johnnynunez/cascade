@@ -115,6 +115,9 @@ Advice lint (a note that fails it is never served, whatever its status): non-emp
 `emergency_stop` or `halt_motion`; none of the patterns `ignore|bypass|disable|override|skip` within 6 words of
 `safety|refus|gate|check|limit|margin|stop`; no number followed by `mm|cm|m|deg`
 (advice never carries a geometric value an agent could treat as a setting).
+The same lint covers every field rendered to the agent or a visitor (preflight R4): the title (<= 80 chars) and the
+advice. Both may name only read-only tools and the note's own skill (the tool its failure signature names), and never
+`reset_scene`, `reset_stop`, `emergency_stop` or `halt_motion` (a reset clears the sim retry ledger).
 
 ### 4.2 Library snapshot, library hash, run manifest
 
@@ -183,7 +186,8 @@ moves the robot." Every pinned copy of the 6-tool list moves to 7 in the same ch
 
 Served notes: `sim` serves notes the library's promotion rule admits, recomputed from the counters (A1: `n_tasks >=
 memory.skill_min_tasks`; B2 adds the verifier verdict), never `refuted` or `retired`, with clean lint; the stored
-`status` string is advisory. `real` serves only notes with
+`status` string is advisory. Authored notes follow the same counters; real still needs a verified verdict (preflight R5).
+`real` serves only notes with
 `verifier.verdict == "verified"` and clean lint, whatever their status field says (D5: none until B). The filter sits
 in `load_snapshot`, so the block, `robot_knowledge`, the chat line and the built-in orchestrator's `retrieve()` (which
 B2 moves onto the snapshot) see the same set.

@@ -312,7 +312,18 @@ def test_the_forwarded_set_is_pinned():
         "CASCADE_MICRODUCK_ASSET_SHA256", "CASCADE_MICRODUCK_POLICY_SHA256",
         "CASCADE_MICRODUCK_MODEL_IDENTITY_SHA256", "CASCADE_MICRODUCK_BRIDGE_PORT", "CASCADE_MICRODUCK_ENGINE",
         "CASCADE_MICRODUCK_DEVICE", "CASCADE_MCP_READONLY_LANE", "CASCADE_NVBLOX_MAP",
-        "CASCADE_PERCEPTION_URL", "CASCADE_PERCEPTION_MODEL", "CASCADE_PERCEPTION_KEY_FILE"}
+        "CASCADE_PERCEPTION_URL", "CASCADE_PERCEPTION_MODEL", "CASCADE_PERCEPTION_KEY_FILE",
+        "CASCADE_SIM_RETRY"}
+
+
+def test_the_sim_retry_kill_switch_reaches_the_robot_server():
+    # ASPIRE (preflight R3): cascade.sim_profile reads CASCADE_SIM_RETRY in the
+    # MCP server process; an operator's `CASCADE_SIM_RETRY=0` exported before
+    # the launch must ride the registration or the kill switch does nothing.
+    reg = _registry()
+    assert "CASCADE_SIM_RETRY" in reg.FORWARDED and "CASCADE_SIM_RETRY" not in reg.NOT_FORWARDED
+    assert reg.forwarded_env({"CASCADE_SIM_RETRY": "0"}) == {"CASCADE_SIM_RETRY": "0"}
+    assert "sim_profile.py" in _runtime_literals()["CASCADE_SIM_RETRY"]
 
 
 def test_the_brain_endpoint_reaches_the_robot_server_and_the_key_never_does():
@@ -352,6 +363,7 @@ def _values(names, tmp_path: Path) -> dict[str, str]:
         "CASCADE_DETECT_CLASSES": "cup,b63 bowl", "CASCADE_MEMORY_EMBEDDER": "hash",
         "CUDA_VISIBLE_DEVICES": "", "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
         "CASCADE_MICRODUCK_ENGINE": "physx", "CASCADE_MICRODUCK_DEVICE": "cuda:0",
+        "CASCADE_SIM_RETRY": "0",
     }
     values, port = {}, 46520
     for name in names:

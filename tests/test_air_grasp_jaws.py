@@ -685,6 +685,22 @@ def test_reset_scene_never_opens_jaws_that_may_hold_an_object(mock_rt, monkeypat
 
 
 @needs_pin
+def test_a_jaw_fault_in_reset_scene_is_reported_and_the_reset_goes_on(mock_rt, monkeypatch):
+    rt, arm = mock_rt.rt, mock_rt.arm
+    rt.execute("close_gripper", {})
+    set_gripper = arm.set_gripper
+
+    def faulty(pos, effort=1.0):
+        set_gripper(pos, effort)          # recorded, never reaches the jaws
+        raise RuntimeError("gripper bus timeout")
+    monkeypatch.setattr(arm, "jaws_stuck", True, raising=False)
+    monkeypatch.setattr(arm, "set_gripper", faulty)
+    out = rt.skill_reset_scene()
+    assert out["ok"] is True and out["jaws_open_error"] == "gripper bus timeout", out
+    assert "jaws_open_commanded" not in out and out["observation_refreshed"] is True
+
+
+@needs_pin
 def test_reset_scene_with_unreadable_jaws_leaves_them_and_resets(mock_rt, monkeypatch):
     rt = mock_rt.rt
     rt.execute("close_gripper", {})

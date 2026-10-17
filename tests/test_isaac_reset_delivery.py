@@ -193,8 +193,12 @@ def _runtime(arm, physics, demo_cfg, tmp_path):
     def camera_frame():
         return Frame(rgb=np.zeros((12, 12, 3), np.uint8), depth_m=None, K=np.eye(3))
 
+    jaws = []
     safe_arm = SimpleNamespace(raw=arm, move_joints=home,
         get_state=lambda: SimpleNamespace(q=np.zeros(6), gripper_pos=1.0),
+        # 1.0 reads CLOSED on the mock profile (open_pos 0.0): reset_scene
+        # opens closed empty jaws (PR-A jaws round), recorded here.
+        set_gripper=lambda pos, effort=1.0, **_kw: jaws.append(float(pos)), jaws=jaws,
         harness=SimpleNamespace(heartbeat=lambda: None))
     return SkillRuntime(
         camera=SimpleNamespace(get_frame=camera_frame),
@@ -215,6 +219,7 @@ def test_dispatcher_records_measured_isaac_reset_in_its_own_trace(reset_bridge, 
     assert result["observation_refreshed"] is True
     assert result["world"] == "isaac", result
     assert result["props_reset"] == list(physics.spawns), result
+    assert result["jaws_open_commanded"] is True and runtime.arm.jaws == [runtime._grip_open]  # empty, closed
     verification = result["reset_verification"]
     assert verification["channel"] == "physics"
     assert verification["frame"] == "robot_base"

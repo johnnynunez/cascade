@@ -7711,7 +7711,10 @@ class SkillRuntime:
                     out.update(ok=False, stage="jaws", beliefs_forgotten=0,
                                error=f"Scene reset stopped before opening the empty jaws: {e}")
                     return out
-                out["jaws_open_commanded"] = True
+                except Exception as e:  # noqa: BLE001 -- a jaw fault does not stop the scene reset
+                    out["jaws_open_error"] = str(e)
+                else:
+                    out["jaws_open_commanded"] = True
         # release anything the runtime still thinks it holds: a reset while
         # carrying is the operator's decision that the episode is over
         if self.held_object:

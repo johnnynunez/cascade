@@ -28,7 +28,7 @@ from cascade.safety.harness import SafetyHarness, SafetyLimits
 from cascade.types import SafetyViolation, SkillError
 
 REPORT_KEYS = {"phase", "gate", "reason", "q", "q_prev", "tcp", "sample", "sample_tcp", "clearance_m",
-               "margin_m", "exemption", "map", "voxels", "gate_refreshes"}
+               "margin_m", "exemption", "map", "voxels", "gate_refreshes", "snapshot"}
 #: CartesianKin hovers its TCP at (0.3, 0, 0.3); this box's top is 2 cm under it
 UNDER = centred_box([.3, 0., .26], [.04, .04, .04])
 
@@ -244,6 +244,40 @@ def test_the_map_config_bounds_the_reports():
     reports = h.drain_clearance_reports()
     assert len(reports) == 4
     assert all(0 < len(r["voxels"]) <= 8 and all(v[3] <= .02 for v in r["voxels"]) for r in reports)
+
+
+def test_every_report_names_its_snapshot_query_and_bounds():
+    """The offline replay certifies a snapshot only within its bounds around
+    the point it was taken at (A6 fix ruling 8): every report records that
+    query centre and the bounds it used, and a streamed halt that takes a
+    report over keeps the FIRST centre (the one its voxels were measured
+    from) while it rewrites the sample."""
+    occ = live_map(centred_box([.31, .03, .26], [.44, .16, .04]),            # flat top at z 0.28
+                   refusal_snapshot={"radius_m": .03, "max_voxels": 16, "max_reports": 8})
+    _, _, h = case(occupancy=occ)
+    q = np.array([.3, 0., .3])
+    assert h.vet_pose(q)
+    (r,) = h.drain_clearance_reports()
+    assert r["snapshot"] == {"centre": r["sample"], "radius_m": .03, "max_voxels": 16}
+    assert r["sample"] == pytest.approx(q.tolist())
+    assert h.vet_pose(q)
+    halt_q = q + [.002, 0., 0.]                              # another pose in the same 1 cm cell
+    _, exc = _refuse(h, "approve", halt_q + [0., 0., .001], halt_q)
+    assert exc is not None
+    (kept,) = h.drain_clearance_reports()
+    assert kept["phase"] == "approve" and kept["sample"] == pytest.approx(halt_q.tolist())
+    assert kept["snapshot"] == {"centre": pytest.approx(q.tolist()), "radius_m": .03, "max_voxels": 16}
+    assert all(np.linalg.norm(np.subtract(v[:3], kept["snapshot"]["centre"])) == pytest.approx(v[3], abs=1e-3)
+               for v in kept["voxels"])
+    # the shipped bounds by default; a report with no sample has no centre
+    occ = live_map(UNDER)
+    _, _, h = case(occupancy=occ)
+    occ._last_refresh = time.monotonic() - occ.max_age_s - 100.0
+    with pytest.raises(SafetyViolation, match="stale"):
+        h.vet_pose(q)
+    (raised,) = h.drain_clearance_reports()
+    assert raised["raised"] == "SafetyViolation"
+    assert raised["snapshot"] == {"centre": None, "radius_m": .05, "max_voxels": 64}
 
 
 # ── cost on the motion path (Review Focus 4) and failure isolation ─────────

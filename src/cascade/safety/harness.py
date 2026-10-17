@@ -505,6 +505,10 @@ class SafetyHarness:
           voxel_m, occupied) and `voxels` (occupied voxel centres near the
           sample, [x, y, z, d], nearest first, 1 mm): one commit, the one
           current when the report was built;
+        - `snapshot`: where and how far those voxels were looked up,
+          {"centre" (the sample they were measured from; None without
+          one), "radius_m", "max_voxels"} (the map's `refusal_snapshot`), so
+          an offline replay knows which voxels the snapshot rules out;
         - `gate_refreshes`: the map's refresh count read just before the
           gate's query; `snapshot_newer_map: true` when the snapshot is of a
           later commit (a refresh landed between the gate's read and the
@@ -514,7 +518,9 @@ class SafetyHarness:
 
         One report per gate, sample spot (1 cm) and map commit: a repeat
         moves it last, and a streamed halt (approve) rewrites what happened
-        (phase, reason, q, q_prev, tcp, sample...) while its snapshot stays.
+        (phase, reason, q, q_prev, tcp, sample...) while its snapshot
+        (`map`, `voxels`, `snapshot` with the FIRST sample as its centre)
+        stays.
         """
         out = []
         reports = self._clearance_reports
@@ -602,7 +608,12 @@ class SafetyHarness:
                     reports.append((k, kept))
                     return
             report = {"gate": gate, **refusal, "margin_m": float(self.limits.min_clearance_m),
-                      "map": None, "voxels": []}
+                      "map": None, "voxels": [],
+                      # where and how far the voxels below were looked up: a
+                      # takeover keeps it (not a _REFUSAL_FIELDS key), so the
+                      # replay certifies the snapshot around ITS centre
+                      "snapshot": {"centre": None if sample is None else sample.tolist(),
+                                   "radius_m": float(bounds.radius_m), "max_voxels": int(bounds.max_voxels)}}
             if self.base_pose is not None:
                 report["base_pose"] = np.round(self.base_pose, 6).tolist()
             errors = []

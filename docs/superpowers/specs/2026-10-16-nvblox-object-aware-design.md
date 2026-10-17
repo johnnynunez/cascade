@@ -215,7 +215,9 @@ Rule:
    - the context: the exemption in force, and the map (refresh count, age, voxel size, occupied
      total);
    - the evidence: up to 64 occupied voxel centres within 5 cm of the sample, with distances,
-     rounded to 1 mm.
+     rounded to 1 mm, and where they were looked up (`snapshot`: the query centre, `radius_m`,
+     `max_voxels`; a halt that takes the report over keeps the first centre), so the offline
+     replay (§6.3) knows which voxels the snapshot rules out.
 3. Bounds: dedupe per call by (gate, sample rounded to 1 cm, map refresh); at most 32 reports per
    call; work happens only on the refusal path. A repeat moves the kept report last, and a
    streamed halt (approve) rewrites what happened (phase, reason, q, q_prev, TCP pose, sample)

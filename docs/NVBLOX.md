@@ -261,7 +261,8 @@ read the map in: the arm base for `tcp`/`link N`, `base_pose @` that for `attach
 parts; `base_pose` is in the report when the arm has one) and `sample_tcp` (TCP frame),
 `clearance_m`, `margin_m`, the `exemption` in force, the `map` (refreshes, age, voxel size,
 occupied count) and up to 64 occupied voxel centres within 5 cm of the sample (`voxels`,
-`[x, y, z, d]`, nearest first, 1 mm). A required map that refuses by raising (stale, a failed
+`[x, y, z, d]`, nearest first, 1 mm), with where they were looked up (`snapshot`: the query
+centre, `radius_m`, `max_voxels`). A required map that refuses by raising (stale, a failed
 refresh, a body-mask fault) files a report too: no sample or voxels, the `map` record (its
 `age_s` shows a stale map) and `raised`. At most 32 per call (the newest), one per gate, spot
 (1 cm) and map refresh (`occupancy.refusal_snapshot`); a repeat moves its report last and a
@@ -271,7 +272,8 @@ never on an admitted step, from the map cache current when the report is built
 read and the report, `gate_refreshes` differs from `map.refreshes` and `snapshot_newer_map` is
 true (the voxels are then approximate). A failing snapshot keeps the refusal and adds
 `snapshot_error`. Use them to tell a real neighbour from robot leftovers or stale voxels before
-touching any margin (`tests/test_clearance_snapshots.py`).
+touching any margin (`tests/test_clearance_snapshots.py`); `scripts/replay_clearance.py` re-vets
+them offline per lever (spec §6.3).
 
 Offline end to end (`tests/test_rebot_occupancy_live.py`): with the capsule mask home is refused
 by the arm's own jaws; with the mesh mask rest, home and every step between are admitted, and the

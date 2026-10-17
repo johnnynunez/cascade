@@ -21,13 +21,16 @@ The reset takes its halt generation when it starts (before its carry check)
 and passes it to the home move and to the opening: a halt anywhere in the
 reset sends no further arm or jaw command. On fr3 (`return_home_after_motion`)
 the home move is the camera-view home return, which carries it too; a halt
-there stays a halt (never a latched e-stop). A refusal by SafeArm's own checks
+there stays a halt (never a latched e-stop), also one its after-move check
+finds, and an e-stop there stays the e-stop (`SafetyViolation: e-stop
+latched`, never `MotionHalted`). A refusal by SafeArm's own checks
 (halt, e-stop, a gripper gate) is raised before any jaw command: the object
 stays held. A driver `GripperFault` comes AFTER commands went out (opening
 blocked part-way): the result reports the measured jaw width and keeps the
 object unless that width proves the jaws open. A non-safety driver error
 keeps the object too, with the error recorded. Every failed-release text
-puts the outcome first: the agent's failure line keeps 240 characters.
+puts the outcome first and names the object once: the agent's failure line
+keeps 240 characters.
 
 Real `build_runtime` wiring (LazyArm -> SafeArm -> SafetyHarness of each
 profile) over a MockArm that records every jaw command; no driver, no bus.
@@ -419,6 +422,126 @@ def test_fr3_move_home_halted_mid_route_stays_a_halt(rig):
     assert not runtime.arm.harness.estopped, "the halt was escalated to an e-stop"
 
 
+def _stop_at_waypoint(r, runtime, kind, waypoint=5):
+    """Stop (`kind`) at the `waypoint`-th arm command from now on."""
+    arm = r.arms[0]
+    send = arm.send_joint_target
+    start = len(arm.commands)
+    at_stop = {}
+
+    def send_then_stop(q):
+        send(q)
+        if not at_stop and len(arm.commands) >= start + waypoint:
+            if kind == "estop_harness":
+                runtime.arm.harness.estop("operator e-stop")
+            else:  # SafeArm.stop(): latches the e-stop and stops the driver
+                runtime.arm.stop()
+            at_stop.update(arm=len(arm.commands))
+
+    arm.send_joint_target = send_then_stop
+    return at_stop
+
+
+@pytest.mark.parametrize("kind", ["estop_harness", "estop_safearm"])
+@pytest.mark.parametrize("skill", ["reset_scene", "move_home"])
+def test_fr3_view_home_estop_mid_route_stays_an_estop(rig, skill, kind):
+    """An e-stop during the view-home route is the latched e-stop and is
+    reported as one (`SafetyViolation: e-stop latched`), never as the
+    operator's halt (`MotionHalted`)."""
+    r = rig("fr3")
+    _fr3_off_home(r)
+    runtime = r.runtime
+    at_stop = _stop_at_waypoint(r, runtime, kind)
+
+    out = runtime.execute(skill, {})
+
+    assert at_stop, "the view-home route never streamed"
+    assert len(r.arms[0].commands) == at_stop["arm"], "an arm command went out after the e-stop"
+    assert out["ok"] is False, out
+    if skill == "reset_scene":
+        assert out["stage"] == "home" and out["home_error"] == "SafetyViolation: e-stop latched", out
+    else:
+        assert out["error"] == "SkillError: SafetyViolation: e-stop latched", out
+    assert "MotionHalted" not in out["error"], out
+    assert runtime.arm.harness.estopped
+
+
+def _halt_as_the_route_ends(r, runtime, monkeypatch):
+    """The halt arrives after the view-home route's last approved command,
+    before the return's own after-move check."""
+    move = runtime._move_carry
+    at_halt = {}
+
+    def move_then_halt(*args, **kwargs):
+        settled = move(*args, **kwargs)
+        if not at_halt and sys._getframe(1).f_code.co_name == "_return_to_view_home":
+            runtime.arm.harness.halt("operator: stop")
+            at_halt.update(arm=_arm_commands(r.arms))
+        return settled
+
+    monkeypatch.setattr(runtime, "_move_carry", move_then_halt)
+    return at_halt
+
+
+@pytest.mark.parametrize("skill", ["reset_scene", "move_home"])
+def test_fr3_view_home_halt_at_the_route_end_stays_a_halt(rig, monkeypatch, skill):
+    """The return's after-move check finds the halt: it ends the return as
+    a halt (MotionHalted), not as a SkillError whose cleanup latches an
+    e-stop with arm.stop()."""
+    r = rig("fr3")
+    _fr3_off_home(r)
+    runtime = r.runtime
+    at_halt = _halt_as_the_route_ends(r, runtime, monkeypatch)
+
+    out = runtime.execute(skill, {})
+
+    assert at_halt, "the view-home route never ran"
+    assert _arm_commands(r.arms) == at_halt["arm"], "an arm command went out after the halt"
+    assert out["ok"] is False, out
+    if skill == "reset_scene":
+        assert out["stage"] == "home" and out["home_error"] == "halted: operator: stop", out
+    else:
+        assert out["error"] == "MotionHalted: halted: operator: stop", out
+    assert not runtime.arm.harness.estopped, "the halt was escalated to an e-stop"
+
+
+def test_fr3_post_skill_return_halted_mid_route_names_the_halt_once(rig):
+    """execute()'s camera-view return after a motion skill, halted mid-route:
+    the error reads "return to saved home halted: <reason>", without the
+    harness's own "halted: " repeated."""
+    r = rig("fr3")
+    runtime = r.runtime
+    runtime.arm.get_state()  # materialize the LazyArm: the driver exists from here on
+    show = runtime._show_status
+    returning = {}
+
+    def show_status(text):
+        show(text)
+        if text.startswith("Returning to the saved camera-view home"):
+            returning.update(at=_arm_commands(r.arms))
+
+    runtime._show_status = show_status
+    arm = r.arms[0]
+    send = arm.send_joint_target
+    at_halt = {}
+
+    def send_then_halt(q):
+        send(q)
+        if returning and not at_halt and _arm_commands(r.arms) >= returning["at"] + 5:
+            runtime.arm.harness.halt("operator: stop")
+            at_halt.update(arm=_arm_commands(r.arms))
+
+    arm.send_joint_target = send_then_halt
+
+    out = runtime.execute("rotate_joint", {"joint": 1, "degrees": 10.0})
+
+    assert at_halt, "the post-skill return never streamed"
+    assert _arm_commands(r.arms) == at_halt["arm"], "an arm command went out after the halt"
+    assert out["ok"] is False and out["return_home"]["status"] == "halted", out
+    assert out["error"] == "return to saved home halted: operator: stop", out
+    assert "halted: halted" not in out["next_action"], out["next_action"]
+
+
 def _fault(width_frac: float | None, exc: BaseException):
     """A driver that moves the jaws to `width_frac` (None: not at all), then raises."""
 
@@ -533,6 +656,46 @@ def test_a_failed_release_text_leads_with_the_outcome(rig, width, exc, outcome):
     assert ".." not in error, error
     if exc is BLOCKED:
         assert "may have dropped" in out["next_action"], out["next_action"]
+
+
+def _unknown_width(exc: BaseException):
+    """A driver that raises and leaves the jaw position unreadable."""
+
+    def fault(arm, pos, effort):
+        arm.jaw_unknown = True
+        raise exc
+
+    return fault
+
+
+#: A 60-character object name (the agent's labels can be this long).
+LONG_NAME = "transparent plastic water bottle with a blue screw-top lid 1"
+
+
+@pytest.mark.parametrize("fault, outcome", [
+    (_fault(0.7, BLOCKED), "is kept as held"),
+    (_unknown_width(BLOCKED), "is kept as held"),
+    (_fault(1.0, BLOCKED), "is no longer held"),
+    (_fault(None, LONG_BUS_ERROR), "is kept as held"),
+], ids=["fault-part-way", "fault-unknown-width", "fault-measured-open", "bus-error"])
+def test_a_failed_release_text_names_a_long_object_once(rig, fault, outcome):
+    """The object is named once, so with a 60-char name the outcome still
+    sits inside the 240 chars the agent's failure line keeps."""
+    assert len(LONG_NAME) == 60
+    r = rig("mock")
+    _holding(r)
+    r.runtime.held_object = LONG_NAME
+    for arm in r.arms:
+        arm.fault = fault
+
+    out = r.runtime.execute("reset_scene", {})
+
+    error = out["error"]
+    assert error.count(LONG_NAME) == 1, error
+    kept = out["next_action"].split(" (truncated; see error)")[0]
+    assert f"{LONG_NAME} {outcome}" in kept, out["next_action"]
+    if "Gripper fault" in error:
+        assert "may have dropped" in kept and "the jaws measured" in kept, out["next_action"]
 
 
 def test_the_reset_scene_description_says_a_real_arm_refuses_while_holding():

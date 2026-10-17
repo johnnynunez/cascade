@@ -1232,9 +1232,13 @@ class SkillRuntime:
         `halt_generation`: the harness's halt generation when the calling
         skill started (`skill_move_home(_halt_generation=...)`, e.g. the
         reset's); the move then refuses a halt raised since then, also one
-        raised after the "halted" checks below (None: no baseline).
-        An operator halt ends the return as a halt (status "halted"), never
-        as a latched e-stop."""
+        raised after the skip checks below. With None, the move's
+        begin_motion clears a halt raised after those checks.
+        A halt the skip checks find before the move returns status
+        "skipped" (reason "motion halted: ..."). A halt that refuses or
+        stops the move, or that the check right after it finds, returns
+        status "halted" (reason: the MotionHalted text) and never calls
+        `arm.stop()`, which would latch an e-stop."""
         reason = self._home_return_skip_reason(failure)
         if reason:
             return {"ok": False, "status": "skipped", "reason": reason}
@@ -1271,6 +1275,11 @@ class SkillRuntime:
                 raise SkillError("did not settle at the saved home pose")
             reason = self._home_return_skip_reason()
             if reason:
+                halted = getattr(self.arm.harness, "halted", None)
+                if halted and reason == f"motion halted: {halted}":
+                    # The halt came after the route's last approved command:
+                    # still the operator's halt, never an arm.stop() latch.
+                    raise MotionHalted(f"halted: {halted}")
                 raise SkillError(reason)
             final_q = np.asarray(self.arm.get_state().q, dtype=float).reshape(-1)
             if len(final_q) != len(home) or not np.isfinite(final_q).all():
@@ -1609,8 +1618,11 @@ class SkillRuntime:
             if not home_return["ok"] and result.get("ok", False):
                 result["action_ok"] = True
                 result["ok"] = False
-                reason = home_return.get("error") or home_return.get("reason")
-                result["error"] = f"return to saved home {home_return['status']}: {reason}"
+                reason = str(home_return.get("error") or home_return.get("reason"))
+                status = home_return["status"]
+                # A halt's own text already starts with "halted: ": say it once.
+                result["error"] = ("return to saved home " + reason if reason.startswith(f"{status}: ")
+                                   else f"return to saved home {status}: {reason}")
         if name in _MOTION_SKILLS:
             # Readiness can fail DURING a motion as well as before it. A
             # trajectory abort latches STOP; handing that failure back to
@@ -7348,11 +7360,12 @@ class SkillRuntime:
         if isinstance(exc, SafetyViolation) and not isinstance(exc, GripperFault):
             out["error"] = f"Scene reset stopped before the release: {exc}"
             return out
-        # Outcome first, the driver's own text last: the agent's failure line
-        # keeps only the first 240 characters of the error.
+        # Outcome first, the object named once, the driver's own text last:
+        # the agent's failure line keeps only the first 240 characters of the
+        # error (a 60-character name still leaves the outcome inside them).
         if not isinstance(exc, GripperFault):
-            out["error"] = (f"Scene reset stopped: it could not release {obj}, so {obj} is kept as "
-                            f"held (whether the jaws moved is unknown); check the gripper. Error: {exc}")
+            out["error"] = (f"Scene reset stopped: {obj} is kept as held: the release failed and whether "
+                            f"the jaws moved is unknown; check the gripper. Error: {exc}")
             return out
         try:
             width = self._gripper_width_frac()
@@ -7364,13 +7377,13 @@ class SkillRuntime:
         open_frac = 1.0 - float((self.cfg.get("grasp") or {}).get("air_grasp_frac", 0.04))
         if width is not None and width >= open_frac:
             self._forget_held_object()
-            out["error"] = (f"Scene reset stopped: the gripper faulted while releasing {obj}; the jaws "
-                            f"measured {measured}, so {obj} is no longer held and may have dropped "
-                            f"from home height. Gripper fault: {exc}")
+            out["error"] = (f"Scene reset stopped: {obj} is no longer held and may have dropped from "
+                            f"home height: the gripper faulted while releasing it and the jaws measured "
+                            f"{measured}. Gripper fault: {exc}")
         else:
-            out["error"] = (f"Scene reset stopped: the gripper faulted while releasing {obj}; the jaws "
-                            f"measured {measured} and {obj} may have dropped, so {obj} is kept as held "
-                            f"until the gripper is checked. Gripper fault: {exc}")
+            out["error"] = (f"Scene reset stopped: {obj} is kept as held, but it may have dropped: the "
+                            f"gripper faulted while releasing it and the jaws measured {measured}; "
+                            f"check the gripper. Gripper fault: {exc}")
         return out
 
     @motion_evidence.phase("home")

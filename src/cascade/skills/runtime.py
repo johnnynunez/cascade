@@ -7284,10 +7284,25 @@ class SkillRuntime:
     #: real gripper.
     _SIM_ARM_TYPES = ("isaac", "mujoco", "mock")
 
+    def _running_arm_profile(self):
+        """The profile of the arm this call drives: `cfg.arm` for the
+        primary, else the `cfg.arms` entry of the arm execute()'s `arm=`
+        selected (rig order = `cfg.arms` order). None when the running arm
+        is neither (cannot be told). Identity only: a standby LazyArm is
+        never probed."""
+        running = self.arm
+        if running is getattr(self, "_arm", None):
+            return self.cfg.get("arm") or {}
+        rig = getattr(self, "arm_rig", None)
+        index = next((i for i, arm in enumerate(rig or ()) if arm is running), None)
+        profiles = self.cfg.get("arms") or []
+        return profiles[index] if index is not None and index < len(profiles) else None
+
     def _drives_real_gripper(self) -> bool:
-        """The arm the runtime builds has a real gripper (not isaac*, mujoco*
-        or mock*; unknown counts as real)."""
-        arm = self.cfg.get("arm") or {}
+        """The arm this call drives (the `arm=` selection included) has a
+        real gripper: its type is not isaac*, mujoco* or mock*; an unknown
+        type or arm counts as real."""
+        arm = self._running_arm_profile() or {}
         return not str(arm.get("type") or "").startswith(self._SIM_ARM_TYPES)
 
     def _forget_held_object(self) -> None:
@@ -7318,9 +7333,11 @@ class SkillRuntime:
         if isinstance(exc, SafetyViolation) and not isinstance(exc, GripperFault):
             out["error"] = f"Scene reset stopped before the release: {exc}"
             return out
+        # Outcome first, the driver's own text last: the agent's failure line
+        # keeps only the first 240 characters of the error.
         if not isinstance(exc, GripperFault):
-            out["error"] = (f"Scene reset could not release {obj}: {exc}. It is kept as held "
-                            "(whether the jaws moved is unknown); check the gripper.")
+            out["error"] = (f"Scene reset stopped: it could not release {obj}, so {obj} is kept as "
+                            f"held (whether the jaws moved is unknown); check the gripper. Error: {exc}")
             return out
         try:
             width = self._gripper_width_frac()
@@ -7332,13 +7349,13 @@ class SkillRuntime:
         open_frac = 1.0 - float((self.cfg.get("grasp") or {}).get("air_grasp_frac", 0.04))
         if width is not None and width >= open_frac:
             self._forget_held_object()
-            out["error"] = (f"Scene reset: the gripper faulted while releasing {obj}: {exc}. "
-                            f"The jaws measured {measured}, so {obj} is no longer held; it may have "
-                            "dropped from home height. The reset stopped here.")
+            out["error"] = (f"Scene reset stopped: the gripper faulted while releasing {obj}; the jaws "
+                            f"measured {measured}, so {obj} is no longer held and may have dropped "
+                            f"from home height. Gripper fault: {exc}")
         else:
-            out["error"] = (f"Scene reset: the gripper faulted while releasing {obj}: {exc}. "
-                            f"The jaws measured {measured}; {obj} may have dropped. It is kept as "
-                            "held until the gripper is checked. The reset stopped here.")
+            out["error"] = (f"Scene reset stopped: the gripper faulted while releasing {obj}; the jaws "
+                            f"measured {measured} and {obj} may have dropped, so {obj} is kept as held "
+                            f"until the gripper is checked. Gripper fault: {exc}")
         return out
 
     @motion_evidence.phase("home")
@@ -8611,7 +8628,10 @@ TOOL_SPECS: list[dict] = [
             "Start over between demos: arm home, every simulated prop back on "
             "its spawn pose, the world model and the task memory cleared, one "
             "fresh observation. On a real robot the props do not move back "
-            "(props_reset is empty): ask the human to replace them. Not a "
+            "(props_reset is empty): ask the human to replace them. On a real "
+            "robot it also refuses while the gripper holds an object, before "
+            "any motion (opening at home would drop it): place it first "
+            "(place_at), then reset. Not a "
             "recovery tool for a failed grasp -- use it when a task or a "
             "visitor is done."
         ),

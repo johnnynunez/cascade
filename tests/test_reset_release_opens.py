@@ -11,19 +11,23 @@ it go. On the mock (open 0.0, closed 1.0) it is fully closed, on the SO-101
 travel. Only Isaac (open 1.0) happened to be right.
 
 The release happens at HOME: on a real arm a correct opening drops the object
-from home height (reBot home TCP at 0.44 m). So a REAL profile (the arm type
-the runtime builds is not isaac*, mujoco* or mock*; an unknown type counts as
-real) refuses a reset while holding, before any motion, and asks for place_at
-first. Simulated and mock arms keep releasing at home.
+from home height (reBot home TCP at 0.44 m). So a REAL profile (the type of
+the arm the reset drives, the `arm=` selection included, is not isaac*,
+mujoco* or mock*; an unknown type or arm counts as real) refuses a reset
+while holding, before any motion, and asks for place_at first. Simulated and
+mock arms keep releasing at home.
 
 The reset takes its halt generation when it starts (before its carry check)
 and passes it to the home move and to the opening: a halt anywhere in the
-reset sends no further arm or jaw command. A refusal by SafeArm's own checks
+reset sends no further arm or jaw command. On fr3 (`return_home_after_motion`)
+the home move is the camera-view home return, which carries it too; a halt
+there stays a halt (never a latched e-stop). A refusal by SafeArm's own checks
 (halt, e-stop, a gripper gate) is raised before any jaw command: the object
 stays held. A driver `GripperFault` comes AFTER commands went out (opening
 blocked part-way): the result reports the measured jaw width and keeps the
 object unless that width proves the jaws open. A non-safety driver error
-keeps the object too, with the error recorded.
+keeps the object too, with the error recorded. Every failed-release text
+puts the outcome first: the agent's failure line keeps 240 characters.
 
 Real `build_runtime` wiring (LazyArm -> SafeArm -> SafetyHarness of each
 profile) over a MockArm that records every jaw command; no driver, no bus.
@@ -89,8 +93,12 @@ def rig(monkeypatch, tmp_path):
 
     built = []
 
-    def build(profile):
-        cfg = load_demo_config(camera="mock", arm=profile, llm="mock")
+    def build(profile=None, *, arms=None):
+        if arms is None:
+            cfg = load_demo_config(camera="mock", arm=profile, llm="mock")
+        else:
+            cfg = load_demo_config(camera="mock", arms=arms, llm="mock")
+            profile = "-".join(arms)
         # rebot_rs requires its live camera map (fail closed) and conftest pins
         # CASCADE_OCCUPANCY=0: that combination refuses startup by design. The
         # jaw command is outside the map, so the map is off here.
@@ -191,6 +199,60 @@ def test_real_reset_with_empty_jaws_still_resets(rig):
 
     assert out["ok"], out
     assert r.jaws == [] and out["observation_refreshed"]
+
+
+def _two_arms(rig, real: str):
+    """Two mock SO-101s; the profile named `real` declares a real arm type."""
+    r = rig(arms=["so101_left", "so101_right"])
+    profiles = r.runtime.cfg._data["arms"]
+    assert [p["name"] for p in profiles] == ["so101_left", "so101_right"]
+    next(p for p in profiles if p["name"] == real)["type"] = "so101"
+    return r
+
+
+def test_reset_on_a_selected_real_arm_refuses_while_holding(rig):
+    """The arm the reset drives decides: a mock primary does not let a real
+    `arm=` selection drop the object from home height."""
+    r = _two_arms(rig, real="so101_right")
+    _holding(r)
+    arm_before = _arm_commands(r.arms)
+
+    out = r.runtime.execute("reset_scene", {"arm": "so101_right"})
+
+    assert out["ok"] is False and out["stage"] == "release", out
+    assert REFUSAL in out["error"], out
+    assert r.jaws == [] and _arm_commands(r.arms) == arm_before  # no jaw, no arm command
+    _assert_still_held(r, out)
+
+
+def test_reset_on_a_selected_sim_arm_releases_beside_a_real_primary(rig):
+    r = _two_arms(rig, real="so101_left")
+    _holding(r)
+
+    selected = r.runtime.execute("reset_scene", {"arm": "so101_right"})
+
+    assert selected["ok"], selected
+    assert r.jaws == [pytest.approx(0.60)], r.jaws  # the mock right arm opened fully
+    assert r.runtime.held_object is None
+
+    _holding(r)
+    primary = r.runtime.execute("reset_scene", {})  # the real primary refuses
+
+    assert primary["ok"] is False and REFUSAL in primary["error"], primary
+    assert r.jaws == []
+    _assert_still_held(r, primary)
+
+
+def test_a_running_arm_the_rig_does_not_hold_counts_as_real(rig):
+    r = rig(arms=["so101_left", "so101_right"])  # both mock
+    runtime = r.runtime
+    runtime._arm_override.arm = runtime.arm_rig.get("so101_right")
+    assert not runtime._drives_real_gripper()
+    runtime._arm_override.arm = SimpleNamespace(harness=None)  # no profile to read
+    try:
+        assert runtime._drives_real_gripper()
+    finally:
+        runtime._arm_override.arm = None
 
 
 def _stop(runtime, kind):
@@ -443,3 +505,39 @@ def test_a_non_safety_jaw_error_keeps_the_object(rig, width):
     _assert_still_held(r, out)
     if width is None:
         assert r.runtime.arm.get_state().gripper_pos == pytest.approx(half)
+
+
+#: A driver text longer than the agent's failure line keeps (240 chars).
+LONG_BUS_ERROR = RuntimeError("gripper bus timeout: " + "no reply from motor 7 on can0; " * 8)
+
+
+@pytest.mark.parametrize("width, exc, outcome", [
+    (0.7, BLOCKED, "is kept as held"),
+    (1.0, BLOCKED, "is no longer held"),
+    (None, LONG_BUS_ERROR, "is kept as held"),
+], ids=["fault-part-way", "fault-measured-open", "bus-error"])
+def test_a_failed_release_text_leads_with_the_outcome(rig, width, exc, outcome):
+    """The agent's `next_action` keeps the first 240 chars of the error: the
+    outcome (what happened to the object) comes before the driver's text, and
+    the driver's own full stop is never doubled."""
+    r = rig("mock")
+    _holding(r)
+    for arm in r.arms:
+        arm.fault = _fault(width, exc)
+
+    out = r.runtime.execute("reset_scene", {})
+
+    error = out["error"]
+    assert error.index(f"red cube {outcome}") < error.index(str(exc)), error
+    assert f"red cube {outcome}" in out["next_action"], out["next_action"]
+    assert ".." not in error, error
+    if exc is BLOCKED:
+        assert "may have dropped" in out["next_action"], out["next_action"]
+
+
+def test_the_reset_scene_description_says_a_real_arm_refuses_while_holding():
+    from cascade.skills.runtime import TOOL_SPECS
+
+    text = next(t for t in TOOL_SPECS if t["name"] == "reset_scene")["description"]
+    assert "refuses while the gripper holds an object" in text, text
+    assert "place it first (place_at), then reset" in text, text

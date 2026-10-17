@@ -10,6 +10,7 @@ from __future__ import annotations
 import ast
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
+import importlib.util
 import inspect
 import json
 import math
@@ -39,6 +40,58 @@ from cascade.types import Frame
 REPO = Path(__file__).resolve().parents[1]
 KITCHEN = json.loads((REPO / "demo/scene/kitchen_config.json").read_text())
 BRIDGE = REPO / "scripts/isaac_bridge.py"
+ISAAC_SCENE = REPO / "demo/isaac_scene.py"
+
+
+def _load_isaac_scene(monkeypatch):
+    """demo/isaac_scene.py as the bridge imports it. Its pure boot helpers
+    (configure_cubes, PropSpec) never touch USD, so pxr is a bare stub."""
+    pxr = ModuleType("pxr")
+    for name in ("Gf", "Sdf", "Usd", "UsdGeom", "UsdPhysics", "UsdShade"):
+        setattr(pxr, name, SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "pxr", pxr)
+    spec = importlib.util.spec_from_file_location("isaac_scene_boot_under_test", ISAAC_SCENE)
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, spec.name, module)  # dataclasses resolve the module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _prepare_scene_prop_specs(isaac_scene, config):
+    """The PropSpec records prepare_scene returns, built by its own record
+    expression (the USD authoring around it needs Kit)."""
+    function = next(node for node in ast.parse(ISAAC_SCENE.read_text()).body
+                    if isinstance(node, ast.FunctionDef) and node.name == "prepare_scene")
+    records = [node.args[0] for node in ast.walk(function)
+               if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+               and node.func.attr == "append" and ast.unparse(node.func.value) == "specs"]
+    assert len(records) == 1, "prepare_scene must build exactly one PropSpec record per prop"
+    record = compile(ast.Expression(records[0]), str(ISAAC_SCENE), "eval")
+    return [eval(record, {"PropSpec": isaac_scene.PropSpec},
+                 {"item": item, "name": item["name"], "path": f"/World_Props/{item['name']}"})
+            for item in config["props"]]
+
+
+def _bridge_boot_prop_spawns(config, monkeypatch):
+    """_PROP_SPAWNS exactly as the bridge builds it at boot for this kitchen
+    config: its PROPS literal, `configure_cubes`, the scene's PropSpec records
+    (`PROPS.extend`) and the `_PROP_SPAWNS` construction, run from the script."""
+    isaac_scene = _load_isaac_scene(monkeypatch)
+
+    def boot_step(node):
+        text = ast.unparse(node)
+        return (text.startswith(("PROPS = [", "PROPS.extend(", "_PROP_SPAWNS = "))
+                or (isinstance(node, ast.If) and len(node.body) == 1
+                    and ast.unparse(node.body[0]) == "PROPS = configure_cubes(_scene_config, PROPS)"))
+
+    steps = [node for node in ast.parse(BRIDGE.read_text()).body if boot_step(node)]
+    assert [ast.unparse(node).split(" ")[0].split("(")[0] for node in steps] == [
+        "PROPS", "if", "PROPS.extend", "_PROP_SPAWNS"], "the bridge's prop boot path moved"
+    env = {"args": SimpleNamespace(scene_config="demo/scene/kitchen_config.json"),
+           "_scene_config": config, "configure_cubes": isaac_scene.configure_cubes,
+           "_SCENE_PROP_SPECS": _prepare_scene_prop_specs(isaac_scene, config)}
+    exec(compile(ast.Module(body=steps, type_ignores=[]), str(BRIDGE), "exec"), env)
+    return env["_PROP_SPAWNS"]
 
 
 class PhysicsBoundary:
@@ -203,8 +256,9 @@ def reset_bridge(monkeypatch):
 
 @pytest.fixture
 def kitchen_reset_bridge(monkeypatch):
-    """The bridge with the shipped kitchen's props and scene config loaded."""
-    physics = PhysicsBoundary(kitchen_layout(KITCHEN)[0])
+    """The bridge with the shipped kitchen loaded: its props where the
+    bridge's own boot path spawns them, and the scene config."""
+    physics = PhysicsBoundary(_bridge_boot_prop_spawns(KITCHEN, monkeypatch))
     with _served_bridge(monkeypatch, physics, scene_config=KITCHEN) as (arm, env):
         yield arm, physics, env
 
@@ -584,6 +638,36 @@ def test_set_reset_seed_needs_the_kitchen_layout_of_these_props(kitchen_reset_br
     assert reason in reply["error"]
     assert env["_RESET_SEED"] is None
     assert physics.events == []
+
+
+def test_the_bridge_boot_path_spawns_the_shipped_kitchen_on_its_layout(monkeypatch):
+    booted = _bridge_boot_prop_spawns(KITCHEN, monkeypatch)
+    assert set(booted) == {"pink_cube", "green_cube", "tomato_can", "lemon", "orange"}
+    assert booted == kitchen_layout(KITCHEN)[0]  # what set_reset_seed compares at run time
+
+
+@pytest.mark.parametrize("drift", ["prop-moved", "cube-moved", "cube-not-in-config"])
+def test_a_config_that_drifted_from_the_booted_props_is_refused(monkeypatch, drift):
+    config = json.loads(json.dumps(KITCHEN))
+    booted_from = KITCHEN
+    if drift == "prop-moved":
+        next(p for p in config["props"] if p["name"] == "lemon")["position"][0] += 0.01
+    elif drift == "cube-moved":
+        config["cube_positions"]["pink_cube"][1] += 0.01
+    else:
+        # One config boots and seeds: the bridge keeps its built-in green_cube
+        # spawn for a cube the config omits; the seeded layout knows no such cube.
+        del config["cube_positions"]["green_cube"], config["cube_dimensions"]["green_cube"]
+        booted_from = config
+    physics = PhysicsBoundary(_bridge_boot_prop_spawns(booted_from, monkeypatch))
+    with _served_bridge(monkeypatch, physics, scene_config=config) as (_, env):
+        reply = _dispatch(env, {"op": "set_reset_seed", "seed": 4})
+        assert reply["ok"] is False and "differ from this bridge" in reply["error"], reply
+        assert env["_RESET_SEED"] is None
+        env["_RESET_SEED"] = 4  # armed before the drift: the reset itself refuses too
+        reply = _dispatch(env, {"op": "reset_props"})
+        assert reply["ok"] is False and "differ from this bridge" in reply["error"], reply
+    assert physics.events == [], "a drifted layout must be refused BEFORE any prop moves"
 
 
 def test_the_bridge_boots_with_no_reset_seed():

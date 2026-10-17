@@ -29,7 +29,7 @@ runtimes. The arm and mobile entrypoints stay available on their own.
 
 The manipulation stack adapts three published systems:
 
-- **ASPIRE** (NVIDIA GEAR): the API surface (`get_observation`, `localize_object`, `preview_grasp`, motion + gripper primitives), the per-call trace (`trace.jsonl` + before/after keyframes) and the post-run diagnosis → skill-note loop (`agent/aspire.py`, `scripts/learn_from_runs.py`).
+- **ASPIRE** (NVIDIA GEAR): the API surface (upstream v1.0: `get_observation`, `localize_object`, `generate_grasps`, `select_grasp`, `move_to_pose` + gripper primitives; `preview_grasp` is cascade's own), the per-call trace (`trace.jsonl` + before/after keyframes) and the post-run diagnosis → skill-note loop (`agent/aspire.py`, `scripts/learn_from_runs.py`).
 - **Agentic-VLA**: sub-goal decomposition, a VLM critic consulted on failure (`agent/advisor.py`), embedding-indexed experience memory (tier 2) and **checkable milestones** (`agent/milestones.py`: symbolic against the world model first, VLM only when it abstains). The same rate-limited critic runs *before* each LLM-tier motion dispatch (`PlausibilityChecker`, Human-CLAW's pre-execution verifier); its `plausibility` verdict is **advisory only**, the harness alone refuses motion.
 - **Claude plays robotics** (Anthropic): one LLM turn costs 2–15 s, so routine commands must not wait on the model; structured state beats extra image context; a cursor the model can query (`probe_point`) beats overlays it must read.
 
@@ -329,8 +329,9 @@ parameters, resolved arm and pre-call held-object context match, the postconditi
 is measured and confirmed, and no reset/task-end intervenes.
 `scripts/learn_from_runs.py` harvests notes into `skills_library/*.md`, one per
 `(skill, signature)` counting `occurrences` and `source_tasks`; `retrieve()` loads
-keyword-matched notes into tier 3 **only once promoted** (≥ 2 distinct tasks,
-ASPIRE's rule; `memory.skill_min_tasks: 1` relaxes it). Details:
+keyword-matched notes into tier 3 **only once promoted** (≥ 2 distinct tasks:
+cascade's own rule; upstream ASPIRE v0.1 counts occurrences in any task, v1.0
+promotes on a blind verifier's verdict; `memory.skill_min_tasks: 1` relaxes it). Details:
 [retry evidence admission](DREAM_RSI_ADAPTATION.md).
 
 **Memory embedder (opt-in).** `memory.embedder.backend` is `none` in the shipped

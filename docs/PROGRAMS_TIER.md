@@ -32,7 +32,7 @@ or **distilled**, and the path never decides trust:
    in which every registered effect was CONFIRMED by an independent channel (the per-task effects
    ledger, not the step's own result) and no motion step lacked a postcondition.
 2. It is **offered for reuse** only once **promoted**: verified in at least `PROMOTION_MIN_TASKS`
-   (2) distinct tasks (upstream ASPIRE's cross-task rule, as in `skills/library.py`) and while its
+   (2) distinct tasks (cascade's own rule, as in `skills/library.py`) and while its
    verified executions outnumber its failed ones.
 3. Authored and distilled programs with the same structure fold into one record (one signature);
    the origin is metadata (`origins: [authored, distilled]`).

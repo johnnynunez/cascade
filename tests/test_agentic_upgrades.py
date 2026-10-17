@@ -523,8 +523,8 @@ def test_distil_writes_a_retrievable_library_entry(tmp_path):
     body = path.read_text()
     assert "material" in body and "'rigid' -> 'soft'" in body
 
-    # One task is a stored candidate, not guidance: upstream ASPIRE promotes
-    # a distilled skill only when it recurs across tasks (ROADMAP #10).
+    # One task is a stored candidate, not guidance: cascade promotes a
+    # distilled note only when it recurs across tasks (ROADMAP #10).
     assert retrieve(library, "grasp the cube") == ""
     assert library.relevant("grasp the cube")  # still inspectable in the store
     run_b = _write_run(tmp_path, "run3b", [

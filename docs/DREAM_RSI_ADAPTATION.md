@@ -64,8 +64,9 @@ a failed call (`REPAIR_WINDOW`). A candidate must pass all of these:
 
 ## Cross-task promotion gate
 
-Upstream ASPIRE (`aspire/sim/cap/skills/library.py`) promotes a distilled skill only once it recurs
-beyond a single task; CASCADE applies the distinct-task reading:
+CASCADE promotes a note once it recurs in 2 distinct tasks. The rule is CASCADE's own: upstream
+ASPIRE v0.1 (`aspire/sim/cap/skills/library.py`, `get_promoted_skills(min_occurrences=2)`) counts
+occurrences in any task, and v1.0 promotes on a blind verifier's verdict.
 
 | Field (front matter of `skills_library/<slug>.md`) | Meaning |
 |---|---|
@@ -113,7 +114,7 @@ not physical trials or measured success-rate improvements; the broader non-hardw
    object instance, model revision and calibration are not proven equal.
 3. Held-object context is the runtime's global label, not a per-arm possession model; a run
    directory alone is not a proven episode boundary.
-4. Notes are guidance, not controllers; two distinct tasks is upstream's recurrence threshold, not
+4. Notes are guidance, not controllers; two distinct tasks is CASCADE's recurrence threshold, not
    proof of causality or generalization.
 5. Dream-RSI motivates restricting claims to recorded continuations; its experiments (algorithm
    engineering, mathematics, GPU kernels) are not robotics, its semantic-guidance result is specific

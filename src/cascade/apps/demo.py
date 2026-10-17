@@ -2144,7 +2144,7 @@ def _run_demo(args, cfg, runtime, mobile):
     # `scripts/learn_from_runs.py` writes the entries, the agent reads them.
     from ..skills.library import PROMOTION_MIN_TASKS, SkillLibrary
 
-    # Cross-task gate (upstream ASPIRE): a distilled note reaches the agent
+    # Cross-task gate (cascade's own rule): a distilled note reaches the agent
     # only after it recurred in >= `memory.skill_min_tasks` distinct tasks
     # (default 2). 1 is the explicit single-observation mode; nothing lowers
     # it silently.

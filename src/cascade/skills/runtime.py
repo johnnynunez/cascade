@@ -30,7 +30,7 @@ from ..grasping import plan_grasps_from_fix, select_grasp, select_profile
 from ..grasping import evidence as grasp_evidence
 from ..grasping.obb_grasp import AngledGrasp
 from ..grasping.selector import ALL_TOO_WIDE_MARKER
-from . import carry_attachment
+from . import carry_attachment, stop_retrace
 from ..memory import BeliefStore, EpisodicMemory, FrameObservation
 from ..memory.beliefs import camera_source
 from ..perception.colors import detection_color, parse_color_query
@@ -1590,6 +1590,10 @@ class SkillRuntime:
         # first command instead of being cleared by it (A3 review).
         skill_halt = self._skill_halt_baselines(effective_arm) if name in _MOTION_SKILLS else ()
         if name in _MOTION_SKILLS:
+            if name not in stop_retrace.EXPLICIT_SKILLS:
+                # Any other motion skill forfeits an approach column kept
+                # after a STOP below a grasp's pregrasp (stop_retrace.py).
+                stop_retrace.forget(self)
             raw = getattr(selected if selected is not None else self.arm, "raw", None)
             # Class lookup leaves a deferred LazyArm untouched. Real Franka
             # transports refuse the skill before opening the hand or moving
@@ -3896,6 +3900,9 @@ class SkillRuntime:
         `_observed_selection_on_failure` wrapper.
         """
         scene_enabled = os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1"
+        # A new grasp forfeits an approach column kept after a STOP below an
+        # earlier grasp's pregrasp (stop_retrace.py), whoever calls it.
+        stop_retrace.forget(self)
         carry_attachment.check(self)
         # Native endpoint inspection also runs without the observed-finger
         # gate; a stop/clear during that passive work must invalidate it.
@@ -4490,6 +4497,7 @@ class SkillRuntime:
         next_after = None  # a pre-command veto withdrawn over a vetted route
         held_offset_at_close = None
         close_hold_open = None  # B36: the post-contact hold's opening, when one was commanded
+        stop_failure = None  # the refusal / stop that ended this block below the pregrasp
         grasp_evidence.phase("descent")
         grasp_evidence.event("move_target", q=q_grasp,
                              duration_s=gcfg.get("descend_duration_s", 2.0), bias_compensate=True)
@@ -4633,6 +4641,7 @@ class SkillRuntime:
                 raise SkillError("did not settle at grasp lift pose")
             contact_completed = True
         except (SkillError, SafetyViolation) as exc:
+            stop_failure = exc
             # A failed descent can leave the open tool intentionally close to
             # the target. Finish the same contact episode by withdrawing to
             # its vetted pregrasp before removing its original exemption.
@@ -4687,6 +4696,20 @@ class SkillRuntime:
         finally:
             self.arm.harness.clear_grasp_exemption()
             contact_episode.finish(self, episode, completed=contact_completed)
+            # An operator STOP below the pregrasp (descent, close, lift, the
+            # pre-close retreat) leaves the arm in or at the target: keep this
+            # approach's column + pregrasp for the NEXT EXPLICIT move_home /
+            # reset_scene to retrace (never an automatic move). keep() decides
+            # what is a stop; nothing is kept without a raised refusal.
+            descend_s = float(gcfg.get("descend_duration_s", 2.0))
+            try:
+                stop_retrace.keep(
+                    self, approach_column, q_pre, failure=stop_failure,
+                    halt_generation=scene_halt_generation,
+                    duration_s=max(descend_s, descend_s / max(profile.lift_speed_scale, 0.2)),
+                    ceiling_m=SkillRuntime.AIR_GRASP_EXIT_CEILING_M)
+            except Exception:  # noqa: BLE001 -- bookkeeping never replaces the stop
+                logger.exception("could not keep the approach column after a stop")
 
         if next_after is not None:
             return SkillRuntime._grasp_next_observed_candidate(
@@ -7853,11 +7876,17 @@ class SkillRuntime:
                 recovery_cancellation = out["withdrawal_recovery"]["cancellation"]
             else:
                 generation = recovery_generation if recovery_generation is not None else reset_generation
-                self.skill_move_home(_halt_generation=generation) if generation is not None else self.skill_move_home()
+                at_home = (self.skill_move_home(_halt_generation=generation) if generation is not None
+                           else self.skill_move_home())
+                if isinstance(at_home, dict) and "stop_retrace" in at_home:
+                    out["stop_retrace"] = at_home["stop_retrace"]
         except (SkillError, SafetyViolation) as e:
             out.update(ok=False, stage="home", home_error=str(e), beliefs_forgotten=0,
                        error=f"Scene reset could not reach home: {e}")
             return out
+        # The arm is home and the scene changes next: a column kept after a
+        # STOP (stop_retrace.py) no longer describes anything.
+        stop_retrace.forget(self)
         if recovery_cancelled():
             return out
         # At most ONE jaw command at home, to the profile's OPEN position
@@ -8140,6 +8169,13 @@ class SkillRuntime:
             home = context["home"]
         else:
             home = self._profile_q("home_q", "move home")
+        # After an operator STOP below a grasp's pregrasp, an EXPLICIT
+        # move_home / reset_scene (execute()'s root skill) first retraces up
+        # the approach column that grasp kept, capped 5 mm above its hover,
+        # every step strictly upward inside it (stop_retrace.py). None:
+        # nothing kept or applicable, the home move below is today's.
+        retraced = stop_retrace.retrace(self, halt_generation=_halt_generation)
+        retrace_out = {} if retraced is None else {"stop_retrace": retraced}
         if self._home_policy_enabled():
             # The caller's halt generation (the reset's) reaches this move too.
             result = self._return_to_view_home(home, self.cfg.arm, halt_generation=_halt_generation)
@@ -8147,7 +8183,7 @@ class SkillRuntime:
                 if result["status"] == "halted":
                     raise MotionHalted(result["reason"])     # a halt stays a halt
                 raise SkillError(result.get("error", result.get("reason", "home return failed")))
-            return {"at": "home", "return_home": result}
+            return {"at": "home", "return_home": result, **retrace_out}
         # SafeArm plans the complete return before motion and re-vets against
         # actual feedback/map state at every segment. Legacy test doubles may
         # expose only move_joints; all real runtime arms are SafeArms.
@@ -8155,7 +8191,7 @@ class SkillRuntime:
         kwargs = {} if _halt_generation is None else {"_halt_generation": _halt_generation}
         if not move(home, duration_s=3.0, **kwargs):
             raise SkillError("did not settle at home")
-        return {"at": "home"}
+        return {"at": "home", **retrace_out}
 
     def skill_move_to_rest(self, keep_torque: bool = False) -> dict:
         """"Home" / "pose 0" / "rest" / "park": fold the arm onto its rest pose

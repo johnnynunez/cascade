@@ -556,9 +556,17 @@ Reading the table:
 
 `scripts/replay_clearance.py <trace.jsonl>` (offline: no socket, no write):
 1. Rebuild the live grid from each `context.clearance` voxel set: the lattice EDT of the snapshot's
-   voxel centres, read trilinearly as `OccupancyMap` reads its grid (tool parts re-measured to the
-   nearest non-excluded centre minus half a voxel). Exact on the nvblox / EDT backends up to the
-   1 mm rounding; a box-distance map (the GridBridge test fake) is not recoverable.
+   voxel centres, read exactly as `OccupancyMap._sample_grid` reads its grid: float32 node values
+   on the recorded grid (`map.grid_origin`, `map.grid_shape`), clamped to the border nodes within
+   half a voxel of a region face and +inf beyond it; tool parts re-measured to the nearest
+   non-excluded float32 centre minus half a voxel, in the arm's frames (`base_pose`, the exemption
+   cylinder in the base frame). Exactness is narrow: replay = live (|Δ| ≤ 3e-5 mm measured) only where the
+   snapshot's 1 mm rounding keeps the voxel lattice, i.e. whole-mm centres such as the 1 cm
+   default voxel at x.xx5, and only on an exact Euclidean grid. That is measured on the EDT test
+   bridge, never yet on real nvblox (its ESDF is not an exact Euclidean transform and sees voxels
+   outside the query region). A lattice the rounding breaks (1.5 cm voxels) or whose centre steps
+   share a factor is not replayable; a report without the grid record (older traces) never reads
+   "allowed"; a box-distance map (the GridBridge test fake) is not recoverable.
 2. Re-run vet_pose's map gates at the recorded `q` for `old` and L4 (override tool volume). L1 is
    the RECORDED verdict for refusals the step rule itself decided (approve, vet_step); the model's
    disagreement is counted as `model_mismatch`. So the replay measures L4 (later L5/L6), not L1/L2:
@@ -567,11 +575,13 @@ Reading the table:
 3. Each verdict is three-valued: computed on the snapshot alone and with a certified lower bound for
    every voxel the snapshot left out (`radius_m` around its recorded centre, or the farthest kept
    voxel when capped). Both allowed -> allowed, both refused -> refused, else undecidable. Print, per
-   lever, allowed / refused / undecidable / not replayable / no snapshot (refusal rows without a
-   report: the §7 A2 count). With the shipped 5 cm / 64-voxel snapshot an L4 admission is almost
+   lever, allowed / refused / undecidable / not replayable / no snapshot (refusals without a
+   report, the §7 A2 count: the runtime's structural `context.clearance_lost`, a filing error or
+   the report cap, and for pre-A4 rows only, an error naming a map gate). With the shipped 5 cm / 64-voxel snapshot an L4 admission is almost
    never certifiable: before the calipers PR relies on L4 numbers, a tool-volume refusal records the
    tool's whole margin shell.
-4. Run it on every rig session between PR-A and PR-B. Its L4 numbers replace §6.2's estimate.
+4. Run it on every rig session between PR-A and PR-B. Its certified L4 numbers replace §6.2's L4
+   estimate; it measures `old` fidelity, never L1/L2 (ruling P-A6, §12).
 
 ## 7. Live acceptance (operator-gated, real-robot-bringup rules)
 
@@ -703,3 +713,17 @@ The original questions, for the record:
    report-only (this spec), or decide later to exempt voxels inside the unpadded URDF body?
 5. **Q5, calipers (§8)** and the rig capture for the size term (§4.6.2, about 20 min,
    operator-gated, no motion).
+
+## 12. Rulings after the owner decisions (owner-facing)
+
+- **P-A6 (pre-final round, 2026-10-17): what the offline replay measures.** PR-A's replay
+  (`scripts/replay_clearance.py`, §6.3) measures `old` fidelity and certified L4 rows only. With the
+  shipped 5 cm / 64-voxel snapshot every L4 admission reads "undecidable" (the snapshot cannot rule
+  out a voxel near a ~15 cm tool). L1 / L2 are measured live: §7 A1 plus an admitted-escape trace
+  counter (follow-up PR). Evidence (the A6 P3 probe, 709 synthetic reBot refusals on the EDT and box test
+  bridges, re-run at the pre-final head): `old` 706 refused / 3 undecidable / 0 allowed, L1 707 / 2 / 0, L4 690 / 19 / 0
+  (all 7 true L4 admissions undecidable), 0 wrong verdicts; the replay agrees
+  with the live read exactly only on whole-mm lattices (§6.3.1), verified on the EDT test bridge,
+  not yet on real nvblox. What changed: §6.3.4 promised that the replay's numbers replace §6.2's
+  estimate for every lever; now only certified L4 does. The owner may tell us to keep the old rule
+  (then the snapshot must grow to the tool's whole margin shell before PR-B).

@@ -507,20 +507,24 @@ def test_knowledge_caps_and_counts_the_rest(tmp_path):
     assert text.endswith(f"({40 - shown} more notes not shown)")
 
 
-def test_the_knowledge_footer_never_pushes_past_the_cap(tmp_path):
+def test_the_knowledge_footer_never_pushes_past_the_cap(tmp_path, monkeypatch):
     # Lines sized so that one more note would end 5 chars under the cap: the
     # "(N more notes not shown)" line must still fit, so that note stays out.
+    # The character cap is lowered so it binds before the 10-entry cap
+    # (`KNOWLEDGE_SHOWN`; with the lint's field caps, 10 lines fit in 6000).
+    cap = 3000
+    monkeypatch.setattr(notes, "KNOWLEDGE_MAX_CHARS", cap)
     tag = len(note_tag(N(learned_in="sim", verifier=VERIFIED), "0" * 64))
     cost = lambda advice: advice + tag + 15  # "\n- note NN: <advice> [<tag>]"
-    head, target = len(notes._ADVICE_ONLY), KNOWLEDGE_MAX_CHARS - 5
+    head, target = len(notes._ADVICE_ONLY), cap - 5
     rest = (target - head - cost(1)) // cost(250)
     first = target - head - rest * cost(250) - tag - 15
-    assert 1 <= first <= ADVICE_MAX_CHARS
+    assert 1 <= first <= ADVICE_MAX_CHARS and rest < notes.KNOWLEDGE_SHOWN
     _note(tmp_path, "note-00", advice="w" * first, title="note 00")
     for i in range(1, 40):
         _note(tmp_path, f"note-{i:02d}", advice="w" * 250, title=f"note {i:02d}")
     text = load_snapshot(tmp_path, "sim").knowledge()
-    assert len(text) <= KNOWLEDGE_MAX_CHARS and text.count("\n- ") == rest
+    assert len(text) <= cap and text.count("\n- ") == rest
     assert text.endswith(f"({40 - rest} more notes not shown)")
 
 

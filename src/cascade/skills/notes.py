@@ -55,8 +55,12 @@ TITLE_MAX_CHARS = 80
 BLOCK_MAX_CHARS = 1400
 LEARNED_MAX_BYTES = 2000
 KNOWLEDGE_MAX_CHARS = 6000
-#: skipped note files `robot_knowledge` names (the rest are counted)
-SKIPPED_SHOWN = 20
+#: served notes `robot_knowledge` lists (the rest are counted); with the lint's field
+#: caps ten lines always fit in `KNOWLEDGE_MAX_CHARS`, which stays as a backstop
+KNOWLEDGE_SHOWN = 10
+#: skipped note files `robot_knowledge` names (the rest are counted; older harvested
+#: notes are only counted: `LibrarySnapshot.skipped_listing`)
+SKIPPED_SHOWN = 10
 #: skipped entries a run's run.json records by id and reason (all are counted)
 SKIPPED_RECORDED = 20
 #: a note file larger than this is skipped (`too_large`) on its fstat size, before any read
@@ -113,7 +117,8 @@ _SECTION_RE = re.compile(r"^## +(.*)$", re.MULTILINE)
 @dataclass(frozen=True)
 class Note:
     """One parsed note. `skill` is the tool its failure signature names (the
-    note's own skill, the only motion tool its text may name)."""
+    note's own skill, the only motion tool its text may name); `schema` is the
+    front matter's (1 when absent: a v1 file)."""
 
     id: str
     title: str
@@ -127,6 +132,7 @@ class Note:
     verifier: dict | None
     grades: dict
     skill: str = ""
+    schema: int = 1
 
 
 # ── parsing ───────────────────────────────────────────────────────────────
@@ -235,6 +241,7 @@ def _parse_text(note_id: str, text: str) -> Note | None:
         verifier=dict(verifier) if verifier is not None else None,
         grades=grades,
         skill=skill.group(1) if skill else "",
+        schema=schema,
     )
 
 
@@ -1280,8 +1287,8 @@ class LibrarySnapshot:
         return self._block()[0]
 
     def knowledge(self) -> str:
-        """Every served note, one line each with its tag, in at most
-        `KNOWLEDGE_MAX_CHARS` characters, then "(N more notes not shown)"; ""
+        """Every served note up to `KNOWLEDGE_SHOWN`, one line each with its tag, in
+        at most `KNOWLEDGE_MAX_CHARS` characters, then "(N more notes not shown)"; ""
         when nothing is served."""
         if not self.served:
             return ""
@@ -1290,7 +1297,7 @@ class LibrarySnapshot:
         for i, note in enumerate(self.served):
             line = "\n" + _line(note.title, note.advice, note_tag(note, self.sha))
             more = reserve if i < len(self.served) - 1 else 0
-            if len(text) + len(line) + more > KNOWLEDGE_MAX_CHARS:
+            if shown == KNOWLEDGE_SHOWN or len(text) + len(line) + more > KNOWLEDGE_MAX_CHARS:
                 break
             text, shown = text + line, shown + 1
         if shown < len(self.served):
@@ -1298,16 +1305,22 @@ class LibrarySnapshot:
         return text
 
     def skipped_listing(self) -> str:
-        """`skipped` for `robot_knowledge`: a head line, then "- <name> (<reason>)" for
-        at most `SKIPPED_SHOWN` entries, then "(N more not shown)"; "" when nothing was
-        skipped. A name is shown only when `_shown_name` passes it."""
-        if not self.skipped:
-            return ""
-        lines = [_SKIPPED_HEAD]
-        for entry in self.skipped[:SKIPPED_SHOWN]:
-            lines.append(f"- {_shown_name(entry['id'])} ({entry['reason']})")
-        if len(self.skipped) > SKIPPED_SHOWN:
-            lines.append(f"({len(self.skipped) - SKIPPED_SHOWN} more not shown)")
+        """`skipped` for `robot_knowledge`. Named: every entry that is no older note
+        (`_older`), as "- <name> (<reason>)" under a head line, at most
+        `SKIPPED_SHOWN`, then "(N more not shown)"; a name is shown only when
+        `_shown_name` passes it. Older harvested notes are only counted, last: "(N
+        older notes not served)". "" when nothing was skipped."""
+        parsed = {note.id: note for note in self.notes}
+        named = [entry for entry in self.skipped if not _older(parsed.get(entry["id"]))]
+        older = len(self.skipped) - len(named)
+        lines = []
+        if named:
+            lines.append(_SKIPPED_HEAD)
+            lines += [f"- {_shown_name(entry['id'])} ({entry['reason']})" for entry in named[:SKIPPED_SHOWN]]
+            if len(named) > SKIPPED_SHOWN:
+                lines.append(f"({len(named) - SKIPPED_SHOWN} more not shown)")
+        if older:
+            lines.append(f"({older} older notes not served)")
         return "\n".join(lines)
 
     def matching(self, goal: str) -> Note | None:
@@ -1331,6 +1344,14 @@ class LibrarySnapshot:
 def _printable_id(name: str) -> str:
     """A file name's stem as printable ASCII (escapes for anything else)."""
     return ascii(name.removesuffix(".md"))[1:-1]
+
+
+def _older(note: Note | None) -> bool:
+    """A harvested v1 or legacy note: parsed, and nothing in its front matter is v2
+    provenance (`schema: 2`, `kind: authored`, a `verifier` record). Such notes are
+    only counted in `skipped_listing`; an entry that never parsed (its version is
+    unknown) is named like a v2 note."""
+    return note is not None and note.schema != 2 and note.kind != "authored" and note.verifier is None
 
 
 def _shown_name(note_id: str) -> str:

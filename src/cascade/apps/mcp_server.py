@@ -224,9 +224,7 @@ _EXTRA_TOOLS = [
             "this arm), how each one usually fails, and the grasp strategy "
             "priors per object profile. Read this before planning a tricky "
             "manipulation -- it is the difference between guessing the arm's "
-            "envelope and knowing it. Costs no image tokens. It also lists "
-            "learned notes with where they were learned and whether a verifier "
-            "passed them."
+            "envelope and knowing it. Costs no image tokens."
         ),
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
@@ -333,6 +331,12 @@ _PROGRAM_TOOLS = frozenset({"list_programs", "run_program"})
 #: ... of which these move the arm: a cancel of one in flight latches the
 #: e-stop like any `_MOTION_SKILLS` call
 _PROGRAM_MOTION_TOOLS = frozenset({"run_program"})
+
+#: appended to `robot_knowledge`'s description on a sim-class profile only
+#: (`sim_profile.profile_class`, ASPIRE spec §4.3): a real robot's tool catalogue
+#: stays main's, byte for byte, until verified notes are served there
+_LEARNED_NOTES_SENTENCE = (" It also lists learned notes with where they were learned and whether a "
+                           "verifier passed them.")
 
 #: B46 (opt-in): the tools the read-only lane may answer WHILE a motion runs
 #: on the worker. Each is a server-side read that never enters
@@ -1195,6 +1199,7 @@ class McpSkillServer:
 
             candidates = tool_specs_for_profiles(self._get_mobile_config().bases)
         else:
+            from .. import sim_profile
             from ..skills.runtime import tool_specs_for_config
 
             extras = (_EXTRA_TOOLS if self._programs_on()
@@ -1206,6 +1211,9 @@ class McpSkillServer:
                     "Requires current command completion and native controller readiness. "
                     "STOP interrupts return; failure relatches STOP. Does not recover hardware faults or enable FCI."
                 )) if t["name"] == "reset_stop" else t for t in extras]
+            if sim_profile.profile_class(cfg) == "sim":
+                extras = [dict(t, description=t["description"] + _LEARNED_NOTES_SENTENCE)
+                          if t["name"] == "robot_knowledge" else t for t in extras]
             candidates = tool_specs_for_config(cfg) + extras
         # three independent filters: loop-internal, operator override, and
         # what the probed rig cannot do (empty until the runtime is built).
@@ -1484,11 +1492,12 @@ class McpSkillServer:
     def _learned_notes(runtime) -> dict:
         """The ASPIRE note keys of `robot_knowledge` (spec §4.3), all from the
         runtime's build-time snapshot: `learned_notes` (the served notes with their
-        tags) and `library_sha` when a note is served, plus `skipped_notes` (the note
-        files the lint refused, by name and rule) when there are any. A sim profile
-        also lists skipped files when nothing is served; any other profile adds
-        nothing until a verified note is served. Nothing to show -> {}: the payload
-        stays main's, byte for byte."""
+        tags, at most 10 listed) and `library_sha` when a note is served, plus
+        `skipped_notes` (the v2 note files the lint refused, by name and rule, at most
+        10 listed; older harvested notes only counted) when there are any. A sim
+        profile also lists skipped files when nothing is served; any other profile
+        adds nothing until a verified note is served. Nothing to show -> {}: the
+        payload stays main's, byte for byte."""
         from ..skills.notes import LibrarySnapshot
 
         snap = getattr(runtime, "learned", None)

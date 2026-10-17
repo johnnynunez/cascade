@@ -235,10 +235,12 @@ def test_lane_and_serial_answers_match(tmp_path):
         assert lane == serial and "learned_notes" in lane and "skipped_notes" in lane
 
 
-def test_the_description_says_it_lists_learned_notes():
-    from cascade.apps.mcp_server import _EXTRA_TOOLS
+def test_the_description_says_it_lists_learned_notes_on_sim(monkeypatch):
+    # follow-up ruling: only a sim-class profile's catalogue carries the sentence (test_aspire_knowledge_fix1)
+    from cascade.apps.mcp_server import McpSkillServer
 
-    (spec,) = [t for t in _EXTRA_TOOLS if t["name"] == "robot_knowledge"]
+    monkeypatch.setenv("CASCADE_ARM", "mock")
+    (spec,) = [t for t in McpSkillServer().list_tools() if t["name"] == "robot_knowledge"]
     assert spec["description"].endswith(
         "Costs no image tokens. It also lists learned notes with where they were learned and whether a "
         "verifier passed them.")
@@ -316,8 +318,8 @@ def test_the_skipped_listing_shows_every_entry_up_to_the_cap(tmp_path):
     assert len(lines) == 1 + notes.SKIPPED_SHOWN and "more not shown" not in lines[-1]
 
 
-def test_the_skipped_cap_is_twenty():
-    assert notes.SKIPPED_SHOWN == 20
+def test_the_skipped_cap_is_ten():
+    assert notes.SKIPPED_SHOWN == 10
 
 
 def test_nothing_skipped_lists_nothing(tmp_path):

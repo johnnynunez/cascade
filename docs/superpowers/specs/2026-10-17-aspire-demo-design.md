@@ -267,17 +267,24 @@ managed block directly after `AGENTS.md`, which is what Q2 asked for.
 **Selection and budget.** Top 2 of the served notes (§4.4), ranked: `verifier.verdict == verified` first, then
 `useful - misleading`, then `n_tasks`, then name. Block <= 1400 characters (~350 tokens) and the whole `LEARNED.md`
 <= 2000 UTF-8 bytes (the tag's "·" and non-ASCII titles cost more than one byte); a note's advice is cut to fit.
-`robot_knowledge` adds `learned_notes` (all served notes, same rendering, <= 6000 chars, then
-"(N more notes not shown)") and `library_sha` when at least one note is served, and `skipped_notes` (A3, controller
-ruling: a hand-written note the lint refused is never silent) when the snapshot skipped any `*.md` entry: a head line
-"Refused by the note check, so never advice (file name and the rule that refused it):", then "- <name> (<reason>)"
-for at most 20 entries (`SKIPPED_SHOWN`), then "(N more not shown)". A name is shown only when it is a safe note name
-whose text passes the title lint, else "(name not shown)": a library file is named after its title, so a refused
-title must not come back as a file name. A `sim` snapshot shows `skipped_notes` (with `library_sha`) even when nothing
-is served; any other class adds nothing until a verifier-passed note is served (§6.3). Nothing served and nothing
-skipped -- or, on `real`, nothing served -- leaves the payload byte-identical to main. The tool's description gains
-"It also lists learned notes with where they were learned and whether a verifier passed them." (static, so the tool
-catalogue changes for every profile). `robot_knowledge` joins `attendee-tools.json` (7 tools) with the description
+`robot_knowledge` adds `learned_notes` (the served notes, same rendering, at most 10 lines (`KNOWLEDGE_SHOWN`) in <= 6000
+chars, then "(N more notes not shown)") and `library_sha` when at least one note is served, and `skipped_notes` (A3,
+controller ruling: a hand-written note the lint refused is never silent) when the snapshot skipped any `*.md` entry: a
+head line "Refused by the note check, so never advice (file name and the rule that refused it):", then "- <name>
+(<reason>)" for at most 10 entries (`SKIPPED_SHOWN`), then "(N more not shown)". Named are v2 notes (front matter
+`schema: 2`, `kind: authored` or a `verifier` record) and entries that never parsed (their version is unknown);
+harvested v1 and legacy notes (parsed, none of those keys) are only counted, last: "(N older notes not served)", so a
+sim profile reading `<repo>/skills_library` gets one line, not its harvested files (A3 follow-up ruling). A name is
+shown only when it is a safe note name whose text passes the title lint, else "(name not shown)": a library file is
+named after its title, so a refused title must not come back as a file name. A `sim` snapshot shows `skipped_notes`
+(with `library_sha`) even when nothing is served; any other class adds nothing until a verifier-passed note is served
+(§6.3). Nothing served and nothing skipped -- or, on `real`, nothing served -- leaves the payload byte-identical to
+main. The tool's description gains "It also lists learned notes with where they were learned and whether a verifier
+passed them." only on a sim-class profile (`sim_profile.profile_class` of the config the catalogue is listed for): a
+real profile's tool catalogue keeps main's description byte for byte until B7 serves verified notes there (A3
+follow-up ruling). Worst case of the keys this adds (10 + 10 lines at the lint's field caps, the longest tag, rule name
+and shown name, a library of a million files): ~5.7 k characters of reply text with plain words, ~9.5 k when every
+rendered character is a `"` that JSON escapes. `robot_knowledge` joins `attendee-tools.json` (7 tools) with the description
 "What earlier runs
 taught this robot: learned notes with where they were learned and whether a verifier passed them. Read-only, never
 moves the robot." Every pinned copy of the 6-tool list moves to 7 in the same change: `deploy/brev/visitor_chat.py:21`

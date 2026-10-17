@@ -330,7 +330,18 @@ def retrieve(library, task: str, max_entries: int = 2, max_chars: int = 1400, *,
     #7, opt-in) the promoted notes are ranked by text-embedding similarity
     and each block says so; without it the text is exactly the pre-embedder
     text.
+
+    A run's snapshot view (``skills.notes.served_library``, the demo CLI's
+    library) renders its own text, ``block_for``: the served notes this task
+    matches exactly as the prompt block renders them (title, advice,
+    provenance tag), never a note's body.
     """
+    block_for = getattr(library, "block_for", None)
+    if callable(block_for):
+        try:
+            return block_for(task, max_entries, max_chars, embedder=embedder)
+        except Exception:  # noqa: BLE001 -- fail closed: a library that cannot be read gives no note
+            return ""
     try:
         if embedder is None:
             entries = library.relevant_entries(task, max_entries=max_entries, promoted_only=True)

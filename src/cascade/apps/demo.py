@@ -2195,8 +2195,9 @@ def _run_demo(args, cfg, runtime, mobile):
     # `scripts/learn_from_runs.py` writes the entries, the agent reads them.
     # The CLI reads them through the run's snapshot (spec §4.2): exactly the notes
     # `runtime.learned` serves (lint-clean, never refuted, the cross-task gate of
-    # `memory.skill_min_tasks`), from the bytes it hashed; the directory is never
-    # created here.
+    # `memory.skill_min_tasks`), from the bytes it hashed, and only as the prompt
+    # block renders them (title, advice, tag; never a note's body); the directory
+    # is never created here.
     from ..skills import notes
     from ..skills.library import PROMOTION_MIN_TASKS
 

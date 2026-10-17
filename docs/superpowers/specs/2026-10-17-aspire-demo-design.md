@@ -200,8 +200,12 @@ paraphrases of harm (no rule word) stay a limit of a structural gate, carried by
 - The robot runtime loads ONE read-only snapshot at build (`load_snapshot`; it never creates the directory) and keeps
   it for the session: the prompt block, `robot_knowledge`, the chat line and the trace stamp all come from it, so a
   nightly write never changes a running session. The legacy `demo` CLI's built-in orchestrator reads it too
-  (`notes.served_library`): only the notes the snapshot serves, parsed from the bytes it hashed (a library changed since
-  the build gives the CLI no note), and it never creates the directory either.
+  (`notes.served_library`): only the notes the snapshot serves, and only while the library holds the bytes it hashed
+  (a library changed since the build gives the CLI no note). Its `retrieve()` keeps the legacy choice of notes (shared
+  When words, or the memory embedder's similarity; at most 2, ties in rank order) but injects them only as the prompt
+  block renders them (§4.3: title, advice and tag, in <= 1400 characters), never a note's body (the Failure signature
+  and When lines, `## Strategy`, `## Evidence` or any other text the lint never reads); it never creates the directory
+  either.
 - Library location per profile: `memory.skill_library_path`. A2 sets the kitchen profiles (`isaac_kitchen` and
   every profile that extends it) to
   `${CASCADE_ASPIRE_LIBRARY:-~/.cascade/aspire/sim/library}`; every other profile keeps today's default

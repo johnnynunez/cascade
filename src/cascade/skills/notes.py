@@ -1219,6 +1219,27 @@ def _render_block(items: list[tuple[str, str, str]]) -> str:
     return "\n".join([_BLOCK_HEAD, _ADVICE_ONLY, *(_line(*item) for item in items), _BLOCK_FOOT])
 
 
+def _fit_block(notes, sha: str, max_chars: int) -> tuple[str, tuple[str, ...]]:
+    """(block text, ids of the notes it renders) for `notes` in their order, in at
+    most `max_chars` characters: the longest advice cut by whole words when needed
+    and a note dropped when none of its advice fits; ("", ()) when nothing fits."""
+    items = [[n.id, n.title, n.advice, note_tag(n, sha)] for n in notes]
+    for _ in range(2 * len(items) + 1):  # each pass fits, cuts one advice to fit, or drops one note
+        if not items:
+            break
+        text = _render_block([(title, advice, tag) for _, title, advice, tag in items])
+        excess = len(text) - max_chars
+        if excess <= 0:
+            return text, tuple(item[0] for item in items)
+        k = max(range(len(items)), key=lambda j: len(items[j][2]))
+        cut = _cut(items[k][2], len(items[k][2]) - excess)
+        if cut:
+            items[k][2] = cut
+        else:
+            del items[k]  # not one whole word of its advice fits: drop the note, never render it empty
+    return "", ()
+
+
 def _words(text: str) -> set[str]:
     return set(re.findall(r"[a-z]+", str(text).lower()))
 
@@ -1242,21 +1263,7 @@ class LibrarySnapshot:
 
     def _block(self) -> tuple[str, tuple[str, ...]]:
         """(block text, ids of the notes it renders)."""
-        items = [[n.id, n.title, n.advice, note_tag(n, self.sha)] for n in self.served[:BLOCK_NOTES]]
-        for _ in range(2 * len(items) + 1):  # each pass fits, cuts one advice to fit, or drops one note
-            if not items:
-                break
-            text = _render_block([(title, advice, tag) for _, title, advice, tag in items])
-            excess = len(text) - BLOCK_MAX_CHARS
-            if excess <= 0:
-                return text, tuple(item[0] for item in items)
-            k = max(range(len(items)), key=lambda j: len(items[j][2]))
-            cut = _cut(items[k][2], len(items[k][2]) - excess)
-            if cut:
-                items[k][2] = cut
-            else:
-                del items[k]  # not one whole word of its advice fits: drop the note, never render it empty
-        return "", ()
+        return _fit_block(self.served[:BLOCK_NOTES], self.sha, BLOCK_MAX_CHARS)
 
     def block(self) -> str:
         """The prompt block (spec §4.3, without the LEARNED.md header line): the top
@@ -1430,30 +1437,60 @@ def config_snapshot(cfg, profile_class: str) -> LibrarySnapshot:
 
 
 class _ServedNotesLibrary(SkillLibrary):
-    """The demo CLI's legacy library view of one snapshot (`agent.aspire.retrieve`
-    reads it): only the notes the snapshot serves, parsed from the very bytes it
-    hashed. A library whose bytes changed since the snapshot yields no note (a note
-    rewritten or added mid-session was never served). Read-only; never creates the
-    directory."""
+    """The demo CLI's legacy library view of one snapshot: `agent.aspire.retrieve`
+    takes its prompt text from `block_for`. It holds only the notes the snapshot
+    serves, and a note reaches the CLI only as the prompt block renders it -- title,
+    advice and provenance tag -- never its body (the Failure signature and When
+    lines, `## Strategy`, `## Evidence` or any other text the note lint never reads);
+    `entries` and `records` hold the same rendered lines. A library whose bytes
+    changed since the snapshot yields no note (a note rewritten or added mid-session
+    was never served). Read-only; never creates the directory."""
 
     def __init__(self, snapshot: LibrarySnapshot, min_tasks: int):
         super().__init__(snapshot.root, min_tasks, create=False)
-        self._sha = snapshot.sha
-        self._served = frozenset(note.id for note in snapshot.served)
+        self._snapshot = snapshot
+
+    def _served(self) -> tuple[Note, ...]:
+        """The snapshot's served notes (rank order) while the library still holds
+        the bytes it hashed; () once any note file changed."""
+        if _sha_of(_scan(self.root)) != self._snapshot.sha:
+            return ()
+        return self._snapshot.served
+
+    def _matching(self, task: str, max_notes: int, embedder) -> list[Note]:
+        """The legacy reader's choice among the served notes: those sharing a word
+        of their `when` with `task`, the most shared words first; with a memory
+        `embedder` (ROADMAP #7) also those whose title + `when` reach its
+        `text_floor` cosine to `task`, the most similar first. Ties in rank order.
+        `when` only chooses: it is never rendered."""
+        task_words = _words(task)
+        served = self._served()
+        overlaps = [len(task_words & _words(note.when)) for note in served]
+        if embedder is None:
+            hits = [((-overlap, rank), note) for rank, (note, overlap) in enumerate(zip(served, overlaps)) if overlap]
+        else:
+            import numpy as np
+
+            floor = float(getattr(embedder, "text_floor", 0.5))
+            query = np.asarray(embedder.embed_text(task), dtype=np.float64)
+            hits = []
+            for rank, (note, overlap) in enumerate(zip(served, overlaps)):
+                key = np.asarray(embedder.embed_text(f"{note.title} {note.when}"), dtype=np.float64)
+                similarity = float(np.dot(query, key))
+                if similarity >= floor or overlap:
+                    hits.append(((-similarity, -overlap, rank), note))
+        return [note for _, note in sorted(hits, key=lambda hit: hit[0])[:max_notes]]
+
+    def block_for(self, task: str, max_notes: int, max_chars: int, embedder=None) -> str:
+        """The CLI's prompt text for `task`: at most `max_notes` matching served notes
+        (`_matching`) rendered exactly as the prompt block renders notes, in at most
+        `max_chars` characters; "" when none matches."""
+        return _fit_block(self._matching(task, max_notes, embedder), self._snapshot.sha, max_chars)[0]
 
     def entries(self) -> list[tuple[str, str]]:
-        found = _scan(self.root)
-        if _sha_of(found) != self._sha:
-            return []
-        out = []
-        for name, data, _ in found:
-            stem = name[: -len(".md")]
-            if data is not None and stem in self._served:
-                try:
-                    out.append((stem, data.decode("utf-8")))
-                except UnicodeDecodeError:  # the snapshot never serves one; kept out all the same
-                    continue
-        return out
+        """(id, the line the block renders for it) of every served note, rank order."""
+        return [(note.id, _line(note.title, note.advice, note_tag(note, self._snapshot.sha)))
+                for note in self._served()]
 
     def records(self):
         return [self._parse_text(name, text) for name, text in self.entries()]

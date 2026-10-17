@@ -33,20 +33,28 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-from ..skills import relative_motion as rm
-from ..skills.spatial_moves import CameraDims, wrist_camera_dims
 from ..types import SkillError
+
+if TYPE_CHECKING:
+    from ..skills.spatial_moves import CameraDims
+
+# The camera parser and box live with the spatial tools (one box, two
+# layers). They are imported where they are used, never at module level: the
+# safety layer must import without the skills package (its runtime).
 
 #: allowed keys of `safety.tool_volume`
 _KEYS = {"wrist_camera", "jaws", "housing", "fingers", "spacing_m", "table_band_m"}
 #: largest |coordinate| of a part box (m), the camera box's limit: beyond it is a typo
 _MAX_PART_M = 0.30
 #: today's wrist-camera slab (relative_motion.wrist_camera in configs/demo.yaml):
-#: 14 cm back from the fingertip plane, 15 cm across, 8 cm up from the finger axis
-TODAY_SLAB = CameraDims(0.08, 0.14, 0.075, 0.0, 0.0)
+#: 14 cm back from the fingertip plane, 15 cm across, 8 cm up from the finger
+#: axis; `TODAY_SLAB` (module attribute, a spatial_moves.CameraDims) is built
+#: from these on first use
+_TODAY_SLAB = (0.08, 0.14, 0.075, 0.0, 0.0)
 #: the caliper faces (mm; reference frame in spec §8 and the committed record
 #: docs/evidence/wrist-camera-calipers/measurement.json)
 CALIPER_FACES = ("front_behind_tip", "rear_behind_tip", "minus_y", "plus_y", "bottom_above_axis",
@@ -75,6 +83,14 @@ class ToolVolume:
     def points(self, T_tcp: np.ndarray) -> np.ndarray:
         T = np.asarray(T_tcp, dtype=float)
         return self.local @ T[:3, :3].T + T[:3, 3]
+
+
+def __getattr__(name: str):
+    if name == "TODAY_SLAB":
+        from ..skills.spatial_moves import CameraDims
+
+        return CameraDims(*_TODAY_SLAB)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def box_grid(center, axes, half, spacing_m: float) -> np.ndarray:
@@ -161,10 +177,25 @@ def build_tool_volume(view, arm_cfg) -> ToolVolume | None:
     if not (use_camera or use_jaws or housing is not None or fingers is not None):
         raise ValueError("safety.tool_volume samples nothing (wrist_camera and jaws both false, no "
                          "housing or fingers); remove the block instead")
+    from ..skills import relative_motion as rm
+    from ..skills.spatial_moves import _tool_up, wrist_camera_dims
 
     order = str(arm_cfg.get("tool_axis_order", "down_open"))
     a_col, j_col, t_col = rm._TOOL_COLUMNS[order]
     eye = np.eye(3)
+    for name, part in (("housing", housing), ("fingers", fingers)):
+        # a part box is (approach, jaw, camera-up): only an arm whose camera
+        # up IS +third tool column can read it without turning it over
+        if part is not None:
+            try:
+                up = _tool_up(view.get("relative_motion") or {})
+            except SkillError as exc:
+                raise ValueError(f"safety.tool_volume.{name}: {exc}") from None
+            if up is None or not np.allclose(up, eye[t_col], rtol=0.0, atol=1e-9):
+                raise ValueError(
+                    f"safety.tool_volume.{name} is given in (approach, jaw, camera-up) TCP coordinates and "
+                    f"needs relative_motion.tool_up_axis = +third tool column {eye[t_col].tolist()} "
+                    f"(tool_axis_order {order!r}), got {None if up is None else list(up)}")
     parts, labels, names = [], [], []
     if use_camera:
         dims, up = wrist_camera_dims(view.get("relative_motion"))
@@ -224,7 +255,7 @@ def _outward_down(mm: float) -> float:
     return math.floor(mm / _CALIPER_GRID_MM) * _CALIPER_GRID_MM / 1000.0
 
 
-def camera_faces_from_calipers(measured_mm: dict, today: CameraDims = TODAY_SLAB) -> CameraDims:
+def camera_faces_from_calipers(measured_mm: dict, today: CameraDims | None = None) -> CameraDims:
     """The camera box the owner's calipers need (spec §8: mm, relative to the
     fingertip plane and the finger axis, jaws closed).
 
@@ -237,6 +268,10 @@ def camera_faces_from_calipers(measured_mm: dict, today: CameraDims = TODAY_SLAB
     face names (a typo would silently keep today's face) and a box the
     camera parser would refuse.
     """
+    from ..skills import relative_motion as rm
+    from ..skills.spatial_moves import CameraDims
+
+    today = CameraDims(*_TODAY_SLAB) if today is None else today
     unknown = sorted(set(measured_mm) - set(CALIPER_FACES))
     if unknown:
         raise ValueError(f"calipers: unknown face(s) {unknown}; expected {list(CALIPER_FACES)}")

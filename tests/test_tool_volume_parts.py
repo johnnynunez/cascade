@@ -265,6 +265,7 @@ def test_parts_follow_the_tool_axis_order():
     the jaws: open_down = approach z, jaws x, third y."""
     cfg = _cfg()
     cfg.safety._data["tool_volume"]["wrist_camera"] = False   # its up axis is the open_down approach
+    cfg.relative_motion._data["tool_up_axis"] = [0.0, 1.0, 0.0]   # the parts' camera-up: +third (open_down: y)
     _with_parts(cfg, housing=_box_block(HOUSING))
     vol = build_tool_volume(cfg, {"tool_axis_order": "open_down"})
     pts = _part(vol, "housing")
@@ -304,6 +305,76 @@ def test_a_bad_part_block_is_refused_loudly(part, bad):
 def test_a_part_at_the_limit_is_accepted():
     cfg = _with_parts(_cfg(), housing={"min": [-0.30, -0.30, -0.30], "max": [0.30, 0.30, 0.30]})
     assert "housing" in build_tool_volume(cfg, cfg.arm).names
+
+
+@pytest.mark.parametrize("up", [[0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], None],
+                         ids=["down", "approach", "jaw", "none"])
+@pytest.mark.parametrize("part", ["housing", "fingers"])
+def test_parts_need_the_camera_up_on_the_third_tool_column(part, up):
+    """A part box is (approach, jaw, camera-up) in the TCP frame: built on an
+    arm whose camera-up is not +third tool column, its "up" would land on
+    another axis or upside down. Refused, never silently rotated."""
+    cfg = _with_parts(_cfg(), **{part: _box_block(HOUSING if part == "housing" else FINGERS)})
+    cfg.safety._data["tool_volume"]["wrist_camera"] = False          # only the part reads the up axis
+    cfg.relative_motion._data["tool_up_axis"] = up
+    with pytest.raises(ValueError, match=f"tool_volume.{part}.*tool_up_axis"):
+        build_tool_volume(cfg, cfg.arm)
+    cfg.relative_motion._data["tool_up_axis"] = [0.0, 0.0, 2.0]       # +third (normalised): accepted
+    assert part in build_tool_volume(cfg, cfg.arm).names
+
+
+def test_the_safety_layer_imports_no_skills_module():
+    """tool_volume reads the skills' camera parser lazily: importing the
+    safety layer never pulls in the skills package (its runtime)."""
+    import subprocess
+    import sys
+
+    code = ("import sys\n"
+            "import cascade.safety.tool_volume as tv\n"
+            "before = sorted(m for m in sys.modules if m.startswith('cascade.skills'))\n"
+            "assert tv.TODAY_SLAB == (0.08, 0.14, 0.075, 0.0, 0.0)\n"
+            "print(before)\n")
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, cwd=ROOT,
+                         env={**__import__("os").environ, "PYTHONPATH": str(ROOT / "src")}, timeout=60)
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.strip() == "[]", out.stdout
+    assert TODAY_SLAB == CameraDims(0.08, 0.14, 0.075, 0.0, 0.0) and isinstance(TODAY_SLAB, CameraDims)
+
+
+def test_parts_and_a_cut_camera_load_from_a_yaml_profile_that_extends_rebot_rs(tmp_path):
+    """The real loader: a profile that `extends: rebot_rs` and adds the parts
+    and the calipered cuts in its `overrides:` (YAML flow lists) builds the
+    measured volume; everything else stays the reBot's."""
+    import shutil
+
+    from cascade.config import CONFIG_DIR, load_demo_config
+
+    cdir = tmp_path / "configs"
+    shutil.copytree(CONFIG_DIR, cdir)
+    (cdir / "arms" / "rebot_rs_measured.yaml").write_text(
+        "extends: rebot_rs\n"
+        "overrides:\n"
+        "  safety:\n"
+        "    tool_volume:\n"
+        "      housing: {min: [-0.160, -0.095, -0.045], max: [-0.070, 0.095, 0.045]}\n"
+        "      fingers: {min: [-0.090, -0.085, -0.020], max: [0.0, 0.085, 0.020]}\n"
+        "  relative_motion:\n"
+        "    wrist_camera:\n"
+        "      front_m: 0.06\n"
+        "      bottom_m: 0.035\n")
+    cfg = load_demo_config(arm="rebot_rs_measured", camera="mock", llm="mock", config_dir=cdir)
+    assert cfg.arm.get("tool_axis_order") == _cfg().arm.get("tool_axis_order")
+    vol = build_tool_volume(cfg, cfg.arm)
+    assert vol.names == ("wrist camera", "housing", "fingers", "jaws")
+    for name, (lo, hi) in (("housing", HOUSING), ("fingers", FINGERS)):
+        np.testing.assert_allclose(_part(vol, name).min(axis=0), lo, atol=1e-12)
+        np.testing.assert_allclose(_part(vol, name).max(axis=0), hi, atol=1e-12)
+    cam = _part(vol, "wrist camera")
+    np.testing.assert_allclose(cam.max(axis=0)[[0, 2]], [-0.06, 0.08], atol=1e-12)   # cut front, today's top
+    np.testing.assert_allclose(cam.min(axis=0)[[0, 2]], [-0.14, 0.035], atol=1e-12)  # today's rear, cut bottom
+    shipped = build_tool_volume(_cfg(), _cfg().arm)
+    np.testing.assert_array_equal(_part(vol, "jaws"), _part(shipped, "jaws"))
+    assert (vol.spacing_m, vol.table_band_m) == (shipped.spacing_m, shipped.table_band_m)
 
 
 # ── the cut camera box: front and bottom, guarded by the parts ─────────────

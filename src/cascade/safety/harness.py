@@ -890,7 +890,7 @@ class SafetyHarness:
                 reject(f"link/joint {i} at z={p[2]:.3f} would hit the table")
 
         if self.occupancy is not None:
-            reason = self._occupancy_violation(
+            reason = self._arm_occupancy_violation(
                 np.vstack([tcp[None, :], links[1:]]), self._grasp_exempt
             )
             if reason is not None:
@@ -995,7 +995,7 @@ class SafetyHarness:
                 return f"link/joint {i} at z={p[2]:.3f} would hit the table"
 
         if self.occupancy is not None:
-            reason = self._occupancy_violation(np.vstack([tcp[None, :], links[1:]]), exempt)
+            reason = self._arm_occupancy_violation(np.vstack([tcp[None, :], links[1:]]), exempt)
             if reason is not None:
                 return reason
             reason = self._payload_occupancy_violation(q, exempt)
@@ -1008,6 +1008,39 @@ class SafetyHarness:
         # candidate that would abort against the neighbour is discarded at
         # ranking time instead of failing mid-descent.
         return self._neighbor_violation(q)
+
+    # ── the occupancy map's frame ────────────────────────────────────────
+    #
+    # The map is SHARED by every arm of a rig and lives in the table frame
+    # (body masks, the attached-object and the tool-volume gates all lift arm
+    # points by `base_pose` before reading it). Kinematics, the workspace, the
+    # table plane and the grasp-exemption cylinder stay in this arm's BASE
+    # frame: the cylinder is centred on an IK target (`grasp.position[:2]`).
+    # So arm points are lifted into the map frame before every map query, and
+    # map-frame points / voxels are taken back into the base frame for the
+    # cylinder test. Without a base_pose the two frames coincide and nothing
+    # is transformed (single-arm rigs are byte-identical).
+
+    def _to_map_frame(self, points: np.ndarray) -> np.ndarray:
+        """This arm's base-frame points in the occupancy map's frame."""
+        if self.base_pose is None:
+            return points
+        from ..types import transform_points
+
+        return transform_points(self.base_pose, points)
+
+    def _to_base_frame(self, points: np.ndarray) -> np.ndarray:
+        """Map-frame points (or voxels) in this arm's base frame."""
+        if self.base_pose is None:
+            return points
+        from ..types import transform_points
+
+        return transform_points(np.linalg.inv(self.base_pose), points)
+
+    def _arm_occupancy_violation(self, points: np.ndarray, exempt: tuple | None) -> str | None:
+        """The arm gate's map query: TCP / joint-origin / camera-box points
+        given in this arm's BASE frame, checked where they physically are."""
+        return self._occupancy_violation(self._to_map_frame(points), exempt)
 
     def _payload_occupancy_violation(self, q, exempt):
         points_fn = getattr(self.occupancy, "payload_points", None)
@@ -1026,6 +1059,8 @@ class SafetyHarness:
         """Occupancy-map check: any query point closer than min_clearance_m
         to a cached obstacle, outside the active grasp exemption.
 
+        `points` are in the MAP frame (see `_arm_occupancy_violation` for
+        base-frame arm points); `exempt` is in this arm's base frame.
         `points.clearance()` returns None when the map has no fresh data
         (never refreshed, stale, or the bridge is down) -- that is
         unavailable optional map skips this check. Required maps refuse
@@ -1039,11 +1074,12 @@ class SafetyHarness:
         if dist is None:
             return "clearance unavailable (fresh observed distance grid required)" if observed_required else None
         min_c = self.limits.min_clearance_m
+        in_base = points if exempt is None else self._to_base_frame(points)
         for i, (p, d) in enumerate(zip(points, dist)):
-            if not np.isfinite(d) and observed_required and not self._in_cylinder(p, exempt):
+            if not np.isfinite(d) and observed_required and not self._in_cylinder(in_base[i], exempt):
                 return (f"point {i} has unobserved clearance (occupancy map)"
                         f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]")
-            if d < min_c and not self._in_cylinder(p, exempt):
+            if d < min_c and not self._in_cylinder(in_base[i], exempt):
                 return (f"point {i} clearance {d:.9f} m below {min_c:.9f} m "
                         f"(shortfall {(min_c - d) * 1000:.6f} mm; occupancy map)"
                         f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]")
@@ -1052,11 +1088,13 @@ class SafetyHarness:
     def _tool_volume_clearance(self, T_tcp: np.ndarray, exempt: tuple | None):
         """(samples, clearance) of the tool volume at TCP pose `T_tcp`
         (base frame), or (samples, None) when an optional map has no data.
+        The samples are returned in the map frame.
 
         Obstacles are attributed by where they are: voxels in the table
         plane band and inside the active grasp exemption (the target) do not
         count; every other one does (OccupancyMap.clearance_excluding). A map
-        without that method gets the sample-based exemption instead."""
+        without that method gets the sample-based exemption instead. Both
+        compare in the cylinder's frame, this arm's base frame."""
         vol = self.tool_volume
         T = np.asarray(T_tcp, dtype=float)
         if self.base_pose is not None:
@@ -1064,12 +1102,13 @@ class SafetyHarness:
         pts = vol.points(T)
         excluding = getattr(self.occupancy, "clearance_excluding", None)
         if excluding is not None:
+            frame = {} if self.base_pose is None or exempt is None else {"cylinder_frame": self.base_pose}
             dist = excluding(pts, below_z=float(self.limits.table_z) + float(vol.table_band_m),
-                             cylinder=exempt, within=float(self.limits.min_clearance_m))
+                             cylinder=exempt, within=float(self.limits.min_clearance_m), **frame)
         else:
             dist = self.occupancy.clearance(pts)
             if dist is not None and exempt is not None:
-                dist = np.where([self._in_cylinder(p, exempt) for p in pts], np.inf, dist)
+                dist = np.where([self._in_cylinder(p, exempt) for p in self._to_base_frame(pts)], np.inf, dist)
         return pts, (None if dist is None else np.asarray(dist, dtype=float))
 
     def _tool_volume_bad(self, dist: np.ndarray) -> np.ndarray:

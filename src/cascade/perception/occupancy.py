@@ -1376,7 +1376,8 @@ class OccupancyMap:
             return distance
 
     def clearance_excluding(self, points: np.ndarray, *, below_z: float | None = None,
-                            cylinder: tuple | None = None, within: float | None = None):
+                            cylinder: tuple | None = None, within: float | None = None,
+                            cylinder_frame: np.ndarray | None = None):
         """clearance() for samples of the robot's own VOLUME (the wrist
         camera box, the jaws), with obstacles attributed by where the
         OBSTACLE is rather than where the sample is.
@@ -1386,6 +1387,10 @@ class OccupancyMap:
         obstacles here. Every other one is, so a neighbour just outside the
         target's cylinder still blocks a camera sample that hangs inside it,
         while the target's own wall does not block a sample just outside.
+        `cylinder_frame` (4x4, cylinder frame -> map frame; None = the map
+        frame) is where the cylinder is given: an arm with a `base_pose`
+        states it in its own base frame, so voxels are taken into that frame
+        for the cylinder test.
 
         The distance grid cannot say which obstacle is nearest, so samples
         whose grid clearance is below `within` are re-measured against the
@@ -1413,8 +1418,12 @@ class OccupancyMap:
                 cand = cand[cand[:, 2] > float(below_z)]
             if cylinder is not None and len(cand):
                 center, radius, z_min = cylinder
-                inside = ((np.linalg.norm(cand[:, :2] - np.asarray(center, dtype=float)[:2], axis=1)
-                           <= float(radius)) & (cand[:, 2] >= float(z_min) - 1e-6))
+                local = cand
+                if cylinder_frame is not None:
+                    inv = np.linalg.inv(np.asarray(cylinder_frame, dtype=float))
+                    local = cand @ inv[:3, :3].T + inv[:3, 3]
+                inside = ((np.linalg.norm(local[:, :2] - np.asarray(center, dtype=float)[:2], axis=1)
+                           <= float(radius)) & (local[:, 2] >= float(z_min) - 1e-6))
                 cand = cand[~inside]
         exact = _nearest_distance(sub, cand, reach)
         exact = np.where(np.isfinite(exact), np.maximum(exact - voxel / 2.0, 0.0), float(within))

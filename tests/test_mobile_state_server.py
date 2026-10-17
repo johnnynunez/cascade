@@ -571,7 +571,10 @@ def test_owner_death_closes_every_handed_off_reader_and_ends_the_server():
         owner.kill()
         owner.wait(timeout=30)
         if server_pid is not None and alive(server_pid):
-            os.kill(server_pid, 9)
+            try:
+                os.kill(server_pid, 9)
+            except ProcessLookupError:
+                pass  # it exited (control EOF) after the liveness check: already the end state we want
 
 
 def test_the_state_server_runs_isolated_on_the_standard_library_only():

@@ -1296,6 +1296,69 @@ def test_a_halt_after_fr3_move_home_started_still_skips_it(tmp_path):
     assert arm.moves == [] and arm.stops == 0 and arm.harness.halted == "operator"
 
 
+@pytest.fixture
+def fr3_mock(tmp_path, monkeypatch):
+    """The FR3 profile on the real mock stack (SafeArm over MockArm, whose
+    `commands` records every streamed command), saved view-home return on as
+    the real FR3 profile ships it."""
+    monkeypatch.setenv("CASCADE_OCCUPANCY", "0")
+    monkeypatch.setenv("CASCADE_GRASP_BACKEND", "obb")
+    with held_dead_port() as port:
+        monkeypatch.setenv("CASCADE_GRASPGENX_PORT", str(port))
+        cfg = load_demo_config(camera="mock", arm="fr3_mock", llm="mock")
+        cfg._data["arm"]["return_home_after_motion"] = True
+        runtime, arm = build_runtime(cfg, tmp_path / "run", view=False, serve=False)
+        try:
+            yield runtime, arm
+        finally:
+            shutdown_runtime(runtime, arm)
+
+
+def test_a_halt_just_before_the_fr3_execute_home_return_moves_nothing(fr3_mock):
+    """execute()'s saved view-home return (FR3) runs after the skill body has
+    left its halt scope (pre-PR M1). It carries the skill's start halt
+    generation, so an operator halt raised after the return's last skip
+    check, just before its move, ends it before the first command: a halt,
+    no stop latched (without it the move's begin_motion clears the halt)."""
+    runtime, raw = fr3_mock
+    harness = runtime.arm.harness
+    home = np.asarray(runtime.cfg.arm.home_q, float)
+    away = home.copy()
+    away[0] += 0.2
+    at_halt = []
+    runtime.skill_wave = lambda: runtime._move_joints(away, duration_s=1.0) and {}
+    real_status = runtime._show_status
+
+    def status(msg):
+        if msg.startswith("Returning to the saved camera-view home"):
+            harness.halt("operator")                          # after the return's last skip check
+            at_halt.append(len(raw.commands))
+        return real_status(msg)
+
+    runtime._show_status = status
+    res = runtime.execute("wave", {})
+    assert at_halt and len(raw.commands) == at_halt[0] > 0, "no command after the halt"
+    assert res["return_home"] == {"ok": False, "status": "halted",
+                                  "reason": "halt received during route planning or execution"}, res
+    assert res["ok"] is False and res["error"] == ("return to saved home halted: "
+                                                   "halt received during route planning or execution"), res
+    assert "motion_blocked" not in res and harness.halted == "operator"
+    assert harness.estopped is False and raw._stopped is False
+    np.testing.assert_allclose(raw.get_state().q, away, atol=1e-6)
+
+
+def test_without_a_halt_the_fr3_execute_home_return_still_runs(fr3_mock):
+    """Control: the same skill with no halt returns to the saved home."""
+    runtime, raw = fr3_mock
+    home = np.asarray(runtime.cfg.arm.home_q, float)
+    away = home.copy()
+    away[0] += 0.2
+    runtime.skill_wave = lambda: runtime._move_joints(away, duration_s=1.0) and {}
+    res = runtime.execute("wave", {})
+    assert res["ok"] is True and res["return_home"]["status"] == "returned", res
+    np.testing.assert_allclose(raw.get_state().q, home, atol=0.02)
+
+
 # ── a refused or unreachable +3 cm lift tries +6 cm ─────────────────────────
 
 

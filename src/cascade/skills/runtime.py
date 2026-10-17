@@ -1313,8 +1313,14 @@ class SkillRuntime:
                 return str(exc)
         return None
 
-    def _return_to_view_home(self, home: np.ndarray, profile: dict, failure=None) -> dict:
-        """Return without changing the jaws or clearing any safety latch."""
+    def _return_to_view_home(self, home: np.ndarray, profile: dict, failure=None,
+                             halt_generation: int | None = None) -> dict:
+        """Return without changing the jaws or clearing any safety latch.
+
+        `halt_generation`: the harness's halt generation when the skill
+        started, for execute()'s return after the skill body left its halt
+        scope; the move then refuses a halt raised since then (None: the
+        running skill's scope, if any, decides)."""
         reason = self._home_return_skip_reason(failure)
         if reason:
             return {"ok": False, "status": "skipped", "reason": reason}
@@ -1346,7 +1352,8 @@ class SkillRuntime:
         try:
             self._show_status("Returning to the saved camera-view home")
             carry_attachment.check(self)
-            if not self._move_carry(home, duration_s=3.0):
+            halt_kw = {} if halt_generation is None else {"_halt_generation": halt_generation}
+            if not self._move_carry(home, duration_s=3.0, **halt_kw):
                 raise SkillError("did not settle at the saved home pose")
             reason = self._home_return_skip_reason()
             if reason:
@@ -1648,7 +1655,13 @@ class SkillRuntime:
                                 and name not in {"move_home", "move_to_rest", "reset_scene"}
                                 and not (isinstance(result, dict) and result.get("home_skipped"))):
                             try:
-                                home_return = self._return_to_view_home(home_snapshot, profile, failure)
+                                # Outside the skill's halt scope now: the move
+                                # carries the skill's start generation, so a
+                                # halt raised since then ends it too (pre-PR M1).
+                                return_harness = getattr(self.arm, "harness", None)
+                                home_return = self._return_to_view_home(
+                                    home_snapshot, profile, failure,
+                                    halt_generation=next((g for h, g in skill_halt if h is return_harness), None))
                             except Exception as exc:
                                 home_return = {"ok": False, "status": "failed",
                                                "error": f"{type(exc).__name__}: {exc}"}

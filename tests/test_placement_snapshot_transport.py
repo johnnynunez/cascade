@@ -108,8 +108,12 @@ def bridge_stdout_chars():
     return int(found[0])
 
 
-def bridge_exec(code, sample):
-    """Run the generated wire tail like the bridge's exec queue: captured, tail-cut stdout."""
+def bridge_exec(code, sample, *, before="", after=""):
+    """Run the generated wire tail like the bridge's exec queue: captured, tail-cut stdout.
+
+    `before` and `after` stand for other text in the same captured stdout around the
+    generated marker line (earlier prints of the job, a concurrent writer).
+    """
     assert code.count(PAYLOAD_LINE) == 1, "snapshot payload boundary changed"
     tail = PAYLOAD_LINE + code.split(PAYLOAD_LINE, 1)[1]
     namespace = {"_gpu_observed": deepcopy(sample), "_obs_json": json, "_obs_np": np,
@@ -117,10 +121,20 @@ def bridge_exec(code, sample):
     stdout = io.StringIO()
     try:
         with contextlib.redirect_stdout(stdout):
+            print(before, end="")
             exec(tail, namespace)
+            print(after, end="")
     except Exception:
         return {"ok": False, "error": traceback.format_exc()[-2000:], "stdout": stdout.getvalue()[-2000:]}
     return {"ok": True, "stdout": stdout.getvalue()[-bridge_stdout_chars():]}
+
+
+def wire_line(code, sample):
+    """The one stdout line the generated code prints for `sample` (no other output)."""
+    reply = bridge_exec(code, sample)
+    assert reply["ok"], reply["error"]
+    (line,) = reply["stdout"].splitlines()
+    return line
 
 
 def verifier_code(expected, object_name="green_cube"):
@@ -129,11 +143,12 @@ def verifier_code(expected, object_name="green_cube"):
         include_open_box="open_box" in expected, expected_props=tuple(expected["prop_dimensions_m"]))
 
 
-def replay(monkeypatch, samples, expected):
+def replay(monkeypatch, samples, expected, noise=None):
     """Serve each exec request from the next sample through the real generated code.
 
     The reviewed scene geometry comes from the receipt, so a later kitchen edit
-    cannot turn this transport test into a scene-identity test.
+    cannot turn this transport test into a scene-identity test. `noise(code, sample)`
+    returns the extra stdout (`before` / `after` keywords) of that exec job.
     """
     feed = iter(samples)
     now = [100.]
@@ -153,7 +168,8 @@ def replay(monkeypatch, samples, expected):
         def request(self, request, timeout_s):
             assert set(request) == {"op", "code"} and request["op"] == "exec"
             self.requests.append(request)
-            reply = bridge_exec(request["code"], next(feed))
+            sample = next(feed)
+            reply = bridge_exec(request["code"], sample, **(noise(request["code"], sample) if noise else {}))
             if not reply["ok"]:  # BridgeClient.request raises on an `ok: false` reply
                 raise BridgeError(reply["error"])
             return reply
@@ -233,6 +249,36 @@ def test_recorded_verdict_is_reproduced_through_the_bridge(monkeypatch, tmp_path
         for key in READER_ONLY:
             verdict["measured"].pop(key, None)
     assert report == recorded
+
+
+@pytest.mark.parametrize("engine", ["physx", "newton"])
+@pytest.mark.parametrize("noise,status", [
+    ("before", "confirmed"), ("after_fits", "confirmed"), ("after_over", "unverified")])
+def test_bridge_tail_cut_around_the_marker_line(monkeypatch, tmp_path, engine, noise, status):
+    # The bridge returns only the LAST `bridge_stdout_chars()` characters of the job's stdout.
+    # 20,000 characters printed before the marker line are cut first: harmless. Text after it
+    # fits while "<line>\n" + text stays within the cut; one character more cuts the marker
+    # off, the reply never parses, and the check is UNVERIFIED.
+    receipt = recorded_receipt()
+    samples = engine_samples(engine)
+
+    def extra(code, sample):
+        if noise == "before":
+            return {"before": "bridge log line\n" * 1250}
+        room = bridge_stdout_chars() - len(wire_line(code, sample) + "\n")
+        return {"after": "x" * (room + (noise == "after_over"))}
+
+    replay(monkeypatch, samples, receipt["expected_scene_geometry"], noise=extra)
+    report = placement.read_placement(("127.0.0.1", 9), receipt["robot_id"], receipt["requested_object"],
+                                      receipt["destination"], evidence_dir=tmp_path)
+    assert report["status"] == status, report["evidence"]
+    used = [row["physics"] for row in json.loads(next(tmp_path.glob("*.json")).read_text())["records"]]
+    assert used == samples[:len(used)]
+    if status == "confirmed":
+        assert len(used) >= 6
+    else:
+        assert used == [] and report["evidence"] == (
+            "placement observation unavailable: ValueError: Missing, duplicate or truncated observer JSON marker")
 
 
 @pytest.mark.parametrize("engine", ["physx", "newton"])

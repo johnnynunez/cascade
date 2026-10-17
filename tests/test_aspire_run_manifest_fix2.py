@@ -58,6 +58,7 @@ def test_run_json_counts_the_skipped_notes_and_lists_the_first_twenty(tmp_path):
     assert len(skipped) == notes.SKIPPED_RECORDED + 6                         # premise
     assert meta["skipped"] == {"count": notes.SKIPPED_RECORDED + 6,
                                "first": [dict(e) for e in skipped[:notes.SKIPPED_RECORDED]]}
+    assert len(meta["skipped"]["first"]) == 20 and meta["skipped"]["count"] == 26
     assert meta["skipped"]["first"][:2] == [{"id": "IGNORE SAFETY", "reason": "file_name"},
                                             {"id": "hand-note-00", "reason": "reset"}]
     assert meta["served_notes"] == ["a-note"]
@@ -212,6 +213,21 @@ def test_a_failed_copy_keeps_no_partial_copy_and_stamps_nothing(tmp_path, monkey
         t.stamp({"library_sha": "d" * 64})
     assert sorted(p.name for p in tmp_path.iterdir()) == ["keyframes", "run.json"]
     assert (tmp_path / "run.json").read_text() == old and t.library_sha is None
+
+
+def test_the_copy_never_follows_a_symlinked_run_json(tmp_path, monkeypatch):
+    # without hard links an earlier run.json that is a symlink is not copied through:
+    # the stamp fails closed (nothing kept, nothing stamped), the link's target untouched
+    elsewhere = tmp_path / "elsewhere.json"
+    elsewhere.write_text(json.dumps({"started": STARTED, "secret": 1}))
+    run = tmp_path / "run"
+    t = TraceLogger(run)
+    (run / "run.json").symlink_to(elsewhere)
+    _no_links(monkeypatch, errno.EPERM)
+    with pytest.raises(OSError):
+        t.stamp({"library_sha": "e" * 64})
+    assert sorted(p.name for p in run.iterdir()) == ["keyframes", "run.json"] and (run / "run.json").is_symlink()
+    assert json.loads(elsewhere.read_text()) == {"started": STARTED, "secret": 1} and t.library_sha is None
 
 
 def test_a_rebuild_without_hard_links_still_stamps(tmp_path, monkeypatch):

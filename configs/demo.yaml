@@ -205,6 +205,12 @@ grasp:
   # open_gripper: wait up to this long for the jaws to open (or stall) before
   # the skill returns, so its postcondition reads the jaws after they moved.
   # null = return as soon as the target is sent (sims that open instantly).
+  # The same key bounds the wait for EMPTY jaws to open after an air grasp
+  # (before the exit withdrawal) and for closed jaws opened before a grasp's
+  # selection; null there = 3 s (JAWS_OPEN_TIMEOUT_S, real time). The Isaac
+  # profiles set 12 s for Newton's slow motion (configs/arms/isaac.yaml).
+  # Unset or a finite positive number of seconds; anything else fails the
+  # build (and the skill, before anything moves).
   open_wait_timeout_s: null
   # The pregrasp is vetted and approached before the descent cylinder opens,
   # so with an occupancy map the target's own top could refuse its own

@@ -7062,6 +7062,8 @@ class SkillRuntime:
         except carry_attachment.AttachmentInvalid as exc:
             return {**out, **carry_attachment.failure_result(self, exc)}
         occupancy = getattr(self.arm.harness, "occupancy", None)
+        # A halt from here on refuses the release of a held object (below).
+        reset_generation = getattr(self.arm.harness, "_halt_generation", None)
         recovery_generation = None
         recovery_cancellation = None
         def recovery_cancelled():
@@ -7140,17 +7142,27 @@ class SkillRuntime:
         if recovery_cancelled():
             return out
         # release anything the runtime still thinks it holds: a reset while
-        # carrying is the operator's decision that the episode is over
+        # carrying is the operator's decision that the episode is over. The
+        # profile's OPEN position (gripper.open_pos): jaw positions are motor
+        # travel in each profile's units, so a raw 1.0 was nearly closed on
+        # the reBot (open 6.2) and fully closed on the mock (open 0.0).
         if self.held_object:
+            generation = recovery_generation if recovery_generation is not None else reset_generation
             try:
-                kwargs = {} if recovery_generation is None else {"_halt_generation": recovery_generation}
-                self._set_gripper(1.0, **kwargs)
+                kwargs = {} if generation is None else {"_halt_generation": generation}
+                self._set_gripper(self._grip_open, **kwargs)
             except Exception as exc:  # noqa: BLE001
                 if recovery_generation is not None:
                     out.update(ok=False, stage="reset_recovery", recovery_error=str(exc),
                                beliefs_forgotten=0, error=f"Scene recovery could not release safely: {exc}")
                     return out
-                pass
+                if isinstance(exc, SafetyViolation):
+                    # A halt since the reset started, an e-stop or a gripper
+                    # gate refused the opening before any command: the object
+                    # is still in the jaws, so the runtime keeps it.
+                    out.update(ok=False, stage="release", release_error=str(exc), beliefs_forgotten=0,
+                               error=f"Scene reset stopped before the release: {exc}")
+                    return out
             self.held_object = None
             self._held_det_label = None
             self._held_color = None

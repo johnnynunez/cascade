@@ -1150,7 +1150,9 @@ class SafetyHarness:
             # while the camera stays underneath.
             q_prev_a = np.asarray(q_prev, dtype=float)
             up_prev = self._tool_up_z(self.kin.fk(q_prev_a))
-            hold = bool(np.allclose(q_prev_a, q_next, atol=1e-9))
+            # Absolute only: numpy's default rtol (1e-5 x |q|) would call a
+            # ~3e-5 rad turn further down a "hold" at |q| ~ 3 rad.
+            hold = bool(np.allclose(q_prev_a, q_next, rtol=0.0, atol=1e-9))
             recovering = up_prev is not None and up_prev < self.limits.min_tool_up_z and (
                 hold or up > up_prev + 1e-6)
             if not recovering:

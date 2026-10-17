@@ -105,6 +105,20 @@ def test_an_arm_already_camera_down_may_only_roll_back_up_or_hold():
         h.approve(down, np.array([0.35, 0.0, 0.2, 0.0, 0.0, np.pi - 0.2]), dt=1.0)  # sliding while down
 
 
+@pytest.mark.parametrize("step", [2e-9, 1e-5], ids=["just past atol", "inside numpy's default rtol"])
+def test_a_camera_down_hold_is_an_absolute_tolerance_only(step):
+    """A camera-down "hold" is q_next == q_prev within an ABSOLUTE 1e-9 rad
+    (pre-PR M2). numpy's default rtol (1e-5 x |q|) would call a 1e-5 rad
+    turn further down at q ~ 2.9 rad a hold: 0.5 mrad/s of creep at 50 Hz."""
+    h = SafetyHarness(limits(), kinematics=RollKin())
+    down = pose(np.pi - 0.2)
+    h.approve(down, pose(np.pi - 0.2 + 0.5e-9), dt=1.0)          # inside atol: still a hold
+    further = pose(np.pi - 0.2 + step)                            # turning further down
+    with pytest.raises(SafetyViolation, match="wrist camera"):
+        h.approve(down, further, dt=1.0)
+    assert "wrist camera" in (h.vet_step(down, further, 1.0) or "")
+
+
 def test_arms_without_a_wrist_camera_are_unaffected():
     h = SafetyHarness(limits(tool_up_axis=None), kinematics=RollKin())
     h.approve(pose(), pose(np.pi - 0.05), dt=1.0)

@@ -7,7 +7,8 @@ used to read RAW base-frame FK points, so on the so101 pair (base_pose y
 +-0.22 m) a TCP or elbow physically ON an obstacle was admitted and the same
 part 22 cm away was refused, in vet_pose, vet_step and approve. Pinned here:
 
-1. the arm gate reads `base_pose @ FK(q)` in all three phases;
+1. the arm gate reads `base_pose @ FK(q)` in all three phases, and so does the
+   spatial tools' wrist-camera box check;
 2. the default map region covers every arm's workspace in the table frame;
 3. the grasp exemption (given in the arm's BASE frame, where its IK targets
    live) is compared in the frame of the lifted points and of the voxels: it
@@ -366,3 +367,29 @@ def test_attached_object_exemption_is_taken_in_the_arms_base_frame(pose, phase):
     h = _with_exemption(synthetic(Tb, held_map(g_raw)), phase)
     reason = decide(h, phase, q, exempt=CYL)
     assert reason is not None and reason.startswith("attached object"), reason
+
+
+# ── 5. the spatial tools' wrist-camera box reads the lifted map too ──────
+
+
+@pytest.mark.parametrize("pose", sorted(POSES))
+def test_spatial_wrist_camera_box_is_checked_where_it_physically_is(pose):
+    from types import SimpleNamespace
+
+    from cascade.skills import relative_motion as rm
+    from cascade.skills import spatial_moves
+
+    Tb = pose_to_transform(POSES[pose])
+    T = Kin().fk(np.array([0.25, 0.10, 0.20]))
+    s = SimpleNamespace(wrist_camera=(0.08, 0.14, 0.075), tool_up_axis=(0.0, 0.0, 1.0), camera_occupancy=True)
+    box = rm.camera_box(T, np.eye(3)[rm._TOOL_COLUMNS["down_open"][0]], s.tool_up_axis,
+                        protrusion_m=0.08, behind_m=0.14, half_width_m=0.075)
+
+    def camera_volume(voxel):
+        h = synthetic(Tb, voxel_map(voxel))
+        rt = SimpleNamespace(_tool_axis_order="down_open", arm=SimpleNamespace(harness=h))
+        return spatial_moves._camera_volume(rt, [T], s)
+
+    found = camera_volume(lift(Tb, box.center))           # the box physically on a voxel
+    assert found is not None and found[0] == "wrist_camera" and "occupancy map" in found[1], found
+    assert camera_volume(box.center) is None              # the box's base-frame numbers: 13-22 cm off

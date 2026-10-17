@@ -207,6 +207,69 @@ def test_grasp_with_persistence_raises_a_halt_from_its_rehome(rig, monkeypatch, 
     assert r.grasps == 1
 
 
+def _halt_around_rehome(r, monkeypatch, where):
+    """Halt around the persistence loop's FIRST re-home: on entry to it, at
+    the view-home return's status line (fr3), right after it, or in the
+    re-scan that follows it."""
+    runtime = r.runtime
+    home, reobserve, status = runtime.skill_move_home, runtime._reobserve, runtime._show_status
+    homes = []
+
+    def spy_home(**kwargs):
+        homes.append(1)
+        if where == "entry" and r.at_stop is None:
+            _stop_now(r, "halt")
+        out = home(**kwargs)
+        if where == "after" and r.at_stop is None:
+            _stop_now(r, "halt")
+        return out
+
+    def spy_reobserve(*a, **k):
+        if where == "rescan" and homes and r.at_stop is None:
+            _stop_now(r, "halt")
+        return reobserve(*a, **k)
+
+    def spy_status(text):
+        if where == "status" and homes and r.at_stop is None and text.startswith("Returning to the saved"):
+            _stop_now(r, "halt")
+        return status(text)
+
+    monkeypatch.setattr(runtime, "skill_move_home", spy_home)
+    monkeypatch.setattr(runtime, "_reobserve", spy_reobserve)
+    monkeypatch.setattr(runtime, "_show_status", spy_status)
+
+
+AROUND_REHOME = [(p, w) for p in RETRY_PROFILES + ["mock"] for w in ("entry", "status", "after", "rescan")
+                 if w != "status" or p == "fr3"]
+
+
+@pytest.mark.parametrize("profile, where", AROUND_REHOME, ids=[f"{p}-{w}" for p, w in AROUND_REHOME])
+def test_grasp_with_persistence_called_directly_ends_on_a_halt_around_its_rehome(rig, monkeypatch, profile,
+                                                                                 where):
+    """Merged-tree halt matrix (main 80af666 + PR-A): called outside
+    execute(), the loop had no skill halt baseline, so a halt the re-home's
+    skip checks found, or one raised after it or during the re-scan, was
+    cleared by the next motion (75-225 arm commands after it) before
+    `_end_on_halt` caught it. The loop now holds the same skill halt baseline
+    execute() takes (a no-op inside a skill) and checks its generation before
+    every further attempt."""
+    r = rig(profile)
+    _missing_grasp(r, monkeypatch)
+    _halt_around_rehome(r, monkeypatch, where)
+
+    with pytest.raises(MotionHalted) as raised:
+        r.runtime._grasp_with_persistence("red cube")
+
+    # the re-home's own refusal (rebot_rs / mock entry, fr3 status) or the
+    # loop's check before the next attempt (the rest)
+    assert str(raised.value) in ("halt received during route planning or execution", HALT,
+                                 "motion halted: operator: stop; not retrying"), raised.value
+    assert r.at_stop is not None, "the halt was never raised"
+    assert r.sends == r.at_stop, f"{r.sends - r.at_stop} arm commands went out after the halt"
+    assert r.grasps == 1, "the loop tried again after the halt"
+    assert not r.runtime.arm.harness.estopped
+
+
 def _two_beliefs(runtime, monkeypatch):
     beliefs = [SimpleNamespace(label="cube", color=color, position=np.array([0.32, y, 0.02]))
                for color, y in (("red", 0.12), ("blue", -0.12))]

@@ -2493,7 +2493,21 @@ class SkillRuntime:
         re-scan, fresh plan; `grasp.persist_seconds` / `max_pick_attempts`,
         capped by the task budget). handover and sort_by_color used to call
         `skill_grasp_object` ONCE and report the first miss as failure --
-        inconsistent with the pick they sit next to on the cheat card."""
+        inconsistent with the pick they sit next to on the cheat card.
+
+        The loop holds the skill halt baseline execute() takes for a motion
+        skill (`_skill_halt_scope`; inside a skill the outer, older baseline
+        stays): an operator halt from here on refuses every later motion of
+        the loop before its first command, also for a caller outside
+        execute(). Without it, a halt the re-home's skip checks found, or one
+        raised after the re-home or during the re-scan, was cleared by the
+        next motion (merged-tree halt matrix: 75-225 arm commands after it)."""
+        with self._skill_halt_scope(self._skill_halt_baselines(self.arm)):
+            return self._persistent_grasp_attempts(object, material, budget_s)
+
+    def _persistent_grasp_attempts(self, object: str, material: str | None,
+                                   budget_s: float | None) -> dict:
+        """`_grasp_with_persistence`'s loop, inside its halt scope."""
         gcfg = self.cfg.grasp
         max_attempts = max(int(gcfg.get("max_pick_attempts", 8)), 1)
         t0 = time.monotonic()
@@ -2520,6 +2534,9 @@ class SkillRuntime:
                 except (SkillError, SafetyViolation):
                     pass
                 self._reobserve()
+                # A halt the re-home skipped on, or one raised after it or
+                # during the re-scan, ends the loop before the next attempt.
+                self._end_on_halt(halt_generation)
             # Arm motions counted before this attempt: only an attempt that
             # moved the arm can have left it at a refused grasp pose.
             motions_before = self._arm_motions_counted()

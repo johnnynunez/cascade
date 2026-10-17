@@ -212,15 +212,20 @@ paraphrases of harm (no rule word) stay a limit of a structural gate, carried by
   (`<repo>/skills_library`). B7 sets `rebot_rs` to `${CASCADE_ASPIRE_LIBRARY:-~/.cascade/aspire/real/library}`.
 - Every run built by `apps.demo.build_runtime` writes `run.json` beside `trace.jsonl` at build:
   `{schema: 1, library_sha, served_notes: [ids], block_notes: [ids], profile_class, library_root, library_error,
-  arm_types, sim_retry, purpose, started}` (the physics engine is
+  skipped, arm_types, sim_retry, purpose, started}` (the physics engine is
   not known at build: the lazy Isaac arm learns it from the bridge on first use; the verifier records it from its own
   launch). `block_notes` = the top 2 as the block renders them (preflight R23: B3 grades them and cannot recover them
-  later). `library_root` = the absolute library path the snapshot read (`~` and `${...}` expanded), null when it was
-  not read; `library_error` = null, or `"<Exception>: <message>"` when it was not read, so an unreadable library never
-  looks like an empty one. `purpose` = `CASCADE_RUN_PURPOSE` (`live` | `verify` | `acceptance`, forwarded to the robot
+  later). `library_root` = the real path of the library the snapshot read (`~` and `${...}` expanded, then symlinks and
+  `..` resolved: `Path.resolve()`), null when it was not read; `library_error` = null, or `"<Exception>: <message>"`
+  when it was not read, or `"all notes unreadable"` (root recorded) when the directory lists `*.md` files but every one
+  was unreadable (an r-- directory, 0600 notes of another account), so an unreadable library never looks like an empty
+  one. `skipped` = `{count, first}`: the number of skipped `*.md` entries and the first 20 (`SKIPPED_RECORDED`) as
+  `{id, reason}`, in file-name order. `purpose` = `CASCADE_RUN_PURPOSE` (`live` | `verify` | `acceptance`, forwarded to the robot
   server; unset or empty = `live`, any other value = `unknown`, never `live`; preflight R18): harvest and grading count
   only `live` runs. `started` = UTC ISO 8601 (seconds). A rebuild into a run directory that already holds a `run.json`
-  keeps it first as `run.<its started>.json` (`.1`, `.2`... when taken; its mtime when it has no valid `started`).
+  keeps it first as `run.<its started>.json` (`.1`, `.2`... when taken; its mtime when it has no valid `started`): a hard
+  link, or a copy under the same exclusively created name where the file system has no hard links (vfat, exFAT, some
+  FUSE / SMB mounts), so the rebuild still stamps there.
   Every trace row gets a top-level `library_sha` (null for runtimes that load no library: mobile and microduck, and a
   composed robot's own top-level rows; each manipulation domain of a composed robot is built by `build_runtime` into
   `domains/<name>/`, which writes its own `run.json` and stamps its own rows). Fail closed, never a failed build: a

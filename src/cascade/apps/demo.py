@@ -1092,10 +1092,12 @@ def _run_purpose() -> str:
 def _stamp_run(runtime, trace, cfg) -> None:
     """Take the runtime's one note-library snapshot (`runtime.learned`) and
     record the run in `run.json` (spec §4.2, preflight R18/R23); later trace rows
-    carry its `library_sha`. Never fails the build: a library that cannot be read
-    is served as empty (`notes.config_snapshot`; `library_error` says why), and a
-    run.json that cannot be written leaves the rows unstamped and serves no note,
-    since a served note must be on record."""
+    carry its `library_sha`. `library_root` is the resolved path (symlinks and
+    `..` resolved); `skipped` counts the skipped note files and lists the first
+    `notes.SKIPPED_RECORDED` by id and reason. Never fails the build: a library
+    that cannot be read is served as empty (`notes.config_snapshot`;
+    `library_error` says why), and a run.json that cannot be written leaves the
+    rows unstamped and serves no note, since a served note must be on record."""
     import dataclasses
     from datetime import datetime, timezone
 
@@ -1105,8 +1107,11 @@ def _stamp_run(runtime, trace, cfg) -> None:
     snapshot = notes.config_snapshot(cfg, sim_profile.profile_class(cfg))
     try:
         meta = {"schema": 1, **snapshot.manifest(),
-                "library_root": None if snapshot.root is None else str(snapshot.root),
-                "library_error": snapshot.error, "arm_types": sim_profile.arm_types(cfg),
+                "library_root": None if snapshot.root is None else str(snapshot.root.resolve()),
+                "library_error": snapshot.error,
+                "skipped": {"count": len(snapshot.skipped),
+                            "first": [dict(entry) for entry in snapshot.skipped[:notes.SKIPPED_RECORDED]]},
+                "arm_types": sim_profile.arm_types(cfg),
                 "sim_retry": sim_profile.sim_retry_enabled(cfg), "purpose": _run_purpose(),
                 "started": datetime.now(timezone.utc).isoformat(timespec="seconds")}
         trace.stamp(meta)

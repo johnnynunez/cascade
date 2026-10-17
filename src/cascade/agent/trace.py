@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import stat
 import time
 import uuid
@@ -90,9 +91,11 @@ class TraceLogger:
         self.library_sha = meta.get("library_sha")
 
     def _keep_previous(self, path: Path) -> Path | None:
-        """Hard-link an existing run.json as `run.<started>.json` (its own `started`,
-        else its mtime, UTC ISO 8601; `.1`, `.2`... when that name is taken) so a
-        rebuild never loses an earlier run's record; None when there is none."""
+        """Keep an existing run.json as `run.<started>.json` (its own `started`, else
+        its mtime, UTC ISO 8601; `.1`, `.2`... when that name is taken) so a rebuild
+        never loses an earlier run's record; None when there is none. A hard link,
+        or a copy under the same exclusive name where the file system has no hard
+        links (vfat, exFAT, some FUSE / SMB mounts: `_keep_as`)."""
         try:
             st = os.lstat(path)
         except FileNotFoundError:
@@ -101,7 +104,7 @@ class TraceLogger:
         for n in range(_KEEP_NAMES):
             kept = self.run_dir / (f"run.{label}.json" if n == 0 else f"run.{label}.{n}.json")
             try:
-                os.link(path, kept, follow_symlinks=False)
+                _keep_as(path, kept)
                 return kept
             except FileExistsError:
                 continue
@@ -182,6 +185,32 @@ class TraceLogger:
             except Exception:  # noqa: BLE001 -- never let reporting break a run
                 pass
         (self.run_dir / "summary.txt").write_text(summary + "\n")
+
+
+def _keep_as(path: Path, kept: Path) -> None:
+    """Make `kept` a hard link to `path`; where the file system refuses one (EPERM on
+    vfat / exFAT, EOPNOTSUPP or EXDEV on some FUSE / SMB mounts), a copy of its bytes
+    under the same name. Both create `kept` exclusively: a taken name raises
+    FileExistsError and is never overwritten. A copy that fails midway is removed."""
+    try:
+        os.link(path, kept, follow_symlinks=False)
+        return
+    except OSError:
+        pass  # no hard link (or the name is taken: the exclusive create below says so)
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+    with os.fdopen(os.open(path, flags), "rb") as src:
+        fd = os.open(kept, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_CLOEXEC", 0), 0o644)
+        try:
+            with os.fdopen(fd, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+                dst.flush()
+                os.fsync(dst.fileno())
+        except BaseException:
+            try:
+                os.unlink(kept)
+            except OSError:
+                pass
+            raise
 
 
 def _started_label(path: Path, st: os.stat_result) -> str:

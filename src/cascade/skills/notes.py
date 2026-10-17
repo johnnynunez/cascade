@@ -42,7 +42,7 @@ import os
 import re
 import stat
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from ..config import PACKAGE_ROOT
@@ -57,6 +57,8 @@ LEARNED_MAX_BYTES = 2000
 KNOWLEDGE_MAX_CHARS = 6000
 #: skipped note files `robot_knowledge` names (the rest are counted)
 SKIPPED_SHOWN = 20
+#: skipped entries a run's run.json records by id and reason (all are counted)
+SKIPPED_RECORDED = 20
 #: a note file larger than this is skipped (`too_large`) on its fstat size, before any read
 NOTE_MAX_BYTES = 64 * 1024
 LEARNED_HEADER_PREFIX = "<!-- cascade-learned-notes v1 "
@@ -1255,7 +1257,8 @@ class LibrarySnapshot:
     entry that is no lint-clean note (the lint rule's name, or file_name, symlink,
     not_a_file, too_large, unreadable, parse), by file name -- a skipped note is never
     silent. `error` says why the library could not be read ("Exc: msg"; then `root` is
-    None and nothing is served), None when it was read or does not exist yet."""
+    None and nothing is served; `ALL_UNREADABLE` with its root when it lists note files
+    but none could be read), None when it was read or does not exist yet."""
 
     root: Path | None
     sha: str
@@ -1433,6 +1436,17 @@ def _unread(klass: str, root: Path | None, exc: BaseException) -> LibrarySnapsho
     return LibrarySnapshot(root=None, sha=library_sha(None), profile_class=klass, notes=(), served=(), error=error)
 
 
+#: `LibrarySnapshot.error` of a library that lists note files but could read none of them
+ALL_UNREADABLE = "all notes unreadable"
+
+
+def _all_unreadable(snapshot: LibrarySnapshot) -> bool:
+    """Every `*.md` entry of the library was unreadable (an r-- directory, notes of
+    another account): no note was read at all, so the library is no empty one."""
+    return bool(snapshot.skipped) and not snapshot.notes and all(
+        entry["reason"] == "unreadable" for entry in snapshot.skipped)
+
+
 def config_snapshot(cfg, profile_class: str) -> LibrarySnapshot:
     """The snapshot a runtime built from `cfg` serves for its whole session: the
     library at `library_root(cfg)`, read once with `memory.skill_min_tasks`.
@@ -1441,7 +1455,9 @@ def config_snapshot(cfg, profile_class: str) -> LibrarySnapshot:
     is no path or a relative one, a file, an unreadable directory, a symlink (on the
     path) to a missing target, any error while reading, a snapshot whose manifest
     cannot be rendered -- fails closed: no root, the empty library's sha, nothing
-    served, `error` = "Exc: msg" and one warning line with the reason."""
+    served, `error` = "Exc: msg" and one warning line with the reason. A library
+    whose every note file was unreadable keeps its root and gets `error` =
+    `ALL_UNREADABLE` (and one warning line): nothing of it was read either."""
     klass = "sim" if profile_class == "sim" else "real"
     root = None
     try:
@@ -1457,6 +1473,10 @@ def config_snapshot(cfg, profile_class: str) -> LibrarySnapshot:
             if link is not None:
                 raise FileNotFoundError(f"{link} is a symlink to a missing target ({os.readlink(link)})") from None
         snapshot = load_snapshot(root, klass, min_tasks=cfg.get("memory").get("skill_min_tasks"))
+        if _all_unreadable(snapshot):
+            log.warning("ASPIRE notes: library %s (memory.skill_library_path): %s (%d files); serving no note",
+                        root, ALL_UNREADABLE, len(snapshot.skipped))
+            snapshot = replace(snapshot, error=ALL_UNREADABLE)
         snapshot.manifest()  # what run.json records: a snapshot that cannot render it serves nothing
         return snapshot
     except Exception as e:  # noqa: BLE001 -- fail closed: a broken library never stops a robot

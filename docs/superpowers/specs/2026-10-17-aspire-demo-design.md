@@ -103,27 +103,47 @@ adds keys; a missing key takes the default in the right column, so every v1 file
 
 Body sections: `# <title>`, `- **When to apply:** <words>`, `## Advice` (what Qwen reads, <= 300 chars), `## Evidence`
 (trace excerpts for humans: error, context, confirmation; never rendered to the agent, which keeps the verifier blind).
-A v1 body has no `## Advice`: its advice is the first paragraph of `## Strategy`, cut at 300 chars.
+Title, when-to-apply and the failure signature (the note's own skill) are read only from the header before the first
+`## ` section, so `## Evidence` can never supply them.
+A v1 body has no `## Advice`: its advice is the first paragraph of `## Strategy`; a paragraph over 300 chars fails the
+lint (the note is skipped, never cut into acceptance).
 
 Provenance tag (one string, rendered after each note everywhere Qwen or a visitor sees it):
 `learned in <learned_in> · <verifier part> · lib <first 8 hex of library_sha>`, where `<verifier part>` is
 `verifier <passes>/<len(seeds)>` for `verified`, else `not verifier-tested`; `authored` notes render
-`authored · <verifier part> · lib <sha8>`. Example: `learned in sim · verifier 4/5 · lib 3fa9c2d1`.
+`authored · <verifier part> · lib <sha8>`. Example: `learned in sim · verifier 4/5 · lib 3fa9c2d1`. In the block, a
+note whose advice would be cut to nothing (not one whole word fits) is dropped, never rendered empty.
 
-Advice lint (a note that fails it is never served, whatever its status): non-empty, <= 300 chars; no URL; every
-`snake_case` word that looks like a tool name is a `TOOL_SPECS` or MCP extra tool, and never `reset_stop`,
-`emergency_stop` or `halt_motion`; none of the patterns `ignore|bypass|disable|override|skip` within 6 words of
-`safety|refus|gate|check|limit|margin|stop`; no number followed by `mm|cm|m|deg`
-(advice never carries a geometric value an agent could treat as a setting).
-The same lint covers every field rendered to the agent or a visitor (preflight R4): the title (<= 80 chars) and the
-advice. Both may name only read-only tools and the note's own skill (the tool its failure signature names), and never
-`reset_scene`, `reset_stop`, `emergency_stop` or `halt_motion` (a reset clears the sim retry ledger).
+Advice lint (a note that fails it is never served, whatever its status) is a deny-by-default STRUCTURAL gate, not a
+blocklist: advice and titles are short plain English, and anything that cannot be shown to be plain English is refused
+(A1 fix round 1). In order: (1) a field over its cap (advice 300, title 80 chars) is refused before any pattern runs,
+and every pattern is linear; (2) no control or format character (Unicode Cc/Cf: zero-width space, soft hyphen, BOM),
+the text is NFKC-stable, and every character is a printable ASCII letter, digit, space or `.,;:!?'"-/_&+%`, or a
+typographic quote or dash, so no homoglyph, CJK, fullwidth or other non-ASCII letter and none of `[]{}()=<>|` `` ` ``
+`\#*@$^~` (hence no `<|`, `|>`, code fence or markup); (3) over the normalised word sequence (snake_case, kebab,
+camelCase, dotted and spaced spellings read alike): no URL (`://`), no `snake_case` identifier that is not a tool, no
+letter-digit mix (ordinals aside), no dotted name, no word spelled out letter by letter, no role marker (`assistant:`,
+`user:`, `system:`), nothing imitating the provenance tag (`verifier`, `learned in`, `lib <hex>`), at most ONE number
+and no unit of length or angle (`m`, `cm`, `mm`, `um`, `in`, `ft`, `deg`, `rad`, `%` and their words) or axis
+coordinate (`x 0.42`); a tool is named only if it is read-only or the note's own skill (the tool its failure signature
+names), by name and without arguments, and never `reset_scene`, `reset_stop`, `emergency_stop` or `halt_motion`; and
+no reset (`reset` in any form: a reset clears the sim retry ledger), stop (`emergency stop`, `e stop`, `halt the
+motion`), "do not stop", unbounded-retry (`keep calling`, `try again until`, `until it succeeds`, `start over`),
+override (`ignore`, `disregard`, `bypass`, `circumvent`, `override` anywhere), weakening (`disable`, `turn off`, `skip`,
+`lower`, `relax`, `reduce`, `raise` ... followed within 4 words by `gate`, `check`, `refusal`, `warning`, `veto`,
+`clearance`, `margin`, `limit`, `safety`, `collision`, `stop`, `halt`, `harness` ...) or success-claim advice (`treat
+... as a success`, `tell the user it is done`). The same lint covers every field rendered to the agent or a visitor
+(preflight R4): the title and the advice. The review's 78 hostile texts are a test that must stay all refused, next to
+a set of plain kitchen advice that must stay all accepted.
 
 ### 4.2 Library snapshot, library hash, run manifest
 
-- `library_sha` = sha256 over the UTF-8 lines `"<file name>\t<sha256 of file bytes>\n"` of every `*.md` in the
+- `library_sha` = sha256 over the UTF-8 lines `"<file name>\t<sha256 of file bytes>\n"` of every note file in the
   library directory, sorted by name. A missing or empty directory hashes to sha256 of the empty string. Any byte change
-  of any note changes it; other files do not.
+  of any note changes it; other files do not. A note file's name must match `^[a-z0-9][a-z0-9_.-]{0,63}\.md$` (the
+  library's slugs do): any other file (a control character, tab or newline, upper case, a non-UTF-8 byte, `,` or `-->`)
+  is neither hashed nor served, so the line format is unambiguous and a note id is safe in a JSON manifest and the
+  LEARNED.md header (ids are sanitised at the source).
 - The robot runtime loads ONE read-only snapshot at build (`load_snapshot`; it never creates the directory) and keeps
   it for the session: the prompt block, `robot_knowledge`, the chat line and the trace stamp all come from it, so a
   nightly write never changes a running session.
@@ -184,13 +204,16 @@ moves the robot." Every pinned copy of the 6-tool list moves to 7 in the same ch
 `{"isaac", "mujoco", "mock"}` and `CASCADE_BOOTH` is unset/false; anything else, a missing type or an exception is
 `"real"`. It reads config only, never an arm object (a `LazyArm` is never materialized).
 
-Served notes: `sim` serves notes the library's promotion rule admits, recomputed from the counters (A1: `n_tasks >=
-memory.skill_min_tasks`; B2 adds the verifier verdict), never `refuted` or `retired`, with clean lint; the stored
-`status` string is advisory. Authored notes follow the same counters; real still needs a verified verdict (preflight R5).
-`real` serves only notes with
-`verifier.verdict == "verified"` and clean lint, whatever their status field says (D5: none until B). The filter sits
-in `load_snapshot`, so the block, `robot_knowledge`, the chat line and the built-in orchestrator's `retrieve()` (which
-B2 moves onto the snapshot) see the same set.
+Served notes: every class serves only lint-clean notes, never `refuted` or `retired`; the stored `status` string is
+advisory. Harvested advice (`kind: learned`) is never served before promotion -- `n_tasks >= memory.skill_min_tasks`
+AND a verifier pass (§5.2) -- on ANY profile class, sim included (A1 fix round 1: the reader enforces B2's rule now, so
+until B a sim library serves only authored notes). Authored notes follow the task counters on `sim`; real still needs a
+verifier pass (preflight R5). A verifier pass is `verdict == "verified"` with `engine == "newton"` (owner rule: every
+sim run is Newton), a non-empty list of distinct integer seeds and `4 <= passes <= len(seeds)` (Q6); any other record
+fails closed and its tag reads `not verifier-tested`. `real` serves only verifier-passed notes, whatever their status
+field says (D5: none until B). A `memory.skill_min_tasks` that is missing or not an integer >= 1 serves nothing (logged).
+The filter sits in `load_snapshot`, so the block, `robot_knowledge`, the chat line and the built-in orchestrator's
+`retrieve()` (which B2 moves onto the snapshot) see the same set.
 
 ### 4.5 Sim-only bounded retry
 

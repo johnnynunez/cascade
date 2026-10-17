@@ -104,6 +104,17 @@ def split_front_matter(text: str) -> tuple[dict, str]:
     return meta, text[m.end():]
 
 
+def read_note_text(text: str) -> tuple[dict, str, int] | None:
+    """(front matter, body, distinct source tasks) of a stored note's text, read
+    the way this store reads it; None when the text opens a front matter
+    (``---``) that never closes. For readers outside this module (the ASPIRE
+    note snapshot), so they need none of its private helpers."""
+    if text.startswith("---\n") and not _FRONT_MATTER_RE.match(text):
+        return None
+    meta, body = split_front_matter(text)
+    return meta, body, len({_task_key(t) for t in _str_list(meta.get("source_tasks"))})
+
+
 ENTRY_TEMPLATE = """# {title}
 
 - **Failure signature:** {failure}

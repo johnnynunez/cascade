@@ -74,6 +74,19 @@ overrides:
     # Voxels within `table_band_m` of the table plane are the table (governed
     # by the table rule), and the grasp target's own voxels inside its
     # exemption cylinder are not obstacles to it; neighbours are.
+    # Measured parts (spec 2026-10-16 nvblox object-aware §3.4), not shipped
+    # yet: they ship with the calipers, in ONE change. The camera box then
+    # comes from docs/evidence/wrist-camera-calipers/measurement.json (every
+    # face outward to the next 5 mm, relative_motion.wrist_camera.front_m /
+    # bottom_m cut it), and these URDF part boxes join it, in (approach, jaw,
+    # camera-up) TCP coordinates, hull AABBs rounded up:
+    #   housing: {min: [-0.160, -0.095, -0.045], max: [-0.070, 0.095, 0.045]}
+    #     (gripper_end hull -0.1572..-0.0732, +-0.0920, +-0.0410)
+    #   fingers: {min: [-0.090, -0.085, -0.020], max: [0.0, 0.085, 0.020]}
+    #     (both fingers over the full stroke: -0.0886..0, +-0.0848, +-0.0192)
+    # Absent or null = off. A front cut without `fingers` (or a bottom cut
+    # without `housing`) is refused: today's slab is what samples them.
+    # Every part keeps min_clearance_m (tests/test_tool_volume_parts.py).
     tool_volume:
       wrist_camera: true
       jaws: true

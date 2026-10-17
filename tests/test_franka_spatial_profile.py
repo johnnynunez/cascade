@@ -7,7 +7,7 @@ import pytest
 from cascade.config import load_demo_config
 from cascade.grasping.obb_grasp import _yaw_rotation
 from cascade.skills import relative_motion
-from cascade.skills.spatial_moves import settings, wrist_camera_dims
+from cascade.skills.spatial_moves import CameraDims, settings, wrist_camera_dims
 
 
 @pytest.mark.parametrize("arm", ["fr3", "fr3_mock", "fr3_mujoco"])
@@ -44,5 +44,5 @@ def test_fr3_does_not_inherit_the_rebot_camera_collision_box(arm):
 
     rebot = load_demo_config(arm="rebot_rs", camera="mock", llm="mock")
     dimensions, up = wrist_camera_dims(rebot.relative_motion)
-    assert dimensions == (0.08, 0.14, 0.075)
+    assert dimensions == CameraDims(0.08, 0.14, 0.075)
     assert up == (0.0, 0.0, 1.0)

@@ -445,13 +445,17 @@ def test_real_mcp_stop_post_ack_evidence_never_repairs_failed_motion(
 def test_real_mobile_mcp_cancels_admitted_motion_with_both_checkers(tmp_path, frame_endpoint, kind):
     from test_mobile_runtime import SyntheticTicks, verifier_limits
     c, server, profile, _, _, operations = frame_endpoint
-    profile.update(timeout_s=.03, verifier=verifier_limits())
+    # Same bridge budget as the other real-MCP motion tests: nothing here is held,
+    # so a 30 ms budget only made get_base_state and the admission exchanges a
+    # race against the in-process bridge on a loaded runner.
+    profile.update(timeout_s=.2, verifier=verifier_limits())
     profile.pop("cameras")
     ticks = SyntheticTicks(c)
     client = MobileClient(tmp_path / "run", config_dir=write_mobile_config(tmp_path / "config", profile),
                           CASCADE_BASE="microduck_isaac")
     try:
-        assert client.call("get_base_state")["ok"]
+        state = client.call("get_base_state")
+        assert state["ok"], state
         motion = client.send("tools/call", {"name": "walk_velocity", "arguments": {
             "vx": .05, "vy": 0., "wz": 0., "duration_s": 3.}})
         deadline = time.monotonic() + 2
@@ -477,39 +481,57 @@ def test_real_mobile_mcp_cancels_admitted_motion_with_both_checkers(tmp_path, fr
     assert client.proc.returncode == 0
 
 
+@pytest.mark.usefixtures("healthy_episode_gc")
 def test_real_mcp_ack_and_eof_do_not_wait_for_blocked_stop_reader(tmp_path, frame_endpoint, monkeypatch):
     from test_mobile_runtime import SyntheticTicks, verifier_limits
     c, server, profile, _, _, _ = frame_endpoint
-    profile.update(timeout_s=.03, verifier=verifier_limits())
+    # The stop reader stays blocked on the held state request below for its own
+    # bound, timeout_s. Every other bridge exchange of the MCP child (setup reads,
+    # the four-channel connect, each stop delivery) shares that budget. A 30 ms
+    # budget made the setup calls a race against the in-process bridge (CI:
+    # get_base_state timed out during a GIL stall) and let the stop reader
+    # unblock before a slow ACK could be seen. Use the longest bound the
+    # verifier admits (timeout_s <= read_timeout_s <= settle_timeout_s): every
+    # ACK below is issued while the reader is blocked, and an ACK that waited for
+    # it would take at least blocked_s. No healthy sample is taken here, so the
+    # sample-gap budget the shared limits are sized for does not apply.
+    limits = verifier_limits()
+    blocked_s = limits["read_timeout_s"] = limits["settle_timeout_s"]
+    profile.update(timeout_s=blocked_s, verifier=limits)
     profile.pop("cameras")
     ticks = SyntheticTicks(c)
-    entered, release = threading.Event(), threading.Event()
+    entered, release, returned = threading.Event(), threading.Event(), threading.Event()
     client = MobileClient(tmp_path / "run", config_dir=write_mobile_config(tmp_path / "config", profile),
                           CASCADE_BASE="microduck_isaac")
     dispatch = server.dispatch
     def blocked(req):
         if req["op"] == "state":
             entered.set()
-            release.wait(2)
+            release.wait(30)  # held until after EOF: no ACK and no close may wait for it
+            returned.set()
         return dispatch(req)
     try:
-        assert client.call("get_base_state")["ok"]
-        assert client.call("reset_stop")["ok"]
+        state = client.call("get_base_state")
+        assert state["ok"], state
+        reset = client.call("reset_stop")
+        assert reset["ok"], reset
         monkeypatch.setattr(server, "dispatch", blocked)
         started = time.monotonic()
         first = client.call("emergency_stop")
-        assert time.monotonic() - started < .15
-        assert entered.wait(1)
+        assert time.monotonic() - started < blocked_s / 2
+        assert first["ok"], first  # delivered on the stop channel
+        assert entered.wait(5)
         for _ in range(10):
             started = time.monotonic()
             ack = client.call("stop_navigation")
-            assert time.monotonic() - started < .15
+            assert time.monotonic() - started < blocked_s / 2
+            assert ack["ok"], ack  # never queued behind the held reader request
             assert ack["receipt_id"] != first["receipt_id"]
             assert not ack["physical_stop_verified"]
-        started = time.monotonic()
         client.close()  # EOF/close joins the timed-out observer; it does NOT wait for our callback
-        assert time.monotonic() - started < 1.5
-        assert client.proc.returncode == 0
+        assert not returned.is_set()  # the child exited while its stop reader's request was still held
+        # Exit 0 only with a complete teardown: the observer joined within its own bound.
+        assert client.proc.returncode == 0, (tmp_path / "run/teardown.json").read_text()
     finally:
         release.set()
         if client.proc.poll() is None:

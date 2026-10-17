@@ -1520,24 +1520,60 @@ class OccupancyMap:
         at most `limit` of them. Empty (0, 4) without a cache.
 
         The evidence the safety harness files with a clearance refusal (spec
-        §3.3, `SafetyHarness.drain_clearance_reports`): it reads the cache
-        the gate read, under `_refresh_lock` (never `view_snapshot()`), and
-        selects outside the lock (`_commit_grid` replaces the arrays, never
-        mutates them). The harness calls it while holding that (reentrant)
-        lock itself, so the report's map record is the same commit. Never
-        talks to the bridge; called only on the refusal path."""
+        §3.3, `SafetyHarness.drain_clearance_reports`). It reads the safety
+        cache under `_refresh_lock` (never `view_snapshot()`) and selects
+        outside the lock (`_commit_grid` replaces the arrays, never mutates
+        them). The harness calls it, and `clearance_record()`, while holding
+        that (reentrant) lock itself, so the voxels and the report's map
+        record are one commit: the commit current when the REPORT is built.
+        The gate read the map earlier without holding it, so a refresh that
+        committed in between makes this newer than what the gate read (the
+        report then says `snapshot_newer_map`). Never talks to the bridge;
+        called only on the refusal path.
+
+        Cost: one pass over a single column in the cache's own dtype
+        (float32) keeps the voxels whose x lies within the radius, widened by
+        a few float32 steps so it never drops one the exact cuts keep; only
+        those are copied to float64 for the box and radius cuts. The result
+        equals the float64 cuts on the whole cloud."""
         with self._refresh_lock:
             cloud = self._occupied
         if cloud is None or not len(cloud) or int(limit) <= 0:
             return np.zeros((0, 4))
         p = np.asarray(point, dtype=float).reshape(3)
         r = float(radius_m)
-        pts = np.asarray(cloud, dtype=float)
-        pts = pts[np.all(np.abs(pts - p) <= r, axis=1)]          # cheap box cut first
+        cloud = np.asarray(cloud)
+        if cloud.dtype.kind != "f":
+            cloud = cloud.astype(float)
+        x = cloud[:, 0]
+        pad = 1e-6 * (1.0 + abs(p[0]) + abs(r))
+        lo, hi = x.dtype.type(p[0] - r - pad), x.dtype.type(p[0] + r + pad)
+        pts = np.asarray(cloud[(x >= lo) & (x <= hi)], dtype=float)
+        pts = pts[np.all(np.abs(pts - p) <= r, axis=1)]          # the exact box cut
         d = np.linalg.norm(pts - p, axis=1)
         pts, d = pts[d <= r], d[d <= r]
         order = np.argsort(d, kind="stable")[: int(limit)]
         return np.column_stack([pts[order], d[order]])
+
+    def clearance_record(self) -> dict:
+        """The map's state for a clearance refusal report (`map` in
+        `SafetyHarness.drain_clearance_reports`): `refreshes` (committed
+        refreshes), `age_s` (of the cache, 1 ms; None before the first
+        commit), `voxel_m` (None before the first grid) and `occupied` (the
+        cached voxel count; None without a cache). Read under `_refresh_lock`
+        so that, with the harness holding the lock, it names the same commit
+        as `nearby_occupied`. Attribute reads only: no bridge, no raise for a
+        stale or failed map (the report of such a refusal is exactly where
+        its age is evidence)."""
+        with self._refresh_lock:
+            last, voxel, occupied, refreshes = (self._last_refresh, self._grid_voxel, self._occupied,
+                                                self.refreshes)
+        return {
+            "refreshes": int(refreshes),
+            "age_s": None if last is None else round(max(time.monotonic() - float(last), 0.0), 3),
+            "voxel_m": float(voxel) if voxel else None,
+            "occupied": None if occupied is None else len(occupied),
+        }
 
     def _check_required_age(self) -> None:
         """Interpolation must finish inside the same observation lifetime."""

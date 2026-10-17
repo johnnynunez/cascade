@@ -23,6 +23,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from typing import NamedTuple
 import numpy as np
 
 from ..agent.advisor import Advisor
@@ -182,16 +183,85 @@ def _camera_fusion(ccfg, extrinsics) -> tuple[bool, bool | None]:
     return bool(ccfg.get("fuse_beliefs", "extrinsics" in ccfg)), ccfg.get("map_depth")
 
 
-def _arm_safety(acfg, occupancy, fallback_cfg):
-    """One arm's (kinematics, SafetyHarness), built before any backend exists.
+#: `occupancy.track_payload` replays depth history with the capture's render
+#: masks and the frame's capture-time joint state: an Isaac arm only.
+_PAYLOAD_NEEDS_ISAAC = "payload segmentation currently requires the Isaac capture contract"
 
-    The harness constructor is where a bad arm safety config refuses: a
-    malformed `safety.tool_volume` block, a tool volume on a tilted
-    `base_pose`, `link_radii_m` that do not fit the chain. It needs no arm,
-    so it is built first: the refusal comes before `make_arm` and, on an
-    eager build, before `connect()` (torque on a real arm), never after it.
-    `_build_runtime` builds every arm's pair in a pre-pass, so a second arm
-    that refuses never finds the first one already connected.
+
+class _MeshArmState:
+    """Joint state for an arm's mesh body mask (`body_mask: mesh`).
+
+    The mask is pure config (the URDF meshes), so `_arm_safety` builds it
+    before the arm exists; `_build_arm` binds `arm` once the backend is made.
+    Unbound, or a standby LazyArm: None, so the mask has no state and the
+    frame is refused (fail closed). Never materializes a standby LazyArm:
+    powering the motors is not a side effect of looking.
+    """
+
+    def __init__(self):
+        self.arm = None
+
+    def __call__(self):
+        arm = self.arm
+        if arm is None or not getattr(arm, "connected", True):
+            return None
+        return _body_mask_state(arm)
+
+
+class _ArmPrepass(NamedTuple):
+    """One arm's pure-config build (`_arm_safety`), made before its backend."""
+
+    kin: Kinematics
+    harness: SafetyHarness
+    #: the MeshBodyMask (`body_mask: mesh`, with a map) or None
+    mesh: object | None
+    #: its joint-state source; `_build_arm` binds the arm (None: no mesh)
+    mesh_state: _MeshArmState | None
+
+
+def _wants_payload(cfg) -> bool:
+    return bool(cfg.get("occupancy", _empty_cfg()).get("track_payload", False))
+
+
+def _payload_tracked(occupancy) -> bool:
+    return occupancy is not None and bool(getattr(occupancy, "tracks_payload", False))
+
+
+def _body_mask_radius(acfg) -> float:
+    """The capsule body mask's radius (`body_mask_radius_m`, metres)."""
+    return float(acfg.get("body_mask_radius_m", 0.06))
+
+
+def _check_body_mask(acfg, arm_name: str) -> None:
+    """A `body_mask` block that parses (robot_mask.body_mask_settings refuses
+    a bad one), and no mesh mask on an isaac arm."""
+    from ..perception.robot_mask import body_mask_settings
+
+    if body_mask_settings(acfg) is not None and acfg.get("type") == "isaac":
+        raise ValueError(
+            f"arm {arm_name!r}: body_mask: mesh is for real arms, not type isaac. Isaac frames "
+            "carry the render self-mask and their capture-time joint state; a mesh mask posed "
+            "at the live state would mask an older image. Use body_mask: capsule.")
+
+
+def _arm_safety(acfg, occupancy, fallback_cfg, *, payload_tracked: bool = False) -> _ArmPrepass:
+    """One arm's pure-config build, before any backend exists: kinematics,
+    SafetyHarness, park pose and, with a map, its occupancy body mask.
+
+    Every config error an arm build can raise without hardware, a map
+    connection or a GPU refuses here: the harness (a malformed
+    `safety.tool_volume` block, a tool volume on a tilted `base_pose`,
+    `link_radii_m` that do not fit the chain), a `park_q` that is not a
+    list and, with a map, the body mask (a bad `body_mask` block, `body_mask:
+    mesh` on an isaac arm or with geometry that cannot load, a bad
+    `body_mask_radius_m`) and payload tracking (`occupancy.track_payload` on
+    a non-isaac arm, beside a mesh mask or on a second arm:
+    `payload_tracked` says an earlier arm already tracks it). So the refusal
+    comes before `make_arm` and, on an eager build, before `connect()`
+    (torque on a real arm), never after it: a failed build leaves arms as
+    they are (`_abandon_build`). `_build_runtime` runs it for every arm in a
+    pre-pass, so a second arm that refuses never finds the first one
+    already connected. `_build_arm` keeps its own checks (defence in depth).
     """
     view = acfg.get("resolved") or fallback_cfg
     kin = Kinematics(
@@ -201,15 +271,43 @@ def _arm_safety(acfg, occupancy, fallback_cfg):
         joint_signs=acfg.get("joint_signs"),
         ik_task_weights=acfg.get("ik_task_weights"),
     )
+    arm_name = str(acfg.get("name", acfg.get("type", "arm")))
     harness = SafetyHarness(
         SafetyLimits.from_config(view.safety), kinematics=kin, occupancy=occupancy,
         base_pose=_base_transform(acfg),
         # the wrist camera box + open jaws as clearance samples (opt-in per
         # profile: `safety.tool_volume`; a bad block fails the build here)
         tool_volume=build_tool_volume(view, acfg),
-        arm_name=str(acfg.get("name", acfg.get("type", "arm"))),
+        arm_name=arm_name,
     )
-    return kin, harness
+    # Optional profile-defined rest pose for the shutdown park (see
+    # _park_pose). Defaults to the clamped all-zero fallback when absent.
+    park_q = acfg.get("park_q")
+    if park_q is not None:
+        try:
+            harness.park_q = list(park_q)
+        except TypeError:
+            raise ValueError(f"arm {arm_name!r}: park_q must be a list of joint positions, "
+                             f"got {park_q!r}") from None
+    mesh = mesh_state = None
+    if occupancy is not None:
+        from ..perception.occupancy import _PAYLOAD_VS_MESH, OccupancyError
+        from ..perception.robot_mask import build_mesh_body_mask
+
+        _check_body_mask(acfg, arm_name)
+        mesh_state = _MeshArmState()
+        mesh = build_mesh_body_mask(acfg, kin, mesh_state, name=arm_name)
+        if mesh is None:
+            mesh_state = None
+            _body_mask_radius(acfg)                    # a capsule radius that parses
+        elif payload_tracked:
+            raise OccupancyError(_PAYLOAD_VS_MESH)
+        if _wants_payload(fallback_cfg):
+            if acfg.get("type") != "isaac":
+                raise ValueError(_PAYLOAD_NEEDS_ISAAC)
+            if payload_tracked:
+                raise ValueError("payload tracking currently requires a single arm")
+    return _ArmPrepass(kin, harness, mesh, mesh_state)
 
 
 def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg, safety=None):
@@ -233,13 +331,15 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg, safety=None):
     obstacle gate that silently stops gating. The per-arm half of that check
     (`min_clearance_m`) already lives in each arm's own SafetyLimits.
 
-    `safety`: this arm's `_arm_safety(...)` pair when the caller validated
-    it already (build_runtime's pre-pass); None builds it here, still before
-    the backend.
+    `safety`: this arm's `_arm_safety(...)` when the caller validated it
+    already (build_runtime's pre-pass); None builds it here, still before
+    the backend (an arm already on `occupancy` that tracks the payload
+    counts as the earlier arm).
     """
     n_joints = int(acfg.get("n_joints", 6))
-    body_mask = None
-    kin, harness = _arm_safety(acfg, occupancy, fallback_cfg) if safety is None else safety
+    if safety is None:
+        safety = _arm_safety(acfg, occupancy, fallback_cfg, payload_tracked=_payload_tracked(occupancy))
+    kin, harness, mesh, mesh_state = safety
     motion_planner = None
     if acfg.get("motion_planner") is not None:
         from ..planning.runtime import RuntimeMotionPlanner
@@ -260,11 +360,6 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg, safety=None):
     else:
         arm = make_arm(acfg, kinematics=kin)
         arm.connect()
-    # Optional profile-defined rest pose for the shutdown park (see
-    # _park_pose). Defaults to the clamped all-zero fallback when absent.
-    park_q = acfg.get("park_q")
-    if park_q is not None:
-        harness.park_q = list(park_q)
     if occupancy is not None:
         # The depth camera sees THIS arm: register it for body masking so its
         # own links are not integrated as obstacles. Never materialize a
@@ -317,33 +412,20 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg, safety=None):
         # `body_mask: mesh` (real arms, opt in per profile): the URDF
         # geometry rasterized per depth frame instead of capsules around the
         # joint chain, which left the reBot's jaws and wrist camera in the
-        # map (perception/robot_mask.py MeshBodyMask, docs/NVBLOX.md).
-        from ..perception.robot_mask import body_mask_settings, build_mesh_body_mask
-
-        arm_name = str(acfg.get("name", acfg.get("type", "arm")))
-        if body_mask_settings(acfg) is not None and acfg.get("type") == "isaac":
-            raise ValueError(
-                f"arm {arm_name!r}: body_mask: mesh is for real arms, not type isaac. Isaac frames "
-                "carry the render self-mask and their capture-time joint state; a mesh mask posed "
-                "at the live state would mask an older image. Use body_mask: capsule.")
-
-        def _mesh_state(_arm=arm):
-            # Never materialize a standby LazyArm (powering the motors is not
-            # a side effect of looking): no state -> the frame is refused.
-            if not getattr(_arm, "connected", True):
-                return None
-            return _body_mask_state(_arm)
-
-        mesh = build_mesh_body_mask(acfg, kin, _mesh_state, name=arm_name)
-        body_mask = mesh
+        # map (perception/robot_mask.py MeshBodyMask, docs/NVBLOX.md). Built
+        # and checked in `_arm_safety`, before the arm; the checks below
+        # repeat its config checks (defence in depth).
+        _check_body_mask(acfg, str(acfg.get("name", acfg.get("type", "arm"))))
+        if mesh_state is not None:
+            mesh_state.arm = arm
         if mesh is not None:
             occupancy.add_robot_body_mask(mesh)
         else:
-            occupancy.add_robot_body(_body_points, radius_m=float(acfg.get("body_mask_radius_m", 0.06)),
+            occupancy.add_robot_body(_body_points, radius_m=_body_mask_radius(acfg),
                                      frame_link_points_fn=frame_body)
-        if fallback_cfg.get("occupancy", _empty_cfg()).get("track_payload", False):
+        if _wants_payload(fallback_cfg):
             if acfg.get("type") != "isaac":
-                raise ValueError("payload segmentation currently requires the Isaac capture contract")
+                raise ValueError(_PAYLOAD_NEEDS_ISAAC)
             def frame_tcp_pose(frame, _cfg=acfg, _kin=kin, _T=base_T):
                 from ..control.isaac_arm import IsaacArm
                 pose = _kin.fk(IsaacArm(_cfg).state_from_frame(frame).q)
@@ -352,7 +434,7 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg, safety=None):
     safe = SafeArm(arm, harness, motion_planner=motion_planner)
     # the mesh body mask (or None): build_runtime tells it when the runtime
     # holds something (`_wire_held_payload`)
-    safe.body_mask = body_mask
+    safe.body_mask = mesh
     return arm, safe, kin
 
 
@@ -584,16 +666,24 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
     )
     started.occupancy = occupancy
 
-    # Every arm's harness is built (its safety config validated) BEFORE any
-    # arm is made: an eager build connects each arm in `_build_arm`, and a
-    # second arm that refuses must not find the first one connected.
-    arm_safety = [_arm_safety(acfg, occupancy, cfg) for acfg in arm_cfgs]
-    raw_arms, safe_arms, arm_names, kins = [], [], [], []
+    # Every pure-config check of the arms and of the rig runs BEFORE any arm
+    # is made (each arm's harness, park pose, body mask and payload tracking
+    # in `_arm_safety`; unique arm names): an eager build connects each arm
+    # in `_build_arm`, a failed build leaves arms as they are, and an arm
+    # that refuses must not find another one already connected.
+    arm_names = [str(acfg.get("name", f"arm{i}")) for i, acfg in enumerate(arm_cfgs)]
+    if len(set(arm_names)) != len(arm_names):
+        raise ValueError(f"duplicate arm names in rig: {arm_names}")    # ArmRig's rule
+    arm_safety, payload_tracked = [], _payload_tracked(occupancy)
+    for acfg in arm_cfgs:
+        arm_safety.append(_arm_safety(acfg, occupancy, cfg, payload_tracked=payload_tracked))
+        # `_build_arm` registers every arm's payload with the map
+        payload_tracked = payload_tracked or (occupancy is not None and _wants_payload(cfg))
+    raw_arms, safe_arms, kins = [], [], []
     for i, (acfg, safety) in enumerate(zip(arm_cfgs, arm_safety, strict=True)):
         raw, safe, k = _build_arm(acfg, lazy_arm, occupancy, cfg, safety=safety)
         raw_arms.append(raw)
         safe_arms.append(safe)
-        arm_names.append(str(acfg.get("name", f"arm{i}")))
         kins.append(k)
         if i == 0:
             kin = k

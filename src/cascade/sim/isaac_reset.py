@@ -86,6 +86,12 @@ def seeded_reset(port, seed, *, host="127.0.0.1", timeout_s=10.0):
     no default: the live demo bridge listens on 8611, a harness names its
     own bridge. Yields the open BridgeClient (closed after the block).
 
+    The clear always runs on a fresh connection (a reply the block left
+    unread, e.g. after Ctrl-C, can never pass for the clear's), and a ping
+    after it must show no `reset_seed` (a set that landed late re-arms it).
+    Once the clear is confirmed, the block's own exception propagates
+    unchanged, KeyboardInterrupt included.
+
     Raises ValueError for a bad port or seed (before connecting), and
     BridgeError when the bridge refuses the seed or cannot confirm the clear.
     """
@@ -102,12 +108,26 @@ def seeded_reset(port, seed, *, host="127.0.0.1", timeout_s=10.0):
                 raise BridgeError(f"bridge did not confirm reset seed {seed}: {reply!r}")
             yield client
         finally:
-            try:
-                client.connect()  # no-op, unless a failed request in the block closed it
-                cleared = client.request({"op": "set_reset_seed", "seed": None})
-            except BridgeError as exc:
-                raise BridgeError(f"could not clear the reset seed on port {port}: {exc}") from exc
-            if "seed" not in cleared or cleared["seed"] is not None:
-                raise BridgeError(f"bridge did not confirm the reset seed clear on port {port}: {cleared!r}")
+            _clear_reset_seed(client, port)
     finally:
         client.close()
+
+
+def _clear_reset_seed(client: BridgeClient, port: int) -> None:
+    """`set_reset_seed null` on a fresh connection, then a ping that proves it held."""
+    client.close()  # drop the block's socket, and any reply still unread on it
+    try:
+        client.connect()
+        cleared = client.request({"op": "set_reset_seed", "seed": None})
+    except BridgeError as exc:
+        raise BridgeError(f"could not clear the reset seed on port {port}: {exc}") from exc
+    if "seed" not in cleared or cleared["seed"] is not None:
+        raise BridgeError(f"bridge did not confirm the reset seed clear on port {port}: {cleared!r}")
+    try:
+        pinged = client.request({"op": "ping"})
+    except BridgeError as exc:
+        raise BridgeError(f"could not check the reset seed clear on port {port}: {exc}") from exc
+    if "reset_seed" in pinged:
+        raise BridgeError(
+            f"reset seed {pinged['reset_seed']!r} is armed again on port {port} after its clear "
+            "(a set_reset_seed that landed late); clear it with set_reset_seed null")

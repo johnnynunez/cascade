@@ -15,6 +15,7 @@ import inspect
 import json
 import math
 from pathlib import Path
+import select
 import socket
 import socketserver
 import sys
@@ -810,6 +811,67 @@ def test_seeded_reset_clears_over_a_new_connection_when_the_block_lost_it(kitche
     assert env["_RESET_SEED"] is None
 
 
+@pytest.mark.parametrize("in_flight", [{"op": "ping"}, {"op": "set_reset_seed", "seed": 5}],
+                         ids=["ping", "set_reset_seed"])
+def test_seeded_reset_clears_on_a_fresh_connection_and_keeps_a_keyboard_interrupt(
+        kitchen_reset_bridge, in_flight):
+    arm, _, env = kitchen_reset_bridge
+    interrupt = KeyboardInterrupt()
+    with pytest.raises(KeyboardInterrupt) as raised, \
+            seeded_reset(_port_of(arm), 5, host=loopback_host()) as client:
+        # Ctrl-C after a request was sent: its reply arrives and is never read.
+        sock = client._sock
+        assert sock is not None
+        sock.sendall(json.dumps(in_flight).encode() + b"\n")
+        assert select.select([sock], [], [], 5)[0], "the bridge never answered"
+        raise interrupt
+    # The clear never took that stale reply for its own: the seed is gone and
+    # the operator's interrupt is what propagates, not a BridgeError.
+    assert raised.value is interrupt
+    assert env["_RESET_SEED"] is None
+
+
+@pytest.mark.parametrize("seed", [5, 0])
+def test_seeded_reset_reports_a_set_that_lands_after_its_clear(kitchen_reset_bridge, monkeypatch, seed):
+    arm, _, env = kitchen_reset_bridge
+    real, cleared, landed = env["_set_reset_seed"], threading.Event(), threading.Event()
+
+    def slowed(req):
+        if req["seed"] is None:
+            reply = real(req)
+            cleared.set()
+            landed.wait(5)  # the late set lands before the clear is acknowledged
+            return reply
+        # Slower than the client's wait: the helper gives up and clears, then this lands.
+        if cleared.wait(5):
+            reply = real(req)
+            landed.set()
+            return reply
+        return {"ok": False, "error": "the helper never cleared"}
+
+    monkeypatch.setitem(env, "_set_reset_seed", slowed)
+    with pytest.raises(BridgeError, match="after its clear"), \
+            seeded_reset(_port_of(arm), seed, host=loopback_host(), timeout_s=0.5):
+        pytest.fail("the block must not run: the bridge never confirmed the seed")
+    assert env["_RESET_SEED"] == seed  # really armed again: the helper must not stay silent
+
+
+def test_seeded_reset_reports_a_clear_it_could_not_check(kitchen_reset_bridge, monkeypatch):
+    arm, _, env = kitchen_reset_bridge
+    dispatch = env["Handler"]._dispatch
+
+    def no_ping_once_cleared(self, req):
+        if req.get("op") == "ping" and env["_RESET_SEED"] is None:
+            return {"ok": False, "error": "ping unavailable"}
+        return dispatch(self, req)
+
+    monkeypatch.setattr(env["Handler"], "_dispatch", no_ping_once_cleared)
+    with pytest.raises(BridgeError, match="could not check the reset seed clear on port .*: ping unavailable"), \
+            seeded_reset(_port_of(arm), 5, host=loopback_host()):
+        assert env["_RESET_SEED"] == 5
+    assert env["_RESET_SEED"] is None  # the clear itself landed; only its check failed
+
+
 def test_seeded_reset_refused_by_the_bridge_raises_and_clears_a_leaked_seed(kitchen_reset_bridge):
     arm, _, env = kitchen_reset_bridge
     env["_RESET_SEED"] = 3  # left behind by an earlier client
@@ -821,11 +883,13 @@ def test_seeded_reset_refused_by_the_bridge_raises_and_clears_a_leaked_seed(kitc
     assert entered == [] and env["_RESET_SEED"] is None
 
 
-@pytest.mark.parametrize("answer", [{"ok": False, "error": "busy"}, {"ok": True, "seed": 5}],
-                         ids=["refused", "acknowledged-without-clearing"])
-def test_seeded_reset_reports_a_seed_it_could_not_clear(kitchen_reset_bridge, monkeypatch, answer):
+@pytest.mark.parametrize("answer,reason", [
+    ({"ok": False, "error": "busy"}, "could not clear the reset seed on port .*: busy"),
+    ({"ok": True, "seed": 5}, "did not confirm the reset seed clear")],
+    ids=["refused", "acknowledged-without-clearing"])
+def test_seeded_reset_reports_a_seed_it_could_not_clear(kitchen_reset_bridge, monkeypatch, answer, reason):
     arm, _, env = kitchen_reset_bridge
-    with pytest.raises(BridgeError, match="clear"), seeded_reset(_port_of(arm), 5, host=loopback_host()):
+    with pytest.raises(BridgeError, match=reason), seeded_reset(_port_of(arm), 5, host=loopback_host()):
         monkeypatch.setitem(env, "_set_reset_seed", lambda req: answer)
     assert env["_RESET_SEED"] == 5  # really still set: the helper must not stay silent
 

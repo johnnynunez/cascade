@@ -244,7 +244,11 @@ paraphrases of harm (no rule word) stay a limit of a structural gate, carried by
    `python -m cascade.skills.learned_block --workspace <profile workspace>` with the launch's `CASCADE_ARM`. It loads
    the same config the robot server loads, takes the snapshot (§4.2) and writes `<workspace>/LEARNED.md` atomically
    (temp file + replace, mode 0600). Nothing served -> it deletes a `LEARNED.md` it generated earlier, so the prompt is
-   byte-identical to main.
+   byte-identical to main. After the launch proof bound the robot server visitors talk to, `--check-run <its run dir>`
+   compares the header's `library_sha` and note ids with that server's `run.json` (`library_sha`, `block_notes`): any
+   difference, or a `run.json` it cannot read, removes the file with a warning, so the prompt never shows notes of
+   another library than `robot_knowledge` and the trace stamp (A2 review item; the server reads its library again at
+   build).
 2. `LEARNED.md` = header line `<!-- cascade-learned-notes v1 library_sha=<64 hex> notes=<id>,<id> -->`, then the block:
    ```
    ## Learned from earlier runs
@@ -253,11 +257,15 @@ paraphrases of harm (no rule word) stay a limit of a structural gate, carried by
    - <title>: <advice> [<tag>]
    If a note shaped what you did, the tool result tells you the one line to add (do not add your own).
    ```
-3. The plugin reads `LEARNED.md` on every turn, like `AGENTS.md`. It injects it only when the first line starts with
-   the header and the file is <= 2000 bytes; otherwise it injects nothing (fail-closed, no throw).
+   The ids pass A1's note file-name rule, else nothing is written. The block is A1's text verbatim, never cut here:
+   a file over 2000 bytes is refused (lint-clean notes cannot reach it: ASCII fields, block <= 1400 characters).
+3. The plugin reads `LEARNED.md` on every turn, like `AGENTS.md`. It injects it only from a regular file (no-follow,
+   non-blocking open, then fstat: never a symlink, FIFO or directory) of <= 2000 bytes of valid UTF-8 whose first line
+   is exactly the header; otherwise it injects nothing (fail-closed, no throw).
    `systemPrompt = AGENTS.md + "\n\n" + block + "\n\n" + identity`. Absent file -> exactly today's prompt.
-4. The generator refuses (launch fails with the path in the message) to overwrite a `LEARNED.md` without the header or
-   a symlink: an operator's hand-written file is never clobbered.
+4. The generator refuses (with the path in the message) to overwrite or remove a `LEARNED.md` without the header, a
+   symlink or a non-regular file: an operator's hand-written file is never clobbered. Preflight R26: no failure stops
+   the launch; launch.sh warns, removes only a file the generator wrote, and the kitchen runs without notes.
 
 Why a separate file and not a second marker block in the workspace `AGENTS.md`: the whole file is generated, so
 regeneration needs no marker parsing and cannot touch the operator's lines or the visitor block; its bytes carry the
@@ -532,7 +540,8 @@ elsewhere. When it runs: Q2.
 |---|---|
 | library dir missing, unreadable note, bad front matter | that note skipped; snapshot of the rest; sha still computed over the bytes present |
 | note fails lint | stored, never served, listed as `lint` in the nightly report |
-| `LEARNED.md` without header, oversize, or a symlink | plugin injects nothing; generator refuses to overwrite and the launch fails naming the file |
+| `LEARNED.md` without header, oversize, or a symlink | plugin injects nothing; generator refuses to overwrite and the launch warns naming the file, then runs without notes (R26) |
+| `LEARNED.md` library differs from the proof's robot server `run.json` | file removed, launch warning; the prompt runs without notes |
 | `learning.json` missing or malformed | `/state` has no `learning` key; panel section hidden |
 | arm type unknown or config error in `profile_class` | `real` (no retry, verified-only notes) |
 | refusal while holding, halted, e-stopped, in contact, stuck | no retry slot |

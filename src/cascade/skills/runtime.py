@@ -359,6 +359,56 @@ _MOTION_SKILLS = {
 #: inventories, SAM track steps) never competes with their localization.
 _FOREGROUND_PERCEPTION_SKILLS = _MOTION_SKILLS | {"preview_grasp", "localize_object"}
 
+#: Skills that turn a perceived position (`_localize`, `_belief_pose`,
+#: `fix_at_pixel`) or agent world coordinates (place_at's x, y) into an arm
+#: target. Those positions are in the shared TABLE frame, while the runtime
+#: solves IK in the running arm's base frame and converts nothing, so on an
+#: arm mounted with a `base_pose` they aim (and place their exemption columns)
+#: the base_pose's offset away from the object. execute() refuses them on such
+#: an arm until world targets are converted (`_mounted_off_table_origin`).
+#: Pinned against the call graph by tests/test_base_pose_world_target_guard.py.
+_WORLD_TARGET_SKILLS = frozenset({
+    "grasp_object", "pick_and_place", "preview_grasp", "grasp_at_pixel", "place_at",
+    "place_on_object", "push_object", "point_at", "move_near_object", "sort_by_color",
+    "search_for_object", "restore_scene", "turn_screw", "throw", "handover",
+})
+#: Why a world-target skill is refused on an arm with a base_pose.
+_BASE_POSE_WORLD_TARGET_REFUSAL = (
+    "this arm is mounted off the table origin (base_pose); world targets are not converted yet")
+
+
+def _mounted_off_table_origin(arm) -> bool:
+    """The arm's safety harness declares a `base_pose` other than the identity.
+
+    Reads instance dicts only (like `_arm_harnesses`): no backend probe, and a
+    standby LazyArm stays unmaterialized. No harness or no base_pose (every
+    single-arm profile: the reBot, the kitchen arm) and the exact identity are
+    False, so execute() runs exactly as before. Any other value, including one
+    that is not a 4x4 matrix, is True: fail closed.
+    """
+    harness = (getattr(arm, "__dict__", None) or {}).get("harness")
+    pose = (getattr(harness, "__dict__", None) or {}).get("base_pose")
+    if pose is None:
+        return False
+    try:
+        return not np.array_equal(np.asarray(pose, dtype=float), np.eye(4))
+    except (TypeError, ValueError):
+        return True
+
+
+def _world_target_refusal(name: str, arm_name) -> dict:
+    """The result of a world-target skill refused on a base_pose arm: nothing
+    was perceived, commanded or moved, so there is no move_home step."""
+    who = "this arm" if arm_name in (None, "default") else f"arm {arm_name!r}"
+    return {
+        "ok": False,
+        "outcome": OUTCOME_FAILED,
+        "error": f"{name} refused on {who}: {_BASE_POSE_WORLD_TARGET_REFUSAL}; no motion was sent",
+        "next_action": ("Do not retry this skill on this arm. Only joint-space and relative "
+                        "skills (move_home, move_to_rest, rotate_joint, move_relative, "
+                        "rotate_gripper, wave, open_gripper, close_gripper) run on it."),
+    }
+
 #: Labels that name hollow things -- what Pigey's occlusion search lifts
 #: first ("start with the largest/hollowest container (bowl, basket, box),
 #: since those hide the most; then taller objects"). Size breaks ties.
@@ -1300,6 +1350,11 @@ class SkillRuntime:
             next((key for key, arm in self.arm_rig.arms.items() if arm is effective_arm), None)
             if self.arm_rig is not None else "default"
         )
+        # The RUNNING arm (the `arm=` selection included) decides, before any
+        # perception, status line, keyframe or command: a base_pose arm would
+        # aim a table-frame target in its own base frame (_WORLD_TARGET_SKILLS).
+        if name in _WORLD_TARGET_SKILLS and _mounted_off_table_origin(effective_arm):
+            return _world_target_refusal(name, resolved_arm)
         trace_context = {"arm": resolved_arm, "held_object": self.held_object}
         # Motor-feedback contact monitor: this call's trace row carries only
         # its own motions' tracking reports (safety.contact_monitor).
@@ -8581,7 +8636,10 @@ TOOL_SPECS: list[dict] = [
             "by default. Read-only and safe to call at any time. Call this "
             "before using the `arm` parameter, so you use a real name: on a "
             "single-arm rig it reports one arm and `arm` can be omitted "
-            "entirely."
+            "entirely. An arm mounted off the table origin (its profile "
+            "declares a base_pose) refuses every skill that aims at a "
+            "perceived object or table coordinates until world targets are "
+            "converted; joint-space and relative skills still run on it."
         ),
         "parameters": {"type": "object", "properties": {}, "required": []},
     },

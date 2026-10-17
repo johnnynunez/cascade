@@ -113,7 +113,7 @@ def test_the_cut_marker_is_three_ascii_dots():
     assert notes._cut("ab cd efg", 8) == "ab cd..."
     assert notes._cut("ab cd ef", 4) == ""             # not even the first word and the marker fit
     assert notes._cut("ab, cd ef", 7) == "ab..." and notes._cut("abcdefgh ijk", 8) == ""
-    for limit in range(0, 30):
+    for limit in range(30):
         cut = notes._cut("alpha beta gamma delta epsilon", limit)
         assert len(cut) <= limit and cut.isascii() and "\u2026" not in cut
 

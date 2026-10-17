@@ -28,7 +28,16 @@ from pathlib import Path
 
 import pytest
 from test_aspire_notes import _note
-from test_learned_block import KITCHEN, LAUNCH, ROOT, _bounded, _function, _library, _run_json, _server_snapshot
+from test_learned_block import (
+    KITCHEN,
+    LAUNCH,
+    ROOT,
+    _bounded,
+    _function,
+    _library,
+    _run_json,
+    _server_snapshot,
+)
 
 from cascade.config import load_demo_config
 from cascade.skills import learned_block, notes

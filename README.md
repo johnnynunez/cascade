@@ -28,6 +28,21 @@ providers are replaceable. The reference deployment, a Seeed reBot DevArm B601
   <a href="docs/ARCHITECTURE.md"><img src="https://img.shields.io/badge/docs-architecture-informational?style=flat-square" alt="Architecture docs"></a>
 </p>
 
+**How the PAAI kitchen demo works:** a visitor chats, the local LLM picks a tool, MCP
+carries the call to CASCADE, the arm moves in Isaac Sim and the result is verified
+before the answer goes back.
+
+[![How the CASCADE demo works: you chat, the AI picks an action, MCP carries it to CASCADE, the robot acts in a simulated kitchen and the result is double-checked](docs/assets/paai_demo_simple_light.png)](docs/assets/paai_demo_simple_light.png)
+
+<details>
+<summary><b>Under the hood:</b> cameras, detection, 3D localization, grasp choice, IK, trajectory and the joint targets sent to the simulator</summary>
+
+[![Inside the CASCADE demo: the full pipeline from one sentence to joint targets in Isaac Sim, then verification](docs/assets/paai_demo_pipeline_light.png)](docs/assets/paai_demo_pipeline_light.png)
+
+</details>
+
+Dark versions: [simple](docs/assets/paai_demo_simple_dark.png) · [pipeline](docs/assets/paai_demo_pipeline_dark.png).
+
 [![CASCADE modular architecture: robot runtimes, fleet coordination and backend adapters](docs/assets/architecture.svg)](docs/ROBOT_MODULARITY.md)
 
 [Download PNG](docs/assets/architecture.png). Dashed boxes mark work still in progress.

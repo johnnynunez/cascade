@@ -189,7 +189,7 @@ def test_so101_grasp_exemption_covers_the_arms_own_target(so101_pair, phase):
     target = kin.fk(q)[:3, 3]
     _put_voxel(occ, lift(h.base_pose, target), size=0.02)
     assert "occupancy map" in (decide(h, phase, q, q_prev=q) or "")    # premise: the object blocks
-    exempt = dict(exempt_xy=target[:2], exempt_radius_m=0.07, exempt_z_min=-0.06)
+    exempt = {"exempt_xy": target[:2], "exempt_radius_m": 0.07, "exempt_z_min": -0.06}
     h.allow_grasp_descent(target[:2], radius_m=0.07, z_min=-0.06)
     try:
         assert decide(h, phase, q, q_prev=q, exempt=exempt) is None
@@ -271,7 +271,7 @@ def test_default_map_region_is_unchanged_for_arms_without_base_pose(monkeypatch,
 # the wrong frame would sit, 13-22 cm from the real target.
 
 g = np.array([0.25, 0.12, 0.14])
-CYL = dict(exempt_xy=g[:2], exempt_radius_m=0.07, exempt_z_min=0.0)
+CYL = {"exempt_xy": g[:2], "exempt_radius_m": 0.07, "exempt_z_min": 0.0}
 JAW = np.array([0.12, 0.0, 0.0])          # one tool-volume sample 12 cm ahead of the TCP
 HELD = np.array([0.0, 0.0, -0.15])        # one attached-object sample 15 cm below the TCP
 

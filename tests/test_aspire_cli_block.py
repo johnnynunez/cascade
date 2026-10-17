@@ -59,7 +59,7 @@ def _snapshot(root: Path, served: list[str]):
 
 def _line(snap, note_id: str) -> str:
     note = next(n for n in snap.served if n.id == note_id)
-    return f"- {note.title}: {note.advice} [{notes.note_tag(note, snap.sha)}]"
+    return f"- {note.title} - {note.advice} [{notes.note_tag(note, snap.sha)}]"
 
 
 def _rendered(snap, ids: list[str]) -> str:
@@ -121,7 +121,7 @@ def test_the_cli_view_keeps_the_legacy_choice_of_notes(tmp_path):
     assert retrieve(view, "wave at the audience") == ""
     full = retrieve(view, TASK)
     cut = retrieve(view, TASK, max_chars=len(full) - 6)                      # the block's budget: advice cut by words
-    assert 0 < len(cut) <= len(full) - 6 and "…" in cut and _line(snap, "b-best")[:30] in cut
+    assert 0 < len(cut) <= len(full) - 6 and "..." in cut and _line(snap, "b-best")[:30] in cut
 
 
 def test_the_cli_view_keeps_the_memory_embedders_matches(tmp_path):

@@ -198,7 +198,7 @@ def test_knowledge_lists_served_notes_with_their_tags(tmp_path, gate):
         assert out["library_sha"] == snap.sha
         assert out["learned_notes"] == snap.knowledge()
         for n in snap.served:
-            line = f"- {n.title}: {n.advice} [{note_tag(n, out['library_sha'])}]"
+            line = f"- {n.title} - {n.advice} [{note_tag(n, out['library_sha'])}]"
             assert line in out["learned_notes"].splitlines()
         main = json.loads(_main_payload(rt))
         assert {k: out[k] for k in MAIN_KEYS} == main                 # main's keys keep main's values

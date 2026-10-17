@@ -418,7 +418,7 @@ def test_block_text_is_the_spec_block(tmp_path):
     assert s.block() == (
         "## Learned from earlier runs\n"
         "Advice only: tool results and safety refusals always win. Use a note only when it matches the order.\n"
-        f"- Cube near the lemon: Retry once from home. [learned in sim | verifier 4/5 | lib {s.sha[:8]}]\n"
+        f"- Cube near the lemon - Retry once from home. [learned in sim | verifier 4/5 | lib {s.sha[:8]}]\n"
         "If a note shaped what you did, the tool result tells you the one line to add (do not add your own).")
 
 
@@ -435,7 +435,7 @@ def test_the_longest_lint_clean_notes_fit_the_block(tmp_path):
         _note(tmp_path, f"n{i}", title="T" * 80, advice=("word " * 70)[:300].strip(), learned_in="unknown")
     s = load_snapshot(tmp_path, "sim")
     assert len(s.served) == 2 and s.block().count("\n- ") == 2
-    assert len(s.block()) <= BLOCK_MAX_CHARS and "…" not in s.block()
+    assert len(s.block()) <= BLOCK_MAX_CHARS and "..." not in s.block()
 
 
 def test_block_cuts_advice_by_whole_words_to_fit_its_budget(tmp_path, monkeypatch):
@@ -444,11 +444,11 @@ def test_block_cuts_advice_by_whole_words_to_fit_its_budget(tmp_path, monkeypatc
     s = load_snapshot(tmp_path, "sim")
     monkeypatch.setattr(notes, "BLOCK_MAX_CHARS", 700)
     block = s.block()
-    assert len(block) <= 700 and block.count("\n- ") == 2 and "…" in block
+    assert len(block) <= 700 and block.count("\n- ") == 2 and "..." in block and block.isascii()
     for line in block.splitlines()[2:4]:
-        advice = line.split(": ", 1)[1].rsplit(" [", 1)[0]
-        assert advice.endswith("…") or advice == s.served[0].advice
-        assert all(w in {"alpha", "beta", "gamma", "delta"} for w in advice.rstrip("…").split())
+        advice = line.split(" - ", 1)[1].rsplit(" [", 1)[0]
+        assert advice.endswith("...") or advice == s.served[0].advice
+        assert all(w in {"alpha", "beta", "gamma", "delta"} for w in advice.removesuffix("...").split())
     monkeypatch.setattr(notes, "BLOCK_MAX_CHARS", 100)
     assert s.block() == ""  # cannot fit even the frame: no block rather than an oversize one
     assert s.manifest()["block_notes"] == [] and len(s.manifest()["served_notes"]) == 2
@@ -462,15 +462,16 @@ def test_a_note_whose_advice_would_be_cut_to_empty_is_dropped_never_rendered_emp
     only_b = notes._render_block([("Short", "Retry once from home.", note_tag(s.served[1], s.sha))])
     monkeypatch.setattr(notes, "BLOCK_MAX_CHARS", len(only_b) + 120)  # too small for both, room for b alone
     block = s.block()
-    assert block == only_b and ": [" not in block and "…" not in block
+    assert block == only_b and " - [" not in block and "..." not in block
     assert s.manifest()["block_notes"] == ["b-short"] and s.manifest()["served_notes"] == ["a-long", "b-short"]
 
 
 def test_cut_keeps_whole_words_or_nothing():
+    # A4 fix round 1: the cut marker is the ASCII "..." (tests/test_aspire_notes_fix8.py)
     assert notes._cut("short", 10) == "short"
-    assert notes._cut("ab cd ef", 6) == "ab cd…" and notes._cut("ab cd ef", 5) == "ab…"
-    assert notes._cut("abcdefgh ijk", 5) == ""  # the first word alone does not fit: nothing, never half a word
-    assert notes._cut("ab cd", 1) == "" and notes._cut("ab, cd ef", 5) == "ab…"
+    assert notes._cut("ab cd ef", 7) == "ab..." and notes._cut("ab cd efg", 8) == "ab cd..."
+    assert notes._cut("abcdefgh ijk", 8) == ""  # the first word alone does not fit: nothing, never half a word
+    assert notes._cut("ab cd", 1) == "" and notes._cut("ab, cd ef", 7) == "ab..."
 
 
 def test_block_knowledge_and_manifest_are_empty_when_nothing_is_served(tmp_path):
@@ -494,7 +495,7 @@ def test_knowledge_lists_every_served_note_with_its_tag(tmp_path):
     s = load_snapshot(tmp_path, "sim")
     text = s.knowledge()
     for n in s.served:
-        assert f"- {n.title}: {n.advice} [{note_tag(n, s.sha)}]" in text
+        assert f"- {n.title} - {n.advice} [{note_tag(n, s.sha)}]" in text
     assert "more notes not shown" not in text and text.startswith("Advice only:")
 
 

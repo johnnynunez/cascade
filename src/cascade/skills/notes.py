@@ -17,7 +17,7 @@ snapshot's `skipped` with its reason and logged, never dropped silently.
 Notes are advice TEXT. This module renders them and nothing else: no value in a
 note reaches a config, a tool argument or a gate. A note is served only when its
 lint is clean (`lint_note`), a deny-by-default STRUCTURAL gate on every rendered
-field (title and advice) and on the text they render together (`<title>: <advice>`):
+field (title and advice) and on the text they render together (`<title> - <advice>`):
 short plain English in plain case, printable ASCII, at most one number (digits or
 words) and no measurement, no code, markup, role or provenance look-alike, naming
 only read-only tools and the note's own skill as identifiers and without arguments,
@@ -56,8 +56,13 @@ log = logging.getLogger(__name__)
 
 ADVICE_MAX_CHARS = 300
 TITLE_MAX_CHARS = 80
-#: the rendered text of a note, `<title>: <advice>` (`_note_text`), which the lint reads too
-LINE_MAX_CHARS = TITLE_MAX_CHARS + 2 + ADVICE_MAX_CHARS
+#: what joins a note's title and advice wherever it is rendered: an ASCII dash, never ": ", so the
+#: renderer's own separator never adds a `name:` pair (`_identifier_problems`)
+_SEPARATOR = " - "
+#: the rendered text of a note, `<title> - <advice>` (`_note_text`), which the lint reads too
+LINE_MAX_CHARS = TITLE_MAX_CHARS + len(_SEPARATOR) + ADVICE_MAX_CHARS
+#: what ends a cut advice (`_cut`): ASCII, like every rendered character
+_CUT_MARK = "..."
 BLOCK_MAX_CHARS = 1400
 LEARNED_MAX_BYTES = 2000
 #: `learned_notes` in characters as the JSON reply carries them (`_json_len`: a `"` or a
@@ -148,16 +153,16 @@ def _one_line(text: str) -> str:
 
 
 def _cut(text: str, limit: int) -> str:
-    """`text` when it fits `limit` chars, else its leading whole words + "…" in at
-    most `limit` chars; "" when not even its first word fits (never half a word)."""
+    """`text` when it fits `limit` chars, else its leading whole words + `_CUT_MARK` in
+    at most `limit` chars; "" when not even its first word fits (never half a word)."""
     if len(text) <= limit:
         return text
-    if limit < 2:
+    if limit <= len(_CUT_MARK):
         return ""
-    head = text[:limit]  # the words of the cut plus one char to see where a word ends
+    head = text[:limit - len(_CUT_MARK) + 1]  # the words of the cut plus one char to see where a word ends
     space = head.rfind(" ")
     head = head[:space].rstrip(" ,;:") if space > 0 else ""
-    return head + "…" if head else ""
+    return head + _CUT_MARK if head else ""
 
 
 def _sections(body: str) -> dict[str, str]:
@@ -401,11 +406,11 @@ _HEX_MIN_CHARS = 6
 # Phrases over the words of a field: "word" matches exactly, "stem*" any word
 # starting with the stem (compiled once by `_Phrases`).
 #: a role marker: one of these followed by ":" or a dash ("Assistant - Done"), or by a
-#: `_SPEECH` verb and ":" ("user said:")
+#: `_SPEECH` verb and ":" or a dash ("user said:")
 _ROLE_WORDS = frozenset({"assistant", "user", "system", "developer", "human", "tool", "observation", "function",
                          "output", "operator", "owner"})
 _SPEECH = frozenset({"said", "says"})
-#: the two-word role markers: followed by ":" at the field's start or after a sentence break
+#: the two-word role markers: followed by ":" or a dash at the field's start or after a sentence break
 _ROLE_PAIRS = frozenset({("function", "result"), ("tool", "result")})
 #: chat-template and prompt-injection markers, refused wherever they stand (and "system
 #: prompt" through `_HARD_STEMS`)
@@ -980,21 +985,29 @@ def _score(words: list[str]) -> str | None:
     return None
 
 
+def _marks_role(text: str, end: int) -> bool:
+    """A role marker's mark follows the word that ends at `end`: ':' or a dash (an ASCII
+    hyphen only when spaced: "Assistant - Done", not "user-facing"). The renderer's own
+    " - " separator is such a dash, as its former ': ' was a colon."""
+    after = _next_char(text, end)
+    return after == ":" or (after != "" and after in "\u2013\u2014") or (after == "-" and text[end] == " ")
+
+
 def _role_marker(text: str, spans) -> str | None:
-    """'<role>:' -- a `_ROLE_WORDS` word followed by ':' or a dash, or by a `_SPEECH`
-    verb and ':' ("user said:"); or an exact two-word marker (`_ROLE_PAIRS`, "tool
-    result:") at the field's start or after a sentence break. Any other role word + word
-    + ':' is plain English ("Use the tool rack: ...", "Ask the user why: ...")."""
+    """'<role>:' -- a `_ROLE_WORDS` word followed by ':' or a dash (`_marks_role`), or by a
+    `_SPEECH` verb and ':' or a dash ("user said:"); or an exact two-word marker
+    (`_ROLE_PAIRS`, "tool result:") followed by either at the field's start or after a
+    sentence break. Any other role word + word + ':' is plain English ("Use the tool rack:
+    ...", "Ask the user why: ...")."""
     for k, (word, start, end) in enumerate(spans):
         if word not in _ROLE_WORDS:
             continue
-        after = _next_char(text, end)
-        if after == ":" or (after and after in "\u2013\u2014") or (after == "-" and text[end] == " "):
+        if _marks_role(text, end):
             return f"{word}:"
         if k + 1 == len(spans):
             continue
         nxt, nxt_start, nxt_end = spans[k + 1]
-        if text[end:nxt_start].strip(" ") or _next_char(text, nxt_end) != ":":
+        if text[end:nxt_start].strip(" ") or not _marks_role(text, nxt_end):
             continue
         opens = k == 0 or _break(text[spans[k - 1][2]:start]) == "."
         if nxt in _SPEECH or ((word, nxt) in _ROLE_PAIRS and opens):
@@ -1165,19 +1178,24 @@ def _ascii(text: str) -> str:
 
 
 def _note_text(title: str, advice: str) -> str:
-    """A note as every route renders it, before its tag: `<title>: <advice>` in ASCII."""
-    return f"{_ascii(title)}: {_ascii(advice)}"
+    """A note as every route renders it, before its tag: `<title> - <advice>` in ASCII."""
+    return f"{_ascii(title)}{_SEPARATOR}{_ascii(advice)}"
+
+
+def _line_problems(title: str, advice: str, skill: str) -> list[tuple[str, str]]:
+    """The problems of the text `title` and `advice` render together (field "line")."""
+    return _lint_field("line", _note_text(title, advice), LINE_MAX_CHARS, skill)
 
 
 def _note_problems(note: Note) -> list[tuple[str, str]]:
     """The fields' problems as written; when both are clean, those of the text they render
-    together (`_note_text`, field "line"): two clean fields can join into refused advice
-    ("Do not" + "stop when ..."), and an ASCII dash reads unlike a typographic one."""
+    together (`_line_problems`): two clean fields can join into refused advice ("Do not" +
+    "stop when ..."), and an ASCII dash reads unlike a typographic one."""
     fields = (_lint_field("title", note.title, TITLE_MAX_CHARS, note.skill)
               + _lint_field("advice", note.advice, ADVICE_MAX_CHARS, note.skill))
     if fields:
         return fields
-    return _lint_field("line", _note_text(note.title, note.advice), LINE_MAX_CHARS, note.skill)
+    return _line_problems(note.title, note.advice, note.skill)
 
 
 def lint_advice(text: str, *, skill: str = "") -> list[str]:
@@ -1284,21 +1302,23 @@ def _render_block(items: list[tuple[str, str, str]]) -> str:
 def _fit_block(notes, sha: str, max_chars: int) -> tuple[str, tuple[str, ...]]:
     """(block text, ids of the notes it renders) for `notes` in their order, in at
     most `max_chars` characters: the longest advice cut by whole words when needed
-    and a note dropped when none of its advice fits; ("", ()) when nothing fits."""
-    items = [[n.id, n.title, n.advice, note_tag(n, sha)] for n in notes]
+    and a note dropped when none of its advice fits or the line its cut renders is
+    one the lint refuses (a cut can end on a guard word: "Dismiss the warning...");
+    ("", ()) when nothing fits."""
+    items = [[n.id, n.title, n.advice, note_tag(n, sha), n.skill] for n in notes]
     for _ in range(2 * len(items) + 1):  # each pass fits, cuts one advice to fit, or drops one note
         if not items:
             break
-        text = _render_block([(title, advice, tag) for _, title, advice, tag in items])
+        text = _render_block([(title, advice, tag) for _, title, advice, tag, _ in items])
         excess = len(text) - max_chars
         if excess <= 0:
             return text, tuple(item[0] for item in items)
         k = max(range(len(items)), key=lambda j: len(items[j][2]))
         cut = _cut(items[k][2], len(items[k][2]) - excess)
-        if cut:
+        if cut and not _line_problems(items[k][1], cut, items[k][4]):
             items[k][2] = cut
         else:
-            del items[k]  # not one whole word of its advice fits: drop the note, never render it empty
+            del items[k]  # no whole word of its advice fits, or the cut is refused: never rendered
     return "", ()
 
 

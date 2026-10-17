@@ -1,11 +1,12 @@
 """ASPIRE A1/A3 fix round (A3 review deleg_a7a7953f #0, Important 1-2): the note as it is rendered.
 
 1. Every route (prompt block, `robot_knowledge`, the demo CLI) renders a note as
-   `- <title>: <advice> [<tag>]`. Title and advice each pass the lint, yet joined they can
-   read as refused advice ("Do not" + "stop when ..." -> "Do not: stop when ..."), so the
-   lint also reads the RENDERED text `<title>: <advice>` (cap 80 + 2 + 300) and a note
-   whose rendered text is refused is skipped like any other. A title ending in a tool
-   parameter word then trips the `arguments` rule ("... target: ..."): an accepted over-block.
+   `- <title> - <advice> [<tag>]` (A4 fix round 1's separator ruling: an ASCII " - ", it was
+   ": "; tests/test_aspire_notes_fix8.py). Title and advice each pass the lint, yet joined they
+   can read as refused advice ("Do not" + "stop when ..." -> "Do not - stop when ..."), so the
+   lint also reads the RENDERED text `<title> - <advice>` (cap 80 + 3 + 300) and a note
+   whose rendered text is refused is skipped like any other. (With ": " a title ending in a
+   tool parameter word tripped the `arguments` rule; the dash serves those titles again.)
 2. The served text is ASCII on the wire: typographic quotes, apostrophes and dashes are
    rendered as " ' - (a JSON reply escapes each non-ASCII character to six), the lint reads
    that rendered text, and the provenance tag uses ASCII separators.
@@ -112,7 +113,8 @@ def test_ordinary_notes_stay_served(tmp_path, title, advice):
 
 
 def test_the_line_cap_is_both_field_caps_and_the_separator():
-    assert notes.LINE_MAX_CHARS == notes.TITLE_MAX_CHARS + 2 + notes.ADVICE_MAX_CHARS == 382
+    # A4 fix round 1 (separator ruling): the separator is " - ", three characters
+    assert notes.LINE_MAX_CHARS == notes.TITLE_MAX_CHARS + 3 + notes.ADVICE_MAX_CHARS == 383
 
 
 def test_fields_at_their_caps_fit_the_line_cap():
@@ -120,13 +122,6 @@ def test_fields_at_their_caps_fit_the_line_cap():
     title, advice = words[:80].rstrip().ljust(80, "s"), words[:300].rstrip().ljust(300, "s")
     assert len(title) == 80 and len(advice) == 300
     assert lint_note(N(title, advice)) == []
-
-
-@pytest.mark.parametrize("title", ["Grasp the target", "Mug handle facing the arm"])
-def test_a_title_ending_in_a_tool_parameter_is_an_accepted_over_block(title):
-    # "<title> target" + ": ..." reads as an argument `target:` (controller ruling: accepted)
-    assert notes._lint_field("title", title, notes.TITLE_MAX_CHARS, SKILL) == []
-    assert _rules(N(title, "Retry once from home.")) == {"arguments"}
 
 
 def test_a_field_refusal_is_reported_without_the_line():
@@ -143,7 +138,7 @@ def test_robot_knowledge_never_carries_a_refused_rendered_line(tmp_path):
         assert [n.id for n in rt.learned.served] == ["plain"]
         text = json.loads(_knowledge_text(rt))["learned_notes"]
     for title, advice, _ in COMPOSED:
-        assert f"{title}: {advice}" not in text and title not in text
+        assert notes._note_text(title, advice) not in text and title not in text
 
 
 # ── 2: ASCII on the wire; the lint reads the rendered text ───────────────────
@@ -154,7 +149,7 @@ def test_typography_renders_as_ascii_on_every_route(tmp_path):
     _note(lib, "typo", TYPOGRAPHIC_TITLE, TYPOGRAPHIC_ADVICE)
     snap = load_snapshot(lib, "sim")
     assert [n.id for n in snap.served] == ["typo"]                                              # premise
-    line = f"- The mug's \"handle\" - a trap: Don't grasp the \"handle\" - grasp the rim - once. " \
+    line = f"- The mug's \"handle\" - a trap - Don't grasp the \"handle\" - grasp the rim - once. " \
            f"[authored | not verifier-tested | lib {snap.sha[:8]}]"
     assert line in snap.block().splitlines() and line in snap.knowledge().splitlines()
     assert notes.served_library(snap, 2).entries() == [("typo", line)]

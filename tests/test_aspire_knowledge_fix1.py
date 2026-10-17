@@ -247,7 +247,7 @@ def test_knowledge_lists_ten_served_notes_and_counts_the_rest(tmp_path):
     snap = load_snapshot(lib, "sim")
     assert len(snap.served) == 15                                             # premise
     lines = snap.knowledge().splitlines()
-    assert lines[1:-1] == [f"- Cube note {chr(97 + i)}: Look again before a second try. "
+    assert lines[1:-1] == [f"- Cube note {chr(97 + i)} - Look again before a second try. "
                            f"[{notes.note_tag(snap.served[i], snap.sha)}]" for i in range(10)]
     assert lines[-1] == "(5 more notes not shown)"
 

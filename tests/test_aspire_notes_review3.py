@@ -214,11 +214,9 @@ KNOWN_OVER_BLOCK_TITLES = [
     ("Beaded glass", SKILL, "hex token"),
     ("Jar lid: half a turn", SKILL, "measurement"),
 ]
-#: A3 review fix round (task-A3-fix1.md ruling 1): the rendered line `<title>: <advice>` is linted
-#: too, and its colon makes the title's last word a second `name:` pair, so a title that opens with
-#: its own tool-parameter label is refused as arguments (reported to the controller with the oracle)
-LINE_ARGUMENT_TITLES = {"Side: grasp across", "Material: glass is slippery", "Task: tidy the counter",
-                        "Camera: look before you grasp", "Direction: away from the visitor"}
+#: The rendered line `<title> - <advice>` is linted too (A3 fix round). With ": " as the separator a
+#: title opening with its own tool-parameter label ("Side: grasp across") made a second `name:` pair
+#: and was refused as arguments; A4 fix round 1's " - " separator serves every title here again.
 
 
 def test_the_corpus_sizes():
@@ -276,11 +274,7 @@ def test_legit_advice_is_accepted(text, skill):
 @pytest.mark.parametrize("title,skill", LEGIT_TITLES, ids=[f"title{i}" for i in range(len(LEGIT_TITLES))])
 def test_legit_titles_are_accepted(title, skill):
     assert notes._lint_field("title", title, notes.TITLE_MAX_CHARS, skill) == []
-    problems = lint_note(_title_note(title, skill))
-    if title in LINE_ARGUMENT_TITLES:
-        assert len(problems) == 1 and problems[0].startswith("line: gives arguments"), problems
-    else:
-        assert problems == []
+    assert lint_note(_title_note(title, skill)) == []
 
 
 @pytest.mark.parametrize("profile_class", ["sim", "real"])
@@ -291,8 +285,7 @@ def test_every_legit_text_is_served(tmp_path, profile_class):
         _promoted(tmp_path, f"title-{i}", title=title, advice="Retry once from home.", skill=skill)
     s = load_snapshot(tmp_path, profile_class)
     assert len(s.notes) == len(LEGIT) + len(LEGIT_TITLES)
-    assert len(s.served) == len(s.notes) - len(LINE_ARGUMENT_TITLES)
-    assert {e["reason"] for e in s.skipped} == {"arguments"} and len(s.skipped) == len(LINE_ARGUMENT_TITLES)
+    assert len(s.served) == len(s.notes) and s.skipped == ()
 
 
 @pytest.mark.parametrize("text,skill,reason", KNOWN_OVER_BLOCK, ids=[f"ob{i}" for i in range(len(KNOWN_OVER_BLOCK))])

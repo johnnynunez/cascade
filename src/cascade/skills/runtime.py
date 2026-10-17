@@ -1241,15 +1241,27 @@ class SkillRuntime:
         harness = getattr(arm, "harness", None)
         return bool(getattr(harness, "estopped", False) or getattr(harness, "halted", None))
 
-    def _may_ask_move_home(self, before: int | None, arm=None) -> bool:
+    def _halted_since_skill_start(self, baselines=None) -> bool:
+        """An operator halt arrived since the running motion skill started,
+        even one withdrawn again (a Resume): the skill ended on it (A3).
+        `baselines`: execute()'s `_skill_halt_baselines` for the call (None:
+        the running skill's, from its motion scope; none outside a skill)."""
+        if baselines is None:
+            context = getattr(getattr(self, "_motion_scope", None), "context", None)
+            baselines = (context or {}).get("halt_baselines", ())
+        return self._skill_halt_reason(baselines) is not None
+
+    def _may_ask_move_home(self, before: int | None, arm=None, halt_baselines=None) -> bool:
         """A failed grasp may ask the agent to call move_home first: an arm
         motion was counted since `before` (unknown counts say yes), nothing is
-        held, and no operator halt or e-stop is latched (a halt clears at the
-        next motion, so the next move is the operator's call). One rule for
-        execute() and the gate-on returns of the persistence loop and
-        pick_and_place."""
+        held, no operator halt or e-stop is latched, and no halt arrived since
+        the running skill started (A3: a halt ends the skill, so the next move
+        is the operator's call, also after a Resume). One rule for execute()
+        (which passes its own `halt_baselines`) and the gate-on returns of the
+        persistence loop and pick_and_place."""
         arm = self.arm if arm is None else arm
         return (not self.held_object and not self._stop_latched(arm)
+                and not self._halted_since_skill_start(halt_baselines)
                 and self._arm_moved_since(before))
 
     def _home_return_skip_reason(self, failure=None) -> str | None:
@@ -1705,7 +1717,7 @@ class SkillRuntime:
                     result["error"] = blocked
         if (name in _GRASP_ENTRY_SKILLS and call_moved and not result.get("ok")
                 and not (home_return or {}).get("ok") and not result.get("motion_blocked")
-                and self._may_ask_move_home(arm_motions_before, effective_arm)):
+                and self._may_ask_move_home(arm_motions_before, effective_arm, skill_halt)):
             # The failed grasp moved the arm and nothing brought it back: the
             # next grasp would start (and be refused) where this one stopped.
             # A call whose only command was a gripper open or a motion refused
@@ -2365,6 +2377,9 @@ class SkillRuntime:
             except (SkillError, SafetyViolation) as e:
                 note = _perception_stop(e, attempt)
                 if note is not None:
+                    # An operator halt since the loop started ends it as the
+                    # halt, not as this refusal (A3: `_end_on_halt`).
+                    self._end_on_halt(halt_generation)
                     # Same rule as pick_and_place: an expired analysis, a scene
                     # that changed under the two-phase localization (already
                     # retried once) or a re-anchor that failed again after a
@@ -5842,6 +5857,9 @@ class SkillRuntime:
                             **failure_destination, grasp_attempts=attempt, place_attempts=0)
                     note = _perception_stop(e, attempt)
                     if note is not None:
+                        # An operator halt since the skill started ends it as
+                        # the halt, not as this refusal (A3: `_end_on_halt`).
+                        self._end_on_halt(halt_generation)
                         return {**failure_destination, "ok": False, "stage": "grasp",
                                 "error": str(e), "home_skipped": True,
                                 "grasp_attempts": attempt, "note": note}

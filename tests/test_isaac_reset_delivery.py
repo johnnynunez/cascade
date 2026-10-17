@@ -678,6 +678,26 @@ def test_the_bridge_boots_with_no_reset_seed():
     assert len(boots) == 1 and ast.literal_eval(boots[0].value) is None
 
 
+def test_the_bridge_has_no_reset_seed_before_it_serves():
+    # ping reads _RESET_SEED on a socket thread: a ping that arrives before the
+    # boot statement ran would fail with NameError instead of answering.
+    body = ast.parse(BRIDGE.read_text()).body
+
+    def where(match):
+        found = [i for i, node in enumerate(body) if match(node)]
+        assert len(found) == 1, found
+        return found[0]
+
+    seed = where(lambda node: isinstance(node, ast.Assign)
+                 and [ast.unparse(t) for t in node.targets] == ["_RESET_SEED"])
+    server = where(lambda node: isinstance(node, ast.Assign)
+                   and [ast.unparse(t) for t in node.targets] == ["server"]
+                   and "ThreadingTCPServer(" in ast.unparse(node.value))
+    serving = where(lambda node: isinstance(node, ast.Expr)
+                    and "target=server.serve_forever" in ast.unparse(node) and ".start()" in ast.unparse(node))
+    assert seed < server < serving
+
+
 def test_a_seeded_reset_that_cannot_build_its_layout_moves_nothing(kitchen_reset_bridge):
     _, physics, env = kitchen_reset_bridge
     assert _dispatch(env, {"op": "set_reset_seed", "seed": 4})["ok"] is True

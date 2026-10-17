@@ -120,21 +120,40 @@ blocklist: advice and titles are short plain English, and anything that cannot b
 and every pattern is linear; (2) no control or format character (Unicode Cc/Cf: zero-width space, soft hyphen, BOM),
 the text is NFKC-stable, and every character is a printable ASCII letter, digit, space or `.,;:!?'"-/_&+%`, or a
 typographic quote or dash, so no homoglyph, CJK, fullwidth or other non-ASCII letter and none of `[]{}()=<>|` `` ` ``
-`\#*@$^~` (hence no `<|`, `|>`, code fence or markup); (3) over the normalised word sequence (snake_case, kebab,
-camelCase, dotted and spaced spellings read alike): no URL (`://`), no `snake_case` identifier that is not a tool, no
-letter-digit mix (ordinals aside), no dotted name, no word spelled out letter by letter, no role marker (`assistant:`,
-`user:`, `system:`), nothing imitating the provenance tag (`verifier`, `learned in`, `lib <hex>`), at most ONE number
-and no unit of length or angle (`m`, `cm`, `mm`, `um`, `in`, `ft`, `deg`, `rad`, `%` and their words) or axis
-coordinate (`x 0.42`); a tool is named only if it is read-only or the note's own skill (the tool its failure signature
-names), by name and without arguments, and never `reset_scene`, `reset_stop`, `emergency_stop` or `halt_motion`; and
-no reset (`reset` in any form: a reset clears the sim retry ledger), stop (`emergency stop`, `e stop`, `halt the
-motion`), "do not stop", unbounded-retry (`keep calling`, `try again until`, `until it succeeds`, `start over`),
-override (`ignore`, `disregard`, `bypass`, `circumvent`, `override` anywhere), weakening (`disable`, `turn off`, `skip`,
-`lower`, `relax`, `reduce`, `raise` ... followed within 4 words by `gate`, `check`, `refusal`, `warning`, `veto`,
-`clearance`, `margin`, `limit`, `safety`, `collision`, `stop`, `halt`, `harness` ...) or success-claim advice (`treat
-... as a success`, `tell the user it is done`). The same lint covers every field rendered to the agent or a visitor
-(preflight R4): the title and the advice. The review's 78 hostile texts are a test that must stay all refused, next to
-a set of plain kitchen advice that must stay all accepted.
+`\#*@$^~` (hence no `<|`, `|>`, code fence or markup); (3) every word is lower, Title or UPPER case (`reSet`,
+`SafetyViolation` refused: A1 fix round 2); (4) over the field read as words three ways -- the words split at
+camelCase humps, digits and any separator, the unsplit lower-cased runs, and at each word the 2-3 words that join into
+one whole phrase word across spaces or dashes (`re set`, `ig nore`, `DIS-able`; never across an apostrophe or other
+punctuation) -- no URL (`://`), no `snake_case` identifier that is not a tool, no letter-digit mix (ordinals aside), no
+dotted name, no word spelled out letter by letter, no role marker (`assistant`, `user`, `system`, `developer`,
+`human`, `tool`, `observation`, `function`, `output`, `operator`, `owner` followed by `:` or a dash, or by one word and
+`:` as in `function result:`) or chat-template marker (`im start`, `system prompt`, `developer mode`, `new
+instruction`), nothing imitating the provenance tag (`verifier`, `verified`, `promoted`, `provenance`, `authored`,
+`passing seeds`, `learned in|on`, `tested in|on|by`, `Newton`, `PhysX`, `lib <hex>`, any hex-like token of 6+ chars,
+`out of <n>`, `<n> of <n>`), at most ONE number counting digits and number words (`zero` .. `twenty`, tens,
+`hundred`, `point`, `half`, `quarter`, `minus`, `negative`; a lone `one` aside), no two number words side by side
+(`minus one`), no unit of length or angle (`m`, `cm`, `mm`, `um`, `dm`, `km`, `in`, `ft`, `yd`, `deg`, `rad`, `mrad`,
+`rev`, `thou`, `mil`, `%`, `pct`, `per cent` and their words; `turn(s)` after a number) and no axis coordinate (`x
+0.42`, `x zero`); a tool is named only as an identifier (snake_case, any case) that is read-only or the note's own skill
+(the tool its failure signature names), never `reset_scene`, `reset_stop`, `emergency_stop` or `halt_motion`, and no
+identifier or tool parameter (`object`, `destination`, `target`, `x`, `force`, `speed`, `pose`, `grasp`, ... and every
+single-word parameter of a tool) is followed by `:` (arguments); a tool name written as plain words is English (`move
+home`, `place at`), except the four forbidden tools in any spelling; and no reset (`reset` in any form, `respawn`,
+`begin again`, `start from scratch`, and `restart` / `reload` / `redo` / `re-initialise` / `restore` with `scene`,
+`layout`, `table`, `everything`, `kitchen`, `world` or `simulation` as object: a reset clears the sim retry ledger),
+stop (`emergency stop`, `e stop`, `halt the motion`, `stop latch`, `emergency button`), "do not stop" (negated stop,
+pause or halt: never discourage an operator stop), unbounded-retry (`keep calling`, `try again until`, `retry until`,
+`until it succeeds`, `start over`, `forever`, `over and over`, `no limit`, `never give up` ...), override (`ignore`,
+`disregard`, `bypass`, `circumvent`, `override` anywhere), weakening (`disable`, `turn off`, `skip`, `lower`, `relax`,
+`reduce`, `raise`, `cut`, `drop`, `waive`, `forget`, `dismiss`, `set aside` ... whose DIRECT OBJECT is `gate`, `check`,
+`refusal`, `warning`, `veto`, `clearance`, `margin`, `limit`, `safety`, `collision`, `stop`, `halt`, `harness` ...:
+the guard noun among the first 4 words after the verb, before a preposition and the end of the clause at `and`, `to`,
+`for`, `then`, `so`, `but` or punctuation, with `and`/`,` + determiner listing another object; so `lower the clearance`
+is refused and `lower it to avoid collision` is not) or success-claim advice (`treat ... as a success`, `tell the user
+it is done`, honesty phrasings included). The same lint covers every field rendered to the agent or a visitor
+(preflight R4): the title and the advice. The reviews' hostile texts (78 + the re-review's 50 rule-claimed ones) are a
+test that must stay all refused, next to a set of plain kitchen advice that must stay all accepted; plain-English
+paraphrases of harm (no rule word) stay a limit of a structural gate, carried by promotion and the verifier.
 
 ### 4.2 Library snapshot, library hash, run manifest
 
@@ -143,7 +162,12 @@ a set of plain kitchen advice that must stay all accepted.
   of any note changes it; other files do not. A note file's name must match `^[a-z0-9][a-z0-9_.-]{0,63}\.md$` (the
   library's slugs do): any other file (a control character, tab or newline, upper case, a non-UTF-8 byte, `,` or `-->`)
   is neither hashed nor served, so the line format is unambiguous and a note id is safe in a JSON manifest and the
-  LEARNED.md header (ids are sanitised at the source).
+  LEARNED.md header (ids are sanitised at the source). A symlink (lstat, and the read opens with `O_NOFOLLOW`) or any
+  non-regular file is neither hashed, parsed nor served either.
+- A skipped note is never silent: the snapshot's `skipped` lists `{id, reason}` for every `*.md` entry that is no
+  lint-clean note (`reason` = the lint rule's name, or `file_name`, `symlink`, `not_a_file`, `unreadable`, `parse`), by
+  file name, and logs one warning line each; A3/A9 surface it. A lint-clean note the class does not serve (not yet
+  promoted) is not "skipped".
 - The robot runtime loads ONE read-only snapshot at build (`load_snapshot`; it never creates the directory) and keeps
   it for the session: the prompt block, `robot_knowledge`, the chat line and the trace stamp all come from it, so a
   nightly write never changes a running session.
@@ -209,8 +233,9 @@ advisory. Harvested advice (`kind: learned`) is never served before promotion --
 AND a verifier pass (§5.2) -- on ANY profile class, sim included (A1 fix round 1: the reader enforces B2's rule now, so
 until B a sim library serves only authored notes). Authored notes follow the task counters on `sim`; real still needs a
 verifier pass (preflight R5). A verifier pass is `verdict == "verified"` with `engine == "newton"` (owner rule: every
-sim run is Newton), a non-empty list of distinct integer seeds and `4 <= passes <= len(seeds)` (Q6); any other record
-fails closed and its tag reads `not verifier-tested`. `real` serves only verifier-passed notes, whatever their status
+sim run is Newton), exactly 5 distinct integer seeds, `4 <= passes <= 5`, an integer `attempts` of 1 or 2 and no
+`gaps` (absent or `[]`) (Q6: >= 4/5 seeds within <= 2 attempts); any other record fails closed and its tag reads `not
+verifier-tested`. `real` serves only verifier-passed notes, whatever their status
 field says (D5: none until B). A `memory.skill_min_tasks` that is missing or not an integer >= 1 serves nothing (logged).
 The filter sits in `load_snapshot`, so the block, `robot_knowledge`, the chat line and the built-in orchestrator's
 `retrieve()` (which B2 moves onto the snapshot) see the same set.

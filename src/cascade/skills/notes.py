@@ -9,15 +9,19 @@ A note stays one markdown file ``<library>/<slug>.md`` with the front matter
 skill; ``## Advice`` is what the agent reads and ``## Evidence`` is for humans only,
 never rendered. A v1 body has no ``## Advice``: its advice is the first paragraph of
 ``## Strategy`` (a longer one than `ADVICE_MAX_CHARS` fails the lint: the note is
-skipped, never cut into acceptance). Only files whose name is a safe id
-(`_NOTE_NAME_RE`) are notes, hashed or served.
+skipped, never cut into acceptance). Only regular files (never a symlink) whose name
+is a safe id (`_NOTE_NAME_RE`) are notes, hashed or served; every other `*.md` entry
+and every note that fails the lint is listed in the snapshot's `skipped` with its
+reason and logged, never dropped silently.
 
 Notes are advice TEXT. This module renders them and nothing else: no value in a
 note reaches a config, a tool argument or a gate. A note is served only when its
 lint is clean (`lint_note`), a deny-by-default STRUCTURAL gate on every rendered
-field (title and advice): short plain English, printable ASCII, at most one number
-and no measurement, no code or markup, naming only read-only tools and the note's
-own skill, and no reset, stop, loop, bypass or success-claim advice.
+field (title and advice): short plain English in plain case, printable ASCII, at
+most one number (digits or words) and no measurement, no code, markup, role or
+provenance look-alike, naming only read-only tools and the note's own skill as
+identifiers and without arguments, and no reset, stop, loop, bypass, weakening or
+success-claim advice.
 
 `load_snapshot` reads the library ONCE (it never creates or writes it) and keeps
 that view for the session: the prompt block, `robot_knowledge` and the run stamp
@@ -30,11 +34,14 @@ verifier-passed notes.
 """
 from __future__ import annotations
 
+import errno
 import functools
 import hashlib
 import itertools
 import logging
+import os
 import re
+import stat
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
@@ -51,8 +58,11 @@ KNOWLEDGE_MAX_CHARS = 6000
 LEARNED_HEADER_PREFIX = "<!-- cascade-learned-notes v1 "
 #: notes in the prompt block (the rest are only in robot_knowledge)
 BLOCK_NOTES = 2
-#: a verifier pass (DECISIONS Q6): at least this many of the seeds passed ...
+#: a verifier pass (DECISIONS Q6): at least this many of exactly `VERIFIER_SEEDS` seeds
+#: passed, each within `VERIFIER_MAX_ATTEMPTS` motion attempts ...
 VERIFIER_MIN_PASSES = 4
+VERIFIER_SEEDS = 5
+VERIFIER_MAX_ATTEMPTS = 2
 #: ... on the physics engine every sim run uses (owner rule)
 VERIFIER_ENGINE = "newton"
 
@@ -231,52 +241,81 @@ def _is_note_name(name: str) -> bool:
     return _NOTE_NAME_RE.fullmatch(name) is not None
 
 
+def _read_regular(path: Path) -> tuple[bytes | None, str]:
+    """(bytes, "") of the regular file at `path`, else (None, why). The open never
+    follows a symlink (O_NOFOLLOW, so a link swapped in after the listing is refused
+    too) and never blocks on a FIFO (O_NONBLOCK, then fstat)."""
+    flags = os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+    try:
+        fd = os.open(path, flags)
+    except OSError as exc:
+        return None, "symlink" if exc.errno == errno.ELOOP else "unreadable"
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return None, "not_a_file"
+        chunks = []
+        while chunk := os.read(fd, 1 << 20):
+            chunks.append(chunk)
+        return b"".join(chunks), ""
+    except OSError:
+        return None, "unreadable"
+    finally:
+        os.close(fd)
+
+
 def parse_note(path: Path) -> Note | None:
-    """The note in `path`, or None when its name is not a safe note id, it cannot
-    be read or its front matter is bad."""
+    """The note in `path`, or None when its name is not a safe note id, it is a
+    symlink or not a regular file, it cannot be read or its front matter is bad."""
     path = Path(path)
     if not _is_note_name(path.name):
         return None
-    try:
-        data = path.read_bytes()
-    except OSError:
-        return None
-    return _parse_bytes(path.stem, data)
+    data, _ = _read_regular(path)
+    return None if data is None else _parse_bytes(path.stem, data)
 
 
 # ── library hash ──────────────────────────────────────────────────────────
 
 
-def _library_files(root: Path | None) -> list[tuple[str, bytes]]:
-    """(file name, bytes) of every readable note file in `root`, sorted by name. A
-    file whose name is not a safe note id (`_NOTE_NAME_RE`: no control character,
-    tab, newline, upper case or non-UTF-8 byte) is neither a note nor hashed, so
-    the hash's line format stays unambiguous."""
+def _scan(root: Path | None) -> list[tuple[str, bytes | None, str]]:
+    """(file name, bytes, "") for every note file in `root` and (file name, None,
+    why) for every other `*.md` entry, sorted by name. A note file has a safe id as
+    its name (`_NOTE_NAME_RE`: no control character, tab, newline, upper case or
+    non-UTF-8 byte), is a regular file and no symlink (lstat, then an O_NOFOLLOW
+    read) and is readable; only note files are hashed, so the hash's line format
+    stays unambiguous."""
     if root is None:
         return []
     try:
-        paths = sorted((p for p in Path(root).expanduser().glob("*.md") if _is_note_name(p.name) and p.is_file()),
-                       key=lambda p: p.name)
+        paths = sorted(Path(root).expanduser().glob("*.md"), key=lambda p: p.name)
     except OSError:
         return []
-    files = []
+    entries: list[tuple[str, bytes | None, str]] = []
     for path in paths:
+        if not _is_note_name(path.name):
+            entries.append((path.name, None, "file_name"))
+            continue
         try:
-            files.append((path.name, path.read_bytes()))
+            mode = os.lstat(path).st_mode
         except OSError:
-            continue  # unreadable: skipped, the hash covers the bytes present
-    return files
+            entries.append((path.name, None, "unreadable"))
+            continue
+        if stat.S_ISLNK(mode) or not stat.S_ISREG(mode):
+            entries.append((path.name, None, "symlink" if stat.S_ISLNK(mode) else "not_a_file"))
+            continue
+        data, why = _read_regular(path)
+        entries.append((path.name, data, why))
+    return entries
 
 
-def _sha_of(files: list[tuple[str, bytes]]) -> str:
-    lines = "".join(f"{name}\t{hashlib.sha256(data).hexdigest()}\n" for name, data in files)
+def _sha_of(entries: list[tuple[str, bytes | None, str]]) -> str:
+    lines = "".join(f"{name}\t{hashlib.sha256(data).hexdigest()}\n" for name, data, _ in entries if data is not None)
     return hashlib.sha256(lines.encode("utf-8")).hexdigest()
 
 
 def library_sha(root: Path | None) -> str:
     """sha256 over `"<file name>\\t<sha256 of the file>\\n"` for every note file
     in `root`, sorted by name. Missing or empty -> sha256 of the empty string."""
-    return _sha_of(_library_files(root))
+    return _sha_of(_scan(root))
 
 
 # ── lint ──────────────────────────────────────────────────────────────────
@@ -288,13 +327,16 @@ def library_sha(root: Path | None) -> str:
 #   2. characters: no control or format character (Cc/Cf), NFKC-stable, and only
 #      printable ASCII letters, digits, space and `_PUNCTUATION`, plus `_TYPOGRAPHY`
 #      (so no homoglyph, CJK, fullwidth, zero-width, markup or code character);
-#   3. structure, over the normalised word sequence (`_tokens`: snake_case, kebab,
-#      camelCase, dotted and spaced spellings all give the same words): no URL, no
-#      unknown identifier, no letter-digit mix, no dotted name, no spelled-out word,
-#      no role marker, nothing that imitates the provenance tag, at most one number
-#      and no measurement or coordinate, only read-only tools and the note's own
-#      skill (by name, without arguments), and no reset, stop, loop, override,
-#      weakening or success-claim advice.
+#   3. structure: every word lower, Title or UPPER case; then over the field read as
+#      words (`_View`) -- (a) the words split at camelCase humps, digits and any
+#      separator, (b) the unsplit runs of letters and digits, and (c) at each word the
+#      2-3 words that join into one whole phrase word (`re set`, `ig nore`, `DIS-able`)
+#      -- no URL, no unknown identifier, no letter-digit mix, no dotted name, no
+#      spelled-out word, no role or chat-template marker, nothing that imitates the
+#      provenance tag, at most one number (digits or number words) and no measurement
+#      or coordinate, only read-only tools and the note's own skill as identifiers and
+#      never with arguments, and no reset, stop, loop, override, weakening or
+#      success-claim advice. A rule refuses a field under its name (`skipped` reasons).
 
 #: the non-ASCII characters a field may carry: typographic quotes and dashes
 _TYPOGRAPHY = frozenset("\u2018\u2019\u201c\u201d\u2013\u2014")
@@ -310,26 +352,44 @@ _NUMBER_RE = re.compile(r"[0-9]+(?:\.[0-9]+)?")
 _LETTERS_RE = re.compile(r"[A-Za-z]+")
 _ORDINAL_RE = re.compile(r"[0-9]+(?:st|nd|rd|th)")
 _HEX_RE = re.compile(r"[0-9a-f]+")
+#: a hex-like run this long reads as a hash or a library sha
+_HEX_MIN_CHARS = 6
 
-# Phrases over the normalised word sequence: "word" matches exactly, "stem*" any
-# word starting with the stem (compiled once by `_Phrases`).
-_ROLE_WORDS = frozenset({"assistant", "user", "system", "developer", "human"})
-#: reset_scene / reset_stop in any spelling, and "reset the scene": a reset clears the retry ledger
-_RESET = (("reset*",),)
-_LEARNED = (("learn*", "in"),)
-_STOPS = (("emergenc*", "stop*"), ("e", "stop*"), ("estop*",), ("halt*", "motion*"), ("halt*", "the", "motion*"))
+# Phrases over the words of a field: "word" matches exactly, "stem*" any word
+# starting with the stem (compiled once by `_Phrases`).
+#: followed by ":" or a dash ("Assistant - Done"), or by one word and ":" ("user said:")
+_ROLE_WORDS = frozenset({"assistant", "user", "system", "developer", "human", "tool", "observation", "function",
+                         "output", "operator", "owner"})
+#: chat-template and prompt-injection markers, refused wherever they stand
+_TEMPLATE = (("im", "start"), ("im", "end"), ("system", "prompt*"), ("developer", "mode*"), ("new", "instruction*"))
+#: reset_scene / reset_stop in any spelling, "reset the scene" and phrasings that only
+#: mean a reset: a reset clears the retry ledger (R4)
+_RESET = (("reset*",), ("respawn*",), ("begin*", "again"), ("start*", "from", "scratch"))
+#: a reset only with a `_SCENE` noun as their object ("restart the scene", "redo everything")
+_RESET_VERBS = (("restart*",), ("reload*",), ("redo*",), ("redid",), ("reinitialis*",), ("reinitializ*",),
+                ("restor*",))
+_SCENE = (("scene*",), ("layout*",), ("table*",), ("everything",), ("kitchen*",), ("world*",), ("simulation*",))
+_PROVENANCE = (("verifier*",), ("verified",), ("promoted",), ("provenance",), ("authored",), ("passing", "seed*"),
+               ("tested", "in"), ("tested", "on"), ("tested", "by"), ("newton*",), ("physx",))
+_LEARNED = (("learn*", "in"), ("learn*", "on"))
+_STOPS = (("emergenc*", "stop*"), ("e", "stop*"), ("estop*",), ("emergencystop*",), ("halt*", "motion*"),
+          ("halt*", "the", "motion*"), ("haltmotion*",), ("stop", "latch*"), ("emergenc*", "button*"))
 _NEGATORS = (("never",), ("not",), ("no",), ("don",), ("dont",), ("without",), ("cannot",))
 _HALTS = (("stop*",), ("halt*",), ("paus*",))
 _LOOPS = (("start", "over"), ("try", "again", "until"), ("repeat*", "until"), ("until", "it", "succe*"),
           ("until", "it", "work*"), ("until", "succe*"), ("keep", "call*"), ("keep", "try*"), ("keep", "retr*"),
-          ("keep", "going"))
+          ("keep", "going"), ("retr*", "until"), ("retr*", "till"), ("forever",), ("over", "and", "over"),
+          ("never", "give", "up"), ("no", "limit*"), ("as", "many", "times"))
 #: refused wherever they stand: no plain advice needs them
 _OVERRIDES = (("ignor*",), ("disregard*",), ("bypass*",), ("by", "pass*"), ("circumvent*",), ("overrid*",),
               ("over", "rid*"))
-#: refused when one of `_GUARDS` follows within `_WEAKEN_REACH` words
+#: refused when one of `_GUARDS` is their direct object (`_direct_object`)
 _WEAKEN = (("disabl*",), ("turn*", "off"), ("switch*", "off"), ("shut*", "off"), ("skip*",), ("lower*",),
            ("relax*",), ("reduc*",), ("shrink*",), ("rais*",), ("smaller",), ("decreas*",), ("loosen*",),
-           ("suppress*",), ("silenc*",), ("mute*",), ("weaken*",), ("work*", "around"), ("get*", "around"))
+           ("suppress*",), ("silenc*",), ("mute*",), ("weaken*",), ("work*", "around"), ("get*", "around"),
+           ("cut*",), ("drop*",), ("zero*",), ("waiv*",), ("tighten*",), ("remov*",), ("neglect*",), ("dismiss*",),
+           ("forget*",), ("forgot*",), ("overrul*",), ("defeat*",), ("sidestep*",), ("never", "mind"),
+           ("set*", "aside"), ("look*", "past"), ("get*", "past"), ("pay*", "no", "attention", "to"))
 _GUARDS = (("gate*",), ("check*",), ("refus*",), ("warn*",), ("veto*",), ("clearanc*",), ("margin*",),
            ("limit*",), ("safet*",), ("collis*",), ("collid*",), ("stop*",), ("halt*",), ("guard*",),
            ("harness*",), ("interlock*",), ("watchdog*",), ("threshold*",), ("toleranc*",))
@@ -338,13 +398,46 @@ _CLAIM_SAY = (("tell*",), ("say*",), ("said",), ("report*",), ("announc*",), ("r
               ("answer*",))
 _SUCCESS = (("succe*",), ("done",), ("ok",), ("okay",), ("complete",), ("completed",), ("finished",),
             ("worked",))
-#: units of length or angle, refused wherever they stand
+#: units of length or angle (and percent), refused wherever they stand
 _UNITS = (("mm",), ("cm",), ("um",), ("ft",), ("deg",), ("degs",), ("rad",), ("rads",), ("millimet*",),
           ("centimet*",), ("micromet*",), ("micron*",), ("metre*",), ("meter*",), ("inch*",), ("foot",),
-          ("feet",), ("degree*",), ("radian*",), ("percent*",))
+          ("feet",), ("degree*",), ("radian*",), ("percent*",), ("dm",), ("decimet*",), ("km",), ("kilomet*",),
+          ("yard*",), ("yd",), ("yds",), ("rev",), ("revs",), ("revolution*",), ("mrad",), ("milliradian*",),
+          ("thou",), ("mil",), ("mils",), ("pct",))  # "per cent" joins into "percent" (`_View`)
 #: a unit only right after a number ("3 m", "2 in"; and "50%")
 _NUMBER_UNITS = frozenset({"m", "in"})
-_WEAKEN_REACH = 4  # "lower the safety margin": a guard among the 4 words after the verb
+#: a unit only right after a number, digits or words ("2 turns", "a quarter turn")
+_TURNS = frozenset({"turn", "turns"})
+#: every family a word or a join of words is read against (`_View`)
+_FAMILIES = (_TEMPLATE, _RESET, _RESET_VERBS, _SCENE, _PROVENANCE, _LEARNED, _STOPS, _NEGATORS, _HALTS, _LOOPS,
+             _OVERRIDES, _WEAKEN, _GUARDS, _CLAIM_AS, _CLAIM_SAY, _SUCCESS, _UNITS)
+#: spelled-out numbers: two in one field ("one" aside: "pick the one on top"), two side
+#: by side ("minus one", "twenty-one") or one after an axis letter is refused
+_NUMBER_WORDS = frozenset({
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve",
+    "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty", "thirty", "forty",
+    "fifty", "sixty", "seventy", "eighty", "ninety", "hundred", "thousand", "million",
+    "point", "half", "quarter", "minus", "negative"})
+#: tool parameters a note may not set (`name:`), besides every single-word parameter of a tool
+_PARAMETERS = frozenset({"object", "destination", "target", "x", "y", "z", "arm", "force", "speed", "frame", "pose",
+                         "position", "grasp", "offset"})
+#: the plain endings a joined word may have after a stem ("ig nore" = ignor + e); a
+#: join that only STARTS like a stem ("in check" ~ inch...) is no word
+_ENDINGS = ("", "s", "e", "es", "ed", "d", "t", "ing", "er", "ers", "y", "ies", "ied", "ion", "ions", "ance",
+            "ence", "al", "ly", "ty", "ting", "ted", "ping", "ped", "den", "ment", "ments")
+#: separators across which two words may join (never an apostrophe: "cup's top" is no "stop")
+_JOINABLE = frozenset(" -_\u2013\u2014")
+_APOSTROPHES = "'\u2019"
+#: a weakening verb's object: the guard noun among its first words, in its clause
+_OBJECT_REACH = 4  # "skip the pre-close check"
+_MORE_OBJECTS = 2  # "disable the light, the gate and the check": listed objects count too
+_DETERMINERS = frozenset({"the", "a", "an", "its", "their", "this", "that", "these", "those", "your", "my", "our",
+                          "his", "her", "every", "each", "all", "any", "some", "both"})
+_CLAUSE_ENDS = frozenset({"and", "to", "for", "then", "so", "but"})
+_PREPOSITIONS = frozenset({"near", "over", "under", "onto", "into", "on", "in", "at", "by", "with", "from", "above",
+                           "below", "beside", "behind", "past", "around", "through", "across", "toward", "towards",
+                           "along", "against", "beyond", "inside", "outside", "upon", "via", "within", "between",
+                           "beneath", "underneath"})
 _SAY_REACH = 5  # "tell the user it is done"
 _TREAT_REACH = 6  # "treat every refused result as a success"
 _NEGATION_REACH = 2  # "don't stop", "do not ever stop"
@@ -361,13 +454,63 @@ def _tool_names() -> frozenset[str]:
 
 
 @functools.lru_cache(maxsize=1)
-def _tool_index() -> dict[str, tuple[tuple[tuple[str, ...], str], ...]]:
-    """first word -> ((words of the tool name, tool name), ...)."""
-    index: dict[str, list] = {}
-    for name in sorted(_tool_names()):
-        words = tuple(name.split("_"))
-        index.setdefault(words[0], []).append((words, name))
-    return {first: tuple(entries) for first, entries in index.items()}
+def _parameter_names() -> frozenset[str]:
+    """`_PARAMETERS` plus every single-word parameter of a tool ("label", "query")."""
+    from ..apps.mcp_server import _EXTRA_TOOLS
+    from .runtime import TOOL_SPECS
+
+    names = set(_PARAMETERS)
+    for spec in (*TOOL_SPECS, *_EXTRA_TOOLS):
+        names.update(p for p in (spec.get("parameters") or {}).get("properties", {}) if "_" not in p)
+    return frozenset(names)
+
+
+class _Words:
+    """Exact words and stems, with the stems bucketed by their first two letters so a
+    lookup tests only the stems that can match (a one-letter stem is always tested)."""
+
+    def __init__(self, parts):
+        self.exact = frozenset(p for p in parts if not p.endswith("*"))
+        self.stems = frozenset(p[:-1] for p in parts if p.endswith("*"))
+        self.short = tuple(stem for stem in sorted(self.stems) if len(stem) < 2)
+        buckets: dict[str, list[str]] = {}
+        for stem in sorted(self.stems):
+            if len(stem) >= 2:
+                buckets.setdefault(stem[:2], []).append(stem)
+        self.buckets = {key: (*value, *self.short) for key, value in buckets.items()}
+
+    def starts(self, word: str) -> bool:
+        """`word` is an exact word or starts with a stem."""
+        return word in self.exact or word.startswith(self.buckets.get(word[:2], self.short))
+
+
+@functools.lru_cache(maxsize=1)
+def _vocabulary() -> _Words:
+    """Every part of every phrase family (what a join of words may read as)."""
+    return _Words([part for family in _FAMILIES for phrase in family for part in phrase])
+
+
+@functools.lru_cache(maxsize=1)
+def _heads() -> _Words:
+    """The parts that can START a phrase of any family: a word that is none of them
+    starts no match, so the scans skip it (`_View.live`)."""
+    return _Words([phrase[0] for family in _FAMILIES for phrase in family])
+
+
+_ENDING_SET = frozenset(_ENDINGS)
+_ENDING_SIZES = tuple(sorted({len(end) for end in _ENDINGS}))
+
+
+def _whole_word(joined: str) -> bool:
+    """`joined` (2-3 words run together) reads as one phrase word: an exact part, or
+    a stem plus a plain ending (`_ENDINGS`)."""
+    vocabulary = _vocabulary()
+    if joined in vocabulary.exact:
+        return True
+    if not vocabulary.starts(joined):
+        return False
+    n = len(joined)
+    return any(joined[n - k:] in _ENDING_SET and joined[:n - k] in vocabulary.stems for k in _ENDING_SIZES if k < n)
 
 
 def _character_problem(text: str) -> str | None:
@@ -383,6 +526,15 @@ def _character_problem(text: str) -> str | None:
         elif ch not in _TYPOGRAPHY:
             kind = "letter" if unicodedata.category(ch).startswith("L") else "character"
             return f"non-ASCII {kind} U+{ord(ch):04X} (notes are plain English)"
+    return None
+
+
+def _mixed_case(text: str) -> str | None:
+    """The first word that is neither lower, Title nor UPPER case ("reSet", "iGnore")."""
+    for m in _LETTERS_RE.finditer(text):
+        word = m.group(0)
+        if not (word.islower() or word.isupper() or (word[0].isupper() and word[1:].islower())):
+            return word
     return None
 
 
@@ -402,6 +554,44 @@ def _tokens(text: str) -> list[tuple[str, int, int]]:
     return out
 
 
+def _break(gap: str) -> str:
+    """What separates two words: "." (a clause break: . ; : ! ? or a spaced dash),
+    "," (a comma) or "" (spaces, a hyphen, quotes)."""
+    if any(ch in ".;:!?\u2013\u2014" for ch in gap) or ("-" in gap and " " in gap):
+        return "."
+    return "," if "," in gap else ""
+
+
+class _View:
+    """One reading of a field as lower-case `words`. `cands[i]` are the readings that
+    start at word i: the word itself, then the 2-3 words from i joined when only
+    spaces or dashes separate them, word i is no contraction tail and the join reads
+    as one phrase word (`_whole_word`), each with the number of words it covers.
+    `breaks[i]` is what separates word i from the word before it (`_break`) and
+    `live` the positions where some phrase of some family can start (`_heads`)."""
+
+    __slots__ = ("breaks", "cands", "live", "words")
+
+    def __init__(self, text: str, spans: list[tuple[str, int, int]]):
+        self.words = [word for word, _, _ in spans]
+        gaps = [""] + [text[spans[k - 1][2]:spans[k][1]] for k in range(1, len(spans))]
+        self.breaks = [_break(gap) for gap in gaps]
+        self.cands = []
+        for i, (word, start, _) in enumerate(spans):
+            here = [(word, 1)]
+            if not (start and text[start - 1] in _APOSTROPHES):
+                joined = word
+                for k in (1, 2):
+                    if i + k >= len(spans) or not _JOINABLE.issuperset(gaps[i + k]):
+                        break
+                    joined += self.words[i + k]
+                    if _whole_word(joined):
+                        here.append((joined, k + 1))
+            self.cands.append(here)
+        heads = _heads()
+        self.live = [i for i, here in enumerate(self.cands) if any(heads.starts(word) for word, _ in here)]
+
+
 class _Phrases:
     """A family of phrases, compiled: each part is (text, is_stem); a word can start
     a match only if it equals an exact first part or starts with a stem one."""
@@ -412,16 +602,27 @@ class _Phrases:
         self.exact = frozenset(ph[0][0] for ph in self.phrases if not ph[0][1])
         self.stems = tuple(ph[0][0] for ph in self.phrases if ph[0][1])
 
-    def at(self, words: list[str], i: int) -> int:
-        """The length of the first phrase matching at word `i`, else 0."""
-        word = words[i]
-        if word not in self.exact and not word.startswith(self.stems):
+    def at(self, view: _View, i: int) -> int:
+        """The number of words the first phrase matching at word `i` covers, else 0."""
+        here = view.cands[i]
+        for word, _ in here:
+            if word in self.exact or word.startswith(self.stems):
+                break
+        else:
             return 0
         for phrase in self.phrases:
-            if i + len(phrase) <= len(words) and all(
-                    words[i + k].startswith(part) if stem else words[i + k] == part
-                    for k, (part, stem) in enumerate(phrase)):
-                return len(phrase)
+            j = i
+            for part, stem in phrase:
+                if j >= len(view.words):
+                    break
+                for word, used in view.cands[j]:
+                    if word.startswith(part) if stem else word == part:
+                        j += used
+                        break
+                else:
+                    break
+            else:
+                return j - i
         return 0
 
 
@@ -430,27 +631,68 @@ def _compiled(phrases: tuple) -> _Phrases:
     return _Phrases(phrases)
 
 
-def _first(words: list[str], phrases) -> str | None:
+def _first(view: _View, phrases) -> str | None:
     family = _compiled(phrases)
-    for i in range(len(words)):
-        n = family.at(words, i)
+    for i in view.live:
+        n = family.at(view, i)
         if n:
-            return " ".join(words[i:i + n])
+            return " ".join(view.words[i:i + n])
     return None
 
 
-def _followed(words: list[str], heads, tails, reach: int) -> tuple[str, str] | None:
+def _followed(view: _View, heads, tails, reach: int) -> tuple[str, str] | None:
     """The first (head, tail) where a `tails` phrase starts among the `reach` words
     right after a `heads` phrase; None when there is none."""
     head_family, tail_family = _compiled(heads), _compiled(tails)
-    for i in range(len(words)):
-        n = head_family.at(words, i)
+    for i in view.live:
+        n = head_family.at(view, i)
         if not n:
             continue
-        for j in range(i + n, min(i + n + reach, len(words))):
-            m = tail_family.at(words, j)
+        for j in range(i + n, min(i + n + reach, len(view.words))):
+            m = tail_family.at(view, j)
             if m:
-                return " ".join(words[i:i + n]), " ".join(words[j:j + m])
+                return " ".join(view.words[i:i + n]), " ".join(view.words[j:j + m])
+    return None
+
+
+def _direct_object(view: _View, start: int, nouns: _Phrases) -> tuple[int, int] | None:
+    """(position, size) of a `nouns` phrase in the object that starts at word
+    `start` -- among its first `_OBJECT_REACH` words, before a preposition and the end
+    of the clause (punctuation, `_CLAUSE_ENDS`). "and" or a comma before a
+    determiner lists another object ("the light and the gate")."""
+    words, breaks, n = view.words, view.breaks, len(view.words)
+    j, seen, more = start, 0, _MORE_OBJECTS
+    while j < n and seen < _OBJECT_REACH:
+        word = words[j]
+        if breaks[j] == ".":
+            return None
+        if breaks[j] == ",":
+            if not (more and word in _DETERMINERS):
+                return None
+            seen, more = 0, more - 1
+        if word in _CLAUSE_ENDS:
+            if word == "and" and more and j + 1 < n and not breaks[j + 1] and words[j + 1] in _DETERMINERS:
+                j, seen, more = j + 1, 0, more - 1
+                continue
+            return None
+        if word in _PREPOSITIONS:
+            return None
+        size = nouns.at(view, j)
+        if size:
+            return j, size
+        j, seen = j + 1, seen + 1
+    return None
+
+
+def _verb_object(view: _View, verbs, nouns) -> tuple[str, str] | None:
+    """The first (verb, noun) where a `nouns` phrase is the direct object of a `verbs` phrase."""
+    verb_family, noun_family = _compiled(verbs), _compiled(nouns)
+    for i in view.live:
+        size = verb_family.at(view, i)
+        if size:
+            hit = _direct_object(view, i + size, noun_family)
+            if hit:
+                return " ".join(view.words[i:i + size]), " ".join(view.words[hit[0]:hit[0] + hit[1]])
     return None
 
 
@@ -484,8 +726,45 @@ def _spelled_out(words: list[str]) -> bool:
     return False
 
 
-def _measurement(text: str, numbers) -> str | None:
-    """'<number> <unit>' for a number followed by "%" or a `_NUMBER_UNITS` word."""
+def _is_number(word: str) -> bool:
+    return word.isdigit() or word in _NUMBER_WORDS
+
+
+def _adjacent(text: str, spans, first, second, gap: str = " -\u2013") -> str | None:
+    """'<a> <b>' for the first two neighbouring words with first(a) and second(b),
+    separated only by `gap` characters."""
+    for (a, _, end), (b, start, _) in itertools.pairwise(spans):
+        if first(a) and second(b) and set(text[end:start]) <= set(gap):
+            return f"{a} {b}"
+    return None
+
+
+def _score(words: list[str]) -> str | None:
+    """'out of <n>' or '<n> of <n>' ("five out of five", "4 of 5"): a verifier score."""
+    for a, b, c in zip(words, words[1:], words[2:]):
+        if b == "of" and _is_number(c) and (a == "out" or _is_number(a)):
+            return f"{a} of {c}"
+    return None
+
+
+def _role_marker(text: str, spans) -> str | None:
+    """'<role>:' -- a `_ROLE_WORDS` word followed by ':' or a dash, or by one word and ':'."""
+    for k, (word, _, end) in enumerate(spans):
+        if word not in _ROLE_WORDS:
+            continue
+        after = _next_char(text, end)
+        if after == ":" or (after and after in "\u2013\u2014") or (after == "-" and text[end] == " "):
+            return f"{word}:"
+        if k + 1 < len(spans):
+            nxt, start, nxt_end = spans[k + 1]
+            if not text[end:start].strip(" ") and _next_char(text, nxt_end) == ":":
+                return f"{word} {nxt}:"
+    return None
+
+
+def _measurement(text: str, numbers, spans) -> str | None:
+    """'<number> <unit>': a number followed by "%", a `_NUMBER_UNITS` word or (digits
+    or a number word) a `_TURNS` word."""
     for m in numbers:
         i = m.end()
         while i < len(text) and text[i] == " ":
@@ -495,111 +774,140 @@ def _measurement(text: str, numbers) -> str | None:
         unit = _LETTERS_RE.match(text, i)
         if unit and unit.group(0).lower() in _NUMBER_UNITS:
             return f"{m.group(0)} {unit.group(0)}"
-    return None
+    return _adjacent(text, spans, _is_number, _TURNS.__contains__)
 
 
-def _coordinate(text: str, tokens) -> str | None:
-    """'x 0.42': an axis letter followed by a number."""
-    for (word, _, end), (nxt, start, _) in itertools.pairwise(tokens):
-        if word in ("x", "y", "z") and nxt.isdigit() and set(text[end:start]) <= set(" :=+-"):
-            return f"{word} {nxt}"
-    return None
-
-
-def _tool_problem(text: str, tokens, skill: str) -> str | None:
-    words = [w for w, _, _ in tokens]
-    index = _tool_index()
-    for i, word in enumerate(words):
-        for seq, name in index.get(word, ()):
-            if tuple(words[i:i + len(seq)]) != seq:
-                continue
+def _identifier_problems(text: str, skill: str) -> list[tuple[str, str]]:
+    """Identifiers (unsplit `_IDENT_RE` runs, any case): every snake_case one is a
+    tool, read-only or the note's own skill and never a forbidden one; no identifier
+    or tool parameter is followed by ':' (arguments)."""
+    tools, parameters = _tool_names(), _parameter_names()
+    found: dict[str, str] = {}
+    for m in _IDENT_RE.finditer(text):
+        raw = m.group(0)
+        name = raw.lower()
+        if "_" in name:
             if name in FORBIDDEN_TOOLS:
-                return f"names {name}, which a note may never name"
-            if name != skill and name not in READ_ONLY_TOOLS:
-                return f"names {name}, which is neither read-only nor this note's skill"
-            if _next_char(text, tokens[i + len(seq) - 1][2]) == ":":
-                return f"gives {name} arguments (a note names a tool, never how to call it)"
-    return None
+                found.setdefault("tool", f"names {name}, which a note may never name")
+            elif name not in tools:
+                found.setdefault("identifier", f"{raw} is not a tool name")
+            elif name != skill and name not in READ_ONLY_TOOLS:
+                found.setdefault("tool", f"names {name}, which is neither read-only nor this note's skill")
+        if ("_" in name or name in parameters) and _next_char(text, m.end()) == ":":
+            found.setdefault("arguments", f"gives arguments ('{raw}:'; a note names a tool, never how to call it)")
+    return list(found.items())
 
 
-def _structure_problems(text: str, skill: str) -> list[str]:
-    tokens = _tokens(text)
-    words = [w for w, _, _ in tokens]
-    runs = [m.group(0) for m in _RUN_RE.finditer(text)]
+def _structure_problems(text: str, skill: str) -> list[tuple[str, str]]:
+    """(rule, reason) for every structural rule the field breaks, in rule order."""
+    spans = _tokens(text)
+    words = [w for w, _, _ in spans]
+    run_spans = [(m.group(0).lower(), m.start(), m.end()) for m in _RUN_RE.finditer(text)]
+    views = [_View(text, spans)]
+    if [w for w, _, _ in run_spans] != words:  # (b): only a camelCase or digit split differs
+        views.append(_View(text, run_spans))
     numbers = list(_NUMBER_RE.finditer(text))
-    found: list[str | None] = []
+    found: list[tuple[str, str | None]] = []
+
+    def phrase(family) -> str | None:
+        return next((hit for view in views if (hit := _first(view, family))), None)
+
+    def verb_object(verbs, nouns) -> tuple[str, str] | None:
+        return next((hit for view in views if (hit := _verb_object(view, verbs, nouns))), None)
+
+    def followed(heads, tails, reach) -> tuple[str, str] | None:
+        return next((hit for view in views if (hit := _followed(view, heads, tails, reach))), None)
+
     # code-like spellings
-    found.append("names a URL" if "://" in text else None)
-    ident = next((m.group(0) for m in _IDENT_RE.finditer(text)
-                  if "_" in m.group(0) and m.group(0).lower() not in _tool_names()), None)
-    found.append(f"{ident} is not a tool name" if ident is not None else None)
-    mixed = next((r for r in runs if not r.isalpha() and not r.isdigit() and not _ORDINAL_RE.fullmatch(r.lower())),
-                 None)
-    found.append(f"mixes letters and digits in '{mixed}'" if mixed else None)
+    found.append(("url", "names a URL" if "://" in text else None))
+    mixed = _mixed_case(text)
+    found.append(("mixed_case", f"mixes upper and lower case in '{mixed}'" if mixed else None))
+    identifiers = dict(_identifier_problems(text, skill))
+    found.append(("identifier", identifiers.get("identifier")))
+    mixed_run = next((r for r, _, _ in run_spans
+                      if not r.isalpha() and not r.isdigit() and not _ORDINAL_RE.fullmatch(r)), None)
+    found.append(("letter_digit", f"mixes letters and digits in '{mixed_run}'" if mixed_run else None))
     dotted = _dotted_name(text)
-    found.append(f"carries the dotted name '{dotted}'" if dotted else None)
-    found.append("spells a word out letter by letter" if _spelled_out(words) else None)
-    role = next((w for w, _, end in tokens if w in _ROLE_WORDS and _next_char(text, end) == ":"), None)
-    found.append(f"carries the role marker '{role}:'" if role else None)
+    found.append(("dotted_name", f"carries the dotted name '{dotted}'" if dotted else None))
+    found.append(("spelled_out", "spells a word out letter by letter" if _spelled_out(words) else None))
+    role = _role_marker(text, spans)
+    found.append(("role_marker", f"carries the role marker '{role}'" if role else None))
+    template = phrase(_TEMPLATE)
+    found.append(("role_marker", f"carries the chat-template marker '{template}'" if template else None))
     # look-alikes of the provenance tag
-    found.append("names the verifier" if any(w.startswith("verifier") for w in words) else None)
-    learned = _first(words, _LEARNED)
-    found.append(f"claims where it was learned ('{learned}')" if learned else None)
-    lib = next((runs[k + 1] for k in range(len(runs) - 1)
-                if runs[k].lower() == "lib" and _HEX_RE.fullmatch(runs[k + 1].lower())), None)
-    found.append(f"imitates a library hash ('lib {lib}')" if lib else None)
+    tag = phrase(_PROVENANCE)
+    found.append(("provenance", f"imitates the provenance tag ('{tag}')" if tag else None))
+    learned = phrase(_LEARNED)
+    found.append(("provenance", f"claims where it was learned ('{learned}')" if learned else None))
+    lib = next((run_spans[k + 1][0] for k in range(len(run_spans) - 1)
+                if run_spans[k][0] == "lib" and _HEX_RE.fullmatch(run_spans[k + 1][0])), None)
+    found.append(("provenance", f"imitates a library hash ('lib {lib}')" if lib else None))
+    hexed = next((r for r, _, _ in run_spans if len(r) >= _HEX_MIN_CHARS and _HEX_RE.fullmatch(r)), None)
+    found.append(("provenance", f"carries the hex token '{hexed}' (a hash)" if hexed else None))
+    score = _score(words)
+    found.append(("provenance", f"claims a score ('{score}')" if score else None))
     # numbers and measurements
-    found.append(f"carries {len(numbers)} numbers (at most one)" if len(numbers) > 1 else None)
-    measured = _measurement(text, numbers)
-    found.append(f"carries the measurement '{measured}'" if measured else None)
-    unit = _first(words, _UNITS)
-    found.append(f"names the unit '{unit}'" if unit else None)
-    coordinate = _coordinate(text, tokens)
-    found.append(f"carries the coordinate '{coordinate}'" if coordinate else None)
-    # tools: read-only ones and the note's own skill, by name, without arguments
-    found.append(_tool_problem(text, tokens, skill))
+    counted = len(numbers) + sum(1 for w in words if w in _NUMBER_WORDS and w != "one")
+    spelled = _adjacent(text, spans, _NUMBER_WORDS.__contains__, _NUMBER_WORDS.__contains__)
+    found.append(("numbers", f"carries {counted} numbers (at most one)" if counted > 1
+                  else f"spells out the number '{spelled}'" if spelled else None))
+    measured = _measurement(text, numbers, spans)
+    found.append(("measurement", f"carries the measurement '{measured}'" if measured else None))
+    unit = phrase(_UNITS)
+    found.append(("unit", f"names the unit '{unit}'" if unit else None))
+    coordinate = _adjacent(text, spans, ("x", "y", "z").__contains__, _is_number, " :=+-")
+    found.append(("coordinate", f"carries the coordinate '{coordinate}'" if coordinate else None))
+    # tools: read-only ones and the note's own skill, as identifiers, without arguments
+    found.append(("tool", identifiers.get("tool")))
+    found.append(("arguments", identifiers.get("arguments")))
     # advice a note may never give
-    reset = _first(words, _RESET)
-    found.append(f"advises a reset ('{reset}')" if reset else None)
-    stop = _first(words, _STOPS)
-    found.append(f"advises a stop ('{stop}')" if stop else None)
-    negated = _followed(words, _NEGATORS, _HALTS, _NEGATION_REACH)
-    found.append(f"tells the agent not to stop ('{negated[0]} {negated[1]}')" if negated else None)
-    loop = _first(words, _LOOPS)
-    found.append(f"advises an unbounded retry ('{loop}')" if loop else None)
-    override = _first(words, _OVERRIDES)
-    found.append(f"advises an override ('{override}')" if override else None)
-    weakened = _followed(words, _WEAKEN, _GUARDS, _WEAKEN_REACH)
-    found.append(f"'{weakened[0]}' near '{weakened[1]}'" if weakened else None)
-    claim = (_followed(words, _CLAIM_AS, _SUCCESS, _TREAT_REACH)
-             or _followed(words, _CLAIM_SAY, _SUCCESS, _SAY_REACH))
-    found.append(f"claims success ('{claim[0]}' ... '{claim[1]}')" if claim else None)
-    return [problem for problem in found if problem]
+    reset = phrase(_RESET)
+    if not reset and (scene := verb_object(_RESET_VERBS, _SCENE)):
+        reset = f"{scene[0]} ... {scene[1]}"
+    found.append(("reset", f"advises a reset ('{reset}')" if reset else None))
+    stop = phrase(_STOPS)
+    found.append(("stop", f"advises a stop ('{stop}')" if stop else None))
+    negated = followed(_NEGATORS, _HALTS, _NEGATION_REACH)
+    found.append(("negated_stop", f"tells the agent not to stop ('{negated[0]} {negated[1]}')" if negated else None))
+    loop = phrase(_LOOPS)
+    found.append(("loop", f"advises an unbounded retry ('{loop}')" if loop else None))
+    override = phrase(_OVERRIDES)
+    found.append(("override", f"advises an override ('{override}')" if override else None))
+    weakened = verb_object(_WEAKEN, _GUARDS)
+    found.append(("weaken", f"'{weakened[0]}' near '{weakened[1]}'" if weakened else None))
+    claim = followed(_CLAIM_AS, _SUCCESS, _TREAT_REACH) or followed(_CLAIM_SAY, _SUCCESS, _SAY_REACH)
+    found.append(("success_claim", f"claims success ('{claim[0]}' ... '{claim[1]}')" if claim else None))
+    return [(rule, reason) for rule, reason in found if reason]
 
 
-def _lint_text(field: str, text: str, max_chars: int, skill: str) -> list[str]:
+def _lint_field(field: str, text: str, max_chars: int, skill: str) -> list[tuple[str, str]]:
+    """(rule, "<field>: <reason>") for every rule `text` breaks ([] = clean)."""
     if not isinstance(text, str):
-        return [f"{field}: empty"]
+        return [("empty", f"{field}: empty")]
     if len(text) > max_chars:  # before any pattern: an oversized field costs nothing
-        return [f"{field}: {len(text)} chars (max {max_chars})"]
+        return [("length", f"{field}: {len(text)} chars (max {max_chars})")]
     if not text.strip():
-        return [f"{field}: empty"]
+        return [("empty", f"{field}: empty")]
     character = _character_problem(text)
     if character:
-        return [f"{field}: {character}"]
-    return [f"{field}: {problem}" for problem in _structure_problems(text, skill)]
+        return [("character", f"{field}: {character}")]
+    return [(rule, f"{field}: {reason}") for rule, reason in _structure_problems(text, skill)]
+
+
+def _note_problems(note: Note) -> list[tuple[str, str]]:
+    return (_lint_field("title", note.title, TITLE_MAX_CHARS, note.skill)
+            + _lint_field("advice", note.advice, ADVICE_MAX_CHARS, note.skill))
 
 
 def lint_advice(text: str, *, skill: str = "") -> list[str]:
     """Why `text` may not be served as advice ([] = clean). `skill` is the note's
     own skill, the only tool outside `READ_ONLY_TOOLS` the text may name."""
-    return _lint_text("advice", text, ADVICE_MAX_CHARS, skill)
+    return [reason for _, reason in _lint_field("advice", text, ADVICE_MAX_CHARS, skill)]
 
 
 def lint_note(note: Note) -> list[str]:
     """`lint_advice` over every field a note renders: its title and its advice."""
-    return (_lint_text("title", note.title, TITLE_MAX_CHARS, note.skill)
-            + _lint_text("advice", note.advice, ADVICE_MAX_CHARS, note.skill))
+    return [reason for _, reason in _note_problems(note)]
 
 
 # ── provenance tag ────────────────────────────────────────────────────────
@@ -608,20 +916,25 @@ def lint_note(note: Note) -> list[str]:
 def _verified(verifier) -> tuple[int, int] | None:
     """(passes, seeds) of a verifier PASS, else None. A pass is the verdict
     "verified" on the Newton engine (`VERIFIER_ENGINE`, the owner's rule for every
-    sim run) with a non-empty list of distinct integer seeds and
-    `VERIFIER_MIN_PASSES` <= passes <= seeds (DECISIONS Q6). Anything else -- a
-    missing or other engine, bool/float/None seeds, too few or too many passes --
-    fails closed."""
+    sim run) over exactly `VERIFIER_SEEDS` distinct integer seeds with
+    `VERIFIER_MIN_PASSES` <= passes <= seeds, an integer `attempts` from 1 to
+    `VERIFIER_MAX_ATTEMPTS` and no `gaps` (absent or []) -- DECISIONS Q6. Anything
+    else -- a missing or other engine, bool/float/None values, another seed count,
+    too few or too many passes, more attempts, a gap -- fails closed."""
     if not isinstance(verifier, dict):
         return None
     if verifier.get("verdict") != "verified" or verifier.get("engine") != VERIFIER_ENGINE:
         return None
-    passes, seeds = verifier.get("passes"), verifier.get("seeds")
-    if type(passes) is not int or not isinstance(seeds, list) or not seeds:
+    passes, seeds, attempts = verifier.get("passes"), verifier.get("seeds"), verifier.get("attempts")
+    if type(passes) is not int or not isinstance(seeds, list) or len(seeds) != VERIFIER_SEEDS:
         return None
     if any(type(seed) is not int for seed in seeds) or len(set(seeds)) != len(seeds):
         return None
     if not VERIFIER_MIN_PASSES <= passes <= len(seeds):
+        return None
+    if type(attempts) is not int or not 1 <= attempts <= VERIFIER_MAX_ATTEMPTS:
+        return None
+    if verifier.get("gaps", []) != []:
         return None
     return passes, len(seeds)
 
@@ -644,11 +957,11 @@ def note_tag(note: Note, sha: str) -> str:
 
 
 def _serves(note: Note, profile_class: str, min_tasks: int) -> bool:
-    """Every class: never refuted or retired, lint clean. Harvested advice (any
-    kind but "authored") only once promoted: `min_tasks` distinct tasks AND a
-    verifier pass, on every class. An authored note follows the task counters on
-    "sim"; "real" needs the verifier pass."""
-    if note.status in _NEVER_SERVED or _refuted(note.verifier) or lint_note(note):
+    """For a lint-clean note, on every class: never refuted or retired. Harvested
+    advice (any kind but "authored") only once promoted: `min_tasks` distinct tasks
+    AND a verifier pass, on every class. An authored note follows the task counters
+    on "sim"; "real" needs the verifier pass."""
+    if note.status in _NEVER_SERVED or _refuted(note.verifier):
         return False
     promoted = note.n_tasks >= min_tasks
     passed = _verified(note.verifier) is not None
@@ -676,14 +989,17 @@ def _words(text: str) -> set[str]:
 
 @dataclass(frozen=True)
 class LibrarySnapshot:
-    """The library as read once at build: every parsed note and, in rank order,
-    the ones this profile class serves."""
+    """The library as read once at build: every parsed note, in rank order the ones
+    this profile class serves, and `skipped`: {"id", "reason"} for every `*.md`
+    entry that is no lint-clean note (the lint rule's name, or file_name, symlink,
+    not_a_file, unreadable, parse), by file name -- a skipped note is never silent."""
 
     root: Path | None
     sha: str
     profile_class: str
     notes: tuple[Note, ...]
     served: tuple[Note, ...]
+    skipped: tuple[dict, ...] = ()
 
     def _block(self) -> tuple[str, tuple[str, ...]]:
         """(block text, ids of the notes it renders)."""
@@ -746,21 +1062,45 @@ class LibrarySnapshot:
                 "block_notes": list(self._block()[1])}
 
 
+def _printable_id(name: str) -> str:
+    """A file name's stem as printable ASCII (escapes for anything else)."""
+    return ascii(name.removesuffix(".md"))[1:-1]
+
+
 def load_snapshot(root: Path | None, profile_class: str, *, min_tasks: int = 2) -> LibrarySnapshot:
     """Read the library at `root` once, read-only (a missing directory is an empty
     library, never created). Every class serves only lint-clean notes and never a
     refuted or retired one. Harvested notes need `min_tasks` distinct tasks AND a
     verifier pass on every class; authored notes need the task count on "sim" and
     the verifier pass on any other class ("real"). A `min_tasks` that is not an
-    integer >= 1 (a missing or broken `memory.skill_min_tasks`) serves nothing."""
+    integer >= 1 (a missing or broken `memory.skill_min_tasks`) serves nothing.
+    Every `*.md` entry that is no lint-clean note is listed in `skipped` and logged
+    (one warning line each) with its reason."""
     root = None if root is None else Path(root).expanduser()
-    files = _library_files(root)
-    notes = tuple(note for name, data in files if (note := _parse_bytes(name[: -len(".md")], data)) is not None)
+    entries = _scan(root)
+    notes, clean, skipped = [], [], []
+    for name, data, why in entries:
+        detail = ""
+        if data is not None:
+            note = _parse_bytes(name[: -len(".md")], data)
+            if note is None:
+                why = "parse"
+            else:
+                notes.append(note)
+                problems = _note_problems(note)
+                if not problems:
+                    clean.append(note)
+                    continue
+                why, detail = problems[0]
+        entry = {"id": _printable_id(name), "reason": why}
+        skipped.append(entry)
+        log.warning("ASPIRE notes: skipped %s (%s)%s", entry["id"], why, f": {detail}" if detail else "")
     klass = "sim" if profile_class == "sim" else "real"
     if type(min_tasks) is int and min_tasks >= 1:
-        served = tuple(sorted((n for n in notes if _serves(n, klass, min_tasks)), key=_rank))
+        served = tuple(sorted((n for n in clean if _serves(n, klass, min_tasks)), key=_rank))
     else:
         log.warning("ASPIRE notes: min_tasks %r is not an integer >= 1 (memory.skill_min_tasks); "
                     "serving no note", min_tasks)
         served = ()
-    return LibrarySnapshot(root=root, sha=_sha_of(files), profile_class=klass, notes=notes, served=served)
+    return LibrarySnapshot(root=root, sha=_sha_of(entries), profile_class=klass, notes=tuple(notes),
+                           served=served, skipped=tuple(skipped))

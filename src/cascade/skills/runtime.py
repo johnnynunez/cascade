@@ -431,7 +431,7 @@ def _perception_stop(exc: BaseException, attempt: int) -> str | None:
     elif isinstance(exc, SlowPerceptionError):
         what = "localization analysis expired"
     elif isinstance(exc, ReanchorError) and attempt >= 2:
-        what = "the object could not be re-anchored on a fresh image, again after a re-scan"
+        what = "the object could not be re-anchored on a fresh image after re-homing"
     else:
         return None
     return f"{what}; no automatic motion recovery"
@@ -2818,6 +2818,12 @@ class SkillRuntime:
                 raise _ReanchorFailed(f"{type(exc).__name__}: {exc}") from exc
             finally:
                 timing["reference_s"] = round(time.monotonic() - started, 3)
+            # Evidence only (follow-ups M5): how the naming mask sits against
+            # the brain's box, for the rig data that decides a finer rule.
+            overhang = getattr(reference, "naming_overhang", None)
+            if overhang is not None:
+                timing["naming_overhang"] = [_rounded(v, 3) for v in overhang]
+                timing["naming_foreign_share"] = _rounded(getattr(reference, "naming_foreign_share", math.nan), 3)
             if reference.detection is None or reference.detection.mask is None:
                 raise _ReanchorFailed(reference.reason or "SAM returned no mask on the image the object was named on")
             return reference
@@ -6358,6 +6364,11 @@ class SkillRuntime:
                 except (SkillError, SafetyViolation):
                     pass
             return rec
+        if self.effects is not None:
+            # The place's own jaw width, holding state and actuation counts
+            # (place_at's release rule), taken now: the grasp-time snapshot
+            # above predates the close (nothing held, no width).
+            before = {**before, **self.effects.snapshot(None, "place_at")}
         try:
             place = self.skill_place_at(x, y)
         except (SkillError, SafetyViolation) as e:

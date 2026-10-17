@@ -145,7 +145,7 @@ class _Scene:
 
     def __init__(self, camera: MockCamera):
         self.state = dict(box=HOME_BOX, depth_shift=0.0, patch=None, colour=None, K=None, T=None, capture=None,
-                          dest=None, neighbour=None, lift=0.0, window=None, gain=None)
+                          dest=None, neighbour=None, lift=0.0, window=None, gain=None, white=None)
         camera._render = self._render  # instance attribute: MockCamera._grab calls self._render()
 
     def set(self, **changes) -> None:
@@ -157,6 +157,7 @@ class _Scene:
     def _render(self):
         s = self.state
         frame = synthetic_tabletop(box_px=s["box"])
+        cube = np.all(frame.rgb == RED, axis=-1) if s["white"] is not None else None
         if s["colour"] is not None:
             frame.rgb[np.all(frame.rgb == RED, axis=-1)] = s["colour"]
         if s["patch"] is not None:
@@ -178,6 +179,9 @@ class _Scene:
         if s["gain"] is not None:  # an exposure / white-balance step: every pixel, per B, G, R channel
             gain = np.broadcast_to(np.asarray(s["gain"], dtype=np.float64), (3,))
             frame.rgb = np.clip(frame.rgb * gain, 0, 255).round().astype(np.uint8)
+        if cube is not None:  # a white cube of TRUE brightness `white` (past 255: the sensor clips it), after the gain
+            gain = np.broadcast_to(np.asarray(1.0 if s["gain"] is None else s["gain"], dtype=np.float64), (3,))
+            frame.rgb[cube] = np.clip(float(s["white"]) * gain, 0, 255).round().astype(np.uint8)
         if s["depth_shift"]:
             frame.depth_m = frame.depth_m + np.float32(s["depth_shift"])
         if s["K"] is not None:
@@ -1819,6 +1823,25 @@ def test_a_brightness_change_past_the_gain_range_is_a_scene_change(gain, accepte
         assert "brightness" in found.reason and "0.7" in found.reason and "1.4" in found.reason, found.reason
 
 
+@pytest.mark.parametrize(("gain", "accepted"), [(0.6996, True), (0.6994, False), (1.4004, True), (1.4006, False)])
+def test_the_gain_range_edge_is_judged_and_printed_to_three_decimals(monkeypatch, gain, accepted):
+    """Fix round 1 (minor 5): the gain is a median of 8-bit ratios, so the
+    range's edges get 0.0005 of slack, and a refusal prints the gain to 3
+    decimals: a refused 0.6994 reads x0.699, never 'x0.70 outside 0.7-1.4'
+    (bd5e80f refused 0.6996 printed so)."""
+    from cascade.perception import brain_detector as bd
+
+    first = 0.5 if gain > 1.0 else 1.0
+    a, b = _scaled(synthetic_tabletop(), first), _scaled(synthetic_tabletop(), first * gain)
+    monkeypatch.setattr(bd, "_exposure_gain", lambda *_: (gain,) * 3)
+    found = BrainDetector(base_url="http://b/v1", model="m", segmenter=_ObjectSam()).reanchor(b, _named(a), since=a)
+    if accepted:
+        assert found.detection is not None and found.scene_diff_local <= 2.0, found
+    else:
+        assert (found.detection, found.scene_changed) == (None, True), found
+        assert f"x{gain:.3f}/{gain:.3f}/{gain:.3f} outside 0.7-1.4" in found.reason, found.reason
+
+
 def test_the_gain_is_measured_outside_the_box_on_unsaturated_pixels():
     """The gain estimate: B, G, R medians of frame1/frame0 over the pixels
     outside the local check's box. A bright window that stays saturated
@@ -1878,6 +1901,119 @@ def test_a_saturated_object_stays_unchanged_under_a_gain_step():
     assert _local_diff(a, b, HOME_BOX) > 5.0, "uncorrected: the step itself"
 
 
+# -- follow-ups fix round 1: a white object the camera clips at 255 ---------------
+#
+# A frame0 pixel at the sensor's ceiling is a LOWER bound of its true value:
+# under a darkening step x g its frame1 value is anything from min(255 g, 255)
+# up. The two-sided |min(a g, 255) - b| / g read a still white object as
+# changed (x0.85: 21-39 > 8, where bd5e80f's uncorrected diff read 3.5-18):
+# a retry each, permanent under AE hunting.
+
+#: True brightness of the white cube: 280 clips on frame0 only once the view
+#: darkens; 360 clips on both frames down to x0.71.
+WHITES = {"clipped on frame0": 280, "clipped on both": 360}
+
+
+def _white(query, bgr):
+    """The white cube under any gain step: low-chroma pixels well above the
+    view's median grey (the table)."""
+    v = bgr.astype(int)
+    return (v.max(axis=-1) - v.min(axis=-1) < 30) & (v.min(axis=-1) > np.median(v[..., 1]) + 20)
+
+
+def _sam_of(region):
+    """A box-prompted SAM fake masking `region`'s pixels inside each prompt box."""
+    def answer(frame, boxes):
+        obj = region("", frame.rgb)
+        h, w = obj.shape
+        out = []
+        for x0, y0, x1, y1 in boxes:
+            m = np.zeros((h, w), dtype=bool)
+            xa, ya = max(int(np.floor(x0)), 0), max(int(np.floor(y0)), 0)
+            xb, yb = min(int(np.ceil(x1)), w), min(int(np.ceil(y1)), h)
+            m[ya:yb, xa:xb] = obj[ya:yb, xa:xb]
+            out.append(m if m.any() else None)
+        return out
+    return answer
+
+
+def _white_cube(t, true):
+    t.brain.region = _white
+    t.sam.default = _sam_of(_white)
+    _show(t, white=true)
+
+
+@pytest.mark.parametrize("true", list(WHITES.values()), ids=list(WHITES))
+@pytest.mark.parametrize("gain", [0.95, 0.85, 0.75])
+def test_a_still_white_object_the_camera_clips_is_accepted_under_a_darkening_step(tp, gain, true):
+    """A white cube brighter than the sensor (255 on frame0) stays still
+    while the view darkens by 5-25 %: frame1 reads at least what its true
+    value gives under the gain, so the local check reads no change and it is
+    accepted at once, measured where it is."""
+    _white_cube(tp, true)
+    _moves_once(tp, gain=gain)
+    result = tp.rt.execute("localize_object", {"label": "white cube"})
+    assert result["ok"], result.get("error")
+    timing = result["perception_timing"]
+    assert tp.brain.refers == 1, timing
+    assert timing["scene_gain"] == pytest.approx([gain] * 3, abs=0.01), timing
+    assert timing["scene_diff_local"] <= 1.0, timing
+    assert np.linalg.norm(np.asarray(result["position"])[:2] - _cube_xy(tp, HOME_BOX)) < 0.003
+
+
+@pytest.mark.parametrize("px", [3, 6, 12])
+@pytest.mark.parametrize("gain", [0.95, 0.85])
+def test_a_white_object_the_camera_clips_sliding_under_a_darkening_step_is_measured_where_it_is(tp, gain, px):
+    """What the one-sided comparison must still see: the clipped white cube
+    slides 3-12 px (0.3-1.1 cm) while the view darkens. Both strips count:
+    the one it left (255 on frame0, table on frame1: under the prediction)
+    and the one it entered. 12 px reads ~12, past 8: a scene change caught
+    by the colour check itself (dropping clipped pixels from the diff
+    leaves only the entered strip and the masks). 3 px reads ~4.5, under 8:
+    re-anchored at once on SAM's fresh mask; 6 px reads ~8, either side.
+    Every outcome measures the cube where it is now."""
+    _white_cube(tp, WHITES["clipped on frame0"])
+    new = _slid(px)
+    _moves_once(tp, box=new, gain=gain)
+    result = tp.rt.execute("localize_object", {"label": "white cube"})
+    assert result["ok"], result.get("error")
+    first = _first_timing(tp)
+    assert first["scene_diff_local"] >= 4.0, first
+    if px == 3:
+        assert tp.brain.refers == 1, first
+    if px == 12:
+        assert tp.brain.refers == 2, first
+        assert "colour difference" in first.get("scene_changed", ""), first
+    assert np.linalg.norm(np.asarray(result["position"])[:2] - _cube_xy(tp, new)) < 0.003, "where it is NOW"
+
+
+def test_a_clipped_pixel_is_a_lower_bound_of_its_true_value():
+    """`_local_diff` itself: on a frame0 pixel at the ceiling, a frame1 value
+    at or above the gain's prediction is no change, one under it differs by
+    the shortfall; every unclipped pixel is compared both ways."""
+    from cascade.perception.brain_detector import _local_diff
+
+    def white(true, gain, box=HOME_BOX):
+        f = synthetic_tabletop(box_px=box)
+        cube = np.all(f.rgb == RED, axis=-1)
+        f = _scaled(f, gain)
+        f.rgb[cube] = min(round(true * gain), 255)
+        return f
+
+    for gain in (0.95, 0.85, 0.75):
+        g = (gain,) * 3
+        for true in WHITES.values():
+            assert _local_diff(white(true, 1.0), white(true, gain), HOME_BOX, g) < 0.5, (true, gain)
+        # Darker than the prediction: a grey cube took the white one's place.
+        grey = white(190, gain)
+        assert _local_diff(white(360, 1.0), grey, HOME_BOX, g) > 20.0, gain
+        # A 12 px slide: the strip left behind (255 -> table) counts too.
+        assert _local_diff(white(280, 1.0), white(280, gain, _slid(12)), HOME_BOX, g) > 9.0, gain
+    # Brightening is unchanged: a clipped pixel still reads 0, a slide both strips.
+    assert _local_diff(white(280, 1.0), white(280, 1.15), HOME_BOX, (1.15,) * 3) < 0.5
+    assert _local_diff(white(280, 1.0), white(280, 1.15, _slid(12)), HOME_BOX, (1.15,) * 3) > 4.5
+
+
 # -- follow-up M5: a naming mask that took in a neighbour is never re-anchored ---
 
 
@@ -1892,12 +2028,123 @@ def test_a_naming_mask_far_past_the_brains_box_is_a_failed_re_anchor(tp):
     tp.brain.region = _red_only
     tp.sam.default = _whole_objects
     n0 = _commands(tp)
-    with pytest.raises(tp.mod.ReanchorError, match="mask for the brain's box") as err:
+    with pytest.raises(tp.mod.ReanchorError, match="SAM's mask and the brain's box disagree") as err:
         tp.rt.skill_grasp_object("red cube")
-    assert "IoU 0.4" in str(err.value), err.value
+    assert "box IoU 0.4" in str(err.value), err.value
+    assert "took in more" not in str(err.value), "neutral: the mask can be larger, smaller or offset"
     assert _commands(tp) == n0
     assert tp.brain.refers == 2, "one retry with a fresh refer"
     assert len(tp.sam.calls) == 2, "the naming masks only: no re-mask, no fresh frame"
+
+
+def _partial_naming(t, frac):
+    """SAM masks only the left `frac` of the object for the brain's own box
+    (the naming call: the first SAM call after each refer) and the whole
+    object for the grown prompts (the re-mask and the fresh frame)."""
+    seen = {"refers": 0}
+
+    def answer(frame, boxes):
+        whole = _ObjectSam.masks(_ObjectSam(), frame, boxes)
+        if t.brain.refers == seen["refers"] or whole[0] is None:
+            return whole
+        seen["refers"] = t.brain.refers
+        m = whole[0].copy()
+        xs = np.flatnonzero(m.any(0))
+        m[:, xs[0] + int(round(frac * xs.size)):] = False
+        return [m]
+    return answer
+
+
+@pytest.mark.parametrize("frac", [0.30, 0.45])
+@pytest.mark.parametrize("size", ["80x60", "24x18"])
+def test_a_naming_mask_on_part_of_the_object_is_a_failed_re_anchor(tp, size, frac):
+    """What M5 alone catches (fix round 1 pin; never drop it as redundant
+    with the re-mask's box check): SAM masks only the left 30-45 % of the
+    object for the brain's box, the whole object for the grown prompts. The
+    re-mask covers that naming mask and agrees with frame1's, and the
+    geometry, clipped to the naming mask, measures the part: bd5e80f accepted
+    it 0.6-2.6 cm off (main's single-frame fix is off alike). Its box
+    overlaps the brain's by IoU <= 0.46 < 0.5: refused before any re-mask,
+    one fresh refer, then ReanchorError; the arm never moves."""
+    _show(tp, box=SIZES[size])
+    tp.sam.default = _partial_naming(tp, frac)
+    n0 = _commands(tp)
+    with pytest.raises(tp.mod.ReanchorError, match="SAM's mask and the brain's box disagree") as err:
+        tp.rt.skill_grasp_object("red cube")
+    assert _commands(tp) == n0, err.value
+    assert tp.brain.refers == 2, "one retry with a fresh refer"
+    assert len(tp.sam.calls) == 2, "the naming masks only: no re-mask, no fresh frame"
+
+
+def test_the_naming_mask_overhang_and_foreign_colour_are_evidence_only():
+    """Fix round 1 (M5 c): `reanchor_reference` reports, refused or not, how
+    far the naming mask's box passes each side of the brain's box (left, top,
+    right, bottom; a fraction of the box's width / height, negative when it
+    stops short) and the share of its pixels outside the brain's box whose
+    colour is foreign to the object (more than 40 levels off, in a B/G/R
+    channel, the median of its pixels inside the box). Logged for the rig
+    data that will decide a refusal rule; no new refusal."""
+    from cascade.types import Detection
+
+    a = synthetic_tabletop()  # the cube with its 1 px skirt: columns 279-360, rows 199-260 (82x62)
+    obj = _object_mask(a.rgb)
+    detector = BrainDetector(base_url="http://b/v1", model="m", segmenter=_ObjectSam())
+
+    def reference(frame, box, mask):
+        return detector.reanchor_reference(frame, Detection("red cube", 1.0, np.array(box, np.float32), mask=mask))
+
+    # A whole-object naming mask around a brain box 8 px tight: past every side, the object's colour only.
+    ref = reference(a, (287, 207, 353, 253), obj)
+    assert ref.detection is not None, ref.reason
+    assert ref.naming_overhang == pytest.approx((8 / 66, 8 / 46, 8 / 66, 8 / 46), abs=1e-6)
+    assert ref.naming_foreign_share == 0.0
+    # A 120x6 px green bar merged on the right: M5 refuses it (box IoU 0.41), the evidence stays.
+    b = synthetic_tabletop()
+    b.rgb[227:233, 361:481] = GREEN
+    ref = reference(b, (279, 199, 361, 261), obj | np.all(b.rgb == GREEN, axis=-1))
+    assert ref.detection is None and "disagree" in ref.reason, ref
+    assert ref.naming_overhang == pytest.approx((0.0, 0.0, 120 / 82, 0.0), abs=1e-6)
+    assert ref.naming_foreign_share == pytest.approx(720 / (obj.sum() + 720), abs=1e-6)
+    # A neighbour larger than the object merged on the right: the object's
+    # colour is the median INSIDE the brain's box, never the mask's majority.
+    big = synthetic_tabletop()
+    big.rgb[199:261, 361:461] = GREEN
+    ref = reference(big, (279, 199, 361, 261), obj | np.all(big.rgb == GREEN, axis=-1))
+    assert ref.naming_foreign_share == pytest.approx(6200 / (obj.sum() + 6200), abs=1e-6), ref
+    # A two-tone object: the part outside a tight box in its other colour reads foreign too
+    # (the rule the rig data must price), and the part inside a box never does.
+    c = synthetic_tabletop()
+    c.rgb[199:261, 341:361] = GREEN
+    green_part = obj & np.all(c.rgb == GREEN, axis=-1)
+    ref = reference(c, (279, 199, 341, 261), obj)
+    assert ref.naming_overhang == pytest.approx((0.0, 0.0, 20 / 62, 0.0), abs=1e-6)
+    assert ref.naming_foreign_share == pytest.approx(green_part.sum() / obj.sum(), abs=1e-6)
+    ref = reference(c, (279, 199, 361, 261), obj)
+    assert ref.naming_overhang == pytest.approx((0.0,) * 4, abs=1e-6) and ref.naming_foreign_share == 0.0
+    # The left 45 % only (the partial naming mask): short of the right side by ~55 %.
+    part = obj.copy()
+    part[:, 279 + 37:] = False
+    ref = reference(a, (279, 199, 361, 261), part)
+    assert ref.detection is None and "disagree" in ref.reason, ref
+    assert ref.naming_overhang == pytest.approx((0.0, 0.0, -45 / 82, 0.0), abs=1e-6)
+    assert ref.naming_foreign_share == 0.0
+
+
+def test_perception_timing_logs_the_naming_mask_evidence(tp):
+    """The runtime copies that evidence into perception_timing (an accepted
+    pick and a refused one alike), never refusing on it."""
+    result = tp.rt.execute("localize_object", {"label": "red cube"})
+    assert result["ok"], result.get("error")
+    timing = result["perception_timing"]
+    assert len(timing["naming_overhang"]) == 4 and max(map(abs, timing["naming_overhang"])) <= 0.05, timing
+    assert timing["naming_foreign_share"] == 0.0, timing
+
+    tp.sam.default = _partial_naming(tp, 0.45)
+    result = tp.rt.execute("localize_object", {"label": "red cube"})
+    assert result["ok"] is False and "disagree" in result["error"], result
+    timing = result["perception_timing"]
+    assert timing["naming_overhang"][2] == pytest.approx(-0.55, abs=0.05), timing
+    assert timing["naming_foreign_share"] == 0.0, timing
 
 
 @pytest.mark.parametrize("k", [1, 3, 8])
@@ -1913,7 +2160,7 @@ def test_a_whole_object_naming_mask_around_a_tight_box_is_still_re_anchored(tp, 
 
 
 # -- follow-ups M1 + M3: the retry loops name the refusal; a re-anchor that fails
-# -- again after a re-scan ends the loop -----------------------------------------
+# -- again after re-homing ends the loop -----------------------------------------
 
 
 def _never_reanchors(t):
@@ -1937,7 +2184,8 @@ def _keeps_moving(t):
 PERCEPTION_STOPS = {
     "slow perception": (_slow_names, 1, "localization analysis expired", ("scene changed", "re-anchor")),
     "scene changed": (_keeps_moving, 1, "the scene changed", ("expired", "re-anchor")),
-    "re-anchor failed": (_never_reanchors, 2, "could not be re-anchored", ("expired", "scene changed")),
+    "re-anchor failed": (_never_reanchors, 2, "could not be re-anchored on a fresh image after re-homing",
+                         ("expired", "scene changed", "re-scan")),
 }
 
 

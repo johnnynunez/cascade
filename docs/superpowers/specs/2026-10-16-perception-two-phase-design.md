@@ -224,9 +224,14 @@ B1. Two-phase localization (`runtime.py` `_localize.analyze`, `2258-2274`; same 
    frame0, its own 5 s pre-check); `started1 = monotonic()`.
 4. Scene-unchanged checks frame0 -> frame1, all required:
    - same camera identity and K; for frames with `T_base_cam` (eye-in-hand) translation <= 2 mm and rotation <= 0.5 deg;
-   - global: `_scene_diff(_thumbnail(frame0), _thumbnail(frame1)) <= detector scene_change` (6.0);
-   - local: mean absolute grey difference inside `fix0`'s box grown by 10 % (frame0 vs frame1) <= `reanchor_local_diff`
-     (new detector key, default 8.0; tune on recorded rec1/ frames: static sim 0.06-0.08 global).
+   - global: `_scene_diff(_thumbnail(frame0), _thumbnail(frame1))` is measured and LOGGED only (`scene_diff_global`;
+     P11): a visitor walking behind the table changes it, the object's box does not. The cache keeps its own
+     `scene_change` (6.0) rule;
+   - exposure gain: per-channel (B, G, R) median of frame1/frame0 outside the box grown by 10 % (unclipped pixels);
+     a gain outside 0.7-1.4 (0.0005 slack) is a scene change (lights, not exposure);
+   - local: mean absolute difference of the most-changed colour channel inside `fix0`'s box grown by 10 %, frame1 vs
+     frame0 scaled by that gain and clipped at 255, <= `reanchor_local_diff` (new detector key, default 8.0); a frame0
+     pixel >= 250 is a lower bound of its true value (only a shortfall of frame1 under the prediction counts).
 5. Re-anchor: `det1 = detector.reanchor(frame1, fix0.detection)` = SAM box prompt with fix0's box on frame1 (the existing
    track step, `brain_detector.py:590-612`, no brain call). Required: a non-empty mask (opaque, CUDA-safe checks),
    mask bbox IoU with the prompt box >= 0.5.
@@ -237,7 +242,8 @@ B1. Two-phase localization (`runtime.py` `_localize.analyze`, `2258-2274`; same 
 7. `_analyzed_frame_age_s(frame1, monotonic() - started1)`: the 5 s rule on the geometry actually returned.
 8. Return `(frame1, fix1)`; `_note_localized`, beliefs, observed-finger gate, grasp planning, keyframes all use frame1.
 9. Add `perception_timing` to the skill result and the trace: `semantic_s`, `frame0_age_at_reanchor_s`,
-   `reanchor_s`, `frame1_age_s`, `scene_diff_global`, `scene_diff_local`, `moved_m`.
+   `reanchor_s`, `frame1_age_s`, `scene_diff_global`, `scene_diff_local`, `moved_m` (follow-ups, evidence only:
+   `scene_gain`, `naming_overhang`, `naming_foreign_share`; P11).
 
 B2. Foreground scope (a1). `BrainDetector.foreground()` re-entrant context (counter under `_lock`) and
 `LockedDetector.foreground()` forwarding to a CLASS-defined `foreground` (else `nullcontext`), never taking the RLock.
@@ -269,11 +275,11 @@ passes the new keys.
 
 | situation | behaviour |
 |---|---|
-| scene changed frame0 -> frame1 (global/local diff over threshold, camera moved, `moved_m > 0.02`, colour mismatch on frame1) | t0 box never used for geometry; ONE retry of the whole two-phase on a new frame inside the `localize_frames` loop; second change -> new `SceneChangedError(SkillError)` "scene changed during perception", treated like SlowPerceptionError (re-raised at `2285`/`2320`, no memory fallback); arm never moves |
+| scene changed frame0 -> frame1 (local colour diff over threshold after the exposure gain, a gain outside 0.7-1.4, camera moved, mask newly at the prompt border or mask agreement < 0.95, `moved_m > 0.02`, colour mismatch on frame1; the whole-view thumbnail diff is logged only, P11) | t0 box never used for geometry; ONE retry of the whole two-phase on a new frame inside the `localize_frames` loop; second change -> new `SceneChangedError(SkillError)` "scene changed during perception", treated like SlowPerceptionError (re-raised at `2285`/`2320`, no memory fallback); arm never moves |
 | semantic step older than `semantic_max_age_s` at re-anchor | `SlowPerceptionError` (today's message shape, names the semantic step) |
 | re-anchor + geometry > 5 s | `SlowPerceptionError` exactly as today |
 | brain down / timeout / garbled | unchanged: `_refer` returns [] (`brain_detector.py:319-326`) = a miss; today's frame retries, other cameras, belief fallback, VLM fallback; no re-anchor |
-| SAM returns no mask / empty / IoU < 0.5 / < `min_points` depth points on frame1 | no box fallback (a box cloud includes table pixels); one retry with a fresh refer; then `SkillError("could not re-anchor <query> on a fresh image")` |
+| SAM returns no mask / empty / IoU < 0.5 / < `min_points` depth points on frame1; the naming mask's box and the brain's box disagree (box IoU < 0.5, M5) | no box fallback (a box cloud includes table pixels); one retry with a fresh refer; then `SkillError("could not re-anchor <query> on a fresh image")` |
 | no segmenter configured / detector without `reanchor` | today's single-frame path and 5 s rule |
 | background refresh cancelled by foreground | requeued, no backoff, no warning; starts when the scope ends |
 | foreground scope exits by exception | counter decremented in `finally`; queued refresh starts |
@@ -346,8 +352,10 @@ Keep green: `tests/test_brain_detector.py`, `test_brain_vocabulary_runtime.py`, 
   test sets its own; tests that need a server start a fake one. Evidence: during the recorded sim run, 45 GraspGen-X
   requests with default settings came from another process on :5556 while agents ran unit tests that build the mock
   profile; a re-reviewer confirmed its probe reached the host's GraspGen-X. On the rig that load lands on the robot's GPU.
-- P3. `semantic_max_age_s: 20.0` is accepted: identity from frame0 is used only when frame0 -> frame1 passes the global,
-  local, camera-pose and <= 2 cm position checks; every geometry the arm uses is from frame1 under the unchanged 5 s rule.
+- P3. `semantic_max_age_s: 20.0` is accepted: identity from frame0 is used only when frame0 -> frame1 passes the
+  local colour diff (after the exposure gain), the component filter, border and mask agreement checks, the camera-pose
+  and the <= 2 cm position checks (the global thumbnail diff is logged only inside the re-anchor: P11); every geometry
+  the arm uses is from frame1 under the unchanged 5 s rule.
 - P4. Unchanged: the 5 s analysed-frame limit, the 8 s planning budget, GraspGen-X settings. If PlanningBudgetExceeded
   remains in the end-to-end run, it is reported to the owner with measured inference times (separate decision).
 - P5 (after T1 review). Re-anchor checks: local diff on colour (max over B,G,R) inside fix0's box grown 10 %; frame0/frame1
@@ -389,3 +397,22 @@ Keep green: `tests/test_brain_detector.py`, `test_brain_vocabulary_runtime.py`, 
   so the watcher's idle refresh is always pending before an unchanged scene's entry ages out (no synchronous inventory on an
   unchanged scene). A SceneChangedError ends handover / sort_by_color grasps like a SlowPerceptionError (no re-home loop).
   "Released" is reported only after a measured jaw widening of >= 0.02 over the pre-call width of a jaw that held something.
+- P11 (follow-ups, PR #343). Inside `reanchor` the whole-view thumbnail diff is evidence only (`scene_diff_global`; the
+  cache keeps `scene_change`): a visitor behind the table changes it, the object's box does not. The camera's exposure
+  gain (per B, G, R: the median of frame1/frame0 outside the box grown 10 %, unclipped pixels; < 256 samples -> 1) is
+  divided out of the local colour diff, and a gain outside 0.7-1.4 (0.0005 slack, printed to 3 decimals) is a scene
+  change (lights, not exposure). A frame0 pixel >= 250 is a lower bound of its true value: only a shortfall of frame1
+  under min(a x g, 255) counts, so a still white object the camera clips is not refused under a darkening step (x0.85
+  read 21-39 > 8 before); clipped pixels are never dropped (the strip a sliding white object leaves behind counts). The
+  identity is gated by the local colour diff, the component filter, the border and mask agreement checks and the 2 cm
+  move check. M5 stays the coarse fail-closed guard: a naming mask whose box overlaps the brain's by IoU < 0.5 ("SAM's
+  mask and the brain's box disagree") is a failed re-anchor; it alone catches a naming mask on part of the object (the
+  re-mask covers it and agrees with frame1; accepted 0.6-2.6 cm off before). `perception_timing` logs the naming mask's
+  per-side overhang past the brain's box and its foreign-colour share, never refusing on them: the rig's data decides
+  between an overhang + colour refusal and clipping (the ~1 cm touching-neighbour cases are main's own error and stay).
+  Measured on the final head (mock, vs main's single-frame fix of the returned frame): 0 moved objects accepted > 0.5 cm
+  XY on the round-5 probe (698 cases, 378 moved, max 0.13 cm, outcomes identical to before), the gain / visitor probe
+  (322, 204 moved, max 0.13) and a clipped-white-object probe under light steps x0.75-x1.15, white balance and shadows
+  (288, 228 moved, max 0.00 vs main, 0.11 vs truth; still scenes accepted at once 21 -> 57 of 60); the reviewer's 500
+  adversarial lights / shadows cases on the previous head: 0 as well. Real keyframe (s05.jpg): gain steps, AE hunting
+  and a visitor leaving are accepted at once; slides are re-measured at the new position (<= 0.11 cm).

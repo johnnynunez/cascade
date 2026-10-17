@@ -282,6 +282,18 @@ class PostconditionChecker:
         return (f"jaw width unchanged at {frac:.2f} after the open command "
                 f"(was {before['gripper_frac']:.2f}): no release measured")
 
+    @staticmethod
+    def _release_unmeasured(before: dict, frac: float | None) -> str | None:
+        """Why the release rule cannot judge a release-kind call, in
+        `_check_released`'s words: "nothing was held" (the jaws held nothing
+        before the call) or "gripper state unavailable" (no jaw width before
+        or after it); None when it can."""
+        if before.get("holding") is False:
+            return "nothing was held"
+        if frac is None or before.get("gripper_frac") is None:
+            return "gripper state unavailable"
+        return None
+
     def _no_open_completed(self, pc, result: dict, before: dict, frac: float | None) -> bool:
         """A release-kind call (open_gripper, place_at, place_on_object,
         handover, throw) whose open never completed released nothing, whatever
@@ -748,6 +760,12 @@ class PostconditionChecker:
         # False when the open completed but the jaw still reads its holding
         # width, None when it cannot be judged.
         released = self._release_measured(before, frac) if opened else None
+        # Fix round 1 (minor 4): after a counted open, a release that cannot
+        # be measured (no jaw width before or after the call, nothing in the
+        # jaws) never confirms a placement either: the object found at the
+        # point may never have left the jaws. Unknown actuation keeps the
+        # reading, as in `_check_released`.
+        unmeasured = self._release_unmeasured(before, frac) if opened else None
         if self._refute_if_lost(pc, label):
             return
         pose, channel = self._best_pose(label) if label else (None, "")
@@ -773,6 +791,11 @@ class PostconditionChecker:
                 pc.evidence = (f"{label} is {err*100:.1f} cm from the requested point ({channel}), "
                                f"but the {self._no_release(before, frac)}")
                 return
+            if pc.status == CONFIRMED and unmeasured is not None:
+                pc.status = UNVERIFIED
+                pc.evidence = (f"{label} is {err*100:.1f} cm from the requested point ({channel}), "
+                               f"but {unmeasured}: no release measured")
+                return
             pc.evidence = (
                 f"{label} rests {err*100:.1f} cm from the requested point ({channel})"
                 if pc.status == CONFIRMED
@@ -782,6 +805,10 @@ class PostconditionChecker:
         if released is False:
             pc.status = UNVERIFIED
             pc.evidence = f"{label} located ({channel}); {self._no_release(before, frac)}"
+            return
+        if unmeasured is not None:
+            pc.status = UNVERIFIED
+            pc.evidence = f"{label} located ({channel}); {unmeasured}: no release measured"
             return
         pc.status = CONFIRMED
         pc.evidence = f"{label} located after release ({channel})" if released else f"{label} located ({channel})"

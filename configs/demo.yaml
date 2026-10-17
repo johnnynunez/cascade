@@ -578,10 +578,15 @@ detector:
   max_cache_age_s: 35
   scene_change: 6.0
   # Localization re-measures the named object on a fresh frame only while the
-  # view is unchanged: scene_change over the whole image, and this mean
-  # difference of the most-changed colour channel (B, G or R) inside the
-  # object's box grown by 10 % (colour: an object as bright as the table
-  # moves unseen in grey).
+  # view around it is unchanged. First the camera's exposure gain (per B, G,
+  # R: the median of fresh/named pixel ratios outside the object's box grown
+  # by 10 %) is divided out; a gain outside 0.7-1.4 is a change of the light,
+  # not exposure: a scene change. Then this mean difference of the
+  # most-changed colour channel inside that box (colour: an object as bright
+  # as the table moves unseen in grey; a pixel the camera clipped at 255 on
+  # the named image counts only when the fresh one falls below it). The
+  # whole-view scene_change above is logged there, never refused on (a
+  # visitor behind the table changes it); the cache still uses it.
   reanchor_local_diff: 8.0
   # ...and while SAM's fresh mask (only its parts connected to where the
   # object was: a neighbour is dropped) matches the one the object was named

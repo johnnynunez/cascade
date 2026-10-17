@@ -66,7 +66,9 @@ occupancy:
   # sample (at most max_voxels, nearest first, 1 mm). At most max_reports per
   # call (the newest), one per gate, spot and map refresh. Built only after a
   # gate refused; a failing snapshot never changes the refusal. Diagnostics
-  # only: no margin depends on these values.
+  # only: no margin depends on these values. A required map that refuses by
+  # raising (stale, failed refresh, body mask) files one too, with the map's
+  # state and no voxels.
   refusal_snapshot:
     radius_m: 0.05         # (0, 0.5] m
     max_voxels: 64         # 1..1024

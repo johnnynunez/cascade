@@ -202,24 +202,37 @@ Failure behaviour:
 Rule:
 1. Whenever `_occupancy_violation`, `_payload_occupancy_violation` or `_tool_volume_violation`
    returns a reason, the harness files one report in a bounded deque. This mirrors
-   `_contact_reports` (`harness.py:196-198`, `385-388`).
+   `_contact_reports` (`harness.py:196-198`, `385-388`). A required map that refuses by RAISING
+   (stale, a failed refresh, a body-mask fault) is a refusal too: the gate files a sample-less
+   report (`gate` = arm / attached / tool volume, the `map` record, `voxels: []`,
+   `raised: "<ExceptionClass>"`) and re-raises the same exception object, its text unchanged.
 2. Each report records:
-   - when and where: `phase` (approve / vet_step / vet_pose), `gate` (tcp, link i, wrist camera,
-     jaws, attached), `q`, the TCP pose;
-   - the shortfall: the offending sample (base frame and TCP frame), clearance, margin;
+   - when and where: `phase` (approve / vet_step / vet_pose / route_end), `gate` (tcp, link i,
+     wrist camera, jaws, attached), `q`, the TCP pose, and `base_pose` when the arm has one;
+   - the shortfall: the offending sample (in the frame its gate queried the map in: the arm base
+     frame for the TCP and joint origins, `base_pose @` that for a held object and the tool parts)
+     and the same sample in the TCP frame, clearance, margin;
    - the context: the exemption in force, and the map (refresh count, age, voxel size, occupied
      total);
    - the evidence: up to 64 occupied voxel centres within 5 cm of the sample, with distances,
      rounded to 1 mm.
 3. Bounds: dedupe per call by (gate, sample rounded to 1 cm, map refresh); at most 32 reports per
-   call; work happens only on the refusal path.
+   call; work happens only on the refusal path. A repeat moves the kept report last, and a
+   streamed halt (approve) rewrites what happened (phase, reason, q, q_prev, TCP pose, sample)
+   while the snapshot stays (same cell, same commit).
 4. The runtime drains the deque into `trace_context["clearance"]`, the way contact reports drain
    (`runtime.py:891-896`, `1275-1277`).
 
 Code:
 - `harness.py`: the three methods above, plus `drain_clearance_reports()`.
-- New `OccupancyMap.nearby_occupied(point, radius_m, limit)` under `_refresh_lock`, so the
-  snapshot is the same map the gate read.
+- New `OccupancyMap.nearby_occupied(point, radius_m, limit)` and `OccupancyMap.clearance_record()`
+  (the `map` record), both under `_refresh_lock`. The harness holds that (reentrant) lock while it
+  builds a report, so the voxels and the map record are one commit: the commit current when the
+  report is built. The gate itself reads the map without holding the lock until the report (the
+  50 Hz path keeps its locking), so a refresh can commit between the gate's read and the report.
+  The report therefore carries `gate_refreshes` (the refresh count read just before the gate's
+  query, a lower bound) and `snapshot_newer_map: true` when the snapshot is of a later commit;
+  A6 treats such reports as approximate.
 - `runtime.py:891-896`, `1275-1277`.
 - Config: `occupancy.refusal_snapshot: {radius_m: 0.05, max_voxels: 64, max_reports: 32}`.
 
@@ -550,8 +563,10 @@ Read the live state first (service PID, deployed revision, motion lock).
 PR-A, one 30-minute session, standard props (cup, cube, spool, doll), 20 grasp attempts:
 1. **A1 no stranding.** Zero sequences of ≥ 3 consecutive clearance refusals at one pose. Every air
    grasp ends with the exit withdrawal admitted or with a reported reason.
-2. **A2 diagnosable.** 100 % of refusals and halts carry a `context.clearance` record with voxels.
-   The operator reviews the five worst z ≥ 0.20 m hits on the `nvblox_map` tile.
+2. **A2 diagnosable.** 100 % of refusals and halts carry a `context.clearance` record with voxels,
+   or with the map record when the map was unavailable (a stale, failed or body-masked required
+   map raises; its record carries the map's age and `raised`). The operator reviews the five worst
+   z ≥ 0.20 m hits on the `nvblox_map` tile.
 3. **A3 no new contact.** 0 contact-monitor trips. No admitted escape step is followed by a halt
    or contact.
 

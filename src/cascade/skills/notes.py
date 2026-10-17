@@ -9,10 +9,10 @@ A note stays one markdown file ``<library>/<slug>.md`` with the front matter
 skill; ``## Advice`` is what the agent reads and ``## Evidence`` is for humans only,
 never rendered. A v1 body has no ``## Advice``: its advice is the first paragraph of
 ``## Strategy`` (a longer one than `ADVICE_MAX_CHARS` fails the lint: the note is
-skipped, never cut into acceptance). Only regular files (never a symlink) whose name
-is a safe id (`_NOTE_NAME_RE`) are notes, hashed or served; every other `*.md` entry
-and every note that fails the lint is listed in the snapshot's `skipped` with its
-reason and logged, never dropped silently.
+skipped, never cut into acceptance). Only regular files (never a symlink) of at most
+`NOTE_MAX_BYTES` whose name is a safe id (`_NOTE_NAME_RE`) are notes, hashed or
+served; every other `*.md` entry and every note that fails the lint is listed in the
+snapshot's `skipped` with its reason and logged, never dropped silently.
 
 Notes are advice TEXT. This module renders them and nothing else: no value in a
 note reaches a config, a tool argument or a gate. A note is served only when its
@@ -46,7 +46,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..config import PACKAGE_ROOT
-from .library import read_note_text
+from .library import SkillLibrary, read_note_text
 
 log = logging.getLogger(__name__)
 
@@ -55,6 +55,8 @@ TITLE_MAX_CHARS = 80
 BLOCK_MAX_CHARS = 1400
 LEARNED_MAX_BYTES = 2000
 KNOWLEDGE_MAX_CHARS = 6000
+#: a note file larger than this is skipped (`too_large`) on its fstat size, before any read
+NOTE_MAX_BYTES = 64 * 1024
 LEARNED_HEADER_PREFIX = "<!-- cascade-learned-notes v1 "
 #: notes in the prompt block (the rest are only in robot_knowledge)
 BLOCK_NOTES = 2
@@ -244,18 +246,26 @@ def _is_note_name(name: str) -> bool:
 def _read_regular(path: Path) -> tuple[bytes | None, str]:
     """(bytes, "") of the regular file at `path`, else (None, why). The open never
     follows a symlink (O_NOFOLLOW, so a link swapped in after the listing is refused
-    too) and never blocks on a FIFO (O_NONBLOCK, then fstat)."""
+    too) and never blocks on a FIFO (O_NONBLOCK, then fstat). A file over
+    `NOTE_MAX_BYTES` is `too_large` on its fstat size, before any read; the read stops
+    one byte past the cap too, so a file that grows after the fstat is never read whole."""
     flags = os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
     try:
         fd = os.open(path, flags)
     except OSError as exc:
         return None, "symlink" if exc.errno == errno.ELOOP else "unreadable"
     try:
-        if not stat.S_ISREG(os.fstat(fd).st_mode):
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
             return None, "not_a_file"
-        chunks = []
-        while chunk := os.read(fd, 1 << 20):
+        if st.st_size > NOTE_MAX_BYTES:
+            return None, "too_large"
+        chunks, size = [], 0
+        while size <= NOTE_MAX_BYTES and (chunk := os.read(fd, NOTE_MAX_BYTES + 1 - size)):
             chunks.append(chunk)
+            size += len(chunk)
+        if size > NOTE_MAX_BYTES:
+            return None, "too_large"
         return b"".join(chunks), ""
     except OSError:
         return None, "unreadable"
@@ -280,9 +290,9 @@ def _scan(root: Path | None) -> list[tuple[str, bytes | None, str]]:
     """(file name, bytes, "") for every note file in `root` and (file name, None,
     why) for every other `*.md` entry, sorted by name. A note file has a safe id as
     its name (`_NOTE_NAME_RE`: no control character, tab, newline, upper case or
-    non-UTF-8 byte), is a regular file and no symlink (lstat, then an O_NOFOLLOW
-    read) and is readable; only note files are hashed, so the hash's line format
-    stays unambiguous."""
+    non-UTF-8 byte), is a regular file of at most `NOTE_MAX_BYTES` and no symlink (lstat,
+    then an O_NOFOLLOW read) and is readable; only note files are hashed, so the hash's
+    line format stays unambiguous."""
     if root is None:
         return []
     try:
@@ -1215,7 +1225,9 @@ class LibrarySnapshot:
     """The library as read once at build: every parsed note, in rank order the ones
     this profile class serves, and `skipped`: {"id", "reason"} for every `*.md`
     entry that is no lint-clean note (the lint rule's name, or file_name, symlink,
-    not_a_file, unreadable, parse), by file name -- a skipped note is never silent."""
+    not_a_file, too_large, unreadable, parse), by file name -- a skipped note is never
+    silent. `error` says why the library could not be read ("Exc: msg"; then `root` is
+    None and nothing is served), None when it was read or does not exist yet."""
 
     root: Path | None
     sha: str
@@ -1223,6 +1235,7 @@ class LibrarySnapshot:
     notes: tuple[Note, ...]
     served: tuple[Note, ...]
     skipped: tuple[dict, ...] = ()
+    error: str | None = None
 
     def _block(self) -> tuple[str, tuple[str, ...]]:
         """(block text, ids of the notes it renders)."""
@@ -1343,8 +1356,10 @@ _ABSENT = object()
 def library_root(cfg) -> Path:
     """The library directory `cfg` names: `memory.skill_library_path` (`~`
     expanded), or `DEFAULT_LIBRARY` when the key is absent. Raises ValueError for
-    a value that is no path (null, empty, not a string) or a missing or
-    non-mapping `memory` section; `config_snapshot` fails closed on it."""
+    a value that is no path (null, empty, not a string), a RELATIVE path (it would
+    resolve against whatever directory the process started in, e.g. a relative
+    CASCADE_ASPIRE_LIBRARY) or a missing or non-mapping `memory` section;
+    `config_snapshot` fails closed on it."""
     memory = cfg.get("memory")
     try:
         value = memory.get("skill_library_path", _ABSENT)
@@ -1356,17 +1371,40 @@ def library_root(cfg) -> Path:
         value = os.fspath(value)
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"not a path: {value!r}")
-    return Path(value).expanduser()
+    root = Path(value).expanduser()
+    if not root.is_absolute():
+        raise ValueError(f"relative path {value!r}: a note library path must be absolute "
+                         "(CASCADE_ASPIRE_LIBRARY / memory.skill_library_path), never read from the working directory")
+    return root
+
+
+def _dangling_link(root: Path) -> Path | None:
+    """`root` or the first directory above it that is a symlink to a missing target
+    (an unmounted volume), else None."""
+    for path in (root, *root.parents):
+        if os.path.islink(path) and not os.path.exists(path):
+            return path
+    return None
+
+
+def _unread(klass: str, root: Path | None, exc: BaseException) -> LibrarySnapshot:
+    """The snapshot of a library that could not be read: no root, the empty
+    library's sha, nothing served, the reason in `error` and one warning line."""
+    error = f"{type(exc).__name__}: {exc}"
+    log.warning("ASPIRE notes: library %s (memory.skill_library_path) not read (%s); serving no note",
+                "?" if root is None else root, error)
+    return LibrarySnapshot(root=None, sha=library_sha(None), profile_class=klass, notes=(), served=(), error=error)
 
 
 def config_snapshot(cfg, profile_class: str) -> LibrarySnapshot:
     """The snapshot a runtime built from `cfg` serves for its whole session: the
     library at `library_root(cfg)`, read once with `memory.skill_min_tasks`.
     Never raises. A directory that does not exist yet is an empty library (never
-    created). A library that cannot be read -- a configured value that is no
-    path, a file, an unreadable directory, any error while reading -- fails
-    closed: no root, the empty library's sha, nothing served, and one warning line
-    with the reason."""
+    created, `error` None). A library that cannot be read -- a configured value that
+    is no path or a relative one, a file, an unreadable directory, a symlink (on the
+    path) to a missing target, any error while reading, a snapshot whose manifest
+    cannot be rendered -- fails closed: no root, the empty library's sha, nothing
+    served, `error` = "Exc: msg" and one warning line with the reason."""
     klass = "sim" if profile_class == "sim" else "real"
     root = None
     try:
@@ -1378,9 +1416,53 @@ def config_snapshot(cfg, profile_class: str) -> LibrarySnapshot:
             with os.scandir(root):
                 pass
         except FileNotFoundError:
-            pass
-        return load_snapshot(root, klass, min_tasks=cfg.get("memory").get("skill_min_tasks"))
+            link = _dangling_link(root)
+            if link is not None:
+                raise FileNotFoundError(f"{link} is a symlink to a missing target ({os.readlink(link)})") from None
+        snapshot = load_snapshot(root, klass, min_tasks=cfg.get("memory").get("skill_min_tasks"))
+        snapshot.manifest()  # what run.json records: a snapshot that cannot render it serves nothing
+        return snapshot
     except Exception as e:  # noqa: BLE001 -- fail closed: a broken library never stops a robot
-        log.warning("ASPIRE notes: library %s (memory.skill_library_path) not read (%s: %s); serving no note",
-                    "?" if root is None else root, type(e).__name__, e)
-        return LibrarySnapshot(root=None, sha=library_sha(None), profile_class=klass, notes=(), served=())
+        return _unread(klass, root, e)
+
+
+class _ServedNotesLibrary(SkillLibrary):
+    """The demo CLI's legacy library view of one snapshot (`agent.aspire.retrieve`
+    reads it): only the notes the snapshot serves, parsed from the very bytes it
+    hashed. A library whose bytes changed since the snapshot yields no note (a note
+    rewritten or added mid-session was never served). Read-only; never creates the
+    directory."""
+
+    def __init__(self, snapshot: LibrarySnapshot, min_tasks: int):
+        super().__init__(snapshot.root, min_tasks, create=False)
+        self._sha = snapshot.sha
+        self._served = frozenset(note.id for note in snapshot.served)
+
+    def entries(self) -> list[tuple[str, str]]:
+        found = _scan(self.root)
+        if _sha_of(found) != self._sha:
+            return []
+        out = []
+        for name, data, _ in found:
+            stem = name[: -len(".md")]
+            if data is not None and stem in self._served:
+                try:
+                    out.append((stem, data.decode("utf-8")))
+                except UnicodeDecodeError:  # the snapshot never serves one; kept out all the same
+                    continue
+        return out
+
+    def records(self):
+        return [self._parse_text(name, text) for name, text in self.entries()]
+
+    def add(self, *args, **kwargs):
+        raise TypeError("a snapshot's library view is read-only")
+
+
+def served_library(snapshot: LibrarySnapshot | None, min_tasks) -> SkillLibrary | None:
+    """The `SkillLibrary` the demo CLI's orchestrator retrieves from: the notes
+    `snapshot` serves and nothing else (`_ServedNotesLibrary`), or None when it
+    serves none or its directory is gone. Never creates the directory."""
+    if snapshot is None or snapshot.root is None or not snapshot.served or not snapshot.root.is_dir():
+        return None
+    return _ServedNotesLibrary(snapshot, min_tasks)

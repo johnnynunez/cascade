@@ -180,18 +180,29 @@ def _no_ambient_aspire_library(monkeypatch, tmp_path_factory):
     """No test runtime serves a machine's own ASPIRE notes (preflight R24).
 
     `build_runtime` reads the profile's note library once: the kitchen's
-    `${CASCADE_ASPIRE_LIBRARY:-~/.cascade/aspire/sim/library}`, every other
+    `${CASCADE_ASPIRE_LIBRARY:-~/.cascade/aspire/sim/library}`, fr3 (and its
+    mock / mujoco profiles) `${repo}/runs/fr3/skills_library`, every other
     profile `<repo>/skills_library` (gitignored, filled by learn_from_runs on
-    dev and rig checkouts). Both point at one directory that is never created,
-    so every runtime here reads an empty library unless a test hands it one;
-    and a shell's CASCADE_RUN_PURPOSE never relabels the suite's runs.
+    dev and rig checkouts). All of them point at one directory that is never
+    created, so every runtime here reads an empty library unless a test hands
+    it one; and a shell's CASCADE_RUN_PURPOSE never relabels the suite's runs.
     """
+    from cascade.config import PACKAGE_ROOT
     from cascade.skills import notes
 
     absent = tmp_path_factory.getbasetemp() / "no-aspire-library"
     monkeypatch.setenv("CASCADE_ASPIRE_LIBRARY", str(absent))
     monkeypatch.setattr(notes, "DEFAULT_LIBRARY", absent)
     monkeypatch.delenv("CASCADE_RUN_PURPOSE", raising=False)
+    # libraries a shipped profile names inside the checkout (`${repo}/...`)
+    shipped = {PACKAGE_ROOT / "runs" / "fr3" / "skills_library"}
+    library_root = notes.library_root
+
+    def pinned_root(cfg):
+        root = library_root(cfg)
+        return absent if root in shipped else root
+
+    monkeypatch.setattr(notes, "library_root", pinned_root)
 
 
 @pytest.fixture(autouse=True)

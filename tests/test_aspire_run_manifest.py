@@ -32,9 +32,10 @@ from cascade.skills import notes
 from cascade.skills.notes import library_sha, load_snapshot
 
 EMPTY_SHA = hashlib.sha256(b"").hexdigest()
-#: run.json keys: spec §4.2's seven, R23's `block_notes` and R18's `purpose`
+#: run.json keys: spec §4.2's seven, R23's `block_notes`, R18's `purpose` and fix round 1's
+#: `library_root` / `library_error` (an unreadable library never looks like an empty one)
 RUN_KEYS = {"schema", "library_sha", "served_notes", "block_notes", "profile_class", "arm_types", "sim_retry",
-            "started", "purpose"}
+            "started", "purpose", "library_root", "library_error"}
 #: every profile that loads configs/arms/isaac_kitchen.yaml (directly or by `extends:`)
 KITCHEN = ("isaac_kitchen", "isaac_kitchen_gpu", "isaac_kitchen_cumotion", "isaac_kitchen_hug")
 ADVICE = ("If the first pick_and_place is refused near another object, one retry from home with a "

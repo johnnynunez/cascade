@@ -1093,9 +1093,9 @@ def _stamp_run(runtime, trace, cfg) -> None:
     """Take the runtime's one note-library snapshot (`runtime.learned`) and
     record the run in `run.json` (spec §4.2, preflight R18/R23); later trace rows
     carry its `library_sha`. Never fails the build: a library that cannot be read
-    is served as empty (`notes.config_snapshot`), and a run.json that cannot be
-    written leaves the rows unstamped and serves no note, since a served note
-    must be on record."""
+    is served as empty (`notes.config_snapshot`; `library_error` says why), and a
+    run.json that cannot be written leaves the rows unstamped and serves no note,
+    since a served note must be on record."""
     import dataclasses
     from datetime import datetime, timezone
 
@@ -1103,10 +1103,12 @@ def _stamp_run(runtime, trace, cfg) -> None:
     from ..skills import notes
 
     snapshot = notes.config_snapshot(cfg, sim_profile.profile_class(cfg))
-    meta = {"schema": 1, **snapshot.manifest(), "arm_types": sim_profile.arm_types(cfg),
-            "sim_retry": sim_profile.sim_retry_enabled(cfg), "purpose": _run_purpose(),
-            "started": datetime.now(timezone.utc).isoformat(timespec="seconds")}
     try:
+        meta = {"schema": 1, **snapshot.manifest(),
+                "library_root": None if snapshot.root is None else str(snapshot.root),
+                "library_error": snapshot.error, "arm_types": sim_profile.arm_types(cfg),
+                "sim_retry": sim_profile.sim_retry_enabled(cfg), "purpose": _run_purpose(),
+                "started": datetime.now(timezone.utc).isoformat(timespec="seconds")}
         trace.stamp(meta)
     except Exception as e:  # noqa: BLE001 -- the run record never stops a robot
         logger.warning("ASPIRE notes: run manifest %s not written (%s: %s); serving no note this session",
@@ -2191,16 +2193,15 @@ def _run_demo(args, cfg, runtime, mobile):
     # ASPIRE: validated repairs distilled from earlier runs, retrieved into
     # context at task start. This is the loop the ROADMAP listed as open --
     # `scripts/learn_from_runs.py` writes the entries, the agent reads them.
-    from ..skills.library import PROMOTION_MIN_TASKS, SkillLibrary
+    # The CLI reads them through the run's snapshot (spec §4.2): exactly the notes
+    # `runtime.learned` serves (lint-clean, never refuted, the cross-task gate of
+    # `memory.skill_min_tasks`), from the bytes it hashed; the directory is never
+    # created here.
+    from ..skills import notes
+    from ..skills.library import PROMOTION_MIN_TASKS
 
-    # Cross-task gate (upstream ASPIRE): a distilled note reaches the agent
-    # only after it recurred in >= `memory.skill_min_tasks` distinct tasks
-    # (default 2). 1 is the explicit single-observation mode; nothing lowers
-    # it silently.
-    library = None if mobile else SkillLibrary(
-        Path(cfg.memory.get("skill_library_path", PACKAGE_ROOT / "skills_library")).expanduser(),
-        min_tasks=int(cfg.memory.get("skill_min_tasks", PROMOTION_MIN_TASKS)),
-    )
+    library = None if mobile else notes.served_library(
+        getattr(runtime, "learned", None), cfg.memory.get("skill_min_tasks", PROMOTION_MIN_TASKS))
     agent = AgentOrchestrator(
         llm, runtime, advisor=advisor, max_steps=args.max_steps,
         decompose=not is_mock,

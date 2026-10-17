@@ -281,15 +281,20 @@ def test_the_longest_allowed_field_lints_fast():
 
 
 def test_a_huge_note_is_skipped_quickly_on_load(tmp_path):
-    big = {"advice": "x" * 100_000, "digits": "1" * 100_000, "list": "0.1," * 25_000}
+    # under the 64 KiB file cap (A2 fix round 1) a huge field is parsed and refused by its length cap;
+    # over it the file is never read (`too_large`)
+    big = {"advice": "x" * 60_000, "digits": "1" * 60_000, "list": "0.1," * 15_000}
     for name, advice in big.items():
         _promoted_note(tmp_path, name, title="Cube", advice=advice)
-    _promoted_note(tmp_path, "title", title="T" * 100_000, advice="Retry once from home.")
-    (tmp_path / "sections.md").write_text("# T\n\n## a" + " " * 100_000 + "x\n\n## Strategy\n\n" + "\n " * 100_000 + "x\n")
+    _promoted_note(tmp_path, "title", title="T" * 60_000, advice="Retry once from home.")
+    (tmp_path / "sections.md").write_text("# T\n\n## a" + " " * 30_000 + "x\n\n## Strategy\n\n" + "\n " * 15_000 + "x\n")
+    _promoted_note(tmp_path, "huge", title="Cube", advice="x" * 100_000)
+    assert all(p.stat().st_size <= notes.NOTE_MAX_BYTES for p in tmp_path.iterdir() if p.stem != "huge")
     t0 = time.perf_counter()
     s = load_snapshot(tmp_path, "sim")
     assert time.perf_counter() - t0 < 1.0
     assert len(s.notes) == 5 and s.served == ()
+    assert {"id": "huge", "reason": "too_large"} in s.skipped
 
 
 # ── each rule decides on its own (the reason names the rule) ──────────────

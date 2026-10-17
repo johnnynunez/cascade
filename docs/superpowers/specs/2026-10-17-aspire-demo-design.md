@@ -189,30 +189,42 @@ paraphrases of harm (no rule word) stay a limit of a structural gate, carried by
   library's slugs do): any other file (a control character, tab or newline, upper case, a non-UTF-8 byte, `,` or `-->`)
   is neither hashed nor served, so the line format is unambiguous and a note id is safe in a JSON manifest and the
   LEARNED.md header (ids are sanitised at the source). A symlink (lstat, and the read opens with `O_NOFOLLOW`) or any
-  non-regular file is neither hashed, parsed nor served either.
+  non-regular file is neither hashed, parsed nor served either, and neither is a file over 64 KiB (`NOTE_MAX_BYTES`:
+  skipped on its fstat size before any byte is read; the read stops one byte past the cap, so a file that grows
+  meanwhile is never read whole).
 - A skipped note is never silent: the snapshot's `skipped` lists `{id, reason}` for every `*.md` entry that is no
-  lint-clean note (`reason` = the lint rule's name, or `file_name`, `symlink`, `not_a_file`, `unreadable`, `parse`), by
-  file name, and logs one warning line each; A3/A9 surface it. A lint-clean note the class does not serve (not yet
-  promoted) is not "skipped".
+  lint-clean note (`reason` = the lint rule's name, or `file_name`, `symlink`, `not_a_file`, `too_large`, `unreadable`,
+  `parse`), by file name, and logs one warning line each; A3/A9 surface it. A lint-clean note the class does not serve
+  (not yet promoted) is not "skipped".
 - The robot runtime loads ONE read-only snapshot at build (`load_snapshot`; it never creates the directory) and keeps
   it for the session: the prompt block, `robot_knowledge`, the chat line and the trace stamp all come from it, so a
-  nightly write never changes a running session.
+  nightly write never changes a running session. The legacy `demo` CLI's built-in orchestrator reads it too
+  (`notes.served_library`): only the notes the snapshot serves, parsed from the bytes it hashed (a library changed since
+  the build gives the CLI no note), and it never creates the directory either.
 - Library location per profile: `memory.skill_library_path`. A2 sets the kitchen profiles (`isaac_kitchen` and
   every profile that extends it) to
   `${CASCADE_ASPIRE_LIBRARY:-~/.cascade/aspire/sim/library}`; every other profile keeps today's default
   (`<repo>/skills_library`). B7 sets `rebot_rs` to `${CASCADE_ASPIRE_LIBRARY:-~/.cascade/aspire/real/library}`.
 - Every run built by `apps.demo.build_runtime` writes `run.json` beside `trace.jsonl` at build:
-  `{schema: 1, library_sha, served_notes: [ids], block_notes: [ids], profile_class, arm_types, sim_retry, purpose,
-  started}` (the physics engine is
+  `{schema: 1, library_sha, served_notes: [ids], block_notes: [ids], profile_class, library_root, library_error,
+  arm_types, sim_retry, purpose, started}` (the physics engine is
   not known at build: the lazy Isaac arm learns it from the bridge on first use; the verifier records it from its own
   launch). `block_notes` = the top 2 as the block renders them (preflight R23: B3 grades them and cannot recover them
-  later). `purpose` = `CASCADE_RUN_PURPOSE` (`live` | `verify` | `acceptance`, forwarded to the robot server; unset or
-  empty = `live`, any other value = `unknown`, never `live`; preflight R18): harvest and grading count only `live` runs.
-  `started` = UTC ISO 8601 (seconds). Every trace row gets a top-level `library_sha` (null for runtimes that load no
-  library: mobile, robot_runtime, microduck). Fail closed, never a failed build: a configured path that is no path,
-  a file, an unreadable directory or any read error serves nothing (the empty library's sha, one warning with the
-  reason); a missing directory is an empty library (never created); a `run.json` that cannot be written leaves the
-  rows unstamped (null) and serves nothing, since a served note must be on record.
+  later). `library_root` = the absolute library path the snapshot read (`~` and `${...}` expanded), null when it was
+  not read; `library_error` = null, or `"<Exception>: <message>"` when it was not read, so an unreadable library never
+  looks like an empty one. `purpose` = `CASCADE_RUN_PURPOSE` (`live` | `verify` | `acceptance`, forwarded to the robot
+  server; unset or empty = `live`, any other value = `unknown`, never `live`; preflight R18): harvest and grading count
+  only `live` runs. `started` = UTC ISO 8601 (seconds). A rebuild into a run directory that already holds a `run.json`
+  keeps it first as `run.<its started>.json` (`.1`, `.2`... when taken; its mtime when it has no valid `started`).
+  Every trace row gets a top-level `library_sha` (null for runtimes that load no library: mobile and microduck, and a
+  composed robot's own top-level rows; each manipulation domain of a composed robot is built by `build_runtime` into
+  `domains/<name>/`, which writes its own `run.json` and stamps its own rows). Fail closed, never a failed build: a
+  configured path that is no path or a relative one (a relative `CASCADE_ASPIRE_LIBRARY` would depend on the working
+  directory), a file, an unreadable directory, a symlink on the path to a missing target (an unmounted volume), any
+  read error, or a snapshot whose manifest cannot be rendered serves nothing (the empty library's sha, root null,
+  `library_error` set, one warning with the reason); a missing directory is an empty library (never created, root
+  recorded, no error); a `run.json` that cannot be written leaves the rows unstamped (null) and serves nothing, since a
+  served note must be on record.
 
 ### 4.3 How notes reach Qwen
 

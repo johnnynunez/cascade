@@ -129,9 +129,12 @@ ENTRY_TEMPLATE = """# {title}
 
 
 class SkillLibrary:
-    def __init__(self, root: str | Path, min_tasks: int = PROMOTION_MIN_TASKS):
+    def __init__(self, root: str | Path, min_tasks: int = PROMOTION_MIN_TASKS, *, create: bool = True):
+        """``create=False`` never makes the directory (a reader of a library that
+        may not exist yet); writers keep the default."""
         self.root = Path(root)
-        self.root.mkdir(parents=True, exist_ok=True)
+        if create:
+            self.root.mkdir(parents=True, exist_ok=True)
         min_tasks = int(min_tasks)
         if min_tasks < 1:
             raise ValueError(f"min_tasks must be >= 1, got {min_tasks}")
@@ -144,12 +147,15 @@ class SkillLibrary:
         return self.root / f"{slug}.md"
 
     def _parse(self, path: Path) -> LibraryEntry:
-        meta, body = split_front_matter(path.read_text())
+        return self._parse_text(path.stem, path.read_text())
+
+    def _parse_text(self, name: str, text: str) -> LibraryEntry:
+        meta, body = split_front_matter(text)
         occurrences = meta.get("occurrences", 1)
         if isinstance(occurrences, bool) or not isinstance(occurrences, int) or occurrences < 1:
             occurrences = 1  # legacy or unreadable counter: one observation
         return LibraryEntry(
-            name=path.stem,
+            name=name,
             text=body,
             occurrences=occurrences,
             source_tasks=_str_list(meta.get("source_tasks")),

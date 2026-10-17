@@ -243,7 +243,9 @@ def test_the_library_exposes_a_public_reader_and_notes_imports_nothing_private()
     tree = ast.parse(inspect.getsource(notes))
     from_library = [a.name for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
                     and (node.module or "").split(".")[-1] == "library" for a in node.names]
-    assert from_library == ["read_note_text"], from_library
+    # the reader, and the class the demo CLI's view of a snapshot extends (A2 fix round 1: `served_library`)
+    assert sorted(from_library) == ["SkillLibrary", "read_note_text"], from_library
+    assert not any(name.startswith("_") for name in from_library)
 
 
 def test_v2_note_reads_every_key(tmp_path):

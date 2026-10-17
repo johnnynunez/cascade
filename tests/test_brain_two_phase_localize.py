@@ -1823,6 +1823,25 @@ def test_a_brightness_change_past_the_gain_range_is_a_scene_change(gain, accepte
         assert "brightness" in found.reason and "0.7" in found.reason and "1.4" in found.reason, found.reason
 
 
+@pytest.mark.parametrize(("gain", "accepted"), [(0.6996, True), (0.6994, False), (1.4004, True), (1.4006, False)])
+def test_the_gain_range_edge_is_judged_and_printed_to_three_decimals(monkeypatch, gain, accepted):
+    """Fix round 1 (minor 5): the gain is a median of 8-bit ratios, so the
+    range's edges get 0.0005 of slack, and a refusal prints the gain to 3
+    decimals: a refused 0.6994 reads x0.699, never 'x0.70 outside 0.7-1.4'
+    (bd5e80f refused 0.6996 printed so)."""
+    from cascade.perception import brain_detector as bd
+
+    first = 0.5 if gain > 1.0 else 1.0
+    a, b = _scaled(synthetic_tabletop(), first), _scaled(synthetic_tabletop(), first * gain)
+    monkeypatch.setattr(bd, "_exposure_gain", lambda *_: (gain,) * 3)
+    found = BrainDetector(base_url="http://b/v1", model="m", segmenter=_ObjectSam()).reanchor(b, _named(a), since=a)
+    if accepted:
+        assert found.detection is not None and found.scene_diff_local <= 2.0, found
+    else:
+        assert (found.detection, found.scene_changed) == (None, True), found
+        assert f"x{gain:.3f}/{gain:.3f}/{gain:.3f} outside 0.7-1.4" in found.reason, found.reason
+
+
 def test_the_gain_is_measured_outside_the_box_on_unsaturated_pixels():
     """The gain estimate: B, G, R medians of frame1/frame0 over the pixels
     outside the local check's box. A bright window that stays saturated

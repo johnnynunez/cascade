@@ -174,15 +174,19 @@ _REANCHOR_BOX_GROWTH = 0.10
 #: both frames (a saturated pixel says nothing about the gain) and at least
 #: _GAIN_DARK on the named one (a dark pixel's ratio is noise); a channel with
 #: fewer than _GAIN_MIN_SAMPLES such pixels keeps gain 1. The local check then
-#: compares the fresh frame with the named one scaled by them.
+#: compares the fresh frame with the named one scaled by them (a named-image
+#: pixel at _GAIN_SATURATED or more as a lower bound of its true value).
 _GAIN_STRIDE = 4
 _GAIN_SATURATED = 250
 _GAIN_DARK = 16
 _GAIN_MIN_SAMPLES = 256
 #: ...a gain outside this range is not an exposure step but a real change of
 #: the scene (lights, a shadow over the table): refused as a scene change,
-#: never normalised away.
+#: never normalised away. The edges get _GAIN_RANGE_EPS of slack (the gain is
+#: a median of 8-bit ratios), and a refusal prints the gain to 3 decimals: a
+#: refused gain never reads as the edge itself.
 REANCHOR_GAIN_RANGE = (0.7, 1.4)
+_GAIN_RANGE_EPS = 5e-4
 #: reanchor(): SAM's prompt on the fresh frame (and on the named frame for
 #: the mask it is compared with: reanchor_reference) is the brain's box grown
 #: by this fraction (half on each side), at least _REANCHOR_PROMPT_MIN_PX on
@@ -953,7 +957,8 @@ class BrainDetector(Detector):
         # guard the object.
         diff_global = _scene_diff(_thumbnail(since), _thumbnail(frame))
         gain = _exposure_gain(since, frame, det.bbox)
-        exposure = all(REANCHOR_GAIN_RANGE[0] <= g <= REANCHOR_GAIN_RANGE[1] for g in gain)
+        lo, hi = REANCHOR_GAIN_RANGE
+        exposure = all(lo - _GAIN_RANGE_EPS <= g <= hi + _GAIN_RANGE_EPS for g in gain)
         diff_local = _local_diff(since, frame, det.bbox, gain if exposure else None)
         prompt_box = None
         match = None
@@ -965,8 +970,7 @@ class BrainDetector(Detector):
 
         if not exposure:
             return refused(True, "the brightness of the view changed (gain x"
-                                 f"{'/'.join(f'{g:.2f}' for g in gain)} outside {REANCHOR_GAIN_RANGE[0]:g}-"
-                                 f"{REANCHOR_GAIN_RANGE[1]:g}): not an exposure step")
+                                 f"{'/'.join(f'{g:.3f}' for g in gain)} outside {lo:g}-{hi:g}): not an exposure step")
         if not diff_local <= self._reanchor_local_diff:
             return refused(True, f"the image around the object changed (mean colour difference "
                                  f"{diff_local:.1f} > {self._reanchor_local_diff:g})")

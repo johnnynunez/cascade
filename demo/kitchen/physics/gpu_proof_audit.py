@@ -297,11 +297,16 @@ _obs_payload = _obs_json.dumps(_gpu_observed, separators=(",",":"), allow_nan=Fa
     if code.count(old) != 1:
         raise RuntimeError("Existing observer source boundary changed; review its new snapshot contract")
     code = code.replace(old, new)
-    if include_scene_geometry and object_name in convex.CONVEX_TARGETS:
+    if include_scene_geometry:
+        # Scene geometry puts a plain receipt over the observer's single-line guard
+        # on Newton (7,648 B measured vs 7,400 B under the bridge's 8,000-character
+        # exec stdout tail), so every receipt that carries it uses the bounded
+        # compressed line. Convex targets also pack their collider arrays.
         boundary = 'if len((_obs_payload + '
         if code.count(boundary) != 1:
             raise RuntimeError('Observer output boundary changed; review before encoding')
-        code = code.split(boundary)[0] + codec.encode_code()
+        code = code.split(boundary)[0] + (codec.encode_code() if object_name in convex.CONVEX_TARGETS
+                                          else codec.compressed_envelope_code())
     return code
 
 

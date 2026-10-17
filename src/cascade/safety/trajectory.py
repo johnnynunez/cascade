@@ -15,6 +15,9 @@ from ..types import SafetyViolation, SkillError
 
 PLAN_BUDGET_S = 3.0
 MAX_ROUTE_CANDIDATES = 15
+#: TCP lifts in base z, in order: plan_route's model-only fallback and the
+#: air-grasp exit (`SkillRuntime.AIR_GRASP_EXIT_LIFTS_M`) share them.
+ROUTE_LIFT_HEIGHTS_M = (0.03, 0.06)
 
 
 def motion_duration(harness, start, goal, duration_s):
@@ -73,6 +76,20 @@ def vet_segment(harness, start, goal, duration_s, *, deadline=None, stretch=True
     return None
 
 
+def route_end_reason(harness, end):
+    """Why a route may not end at joint pose `end`, or None (spec 3.1).
+
+    A step may retreat inside the map margin, but a route must never leave
+    the arm there. A GeometryHarness (`mujoco_withdrawal.py`) forwards
+    attribute lookups to the arm's harness, so the check resolves there.
+    Harnesses without `route_end_violation` (test doubles) have no such
+    escape and need no end check.
+    """
+    check = getattr(harness, "route_end_violation", None)
+    reason = check(end) if check is not None else None
+    return None if reason is None else "route ends inside the margin: " + reason
+
+
 def vet_route(harness, start, goals, duration_s, *, deadline=None, rate_hz=50.0):
     previous = start
     for goal in goals:
@@ -80,7 +97,28 @@ def vet_route(harness, start, goals, duration_s, *, deadline=None, rate_hz=50.0)
         if reason:
             return reason
         previous = goal
-    return None
+    return route_end_reason(harness, goals[-1] if len(goals) else start)
+
+
+def lift_ik(kin, start, height_m: float, *, pose=None) -> np.ndarray | None:
+    """Joint pose that raises the TCP of `start` by `height_m` in base z at
+    the start orientation, or None.
+
+    Bounded, seed-only model IK (one solve from `start`, no random
+    restarts), shared by plan_route's lift fallback and the runtime's
+    air-grasp exit. None when the solve fails or its result is not finite.
+    The pose is a proposal only: every route to it is vetted. `pose` is
+    FK of `start` when the caller already has it (plan_route computes it
+    once, inside its deadline checks).
+    """
+    start = np.asarray(start, dtype=float)
+    target = np.array(kin.fk(start) if pose is None else pose, dtype=float)
+    target[2, 3] += float(height_m)
+    lift = kin.ik(target, q_init=start.copy(), max_iter=80, retries=0)
+    if not lift.success:
+        return None
+    q = np.asarray(lift.q, dtype=float)
+    return q if np.isfinite(q).all() else None
 
 
 def plan_route(harness, start, goal, duration_s=3.0, *, rate_hz=50.0):
@@ -119,16 +157,14 @@ def plan_route(harness, start, goal, duration_s=3.0, *, rate_hz=50.0):
         if time.monotonic() >= deadline:
             raise SkillError("route preflight exceeded its time budget; no route authorized")
         pose = kin.fk(start)
-        for height in (.03, .06)[:MAX_ROUTE_CANDIDATES - used]:
+        for height in ROUTE_LIFT_HEIGHTS_M[:MAX_ROUTE_CANDIDATES - used]:
             if time.monotonic() >= deadline:
                 raise SkillError("route preflight exceeded its time budget; no route authorized")
-            target = pose.copy()
-            target[2, 3] += height
-            lift = kin.ik(target, q_init=start.copy(), max_iter=80, retries=0)
+            lift = lift_ik(kin, start, height, pose=pose)
             if time.monotonic() >= deadline:
                 raise SkillError("route preflight exceeded its time budget; no route authorized")
-            if lift.success:
-                yield [lift.q, goal.copy()]
+            if lift is not None:
+                yield [lift, goal.copy()]
 
     first_reason = None
     with geometry_guard(harness, deadline=deadline):

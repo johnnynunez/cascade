@@ -126,7 +126,8 @@ def test_the_harness_box_is_the_spatial_tools_box(rebot):
     for q in (rebot.home, rebot.q_grasp, rebot.q_pre):
         T = rebot.kin.fk(q)
         box = rm.camera_box(T, approach_tcp, up, protrusion_m=wc.protrusion_m, behind_m=wc.behind_tip_m,
-                            half_width_m=wc.half_width_m)
+                            half_width_m=wc.half_width_m, front_m=wc.get("front_m", 0.0),
+                            bottom_m=wc.get("bottom_m", 0.0))
         samples = rebot.volume.points(T)[rebot.volume.part == rebot.volume.names.index("wrist camera")]
         local = (samples - box.center) @ box.axes
         assert np.all(np.abs(local) <= box.half + 1e-9)

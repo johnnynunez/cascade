@@ -251,6 +251,37 @@ occupancy:
    `occupancy` capability cell: `state` (live/stale/failed/waiting/no bridge), `age_s`,
    `occupied_voxels`, `refreshes`, `required`.
 
+**Why was it refused? `context.clearance` in the trace.** Every refusal or mid-motion halt of a
+map gate (TCP/joints, held object, wrist camera, jaws; at preflight, at a static vet, at a route's
+end or at a streamed step) files one report, and the skill call's row in `runs/*/trace.jsonl`
+carries that call's reports under `context.clearance`: `phase` (approve = streamed step /
+vet_step / vet_pose / route_end), `gate` (`tcp`, `link N`, `attached`, `wrist camera`, `jaws`),
+`reason` (the refusal text), `q`, `q_prev`, `tcp`, the offending `sample` (in the map's frame,
+for every gate: `base_pose @` FK for an arm with a `base_pose`, which the report then carries) and
+`sample_tcp` (TCP frame), `clearance_m`, `margin_m`, the `exemption` in force (in the arm's base
+frame), the `map` (refreshes, cache clears, age, voxel size, occupied count) and up to 64 occupied
+voxel centres within 5 cm of the snapshot centre (`voxels`, `[x, y, z, d]`, nearest first, 1 mm),
+with where they were looked up (`snapshot`: the query centre, `radius_m`, `max_voxels`). `d` is
+measured from that centre: the sample, or, after a streamed halt took the report over, the FIRST
+sample (not the new `sample`). A required map that refuses by raising (stale, a failed
+refresh, a body-mask fault) files a report too: no sample or voxels, the `map` record (its
+`age_s` shows a stale map) and `raised`. At most 32 per call (the newest), one per gate, spot
+(1 cm), map state (refreshes and cache clears) and kind (returned or raised)
+(`occupancy.refusal_snapshot`); a repeat moves its report last and a streamed halt takes over the
+matching earlier report. They are built only after a gate refused,
+never on an admitted step, from the map cache current when the report is built
+(`OccupancyMap.nearby_occupied`, `clearance_record`): when a refresh landed, or payload tracking
+dropped the cache, between the gate's read and the report, `gate_refreshes` / `gate_cache_clears`
+differ from `map.refreshes` / `map.cache_clears` and `snapshot_newer_map` is true (the voxels are
+then approximate). A failing snapshot keeps the refusal and adds
+`snapshot_error`; a report the harness cannot keep (a filing error, the 32 cap) is counted in the
+row's `context.clearance_lost`. Use them to tell a real neighbour from robot leftovers or stale
+voxels before touching any margin (`tests/test_clearance_snapshots.py`);
+`scripts/replay_clearance.py` re-vets them offline per lever (spec §6.3). It mirrors the live read
+(float32 grid, the region clamp from `map.grid_origin` / `grid_shape`, `base_pose`) and is exact
+only on whole-mm voxel lattices (the 1 cm default); it was checked on an EDT test bridge, never yet
+on real nvblox, and it measures `old` and certified L4, not L1/L2 (spec §12, P-A6).
+
 Offline end to end (`tests/test_rebot_occupancy_live.py`): with the capsule mask home is refused
 by the arm's own jaws; with the mesh mask rest, home and every step between are admitted, and the
 incident's side grasp is refused at preflight. Limitations: only `map_depth` cameras feed the map

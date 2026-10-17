@@ -11,12 +11,19 @@ class PlanningBudgetExceeded(SkillError):
     """Planning ended before an actuator was authorized."""
 
 
+def check_limits(max_batches, timeout_s) -> None:
+    """Refuse a batch count or a timeout a PlanningBudget cannot run with
+    (SkillError). The budget checks them itself; a caller that must refuse
+    them before anything moves, ahead of the budget's clock, calls this."""
+    if type(max_batches) is not int or not 1 <= max_batches <= 8:
+        raise SkillError("grasp feasibility_max_batches must be an integer in [1, 8]")
+    if isinstance(timeout_s, bool) or not isinstance(timeout_s, (int, float)) or not math.isfinite(timeout_s) or timeout_s <= 0:
+        raise SkillError("grasp feasibility_timeout_s must be finite and positive")
+
+
 class PlanningBudget:
     def __init__(self, max_batches, timeout_s, *, deadlines=(), cancel=None):
-        if type(max_batches) is not int or not 1 <= max_batches <= 8:
-            raise SkillError("grasp feasibility_max_batches must be an integer in [1, 8]")
-        if isinstance(timeout_s, bool) or not isinstance(timeout_s, (int, float)) or not math.isfinite(timeout_s) or timeout_s <= 0:
-            raise SkillError("grasp feasibility_timeout_s must be finite and positive")
+        check_limits(max_batches, timeout_s)
         self.started = time.monotonic()
         self.deadline = self.started + timeout_s
         for deadline in deadlines:

@@ -137,5 +137,10 @@ def test_the_rig_trap_is_gone_after_a_raised_lift(rebot):
 def test_only_the_rebot_profile_turns_it_on():
     from cascade.config import load_demo_config
 
-    assert load_demo_config(arm="rebot_rs", camera="mock", llm="mock").grasp.get("pregrasp_clear_top_m") == 0.03
-    assert load_demo_config(arm="mock", camera="mock", llm="mock").grasp.get("pregrasp_clear_top_m") is None
+    rebot = load_demo_config(arm="rebot_rs", camera="mock", llm="mock").grasp
+    mock = load_demo_config(arm="mock", camera="mock", llm="mock").grasp
+    assert rebot.get("pregrasp_clear_top_m") == 0.03
+    assert mock.get("pregrasp_clear_top_m") is None
+    # the hover counts from the map's top of the target (tests/test_pregrasp_map_top.py)
+    assert rebot.get("pregrasp_map_top") is True
+    assert mock.get("pregrasp_map_top") is False

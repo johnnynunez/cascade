@@ -3,7 +3,6 @@ import copy
 import time
 from types import SimpleNamespace
 
-import numpy as np
 import pytest
 
 from cascade.config import Cfg
@@ -12,6 +11,12 @@ from cascade.grasping.planning_budget import PlanningBudget, PlanningBudgetExcee
 from cascade.grasping.selector import NoExecutableGrasp
 from cascade.types import MotionHalted, SafetyViolation
 from test_observed_finger_runtime import runtime, fake_gate, real_harness
+
+#: the grasp-start jaw read (gate on, open jaws): closed empty jaws open
+#: before the planning budget's clock starts (jaws round 2b), so this read
+#: (.02 s on the fixture's clock) precedes the budget and the first batch
+JAW_CHECK = [('read', [.2, 0., .2], 1.)]
+JAW_CHECK_S = .02
 
 
 def planning_fixture(monkeypatch):
@@ -51,7 +56,7 @@ def test_two_batches_share_snapshot_prior_deadline_and_do_not_act_between_them(m
     result = rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
     assert result['grip_verified']
     assert batches == [1, 2] and len(reads) == 1
-    assert opts[0]['_deadline'] == opts[1]['_deadline'] == 8.
+    assert opts[0]['_deadline'] == opts[1]['_deadline'] == pytest.approx(JAW_CHECK_S + 8.)
     assert opts[0]['_prior_snapshot'] is opts[1]['_prior_snapshot']
     assert opts[1]['_prior_snapshot'][0]['nudges']['grasp_z_delta'] == -.005
     assert [r for r in records if not r['success']] == []
@@ -78,7 +83,7 @@ def test_non_feasibility_errors_are_not_retried(monkeypatch, error):
     rt._plan_grasps = failed
     with pytest.raises(type(error), match=str(error)):
         rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
-    assert batches == [1] and not calls
+    assert batches == [1] and calls == JAW_CHECK
 
 
 def test_valid_batch_filtered_to_zero_can_be_followed_by_valid_batch(monkeypatch):
@@ -204,7 +209,9 @@ def test_additional_state_reads_never_enlarge_normal_rpc_timeout(monkeypatch):
         return read(**kwargs)
     rt.arm.get_state = bounded
     rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
-    assert len(budgets) == 3  # initial state, between batches, immediately pre-open
+    # between batches, immediately pre-open; the initial state is the
+    # grasp-start jaw read, before the budget, at the normal RPC timeout
+    assert len(budgets) == 2
     assert all(0 < b <= 1 for b in budgets)
 
 
@@ -220,7 +227,7 @@ def test_persistence_helper_passes_its_shorter_absolute_deadline(monkeypatch):
     result = rt._grasp_with_persistence('orange', budget_s=.25)
     assert result['ok'] is False and result['home_skipped'] is True
     assert opts[0]['_deadline'] == .25 and batches == [1]
-    assert not calls
+    assert calls == JAW_CHECK
 
 
 def test_halt_after_last_twin_ik_prevents_using_original_success(monkeypatch):

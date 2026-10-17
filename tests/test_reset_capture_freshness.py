@@ -77,6 +77,8 @@ def runtime(cam):
     rt.detector = SimpleNamespace(detect=lambda *a, **kw: [detection()])
     rt._default_classes = None
     rt.cfg = Cfg({})
+    # The constructor's jaw travel for a profile with no gripper section.
+    rt._grip_open, rt._grip_closed = 0.0, 1.0
     rt._show_detections = lambda *a: None
     rt.skill_move_home = lambda: {'at': 'synthetic_home_only'}
     from cascade.perception.workspace import WorkspaceFilter

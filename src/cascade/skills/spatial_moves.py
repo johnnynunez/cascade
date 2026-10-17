@@ -48,6 +48,7 @@ import itertools
 import logging
 import math
 from dataclasses import dataclass
+from typing import NamedTuple
 
 import numpy as np
 
@@ -72,6 +73,20 @@ _CAMERA_TOL = 1e-3
 # ── settings ────────────────────────────────────────────────────────────────
 
 
+class CameraDims(NamedTuple):
+    """The wrist camera box in the TCP frame (m): it reaches `behind_m` back
+    from the fingertip plane and `protrusion_m` up from the finger axis,
+    +-`half_width_m` across the jaws. `front_m` / `bottom_m` cut its front and
+    bottom faces (a calipered camera, spec 2026-10-16 nvblox §3.4); 0 = today's
+    slab, down to the fingertip plane and the finger axis."""
+
+    protrusion_m: float
+    behind_m: float
+    half_width_m: float
+    front_m: float = 0.0
+    bottom_m: float = 0.0
+
+
 @dataclass(frozen=True)
 class Settings:
     duration_s: float
@@ -82,9 +97,8 @@ class Settings:
     tool_up_axis: tuple | None
     tool_up_min_z: float
     max_object_move_m: float
-    #: (protrusion, behind the tip, half width) of the wrist camera box, m;
-    #: None = no camera volume check
-    wrist_camera: tuple | None
+    #: the wrist camera box (CameraDims, m); None = no camera volume check
+    wrist_camera: CameraDims | None
     camera_occupancy: bool
 
 
@@ -113,10 +127,10 @@ def _tool_up(c):
 
 
 def wrist_camera_dims(c) -> tuple:
-    """((protrusion, behind the tip, half width) or None, camera-up axis or
-    None) from a `relative_motion:` block, parsed exactly as `settings()`
-    does. The harness samples the SAME box for its occupancy check
-    (safety/tool_volume.py), so the two layers can never disagree."""
+    """(CameraDims or None, camera-up axis or None) from a `relative_motion:`
+    block, parsed exactly as `settings()` does. The harness samples the SAME
+    box for its occupancy check (safety/tool_volume.py), so the two layers
+    can never disagree."""
     c = c if c is not None else {}
     up = _tool_up(c)
     dims, _ = _camera_settings(c, up)
@@ -151,15 +165,19 @@ def settings(rt) -> Settings:
 
 _ABSENT = object()
 #: the reBot camera box when a config has no `wrist_camera` key at all: the
-#: padded D455F as measured on the rig (configs/demo.yaml has the numbers)
-DEFAULT_WRIST_CAMERA = {"protrusion_m": 0.08, "behind_tip_m": 0.14, "half_width_m": 0.075}
+#: padded D455F as measured on the rig (configs/demo.yaml has the numbers).
+#: `front_m` / `bottom_m` (0 = the slab reaches the fingertip plane and the
+#: finger axis) cut the box once the camera is calipered (spec 2026-10-16
+#: nvblox §3.4, safety/tool_volume.camera_faces_from_calipers)
+DEFAULT_WRIST_CAMERA = {"protrusion_m": 0.08, "behind_tip_m": 0.14, "half_width_m": 0.075,
+                        "front_m": 0.0, "bottom_m": 0.0}
 
 
 def _camera_settings(c, up) -> tuple:
-    """(dims or None, check_occupancy). An explicit null disables the volume
-    check; a MISSING key falls back to the reBot defaults (a config written
-    before the camera was modelled must not silently lose the check). Bad
-    sizes raise SkillError, refusing every move until fixed."""
+    """(CameraDims or None, check_occupancy). An explicit null disables the
+    volume check; a MISSING key falls back to the reBot defaults (a config
+    written before the camera was modelled must not silently lose the check).
+    Bad sizes raise SkillError, refusing every move until fixed."""
     raw = c.get("wrist_camera", _ABSENT)
     if up is None or raw is None:
         return None, False
@@ -171,14 +189,18 @@ def _camera_settings(c, up) -> tuple:
         raise SkillError(f"relative_motion.wrist_camera has unknown key(s) {unknown}; expected "
                          f"{sorted(DEFAULT_WRIST_CAMERA)} and check_occupancy")
     get = raw.get
-    dims = (get("protrusion_m", DEFAULT_WRIST_CAMERA["protrusion_m"]),
-            get("behind_tip_m", DEFAULT_WRIST_CAMERA["behind_tip_m"]),
-            get("half_width_m", DEFAULT_WRIST_CAMERA["half_width_m"]))
-    rm.camera_box(np.eye(4), [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], protrusion_m=dims[0],
-                  behind_m=dims[1], half_width_m=dims[2])  # validates, raises on bad sizes
+    dims = CameraDims(*(get(key, default) for key, default in (
+        ("protrusion_m", DEFAULT_WRIST_CAMERA["protrusion_m"]),
+        ("behind_tip_m", DEFAULT_WRIST_CAMERA["behind_tip_m"]),
+        ("half_width_m", DEFAULT_WRIST_CAMERA["half_width_m"]),
+        ("front_m", DEFAULT_WRIST_CAMERA["front_m"]),
+        ("bottom_m", DEFAULT_WRIST_CAMERA["bottom_m"]))))
+    rm.camera_box(np.eye(4), [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], protrusion_m=dims.protrusion_m,
+                  behind_m=dims.behind_m, half_width_m=dims.half_width_m, front_m=dims.front_m,
+                  bottom_m=dims.bottom_m)  # validates, raises on bad sizes
     occ = get("check_occupancy", False)
     occ = occ is True or str(occ).strip().lower() in ("1", "true", "yes", "on")
-    return tuple(float(d) for d in dims), occ
+    return CameraDims(*(float(d) for d in dims)), occ
 
 
 # ── per-arm state ───────────────────────────────────────────────────────────
@@ -326,13 +348,14 @@ def _camera_volume(rt, poses, s: Settings):
     behind the fingertips) can reach the table or a fixture while the TCP --
     the only point the harness checks -- is fine.
     """
-    prot, behind, half_w = s.wrist_camera
+    cam = s.wrist_camera
     approach_tcp = np.eye(3)[rm._TOOL_COLUMNS[rt._tool_axis_order][0]]
-    boxes = [rm.camera_box(T, approach_tcp, s.tool_up_axis, protrusion_m=prot, behind_m=behind,
-                           half_width_m=half_w) for T in poses]
+    boxes = [rm.camera_box(T, approach_tcp, s.tool_up_axis, protrusion_m=cam.protrusion_m,
+                           behind_m=cam.behind_m, half_width_m=cam.half_width_m, front_m=cam.front_m,
+                           bottom_m=cam.bottom_m) for T in poses]
     harness = rt.arm.harness
     limits = harness.limits
-    what = f"the wrist camera (it sticks out {prot * 100:.1f} cm above the gripper)"
+    what = f"the wrist camera (it sticks out {cam.protrusion_m * 100:.1f} cm above the gripper)"
     table_z, clear = float(limits.table_z), float(limits.table_clearance)
     floor = table_z + clear
     lows = [b.min_z() for b in boxes]
@@ -397,7 +420,7 @@ def plan_route(rt, q_start, goals, *, load: Carried, s: Settings, duration: floa
     `goals` is a list of ("pose", T_4x4) or ("joints", q). Raises `Refused`
     on the first failing segment; never commands anything.
     """
-    from ..safety.trajectory import geometry_guard, vet_segment
+    from ..safety.trajectory import geometry_guard, route_end_reason, vet_segment
 
     kin, harness = _kin(rt), rt.arm.harness
     cart = _cartesian(rt)
@@ -450,6 +473,10 @@ def plan_route(rt, q_start, goals, *, load: Carried, s: Settings, duration: floa
                 raise Refused(found[0], found[1], i)
             segments.append(Segment(q.copy(), q_goal, T_goal))
             q = q_goal
+        # A step may retreat inside the map margin; the route may not end there.
+        reason = route_end_reason(harness, q)
+        if reason:
+            raise Refused("safety_harness", reason, len(goals) - 1)
     return Route(segments, cart)
 
 

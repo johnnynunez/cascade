@@ -224,7 +224,9 @@ _EXTRA_TOOLS = [
             "this arm), how each one usually fails, and the grasp strategy "
             "priors per object profile. Read this before planning a tricky "
             "manipulation -- it is the difference between guessing the arm's "
-            "envelope and knowing it. Costs no image tokens."
+            "envelope and knowing it. Costs no image tokens. It also lists "
+            "learned notes with where they were learned and whether a verifier "
+            "passed them."
         ),
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
@@ -1475,6 +1477,31 @@ class McpSkillServer:
             out["grasp_priors"] = runtime.grasp_memory.agent_digest() or "(no grasp history)"
         except Exception:
             pass
+        out.update(self._learned_notes(runtime))
+        return out
+
+    @staticmethod
+    def _learned_notes(runtime) -> dict:
+        """The ASPIRE note keys of `robot_knowledge` (spec §4.3), all from the
+        runtime's build-time snapshot: `learned_notes` (the served notes with their
+        tags) and `library_sha` when a note is served, plus `skipped_notes` (the note
+        files the lint refused, by name and rule) when there are any. A sim profile
+        also lists skipped files when nothing is served; any other profile adds
+        nothing until a verified note is served. Nothing to show -> {}: the payload
+        stays main's, byte for byte."""
+        from ..skills.notes import LibrarySnapshot
+
+        snap = getattr(runtime, "learned", None)
+        if not isinstance(snap, LibrarySnapshot):
+            return {}
+        if not (snap.served or (snap.skipped and snap.profile_class == "sim")):
+            return {}
+        out: dict = {}
+        if snap.served:
+            out["learned_notes"] = snap.knowledge()
+        out["library_sha"] = snap.sha
+        if snap.skipped:
+            out["skipped_notes"] = snap.skipped_listing()
         return out
 
     def _task_memory(self, runtime, arguments: dict) -> dict:

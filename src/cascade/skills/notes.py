@@ -55,6 +55,8 @@ TITLE_MAX_CHARS = 80
 BLOCK_MAX_CHARS = 1400
 LEARNED_MAX_BYTES = 2000
 KNOWLEDGE_MAX_CHARS = 6000
+#: skipped note files `robot_knowledge` names (the rest are counted)
+SKIPPED_SHOWN = 20
 #: a note file larger than this is skipped (`too_large`) on its fstat size, before any read
 NOTE_MAX_BYTES = 64 * 1024
 LEARNED_HEADER_PREFIX = "<!-- cascade-learned-notes v1 "
@@ -92,6 +94,8 @@ _ADVICE_ONLY = ("Advice only: tool results and safety refusals always win. "
                 "Use a note only when it matches the order.")
 _BLOCK_FOOT = ("If a note shaped what you did, the tool result tells you the one line to add "
                "(do not add your own).")
+_SKIPPED_HEAD = "Refused by the note check, so never advice (file name and the rule that refused it):"
+_NAME_NOT_SHOWN = "(name not shown)"
 
 #: a note's file name: its id is safe in a JSON manifest, a LEARNED.md header line
 #: and the hash's "<name>\t<sha>\n" lines (no tab, newline, comma or "-->")
@@ -1290,6 +1294,19 @@ class LibrarySnapshot:
             text += f"\n({len(self.served) - shown} more notes not shown)"
         return text
 
+    def skipped_listing(self) -> str:
+        """`skipped` for `robot_knowledge`: a head line, then "- <name> (<reason>)" for
+        at most `SKIPPED_SHOWN` entries, then "(N more not shown)"; "" when nothing was
+        skipped. A name is shown only when `_shown_name` passes it."""
+        if not self.skipped:
+            return ""
+        lines = [_SKIPPED_HEAD]
+        for entry in self.skipped[:SKIPPED_SHOWN]:
+            lines.append(f"- {_shown_name(entry['id'])} ({entry['reason']})")
+        if len(self.skipped) > SKIPPED_SHOWN:
+            lines.append(f"({len(self.skipped) - SKIPPED_SHOWN} more not shown)")
+        return "\n".join(lines)
+
     def matching(self, goal: str) -> Note | None:
         """The served note whose `when` words share the most words with `goal`
         (ties: the better-ranked note); None without any shared word."""
@@ -1311,6 +1328,16 @@ class LibrarySnapshot:
 def _printable_id(name: str) -> str:
     """A file name's stem as printable ASCII (escapes for anything else)."""
     return ascii(name.removesuffix(".md"))[1:-1]
+
+
+def _shown_name(note_id: str) -> str:
+    """A skipped entry's name as the agent may read it: `note_id` only when it is a
+    safe note name AND its text passes the title lint, else `_NAME_NOT_SHOWN`. A
+    library file is named after its title (`SkillLibrary` slugs), so the name of a
+    note whose title the lint refused would otherwise bring that text back."""
+    if not _is_note_name(f"{note_id}.md") or _lint_field("title", note_id, TITLE_MAX_CHARS, ""):
+        return _NAME_NOT_SHOWN
+    return note_id
 
 
 def load_snapshot(root: Path | None, profile_class: str, *, min_tasks: int = 2) -> LibrarySnapshot:

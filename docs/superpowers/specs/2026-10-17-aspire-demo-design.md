@@ -263,8 +263,17 @@ managed block directly after `AGENTS.md`, which is what Q2 asked for.
 `useful - misleading`, then `n_tasks`, then name. Block <= 1400 characters (~350 tokens) and the whole `LEARNED.md`
 <= 2000 UTF-8 bytes (the tag's "·" and non-ASCII titles cost more than one byte); a note's advice is cut to fit.
 `robot_knowledge` adds `learned_notes` (all served notes, same rendering, <= 6000 chars, then
-"(N more notes not shown)") and `library_sha`, but only when at least one note is served; otherwise its payload is
-byte-identical to main. `robot_knowledge` joins `attendee-tools.json` (7 tools) with the description "What earlier runs
+"(N more notes not shown)") and `library_sha` when at least one note is served, and `skipped_notes` (A3, controller
+ruling: a hand-written note the lint refused is never silent) when the snapshot skipped any `*.md` entry: a head line
+"Refused by the note check, so never advice (file name and the rule that refused it):", then "- <name> (<reason>)"
+for at most 20 entries (`SKIPPED_SHOWN`), then "(N more not shown)". A name is shown only when it is a safe note name
+whose text passes the title lint, else "(name not shown)": a library file is named after its title, so a refused
+title must not come back as a file name. A `sim` snapshot shows `skipped_notes` (with `library_sha`) even when nothing
+is served; any other class adds nothing until a verifier-passed note is served (§6.3). Nothing served and nothing
+skipped -- or, on `real`, nothing served -- leaves the payload byte-identical to main. The tool's description gains
+"It also lists learned notes with where they were learned and whether a verifier passed them." (static, so the tool
+catalogue changes for every profile). `robot_knowledge` joins `attendee-tools.json` (7 tools) with the description
+"What earlier runs
 taught this robot: learned notes with where they were learned and whether a verifier passed them. Read-only, never
 moves the robot." Every pinned copy of the 6-tool list moves to 7 in the same change: `deploy/brev/visitor_chat.py:21`
 `TOOLS` (the attendee chat refuses a profile whose `tools.allow` differs), `scripts/demo_proof.py:415` read tools,

@@ -92,6 +92,20 @@ def test_a_rewrite_goes_through_a_temp_file_and_replace(workspace, snap_with_two
     assert data == (workspace / "LEARNED.md").read_bytes()                        # complete before it is visible
 
 
+def test_a_failed_replace_leaves_no_temp_file_and_the_old_file(workspace, snap_with_two, tmp_path, monkeypatch):
+    sync_learned_notes(workspace, snap_with_two)
+    before = (workspace / "LEARNED.md").read_bytes()
+
+    def refuse(src, dst):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(learned_block.os, "replace", refuse)
+    with pytest.raises(OSError, match="disk full"):
+        sync_learned_notes(workspace, load_snapshot(_library(tmp_path / "other", 3), "sim"))
+    assert sorted(p.name for p in workspace.iterdir()) == ["LEARNED.md"]
+    assert (workspace / "LEARNED.md").read_bytes() == before
+
+
 def test_nothing_served_removes_our_file(workspace, snap_with_two, tmp_path):
     empty = load_snapshot(tmp_path / "empty-lib", "sim")
     assert empty.served == () and empty.block() == ""                               # premise
@@ -157,30 +171,32 @@ def test_refuses_hand_written_or_symlinked_file(workspace, snap_with_two, tmp_pa
     assert sorted(p.name for p in workspace.iterdir()) == ["LEARNED.md"]
 
 
-@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="O_RDWR on a FIFO is Linux behaviour")
-def test_a_file_swapped_for_a_fifo_after_the_listing_is_judged_on_its_descriptor(workspace, snap_with_two,
-                                                                               monkeypatch):
-    # lstat said "regular file", then the path became a FIFO holding a forged header: the fstat of the
-    # opened descriptor decides, so nothing is read from it and nothing replaces it
+def test_a_fifo_holding_a_file_in_our_format_is_judged_on_its_descriptor(workspace, snap_with_two):
+    # only the descriptor's regular-file check decides: the FIFO holds a forged header followed by
+    # EOF (its writer closed; a reader keeps the pipe), so a plain read would take it for our file
     path = workspace / "LEARNED.md"
     os.mkfifo(path)
-    writer = os.open(path, os.O_RDWR | os.O_NONBLOCK)
+    keeper = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    writer = os.open(path, os.O_WRONLY | os.O_NONBLOCK)
     os.write(writer, (LEARNED_HEADER_PREFIX + "forged -->\n").encode())
-    real = os.lstat
-
-    def lstat(target, *args, **kwargs):
-        found = real(target, *args, **kwargs)
-        if Path(target) == path:
-            return os.stat_result((stat.S_IFREG | 0o600, *tuple(found)[1:]))
-        return found
-
-    monkeypatch.setattr(learned_block.os, "lstat", lstat)
+    os.close(writer)
     try:
         with pytest.raises(ValueError, match="not a regular file"):
             _bounded(sync_learned_notes, workspace, snap_with_two)
     finally:
-        os.close(writer)
-    assert stat.S_ISFIFO(real(path).st_mode)
+        os.close(keeper)
+    assert stat.S_ISFIFO(os.lstat(path).st_mode)
+
+
+def test_without_o_nofollow_the_lstat_still_refuses_a_symlink(workspace, snap_with_two, tmp_path, monkeypatch):
+    # a platform without O_NOFOLLOW (getattr fallback 0): only the lstat keeps the link unfollowed
+    target = tmp_path / "ours.md"
+    target.write_text(_header(snap_with_two) + "\n" + snap_with_two.block() + "\n")
+    (workspace / "LEARNED.md").symlink_to(target)
+    monkeypatch.delattr(learned_block.os, "O_NOFOLLOW")
+    with pytest.raises(ValueError, match="symlink"):
+        sync_learned_notes(workspace, load_snapshot(tmp_path / "empty-lib", "sim"))
+    assert (workspace / "LEARNED.md").is_symlink() and target.exists()
 
 
 def test_a_file_swapped_for_a_symlink_after_the_listing_is_never_followed(workspace, snap_with_two, tmp_path,
@@ -209,6 +225,14 @@ def test_a_file_that_only_starts_like_ours_is_replaced(workspace, snap_with_two)
     (workspace / "LEARNED.md").write_text(LEARNED_HEADER_PREFIX + "library_sha=old -->\nold block\n")
     assert sync_learned_notes(workspace, snap_with_two) is True
     assert (workspace / "LEARNED.md").read_text().startswith(_header(snap_with_two) + "\n")
+
+
+def test_the_header_names_only_the_notes_the_block_renders(workspace, tmp_path):
+    snap = load_snapshot(_library(tmp_path / "lib", 3), "sim")
+    assert [n.id for n in snap.served] == ["a-note", "b-note", "c-note"]          # premise: three served
+    assert snap.manifest()["block_notes"] == ["a-note", "b-note"]                  # the block shows two
+    sync_learned_notes(workspace, snap)
+    assert (workspace / "LEARNED.md").read_text().split("\n", 1)[0].endswith(" notes=a-note,b-note -->")
 
 
 def test_learned_file_fits_2000_bytes_with_non_ascii_titles(workspace, tmp_path):
@@ -452,6 +476,14 @@ def test_check_without_our_file_warns_when_the_server_has_a_block(workspace, sna
     empty = load_snapshot(tmp_path / "empty-lib", "sim")
     ok, _ = check_learned_notes(workspace, _run_json(tmp_path / "run2", empty))
     assert ok is True and list(workspace.iterdir()) == []
+
+
+def test_an_oversize_run_json_is_no_run_record(workspace, snap_with_two, tmp_path, monkeypatch):
+    sync_learned_notes(workspace, snap_with_two)
+    run = _run_json(tmp_path / "run", snap_with_two)
+    monkeypatch.setattr(learned_block, "RUN_JSON_MAX_BYTES", len((run / "run.json").read_bytes()) - 1)
+    ok, message = check_learned_notes(workspace, run)
+    assert ok is False and "too large" in message and not (workspace / "LEARNED.md").exists()
 
 
 @pytest.mark.parametrize("override", [{"block_notes": {}}, {"block_notes": [None]}, {"library_sha": 7},

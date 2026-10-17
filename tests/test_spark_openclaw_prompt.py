@@ -306,9 +306,10 @@ def test_a_learned_file_of_exactly_2000_bytes_is_injected(tmp_path):
     assert _prompt(tmp_path) == "A\n" + "\n\n" + block + "\n\n" + identity
 
 
-@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="O_RDWR on a FIFO is Linux behaviour")
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="FIFO open semantics are Linux behaviour")
 def test_a_fifo_holding_a_valid_file_is_still_not_injected(tmp_path):
-    # only the regular-file check decides here: the FIFO has a writer and valid bytes waiting
+    # only the regular-file check decides here: the FIFO holds a valid file followed by EOF (the
+    # writer closed; a reader keeps the pipe alive), so a plain read would return a valid file
     identity = _identity(tmp_path)
     _generated(tmp_path)
     valid = (tmp_path / "LEARNED.md").read_text(encoding="utf-8")
@@ -316,10 +317,13 @@ def test_a_fifo_holding_a_valid_file_is_still_not_injected(tmp_path):
     os.mkfifo(tmp_path / "LEARNED.md")
     result = run_hook(tmp_path, f"""
 const fs = await import('node:fs');
-const writer = fs.openSync(join(workspaceDir, 'LEARNED.md'), fs.constants.O_RDWR | fs.constants.O_NONBLOCK);
+const fifo = join(workspaceDir, 'LEARNED.md');
+const keeper = fs.openSync(fifo, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK);
+const writer = fs.openSync(fifo, fs.constants.O_WRONLY | fs.constants.O_NONBLOCK);
 fs.writeSync(writer, {json.dumps(valid)});
-const prompt = hook({{}}, context).systemPrompt;
 fs.closeSync(writer);
+const prompt = hook({{}}, context).systemPrompt;
+fs.closeSync(keeper);
 console.log(JSON.stringify({{prompt}}));
 """, timeout=30)
     assert result["prompt"] == "A\n" + "\n\n" + identity

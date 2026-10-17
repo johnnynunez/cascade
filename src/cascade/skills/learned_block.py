@@ -91,10 +91,7 @@ def _header(data: bytes) -> tuple[str, list[str]] | None:
         match = _HEADER_RE.fullmatch(first.decode("ascii"))
     except UnicodeDecodeError:
         return None
-    if match is None:
-        return None
-    ids = match.group(2).split(",")
-    return (match.group(1), ids) if all(notes.is_note_id(i) for i in ids) else None
+    return None if match is None else (match.group(1), match.group(2).split(","))
 
 
 def render_learned(snapshot) -> str:

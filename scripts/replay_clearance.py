@@ -41,7 +41,7 @@ point within half a voxel outside the border node centres is clamped to
 them, one farther out reads +inf. A tool sample below the margin is
 re-measured to the nearest float32 centre outside the table band and the
 exemption column (base frame), minus half a voxel, as `clearance_excluding`
-does. Exact (|delta| <= 3e-5 mm measured) only where the snapshot's 1 mm rounding keeps the
+does. Exact (|delta| < 1e-4 mm measured) only where the snapshot's 1 mm rounding keeps the
 voxel lattice: whole-mm centres, such as the 1 cm default voxel at x.xx5; a
 lattice it breaks (1.5 cm voxels) or one whose centre steps share a factor
 (voxel_m a fraction of the real voxel) is not replayable. Checked against an

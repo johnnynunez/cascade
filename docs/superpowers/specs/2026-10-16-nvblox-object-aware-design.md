@@ -560,7 +560,7 @@ Reading the table:
    on the recorded grid (`map.grid_origin`, `map.grid_shape`), clamped to the border nodes within
    half a voxel of a region face and +inf beyond it; tool parts re-measured to the nearest
    non-excluded float32 centre minus half a voxel, in the arm's frames (`base_pose`, the exemption
-   cylinder in the base frame). Exactness is narrow: replay = live (|Δ| ≤ 3e-5 mm measured) only where the
+   cylinder in the base frame). Exactness is narrow: replay = live (|Δ| < 1e-4 mm measured) only where the
    snapshot's 1 mm rounding keeps the voxel lattice, i.e. whole-mm centres such as the 1 cm
    default voxel at x.xx5, and only on an exact Euclidean grid. That is measured on the EDT test
    bridge, never yet on real nvblox (its ESDF is not an exact Euclidean transform and sees voxels

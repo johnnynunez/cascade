@@ -49,6 +49,10 @@ from cascade.types import SafetyViolation
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "replay_clearance.py"
+SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-10-16-nvblox-object-aware-design.md"
+#: replay = live within this (m) on an exact lattice: the documented bound,
+#: "< 1e-4 mm" (pre-PR M4; measured up to 3.31e-5 mm on tool parts)
+EXACT_M = 1e-7
 
 #: the lattice of make_map (REGION_MIN -0.30, -0.45, -0.02): voxel boundaries
 #: on whole centimetres, centres at x.xx5 (exact at the snapshot's 1 mm)
@@ -256,8 +260,18 @@ def test_the_replayed_clearance_is_the_live_grid_read_of_the_snapshot(rc, rebot,
     rep = vet_pose_refusal(rebot, q)
     out = rc.replay(rep, arm="rebot_rs")
     assert out["clearance_m"] == rep["clearance_m"]
-    assert out["replay_clearance_m"] == pytest.approx(rep["clearance_m"], abs=1e-6)
+    assert out["replay_clearance_m"] == pytest.approx(rep["clearance_m"], abs=EXACT_M)
     assert out["old"].startswith("refused: point 0 clearance") and same_words(out["old"], "refused: " + rep["reason"])
+
+
+def test_the_documented_exactness_bound_is_the_one_the_parity_tests_hold():
+    """The script and the spec state replay = live within < 1e-4 mm (pre-PR
+    M4): the first-written 3e-5 mm was below a measured 3.31e-5 mm. The
+    parity tests above hold the replay to that documented bound."""
+    script, spec = SCRIPT.read_text(), SPEC.read_text()
+    assert "Exact (|delta| < 1e-4 mm measured)" in script and "3e-5" not in script
+    assert "replay = live (|\u0394| < 1e-4 mm measured)" in spec and "3e-5" not in spec
+    assert EXACT_M == pytest.approx(1e-4 * 1e-3, rel=1e-12)          # 1e-4 mm in metres
 
 
 @needs_pin
@@ -448,7 +462,7 @@ def test_a_wrist_camera_refusal_replays_and_lever_4_takes_the_override_volume(rc
     assert out["old"].startswith("refused: wrist camera clearance") and out["L4"] == out["old"]
     # the gate re-measures a tool sample below the margin to the voxel centre
     # minus half a voxel; so does the replay
-    assert out["replay_clearance_m"] == pytest.approx(rep["clearance_m"], abs=1e-6)
+    assert out["replay_clearance_m"] == pytest.approx(rep["clearance_m"], abs=EXACT_M)
     parts = rc.tool_volume_from_override("rebot_rs", PARTS)
     assert parts.names == ("wrist camera", "housing", "fingers", "jaws")
     out4 = rc.replay(rep, arm="rebot_rs", tool_volume_override=parts)
@@ -494,7 +508,7 @@ def test_an_attached_payload_refusal_replays_its_held_sample(rc, rebot):
     out = rc.replay(rep, arm="rebot_rs")
     assert out["old"].startswith("refused: attached object point 0 clearance")
     assert out["L1"].startswith("refused: attached object point 0 clearance")
-    assert out["replay_clearance_m"] == pytest.approx(rep["clearance_m"], abs=1e-6)
+    assert out["replay_clearance_m"] == pytest.approx(rep["clearance_m"], abs=EXACT_M)
 
 
 @needs_pin
@@ -687,7 +701,7 @@ def test_a_halt_that_took_over_a_report_is_certified_around_its_snapshot_centre(
     assert rep["snapshot"]["centre"][0] == pytest.approx(X_REC, abs=1e-7)
     out = rc.replay(rep, arm="rebot_rs")
     assert out["approximate"] == ["takeover"]
-    assert out["replay_clearance_m"] == pytest.approx(rep["clearance_m"], abs=1e-6)
+    assert out["replay_clearance_m"] == pytest.approx(rep["clearance_m"], abs=EXACT_M)
     assert out["L1"] == "refused: " + rep["reason"]
     radius = min(0.05, max(v[3] for v in rep["voxels"]) - 0.001)       # capped: the farthest kept one
     assert out["certified"] == {"centre": rep["snapshot"]["centre"], "radius_m": pytest.approx(radius),

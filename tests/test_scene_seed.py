@@ -225,3 +225,22 @@ def test_kitchen_layout_refuses_an_incomplete_kitchen(missing):
     del config[missing]
     with pytest.raises(ValueError):
         kitchen_layout(config)
+
+
+@pytest.mark.parametrize("config", [None, [], "kitchen", 5], ids=["none", "list", "string", "int"])
+def test_kitchen_layout_refuses_a_non_dict_config_with_value_error(config):
+    # The docstring's contract: every unusable config is a ValueError.
+    with pytest.raises(ValueError, match="scene config"):
+        kitchen_layout(config)
+
+
+@pytest.mark.parametrize("argument,value", [
+    ("spawns", None), ("spawns", 5), ("spawns", [("lemon", (0.3, 0.0, 0.02))]),
+    ("footprints", None), ("footprints", [0.02]),
+    ("keepouts", None), ("keepouts", 5),
+])
+def test_seeded_spawns_refuses_none_or_non_iterable_inputs_with_value_error(argument, value):
+    kwargs = {"spawns": dict(S), "footprints": dict(FOOTPRINTS), "keepouts": list(KEEPOUTS), argument: value}
+    for seed in (0, 3):  # refused whether or not the seed moves anything
+        with pytest.raises(ValueError, match=argument):
+            seeded_spawns(kwargs["spawns"], seed, footprints=kwargs["footprints"], keepouts=kwargs["keepouts"])

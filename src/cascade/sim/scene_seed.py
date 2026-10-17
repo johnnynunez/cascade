@@ -61,7 +61,10 @@ def seeded_spawns(spawns, seed, *, footprints, keepouts, jitter_m=0.04, min_gap_
     `fallbacks`; because earlier props kept clear of it, the layout stays valid.
     Coordinates are rounded to the micrometre before they are checked.
 
-    Returns `(layout, fallbacks)`. Raises ValueError on a bad seed or input.
+    `spawns` (name -> 3D position) and `footprints` (name -> radius) are
+    dicts; `keepouts` is an iterable of (xmin, ymin, xmax, ymax) rectangles.
+    Returns `(layout, fallbacks)`. Raises ValueError on a bad seed or input,
+    including None or non-iterable spawns, footprints or keepouts.
     """
     seed = validate_reset_seed(seed)
     if (type(max_tries) is not int or max_tries < 1
@@ -69,6 +72,14 @@ def seeded_spawns(spawns, seed, *, footprints, keepouts, jitter_m=0.04, min_gap_
                        for v in (jitter_m, min_gap_m, reach_m))
             or jitter_m < 0 or min_gap_m < 0 or reach_m <= 0):
         raise ValueError("seeded layout needs jitter_m >= 0, min_gap_m >= 0, reach_m > 0, max_tries >= 1")
+    if not isinstance(spawns, dict):
+        raise ValueError("seeded layout spawns must be a dict of name -> position")
+    if not isinstance(footprints, dict):
+        raise ValueError("seeded layout footprints must be a dict of name -> radius")
+    try:
+        keepouts = list(keepouts)
+    except TypeError:
+        raise ValueError("seeded layout keepouts must be an iterable of rectangles") from None
     current = {}
     for name, position in spawns.items():
         if not isinstance(name, str) or not isinstance(position, (tuple, list)) or len(position) != 3:
@@ -76,7 +87,7 @@ def seeded_spawns(spawns, seed, *, footprints, keepouts, jitter_m=0.04, min_gap_
         current[name] = _finite(position, f"spawn {name}")
     radii = {}
     for name in current:
-        radius = footprints.get(name) if isinstance(footprints, dict) else None
+        radius = footprints.get(name)
         if radius is None:
             raise ValueError(f"seeded layout has no footprint for {name}")
         radius = _finite([radius], f"footprint {name}")[0]
@@ -139,10 +150,11 @@ def kitchen_layout(scene_config):
       semi-axis for cylinder and ellipsoid proxies);
     - keepouts: the green-square `target_pad`, the `open_box` (outer size),
       the reBot base and everything off the `counter` top.
-    Raises ValueError when any of them is missing or malformed.
+    Raises ValueError when the config is not a dict (None included) or any of
+    them is missing or malformed.
     """
     if not isinstance(scene_config, dict):
-        raise TypeError("kitchen layout needs the kitchen scene config (a dict)")
+        raise ValueError("kitchen layout needs the kitchen scene config (a dict)")
     try:
         cube_positions = scene_config["cube_positions"]
         cube_dimensions = scene_config["cube_dimensions"]

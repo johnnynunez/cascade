@@ -74,6 +74,21 @@ def test_the_reply_text_of_quote_heavy_notes_stays_under_the_cap(tmp_path):
     assert len(text) < notes.KNOWLEDGE_MAX_CHARS + 1000                              # main's keys, sha, nothing skipped
 
 
+@pytest.mark.parametrize("slack,shown", [(0, 3), (-1, 2)], ids=["exact fit", "one short"])
+def test_the_footer_reserve_counts_its_escaped_newline(tmp_path, monkeypatch, slack, shown):
+    lib = tmp_path / "lib"
+    for i in range(5):
+        _note(lib, f"note-{chr(97 + i)}", title=f"Cube note {chr(97 + i)}", advice="Look again before a second try.")
+    snap = load_snapshot(lib, "sim")
+    line = "\n" + snap.knowledge().splitlines()[1]                                    # every line is this long
+    cap = (_json_len(snap.knowledge().splitlines()[0]) + 3 * _json_len(line)
+           + _json_len("\n(5 more notes not shown)") + slack)
+    monkeypatch.setattr(notes, "KNOWLEDGE_MAX_CHARS", cap)
+    text = snap.knowledge()
+    assert text.count("\n- ") == shown and text.endswith(f"({5 - shown} more notes not shown)")
+    assert _json_len(text) <= cap
+
+
 def test_plain_notes_at_the_field_caps_still_list_ten(tmp_path):
     words = "cube near the lemon on the green square by the left side of the table and the bowl " * 5
     title, advice = words[:80].rstrip().ljust(80, "s"), words[:300].rstrip().ljust(300, "s")

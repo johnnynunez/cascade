@@ -111,8 +111,11 @@ def test_ordinary_notes_stay_served(tmp_path, title, advice):
         assert [n.id for n in load_snapshot(tmp_path / "lib", klass).served] == ["plain"]
 
 
-def test_fields_at_their_caps_fit_the_line_cap():
+def test_the_line_cap_is_both_field_caps_and_the_separator():
     assert notes.LINE_MAX_CHARS == notes.TITLE_MAX_CHARS + 2 + notes.ADVICE_MAX_CHARS == 382
+
+
+def test_fields_at_their_caps_fit_the_line_cap():
     words = "cube near the lemon on the green square by the left side of the table and the bowl " * 5
     title, advice = words[:80].rstrip().ljust(80, "s"), words[:300].rstrip().ljust(300, "s")
     assert len(title) == 80 and len(advice) == 300

@@ -35,6 +35,7 @@ import dataclasses
 import sys
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 from cascade.control.mock_arm import MockArm
@@ -266,6 +267,94 @@ def test_a_halt_before_home_sends_no_arm_command(rig, monkeypatch, profile, hold
     assert out["home_error"] == "halt received during route planning or execution", out
     if holding:
         _assert_still_held(r, out)
+
+
+def _fr3_off_home(r):
+    """fr3 (`return_home_after_motion: true`, the only shipped profile with
+    it): the reset's home move is the profile's camera-view home return. The
+    MockArm starts AT home, where that return sends nothing: move off first."""
+    runtime = r.runtime
+    assert runtime._home_policy_enabled() and runtime._drives_real_gripper()
+    home = np.asarray(runtime.cfg.arm.home_q, dtype=float)
+    off = home.copy()
+    off[0] += 0.15
+    assert runtime.arm.move_joints(off, duration_s=0.5)
+    assert _arm_commands(r.arms) > 0
+
+
+@pytest.mark.parametrize("where", ["status", "carry_check"])
+def test_fr3_view_home_return_ends_on_a_halt_raised_inside_it(rig, monkeypatch, where):
+    """The halt lands INSIDE the view-home return, after its own "halted"
+    flag checks (the status line, or its carry check): the move carries the
+    reset's generation, so it refuses. No arm command after the halt, and the
+    halt stays a halt: no e-stop latched by the return's cleanup."""
+    from cascade.skills import carry_attachment
+
+    r = rig("fr3")
+    _fr3_off_home(r)
+    runtime = r.runtime
+    at_halt = {}
+
+    def halt():
+        if not at_halt:
+            runtime.arm.harness.halt("operator: stop")
+            at_halt.update(arm=_arm_commands(r.arms))
+
+    if where == "status":
+        show = runtime._show_status
+
+        def show_then_halt(text):
+            show(text)
+            if text.startswith("Returning to the saved camera-view home"):
+                halt()
+
+        monkeypatch.setattr(runtime, "_show_status", show_then_halt)
+    else:
+        check = carry_attachment.check
+
+        def check_then_halt(rt):
+            check(rt)
+            if sys._getframe(1).f_code.co_name == "_return_to_view_home":
+                halt()
+
+        monkeypatch.setattr(carry_attachment, "check", check_then_halt)
+
+    out = runtime.execute("reset_scene", {})
+
+    assert at_halt, "the reset never reached the view-home return"
+    assert _arm_commands(r.arms) == at_halt["arm"], "an arm command went out after the halt"
+    assert r.jaws == []
+    assert out["ok"] is False and out["stage"] == "home", out
+    assert out["home_error"] == "halt received during route planning or execution", out
+    assert not runtime.arm.harness.estopped, "the halt was escalated to an e-stop"
+
+
+def test_fr3_move_home_halted_mid_route_stays_a_halt(rig):
+    """A halt during the view-home route stops it at the next waypoint and is
+    reported as the halt it is (MotionHalted), never latched as an e-stop."""
+    r = rig("fr3")
+    _fr3_off_home(r)
+    runtime = r.runtime
+    arm = r.arms[0]
+    send = arm.send_joint_target
+    at_halt = {}
+
+    def send_then_halt(q):
+        send(q)
+        if not at_halt and len(arm.commands) >= at_start + 5:
+            runtime.arm.harness.halt("operator: stop")
+            at_halt.update(arm=len(arm.commands))
+
+    at_start = len(arm.commands)
+    arm.send_joint_target = send_then_halt
+
+    out = runtime.execute("move_home", {})
+
+    assert at_halt, "the view-home route never streamed"
+    assert len(arm.commands) == at_halt["arm"], "an arm command went out after the halt"
+    assert out["ok"] is False, out
+    assert out["error"] == "MotionHalted: halted: operator: stop", out
+    assert not runtime.arm.harness.estopped, "the halt was escalated to an e-stop"
 
 
 def _fault(width_frac: float | None, exc: BaseException):

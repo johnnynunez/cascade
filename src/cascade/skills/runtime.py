@@ -1225,8 +1225,16 @@ class SkillRuntime:
                 return str(exc)
         return None
 
-    def _return_to_view_home(self, home: np.ndarray, profile: dict, failure=None) -> dict:
-        """Return without changing the jaws or clearing any safety latch."""
+    def _return_to_view_home(self, home: np.ndarray, profile: dict, failure=None,
+                             halt_generation: int | None = None) -> dict:
+        """Return without changing the jaws or clearing any safety latch.
+
+        `halt_generation`: the harness's halt generation when the calling
+        skill started (`skill_move_home(_halt_generation=...)`, e.g. the
+        reset's); the move then refuses a halt raised since then, also one
+        raised after the "halted" checks below (None: no baseline).
+        An operator halt ends the return as a halt (status "halted"), never
+        as a latched e-stop."""
         reason = self._home_return_skip_reason(failure)
         if reason:
             return {"ok": False, "status": "skipped", "reason": reason}
@@ -1258,7 +1266,8 @@ class SkillRuntime:
         try:
             self._show_status("Returning to the saved camera-view home")
             carry_attachment.check(self)
-            if not self._move_carry(home, duration_s=3.0):
+            halt_kw = {} if halt_generation is None else {"_halt_generation": halt_generation}
+            if not self._move_carry(home, duration_s=3.0, **halt_kw):
                 raise SkillError("did not settle at the saved home pose")
             reason = self._home_return_skip_reason()
             if reason:
@@ -1270,6 +1279,10 @@ class SkillRuntime:
             if error > tol:
                 raise SkillError(f"home feedback error {error:.4f} rad exceeds {tol:.4f} rad")
             return {"ok": True, "status": "returned", "home_q": target, "joint_error_rad": error}
+        except MotionHalted as exc:
+            # The operator's halt stopped the return (or refused it before
+            # the first command) and stays a halt: no stop latch on the arm.
+            return {"ok": False, "status": "halted", "reason": str(exc)}
         except Exception as exc:
             try:
                 self.arm.stop()
@@ -7346,8 +7359,11 @@ class SkillRuntime:
         else:
             home = self._profile_q("home_q", "move home")
         if self._home_policy_enabled():
-            result = self._return_to_view_home(home, self.cfg.arm)
+            # The caller's halt generation (the reset's) reaches this move too.
+            result = self._return_to_view_home(home, self.cfg.arm, halt_generation=_halt_generation)
             if not result["ok"]:
+                if result["status"] == "halted":
+                    raise MotionHalted(result["reason"])     # a halt stays a halt
                 raise SkillError(result.get("error", result.get("reason", "home return failed")))
             return {"at": "home", "return_home": result}
         # SafeArm plans the complete return before motion and re-vets against
